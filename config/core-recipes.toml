@@ -1620,6 +1620,7 @@ router2_profile = "unset"
 core_id = "fes.pcxt"
 identity_version = 2
 toolchain = "quartus"
+front_end = "yosys"
 producer_script = "scripts/build_fes_pcxt_quartus.py"
 producer_module = "scripts.build_fes_pcxt_quartus"
 authenticate = "authenticate_tools"
@@ -1631,6 +1632,8 @@ quartus_role = "primary diagnostic package producer"
 
 [recipes.quartus]
 version = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
+edition = "lite"
+device_family = "cyclonev"
 seeds = [1, 2, 3]
 threads = 2
 
@@ -1638,6 +1641,7 @@ threads = 2
 core_id = "fes.pcxt-dos"
 identity_version = 2
 toolchain = "quartus"
+front_end = "yosys"
 producer_script = "scripts/build_fes_pcxt_quartus.py"
 producer_module = "scripts.build_fes_pcxt_quartus"
 authenticate = "authenticate_tools"
@@ -1653,6 +1657,8 @@ hil_kits = ["B", "A"]
 
 [recipes.quartus]
 version = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
+edition = "lite"
+device_family = "cyclonev"
 seeds = [1, 2, 3]
 threads = 2
 
@@ -1862,6 +1868,7 @@ router2_profile = "unset"
 core_id = "fes.menu"
 board = "de25-nano"
 toolchain = "quartus"
+front_end = "quartus-pro"
 identity_version = 2
 producer_script = "boards/de25nano/producers/build_menu_package.py"
 producer_module = "boards.de25nano.producers.build_menu_package"
@@ -1874,6 +1881,8 @@ quartus_role = "primary DE25 MENU package producer"
 
 [recipes.quartus]
 version = "26.3.0"
+edition = "pro"
+device_family = "agilex5"
 seeds = [1]
 threads = 2
 
@@ -1881,6 +1890,7 @@ threads = 2
 core_id = "fes.zx81"
 board = "de25-nano"
 toolchain = "quartus"
+front_end = "quartus-pro"
 identity_version = 2
 producer_script = "boards/de25nano/producers/build_zx81_package.py"
 producer_module = "boards.de25nano.producers.build_zx81_package"
@@ -1893,5 +1903,7 @@ quartus_role = "primary DE25 BRAM ZX81 package producer"
 
 [recipes.quartus]
 version = "26.3.0"
+edition = "pro"
+device_family = "agilex5"
 seeds = [1]
 threads = 2

@@ -508,6 +508,12 @@ class StubPage {
     // The operands are a 16-byte-strided array at %rsi, and they are pushed
     // from the last to the first so that operand 0 ends up as ST(0).
     Stub build(unsigned pushes, const uint8_t *ops, unsigned nops) {
+        // A deliberate failure, so the counterexample can be built rather
+        // than argued: with FES_X87_NO_STUB set, every host stub is
+        // unavailable, which is what a denied mprotect(PROT_EXEC) looks like.
+        // Any row that reports a pass under it is a row that can pass without
+        // comparing anything.
+        if (std::getenv("FES_X87_NO_STUB")) return nullptr;
         if (!page_) return nullptr;
         if (mprotect(page_, 4096, PROT_READ | PROT_WRITE) != 0) return nullptr;
         std::vector<uint8_t> code;
@@ -542,13 +548,26 @@ void image_of(const uint8_t *raw, uint16_t sw, Image &out) {
 }
 
 // `stack` holds the operands ST(0) first, 10 bytes each.
+// Every host comparison in this bench goes through host_form, and it is the
+// only place that can tell a stub page was unavailable. **The invariant lives
+// here rather than at the call sites.** Nine call sites take its return value
+// and five of them used to `break` out of their loop without recording
+// anything, so a denied mprotect(PROT_EXEC) made those rows report a pass
+// having compared nothing -- 704 of them, measured with FES_X87_NO_STUB.
+// Guarding each site would have meant nine copies of one rule and a tenth
+// grid getting missed; counting here covers every present and future caller.
+unsigned stub_failures = 0;
+
 bool host_form(StubPage &page, uint16_t cw, const uint8_t (*stack)[10], unsigned pushes,
                const void *mem, const uint8_t *ops, unsigned nops, Image &out) {
     alignas(16) uint8_t raw[128] = {0};
     alignas(16) uint8_t operands[8][16] = {};
     for (unsigned n = 0; n < pushes && n < 8; ++n) std::memcpy(operands[n], stack[n], 10);
     Stub stub = page.build(pushes, ops, nops);
-    if (!stub) return false;
+    if (!stub) {
+        ++stub_failures;
+        return false;
+    }
     const unsigned sw = stub(&cw, operands, nullptr, mem, raw);
     image_of(raw, uint16_t(sw), out);
     return true;
@@ -1518,6 +1537,15 @@ int main(int argc, char **argv) {
             {"fmulp",      0x6, 0xc9, 2, 0, ARITH_SW},
             {"fsubp",      0x6, 0xe1, 2, 0, ARITH_SW},
             {"fsubrp",     0x6, 0xe9, 2, 0, ARITH_SW},
+            // Slice 4's divides. D8 F1 is FDIV ST,ST(1) and D8 F9 FDIVR;
+            // DC F1 is FDIVR ST(1),ST and DC F9 FDIV, the E0/E8 swap again;
+            // DE F1 and F9 are those two with the pop.
+            {"fdiv.st0",   0x0, 0xf1, 2, 0, ARITH_SW},
+            {"fdivr.st0",  0x0, 0xf9, 2, 0, ARITH_SW},
+            {"fdivr.sti",  0x4, 0xf1, 2, 0, ARITH_SW},
+            {"fdiv.sti",   0x4, 0xf9, 2, 0, ARITH_SW},
+            {"fdivrp",     0x6, 0xf1, 2, 0, ARITH_SW},
+            {"fdivp",      0x6, 0xf9, 2, 0, ARITH_SW},
             // The compares, ordered and unordered, with and without the pops.
             {"fcom",       0x0, 0xd1, 2, 0, CMP_SW},
             {"fcomp",      0x0, 0xd9, 2, 0, CMP_SW},
@@ -1525,7 +1553,15 @@ int main(int argc, char **argv) {
             {"fucom",      0x5, 0xe1, 2, 0, CMP_SW},
             {"fucomp",     0x5, 0xe9, 2, 0, CMP_SW},
             {"fucompp",    0x2, 0xe9, 2, 0, CMP_SW},
+            // Slice 4's remainders, with CMP_SW and not ARITH_SW: FAFFh
+            // masks out C0, C2 and C3, which are exactly the bits a remainder
+            // reports -- C2 for a partial step and C0, C3 and C1 for the
+            // quotient -- so a remainder row under ARITH_SW would check none
+            // of what this slice is for.
+            {"fprem",      0x1, 0xf8, 2, 0, CMP_SW},
+            {"fprem1",     0x1, 0xf5, 2, 0, CMP_SW},
             // The one-operand forms. FSCALE takes ST(1) as its scale.
+            {"fsqrt",      0x1, 0xfa, 1, 0, ARITH_SW},
             {"frndint",    0x1, 0xfc, 1, 0, ARITH_SW},
             {"fxtract",    0x1, 0xf4, 1, 0, ARITH_SW},
             {"fscale",     0x1, 0xfd, 2, 0, ARITH_SW},
@@ -1583,10 +1619,187 @@ int main(int argc, char **argv) {
     }
 
 
+    // ---- The remainders' partial steps, chained. ----
+    // The plan names this gate: directed FPREM and FPREM1 cases over large
+    // exponent differences, checking each partial step's C2 and the final
+    // C0, C3 and C1 quotient bits.
+    //
+    // A single instruction cannot check it, because the behaviour IS the
+    // sequence: while the exponent difference is 64 or more the step returns
+    // a partial remainder with C2 set and software loops. So each case runs
+    // the instruction repeatedly on the host and on the unit, comparing the
+    // whole state every step, and feeds the step's result back in as the next
+    // dividend -- which is what a program using FPREM does.
+    //
+    // A partial step reduces n = (expDiff & 31) | 32 quotient bits, so the
+    // step COUNT is data-dependent (cancellation shrinks the remainder
+    // unpredictably) and the chain runs until the host clears C2 rather than
+    // for a fixed number of steps.
+    {
+        StubPage page;
+        struct Chain { const char *name; uint16_t ea; uint64_t sa; uint16_t eb; uint64_t sb; };
+        const Chain chains[] = {
+            // Differences at and around the boundary: 63 completes in one
+            // step, 64 and 65 take two.
+            {"d63",   uint16_t(0x3fff + 63), 0x9357bdf000000000ull, 0x3fff, 0x8000000000000000ull},
+            {"d64",   uint16_t(0x3fff + 64), 0x9357bdf000000000ull, 0x3fff, 0x8000000000000000ull},
+            {"d65",   uint16_t(0x3fff + 65), 0x9357bdf000000000ull, 0x3fff, 0x8000000000000000ull},
+            // ... and far beyond it, where the chain runs many steps.
+            {"d200",  uint16_t(0x3fff + 200), 0x923456789abcdef0ull, 0x3fff, 0x8000000000000000ull},
+            {"d299",  uint16_t(0x3fff + 299), 0xaaaaaaaaaaaaaaaaull, 0x4000, 0xc000000000000000ull},
+            {"d359",  uint16_t(0x3fff + 359), 0xfedcba9876543210ull, 0x4000, 0xc000000000000000ull},
+            {"d999",  uint16_t(0x3fff + 999), 0xfedcba9876543210ull, 0x4000, 0xc000000000000000ull},
+            // A divisor that is not a power of two and a dividend that is,
+            // so the quotient's low bits are not all zero at the end.
+            {"d130",  uint16_t(0x3fff + 130), 0x8000000000000000ull, 0x3fff, 0xb504f333f9de6484ull},
+            // Negative differences: the quotient is zero and the dividend
+            // comes back, except for FPREM1 at exactly -1.
+            {"dm1",   0x3ffe, 0xc000000000000000ull, 0x3fff, 0x8000000000000000ull},
+            {"dm1eq", 0x3ffe, 0x8000000000000000ull, 0x3fff, 0x8000000000000000ull},
+            {"dm5",   uint16_t(0x3fff - 5), 0x9000000000000000ull, 0x3fff, 0x8000000000000000ull},
+            // A difference of zero, where FPREM truncates the quotient to one
+            // and FPREM1 rounds it to two.
+            {"d0",    0x4000, 0xc000000000000000ull, 0x4000, 0x8000000000000000ull},
+            // An ODD divisor near the tie. Comparing rem with B >> 1 drops
+            // the divisor's low bit, so a remainder strictly below half reads
+            // as a tie and FPREM1 rounds the quotient up where the host does
+            // not. These are the cases that separate `2*rem vs B` from
+            // `rem vs B/2`.
+            {"odd-lo", 0x3fff, 0xc000000000000001ull, 0x3fff, 0x8000000000000001ull},
+            {"odd-hi", 0x3fff, 0xc000000000000002ull, 0x3fff, 0x8000000000000001ull},
+            {"odd-eq", 0x3fff, 0xc000000000000000ull, 0x3fff, 0x8000000000000001ull},
+            {"odd-b",  0x4001, 0xffffffffffffffffull, 0x3fff, 0x8000000000000003ull},
+        };
+        for (unsigned one = 0; one < 2; ++one) {
+            const uint8_t ops[2] = {0xd9, uint8_t(one ? 0xf5 : 0xf8)};
+            const unsigned uop = (0x1u << 8) | (one ? 0xf5u : 0xf8u);
+            for (const Chain &c : chains) {
+                Unit u;
+                std::array<uint8_t, 10> a{}, b{};
+                std::memcpy(a.data(), &c.sa, 8);
+                std::memcpy(a.data() + 8, &c.ea, 2);
+                std::memcpy(b.data(), &c.sb, 8);
+                std::memcpy(b.data() + 8, &c.eb, 2);
+                int steps = 0, diffs = 0;
+                bool partial_seen = false, complete_seen = false;
+                std::string first;
+                for (; steps < 40; ++steps) {
+                    uint8_t stack[2][10];
+                    std::memcpy(stack[0], a.data(), 10);
+                    std::memcpy(stack[1], b.data(), 10);
+                    Image want{}, got{};
+                    if (!host_form(page, host_cw(0), stack, 2, nullptr, ops, 2, want)) break;
+                    unit_form(u, host_cw(0), stack, 2, nullptr, uop, 0, got);
+                    ++compared;
+                    // The full mask: C2 says whether to loop and C0, C3 and
+                    // C1 carry the quotient, so none of them may be masked.
+                    if (!same_state(want, got, 0xffff)) {
+                        if (!diffs)
+                            first = "step " + std::to_string(steps) +
+                                    " st0=" + hex80(stack[0]) + " st1=" + hex80(stack[1]) +
+                                    " got " + state_str(got, 0xffff) +
+                                    " want " + state_str(want, 0xffff);
+                        ++diffs;
+                        break;      // the chain has diverged; later steps say nothing
+                    }
+                    const bool c2 = (want.sw >> 10) & 1;
+                    if (c2) partial_seen = true; else complete_seen = true;
+                    if (!c2) break;
+                    std::memcpy(a.data(), want.reg[0], 10);   // feed the step back
+                }
+                const std::string name = std::string(one ? "prem1-chain-" : "prem-chain-") + c.name;
+                if (diffs) bad(name, std::to_string(diffs) + " " + first);
+                else if (!complete_seen) bad(name, "the chain never cleared C2 in 40 steps");
+                else ok(name + "-" + std::to_string(steps + 1) +
+                        (partial_seen ? "-partial" : "-direct"));
+            }
+        }
+    }
+
+    // ---- QEMU's fprem test, as the plan names it. ----
+    // qemu/tests/tcg/i386/test-i386-fprem.c runs FPREM and FPREM1 over a
+    // systematic cross product of operand fields and prints each result and
+    // status word; its own header says to "run this on real hardware, then
+    // under QEMU, and diff the outputs". That is exactly what this bench
+    // does, except that it compares the whole architectural state rather than
+    // printed fields, so the test is ported as its operand grid rather than
+    // run as a program.
+    //
+    // The grid is QEMU's own, field for field: the sign, nine exponents
+    // including 0, 1, 2, the bias either side, 7FFDh, 7FFEh and 7FFFh, the
+    // explicit integer bit either way, the quiet-NaN bit either way, and six
+    // mantissas at both ends of the range. 432 values an operand.
+    {
+        StubPage page;
+        const unsigned exps[] = {0, 1, 2, 0x3ffe, 0x3fff, 0x4000, 0x7ffd, 0x7ffe, 0x7fff};
+        const uint64_t mants[] = {0, 1, 2,
+                                  0x3ffffffffffffffdull, 0x3ffffffffffffffeull,
+                                  0x3fffffffffffffffull};
+        std::vector<std::array<uint8_t, 10>> grid;
+        for (unsigned neg = 0; neg < 2; ++neg)
+            for (unsigned e : exps)
+                for (unsigned one = 0; one < 2; ++one)
+                    for (unsigned qnan = 0; qnan < 2; ++qnan)
+                        for (uint64_t mant : mants) {
+                            // The fields as QEMU's union lays them out: the
+                            // mantissa's top bit is the quiet-NaN flag and the
+                            // one above it the explicit integer bit.
+                            const uint64_t sig = mant | (uint64_t(qnan) << 62)
+                                               | (uint64_t(one) << 63);
+                            std::array<uint8_t, 10> b{};
+                            std::memcpy(b.data(), &sig, 8);
+                            const uint16_t se = uint16_t(e | (neg << 15));
+                            std::memcpy(b.data() + 8, &se, 2);
+                            grid.push_back(b);
+                        }
+        for (unsigned one = 0; one < 2; ++one) {
+            const uint8_t ops[2] = {0xd9, uint8_t(one ? 0xf5 : 0xf8)};
+            const unsigned uop = (0x1u << 8) | (one ? 0xf5u : 0xf8u);
+            int diffs = 0, ran = 0;
+            bool stub_failed = false;
+            std::string first;
+            Unit u;
+            // Every A against every eighth B: the full 432 x 432 is 186,624
+            // pairs an instruction and the stride keeps the run to a few
+            // minutes while still crossing every field of A with every field
+            // of B at least once.
+            for (size_t ia = 0; ia < grid.size(); ++ia)
+                for (size_t ib = ia % 8; ib < grid.size(); ib += 8) {
+                    uint8_t stack[2][10];
+                    std::memcpy(stack[0], grid[ia].data(), 10);
+                    std::memcpy(stack[1], grid[ib].data(), 10);
+                    Image want{}, got{};
+                    if (!host_form(page, host_cw(0), stack, 2, nullptr, ops, 2, want)) {
+                        // A stub page that cannot be made executable is a
+                        // FAILURE, not a reason to stop: breaking out left
+                        // `diffs` at zero and the row reported success having
+                        // compared nothing. Codex found it on PR #1889.
+                        stub_failed = true;
+                        break;
+                    }
+                    unit_form(u, host_cw(0), stack, 2, nullptr, uop, 0, got);
+                    ++ran;
+                    ++compared;
+                    if (!same_state(want, got, 0xffff)) {
+                        if (!diffs)
+                            first = "st0=" + hex80(stack[0]) + " st1=" + hex80(stack[1]) +
+                                    " got " + state_str(got, 0xffff) +
+                                    " want " + state_str(want, 0xffff);
+                        ++diffs;
+                    }
+                }
+            const std::string name = std::string("qemu-fprem") + (one ? "1" : "");
+            if (stub_failed) bad(name, "no stub page: " + std::to_string(ran) + " of the grid ran");
+            else if (diffs) bad(name, std::to_string(diffs) + " of " + std::to_string(ran) + " " + first);
+            else ok(name + "-" + std::to_string(ran));
+        }
+    }
+
     // ---- Precision control. ----
-    // PC applies to add, subtract and multiply and to nothing else
-    // (387 PRM section 2.3.2), so FRNDINT, FSCALE, FXTRACT and the compares
-    // run here too: the point is that their results do not change with it.
+    // PC applies to add, subtract, multiply, divide and square root and to
+    // nothing else (387 PRM section 2.3.2), so FRNDINT, FSCALE, FXTRACT and
+    // the compares run here too: the point is that their results do not
+    // change with it.
     {
         StubPage page;
         const uint16_t ARITH_SW = 0xfaff;
@@ -1597,6 +1810,17 @@ int main(int argc, char **argv) {
             {"fsub.p",  0x6, 0xe1, 2, ARITH_SW}, {"fcom",   0x0, 0xd1, 2, 0xffff},
             {"frndint", 0x1, 0xfc, 1, ARITH_SW}, {"fscale", 0x1, 0xfd, 2, ARITH_SW},
             {"fxtract", 0x1, 0xf4, 1, ARITH_SW},
+            // Slice 4's: the divide rounds at PC like the multiply does, and
+            // its iteration count is chosen by PC, so this row is what says
+            // the early termination did not change a result.
+            {"fdiv",    0x0, 0xf1, 2, ARITH_SW}, {"fdivr",  0x0, 0xf9, 2, ARITH_SW},
+            {"fdiv.p",  0x6, 0xf9, 2, ARITH_SW},
+            // FSQRT rounds at PC as well, and its iteration count is chosen
+            // by PC, so this row says the early termination changed nothing.
+            {"fsqrt",   0x1, 0xfa, 1, ARITH_SW},
+            // The remainders ignore precision control entirely, so these rows
+            // say their results do not move with it.
+            {"fprem",   0x1, 0xf8, 2, 0xffff}, {"fprem1", 0x1, 0xf5, 2, 0xffff},
         };
         const size_t named = 22;
         // PC 01 is reserved. The unit reads it as the extended format; this
@@ -1652,9 +1876,11 @@ int main(int argc, char **argv) {
             {"m32",  0x0, FMT_F32, 4}, {"m64", 0x4, FMT_F64, 8},
             {"m32i", 0x2, FMT_I32, 4}, {"m16i", 0x6, FMT_I16, 2},
         };
-        const char *rfname[6] = {"add", "mul", "com", "comp", "sub", "subr"};
+        // Reg fields 0 to 5 are slice 3's and 6 and 7 are slice 4's divides,
+        // so the loop runs the whole field.
+        const char *rfname[8] = {"add", "mul", "com", "comp", "sub", "subr", "div", "divr"};
         for (const MForm &m : mforms) {
-            for (unsigned rf = 0; rf < 6; ++rf) {
+            for (unsigned rf = 0; rf < 8; ++rf) {
                 for (unsigned rc = 0; rc < 4; ++rc) {
                     const uint16_t cw = host_cw(rc);
                     // The host addresses the operand through %rcx, so its
@@ -1901,6 +2127,21 @@ int main(int argc, char **argv) {
             {"frndint", 0x1, 0xfc, 1, ARITH_SW}, {"fxtract", 0x1, 0xf4, 1, ARITH_SW},
             {"fcom",  0x0, 0xd1, 2, 0xffff}, {"fcompp", 0x6, 0xd9, 2, 0xffff},
             {"fucomp", 0x5, 0xe9, 2, 0xffff},
+            // Slice 4's, under every mask setting. The divide is the only
+            // form in this unit that can raise ZE, and unmasked ZE on the
+            // commit edge is the hazard this slice's brief names, so these
+            // rows are what exercise it.
+            //
+            // **C1 means something different in the remainder rows.** For the
+            // arithmetic and the divide it is the rounding's direction and
+            // comes from `pc1`; for FPREM and FPREM1 it is the QUOTIENT'S BIT
+            // 0. Both reach the status word through `pc1`, because S_APPLY
+            // writes the codes as {nc[3], nc[2], c1, nc[0]}. A row copied
+            // from a divide row and read as a rounding direction is wrong.
+            {"fdiv",   0x0, 0xf1, 2, ARITH_SW}, {"fdivr", 0x0, 0xf9, 2, ARITH_SW},
+            {"fdiv.sti", 0x4, 0xf9, 2, ARITH_SW}, {"fdivp", 0x6, 0xf9, 2, ARITH_SW},
+            {"fsqrt",  0x1, 0xfa, 1, ARITH_SW},
+            {"fprem",  0x1, 0xf8, 2, 0xffff}, {"fprem1", 0x1, 0xf5, 2, 0xffff},
         };
         for (const Mask &m : masks) {
             for (unsigned rc = 0; rc < 4; ++rc) {
@@ -1972,8 +2213,26 @@ int main(int argc, char **argv) {
             // still rises, which is the case `um` alone would miss.
             {"pe", 0x035f, 0x3fff, 0x8000000000000000ull,
                            uint16_t(0x3fff - 70), 0x8000000000000000ull, 0x0, 0xc1},
-            // divide-by-zero, which only FXTRACT raises in this slice
+            // divide-by-zero, which only FXTRACT raised before slice 4
             {"ze", 0x037b, 0x0000, 0, 0x0000, 0, 0x1, 0xf4},
+            // Slice 4's. ZE from a real divide is the exception this slice
+            // adds and the one its brief names: 1 / 0 with ZM clear, where
+            // divide-by-zero is a PRE-operation exception, so the operands
+            // and TOP are left alone and the latch still has to rise on the
+            // commit edge.
+            {"ze-div", 0x037b, 0x3fff, 0x8000000000000000ull, 0x0000, 0, 0x0, 0xf1},
+            // invalid from a divide: 0 / 0 with IM clear.
+            {"ie-div", 0x037e, 0x0000, 0, 0x0000, 0, 0x0, 0xf1},
+            // invalid from a square root: the root of a negative, IM clear.
+            {"ie-sqrt", 0x037e, 0xbfff, 0x8000000000000000ull, 0x3fff,
+                        0x8000000000000000ull, 0x1, 0xfa},
+            // precision from a divide, PM clear: the result is written and
+            // the latch still rises, the case `um` alone would miss.
+            {"pe-div", 0x035f, 0x3fff, 0x8000000000000000ull, 0x4000,
+                       0xc000000000000000ull, 0x0, 0xf1},
+            // invalid from a remainder: an infinite dividend, IM clear.
+            {"ie-prem", 0x037e, 0x7fff, 0x8000000000000000ull, 0x4000,
+                        0x8000000000000000ull, 0x1, 0xf8},
         };
         for (const Trial &t : trials) {
             Unit u;
@@ -2027,6 +2286,15 @@ int main(int argc, char **argv) {
         const TestFloatManifest testfloat = run_testfloat_manifest(testfloat_manifest);
         std::printf("TESTFLOAT %u %u\n", testfloat.vectors, testfloat.configs);
     }
+    // A bench that compared nothing is not a bench that passed. Both of
+    // these are failures of the harness rather than of the unit, and both
+    // would otherwise be invisible: the run already printed COMPARED 0 and
+    // nothing gated on it.
+    if (stub_failures)
+        bad("protocol.stub", std::to_string(stub_failures)
+            + " host stubs were unavailable, so that many comparisons never ran");
+    if (compared == 0)
+        bad("protocol.compared", "no host comparison ran at all");
     if (held_for_ever) bad("protocol.hold", std::to_string(held_for_ever) + " uops held past the bench's wait");
     else ok("protocol.hold");
     std::printf("COMPARED %ld\n", compared);

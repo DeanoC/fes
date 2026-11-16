@@ -85,8 +85,8 @@ Each changed path gets a class and a component:
   code selects both packages, while computer-specific code selects ZX81.
   The captured ZX81 firmware generator also selects the ZX81 hardware check.
   Select Kit D25 for those changes; a missing or held D25 route leaves HIL
-  open and never falls back to A or B. The repo planner reports this selection,
-  but the Powerboat HILQ queue and watcher still need D25 dispatch support.
+  open and never falls back to A or B. The repo planner and Powerboat HILQ select D25 only. HILQ supervises exact-head
+  D25 runs through lander-watch with an explicit cap.
   DE25 HIL is a normal exact-head merge gate.
   PASS requires package import and launch, visible capture from
   `/dev/v4l/by-id/fes-ms2109-hil`, input, Stop to idle, and a verified restore

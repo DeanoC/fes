@@ -1,0 +1,8 @@
+=== seed 1 (route.log tail)
+Info:     iter=139 wires=429537 overused=2 overuse=2 tmgfail=0 nets=2 batches=2 archfail=NA
+nextpnr route timed out after 600 seconds of its own run time (0.0 s of GPU lease wait excluded)
+search_placer_qor: tool failed with exit 124
+=== seed 6 (route.log tail)
+Info: Routed Fmax (pip delay table) for clock 'system_clock.clocks[1]': 144.11 MHz
+nextpnr route timed out after 600 seconds of its own run time (0.1 s of GPU lease wait excluded)
+search_placer_qor: tool failed with exit 124
