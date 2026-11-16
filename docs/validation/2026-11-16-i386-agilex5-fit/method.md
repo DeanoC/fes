@@ -495,3 +495,37 @@ this would not catch a swept block.
 the precommitted set (which gave the machine the headline rung at seed 1
 only), because the budget rests on those two fits. More evidence at the same
 rung; no rule changed.
+
+## Amendment, 16 November 2026: M+ is not the design the DE10 refused
+
+What had been seen: fits C (both devices), M and M+ had passed; fit M on the
+DE10, the ladder, the extra seeds and the secondary had produced nothing. A
+headline reading "the DE25 holds the CPU, the machine and main's 387 together,
+where the DE10 does not" had been written into the record and the PR body and
+sent to two sessions. This amendment retracts it.
+
+**`main`'s 387 is one the DE10 holds.** It is slice 2 — state, CPU and
+AT-board interface, conversions, rounding and the shared significand
+multiplier — and **every arithmetic form on main decodes to `X87_UNIMPL`**.
+[#1821](https://github.com/DeanoC/fes/pull/1821) sealed exactly that on the
+DE10: 36,298 of 41,910 ALMs, every analysis positive over all four corners,
+0 ns TNS, with a kit run on the seal.
+
+**[#1889](https://github.com/DeanoC/fes/pull/1889)'s refusal is a different
+design.** It is slice 4 stacked on slice 3, whose 387 has divide, square root
+and the remainders: 8,073 ALMs for the standalone unit against its merge
+base's 4,076 on the DE10. Its identity-on machine required 4,292 LABs of
+4,191 and never placed.
+
+So M+ — `main` plus a one-character flip — measures a 387 the DE10 already
+carries, and this record establishes **nothing** about whether the DE25 holds
+the one the DE10 refused. The headline is withdrawn from the record and the PR
+body. What M+ establishes is exactly this: the machine with slice 2's 387
+takes 79.6% of the Agilex 5's ALMs and closes 61.44 MHz at every corner.
+
+**The measurement that would settle the DE25 plan is now named as not made:**
+`pc386_system` from #1889's head, through this runner, on Agilex 5, with
+`x87_present` tied high. It is offered to the coordinating session rather than
+run here unasked, because it is a different base from the one this task and
+this method named, and because the two sessions working on #1889's lane may
+want it on their own terms.

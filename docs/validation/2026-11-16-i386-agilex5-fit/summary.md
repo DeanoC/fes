@@ -1,9 +1,20 @@
 # How large is the 386 on Agilex 5? 16 November 2026
 
-**The DE25 holds the CPU, the pc386 machine and main's 387 together, where the
-DE10 does not — and after doing so it has about 9,500 of its 46,800 ALMs
-left.** The 386 is smaller on Agilex 5 in ALM terms and roughly twice as fast.
-That is the answer to Deano's question.
+**The CPU, the pc386 machine and main's 387 together take 79.6% of the
+DE25's ALMs, leaving 9,545 of its 46,800 — and the CPU reaches 124 MHz at its
+worst slow corner where the Cyclone V reaches 64.** That is what was measured.
+
+**What was not measured, and what the DE25 plan actually turns on:** whether
+the DE25 holds the 387 the DE10 *refused*. `main`'s 387 is slice 2 — state,
+interface, conversions, no arithmetic at all — and the DE10 **holds it**:
+[#1821](https://github.com/DeanoC/fes/pull/1821) sealed it there at 36,298 of
+41,910 ALMs with every analysis passing.
+[#1889](https://github.com/DeanoC/fes/pull/1889)'s refusal was its own head,
+slice 4 stacked on slice 3, whose 387 has divide, square root and the
+remainders: 8,073 ALMs for the standalone unit against the merge base's 4,076.
+Nothing in this record fits that design. Settling it needs #1889's head through
+this runner, and that is listed under [what is not
+measured](#the-clock-ladder-and-what-is-not-measured).
 
 The question, in his words: *"we need see the entire size of the 386 on the
 agilex 5, it may be bigger or smaller as different fabric and toolchain."* It
@@ -69,7 +80,7 @@ registers are counts, because Quartus states no device total for them.
 | C, Agilex 5 | 29,300 | 62.61% | 3,626 | 77.48% | 42,126 | 20,842 | 12 / 188 | 53 M20K / 358 | 408,320 |
 | C, Cyclone V | 31,244 | 74.55% | 3,494 | 83.37% | 43,032 | 19,268 | 23 / 112 | 90 M10K / 553 | 409,384 |
 | M, Agilex 5 | 35,492 | 75.84% | 4,424 | 94.53% | 55,055 | 33,908 | 24 / 188 | 134 M20K / 358 | 1,350,950 |
-| M+, Agilex 5 | 37,255 | 79.60% | 4,590 | **98.08%** | 57,906 | 35,233 | 33 / 188 | 138 M20K / 358 | 1,352,230 |
+| M+, Agilex 5 | 37,255 | 79.60% | 4,590 | 98.08% | 57,906 | 35,233 | 33 / 188 | 138 M20K / 358 | 1,352,230 |
 
 **Achievable clock.** The constraint is 61.44 MHz and these are that rung's
 areas; a fit at a higher constraint is a different fit with a different area.
@@ -82,11 +93,14 @@ Restricted Fmax at each device's worst slow corner, the fitter's own estimate:
 | M, Agilex 5 (system clock) | **117.80 MHz** | 132.22 | 207.08 |
 | M, Agilex 5 (pixel clock) | 187.30 | 222.37 | — |
 
-So the speed half of Deano's question has a clear answer: on Agilex 5 the CPU
-reaches 124 MHz at its worst slow corner and the whole machine 118, where the
-Cyclone V reaches 64 — which is why the DE10 is pinned at 61.44 in the first
-place. A DE25 would not be. The clock ladder that would turn these estimates
-into a closure is in [the ladder section](#the-clock-ladder-and-what-is-not-measured).
+On the speed half of Deano's question: on Agilex 5 this CPU's worst slow
+corner estimate is 124 MHz and the whole machine's 118; on the Cyclone V the
+same CPU's is 64, and the DE10 is pinned at 61.44. **Both are the fitter's
+estimates at a 61.44 MHz constraint, not closures**, and this record contains
+no closure for either device — the ladder that would produce one is listed
+under [what is not measured](#the-clock-ladder-and-what-is-not-measured).
+These are two devices' separate estimates and no ratio between them is stated
+here.
 
 ## The 387's cost, and what it is not
 
@@ -164,10 +178,11 @@ that neither fit placed so there is no ALM figure at all. The fit reports here
 have no "LABs required" row; the row they have is a post-placement fact. The
 two are different quantities and this record does not put them on one scale.
 
-**What is comparable with #1889 is the outcome, not a percentage.** On the
-DE10 the identity-on machine required more LABs than the device has and never
-placed. On Agilex 5 it placed, routed and closed timing at every published
-corner. That is the comparison, and it is the one that matters for the plan.
+**Nor is the *outcome* comparable with #1889, because it is not the same
+design.** #1889's identity-on machine carries slice 3 and slice 4's
+arithmetic; M+ carries `main`'s slice 2, which the DE10 seals without
+difficulty. "Agilex 5 placed what the DE10 could not" would need #1889's head
+fitted here, and it has not been.
 
 For the record, the LAB occupancy and packing density of every Agilex fit:
 
@@ -190,6 +205,12 @@ for either device — only the fitter's per-corner estimates above, labelled as
 estimates. Extra seeds of M and M+ were added beyond the precommitted set,
 because the budget rests on those two fits: an addition at the same rung, not
 a relaxation of anything.
+
+**The measurement that would settle the DE25 plan, and has not been made:**
+`pc386_system` from #1889's head — slice 4 on slice 3, the 387 with divide,
+square root and the remainders — through this runner on Agilex 5, with
+`x87_present` tied high. That is the design the DE10 refused. Everything in
+this record is `main`, whose 387 has no arithmetic.
 
 Also not measured, and stated as such:
 
