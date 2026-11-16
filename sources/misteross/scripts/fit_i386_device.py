@@ -141,6 +141,7 @@ def compiler_lease():
 
 _PORT = re.compile(r"^\s*(input|output|inout)\b(.*?);\s*$")
 _RANGE = re.compile(r"\[\s*(\d+)\s*:\s*(\d+)\s*\]")
+_DECL_KEYWORDS = frozenset({"wire", "reg", "logic", "signed", "unsigned"})
 
 
 def netlist_ports(text: str, top: str) -> list[str]:
@@ -158,12 +159,14 @@ def netlist_ports(text: str, top: str) -> list[str]:
             continue
         body = match.group(2)
         vector = bool(_RANGE.search(body))
-        names = _RANGE.sub("", body).replace("wire", " ").replace("reg", " ").replace("signed", " ")
-        for name in names.split(","):
-            name = name.strip()
-            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*", name):
+        # Tokenise rather than substitute: a port named arch_x87_regs contains
+        # the keyword "reg", and replacing substrings would corrupt its name.
+        for token in re.split(r"[,\s]+", _RANGE.sub(" ", body)):
+            if not token or token in _DECL_KEYWORDS:
+                continue
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*", token):
                 raise FitError(f"unreadable port declaration in {top}: {line.strip()!r}")
-            ports.append(f"{name}[*]" if vector else name)
+            ports.append(f"{token}[*]" if vector else token)
     if not ports:
         raise FitError(f"{top} declares no ports in the netlist body; this reads the non-ANSI form "
                        "Yosys's write_verilog produces, where the header names the ports and the "

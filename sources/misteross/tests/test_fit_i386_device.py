@@ -22,6 +22,8 @@ module fes_i386_cpu(clk, cold_reset, init_gpr, ddr_address, arch_cpl);
   input [255:0] init_gpr;
   output [27:0] ddr_address;
   output [1:0] arch_cpl;
+  output [639:0] arch_x87_regs;
+  output wire signed [15:0] sample;
   wire [31:0] internal;
   reg [3:0] state;
 endmodule
@@ -51,7 +53,10 @@ CYCLONE_REPORT = """\
 class Ports(unittest.TestCase):
     def test_ports_come_from_the_netlist_with_vectors_wildcarded(self):
         self.assertEqual(fit.netlist_ports(NETLIST, "fes_i386_cpu"),
-                         ["clk", "cold_reset", "init_gpr[*]", "ddr_address[*]", "arch_cpl[*]"])
+                         ["clk", "cold_reset", "init_gpr[*]", "ddr_address[*]", "arch_cpl[*]",
+                          # "reg" is a substring of this port's name, and "wire"
+                          # and "signed" are keywords in the next declaration.
+                          "arch_x87_regs[*]", "sample[*]"])
 
     def test_ports_of_the_named_top_only(self):
         # The netlist holds every module; only the top's ports become pins.
