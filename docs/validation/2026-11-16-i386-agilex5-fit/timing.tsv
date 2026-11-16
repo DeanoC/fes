@@ -23,6 +23,30 @@ cpu-de25	Fast fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null
 cpu-de25	Fast fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
 cpu-de25	Fast fix4 0C Model	0	internal_setup	analyzed	1	11.846	dfwd_ready[27]	r_dst[1]
 cpu-de25	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	7.735		
+cpu-de25-75	Slow fix4 100C Model	0	setup	analyzed	1	6.594	decode_by[15]~DUPLICATE	_28159_[151]
+cpu-de25-75	Slow fix4 100C Model	0	hold	analyzed	1	0.116	_28367_[5]	ag_seg_hi_plus1[5]
+cpu-de25-75	Slow fix4 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-75	Slow fix4 100C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-75	Slow fix4 100C Model	0	internal_setup	analyzed	1	6.594	decode_by[15]~DUPLICATE	_28159_[151]
+cpu-de25-75	Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	6.060		
+cpu-de25-75	Slow fix4 0C Model	0	setup	analyzed	1	5.758	_28158_[124]	_28159_[101]
+cpu-de25-75	Slow fix4 0C Model	0	hold	analyzed	1	0.150	x87_mul_r0[9]	x87_mul_p[9]
+cpu-de25-75	Slow fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-75	Slow fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-75	Slow fix4 0C Model	0	internal_setup	analyzed	1	5.758	_28158_[124]	_28159_[101]
+cpu-de25-75	Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.027		
+cpu-de25-75	Slow fix4a 0C Model	0	setup	analyzed	1	5.774	_28158_[124]	_28159_[101]
+cpu-de25-75	Slow fix4a 0C Model	0	hold	analyzed	1	0.150	x87_mul_r0[9]	x87_mul_p[9]
+cpu-de25-75	Slow fix4a 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-75	Slow fix4a 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-75	Slow fix4a 0C Model	0	internal_setup	analyzed	1	5.774	_28158_[124]	_28159_[101]
+cpu-de25-75	Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	6.028		
+cpu-de25-75	Fast fix4 0C Model	0	setup	analyzed	1	9.005	decode_by[15]~DUPLICATE	_28159_[151]
+cpu-de25-75	Fast fix4 0C Model	0	hold	analyzed	1	0.051	x87_ra_idx[0]	x87_ra_live[0]
+cpu-de25-75	Fast fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-75	Fast fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-75	Fast fix4 0C Model	0	internal_setup	analyzed	1	9.005	decode_by[15]~DUPLICATE	_28159_[151]
+cpu-de25-75	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.264		
 cpu-de10	Slow 1100mV 100C Model	0	setup	analyzed	1	0.763	dfwd_ready[17]	_28159_[0]
 cpu-de10	Slow 1100mV 100C Model	0	hold	analyzed	1	0.273	x87_mul_a[10]	x87_mul_ar[10]
 cpu-de10	Slow 1100mV 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		

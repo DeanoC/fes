@@ -225,6 +225,29 @@ square root and the remainders — through this runner on Agilex 5, with
 `x87_present` tied high. That is the design the DE10 refused. Everything in
 this record is `main`, whose 387 has no arithmetic.
 
+### The ladder as far as it has run
+
+| Rung | Device | Closed? | ALMs | % | LABs | % | Worst-corner Fmax estimate |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 61.44 MHz | Agilex 5 | **yes**, all 4 corners | 29,300 | 62.61% | 3,626 | 77.48% | 124.35 MHz |
+| 75 MHz | Agilex 5 | **yes**, all 4 corners | 29,360 | 62.74% | 3,611 | 77.16% | 132.01 MHz |
+| 90, 110, 130 MHz | Agilex 5 | queued | — | — | — | — | — |
+| 61.44 MHz | Cyclone V | **yes**, all 8 corners | 31,244 | 74.55% | 3,494 | 83.37% | 63.79 MHz |
+| 75, 90, 110, 130 MHz | Cyclone V | queued, and expected to miss | — | — | — | — | — |
+
+Two things the 75 MHz rung already shows. **Area barely moves**: 29,360 against
+29,300 ALMs, 60 apart, far inside this lane's ±200 noise. And **the Fmax
+estimate moves a lot**: 132.01 MHz at the worst slow corner against 124.35 at
+the looser constraint, on the same netlist. That is the fitter working harder
+against a tighter requirement, and it is exactly why the method treats a
+single constraint's Fmax as an estimate rather than a closure — and why the
+answer to "what does it close at" is the highest rung that passes, not the
+largest Fmax anyone has seen printed.
+
+So on the evidence here `fes_i386_cpu` **closes at 75 MHz on Agilex 5**, with
+higher rungs queued, against **61.44 MHz on the Cyclone V**, whose own
+worst-corner estimate of 63.79 MHz leaves it no room for a higher rung.
+
 Also not measured, and stated as such:
 
 - **Any per-module split.** The `SEAL` recipe flattens, so each fit reports one

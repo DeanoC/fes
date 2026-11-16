@@ -32,6 +32,24 @@
     "quartus": "26.3.0",
     "seed": 1
   },
+  "cpu-de25-75": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 0,
+        "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+        "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 30,
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+      },
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v"
+    },
+    "period_ns": 13.3333333333,
+    "quartus": "26.3.0",
+    "seed": 1
+  },
   "cpu-de25-zerodelay-envelope": {
     "device": "A5EB013BB23BE4SCS",
     "netlist": {
