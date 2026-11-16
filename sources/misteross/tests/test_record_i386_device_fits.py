@@ -127,6 +127,25 @@ class Collect(unittest.TestCase):
             self.assertTrue(host["collected_at_revision"])
             self.assertEqual(host["fits_from_a_modified_checkout"], [])
 
+    def test_one_fit_with_a_revision_beside_one_without_is_not_agreement(self):
+        # Otherwise the known commit is assigned to the record and the note
+        # says every fit came from it, attributing the unversioned fit too.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            known = write_fit(root / "k", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                              alms=1, available=2, device_alms=46800, ram_block="M20K")
+            legacy = write_fit(root / "l", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                               alms=1, available=2, device_alms=46800, ram_block="M20K")
+            inputs = json.loads((legacy / "inputs.json").read_text())
+            del inputs["fes_revision"]
+            (legacy / "inputs.json").write_text(json.dumps(inputs))
+            out = root / "record"
+            record.main(["--record", str(out), f"--fit=known={known}", f"--fit=legacy={legacy}"])
+            host = json.loads((out / "host.json").read_text())
+            self.assertIsNone(host["fes_revision"])
+            self.assertEqual(host["fits_with_no_recorded_revision"], ["legacy"])
+            self.assertNotIn("every fit was prepared from one revision", host["revision_note"])
+
     def test_a_fit_from_a_modified_checkout_is_named(self):
         # The M+ fit is made by editing a tracked file, so its commit alone
         # does not describe the source that ran.

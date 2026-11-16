@@ -46,6 +46,8 @@ def collect(name: str, output: Path) -> dict:
         "quartus_lock": fit["quartus"]["lock"], "seed": fit["seed"],
         "period_ns": fit["period_ns"], "clock_hz": inputs["clock_hz"],
         "real_clocks": inputs["real_clocks"], "virtual_port_count": inputs.get("virtual_port_count"),
+        "virtual_port_count_as_run": inputs.get("virtual_port_count_as_run"),
+        "virtual_port_count_note": inputs.get("virtual_port_count_note"),
         "real_pins": fit.get("real_pins"),
         "host": fit.get("host") or inputs.get("host"),
         "fes_revision": inputs.get("fes_revision"),
@@ -107,18 +109,23 @@ def main(argv: list[str] | None = None) -> int:
         def commit(fit):
             value = fit.get("fes_revision")
             return value.get("commit") if isinstance(value, dict) else value
-        revisions = sorted({commit(fit) for fit in fits if commit(fit)})
+        # Only when EVERY fit supplies a commit: one fit with a revision beside
+        # others with none would otherwise set the aggregate and read as
+        # agreement, attributing the unversioned fits to that checkout.
+        commits = [commit(fit) for fit in fits]
+        revisions = sorted({value for value in commits if value})
+        agreed = bool(revisions) and len(revisions) == 1 and all(commits)
         dirty = sorted(fit["fit"] for fit in fits if fit.get("source_clean") is False)
         unrecorded = sorted(fit["fit"] for fit in fits if not commit(fit))
         hosts = sorted({fit["host"] for fit in fits if fit["host"]})
         (record / "host.json").write_text(json.dumps({
-            "fes_revision": revisions[0] if len(revisions) == 1 else None,
+            "fes_revision": revisions[0] if agreed else None,
             "fit_revisions": revisions,
             "collected_at_revision": collected_at,
             "fits_from_a_modified_checkout": dirty,
             "fits_with_no_recorded_revision": unrecorded,
             "revision_note": ("every fit was prepared from one revision"
-                              if len(revisions) == 1 else
+                              if agreed else
                               "the fits were prepared from different revisions, or some predate "
                               "the revision being recorded; see each fit's own fes_revision")
                               + (". A commit alone does not describe a fit prepared from a modified "

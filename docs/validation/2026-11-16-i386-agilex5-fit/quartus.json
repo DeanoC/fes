@@ -133,7 +133,9 @@
       "status": "pass",
       "timing_status": "pass",
       "top": "fes_i386_cpu",
-      "virtual_port_count": 1306
+      "virtual_port_count": 148,
+      "virtual_port_count_as_run": 1306,
+      "virtual_port_count_note": "corrected after the fit: the count used when this fit ran was 1306, which included the flattened module's Verilog function inputs as if they were ports. The corrected count is read from the netlist this fit actually fitted. The extra assignments named nodes that do not exist, Quartus reported nothing about them, and the fit's real pin count gates the envelope, so no figure changes."
     },
     {
       "board": "DE25-Nano",
@@ -268,7 +270,9 @@
       "status": "pass",
       "timing_status": "pass",
       "top": "fes_i386_cpu",
-      "virtual_port_count": 1306
+      "virtual_port_count": 148,
+      "virtual_port_count_as_run": 1306,
+      "virtual_port_count_note": "corrected after the fit: the count used when this fit ran was 1306, which included the flattened module's Verilog function inputs as if they were ports. The corrected count is read from the netlist this fit actually fitted. The extra assignments named nodes that do not exist, Quartus reported nothing about them, and the fit's real pin count gates the envelope, so no figure changes."
     },
     {
       "board": "DE10-Nano",
@@ -445,7 +449,9 @@
       "status": "pass",
       "timing_status": "pass",
       "top": "fes_i386_cpu",
-      "virtual_port_count": 1306
+      "virtual_port_count": 148,
+      "virtual_port_count_as_run": 1306,
+      "virtual_port_count_note": "corrected after the fit: the count used when this fit ran was 1306, which included the flattened module's Verilog function inputs as if they were ports. The corrected count is read from the netlist this fit actually fitted. The extra assignments named nodes that do not exist, Quartus reported nothing about them, and the fit's real pin count gates the envelope, so no figure changes."
     },
     {
       "board": "DE25-Nano",
@@ -601,7 +607,9 @@
       "status": "pass",
       "timing_status": "pass",
       "top": "pc386_system",
-      "virtual_port_count": 1991
+      "virtual_port_count": 41,
+      "virtual_port_count_as_run": 1991,
+      "virtual_port_count_note": "corrected after the fit: the count used when this fit ran was 1991, which included the flattened module's Verilog function inputs as if they were ports. The corrected count is read from the netlist this fit actually fitted. The extra assignments named nodes that do not exist, Quartus reported nothing about them, and the fit's real pin count gates the envelope, so no figure changes."
     },
     {
       "board": "DE25-Nano",
@@ -763,7 +771,9 @@
       "status": "pass",
       "timing_status": "pass",
       "top": "pc386_system",
-      "virtual_port_count": 2168
+      "virtual_port_count": 41,
+      "virtual_port_count_as_run": 2168,
+      "virtual_port_count_note": "corrected after the fit: the count used when this fit ran was 2168, which included the flattened module's Verilog function inputs as if they were ports. The corrected count is read from the netlist this fit actually fitted. The extra assignments named nodes that do not exist, Quartus reported nothing about them, and the fit's real pin count gates the envelope, so no figure changes."
     },
     {
       "board": "DE10-Nano",
@@ -981,7 +991,9 @@
       "status": "pass",
       "timing_status": "pass",
       "top": "pc386_system",
-      "virtual_port_count": 1991
+      "virtual_port_count": 41,
+      "virtual_port_count_as_run": 1991,
+      "virtual_port_count_note": "corrected after the fit: the count used when this fit ran was 1991, which included the flattened module's Verilog function inputs as if they were ports. The corrected count is read from the netlist this fit actually fitted. The extra assignments named nodes that do not exist, Quartus reported nothing about them, and the fit's real pin count gates the envelope, so no figure changes."
     },
     {
       "board": "DE25-Nano",
@@ -1114,7 +1126,9 @@
       "status": "pass",
       "timing_status": "pass",
       "top": "fes_i386_cpu",
-      "virtual_port_count": null
+      "virtual_port_count": 148,
+      "virtual_port_count_as_run": null,
+      "virtual_port_count_note": "corrected after the fit: the count used when this fit ran was None, which included the flattened module's Verilog function inputs as if they were ports. The corrected count is read from the netlist this fit actually fitted. The extra assignments named nodes that do not exist, Quartus reported nothing about them, and the fit's real pin count gates the envelope, so no figure changes."
     }
   ]
 }
