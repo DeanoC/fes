@@ -602,3 +602,32 @@ assignment warnings in any fit — so they were inert. The published port counts
 were simply wrong, and are corrected here and in the summary. The reader is
 fixed to skip `function`/`endfunction` blocks, with a test that puts a
 function's inputs in a module header and requires them not to appear.
+
+## Amendment, 16 November 2026: the ladder's top rung was not high enough
+
+What had been seen: **every rung of the precommitted ladder closed on
+Agilex 5** — 61.44, 75, 90, 110 and 130 MHz, each passing setup, hold,
+recovery, removal and minimum pulse width at all four published corners. The
+130 MHz rung passed with **+0.426 ns** of setup slack at its worst slow corner
+and a 137.63 MHz restricted-Fmax estimate. Area was flat across all five:
+29,300 to 29,455 ALMs, a 155 ALM spread. On the DE10, only the 61.44 MHz rung
+had run; its higher rungs and the extra seeds were queued.
+
+So the ladder did its job on the pass side and failed to bound the answer: it
+establishes that `fes_i386_cpu` **closes at 130 MHz on Agilex 5**, and it does
+not establish a ceiling, because its top rung was the last one it had.
+
+**The ladder is extended to 150 and 170 MHz, seed 1, on Agilex 5.** This is
+stated as what it is: rungs added **after** seeing the top rung pass. It
+changes no pass rule — a rung still closes only by passing every analysis at
+every corner, and the rungs already run keep their verdicts — and it adds
+evidence in the same direction rather than rescuing a failure. The reason to
+do it rather than report "at least 130 MHz" is that the DE25 plan needs to
+know where the CPU actually stops, and 130 MHz with +0.426 ns of slack is
+plainly not it.
+
+If 170 MHz also closes, the record will say so and say again that the ladder
+has not found the ceiling, rather than extending a third time; two additions
+chasing a result would stop being a precommitment at all. The DE10's rungs
+above 61.44 MHz are unchanged and still expected to miss against that device's
+own 63.79 MHz estimate.
