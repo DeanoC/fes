@@ -355,6 +355,22 @@ one declaration, and by nothing else. Everything else moved from
 of this record said it was. That also opens the Yosys-netlist flow — the
 sibling Agilex 5 measurement's *primary* — to this configuration.
 
+That claim rested on the **unit** bench for a while, and should not have: the
+earlier broken netlist produced **no warnings either** and still failed 240
+cases, so a clean Yosys log is not evidence that a netlist is right. It is now
+backed by **`lockstep --netlist --backend de25`**, which passes: 1,758,699
+corpus tests, 32,000 random programs, and the x87 suite 24 of 24 with 38
+retirements compared against the oracle's 387.
+
+One reading of that run needs care. Its **backend operation count is zero**,
+and that zero is **by construction**, not a measurement: a flattened netlist
+has no hierarchy, so the sim-only counters have no accessor and the build
+defines `FES_I386_NETLIST` to say so. It is a different zero from the one that
+caught a real defect earlier — there the counters existed and the tally ran
+too late. The netlist run therefore shows the netlist computes the right
+answers; it is the **RTL** run, with 86 operations, that shows the backend was
+reached at all. Both run the same source.
+
 ## Results
 
 The tables below are generated from the run reports by
@@ -415,6 +431,7 @@ Totals: **86 offered, 86 taken** across 8 suites.
 | DE10 sequenced arithmetic | **pass** | true | 1758699 | 1758699 | - | 32000 | - |
 | DE25 `fes_x87_core` | **pass** | false | 1758699 | 1758699 | - | 32000 | - |
 | DE10, the seal's netlist | **pass** | true | 1758699 | 1758699 | - | 32000 | - |
+| DE25, the seal's netlist | **pass** | false | 1758699 | 1758699 | - | 32000 | - |
 
 `default_suite` is **false** for a DE25 run by design: `backend` is a suite
 argument, so a report from a differently parameterised CPU cannot be

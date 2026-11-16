@@ -105,7 +105,8 @@ def lockstep_whole(evidence: Path) -> str:
     for name, label in (('lockstep-baseline.json', 'baseline at the merge commit'),
                         ('lockstep-de10.json', 'DE10 sequenced arithmetic'),
                         ('lockstep-de25.json', 'DE25 `fes_x87_core`'),
-                        ('lockstep-de10-netlist.json', "DE10, the seal's netlist")):
+                        ('lockstep-de10-netlist.json', "DE10, the seal's netlist"),
+                        ('lockstep-de25-netlist.json', "DE25, the seal's netlist")):
         r = load(evidence / name)
         if not r:
             continue
