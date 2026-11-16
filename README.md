@@ -66,7 +66,7 @@ Main_MiSTer is an original implementation and test reference, not a production
 dependency. The target agent talks to the runtime's local socket; only the
 runtime controls hardware. The normal FES package route uses misteross's
 authenticated HIP/nextpnr producer. FES policy also allows labelled
-Quartus-built core variants (accepted in #1163). Playable recipes use OSS packages; PC/XT selects a Quartus diagnostic package.
+Quartus-built core variants (accepted in #1163). Playable recipes use OSS packages; PC/XT selects its sole Quartus DOS package.
 The general variant selector and OSS-only image option are rollout
 work described in the design. See
 [Quartus-built cores](docs/design/quartus-cores.md).
@@ -226,7 +226,7 @@ The parent defaults to the DE10 integration profile. Systems whose nextpnr route
 not implemented yet are checked explicitly with Quartus when their recipe
 requires it; that check does not create an image package or change the default
 package-only path. The accepted policy also allows labelled Quartus variants,
-with PC/XT selecting a Quartus diagnostic package; see
+with PC/XT selecting its sole Quartus DOS package; see
 [Quartus-built cores](docs/design/quartus-cores.md). Quartus is never an
 automatic fallback.
 

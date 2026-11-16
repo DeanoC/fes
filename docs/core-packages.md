@@ -20,7 +20,7 @@ independently. The first-party catalog excludes SMS and SG-1000; their recipes
 remain available for development. Coleco and Atari ST installations need
 their matching Direct/Scanlines video parts; firmware remains user-supplied.
 Their package builds and timing results no longer gate the default OS image.
-PC/XT is an installable Quartus diagnostic package. Its producer gates reported
+`fes.pcxt-dos` is the sole installable PC/XT package, built with Quartus. Its producer gates reported
 internal timing and repeat RBF identity; physical interface/reset and hardware
 acceptance remain separate. Nextpnr is advisory under issue [#840](https://github.com/DeanoC/fes/issues/840).
 For a deliberately expanded image selection, optional-core omission still uses
