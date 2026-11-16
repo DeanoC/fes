@@ -42,10 +42,20 @@ dedicated divider, and the 131-bit back-multiply a naive correction would
 need is not required, because the remainder is bounded and only its low bits
 matter.
 
-**The remainders then need no divider of their own.** A step forms its
-candidate at its own scale and the divide's tail produces both the exact
-quotient and the exact remainder. That was checked by running the datapath,
-not argued.
+**The remainders then need no Goldschmidt at all** — which is more than the
+"no divider of their own" this record first claimed, and is what the landed
+RTL does. FPREM's quotient is never used beyond its low three bits, because
+they *are* C0, C3 and C1, so there is nothing to estimate: `A_OP` reduces the
+dividend once and `P_SH` takes `n` doublings with a conditional subtract, the
+quotient's bits falling out of the same steps. No seed, no iterations, no
+candidate, no error bound, and no use of the divide's tail.
+
+The first form did share that tail at a variable scale, and it worked — 740
+cases — but it needed a general shift by `65 + s - n` on a path option A says
+has no barrel shifter, and because the shifter was **shared**, the divide's
+and the square root's own three-constant drops could not be muxed while it
+existed. One unnecessary generalisation blocking two cheap specialisations
+elsewhere. [The restructure](restructure.md) has the measurements.
 
 ## What the host settled
 
@@ -134,31 +144,40 @@ Four instruments, answering different questions.
 
 ## Results
 
+All of these ran on the frozen head `9c6a7cf2d` — **after** the last RTL
+change (`7358e369d`), with everything committed since being documentation,
+models and the testbench. That revision is the seal's own recorded one and
+the one the kit log names.
+
 | gate | result |
 |---|---|
-All of these ran on the frozen head, **after** the last RTL change
-(`7358e369d`); everything committed since is documentation, models and the
-testbench.
-
 | unit bench, RTL, tail assertions armed | **740 passed, 0 failed** |
 | unit bench, locked-Yosys netlist | **740 passed, 0 failed** |
-| **QEMU's fprem test** | **ported as its operand grid: 23,328 pairs an instruction, 0 failed** |
-| directed partial-step chains | **32 chains pass** (both instructions, exponent differences −5 to 999, odd divisors at the tie, full status mask, each step's result fed back) |
+| **QEMU's fprem test**, ported as its operand grid | **23,328 pairs an instruction, 0 failed** |
+| directed partial-step chains | **32 chains pass** — both instructions, exponent differences −5 to 999, odd divisors at the tie, full status mask, each step's result fed back |
 | exception-mask matrix, divide/sqrt/remainder rows | **passes under all seven mask settings** |
 | BUSY# latch trials for ZE, IE and PE from real divides and roots | **pass** |
-| lockstep, identity **off** | **1,933 no-387 cases pass, 0 failed**, and every other bucket passes |
-| lockstep, identity **on**, with slice 4's own programs | **21 pass, 0 failed** |
-| in-machine fit, identity **off** — what ships and seals | **36,416 ALMs, +0.459 ns: fits and closes** (HIP slot) |
-| **Quartus 17.0.2 seal** | **passes every analysis** — see below |
-| **kit run on that seal** | **Kit B run `s4a` passed**, verified from `result.json` — see below |
-| in-machine fit, identity **on** | **does not fit: 4,407 of 4,191 LABs** ([escalation](STOP-RULE-FIRED.md)) |
+| lockstep, identity **off**, RTL and netlist | **1,933 no-387 cases pass, 0 failed**, and every other bucket passes |
+| lockstep, identity **on**, with slice 4's own programs, RTL and netlist | **21 pass, 0 failed** |
 | test386 | **POST FFh reached**, halt at d0:ffb9 after 79,641,629 steps, no EE differences |
-| standalone area, against the merge base in the same flow | **+3,997 ALMs, +0 DSP, +2 M10K** ([the reading](area-first-reading.md)) |
+| **Quartus 17.0.2 seal** | **passes every analysis** — package `fb0def74`, HIP slot, 36,463 ALMs (87.0%), setup +0.753 ns, total negative slack 0.0 throughout |
+| **kit run on that seal** | **Kit B `s4a` passed**, verified from `result.json` |
+| standalone area, arithmetic alone, against the merge base in the same flow | **+2,847 ALMs, +0 DSP, +2 M10K** ([the readings](restructure.md)) |
+| in-machine fit, identity **off** — what ships and seals | **36,416 ALMs, +0.459 ns: fits and closes** (HIP slot) |
+| in-machine fit, identity **on** | **does not fit** — 4,407 of 4,191 LABs as first written, **4,292 in option A's form** ([escalation](STOP-RULE-FIRED.md)) |
+| identity-on nine-seed sweep | **nothing to sweep**: the fitter stopped before placement, so there is no ALM figure, no timing and no seeds |
 | TestFloat div, sqrt, rem | **attempted, unmet**: a scope of its own, see below |
-| QEMU's fprem test | not run |
-| in-machine identity-on fit, and the nine-seed sweep | running / not run |
-| Quartus 17.0.2 seal | not run |
-| kit run | not run |
+| per-entity (`--hierarchy`) fit | not run |
+
+**This table was itself an instance of the failure it records.** An earlier
+version kept the original "not run" rows for the seal, the kit run and QEMU's
+grid beside the corrected rows that said they had passed, and the superseded
++3,997 ALM figure beside the +2,847 that replaced it — so the record
+contradicted itself on whether its own named gates had completed. Codex found
+it. It is the #1855 pattern in a sixth place, and the fix is the same one this
+record keeps prescribing: **one table, derived once, with no row that another
+row answers.**
+
 
 ### The identity-on lockstep failed first, and the failure was real
 
@@ -259,15 +278,21 @@ FPREM itself, partial semantics and all.
 
 ## What is left
 
-- **The seal and the kit run, which are blocked rather than unfinished.**
-  [The stop rule fired](STOP-RULE-FIRED.md): the identity-on machine fit does
-  not fit the device — 4,407 LABs against the 4,191 the 5CSEBA6 has — and the
-  rule this slice set before any fit existed says escalate before sealing.
-  Nothing is sealed and no kit is claimed.
+**The seal and the kit run are done** — they were listed here as blocked
+while the identity-on escalation was open, and the coordinating session's
+judgement settled it: the identity-off package is what ships and seals, so
+holding the whole slice on a configuration that does not ship would have been
+the wrong call. Both are in the results table.
+
+- **[The stop rule's escalation](STOP-RULE-FIRED.md) is open, and it is
+  Deano's phase decision rather than a gate on this PR.** The identity-on
+  machine does not fit the device in either form — 4,407 LABs as first
+  written, 4,292 in option A's form, against the 4,191 the 5CSEBA6 has.
 - **The identity-on seed sweep**, which has nothing to sweep: the fitter
   stopped before placement, so there is no ALM figure, no timing and no seeds.
-- **QEMU's fprem test**, not run, and **a TestFloat harness**, which the
-  section above explains is a scope of its own.
+- **A TestFloat harness**, which the section above explains is a scope of its
+  own. QEMU's fprem test is **not** outstanding: it is ported as its operand
+  grid and passes, which the results table records.
 - **The per-entity (`--hierarchy`) fit**, not run.
 - **The decode landed per operation with the unit that runs it**, not in one
   commit. Adding `X87_SQRT` or `X87_PREM` to `x87_decode` un-stops the
