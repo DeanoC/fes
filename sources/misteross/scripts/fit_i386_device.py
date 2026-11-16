@@ -477,7 +477,7 @@ def terminating_signals():
         raise FitTerminated(f"terminated by {signal.Signals(number).name}")
 
     previous = {}
-    for number in (signal.SIGTERM, signal.SIGHUP):
+    for number in TERMINATING_SIGNALS:
         try:
             previous[number] = signal.signal(number, relay)
         except (ValueError, OSError):
@@ -494,6 +494,45 @@ def terminating_signals():
                 pass
 
 
+TERMINATING_SIGNALS = (signal.SIGTERM, signal.SIGHUP)
+
+
+def start_stage(command: list[str], **popen):
+    """Start a stage with the terminating signals blocked, and hand back the
+    process together with the call that lets them through again.
+
+    Blocking is what makes the launch window not exist: a signal raised while
+    blocked stays pending rather than being delivered, so the caller releases
+    it inside the region that owns the pid and can kill the process group. A
+    narrower guard would still have a window, and this family of bug has been
+    found twice in this repository by narrowing one.
+
+    On a platform without `pthread_sigmask`, or off the main thread, the launch
+    is unprotected as it was before: that is the previous behaviour and not a
+    new failure, and the caller is told nothing it would act on differently.
+    """
+    try:
+        blocked = signal.pthread_sigmask(signal.SIG_BLOCK, TERMINATING_SIGNALS)
+    except (AttributeError, ValueError, OSError):
+        return subprocess.Popen(command, **popen), lambda: None
+    released = False
+
+    def deliver():
+        # Idempotent: the caller releases on the happy path, and the finally
+        # below releases if the launch itself failed.
+        nonlocal released
+        if not released:
+            released = True
+            signal.pthread_sigmask(signal.SIG_SETMASK, blocked)
+
+    try:
+        process = subprocess.Popen(command, **popen)
+    except BaseException:
+        deliver()
+        raise
+    return process, deliver
+
+
 def run(command: list[str], project: Path, output: Path, label: str, deadline: float,
         env: dict[str, str] | None = None) -> None:
     if deadline - time.monotonic() <= 0:
@@ -501,10 +540,20 @@ def run(command: list[str], project: Path, output: Path, label: str, deadline: f
     log = output / f"{label}.log"
     print(f"i386 fit: {label} started; log {log}", flush=True)
     with log.open("w") as stream:
-        process = subprocess.Popen(command, cwd=project, stdout=stream, stderr=subprocess.STDOUT,
-                                   start_new_session=True,
-                                   env=dict(os.environ, **(env or {})))
+        # A guard cannot be entered before the child exists, so there is no
+        # ordering of `Popen` and `try` that has no window: the previous
+        # version left the instructions between them, and a signal landing
+        # there raised outside the cleanup and orphaned the group exactly as
+        # before. The window is removed rather than shortened by making the
+        # signals undeliverable across the launch -- blocked signals stay
+        # pending -- and releasing them only once the cleanup owns the pid.
+        # `deliver_blocked_signals` is therefore called INSIDE the try, and is
+        # where a signal from the launch window is raised.
+        process, deliver_blocked_signals = start_stage(
+            command, cwd=project, stdout=stream, stderr=subprocess.STDOUT,
+            start_new_session=True, env=dict(os.environ, **(env or {})))
         try:
+            deliver_blocked_signals()
             while True:
                 try:
                     status = process.wait(timeout=min(60, max(0.01, deadline - time.monotonic())))

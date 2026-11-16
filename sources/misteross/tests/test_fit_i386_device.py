@@ -514,6 +514,98 @@ fit.run(command, out, out, "stage", time.monotonic() + 120)
                     except OSError:
                         pass
 
+    WINDOW = """
+import os, signal, subprocess
+with fit.terminating_signals():
+    if {blocked}:
+        process, deliver = fit.start_stage(
+            command, start_new_session=True,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        os.kill(os.getpid(), signal.SIGTERM)
+        try:
+            deliver()
+            process.wait()
+        except BaseException:
+            os.killpg(process.pid, signal.SIGTERM)
+            process.wait()
+            raise
+    else:
+        process = subprocess.Popen(command, start_new_session=True,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        os.kill(os.getpid(), signal.SIGTERM)
+        try:
+            process.wait()
+        except BaseException:
+            os.killpg(process.pid, signal.SIGTERM)
+            raise
+"""
+
+    def signal_in_the_launch_window(self, blocked, tag):
+        """The window itself, entered deterministically rather than raced for:
+        the signal is raised at the one point between the child existing and
+        the cleanup owning its pid."""
+        import signal
+        import sys
+        root = str(Path(__file__).resolve().parent.parent)
+        with tempfile.TemporaryDirectory() as temporary:
+            script = Path(temporary) / "window.py"
+            script.write_text(self.HELPER.format(
+                root=root, body=self.WINDOW.format(blocked=bool(blocked))))
+            runner = subprocess.Popen([sys.executable, "-u", str(script), temporary, tag],
+                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            try:
+                runner.wait(timeout=60)
+                deadline = time.monotonic() + 10
+                while self.surviving(tag) and time.monotonic() < deadline:
+                    time.sleep(0.1)
+                return self.surviving(tag)
+            finally:
+                if runner.poll() is None:
+                    runner.kill()
+                    runner.wait(timeout=10)
+                for pid in self.surviving(tag):
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except OSError:
+                        pass
+
+    def test_a_signal_in_the_launch_window_orphans_an_unblocked_launch(self):
+        # The counterexample for the second round of this bug. Relaying the
+        # signal was not enough: a guard cannot be entered before the child
+        # exists, so an unblocked launch leaves the instructions between
+        # `Popen` and `try`, and a signal landing there raises outside the
+        # cleanup and orphans the group exactly as an unrelayed one did.
+        self.assertNotEqual(self.signal_in_the_launch_window(False, "FESFITWINBARE"), [])
+
+    def test_a_blocked_launch_has_no_window(self):
+        # Not a narrower window: a blocked signal cannot be delivered at all,
+        # so it is still pending when the cleanup owns the pid and is raised
+        # there by the release.
+        self.assertEqual(self.signal_in_the_launch_window(True, "FESFITWINBLOCKED"), [])
+
+    def test_the_launch_leaves_the_signal_mask_as_it_found_it(self):
+        import signal
+        before = signal.pthread_sigmask(signal.SIG_BLOCK, [])
+        process, deliver = fit.start_stage(["true"])
+        try:
+            self.assertTrue(set(fit.TERMINATING_SIGNALS) <=
+                            signal.pthread_sigmask(signal.SIG_BLOCK, []),
+                            "the terminating signals are not blocked across the launch")
+            deliver()
+            self.assertEqual(signal.pthread_sigmask(signal.SIG_BLOCK, []), before)
+            deliver()  # idempotent: the caller and the failure path both call it
+            self.assertEqual(signal.pthread_sigmask(signal.SIG_BLOCK, []), before)
+        finally:
+            process.wait(timeout=30)
+            signal.pthread_sigmask(signal.SIG_SETMASK, before)
+
+    def test_a_failed_launch_restores_the_mask(self):
+        import signal
+        before = signal.pthread_sigmask(signal.SIG_BLOCK, [])
+        with self.assertRaises(OSError):
+            fit.start_stage([str(Path(tempfile.gettempdir()) / "fes-no-such-command")])
+        self.assertEqual(signal.pthread_sigmask(signal.SIG_BLOCK, []), before)
+
     def test_a_relayed_sigterm_takes_the_stage_group_with_it(self):
         self.assertEqual(self.kill_during_a_stage(self.RELAYED, "FESFITRELAYED"), [])
 

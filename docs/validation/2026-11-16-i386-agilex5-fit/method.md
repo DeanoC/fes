@@ -953,3 +953,50 @@ This is the same shape as the lease findings in
 work it protects continues -- now found independently in two places in this
 repository. That it took a reviewer rather than the lease's author to see it
 here is the pattern, not the exception.
+
+## Amendment, 2026-11-16: a narrowed window is not a closed one
+
+The third round on one question, and the second time in this repository that a
+fix for a lease finding introduced the next one. Found by Codex review on
+`d8764bb91`, after every figure here was published; no figure moves.
+
+Relaying SIGTERM and SIGHUP did not close the hole, it shrank it. A guard
+cannot be entered before the child it guards exists, so `Popen` returning and
+`try` being entered are separated by a few instructions, and a signal landing
+there raises outside the cleanup: the runner exits, the builder lease dies with
+it, and the Quartus group lives on. Identical in kind to the failure the relay
+was written for.
+
+Counterexample first, and this one is not raced for. Rather than firing signals
+and hoping one lands in a two-instruction window, the signal is raised *at* that
+point deterministically -- after `Popen` returns and before the `try` -- which
+is the window's definition rather than an approximation of it. Unblocked: the
+child survives its parent. Blocked: no survivor, and the cleanup runs. Both
+directions are kept as tests.
+
+The fix is not a smaller window. `signal.pthread_sigmask` makes the signals
+undeliverable across the launch, and a blocked signal stays **pending**, so it
+is raised by the release inside the region that owns the pid. There is no
+interval in which it can be lost, as against an interval made short enough to
+be unlikely. The alternative shape -- moving `Popen` inside the `try` -- was
+rejected for that reason: it moves the window rather than removing it, since the
+`except` would still have to name a `process` that may not exist yet.
+
+Two things noted rather than left as anecdote:
+
+**The hang was the evidence.** The first attempt at this counterexample appeared
+to hang. It had not: the orphaned child inherited the pipe, so `tail` never saw
+end-of-file. The symptom of the bug was mistaken for a failure to reproduce it,
+which is how an orphan-holding-a-handle bug hides in any harness that reads a
+pipe.
+
+**On the family, not the instance.** This is the same pattern as
+[#1850](https://github.com/DeanoC/fes/pull/1850), where five consecutive rounds
+went on one question and the fourth finding was introduced by the fix for the
+third. What ended it there was not a better guard: the lease handling came out
+of the cleanup path entirely, leaving less code than the guards it replaced.
+That account is the coordinating session's, and this repository's commits on
+that PR are consistent with it. The transferable rule is the one this round
+earns: **a fix that narrows a window is not a fix that closes it**, and the
+question to ask of the second version is whether a structure exists in which the
+window cannot be, not whether the window is now small.
