@@ -1,0 +1,7 @@
+# Verifying the original evidence
+
+Run `python3 docs/validation/2026-11-16-pc386-cmp-segment-governor/verify-evidence.py` from the repository root. The verifier checks the untouched historical `SHA256SUMS`, reconstructs the original `reference/before-frozen.json` and `cpu-extra/instrumented-lockstep_tb.cpp` in temporary storage, and checks all 95 original entries. Plain `sha256sum -c SHA256SUMS` cannot work directly on the compacted tree because those two historical paths are reconstructed rather than stored as raw files.
+
+The manifest is stored losslessly as `reference/before-frozen.json.gz`; its decompressed 591,450 bytes have SHA-256 `9b71c3b80a92bfa77ac1e18694bc702bc5eab2e589b86725945d5e67314e0876`. The instrumented harness is the exact file at main-ancestor commit `9037d15e84348c452885a236ec0d9f74ca889e07`, path `sources/misteross/cores/fes-common/sim/i386/lockstep_tb.cpp`, plus `cpu-extra/instrumented-lockstep_tb.patch`. The base SHA-256 is `4315693cd31614c2569fcace7ed5bca8e57bec8f14ed97851f7f78bc4461c369`; the 674,468-byte reconstructed harness is `ec0c705de53b4f86d13af5761ea0111e386a94bfcebb79a58b093582713cd261`.
+
+The verifier authenticates the compressed representation, patch, Git base and reconstructed bytes, and rejects truncated gzip streams, extra members and trailing data. It requires Git and access to that exact ancestor; a shallow or exported checkout without it must obtain the missing history before verification. The original raw files also remain in historical commit `6b2802a4b`; no historical evidence or checksum was rewritten.

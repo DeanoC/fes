@@ -12,6 +12,8 @@ The subsequent protected-mode stack test in `../nesting/controls/stack/` confirm
 
 Reference CPU model is a surrogate for the named emulator, not physical 80286 timing. Captures do not qualify a sealed artifact or kit. The subsequent nesting study is in `../nesting/`; deferred-byte fault behavior remains under investigation.
 
+The original `reference-vm/frozen-before.json` and `reference-vm/frozen-after.json` were byte-identical and are now represented by the single retained `reference-frozen-manifest.json.gz`. Run `python3 verify-manifests.py` from this directory to reconstruct both in temporary storage and verify their original sizes and SHA-256 values. The original raw files remain in the published Git history.
+
 ## Selected SHA-256 identities
 
 - `paired-loop-byte-manifest.json`: `d0bbef006549879808c9dc103f352b60f9b199511fc9bf4b42191e848b391693`
