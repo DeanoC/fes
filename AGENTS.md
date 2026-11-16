@@ -29,7 +29,7 @@ Merge only when all of these hold:
 - CI is green: `gh pr checks N --json name,bucket --jq 'if length==0 then error("no checks") else map(select(.bucket!="pass" and .bucket!="skipping")) | length end'` exits 0 and prints `0`. Any error, no checks, or a non-zero count means not green.
 - 0 unresolved review threads.
 - A clean SuperGrok or Codex review on the exact head. One exception: a clean review carries over to a new head that only adds a merge from the base branch, when the PR's own diff against its base is unchanged and CI is green on the new head.
-- HIL is PASS on the exact head, N/A, or waived. HIL N/A means no kit test applies: the PR changes no kit-run bitstream, firmware or runtime (docs, CI, host tooling only), or the core has no kit (pc386/i386). DE25 HIL is waived until Deano says the boards are ready. A pass on a diagnostic build does not count.
+- HIL is PASS on the exact head, N/A, or explicitly waived by Deano. HIL N/A means no kit test applies: the PR changes no kit-run bitstream, firmware or runtime (docs, CI, host tooling only), or the core has no kit (pc386/i386). DE25 hardware changes use Kit D25 (`de25-j8g`, serial TRWU8J8G) and require PASS on the exact head with the restore diff verified. A pass on a diagnostic build does not count.
 - The base branch is live, and no open PR uses this head branch as its base.
 - Stacks merge top-down. After each merge, the next PR's tree must equal the reviewed tree, or it needs a fresh review.
 
@@ -55,12 +55,14 @@ Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and m
 
 ### HIL
 - Run HIL in parallel with review. Use kit A if kit B is busy.
+- Select Kit D25 for DE25 board, package, runtime or image paths. The repo HIL planner reports this target, but the Powerboat HILQ queue and watcher still need D25 dispatch support; an automatic queue run does not yet cover DE25. DE25 work stays on Quartus Pro 26.3 and uses the managed DE25 HIL flow; a DE10 pass does not satisfy it. Select Kit A or Kit B for DE10 paths.
 - Stop after 2 FAILs on the same head and fix instead.
 - Report HIL as started only once the kit is claimed in its status file (see Shared kits below) and the test bundle, image or core under test is loaded on it. A core-only run does not need a bundle install or reflash.
 - Afterwards, restore each kit to exactly the baseline bundle and image that kitA-STATUS.md / kitB-STATUS.md names. Activate the named bundle; reflash only if the booted image differs from the named image (then follow the bundle/image order in the kit procedure (step 3) below) and verify the boot. Verify the active bundle before logging the kit restored. Baselines are promoted only from main HIL passes.
 
 ### Kit HIL baseline tracking
 - The kit HIL baseline (shared host plus kit agent and software, recorded in `current.json` in Powerboat's hil-queue) tracks main. Do not pin it to an old host.
+- DE25 has a separate `current-restore-de25.json` baseline in Powerboat's HIL baselines; it is keyed by `de25-j8g` and records the managed image, active bundle, target identity and verified restore evidence. DE25 baseline promotion must be separate from the two-kit DE10 `current.json` promotion; its automation still needs implementation.
 - Powerboat's `lander-baseline-promote.timer` checks every 15 minutes; `lander-baseline-nightly.timer` is the 02:30 Europe/Sofia backstop. Both start `lander-baseline-promote.service`, which runs `baseline-auto.py`. It passes the cumulative unchecked `origin/main` range to `post-merge-promote.sh` with `--since <last_checked>`. Let this automation handle main updates; do not run a manual promote after each qualifying merge. The promotion lock is non-blocking: if another run holds it, the timer records `AUTO_WAIT` and leaves the candidate for a later pass. A direct run without `--since` checks only the tip commit, so it does not catch up multiple unchecked commits.
 - Baseline promotion considers every non-documentation, non-test file under `sources/FogCast/`, `sources/libmister-runtime/`, `sources/mister-packages/`, `platform/` and `image/`, plus `Makefile`, `scripts/build.py`, `scripts/kit_software.py` and `scripts/environment.py`. ABI or capability changes, and any `abi_path` edit, select hil-queue `core+sw`; that classification does not decide whether to promote the baseline.
 - `promote-baseline.sh` builds from fetched main only. It smokes available kits and logs busy kits as `BUSY`; if neither kit is free, maintenance waits for Kit B's lock until it is `FREE`, then continues. It publishes `current.json` only after smoke and activation succeed and keeps the previous baseline. A failed candidate is latched and reported rather than retried automatically.
@@ -109,11 +111,14 @@ Outside agent sessions have ignored these rules. Obey them.
 1. MUST claim the kit before you touch it, and log the result when you
    finish. There is no separate Powerboat host claim. Record owner, PR,
    and start time in that kit's Powerboat status file:
-   `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`. That
+   `~/kit-status/kitA-STATUS.md`, `kitB-STATUS.md`, or
+   `de25-TRWU8J8G-STATUS.md` for Kit D25. That
    log is the single source of truth. NEVER take a kit that is leased or
    claimed by someone else. NEVER use a Slack reservation, and NEVER
    require a person to be present.
 2. Kits A and B are both designated test kits. They are interchangeable.
+   DE25 paths use Kit D25 (`de25-j8g`, serial `TRWU8J8G`); never substitute
+   a DE10 kit for its HIL gate.
 3. When a task installs a bundle, install that PR bundle on the kit's
    running image. A core-only run that does not change the bundle does not
    install one. Software goes before the image: before an image change,

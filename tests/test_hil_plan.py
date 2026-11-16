@@ -719,10 +719,22 @@ class HilPlanTest(unittest.TestCase):
             'from boards.de25nano.producers import build_menu_package as common\nX = common.X\n'})
         self.assertEqual(result['components'], ['core:de25-menu', 'core:de25-zx81'])
         self.assertEqual(result['class'], 'overlay')
+        self.assertEqual(result['kit_targets'], ['D25'])
         self.assertEqual(planner.plan([zx81], texts={})['decision'], 'OVERLAY core:de25-zx81')
+        self.assertEqual(planner.plan([zx81], texts={})['kit_targets'], ['D25'])
         self.assertEqual(planner.plan([
             'sources/misteross/boards/de25nano/producers/review_audio_clocks.py'], texts={})[
                 'decision'], 'OVERLAY core:de25-zx81')
+
+    def test_kit_target_selection_keeps_de25_separate_from_de10(self):
+        planner = hil_module()
+        self.assertEqual(planner.plan([
+            'sources/misteross/boards/de25nano/producers/build_menu_package.py'], texts={})[
+                'kit_targets'], ['D25'])
+        self.assertEqual(planner.plan([
+            'sources/misteross/boards/fes-c64/producers/build_package.py'], texts={})[
+                'kit_targets'], ['A', 'B'])
+        self.assertEqual(planner.plan(['docs/de25-kit-hil.md'], texts={})['kit_targets'], [])
 
     def test_board_local_de25_inputs_select_their_package_consumers(self):
         planner = hil_module()
