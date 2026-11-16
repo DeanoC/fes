@@ -187,20 +187,20 @@ def _validate_build_record(fields: object) -> dict:
 def _validate_front_end(fields: dict, parameters: dict, tools: dict) -> None:
     """Cross-check the identity of the tool that elaborated the logic.
 
-    A format-2 Quartus record names its front end, the device family that front
-    end targets, the digest of its canonical QSF and, where Yosys elaborates the
-    logic, the digest of its canonical Yosys program. A format-1 record has no
-    validated Quartus discriminator, so it carries none of them; its producer
-    gains them when it moves to format 2.
+    An in-scope format-2 Quartus record names its front end, the device family
+    that front end targets, the digest of its canonical QSF and, where Yosys
+    elaborates the logic, the digest of its canonical Yosys program. A format-1
+    record has no validated Quartus discriminator, so it carries none of them;
+    its producer gains them when it moves to format 2 and adopts the identity
+    policy.
 
-    Only a `design-v1` record is in scope. A legacy record predates the whole
-    front-end concept and its `build_identity` hashes every source input, so
-    requiring new parameters on one moves its identity and buys nothing: on
-    `build_fes_zx81_quartus.py` that is four ZX81 models' packages for a field
-    nothing reads yet (DeanoC/fes#1806 review). Such a producer gains them when
-    it opts into the policy, which is what this function already says about
-    format-1. PC/XT and the OSS producers are `design-v1`, so every record that
-    carries separated identities is still covered.
+    S7's contract covers `design-v1` records only. Legacy format-2 Quartus
+    records remain valid without these parameters; the current ZX81 Quartus
+    producer emits four such records. Its migration to this contract, followed
+    by reseal and exact-artifact HIL, is tracked with the #1893 follow-up. A
+    legacy producer gains these fields when it opts into the identity policy.
+    PC/XT and the OSS producers are `design-v1`, so every record that carries
+    separated identities is covered.
     """
     if parameters.get("identity_policy") != IDENTITY_POLICY:
         for name in FRONT_END_PARAMETERS:

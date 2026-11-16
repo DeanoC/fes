@@ -122,6 +122,19 @@ class ExportCorePackageTests(unittest.TestCase):
             front_end="quartus-lite", front_end_program_sha256=None,
             tools={"quartus": "pinned quartus"}))
 
+    def test_legacy_quartus_record_is_outside_the_s7_front_end_contract(self):
+        fields = dict(self.record_fields, format=2, toolchain="quartus", source_path=".",
+                      source_roots=["abi", "scripts"],
+                      source_inputs={"scripts/build.py": self.record_fields["recipe_sha256"],
+                                     "abi/fes-gp.json": self.record_fields["abi_definition_sha256"]},
+                      tools={"quartus": "pinned quartus", "yosys": "pinned yosys"})
+
+        record = encode_build_record(fields)
+        self.assertEqual("quartus", json.loads(record)["toolchain"])
+        self.assertNotIn("identity_policy", fields["parameters"])
+        self.assertTrue(set(export_core_package.FRONT_END_PARAMETERS).isdisjoint(fields["parameters"]))
+        self.assertEqual(32, len(build_identity(record)))
+
     def test_a_record_that_misstates_its_front_end_is_rejected(self):
         cases = [
             # A Quartus record names a front end this build system knows.

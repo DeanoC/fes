@@ -7,9 +7,9 @@ elaborated a core's logic. `toolchain` keeps its meaning, the place-and-route to
 
 | Field | Value | Rule |
 | --- | --- | --- |
-| `parameters.front_end` | `yosys`, `quartus-lite` or `quartus-pro` | On a format-2 record with `toolchain = "quartus"`, and on no other record |
+| `parameters.front_end` | `yosys`, `quartus-lite` or `quartus-pro` | On an in-scope format-2 Quartus record, and on no other record |
 | `parameters.device_family` | `cyclonev` or `agilex5` | The family that front end targets |
-| `parameters.quartus_qsf_sha256` | The canonical QSF's digest | On every Quartus record |
+| `parameters.quartus_qsf_sha256` | The canonical QSF's digest | On every in-scope Quartus record |
 | `parameters.front_end_program_sha256` | The canonical Yosys program's digest | Exactly where Yosys elaborates the logic, the same condition as `tools.yosys` |
 
 Format 1 has no validated Quartus discriminator, so a format-1 record carries none of these. The
@@ -47,11 +47,20 @@ what it actually ran.
 
 ## Scope
 
-PC/XT is the only producer in this slice. DE25's `fes.menu` and `fes.zx81` write format-2 Quartus
-records through their own exporter, `boards/de25nano/package/export_core_package.py`, which this
-slice does not change, so those records still validate unchanged. Their recipe rows carry
-`front_end = "quartus-pro"` because the registry is shared. Giving the DE25 records the fields
-belongs with S6b or S16.
+S7 validates format-2 Quartus records that declare `parameters.identity_policy = "design-v1"`.
+Legacy format-2 Quartus records without that policy remain valid records, but are outside this
+front-end metadata contract and do not carry or validate these fields. The current
+`build_fes_zx81_quartus.py` producer emits that legacy shape for `zx81`, `zx80`, `ts1000` and
+`ts1500`; those four records still lack `front_end`, `device_family` and the canonical QSF digest.
+The #1893 follow-up must migrate those records to `design-v1`, add the S7 fields, and then reseal
+and run exact-artifact HIL for the four packages. Until that work is complete, S7 makes no claim
+that those ZX81-family records satisfy the metadata contract.
+
+PC/XT is the only producer in this slice that currently emits an in-scope record. DE25's
+`fes.menu` and `fes.zx81` write format-2 Quartus records through their own exporter,
+`boards/de25nano/package/export_core_package.py`, which this slice does not change, so those
+records still validate unchanged. Their recipe rows carry `front_end = "quartus-pro"` because the
+registry is shared. Giving the DE25 records the fields belongs with S6b or S16.
 
 ## The D12 question this record was written to answer no longer arises
 
@@ -87,8 +96,10 @@ only, and the split puts them where they belong:
 the core whose front-end identity this branch exists to record. That is the reseal this branch
 owes, and it replaces the twelve-core question entirely.
 
-**Four ZX81-family Quartus packages move too, and this record claims no seal for them
-either.** `build_fes_zx81_quartus` lists both `scripts/export_core_package.py` and
+**Four ZX81-family Quartus `BUILD_ID`s move too, and this record claims no seal for them
+either.** Their producer's records are legacy and receive none of the S7 front-end fields (see
+[Scope](#scope)); their IDs move because legacy identity hashes every source input.
+`build_fes_zx81_quartus` lists both `scripts/export_core_package.py` and
 `scripts/input_identity.py` in its closure roots and its records are **legacy** -- no
 `identity_policy` -- so `functional_key()` hashes every source input and `zx81`, `zx80`,
 `ts1000` and `ts1500` get new `BUILD_ID`s from this branch. Reverting the producer change did not
@@ -117,16 +128,21 @@ does not address because it removes identity churn without adding margin, are De
 
 ## D12
 
-`scripts/export_core_package.py` is in every audited closure, so this change moves the BUILD_ID of
-every format-2 core with no RTL change. PC/XT moves twice over: its producer and board script are in
-its closure, and `quartus_recipe_sha256` hashes the whole recipe entry, which now has three more
-keys.
+`scripts/export_core_package.py` is in every audited closure, but closure membership alone does
+not mean that a `BUILD_ID` moves. For the twelve design-v1 closures, the exporter is classified as
+packaging and excluded from design identity, so those twelve design IDs do not move. PC/XT's design
+identity does move because S7 adds `device_family` as a design parameter. The four ZX81-family
+Quartus records are legacy, without `identity_policy`; their functional identity includes every
+source input, so the shared helper changes move their IDs. Those records still do not contain
+the S7 front-end fields until the #1893 migration and reseals described under [Scope](#scope).
 
 The list is generated, not written by hand:
 [`affected_cores.py`](affected_cores.py), output in
-[`affected-cores.txt`](affected-cores.txt). Thirteen of thirteen closures hold a changed file:
-twelve audited producers through `export_core_package.py`, and PC/XT through that plus its own two
-scripts. `fes.pcxt` and `fes.pcxt-dos` share one producer and so one closure.
+[`affected-cores.txt`](affected-cores.txt). Fourteen of fourteen closures hold a changed file:
+twelve audited producers, PC/XT's runtime-computed closure, and the ZX81 Quartus producer's closure
+for four models. `fes.pcxt` and `fes.pcxt-dos` share one producer and so one closure. This is a
+closure-hit count, not a count of packages whose `BUILD_ID` moves; the identity-policy outcomes
+are described above.
 
 **The D12 evidence is in.** [#1752](https://github.com/DeanoC/fes/pull/1752) moved every
 BUILD_ID as well, so evidence gathered before it landed would not have survived it; it merged as

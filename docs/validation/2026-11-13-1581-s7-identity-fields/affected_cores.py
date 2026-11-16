@@ -8,8 +8,9 @@ closure, so this list is generated, never written by hand (the design doc's
         [--base origin/main]
 
 The audited closures come from sources/misteross/scripts/source_closures.json.
-A producer that computes its roots at run time (PC/XT) is asked for them
-directly, so the list does not depend on an audit entry it has none of.
+PC/XT computes its roots at run time, and the ZX81 Quartus family has a
+separate legacy producer closure that is not in that audit; both are included
+directly so the report covers the affected Quartus producers too.
 """
 import argparse
 import json
@@ -21,7 +22,11 @@ ROOT = Path(__file__).resolve().parents[3]
 MISTEROSS = ROOT / 'sources/misteross'
 CLOSURES = MISTEROSS / 'scripts/source_closures.json'
 # Producers whose closure is computed at run time rather than audited.
-FALLBACK = (('fes.pcxt', 'scripts.build_fes_pcxt_quartus', 'source_roots'),)
+ADDITIONAL_CLOSURES = (
+    ('fes.pcxt', 'scripts.build_fes_pcxt_quartus', 'source_roots'),
+    ('fes.zx81-quartus (zx81, zx80, ts1000, ts1500)',
+     'scripts.build_fes_zx81_quartus', 'SOURCE_ROOTS'),
+)
 
 
 def changed(base: str) -> list[str]:
@@ -54,8 +59,9 @@ def main() -> int:
         hits = covered(roots, paths)
         if hits:
             affected[producer] = hits
-    for core_id, module, function in FALLBACK:
-        roots = getattr(__import__(module, fromlist=[function]), function)(MISTEROSS)
+    for core_id, module, function in ADDITIONAL_CLOSURES:
+        provider = getattr(__import__(module, fromlist=[function]), function)
+        roots = provider(MISTEROSS) if callable(provider) else provider
         hits = covered(roots, paths)
         if hits:
             affected[core_id] = hits
@@ -63,7 +69,7 @@ def main() -> int:
     for path in paths:
         print('   ', path)
     print(f'closures holding at least one of them: {len(affected)} of '
-          f'{len(audited) + len(FALLBACK)}')
+          f'{len(audited) + len(ADDITIONAL_CLOSURES)}')
     for name, hits in sorted(affected.items()):
         print(f'    {name}: {", ".join(hits)}')
     return 0
