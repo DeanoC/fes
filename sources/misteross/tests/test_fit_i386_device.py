@@ -17,6 +17,11 @@ module other(a, b);
   assign b = a;
 endmodule
 module fes_i386_cpu(clk, cold_reset, init_gpr, ddr_address, arch_cpl);
+  function automatic [7:0] helper;
+    input [7:0] not_a_port;
+    input not_a_port_either;
+    helper = not_a_port;
+  endfunction
   input clk;
   input cold_reset;
   input [255:0] init_gpr;
@@ -69,6 +74,18 @@ class Ports(unittest.TestCase):
     def test_ports_of_the_named_top_only(self):
         # The netlist holds every module; only the top's ports become pins.
         self.assertEqual(fit.netlist_ports(NETLIST, "other"), ["a", "b"])
+
+    def test_a_function_s_inputs_are_not_ports(self):
+        # Yosys writes the flattened module's $pmux helpers as functions, and a
+        # function declares its own inputs. Counting them put about 1,950 names
+        # that are not nodes into the machine's virtual-pin list and made the
+        # port counts meaningless -- and made M and M+ look like different
+        # envelopes when their real port sets are identical.
+        names = fit.netlist_ports(NETLIST, "fes_i386_cpu")
+        self.assertNotIn("not_a_port[*]", names)
+        self.assertNotIn("not_a_port_either", names)
+        self.assertIn("clk", names)
+        self.assertIn("arch_cpl[*]", names)
 
     def test_a_missing_top_is_refused(self):
         with self.assertRaisesRegex(fit.FitError, "no module pc386_system"):
@@ -142,6 +159,14 @@ class Envelope(unittest.TestCase):
 
     def test_port_directions_come_from_the_netlist(self):
         self.assertEqual(fit.parse_ports(NETLIST, "other"), [("a", "input"), ("b", "output")])
+
+
+class Caps(unittest.TestCase):
+    def test_each_design_gets_the_cap_the_method_promised(self):
+        # A fit reported as "not measured within the cap" must have been given
+        # the cap the method precommitted, or the label is false.
+        self.assertEqual(fit.DEFAULT_TIMEOUT_MINUTES["cpu"], 90)
+        self.assertEqual(fit.DEFAULT_TIMEOUT_MINUTES["machine"], 240)
 
 
 class SecondaryFrontEnd(unittest.TestCase):

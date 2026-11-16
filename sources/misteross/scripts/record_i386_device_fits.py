@@ -109,12 +109,14 @@ def main(argv: list[str] | None = None) -> int:
             return value.get("commit") if isinstance(value, dict) else value
         revisions = sorted({commit(fit) for fit in fits if commit(fit)})
         dirty = sorted(fit["fit"] for fit in fits if fit.get("source_clean") is False)
+        unrecorded = sorted(fit["fit"] for fit in fits if not commit(fit))
         hosts = sorted({fit["host"] for fit in fits if fit["host"]})
         (record / "host.json").write_text(json.dumps({
             "fes_revision": revisions[0] if len(revisions) == 1 else None,
             "fit_revisions": revisions,
             "collected_at_revision": collected_at,
             "fits_from_a_modified_checkout": dirty,
+            "fits_with_no_recorded_revision": unrecorded,
             "revision_note": ("every fit was prepared from one revision"
                               if len(revisions) == 1 else
                               "the fits were prepared from different revisions, or some predate "

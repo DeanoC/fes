@@ -63,8 +63,9 @@ are below.
 
 Every figure includes its fit's envelope. Both fitters count it, and the count
 sits beside each ALM figure and is **never subtracted**: the CPU fits carry
-**2,351** ALMs containing virtual pins on each device (1,306 ports are 4,700
-pin bits), and the machine fits carry **651**. A real core has neither — it has
+**2,351** ALMs containing virtual pins on each device (its 149 ports become
+4,700 virtual pin bits), and the machine fits carry **651** (43 ports, 1,301
+pin bits). A real core has neither — it has
 a board shell instead.
 
 ## The fits
@@ -265,8 +266,8 @@ Two tool behaviours were gated rather than noted, because each would have
 produced a wrong number quietly:
 
 - Quartus 17.0.2 **ignores** a `VIRTUAL_PIN` assignment whose node name is
-  braced (Critical Warning 136021) and leaves the port a real pin. All 1,306
-  of the CPU's were ignored, and the fit failed only because the Cyclone V has
+  braced (Critical Warning 136021) and leaves the port a real pin. Every one of
+  the CPU's was ignored, and the fit failed only because the Cyclone V has
   314 pins. Every fit now **gates on the report's own pin count**: more real
   pins than real clocks is a failure.
 - The first envelope gave each virtual port a zero input and output delay,

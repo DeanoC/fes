@@ -278,8 +278,8 @@ on Powerboat it serialises only this session's own compiles.
 
 **Virtual pins are not free.** The fitter builds each virtual pin in the
 fabric, so part of a virtual-pin fit's ALMs is envelope rather than design.
-`fes_i386_cpu` has **1,306** ports after vectors are wildcarded, and the
-machine has its own. Each fit reports the fitter's own virtual-pin count
+`fes_i386_cpu` has **149** ports and the machine **43**, which the fitter
+expands to 4,700 and 1,301 virtual pin bits. Each fit reports the fitter's own virtual-pin count
 beside its ALMs, and that count is **never subtracted** from them: the ALM
 figure is reported as it stands, with the envelope named so a reader can judge
 it, and the same envelope is present on both devices.
@@ -300,8 +300,7 @@ producing any figure. No DE10 figure and no machine figure existed.
 
 **The DE10 fit was not the intended experiment, and nearly said so quietly.**
 Quartus 17.0.2 rejects a braced node name in a `VIRTUAL_PIN` assignment
-(Critical Warning 136021) and leaves that port a real pin. All 1,306 of the
-CPU's assignments were ignored. The fit failed only because the device has 314
+(Critical Warning 136021) and leaves that port a real pin. Every one of the CPU's assignments was ignored. The fit failed only because the device has 314
 pins; on a device with pins to spare it would have produced a fit of a
 completely different envelope and reported it as a result. The assignments are
 now unbraced, and **every fit gates on the report's own pin count**: more real
@@ -382,8 +381,10 @@ each one named. The Agilex 5 has 4,680 LABs against the Cyclone V's 4,191.
 
 **The envelope's own ALMs are reported beside the design's.** Both fitters
 count them: `ALMs containing virtual pins`. The CPU fits carry **2,351** such
-ALMs on each device — its 1,306 ports are 4,700 pin bits — and the machine fit
-carries **651**. Those counts are reported next to each ALM figure and are
+ALMs on each device — its 149 ports become 4,700 virtual pin bits — and the
+machine fits carry **651**, from 43 ports and 1,301 pin bits. (A later
+amendment corrects an earlier port count here: a parser bug counted the
+flattened module's Verilog function inputs as ports.) Those counts are reported next to each ALM figure and are
 **never subtracted** from it, so every ALM figure in this record is the fit's
 own total and includes its envelope. A real core would not have the CPU's
 2,351, and would replace the machine's 651 with an actual board shell.
@@ -569,3 +570,35 @@ record says so rather than implying a reproducible identity it does not have.
 Each fit's own `inputs.json` records the digest of the exact bytes that were
 fitted, which is the authority for what those figures came from, and the
 equivalence check above is why the figures stand.
+
+
+## Amendment, 16 November 2026: the port counts were wrong, the envelopes were not
+
+What had been seen: all six fits had passed at 61.44 MHz; the ladder, the extra
+seeds and the secondary had produced nothing.
+
+A review finding noted that fit M records 1,991 virtual ports and fit M+ 2,168,
+although their only source difference is one internal tie — which would make
+the 1,763 ALM M+ − M delta uncontrolled. **The finding was right about the
+numbers and the numbers were wrong.**
+
+Yosys writes the flattened module's `$pmux` helpers as Verilog **functions**,
+and a function declares its own inputs. The port reader counted those as
+ports: about 1,950 of the machine's "ports" and most of the CPU's were
+function-local inputs, not nodes. The real counts are **149** ports for
+`fes_i386_cpu` and **43** for `pc386_system` — and M and M+ have the **same 43,
+with no difference at all**, so the envelope was never different between them.
+
+**The envelopes were identical, and the fitter says so independently.** Both M
+and M+ report **2 real pins** and **651 ALMs containing virtual pins**. The
+CPU fits report 1 real pin and 2,351 such ALMs on both devices. So no figure
+in this record changes: the 1,763 ALM delta is between two fits with the same
+envelope, and the pin gate passed on every one of them because the real ports
+were always in the assignment list.
+
+What the bug did cost: the extra assignments named nodes that do not exist.
+Quartus matched nothing to them and reported nothing about them — zero ignored
+assignment warnings in any fit — so they were inert. The published port counts
+were simply wrong, and are corrected here and in the summary. The reader is
+fixed to skip `function`/`endfunction` blocks, with a test that puts a
+function's inputs in a module header and requires them not to appear.

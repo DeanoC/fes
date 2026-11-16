@@ -118,6 +118,9 @@ DESIGNS = {
     "cpu": {"top": "fes_i386_cpu", "clocks": ("clk",), "asynchronous": False},
     "machine": {"top": "pc386_system", "clocks": ("clk", "pixel_clk"), "asynchronous": True},
 }
+# The method's runtime caps, which a fit reported as "not measured within the
+# cap" must actually have been given.
+DEFAULT_TIMEOUT_MINUTES = {"cpu": 90, "machine": 240}
 # pc386_system's pixel clock is 74.25 MHz in the shell, fixed; only the system
 # clock moves with --period-ns.
 PIXEL_PERIOD_NS = 1000.0 / 74.25
@@ -133,6 +136,33 @@ def require_disk(path: Path) -> None:
     free = shutil.disk_usage(path).free
     if free < MIN_FREE_BYTES:
         raise FitError(f"refusing to fit with {free / 1024 ** 3:.1f} GiB free; at least 30 GiB required")
+
+
+@contextmanager
+def elaboration_lease():
+    """The fixed machine-elaboration workspace, held across writing it and
+    copying it out. Two concurrent machine fits from one worktree write the
+    same netlist, script and log there, and without this one could copy a file
+    the other is replacing, or unlink it before the other has copied it."""
+    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    path = ROOT / MACHINE_NETLIST_WORK
+    path.parent.mkdir(parents=True, exist_ok=True)
+    guard = path.with_name("elaboration.lock")
+    with guard.open("a+") as lease:
+        notice = -math.inf
+        while True:
+            try:
+                fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() - notice >= 30:
+                    print(f"i386 fit heartbeat: waiting for {guard}", flush=True)
+                    notice = time.monotonic()
+                time.sleep(1)
+        try:
+            yield path
+        finally:
+            fcntl.flock(lease, fcntl.LOCK_UN)
 
 
 @contextmanager
@@ -168,9 +198,22 @@ def parse_ports(text: str, top: str) -> list[tuple[str, str]]:
     if start is None:
         raise FitError(f"netlist has no module {top}")
     ports: list[tuple[str, str]] = []
+    in_function = False
     for line in text[start.start():].splitlines()[1:]:
         if re.match(r"^\s*endmodule\b", line):
             break
+        # Yosys writes the flattened module's $pmux helpers as Verilog
+        # functions, and a function declares its own inputs. Those are not
+        # ports: counting them put ~1,950 names that are not nodes into the
+        # machine's virtual-pin list and made its port count meaningless.
+        if re.match(r"^\s*function\b", line):
+            in_function = True
+            continue
+        if re.match(r"^\s*endfunction\b", line):
+            in_function = False
+            continue
+        if in_function:
+            continue
         match = _PORT.match(line)
         if match is None:
             continue
@@ -723,20 +766,19 @@ def machine_netlist(output: Path, cache_root: Path, gpu_router: str) -> tuple[Pa
     # makes its digest reproducible. Fork issue: DeanoC/yosys#80.
     # pc386_rom reads ROM_HEX relative to the misteross root as the seal does,
     # so Yosys still runs there.
-    stable = ROOT / MACHINE_NETLIST_WORK
-    stable.parent.mkdir(parents=True, exist_ok=True)
+    netlist = work / sealer.MACHINE_NETLIST
     # Every path Yosys is given is fixed, not just the netlist's: the program
     # file and the log carry the output directory too, and the auto-names
-    # follow any of them.
-    yosys_netlist.run(yosys.path, sealer.machine_program(stable), cwd=ROOT,
-                      program_file=stable.with_name("machine.ys"),
-                      log=stable.with_name("yosys.log"))
-    netlist = work / sealer.MACHINE_NETLIST
-    for name in (sealer.MACHINE_NETLIST, "machine.ys", "yosys.log"):
-        source = stable.with_name(name)
-        if source.is_file():
-            shutil.copyfile(source, work / name)
-            source.unlink()
+    # follow any of them. The workspace is held while it is written and copied.
+    with elaboration_lease() as stable:
+        yosys_netlist.run(yosys.path, sealer.machine_program(stable), cwd=ROOT,
+                          program_file=stable.with_name("machine.ys"),
+                          log=stable.with_name("yosys.log"))
+        for name in (sealer.MACHINE_NETLIST, "machine.ys", "yosys.log"):
+            source = stable.with_name(name)
+            if source.is_file():
+                shutil.copyfile(source, work / name)
+                source.unlink()
     return netlist, {"program_sha256": yosys_netlist.program_sha256(yosys_netlist.SEAL),
                      "netlist_sha256": sha(netlist.read_bytes()),
                      "guest_rates": sealer.guest_rates(),
@@ -758,7 +800,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="the toolchain slot whose Yosys writes the netlist; nothing runs on a GPU")
     parser.add_argument("--output", type=Path, required=True, help="a new directory")
     parser.add_argument("--netlist", type=Path, help="reuse this netlist instead of writing one")
-    parser.add_argument("--timeout-minutes", type=int, default=90)
+    parser.add_argument("--timeout-minutes", type=int,
+                        help="runtime cap; the method's default per design, 90 minutes for the CPU "
+                             "and 240 for the machine. A fit that hits its cap is reported as not "
+                             "measured within the cap, so the cap must be the promised one.")
     parser.add_argument("--project-only", action="store_true", help="prepare, do not compile")
     parser.add_argument("--front-end", choices=("netlist", "systemverilog"), default="netlist",
                         help="netlist is the primary flow (the Yosys SEAL netlist, the same bytes "
@@ -776,6 +821,7 @@ def main(argv: list[str] | None = None) -> int:
         if not 1 <= args.seed <= 2 ** 31 - 1:
             raise FitError("seed must be a positive integer")
         device, design = DEVICES[args.device], DESIGNS[args.design]
+        timeout_minutes = args.timeout_minutes or DEFAULT_TIMEOUT_MINUTES[args.design]
         with lock_context(device):
             lock = load_quartus_lock(ROOT, device.quartus_lock)
             metadata = {"series": lock.series, "qsf_version": lock.qsf_version, "release": lock.release,
@@ -785,11 +831,18 @@ def main(argv: list[str] | None = None) -> int:
             if metadata["edition"] != "pro":
                 raise FitError("the locked Quartus 17.0.2 front end rejects this RTL, so the "
                                "direct SystemVerilog flow exists on the Pro side only")
+            project = write_sv_project(output, device, design, args.period_ns, args.seed, metadata)
+            # The rewrite provenance belongs where the collector reads it, not
+            # only in inputs.json: it is the evidence for what was changed.
+            sv_inputs = json.loads((output / "inputs.json").read_text())
             (output / "netlist.json").write_text(json.dumps(
                 {"front_end": "quartus-systemverilog",
-                 "note": "no Yosys netlist; Quartus read the RTL itself"},
+                 "note": "no Yosys netlist; Quartus read the RTL itself",
+                 "ram_attribute": sv_inputs["ram_attribute"],
+                 "ram_attribute_count": sv_inputs["ram_attribute_count"],
+                 "source_sha256": sv_inputs["source_sha256"],
+                 "fitted_source_sha256": sv_inputs["fitted_source_sha256"]},
                 indent=2, sort_keys=True) + "\n")
-            project = write_sv_project(output, device, design, args.period_ns, args.seed, metadata)
             print(f"i386 fit project (direct SystemVerilog): {project}", flush=True)
             if args.project_only:
                 return 0
@@ -800,13 +853,17 @@ def main(argv: list[str] | None = None) -> int:
                         os.environ.get("QUARTUS_ROOTDIR", ""), ROOT, lock)
                 metadata["version_line"] = version
                 record = compile_project(output, project, design["top"], quartus_sh, metadata,
-                                         args.timeout_minutes * 60)
+                                         timeout_minutes * 60)
             print(f"i386 fit FINISH (direct SystemVerilog) {design['top']} on {device.part}: "
                   + json.dumps(record["resources"], sort_keys=True), flush=True)
             return 0
         if args.netlist is not None:
             netlist, provenance = args.netlist.resolve(), {"reused": str(args.netlist)}
         else:
+            # Before the elaboration, not only before the compile: a netlist of
+            # the machine is tens of megabytes and the Yosys job should be
+            # refused rather than left to fail part-written.
+            require_disk(output)
             writer = cpu_netlist if args.design == "cpu" else machine_netlist
             netlist, provenance = writer(output, args.cache_root, args.gpu_router)
         netlist, retarget = prepare_netlist(netlist, device, output / "fitted-netlist")
@@ -823,7 +880,7 @@ def main(argv: list[str] | None = None) -> int:
                     os.environ.get("QUARTUS_ROOTDIR", ""), ROOT, lock)
             metadata["version_line"] = version
             record = compile_project(output, project, design["top"], quartus_sh, metadata,
-                                     args.timeout_minutes * 60)
+                                     timeout_minutes * 60)
         print(f"i386 fit FINISH {design['top']} on {device.part}: "
               + json.dumps(record["resources"], sort_keys=True), flush=True)
         print("fmax: " + json.dumps(record["timing"].get("fmax", {}), sort_keys=True), flush=True)
