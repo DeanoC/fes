@@ -1,0 +1,41 @@
+{
+  "top": "fes_i386_x87",
+  "netlist": false,
+  "backend": "de25",
+  "verilator": {
+    "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+    "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+    "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+    "version": "Verilator 5.054 2026-11-01 rev v5.054",
+    "install": "1cd6c9741d903760a2b1c4283b6830f63c0974f8478b06fb7f8dabd3c4304d8c"
+  },
+  "passed": 763,
+  "failed": 0,
+  "failures": [],
+  "latency_clocks": {
+    "fadd.pc24": 19,
+    "fsub.pc24": 19,
+    "fmul.pc24": 19,
+    "fdiv.pc24": 39,
+    "fsqrt.pc24": 39,
+    "fscale.pc24": 15,
+    "frndint.pc24": 22,
+    "fprem.pc24": 17,
+    "fadd.pc53": 19,
+    "fsub.pc53": 19,
+    "fmul.pc53": 19,
+    "fdiv.pc53": 68,
+    "fsqrt.pc53": 68,
+    "fscale.pc53": 15,
+    "frndint.pc53": 22,
+    "fprem.pc53": 17,
+    "fadd.pc64": 19,
+    "fsub.pc64": 19,
+    "fmul.pc64": 19,
+    "fdiv.pc64": 79,
+    "fsqrt.pc64": 79,
+    "fscale.pc64": 15,
+    "frndint.pc64": 22,
+    "fprem.pc64": 17
+  }
+}

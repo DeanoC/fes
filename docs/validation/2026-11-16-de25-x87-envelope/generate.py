@@ -141,7 +141,8 @@ def latency_table(evidence: Path) -> str:
 
 def fit_table(fits: Path) -> str:
     rows = []
-    for record in sorted(fits.glob('*/build.json')):
+    for record in sorted(list(fits.glob('*/build.json')) + [f for f in fits.glob('*.json')
+                         if not f.name.endswith('.inputs.json')]):
         r = load(record)
         if not r:
             continue
@@ -175,7 +176,7 @@ def fit_table(fits: Path) -> str:
         label = (f"`{r.get('top', '?')}`, X87_BACKEND={backend_n}"
                  + (f", x87_present={kind}" if kind is not None else "")
                  + f", {r.get('virtual_ports', '?')} virtual ports")
-        rows.append(f"| {record.parent.name} | {label} | {r['seed']} | "
+        rows.append(f"| {record.stem.replace('.inputs', '')} | {label} | {r['seed']} | "
                     f"{r['period_ns']:.3f} | {r['status']} | {used('alms')} | {pct('alms')} | "
                     f"{used('labs')} | {pct('labs')} | "
                     f"{used('registers')} | {used('dsp_blocks')} | {used('m20k_blocks')} | "
@@ -194,14 +195,15 @@ def exclusion_table(fits: Path) -> str:
     absence; this is the evidence instead, and the positive controls are what
     make an absence mean absent rather than renamed."""
     rows = []
-    for record in sorted(fits.glob('*/build.json')):
+    for record in sorted(list(fits.glob('*/build.json')) + [f for f in fits.glob('*.json')
+                         if not f.name.endswith('.inputs.json')]):
         r = load(record)
         if not r or 'exclusion' not in r:
             continue
         e = r['exclusion']
         absent = e.get('absent_expected', {})
         controls = e.get('positive_controls', {})
-        rows.append(f"| {record.parent.name} | "
+        rows.append(f"| {record.stem} | "
                     f"{', '.join(sorted(n for n, v in absent.items() if v)) or 'none — as required'} | "
                     f"{', '.join(sorted(n for n, v in controls.items() if v)) or '**none — result void**'} | "
                     f"{', '.join(r.get('ram_blocks') or []) or '-'} | "
@@ -210,6 +212,32 @@ def exclusion_table(fits: Path) -> str:
         return '_no fit carries an exclusion record_'
     return ('| Run | Sequenced-arithmetic registers still present | Positive controls found | Memories the fit kept | Registers in fit |\n'
             '| --- | --- | --- | --- | ---: |\n' + '\n'.join(rows))
+
+
+def rtl_agreement(fits: Path) -> str:
+    """Every fit must have been taken from the same RTL. The fit script and
+    the timing gate are exempt: they are harness, and editing them between
+    seeds does not change the design. This exists because faults were injected
+    into this tree while fits were queued, and a timeline argument is not a
+    check."""
+    HARNESS = {'x87_envelope_fit.py', 'x87_envelope_timing.tcl'}
+    seen = {}
+    for inputs in sorted(fits.glob('*.inputs.json')):
+        d = load(inputs)
+        if not d:
+            continue
+        design = {k: v for k, v in d['source_sha256'].items() if k not in HARNESS}
+        seen[inputs.stem.replace('.inputs', '')] = design
+    if not seen:
+        return '_no fit inputs found_'
+    first = next(iter(seen.values()))
+    bad = {name: d for name, d in seen.items() if d != first}
+    if bad:
+        raise SystemExit('fits were taken from different RTL, so their figures cannot be '
+                         f'tabled together: {sorted(bad)}')
+    return (f'All {len(seen)} fits were taken from the same RTL '
+            f'({len(first)} design files, hashes equal across every fit; the fit script and '
+            'the timing gate are exempt as harness).')
 
 
 def main() -> int:
@@ -236,13 +264,17 @@ def main() -> int:
     print('\n### Per-form latency, in CPU clocks\n')
     print(latency_table(args.evidence))
     print('\n### The Agilex 5 fit\n')
+    print(rtl_agreement(args.fits) + '\n')
     print('Worst setup and worst hold are the minimum across all four published')
     print('operating conditions. **Hold is non-negative but not strictly positive**:')
     print('two seeds reach exactly 0.000 ns at their worst corner, which is a pass')
     print('and is also as close to the edge as a pass can be. Every ALM figure is')
     print("the fit's own total and INCLUDES its virtual-pin envelope's cells; they")
     print('are not subtracted, following the sibling Agilex 5 record so that the')
-    print('two read the same way.\n')
+    print('two read the same way. The **LAB columns are LABs TOUCHED, not')
+    print('capacity**: a LAB counts as used when one of its ten ALM slots is used,')
+    print("so the percentage runs ahead of occupancy. Quartus's own capacity row is")
+    print('ALMs needed.\n')
     print(fit_table(args.fits))
     print('\n### What the selection left out\n')
     print(exclusion_table(args.fits))

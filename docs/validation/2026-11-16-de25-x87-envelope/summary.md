@@ -344,7 +344,150 @@ The tables below are generated from the run reports by
 from the run that produced it. What the generator cannot do is say what the
 numbers mean; that is the prose around them.
 
-<!-- GENERATED -->
+The reports themselves are in [evidence/](evidence/) and [fits/](fits/), so
+the tables can be regenerated:
+
+    python3 docs/validation/2026-11-16-de25-x87-envelope/generate.py \
+        --evidence docs/validation/2026-11-16-de25-x87-envelope/evidence \
+        --fits docs/validation/2026-11-16-de25-x87-envelope/fits
+
+The generator **refuses** to table fits taken from different RTL — faults were
+deliberately injected into this tree while fits were queued, to show that
+several checks could fail, and a timeline argument is not a check.
+
+**What is not here.** Four measurements are **not run**, because the shared
+Quartus builder was released to the sibling Agilex 5 measurement whose fits
+were queued behind these: the **DE10-arithmetic control** fit, the **in-CPU
+M/M+ pair** that would give a figure addable to a machine measurement, the
+**FPREM A/B** whose rule and arm B are precommitted in `method.md`, and the
+**clock ladder** above 61.44 MHz that rule 6 names. So **rule 6 is met at the
+headline constraint only**, and **no additive in-CPU figure exists**.
+
+### The unit bench, against the host's own x87
+
+| Configuration | Cases passed | Failed |
+| --- | ---: | ---: |
+| DE10 sequenced arithmetic, RTL | 763 | 0 |
+| DE25 `fes_x87_core`, RTL | 763 | 0 |
+| DE10, the seal's Yosys netlist | 763 | 0 |
+
+### What the backend was actually asked to do
+
+| `req_op` | Operation | Offered | Taken | Reading |
+| ---: | --- | ---: | ---: | --- |
+| 0 | ADD | 16 | 16 | the gate reached this operation |
+| 1 | SUB | 26 | 26 | the gate reached this operation |
+| 2 | MUL | 20 | 20 | the gate reached this operation |
+| 3 | DIV | 16 | 16 | the gate reached this operation |
+| 4 | SQRT | 8 | 8 | the gate reached this operation |
+| 5 | CMP | 0 | 0 | zero **by construction** (see the text) |
+| 6 | UCMP | 0 | 0 | zero **by construction** (see the text) |
+| 7 | (reserved) | 0 | 0 | zero **by construction** (see the text) |
+
+Totals: **86 offered, 86 taken** across 8 suites.
+
+### Lockstep against the Bochs oracle
+
+| Backend | Suite | Passed | Failed | x87 states compared | Trace hash |
+| --- | --- | ---: | ---: | ---: | --- |
+| DE25 | reset_store | 1 | 0 | 0 | `14650fb0739d0383` |
+| DE25 | directed_cases | 84 | 0 | 0 | `b314a2470d824fd7` |
+| DE25 | unreal_cases | 7 | 0 | 0 | `286cb5646eac4124` |
+| DE25 | pmode_cases | 726 | 0 | 0 | `71891e83b5b2bec1` |
+| DE25 | paging_cases | 148 | 0 | 0 | `a25ec314ad12fe5f` |
+| DE25 | no387_cases | 1933 | 0 | 0 | `ce05ef6f406cea6b` |
+| DE25 | x87_cases | 24 | 0 | 38 | `15576f711d0b8e87` |
+| DE25 | memory_cases | 27 | 0 | 0 | `14650fb0739d0383` |
+| DE10 | reset_store | 1 | 0 | 0 | `14650fb0739d0383` |
+| DE10 | directed_cases | 84 | 0 | 0 | `b314a2470d824fd7` |
+| DE10 | unreal_cases | 7 | 0 | 0 | `286cb5646eac4124` |
+| DE10 | pmode_cases | 726 | 0 | 0 | `71891e83b5b2bec1` |
+| DE10 | paging_cases | 148 | 0 | 0 | `a25ec314ad12fe5f` |
+| DE10 | no387_cases | 1933 | 0 | 0 | `ce05ef6f406cea6b` |
+| DE10 | x87_cases | 24 | 0 | 38 | `15576f711d0b8e87` |
+| DE10 | memory_cases | 27 | 0 | 0 | `14650fb0739d0383` |
+
+### Trace hashes, DE10 against DE25
+
+`trace_hash` is folded from EIP, the eight GPRs and EFLAGS at every
+retirement (`hash_state`). It covers the **integer architectural**
+trace: not cycle timing, and **not the x87 register stack**. So
+identical hashes say the two configurations are indistinguishable to
+the rest of the CPU -- which is what rule 5 asks -- and say nothing
+about whether the arithmetic agrees. That evidence is the x87 state
+comparison in the table above, and the unit bench.
+
+| Suite | DE10 | DE25 | |
+| --- | --- | --- | --- |
+| directed_cases | `b314a2470d824fd7` | `b314a2470d824fd7` | same |
+| memory_cases | `14650fb0739d0383` | `14650fb0739d0383` | same |
+| no387_cases | `ce05ef6f406cea6b` | `ce05ef6f406cea6b` | same |
+| paging_cases | `a25ec314ad12fe5f` | `a25ec314ad12fe5f` | same |
+| pmode_cases | `71891e83b5b2bec1` | `71891e83b5b2bec1` | same |
+| reset_store | `14650fb0739d0383` | `14650fb0739d0383` | same |
+| unreal_cases | `286cb5646eac4124` | `286cb5646eac4124` | same |
+| x87_cases | `15576f711d0b8e87` | `15576f711d0b8e87` | same |
+
+### Per-form latency, in CPU clocks
+
+| Form | PC | DE10 sequencer | DE25 backend | Difference | |
+| --- | ---: | ---: | ---: | ---: | --- |
+| FADD | 24 | 10 | 19 | +9 |  |
+| FADD | 53 | 10 | 19 | +9 |  |
+| FADD | 64 | 10 | 19 | +9 |  |
+| FSUB | 24 | 17 | 19 | +2 |  |
+| FSUB | 53 | 17 | 19 | +2 |  |
+| FSUB | 64 | 17 | 19 | +2 |  |
+| FMUL | 24 | 15 | 19 | +4 |  |
+| FMUL | 53 | 15 | 19 | +4 |  |
+| FMUL | 64 | 15 | 19 | +4 |  |
+| FDIV | 24 | 49 | 39 | -10 | **the backend is faster** |
+| FDIV | 53 | 59 | 68 | +9 |  |
+| FDIV | 64 | 64 | 79 | +15 |  |
+| FSQRT | 24 | 53 | 39 | -14 | **the backend is faster** |
+| FSQRT | 53 | 68 | 68 | +0 | equal |
+| FSQRT | 64 | 72 | 79 | +7 |  |
+| FSCALE | 24 | 15 | 15 | +0 | positive control: must be 0 |
+| FSCALE | 53 | 15 | 15 | +0 | positive control: must be 0 |
+| FSCALE | 64 | 15 | 15 | +0 | positive control: must be 0 |
+| FRNDINT | 24 | 22 | 22 | +0 | positive control: must be 0 |
+| FRNDINT | 53 | 22 | 22 | +0 | positive control: must be 0 |
+| FRNDINT | 64 | 22 | 22 | +0 | positive control: must be 0 |
+| FPREM | 24 | 17 | 17 | +0 | positive control: must be 0 |
+| FPREM | 53 | 17 | 17 | +0 | positive control: must be 0 |
+| FPREM | 64 | 17 | 17 | +0 | positive control: must be 0 |
+
+### The Agilex 5 fit
+
+All 4 fits were taken from the same RTL (8 design files, hashes equal across every fit; the fit script and the timing gate are exempt as harness).
+
+Worst setup and worst hold are the minimum across all four published
+operating conditions. **Hold is non-negative but not strictly positive**:
+two seeds reach exactly 0.000 ns at their worst corner, which is a pass
+and is also as close to the edge as a pass can be. Every ALM figure is
+the fit's own total and INCLUDES its virtual-pin envelope's cells; they
+are not subtracted, following the sibling Agilex 5 record so that the
+two read the same way. The **LAB columns are LABs TOUCHED, not
+capacity**: a LAB counts as used when one of its ten ALM slots is used,
+so the percentage runs ahead of occupancy. Quartus's own capacity row is
+ALMs needed.
+
+| Run | Top and parameters | Seed | Period (ns) | Status | ALMs | of device | LABs | of device | Registers | DSP | M20K | Worst setup | Worst hold |
+| --- | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| unit-de25-s1 | `fes_i386_x87`, X87_BACKEND=1, 32 virtual ports | 1 | 16.276 | pass | 6,510 | 13.9% | 780 | 16.7% | 5,613 | 18 | 4 | +6.810 ns | +0.006 ns |
+| unit-de25-s2 | `fes_i386_x87`, X87_BACKEND=1, 32 virtual ports | 2 | 16.276 | pass | 6,518 | 13.9% | 790 | 16.9% | 5,629 | 18 | 4 | +5.323 ns | +0.000 ns |
+| unit-de25-s3 | `fes_i386_x87`, X87_BACKEND=1, 32 virtual ports | 3 | 16.276 | pass | 6,516 | 13.9% | 797 | 17.0% | 5,582 | 18 | 4 | +4.634 ns | +0.004 ns |
+| unit-de25-s4 | `fes_i386_x87`, X87_BACKEND=1, 32 virtual ports | 4 | 16.276 | pass | 6,512 | 13.9% | 791 | 16.9% | 5,634 | 18 | 4 | +5.600 ns | +0.000 ns |
+
+### What the selection left out
+
+| Run | Sequenced-arithmetic registers still present | Positive controls found | Memories the fit kept | Registers in fit |
+| --- | --- | --- | --- | ---: |
+| unit-de25-s1 | none — as required | cw, pa, wm | rf_a, rf_b | 6801 |
+| unit-de25-s2 | none — as required | cw, pa, wm | rf_a, rf_b | 6816 |
+| unit-de25-s3 | none — as required | cw, pa, wm | rf_a, rf_b | 6770 |
+| unit-de25-s4 | none — as required | cw, pa, wm | rf_a, rf_b | 6821 |
+
 
 ## Whether it fits in the machine is **not** established by any fit that exists
 
