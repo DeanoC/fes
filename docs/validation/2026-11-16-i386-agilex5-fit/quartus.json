@@ -836,6 +836,151 @@
     },
     {
       "board": "DE25-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_hz": 150000000,
+      "corner_count": 4,
+      "device": "A5EB013BB23BE4SCS",
+      "documented_device_alms": 46800,
+      "error": "timing failed (3); retained /home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu-de25-150-s1/timing.log",
+      "family": "Agilex 5",
+      "fes_revision": {
+        "clean": false,
+        "commit": "eceb97bd4fc17500164434785bec7bf3e8e35984",
+        "note": "prepared from a modified checkout; this commit alone does not describe the source that ran, and the diff above does",
+        "tracked_diff": "diff --git a/docs/validation/2026-11-16-i386-agilex5-fit/method.md b/docs/validation/2026-11-16-i386-agilex5-fit/method.md\nindex f12ec27c4..514fda22b 100644\n--- a/docs/validation/2026-11-16-i386-agilex5-fit/method.md\n+++ b/docs/validation/2026-11-16-i386-agilex5-fit/method.md\n@@ -602,3 +602,32 @@ assignment warnings in any fit \u2014 so they were inert. The published port counts\n were simply wrong, and are corrected here and in the summary. The reader is\n fixed to skip `function`/`endfunction` blocks, with a test that puts a\n function's inputs in a module header and requires them not to appear.\n+\n+## Amendment, 16 November 2026: the ladder's top rung was not high enough\n+\n+What had been seen: **every rung of the precommitted ladder closed on\n+Agilex 5** \u2014 61.44, 75, 90, 110 and 130 MHz, each passing setup, hold,\n+recovery, removal and minimum pulse width at all four published corners. The\n+130 MHz rung passed with **+0.426 ns** of setup slack at its worst slow corner\n+and a 137.63 MHz restricted-Fmax estimate. Area was flat across all five:\n+29,300 to 29,455 ALMs, a 155 ALM spread. On the DE10, only the 61.44 MHz rung\n+had run; its higher rungs and the extra seeds were queued.\n+\n+So the ladder did its job on the pass side and failed to bound the answer: it\n+establishes that `fes_i386_cpu` **closes at 130 MHz on Agilex 5**, and it does\n+not establish a ceiling, because its top rung was the last one it had.\n+\n+**The ladder is extended to 150 and 170 MHz, seed 1, on Agilex 5.** This is\n+stated as what it is: rungs added **after** seeing the top rung pass. It\n+changes no pass rule \u2014 a rung still closes only by passing every analysis at\n+every corner, and the rungs already run keep their verdicts \u2014 and it adds\n+evidence in the same direction rather than rescuing a failure. The reason to\n+do it rather than report \"at least 130 MHz\" is that the DE25 plan needs to\n+know where the CPU actually stops, and 130 MHz with +0.426 ns of slack is\n+plainly not it.\n+\n+If 170 MHz also closes, the record will say so and say again that the ladder\n+has not found the ceiling, rather than extending a third time; two additions\n+chasing a result would stop being a precommitment at all. The DE10's rungs\n+above 61.44 MHz are unchanged and still expected to miss against that device's\n+own 63.79 MHz estimate.\n",
+        "tracked_diff_sha256": "9367b83842b31d43b138d9780318870cc4c0c39ef9979bd598f57abca1c15e2f"
+      },
+      "fit": "cpu-de25-150-MISS",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "159.44",
+              "restricted_fmax": "159.44"
+            }
+          ],
+          "corner": "Slow fix4 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "139.84",
+              "restricted_fmax": "139.84"
+            }
+          ],
+          "corner": "Slow fix4 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "139.9",
+              "restricted_fmax": "139.9"
+            }
+          ],
+          "corner": "Slow fix4a 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "254.07",
+              "restricted_fmax": "254.07"
+            }
+          ],
+          "corner": "Fast fix4 0C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "fitted_netlist": {
+          "duplicate_attribute_count": 0,
+          "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+          "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+          "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+          "ram_attribute_count": 30,
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+          "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v"
+      },
+      "period_ns": 6.6666666667,
+      "programming_artifact": null,
+      "quartus": "26.3.0",
+      "quartus_edition": "pro",
+      "quartus_lock": "boards/de25nano/quartus.lock",
+      "ram_block": "M20K",
+      "real_clocks": [
+        "clk"
+      ],
+      "real_pins": null,
+      "resources": {
+        "alms": {
+          "available": 46800.0,
+          "percent_of_device": 64.1,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 30000.0
+        },
+        "alms_with_virtual_pins": {
+          "available": 46800.0,
+          "percent_of_device": 5.02,
+          "report_label": "* ALMs containing virtual pins",
+          "report_percent": "5",
+          "used": 2351.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 42547.0
+        },
+        "block_memory_bits": {
+          "available": 7331840.0,
+          "percent_of_device": 5.57,
+          "report_label": "Total block memory bits",
+          "report_percent": "6",
+          "used": 408320.0
+        },
+        "dsp_blocks": {
+          "available": 188.0,
+          "percent_of_device": 6.38,
+          "report_label": "DSP Blocks Needed [=A+B+C-D]",
+          "used": 12.0
+        },
+        "labs": {
+          "available": 4680.0,
+          "percent_of_device": 78.8,
+          "report_label": "Total LABs:  partially or completely used",
+          "used": 3688.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 512.0
+        },
+        "ram_blocks": {
+          "available": 358.0,
+          "percent_of_device": 14.8,
+          "report_label": "M20K blocks",
+          "used": 53.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 21508.0
+        }
+      },
+      "resources_stage": "incomplete fit; stage not recorded",
+      "seed": 1,
+      "source_clean": false,
+      "status": "fail",
+      "timing_status": "fail",
+      "top": "fes_i386_cpu",
+      "virtual_port_count": 148,
+      "virtual_port_count_as_run": null,
+      "virtual_port_count_note": null
+    },
+    {
+      "board": "DE25-Nano",
       "classification": "internal virtual-pin characterisation fit, SECONDARY direct-SystemVerilog front end; a cross-check on the netlist flow, not a second area result; no seal, no board I/O, no hardware acceptance",
       "clock_hz": 61440000,
       "corner_count": 4,

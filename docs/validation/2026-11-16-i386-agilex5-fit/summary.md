@@ -31,7 +31,7 @@ amendment dated and stating what had already been seen. Tracker:
 
 ## What was measured
 
-Twelve internal virtual-pin characterisation fits: the three designs below at
+Thirteen internal virtual-pin characterisation fits: the three designs below at
 61.44 MHz, the CPU's clock ladder on Agilex 5, and one superseded envelope
 kept for comparison. No board shell, no pins, no
 HPS, no PLL, no reset-release IP, no programming artifact, no seal and no
@@ -238,7 +238,8 @@ this record is `main`, whose 387 has no arithmetic.
 | 90 MHz | Agilex 5 | **yes**, all 4 corners | 29,304 | 62.62% | 3,590 | 76.71% | 125.69 MHz |
 | 110 MHz | Agilex 5 | **yes**, all 4 corners | 29,348 | 62.71% | 3,592 | 76.75% | 133.23 MHz |
 | 130 MHz | Agilex 5 | **yes**, all 4 corners, +0.426 ns | 29,455 | 62.94% | 3,597 | 76.86% | 137.63 MHz |
-| 150, 170 MHz | Agilex 5 | running (rungs added after the ladder topped out — see the method) | — | — | — | — | — |
+| 150 MHz | Agilex 5 | **no** — −0.485 ns at Slow fix4 0C, −0.482 at Slow fix4a 0C; passes the other two | 30,000 | 64.10% | 3,688 | 78.80% | 139.84 MHz |
+| 170 MHz | Agilex 5 | running | — | — | — | — | — |
 | 61.44 MHz | Cyclone V | **yes**, all 8 corners | 31,244 | 74.55% | 3,494 | 83.37% | 63.79 MHz |
 | 75, 90, 110, 130 MHz | Cyclone V | queued, and expected to miss | — | — | — | — | — |
 
@@ -270,11 +271,18 @@ record does not establish a Cyclone V ceiling either: its 63.79 MHz estimate
 suggests it would miss, but the Agilex ladder closed 130 MHz from a 124 MHz
 estimate, which is exactly why an estimate is not a verdict here.
 
-**The ladder therefore did not find the ceiling**, because its top rung was
-the last one it had. 150 and 170 MHz were added afterwards, and the method
-records that plainly as rungs added after seeing the top one pass: no pass rule
-changed, no verdict was revisited, and if 170 closes too this record will say
-the ceiling is still not found rather than extend a third time.
+**And the extension found the ceiling: 150 MHz misses.** It fails setup by
+−0.485 ns at Slow fix4 0C and −0.482 ns at Slow fix4a 0C, while passing the
+slow 100C and fast corners — so it misses on two of four, and the method's rule
+is that a rung missing any analysis at any corner does not close. The ceiling
+for this netlist, this envelope and seed 1 therefore sits **between 130 and
+150 MHz**.
+
+The 150 MHz fit is also the one place where area moves: **30,000 ALMs**, 700
+above the 61.44 MHz rung and outside this lane's ±200 noise, with LABs up to
+78.80%. So the area-is-flat finding holds across the rungs that *close* and
+stops holding at the rung that does not — the fitter spends area trying to
+make a target it cannot reach.
 
 Also not measured, and stated as such:
 
