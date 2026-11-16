@@ -1,0 +1,14 @@
+{
+  "COPY_WORDS": "mov si,0x8000\n mov di,0x9000\n mov cx,16\n rep movsw",
+  "FILL_WORDS": "mov di,0x9000\n mov cx,16\n mov ax,0x3939\n rep stosw",
+  "SCAN_BYTES": "mov di,0x9000\n mov cx,16\n mov al,0xfe\n repne scasb",
+  "COMPARE_WORDS": "mov si,0x8000\n mov di,0x9000\n mov cx,16\n repe cmpsw",
+  "DRAW_WORDS": "mov ax,[bx]\n xor ax,0x5555\n rol ax,1\n mov [bx+2],ax\n inc bx\n and bx,0x83ff",
+  "CHECKSUM": "mov ax,[bx]\n add ax,[bx+2]\n adc dx,0\n mov [bx+4],ax\n add bx,2\n and bx,0x83fe",
+  "BRANCH_SCAN": "test byte [bx],1\n jz $+4\n inc dx\n inc dx\n inc bx\n and bx,0x83ff",
+  "STACK_CALL": "push ax\n push bx\n call $+5\n jmp $+4\n inc dx\n ret\n pop bx\n pop ax",
+  "BYTE_STREAM": "lodsb\n xor al,0x55\n stosb",
+  "BUSY_WAIT": "mov cx,16\n loop $",
+  "ARITH_BRANCH": "mov ax,[bx]\n mov dx,7\n mul dx\n test ax,8\n jz $+4\n inc bx\n dec bx",
+  "ENTER_LEAVE": "enter 6,0\n mov ax,[bp-2]\n leave"
+}

@@ -36,6 +36,17 @@ module governor_integration_tb;
     repeat(8) @(negedge clk); tally=0;
     if(sum0!=expected0 || sum1!=expected1) $fatal(1,"%s base=%0d expected=%0d candidate=%0d expected=%0d",label,sum0,expected0,sum1,expected1);
   endtask
+  task automatic mixed_check(input byte op, input int nbytes, naccess, expected, expected_length, input bit ram, is_rep, excluded, enter_zero, stack32, baseline_cost);
+    restart;
+    instruction(op,0,nbytes,naccess,0);
+    gov.rep=is_rep; gov.ref_test_excluded=excluded; gov.ref_enter_valid=1; gov.ref_enter_level=enter_zero ? 5'd0 : 5'd1; gov.ref_stack32=stack32; ordinary_ram=ram;
+    @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
+    @(negedge clk);
+    if (int'(candidate.execution_clocks) != expected || (baseline_cost && candidate.execution_clocks != baseline.execution_clocks))
+      $fatal(1,"mixed candidate op=%h rep=%0d excluded=%0d enter0=%0d stack32=%0d ram=%0d actual=%0d expected=%0d baseline=%0d",op,is_rep,excluded,enter_zero,stack32,ram,candidate.execution_clocks,expected,baseline.execution_clocks);
+    if (int'(candidate.gen_reference_queue.length) != expected_length)
+      $fatal(1,"mixed queue length op=%h actual=%0d expected=%0d",op,candidate.gen_reference_queue.length,expected_length);
+  endtask
   initial begin
     repeat(5) @(negedge clk); reset=0; repeat(8) @(negedge clk); tally=1;
     instruction(8'hff,0,4,2,0);
@@ -393,6 +404,31 @@ module governor_integration_tb;
     if (!candidate.s2_ordinary_ram || candidate.execution_clocks != 13)
       $fatal(1,"adjacent RAM instruction inherited previous non-RAM access");
     repeat(8) @(negedge clk); tally=0;
+    // New candidate form guards, including SS.B and exact encoded nesting.
+    mixed_check(8'ha8,2,0,2,2,1,0,0,0,0,0);
+    mixed_check(8'ha8,2,0,3,2,1,0,1,0,0,1);
+    mixed_check(8'haa,1,1,4,1,1,0,0,0,0,0);
+    mixed_check(8'haa,1,1,3,1,0,0,0,0,0,1);
+    mixed_check(8'haa,1,1,0,1,1,1,0,0,0,0);
+    mixed_check(8'hc8,4,1,10,3,1,0,0,1,0,0);
+    mixed_check(8'hc8,4,1,11,4,1,0,0,1,1,1);
+    mixed_check(8'hc8,4,1,15,3,1,0,0,0,0,0);
+    mixed_check(8'hc8,4,1,11,4,1,0,1,1,0,1);
+    mixed_check(8'hc8,4,1,11,4,0,0,0,1,0,1);
+    mixed_check(8'hc9,1,1,4,1,1,0,0,0,0,0);
+    mixed_check(8'hc9,1,1,5,1,1,0,0,0,1,1);
+    restart;
+    instruction(8'hc8,0,4,1,0); gov.ref_enter_valid=1; gov.ref_enter_level=31;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 135 || candidate.gen_reference_queue.length != 3)
+      $fatal(1,"ENTER level 31 budget or fetch");
+    restart;
+    instruction(8'hc8,0,4,1,0); gov.ref_enter_valid=0; gov.ref_enter_level=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != baseline.execution_clocks || candidate.gen_reference_queue.length != 4)
+      $fatal(1,"ENTER high encoded nesting fallback");
     preset=3; restart;
     instruction(8'hff,0,4,2,0); instruction(8'h83,7,5,1,0); instruction(8'h75,0,2,0,1);
     finish_trial(19,19,"non-286");

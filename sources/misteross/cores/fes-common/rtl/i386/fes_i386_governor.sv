@@ -278,6 +278,13 @@ module fes_i386_governor #(
             if (!s2_gov.o32) begin
                 // Measured-reference experiment, limited to unprefixed 16-bit forms.
                 if (!s2_gov.ref_test_excluded) begin
+                    // Reference costs for unprefixed ordinary 16-bit forms.
+                    if (s2_gov.op == 8'ha8 || s2_gov.op == 8'ha9) execution_clocks = 9'd2;
+                    if (s2_ordinary_ram && !s2_gov.rep && (s2_gov.op == 8'haa || s2_gov.op == 8'hab))
+                        execution_clocks = 9'd4;
+                    if (s2_ordinary_ram && !s2_gov.ref_stack32 && s2_gov.op == 8'hc8 && s2_gov.ref_enter_valid)
+                        execution_clocks = s2_gov.ref_enter_level == 0 ? 9'd10 : 9'd11 + ({4'd0, s2_gov.ref_enter_level} << 2);
+                    if (s2_ordinary_ram && !s2_gov.ref_stack32 && s2_gov.op == 8'hc9) execution_clocks = 9'd4;
                     // Count zero keeps the prior diagnostic path pending validation.
                     if (s2_ordinary_ram && !s2_gov.ea3 && s2_gov.ref_shift_nonzero &&
                         (s2_gov.op == 8'hc0 || s2_gov.op == 8'hc1 ||
@@ -372,7 +379,12 @@ module fes_i386_governor #(
         logic [7:0] spare, spare_raw;
         logic [8:0] spare_total;
         logic spare_odd;
-        assign length = {1'b0, reference_pending} + (reference_first ? {9'd0, s2_ilen} : 13'd0);
+        // The reference's supported ENTER forms consume three modeled fetch
+        // bytes; its fourth encoded byte is not charged to its queue.
+        assign length = {1'b0, reference_pending} + (reference_first ?
+            {9'd0, s2_ilen} - 13'(reference_on && s2_ends && !s2_gov.two && !s2_gov.o32 &&
+                !s2_gov.ref_test_excluded && s2_ordinary_ram && !s2_gov.ref_stack32 && s2_gov.op == 8'hc8 &&
+                s2_gov.ref_enter_valid && s2_ilen != 0) : 13'd0);
         always_comb begin
             missing = length > {8'd0, queue_bytes} ? length - {8'd0, queue_bytes} : 0;
             words = (missing + 13'd1) >> 1;

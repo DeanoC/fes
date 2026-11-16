@@ -598,6 +598,9 @@ package fes_i386_pkg;
         logic       ea3;
         logic       ref_test_excluded;  // unmeasured TEST encoding: 32-bit code or any prefix
         logic       ref_shift_nonzero;  // resolved 5-bit shift count at EX
+        logic [4:0] ref_enter_level;    // supported 286 nesting level
+        logic       ref_enter_valid;    // encoded nesting byte is at most 31
+        logic       ref_stack32;        // stack width sampled at issue
         logic       ref_zero_unsafe; // 32-bit default code or unsupported prefix
         logic [3:0] ref_prefix_count;
         logic [5:0] prefix286;  // diagnostic reference prefix clocks

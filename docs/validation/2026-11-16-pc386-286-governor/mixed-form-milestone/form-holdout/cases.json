@@ -1,0 +1,18 @@
+{
+  "LOD_BYTE": "lodsb",
+  "LOD_WORD": "lodsw",
+  "STO_BYTE": "stosb",
+  "STO_WORD": "stosw",
+  "LOD_STO": "lodsb\n stosb",
+  "BYTE_MIX": "lodsb\n xor al,0x55\n stosb",
+  "TEST_AX_IMM": "test ax,8",
+  "TEST_AL_IMM": "test al,8",
+  "MUL_TEST": "mov ax,[bx]\n mov dx,7\n mul dx\n test ax,8",
+  "MUL_NO_TEST": "mov ax,[bx]\n mov dx,7\n mul dx",
+  "ENTER_ZERO": "enter 0,0\n leave",
+  "ENTER_SIX": "enter 6,0\n leave",
+  "ENTER_MANUAL": "enter 6,0\n mov sp,bp\n pop bp",
+  "LEAVE_ONLY": "push bp\n mov bp,sp\n leave",
+  "ENTER_NEST1": "enter 6,1\n leave",
+  "REP_STO": "mov cx,2\n rep stosb"
+}

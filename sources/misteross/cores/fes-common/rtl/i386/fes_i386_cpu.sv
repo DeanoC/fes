@@ -759,6 +759,9 @@ module fes_i386_cpu #(
                         ea3: am_has_base && am_has_index && q_modrm[7] != q_modrm[6] && !q_direct,
                         ref_test_excluded: GOV_REFERENCE_DIAGNOSTIC && (code32 || q.prefix_count != 4'd0),
                         ref_shift_nonzero: 1'b0,
+                        ref_enter_level: GOV_REFERENCE_DIAGNOSTIC ? q.bytes[3][4:0] : 5'd0,
+                        ref_enter_valid: GOV_REFERENCE_DIAGNOSTIC && q.bytes[3][7:5] == 3'd0,
+                        ref_stack32: 1'b0,
                         ref_zero_unsafe: GOV_REFERENCE_DIAGNOSTIC && (code32 || q.ref_bad_zero_prefix),
                         ref_prefix_count: GOV_REFERENCE_DIAGNOSTIC ? q.prefix_count : 4'd0,
                         prefix286: q.prefix286};
@@ -1841,6 +1844,7 @@ module fes_i386_cpu #(
         d_out.x87 = x87_present && dc.x87 && !dc.x87_wait;
         d_out.x87_part = dc.x87_part;
         d_out.gov = dc.gov;
+        d_out.gov.ref_stack32 = GOV_REFERENCE_DIAGNOSTIC && ss32;
         d_out.eip = d_eip;
         d_out.eip_next = d_eip_next;
         d_out.a = dc.cs_base ? seg_base[SEG_CS] : dc.a_t1 ? t1 : a_val;
@@ -3180,6 +3184,16 @@ module fes_i386_cpu #(
     function automatic logic [2:0] halves(input logic a0, input logic [3:0] bytes);
         halves = 3'((4'(a0) + bytes + 4'd1) >> 1);
     endfunction
+    // Restrict the reference ENTER experiment to two fully classified RAM
+    // operands. The primary's translated next page is not carried to WB, so
+    // any primary page crossing retains the previous conservative path.
+    logic gov_enter_st2_ram;
+    assign gov_enter_st2_ram = GOV_REFERENCE_DIAGNOSTIC && wb_commit && !wb_s.nodata && wb_s.uop.st2 &&
+        wb_s.uop.mem.kind == fes_i386_pkg::MEM_LOAD && !wb_s.gov.two &&
+        wb_s.gov.op == 8'hc8 && !wb_s.gov.o32 && !wb_s.gov.ref_test_excluded &&
+        !wb_s.gov.ref_stack32 && wb_s.gov.ref_enter_valid &&
+        fes_i386_pkg::attr(wb_mp, attr_upper, ram_top) == fes_i386_pkg::ATTR_RAM &&
+        13'(wb_s.maddr[11:0]) + 13'(wb_s.uop.mem.bytes) <= 13'd4096;
     fes_i386_governor #(.GOV_N(GOV_N), .GOV_D(GOV_D), .REFERENCE_DIAGNOSTIC(GOV_REFERENCE_DIAGNOSTIC)) governor (
         .clk, .reset, .preset(gov_preset), .frequency(gov_frequency), .turbo(gov_turbo),
         .boundary(at_boundary), .eoi(wb_eoi), .element(wb_s.uop.str_cx), .taken(wb_s.taken && !wb_s.uop.seg2),
@@ -3188,8 +3202,8 @@ module fes_i386_cpu #(
         .accesses(gov_accesses), .dword(wb_s.uop.mem.bytes[2] || wb_s.uop.mem.bytes[3]),
         // For an instruction's committed accesses, both physical lines
         // must be RAM; no-access uops do not disqualify the instruction.
-        .ordinary_ram(gov_accesses == 0 || !wb_s.uop.st2 && wb_at0 == fes_i386_pkg::ATTR_RAM &&
-                      (!wb_cross || wb_at1 == fes_i386_pkg::ATTR_RAM)),
+        .ordinary_ram(gov_accesses == 0 || (!wb_s.uop.st2 || gov_enter_st2_ram) &&
+                      wb_at0 == fes_i386_pkg::ATTR_RAM && (!wb_cross || wb_at1 == fes_i386_pkg::ATTR_RAM)),
         .io(wb_commit && wb_s.uop.io != 2'd0), .io_port, .io_size,
         .mmio(gov_mmio), .mmio_halves(halves(wb_s.maddr[0], wb_s.uop.mem.bytes)),
         .mmio_st2(gov_mmio_st2), .mmio_st2_halves(halves(wb_s.target[0], wb_s.uop.mem.bytes)),

@@ -1,0 +1,157 @@
+     1                                  ; 16-bit protected code with paging. ENTER's source crosses 4 KiB onto a
+     2                                  ; deliberately noncontiguous physical page. #PF is resolved and retried.
+     3                                  bits 16
+     4                                  cpu 386
+     5                                  org 0x1000
+     6                                  start:
+     7 00000000 FA                       cli
+     8 00000001 FC                       cld
+     9 00000002 31C0                     xor ax,ax
+    10 00000004 8ED8                     mov ds,ax
+    11 00000006 8ED0                     mov ss,ax
+    12 00000008 BC0070                   mov sp,0x7000
+    13                                   ; Flat identity page table, except virtual 4000h/5000h -> physical C000h/E000h.
+    14 0000000B 66C706008003900000       mov dword [0x8000],0x00009003
+    15 00000014 BF0090                   mov di,0x9000
+    16 00000017 6631C0                   xor eax,eax
+    17 0000001A B91000                   mov cx,16
+    18                                  .setup:
+    19 0000001D 6689C2                   mov edx,eax
+    20 00000020 6683CA03                 or edx,3
+    21 00000024 668915                   mov [di],edx
+    22 00000027 660500100000             add eax,0x1000
+    23 0000002D 83C704                   add di,4
+    24 00000030 E2EB                     loop .setup
+    25 00000032 66C706109003C00000       mov dword [0x9010],0x0000c003
+    26 0000003B 66C706149003E00000       mov dword [0x9014],0x0000e003
+    27 00000044 C606FFCFCD               mov byte [0xcfff],0xcd
+    28 00000049 C60600E0AB               mov byte [0xe000],0xab
+    29 0000004E 0F0116[8001]             lgdt [gdtr]
+    30 00000053 0F011E[0002]             lidt [idtr]
+    31 00000058 0F20C0                   mov eax,cr0
+    32 0000005B 6683C801                 or eax,1
+    33 0000005F 0F22C0                   mov cr0,eax
+    34 00000062 EA[6700]0800             jmp 0x08:protected
+    35                                  protected:
+    36 00000067 B81000                   mov ax,0x10
+    37 0000006A 8ED8                     mov ds,ax
+    38 0000006C 8EC0                     mov es,ax
+    39 0000006E 8ED0                     mov ss,ax
+    40 00000070 BC0070                   mov sp,0x7000
+    41 00000073 66B800800000             mov eax,0x8000
+    42 00000079 0F22D8                   mov cr3,eax
+    43 0000007C 0F20C0                   mov eax,cr0
+    44 0000007F 660D00000080             or eax,0x80000000
+    45 00000085 0F22C0                   mov cr0,eax
+    46 00000088 EB00                     jmp short .paged
+    47                                  .paged:
+    48                                   ; Control 1: source crosses to noncontiguous RAM. Both bytes are checked.
+    49 0000008A BD0150                   mov bp,0x5001
+    50 0000008D C706FF4FCDAB             mov word [0x4fff],0xabcd
+    51 00000093 EB00                     jmp .clean1
+    52                                  .clean1:
+    53 00000095 90                       nop
+    54 00000096 90                       nop
+    55 00000097 90                       nop
+    56 00000098 90                       nop
+    57 00000099 B000                     mov al,0
+    58 0000009B E680                     out 0x80,al
+    59 0000009D C8000002                 enter 0,2
+    60 000000A1 B001                     mov al,1
+    61 000000A3 E680                     out 0x80,al
+    62 000000A5 813EFC6FCDAB             cmp word [0x6ffc],0xabcd
+    63 000000AB 0F85B000                 jne fail
+    64 000000AF C9                       leave
+    65 000000B0 81FD0150                 cmp bp,0x5001
+    66 000000B4 0F85A700                 jne fail
+    67 000000B8 81FC0070                 cmp sp,0x7000
+    68 000000BC 0F859F00                 jne fail
+    69                                   ; Control 2: last word of page, eligible for v5 RAM model.
+    70 000000C0 BD0050                   mov bp,0x5000
+    71 000000C3 C706FE4FCDAB             mov word [0x4ffe],0xabcd
+    72 000000C9 EB00                     jmp .clean2
+    73                                  .clean2:
+    74 000000CB 90                       nop
+    75 000000CC 90                       nop
+    76 000000CD 90                       nop
+    77 000000CE 90                       nop
+    78 000000CF B002                     mov al,2
+    79 000000D1 E680                     out 0x80,al
+    80 000000D3 C8000002                 enter 0,2
+    81 000000D7 B003                     mov al,3
+    82 000000D9 E680                     out 0x80,al
+    83 000000DB 813EFC6FCDAB             cmp word [0x6ffc],0xabcd
+    84 000000E1 757C                     jne fail
+    85 000000E3 C9                       leave
+    86 000000E4 81FD0050                 cmp bp,0x5000
+    87 000000E8 7575                     jne fail
+    88 000000EA 81FC0070                 cmp sp,0x7000
+    89 000000EE 756F                     jne fail
+    90                                   ; Control 3: first source page absent. First stack write happens before
+    91                                   ; the nested frame copy faults. Handler restores page and retries ENTER.
+    92 000000F0 C606FF4FCD               mov byte [0x4fff],0xcd
+    93 000000F5 C6060050AB               mov byte [0x5000],0xab
+    94 000000FA 66C706109000000000       mov dword [0x9010],0
+    95 00000103 0F20D8                   mov eax,cr3
+    96 00000106 0F22D8                   mov cr3,eax
+    97 00000109 BD0150                   mov bp,0x5001
+    98 0000010C EB00                     jmp .clean3
+    99                                  .clean3:
+   100 0000010E 90                       nop
+   101 0000010F 90                       nop
+   102 00000110 90                       nop
+   103 00000111 90                       nop
+   104 00000112 B004                     mov al,4
+   105 00000114 E680                     out 0x80,al
+   106 00000116 C8000002                 enter 0,2
+   107 0000011A B005                     mov al,5
+   108 0000011C E680                     out 0x80,al
+   109 0000011E 813EFC6FCDAB             cmp word [0x6ffc],0xabcd
+   110 00000124 7539                     jne fail
+   111 00000126 C9                       leave
+   112 00000127 81FD0150                 cmp bp,0x5001
+   113 0000012B 7532                     jne fail
+   114 0000012D 81FC0070                 cmp sp,0x7000
+   115 00000131 752C                     jne fail
+   116 00000133 FA                       cli
+   117 00000134 30C0                     xor al,al
+   118 00000136 E68F                     out 0x8f,al
+   119 00000138 F4                       hlt
+   120                                  pf_handler:
+   121 00000139 6650                     push eax
+   122 0000013B 0F20D0                   mov eax,cr2
+   123 0000013E 663DFF4F0000             cmp eax,0x4fff
+   124 00000144 7519                     jne fail
+   125 00000146 66C706109003C00000       mov dword [0x9010],0x0000c003
+   126 0000014F 0F20D8                   mov eax,cr3
+   127 00000152 0F22D8                   mov cr3,eax
+   128 00000155 B055                     mov al,0x55
+   129 00000157 E681                     out 0x81,al
+   130 00000159 6658                     pop eax
+   131 0000015B 83C402                   add sp,2                  ; 16-bit page-fault error code
+   132 0000015E CF                       iret
+   133                                  fail:
+   134 0000015F FA                       cli
+   135 00000160 B0EE                     mov al,0xee
+   136 00000162 E68F                     out 0x8f,al
+   137 00000164 F4                       hlt
+   138 00000165 00<rep 3h>              align 8, db 0
+   139                                  gdt:
+   140 00000168 0000000000000000         dq 0
+   141 00000170 FFFF0000009B0000         dq 0x00009b000000ffff
+   142 00000178 FFFF000000930000         dq 0x000093000000ffff
+   143                                  gdt_end:
+   144                                  gdtr:
+   145 00000180 1700                     dw gdt_end-gdt-1
+   146 00000182 [68010000]               dd gdt
+   147 00000186 00<rep 2h>              align 8, db 0
+   148                                  idt:
+   149 00000188 0000000000000000-        times 14 dq 0
+   149 00000188 <rep Eh>           
+   150 000001F8 [3901]0800               dw pf_handler,0x0008
+   151 000001FC 0086                     db 0,0x86
+   152 000001FE 0000                     dw 0
+   153                                  idt_end:
+   154                                  idtr:
+   155 00000200 7700                     dw idt_end-idt-1
+   156 00000202 [88010000]               dd idt
