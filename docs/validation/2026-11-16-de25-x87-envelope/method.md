@@ -193,7 +193,8 @@ after a result is worthless unless the change is auditable.
   This is safe to commit unseen because it fixes the *comparison*, not a
   threshold: S is computed from the same fits that produce the medians, so
   there is no later choice for a result to influence. **Both arms' per-seed
-  counts go in the record, not only the medians** — if the delta lands inside
+  counts go in the record, not only the medians**, and in **LABs as well as
+  ALMs** — if the delta lands inside
   S, the per-seed table is what lets someone else see how far inside, which
   "not measurable" alone throws away.
 
@@ -204,7 +205,26 @@ after a result is worthless unless the change is auditable.
   justify keeping the forms on cost grounds.** The reason to keep them is that
   FPREM reuses the divide tail's primitive rather than adding a divider, which
   is an argument about structure and stands or falls on its own; a null A/B is
-  not support for it. What had been seen when this was written: no fit had
+  not support for it.
+
+  **Arm B is defined here, before it is fit**, because "hold the FPREM arms
+  off" is not one thing. Arm A is the delivered design. Arm B is a scratch
+  commit in its own worktree — not merged RTL, following the precedent of the
+  8 November area audit's scratch fits — in which **both** of these are held
+  off by the constant `X87_BACKEND == 0`:
+
+  - the `P_SH`, `P_FIN`, `P_ZERO` and `P_PACK` case arms, which are the
+    remainder's doubling and conditional-subtract steps; **and**
+  - the `cur == X87_PREM` branch inside `A_OP`, which is what *writes*
+    `dv_rem`.
+
+  Holding only the `P_*` arms off would leave `dv_rem`'s writers alive and
+  measure nothing, which is the trap: `dv_rem` is written from `A_OP` at two
+  sites as well as from the `P_*` arms. The check that arm B is really arm B
+  is that **`dv_rem` disappears from its `registers.txt`** while arm A's holds
+  it — the same exact-leaf-name query rule 7 uses, which also makes this the
+  first demonstration that that query can detect something rather than only
+  report zero. Seeds 1–4 on both arms, at the 61.44 MHz headline. What had been seen when this was written: no fit had
   completed and no ALM figure existed.
 - **The lockstep count's depth**, 16 Nov 2026. Rule 4 says every reachable
   `req_op` must be non-zero. A provisional run met it (ADD 8, SUB 10, MUL 12,
