@@ -1,0 +1,25 @@
+corner	hold_only	check	coverage	paths	worst_slack_ns	from	to
+Slow fix4 100C Model	0	setup	analyzed	1	0.795	values_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a21~reg0	resp_value[11]
+Slow fix4 100C Model	0	hold	analyzed	1	0.004	req_b[68]	dispatch.b[68]
+Slow fix4 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+Slow fix4 100C Model	0	removal	not_applicable_synchronous_reset	0	null		
+Slow fix4 100C Model	0	internal_setup	analyzed	1	1.244	slow|square_root	slow|res.significand[0]
+Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	1.978		
+Slow fix4 0C Model	0	setup	analyzed	1	0.228	req_op[0]	occupied[2]
+Slow fix4 0C Model	0	hold	analyzed	1	0.052	req_a[58]	dispatch.a[58]~DUPLICATE
+Slow fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+Slow fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+Slow fix4 0C Model	0	internal_setup	analyzed	1	0.704	shift_a[1]~DUPLICATE	normalized.ua.significand[47]~_Duplicate0
+Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	1.968		
+Slow fix4a 0C Model	0	setup	analyzed	1	0.276	req_op[0]	occupied[2]
+Slow fix4a 0C Model	0	hold	analyzed	1	0.006	req_a[58]	dispatch.a[58]~DUPLICATE
+Slow fix4a 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+Slow fix4a 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+Slow fix4a 0C Model	0	internal_setup	analyzed	1	0.725	slow|square_root	slow|res.significand[0]
+Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	1.968		
+Fast fix4 0C Model	0	setup	analyzed	1	2.242	req_op[0]	occupied[1]
+Fast fix4 0C Model	0	hold	analyzed	1	0.001	reset	slow|res.significand[16]
+Fast fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+Fast fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+Fast fix4 0C Model	0	internal_setup	analyzed	1	2.657	slow|square_root	slow|res.significand[0]
+Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	2.101		
