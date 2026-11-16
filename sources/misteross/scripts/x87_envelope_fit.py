@@ -56,6 +56,37 @@ CPU_TOP = 'fes_i386_cpu'
 WRAPPER = 'x87_fit_cpu_top.sv'
 
 
+# The i386 RTL asks for Cyclone V block RAM by name, and Agilex 5 has no
+# M10K: altera_syncram refuses RAM_BLOCK_TYPE "M10K" outright and synthesis
+# stops before elaboration. The x87's two seed tables and the CPU's caches
+# both do it. This renames exactly that token in the PRIVATE SNAPSHOT -- no
+# RTL changes, and the DE10 seal still infers what it always did.
+#
+# The approach, the round-trip check and the reasoning are the sibling Agilex 5
+# measurement's (scripts/fit_i386_device.py, `retarget_ram_attribute`), adopted
+# rather than reinvented so that both measurements differ in as little as
+# possible.
+M10K_ATTRIBUTE = 'ramstyle = "M10K"'
+M20K_ATTRIBUTE = 'ramstyle = "M20K"'
+
+
+def retarget_ram_attribute(text: str) -> tuple[str, int]:
+    """Rename the M10K block request to M20K for an Agilex 5 fit, verified by
+    round trip: turning M20K back into M10K must reproduce the original bytes
+    exactly, which proves both that nothing else changed and that the source
+    held no M20K request already. MLAB requests are legal on both devices and
+    are left alone."""
+    if M20K_ATTRIBUTE in text:
+        raise SystemExit('source already asks for M20K; the round-trip check could not tell '
+                         'a rewritten request from an original one')
+    rewritten = text.replace(M10K_ATTRIBUTE, M20K_ATTRIBUTE)
+    count = text.count(M10K_ATTRIBUTE)
+    if rewritten.replace(M20K_ATTRIBUTE, M10K_ATTRIBUTE) != text:
+        raise SystemExit('the M10K rename did not round-trip; refusing to fit a snapshot '
+                         'that differs from the source in more than that token')
+    return rewritten, count
+
+
 def board():
     """The DE25 x87 project's own builder, for its lock, its device, its
     Quartus metadata, its heartbeat/time-cap runner and its report parsing."""
@@ -198,7 +229,13 @@ def prepare(output: Path | None, backend: str, period_ns: float, seed: int,
     snapshot.mkdir()
     for name, data in {**sources, **extra}.items():
         (snapshot / name).write_bytes(data)
+    retargeted = {}
     for name, data in sources.items():
+        text = data.decode()
+        if M10K_ATTRIBUTE in text:
+            text, count = retarget_ram_attribute(text)
+            retargeted[name] = count
+            data = text.encode()
         (project / name).write_bytes(data)
     (project / 'timing.tcl').write_bytes(extra['timing.tcl'])
     (project / 'clocks.sdc').write_text(
@@ -243,6 +280,7 @@ def prepare(output: Path | None, backend: str, period_ns: float, seed: int,
               'evidence_scope': 'internal virtual-pin fit of the x87 unit; no board I/O, '
                                 'no seal and no hardware acceptance',
               'source_sha256': {n: b.sha(d) for n, d in {**sources, **extra}.items()},
+              'm10k_retargeted_to_m20k': retargeted,
               'project_sha256': {p.name: b.sha(p.read_bytes()) for p in project.iterdir()}}
     (output / 'inputs.json').write_text(json.dumps(inputs, indent=2, sort_keys=True) + '\n')
     return output
