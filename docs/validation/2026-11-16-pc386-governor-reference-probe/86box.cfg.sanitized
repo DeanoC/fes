@@ -1,0 +1,34 @@
+[General]
+confirm_exit = 0
+emu_build_num = 9001
+host_cpu = Intel(R) Core(TM) Ultra 7 270K Plus
+uuid = c464c034-1c70-57d3-8952-8091d3beecf0
+vid_renderer = qt_software
+
+[Machine]
+cpu_family = 286
+cpu_multi = 1
+cpu_speed = 12500000
+cpu_use_dynarec = 0
+cpu_waitstates = 1
+machine = award286
+mem_size = 1024
+
+[Video]
+gfxcard = vga
+
+[Input devices]
+keyboard_type = keyboard_at
+mouse_type = none
+
+[Sound]
+sndcard = adlib
+
+[Storage controllers]
+hdc_1 = xtide_at
+
+[Hard disks]
+hdd_01_fn = <PRIVATE_DISK>
+hdd_01_ide_channel = 0:0
+hdd_01_parameters = 63, 16, 65, 0, ide
+hdd_01_speed = 1997_5400rpm
