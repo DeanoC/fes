@@ -1,0 +1,14 @@
+2026-11-16 10:09:48 86Box pid 3397181
+2026-11-16 10:09:49 window 2097158 (0, 0, 754, 445)
+2026-11-16 10:09:49 cmd {"op":"sleep","s":45}
+2026-11-16 10:10:34 cmd {"op":"grab","name":"boot"}
+2026-11-16 10:10:34 cmd {"op":"type","text":"GOVPROBE > G1.TXT\n"}
+2026-11-16 10:10:37 cmd {"op":"sleep","s":29}
+2026-11-16 10:11:06 cmd {"op":"grab","name":"run1"}
+2026-11-16 10:11:06 cmd {"op":"type","text":"GOVPROBE > G2.TXT\n"}
+2026-11-16 10:11:09 cmd {"op":"sleep","s":29}
+2026-11-16 10:11:38 cmd {"op":"grab","name":"run2"}
+2026-11-16 10:11:39 cmd {"op":"type","text":"GOVPROBE > G3.TXT\n"}
+2026-11-16 10:11:41 cmd {"op":"sleep","s":29}
+2026-11-16 10:12:10 cmd {"op":"grab","name":"run3"}
+2026-11-16 10:12:11 done

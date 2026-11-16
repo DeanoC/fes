@@ -1549,12 +1549,12 @@ func (s *sessionCoordinator) tapCoreKey(ctx context.Context, sessionID string, e
 		return 0, host.ErrRemoteInputNoStream
 	}
 	tapper, ok := s.remoteInput.(interface {
-		TapKey(context.Context, string, remoteinput.Event, func() error) (time.Duration, error)
+		TapKey(context.Context, string, uint64, remoteinput.Event, func() error) (time.Duration, error)
 	})
 	if !ok {
 		return 0, host.ErrRemoteInputNoStream
 	}
-	duration, err := tapper.TapKey(ctx, sessionID, event, func() error {
+	duration, err := tapper.TapKey(ctx, sessionID, want.generation, event, func() error {
 		if s.tapHIDForeign() {
 			return playHIDLeaseError()
 		}

@@ -276,10 +276,16 @@ std::vector<uint8_t> window_read(pc386::Window &window, uint32_t offset, size_t 
 bool hid(char c, uint8_t &usage, bool &shift) {
     static const std::map<char, uint8_t> plain = {
         {'0', 0x27}, {' ', 0x2c}, {'\n', 0x28}, {'.', 0x37}, {'\\', 0x31}, {'/', 0x38}, {'-', 0x2d},
-        {';', 0x33}, {',', 0x36}, {'=', 0x2e}};
+        {';', 0x33}, {',', 0x36}, {'=', 0x2e}, {'\'', 0x34}};
+    // The shifted characters a DOS command line needs. '^' is Ctrl above and
+    // '~' is Esc, so shift-6 and shift-grave are not reachable; nothing types
+    // them.
+    static const std::map<char, char> shifted = {
+        {':', ';'}, {'+', '='}, {'_', '-'}, {'*', '8'}, {'?', '/'}, {'<', ','}, {'>', '.'}, {'"', '\''},
+        {'(', '9'}, {')', '0'}, {'!', '1'}, {'@', '2'}, {'#', '3'}, {'$', '4'}, {'%', '5'}, {'&', '7'}};
     shift = false;
     if (c >= 'A' && c <= 'Z') { shift = true; c = char(c - 'A' + 'a'); }
-    if (c == ':') { shift = true; c = ';'; }
+    if (auto at = shifted.find(c); at != shifted.end()) { shift = true; c = at->second; }
     if (c >= 'a' && c <= 'z') { usage = uint8_t(0x04 + (c - 'a')); return true; }
     if (c >= '1' && c <= '9') { usage = uint8_t(0x1e + (c - '1')); return true; }
     if (c == '~') { usage = 0x29; return true; }     // Esc
@@ -1850,7 +1856,8 @@ int main(int argc, char **argv) {
                 if (!options.census.empty()) {
                     const fes_i386::State after = oracle->get_state();
                     census.end(before, after, result);
-                    census.x87(before, after, result, x87_before, oracle->x87_state());
+                    census.x87(before, after, result, x87_before, oracle->x87_state(),
+                               double(machine.cycles) / CLOCK_HZ);
                 }
                 machine.irq13 = oracle->x87_irq13();
                 ++steps;

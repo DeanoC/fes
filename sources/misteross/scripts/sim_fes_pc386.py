@@ -1997,6 +1997,8 @@ def run_game(args, linked: list[Path]) -> dict:
     extra = ['--frame-every', str(args.frame_every)] if args.frame_every else []
     if args.rtl_at_prompt:
         extra += ['--rtl-at-prompt', '1']
+    if args.x87_fitted:
+        extra += ['--x87', '1']
     if args.instruction_census:
         extra += ['--census', str(work / 'census.txt')]
     if args.oracle_profile:
@@ -2021,7 +2023,8 @@ def run_game(args, linked: list[Path]) -> dict:
 
 
 def game_suite(args) -> str:
-    return f'game-{args.game}' + ('-rtl' if args.cpu == 'rtl' else '') + suffix(args)
+    return (f'game-{args.game}' + ('-rtl' if args.cpu == 'rtl' else '') +
+            ('-x87' if getattr(args, 'x87_fitted', False) else '') + suffix(args))
 
 
 WFW_DRIVE, WFW_TITLE = 'wfw-msdos', 'wfw'
@@ -2174,6 +2177,9 @@ def main() -> int:
                              '(wfw: 0.25 by default)')
     parser.add_argument('--rtl-at-prompt', action='store_true',
                         help='game --cpu rtl: boot on the oracle and hand over to the RTL at the prompt')
+    parser.add_argument('--x87-fitted', action='store_true',
+                        help='the game suite: run with the i386dx+387 identity on (machine_tb --x87 1), so the '
+                             'oracle has a 387 and CMOS 14h reports one; writes game-<id>-x87/')
     parser.add_argument('--instruction-census', action='store_true',
                         help="game: write the oracle's instruction census (machine_tb --census) to census.txt")
     parser.add_argument('--game-keys', action='append', default=[], metavar='SECONDS:TEXT',
@@ -2203,6 +2209,8 @@ def main() -> int:
                                                 'scroll', 'floppy', 'floppy-boot'):
         parser.error('--cpu rtl runs the boot, game, wfw, a20, c2xx, ems, wait, speaker, scroll, floppy and '
                      'floppy-boot suites only')
+    if args.x87_fitted and args.suite != 'game':
+        parser.error('--x87-fitted is for the game suite; the x87 suite fits a 387 by itself')
     if args.oracle_profile and not (args.suite == 'game' and args.cpu == 'oracle'):
         parser.error('--oracle-profile is for the game suite with --cpu oracle')
     if args.rtl_at_prompt and not (args.suite == 'game' and args.cpu == 'rtl'):
