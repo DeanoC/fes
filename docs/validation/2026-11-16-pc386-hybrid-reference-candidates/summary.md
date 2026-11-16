@@ -25,11 +25,39 @@ boot**, not independent repeats.
 `exp4349`'s BIOS [showed External cache Enabled](exp4349/bios-cache.png) and
 `ami495`'s BIOS [showed External Cache Memory Enabled](ami495/bios-cache.png)
 when default CMOS was configured. Those captures were taken **before saving**;
-cache state was not re-read in their later benchmark boots, and neither the
-emulator's effective CPU flag nor any physical hardware was observed. The
+neither BIOS setting was re-read in the benchmark boot. The separate
+register check below provides additional EXP4349 evidence; neither the
+emulator's effective CPU flag nor physical hardware was observed. The
 `c747` cache state was not established. Its boot screen reports two 39 MB DOS
 disks; their underlying relationship was not established, and the score is
 specific to that configuration.
+
+## EXP4349 cache-register check
+
+After the benchmark, a separate reference-only probe booted with the **same
+pre-run CMOS bytes** on Powerboat, using a copy of the EXP4349 disk with the
+small [`CACHE.COM`](exp4349-cache-probe/ECS.COM) probe added. Its
+[screen](exp4349-cache-probe/reading.png) reports ALi M1429G register 18h =
+`27h`, whose bit 1 is set. The probe reads this one register and restores the
+index latch; its [source](exp4349-cache-probe/cache.asm), exact config, CMOS,
+input hashes and [driver](exp4349-cache-probe/run.sh) are retained. Its config
+is byte-identical to the benchmark config except for the copied disk path. The
+probe was assembled with the previously recorded NASM 2.16.03 using
+`-DINDEX_PORT=0x22 -DDATA_PORT=0x23 -DREGISTER=0x18`; the binary extracted
+from the private pre-run disk matches the retained binary and a fresh build.
+The added probe means this is a **different disk and boot**, not a register
+reading from the benchmark run itself.
+
+The v6.0 [machine setup](https://github.com/86Box/86Box/blob/4fef696a4eead1d55a28d6ac0e5bd2864e5454da/src/machine/m_at_386dx_486.c#L53-L65)
+uses ALi M1429G, and the shared [chipset handler](https://github.com/86Box/86Box/blob/4fef696a4eead1d55a28d6ac0e5bd2864e5454da/src/chipset/ali1429.c#L198-L201)
+maps register 18h bit 1 to its external-cache enable flag on a write. The
+probe establishes the register value, not a direct observation of the CPU
+flag; the executable was not independently rebuilt from that source. This
+separate run's speed readout was **69%** in the capture. That does not affect
+an untimed register read, but it means this run supplies **no timing evidence**;
+the 40 score and speed samples above belong to the earlier 3090-host run.
+The probe's disk and full capture remain privately under
+`out/issue1902-hybrid-reference/local/cache-probe-exp4349-20261116T094109Z/`.
 
 ## Inputs and reproduction
 
@@ -65,7 +93,7 @@ samples and every sample shows 100%. The `exp4349` window positions that text
 at a different horizontal coordinate; its distinct expected hash accounts for
 that. Values **between** samples are not established. `verify.py` checks the
 retained config and CMOS digests, frame rates, counts and thresholded frame
-hashes. It does not OCR the score, validate the absent private disks, or prove
+hashes, plus the probe source and binary hashes and its matching CMOS. It does not OCR the score, validate the absent private disks, or prove
 that the emulator speed indicator is accurate.
 
 No kit was touched and no Ultima VII pace window was captured. The reference

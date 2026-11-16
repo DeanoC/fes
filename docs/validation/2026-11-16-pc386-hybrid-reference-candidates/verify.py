@@ -42,5 +42,19 @@ def main():
         print(f'{name}: config and CMOS match; 115 / 115 speed samples match 100%')
 
 
+    probe = ROOT / 'exp4349-cache-probe'
+    inputs = (probe / 'input.sha256').read_text().splitlines()
+    assert len(inputs) == 3
+    assert sha(probe / '86box.cfg') == inputs[0].split()[0]
+    assert sha(probe / 'exp4349.nvr') == inputs[1].split()[0]
+    assert sha(probe / 'exp4349.nvr') == sha(ROOT / 'exp4349' / 'exp4349.nvr')
+    original = (ROOT / 'exp4349' / '86box.cfg').read_text()
+    assert (probe / '86box.cfg').read_text() == original.replace(
+        '../../drv/bench-exp4349.img', '../../drv/cache-exp4349.img')
+    assert sha(probe / 'cache.asm') == '8415c0be695d91e8d578a1df2cded05941e9056d7f4e32c61b195db6aeaa1958'
+    assert sha(probe / 'ECS.COM') == '103a06d65d9be0dcee1e8076180a3086eb3d6c60131388aa6ed37bc3fa5850d9'
+    print('exp4349 cache probe: source/binary/config match and CMOS matches benchmark')
+
+
 if __name__ == '__main__':
     main()
