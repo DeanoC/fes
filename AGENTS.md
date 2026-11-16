@@ -55,10 +55,10 @@ Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and m
 
 ### HIL
 - Run HIL in parallel with review. Use kit A if kit B is busy.
-- Select Kit D25 for DE25 board, package, runtime or image paths. The repo HIL planner reports this target, but the Powerboat HILQ queue and watcher still need D25 dispatch support; an automatic queue run does not yet cover DE25. DE25 work stays on Quartus Pro 26.3 and uses the managed DE25 HIL flow; a DE10 pass does not satisfy it. Select Kit A or Kit B for DE10 paths.
+- Select Kit D25 for DE25 board, package, runtime or image paths. Powerboat HILQ routes these classes only to J8G and runs the exact-head D25 runner under lander-watch with an explicit cap; A/B paths retain their existing runners. DE25 work stays on Quartus Pro 26.3 and uses the managed DE25 HIL flow; a DE10 pass does not satisfy it. Select Kit A or Kit B for DE10 paths.
 - Stop after 2 FAILs on the same head and fix instead.
 - Report HIL as started only once the kit is claimed in its status file (see Shared kits below) and the test bundle, image or core under test is loaded on it. A core-only run does not need a bundle install or reflash.
-- Afterwards, restore each kit to exactly the baseline bundle and image that kitA-STATUS.md / kitB-STATUS.md names. Activate the named bundle; reflash only if the booted image differs from the named image (then follow the bundle/image order in the kit procedure (step 3) below) and verify the boot. Verify the active bundle before logging the kit restored. Baselines are promoted only from main HIL passes.
+- For Kit A/B, restore exactly the baseline bundle and image named in its status file. For Kit D25, follow the serial-bound restore record and verifier in `docs/de25-kit-hil.md`. Log a kit FREE only after the applicable restore checks pass. Baselines are promoted only from main HIL passes.
 
 ### Kit HIL baseline tracking
 - The kit HIL baseline (shared host plus kit agent and software, recorded in `current.json` in Powerboat's hil-queue) tracks main. Do not pin it to an old host.
