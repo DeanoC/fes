@@ -107,10 +107,12 @@ is not replaced.
   hardware-settled rules slices 3 and 4 measured rest on that same modern
   part; no 387 was available, which the plan record carries as an open
   question and this work does not close.
-- The locked-Yosys netlist bench is a **DE10** gate. The DE25 flow is Quartus
-  Pro reading SystemVerilog directly, with no Yosys in it. Whether the DE25
-  configuration passes that gate is reported as a finding, not treated as a
-  pass rule for this work.
+- The locked-Yosys netlist bench's applicability to the DE25 configuration is
+  reported as a finding, not treated as a pass rule for this work. *(When this
+  was written the DE25 configuration failed it; the cause was a Yosys
+  miscompile of an unpacked struct array, and a packed array fixes it, so both
+  configurations now pass. Amended 16 Nov 2026, after the unit netlist run
+  that found the 240 failures and the one that passed 763 of 763.)*
 
 ## Already measured when this was written
 

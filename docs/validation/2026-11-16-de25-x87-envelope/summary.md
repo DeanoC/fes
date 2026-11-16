@@ -279,26 +279,43 @@ pipeline bench. It is mapped to both now. This is the same shape one layer
 out: a gate that stops covering something because a file moved, with nothing
 failing.
 
-## The locked Yosys netlist bench is a DE10-only gate
+## The locked Yosys miscompiled the backend, and the workaround is one line
 
-Said in terms, so that nobody later cites a green netlist bench as covering
-the DE25 path. The DE10 configuration passes it. The DE25 configuration does
-not: the locked Yosys reads and writes a packed-struct member of an
-unpacked-array element as a fresh undriven identifier, with **warnings rather
-than errors**, so the netlist computes nonsense while the RTL simulation is
-correct. [yosys-repro/](yosys-repro/) is the locked-binary repro and
+The locked Yosys reads and writes a packed-struct member of an
+**unpacked-array element** as a fresh undriven identifier — with **warnings
+rather than errors**, so the netlist computes nonsense while the RTL
+simulation is correct. The x87 unit bench's `--netlist` mode found it on the
+first run with the DE25 backend selected: 763 of 763 on the RTL, **240
+failures on the netlist of the same source**.
+
+[yosys-repro/](yosys-repro/) is the locked-binary repro and
 [DeanoC/yosys#79](https://github.com/DeanoC/yosys/issues/79) the fork issue.
+The dangerous part is not the miscompile but the **false coverage**: a silent
+miscompile is the worst kind of gate failure, because the gate reports
+success.
 
-This does not block the DE25 387, whose flow is Quartus Pro reading
-SystemVerilog with no Yosys in it. The dangerous part is not the miscompile
-but the **false coverage**: a silent miscompile is the worst kind of gate
-failure, because the gate reports success.
+**The workaround is a packed array.** `meta_t [6:1] meta` instead of
+`meta_t meta [1:6]` in `fes_x87_fast.sv` — the locked Yosys handles member
+reads and writes against a *packed* array of packed structs correctly. With
+it the DE25 configuration passes the netlist bench **763 of 763**.
 
-A whole-element-read workaround was tried on `fes_x87_fast.sv` and reverted
-once the repro showed that member *writes* are implicitly declared too, so the
-read-side fix never rescued it. The file is byte-identical to #1892 again. A
-workaround that does not work is worse than none, because it leaves the code
-looking defended.
+Two things about how that was arrived at, because they differ:
+
+- An earlier attempt read the whole element into a wire first. It was
+  **believed before being tested**, changed #1892's bytes, did not fix the
+  netlist, and was reverted — a workaround that does not work is worse than
+  none, because it leaves the code looking defended.
+- The packed array was **built as a minimal case and confirmed driven** before
+  anything was changed. The repro holds both forms in one module so the
+  difference is visible rather than argued.
+
+So `fes_x87_fast.sv` is **not** byte-identical to PR #1892: it differs by that
+one declaration, and by nothing else. Everything else moved from
+`boards/de25nano/x87/rtl/` unchanged.
+
+**The netlist gate is therefore no longer DE10-only**, which an earlier version
+of this record said it was. That also opens the Yosys-netlist flow — the
+sibling Agilex 5 measurement's *primary* — to this configuration.
 
 ## Results
 

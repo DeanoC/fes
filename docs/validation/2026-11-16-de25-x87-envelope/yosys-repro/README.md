@@ -30,12 +30,21 @@ In `repro.netlist.v` the consequence is visible directly:
 
 Both outputs should follow `in` through the two pipeline stages.
 
-Reading the whole element into a wire first (`assign copy2 = stage[2];`) does
-**not** rescue it once any member write to the same array is present, which is
-why the obvious workaround was tried on `fes_x87_fast.sv` and reverted: it
-changed PR #1892's validated bytes without fixing the netlist, and a
-workaround that does not work is worse than none because it implies the
-problem is solved.
+**The workaround is a packed array.** The locked Yosys handles member reads
+and writes against a *packed* array of packed structs correctly:
+
+    item_t u_stage [1:2];   // broken: `\u_stage[1].value' implicitly declared
+    item_t [1:2] p_stage;   // correct
+
+`repro.sv` holds both forms in one module, so the netlist shows `p_out`
+driven from `p_stage[8:1]` while `u_out` is left at zero. `fes_x87_fast.sv`
+uses the packed form, and with it the DE25 configuration passes the unit
+bench's netlist mode 763 of 763.
+
+For the record of what does **not** work: reading the whole element into a
+wire first (`assign copy2 = stage[2];`) does not rescue it once any member
+write to the same array is present — `ok_out` is zero too. That was tried
+first, believed before being tested, and reverted.
 
 ## Reproducing
 
