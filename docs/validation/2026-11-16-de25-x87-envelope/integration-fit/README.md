@@ -50,19 +50,24 @@ derives a clock's Fmax **only** from paths inside that clock's own domain: a
 finite Fmax for both clocks at a corner is affirmative evidence both domains
 were analysed there. Run over every fit in this directory:
 
-| Fit | Corners | Both clocks at every corner | Corner 1 Fmax |
-| --- | ---: | --- | --- |
-| `fit-seed1` | 4 | yes | `clk` 131.15, `pixel_clk` 203.38 |
-| `fit-seed2` | 4 | yes | `clk` 129.74, `pixel_clk` 206.61 |
-| `fit-seed3` | 4 | yes | `clk` 132.10, `pixel_clk` 215.89 |
-| `fit-seed4` | 4 | yes | `clk` 136.65, `pixel_clk` 211.15 |
-| `ab-backend0-seed1` | 4 | yes | `clk` 130.63, `pixel_clk` 204.71 |
+| Fit | Corners | Both clocks at every corner | Worst-corner `clk` Fmax |
+| --- | ---: | --- | ---: |
+| `fit-seed1` | 4 | yes | 115.21 MHz |
+| `fit-seed2` | 4 | yes | 115.02 MHz |
+| `fit-seed3` | 4 | yes | 117.34 MHz |
+| `fit-seed4` | 4 | yes | 119.99 MHz |
+| `ab-backend0-seed1` | 4 | yes | 115.53 MHz |
+| `ab-backend0-seed2` | 4 | yes | 117.65 MHz |
+| `ab-backend0-seed3` | 4 | yes | 121.76 MHz |
+| `ab-backend0-seed4` | 4 | yes | 115.05 MHz |
 
-**All five fits analysed both domains at all four corners.** The harness now
-scopes each expected clock's own register-to-register paths with
-`-from_clock`/`-to_clock` and writes per-clock rows, so later fits carry the
-coverage explicitly instead of it being recoverable from Fmax. These fits
-predate that and the check above is what stands in for it.
+**All eight fits analysed both domains at all four corners**, which makes "all
+eight pass at every corner" a **per-clock** claim confirmed from the retained
+reports. On the harness these fits ran on it would otherwise have been a claim
+about whichever domains had paths. The harness now scopes each expected clock's
+own register-to-register paths with `-from_clock`/`-to_clock` and writes
+per-clock rows, so later fits carry the coverage explicitly. These fits predate
+that, and the check above is what stands in for it.
 
 `real_pins: 2` on every seed is the machine's two clocks staying real under
 this envelope. The harness now asserts that count **exactly** rather than as a

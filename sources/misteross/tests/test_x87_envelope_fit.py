@@ -85,5 +85,22 @@ class RamAttributeRetarget(unittest.TestCase):
             fit.retarget_ram_attribute('(* ramstyle = "M20K" *) logic a;')
 
 
+class RecordGenerator(unittest.TestCase):
+    """docs/validation/2026-11-16-de25-x87-envelope/generate.py produces the
+    record's tables. It once defined `integration_table`, `ab_table` and `main`
+    TWICE after two rounds of string-replace edits: Python uses the last
+    definition, so an edit to the first was dead code and the stale sentence
+    kept appearing in the output. Nothing failed -- the file ran, the record
+    regenerated, and the claim in it was simply the old one."""
+
+    def test_every_function_is_defined_once(self):
+        import ast
+        path = (ROOT.parents[1] / 'docs/validation/2026-11-16-de25-x87-envelope/generate.py')
+        names = [n.name for n in ast.parse(path.read_text()).body
+                 if isinstance(n, ast.FunctionDef)]
+        duplicated = sorted({n for n in names if names.count(n) > 1})
+        self.assertEqual(duplicated, [], f'defined more than once: {duplicated}')
+
+
 if __name__ == '__main__':
     unittest.main()

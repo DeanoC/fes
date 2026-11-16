@@ -619,7 +619,7 @@ The worst seed is **87.87% of ALMs** and **98.33% of LABs touched**, so band 4 d
 
 Difference of medians: **+462 ALMs**, the sequencer being the larger. Tested against the **precommitted** floor — the 1 side's own spread, **136 ALMs** — so **MEASURABLE**.
 
-The 0 side's own spread is **93 ALMs**, reported beside the floor and **not** substituted for it: the floor was fixed before either spread was known and is not redefined now that both exist. It is also the wider of the two, so it is the conservative test.
+The 0 side's own spread is **93 ALMs**, reported beside the floor and **not** substituted for it: the floor was fixed before either spread was known and is not redefined now that both exist. It happens to be the wider of the two, so it is also the conservative test — the rule's correctness here did not depend on luck, and the test was not selected to fit.
 
 The two ALM ranges **do not overlap at all** — 40,986–41,122 against 41,476–41,569, a gap of 354 ALMs between the closest seeds. Every seed of the backend is smaller than every seed of the sequencer, which is a stronger statement than a difference of medians.
 
@@ -990,9 +990,23 @@ past this measurement:
   differently based fits, and it is what makes sharing one multiplier slice 6's
   first candidate. **Still uncosted**, deliberately.
 
-**Both sides fit and close.** The 0 side is band 2 on its own terms: 88.82% of
-ALMs, 98.42% of LABs touched, timing passing at all four corners with +7.620 ns
-worst setup. Band 4 does not apply to it either, under either threshold.
+**All eight fits close, per clock.** Every one of them reports a finite Fmax
+for **both** `clk_clock` and `pixel_clk_clock` at all four corners, so "passes
+at every corner" is a claim about both clock domains rather than about
+whichever had paths — confirmed from the retained reports, not assumed, since
+the harness these ran on could otherwise have passed a machine fit having
+analysed one domain (table in `integration-fit/README.md`).
+
+The 0 side is band 2 on its own terms: 88.62–88.82% of ALMs, 97.82–98.42% of
+LABs touched, worst setup +7.584 to +7.776 ns. The worst 0-side seed is 88.82%
+of ALMs and 98.42% of LABs, so band 4 does not apply to it either, under
+either threshold, on any seed.
+
+**Why the non-overlap is the figure to quote.** A difference of medians leans
+on a summary statistic, and with four seeds a reader may reasonably distrust
+it. Two **disjoint ranges** make no such demand: eight fits, 354 ALMs between
+the closest pair, and anyone can check the ranges against the committed fit
+records themselves.
 
 ~~Caveat: the 0 side is one seed.~~ **Answered: four seeds each side.** The
 0 side's own spread is **93 ALMs**, narrower than the 1 side's 136, and the
