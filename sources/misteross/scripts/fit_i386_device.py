@@ -174,6 +174,50 @@ def netlist_ports(text: str, top: str) -> list[str]:
     return ports
 
 
+# The i386 and pc386 RTL asks for Cyclone V block RAM by name, and Agilex 5
+# has no M10K: its altera_syncram refuses RAM_BLOCK_TYPE "M10K" outright, so
+# synthesis stops before elaboration. The Agilex side renames exactly this
+# token to the equivalent block, and nothing else.
+M10K_ATTRIBUTE = 'ramstyle = "M10K"'
+M20K_ATTRIBUTE = 'ramstyle = "M20K"'
+
+
+def retarget_ram_attribute(text: str) -> tuple[str, int]:
+    """Rename the M10K block request to M20K for an Agilex 5 fit.
+
+    The rename is verified by round trip: turning M20K back into M10K must
+    reproduce the original bytes exactly, which proves both that nothing else
+    in the netlist changed and that the netlist held no M20K request already.
+    MLAB requests are legal on both devices and are left alone."""
+    if M20K_ATTRIBUTE in text:
+        raise FitError("netlist already asks for M20K; the round-trip check could not tell "
+                       "a rewritten request from an original one")
+    rewritten = text.replace(M10K_ATTRIBUTE, M20K_ATTRIBUTE)
+    count = text.count(M10K_ATTRIBUTE)
+    if rewritten.replace(M20K_ATTRIBUTE, M10K_ATTRIBUTE) != text:
+        raise FitError("the M10K to M20K rename did not round trip; it changed more than that token")
+    return rewritten, count
+
+
+def prepare_netlist(netlist: Path, device: "Device", work: Path) -> tuple[Path, dict]:
+    """The netlist this device's fitter reads, and what was done to it."""
+    original = netlist.read_bytes()
+    record = {"source": str(netlist), "source_sha256": sha(original)}
+    if device.ram_block == "M10K":
+        record["ram_attribute"] = "unchanged: the RTL already names this device's block"
+        record["fitted_sha256"] = record["source_sha256"]
+        return netlist, record
+    rewritten, count = retarget_ram_attribute(original.decode())
+    work.mkdir(parents=True, exist_ok=True)
+    retargeted = work / netlist.name
+    retargeted.write_text(rewritten)
+    record["ram_attribute"] = (f'renamed {count} occurrences of {M10K_ATTRIBUTE!r} to '
+                               f'{M20K_ATTRIBUTE!r}; verified by round trip; nothing else changed')
+    record["ram_attribute_count"] = count
+    record["fitted_sha256"] = sha(retargeted.read_bytes())
+    return retargeted, record
+
+
 def clock_constraints(design: dict, period_ns: float) -> str:
     """The SDC. Virtual input and output delays are constrained explicitly, so
     no port path is left unconstrained; they set no board I/O contract."""
@@ -462,6 +506,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             writer = cpu_netlist if args.design == "cpu" else machine_netlist
             netlist, provenance = writer(output, args.cache_root, args.gpu_router)
+        netlist, retarget = prepare_netlist(netlist, device, output / "fitted-netlist")
+        provenance["fitted_netlist"] = retarget
         (output / "netlist.json").write_text(json.dumps(provenance, indent=2, sort_keys=True) + "\n")
         project = write_project(output, device, design, netlist, args.period_ns, args.seed, metadata)
         print(f"i386 fit project: {project}", flush=True)

@@ -222,3 +222,30 @@ bound on those two pieces and a lower bound on a complete 387**, since neither
 piece contains remainder, scale, round-to-integer, transcendentals, BCD or
 unmasked exception results. It will be stated as both bounds at once and never
 as "the 387's cost".
+
+## Amendment, 16 November 2026: the one netlist difference between the sides
+
+What had been seen when this was written: the first Agilex 5 synthesis of
+`fes_i386_cpu` stopped with `Error (272006)` before elaborating anything, and
+no fit had produced any resource or timing figure on either device.
+
+The `SEAL` netlist is device-neutral in structure but **not** in one
+attribute. The i386 and pc386 RTL asks for Cyclone V block RAM by name —
+`(* ramstyle = "M10K" *)`, 30 occurrences in the CPU netlist and 57 in the
+machine's — and Agilex 5 has no M10K: its `altera_syncram` refuses
+`RAM_BLOCK_TYPE` of `M10K` outright, so synthesis stops before it elaborates.
+
+So the Agilex side reads a netlist with exactly that token renamed to
+`ramstyle = "M20K"`, the equivalent block on that device, and **nothing else**.
+The DE10 side reads the netlist unchanged. The rename is verified by round
+trip: turning `M20K` back into `M10K` must reproduce the original bytes
+exactly, which proves both that nothing else changed and that the netlist held
+no `M20K` request of its own. The occurrence count and both digests go in each
+fit's record. `MLAB` requests are legal on both devices and are left alone.
+
+The two sides therefore no longer read identical bytes, and the record must
+not claim they do. What they read is the same netlist differing in one
+attribute value whose only purpose is to name the device's block RAM. A reader
+should treat the block-RAM figures as the weakest part of the comparison: M10K
+is 10 Kb and M20K 20 Kb, they are not the same unit either, and the same
+logical memory may land in a different number of them.

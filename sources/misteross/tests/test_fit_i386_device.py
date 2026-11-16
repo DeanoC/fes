@@ -118,6 +118,48 @@ class Envelope(unittest.TestCase):
         self.assertIn("[add_to_collection [get_ports clk] [get_ports pixel_clk]]", sdc)
 
 
+class RamAttribute(unittest.TestCase):
+    """Agilex 5 has no M10K, and its altera_syncram refuses the name outright."""
+
+    def test_only_the_block_name_changes(self):
+        text = 'wire a;\n(* ramstyle = "M10K" *) reg [7:0] m [0:255];\n' \
+               '(* ramstyle = "MLAB, no_rw_check" *) reg [31:0] s [0:15];\n'
+        rewritten, count = fit.retarget_ram_attribute(text)
+        self.assertEqual(count, 1)
+        self.assertIn('ramstyle = "M20K"', rewritten)
+        self.assertNotIn('"M10K"', rewritten)
+        # MLAB is legal on both devices and is left alone.
+        self.assertIn('ramstyle = "MLAB, no_rw_check"', rewritten)
+        self.assertEqual(rewritten.replace('"M20K"', '"M10K"'), text)
+
+    def test_a_netlist_that_already_asks_for_m20k_is_refused(self):
+        # The round-trip check could not then tell a rewritten request from an
+        # original one, so the rename would no longer prove what it claims.
+        with self.assertRaisesRegex(fit.FitError, "already asks for M20K"):
+            fit.retarget_ram_attribute('(* ramstyle = "M20K" *) reg x;\n')
+
+    def test_the_cyclone_side_reads_the_netlist_unchanged(self):
+        with tempfile.TemporaryDirectory() as directory:
+            netlist = Path(directory) / "n.v"
+            netlist.write_text('(* ramstyle = "M10K" *) reg [7:0] m [0:255];\n')
+            fitted, record = fit.prepare_netlist(netlist, fit.DEVICES["de10"],
+                                                 Path(directory) / "work")
+            self.assertEqual(fitted, netlist)
+            self.assertEqual(record["fitted_sha256"], record["source_sha256"])
+            self.assertIn("unchanged", record["ram_attribute"])
+
+    def test_the_agilex_side_records_what_it_renamed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            netlist = Path(directory) / "n.v"
+            netlist.write_text('(* ramstyle = "M10K" *) reg [7:0] m [0:255];\n')
+            fitted, record = fit.prepare_netlist(netlist, fit.DEVICES["de25"],
+                                                 Path(directory) / "work")
+            self.assertNotEqual(fitted, netlist)
+            self.assertNotEqual(record["fitted_sha256"], record["source_sha256"])
+            self.assertEqual(record["ram_attribute_count"], 1)
+            self.assertIn('ramstyle = "M20K"', fitted.read_text())
+
+
 class Resources(unittest.TestCase):
     def test_each_figure_records_the_report_row_it_came_from(self):
         # A figure without the row it was read from is the kind of unlabelled
