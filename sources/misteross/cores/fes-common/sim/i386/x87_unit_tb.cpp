@@ -1479,6 +1479,106 @@ int main(int argc, char **argv) {
     }
 
 
+    // ---- Back-to-back arithmetic pairs. ----
+    // The registered-read hazard is this unit's recurring defect: anything
+    // derived from a REGISTERED value is a cycle late relative to a
+    // sequencer that transitions in one edge, so work begun in the assigning
+    // state sees the PREVIOUS operation's value. It has appeared in every
+    // slice, and because the stale value is usually plausible the symptom is
+    // a wrong result rather than a crash. A single operation hides the class
+    // entirely: the working registers start from a settled unit, so a late
+    // read and a timely one give the same answer.
+    //
+    // So every pair below runs the second instruction through `overlap`,
+    // which presents it while the first is still in flight -- the CPU's own
+    // timing, and the only way the bench reaches the state a stale read
+    // would corrupt. The pairs deliberately cross the two arithmetic paths:
+    // FSCALE and FRNDINT stay on the sequencer in both configurations, and
+    // FADD, FSUB, FMUL, FDIV and FSQRT move to fes_x87_core when the DE25
+    // backend is selected, so an op-A/op-B pair tests a handover in each
+    // direction as well as each path against itself. The operands are chosen
+    // so that the FIRST operation leaves each kind of working state the
+    // second could inherit: an exact cancellation to zero, a tiny result, an
+    // overflow, a saturating scale and an exact normal.
+    {
+        StubPage page;
+        const uint16_t ARITH_SW = 0xfaff;   // everything but C0, C2 and C3
+        struct Op { const char *name; uint8_t esc, modrm; };
+        // The five forms the DE25 backend answers, then the two that stay on
+        // the sequencer whichever backend is selected.
+        const Op ops[] = {
+            {"fadd",  0xd8, 0xc1}, {"fsub",  0xd8, 0xe1}, {"fmul", 0xd8, 0xc9},
+            {"fdiv",  0xd8, 0xf1}, {"fsqrt", 0xd9, 0xfa},
+            {"fscale", 0xd9, 0xfd}, {"frndint", 0xd9, 0xfc},
+        };
+        struct Pair { const char *name; uint8_t a[10], b[10]; };
+        const Pair cases[] = {
+            // 1.0 and -1.0: FADD cancels exactly to zero, which is the one
+            // state the backend's raw result cannot pack by itself.
+            {"cancel", {0,0,0,0,0,0,0,0x80,0xff,0x3f}, {0,0,0,0,0,0,0,0x80,0xff,0xbf}},
+            // The smallest normal over a large value: a tiny result, so the
+            // first operation leaves wtiny set.
+            {"tiny",   {0,0,0,0,0,0,0,0x80,0x01,0x00}, {0,0,0,0,0,0,0,0x80,0xfe,0x7f}},
+            // Two values near the top of the range: a product overflows.
+            {"over",   {0,0,0,0,0,0,0,0x80,0xfe,0x7f}, {0,0,0,0,0,0,0,0x80,0xfe,0x7f}},
+            // A denormal operand, which raises DE on either path.
+            {"denorm", {1,0,0,0,0,0,0,0x00,0x00,0x00}, {0,0,0,0,0,0,0,0x80,0xff,0x3f}},
+            // Exact normals, where nothing rounds and nothing is flagged.
+            {"exact",  {0,0,0,0,0,0,0,0x80,0x00,0x40}, {0,0,0,0,0,0,0,0x80,0xff,0x3f}},
+        };
+        for (const Pair &c : cases) {
+            for (unsigned rc = 0; rc < 4; ++rc) {
+                const uint16_t cw = host_cw(rc);
+                int diffs = 0, ran = 0;
+                std::string first;
+                Unit u;
+                for (const Op &a : ops) {
+                    for (const Op &b : ops) {
+                        const uint8_t bytes[4] = {a.esc, a.modrm, b.esc, b.modrm};
+                        uint8_t stack[2][10];
+                        std::memcpy(stack[0], c.a, 10);
+                        std::memcpy(stack[1], c.b, 10);
+                        Image want{}, got{};
+                        if (!host_form(page, cw, stack, 2, nullptr, bytes, 4, want)) {
+                            bad(std::string("b2b-") + c.name, "no stub page");
+                            break;
+                        }
+                        // The unit side: the same two instructions, with the
+                        // second presented before the first commits.
+                        u.clear_latch();
+                        u.reg_form(OP_FNINIT);
+                        u.present(OP_FLDCW, FMT_I16, true, true, 0);
+                        u.commit(0, cw, true);
+                        u.settle();
+                        got.setup_ok = u.cw() == cw;
+                        for (unsigned n = 2; n-- > 0;) u.load(OP_FLD_M80, FMT_F80, stack[n]);
+                        u.overlap(((a.esc & 7) << 8) | a.modrm, ((b.esc & 7) << 8) | b.modrm);
+                        got.cw = u.cw();
+                        got.sw = u.sw();
+                        got.tw = u.tw();
+                        for (unsigned n = 0; n < 8; ++n) u.sti(n, got.reg[n]);
+                        ++ran;
+                        ++compared;
+                        if (!same_state(want, got, ARITH_SW)) {
+                            const std::string what = std::string(a.name) + "/" + b.name +
+                                                     " st0=" + hex80(c.a) + " st1=" + hex80(c.b) +
+                                                     " got " + state_str(got, ARITH_SW) +
+                                                     " want " + state_str(want, ARITH_SW);
+                            if (!diffs) first = what;
+                            const char *vb = std::getenv("X87_TB_VERBOSE");
+                            if (vb && (std::string(vb) == "all" || std::string(vb) == "b2b"))
+                                std::fprintf(stderr, "DIFF b2b-%s-rc%u %s\n", c.name, rc, what.c_str());
+                            ++diffs;
+                        }
+                    }
+                }
+                const std::string name = std::string("b2b-") + c.name + "-rc" + std::to_string(rc);
+                if (diffs) bad(name, std::to_string(diffs) + " of " + std::to_string(ran) + " " + first);
+                else ok(name);
+            }
+        }
+    }
+
     // ---- The remainders' partial steps, chained. ----
     // The plan names this gate: directed FPREM and FPREM1 cases over large
     // exponent differences, checking each partial step's C2 and the final

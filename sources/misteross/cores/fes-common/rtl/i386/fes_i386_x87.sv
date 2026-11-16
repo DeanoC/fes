@@ -2534,6 +2534,27 @@ module fes_i386_x87 #(
                 // reads a settled value and not one assigned in this state --
                 // the hazard that has appeared in every slice of this unit.
                 B_WAIT: if (bk_raw_valid) begin
+                    // An exact cancellation. The core leaves the exponent it
+                    // was working at beside a significand of zero, and it is
+                    // `fes_x87_round` that zeroes the exponent field when the
+                    // significand rounds to nothing -- so on this path, which
+                    // does not use that rounder, the zero has to be packed
+                    // here. A_RND would otherwise store {sign, e, 0}, which
+                    // is a pseudo-denormal rather than a zero: the unit bench
+                    // caught it 240 times, on every add and subtract case
+                    // whose operands cancel, and on no multiply, divide or
+                    // square root.
+                    //
+                    // Guard, round and sticky are in the same 67 bits, so a
+                    // zero there is an exact zero and nothing rounds. The
+                    // sign is the core's, which already carries x87's rule
+                    // that a cancellation is +0 except when rounding down.
+                    if (bk_raw.significand == 67'd0) begin
+                        pfl  <= pfl | bk_raw.flags;
+                        pc1  <= 1'b0;
+                        ares <= {bk_raw.sign, 79'd0};
+                        seq  <= S_APPLY;
+                    end else begin
                     wsign <= bk_raw.sign;
                     we    <= bk_raw.exponent;
                     wm    <= bk_raw.significand[66:3];
@@ -2547,6 +2568,7 @@ module fes_i386_x87 #(
                     // bench asserts that it stays clear.
                     pfl   <= pfl | bk_raw.flags;
                     seq   <= A_RND;
+                    end
                 end
                 A_RND: begin
                     logic [66:0]        rp;
