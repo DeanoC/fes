@@ -247,7 +247,7 @@ public:
 	std::function<void()> on_clear_media;
 	mister::Error clear_media_result;
 	mister::HardwareResult LoadCore(
-		std::unique_ptr<mister::AdmittedCorePackage>, std::uint64_t) override;
+		std::unique_ptr<mister::AdmittedCorePackage>, std::uint64_t, bool = false) override;
 	int flush_calls = 0;
 	std::function<void()> on_flush;
 	mister::Error flush_result;

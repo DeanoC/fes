@@ -100,7 +100,7 @@ mister::Error FakeHardware::InspectCorePackage(const std::string& directory,
 
 mister::HardwareResult FakeHardware::LoadCore(
 	std::unique_ptr<mister::AdmittedCorePackage> package,
-	std::uint64_t generation)
+	std::uint64_t generation, bool)
 {
 	std::unique_lock<std::mutex> lock(mutex_);
 	++core_calls;

@@ -1844,8 +1844,8 @@ struct MenuGpScript {
   for(auto word:words)Reply(word);
  }
  // A blitter menu also proves its blitter idle with nothing completed.
- void BringUp(bool blitter=false,bool read_blitter=true){
-  Identity(blitter?1794:770);Info(8,0);Reply();Reply();Reply();Info(3,0);
+ void BringUp(bool blitter=false,bool read_blitter=true,std::uint16_t capabilities=770){
+  Identity(blitter?1794:capabilities);Info(8,0);Reply();Reply();Reply();Info(3,0);
   if(blitter&&read_blitter){Reply(0);Reply(0);}
  }
  // ReadBlit reads the completed count, then the state.
@@ -2482,6 +2482,70 @@ void TestNativeMenuBlitterPresent(std::uint16_t declared_minor)
  assert(operations.Granted()&&operations.granted.back()==83886080&&!hardware.menu_display().blitted);
  gp_script.Present(0,0,0);
  assert(PresentBackSlot(hardware,&displayed).ok()&&displayed.displayed_sequence==1&&operations.cleans==6);
+}
+
+class UnitDe25CoreVideo final : public mister::native::CoreVideoBringup {
+public:
+	bool SupportsPlatform(mister::native::NativePlatform platform) const override
+	{ return platform == mister::native::NativePlatform::de25_nano; }
+	mister::native::VideoResult BringUpCustom(std::uint64_t, bool) override { return {}; }
+	mister::native::VideoQuiesceResult Quiesce(std::uint64_t) override { return {}; }
+};
+
+void TestDe25MenuDevelopmentCoreLoad()
+{
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	TempDirectory package;
+	OpenedCorePackage opened;
+	PopulateHpsDdrApplication(&package, false, &opened);
+	std::string manifest=ReadText(package.path+"/manifest.toml");
+	ReplaceAll(&manifest,"fes.pong","fes.menu");
+	ReplaceAll(&manifest,"de10_nano","de25_nano");
+	ReplaceAll(&manifest,"5CSEBA6U23I7","A5EB013BB23BE4SCS");
+	ReplaceAll(&manifest,"fes-gp-v1","de25-linux-menu-v1");
+	manifest+="\n[[interfaces]]\nid = \"fes.video.menu-display\"\nmajor = 1\nminor = 0\nrequired = true\n";
+	manifest+="\n[[interfaces]]\nid = \"fes.fabric.de25-scanout\"\nmajor = 1\nminor = 3\nrequired = true\n";
+	{std::ofstream output(package.path+"/manifest.toml",std::ios::trunc);output<<manifest;assert(output.good());}
+	assert(OpenCorePackage(package.path,"",&opened).ok());
+	std::vector<std::string> events;
+	RecordingOpener opener(events);RecordingFpga fpga(events);
+	mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+	MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+	UnitDe25CoreVideo game_video;
+	RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+	FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+	const InputDeviceIdentity identity={"test",0,0,0,0};
+	TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+	NativeHardware hardware(opener,fpga,idle_video,game_video,input,identity,clock,log,
+		idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory,
+		nullptr,NativePlatform::de25_nano,nullptr,&driver);
+	fpga.boot_hps_ddr_layout=true;
+	MenuGpScript script{&mmio};script.BringUp(false,true,514);
+	std::unique_ptr<mister::AdmittedCorePackage> admitted;
+	const auto admission=hardware.AdmitCorePackage(package.path,opened.package_id,&admitted);
+	if(!admission.ok())fprintf(stderr,"DE25 MENU development admission: %s\n",admission.message.c_str());
+	assert(admission.ok());
+	const auto loaded=hardware.LoadCore(std::move(admitted),1,true);
+	if(!loaded.error.ok())fprintf(stderr,"DE25 MENU development load: %s\n",loaded.error.message.c_str());
+	assert(loaded.error.ok());
+	assert(fpga.calls==1&&hardware.menu_display().available);
+	TempDirectory library_package;OpenedCorePackage library_opened;
+	PopulateHpsDdrApplication(&library_package,false,&library_opened);
+	std::string library_manifest=ReadText(library_package.path+"/manifest.toml");
+	ReplaceAll(&library_manifest,"fes.pong","fes.menu");
+	ReplaceAll(&library_manifest,"de10_nano","de25_nano");
+	ReplaceAll(&library_manifest,"5CSEBA6U23I7","A5EB013BB23BE4SCS");
+	ReplaceAll(&library_manifest,"fes-gp-v1","de25-linux-menu-v1");
+	library_manifest+="\n[[interfaces]]\nid = \"fes.video.menu-display\"\nmajor = 1\nminor = 0\nrequired = true\n";
+	library_manifest+="\n[[interfaces]]\nid = \"fes.fabric.de25-scanout\"\nmajor = 1\nminor = 3\nrequired = true\n";
+	{std::ofstream output(library_package.path+"/manifest.toml",std::ios::trunc);output<<library_manifest;assert(output.good());}
+	assert(OpenCorePackage(library_package.path,"",&library_opened).ok());
+	std::unique_ptr<mister::AdmittedCorePackage> library_admitted;
+	assert(hardware.AdmitCorePackage(library_package.path,library_opened.package_id,&library_admitted).ok());
+	const auto library_load=hardware.LoadCore(std::move(library_admitted),2,false);
+	assert(library_load.error.code==mister::ErrorCode::unsupported_interface);
+	assert(fpga.calls==1&&hardware.menu_display().available);
 }
 
 // A confirmed present proves one frame reached scanout. These tests cover
@@ -6133,6 +6197,7 @@ int main(int argc,char** argv)
  TestApplicationSessionDisplaySuppressesOppositeDirections();
  TestMenuInterfaceRecordsMatchMenuAdmission();
  TestNativeMenuActivationAndCompletion();
+	TestDe25MenuDevelopmentCoreLoad();
  TestNativeMenuBlitterPresent(0);
  TestNativeMenuBlitterPresent(1);
  TestMenuUnderflowPolicyReactivatesThenSplashes();

@@ -611,7 +611,8 @@ public:
 			status_.package_id = info.package_id;
 		}
 		Log("load_core", info.system, info.declared_core, "starting");
-		HardwareResult result = hardware_.LoadCore(std::move(package), generation);
+		HardwareResult result = hardware_.LoadCore(std::move(package), generation,
+			data_root.empty());
 		if (!result.error.ok() && replacing && !result.mutation_attempted)
 			result.mutation_attempted = true;
 		if (!result.error.ok() && !result.bound_media_may_have_run)

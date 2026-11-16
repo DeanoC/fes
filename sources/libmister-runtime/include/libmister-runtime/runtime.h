@@ -668,7 +668,7 @@ public:
 	}
 	virtual Capabilities capabilities() const { return {}; }
 	virtual HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage>,
-		std::uint64_t)
+		std::uint64_t, bool = false)
 	{
 		return {{ErrorCode::unsupported_protocol,
 			"core package loading is unavailable"}, false, ""};
