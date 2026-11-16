@@ -20,11 +20,17 @@ class De25PromotionTests(unittest.TestCase):
         self.temp.cleanup()
 
     def run_evidence(self, name, verdict="PASS", passed=True, head=HEAD, kit="D25", serial="TRWU8J8G",
-                     result_name="result.json"):
+                     result_name="result.json", core_id=None, package_id=None):
         path = self.root / name
         (path / "out").mkdir(parents=True)
         (path / "verdict").write_text(verdict)
-        (path / "out" / result_name).write_text(json.dumps({"head": head, "kit": kit}))
+        if core_id is None:
+            core_id = "fes.menu" if name.startswith("menu") else "fes.zx81"
+        if package_id is None:
+            package_id = "a" * 64 if core_id == "fes.menu" else "b" * 64
+        (path / "out" / result_name).write_text(json.dumps({
+            "head": head, "kit": kit, "core_id": core_id, "package_id": package_id,
+        }))
         (path / "out/restore-verification.json").write_text(json.dumps({"passed": passed, "serial": serial}))
         return path
 
@@ -47,6 +53,24 @@ class De25PromotionTests(unittest.TestCase):
         menu = self.run_evidence("menu")
         with self.assertRaisesRegex(ValueError, "distinct runs"):
             promoted_record(self.baseline, HEAD, menu, menu)
+
+    def test_rejects_same_package_for_both_smokes(self):
+        menu = self.run_evidence("menu")
+        zx81 = self.run_evidence("zx81", package_id="a" * 64)
+        with self.assertRaisesRegex(ValueError, "distinct packages"):
+            promoted_record(self.baseline, HEAD, menu, zx81)
+
+    def test_rejects_package_identity_for_wrong_core(self):
+        menu = self.run_evidence("menu", core_id="fes.zx81")
+        zx81 = self.run_evidence("zx81")
+        with self.assertRaisesRegex(ValueError, "expected core"):
+            promoted_record(self.baseline, HEAD, menu, zx81)
+
+    def test_rejects_missing_or_invalid_package_identity(self):
+        menu = self.run_evidence("menu", package_id="not-a-package-id")
+        zx81 = self.run_evidence("zx81")
+        with self.assertRaisesRegex(ValueError, "valid package identity"):
+            promoted_record(self.baseline, HEAD, menu, zx81)
 
     def test_accepts_menu_smoke_result_filename(self):
         menu = self.run_evidence("menu", result_name="menu-result.json")

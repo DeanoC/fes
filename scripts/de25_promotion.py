@@ -14,6 +14,8 @@ import tempfile
 
 IDENTITY = {"kit_id": "de25-j8g", "serial": "TRWU8J8G",
             "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45"}
+PROMOTION_CORES = {"MENU": "fes.menu", "ZX81": "fes.zx81"}
+PACKAGE_ID_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 def load(path: Path) -> dict:
@@ -31,6 +33,7 @@ def promoted_record(baseline: dict, head: str, menu_run: Path, zx81_run: Path,
         raise ValueError("current D25 baseline identity is invalid")
     if menu_run.resolve() == zx81_run.resolve():
         raise ValueError("MENU and ZX81 promotion evidence must be distinct runs")
+    package_ids = {}
     for name, run in (("MENU", menu_run), ("ZX81", zx81_run)):
         verdict = (run / "verdict").read_text(encoding="utf-8").strip()
         if verdict != "PASS":
@@ -41,9 +44,17 @@ def promoted_record(baseline: dict, head: str, menu_run: Path, zx81_run: Path,
         smoke = load(result_path)
         if smoke.get("head") != head or smoke.get("kit") != "D25":
             raise ValueError(f"{name} smoke is not for this exact main head and D25")
+        if smoke.get("core_id") != PROMOTION_CORES[name]:
+            raise ValueError(f"{name} smoke package is not the expected core")
+        package_id = smoke.get("package_id")
+        if not isinstance(package_id, str) or not PACKAGE_ID_RE.fullmatch(package_id):
+            raise ValueError(f"{name} smoke has no valid package identity")
+        package_ids[name] = package_id
         restore = load(run / "out/restore-verification.json")
         if restore.get("passed") is not True or restore.get("serial") != IDENTITY["serial"]:
             raise ValueError(f"{name} restore verification did not pass for J8G")
+    if package_ids["MENU"] == package_ids["ZX81"]:
+        raise ValueError("MENU and ZX81 promotion evidence must use distinct packages")
     result = dict(baseline)
     result["source"] = f"fetched origin/main {head}; independent Pro MENU and ZX81 exact-head HIL"
     result["verified_at_utc"] = verified_at or datetime.datetime.now(datetime.timezone.utc).isoformat()
