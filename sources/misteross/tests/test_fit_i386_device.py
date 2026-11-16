@@ -177,6 +177,18 @@ class SecondaryFrontEnd(unittest.TestCase):
             self.assertIsNone(inputs["netlist_sha256"])
             self.assertEqual(inputs["virtual_ports"],
                              ["* (wildcard; the clock is assigned back)"])
+            # The same rename the primary applies to the netlist, applied to
+            # the RTL: without it Quartus Pro refuses, because fes_i386_l1i,
+            # fes_i386_l1d and fes_i386_btb ask for Cyclone V block RAM.
+            self.assertEqual(inputs["ram_attribute_count"], 30)
+            self.assertNotIn('ramstyle = "M10K"',
+                             (project / "fes_i386_l1i.sv").read_text())
+            self.assertIn('ramstyle = "M20K"', (project / "fes_i386_l1i.sv").read_text())
+            self.assertNotEqual(inputs["source_sha256"]["fes_i386_l1i.sv"],
+                                inputs["fitted_source_sha256"]["fes_i386_l1i.sv"])
+            # A module with no block-RAM request is copied unchanged.
+            self.assertEqual(inputs["source_sha256"]["fes_i386_pkg.sv"],
+                             inputs["fitted_source_sha256"]["fes_i386_pkg.sv"])
 
 
 class DuplicateAttributes(unittest.TestCase):

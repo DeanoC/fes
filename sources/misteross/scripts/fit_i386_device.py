@@ -609,8 +609,19 @@ def write_sv_project(output: Path, device: "Device", design: dict, period_ns: fl
     project.mkdir()
     top = design["top"]
     sources = cpu_sources()
+    # The same M10K-to-M20K rename the primary flow applies to the netlist,
+    # applied here to the RTL instead, and verified the same way. Without it
+    # Quartus Pro refuses outright: fes_i386_l1i, fes_i386_l1d and
+    # fes_i386_btb carry 30 Cyclone V block-RAM requests between them, and
+    # Agilex 5 has no M10K. Doing it keeps the secondary a cross-check on the
+    # front end rather than a second experiment.
+    renamed = 0
     for path in sources:
-        shutil.copyfile(path, project / path.name)
+        text = path.read_text()
+        if device.ram_block != "M10K":
+            text, count = retarget_ram_attribute(text)
+            renamed += count
+        (project / path.name).write_text(text)
     shutil.copyfile(Path(__file__).with_name("fit_timing.tcl"), project / "timing.tcl")
     (project / f"{top}.sdc").write_text(clock_constraints(design, period_ns))
     (project / f"{top}.qpf").write_text(
@@ -651,7 +662,13 @@ def write_sv_project(output: Path, device: "Device", design: dict, period_ns: fl
         "virtual_ports": virtual, "virtual_port_count": len(virtual),
         "host": socket.gethostname(), "fes_revision": fes_revision(), "quartus": metadata,
         "netlist_sha256": None,
+        "ram_attribute": (f'renamed {renamed} occurrences of {M10K_ATTRIBUTE!r} to '
+                          f'{M20K_ATTRIBUTE!r} across the RTL sources, as the primary flow does to '
+                          'the netlist; verified by round trip; nothing else changed'),
+        "ram_attribute_count": renamed,
         "source_sha256": {path.name: sha(path.read_bytes()) for path in sources},
+        "fitted_source_sha256": {path.name: sha((project / path.name).read_bytes())
+                                 for path in sources},
         "project_sha256": {path.name: sha(path.read_bytes()) for path in sorted(project.iterdir())},
     }
     (output / "inputs.json").write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")

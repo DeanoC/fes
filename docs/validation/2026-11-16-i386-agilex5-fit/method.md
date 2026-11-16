@@ -401,3 +401,40 @@ changes nothing; the table was dead and is deleted rather than left as a shim.
 The pixel domain's own register-to-register paths are analysed as the system
 domain's are, and the record says the video output path is **not** analysed —
 it is a virtual port, and no board I/O timing is established for it.
+
+## Amendment, 16 November 2026: the secondary front end, and its prediction
+
+What had been seen: fit C on both devices and fit M on Agilex 5 had passed at
+61.44 MHz; fit M+ was in the fitter and had produced no figure. No
+direct-SystemVerilog fit had been attempted on either device.
+
+The method listed Quartus Pro reading the SystemVerilog directly as a
+labelled secondary. It is now implemented, and the reason to run it has
+sharpened: the sibling DE25 envelope session fits its x87 work through that
+front end, so a figure from it is the only cross-check available between the
+two records — without one, their ALM figures and these differ by front end as
+well as by scope, which is two confounds rather than one.
+
+**The prediction, stated before the attempt.** `fes_i386_l1i`, `fes_i386_l1d`
+and `fes_i386_btb` carry **30** `(* ramstyle = "M10K" *)` requests between
+them — 12, 16 and 2 — and Agilex 5 has no M10K, so Quartus Pro would refuse to
+synthesise `fes_i386_cpu` from the RTL. That is the same refusal the netlist
+flow hit, and it is why the primary works: the `SEAL` recipe's memory policy
+and this runner's rename deal with those memories before Quartus sees them.
+
+So the secondary applies **the same M10K-to-M20K rename to the RTL sources**
+that the primary applies to the netlist, with the same round-trip check and
+the count recorded, and copies every other source byte for byte. That keeps
+the secondary a test of the front end rather than a second experiment. What
+remains genuinely open, and is what the attempt tests, is whether Pro's
+SystemVerilog front end accepts the rest of this RTL where Quartus 17.0.2
+rejects it — the genvar scoping and the variable index into a packed struct
+member that the DE10 lane documents.
+
+**How its result will be read, fixed before the run.** If it elaborates, its
+**register count** is compared with the primary's on the same device; a large
+gap means swept or mis-elaborated logic and the fit is **withdrawn as an area
+result** rather than reported as a second figure. If it refuses, the record
+says so concretely with the error and the construct, as a "not measurable
+without X" with X named. Either outcome is reported; neither replaces the
+primary.
