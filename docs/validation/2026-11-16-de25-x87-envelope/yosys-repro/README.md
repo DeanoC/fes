@@ -49,9 +49,17 @@ first, believed before being tested, and reverted.
 ## Reproducing
 
     yosys -s repro.ys
+    yosys -s packed-vs-unpacked.ys
 
 from this directory, with the locked Yosys. `y.log` and `repro.netlist.v` are
-the outputs from the run that is described above.
+the outputs of the first; `packed-vs-unpacked.log` and
+`packed-vs-unpacked.netlist.v` of the second.
+
+`repro.sv` is the defect on its own. `packed-vs-unpacked.sv` holds **both**
+forms in one module, which is what establishes the workaround rather than
+asserting it: the netlist drives `p_out <= p_stage[8:1]` from the packed array
+and leaves `u_out` at zero from the unpacked one, and only the unpacked
+identifiers are reported as implicitly declared.
 
 ## What this does and does not block
 
