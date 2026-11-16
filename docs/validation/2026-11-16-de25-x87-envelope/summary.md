@@ -216,7 +216,7 @@ version of this record said "11 of 13 offsets hang", which read as a count of
 independent failures and was not one. The first failing offset is the claim
 the bench supports.)*
 
-## The pattern: five checks that reported without checking
+## The pattern: six checks that reported without checking
 
 These are listed together because the pattern is the finding, not any one of
 them. In each case a check existed, ran, and reported success while being
@@ -238,8 +238,26 @@ structurally incapable of failing:
    also matched `pa_e0`, and it counted `dv_rem` — which FPREM writes, and
    FPREM is kept, so it is present by design rather than by leakage.
 
-All three were found the same way: by making the check fail on purpose, or by
-a tool refusing loudly. None would have been found by reading the code, and
+Two more of the same class were found by **review** rather than by use, both
+in the fit harness, and both would have fired only on measurements that had
+not run yet (Codex on PR #1907):
+
+5. **The exclusion query parsed the fitter's RAM names and never gated on
+   them.** `rcp_q` and `rsq_q` are synchronous-read registers that Quartus may
+   absorb into the RAM block, so they can read as absent while the seed table
+   itself survives — a DE25 fit could have passed while holding arithmetic the
+   exclusion result claimed was gone.
+6. **The SDC and its own timing gate disagreed about the clock.** The SDC was
+   written at three decimals, the gate was passed six and requires equality
+   within 1e-6 ns. At 16.276 ns both spell the same double, so nothing fired;
+   at a natural ladder value — 13.333333 ns for 75 MHz — the SDC would have
+   constrained 13.333 and the gate would have rejected a valid fit. **It would
+   have fired on the clock ladder, which has not run.**
+
+All of the first three were found the same way: by making the check fail on
+purpose, or by a tool refusing loudly. The last two were found by someone
+else reading the harness, which is the cheap way to catch this class and the
+only one that works on a check whose conditions have not arrived yet. None would have been found by reading the code, and
 two of them had already produced numbers that looked like results. The
 Quartus refusal is worth its own line — **a check that fails loudly beat a
 check that reports** — and it is why the exclusion evidence is now a query
@@ -276,7 +294,7 @@ the right result: the hazard is the envelope's, not the backend's, so a pair
 suite that only caught it in one configuration would be testing the wrong
 thing.
 
-A sixth, of the same family, is in the next section: a lockstep that passed
+A seventh, of the same family, is in the next section: a lockstep that passed
 while the count it was gated on was never measured.
 
 ## Two gates that had stopped covering what they named
