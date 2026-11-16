@@ -59,6 +59,9 @@ from scripts.quartus_tools import load_quartus_lock, locate_quartus
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
 LOCK_FILE = Path("/tmp/lander-quartus-3090.lock")
+# A fixed path for the machine elaboration, so its netlist digest does not
+# depend on which output directory a fit happens to use (DeanoC/yosys#80).
+MACHINE_NETLIST_WORK = "build/diagnostic/i386-agilex5/machine-elaboration/pc386_system.v"
 MIN_FREE_BYTES = 30 * 1024 ** 3
 
 
@@ -692,10 +695,29 @@ def machine_netlist(output: Path, cache_root: Path, gpu_router: str) -> tuple[Pa
                                        lock=sealer.LOCK)
     work = output / "netlist"
     work.mkdir(parents=True, exist_ok=True)
+    # The machine's Yosys program carries its output path, and Yosys's
+    # auto-generated _NNNNN_ names change with it: four elaborations of
+    # byte-identical sources at four output paths gave four digests, all with
+    # the same size, statement counts and autoname-reference counts and
+    # differing only in which numbers those names carry. So the netlist is
+    # written at a FIXED path and copied to the fit's own directory, which
+    # makes its digest reproducible. Fork issue: DeanoC/yosys#80.
+    # pc386_rom reads ROM_HEX relative to the misteross root as the seal does,
+    # so Yosys still runs there.
+    stable = ROOT / MACHINE_NETLIST_WORK
+    stable.parent.mkdir(parents=True, exist_ok=True)
+    # Every path Yosys is given is fixed, not just the netlist's: the program
+    # file and the log carry the output directory too, and the auto-names
+    # follow any of them.
+    yosys_netlist.run(yosys.path, sealer.machine_program(stable), cwd=ROOT,
+                      program_file=stable.with_name("machine.ys"),
+                      log=stable.with_name("yosys.log"))
     netlist = work / sealer.MACHINE_NETLIST
-    # pc386_rom reads ROM_HEX relative to the misteross root as the seal does.
-    yosys_netlist.run(yosys.path, sealer.machine_program(netlist), cwd=ROOT,
-                      program_file=work / "machine.ys", log=work / "yosys.log")
+    for name in (sealer.MACHINE_NETLIST, "machine.ys", "yosys.log"):
+        source = stable.with_name(name)
+        if source.is_file():
+            shutil.copyfile(source, work / name)
+            source.unlink()
     return netlist, {"program_sha256": yosys_netlist.program_sha256(yosys_netlist.SEAL),
                      "netlist_sha256": sha(netlist.read_bytes()),
                      "guest_rates": sealer.guest_rates(),

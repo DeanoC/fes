@@ -529,3 +529,43 @@ takes 79.6% of the Agilex 5's ALMs and closes 61.44 MHz at every corner.
 run here unasked, because it is a different base from the one this task and
 this method named, and because the two sessions working on #1889's lane may
 want it on their own terms.
+
+## Amendment, 16 November 2026: the machine netlist's digest was path-dependent
+
+What had been seen: fits C (both devices), M and M+ had passed; the DE10
+machine fit, the ladder and the secondary were queued and had produced
+nothing. This amendment adds a finding; it changes no figure.
+
+Regenerating the fitted netlists to put their Yosys provenance in the record
+showed that **the machine netlist's content depends on the paths given to
+Yosys**, not only on its sources. Byte-identical sources and the same locked
+Yosys, elaborated at different output directories, gave four different
+digests; three runs into the *same* directory gave the same digest every
+time, so this is path dependence and not run-to-run nondeterminism. Fixing
+only the `write_verilog` argument did not stabilise it — the program file and
+the log path matter too.
+
+**The designs are the same.** All four netlists are the same size
+(6,024,354 bytes), the same 103,549 statements counted by kind, and carry the
+same 151,753 `_NNNNN_` references; they differ only in which numbers those
+auto-generated names hold, 4,808 lines of them. That is the phenomenon
+[#1821](https://github.com/DeanoC/fes/pull/1821) measured for comment-only
+source changes, where it moved a Quartus fit by 25 ALMs — well inside this
+lane's ±200 ALM noise, and far inside the 1,763 ALM M+ − M delta.
+
+The CPU netlist is unaffected, because `yosys_netlist.seal_netlist` passes a
+bare filename where the machine's caller passes an absolute path. The CPU
+netlist reproduced byte for byte (`3e485e23…`).
+
+**What this changes.** The runner now elaborates the machine at a fixed
+netlist, script and log path and copies the result into each fit's directory,
+so a fit's netlist digest is reproducible: two output directories 24
+characters apart in length now give the same digest. Fork issue:
+[DeanoC/yosys#80](https://github.com/DeanoC/yosys/issues/80), with the repro.
+
+**What it does not change.** The machine fits already run were fitted before
+this, so **a fresh elaboration will not reproduce their digests**, and the
+record says so rather than implying a reproducible identity it does not have.
+Each fit's own `inputs.json` records the digest of the exact bytes that were
+fitted, which is the authority for what those figures came from, and the
+equivalence check above is why the figures stand.
