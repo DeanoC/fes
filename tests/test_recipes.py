@@ -105,8 +105,8 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertNotIn("fes.riscv", build.selected_packages(
             {"fpga_packages": [{"core_id": "fes.pong"}]}, "native-integration-dev"))
 
-    def test_pcxt_is_a_quartus_diagnostic_without_dummy_gpu_fields(self):
-        recipe = recipes.recipe_for("fes.pcxt")
+    def test_pcxt_dos_is_quartus_without_dummy_gpu_fields(self):
+        recipe = recipes.recipe_for("fes.pcxt-dos")
         self.assertEqual(recipe.producer_module, "scripts.build_fes_pcxt_quartus")
         self.assertEqual(recipe.toolchain, "quartus")
         self.assertEqual(recipe.lock_path, "cores/fes-pcxt/quartus.lock")
@@ -117,12 +117,16 @@ class RecipeRegistryTest(unittest.TestCase):
         env = recipes.producer_environment({"FES_TOOLCHAIN_GPU_ROUTER": "HIP"}, recipe)
         self.assertNotIn("FES_TOOLCHAIN_GPU_ROUTER", env)
 
+    def test_pcxt_diagnostic_package_is_not_registered(self):
+        with self.assertRaises(ValueError):
+            recipes.recipe_for("fes.pcxt")
+
     def test_pcxt_dos_recipe_selects_hardware_check_and_kit_preference(self):
         recipe = recipes.recipe_for("fes.pcxt-dos")
         self.assertEqual(recipe.producer_module, "scripts.build_fes_pcxt_quartus")
         self.assertEqual(recipe.quartus_role, "FreeDOS SDRAM floppy package producer")
-        self.assertEqual(recipe.producer_arguments, ("--dos-profile",))
-        self.assertEqual(dict(recipe.producer_options), {"dos_profile": True})
+        self.assertEqual(recipe.producer_arguments, ())
+        self.assertEqual(dict(recipe.producer_options), {})
         self.assertEqual(recipe.hil_check, "scripts/pcxt_dos_hil_acceptance.py")
         self.assertEqual(recipe.hil_kits, ("B", "A"))
         self.assertEqual(recipe.quartus["seeds"], [1, 2, 3])
@@ -181,7 +185,7 @@ class RecipeRegistryTest(unittest.TestCase):
 
     def assert_existing_descriptors(self):
         self.assertTrue(
-            {"fes.pong", "fes.zx81", "fes.coleco", "fes.sms", "fes.sg1000", "fes.apple2", "fes.c64", "fes.spectrum", "fes.pcxt"}
+            {"fes.pong", "fes.zx81", "fes.coleco", "fes.sms", "fes.sg1000", "fes.apple2", "fes.c64", "fes.spectrum", "fes.pcxt-dos"}
             <= recipes.FORMAT2_RECIPES.keys())
         expected = {
             "fes.pong": {

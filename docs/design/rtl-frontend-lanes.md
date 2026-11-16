@@ -124,7 +124,7 @@ The template is the GPU backend. It enters identity as a parameter and through t
 
 - `Format2Recipe` (`scripts/recipes.py:77-102`) gains an optional `front_end`.
   - On `toolchain = "oss"` rows it must be absent, and it resolves to `yosys`. The HIP-only rule for these rows stays (`scripts/recipes.py:229`, `:296-297`).
-  - On `toolchain = "quartus"` rows it is required. `fes.pcxt` and `fes.pcxt-dos` (`config/core-recipes.toml:1620-1657`) get `front_end = "yosys"`.
+  - On `toolchain = "quartus"` rows it is required. `fes.pcxt-dos` (`config/core-recipes.toml:1620-1657`) get `front_end = "yosys"`.
 - `[recipes.quartus]` allows exactly {version, seeds, threads} today (`scripts/recipes.py:178`). It gains `edition` ∈ {lite, pro} and `device_family` ∈ {cyclonev, agilex5}, which `docs/design/quartus-cores.md:167-175` already plans.
 - The validator rejects illegal pairs. For example, `quartus-pro` requires `edition = "pro"` and `device_family = "agilex5"`.
 

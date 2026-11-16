@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a sealed PC/XT Quartus profile with the pinned board toolchain.
+"""Build the sealed PC/XT DOS Quartus package with the pinned board toolchain.
 
 Every declared seed must pass the complete reported internal timing inventory.
 An independent seed-1 rebuild must reproduce the RBF. External interface/reset
@@ -50,9 +50,9 @@ def sha(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
-def selected_recipe(root=ROOT, core_id='fes.pcxt'):
+def selected_recipe(root=ROOT):
     data = tomllib.loads((Path(root).parents[1] / 'config/core-recipes.toml').read_text())
-    entry = next(r for r in data['recipes'] if r['core_id'] == core_id)
+    entry = next(r for r in data['recipes'] if r['core_id'] == 'fes.pcxt-dos')
     if entry.get('toolchain') != 'quartus' or entry['producer_script'] != RECIPE:
         raise BuildError('PC/XT must select its Quartus package producer')
     return entry
@@ -85,11 +85,9 @@ def source_roots(root):
     return sorted(roots)
 
 
-def _require_clean_source(root, *, identity_version=2, dos_profile=False):
+def _require_clean_source(root, *, identity_version=2):
     if identity_version != 2:
         raise BuildError('PC/XT requires functional identity version 2')
-    if not isinstance(dos_profile, bool):
-        raise BuildError('PC/XT DOS profile must be a boolean')
     return require_clean_source(Path(root), pinned_inputs=(RECIPE, LOCK, ABI))
 
 
@@ -99,13 +97,13 @@ class Tool:
     identity: str
 
 
-def authenticate_tools(root, *, cache_root=None, core_id='fes.pcxt'):
+def authenticate_tools(root, *, cache_root=None):
     root = Path(root)
     lock = load_quartus_lock(root, LOCK)
     if lock.yosys_commit is None:
         raise BuildError('the PC/XT Quartus lock must pin its Yosys in [yosys]')
     _, quartus, version = locate_quartus(os.environ.get('QUARTUS_ROOTDIR', ''), root, lock)
-    if selected_recipe(root, core_id)['quartus']['version'] != version:
+    if selected_recipe(root)['quartus']['version'] != version:
         raise BuildError('Quartus version differs from the PC/XT lock/recipe')
     if os.environ.get('FES_PCXT_YOSYS'):
         candidates = [Path(os.environ['FES_PCXT_YOSYS'])]
@@ -239,36 +237,29 @@ def dos_assets(root):
 
 
 def create_build_record(root, repository, revision, tool_identities, *, identity_version=2,
-                        execution=None, core_id=None, dos_profile=False):
+                        execution=None):
     if identity_version != 2 or execution is None or execution.get('toolchain') != 'quartus':
         raise BuildError('Quartus package requires controlled functional execution inputs')
-    if not isinstance(dos_profile, bool):
-        raise BuildError('PC/XT DOS profile must be a boolean')
-    expected_core_id = 'fes.pcxt-dos' if dos_profile else 'fes.pcxt'
-    if core_id is not None and core_id != expected_core_id:
-        raise BuildError('PC/XT core ID does not match the selected profile')
-    core_id = expected_core_id
     root = Path(root).resolve()
     top = Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], cwd=root, text=True).strip())
     roots = source_roots(root)
-    entry = selected_recipe(root, core_id)
-    parameters = {'device': board.DEVICE, 'core_id': core_id,
-                  'hardware_dos': dos_profile,
+    entry = selected_recipe(root)
+    parameters = {'device': board.DEVICE, 'core_id': 'fes.pcxt-dos',
+                  'hardware_dos': True,
                   'half_rate_board': False, 'phased_hdmi_clock': True,
                   'enable_fes_computer': True, 'enable_pcxt_media': True,
-                  'enable_pcxt_floppy_write': dos_profile, 'enable_keyboard': dos_profile,
-                  'enable_audio': dos_profile,
-                  'audio_clock_hz': 12288000 if dos_profile else 0,
-                  'diagnostic_completion_marker': not dos_profile,
+                  'enable_pcxt_floppy_write': True, 'enable_keyboard': True,
+                  'enable_audio': True,
+                  'audio_clock_hz': 12288000,
+                  'diagnostic_completion_marker': False,
                   'video_mailbox_contract': True,
                   'system_clock_hz': 100000000, 'pixel_clock_hz': 74250000,
                   'hdmi_phase_ps': 8979,
                   'execution_sha256': execution_digest(execution)}
     parameters.update(quartus_recipe_parameters(entry['quartus']))
-    if dos_profile:
-        metadata, font = dos_assets(root)
-        parameters.update(glabios_rom_sha256=metadata['bios']['sha256'],
-                          cga_font_sha256=hashlib.sha256(font).hexdigest())
+    metadata, font = dos_assets(root)
+    parameters.update(glabios_rom_sha256=metadata['bios']['sha256'],
+                      cga_font_sha256=hashlib.sha256(font).hexdigest())
     fields = {'format': 2, 'toolchain': 'quartus', 'repository': repository, 'revision': revision,
               'source_path': root.relative_to(top).as_posix(), 'source_roots': roots,
               'source_inputs': source_input_closure(root, roots),
@@ -280,20 +271,20 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
     return encode_build_record(with_identities(fields, root=root))
 
 
-def require_timing(summary, seeds, *, dos_profile=False):
+def require_timing(summary, seeds):
     if (summary.get('status') != 'diagnostic-captured' or summary.get('seeds') != seeds
             or not summary.get('video_mailbox_contract')
             or summary.get('profile', {}).get('HALF_RATE_BOARD') != 0
             or summary.get('profile', {}).get('ENABLE_FES_COMPUTER') != 1
-            or summary.get('profile', {}).get('HARDWARE_DOS') != int(dos_profile)
+            or summary.get('profile', {}).get('HARDWARE_DOS') != 1
             or summary.get('profile', {}).get('ENABLE_PCXT_MEDIA') != 1
-            or summary.get('profile', {}).get('ENABLE_PCXT_FLOPPY_WRITE') != int(dos_profile)
+            or summary.get('profile', {}).get('ENABLE_PCXT_FLOPPY_WRITE') != 1
             or len(summary.get('runs', [])) != len(seeds)
             or summary.get('elaboration', {}).get('hps_primitive_instances') != {
                 'hdmi_i2c': 'cyclonev_hps_interface_peripheral_i2c',
                 'fes_computer_runtime_hps_gp': 'cyclonev_hps_interface_mpu_general_purpose'}):
         raise BuildError('incomplete or mismatched Quartus package configuration')
-    if dos_profile and (len(summary.get('audio_binding', {}).get('chains', [])) != 4
+    if (len(summary.get('audio_binding', {}).get('chains', [])) != 4
                         or not re.fullmatch(r'[0-9a-f]{64}', summary.get('audio_proof_log_sha256', ''))):
         raise BuildError('missing PC/XT audio synchronizer binding')
     for seed, run in zip(seeds, summary['runs']):
@@ -311,47 +302,34 @@ def require_timing(summary, seeds, *, dos_profile=False):
                 or any(not re.fullmatch(r'(hdmi_i2c|fes_computer_runtime_hps_gp)~FF_[0-9]+', name)
                        for name in run.get('no_clock_registers', []))):
             raise BuildError('Quartus internal timing failed for seed ' + str(seed))
-        if dos_profile and (not run.get('audio_clock') or len(run.get('audio_interstage', [])) != 32
+        if (not run.get('audio_clock') or len(run.get('audio_interstage', [])) != 32
                             or not run.get('audio_payload')):
             raise BuildError('missing audio timing coverage for seed ' + str(seed))
 
 
-def build_limits(dos_profile):
+def build_limits():
     return [
         'external IO/HPS timing and physical reset qualification remain open',
-        ('runtime floppy image is optional; exact-artifact writable media, keyboard and hardware acceptance remain open'
-         if dos_profile else
-         'BIOS, DOS boot, host keyboard and in-play display plane are not implemented'),
+        'runtime floppy image is optional; exact-artifact writable media, keyboard and hardware acceptance remain open',
     ]
 
-
-def manifest(record, payload, *, dos_profile=False, metadata=None):
+def manifest(record, payload):
     fields = json.loads(record)
     parameters = fields.get('parameters', {})
-    expected_core_id = 'fes.pcxt-dos' if dos_profile else 'fes.pcxt'
-    if (not isinstance(dos_profile, bool) or parameters.get('core_id') != expected_core_id
-            or parameters.get('hardware_dos') is not dos_profile
-            or parameters.get('enable_pcxt_media') is not True
-            or parameters.get('enable_pcxt_floppy_write') is not dos_profile
-            or parameters.get('enable_keyboard') is not dos_profile
-            or parameters.get('enable_audio') is not dos_profile
-            or parameters.get('audio_clock_hz') != (12288000 if dos_profile else 0)):
-        raise BuildError('PC/XT manifest profile does not match its build record')
-    if dos_profile:
-        description = ('XT-compatible BIOS and writable 360 KiB floppy loaded '
-                       'at runtime into SDRAM. A bootable disk image is optional; '
-                       'with an empty drive the BIOS still starts and displays its boot state.')
-        core = {'id': 'fes.pcxt-dos', 'name': 'FES PC/XT FreeDOS', 'version': '0.1.0',
-                'description': description}
-    else:
-        core = {'id': 'fes.pcxt', 'name': 'FES PC/XT Diagnostic', 'version': '0.2.0',
-                'description': 'Quartus 8088 SDRAM/DMA diagnostic with a runtime floppy sector check'}
-    interfaces = [{'id': 'fes.video.fixed-720p60', 'major': 1, 'minor': 0, 'required': True}]
-    interfaces.append({'id': 'fes.media.pcxt-floppy', 'major': 1, 'minor': 0, 'required': True})
-    if dos_profile:
-        interfaces.append({'id': 'fes.media.pcxt-floppy-write', 'major': 1, 'minor': 0, 'required': True})
-        interfaces.append({'id': 'fes.keyboard.hid', 'major': 1, 'minor': 0, 'required': True})
-        interfaces.append({'id': 'fes.audio.pcm-s16-stereo-48k', 'major': 1, 'minor': 0, 'required': True})
+    if (parameters.get('core_id') != 'fes.pcxt-dos'
+            or any(parameters.get(key) is not True for key in (
+                'hardware_dos', 'enable_pcxt_media', 'enable_pcxt_floppy_write',
+                'enable_keyboard', 'enable_audio'))
+            or parameters.get('audio_clock_hz') != 12288000):
+        raise BuildError('PC/XT manifest requires the DOS build record')
+    description = ('XT-compatible BIOS and writable 360 KiB floppy loaded '
+                   'at runtime into SDRAM. A bootable disk image is optional; '
+                   'with an empty drive the BIOS still starts and displays its boot state.')
+    core = {'id': 'fes.pcxt-dos', 'name': 'FES PC/XT FreeDOS', 'version': '0.1.0',
+            'description': description}
+    interfaces = [{'id': name, 'major': 1, 'minor': 0, 'required': True} for name in (
+        'fes.video.fixed-720p60', 'fes.media.pcxt-floppy', 'fes.media.pcxt-floppy-write',
+        'fes.keyboard.hid', 'fes.audio.pcm-s16-stereo-48k')]
     return encode_manifest({'format': 2,
         'core': core,
         'target': {'platform': 'de10_nano', 'device': board.DEVICE, 'programming_profile': 'fes-gp-v1'},
@@ -363,37 +341,35 @@ def manifest(record, payload, *, dos_profile=False, metadata=None):
                   'toolchain': '; '.join(f'{k} {fields["tools"][k]}' for k in sorted(fields['tools']))}})
 
 
-def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2, dos_profile=False):
+def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2):
     root = Path(root).resolve()
-    core_id = 'fes.pcxt-dos' if dos_profile else 'fes.pcxt'
-    repository, revision = _require_clean_source(root, identity_version=identity_version, dos_profile=dos_profile)
-    tools = authenticate_tools(root, cache_root=cache_root, core_id=core_id)
+    repository, revision = _require_clean_source(root, identity_version=identity_version)
+    tools = authenticate_tools(root, cache_root=cache_root)
     paths = {name: tool.path for name, tool in tools.items()}
     identities = {name: tool.identity for name, tool in tools.items()}
     with tempfile.TemporaryDirectory(prefix='fes-pcxt-quartus-home-') as home:
         env = execution_environment(Path(home), paths)
         execution = execution_inputs(paths, env)
         record = create_build_record(root, repository, revision, identities, execution=execution,
-                                     core_id=core_id, dos_profile=dos_profile)
+                                     identity_version=identity_version)
         build_id = build_identity(record)
         attempts = root / 'build/fes-pcxt-quartus' / build_id
         attempts.mkdir(parents=True, exist_ok=True)
         output = Path(tempfile.mkdtemp(prefix='attempt-', dir=attempts))
         (output / 'build-inputs.json').write_bytes(record)
-        recipe = selected_recipe(root, core_id)['quartus']
+        recipe = selected_recipe(root)['quartus']
         summaries = []
         for name, seeds in [('signoff', recipe['seeds']), ('repeat', [recipe['seeds'][0]])]:
             command = [sys.executable, str(root / 'scripts/quartus_fes_pcxt.py'),
                        '--yosys', str(paths['yosys']), '--quartus-root', str(paths['quartus'].parent.parent),
                        '--package-profile', '--video-mailbox-contract', '--build-id', build_id,
                        '--threads', str(recipe['threads']), '--output', str(output / name)]
-            if dos_profile:
-                command.append('--dos-profile')
+            command.append('--dos-profile')
             for seed in seeds:
                 command.extend(('--seed', str(seed)))
             subprocess.run(command, cwd=root, env=env, check=True)
             summary = json.loads((output / name / 'summary.json').read_text())
-            require_timing(summary, seeds, dos_profile=dos_profile)
+            require_timing(summary, seeds)
             summaries.append(summary)
         payload = output / 'core.rbf'
         original = output / 'signoff' / f'seed-{recipe["seeds"][0]}' / 'output_files/top.rbf'
@@ -401,21 +377,20 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
         if sha(original) != sha(repeated):
             raise BuildError('independent Quartus rebuild changed the RBF')
         if (create_build_record(root, repository, revision, identities, execution=execution,
-                                core_id=core_id, dos_profile=dos_profile) != record
+                                identity_version=identity_version) != record
                 or execution_inputs(paths, env) != execution
-                or authenticate_tools(root, cache_root=cache_root, core_id=core_id) != tools):
+                or authenticate_tools(root, cache_root=cache_root) != tools):
             raise BuildError('Quartus build inputs changed during compilation')
         shutil.copyfile(original, payload)
-        metadata = dos_assets(root)[0] if dos_profile else None
-        encoded = manifest(record, payload, dos_profile=dos_profile, metadata=metadata)
+        encoded = manifest(record, payload)
         (output / 'manifest.toml').write_bytes(encoded)
         (output / 'build-summary.json').write_text(json.dumps({
-            'classification': 'installable-quartus-hardware-dos-package' if dos_profile else 'installable-quartus-diagnostic-package',
+            'classification': 'installable-quartus-hardware-dos-package',
             'build_id': build_id, 'revision': revision, 'seeds': recipe['seeds'],
-            'core_id': core_id, 'hardware_dos': dos_profile,
+            'core_id': 'fes.pcxt-dos', 'hardware_dos': True,
             'internal_timing_pass': True, 'repeat_rbf_sha256': sha(repeated),
             'whole_board_qualified': False, 'hardware_acceptance': False,
-            'limits': build_limits(dos_profile)}, indent=2) + '\n')
+            'limits': build_limits()}, indent=2) + '\n')
         package = export_package(encoded, payload, Path(package_output or root / 'build/packages'))
     return package
 
@@ -426,12 +401,10 @@ def main():
     parser.add_argument('--package-output', type=Path)
     parser.add_argument('--cache-root', type=Path)
     parser.add_argument('--identity-version', type=int, default=2)
-    parser.add_argument('--dos-profile', action='store_true', help='build the FreeDOS SDRAM floppy hardware package')
     args = parser.parse_args()
     try:
         package = build(args.root, package_output=args.package_output,
-                        cache_root=args.cache_root, identity_version=args.identity_version,
-                        dos_profile=args.dos_profile)
+                        cache_root=args.cache_root, identity_version=args.identity_version)
         print(package)
         return 0
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:

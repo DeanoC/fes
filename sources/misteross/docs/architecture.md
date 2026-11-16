@@ -2368,7 +2368,7 @@ The core is `fes.computer` 1.0 unless a shell enables a 1.1 interface:
 `ENABLE_ATA_DISK`, `ENABLE_PERSISTENCE`, `ENABLE_WALL_CLOCK`,
 `ENABLE_PC386_MACHINE` and `ENABLE_PCXT_FLOPPY` expose capability bits 16..20
 respectively and make it minor 1, answering identity word 16. `fes.pc386`
-uses bits 16..19; `fes.pcxt` uses bit 20. `pc386_system` hands its storage
+uses bits 16..19; `fes.pcxt-dos` uses bit 20. `pc386_system` hands its storage
 opcodes to `fes_computer_storage` (`rtl/fes_computer_storage.v`) and holds each
 until the reply, as it does menu opcodes for the display plane. That endpoint
 owns the ATA disk's unit
@@ -3916,28 +3916,19 @@ key before bootstrap. This diskless fixture is not a packaged BIOS, a host HID
 path or kit acceptance. The diagnostic board ties its
 keyboard cable inactive and retains its fixed glyph input.
 
-**The full PC/XT product remains in development.** The registered `fes.pcxt`
-recipe now exports an installable format-2 diagnostic package with the standard
-identity/execution mailbox and fixed CGA Direct video. Its forwarded HDMI clock
-uses an 8.979 ns phase offset from pixel-data updates; the system and pixel
-rates do not change. Fixed video is inline in the RBF and needs no external
-video-part index. The `fes.computer` 1.1 mailbox declares one read-only 360 KiB
-PC/XT floppy unit; keyboard and physical socket interfaces are not declared.
-The registered producer is Quartus, with the common 100 MHz package profile,
-proof-bound video mailbox constraints and phased HDMI. All declared seeds
-must pass reported internal checks; an independent first-seed rebuild must
-reproduce the RBF. Internal clock-validity checks must pass, and every unclocked
-register must belong to an elaborated HPS hard primitive. Functional identity
-binds the installed tools, actual Python interpreter/standard library, host
-helper/library bytes and full selected source closure. Retries retain each
-attempt beneath the build ID. External physical timing/reset qualification and
-exact-artifact hardware acceptance remain separate from this diagnostic seal.
-Existing linker layout admission remains closed until an exact shell and its
-physical sockets are qualified.
+**The full PC/XT product remains in development.** `fes.pcxt-dos` is its sole
+installable package. The diagnostic ROM, focused simulations and raw board
+builders remain development checks and have no separate registry/catalog entry.
+The format-2 DOS package uses `fes.computer` 1.1, inline CGA Direct video,
+a common 100 MHz board clock and a forwarded HDMI clock phased by 8.979 ns.
+All declared Quartus seeds must pass the complete reported internal checks,
+and the first seed's RBF must reproduce independently. External physical
+timing/reset qualification and exact-artifact acceptance remain separate.
+Physical socket admission remains closed until an exact shell is qualified.
 
-The independent `fes.pcxt-dos` recipe selects the default-off `HARDWARE_DOS`
+The DOS producer always selects the `HARDWARE_DOS`
 top parameter. It enables the GLaBIOS XT/5160 ROM, a host HID to XT set-1
-keyboard frontend with BAT response, and the read-only floppy controller. The `fes.computer` 1.1
+keyboard frontend with BAT response, PC speaker and writable floppy controller. The `fes.computer` 1.1
 mailbox accepts a 360 KiB runtime floppy and writes it into SDRAM. When an
 initial disk is being loaded, the first boot waits for complete physical writes
 and media commit. Releasing execution with an empty drive starts the BIOS so
@@ -4281,7 +4272,7 @@ removing that decode from the peripheral's same-cycle control path. Warm reset/H
 preserve storage/refresh; HOLD resets the machine and mutes video.
 `python3 scripts/build_fes_pcxt.py --cache-root /absolute/cache` retains each standalone
 diagnostic synthesis/route attempt under `build/diagnostic/fes-pcxt/`.
-`python3 scripts/core_dev.py prepare --core fes.pcxt --output out/pcxt-package`
+`python3 scripts/core_dev.py prepare --core fes.pcxt-dos --output out/pcxt-package`
 uses the registered Quartus producer to create an installable RBF and manifest
 under `build/packages/`. Export requires all declared timing seeds and the
 independent repeat to pass; missing or failing internal timing blocks it.

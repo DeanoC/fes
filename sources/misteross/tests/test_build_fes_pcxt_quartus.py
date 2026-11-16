@@ -22,7 +22,10 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                     'hdmi_i2c': 'cyclonev_hps_interface_peripheral_i2c',
                     'fes_computer_runtime_hps_gp': 'cyclonev_hps_interface_mpu_general_purpose'}},
                 'profile': {'HALF_RATE_BOARD': 0, 'ENABLE_FES_COMPUTER': 1,
-                            'ENABLE_PCXT_MEDIA': 1, 'ENABLE_PCXT_FLOPPY_WRITE': 0, 'HARDWARE_DOS': 0}, 'runs': [{
+                            'ENABLE_PCXT_MEDIA': 1, 'ENABLE_PCXT_FLOPPY_WRITE': 1, 'HARDWARE_DOS': 1},
+                'audio_binding': {'chains': [{}, {}, {}, {}]},
+                'audio_proof_log_sha256': 'a' * 64, 'runs': [{
+                    'audio_clock': 'audio', 'audio_interstage': [{}] * 32, 'audio_payload': [{}],
                     'seed': 1, 'capture_complete': True, 'reported_endpoint_checks_pass': True,
                     'minimum_pulse_width': {str(c): {'failures': 0} for c in range(4)},
                     'mailbox_interstage': [{'slack_ns': '0.123'} for _ in range(24)],
@@ -41,9 +44,9 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                      lambda s: s['profile'].update(HALF_RATE_BOARD=1),
                      lambda s: s['profile'].update(ENABLE_PCXT_MEDIA=0),
                      lambda s: s['profile'].pop('ENABLE_PCXT_MEDIA'),
-                     lambda s: s['profile'].update(ENABLE_PCXT_FLOPPY_WRITE=1),
+                     lambda s: s['profile'].update(ENABLE_PCXT_FLOPPY_WRITE=0),
                      lambda s: s['profile'].pop('ENABLE_PCXT_FLOPPY_WRITE'),
-                     lambda s: s['profile'].update(HARDWARE_DOS=1),
+                     lambda s: s['profile'].update(HARDWARE_DOS=0),
                      lambda s: s['profile'].pop('HARDWARE_DOS'),
                      lambda s: s.update(video_mailbox_contract=False),
                      lambda s: s['runs'].clear()]
@@ -61,32 +64,31 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         summary['audio_binding'] = {'chains': [{}, {}, {}, {}]}
         summary['audio_proof_log_sha256'] = 'a' * 64
         summary['runs'][0].update(audio_clock='audio', audio_interstage=[{}] * 32, audio_payload=[{}])
-        producer.require_timing(summary, [1], dos_profile=True)
+        producer.require_timing(summary, [1])
         for key in ('audio_clock', 'audio_interstage', 'audio_payload'):
             broken = copy.deepcopy(summary)
             broken['runs'][0].pop(key)
             with self.assertRaises(producer.BuildError):
-                producer.require_timing(broken, [1], dos_profile=True)
+                producer.require_timing(broken, [1])
         broken = copy.deepcopy(summary); broken.pop('audio_proof_log_sha256')
         with self.assertRaises(producer.BuildError):
-            producer.require_timing(broken, [1], dos_profile=True)
+            producer.require_timing(broken, [1])
         broken = copy.deepcopy(summary); broken.pop('audio_binding')
         with self.assertRaises(producer.BuildError):
-            producer.require_timing(broken, [1], dos_profile=True)
+            producer.require_timing(broken, [1])
         summary['profile']['ENABLE_PCXT_FLOPPY_WRITE'] = 0
         with self.assertRaises(producer.BuildError):
-            producer.require_timing(summary, [1], dos_profile=True)
-        summary['profile']['ENABLE_PCXT_FLOPPY_WRITE'] = 1
-        with self.assertRaises(producer.BuildError):
             producer.require_timing(summary, [1])
+        summary['profile']['ENABLE_PCXT_FLOPPY_WRITE'] = 1
+        producer.require_timing(summary, [1])
 
         summary['profile']['HARDWARE_DOS'] = 0
         with self.assertRaises(producer.BuildError):
-            producer.require_timing(summary, [1], dos_profile=True)
+            producer.require_timing(summary, [1])
         summary['profile']['HARDWARE_DOS'] = 1
         summary['profile']['ENABLE_PCXT_MEDIA'] = 0
         with self.assertRaises(producer.BuildError):
-            producer.require_timing(summary, [1], dos_profile=True)
+            producer.require_timing(summary, [1])
 
     def test_dos_assets_match_redistribution_provenance_locks(self):
         metadata, font = producer.dos_assets(producer.ROOT)
@@ -101,7 +103,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
             producer.ROOT, 'https://github.com/DeanoC/fes.git', 'a' * 40,
             {'quartus': 'pinned', 'yosys': 'pinned'},
             execution={'toolchain': 'quartus', 'files': {}},
-            core_id='fes.pcxt-dos', dos_profile=True)
+            identity_version=2)
         parameters = json.loads(record)['parameters']
         self.assertNotIn('freedos_image_sha256', parameters)
         self.assertEqual(parameters['glabios_rom_sha256'], metadata['bios']['sha256'])
@@ -109,14 +111,14 @@ class PCXTQuartusPackageTests(unittest.TestCase):
     def test_dos_resolver_and_producer_use_the_same_record(self):
         registry = tomllib.loads((producer.ROOT.parents[1] / 'config/core-recipes.toml').read_text())
         recipe = next(r for r in registry['recipes'] if r['core_id'] == 'fes.pcxt-dos')
-        options = recipe['producer_options']
-        self.assertEqual(options, {'dos_profile': True})
+        options = recipe.get('producer_options', {})
+        self.assertEqual(options, {})
         arguments = (producer.ROOT, 'https://github.com/DeanoC/fes.git', 'a' * 40,
                      {'quartus': 'pinned', 'yosys': 'pinned'})
         execution = {'toolchain': 'quartus', 'files': {}}
         resolver = producer.create_build_record(*arguments, execution=execution, **options)
         builder = producer.create_build_record(*arguments, execution=execution,
-                                                core_id='fes.pcxt-dos', dos_profile=True)
+                                                identity_version=2)
         self.assertEqual(resolver, builder)
         parameters = json.loads(resolver)['parameters']
         self.assertEqual(parameters['core_id'], 'fes.pcxt-dos')
@@ -126,9 +128,8 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         with mock.patch.object(producer, 'require_clean_source', return_value=('repo', 'a' * 40)) as clean:
             producer._require_clean_source(producer.ROOT, identity_version=2, **options)
             clean.assert_called_once()
-        with self.assertRaisesRegex(producer.BuildError, 'core ID'):
-            producer.create_build_record(*arguments, execution=execution,
-                                         core_id='fes.pcxt', dos_profile=True)
+        with self.assertRaises(TypeError):
+            producer.create_build_record(*arguments, execution=execution, dos_profile=False)
 
     def authenticate_with_fakes(self, directory, *, recipe_version=None, lock=None):
         yosys = Path(directory) / 'yosys'
@@ -322,7 +323,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertEqual(fields['toolchain'], 'quartus')
         self.assertNotIn('gpu_device', fields['parameters'])
         self.assertTrue(fields['parameters']['enable_pcxt_media'])
-        self.assertFalse(fields['parameters']['enable_pcxt_floppy_write'])
+        self.assertTrue(fields['parameters']['enable_pcxt_floppy_write'])
         before = build_identity(record)
         fields.pop('toolchain')
         updated = with_identities(fields)
@@ -376,30 +377,14 @@ class PCXTQuartusPackageTests(unittest.TestCase):
             producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
                                        producer.ROOT / 'unused-library', package_profile=True)
 
-    def test_manifest_declares_the_actual_media_enabled_identity(self):
-        record = producer.create_build_record(producer.ROOT, 'https://github.com/DeanoC/fes.git',
-            'a'*40, {'quartus': 'pinned', 'yosys': 'pinned'}, execution={'toolchain': 'quartus'})
-        with tempfile.TemporaryDirectory(prefix='pcxt-manifest-') as directory:
-            payload = Path(directory) / 'core.rbf'
-            payload.write_bytes(b'test diagnostic')
-            manifest = tomllib.loads(producer.manifest(record, payload).decode())
-        self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 1})
-        interfaces = {i['id']: i for i in manifest['interfaces']}
-        self.assertTrue(interfaces['fes.media.pcxt-floppy']['required'])
-        self.assertNotIn('fes.media.pcxt-floppy-write', interfaces)
-        self.assertTrue(interfaces['fes.video.fixed-720p60']['required'])
-
     def test_dos_manifest_declares_runtime_floppy(self):
         record = producer.create_build_record(producer.ROOT, 'https://github.com/DeanoC/fes.git',
             'a'*40, {'quartus': 'pinned', 'yosys': 'pinned'},
-            execution={'toolchain': 'quartus'}, dos_profile=True)
-        metadata = producer.dos_assets(producer.ROOT)[0]
+            execution={'toolchain': 'quartus'})
         with tempfile.TemporaryDirectory(prefix='pcxt-dos-manifest-') as directory:
             payload = Path(directory) / 'core.rbf'
             payload.write_bytes(b'test DOS')
-            manifest = tomllib.loads(producer.manifest(record, payload, dos_profile=True, metadata=metadata).decode())
-            with self.assertRaisesRegex(producer.BuildError, 'manifest profile'):
-                producer.manifest(record, payload)
+            manifest = tomllib.loads(producer.manifest(record, payload).decode())
         self.assertEqual(manifest['core']['id'], 'fes.pcxt-dos')
         self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 1})
         self.assertIn('image is optional', manifest['core']['description'])
@@ -414,10 +399,10 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='pcxt-manifest-negative-') as directory:
             payload = Path(directory) / 'core.rbf'
             payload.write_bytes(b'test DOS')
-            with self.assertRaisesRegex(producer.BuildError, 'manifest profile'):
-                producer.manifest(json.dumps(fields).encode(), payload, dos_profile=True, metadata=metadata)
-        self.assertIn('runtime floppy image is optional', producer.build_limits(True)[1])
-        self.assertNotIn('required', producer.build_limits(True)[1])
+            with self.assertRaisesRegex(producer.BuildError, 'requires the DOS'):
+                producer.manifest(json.dumps(fields).encode(), payload)
+        self.assertIn('runtime floppy image is optional', producer.build_limits()[1])
+        self.assertNotIn('required', producer.build_limits()[1])
 
     def test_yosys_bus_hold_rewrite_runs_after_deferred_hierarchy(self):
         program = producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
@@ -428,7 +413,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         bus_hold = program.index('setparam -set enable_bus_hold "FALSE" t:altiobuf_bidir;')
         self.assertLess(hierarchy, bus_hold)
 
-    def test_yosys_elaborates_diagnostic_and_dos_package_profiles(self):
+    def test_yosys_elaborates_diagnostic_and_dos_board_profiles(self):
         toolchain = tomllib.loads((producer.ROOT / 'cores/fes-pcxt/toolchain.lock').read_text())
         expected_sha = load_quartus_lock(producer.ROOT, producer.LOCK).yosys_sha256
         expected_commit = toolchain['tool']['yosys']['commit']
@@ -502,7 +487,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                         plls[0]['parameters']['output_clock_frequency0'] = '12.000 MHz'
                         path.write_text(json.dumps(data))
                     with self.assertRaisesRegex(ValueError, 'clock request changed'):
-                        producer.board.validate_renaming(work, package_profile=True, dos_profile=True)
+                        producer.board.validate_renaming(work, package_profile=True)
                     for path, original in zip((before_path, after_path), originals):
                         path.write_text(original)
                 before = json.loads((work / 'before-names.json').read_text())['modules']['top']
