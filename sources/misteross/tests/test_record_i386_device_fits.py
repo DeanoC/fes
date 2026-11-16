@@ -373,6 +373,17 @@ class Collect(unittest.TestCase):
                 (fit / "timing.tsv").write_text("\n".join(lines) + "\n")
                 self.assertEqual(record.main(["--record", str(root / "r"), f"--fit=x={fit}"]), 1)
 
+    def test_a_duplicated_row_is_refused(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fit = write_fit(root / "f", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                            alms=1, available=2, device_alms=46800, ram_block="M20K")
+            lines = (fit / "timing.tsv").read_text().splitlines()
+            # The duplicate carries the verdict's own value, so only rejecting
+            # the duplication itself catches it.
+            (fit / "timing.tsv").write_text("\n".join(lines + [lines[1]]) + "\n")
+            self.assertEqual(record.main(["--record", str(root / "r"), f"--fit=x={fit}"]), 1)
+
     def test_a_table_without_the_closure_checks_is_refused(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

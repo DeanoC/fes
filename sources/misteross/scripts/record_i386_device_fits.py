@@ -177,8 +177,16 @@ def timing_rows(name: str, output: Path, fit: dict) -> list[str]:
         # corner, hold_only, check, coverage, paths, worst_slack_ns, from, to
         if len(field) < 6:
             raise RecordError(f"{name}: {path} has a row with fewer than six fields: {row!r}")
-        checks.setdefault(field[0], set()).add(field[2])
-        measured[(field[0], field[2])] = (field[3], field[4], field[5])
+        corner, check = field[0], field[2]
+        # A duplicated (corner, check) row would be published while only the
+        # last was compared against the verdict, so two different slacks for
+        # one check could sit in the record with one of them unchecked.
+        if (corner, check) in measured:
+            raise RecordError(
+                f"{name}: {path} has more than one row for corner {corner!r} check {check!r}; "
+                "only one of them would be compared against the verdict")
+        checks.setdefault(corner, set()).add(check)
+        measured[(corner, check)] = (field[3], field[4], field[5])
     expected = (fit.get("timing") or {}).get("corner_count")
     if expected is not None and len(checks) != expected:
         raise RecordError(
