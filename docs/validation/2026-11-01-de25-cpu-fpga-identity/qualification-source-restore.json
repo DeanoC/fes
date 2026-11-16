@@ -1,0 +1,11 @@
+{
+  "native_source": "fe58a6dc9a2348f9df4b65bd0cc185874136c213",
+  "qualification_source": "1f886dce4efcc2ebd411ba581ef8a93a6288636b",
+  "qualification_tree": "798984fc1b0b55545e8b897dea1743d9a2b66040",
+  "delta_paths": [
+    "platform/embedded/tamago/sdcontrol/session_test.go"
+  ],
+  "bundle_sha256": "45ccc1a753ba241f70e4b1be2fa2194c1d515dc3f598dd4d6dc5b46a8e8d5198",
+  "all_reachable_objects_verified": 7967,
+  "requires_native_source_bundle": true
+}

@@ -1,0 +1,14 @@
+test_boot_reservations_cannot_be_dropped_or_claim_tape_bytes (test_nano_initial_tape_memory.InitialTapeMemoryTests.test_boot_reservations_cannot_be_dropped_or_claim_tape_bytes) ... ok
+test_invalid_reservation_and_entry_cannot_supply_proof (test_nano_initial_tape_memory.InitialTapeMemoryTests.test_invalid_reservation_and_entry_cannot_supply_proof) ... ok
+test_old_partial_or_changed_mapping_cannot_select_staging (test_nano_initial_tape_memory.InitialTapeMemoryTests.test_old_partial_or_changed_mapping_cannot_select_staging) ... ok
+test_separate_mapping_keeps_complete_source_and_both_menu_slots (test_nano_initial_tape_memory.InitialTapeMemoryTests.test_separate_mapping_keeps_complete_source_and_both_menu_slots) ... ok
+test_cold_flag_requires_matching_complete_secure_memory_contract (test_nano_initial_tape.InitialTapeSelectionTests.test_cold_flag_requires_matching_complete_secure_memory_contract) ... ok
+test_incomplete_or_mixed_selection_rejects (test_nano_initial_tape.InitialTapeSelectionTests.test_incomplete_or_mixed_selection_rejects) ... ok
+test_link_cannot_add_drop_duplicate_or_change_service_selection (test_nano_initial_tape.InitialTapeSelectionTests.test_link_cannot_add_drop_duplicate_or_change_service_selection) ... ok
+test_selection_helper_is_in_every_producer_source_inventory (test_nano_initial_tape.InitialTapeSelectionTests.test_selection_helper_is_in_every_producer_source_inventory) ... ok
+test_valid_selection_and_explicit_link_assignment (test_nano_initial_tape.InitialTapeSelectionTests.test_valid_selection_and_explicit_link_assignment) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.013s
+
+OK

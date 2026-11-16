@@ -1,0 +1,249 @@
+{
+  "scope": "one qualified recovery, thirteen verified uploads/fresh reads and paired native menu/core/menu trial",
+  "source_commit": "78f72761cd914430e1ce88b38c7407239d39ee49",
+  "native_source_snapshot": "sha256:75d2dc6f81a53fd2f85d2a8e2b6e5361df0e584c0104074432c440e669d22d4a",
+  "firmware_source_snapshot": "sha256:bcf92ba90cca4d113bb03dbd66442b188a0e368357b5754f249719c8c848e119",
+  "native_sof_sha256": "53ac0461abbc16d0d8d88495793c46a1fab1a4d871372a52325acf6fd47f28e7",
+  "ddr_traffic_requested": true,
+  "data_release_requested": true,
+  "paired_programs": true,
+  "core_load_acceptance": false,
+  "ordinary_admission": false,
+  "physical_display_verified": false,
+  "physical_input_controls_verified": false,
+  "attempt_limit": 1,
+  "failures_on_head_before_attempt": 0,
+  "operator_revision": "scalar-live-mmu-observation",
+  "target_clock": "3M",
+  "target_auto_adjust": 0,
+  "clock_change_attempted": true,
+  "sd_write_commands_sent": true,
+  "started_utc": "2026-11-09T14:51:49.734016+00:00",
+  "stages": [
+    {
+      "parameter_read": "JtagClockAutoAdjust",
+      "label": "parameter-read-0",
+      "returncode": 0
+    },
+    {
+      "parameter_read": "JtagClock",
+      "label": "parameter-read-1",
+      "returncode": 0
+    },
+    {
+      "parameter_write": "JtagClockAutoAdjust",
+      "value": 0,
+      "label": "parameter-write-2",
+      "returncode": 0
+    },
+    {
+      "parameter_read": "JtagClockAutoAdjust",
+      "label": "parameter-read-3",
+      "returncode": 0
+    },
+    {
+      "parameter_write": "JtagClock",
+      "value": "3M",
+      "label": "parameter-write-4",
+      "returncode": 0
+    },
+    {
+      "parameter_read": "JtagClockAutoAdjust",
+      "label": "parameter-read-5",
+      "returncode": 0
+    },
+    {
+      "parameter_read": "JtagClock",
+      "label": "parameter-read-6",
+      "returncode": 0
+    },
+    {
+      "phase": "recovery-boot",
+      "returncode": 0
+    },
+    {
+      "phase": "uploads",
+      "returncode": 0
+    },
+    {
+      "parameter_read": "JtagClockAutoAdjust",
+      "label": "parameter-read-7",
+      "returncode": 0
+    },
+    {
+      "parameter_read": "JtagClock",
+      "label": "parameter-read-8",
+      "returncode": 0
+    },
+    {
+      "parameter_read": "JtagClock",
+      "label": "clock-before-native",
+      "returncode": 0
+    },
+    {
+      "phase": "native",
+      "returncode": 1
+    },
+    {
+      "parameter_write": "JtagClock",
+      "value": "15M",
+      "label": "parameter-write-9",
+      "returncode": 0
+    },
+    {
+      "parameter_write": "JtagClockAutoAdjust",
+      "value": 1,
+      "label": "parameter-write-10",
+      "returncode": 0
+    },
+    {
+      "parameter_read": "JtagClockAutoAdjust",
+      "label": "parameter-read-11",
+      "returncode": 0
+    },
+    {
+      "parameter_read": "JtagClock",
+      "label": "parameter-read-12",
+      "returncode": 0
+    }
+  ],
+  "pass": false,
+  "prior_transport_programming_failures": 2,
+  "failures_since_qualified_repair": 0,
+  "prior_native_reservations": 0,
+  "prior_actual_native_programming_calls": 0,
+  "new_procedure_attempts_allowed": 1,
+  "prior_consumed_sha256": {
+    "out/nano-isolation-io-trial-20261109/trial/native-program-consumed.json": "5311ea5b9f69449e317a8bf3efe082960f37fdefd711aa72e6722cb936f71be3",
+    "out/nano-isolation-io-trial-20261109/trial/native-program-consumed.json.scan.json": "4e438e00a15ec35bdb3bf73f137024e665bb7493297e616273def98b524e3213",
+    "out/nano-isolation-io-trial-20261109/trial/recovery-program-consumed.json": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+    "out/nano-isolation-io-trial-20261109/trial/recovery-program-consumed.json.scan.json": "1ec92bbaa051adac03d8fd213d9f4177483ad7ad135985fd5ad3783d3c4fd69b",
+    "out/nano-isolation-trial-20261109/trial/native-program-consumed.json": "eeb3ed1dc83090f6fbe70d275e7ef12debc73e8794b1e4d0d3c66a4c75e654ff",
+    "out/nano-isolation-trial-20261109/trial/native-program-consumed.json.scan.json": "7497c88d3ba60892ffd07858592a2b1c859161b076cab2f70f547f88c92fd569",
+    "out/nano-isolation-trial-20261109/trial/recovery-program-consumed.json": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+    "out/nano-isolation-trial-20261109/trial/recovery-program-consumed.json.scan.json": "0dc572b491b22087d9b60c0cf5c82e8ac3e3a9b4b3f950bf120dc6877d8c9d67",
+    "out/nano-jtag-fixed-20261109/trial/recovery-program-consumed.json": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+    "out/nano-jtag-fixed-20261109/trial/recovery-program-consumed.json.scan.json": "35f2505d943ea344d9ffebeb077c2330adf0d45ee7b73fac95ad71003614f2e6",
+    "out/nano-jtag-refresh-20261109/trial/recovery-program-consumed.json": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+    "out/nano-jtag-refresh-20261109/trial/recovery-program-consumed.json.scan.json": "e6b1c3c4178f7720d059d25edfbfa1347999901b5ec717611f08f98db960fcbb",
+    "out/nano-mailbox-views-trial-20261109/trial/native-program-consumed.json": "9a6f0b653293b021ce8348847196863fa2bbbbfd0f8d6c91faf0223c61479c51",
+    "out/nano-mailbox-views-trial-20261109/trial/native-program-consumed.json.scan.json": "471acede73e77d664ba4aafb590fd4ade9c9a601e707c108e9016c14aaa1c53a",
+    "out/nano-mailbox-views-trial-20261109/trial/recovery-program-consumed.json": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+    "out/nano-mailbox-views-trial-20261109/trial/recovery-program-consumed.json.scan.json": "a41194edf92635c876f3da608a784bbe383f9c5c0117727d16eca8ca1cb0afdb",
+    "out/nano-mmu-ddr-fixed-trial-20261109/trial/native-program-consumed.json": "4cba051c741e4676e45ef40d9174919dcbe0675772853ef9d8edc34390d82b8c",
+    "out/nano-mmu-ddr-fixed-trial-20261109/trial/native-program-consumed.json.scan.json": "662f9c0e40078bc6390856262102bf0372e24994bd9c680a9f227c2ad409d088",
+    "out/nano-mmu-ddr-fixed-trial-20261109/trial/recovery-program-consumed.json": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+    "out/nano-mmu-ddr-fixed-trial-20261109/trial/recovery-program-consumed.json.scan.json": "d09b6a525175d77ed71f3e76c756d59f526f8227ec77947ff67b303db3f8b21b",
+    "out/nano-mmu-ddr-trial-20261109/trial/recovery-program-consumed.json": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+    "out/nano-mmu-ddr-trial-20261109/trial/recovery-program-consumed.json.scan.json": "214aa5626023d121cd555553cd096600ef41b4b82a854562bd492c4ebc379efc",
+    "out/nano-mmu-logging-trial-20261109/trial/native-program-consumed.json": "96c9c3b8e70a5463082d0c10471874531a2f3d285bbd614fe106f560a4428d22",
+    "out/nano-mmu-logging-trial-20261109/trial/native-program-consumed.json.scan.json": "d94de2e7a42e66cf4a2e8a8fb50144170b20afb76d154c04ee19f0f31935ca7b",
+    "out/nano-mmu-logging-trial-20261109/trial/recovery-program-consumed.json": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+    "out/nano-mmu-logging-trial-20261109/trial/recovery-program-consumed.json.scan.json": "9598354f71308240e916333262d507829bead7e2fa17dedddabb733a5d026823",
+    "out/nano-mmu-trial-20261109/trial/recovery-program-consumed.json": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+    "out/nano-secure-mailbox-trial-20261109/trial/native-program-consumed.json": "b9871ae33d0ca1036dc2c9244fdef09dc13fa76982dd5a7ac84d4f3f02c51ae8",
+    "out/nano-secure-mailbox-trial-20261109/trial/native-program-consumed.json.scan.json": "2c633f64f6d534e88080499f273f232693bd10a443becdbbc41241b5f392f8a1",
+    "out/nano-secure-mailbox-trial-20261109/trial/recovery-program-consumed.json": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+    "out/nano-secure-mailbox-trial-20261109/trial/recovery-program-consumed.json.scan.json": "c1f28a4ae2ba60240ec79d896ff0e303089bfb209a5f98798b542798a4c101c9",
+    "out/nano-secure-remapper-trial-20261109/trial/native-program-consumed.json": "5eeeb3e4ddd96fabba35a4153f57fcea21ba3e750942ecbb561bbc3b6cc7ed67",
+    "out/nano-secure-remapper-trial-20261109/trial/native-program-consumed.json.scan.json": "8e70f859177a4731a062e90d4d115204e8b104b0269f5bcdcf8d82ae2fe38d58",
+    "out/nano-secure-remapper-trial-20261109/trial/recovery-program-consumed.json": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+    "out/nano-secure-remapper-trial-20261109/trial/recovery-program-consumed.json.scan.json": "bf4c355537968ddd8e134010c088d6cc73079e8f146118f031f8e411f8e5353e",
+    "out/nano-start-boundaries-trial-20261109/trial/native-program-consumed.json": "f6a5e7aa7232b988700038a1aed0475529f68a2aa74a1ca3d398e9e2c8484ef3",
+    "out/nano-start-boundaries-trial-20261109/trial/native-program-consumed.json.scan.json": "13fa2d395c1757f6a29ed00a58194a8910781a64849bde2c67e1f24c21dff499",
+    "out/nano-start-boundaries-trial-20261109/trial/recovery-program-consumed.json": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+    "out/nano-start-boundaries-trial-20261109/trial/recovery-program-consumed.json.scan.json": "f2a2de142ef8763ae2bd357e0fe576a6f39250950036299f033f3f03553b59de",
+    "out/nano-start-trace-trial-20261109/trial/native-program-consumed.json": "7c09b98608db582528e6b489dcd2bdbcc96093cfea8b09eebcb33292747bfb00",
+    "out/nano-start-trace-trial-20261109/trial/native-program-consumed.json.scan.json": "74456b6952f33ed65a61a0021ba40f225337d494e96286fc683261cf98cc59e1",
+    "out/nano-start-trace-trial-20261109/trial/recovery-program-consumed.json": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+    "out/nano-start-trace-trial-20261109/trial/recovery-program-consumed.json.scan.json": "1086ae533e30810d50891921af4d091fd6b2e9e6dfe72b0defd6be976d105ffc",
+    "out/nano-secure-control-trial-20261109/trial/recovery-program-consumed.json": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+    "out/nano-secure-control-trial-20261109/trial/recovery-program-consumed.json.scan.json": "f187687678ffc3667f6a261f8fe0c9cb46fb4a752a7612b355a4aeb7b144656f",
+    "out/nano-secure-control-trial-20261109/trial/native-program-consumed.json": "7e0e8bc0cbb927c5948f02e70ebecb984fa0f213d599a61a37bee3cd17c637e7",
+    "out/nano-secure-control-trial-20261109/trial/native-program-consumed.json.scan.json": "ea1fb34374929a1df5ee0ae353f334899b2ce7ed8531342b86b9df804e953805",
+    "out/nano-jtag-refresh-20261109/trial/attempt.json": "952c1d1258100f6185ae67f376a9facad17db2e8d97f9d39a90c49104516ee91"
+  },
+  "transport_qualification": {
+    "path": "docs/validation/2026-11-09-de25-fixed-jtag-refresh/hardware-result.json",
+    "sha256": "8a57772d13894990528a6d1d571ac19cb9f03bb841054a38bbf37efdcb7cee78",
+    "status": "passed-fixed3m-auto0-recovery-program-and-boot"
+  },
+  "original_clock": "15M",
+  "clock_write": true,
+  "stage": "native",
+  "upload_purposes": [
+    "package",
+    "firmware",
+    "metadata",
+    "package-alt",
+    "firmware-alt",
+    "metadata-alt",
+    "menu-package",
+    "menu-metadata",
+    "menu-selection",
+    "selection",
+    "ui-catalog",
+    "tape",
+    "boot"
+  ],
+  "selected_programs": true,
+  "upload_receipts_sha256": {
+    "package": "e524de0932562af6f97141095be7e0e761619f2c25a3ec9d768aa37a3c0d0712",
+    "firmware": "bd51d8da4c4ae472589672ab15852bda0e5138acb999099603c55ea4a53d09fa",
+    "metadata": "e27300cadc371b0d7486020ea169e35723eada491ded070373ba5c8b964460fc",
+    "package-alt": "14740a66571405329604bc226743106638a33844d6fd6d9d89d00a0724438e18",
+    "firmware-alt": "577aa3f54dbae156358edcbf28bda873a813877ff04b7885c09ba881d84a672a",
+    "metadata-alt": "742ff39848e24eee332455aff364c5d95b986fd5ac149fd4d52e675991dcc29a",
+    "menu-package": "756c9508a173f6db4eae9542695c47e85f61c491513b9263fa9e20fd119c5371",
+    "menu-metadata": "7f5fec1612ceee49644bc5924496335ba2491f425695a18e2b6cd7f809d83dbd",
+    "menu-selection": "a3415ba545b3a52d19d48860daaa9d85fd75230bfc96b70b073a65d89cd8c2c1",
+    "selection": "97064c79a1417333e129fc70b9a53df43aa75f87d505559d2ea0a9966b044274",
+    "ui-catalog": "75b0222654062452dc4deaadffb28dbe40b489eaf3fd8478c6ef7ec05454a25c",
+    "tape": "330df631f9df9a6fc1b05967d8c48322417ceef9e4f81365635ea3eb93041c80",
+    "boot": "edbbb827b08101d069023c02a7b7aaeef7ea5a4954f0ac1b0762c80270f232c3"
+  },
+  "fresh_receipts_sha256": {
+    "package": "2413bdda1d78e09cdb782502db8142b04e7e43b5e9d9da46ec209f904b824f20",
+    "firmware": "3eef66b937e5c316de5b42cebb19ae91f560b0e3659bebeac69dd8d078fcd1da",
+    "metadata": "befeb8154fc7b2d43f121974336aca3dbf82322c089b0c63fe5d0c0dd20e906b",
+    "package-alt": "ac876bf9fc29f0d2f19fde638fd6cf63a1a09df8becddbf610045e82e614574c",
+    "firmware-alt": "d7329f09a44dbd3fff4d038b430adc36f98f970c4198630bfdfd7312254b648d",
+    "metadata-alt": "27793ae2c3dc9ed5fe58e35ce26b289605476f70f468604685403948f5417816",
+    "menu-package": "a4d527de00811a0d1e4f424ce700bbe2bbe1edf4b4eb5d942cab52110170f04c",
+    "menu-metadata": "883f774408bcf4baa634359893285c7615fcd8c5fc0803a411d957a47b816ca0",
+    "menu-selection": "73c3a8674f73daec7a9fecde4667cb135fdeee9b56bd223247799763df55ae24",
+    "selection": "b6e7357b8a3d74a111baecdf98a402ab8d4bf1e30b3f7549eeeb4ed5a169f288",
+    "ui-catalog": "40c419963ec62311ac5aeb53d5a106b5bb5d34d15e88e2bccec572d0d52efd10",
+    "tape": "763d929f32c1298457456d34be0b3efe556599ae2f3a4a310005ef071a3157cc",
+    "boot": "081ba0120198c44696abf26a034f08ceaa961a88979a6cf5913e3079de6b6501"
+  },
+  "error": "phase stopped: native",
+  "clock_policy": {
+    "original": {
+      "auto_adjust": 1,
+      "clock": "15M"
+    },
+    "write_attempted": true,
+    "active": false,
+    "restore_consumed": true,
+    "restored": true,
+    "readback": {
+      "auto_adjust": 1,
+      "clock": "15M"
+    },
+    "errors": []
+  },
+  "original_clock_parameters": {
+    "auto_adjust": 1,
+    "clock": "15M"
+  },
+  "restored_clock": "15M",
+  "restored_auto_adjust": 1,
+  "original_clock_restored": true,
+  "private_server_stopped": true,
+  "usb_permissions_restored": true,
+  "incomplete_programming_phases": [],
+  "total_transport_programming_failures": 2,
+  "further_hardware_programming_requires_transport_fix": false,
+  "finished_utc": "2026-11-09T14:56:48.301191+00:00"
+}

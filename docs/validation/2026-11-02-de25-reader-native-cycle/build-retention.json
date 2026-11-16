@@ -1,0 +1,28 @@
+{
+  "archive": "/home/deano/fes-retained/de25-reader-native-20261102/builds.tar.gz",
+  "size": 131084585,
+  "sha256": "870348eb2c18987d686f222441c9304e20eff481e0634f5df0ee95b45fff8b4a",
+  "members": 43680,
+  "every_member_verified": true,
+  "source": {
+    "source_commit": "b08fc1143ddd3e6909ad31a3aced3d89bba31429",
+    "tree": "5f251a64f637a4e2a22f94854aaf2e397a87728f",
+    "bundle_sha256": "eee13c2eeb683502310da35607ca922a3b35d1c55fc69bace9d21bb6cd8786be",
+    "prerequisite_commit": "b626de26c0b584b0425edb894fbee3d3e37a1770",
+    "previous_object_store": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-stored-configuration-20261102/source-restore.git",
+    "alternate_object_stores": [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-sdm-status-20261102/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-failure-status-20261102/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-failure-status-v2-20261102/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-large-blocks-20261102/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-large-blocks-v2-20261102/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-stored-configuration-20261102/source-restore.git/objects"
+    ],
+    "restored_tree_verified": true,
+    "verified_reachable_objects": 8861,
+    "missing_objects": 0,
+    "scope": "incremental bundle; requires the documented prior source-retention chain"
+  },
+  "manifest_sha256": "a56db7b4f8fafed88e84fe44cc523872963a79e476ed216ff2968e1eda83027e",
+  "prior_retention": "/home/deano/fes-retained/de25-reader-cycle-20261102"
+}

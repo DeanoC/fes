@@ -1,0 +1,416 @@
+{
+  "status": "failed-command-deadline-and-recovery-JTAG-chain-broken",
+  "procedure_sha256": "b9b5dd09388b86fc89c5462bfd260da1cd8fd4069a23581f5a913f6996fd7099",
+  "elapsed_seconds": 389.69406966189854,
+  "source_commit": "3caa3e3cfd870b109516dddba6a87c847a4c4133",
+  "chain_sha256": "6e09314b674d562facdc5d60c580b8fd3fb82dcbf7a5cdcdcb9d2246f611a822",
+  "original_FIT_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+  "candidate_FIT_sha256": "60e3b255ca02a4f5462d6ccc75a74750fe9efb9fdf05014f132799b09242ea33",
+  "candidate_FIT_written_and_read_back": true,
+  "exact_original_FIT_restored_and_read_back": false,
+  "forward": {
+    "status": "verified-reversible-fit-refresh",
+    "direction": "forward",
+    "plan_sha256": "abd1c1fe576647c62a982605423b5a52fa7fa1a179969e9149b0eb256d6d5e60",
+    "previous_boot_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+    "boot_sha256": "60e3b255ca02a4f5462d6ccc75a74750fe9efb9fdf05014f132799b09242ea33",
+    "preserved_files": 16,
+    "readbacks_before": 17,
+    "readbacks_after": 17,
+    "session": "a8e6855002ed7579dcb78271e7afc2f8",
+    "physical_boot_accepted": false
+  },
+  "read_only_reset_gates": {
+    "forward": {
+      "status": "passed-read-only-NS-SMMU-reset-gate",
+      "commands": [
+        {
+          "command": "md.l 16000020 4",
+          "words": {
+            "369098784": 0,
+            "369098788": 0,
+            "369098792": 0,
+            "369098796": 4
+          }
+        },
+        {
+          "command": "md.l 16000044 2",
+          "words": {
+            "369098820": 0,
+            "369098824": 0
+          }
+        },
+        {
+          "command": "md.l 16000060 2",
+          "words": {
+            "369098848": 0,
+            "369098852": 0
+          }
+        },
+        {
+          "command": "md.l 16000080 3",
+          "words": {
+            "369098880": 0,
+            "369098884": 0,
+            "369098888": 0
+          }
+        },
+        {
+          "command": "md.l 16000090 4",
+          "words": {
+            "369098896": 0,
+            "369098900": 0,
+            "369098904": 0,
+            "369098908": 0
+          }
+        },
+        {
+          "command": "md.l 160000a0 2",
+          "words": {
+            "369098912": 0,
+            "369098916": 0
+          }
+        },
+        {
+          "command": "md.l 160100a8 2",
+          "words": {
+            "369164456": 0,
+            "369164460": 0
+          }
+        }
+      ],
+      "reads": 19,
+      "elapsed_seconds": 0.4868120600003749,
+      "register_writes": 0,
+      "network_commands": 0,
+      "SD_writes": 0,
+      "secure_bank_examined": false,
+      "reset_domain_qualified": false,
+      "DMA_authority": false
+    }
+  },
+  "retirement_result": {
+    "build": "6e09314b674d562f",
+    "owner": 0,
+    "epoch": 0,
+    "generation": 0,
+    "bytes": 1708032,
+    "sha384": "faef83bbdc549d5a117cf09ecda3007150b45156cbb13ed7d138d0ab048c28a92964d0e9f8d1cafee563b202e0a0e606",
+    "status": -1,
+    "phase": 4,
+    "retired": 0,
+    "first_error": -3,
+    "writes": 4,
+    "producer": 0,
+    "consumer": 0,
+    "control": 0,
+    "abort": 0,
+    "elapsed_us": 0,
+    "bad_offset": 0,
+    "bad_value": 0,
+    "retained": 1,
+    "reuse": 0,
+    "activated": 0
+  },
+  "diagnostic_bytes": 1708032,
+  "diagnostic_posts": 2,
+  "diagnostic_acks": 2,
+  "source_transfer_elapsed_us": 11666020,
+  "retirement_observed_elapsed_us": 286203,
+  "command_phase_observed_us": 106877,
+  "baseline_cycle_commands_completed": 0,
+  "baseline_final_Park_verified": false,
+  "baseline_restored": false,
+  "rollback_recovery_error": "programmer returned failure",
+  "roles": {
+    "recovery-before": {
+      "status": "verified",
+      "image_sha256": "ce143f50e05c9895381047f921be4a0c38d9a7eacfa75b3c0709be4ff7eafe75",
+      "epoch": "2490836:160664581",
+      "cleanup_verified": true,
+      "role_result_sha256": "8e4fa6567f8efd27d6dff8363a46cea0353f6da4cad6ba32c8ef21fcc285808d"
+    },
+    "native-diagnostic": {
+      "status": "failed",
+      "image_sha256": "546bafda77dfdb033f1580d8af2577b30294735f323a90da7cfe39d4e3d01969",
+      "epoch": "2506935:160689006",
+      "cleanup_verified": true,
+      "role_result_sha256": "a9dc73ab55153ef15f8538551525c97a7d8d4b3b270fd769814bfcbe3558d3ed"
+    },
+    "recovery-rollback": {
+      "status": "failed",
+      "image_sha256": "ce143f50e05c9895381047f921be4a0c38d9a7eacfa75b3c0709be4ff7eafe75",
+      "epoch": "2513292:160695409",
+      "cleanup_verified": true,
+      "role_result_sha256": "1cd411be3342b0d8c137ba23b0c8ca09b71e8e3fd3324f37a400b53be91ba8c7"
+    }
+  },
+  "wire_proofs": {
+    "native-diagnostic": {
+      "boot_boundary_verified": true,
+      "console_sha256": "c8f039559fb24347d010ad3311bf53c0e70123e6e268a8741292a2513293d601",
+      "all_wire_sha256": "6cecc11c1f7c438846552b0069f52992497e459b9ed4dd332d28d9a207760eec",
+      "completed_program_epoch": "2506935:160689006"
+    }
+  },
+  "UART_closed_and_free": true,
+  "JTAG_auto_1_15M": true,
+  "USB_identity_inode_permissions_restored": true,
+  "board_volatile_state": "unverified after failed recovery programming; candidate FIT remains on test card",
+  "human_power_cycle_required_before_restoration": true,
+  "restoration_only_next": true,
+  "diagnostic_retried": false,
+  "memory_reuse_authorized": false,
+  "ordinary_runtime_activation": false,
+  "general_core_load_acceptance": false,
+  "permanent_QSPI_written": false,
+  "factory_card_changed": false,
+  "bottom_kit_touched": false,
+  "diagnostic_observation": {
+    "passed": false,
+    "source_flow_verified": true,
+    "retirement_verified": false,
+    "timing_validated": true,
+    "retirement_observation": {
+      "passed": false,
+      "errors": [
+        "retirement/source owner differs",
+        "retirement/source epoch differs",
+        "retirement/source generation differs",
+        "retirement control/result not qualified",
+        "retirement stage deadline differs"
+      ],
+      "source_flow_verified": true,
+      "retirement_verified": false,
+      "input_observation": {
+        "passed": true,
+        "result": {
+          "build": "6e09314b674d562f",
+          "status": 0,
+          "detail": 0,
+          "proof": 1,
+          "owner": 7928922816921232681,
+          "epoch": 6800618247,
+          "generation": 4,
+          "bytes": 1708032,
+          "accepted": 1708032,
+          "posted": 1708032,
+          "acknowledged": 1708032,
+          "completed": 1708032,
+          "posts": 2,
+          "acks": 2,
+          "buffers": 2,
+          "pending": 0,
+          "outstanding": 0,
+          "configured": 1,
+          "failed": 0,
+          "first_error": 0,
+          "service_error": 0,
+          "source_failed": 0,
+          "scope_reason": 0,
+          "bad_offset": 0,
+          "bad_value": 0,
+          "arm_writes": 12,
+          "elapsed_us": 11666020,
+          "sha384": "faef83bbdc549d5a117cf09ecda3007150b45156cbb13ed7d138d0ab048c28a92964d0e9f8d1cafee563b202e0a0e606",
+          "retained": 1,
+          "activated": 0
+        },
+        "errors": [],
+        "source_flow_verified": true,
+        "negotiated_credits": 4,
+        "negotiated_block_bytes": 1048560,
+        "recorded_DATA_requests": 2,
+        "recorded_DATA_bytes": 1708032,
+        "matching_source_digest": "faef83bbdc549d5a117cf09ecda3007150b45156cbb13ed7d138d0ab048c28a92964d0e9f8d1cafee563b202e0a0e606",
+        "remap_observation": {
+          "records": [
+            {
+              "kind": "remap",
+              "line": 655,
+              "values": {
+                "kind": 1,
+                "phase": 0,
+                "operand": 0,
+                "por1": 0,
+                "bypass": 0,
+                "ctrl": 3,
+                "ids": 655370,
+                "ar": 0,
+                "aw": 0
+              }
+            },
+            {
+              "kind": "remap",
+              "line": 656,
+              "values": {
+                "kind": 1,
+                "phase": 1,
+                "operand": 0,
+                "por1": 0,
+                "bypass": 0,
+                "ctrl": 3,
+                "ids": 655370,
+                "ar": 2147483648,
+                "aw": 2147483648
+              }
+            },
+            {
+              "kind": "remap",
+              "line": 669,
+              "values": {
+                "kind": 2,
+                "phase": 0,
+                "operand": 2491416576,
+                "por1": 0,
+                "bypass": 0,
+                "ctrl": 3,
+                "ids": 655370,
+                "ar": 2147483648,
+                "aw": 2147483648
+              }
+            },
+            {
+              "kind": "remap",
+              "line": 670,
+              "values": {
+                "kind": 2,
+                "phase": 1,
+                "operand": 343932928,
+                "por1": 0,
+                "bypass": 0,
+                "ctrl": 3,
+                "ids": 655370,
+                "ar": 2147483648,
+                "aw": 2147483648
+              }
+            },
+            {
+              "kind": "submit",
+              "line": 673,
+              "values": {
+                "address": 343932928,
+                "bytes": 1048512,
+                "por1": 0,
+                "bypass": 0,
+                "ctrl": 3,
+                "ids": 655370,
+                "ar": 2147483648,
+                "aw": 2147483648
+              }
+            },
+            {
+              "kind": "result",
+              "line": 674,
+              "values": {
+                "status": 0
+              }
+            }
+          ],
+          "complete": true,
+          "mailbox_status": 0,
+          "mailbox_accepted": true,
+          "vendor_operand_subtraction_matches": true,
+          "submission_starts_at_transformed_pointer": true,
+          "stream_identity_stable": true,
+          "observations_atomic": false,
+          "source_attested": false,
+          "SDM_tcu_input": null,
+          "SDM_route_qualified": false,
+          "DMA_access_granted": false,
+          "independent_drain": false
+        },
+        "DMA_authority": false,
+        "ordinary_runtime_activation": false,
+        "buffer_reuse_authority": false,
+        "physical_isolation_qualification": false
+      },
+      "result": {
+        "build": "6e09314b674d562f",
+        "owner": 0,
+        "epoch": 0,
+        "generation": 0,
+        "bytes": 1708032,
+        "sha384": "faef83bbdc549d5a117cf09ecda3007150b45156cbb13ed7d138d0ab048c28a92964d0e9f8d1cafee563b202e0a0e606",
+        "status": -1,
+        "phase": 4,
+        "retired": 0,
+        "first_error": -3,
+        "writes": 4,
+        "producer": 0,
+        "consumer": 0,
+        "control": 0,
+        "abort": 0,
+        "elapsed_us": 0,
+        "bad_offset": 0,
+        "bad_value": 0,
+        "retained": 1,
+        "reuse": 0,
+        "activated": 0
+      },
+      "recorded_DATA_requests": 2,
+      "recorded_DATA_bytes": 1708032,
+      "ordinary_runtime_activation": false,
+      "buffer_reuse_authority": false,
+      "DMA_authority": false,
+      "independent_interconnect_drain": false
+    },
+    "timing": {
+      "build": "6e09314b674d562f",
+      "owner": 7928922816921232681,
+      "epoch": 6800618247,
+      "generation": 4,
+      "bytes": 1708032,
+      "sha384": "faef83bbdc549d5a117cf09ecda3007150b45156cbb13ed7d138d0ab048c28a92964d0e9f8d1cafee563b202e0a0e606",
+      "phase": 4,
+      "timed": 1,
+      "mask": 31,
+      "start_us": 50198002,
+      "last_us": 50484205,
+      "observed_us": 50484205,
+      "guards": 128,
+      "samples": 128,
+      "owners": 128,
+      "sources": 3,
+      "validated": 3,
+      "reads": 908,
+      "writes": 4,
+      "polls": 3,
+      "first_us": [
+        50198002,
+        50241072,
+        50257746,
+        50317476,
+        50377328,
+        0,
+        0
+      ],
+      "latest_us": [
+        50239724,
+        50256398,
+        50316129,
+        50375863,
+        50484205,
+        0,
+        0
+      ],
+      "retained": 1,
+      "reuse": 0,
+      "activated": 0
+    },
+    "errors": [
+      "retirement/source owner differs",
+      "retirement/source epoch differs",
+      "retirement/source generation differs",
+      "retirement control/result not qualified",
+      "retirement stage deadline differs"
+    ],
+    "recorded_DATA_requests": 2,
+    "recorded_DATA_bytes": 1708032,
+    "ordinary_runtime_activation": false,
+    "buffer_reuse_authority": false,
+    "DMA_authority": false
+  },
+  "diagnostic_boot_verified": true,
+  "owned_processes_verified_stopped": 13
+}

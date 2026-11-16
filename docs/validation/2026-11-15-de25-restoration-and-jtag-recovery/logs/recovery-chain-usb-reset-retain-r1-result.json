@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/publication/retain-recovery-chain-usb-reset.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.20065375603735447,
+  "log_sha256": "81bca2c68782e78df16a2271af3eb149c51150f2144aec026d152f17336e9a14"
+}

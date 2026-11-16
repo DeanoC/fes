@@ -1,0 +1,8 @@
+--- FAIL: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays (0.02s)
+    --- FAIL: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/owner (0.00s)
+        readermemory_test.go:55: reader reservation made a mutation: [c2000301 4 12 46455342 1 0 0]
+    --- FAIL: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/generation (0.00s)
+        readermemory_test.go:55: reader reservation made a mutation: [c2000301 4 11 46455342 2 0 0]
+FAIL
+FAIL	github.com/DeanoC/fes/platform/embedded/tamago/nativefabric	0.057s
+FAIL

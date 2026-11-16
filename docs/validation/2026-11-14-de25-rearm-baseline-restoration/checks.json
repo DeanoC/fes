@@ -1,0 +1,120 @@
+{
+  "rearm-restore-freeze": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/rearm-restoration/freeze.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 17.824892356991768,
+    "log_sha256": "0e87f15619c05215d9f58be845060eec6ed0a3d85f91f924de3440f38d1c4562"
+  },
+  "rearm-restore-default-user": {
+    "argv": [
+      "python3",
+      "out/rearm-restoration/run_restoration.py",
+      "--procedure-sha256",
+      "b8a2ab7dcbab00e2855045b54ff930a182c77595c5b5d9212f51a3c5adf43c18"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 14.276887604035437,
+    "log_sha256": "f6673c2c70cdeb22c2dfa091015def476ceda77d17781a9a2c6dc569abdea85b"
+  },
+  "rearm-restore-default-root": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/rearm-restoration/run_restoration.py",
+      "--procedure-sha256",
+      "b8a2ab7dcbab00e2855045b54ff930a182c77595c5b5d9212f51a3c5adf43c18"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 13.627023545093834,
+    "log_sha256": "f6673c2c70cdeb22c2dfa091015def476ceda77d17781a9a2c6dc569abdea85b"
+  },
+  "rearm-restore-prepared-retention": {
+    "argv": [
+      "python3",
+      "out/publication/retain-final-rearm-restoration.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 5.803413082845509,
+    "log_sha256": "cfb9a77cff0bec6a586f98ec9af74fd2dc9c66b3c5e5da9dc7fdb6c04ba02639"
+  },
+  "rearm-restore-execute": {
+    "argv": [
+      "python3",
+      "out/rearm-restoration/run_restoration.py",
+      "--procedure-sha256",
+      "b8a2ab7dcbab00e2855045b54ff930a182c77595c5b5d9212f51a3c5adf43c18",
+      "--execute"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 559.7163688410074,
+    "log_sha256": "ea4f4f9a2b507acbb745659985c96f0f5ac02761d7d76b66c32ebab25ff28b97"
+  },
+  "rearm-restored-owned-scan": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/rearm-restored-physical/check_owned_processes.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 0.2007575270254165,
+    "log_sha256": "2d80385c23d91dd8c759b3b3973c5b78085cf0c7577ac0a4e6528b5fa5ddb7f5"
+  },
+  "rearm-restored-uart-scan": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/rearm-restored-physical/check_uart.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 0.20079893013462424,
+    "log_sha256": "2ec3bf96bdab53e67104b3a18f235e9ccfc8dff30141b27c8245da3fda06a7c4"
+  },
+  "rearm-restored-frozen-observer-replay": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/rearm-restored-physical/collect.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 2.6023031659424305,
+    "log_sha256": "ae4649eafd2e4862283368443dca5b75949d60a1850fb1a40d5ce1043b621971"
+  },
+  "rearm-restored-retention": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/rearm-restored-physical/retain.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 0.6010425658896565,
+    "log_sha256": "a2cfc673cb5ebd38bc0e2dca099769e8b0736919ae824618af9bfff9ff6b776e"
+  }
+}

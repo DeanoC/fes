@@ -1,0 +1,32 @@
+{
+  "status": "passed-isolated-lifetimes-and-vendor-device-list-gates",
+  "cases": 23,
+  "checks": {
+    "installer-models": {
+      "path": "out/nano-installer-isolated-jtag-20261111/installer-models-result.json",
+      "sha256": "d8799f4e8b5f5facd336b72e3d19c526fd0c9bfd79e07cdbc955f54e8445df1a",
+      "log_sha256": "4b2eab0728c5c4ae9fd7c6fbdf16a4544ec13b4bfe6b2721ad94483db7f8934d"
+    },
+    "transport-models": {
+      "path": "out/nano-installer-isolated-jtag-20261111/transport-models-result.json",
+      "sha256": "2d1a78b29f1e4b57d71bd3a8bcb679edc0ab24cdb1d8d1222d32ff26d7471b96",
+      "log_sha256": "2a9dff3105c370d2624ab469ba2a638331ae1c668e5e9efd209941985def30f6"
+    },
+    "receipt-models": {
+      "path": "out/nano-installer-isolated-jtag-20261111/receipt-models-result.json",
+      "sha256": "202f40ebfa8fe5d9d37896bb4e780706358d395e067d2fd4c76230f64fae6337",
+      "log_sha256": "f17242d155146b3b31c2aecbe009feafffcd3bd75bf92bf768bbd880156764e7"
+    },
+    "epoch-models-complete": {
+      "path": "out/nano-installer-isolated-jtag-20261111/epoch-models-complete-result.json",
+      "sha256": "9513e3001282a15acf9cacbe474eaca3a69b904393fa4db33739b163531c74a6",
+      "log_sha256": "dd09390a6d72297f3e4ac8539b8dbb96d3352aff9675465b5c8c95736dcfd27d"
+    },
+    "program-gate-models": {
+      "path": "out/nano-installer-isolated-jtag-20261111/program-gate-models-result.json",
+      "sha256": "ee4ce1289ffb030bac801b6698c39759b04ed81f3110cb01b8ee521dbfbb208e",
+      "log_sha256": "2f9373f35ad9290ff6f1b6d181c82351456f01cca971788821e339f0b03ed003"
+    }
+  },
+  "hardware_actions": false
+}

@@ -1,0 +1,35 @@
+{
+  "status": "passed-fresh-postwrite-card-and-layout-review",
+  "plan": {
+    "format": 1,
+    "scope": "nano-sd-scratch-write-v1",
+    "cid": "275048534430344730da25e394012b",
+    "sectors": 7774208,
+    "mbr_sha256": "13f4a84a267e67f06b1d09fdfa130a7625a0aab9b363163e711aa9854d7c944c",
+    "original_sha256": "e81b5f7145bdf34e823674a03897f858a1f71be2b18b0a139a4261e1dad908d4"
+  },
+  "plan_sha256": "7334499984dc97886e9a7ef4bd8b7d8a1b9d40e6cf810507ae0d082373a2a29f",
+  "inspector_build": "72f88abee51877af",
+  "inspector_source": "cb7c36cbec501c570943c06132aaf5a462be99f7",
+  "native_receipt_sha256": "10f59d4f275f73ccb591ad3048e289125fda0a369e77aa5dbdf41549a5b14c53",
+  "full_cid_and_capacity_observed_native": true,
+  "historical_physical_fixture_sha256": "d23ee86d6d1a76ac0ca3fa2c4cd3e8f35d85af6750558c621c4f34c04de459b3",
+  "historical_console_sha256": "eaf04da7fa540be1bc57ab2fc7dd0e7a67488eebae7eacf626e4f4d9afd84b95",
+  "partition_layout": [
+    {
+      "type": 12,
+      "start": 32768,
+      "sectors": 262144
+    }
+  ],
+  "scratch_lba": 7774200,
+  "scratch_sectors": 8,
+  "scratch_outside_partitions_and_boot_image": true,
+  "mbr_matches_qualified_recovery_image": true,
+  "tail_matches_before_failed_writer": true,
+  "prior_write_outcome": "Original failed attempt stays unknown; current inspected tail contents equal the pre-attempt hash.",
+  "volatile_environment_in_both_boot_chains": true,
+  "no_native_write_in_inspection": true,
+  "ordinary_admission": false,
+  "live_authority": false
+}

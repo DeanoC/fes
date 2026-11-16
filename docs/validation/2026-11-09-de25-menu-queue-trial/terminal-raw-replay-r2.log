@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-embedded-os/out/nano-menu-queue-trial-20261109/hardware-replay.py.txt", line 33, in <module>
+    assert client.records[-1]['return_generation']==7
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'return_generation'

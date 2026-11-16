@@ -1,0 +1,40 @@
+{
+  "base": "089a5ece30b8fa10cc840abbdf7ad7a60aa823d8",
+  "checks": {
+    "built_artifact_preflight": "pass against the previous SDK content using the new runtime; no firmware calls",
+    "full_nativefabric_race": "pass",
+    "host_program_tenfoot_shared_gamepad_observers": "38 tests passed",
+    "same_package_two_rom_backend_and_console": "pass",
+    "upload_rom_composition": "50 tests passed, 1 host-Go-version skip; skipped host linker separately passed with Go1.26.5"
+  },
+  "format": 1,
+  "hardware_operations": false,
+  "logs": {
+    "out/nano-rom-identity-trial-20261105/native-identity-copy-v1.log": "bb8a3bc041a4157fe1bea10f6df3a8549b18bce99334fc71a3968d07980b4251",
+    "out/nano-rom-identity-trial-20261105/native-identity-tests-v1.log": "1084481ac7313ea94311dee24ba290703a9d5c17ea6456b30fc3c2e76dca4bcd",
+    "out/nano-rom-identity-trial-20261105/native-identity-tests-v2.log": "4a0af0f282edf4a030e30d07618e0e3a5d5629acaac8503778e3b3bac6c5ad42",
+    "out/nano-rom-identity-trial-20261105/native-identity-tests-v3.log": "0b7cdf1924b8a4fcb53011338af24a21a1cd82cfca164e8cfa13cd38dfa47762",
+    "out/nano-rom-identity-trial-20261105/rom-host-linker-v1.log": "cb694d631231e4d0522984e644e67f22e40f116d6328ef5b76d8db4068c4fbd8",
+    "out/nano-rom-identity-trial-20261105/rom-observer-tests-v1.log": "c1c46200f1a9e7e14bf22c43def551ddb5cb7781cbc9879a8133a5b3b87ff58c",
+    "out/nano-rom-identity-trial-20261105/rom-observer-tests-v2.log": "aeba6d750477e6f5a9e3b740e8fa0866cd08a6fce5423315d2f6cd123c07c721",
+    "out/nano-rom-identity-trial-20261105/upload-rom-tests-v1.log": "b152c0a83253f5cd12ccdcd749da4a9484f45a4b07ed9d1e992a0df0ad52b8ad"
+  },
+  "previous_native_image_reusable_for_changed_runtime": false,
+  "scope": "nano-retained-rom-live-identity-host-checks-v1",
+  "source_sha256": {
+    "platform/embedded/nano/README.md": "b2eb66ae77f7576e293d8e3c7494c64f5d19f7ea3260cb6c24f98073201523e3",
+    "platform/embedded/nano/program_client.py": "242935098215c413eb0f7c132cf02bf7eff480160ed13f6ebbc769cbf809e0e2",
+    "platform/embedded/nano/service_trace.py": "2a29d3f646089e184ba84457b7be9dc1e2868730bbcc0122bc2772fb5abe86f2",
+    "platform/embedded/nano/tenfoot_trace.py": "a5b07734dc27cbca1ca31a3f0ca80098e84b116a7a18cb0b5335a178a42b85a3",
+    "platform/embedded/nano/upload.py": "9ee1a393cf44a3a2f81db7d57f02a89bf1d7f30fd7b0f8623afc87d8e0ef15f9",
+    "platform/embedded/tamago/nativefabric/README.md": "532420d88b39fe4de5bd54309597868530887fe39749d959e50759d2b2c77414",
+    "platform/embedded/tamago/nativefabric/built_rom_test.go": "ad6ff5c7bb0f1755adebc489c1ac183ecb4fbda4a86a29f3b6d0ac8c1be362a0",
+    "platform/embedded/tamago/nativefabric/program_backend.go": "da3608fd292ca4aabd661ae64655d6e20241874cd589033d6e7d191867113026",
+    "platform/embedded/tamago/nativefabric/program_console.go": "ecd66980f1456258ded188553b4f34b6abd06620492809a9423f337a21533124",
+    "platform/embedded/tamago/nativefabric/rom_program_test.go": "4aa6bfcccc15ac14dabdeb98464bc2fd1bf7b0ea9922d0c8cf588fe5da419a74",
+    "platform/embedded/tamago/nativefabric/selected_program.go": "1e632fad62d14f4bc15f49e70326e3e7b318df5aa4193ced633f5df53e7692fe",
+    "tests/test_nano_program_client.py": "2c883d9b20ca1562af49b19547202020221fbfe05b7720fd205ffdcdc41af944",
+    "tests/test_nano_tenfoot_trace.py": "5eb36884297cf3c8bb941086e433c6942c221cd0c14026847d0057c1da3c0028",
+    "tests/test_nano_upload.py": "ee927de05a6173519d59dc826730213747b87d9f0077250ff3de34afadd76a8c"
+  }
+}

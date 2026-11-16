@@ -1,0 +1,36 @@
+{
+  "base": "7703ab25b0c08d7ae81d39d98d5550db96c7d09a",
+  "status": "passed",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "status": "offline-stage-localization",
+  "counter_hz": 400000000,
+  "configuration": [
+    {
+      "phase": "arm",
+      "owner": "a486bd83455e6267",
+      "generation": "4",
+      "completed": "0",
+      "pending": "0",
+      "total": "1712128",
+      "base": "94800000",
+      "counter": "5efa0f5e8",
+      "hash_ticks": "100da456"
+    },
+    {
+      "phase": "start",
+      "owner": "a486bd83455e6267",
+      "generation": "4",
+      "completed": "0",
+      "pending": "0",
+      "total": "1712128",
+      "base": "94800000",
+      "counter": "60327f6f3",
+      "hash_ticks": "201c3e63"
+    },
+    {
+      "phase": "FAIL",
+      "owner": "a486bd83455e6267",
+      "generation": "4",
+      "completed": "0",
+      "pending": "0",
+      "total": "1712128",
+      "base": "94800000",
+      "counter": "60d0dfd14",
+      "hash_ticks": "201c3e63"
+    }
+  ],
+  "arm_to_start_seconds": 0.8190368275,
+  "start_to_failure_seconds": 0.4151744825,
+  "vendor_start_result_available": false,
+  "bridge_disable_result_available": false,
+  "first_configuration_start_return": [
+    4,
+    0,
+    0,
+    0
+  ],
+  "configuration_write_attempted": false,
+  "causing_branch_proven": false,
+  "hardware_actions": false,
+  "next_trace": "Capture guarded bridge-configuration precheck and exact vendor START subcall results, including bridge-disable, FPGA completion, cancel and reconfigure response length/credits. Distinguish vendor failure from final ownership/digest rejection; preserve all checks, deadlines and no-retry containment."
+}

@@ -1,0 +1,47 @@
+test_binding.py PASS
+test_native_session.py PASS
+test_flow.py PASS
+test_candidate_flow.py PASS
+test_native_preflight.py PASS
+test_recovery_safety.py PASS
+test_boot_boundary.py PASS
+test_failure_tail.py PASS
+test_rearm_session.py PASS
+test_dispatch_adapter.py PASS
+test_refresh_budget.py PASS
+test_transport_file_binding.py PASS
+test_terminal_tail.py PASS
+test_refresh_wire.py PASS
+test_files_restoration_gate.py PASS
+test_image_selection.py FAIL
+test_image_selection (unittest.loader._FailedTest.test_image_selection) ... ERROR
+
+======================================================================
+ERROR: test_image_selection (unittest.loader._FailedTest.test_image_selection)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_image_selection
+Traceback (most recent call last):
+  File "/usr/lib/python3.13/unittest/loader.py", line 396, in _find_test_path
+    module = self._get_module_from_name(name)
+  File "/usr/lib/python3.13/unittest/loader.py", line 339, in _get_module_from_name
+    __import__(name)
+    ~~~~~~~~~~^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_image_selection.py", line 4, in <module>
+    import image_selection as m
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/image_selection.py", line 5, in <module>
+    from fit_swap import Bundle,member
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 8, in <module>
+    from installer_boot_refresh import refresh_staged_boot
+ModuleNotFoundError: No module named 'installer_boot_refresh'
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/publication/check-full-sof-models.py", line 13, in <module>
+    assert not failed,failed
+           ^^^^^^^^^^
+AssertionError: ['test_image_selection.py']

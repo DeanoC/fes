@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/publication/run-initial-tape-restoration-default.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 3.202942670090124,
+  "log_sha256": "f6673c2c70cdeb22c2dfa091015def476ceda77d17781a9a2c6dc569abdea85b"
+}

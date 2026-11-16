@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "python3",
+    "-m",
+    "unittest",
+    "tests.test_nano_native_trace",
+    "-v"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.20096526201814413,
+  "log_sha256": "0dfcdaca2dde0a8e661eccf52a1fe30afe88a3d4b26aa8f9a999b7257b8e09f7"
+}

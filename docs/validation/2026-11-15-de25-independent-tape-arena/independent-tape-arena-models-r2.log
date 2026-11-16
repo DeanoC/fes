@@ -1,0 +1,118 @@
+=== RUN   TestConfigurationArenaReusesOnlyCompletedLease
+--- PASS: TestConfigurationArenaReusesOnlyCompletedLease (0.00s)
+=== RUN   TestConfigurationArenaRetainsFailedCopyAndCompletion
+=== RUN   TestConfigurationArenaRetainsFailedCopyAndCompletion/before-copy
+=== RUN   TestConfigurationArenaRetainsFailedCopyAndCompletion/copy-barrier
+=== RUN   TestConfigurationArenaRetainsFailedCopyAndCompletion/copy-mutation
+=== RUN   TestConfigurationArenaRetainsFailedCopyAndCompletion/release-barrier
+--- PASS: TestConfigurationArenaRetainsFailedCopyAndCompletion (0.00s)
+    --- PASS: TestConfigurationArenaRetainsFailedCopyAndCompletion/before-copy (0.00s)
+    --- PASS: TestConfigurationArenaRetainsFailedCopyAndCompletion/copy-barrier (0.00s)
+    --- PASS: TestConfigurationArenaRetainsFailedCopyAndCompletion/copy-mutation (0.00s)
+    --- PASS: TestConfigurationArenaRetainsFailedCopyAndCompletion/release-barrier (0.00s)
+=== RUN   TestConfigurationArenaSerializesCompetingReservationsAndCompletions
+--- PASS: TestConfigurationArenaSerializesCompetingReservationsAndCompletions (0.00s)
+=== RUN   TestIndependentTapePublicationPreservesRetainedConfiguration
+--- PASS: TestIndependentTapePublicationPreservesRetainedConfiguration (0.03s)
+=== RUN   TestIndependentTapeConstructorRejectsAliasesBeforeAccess
+--- PASS: TestIndependentTapeConstructorRejectsAliasesBeforeAccess (0.03s)
+=== RUN   TestIndependentTapeFailureRetainsBothMappings
+=== RUN   TestIndependentTapeFailureRetainsBothMappings/transport
+=== RUN   TestIndependentTapeFailureRetainsBothMappings/source
+=== RUN   TestIndependentTapeFailureRetainsBothMappings/metadata
+=== RUN   TestIndependentTapeFailureRetainsBothMappings/late
+=== RUN   TestIndependentTapeFailureRetainsBothMappings/incomplete
+--- PASS: TestIndependentTapeFailureRetainsBothMappings (0.14s)
+    --- PASS: TestIndependentTapeFailureRetainsBothMappings/transport (0.03s)
+    --- PASS: TestIndependentTapeFailureRetainsBothMappings/source (0.03s)
+    --- PASS: TestIndependentTapeFailureRetainsBothMappings/metadata (0.03s)
+    --- PASS: TestIndependentTapeFailureRetainsBothMappings/late (0.03s)
+    --- PASS: TestIndependentTapeFailureRetainsBothMappings/incomplete (0.02s)
+=== RUN   TestInitialTapePublicationRetainsAndReusesOnlyCompletedGeneration
+--- PASS: TestInitialTapePublicationRetainsAndReusesOnlyCompletedGeneration (0.03s)
+=== RUN   TestInitialTapePublicationFailuresRetainMemoryWithoutRetry
+=== RUN   TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/before
+=== RUN   TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/copied
+=== RUN   TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/after
+=== RUN   TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/copy-image
+=== RUN   TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/copy-header
+=== RUN   TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/copy-tail
+=== RUN   TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/call-error
+=== RUN   TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/tag
+=== RUN   TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/status
+=== RUN   TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/limit
+=== RUN   TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/bytes
+=== RUN   TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/generation
+=== RUN   TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/gpo
+=== RUN   TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/crc
+=== RUN   TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/cancel
+=== RUN   TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/reply-image
+=== RUN   TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/reply-header
+=== RUN   TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/reply-tail
+--- PASS: TestInitialTapePublicationFailuresRetainMemoryWithoutRetry (0.50s)
+    --- PASS: TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/before (0.03s)
+    --- PASS: TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/copied (0.03s)
+    --- PASS: TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/after (0.02s)
+    --- PASS: TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/copy-image (0.02s)
+    --- PASS: TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/copy-header (0.03s)
+    --- PASS: TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/copy-tail (0.02s)
+    --- PASS: TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/call-error (0.03s)
+    --- PASS: TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/tag (0.02s)
+    --- PASS: TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/status (0.03s)
+    --- PASS: TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/limit (0.03s)
+    --- PASS: TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/bytes (0.03s)
+    --- PASS: TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/generation (0.02s)
+    --- PASS: TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/gpo (0.03s)
+    --- PASS: TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/crc (0.03s)
+    --- PASS: TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/cancel (0.03s)
+    --- PASS: TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/reply-image (0.03s)
+    --- PASS: TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/reply-header (0.03s)
+    --- PASS: TestInitialTapePublicationFailuresRetainMemoryWithoutRetry/reply-tail (0.02s)
+=== RUN   TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting
+=== RUN   TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/owner
+=== RUN   TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/generation
+=== RUN   TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/reset
+=== RUN   TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/master
+=== RUN   TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/never
+=== RUN   TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/caps
+=== RUN   TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/build
+=== RUN   TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/minor
+=== RUN   TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/media
+=== RUN   TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/crc
+=== RUN   TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/run
+=== RUN   TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/empty
+=== RUN   TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/large
+=== RUN   TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/cancel
+--- PASS: TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting (0.37s)
+    --- PASS: TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/owner (0.03s)
+    --- PASS: TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/generation (0.03s)
+    --- PASS: TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/reset (0.02s)
+    --- PASS: TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/master (0.03s)
+    --- PASS: TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/never (0.02s)
+    --- PASS: TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/caps (0.02s)
+    --- PASS: TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/build (0.03s)
+    --- PASS: TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/minor (0.02s)
+    --- PASS: TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/media (0.03s)
+    --- PASS: TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/crc (0.03s)
+    --- PASS: TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/run (0.03s)
+    --- PASS: TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/empty (0.03s)
+    --- PASS: TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/large (0.02s)
+    --- PASS: TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting/cancel (0.02s)
+=== RUN   TestInitialTapePublicationJoinsGoDescriptorToSecureCService
+=== RUN   TestInitialTapePublicationJoinsGoDescriptorToSecureCService/1
+=== RUN   TestInitialTapePublicationJoinsGoDescriptorToSecureCService/512
+=== RUN   TestInitialTapePublicationJoinsGoDescriptorToSecureCService/917
+=== RUN   TestInitialTapePublicationJoinsGoDescriptorToSecureCService/16375
+--- PASS: TestInitialTapePublicationJoinsGoDescriptorToSecureCService (0.25s)
+    --- PASS: TestInitialTapePublicationJoinsGoDescriptorToSecureCService/1 (0.01s)
+    --- PASS: TestInitialTapePublicationJoinsGoDescriptorToSecureCService/512 (0.01s)
+    --- PASS: TestInitialTapePublicationJoinsGoDescriptorToSecureCService/917 (0.01s)
+    --- PASS: TestInitialTapePublicationJoinsGoDescriptorToSecureCService/16375 (0.02s)
+=== RUN   TestRetainedProgramNeverReusesCompletedOrFailedSource
+=== RUN   TestRetainedProgramNeverReusesCompletedOrFailedSource/completed
+=== RUN   TestRetainedProgramNeverReusesCompletedOrFailedSource/failed
+--- PASS: TestRetainedProgramNeverReusesCompletedOrFailedSource (0.05s)
+    --- PASS: TestRetainedProgramNeverReusesCompletedOrFailedSource/completed (0.03s)
+    --- PASS: TestRetainedProgramNeverReusesCompletedOrFailedSource/failed (0.03s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/nativefabric	2.437s

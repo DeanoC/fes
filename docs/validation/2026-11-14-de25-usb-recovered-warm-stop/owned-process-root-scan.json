@@ -1,0 +1,120 @@
+{
+  "status": "passed-root-full-owned-process-record-scan",
+  "records": [
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/forward/owned-worker.json",
+      "record_sha256": "f8655cb97207d67bc0023acaf0da183c30fb02e4e65fa6421186814b202f2ef1",
+      "pid": 2097720,
+      "start_ticks": "171669843",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/native-diagnostic/transport.json",
+      "record_sha256": "89bdce94467ac8057a575a0ccd75ba26ad385f592db67271115928ff39a8c035",
+      "pid": 2118045,
+      "start_ticks": "171689997",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/native-diagnostic/owned-worker.json",
+      "record_sha256": "4a9487cfb49642b24fc2d7405bee950507dc3bd1b7c3be8d688989b6fc446582",
+      "pid": 2117855,
+      "start_ticks": "171689777",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/native-diagnostic/owned-programmer.json",
+      "record_sha256": "9abd0970b4ea672c57593f4c1697351bca9ae25ed572bd95efade11feec1f253",
+      "pid": 2118652,
+      "start_ticks": "171690471",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/recovery-before/transport.json",
+      "record_sha256": "8bdfe37256ac813646a57cb2d1b048b8538311ab5f9c6f5ec54d170d1eb3c92f",
+      "pid": 2095831,
+      "start_ticks": "171667251",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/recovery-before/owned-worker.json",
+      "record_sha256": "23aeaac4d4e47c32ab6e1d9e31e68d9bd250ffeb59e5ad67bfd9a43405ea9e78",
+      "pid": 2095729,
+      "start_ticks": "171667112",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/recovery-before/owned-programmer.json",
+      "record_sha256": "ac6bf5b4c87ada72bf8f9fb8968f5382e9d1c7a96a056f1a909c9a2309f605c0",
+      "pid": 2096629,
+      "start_ticks": "171667987",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/native-diagnostic/file-admission/owned-worker.json",
+      "record_sha256": "bc08f3dd5dd8ecee86e74b963222ea9bee58a3469aec27494790cb9f6145e73f",
+      "pid": 2118038,
+      "start_ticks": "171689882",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/forward/native-input-preflight/native-baseline/owned-worker.json",
+      "record_sha256": "2ce422bec1df0086ab458c62dcc9d7bc5de57aa4894f9deaac78cf7f0bc6ebb0",
+      "pid": 2098045,
+      "start_ticks": "171670342",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/forward/native-input-preflight/native-diagnostic/owned-worker.json",
+      "record_sha256": "3faf966830ed535b9d67b270261aa1c661ce11fe887305f38934a15d07706a16",
+      "pid": 2097991,
+      "start_ticks": "171670106",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/preflight-checks/check-djfz9m9v/native-baseline/owned-worker.json",
+      "record_sha256": "a5507a892850a9797dd321dd618ce85b0600804d808e20290c9fd0be480247df",
+      "pid": 2058976,
+      "start_ticks": "171635580",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/preflight-checks/check-djfz9m9v/native-diagnostic/owned-worker.json",
+      "record_sha256": "5bf170605cc2cf9794e03a30f05aa6b1aefd17385d100a614eb1af96047b458c",
+      "pid": 2058790,
+      "start_ticks": "171635307",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/preflight-checks/check-7epn1_rt/native-baseline/owned-worker.json",
+      "record_sha256": "185406a93b321dc51a5cc41c54cfa5dc4abeea406e23a5a914eaba9530480348",
+      "pid": 2091188,
+      "start_ticks": "171660827",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/preflight-checks/check-7epn1_rt/native-diagnostic/owned-worker.json",
+      "record_sha256": "35544e9e701a778958eb1f59a2a0ca1ba6089fa73c6dec0d28b4503ead8af359",
+      "pid": 2090988,
+      "start_ticks": "171660734",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/preflight-checks/check-h4s9_s0o/native-baseline/owned-worker.json",
+      "record_sha256": "681f928a56ec83e7e92f27a9d508ddceff6791db48aa6c3283944dc1e9681ea6",
+      "pid": 2056771,
+      "start_ticks": "171634128",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/preflight-checks/check-h4s9_s0o/native-diagnostic/owned-worker.json",
+      "record_sha256": "a96d1c460c5828b834cce4f72cd2558b651f52c2df5196ce569036d836f9f623",
+      "pid": 2056624,
+      "start_ticks": "171634036",
+      "original_process_stopped": true
+    }
+  ],
+  "root_only_preflight_directories_included": true,
+  "device_opened": false,
+  "processes_signalled": false
+}

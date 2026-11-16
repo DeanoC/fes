@@ -76,7 +76,7 @@ def create_build_record(root, repository, revision, identities, execution, captu
         signoff_policy=SIGNOFF_POLICY,
         static_profile=PROFILE, static_control_build_id=control_build_id,
         static_default_persona_id=DEFAULT_PERSONA, placement=placement, routing=routing)
-    return encode_build_record(fields)
+    return encode_build_record(standard.with_identities(fields, root=root))
 
 
 def selected_artifacts(project, selected, record):

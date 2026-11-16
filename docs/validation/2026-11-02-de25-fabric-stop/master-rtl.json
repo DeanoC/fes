@@ -1,0 +1,97 @@
+{
+  "status": "passed",
+  "classification": "actual C and both actual reader RTL models; injected ownership and memory; no hardware acceptance",
+  "commands": [
+    [
+      "cc",
+      "-std=c11",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-fsanitize=undefined",
+      "-fno-sanitize-recover=all",
+      "-I/home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/source",
+      "-c",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/source/nano_fabric_stop.c",
+      "-o",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/nano_fabric_stop.o"
+    ],
+    [
+      "cc",
+      "-std=c11",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-fsanitize=undefined",
+      "-fno-sanitize-recover=all",
+      "-I/home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/source",
+      "-c",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/source/nano_probe_stop.c",
+      "-o",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/nano_probe_stop.o"
+    ],
+    [
+      "verilator",
+      "--cc",
+      "--build",
+      "--top-module",
+      "fes_de25_ddr_probe",
+      "-Wall",
+      "--Mdir",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/probe",
+      "-I/home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/source",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/source/fes_de25_ddr_probe.v"
+    ],
+    [
+      "verilator",
+      "--cc",
+      "--exe",
+      "--build",
+      "--top-module",
+      "fes_de25_embedded",
+      "-Wall",
+      "-Wno-UNUSEDSIGNAL",
+      "--Mdir",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/reader",
+      "-I/home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/source",
+      "-GBUILD_ID=128'h00112233445566778899aabbccddeeff",
+      "-GMEMORY_BACKEND=1",
+      "-GDDR_BASE=32'h95000000",
+      "-GDDR_BYTES=8192",
+      "-CFLAGS",
+      "-std=c++17 -O2 -fsanitize=undefined -fno-sanitize-recover=all -I/home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/source -I/home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/probe",
+      "-LDFLAGS",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/nano_fabric_stop.o /home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/nano_probe_stop.o /home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/probe/Vfes_de25_ddr_probe__ALL.a -fsanitize=undefined",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/source/fes_de25_embedded.sv",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/source/fes_embedded_control.sv",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/source/tests/nano_fabric_stop_test.cpp"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-fabric-stop-e31ce13ea4034d949eaf4d684c9f1830/reader/Vfes_de25_embedded"
+    ]
+  ],
+  "source_sha256": {
+    "platform/embedded/firmware/nano_fabric_stop.c": "aa424f9267d386a13400b09211a3356d5551974dc647cd6819e6f6eb8e65040c",
+    "platform/embedded/firmware/nano_fabric_stop.h": "4041ccf2b9547fa05d93c7192112e573242826780eadfe056a5f112c2560792d",
+    "platform/embedded/firmware/nano_probe_stop.c": "eeced562098d1386fca83de5dbab313b04bb90ffd6abc7a43622614721b244be",
+    "platform/embedded/firmware/nano_probe_stop.h": "9a100abf22ef6805d0693d1a7c86ec376339a623ca461e426becdb32879cae97",
+    "platform/embedded/firmware/generated/fes_embedded_control.h": "d46bacf0089d208b605aa3b3264957172ce7d88bb5ab41f7c7730f467eb51113",
+    "platform/embedded/firmware/generated/fes_de25_ddr_probe.h": "ab89732c139512edbdd0610783f1001dfd2ede9839d92ef767b1d5a34f2fc5cf",
+    "platform/embedded/firmware/tests/nano_fabric_stop_test.cpp": "7adf4d2daa87b87e84aefb3e12aa698e42c67e657955ec6e385dd7f34806989e",
+    "sources/misteross/boards/de25nano/hps/fes_de25_ddr_probe.v": "4afe3497bca4bb991e855d1c40bd7e8e1d97ea9b943d40083f44eddede7c2d52",
+    "sources/misteross/boards/de25nano/hps/generated/fes_de25_ddr_probe.vh": "5e79081cdf4daca60057540a3c3ce4eb12ad6f88eceb475a828779588ac717c3",
+    "sources/misteross/boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp": "ab191c5b6bfbb455abf21a3b80f2925fbfa97f69e2ab2290781e748bdf205105",
+    "sources/misteross/boards/de25nano/hps/probe_tb.cpp": "15ac69bcf589eb2db3c41db03e96247a030f27c8479bd8ed8b946f4c307935a7",
+    "sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv": "e8a8f0f41aca9dfce55ef7177a5cbecefa410d849b93c6ce4547d159f4aa2f26",
+    "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv": "95bc4ef8f470612d71dfa2737e96a988e8a8508e5db56857455bf294654667f3",
+    "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh": "20e1f042865b54a4cc6a7334b874fedc9f95aa87deb2757ce04a35cc023fc597"
+  },
+  "observed": {
+    "status": "passed",
+    "cases": 311,
+    "read_failure_points": 264,
+    "hardware_access": false,
+    "bridge_authority": false,
+    "memory_released": false
+  }
+}

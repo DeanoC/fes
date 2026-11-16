@@ -1,0 +1,22 @@
+{
+  "status": "passed",
+  "actual_assembly_source_sha256": "754cc6240bd6322b72a868c0e7fb0ff9f7b006564d4d80995495ad0739f8e945",
+  "classification": "actual leaf/vector code on emulated A53 EL3; fixture CPU and UART constants plus one PL011-only map; Nano mappings unchanged; not Nano hardware qualification",
+  "cases": [
+    {
+      "case": "normal",
+      "uart_sha256": "00007b9b8fe1a1b840b2c05dd3172fa71e2efdd5de37d00e4ea98dcdb59e006d",
+      "uart_bytes": 177,
+      "returncode": 0,
+      "terminal_park_observed": false,
+      "observed_fault": null,
+      "fixture_defines": [
+        "-DFES_MMU_MIDR=0x410fd034",
+        "-DFES_MMU_MPIDR=0x80000000",
+        "-DFES_MMU_UART_DATA=0x09000000",
+        "-DFES_MMU_UART_STATUS=0x80043100"
+      ]
+    }
+  ],
+  "hardware_actions": false
+}

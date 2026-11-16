@@ -1,0 +1,15 @@
+{
+  "status": "passed-exact-post-reset-restoration-byte-hash-mode-retention",
+  "archive": "/home/deano/fes-retained/de25-terminal-programming-baseline-restored-physical-20261114-r1/restoration.tar.gz",
+  "archive_sha256": "3f0e034bdf67fb3d23fe00fb03fe473dd804266c7e3dddfe7c580ac85e828b84",
+  "dependencies": {
+    "/home/deano/fes/out/dev/de25-source-release/out/terminal-programming-restoration/retention-proof.json": "a30673ce7d689dbc4dbafeb66321f392581eae83e84b7248378cb599e8102510",
+    "/home/deano/fes-retained/de25-terminal-restoration-prepared-20261114-r1/prepared-procedure.tar.gz": "54e6a0f6564a86dbcf3b534939afd68edb1a15112ac004d0746e58a85bb0973e",
+    "/home/deano/fes/out/dev/de25-source-release/out/terminal-trial-failure-r2/retention-proof.json": "68b465511984f16b017938e00f2f394243351018af375726a1b4c6aa7b38e187",
+    "/home/deano/fes-retained/de25-terminal-trial-failed-physical-20261114-r2/physical-trial.tar.gz": "55aa7ee8831ffd9b406f75af70b70f6301b828a7098627de08818a2cd301d2eb"
+  },
+  "baseline_restored": true,
+  "failed_candidate_native_menu_qualified": false,
+  "candidate_native_programming_previously_issued": true,
+  "general_core_load_acceptance": false
+}

@@ -1,0 +1,22 @@
+{
+  "hardware_actions": false,
+  "flash_write_authorized": false,
+  "images": {
+    "native": {
+      "jic_sha256": "6199057b205bd5f9bd81ebec2318c36c70af1ec24d649b0f699e1dc9cfaa334f",
+      "array_sha256": "f4209e802f3b227d080d3d879221473772a15c15d6669cd38b469f791ca5ee94",
+      "bytes": 16777216,
+      "part": "A5EB013BB23B",
+      "flash": "MT25QU128",
+      "outer_checksum_independently_verified": false
+    },
+    "factory-recovery": {
+      "jic_sha256": "b796d5bd8379701244c78433f63b84d15cab41f8d5d4998158f370c5c07b1295",
+      "array_sha256": "165afd94489af66ba86160d47b3d404263b4cb4a0c10a7a2a007a4f340cb7fc6",
+      "bytes": 16777216,
+      "part": "A5EB013BB23B",
+      "flash": "MT25QU128",
+      "outer_checksum_independently_verified": false
+    }
+  }
+}

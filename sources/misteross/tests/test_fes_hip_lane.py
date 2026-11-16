@@ -580,7 +580,7 @@ class CudaLaneConfigurationTests(unittest.TestCase):
                     producer = importlib.import_module(f"scripts.{name}")
                     self.assertEqual(producer.gpu_choice("CUDA"), ("cuda", "unused", expected))
 
-    def test_custom_cuda_slot_authenticates_and_changes_build_identity(self) -> None:
+    def test_custom_cuda_slot_authenticates_and_changes_toolchain_identity(self) -> None:
         import importlib
 
         from scripts import fes_build_common
@@ -674,7 +674,8 @@ class CudaLaneConfigurationTests(unittest.TestCase):
         custom_bytes = record(custom_identity)
         custom_record = json.loads(custom_bytes)
         self.assertIn(configuration, custom_record["tools"]["nextpnr-mistral"])
-        self.assertNotEqual(build_identity(default_bytes), build_identity(custom_bytes))
+        self.assertEqual(build_identity(default_bytes), build_identity(custom_bytes))
+        self.assertNotEqual(json.loads(default_bytes)['identities']['toolchain'], json.loads(custom_bytes)['identities']['toolchain'])
         self.assertNotEqual(json.loads(default_bytes)["tools"], custom_record["tools"])
 
 

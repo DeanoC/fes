@@ -1,0 +1,152 @@
+{
+  "status": "passed",
+  "checks": {
+    "out/nano-scan-capture-20261108/compile-final-result.json": {
+      "argv": [
+        "python3",
+        "-c",
+        "import json,subprocess;subprocess.run(json.load(open('out/nano-scan-capture-20261108/compile-command.json')),check=True)"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.4011699717957526,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "out/nano-scan-capture-20261108/probe-tests-final-result.json": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_jtag_diagnostic.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.0024877348914742,
+      "log_sha256": "10bd9b4af1ab6ea4e35782a87eb780dda84a1c50c7378785c0a9637a4e70ffa1"
+    },
+    "out/nano-scan-capture-20261108/lifecycle-final-result.json": {
+      "argv": [
+        "python3",
+        "out/nano-scan-capture-20261108/lifecycle_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20063823112286627,
+      "log_sha256": "368281fa2b304a82e9500d425b8bd5498ce7a0ba4088ac50c1f142aadba8d37b"
+    },
+    "out/nano-scan-capture-20261108/decode-tests-result.json": {
+      "argv": [
+        "python3",
+        "out/nano-scan-capture-20261108/decode_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.8027248419821262,
+      "log_sha256": "279db4845ef51220db15f2d4518832b24b73ccd0d2a66f404a8ad30acd2c3348"
+    },
+    "out/nano-scan-capture-20261108/software-0-result.json": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.40089082694612443,
+      "log_sha256": "bd66b8f430983c57f425aaa3b8c575511e9a749c4bdc39c7c4f3712468e4570e"
+    },
+    "out/nano-scan-capture-20261108/software-1-result.json": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.4010180218610913,
+      "log_sha256": "a8a4b7245cf6ed7d37bf6d588d2a2dc557c17579423eb5518af61d161b4bcd2a"
+    },
+    "out/nano-scan-capture-20261108/software-2-result.json": {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "7215e8e4da1c3e19c41524e8dc86569dcb20fc91",
+        "--head",
+        "7215e8e4da1c3e19c41524e8dc86569dcb20fc91"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.200704547110945,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "out/nano-scan-capture-20261108/software-3-result.json": {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20085376710630953,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "out/nano-scan-capture-20261108/software-4-result.json": {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/nano/README.md\", \"platform/embedded/nano/jtag_diagnostic.cpp\", \"tests/fixtures/nano-jtag-diagnostic/aji.h\", \"tests/fixtures/nano-jtag-diagnostic/mock.cpp\", \"tests/test_nano_jtag_diagnostic.py\"]"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 329.1859130410012,
+      "log_sha256": "77e0c51f4e061abb015909d62727e600c5fe15c7b2ba3575e2d43f56c212787c"
+    },
+    "out/nano-scan-capture-20261108/software-5-result.json": {
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.60428824997507,
+      "log_sha256": "dbe036bed3ef167b1b67bf32995b1f1c6272d7c810828a9ec3c98318c9007fb8"
+    }
+  },
+  "hardware_actions": false
+}

@@ -1,0 +1,52 @@
+{
+  "status": "prepared-staged-first-core-inputs",
+  "sdk_compiled_source": "49752d8b21cd1625ab0ee22892a20e628af36b87",
+  "validated_source": "f2b0e7a3ae68f810dab93de58c9ab1fbfcbc618e",
+  "package_id": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+  "entry_id": "zx81-installed",
+  "files": {
+    "FES/CORESEL.JSN": {
+      "bytes": 63,
+      "sha256": "b003ab10e32b3bb3121d910557bdfb9d1083c77cc05e933beaed67eb6d4ae09a"
+    },
+    "FES/FIRMWARE.BIN": {
+      "bytes": 8192,
+      "sha256": "14ad84f4243efcd41587ff46ab932d11087043e8d455a1ed2a227b9657828dfa"
+    },
+    "FES/INSTALL.JSN": {
+      "bytes": 831,
+      "sha256": "bb6b997a6d5ed933115f46c3dd47e15449a8144247d57167100aa37e640b39de"
+    },
+    "FES/MENU.FCP": {
+      "bytes": 1711104,
+      "sha256": "8be58f92484c004da30cbf66c1beccf86252b0b1c2483d8384defc16a833c9b1"
+    },
+    "FES/MENU.JSN": {
+      "bytes": 2676,
+      "sha256": "c751e4160e7ac440284e76672c849a23113d8422621a0a1f0fc64c1976e145c9"
+    },
+    "FES/MENUSEL.JSN": {
+      "bytes": 282,
+      "sha256": "03e353539c17319e89bf457d81624a32c5aedd28a19fd79828013c888d7e0365"
+    },
+    "FES/PKGTEST.BIN": {
+      "bytes": 1659392,
+      "sha256": "191f63a663d2ce12a83bc499e2a6f89332732a260b2bb3e0c8daf2ff71ecd5b7"
+    },
+    "FES/PROGRAM.JSN": {
+      "bytes": 3269,
+      "sha256": "f03276391ec2ff380cc1be67633bed840b4908520a3dd4a84394ccedba00c26c"
+    },
+    "FES/UI.JSON": {
+      "bytes": 60,
+      "sha256": "3dd321e5e3af4ed77e2051f4c5c1e8e7cf049bc40e113afca00d3494eaacb1b0"
+    }
+  },
+  "initial_library_empty": true,
+  "auto_install": false,
+  "staged_tape": false,
+  "sdk_initial_tape_support": true,
+  "uploaded": false,
+  "hardware_actions": false,
+  "live_authority": false
+}

@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/publication/retain-preparation-publication-matched.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 39.855641935020685,
+  "log_sha256": "6198b847820e091c71a2d3dfc98bdca521ff64ce59d3f181595430c938f0399c"
+}

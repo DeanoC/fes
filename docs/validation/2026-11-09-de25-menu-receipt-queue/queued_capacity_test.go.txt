@@ -1,0 +1,35 @@
+package scanout
+
+import (
+ "context"
+ "testing"
+ "time"
+)
+
+func TestMenuQueuedCapacityActualRTL(t *testing.T) {
+ p:=newMenuProbe(t);m:=p.open(t)
+ first,err:=m.PresentFrame(context.Background(),p.frames[0])
+ if err!=nil { t.Fatal(first,err) }
+ // More than one complete 720p frame passes without another submission.
+ // CSR capacity must stay available through the video reader's fill phases.
+ for n:=0;n<32;n++ {
+  values,err:=p.call("read %x",menuStatus)
+  if err!=nil || len(values)!=1 { t.Fatal(values,err) }
+  if uint32(values[0])!=menuRunning|menuSubmitReady { t.Fatalf("CSR capacity disappeared without a new request at step%d: flags=%x",n,values[0]) }
+  p.must(t,"tick 10000")
+  p.now=p.now.Add(time.Duration(uint64(65536)*uint64(time.Second)/74250000))
+ }
+ checked:=false
+ p.onWrite=func(offset,value uint32) error {
+  if offset!=menuCommand || value!=2 { return nil }
+  // A second outstanding descriptor must reject even if software changes the
+  // staging registers. The accepted descriptor must remain sequence2/slot1.
+  p.must(t,"write 8c 3");p.must(t,"write 90 0")
+  if _,err:=p.call("write 80 2");err==nil { t.Fatal("accepted a second outstanding frame") }
+  p.must(t,"write 8c 2");p.must(t,"write 90 1");checked=true;return nil
+ }
+ next,err:=m.PresentFrame(context.Background(),p.frames[1])
+ if err!=nil || !checked || next.Generation!=1 || next.Sequence!=2 || next.Submitted!=2 || next.Slot!=1 || next.Underflows!=0 || p.commands[2]!=1 { t.Fatal("queued frame did not complete with one command",next,err,p.commands) }
+ if _,err:=m.Stop(context.Background(),7);err!=nil { t.Fatal(err) }
+ t.Log("CSR capacity stays available through scanout phases; one descriptor accepted, second rejected, exact frame2/slot1 displayed and reader drained without retry")
+}

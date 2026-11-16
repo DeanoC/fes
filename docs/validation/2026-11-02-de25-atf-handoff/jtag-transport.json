@@ -1,0 +1,47 @@
+{
+  "source_commit": "82c410cc8a5af4fa2c77d535b3bd22eb7a19fa19",
+  "serial": "TRWU8CBL",
+  "status": "stopped",
+  "shared_daemon_changed": false,
+  "server_args": [
+    "/data/altera_pro/26.3/quartus/bin/jtagd",
+    "--foreground",
+    "--no-config",
+    "--auto-detect-filter",
+    "TRWU8CBL",
+    "--port",
+    "0",
+    "--port-file",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-atf-handoff-v2-20261102/trial-resume/private-port",
+    "--pid-file",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-atf-handoff-v2-20261102/trial-resume/private-pid"
+  ],
+  "owned_pid": 2433644,
+  "setup_commands": [
+    {
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/jtagconfig",
+        "--addserver",
+        "localhost:44473",
+        ""
+      ],
+      "returncode": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/jtagconfig",
+        "--enum"
+      ],
+      "returncode": 0,
+      "log_sha256": "cea122944e1f224ba9868134e666d8c2c2d433e442208c3433509cb935695278"
+    }
+  ],
+  "private_port": 44473,
+  "cable": "DE25-Nano on localhost:44473 [3-11.1-iface0]",
+  "usb_node": "/dev/bus/usb/003/061",
+  "jtag_id": "4362C0DD",
+  "process_start_ticks": "64848501",
+  "client_config_sha256": "bff6cbe7ae39bc68b463f33e67bb38c192c081b959232770c072c882f4d253ce",
+  "owned_server_stopped": true
+}

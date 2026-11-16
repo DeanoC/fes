@@ -1,0 +1,6 @@
+test_failed_active_or_missing_worker_never_authorizes_recovery (test_recovery_safety.Tests.test_failed_active_or_missing_worker_never_authorizes_recovery) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.032s
+
+OK

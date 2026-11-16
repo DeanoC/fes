@@ -1,0 +1,24 @@
+{
+  "status": "passed",
+  "source": "e2f2cec26d3a4cd143acb134fdeba61bf5620b10",
+  "native_source": "b5bf86ca0d05727b1b41d997b12ddae517a64faf",
+  "hardware_result": "failed-first-launch",
+  "hardware_attempts": 1,
+  "hardware_retries": 0,
+  "archive_sha256": "c1636bb5634b126956d9745c48e2f4cab6e7e1aff364886f2b5c9bc99717c4d3",
+  "archive_bytes": 224144,
+  "regular_files_verified": 128,
+  "prior_candidate_retention": {
+    "/home/deano/fes-retained/de25-computer-guard-20261105-r1/publication.bundle": "b4e778e762d1a07010ef291dbfaea4f52fb04d2bac20b5f08002c18d81adc2b8",
+    "/home/deano/fes-retained/de25-computer-guard-20261105-r1/software-and-chain-evidence.tar.gz": "dee810f3a7542f08fa5fc30c181e7d0ee5a49931801609e976c9a1b530e50fd7",
+    "/home/deano/fes-retained/de25-computer-guard-20261105-r1/SHA256SUMS": "afecf1e4f482d3ef3156160ab752310f3f96d5c078a252e3cb8607b2dd4fa7dd",
+    "/home/deano/fes-retained/de25-computer-guard-20261105-r1/source-update.bundle": "69d76d2c09cd365f2c37bbbf419ee0db968491a884476523d1b58dca4479e500",
+    "/home/deano/fes-retained/de25-computer-guard-20261105-r1/publication-verification.json": "71a80aed8da7166d892e90065dfaba90957c301a2737308e9f76e808c2116f34",
+    "/home/deano/fes-retained/de25-computer-guard-20261105-r1/retention.json": "23f40d18d74816760e4f796850f64d4b65596b8867647568f91c1cb01ec3fdda"
+  },
+  "source_restore": "Candidate source, publication and operator-publication bundles already independently restored and strictly checked",
+  "cleanup_verified": true,
+  "ordinary_admission": false,
+  "core_loading_readiness": false,
+  "working_artifacts_removed": false
+}

@@ -1,0 +1,31 @@
+
+/home/deano/fes/out/dev/de25-embedded-os/out/nano-spl-barrier-20261102/native-uboot/build/spl/u-boot-spl:     file format elf64-littleaarch64
+
+
+Disassembly of section .text:
+
+000000000001934c <ns16550_serial_putc>:
+   1934c:	a9be7bfd 	stp	x29, x30, [sp, #-32]!
+   19350:	910003fd 	mov	x29, sp
+   19354:	f9000bf3 	str	x19, [sp, #16]
+   19358:	12001c33 	and	w19, w1, #0xff
+   1935c:	97ffe282 	bl	11d64 <dev_get_priv>
+   19360:	f9400c04 	ldr	x4, [x0, #24]
+   19364:	528000a1 	mov	w1, #0x5                   	// #5
+   19368:	aa0403e0 	mov	x0, x4
+   1936c:	97ffffc8 	bl	1928c <ns16550_readb.isra.0>
+   19370:	362801a0 	tbz	w0, #5, 193a4 <ns16550_serial_putc+0x58>
+   19374:	2a1303e2 	mov	w2, w19
+   19378:	aa0403e0 	mov	x0, x4
+   1937c:	52800001 	mov	w1, #0x0                   	// #0
+   19380:	97ffffeb 	bl	1932c <ns16550_writeb.isra.0>
+   19384:	71002a7f 	cmp	w19, #0xa
+   19388:	540000a0 	b.eq	1939c <ns16550_serial_putc+0x50>  // b.none
+   1938c:	52800000 	mov	w0, #0x0                   	// #0
+   19390:	f9400bf3 	ldr	x19, [sp, #16]
+   19394:	a8c27bfd 	ldp	x29, x30, [sp], #32
+   19398:	d65f03c0 	ret
+   1939c:	97ffb607 	bl	6bb8 <schedule>
+   193a0:	17fffffb 	b	1938c <ns16550_serial_putc+0x40>
+   193a4:	12800140 	mov	w0, #0xfffffff5            	// #-11
+   193a8:	17fffffa 	b	19390 <ns16550_serial_putc+0x44>

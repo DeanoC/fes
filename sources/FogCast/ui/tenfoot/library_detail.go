@@ -22,10 +22,14 @@ func libraryBlockTag(block hostclient.LaunchBlock) string {
 		return "Offline"
 	case hostclient.LaunchUnreadable:
 		return "Can't be read"
+	case hostclient.LaunchMissingPackage:
+		return "Needs core package"
 	case hostclient.LaunchMissingFirmware:
 		return "Needs BIOS"
 	case hostclient.LaunchMissingROM:
 		return "Needs a cartridge"
+	case hostclient.LaunchMissingVideo:
+		return "Needs a video part"
 	case hostclient.LaunchMissingExpansion:
 		return "Needs an expansion"
 	case hostclient.LaunchLeaseHeld:

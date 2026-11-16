@@ -1,0 +1,9 @@
+{
+  "source_commit": "1a0cf9d46f6d30f4c4cead17a7f5252109b41ba2",
+  "archive": "/home/deano/fes-retained/de25-hps-status-shadow-20261102/pre-fix.tar.gz",
+  "sha256": "317da5a71e8ac96ab65883bdb87bad6c31308501d1f0d639fe2cf1536f3158d7",
+  "members": 65,
+  "every_member_verified": true,
+  "scope": "failed compiler shadow warning and parent selection count; private combined-suite preview setup failure also retained",
+  "hardware_attempted": false
+}

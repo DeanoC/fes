@@ -1,0 +1,8 @@
+{
+  "status": "retained-and-independently-read-back",
+  "archive": "/home/deano/fes-retained/de25-command-guard-matched-20261113-r1/matched-chain.tar.gz",
+  "archive_sha256": "2519fe474b1f1be783c4c4bb443e1dca63fdb91de68038371ac1ce7be62013e0",
+  "archive_bytes": 117487929,
+  "hardware_actions": false,
+  "hardware_accepted": false
+}

@@ -1,0 +1,80 @@
+{
+  "status": "passed-preparation-budget-focused-model-retention",
+  "source_commit": "96063aba1753450e9ab0762ee8cc6b887697a19c",
+  "checks": {
+    "preparation-budget-focused-r1": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "test_nano_source_retirement",
+        "test_nano_sdm_input_profile",
+        "test_nano_sdm_rearm_profile",
+        "test_nano_sdm_recovery_profile",
+        "test_nano_sdm_input_observation",
+        "test_nano_sdm_rearm_trace",
+        "test_nano_paired_source_rearm"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-setup-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 117.08024699497037,
+      "log_sha256": "2b9996329bf51fd3371c44ea232dbb47c15a4bec60ff86bd3d18f23d1b951281"
+    },
+    "preparation-budget-cost-proof-r1": {
+      "argv": [
+        "python3",
+        "out/publication/preparation-budget-proof.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-setup-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.0016755869146436,
+      "log_sha256": "5f3dd5c0d6492eddbd68cfabf1f3fb21601b878ffbebfec9e25d7747a23d951a"
+    },
+    "preparation-budget-committed-check-r1": {
+      "argv": [
+        "make",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-setup-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 11.20588894910179,
+      "log_sha256": "04b7d0133f86510765e0c9fdb3bd8a9269cfc9a03e91c02efd8cf2f5866bac79"
+    }
+  },
+  "cost": {
+    "status": "passed-budget-cost-and-exact-prior-source-counterexample",
+    "source_commit": "96063aba1753450e9ab0762ee8cc6b887697a19c",
+    "current": {
+      "status": "passed",
+      "cases": 8,
+      "slowest_prepared_us": 2726502,
+      "hardware_actions": false
+    },
+    "prior_source_commit": "fdf6ce1650a3f1b882042688eed81b9c05ca1116",
+    "prior_sources": {
+      "sdm_input_probe_setup.c": "32be42ec3bbbc148b6a28b10f12882253603fe41cd356ee467eba62d38b077db",
+      "sdm_input_probe_setup.h": "625f85f7725d18861217117bc03f897ee352159906c6e523c2539c2ac2980a79",
+      "source_retire.c": "21d283fa45ea56101d5b0ac0af70b5ad70d37918dd9a71e877862cf98b54f51d",
+      "source_retire.h": "016f8ee985920373cccd77b5d0c5aba7ce882a37e804903f5237a354682e889d",
+      "command_queue.c": "4a7aaf612589af9c7de2aa2fda5b6f9f13389d09b9b9cae8ec6a8914a70fc561",
+      "command_queue.h": "265034e76d0ac07e0121b5b6431a25a8c1252fef2e44f4420b1a634d242640e6",
+      "input_tables.c": "b842dc2ea784ec5c2aef846c7da22b971b2e9fa1f688f29e24bc14299fbec58f",
+      "input_tables.h": "9711d6c53eb890609ee8fd34e481a1029b2e67f5fcf58ed8f154c8b72feb1040"
+    },
+    "prior_returncode": -6,
+    "prior_stdout": "",
+    "prior_stderr": "counterexample: /home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/tests/sdm_retire/setup_preparation_budget_test.c:25: main: Assertion `!error && p->prepared && !p->failed && !nano_probe_arm(p,&receipt)' failed.\n",
+    "hardware_actions": false
+  },
+  "focused_tests": 61,
+  "archive": "/home/deano/fes-retained/de25-preparation-budget-models-20261114-r1/models.tar.gz",
+  "archive_sha256": "35a08e22c6cb99b22b668379859561a96fb3254d75207d25b8d1021fa92b3b67",
+  "archive_bytes": 104113,
+  "files": 28,
+  "hardware_actions": false,
+  "hardware_accepted": false,
+  "initial_failure_record": "summary-of-direct-initial-fixture-compile-failure-not-a-raw-transcript"
+}

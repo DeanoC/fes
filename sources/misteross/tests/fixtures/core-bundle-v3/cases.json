@@ -24,6 +24,175 @@
     "package_id": "d038cd4a27b4b3cf806831bf084632412acf578b11b43722399b995c7d636928"
   },
   {
+    "name": "valid-nano-4096",
+    "manifest": "manifests/valid-nano-4096.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-nano-4096.json",
+    "valid": true,
+    "package_id": "2b030fa2c019a596bcf071b6324e34b43f4be28598bef81dad256bbd3a1d02ef"
+  },
+  {
+    "name": "valid-nano-8192",
+    "manifest": "manifests/valid-nano-8192.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-nano-8192.json",
+    "valid": true,
+    "package_id": "ce02f879ae8f4cfae6c1165a30a12f26b7f021b30e5099aa9a3cd88f4429cba3"
+  },
+  {
+    "name": "invalid-map-nano-format",
+    "manifest": "manifests/invalid-map-nano-format.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-nano-format.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid held-ROM map format"
+  },
+  {
+    "name": "invalid-map-nano-source-float",
+    "manifest": "manifests/invalid-map-nano-source-float.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-nano-source-float.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid held-ROM map source-float"
+  },
+  {
+    "name": "invalid-map-nano-size",
+    "manifest": "manifests/invalid-map-nano-size.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-nano-size.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid held-ROM map size"
+  },
+  {
+    "name": "invalid-map-nano-device",
+    "manifest": "manifests/invalid-map-nano-device.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-nano-device.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid held-ROM map device"
+  },
+  {
+    "name": "invalid-map-nano-encoding",
+    "manifest": "manifests/invalid-map-nano-encoding.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-nano-encoding.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid held-ROM map encoding"
+  },
+  {
+    "name": "invalid-map-nano-base",
+    "manifest": "manifests/invalid-map-nano-base.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-nano-base.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid held-ROM map base"
+  },
+  {
+    "name": "invalid-map-nano-address",
+    "manifest": "manifests/invalid-map-nano-address.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-nano-address.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid held-ROM map address"
+  },
+  {
+    "name": "invalid-map-nano-blocks",
+    "manifest": "manifests/invalid-map-nano-blocks.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-nano-blocks.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid held-ROM map blocks"
+  },
+  {
+    "name": "invalid-map-nano-null",
+    "manifest": "manifests/invalid-map-nano-null.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-nano-null.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid held-ROM map null"
+  },
+  {
+    "name": "invalid-map-nano-duplicate",
+    "manifest": "manifests/invalid-map-nano-duplicate.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-nano-duplicate.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid held-ROM map duplicate"
+  },
+  {
+    "name": "invalid-map-nano-trailing",
+    "manifest": "manifests/invalid-map-nano-trailing.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-nano-trailing.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid held-ROM map trailing"
+  },
+  {
+    "name": "invalid-map-nano-missing",
+    "manifest": "manifests/invalid-map-nano-missing.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-nano-missing.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid held-ROM map missing"
+  },
+  {
+    "name": "invalid-map-nano-oversized",
+    "manifest": "manifests/invalid-map-nano-oversized.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-nano-oversized.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid held-ROM map oversized"
+  },
+  {
+    "name": "invalid-nano-role",
+    "manifest": "manifests/invalid-nano-role.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-nano-role.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "invalid Nano ROM declaration role"
+  },
+  {
+    "name": "invalid-nano-size",
+    "manifest": "manifests/invalid-nano-size.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-nano-size.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "invalid Nano ROM declaration size"
+  },
+  {
+    "name": "invalid-nano-optional-interface",
+    "manifest": "manifests/invalid-nano-optional-interface.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-nano-optional-interface.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "invalid Nano ROM declaration optional-interface"
+  },
+  {
+    "name": "invalid-nano-missing-interface",
+    "manifest": "manifests/invalid-nano-missing-interface.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-nano-missing-interface.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "invalid Nano ROM declaration missing-interface"
+  },
+  {
     "name": "invalid-missing-rom",
     "manifest": "manifests/invalid-missing-rom.toml",
     "payload": "payloads/fes-fixture.rbf",

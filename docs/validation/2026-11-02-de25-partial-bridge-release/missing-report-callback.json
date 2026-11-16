@@ -1,0 +1,26 @@
+{
+  "head": "425cfcaf14b8657e1ebbfb43b56cc19b85feeb42",
+  "baseline": "59ddb433e1d9805586d2c907edf07c549c62a640",
+  "link_failure": "undefined reference to fes_nano_platform_sd_report",
+  "method": "byte comparison of extracted dispatcher and host callback provider; baseline integration not executed",
+  "files": [
+    {
+      "path": "platform/embedded/firmware/tests/endpoint_tb.cpp",
+      "base_sha256": "797e2ca25ba9f7382eb34e0c59130ce9054a4ff422dd7556c1da40ab5a0c511c",
+      "current_sha256": "797e2ca25ba9f7382eb34e0c59130ce9054a4ff422dd7556c1da40ab5a0c511c",
+      "unchanged_since_base": true
+    },
+    {
+      "path": "platform/embedded/firmware/nano_owned_sip.inc",
+      "base_sha256": "412b0cb3e7c00cad00758358c588df37bf789918e31fe260e338a382a9f28849",
+      "current_sha256": "412b0cb3e7c00cad00758358c588df37bf789918e31fe260e338a382a9f28849",
+      "unchanged_since_base": true
+    },
+    {
+      "path": "platform/embedded/firmware/verify_owned_sip.py",
+      "base_sha256": "93a8c5cd3ef0e9a3fe4b894ef99827a4f2788ec591585a8f3ff8fc0d9d0d64b1",
+      "current_sha256": "93a8c5cd3ef0e9a3fe4b894ef99827a4f2788ec591585a8f3ff8fc0d9d0d64b1",
+      "unchanged_since_base": true
+    }
+  ]
+}

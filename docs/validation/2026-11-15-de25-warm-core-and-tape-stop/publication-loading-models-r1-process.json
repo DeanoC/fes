@@ -1,0 +1,10 @@
+{
+  "pid": 1303416,
+  "process_start_ticks": "177122558",
+  "cap_seconds": 600,
+  "start_monotonic": 1771225.588274379,
+  "argv": [
+    "python3",
+    "out/publication/check-publication-loading-models.py"
+  ]
+}

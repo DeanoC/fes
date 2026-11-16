@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/recovery-chain-usb-reset/reset_top_adapter.py",
+    "execute",
+    "--plan-sha256",
+    "890d8e2dfc58c22eaf4727c3f7598297336cf5bccc8adcfa02b8108cfcdd7cb1"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 20.611816068878397,
+  "log_sha256": "f51855a0d43cf39389b385b146258d428f076519eb44f48c0a23c96ab99eb99d"
+}

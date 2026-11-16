@@ -1,0 +1,16 @@
+Parent/top USB stability 12 s
+Parent/top USB stability 24 s
+Parent/top USB stability 36 s
+Parent/top USB stability 48 s
+Candidate qualification terminal: stopped candidate Park: False
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/run_trial.py", line 27, in <module>
+    if __name__=='__main__':main()
+                            ~~~~^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/run_trial.py", line 26, in main
+    require(result['status']=='verified-candidate-cycle-Park','diagnostic stopped; keep claim and inspect retained evidence')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/transport.py", line 17, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: diagnostic stopped; keep claim and inspect retained evidence

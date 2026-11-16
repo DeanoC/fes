@@ -1,0 +1,210 @@
+{
+  "status": "passed",
+  "classification": "emulated block-device software",
+  "zephyr": "413b789deb391d3a37d06b463288a5fe765ee57e",
+  "fatfs": "16245c7c41d2b79e74984f49b5202551786b8a9b",
+  "sdk": "0.17.4",
+  "network": "not-tested",
+  "sources": {
+    "platform/embedded/zephyr/CMakeLists.txt": "088bbf9ae523ac16d463b04f28cc793b31ce314c3a6ce23d7989f60c434a2ff4",
+    "platform/embedded/zephyr/README.md": "1f5027f5e22589b7cb2bf4ed5c9c207dc6a7c1e28342582ce33ca22ba088c1b2",
+    "platform/embedded/zephyr/app.overlay": "6b5c74fe35d749d1274aaccc769912d88b0192f6e87c05c455b427bf3028fc4e",
+    "platform/embedded/zephyr/make_disk.py": "743d1d8c3caa96537b099a12175177e935cd9ac2f1acd5cd294b74395a3e2969",
+    "platform/embedded/zephyr/prj.conf": "01450ca5033eb4a551cf1f2a83b042df9c61ce5bc9065e331aaef57aaddefb6f",
+    "platform/embedded/zephyr/src/main.c": "1dce5cbe0764df22870f1afd39381fb0a29d1e00b3519f63dd890978cd5a64aa",
+    "platform/embedded/zephyr/verify.py": "79870ec93802d796ea6d8fe5e2c65bb8cd0ee2d79a32cd0e881399c4f5eeef26"
+  },
+  "commands": [
+    [
+      "cmake",
+      "-S",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/platform/embedded/zephyr",
+      "-B",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-storage-exact-config/build",
+      "-GNinja",
+      "-DBOARD=qemu_cortex_a53",
+      "-DPython3_EXECUTABLE=/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+      "-DZEPHYR_MODULES=/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-tools/fatfs"
+    ],
+    [
+      "cmake",
+      "--build",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-storage-exact-config/build",
+      "--parallel",
+      "4"
+    ],
+    [
+      "/usr/bin/python3",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/platform/embedded/zephyr/make_disk.py",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-storage-exact-config/good.img"
+    ],
+    [
+      "mdel",
+      "-i",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-storage-exact-config/missing.img",
+      "::FESBOOT.CFG"
+    ],
+    [
+      "mcopy",
+      "-o",
+      "-i",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-storage-exact-config/bad.img",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-storage-exact-config/wrong-config.txt",
+      "::FESBOOT.CFG"
+    ],
+    [
+      "mcopy",
+      "-o",
+      "-i",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-storage-exact-config/nul-suffix.img",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-storage-exact-config/nul-suffix-config.bin",
+      "::FESBOOT.CFG"
+    ],
+    [
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64",
+      "-machine",
+      "virt,gic-version=3",
+      "-cpu",
+      "cortex-a53",
+      "-m",
+      "128M",
+      "-smp",
+      "1",
+      "-nographic",
+      "-monitor",
+      "none",
+      "-kernel",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-storage-exact-config/build/zephyr/zephyr.elf",
+      "-netdev",
+      "user,id=network,hostfwd=tcp:127.0.0.1:39509-10.0.2.15:4242",
+      "-device",
+      "e1000,netdev=network,addr=1",
+      "-drive",
+      "if=none,id=storage,file=/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-storage-exact-config/good.img,format=raw",
+      "-device",
+      "nvme,drive=storage,serial=FESBASE,addr=2"
+    ],
+    [
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64",
+      "-machine",
+      "virt,gic-version=3",
+      "-cpu",
+      "cortex-a53",
+      "-m",
+      "128M",
+      "-smp",
+      "1",
+      "-nographic",
+      "-monitor",
+      "none",
+      "-kernel",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-storage-exact-config/build/zephyr/zephyr.elf",
+      "-netdev",
+      "user,id=network,hostfwd=tcp:127.0.0.1:48381-10.0.2.15:4242",
+      "-device",
+      "e1000,netdev=network,addr=1",
+      "-drive",
+      "if=none,id=storage,file=/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-storage-exact-config/missing.img,format=raw",
+      "-device",
+      "nvme,drive=storage,serial=FESBASE,addr=2"
+    ],
+    [
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64",
+      "-machine",
+      "virt,gic-version=3",
+      "-cpu",
+      "cortex-a53",
+      "-m",
+      "128M",
+      "-smp",
+      "1",
+      "-nographic",
+      "-monitor",
+      "none",
+      "-kernel",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-storage-exact-config/build/zephyr/zephyr.elf",
+      "-netdev",
+      "user,id=network,hostfwd=tcp:127.0.0.1:34981-10.0.2.15:4242",
+      "-device",
+      "e1000,netdev=network,addr=1",
+      "-drive",
+      "if=none,id=storage,file=/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-storage-exact-config/bad.img,format=raw",
+      "-device",
+      "nvme,drive=storage,serial=FESBASE,addr=2"
+    ],
+    [
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64",
+      "-machine",
+      "virt,gic-version=3",
+      "-cpu",
+      "cortex-a53",
+      "-m",
+      "128M",
+      "-smp",
+      "1",
+      "-nographic",
+      "-monitor",
+      "none",
+      "-kernel",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-storage-exact-config/build/zephyr/zephyr.elf",
+      "-netdev",
+      "user,id=network,hostfwd=tcp:127.0.0.1:59803-10.0.2.15:4242",
+      "-device",
+      "e1000,netdev=network,addr=1",
+      "-drive",
+      "if=none,id=storage,file=/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-storage-exact-config/nul-suffix.img,format=raw",
+      "-device",
+      "nvme,drive=storage,serial=FESBASE,addr=2"
+    ]
+  ],
+  "scenarios": [
+    {
+      "name": "good",
+      "status": "passed",
+      "disk_sha256": "b6dec593bed1ea865ee44fb1984475b5e6503beaf30656b122c00a84494dfef1",
+      "checks": [
+        {
+          "case": "real-fat32-config-read",
+          "boot_config": true
+        }
+      ]
+    },
+    {
+      "name": "missing",
+      "status": "passed",
+      "disk_sha256": "9c6a728304b6e0bd1b1d48a9ef63d7e34fdc0ea42748d35608a8a99627902299",
+      "checks": [
+        {
+          "case": "real-fat32-config-read",
+          "boot_config": false
+        }
+      ]
+    },
+    {
+      "name": "bad",
+      "status": "passed",
+      "disk_sha256": "a5a24c6ea86312e162d0949cfcc6e5a8e1a66679b587289ae4c88520f245bb80",
+      "checks": [
+        {
+          "case": "real-fat32-config-read",
+          "boot_config": false
+        }
+      ]
+    },
+    {
+      "name": "nul-suffix",
+      "status": "passed",
+      "disk_sha256": "bdff3cd8929c74388e7edf142545e64aff4c59bef0425d3fb5faadd948f09766",
+      "checks": [
+        {
+          "case": "real-fat32-config-read",
+          "boot_config": false
+        }
+      ]
+    }
+  ],
+  "elf_sha256": "728d78a1d3d96a070c5f4b68a49a7180ddb4b1335fccd0ac190998838173b6be",
+  "qemu_sha256": "abab52b9e084e176b047d698dcc9dc9c3a38e33cd6dc04cbe3792d2080cfdb45",
+  "nvme_original_sha256": "35b50200a5d391860096b2ae340e60f6e8dc82f12e8c34b6a12a9bb3e5b573e6",
+  "nvme_adapted_sha256": "959871547dda1c4a41ed0a02c29f8bae6ac2b7ebc45ed226d9089485ab84c203"
+}

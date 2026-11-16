@@ -1,0 +1,526 @@
+test_binding.py PASS
+test_native_session.py PASS
+test_flow.py FAIL
+test_active_native_failure_requires_reset_even_when_host_cleanup_passes (test_flow.FlowTests.test_active_native_failure_requires_reset_even_when_host_cleanup_passes) ... ERROR
+test_clock_expiry_and_plan_alias_mutation_stop_before_hooks (test_flow.FlowTests.test_clock_expiry_and_plan_alias_mutation_stop_before_hooks) ... 
+  test_clock_expiry_and_plan_alias_mutation_stop_before_hooks (test_flow.FlowTests.test_clock_expiry_and_plan_alias_mutation_stop_before_hooks) (clock=-1) ... ERROR
+  test_clock_expiry_and_plan_alias_mutation_stop_before_hooks (test_flow.FlowTests.test_clock_expiry_and_plan_alias_mutation_stop_before_hooks) (clock=1801) ... ERROR
+  test_clock_expiry_and_plan_alias_mutation_stop_before_hooks (test_flow.FlowTests.test_clock_expiry_and_plan_alias_mutation_stop_before_hooks) (clock=nan) ... ERROR
+  test_clock_expiry_and_plan_alias_mutation_stop_before_hooks (test_flow.FlowTests.test_clock_expiry_and_plan_alias_mutation_stop_before_hooks) (clock=inf) ... ERROR
+test_clock_expiry_and_plan_alias_mutation_stop_before_hooks (test_flow.FlowTests.test_clock_expiry_and_plan_alias_mutation_stop_before_hooks) ... ERROR
+test_complete_model_flow_restores_baseline_and_cannot_replay (test_flow.FlowTests.test_complete_model_flow_restores_baseline_and_cannot_replay) ... ERROR
+test_failed_rollback_or_baseline_does_not_promote (test_flow.FlowTests.test_failed_rollback_or_baseline_does_not_promote) ... 
+  test_failed_rollback_or_baseline_does_not_promote (test_flow.FlowTests.test_failed_rollback_or_baseline_does_not_promote) (fault='recovery-rollback') ... ERROR
+  test_failed_rollback_or_baseline_does_not_promote (test_flow.FlowTests.test_failed_rollback_or_baseline_does_not_promote) (fault='rollback-prewrite') ... ERROR
+  test_failed_rollback_or_baseline_does_not_promote (test_flow.FlowTests.test_failed_rollback_or_baseline_does_not_promote) (fault='native-baseline') ... ERROR
+test_invalid_clock_never_reserves_attempt (test_flow.FlowTests.test_invalid_clock_never_reserves_attempt) ... 
+  test_invalid_clock_never_reserves_attempt (test_flow.FlowTests.test_invalid_clock_never_reserves_attempt) (value=nan) ... ERROR
+  test_invalid_clock_never_reserves_attempt (test_flow.FlowTests.test_invalid_clock_never_reserves_attempt) (value=inf) ... ERROR
+  test_invalid_clock_never_reserves_attempt (test_flow.FlowTests.test_invalid_clock_never_reserves_attempt) (value=True) ... ERROR
+test_phase_leg_bounds_and_midtrial_clock_regression (test_flow.FlowTests.test_phase_leg_bounds_and_midtrial_clock_regression) ... 
+  test_phase_leg_bounds_and_midtrial_clock_regression (test_flow.FlowTests.test_phase_leg_bounds_and_midtrial_clock_regression) (fault='slow-recovery') ... ERROR
+  test_phase_leg_bounds_and_midtrial_clock_regression (test_flow.FlowTests.test_phase_leg_bounds_and_midtrial_clock_regression) (fault='leg-expired') ... ERROR
+  test_phase_leg_bounds_and_midtrial_clock_regression (test_flow.FlowTests.test_phase_leg_bounds_and_midtrial_clock_regression) (fault='backwards') ... ERROR
+test_phase_leg_bounds_and_midtrial_clock_regression (test_flow.FlowTests.test_phase_leg_bounds_and_midtrial_clock_regression) ... ERROR
+test_preexecution_native_failure_rolls_back_but_remains_failed (test_flow.FlowTests.test_preexecution_native_failure_rolls_back_but_remains_failed) ... ERROR
+test_prewrite_failure_does_not_attempt_rollback (test_flow.FlowTests.test_prewrite_failure_does_not_attempt_rollback) ... ERROR
+test_uncertain_write_requires_fresh_recovery_and_exact_candidate (test_flow.FlowTests.test_uncertain_write_requires_fresh_recovery_and_exact_candidate) ... ERROR
+test_unknown_cleanup_or_bad_epoch_cannot_continue (test_flow.FlowTests.test_unknown_cleanup_or_bad_epoch_cannot_continue) ... 
+  test_unknown_cleanup_or_bad_epoch_cannot_continue (test_flow.FlowTests.test_unknown_cleanup_or_bad_epoch_cannot_continue) (fault='native-diagnostic-unclean') ... ERROR
+  test_unknown_cleanup_or_bad_epoch_cannot_continue (test_flow.FlowTests.test_unknown_cleanup_or_bad_epoch_cannot_continue) (fault='epoch-reuse') ... ERROR
+  test_unknown_cleanup_or_bad_epoch_cannot_continue (test_flow.FlowTests.test_unknown_cleanup_or_bad_epoch_cannot_continue) (fault='wrong-image') ... ERROR
+  test_unknown_cleanup_or_bad_epoch_cannot_continue (test_flow.FlowTests.test_unknown_cleanup_or_bad_epoch_cannot_continue) (fault='wrong-plan') ... ERROR
+  test_unknown_cleanup_or_bad_epoch_cannot_continue (test_flow.FlowTests.test_unknown_cleanup_or_bad_epoch_cannot_continue) (fault='cleanup') ... ERROR
+  test_unknown_cleanup_or_bad_epoch_cannot_continue (test_flow.FlowTests.test_unknown_cleanup_or_bad_epoch_cannot_continue) (fault='claim') ... ERROR
+  test_unknown_cleanup_or_bad_epoch_cannot_continue (test_flow.FlowTests.test_unknown_cleanup_or_bad_epoch_cannot_continue) (fault='legacy-cycle-only') ... ERROR
+  test_unknown_cleanup_or_bad_epoch_cannot_continue (test_flow.FlowTests.test_unknown_cleanup_or_bad_epoch_cannot_continue) (fault='native-diagnostic') ... ERROR
+test_changed_host_source_closes_before_console_commands (test_fit_swap.SwapTests.test_changed_host_source_closes_before_console_commands) ... ok
+test_every_preserved_member_and_wrong_old_fit_stop_before_write (test_fit_swap.SwapTests.test_every_preserved_member_and_wrong_old_fit_stop_before_write) ... ok
+test_forward_and_independent_reverse_restore_exact_bytes (test_fit_swap.SwapTests.test_forward_and_independent_reverse_restore_exact_bytes) ... ok
+test_receipt_scope_session_direction_and_command_mutations_reject (test_fit_swap.SwapTests.test_receipt_scope_session_direction_and_command_mutations_reject) ... ok
+test_reverse_rejects_unknown_or_unchanged_boot_before_write (test_fit_swap.SwapTests.test_reverse_rejects_unknown_or_unchanged_boot_before_write) ... ok
+test_write_uncertainty_and_postwrite_damage_cannot_be_promoted (test_fit_swap.SwapTests.test_write_uncertainty_and_postwrite_damage_cannot_be_promoted) ... ok
+
+======================================================================
+ERROR: test_active_native_failure_requires_reset_even_when_host_cleanup_passes (test_flow.FlowTests.test_active_native_failure_requires_reset_even_when_host_cleanup_passes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 73, in test_active_native_failure_requires_reset_even_when_host_cleanup_passes
+    f,h,r=self.run_flow(Path(d),'native-diagnostic')
+          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_clock_expiry_and_plan_alias_mutation_stop_before_hooks (test_flow.FlowTests.test_clock_expiry_and_plan_alias_mutation_stop_before_hooks) (clock=-1)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 108, in test_clock_expiry_and_plan_alias_mutation_stop_before_hooks
+    f=Flow(b,Path(d),h,now=lambda:next(samples,value))
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_clock_expiry_and_plan_alias_mutation_stop_before_hooks (test_flow.FlowTests.test_clock_expiry_and_plan_alias_mutation_stop_before_hooks) (clock=1801)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 108, in test_clock_expiry_and_plan_alias_mutation_stop_before_hooks
+    f=Flow(b,Path(d),h,now=lambda:next(samples,value))
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_clock_expiry_and_plan_alias_mutation_stop_before_hooks (test_flow.FlowTests.test_clock_expiry_and_plan_alias_mutation_stop_before_hooks) (clock=nan)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 108, in test_clock_expiry_and_plan_alias_mutation_stop_before_hooks
+    f=Flow(b,Path(d),h,now=lambda:next(samples,value))
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_clock_expiry_and_plan_alias_mutation_stop_before_hooks (test_flow.FlowTests.test_clock_expiry_and_plan_alias_mutation_stop_before_hooks) (clock=inf)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 108, in test_clock_expiry_and_plan_alias_mutation_stop_before_hooks
+    f=Flow(b,Path(d),h,now=lambda:next(samples,value))
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_clock_expiry_and_plan_alias_mutation_stop_before_hooks (test_flow.FlowTests.test_clock_expiry_and_plan_alias_mutation_stop_before_hooks)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 111, in test_clock_expiry_and_plan_alias_mutation_stop_before_hooks
+    b=self.bundle();h=Hooks(b);f=Flow(b,Path(d),h,now=lambda:0)
+                                 ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_complete_model_flow_restores_baseline_and_cannot_replay (test_flow.FlowTests.test_complete_model_flow_restores_baseline_and_cannot_replay)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 58, in test_complete_model_flow_restores_baseline_and_cannot_replay
+    f,h,r=self.run_flow(Path(d));self.assertEqual(r['status'],'verified-logical-flow')
+          ~~~~~~~~~~~~~^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_failed_rollback_or_baseline_does_not_promote (test_flow.FlowTests.test_failed_rollback_or_baseline_does_not_promote) (fault='recovery-rollback')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 102, in test_failed_rollback_or_baseline_does_not_promote
+    f,h,r=self.run_flow(Path(d),fault);self.assertEqual(r['status'],'stopped')
+          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_failed_rollback_or_baseline_does_not_promote (test_flow.FlowTests.test_failed_rollback_or_baseline_does_not_promote) (fault='rollback-prewrite')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 102, in test_failed_rollback_or_baseline_does_not_promote
+    f,h,r=self.run_flow(Path(d),fault);self.assertEqual(r['status'],'stopped')
+          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_failed_rollback_or_baseline_does_not_promote (test_flow.FlowTests.test_failed_rollback_or_baseline_does_not_promote) (fault='native-baseline')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 102, in test_failed_rollback_or_baseline_does_not_promote
+    f,h,r=self.run_flow(Path(d),fault);self.assertEqual(r['status'],'stopped')
+          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_invalid_clock_never_reserves_attempt (test_flow.FlowTests.test_invalid_clock_never_reserves_attempt) (value=nan)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 117, in test_invalid_clock_never_reserves_attempt
+    f=Flow(self.bundle(),Path(d),Hooks(self.bundle()),now=lambda:value)
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_invalid_clock_never_reserves_attempt (test_flow.FlowTests.test_invalid_clock_never_reserves_attempt) (value=inf)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 117, in test_invalid_clock_never_reserves_attempt
+    f=Flow(self.bundle(),Path(d),Hooks(self.bundle()),now=lambda:value)
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_invalid_clock_never_reserves_attempt (test_flow.FlowTests.test_invalid_clock_never_reserves_attempt) (value=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 117, in test_invalid_clock_never_reserves_attempt
+    f=Flow(self.bundle(),Path(d),Hooks(self.bundle()),now=lambda:value)
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_phase_leg_bounds_and_midtrial_clock_regression (test_flow.FlowTests.test_phase_leg_bounds_and_midtrial_clock_regression) (fault='slow-recovery')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 123, in test_phase_leg_bounds_and_midtrial_clock_regression
+    f,h,r=self.run_flow(Path(d),fault);self.assertEqual(r['status'],'stopped')
+          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_phase_leg_bounds_and_midtrial_clock_regression (test_flow.FlowTests.test_phase_leg_bounds_and_midtrial_clock_regression) (fault='leg-expired')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 123, in test_phase_leg_bounds_and_midtrial_clock_regression
+    f,h,r=self.run_flow(Path(d),fault);self.assertEqual(r['status'],'stopped')
+          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_phase_leg_bounds_and_midtrial_clock_regression (test_flow.FlowTests.test_phase_leg_bounds_and_midtrial_clock_regression) (fault='backwards')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 123, in test_phase_leg_bounds_and_midtrial_clock_regression
+    f,h,r=self.run_flow(Path(d),fault);self.assertEqual(r['status'],'stopped')
+          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_phase_leg_bounds_and_midtrial_clock_regression (test_flow.FlowTests.test_phase_leg_bounds_and_midtrial_clock_regression)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 126, in test_phase_leg_bounds_and_midtrial_clock_regression
+    f,h,r=self.run_flow(Path(d),'slow-forward')
+          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_preexecution_native_failure_rolls_back_but_remains_failed (test_flow.FlowTests.test_preexecution_native_failure_rolls_back_but_remains_failed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 68, in test_preexecution_native_failure_rolls_back_but_remains_failed
+    f,h,r=self.run_flow(Path(d),'native-diagnostic-before-execution')
+          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_prewrite_failure_does_not_attempt_rollback (test_flow.FlowTests.test_prewrite_failure_does_not_attempt_rollback)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 85, in test_prewrite_failure_does_not_attempt_rollback
+    f,h,r=self.run_flow(Path(d),'forward-prewrite');self.assertEqual(h.calls,['recovery-before','forward'])
+          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_uncertain_write_requires_fresh_recovery_and_exact_candidate (test_flow.FlowTests.test_uncertain_write_requires_fresh_recovery_and_exact_candidate)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 89, in test_uncertain_write_requires_fresh_recovery_and_exact_candidate
+    f,h,r=self.run_flow(Path(d),'forward-timeout')
+          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_unknown_cleanup_or_bad_epoch_cannot_continue (test_flow.FlowTests.test_unknown_cleanup_or_bad_epoch_cannot_continue) (fault='native-diagnostic-unclean')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 80, in test_unknown_cleanup_or_bad_epoch_cannot_continue
+    f,h,r=self.run_flow(Path(d),fault);self.assertEqual(r['status'],'stopped')
+          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_unknown_cleanup_or_bad_epoch_cannot_continue (test_flow.FlowTests.test_unknown_cleanup_or_bad_epoch_cannot_continue) (fault='epoch-reuse')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 80, in test_unknown_cleanup_or_bad_epoch_cannot_continue
+    f,h,r=self.run_flow(Path(d),fault);self.assertEqual(r['status'],'stopped')
+          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_unknown_cleanup_or_bad_epoch_cannot_continue (test_flow.FlowTests.test_unknown_cleanup_or_bad_epoch_cannot_continue) (fault='wrong-image')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 80, in test_unknown_cleanup_or_bad_epoch_cannot_continue
+    f,h,r=self.run_flow(Path(d),fault);self.assertEqual(r['status'],'stopped')
+          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_unknown_cleanup_or_bad_epoch_cannot_continue (test_flow.FlowTests.test_unknown_cleanup_or_bad_epoch_cannot_continue) (fault='wrong-plan')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 80, in test_unknown_cleanup_or_bad_epoch_cannot_continue
+    f,h,r=self.run_flow(Path(d),fault);self.assertEqual(r['status'],'stopped')
+          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_unknown_cleanup_or_bad_epoch_cannot_continue (test_flow.FlowTests.test_unknown_cleanup_or_bad_epoch_cannot_continue) (fault='cleanup')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 80, in test_unknown_cleanup_or_bad_epoch_cannot_continue
+    f,h,r=self.run_flow(Path(d),fault);self.assertEqual(r['status'],'stopped')
+          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_unknown_cleanup_or_bad_epoch_cannot_continue (test_flow.FlowTests.test_unknown_cleanup_or_bad_epoch_cannot_continue) (fault='claim')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 80, in test_unknown_cleanup_or_bad_epoch_cannot_continue
+    f,h,r=self.run_flow(Path(d),fault);self.assertEqual(r['status'],'stopped')
+          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_unknown_cleanup_or_bad_epoch_cannot_continue (test_flow.FlowTests.test_unknown_cleanup_or_bad_epoch_cannot_continue) (fault='legacy-cycle-only')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 80, in test_unknown_cleanup_or_bad_epoch_cannot_continue
+    f,h,r=self.run_flow(Path(d),fault);self.assertEqual(r['status'],'stopped')
+          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+======================================================================
+ERROR: test_unknown_cleanup_or_bad_epoch_cannot_continue (test_flow.FlowTests.test_unknown_cleanup_or_bad_epoch_cannot_continue) (fault='native-diagnostic')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 80, in test_unknown_cleanup_or_bad_epoch_cannot_continue
+    f,h,r=self.run_flow(Path(d),fault);self.assertEqual(r['status'],'stopped')
+          ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py", line 54, in run_flow
+    b=self.bundle();hooks=Hooks(b,fault);f=Flow(b,directory,hooks,now=lambda:hooks.clock)
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py", line 32, in __init__
+    require(image['kind']==('matched-recovery-sof' if row['program_phase']=='recovery' else 'hps-phase1-rbf'),'role image kind differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 14, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: role image kind differs
+
+----------------------------------------------------------------------
+Ran 16 tests in 4.290s
+
+FAILED (errors=28)
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/publication/check-full-sof-models.py", line 9, in <module>
+    assert r.returncode==0,name;assert b'skipped=' not in r.stdout;rows.append(dict(test=name,tests=int(re.search(rb'Ran (\d+) tests?',r.stdout)[1]),log_sha256=hashlib.sha256(r.stdout).hexdigest()))
+           ^^^^^^^^^^^^^^^
+AssertionError: test_flow.py

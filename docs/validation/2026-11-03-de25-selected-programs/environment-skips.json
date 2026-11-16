@@ -1,0 +1,16 @@
+{
+  "source_commit": "068495f0cf1d6011c31447a63bde4b70e7056702",
+  "selected_tests": 1342,
+  "passed_tests": 1340,
+  "environment_skips": [
+    {
+      "test": "test_media_inputs.UbootDerivationTest.test_locked_upstream_derives_locked_uboot",
+      "reason": "locked upstream uboot.img cache is absent"
+    },
+    {
+      "test": "test_gpu_lease.GpuLeaseTests.test_macos_statfs_reports_the_lease_filesystem",
+      "reason": "statfs(2) layout is the macOS one"
+    }
+  ],
+  "classification": "two explicit environment omissions; no skip covers selected-program code; matched Nano vendor boot-chain cross-build passes separately"
+}

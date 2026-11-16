@@ -1,0 +1,448 @@
+{
+  "status": "startup-only-pass; full procedure failed",
+  "failure_class": "operator passed a CPU mapping object where startup.decode requires the final checkpoint name",
+  "native_source": "e225ea89b002fcc53a90c743f66c592d1f8d35ff",
+  "observer_source": "98fd021ad7a42c6fb22230e1bd66a6e1a2365f6e",
+  "raw_sha256": "44dfe5405bc04bc57f74c68f85726f551cedc07cd123736787e84ea024fc7379",
+  "raw_bytes": 6703,
+  "cpu_startup": {
+    "records": [
+      {
+        "line": 91,
+        "phase": "loader_begin",
+        "ticks": 7006594741,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818219056
+      },
+      {
+        "line": 92,
+        "phase": "decode_begin",
+        "ticks": 7034304535,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 93,
+        "phase": "inflate_end",
+        "ticks": 7504217302,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 94,
+        "phase": "checksum_end",
+        "ticks": 7511675571,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 95,
+        "phase": "decode_end",
+        "ticks": 7515204324,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 96,
+        "phase": "copy_end",
+        "ticks": 7521534346,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 97,
+        "phase": "handoff",
+        "ticks": 7539344752,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818219056
+      },
+      {
+        "line": 99,
+        "phase": "go_hwinit",
+        "ticks": 7548632745,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 100,
+        "phase": "go_vectors",
+        "ticks": 7552059985,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 101,
+        "phase": "go_main",
+        "ticks": 7559166411,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 102,
+        "phase": "verifier_ready",
+        "ticks": 7564096057,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 103,
+        "phase": "sd_open_begin",
+        "ticks": 7567693728,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 104,
+        "phase": "sd_open_end",
+        "ticks": 7583770333,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 105,
+        "phase": "fat_mount_end",
+        "ticks": 7596341047,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      }
+    ],
+    "errors": [],
+    "complete": true,
+    "rejected": false,
+    "last_checkpoint": "fat_mount_end",
+    "timings_us": {
+      "loader_begin": 0,
+      "decode_begin": 69274,
+      "inflate_end": 1244056,
+      "checksum_end": 1262702,
+      "decode_end": 1271523,
+      "copy_end": 1287349,
+      "handoff": 1331875,
+      "go_hwinit": 1355095,
+      "go_vectors": 1363663,
+      "go_main": 1381429,
+      "verifier_ready": 1393753,
+      "sd_open_begin": 1402747,
+      "sd_open_end": 1442938,
+      "fat_mount_end": 1474365
+    },
+    "core_load_acceptance": false
+  },
+  "mode_applicable_checkpoints": 14,
+  "each_checkpoint_deletion_rejected": true,
+  "matched_boot": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "ee5b92a7fc271fb8"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 2783182750957796215,
+          "epoch": 6450917821,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "spl_barrier_before",
+        "line": 36,
+        "values": {
+          "phase": "before"
+        }
+      },
+      {
+        "stage": "spl_barrier_after",
+        "line": 37,
+        "values": {
+          "phase": "after"
+        }
+      },
+      {
+        "stage": "spl_atf_entry",
+        "line": 38,
+        "values": {
+          "phase": "entry"
+        }
+      },
+      {
+        "stage": "spl_atf_hash_before",
+        "line": 39,
+        "values": {
+          "phase": "hash-before"
+        }
+      },
+      {
+        "stage": "spl_atf_hash_after",
+        "line": 40,
+        "values": {
+          "phase": "hash-after"
+        }
+      },
+      {
+        "stage": "spl_atf",
+        "line": 41,
+        "values": {
+          "target": 2147483648,
+          "bl32": 0,
+          "bl33": 2149580800,
+          "fdt": 0,
+          "params": 3220176904,
+          "cold": 138896,
+          "cookie": 5066060512865812482,
+          "el": 3,
+          "mpidr": 2164260864,
+          "sctlr": 12912696,
+          "scr": 15,
+          "daif": 960,
+          "bytes": 90173,
+          "sha256": "e13c2000c33daaf1ed96f8553c5d71666da93c668560e6ebf138db388222cbd6"
+        }
+      },
+      {
+        "stage": "el3_capture_before",
+        "line": 42,
+        "values": {
+          "phase": "before",
+          "pointer": 138896,
+          "cookie": 5066060512865812482
+        }
+      },
+      {
+        "stage": "el3_capture_after",
+        "line": 43,
+        "values": {
+          "phase": "after",
+          "pointer": 138896,
+          "cookie": 5066060512865812482
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 49,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "sd_platform",
+        "line": 50,
+        "values": {
+          "setup": 1,
+          "ready": 1
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 53,
+        "values": {
+          "id": "ee5b92a7fc271fb8"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 57,
+        "values": {}
+      },
+      {
+        "stage": "prompt",
+        "line": 69,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 70,
+        "values": {
+          "id": "ee5b92a7fc271fb8"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 71,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216373872,
+          "malloc_start": 3216408576,
+          "malloc_end": 3220611072,
+          "reloc": 3220611072,
+          "fdt": 3216383520
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 78,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 2783182750957796215,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 87,
+        "values": {
+          "phase": "after-remove",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 2783182750957796215,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "live",
+        "line": 88,
+        "values": {
+          "affinity": 0,
+          "counter": 400000000,
+          "cpu0": 0,
+          "cpu1": 1,
+          "cpu2": 1,
+          "cpu3": 1,
+          "per0": 4286562239,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "handoff",
+        "line": 89,
+        "values": {}
+      },
+      {
+        "stage": "el2",
+        "line": 90,
+        "values": {}
+      },
+      {
+        "stage": "el1",
+        "line": 98,
+        "values": {}
+      }
+    ],
+    "errors": [],
+    "loader_ready": true,
+    "complete": false,
+    "last_checkpoint": "el1",
+    "core_load_acceptance": false,
+    "atf_observation": {
+      "target": 2147483648,
+      "bl32": 0,
+      "bl33": 2149580800,
+      "fdt": 0,
+      "params": 3220176904,
+      "cold": 138896,
+      "cookie": 5066060512865812482,
+      "el": 3,
+      "mpidr": 2164260864,
+      "sctlr": 12912696,
+      "scr": 15,
+      "daif": 960,
+      "bytes": 90173,
+      "sha256": "e13c2000c33daaf1ed96f8553c5d71666da93c668560e6ebf138db388222cbd6"
+    }
+  },
+  "app_ready": {
+    "scope": "nano-tenfoot-serial-v1",
+    "display": "serial-state-only",
+    "titles": [
+      "ZX81",
+      "ZX80"
+    ],
+    "focus": 0,
+    "loading": false,
+    "load_error": "",
+    "session": "idle",
+    "launch": "idle",
+    "launch_error": "",
+    "retry_stop": false,
+    "native": {
+      "State": "ready",
+      "Owner": 2783182750957796215,
+      "Generation": 0,
+      "Identity": {
+        "PackageID": "",
+        "CoreID": "",
+        "ABI": "",
+        "BuildID": "",
+        "Platform": "",
+        "Device": "",
+        "ProgrammingProfile": "",
+        "ActivationReceiptSHA256": "",
+        "ProgrammedSHA256": "",
+        "Major": 0,
+        "Minor": 0
+      },
+      "Held": true,
+      "Error": ""
+    }
+  },
+  "core_loads": 0,
+  "keys_sent": 0,
+  "hardware_retry": false,
+  "hardware_acceptance": false,
+  "ordinary_admission": false,
+  "cleanup": {
+    "original_clock_restored": true,
+    "usb_permissions_restored": true,
+    "private_server_stopped": true
+  },
+  "failure_source_preserved": true
+}

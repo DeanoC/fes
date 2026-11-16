@@ -1,0 +1,392 @@
+{
+  "status": "passed",
+  "startup": {
+    "records": [
+      {
+        "line": 91,
+        "phase": "loader_begin",
+        "ticks": 6902739932,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818219056
+      },
+      {
+        "line": 92,
+        "phase": "decode_begin",
+        "ticks": 6930439265,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 93,
+        "phase": "inflate_end",
+        "ticks": 7393776300,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 94,
+        "phase": "checksum_end",
+        "ticks": 7401166721,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 95,
+        "phase": "decode_end",
+        "ticks": 7404695273,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 96,
+        "phase": "copy_end",
+        "ticks": 7410977127,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 97,
+        "phase": "handoff",
+        "ticks": 7428781740,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818219056
+      },
+      {
+        "line": 99,
+        "phase": "go_hwinit",
+        "ticks": 7438113338,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 100,
+        "phase": "go_vectors",
+        "ticks": 7441540854,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 101,
+        "phase": "go_main",
+        "ticks": 7448648477,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 102,
+        "phase": "verifier_ready",
+        "ticks": 7452990111,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 103,
+        "phase": "sd_open_begin",
+        "ticks": 7456588010,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 104,
+        "phase": "sd_open_end",
+        "ticks": 7472720112,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 105,
+        "phase": "fat_mount_end",
+        "ticks": 7485284862,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 106,
+        "phase": "retain_begin",
+        "ticks": 7488850055,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 107,
+        "phase": "retain_end",
+        "ticks": 29625838725,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      }
+    ],
+    "errors": [],
+    "complete": true,
+    "rejected": false,
+    "last_checkpoint": "retain_end",
+    "timings_us": {
+      "loader_begin": 0,
+      "decode_begin": 69248,
+      "inflate_end": 1227590,
+      "checksum_end": 1246066,
+      "decode_end": 1254888,
+      "copy_end": 1270592,
+      "handoff": 1315104,
+      "go_hwinit": 1338433,
+      "go_vectors": 1347002,
+      "go_main": 1364771,
+      "verifier_ready": 1375625,
+      "sd_open_begin": 1384620,
+      "sd_open_end": 1424950,
+      "fat_mount_end": 1456362,
+      "retain_begin": 1465275,
+      "retain_end": 56807746
+    },
+    "core_load_acceptance": false
+  },
+  "startup_rejected_captures": [
+    {
+      "case": "loader_begin",
+      "accepted": false
+    },
+    {
+      "case": "decode_begin",
+      "accepted": false
+    },
+    {
+      "case": "inflate_end",
+      "accepted": false
+    },
+    {
+      "case": "checksum_end",
+      "accepted": false
+    },
+    {
+      "case": "decode_end",
+      "accepted": false
+    },
+    {
+      "case": "copy_end",
+      "accepted": false
+    },
+    {
+      "case": "handoff",
+      "accepted": false
+    },
+    {
+      "case": "go_hwinit",
+      "accepted": false
+    },
+    {
+      "case": "go_vectors",
+      "accepted": false
+    },
+    {
+      "case": "go_main",
+      "accepted": false
+    },
+    {
+      "case": "verifier_ready",
+      "accepted": false
+    },
+    {
+      "case": "sd_open_begin",
+      "accepted": false
+    },
+    {
+      "case": "sd_open_end",
+      "accepted": false
+    },
+    {
+      "case": "fat_mount_end",
+      "accepted": false
+    },
+    {
+      "case": "retain_begin",
+      "accepted": false
+    },
+    {
+      "case": "retain_end",
+      "accepted": false
+    }
+  ],
+  "raw_capture_sha256": "d3c664589708d0a91c297210b074b67b6a29e2b77ad95881eb9b4b41763d279c",
+  "raw_capture_bytes": 35150,
+  "full_capture_matches_native_receipt": true,
+  "last_checkpoint": "window_reload_closed",
+  "first": {
+    "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+    "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+    "owner": 10650113560991715973,
+    "source_generation": 4,
+    "closed_generation": 7,
+    "frames": 12,
+    "last_reader_generation": 13,
+    "last_cookie": 1,
+    "bytes": 3686400,
+    "crc32": 1096205613,
+    "frame_sha256": "1a5494e29641f42e61d7e25ed40099a07a7abce5968f1ebe26fef1881a02922c",
+    "access_map_sha256": "e9b4f9f3c82a44e0a457245843d3ad9f9a9ea42522548eac764c31fb8d5e5e27"
+  },
+  "second": {
+    "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+    "owner": 10650113560991715973,
+    "source_generation": 10,
+    "closed_generation": 13
+  },
+  "rejected_captures": [
+    {
+      "case": "missing-FES_NATIVE_FPGA_WINDOW_MEMORY-0",
+      "accepted": false
+    },
+    {
+      "case": "missing-FES_NATIVE_FPGA_WINDOW_STORAGE_RETURN BEGIN-0",
+      "accepted": false
+    },
+    {
+      "case": "missing-FES_NATIVE_FPGA_WINDOW_STORAGE_RETURN PASS-0",
+      "accepted": false
+    },
+    {
+      "case": "missing-FES_NATIVE_FPGA_WINDOW_RELOAD BEGIN-0",
+      "accepted": false
+    },
+    {
+      "case": "missing-FES_NATIVE_FPGA_WINDOW_RELOAD PASS-0",
+      "accepted": false
+    },
+    {
+      "case": "missing-FES_NANO_MASTER_STOP-0",
+      "accepted": false
+    },
+    {
+      "case": "missing-FES_NANO_MASTER_STOP-1",
+      "accepted": false
+    },
+    {
+      "case": "missing-FES_NANO_WINDOW_CLOSURE-0",
+      "accepted": false
+    },
+    {
+      "case": "missing-FES_NANO_WINDOW_CLOSURE-1",
+      "accepted": false
+    },
+    {
+      "case": "missing-FES_NANO_WINDOW_READER_DRAIN-0",
+      "accepted": false
+    },
+    {
+      "case": "missing-FES_NANO_WINDOW_READER_DRAIN-1",
+      "accepted": false
+    },
+    {
+      "case": "missing-FES_NATIVE_FPGA_PROGRAMMED PASS-0",
+      "accepted": false
+    },
+    {
+      "case": "missing-FES_NATIVE_FPGA_PROGRAMMED PASS-1",
+      "accepted": false
+    },
+    {
+      "case": "missing-FES_NANO_FABRIC_ACTIVATION-0",
+      "accepted": false
+    },
+    {
+      "case": "missing-FES_NANO_FABRIC_ACTIVATION-1",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-1",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-2",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-3",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-4",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-5",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-6",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-7",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-8",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-9",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-10",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-11",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-12",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-13",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-14",
+      "accepted": false
+    },
+    {
+      "case": "changed-second-source_generation=10",
+      "accepted": false
+    },
+    {
+      "case": "changed-second-closed_generation=13",
+      "accepted": false
+    },
+    {
+      "case": "changed-second-previous=4 rearm=1",
+      "accepted": false
+    },
+    {
+      "case": "changed-second-ack_cookie=3",
+      "accepted": false
+    },
+    {
+      "case": "changed-second-frames=2",
+      "accepted": false
+    },
+    {
+      "case": "changed-second-sd_contained=1",
+      "accepted": false
+    }
+  ],
+  "hardware_access": false,
+  "decoder_sha256": "d90de5685d03634f433041c2b10e9975885742eae57f71584de9bd85d4395acc"
+}

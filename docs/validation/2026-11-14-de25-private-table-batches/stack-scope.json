@@ -1,0 +1,51 @@
+{
+  "status": "compiled-individual-stack-frames-only",
+  "frames": {
+    "candidate-probe_setup": {
+      "memory_block": {
+        "bytes": 1104,
+        "kind": "static"
+      },
+      "nano_probe_prepare": {
+        "bytes": 1280,
+        "kind": "static"
+      }
+    },
+    "predecessor-probe_setup": {
+      "memory_block": {
+        "bytes": 336,
+        "kind": "static"
+      },
+      "nano_probe_prepare": {
+        "bytes": 512,
+        "kind": "static"
+      }
+    },
+    "candidate-nano_cold_platform": {
+      "fes_nano_sdm_source_validate": {
+        "bytes": 352,
+        "kind": "static"
+      },
+      "fes_nano_sdm_source_prepare": {
+        "bytes": 688,
+        "kind": "static"
+      }
+    },
+    "predecessor-nano_cold_platform": {
+      "fes_nano_sdm_source_validate": {
+        "bytes": 352,
+        "kind": "static"
+      },
+      "fes_nano_sdm_source_prepare": {
+        "bytes": 688,
+        "kind": "static"
+      }
+    }
+  },
+  "platform_stack_bytes": 8192,
+  "whole_EL3_stack_qualified": false,
+  "other_observation_words": 32,
+  "preparation_memory_words": 128,
+  "preparation_memory_bytes": 1024,
+  "hardware_accepted": false
+}

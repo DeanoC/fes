@@ -1,0 +1,651 @@
+{
+  "base": "cfa314b571ee85974a1781fb60893868ca4622d2",
+  "classification": "host software/fault tests, native QEMU model checks and Nano cross-builds; no physical hardware acceptance",
+  "source_sha256": {
+    "platform/embedded/tamago/cmd/fabric/main.go": "51aae969211fabb70fa0785bf2b75e3d8516461bce9cf224772cb8fb7adf839a",
+    "platform/embedded/tamago/configcheck/checks.go": "9d976c2e34890653c957c05c04f4fd4f83ef008541639289389b5117578cf388",
+    "platform/embedded/tamago/configcheck/checks_test.go": "7d15f89fcb0d829aec5ad5ce4951ca932dbda96f65e72acaef1ce4e22ba297a1",
+    "platform/embedded/tamago/fabricmodel/checks.go": "a95ad19b2239d7d987837b99043e50de9e72b0ba4f005b79dc753587e0d645ca",
+    "platform/embedded/tamago/fabricmodel/model.go": "38640784a0d3ca598fe3e0d8958c08a1fcad6d001ec7a32c968cebf7ae652ee8",
+    "platform/embedded/tamago/sdm/config_model.go": "ade2c3d7cafe5391509c7a2fa37663dac2d1ff3922881aa5a1db0bd1e9e09e65",
+    "platform/embedded/tamago/sdm/config_model_test.go": "6f175edb3c17d558492150910f7a72cc17936d70b4ce8f8a252b23f34127c3ee",
+    "platform/embedded/tamago/sdm/probe.go": "39f81e88c5a518c4cf633c8aa2b7e3431bfe528e566f7b09c0345a39943c99e5"
+  },
+  "tests": {
+    "embedded_race": {
+      "command": "FES_MODEL_FIXTURES=$PWD/out/native-cold-qemu-play/package-fixtures GOWORK=off go -C platform/embedded/tamago test -race ./...",
+      "exit": 0
+    },
+    "variable_completion_schedules": 100,
+    "deadcode": {
+      "command": "make deadcode",
+      "exit": 0
+    }
+  },
+  "log_sha256": {
+    "out/native-contained-host-final.log": "eff2cd56245379ece9af051dc9842e1ab3481835e74941dbb2ce7aca87e39bb3",
+    "out/native-contained-test-changed.log": "bb3f7042e5cbb508ad24d9acb7da3ec01d1c379464d99c2c262e9d350021870d",
+    "out/native-contained-deadcode.log": "dc3fad4360e3c9bd3eee93b08d776c5f85d7d60401dc37837a319f986f7e696a",
+    "out/native-contained-fabric-final.log": "52ea6f5e560d2707e8ae00d1f475b3906b4d6a5b7e98f17fd71b9681d2215e8a",
+    "out/native-contained-fabric-final/boot-1/console.log": "eaff09db6136eab8b7d796cfc365440ed2a4144feeebbd6f88f19d8bfea16780",
+    "out/native-contained-play.log": "e7f4be54d13869819422834e52e01f9a028536f960d4db3f35920732998011e1"
+  },
+  "affected_checks": {
+    "format": 1,
+    "root": "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os",
+    "base": "cfa314b571ee85974a1781fb60893868ca4622d2",
+    "head": "cfa314b571ee85974a1781fb60893868ca4622d2",
+    "checkout_head": "cfa314b571ee85974a1781fb60893868ca4622d2",
+    "merge_base": "cfa314b571ee85974a1781fb60893868ca4622d2",
+    "local_paths": [
+      "platform/embedded/tamago/README.md",
+      "platform/embedded/tamago/cmd/fabric/main.go",
+      "platform/embedded/tamago/configcheck/checks.go",
+      "platform/embedded/tamago/configcheck/checks_test.go",
+      "platform/embedded/tamago/fabricmodel/README.md",
+      "platform/embedded/tamago/fabricmodel/checks.go",
+      "platform/embedded/tamago/fabricmodel/model.go",
+      "platform/embedded/tamago/scanout/README.md",
+      "platform/embedded/tamago/sdm/README.md",
+      "platform/embedded/tamago/sdm/config_model.go",
+      "platform/embedded/tamago/sdm/config_model_test.go",
+      "platform/embedded/tamago/sdm/probe.go"
+    ],
+    "impact": {
+      "lanes": {
+        "parent": true,
+        "host": false,
+        "runtime": false,
+        "contracts": false,
+        "fpga": false
+      },
+      "skipped": [
+        "host",
+        "runtime",
+        "contracts",
+        "fpga"
+      ],
+      "cores": [],
+      "test_modes": {
+        "video": false,
+        "media": true,
+        "full_race": false
+      },
+      "paths": [
+        "platform/embedded/tamago/README.md",
+        "platform/embedded/tamago/cmd/fabric/main.go",
+        "platform/embedded/tamago/configcheck/checks.go",
+        "platform/embedded/tamago/configcheck/checks_test.go",
+        "platform/embedded/tamago/fabricmodel/README.md",
+        "platform/embedded/tamago/fabricmodel/checks.go",
+        "platform/embedded/tamago/fabricmodel/model.go",
+        "platform/embedded/tamago/scanout/README.md",
+        "platform/embedded/tamago/sdm/README.md",
+        "platform/embedded/tamago/sdm/config_model.go",
+        "platform/embedded/tamago/sdm/config_model_test.go",
+        "platform/embedded/tamago/sdm/probe.go"
+      ],
+      "reasons": [
+        "platform/embedded/tamago/cmd/fabric/main.go: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/configcheck/checks.go: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/configcheck/checks_test.go: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/fabricmodel/checks.go: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/fabricmodel/model.go: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/sdm/config_model.go: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/sdm/config_model_test.go: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/sdm/probe.go: parent orchestration/tests/assembly; component sources unchanged"
+      ],
+      "always": [
+        "planner tests",
+        "diff whitespace checks"
+      ],
+      "not_run": [
+        "FPGA synthesis/place-and-route",
+        "cold image builds",
+        "hardware acceptance"
+      ]
+    },
+    "commands": [
+      {
+        "lane": "always",
+        "label": "test_affected.py",
+        "cwd": ".",
+        "argv": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_affected.py",
+          "-v"
+        ],
+        "tools": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python"
+        ],
+        "files": [
+          "tests/test_affected.py"
+        ]
+      },
+      {
+        "lane": "always",
+        "label": "test_test_changed.py",
+        "cwd": ".",
+        "argv": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_test_changed.py",
+          "-v"
+        ],
+        "tools": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python"
+        ],
+        "files": [
+          "tests/test_test_changed.py"
+        ]
+      },
+      {
+        "lane": "always",
+        "label": "committed whitespace",
+        "cwd": ".",
+        "argv": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "scripts/check_diff.py",
+          "--base",
+          "cfa314b571ee85974a1781fb60893868ca4622d2",
+          "--head",
+          "cfa314b571ee85974a1781fb60893868ca4622d2"
+        ],
+        "tools": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python"
+        ],
+        "files": []
+      },
+      {
+        "lane": "always",
+        "label": "working whitespace",
+        "cwd": ".",
+        "argv": [
+          "git",
+          "diff",
+          "--check",
+          "HEAD",
+          "--"
+        ],
+        "tools": [
+          "git"
+        ],
+        "files": []
+      },
+      {
+        "lane": "parent",
+        "label": "parent Python regressions",
+        "cwd": ".",
+        "argv": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "scripts/parent_tests.py",
+          "--video",
+          "false",
+          "--media",
+          "true",
+          "--paths-json",
+          "[\"platform/embedded/tamago/README.md\", \"platform/embedded/tamago/cmd/fabric/main.go\", \"platform/embedded/tamago/configcheck/checks.go\", \"platform/embedded/tamago/configcheck/checks_test.go\", \"platform/embedded/tamago/fabricmodel/README.md\", \"platform/embedded/tamago/fabricmodel/checks.go\", \"platform/embedded/tamago/fabricmodel/model.go\", \"platform/embedded/tamago/scanout/README.md\", \"platform/embedded/tamago/sdm/README.md\", \"platform/embedded/tamago/sdm/config_model.go\", \"platform/embedded/tamago/sdm/config_model_test.go\", \"platform/embedded/tamago/sdm/probe.go\"]"
+        ],
+        "tools": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "docker",
+          "sh"
+        ],
+        "files": [
+          "scripts/parent_tests.py",
+          "tests"
+        ]
+      },
+      {
+        "lane": "parent",
+        "label": "working-tree generated consumer consistency",
+        "cwd": ".",
+        "argv": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "-c",
+          "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+        ],
+        "tools": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "go"
+        ],
+        "files": [
+          "scripts/consistency.py"
+        ]
+      }
+    ],
+    "limits": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance",
+      "platform/image packaging suite",
+      "required browser integration suite",
+      "committed-source/release validation (make check remains separate)"
+    ],
+    "status": "passed",
+    "results": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      }
+    ]
+  },
+  "boundaries": {
+    "native_checks": [
+      [
+        "FABRIC",
+        "boot-order",
+        "PASS"
+      ],
+      [
+        "FABRIC",
+        "explicit-drain-ack",
+        "PASS"
+      ],
+      [
+        "FABRIC",
+        "revoked-reader-generation",
+        "PASS"
+      ],
+      [
+        "FABRIC",
+        "immutable-admission",
+        "PASS"
+      ],
+      [
+        "FABRIC",
+        "replace-save-before-drain",
+        "PASS"
+      ],
+      [
+        "FABRIC",
+        "no-command-replay",
+        "PASS"
+      ],
+      [
+        "FABRIC",
+        "identity-before-release",
+        "PASS"
+      ],
+      [
+        "FABRIC",
+        "uncertain-save-retains-owner",
+        "PASS"
+      ],
+      [
+        "FABRIC",
+        "known-save-failure-retains-owner",
+        "PASS"
+      ],
+      [
+        "FABRIC",
+        "drain-failure-no-program",
+        "PASS"
+      ],
+      [
+        "FABRIC",
+        "abandoned-frame-no-reuse",
+        "PASS"
+      ],
+      [
+        "FABRIC",
+        "frame-fault-retains-core",
+        "PASS"
+      ],
+      [
+        "FABRIC",
+        "one-recovery-then-explicit",
+        "PASS"
+      ],
+      [
+        "CONFIG",
+        "reference-firmware-blocked",
+        "PASS"
+      ],
+      [
+        "CONFIG",
+        "accepted-busy-exact-bytes",
+        "PASS"
+      ],
+      [
+        "CONFIG",
+        "contained-launch-return",
+        "PASS"
+      ],
+      [
+        "CONFIG",
+        "stale-drain-blocks-program",
+        "PASS"
+      ],
+      [
+        "CONFIG",
+        "unknown-completion-retains-owner",
+        "PASS"
+      ],
+      [
+        "CONFIG",
+        "identity-before-release",
+        "PASS"
+      ]
+    ],
+    "nano_symbols": {
+      "model": {
+        "elf_sha256": "43f81c4438a53593b8d14641c60d6426bad4611ba866b3b8e9dde1392d67ce36",
+        "smc_symbols": [],
+        "model_symbols": [
+          "820b37c0 T github.com/DeanoC/fes/platform/embedded/tamago/sdm.(*ConfigModel).Complete",
+          "820b31a0 T github.com/DeanoC/fes/platform/embedded/tamago/sdm.(*ConfigModel).Next"
+        ]
+      },
+      "probe": {
+        "elf_sha256": "3a43d417685c9d91f5ba046be4d2e7fa515ae116ff41c70361c8d887556997fe",
+        "smc_symbols": [
+          "820f12d0 T github.com/DeanoC/fes/platform/embedded/tamago/board/de25nano.smc",
+          "820f1290 T github.com/DeanoC/fes/platform/embedded/tamago/board/de25nano.smc.abi0"
+        ],
+        "model_symbols": []
+      }
+    }
+  },
+  "runs": {
+    "native-contained-fabric-final": {
+      "status": "passed",
+      "program": "fabric",
+      "classification": "QEMU-only native Go bare metal; not DE25 hardware",
+      "elf_sha256": "23f652fcb107dd64e4c4428d4cba285d7b00096054f4005aa3ab5cea3188c11a",
+      "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368",
+      "report_path": "out/native-contained-fabric-final/result.json",
+      "report_sha256": "e4f14bfef610eb1b5c521c2316d6e03a1ea2a8ef7dbd4f767717fe15deb5e29b"
+    },
+    "native-contained-nano-fabric-final": {
+      "status": "cross-built",
+      "board": "de25-nano",
+      "program": "fabric",
+      "classification": "host-only cross-build; not boot or hardware acceptance",
+      "elf_sha256": "43f81c4438a53593b8d14641c60d6426bad4611ba866b3b8e9dde1392d67ce36",
+      "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368",
+      "generated_profile_sha256": "b12dd4e037dd95d19a816dcfc6b7f7aeaa46f9acc2e99877852da679d55834df",
+      "firmware_profile_sha256": "a125559e34b0fb1e870063c6c1ef8f625dff89c237aebab6ab4a650f78ab8197",
+      "command": [
+        "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+        "build",
+        "-mod=readonly",
+        "-tags=de25nano",
+        "-overlay=/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/native-contained-nano-fabric-final/overlay.json",
+        "-trimpath",
+        "-ldflags",
+        "-T 0x82010000 -R 0x1000",
+        "-o",
+        "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/native-contained-nano-fabric-final/fabric.elf",
+        "./cmd/fabric"
+      ],
+      "report_path": "out/native-contained-nano-fabric-final/result.json",
+      "report_sha256": "f9d83047b1a15e77f1e579e7dac49eded265bd0d60ecb17f6af02b7f2b6e7a96"
+    },
+    "native-contained-nano-probe-final": {
+      "status": "cross-built",
+      "board": "de25-nano",
+      "program": "fpga",
+      "classification": "host-only cross-build; not boot or hardware acceptance",
+      "elf_sha256": "3a43d417685c9d91f5ba046be4d2e7fa515ae116ff41c70361c8d887556997fe",
+      "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368",
+      "generated_profile_sha256": "b12dd4e037dd95d19a816dcfc6b7f7aeaa46f9acc2e99877852da679d55834df",
+      "firmware_profile_sha256": "a125559e34b0fb1e870063c6c1ef8f625dff89c237aebab6ab4a650f78ab8197",
+      "command": [
+        "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+        "build",
+        "-mod=readonly",
+        "-tags=de25nano",
+        "-overlay=/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/native-contained-nano-probe-final/overlay.json",
+        "-trimpath",
+        "-ldflags",
+        "-T 0x82010000 -R 0x1000",
+        "-o",
+        "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/native-contained-nano-probe-final/fpga.elf",
+        "./cmd/fpga"
+      ],
+      "report_path": "out/native-contained-nano-probe-final/result.json",
+      "report_sha256": "c2edc9b1c2c6261dbb6559d5145f473a127779dcd92a981ba53159bccc042559"
+    },
+    "native-contained-play": {
+      "status": "passed",
+      "program": "play",
+      "classification": "QEMU-only native Go bare metal; not DE25 hardware",
+      "elf_sha256": "a74843e123060f2067c9e2fe7542dceb1a183410fda9dc8a1e8d44dd62eb8cb0",
+      "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368",
+      "report_path": "out/native-contained-play/result.json",
+      "report_sha256": "236676d99da49ba5789dfab825e174f956622db3aea944ad4461f5c1fa335294",
+      "cases": [
+        {
+          "id": "model-normal",
+          "check": "return",
+          "outcome": "returned"
+        },
+        {
+          "id": "model-wrong-rom",
+          "check": "preserve",
+          "outcome": "rejected"
+        },
+        {
+          "id": "model-wrong-receipt",
+          "check": "preserve",
+          "outcome": "rejected"
+        },
+        {
+          "id": "model-interrupted",
+          "check": "preserve",
+          "outcome": "rejected"
+        },
+        {
+          "id": "model-identity",
+          "check": "recover",
+          "outcome": "rejected"
+        },
+        {
+          "id": "model-program",
+          "check": "recover",
+          "outcome": "rejected"
+        },
+        {
+          "id": "model-save",
+          "check": "retry",
+          "outcome": "returned"
+        },
+        {
+          "id": "model-composed",
+          "check": "return",
+          "outcome": "returned"
+        },
+        {
+          "id": "model-part-changed",
+          "check": "preserve",
+          "outcome": "rejected"
+        },
+        {
+          "id": "model-part-missing",
+          "check": "preserve",
+          "outcome": "rejected"
+        },
+        {
+          "id": "model-part-incompatible",
+          "check": "preserve",
+          "outcome": "rejected"
+        }
+      ]
+    }
+  },
+  "references": {
+    "tf_a_tag": "v2.12",
+    "sip_git_blob": "3c223c1498e3a412e075e4f921cd78acd3d0fcd6",
+    "agilex5_header_git_blob": "c1f3cc50aa05d472b0b419cf9e83c830c8b0c9e6",
+    "sha256": {
+      "out/de25-fpga-reference/socfpga_sip_svc.c": "92607ef0382fd57501c38f254b04c246e94fff1f1d60bb97e3d3d1284dbbf17a",
+      "out/de25-fpga-reference/socfpga_sip_svc.h": "e8e295970f134286c747fb173026d23354275efbd8eaf7e8970bbfa152006dfa",
+      "out/de25-fpga-reference/agilex5_plat_def.h": "1287926d117e74160a6f524469bcfc37e4d7ef48df34d9d26f3b2e21741d7f01"
+    }
+  },
+  "limitations": [
+    "Hypothetical held-bridge endpoint only; reference and unknown firmware rejected before START",
+    "Go generation fields are not a shared FPGA register ABI or physical disable/drain acknowledgement",
+    "No mutating SMC binding, firmware patch/build, Nano FPGA artifact, real memory drain, Nano boot or hardware acceptance",
+    "Software transfer completion is not a readback digest, observed build identity or bridge-release permission"
+  ],
+  "model_fixture_sha256": {
+    "out/native-cold-qemu-play/package-fixtures/ADMIT.JSON": "48496c756690a29c265de3191139579629694520bc85c2002d581c4caf4a2a31",
+    "out/native-cold-qemu-play/package-fixtures/BIOS.BIN": "ccd521371b29352a7b02a04c2408c4e0ceacba97fc3ce449edd8897cb2397410",
+    "out/native-cold-qemu-play/package-fixtures/CART.BIN": "53a31bbd7abb95a3bc7313283cd8259b7445a65a9a7e91d9abab6beafc604f1f",
+    "out/native-cold-qemu-play/package-fixtures/CASE000.FCP": "e5aea27e4fb90209014bdbd914ba265833c929ee97f42a272a33f401d8a8cfd2",
+    "out/native-cold-qemu-play/package-fixtures/CASE001.FCP": "c200f0efb1e2c48e7644513ad90d76a98b518d35737eb67751f296eb2d0b3c08",
+    "out/native-cold-qemu-play/package-fixtures/CASE002.FCP": "7c01933390ae8bfe5587e08dc28f69f9b681d0438beacda86c0d3e8234c04fb3",
+    "out/native-cold-qemu-play/package-fixtures/CASE003.FCP": "6f79111cc2a2a526bb92161905f1a27f64a3e09acb743862c2b78261b3a0f218",
+    "out/native-cold-qemu-play/package-fixtures/CASE004.FCP": "b0be76e6f4ac3a0a72d166a0d1276470b0843ccc1a8b2a833237d12ebd870790",
+    "out/native-cold-qemu-play/package-fixtures/CASE005.FCP": "8177043f1a841515867858732acb44eba37d269592295014941aa757ada468bf",
+    "out/native-cold-qemu-play/package-fixtures/CASE006.FCP": "a49fc6b69285599f1f3a1af7f76be108431c73031ed4004807a750c464b8a369",
+    "out/native-cold-qemu-play/package-fixtures/CASE007.FCP": "8d5a3a73f2037f213aaf7d993a1e8643c7284219b8a84e72c854d9bd2597bcc1",
+    "out/native-cold-qemu-play/package-fixtures/CASE008.FCP": "d4b44173223327786ee803a81fae69d21bab4e578a9ae9f105a9d3a4dd7f2b65",
+    "out/native-cold-qemu-play/package-fixtures/CASE009.FCP": "8ad7e4eeadc9a5856e43123d6292f3b7656d30c5cf57a51885aa0c9108f69d19",
+    "out/native-cold-qemu-play/package-fixtures/CASE010.FCP": "c16f7d905b72e1b9679625fa27acd703e0234225ac6dea359724c7c893ee11fc",
+    "out/native-cold-qemu-play/package-fixtures/CASE011.FCP": "2853274599603c7037d923b66efcd48fb32cabc73f06e01c8370f97e019dba07",
+    "out/native-cold-qemu-play/package-fixtures/CASE012.FCP": "898b609bfedcf254b7093ab1c31581a6066613466a8d1e46c9fc47c9cace906e",
+    "out/native-cold-qemu-play/package-fixtures/CASE013.FCP": "70d5b463f3247ed5b91a9d846a5257d9ad3834c2cc2c55471ee8ff56d4f52328",
+    "out/native-cold-qemu-play/package-fixtures/CASE014.FCP": "2e1b821de1dd2b2ccd2e188485a2c4919ac2874a213a799114d9334c76528bfa",
+    "out/native-cold-qemu-play/package-fixtures/CASE015.FCP": "6c37ca22b03df659263d225ff8f5f68195a5a22b1f31cb3578e11013ba8f8be3",
+    "out/native-cold-qemu-play/package-fixtures/CASE016.FCP": "daafd22337c0e0e096a7b68d114a737194b049e8aca032744b80d2ac0b3bb277",
+    "out/native-cold-qemu-play/package-fixtures/CASE017.FCP": "07642295996fd5ddd2c7f846962c5c0b1d9b4edf4f1fbec5b2eadcf54a0c26d5",
+    "out/native-cold-qemu-play/package-fixtures/CASE018.FCP": "72120a6e3d4de382700810b1bd80b1d8542c418d42c71284d83efadb3181753e",
+    "out/native-cold-qemu-play/package-fixtures/CASE019.FCP": "373ee843508ab26c125cf2b978803ee790e809cad869ca536c937ce388332777",
+    "out/native-cold-qemu-play/package-fixtures/CASE020.FCP": "e8aecbd048880767d4a4780c65dd936af450b3b2c43b75f362388d826c6c491c",
+    "out/native-cold-qemu-play/package-fixtures/CASE021.FCP": "b25c5bb01fdfa06c6cb5049a17914b21c35cc1f6239a91b5b62b453e9672d059",
+    "out/native-cold-qemu-play/package-fixtures/CASE022.FCP": "a98518cd58b35508722aafd00a3fb62027a02ab7d83369bd1ff951d2c4c8e707",
+    "out/native-cold-qemu-play/package-fixtures/CASE023.FCP": "0dc277680282945ae6a516dc795da04758d7891bbe6058c1e68c3e51b0d4677a",
+    "out/native-cold-qemu-play/package-fixtures/CASE024.FCP": "4ab7ec03c897ec88cffc502d8707297586f149936af0e5b63b82c97c0fe5177b",
+    "out/native-cold-qemu-play/package-fixtures/CASE025.FCP": "c107dca475dfdca8befef4f1d4d811b93542489c08d3422a2eee5398b5b65aba",
+    "out/native-cold-qemu-play/package-fixtures/CASE026.FCP": "db6add47122f7678d8cc1640e52d9be7ec94888511b7458f4f506bb2c2e66c12",
+    "out/native-cold-qemu-play/package-fixtures/CASE027.FCP": "72ced5666f377943ae5a36c7aa405de0be5cf570701c4bc5a8a0347e1932eb5b",
+    "out/native-cold-qemu-play/package-fixtures/CASE028.FCP": "cb8d9338a008da9a8390fa77ed80086a7176dea7b59b715befe8ab482595467e",
+    "out/native-cold-qemu-play/package-fixtures/CASE029.FCP": "1eac82e463c1d4a181c731939f62495b27bbc024b487b69b712dfa4acaad5169",
+    "out/native-cold-qemu-play/package-fixtures/CASE030.FCP": "6aec4ec358a8898e3686760966b718bc8800a367b6f7e3d9b1b2169d324e3269",
+    "out/native-cold-qemu-play/package-fixtures/CASE031.FCP": "1a7cd0fb82adceb3c4106b901b23c2921243051ba2730bc1169d87ff20c31613",
+    "out/native-cold-qemu-play/package-fixtures/CASE032.FCP": "0ce9077a0825c47aac1f87c9f53bb50131e4e703160c0064c707ac6cd4e98f7d",
+    "out/native-cold-qemu-play/package-fixtures/CASE033.FCP": "de5ab0b833fa29c9240e62eebe882017a4135cbc3d37204add850aae30a83b2f",
+    "out/native-cold-qemu-play/package-fixtures/CASE034.FCP": "2492569564d1c4e0982e4cb29451edb07756b66351b3650b952c894f7f6de155",
+    "out/native-cold-qemu-play/package-fixtures/CASE035.FCP": "3f32494cc8d1f0ef72971e0247fbc3d763b8bea3a7135e5bc2e8b41539aaf50c",
+    "out/native-cold-qemu-play/package-fixtures/CASE036.FCP": "a82fb8fdae6ba53b6d2bd690c2d23616a2c93cb8f13a4baf7820d60ba38e907d",
+    "out/native-cold-qemu-play/package-fixtures/CASE037.FCP": "8735152eaee800189a908d143cbd923f1ebc533a60c9aa770a101d8926d4bd09",
+    "out/native-cold-qemu-play/package-fixtures/CASE038.FCP": "e3ecfb79e87bd704793e5b4ec54a4253a81a6ec5f0d2e6627b2ce298fa2f0df3",
+    "out/native-cold-qemu-play/package-fixtures/CASE039.FCP": "f5f9e6bf68512ffc6397f9ae703704110383de77f6494082dd768233d5d83622",
+    "out/native-cold-qemu-play/package-fixtures/CASE040.FCP": "a850607b31588c8f268147ca8840b8b65a7266e680782d04016a8ea99bb43f33",
+    "out/native-cold-qemu-play/package-fixtures/CASE041.FCP": "ee8fcd2379485dd83947302b6a220cbe608e7391bfe56218e773df535ec428df",
+    "out/native-cold-qemu-play/package-fixtures/CASE042.FCP": "6942aa53f9363079dc60466f443232013c8e034cf7f9e4c7200fd91216e0abde",
+    "out/native-cold-qemu-play/package-fixtures/CASE043.FCP": "fc29187b07429d6419c7a348fa09e19c13d2d05924b413b8af862b69934224c8",
+    "out/native-cold-qemu-play/package-fixtures/CASE044.FCP": "38957002c3227cd239f6006f219559e1d064a0682a8a3ef0c55f66b470607c9e",
+    "out/native-cold-qemu-play/package-fixtures/CASE045.FCP": "33da9958e35894ebff49baae3a3c8818523fc11b2210281ec791f92a7f6cf761",
+    "out/native-cold-qemu-play/package-fixtures/CASE046.FCP": "af4fcac55ec54ccaca858a7a905080476fa12d389e601c9710e4f53c922d5e45",
+    "out/native-cold-qemu-play/package-fixtures/CASE047.FCP": "7565fc0c4016815160a020e790cc1680d521d8f85666ec7fa88d495e1db5a13e",
+    "out/native-cold-qemu-play/package-fixtures/CASE048.FCP": "0f6e71eb9b02e689af467f827c228daf8dbff5e8e90cb07dc1963990ea8e789d",
+    "out/native-cold-qemu-play/package-fixtures/CASE049.FCP": "da9909849a2204e5267cb656853a1f7e82038ae5f9550614ba8dba6d7f885160",
+    "out/native-cold-qemu-play/package-fixtures/CASE050.FCP": "f0724adaec25559a2369e9a7f1e6d2f9caffb66d151f575b1b415c43786ea648",
+    "out/native-cold-qemu-play/package-fixtures/CASE051.FCP": "08753abc66a033fa14717cb50d5d81fd24653788aa8b805969ff43da59ce8bfd",
+    "out/native-cold-qemu-play/package-fixtures/CASE052.FCP": "ec6a2fe0551a035e664030ad77ad2bdfa8dffddb778076e845b3971aa431e0b1",
+    "out/native-cold-qemu-play/package-fixtures/CASE053.FCP": "1dd35e4b08fb70ce1ada6076c97ff6c350666520af9cc71170a9ed954083a0eb",
+    "out/native-cold-qemu-play/package-fixtures/CASE054.FCP": "659a3ed75120febab986843623f0314b26e0ccb1db3f0990b86098927031d01c",
+    "out/native-cold-qemu-play/package-fixtures/CASE055.FCP": "7df9935834ab5a64c7a0288b182b2ef6e91ee8a5dc964e8392dabfa2148a991e",
+    "out/native-cold-qemu-play/package-fixtures/CASE056.FCP": "682d377d608d30320d13eacc58c865495b33ed0ad76b8e8c207737c3a6357e51",
+    "out/native-cold-qemu-play/package-fixtures/CASE057.FCP": "4a6508a1e6133855e799b09925cf5a63b1158423445e44e93505525373f87a4b",
+    "out/native-cold-qemu-play/package-fixtures/CASE058.FCP": "03d66a30d10765dcd7a526c2ba5e3dec9f07faac0e7e1954b9ac326bf765ea0a",
+    "out/native-cold-qemu-play/package-fixtures/CASE059.FCP": "8f7c9fbf70018476fba2e004bcd04fe41e0037917bce935ea0b9e650c60fff6f",
+    "out/native-cold-qemu-play/package-fixtures/CASE060.FCP": "0b2aea800d03ea9529a9b14fed2cf2a40e865e8926cd92c60a015c422580bfab",
+    "out/native-cold-qemu-play/package-fixtures/CASE061.FCP": "d7d94724632ceb483300b99143e9ae88414e1620587b88072b7512ab4a4dbbd8",
+    "out/native-cold-qemu-play/package-fixtures/CASE062.FCP": "2604540d6a435131907c9fa46eb005b5d29edc531e0397f9bbadd50308672f9d",
+    "out/native-cold-qemu-play/package-fixtures/CASE063.FCP": "2f29d3c57c6d7b8172ad0114fdf9ba06cf06dd6083715d40f570fdbe4bd82792",
+    "out/native-cold-qemu-play/package-fixtures/CASE064.FCP": "dea1d692290a936069c46cc5254ce53d85f91a3251495299e7a884240f730ffb",
+    "out/native-cold-qemu-play/package-fixtures/CASE065.FCP": "1e6ea6e28a484f2acd2c76118330ac41ddcad99ec43f4b508e4f63b85349095c",
+    "out/native-cold-qemu-play/package-fixtures/CASE066.FCP": "fa73186dad30ff460a72a7252fd54ff784cf459435471e148de1b3124d6c70d1",
+    "out/native-cold-qemu-play/package-fixtures/CASE067.FCP": "24a5bb9793d0f3b28fd519e6ac439c4895609687609c68a38c955882c5f849a0",
+    "out/native-cold-qemu-play/package-fixtures/CASE068.FCP": "ba000e4c229cbcf43a3b70e2e948ce196e32bb622d42e3df8527f435aa36277b",
+    "out/native-cold-qemu-play/package-fixtures/CASE069.FCP": "119397a1e8b381fb8e11a0a89f29ac3df89e185420115d02946cb6798500a205",
+    "out/native-cold-qemu-play/package-fixtures/CASE070.FCP": "cf0b497e66638a84a8eef4076f5fe25475d78bfcd83f4f3e85f6feec218fcff6",
+    "out/native-cold-qemu-play/package-fixtures/CASE071.FCP": "2db868f37389f05f79b65db6496112a91ed1e874eba81ae313f5cb6587a8cdd5",
+    "out/native-cold-qemu-play/package-fixtures/CASE072.FCP": "66b5813873839366c7450f29ac83a748682aea5661ac38e87fda6cf5a38d7aed",
+    "out/native-cold-qemu-play/package-fixtures/CASE073.FCP": "c93baf32aff4a35661b3aba1e708cfc0e6e8c73ac11ab8a45e074e8a0e790265",
+    "out/native-cold-qemu-play/package-fixtures/CASE074.FCP": "ee13664bea252fb7385acea00ab3f9ab83701010e1cf73431a8d6bfe31c3b93f",
+    "out/native-cold-qemu-play/package-fixtures/CASE075.FCP": "248dcfcd4aed8a2e5575fae53042351d7b5591a7c2313d1d3253212d185e7261",
+    "out/native-cold-qemu-play/package-fixtures/CASE076.FCP": "4f0747081fc4ad3e33c9841ded2e25e6fcddf14f74d1dbdb7116a167d10a2132",
+    "out/native-cold-qemu-play/package-fixtures/CASE077.FCP": "9e8c805ccbec45e13570a90774d83e7d86c990a5aaf979ec31fedc07a97ad695",
+    "out/native-cold-qemu-play/package-fixtures/CASE078.FCP": "521a32adb714d5ed85db8c8f579ff94bd6ad1235cf32380dd2b8e16cf724da67",
+    "out/native-cold-qemu-play/package-fixtures/CASE079.FCP": "9c49bd5ea8778a34563dcd9c1e60fa42d6cd92e252216119d74901a4b1672c41",
+    "out/native-cold-qemu-play/package-fixtures/CASE080.FCP": "73b3338f5c2f55365c350fd18494c45c7a48d41713daa837c26a9cfcc94ebd4d",
+    "out/native-cold-qemu-play/package-fixtures/CASE081.FCP": "52bbd17a484a6be542db4b992b7fb62c20691abc3e148a3adef6da4b63ac01d3",
+    "out/native-cold-qemu-play/package-fixtures/CASE082.FCP": "8283ef44f0c492f83205cc9082ca68aad21d601f8340993546ddf5d63387fd64",
+    "out/native-cold-qemu-play/package-fixtures/CASE083.FCP": "50f03039b988d54089640847a7a80bf4749469d3a557b0faccee6894808b8b76",
+    "out/native-cold-qemu-play/package-fixtures/CASE084.FCP": "ff1377f09ccab7b00371294c0776bde8ca8d894b80cc7bebe4a6a0a6091cc6fa",
+    "out/native-cold-qemu-play/package-fixtures/CASE085.FCP": "f89101f2a382c223e7a35b387d2674f55aad38a4f643dd885b76e23bacb87eff",
+    "out/native-cold-qemu-play/package-fixtures/CASE086.FCP": "d5f1475247cfe780b41ff56b7ceb450e36fcb204da4430500349914bc84b5157",
+    "out/native-cold-qemu-play/package-fixtures/CASE087.FCP": "4ea7f685f5bfbec31aa8000fbedb6d07d46a2105a1343430389c5fc793bb45c9",
+    "out/native-cold-qemu-play/package-fixtures/CASE088.FCP": "01b14912786e02ceb56ec3f69b7d8c47ad8db52936f0eee97e45cb581d3b2132",
+    "out/native-cold-qemu-play/package-fixtures/CASE089.FCP": "5633f1d6ee6e9d1839aa5c552295215bcba3527264d198cee58722a48cad5367",
+    "out/native-cold-qemu-play/package-fixtures/CASE090.FCP": "961f753eeedec2cb4ad50f96caf8d8ebda13ad4e9218eddd80cb3e8d1c6a8887",
+    "out/native-cold-qemu-play/package-fixtures/CASE091.FCP": "de96adc235a369e3c0516b6d2b4793b0cc3f30d9f258f977f868caa6e93e0ff1",
+    "out/native-cold-qemu-play/package-fixtures/CASE092.FCP": "a8e67cd77d576b86ee759b7abee6f173d08d5fa057ac4a553100a1d223955dd9",
+    "out/native-cold-qemu-play/package-fixtures/CASE093.FCP": "ed733d6d62473706b04aad55324cdcc5a01869f5dcdb4f78874bbb44c7124cd5",
+    "out/native-cold-qemu-play/package-fixtures/CASE094.FCP": "0d0aae3b8eb4533e83746c89583f052230032f5e4203cd4e32f2866a6b9b08b7",
+    "out/native-cold-qemu-play/package-fixtures/CASE095.FCP": "88e04e2918bc5448e0606797eb3db1a4ba661ae68430b8b198f3f371b32c8fc3",
+    "out/native-cold-qemu-play/package-fixtures/CASE096.FCP": "ba70f2c4064654552f94a4e23a2f9fd04a63c26df518e560293511878b619b0b",
+    "out/native-cold-qemu-play/package-fixtures/CASE097.FCP": "9004d9ec79dc311da1c6552b633f270076263dcf1573ba39eeff66ee8f821ba5",
+    "out/native-cold-qemu-play/package-fixtures/CASES.JSON": "6f90522cce3050ae8a4e01f1bfbdd0a36d23fb4df1708c9f228a859f041cd7a0",
+    "out/native-cold-qemu-play/package-fixtures/CHANGED.FEX": "5410dc915dd41564f0015fb3d01daaa34d3d36039253a9da8aff7e0f14eeb9a7",
+    "out/native-cold-qemu-play/package-fixtures/COMPOSE.JSON": "e29e8dd1d6e9a10abbbe3da440f3dfccdb04c62ced6a54ef51a732135b7e0f16",
+    "out/native-cold-qemu-play/package-fixtures/CPU.FEX": "cc01af62cc2f773c23dfdfe9ebb1eb75c1bc2df8d1f12548a64a5dcbe2812b58",
+    "out/native-cold-qemu-play/package-fixtures/LINK000.FCP": "c9991a919817614b0ee6d42b24d300ec377108f0a1f22805fa8555fa33381eba",
+    "out/native-cold-qemu-play/package-fixtures/LINK001.FCP": "ec795eb46795bfeee9890b52714816263fec41ff9fa0e1623282ad5d82e4e080",
+    "out/native-cold-qemu-play/package-fixtures/LINK002.FCP": "b37554cd09705c1b815749e2cc648807e6991adb791745480abb3c9d32f72c69",
+    "out/native-cold-qemu-play/package-fixtures/LINKS.JSON": "b10f8a4eded228971dbc6baa4b72d959a57f8336149f18b6c39ef8126de3ca7d",
+    "out/native-cold-qemu-play/package-fixtures/OTHER.FEX": "ece5a8b8c4a9990b93f1bde95413b1fc31a7df0e8ea95c6a73c9f009a28065dd",
+    "out/native-cold-qemu-play/package-fixtures/PARTS.FCP": "a83857840dc431822d42212d0cba290db6fab32d868feb8dd820791a916c208c",
+    "out/native-cold-qemu-play/package-fixtures/PLAY.JSON": "f1e530c4adc6d8696f69a477fc27101e073a58d068ea642ee1efe7a95a1ce656",
+    "out/native-cold-qemu-play/package-fixtures/ROM00.BIN": "dc404a613fedaeb54034514bc6505f56b933caa5250299ba7d094377a51caa46",
+    "out/native-cold-qemu-play/package-fixtures/ROM10.BIN": "dc404a613fedaeb54034514bc6505f56b933caa5250299ba7d094377a51caa46",
+    "out/native-cold-qemu-play/package-fixtures/ROM20.BIN": "785b0751fc2c53dc14a4ce3d800e69ef9ce1009eb327ccf458afe09c242c26c9",
+    "out/native-cold-qemu-play/package-fixtures/ROM21.BIN": "c7d59719997c773047af17c551fa0ab7ed3f5bbbe1afc85da17aad6d5eef53fa",
+    "out/native-cold-qemu-play/package-fixtures/RUNTIME.JSON": "696239fbe31a74583f4c1f8a263fe6db0b8f35ba0db8afa3e2115ed4f3a41110",
+    "out/native-cold-qemu-play/package-fixtures/VIDEO.FEX": "c33272093ae1ed0f92fa059a0f9e3f0d4e5fe2dde743f21f90de0b412831d8a8",
+    "out/native-cold-qemu-play/package-fixtures/WRONGROM.BIN": "225ff70b38fcc12714d434e0c45c9167d68155647658447865cc71a82ff30960"
+  }
+}

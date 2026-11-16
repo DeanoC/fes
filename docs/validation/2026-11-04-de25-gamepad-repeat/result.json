@@ -1,0 +1,134 @@
+{
+  "status": "passed",
+  "scope": "independent replay of physical USB data-toggle/channel-halt failure before descriptor parsing",
+  "source": "9cb14393c0463f84e2bd8bd18f786f5e36396b0e",
+  "chain_sha256": "31e4c721789bbf3179557a247cabe827f1c20ad1040577cace211ab2bc5ae42f",
+  "actual_native_attempts_on_image": 1,
+  "retries": 0,
+  "HID_report_descriptor": null,
+  "transport_failure": {
+    "rx_status": 5,
+    "HCINT": "0x400",
+    "channel": "0x80528008",
+    "halt_channel": "0xc0528008",
+    "transfer": "0x40080008",
+    "port": "0x4140f",
+    "reset": "0x80000400"
+  },
+  "parser_reached": false,
+  "USB_ready": false,
+  "USB_stop_proven": false,
+  "input_observed": false,
+  "CPU_halt_observed": false,
+  "core_load_acceptance": false,
+  "host_cleanup": {
+    "status": "passed",
+    "scope": "independent read-only bounded-procedure host cleanup",
+    "clock_readback": "15M",
+    "exact_usb_permissions_restored": true,
+    "private_JTAG_process_gone": true,
+    "UART_free": true,
+    "claim_retained": true,
+    "hardware_retry": false,
+    "factory_restore": false,
+    "original_factory_card_untouched": true
+  },
+  "trace_sha256": "d7167caaa622a5c586994797da35f74e9b745e56f1dea630643f34db9f324a16",
+  "native_receipt_sha256": "305cabbe6b5410827d9f5c6ad7f7f4d74e5104024e898e2b1c9f2d5143401892",
+  "outer_receipt_sha256": "b588a6954e9203f7ab7344e962c6e455eeef5a6c373e159994fa086f205fff77",
+  "upload_receipts_sha256": {
+    "boot": "67a3fca5b51b1b3816bb6fd8c80458bc0d59c7e190ddbb48b6c253d44fc2c6e5"
+  },
+  "fresh_receipts_sha256": {
+    "boot": "3cfa2ff2a428ebb1bcb33ab90c95c7fbf17600df1d3db0877cf13ff4763a85f8"
+  },
+  "selection": {
+    "status": "passed",
+    "source": "9cb14393c0463f84e2bd8bd18f786f5e36396b0e",
+    "native_sources_match_commit": true,
+    "actual_ELF_hub_split_health_paths": true,
+    "matched_USB_only_selection": true,
+    "usb_input": "gamepad",
+    "ELF_gamepad_paths_present": true,
+    "chain_sha256": "31e4c721789bbf3179557a247cabe827f1c20ad1040577cace211ab2bc5ae42f",
+    "fit_bytes": 2695056,
+    "hardware_execution": false
+  },
+  "software_checks": {
+    "captured-schema-before-fix": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-count=1",
+        "-timeout=60s",
+        "./usb",
+        "-run",
+        "TestCapturedJoystick|TestRepeatedVendor"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 1,
+      "timed_out": false,
+      "elapsed": 0.6008009519428015,
+      "log_sha256": "4bbbb0e1ef00c53a52a2aad28857242ca99532a1d83739d6b36d72ea3a54bbae"
+    },
+    "captured-schema-after-fix": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=90s",
+        "./usb",
+        "./dwc2",
+        "./input",
+        "./usbcontrol"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.612290409975685,
+      "log_sha256": "1c896eeacef251d61d6de57a13550f3ca682d1324f2b31eea8a387da7eebe73b"
+    },
+    "captured-schema-consistency": {
+      "argv": [
+        "make",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 11.619002513005398,
+      "log_sha256": "273915f27c798cb3223bae157afc4edf45e1d7cab1a6e05b5172f999f2f30d90"
+    }
+  },
+  "evidence_sha256": {
+    "out/nano-gamepad-repeat-trial-20261104/source.json": "22f57b6a08d2d2bd266248fb87441342323dbf803a48836076300eb642048428",
+    "out/nano-gamepad-repeat-trial-20261104/replay.py": "f3605f42f122622c732476b1b0f4a1f55a82d81538284bdd8d470d1d0e600fb6",
+    "out/nano-gamepad-repeat-trial-20261104/replay.json": "21c930ba52f8d13709e60bd44b0efada20b408b621e0cf53bb33a399d9c0c73b",
+    "out/nano-gamepad-repeat-trial-20261104/trial/native.py": "07141c5e8b0df8271119904db328c870f3a6a227ad15d2dfe466e353603a3ffb",
+    "out/nano-gamepad-repeat-trial-20261104/trial/common.py": "e6c0f39c667896765aa28e69edebf78961e0c839b37e1a17107f55633953c146",
+    "out/nano-gamepad-repeat-trial-20261104/trial/experiment.py": "9e9af662a98d2a4139f709e3cd76495d60023c3ac957213b57ce70d90a6dd792",
+    "out/nano-gamepad-repeat-trial-20261104/trial/preflight.json": "f7ad4a50cbf7785982b0541b1eafabad11f1a3b6cdd62ff26ae2dfb3a5f2e5c7",
+    "out/nano-gamepad-repeat-trial-20261104/trial/native-console.log": "d7167caaa622a5c586994797da35f74e9b745e56f1dea630643f34db9f324a16",
+    "out/nano-gamepad-repeat-trial-20261104/trial/native-result.json": "305cabbe6b5410827d9f5c6ad7f7f4d74e5104024e898e2b1c9f2d5143401892",
+    "out/nano-gamepad-repeat-trial-20261104/trial/experiment-result.json": "b588a6954e9203f7ab7344e962c6e455eeef5a6c373e159994fa086f205fff77",
+    "out/nano-gamepad-repeat-trial-20261104/cleanup-evidence.json": "42ab82fbdd4edcec6d5513e261f4718bad74780fa21a155bc55d97539c398a64",
+    "out/nano-gamepad-repeat-trial-20261104/report-replay-fixtures.json": "bc53fa694b6fb46e0aa71da979935e569d448c580e798b3f85e4fdb1e9176cfa",
+    "out/nano-gamepad-repeat-trial-20261104/decode_reports.go": "431a984e28e80c30395255930a467115342f4d87ddcdea10e6cff709b5edbe51",
+    "out/nano-gamepad-repeat-trial-20261104/decode-reports": "ed16c74840141317d3fab80b775ac0c79626dadb8baa6b469245af4a7b7ecdcd"
+  }
+}

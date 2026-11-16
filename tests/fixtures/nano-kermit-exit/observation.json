@@ -1,0 +1,15 @@
+{
+  "checkout_commit": "7d93bacb1fc228777c3f6d50befdb8fc785c8dd0",
+  "implementation_source_commit": "35f4d552971f724235249da965e92423dda245d1",
+  "sender_returncode": 0,
+  "payload_bytes": 1024,
+  "generated_bytes": 1358,
+  "transmitted_bytes": 1356,
+  "queued_bytes": 2,
+  "queued_hex": "0d0a",
+  "sender_stdout_sha256": "e167ac39e8e7789a43404488a634c6a1d3233919d3c4cffdde33ce6bd40e65c2",
+  "target_packets_sha256": "0a9e73fd069cc60e46855b711e99f3e3f2798ca5423868a33310c706c9059f1e",
+  "payload_sha256": "785b0751fc2c53dc14a4ce3d800e69ef9ce1009eb327ccf458afe09c242c26c9",
+  "ram_readback_verified": false,
+  "sd_write_attempted": false
+}

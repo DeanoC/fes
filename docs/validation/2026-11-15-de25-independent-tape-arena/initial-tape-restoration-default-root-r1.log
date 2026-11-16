@@ -1,0 +1,2 @@
+PASS complete selected native file/source proof native-baseline no live authority
+PASS restoration-only fixed sources, original failure and complete native baseline admission; no device access

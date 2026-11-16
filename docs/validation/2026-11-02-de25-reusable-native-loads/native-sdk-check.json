@@ -1,0 +1,14 @@
+{
+  "status": "passed",
+  "source_commit": "6a600b94c8679a5ade45ad4320b56df79a54ee1a",
+  "native_sdk": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-repeat-load-20261102/native-sdk",
+  "selected_sources": 1407,
+  "sdk_receipt_sha256": "607658344cd53755a4b7c19c305298a16de1bbbed13eab0ad59aa4c6676daf0d",
+  "elf_sha256": "7cf50215a6d177e77226e733314d5f4e022c695b910726310e5a96758976c259",
+  "classification": "native cross-build only; current caller selects one load; no matched entry or firmware built",
+  "hps_context_sha256": "e9fa95a8d645d900f4cb5b60d9aeaeae5da1c76145800cce9370004db3224def",
+  "hps_computer_sha256": "e6f40c8b236dfdeb1a41f09f04d87b932de8ff4fa9692f8339967a58503bc743",
+  "hardware_run": false,
+  "quartus_compile": false,
+  "known_next_gate": "fresh matched FPGA master-stop activation after completed rearm"
+}
