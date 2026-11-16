@@ -10,6 +10,13 @@ title's own window, on the drive the method pins.
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | Quake timedemo (DOSBench) (25.0 s) | 31,997,318 | 22.34% / 9.12% / 20.09% | 38.72% | 2.97% | 0.04% | 4.57% |
 | Screamer (1995) (30.0 s) | 1,266,208 | 26.14% / 12.15% / 7.66% | 33.54% | 3.93% | 1.11% | 11.18% |
+| Chris's 3D Benchmark (20.0 s) | 15,236,311 | 27.90% / 10.30% / 0.61% | 20.26% | 8.67% | 0.02% | 19.39% |
+| Terminal Velocity (1995) (30.0 s) | 6,850 | 15.74% / 15.53% / 7.52% | 23.08% | 0.01% | 7.50% | 22.99% |
+| DOOM (1993) (20.0 s) | 11 | 0.00% / 0.00% / 0.00% | 0.00% | 0.00% | 0.00% | 100.00% |
+| Wolfenstein 3D (1992) (20.0 s) | 13,605 | 20.85% / 19.74% / 0.00% | 23.45% | 2.23% | 5.09% | 27.53% |
+| Ultima VI: The False Prophet (1990) (20.0 s) | 0 | - / - / - | - | - | - | - |
+| Ultima VII: The Black Gate (1992) (20.0 s) | 0 | - / - / - | - | - | - | - |
+| Ultima VII Part Two: Serpent Isle (1993) (20.0 s) | 0 | - / - / - | - | - | - | - |
 
 ## Precision control, rounding control, and the verdict
 
@@ -17,6 +24,13 @@ title's own window, on the drive the method pins.
 | --- | --- | --- | --- | ---: | --- |
 | Quake timedemo (DOSBench) (25.0 s) | 24 11,926,211, 64 462,063 | zero 10,809,686, up 1,116,525, nearest 462,063 | le53 107,191, le64 58,329 | 47,161 / 46,847 | **no** |
 | Screamer (1995) (30.0 s) | 53 424,703, 64 1 | nearest 424,704 | le53 95,302, le64 36,189 | 524 / 0 | **no** |
+| Chris's 3D Benchmark (20.0 s) | 64 3,086,420 | nearest 3,086,420 | le53 2,849,963, le64 1,882,494 | 55,436 / 55,437 | **no** |
+| Terminal Velocity (1995) (30.0 s) | 53 1,580, 64 1 | nearest 1,581 | le53 2,567, le64 756 | 0 / 0 | **no** |
+| DOOM (1993) (20.0 s) | - | - | - | 0 / 0 | probe only, no verdict |
+| Wolfenstein 3D (1992) (20.0 s) | 64 3,190 | nearest 3,190 | le64 5,554, le53 4,388 | 0 / 0 | **no** |
+| Ultima VI: The False Prophet (1990) (20.0 s) | - | - | - | 0 / 0 | probe only, no verdict |
+| Ultima VII: The Black Gate (1992) (20.0 s) | - | - | - | 0 / 0 | probe only, no verdict |
+| Ultima VII Part Two: Serpent Isle (1993) (20.0 s) | - | - | - | 0 / 0 | probe only, no verdict |
 
 ## The operand precisions actually used
 
@@ -24,6 +38,13 @@ title's own window, on the drive the method pins.
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | Quake timedemo (DOSBench) (25.0 s) | 11,646,614 | 224,521 | 94,008 | 0 / 3,137,774 / 13,154 | 0 | 2 |
 | Screamer (1995) (30.0 s) | 436,357 | 61,059 | 524 | 87,519 / 99,612 / 0 | 0 | 0 |
+| Chris's 3D Benchmark (20.0 s) | 6,377,522 | 32,946 | 110,873 | 0 / 543,984 / 65,792 | 0 | 0 |
+| Terminal Velocity (1995) (30.0 s) | 1,095 | 3 | 0 | 0 / 1,322 / 0 | 0 | 0 |
+| DOOM (1993) (20.0 s) | 0 | 0 | 0 | 0 / 0 / 0 | 0 | 0 |
+| Wolfenstein 3D (1992) (20.0 s) | 2,716 | 3,194 | 0 | 453 / 153 / 1,146 | 0 | 0 |
+| Ultima VI: The False Prophet (1990) (20.0 s) | 0 | 0 | 0 | 0 / 0 / 0 | 0 | 0 |
+| Ultima VII: The Black Gate (1992) (20.0 s) | 0 | 0 | 0 | 0 / 0 / 0 | 0 | 0 |
+| Ultima VII Part Two: Serpent Isle (1993) (20.0 s) | 0 | 0 | 0 | 0 / 0 / 0 | 0 | 0 |
 
 ## Exceptions
 
@@ -31,6 +52,13 @@ title's own window, on the drive the method pins.
 | --- | --- | --- | --- | --- |
 | Quake timedemo (DOSBench) (25.0 s) | 3f 31,997,178, 3a 139, 00 1 | 3a 139, 00 1 | no | d9fc:raised=20:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
 | Screamer (1995) (30.0 s) | 3f 1,266,207, 00 1 | 00 1 | no | d9.m3:raised=20:unmasked=00 1, db.m3:raised=01:unmasked=00 1, de.r6:raised=04:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
+| Chris's 3D Benchmark (20.0 s) | 3a 15,236,298, 3f 12, 00 1 | 3a 15,236,298, 00 1 | no | dc.r1:raised=20:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
+| Terminal Velocity (1995) (30.0 s) | 3f 6,849, 00 1 | 00 1 | no | d9fe:raised=20:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
+| DOOM (1993) (20.0 s) | 3f 10, 00 1 | 00 1 | no | none |
+| Wolfenstein 3D (1992) (20.0 s) | 32 13,598, 3f 6, 00 1 | 32 13,598, 00 1 | no | d8.m6:raised=20:unmasked=00 1 |
+| Ultima VI: The False Prophet (1990) (20.0 s) | - | none | no | none |
+| Ultima VII: The Black Gate (1992) (20.0 s) | - | none | no | none |
+| Ultima VII Part Two: Serpent Isle (1993) (20.0 s) | - | none | no | none |
 
 ## The window
 
@@ -42,6 +70,13 @@ time; `prompt` means the program returned to the DOS prompt.
 | --- | ---: | --- | --- |
 | Quake timedemo (DOSBench) | 25.0 | limit | 9 s: pc24/nearest, pc24/zero, pc64/nearest, pc64/zero; 14 s: pc64/nearest; 15 s: pc24/zero, pc64/nearest, pc64/zero; 16 s: pc24/zero, pc64/down, pc64/nearest, pc64/up; 17 s: pc24/down, pc24/up, pc24/zero, pc64/down, pc64/nearest, pc64/up, pc64/zero; 18 s: pc24/down, pc24/up, pc24/zero, pc64/nearest, pc64/zero … (12 seconds with x87) |
 | Screamer (1995) | 30.0 | limit | 6 s: pc24/nearest, pc64/nearest; 7 s: pc53/nearest, pc64/nearest, pc64/zero; 27 s: pc53/nearest, pc64/zero; 28 s: pc53/nearest, pc64/zero; 29 s: pc53/nearest, pc64/zero |
+| Chris's 3D Benchmark | 20.0 | limit | 6 s: pc24/nearest, pc24/zero, pc64/nearest; 11 s: pc24/zero, pc64/down, pc64/nearest; 12 s: pc24/zero, pc64/nearest; 13 s: pc24/zero, pc64/nearest; 14 s: pc24/zero, pc64/nearest; 15 s: pc24/zero, pc64/nearest … (10 seconds with x87) |
+| Terminal Velocity (1995) | 30.0 | limit | 6 s: pc24/nearest, pc53/nearest, pc64/nearest, pc64/zero; 8 s: pc53/nearest, pc64/zero |
+| DOOM (1993) | 20.0 | limit | 6 s: pc24/nearest, pc64/nearest |
+| Wolfenstein 3D (1992) | 20.0 | limit | 6 s: pc24/nearest, pc64/nearest; 7 s: pc64/nearest, pc64/zero |
+| Ultima VI: The False Prophet (1990) | 20.0 | limit | - |
+| Ultima VII: The Black Gate (1992) | 20.0 | limit | - |
+| Ultima VII Part Two: Serpent Isle (1993) | 20.0 | limit | - |
 
 ## Rounding control on the stores and FRNDINT
 
@@ -53,6 +88,13 @@ the full rounding path on them.
 | --- | ---: | --- | --- |
 | Quake timedemo (DOSBench) | 25,400 | 24 18,513,205, 64 1,082,154 | zero 27,552,856, up 2,916,385, nearest 1,484,463, down 43,614 |
 | Screamer (1995) | 39,902 | 53 770,875, 64 61,028, 24 1 | nearest 1,205,204, zero 61,004 |
+| Chris's 3D Benchmark | 718 | 64 11,109,788, 24 1,037,603 | nearest 14,196,555, zero 1,037,602, down 2,154 |
+| Terminal Velocity (1995) | 518 | 53 3,694, 64 1,060, 24 1 | nearest 5,814, zero 1,036 |
+| DOOM (1993) | 0 | 64 10, 24 1 | nearest 11 |
+| Wolfenstein 3D (1992) | 0 | 64 9,722, 24 1 | nearest 11,313, zero 2,292 |
+| Ultima VI: The False Prophet (1990) | 0 | - | - |
+| Ultima VII: The Black Gate (1992) | 0 | - | - |
+| Ultima VII Part Two: Serpent Isle (1993) | 0 | - | - |
 
 ## FSQRT by precision control
 
@@ -63,6 +105,13 @@ costs 37 bits of remainder width on every square root.
 | --- | ---: | --- |
 | Quake timedemo (DOSBench) | 758 | 64 594, 24 164 |
 | Screamer (1995) | 575 | 53 575 |
+| Chris's 3D Benchmark | 67,292 | 64 67,292 |
+| Terminal Velocity (1995) | 1 | 53 1 |
+| DOOM (1993) | 0 | - |
+| Wolfenstein 3D (1992) | 0 | - |
+| Ultima VI: The False Prophet (1990) | 0 | - |
+| Ultima VII: The Black Gate (1992) | 0 | - |
+| Ultima VII Part Two: Serpent Isle (1993) | 0 | - |
 
 ## Calibration
 
@@ -74,6 +123,13 @@ both.
 | --- | ---: | ---: | --- | ---: | ---: |
 | Quake timedemo (DOSBench) | 31,997,318 | 31,997,318 | yes | 443 | 0 |
 | Screamer (1995) | 1,266,208 | 1,266,208 | yes | 0 | 0 |
+| Chris's 3D Benchmark | 15,236,311 | 15,236,311 | yes | 168 | 0 |
+| Terminal Velocity (1995) | 6,850 | 6,850 | yes | 0 | 0 |
+| DOOM (1993) | 11 | 11 | yes | 0 | 0 |
+| Wolfenstein 3D (1992) | 13,605 | 13,605 | yes | 0 | 0 |
+| Ultima VI: The False Prophet (1990) | 0 | 0 | yes | 0 | 0 |
+| Ultima VII: The Black Gate (1992) | 0 | 0 | yes | 0 | 0 |
+| Ultima VII Part Two: Serpent Isle (1993) | 0 | 0 | yes | 0 | 0 |
 
 ## Every form that executed
 
@@ -81,101 +137,106 @@ The full histogram, not a top-N: the forms that decide a design question
 are not always the frequent ones. `class` and `operand` are
 `pc386_census_summary.py`'s classification.
 
-| Form | class | operand | Quake timedemo (DOSBench) | Screamer (1995) |
-| --- | --- | --- | ---: | ---: |
-| `d8.m0` | arith | real32 | 1,361,631 | 58,847 |
-| `d8.m1` | arith | real32 | 4,099,595 | 34,894 |
-| `d8.m2` | compare | real32 | 512,371 | 0 |
-| `d8.m3` | compare | real32 | 83,986 | 29,551 |
-| `d8.m4` | arith | real32 | 391,297 | 174,464 |
-| `d8.m5` | arith | real32 | 85,488 | 22 |
-| `d8.m6` | arith | real32 | 9,898 | 76 |
-| `d8.m7` | arith | real32 | 116,434 | 11 |
-| `d8.r0` | arith | none | 3,257 | 0 |
-| `d8.r1` | arith | none | 1,617,821 | 6,552 |
-| `d8.r2` | compare | none | 112,314 | 0 |
-| `d8.r3` | compare | none | 181,476 | 5,000 |
-| `d8.r4` | arith | none | 72,859 | 4,400 |
-| `d8.r5` | arith | none | 72,380 | 0 |
-| `d8.r6` | arith | none | 302,722 | 0 |
-| `d8.r7` | arith | none | 2,296 | 0 |
-| `d9.m0` | load | real32 | 3,564,740 | 38,382 |
-| `d9.m2` | store | real32 | 579,762 | 0 |
-| `d9.m3` | store | real32 | 841,412 | 100,110 |
-| `d9.m4` | control | image | 1 | 0 |
-| `d9.m5` | control | none | 353,462 | 61,006 |
-| `d9.m6` | control | image | 1 | 0 |
-| `d9.m7` | control | none | 140,010 | 30,505 |
-| `d9.r0` | load | none | 1,648,578 | 98,902 |
-| `d9.r1` | fxch | none | 6,427,055 | 97,025 |
-| `d9e0` | simple | none | 42,792 | 54 |
-| `d9e1` | simple | none | 411 | 4,411 |
-| `d9e4` | compare | none | 0 | 5,524 |
-| `d9e8` | load | none | 1,268 | 11,376 |
-| `d9ea` | load | none | 0 | 4,400 |
-| `d9ed` | load | none | 0 | 4,400 |
-| `d9ee` | load | none | 83,727 | 74 |
-| `d9f0` | trans | none | 0 | 4,400 |
-| `d9f1` | trans | none | 0 | 4,400 |
-| `d9f2` | trans | none | 4 | 0 |
-| `d9f3` | trans | none | 0 | 524 |
-| `d9fa` | arith | none | 758 | 575 |
-| `d9fc` | round | none | 25,400 | 39,902 |
-| `d9fd` | trans | none | 0 | 4,400 |
-| `d9fe` | trans | none | 8,404 | 138 |
-| `d9ff` | trans | none | 5,277 | 138 |
-| `da.m0` | arith | int32 | 18,575 | 0 |
-| `da.m1` | arith | int32 | 61,597 | 0 |
-| `da.m2` | compare | int32 | 3,877 | 0 |
-| `da.m3` | compare | int32 | 375 | 0 |
-| `da.m4` | arith | int32 | 21,550 | 0 |
-| `da.m5` | arith | int32 | 194 | 0 |
-| `da.m6` | arith | int32 | 814 | 0 |
-| `da.m7` | arith | int32 | 84 | 0 |
-| `dae9` | compare | none | 9,249 | 0 |
-| `db.m0` | load | int32 | 1,630,305 | 68,510 |
-| `db.m2` | store | int32 | 31,548 | 0 |
-| `db.m3` | store | int32 | 1,368,855 | 31,102 |
-| `db.m5` | load | real80 | 47,161 | 524 |
-| `db.m7` | store | real80 | 46,847 | 0 |
-| `dbe3` | control | none | 2 | 10 |
-| `dbe4` | control | none | 0 | 4 |
-| `dc.m0` | arith | real64 | 4,046 | 5,000 |
-| `dc.m1` | arith | real64 | 3,556 | 2,328 |
-| `dc.m2` | compare | real64 | 2,028 | 8,800 |
-| `dc.m3` | compare | real64 | 1,947 | 321 |
-| `dc.m4` | arith | real64 | 2,683 | 0 |
-| `dc.m5` | arith | real64 | 943 | 0 |
-| `dc.m6` | arith | real64 | 2,377 | 21 |
-| `dc.m7` | arith | real64 | 0 | 5,000 |
-| `dc.r0` | arith | none | 4,725 | 0 |
-| `dc.r1` | arith | none | 32,577 | 600 |
-| `dc.r4` | arith | none | 55,527 | 0 |
-| `dc.r5` | arith | none | 65,691 | 0 |
-| `dc.r6` | arith | none | 4 | 0 |
-| `dc.r7` | arith | none | 120,669 | 0 |
-| `dd.m0` | load | real64 | 164,538 | 16,929 |
-| `dd.m2` | store | real64 | 2,597 | 5,600 |
-| `dd.m3` | store | real64 | 39,806 | 17,060 |
-| `dd.m7` | control | none | 2 | 19,601 |
-| `dd.r3` | simple | none | 615,685 | 10,000 |
-| `dde0` | simple | none | 758 | 0 |
-| `dde1` | simple | none | 3,029 | 0 |
-| `dde2` | simple | none | 121 | 0 |
-| `dde9` | simple | none | 2,912 | 0 |
-| `de.r0` | arith | none | 2,955,680 | 38,221 |
-| `de.r1` | arith | none | 326,779 | 91,643 |
-| `de.r4` | arith | none | 237,844 | 1,180 |
-| `de.r5` | arith | none | 280,767 | 138 |
-| `de.r6` | arith | none | 18,659 | 722 |
-| `de.r7` | arith | none | 36,497 | 10 |
-| `ded9` | compare | none | 41,835 | 515 |
-| `df.m0` | load | int16 | 0 | 87,519 |
-| `df.m5` | load | int64 | 7,266 | 0 |
-| `df.m7` | store | int64 | 5,888 | 0 |
-| `dfe0` | control | none | 969,962 | 30,387 |
+| Form | class | operand | Quake timedemo (DOSBench) | Screamer (1995) | Chris's 3D Benchmark | Terminal Velocity (1995) | DOOM (1993) | Wolfenstein 3D (1992) | Ultima VI: The False Prophet (1990) | Ultima VII: The Black Gate (1992) | Ultima VII Part Two: Serpent Isle (1993) |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `d8.m0` | arith | real32 | 1,361,631 | 58,847 | 325,292 | 543 | 0 | 541 | 0 | 0 | 0 |
+| `d8.m1` | arith | real32 | 4,099,595 | 34,894 | 1,182,357 | 0 | 0 | 1,145 | 0 | 0 | 0 |
+| `d8.m2` | compare | real32 | 512,371 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `d8.m3` | compare | real32 | 83,986 | 29,551 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
+| `d8.m4` | arith | real32 | 391,297 | 174,464 | 152,562 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `d8.m5` | arith | real32 | 85,488 | 22 | 12,888 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `d8.m6` | arith | real32 | 9,898 | 76 | 615 | 0 | 0 | 451 | 0 | 0 | 0 |
+| `d8.m7` | arith | real32 | 116,434 | 11 | 147,312 | 1 | 0 | 0 | 0 | 0 | 0 |
+| `d8.r0` | arith | none | 3,257 | 0 | 191,583 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `d8.r1` | arith | none | 1,617,821 | 6,552 | 11,193 | 1,028 | 0 | 0 | 0 | 0 | 0 |
+| `d8.r2` | compare | none | 112,314 | 0 | 1,030,906 | 0 | 0 | 151 | 0 | 0 | 0 |
+| `d8.r3` | compare | none | 181,476 | 5,000 | 173,863 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `d8.r4` | arith | none | 72,859 | 4,400 | 174,581 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `d8.r5` | arith | none | 72,380 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `d8.r6` | arith | none | 302,722 | 0 | 432 | 2 | 0 | 0 | 0 | 0 | 0 |
+| `d8.r7` | arith | none | 2,296 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `d9.m0` | load | real32 | 3,564,740 | 38,382 | 3,569,607 | 5 | 0 | 335 | 0 | 0 | 0 |
+| `d9.m2` | store | real32 | 579,762 | 0 | 224,829 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `d9.m3` | store | real32 | 841,412 | 100,110 | 762,060 | 546 | 0 | 243 | 0 | 0 | 0 |
+| `d9.m4` | control | image | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `d9.m5` | control | none | 353,462 | 61,006 | 1,039,039 | 1,038 | 0 | 2,293 | 0 | 0 | 0 |
+| `d9.m6` | control | image | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `d9.m7` | control | none | 140,010 | 30,505 | 520,239 | 521 | 1 | 1,146 | 0 | 0 | 0 |
+| `d9.r0` | load | none | 1,648,578 | 98,902 | 529,904 | 260 | 0 | 0 | 0 | 0 | 0 |
+| `d9.r1` | fxch | none | 6,427,055 | 97,025 | 92,831 | 515 | 0 | 0 | 0 | 0 | 0 |
+| `d9e0` | simple | none | 42,792 | 54 | 211 | 1 | 0 | 1 | 0 | 0 | 0 |
+| `d9e1` | simple | none | 411 | 4,411 | 210 | 0 | 0 | 151 | 0 | 0 | 0 |
+| `d9e4` | compare | none | 0 | 5,524 | 718 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `d9e5` | compare | none | 0 | 0 | 0 | 0 | 0 | 152 | 0 | 0 | 0 |
+| `d9e8` | load | none | 1,268 | 11,376 | 74,018 | 1 | 0 | 601 | 0 | 0 | 0 |
+| `d9ea` | load | none | 0 | 4,400 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `d9ed` | load | none | 0 | 4,400 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `d9ee` | load | none | 83,727 | 74 | 5,140 | 5 | 0 | 0 | 0 | 0 | 0 |
+| `d9f0` | trans | none | 0 | 4,400 | 508 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `d9f1` | trans | none | 0 | 4,400 | 508 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `d9f2` | trans | none | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `d9f3` | trans | none | 0 | 524 | 0 | 0 | 0 | 151 | 0 | 0 | 0 |
+| `d9fa` | arith | none | 758 | 575 | 67,292 | 1 | 0 | 0 | 0 | 0 | 0 |
+| `d9fb` | trans | none | 0 | 0 | 0 | 0 | 0 | 450 | 0 | 0 | 0 |
+| `d9fc` | round | none | 25,400 | 39,902 | 718 | 518 | 0 | 0 | 0 | 0 | 0 |
+| `d9fd` | trans | none | 0 | 4,400 | 508 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `d9fe` | trans | none | 8,404 | 138 | 361 | 257 | 0 | 91 | 0 | 0 | 0 |
+| `d9ff` | trans | none | 5,277 | 138 | 1,123 | 257 | 0 | 0 | 0 | 0 | 0 |
+| `da.m0` | arith | int32 | 18,575 | 0 | 69,645 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `da.m1` | arith | int32 | 61,597 | 0 | 20,799 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `da.m2` | compare | int32 | 3,877 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `da.m3` | compare | int32 | 375 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `da.m4` | arith | int32 | 21,550 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `da.m5` | arith | int32 | 194 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `da.m6` | arith | int32 | 814 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `da.m7` | arith | int32 | 84 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dae9` | compare | none | 9,249 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `db.m0` | load | int32 | 1,630,305 | 68,510 | 321 | 804 | 0 | 153 | 0 | 0 | 0 |
+| `db.m2` | store | int32 | 31,548 | 0 | 210 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `db.m3` | store | int32 | 1,368,855 | 31,102 | 453,009 | 518 | 0 | 0 | 0 | 0 | 0 |
+| `db.m5` | load | real80 | 47,161 | 524 | 55,436 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `db.m7` | store | real80 | 46,847 | 0 | 55,437 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dbe3` | control | none | 2 | 10 | 2 | 10 | 5 | 2 | 0 | 0 | 0 |
+| `dbe4` | control | none | 0 | 4 | 0 | 4 | 4 | 0 | 0 | 0 | 0 |
+| `dc.m0` | arith | real64 | 4,046 | 5,000 | 3,076 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dc.m1` | arith | real64 | 3,556 | 2,328 | 2,402 | 0 | 0 | 1 | 0 | 0 | 0 |
+| `dc.m2` | compare | real64 | 2,028 | 8,800 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dc.m3` | compare | real64 | 1,947 | 321 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dc.m4` | arith | real64 | 2,683 | 0 | 2,659 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dc.m5` | arith | real64 | 943 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dc.m6` | arith | real64 | 2,377 | 21 | 0 | 0 | 0 | 602 | 0 | 0 | 0 |
+| `dc.m7` | arith | real64 | 0 | 5,000 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dc.r0` | arith | none | 4,725 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dc.r1` | arith | none | 32,577 | 600 | 24,841 | 1 | 0 | 0 | 0 | 0 | 0 |
+| `dc.r4` | arith | none | 55,527 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dc.r5` | arith | none | 65,691 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dc.r6` | arith | none | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dc.r7` | arith | none | 120,669 | 0 | 76,224 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dd.m0` | load | real64 | 164,538 | 16,929 | 16,182 | 3 | 0 | 1,295 | 0 | 0 | 0 |
+| `dd.m2` | store | real64 | 2,597 | 5,600 | 4,657 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dd.m3` | store | real64 | 39,806 | 17,060 | 3,970 | 0 | 0 | 1,296 | 0 | 0 | 0 |
+| `dd.m7` | control | none | 2 | 19,601 | 2 | 1 | 1 | 303 | 0 | 0 | 0 |
+| `dd.r3` | simple | none | 615,685 | 10,000 | 1,883,342 | 3 | 0 | 0 | 0 | 0 | 0 |
+| `dde0` | simple | none | 758 | 0 | 67,292 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dde1` | simple | none | 3,029 | 0 | 1,284 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dde2` | simple | none | 121 | 0 | 1,284 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dde3` | simple | none | 0 | 0 | 1,284 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dde4` | simple | none | 0 | 0 | 864 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dde9` | simple | none | 2,912 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `ddec` | simple | none | 0 | 0 | 1,284 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `de.r0` | arith | none | 2,955,680 | 38,221 | 315,185 | 2 | 0 | 0 | 0 | 0 | 0 |
+| `de.r1` | arith | none | 326,779 | 91,643 | 2,913 | 2 | 0 | 0 | 0 | 0 | 0 |
+| `de.r4` | arith | none | 237,844 | 1,180 | 4,296 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `de.r5` | arith | none | 280,767 | 138 | 296,772 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `de.r6` | arith | none | 18,659 | 722 | 216 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `de.r7` | arith | none | 36,497 | 10 | 1,285 | 1 | 0 | 450 | 0 | 0 | 0 |
+| `ded9` | compare | none | 41,835 | 515 | 115,337 | 1 | 0 | 0 | 0 | 0 | 0 |
+| `df.m0` | load | int16 | 0 | 87,519 | 0 | 0 | 0 | 453 | 0 | 0 | 0 |
+| `df.m5` | load | int64 | 7,266 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `df.m7` | store | int64 | 5,888 | 0 | 65,792 | 0 | 0 | 1,146 | 0 | 0 | 0 |
+| `dfe0` | control | none | 969,962 | 30,387 | 1,395,600 | 1 | 0 | 1 | 0 | 0 | 0 |
 
-**Forms no title in this census executed (71 of 162):** `d9e5`, `d9e9`, `d9eb`, `d9ec`, `d9f4`, `d9f5`, `d9f6`, `d9f7`, `d9f8`, `d9f9`, `d9fb`, `da.r0`, `da.r1`, `da.r2`, `da.r3`, `da.r4`, `da.r5`, `da.r6`, `da.r7`, `db.r0`, `db.r1`, `db.r2`, `db.r3`, `db.r4`, `db.r5`, `db.r6`, `db.r7`, `dbe0`, `dbe1`, `dbe2`, `dc.r2`, `dc.r3`, `dd.m4`, `dd.m6`, `dd.r0`, `dd.r1`, `dd.r2`, `dde3`, `dde4`, `dde5`, `dde6`, `dde7`, `dde8`, `ddea`, `ddeb`, `ddec`, `dded`, `ddee`, `ddef`, `de.m0`, `de.m1`, `de.m2`, `de.m3`, `de.m4`, `de.m5`, `de.m6`, `de.m7`, `de.r2`, `de.r3`, `df.m2`, `df.m3`, `df.m4`, `df.m6`, `df.r0`, `df.r1`, `df.r2`, `df.r3`, `df.r4`, `df.r5`, `df.r6`, `df.r7`.
+**Forms no title in this census executed (66 of 162):** `d9e9`, `d9eb`, `d9ec`, `d9f4`, `d9f5`, `d9f6`, `d9f7`, `d9f8`, `d9f9`, `da.r0`, `da.r1`, `da.r2`, `da.r3`, `da.r4`, `da.r5`, `da.r6`, `da.r7`, `db.r0`, `db.r1`, `db.r2`, `db.r3`, `db.r4`, `db.r5`, `db.r6`, `db.r7`, `dbe0`, `dbe1`, `dbe2`, `dc.r2`, `dc.r3`, `dd.m4`, `dd.m6`, `dd.r0`, `dd.r1`, `dd.r2`, `dde5`, `dde6`, `dde7`, `dde8`, `ddea`, `ddeb`, `dded`, `ddee`, `ddef`, `de.m0`, `de.m1`, `de.m2`, `de.m3`, `de.m4`, `de.m5`, `de.m6`, `de.m7`, `de.r2`, `de.r3`, `df.m2`, `df.m3`, `df.m4`, `df.m6`, `df.r0`, `df.r1`, `df.r2`, `df.r3`, `df.r4`, `df.r5`, `df.r6`, `df.r7`.
 
 For slice 6: these are the forms the census titles never reach, so
 optimising them buys nothing measurable here. They must still be *correct* —

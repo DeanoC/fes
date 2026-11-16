@@ -2,11 +2,11 @@
 
 15–16 November 2026. Oracle-only: no RTL, no kit, no fits.
 
-**Status: the two computing titles are measured; seven runs are still in
-flight, DOOM's negative control among them.** The method gates this record
-on that control — if DOOM moves a real or integer memory operand, the
-instrumentation is wrong and nothing here is reported. Until it has run,
-every conclusion below is **provisional on it**. Tracker:
+**All nine runs are complete and the negative control passed.** DOOM
+retires 11 ESCs, every one of them a control form — `FNINIT` ×5, `FNCLEX`
+×4, `FNSTCW m16`, `FNSTSW m16` — and **zero** real or integer memory
+operands, zero FXCH and zero transcendentals, which is the committed
+control exactly. It also reproduces the 12 November census's 11. Tracker:
 [#1886](https://github.com/DeanoC/fes/issues/1886). Phase 6's plan is
 [#1768](https://github.com/DeanoC/fes/issues/1768).
 
@@ -19,43 +19,113 @@ aimed at the actual use case — be worth building?
 ## Result
 
 **No title in this census could be reproduced by a 24-bit-significand
-datapath, and the clearest case needs no interpretation: Screamer runs no
-arithmetic at 24 bits at all.** Its 434,103 add, subtract, multiply, divide
-and square-root operations are 424,703 at PC=53 and 1 at PC=64, with none at
-PC=24 — and Screamer is a title that does not boot without a 387. A reduced
-unit would be wrong for it from its first frame.
+datapath, and the premise behind the question is contradicted by the corpus
+itself: of the five titles that compute, only one uses 24-bit precision at
+all.**
 
-Quake is the other computing title and it fails too, though less starkly:
-11,926,211 of its arithmetic operations run at PC=24 and **462,063 at
-PC=64**. Both titles also leave significands wider than 24 bits in the
-register file — Quake on 165,520 steps (107,191 `le53`, 58,329 `le64`),
-Screamer on 131,491 — because precision control bounds add, subtract,
-multiply, divide and square root and **does not** bound `FILD`, `FLD m64`,
-the constant loads, `FRNDINT`, `FPREM`, `FSCALE` or the transcendentals.
+| Title | arithmetic by precision control | x87 retired |
+| --- | --- | ---: |
+| Quake timedemo | **24-bit** 11,926,211 / 64-bit 462,063 | 31,997,318 |
+| Chris's 3D Benchmark | 64-bit 3,086,420, **none at 24** | 15,236,311 |
+| Screamer | 53-bit 424,703 / 64-bit 1, **none at 24** | 1,266,208 |
+| Wolfenstein 3D | 64-bit 3,190, **none at 24** | 13,605 |
+| Terminal Velocity | 53-bit 1,580 / 64-bit 1, **none at 24** | 6,850 |
+| DOOM | none — probe only (the negative control) | 11 |
+| Ultima VI, Ultima VII, Serpent Isle | **no x87 at all** | 0 each |
 
-Beyond coverage, three arguments stand independently of any count:
+**Four of the five computing titles never execute a single arithmetic
+operation at 24-bit precision.** The clearest case needs no interpretation:
+**Screamer** runs 424,703 add, subtract, multiply, divide and square-root
+operations at PC=53 and one at PC=64, with **none at PC=24** — and Screamer
+is a title that does not boot without a 387. A reduced unit would be wrong
+for it from its first frame, and no amount of special-casing another title
+touches that.
+
+Quake is the only title with PC=24 arithmetic, and it is also the only title
+where the "games are fp32" intuition has any support — 97% of its arithmetic
+is at PC=24, which it sets deliberately and brackets (below). It still
+fails: 462,063 operations at PC=64 remain, and it leaves significands wider
+than 24 bits in the register file on 165,520 steps.
+
+**Every computing title leaves wide significands in the registers**, because
+precision control bounds add, subtract, multiply, divide and square root and
+does **not** bound `FILD`, `FLD m64`, the constant loads, `FRNDINT`,
+`FPREM`, `FSCALE` or the transcendentals: Quake 165,520 steps, Screamer
+131,491, Chris's benchmark 4,732,457, Wolfenstein 3D 9,942, Terminal
+Velocity 3,323.
+
+Beyond coverage, two arguments stand independently of any count:
 
 - **Precision control is not fp32.** PC narrows the **significand** and
   leaves the exponent 15-bit extended at every setting. So a
   *24-bit-significand* unit would be exact for Quake's PC=24 arithmetic,
   while an *fp32* unit would not: the exponent range, the overflow and
   underflow thresholds and the denormal handling stay at extended width.
-  The premise "games are fp32, so build an fp32 FPU" does not hold even
-  where the precision matches.
+  The premise "games are fp32, so build an fp32 FPU" fails even for the one
+  title whose precision matches.
 - **There is no fallback to degrade into.** The `i386dx+387` identity tells
   the guest a 387 is present, so there is nothing to trap to. The PS2 had
   fp32-only floating-point hardware *with* software emulation behind it, so
-  default-precision code there ran slowly, and could be profiled and fixed
+  default-precision code there ran slowly and could be profiled and fixed
   per title. A reduced unit here would not run wide code slowly — it would
   run it **wrong**, silently, wherever it is.
-- **The area saving is substantially smaller than the width suggests**, and
-  part of what it cannot save is measured. [area.md](area.md) gives the
-  figures, the one component that is isolated, and what cannot be separated
-  without a fit of a narrow unit.
+
+A third argument, that the area saving is smaller than the width suggests,
+is **weaker than this record first claimed**; [area.md](area.md) now gives
+only the component that is isolated by a measurement.
 
 **So there is no defensible reduced design** — not a narrower one, not a
 hybrid with a wide fallback, and not a per-title variant. The idea is
 closed, and closing it cost a census rather than a slice.
+
+### Exceptions: three titles run with them unmasked
+
+The brief asked whether exceptions are unmasked and whether any title relies
+on them, because slice 2's floor is largely the exception path.
+
+| Title | control-word low byte | instructions under it | which are unmasked |
+| --- | --- | ---: | --- |
+| Chris's 3D Benchmark | `3a` | 15,236,298 | invalid, divide-by-zero |
+| Wolfenstein 3D | `32` | 13,598 | invalid, divide-by-zero, overflow |
+| Quake | `3a` | 139 | invalid, divide-by-zero |
+
+**No run raised an unmasked exception and no run set ES**, so none of them
+*relies* on the exception path in the sense of taking IRQ 13. But the path
+is live architectural state for real titles, not only for Linux's boot
+check: an invalid operand or a zero divisor in Chris's benchmark or
+Wolfenstein 3D would take IRQ 13 and must. A reduced unit would carry the
+whole of that path — six flags, their masks, the summary bit, ES, the
+latch, F0h and F1h — unchanged, which is where slice 2's floor largely
+lives.
+
+### Wolfenstein 3D uses the FPU, which the earlier census never tested
+
+Wolfenstein 3D is a first-acceptance game and a fixed-point engine, and the
+12 November census never ran it. With a 387 fitted it retires **13,605 ESCs,
+3,190 of them arithmetic, all at PC=64**, moves 7,662 real and integer
+memory operands, and leaves significands above 24 bits on 9,942 steps — with
+invalid, divide-by-zero and overflow unmasked throughout.
+
+**What this does not establish:** that Wolfenstein 3D *needs* a 387.
+[#1533](https://github.com/DeanoC/fes/pull/1533) plays it on an empty
+socket, so with no 387 it evidently takes another path. A run with a
+coprocessor fitted measures what the title does *when one is present*,
+which is the right question for this census — a reduced unit would be
+selected by the same identity bit — but it cannot say what the title would
+do without one. Separating those needs the empty-socket run beside this one,
+and this record does not have it.
+
+### What four exact reproductions buy
+
+Four of the nine runs reproduce the 12 November census's retired-instruction
+totals **exactly**, on a moved tree with reimplemented census code:
+Chris's benchmark 15,236,311, Screamer 1,266,208, Terminal Velocity 6,850
+and DOOM 11. Chris's benchmark also reproduces its 15,236,298 unmasked
+instructions exactly.
+
+That is a strong check on both censuses and on this instrumentation, and it
+is why the one title that does **not** reproduce is worth stating plainly
+rather than explaining away: see "Calibration and reproduction" below.
 
 ### A headline this record withdraws
 
@@ -189,24 +259,45 @@ to is worse off than one with software emulation behind it.
 
 ## Secondary finding: what the mix tells slice 6
 
-The opcode mix says which operations are worth optimising and which the
-census titles never execute. Two figures were asked for by the slice 4
-session while this census was running and are already in its record:
+### Square-root early termination buys almost nothing; divide's is free
 
-- **Divide early termination is worth taking.** Quake's divides are
-  584,405 at PC=24 against 26,049 at PC=64, so the free 8-clock saving at
-  low precision lands on the overwhelming majority of the hottest
-  non-trivial FP operation in the corpus. Screamer's 5,839 divides are at
-  PC=53, which also terminates early.
-- **Square-root early termination is not.** Quake runs 758 square roots,
-  **594 of them at PC=64** (78%), and Screamer's 575 are all at PC=53. The
-  12 clocks it would save fall at the precisions where it saves nothing,
-  and it would cost 37 bits of remainder width on every square root. The
-  census confirms the decline.
+Both figures were asked for by the slice 4 session while this census ran and
+are in its record. The full corpus makes the square-root case much stronger
+than the two-title reading did:
 
-More generally: transcendentals are 0.04% of Quake's x87 instructions and
-1.11% of Screamer's, and FXCH is 20.09% of Quake's — the plan's instinct to
-make FXCH a pointer swap rather than a data move is supported.
+| Title | FSQRT | by precision control |
+| --- | ---: | --- |
+| Chris's 3D Benchmark | 67,292 | **all 67,292 at PC=64** |
+| Quake timedemo | 758 | 594 at PC=64, 164 at PC=24 |
+| Screamer | 575 | all at PC=53 |
+| Terminal Velocity | 1 | at PC=53 |
+| every other title | 0 | — |
+
+**Of 68,626 square roots in the whole census, 164 run at PC=24 — 0.24%.**
+Early termination there would save 12 clocks on a quarter of one percent of
+square roots, and cost 37 bits of remainder width on every one. The census
+confirms slice 4's decline, and it is no longer a close call.
+
+**Divide is the opposite.** Quake's divides are 584,405 at PC=24 against
+26,049 at PC=64, and Screamer's 5,839 are at PC=53, which also terminates
+early. The free 8-clock saving lands on the overwhelming majority of the
+hottest non-trivial FP operation in the corpus.
+
+### 71 of 162 forms are never executed
+
+The per-form table is a full histogram, not a top-N, and **71 of the 162
+forms the classification names were executed by no title in this census**
+([tables.md](tables.md) lists them). They must still be *correct* — a 387
+missing a form is not a 387 — but they need not be fast, and slice 6 should
+not spend area making them so.
+
+### What is hot
+
+FXCH is **20.09% of Quake's x87 instructions**, which supports the plan's
+instinct to make it a swap in a table of physical register numbers rather
+than a data move. Loads and stores together are 31–50% of every computing
+title. Transcendentals are 0.04% of Quake's and 1.11% of Screamer's, so the
+microcoded slow path is the right home for them.
 
 ## The tables
 
