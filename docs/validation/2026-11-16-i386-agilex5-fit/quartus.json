@@ -136,6 +136,14 @@
           "report_label": "Total LABs:  partially or completely used",
           "used": 3626.0
         },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3624.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
+        },
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 512.0
@@ -314,6 +322,14 @@
           "percent_of_device": 77.07,
           "report_label": "Total LABs:  partially or completely used",
           "used": 3607.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3605.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
         },
         "mlabs": {
           "report_label": "Total MLAB memory bits",
@@ -494,6 +510,14 @@
           "report_label": "Total LABs:  partially or completely used",
           "used": 3593.0
         },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3591.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
+        },
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 512.0
@@ -669,6 +693,14 @@
           "percent_of_device": 77.16,
           "report_label": "Total LABs:  partially or completely used",
           "used": 3611.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3609.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
         },
         "mlabs": {
           "report_label": "Total MLAB memory bits",
@@ -849,6 +881,14 @@
           "report_label": "Total LABs:  partially or completely used",
           "used": 3590.0
         },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3588.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
+        },
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 512.0
@@ -1028,6 +1068,14 @@
           "report_label": "Total LABs:  partially or completely used",
           "used": 3592.0
         },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3590.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
+        },
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 512.0
@@ -1206,6 +1254,14 @@
           "percent_of_device": 76.86,
           "report_label": "Total LABs:  partially or completely used",
           "used": 3597.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3595.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
         },
         "mlabs": {
           "report_label": "Total MLAB memory bits",
@@ -1390,6 +1446,14 @@
           "report_label": "Total LABs:  partially or completely used",
           "used": 3688.0
         },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3686.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
+        },
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 512.0
@@ -1570,6 +1634,14 @@
           "percent_of_device": 79.29,
           "report_label": "Total LABs:  partially or completely used",
           "used": 3711.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3709.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
         },
         "mlabs": {
           "report_label": "Total MLAB memory bits",
@@ -1808,6 +1880,14 @@
           "report_label": "Total LABs:  partially or completely used",
           "used": 3609.0
         },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3607.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
+        },
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 512.0
@@ -2022,6 +2102,14 @@
           "report_label": "Total LABs:  partially or completely used",
           "used": 3494.0
         },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3492.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
+        },
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 512.0
@@ -2222,6 +2310,14 @@
           "percent_of_device": 94.53,
           "report_label": "Total LABs:  partially or completely used",
           "used": 4424.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 4414.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 10.0
         },
         "mlabs": {
           "report_label": "Total MLAB memory bits",
@@ -2425,6 +2521,14 @@
           "percent_of_device": 98.08,
           "report_label": "Total LABs:  partially or completely used",
           "used": 4590.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 4580.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 10.0
         },
         "mlabs": {
           "report_label": "Total MLAB memory bits",
@@ -2634,6 +2738,14 @@
           "percent_of_device": 98.08,
           "report_label": "Total LABs:  partially or completely used",
           "used": 4590.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 4580.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 10.0
         },
         "mlabs": {
           "report_label": "Total MLAB memory bits",
@@ -2890,6 +3002,14 @@
           "report_label": "Total LABs:  partially or completely used",
           "used": 3946.0
         },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3938.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 8.0
+        },
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 1229.0
@@ -3067,6 +3187,14 @@
           "percent_of_device": 75.04,
           "report_label": "Total LABs:  partially or completely used",
           "used": 3512.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3510.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
         },
         "mlabs": {
           "report_label": "Total MLAB memory bits",

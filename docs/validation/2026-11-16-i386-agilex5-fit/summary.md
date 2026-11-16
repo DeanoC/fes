@@ -362,7 +362,8 @@ listed with the other unmeasured items.
 is not capacity.** Slices 3 and 4 add **4,132 ALMs** over M+ — an eleventh of
 the device — and **exactly zero LABs**. Not approximately: the two fits report
 **4,590 total, 4,580 logic and 10 memory LABs, identically**, across a
-4,132-ALM difference.
+4,132-ALM difference. All three rows are in [quartus.json](quartus.json) for
+every fit, so that comparison can be checked rather than taken on trust.
 
 The slot arithmetic is at least consistent with it — 4,590 LABs hold 45,900 ALM
 slots, M+ places 40,550 and this fit 43,308, so the extra ALMs fit in free

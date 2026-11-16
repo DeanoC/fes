@@ -532,6 +532,11 @@ OPTIONAL_LABELS = {
     # appears in no report here.
     "labs": ("Total LABs:  partially or completely used",
              "Total LABs: partially or completely used"),
+    # The LAB row's own breakdown. The record compares these between fits --
+    # two designs 4,132 ALMs apart reporting the same 4,580 logic and 10
+    # memory LABs is a claim that needs its rows kept.
+    "logic_labs": ("-- Logic LABs",),
+    "memory_labs": ("-- Memory LABs (up to half of total LABs)",),
     "mlabs": ("MLAB blocks", "Total MLAB memory bits"),
 }
 _FRACTION = re.compile(r"^([\d,]+(?:\.\d+)?)\s*(?:/\s*([\d,]+(?:\.\d+)?))?\s*(?:\(\s*([<>]?\s*[\d.]+)\s*%\s*\))?")
