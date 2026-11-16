@@ -11,10 +11,12 @@ from scripts import record_i386_device_fits as record
 
 
 def write_fit(directory: Path, *, device: str, family: str, alms: float, available: float,
-              device_alms: int, ram_block: str, host: str = "powerboat") -> Path:
+              device_alms: int, ram_block: str, host: str = "powerboat",
+              status: str = "pass", stage: str | None = None,
+              revision: str = "a" * 40) -> Path:
     directory.mkdir(parents=True)
-    (directory / "fit.json").write_text(json.dumps({
-        "status": "pass", "top": "fes_i386_cpu", "device": device, "family": family,
+    fit = {
+        "status": status, "top": "fes_i386_cpu", "device": device, "family": family,
         "seed": 1, "period_ns": 16.276, "host": host, "real_pins": 1,
         "quartus": {"release": "26.3.0", "edition": "pro", "lock": "boards/de25nano/quartus.lock"},
         "classification": "internal virtual-pin characterisation fit", "hardware_acceptance": "not-run",
@@ -23,10 +25,14 @@ def write_fit(directory: Path, *, device: str, family: str, alms: float, availab
                                "percent_of_device": round(100 * alms / available, 2),
                                "report_label": "Logic utilization"}},
         "timing": {"status": "pass", "corner_count": 4, "fmax": [{"corner": "Slow", "clocks": []}]},
-    }))
+    }
+    if stage is not None:
+        fit["resources_stage"] = stage
+    (directory / "fit.json").write_text(json.dumps(fit))
     (directory / "inputs.json").write_text(json.dumps({
         "board": "DE25-Nano", "documented_device_alms": device_alms, "ram_block": ram_block,
         "clock_hz": 61_440_000, "real_clocks": ["clk"], "virtual_port_count": 1306,
+        "fes_revision": revision,
     }))
     (directory / "netlist.json").write_text(json.dumps({"netlist_sha256": "a" * 64}))
     (directory / "timing.tsv").write_text(
@@ -68,6 +74,55 @@ class Collect(unittest.TestCase):
             rows = (out / "timing.tsv").read_text().splitlines()
             self.assertEqual(rows[0].split("\t")[0], "fit")
             self.assertTrue(rows[1].startswith("cpu-de25\tSlow fix4 0C\t"))
+
+    def test_a_partial_fit_names_the_stage_its_counts_came_from(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            partial = write_fit(root / "p", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                                alms=1, available=2, device_alms=46800, ram_block="M20K",
+                                status="fail", stage="route")
+            out = root / "record"
+            record.main(["--record", str(out), f"--fit=m-de25={partial}"])
+            fit = json.loads((out / "quartus.json").read_text())["fits"][0]
+            self.assertEqual(fit["resources_stage"], "route")
+
+    def test_a_failed_fit_without_a_stage_is_still_qualified(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            partial = write_fit(root / "p", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                                alms=1, available=2, device_alms=46800, ram_block="M20K",
+                                status="fail")
+            out = root / "record"
+            record.main(["--record", str(out), f"--fit=m-de25={partial}"])
+            fit = json.loads((out / "quartus.json").read_text())["fits"][0]
+            self.assertIn("incomplete fit", fit["resources_stage"])
+
+    def test_fits_from_different_revisions_are_named_not_smoothed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            one = write_fit(root / "1", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                            alms=1, available=2, device_alms=46800, ram_block="M20K",
+                            revision="a" * 40)
+            two = write_fit(root / "2", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                            alms=1, available=2, device_alms=46800, ram_block="M20K",
+                            revision="b" * 40)
+            out = root / "record"
+            record.main(["--record", str(out), f"--fit=one={one}", f"--fit=two={two}"])
+            host = json.loads((out / "host.json").read_text())
+            self.assertIsNone(host["fes_revision"])
+            self.assertEqual(host["fit_revisions"], ["a" * 40, "b" * 40])
+            self.assertIn("different revisions", host["revision_note"])
+
+    def test_one_revision_across_the_fits_is_reported_as_the_revision(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            one = write_fit(root / "1", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                            alms=1, available=2, device_alms=46800, ram_block="M20K")
+            out = root / "record"
+            record.main(["--record", str(out), f"--fit=one={one}"])
+            host = json.loads((out / "host.json").read_text())
+            self.assertEqual(host["fes_revision"], "a" * 40)
+            self.assertTrue(host["collected_at_revision"])
 
     def test_a_fit_argument_without_a_name_is_refused(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -6,11 +6,18 @@ reset-release IP, no programming artifact, no seal and no hardware acceptance.
 It answers how much of a device the CPU and the machine take, and the clock
 they close at, on the DE10-Nano's Cyclone V and on the DE25-Nano's Agilex 5.
 
-Both devices read the same Yosys netlist. scripts/yosys_netlist.py's SEAL
-recipe elaborates, flattens and writes plain Verilog without any technology
-mapping, so the netlist bytes are device-neutral and each locked Quartus does
-all of its own synthesis, mapping, placement and routing. Only the device and
-the fitter differ between the two sides.
+Both devices read the same Yosys netlist, with two exceptions on the Agilex
+side. scripts/yosys_netlist.py's SEAL recipe elaborates, flattens and writes
+plain Verilog without any technology mapping, so the netlist is structurally
+device-neutral and each locked Quartus does all of its own synthesis, mapping,
+placement and routing. But the RTL asks for Cyclone V block RAM by name, and
+Agilex 5 has no M10K, so the Agilex side renames that attribute to M20K; and
+Quartus Pro 26.3 stops where Yosys writes a bare and a valued parallel_case on
+one casez (DeanoC/yosys#78), so the Agilex side drops the repeated bare line.
+Both rewrites are mechanical, verified by round trip, counted in each fit
+record, and applied to the Agilex side only. The DE10 side reads the netlist
+exactly as the pc386 seal lane does. So the two sides differ in device, in
+fitter, and in those two attribute rewrites -- and in nothing else.
 
 Cyclone V ALMs and Agilex 5 ALMs are not the same unit. This script reports
 raw resources with each device's totals and never compares the two devices.
@@ -329,6 +336,16 @@ def clock_constraints(design: dict, period_ns: float,
     return "".join(lines)
 
 
+def fes_revision() -> str:
+    """The revision the fit was prepared from, recorded in the fit rather than
+    read when the record is collected: a checkout that moves between the two
+    would otherwise attribute a stale fit to whatever is checked out later."""
+    try:
+        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip()
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+
+
 def write_project(output: Path, device: Device, design: dict, netlist: Path,
                   period_ns: float, seed: int, metadata: dict) -> Path:
     project = output / "project"
@@ -364,7 +381,7 @@ def write_project(output: Path, device: Device, design: dict, netlist: Path,
         "clock_hz": round(1e9 / period_ns), "real_clocks": list(design["clocks"]),
         "pixel_period_ns": PIXEL_PERIOD_NS if len(design["clocks"]) > 1 else None,
         "virtual_ports": virtual, "virtual_port_count": len(virtual),
-        "host": socket.gethostname(), "quartus": metadata,
+        "host": socket.gethostname(), "fes_revision": fes_revision(), "quartus": metadata,
         "netlist_sha256": sha(netlist.read_bytes()),
         "project_sha256": {path.name: sha(path.read_bytes()) for path in sorted(project.iterdir())},
     }

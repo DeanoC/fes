@@ -135,9 +135,14 @@ missing.
 
 ALMs (the fitter's "Logic utilization (ALMs needed / total ALMs on device)"
 line, quoted by name), ALUTs, dedicated logic registers, DSP blocks, M10K or
-M20K blocks, logical block-memory bits — each with the device total and the
-percentage of that device — plus the per-corner worst slack table and the
-restricted Fmax. Raw fitter and TimeQuest reports are retained.
+M20K blocks, logical block-memory bits, and the fitter's virtual-pin count
+where it gives one, plus the per-corner worst slack table and the restricted
+Fmax. Each figure carries **the fitter report row it was read from**, and the
+device total and percentage **for the rows where Quartus states a denominator**
+— ALMs, DSP blocks, RAM blocks and block-memory bits. Quartus reports ALUTs
+and dedicated logic registers as a used count with no device total, so those
+two are reported as counts alone rather than given a percentage invented here.
+Raw fitter and TimeQuest reports are retained.
 
 ## The budget
 
@@ -223,7 +228,11 @@ piece contains remainder, scale, round-to-integer, transcendentals, BCD or
 unmasked exception results. It will be stated as both bounds at once and never
 as "the 387's cost".
 
-## Amendment, 16 November 2026: the one netlist difference between the sides
+## Amendment, 16 November 2026: the first netlist difference between the sides
+
+*A second difference was found later the same day, before any machine fit had
+produced a figure. It is in the "two more differences" amendment below, and
+the complete list of what differs between the sides is there.*
 
 What had been seen when this was written: the first Agilex 5 synthesis of
 `fes_i386_cpu` stopped with `Error (272006)` before elaborating anything, and
@@ -244,8 +253,9 @@ no `M20K` request of its own. The occurrence count and both digests go in each
 fit's record. `MLAB` requests are legal on both devices and are left alone.
 
 The two sides therefore no longer read identical bytes, and the record must
-not claim they do. What they read is the same netlist differing in one
-attribute value whose only purpose is to name the device's block RAM. A reader
+not claim they do. What they read is the same netlist differing in this
+attribute value, whose only purpose is to name the device's block RAM — and,
+as the later amendment records, in one more rewrite found after this one. A reader
 should treat the block-RAM figures as the weakest part of the comparison: M10K
 is 10 Kb and M20K 20 Kb, they are not the same unit either, and the same
 logical memory may land in a different number of them.

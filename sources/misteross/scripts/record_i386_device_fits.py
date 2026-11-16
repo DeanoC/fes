@@ -48,6 +48,7 @@ def collect(name: str, output: Path) -> dict:
         "real_clocks": inputs["real_clocks"], "virtual_port_count": inputs.get("virtual_port_count"),
         "real_pins": fit.get("real_pins"),
         "host": fit.get("host") or inputs.get("host"),
+        "fes_revision": inputs.get("fes_revision"),
         "netlist": netlist,
         "classification": fit["classification"],
         "hardware_acceptance": fit["hardware_acceptance"],
@@ -55,6 +56,13 @@ def collect(name: str, output: Path) -> dict:
     }
     if "resources" in fit:
         entry["resources"] = fit["resources"]
+        # A fit that stopped before the final report has counts from the route
+        # or place stage. They are not a finished fit's figures and must not be
+        # presented as unqualified ones.
+        if "resources_stage" in fit:
+            entry["resources_stage"] = fit["resources_stage"]
+        elif fit["status"] != "pass":
+            entry["resources_stage"] = "incomplete fit; stage not recorded"
     if "timing" in fit:
         entry["timing_status"] = fit["timing"].get("status")
         entry["corner_count"] = fit["timing"].get("corner_count")
@@ -90,10 +98,20 @@ def main(argv: list[str] | None = None) -> int:
             output = Path(directory).resolve()
             fits.append(collect(name, output))
             rows.extend(timing_rows(name, output))
-        revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip()
+        # Each fit records the revision it was prepared from. The collector's
+        # own HEAD is not that revision if the checkout moved in between, so it
+        # is reported separately and a disagreement is named, never smoothed.
+        collected_at = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip()
+        revisions = sorted({fit["fes_revision"] for fit in fits if fit.get("fes_revision")})
         hosts = sorted({fit["host"] for fit in fits if fit["host"]})
         (record / "host.json").write_text(json.dumps({
-            "fes_revision": revision,
+            "fes_revision": revisions[0] if len(revisions) == 1 else None,
+            "fit_revisions": revisions,
+            "collected_at_revision": collected_at,
+            "revision_note": ("every fit was prepared from one revision"
+                              if len(revisions) == 1 else
+                              "the fits were prepared from different revisions, or some predate "
+                              "the revision being recorded; see each fit's own fes_revision"),
             "hosts": hosts,
             "uname": platform.uname()._asdict(),
             "evidence_scope": "internal virtual-pin characterisation fits; no board I/O, no seal, "
