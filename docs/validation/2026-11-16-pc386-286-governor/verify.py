@@ -137,6 +137,10 @@ def main():
         raise SystemExit('memory unprefixed TEST comparison differs')
     if any(abs(a - b) > .0021 for a, b in zip(old_modes[1:], final_modes[1:])):
         raise SystemExit('memory prefixed TEST did not retain prior diagnostic path')
+    off_dir = HERE / 'memory-test/default-off'
+    builds = [json.loads((off_dir / name).read_text()) for name in ('after-comparison-manifest.json', 'after-manifest.json')]
+    if any(build['parameters']['GOV_REFERENCE_DIAGNOSTIC'] != 0 for build in builds) or builds[0]['binary_sha256'] != builds[1]['binary_sha256']:
+        raise SystemExit('memory default-off comparison and final binaries differ')
     memory_off = json.loads((HERE / 'memory-test/default-off/default-off-comparison.json').read_text())['results']
     if set(memory_off) != {'0-0-0', '1-0-0', '3-0-0', '1-0-1'}:
         raise SystemExit('memory default-off configurations differ')

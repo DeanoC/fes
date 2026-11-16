@@ -16,12 +16,12 @@ d925085c1893bbac678ce93cc07fbf33280b8f9777637e5bc92542bfeb251e9c  ./forms/rtl.as
 ba7c7e0b1af1c4868b9d5859ba6820f8b24664a13355e4d1768d3ca60baddbaf  ./forms/rtl.json
 f1675b93c650fffecf2c7f89347c73da4b01d59ad2bb8b19459418a619214d01  ./forms/rtl.log
 0ad7d5c3290dbbbabe7d21c4d8b7997acf683e1c990b196a647fbcfa9117360c  ./forms/survey.py
-2f601aac026cdc9261e8ea4207c14eb6401e6e410acdb19e87aade4bfe431c1a  ./memory-test/README.md
+1028c84a34e1d71f3499efdb7aaa1551eedd5b428ca859762c73ed5929a0bb9f  ./memory-test/README.md
+fa9dc529b6c9ff1f1100528886c783869f187b1c19f9acacb9074b28100a582a  ./memory-test/default-off/after-comparison-manifest.json
 48159145c8dbb09cd7162cc16814bc2360b5370e6941551f74b8eb6a960b69ec  ./memory-test/default-off/after-manifest.json
 1ca93abd88973da961e3a5170fca3d79533c0df4c5f33997924b9a881ce6c172  ./memory-test/default-off/before-manifest.json
 92d8bc22f454bd2c6438f1d0ff19e962b7cfe2cc7881b0ab7b79b6b23305e131  ./memory-test/default-off/default-off-comparison.json
 e289379c356fe052d9d8add07e36209e1ff65cee8868b1dfe85491788d0cd84c  ./memory-test/default-off/default_off_compare.py
-e6d947024df822d18eb6c8921363e618776e6636f24c784cc6dc2a94dda88344  ./memory-test/default-off/manifest.json
 d157be10e57db3922ecc168bfe8db1f844001513bcead4b5864daa42f8977309  ./memory-test/default-off/off-0-0-0-after.log
 d157be10e57db3922ecc168bfe8db1f844001513bcead4b5864daa42f8977309  ./memory-test/default-off/off-0-0-0-before.log
 0558e48d40649a6daeeca759ffdc425a5814a5ad778842ddffe8a0152080a831  ./memory-test/default-off/off-1-0-0-after.log
@@ -99,4 +99,4 @@ ad6129a35fba4b08e63b6200cb4f1bffecedb2ac75266abe72296976a4736850  ./sequence/H2.
 ad6129a35fba4b08e63b6200cb4f1bffecedb2ac75266abe72296976a4736850  ./sequence/H3.TXT
 60c33383543caf9bedffe92978a2efae7e3630ab3f1800b0ee7dd9775a60af9f  ./sequence/commands.jsonl
 a621ba4ef97cf91ea1df773cf6e5830ce74155483b9cb0bfb8e2f14eacaab286  ./sequence/heldout.asm
-c0b2e31c8169709345d25b6f627f2bfd3f72213bb3718f9ce48f063bcb4bfb6f  ./verify.py
+9f5751a1ebd35dfaf869dd56c29062510b63eab60f7381fbc8e72740851f16fb  ./verify.py
