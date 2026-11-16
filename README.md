@@ -66,7 +66,10 @@ Main_MiSTer is an original implementation and test reference, not a production
 dependency. The target agent talks to the runtime's local socket; only the
 runtime controls hardware. The normal FES package route uses misteross's
 authenticated HIP/nextpnr producer. FES policy also allows labelled
-Quartus-built core variants (accepted in #1163). Playable recipes use OSS packages; PC/XT selects a Quartus diagnostic package.
+Quartus-built core variants (accepted in #1163), and Quartus is used wherever
+nextpnr timing closure is hard. Playable recipes use OSS packages except the
+ZX81 family (ZX81, ZX80, TS1000, TS1500), which selects its Quartus Lite
+producer with nextpnr as an advisory lane; PC/XT selects a Quartus diagnostic package.
 The general variant selector and OSS-only image option are rollout
 work described in the design. See
 [Quartus-built cores](docs/design/quartus-cores.md).
@@ -145,20 +148,25 @@ so the household video preference applies to the next Play. Native shells
 require a matching video part; older raster shells retain their built-in
 Direct fallback.
 
-The normal package-only build uses the authenticated HIP/nextpnr producers and
-their shared compiler cache beneath the primary FES checkout’s `out/cache`
+The normal package-only build uses the authenticated HIP/nextpnr producers, and
+the Quartus Lite producers for the ZX81 family and PC/XT, with the HIP/nextpnr
+shared compiler cache beneath the primary FES checkout’s `out/cache`
 (or the absolute `FES_CACHE_ROOT` override), reused across FES worktrees. A
 matching package is reused only after its locked inputs, manifest, payload and
 sealed selection are checked; a miss runs that package's registered producer.
 The menu uses its per-core HIP lock. Both RAM Tester rates and the RAM Tester
 timing diagnostic use `sources/misteross/cores/fes-ramtest/toolchain.lock`;
 these per-core locks currently select the same compiler pins.
-Quartus Lite 17.0.2 is available as an explicit bring-up/oracle check where a
-recipe documents one. The [Quartus-built cores](docs/design/quartus-cores.md)
-policy also allows a labelled Quartus variant of a core, built on a pinned host
+Quartus Lite 17.0.2 (`QUARTUS_ROOTDIR` naming the install that the core's
+`quartus.lock` pins) builds the registered ZX81-family and PC/XT packages; the
+ZX81 family also reads the pinned Mistral ROM database from the shared cache or
+`make toolchain-fes-zx81`. Elsewhere it is an explicit bring-up/oracle check
+where a recipe documents one. The [Quartus-built cores](docs/design/quartus-cores.md)
+policy allows a labelled Quartus variant of a core, built on a pinned host
 authorized for its edition and device, with a license when required. The
-current integrated recipe and package-selection path does not
-yet select such variants; a failed HIP route never falls back to Quartus.
+integrated path selects exactly one producer per core and board, and does not
+yet select between OSS and Quartus variants of one core; a failed HIP route
+never falls back to Quartus.
 Downloads are checked against component locks; image compilation runs twice in
 independent build roots with networking disabled.
 
@@ -225,8 +233,9 @@ boot and play checks remain separate. See [bootable media](docs/bootable-media.m
 The parent defaults to the DE10 integration profile. Systems whose nextpnr route is
 not implemented yet are checked explicitly with Quartus when their recipe
 requires it; that check does not create an image package or change the default
-package-only path. The accepted policy also allows labelled Quartus variants,
-with PC/XT selecting a Quartus diagnostic package; see
+package-only path. The accepted policy also allows labelled Quartus variants:
+the ZX81 family selects its Quartus Lite package producer and PC/XT selects a
+Quartus diagnostic package; see
 [Quartus-built cores](docs/design/quartus-cores.md). Quartus is never an
 automatic fallback.
 
