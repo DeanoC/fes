@@ -39,6 +39,7 @@ AGILEX_REPORT = """\
 ; DSP Blocks Needed [=A+B+C-D]             ; 9 / 188 ( 5 % )  ;
 ; M20K blocks                              ; 37 / 358 ( 10 % );
 ; Total block memory bits                  ; 215,040          ;
+; Virtual pins                             ; 1,306            ;
 """
 CYCLONE_REPORT = """\
 ; Logic utilization (in ALMs)              ; 19,870 / 41,910 ( 47 % ) ;
@@ -94,6 +95,8 @@ class Envelope(unittest.TestCase):
             self.assertEqual(inputs["real_clocks"], ["clk"])
             self.assertNotIn("clk", inputs["virtual_ports"])
             self.assertEqual(inputs["clock_hz"], 61_440_000)
+            self.assertEqual(inputs["virtual_port_count"], len(inputs["virtual_ports"]))
+            self.assertTrue(inputs["host"])
             # One of these fits never implies a programming artifact or acceptance.
             self.assertIn("no hardware acceptance", inputs["classification"])
 
@@ -175,6 +178,14 @@ class Resources(unittest.TestCase):
                 self.assertEqual(found["ram_blocks"]["report_label"], ram)
                 self.assertGreater(found["aluts"]["used"], 0)
                 self.assertGreater(found["registers"]["used"], 0)
+
+    def test_virtual_pins_are_reported_when_the_fitter_gives_them(self):
+        # Each virtual pin is built in the fabric, so part of the ALMs is
+        # envelope. The count is reported beside them and never subtracted.
+        self.assertEqual(fit.resources(AGILEX_REPORT)["virtual_pins"]["used"], 1_306)
+
+    def test_a_missing_optional_row_is_not_a_failure(self):
+        self.assertNotIn("virtual_pins", fit.resources(CYCLONE_REPORT))
 
     def test_device_percentages_come_from_the_report_not_from_this_file(self):
         found = fit.resources(AGILEX_REPORT)

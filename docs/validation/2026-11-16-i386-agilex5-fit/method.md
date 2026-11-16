@@ -249,3 +249,35 @@ attribute value whose only purpose is to name the device's block RAM. A reader
 should treat the block-RAM figures as the weakest part of the comparison: M10K
 is 10 Kb and M20K 20 Kb, they are not the same unit either, and the same
 logical memory may land in a different number of them.
+
+## Amendment, 16 November 2026: the host, and the virtual pins' own cost
+
+What had been seen: one Agilex 5 synthesis error (the M10K attribute, above),
+a passing Agilex 5 synthesis after the rename, and no resource or timing
+figure from either device.
+
+**Host.** The method said both sides would run on `chip-30x0-ai-dev`. Both
+sides in fact run on **Powerboat**, which carries Quartus Pro 26.3.0 Build 114
+*and* Quartus 17.0.2 side by side and was lightly loaded when the fits
+started; running both there keeps the two sides on one machine rather than
+splitting them. Each fit record names its host. A Quartus fit is determined by
+its tool version, inputs and seed rather than by the machine, so this does not
+change what the figures mean, but it is recorded rather than left to be
+assumed. Note that the `/tmp/lander-quartus-3090.lock` lease is per host, so
+on Powerboat it serialises only this session's own compiles.
+
+**Virtual pins are not free.** The fitter builds each virtual pin in the
+fabric, so part of a virtual-pin fit's ALMs is envelope rather than design.
+`fes_i386_cpu` has **1,306** ports after vectors are wildcarded, and the
+machine has its own. Each fit reports the fitter's own virtual-pin count
+beside its ALMs, and that count is **never subtracted** from them: the ALM
+figure is reported as it stands, with the envelope named so a reader can judge
+it, and the same envelope is present on both devices.
+
+**Fit C is not fit M's CPU share, and the record will not treat it as one.**
+"M is a superset of C" is true of the hierarchy and not of the fitted logic:
+C holds `x87_present` as a live input and every `trace_*` and `arch_*` output
+alive on a virtual pin, including the 640-bit `arch_x87_regs`, while M ties
+`x87_present` to 0 and leaves most of those outputs unconnected for the
+fitter to sweep. C is the CPU with its full observability surface held up; the
+CPU inside M is smaller than C by an amount this experiment does not measure.

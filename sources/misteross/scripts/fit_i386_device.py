@@ -35,6 +35,7 @@ from pathlib import Path
 import re
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -273,7 +274,8 @@ def write_project(output: Path, device: Device, design: dict, netlist: Path,
         "top": top, "seed": seed, "period_ns": period_ns,
         "clock_hz": round(1e9 / period_ns), "real_clocks": list(design["clocks"]),
         "pixel_period_ns": PIXEL_PERIOD_NS if len(design["clocks"]) > 1 else None,
-        "virtual_ports": virtual, "quartus": metadata,
+        "virtual_ports": virtual, "virtual_port_count": len(virtual),
+        "host": socket.gethostname(), "quartus": metadata,
         "netlist_sha256": sha(netlist.read_bytes()),
         "project_sha256": {path.name: sha(path.read_bytes()) for path in sorted(project.iterdir())},
     }
@@ -329,6 +331,14 @@ RESOURCE_LABELS = {
                    "M10K blocks", "Total RAM Blocks", "Total block memory blocks"),
     "block_memory_bits": ("Total block memory bits", "Total block memory implementation bits"),
 }
+# Reported when the fitter gives them, and never required. Virtual pins are not
+# free: the fitter builds each one in the fabric, so part of a virtual-pin fit's
+# ALMs is envelope rather than design. The count is reported beside the ALMs so
+# a reader can judge that, and it is never subtracted from them.
+OPTIONAL_LABELS = {
+    "virtual_pins": ("Virtual pins", "Total virtual pins"),
+    "mlabs": ("MLAB blocks", "Total MLAB memory bits"),
+}
 _FRACTION = re.compile(r"^([\d,]+(?:\.\d+)?)\s*(?:/\s*([\d,]+(?:\.\d+)?))?\s*(?:\(\s*([<>]?\s*[\d.]+)\s*%\s*\))?")
 
 
@@ -368,6 +378,12 @@ def resources(text: str) -> dict:
     if missing:
         raise FitError("fit report has no " + ", ".join(missing)
                        + "; its rows: " + ", ".join(sorted(rows)[:40]))
+    for resource, labels in OPTIONAL_LABELS.items():
+        for label in labels:
+            match = _FRACTION.match(rows.get(label, ""))
+            if match is not None and _number(match.group(1)) is not None:
+                found[resource] = {"report_label": label, "used": _number(match.group(1))}
+                break
     return found
 
 
@@ -388,6 +404,7 @@ def compile_project(output: Path, project: Path, top: str, quartus_sh: Path,
         if not path.is_file() or not os.access(path, os.X_OK):
             raise FitError(f"missing executable {path}")
     record = {"status": "fail", "classification": inputs["classification"],
+              "host": socket.gethostname(),
               "device": inputs["device"], "family": inputs["family"], "top": top,
               "seed": inputs["seed"], "period_ns": inputs["period_ns"],
               "quartus": metadata, "hardware_acceptance": "not-run",
