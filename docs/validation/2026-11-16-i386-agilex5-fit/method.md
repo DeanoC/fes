@@ -175,3 +175,50 @@ would change the DE25 plan again.
   measured without X" is an acceptable result here.
 - These rules are not replaced after seeing results. An amendment is dated and
   states what had already been seen.
+
+## Amendment, 16 November 2026, still before any fit ran
+
+Nothing had been fitted when this was written: no Quartus run of any kind had
+started on either device. Four additions, three of them clarifications that
+change no fit, and one correction to how the 387's two pieces may be added.
+
+**1. Fabric and toolchain vary together, and this experiment does not
+separate them.** Deano's question has two halves — "different fabric and
+toolchain" — and the design varies both at once: Cyclone V through Quartus
+17.0.2 against Agilex 5 through Quartus Pro 26.3. A difference between the two
+sides is fabric *and* mapping quality together, and nothing here attributes it
+between them. The total is what the DE25 decision needs, and the total is what
+this measures; but a smaller Agilex figure would **not** establish a denser
+fabric. Separating the two would need the same device through two Quartus
+versions, which is not available.
+
+**2. Area and clock are not independent, so no area figure is quoted without
+its constraint.** Fitter effort follows the constraint, so a design fitted at
+61.44 MHz and the same design fitted at 130 MHz are different fits with
+different areas. Every ladder rung's area is reported next to that rung's
+constraint, and the headline area figure names 61.44 MHz in the same sentence.
+
+**3. That `pc386_system` needs no board shell is a property of the
+hierarchy**, worth stating rather than leaving the next reader to assume a
+machine fit needs a board: the HPS interface primitives, both PLLs,
+`fes_hps_ddr`, the HDMI I2C and the audio output are all instantiated in
+`top.sv`, above `pc386_system`, which takes `clk` and `pixel_clk` as plain
+inputs and reaches DDR through ordinary Avalon-shaped ports.
+
+**4. What M+ − M measures, and why it may not simply be added to #1892's
+backend.** On main every x87 *arithmetic* form decodes to `X87_UNIMPL`; the
+arithmetic exists only on #1879 and #1889. So M+ − M is the cost of **slice 2**
+— the 387's state, its CPU and AT-board interface, its conversions, its
+rounding and the shared 64x64 significand multiplier `fes_i386_x87_mul` — and
+not the cost of a 387. It will be reported under that name.
+
+It is tempting to read "M+ − M, plus #1892's 2,660 ALMs" as the 387's cost on
+Agilex 5 in two independently measured pieces. **The two pieces are not
+disjoint.** `fes_i386_x87_mul` is nine 22x22 DSP products summed over four
+clocks, and #1892's backend carries its own nine 22/22/20-bit DSP products for
+FMUL; a merged unit would share one multiplier, not build two. The same
+applies to rounding, which both pieces implement. So the sum is an **upper
+bound on those two pieces and a lower bound on a complete 387**, since neither
+piece contains remainder, scale, round-to-integer, transcendentals, BCD or
+unmasked exception results. It will be stated as both bounds at once and never
+as "the 387's cost".
