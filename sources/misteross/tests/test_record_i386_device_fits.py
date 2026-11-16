@@ -259,6 +259,20 @@ class Collect(unittest.TestCase):
             self.assertIn("real_pins", entry["validation_errors"])
             self.assertIn("clock_coverage", entry["validation_errors"])
 
+    def test_fewer_real_pins_than_clocks_is_a_gap_in_the_collector_too(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            one = write_fit(root / "o", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                            alms=35492, available=46800, device_alms=46800, ram_block="M20K")
+            inputs = json.loads((one / "inputs.json").read_text())
+            inputs["real_clocks"] = ["clk", "pixel_clk"]
+            (one / "inputs.json").write_text(json.dumps(inputs))
+            out = root / "record"
+            record.main(["--record", str(out), f"--fit=machine-de25={one}"])
+            entry = json.loads((out / "quartus.json").read_text())["fits"][0]
+            self.assertIn("real_pins", entry["validation_errors"])
+            self.assertIn("1 real pins against 2 real clocks", entry["validation_errors"]["real_pins"])
+
     def test_a_passing_fit_with_evidence_is_not_qualified(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

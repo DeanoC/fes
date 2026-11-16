@@ -448,7 +448,8 @@ def run(command: list[str], project: Path, output: Path, label: str, deadline: f
     print(f"i386 fit: {label} started; log {log}", flush=True)
     with log.open("w") as stream:
         process = subprocess.Popen(command, cwd=project, stdout=stream, stderr=subprocess.STDOUT,
-                                   start_new_session=True)
+                                   start_new_session=True,
+                                   env=dict(os.environ, **(env or {})))
         try:
             while True:
                 try:

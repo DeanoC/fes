@@ -45,7 +45,10 @@ def validation_gaps(entry: dict, fit: dict, inputs: dict) -> dict:
                                          "clock_coverage_error") if fit.get(name)}
     if entry.get("real_pins") is None:
         gaps["real_pins"] = "no verified real-pin count"
-    elif entry["real_pins"] > len(inputs["real_clocks"]):
+    elif entry["real_pins"] != len(inputs["real_clocks"]):
+        # Exactly, not at most: fewer real pins than real clocks means a clock
+        # input went virtual or was removed, and a fit collected from before
+        # the runner's equality check may never have been tested for it.
         gaps["real_pins"] = (f"{entry['real_pins']} real pins against "
                              f"{len(inputs['real_clocks'])} real clocks")
     rows = {name: (setup, hold) for name, setup, hold
