@@ -22,6 +22,14 @@ PACKAGING_INPUTS = frozenset({
     'scripts/source_closures.json',
     'boards/de25nano/package/export_core_package.py',
     'boards/de25nano/package/core_package.py',
+    # Audited at the module boundary like the rest of this set (DeanoC/fes#1806
+    # review). It is fitted *evidence* for two reviewed asynchronous HDMI inputs:
+    # its own docstring states it does not change constraints, waive Design
+    # Assistant rules or qualify external/reset timing, and every function reads
+    # or verifies Quartus reports (`review_reports`, `input_findings`,
+    # `bindings`, `collect`, `verify`). It inspects a finished build and supplies
+    # no source bytes to a compiler, so it cannot change what is built.
+    'boards/de25nano/scanout/async_inputs.py',
 })
 TOOLCHAIN_INPUTS = frozenset({
     'scripts/bootstrap.sh', 'scripts/lockfile.py', 'scripts/toolchain_cache.py',
@@ -33,6 +41,19 @@ TOOLCHAIN_PARAMETERS = frozenset({
     'toolchain_configuration', 'toolchain_lock', 'toolchain_lock_sha256',
     'compiler', 'pnr_recipe_sha256', 'quartus_version', 'quartus_threads',
     'selection_only', 'toolchain_pins',
+    # Which tool elaborates the logic, and that tool's own program text. A front
+    # end is a compiler, so by this policy a change of front end is advisory for
+    # an already sealed design rather than a rebuild (DeanoC/fes#1806).
+    'front_end', 'front_end_program_sha256',
+    # The canonical QSF digest is computed over the recipe *including* Quartus's
+    # thread count, which this policy already classifies as a toolchain
+    # parameter. A design input here would move the design id on a thread-count
+    # change, which is the behaviour quartus_recipe_parameters() exists to stop.
+    'quartus_qsf_sha256',
+    # `device_family` is deliberately NOT here. It names what the design is
+    # compiled for, not what compiled it, and the build record carries no other
+    # device field -- so classifying it as toolchain would stop the design id
+    # distinguishing a Cyclone V build from an Agilex 5 one.
 })
 
 

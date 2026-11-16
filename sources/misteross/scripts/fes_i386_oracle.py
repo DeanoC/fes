@@ -1,7 +1,7 @@
 """Fetch and build the external i386 lockstep oracle (test-only, never packaged).
 
 The oracle is the Bochs CPU (LGPL-2.1-or-later) at the pinned revision below,
-configured at CPU level 3 without an FPU. Bochs is fetched only when a caller
+configured at CPU level 3 with an FPU for its architected exceptions. Bochs is fetched only when a caller
 passes download=True, into the ignored build/ directory, and its sources never
 enter a package or an RTL source list. Only Bochs' CPU, decoder and parameter
 tree are compiled; cores/fes-common/sim/i386/bochs_oracle.cpp supplies the
@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SIM = ROOT / 'cores/fes-common/sim/i386'
@@ -34,8 +35,19 @@ BOCHS_CONFIGURE = (
     '--disable-monitor-mwait', '--disable-gameport', '--disable-busmouse',
     '--disable-usb', '--disable-plugins',
 )
+BOCHS_PATCH_RELATIVE = 'cores/fes-common/sim/i386/bochs/flat-stack-limit.patch'
+BOCHS_PATCH = ROOT / BOCHS_PATCH_RELATIVE
 ORACLE_SOURCES = ('i386_oracle.h', 'bochs_oracle.cpp', 'bochs/instrument.h')
 CXXFLAGS = ('-std=c++17', '-O2', '-Wall')
+PROVISIONER_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+LINKED_NAMES = ('adapter', 'paramtree', 'cpu', 'fpu', 'softfloat')
+SUITE_SOURCES = (
+    'scripts/test_fes_i386_lockstep.py', 'scripts/test_fes_i386_vectors.py',
+    'scripts/test_fes_i386_frontend.py', 'scripts/i386_verilator.py', 'scripts/yosys_netlist.py',
+    'cores/fes-common/sim/i386/lockstep_tb.cpp', 'cores/fes-common/sim/i386/biu_dma_tb.cpp',
+    'cores/fes-common/sim/i386/divergences.toml', 'cores/fes-common/sim/i386/smc_stale.h',
+    'cores/fes-pc386/sim/pc386_ddr_model.h',
+)
 
 
 class OracleError(RuntimeError):
@@ -89,13 +101,49 @@ def _inputs_key(*parts) -> str:
     return digest.hexdigest()[:16]
 
 
+def named_sources_sha256(names: tuple[str, ...], inputs: list[bytes]) -> str:
+    """Bind named source bytes in order, with unambiguous length framing."""
+    digest = hashlib.sha256()
+    for name, data in zip(names, inputs, strict=True):
+        digest.update(name.encode() + b'\0')
+        digest.update(len(data).to_bytes(8, 'big'))
+        digest.update(data)
+    return digest.hexdigest()
+
+
+def sources_sha256(root: Path, names: tuple[str, ...]) -> str:
+    return named_sources_sha256(names, [(root / name).read_bytes() for name in names])
+
+
+def adapter_source_sha256(sim: Path) -> str:
+    return sources_sha256(sim, ORACLE_SOURCES)
+
+
+def suite_source_sha256(root: Path) -> str:
+    return sources_sha256(root, SUITE_SOURCES)
+
+
+def require_provisioner_unchanged() -> None:
+    if hashlib.sha256(Path(__file__).read_bytes()).hexdigest() != PROVISIONER_SHA256:
+        raise OracleError('Bochs provisioner changed during the run')
+
+
 def build_bochs(source: Path, jobs: int) -> Path:
     """Configure Bochs at CPU level 3 and build its CPU library once per input set."""
+    require_provisioner_unchanged()
     instrument = (SIM / 'bochs/instrument.h').read_bytes()
-    key = _inputs_key(BOCHS_REVISION, BOCHS_CONFIGURE, instrument, _compiler())
+    patch = BOCHS_PATCH.read_bytes()
+    key = _inputs_key(BOCHS_REVISION, BOCHS_CONFIGURE, instrument, patch, _compiler(), PROVISIONER_SHA256)
     tree = BUILD / ('bochs-level3-' + key)
     stamp = tree / 'fes-oracle.stamp'
     if stamp.is_file():
+        try:
+            valid = (stamp.read_text().strip() == key and (tree / 'fes-bochs.patch').read_bytes() == patch
+                     and (tree / 'instrument/fes/instrument.h').read_bytes() == instrument)
+        except OSError:
+            valid = False
+        if not valid:
+            raise OracleError(f'{tree} has an invalid cached patch or stamp')
         return tree
     for stale in BUILD.glob('bochs-level3-*'):
         shutil.rmtree(stale)
@@ -104,6 +152,10 @@ def build_bochs(source: Path, jobs: int) -> Path:
     shutil.copy2(tree / 'instrument/stubs/Makefile.in', tree / 'instrument/fes/Makefile.in')
     (tree / 'instrument/fes/instrument.h').write_bytes(instrument)
     log = tree / 'fes-oracle-build.log'
+    patch_copy = tree / 'fes-bochs.patch'
+    patch_copy.write_bytes(patch)
+    print('Applying Bochs 386 stack-limit patch SHA-256 ' + hashlib.sha256(patch).hexdigest(), flush=True)
+    _run(['patch', '-p1', '--batch', '--forward', '--fuzz=0', '-i', str(patch_copy)], tree, log)
     print('Configuring Bochs CPU level 3', flush=True)
     _run(['./configure', *BOCHS_CONFIGURE, 'CXX=' + _compiler()], tree, log)
     _run(['make', '-j', str(jobs), 'libcpu.a'], tree / 'cpu', log)
@@ -123,7 +175,7 @@ def link_inputs(jobs: int = 4, download: bool = False) -> list[Path]:
     """
     bochs = build_bochs(bochs_source(download), jobs)
     inputs = [(SIM / item).read_bytes() for item in ORACLE_SOURCES]
-    key = _inputs_key(bochs.name, CXXFLAGS, _compiler(), *inputs)
+    key = _inputs_key(bochs.name, CXXFLAGS, _compiler(), PROVISIONER_SHA256, *inputs)
     output = BUILD / 'bin'
     output.mkdir(parents=True, exist_ok=True)
     oracle_object = output / f'bochs_oracle-{key}.o'
@@ -132,8 +184,14 @@ def link_inputs(jobs: int = 4, download: bool = False) -> list[Path]:
         log = output / f'bochs_oracle.{os.getpid()}.log'
         log.write_text('')
         temporary = output / f'{oracle_object.name}.{os.getpid()}.tmp'
-        _run([_compiler(), *CXXFLAGS, f'-I{bochs}', f'-I{bochs}/instrument/fes', f'-I{SIM}',
-              '-c', str(SIM / 'bochs_oracle.cpp'), '-o', str(temporary)], output, log)
+        with tempfile.TemporaryDirectory(prefix='bochs-oracle-sources-', dir=output) as directory:
+            snapshot = Path(directory)
+            for name, data in zip(ORACLE_SOURCES, inputs):
+                path = snapshot / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+            _run([_compiler(), *CXXFLAGS, f'-I{bochs}', f'-I{bochs}/instrument/fes', f'-I{snapshot}',
+                  '-c', str(snapshot / 'bochs_oracle.cpp'), '-o', str(temporary)], output, log)
         log.unlink()
         temporary.replace(oracle_object)
         for stale in output.glob('bochs_oracle-*.o'):
@@ -141,6 +199,22 @@ def link_inputs(jobs: int = 4, download: bool = False) -> list[Path]:
                 stale.unlink(missing_ok=True)
     return [oracle_object, bochs / 'fes-paramtree.o', bochs / 'cpu/libcpu.a',
             bochs / 'cpu/fpu/libfpu.a', bochs / 'cpu/softfloat3e/libsoftfloat.a']
+
+
+def build_record(linked: list[Path]) -> dict:
+    """Identify the source pin, built patch, adapter inputs and linked objects."""
+    require_provisioner_unchanged()
+    tree = linked[1].parent
+    patch = (tree / 'fes-bochs.patch').read_bytes()
+    inputs = [(SIM / item).read_bytes() for item in ORACLE_SOURCES]
+    key = _inputs_key(tree.name, CXXFLAGS, _compiler(), PROVISIONER_SHA256, *inputs)
+    if (patch != BOCHS_PATCH.read_bytes() or linked[0].name != f'bochs_oracle-{key}.o'
+            or (tree / 'instrument/fes/instrument.h').read_bytes() != inputs[2]):
+        raise OracleError('built Bochs patch or adapter inputs differ from the current source')
+    return {'revision': BOCHS_REVISION, 'patch_sha256': hashlib.sha256(patch).hexdigest(),
+            'provisioner_sha256': PROVISIONER_SHA256, 'adapter_sha256': named_sources_sha256(ORACLE_SOURCES, inputs),
+            'linked_sha256': {name: hashlib.sha256(path.read_bytes()).hexdigest()
+                              for name, path in zip(LINKED_NAMES, linked, strict=True)}}
 
 
 def build_testbench(name: str, source: Path, jobs: int = 4, download: bool = False) -> Path:
