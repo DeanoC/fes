@@ -440,7 +440,8 @@ def write_project(output: Path, device: Device, design: dict, netlist: Path,
     return project
 
 
-def run(command: list[str], project: Path, output: Path, label: str, deadline: float) -> None:
+def run(command: list[str], project: Path, output: Path, label: str, deadline: float,
+        env: dict[str, str] | None = None) -> None:
     if deadline - time.monotonic() <= 0:
         raise FitError("runtime cap expired")
     log = output / f"{label}.log"
@@ -588,10 +589,14 @@ def check_envelope(record: dict, fit_text: str, inputs: dict) -> None:
         raise FitError("fit report has no total pin count, so the virtual-pin envelope "
                        "cannot be confirmed")
     record["real_pins"] = int(pins.group(1).replace(",", ""))
-    if record["real_pins"] > len(inputs["real_clocks"]):
+    # Exactly the intended count, not at most: fewer real pins than real clocks
+    # means a clock input went virtual or was removed, and the timing gate only
+    # requires at least one clock -- so the surviving clock's clean coverage
+    # rows would let a fit be recorded with the other clock never analysed.
+    if record["real_pins"] != len(inputs["real_clocks"]):
         raise FitError(f"{record['real_pins']} real pins against "
                        f"{len(inputs['real_clocks'])} real clocks: the VIRTUAL_PIN assignments "
-                       "did not take effect, so this is not the intended envelope")
+                       "did not take effect as intended, so this is not the intended envelope")
 
 
 def check_clock_coverage(record: dict, project: Path, top: str) -> None:
@@ -646,7 +651,9 @@ def compile_project(output: Path, project: Path, top: str, quartus_sh: Path,
                                            str(output), top])):
             require_disk(output)
             record["commands"].append(command)
-            run(command, project, output, label, deadline)
+            # The gate checks the clock count against the SDC's own clocks.
+            run(command, project, output, label, deadline,
+                env={"FES_FIT_CLOCKS": " ".join(inputs["real_clocks"])})
         fit_text = fit_report.read_text(errors="replace")
         record["resources"] = resources(fit_text)
         check_envelope(record, fit_text, inputs)

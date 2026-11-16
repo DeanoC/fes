@@ -1,8 +1,13 @@
 # How large is the 386 on Agilex 5? 16 November 2026
 
-**The CPU, the pc386 machine and main's 387 together take 79.6% of the
-DE25's ALMs, leaving 9,545 of its 46,800 — and the CPU reaches 124 MHz at its
-worst slow corner where the Cyclone V reaches 64.** That is what was measured.
+**The CPU, the pc386 machine and `main`'s 387 together take 79.6% of the
+DE25's ALMs, leaving 9,545 of its 46,800. And `fes_i386_cpu` closes at
+130 MHz on Agilex 5 and misses at 150** — 61.44, 75, 90, 110 and 130 MHz each
+passed every analysis at every published corner, the top one with +0.426 ns to
+spare; 150 MHz fails setup by −0.485 ns at two of the four and 170 MHz by
+−1.039 ns at three. On the Cyclone V the same CPU closes at **61.44 MHz**, the
+only rung run there. Seed 1 throughout. The 124 MHz figure that appears below
+is the 61.44 MHz rung's own restricted-Fmax **estimate**, not a closure.
 
 **What was not measured, and what the DE25 plan actually turns on:** whether
 the DE25 holds the 387 the DE10 *refused*. `main`'s 387 is slice 2 — state,

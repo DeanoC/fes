@@ -177,6 +177,19 @@ class Envelope2(unittest.TestCase):
         with self.assertRaisesRegex(fit.FitError, "not the intended envelope"):
             fit.check_envelope({}, "; Total pins ; 314 / 314 ;\n", {"real_clocks": ["clk"]})
 
+    def test_fewer_real_pins_than_real_clocks_is_also_a_failure(self):
+        # The machine's envelope has two real clock pins. One real pin means a
+        # clock input went virtual or was removed, and the timing gate would
+        # then analyse the survivor alone and report it as covered.
+        with self.assertRaisesRegex(fit.FitError, "not the intended envelope"):
+            fit.check_envelope({}, self.REPORT, {"real_clocks": ["clk", "pixel_clk"]})
+
+    def test_the_machine_s_two_real_pins_pass(self):
+        record = {}
+        fit.check_envelope(record, "; Total pins ; 2 / 351 ;\n",
+                           {"real_clocks": ["clk", "pixel_clk"]})
+        self.assertEqual(record["real_pins"], 2)
+
     def test_a_report_without_a_pin_count_is_refused(self):
         with self.assertRaisesRegex(fit.FitError, "cannot be confirmed"):
             fit.check_envelope({}, "; Logic utilization (in ALMs) ; 1 / 2 ;\n",

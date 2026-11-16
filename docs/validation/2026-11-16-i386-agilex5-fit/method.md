@@ -658,3 +658,30 @@ when the identity is off — which is the DE10's own measured version of the
 quantity M+ − M measures on Agilex 5. **The two are not divided or compared
 here**: different device, different toolchain, and this record's whole rule is
 that such a ratio is not available.
+
+## Amendment, 16 November 2026: the gates require the exact clock and pin count
+
+What had been seen: all fourteen fits were complete and recorded, with every
+one evidencing one real pin (CPU) or two (machine) and zero illegal and zero
+unconstrained clocks.
+
+Two gates accepted **too few** where they should have required exactly the
+intended number, and the machine's two-clock envelope is where that matters:
+
+- The pin check required `real_pins <= real clocks`. One real pin on a
+  two-clock design means a clock input went virtual or was removed.
+- `fit_timing.tcl` required **at least one** clock. So the surviving clock's
+  clean coverage rows would have let such a fit be recorded as covered, with
+  the other clock never analysed at all.
+
+Both now require the exact count: `real_pins == len(real_clocks)`, and the
+gate takes the intended clock list in `FES_FIT_CLOCKS` and errors unless
+TimeQuest finds exactly that many. The new gate was **run** against a retained
+project rather than assumed: with `FES_FIT_CLOCKS=clk` it passes the CPU fit
+across all four corners, and with `FES_FIT_CLOCKS="clk pixel_clk"` on the same
+project it stops with `expected exactly 2 clock(s), found 1`.
+
+No recorded figure changes. Every recorded fit already satisfies the stricter
+rule — the CPU fits have one real pin against one real clock and the machine
+fits two against two — which is why this is a gate correction rather than a
+result correction.

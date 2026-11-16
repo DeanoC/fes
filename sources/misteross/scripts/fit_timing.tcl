@@ -12,8 +12,14 @@ project_open $top
 create_timing_netlist
 read_sdc
 update_timing_netlist
+# Exactly the clocks the SDC creates, not merely one: a design whose second
+# clock went virtual or was optimised away would otherwise be analysed on the
+# survivor alone and reported as covered.
 set clocks [get_clocks *]
-if {[get_collection_size $clocks] < 1} {error "fitted design has no clock"}
+set expected [llength [split [string trim $::env(FES_FIT_CLOCKS)]]]
+if {[get_collection_size $clocks] != $expected} {
+    error "expected exactly $expected clock(s), found [get_collection_size $clocks]"
+}
 if {[get_collection_size [all_registers]] < 1} {error "fitted design has no registers"}
 
 # Quartus Pro takes -all; the 17.x standard edition may not.
