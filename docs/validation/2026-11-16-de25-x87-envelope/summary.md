@@ -362,18 +362,31 @@ placed, routed and closed.
 The half that bears on this work: **90 LABs are left**, and the 387 in that
 fit is main's — **slice 2 only, with no arithmetic in it at all**, every
 arithmetic form `X87_UNIMPL`. Its whole cost in the machine, M+ − M, was
-**+1,763 ALMs and +166 LABs**. This backend alone is **2,660 ALMs** on the
-same device and toolchain (PR #1892), *larger than the entire slice-2
-envelope cost*. At the density that measurement itself gives — 1,763 ALMs per
-166 LABs, about 10.6 ALMs per LAB — 2,660 ALMs is roughly **250 LABs against
-the 90 available**.
+**+1,763 ALMs and +166 LABs**.
 
-That arithmetic is **inference from a measured density, not a measurement**,
-and an integration fit is the only thing that settles it. But it does not
-point at fitting, and this record does not claim otherwise. It is also before
-a **DE25 board shell**, which is measured nowhere: the machine fit stands in
-for one with 651 ALMs of virtual-pin cells, and the DE10 equivalent is around
-770 ALMs.
+So the machine has room for a whole 387 of about **256 LABs**: slice 2's 166,
+which it is already spending, plus the 90 spare.
+
+**This work's own unit fit is 6,510 to 6,518 ALMs and 780 to 797 LABs.** At
+the density M+ − M itself gives — 1,763 ALMs per 166 LABs, about 10.6 ALMs per
+LAB — 6,510 ALMs is roughly **614 LABs against that 256**. (An earlier version
+of this section used PR #1892's 2,660 ALMs for the *backend alone*, which gave
+about 250 against 90 — a comparison between a part and a whole. The figure to
+use is this work's, because this work is the integrated envelope plus backend,
+which is what would go in the machine.)
+
+Every part of that is **inference from a measured density, not a
+measurement**, and it is inference that overstates in at least two ways: the
+unit fit carries `regs_o`, the trace outputs and its virtual-pin cells, all of
+which the machine trims, and a standalone unit packs more loosely than the
+same logic under whole-machine pressure, which is exactly why ALM and LAB
+occupancy diverge. An **integration fit is the only thing that settles it**,
+and none exists. But nothing here points at fitting, and this record does not
+claim it does.
+
+It is also all before a **DE25 board shell**, which is measured nowhere: the
+machine fit stands in for one with 651 ALMs of virtual-pin cells, and the DE10
+equivalent is around 770 ALMs.
 
 **One concrete saving is visible in these numbers.** M+ − M includes **+9 DSP
 blocks**, which are exactly `fes_i386_x87_mul`'s nine 22×22 products — the
