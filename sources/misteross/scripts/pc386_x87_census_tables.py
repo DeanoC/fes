@@ -19,6 +19,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pc386_census_summary as summary  # noqa: E402
 
+X_UNKNOWN = ('unknown', 'unknown')
+
 TITLES = {
     'quake': 'Quake timedemo (DOSBench)', 'screamer': 'Screamer (1995)',
     'chrisb': "Chris's 3D Benchmark", 'tv': 'Terminal Velocity (1995)',
@@ -111,6 +113,34 @@ def main(argv: list[str] | None = None) -> int:
           '| Title | control-word low byte (masks) | instructions with any exception unmasked | ES ever set | flags raised |',
           '| --- | --- | --- | --- | --- |', exception_row)
 
+    # What the window reached, and the control word over it.
+    out.extend(['## The window', '',
+                "What each run ended on, and the precision and rounding control seen in",
+                'each whole simulated second. A window that ends at `limit` ran out of',
+                'time; `prompt` means the program returned to the DOS prompt.', '',
+                '| Title | window (s) | ended on | control word by second |',
+                '| --- | ---: | --- | --- |'])
+    for name, row in rows:
+        by_second = row['x87']['cw_by_second']
+        text = '; '.join(f"{k} s: {', '.join(v)}" for k, v in list(by_second.items())[:6]) or '-'
+        if len(by_second) > 6:
+            text += f' … ({len(by_second)} seconds with x87)'
+        out.append(f"| {TITLES.get(name, name)} | {row.get('seconds')} | {row.get('end')} | {text} |")
+    out.append('')
+
+    # Rounding control where it acts but precision control does not.
+    out.extend(['## Rounding control on the stores and FRNDINT', '',
+                'The integer and real stores and `FRNDINT` round under **rounding** control',
+                'and ignore precision control, so a reduced unit would still have to honour',
+                'the full rounding path on them.', '',
+                '| Title | FRNDINT | FRNDINT by PC (which it ignores) | RC over all forms |',
+                '| --- | ---: | --- | --- |'])
+    for name, row in rows:
+        r = row['x87']
+        out.append(f"| {TITLES.get(name, name)} | {r['by_form'].get('d9fc', 0):,} | "
+                   f"{counts(r['pc_by_class'].get('other', {}))} | {counts(r['rc_all'])} |")
+    out.append('')
+
     out.extend(['## FSQRT by precision control', '',
                 'For slice 6: square-root early termination saves 12 clocks at PC=24 and',
                 'costs 37 bits of remainder width on every square root.', '',
@@ -129,6 +159,25 @@ def main(argv: list[str] | None = None) -> int:
                    f"{'yes' if c['x87op_total'] == c['esc_stem_total'] else '**no**'} | "
                    f"{c['faulted']:,} | {c['held']:,} |")
     out.append('')
+
+    # Every form that executed, and -- for slice 6 -- the forms no title did.
+    forms = sorted({f for _, row in rows for f in row['x87']['by_form']})
+    out.extend(['## Every form that executed', '',
+                'The full histogram, not a top-N: the forms that decide a design question',
+                'are not always the frequent ones. `class` and `operand` are',
+                "`pc386_census_summary.py`'s classification.", '',
+                '| Form | class | operand | ' + ' | '.join(TITLES.get(n, n) for n, _ in rows) + ' |',
+                '| --- | --- | --- | ' + ' | '.join('---:' for _ in rows) + ' |'])
+    for form in forms:
+        cls, operand = X_UNKNOWN if form not in summary.X87_FORMS else summary.X87_FORMS[form]
+        out.append(f'| `{form}` | {cls} | {operand} | ' +
+                   ' | '.join(f"{row['x87']['by_form'].get(form, 0):,}" for _, row in rows) + ' |')
+    never = sorted(set(summary.X87_FORMS) - set(forms))
+    out.extend(['', f'**Forms no title in this census executed ({len(never)} of '
+                    f'{len(summary.X87_FORMS)}):** ' + ', '.join(f'`{f}`' for f in never) + '.',
+                '', 'For slice 6: these are the forms the census titles never reach, so',
+                'optimising them buys nothing measurable here. They must still be *correct* —',
+                'a 387 that is missing a form is not a 387 — but they need not be fast.', ''])
     args.out.write_text('\n'.join(out))
     print(f'{len(rows)} rows -> {args.out}')
     return 0

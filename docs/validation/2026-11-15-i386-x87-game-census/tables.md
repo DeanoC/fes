@@ -32,6 +32,28 @@ title's own window, on the drive the method pins.
 | Quake timedemo (DOSBench) (25.0 s) | 3f 31,997,178, 3a 139, 00 1 | 3a 139, 00 1 | no | d9fc:raised=20:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
 | Screamer (1995) (30.0 s) | 3f 1,266,207, 00 1 | 00 1 | no | d9.m3:raised=20:unmasked=00 1, db.m3:raised=01:unmasked=00 1, de.r6:raised=04:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
 
+## The window
+
+What each run ended on, and the precision and rounding control seen in
+each whole simulated second. A window that ends at `limit` ran out of
+time; `prompt` means the program returned to the DOS prompt.
+
+| Title | window (s) | ended on | control word by second |
+| --- | ---: | --- | --- |
+| Quake timedemo (DOSBench) | 25.0 | limit | 9 s: pc24/nearest, pc24/zero, pc64/nearest, pc64/zero; 14 s: pc64/nearest; 15 s: pc24/zero, pc64/nearest, pc64/zero; 16 s: pc24/zero, pc64/down, pc64/nearest, pc64/up; 17 s: pc24/down, pc24/up, pc24/zero, pc64/down, pc64/nearest, pc64/up, pc64/zero; 18 s: pc24/down, pc24/up, pc24/zero, pc64/nearest, pc64/zero … (12 seconds with x87) |
+| Screamer (1995) | 30.0 | limit | 6 s: pc24/nearest, pc64/nearest; 7 s: pc53/nearest, pc64/nearest, pc64/zero; 27 s: pc53/nearest, pc64/zero; 28 s: pc53/nearest, pc64/zero; 29 s: pc53/nearest, pc64/zero |
+
+## Rounding control on the stores and FRNDINT
+
+The integer and real stores and `FRNDINT` round under **rounding** control
+and ignore precision control, so a reduced unit would still have to honour
+the full rounding path on them.
+
+| Title | FRNDINT | FRNDINT by PC (which it ignores) | RC over all forms |
+| --- | ---: | --- | --- |
+| Quake timedemo (DOSBench) | 25,400 | 24 18,513,205, 64 1,082,154 | zero 27,552,856, up 2,916,385, nearest 1,484,463, down 43,614 |
+| Screamer (1995) | 39,902 | 53 770,875, 64 61,028, 24 1 | nearest 1,205,204, zero 61,004 |
+
 ## FSQRT by precision control
 
 For slice 6: square-root early termination saves 12 clocks at PC=24 and
@@ -52,3 +74,109 @@ both.
 | --- | ---: | ---: | --- | ---: | ---: |
 | Quake timedemo (DOSBench) | 31,997,318 | 31,997,318 | yes | 443 | 0 |
 | Screamer (1995) | 1,266,208 | 1,266,208 | yes | 0 | 0 |
+
+## Every form that executed
+
+The full histogram, not a top-N: the forms that decide a design question
+are not always the frequent ones. `class` and `operand` are
+`pc386_census_summary.py`'s classification.
+
+| Form | class | operand | Quake timedemo (DOSBench) | Screamer (1995) |
+| --- | --- | --- | ---: | ---: |
+| `d8.m0` | arith | real32 | 1,361,631 | 58,847 |
+| `d8.m1` | arith | real32 | 4,099,595 | 34,894 |
+| `d8.m2` | compare | real32 | 512,371 | 0 |
+| `d8.m3` | compare | real32 | 83,986 | 29,551 |
+| `d8.m4` | arith | real32 | 391,297 | 174,464 |
+| `d8.m5` | arith | real32 | 85,488 | 22 |
+| `d8.m6` | arith | real32 | 9,898 | 76 |
+| `d8.m7` | arith | real32 | 116,434 | 11 |
+| `d8.r0` | arith | none | 3,257 | 0 |
+| `d8.r1` | arith | none | 1,617,821 | 6,552 |
+| `d8.r2` | compare | none | 112,314 | 0 |
+| `d8.r3` | compare | none | 181,476 | 5,000 |
+| `d8.r4` | arith | none | 72,859 | 4,400 |
+| `d8.r5` | arith | none | 72,380 | 0 |
+| `d8.r6` | arith | none | 302,722 | 0 |
+| `d8.r7` | arith | none | 2,296 | 0 |
+| `d9.m0` | load | real32 | 3,564,740 | 38,382 |
+| `d9.m2` | store | real32 | 579,762 | 0 |
+| `d9.m3` | store | real32 | 841,412 | 100,110 |
+| `d9.m4` | control | image | 1 | 0 |
+| `d9.m5` | control | none | 353,462 | 61,006 |
+| `d9.m6` | control | image | 1 | 0 |
+| `d9.m7` | control | none | 140,010 | 30,505 |
+| `d9.r0` | load | none | 1,648,578 | 98,902 |
+| `d9.r1` | fxch | none | 6,427,055 | 97,025 |
+| `d9e0` | simple | none | 42,792 | 54 |
+| `d9e1` | simple | none | 411 | 4,411 |
+| `d9e4` | compare | none | 0 | 5,524 |
+| `d9e8` | load | none | 1,268 | 11,376 |
+| `d9ea` | load | none | 0 | 4,400 |
+| `d9ed` | load | none | 0 | 4,400 |
+| `d9ee` | load | none | 83,727 | 74 |
+| `d9f0` | trans | none | 0 | 4,400 |
+| `d9f1` | trans | none | 0 | 4,400 |
+| `d9f2` | trans | none | 4 | 0 |
+| `d9f3` | trans | none | 0 | 524 |
+| `d9fa` | arith | none | 758 | 575 |
+| `d9fc` | round | none | 25,400 | 39,902 |
+| `d9fd` | trans | none | 0 | 4,400 |
+| `d9fe` | trans | none | 8,404 | 138 |
+| `d9ff` | trans | none | 5,277 | 138 |
+| `da.m0` | arith | int32 | 18,575 | 0 |
+| `da.m1` | arith | int32 | 61,597 | 0 |
+| `da.m2` | compare | int32 | 3,877 | 0 |
+| `da.m3` | compare | int32 | 375 | 0 |
+| `da.m4` | arith | int32 | 21,550 | 0 |
+| `da.m5` | arith | int32 | 194 | 0 |
+| `da.m6` | arith | int32 | 814 | 0 |
+| `da.m7` | arith | int32 | 84 | 0 |
+| `dae9` | compare | none | 9,249 | 0 |
+| `db.m0` | load | int32 | 1,630,305 | 68,510 |
+| `db.m2` | store | int32 | 31,548 | 0 |
+| `db.m3` | store | int32 | 1,368,855 | 31,102 |
+| `db.m5` | load | real80 | 47,161 | 524 |
+| `db.m7` | store | real80 | 46,847 | 0 |
+| `dbe3` | control | none | 2 | 10 |
+| `dbe4` | control | none | 0 | 4 |
+| `dc.m0` | arith | real64 | 4,046 | 5,000 |
+| `dc.m1` | arith | real64 | 3,556 | 2,328 |
+| `dc.m2` | compare | real64 | 2,028 | 8,800 |
+| `dc.m3` | compare | real64 | 1,947 | 321 |
+| `dc.m4` | arith | real64 | 2,683 | 0 |
+| `dc.m5` | arith | real64 | 943 | 0 |
+| `dc.m6` | arith | real64 | 2,377 | 21 |
+| `dc.m7` | arith | real64 | 0 | 5,000 |
+| `dc.r0` | arith | none | 4,725 | 0 |
+| `dc.r1` | arith | none | 32,577 | 600 |
+| `dc.r4` | arith | none | 55,527 | 0 |
+| `dc.r5` | arith | none | 65,691 | 0 |
+| `dc.r6` | arith | none | 4 | 0 |
+| `dc.r7` | arith | none | 120,669 | 0 |
+| `dd.m0` | load | real64 | 164,538 | 16,929 |
+| `dd.m2` | store | real64 | 2,597 | 5,600 |
+| `dd.m3` | store | real64 | 39,806 | 17,060 |
+| `dd.m7` | control | none | 2 | 19,601 |
+| `dd.r3` | simple | none | 615,685 | 10,000 |
+| `dde0` | simple | none | 758 | 0 |
+| `dde1` | simple | none | 3,029 | 0 |
+| `dde2` | simple | none | 121 | 0 |
+| `dde9` | simple | none | 2,912 | 0 |
+| `de.r0` | arith | none | 2,955,680 | 38,221 |
+| `de.r1` | arith | none | 326,779 | 91,643 |
+| `de.r4` | arith | none | 237,844 | 1,180 |
+| `de.r5` | arith | none | 280,767 | 138 |
+| `de.r6` | arith | none | 18,659 | 722 |
+| `de.r7` | arith | none | 36,497 | 10 |
+| `ded9` | compare | none | 41,835 | 515 |
+| `df.m0` | load | int16 | 0 | 87,519 |
+| `df.m5` | load | int64 | 7,266 | 0 |
+| `df.m7` | store | int64 | 5,888 | 0 |
+| `dfe0` | control | none | 969,962 | 30,387 |
+
+**Forms no title in this census executed (71 of 162):** `d9e5`, `d9e9`, `d9eb`, `d9ec`, `d9f4`, `d9f5`, `d9f6`, `d9f7`, `d9f8`, `d9f9`, `d9fb`, `da.r0`, `da.r1`, `da.r2`, `da.r3`, `da.r4`, `da.r5`, `da.r6`, `da.r7`, `db.r0`, `db.r1`, `db.r2`, `db.r3`, `db.r4`, `db.r5`, `db.r6`, `db.r7`, `dbe0`, `dbe1`, `dbe2`, `dc.r2`, `dc.r3`, `dd.m4`, `dd.m6`, `dd.r0`, `dd.r1`, `dd.r2`, `dde3`, `dde4`, `dde5`, `dde6`, `dde7`, `dde8`, `ddea`, `ddeb`, `ddec`, `dded`, `ddee`, `ddef`, `de.m0`, `de.m1`, `de.m2`, `de.m3`, `de.m4`, `de.m5`, `de.m6`, `de.m7`, `de.r2`, `de.r3`, `df.m2`, `df.m3`, `df.m4`, `df.m6`, `df.r0`, `df.r1`, `df.r2`, `df.r3`, `df.r4`, `df.r5`, `df.r6`, `df.r7`.
+
+For slice 6: these are the forms the census titles never reach, so
+optimising them buys nothing measurable here. They must still be *correct* —
+a 387 that is missing a form is not a 387 — but they need not be fast.
