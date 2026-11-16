@@ -322,6 +322,8 @@ def emit(args) -> None:
     print(exclusion_table(args.fits))
     print('\n### The integration fit, by seed\n')
     print(integration_table(args.fits.parent))
+    print('\n### The controlled arithmetic A/B\n')
+    print(ab_table(args.fits.parent))
 
 
 def integration_table(record_dir: Path) -> str:
@@ -358,6 +360,60 @@ def integration_table(record_dir: Path) -> str:
     out += (f'\n\nThe worst seed is **{worst_alm:.2f}% of ALMs** and '
             f'**{worst_lab:.2f}% of LABs touched**, so band 4 does not apply under '
             'either of its thresholds (ALMs ≥ 92%, LABs ≥ 99.5%) on **any** seed.')
+    return out
+
+
+def ab_table(record_dir: Path) -> str:
+    """The controlled arithmetic A/B: one tree, one rung, one seed, one host,
+    one harness, with only X87_BACKEND differing. The 1 side is the four-seed
+    integration fit; the 0 side is one seed, so the comparison is a point
+    against a distribution and the rule precommitted in method.md uses the 1
+    side's own 136-ALM spread as the floor."""
+    d = record_dir / 'integration-fit'
+    zero = load(d / 'ab-backend0-seed1.json')
+    ones = [load(f) for f in sorted(d.glob('fit-seed*.json'))]
+    ones = [r for r in ones if r]
+    if not (zero and ones):
+        return '_the controlled A/B needs both sides_'
+
+    def used(r, k):
+        return r['resources'][k]['used']
+
+    def pct(r, k):
+        return r['resources'][k].get('percent_of_device')
+
+    alms1 = sorted(used(r, 'alms') for r in ones)
+    median1 = alms1[len(alms1) // 2]
+    rows = ['| | `X87_BACKEND = 0` (the sequencer) | `X87_BACKEND = 1` (the DE25 backend) | Difference |',
+            '| --- | ---: | ---: | ---: |',
+            f"| Seeds | 1 | 4 | |"]
+    for key, label in (('alms', 'ALMs'), ('labs', 'LABs touched'),
+                       ('registers', 'Registers'), ('dsp_blocks', 'DSP blocks'),
+                       ('ram_blocks', 'M20K blocks')):
+        v1 = sorted(used(r, key) for r in ones)
+        med = v1[len(v1) // 2]
+        span = f'{int(v1[0]):,}' if v1[0] == v1[-1] else f'{int(v1[0]):,}–{int(v1[-1]):,}'
+        rows.append(f'| {label} | {int(used(zero, key)):,} | {span} | '
+                    f'{int(med - used(zero, key)):+,} |')
+    zt, ot = zero['timing'], ones[0]['timing']
+    zs = min(c['analyses']['setup']['worst_slack_ns'] for c in zt['corners'])
+    os_ = [min(c['analyses']['setup']['worst_slack_ns'] for c in r['timing']['corners']) for r in ones]
+    rows.append(f"| ALMs, % of device | {pct(zero, 'alms'):.2f}% | "
+                f"{min(pct(r, 'alms') for r in ones):.2f}–{max(pct(r, 'alms') for r in ones):.2f}% | |")
+    rows.append(f"| LABs, % of device | {pct(zero, 'labs'):.2f}% | "
+                f"{min(pct(r, 'labs') for r in ones):.2f}–{max(pct(r, 'labs') for r in ones):.2f}% | |")
+    rows.append(f"| Fit / timing | {zero['status']} / {zt['status']} | "
+                f"{'pass' if all(r['status'] == 'pass' for r in ones) else 'MIXED'} / "
+                f"{'pass' if all(r['timing']['status'] == 'pass' for r in ones) else 'MIXED'} | |")
+    rows.append(f'| Worst setup, all corners | {zs:+.3f} ns | '
+                f'{min(os_):+.3f} to {max(os_):+.3f} ns | |')
+    delta = used(zero, 'alms') - median1
+    floor = int(alms1[-1] - alms1[0])
+    verdict = ('**MEASURABLE**' if abs(delta) > floor else '**not measurable**')
+    out = '\n'.join(rows)
+    out += (f'\n\nALM difference against the 1 side\'s median: **{int(delta):+,}** '
+            f'(the sequencer is the larger), against the precommitted floor of the 1 side\'s '
+            f'own spread, **{floor} ALMs** — so {verdict}.')
     return out
 
 
@@ -420,6 +476,60 @@ def integration_table(record_dir: Path) -> str:
     out += (f'\n\nThe worst seed is **{worst_alm:.2f}% of ALMs** and '
             f'**{worst_lab:.2f}% of LABs touched**, so band 4 does not apply under '
             'either of its thresholds (ALMs ≥ 92%, LABs ≥ 99.5%) on **any** seed.')
+    return out
+
+
+def ab_table(record_dir: Path) -> str:
+    """The controlled arithmetic A/B: one tree, one rung, one seed, one host,
+    one harness, with only X87_BACKEND differing. The 1 side is the four-seed
+    integration fit; the 0 side is one seed, so the comparison is a point
+    against a distribution and the rule precommitted in method.md uses the 1
+    side's own 136-ALM spread as the floor."""
+    d = record_dir / 'integration-fit'
+    zero = load(d / 'ab-backend0-seed1.json')
+    ones = [load(f) for f in sorted(d.glob('fit-seed*.json'))]
+    ones = [r for r in ones if r]
+    if not (zero and ones):
+        return '_the controlled A/B needs both sides_'
+
+    def used(r, k):
+        return r['resources'][k]['used']
+
+    def pct(r, k):
+        return r['resources'][k].get('percent_of_device')
+
+    alms1 = sorted(used(r, 'alms') for r in ones)
+    median1 = alms1[len(alms1) // 2]
+    rows = ['| | `X87_BACKEND = 0` (the sequencer) | `X87_BACKEND = 1` (the DE25 backend) | Difference |',
+            '| --- | ---: | ---: | ---: |',
+            f"| Seeds | 1 | 4 | |"]
+    for key, label in (('alms', 'ALMs'), ('labs', 'LABs touched'),
+                       ('registers', 'Registers'), ('dsp_blocks', 'DSP blocks'),
+                       ('ram_blocks', 'M20K blocks')):
+        v1 = sorted(used(r, key) for r in ones)
+        med = v1[len(v1) // 2]
+        span = f'{int(v1[0]):,}' if v1[0] == v1[-1] else f'{int(v1[0]):,}–{int(v1[-1]):,}'
+        rows.append(f'| {label} | {int(used(zero, key)):,} | {span} | '
+                    f'{int(med - used(zero, key)):+,} |')
+    zt, ot = zero['timing'], ones[0]['timing']
+    zs = min(c['analyses']['setup']['worst_slack_ns'] for c in zt['corners'])
+    os_ = [min(c['analyses']['setup']['worst_slack_ns'] for c in r['timing']['corners']) for r in ones]
+    rows.append(f"| ALMs, % of device | {pct(zero, 'alms'):.2f}% | "
+                f"{min(pct(r, 'alms') for r in ones):.2f}–{max(pct(r, 'alms') for r in ones):.2f}% | |")
+    rows.append(f"| LABs, % of device | {pct(zero, 'labs'):.2f}% | "
+                f"{min(pct(r, 'labs') for r in ones):.2f}–{max(pct(r, 'labs') for r in ones):.2f}% | |")
+    rows.append(f"| Fit / timing | {zero['status']} / {zt['status']} | "
+                f"{'pass' if all(r['status'] == 'pass' for r in ones) else 'MIXED'} / "
+                f"{'pass' if all(r['timing']['status'] == 'pass' for r in ones) else 'MIXED'} | |")
+    rows.append(f'| Worst setup, all corners | {zs:+.3f} ns | '
+                f'{min(os_):+.3f} to {max(os_):+.3f} ns | |')
+    delta = used(zero, 'alms') - median1
+    floor = int(alms1[-1] - alms1[0])
+    verdict = ('**MEASURABLE**' if abs(delta) > floor else '**not measurable**')
+    out = '\n'.join(rows)
+    out += (f'\n\nALM difference against the 1 side\'s median: **{int(delta):+,}** '
+            f'(the sequencer is the larger), against the precommitted floor of the 1 side\'s '
+            f'own spread, **{floor} ALMs** — so {verdict}.')
     return out
 
 

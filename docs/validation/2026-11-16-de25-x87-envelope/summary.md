@@ -602,6 +602,23 @@ Spread across 4 seeds: **136 ALMs** (40,986–41,122, 0.29% of the device) and *
 
 The worst seed is **87.87% of ALMs** and **98.33% of LABs touched**, so band 4 does not apply under either of its thresholds (ALMs ≥ 92%, LABs ≥ 99.5%) on **any** seed.
 
+### The controlled arithmetic A/B
+
+| | `X87_BACKEND = 0` (the sequencer) | `X87_BACKEND = 1` (the DE25 backend) | Difference |
+| --- | ---: | ---: | ---: |
+| Seeds | 1 | 4 | |
+| ALMs | 41,569 | 40,986–41,122 | -514 |
+| LABs touched | 4,606 | 4,555–4,602 | -9 |
+| Registers | 37,216 | 38,828–38,971 | +1,746 |
+| DSP blocks | 33 | 42 | +9 |
+| M20K blocks | 140 | 138 | -2 |
+| ALMs, % of device | 88.82% | 87.58–87.87% | |
+| LABs, % of device | 98.42% | 97.33–98.33% | |
+| Fit / timing | pass / pass | pass / pass | |
+| Worst setup, all corners | +7.620 ns | +7.582 to +7.895 ns | |
+
+ALM difference against the 1 side's median: **+514** (the sequencer is the larger), against the precommitted floor of the 1 side's own spread, **136 ALMs** — so **MEASURABLE**.
+
 <!-- end generated -->
 
 ## PR #1892's own fit, re-run after its files changed
@@ -921,10 +938,43 @@ work's backend adds nine for its FMUL. **That is the duplicated 64×64
 multiplier appearing in the device's own counts** — slice 6's first
 optimisation candidate on evidence rather than on inspection.
 
-The controlled version is one fit: **`X87_BACKEND` 0 against 1 on this
-branch** with `x87_present` high, varying only the arithmetic on one tree at
-one rung. The 1 side is the four-seed fit above; the 0 side has **not been
-run**, and is recorded as such.
+**The controlled version has now been run**, and it is in the generated
+results above. One tree, one rung, one seed, one host, one harness, with the
+two source trees differing in **exactly one line** — the `.X87_BACKEND(1)` on
+the `fes_i386_cpu` instantiation. It settles the comparison the uncontrolled
+one could not:
+
+**The DE25 pipelined backend is 514 ALMs *smaller* than the sequencer it
+replaces**, against the precommitted floor of 136, so the difference is
+**measurable** by the rule fixed before the 0 side ran. It costs **9 more DSP
+blocks** and **about 1,750 more registers**, and uses 2 fewer M20Ks.
+
+Three things worth drawing out:
+
+- **The direction is the opposite of the intuition.** A deeply pipelined
+  arithmetic unit reads as the bigger thing, and it is smaller in ALMs. What it
+  spends instead is DSP and registers — the nine 22/22/20-bit products for
+  FMUL, and the pipeline's own stages.
+- **The uncontrolled comparison had the right sign and the wrong magnitude.**
+  It put the sequencer about 330 ALMs larger, which sits *inside* this 136-ALM
+  floor plus the lane's ±200 and so established nothing. Controlling the base
+  moved it to 514 and over the floor. The uncontrolled version was not merely
+  imprecise; it was not evidence.
+- **The nine DSP blocks are confirmed as the duplicated multiplier.** The
+  sequencer's 33 is unchanged from M+'s 33 — so slices 3 and 4 added no DSP
+  beyond slice 2's shifter-multiplier — while the backend's FMUL adds exactly
+  nine. That is now a controlled measurement rather than an inference from two
+  differently based fits, and it is what makes sharing one multiplier slice 6's
+  first candidate.
+
+**Both sides fit and close.** The 0 side is band 2 on its own terms: 88.82% of
+ALMs, 98.42% of LABs touched, timing passing at all four corners with +7.620 ns
+worst setup. Band 4 does not apply to it either, under either threshold.
+
+Caveat kept at full strength: **the 0 side is one seed.** The difference, 514,
+is nearly four times the 1 side's whole spread, so it is unlikely to be
+placement noise — but "unlikely" is not "measured", and a second 0-side seed
+would settle it rather than argue it.
 
 **This record is now cited by another.** The sibling reads all four seed rows
 out of this directory rather than from a message, so the A/B in its record
