@@ -320,6 +320,45 @@ def emit(args) -> None:
     print(fit_table(args.fits))
     print('\n### What the selection left out\n')
     print(exclusion_table(args.fits))
+    print('\n### The integration fit, by seed\n')
+    print(integration_table(args.fits.parent))
+
+
+def integration_table(record_dir: Path) -> str:
+    """The integration fit's seeds. A different harness from the envelope
+    fits -- the sibling measurement's, so the numbers are comparable with its
+    M and M+ -- so a different shape of record and its own table."""
+    rows, alms, labs = [], [], []
+    for f in sorted((record_dir / 'integration-fit').glob('fit-seed*.json')):
+        r = load(f)
+        if not r:
+            continue
+        res, t = r['resources'], r['timing']
+        setup = min(c['analyses']['setup']['worst_slack_ns'] for c in t['corners'])
+        hold = min(c['analyses']['hold']['worst_slack_ns'] for c in t['corners'])
+        seed = f.stem.replace('fit-seed', '')
+        alms.append(res['alms']['used'])
+        labs.append(res['labs']['used'])
+        rows.append(
+            f"| {seed} | {'**pass**' if r['status'] == 'pass' else '**FAIL**'} | "
+            f"{'**pass**' if t['status'] == 'pass' else '**FAIL**'} | "
+            f"{int(res['alms']['used']):,} | {res['alms']['percent_of_device']:.2f}% | "
+            f"{int(res['labs']['used']):,} | {res['labs']['percent_of_device']:.2f}% | "
+            f"{int(res['dsp_blocks']['used'])} | {setup:+.3f} ns | {hold:+.3f} ns |")
+    if not rows:
+        return '_no integration-fit records found_'
+    out = ('| Seed | Fit | Timing, all 4 corners | ALMs | of device | LABs touched | of device | DSP | Worst setup | Worst hold |\n'
+           '| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n' + '\n'.join(rows))
+    out += (f'\n\nSpread across {len(rows)} seeds: **{int(max(alms) - min(alms))} ALMs** '
+            f'({int(min(alms)):,}–{int(max(alms)):,}, {100.0 * (max(alms) - min(alms)) / 46800:.2f}% of the '
+            f'device) and **{int(max(labs) - min(labs))} LABs** '
+            f'({int(min(labs)):,}–{int(max(labs)):,}).')
+    worst_alm = 100.0 * max(alms) / 46800
+    worst_lab = 100.0 * max(labs) / 4680
+    out += (f'\n\nThe worst seed is **{worst_alm:.2f}% of ALMs** and '
+            f'**{worst_lab:.2f}% of LABs touched**, so band 4 does not apply under '
+            'either of its thresholds (ALMs ≥ 92%, LABs ≥ 99.5%) on **any** seed.')
+    return out
 
 
 def main() -> int:
@@ -346,6 +385,43 @@ def main() -> int:
                               + '\n\n' + CLOSE + tail)
         print(f'rewrote {args.write} between its generated markers')
     
+
+def integration_table(record_dir: Path) -> str:
+    """The integration fit's seeds. A different harness from the envelope
+    fits -- the sibling measurement's, so the numbers are comparable with its
+    M and M+ -- so a different shape of record and its own table."""
+    rows, alms, labs = [], [], []
+    for f in sorted((record_dir / 'integration-fit').glob('fit-seed*.json')):
+        r = load(f)
+        if not r:
+            continue
+        res, t = r['resources'], r['timing']
+        setup = min(c['analyses']['setup']['worst_slack_ns'] for c in t['corners'])
+        hold = min(c['analyses']['hold']['worst_slack_ns'] for c in t['corners'])
+        seed = f.stem.replace('fit-seed', '')
+        alms.append(res['alms']['used'])
+        labs.append(res['labs']['used'])
+        rows.append(
+            f"| {seed} | {'**pass**' if r['status'] == 'pass' else '**FAIL**'} | "
+            f"{'**pass**' if t['status'] == 'pass' else '**FAIL**'} | "
+            f"{int(res['alms']['used']):,} | {res['alms']['percent_of_device']:.2f}% | "
+            f"{int(res['labs']['used']):,} | {res['labs']['percent_of_device']:.2f}% | "
+            f"{int(res['dsp_blocks']['used'])} | {setup:+.3f} ns | {hold:+.3f} ns |")
+    if not rows:
+        return '_no integration-fit records found_'
+    out = ('| Seed | Fit | Timing, all 4 corners | ALMs | of device | LABs touched | of device | DSP | Worst setup | Worst hold |\n'
+           '| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n' + '\n'.join(rows))
+    out += (f'\n\nSpread across {len(rows)} seeds: **{int(max(alms) - min(alms))} ALMs** '
+            f'({int(min(alms)):,}–{int(max(alms)):,}, {100.0 * (max(alms) - min(alms)) / 46800:.2f}% of the '
+            f'device) and **{int(max(labs) - min(labs))} LABs** '
+            f'({int(min(labs)):,}–{int(max(labs)):,}).')
+    worst_alm = 100.0 * max(alms) / 46800
+    worst_lab = 100.0 * max(labs) / 4680
+    out += (f'\n\nThe worst seed is **{worst_alm:.2f}% of ALMs** and '
+            f'**{worst_lab:.2f}% of LABs touched**, so band 4 does not apply under '
+            'either of its thresholds (ALMs ≥ 92%, LABs ≥ 99.5%) on **any** seed.')
+    return out
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,

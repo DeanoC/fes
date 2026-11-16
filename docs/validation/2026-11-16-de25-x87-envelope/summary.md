@@ -561,6 +561,19 @@ ALMs needed.
 | unit-de25-s3 | none — as required | cw, pa, wm | rf_a, rf_b | 6770 |
 | unit-de25-s4 | none — as required | cw, pa, wm | rf_a, rf_b | 6821 |
 
+### The integration fit, by seed
+
+| Seed | Fit | Timing, all 4 corners | ALMs | of device | LABs touched | of device | DSP | Worst setup | Worst hold |
+| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | **pass** | **pass** | 40,986 | 87.58% | 4,558 | 97.39% | 42 | +7.596 ns | +0.033 ns |
+| 2 | **pass** | **pass** | 41,055 | 87.72% | 4,602 | 98.33% | 42 | +7.582 ns | +0.037 ns |
+| 3 | **pass** | **pass** | 41,122 | 87.87% | 4,597 | 98.23% | 42 | +7.754 ns | +0.024 ns |
+| 4 | **pass** | **pass** | 41,054 | 87.72% | 4,555 | 97.33% | 42 | +7.895 ns | +0.018 ns |
+
+Spread across 4 seeds: **136 ALMs** (40,986–41,122, 0.29% of the device) and **47 LABs** (4,555–4,602).
+
+The worst seed is **87.87% of ALMs** and **98.33% of LABs touched**, so band 4 does not apply under either of its thresholds (ALMs ≥ 92%, LABs ≥ 99.5%) on **any** seed.
+
 <!-- end generated -->
 
 ## PR #1892's own fit, re-run after its files changed
@@ -593,9 +606,12 @@ and fit-preserving.
 
 ## It fits, and it closes: band 2
 
-**The integration fit passed.** `pc386_system` with `x87_present = 1'b1` and
-`X87_BACKEND = 1` — the machine with this work's complete DE25 387 in it —
-placed, routed and closed timing at **every published corner** at 61.44 MHz.
+**The integration fit passed, on all four seeds.** `pc386_system` with
+`x87_present = 1'b1` and `X87_BACKEND = 1` — the machine with this work's
+complete DE25 387 in it — placed, routed and closed timing at **every
+published corner** at 61.44 MHz, on **every seed 1 to 4**, over an ALM spread
+of 136 (0.29% of the device). The per-seed table is in the generated results;
+the figures below are seed 1.
 
 | | Used | of device |
 | --- | ---: | ---: |
@@ -644,11 +660,15 @@ unrelated to its outcome.** The bands did exactly the job they existed for.
 
 ### What this result does and does not say
 
-- **Single seed, and this is the first caveat for a reason.** Seed 1 only. A
-  single-seed pass at 87.58% is a **strong result, not a settled one**. The
-  sibling measurement found seed 2 within 73 ALMs of seed 1 on the CPU at this
-  rung, which is reassuring but is a different design. **More seeds are the
-  highest-value measurement outstanding.**
+- ~~**Single seed, and this is the first caveat for a reason.**~~ **Answered:
+  four seeds, all passing.** This was recorded as the first caveat and as the
+  highest-value measurement outstanding, so it was measured rather than left
+  as a disclaimer. Seeds 1 to 4 all fit and all close at every corner, over a
+  spread of **136 ALMs** — 0.29% of the device — and 47 LABs; the table is in
+  the generated results above. The worst seed is 87.87% of ALMs and 98.33% of
+  LABs touched, so **band 4 does not apply on any seed under either of its
+  thresholds**. A four-seed pass at a 0.29% spread is a different claim from a
+  single-seed pass, and this is now the former.
 - **87.58% of ALMs is the largest thing fitted on Agilex 5 in this project**,
   and nothing above 79.6% had been fitted on the device before. It sits below
   the DE10 lane's practical ceiling of around 92% — **but that ceiling is
