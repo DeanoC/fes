@@ -13,9 +13,11 @@ _D25_DEPLOYED = re.compile(
     r"^sources/FogCast/.*de25)", re.I
 )
 _D25_PRODUCERS = (
-    (re.compile(r"(?:^|/)boards/de25nano/.*/menu/|build_menu_package\.py$", re.I),
+    (re.compile(r"(?:^|/)boards/de25nano/.*/menu/|"
+                r"(?:^|/)boards/de25nano/.*/build_menu_package\.py$", re.I),
      "build_menu_package.py"),
-    (re.compile(r"(?:^|/)boards/de25nano/.*/zx81|build_zx81_package\.py$", re.I),
+    (re.compile(r"(?:^|/)boards/de25nano/.*/zx81|"
+                r"(?:^|/)boards/de25nano/.*/build_zx81_package\.py$", re.I),
      "build_zx81_package.py"),
 )
 
@@ -45,9 +47,13 @@ def selected_kits(target: str | None) -> tuple[str, ...]:
 
 def recovery_write_allowed(expected_serial: str, observed_serial: str,
                            expected_target: str, observed_target: str,
-                           device: str, device_serial: str) -> bool:
+                          device: str, expected_media_identity: str,
+                          device_serial: str) -> bool:
     """Gate a card write on independent board and removable-device identity."""
     return (expected_serial == "TRWU8J8G" and observed_serial == expected_serial
             and expected_target == "de25-j8g" and observed_target == expected_target
             and bool(device) and device.startswith("/dev/disk/by-id/")
+            and bool(expected_media_identity)
+            and expected_media_identity in device
+            and expected_media_identity in device_serial
             and "TRWU8J8G" in device_serial and "TRWU8CBL" not in device_serial)

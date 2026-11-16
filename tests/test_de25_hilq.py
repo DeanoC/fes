@@ -27,6 +27,12 @@ class De25HilqTests(unittest.TestCase):
         self.assertEqual(de25_producer([
             "sources/misteross/boards/de25nano/producers/build_menu_package.py"]),
             "build_menu_package.py")
+        self.assertEqual(de25_producer([
+            "sources/misteross/boards/de25nano/producers/build_zx81_package.py"]),
+            "build_zx81_package.py")
+        self.assertIsNone(de25_producer([
+            "sources/misteross/boards/other/producers/build_menu_package.py"]))
+        self.assertIsNone(de25_producer(["scripts/build_zx81_package.py"]))
         self.assertIsNone(de25_producer([
             "sources/misteross/boards/de25nano/producers/build_menu_package.py",
             "sources/misteross/boards/de25nano/producers/build_zx81_package.py"]))
@@ -34,14 +40,20 @@ class De25HilqTests(unittest.TestCase):
     def test_recovery_requires_matching_board_and_card_identity(self):
         good = recovery_write_allowed(
             "TRWU8J8G", "TRWU8J8G", "de25-j8g", "de25-j8g",
-            "/dev/disk/by-id/usb-TRWU8J8G-SD", "USB TRWU8J8G card")
+            "/dev/disk/by-id/usb-TRWU8J8G-SD", "TRWU8J8G", "USB TRWU8J8G card")
         self.assertTrue(good)
         self.assertFalse(recovery_write_allowed(
             "TRWU8J8G", "TRWU8CBL", "de25-j8g", "de25-j8g",
-            "/dev/disk/by-id/usb-TRWU8J8G-SD", "USB TRWU8J8G card"))
+            "/dev/disk/by-id/usb-TRWU8J8G-SD", "TRWU8J8G", "USB TRWU8J8G card"))
         self.assertFalse(recovery_write_allowed(
             "TRWU8J8G", "TRWU8J8G", "de25-j8g", "de25-j8g",
-            "/dev/sdb", "USB TRWU8J8G card"))
+            "/dev/sdb", "TRWU8J8G", "USB TRWU8J8G card"))
+        self.assertFalse(recovery_write_allowed(
+            "TRWU8J8G", "TRWU8J8G", "de25-j8g", "de25-j8g",
+            "/dev/disk/by-id/usb-unrelated-SD", "TRWU8J8G", "USB TRWU8J8G card"))
+        self.assertFalse(recovery_write_allowed(
+            "TRWU8J8G", "TRWU8J8G", "de25-j8g", "de25-j8g",
+            "/dev/disk/by-id/usb-TRWU8J8G-SD", "TRWU8J8G", "USB unrelated card"))
 
 
 if __name__ == "__main__":
