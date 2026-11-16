@@ -33,14 +33,19 @@ iteration count fixes. More demandingly, the format needs those bits as an
 slice 3's `round_pc()` presents, and a rounded reciprocal product supplies
 neither.
 
-**So the iterations are followed by an exact tail, and it is cheap.** A
-measured error bound `E` gives a candidate below the true truncation by
-construction; `k` restoring compare-subtract steps on slice 3's adder find
-the increment exactly and leave the exact remainder — which *is* the sticky
-bit, free, from a step that was needed anyway. No second multiplier, no
-dedicated divider, and the 131-bit back-multiply a naive correction would
-need is not required, because the remainder is bounded and only its low bits
-matter.
+**The fast iterations are followed by a short correction and an exact
+certificate.** The sampled `E` and `k` values size the common path; they are
+not correctness assumptions. The datapath keeps the signed residual's low
+96 bits and its high word, applies the fixed restoring steps, then checks the
+full residual in hardware. A divide is accepted only when it is in `[0, B)`;
+a square root only when it is in `[0, 2C+1)`. If either check fails, a
+digit-by-digit restoring divide or radix-4 square root recomputes the result
+exactly. This preserves the short common path without relying on a sampled
+all-input error bound.
+
+The fast correction still uses slice 3's adder and avoids a second multiplier.
+The exact fallback is a longer serial path, selected only when the candidate
+does not pass its full-width certificate.
 
 **The remainders then need no Goldschmidt at all** — which is more than the
 "no divider of their own" this record first claimed, and is what the landed
@@ -131,9 +136,10 @@ Four instruments, answering different questions.
   operand pair in a row, which is what makes it able to catch a stale
   registered value rather than lucky to have caught one.
 - **The exactness models** (`model/`) sized the datapath before any RTL, and
-  `model/fixed_constants.py` is the gate on the constants: `E` and `k` pinned
-  as the RTL carries them, validated over 3,000,000 cases on a seed no fitting
-  run used.
+  `model/fixed_constants.py` measures the fast-path error for the chosen `E`
+  and `k` over 3,000,000 independent cases. Those measurements tune the common
+  path; the synthesizable full-width certificate and exact fallback enforce
+  correctness outside the sampled cases.
 - **The locked-Yosys netlist** is not a formality. The netlist bench **failed
   at the first attempt** — the locked Yosys rejects `real` in a module body —
   so the seed tables are literals, emitted by `model/seed_tables.py` whose
@@ -305,11 +311,12 @@ the wrong call. Both are in the results table.
   This is worth stating because it is the kind of thing a later reader tidies
   into a single decode commit.
 - **The transcendentals, FBLD and FBSTP** are slice 5's and stop as not built.
-- **The cycle-count assertions that would make early termination observable**,
-  the sim-only assertion that the post-tail remainder is in range, and the
-  divide, square-root and remainder rows in the bench's exception-mask and
-  `arith-latch` matrices. Unmasked ZE on the commit edge is the hazard this
-  slice's brief names and nothing exercises it yet.
+- **The cycle-count assertions that would make early termination observable**
+  and the divide, square-root and remainder rows in the bench's
+  exception-mask and `arith-latch` matrices. Unmasked ZE on the commit edge is
+  the hazard this slice's brief names and nothing exercises it yet. The
+  post-tail range is now checked in synthesizable logic, with exact fallback
+  on a failed certificate; the simulation assertions remain supplementary.
 - **Whether a real 387 also slows on denormal operands.** The latency is fixed
   by precision control for *normal* operands; a denormal adds
   pre-normalisation passes. Whether that matches the part is a 387 datasheet
@@ -485,6 +492,20 @@ python3 fixed_constants.py 500000
 ```bash
 python3 seed_tables.py --check ../../../../sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87.sv
 ```
+
+## PR #1889 exact-tail follow-up, 16 November 2026
+
+Review found that the sampled fast-path error maxima did not establish an
+all-input bound. The RTL now checks the complete divide or square-root
+residual in synthesizable logic and recomputes the result with a restoring
+fallback when the fast candidate is outside its exact range.
+
+The focused x87 unit suite passed **740/740** cases with the normal RTL and
+with the locked-Yosys netlist. Two directed runs also passed 740/740: one
+forced the certificate to select the fallback, and one supplied zero fast
+candidates so the certificate had to reject them. Those directed variants
+were temporary test inputs and are not part of the committed RTL. This is
+host simulation and netlist evidence; no kit or hardware test was run.
 
 ## One lesson in five places
 

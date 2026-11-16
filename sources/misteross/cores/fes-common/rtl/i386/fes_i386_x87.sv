@@ -386,13 +386,14 @@ module fes_i386_x87 (
 
     logic [63:0] gs_n, gs_d;     // Goldschmidt's numerator and denominator
     logic [1:0]  gs_it;          // iterations still to run
-    logic [66:0] dv_c;           // the candidate quotient, 66 bits plus a carry
-    logic [95:0] dv_rem;         // the remainder, modulo 2^96: exact because
-                                 // the true remainder is bounded by 2*E*B
+    logic [66:0] dv_c;           // the candidate quotient/root, 66 bits plus a carry
+    logic [95:0] dv_rem;         // low word of the signed residual
+    logic [37:0] dv_hi_rem;      // exact high word, or the fallback radicand
     logic [3:0]  dv_k;           // restoring steps still to run
+    logic [6:0]  dv_exact_left;  // quotient/root digits still to generate
     logic        dv_s;           // the pre-scale: the quotient was below one
-    logic        dv_lost;        // the square root dropped radicand bits into
-                                 // the sticky at a reduced precision
+    logic        dv_lost;        // exact fallback bits below the selected precision
+    logic        dv_exact_used;  // the certified digit-by-digit fallback supplied the result
     logic [63:0] pr_q;           // the remainder step's quotient
     logic [6:0]  pr_n;           // ... how many quotient bits it consumed
     logic        pr_part;        // ... and whether it is a partial step
@@ -403,10 +404,9 @@ module fes_i386_x87 (
     logic [95:0] dv_pow;          // ... and 2^(2i), which the square root's
                                   // trial needs and which halves twice a step
 
-    // The error bound E and the step count k are constants per precision, not
-    // measurements: a case outside the sample that exceeded E would be a wrong
-    // result. They are validated over 3,000,000 cases on a seed no fitting run
-    // used -- worst observed error 50 against the 128 below.
+    // E and k size the fast correction tail. Their empirical maxima are not
+    // correctness assumptions: D_CHECK/Q_CHECK certify the full residual, and
+    // an out-of-range candidate takes the exact digit-by-digit fallback.
     // PC 01 is reserved and reads as the extended format, exactly as
     // round_pc() and Bochs's softfloat read it, so it takes the extended
     // bound and step count and not the short ones. Getting that wrong left
@@ -426,13 +426,48 @@ module fes_i386_x87 (
     // bit 0 the round. round_pc() at PC 24 reads m[63:40], the round bit
     // m[39] and a sticky over everything below, so the exact truncation it
     // needs stops at bit 39 -- which is the 66-bit target with its low 41
-    // bits dropped. PC 53 stops at m[10], dropping 12. **The error bound and
-    // the step count above are measured AT THIS POSITION**, which is what
-    // makes the early termination sound: a shorter target needs fewer
-    // iterations for the same bound. Computing a short target with the full
-    // target's bound is the bug this cost 585 of 684 cases to find.
+    // bits dropped. PC 53 stops at m[10], dropping 12. The empirical error
+    // and step counts are tuned AT THIS POSITION for the fast path; the
+    // full-width certificate and exact fallback make short results sound
+    // without treating those measurements as an all-input bound.
     function automatic logic [5:0] dv_drop(input logic [1:0] prec);
         dv_drop = prec == 2'd0 ? 6'd41 : prec == 2'd2 ? 6'd12 : 6'd0;
+    endfunction
+    function automatic logic [6:0] dv_digits(input logic [1:0] prec);
+        dv_digits = 7'd66 - 7'(dv_drop(prec));
+    endfunction
+    function automatic logic low_dropped_bits(input logic [66:0] v, input logic [1:0] prec);
+        case (prec)
+            2'd0:    low_dropped_bits = |v[40:0];
+            2'd2:    low_dropped_bits = |v[11:0];
+            default: low_dropped_bits = 1'b0;
+        endcase
+    endfunction
+    // High word of A * 2^(65+s-drop), above bit 95. PC 24's dividend
+    // fits below bit 96; the other positions are constant shifts.
+    function automatic logic [35:0] dvdhi(input logic [63:0] m, input logic s,
+                                          input logic [1:0] prec);
+        case (prec)
+            2'd0:    dvdhi = 36'd0;
+            2'd2:    dvdhi = s ? 36'(m >> 42) : 36'(m >> 43);
+            default: dvdhi = s ? 36'(m >> 30) : 36'(m >> 31);
+        endcase
+    endfunction
+    // High word of the scaled square-root radicand used by the fast path.
+    function automatic logic [35:0] sqradhi(input logic [63:0] m, input logic p,
+                                            input logic [1:0] prec);
+        case (prec)
+            2'd0:    sqradhi = 36'd0;
+            2'd2:    sqradhi = p ? 36'(m >> 52) : 36'(m >> 53);
+            default: sqradhi = p ? 36'(m >> 28) : 36'(m >> 29);
+        endcase
+    endfunction
+    // Multiply three high bits by a 64-bit operand using shifts and adds, so
+    // the certificate does not infer another DSP multiplier.
+    function automatic logic [66:0] mul3wide(input logic [2:0] a, input logic [63:0] b);
+        mul3wide = (a[0] ? {3'd0, b} : 67'd0)
+                 + (a[1] ? {2'd0, b, 1'b0} : 67'd0)
+                 + (a[2] ? {1'd0, b, 2'b0} : 67'd0);
     endfunction
     // The drop is one of **three constants**, so each place it is applied is a
     // three-way mux of constant shifts and not a shifter. Writing
@@ -477,18 +512,6 @@ module fes_i386_x87 (
     endfunction
     function automatic logic [3:0] sq_steps(input logic [1:0] prec);
         sq_steps = (prec == 2'd0 || prec == 2'd2) ? 4'd3 : 4'd7;
-    endfunction
-
-    // The candidate's bits above 63 times a 64-bit value, as three shifted
-    // adds rather than a multiply. Written as `a * b` Quartus maps it to a DSP
-    // block, and the first standalone fit came back with **13 DSP blocks**
-    // against the nine Deano's option A allows -- the multiplier's nine plus
-    // these. The multiplicand is three bits, so the product is three
-    // conditional shifts of the multiplier and about sixty ALMs.
-    function automatic logic [31:0] mul3(input logic [2:0] a, input logic [31:0] b);
-        mul3 = (a[0] ? b : 32'd0)
-             + (a[1] ? {b[30:0], 1'b0} : 32'd0)
-             + (a[2] ? {b[29:0], 2'b00} : 32'd0);
     endfunction
 
     // One step of the square root's Newton iteration keeps every value
@@ -611,18 +634,18 @@ module fes_i386_x87 (
         A_PACK,     // ... and packed
         A_XT,       // FXTRACT's exponent, once its magnitude has normalised
         // ---- Slice 4's divide. ----
-        // Goldschmidt on the shared multiplier, then the exact tail. The
-        // iterations stop where precision control says (2 at PC 24, 3
-        // otherwise) because the error bound is a constant per precision and
-        // the tail closes the gap exactly whatever it is.
+        // Goldschmidt on the shared multiplier, a short correction tail, and
+        // an exact residual check with a digit-by-digit fallback.
         D_SEED,     // the reciprocal seed is out of the M10K table: start N = A*R
         D_N0,       // take N = A*R, start D = B*R
         D_D0,       // take D = B*R; decide whether to iterate again
         D_ITN,      // an iteration's N*f: take it, start D*f
         D_ITD,      // ... take D*f, and loop or fall through
         D_CAND,     // form the candidate C0 = qhat - E, start C0[63:0]*B
-        D_REM,      // take the product and form the modular remainder
+        D_REM,      // take the product and form the full-width residual
         D_TAIL,     // the restoring compare-subtract steps, one a clock
+        D_CHECK,    // certify the full-width residual or restart exactly
+        D_EXACT,    // exact digit-by-digit divide or square root fallback
         D_FIN,      // the quotient, its guard, round and sticky, into A_RND
         // ---- Slice 4's square root. ----
         // Newton on the reciprocal square root, y <- y(3 - a*y^2)/2, on the
@@ -636,6 +659,7 @@ module fes_i386_x87 (
         Q_RES,      // the result estimate q = a*y
         Q_CAND,     // the candidate, and start C0*C0
         Q_REM,      // the radicand's remainder
+        Q_CHECK,    // certify the full-width residual or restart exactly
         Q_FIN,      // into A_RND
         // ---- Slice 4's remainders. ----
         // FPREM and FPREM1 run on the divide's primitive: the divide's tail
@@ -1440,6 +1464,9 @@ module fes_i386_x87 (
             latched <= 1'b0;
             rw_en <= 1'b0;
             pnx <= 1'b0;
+            dv_hi_rem <= 38'd0;
+            dv_exact_left <= 7'd0;
+            dv_exact_used <= 1'b0;
         end else if (f1) begin
             // The F1h reset: the 387's RESET state (387 PRM Appendix C.1 and
             // section 4.8.1), which is FNINIT's except that IM is clear and
@@ -1461,6 +1488,9 @@ module fes_i386_x87 (
             nw_waiting <= 1'b0;
             rw_en <= 1'b0;
             pnx <= 1'b0;
+            dv_hi_rem <= 38'd0;
+            dv_exact_left <= 7'd0;
+            dv_exact_used <= 1'b0;
         end else begin
             rw_en <= 1'b0;
             es_q <= es;
@@ -2558,10 +2588,9 @@ module fes_i386_x87 (
                     end else
                         seq <= D_CAND;
                 end
-                // The candidate, a guaranteed lower bound: qhat minus the
-                // precision's error bound. Its low 64 bits go to the
-                // multiplier for the remainder; its bits above 63 are three
-                // shifted adds of the divisor below.
+                // The fast candidate is qhat minus the precision's empirical
+                // correction budget. The following full-width certificate
+                // makes correctness independent of that budget.
                 D_CAND: begin
                     logic [66:0] qh, c0;
                     qh = drop67({3'd0, gs_n} << (dv_s ? 3 : 2), wprec);
@@ -2571,24 +2600,31 @@ module fes_i386_x87 (
                     // candidate that the tail cannot bring back.
                     c0 = qh > {59'd0, dv_e(wprec)} ? qh - {59'd0, dv_e(wprec)} : 67'd0;
                     dv_c <= c0;
+                    dv_exact_used <= 1'b0;
                     dv_k <= dv_steps(wprec);
                     ua_mul <= c0[63:0];
                     ub_mul <= ob_m;
                     mul_start <= 1'b1;
                     seq <= D_REM;
                 end
-                // The remainder, modulo 2^96. The true remainder is bounded by
-                // twice the error bound times the divisor, so the low bits of
-                // a modular subtraction are exact and no 131-bit subtract is
-                // needed: only the dividend's low bits reach below bit 96, and
-                // the candidate's bits above 63 contribute three shifted adds.
+                // Form the residual as low 96 bits plus an exact high word.
+                // The tail changes only the low word; D_CHECK accepts it only
+                // when the full residual is a valid quotient remainder.
                 D_REM: if (mul_done) begin
-                    logic [31:0] chi;
+                    logic [66:0] chi;
+                    logic [96:0] plo;
+                    logic [95:0] nlo;
+                    logic [37:0] phi, nhi;
                     logic [3:0]  k;
-                    chi = mul3(dv_c[66:64], ob_m[31:0]);
+                    chi = mul3wide(dv_c[66:64], ob_m);
+                    plo = {1'b0, mul_p[95:0]} + {1'b0, chi[31:0], 64'd0};
+                    nlo = dvd96(oa_m, dv_s, wprec);
+                    phi = {6'd0, mul_p[127:96]} + {3'd0, chi[66:32]} + plo[96];
+                    nhi = {2'd0, dvdhi(oa_m, dv_s, wprec)};
                     k = cur == X87_PREM ? 4'd8 : dv_steps(wprec);
-                    dv_rem <= dvd96(oa_m, dv_s, wprec)
-                            - (mul_p[95:0] + {chi, 64'd0});
+                    dv_rem <= nlo - plo[95:0];
+                    dv_hi_rem <= dv_c[66] ? 38'd1
+                                           : nhi - phi - 38'(nlo < plo[95:0]);
                     // The tail's first subtrahend: B << (k - 1), where k is
                     // one of three constants, so this is a mux and not a
                     // shifter.
@@ -2624,6 +2660,7 @@ module fes_i386_x87 (
                     nsub = (dv_sub >> 1) + (dv_pow >> 2);
                     if (!trial[95]) begin
                         dv_rem <= trial;
+                        if (dv_rem < dv_sub) dv_hi_rem <= dv_hi_rem - 38'd1;
                         dv_c <= dv_c + (67'd1 << i);
                         if (cur == X87_SQRT) nsub = nsub + (dv_pow >> 1);
                     end else if (cur == X87_SQRT)
@@ -2641,8 +2678,73 @@ module fes_i386_x87 (
                         $error("x87 divide tail subtrahend %h != B<<%0d", dv_sub, i);
 `endif
                     if (dv_k > 4'd1) dv_k <= dv_k - 4'd1;
-                    else seq <= cur == X87_SQRT ? Q_FIN
-                              : cur == X87_PREM ? P_FIN : D_FIN;
+                    else seq <= cur == X87_SQRT ? Q_CHECK
+                              : cur == X87_PREM ? P_FIN : D_CHECK;
+                end
+                // The correction constants are an optimization only. Accept
+                // the fast result only when its exact quotient residual is
+                // non-negative and below B; otherwise recompute every digit.
+                D_CHECK: begin
+                    if (dv_c[66] || dv_hi_rem != 38'd0 || dv_rem[95]
+                        || dv_rem >= {32'd0, ob_m}) begin
+                        logic [64:0] r0;
+                        r0 = dv_s ? ({oa_m, 1'b0} - {1'b0, ob_m})
+                                  : ({1'b0, oa_m} - {1'b0, ob_m});
+                        dv_c <= 67'd1;
+                        dv_rem <= {31'd0, r0};
+                        dv_hi_rem <= 38'd0;
+                        dv_exact_left <= dv_digits(wprec) - 7'd1;
+                        dv_exact_used <= 1'b1;
+                        dv_lost <= 1'b0;
+                        seq <= D_EXACT;
+                    end else
+                        seq <= D_FIN;
+                end
+                // The exact fallback emits the normalized quotient one bit
+                // at a time. Its final remainder is the true sticky source.
+                // Square root uses a radix-4 restoring recurrence below and
+                // streams the 132-bit radicand through dv_hi_rem/dv_sub.
+                D_EXACT: begin
+                    if (cur == X87_SQRT) begin
+                        logic [1:0]  pair;
+                        logic [67:0] trial, subroot, rnext;
+                        logic        exact_take;
+                        logic [66:0] cnext;
+                        pair = dv_hi_rem[35:34];
+                        trial = {dv_rem[65:0], pair};
+                        subroot = {dv_c[65:0], 2'b01};
+                        exact_take = trial >= subroot;
+                        rnext = exact_take ? trial - subroot : trial;
+                        cnext = {dv_c[65:0], exact_take};
+                        dv_rem <= {28'd0, rnext};
+                        dv_hi_rem <= {2'd0, dv_hi_rem[33:0], dv_sub[95:94]};
+                        dv_sub <= {dv_sub[93:0], 2'b00};
+                        if (dv_exact_left > 7'd1) begin
+                            dv_c <= cnext;
+                            dv_exact_left <= dv_exact_left - 7'd1;
+                        end else begin
+                            dv_c <= drop67(cnext, wprec);
+                            dv_lost <= low_dropped_bits(cnext, wprec);
+                            seq <= Q_FIN;
+                        end
+                    end else begin
+                        logic [65:0] trial, rnext;
+                        logic        exact_take;
+                        logic [66:0] cnext;
+                        trial = {dv_rem[64:0], 1'b0};
+                        exact_take = trial >= {2'b0, ob_m};
+                        rnext = exact_take ? trial - {2'b0, ob_m} : trial;
+                        cnext = {dv_c[65:0], exact_take};
+                        dv_rem <= {30'd0, rnext};
+                        if (dv_exact_left > 7'd1) begin
+                            dv_c <= cnext;
+                            dv_exact_left <= dv_exact_left - 7'd1;
+                        end else begin
+                            dv_c <= cnext;
+                            dv_hi_rem <= 38'd0;
+                            seq <= D_FIN;
+                        end
+                    end
                 end
                 // The exact truncation, its guard and round bits, and the
                 // sticky the remainder gives for nothing. A_RND then applies
@@ -2657,16 +2759,9 @@ module fes_i386_x87 (
                     logic [5:0] dr;
                     dr = dv_drop(wprec);
 `ifndef SYNTHESIS
-                    // The tail's contract, asserted rather than trusted: the
-                    // remainder it leaves must be non-negative and below the
-                    // divisor, which is what makes the truncation exact and
-                    // the sticky bit true. The error bound and the step count
-                    // are constants validated on 3,000,000 model cases, so
-                    // this is the check that the RTL has not drifted from the
-                    // model -- the model's value class normalises more freely
-                    // than these registers do.
-                    if (dv_rem[95] || dv_rem >= {32'd0, ob_m})
-                        $error("x87 divide tail left rem=%h outside [0, B=%h)", dv_rem, ob_m);
+                    if (dv_hi_rem != 38'd0 || dv_rem[95] || dv_rem >= {32'd0, ob_m})
+                        $error("x87 divide result left residual=%h:%h outside [0, B=%h)",
+                               dv_hi_rem, dv_rem, ob_m);
 `endif
                     wm <= place64(dv_c, wprec);
                     wg <= dr == 6'd0 ? dv_c[1] : 1'b0;
@@ -2780,27 +2875,35 @@ module fes_i386_x87 (
 `endif
                     c0 = qh > {59'd0, sq_e(wprec)} ? qh - {59'd0, sq_e(wprec)} : 67'd0;
                     dv_c <= c0;
+                    dv_exact_used <= 1'b0;
                     dv_k <= sq_steps(wprec);
                     ua_mul <= c0[63:0];
                     ub_mul <= c0[63:0];
                     mul_start <= 1'b1;
                     seq <= Q_REM;
                 end
-                // The radicand's remainder. The recurrence is self-similar
-                // under the precision's scaling, so the tail runs in the
-                // scaled domain and takes the same form as the full-precision
-                // one: the radicand shifts by 67 + parity - 2*drop, which is
-                // negative at PC 24, and the bits that shift out of it feed
-                // the sticky.
+                // Form the fast path's residual in low and high words. The
+                // high word makes the following check exact even when a
+                // candidate is outside the correction tail's range.
                 Q_REM: if (mul_done) begin
                     logic signed [8:0] qsh;
-                    logic [31:0]       chi;
+                    logic [66:0]       cross_prod;
+                    logic [96:0]       plo;
+                    logic [37:0]       phi, nhi;
+                    logic [5:0]        hsq;
                     logic [95:0]       rad;
                     qsh = 9'sd67 + 9'($signed({1'b0, sq_p}))
                         - 9'sd2 * 9'($signed({3'b0, dv_drop(wprec)}));
                     rad = qsh >= 9'sd0 ? (96'(oa_m) << qsh[7:0]) : (96'(oa_m) >> (-qsh));
-                    chi = mul3(dv_c[66:64], dv_c[31:0]);
-                    dv_rem <= rad - (mul_p[95:0] + {chi, 64'd0} + {chi, 64'd0});
+                    cross_prod = mul3wide(dv_c[66:64], dv_c[63:0]);
+                    plo = {1'b0, mul_p[95:0]} + {1'b0, cross_prod[30:0], 65'd0};
+                    hsq = 6'(dv_c[66:64]) * 6'(dv_c[66:64]);
+                    phi = {6'd0, mul_p[127:96]} + {2'd0, cross_prod[66:31]}
+                        + {hsq, 32'd0} + plo[96];
+                    nhi = {2'd0, sqradhi(oa_m, sq_p, wprec)};
+                    dv_rem <= rad - plo[95:0];
+                    dv_hi_rem <= dv_c[66] ? 38'd1
+                                           : nhi - phi - 38'(rad < plo[95:0]);
                     dv_lost <= qsh >= 9'sd0 ? 1'b0
                              : |(oa_m & ((64'd1 << (-qsh)) - 64'd1));
                     // S(k-1) = C0 * 2^k + 2^(2k-2) and P(k-1) = 2^(2k-2),
@@ -2810,15 +2913,33 @@ module fes_i386_x87 (
                     dv_pow <= 96'd1 << (2 * sq_steps(wprec) - 4'd2);
                     seq <= D_TAIL;
                 end
+                // The exact root certificate is 0 <= N-C^2 <= 2C. If the
+                // short tail did not establish that range, restart with a
+                // radix-4 restoring square root of A*2^(67+parity).
+                Q_CHECK: begin
+                    if (dv_c[66] || dv_hi_rem != 38'd0 || dv_rem[95]
+                        || dv_rem > {28'd0, dv_c, 1'b0}) begin
+                        dv_c <= 67'd0;
+                        dv_rem <= 96'd0;
+                        dv_hi_rem <= sq_p ? {2'd0, oa_m[63:28]} : {3'd0, oa_m[63:29]};
+                        dv_sub <= sq_p ? {oa_m[27:0], 68'd0} : {oa_m[28:0], 67'd0};
+                        dv_exact_left <= 7'd66;
+                        dv_exact_used <= 1'b1;
+                        dv_lost <= 1'b0;
+                        seq <= D_EXACT;
+                    end else
+                        seq <= Q_FIN;
+                end
                 Q_FIN: begin
                     logic [5:0] dr;
                     dr = dv_drop(wprec);
 `ifndef SYNTHESIS
-                    // The same contract for the square root: the remainder
-                    // must be non-negative and below 2*C + 1, which is the
-                    // gap to the next candidate's square.
-                    if (dv_rem[95] || dv_rem > {28'd0, dv_c, 1'b0})
-                        $error("x87 sqrt tail left rem=%h outside [0, 2C+1] with C=%h", dv_rem, dv_c);
+                    // The fast path's certificate is a production check. The
+                    // fallback carries the full-root remainder instead.
+                    if (!dv_exact_used && (dv_hi_rem != 38'd0 || dv_rem[95]
+                        || dv_rem > {28'd0, dv_c, 1'b0}))
+                        $error("x87 sqrt result left residual=%h:%h outside [0, 2C+1] with C=%h",
+                               dv_hi_rem, dv_rem, dv_c);
 `endif
                     wm <= place64(dv_c, wprec);
                     wg <= dr == 6'd0 ? dv_c[1] : 1'b0;
