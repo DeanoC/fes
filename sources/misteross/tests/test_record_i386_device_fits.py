@@ -29,7 +29,8 @@ def write_fit(directory: Path, *, device: str, family: str, alms: float, availab
                                "report_label": "Logic utilization"}},
         "timing": {"status": "pass", "corner_count": 4,
                    "corners": [{"corner": f"Corner {i}", "hold_only": False,
-                                "analyses": {c: {"coverage": "analyzed"} for c in
+                                "analyses": {c: {"coverage": "analyzed", "paths": 1,
+                                                 "worst_slack_ns": 6.048} for c in
                                              ("setup", "hold", "minimum_pulse_width")}}
                                for i in range(4)],
                    "fmax": [{"corner": "Slow", "clocks": []}]},
@@ -355,6 +356,22 @@ class Collect(unittest.TestCase):
             (fit / "fit.json").write_text(json.dumps(record_json))
             # The table still has setup/hold/minimum_pulse_width at all four.
             self.assertEqual(record.main(["--record", str(root / "r"), f"--fit=x={fit}"]), 1)
+
+    def test_rows_disagreeing_with_the_verdict_are_refused(self):
+        # fit_timing.tcl can be rerun against a retained project, rewriting
+        # timing.tsv without touching fit.json. Matching the analysis names
+        # would not notice; matching the values does.
+        for field, replacement in ((5, "9.999"), (3, "unsupported_hold_only_model"), (4, "7")):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                fit = write_fit(root / "f", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                                alms=1, available=2, device_alms=46800, ram_block="M20K")
+                lines = (fit / "timing.tsv").read_text().splitlines()
+                parts = lines[1].split("\t")
+                parts[field] = replacement
+                lines[1] = "\t".join(parts)
+                (fit / "timing.tsv").write_text("\n".join(lines) + "\n")
+                self.assertEqual(record.main(["--record", str(root / "r"), f"--fit=x={fit}"]), 1)
 
     def test_a_table_without_the_closure_checks_is_refused(self):
         with tempfile.TemporaryDirectory() as temporary:

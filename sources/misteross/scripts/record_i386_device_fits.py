@@ -26,6 +26,13 @@ class RecordError(RuntimeError):
     pass
 
 
+def _number(text: str) -> float | None:
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        return None
+
+
 def read(path: Path) -> dict:
     try:
         return json.loads(path.read_text())
@@ -164,12 +171,14 @@ def timing_rows(name: str, output: Path, fit: dict) -> list[str]:
     # corner present, and every corner carrying the same set of checks,
     # including the three the closure rests on.
     checks: dict[str, set[str]] = {}
+    measured: dict[tuple[str, str], tuple[str, str, str]] = {}
     for row in rows:
         field = row.split("\t")
-        # corner, hold_only, check, coverage, ... -- the check is field 2.
-        if len(field) < 3:
-            raise RecordError(f"{name}: {path} has a row with fewer than three fields: {row!r}")
+        # corner, hold_only, check, coverage, paths, worst_slack_ns, from, to
+        if len(field) < 6:
+            raise RecordError(f"{name}: {path} has a row with fewer than six fields: {row!r}")
         checks.setdefault(field[0], set()).add(field[2])
+        measured[(field[0], field[2])] = (field[3], field[4], field[5])
     expected = (fit.get("timing") or {}).get("corner_count")
     if expected is not None and len(checks) != expected:
         raise RecordError(
@@ -180,7 +189,7 @@ def timing_rows(name: str, output: Path, fit: dict) -> list[str]:
     # writes one entry per analysis per corner. Match the rows against that,
     # not against each other -- a table truncated the SAME way at every corner
     # is self-consistent and still missing the evidence.
-    declared = {entry["corner"]: set(entry.get("analyses") or {})
+    declared = {entry["corner"]: (entry.get("analyses") or {})
                 for entry in ((fit.get("timing") or {}).get("corners") or [])
                 if entry.get("corner")}
     if declared:
@@ -189,14 +198,37 @@ def timing_rows(name: str, output: Path, fit: dict) -> list[str]:
             if present is None:
                 raise RecordError(
                     f"{name}: fit.json records corner {corner!r} but {path} has no rows for it")
-            if present != analyses:
-                missing = sorted(analyses - present)
-                extra = sorted(present - analyses)
+            names = set(analyses)
+            if present != names:
+                missing = sorted(names - present)
+                extra = sorted(present - names)
                 raise RecordError(
                     f"{name}: corner {corner!r} in {path} has checks {sorted(present)} where "
-                    f"fit.json records {sorted(analyses)}"
+                    f"fit.json records {sorted(names)}"
                     + (f"; missing {missing}" if missing else "")
                     + (f"; unexpected {extra}" if extra else ""))
+            # Names agreeing is not the rows agreeing. fit_timing.tcl can be
+            # rerun against a retained project -- a workflow this method
+            # documents -- which rewrites timing.tsv without touching
+            # fit.json, so the two can carry different numbers for the same
+            # check. Compare the values the verdict was computed from.
+            for check, recorded in sorted(analyses.items()):
+                coverage, paths, slack = measured[(corner, check)]
+                for label, want, got in (("coverage", recorded.get("coverage"), coverage),
+                                         ("paths", recorded.get("paths"), paths),
+                                         ("worst_slack_ns", recorded.get("worst_slack_ns"), slack)):
+                    if want is None:
+                        continue
+                    # Numeric equality is a fallback for formatting ("1" vs
+                    # "1.0"), not a licence to ignore a mismatch of words: it
+                    # only applies when BOTH sides parse as numbers.
+                    a, b = _number(got), _number(str(want))
+                    same = (a == b) if (a is not None and b is not None) else (str(want) == got)
+                    if not same:
+                        raise RecordError(
+                            f"{name}: corner {corner!r} check {check!r} has {label} {got!r} in "
+                            f"{path} but {want!r} in fit.json; the two disagree, so the published "
+                            "verdict and its evidence did not come from the same analysis")
         return [f"{name}\t{row}" for row in rows]
     # No per-corner analysis list to match against: fall back to requiring the
     # corners to agree with each other and to carry the closure's own checks.
