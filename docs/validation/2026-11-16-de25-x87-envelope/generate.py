@@ -83,11 +83,11 @@ def lockstep_table(evidence: Path) -> str:
                 continue
             s = body['summary']
             rows.append(f"| {label} | {suite} | {s['passed']} | {s['failed']} | "
-                        f"`{s['trace_hash']}` |")
+                        f"{s.get('x87_compared', 0)} | `{s['trace_hash']}` |")
     if not rows:
         return '_no lockstep reports found_'
-    return ('| Backend | Suite | Passed | Failed | Trace hash |\n'
-            '| --- | --- | ---: | ---: | --- |\n' + '\n'.join(rows))
+    return ('| Backend | Suite | Passed | Failed | x87 states compared | Trace hash |\n'
+            '| --- | --- | ---: | ---: | ---: | --- |\n' + '\n'.join(rows))
 
 
 def hash_compare(evidence: Path) -> str:
@@ -144,6 +144,13 @@ def main() -> int:
     print('\n### Lockstep against the Bochs oracle\n')
     print(lockstep_table(args.evidence))
     print('\n### Trace hashes, DE10 against DE25\n')
+    print('`trace_hash` is folded from EIP, the eight GPRs and EFLAGS at every')
+    print('retirement (`hash_state`). It covers the **integer architectural**')
+    print('trace: not cycle timing, and **not the x87 register stack**. So')
+    print('identical hashes say the two configurations are indistinguishable to')
+    print('the rest of the CPU -- which is what rule 5 asks -- and say nothing')
+    print('about whether the arithmetic agrees. That evidence is the x87 state')
+    print('comparison in the table above, and the unit bench.\n')
     print(hash_compare(args.evidence))
     print('\n### The Agilex 5 fit\n')
     print(fit_table(args.fits))
