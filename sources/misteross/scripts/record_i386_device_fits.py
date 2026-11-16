@@ -157,7 +157,18 @@ def timing_rows(name: str, output: Path, fit: dict) -> list[str]:
     lines = path.read_text().splitlines()
     if len(lines) < 2:
         raise RecordError(f"{name}: {path} has a header and no rows")
-    return [f"{name}\t{line}" for line in lines[1:]]
+    rows = lines[1:]
+    # A truncated table is as misleading as a missing one: the verdict covers
+    # every corner, so the rows must too. Count the distinct corners the rows
+    # name and require the recorded corner count.
+    corners = {row.split("\t")[0] for row in rows if row.strip()}
+    expected = (fit.get("timing") or {}).get("corner_count")
+    if expected is not None and len(corners) != expected:
+        raise RecordError(
+            f"{name}: fit.json records a timing verdict over {expected} corner(s) but "
+            f"{path} has rows for {len(corners)}; the table is truncated and the verdict "
+            "would be published without the evidence for every corner")
+    return [f"{name}\t{row}" for row in rows]
 
 
 def main(argv: list[str] | None = None) -> int:

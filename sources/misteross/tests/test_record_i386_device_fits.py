@@ -40,9 +40,11 @@ def write_fit(directory: Path, *, device: str, family: str, alms: float, availab
                           "tracked_diff": "-a\n+b\n", "tracked_diff_sha256": "f" * 64}),
     }))
     (directory / "netlist.json").write_text(json.dumps({"netlist_sha256": "a" * 64}))
+    # Four rows, because fit.json above records a four-corner verdict; the
+    # collector refuses a table that does not cover every corner.
     (directory / "timing.tsv").write_text(
         "corner\thold_only\tcheck\tcoverage\tpaths\tworst_slack_ns\tfrom\tto\n"
-        "Slow fix4 0C\t0\tsetup\tanalyzed\t1\t6.048\tx\ty\n")
+        + "".join(f"Corner {i}\t0\tsetup\tanalyzed\t1\t6.048\tx\ty\n" for i in range(4)))
     return directory
 
 
@@ -78,7 +80,8 @@ class Collect(unittest.TestCase):
             record.main(["--record", str(out), f"--fit=cpu-de25={agilex}"])
             rows = (out / "timing.tsv").read_text().splitlines()
             self.assertEqual(rows[0].split("\t")[0], "fit")
-            self.assertTrue(rows[1].startswith("cpu-de25\tSlow fix4 0C\t"))
+            self.assertTrue(rows[1].startswith("cpu-de25\tCorner 0\t"))
+            self.assertEqual(len(rows), 5, "header plus the fixture's four corners")
 
     def test_a_partial_fit_names_the_stage_its_counts_came_from(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -301,6 +304,21 @@ class Collect(unittest.TestCase):
                             alms=1, available=2, device_alms=46800, ram_block="M20K")
             (fit / "timing.tsv").write_text("corner\thold_only\tcheck\n")
             self.assertEqual(record.main(["--record", str(root / "r"), f"--fit=x={fit}"]), 1)
+
+    def test_a_truncated_timing_table_is_refused(self):
+        # The fixture's verdict covers four corners; a table naming one is as
+        # misleading as a missing table, because the verdict is published whole.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fit = write_fit(root / "f", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                            alms=1, available=2, device_alms=46800, ram_block="M20K")
+            self.assertEqual(record.main(["--record", str(root / "r1"), f"--fit=x={fit}"]), 0,
+                             "the fixture's four rows match its four-corner verdict")
+            # Truncate to one corner and the same fit must now be refused.
+            lines = (fit / "timing.tsv").read_text().splitlines(keepends=True)
+            (fit / "timing.tsv").write_text("".join(lines[:2]))
+            self.assertEqual(record.main(["--record", str(root / "r2"), f"--fit=x={fit}"]), 1,
+                             "one corner of rows against a four-corner verdict must be refused")
 
     def test_a_fit_argument_without_a_name_is_refused(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -827,8 +827,12 @@ under `docs/validation/2026-11-16-i386-agilex5-fit/`, three new scripts and
 their two tests, and nothing else. The job passes on `main`, and passed on
 this branch on the following run with the same inputs.
 
-Filed as [#1925](https://github.com/DeanoC/fes/issues/1925), with the run
-links, both signatures and the observation that this lane's Verilator is
-workflow-provisioned rather than pinned by a toolchain lock — which is why a
-crash in the tool is not currently reproducible. It is recorded here rather
+Filed as [#1925](https://github.com/DeanoC/fes/issues/1925) with the run links
+and both signatures. **One claim in the first version of that issue and of this
+amendment was wrong and is corrected here:** I wrote that this lane's Verilator
+is workflow-provisioned rather than pinned. It **is** pinned —
+`scripts/ci_verilator.sh` fixes it to commit
+`8ff77e9d47351b0a59114929880687839a51840b`, Verilator v5.032. That makes the
+crash *more* reportable, not less: it is a specific, known version faulting on
+specific input, which is what an upstream report needs. Recorded here rather
 than left for someone to attribute to this PR.
