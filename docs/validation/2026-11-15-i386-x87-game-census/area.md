@@ -33,8 +33,13 @@ not merged into this one.
 | Slice 3, `fes_i386_x87_mul` | +2 | unchanged: the arithmetic bought its multiplies on slice 2's multiplier |
 | Slice 3, the decoder | ±15, sign not established | the slice 3 record retracts its own direction: a matched re-run flips it |
 
-So the unit is about **3,850 ALMs** of its own logic after slice 3, plus
-the 178-ALM multiplier and the 143 ALMs on the CPU side.
+So after slice 3 `fes_i386_x87`'s **own** logic is about **3,664 ALMs**
+(slice 2's 1,414 plus slice 3's 2,250, which is also what slice 3's
+per-entity fit reports as its own figure), and the entity including its
+sub-entities is **3,851**. Beside it sit the 178-ALM multiplier and the 143
+ALMs on the CPU side. An earlier revision of this record added the two
+deltas to "about 3,850", conflating the own-logic sum with the
+including-sub-entities total and overstating it by about 186 ALMs.
 
 ## What is measured not to shrink
 

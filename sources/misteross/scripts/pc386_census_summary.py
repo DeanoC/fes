@@ -144,8 +144,11 @@ X87_FORMS = {
     'dbe0': ('control', 'none'), 'dbe1': ('control', 'none'), 'dbe2': ('control', 'none'),
     'dbe3': ('control', 'none'), 'dbe4': ('control', 'none'),
     'dae9': ('compare', 'none'), 'ded9': ('compare', 'none'), 'dfe0': ('control', 'none'),
-    **{f'dd.r{r}': ('simple', 'none') for r in range(4)},
-    **{f'dde{n:x}': ('simple', 'none') for n in range(16)},
+    # DD register forms: /0 FFREE, /1 (FXCH alias), /2 FST ST(i), /3 FSTP ST(i),
+    # and the whole ModRM for /4 and /5, which are FUCOM and FUCOMP ST(i).
+    'dd.r0': ('simple', 'none'), 'dd.r1': ('simple', 'none'),
+    'dd.r2': ('store', 'none'), 'dd.r3': ('store', 'none'),
+    **{f'dde{n:x}': ('compare', 'none') for n in range(16)},
     **{f'db.r{r}': ('simple', 'none') for r in range(8)},
     **{f'da.r{r}': ('compare', 'none') for r in range(8)},
     **{f'df.r{r}': ('simple', 'none') for r in range(8)},
@@ -226,6 +229,20 @@ def x87_summary(counts: dict[str, int]) -> dict:
             cw = int(cw_text, 16)
             pc_by_class.setdefault(cls, Counter())[PRECISION[(cw >> 8) & 3]] += n
             rc_by_class.setdefault(cls, Counter())[ROUNDING[(cw >> 10) & 3]] += n
+    # FRNDINT's own precision distribution, from its own rows. It ignores
+    # precision control; the column exists to show that, and taking it from
+    # the `other` class would mix in every load, store, compare and control
+    # form the census puts there.
+    frndint_pc: Counter = Counter()
+    for key, n in counts.items():
+        if key.startswith('x87cwform:d9fc:'):
+            frndint_pc[PRECISION[(int(key.rpartition(':')[2], 16) >> 8) & 3]] += n
+    # The committed reliance rule is ES set *or* IRQ 13 delivered, so the
+    # delivery is counted directly rather than inferred from an ES transition:
+    # a title that restores state with ES already set takes the interrupt
+    # without a fresh transition.
+    irq13 = sum(n for k, n in counts.items() if k.startswith('x87irq13:'))
+    r_es = any(k.startswith('x87es:') for k in counts)
     pc_sites: dict[str, Counter] = {}
     for key, n in counts.items():
         if key.startswith('x87pcsite:'):
@@ -296,6 +313,10 @@ def x87_summary(counts: dict[str, int]) -> dict:
         'pc_by_class': {c: dict(sorted(v.items())) for c, v in sorted(pc_by_class.items())},
         'rc_by_class': {c: dict(sorted(v.items())) for c, v in sorted(rc_by_class.items())},
         'fsqrt': ops.get('d9fa', 0),
+        'frndint': ops.get('d9fc', 0),
+        'frndint_by_pc': dict(sorted(frndint_pc.items())),
+        'irq13': irq13,
+        'relies_on_exceptions': bool(r_es or irq13),
         'fsqrt_by_pc': dict(sorted(pc_by_class.get('sqrt', Counter()).items())),
         'pc_sites': {p: dict(sorted(c.items())) for p, c in sorted(pc_sites.items())},
         'cw_writes': dict(sorted(cw_sets.items())),

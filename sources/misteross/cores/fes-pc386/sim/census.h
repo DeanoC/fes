@@ -291,6 +291,12 @@ public:
                 count("x87ev:" + std::to_string(event.vector) + ":cr0=" + hex(before.cr0 & 0x2e, 2) + ':' + stem_);
         if ((after.cr0 ^ before.cr0) & 0x2e)
             count("x87cr0:" + hex(before.cr0 & 0x2e, 2) + '>' + hex(after.cr0 & 0x2e, 2) + ':' + stem_);
+        // The AT's coprocessor interrupt, in every mode: the committed
+        // reliance rule is ES set *or* IRQ 13 delivered, and the generic
+        // event keys are recorded only in protected mode.
+        if (delivery && result.events[0].vector == 0x75)
+            count("x87irq13:" + hex(result.events[0].vector, 2) + mode +
+                  ((sw0 & 0x80) ? ":es" : ""));
         if (delivery) return;
         unsigned at = 0;
         while (at < 15 && (bytes_[at] == 0x66 || bytes_[at] == 0x67 || bytes_[at] == 0xf0 || bytes_[at] == 0xf2 ||

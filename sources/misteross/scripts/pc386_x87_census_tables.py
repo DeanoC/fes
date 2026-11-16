@@ -66,7 +66,9 @@ def operand_row(name: str, r: dict) -> str:
 def exception_row(name: str, r: dict) -> str:
     unmasked = {k: v for k, v in r['exception_masks'].items() if k != '3f'}
     return (f"| {name} | {counts(r['exception_masks'])} | {counts(unmasked) if unmasked else 'none'} | "
-            f"{'yes' if r['es_set'] else 'no'} | {counts(r['exceptions']) if r['exceptions'] else 'none'} |")
+            f"{'yes' if r['es_set'] else 'no'} | {r['irq13']:,} | "
+            f"{'yes' if r['relies_on_exceptions'] else 'no'} | "
+            f"{counts(r['exceptions']) if r['exceptions'] else 'none'} |")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -110,8 +112,8 @@ def main(argv: list[str] | None = None) -> int:
           '| Title | real m32 | real m64 | real m80 | int m16 / m32 / m64 | BCD m80 | env and save images |',
           '| --- | ---: | ---: | ---: | ---: | ---: | ---: |', operand_row)
     table('Exceptions',
-          '| Title | control-word low byte (masks) | instructions with any exception unmasked | ES ever set | flags raised |',
-          '| --- | --- | --- | --- | --- |', exception_row)
+          '| Title | control-word low byte (masks) | instructions with any exception unmasked | ES ever set | IRQ 13 delivered | relies on exceptions | flags raised |',
+          '| --- | --- | --- | --- | ---: | --- | --- |', exception_row)
 
     # What the window reached, and the control word over it.
     out.extend(['## The window', '',
@@ -137,8 +139,8 @@ def main(argv: list[str] | None = None) -> int:
                 '| --- | ---: | --- | --- |'])
     for name, row in rows:
         r = row['x87']
-        out.append(f"| {TITLES.get(name, name)} | {r['by_form'].get('d9fc', 0):,} | "
-                   f"{counts(r['pc_by_class'].get('other', {}))} | {counts(r['rc_all'])} |")
+        out.append(f"| {TITLES.get(name, name)} | {r['frndint']:,} | "
+                   f"{counts(r['frndint_by_pc'])} | {counts(r['rc_all'])} |")
     out.append('')
 
     out.extend(['## FSQRT by precision control', '',

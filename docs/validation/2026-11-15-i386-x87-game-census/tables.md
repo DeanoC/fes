@@ -8,10 +8,10 @@ title's own window, on the drive the method pins.
 
 | Title | x87 retired | load / store / FXCH | arithmetic | compare | transcendental | control |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Quake timedemo (DOSBench) (25.0 s) | 31,997,318 | 22.34% / 9.12% / 20.09% | 38.72% | 2.97% | 0.04% | 4.57% |
-| Screamer (1995) (30.0 s) | 1,266,208 | 26.14% / 12.15% / 7.66% | 33.54% | 3.93% | 1.11% | 11.18% |
-| Chris's 3D Benchmark (20.0 s) | 15,236,311 | 27.90% / 10.30% / 0.61% | 20.26% | 8.67% | 0.02% | 19.39% |
-| Terminal Velocity (1995) (30.0 s) | 6,850 | 15.74% / 15.53% / 7.52% | 23.08% | 0.01% | 7.50% | 22.99% |
+| Quake timedemo (DOSBench) (25.0 s) | 31,997,318 | 22.34% / 11.04% / 20.09% | 38.72% | 2.99% | 0.04% | 4.57% |
+| Screamer (1995) (30.0 s) | 1,266,208 | 26.14% / 12.94% / 7.66% | 33.54% | 3.93% | 1.11% | 11.18% |
+| Chris's 3D Benchmark (20.0 s) | 15,236,311 | 27.90% / 22.66% / 0.61% | 20.26% | 9.15% | 0.02% | 19.39% |
+| Terminal Velocity (1995) (30.0 s) | 6,850 | 15.74% / 15.58% / 7.52% | 23.08% | 0.01% | 7.50% | 22.99% |
 | DOOM (1993) (20.0 s) | 11 | 0.00% / 0.00% / 0.00% | 0.00% | 0.00% | 0.00% | 100.00% |
 | Wolfenstein 3D (1992) (20.0 s) | 13,605 | 20.85% / 19.74% / 0.00% | 23.45% | 2.23% | 5.09% | 27.53% |
 | Ultima VI: The False Prophet (1990) (20.0 s) | 0 | - / - / - | - | - | - | - |
@@ -48,17 +48,17 @@ title's own window, on the drive the method pins.
 
 ## Exceptions
 
-| Title | control-word low byte (masks) | instructions with any exception unmasked | ES ever set | flags raised |
-| --- | --- | --- | --- | --- |
-| Quake timedemo (DOSBench) (25.0 s) | 3f 31,997,178, 3a 139, 00 1 | 3a 139, 00 1 | no | d9fc:raised=20:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
-| Screamer (1995) (30.0 s) | 3f 1,266,207, 00 1 | 00 1 | no | d9.m3:raised=20:unmasked=00 1, db.m3:raised=01:unmasked=00 1, de.r6:raised=04:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
-| Chris's 3D Benchmark (20.0 s) | 3a 15,236,298, 3f 12, 00 1 | 3a 15,236,298, 00 1 | no | dc.r1:raised=20:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
-| Terminal Velocity (1995) (30.0 s) | 3f 6,849, 00 1 | 00 1 | no | d9fe:raised=20:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
-| DOOM (1993) (20.0 s) | 3f 10, 00 1 | 00 1 | no | none |
-| Wolfenstein 3D (1992) (20.0 s) | 32 13,598, 3f 6, 00 1 | 32 13,598, 00 1 | no | d8.m6:raised=20:unmasked=00 1 |
-| Ultima VI: The False Prophet (1990) (20.0 s) | - | none | no | none |
-| Ultima VII: The Black Gate (1992) (20.0 s) | - | none | no | none |
-| Ultima VII Part Two: Serpent Isle (1993) (20.0 s) | - | none | no | none |
+| Title | control-word low byte (masks) | instructions with any exception unmasked | ES ever set | IRQ 13 delivered | relies on exceptions | flags raised |
+| --- | --- | --- | --- | ---: | --- | --- |
+| Quake timedemo (DOSBench) (25.0 s) | 3f 31,997,178, 3a 139, 00 1 | 3a 139, 00 1 | no | 0 | no | d9fc:raised=20:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
+| Screamer (1995) (30.0 s) | 3f 1,266,207, 00 1 | 00 1 | no | 0 | no | d9.m3:raised=20:unmasked=00 1, db.m3:raised=01:unmasked=00 1, de.r6:raised=04:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
+| Chris's 3D Benchmark (20.0 s) | 3a 15,236,298, 3f 12, 00 1 | 3a 15,236,298, 00 1 | no | 0 | no | dc.r1:raised=20:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
+| Terminal Velocity (1995) (30.0 s) | 3f 6,849, 00 1 | 00 1 | no | 0 | no | d9fe:raised=20:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
+| DOOM (1993) (20.0 s) | 3f 10, 00 1 | 00 1 | no | 0 | no | none |
+| Wolfenstein 3D (1992) (20.0 s) | 32 13,598, 3f 6, 00 1 | 32 13,598, 00 1 | no | 0 | no | d8.m6:raised=20:unmasked=00 1 |
+| Ultima VI: The False Prophet (1990) (20.0 s) | - | none | no | 0 | no | none |
+| Ultima VII: The Black Gate (1992) (20.0 s) | - | none | no | 0 | no | none |
+| Ultima VII Part Two: Serpent Isle (1993) (20.0 s) | - | none | no | 0 | no | none |
 
 ## The window
 
@@ -86,12 +86,12 @@ the full rounding path on them.
 
 | Title | FRNDINT | FRNDINT by PC (which it ignores) | RC over all forms |
 | --- | ---: | --- | --- |
-| Quake timedemo (DOSBench) | 25,400 | 24 18,513,205, 64 1,082,154 | zero 27,552,856, up 2,916,385, nearest 1,484,463, down 43,614 |
-| Screamer (1995) | 39,902 | 53 770,875, 64 61,028, 24 1 | nearest 1,205,204, zero 61,004 |
-| Chris's 3D Benchmark | 718 | 64 11,109,788, 24 1,037,603 | nearest 14,196,555, zero 1,037,602, down 2,154 |
-| Terminal Velocity (1995) | 518 | 53 3,694, 64 1,060, 24 1 | nearest 5,814, zero 1,036 |
-| DOOM (1993) | 0 | 64 10, 24 1 | nearest 11 |
-| Wolfenstein 3D (1992) | 0 | 64 9,722, 24 1 | nearest 11,313, zero 2,292 |
+| Quake timedemo (DOSBench) | 25,400 | 64 21,450, 24 3,950 | zero 27,552,856, up 2,916,385, nearest 1,484,463, down 43,614 |
+| Screamer (1995) | 39,902 | 64 30,502, 53 9,400 | nearest 1,205,204, zero 61,004 |
+| Chris's 3D Benchmark | 718 | 64 718 | nearest 14,196,555, zero 1,037,602, down 2,154 |
+| Terminal Velocity (1995) | 518 | 64 518 | nearest 5,814, zero 1,036 |
+| DOOM (1993) | 0 | - | nearest 11 |
+| Wolfenstein 3D (1992) | 0 | - | nearest 11,313, zero 2,292 |
 | Ultima VI: The False Prophet (1990) | 0 | - | - |
 | Ultima VII: The Black Gate (1992) | 0 | - | - |
 | Ultima VII Part Two: Serpent Isle (1993) | 0 | - | - |
@@ -216,14 +216,14 @@ are not always the frequent ones. `class` and `operand` are
 | `dd.m2` | store | real64 | 2,597 | 5,600 | 4,657 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `dd.m3` | store | real64 | 39,806 | 17,060 | 3,970 | 0 | 0 | 1,296 | 0 | 0 | 0 |
 | `dd.m7` | control | none | 2 | 19,601 | 2 | 1 | 1 | 303 | 0 | 0 | 0 |
-| `dd.r3` | simple | none | 615,685 | 10,000 | 1,883,342 | 3 | 0 | 0 | 0 | 0 | 0 |
-| `dde0` | simple | none | 758 | 0 | 67,292 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `dde1` | simple | none | 3,029 | 0 | 1,284 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `dde2` | simple | none | 121 | 0 | 1,284 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `dde3` | simple | none | 0 | 0 | 1,284 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `dde4` | simple | none | 0 | 0 | 864 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `dde9` | simple | none | 2,912 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `ddec` | simple | none | 0 | 0 | 1,284 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dd.r3` | store | none | 615,685 | 10,000 | 1,883,342 | 3 | 0 | 0 | 0 | 0 | 0 |
+| `dde0` | compare | none | 758 | 0 | 67,292 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dde1` | compare | none | 3,029 | 0 | 1,284 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dde2` | compare | none | 121 | 0 | 1,284 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dde3` | compare | none | 0 | 0 | 1,284 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dde4` | compare | none | 0 | 0 | 864 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `dde9` | compare | none | 2,912 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `ddec` | compare | none | 0 | 0 | 1,284 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `de.r0` | arith | none | 2,955,680 | 38,221 | 315,185 | 2 | 0 | 0 | 0 | 0 | 0 |
 | `de.r1` | arith | none | 326,779 | 91,643 | 2,913 | 2 | 0 | 0 | 0 | 0 | 0 |
 | `de.r4` | arith | none | 237,844 | 1,180 | 4,296 | 0 | 0 | 0 | 0 | 0 | 0 |

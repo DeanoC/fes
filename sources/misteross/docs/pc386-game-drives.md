@@ -180,7 +180,7 @@ titles each one unlocks.
 | `x87cwform:<form>:<cw>` | The control word (`cw & 1F3Fh`) each retired ESC form ran under, the form by form version of `x87cw`: precision and rounding control for the loads, stores and integer stores too, which the class key folds into `other`. |
 | `x87cwsec:<second>:<cw>` | The same control word by whole simulated second: precision and rounding control over the run. |
 | `x87cwset:<form>:<before>><after>` | Control-word writes, including a write that leaves the value unchanged: FLDCW (`d9.m5`), FNINIT (`dbe3`), FLDENV (`d9.m4`) and FRSTOR (`dd.m4`). |
-| `x87sig:<form>:<zero\|le24\|le53\|le64>` | The significand width in use after each retired ESC: `64 - ctz` of ST(0)'s significand, bucketed. A result rounded to a 24-bit significand falls in `le24`, so a bucket above it is a value a 24-bit significand cannot hold. |
+| `x87sig:<form>:<zero\|empty\|le24\|le53\|le64>` | The significand width in use after each retired ESC: `64 - ctz` of ST(0)'s significand, bucketed. A result rounded to a 24-bit significand falls in `le24`, so a bucket above it is a value a 24-bit significand cannot hold. `empty` is a slot the tag word marks empty, whose contents are stale and are not a width; a popping store (FSTP, FISTP, FBSTP) is read from the state before the step, because after it ST(0) is the register underneath. |
 | `x87pcsite:<pc>:<cs>:<page>` | Retired arithmetic ESCs (`add`, `mul`, `div`, `sqrt`) by their precision-control field (0, 2, 3 for 24, 53, 64 bits) and the code page they ran on (CS selector, linear EIP >> 12), which attributes a title's arithmetic at a given precision to its engine or to a library or DPMI host. |
 | `x87exc:<form>:raised=<flags>:unmasked=<flags>` | Retired ESC instructions that set exception flags (status bits 6-0) that were clear, with those of them the control word left unmasked. |
 | `x87es:<form>:<mode>:ne=<0\|1>` | Retired ESC instructions that set ES. `ne` is CR0 bit 5, reserved on a 386, which Bochs at CPU level 3 reads as 1 once CR0 is written; it stays for comparison with the [x87 plan](../../../docs/validation/2026-11-12-i386-x87-plan/summary.md)'s rows. |
@@ -190,6 +190,7 @@ titles each one unlocks.
 | `x87ev:<7\|16>:cr0=<bits>:<stem>` | #NM and #MF, with CR0's MP, EM, TS and bit 5 (`cr0 & 2Eh`) before the step. |
 | `x87cr0:<before>><after>:<stem>` | Changes to those CR0 bits. |
 | `x87emuint:<vector>:<mode>` | INT 34h-3Eh: the Borland and Microsoft emulator fixups. |
+| `x87irq13:<vector>:<mode>[:es]` | Steps that delivered the AT's coprocessor interrupt (vector 75h), with `:es` when ES was already set, counted in every mode because the generic event keys are recorded only in protected mode. |
 | `x87io:<port>:<in\|out>:<mode>` | IN and OUT with an immediate or DX port F0h-FFh: the AT's coprocessor ports. |
 
 - <a id="x87-keys"></a>**x87 keys.** Counted on every oracle step, in real

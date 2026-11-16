@@ -89,8 +89,17 @@ on them, because slice 2's floor is largely the exception path.
 | Wolfenstein 3D | `32` | 13,598 | invalid, divide-by-zero, overflow |
 | Quake | `3a` | 139 | invalid, divide-by-zero |
 
-**No run raised an unmasked exception and no run set ES**, so none of them
-*relies* on the exception path in the sense of taking IRQ 13. But the path
+**No run raised an unmasked exception and no run set ES.** Every exception
+row in all nine runs reports `unmasked=00`: flags were raised and every one
+of them was masked. IRQ 13 therefore cannot have fired, since the AT's latch
+is driven by an unmasked exception — that is an **inference** from the
+raised-and-unmasked counts, sound but not a direct observation. A direct
+`x87irq13` key now exists and counts the delivery in every mode, because the
+committed rule is "ES set **or** IRQ 13 delivered" and a title that restores
+state with ES already set would take the interrupt without a fresh ES
+transition; these nine runs predate that key, so their IRQ 13 columns read 0
+as "not recorded" rather than as "observed not to happen". So none of these
+titles *relies* on the exception path in the sense of taking IRQ 13. But the path
 is live architectural state for real titles, not only for Linux's boot
 check: an invalid operand or a zero divisor in Chris's benchmark or
 Wolfenstein 3D would take IRQ 13 and must. A reduced unit would carry the
@@ -114,6 +123,23 @@ which is the right question for this census — a reduced unit would be
 selected by the same identity bit — but it cannot say what the title would
 do without one. Separating those needs the empty-socket run beside this one,
 and this record does not have it.
+
+### A classification error the review caught
+
+The first generated mix classed the whole DD register group as `simple`.
+**DD /2 and /3 are `FST` and `FSTP ST(i)` and DD /4 and /5 are `FUCOM` and
+`FUCOMP ST(i)`**, so Quake's store share was understated by about 1.9
+percentage points and thousands of compares were dropped. Corrected, with a
+test, and the correction is self-checking: the mix now reproduces the 12
+November census's load/store/FXCH percentages **exactly** for Chris's
+benchmark (27.90% / 22.66% / 0.61%), Screamer (26.14% / 12.94% / 7.66%) and
+Terminal Velocity (15.74% / 15.58% / 7.52%), which it did not before.
+
+Two further review findings were real and are fixed: the FRNDINT precision
+column was taken from the census's `other` class, which holds every load,
+store, compare and control form, and so reported 19.6M operations beside an
+actual FRNDINT count of 25,400; and [area.md](area.md) added 1,414 and 2,250
+to 3,850 where they come to 3,664.
 
 ### What four exact reproductions buy
 

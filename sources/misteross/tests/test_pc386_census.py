@@ -531,6 +531,53 @@ class SummaryTest(unittest.TestCase):
         # And so it cannot by itself make a title insufficient.
         self.assertTrue(row['pc24_sufficient'])
 
+    def test_dd_register_forms_are_stores_and_compares(self):
+        """DD /2 and /3 are FST and FSTP ST(i), and DD /4 and /5 are FUCOM and
+        FUCOMP ST(i). Classing the whole DD register group as `simple`
+        understated Quake's store share by about 1.9 points and dropped
+        thousands of compares."""
+        census = ('x87op:dd.r0:pm3 1 -\nx87op:dd.r2:pm3 7 -\nx87op:dd.r3:pm3 615685 -\n'
+                  'x87op:dde0:pm3 11 -\nx87op:ddea:pm3 13 -\n')
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, 'census.txt').write_text(census)
+            row = summary.run('t', Path(tmp))['x87']
+        self.assertEqual(row['by_class'], {'compare': 24, 'simple': 1, 'store': 615692})
+        # They move no memory operand, so they do not make a title computing
+        # by the memory-operand rule, but FXCH and transcendentals aside the
+        # mix now shows them where they belong.
+        self.assertEqual(row['memory_fp_ops'], 0)
+
+    def test_frndint_pc_comes_from_frndint_rows(self):
+        """The FRNDINT precision column must come from FRNDINT's own rows. Taken
+        from the census's `other` class it reported 19.6M operations for Quake
+        beside an actual FRNDINT count of 25,400, because `other` holds every
+        load, store, compare and control form."""
+        census = ('x87op:d9fc:pm3 7 -\nx87op:d9.m0:pm3 500 -\n'
+                  'x87cwform:d9fc:003f 4 -\nx87cwform:d9fc:0f3f 3 -\n'
+                  'x87cw:other:0f3f 500 -\n')
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, 'census.txt').write_text(census)
+            row = summary.run('t', Path(tmp))['x87']
+        self.assertEqual(row['frndint'], 7)
+        self.assertEqual(row['frndint_by_pc'], {'24': 4, '64': 3})
+        # Not the `other` class's 500.
+        self.assertEqual(row['pc_by_class']['other'], {'64': 500})
+
+    def test_exception_reliance_counts_irq13_directly(self):
+        """The committed rule is ES set *or* IRQ 13 delivered. A title that
+        restores state with ES already set takes the interrupt without a fresh
+        ES transition, so the delivery is counted from its own key."""
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, 'census.txt').write_text('x87op:d8.m1:pm3 5 -\n')
+            row = summary.run('t', Path(tmp))['x87']
+        self.assertEqual(row['irq13'], 0)
+        self.assertFalse(row['relies_on_exceptions'])
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, 'census.txt').write_text('x87op:d8.m1:pm3 5 -\nx87irq13:75:pm3:es 2 -\n')
+            row = summary.run('t', Path(tmp))['x87']
+        self.assertEqual(row['irq13'], 2)
+        self.assertTrue(row['relies_on_exceptions'])
+
     def test_the_rows_are_stable(self):
         with tempfile.TemporaryDirectory() as tmp:
             Path(tmp, 'census.txt').write_text(self.CENSUS)
