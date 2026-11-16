@@ -380,6 +380,17 @@ it does not change the physical-DDR, firmware or package-admission boundaries.
 
 ## DE25-Nano board diagnostic
 
+The standalone [DE25 x87 arithmetic backend](../boards/de25nano/x87/README.md)
+accepts decoded 80-bit add/subtract/multiply/compare requests at one per clock,
+with registered shared operand normalization, an iterative divide/square-root
+lane and a shared precision/rounding pipeline. A 16-entry synchronous completion
+RAM returns results in issue order under backpressure. Its private virtual-pin Quartus fit targets 200 MHz
+on `A5EB013BB23BE4SCS`; host simulation compares results and exception flags
+against real x87 instructions. It has no CPU or package consumer yet: stack
+state, conversion, retirement, unmasked exceptions and the remaining x87
+operations belong to future integration with the existing 387 architecture.
+This diagnostic supplies no board or game acceptance.
+
 The standard ZX81 machine/control/capture is `cores/fes-zx81/rtl/fes_zx81_core.v`.
 The DE10 `top.v` supplies its clocks, HPS GP transport, HDMI, audio serializer,
 registered expansion placement and session-plane memory adapter. The shared
