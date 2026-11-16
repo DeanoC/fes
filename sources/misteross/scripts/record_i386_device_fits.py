@@ -297,7 +297,13 @@ def main(argv: list[str] | None = None) -> int:
         collected_at = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip()
         def commit(fit):
             value = fit.get("fes_revision")
-            return value.get("commit") if isinstance(value, dict) else value
+            value = value.get("commit") if isinstance(value, dict) else value
+            # fes_revision() writes "unknown" when `git rev-parse` fails, which
+            # is what a tree copied to another host without a resolvable .git
+            # gives. That is the absence of a revision, not a revision named
+            # "unknown", and the string is truthy, so it is normalised here
+            # rather than counted as one and agreed upon.
+            return None if value == "unknown" else value
         # Only when EVERY fit supplies a commit: one fit with a revision beside
         # others with none would otherwise set the aggregate and read as
         # agreement, attributing the unversioned fits to that checkout.

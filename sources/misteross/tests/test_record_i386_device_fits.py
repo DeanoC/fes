@@ -237,6 +237,25 @@ class Collect(unittest.TestCase):
             self.assertEqual(host["fits_with_no_recorded_revision"], ["legacy"])
             self.assertNotIn("every fit was prepared from one revision", host["revision_note"])
 
+    def test_an_unknown_commit_is_not_a_recorded_revision(self):
+        # fes_revision() writes {"commit": "unknown"} when `git rev-parse` fails,
+        # which is what a tree copied to another host without a resolvable .git
+        # produces. The string is truthy, so without this it counts as a
+        # revision -- and a record of such fits alone reads as agreement on the
+        # revision "unknown" rather than as fits with no revision at all.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            copied = write_fit(root / "c", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                               alms=1, available=2, device_alms=46800, ram_block="M20K",
+                               revision="unknown")
+            out = root / "record"
+            record.main(["--record", str(out), f"--fit=copied={copied}"])
+            host = json.loads((out / "host.json").read_text())
+            self.assertIsNone(host["fes_revision"])
+            self.assertEqual(host["fit_revisions"], [])
+            self.assertEqual(host["fits_with_no_recorded_revision"], ["copied"])
+            self.assertNotIn("every fit was prepared from one revision", host["revision_note"])
+
     def test_a_fit_from_a_modified_checkout_is_named(self):
         # The M+ fit is made by editing a tracked file, so its commit alone
         # does not describe the source that ran.

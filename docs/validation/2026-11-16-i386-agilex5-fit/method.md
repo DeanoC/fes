@@ -836,3 +836,30 @@ is workflow-provisioned rather than pinned. It **is** pinned —
 crash *more* reportable, not less: it is a specific, known version faulting on
 specific input, which is what an upstream report needs. Recorded here rather
 than left for someone to attribute to this PR.
+
+## Amendment, 2026-11-16: `unknown` is not a revision
+
+Written after every fit in this record had been collected and the figures
+published, so it changes no figure here and could not: it closes a hole that
+this record happens not to fall into.
+
+`fes_revision()` returns `{"commit": "unknown"}` when `git rev-parse` fails,
+which is what a tree copied to another host without a resolvable `.git`
+produces. `"unknown"` is a truthy string, so the collector counted it as a
+recorded revision: a record whose fits all came from such a copy would have
+reported `fes_revision: "unknown"` under the note *every fit was prepared from
+one revision*, which reads as agreement about provenance where there is none.
+
+The hole was reported to me by the sibling session fitting the x87 backend,
+which hit it directly — all four of its seeds recorded `unknown`, from a tree
+copied to the chip host, and the "fatal: not a git repository" line in the log
+was read past as cosmetic. I built the counterexample before changing anything:
+one fit with `revision="unknown"`, which the collector reported as the agreed
+revision. The collector now normalises `"unknown"` to absent, so such fits land
+in `fits_with_no_recorded_revision` and set no aggregate.
+
+This record's own `host.json` is unchanged by it. Its ten fit revisions are
+real commits; the four fits listed in `fits_with_no_recorded_revision`
+(`cpu-de10`, `cpu-de25`, `cpu-de25-zerodelay-envelope`, `machine-de25`) predate
+the field entirely and carried no `fes_revision` key, which is a different and
+already-reported absence.
