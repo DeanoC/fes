@@ -83,6 +83,13 @@ DE25 Quartus Pro 26.3 MENU and ZX81 producers, runs both exact packages on J8G,
 and publishes only `current-restore-de25.json` after both smokes and the final
 restore verifier pass. It never edits the Kit A/B baseline.
 
+Before each exact-head package smoke, the Powerboat D25 runner also builds and
+installs a managed DE25 kit-software bundle from that same full FES revision.
+It checks that the active `mister-runtime` executable digest equals the
+bundle manifest, then reactivates the recorded baseline bundle before running
+the restore verifier. Bundle installation and activation use the ordinary
+managed software-release client; no image or boot configuration changes.
+
 The independent D25 timer stays enabled only after the first promotion passes
 cleanly. A failed promotion leaves the timer disabled and the prior D25
 baseline unchanged.
