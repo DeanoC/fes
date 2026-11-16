@@ -2619,7 +2619,7 @@ module fes_i386_x87 (
                     chi = mul3wide(dv_c[66:64], ob_m);
                     plo = {1'b0, mul_p[95:0]} + {1'b0, chi[31:0], 64'd0};
                     nlo = dvd96(oa_m, dv_s, wprec);
-                    phi = {6'd0, mul_p[127:96]} + {3'd0, chi[66:32]} + plo[96];
+                    phi = {6'd0, mul_p[127:96]} + {3'd0, chi[66:32]} + 38'(plo[96]);
                     nhi = {2'd0, dvdhi(oa_m, dv_s, wprec)};
                     k = cur == X87_PREM ? 4'd8 : dv_steps(wprec);
                     dv_rem <= nlo - plo[95:0];
@@ -2899,7 +2899,7 @@ module fes_i386_x87 (
                     plo = {1'b0, mul_p[95:0]} + {1'b0, cross_prod[30:0], 65'd0};
                     hsq = 6'(dv_c[66:64]) * 6'(dv_c[66:64]);
                     phi = {6'd0, mul_p[127:96]} + {2'd0, cross_prod[66:31]}
-                        + {hsq, 32'd0} + plo[96];
+                        + {hsq, 32'd0} + 38'(plo[96]);
                     nhi = {2'd0, sqradhi(oa_m, sq_p, wprec)};
                     dv_rem <= rad - plo[95:0];
                     dv_hi_rem <= dv_c[66] ? 38'd1
