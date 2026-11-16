@@ -1,0 +1,12 @@
+{
+  "pid": 1438565,
+  "process_start_ticks": "177338648",
+  "cap_seconds": 180,
+  "start_monotonic": 1773386.479921788,
+  "argv": [
+    "python3",
+    "out/initial-tape-files-restoration/admission.py",
+    "prepare",
+    "native-baseline"
+  ]
+}

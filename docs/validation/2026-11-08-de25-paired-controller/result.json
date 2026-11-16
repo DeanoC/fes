@@ -1,0 +1,353 @@
+{
+  "status": "paired-controller-and-matched-bootchain-passed",
+  "source": "38a2d9108ca0c9634f85e2ecd15a889ee24a8f83",
+  "base": "31251509f93b8d51bee8b677defda79df9eb7a76",
+  "observed_utc": "2026-11-07T22:21:07.779763+00:00",
+  "validation_complete": true,
+  "classification": "host controller/firmware evidence and exact native boot cross-build; no board acceptance",
+  "checks": [
+    {
+      "label": "software-0",
+      "receipt": "out/nano-paired-controller-20261107/software-0-result.json",
+      "sha256": "b225e4b07f73c094c5079126c42a90ecb7da6b164d82bcc8a985048efa93b47f"
+    },
+    {
+      "label": "software-1",
+      "receipt": "out/nano-paired-controller-20261107/software-1-result.json",
+      "sha256": "ce64022413d54ba8d8be424ed20663902d116e6cdf9cd9bcde55cc2cf676812c"
+    },
+    {
+      "label": "software-2-present",
+      "receipt": "out/nano-paired-controller-20261107/software-2-present-result.json",
+      "sha256": "fe4d6f3ff4ba77fe3082dccc2ccf49ac52ea3767f9365013909417c9f0a7ddf2"
+    },
+    {
+      "label": "software-3-present",
+      "receipt": "out/nano-paired-controller-20261107/software-3-present-result.json",
+      "sha256": "5daa1578484ebea4cf21fbbe0abc458650319150e511faf1961b3993b3f6e231"
+    },
+    {
+      "label": "software-4-present",
+      "receipt": "out/nano-paired-controller-20261107/software-4-present-result.json",
+      "sha256": "af02fdef73da541a4553afb45c340922cc19268660417dfeba1b347fab3b04f8"
+    },
+    {
+      "label": "software-5",
+      "receipt": "out/nano-paired-controller-20261107/software-5-result.json",
+      "sha256": "9429a84c7d6f56971ee4e83bf2a36eac6e6270f26d3cd9652266ad2d71d21e29"
+    },
+    {
+      "label": "focused-presentation-final",
+      "receipt": "out/nano-paired-controller-20261107/focused-presentation-final-result.json",
+      "sha256": "09730f49d00754544488cb86a4f1453756ee193f5691a9636ddac86e0aa98aed"
+    },
+    {
+      "label": "controller-proof-present",
+      "receipt": "out/nano-paired-controller-20261107/controller-proof-present-result.json",
+      "sha256": "86f08ee9ff8748d6fd866180168b57fb8a8aec13259623c8c9183d753b91a85c"
+    },
+    {
+      "label": "entry-admission-final",
+      "receipt": "out/nano-paired-controller-20261107/entry-admission-final-result.json",
+      "sha256": "d74f780180a6def0c216a2048a4977776ab7eacc4184035605bd16666339277b"
+    },
+    {
+      "label": "bl31",
+      "receipt": "out/nano-paired-controller-20261107/bl31-result.json",
+      "sha256": "2a8ee72ac307e6f8c0b27f8bae4f7c744896adbb00b6697b6b04ff36f90e1658"
+    },
+    {
+      "label": "uboot",
+      "receipt": "out/nano-paired-controller-20261107/uboot-result.json",
+      "sha256": "8cd829a1ddc26eec041b9e89b1ee0c566c1d64fe0cb25d2b9e199e271e5895d6"
+    },
+    {
+      "label": "chain-proof",
+      "receipt": "out/nano-paired-controller-20261107/chain-proof-result.json",
+      "sha256": "afd01f3ebfbd112cb769c60ac0862cea9b3a9c9233b9318e53b8dafa7183d233"
+    }
+  ],
+  "parent_tests": 1667,
+  "parent_skips": 3,
+  "focused_methods": 14,
+  "controller": {
+    "status": "passed",
+    "source": "38a2d9108ca0c9634f85e2ecd15a889ee24a8f83",
+    "source_sha256": {
+      "platform/embedded/nano/paired_firmware_trace.py": "e08b1ef3920a21fa9aac8669b3cbd7d7d2fd21016d628512ff96cea166b40261",
+      "platform/embedded/nano/paired_tenfoot_trace.py": "494f78869f5ce459dbf9d1f03e1b8c82bf4a002dc45e2c7a8dfa7c06e2d6c054",
+      "tests/test_nano_paired_tenfoot_trace.py": "1972b5fbc8b41bbfa8ba49d5099a1e162603930da89c642e54c5f7e684707f3b",
+      "tests/fixtures/nano-paired-tenfoot/menu-cycle.txt": "beae16cd64448e9e98be57e0f37a03e2814b62045bb02edeaadbe30d733ba6fd"
+    },
+    "classification": "synthetic transport using captured C firmware records; no physical or ordinary admission",
+    "protocols": {
+      "uart": {
+        "passed": true,
+        "cycles": [
+          {
+            "selection": 0,
+            "launch_generation": 1,
+            "return_generation": 2
+          },
+          {
+            "selection": 1,
+            "launch_generation": 3,
+            "return_generation": 4
+          },
+          {
+            "selection": 0,
+            "launch_generation": 5,
+            "return_generation": 7
+          }
+        ],
+        "menu": {
+          "scope": "menu-service-evidence-only",
+          "menu_sessions": 4,
+          "observations": 13,
+          "final_return": {
+            "Capabilities": {
+              "Mask": 15,
+              "ControlMask": 2,
+              "HardwareDrainMask": 12,
+              "FabricHandshake": 1
+            },
+            "Owner": 4057622633492187571,
+            "Generation": 40,
+            "ResetMask": 15,
+            "NeverEnabled": false,
+            "MastersContained": true
+          },
+          "boot_verified": false,
+          "core_cycle_verified": false,
+          "physical_display_verified": false
+        },
+        "display": "fpga-menu",
+        "fetch_activity_observed": true,
+        "shared_usb_reports": null,
+        "input_controls_exercised": false,
+        "physical_display_verified": false,
+        "hardware_acceptance": false,
+        "ordinary_admission": false,
+        "keys": [
+          "0d",
+          "73",
+          "1b5b43",
+          "0d",
+          "73",
+          "1b5b44",
+          "0d",
+          "71"
+        ]
+      },
+      "gamepad": {
+        "passed": true,
+        "cycles": [
+          {
+            "selection": 0,
+            "launch_generation": 1,
+            "return_generation": 2
+          },
+          {
+            "selection": 1,
+            "launch_generation": 3,
+            "return_generation": 4
+          },
+          {
+            "selection": 0,
+            "launch_generation": 5,
+            "return_generation": 7
+          }
+        ],
+        "menu": {
+          "scope": "menu-service-evidence-only",
+          "menu_sessions": 4,
+          "observations": 13,
+          "final_return": {
+            "Capabilities": {
+              "Mask": 15,
+              "ControlMask": 2,
+              "HardwareDrainMask": 12,
+              "FabricHandshake": 1
+            },
+            "Owner": 4057622633492187571,
+            "Generation": 40,
+            "ResetMask": 15,
+            "NeverEnabled": false,
+            "MastersContained": true
+          },
+          "boot_verified": false,
+          "core_cycle_verified": false,
+          "physical_display_verified": false
+        },
+        "display": "fpga-menu",
+        "fetch_activity_observed": true,
+        "shared_usb_reports": 49,
+        "input_controls_exercised": false,
+        "physical_display_verified": false,
+        "hardware_acceptance": false,
+        "ordinary_admission": false,
+        "keys": [
+          "0d",
+          "73",
+          "1b5b43",
+          "0d",
+          "73",
+          "1b5b44",
+          "0d",
+          "71"
+        ]
+      },
+      "boot-keyboard": {
+        "passed": true,
+        "cycles": [
+          {
+            "selection": 0,
+            "launch_generation": 1,
+            "return_generation": 2
+          },
+          {
+            "selection": 1,
+            "launch_generation": 3,
+            "return_generation": 4
+          },
+          {
+            "selection": 0,
+            "launch_generation": 5,
+            "return_generation": 7
+          }
+        ],
+        "menu": {
+          "scope": "menu-service-evidence-only",
+          "menu_sessions": 4,
+          "observations": 13,
+          "final_return": {
+            "Capabilities": {
+              "Mask": 15,
+              "ControlMask": 2,
+              "HardwareDrainMask": 12,
+              "FabricHandshake": 1
+            },
+            "Owner": 4057622633492187571,
+            "Generation": 40,
+            "ResetMask": 15,
+            "NeverEnabled": false,
+            "MastersContained": true
+          },
+          "boot_verified": false,
+          "core_cycle_verified": false,
+          "physical_display_verified": false
+        },
+        "display": "fpga-menu",
+        "fetch_activity_observed": true,
+        "shared_usb_reports": 49,
+        "input_controls_exercised": false,
+        "physical_display_verified": false,
+        "hardware_acceptance": false,
+        "ordinary_admission": false,
+        "keys": [
+          "0d",
+          "73",
+          "1b5b43",
+          "0d",
+          "73",
+          "1b5b44",
+          "0d",
+          "71"
+        ]
+      }
+    },
+    "hardware_actions": false,
+    "goal_complete": false
+  },
+  "chain": {
+    "status": "passed",
+    "scope": "matched compile/source/memory proof only; no physical boot or display acceptance",
+    "inputs": {
+      "out/nano-mixed-usb-20261107/native-sdk/result.json": "1873ba3eb5d1bf70dfc926a7b08638f633822ac410b2d27e681d2a05ea4a4c78",
+      "out/nano-mixed-usb-20261107/native-entry/result.json": "eddd6073e496db5864ca0772b259d4b7941d3e427e3416009510aa4ab0245bfe",
+      "out/nano-paired-controller-20261107/native-bl31/result.json": "2cce7df217a15be54d6d267b027866b582364731c0c974bbe9806fbaa84e9e03",
+      "out/nano-paired-controller-20261107/native-uboot/result.json": "9c9b0e3d77c7787face205ffae177f90b8e1309726b40a302f8e142a59ec7d85"
+    },
+    "artifacts": {
+      "sdk": {
+        "path": "out/nano-mixed-usb-20261107/native-sdk/fpgaload.elf",
+        "sha256": "dddaef1a68585dda03a0678142d1008d78ab28b483b7853320035b10747f9d5b",
+        "bytes": 15696047
+      },
+      "entry": {
+        "path": "out/nano-mixed-usb-20261107/native-entry/entry.img",
+        "sha256": "0fc4638bf0323d238da185fa5aa823e3323f7cbfeee8f8789bab28d01adc13d1",
+        "bytes": 7598080
+      },
+      "BL31": {
+        "path": "out/nano-paired-controller-20261107/native-bl31/source/build/agilex5/release/bl31.bin",
+        "sha256": "fde66605846ac502bf235d0c98e2bedf283ca9a086ff9c171ee2ab55587a3eb2",
+        "bytes": 229701
+      },
+      "FIT": {
+        "path": "out/nano-paired-controller-20261107/native-uboot/build/u-boot.itb",
+        "sha256": "e0f298f2a93bfae21799610733ec8003f4e797d6df5c0204fc952e06620b71fb",
+        "bytes": 8284720
+      },
+      "SPL": {
+        "path": "out/nano-paired-controller-20261107/native-uboot/build/spl/u-boot-spl-dtb.hex",
+        "sha256": "bf1aae831d9b612c33b6cc3807d8c00c1a9fc613339e5cd2157470464f9e79bb",
+        "bytes": 461189
+      }
+    },
+    "boot_anchor_unchanged": true,
+    "union_reader_bytes": 8388608,
+    "original_computer_arena_bytes": 2097152,
+    "bl31_loaded_ocram_end": 384512,
+    "ocram_limit": 393216,
+    "FIT_bytes": 8284720,
+    "FIT_limit": 8388608,
+    "FIT_remaining_bytes": 103888,
+    "hardware_actions": false,
+    "goal_complete": false,
+    "menu_assets": {
+      "MENU.FCP": {
+        "sha256": "739ca97d2f1cc751dd9d0be61ead5f47fbbdedcd4d0342bfe397d41f8302691f",
+        "size": 1715200
+      },
+      "MENU.JSN": {
+        "sha256": "5a3ffa6132bdd0a8a3d1064483b3a414d3350f98198fa9529d002e5624c8d0e6",
+        "size": 2676
+      },
+      "MENUSEL.JSN": {
+        "sha256": "01e120fac81b875ab8311485712b4a4f464e98d9678a79e6e16f1507273209e0",
+        "size": 282
+      }
+    },
+    "controller_source": "38a2d9108ca0c9634f85e2ecd15a889ee24a8f83",
+    "source_snapshots_reused_after_exact_hash_checks": true
+  },
+  "native_sources_reused": 2105,
+  "entry_sources_reused": 44,
+  "source_sha256": {
+    "platform/embedded/nano/README.md": "3fb2c8f74954aeca9490f7fea6d9bc1c5609541c6f6744d2de8ba24667dca305",
+    "platform/embedded/nano/paired_firmware_trace.py": "e08b1ef3920a21fa9aac8669b3cbd7d7d2fd21016d628512ff96cea166b40261",
+    "platform/embedded/nano/paired_tenfoot_trace.py": "494f78869f5ce459dbf9d1f03e1b8c82bf4a002dc45e2c7a8dfa7c06e2d6c054",
+    "tests/fixtures/nano-paired-tenfoot/README.md": "06293e13188c9ab4d033c843008e3ca47e9c00bbbc8e6bfff46098f905057dc9",
+    "tests/fixtures/nano-paired-tenfoot/menu-cycle.txt": "beae16cd64448e9e98be57e0f37a03e2814b62045bb02edeaadbe30d733ba6fd",
+    "tests/test_nano_paired_tenfoot_trace.py": "1972b5fbc8b41bbfa8ba49d5099a1e162603930da89c642e54c5f7e684707f3b"
+  },
+  "shared_contract_changes": false,
+  "native_runtime_changes": false,
+  "firmware_source_changes": false,
+  "retained": "/home/deano/fes-retained/de25-paired-controller-bootchain-20261107-r1",
+  "source_bundle_prerequisite": "31251509f93b8d51bee8b677defda79df9eb7a76",
+  "producer_image_composed": false,
+  "hardware_actions": false,
+  "physical_display_verified": false,
+  "ordinary_admission": false,
+  "goal_complete": false,
+  "remaining": [
+    "compose exact HPS image under the shared normal-user Quartus lock",
+    "wire the new paired controller into the frozen single-attempt board operator",
+    "fresh source/artifact/lease/USB/JTAG/serial admission on exclusive top TRWU8CBL",
+    "verified fixed-path Ethernet menu/package/boot updates and one bounded paired menu/core/menu trial",
+    "broader core/media/audio/network/appliance and physical acceptance"
+  ],
+  "live_jobs": []
+}

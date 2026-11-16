@@ -1,0 +1,9 @@
+test_every_missing_success_and_predecessor_field_rejects (test_rearm_session.Tests.test_every_missing_success_and_predecessor_field_rejects) ... ok
+test_host_success_without_final_cycle_or_independent_replay_stays_failed (test_rearm_session.Tests.test_host_success_without_final_cycle_or_independent_replay_stays_failed) ... ok
+test_incomplete_cycle_stops_without_new_command (test_rearm_session.Tests.test_incomplete_cycle_stops_without_new_command) ... ok
+test_two_real_paired_client_loads_four_rearms_and_final_park (test_rearm_session.Tests.test_two_real_paired_client_loads_four_rearms_and_final_park) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.061s
+
+OK

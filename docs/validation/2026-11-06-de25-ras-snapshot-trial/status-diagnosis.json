@@ -1,0 +1,464 @@
+{
+  "status": "passed",
+  "scope": "offline interpretation of one post-fault snapshot; not causal or memory-access proof",
+  "evidence_sha256": {
+    "out/nano-ras-snapshot-board-20261106/independent-boot-replay.json": "5372c555dc307ea9aff410e1b1aaf85f1b4213f87f14ca6c6508c330c8669831",
+    "out/nano-ras-snapshot-board-20261106/primary-register-map.zip": "c4720c039263d5423662994fc41cd1c9a324f9fcf3bc1187a3a742f532537925",
+    "out/nano-ras-snapshot-board-20261106/status_diagnosis.py": "7cb98ed4cfe86efcd9140c23ef7bad8bbfe7f2f05488ff269d3937148a0d9d77"
+  },
+  "cpu": {
+    "midr": "0x412fd050",
+    "implementer": 65,
+    "variant": 2,
+    "part": 3333,
+    "revision": 0,
+    "pfr0": "0x11112222",
+    "ras_feature": 1,
+    "sctlr": "0xc5183a",
+    "mmu_enabled": false,
+    "data_cache_enabled": false,
+    "instruction_cache_enabled": true
+  },
+  "mmio": [
+    {
+      "index": 7,
+      "name": "dsu_status_before",
+      "address": "0x1c000108",
+      "register": "reg-DSU-CAIUUESR-0x1C000108",
+      "raw": "0x0",
+      "fields": {
+        "ErrInfo": 0,
+        "ErrType": 0,
+        "ErrVld": 0
+      }
+    },
+    {
+      "index": 8,
+      "name": "dsu_location0",
+      "address": "0x1c00010c",
+      "register": "reg-DSU-CAIUUELR0-0x1C00010C",
+      "raw": "0x0",
+      "fields": {
+        "ErrWord": 0,
+        "ErrWay": 0,
+        "ErrEntry": 0
+      }
+    },
+    {
+      "index": 9,
+      "name": "dsu_location1",
+      "address": "0x1c000110",
+      "register": "reg-DSU-CAIUUELR1-0x1C000110",
+      "raw": "0x0",
+      "fields": {
+        "ErrAddr": 0
+      }
+    },
+    {
+      "index": 10,
+      "name": "dsu_status_after",
+      "address": "0x1c000108",
+      "register": "reg-DSU-CAIUUESR-0x1C000108",
+      "raw": "0x0",
+      "fields": {
+        "ErrInfo": 0,
+        "ErrType": 0,
+        "ErrVld": 0
+      }
+    },
+    {
+      "index": 11,
+      "name": "boot_attributes",
+      "address": "0x1c000390",
+      "register": "reg-DSU-CAIUBRAR-0x1C000390",
+      "raw": "0xc0700600",
+      "fields": {
+        "Valid": 1,
+        "HUT": 1,
+        "Size": 7,
+        "HUI": 3
+      }
+    },
+    {
+      "index": 12,
+      "name": "boot_base_low",
+      "address": "0x1c000394",
+      "register": "reg-DSU-CAIUBRBLR-0x1C000394",
+      "raw": "0x0",
+      "fields": {
+        "AddrLow": 0
+      }
+    },
+    {
+      "index": 13,
+      "name": "boot_base_high",
+      "address": "0x1c000398",
+      "register": "reg-DSU-CAIUBRBHR-0x1C000398",
+      "raw": "0x0",
+      "fields": {
+        "AddrHigh": 0
+      }
+    },
+    {
+      "index": 14,
+      "name": "ocram_status_before",
+      "address": "0x1c00c120",
+      "register": "reg-OCRAM-DIIUUESR-0x1C00C120",
+      "raw": "0x0",
+      "fields": {
+        "ErrInfo": 0,
+        "ErrType": 0,
+        "ErrVld": 0
+      }
+    },
+    {
+      "index": 15,
+      "name": "ocram_location0",
+      "address": "0x1c00c124",
+      "register": "reg-OCRAM-DIIUUELR0-0x1C00C124",
+      "raw": "0x0",
+      "fields": {
+        "ErrWord": 0,
+        "ErrWay": 0,
+        "ErrEntry": 0
+      }
+    },
+    {
+      "index": 16,
+      "name": "ocram_location1",
+      "address": "0x1c00c128",
+      "register": "reg-OCRAM-DIIUUELR1-0x1C00C128",
+      "raw": "0x0",
+      "fields": {
+        "ErrAddr": 0
+      }
+    },
+    {
+      "index": 17,
+      "name": "ocram_status_after",
+      "address": "0x1c00c120",
+      "register": "reg-OCRAM-DIIUUESR-0x1C00C120",
+      "raw": "0x0",
+      "fields": {
+        "ErrInfo": 0,
+        "ErrType": 0,
+        "ErrVld": 0
+      }
+    },
+    {
+      "index": 18,
+      "name": "ecc_config",
+      "address": "0x108cc004",
+      "register": "reg-OCRAM_ecc-IP_REV_ID2-0x108CC004",
+      "raw": "0x83090",
+      "fields": {
+        "LUT_TBL_DEP": 8,
+        "RAM_TYPE": 1,
+        "ECC_SIZE": 4,
+        "DAT": 4,
+        "ADDR": 16
+      }
+    },
+    {
+      "index": 19,
+      "name": "ecc_control",
+      "address": "0x108cc008",
+      "register": "reg-OCRAM_ecc-CTRL-0x108CC008",
+      "raw": "0x3",
+      "fields": {
+        "INITB": 0,
+        "INITA": 0,
+        "CNT_RSTB": 0,
+        "CNT_RSTA": 0,
+        "ECC_SLVERR_DIS": 1,
+        "ECC_EN": 1
+      }
+    },
+    {
+      "index": 20,
+      "name": "ecc_initialized",
+      "address": "0x108cc00c",
+      "register": "reg-OCRAM_ecc-INITSTAT-0x108CC00C",
+      "raw": "0x1",
+      "fields": {
+        "INITCOMPLETEB": 0,
+        "INITCOMPLETEA": 1
+      }
+    },
+    {
+      "index": 21,
+      "name": "ecc_pending",
+      "address": "0x108cc020",
+      "register": "reg-OCRAM_ecc-INTSTAT-0x108CC020",
+      "raw": "0x0",
+      "fields": {
+        "DERRPENB": 0,
+        "SERRPENB": 0,
+        "DERRPENA": 0,
+        "SERRPENA": 0
+      }
+    },
+    {
+      "index": 22,
+      "name": "ecc_mode",
+      "address": "0x108cc028",
+      "register": "reg-OCRAM_ecc-MODSTAT-0x108CC028",
+      "raw": "0x0",
+      "fields": {
+        "RMW_DERRB": 0,
+        "RMW_DERRA": 0,
+        "RMW_SERRB": 0,
+        "RMW_SERRA": 0,
+        "CMPFLGB": 0,
+        "CMPFLGA": 0
+      }
+    },
+    {
+      "index": 23,
+      "name": "ecc_double_address_a",
+      "address": "0x108cc02c",
+      "register": "reg-OCRAM_ecc-DERRADDRA-0x108CC02C",
+      "raw": "0x0",
+      "fields": {
+        "Address": 0
+      }
+    },
+    {
+      "index": 24,
+      "name": "ecc_double_address_b",
+      "address": "0x108cc034",
+      "register": "reg-OCRAM_ecc-DERRADDRB-0x108CC034",
+      "raw": "0x0",
+      "fields": {
+        "Address": 0
+      }
+    },
+    {
+      "index": 25,
+      "name": "ecc_decoder",
+      "address": "0x108cc084",
+      "register": "reg-OCRAM_ecc-ECC_DECODERSTAT-0x108CC084",
+      "raw": "0x0",
+      "fields": {
+        "DEC7DERRFLG": 0,
+        "DEC6DERRFLG": 0,
+        "DEC5DERRFLG": 0,
+        "DEC4DERRFLG": 0,
+        "DEC3DERRFLG": 0,
+        "DEC2DERRFLG": 0,
+        "DEC1DERRFLG": 0,
+        "DEC0DERRFLG": 0,
+        "DEC7SERRFLG": 0,
+        "DEC6SERRFLG": 0,
+        "DEC5SERRFLG": 0,
+        "DEC4SERRFLG": 0,
+        "DEC3SERRFLG": 0,
+        "DEC2SERRFLG": 0,
+        "DEC1SERRFLG": 0,
+        "DEC0SERRFLG": 0
+      }
+    },
+    {
+      "index": 26,
+      "name": "firewall_enabled",
+      "address": "0x108cc400",
+      "register": "reg-OCRAM_firewall-enable-0x108CC400",
+      "raw": "0x1",
+      "fields": {
+        "region3": 0,
+        "region2": 0,
+        "region1": 0,
+        "region0": 1
+      }
+    },
+    {
+      "index": 27,
+      "name": "firewall0_base",
+      "address": "0x108cc410",
+      "register": "reg-OCRAM_firewall-region0_base_adresss-0x108CC410",
+      "raw": "0x0",
+      "fields": {
+        "high_fixed": 0,
+        "select": 0,
+        "low_fixed": 0
+      }
+    },
+    {
+      "index": 28,
+      "name": "firewall0_limit",
+      "address": "0x108cc414",
+      "register": "reg-OCRAM_firewall-region0_limit_adresss-0x108CC414",
+      "raw": "0x7ffff",
+      "fields": {
+        "high_fixed": 0,
+        "select": 127,
+        "low_fixed": 4095
+      }
+    },
+    {
+      "index": 29,
+      "name": "firewall0_access",
+      "address": "0x108cc418",
+      "register": "reg-OCRAM_firewall-region0_access-0x108CC418",
+      "raw": "0x0",
+      "fields": {
+        "acess_type": 0
+      }
+    },
+    {
+      "index": 30,
+      "name": "firewall1_base",
+      "address": "0x108cc41c",
+      "register": "reg-OCRAM_firewall-region1_base_adresss-0x108CC41C",
+      "raw": "0x0",
+      "fields": {
+        "high_fixed": 0,
+        "select": 0,
+        "low_fixed": 0
+      }
+    },
+    {
+      "index": 31,
+      "name": "firewall1_limit",
+      "address": "0x108cc420",
+      "register": "reg-OCRAM_firewall-region1_limit_adresss-0x108CC420",
+      "raw": "0x7ffff",
+      "fields": {
+        "high_fixed": 0,
+        "select": 127,
+        "low_fixed": 4095
+      }
+    },
+    {
+      "index": 32,
+      "name": "firewall1_access",
+      "address": "0x108cc424",
+      "register": "reg-OCRAM_firewall-region1_access-0x108CC424",
+      "raw": "0x1",
+      "fields": {
+        "acess_type": 1
+      }
+    },
+    {
+      "index": 33,
+      "name": "firewall2_base",
+      "address": "0x108cc428",
+      "register": "reg-OCRAM_firewall-region2_base_adresss-0x108CC428",
+      "raw": "0x0",
+      "fields": {
+        "high_fixed": 0,
+        "select": 0,
+        "low_fixed": 0
+      }
+    },
+    {
+      "index": 34,
+      "name": "firewall2_limit",
+      "address": "0x108cc42c",
+      "register": "reg-OCRAM_firewall-region2_limit_adresss-0x108CC42C",
+      "raw": "0x7ffff",
+      "fields": {
+        "high_fixed": 0,
+        "select": 127,
+        "low_fixed": 4095
+      }
+    },
+    {
+      "index": 35,
+      "name": "firewall2_access",
+      "address": "0x108cc430",
+      "register": "reg-OCRAM_firewall-region2_access-0x108CC430",
+      "raw": "0x1",
+      "fields": {
+        "acess_type": 1
+      }
+    },
+    {
+      "index": 36,
+      "name": "firewall3_base",
+      "address": "0x108cc434",
+      "register": "reg-OCRAM_firewall-region3_base_adresss-0x108CC434",
+      "raw": "0x0",
+      "fields": {
+        "high_fixed": 0,
+        "select": 0,
+        "low_fixed": 0
+      }
+    },
+    {
+      "index": 37,
+      "name": "firewall3_limit",
+      "address": "0x108cc438",
+      "register": "reg-OCRAM_firewall-region3_limit_adresss-0x108CC438",
+      "raw": "0x7ffff",
+      "fields": {
+        "high_fixed": 0,
+        "select": 127,
+        "low_fixed": 4095
+      }
+    },
+    {
+      "index": 38,
+      "name": "firewall3_access",
+      "address": "0x108cc43c",
+      "register": "reg-OCRAM_firewall-region3_access-0x108CC43C",
+      "raw": "0x1",
+      "fields": {
+        "acess_type": 1
+      }
+    }
+  ],
+  "observations": [
+    "All 39 ordered reads completed; original EL3 exception remains terminal.",
+    "CPU part D05/variant2/revision0 and RAS feature1 permit planning feature-gated architectural RAS observation.",
+    "EL3 MMU and data cache are disabled in the sampled SCTLR; instruction cache is enabled. TCR/MAIR/TTBR values do not describe an active translation.",
+    "Sampled DSU-port and OCRAM-interface uncorrectable statuses are zero before and after their location reads. No decode/transport/native-interface error classification is justified.",
+    "Single-port OCRAM configuration; port-A initialization complete, ECC enabled, ECC-induced bus-error suppression set; sampled pending/mode/decoder flags zero.",
+    "Boot mapping is valid and routes to DII; only firewall region0 is enabled, covering0..7ffff with both secure/nonsecure access allowed. Register configuration does not prove actual RAM access.",
+    "The current core record0 returned FRa9a6, CTLR0, status0 before/after and MISC0=0. Cortex-A55 ERR0CTLR.ED=0 disables core error detection/correction on reads; zero status is not evidence that the path is healthy. Record1/shared DSU is unobserved. CCU error-detection controls also exist and default0 in the map, but their live values were not sampled."
+  ],
+  "causing_instruction_proven": false,
+  "memory_data_access_proven": false,
+  "status_acknowledged": false,
+  "hardware_actions": false,
+  "core_load_acceptance": false,
+  "ras": {
+    "raw": {
+      "pfr0": "0x11112222",
+      "disr": "0x0",
+      "count": "0x2",
+      "selector_before": "0x0",
+      "features": "0xa9a6",
+      "control": "0x0",
+      "status_before": "0x0",
+      "misc0": "0x0",
+      "status_after": "0x0",
+      "selector_after": "0x0"
+    },
+    "selected": 0,
+    "record_kind": "A55 core L1/L2 record0",
+    "feature_ED": 2,
+    "control_ED": 0,
+    "detection_enabled": false,
+    "shared_record1_observed": false,
+    "status_or_selector_written": false
+  },
+  "primary_references": [
+    {
+      "url": "https://documentation-service.arm.com/static/5e7e09f6a3736a0d2e862d2f",
+      "sections": [
+        "B2.40-B2.50",
+        "B3.3-B3.4"
+      ],
+      "scope": "record selectors and core ED control interpretation"
+    },
+    {
+      "url": "https://docs.altera.com/v/u/resources/864455/agilex-5-cs-and-r1-suffix-opn-hps-register-map",
+      "registers": [
+        "DSU.CAIUUEDR@1c000100",
+        "OCRAM.DIIUUEDR@1c00c118"
+      ],
+      "scope": "detection controls exist/default0; live values not observed"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "scope": "file-only proposed bounded automatic native startup test",
+  "hardware_actions": false,
+  "live_admission": false,
+  "operator_implemented": false,
+  "source_commit": "303771739a9ad18d824d35ca245b633e9d74f6b4",
+  "native_boot_id": "548caa50395f3d94",
+  "expected_current_fit_sha256": "4ffb2723c97535ab39ada25fbf9c70c01869706333d3dbe530b56c664065b2a5",
+  "candidate_fit_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+  "candidate_sof_sha256": "a7f6b63f93c674215411e54528e319050bc1977fe1cf09dc0677af43f90e66be",
+  "write_target": "FES/UPLOAD.BIN",
+  "native_seconds": 450,
+  "outer_seconds": 800,
+  "host_seconds": 890,
+  "serial_launch_commands": 0,
+  "steps": [
+    "Fresh top-kit claim/source/file and parent/top USB stability admission.",
+    "Separate recovery epoch: verify previous FIT, staged sources and three installed records; refresh only the native FIT; fresh full-set readback.",
+    "Separate native programming epoch: arrange owned receive-only serial capture across automatic startup; send no fesboot or U-Boot environment command.",
+    "Verify exact boot ID, secure cold handoff, owned SD/USB startup and Tenfoot ready/menu evidence.",
+    "Discover existing installed targets without Install; verify both pinned core launch/return cycles and final Park.",
+    "Verify private-service/clock/USB/UART cleanup and preserve complete evidence."
+  ],
+  "remaining": [
+    "Implement and model-check the automatic-start capture/lifecycle operator; existing manual fesboot operator cannot be reused unchanged.",
+    "Fresh live one-use programming and SD-write admission immediately before any device action."
+  ],
+  "standalone_sd_power_on_boot_qualified": false,
+  "power_loss_qualified": false,
+  "native_network_enabled": false
+}

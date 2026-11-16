@@ -91,6 +91,12 @@ module pc386_at_core #(
     input wire [15:0] wall_year,
     input wire [7:0] wall_month, wall_day, wall_hour, wall_minute, wall_second, wall_weekday,
     input wire x87_present,                 // the i386dx+387 identity (pc386_rtc)
+    // The AT board's coprocessor controls (IBM PC AT Technical Reference,
+    // "NMI and Coprocessor Controls"): a write to F0h clears the latched
+    // BUSY#, one to F1h resets the coprocessor. Both are write-only, so
+    // neither claims the cycle and a read of either floats FFh.
+    output wire x87_f0,
+    output wire x87_f1,
     // Disk
     input wire disk_present,
     input wire [31:0] disk_sectors,
@@ -106,6 +112,9 @@ module pc386_at_core #(
     output wire [15:0] dirty_word,
     // Floppy drives A: and B: (pc386_fdc), and the controller's image port
     input wire [1:0][2:0] floppy_type,
+    // The device the launch boots from (CMOS 2Dh, 38h and 3Dh): 0 hard disk,
+    // 1 A:, 2 CD (docs/design/pc386-removable-media.md).
+    input wire [1:0] boot_device,
     input wire [1:0] floppy_present, floppy_write_protect, floppy_two_sided,
     input wire [1:0][6:0] floppy_cylinders,
     input wire [1:0][5:0] floppy_spt,
@@ -181,6 +190,9 @@ module pc386_at_core #(
     assign ems_reg_write = access && cycle_write && port[15:2] == 14'h0098 && ems_pages != 8'd0;
     assign ems_reg_index = port[1:0];
     assign ems_reg_wdata = cycle_wdata[7:0];
+
+    assign x87_f0 = write_strobe && port == 16'h00f0;
+    assign x87_f1 = write_strobe && port == 16'h00f1;
 
     assign sound_access = access && select_sound;
     assign sound_write = cycle_write;
@@ -357,6 +369,7 @@ module pc386_at_core #(
         .disk_present(disk_present), .disk_cylinders(disk_cylinders),
         .disk_heads({3'b000, disk_heads}), .disk_spt({2'b00, disk_spt}),
         .sb_base_high(sb_base_high), .sb_irq(sb_irq), .sb_dma(sb_dma), .ems_pages(ems_pages),
+        .floppy_type(floppy_type), .boot_device(boot_device),
         .x87_present(x87_present),
         .wall_valid(wall_valid), .wall_year(wall_year), .wall_month(wall_month), .wall_day(wall_day),
         .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second), .wall_weekday(wall_weekday),

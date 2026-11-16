@@ -1,0 +1,356 @@
+{
+  "format": 1,
+  "status": "verified",
+  "purpose": "package",
+  "source_commit": "fa27960da8e52b6ef754bfc830b20544d1058826",
+  "board_serial": "TRWU8CBL",
+  "payload_bytes": 1649664,
+  "payload_sha256": "75a2cdfb38f9e61f41ebe2554ca30de6e8e367246d294d3d8f00c514dbf47b73",
+  "commands": [
+    {
+      "command": "version",
+      "output": "version; echo FES_UPLOAD_6c05dcdee186=$?\r\nU-Boot 2025.01-fes-nano-recovery-ksz9031-gd0f8813fd6bf (Jun 27 2025 - 01:40:35 +0000)socfpga_agilex5\r\n\r\nFES_UPLOAD_6c05dcdee186=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "echo FES_UPLOAD_SESSION=${fes_upload_session}",
+      "output": "echo FES_UPLOAD_SESSION=${fes_upload_session}; echo FES_UPLOAD_44664317485b=$?\r\nFES_UPLOAD_SESSION=5ea253d9eaced1c371071d6298d41cdf\r\nFES_UPLOAD_44664317485b=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "bdinfo",
+      "output": "bdinfo; echo FES_UPLOAD_685c8a3aea25=$?\r\nboot_params = 0x0000000080000100\r\nDRAM bank   = 0x0000000000000000\r\n-> start    = 0x0000000080000000\r\n-> size     = 0x0000000040000000\r\nflashstart  = 0x0000000000000000\r\nflashsize   = 0x0000000000000000\r\nflashoffset = 0x0000000000000000\r\nbaudrate    = 115200 bps\r\nrelocaddr   = 0x00000000bfef6000\r\nreloc off   = 0x000000003fcf6000\r\nBuild       = 64-bit\r\ncurrent eth = ethernet@10810000\r\nethaddr     = 02:fe:25:08:cb:01\r\nIP addr     = 192.168.10.211\r\nfdt_blob    = 0x00000000bfaed7d0\r\nlmb_dump_all:\r\n memory.count = 0x1\r\n memory[0]\t[0x80000000-0xbfffffff], 0x40000000 bytes, flags: none\r\n reserved.count = 0x5\r\n reserved[0]\t[0x0-0xffffff], 0x1000000 bytes, flags: no-map\r\n reserved[1]\t[0x82000000-0x8264cf43], 0x64cf44 bytes, flags: none\r\n reserved[2]\t[0x82800000-0x82e4cf43], 0x64cf44 bytes, flags: none\r\n reserved[3]\t[0x83000000-0x830e87f7], 0xe87f8 bytes, flags: none\r\n reserved[4]\t[0xbeaebff0-0xbfffffff], 0x1514010 bytes, flags: no-overwrite\r\ndevicetree  = separate\r\nserial addr = 0x0000000010c02100\r\n width      = 0x0000000000000004\r\n shift      = 0x0000000000000002\r\n offset     = 0x0000000000000000\r\n clock      = 0x0000000005f5e100\r\narch_number = 0x0000000000000000\r\nTLB addr    = 0x00000000bffe0000\r\nirq_sp      = 0x00000000bfaebff0\r\nsp start    = 0x00000000bfaebff0\r\nEarly malloc usage: 1780 / 2000\r\nFES_UPLOAD_685c8a3aea25=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mmc dev 0",
+      "output": "mmc dev 0; echo FES_UPLOAD_1ec872e8e9c0=$?\r\nswitch to partitions #0, OK\r\nmmc0 is current device\r\nFES_UPLOAD_1ec872e8e9c0=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mmcinfo",
+      "output": "mmcinfo; echo FES_UPLOAD_4a3b44ab4e18=$?\r\nDevice: mmc0@10808000\r\nManufacturer ID: 27\r\nOEM: 5048\r\nName: SD04G \r\nBus Speed: 50000000\r\nRd Block Len: 512\r\nSD version 3.0\r\nHigh Capacity: Yes\r\nCapacity: 3.7 GiB\r\nBus Width: 4-bit\r\nErase Group Size: 512 Bytes\r\nFES_UPLOAD_4a3b44ab4e18=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mmc part",
+      "output": "mmc part; echo FES_UPLOAD_c9bc8b4e3fe9=$?\r\n\r\nPartition Map for mmc device 0  --   Partition Type: DOS\r\n\r\nPart\tStart Sector\tNum Sectors\tUUID\t\tType\r\n  1\t32768     \t262144    \t00000000-01\t0c\r\nFES_UPLOAD_c9bc8b4e3fe9=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mmc read 83000000 0 8000",
+      "output": "mmc read 83000000 0 8000; echo FES_UPLOAD_2b9a1192876c=$?\r\nMMC read: dev # 0, block # 0, count 32768 ... 32768 blocks read: OK\r\nFES_UPLOAD_2b9a1192876c=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "hash sha256 83000000 1000000",
+      "output": "hash sha256 83000000 1000000; echo FES_UPLOAD_ed2bbc712b74=$?\r\nsha256 for 83000000 ... 83ffffff ==> 6fa416c1654915f5cbc45f3092accd2ae5408e15f3ef6e93b20ead4494cfb4b7\r\nFES_UPLOAD_ed2bbc712b74=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "fatload mmc 0:1 83000000 u-boot.itb",
+      "output": "fatload mmc 0:1 83000000 u-boot.itb; echo FES_UPLOAD_1e1ae45f0675=$?\r\n952312 bytes read in 88 ms (10.3 MiB/s)\r\nFES_UPLOAD_1e1ae45f0675=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "hash sha256 83000000 e87f8",
+      "output": "hash sha256 83000000 e87f8; echo FES_UPLOAD_1b35ff3676dc=$?\r\nsha256 for 83000000 ... 830e87f7 ==> 25ebdf98d253e41f51e4b55b78314ffe6e03d346825af8582268eacef1d25f90\r\nFES_UPLOAD_1b35ff3676dc=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "fatload mmc 0:1 82000000 FES/RECOVERY.JSON",
+      "output": "fatload mmc 0:1 82000000 FES/RECOVERY.JSON; echo FES_UPLOAD_34fccd755d44=$?\r\n1249 bytes read in 21 ms (57.6 KiB/s)\r\nFES_UPLOAD_34fccd755d44=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "hash sha256 82000000 4e1",
+      "output": "hash sha256 82000000 4e1; echo FES_UPLOAD_007a0149c9e2=$?\r\nsha256 for 82000000 ... 820004e0 ==> 56102162f328d0a4325cd7c827159f9612c3f81c95fe6df9d5ad147b343b1539\r\nFES_UPLOAD_007a0149c9e2=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "setenv autoload no",
+      "output": "setenv autoload no; echo FES_UPLOAD_68b1f883a3cb=$?\r\nFES_UPLOAD_68b1f883a3cb=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "setenv netretry no",
+      "output": "setenv netretry no; echo FES_UPLOAD_2d88da26de3d=$?\r\nFES_UPLOAD_2d88da26de3d=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "setenv bootpretryperiod 10000",
+      "output": "setenv bootpretryperiod 10000; echo FES_UPLOAD_fa809a765570=$?\r\nFES_UPLOAD_fa809a765570=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "setenv tftptimeout 1000",
+      "output": "setenv tftptimeout 1000; echo FES_UPLOAD_30a7a0bad326=$?\r\nFES_UPLOAD_30a7a0bad326=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "setenv tftptimeoutcountmax 3",
+      "output": "setenv tftptimeoutcountmax 3; echo FES_UPLOAD_db600dd42b81=$?\r\nFES_UPLOAD_db600dd42b81=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "echo FES_UPLOAD_ETHADDR=${ethaddr}",
+      "output": "echo FES_UPLOAD_ETHADDR=${ethaddr}; echo FES_UPLOAD_a5939f32c8a7=$?\r\nFES_UPLOAD_ETHADDR=02:fe:25:08:cb:01\r\nFES_UPLOAD_a5939f32c8a7=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "net list",
+      "output": "net list; echo FES_UPLOAD_487a6ba91c8f=$?\r\neth0 : ethernet@10810000 02:fe:25:08:cb:01 active\r\nFES_UPLOAD_487a6ba91c8f=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 2",
+      "output": "mii read 1 2; echo FES_UPLOAD_6d32515b58c2=$?\r\n0022\r\nFES_UPLOAD_6d32515b58c2=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 3",
+      "output": "mii read 1 3; echo FES_UPLOAD_0e923ddd4121=$?\r\n1622\r\nFES_UPLOAD_0e923ddd4121=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1",
+      "output": "mii read 1 1; echo FES_UPLOAD_fd6a134a5750=$?\r\n796D\r\nFES_UPLOAD_fd6a134a5750=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1",
+      "output": "mii read 1 1; echo FES_UPLOAD_0fcdf16ee240=$?\r\n796D\r\nFES_UPLOAD_0fcdf16ee240=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "dhcp",
+      "output": "dhcp; echo FES_UPLOAD_063df1a7d3d3=$?\r\nBOOTP broadcast 1\r\nDHCP client bound to address 192.168.10.211 (5 ms)\r\nFES_UPLOAD_063df1a7d3d3=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "setenv serverip 192.168.10.202",
+      "output": "setenv serverip 192.168.10.202; echo FES_UPLOAD_0285caa0a4b2=$?\r\nFES_UPLOAD_0285caa0a4b2=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "tftpboot 82000000 U869FFF.BIN",
+      "output": "tftpboot 82000000 U869FFF.BIN; echo FES_UPLOAD_95186b5d6e18=$?\r\nUsing ethernet@10810000 device\r\nTFTP from server 192.168.10.202; our IP address is 192.168.10.211\r\nFilename 'U869FFF.BIN'.\r\nLoad address: 0x82000000\r\nLoading: *\b#################################################################\r\n\t ################################################\r\n\t 13.1 MiB/s\r\ndone\r\nBytes transferred = 1649664 (192c00 hex)\r\nFES_UPLOAD_95186b5d6e18=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "hash sha256 82000000 192c00",
+      "output": "hash sha256 82000000 192c00; echo FES_UPLOAD_05b8bb669fbb=$?\r\nsha256 for 82000000 ... 82192bff ==> 75a2cdfb38f9e61f41ebe2554ca30de6e8e367246d294d3d8f00c514dbf47b73\r\nFES_UPLOAD_05b8bb669fbb=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "echo FES_UPLOAD_SESSION=${fes_upload_session}",
+      "output": "echo FES_UPLOAD_SESSION=${fes_upload_session}; echo FES_UPLOAD_0a41c6a9e976=$?\r\nFES_UPLOAD_SESSION=5ea253d9eaced1c371071d6298d41cdf\r\nFES_UPLOAD_0a41c6a9e976=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "bdinfo",
+      "output": "bdinfo; echo FES_UPLOAD_71ba1e280ba3=$?\r\nboot_params = 0x0000000080000100\r\nDRAM bank   = 0x0000000000000000\r\n-> start    = 0x0000000080000000\r\n-> size     = 0x0000000040000000\r\nflashstart  = 0x0000000000000000\r\nflashsize   = 0x0000000000000000\r\nflashoffset = 0x0000000000000000\r\nbaudrate    = 115200 bps\r\nrelocaddr   = 0x00000000bfef6000\r\nreloc off   = 0x000000003fcf6000\r\nBuild       = 64-bit\r\ncurrent eth = ethernet@10810000\r\nethaddr     = 02:fe:25:08:cb:01\r\nIP addr     = 192.168.10.211\r\nfdt_blob    = 0x00000000bfaed7d0\r\nlmb_dump_all:\r\n memory.count = 0x1\r\n memory[0]\t[0x80000000-0xbfffffff], 0x40000000 bytes, flags: none\r\n reserved.count = 0x5\r\n reserved[0]\t[0x0-0xffffff], 0x1000000 bytes, flags: no-map\r\n reserved[1]\t[0x82000000-0x8264cf43], 0x64cf44 bytes, flags: none\r\n reserved[2]\t[0x82800000-0x82e4cf43], 0x64cf44 bytes, flags: none\r\n reserved[3]\t[0x83000000-0x830e87f7], 0xe87f8 bytes, flags: none\r\n reserved[4]\t[0xbeaebff0-0xbfffffff], 0x1514010 bytes, flags: no-overwrite\r\ndevicetree  = separate\r\nserial addr = 0x0000000010c02100\r\n width      = 0x0000000000000004\r\n shift      = 0x0000000000000002\r\n offset     = 0x0000000000000000\r\n clock      = 0x0000000005f5e100\r\narch_number = 0x0000000000000000\r\nTLB addr    = 0x00000000bffe0000\r\nirq_sp      = 0x00000000bfaebff0\r\nsp start    = 0x00000000bfaebff0\r\nEarly malloc usage: 1780 / 2000\r\nFES_UPLOAD_71ba1e280ba3=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "fatwrite mmc 0:1 82000000 FES/PKGTEST.BIN 192c00",
+      "output": "fatwrite mmc 0:1 82000000 FES/PKGTEST.BIN 192c00; echo FES_UPLOAD_38d8c7839877=$?\r\n1649664 bytes written in 307 ms (5.1 MiB/s)\r\nFES_UPLOAD_38d8c7839877=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mw.b 82800000 a5 192c00",
+      "output": "mw.b 82800000 a5 192c00; echo FES_UPLOAD_4c78ee2c4997=$?\r\nFES_UPLOAD_4c78ee2c4997=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "fatload mmc 0:1 82800000 FES/PKGTEST.BIN",
+      "output": "fatload mmc 0:1 82800000 FES/PKGTEST.BIN; echo FES_UPLOAD_88700771a4c2=$?\r\n1649664 bytes read in 155 ms (10.1 MiB/s)\r\nFES_UPLOAD_88700771a4c2=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "hash sha256 82800000 192c00",
+      "output": "hash sha256 82800000 192c00; echo FES_UPLOAD_217a5dd0cbcd=$?\r\nsha256 for 82800000 ... 82992bff ==> 75a2cdfb38f9e61f41ebe2554ca30de6e8e367246d294d3d8f00c514dbf47b73\r\nFES_UPLOAD_217a5dd0cbcd=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "cmp.b 82000000 82800000 192c00",
+      "output": "cmp.b 82000000 82800000 192c00; echo FES_UPLOAD_cf56bc9c7b02=$?\r\nTotal of 1649664 byte(s) were the same\r\nFES_UPLOAD_cf56bc9c7b02=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mmc read 83000000 0 8000",
+      "output": "mmc read 83000000 0 8000; echo FES_UPLOAD_5d0b6e266b46=$?\r\nMMC read: dev # 0, block # 0, count 32768 ... 32768 blocks read: OK\r\nFES_UPLOAD_5d0b6e266b46=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "hash sha256 83000000 1000000",
+      "output": "hash sha256 83000000 1000000; echo FES_UPLOAD_8c2490d7cbca=$?\r\nsha256 for 83000000 ... 83ffffff ==> 6fa416c1654915f5cbc45f3092accd2ae5408e15f3ef6e93b20ead4494cfb4b7\r\nFES_UPLOAD_8c2490d7cbca=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "fatload mmc 0:1 83000000 u-boot.itb",
+      "output": "fatload mmc 0:1 83000000 u-boot.itb; echo FES_UPLOAD_6c946878ad66=$?\r\n952312 bytes read in 88 ms (10.3 MiB/s)\r\nFES_UPLOAD_6c946878ad66=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "hash sha256 83000000 e87f8",
+      "output": "hash sha256 83000000 e87f8; echo FES_UPLOAD_8d8a4db65d3c=$?\r\nsha256 for 83000000 ... 830e87f7 ==> 25ebdf98d253e41f51e4b55b78314ffe6e03d346825af8582268eacef1d25f90\r\nFES_UPLOAD_8d8a4db65d3c=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "fatload mmc 0:1 83000000 FES/RECOVERY.JSON",
+      "output": "fatload mmc 0:1 83000000 FES/RECOVERY.JSON; echo FES_UPLOAD_3d235bc930b5=$?\r\n1249 bytes read in 21 ms (57.6 KiB/s)\r\nFES_UPLOAD_3d235bc930b5=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "hash sha256 83000000 4e1",
+      "output": "hash sha256 83000000 4e1; echo FES_UPLOAD_aa33e45dacae=$?\r\nsha256 for 83000000 ... 830004e0 ==> 56102162f328d0a4325cd7c827159f9612c3f81c95fe6df9d5ad147b343b1539\r\nFES_UPLOAD_aa33e45dacae=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "echo FES_UPLOAD_SESSION=${fes_upload_session}",
+      "output": "echo FES_UPLOAD_SESSION=${fes_upload_session}; echo FES_UPLOAD_68df5bfadd10=$?\r\nFES_UPLOAD_SESSION=5ea253d9eaced1c371071d6298d41cdf\r\nFES_UPLOAD_68df5bfadd10=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "bdinfo",
+      "output": "bdinfo; echo FES_UPLOAD_409fd6e9fc7b=$?\r\nboot_params = 0x0000000080000100\r\nDRAM bank   = 0x0000000000000000\r\n-> start    = 0x0000000080000000\r\n-> size     = 0x0000000040000000\r\nflashstart  = 0x0000000000000000\r\nflashsize   = 0x0000000000000000\r\nflashoffset = 0x0000000000000000\r\nbaudrate    = 115200 bps\r\nrelocaddr   = 0x00000000bfef6000\r\nreloc off   = 0x000000003fcf6000\r\nBuild       = 64-bit\r\ncurrent eth = ethernet@10810000\r\nethaddr     = 02:fe:25:08:cb:01\r\nIP addr     = 192.168.10.211\r\nfdt_blob    = 0x00000000bfaed7d0\r\nlmb_dump_all:\r\n memory.count = 0x1\r\n memory[0]\t[0x80000000-0xbfffffff], 0x40000000 bytes, flags: none\r\n reserved.count = 0x5\r\n reserved[0]\t[0x0-0xffffff], 0x1000000 bytes, flags: no-map\r\n reserved[1]\t[0x82000000-0x8264cf43], 0x64cf44 bytes, flags: none\r\n reserved[2]\t[0x82800000-0x82e4cf43], 0x64cf44 bytes, flags: none\r\n reserved[3]\t[0x83000000-0x830e87f7], 0xe87f8 bytes, flags: none\r\n reserved[4]\t[0xbeaebff0-0xbfffffff], 0x1514010 bytes, flags: no-overwrite\r\ndevicetree  = separate\r\nserial addr = 0x0000000010c02100\r\n width      = 0x0000000000000004\r\n shift      = 0x0000000000000002\r\n offset     = 0x0000000000000000\r\n clock      = 0x0000000005f5e100\r\narch_number = 0x0000000000000000\r\nTLB addr    = 0x00000000bffe0000\r\nirq_sp      = 0x00000000bfaebff0\r\nsp start    = 0x00000000bfaebff0\r\nEarly malloc usage: 1780 / 2000\r\nFES_UPLOAD_409fd6e9fc7b=0\r\nSOCFPGA_AGILEX5 # "
+    }
+  ],
+  "sd_write_attempted": true,
+  "activation": false,
+  "recovery_receipt_sha256": "ee04817be77a58d791bebb1149ba7cbc8a96a6d8bdfff69ac3aa311fc3edfa81",
+  "upload_session": "5ea253d9eaced1c371071d6298d41cdf",
+  "memory_observations": [
+    {
+      "stage": "admit",
+      "map": {
+        "banks": [
+          [
+            2147483648,
+            1073741824
+          ]
+        ],
+        "relocation": 3220135936,
+        "memory": [
+          [
+            2147483648,
+            3221225471,
+            "none"
+          ]
+        ],
+        "reserved": [
+          [
+            0,
+            16777215,
+            "no-map"
+          ],
+          [
+            2181038080,
+            2187644739,
+            "none"
+          ],
+          [
+            2189426688,
+            2196033347,
+            "none"
+          ],
+          [
+            2197815296,
+            2198767607,
+            "none"
+          ],
+          [
+            3199123440,
+            3221225471,
+            "no-overwrite"
+          ]
+        ]
+      }
+    },
+    {
+      "stage": "before-sd-write",
+      "map": {
+        "banks": [
+          [
+            2147483648,
+            1073741824
+          ]
+        ],
+        "relocation": 3220135936,
+        "memory": [
+          [
+            2147483648,
+            3221225471,
+            "none"
+          ]
+        ],
+        "reserved": [
+          [
+            0,
+            16777215,
+            "no-map"
+          ],
+          [
+            2181038080,
+            2187644739,
+            "none"
+          ],
+          [
+            2189426688,
+            2196033347,
+            "none"
+          ],
+          [
+            2197815296,
+            2198767607,
+            "none"
+          ],
+          [
+            3199123440,
+            3221225471,
+            "no-overwrite"
+          ]
+        ]
+      }
+    },
+    {
+      "stage": "complete",
+      "map": {
+        "banks": [
+          [
+            2147483648,
+            1073741824
+          ]
+        ],
+        "relocation": 3220135936,
+        "memory": [
+          [
+            2147483648,
+            3221225471,
+            "none"
+          ]
+        ],
+        "reserved": [
+          [
+            0,
+            16777215,
+            "no-map"
+          ],
+          [
+            2181038080,
+            2187644739,
+            "none"
+          ],
+          [
+            2189426688,
+            2196033347,
+            "none"
+          ],
+          [
+            2197815296,
+            2198767607,
+            "none"
+          ],
+          [
+            3199123440,
+            3221225471,
+            "no-overwrite"
+          ]
+        ]
+      }
+    }
+  ],
+  "stage": "complete",
+  "scratch_owned": [
+    [
+      2181038080,
+      2187644739,
+      "none"
+    ],
+    [
+      2189426688,
+      2196033347,
+      "none"
+    ],
+    [
+      2197815296,
+      2198767607,
+      "none"
+    ]
+  ],
+  "card_verified": true,
+  "recovery_mac": "02:fe:25:08:cb:01",
+  "phy_id": 2233890,
+  "phy_samples": [
+    31085,
+    31085
+  ],
+  "phy_link_verified": true,
+  "client_ip": "192.168.10.211",
+  "download_verified": true,
+  "sd_readback_verified": true,
+  "boot_files_unchanged": true,
+  "destination": "FES/PKGTEST.BIN",
+  "recovery_manifest_unchanged": true,
+  "prompt_parked": true
+}

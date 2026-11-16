@@ -1,0 +1,46 @@
+{
+  "source_commit": "1f886dce4efcc2ebd411ba581ef8a93a6288636b",
+  "native_build_source_commit": "fe58a6dc9a2348f9df4b65bd0cc185874136c213",
+  "scope": "one verified recovery FIT upload and one secure CPU FPGA identity read with data held and control reclosed",
+  "usb_node": "/dev/bus/usb/003/061",
+  "uart_owner_absent": true,
+  "claim_owned": true,
+  "native_sof_sha256": "60305d3539c089a0364edbd4c2debe8a76365764c12c4314d0265cec59de81b0",
+  "native_fit_sha256": "a8cce5cb8e19b7a0a32fe5fb9a6660d9e836bd6c6a21fe993309af497f0cf0a9",
+  "native_package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+  "hps_context_sha256": "94da3557f175eae05144d70937c3afceda20c6c9f9ca9d25155535da3e0814fc",
+  "hps_control_sha256": "bc13d4774a2f80683d42d70e8440d487c20b232da4281d5a1706c337ba176796",
+  "cpu_control_base": 536937472,
+  "helper_sha256": {
+    "common.py": "fd99839d7c5a732fee282afe68690b2740a1f226c61e316c99c2420e86788320",
+    "recovery.py": "e04fbbb48fb7644ec4bd3974b2423f8497281206058645e4a583a0ffd8db95bc",
+    "upload_trial.py": "97ae8029fef1d52eb44c1e2f5f4fdadea9c8319ffe5c5269a0b91406cf5f6627",
+    "native.py": "18d7f9d1e2ff482aab9248b5c25d45a7acbba1f93c777b2e46e1b4c5423280eb",
+    "experiment.py": "142ead7d828526d92d6ab72aaf143717648d43c43c01eea870f0a6dcaef3a088",
+    "preflight.py": "b1010f795769c4dc4acab99689e9d3f582995fa04650b1d68d3bbd3ea6f11d40",
+    "test_helpers.py": "3171812f1a6fa7592224d9f7a4ea29f8701ffaad20bf62b2d78b26710f6bf52c"
+  },
+  "boot_decoder_sha256": "a598610c7b5ff3032f5455294f2f1c8fcf0f744cd287db563ac40bc49db2c8b1",
+  "composition_sha256": "f608c0f7c281ed7eb4de069ec54c630f6485c7d62843488a33a1412f28c7a94b",
+  "software_receipts": {
+    "control-consistency-final": "6d8c1324810e176760b5eba639defde0fd00816660ee2b119e486a0ee1cfa2e2",
+    "sdk-control-build-final": "b0291b0021276f93439b32c019977670d6836d3fa0df088fe61d593f3e6a8b18",
+    "uboot-control-entry-final": "c0be080a7abb9e474b5bfa392f3ece883ef842e0ee24131f8a656a97e25399a8",
+    "bl31-control-build-final": "4e79f7540dc5921481c5215591927f9bd07cea7c3128b0951ded1f61b3c1f9a0",
+    "uboot-control-build-final": "eb17c38057ebb79ecfc77544a7f0e7da93bea7717f4288dbe7261308040c4df5",
+    "hps-control-compose-final": "11814118ba34f6a124521bc16aa81501af859969f26c7bdddae7e8d97a012983",
+    "control-sealed-model-final": "0f521e9fd1d35b33e2ff301dd878100c729cca5683e4a95cdb338429e122d4c4",
+    "control-helper-checks": "be2ced9a96915129fe8801074536d5445a8ffbfeb84c5fed7cc0e53c949a54ed"
+  },
+  "software_completion_sha256": "eafe21e38fc3ff6c58f66a68a8222f305658d5db6b4a9931ef95b0b1972022ea",
+  "source_snapshot_sha256": "022248beea987d9a4f651f20b3c1629adaf782de2ebdcf3d51669bde0c7c9628",
+  "qualification_source_snapshot_sha256": "aae678e3f60d7b6514ab625bad6107a321322c8172aa6390725e2b5929c86b84",
+  "test_only_delta_paths": [
+    "platform/embedded/tamago/sdcontrol/session_test.go"
+  ],
+  "compiled_native_sources_unchanged": true,
+  "prior_native_receipt_sha256": "e8283e9833266e7e361da5e051d2c0f352192c47e38b463e7d48dfb16f49bb27",
+  "card_state_sha256": "0acc68c18c8b343d422516b0943ef66ed10fdcd1f67f2b9ba98f3c7e875d2fd8",
+  "physical_runtime_admission": false,
+  "utc": "2026-11-01T20:09:23.031427+00:00"
+}

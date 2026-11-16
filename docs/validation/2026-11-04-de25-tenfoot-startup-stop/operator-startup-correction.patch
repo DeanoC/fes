@@ -1,0 +1,22 @@
+--- failed-operator/native.py
++++ future-operator/native.py
+@@ -3,9 +3,8 @@
+ from pathlib import Path
+ from common import BASE,ROOT,CANDIDATE,KIT,UBOOT,ENTRY,CARD_RECORD,BUILD,SDK,claim,note,sha,jtag_cable,parse_jtag_clock,check_preflight
+ from native_trace import decode_native_boot as decode_probe
+-from tenfoot_trace import TenfootClient,exercise,packet,PREFIX,BEGIN,EXIT,quiet
++from tenfoot_trace import TenfootClient,exercise,packet,PREFIX,BEGIN,EXIT,quiet,startup_checkpoints
+ from service_checks import accept_service_result
+-from startup import decode as decode_startup
+ from hps_context import checked_configuration, digest
+ from package import checked_native
+ parser=argparse.ArgumentParser();parser.add_argument('phase',choices=('native',));parser.add_argument('--check-only',action='store_true');args=parser.parse_args()
+@@ -164,7 +163,7 @@
+     else:raise TimeoutError('initial native App100s bound')
+     receipt['startup_observation_seconds']=time.monotonic()-initial_begin
+     receipt['initial_capture_end']=len(raw)
+-    receipt['startup_trace']=decode_startup(bytes(raw),sdk['cpu_mapping'])
++    receipt['startup_trace']=startup_checkpoints(bytes(raw))
+     assert receipt['startup_trace']['complete'] and not receipt['startup_trace']['errors']
+     receipt['command_windows']=[];receipt['app_commands']=[];receipt['passive_windows']=[]
+     last_response_end=len(raw)

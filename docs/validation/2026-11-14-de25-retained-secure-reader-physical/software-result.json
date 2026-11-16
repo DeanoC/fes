@@ -1,0 +1,107 @@
+{
+  "status": "passed-all-selected-affected-phases",
+  "source_head": "71ec854f9d036130ffe29079fe60d115ea1f8ced",
+  "base": "3f5cc252910cf8518102457bbe169ab5b6be203e",
+  "completed_prefix_reused_on_exact_unchanged_sources": true,
+  "original_failure": "window reader stopped before job: less than 30 GiB free",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "Go command inventory",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "native runtime firmware and FPGA launch integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded producer identity and native control integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "DE25 Avalon control and native integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded firmware and identity/drain RTL integration",
+      "lane": "fpga",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ],
+  "parent_tests": 2687,
+  "parent_skipped": 15,
+  "fpga_software_tests": 2181,
+  "fpga_software_skipped": 88,
+  "focused_tests": 233,
+  "focused_skipped": 0,
+  "operator_model_test_executions": 81,
+  "admission_boundary_checks": 8,
+  "generated_consumers": 69,
+  "fixture_copies": 45,
+  "original_result": {
+    "argv": [
+      "python3",
+      "scripts/test_changed.py",
+      "--base",
+      "3f5cc252910cf8518102457bbe169ab5b6be203e",
+      "--jobs",
+      "2"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 1,
+    "timed_out": false,
+    "elapsed": 689.419436763972,
+    "log_sha256": "6df47014547b1a66246c0ece8a6f81dc0ea7a763ccaf0e2999f33663d8967e75"
+  },
+  "resumed_result": {
+    "argv": [
+      "python3",
+      "out/publication/resume-secure-reader-affected.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 940.7773765879683,
+    "log_sha256": "68748a2ad6a75a8e1a797f3835bcb029759f6c96919370215bd5e88cf877db05"
+  },
+  "full_phase_evidence_sha256": "8483624069169eb5cfe6285f3ba32a02cc8d4504bc48721d55fda919c6c1c52b",
+  "hardware_actions": false
+}

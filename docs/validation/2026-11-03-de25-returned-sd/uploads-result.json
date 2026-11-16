@@ -1,0 +1,14 @@
+{
+  "status": "failed",
+  "source_commit": "6e75ec57f3447cbe3e805ba6f6d9b1884046c00b",
+  "scope": "one exclusive recovery console/session; two fixed writes/readbacks and fresh read-only FIT hash",
+  "activation": false,
+  "sd_write_attempted": false,
+  "started_utc": "2026-11-03T00:32:54.190878+00:00",
+  "active_purpose": "boot",
+  "session_closed": true,
+  "prompt_parked": true,
+  "console_closed": true,
+  "error": "loader command failed: dhcp",
+  "finished_utc": "2026-11-03T00:33:12.948261+00:00"
+}

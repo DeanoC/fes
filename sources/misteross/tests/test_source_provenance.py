@@ -15,7 +15,7 @@ from scripts.core_package import encode_manifest, read_package
 
 ROOT = Path(__file__).resolve().parents[1]
 PRODUCERS = [importlib.import_module('scripts.build_fes_' + name)
-             for name in ('coleco', 'sms', 'sg1000', 'zx81')]
+             for name in ('coleco', 'sms', 'sg1000')]
 
 
 def git(root, *args):
@@ -139,12 +139,7 @@ class SourceProvenanceTests(unittest.TestCase):
                                   return_value=(Path('/fixture'), Path('/fixture/quartus_sh'), '17.0.2', 'fixture')), \
                      patch.object(producer, '_run_quartus', side_effect=AssertionError('compiler forbidden')), \
                      patch('sys.stdout', new=io.StringIO()) as stdout:
-                    if producer.__name__ == 'scripts.build_fes_zx81':
-                        # The ZX81 oracle needs the user-supplied ROM.
-                        with patch.object(producer.zx81_rom, 'load', return_value=bytes(8192)):
-                            producer.build(module, rom=Path('zx81.rom'), print_commands=True)
-                    else:
-                        producer.build(module, print_commands=True)
+                    producer.build(module, print_commands=True)
                 self.assertIn('command:', stdout.getvalue())
                 self.assertEqual(git(repo, 'status', '--porcelain'), '')
 

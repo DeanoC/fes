@@ -1,0 +1,19 @@
+{
+  "status": "stopped",
+  "fit_state": "candidate",
+  "candidate_cycle_Park_verified": false,
+  "candidate_left_installed": false,
+  "original_FIT_restored": false,
+  "old_native_baseline_dispatched": false,
+  "rollback_attempted": false,
+  "physical_reset_required": true,
+  "ordinary_admission": false,
+  "hardware_acceptance": false,
+  "error": "bounded role stopped: native-diagnostic",
+  "recovery_safe": false,
+  "roles_consumed": [
+    "recovery-before",
+    "native-diagnostic"
+  ],
+  "plan_sha256": "068c40a7a5008216b51330d77c1f44134089ba137ae6499aefa59cd8736b098e"
+}

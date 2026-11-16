@@ -1,0 +1,11 @@
+{
+  "status": "passed",
+  "actual_failed_copy_rejected": true,
+  "corrected_copy": {
+    "path": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-probe-repair-20261109/scan-probe",
+    "sha256": "258d6bb8d6ca1aa9c71c6aa9a2c9c1b9fc31ac89a41bebb89bf8534f6f521cc6",
+    "mode": 509
+  },
+  "probe_executed": false,
+  "hardware_actions": false
+}

@@ -34,6 +34,13 @@ def package(sha='a', key='k', manifest='m', rom_map=None):
 
 
 class NightlyDecisionTests(unittest.TestCase):
+    def test_different_toolchains_require_a_fresh_paired_comparison(self):
+        narrow, rebuilt = package(), package()
+        narrow['toolchain_id'], rebuilt['toolchain_id'] = 'old', 'new'
+        result = decide(narrow, rebuilt, [], [])
+        self.assertFalse(result['pass'])
+        self.assertIn('toolchain differs', result['reasons'][0])
+
     def test_native_nightly_keeps_de10_menu_with_either_board_row_order(self):
         script = Path(__file__).resolve().parents[1] / 'scripts/core_key_nightly.py'
         with tempfile.TemporaryDirectory() as temporary:
@@ -155,6 +162,6 @@ class NightlyDecisionTests(unittest.TestCase):
                             'commit', '-q', '--allow-empty', '-m', 'x'], check=True)
             env = dict(os.environ, PYTHONPATH=str(repo))
             self.assertEqual(_resolve(repo, 'fes.pong', Path(temp) / 'sel.toml', env, False),
-                             {'sha256': 'a' * 64, 'key': 'b' * 64, 'manifest_sha256': 'c' * 64,
+                             {'sha256': 'a' * 64, 'key': 'b' * 64, 'toolchain_id': None, 'manifest_sha256': 'c' * 64,
                               'rom_map_sha256': 'd' * 64, 'package_id': 'e' * 64,
                               'manifest_functional_sha256': functional_manifest_sha256(manifest)})

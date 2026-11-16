@@ -1,0 +1,12 @@
+--- FAIL: TestProgramInputKeyboardReturnChord (0.02s)
+    --- FAIL: TestProgramInputKeyboardReturnChord/modifiers-05 (0.01s)
+        program_input_test.go:62: return must neutralize then request App Stop {2026-11-09 21:05:50.118477891 +0200 EET m=+0.009490228 [] } <nil> {running 17 1 {bd67b298b9d4c4efd4b1a03b2228849f457b56e997a40833325df7a6c9fb0836 fes.selected-fixture-0 fes.de25-embedded-diagnostic 11111111111111111111111111111111 de25_nano A5EB013BB23BE4SCS de25-embedded-hps-first-diagnostic-v1  7eb24a18990ee4c958c89773da6cc9fbc5c278357762d02ec6ab947eb28726ff 1 0}   0 false }
+    --- FAIL: TestProgramInputKeyboardReturnChord/modifiers-14 (0.01s)
+        program_input_test.go:62: return must neutralize then request App Stop {2026-11-09 21:05:50.124227855 +0200 EET m=+0.015240203 [] } <nil> {running 17 1 {bd67b298b9d4c4efd4b1a03b2228849f457b56e997a40833325df7a6c9fb0836 fes.selected-fixture-0 fes.de25-embedded-diagnostic 11111111111111111111111111111111 de25_nano A5EB013BB23BE4SCS de25-embedded-hps-first-diagnostic-v1  7eb24a18990ee4c958c89773da6cc9fbc5c278357762d02ec6ab947eb28726ff 1 0}   0 false }
+    --- FAIL: TestProgramInputKeyboardReturnChord/modifiers-41 (0.01s)
+        program_input_test.go:62: return must neutralize then request App Stop {2026-11-09 21:05:50.12966775 +0200 EET m=+0.020680088 [] } <nil> {running 17 1 {bd67b298b9d4c4efd4b1a03b2228849f457b56e997a40833325df7a6c9fb0836 fes.selected-fixture-0 fes.de25-embedded-diagnostic 11111111111111111111111111111111 de25_nano A5EB013BB23BE4SCS de25-embedded-hps-first-diagnostic-v1  7eb24a18990ee4c958c89773da6cc9fbc5c278357762d02ec6ab947eb28726ff 1 0}   0 false }
+    --- FAIL: TestProgramInputKeyboardReturnChord/modifiers-50 (0.01s)
+        program_input_test.go:62: return must neutralize then request App Stop {2026-11-09 21:05:50.135786106 +0200 EET m=+0.026798443 [] } <nil> {running 17 1 {bd67b298b9d4c4efd4b1a03b2228849f457b56e997a40833325df7a6c9fb0836 fes.selected-fixture-0 fes.de25-embedded-diagnostic 11111111111111111111111111111111 de25_nano A5EB013BB23BE4SCS de25-embedded-hps-first-diagnostic-v1  7eb24a18990ee4c958c89773da6cc9fbc5c278357762d02ec6ab947eb28726ff 1 0}   0 false }
+FAIL
+FAIL	github.com/DeanoC/fes/platform/embedded/tamago/nativefabric	0.031s
+FAIL

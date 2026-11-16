@@ -10,7 +10,12 @@ func debugGlyph(ch byte) [8]byte {
 	return debugFont[ch-32]
 }
 
-// 8×8 glyphs for U+0020..U+007E. Public-domain font8x8_basic style.
+// 8×8 glyphs for U+0020..U+007E. These are font8x8_basic.h from Daniel
+// Hepper's font8x8 (https://github.com/dhepper/font8x8, commit 8e279d2),
+// released as public domain; only '"' and 'M' differ. Its header credits
+// Marcel Sondaar's font8_8.asm and the IBM PC VGA fonts, also public domain.
+// The glyphs are bit-reversed IBM CGA ROM (5788005) characters: 91 of the 95
+// match it exactly.
 var debugFont = [95][8]byte{
 	{}, // space
 	{0x18, 0x3C, 0x3C, 0x18, 0x18, 0x00, 0x18, 0x00}, // !

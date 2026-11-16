@@ -243,6 +243,26 @@ func TestInstalledSetupReplacesOnlyUnsavedBundledFirmware(t *testing.T) {
 	if legacyBinding.MediaID != userROM.MediaID || legacyBinding.BundledDefault || legacyBinding.BundledMediaID != "" {
 		t.Fatalf("legacy client saved ROM binding %+v", legacyBinding)
 	}
+	// A stale client that still expects the bundled default must not replace a
+	// user choice already saved by another client.
+	staleBody := fmt.Sprintf(`{"package_id":%q,"rom_id":"spectrum-firmware","expected_media_id":%q,"media_id":""}`, inspection.PackageID, bundleID)
+	staleReq, err := http.NewRequest(http.MethodPut, server.URL+"/api/v1/library/core-entries/"+legacyEntry.GameID+"/rom", strings.NewReader(staleBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleReq.Header.Set("Content-Type", "application/json")
+	staleResponse, err := server.Client().Do(staleReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleResponseBody, err := io.ReadAll(staleResponse.Body)
+	staleResponse.Body.Close()
+	if err != nil || staleResponse.StatusCode != http.StatusConflict || !bytes.Contains(staleResponseBody, []byte(`"STALE_REVISION"`)) {
+		t.Fatalf("stale bundled selection: %d %s, err %v", staleResponse.StatusCode, staleResponseBody, err)
+	}
+	if got := getInstalledROMBinding(t, server.Client(), server.URL, legacyEntry.GameID, "spectrum-firmware"); got.MediaID != userROM.MediaID {
+		t.Fatalf("stale request changed saved ROM: %+v", got)
+	}
 
 	custom, err := client.CreateInstalledCoreEntry(ctx, setup, "Spectrum with own firmware", map[string]string{"spectrum-firmware": userROM.MediaID}, "", "")
 	if err != nil {
@@ -251,6 +271,16 @@ func TestInstalledSetupReplacesOnlyUnsavedBundledFirmware(t *testing.T) {
 	customBinding := getInstalledROMBinding(t, server.Client(), server.URL, custom.GameID, "spectrum-firmware")
 	if customBinding.MediaID != userROM.MediaID || customBinding.BundledDefault {
 		t.Fatalf("user ROM binding %+v", customBinding)
+	}
+	cleared, err := client.SelectCoreEntryROM(ctx, custom.GameID, inspection.PackageID, "spectrum-firmware", userROM.MediaID, "")
+	if err != nil {
+		t.Fatalf("clear saved ROM selection: %v", err)
+	}
+	if cleared.MediaID != "" || cleared.BundledMediaID != bundleID || !cleared.BundledDefault {
+		t.Fatalf("clearing the saved ROM returned %+v", cleared)
+	}
+	if got := getInstalledROMBinding(t, server.Client(), server.URL, custom.GameID, "spectrum-firmware"); got != cleared {
+		t.Fatalf("PUT ROM binding %+v differs from subsequent GET %+v", cleared, got)
 	}
 	if _, err := client.CreateInstalledCoreEntry(ctx, setup, "Spectrum with own firmware", map[string]string{"spectrum-firmware": strings.Repeat("c", 64)}, "", ""); err == nil {
 		t.Fatal("overwrote a saved ROM choice")
@@ -264,6 +294,9 @@ func TestInstalledSetupReplacesOnlyUnsavedBundledFirmware(t *testing.T) {
 	if defaultBinding.MediaID != "" || defaultBinding.BundledMediaID != bundleID || !defaultBinding.BundledDefault {
 		t.Fatalf("built-in ROM was not returned as a derived default: %+v", defaultBinding)
 	}
+	if entries := getCoreLibraryEntries(t, server.Client(), server.URL); len(entries) != 3 {
+		t.Fatalf("ROM selection created extra library entries: %+v", entries)
+	}
 
 	server.Close()
 	if err := service.Close(); err != nil {
@@ -275,8 +308,8 @@ func TestInstalledSetupReplacesOnlyUnsavedBundledFirmware(t *testing.T) {
 	}
 	defer store.Close()
 	rawCustom, err := store.CoreEntryROM(ctx, custom.GameID, "spectrum-firmware")
-	if err != nil || rawCustom.MediaID != userROM.MediaID {
-		t.Fatalf("user ROM was not saved: %+v, err %v", rawCustom, err)
+	if err != nil || rawCustom.MediaID != "" {
+		t.Fatalf("cleared user ROM selection was not removed: %+v, err %v", rawCustom, err)
 	}
 	rawLegacy, err := store.CoreEntryROM(ctx, legacyEntry.GameID, "spectrum-firmware")
 	if err != nil || rawLegacy.MediaID != userROM.MediaID {
@@ -427,7 +460,7 @@ func spectrumFirmwarePackage(t *testing.T) []byte {
 		if err != nil {
 			t.Fatal(err)
 		}
-		archiveName := filepath.Base(name)
+		var archiveName string
 		if strings.HasSuffix(name, ".rbf") {
 			archiveName = "core.rbf"
 		} else {

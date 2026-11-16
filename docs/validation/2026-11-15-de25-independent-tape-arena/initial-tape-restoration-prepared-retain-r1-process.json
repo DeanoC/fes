@@ -1,0 +1,10 @@
+{
+  "pid": 1464578,
+  "process_start_ticks": "177354248",
+  "cap_seconds": 360,
+  "start_monotonic": 1773542.48003059,
+  "argv": [
+    "python3",
+    "out/publication/retain-initial-tape-restoration-prepared.py"
+  ]
+}

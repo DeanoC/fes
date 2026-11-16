@@ -1,0 +1,15 @@
+{
+  "status": "passed-fresh-recovery-producer-and-byte-comparison",
+  "new": "out/nano-autoboot-operator-20261111/recovery-chain-r2/trace-kit",
+  "prior": "out/nano-installed-record-read-20261111/recovery-kit",
+  "artifact_sha256": {
+    "u-boot.itb": "3722e24c551a794dd970e665cc4932b96cb62aefa353f39079285458d67d48e5",
+    "u-boot-spl-dtb.hex": "83e1f29015c8f07a95d439f9e6e8f93be6f76a918121e2fd658462e7deca3e23",
+    "network-recovery.sof": "ce143f50e05c9895381047f921be4a0c38d9a7eacfa75b3c0709be4ff7eafe75",
+    "RECOVERY.JSON": "95aca2b3116755247a122a9a4357c1efbcfb106adb4dfa5fe94e489cc1889664"
+  },
+  "prefix_sha256": "80e36789a8de046c8e47899bbb6567d5afa58e3325c10d3944c7151a210d595c",
+  "installed_protected_bytes_unchanged": true,
+  "hardware_actions": false,
+  "live_authority": false
+}

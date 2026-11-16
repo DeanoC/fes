@@ -1,0 +1,29 @@
+schema: mister-packages.v1
+kind: fabric
+id: fes.fabric.embedded.mac
+major: 1
+minor: 0
+description: >-
+  Experimental firmware-owned fixed MAC and pinned DMA window lease. Private
+  generations preserve FPGA handles. Trusted scope, grant, confirmation and
+  independent drain callbacks are mandatory; no default physical supplier.
+constants:
+  - {name: FesEmbeddedMacCall, value: 0xc2000305}
+  - {name: FesEmbeddedMacCookie, value: 0x4645534d}
+  - {name: FesEmbeddedMacTag, value: 0x464d4331}
+  - {name: FesEmbeddedMacQuery, value: 0x0}
+  - {name: FesEmbeddedMacAcquire, value: 0x1}
+  - {name: FesEmbeddedMacConfirm, value: 0x2}
+  - {name: FesEmbeddedMacStop, value: 0x3}
+  - {name: FesEmbeddedMacOK, value: 0x0}
+  - {name: FesEmbeddedMacBusy, value: 0x1}
+  - {name: FesEmbeddedMacRejected, value: 0x2}
+  - {name: FesEmbeddedMacError, value: 0x4}
+  - {name: FesEmbeddedMacNotReady, value: 0x5}
+  - {name: FesEmbeddedMacSupported, value: 0x1}
+  - {name: FesEmbeddedMacActive, value: 0x2}
+  - {name: FesEmbeddedMacConfirmed, value: 0x4}
+  - {name: FesEmbeddedMacContained, value: 0x8}
+  - {name: FesEmbeddedMacPinnedWindow, value: 0x10}
+  - {name: FesEmbeddedMacPrivateGeneration, value: 0x20}
+  - {name: FesEmbeddedMacFlags, value: 0x3f}

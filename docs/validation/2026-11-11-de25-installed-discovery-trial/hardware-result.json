@@ -1,0 +1,42 @@
+{
+  "status": "passed-physical-reboot-discovery-launch-return",
+  "source_head": "6473efc71e750ff6a9c3e0b12c5550c4d7b6b479",
+  "compiled_source": "da33a94cc56ca7a975eb275ce04d1d3cf30c0890",
+  "native_boot_id": "b3ed4389ad43d91b",
+  "whole_attempt_passed": true,
+  "prior_first_install_verified": true,
+  "independent_boot_owners_differ": true,
+  "original_bootstrap_still_empty": true,
+  "staged_sources_read_verified": 10,
+  "staged_source_writes": false,
+  "network_uploads": false,
+  "install_command_sent": false,
+  "initially_discovered": true,
+  "installed_during_test": false,
+  "discovered_titles": [
+    "ZX81"
+  ],
+  "core_launch_and_return_verified": true,
+  "configuration_cycles": 3,
+  "computer_cycles": 1,
+  "menu_sessions": 2,
+  "final_logical_generation": 3,
+  "final_firmware_generation": 18,
+  "final_reset_mask": 15,
+  "masters_contained": true,
+  "saved_wire_replay": {
+    "status": "passed-saved-installer-wire-and-poll-times",
+    "discovered": true,
+    "commands": 24,
+    "polling_offers": 322,
+    "hardware_actions": false,
+    "live_authority": false,
+    "persistence_verified": false
+  },
+  "cleanup_independently_verified": true,
+  "total_transport_programming_failures": 3,
+  "persistence_verified": true,
+  "power_loss_interruption_verified": false,
+  "physical_display_verified": false,
+  "ordinary_core_load_acceptance": false
+}

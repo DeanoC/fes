@@ -1,0 +1,162 @@
+{
+  "status": "passed-root-full-owned-process-record-scan",
+  "records": [
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/native-baseline/transport.json",
+      "record_sha256": "dd08adea24b64a737bb55cc7a5e213e9e3212fc9b8ba2443be435afbf62a0bdc",
+      "pid": 2928591,
+      "start_ticks": "164002957",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/native-baseline/owned-worker.json",
+      "record_sha256": "4f5f32a4a6afddeb011360a64457901003b51da70977e2c414078809d58d72b3",
+      "pid": 2928419,
+      "start_ticks": "164002418",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/native-baseline/owned-programmer.json",
+      "record_sha256": "379fdcb412b1d8a204b383ce498992ae607ccbb699ba34d0b80a377b235a516f",
+      "pid": 2929132,
+      "start_ticks": "164003432",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/recovery-rollback/transport.json",
+      "record_sha256": "2315d0e4a0165052c59a79cb39f3e79ad5b867cfe76f10309c7646612d650100",
+      "pid": 2920130,
+      "start_ticks": "163978770",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/recovery-rollback/owned-worker.json",
+      "record_sha256": "ad2807cd232dc9eb1ea5c69e412ccea77b9a6991c9ef7c6677af06cce2e3ab4e",
+      "pid": 2919813,
+      "start_ticks": "163978456",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/recovery-rollback/owned-programmer.json",
+      "record_sha256": "98682835fe8cfd07ec4981e124ea4f21530e6307020f8a7658d80dbdee816f0f",
+      "pid": 2920730,
+      "start_ticks": "163979212",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/forward/owned-worker.json",
+      "record_sha256": "bd016a5797dfad9039fae8b9059355c244a436e064b457a43bab331bb602f94b",
+      "pid": 2911788,
+      "start_ticks": "163948362",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/native-diagnostic/transport.json",
+      "record_sha256": "b5c67b4a8a79571989baad9a2bad3fda93a3e663efdb8a9ff4ebae920cb4fba8",
+      "pid": 2916452,
+      "start_ticks": "163971326",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/native-diagnostic/owned-worker.json",
+      "record_sha256": "e5c14209582ea7387530a415aab46426be077679f0335af3880228e62b5272f0",
+      "pid": 2916154,
+      "start_ticks": "163970957",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/native-diagnostic/owned-programmer.json",
+      "record_sha256": "25d2cfb994a5242bc2299b0870efc81d959688c8a048375cf9f5f70acdf6756d",
+      "pid": 2917079,
+      "start_ticks": "163971777",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/recovery-before/transport.json",
+      "record_sha256": "470c8d274db1dc5356420695f0bc76dc616390daf6917a70b35b443739464869",
+      "pid": 2910546,
+      "start_ticks": "163946450",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/recovery-before/owned-worker.json",
+      "record_sha256": "c8ae62e2e1b5809b9c6fc8bd13cdc14e3a7619c4d4c0b6567044080be3810c92",
+      "pid": 2910439,
+      "start_ticks": "163946124",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/recovery-before/owned-programmer.json",
+      "record_sha256": "7e69ae77e858d92d8bb08db742b429b37c55b073b23cc7583b962b1e4ed04896",
+      "pid": 2911018,
+      "start_ticks": "163946899",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/rollback/owned-worker.json",
+      "record_sha256": "ba28413c2c798fcfafd056227413d490f5d8a3d2a8e66241b124bc2dd1f58c71",
+      "pid": 2921596,
+      "start_ticks": "163980708",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/native-diagnostic/file-admission/owned-worker.json",
+      "record_sha256": "b0c38414403efc2b897fc4463dd49a82445a5dce09506e6aad8a7401ffd59a47",
+      "pid": 2916380,
+      "start_ticks": "163971211",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/forward/native-input-preflight/native-baseline/owned-worker.json",
+      "record_sha256": "d94d7b0c61bf5a837ca4962f21c6105ef7217bd21f2bed804b30f4b5065b1d98",
+      "pid": 2911923,
+      "start_ticks": "163949046",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/forward/native-input-preflight/native-diagnostic/owned-worker.json",
+      "record_sha256": "f564f3cc0f9ce6d1b06b5fa4ce5cb910f6f432b0a05439feb2693b71114f165e",
+      "pid": 2911918,
+      "start_ticks": "163948948",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/native-baseline/file-admission/owned-worker.json",
+      "record_sha256": "edc645d531da23ba8b8f8245a1a44fca975a9e7e7597a38819d7754756eb5967",
+      "pid": 2928577,
+      "start_ticks": "164002781",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/preflight-checks/check-v8l7jog9/native-baseline/owned-worker.json",
+      "record_sha256": "aa50e2e4d20755fb1605cf78e1c7e45372d2c02b6ca0994eadf6195acab26cbb",
+      "pid": 2909831,
+      "start_ticks": "163939702",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/preflight-checks/check-v8l7jog9/native-diagnostic/owned-worker.json",
+      "record_sha256": "0344aa55920b0a58495f34f2b5c0bb76730c07bcddad9cb6a502c1e6b79f493c",
+      "pid": 2909819,
+      "start_ticks": "163939583",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/preflight-checks/check-vnuv7hmp/native-baseline/owned-worker.json",
+      "record_sha256": "d1665372faad00afe39f62c80748796c0ef91aff0787e1ea74e66f15cb553610",
+      "pid": 2864857,
+      "start_ticks": "163858258",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/preflight-checks/check-vnuv7hmp/native-diagnostic/owned-worker.json",
+      "record_sha256": "45bd9c0dee0268c5e2a000303561166543898152d88985e48587678f7013c44c",
+      "pid": 2864369,
+      "start_ticks": "163858124",
+      "original_process_stopped": true
+    }
+  ],
+  "root_only_preflight_directories_included": true,
+  "device_opened": false,
+  "processes_signalled": false
+}

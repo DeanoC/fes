@@ -1,0 +1,748 @@
+{
+  "budget": 10,
+  "critexp": 5,
+  "mode": "first-pass",
+  "ranking": [
+    {
+      "argv": [
+        "/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin/nextpnr-mistral",
+        "--json",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/socket.qsf",
+        "--seed",
+        "2",
+        "--placer-heap-timingweight",
+        "2000",
+        "--placer-heap-critexp",
+        "5",
+        "--report",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s2-w2000-c5/timing.json",
+        "--write",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s2-w2000-c5/routed.json",
+        "--rbf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s2-w2000-c5/core.rbf",
+        "--compress-rbf",
+        "--detailed-timing-report",
+        "--timing-allow-fail",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "0",
+        "--sdc",
+        "/data/d12s7/same/sources/misteross/cores/fes-coleco/clocks-oss.sdc",
+        "--freq",
+        "74.25"
+      ],
+      "critexp": 5,
+      "environment": {
+        "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+        "HOME": "/tmp/fes-tool-home-rc_yo1ry",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": "/data/fes-toolchain-cache/tools/mistral/e7993ca3f425533050f6bf7eb6766fc945a7a8ba5b923d705e3e8d00ee857209/install/bin:/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin:/data/fes-toolchain-cache/tools/yosys/8c67045f1420d1f9165a96318647c52a43054757e731f7ea3292fb4b6f0d85c4/install/bin:/usr/bin:/bin",
+        "TZ": "UTC"
+      },
+      "fmax": {
+        "pixel_clk": {
+          "achieved": 95.43806457519531,
+          "constraint": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved": 51.15874481201172,
+          "constraint": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved": 184.97964477539062,
+          "constraint": 12.288031578063965
+        }
+      },
+      "log": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s2-w2000-c5/route.log",
+      "passing": false,
+      "recipe_sha256": "5a6fccb367857e0282be870b60298989f1d845023f9198e79d979e06755c927d",
+      "run_dir": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s2-w2000-c5",
+      "seed": 2,
+      "slot": "7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3",
+      "sum_ratio": 17.318590978014118,
+      "weight": 2000,
+      "worst_ratio": 0.9795876836714398
+    },
+    {
+      "argv": [
+        "/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin/nextpnr-mistral",
+        "--json",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/socket.qsf",
+        "--seed",
+        "4",
+        "--placer-heap-timingweight",
+        "2000",
+        "--placer-heap-critexp",
+        "5",
+        "--report",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s4-w2000-c5/timing.json",
+        "--write",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s4-w2000-c5/routed.json",
+        "--rbf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s4-w2000-c5/core.rbf",
+        "--compress-rbf",
+        "--detailed-timing-report",
+        "--timing-allow-fail",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "0",
+        "--sdc",
+        "/data/d12s7/same/sources/misteross/cores/fes-coleco/clocks-oss.sdc",
+        "--freq",
+        "74.25"
+      ],
+      "critexp": 5,
+      "environment": {
+        "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+        "HOME": "/tmp/fes-tool-home-rc_yo1ry",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": "/data/fes-toolchain-cache/tools/mistral/e7993ca3f425533050f6bf7eb6766fc945a7a8ba5b923d705e3e8d00ee857209/install/bin:/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin:/data/fes-toolchain-cache/tools/yosys/8c67045f1420d1f9165a96318647c52a43054757e731f7ea3292fb4b6f0d85c4/install/bin:/usr/bin:/bin",
+        "TZ": "UTC"
+      },
+      "fmax": {
+        "pixel_clk": {
+          "achieved": 101.52284240722656,
+          "constraint": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved": 50.34232711791992,
+          "constraint": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved": 207.7274627685547,
+          "constraint": 12.288031578063965
+        }
+      },
+      "log": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s4-w2000-c5/route.log",
+      "passing": false,
+      "recipe_sha256": "5a6fccb367857e0282be870b60298989f1d845023f9198e79d979e06755c927d",
+      "run_dir": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s4-w2000-c5",
+      "seed": 4,
+      "slot": "7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3",
+      "sum_ratio": 19.236125415507054,
+      "weight": 2000,
+      "worst_ratio": 0.9639549170583702
+    },
+    {
+      "argv": [
+        "/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin/nextpnr-mistral",
+        "--json",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/socket.qsf",
+        "--seed",
+        "5",
+        "--placer-heap-timingweight",
+        "2000",
+        "--placer-heap-critexp",
+        "5",
+        "--report",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s5-w2000-c5/timing.json",
+        "--write",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s5-w2000-c5/routed.json",
+        "--rbf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s5-w2000-c5/core.rbf",
+        "--compress-rbf",
+        "--detailed-timing-report",
+        "--timing-allow-fail",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "0",
+        "--sdc",
+        "/data/d12s7/same/sources/misteross/cores/fes-coleco/clocks-oss.sdc",
+        "--freq",
+        "74.25"
+      ],
+      "critexp": 5,
+      "environment": {
+        "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+        "HOME": "/tmp/fes-tool-home-rc_yo1ry",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": "/data/fes-toolchain-cache/tools/mistral/e7993ca3f425533050f6bf7eb6766fc945a7a8ba5b923d705e3e8d00ee857209/install/bin:/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin:/data/fes-toolchain-cache/tools/yosys/8c67045f1420d1f9165a96318647c52a43054757e731f7ea3292fb4b6f0d85c4/install/bin:/usr/bin:/bin",
+        "TZ": "UTC"
+      },
+      "fmax": {
+        "pixel_clk": {
+          "achieved": 92.08950805664062,
+          "constraint": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved": 48.76383590698242,
+          "constraint": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved": 177.61988830566406,
+          "constraint": 12.288031578063965
+        }
+      },
+      "log": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s5-w2000-c5/route.log",
+      "passing": false,
+      "recipe_sha256": "5a6fccb367857e0282be870b60298989f1d845023f9198e79d979e06755c927d",
+      "run_dir": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s5-w2000-c5",
+      "seed": 5,
+      "slot": "7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3",
+      "sum_ratio": 16.628697922313656,
+      "weight": 2000,
+      "worst_ratio": 0.9337299661785172
+    },
+    {
+      "argv": [
+        "/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin/nextpnr-mistral",
+        "--json",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/socket.qsf",
+        "--seed",
+        "6",
+        "--placer-heap-timingweight",
+        "2000",
+        "--placer-heap-critexp",
+        "5",
+        "--report",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s6-w2000-c5/timing.json",
+        "--write",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s6-w2000-c5/routed.json",
+        "--rbf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s6-w2000-c5/core.rbf",
+        "--compress-rbf",
+        "--detailed-timing-report",
+        "--timing-allow-fail",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "0",
+        "--sdc",
+        "/data/d12s7/same/sources/misteross/cores/fes-coleco/clocks-oss.sdc",
+        "--freq",
+        "74.25"
+      ],
+      "critexp": 5,
+      "environment": {
+        "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+        "HOME": "/tmp/fes-tool-home-rc_yo1ry",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": "/data/fes-toolchain-cache/tools/mistral/e7993ca3f425533050f6bf7eb6766fc945a7a8ba5b923d705e3e8d00ee857209/install/bin:/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin:/data/fes-toolchain-cache/tools/yosys/8c67045f1420d1f9165a96318647c52a43054757e731f7ea3292fb4b6f0d85c4/install/bin:/usr/bin:/bin",
+        "TZ": "UTC"
+      },
+      "fmax": {
+        "pixel_clk": {
+          "achieved": 103.17787170410156,
+          "constraint": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved": 47.35745620727539,
+          "constraint": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved": 200.44097900390625,
+          "constraint": 12.288031578063965
+        }
+      },
+      "log": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s6-w2000-c5/route.log",
+      "passing": false,
+      "recipe_sha256": "5a6fccb367857e0282be870b60298989f1d845023f9198e79d979e06755c927d",
+      "run_dir": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s6-w2000-c5",
+      "seed": 6,
+      "slot": "7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3",
+      "sum_ratio": 18.608286998396963,
+      "weight": 2000,
+      "worst_ratio": 0.9068006066435843
+    },
+    {
+      "argv": [
+        "/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin/nextpnr-mistral",
+        "--json",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/socket.qsf",
+        "--seed",
+        "9",
+        "--placer-heap-timingweight",
+        "2000",
+        "--placer-heap-critexp",
+        "5",
+        "--report",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s9-w2000-c5/timing.json",
+        "--write",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s9-w2000-c5/routed.json",
+        "--rbf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s9-w2000-c5/core.rbf",
+        "--compress-rbf",
+        "--detailed-timing-report",
+        "--timing-allow-fail",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "0",
+        "--sdc",
+        "/data/d12s7/same/sources/misteross/cores/fes-coleco/clocks-oss.sdc",
+        "--freq",
+        "74.25"
+      ],
+      "critexp": 5,
+      "environment": {
+        "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+        "HOME": "/tmp/fes-tool-home-rc_yo1ry",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": "/data/fes-toolchain-cache/tools/mistral/e7993ca3f425533050f6bf7eb6766fc945a7a8ba5b923d705e3e8d00ee857209/install/bin:/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin:/data/fes-toolchain-cache/tools/yosys/8c67045f1420d1f9165a96318647c52a43054757e731f7ea3292fb4b6f0d85c4/install/bin:/usr/bin:/bin",
+        "TZ": "UTC"
+      },
+      "fmax": {
+        "pixel_clk": {
+          "achieved": 98.5512924194336,
+          "constraint": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved": 46.718055725097656,
+          "constraint": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved": 184.12814331054688,
+          "constraint": 12.288031578063965
+        }
+      },
+      "log": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s9-w2000-c5/route.log",
+      "passing": false,
+      "recipe_sha256": "5a6fccb367857e0282be870b60298989f1d845023f9198e79d979e06755c927d",
+      "run_dir": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s9-w2000-c5",
+      "seed": 9,
+      "slot": "7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3",
+      "sum_ratio": 17.20619442731048,
+      "weight": 2000,
+      "worst_ratio": 0.8945573657357694
+    },
+    {
+      "argv": [
+        "/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin/nextpnr-mistral",
+        "--json",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/socket.qsf",
+        "--seed",
+        "10",
+        "--placer-heap-timingweight",
+        "2000",
+        "--placer-heap-critexp",
+        "5",
+        "--report",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s10-w2000-c5/timing.json",
+        "--write",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s10-w2000-c5/routed.json",
+        "--rbf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s10-w2000-c5/core.rbf",
+        "--compress-rbf",
+        "--detailed-timing-report",
+        "--timing-allow-fail",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "0",
+        "--sdc",
+        "/data/d12s7/same/sources/misteross/cores/fes-coleco/clocks-oss.sdc",
+        "--freq",
+        "74.25"
+      ],
+      "critexp": 5,
+      "environment": {
+        "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+        "HOME": "/tmp/fes-tool-home-rc_yo1ry",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": "/data/fes-toolchain-cache/tools/mistral/e7993ca3f425533050f6bf7eb6766fc945a7a8ba5b923d705e3e8d00ee857209/install/bin:/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin:/data/fes-toolchain-cache/tools/yosys/8c67045f1420d1f9165a96318647c52a43054757e731f7ea3292fb4b6f0d85c4/install/bin:/usr/bin:/bin",
+        "TZ": "UTC"
+      },
+      "fmax": {
+        "pixel_clk": {
+          "achieved": 105.34077453613281,
+          "constraint": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved": 46.63961410522461,
+          "constraint": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved": 194.89378356933594,
+          "constraint": 12.288031578063965
+        }
+      },
+      "log": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s10-w2000-c5/route.log",
+      "passing": false,
+      "recipe_sha256": "5a6fccb367857e0282be870b60298989f1d845023f9198e79d979e06755c927d",
+      "run_dir": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s10-w2000-c5",
+      "seed": 10,
+      "slot": "7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3",
+      "sum_ratio": 18.172240974795663,
+      "weight": 2000,
+      "worst_ratio": 0.893055365540158
+    },
+    {
+      "argv": [
+        "/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin/nextpnr-mistral",
+        "--json",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/socket.qsf",
+        "--seed",
+        "3",
+        "--placer-heap-timingweight",
+        "2000",
+        "--placer-heap-critexp",
+        "5",
+        "--report",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s3-w2000-c5/timing.json",
+        "--write",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s3-w2000-c5/routed.json",
+        "--rbf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s3-w2000-c5/core.rbf",
+        "--compress-rbf",
+        "--detailed-timing-report",
+        "--timing-allow-fail",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "0",
+        "--sdc",
+        "/data/d12s7/same/sources/misteross/cores/fes-coleco/clocks-oss.sdc",
+        "--freq",
+        "74.25"
+      ],
+      "critexp": 5,
+      "environment": {
+        "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+        "HOME": "/tmp/fes-tool-home-rc_yo1ry",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": "/data/fes-toolchain-cache/tools/mistral/e7993ca3f425533050f6bf7eb6766fc945a7a8ba5b923d705e3e8d00ee857209/install/bin:/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin:/data/fes-toolchain-cache/tools/yosys/8c67045f1420d1f9165a96318647c52a43054757e731f7ea3292fb4b6f0d85c4/install/bin:/usr/bin:/bin",
+        "TZ": "UTC"
+      },
+      "fmax": {
+        "pixel_clk": {
+          "achieved": 100.37136840820312,
+          "constraint": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved": 46.51811981201172,
+          "constraint": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved": 214.36227416992188,
+          "constraint": 12.288031578063965
+        }
+      },
+      "log": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s3-w2000-c5/route.log",
+      "passing": false,
+      "recipe_sha256": "5a6fccb367857e0282be870b60298989f1d845023f9198e79d979e06755c927d",
+      "run_dir": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s3-w2000-c5",
+      "seed": 3,
+      "slot": "7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3",
+      "sum_ratio": 19.687332384726183,
+      "weight": 2000,
+      "worst_ratio": 0.8907289927234471
+    },
+    {
+      "argv": [
+        "/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin/nextpnr-mistral",
+        "--json",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/socket.qsf",
+        "--seed",
+        "8",
+        "--placer-heap-timingweight",
+        "2000",
+        "--placer-heap-critexp",
+        "5",
+        "--report",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s8-w2000-c5/timing.json",
+        "--write",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s8-w2000-c5/routed.json",
+        "--rbf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s8-w2000-c5/core.rbf",
+        "--compress-rbf",
+        "--detailed-timing-report",
+        "--timing-allow-fail",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "0",
+        "--sdc",
+        "/data/d12s7/same/sources/misteross/cores/fes-coleco/clocks-oss.sdc",
+        "--freq",
+        "74.25"
+      ],
+      "critexp": 5,
+      "environment": {
+        "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+        "HOME": "/tmp/fes-tool-home-rc_yo1ry",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": "/data/fes-toolchain-cache/tools/mistral/e7993ca3f425533050f6bf7eb6766fc945a7a8ba5b923d705e3e8d00ee857209/install/bin:/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin:/data/fes-toolchain-cache/tools/yosys/8c67045f1420d1f9165a96318647c52a43054757e731f7ea3292fb4b6f0d85c4/install/bin:/usr/bin:/bin",
+        "TZ": "UTC"
+      },
+      "fmax": {
+        "pixel_clk": {
+          "achieved": 95.90486145019531,
+          "constraint": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved": 45.84632110595703,
+          "constraint": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved": 207.4688720703125,
+          "constraint": 12.288031578063965
+        }
+      },
+      "log": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s8-w2000-c5/route.log",
+      "passing": false,
+      "recipe_sha256": "5a6fccb367857e0282be870b60298989f1d845023f9198e79d979e06755c927d",
+      "run_dir": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s8-w2000-c5",
+      "seed": 8,
+      "slot": "7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3",
+      "sum_ratio": 19.053328805012104,
+      "weight": 2000,
+      "worst_ratio": 0.8778653906007643
+    },
+    {
+      "argv": [
+        "/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin/nextpnr-mistral",
+        "--json",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/socket.qsf",
+        "--seed",
+        "1",
+        "--placer-heap-timingweight",
+        "2000",
+        "--placer-heap-critexp",
+        "5",
+        "--report",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s1-w2000-c5/timing.json",
+        "--write",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s1-w2000-c5/routed.json",
+        "--rbf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s1-w2000-c5/core.rbf",
+        "--compress-rbf",
+        "--detailed-timing-report",
+        "--timing-allow-fail",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "0",
+        "--sdc",
+        "/data/d12s7/same/sources/misteross/cores/fes-coleco/clocks-oss.sdc",
+        "--freq",
+        "74.25"
+      ],
+      "critexp": 5,
+      "environment": {
+        "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+        "HOME": "/tmp/fes-tool-home-rc_yo1ry",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": "/data/fes-toolchain-cache/tools/mistral/e7993ca3f425533050f6bf7eb6766fc945a7a8ba5b923d705e3e8d00ee857209/install/bin:/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin:/data/fes-toolchain-cache/tools/yosys/8c67045f1420d1f9165a96318647c52a43054757e731f7ea3292fb4b6f0d85c4/install/bin:/usr/bin:/bin",
+        "TZ": "UTC"
+      },
+      "fmax": {
+        "pixel_clk": {
+          "achieved": 111.19760131835938,
+          "constraint": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved": 45.54148864746094,
+          "constraint": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved": 224.1649932861328,
+          "constraint": 12.288031578063965
+        }
+      },
+      "log": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s1-w2000-c5/route.log",
+      "passing": false,
+      "recipe_sha256": "5a6fccb367857e0282be870b60298989f1d845023f9198e79d979e06755c927d",
+      "run_dir": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s1-w2000-c5",
+      "seed": 1,
+      "slot": "7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3",
+      "sum_ratio": 20.612184840105332,
+      "weight": 2000,
+      "worst_ratio": 0.87202845845899
+    },
+    {
+      "argv": [
+        "/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin/nextpnr-mistral",
+        "--json",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/socket.qsf",
+        "--seed",
+        "7",
+        "--placer-heap-timingweight",
+        "2000",
+        "--placer-heap-critexp",
+        "5",
+        "--report",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s7-w2000-c5/timing.json",
+        "--write",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s7-w2000-c5/routed.json",
+        "--rbf",
+        "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s7-w2000-c5/core.rbf",
+        "--compress-rbf",
+        "--detailed-timing-report",
+        "--timing-allow-fail",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "0",
+        "--sdc",
+        "/data/d12s7/same/sources/misteross/cores/fes-coleco/clocks-oss.sdc",
+        "--freq",
+        "74.25"
+      ],
+      "critexp": 5,
+      "environment": {
+        "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+        "HOME": "/tmp/fes-tool-home-rc_yo1ry",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": "/data/fes-toolchain-cache/tools/mistral/e7993ca3f425533050f6bf7eb6766fc945a7a8ba5b923d705e3e8d00ee857209/install/bin:/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin:/data/fes-toolchain-cache/tools/yosys/8c67045f1420d1f9165a96318647c52a43054757e731f7ea3292fb4b6f0d85c4/install/bin:/usr/bin:/bin",
+        "TZ": "UTC"
+      },
+      "fmax": {
+        "pixel_clk": {
+          "achieved": 106.78057098388672,
+          "constraint": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved": 44.88330078125,
+          "constraint": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved": 201.97938537597656,
+          "constraint": 12.288031578063965
+        }
+      },
+      "log": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s7-w2000-c5/route.log",
+      "passing": false,
+      "recipe_sha256": "5a6fccb367857e0282be870b60298989f1d845023f9198e79d979e06755c927d",
+      "run_dir": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s7-w2000-c5",
+      "seed": 7,
+      "slot": "7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3",
+      "sum_ratio": 18.734628535340622,
+      "weight": 2000,
+      "worst_ratio": 0.8594254767077483
+    }
+  ],
+  "seeds": [
+    3,
+    4,
+    5,
+    1,
+    2,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "weights": [
+    2000
+  ],
+  "winner": {
+    "argv": [
+      "/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin/nextpnr-mistral",
+      "--json",
+      "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/synth.json",
+      "--device",
+      "5CSEBA6U23I7",
+      "--qsf",
+      "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/socket.qsf",
+      "--seed",
+      "2",
+      "--placer-heap-timingweight",
+      "2000",
+      "--placer-heap-critexp",
+      "5",
+      "--report",
+      "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s2-w2000-c5/timing.json",
+      "--write",
+      "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s2-w2000-c5/routed.json",
+      "--rbf",
+      "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s2-w2000-c5/core.rbf",
+      "--compress-rbf",
+      "--detailed-timing-report",
+      "--timing-allow-fail",
+      "--router",
+      "gpu",
+      "--gpu-device",
+      "0",
+      "--sdc",
+      "/data/d12s7/same/sources/misteross/cores/fes-coleco/clocks-oss.sdc",
+      "--freq",
+      "74.25"
+    ],
+    "critexp": 5,
+    "environment": {
+      "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+      "HOME": "/tmp/fes-tool-home-rc_yo1ry",
+      "LANG": "C",
+      "LC_ALL": "C",
+      "PATH": "/data/fes-toolchain-cache/tools/mistral/e7993ca3f425533050f6bf7eb6766fc945a7a8ba5b923d705e3e8d00ee857209/install/bin:/data/fes-toolchain-cache/tools/nextpnr/7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3/install/bin:/data/fes-toolchain-cache/tools/yosys/8c67045f1420d1f9165a96318647c52a43054757e731f7ea3292fb4b6f0d85c4/install/bin:/usr/bin:/bin",
+      "TZ": "UTC"
+    },
+    "fmax": {
+      "pixel_clk": {
+        "achieved": 95.43806457519531,
+        "constraint": 74.25006866455078
+      },
+      "system_clock.clocks[0]": {
+        "achieved": 51.15874481201172,
+        "constraint": 52.22477340698242
+      },
+      "system_clock.clocks[1]": {
+        "achieved": 184.97964477539062,
+        "constraint": 12.288031578063965
+      }
+    },
+    "log": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s2-w2000-c5/route.log",
+    "passing": false,
+    "recipe_sha256": "5a6fccb367857e0282be870b60298989f1d845023f9198e79d979e06755c927d",
+    "run_dir": "/data/d12s7/same/sources/misteross/build/fes-coleco-socket-v2/qor-search/s2-w2000-c5",
+    "seed": 2,
+    "slot": "7a740cb3f0c3f5fd79161b32eaf1e576372589b31138017f622d4f63f4fe7ff3",
+    "sum_ratio": 17.318590978014118,
+    "weight": 2000,
+    "worst_ratio": 0.9795876836714398
+  }
+}

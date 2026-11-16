@@ -1,0 +1,3112 @@
+{
+  "pass": true,
+  "audit_passed": true,
+  "source_commit": "b08fc1143ddd3e6909ad31a3aced3d89bba31429",
+  "checkout_commit": "6c12141dab602c2a3257af0c2d103e7228eca9e9",
+  "native_build_source_commit": "b08fc1143ddd3e6909ad31a3aced3d89bba31429",
+  "scope": "one contained SD-to-FPGA transfer and reader enable/held-address/partial-burst/drain/reclose diagnostic; no runtime admission",
+  "trace": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "2ad9e8e05267cc2c"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 11582971364510664059,
+          "epoch": 5320806445,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 41,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "sd_platform",
+        "line": 42,
+        "values": {
+          "setup": 1,
+          "ready": 1
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 45,
+        "values": {
+          "id": "2ad9e8e05267cc2c"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 49,
+        "values": {}
+      },
+      {
+        "stage": "prompt",
+        "line": 61,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 62,
+        "values": {
+          "id": "2ad9e8e05267cc2c"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 63,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216373888,
+          "malloc_start": 3216408576,
+          "malloc_end": 3220611072,
+          "reloc": 3220611072,
+          "fdt": 3216383136
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 70,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 11582971364510664059,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 79,
+        "values": {
+          "phase": "after-remove",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 11582971364510664059,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "live",
+        "line": 80,
+        "values": {
+          "affinity": 0,
+          "counter": 400000000,
+          "cpu0": 0,
+          "cpu1": 1,
+          "cpu2": 1,
+          "cpu3": 1,
+          "per0": 4286562239,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "handoff",
+        "line": 81,
+        "values": {}
+      },
+      {
+        "stage": "el2",
+        "line": 82,
+        "values": {}
+      },
+      {
+        "stage": "el1",
+        "line": 83,
+        "values": {}
+      },
+      {
+        "stage": "configuration_package",
+        "line": 84,
+        "values": {
+          "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+          "owner": 11582971364510664059,
+          "sd_generation": 4
+        }
+      },
+      {
+        "stage": "hps_context",
+        "line": 85,
+        "values": {
+          "sha256": "94da3557f175eae05144d70937c3afceda20c6c9f9ca9d25155535da3e0814fc",
+          "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+          "build_id": "e25bb65a1d14a2bbbddf4c770ea033e5",
+          "owner": 11582971364510664059,
+          "generation": 4
+        }
+      },
+      {
+        "stage": "configuration_arm",
+        "line": 86,
+        "values": {
+          "phase": "arm",
+          "owner": 11582971364510664059,
+          "generation": 4,
+          "completed": 0,
+          "pending": 0,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 35751261786,
+          "hash_ticks": 463701360
+        }
+      },
+      {
+        "stage": "configuration_start",
+        "line": 87,
+        "values": {
+          "phase": "start",
+          "owner": 11582971364510664059,
+          "generation": 4,
+          "completed": 0,
+          "pending": 0,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 36445707151,
+          "hash_ticks": 929508135
+        }
+      },
+      {
+        "stage": "configuration_engine",
+        "line": 88,
+        "values": {
+          "credits": 4,
+          "block_bytes": 1048560,
+          "next_job": 0,
+          "owner": 11582971364510664059,
+          "generation": 4
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 89,
+        "values": {
+          "phase": 1,
+          "owner": 11582971364510664059,
+          "generation": 4,
+          "completed": 0,
+          "pending": 0,
+          "job": 0,
+          "cin": 5,
+          "cout": 5,
+          "rin": 6,
+          "rout": 6,
+          "bell": 0,
+          "status": 3288002895,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 90,
+        "values": {
+          "phase": "write",
+          "owner": 11582971364510664059,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1048512,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 37298021902,
+          "hash_ticks": 1636226439
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 91,
+        "values": {
+          "phase": 2,
+          "owner": 11582971364510664059,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1048512,
+          "job": 0,
+          "cin": 5,
+          "cout": 5,
+          "rin": 6,
+          "rout": 6,
+          "bell": 0,
+          "status": 3288002895,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 92,
+        "values": {
+          "phase": "write",
+          "owner": 11582971364510664059,
+          "generation": 4,
+          "completed": 0,
+          "pending": 2027520,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 38356673475,
+          "hash_ticks": 2342968696
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 93,
+        "values": {
+          "phase": 2,
+          "owner": 11582971364510664059,
+          "generation": 4,
+          "completed": 0,
+          "pending": 2027520,
+          "job": 1,
+          "cin": 9,
+          "cout": 9,
+          "rin": 7,
+          "rout": 6,
+          "bell": 1,
+          "status": 3288002895,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 94,
+        "values": {
+          "phase": "poll",
+          "owner": 11582971364510664059,
+          "generation": 4,
+          "completed": 0,
+          "pending": 2027520,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 39747601029,
+          "hash_ticks": 3274630319
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 95,
+        "values": {
+          "phase": 3,
+          "owner": 11582971364510664059,
+          "generation": 4,
+          "completed": 1048512,
+          "pending": 979008,
+          "job": 2,
+          "cin": 13,
+          "cout": 13,
+          "rin": 8,
+          "rout": 7,
+          "bell": 1,
+          "status": 3288002895,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 96,
+        "values": {
+          "phase": "poll",
+          "owner": 11582971364510664059,
+          "generation": 4,
+          "completed": 1048512,
+          "pending": 979008,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 40782813628,
+          "hash_ticks": 3965327454
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 97,
+        "values": {
+          "phase": 3,
+          "owner": 11582971364510664059,
+          "generation": 4,
+          "completed": 2027520,
+          "pending": 0,
+          "job": 2,
+          "cin": 13,
+          "cout": 13,
+          "rin": 8,
+          "rout": 8,
+          "bell": 0,
+          "status": 3288002895,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_status",
+        "line": 98,
+        "values": {
+          "phase": "status",
+          "owner": 11582971364510664059,
+          "generation": 4,
+          "completed": 2027520,
+          "pending": 0,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 41817609286,
+          "hash_ticks": 4655982708
+        }
+      },
+      {
+        "stage": "configuration_complete",
+        "line": 99,
+        "values": {
+          "phase": "complete",
+          "owner": 11582971364510664059,
+          "generation": 4,
+          "completed": 2027520,
+          "pending": 0,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 42294692157,
+          "hash_ticks": 5121703591
+        }
+      },
+      {
+        "stage": "configuration_programmed",
+        "line": 100,
+        "values": {
+          "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+          "core_sha256": "415cc2d68955755d2de406b233e34fa2cd6cce755089ba842f10f62e6945320c",
+          "bytes": 2027520,
+          "owner": 11582971364510664059,
+          "generation": 4
+        }
+      },
+      {
+        "stage": "fpga_query",
+        "line": 101,
+        "values": {}
+      },
+      {
+        "stage": "fpga_status",
+        "line": 102,
+        "values": {
+          "status": 0,
+          "words": 6,
+          "state": 0,
+          "version": 1704704,
+          "pins": 3221225609,
+          "soft": 3,
+          "error_location": 0,
+          "error_details": 15,
+          "ready": 1
+        }
+      },
+      {
+        "stage": "identity_open",
+        "line": 103,
+        "values": {
+          "phase": "open",
+          "owner": 11582971364510664059,
+          "generation": 4,
+          "reset": 15,
+          "base": 536937472
+        }
+      },
+      {
+        "stage": "identity_read",
+        "line": 104,
+        "values": {
+          "phase": "read",
+          "owner": 11582971364510664059,
+          "generation": 5,
+          "reset": 13,
+          "base": 536937472
+        }
+      },
+      {
+        "stage": "identity_access_1_before",
+        "line": 105,
+        "values": {
+          "phase": "before",
+          "ordinal": 1,
+          "offset": 0,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_1_after",
+        "line": 106,
+        "values": {
+          "phase": "after",
+          "ordinal": 1,
+          "offset": 0,
+          "value": 1178948421
+        }
+      },
+      {
+        "stage": "identity_access_2_before",
+        "line": 107,
+        "values": {
+          "phase": "before",
+          "ordinal": 2,
+          "offset": 4,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_2_after",
+        "line": 108,
+        "values": {
+          "phase": "after",
+          "ordinal": 2,
+          "offset": 4,
+          "value": 65536
+        }
+      },
+      {
+        "stage": "identity_access_3_before",
+        "line": 109,
+        "values": {
+          "phase": "before",
+          "ordinal": 3,
+          "offset": 8,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_3_after",
+        "line": 110,
+        "values": {
+          "phase": "after",
+          "ordinal": 3,
+          "offset": 8,
+          "value": 270544960
+        }
+      },
+      {
+        "stage": "identity_access_4_before",
+        "line": 111,
+        "values": {
+          "phase": "before",
+          "ordinal": 4,
+          "offset": 12,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_4_after",
+        "line": 112,
+        "values": {
+          "phase": "after",
+          "ordinal": 4,
+          "offset": 12,
+          "value": 245380069
+        }
+      },
+      {
+        "stage": "identity_access_5_before",
+        "line": 113,
+        "values": {
+          "phase": "before",
+          "ordinal": 5,
+          "offset": 16,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_5_after",
+        "line": 114,
+        "values": {
+          "phase": "after",
+          "ordinal": 5,
+          "offset": 16,
+          "value": 3185527927
+        }
+      },
+      {
+        "stage": "identity_access_6_before",
+        "line": 115,
+        "values": {
+          "phase": "before",
+          "ordinal": 6,
+          "offset": 20,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_6_after",
+        "line": 116,
+        "values": {
+          "phase": "after",
+          "ordinal": 6,
+          "offset": 20,
+          "value": 487891643
+        }
+      },
+      {
+        "stage": "identity_access_7_before",
+        "line": 117,
+        "values": {
+          "phase": "before",
+          "ordinal": 7,
+          "offset": 24,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_7_after",
+        "line": 118,
+        "values": {
+          "phase": "after",
+          "ordinal": 7,
+          "offset": 24,
+          "value": 3797661274
+        }
+      },
+      {
+        "stage": "identity_access_8_before",
+        "line": 119,
+        "values": {
+          "phase": "before",
+          "ordinal": 8,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_8_after",
+        "line": 120,
+        "values": {
+          "phase": "after",
+          "ordinal": 8,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_9_before",
+        "line": 121,
+        "values": {
+          "phase": "before",
+          "ordinal": 9,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_9_after",
+        "line": 122,
+        "values": {
+          "phase": "after",
+          "ordinal": 9,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_10_before",
+        "line": 123,
+        "values": {
+          "phase": "before",
+          "ordinal": 10,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_10_after",
+        "line": 124,
+        "values": {
+          "phase": "after",
+          "ordinal": 10,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_11_before",
+        "line": 125,
+        "values": {
+          "phase": "before",
+          "ordinal": 11,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_11_after",
+        "line": 126,
+        "values": {
+          "phase": "after",
+          "ordinal": 11,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_12_before",
+        "line": 127,
+        "values": {
+          "phase": "before",
+          "ordinal": 12,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_12_after",
+        "line": 128,
+        "values": {
+          "phase": "after",
+          "ordinal": 12,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_13_before",
+        "line": 129,
+        "values": {
+          "phase": "before",
+          "ordinal": 13,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_13_after",
+        "line": 130,
+        "values": {
+          "phase": "after",
+          "ordinal": 13,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_14_before",
+        "line": 131,
+        "values": {
+          "phase": "before",
+          "ordinal": 14,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_14_after",
+        "line": 132,
+        "values": {
+          "phase": "after",
+          "ordinal": 14,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_15_before",
+        "line": 133,
+        "values": {
+          "phase": "before",
+          "ordinal": 15,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_15_after",
+        "line": 134,
+        "values": {
+          "phase": "after",
+          "ordinal": 15,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_16_before",
+        "line": 135,
+        "values": {
+          "phase": "before",
+          "ordinal": 16,
+          "offset": 0,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_16_after",
+        "line": 136,
+        "values": {
+          "phase": "after",
+          "ordinal": 16,
+          "offset": 0,
+          "value": 1178948421
+        }
+      },
+      {
+        "stage": "identity_access_17_before",
+        "line": 137,
+        "values": {
+          "phase": "before",
+          "ordinal": 17,
+          "offset": 4,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_17_after",
+        "line": 138,
+        "values": {
+          "phase": "after",
+          "ordinal": 17,
+          "offset": 4,
+          "value": 65536
+        }
+      },
+      {
+        "stage": "identity_access_18_before",
+        "line": 139,
+        "values": {
+          "phase": "before",
+          "ordinal": 18,
+          "offset": 8,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_18_after",
+        "line": 140,
+        "values": {
+          "phase": "after",
+          "ordinal": 18,
+          "offset": 8,
+          "value": 270544960
+        }
+      },
+      {
+        "stage": "identity_access_19_before",
+        "line": 141,
+        "values": {
+          "phase": "before",
+          "ordinal": 19,
+          "offset": 12,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_19_after",
+        "line": 142,
+        "values": {
+          "phase": "after",
+          "ordinal": 19,
+          "offset": 12,
+          "value": 245380069
+        }
+      },
+      {
+        "stage": "identity_access_20_before",
+        "line": 143,
+        "values": {
+          "phase": "before",
+          "ordinal": 20,
+          "offset": 16,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_20_after",
+        "line": 144,
+        "values": {
+          "phase": "after",
+          "ordinal": 20,
+          "offset": 16,
+          "value": 3185527927
+        }
+      },
+      {
+        "stage": "identity_access_21_before",
+        "line": 145,
+        "values": {
+          "phase": "before",
+          "ordinal": 21,
+          "offset": 20,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_21_after",
+        "line": 146,
+        "values": {
+          "phase": "after",
+          "ordinal": 21,
+          "offset": 20,
+          "value": 487891643
+        }
+      },
+      {
+        "stage": "identity_access_22_before",
+        "line": 147,
+        "values": {
+          "phase": "before",
+          "ordinal": 22,
+          "offset": 24,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_22_after",
+        "line": 148,
+        "values": {
+          "phase": "after",
+          "ordinal": 22,
+          "offset": 24,
+          "value": 3797661274
+        }
+      },
+      {
+        "stage": "identity_access_23_before",
+        "line": 149,
+        "values": {
+          "phase": "before",
+          "ordinal": 23,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_23_after",
+        "line": 150,
+        "values": {
+          "phase": "after",
+          "ordinal": 23,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_24_before",
+        "line": 151,
+        "values": {
+          "phase": "before",
+          "ordinal": 24,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_24_after",
+        "line": 152,
+        "values": {
+          "phase": "after",
+          "ordinal": 24,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_25_before",
+        "line": 153,
+        "values": {
+          "phase": "before",
+          "ordinal": 25,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_25_after",
+        "line": 154,
+        "values": {
+          "phase": "after",
+          "ordinal": 25,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_26_before",
+        "line": 155,
+        "values": {
+          "phase": "before",
+          "ordinal": 26,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_26_after",
+        "line": 156,
+        "values": {
+          "phase": "after",
+          "ordinal": 26,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_27_before",
+        "line": 157,
+        "values": {
+          "phase": "before",
+          "ordinal": 27,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_27_after",
+        "line": 158,
+        "values": {
+          "phase": "after",
+          "ordinal": 27,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_28_before",
+        "line": 159,
+        "values": {
+          "phase": "before",
+          "ordinal": 28,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_28_after",
+        "line": 160,
+        "values": {
+          "phase": "after",
+          "ordinal": 28,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_29_before",
+        "line": 161,
+        "values": {
+          "phase": "before",
+          "ordinal": 29,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_29_after",
+        "line": 162,
+        "values": {
+          "phase": "after",
+          "ordinal": 29,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_30_before",
+        "line": 163,
+        "values": {
+          "phase": "before",
+          "ordinal": 30,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_30_after",
+        "line": 164,
+        "values": {
+          "phase": "after",
+          "ordinal": 30,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_write_1_before",
+        "line": 165,
+        "values": {
+          "phase": "before",
+          "offset": 36,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_write_1_after",
+        "line": 166,
+        "values": {
+          "phase": "after",
+          "offset": 36,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_write_2_before",
+        "line": 167,
+        "values": {
+          "phase": "before",
+          "offset": 40,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_write_2_after",
+        "line": 168,
+        "values": {
+          "phase": "after",
+          "offset": 40,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_write_3_before",
+        "line": 169,
+        "values": {
+          "phase": "before",
+          "offset": 52,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_write_3_after",
+        "line": 170,
+        "values": {
+          "phase": "after",
+          "offset": 52,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_access_31_before",
+        "line": 171,
+        "values": {
+          "phase": "before",
+          "ordinal": 31,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_31_after",
+        "line": 172,
+        "values": {
+          "phase": "after",
+          "ordinal": 31,
+          "offset": 56,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_access_32_before",
+        "line": 173,
+        "values": {
+          "phase": "before",
+          "ordinal": 32,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_32_after",
+        "line": 174,
+        "values": {
+          "phase": "after",
+          "ordinal": 32,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_33_before",
+        "line": 175,
+        "values": {
+          "phase": "before",
+          "ordinal": 33,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_33_after",
+        "line": 176,
+        "values": {
+          "phase": "after",
+          "ordinal": 33,
+          "offset": 28,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_access_34_before",
+        "line": 177,
+        "values": {
+          "phase": "before",
+          "ordinal": 34,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_34_after",
+        "line": 178,
+        "values": {
+          "phase": "after",
+          "ordinal": 34,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_35_before",
+        "line": 179,
+        "values": {
+          "phase": "before",
+          "ordinal": 35,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_35_after",
+        "line": 180,
+        "values": {
+          "phase": "after",
+          "ordinal": 35,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_36_before",
+        "line": 181,
+        "values": {
+          "phase": "before",
+          "ordinal": 36,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_36_after",
+        "line": 182,
+        "values": {
+          "phase": "after",
+          "ordinal": 36,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_37_before",
+        "line": 183,
+        "values": {
+          "phase": "before",
+          "ordinal": 37,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_37_after",
+        "line": 184,
+        "values": {
+          "phase": "after",
+          "ordinal": 37,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_38_before",
+        "line": 185,
+        "values": {
+          "phase": "before",
+          "ordinal": 38,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_38_after",
+        "line": 186,
+        "values": {
+          "phase": "after",
+          "ordinal": 38,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_enabled",
+        "line": 187,
+        "values": {
+          "stage": 9,
+          "reader_generation": 1,
+          "cookie": 7,
+          "owner": 11582971364510664059,
+          "generation": 5,
+          "reset": 13
+        }
+      },
+      {
+        "stage": "reader_write_4_before",
+        "line": 188,
+        "values": {
+          "phase": "before",
+          "offset": 132,
+          "value": 4096
+        }
+      },
+      {
+        "stage": "reader_write_4_after",
+        "line": 189,
+        "values": {
+          "phase": "after",
+          "offset": 132,
+          "value": 4096
+        }
+      },
+      {
+        "stage": "reader_write_5_before",
+        "line": 190,
+        "values": {
+          "phase": "before",
+          "offset": 136,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_write_5_after",
+        "line": 191,
+        "values": {
+          "phase": "after",
+          "offset": 136,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_write_6_before",
+        "line": 192,
+        "values": {
+          "phase": "before",
+          "offset": 128,
+          "value": 12
+        }
+      },
+      {
+        "stage": "reader_write_6_after",
+        "line": 193,
+        "values": {
+          "phase": "after",
+          "offset": 128,
+          "value": 12
+        }
+      },
+      {
+        "stage": "reader_access_39_before",
+        "line": 194,
+        "values": {
+          "phase": "before",
+          "ordinal": 39,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_39_after",
+        "line": 195,
+        "values": {
+          "phase": "after",
+          "ordinal": 39,
+          "offset": 56,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_access_40_before",
+        "line": 196,
+        "values": {
+          "phase": "before",
+          "ordinal": 40,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_40_after",
+        "line": 197,
+        "values": {
+          "phase": "after",
+          "ordinal": 40,
+          "offset": 60,
+          "value": 65536
+        }
+      },
+      {
+        "stage": "reader_access_41_before",
+        "line": 198,
+        "values": {
+          "phase": "before",
+          "ordinal": 41,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_41_after",
+        "line": 199,
+        "values": {
+          "phase": "after",
+          "ordinal": 41,
+          "offset": 28,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_access_42_before",
+        "line": 200,
+        "values": {
+          "phase": "before",
+          "ordinal": 42,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_42_after",
+        "line": 201,
+        "values": {
+          "phase": "after",
+          "ordinal": 42,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_43_before",
+        "line": 202,
+        "values": {
+          "phase": "before",
+          "ordinal": 43,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_43_after",
+        "line": 203,
+        "values": {
+          "phase": "after",
+          "ordinal": 43,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_44_before",
+        "line": 204,
+        "values": {
+          "phase": "before",
+          "ordinal": 44,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_44_after",
+        "line": 205,
+        "values": {
+          "phase": "after",
+          "ordinal": 44,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_45_before",
+        "line": 206,
+        "values": {
+          "phase": "before",
+          "ordinal": 45,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_45_after",
+        "line": 207,
+        "values": {
+          "phase": "after",
+          "ordinal": 45,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_46_before",
+        "line": 208,
+        "values": {
+          "phase": "before",
+          "ordinal": 46,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_46_after",
+        "line": 209,
+        "values": {
+          "phase": "after",
+          "ordinal": 46,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_47_before",
+        "line": 210,
+        "values": {
+          "phase": "before",
+          "ordinal": 47,
+          "offset": 140,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_47_after",
+        "line": 211,
+        "values": {
+          "phase": "after",
+          "ordinal": 47,
+          "offset": 140,
+          "value": 4
+        }
+      },
+      {
+        "stage": "reader_access_48_before",
+        "line": 212,
+        "values": {
+          "phase": "before",
+          "ordinal": 48,
+          "offset": 144,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_48_after",
+        "line": 213,
+        "values": {
+          "phase": "after",
+          "ordinal": 48,
+          "offset": 144,
+          "value": 4096
+        }
+      },
+      {
+        "stage": "reader_held",
+        "line": 214,
+        "values": {
+          "stage": 10,
+          "reader_generation": 1,
+          "cookie": 7,
+          "owner": 11582971364510664059,
+          "generation": 5,
+          "reset": 13
+        }
+      },
+      {
+        "stage": "reader_write_7_before",
+        "line": 215,
+        "values": {
+          "phase": "before",
+          "offset": 44,
+          "value": 7
+        }
+      },
+      {
+        "stage": "reader_write_7_after",
+        "line": 216,
+        "values": {
+          "phase": "after",
+          "offset": 44,
+          "value": 7
+        }
+      },
+      {
+        "stage": "reader_write_8_before",
+        "line": 217,
+        "values": {
+          "phase": "before",
+          "offset": 48,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_write_8_after",
+        "line": 218,
+        "values": {
+          "phase": "after",
+          "offset": 48,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_write_9_before",
+        "line": 219,
+        "values": {
+          "phase": "before",
+          "offset": 52,
+          "value": 2
+        }
+      },
+      {
+        "stage": "reader_write_9_after",
+        "line": 220,
+        "values": {
+          "phase": "after",
+          "offset": 52,
+          "value": 2
+        }
+      },
+      {
+        "stage": "reader_access_49_before",
+        "line": 221,
+        "values": {
+          "phase": "before",
+          "ordinal": 49,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_49_after",
+        "line": 222,
+        "values": {
+          "phase": "after",
+          "ordinal": 49,
+          "offset": 56,
+          "value": 2
+        }
+      },
+      {
+        "stage": "reader_access_50_before",
+        "line": 223,
+        "values": {
+          "phase": "before",
+          "ordinal": 50,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_50_after",
+        "line": 224,
+        "values": {
+          "phase": "after",
+          "ordinal": 50,
+          "offset": 60,
+          "value": 65536
+        }
+      },
+      {
+        "stage": "reader_access_51_before",
+        "line": 225,
+        "values": {
+          "phase": "before",
+          "ordinal": 51,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_51_after",
+        "line": 226,
+        "values": {
+          "phase": "after",
+          "ordinal": 51,
+          "offset": 28,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_access_52_before",
+        "line": 227,
+        "values": {
+          "phase": "before",
+          "ordinal": 52,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_52_after",
+        "line": 228,
+        "values": {
+          "phase": "after",
+          "ordinal": 52,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_53_before",
+        "line": 229,
+        "values": {
+          "phase": "before",
+          "ordinal": 53,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_53_after",
+        "line": 230,
+        "values": {
+          "phase": "after",
+          "ordinal": 53,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_54_before",
+        "line": 231,
+        "values": {
+          "phase": "before",
+          "ordinal": 54,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_54_after",
+        "line": 232,
+        "values": {
+          "phase": "after",
+          "ordinal": 54,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_55_before",
+        "line": 233,
+        "values": {
+          "phase": "before",
+          "ordinal": 55,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_55_after",
+        "line": 234,
+        "values": {
+          "phase": "after",
+          "ordinal": 55,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_56_before",
+        "line": 235,
+        "values": {
+          "phase": "before",
+          "ordinal": 56,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_56_after",
+        "line": 236,
+        "values": {
+          "phase": "after",
+          "ordinal": 56,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_57_before",
+        "line": 237,
+        "values": {
+          "phase": "before",
+          "ordinal": 57,
+          "offset": 140,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_57_after",
+        "line": 238,
+        "values": {
+          "phase": "after",
+          "ordinal": 57,
+          "offset": 140,
+          "value": 36
+        }
+      },
+      {
+        "stage": "reader_access_58_before",
+        "line": 239,
+        "values": {
+          "phase": "before",
+          "ordinal": 58,
+          "offset": 144,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_58_after",
+        "line": 240,
+        "values": {
+          "phase": "after",
+          "ordinal": 58,
+          "offset": 144,
+          "value": 4096
+        }
+      },
+      {
+        "stage": "reader_disabled",
+        "line": 241,
+        "values": {
+          "stage": 11,
+          "reader_generation": 1,
+          "cookie": 7,
+          "owner": 11582971364510664059,
+          "generation": 5,
+          "reset": 13
+        }
+      },
+      {
+        "stage": "reader_write_10_before",
+        "line": 242,
+        "values": {
+          "phase": "before",
+          "offset": 128,
+          "value": 5
+        }
+      },
+      {
+        "stage": "reader_write_10_after",
+        "line": 243,
+        "values": {
+          "phase": "after",
+          "offset": 128,
+          "value": 5
+        }
+      },
+      {
+        "stage": "reader_access_59_before",
+        "line": 244,
+        "values": {
+          "phase": "before",
+          "ordinal": 59,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_59_after",
+        "line": 245,
+        "values": {
+          "phase": "after",
+          "ordinal": 59,
+          "offset": 56,
+          "value": 2
+        }
+      },
+      {
+        "stage": "reader_access_60_before",
+        "line": 246,
+        "values": {
+          "phase": "before",
+          "ordinal": 60,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_60_after",
+        "line": 247,
+        "values": {
+          "phase": "after",
+          "ordinal": 60,
+          "offset": 60,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_access_61_before",
+        "line": 248,
+        "values": {
+          "phase": "before",
+          "ordinal": 61,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_61_after",
+        "line": 249,
+        "values": {
+          "phase": "after",
+          "ordinal": 61,
+          "offset": 28,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_access_62_before",
+        "line": 250,
+        "values": {
+          "phase": "before",
+          "ordinal": 62,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_62_after",
+        "line": 251,
+        "values": {
+          "phase": "after",
+          "ordinal": 62,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_63_before",
+        "line": 252,
+        "values": {
+          "phase": "before",
+          "ordinal": 63,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_63_after",
+        "line": 253,
+        "values": {
+          "phase": "after",
+          "ordinal": 63,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_64_before",
+        "line": 254,
+        "values": {
+          "phase": "before",
+          "ordinal": 64,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_64_after",
+        "line": 255,
+        "values": {
+          "phase": "after",
+          "ordinal": 64,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_65_before",
+        "line": 256,
+        "values": {
+          "phase": "before",
+          "ordinal": 65,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_65_after",
+        "line": 257,
+        "values": {
+          "phase": "after",
+          "ordinal": 65,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_66_before",
+        "line": 258,
+        "values": {
+          "phase": "before",
+          "ordinal": 66,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_66_after",
+        "line": 259,
+        "values": {
+          "phase": "after",
+          "ordinal": 66,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_write_11_before",
+        "line": 260,
+        "values": {
+          "phase": "before",
+          "offset": 128,
+          "value": 7
+        }
+      },
+      {
+        "stage": "reader_write_11_after",
+        "line": 261,
+        "values": {
+          "phase": "after",
+          "offset": 128,
+          "value": 7
+        }
+      },
+      {
+        "stage": "reader_access_67_before",
+        "line": 262,
+        "values": {
+          "phase": "before",
+          "ordinal": 67,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_67_after",
+        "line": 263,
+        "values": {
+          "phase": "after",
+          "ordinal": 67,
+          "offset": 56,
+          "value": 2
+        }
+      },
+      {
+        "stage": "reader_access_68_before",
+        "line": 264,
+        "values": {
+          "phase": "before",
+          "ordinal": 68,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_68_after",
+        "line": 265,
+        "values": {
+          "phase": "after",
+          "ordinal": 68,
+          "offset": 60,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_access_69_before",
+        "line": 266,
+        "values": {
+          "phase": "before",
+          "ordinal": 69,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_69_after",
+        "line": 267,
+        "values": {
+          "phase": "after",
+          "ordinal": 69,
+          "offset": 28,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_access_70_before",
+        "line": 268,
+        "values": {
+          "phase": "before",
+          "ordinal": 70,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_70_after",
+        "line": 269,
+        "values": {
+          "phase": "after",
+          "ordinal": 70,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_71_before",
+        "line": 270,
+        "values": {
+          "phase": "before",
+          "ordinal": 71,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_71_after",
+        "line": 271,
+        "values": {
+          "phase": "after",
+          "ordinal": 71,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_72_before",
+        "line": 272,
+        "values": {
+          "phase": "before",
+          "ordinal": 72,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_72_after",
+        "line": 273,
+        "values": {
+          "phase": "after",
+          "ordinal": 72,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_73_before",
+        "line": 274,
+        "values": {
+          "phase": "before",
+          "ordinal": 73,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_73_after",
+        "line": 275,
+        "values": {
+          "phase": "after",
+          "ordinal": 73,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_74_before",
+        "line": 276,
+        "values": {
+          "phase": "before",
+          "ordinal": 74,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_74_after",
+        "line": 277,
+        "values": {
+          "phase": "after",
+          "ordinal": 74,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_75_before",
+        "line": 278,
+        "values": {
+          "phase": "before",
+          "ordinal": 75,
+          "offset": 140,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_75_after",
+        "line": 279,
+        "values": {
+          "phase": "after",
+          "ordinal": 75,
+          "offset": 140,
+          "value": 65640
+        }
+      },
+      {
+        "stage": "reader_partial",
+        "line": 280,
+        "values": {
+          "stage": 12,
+          "reader_generation": 1,
+          "cookie": 7,
+          "owner": 11582971364510664059,
+          "generation": 5,
+          "reset": 13
+        }
+      },
+      {
+        "stage": "reader_write_12_before",
+        "line": 281,
+        "values": {
+          "phase": "before",
+          "offset": 128,
+          "value": 7
+        }
+      },
+      {
+        "stage": "reader_write_12_after",
+        "line": 282,
+        "values": {
+          "phase": "after",
+          "offset": 128,
+          "value": 7
+        }
+      },
+      {
+        "stage": "reader_access_76_before",
+        "line": 283,
+        "values": {
+          "phase": "before",
+          "ordinal": 76,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_76_after",
+        "line": 284,
+        "values": {
+          "phase": "after",
+          "ordinal": 76,
+          "offset": 56,
+          "value": 4
+        }
+      },
+      {
+        "stage": "reader_access_77_before",
+        "line": 285,
+        "values": {
+          "phase": "before",
+          "ordinal": 77,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_77_after",
+        "line": 286,
+        "values": {
+          "phase": "after",
+          "ordinal": 77,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_78_before",
+        "line": 287,
+        "values": {
+          "phase": "before",
+          "ordinal": 78,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_78_after",
+        "line": 288,
+        "values": {
+          "phase": "after",
+          "ordinal": 78,
+          "offset": 28,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_access_79_before",
+        "line": 289,
+        "values": {
+          "phase": "before",
+          "ordinal": 79,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_79_after",
+        "line": 290,
+        "values": {
+          "phase": "after",
+          "ordinal": 79,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_80_before",
+        "line": 291,
+        "values": {
+          "phase": "before",
+          "ordinal": 80,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_80_after",
+        "line": 292,
+        "values": {
+          "phase": "after",
+          "ordinal": 80,
+          "offset": 64,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_access_81_before",
+        "line": 293,
+        "values": {
+          "phase": "before",
+          "ordinal": 81,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_81_after",
+        "line": 294,
+        "values": {
+          "phase": "after",
+          "ordinal": 81,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_82_before",
+        "line": 295,
+        "values": {
+          "phase": "before",
+          "ordinal": 82,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_82_after",
+        "line": 296,
+        "values": {
+          "phase": "after",
+          "ordinal": 82,
+          "offset": 72,
+          "value": 7
+        }
+      },
+      {
+        "stage": "reader_access_83_before",
+        "line": 297,
+        "values": {
+          "phase": "before",
+          "ordinal": 83,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_83_after",
+        "line": 298,
+        "values": {
+          "phase": "after",
+          "ordinal": 83,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_drained",
+        "line": 299,
+        "values": {
+          "stage": 13,
+          "reader_generation": 1,
+          "cookie": 7,
+          "owner": 11582971364510664059,
+          "generation": 5,
+          "reset": 13
+        }
+      },
+      {
+        "stage": "reader_access_84_before",
+        "line": 300,
+        "values": {
+          "phase": "before",
+          "ordinal": 84,
+          "offset": 0,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_84_after",
+        "line": 301,
+        "values": {
+          "phase": "after",
+          "ordinal": 84,
+          "offset": 0,
+          "value": 1178948421
+        }
+      },
+      {
+        "stage": "reader_access_85_before",
+        "line": 302,
+        "values": {
+          "phase": "before",
+          "ordinal": 85,
+          "offset": 4,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_85_after",
+        "line": 303,
+        "values": {
+          "phase": "after",
+          "ordinal": 85,
+          "offset": 4,
+          "value": 65536
+        }
+      },
+      {
+        "stage": "reader_access_86_before",
+        "line": 304,
+        "values": {
+          "phase": "before",
+          "ordinal": 86,
+          "offset": 8,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_86_after",
+        "line": 305,
+        "values": {
+          "phase": "after",
+          "ordinal": 86,
+          "offset": 8,
+          "value": 270544960
+        }
+      },
+      {
+        "stage": "reader_access_87_before",
+        "line": 306,
+        "values": {
+          "phase": "before",
+          "ordinal": 87,
+          "offset": 12,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_87_after",
+        "line": 307,
+        "values": {
+          "phase": "after",
+          "ordinal": 87,
+          "offset": 12,
+          "value": 245380069
+        }
+      },
+      {
+        "stage": "reader_access_88_before",
+        "line": 308,
+        "values": {
+          "phase": "before",
+          "ordinal": 88,
+          "offset": 16,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_88_after",
+        "line": 309,
+        "values": {
+          "phase": "after",
+          "ordinal": 88,
+          "offset": 16,
+          "value": 3185527927
+        }
+      },
+      {
+        "stage": "reader_access_89_before",
+        "line": 310,
+        "values": {
+          "phase": "before",
+          "ordinal": 89,
+          "offset": 20,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_89_after",
+        "line": 311,
+        "values": {
+          "phase": "after",
+          "ordinal": 89,
+          "offset": 20,
+          "value": 487891643
+        }
+      },
+      {
+        "stage": "reader_access_90_before",
+        "line": 312,
+        "values": {
+          "phase": "before",
+          "ordinal": 90,
+          "offset": 24,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_90_after",
+        "line": 313,
+        "values": {
+          "phase": "after",
+          "ordinal": 90,
+          "offset": 24,
+          "value": 3797661274
+        }
+      },
+      {
+        "stage": "reader_access_91_before",
+        "line": 314,
+        "values": {
+          "phase": "before",
+          "ordinal": 91,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_91_after",
+        "line": 315,
+        "values": {
+          "phase": "after",
+          "ordinal": 91,
+          "offset": 28,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_access_92_before",
+        "line": 316,
+        "values": {
+          "phase": "before",
+          "ordinal": 92,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_92_after",
+        "line": 317,
+        "values": {
+          "phase": "after",
+          "ordinal": 92,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_93_before",
+        "line": 318,
+        "values": {
+          "phase": "before",
+          "ordinal": 93,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_93_after",
+        "line": 319,
+        "values": {
+          "phase": "after",
+          "ordinal": 93,
+          "offset": 64,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_access_94_before",
+        "line": 320,
+        "values": {
+          "phase": "before",
+          "ordinal": 94,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_94_after",
+        "line": 321,
+        "values": {
+          "phase": "after",
+          "ordinal": 94,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_95_before",
+        "line": 322,
+        "values": {
+          "phase": "before",
+          "ordinal": 95,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_95_after",
+        "line": 323,
+        "values": {
+          "phase": "after",
+          "ordinal": 95,
+          "offset": 72,
+          "value": 7
+        }
+      },
+      {
+        "stage": "reader_access_96_before",
+        "line": 324,
+        "values": {
+          "phase": "before",
+          "ordinal": 96,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_96_after",
+        "line": 325,
+        "values": {
+          "phase": "after",
+          "ordinal": 96,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_97_before",
+        "line": 326,
+        "values": {
+          "phase": "before",
+          "ordinal": 97,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_97_after",
+        "line": 327,
+        "values": {
+          "phase": "after",
+          "ordinal": 97,
+          "offset": 56,
+          "value": 4
+        }
+      },
+      {
+        "stage": "reader_access_98_before",
+        "line": 328,
+        "values": {
+          "phase": "before",
+          "ordinal": 98,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_98_after",
+        "line": 329,
+        "values": {
+          "phase": "after",
+          "ordinal": 98,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_99_before",
+        "line": 330,
+        "values": {
+          "phase": "before",
+          "ordinal": 99,
+          "offset": 0,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_99_after",
+        "line": 331,
+        "values": {
+          "phase": "after",
+          "ordinal": 99,
+          "offset": 0,
+          "value": 1178948421
+        }
+      },
+      {
+        "stage": "reader_access_100_before",
+        "line": 332,
+        "values": {
+          "phase": "before",
+          "ordinal": 100,
+          "offset": 4,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_100_after",
+        "line": 333,
+        "values": {
+          "phase": "after",
+          "ordinal": 100,
+          "offset": 4,
+          "value": 65536
+        }
+      },
+      {
+        "stage": "reader_access_101_before",
+        "line": 334,
+        "values": {
+          "phase": "before",
+          "ordinal": 101,
+          "offset": 8,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_101_after",
+        "line": 335,
+        "values": {
+          "phase": "after",
+          "ordinal": 101,
+          "offset": 8,
+          "value": 270544960
+        }
+      },
+      {
+        "stage": "reader_access_102_before",
+        "line": 336,
+        "values": {
+          "phase": "before",
+          "ordinal": 102,
+          "offset": 12,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_102_after",
+        "line": 337,
+        "values": {
+          "phase": "after",
+          "ordinal": 102,
+          "offset": 12,
+          "value": 245380069
+        }
+      },
+      {
+        "stage": "reader_access_103_before",
+        "line": 338,
+        "values": {
+          "phase": "before",
+          "ordinal": 103,
+          "offset": 16,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_103_after",
+        "line": 339,
+        "values": {
+          "phase": "after",
+          "ordinal": 103,
+          "offset": 16,
+          "value": 3185527927
+        }
+      },
+      {
+        "stage": "reader_access_104_before",
+        "line": 340,
+        "values": {
+          "phase": "before",
+          "ordinal": 104,
+          "offset": 20,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_104_after",
+        "line": 341,
+        "values": {
+          "phase": "after",
+          "ordinal": 104,
+          "offset": 20,
+          "value": 487891643
+        }
+      },
+      {
+        "stage": "reader_access_105_before",
+        "line": 342,
+        "values": {
+          "phase": "before",
+          "ordinal": 105,
+          "offset": 24,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_105_after",
+        "line": 343,
+        "values": {
+          "phase": "after",
+          "ordinal": 105,
+          "offset": 24,
+          "value": 3797661274
+        }
+      },
+      {
+        "stage": "reader_access_106_before",
+        "line": 344,
+        "values": {
+          "phase": "before",
+          "ordinal": 106,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_106_after",
+        "line": 345,
+        "values": {
+          "phase": "after",
+          "ordinal": 106,
+          "offset": 28,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_access_107_before",
+        "line": 346,
+        "values": {
+          "phase": "before",
+          "ordinal": 107,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_107_after",
+        "line": 347,
+        "values": {
+          "phase": "after",
+          "ordinal": 107,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_108_before",
+        "line": 348,
+        "values": {
+          "phase": "before",
+          "ordinal": 108,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_108_after",
+        "line": 349,
+        "values": {
+          "phase": "after",
+          "ordinal": 108,
+          "offset": 64,
+          "value": 1
+        }
+      },
+      {
+        "stage": "reader_access_109_before",
+        "line": 350,
+        "values": {
+          "phase": "before",
+          "ordinal": 109,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_109_after",
+        "line": 351,
+        "values": {
+          "phase": "after",
+          "ordinal": 109,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_110_before",
+        "line": 352,
+        "values": {
+          "phase": "before",
+          "ordinal": 110,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_110_after",
+        "line": 353,
+        "values": {
+          "phase": "after",
+          "ordinal": 110,
+          "offset": 72,
+          "value": 7
+        }
+      },
+      {
+        "stage": "reader_access_111_before",
+        "line": 354,
+        "values": {
+          "phase": "before",
+          "ordinal": 111,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_111_after",
+        "line": 355,
+        "values": {
+          "phase": "after",
+          "ordinal": 111,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_112_before",
+        "line": 356,
+        "values": {
+          "phase": "before",
+          "ordinal": 112,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_112_after",
+        "line": 357,
+        "values": {
+          "phase": "after",
+          "ordinal": 112,
+          "offset": 56,
+          "value": 4
+        }
+      },
+      {
+        "stage": "reader_access_113_before",
+        "line": 358,
+        "values": {
+          "phase": "before",
+          "ordinal": 113,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "reader_access_113_after",
+        "line": 359,
+        "values": {
+          "phase": "after",
+          "ordinal": 113,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_close",
+        "line": 360,
+        "values": {
+          "phase": "close",
+          "owner": 11582971364510664059,
+          "generation": 5,
+          "reset": 13,
+          "base": 536937472
+        }
+      },
+      {
+        "stage": "identity_closed",
+        "line": 361,
+        "values": {
+          "phase": "closed",
+          "owner": 11582971364510664059,
+          "generation": 6,
+          "reset": 15,
+          "base": 536937472
+        }
+      },
+      {
+        "stage": "fpga_identity",
+        "line": 362,
+        "values": {
+          "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+          "build_id": "e25bb65a1d14a2bbbddf4c770ea033e5",
+          "abi": 270544960,
+          "base": 536937472,
+          "map_sha256": "bc13d4774a2f80683d42d70e8440d487c20b232da4281d5a1706c337ba176796",
+          "owner": 11582971364510664059,
+          "generation": 6
+        }
+      },
+      {
+        "stage": "fpga_reader",
+        "line": 363,
+        "values": {
+          "owner": 11582971364510664059,
+          "generation": 6
+        }
+      }
+    ],
+    "errors": [],
+    "loader_ready": true,
+    "complete": true,
+    "last_checkpoint": "fpga_reader",
+    "core_load_acceptance": false,
+    "configuration_transfer": {
+      "complete": true,
+      "completed_bytes": 2027520,
+      "core_sha256": "415cc2d68955755d2de406b233e34fa2cd6cce755089ba842f10f62e6945320c",
+      "arena_base": 2491416576,
+      "arena_size": 8388608
+    },
+    "configuration_timing": {
+      "counter_frequency": 400000000,
+      "first_counter": 35751261786,
+      "last_counter": 42294692157,
+      "hash_ticks": 5121703591,
+      "interval_ticks": 6543430371,
+      "interval_hash_ticks": 4658002231
+    },
+    "reader_cycle": {
+      "complete": true,
+      "reads": 83,
+      "writes": 12,
+      "reader_generation": 1,
+      "cookie": 7,
+      "data_release": false,
+      "ddr_drain": false
+    }
+  },
+  "configuration_sha256": "a263e96ca0117b722c2c4aa1e9f73fed784ac004a9088ec8a082576e17c4d976",
+  "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+  "core_sha256": "415cc2d68955755d2de406b233e34fa2cd6cce755089ba842f10f62e6945320c",
+  "core_size": 2027520,
+  "console_sha256": "1cad47a385a1a1e2071604b8b7eb38ae56d7a5c0e884f687fa9e9820bc707671",
+  "error": null,
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "usb_node": "/dev/bus/usb/003/061",
+  "uart_free": true,
+  "claim_retained": true,
+  "factory_restore_requested": false,
+  "runtime_admission": false,
+  "data_release_requested": false,
+  "core_load_acceptance": false,
+  "finished_utc": "2026-11-02T02:50:40.326572+00:00"
+}

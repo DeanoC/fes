@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from scripts import fes_i386_oracle as oracle
@@ -63,6 +64,17 @@ class RunRecordTest(unittest.TestCase):
             self.assertIn(f"parser.add_argument('--{name.replace('_', '-')}'", text)
         self.assertNotIn('jobs', lockstep.SUITE_ARGUMENTS)
         self.assertNotIn('netlist', lockstep.SUITE_ARGUMENTS)
+
+
+class PagingCountTest(unittest.TestCase):
+    def test_all_paging_cases_are_required(self):
+        self.assertEqual(lockstep.PAGING_CASES, 158)
+        result = subprocess.CompletedProcess(['testbench'], 0, stdout=json.dumps({'runs': 158}) + '\n', stderr='')
+        with mock.patch.object(lockstep.subprocess, 'run', return_value=result):
+            self.assertEqual(lockstep.run_paging('testbench', {})['summary']['runs'], 158)
+            result.stdout = json.dumps({'runs': 157}) + '\n'
+            with self.assertRaisesRegex(lockstep.LockstepError, '157 of 158'):
+                lockstep.run_paging('testbench', {})
 
 
 class FullCorpusTest(unittest.TestCase):
@@ -205,12 +217,12 @@ class OutputTest(unittest.TestCase):
             runs = {'totals': {'pm_retirements': pm, 'cs_rule': cs}, 'cs_limit': {'pm-gp': cs}}
             return {'corpus': {'totals': {}, 'by_opcode': {}}, 'random': runs, 'pmode': runs,
                     'directed_cases': mode, 'unreal_cases': mode, 'pmode_cases': mode, 'paging_cases': mode,
-                    'no387_cases': mode, 'memory_cases': mode, 'reset_store': mode,
+                    'no387_cases': mode, 'x87_cases': mode, 'memory_cases': mode, 'reset_store': mode,
                     'unbuilt': {'encodings': 0}}
         self.assertEqual(lockstep.same_as(report(75, 2), report(75, 2)), [])
         differences = lockstep.same_as(report(74, 3), report(75, 2))
         for where in ('random', 'pmode', 'directed_cases', 'unreal_cases', 'pmode_cases', 'paging_cases', 'no387_cases',
-                      'memory_cases', 'reset_store'):
+                      'x87_cases', 'memory_cases', 'reset_store'):
             with self.subTest(where=where):
                 self.assertIn(f'{where} pm_retirements: 74 here, 75 at max', differences)
                 self.assertIn(f'{where} cs_rule: 3 here, 2 at max', differences)

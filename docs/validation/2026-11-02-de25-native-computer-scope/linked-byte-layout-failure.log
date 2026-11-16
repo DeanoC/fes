@@ -1,0 +1,63 @@
+PASS matched computer-control selection, strong firmware symbols, pinned assembly and unchanged entry executable object sections
+PASS compiled fixed BL31 seal, strong SPL guard and direct raw SHA calls
+{
+  "bl31_entrypoint": {
+    "old_address": 2147483648,
+    "address": 2147483648,
+    "old_size": 264,
+    "size": 264,
+    "instruction_bytes_unchanged": false,
+    "address_unchanged": true,
+    "sha256": "d8287c8330673f2e7238c92e09bfa43a381405479233d969c31797d1683c37df"
+  },
+  "bl31_setup": {
+    "old_address": 2147497044,
+    "address": 2147497044,
+    "old_size": 20,
+    "size": 20,
+    "instruction_bytes_unchanged": true,
+    "address_unchanged": true,
+    "sha256": "aa170f4c8c4ea5a26ac136dfe85e54e210345f4630c63e164338662c0099507b"
+  },
+  "bl31_early_platform_setup2": {
+    "old_address": 2147508340,
+    "address": 2147508340,
+    "old_size": 344,
+    "size": 344,
+    "instruction_bytes_unchanged": false,
+    "address_unchanged": true,
+    "sha256": "d16ae89a1ff61dd19687d80dace217422af28049c1ff345fb0e433215103548f"
+  },
+  "console_16550_register": {
+    "old_address": 2147554704,
+    "address": 2147550756,
+    "old_size": 76,
+    "size": 76,
+    "instruction_bytes_unchanged": false,
+    "address_unchanged": false,
+    "sha256": "315a8ae2d998a1c6974b45975381ff837aee397c9774727550b5cf38ff5dbf63"
+  },
+  "console_set_scope": {
+    "old_address": 2147500972,
+    "address": 2147500972,
+    "old_size": 24,
+    "size": 24,
+    "instruction_bytes_unchanged": true,
+    "address_unchanged": true,
+    "sha256": "8f39608c194d4152f2ae5ff1d8ae21925ee53460501474741638b8ada5d2718c"
+  },
+  "fes_nano_cold_capture": {
+    "old_address": 2147522036,
+    "address": 2147519984,
+    "old_size": 164,
+    "size": 164,
+    "instruction_bytes_unchanged": false,
+    "address_unchanged": false,
+    "sha256": "e9872602f592be108118c568119a909cdf96be1c22bef8c72c5cc82e1fcf21d4"
+  }
+}
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-native-20261102/check_selection.py", line 131, in <module>
+    assert all(row['instruction_bytes_unchanged'] and row['address_unchanged'] for row in comparisons.values())
+           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

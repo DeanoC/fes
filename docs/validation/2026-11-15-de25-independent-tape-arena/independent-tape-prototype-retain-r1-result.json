@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/publication/retain-independent-tape-prototype.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.20099285314790905,
+  "log_sha256": "f6fb746287dd1e24fe4c8e152c9ac0b6bc699940a28e3be5bc020b1acd21b10f"
+}

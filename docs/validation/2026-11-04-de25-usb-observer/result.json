@@ -1,0 +1,117 @@
+{
+  "scope": "host-only selected native USB observation gate",
+  "base": "e09d81590",
+  "tests": 70,
+  "hardware_execution": false,
+  "native_candidate_rebuilt": false,
+  "shared_contract_changes": false,
+  "checks": {
+    "observer-regression": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "test_nano_usb_trace",
+        "test_nano_native_trace",
+        "test_nano_hps_io",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.0020090310135856,
+      "log_sha256": "e5a240a092d5261a0473529e4f92f3084dca2395fdb6d5e325c782d54ef3f9c9"
+    },
+    "consistency": {
+      "argv": [
+        "make",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.804480524966493,
+      "log_sha256": "273915f27c798cb3223bae157afc4edf45e1d7cab1a6e05b5172f999f2f30d90"
+    },
+    "transport-check": {
+      "argv": [
+        "sudo",
+        "-n",
+        "python3",
+        "out/nano-usb-observer-20261104/transport_check.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20098633493762463,
+      "log_sha256": "f4c715444c1cad2cc6c67b9db864ed5b36e31438eb5ea5351e3d7c322fe1d86f"
+    },
+    "observer-streaming": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "test_nano_usb_trace",
+        "test_nano_native_trace",
+        "test_nano_hps_io",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.802396271028556,
+      "log_sha256": "b979a29e54f5714a2b589001efa2f98ed4f590ce743749ad4cf99fd3ee53d23d"
+    },
+    "affected": {
+      "argv": [
+        "make",
+        "test-changed",
+        "TEST_CHANGED_ARGS=--base=HEAD"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 263.5930234430125,
+      "log_sha256": "72d097fcb1975559098f71a4b7d57f5cf77b9f32bdd6401941be8069b3bb545b"
+    },
+    "candidate-check": {
+      "argv": [
+        "python3",
+        "out/nano-usb-observer-20261104/candidate_check.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.4014081570785493,
+      "log_sha256": "0599f771417ddf8d8e0c6e0e3aa3bc708f4b764eddd0a8dc02ebddb39b766dfc"
+    }
+  },
+  "transport": {
+    "status": "passed",
+    "observed_utc": "2026-11-04T18:00:53.816102+00:00",
+    "serial": "TRWU8CBL",
+    "usb_path": "3-11.1",
+    "usb_node": "/dev/bus/usb/003/116",
+    "uart": "/dev/serial/by-id/usb-TERASIC_DE25-Nano_TRWU8CBL-if02-port0",
+    "claim_owned": true,
+    "UART_free": true,
+    "processes_inventoried": 483,
+    "device_opened": false,
+    "hardware_programming": false,
+    "SD_writes": false
+  },
+  "files": {
+    "platform/embedded/nano/usb_trace.py": "577c2a681b07a986accfa11694167aaacc53236c146b29b45d6cdeb94f2e25de",
+    "platform/embedded/nano/native_trace.py": "904f03db9585df2af1903553a4e3d1dc5743d10899ec48581ce68820e64c8b83",
+    "tests/test_nano_usb_trace.py": "971298df827fda5ee7b13371bdb1887113af9c91d279f36116ee802bbcea1053"
+  },
+  "affected_scope": "started before final bare-prompt/capture-format repair; final focused 70 tests cover final observer bytes",
+  "candidate": {
+    "status": "passed",
+    "runtime_source": "aaa45acfc708ed8fa5b177d6daac1ebcaf88adaf",
+    "selected_native_inputs_unchanged": true,
+    "chain_sha256": "49679d09a2475e6bbeaa7c5f3e9b4778496017c08e9db0a7fc692486a99d8005",
+    "native_candidate_rebuilt": false,
+    "hardware_execution": false
+  }
+}

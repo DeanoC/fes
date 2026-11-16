@@ -1,0 +1,10 @@
+{
+  "pid": 1106081,
+  "process_start_ticks": "177032396",
+  "cap_seconds": 4000,
+  "start_monotonic": 1770323.965154104,
+  "argv": [
+    "python3",
+    "out/publication/run-preparation-publication-matched.py"
+  ]
+}

@@ -1,0 +1,110 @@
+{
+  "status": "failed",
+  "head": "c272cb2b320740220fc2b7bb1c8dfd92a0ffe6f6",
+  "base": "6bb565fddd75848524fa6ba52bdfdf078d7ce55b",
+  "plan_sha256": "6fce0567993353323cae759c9d95cedf16d88266cbe25aa27e67b6b4e8c83323",
+  "results": [
+    {
+      "index": 0,
+      "label": "test_affected.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "log": "software-0.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.6008382049622014,
+      "log_sha256": "dbee3acbb55c26eef239b1da32bf3916cc7a1d01a1f59110c2bba669a4aa8ea0",
+      "child_receipt_sha256": "71a1778e2d1ab24a9831710ce2c7659119e2a2c678db21ec21ff0279e340214b"
+    },
+    {
+      "index": 1,
+      "label": "test_test_changed.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "log": "software-1.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.6013741450151429,
+      "log_sha256": "ed8eb29ddddedba8dc93fb2a240bd774a6e59ec8eb72ff28f88fabc89040a258",
+      "child_receipt_sha256": "059cedae0ef082ca73bec477aa755b9e03051cf4a68fd3eeab91e2af57a6a899"
+    },
+    {
+      "index": 2,
+      "label": "committed whitespace",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "6bb565fddd75848524fa6ba52bdfdf078d7ce55b",
+        "--head",
+        "c272cb2b320740220fc2b7bb1c8dfd92a0ffe6f6"
+      ],
+      "log": "software-2.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20052313699852675,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "e18722a99f42fa7f78ad938f02f9efdc1a078c176de93a56faa89e9a523d497e"
+    },
+    {
+      "index": 3,
+      "label": "working whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "log": "software-3.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2009167930809781,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "5e850f7199f5c904cba939bf3ac8679d764f075a968f82804ee4fd8219fb7996"
+    },
+    {
+      "index": 4,
+      "label": "parent Python regressions",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-activity-20261102/parent_partitions.py"
+      ],
+      "log": "software-4.log",
+      "planned_argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/nano/README.md\", \"platform/embedded/nano/hps_context.py\", \"platform/embedded/nano/native_trace.py\", \"platform/embedded/tamago/cmd/fpgaload/main.go\", \"platform/embedded/tamago/computer/README.md\", \"platform/embedded/tamago/computer/activity_test.go\", \"platform/embedded/tamago/computer/computer.go\", \"platform/embedded/tamago/computer/generated/fes_de25_computer.go\", \"platform/embedded/tamago/computer/rtl_test.go\", \"platform/embedded/tamago/nativefabric/README.md\", \"platform/embedded/tamago/nativefabric/computer.go\", \"platform/embedded/tamago/nativefabric/computer_test.go\", \"scripts/consistency.py\", \"sources/mister-packages/docs/de25-computer.md\", \"sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml\", \"sources/mister-packages/testdata/oracles/fes-de25-computer.json\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/prototypes/de25_board_control/README.md\", \"sources/misteross/prototypes/de25_board_control/build.py\", \"sources/misteross/prototypes/de25_board_control/fes_de25_computer.v\", \"sources/misteross/prototypes/de25_board_control/generated/fes_de25_computer.hpp\", \"sources/misteross/prototypes/de25_board_control/generated/fes_de25_computer.vh\", \"sources/misteross/prototypes/de25_board_control/verify.py\", \"tests/test_nano_native_trace.py\"]"
+      ],
+      "verification_mode": "same-selected-suite-partitioned-by-module",
+      "returncode": 1,
+      "timed_out": false,
+      "elapsed": 126.41258479503449,
+      "log_sha256": "fd18c94b6aac0c41ea0a7bf7f2fb58fc2782852acd317b57114da0e5e0202815",
+      "child_receipt_sha256": "182314fe3b8cd2d38974b9915bf39d9fbacc4833071e793fdd5bff6e3d3a022e"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/publication/retain-four-second-recovery-stop.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 1.0010884928051382,
+  "log_sha256": "61c390dad48fe48f4a67c420e54e06f11dbfe5a25cb19d91b85ed7f40c8733f3"
+}

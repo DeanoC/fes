@@ -1,0 +1,146 @@
+{
+  "verification_status": "passed",
+  "source_commit": "b790cdd1300b441d0f8717e7c64ddf8d5588e0e6",
+  "native_build_source_commit": "b6249ef3daa89f6ab2fa6e6b8b9be9074ac7bc8a",
+  "hardware_result": "native-el1-mapping-and-two-fixed-core-load-returns-passed",
+  "experiment_passed": true,
+  "native_boot_id": "c7a3bbb653ce9461",
+  "raw_console_sha256": "90f45a9b2b9227b7480cf3605fa9245c5632c3a483cc83a3978a2b5d38a41ad7",
+  "raw_bytes": 16539,
+  "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+  "fpga_build_id": "dda236646bb868e63c72bd0e777f3dd6",
+  "cpu_mapping": {
+    "el": 1,
+    "sctlr": 818944005,
+    "tcr": 8589948185,
+    "root": 2214608896,
+    "mair": 4521728,
+    "mmfr0": 1052962,
+    "mpidr": 2164260864,
+    "ram_base": 2214592512,
+    "ram_bytes": 268435456,
+    "control_base": 536937472,
+    "control_bytes": 256,
+    "dma_base": 2491416576,
+    "dma_bytes": 8388608,
+    "reader_base": 2499805184,
+    "reader_bytes": 2097152,
+    "reads": 3604,
+    "translations": 5176,
+    "bytes": 278921472,
+    "descriptor_sha256": "4faac8b8a182ca69ab49a346821d5c6a14cea3a39ec9069fc32cf607fecc97df",
+    "owner": 4222070408886857401,
+    "generation": 4,
+    "scope": "EL1-identity-mapping-only",
+    "runtime_admission": false
+  },
+  "configuration_intervals_seconds": [
+    13.335055335,
+    13.335402125
+  ],
+  "storage_seconds": 58.856826572911814,
+  "source_mapping_sha256": "d4fe0201d08baf6902d7f786b21592f151a07c6f689e808f8067c09452b69c37",
+  "saved_capture_rejections": [
+    {
+      "case": "missing-cpu",
+      "accepted": false
+    },
+    {
+      "case": "duplicate-cpu",
+      "accepted": false
+    },
+    {
+      "case": "late-panic",
+      "accepted": false
+    },
+    {
+      "case": "cpu-el",
+      "accepted": false
+    },
+    {
+      "case": "cpu-root",
+      "accepted": false
+    },
+    {
+      "case": "cpu-mair",
+      "accepted": false
+    },
+    {
+      "case": "cpu-mpidr",
+      "accepted": false
+    },
+    {
+      "case": "cpu-reads",
+      "accepted": false
+    },
+    {
+      "case": "cpu-translations",
+      "accepted": false
+    },
+    {
+      "case": "cpu-ram_base",
+      "accepted": false
+    },
+    {
+      "case": "cpu-dma_bytes",
+      "accepted": false
+    },
+    {
+      "case": "cpu-descriptor_sha256",
+      "accepted": false
+    },
+    {
+      "case": "cpu-owner",
+      "accepted": false
+    },
+    {
+      "case": "cpu-generation",
+      "accepted": false
+    },
+    {
+      "case": "cpu-data_held",
+      "accepted": false
+    },
+    {
+      "case": "cpu-runtime_admission",
+      "accepted": false
+    },
+    {
+      "case": "109-activation-complete",
+      "accepted": false
+    },
+    {
+      "case": "109-activation-data_held",
+      "accepted": false
+    },
+    {
+      "case": "151-activation-complete",
+      "accepted": false
+    },
+    {
+      "case": "151-activation-data_held",
+      "accepted": false
+    }
+  ],
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "private_server_stopped": true,
+  "uart_free": true,
+  "claim_retained": true,
+  "spare_retained": true,
+  "factory_restored": false,
+  "full_ram_clock_qualification": false,
+  "trusted_boot_handoff": false,
+  "runtime_admission": false,
+  "core_load_acceptance": false,
+  "input_sha256": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cpu-map-20261102/trial/native-console.log": "90f45a9b2b9227b7480cf3605fa9245c5632c3a483cc83a3978a2b5d38a41ad7",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cpu-map-20261102/trial/native-result.json": "17c5a32462e927ac64500d40ab6024e61ca73215498e855b4fc591b99c480cc4",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cpu-map-20261102/trial/experiment-result.json": "2d205c1d2542106782d73de6ae49a861f98af04df873f23f9c5fbf0c6e5927d0",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cpu-map-20261102/trial/preflight.json": "df7b73357c17abfb7ddad7de048cee6fb039b438138f5bdc8ee630e1a1705d95",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cpu-map-20261102/trial/transport.json": "f49e756b76654eccb4ffe003579c0856b543d0ca2d923690b0b570f71ab95cff",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cpu-map-20261102/hardware-result.json": "1a3e7a7dacdc2a6bc540f0420f8fbc655c1d601d1e380801c0c0a81f377c0e01",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cpu-map-20261102/native-uboot/result.json": "358845cff73d8f175a0e726dfc5d9d2a0204f2ff684a7e41e83ad7cac332a4ef",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cpu-map-20261102/native-composition/result.json": "1694853a0e266806ed6d7a43a87fedeb92eeb2376bdd3c1b648b86295118747f"
+  }
+}

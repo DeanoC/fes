@@ -1,0 +1,60 @@
+{
+  "status": "passed-offboard-retirement-store-timeout-reproduction",
+  "source_head": "5764c9495b6597da306546879194100021986a37",
+  "matching_stage_cases": [
+    224,
+    256,
+    288
+  ],
+  "zero_cost_retired": true,
+  "actual_hardware_read_latency_not_established": true,
+  "costs_injected_not_measured": true,
+  "fix_implemented": false,
+  "hardware_actions": false,
+  "cases": [
+    {
+      "injected_read_cost_us": 0,
+      "retired": 1,
+      "phase": 6,
+      "first_error": 0,
+      "writes": 5,
+      "publish_attempted": 1,
+      "queue_stage": 10,
+      "queue_slots": 6,
+      "queue_elapsed_us": 146
+    },
+    {
+      "injected_read_cost_us": 224,
+      "retired": 0,
+      "phase": 4,
+      "first_error": -3,
+      "writes": 3,
+      "publish_attempted": 0,
+      "queue_stage": 3,
+      "queue_slots": 1,
+      "queue_elapsed_us": 108888
+    },
+    {
+      "injected_read_cost_us": 256,
+      "retired": 0,
+      "phase": 4,
+      "first_error": -3,
+      "writes": 3,
+      "publish_attempted": 0,
+      "queue_stage": 3,
+      "queue_slots": 1,
+      "queue_elapsed_us": 110101
+    },
+    {
+      "injected_read_cost_us": 288,
+      "retired": 0,
+      "phase": 4,
+      "first_error": -3,
+      "writes": 3,
+      "publish_attempted": 0,
+      "queue_stage": 3,
+      "queue_slots": 1,
+      "queue_elapsed_us": 123861
+    }
+  ]
+}

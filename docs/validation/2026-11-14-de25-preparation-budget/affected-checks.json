@@ -1,0 +1,114 @@
+{
+  "status": "passed-affected-budget-campaign-and-clock-source-identity",
+  "implementation_commit": "96063aba1753450e9ab0762ee8cc6b887697a19c",
+  "base": "65c97bf1ad7b4f2c0d6a8e8a4c431f0586d76c4c",
+  "current_comment_successor": "5c5a9a5b48470c45dc450fb1834540209c333891",
+  "affected_wrapper": {
+    "argv": [
+      "make",
+      "test-changed",
+      "TEST_CHANGED_ARGS=--base 65c97bf1ad7b4f2c0d6a8e8a4c431f0586d76c4c"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-setup-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 1669.7751479730941,
+    "log_sha256": "3a296d9fbc0d37dddaf64d796a0653ca297e8e82809600f7b73240e03d7918d5"
+  },
+  "affected_results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "Go command inventory",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "native runtime firmware and FPGA launch integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded producer identity and native control integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded firmware and identity/drain RTL integration",
+      "lane": "fpga",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ],
+  "affected_phase_count": 11,
+  "test_summaries": [
+    "Ran 48 tests in 0.141s",
+    "OK",
+    "Ran 43 tests in 1.037s",
+    "OK",
+    "Ran 1 test in 0.000s",
+    "OK",
+    "Ran 1 test in 0.000s",
+    "OK",
+    "Ran 2746 tests in 578.760s",
+    "OK (skipped=15)",
+    "Ran 2181 tests in 786.534s",
+    "OK (skipped=88)"
+  ],
+  "clock_identity": {
+    "status": "passed-clock-description-only-source-successor",
+    "from_commit": "96063aba1753450e9ab0762ee8cc6b887697a19c",
+    "to_commit": "5c5a9a5b48470c45dc450fb1834540209c333891",
+    "production_header_preprocessed_sha256": "7f57f87187988400fca830a6f991a4c848fdaccdd1c076759d2e85dd6fbf44c9",
+    "production_header_preprocessed_identical": true,
+    "fixture_executable_tokens_identical": true,
+    "python_assertions_identical_except_test_method_name": true,
+    "fresh_matched_image_still_required": true,
+    "hardware_actions": false
+  },
+  "archive": "/home/deano/fes-retained/de25-preparation-budget-affected-20261114-r1/affected-checks.tar.gz",
+  "archive_sha256": "1ebd87749c741f6448fd675b86754e6ff3899a198bd11bd23e0a0036dfde27e5",
+  "archive_bytes": 226051,
+  "files": 16,
+  "hardware_actions": false,
+  "hardware_accepted": false,
+  "campaign_checkout_transition": {
+    "selection_head": "96063aba1753450e9ab0762ee8cc6b887697a19c",
+    "comment_successor": "5c5a9a5b48470c45dc450fb1834540209c333891",
+    "successor_committed_while_campaign_running": true,
+    "whole_campaign_frozen_final_head": false
+  },
+  "scope": "all selected affected phases pass; production header preprocessing and fixture assertion equivalence verify the comment-only source transition, with direct final clock models and consistency separately checked"
+}

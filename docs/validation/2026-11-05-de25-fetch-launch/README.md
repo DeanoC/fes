@@ -1,0 +1,15 @@
+# Instruction-fetch observation before native launch success
+
+Compiled source `22f909e9c0de932e83ccdc5aa346c50d7de1ed18`, base `cc0592060`.
+
+The preceding image passed three selected diagnostic launch/return cycles with shared USB, but only GP command acceptance was observed for emulated execution. Launch now sends Hold, requires two identical fetch-count/address observations, sends Run once and requires a forward counter delta. The entire sequence uses the existing computer timeout/poll bound inside the existing five-second control context. Counter reset/backwards movement, Hold drift, no progress, bus/address errors, cancellation, clock loss or changed ownership retire the service and attempt closure once. Resources stay retained and SD is not resumed on uncertainty. A modulo wrap with a positive delta below half the counter range is accepted.
+
+Running and its saved observation publish atomically. The read-only getter returns value copies only for the matching running package/build and owner/generation; it grants no hardware permission. The serial adapter emits one FES_NATIVE_CORE_FETCH record per generation before its state. The decoder requires one bound record after FPGA configuration and before Running, verifies samples/delta/limits and rejects missing, duplicated, stale, early or unsolicited evidence. Physical input/video and retired instructions remain distinct from fetch-bus activity.
+
+Tests cover three generations, copied-evidence isolation, forward wrap, delayed progress, no progress, held drift, counter reset, invalid address, bus/ownership failure, cancellation and late/backwards clocks. They verify at most one Run/close and no replay or SD resumption after failure. The full Tenfoot App serial test checks the emitted observations. All seven selected software checks passed, including parent/generated checks and isolated native firmware/FPGA integration. Focused runtime and strict trace tests passed.
+
+The native application, entry, firmware and U-Boot were rebuilt together. The actual sealed two-package catalog and compiled native call paths are checked, including startExecution and FetchObservation. Bounded operator fixtures now require the fetch evidence at the receipt boundary as well as in the raw decoder. The image has not yet run on hardware. The FPGA payload and firmware code are unchanged; prior supplier-count evidence is reused only after checking all measured firmware sources byte-identical.
+
+The one-attempt TRWU8CBL procedure remains seven checked Ethernet uploads/readbacks and ZX81/ZX80/ZX81 launch/return/Quit with shared USB. It stops on the first failure without retry, preserves the factory card and retains the claim/spare. The dependency remains `/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/matched-candidate.tar.gz`, SHA256 `1479d5fa439c77457a3c19959a97b810b8ce5a6aa0672bb4567519f2d7229d17`.
+
+Normal admission still rejects linked ROMs because this diagnostic profile has no qualified ROM delivery path. Connecting normal packages requires that path, not removal of the rejection. Physical controls, video, native Ethernet and complete DE10-equivalent readiness remain open.

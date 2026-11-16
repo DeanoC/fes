@@ -1,0 +1,15 @@
+{
+  "validation_commit": "9743c0819eb34e3ebcce81f286eb2210a37be22b",
+  "tree": "efd56affec12b9cba8a2cd18460cf776b78c2f5a",
+  "bundle_sha256": "ca3309742c02aa6dcc73966b98bcb97b23f0804ca22935eef255cd9e58b2e196",
+  "native_build_commit": "6e8102da071676abe56a38e7deca39b673a8d394",
+  "native_bundle_sha256": "b8300ac2e4010c6e41324c2e164f5aa19771a33ce6d02cd9069257b76b63b9ab",
+  "required_base": "cc47b121103f35524ad78a75de795b931b2f081d",
+  "prerequisite_archive": "/home/deano/fes-retained/de25-native-hps-pair-20261101",
+  "native_artifact_archive": "/home/deano/fes-retained/de25-hps-context-20261101/builds.tar.gz",
+  "all_reachable_objects_available": true,
+  "shallow": [
+    "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+    "f1090a027efdcdbc7f8dbe5cda2bc28b5e32da2e"
+  ]
+}

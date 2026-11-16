@@ -1,0 +1,20 @@
+{
+  "classification": "inspection of actual generated HDL; no physical reset/clock observation",
+  "files": {
+    "golden_top.v": "b6f5ac7a9dea7442468d2c3ad6b81354f5e79ab94605e5126d317c168c80af27",
+    "qsys_top/synth/qsys_top.v": "70224d9e47011c58670b16a4cdd3a1f38c001bef4a910b1efbdb8bffbdce1fdb",
+    "peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v": "766d2e1df196dd16cae6683f84810de856902a8f798ebd547e11ad805a7732f6",
+    "hps_subsys/hps_subsys/synth/hps_subsys.v": "5455b7961cc53405b8b5aafc44a8454a7c8df97cd4a5a1a2f23fa05c6e8d5ec6",
+    "hps_subsys/ip/hps_subsys/agilex_hps/synth/agilex_hps.v": "3f0467a1b8cb8d483b1b66242244a81e6be2d26f04fed242353804de6b72b71d",
+    "fes_mailbox/fes_de25_top_reset.v": "02b156aa9c08bbe5e1e4244f6c068fcfba84ea96f4132624d14de4034e79ce8a"
+  },
+  "top_reset_sources": [
+    "ninit_done",
+    "pll_locked"
+  ],
+  "peripheral_clock": "system_clk_100_internal",
+  "lw_reset_expression": "~rst_in_out_reset_reset",
+  "lw_ip_reset_polarity": "active-high",
+  "data_bridge_reset_register_not_in_control_reset_expression": true,
+  "physical_control_clock_reset_and_identity_qualified": false
+}

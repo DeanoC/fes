@@ -1,0 +1,19 @@
+{
+  "source_commit": "283d91acfd62f29643107064d1044624ab6b3385",
+  "pass": false,
+  "deadline_seconds": 20,
+  "panic": "late FPGA firmware return",
+  "native_error": "native handoff/probe trace rejected: ['failure marker at line 125']",
+  "trace_sha256": "d1dac810685bee771c86e21d8fcb26fe20f42361d423fbed88aecb2730c6893a",
+  "confirmed_completed_bytes": 786432,
+  "last_observed_pending_bytes": 65536,
+  "total_core_bytes": 2027520,
+  "all_transfer_observations_generation": 1,
+  "identity_requested": false,
+  "bridge_open_observed": false,
+  "data_release_requested": false,
+  "transfer_complete": false,
+  "pending_completion_after_last_marker": "unknown; storage stays retained until reboot",
+  "retry_performed": false,
+  "timing_cause": "not determined; existing records have no per-call clock/digest timings"
+}

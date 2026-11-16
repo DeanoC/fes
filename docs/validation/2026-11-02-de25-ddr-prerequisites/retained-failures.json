@@ -1,0 +1,43 @@
+{
+  "fpga_build_failures": [
+    {
+      "status": "retained-failure",
+      "source_commit": "f7d6aa434a734494cf63c709b207e980bb2f2cc7",
+      "sha256": "00d557e5d80569c5698147f68219aa11402f54f688854040dc299b8dfb8bdb96",
+      "bytes": 236973230,
+      "files": 1302,
+      "archive": "failure.tar.gz",
+      "reason": "enabled unused coherent F2H hard interface pruned illegally at synthesis"
+    },
+    {
+      "status": "retained-failure",
+      "source_commit": "06b9ba370a1fcc2cbcfe768b2b304f918a732d91",
+      "sha256": "0d251ea29a3996a97eacbcf78b9f230165e9c0c997f68ebe068bead1885e2d1c",
+      "bytes": 180328959,
+      "files": 219,
+      "archive": "failure-v2.tar.gz",
+      "reason": "generic HPS wrapper does not expose child-IP parameters"
+    },
+    {
+      "status": "retained-failure",
+      "source_commit": "2aa4e3d2b571ec71e3ab3009d0ebec056c4b1203",
+      "sha256": "21002d532b09e72a97352c404374fbad027ec7f25b259c9fe77f0cb74e714154",
+      "bytes": 184522228,
+      "files": 1022,
+      "archive": "failure-v3.tar.gz",
+      "reason": "frozen board rejected the deliberate coherent-port parameter change"
+    },
+    {
+      "status": "retained-failure",
+      "source_commit": "e37ef8e2b5af98765bf03d2a567d62dcea9f221b",
+      "sha256": "f05d899dedc2d5694501e5beb657971e82fc1ea5b79571a268f542f9e2e122a1",
+      "bytes": 184526146,
+      "files": 1023,
+      "archive": "failure-v4.tar.gz",
+      "reason": "interface verifier required the deliberately removed port to exist"
+    }
+  ],
+  "software_run_e37": "cancelled after the real generated-interface failure; no complete pass claimed",
+  "original_native_trial": "both uploads verified; helper NameError before native device access; original files retained",
+  "native_continuation": "one corrected native-only run; exact verified uploads reused, no further SD writes"
+}

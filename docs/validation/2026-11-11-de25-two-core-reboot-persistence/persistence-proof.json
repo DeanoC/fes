@@ -1,0 +1,69 @@
+{
+  "status": "passed-bounded-two-core-install-and-independent-reboot-persistence",
+  "scope": "same matched native image; cold reinitialization with powered SD; two pinned installed targets and original title",
+  "native_boot_id": "6f54fe7c04d34128",
+  "prior_install_sha256": "ade0a7ad47c0cc5430ca0a2284943fdbee70e4134a0b5ad6edec50a1461f461f",
+  "startup_titles": [
+    "ZX81 trial",
+    "ZX81",
+    "ZX80 trial"
+  ],
+  "installed_records_verified": 3,
+  "staged_files_verified_without_writes": 14,
+  "launch_identities": [
+    {
+      "PackageID": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+      "CoreID": "fes.zx81",
+      "ABI": "fes.computer",
+      "BuildID": "0792e51a2e51512bfb8fe44e93a69ddd",
+      "Platform": "de25_nano",
+      "Device": "A5EB013BB23BE4SCS",
+      "ProgrammingProfile": "de25-native-computer-v1",
+      "ActivationReceiptSHA256": "5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c",
+      "ProgrammedSHA256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949",
+      "Major": 1,
+      "Minor": 0
+    },
+    {
+      "PackageID": "b32ce70af93f2ae4ff665490246e5c52fbb4d76eadb5445949e5c2b4434fba86",
+      "CoreID": "fes.zx80",
+      "ABI": "fes.computer",
+      "BuildID": "ea02ee8a9026deb05317a3e7d024adde",
+      "Platform": "de25_nano",
+      "Device": "A5EB013BB23BE4SCS",
+      "ProgrammingProfile": "de25-native-computer-v1",
+      "ActivationReceiptSHA256": "ac0cfb45e61b3ee1b6dd65868943539845b7ea8a142191dedb38888e1373bb30",
+      "ProgrammedSHA256": "826aaac1cd524136079e0b10d20a34ad75af631e5fef04f4b153849cde092e1a",
+      "Major": 1,
+      "Minor": 0
+    }
+  ],
+  "install_actions_during_discovery": 0,
+  "independent_transport_lifetimes_verified": true,
+  "chronological_runs_verified": true,
+  "saved_wire_replay_verified": true,
+  "final_logical_generation": 5,
+  "final_firmware_generation": 29,
+  "final_reset_mask": 15,
+  "normal_final_park_verified": true,
+  "independent_cleanup_verified": true,
+  "persistence_verified": true,
+  "power_cycle_or_power_loss_verified": false,
+  "standalone_SD_autoboot_qualified": false,
+  "physical_display_verified": false,
+  "physical_keyboard_actions_verified": false,
+  "native_ethernet_qualified": false,
+  "ordinary_core_load_acceptance": false,
+  "evidence_sha256": {
+    "docs/validation/2026-11-11-de25-two-core-install-trial/hardware-result.json": "ade0a7ad47c0cc5430ca0a2284943fdbee70e4134a0b5ad6edec50a1461f461f",
+    "out/nano-two-core-discovery-20261111/trial/native-result.json": "7c994e72a09f16eb447dfed80a81522c91a9eb4e184899c3f9025d7ddabd3826",
+    "out/nano-two-core-discovery-20261111/trial/native-console.log": "cef265ded4d253412f10bc663199379057a6b2215d081c3c1c5a3e3805a7d794",
+    "out/nano-two-core-discovery-20261111/trial/experiment-result.json": "4614035b47542bdf7c5f5df2c2070545bc6ce9544146a664360c1ce870a10142",
+    "out/nano-two-core-discovery-20261111/trial/source-reads-result.json": "d82af87d62dafce4bc1e016d9151c545dd7b66c41a10ce5a0787c7ea8312ec3d",
+    "out/nano-two-core-discovery-20261111/trial/recovery-boot-result.json": "e4a66ef869a6a74291a045e5deab3649bb582a2ba6e83651eb02e7ae818ccb3d",
+    "out/nano-two-core-discovery-20261111/trial/preflight.json": "0b7ab6e841e7c8bcae401eb9207c4075dbf0e0ecef6437147d47ed6f2aad4f13",
+    "out/nano-two-core-discovery-20261111/cleanup-evidence.json": "1be8887de4d6562476e7611a31a2798acbebe103f94e2ca51f278818a3457cd9",
+    "out/nano-two-core-discovery-20261111/hardware-trial-result.json": "4fdc0f6336b44a96e40ef3e15890fcba41addaf2b9a36dfc31dd30b2ed67f4f9"
+  },
+  "hardware_actions": false
+}

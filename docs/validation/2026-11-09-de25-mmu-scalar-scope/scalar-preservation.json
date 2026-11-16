@@ -1,0 +1,29 @@
+{
+  "status": "passed",
+  "actual_elf_sha256": "3d0f336800a3492bb69079753631c037c21df0d7ff6c8991def4a4bb194230dc",
+  "boot_chain_sha256": "1af4129c3b16373ba5b1477b1650077389fdeb63c99dc6ebb04c0c1070c2d4ba",
+  "changed_producer_sources": [
+    "platform/embedded/firmware/nano_mmu.c",
+    "platform/embedded/firmware/nano_mmu.h",
+    "platform/embedded/firmware/nano_mmu_platform.c"
+  ],
+  "cold_enable_and_other_engine_code_exactly_unchanged": true,
+  "scope_guards_exact_after_parameter_substitution": true,
+  "platform_changes_only_scalar_arguments": true,
+  "actual_scope_wrapper_instructions": 8,
+  "actual_scope_wrapper_bytes": 32,
+  "wrapper_stack_bytes": 0,
+  "wrapper_callback_table_copies": 0,
+  "wrapper_disassembly_sha256": "2ae7edf40640f3562a0180a776a2acb7b692c485bc43131df702ea75eb5b018f",
+  "all_six_production_tables_and_layout_identical": true,
+  "mutable_mmu_state": {
+    "address": 378752,
+    "bytes": 120,
+    "descriptor": 18014398509860427,
+    "storage": "original secure NC OCRAM"
+  },
+  "original_tape_deadline_seconds": 1,
+  "other_guard_retry_reset_timeout_inputs_unchanged": true,
+  "hardware_actions": false,
+  "new_hardware_acceptance": false
+}

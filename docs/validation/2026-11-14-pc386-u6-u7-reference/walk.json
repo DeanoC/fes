@@ -1,0 +1,199 @@
+{
+ "reference_286_12_5MHz": {
+  "walk": [
+   {
+    "capture": "t1",
+    "steps": 116,
+    "span_s": 43.2,
+    "median_gap_frames": 10,
+    "keys_per_s_nominal": 10,
+    "rate_from_median_gap": 3.0,
+    "rate_over_span": 2.66
+   },
+   {
+    "capture": "t2",
+    "steps": 82,
+    "span_s": 41.3,
+    "median_gap_frames": 10,
+    "keys_per_s_nominal": 10,
+    "rate_from_median_gap": 3.0,
+    "rate_over_span": 1.961
+   },
+   {
+    "capture": "t3",
+    "steps": 83,
+    "span_s": 43.4,
+    "median_gap_frames": 13.0,
+    "keys_per_s_nominal": 10,
+    "rate_from_median_gap": 2.308,
+    "rate_over_span": 1.889
+   }
+  ],
+  "pass": [
+   {
+    "capture": "p1",
+    "turns": 70,
+    "span_s": 44.4,
+    "median_gap_frames": 18,
+    "keys_per_s_nominal": 17,
+    "rate_from_median_gap": 1.667,
+    "rate_over_span": 1.553
+   },
+   {
+    "capture": "p2",
+    "turns": 51,
+    "span_s": 43.7,
+    "median_gap_frames": 27.0,
+    "keys_per_s_nominal": 10,
+    "rate_from_median_gap": 1.111,
+    "rate_over_span": 1.143
+   },
+   {
+    "capture": "p3",
+    "turns": 48,
+    "span_s": 42.6,
+    "median_gap_frames": 29,
+    "keys_per_s_nominal": 10,
+    "rate_from_median_gap": 1.034,
+    "rate_over_span": 1.104
+   }
+  ],
+  "walk_range_from_median_gap": [
+   2.308,
+   3.0
+  ],
+  "pass_range_from_median_gap": [
+   1.034,
+   1.667
+  ]
+ },
+ "note": "Every capture is 45 s of the reference window at 30 fps. rate_from_median_gap is the figure method.md fixed - steps or turns a second from the median gap between them - and rate_over_span is (count-1)/span for comparison. keys_per_s_nominal is how fast the driving loop sent keys: the three walk windows all used the same loop at a nominal ten a second; the pass windows differ, p1 at about seventeen against ten for p2 and p3.",
+ "keypace_reference": {
+  "run": "kp4 and kp3, 14 November 2026",
+  "program": "keypace.asm, built with the repo-pinned NASM 2.16.03",
+  "note": "Keys the guest received through INT 16h, with the BIOS tick at each. The rig can saturate Ultima VI; a held key reaches 86Box as one keystroke.",
+  "cases": [
+   {
+    "sent": "hold one key for 10 s",
+    "received": 1,
+    "run": "kp3"
+   },
+   {
+    "sent": "40 taps, 0.25 s apart",
+    "received": 40,
+    "rate_per_s": 2.3,
+    "run": "kp3"
+   },
+   {
+    "sent": "burst of 60, 80 ms apart",
+    "received": 60,
+    "rate_per_s": 12.3,
+    "run": "kp4"
+   },
+   {
+    "sent": "burst of 60, 40 ms apart",
+    "received": 60,
+    "rate_per_s": 25.0,
+    "run": "kp4"
+   },
+   {
+    "sent": "burst of 60, 20 ms apart",
+    "received": 60,
+    "rate_per_s": 48.8,
+    "run": "kp4"
+   }
+  ],
+  "rate_formula": "(n-1)/(last-first) over the tick list the program prints; SPAN includes the priming tap that starts the timing and must not be used as the denominator."
+ },
+ "burst_walk_bw3": {
+  "verdict": "void: the route ran out of floor",
+  "why": "Each leg walked one direction for several seconds. A saturated walk crosses a room in seconds: w4 took the Avatar out of the throne room into the next room, w6 found a wall at once and gave no steps. An earlier reading blamed the step counter for merging fast steps; the counts do not support it (8 events against walk_rate.py's 6 on w4).",
+  "what_is_needed": "the one-tile square route the earlier windows used, which never leaves a tile",
+  "speed_gate": "the four windows keyed at 25/s held 100% for all 240 frames; the four at 48.8/s ran at 71-101% under other work on the shared host and would have failed it",
+  "steps_counted_per_window": {
+   "w4-down-25/s": 6,
+   "w5-right-25/s": 2,
+   "w6-up-25/s": 0,
+   "w7-left-25/s": 6,
+   "w0-down-48.8/s": 2,
+   "w1-right-48.8/s": 4,
+   "w2-up-48.8/s": 0,
+   "w3-left-48.8/s": 2
+  }
+ },
+ "saturated_square_walk_reference": {
+  "run": "sq1",
+  "side": "reference",
+  "machine": "86Box award286 at 12.5 MHz, one wait state",
+  "window": "10 s of keys inside a 14 s capture at 30 fps; the Avatar walked round a one-tile square (down, right, up, left) so the route never runs out of floor",
+  "analyser": "scroll_events.py, threshold 2.0 mean absolute levels",
+  "gates": {
+   "out_of_combat": "w-fightcheck grab: no hostile in the map view, no wound message",
+   "emulation_speed": "100% for every frame of all six windows (speed_check.py: one distinct crop, 419-420 frames each)"
+  },
+  "windows": {
+   "25 keys/s": {
+    "rate_from_median_gap": [
+     2.143,
+     2.308,
+     1.765
+    ],
+    "rate_over_span": [
+     1.961,
+     2.366,
+     1.935
+    ]
+   },
+   "12.3 keys/s": {
+    "rate_from_median_gap": [
+     1.818,
+     2.143,
+     2.222
+    ],
+    "rate_over_span": [
+     1.759,
+     2.215,
+     2.323
+    ]
+   }
+  },
+  "mean_steps_per_s": 2.067,
+  "sd": 0.222,
+  "sem_pct": 4.4,
+  "saturation": {
+   "mean_at_25": 2.072,
+   "mean_at_12_3": 2.061,
+   "mean_at_10_earlier_windows": 2.944,
+   "reading": "Not usable. The over-keyed figure is steady (12.3 and 25 a second agree to 0.53%) but it sits below what the same machine on the same route gave at 10 a second, so excess queued keys suppress steps and the steady figure is a rate the game can be held down to, not one it can reach. This does not show that no usable plateau exists: the peak lies somewhere below 12.3 keys a second, and neither the range under 10 nor the gap between 10 and 12.3 was sampled."
+  },
+  "verdict": "the over-keyed rate is suppressed, so it is not walking speed; not measured",
+  "standard_errors": {
+   "at_25_pct": 7.8,
+   "at_12_3_pct": 6.0,
+   "comparison_of_two_means_pct": 9.8,
+   "note": "two independent three-window means combine in quadrature, which is level with the plus/minus 10% band on its own"
+  }
+ },
+ "saturated_square_walk_kit": {
+  "run": "g4, Kit B, 14 November",
+  "verdict": "void: the game never started",
+  "why": "The command file inserted KEYPACE.COM before the game, but the kit image boots to a menu, not a DOS prompt, so the typing went into the menu and everything after it desynchronised: the grabs show COMMAND.COM answering \"Bad command or filename\" to the mangled lines, including \"ultima6\\\". All six windows are a static DOS prompt (no frame-to-frame change at all).",
+  "consequence": "The run also left Kit B with its lease blocked and the core loaded: the command file was missing its final quit, so the runner sat in its idle wait, and the run's post-run tail was then run by hand too early. The agent's cleanup then failed with HTTP 500, most likely because of that early removal, though that is not shown. A warm reboot cleared it, at Deano's word: the lease status is in-memory only, so any restart of the agent clears a blocked lease, while a maintenance-reservation block would persist. A takeover is refused HTTP 409 on a blocked lease, so no stop could be sent. The kit was restored, verified against the baseline and released; no reimage, boot-config change, I2C or power cycle."
+ },
+ "slow_windows_both_counters": {
+  "note": "method.md's correction to the seventh amendment: the two counters agree, which is what rules out saturation",
+  "t1": {
+   "walk_rate": 3.0,
+   "scroll_events": 3.333
+  },
+  "t2": {
+   "walk_rate": 3.0,
+   "scroll_events": 3.0
+  },
+  "t3": {
+   "walk_rate": 2.308,
+   "scroll_events": 2.5
+  },
+  "keys_per_s": 10
+ }
+}

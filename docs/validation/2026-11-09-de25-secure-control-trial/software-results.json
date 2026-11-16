@@ -1,0 +1,114 @@
+{
+  "status": "passed",
+  "checks": {
+    "programming-fixed": {
+      "receipt_sha256": "021f386e956110a3fb2023f75bbf16614313abaabedde5253df9c1281093f0b2",
+      "argv": [
+        "python3",
+        "out/nano-secure-control-trial-20261109/operator_programming_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4008347219787538,
+      "log_sha256": "7db8479ca2b442b3fb32fc3ed0b54367b64f6758b8ef60a7c08d486dc38be519"
+    },
+    "serial-fixed": {
+      "receipt_sha256": "3e715cf8478cb919e998dee05b9ffc7f277d69d4d77ffda4e2dedd45d950779d",
+      "argv": [
+        "python3",
+        "out/nano-secure-control-trial-20261109/operator_transport_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4007639449555427,
+      "log_sha256": "61fb204acd82ca57b7ed7771bbd8d500fa22233f76024abd87a74831719a5c62"
+    },
+    "paired-receipts": {
+      "receipt_sha256": "909160c8473f776868c61b8ff9fa9d63004ea7e2bb5bd9b2edb64e76ad5d7527",
+      "argv": [
+        "python3",
+        "out/nano-secure-control-trial-20261109/paired_receipt_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20100195612758398,
+      "log_sha256": "8aa6bf1e26d3905ad94b49650f061e6adae9a0104aeaff09a5aebbd0a227ddc5"
+    },
+    "startup-input": {
+      "receipt_sha256": "25e6d4f319c7dadc263bcd6afc90c23d251e38b2aa171104c30e6070e2bf6041",
+      "argv": [
+        "python3",
+        "out/nano-secure-control-trial-20261109/startup_input_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20077705895528197,
+      "log_sha256": "6299c61ecefc2c6e262ba2dccd92b35e4ade4e41b723fe2eac602dbd7b324b98"
+    },
+    "mmu-consumers": {
+      "receipt_sha256": "c36562c314f549cc6aa374cfcec327b91f7c4eae34082f6cfd6ad4b0846e99d8",
+      "argv": [
+        "python3",
+        "out/nano-secure-control-trial-20261109/mmu_operator_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2007777220569551,
+      "log_sha256": "65d3a21d9a25d3449538a550bbf07742cec0a72ecf37d6271c24c8db70978275"
+    },
+    "failure-decoder": {
+      "receipt_sha256": "7e1e44d4c41d6fba4ac6fdfb8c95b8f7faebdba504ed2ccd1388fadb7553283c",
+      "argv": [
+        "python3",
+        "out/nano-secure-control-trial-20261109/profile_decode_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20088387513533235,
+      "log_sha256": "65378dcad145da2497120819bebfc3c46534dce9714ce064b3d809a56654aca2"
+    },
+    "clock-glue": {
+      "receipt_sha256": "bc7eb063b8d54eff497d12b73b640f00cf5b30fa65f90e597719337dc2574b68",
+      "argv": [
+        "python3",
+        "out/nano-secure-control-trial-20261109/clock_glue_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20099847204983234,
+      "log_sha256": "f165ca3af9e162928344667698dab40c859c3e0e84487021290cba1984d96d8d"
+    },
+    "file-admission-final": {
+      "receipt_sha256": "af78478ab6b0dc25f34527725dafc70c838bc3b713dca65299f0bdcc485e8cd6",
+      "argv": [
+        "python3",
+        "out/nano-secure-control-trial-20261109/prepare_final_admission.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 73.04091527592391,
+      "log_sha256": "e85b4bd16fd19cd7f99d6772068283d5d6fde1a1a61f9e4d92449a472a560008"
+    },
+    "usb-stability": {
+      "receipt_sha256": "02045fb57150aa1153e8aaf84642592b844d13db35c399a326a2ba537001dcf0",
+      "argv": [
+        "python3",
+        "out/nano-secure-control-trial-20261109/usb_stability.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 60.23463098704815,
+      "log_sha256": "3370512c3830b423386bc87e3a864d938d551f9c25a9e2ed79ab2ce51ca6f102"
+    }
+  },
+  "hardware_actions": false
+}

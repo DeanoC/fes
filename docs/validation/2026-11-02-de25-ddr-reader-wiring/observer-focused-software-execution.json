@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "sources/misteross/tests",
+    "-p",
+    "test_de25_*.py",
+    "-v"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 2.4029897820437327,
+  "log_sha256": "ff0fd5b96b190e95ed0ab54ab920700ee7a79e9fd721d1798aa82c0990a54440"
+}

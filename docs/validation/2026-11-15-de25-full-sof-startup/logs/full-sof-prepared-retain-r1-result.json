@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/publication/retain-full-sof-prepared.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 6.203504065982997,
+  "log_sha256": "a1664a2178e0205aabd1cf8790b72fbe3bcbeeb7ac0b9475c1a1c809db381165"
+}

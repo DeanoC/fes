@@ -1,0 +1,17 @@
+test_binding.py PASS
+test_native_session.py PASS
+test_flow.py PASS
+test_candidate_flow.py PASS
+test_native_preflight.py PASS
+test_recovery_safety.py PASS
+test_boot_boundary.py PASS
+test_failure_tail.py PASS
+test_rearm_session.py PASS
+test_dispatch_adapter.py PASS
+test_refresh_budget.py PASS
+test_transport_file_binding.py PASS
+test_terminal_tail.py PASS
+test_refresh_wire.py PASS
+test_files_restoration_gate.py PASS
+test_recovery_start.py PASS
+PASS 79 injected/file-only operator tests

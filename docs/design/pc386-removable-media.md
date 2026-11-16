@@ -1,6 +1,6 @@
 # pc386 removable media: floppy drives and a CD-ROM
 
-Status: design and slice plan, 11 November 2026. Refs [#1694](https://github.com/DeanoC/fes/issues/1694). Slice F1 (`pc386_fdc` and its replay) is implemented; nothing else is. Decisions are marked **D*n*** and listed at the end; Deano accepted every recommendation on 11 November 2026.
+Status: design and slice plan, 11 November 2026. Refs [#1694](https://github.com/DeanoC/fes/issues/1694). Slices F1 (`pc386_fdc` and its replay) and F2 (the CMOS configuration, the BIOS change line, `machine_tb`'s floppy units and the `floppy` and `floppy-boot` suites) are implemented; nothing else is. Decisions are marked **D*n*** and listed at the end; Deano accepted every recommendation on 11 November 2026.
 
 Path convention: `M/` is `sources/misteross/`, `MP/` is `sources/mister-packages/`, `RT/` is `sources/libmister-runtime/`, `FC/` is `sources/FogCast/`. `docs/`, `scripts/` and `AGENTS.md` are at the repo root.
 
@@ -176,7 +176,7 @@ The firmware README says the floppy POST and INT 13h paths stay, and that the un
 | Sense Interrupt Status, Sense Drive Status | 08h, 04h. ST3 carries WP, T0, two-side and ready |
 | Specify | 03h. SRT, HUT and HLT drive the step time; ND is honoured as DMA versus PIO |
 | Version | 10h. Returns 90h, an 82077. Windows 95 and Linux use it to pick the enhanced controller |
-| Configure, Lock, Dumpreg, Perpendicular | 13h, 94h/14h, 0Eh, 12h. Accepted, with fixed answers. Linux probes them |
+| Configure, Lock, Dumpreg, Perpendicular | 13h, 94h/14h, 0Eh, 12h. Accepted, with fixed answers. Linux probes them. Implied seek is always on, whatever Configure's EIS says, because the locked BIOS sends no Seek of its own (**Drives**) |
 
 **Modifier bits.** Read Data, Write Data, Read Deleted Data, Write Deleted Data, Read ID and Format Track carry modifier bits in the top three bits of the command byte: MT (bit 7), MFM (bit 6) and SK (bit 5). The decoder matches these commands on bits 4–0 and then checks the modifiers against the 82077's encoding for that command:
 
@@ -192,7 +192,7 @@ Anything else is invalid (ST0 80h), as the 82077 answers.
 
 **Drives.** Two drives: DOR's select bits 0–1 for drives 0 and 1, with motor bits 4 and 5. Drives 2 and 3 are absent. Each drive has:
 
-- its own cylinder;
+- the cylinder its head stands on, which only step pulses move. The controller keeps a PCN for each unit, written by Seek, Recalibrate and the implied seek a transfer makes, and the C of the command in hand, which the result phase returns and EOT advances without moving anything. A command naming a drive DOR does not select steps the selected drive by the named unit's distance, so the two can come apart, and a transfer that finds the head off its PCN ends with ST1 ND;
 - a disk-change latch, set by eject and insert and cleared by a step pulse with a disk present, as on a real drive;
 - motor spin-up time (500 ms on 3.5", 400 ms on 5.25");
 - a type from configuration (**D4**).
@@ -205,7 +205,7 @@ Anything else is invalid (ST0 80h), as the 82077 answers.
 | 500 kbit/s, 1.2M/1.44M/DMF | 16 µs |
 | 1 Mbit/s, 2.88M | 8 µs |
 
-**40-track media in an 80-track drive.** The locked BIOS never double-steps: it sends the INT 13h track straight to Seek and Read (`rombios.c:7733-7741`), and Bochs's controller maps the cylinder to the image's cylinder directly. `pc386_fdc` does the same: a 360K disk in a 1.2 MB drive reads image cylinder `c` at cylinder `c`, so the BIOS and DOS work unpatched and the Bochs replay agrees. A real 1.2 MB drive needs the host to double-step; a driver that does so itself (Linux's `stretch` formats) would read the wrong cylinders. This is a recorded deviation. If a title needs real double-stepping, the fix is a BIOS patch that double-steps on 40-track media plus a physical-track model in the drive, in one slice. A B: drive configured as 360K (type 1) avoids the question for 5.25" DD sets.
+**40-track media in an 80-track drive.** The locked BIOS never double-steps: it sends the INT 13h track straight to Seek and Read (`rombios.c:7733-7741`), and Bochs's controller maps the cylinder to the image's cylinder directly. `pc386_fdc` does the same: a 360K disk in a 1.2 MB drive reads image cylinder `c` at cylinder `c`, so the BIOS and DOS work unpatched and the Bochs replay agrees. A real 1.2 MB drive needs the host to double-step; a driver that does so itself (Linux's `stretch` formats) would read the wrong cylinders. This is a recorded deviation. If a title needs real double-stepping, the fix is a BIOS patch that double-steps on 40-track media and a drive that steps two tracks for one pulse, in one slice; the drive's head position itself is modelled (**Drives**). A B: drive configured as 360K (type 1) avoids the question for 5.25" DD sets.
 
 **DMA and IRQ.** DRQ goes to `dma_drq[2]` of controller 1 (`pc386_at_core.sv:47`), and TC ends the transfer. Guest memory cycles go through the CPU's DMA port, as the Sound Blaster's do. IRQ 6 is `device_irq[6]`. PIO (non-DMA) mode works too, for Linux's `floppy=nodma`.
 
@@ -586,13 +586,13 @@ Bochs's own device models are the oracle, as `vga_reference.cpp` wraps `vgacore.
 
 - floppy units backed by host files (copies, never the originals);
 - a CD unit backed by the MMC library with a configurable completion latency, deterministic in simulation;
-- a `--swap UNIT:FILE@MARKER` option that swaps at a debug-port marker.
+- a `--swap WHEN:DRIVE[:FILE[:ro]]` option, where WHEN is a simulated time or the text of a debug-port line, so a program can ask for its own swap.
 
 New `sim_fes_pc386.py` suites:
 
 | Suite | What it proves |
 | --- | --- |
-| `floppy` | FLOPTEST.COM (new, MIT, in `sim/`): INT 13h read, write, verify and format on A: at 1.44M and B: at 1.2M and 360K; a swap mid-run with AH=16h seeing it; DMA across a 64 KiB boundary error; DOS `DISKCOMP` of a written disk |
+| `floppy` | FLOPTEST.COM (new, MIT, in `sim/`): INT 13h read, write, verify and format on A: at 1.44M and B: at 1.2M and 360K; a swap mid-run with AH=16h seeing it; DMA across a 64 KiB boundary error; a host-side check of the image the bench writes back after a sector write (DOS `DISKCOMP` is not covered: the pinned FreeDOS packages do not carry it) |
 | `floppy-boot` | Boot FreeDOS from a 1.44 MB FreeDOS floppy built by the repository's FreeDOS tooling (not the LAN set) to the prompt |
 | `cdrom` | CDTEST.COM: UDVD2 + SHSUCDX on the C4-built games image, `DIR D:` of a generated test ISO (built by `genisoimage`/`xorriso` from repository files), file read CRCs, READ TOC and play/sub-channel through MSCDEX's IOCTL on a generated cue/bin with two short synthetic audio tracks |
 | `cd-boot` | El Torito: a generated no-emulation ISO with a tiny boot program that prints to the debug port, and a floppy-emulation ISO around the FreeDOS boot floppy |
@@ -680,6 +680,7 @@ Each slice is one PR with its own `Closes` issue under the tracker, [#1694](http
 ### F2. Floppy in the machine: CMOS, BIOS patch, `machine_tb` units (RTL + firmware, sim)
 
 - **Builds:** CMOS rows from configuration inputs, driven by `machine_tb` until F3 adds the record words; the INT 13h AH=15h/16h patch; file-backed units and `--swap` in `machine_tb`; the `floppy` and `floppy-boot` suites; FLOPTEST.COM.
+- **Built as well:** the drive select a command names runs on the drive DOR selects ([#1796](https://github.com/DeanoC/fes/issues/1796)), with the Bochs and QEMU behaviour recorded as the `dor-mismatch` divergence and its replay case. Head position, PCN and the command's C are separate: the replay drives the first two apart under that mismatch and checks that the transfer then ends with no data instead of reading another cylinder, and that an EOT rollover advances the result C alone. The BIOS also steps the head once in `floppy_drive_recal` when the change line is active, because a drive clears that line only on a step pulse and Recalibrate issues none at cylinder 0.
 - **Gates:**
   - both suites on the oracle and `--cpu rtl`;
   - the lockstep check;

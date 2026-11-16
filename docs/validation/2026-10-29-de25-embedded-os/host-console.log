@@ -1,0 +1,24 @@
+FES exploratory GP probe; transport=emulated; no board MMIO
+PASS identity-before-release
+PASS identity-release-input-neutralize-hold
+PASS settled-fields-then-toggle-wire-vector
+PASS build-identity-mismatch-blocks-release
+PASS every-identity-word-is-checked
+PASS late-ack-no-replay
+PASS timeout-poisons-no-replay
+PASS completed-rejection-preserves-toggle
+PASS invalid-signature-poisons
+PASS reverted-ack-poisons
+PASS unstable-payload-times-out
+PASS read-failure-poisons
+PASS toggle-write-failure-poisons
+PASS expired-deadline-does-not-write
+PASS invalid-request-does-not-write
+PASS long-deadline-is-capped-at-100ms
+PASS initial-ack-one-rejected-without-writes
+PASS invalid-initial-response-rejected-without-writes
+PASS flat-initial-clock-no-write
+PASS backwards-initial-clock-no-write
+PASS flat-ack-guard-poisons
+PASS backwards-ack-guard-poisons
+FES_EMBEDDED_PROBE PASS tests=22 transport=emulated

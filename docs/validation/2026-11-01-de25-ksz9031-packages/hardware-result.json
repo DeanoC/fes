@@ -1,0 +1,262 @@
+{
+  "classification": "narrow native SD/package retention hardware diagnostic; synthetic payload, never programmed",
+  "pass": true,
+  "source_commit": "551a52903c7b580cb639563a40673ec44b78c282",
+  "build_id": "b1f79112ba1db5bc",
+  "native_sof_sha256": "eb036d4936d6427f751779f4158448876fa1080b138d8fb54f7d388b4abb7bf4",
+  "fit_sha256": "a2c4dc4f7c290e1c385d58491eda242f5bf6ea44d68886163aea0bd12b549821",
+  "package_id": "164c9e356d32eed24bb5ec59528323c0a325a23a93e2a04c25b78985df22f873",
+  "package_archive_sha256": "0181b38b59e8a2fd0399a299c95f325dff7ad55cb623f480721b93a6b1ca1212",
+  "payload_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+  "payload_bytes": 12,
+  "trace": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "b1f79112ba1db5bc"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 2778021005448605519,
+          "epoch": 4899931675,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 41,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "sd_platform",
+        "line": 42,
+        "values": {
+          "setup": 1,
+          "ready": 1
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 45,
+        "values": {
+          "id": "b1f79112ba1db5bc"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 49,
+        "values": {}
+      },
+      {
+        "stage": "prompt",
+        "line": 61,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 62,
+        "values": {
+          "id": "b1f79112ba1db5bc"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 63,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216373888,
+          "malloc_start": 3216408576,
+          "malloc_end": 3220611072,
+          "reloc": 3220611072,
+          "fdt": 3216383136
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 70,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 2778021005448605519,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 79,
+        "values": {
+          "phase": "after-remove",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 2778021005448605519,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "live",
+        "line": 80,
+        "values": {
+          "affinity": 0,
+          "counter": 400000000,
+          "cpu0": 0,
+          "cpu1": 1,
+          "cpu2": 1,
+          "cpu3": 1,
+          "per0": 4286562239,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "handoff",
+        "line": 81,
+        "values": {}
+      },
+      {
+        "stage": "el2",
+        "line": 82,
+        "values": {}
+      },
+      {
+        "stage": "el1",
+        "line": 83,
+        "values": {}
+      },
+      {
+        "stage": "package_probe",
+        "line": 84,
+        "values": {}
+      },
+      {
+        "stage": "package_retained",
+        "line": 85,
+        "values": {
+          "package_id": "164c9e356d32eed24bb5ec59528323c0a325a23a93e2a04c25b78985df22f873",
+          "payload_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+          "payload_bytes": 12,
+          "build_id": "0123456789abcdef0123456789abcdef",
+          "owner": 2778021005448605519,
+          "sd_generation": 3
+        }
+      },
+      {
+        "stage": "package_contained",
+        "line": 86,
+        "values": {
+          "package_id": "164c9e356d32eed24bb5ec59528323c0a325a23a93e2a04c25b78985df22f873",
+          "payload_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+          "owner": 2778021005448605519,
+          "sd_generation": 4
+        }
+      },
+      {
+        "stage": "package_resumed",
+        "line": 87,
+        "values": {
+          "package_id": "164c9e356d32eed24bb5ec59528323c0a325a23a93e2a04c25b78985df22f873",
+          "payload_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+          "owner": 2778021005448605519,
+          "sd_generation": 6
+        }
+      },
+      {
+        "stage": "package_pass",
+        "line": 88,
+        "values": {
+          "package_id": "164c9e356d32eed24bb5ec59528323c0a325a23a93e2a04c25b78985df22f873",
+          "payload_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+          "payload_bytes": 12,
+          "owner": 2778021005448605519,
+          "sd_generation": 7
+        }
+      }
+    ],
+    "errors": [],
+    "loader_ready": true,
+    "complete": true,
+    "last_checkpoint": "package_pass",
+    "core_load_acceptance": false
+  },
+  "native_console_sha256": "39ea3e7828908269db00c5590cfab7f4e97dbfa2c8df2dcbe9db86a5600cf1f1",
+  "decoder_sha256": "665863c9be6ba0668a3a0f5cb90e3abf2023e2a038a4077468c0133262bea4c0",
+  "recovery_boots": 2,
+  "fat_write_commands": {
+    "boot": 1,
+    "package": 1
+  },
+  "uploads_verified": true,
+  "protected_boot_files_unchanged": true,
+  "native_sd_writes": false,
+  "physical_activation": false,
+  "core_load_acceptance": false,
+  "other_devices_accepted": false,
+  "post_state": {
+    "serial": "TRWU8CBL",
+    "usb_node": "/dev/bus/usb/003/061",
+    "scope": "read-only exact top-cable query and rate; no programming or serial command",
+    "jtag_id": "4362C0DD",
+    "clock": "15M",
+    "usb_permissions_restored": true
+  },
+  "uart_owner_absent": true,
+  "claim_held": true,
+  "factory_restored": false,
+  "test_card_retained": true,
+  "evidence": {
+    "out/nano-package-ksz9031-trial-20261101/native-result.json": "259d5d53b789c9ed403e067d9a331c5a5ab1894adb6ea1a44c064f0d653eb9d1",
+    "out/nano-package-ksz9031-trial-20261101/experiment-result.json": "d7da5f950f3177e18314ebca531efb40cd412ae97f42c61a6a5ced32999e083d",
+    "out/nano-package-ksz9031-trial-20261101/preflight.json": "b9a77e6c82237d9462687e7a88b040f28a682a3d90d68d2397e2d531a2bbea6f",
+    "out/nano-package-ksz9031-trial-20261101/upload-boot/result.json": "d9c20c5e1a8b873ae87dfe3d01cdf52fc372f31f0d714056d358eddaf412fca2",
+    "out/nano-package-ksz9031-trial-20261101/upload-package/result.json": "6add550a4bf6cdda123164ea938dcd43d9dbee3f593bc541d415f3c7e1c55382",
+    "out/nano-package-ksz9031-trial-20261101/post-jtag.log": "3a43e52818b392ad6d38baa75fa089154a7564f3fb0771f8b02ba1138f645282",
+    "out/nano-package-ksz9031-trial-20261101/post-clock.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "out/nano-package-store-20261101/fixture.json": "74ee7ec8c30c55d1170834930a3b9de1258a73a666bd4f0d4b6a32f6ad42ab45"
+  },
+  "utc": "2026-11-01T17:25:13.836815+00:00"
+}

@@ -1,0 +1,58 @@
+{
+  "status": "passed",
+  "classification": "new matched native image includes retained initial game tape; no hardware result",
+  "controller_source": "990a57a55214247eb251aa6d108bb4dfac4d768c",
+  "compiled_source": "d250310a1de67d1a975c585d4e37da9e13f11da4",
+  "native_boot_id": "76cd915c046abe45",
+  "producer_proof_sha256": "84b4c6cf896ed7c251fc972be75a4ccb7b36cdc19ba5b9a6b558d4953bacc525",
+  "receipt_sha256": {
+    "out/nano-keyboard-poll-runtime-20261108/native-sdk/result.json": "dbfc8d65aec4140dd5cdd17e37e17438463a68a35004ac77ae31db21b1f1e0db",
+    "out/nano-keyboard-poll-runtime-20261108/native-entry/result.json": "f240ea831ac823ef7930aeb60c86221f10f63da20c8ef6e25a8c0208a9c18fb1",
+    "out/nano-keyboard-poll-runtime-20261108/native-bl31/result.json": "59db22c008e4621dbe5ccd0e76221a1b6a631b8b3915218b5928b5103d3130b3",
+    "out/nano-keyboard-poll-runtime-20261108/native-uboot/result.json": "2cdbfb852f89f46218b6b0e5fc1d41cc1a375620b8271e21d0531018dc5bc621",
+    "out/nano-keyboard-poll-runtime-20261108/native-composition/result.json": "4c017fddd12ca958c3aecca0822401cf2f2c0c5cb299e40612261794b61d8061"
+  },
+  "artifacts": {
+    "sdk": {
+      "path": "out/nano-keyboard-poll-runtime-20261108/native-sdk/fpgaload.elf",
+      "bytes": 15737007,
+      "sha256": "f5751d9eb578ad94fc60c7d6e6a72bc4fbfb5eb03fae6cd507de2b0dd7684c28"
+    },
+    "entry": {
+      "path": "out/nano-keyboard-poll-runtime-20261108/native-entry/entry.img",
+      "bytes": 7614464,
+      "sha256": "e9005efc15367a3204f07e4a9b79d98938f62dcdf409bf4c86539d7982c2a7f0"
+    },
+    "BL31": {
+      "path": "out/nano-keyboard-poll-runtime-20261108/native-bl31/source/build/agilex5/release/bl31.bin",
+      "bytes": 237893,
+      "sha256": "bcb094f3a141c8dde4336aeb13bf7be707dee87854d1270118801caae0ce4d7a"
+    },
+    "FIT": {
+      "path": "out/nano-keyboard-poll-runtime-20261108/native-uboot/build/u-boot.itb",
+      "bytes": 8309296,
+      "sha256": "7d20181742e567a99ca4affa08d6d2c796b5071f9b502abec0dff47b6e63b6a6"
+    },
+    "SPL": {
+      "path": "out/nano-keyboard-poll-runtime-20261108/native-uboot/build/spl/u-boot-spl-dtb.hex",
+      "bytes": 461189,
+      "sha256": "c3e70a357c1d5046e9db531128f6b75ca562bc0c59ade062746db045066ba349"
+    },
+    "SOF": {
+      "path": "out/nano-keyboard-poll-runtime-20261108/native-composition/native-hps-first.sof",
+      "bytes": 1578894,
+      "sha256": "bc336563b4ee272445d1a48144f97b1dbf39b12c7b99bdfa1ef0cb1f8b491496"
+    }
+  },
+  "all_selected_inputs_unchanged": true,
+  "native_rebuilt": true,
+  "prior_compiled_image_attempts": 0,
+  "max_compiled_image_attempts": 1,
+  "preceding_compiled_image_attempts": 1,
+  "prior_allowance_exhausted": true,
+  "new_procedure_attempts_allowed": 1,
+  "prior_trial_result_sha256": "a1656f1c800a643b5ad93300470763367b54681ce6872e1752e5847ba4b1f5d1",
+  "hardware_actions": false,
+  "full_cycle_verified": false,
+  "ordinary_admission": false
+}

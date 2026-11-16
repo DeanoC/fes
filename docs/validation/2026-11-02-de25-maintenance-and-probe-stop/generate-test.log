@@ -1,0 +1,12 @@
+test_all_emission_completes_before_any_mutation (test_generate.GenerateTests.test_all_emission_completes_before_any_mutation) ... ok
+test_check_reports_mismatch_without_mutation (test_generate.GenerateTests.test_check_reports_mismatch_without_mutation) ... ok
+test_file_ancestor_conflict_fails_before_mutation (test_generate.GenerateTests.test_file_ancestor_conflict_fails_before_mutation) ... ok
+test_rejects_gitlink_even_if_directory_exists (test_generate.GenerateTests.test_rejects_gitlink_even_if_directory_exists) ... ok
+test_stale_fixture_symlink_is_not_followed_or_deleted (test_generate.GenerateTests.test_stale_fixture_symlink_is_not_followed_or_deleted) ... ok
+test_symlink_and_escape_rejected_before_writes (test_generate.GenerateTests.test_symlink_and_escape_rejected_before_writes) ... ok
+test_write_is_idempotent_preserves_sources_and_deletes_stale_members (test_generate.GenerateTests.test_write_is_idempotent_preserves_sources_and_deletes_stale_members) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.064s
+
+OK

@@ -1,0 +1,8 @@
+{
+  "status": "configured",
+  "serial": "TRWU8CBL",
+  "port": "3-11.1",
+  "device_index": 1,
+  "image_sha256": "c3c176b0ee88e8c1313c2c85fddd9d95db7c376d6ec3e0de4cecca47497c48db",
+  "log_sha256": "e2e415dedf1309f81abbda439547be82ac507ccdbef7afa5e9c2b00e42be900c"
+}

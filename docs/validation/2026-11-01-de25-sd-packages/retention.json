@@ -1,0 +1,29 @@
+{
+  "classification": "verified artifact retention; no new hardware operation",
+  "archive": "/home/deano/fes-retained/de25-nano-sd-packages-20261101/artifacts.tar.gz",
+  "archive_sha256": "3c94030b33ef9e0c551af88442d9f23ca60a2783e41befeddee890329d9fffda",
+  "members_verified": 1633,
+  "firmware_source_commit": "2113e55c7cfbe219035c435fd93dbe1bcb41023c",
+  "source_bundle_prerequisite": "4e111b90ed873be193f4386df46ed53579332d35",
+  "claim_tokens_archived": false,
+  "factory_credentials_archived": false,
+  "source": {
+    "source_commit": "5e19858d9599bf0deb8c689e4aab26de573928ec",
+    "hardware_attempt_source_commit": "2113e55c7cfbe219035c435fd93dbe1bcb41023c",
+    "source_tree": "6a36e7f1b8b0891d617247d5ccf0f85f31976f69",
+    "bundle_sha256": "35a4cc498e8337f42604966e62e17743462ab380cfb75c90c15e882f723efd41",
+    "prerequisite_commit": "4e111b90ed873be193f4386df46ed53579332d35",
+    "prerequisite_bundle": "/home/deano/fes-retained/de25-nano-sd-platform-20261101/source.bundle",
+    "prerequisite_bundle_sha256": "d9a3c291d9465126b1c48d6557634a9ee51118c2cf237d1dc45f787c511c3562",
+    "restore_test": "fresh private bare repository borrowed previously verified prerequisite objects, fetched this bundle, matched exact commit/tree and found no missing reachable objects",
+    "standalone_bundle": false,
+    "claim_tokens_archived": false,
+    "factory_credentials_archived": false,
+    "restore_order": [
+      "restore prerequisite4e using its retained source-retention instructions (requires67b023808)",
+      "fetch this bundle",
+      "checkout5e19858d9 or hardware source2113e55c7",
+      "use corresponding source checkout with archived artifact inputs; do not overlay archived sources onto a later checkout"
+    ]
+  }
+}

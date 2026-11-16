@@ -1,0 +1,72 @@
+{
+  "status": "passed",
+  "checkout_source_commit": "dc2cf47604ce003744ce2b1cf0e1e53beb1e4738",
+  "native_build_source_commit": "dc2cf47604ce003744ce2b1cf0e1e53beb1e4738",
+  "native_sdk_checkout_commit": "dc2cf47604ce003744ce2b1cf0e1e53beb1e4738",
+  "sdk_uncompiled_difference": [],
+  "selected_git_blobs": 363,
+  "presentation_functions": {
+    "WindowSession).PresentFrame": [
+      "github.com/DeanoC/fes/platform/embedded/tamago/nativefabric.(*WindowSession).PresentFrame",
+      "github.com/DeanoC/fes/platform/embedded/tamago/nativefabric.(*WindowSession).PresentFrame.func1",
+      "github.com/DeanoC/fes/platform/embedded/tamago/nativefabric.(*WindowSession).PresentFrame.deferwrap1"
+    ],
+    "WindowReader).Drain": [
+      "github.com/DeanoC/fes/platform/embedded/tamago/scanout.(*WindowReader).Drain",
+      "github.com/DeanoC/fes/platform/embedded/tamago/scanout.(*WindowReader).Drain.func1"
+    ],
+    "main.presentWindowFrames": [
+      "main.presentWindowFrames",
+      "main.presentWindowFrames.func2",
+      "main.presentWindowFrames.func1"
+    ],
+    "framefixture.Render": [
+      "github.com/DeanoC/fes/platform/embedded/tamago/framefixture.Render",
+      "github.com/DeanoC/fes/platform/embedded/tamago/framefixture.Render.deferwrap2",
+      "github.com/DeanoC/fes/platform/embedded/tamago/framefixture.Render.deferwrap1"
+    ]
+  },
+  "window_present_selected": true,
+  "broad_ui_actions_selected": true,
+  "command_handler_linked": true,
+  "full_ui_loop_invoked": false,
+  "selected_module_sdk_files": 1681,
+  "pinned_source_receipts": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-handoff-20261103/native-sdk-sized/result.json": "1c1c6524e19d5cba542ccae6c70ee225afbf8398892f484c19ea435f3e7e90b7"
+  },
+  "native_elf_sha256": "5f6de9c90a2cd73a2325e202023762e1ca51dbf196ca8330cd5db8aa5c7e462a",
+  "cpu_mapping": {
+    "format": 1,
+    "scope": "pinned-tamago-el1-resources-v1",
+    "ram_base": 2214592512,
+    "ram_bytes": 268435456,
+    "control_base": 536937472,
+    "control_bytes": 256,
+    "dma_base": 2491416576,
+    "dma_bytes": 8388608,
+    "reader_base": 2499805184,
+    "reader_bytes": 4194304
+  },
+  "cpu_mapping_sha256": "ada1b36c50558e312b71361f5599cebf88ab436a77305f917ebc01618420848c",
+  "actual_native_mapping_assembly": {
+    "translateRead": {
+      "symbol": "github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map.translateRead",
+      "disassembly_sha256": "4910d566f3801767bf7c0567a1c2d719bee055b71daff66f03afb6bcf49e97da",
+      "opcode": "d5087800"
+    },
+    "translateWrite": {
+      "symbol": "github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map.translateWrite",
+      "disassembly_sha256": "fc444a33291cde77e47f153bc79b8f61144b093af580dac972e041caab57a2d9",
+      "opcode": "d5087820"
+    },
+    "cpuState": {
+      "symbol": "github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map.cpuState",
+      "disassembly_sha256": "6f7db55aff5ee2d723360c7a3914ab7315d5e968811b135524f6b9c7a38ae2f7",
+      "opcode": null
+    }
+  },
+  "function_metadata_source": "actual ELF .gopclntab; symbols/DWARF absent",
+  "function_metadata_sha256": "4daa13fcb75e0545c6ad63183f992fb2ca198f789e91a893a7548e6e53fb23b2",
+  "symbol_reader_sha256": "a70f7ad6ef603752f030db642e9a528c71388ebe3e048a0423cecc48dfeadd4b",
+  "hardware_acceptance": false
+}

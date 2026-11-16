@@ -1,0 +1,18 @@
+{
+  "status": "passed-exact-admitted-refresh420-operator-retention",
+  "archive": "/home/deano/fes-retained/de25-refresh420-native-admissions-20261114-r1/admitted-operator.tar.gz",
+  "archive_sha256": "b0439e4f66188a37637dde46ca41452c72915a578af9a63cfc503b9740e05650",
+  "archive_bytes": 4083830,
+  "dependencies": {
+    "/home/deano/fes-retained/de25-host-refresh-budget-20261114-r1/prototype.tar.gz": "77723a3b9b5ee190770807ed363ad5481f766c97560a83c63cfe29e85b71877a",
+    "/home/deano/fes-retained/de25-table-batch-physical-20261114-r1/physical-trial.tar.gz": "9d8a3b013b6caadfb14a824cf60407a21029b82a5af22e03afe985a73ddb6251",
+    "/home/deano/fes-retained/de25-table-batch-procedure-prepared-20261114-r1/prepared-procedure.tar.gz": "df3cac0befc632873b5193a6e3436d3cff00aa4c2a7c94a7312c4ce72a927ffb",
+    "/home/deano/fes-retained/de25-command-snapshot-procedure-prepared-20261113-r1/prepared-procedure.tar.gz": "1b5b82ea534a6af428682a59cad431042173292d3269735fc3b8215dff1bc793",
+    "/home/deano/fes-retained/de25-table-batch-matched-20261114-r1/matched-chain.tar.gz": "8942f0a33f3c287b68ddc915d4b2fb2e172c2dc113926400a18c8cb5cb558631",
+    "/home/deano/fes-retained/de25-setup-final-baseline-restored-physical-20261114-r1/restoration.tar.gz": "cb698e8bb0e10202b6705bc6dd1d50cb64922819bc4699c93643c98797308b7a"
+  },
+  "models": 65,
+  "admission_boundary_checks": 8,
+  "hardware_actions": false,
+  "execution_authority": false
+}

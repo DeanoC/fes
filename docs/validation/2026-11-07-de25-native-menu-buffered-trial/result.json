@@ -1,0 +1,84 @@
+{
+  "status": "physical-cold-menu-and-secure-return-passed",
+  "operator_source": "9f373b86d8a7f2e8a3b2c33a399d1112c4c6d720",
+  "attempts": 1,
+  "attempt_consumed": true,
+  "replay_allowed": false,
+  "first_failure_terminal": true,
+  "experiment_sha256": "c17e358da13c928fd8dbb968db98cdb7a42e041f465b2b60116eadd43033f44d",
+  "native_result_sha256": "8182fa250622acc93bc2bb51b763aaaedbfd00ba198a084ac966f88963a770b0",
+  "last_stage": "native",
+  "error": null,
+  "native_error": null,
+  "sd_write_commands_sent": true,
+  "sd_write_outcome_unknown": false,
+  "upload_group_status": "verified",
+  "verified_uploads": 2,
+  "fresh_readbacks": 2,
+  "native_fesboot_sent": true,
+  "native_programming_attempted": true,
+  "last_native_checkpoint": "menu_present_closed",
+  "menu_observation": {
+    "frames": 3,
+    "slots": [
+      0,
+      1,
+      0
+    ],
+    "closed_generation": 7,
+    "owner": 10556851557682724553,
+    "hardware_drained": 8,
+    "configuration_seconds": 10.4304497375,
+    "memory_released": false,
+    "hdmi_qualified": false,
+    "runtime_admission": false,
+    "menu_core_menu_qualified": false
+  },
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "hardware_actions": true,
+  "core_load_acceptance": false,
+  "native_menu_core_menu": false,
+  "physical_HDMI_qualified": false,
+  "physical_DDR_drain_qualified": false,
+  "timing_signoff": false,
+  "original_factory_card_touched": false,
+  "bottom_kit_touched": false,
+  "factory_restoration_requested": false,
+  "claim_retained": true,
+  "goal_complete": false,
+  "next": "Implement menu owned storage resume/rearm through the existing store and configuration plan; then actual App/core display ownership integration.",
+  "implementation_source": "07597ce70d4fc12e5137aacfa538ae36b783a9cb",
+  "frame_present_microseconds": [
+    1116790,
+    1195141,
+    1199283
+  ],
+  "frame_render_microseconds": [
+    19475,
+    53108,
+    48633
+  ],
+  "menu_open_to_closed_microseconds": 5092930,
+  "comparison": {
+    "baseline_frame_present_microseconds": [
+      1250953,
+      1325775,
+      1325714
+    ],
+    "mean_speedup": 1.1114224311021772,
+    "baseline_menu_open_to_closed_microseconds": 5571470,
+    "scope": "exact bounded serial sequence; no general performance or HDMI qualification"
+  },
+  "performance_regression": false,
+  "candidate_selected_for_performance": true,
+  "last_board_state": "returned native diagnostic; three frames slots0/1/0 underflows0; local drain and independent closuregen7/resetf; arena retained; independent host cleanup passed"
+}

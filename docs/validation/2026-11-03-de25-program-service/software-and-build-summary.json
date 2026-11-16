@@ -1,0 +1,57 @@
+{
+  "status": "passed",
+  "classification": "persistent native selected-program request service and matched boot-chain cross-build; software launch/return/failure paths; no new hardware test",
+  "source_commit": "af37a76aed47e049b0a70909026dd55cce567b1a",
+  "base": "7521a5f8a338f68c1d38ba978e129f31c3c02401",
+  "selected_programs": true,
+  "parent_tests": 1345,
+  "software_scopes": 8,
+  "native_integration": "/home/deano/fes/out/dev/de25-embedded-os/out/native-fabric-hooks-a1fe1b11f6134f1780e90a7223b9c7b7",
+  "native_integration_classification": "host native Go lifecycle/tenfoot with actual patched TF-A C and Verilated FPGA RTL; simulated bridges, memory and SDM; no hardware acceptance",
+  "selected_git_blobs": 121,
+  "selected_module_sdk_files": 1298,
+  "native_elf_sha256": "731a6dba5c8b3598cec879ca5cdaf721fdd81d1688615c902ee044295ab6ca9d",
+  "program_platform_sha256": "f1024bcb72c5a3fc763627568f98ce8cabaf6a476ad56839bcf79e782b5a38c9",
+  "matched_artifacts": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-service-20261103/native-composition/native-hps-first.sof": {
+      "bytes": 1564988,
+      "sha256": "f70325574150e873cdacb399479e736d4a28cb6eb129bc89f2182ef802685aa3"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-service-20261103/native-composition/u-boot.itb": {
+      "bytes": 6823844,
+      "sha256": "432f06edbbedf6ee2cf89362be688f3720da907e9088908bd49af2b7b3eaa7fd"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-service-20261103/native-composition/ENTRY.IMG": {
+      "bytes": 6283185,
+      "sha256": "d34178953bc6d4147601cfba68218c8a7ea3286a229523a749dffbc1762048e1"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-service-20261103/native-composition/native-hps-first.core.rbf": {
+      "bytes": 1646592,
+      "sha256": "e9255d3dc149e7db17f012c3032f8c1da245d913ded3947a2342034eb1927ac0"
+    }
+  },
+  "selection_files": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-service-20261103/native-sdk/PROGRAM.JSN": {
+      "bytes": 2118,
+      "sha256": "6fea347ab1db35f9b75e01fd9b0a394506d97a668774109791327f0c877f5ebc"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-service-20261103/native-sdk/CORESEL.JSN": {
+      "bytes": 514,
+      "sha256": "fb8b76dd6b802e9a06c6834a59547b6c07e8708a3f070d4bc303da3f05c9285c"
+    }
+  },
+  "hardware_actions": false,
+  "quartus_3090_jobs": false,
+  "quartus_fpga_compiles": false,
+  "ordinary_runtime_admission": false,
+  "program_profile": "de25-embedded-hps-first-ddr-diagnostic-v1",
+  "physical_selected_frontend_qualified": false,
+  "persistent_request_service": true,
+  "auto_two_choice_script_removed": true,
+  "service_hardware_qualified": false,
+  "service_sdk_proof_sha256": "6d0dc466efe0268384bb704671f8cad8f272aff96511c2483925e0c047995e8d",
+  "hardware_plan_sha256": "1c1bb62576f89ec70689f7cf8a8bd3bfbb831438c3f51daf5974c14710de56af",
+  "last_verified_board_state": "TRWU8CBL boot145213088b9b4dbb old selected two-cycle frontend parked after return11; SD contained/data held; claim/spare retained; no board action in this step",
+  "previous_hardware_evidence": "out/nano-selected-upload-20261103/hardware-evidence.json",
+  "next_step": "bounded three-session native command-service hardware test on TRWU8CBL, then different eligible physical packages and native Tenfoot/input/video/ordinary runtime integration"
+}

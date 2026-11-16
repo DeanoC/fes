@@ -1,0 +1,5 @@
+ok  	github.com/DeanoC/FogCast/appliance	1.032s
+ok  	github.com/DeanoC/FogCast/appliance/blockprobe	1.096s
+ok  	github.com/DeanoC/FogCast/appliance/software	5.661s
+?   	github.com/DeanoC/FogCast/appliance/softwarecontrol	[no test files]
+ok  	github.com/DeanoC/FogCast/appliance/store	2.265s

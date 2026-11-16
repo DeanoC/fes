@@ -1,0 +1,118 @@
+{
+  "source_commit": "12cba59dbfd692c3c6bf0d9978cf3554aa294d5d",
+  "base_commit": "ae599d8d85b418980eeaebae32388444409e491f",
+  "classification": "host-simulation-and-native-library-only",
+  "hardware_access_performed": false,
+  "captured_rtl_result_sha256": "48ff1f32032911b948553f03cc85602df236a1aedcf06a0a11de1bc0641db6d1",
+  "native_library_result_sha256": "de48818c257a81f2c1398c671635a730ef2f5268c727854c8159d817e91b253c",
+  "address_route_result_sha256": "e63ec4af85bbfa72f1155cb6a8cef67d41370affd93dbfa4396746e38d3af8ea",
+  "parent_tests": 1276,
+  "parent_skips": 2,
+  "fpga_software_tests": [
+    "1577",
+    "577.080"
+  ],
+  "scopes": [
+    {
+      "index": 0,
+      "label": "test_affected.py",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.4004947160137817,
+      "log_sha256": "f4d3422ae81ee3a95bf1e68b7bd9f46eda83bc0072a7bce1fafa9397004f7429"
+    },
+    {
+      "index": 1,
+      "label": "test_test_changed.py",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed_seconds": 1.2010010180529207,
+      "log_sha256": "ee0d61765eb8356b0bdc5e24c150218ed258cbe554367f7d840c7350ca0bfecb"
+    },
+    {
+      "index": 2,
+      "label": "committed whitespace",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.20088599098380655,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "index": 3,
+      "label": "working whitespace",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed_seconds": 0.2012706829700619,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "index": 4,
+      "label": "parent Python regressions",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed_seconds": 289.44504745304585,
+      "log_sha256": "6120663029388a49ac7d577891e780c7b78561d6065cadf4d1c801985e95cb90"
+    },
+    {
+      "index": 5,
+      "label": "working-tree generated consumer consistency",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed_seconds": 7.410524100065231,
+      "log_sha256": "39911a38609b8ca0592f13bd0e960ba0cd433f6599caf6ce88f25c65a0e67b3d"
+    },
+    {
+      "index": 6,
+      "label": "native computer transport and command failures",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed_seconds": 1.6107725499896333,
+      "log_sha256": "33b45d1f4bbeb6083094773b3abd876649c3e1914ff96d5fe6cef47190f9eb9a"
+    },
+    {
+      "index": 7,
+      "label": "host Go and UI tests",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed_seconds": 44.87542403500993,
+      "log_sha256": "c47015fc6e6905362e6a69d71c11b74483edff2ed3c6148853af4f10a7748ffc"
+    },
+    {
+      "index": 8,
+      "label": "runtime software tests",
+      "returncode": -15,
+      "timed_out": true,
+      "elapsed_seconds": 300.17074004991446,
+      "log_sha256": "19a4c61381c8d5226d0e724527ef5f7c8dfc12c825b19c197b36f31b5e379675"
+    },
+    {
+      "index": 9,
+      "label": "contract schemas and generated fixtures",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed_seconds": 7.045407847966999,
+      "log_sha256": "11215e2e2d689eb4370188a620ccc42a495b0db46ee72bbea60699ba261a1bcc"
+    },
+    {
+      "index": 10,
+      "label": "test_*.py",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed_seconds": 578.2002804300282,
+      "log_sha256": "f3a2d6612d914d557dc534dde432eca39233bd5fe097c9c3f6353539356eccd5"
+    }
+  ],
+  "runtime_aggregate_passed": false,
+  "runtime_aggregate_failure": "300-second bound exceeded after functional/incremental/version checks",
+  "runtime_remaining_targets": [
+    "active-tree-test",
+    "hardware-support-truth-test"
+  ],
+  "runtime_remaining_targets_returncode": 0,
+  "runtime_remaining_targets_elapsed_seconds": 125.65723251202144,
+  "runtime_remaining_targets_log_sha256": "c148eeff9627ad77ae4c5c34ec04cbcb3d0a011b8d8b16fd1fa5072ce5d0c2a9",
+  "all_selected_leaf_checks_completed": true,
+  "runtime_aggregate_timeout_retained": true,
+  "generated_consumer_count": 37,
+  "fixture_copy_count": 37
+}

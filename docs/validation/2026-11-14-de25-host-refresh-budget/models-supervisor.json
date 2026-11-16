@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/publication/check-refresh-budget-operator.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 24.439380201976746,
+  "log_sha256": "6553b878d074fcc1271fffad5bda10218d23222256a7d68f0797ae619db24cf7"
+}

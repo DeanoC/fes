@@ -1,0 +1,44 @@
+{
+  "scope": "sealed-four-second-preparation-native-files-only",
+  "candidate_root": "/home/deano/fes/out/dev/de25-preparation-clock-proof",
+  "source_head": "5c5a9a5b48470c45dc450fb1834540209c333891",
+  "compiled_source_head": "5c5a9a5b48470c45dc450fb1834540209c333891",
+  "outputs": {
+    "fit": {
+      "path": "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-uboot/build/u-boot.itb",
+      "sha256": "8d6aa12358f19ce4932eecc39b9dbb5c97bb733613d848a4b1ae04a8baffde4a",
+      "bytes": 8547024
+    },
+    "phase1": {
+      "path": "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-composition/native-hps-first.hps.rbf",
+      "sha256": "c3b518b695649d33b14f7857f5a499f121283521ed2214fa47b62f832ff904fd",
+      "bytes": 831488
+    }
+  },
+  "producer_result": {
+    "path": "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/matched-result.json",
+    "sha256": "e2761a64a7d2935c9d53a208249f63573c5297210f2e165d874e37b9aa8c37d1",
+    "bytes": 8323
+  },
+  "composition_receipt": {
+    "path": "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-composition/result.json",
+    "sha256": "2a1a0275cc9b089204b5d4f72b4d902428804d504e6573c291079c98a90b6ed3",
+    "bytes": 11221
+  },
+  "rollback_FIT": {
+    "path": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-autoboot-20261111/native-composition/u-boot.itb",
+    "sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+    "bytes": 8379072
+  },
+  "source_generations": [
+    4,
+    10,
+    15,
+    21,
+    26
+  ],
+  "boot_FIT_limit": 16777216,
+  "configuration_package_limit": 8388608,
+  "authorized_for_execution": false,
+  "hardware_actions": false
+}

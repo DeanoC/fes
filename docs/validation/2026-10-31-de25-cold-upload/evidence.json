@@ -1,0 +1,1556 @@
+{
+  "affected": {
+    "commands": [
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_affected.py",
+          "-v"
+        ],
+        "cwd": ".",
+        "files": [
+          "tests/test_affected.py"
+        ],
+        "label": "test_affected.py",
+        "lane": "always",
+        "tools": [
+          "/usr/bin/python3"
+        ]
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_test_changed.py",
+          "-v"
+        ],
+        "cwd": ".",
+        "files": [
+          "tests/test_test_changed.py"
+        ],
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "tools": [
+          "/usr/bin/python3"
+        ]
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/check_diff.py",
+          "--base",
+          "448cffd8f61fc18de8b5248ef2d56cb35974f623",
+          "--head",
+          "448cffd8f61fc18de8b5248ef2d56cb35974f623"
+        ],
+        "cwd": ".",
+        "files": [],
+        "label": "committed whitespace",
+        "lane": "always",
+        "tools": [
+          "/usr/bin/python3"
+        ]
+      },
+      {
+        "argv": [
+          "git",
+          "diff",
+          "--check",
+          "HEAD",
+          "--"
+        ],
+        "cwd": ".",
+        "files": [],
+        "label": "working whitespace",
+        "lane": "always",
+        "tools": [
+          "git"
+        ]
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/parent_tests.py",
+          "--video",
+          "false",
+          "--media",
+          "true",
+          "--paths-json",
+          "[\"platform/embedded/firmware/build_terasic.py\", \"platform/embedded/firmware/build_terasic_uboot.py\", \"platform/embedded/firmware/nano_bridge_platform.inc\", \"platform/embedded/firmware/nano_cold.c\", \"platform/embedded/firmware/nano_cold.h\", \"platform/embedded/firmware/nano_cold_mmio.inc\", \"platform/embedded/firmware/nano_cold_platform.c\", \"platform/embedded/firmware/nano_owned_sip.inc\", \"platform/embedded/firmware/prepare_nano_owned.py\", \"platform/embedded/firmware/tests/nano_cold_platform_test.c\", \"platform/embedded/firmware/tests/nano_cold_test.c\", \"platform/embedded/nano/cold_profile.py\", \"platform/embedded/nano/package.py\", \"platform/embedded/nano/prepare_uboot.py\", \"platform/embedded/nano/spl_cold.c\", \"platform/embedded/nano/uboot.c\", \"platform/embedded/nano/upload.py\", \"platform/embedded/nano/upload_transport.py\", \"tests/test_embedded_nano_handoff.py\", \"tests/test_nano_cold.py\", \"tests/test_nano_upload.py\"]"
+        ],
+        "cwd": ".",
+        "files": [
+          "scripts/parent_tests.py",
+          "tests"
+        ],
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "tools": [
+          "/usr/bin/python3",
+          "docker",
+          "sh"
+        ]
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "-c",
+          "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+        ],
+        "cwd": ".",
+        "files": [
+          "scripts/consistency.py"
+        ],
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "tools": [
+          "/usr/bin/python3",
+          "go"
+        ]
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "platform/embedded/tamago/nativefabric/verify.py"
+        ],
+        "cwd": ".",
+        "files": [
+          "platform/embedded/tamago/nativefabric/verify.py",
+          "platform/embedded/firmware/tests/native_rpc.cpp"
+        ],
+        "label": "native runtime firmware and FPGA launch integration",
+        "lane": "parent",
+        "tools": [
+          "/usr/bin/python3",
+          "c++",
+          "cc",
+          "go",
+          "verilator"
+        ]
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "platform/embedded/tamago/nativefabric/verify_producer.py",
+          "--allow-dirty"
+        ],
+        "cwd": ".",
+        "files": [
+          "sources/misteross/prototypes/embedded_control/producer.py",
+          "platform/embedded/tamago/nativefabric/verify_producer.py"
+        ],
+        "label": "embedded producer identity and native control integration",
+        "lane": "parent",
+        "tools": [
+          "/usr/bin/python3",
+          "c++",
+          "cc",
+          "g++",
+          "git",
+          "go",
+          "make",
+          "verilator",
+          "verilator_bin"
+        ]
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "platform/embedded/firmware/verify.py"
+        ],
+        "cwd": ".",
+        "files": [
+          "platform/embedded/firmware/verify.py",
+          "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"
+        ],
+        "label": "embedded firmware and identity/drain RTL integration",
+        "lane": "fpga",
+        "tools": [
+          "/usr/bin/python3",
+          "c++",
+          "cc",
+          "verilator"
+        ]
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "cwd": "sources/misteross",
+        "files": [
+          "tests/test_*.py"
+        ],
+        "label": "test_*.py",
+        "lane": "fpga",
+        "tools": [
+          "/usr/bin/python3",
+          "strace"
+        ]
+      }
+    ],
+    "initial_checkout_head": "448cffd8f61fc18de8b5248ef2d56cb35974f623",
+    "results": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "native runtime firmware and FPGA launch integration",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "embedded producer identity and native control integration",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "embedded firmware and identity/drain RTL integration",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "test_*.py",
+        "lane": "fpga",
+        "returncode": 0
+      }
+    ],
+    "scope_note": "The suite began before the final uploader length-parser tightening and SPL FAT DMA-alignment exclusion. Final uploader tests and native handoff/export tests were rerun. Matched firmware/loader v9 were rebuilt, final vendor alignment helpers exercised on actual FIT ranges, and final kit v4 was repackaged and audited after those changes. General firmware/RTL/runtime implementation did not change.",
+    "status": "passed"
+  },
+  "artifact_audit": {
+    "actual_vendor_alignment_cases": [
+      {
+        "block_length": 1,
+        "node": "atf",
+        "read_offset": 431400,
+        "read_size": 41021,
+        "within_sealed_file": true
+      },
+      {
+        "block_length": 64,
+        "node": "atf",
+        "read_offset": 431360,
+        "read_size": 41088,
+        "within_sealed_file": true
+      },
+      {
+        "block_length": 1,
+        "node": "fdt-0",
+        "read_offset": 472424,
+        "read_size": 22960,
+        "within_sealed_file": true
+      },
+      {
+        "block_length": 64,
+        "node": "fdt-0",
+        "read_offset": 472384,
+        "read_size": 23040,
+        "within_sealed_file": true
+      },
+      {
+        "block_length": 1,
+        "node": "fes-entry",
+        "read_offset": 495384,
+        "read_size": 4216289,
+        "within_sealed_file": true
+      },
+      {
+        "block_length": 64,
+        "node": "fes-entry",
+        "read_offset": 495360,
+        "read_size": 4216320,
+        "within_sealed_file": false
+      },
+      {
+        "block_length": 1,
+        "node": "uboot",
+        "read_offset": 1464,
+        "read_size": 429936,
+        "within_sealed_file": true
+      },
+      {
+        "block_length": 64,
+        "node": "uboot",
+        "read_offset": 1408,
+        "read_size": 430016,
+        "within_sealed_file": true
+      }
+    ],
+    "all_final_packaging_inputs_still_match": true,
+    "bl31_sha256": "c20a099dd721a6b3d72148fe75dea7a7cc64b7920810b35c06c5510fd7e9efec",
+    "chain_sha256": "2f23ec149a2568ccec02e31c1b3e4e99cb4cde329f006f7ba4022d334a542457",
+    "classification": "off-board artifact, real vendor alignment helper and compiled query audit; no hardware acceptance",
+    "cold_query_compiled_and_features_zero": true,
+    "fit_hash_found_in_final_spl_binary": true,
+    "fit_sha256": "9926773577fcb139b4a379cc293646d1e178619e3a4c8190f843e17d172bbf26",
+    "inputs": {
+      "out/nano-cold-serial-bl31-v9/result.json": "d8dd9b94de8519648cdb2df1ff936fc908ccbd5aad87144fd136023a5d6d5be5",
+      "out/nano-cold-serial-bl31-v9/source/build/agilex5/release/bl31/bl31.elf": "23bdbdb55fed501de545de69f97988068b34a33ea55f3f20fd20ccc38592cb8a",
+      "out/nano-cold-serial-kit-v4/result.json": "7730e1b709a291551ee70e9b0be7230bd8d156816820fcad44418e84141f6939",
+      "out/nano-cold-serial-uboot-v9/build/spl/u-boot-spl.bin": "82693fbf73989bcac1ea4fd59e2a3fe68234bc8cd95c735614abe644b43f24c2",
+      "out/nano-cold-serial-uboot-v9/result.json": "507057bd24c72d32db801f7f0ce0ac27d48253dad0998c1dc72c264961817d2b",
+      "out/nano-cold-serial-uboot-v9/source/common/spl/spl_fit.c": "e6ed53183aac3a73f20135906a192d5b580888e97aadb26fab1690ebf11dba5a"
+    },
+    "native_parser_block_length": 1,
+    "recovery_prefix_sha256": "2586b521d2e8b69622c6c7d52156a540ef5a1c695ae410a38f2c1483054cad71",
+    "sd_image_sha256": "9e5e50c4a1c414cb82587a41deb5469b6e62e2f979be8a9182c7c866ddf10719",
+    "sof_sha256": "a0fb02797b0c109115ba81352c151529ce3b2b47fedcbf9001db137d1d6b3f6c",
+    "spl_record_address": 135664,
+    "spl_record_size": 168,
+    "spl_sha256": "36b2e1beeadb6ab2397edabb8ccf5cab798ea914672af1278a8b1b05aba0c016",
+    "status": "passed",
+    "strong_symbols": [
+      "fes_nano_platform_boot_record",
+      "fes_nano_cold_capture",
+      "fes_nano_cold_consume",
+      "fes_nano_cold_owns",
+      "fes_nano_cold_quiesce",
+      "fes_nano_cold_quiescent"
+    ]
+  },
+  "artifacts": {
+    "bl31_sha256": "c20a099dd721a6b3d72148fe75dea7a7cc64b7920810b35c06c5510fd7e9efec",
+    "fit_sha256": "9926773577fcb139b4a379cc293646d1e178619e3a4c8190f843e17d172bbf26",
+    "network_recovery_sof_sha256": "f5ec8595a88a0bbc9205e9b50cfa00def22e3cc9e65ddb1af8dcde1ad42ba3ec",
+    "protected_prefix_sha256": "2586b521d2e8b69622c6c7d52156a540ef5a1c695ae410a38f2c1483054cad71",
+    "recovery_fit_sha256": "71f413629a7714ab1a7bd4c6331969ba2670bdc447ddbc3bb8c103e52b525721",
+    "sd_image_sha256": "9e5e50c4a1c414cb82587a41deb5469b6e62e2f979be8a9182c7c866ddf10719",
+    "sd_image_size": 150994944,
+    "sof_sha256": "a0fb02797b0c109115ba81352c151529ce3b2b47fedcbf9001db137d1d6b3f6c",
+    "spl_sha256": "36b2e1beeadb6ab2397edabb8ccf5cab798ea914672af1278a8b1b05aba0c016"
+  },
+  "base_commit": "448cffd8f61fc18de8b5248ef2d56cb35974f623",
+  "branch": "codex/de25-embedded-os",
+  "build_receipts_sha256": {
+    "nano-cold-serial-bl31-v9": "d8dd9b94de8519648cdb2df1ff936fc908ccbd5aad87144fd136023a5d6d5be5",
+    "nano-cold-serial-kit-v4": "7730e1b709a291551ee70e9b0be7230bd8d156816820fcad44418e84141f6939",
+    "nano-cold-serial-uboot-v9": "507057bd24c72d32db801f7f0ce0ac27d48253dad0998c1dc72c264961817d2b"
+  },
+  "classification": "host/model tests, pinned cross-builds and regular-file media only; no new hardware acceptance",
+  "cold_host_tests": {
+    "actual_cold_c_cases": 35,
+    "actual_el3_provider_cases": 12,
+    "actual_spl_seal_cases": 11,
+    "hash_api_substituted_in_seal_host_test": true,
+    "python_tests": 3,
+    "strict_warnings": true,
+    "ubsan": true
+  },
+  "cold_profile": {
+    "chain_sha256": "2f23ec149a2568ccec02e31c1b3e4e99cb4cde329f006f7ba4022d334a542457",
+    "entry_image_sha256": "1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950",
+    "entry_image_size": 4216289,
+    "entry_receipt_sha256": "f2ee3755aaf331934027379e9c84eebae88c6ea40d98b9cfe42642cdd5b4b4da",
+    "experimental_fit_path": "FES/UPLOAD.BIN",
+    "format": 1,
+    "owner_seed": 3396818117197129933,
+    "producer_sources": {
+      "platform/embedded/firmware/build_terasic.py": "0866048f93a7260342074ccd3fd284ac98b4b932168dedc95f55ae2f798f7fd1",
+      "platform/embedded/firmware/build_terasic_uboot.py": "d14063bd744f652631eea67c4ddb41e24e336008ab2c06c4098c2ec5cc2a5cfb",
+      "platform/embedded/firmware/generated/fes_embedded_bridges.h": "52d1cda431a42daade9dcf0cad49987c60179693e6bbfcc8385075e217ab6e08",
+      "platform/embedded/firmware/generated/fes_embedded_control.hpp": "8856d106e50c7b3a8394c8e1442568446087195dfd3e6f3099ad63931dd41df1",
+      "platform/embedded/firmware/nano_boot.c": "3d09269591bdc90733da41462109f7c3c335f7f18c92f1fa38a6287243db6040",
+      "platform/embedded/firmware/nano_boot.h": "e95dfbb06fd03f0cb11bc33c7260a3828722962231efaa8a397fc81af4e97b4b",
+      "platform/embedded/firmware/nano_bridge_diag.h": "b80c4442198cbbdff4781d66ace85ab4a930804114176e5927e8984d1e78e904",
+      "platform/embedded/firmware/nano_bridge_diag.inc": "4d6a679e495b06dbda6d40db269492faf6ffa20aa2024262d57c6d648fd7c946",
+      "platform/embedded/firmware/nano_bridge_platform.h": "85c3ae63484f3453d120133f1a7577533f97f2870d663b1610d4d9382c037e5e",
+      "platform/embedded/firmware/nano_bridge_platform.inc": "68126bbdead8ec17de15deb33cabfaee0e24b02ea2207cce09c05f347df2aa70",
+      "platform/embedded/firmware/nano_bridge_sip.c": "4e8ac3d37fc97f372b290c09ac5fd6b1bd6b5bf8707028ec8c67fb53075d162d",
+      "platform/embedded/firmware/nano_bridge_sip.h": "6d89f334a2cb624da3299b8dd433e227e29dd88883042a1c3f128fc59c3ac921",
+      "platform/embedded/firmware/nano_bridges.c": "6b3000f0a0fd7e671ab55932a14072ad0cd4759cda12a834c5b77cd351d6a4d0",
+      "platform/embedded/firmware/nano_bridges.h": "06bbc5e28763c949a0b3939ee5cadfd34f06df269bdcbce099f6e3470f945f97",
+      "platform/embedded/firmware/nano_cold.c": "19e4da87e939d86e31268b8c6c78469e93bce3623373e64ee38391a967e0b68b",
+      "platform/embedded/firmware/nano_cold.h": "3bde38e77736ea4115753211aa0be2ecb36c39e165b7ea2a2c8276337cde20e7",
+      "platform/embedded/firmware/nano_cold_mmio.inc": "ca5ce4c3a47f49ac01cec73bc34843f75d8cf6a62fc5325b073972c37ea9b450",
+      "platform/embedded/firmware/nano_cold_platform.c": "343964613062964f89e46dd75e17de58c54e40106eca833ebb8d4e7d13804c32",
+      "platform/embedded/firmware/nano_owned_sip.inc": "5a7153cf82c4da300b4741e485cd1c8d171c9e51d119e13a286642115c5e96a2",
+      "platform/embedded/firmware/prepare_nano_owned.py": "6d7f8560b3aba09d78f0d3cdd389561e07c765c1c2bbac904704d9131a662631",
+      "platform/embedded/firmware/prepare_tfa.py": "8cf0fca78340d2cfd18f3f6ba6dd9239bb5ff615f4746d1c38105d77d1d950ee",
+      "platform/embedded/firmware/verify.py": "952b3b0f1a97e45802e5961492f1a47ebbbcc90ea8e97fa8094dc785a6da4bd8",
+      "platform/embedded/nano/cold_profile.py": "51af8f1b25b3f1ed17feeb33810545b009d6ff65b9bd59f1906db99b864fdd28",
+      "platform/embedded/nano/handoff.c": "1bffae6e47ae82df75e9ce330f90c312362302aa3b88ff6ca6dba42b02e90785",
+      "platform/embedded/nano/handoff.h": "4b2845a162325c7ca7da00cadce807801d1d4308353ac1c3701419fe83ba9bb5",
+      "platform/embedded/nano/prepare_uboot.py": "73bd06d0f428d2a7b0f355acf32aec5b2c80e9dd3b41f4b085d68bded12f47dc",
+      "platform/embedded/nano/probe-profile.json": "02c764a2b6fcb0705046c939ad1fabe55a0daf330d4d7f3f1750cde29107a8f8",
+      "platform/embedded/nano/spl_cold.c": "085dcf5d13493df23125769181ef6a3df640966260012ded43ad6cb87dfb4c8d",
+      "platform/embedded/nano/uboot.c": "fefe281b2e92e7908c5765a2d08bb33ca2b0700e5aa96b8ae2da401df5dbbbbf"
+    },
+    "profile": "cold-serial-preloaded",
+    "reference_sof_sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+    "tfa_pin": "580dcb5c4e10aa7daff2bf69d493c076a6d3e665",
+    "uboot_pin": "d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413"
+  },
+  "created_utc": "2026-10-31T19:19:11.378934+00:00",
+  "factory_or_recovery_baseline_changed": false,
+  "format": 1,
+  "hardware_access_this_change": false,
+  "limitations": [
+    "not signed, authenticated or measured secure boot",
+    "cold serial profile only; active/restarted producers reject",
+    "no native SD/USB/network driver or resume",
+    "no FPGA configuration, control/data release or physical launch/return acceptance",
+    "FAT writes are not atomic or guaranteed durable across power loss",
+    "embedded SPL has not been independently decoded from SOF",
+    "unreturning MMIO/SMC cannot be preempted by a software deadline"
+  ],
+  "log_sha256": {
+    "nano-cold-affected-final.log": "4456c07341bec4499f9471d688926fb5d1afe2c4d3a6e593905a6b665ad29f4a",
+    "nano-cold-check-final.log": "08c07bc536fbb15a6932e60cbf47db79c9542e3fa7644c48a11dec9dd9523917",
+    "nano-cold-handoff-final.log": "0cf04e8e8c38555ce061195c2a8efa417466df3d8b2dc9ad8ca59ab9cb867d5e",
+    "nano-cold-owned-integration-final.log": "3ab6f21e3cd32492bc744d76a4eb19a569f7cc18d006d8cf0bf0d1914613aa71",
+    "nano-cold-sealed-tests.log": "1b6ad82950100d66402d5269d7a4cf85ab7b677c7469398ca3e915c2960285c4",
+    "nano-cold-serial-bl31-v9.log": "eea65764a16f5545d9c9b6450827183fae4e04750de87f92b09c4399977fbf0e",
+    "nano-cold-serial-kit-v4.log": "647696213c041017e72842367e74ce060a1734bdc3083e6121a85d5d749e8e51",
+    "nano-cold-serial-uboot-v9.log": "24b97d0b9f9a223515d9b328fe47dc911567c9578d24fcd43c9d2cf1b388723e",
+    "nano-upload-focused-v5.log": "134584387b1064e2c4e118ef7b1ebbe414d6004ed4da0cee0c27abf390710c43"
+  },
+  "native_handoff": {
+    "bl31_sha256": "c20a099dd721a6b3d72148fe75dea7a7cc64b7920810b35c06c5510fd7e9efec",
+    "build_id": "ae9d1d6ba30a7e5f",
+    "classification": "source-derived serial-only Nano handoff; physical gate not executed",
+    "entry_image_sha256": "1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950",
+    "entry_receipt_sha256": "f2ee3755aaf331934027379e9c84eebae88c6ea40d98b9cfe42642cdd5b4b4da",
+    "experimental_fit_path": "FES/UPLOAD.BIN",
+    "preloaded_entry": true,
+    "profile_sha256": "02c764a2b6fcb0705046c939ad1fabe55a0daf330d4d7f3f1750cde29107a8f8",
+    "sealed_fit_sha256": "9926773577fcb139b4a379cc293646d1e178619e3a4c8190f843e17d172bbf26",
+    "sealed_fit_size": 4711676,
+    "spl_record_address": 135664,
+    "spl_record_size": 168
+  },
+  "native_owned_integration": {
+    "classification": "host native lifecycle/tenfoot with C Nano bridge service, actual pinned vendor bridge functions, prepared TF-A functions and Verilated FPGA RTL; injected registers, ownership, memory and SDM; no physical acceptance",
+    "commands": [
+      {
+        "argv": [
+          "go",
+          "env",
+          "GOROOT"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/tamago",
+        "label": "host-go-root"
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware/verify.py",
+          "--output",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/firmware",
+          "--reference",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/terasic-git-restore-tfa/plat/intel/soc/common/socfpga_sip_svc.c",
+          "--reset-reference",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/terasic-git-restore-tfa/plat/intel/soc/common/soc/socfpga_reset_manager.c"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "firmware"
+      },
+      {
+        "argv": [
+          "cc",
+          "-std=c11",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "-fsanitize=undefined",
+          "-fno-sanitize-recover=all",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware/tests",
+          "-c",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/nano-driver/driver.c",
+          "-o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/nano-driver/driver.o"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "nano-driver-compile"
+      },
+      {
+        "argv": [
+          "cc",
+          "-std=c11",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "-fsanitize=undefined",
+          "-fno-sanitize-recover=all",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware/tests",
+          "-c",
+          "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware/nano_bridges.c",
+          "-o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/nano-driver/service.o"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "nano-service-compile"
+      },
+      {
+        "argv": [
+          "cc",
+          "-std=c11",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "-fsanitize=undefined",
+          "-fno-sanitize-recover=all",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware/tests",
+          "-c",
+          "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware/nano_boot.c",
+          "-o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/nano-driver/boot.o"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "nano-boot-compile"
+      },
+      {
+        "argv": [
+          "cc",
+          "-std=c11",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "-fsanitize=undefined",
+          "-fno-sanitize-recover=all",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware/tests",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/nano-driver/driver.o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/nano-driver/service.o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/nano-driver/boot.o",
+          "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware/tests/nano_bridge_driver_test.c",
+          "-o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/nano-driver/driver-test"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "nano-driver-link"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/nano-driver/driver-test"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "nano-driver-cases"
+      },
+      {
+        "argv": [
+          "cc",
+          "-std=c11",
+          "-Wall",
+          "-Werror",
+          "-fsanitize=undefined",
+          "-fno-sanitize-recover=all",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware/tests",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware",
+          "-c",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/tfa_owned_subset.c",
+          "-o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/tfa_owned_subset.o"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "owned-sip-compile"
+      },
+      {
+        "argv": [
+          "cc",
+          "-std=c11",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "-fsanitize=undefined",
+          "-fno-sanitize-recover=all",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware/tests",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware",
+          "-c",
+          "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware/nano_bridge_sip.c",
+          "-o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/nano_bridge_sip.o"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "owned-codec-compile"
+      },
+      {
+        "argv": [
+          "verilator",
+          "--cc",
+          "--exe",
+          "--build",
+          "--top-module",
+          "fes_embedded_control",
+          "-Wall",
+          "--Mdir",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/rpc",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/cores/fes-common/generated",
+          "-GBUILD_ID=128'h0123456789abcdef0123456789abcdef",
+          "-CFLAGS",
+          "-std=c++14 -O2 -fsanitize=undefined -fno-sanitize-recover=all -DFES_TEST_TERASIC_TFA -DFES_TEST_NANO_BRIDGES -I/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware -I/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware/tests",
+          "-LDFLAGS",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/tfa_owned_subset.o /home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/nano_bridge_sip.o /home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/nano-driver/driver.o /home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/nano-driver/service.o /home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/nano-driver/boot.o -fsanitize=undefined",
+          "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv",
+          "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware/control.cpp",
+          "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware/tests/native_rpc.cpp"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "rpc-build"
+      },
+      {
+        "argv": [
+          "c++",
+          "-O2",
+          "-std=c++14",
+          "-D_FILE_OFFSET_BITS=64",
+          "-ffunction-sections",
+          "-fdata-sections",
+          "-pthread",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/include",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/src",
+          "-isystem",
+          "/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/third_party/toml11/include",
+          "-MD",
+          "-MF",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-0.d",
+          "-c",
+          "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/runtime/admission_oracle.cpp",
+          "-o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-0.o"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-compile-0"
+      },
+      {
+        "argv": [
+          "c++",
+          "-O2",
+          "-std=c++14",
+          "-D_FILE_OFFSET_BITS=64",
+          "-ffunction-sections",
+          "-fdata-sections",
+          "-pthread",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/include",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/src",
+          "-isystem",
+          "/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/third_party/toml11/include",
+          "-MD",
+          "-MF",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-1.d",
+          "-c",
+          "/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/src/native/core_package.cpp",
+          "-o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-1.o"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-compile-1"
+      },
+      {
+        "argv": [
+          "c++",
+          "-O2",
+          "-std=c++14",
+          "-D_FILE_OFFSET_BITS=64",
+          "-ffunction-sections",
+          "-fdata-sections",
+          "-pthread",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/include",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/src",
+          "-isystem",
+          "/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/third_party/toml11/include",
+          "-MD",
+          "-MF",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-2.d",
+          "-c",
+          "/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/src/native/artifacts.cpp",
+          "-o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-2.o"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-compile-2"
+      },
+      {
+        "argv": [
+          "c++",
+          "-O2",
+          "-std=c++14",
+          "-D_FILE_OFFSET_BITS=64",
+          "-ffunction-sections",
+          "-fdata-sections",
+          "-pthread",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/include",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/src",
+          "-isystem",
+          "/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/third_party/toml11/include",
+          "-MD",
+          "-MF",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-3.d",
+          "-c",
+          "/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/src/native/sha256.cpp",
+          "-o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-3.o"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-compile-3"
+      },
+      {
+        "argv": [
+          "c++",
+          "-O2",
+          "-std=c++14",
+          "-D_FILE_OFFSET_BITS=64",
+          "-ffunction-sections",
+          "-fdata-sections",
+          "-pthread",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/include",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/src",
+          "-isystem",
+          "/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/third_party/toml11/include",
+          "-MD",
+          "-MF",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-4.d",
+          "-c",
+          "/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/src/native/diagnostic.cpp",
+          "-o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-4.o"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-compile-4"
+      },
+      {
+        "argv": [
+          "c++",
+          "-O2",
+          "-std=c++14",
+          "-D_FILE_OFFSET_BITS=64",
+          "-ffunction-sections",
+          "-fdata-sections",
+          "-pthread",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/include",
+          "-I/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/src",
+          "-isystem",
+          "/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/third_party/toml11/include",
+          "-MD",
+          "-MF",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-5.d",
+          "-c",
+          "/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime/src/runtime.cpp",
+          "-o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-5.o"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-compile-5"
+      },
+      {
+        "argv": [
+          "c++",
+          "-pthread",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-0.o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-1.o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-2.o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-3.o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-4.o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-5.o",
+          "-Wl,--gc-sections",
+          "-o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-link"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "--model-capabilities"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-capabilities"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-0",
+          "b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-0"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-1",
+          "03e7a0f933040eb392f73e14e37c4be9fa710249e47a24e49d67bc764a7e20a9"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-1"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-2",
+          "033fd02cab5ca1533d617e9adecbb2e975182672aebf669b9b9b7485f2a5d4ae"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-2"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-3",
+          "4e96d5f93d7c3477f8107e1a708e64c0daf607e8f6b628b9edfd15b784779d34"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-3"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-4",
+          "5b3ec8ce5c12e347f1cce73ea858090c5204777a666d864a5b30672a34cbf2ab"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-4"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-5",
+          "ee3cedac57cfa50585540b8a8909aedb636a09c36dd9240b82a48305ae8b1a83"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-5"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-6",
+          "ab48a770796990d08f3e8ba0404335af2f99cd06c4f6b1790f4e03db62f6b299"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-6"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-29",
+          "4485543fd9c97cee6177e17300e6d6f5fe46aed9ac90a2ba0dc4663c042ee752"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-29"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-30",
+          "99dc4eeb0cd0f4a95ec394af59e57a06ea7d342afd733573b200b5f183eea313"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-30"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-31",
+          "d038cd4a27b4b3cf806831bf084632412acf578b11b43722399b995c7d636928"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-31"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-75",
+          "ed3e0c4b53492ed40c930ec8dd60b445a50072de529eb71013ae0a10e28b21ba"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-75"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-92",
+          "a9039139858270523feca73cbc642fbfbfc0bffdf0326d02b5f4825a74134bd7"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-92"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-93",
+          "c5d862e3b15f4068b78a756db76f136c9ea1555fe1fd29e5efe829e96f4769a6"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-93"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-94",
+          "e279a94934738c04c3f00f16b44a8b9ae1de970b4732797663958e0ff003fc81"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-94"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-95",
+          "7ce97e0267aa6a0834806d55f859044e4f94566c50bf57024f99980815a82e06"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-95"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-96",
+          "1238310b784f2780cc9988d3a52393f41c0637ccc00133b80829b1c16a80a0ed"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-96"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-97",
+          "80ac747864ab53234d3e7a3df57dc244baa2fa522e2ef29771ebced6e4709f29"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-97"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-98",
+          "7b36e79a04f948b66d294ad146cd614e83528ab1da8d0eaefcd2d658270e19a7"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-98"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-99",
+          "0e44b359ca6ae78711aead00bfe0e1fb929843645999ed1c3f7cb0f6e72723b7"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-99"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/oracle-package-100",
+          "ea667cc878a7007c70c4d8fe59a0d8017770ddd9b473c728cab77192195a2ddc"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "oracle-package-100"
+      },
+      {
+        "argv": [
+          "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+          "build",
+          "-mod=readonly",
+          "-o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/session-fixtures",
+          "./cmd/session-fixtures"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/tamago",
+        "label": "session-fixtures-build"
+      },
+      {
+        "argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/session-fixtures",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/package-fixtures",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-owned-integration-v1/admission-oracle"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "label": "session-fixtures"
+      },
+      {
+        "argv": [
+          "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+          "test",
+          "-race",
+          "-count=1",
+          "-timeout",
+          "90s",
+          "-v",
+          "-run",
+          "^TestNanoFirmwareBridge",
+          "./nativefabric"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/tamago",
+        "label": "native-tests"
+      },
+      {
+        "argv": [
+          "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+          "test",
+          "-race",
+          "-count=1",
+          "-timeout",
+          "90s",
+          "-v",
+          "-run",
+          "^(TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure|TestCPUBridgeFailureStopsActorBeforeProgramming)$",
+          "./modelbackend"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/tamago",
+        "label": "tenfoot-tests"
+      }
+    ],
+    "firmware_checks": [
+      "PASS actual-TFA-contained-reload",
+      "PASS AXI-fault-reset-generation-cookie",
+      "PASS identity-firmware-deadline-failures",
+      "PASS terasic-isolation-and-status",
+      "PASS outstanding-queue-and-CSR-backpressure",
+      "PASS forwarding-profile-and-late-response",
+      "PASS simultaneous-AR-RLAST-and-256-beat-burst",
+      "PASS terasic-query-dispatch-v1-v2-and-v3",
+      "PASS terasic-original-timeout-reproduction-and-patched-enable-disable-polls",
+      "PASS first-failed-bridge-stage-snapshot-and-stale-clear",
+      "PASS opt-in-bridge-service-detail-and-ordinary-ret1"
+    ],
+    "firmware_patched_sha256": "c9f9bf147993d908ab9ce3ef46a5fe8552812e5d780faebd969acacaa217450a",
+    "firmware_reference_git_blob": "288baffb283787dbd49729983800ce764243adda",
+    "firmware_reference_profile": "terasic-de25-v2.12",
+    "firmware_reset_patched_sha256": "34c1831a2d66ba10c796ec07d27ab658f42b13c945fe3607c06efe85492c2ec2",
+    "fixture_sha256": {
+      "ADMIT.JSON": "48496c756690a29c265de3191139579629694520bc85c2002d581c4caf4a2a31",
+      "BIOS.BIN": "ccd521371b29352a7b02a04c2408c4e0ceacba97fc3ce449edd8897cb2397410",
+      "CART.BIN": "53a31bbd7abb95a3bc7313283cd8259b7445a65a9a7e91d9abab6beafc604f1f",
+      "CASE000.FCP": "e5aea27e4fb90209014bdbd914ba265833c929ee97f42a272a33f401d8a8cfd2",
+      "CASE001.FCP": "c200f0efb1e2c48e7644513ad90d76a98b518d35737eb67751f296eb2d0b3c08",
+      "CASE002.FCP": "7c01933390ae8bfe5587e08dc28f69f9b681d0438beacda86c0d3e8234c04fb3",
+      "CASE003.FCP": "6f79111cc2a2a526bb92161905f1a27f64a3e09acb743862c2b78261b3a0f218",
+      "CASE004.FCP": "b0be76e6f4ac3a0a72d166a0d1276470b0843ccc1a8b2a833237d12ebd870790",
+      "CASE005.FCP": "8177043f1a841515867858732acb44eba37d269592295014941aa757ada468bf",
+      "CASE006.FCP": "a49fc6b69285599f1f3a1af7f76be108431c73031ed4004807a750c464b8a369",
+      "CASE007.FCP": "8d5a3a73f2037f213aaf7d993a1e8643c7284219b8a84e72c854d9bd2597bcc1",
+      "CASE008.FCP": "d4b44173223327786ee803a81fae69d21bab4e578a9ae9f105a9d3a4dd7f2b65",
+      "CASE009.FCP": "8ad7e4eeadc9a5856e43123d6292f3b7656d30c5cf57a51885aa0c9108f69d19",
+      "CASE010.FCP": "c16f7d905b72e1b9679625fa27acd703e0234225ac6dea359724c7c893ee11fc",
+      "CASE011.FCP": "2853274599603c7037d923b66efcd48fb32cabc73f06e01c8370f97e019dba07",
+      "CASE012.FCP": "898b609bfedcf254b7093ab1c31581a6066613466a8d1e46c9fc47c9cace906e",
+      "CASE013.FCP": "70d5b463f3247ed5b91a9d846a5257d9ad3834c2cc2c55471ee8ff56d4f52328",
+      "CASE014.FCP": "2e1b821de1dd2b2ccd2e188485a2c4919ac2874a213a799114d9334c76528bfa",
+      "CASE015.FCP": "6c37ca22b03df659263d225ff8f5f68195a5a22b1f31cb3578e11013ba8f8be3",
+      "CASE016.FCP": "daafd22337c0e0e096a7b68d114a737194b049e8aca032744b80d2ac0b3bb277",
+      "CASE017.FCP": "07642295996fd5ddd2c7f846962c5c0b1d9b4edf4f1fbec5b2eadcf54a0c26d5",
+      "CASE018.FCP": "72120a6e3d4de382700810b1bd80b1d8542c418d42c71284d83efadb3181753e",
+      "CASE019.FCP": "373ee843508ab26c125cf2b978803ee790e809cad869ca536c937ce388332777",
+      "CASE020.FCP": "e8aecbd048880767d4a4780c65dd936af450b3b2c43b75f362388d826c6c491c",
+      "CASE021.FCP": "b25c5bb01fdfa06c6cb5049a17914b21c35cc1f6239a91b5b62b453e9672d059",
+      "CASE022.FCP": "a98518cd58b35508722aafd00a3fb62027a02ab7d83369bd1ff951d2c4c8e707",
+      "CASE023.FCP": "0dc277680282945ae6a516dc795da04758d7891bbe6058c1e68c3e51b0d4677a",
+      "CASE024.FCP": "4ab7ec03c897ec88cffc502d8707297586f149936af0e5b63b82c97c0fe5177b",
+      "CASE025.FCP": "c107dca475dfdca8befef4f1d4d811b93542489c08d3422a2eee5398b5b65aba",
+      "CASE026.FCP": "db6add47122f7678d8cc1640e52d9be7ec94888511b7458f4f506bb2c2e66c12",
+      "CASE027.FCP": "72ced5666f377943ae5a36c7aa405de0be5cf570701c4bc5a8a0347e1932eb5b",
+      "CASE028.FCP": "cb8d9338a008da9a8390fa77ed80086a7176dea7b59b715befe8ab482595467e",
+      "CASE029.FCP": "1eac82e463c1d4a181c731939f62495b27bbc024b487b69b712dfa4acaad5169",
+      "CASE030.FCP": "6aec4ec358a8898e3686760966b718bc8800a367b6f7e3d9b1b2169d324e3269",
+      "CASE031.FCP": "1a7cd0fb82adceb3c4106b901b23c2921243051ba2730bc1169d87ff20c31613",
+      "CASE032.FCP": "0ce9077a0825c47aac1f87c9f53bb50131e4e703160c0064c707ac6cd4e98f7d",
+      "CASE033.FCP": "de5ab0b833fa29c9240e62eebe882017a4135cbc3d37204add850aae30a83b2f",
+      "CASE034.FCP": "2492569564d1c4e0982e4cb29451edb07756b66351b3650b952c894f7f6de155",
+      "CASE035.FCP": "3f32494cc8d1f0ef72971e0247fbc3d763b8bea3a7135e5bc2e8b41539aaf50c",
+      "CASE036.FCP": "a82fb8fdae6ba53b6d2bd690c2d23616a2c93cb8f13a4baf7820d60ba38e907d",
+      "CASE037.FCP": "8735152eaee800189a908d143cbd923f1ebc533a60c9aa770a101d8926d4bd09",
+      "CASE038.FCP": "e3ecfb79e87bd704793e5b4ec54a4253a81a6ec5f0d2e6627b2ce298fa2f0df3",
+      "CASE039.FCP": "f5f9e6bf68512ffc6397f9ae703704110383de77f6494082dd768233d5d83622",
+      "CASE040.FCP": "a850607b31588c8f268147ca8840b8b65a7266e680782d04016a8ea99bb43f33",
+      "CASE041.FCP": "ee8fcd2379485dd83947302b6a220cbe608e7391bfe56218e773df535ec428df",
+      "CASE042.FCP": "6942aa53f9363079dc60466f443232013c8e034cf7f9e4c7200fd91216e0abde",
+      "CASE043.FCP": "fc29187b07429d6419c7a348fa09e19c13d2d05924b413b8af862b69934224c8",
+      "CASE044.FCP": "38957002c3227cd239f6006f219559e1d064a0682a8a3ef0c55f66b470607c9e",
+      "CASE045.FCP": "33da9958e35894ebff49baae3a3c8818523fc11b2210281ec791f92a7f6cf761",
+      "CASE046.FCP": "af4fcac55ec54ccaca858a7a905080476fa12d389e601c9710e4f53c922d5e45",
+      "CASE047.FCP": "7565fc0c4016815160a020e790cc1680d521d8f85666ec7fa88d495e1db5a13e",
+      "CASE048.FCP": "0f6e71eb9b02e689af467f827c228daf8dbff5e8e90cb07dc1963990ea8e789d",
+      "CASE049.FCP": "da9909849a2204e5267cb656853a1f7e82038ae5f9550614ba8dba6d7f885160",
+      "CASE050.FCP": "f0724adaec25559a2369e9a7f1e6d2f9caffb66d151f575b1b415c43786ea648",
+      "CASE051.FCP": "08753abc66a033fa14717cb50d5d81fd24653788aa8b805969ff43da59ce8bfd",
+      "CASE052.FCP": "ec6a2fe0551a035e664030ad77ad2bdfa8dffddb778076e845b3971aa431e0b1",
+      "CASE053.FCP": "1dd35e4b08fb70ce1ada6076c97ff6c350666520af9cc71170a9ed954083a0eb",
+      "CASE054.FCP": "659a3ed75120febab986843623f0314b26e0ccb1db3f0990b86098927031d01c",
+      "CASE055.FCP": "7df9935834ab5a64c7a0288b182b2ef6e91ee8a5dc964e8392dabfa2148a991e",
+      "CASE056.FCP": "682d377d608d30320d13eacc58c865495b33ed0ad76b8e8c207737c3a6357e51",
+      "CASE057.FCP": "4a6508a1e6133855e799b09925cf5a63b1158423445e44e93505525373f87a4b",
+      "CASE058.FCP": "03d66a30d10765dcd7a526c2ba5e3dec9f07faac0e7e1954b9ac326bf765ea0a",
+      "CASE059.FCP": "8f7c9fbf70018476fba2e004bcd04fe41e0037917bce935ea0b9e650c60fff6f",
+      "CASE060.FCP": "0b2aea800d03ea9529a9b14fed2cf2a40e865e8926cd92c60a015c422580bfab",
+      "CASE061.FCP": "d7d94724632ceb483300b99143e9ae88414e1620587b88072b7512ab4a4dbbd8",
+      "CASE062.FCP": "2604540d6a435131907c9fa46eb005b5d29edc531e0397f9bbadd50308672f9d",
+      "CASE063.FCP": "2f29d3c57c6d7b8172ad0114fdf9ba06cf06dd6083715d40f570fdbe4bd82792",
+      "CASE064.FCP": "dea1d692290a936069c46cc5254ce53d85f91a3251495299e7a884240f730ffb",
+      "CASE065.FCP": "1e6ea6e28a484f2acd2c76118330ac41ddcad99ec43f4b508e4f63b85349095c",
+      "CASE066.FCP": "fa73186dad30ff460a72a7252fd54ff784cf459435471e148de1b3124d6c70d1",
+      "CASE067.FCP": "24a5bb9793d0f3b28fd519e6ac439c4895609687609c68a38c955882c5f849a0",
+      "CASE068.FCP": "ba000e4c229cbcf43a3b70e2e948ce196e32bb622d42e3df8527f435aa36277b",
+      "CASE069.FCP": "119397a1e8b381fb8e11a0a89f29ac3df89e185420115d02946cb6798500a205",
+      "CASE070.FCP": "cf0b497e66638a84a8eef4076f5fe25475d78bfcd83f4f3e85f6feec218fcff6",
+      "CASE071.FCP": "2db868f37389f05f79b65db6496112a91ed1e874eba81ae313f5cb6587a8cdd5",
+      "CASE072.FCP": "66b5813873839366c7450f29ac83a748682aea5661ac38e87fda6cf5a38d7aed",
+      "CASE073.FCP": "c93baf32aff4a35661b3aba1e708cfc0e6e8c73ac11ab8a45e074e8a0e790265",
+      "CASE074.FCP": "ee13664bea252fb7385acea00ab3f9ab83701010e1cf73431a8d6bfe31c3b93f",
+      "CASE075.FCP": "248dcfcd4aed8a2e5575fae53042351d7b5591a7c2313d1d3253212d185e7261",
+      "CASE076.FCP": "4f0747081fc4ad3e33c9841ded2e25e6fcddf14f74d1dbdb7116a167d10a2132",
+      "CASE077.FCP": "9e8c805ccbec45e13570a90774d83e7d86c990a5aaf979ec31fedc07a97ad695",
+      "CASE078.FCP": "521a32adb714d5ed85db8c8f579ff94bd6ad1235cf32380dd2b8e16cf724da67",
+      "CASE079.FCP": "9c49bd5ea8778a34563dcd9c1e60fa42d6cd92e252216119d74901a4b1672c41",
+      "CASE080.FCP": "73b3338f5c2f55365c350fd18494c45c7a48d41713daa837c26a9cfcc94ebd4d",
+      "CASE081.FCP": "52bbd17a484a6be542db4b992b7fb62c20691abc3e148a3adef6da4b63ac01d3",
+      "CASE082.FCP": "8283ef44f0c492f83205cc9082ca68aad21d601f8340993546ddf5d63387fd64",
+      "CASE083.FCP": "50f03039b988d54089640847a7a80bf4749469d3a557b0faccee6894808b8b76",
+      "CASE084.FCP": "ff1377f09ccab7b00371294c0776bde8ca8d894b80cc7bebe4a6a0a6091cc6fa",
+      "CASE085.FCP": "f89101f2a382c223e7a35b387d2674f55aad38a4f643dd885b76e23bacb87eff",
+      "CASE086.FCP": "d5f1475247cfe780b41ff56b7ceb450e36fcb204da4430500349914bc84b5157",
+      "CASE087.FCP": "4ea7f685f5bfbec31aa8000fbedb6d07d46a2105a1343430389c5fc793bb45c9",
+      "CASE088.FCP": "01b14912786e02ceb56ec3f69b7d8c47ad8db52936f0eee97e45cb581d3b2132",
+      "CASE089.FCP": "5633f1d6ee6e9d1839aa5c552295215bcba3527264d198cee58722a48cad5367",
+      "CASE090.FCP": "961f753eeedec2cb4ad50f96caf8d8ebda13ad4e9218eddd80cb3e8d1c6a8887",
+      "CASE091.FCP": "de96adc235a369e3c0516b6d2b4793b0cc3f30d9f258f977f868caa6e93e0ff1",
+      "CASE092.FCP": "a8e67cd77d576b86ee759b7abee6f173d08d5fa057ac4a553100a1d223955dd9",
+      "CASE093.FCP": "ed733d6d62473706b04aad55324cdcc5a01869f5dcdb4f78874bbb44c7124cd5",
+      "CASE094.FCP": "0d0aae3b8eb4533e83746c89583f052230032f5e4203cd4e32f2866a6b9b08b7",
+      "CASE095.FCP": "88e04e2918bc5448e0606797eb3db1a4ba661ae68430b8b198f3f371b32c8fc3",
+      "CASE096.FCP": "ba70f2c4064654552f94a4e23a2f9fd04a63c26df518e560293511878b619b0b",
+      "CASE097.FCP": "9004d9ec79dc311da1c6552b633f270076263dcf1573ba39eeff66ee8f821ba5",
+      "CASES.JSON": "6f90522cce3050ae8a4e01f1bfbdd0a36d23fb4df1708c9f228a859f041cd7a0",
+      "CHANGED.FEX": "5410dc915dd41564f0015fb3d01daaa34d3d36039253a9da8aff7e0f14eeb9a7",
+      "COMPOSE.JSON": "e29e8dd1d6e9a10abbbe3da440f3dfccdb04c62ced6a54ef51a732135b7e0f16",
+      "CPU.FEX": "cc01af62cc2f773c23dfdfe9ebb1eb75c1bc2df8d1f12548a64a5dcbe2812b58",
+      "LINK000.FCP": "c9991a919817614b0ee6d42b24d300ec377108f0a1f22805fa8555fa33381eba",
+      "LINK001.FCP": "ec795eb46795bfeee9890b52714816263fec41ff9fa0e1623282ad5d82e4e080",
+      "LINK002.FCP": "b37554cd09705c1b815749e2cc648807e6991adb791745480abb3c9d32f72c69",
+      "LINKS.JSON": "b10f8a4eded228971dbc6baa4b72d959a57f8336149f18b6c39ef8126de3ca7d",
+      "OTHER.FEX": "ece5a8b8c4a9990b93f1bde95413b1fc31a7df0e8ea95c6a73c9f009a28065dd",
+      "PARTS.FCP": "a83857840dc431822d42212d0cba290db6fab32d868feb8dd820791a916c208c",
+      "PLAY.JSON": "f1e530c4adc6d8696f69a477fc27101e073a58d068ea642ee1efe7a95a1ce656",
+      "ROM00.BIN": "dc404a613fedaeb54034514bc6505f56b933caa5250299ba7d094377a51caa46",
+      "ROM10.BIN": "dc404a613fedaeb54034514bc6505f56b933caa5250299ba7d094377a51caa46",
+      "ROM20.BIN": "785b0751fc2c53dc14a4ce3d800e69ef9ce1009eb327ccf458afe09c242c26c9",
+      "ROM21.BIN": "c7d59719997c773047af17c551fa0ab7ed3f5bbbe1afc85da17aad6d5eef53fa",
+      "RUNTIME.JSON": "381c5ab1085c2ddf20c92687247c6a774f3f7c454f2111b6400debe2d29a19ca",
+      "VIDEO.FEX": "c33272093ae1ed0f92fa059a0f9e3f0d4e5fe2dde743f21f90de0b412831d8a8",
+      "WRONGROM.BIN": "225ff70b38fcc12714d434e0c45c9167d68155647658447865cc71a82ff30960"
+    },
+    "fixture_source_sha256": {
+      "platform/embedded/runtime/admission_oracle.cpp": "1dba025c6e550be0aa895ee24b797cbb2bf9be64128ff71af4ae95742b144059",
+      "platform/embedded/tamago/admission_fixtures.py": "dfc6213288fc06994615b81f883096fa4d5a8345a6a239377b9e555ba8a96cfe",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/cases.json": "2a5d8af358cb00cf891edcd45a80a3cd3c89d061983b0732176c4a1dba904bdd",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-boolean-size.toml": "de6c29b94f08dbdf9bcc4fc733b9df73021675d5191555b0af818affe3da7d9d",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-boolean-version.toml": "1f47681ecb6f7ac06efdf1b214fdc6d2c8040f360f1f0670c32360d26aa85457",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-control-character.toml": "e89d852cdc7dc51aa4793efb1828afd11c3eaa24e812ff4d487669da436034a5",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-duplicate-interface.toml": "a9a52ec3dca37c3bd15b59df2cb54d3005ada4804739b4fc68bc44761c051881",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-duplicate-key.toml": "8b05c22599703dfc3fcba3ec4a29cdbc48a482933c0dcca57c9bef9c5241ff6e",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-empty-name.toml": "fa31fc60f5d475704c04e7b33ecb9e35a5d57a6b5da0a4ff4471137e2cf5e409",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-empty-payload.toml": "c5a45ab474899b87b3c81d89d328eeae493c2fbf334ec38ef56399d464f5141a",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-float-size.toml": "82febf3868204f033f2621f1608f9990a4f078b88c00fa1c90e0d4b011f1c3ad",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-float-version.toml": "bda3a1bf34bc310cb2c02f290991b80b9d416d29efe1b1589fd35e36bc88b49f",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-malformed-repository-uri.toml": "6fe62c400740b8a6405d871d20aa77e034b46885a0f854c20bca335458727316",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-malformed-repository.toml": "318bc598b3ad6c5e4eead28b45a87f9648241a58cdc2c618d52588bba9756b94",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-malformed-revision.toml": "60a1eeba827eabdbc48b16275f5080665863e1e9490f2851110d40e0175eefd3",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-missing-field.toml": "d7e441b485b13f69190018c83ebc8ebbbfc11493797ff0d4120f174d08dc6799",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-oversized-description-utf8.toml": "11fe4bbc1b981266870fcc11f68521d73e2589216ebaa91eb18d39f9a379bd67",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-oversized-manifest.toml": "0e6ef88ce6a5f404aafcea0156bc28362711f263046194c24b377416964d6e2c",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-oversized-name-utf8.toml": "7fe732faa7b63659c8e67d1abc40b15085555a306f0b6d275d96ac9f557123cc",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-payload-digest.toml": "792cef568cb6ccec85628a8760248584b56011778ca1c79f7028db0b88e7cd4f",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-payload-file.toml": "ddc58f27d8ffd20a357331bbee7c6604e0f075e951eb4d1066e2226eee1d8f83",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-payload-size.toml": "64d6270d8eddedc172bb506090307a5fe78a9a8fb44374a4bf5e685af426813c",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-unknown-field.toml": "c302a814f6c8734e8446881a9688b5f91e08447f5ba60fec9b4bfa293de66038",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-utf8.toml": "0985b0a967e8acec7537438a053d915c4ce1bdadccde4249a9afcde748b4595a",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/invalid-wrong-type.toml": "bef5dddda9f023da863c19444b84b4fbb041790a8b43219300ec43a229976c86",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/valid-basic.toml": "c5a45ab474899b87b3c81d89d328eeae493c2fbf334ec38ef56399d464f5141a",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/valid-dotted-keys.toml": "e8a8db793cd22d76d7e645bbdb13a6b2baa5105ce310807335576569a1c3d1af",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/valid-inline-tables.toml": "543506dc52ff6f9c02c87a96bfa880f9574ab050ddefa1c2f4dffa6656b686ca",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/valid-literal-strings.toml": "69c89c3e4b3742fee51c593b7c7bbad5d279e3f5a6ae8b4360a7a8a1f81c0afa",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/valid-multibyte-bounds.toml": "4ec5e634bdc54488b2f7dc13ab884bc6805f169da9d67db0bf937382d140a198",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/valid-semver-prerelease-build.toml": "7ea0afd224d6e7406092c96867c375156df92239369e3435b32a14781c0445af",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/valid-unknown-abi.toml": "ffe6ba00c25e4e315d12cfbcf0195b396999b654c79fd761409a6eed77d0e8cb",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/payloads/empty.rbf": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sources/FogCast/corepackage/testdata/core-bundle-v2/payloads/fes-fixture.rbf": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/cases.json": "2f8f3be0ba0752403d4459eaae0921d6b8ce4d311824f97de9e425018fdcde16",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-base.toml": "a02294557a2ff0c3635cd6b1d105149dd1f798c9a49a0927eca9bd2d0b91ad58",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-bel-empty.toml": "7c4b046e961917086f3c57d8b0afcd76a6d1b92e43cd88089d52ccc9baaa47aa",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-bel-large.toml": "68dcb33cf01e0e610baaf1b49f38a11b4702a8e39dd1c7d73e129ee719336bae",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-block-unknown.toml": "1872b6a44d82b77e9ea1650e6630e1a05f0c4c3d7d4e10dc6626e6fcdf2cf058",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-blocks-empty.toml": "fd3616865a3863cfb1573b86534e43bf04ef24a4759128af72e70b7d1a470167",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-blocks-null.toml": "e89e3aee6d5d775f0c0a7d19f6d9d4e6c56d904db2e1107848d8a30ba3263c5b",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-boolean-bit.toml": "4d38da8989a26372cb00cb758ab31f845a2ab5d3ed9dfd402f535d8e4c53373d",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-boolean-format.toml": "5e88d82084c491d527c6388be364794637083eb35675cf4428146f9437207179",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-cross-block-bit.toml": "f99316f846500a7ca653526d81af6f177f8c0a23dceed62e8d99da1a973a648e",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-device.toml": "b4cc762dbac21a18045c0d3b40328a50c2967b4eb0b92ff6a1e2493a14560836",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-duplicate-bel.toml": "57ba0f5c948c8c8f5caf0a21769e65b67e729464d982609c6889548cea0f20e2",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-duplicate-bit.toml": "95d541de3536ea956bbfb8dae4a6a81b9c3f2ebdf4ca9cfb7905d72e3d39e2a8",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-duplicate-key.toml": "e0950ac797e53b8f1efadddd14be0c8eec53872c7e69c09905967bd89d54796f",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-duplicate-source.toml": "ca77e041cb314ef4a7ee91fa50b103a9b2d2053020a5e57bcc762ac06ca45cd4",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-encoding.toml": "1fc441eb595f3d9a5c9cb8332f5734dbe70e657efe3346f9a565a5dce81d4707",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-float-bit.toml": "9680e0aa7079dd5849d0853437c4b575ef9de3756c3ee3cfcd1a59c48b51515a",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-format.toml": "68874ca0fc5ced9dd4234257c7647f623d0ddf7e7b081921c458272eb76231c7",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-high-bit.toml": "3e1f72fd6374af4918c8684be9a64e00162cf275629f13f7003fcbffa8ce9922",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-low-bit.toml": "334d36651cf7829947444227da270d3b1a965fe2cf8913cf0f068c5253e503cf",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-missing.toml": "5d26174c6043686f5c73f1889ffcbc7cfb37dbbbd46ebf1050146ac4c09b07fe",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-null.toml": "81156f28310b3330fa7f556107d988fb11ebbc1a592ababdd8491ad72639f5b4",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-offset.toml": "3286a63833a5e128f4bbd711ffd65a884826dcf8b9c5902349a466dafa0860ca",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-source-size.toml": "db12b72d40ba0284fcc835feb31932b321c76520cd57c01a467a3aee351e4095",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-trailing.toml": "a3f96e8c4a05d66cda1ce8b61446d96718cde9f8cd16a08ed0f85cd34bbf45fa",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-unknown.toml": "aca39fb2f27d7973cd5c8c45aa857d9b21810cfc59893b414fc768304e337c10",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-utf8.toml": "a3a5731682ef60282adbda60d88218584ce7d8e37da683839aaa8803e69b2527",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-word-length.toml": "5c1b6567829c57bda1bc22e091403000e95c12d5922ec2c62b96b3a8f9c09e63",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-word-null.toml": "ff4a4db5e0064fb47a79f94a9b721406d75bf8f232e0227d66495f1430898b93",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-words.toml": "eaa101234e0733882eee58a23f3a7644cd3cea8bf75178f0840d02b922bdf6f7",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-missing-rom.toml": "9462fb86ffb8eeed53c6dfcb3043c98074970e0eedd8a67b5cde3afda19c2fd8",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-rom-digest.toml": "943e330e9aad085390afcfc1099fdffb9119656b9f31d4572a96cf386744a3b8",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-rom-file.toml": "71eb732b6eff4687974a9c108d382403cfa91ecd98c5f1947444931a2edb762f",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-rom-id.toml": "8090d99d2ab1f98278f1cfe1328c2771960d9d7961f52a0b4ccbf8521b704221",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-rom-missing-field.toml": "3c9e8b2a879e62c5dc8978c3585440c0d7d2795935c96e60a64a66ed374940b9",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-rom-role.toml": "adc01e6c48b44ec24f06ebc368e972c6c89bb9c3dd9c6ffbe0250c042804a8a3",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-rom-size.toml": "c8375cbf3f7d33b29539c71ac49163e14264e83fbd1885e417b5fb9c20a6c792",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-rom-unknown-field.toml": "39281bb9dd2c7723b6f6c60f0b8f753dbd6d418ca569d724b1955703427deae0",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-source-size-0.toml": "0be2a9b701845e000cc30e6ee84130472dcd1df043d4d4300cc03afec9e5473e",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-source-size-1024-0.toml": "83d1c5adf9032e7f059cee73e18fa5f6e49e6177cf723e84b6217adfa97a782c",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-source-size-1025.toml": "0fe9706c3c85d0efbaf55f9ca78009100920944c35a16fc603bac07cb8094e04",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-source-size-263168.toml": "a51cbb0cee5cf233c8c1fd480fd505f1ae729084c1f41a910da2a68063d0aff2",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-source-size-true.toml": "f384f6bc0333687c9e73f79db2a6ec9331f748d3a57e75abb16e2b969dd58f6c",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-v2-with-rom.toml": "a796d3dab6a52344072273b66d44cb454d3dbb4b4a8377b203059d453447dce2",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/valid-basic.toml": "0b33b67d627cf44648045ad9175ff7acfcf3a8279841013493da0bffa4fc7483",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/valid-cartridge.toml": "1227f87f49c07ea4500f4905b78fd55b1aacd64a16e86fff758dbbfbbf39f6ae",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/valid-literal-rom.toml": "87ba7e1f237d482042afd0e50cd66aa09ca44acde164d4d9070f027e7a1f689a",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-base.json": "0ebc9e81754972e50ce54157e5acf078642517e790aea007f4cab72ad0991ca0",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-bel-empty.json": "8c983592171a0bf1f04ba4e480c5a91d80e71e4f1ae24d6bb495a5ff79fffa01",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-bel-large.json": "04ec3d637c187abd2630dc795b9a263140dede50a02128aab74449e6b444eb12",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-block-unknown.json": "77c400dca6995cdb8848bd531bc84445bc3780839da87fda12cfab857c0006ec",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-blocks-empty.json": "ca4e678a15d01ac326300e0dbf17b321ecb65d4a6d048630d1f04ba8ed6b6aae",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-blocks-null.json": "19cad43a2450903930e717476341559fcd8965c15d410279dc7571b927c70a76",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-boolean-bit.json": "458e962a7c1c05aa994ce9a4671d28cb89a2d0efb5b10583bd15d69ed557e5d8",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-boolean-format.json": "24d5b0f9d520d3f0fa6d0e3a85e6b90f9b76aa754ffdfd76f19382bba70f7388",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-cross-block-bit.json": "bc5dc7b4c753f65270cc5c8d23c1422a7633908de2e479f591eacda93ba61548",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-device.json": "a75d9efea9d8da01133a7e5a314123230b8cf958efafd6969ea17b4922a8ab79",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-duplicate-bel.json": "b78aacc2a216f7b53f40f0f040ae2fab6b0bd14300526b62330631c43f5f1c1f",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-duplicate-bit.json": "af8eb0edde0680c18df6c2b08184386b4e3d1685d2fdea80a87768052c72bc07",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-duplicate-key.json": "072ada18231891060f72c77c74a95d3e4b10a19b12080ea2d749dc2a9acf4210",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-duplicate-source.json": "63bf6254f19d44d9d357b77a9b382bc4fa689fd744c65624f006c33a0bdfda3c",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-encoding.json": "48cbc90e52fd36ffd6732de73dba6350d5224d14dc5146a2ef71daae6a827e25",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-float-bit.json": "c670562d66c92561a53ca3f2d199db402cd179825913c01b46104ea655d2ce82",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-format.json": "f6058da05c3a3d2c091174ac11d67bdafd5ad6801a61b45ddcd94b5187a9e244",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-high-bit.json": "a131bb8d60cbaadfc6ee6e7151b1e38c0cf0c3699d414d7c72eebe7f4eb5ca38",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-low-bit.json": "a7afbb5536d5a70b4348682d612c19c88e257937746ac8ce58427e9b9288bec9",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-missing.json": "d9589c64de326bc524a858cc762b509d275c46d1c38c6140fc4dbec43c930b43",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-null.json": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-offset.json": "7a85d6aa68b85907042271bdd391d207652c4fac4ea756c0407c2ec3d7309352",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-source-size.json": "6789965516113dd4911861b7c3f0895bebb338183b7057f575a20ce9b63813cf",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-trailing.json": "9e9c5d4a7353493f69e2ad2165cd97fab654b8ffa3d1a833d6dd6af28ba67bb8",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-unknown.json": "fda0c82a85ee353ceb3816c6ebcfe9bbd96cc0c8285418c8280296b687804a55",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-utf8.json": "a8100ae6aa1940d0b663bb31cd466142ebbdbd5187131b92d93818987832eb89",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-word-length.json": "fe9473c299a76ef11a54f3c3dd8d1805360ed9831ce646899243e859e7bae51a",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-word-null.json": "90fe876b38ed764738dc975ff9687b5608aafa72dbd5779bb2b633acf9d27e8a",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-words.json": "d5feb360573bce9726b08d0de919d8a8ce6f82faa6d8e6ba8f27e5a70a1f0ef0",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/maps/valid-basic.json": "6dee28d88fbd574c21abc83e2b2a24ebc5c4685215cfd363ee122f6f01ba33fe",
+      "sources/FogCast/corepackage/testdata/core-bundle-v3/payloads/fes-fixture.rbf": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+      "sources/FogCast/corepackage/testdata/core-bundle-v4/cases.json": "24966cc25f4de72e9bfdd221873960d04011d2283bf798d4889177f160bff9ef",
+      "sources/FogCast/corepackage/testdata/core-bundle-v4/manifests/invalid-duplicate-id.toml": "ba7d1f97e38d426174bc557759b343981eabc5b964560183341ed06e6ed2aab0",
+      "sources/FogCast/corepackage/testdata/core-bundle-v4/manifests/invalid-duplicate-role.toml": "b1580c4962ea892bfff33c197275a2859b3feb4ce265512c7e5785e329e4b544",
+      "sources/FogCast/corepackage/testdata/core-bundle-v4/manifests/invalid-extra-member.toml": "3263fc21b38e20002f7933697c241620211a754622087179d9f1ebf97bf8b92d",
+      "sources/FogCast/corepackage/testdata/core-bundle-v4/manifests/invalid-gapped-offset.toml": "bcd13d0cb422d47bfe1c817c14394aabd2320e3cdf3551d39d571b83947c5386",
+      "sources/FogCast/corepackage/testdata/core-bundle-v4/manifests/invalid-map-digest.toml": "3263fc21b38e20002f7933697c241620211a754622087179d9f1ebf97bf8b92d",
+      "sources/FogCast/corepackage/testdata/core-bundle-v4/manifests/invalid-map-source.toml": "3263fc21b38e20002f7933697c241620211a754622087179d9f1ebf97bf8b92d",
+      "sources/FogCast/corepackage/testdata/core-bundle-v4/manifests/invalid-missing-cartridge.toml": "fbcecdcff70069df30fd3b033761b05914bcc54ed019cb5d025d6d85c8f9d261",
+      "sources/FogCast/corepackage/testdata/core-bundle-v4/manifests/invalid-missing-roms.toml": "dd119dfa8d3de98ea5fb5c1d9d4d23b26e9eecfb6c4a47d875a5acd649e99915",
+      "sources/FogCast/corepackage/testdata/core-bundle-v4/manifests/invalid-payload-digest.toml": "3263fc21b38e20002f7933697c241620211a754622087179d9f1ebf97bf8b92d",
+      "sources/FogCast/corepackage/testdata/core-bundle-v4/manifests/invalid-reversed-offset.toml": "9a9d7145847a7b76314ce2abbfb39d9fdfb643dd3c88ccf563156fec16b5d713",
+      "sources/FogCast/corepackage/testdata/core-bundle-v4/manifests/invalid-total-over-bound.toml": "41a41d89a849e42789b4e547d9316e590faf558ab0b3983c49d19c8b841f8def",
+      "sources/FogCast/corepackage/testdata/core-bundle-v4/manifests/invalid-v3-with-roms.toml": "4e6a42b55f167c0aff2804889a941721c1a3a2eda3fdd8b345521c76810624c8",
+      "sources/FogCast/corepackage/testdata/core-bundle-v4/manifests/valid-basic.toml": "3263fc21b38e20002f7933697c241620211a754622087179d9f1ebf97bf8b92d",
+      "sources/FogCast/corepackage/testdata/core-bundle-v4/maps/invalid-map-digest.json": "1dad6cd9976b90620836c6b95e1395a47b987ad85901e701a60e15a1db81f829",
+      "sources/FogCast/corepackage/testdata/core-bundle-v4/maps/invalid-map-source.json": "11410c137688fd9bbd899e1068e66cf54ebad28def19cd080c0230f268e3d90a",
+      "sources/FogCast/corepackage/testdata/core-bundle-v4/maps/valid-basic.json": "8e9cc9b880f30b7473500d8a05343e687a14153d96f487064dcadd546af20a62",
+      "sources/FogCast/corepackage/testdata/core-bundle-v4/payloads/fes-fixture.rbf": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+      "sources/FogCast/corepackage/testdata/core-bundle-v4/payloads/invalid-payload-digest.rbf": "5939c72986fbe5c22fd937bd2143f93b237cc1d2630d9e5b38dbc961a6820e60",
+      "sources/libmister-runtime/include/libmister-runtime/runtime.h": "76fde0357dfe61b4c572d844e710f2f5ed8932634d3b58df5d7a8a27fe47fd1b",
+      "sources/libmister-runtime/src/native/artifacts.cpp": "1fd86ac6b1d7d18affd121bf76c48fa67fd04db66183ffd0375c2878d9e2dd17",
+      "sources/libmister-runtime/src/native/artifacts.hpp": "1d1abad2c4bdbf02fe39e115b0b88cbc1c9ba7a66370d09a581d24955fcefeab",
+      "sources/libmister-runtime/src/native/atari_st_geometry.hpp": "a00dedc42dd1bef6f9aeeeaf8557ddb6fd264e9a2670839c370d89a8c119c6cb",
+      "sources/libmister-runtime/src/native/core_driver.hpp": "0dbfe32595faf55a0d3afdf60ed00324b83204b5905eaacabc4d8262361e7702",
+      "sources/libmister-runtime/src/native/core_package.cpp": "de26709fda710cb98762b2fcb25dbee01658edfe7e04cc3749918e194ba7b5a9",
+      "sources/libmister-runtime/src/native/core_package.hpp": "addcf84d7b13b7c3ff4e434a66a926dda203a533a0aa878ec5c039e792c66c46",
+      "sources/libmister-runtime/src/native/diagnostic.cpp": "ee3bb0f97df1bacd46d0735e9dab473fc7fe981da5c4064ec65bda195f4d943c",
+      "sources/libmister-runtime/src/native/diagnostic.hpp": "778c93c96c5ae4c0eda141cc5c9fa498445ba5748e7b3ee651a370a075e78c7a",
+      "sources/libmister-runtime/src/native/generated/de10_nano_programming.hpp": "5dea38f46cc92b375d77314f243b006a9d2fd2bb96db0684c903d89d397bd678",
+      "sources/libmister-runtime/src/native/generated/fes_application.hpp": "d19d4388998dd6f37e8a6bd1802a3ce3bee96b066c13ca7a965b95767c44ed77",
+      "sources/libmister-runtime/src/native/generated/fes_computer.hpp": "22dfdea86e955ef468d6b15e4d5a236eb750380cbf6d4fea3e5c101b4446fc04",
+      "sources/libmister-runtime/src/native/generated/fes_display_plane.hpp": "85ac49ea4a77278771c07b815ed30c60d2866f0ba035db4c31f20e2dd0924eb3",
+      "sources/libmister-runtime/src/native/generated/fes_gp.hpp": "ae213d0b526afdaa91490429a3772861c6616c2c4a18a7211c12784810f743cb",
+      "sources/libmister-runtime/src/native/generated/fes_simple_computer.hpp": "e72dd8c7ec98b1295eaa3937918433bb70814a4722b3f445f8b1ece9adf5db28",
+      "sources/libmister-runtime/src/native/hardware.hpp": "27e496bb943049815c672e2a8dc55c9f46ade3ebdd00a7b52510d390222b71b5",
+      "sources/libmister-runtime/src/native/idle_recipe.hpp": "743d820a3bdba213a5d806dc834236b0e149ed930982b5104cba732e47e62527",
+      "sources/libmister-runtime/src/native/media_data.hpp": "e411a46c61cf5a3beb97817abc5c9d24d936758536f368578b92f6d6b5db1732",
+      "sources/libmister-runtime/src/native/sha256.cpp": "4be343a9d6295f65f820cc65cb478fa46bb294d4f7fa303bc5670aa9f8484ce8",
+      "sources/libmister-runtime/src/native/sha256.hpp": "162b81ca65f3f2f37927a3f96adb3eea8458d7b1f8926a33bd0acd38e6554fb6",
+      "sources/libmister-runtime/src/runtime.cpp": "e021e12e05d3fe44ad0b108b2ee9677c251cb8083e8393d2d2973224c89556c6",
+      "sources/libmister-runtime/third_party/toml11/include/toml.hpp": "023617ee6e235b759fc1cfc87df974f4b2fa29b876ed188593fd83cee3027f02",
+      "sources/libmister-runtime/third_party/toml11/include/toml/color.hpp": "b30dbab4ff8cc4d256f3d448810d52bbe93c5706df0a23818603bed5c7707bfe",
+      "sources/libmister-runtime/third_party/toml11/include/toml/combinator.hpp": "f7ae1701d0d457ccfbe4c1c90e1f96cb0fd12fc58c7af56bfa75a706e00c8b44",
+      "sources/libmister-runtime/third_party/toml11/include/toml/comments.hpp": "5f136abf464e5cebcd65106bd51e872d22b0220bed197f7b4cd911a0e80c43e9",
+      "sources/libmister-runtime/third_party/toml11/include/toml/datetime.hpp": "10e1064a4e17c9f4865f2fed856f13085e4df07ae755966e2b0ab91b77132585",
+      "sources/libmister-runtime/third_party/toml11/include/toml/exception.hpp": "d159b3b5295c2dde002eed570cead2dd67db10ed68029b4cfed01aeddecade48",
+      "sources/libmister-runtime/third_party/toml11/include/toml/from.hpp": "12abebe6150df08be34da768a4383a054961e411a05f65267c5d0de03beea0fe",
+      "sources/libmister-runtime/third_party/toml11/include/toml/get.hpp": "5574a7c0b4dbe2577df537d733c63e9f3b701466be42bece64dacc32624d08ce",
+      "sources/libmister-runtime/third_party/toml11/include/toml/into.hpp": "4585a517af0d7c6d7d82560c5c5e12cdf95d74d48535f520b83825f6eedd0fa5",
+      "sources/libmister-runtime/third_party/toml11/include/toml/lexer.hpp": "94efb48b2830ce67400a52bdcdafcb693cf0c511f2dfebd4a9cea30571434b5a",
+      "sources/libmister-runtime/third_party/toml11/include/toml/literal.hpp": "6710d0e31bb52c65840af35cba334d8234f8a672e75c38010db6e38c259d5a4c",
+      "sources/libmister-runtime/third_party/toml11/include/toml/macros.hpp": "df5802725cc46241e45436bdcab16c9f34a02705d0e49bfaf0b7fe408525d229",
+      "sources/libmister-runtime/third_party/toml11/include/toml/parser.hpp": "000695be5744ffcddfd9137acf831ba0add55a8759025601816792ad59e303d2",
+      "sources/libmister-runtime/third_party/toml11/include/toml/region.hpp": "fa2195b051671211bdc202d22ed9c927003101537d79400e45e44aa776473651",
+      "sources/libmister-runtime/third_party/toml11/include/toml/result.hpp": "260d6eeb944e073a90880b62acb3392a7a1236f3240fa30263368f6ee98099fa",
+      "sources/libmister-runtime/third_party/toml11/include/toml/serializer.hpp": "0c57bfadc8e20d29483ed7b4b8466e26a978cf39ae2dc4cff1a52cddefcf067d",
+      "sources/libmister-runtime/third_party/toml11/include/toml/source_location.hpp": "44fee38d7718ace0fcdc2e7372f2d886c1a8265853752ccf4dca0a565fbdf165",
+      "sources/libmister-runtime/third_party/toml11/include/toml/storage.hpp": "19b1bfe3f06cd1027cebd6351a347f531bcc5273ef9b416bc928572e9cba1ae8",
+      "sources/libmister-runtime/third_party/toml11/include/toml/string.hpp": "c9c1feac95b4d8ffa44409de5480f38b0acc6bed05166a808c9545ed1df23a7c",
+      "sources/libmister-runtime/third_party/toml11/include/toml/traits.hpp": "ac064816753665ce8b835c6253b7ee024a8c062f0eaac20fbb3a02d2012d6d7c",
+      "sources/libmister-runtime/third_party/toml11/include/toml/types.hpp": "043e446457d838f03b3ad8cc3ae08ee1f7c863373cd96adffbeba550a6902632",
+      "sources/libmister-runtime/third_party/toml11/include/toml/utility.hpp": "e2552d8dd2f34cfa06583353c1467a7d5ed552940e93b215fecb888d1ce3c45d",
+      "sources/libmister-runtime/third_party/toml11/include/toml/value.hpp": "17842e402b2d71f90480b459e8893401f93b050764eb79a5d8b4dec6ea99bb9f",
+      "sources/libmister-runtime/third_party/toml11/include/toml/version.hpp": "bb3632c1ee14e563fbcb343b843a6d09659a959a23ab3928dcbdbdf6e7e0dc40",
+      "sources/misteross/expansion/testdata/rom/blank.rbf.gz": "306853f63aac1091a1a085f3c41206b5e2b2fac911fb25e953366a7fe540f6b2",
+      "sources/misteross/expansion/testdata/rom/map.json.gz": "9054fd7de7993e166b447227cf3bb7f57f3dbb2317bcca29dc79b2468696b561",
+      "sources/misteross/expansion/testdata/rom/oracle.json": "9482016aa6561c39ef2f2353bbde025b8a055bfeb18592ba5337a7fe5af5f839",
+      "sources/misteross/expansion/testdata/rom/ramp.rom.gz": "f956e08c4b8e47162a88e784f21d6b7860e54a01fcb54b0ebc12e047e38547de",
+      "sources/misteross/scripts/core_package.py": "a4281f6b8106c56b6e5c561737cccdf58a129e00d2a4a9e622909cd1a5c894cd",
+      "sources/misteross/scripts/rfc3986_validator.py": "95fc6d48642f111952b25c040947765bccba669210c8c140b7ed9647fd7e470c"
+    },
+    "host_go_sha256": "8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9",
+    "nano_bridge_service": {
+      "boot_object_sha256": "4f084646841848521b22eb5c589c5ec35d5c97489707f92228beb7275b4873df",
+      "cases": 18,
+      "driver_object_sha256": "bf3384901299cf6a6ee77fb64e7bea391d02b0a4bcf44ccf5e7f54614e2cae0b",
+      "driver_transformation_sha256": "940ed8bd1e17088b70c8c42e3bd85a40b8f9dbfa44e5772bf1af31bdba038e83",
+      "generated_driver_sha256": "e150d418b51f4d84960b015f045750f77fc77a4e1b0f3a1ba889dfcf548861ad",
+      "owned_sip": {
+        "controlled_service_sha256": "bb99c3a9dfde1ca9de833047e5271fb776793b8a74826db986ddeeabf9ef547a",
+        "host_subset_sha256": "c7f1e0bbae9842cb95ad1236a51f4cc6bdf85bc4f74fecbd42b9ad17d7c25e03"
+      },
+      "pinned_headers_sha256": {
+        "socfpga_reset_manager.h": "4b0b42939ad59536cafbdeb4bdfeff16beb6ae6daf0093d0b1a84b6aa3773733",
+        "socfpga_system_manager.h": "aea7680828b3368a093aad72d093dc98e4d40d1653dbc12aa55067f799652c3f"
+      },
+      "service_object_sha256": "7f31f921ff9263045faffda10306437109ed493f700d254825eacef963eb9cef",
+      "source_sha256": "8118f8564debe15764db725a6188fb5885884fd1178e3804416a697d6d1cf2fb"
+    },
+    "rpc_sha256": "0fdae4e2ad7daa447099a5099736002d5c54f3af99a055c8cd2c5a40199d5ff1",
+    "source_sha256": {
+      "platform/embedded/firmware/build_terasic.py": "0866048f93a7260342074ccd3fd284ac98b4b932168dedc95f55ae2f798f7fd1",
+      "platform/embedded/firmware/build_terasic_uboot.py": "d14063bd744f652631eea67c4ddb41e24e336008ab2c06c4098c2ec5cc2a5cfb",
+      "platform/embedded/firmware/control.cpp": "897bd6cab9addd84efd3be52d0ddfb51fbb217bb9f626a0bf244af78107297d4",
+      "platform/embedded/firmware/control.hpp": "c84f8c5aebb8a15286651b1536e78121b690ff4778dc1ca393d8bb8d56064bb0",
+      "platform/embedded/firmware/generated/fes_embedded_bridges.h": "52d1cda431a42daade9dcf0cad49987c60179693e6bbfcc8385075e217ab6e08",
+      "platform/embedded/firmware/generated/fes_embedded_control.hpp": "8856d106e50c7b3a8394c8e1442568446087195dfd3e6f3099ad63931dd41df1",
+      "platform/embedded/firmware/nano_boot.c": "3d09269591bdc90733da41462109f7c3c335f7f18c92f1fa38a6287243db6040",
+      "platform/embedded/firmware/nano_boot.h": "e95dfbb06fd03f0cb11bc33c7260a3828722962231efaa8a397fc81af4e97b4b",
+      "platform/embedded/firmware/nano_bridge_diag.h": "b80c4442198cbbdff4781d66ace85ab4a930804114176e5927e8984d1e78e904",
+      "platform/embedded/firmware/nano_bridge_diag.inc": "4d6a679e495b06dbda6d40db269492faf6ffa20aa2024262d57c6d648fd7c946",
+      "platform/embedded/firmware/nano_bridge_platform.h": "85c3ae63484f3453d120133f1a7577533f97f2870d663b1610d4d9382c037e5e",
+      "platform/embedded/firmware/nano_bridge_platform.inc": "68126bbdead8ec17de15deb33cabfaee0e24b02ea2207cce09c05f347df2aa70",
+      "platform/embedded/firmware/nano_bridge_sip.c": "4e8ac3d37fc97f372b290c09ac5fd6b1bd6b5bf8707028ec8c67fb53075d162d",
+      "platform/embedded/firmware/nano_bridge_sip.h": "6d89f334a2cb624da3299b8dd433e227e29dd88883042a1c3f128fc59c3ac921",
+      "platform/embedded/firmware/nano_bridges.c": "6b3000f0a0fd7e671ab55932a14072ad0cd4759cda12a834c5b77cd351d6a4d0",
+      "platform/embedded/firmware/nano_bridges.h": "06bbc5e28763c949a0b3939ee5cadfd34f06df269bdcbce099f6e3470f945f97",
+      "platform/embedded/firmware/nano_cold.c": "19e4da87e939d86e31268b8c6c78469e93bce3623373e64ee38391a967e0b68b",
+      "platform/embedded/firmware/nano_cold.h": "3bde38e77736ea4115753211aa0be2ecb36c39e165b7ea2a2c8276337cde20e7",
+      "platform/embedded/firmware/nano_cold_mmio.inc": "ca5ce4c3a47f49ac01cec73bc34843f75d8cf6a62fc5325b073972c37ea9b450",
+      "platform/embedded/firmware/nano_cold_platform.c": "343964613062964f89e46dd75e17de58c54e40106eca833ebb8d4e7d13804c32",
+      "platform/embedded/firmware/nano_owned_sip.inc": "5a7153cf82c4da300b4741e485cd1c8d171c9e51d119e13a286642115c5e96a2",
+      "platform/embedded/firmware/prepare_nano_owned.py": "6d7f8560b3aba09d78f0d3cdd389561e07c765c1c2bbac904704d9131a662631",
+      "platform/embedded/firmware/prepare_tfa.py": "8cf0fca78340d2cfd18f3f6ba6dd9239bb5ff615f4746d1c38105d77d1d950ee",
+      "platform/embedded/firmware/tests/bridge_diag_service.c": "fe81728b0e347cc099e18b9cda98add94b2d2ac9898a071a580ebbb6e6e9beb3",
+      "platform/embedded/firmware/tests/contained_path.hpp": "c3e9da659c491930bc33c1cffb27a72d490035635077933079a6b18f43726dd0",
+      "platform/embedded/firmware/tests/endpoint_tb.cpp": "f89e362aeabc3d4dc2acaa2e0a53209d977dffd5634b78f2721d9c66ce2b4de5",
+      "platform/embedded/firmware/tests/nano_boot_test.c": "cb2a8b5c57baaa94032c42a941d2d9d431e8cfb0c44472ede846f9b75106d5ff",
+      "platform/embedded/firmware/tests/nano_bridge_driver_test.c": "76a42e8045184c1daf97448c91830cb908e53239022dd834ad8e3cc7290f13c2",
+      "platform/embedded/firmware/tests/nano_bridge_fixture.h": "33647e03121098fcb51a6d0cb7426ead15a53e3c23c4f294250368638bb6f369",
+      "platform/embedded/firmware/tests/nano_bridge_fixture.inc": "96c5eae260a2c68cf2634063eb496ca0e0554d16f6be8fb50d6eb5f143544634",
+      "platform/embedded/firmware/tests/nano_bridge_sip_test.c": "dd40c383f238f8771ba42415f77b43cf6dcb47f292fa2c764570cd6fc436e643",
+      "platform/embedded/firmware/tests/nano_bridges_test.c": "d4d46d8a2ca36143a0c7641b129c08ba0c57a6477bbedbfd16f05055ea0e4c45",
+      "platform/embedded/firmware/tests/nano_cold_platform_test.c": "3e69927dbdc6a7e53d94b3af007f74faede389c92cdbb287b3167be15b260a35",
+      "platform/embedded/firmware/tests/nano_cold_test.c": "6d05407ef72e8fdeff60a3cc2cffa501077a16259e47ef6a1fb523c59f228195",
+      "platform/embedded/firmware/tests/native_rpc.cpp": "1eab0f3a7d573d81f047d4b76709c030a09d6df92b30fe830bfdfba06569c046",
+      "platform/embedded/firmware/tests/terasic_reset_test.h": "4246d7ac753b5a40f1c44373d2b9a7de21621bad7dea582eeced9dc4e30543e5",
+      "platform/embedded/firmware/tests/tfa_stubs.h": "f123b431456dcf83dccead6dc4e4f80fe5711f6aaf49d71aaa80a4ab185eceef",
+      "platform/embedded/firmware/verify.py": "952b3b0f1a97e45802e5961492f1a47ebbbcc90ea8e97fa8094dc785a6da4bd8",
+      "platform/embedded/firmware/verify_nano_bridges.py": "511074620156ec23021ff6c3b3d2c67f5391dbb18d2b3bfd813cffdb097ce136",
+      "platform/embedded/firmware/verify_owned_sip.py": "587758a3774c5b0367986a3ba91ca74e021c2f1d34e6aea52149e45310945ef7",
+      "platform/embedded/tamago/embeddedcontrol/control.go": "bd59f72ba1114aa304de6818b38018414b2d47c23e46a1af69eab28ad1918b31",
+      "platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_bridges.go": "0d91c28b5a969f4c17aa19f5d789204712d4862166ca3a09a01dab4c37fdd40c",
+      "platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_control.go": "e22c36be27afaae2869639adaf1325dec347b0c48818bfc1d3408cdd33f0c238",
+      "platform/embedded/tamago/fabricmodel/checks.go": "a95ad19b2239d7d987837b99043e50de9e72b0ba4f005b79dc753587e0d645ca",
+      "platform/embedded/tamago/fabricmodel/model.go": "b67cfbf6c83914a4e4272d52b745fdbaac8bb02bd85f1717350d874ab1c6dd03",
+      "platform/embedded/tamago/fabricmodel/model_test.go": "22b53652fe045f54384e59ffa86d217afe7a56d683d6dfd8bc1b874049ef3137",
+      "platform/embedded/tamago/go.mod": "77f9be13dda9fc16855b0b62787252f9568ad1b280bada66b2e924702f241d94",
+      "platform/embedded/tamago/go.sum": "87dbccb2e14a610a1de9666fa936a18f374bd299b50436b44405b5d75e8fd5c4",
+      "platform/embedded/tamago/modelbackend/backend.go": "8b0f746a98bb93890b186ffebde31ccd412d2c35e191d6338410001c9d0e385d",
+      "platform/embedded/tamago/modelbackend/backend_test.go": "44f05a583f2d6d00f0e81abd09254344ac75e405d6853c1bcd9dc56e769daf21",
+      "platform/embedded/tamago/modelbackend/nano_bridge_service_test.go": "afb3f46a0c36887caa5f805a6a65a3ff6e50129c9281d4ca8b93ba4bc4cf59db",
+      "platform/embedded/tamago/modelbackend/native_endpoint_test.go": "73b846159e4366cf8b0b126c5884f8774805f7787d65babeeaf6eeef9798e64d",
+      "platform/embedded/tamago/modelbackend/sealed_nano_test.go": "e686dd37c46a2ce267a87e724d30b751564b9d9caca19dfc7d87f90006df26e2",
+      "platform/embedded/tamago/modelbackend/transport.go": "71ffde9b4b3bcbcf3b70ca95170127e9d2c2b63033b6e4a4d83e4bd20a41d87c",
+      "platform/embedded/tamago/nativefabric/binding.go": "fd6891409b8cef8d5a11a4ce177dcd56d661ecec479f3cca041220b25d3c7dae",
+      "platform/embedded/tamago/nativefabric/binding_test.go": "1e6160b6a3788d5bfd541cd3be47bad5a39f678e6c6f31ff39bf54b0034f2395",
+      "platform/embedded/tamago/nativefabric/bridges.go": "5edb4164a6513a84b07907043404911118e2c0ac41292fdcade163d2c1a02505",
+      "platform/embedded/tamago/nativefabric/bridges_test.go": "19795e5a6d09623ffa896904277511ca7a40622dd774b7b873c90f762f52f8ed",
+      "platform/embedded/tamago/nativefabric/cpuhooks.go": "7545b9135e9de0e0bf9617265163b545bafdbcfe304c03276680daec07d8e5c6",
+      "platform/embedded/tamago/nativefabric/cpuhooks_test.go": "2c963dad0646dc9438b5ccdd6d6e9bfc806abfaa8bd437b135da9c5c756642be",
+      "platform/embedded/tamago/nativefabric/endpoint.go": "cfd7c508e92bf4bf5cc2e2de62f0c586549ddd0c385b390374cf87f0f07565fc",
+      "platform/embedded/tamago/nativefabric/endpoint_test.go": "73f7a0c82f209e19c849b4b4b780ad2a5e6cd0c7f3d32aba85fc5cac4bc049d9",
+      "platform/embedded/tamago/nativefabric/firmware_bridges.go": "ff782f44b0d0d449fb3a91e27e41e12381758b60596430a852dbe0a3a2f6fc01",
+      "platform/embedded/tamago/nativefabric/firmware_bridges_test.go": "41e49a8cdc40a529cedb3bd0803cdec13e8d8489d809c599ff50a1bc8f884671",
+      "platform/embedded/tamago/nativefabric/hpsfirst.go": "bdf53b196eca33c1fa5228eaea2fdbce2d54c3bbc86881097c1d337ee20fc502",
+      "platform/embedded/tamago/nativefabric/hpsfirst_test.go": "501f5c024c846f356167352306fc38745c6fade7f356871dfcf92fefe1a44df1",
+      "platform/embedded/tamago/nativefabric/nano_bridge_service_test.go": "48ec1c3f825e85f856f886c9e640d7eb71ed5a686b29cd476c69aa4d168339d0",
+      "platform/embedded/tamago/nativefabric/producer_integration_test.go": "8269adee063acb8d09692c4eaff2fbb2e275c19add4db0f1f620436935b15243",
+      "platform/embedded/tamago/nativefabric/rtl_integration_test.go": "6bdf508c8855b5c5d9b86b51c2413a1c08c082aac48dc13cfab21e3b2d6b0cf9",
+      "platform/embedded/tamago/nativefabric/sealed_nano_test.go": "5f68f62d81d1e497cf9ffa537453be855f4e4937b4530b867b4487804f7c64f7",
+      "platform/embedded/tamago/nativefabric/verify.py": "77b06a1047c3331073a5003787cf9afb2430977fe576157607a7dd2e80970792",
+      "platform/embedded/tamago/nativefabric/verify_producer.py": "47f759a25ecffbb46b14e0e8718179ea2a475d5681ef47d51c65102bc56adb1b",
+      "platform/embedded/tamago/nativefabriccheck/checks.go": "9295df5e3b17f2b37325edf02af5f4bb918f08a96d635c0aee3fa222b84d7e36",
+      "platform/embedded/tamago/nativefabriccheck/checks_test.go": "c55f61bb741c0d4f5d8444e1fa6e402cf87c1b76b3f6c47a1c5782f5818baac6",
+      "platform/embedded/tamago/runtimeadmission/admission.go": "286811ae3d65497ec2ec350c8a274b164eedcc98ffb10741c13835935b6ec13b",
+      "platform/embedded/tamago/runtimeadmission/admission_test.go": "a3f5ee7e74f03d3ea11e17ce573b79679272ecf1e128d5d08b4c05428acd7927",
+      "sources/mister-packages/packages/fabric/fes_fabric_embedded_control.yaml": "08929e0a4a14ee03fb949332403c5c7b85d299822e10af023d6c089a52d03a73",
+      "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh": "20e1f042865b54a4cc6a7334b874fedc9f95aa87deb2757ce04a35cc023fc597",
+      "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv": "95bc4ef8f470612d71dfa2737e96a988e8a8508e5db56857455bf294654667f3"
+    },
+    "status": "passed",
+    "test_logs_sha256": {
+      "firmware": "4d037947dbabb1e64622c154cf33ba9e079e4a05577480c18a2277778e67ef48",
+      "native-tests": "01ae01f45fa15013a36bfaa85e5d5168741160dd2b95c8d64ce9bbc709c7a084",
+      "rpc-build": "5b7d91537add7f4e135327fdd28e68a7ef101f1efaf74f87412bbdbdebe104e3",
+      "tenfoot-tests": "a441426655580b6f47044ac7158b14069393c8065dc1ee2ba53173728033373e"
+    }
+  },
+  "packager_rejections": {
+    "cases": [
+      {
+        "mutation": "fit-seal",
+        "output_directory_not_created": true,
+        "returncode": 1
+      },
+      {
+        "mutation": "unready-mode",
+        "output_directory_not_created": true,
+        "returncode": 1
+      },
+      {
+        "mutation": "entry-identity",
+        "output_directory_not_created": true,
+        "returncode": 1
+      },
+      {
+        "mutation": "producer-change",
+        "output_directory_not_created": true,
+        "returncode": 1
+      }
+    ],
+    "classification": "actual final packager rejects before PFG/card-image output; host files only",
+    "status": "passed"
+  },
+  "physical_tests_remaining": [
+    "automated recovery upload/readback on TRWU8CBL",
+    "cold SPL/EL3 record and MMIO observations",
+    "one guarded fesboot and native serial CPU/RAM probe",
+    "factory restoration verification after that future trial"
+  ],
+  "published": false,
+  "retained_directory": "/home/deano/fes-retained/de25-nano-cold-upload-20261031",
+  "source_sha256": {
+    "platform/embedded/firmware/README.md": "9e0d0ae2623a46473f185dfcae0c57aa2a7c136a5d56ec8778559d7f7bd64b85",
+    "platform/embedded/firmware/build_terasic.py": "0866048f93a7260342074ccd3fd284ac98b4b932168dedc95f55ae2f798f7fd1",
+    "platform/embedded/firmware/build_terasic_uboot.py": "d14063bd744f652631eea67c4ddb41e24e336008ab2c06c4098c2ec5cc2a5cfb",
+    "platform/embedded/firmware/nano_bridge_platform.inc": "68126bbdead8ec17de15deb33cabfaee0e24b02ea2207cce09c05f347df2aa70",
+    "platform/embedded/firmware/nano_cold.c": "19e4da87e939d86e31268b8c6c78469e93bce3623373e64ee38391a967e0b68b",
+    "platform/embedded/firmware/nano_cold.h": "3bde38e77736ea4115753211aa0be2ecb36c39e165b7ea2a2c8276337cde20e7",
+    "platform/embedded/firmware/nano_cold_mmio.inc": "ca5ce4c3a47f49ac01cec73bc34843f75d8cf6a62fc5325b073972c37ea9b450",
+    "platform/embedded/firmware/nano_cold_platform.c": "343964613062964f89e46dd75e17de58c54e40106eca833ebb8d4e7d13804c32",
+    "platform/embedded/firmware/nano_owned_sip.inc": "5a7153cf82c4da300b4741e485cd1c8d171c9e51d119e13a286642115c5e96a2",
+    "platform/embedded/firmware/prepare_nano_owned.py": "6d7f8560b3aba09d78f0d3cdd389561e07c765c1c2bbac904704d9131a662631",
+    "platform/embedded/firmware/tests/nano_cold_platform_test.c": "3e69927dbdc6a7e53d94b3af007f74faede389c92cdbb287b3167be15b260a35",
+    "platform/embedded/firmware/tests/nano_cold_test.c": "6d05407ef72e8fdeff60a3cc2cffa501077a16259e47ef6a1fb523c59f228195",
+    "platform/embedded/nano/README.md": "6bd2b1fdb6c09c55cf313247ee70a391b8e74c2723f2df4fa2caea7cb9124ded",
+    "platform/embedded/nano/cold_profile.py": "51af8f1b25b3f1ed17feeb33810545b009d6ff65b9bd59f1906db99b864fdd28",
+    "platform/embedded/nano/package.py": "19807f5e2c437af198c01b2d8ea92231c70dbf69ac2d9b693af062b703825af0",
+    "platform/embedded/nano/prepare_uboot.py": "73bd06d0f428d2a7b0f355acf32aec5b2c80e9dd3b41f4b085d68bded12f47dc",
+    "platform/embedded/nano/spl_cold.c": "085dcf5d13493df23125769181ef6a3df640966260012ded43ad6cb87dfb4c8d",
+    "platform/embedded/nano/uboot.c": "fefe281b2e92e7908c5765a2d08bb33ca2b0700e5aa96b8ae2da401df5dbbbbf",
+    "platform/embedded/nano/upload.py": "aa886fe31c07020b57d330a54b63fdcb9dce90251f451769a34c9bf2cafc50f1",
+    "platform/embedded/nano/upload_transport.py": "ed06e8c283440333d558a3348429f4f175abb8f8d8b90c6358d0ec952049292a",
+    "tests/test_embedded_nano_handoff.py": "4f0d18679e1e10ff324c91ba7f21f7bb01ccfd4556c14ac6fc3a8003651c7fc7",
+    "tests/test_nano_cold.py": "053f004008e339af5cfbc8799f4867e7d8cbb6f9f504f0f207b86cd3a583c71e",
+    "tests/test_nano_upload.py": "e217258eca0a905f8843849587c950b80cf9c3662a3d822af03cb53fc363b289"
+  },
+  "status": "off-board implementation validated and matched candidate prepared",
+  "uploader": {
+    "actual_udp_loopback_tests": true,
+    "automatic_activation": false,
+    "destination": "FES/UPLOAD.BIN",
+    "final_focused_python_tests": 9,
+    "final_plan": {
+      "activation": false,
+      "board_serial": "TRWU8CBL",
+      "commands": [],
+      "destination": "FES/UPLOAD.BIN",
+      "finished_utc": "2026-10-31T19:18:53.541988+00:00",
+      "format": 1,
+      "payload_bytes": 4711676,
+      "payload_sha256": "9926773577fcb139b4a379cc293646d1e178619e3a4c8190f843e17d172bbf26",
+      "recovery_image_sha256": "12ab480664451db28c93d6dacd9f01e1533b31979e5924879c728b909f8ac485",
+      "sd_write_attempted": false,
+      "started_utc": "2026-10-31T19:18:53.541948+00:00",
+      "status": "planned"
+    },
+    "hardware_tested": false,
+    "sd_writes_replayed": false,
+    "size_limit": 8388608
+  },
+  "worktree": "/home/deano/fes/out/dev/de25-embedded-os"
+}

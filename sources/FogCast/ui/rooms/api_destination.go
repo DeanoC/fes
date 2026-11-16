@@ -335,24 +335,47 @@ func (r *Instance) gamesFromLua(v lua.LValue) []hostclient.Game {
 			}
 		}
 		g := hostclient.Game{
-			ID:               id,
-			Title:            optString(row, "title"),
-			System:           optString(row, "system"),
-			Genre:            optString(row, "genre"),
-			Year:             optString(row, "year"),
-			Region:           optString(row, "region"),
-			State:            optString(row, "state"),
-			Launchable:       optBool(row, "launchable"),
-			RootOnline:       true,
-			Execution:        optString(row, "execution"),
-			FirmwareRequired: optBool(row, "firmware_required"),
-			FirmwareReady:    optBool(row, "firmware_ready"),
-			ROMRequired:      optBool(row, "rom_required"),
-			ROMReady:         optBool(row, "rom_ready"),
-			ROMID:            optString(row, "rom_id"),
-			ROMMediaID:       optString(row, "rom_media_id"),
-			ROMRole:          optString(row, "rom_role"),
-			ROMSourceSize:    optInt64(row, "rom_source_size"),
+			ID:                 id,
+			Title:              optString(row, "title"),
+			System:             optString(row, "system"),
+			Genre:              optString(row, "genre"),
+			Year:               optString(row, "year"),
+			Region:             optString(row, "region"),
+			State:              optString(row, "state"),
+			Launchable:         optBool(row, "launchable"),
+			RootOnline:         true,
+			Execution:          optString(row, "execution"),
+			ExpansionID:        optString(row, "expansion_id"),
+			ExpansionReady:     optBool(row, "expansion_ready"),
+			FirmwareRequired:   optBool(row, "firmware_required"),
+			FirmwareReady:      optBool(row, "firmware_ready"),
+			ROMRequired:        optBool(row, "rom_required"),
+			ROMReady:           optBool(row, "rom_ready"),
+			PackageUnavailable: optBool(row, "package_unavailable"),
+			VideoRequired:      optBool(row, "video_required"),
+			VideoReady:         optBool(row, "video_ready"),
+			ROMID:              optString(row, "rom_id"),
+			ROMMediaID:         optString(row, "rom_media_id"),
+			ROMRole:            optString(row, "rom_role"),
+			ROMSourceSize:      optInt64(row, "rom_source_size"),
+		}
+		if raw, ok := row.RawGetString("catalog_launchable").(lua.LBool); ok {
+			g.Launchable = bool(raw)
+		}
+		if online, ok := row.RawGetString("root_online").(lua.LBool); ok {
+			g.RootOnline = bool(online)
+		}
+		if slots, ok := row.RawGetString("slot_expansions").(*lua.LTable); ok {
+			slots.ForEach(func(_, value lua.LValue) {
+				card, ok := value.(*lua.LTable)
+				if !ok {
+					g.SlotExpansions = append(g.SlotExpansions, hostclient.SlotExpansion{})
+					return
+				}
+				g.SlotExpansions = append(g.SlotExpansions, hostclient.SlotExpansion{
+					Slot: int(optInt64(card, "slot")), ExpansionID: optString(card, "expansion_id"), Ready: optBool(card, "ready"),
+				})
+			})
 		}
 		g = applyPlayFacts(g, row)
 		if _, ok := row.RawGetString("ready_here").(lua.LBool); ok {

@@ -1,0 +1,87 @@
+{
+  "scope": "explicit-address-types-in-native-fixtures-no-production-change",
+  "source_sha256": {
+    "platform/embedded/tamago/nativefabric/menusession_test.go": "b2e4ec72e5424ce89894568d1ff5ddc7a42bf2b77e4c53dbd1faca5b39fe1e83",
+    "platform/embedded/tamago/nativefabric/readermemory_test.go": "26fa8e3d3ff3ae6332c178410c25d1e2cc7fe6b2548e6299bc4a593dfebdbfad"
+  },
+  "checks": {
+    "opt-in-deadcode-complete": {
+      "argv": [
+        "make",
+        "deadcode"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 104.07526616193354,
+      "log_sha256": "dc3fad4360e3c9bd3eee93b08d776c5f85d7d60401dc37837a319f986f7e696a"
+    },
+    "opt-in-arm-test-compile": {
+      "argv": [
+        "env",
+        "GOOS=linux",
+        "GOARCH=arm",
+        "GOARM=7",
+        "CGO_ENABLED=0",
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-c",
+        "-o",
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/opt-in-arm-nativefabric.test",
+        "./nativefabric"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.0010979839134961,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "opt-in-address-fixture-exact": {
+      "argv": [
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-v",
+        "-run",
+        "^(TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission|TestMenuMapsRejectOlderAndMutatedGrantsWithoutIO)$",
+        "./nativefabric"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.8019000268541276,
+      "log_sha256": "6639b8311164e42dbc068ecf7d12e404d4025acf18e9e0605e1f71fce3de8134"
+    },
+    "opt-in-committed-check": {
+      "argv": [
+        "make",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 29.77522968989797,
+      "log_sha256": "04b7d0133f86510765e0c9fdb3bd8a9269cfc9a03e91c02efd8cf2f5866bac79"
+    },
+    "opt-in-committed-host": {
+      "argv": [
+        "make",
+        "host"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 51.40104141412303,
+      "log_sha256": "2694d2d6e05821675d47d1ab3a9d98d2e1df00f6ce3f84802e5096b984f5c88f"
+    }
+  },
+  "prior_build_and_compatibility_source_maps_still_match": true,
+  "prior_broad_menu_observer_cap_seconds": 90,
+  "prior_broad_menu_run_passed": false,
+  "hardware_acceptance": false
+}

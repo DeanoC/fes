@@ -1,0 +1,33 @@
+{
+  "status": "stopped-before-scan-nonexecutable-probe",
+  "operator_source": "1db28a3a5d9517a090c9374abea294e7a582768f",
+  "native_boot_id": "e4ecad3bc8a33357",
+  "native_boot_attempted": false,
+  "cause": "shutil.copyfile retained scan-tool bytes but did not preserve executable mode",
+  "probe_sha256": "258d6bb8d6ca1aa9c71c6aa9a2c9c1b9fc31ac89a41bebb89bf8534f6f521cc6",
+  "observed_mode": "0664",
+  "original_qualified_operator_mode": "0775",
+  "recovery_reservations_consumed": 1,
+  "native_reservations_consumed": 0,
+  "forced_scans": 0,
+  "programming_calls": 0,
+  "sd_writes": false,
+  "keyboard_actions_requested": false,
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "retention": "/home/deano/fes-retained/de25-mmu-trial-hardware-20261109-r1",
+  "total_transport_programming_failures": 1,
+  "max_transport_programming_failures_before_fix": 2,
+  "old_reservation_unchanged": true,
+  "next_action": "qualify new executable-mode guarded operator and fresh file admission; retain before a new one-use operation; no reuse of consumed recovery reservation",
+  "hardware_actions_scope": "private host transport, USB permission and JTAG clock setup/restoration only; no FPGA programming or HPS reset",
+  "ordinary_core_load_acceptance": false
+}
