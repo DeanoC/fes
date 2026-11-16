@@ -277,16 +277,16 @@ LAB occupancy and packing density of every fit:
 
 Two densities per fit, each from its own row, because they are not the same
 quantity: **needed/LAB** divides the capacity row by the LABs, **placed/LAB**
-divides the final-placement row. A dash means that fit's report did not carry
-the final-placement row.
+divides the final-placement row. Both rows are in
+[quartus.json](quartus.json) for every fit.
 
 | Fit | ALMs needed | % | ALMs in final placement | LABs used | % | needed/LAB | placed/LAB |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| C, Agilex 5 | 29,300 | 62.6% | — | 3,626 | 77.5% | 8.08 | — |
+| C, Agilex 5 | 29,300 | 62.6% | 29,932 | 3,626 | 77.5% | 8.08 | 8.26 |
 | M, Agilex 5 | 35,492 | 75.8% | 38,750 | 4,424 | 94.5% | 8.02 | 8.76 |
 | M+, Agilex 5 | 37,255 | 79.6% | 40,550 | 4,590 | 98.1% | 8.12 | 8.83 |
 | C, Cyclone V | 31,244 | 74.6% | 30,672 | 3,494 | 83.4% | 8.94 | 8.78 |
-| M, Cyclone V | 37,108 | 88.5% | — | 3,946 | 94.2% | 9.40 | — |
+| M, Cyclone V | 37,108 | 88.5% | 37,549 | 3,946 | 94.2% | 9.40 | 9.52 |
 
 ## The clock ladder, and what is not measured
 
@@ -294,7 +294,9 @@ The method precommitted a ladder — 61.44 MHz headline, then 75, 90, 110 and
 130 MHz, seeds 1–4 at the headline — because reported Fmax at one constraint
 is the fitter's estimate and not a closure. **"Closes at" means the highest
 rung passing every applicable analysis at every published corner** — and for
-the CPU, recovery and removal are not among them. Those rungs and the
+the CPU, recovery and removal are not among them: its resets are synchronous,
+so those checks find zero paths and are recorded as not applicable rather than
+passed. Those rungs and the
 extra seeds were queued and then stopped unrun; any that have not produced
 a result when this record is read are **not measured**, and are listed as that
 rather than trimmed quietly. The CPU's closure on Agilex 5 is in the ladder
@@ -446,7 +448,8 @@ Those are five estimates of one quantity from five fits of one netlist, spread
 over 13 MHz and moving in both directions. Which is exactly why the method made the closure a
 ladder: a single constraint's Fmax is the fitter's estimate under that
 constraint, and the answer to "what does it close at" is the highest rung that
-passes every analysis at every corner.
+passes every **applicable** analysis at every corner — setup, hold and minimum
+pulse width for this CPU, whose resets are synchronous.
 
 So **`fes_i386_cpu` closes at 130 MHz on Agilex 5** — every rung of the
 precommitted ladder passed, the top one with +0.426 ns to spare. That is the
