@@ -30,7 +30,23 @@ func tapRig(t *testing.T) (*RemoteInput, <-chan protocol.InputFrame) {
 			if err != nil {
 				return
 			}
+			if f.Header.Type == protocol.InputTypePing && f.Header.Flags == protocol.InputFlagTapProbe {
+				reply := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypeReceipt, Flags: protocol.InputFlagTapSupported, Session: f.Header.Session}, Seq: f.Seq, ClientMonoNS: f.ClientMonoNS, ServerMonoNS: 1}
+				wire, _ := protocol.EncodeInputFrame(reply)
+				if _, err := right.Write(wire); err != nil {
+					return
+				}
+				continue
+			}
 			frames <- f
+			if f.Header.Type == protocol.InputTypeTap {
+				time.Sleep(time.Duration(protocol.InputTapHoldMS) * time.Millisecond)
+				reply := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypeReceipt, Session: f.Header.Session}, Seq: f.Seq, ClientMonoNS: f.ClientMonoNS, ServerMonoNS: 1}
+				wire, _ := protocol.EncodeInputFrame(reply)
+				if _, err := right.Write(wire); err != nil {
+					return
+				}
+			}
 		}
 	}()
 	return r, frames
@@ -51,16 +67,15 @@ func nextTapFrame(t *testing.T, frames <-chan protocol.InputFrame) protocol.Inpu
 func TestTapKeyOrderedWithConcurrentInput(t *testing.T) {
 	r, frames := tapRig(t)
 	result := make(chan error, 1)
-	go func() { _, err := r.TapKey(context.Background(), "7", tapA, tapAllowed); result <- err }()
+	go func() { _, err := r.TapKey(context.Background(), "7", 7, tapA, tapAllowed); result <- err }()
 	first := nextTapFrame(t, frames)
 	second := tapA
 	second.Code++
 	sent := make(chan error, 1)
 	go func() { sent <- r.SendEvent(context.Background(), second, time.Now()) }()
-	release := nextTapFrame(t, frames)
 	other := nextTapFrame(t, frames)
-	if first.Code != uint16(tapA.Code) || first.Action != uint8(remoteinput.ActionPress) || release.Code != first.Code || release.Action != uint8(remoteinput.ActionRelease) || other.Code != uint16(second.Code) {
-		t.Fatalf("unordered frames: %+v %+v %+v", first, release, other)
+	if first.Header.Type != protocol.InputTypeTap || first.Code != uint16(tapA.Code) || first.ServerMonoNS != 7 || other.Code != uint16(second.Code) {
+		t.Fatalf("unordered frames: %+v %+v", first, other)
 	}
 	if err := <-result; err != nil {
 		t.Fatal(err)
@@ -73,15 +88,12 @@ func TestTapKeyCancellationReleasesAndNoLatePress(t *testing.T) {
 	r, frames := tapRig(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { _, err := r.TapKey(ctx, "7", tapA, tapAllowed); done <- err }()
-	if f := nextTapFrame(t, frames); f.Action != uint8(remoteinput.ActionPress) {
+	go func() { _, err := r.TapKey(ctx, "7", 7, tapA, tapAllowed); done <- err }()
+	if f := nextTapFrame(t, frames); f.Header.Type != protocol.InputTypeTap {
 		t.Fatal(f)
 	}
 	cancel()
-	if f := nextTapFrame(t, frames); f.Action != uint8(remoteinput.ActionRelease) {
-		t.Fatal(f)
-	}
-	if err := <-done; !errors.Is(err, context.Canceled) {
+	if err := <-done; !errors.Is(err, ErrRemoteInputUnconfirmed) {
 		t.Fatalf("tap: %v", err)
 	}
 	if r.inputState.Pressed(tapA.Code) {
@@ -100,22 +112,24 @@ func TestTapKeyCancellationReleasesAndNoLatePress(t *testing.T) {
 		t.Fatalf("queued event: %v", err)
 	}
 	select {
-	case f := <-frames:
-		t.Fatalf("late event: %+v", f)
+	case f, ok := <-frames:
+		if ok {
+			t.Fatalf("late event: %+v", f)
+		}
 	case <-time.After(30 * time.Millisecond):
 	}
 }
 func TestTapKeyAdmissionAfterLock(t *testing.T) {
 	r, frames := tapRig(t)
 	denied := errors.New("ownership lost")
-	if _, err := r.TapKey(context.Background(), "7", tapA, func() error { return denied }); !errors.Is(err, denied) {
+	if _, err := r.TapKey(context.Background(), "7", 7, tapA, func() error { return denied }); !errors.Is(err, denied) {
 		t.Fatalf("ownership: %v", err)
 	}
-	if _, err := r.TapKey(context.Background(), "8", tapA, tapAllowed); !errors.Is(err, ErrRemoteInputInvalid) {
+	if _, err := r.TapKey(context.Background(), "8", 7, tapA, tapAllowed); !errors.Is(err, ErrRemoteInputInvalid) {
 		t.Fatalf("session: %v", err)
 	}
 	_ = r.inputState.Apply(tapA)
-	if _, err := r.TapKey(context.Background(), "7", tapA, tapAllowed); !errors.Is(err, ErrRemoteInputBusy) {
+	if _, err := r.TapKey(context.Background(), "7", 7, tapA, tapAllowed); !errors.Is(err, ErrRemoteInputBusy) {
 		t.Fatalf("held: %v", err)
 	}
 	if !r.inputState.Pressed(tapA.Code) {
@@ -133,7 +147,7 @@ func TestTapKeyRejectsUnsupportedHIDUsages(t *testing.T) {
 	for _, code := range []remoteinput.Code{0x1003, 0x1080, 0x10df, 0x10e8, 0x1104} {
 		event := tapA
 		event.Code = code
-		if _, err := r.TapKey(context.Background(), "7", event, tapAllowed); !errors.Is(err, ErrRemoteInputInvalid) {
+		if _, err := r.TapKey(context.Background(), "7", 7, event, tapAllowed); !errors.Is(err, ErrRemoteInputInvalid) {
 			t.Fatalf("code %#x: %v", code, err)
 		}
 	}
@@ -167,20 +181,20 @@ func TestTapUncertainWriteClearsStateAndClosesStream(t *testing.T) {
 			r, frames := tapRig(t)
 			r.conn = &failAfterWriteConn{Conn: r.conn, failAt: failAt}
 			done := make(chan error, 1)
-			go func() { _, err := r.TapKey(context.Background(), "7", tapA, tapAllowed); done <- err }()
-			f := nextTapFrame(t, frames)
-			if f.Action != uint8(remoteinput.ActionPress) {
-				t.Fatalf("first frame %+v", f)
-			}
+			go func() { _, err := r.TapKey(context.Background(), "7", 7, tapA, tapAllowed); done <- err }()
 			if failAt == 2 {
-				if f = nextTapFrame(t, frames); f.Action != uint8(remoteinput.ActionRelease) {
-					t.Fatalf("second frame %+v", f)
+				if f := nextTapFrame(t, frames); f.Header.Type != protocol.InputTypeTap {
+					t.Fatalf("tap frame %+v", f)
 				}
 			}
 			if err := <-done; err == nil {
 				t.Fatal("uncertain write accepted")
 			}
-			if r.inputState.Pressed(tapA.Code) || r.conn != nil || r.state != RemoteInputFailed {
+			wantState := RemoteInputFailed
+			if failAt == 1 { // capability probe contains no input
+				wantState = RemoteInputReconnecting
+			}
+			if r.inputState.Pressed(tapA.Code) || r.conn != nil || r.state != wantState {
 				t.Fatalf("unsafe cleanup: state=%v conn=%v", r.state, r.conn)
 			}
 		})
@@ -195,7 +209,7 @@ func TestTapRechecksOwnershipAndSessionAfterContention(t *testing.T) {
 		owned := true
 		go func() {
 			close(started)
-			_, err := r.TapKey(context.Background(), "7", tapA, func() error {
+			_, err := r.TapKey(context.Background(), "7", 7, tapA, func() error {
 				if !owned {
 					return errors.New("lease lost")
 				}
@@ -226,7 +240,7 @@ func TestCanceledTapWaitingForLockDoesNotPress(t *testing.T) {
 	r.mu.Lock()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { _, err := r.TapKey(ctx, "7", tapA, tapAllowed); done <- err }()
+	go func() { _, err := r.TapKey(ctx, "7", 7, tapA, tapAllowed); done <- err }()
 	cancel()
 	r.mu.Unlock()
 	if err := <-done; !errors.Is(err, context.Canceled) {
@@ -236,5 +250,56 @@ func TestCanceledTapWaitingForLockDoesNotPress(t *testing.T) {
 	case f := <-frames:
 		t.Fatalf("canceled tap sent %+v", f)
 	case <-time.After(30 * time.Millisecond):
+	}
+}
+
+func TestTapProbeUnsupportedNeverDispatches(t *testing.T) {
+	for _, legacy := range []bool{false, true} {
+		t.Run(fmt.Sprintf("legacy=%v", legacy), func(t *testing.T) {
+			left, right := net.Pipe()
+			t.Cleanup(func() { left.Close(); right.Close() })
+			r := &RemoteInput{conn: left, reader: bufio.NewReader(left), state: RemoteInputAttached, session: 7, now: time.Now, dial: time.Second}
+			seen := make(chan protocol.InputFrame, 2)
+			go func() {
+				defer close(seen)
+				f, err := protocol.DecodeInputFrame(right, 1024)
+				if err != nil {
+					return
+				}
+				seen <- f
+				if legacy {
+					right.Close()
+					return
+				}
+				reply := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypeReceipt, Session: f.Header.Session}, Seq: f.Seq, ClientMonoNS: f.ClientMonoNS, ServerMonoNS: 1}
+				wire, _ := protocol.EncodeInputFrame(reply)
+				if _, err := right.Write(wire); err != nil {
+					return
+				}
+				right.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+				if f, err := protocol.DecodeInputFrame(right, 1024); err == nil {
+					seen <- f
+				}
+			}()
+			if _, err := r.TapKey(context.Background(), "7", 7, tapA, tapAllowed); !errors.Is(err, ErrRemoteInputNoStream) {
+				t.Fatalf("tap: %v", err)
+			}
+			f := <-seen
+			if f.Header.Type != protocol.InputTypePing || f.Header.Flags != protocol.InputFlagTapProbe {
+				t.Fatalf("first frame %+v", f)
+			}
+			if extra, ok := <-seen; ok {
+				t.Fatalf("input dispatched %+v", extra)
+			}
+			if r.inputState.Pressed(tapA.Code) {
+				t.Fatal("unsupported tap changed held keys")
+			}
+			if legacy && (r.state != RemoteInputReconnecting || r.conn != nil) {
+				t.Fatalf("legacy state=%v conn=%v", r.state, r.conn)
+			}
+			if !legacy && (r.state != RemoteInputAttached || r.conn == nil) {
+				t.Fatalf("unsupported state=%v conn=%v", r.state, r.conn)
+			}
+		})
 	}
 }
