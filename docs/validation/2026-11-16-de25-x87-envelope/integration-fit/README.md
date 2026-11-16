@@ -35,6 +35,35 @@ cannot recover the missing one by reasoning about what the retarget does.
 All four seeds record the same **fitted** digest, which is what makes the seed
 comparison a comparison of placements rather than of designs.
 
+## Both clock domains were analysed, checked rather than assumed
+
+A gap the sibling measurement found in the shared harness after these fits
+ran: `fit_timing.tcl` required the SDC clock *count* and **design-wide**
+setup/hold paths, and neither notices a design that keeps both clock ports
+while one domain's registers are swept — the design-wide queries are answered
+by the surviving domain, so a two-clock fit could publish as "analysed at
+every corner" having analysed one.
+
+`pc386_system` has two clocks, so this record is exposed to it. It is
+checkable from the retained evidence without re-fitting, because the fitter
+derives a clock's Fmax **only** from paths inside that clock's own domain: a
+finite Fmax for both clocks at a corner is affirmative evidence both domains
+were analysed there. Run over every fit in this directory:
+
+| Fit | Corners | Both clocks at every corner | Corner 1 Fmax |
+| --- | ---: | --- | --- |
+| `fit-seed1` | 4 | yes | `clk` 131.15, `pixel_clk` 203.38 |
+| `fit-seed2` | 4 | yes | `clk` 129.74, `pixel_clk` 206.61 |
+| `fit-seed3` | 4 | yes | `clk` 132.10, `pixel_clk` 215.89 |
+| `fit-seed4` | 4 | yes | `clk` 136.65, `pixel_clk` 211.15 |
+| `ab-backend0-seed1` | 4 | yes | `clk` 130.63, `pixel_clk` 204.71 |
+
+**All five fits analysed both domains at all four corners.** The harness now
+scopes each expected clock's own register-to-register paths with
+`-from_clock`/`-to_clock` and writes per-clock rows, so later fits carry the
+coverage explicitly instead of it being recoverable from Fmax. These fits
+predate that and the check above is what stands in for it.
+
 `real_pins: 2` on every seed is the machine's two clocks staying real under
 this envelope. The harness now asserts that count **exactly** rather than as a
 maximum, so an envelope change that silently demoted `pixel_clk` to a virtual
