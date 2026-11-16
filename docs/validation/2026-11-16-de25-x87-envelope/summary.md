@@ -604,20 +604,24 @@ The worst seed is **87.87% of ALMs** and **98.33% of LABs touched**, so band 4 d
 
 ### The controlled arithmetic A/B
 
-| | `X87_BACKEND = 0` (the sequencer) | `X87_BACKEND = 1` (the DE25 backend) | Difference |
+| | `X87_BACKEND = 0` (the sequencer) | `X87_BACKEND = 1` (the DE25 backend) | Difference of medians |
 | --- | ---: | ---: | ---: |
-| Seeds | 1 | 4 | |
-| ALMs | 41,569 | 40,986–41,122 | -514 |
-| LABs touched | 4,606 | 4,555–4,602 | -9 |
-| Registers | 37,216 | 38,828–38,971 | +1,746 |
+| Seeds | 4 | 4 | |
+| ALMs | 41,476–41,569 | 40,986–41,122 | -462 |
+| LABs touched | 4,578–4,606 | 4,555–4,602 | +4 |
+| Registers | 37,085–37,221 | 38,828–38,971 | +1,746 |
 | DSP blocks | 33 | 42 | +9 |
 | M20K blocks | 140 | 138 | -2 |
-| ALMs, % of device | 88.82% | 87.58–87.87% | |
-| LABs, % of device | 98.42% | 97.33–98.33% | |
+| ALMs, % of device | 88.62–88.82% | 87.58–87.87% | |
+| LABs, % of device | 97.82–98.42% | 97.33–98.33% | |
 | Fit / timing | pass / pass | pass / pass | |
-| Worst setup, all corners | +7.620 ns | +7.582 to +7.895 ns | |
+| Worst setup, all corners | +7.584 to +7.776 ns | +7.582 to +7.895 ns | |
 
-ALM difference against the 1 side's median: **+514** (the sequencer is the larger), against the precommitted floor of the 1 side's own spread, **136 ALMs** — so **MEASURABLE**.
+Difference of medians: **+462 ALMs**, the sequencer being the larger. Tested against the **precommitted** floor — the 1 side's own spread, **136 ALMs** — so **MEASURABLE**.
+
+The 0 side's own spread is **93 ALMs**, reported beside the floor and **not** substituted for it: the floor was fixed before either spread was known and is not redefined now that both exist. It is also the wider of the two, so it is the conservative test.
+
+The two ALM ranges **do not overlap at all** — 40,986–41,122 against 41,476–41,569, a gap of 354 ALMs between the closest seeds. Every seed of the backend is smaller than every seed of the sequencer, which is a stronger statement than a difference of medians.
 
 <!-- end generated -->
 
@@ -944,10 +948,21 @@ two source trees differing in **exactly one line** — the `.X87_BACKEND(1)` on
 the `fes_i386_cpu` instantiation. It settles the comparison the uncontrolled
 one could not:
 
-**The DE25 pipelined backend is 514 ALMs *smaller* than the sequencer it
-replaces**, against the precommitted floor of 136, so the difference is
-**measurable** by the rule fixed before the 0 side ran. It costs **9 more DSP
-blocks** and **about 1,750 more registers**, and uses 2 fewer M20Ks.
+**The DE25 pipelined backend is about 460 ALMs *smaller* than the sequencer it
+replaces**, over **four seeds each side**, against the precommitted floor of
+136 — so the difference is **measurable** by the rule fixed before the 0 side
+ran. It costs **9 more DSP blocks** and **about 1,750 more registers**, and
+uses 2 fewer M20Ks.
+
+**The two ALM ranges do not overlap**: 40,986–41,122 against 41,476–41,569, a
+gap of 354 ALMs between the closest seeds. Every seed of the backend is
+smaller than every seed of the sequencer, which is stronger than a difference
+of medians and is what the extra seeds bought.
+
+*(The first 0-side seed alone gave −514 against the 1 side's median; four
+seeds put it at −462. The single-seed figure was not wrong, but it was a point
+against a distribution, and this record said so at the time rather than after
+the extra seeds narrowed it.)*
 
 Three things worth drawing out, the first being the one that generalises
 past this measurement:
@@ -979,10 +994,12 @@ past this measurement:
 ALMs, 98.42% of LABs touched, timing passing at all four corners with +7.620 ns
 worst setup. Band 4 does not apply to it either, under either threshold.
 
-Caveat kept at full strength: **the 0 side is one seed.** The difference, 514,
-is nearly four times the 1 side's whole spread, so it is unlikely to be
-placement noise — but "unlikely" is not "measured", and a second 0-side seed
-would settle it rather than argue it.
+~~Caveat: the 0 side is one seed.~~ **Answered: four seeds each side.** The
+0 side's own spread is **93 ALMs**, narrower than the 1 side's 136, and the
+136 remains the floor because it was fixed before either spread was known —
+it is not redefined now that both exist, and it is the more conservative of
+the two in any case. Both spreads are reported so a reader can see which test
+was applied.
 
 **This record is now cited by another.** The sibling reads all four seed rows
 out of this directory rather than from a message, so the A/B in its record

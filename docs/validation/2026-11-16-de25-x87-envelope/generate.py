@@ -370,10 +370,11 @@ def ab_table(record_dir: Path) -> str:
     against a distribution and the rule precommitted in method.md uses the 1
     side's own 136-ALM spread as the floor."""
     d = record_dir / 'integration-fit'
-    zero = load(d / 'ab-backend0-seed1.json')
+    zeros = [load(f) for f in sorted(d.glob('ab-backend0-seed[0-9].json'))]
+    zeros = [r for r in zeros if r]
     ones = [load(f) for f in sorted(d.glob('fit-seed*.json'))]
     ones = [r for r in ones if r]
-    if not (zero and ones):
+    if not (zeros and ones):
         return '_the controlled A/B needs both sides_'
 
     def used(r, k):
@@ -384,36 +385,62 @@ def ab_table(record_dir: Path) -> str:
 
     alms1 = sorted(used(r, 'alms') for r in ones)
     median1 = alms1[len(alms1) // 2]
-    rows = ['| | `X87_BACKEND = 0` (the sequencer) | `X87_BACKEND = 1` (the DE25 backend) | Difference |',
+    rows = ['| | `X87_BACKEND = 0` (the sequencer) | `X87_BACKEND = 1` (the DE25 backend) | Difference of medians |',
             '| --- | ---: | ---: | ---: |',
-            f"| Seeds | 1 | 4 | |"]
+            f"| Seeds | {len(zeros)} | {len(ones)} | |"]
+    def span(vals):
+        v = sorted(vals)
+        return f'{int(v[0]):,}' if v[0] == v[-1] else f'{int(v[0]):,}–{int(v[-1]):,}'
+
+    def median(vals):
+        v = sorted(vals)
+        return v[len(v) // 2]
+
     for key, label in (('alms', 'ALMs'), ('labs', 'LABs touched'),
                        ('registers', 'Registers'), ('dsp_blocks', 'DSP blocks'),
                        ('ram_blocks', 'M20K blocks')):
-        v1 = sorted(used(r, key) for r in ones)
-        med = v1[len(v1) // 2]
-        span = f'{int(v1[0]):,}' if v1[0] == v1[-1] else f'{int(v1[0]):,}–{int(v1[-1]):,}'
-        rows.append(f'| {label} | {int(used(zero, key)):,} | {span} | '
-                    f'{int(med - used(zero, key)):+,} |')
-    zt, ot = zero['timing'], ones[0]['timing']
-    zs = min(c['analyses']['setup']['worst_slack_ns'] for c in zt['corners'])
-    os_ = [min(c['analyses']['setup']['worst_slack_ns'] for c in r['timing']['corners']) for r in ones]
-    rows.append(f"| ALMs, % of device | {pct(zero, 'alms'):.2f}% | "
-                f"{min(pct(r, 'alms') for r in ones):.2f}–{max(pct(r, 'alms') for r in ones):.2f}% | |")
-    rows.append(f"| LABs, % of device | {pct(zero, 'labs'):.2f}% | "
-                f"{min(pct(r, 'labs') for r in ones):.2f}–{max(pct(r, 'labs') for r in ones):.2f}% | |")
-    rows.append(f"| Fit / timing | {zero['status']} / {zt['status']} | "
-                f"{'pass' if all(r['status'] == 'pass' for r in ones) else 'MIXED'} / "
-                f"{'pass' if all(r['timing']['status'] == 'pass' for r in ones) else 'MIXED'} | |")
-    rows.append(f'| Worst setup, all corners | {zs:+.3f} ns | '
-                f'{min(os_):+.3f} to {max(os_):+.3f} ns | |')
-    delta = used(zero, 'alms') - median1
+        vz = [used(r, key) for r in zeros]
+        v1 = [used(r, key) for r in ones]
+        rows.append(f'| {label} | {span(vz)} | {span(v1)} | '
+                    f'{int(median(v1) - median(vz)):+,} |')
+    def slacks(group):
+        return [min(c['analyses']['setup']['worst_slack_ns'] for c in r['timing']['corners'])
+                for r in group]
+
+    for label, key in (('ALMs, % of device', 'alms'), ('LABs, % of device', 'labs')):
+        rows.append(f"| {label} | {min(pct(r, key) for r in zeros):.2f}–"
+                    f"{max(pct(r, key) for r in zeros):.2f}% | "
+                    f"{min(pct(r, key) for r in ones):.2f}–"
+                    f"{max(pct(r, key) for r in ones):.2f}% | |")
+    for label, group in (('Fit / timing', None),):
+        def ok(g):
+            return ('pass' if all(r['status'] == 'pass' for r in g) else 'MIXED') + ' / ' + (
+                'pass' if all(r['timing']['status'] == 'pass' for r in g) else 'MIXED')
+        rows.append(f'| Fit / timing | {ok(zeros)} | {ok(ones)} | |')
+    sz, so = slacks(zeros), slacks(ones)
+    rows.append(f'| Worst setup, all corners | {min(sz):+.3f} to {max(sz):+.3f} ns | '
+                f'{min(so):+.3f} to {max(so):+.3f} ns | |')
+    delta = median([used(r, 'alms') for r in zeros]) - median1
     floor = int(alms1[-1] - alms1[0])
+    zspread = int(max(used(r, 'alms') for r in zeros) - min(used(r, 'alms') for r in zeros))
     verdict = ('**MEASURABLE**' if abs(delta) > floor else '**not measurable**')
     out = '\n'.join(rows)
-    out += (f'\n\nALM difference against the 1 side\'s median: **{int(delta):+,}** '
-            f'(the sequencer is the larger), against the precommitted floor of the 1 side\'s '
-            f'own spread, **{floor} ALMs** — so {verdict}.')
+    zalms = sorted(used(r, 'alms') for r in zeros)
+    overlap = not (zalms[0] > alms1[-1] or alms1[0] > zalms[-1])
+    out += (f'\n\nDifference of medians: **{int(delta):+,} ALMs**, the sequencer being the '
+            f'larger. Tested against the **precommitted** floor — the 1 side\'s own spread, '
+            f'**{floor} ALMs** — so {verdict}.\n\n'
+            f"The 0 side's own spread is **{zspread} ALMs**, reported beside the floor and "
+            '**not** substituted for it: the floor was fixed before either spread was known '
+            'and is not redefined now that both exist. It is also the wider of the two, so it '
+            'is the conservative test.\n\n'
+            + ('The two ALM ranges **overlap**, so the separation rests on the medians alone.'
+               if overlap else
+               f'The two ALM ranges **do not overlap at all** — '
+               f'{int(alms1[0]):,}–{int(alms1[-1]):,} against {int(zalms[0]):,}–{int(zalms[-1]):,}, '
+               f'a gap of {int(zalms[0] - alms1[-1]):,} ALMs between the closest seeds. '
+               'Every seed of the backend is smaller than every seed of the sequencer, which is '
+               'a stronger statement than a difference of medians.'))
     return out
 
 
@@ -486,10 +513,11 @@ def ab_table(record_dir: Path) -> str:
     against a distribution and the rule precommitted in method.md uses the 1
     side's own 136-ALM spread as the floor."""
     d = record_dir / 'integration-fit'
-    zero = load(d / 'ab-backend0-seed1.json')
+    zeros = [load(f) for f in sorted(d.glob('ab-backend0-seed[0-9].json'))]
+    zeros = [r for r in zeros if r]
     ones = [load(f) for f in sorted(d.glob('fit-seed*.json'))]
     ones = [r for r in ones if r]
-    if not (zero and ones):
+    if not (zeros and ones):
         return '_the controlled A/B needs both sides_'
 
     def used(r, k):
@@ -500,36 +528,62 @@ def ab_table(record_dir: Path) -> str:
 
     alms1 = sorted(used(r, 'alms') for r in ones)
     median1 = alms1[len(alms1) // 2]
-    rows = ['| | `X87_BACKEND = 0` (the sequencer) | `X87_BACKEND = 1` (the DE25 backend) | Difference |',
+    rows = ['| | `X87_BACKEND = 0` (the sequencer) | `X87_BACKEND = 1` (the DE25 backend) | Difference of medians |',
             '| --- | ---: | ---: | ---: |',
-            f"| Seeds | 1 | 4 | |"]
+            f"| Seeds | {len(zeros)} | {len(ones)} | |"]
+    def span(vals):
+        v = sorted(vals)
+        return f'{int(v[0]):,}' if v[0] == v[-1] else f'{int(v[0]):,}–{int(v[-1]):,}'
+
+    def median(vals):
+        v = sorted(vals)
+        return v[len(v) // 2]
+
     for key, label in (('alms', 'ALMs'), ('labs', 'LABs touched'),
                        ('registers', 'Registers'), ('dsp_blocks', 'DSP blocks'),
                        ('ram_blocks', 'M20K blocks')):
-        v1 = sorted(used(r, key) for r in ones)
-        med = v1[len(v1) // 2]
-        span = f'{int(v1[0]):,}' if v1[0] == v1[-1] else f'{int(v1[0]):,}–{int(v1[-1]):,}'
-        rows.append(f'| {label} | {int(used(zero, key)):,} | {span} | '
-                    f'{int(med - used(zero, key)):+,} |')
-    zt, ot = zero['timing'], ones[0]['timing']
-    zs = min(c['analyses']['setup']['worst_slack_ns'] for c in zt['corners'])
-    os_ = [min(c['analyses']['setup']['worst_slack_ns'] for c in r['timing']['corners']) for r in ones]
-    rows.append(f"| ALMs, % of device | {pct(zero, 'alms'):.2f}% | "
-                f"{min(pct(r, 'alms') for r in ones):.2f}–{max(pct(r, 'alms') for r in ones):.2f}% | |")
-    rows.append(f"| LABs, % of device | {pct(zero, 'labs'):.2f}% | "
-                f"{min(pct(r, 'labs') for r in ones):.2f}–{max(pct(r, 'labs') for r in ones):.2f}% | |")
-    rows.append(f"| Fit / timing | {zero['status']} / {zt['status']} | "
-                f"{'pass' if all(r['status'] == 'pass' for r in ones) else 'MIXED'} / "
-                f"{'pass' if all(r['timing']['status'] == 'pass' for r in ones) else 'MIXED'} | |")
-    rows.append(f'| Worst setup, all corners | {zs:+.3f} ns | '
-                f'{min(os_):+.3f} to {max(os_):+.3f} ns | |')
-    delta = used(zero, 'alms') - median1
+        vz = [used(r, key) for r in zeros]
+        v1 = [used(r, key) for r in ones]
+        rows.append(f'| {label} | {span(vz)} | {span(v1)} | '
+                    f'{int(median(v1) - median(vz)):+,} |')
+    def slacks(group):
+        return [min(c['analyses']['setup']['worst_slack_ns'] for c in r['timing']['corners'])
+                for r in group]
+
+    for label, key in (('ALMs, % of device', 'alms'), ('LABs, % of device', 'labs')):
+        rows.append(f"| {label} | {min(pct(r, key) for r in zeros):.2f}–"
+                    f"{max(pct(r, key) for r in zeros):.2f}% | "
+                    f"{min(pct(r, key) for r in ones):.2f}–"
+                    f"{max(pct(r, key) for r in ones):.2f}% | |")
+    for label, group in (('Fit / timing', None),):
+        def ok(g):
+            return ('pass' if all(r['status'] == 'pass' for r in g) else 'MIXED') + ' / ' + (
+                'pass' if all(r['timing']['status'] == 'pass' for r in g) else 'MIXED')
+        rows.append(f'| Fit / timing | {ok(zeros)} | {ok(ones)} | |')
+    sz, so = slacks(zeros), slacks(ones)
+    rows.append(f'| Worst setup, all corners | {min(sz):+.3f} to {max(sz):+.3f} ns | '
+                f'{min(so):+.3f} to {max(so):+.3f} ns | |')
+    delta = median([used(r, 'alms') for r in zeros]) - median1
     floor = int(alms1[-1] - alms1[0])
+    zspread = int(max(used(r, 'alms') for r in zeros) - min(used(r, 'alms') for r in zeros))
     verdict = ('**MEASURABLE**' if abs(delta) > floor else '**not measurable**')
     out = '\n'.join(rows)
-    out += (f'\n\nALM difference against the 1 side\'s median: **{int(delta):+,}** '
-            f'(the sequencer is the larger), against the precommitted floor of the 1 side\'s '
-            f'own spread, **{floor} ALMs** — so {verdict}.')
+    zalms = sorted(used(r, 'alms') for r in zeros)
+    overlap = not (zalms[0] > alms1[-1] or alms1[0] > zalms[-1])
+    out += (f'\n\nDifference of medians: **{int(delta):+,} ALMs**, the sequencer being the '
+            f'larger. Tested against the **precommitted** floor — the 1 side\'s own spread, '
+            f'**{floor} ALMs** — so {verdict}.\n\n'
+            f"The 0 side's own spread is **{zspread} ALMs**, reported beside the floor and "
+            '**not** substituted for it: the floor was fixed before either spread was known '
+            'and is not redefined now that both exist. It is also the wider of the two, so it '
+            'is the conservative test.\n\n'
+            + ('The two ALM ranges **overlap**, so the separation rests on the medians alone.'
+               if overlap else
+               f'The two ALM ranges **do not overlap at all** — '
+               f'{int(alms1[0]):,}–{int(alms1[-1]):,} against {int(zalms[0]):,}–{int(zalms[-1]):,}, '
+               f'a gap of {int(zalms[0] - alms1[-1]):,} ALMs between the closest seeds. '
+               'Every seed of the backend is smaller than every seed of the sequencer, which is '
+               'a stronger statement than a difference of medians.'))
     return out
 
 
