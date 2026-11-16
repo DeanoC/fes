@@ -1115,3 +1115,50 @@ narrower and checkable: the invariant is written down, it is enforced at the
 single point of release rather than at each path, and each path listed has a
 test. A fifth finding would be either a path that reaches the release with an
 unregistered group, or a release that is not `compiler_lease`'s.
+
+## Amendment, 2026-11-17: zombies, an unkillable member, and a stale literal
+
+Two items from review of `728cfc64f`, after every figure here was published.
+No figure moves.
+
+**A CI failure in this PR's own test, not a flake.** A test asserted that the
+direct-SystemVerilog project renames exactly 30 block-RAM requests. `main`
+gained two more in `fes_i386_x87.sv` when the x87 work merged, so CI, which
+tests the merge, counted 32 while the branch still counted 30. `main` is merged
+in and the test now counts the requests from the sources it is given. The
+published direct-SV fit is unaffected: it was taken from the 30-request
+sources and its record carries its own source digests.
+
+**Zombies.** `killpg(group, 0)` reports a group alive while its only member is
+a zombie. Under a parent that never reaps (a container's PID 1 often does not)
+a killed stage therefore looked alive, and the reap stalled and then raised
+out through the lease's release. Counterexample first: a subreaper that never
+reaps, a stage that leaves an orphan, SIGKILL; the only member was in state
+`Z` and the liveness check said alive. Liveness is now read from
+`/proc/<pid>/stat` and a zombie is not a running member, since it holds no
+file, licence or core and cannot overlap a fit. `killpg` remains only as the
+fallback where `/proc` is unavailable.
+
+**A member that survives SIGKILL.** The previous version raised after 60
+seconds, which unwound through `compiler_lease` and released the lock over a
+live group: a breach of the invariant stated above, by the code written to
+hold it. `flock` cannot be kept by a process that exits, so the choice is
+between staying and releasing. The runner now **stays**: it holds the lease
+and reports the surviving PIDs every 30 seconds until they are gone. A held
+lease is visible to everyone waiting on it; an overlapped compile is visible
+to nobody and shows up as figures nobody can explain. The cost is that a
+process stuck in the kernel blocks the shared builder until an operator kills
+the runner, and that is the operator's decision to make, not the runner's.
+This joins the stated limits: killing the runner in that state releases the
+lease over whatever is still running.
+
+Two rows join the release-path table:
+
+| Path to the lease's release | Test |
+| --- | --- |
+| A killed stage whose member is an unreaped zombie | `test_a_zombie_member_does_not_keep_the_group_alive` |
+| A member that survives SIGKILL (the reap stays and reports) | `test_a_group_that_survives_sigkill_holds_the_reap_and_says_so` |
+
+The second of those tests simulates the surviving member, because a process
+that survives SIGKILL cannot be made on demand; it shows the reap does not
+return or raise while members are reported, not that the kernel behaves so.

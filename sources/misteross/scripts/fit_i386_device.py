@@ -510,12 +510,41 @@ TERMINATING_SIGNALS = (signal.SIGTERM, signal.SIGHUP)
 # launch; removed only by reap_group, once the group has no members.
 _LIVE_GROUPS: set[int] = set()
 REAP_GRACE_SECONDS = 15.0
-# After SIGKILL nothing is left to try. A group that still has members this
-# long afterwards is reported as such instead of being waited on for ever.
-REAP_KILL_SECONDS = 60.0
+# How often a group that survives SIGKILL is reported while the lease is held.
+REAP_REPORT_SECONDS = 30.0
+
+
+def group_members(group: int) -> list[int] | None:
+    """The running members of a process group, or None where /proc cannot say.
+
+    A zombie is not running: it holds no file, no licence and no core, and it
+    cannot overlap the next fit. `killpg(group, 0)` counts one as alive, and
+    under a parent that never reaps -- a container's PID 1 often does not --
+    a killed stage would then look alive for ever.
+    """
+    try:
+        entries = os.listdir("/proc")
+    except OSError:
+        return None
+    members = []
+    for entry in entries:
+        if not entry.isdigit():
+            continue
+        try:
+            # The command name is in parentheses and may itself contain spaces
+            # or parentheses; the fields after the last ")" are state, ppid, pgrp.
+            fields = Path(f"/proc/{entry}/stat").read_text().rsplit(")", 1)[1].split()
+        except (OSError, IndexError):
+            continue
+        if len(fields) > 2 and fields[2] == str(group) and fields[0] not in ("Z", "X"):
+            members.append(int(entry))
+    return members
 
 
 def group_alive(group: int) -> bool:
+    members = group_members(group)
+    if members is not None:
+        return bool(members)
     try:
         os.killpg(group, 0)
     except ProcessLookupError:
@@ -544,10 +573,19 @@ def reap_group(group: int, process: subprocess.Popen | None = None,
     The polite SIGTERM is sent once and the grace measured from the first
     attempt, so interruptions do not extend it. Emptiness is the group's, not
     the leader's: a stage whose leader has exited can leave members behind.
+
+    A member that survives SIGKILL is in the kernel and nothing here can end
+    it. The policy is then to stay: this holds the lease and says so, naming
+    the processes, for as long as they run. Raising instead would unwind
+    through the lease's release and let the next fit start over a live
+    compile, which is the one thing the lease exists to prevent; a held lease
+    is visible to everyone waiting on it and an overlapped fit is visible to
+    nobody. Ending it is an operator's decision, made by killing this runner.
     """
     deadline = time.monotonic() + grace
     polite = False
     killed_at = None
+    reported = time.monotonic()
     previous = None
     while True:
         try:
@@ -575,14 +613,13 @@ def reap_group(group: int, process: subprocess.Popen | None = None,
                         os.killpg(group, signal.SIGKILL)
                     except ProcessLookupError:
                         pass
-                elif killed_at is not None and time.monotonic() - killed_at > REAP_KILL_SECONDS:
-                    raise FitError(
-                        f"process group {group} still has members {REAP_KILL_SECONDS:.0f} s "
-                        "after SIGKILL; the builder lease would be released over it")
+                elif killed_at is not None and time.monotonic() - reported >= REAP_REPORT_SECONDS:
+                    reported = time.monotonic()
+                    print(f"i386 fit: process group {group} survives SIGKILL "
+                          f"(members {group_members(group)}); holding the builder lease "
+                          "until it is gone", flush=True)
                 time.sleep(0.05)
             break
-        except FitError:
-            raise
         except BaseException:
             continue
     _LIVE_GROUPS.discard(group)
@@ -984,9 +1021,8 @@ def write_sv_project(output: Path, device: "Device", design: dict, period_ns: fl
     sources = cpu_sources()
     # The same M10K-to-M20K rename the primary flow applies to the netlist,
     # applied here to the RTL instead, and verified the same way. Without it
-    # Quartus Pro refuses outright: fes_i386_l1i, fes_i386_l1d and
-    # fes_i386_btb carry 30 Cyclone V block-RAM requests between them, and
-    # Agilex 5 has no M10K. Doing it keeps the secondary a cross-check on the
+    # Quartus Pro refuses outright: the RTL carries Cyclone V block-RAM
+    # requests, and Agilex 5 has no M10K. Doing it keeps the secondary a cross-check on the
     # front end rather than a second experiment.
     renamed = 0
     for path in sources:

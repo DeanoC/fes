@@ -296,9 +296,17 @@ class SecondaryFrontEnd(unittest.TestCase):
             self.assertEqual(inputs["virtual_ports"],
                              ["* (wildcard; the clock is assigned back)"])
             # The same rename the primary applies to the netlist, applied to
-            # the RTL: without it Quartus Pro refuses, because fes_i386_l1i,
-            # fes_i386_l1d and fes_i386_btb ask for Cyclone V block RAM.
-            self.assertEqual(inputs["ram_attribute_count"], 30)
+            # the RTL: without it Quartus Pro refuses, because the RTL asks
+            # for Cyclone V block RAM. The count is every request in the
+            # sources, counted here from the sources: a literal went stale the
+            # moment fes_i386_x87.sv gained two requests on main, and failed
+            # on the merge while passing on the branch.
+            requests = sum(path.read_text().count(fit.M10K_ATTRIBUTE)
+                           for path in fit.cpu_sources())
+            self.assertGreater(requests, 0)
+            self.assertEqual(inputs["ram_attribute_count"], requests)
+            for path in fit.cpu_sources():
+                self.assertNotIn(fit.M10K_ATTRIBUTE, (project / path.name).read_text())
             self.assertNotIn('ramstyle = "M10K"',
                              (project / "fes_i386_l1i.sv").read_text())
             self.assertIn('ramstyle = "M20K"', (project / "fes_i386_l1i.sv").read_text())
@@ -768,6 +776,57 @@ import subprocess
                 fit.run(["sh", "-c", "exit 3"], out, out, "stage", time.monotonic() + 60)
         self.assertEqual(fit._LIVE_GROUPS, set())
         self.assertEqual(signal.pthread_sigmask(signal.SIG_BLOCK, []), before)
+
+    ZOMBIE = """
+import ctypes, signal, subprocess
+# A parent that never reaps, as a container's PID 1 often does not: this
+# process becomes the subreaper, so the stage's orphan reparents here and
+# stays a zombie once killed.
+ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0)
+fit.REAP_GRACE_SECONDS = 1.0
+started = time.monotonic()
+fit.run(["sh", "-c", "sleep 300 & exit 0"], out, out, "stage", time.monotonic() + 60)
+print("returned in %.1f" % (time.monotonic() - started), flush=True)
+print("registered %r" % sorted(fit._LIVE_GROUPS), flush=True)
+"""
+
+    def test_a_zombie_member_does_not_keep_the_group_alive(self):
+        # killpg(group, 0) counts a zombie as alive, so under a parent that
+        # never reaps a killed stage looked alive for ever and the reap never
+        # finished. A zombie runs nothing and cannot overlap the next fit.
+        import sys
+        root = str(Path(__file__).resolve().parent.parent)
+        with tempfile.TemporaryDirectory() as temporary:
+            script = Path(temporary) / "zombie.py"
+            script.write_text(self.HELPER.format(root=root, body=self.ZOMBIE))
+            finished = subprocess.run([sys.executable, "-u", str(script), temporary, "unused"],
+                                      capture_output=True, text=True, timeout=45)
+        self.assertEqual(finished.returncode, 0, finished.stderr)
+        self.assertIn("registered []", finished.stdout)
+
+    def test_a_group_that_survives_sigkill_holds_the_reap_and_says_so(self):
+        # The policy for a member nothing can end: stay, holding the lease,
+        # and report it. Raising would unwind through the lease's release and
+        # let the next fit start over a live compile.
+        import contextlib
+        import io
+        answers = iter([[4242]] * 40)
+        original = (fit.group_members, fit.REAP_REPORT_SECONDS, os.killpg)
+        sent = []
+        fit.group_members = lambda group: next(answers, [])
+        fit.REAP_REPORT_SECONDS = 0.2
+        os.killpg = lambda group, number: sent.append(number)
+        try:
+            printed = io.StringIO()
+            with contextlib.redirect_stdout(printed):
+                fit.reap_group(999999, grace=0.1)
+        finally:
+            fit.group_members, fit.REAP_REPORT_SECONDS, os.killpg = original
+        import signal
+        self.assertEqual(sent, [signal.SIGTERM, signal.SIGKILL])
+        self.assertIn("survives SIGKILL", printed.getvalue())
+        self.assertIn("holding the builder lease", printed.getvalue())
+        self.assertIsNone(next(answers, None), "the reap returned while members were reported")
 
     def test_a_relayed_sigterm_takes_the_stage_group_with_it(self):
         self.assertEqual(self.kill_during_a_stage(self.RELAYED, "FESFITRELAYED"), [])
