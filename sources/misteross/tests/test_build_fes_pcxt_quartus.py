@@ -13,6 +13,7 @@ from unittest import mock
 from scripts import build_fes_pcxt_quartus as producer
 from scripts.quartus_tools import QuartusLock, load_quartus_lock
 from scripts import export_core_package as export
+from scripts.input_identity import identities, with_identities
 from scripts.export_core_package import build_identity, encode_build_record, _validate_build_record
 
 
@@ -325,11 +326,19 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertTrue(fields['parameters']['enable_pcxt_media'])
         self.assertFalse(fields['parameters']['enable_pcxt_floppy_write'])
         before = build_identity(record)
-        without_quartus = dict(fields, parameters={
-            name: value for name, value in fields['parameters'].items()
-            if name not in export.FRONT_END_PARAMETERS})
-        without_quartus.pop('toolchain')
-        self.assertNotEqual(build_identity(encode_build_record(without_quartus)), before)
+        # `toolchain` is excluded from the design projection, so dropping it must
+        # leave the design identity alone and move only the toolchain one. The
+        # claim is about the projection, so it is asserted on the projection:
+        # round-tripping through encode_build_record() would also re-run record
+        # shape rules that have nothing to do with it -- among them the #1806
+        # rule that only a Quartus record may name a front end, which a record
+        # with no `toolchain` field necessarily breaks.
+        recorded = json.loads(record)['identities']
+        # BUILD_ID *is* the design identity, truncated: the DeanoC/fes#1878 outcome.
+        self.assertEqual(before, recorded['design'][:32])
+        without_toolchain = {key: value for key, value in fields.items() if key != 'toolchain'}
+        self.assertEqual(identities(without_toolchain)['design'], recorded['design'])
+        self.assertNotEqual(identities(without_toolchain)['toolchain'], recorded['toolchain'])
         fields['toolchain'] = 'oss'
         with self.assertRaisesRegex(ValueError, 'toolchain'):
             _validate_build_record(fields)

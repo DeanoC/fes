@@ -53,6 +53,40 @@ slice does not change, so those records still validate unchanged. Their recipe r
 `front_end = "quartus-pro"` because the registry is shared. Giving the DE25 records the fields
 belongs with S6b or S16.
 
+## The D12 question this record was written to answer no longer arises
+
+Main merged DeanoC/fes#1882 (`9a9b8cbb3`), which closes DeanoC/fes#1878 and implements all three
+of its slices: `BUILD_ID` is now the **design** identity, and `scripts/export_core_package.py`
+and `scripts/core_package.py` are classified `packaging` in
+`scripts/input_identity.py`'s `PACKAGING_INPUTS` -- excluded from it.
+
+Those two files are the only reason this branch ever touched twelve cores' identities. Measured
+against the merge base `333900cbb`, with the roles the policy itself assigns:
+
+| producer | closure hits | of which design inputs |
+| --- | ---: | --- |
+| all twelve | 1 each (`scripts/export_core_package.py`) | **none** |
+
+So **no design identity moves**, for any of the twelve, and there is nothing to reseal. The
+condition-1/2/3 campaign below is retained as the record of how that was established at the
+time, not as a live claim -- including the two condition-3 failures, which were real and remain
+worth reading for what they say about margin, but which no longer gate this branch because the
+identities they were measured for do not change.
+
+**What this branch does still move.** It adds four parameters to format-2 **Quartus** records
+only, and the split puts them where they belong:
+
+| parameter | projection | why |
+| --- | --- | --- |
+| `front_end` | toolchain | which compiler elaborates the logic; a compiler change is advisory |
+| `front_end_program_sha256` | toolchain | that compiler's own program text |
+| `quartus_qsf_sha256` | toolchain | computed over the recipe *including* `threads`, which this policy already classifies as toolchain; as a design input it would move the design id on a thread-count change, which `quartus_recipe_parameters()` exists to prevent |
+| `device_family` | **design** | names what the design is compiled for, not what compiled it. The build record carries no other device field, so classifying this as toolchain would stop the design id distinguishing a Cyclone V build from an Agilex 5 one |
+
+`device_family` is new, so **PC/XT's design identity moves once** -- one core, deliberately, and
+the core whose front-end identity this branch exists to record. That is the reseal this branch
+owes, and it replaces the twelve-core question entirely.
+
 ## D12
 
 `scripts/export_core_package.py` is in every audited closure, so this change moves the BUILD_ID of

@@ -7,8 +7,11 @@ explicit HDL and constraint inputs, recipe, ABI definition, selected toolchain
 lock, the toolchain recipe files hashed into the shared toolchain cache key
 (`scripts/bootstrap.sh`, `lockfile.py`, `toolchain_cache.py`), core-local
 sources, and only the shared RTL it uses. The functional record
-hashes the tracked files below those roots, the existing execution digest
-(tool binaries, controlled environment and GPU inputs), and
+retains the tracked files below those roots and the execution digest
+(tool binaries, controlled environment and GPU inputs). New design-v1 records
+separate design, toolchain and recording identity; the cache key excludes
+audited packaging and toolchain inputs while preserving their full provenance.
+The record also retains
 `parameters.source_closure_mode = "audited-v1"`. Producers without a manifest
 entry keep the original broad `scripts/` and owning-module roots and produce
 byte-identical records.
@@ -26,7 +29,11 @@ policy and clean-source and historical-record validation still apply. An
 uncovered read fails the build before package sealing; it never results in a
 new cached package. A cached package is still checked against its immutable
 manifest, payload, build record, original source revision and current
-functional key on selection.
+design key on selection. Toolchain drift is reported as an optional update;
+`force` adopts the selected toolchain and requires its exact new build record.
+Legacy combined-key entries remain in their original namespace and require a
+one-time migration build. See the
+[identity contract](../sources/misteross/docs/architecture.md#functional-input-identity).
 
 ## Refresh a closure after a failure
 

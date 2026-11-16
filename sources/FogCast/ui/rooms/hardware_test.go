@@ -1575,3 +1575,31 @@ func TestHardwareRoomStaticReceiptBindsRunningSetup(t *testing.T) {
 		}
 	}
 }
+
+// The default description is wrapped during warmup at the same text size
+// used to paint it. Its first upper picture must use that cached wrapping;
+// remeasuring every word on that draw adds avoidable work to a kit callback.
+func TestHardwareRoomPrewarmsDefaultDescriptionAtKitSize(t *testing.T) {
+	w, h := workshopKitSize(1280, 720)
+	r := newRoom(t, examplePack(t, "example.hardware"), Options{Width: w, Height: h, Services: hardwareData(false), StorePath: filepath.Join(t.TempDir(), "room.json"), Budget: Budget{Load: 2 * time.Second, Frame: 2 * time.Second, Input: 2 * time.Second}})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(3500, 0)
+	for i := 0; i < 32; i++ {
+		now = now.Add(16 * time.Millisecond)
+		before := r.measures
+		f := r.Step(now)
+		if r.Err() != nil {
+			t.Fatal(r.Err())
+		}
+		if frameHas(f, "Setup preview") && !frameHas(f, "Import expansion") {
+			if count := r.measures - before; count != 0 {
+				t.Fatalf("first upper picture measured text %d times after warmup", count)
+			}
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("upper picture not shown")
+}

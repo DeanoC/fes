@@ -17,10 +17,11 @@ import sys
 import tempfile
 
 if __package__:
-    from . import recipes
+    from . import recipes, artifact_cache
     from .optional_cores import OptionalBuildFailure
 else:
     import recipes
+    import artifact_cache
     from optional_cores import OptionalBuildFailure
 
 PROFILES = ("direct", "scanlines")
@@ -263,7 +264,8 @@ from scripts import native_video_parts, native_video_clock, coleco_expansion
 from scripts import build_atari_st_video_part, build_fes_atari_st_oss, rom_map
 from scripts.core_package import read_package
 from scripts.export_core_package import source_input_closure, POLICY, verify_record_source_at_revision, build_identity
-from scripts.functional_execution import execution_environment, execution_inputs, source_roots_for_inputs
+from scripts.functional_execution import execution_environment, execution_inputs, execution_digest, source_roots_for_inputs
+from scripts.input_identity import functional_key, with_identities, video_design_inputs
 from scripts.fes_build_common import _cell_counts, gpu_backend_for_router, validate_timing_resources
 from scripts.cyclonev_rbf import rbf_load, CramRect, classify_cram_diff, overlay_cram
 root = Path(sys.argv[1]); mode = sys.argv[2]; args = json.load(sys.stdin)
@@ -273,7 +275,7 @@ def require(condition, message):
     if not condition: raise ValueError(message)
 def functional(record):
     fields = json.loads(record)
-    return sha(b'fes-functional-inputs-v2\0' + encode({k:v for k,v in fields.items() if k not in ('repository','revision','source_path')}))
+    return functional_key(fields)
 def bounded(path, maximum=128<<20):
     require(not path.is_symlink() and path.is_file() and 0 < path.stat().st_size <= maximum, 'unbounded producer evidence: '+str(path))
     data=path.read_bytes()
@@ -297,18 +299,21 @@ shell_members = ('manifest.toml','core.rbf','routed.json','socket.qsf') + (('rom
 if mode == 'canonical':
     require(args['producer_options']==options, 'resolved video profile differs from selected factory recipe')
     _, revision = shell_producer._require_clean_source(root, **options)
-    authenticate = shell_producer._authenticate_atari_st_tools if st else shell_producer.authenticate_tools
-    tools = authenticate(root, Path(args['toolchain_cache']), gpu_router=args['gpu_router'])
     roots = source_roots_for_inputs(producer.NATIVE_INPUTS if native else producer.INPUTS)
-    with tempfile.TemporaryDirectory(prefix='fes-video-canonical-') as home:
-        paths = {name:tool.path for name,tool in tools.items()}
-        env = execution_environment(Path(home), paths)
-        if args['gpu_router'] == 'CUDA':
-            env['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
-        execution = execution_inputs(paths, env, 0)
+    identities, execution = {}, {}
+    if not args.get('selection_only'):
+        authenticate = shell_producer._authenticate_atari_st_tools if st else shell_producer.authenticate_tools
+        tools = authenticate(root, Path(args['toolchain_cache']), gpu_router=args['gpu_router'])
+        identities = {name:tool.identity for name,tool in tools.items()}
+        with tempfile.TemporaryDirectory(prefix='fes-video-canonical-') as home:
+            paths = {name:tool.path for name,tool in tools.items()}
+            env = execution_environment(Path(home), paths)
+            if args['gpu_router'] == 'CUDA':
+                env['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
+            execution = execution_inputs(paths, env, 0)
     result = {'inputs':source_input_closure(root, roots, policy=POLICY),
               'source_roots':roots, 'source_closure_policy':POLICY,
-              'tools':{name:tool.identity for name,tool in tools.items()},
+              'tools':identities,
               'execution':execution, 'revision':revision, 'map':layout.MAP}
     if st: result['placer_seed'] = args['placer_seed']
 else:
@@ -317,7 +322,19 @@ else:
     require(current['map']==layout.MAP, 'video inputs target a different shell profile')
     require(not st or bounded(shell/'rom-map.json')==package.rom_map_bytes, 'frozen firmware map differs from resolved package')
     require(bounded(shell/'manifest.toml')==package.manifest_bytes and bounded(shell/'core.rbf',32<<20)==package.payload_bytes, 'frozen video shell differs from resolved package')
-    if mode == 'shell':
+    if args.get('reuse_sealed'):
+        expected_backend = json.loads(bounded(shell/'build-inputs.json'))['parameters']['gpu_backend']
+    if mode == 'shell' and args.get('reuse_sealed'):
+        record = bounded(shell/'build-inputs.json'); fields = verify_record_source_at_revision(root, record)
+        require(functional(record)==args['functional_inputs_sha256'], 'frozen shell design differs from selected package')
+        summary = json.loads(bounded(shell/'build-summary.json'))
+        require(summary['build_id']==build_identity(record) and summary['tools']==fields['tools'] and
+                execution_digest(summary['execution'])==fields['parameters']['execution_sha256'],
+                'retained shell execution differs from original build record')
+        require(summary['rbf']=={'sha256':sha(package.payload_bytes),'size':len(package.payload_bytes)},
+                'retained shell payload differs from selected package')
+        result={'package_id':package.package_id,'build_record_sha256':sha(record)}
+    elif mode == 'shell':
         record = bounded(shell/'build-inputs.json'); fields = verify_record_source_at_revision(root, record)
         require(functional(record)==args['functional_inputs_sha256'], 'frozen shell functional inputs differ from selected package')
         # The record's P&R recipe digest follows the nextpnr option schema
@@ -375,12 +392,19 @@ else:
         recipe={key:current[key] for key in ('inputs','source_roots','source_closure_policy','tools','execution')}
         recipe.update(shell={name:sha(bounded(shell/name)) for name in shell_members},variant=variant,slot_clock=layout.CLOCK,map=layout.MAP,cram_region=list(layout.CRAM),required_clocks_mhz=clock_producer.REQUIRED_CLOCKS_MHZ,clock_constraints_sha256=sha(clocks))
         if st: recipe['placer_seed']=args['placer_seed']
+        if args.get('reuse_sealed'):
+            recorded = json.loads(bounded(directory/'build-summary.json'))['recipe']
+            require(video_design_inputs(recorded)==video_design_inputs(recipe), 'video part differs from current design recipe')
+            recipe = recorded
+            roots = recipe['source_roots']
         recipe_sha=sha(encode(recipe)); part_id=sha(b'fes-expansion-v1\0'+encoded)
         require(manifest['recipe_sha256']==recipe_sha, 'video part differs from current build recipe')
         # Authenticate original source provenance without rewriting its revision.
         shell_fields=json.loads(bounded(shell/'build-inputs.json'))
-        history=dict(shell_fields,revision=manifest['revision'],source_roots=roots,source_inputs=current['inputs'])
-        history['recipe']='scripts/build_atari_st_video_part.py' if st else 'scripts/build_video_part.py'; history['recipe_sha256']=current['inputs'][history['recipe']]
+        history=dict(shell_fields,revision=manifest['revision'],source_roots=roots,source_inputs=recipe['inputs'])
+        history['recipe']='scripts/build_atari_st_video_part.py' if st else 'scripts/build_video_part.py'; history['recipe_sha256']=recipe['inputs'][history['recipe']]
+        history['parameters']=dict(history['parameters'], selection_only=True)
+        if 'identities' in history: history=with_identities(history)
         verify_record_source_at_revision(root,encode(history)+b'\n')
         summary=json.loads(bounded(directory/'build-summary.json'))
         require(summary['recipe']==recipe and summary['part_id']==part_id and summary['manifest']==manifest, 'video producer summary differs from sealed part')
@@ -474,20 +498,40 @@ def resolve_video_parts(source, resolved_package, destination, *, recipe=None,
     cache = Path(cache_root or recipes.CACHE_ROOT / "core-video-parts").absolute()
     shells = cache.parent / "core-video-shells"
     canonical_arguments = {"toolchain_cache": str(recipe.cache_root), "package": str(package),
-                           "producer_options": dict(recipe.producer_options)}
+                           "producer_options": dict(recipe.producer_options), "selection_only": True}
     current = _inspect(source, "canonical", canonical_arguments, recipe, env)
     if current["map"] not in VIDEO_OUTPUTS:
         raise ValueError("unsupported factory video profile")
     shell_members = ST_SHELL_MEMBERS if current["map"] == ST_MAP else SHELL_MEMBERS
     part_members = (*PART_MEMBERS, "cart-synth.json") if current["map"] == NATIVE_MAP else PART_MEMBERS
+    key_inputs = artifact_cache.identity.video_design_inputs(current)
+    cache_key = _sha(b"fes-factory-video-parts-design-v1\0" + canonical(
+        {"package_id": package_id, "current": key_inputs}))
+    store = cache / cache_key
+    reuse_sealed = all((store / profile).exists() for profile in PROFILES)
+    if not reuse_sealed:
+        canonical_arguments['selection_only'] = False
+        authenticated = _inspect(source, "canonical", canonical_arguments, recipe, env)
+        if artifact_cache.identity.video_design_inputs(authenticated) != key_inputs:
+            raise ValueError('video design inputs changed during authentication')
+        current = authenticated
     companion = shells / package_id
+    companion_receipt = shells / (package_id + '.evidence')
     arguments = {"package": str(package), "shell": str(companion), "current": current,
-                 "functional_inputs_sha256": functional_key, "toolchain_cache": str(recipe.cache_root)}
+                 "functional_inputs_sha256": functional_key, "toolchain_cache": str(recipe.cache_root),
+                 "reuse_sealed": reuse_sealed}
     with _locked(shells):
         if companion.exists() or companion.is_symlink():
-            _closed(companion, shell_members, sealed=True)
+            snapshot = _closed(companion, shell_members, sealed=True)
+            if reuse_sealed:
+                receipt = _closed(companion_receipt, ('evidence.json',), sealed=True)
+                expected = {'package_id': package_id, 'files': {name: _sha(data) for name, data in snapshot.items()}}
+                if receipt['evidence.json'] != canonical(expected):
+                    raise ValueError('retained shell evidence changed after validation')
             shell_evidence = _inspect(source, "shell", arguments, recipe, env)
         else:
+            if reuse_sealed:
+                raise MissingVideoShell('cached parts have no retained exact shell')
             producer_output = source / VIDEO_OUTPUTS[current["map"]]
             if not producer_output.is_dir() or any(not (producer_output / name).is_file() for name in shell_members):
                 raise MissingVideoShell("resolved video package has no frozen companion; force-resolve its shell and retry")
@@ -499,17 +543,16 @@ def resolve_video_parts(source, resolved_package, destination, *, recipe=None,
             files = {name: _read(producer_output / name) for name in shell_members}
             _publish(companion, files)
             shell_evidence = _inspect(source, "shell", arguments, recipe, env)
+        if not reuse_sealed:
+            snapshot = _closed(companion, shell_members, sealed=True)
+            _publish(companion_receipt, {'evidence.json': canonical({
+                'package_id': package_id, 'files': {name: _sha(data) for name, data in snapshot.items()}})})
     entries, evidence, files = [], [], {}
-    # The key includes the exact package and current controlled compiler inputs.
-    # Original revision belongs in part provenance, not functional cache identity.
-    key_inputs = {key: value for key, value in current.items() if key != "revision"}
-    cache_key = _sha(b"fes-factory-video-parts-v1\0" + canonical(
-        {"package_id": package_id, "current": key_inputs}))
-    store = cache / cache_key
     with _locked(store):
         for profile in PROFILES:
             slot = store / profile
-            if slot.exists() or slot.is_symlink():
+            reuse_part = slot.exists() or slot.is_symlink()
+            if reuse_part:
                 cached = _closed(slot, (*part_members, "archive.tar"), sealed=True)
                 archive, directory = slot / "archive.tar", slot
             else:
@@ -519,6 +562,7 @@ def resolve_video_parts(source, resolved_package, destination, *, recipe=None,
                 cached["archive.tar"] = _read(archive, limit=MAX_ARCHIVE_BYTES)
             inspected = _inspect(source, "part", dict(arguments, profile=profile,
                                   archive=str(archive), directory=str(directory),
+                                  reuse_sealed=reuse_part,
                                   evidence_sha256={name: _sha(cached[name]) for name in part_members}), recipe, env)
             if not HEX64.fullmatch(inspected["part_id"]) or inspected["profile"] != profile:
                 raise ValueError("video inspector returned a mismatched part identity")
@@ -534,7 +578,8 @@ def resolve_video_parts(source, resolved_package, destination, *, recipe=None,
             evidence.append(inspected)
     index = {"version": 1, "packages": [{"package_id": package_id, "parts": entries}]}
     files["index.json"] = canonical(index)
-    if _inspect(source, "canonical", canonical_arguments, recipe, env) != current:
+    final = _inspect(source, "canonical", canonical_arguments, recipe, env)
+    if (artifact_cache.identity.video_design_inputs(final) != key_inputs if reuse_sealed else final != current):
         raise ValueError("authenticated video inputs changed during resolution")
     destination = _publish(destination, files)
     read_index(destination)

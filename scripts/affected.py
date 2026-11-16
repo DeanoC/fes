@@ -211,6 +211,7 @@ FPGA_PRODUCER_HELPERS = {
     'rom_map.py', 'rom_map_oracle.py',
     'fes_build_common.py', 'fes_de10nano_evidence.py', 'compiler_read_audit.py',
     'source_repository.py', 'source_provenance.py', 'functional_execution.py',
+    'input_identity.py', 'source_closure.py', 'source_closures.json', 'build_fes_menu_package.py',
     'core_package.py', 'export_core_package.py', 'search_placer_qor.py', 'pnr_recipe.py',
 }
 # Directory ownership includes cross-core consumers: RISC-V imports Pong
@@ -288,6 +289,8 @@ def fpga_cores(path):
     """
     relative = Path(path).relative_to(MODULE_ROOTS['fpga'])
     parts = relative.parts
+    if relative.as_posix() == 'tools/identity.py':
+        return (), 'read-only build record report; no compiler or RTL consumer'
     if path in EMBEDDED_CONTROL_INPUTS or embedded_producer_input(path) or embedded_board_control_input(path):
         return (), 'standalone embedded-control endpoint; no shipped core consumer'
     if len(parts) >= 3 and parts[:2] == ('boards', 'de25nano') and '..' not in parts:
