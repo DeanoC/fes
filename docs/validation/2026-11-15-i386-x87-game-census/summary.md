@@ -142,16 +142,14 @@ at the strength the measurement supports:
   need no further argument. An earlier revision counted only the `le53`
   share of them (2,543 and 3,861) as exact, which **understated** its own
   evidence; the `le64` share is equally exact here.
-- **Real `m64` stores are significand-exact, exponent unverified.** An
-  `le53` source's significand fits binary64's 53 bits, but the conversion can
-  still overflow, underflow or round if the exponent is outside binary64's
-  normal range — and **these runs did not record the exponent**, so
-  "preserved exactly" was an overclaim. `census.h` now records it
-  **jointly with the significand bucket** (`x87store`, key version 4 — a
-  separate `x87exp` marginal was tried first and could not settle it), and a
-  rerun on that key would; for these nine runs the honest
-  reading of Screamer's 9,303 and Quake's 1,535 is *the significand fits,
-  the exponent is unchecked*.
+- **The 9,303 Screamer and 1,535 Quake real `m64` stores are not measured as
+  fully exact.** Their source significands fit binary64's 53 bits, but the
+  conversion can still overflow, underflow or round if the exponent is outside
+  binary64's normal range. These version-1 runs did not record exponents, so
+  they establish no count of stores preserved exactly. `census.h` now records
+  the exponent **jointly with the significand bucket** (`x87store`, key version
+  4 — a separate `x87exp` marginal was tried first and could not settle it),
+  which a future rerun could use to establish that count.
 - **Real `m64` from an `le64` source** is rounded to 53 bits in the store.
   The stored value still exceeds 24 bits except where the rounding leaves
   trailing zeros, so it is a sound inference, not a measurement.
@@ -384,10 +382,10 @@ establishes divergence**, and it is therefore load-bearing, not decoration:
 - **Quake and Chris's benchmark store 3,887 and 4,221 wide values as real
   `m80`**, which preserves the register format bit for bit — so those bytes
   in memory could not have been written by a narrower unit.
-- The real `m64` stores (Screamer 9,303, Quake 1,535) are
-  **significand-exact with the exponent unverified**: see the store table's
-  note. They are consistent with divergence and do not establish it on
-  their own.
+- The real `m64` stores (Screamer 9,303, Quake 1,535) have source
+  significands that fit binary64, but **their full-value exactness is
+  unverified**: see the store table's note. They are consistent with
+  divergence and do not establish it on their own.
 
 So the honest structure is: **coverage shows a reduced unit would be
 incorrect by specification; the stored-value widths show it would be
