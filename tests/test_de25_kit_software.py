@@ -59,6 +59,7 @@ class De25KitSoftwareTests(unittest.TestCase):
         self.assertIn("verify-runtime --expected \"$SW_RUNTIME_SHA\"", runner)
         self.assertIn("--action activate --candidate \"$BASE_SW\"", runner)
         self.assertIn('"$Q/hil-de25-core.sh" D25', promoter)
+        self.assertIn('de25-promotion-${HEAD:0:8}.heartbeat', promoter)
         self.assertIn('git -C "$R" fetch -q origin "$HEAD"', sealer)
 
 

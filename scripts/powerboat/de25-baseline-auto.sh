@@ -27,6 +27,11 @@ else
   HEAD=$(git -C "$REPO" rev-parse FETCH_HEAD)
 fi
 [[ "$HEAD" =~ ^[0-9a-f]{40}$ ]] || { echo "FAIL invalid fetched main head"; exit 1; }
+mkdir -p "$Q/heartbeats"
+HEARTBEAT="$Q/heartbeats/de25-promotion-${HEAD:0:8}.heartbeat"
+(while :; do date -Is > "$HEARTBEAT"; sleep 30; done) &
+HEARTBEAT_PID=$!
+trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT
 cp -p "$BASE" "$E/current-restore-de25.before-$HEAD.json"
 for spec in menu:build_menu_package.py zx81:build_zx81_package.py; do
   name=${spec%%:*}; producer=${spec#*:}; pr="baseline-$name-$(date +%Y%m%d-%H%M%S)"; build="$Q/builds/$pr-${HEAD:0:8}"
