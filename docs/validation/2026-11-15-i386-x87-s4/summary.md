@@ -315,6 +315,14 @@ back to back**, because a single operation hides the class entirely.
 | setup / hold | **+0.753 ns** / +0.084 ns |
 | minimum pulse width / recovery / removal | +1.122 / +7.323 / +0.267 ns |
 | clocks | system 61.44 MHz, pixel 74.27, audio 12.29 |
+| source revision | `9c6a7cf2d85178eebd925f32846771e230741b44` |
+
+**The seal covers `9c6a7cf2d`, and the kit log names the same revision** —
+checked against the sealer's own `build-inputs.json` rather than assumed, so
+the permanent kit record and the package agree on what was built. Commits
+after that revision on this branch are documentation only; none of them is
+RTL, so none of them is outside the seal's coverage in substance, but the
+seal's claim is about `9c6a7cf2d` and that is the revision to cite.
 
 Nothing was relaxed and no analysis was waived: the sealer's own report is the
 source of every figure above.
