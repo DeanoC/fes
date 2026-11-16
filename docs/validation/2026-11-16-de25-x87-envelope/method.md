@@ -137,6 +137,80 @@ is not replaced.
    **No cross-device ratio against the DE10 figures**: Cyclone V and Agilex 5
    ALMs are different units.
 
+## The integration fit: bands precommitted before the run
+
+**Added 16 Nov 2026, before the fit was queued and before any output of it
+existed.** Deano approved it explicitly ("yes do as you recommend, let do a
+complete integration fit"); the coordinating session set the bands, which are
+recorded here verbatim and are **not** to be changed after seeing output.
+
+**What is fitted:** `pc386_system` with `x87_present` tied high **and**
+`X87_BACKEND = 1`, on Agilex 5, Quartus Pro 26.3, at the 61.44 MHz headline,
+through the **Yosys SEAL netlist** front end — which the packed-array
+workaround for DeanoC/yosys#79 has just opened to this configuration, and
+which is the front end the sibling measurement's M and M+ are taken on.
+Direct SystemVerilog is not attempted: `fes_i386_l1i`'s `ramstyle = "M10K"`
+stops Quartus Pro before elaboration, and a run spent on it would answer
+nothing.
+
+**Envelope and reporting conventions are the sibling measurement's, verbatim
+and not reconstructed**, because comparability with its M and M+ is the whole
+point of this fit and a different envelope destroys it.
+
+### The bands
+
+1. **Fitter refuses, or LABs > 100%** → the backend **does not fit** in the
+   machine. The same class of result as #1889's refusal. Report the LABs
+   needed.
+2. **Fits, LABs ≤ 100%, timing PASS at all four corners** → it **fits and
+   closes** at 61.44 MHz. Report LAB% and ALM%.
+3. **Fits, LABs ≤ 100%, timing FAILS at any corner** → **"fits but does not
+   close"**. This is **not a pass** and must not be reported as one. Give the
+   worst slack and the corner.
+4. **LABs ≥ 99.5% in band 2 or 3** → **not established**, pending more seeds.
+   One seed at that occupancy tells you about one placement, and M+ at 98.08%
+   already shows how little room a seed-to-seed spread needs to swallow.
+
+A further reading the coordinating session attached, which band 4 exists for:
+**nothing above 79.6% has been fitted on Agilex 5 at all**, and on the DE10
+lane the practical ceiling is near 92% with timing misses at 94.7%. If this
+fit lands between 92% and 100% the honest reading is band 4, not a pass.
+
+### The expected outcome: **none**
+
+**No outcome is predicted, and that is deliberate.** An earlier version of
+this section was to record band 1, refusal, as expected, on the inference that
+this work needed roughly 614 LABs against 256 available. **That inference is
+withdrawn outright**, not merely loosened: it converted ALMs to LABs at the
+M+ − M delta's density of 10.6 ALMs per LAB, and that is not a rate at which
+new LABs get consumed. The LAB budget under it was wrong too — a LAB holds
+exactly ten ALMs on both devices and counts as used the moment **one** of them
+is, so LAB occupancy measures how sparsely the fitter spread a design rather
+than how full the device is. M+ touches 98% of LABs with about a fifth of
+their slots free, and the same CPU netlist measured 3,512 LABs under one
+envelope and 3,626 under another — a 114-LAB swing on identical logic, larger
+than the "90 LABs remaining" the whole inference turned on. #1889's 102.4% is
+LABs *required* pre-placement, a row the Agilex fits report nowhere, so the two
+numbers were never on one scale.
+
+**The corrected budget is in ALMs:** the machine with main's 387 on takes
+37,255 of 46,800, leaving **9,545 ALMs, about 20%**. Against that there is one
+measured line — PR #1892's backend at 2,660 ALMs — and two unmeasured ones:
+the rest of a complete 387 (the remainder on the backend, scale,
+round-to-integer, the transcendentals, BCD) and a **DE25 board shell**, which
+nobody has fitted and which the machine fits stand in for with 651 ALMs of
+virtual-pin cells.
+
+So the question is **genuinely open**: the measured budget admits the backend
+with room to spare, and the two unmeasured lines are precisely the ones that
+could consume it. **A prediction retrofitted to the new budget would be worth
+less than no prediction**, so none is recorded. What would decide it either
+way is this fit.
+
+**Reporting convention, in this record and the sibling's alike:** the **ALM
+figure is the capacity number**, and the LAB row sits beside it **labelled as
+spread rather than fullness**, with the reason.
+
 ## What this method does *not* claim
 
 - No kit run, no seal, no package and no game acceptance.
