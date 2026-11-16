@@ -42,7 +42,7 @@ Nothing was relaxed.
 | Fit | Top | 387 | Device |
 | --- | --- | --- | --- |
 | **C** | `fes_i386_cpu` | `x87_present` a live virtual input, so main's slice-2 387 is in it | both |
-| **M** | `pc386_system` | as main ties it, `wire x87_present = 1'b0` | Agilex 5 (the DE10 fit is queued, see below) |
+| **M** | `pc386_system` | as main ties it, `wire x87_present = 1'b0` | both |
 | **M+** | `pc386_system`, one-character scratch change to `1'b1` | identity on | Agilex 5 |
 
 `pc386_system` **contains** `fes_i386_cpu`, so M is a superset of M's CPU — but
@@ -80,6 +80,7 @@ registers are counts, because Quartus states no device total for them.
 | C, Agilex 5 | 29,300 | 62.61% | 3,626 | 77.48% | 42,126 | 20,842 | 12 / 188 | 53 M20K / 358 | 408,320 |
 | C, Cyclone V | 31,244 | 74.55% | 3,494 | 83.37% | 43,032 | 19,268 | 23 / 112 | 90 M10K / 553 | 409,384 |
 | M, Agilex 5 | 35,492 | 75.84% | 4,424 | 94.53% | 55,055 | 33,908 | 24 / 188 | 134 M20K / 358 | 1,350,950 |
+| M, Cyclone V | 37,108 | 88.54% | 3,946 | 94.15% | 56,271 | 30,756 | 40 / 112 | 274 M10K / 553 | 1,354,284 |
 | M+, Agilex 5 | 37,255 | 79.60% | 4,590 | 98.08% | 57,906 | 35,233 | 33 / 188 | 138 M20K / 358 | 1,352,230 |
 
 **Achievable clock.** The constraint is 61.44 MHz and these are that rung's
@@ -91,6 +92,7 @@ Restricted Fmax at each device's worst slow corner, the fitter's own estimate:
 | C, Agilex 5 | **124.35 MHz** | 142.09 | 225.73 |
 | C, Cyclone V | **63.79 MHz** | 65.01 | 135.08 |
 | M, Agilex 5 (system clock) | **117.80 MHz** | 132.22 | 207.08 |
+| M, Cyclone V (system clock) | **63.83 MHz** | 65.04 | — |
 | M, Agilex 5 (pixel clock) | 187.30 | 222.37 | — |
 
 On the speed half of Deano's question: on Agilex 5 this CPU's worst slow
@@ -184,21 +186,31 @@ arithmetic; M+ carries `main`'s slice 2, which the DE10 seals without
 difficulty. "Agilex 5 placed what the DE10 could not" would need #1889's head
 fitted here, and it has not been.
 
-For the record, the LAB occupancy and packing density of every Agilex fit:
+**And the DE10 settles it directly.** The same design, fit M, on the device
+that refused #1889: **3,946 of 4,191 LABs, 94.15%** — and it placed, routed
+and passed every analysis at all eight corners, at 88.54% of ALMs. So 94% of
+LABs used is a successful fit on this very device, which is what the LAB row
+being a capacity wall would have ruled out. Note too that the two M fits sit
+at almost the same LAB percentage (94.15% and 94.53%) while their ALM
+percentages are 12 points apart.
+
+LAB occupancy and packing density of every fit:
 
 | Fit | ALMs needed | % | ALMs in final placement | LABs used | % | ALMs per LAB |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| C | 29,300 | 62.6% | — | 3,626 | 77.5% | 8.1 |
-| M | 35,492 | 75.8% | 38,750 | 4,424 | 94.5% | 8.0 |
-| M+ | 37,255 | 79.6% | 40,550 | 4,590 | 98.1% | 8.1 |
+| C, Agilex 5 | 29,300 | 62.6% | — | 3,626 | 77.5% | 8.1 |
+| M, Agilex 5 | 35,492 | 75.8% | 38,750 | 4,424 | 94.5% | 8.0 |
+| M+, Agilex 5 | 37,255 | 79.6% | 40,550 | 4,590 | 98.1% | 8.1 |
+| C, Cyclone V | 31,244 | 74.6% | 30,672 | 3,494 | 83.4% | 8.9 |
+| M, Cyclone V | 37,108 | 88.5% | — | 3,946 | 94.2% | 9.4 |
 
 ## The clock ladder, and what is not measured
 
 The method precommitted a ladder — 61.44 MHz headline, then 75, 90, 110 and
 130 MHz, seeds 1–4 at the headline — because reported Fmax at one constraint
 is the fitter's estimate and not a closure. **"Closes at" means the highest
-rung passing every analysis at every published corner.** Those rungs, the
-extra seeds, and **fit M on the DE10** are queued; any that have not produced
+rung passing every analysis at every published corner.** Those rungs and the
+extra seeds are queued; any that have not produced
 a result when this record is read are **not measured**, and are listed as that
 rather than trimmed quietly. So this record contains **no "closes at" figure**
 for either device — only the fitter's per-corner estimates above, labelled as

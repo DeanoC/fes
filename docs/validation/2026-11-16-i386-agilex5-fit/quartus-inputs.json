@@ -48,6 +48,21 @@
     "quartus": "26.3.0",
     "seed": 1
   },
+  "machine-de10": {
+    "device": "5CSEBA6U23I7",
+    "netlist": {
+      "fitted_netlist": {
+        "fitted_sha256": "8d9840ebd591372715ada99970933ed1e2f54e2e1b13034482715194240d2be4",
+        "ram_attribute": "unchanged: the RTL already names this device's block",
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v",
+        "source_sha256": "8d9840ebd591372715ada99970933ed1e2f54e2e1b13034482715194240d2be4"
+      },
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v"
+    },
+    "period_ns": 16.2760416667,
+    "quartus": "17.0.2",
+    "seed": 1
+  },
   "machine-de25": {
     "device": "A5EB013BB23BE4SCS",
     "netlist": {

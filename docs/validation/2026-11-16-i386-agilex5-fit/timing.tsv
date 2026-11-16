@@ -119,6 +119,54 @@ machineplus-de25	Fast fix4 0C Model	0	recovery	analyzed	1	14.864	reset	machine_a
 machineplus-de25	Fast fix4 0C Model	0	removal	analyzed	1	0.302	reset	machine_at_pic_master_u_Control_Logic_interrupt_vector_address[1]
 machineplus-de25	Fast fix4 0C Model	0	internal_setup	analyzed	1	10.550	machine_display_control_enable	machine_display_scanout_reader_front[83]
 machineplus-de25	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.327		
+machine-de10	Slow 1100mV 100C Model	0	setup	analyzed	1	0.819	cpu_st_wait	cpu_l1i_page[45]~DUPLICATE
+machine-de10	Slow 1100mV 100C Model	0	hold	analyzed	1	0.249	audio_mixer_dc[24]	audio_mixer_dc[24]
+machine-de10	Slow 1100mV 100C Model	0	recovery	analyzed	1	7.067	reset	machine_at_pic_slave_internal_data_bus[6]
+machine-de10	Slow 1100mV 100C Model	0	removal	analyzed	1	4.791	reset	machine_at_pit_u_KF8253_Counter_2_dec_binary_q[3]
+machine-de10	Slow 1100mV 100C Model	0	internal_setup	analyzed	1	0.819	cpu_st_wait	cpu_l1i_page[45]~DUPLICATE
+machine-de10	Slow 1100mV 100C Model	0	minimum_pulse_width	analyzed	1	5.346		
+machine-de10	Slow 1100mV -40C Model	0	setup	analyzed	1	0.609	cpu_governor_isa8[0]	cpu_governor_s2_isa[12]
+machine-de10	Slow 1100mV -40C Model	0	hold	analyzed	1	0.118	machine_display_stage1[18]	machine_display_stage2[18]
+machine-de10	Slow 1100mV -40C Model	0	recovery	analyzed	1	7.114	reset	machine_at_pic_master_special_fully_nest_config
+machine-de10	Slow 1100mV -40C Model	0	removal	analyzed	1	4.851	reset	machine_at_pic_master_u_Control_Logic_cascade_device_config[7]
+machine-de10	Slow 1100mV -40C Model	0	internal_setup	analyzed	1	0.609	cpu_governor_isa8[0]	cpu_governor_s2_isa[12]
+machine-de10	Slow 1100mV -40C Model	0	minimum_pulse_width	analyzed	1	5.283		
+machine-de10	Slow 1100mV 85C Model	0	setup	analyzed	1	0.900	cpu_st_wait	cpu_l1i_page[67]
+machine-de10	Slow 1100mV 85C Model	0	hold	analyzed	1	0.253	audio_mixer_dc[24]	audio_mixer_dc[24]
+machine-de10	Slow 1100mV 85C Model	0	recovery	analyzed	1	7.074	reset	machine_at_pic_master_u_Control_Logic_interrupt_when_ack1[6]
+machine-de10	Slow 1100mV 85C Model	0	removal	analyzed	1	4.834	reset	machine_at_pic_master_u_Control_Logic_cascade_device_config[7]
+machine-de10	Slow 1100mV 85C Model	0	internal_setup	analyzed	1	0.900	cpu_st_wait	cpu_l1i_page[67]
+machine-de10	Slow 1100mV 85C Model	0	minimum_pulse_width	analyzed	1	5.341		
+machine-de10	Slow 1100mV 0C Model	0	setup	analyzed	1	0.720	cpu_governor_isa8[0]	cpu_governor_s2_isa[12]
+machine-de10	Slow 1100mV 0C Model	0	hold	analyzed	1	0.117	machine_display_stage1[18]	machine_display_stage2[18]
+machine-de10	Slow 1100mV 0C Model	0	recovery	analyzed	1	7.194	reset	machine_at_pic_master_special_fully_nest_config
+machine-de10	Slow 1100mV 0C Model	0	removal	analyzed	1	4.759	reset	machine_at_pic_master_u_Control_Logic_cascade_device_config[7]
+machine-de10	Slow 1100mV 0C Model	0	internal_setup	analyzed	1	0.720	cpu_governor_isa8[0]	cpu_governor_s2_isa[12]
+machine-de10	Slow 1100mV 0C Model	0	minimum_pulse_width	analyzed	1	5.292		
+machine-de10	Fast 1100mV -40C Model	0	setup	analyzed	1	8.206	machine_presenter_width[0]	machine_presenter_p_wx[4]
+machine-de10	Fast 1100mV -40C Model	0	hold	analyzed	1	0.108	_38032_[355]	altshift_taps:_37957__rtl_0|shift_taps_6iv:auto_generated|altsyncram_bv91:altsyncram4|ram_block5a130~porta_datain_reg11
+machine-de10	Fast 1100mV -40C Model	0	recovery	analyzed	1	11.958	reset	machine_at_pic_master_special_fully_nest_config
+machine-de10	Fast 1100mV -40C Model	0	removal	analyzed	1	2.238	reset	machine_at_pic_master_u_Control_Logic_cascade_device_config[7]
+machine-de10	Fast 1100mV -40C Model	0	internal_setup	analyzed	1	8.206	machine_presenter_width[0]	machine_presenter_p_wx[4]
+machine-de10	Fast 1100mV -40C Model	0	minimum_pulse_width	analyzed	1	5.518		
+machine-de10	Fast 1100mV 0C Model	0	setup	analyzed	1	8.071	machine_presenter_width[0]	machine_presenter_p_wx[4]
+machine-de10	Fast 1100mV 0C Model	0	hold	analyzed	1	0.119	audio_mixer_dc[24]	audio_mixer_dc[24]
+machine-de10	Fast 1100mV 0C Model	0	recovery	analyzed	1	11.866	reset	machine_at_pic_master_special_fully_nest_config
+machine-de10	Fast 1100mV 0C Model	0	removal	analyzed	1	2.284	reset	machine_at_pic_master_u_Control_Logic_cascade_device_config[7]
+machine-de10	Fast 1100mV 0C Model	0	internal_setup	analyzed	1	8.071	machine_presenter_width[0]	machine_presenter_p_wx[4]
+machine-de10	Fast 1100mV 0C Model	0	minimum_pulse_width	analyzed	1	5.521		
+machine-de10	Fast 1100mV 85C Model	0	setup	analyzed	1	7.383	_37695_[192]	cpu_ag_disp[20]
+machine-de10	Fast 1100mV 85C Model	0	hold	analyzed	1	0.130	audio_mixer_dc[24]	audio_mixer_dc[24]
+machine-de10	Fast 1100mV 85C Model	0	recovery	analyzed	1	11.579	reset	machine_at_pic_slave_internal_data_bus[2]
+machine-de10	Fast 1100mV 85C Model	0	removal	analyzed	1	2.481	reset	machine_at_pic_master_u_Control_Logic_cascade_device_config[7]
+machine-de10	Fast 1100mV 85C Model	0	internal_setup	analyzed	1	7.383	_37695_[192]	cpu_ag_disp[20]
+machine-de10	Fast 1100mV 85C Model	0	minimum_pulse_width	analyzed	1	5.528		
+machine-de10	Fast 1100mV 100C Model	0	setup	analyzed	1	7.037	_37695_[192]	cpu_ag_disp[20]
+machine-de10	Fast 1100mV 100C Model	0	hold	analyzed	1	0.132	audio_mixer_dc[24]	audio_mixer_dc[24]
+machine-de10	Fast 1100mV 100C Model	0	recovery	analyzed	1	11.566	reset	machine_at_pic_slave_u_Control_Logic_single_or_cascade_config
+machine-de10	Fast 1100mV 100C Model	0	removal	analyzed	1	2.506	reset	machine_at_pic_master_u_Control_Logic_cascade_device_config[7]
+machine-de10	Fast 1100mV 100C Model	0	internal_setup	analyzed	1	7.037	_37695_[192]	cpu_ag_disp[20]
+machine-de10	Fast 1100mV 100C Model	0	minimum_pulse_width	analyzed	1	5.533		
 cpu-de25-zerodelay-envelope	Slow fix4 100C Model	0	setup	analyzed	1	7.119	x87_rf_a_rtl_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a75~reg0	x87_pop_i[2]~DUPLICATE
 cpu-de25-zerodelay-envelope	Slow fix4 100C Model	0	hold	analyzed	1	0.000	reset	_28438_[58]~DUPLICATE
 cpu-de25-zerodelay-envelope	Slow fix4 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		

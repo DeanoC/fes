@@ -621,6 +621,223 @@
       "virtual_port_count": 2168
     },
     {
+      "board": "DE10-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_hz": 61440000,
+      "corner_count": 8,
+      "device": "5CSEBA6U23I7",
+      "documented_device_alms": 41910,
+      "family": "Cyclone V",
+      "fes_revision": "50ea47e53c3d987e3f9b01e7c282904153882ac1",
+      "fit": "machine-de10",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "64.7",
+              "restricted_fmax": "64.7"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "81.41",
+              "restricted_fmax": "81.41"
+            }
+          ],
+          "corner": "Slow 1100mV 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "63.83",
+              "restricted_fmax": "63.83"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "80.85",
+              "restricted_fmax": "80.85"
+            }
+          ],
+          "corner": "Slow 1100mV -40C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "65.04",
+              "restricted_fmax": "65.04"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "81.58",
+              "restricted_fmax": "81.58"
+            }
+          ],
+          "corner": "Slow 1100mV 85C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "64.28",
+              "restricted_fmax": "64.28"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "81.48",
+              "restricted_fmax": "81.48"
+            }
+          ],
+          "corner": "Slow 1100mV 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "132.31",
+              "restricted_fmax": "132.31"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "190.04",
+              "restricted_fmax": "190.04"
+            }
+          ],
+          "corner": "Fast 1100mV -40C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "127.26",
+              "restricted_fmax": "127.26"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "185.29",
+              "restricted_fmax": "185.29"
+            }
+          ],
+          "corner": "Fast 1100mV 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "112.45",
+              "restricted_fmax": "112.45"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "170.47",
+              "restricted_fmax": "170.47"
+            }
+          ],
+          "corner": "Fast 1100mV 85C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "108.24",
+              "restricted_fmax": "108.24"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "166.03",
+              "restricted_fmax": "166.03"
+            }
+          ],
+          "corner": "Fast 1100mV 100C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "fitted_netlist": {
+          "fitted_sha256": "8d9840ebd591372715ada99970933ed1e2f54e2e1b13034482715194240d2be4",
+          "ram_attribute": "unchanged: the RTL already names this device's block",
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v",
+          "source_sha256": "8d9840ebd591372715ada99970933ed1e2f54e2e1b13034482715194240d2be4"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v"
+      },
+      "period_ns": 16.2760416667,
+      "programming_artifact": null,
+      "quartus": "17.0.2",
+      "quartus_edition": "lite",
+      "quartus_lock": "cores/fes-pc386/quartus.lock",
+      "ram_block": "M10K",
+      "real_clocks": [
+        "clk",
+        "pixel_clk"
+      ],
+      "real_pins": 2,
+      "resources": {
+        "alms": {
+          "available": 41910.0,
+          "percent_of_device": 88.54,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 37108.0
+        },
+        "alms_with_virtual_pins": {
+          "available": 41910.0,
+          "percent_of_device": 1.55,
+          "report_label": "* ALMs containing virtual pins",
+          "report_percent": "2",
+          "used": 651.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 56271.0
+        },
+        "block_memory_bits": {
+          "available": 5662720.0,
+          "percent_of_device": 23.92,
+          "report_label": "Total block memory bits",
+          "report_percent": "24",
+          "used": 1354284.0
+        },
+        "dsp_blocks": {
+          "available": 112.0,
+          "percent_of_device": 35.71,
+          "report_label": "Total DSP Blocks",
+          "report_percent": "36",
+          "used": 40.0
+        },
+        "labs": {
+          "available": 4191.0,
+          "percent_of_device": 94.15,
+          "report_label": "Total LABs:  partially or completely used",
+          "used": 3946.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 1229.0
+        },
+        "ram_blocks": {
+          "available": 553.0,
+          "percent_of_device": 49.55,
+          "report_label": "M10K blocks",
+          "used": 274.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 30756.0
+        },
+        "virtual_pins": {
+          "report_label": "Total virtual pins",
+          "used": 1301.0
+        }
+      },
+      "seed": 1,
+      "status": "pass",
+      "timing_status": "pass",
+      "top": "pc386_system",
+      "virtual_port_count": 1991
+    },
+    {
       "board": "DE25-Nano",
       "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
       "clock_hz": 61440000,
