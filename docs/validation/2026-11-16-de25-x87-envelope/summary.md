@@ -256,6 +256,15 @@ The first version of the case was vacuous in exactly the way the flush case
 had been one section earlier — written by someone who had just been caught by
 that, and caught again by the same thing.
 
+**The back-to-back pair cases, by contrast, were shown able to fail before
+being relied on.** Removing the `wtiny`/`wsat` clear in `S_PRE` — the stale
+working state a cross-path pair would inherit — fails **twelve** `b2b-*` cases
+(`b2b-denorm`, `b2b-over`, `b2b-tiny`, across rounding modes) on **both**
+backends, alongside the general arithmetic cases. That they fail on both is
+the right result: the hazard is the envelope's, not the backend's, so a pair
+suite that only caught it in one configuration would be testing the wrong
+thing.
+
 A sixth, of the same family, is in the next section: a lockstep that passed
 while the count it was gated on was never measured.
 
@@ -360,4 +369,5 @@ numbers mean; that is the prose around them.
   too. The claim the bench supports is "the first hang is at 8 clocks; the
   wrong mapping fails and the right one passes all thirteen", not a count of
   independent failures.
-- **The pair cases are masked-only.** They do not sweep the exception masks.
+- **The pair cases are masked-only.** They do not sweep the exception masks,
+  so the unmasked paths' interaction across a back-to-back pair is untested.
