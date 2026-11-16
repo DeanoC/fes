@@ -57,6 +57,39 @@ class De25RestoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             restore.verify({'schema': 1}, self.state, self.state)
 
+    def test_recorded_serial_reboot_allows_only_new_boot_identity(self):
+        before = self.state.copy()
+        before['native_readonly'] = 'boot_id=boot-id\nroot=ro\n'
+        after = self.state.copy()
+        after['boot_id'] = 'new-boot-id'
+        after['native_readonly'] = 'boot_id=new-boot-id\nroot=ro\n'
+        after['native_sha256'] = 'new-native-hash'
+        receipt = {
+            'schema': 1, 'serial': 'TRWU8J8G',
+            'device': '/dev/serial/by-id/usb-TERASIC_DE25-Nano_TRWU8J8G-if02-port0',
+            'command': 'serial-sysrq-break-b', 'linux_boot_seen': True,
+            'before_boot_id': 'boot-id', 'after_boot_id': 'new-boot-id',
+            'target_id': 'target-id',
+        }
+        result = restore.verify(self.baseline, before, after, receipt)
+        self.assertTrue(result['passed'], result['checks'])
+        self.assertTrue(result['checks']['serial_recovery_receipt'])
+        self.assertTrue(result['checks']['native_state_unchanged'])
+
+    def test_serial_reboot_without_boot_observation_fails(self):
+        receipt = {
+            'schema': 1, 'serial': 'TRWU8J8G',
+            'device': '/dev/serial/by-id/usb-TERASIC_DE25-Nano_TRWU8J8G-if02-port0',
+            'command': 'serial-sysrq-break-b', 'linux_boot_seen': False,
+            'before_boot_id': 'boot-id', 'after_boot_id': 'new-boot-id',
+            'target_id': 'target-id',
+        }
+        after = self.state.copy()
+        after['boot_id'] = 'new-boot-id'
+        result = restore.verify(self.baseline, self.state, after, receipt)
+        self.assertFalse(result['passed'])
+        self.assertFalse(result['checks']['serial_recovery_receipt'])
+
 
 if __name__ == '__main__':
     unittest.main()
