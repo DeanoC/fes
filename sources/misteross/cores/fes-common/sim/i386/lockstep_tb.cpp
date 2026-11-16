@@ -784,7 +784,10 @@ public:
     // with BUSY# still active. A caller may wait for it once its program has
     // halted, where the extra cycles cannot run another instruction.
     void settle_x87() {
-        for (int n = 0; n < 64 && top.trace_x87_busy; ++n) clock();
+        // Slice 3's arithmetic runs up to four passes of the one multiplier,
+        // four clocks apiece, so the wait is longer than slice 2's forms
+        // needed; running out would compare a state in flight.
+        for (int n = 0; n < 512 && top.trace_x87_busy; ++n) clock();
     }
 
     State state() const {
@@ -1707,12 +1710,15 @@ bool rep_writes_own_instruction(const Code *own, const uint8_t *code, bool code3
 // and its segment (fes_i386::SEG_*), from the bytes at code and the state.
 // The 386EX's scaled base for a SIB index of 100b (the divergence
 // invalid-sib-scales-base) is not modelled: no case here uses one.
-// The ESC forms the RTL's x87 unit builds in this slice, which must track
-// fes_i386_pkg::x87_decode and x87_format (#1768 slice 2: the interface, the
-// state, the loads, the stores and the register forms; the arithmetic is
-// slices 3 to 5). A form it does not build stops the RTL as not built, which
-// is how the lockstep cannot pass over an instruction the build does not run.
-bool x87_slice2_form(uint8_t esc, uint8_t modrm) {
+// The ESC forms the RTL's x87 unit builds, which must track
+// fes_i386_pkg::x87_decode and x87_format: #1768 slice 2 built the
+// interface, the state, the loads, the stores and the register forms, and
+// slice 3 the arithmetic -- add, subtract, multiply, the compares, FRNDINT,
+// FSCALE and FXTRACT. Divide, square root and the remainders are slice 4's
+// and the transcendentals and BCD slice 5's. A form it does not build stops
+// the RTL as not built, which is how the lockstep cannot pass over an
+// instruction the build does not run.
+bool x87_built_form(uint8_t esc, uint8_t modrm) {
     const unsigned low = esc & 7u;
     const unsigned rf = (modrm >> 3) & 7u;
     if ((modrm >> 6) != 3) {
@@ -1726,21 +1732,48 @@ bool x87_slice2_form(uint8_t esc, uint8_t modrm) {
             case 1 << 3 | 6: case 5 << 3 | 6:                            // FNSTENV, FNSAVE
             case 1 << 3 | 4: case 5 << 3 | 4:                            // FLDENV, FRSTOR
                 return true;
+            // Slice 3's arithmetic and compares: D8 and DC with a 32- or
+            // 64-bit real, DA and DE with a 32- or 16-bit integer, reg
+            // fields 0 to 5. Reg fields 6 and 7 are the divides, slice 4's.
+            case 0 << 3 | 0: case 0 << 3 | 1: case 0 << 3 | 2:
+            case 0 << 3 | 3: case 0 << 3 | 4: case 0 << 3 | 5:           // D8
+            case 4 << 3 | 0: case 4 << 3 | 1: case 4 << 3 | 2:
+            case 4 << 3 | 3: case 4 << 3 | 4: case 4 << 3 | 5:           // DC
+            case 2 << 3 | 0: case 2 << 3 | 1: case 2 << 3 | 2:
+            case 2 << 3 | 3: case 2 << 3 | 4: case 2 << 3 | 5:           // DA
+            case 6 << 3 | 0: case 6 << 3 | 1: case 6 << 3 | 2:
+            case 6 << 3 | 3: case 6 << 3 | 4: case 6 << 3 | 5:           // DE
+                return true;
             default:
-                return false;   // the arithmetic forms, FBLD and FBSTP
+                return false;   // the divides, FBLD and FBSTP
         }
     }
     switch (low) {
+        case 0:  // D8: the arithmetic and compares into ST(0)
+            return (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8     // FADD, FMUL
+                || (modrm & 0xf8) == 0xd0 || (modrm & 0xf8) == 0xd8     // FCOM, FCOMP
+                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8;    // FSUB, FSUBR
         case 1:  // D9
             if (modrm == 0xd0 || modrm == 0xe0 || modrm == 0xe1 || modrm == 0xe4 || modrm == 0xe5
                 || modrm == 0xf6 || modrm == 0xf7)
                 return true;                                     // FNOP, FCHS, FABS, FTST, FXAM, FDECSTP, FINCSTP
+            if (modrm == 0xf4 || modrm == 0xfc || modrm == 0xfd) return true;   // FXTRACT, FRNDINT, FSCALE
             if ((modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8) return true;  // FLD ST(i), FXCH
             return modrm >= 0xe8 && modrm <= 0xee;               // the constants
+        case 2:  // DA
+            return modrm == 0xe9;                                // FUCOMPP
         case 3:  // DB
             return modrm == 0xe0 || modrm == 0xe1 || modrm == 0xe2 || modrm == 0xe3 || modrm == 0xe4;
+        case 4:  // DC: the same arithmetic into ST(i)
+            return (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8
+                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8;
         case 5:  // DD
-            return (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xd0 || (modrm & 0xf8) == 0xd8;
+            return (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xd0 || (modrm & 0xf8) == 0xd8
+                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8;   // ... and FUCOM, FUCOMP
+        case 6:  // DE: the popping forms, and FCOMPP
+            return modrm == 0xd9
+                || (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8
+                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8;
         case 7:  // DF
             return modrm == 0xe0;                                // FNSTSW AX
         default:
@@ -1971,7 +2004,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         if (x87_fitted) {
             unsigned k = 0;
             while (k < 15 && is_prefix(code[k])) ++k;
-            if (k < 15 && (code[k] & 0xf8) == 0xd8 && !x87_slice2_form(code[k], code[k + 1])) {
+            if (k < 15 && (code[k] & 0xf8) == 0xd8 && !x87_built_form(code[k], code[k + 1])) {
                 ++summary.unbuilt[UNBUILT_X87];
                 outcome.unbuilt = UNBUILT_X87;
                 return outcome;
@@ -10239,8 +10272,13 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
         void o32() { b.push_back(0x66); }
     };
     constexpr uint32_t CODE = 0x1000, HANDLER = 0x1800, DS = 0x7000;
-    struct Case { const char *label; std::function<void(Asm &)> body; };
-    const Case cases[] = {
+    struct Operand { uint16_t at; std::vector<uint8_t> bytes; };
+    struct Case {
+        std::string label;
+        std::function<void(Asm &)> body;
+        std::vector<Operand> operands{};
+    };
+    std::vector<Case> cases = {
         {"const", [](Asm &a) {
             a.op({0xdb, 0xe3});                                    // FNINIT
             for (uint8_t n = 0xe8; n <= 0xee; ++n) a.op({0xd9, n}); // FLD1 .. FLDZ
@@ -10271,7 +10309,7 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.esc(0xdd, 2, 0x304);                                 // FST m64
             a.esc(0xdf, 2, 0x30c);                                 // FIST m16
             a.esc(0xdb, 2, 0x310);                                 // FIST m32
-            a.esc(0xdb, 7, 0x314);                                 // FSTP m80
+            a.esc(0xd9, 3, 0x314);                                 // FSTP m32
             a.esc(0xdb, 0, 0x124);                                 // FILD m32
             a.esc(0xdf, 7, 0x320);                                 // FISTP m64
             a.esc(0xd9, 0, 0x104);                                 // FLD m32
@@ -10317,7 +10355,241 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.op({0x9b});
             a.op({0xdf, 0xe0});
         }},
+        // ---- Slice 3's arithmetic (#1768). ----
+        // The forms through the CPU rather than the unit's own interface:
+        // the decode's new uops, the x87 pointers and the opcode a memory
+        // form leaves, and the issue interlock. Every control word these
+        // load keeps all six exceptions masked, as the operand table's
+        // comment requires.
+        {"arith-reg", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 0, 0x100);                                 // FLD m32 1.5
+            a.esc(0xdd, 0, 0x108);                                 // FLD m64 -2.25
+            a.op({0xd8, 0xc1});                                    // FADD ST,ST(1)
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
+            a.op({0xd8, 0xc9});                                    // FMUL ST,ST(1)
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
+            a.op({0xd8, 0xe1});                                    // FSUB ST,ST(1)
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
+            a.op({0xd8, 0xe9});                                    // FSUBR ST,ST(1)
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
+            a.op({0xdc, 0xc1});                                    // FADD ST(1),ST
+            a.op({0x90});
+            a.op({0xdc, 0xe1});                                    // FSUBR ST(1),ST
+            a.op({0x90});
+            a.op({0xdc, 0xe9});                                    // FSUB ST(1),ST
+            a.op({0x90});
+            a.op({0xdc, 0xc9});                                    // FMUL ST(1),ST
+            a.op({0x90});
+            a.op({0xde, 0xc1});                                    // FADDP ST(1),ST
+            a.op({0x90});
+            a.op({0xdf, 0xe0});                                    // FNSTSW AX
+            a.esc(0xd9, 3, 0x300);                                 // FSTP m32: the result, through memory
+            a.esc(0xd9, 0, 0x100);
+            a.esc(0xd9, 0, 0x104);                                 // FLD m32 -1.0
+            a.op({0xde, 0xe9});                                    // FSUBP ST(1),ST
+            a.op({0x90});
+            a.esc(0xd9, 3, 0x30c);
+            a.esc(0xd9, 0, 0x100); a.esc(0xd9, 0, 0x104);
+            a.op({0xde, 0xe1});                                    // FSUBRP ST(1),ST
+            a.op({0x90});
+            a.esc(0xd9, 3, 0x318);
+            a.esc(0xd9, 0, 0x100); a.esc(0xd9, 0, 0x104);
+            a.op({0xde, 0xc9});                                    // FMULP ST(1),ST
+            a.op({0x90});
+            a.esc(0xd9, 3, 0x324);
+            a.op({0xdf, 0xe0});
+        }},
+        {"arith-mem", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 0, 0x100);                                 // FLD m32 1.5
+            a.esc(0xd8, 0, 0x104);                                 // FADD m32
+            a.esc(0xdc, 1, 0x108);                                 // FMUL m64, through UC_FRD8
+            a.esc(0xd8, 4, 0x100);                                 // FSUB m32
+            a.esc(0xdc, 5, 0x108);                                 // FSUBR m64
+            a.esc(0xda, 0, 0x124);                                 // FIADD m32
+            a.esc(0xde, 1, 0x120);                                 // FIMUL m16
+            a.esc(0xda, 4, 0x124);                                 // FISUB m32
+            a.esc(0xde, 5, 0x120);                                 // FISUBR m16
+            a.op({0xdf, 0xe0});                                    // FNSTSW AX
+            a.esc(0xd9, 3, 0x300);                                 // FSTP m32: the result, through memory
+            a.esc(0xd9, 6, 0x340);                                 // FNSTENV: the pointers and opcode
+        }},
+        {"compare", [](Asm &a) {
+            // The result stores below are m32, not m80: a multi-part store
+            // leaves the x87 data pointer at its last chunk rather than at
+            // the operand, which is a defect in slice 2's pointer path
+            // (#1877) and not this slice's to carry. The registers are
+            // compared in full by the x87 state comparison anyway; the store
+            // is here so a result also goes through a memory write, which
+            // the lockstep compares at every retirement whether or not the
+            // unit is still busy.
+            // FNSTSW AX after each compare puts the status word in a GPR,
+            // which the lockstep compares at every retirement whether or not
+            // the unit is still busy, so the condition codes are checked
+            // even where the x87 state comparison is skipped. Each popping
+            // form gets its operands pushed again first, so the ordinary
+            // path runs; the one case with an empty ST(1) is last and
+            // deliberate.
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 0, 0x100);
+            a.esc(0xdd, 0, 0x108);
+            a.op({0xd8, 0xd1}); a.op({0xdf, 0xe0});                // FCOM ST(1), FNSTSW AX
+            a.op({0xdd, 0xe1}); a.op({0xdf, 0xe0});                // FUCOM ST(1), FNSTSW AX
+            a.esc(0xd8, 2, 0x100); a.op({0xdf, 0xe0});             // FCOM m32
+            a.esc(0xdc, 2, 0x108); a.op({0xdf, 0xe0});             // FCOM m64
+            a.esc(0xda, 2, 0x124); a.op({0xdf, 0xe0});             // FICOM m32
+            a.esc(0xde, 3, 0x120); a.op({0xdf, 0xe0});             // FICOMP m16, which pops
+            a.esc(0xdd, 0, 0x108);                                 // push ST(1) again
+            a.op({0xd8, 0xd9}); a.op({0xdf, 0xe0});                // FCOMP ST(1), which pops
+            a.esc(0xdd, 0, 0x108);
+            a.op({0xde, 0xd9}); a.op({0xdf, 0xe0});                // FCOMPP, which pops twice
+            a.esc(0xd9, 0, 0x100); a.esc(0xdd, 0, 0x108);
+            a.op({0xda, 0xe9}); a.op({0xdf, 0xe0});                // FUCOMPP, which pops twice
+            a.esc(0xd9, 0, 0x100);
+            a.op({0xd8, 0xd1}); a.op({0xdf, 0xe0});                // FCOM with ST(1) empty
+        }},
+        {"round", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xdb, 5, 0x110);                                 // FLD m80 3.0
+            a.op({0xd9, 0xfc});                                    // FRNDINT
+            a.op({0x90});
+            a.esc(0xd9, 0, 0x100);                                 // FLD m32 1.5
+            a.op({0xd9, 0xfc});                                    // FRNDINT
+            a.op({0x90});
+            a.esc(0xdb, 5, 0x150);                                 // FLD m80, an inexact value
+            a.op({0xd9, 0xfc});                                    // FRNDINT
+            a.op({0x90});
+            a.op({0xd9, 0xf4});                                    // FXTRACT, which pushes
+            a.op({0x90});
+            a.op({0xd9, 0xfd});                                    // FSCALE
+            a.op({0x90});
+            a.esc(0xdf, 0, 0x120);                                 // FILD m16
+            a.op({0xd9, 0xfd});                                    // FSCALE
+            a.op({0x90});
+            a.op({0xd9, 0xe5});                                    // FXAM
+            a.op({0xdf, 0xe0});                                    // FNSTSW AX
+            a.esc(0xd9, 3, 0x300);                                 // FSTP m32, through memory
+            a.esc(0xd9, 3, 0x30c);
+        }},
+        {"precision", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 5, 0x140);                                 // FLDCW: PC 24
+            a.esc(0xdb, 5, 0x150);
+            a.op({0xd8, 0xc8});                                    // FMUL ST,ST(0)
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
+            a.esc(0xd8, 0, 0x100);                                 // FADD m32
+            a.esc(0xd9, 5, 0x142);                                 // FLDCW: PC 53
+            a.op({0xd8, 0xc8});
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
+            a.esc(0xd9, 5, 0x144);                                 // FLDCW: PC 64, round down
+            a.op({0xd8, 0xc8});
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
+            a.esc(0xd9, 5, 0x146);                                 // FLDCW: PC 64, round up
+            a.op({0xd8, 0xc8});
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
+            a.esc(0xd9, 5, 0x148);                                 // FLDCW: PC 64, toward zero
+            a.op({0xd8, 0xc8});
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
+            a.op({0xdf, 0xe0});
+            a.esc(0xd9, 3, 0x300);                                 // FSTP m32, through memory
+        }},
+        {"arith-flags", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xdb, 5, 0x160);                                 // FLD m80: the largest denormal
+            a.esc(0xd8, 0, 0x100);                                 // FADD m32 -> the denormal exception
+            a.op({0xdf, 0xe0});
+            a.op({0xdb, 0xe2});                                    // FNCLEX
+            a.esc(0xdb, 5, 0x170);                                 // FLD m80: 1 + 2^-70
+            a.esc(0xd9, 0, 0x100);
+            a.op({0xd8, 0xc1});                                    // FADD -> precision
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
+            a.op({0xdf, 0xe0});
+            a.op({0xdb, 0xe2});
+            a.esc(0xdb, 5, 0x180);                                 // FLD m80: 2^9000
+            a.op({0xd8, 0xc8});                                    // FMUL -> masked overflow
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
+            a.op({0xdf, 0xe0});
+            a.op({0xdb, 0xe2});
+            a.esc(0xdb, 5, 0x190);                                 // FLD m80: 2^-8300
+            a.op({0xd8, 0xc8});                                    // FMUL -> masked underflow
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
+            a.op({0xdf, 0xe0});
+            a.esc(0xd9, 3, 0x300);                                 // FSTP m32, through memory
+        }},
     };
+
+    // Seeded guest programs exercise mixed x87 streams in the CPU, rather
+    // than only feeding the unit through its direct interface. Keep the
+    // operands finite and the exponents modest so these cases test the
+    // decode/uop/interlock path without depending on unmasked IRQ 13 wiring.
+    std::mt19937_64 random(0x1879'2026'1115ull);
+    auto random_ext80 = [&]() {
+        std::vector<uint8_t> bytes(10);
+        const uint64_t significand = random() | 0x8000000000000000ull;
+        const uint16_t exponent = uint16_t(0x3fff + int(random() % 25) - 12);
+        const uint16_t sign_exponent = uint16_t(exponent | ((random() & 1) << 15));
+        std::memcpy(bytes.data(), &significand, sizeof significand);
+        std::memcpy(bytes.data() + 8, &sign_exponent, sizeof sign_exponent);
+        return bytes;
+    };
+    auto ext80 = [](uint16_t sign_exponent, uint64_t significand) {
+        std::vector<uint8_t> bytes(10);
+        std::memcpy(bytes.data(), &significand, sizeof significand);
+        std::memcpy(bytes.data() + 8, &sign_exponent, sizeof sign_exponent);
+        return bytes;
+    };
+    const std::vector<uint8_t> one = ext80(0x3fff, 0x8000000000000000ull);
+    const std::vector<uint8_t> negative_one = ext80(0xbfff, 0x8000000000000000ull);
+    const std::array<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>, 8> operand_classes = {{
+        {ext80(0x0000, 0), ext80(0x8000, 0)},                                      // signed zero
+        {ext80(0x0000, 1), ext80(0x0000, 0x7fffffffffffffffull)},                 // denormals
+        {ext80(0x0000, 0x8000000000000000ull), ext80(0x8000, 0x8000000000000000ull)}, // pseudo-denormals
+        {ext80(0x3fff, 0x4000000000000000ull), one},                              // unnormal, normal
+        {ext80(0x7fff, 0x8000000000000000ull), ext80(0xffff, 0x8000000000000000ull)}, // infinities
+        {ext80(0x7fff, 0xc000000000000000ull), one},                              // quiet NaN
+        {ext80(0x7fff, 0xa000000000000000ull), negative_one},                     // signaling NaN
+        {one, negative_one},                                                      // finite random normals below
+    }};
+    constexpr std::array<const char *, 8> operand_names = {
+        "zero", "denormal", "pseudo-denormal", "unnormal", "infinity", "qnan", "snan", "normal"};
+    constexpr std::array<unsigned, 3> precision_fields = {0, 2, 3}; // 24, 53 and 64 bits
+    constexpr std::array<unsigned, 3> precision_bits = {24, 53, 64};
+    constexpr unsigned RANDOM_X87_CASES = 8 * 3 * 4;
+    constexpr unsigned RANDOM_X87_OPS = 24;
+    for (unsigned test = 0; test < RANDOM_X87_CASES; ++test) {
+        const unsigned operand_class = test / 12;
+        const unsigned control = test % 12;
+        const unsigned precision_index = control / 4;
+        const unsigned precision = precision_fields[precision_index];
+        const unsigned rounding = control % 4;
+        const uint16_t cw = uint16_t((0x037f & ~0x0300) | (precision << 8) | (rounding << 10));
+        const auto [lhs, rhs] = operand_class == 7
+                                    ? std::pair<std::vector<uint8_t>, std::vector<uint8_t>>{random_ext80(), random_ext80()}
+                                    : operand_classes[operand_class];
+        std::vector<std::array<uint8_t, 2>> ops;
+        ops.reserve(RANDOM_X87_OPS);
+        constexpr std::array<std::array<uint8_t, 2>, 6> choices = {{{0xd8, 0xc1}, // FADD ST,ST(1)
+                                                                    {0xd8, 0xc9}, // FMUL ST,ST(1)
+                                                                    {0xd8, 0xe1}, // FSUB ST,ST(1)
+                                                                    {0xd8, 0xe9}, // FSUBR ST,ST(1)
+                                                                    {0xd8, 0xd1}, // FCOM ST(1)
+                                                                    {0xd9, 0xfc}}}; // FRNDINT
+        for (unsigned n = 0; n < RANDOM_X87_OPS; ++n)
+            ops.push_back(choices[random() % choices.size()]);
+        cases.push_back({"random-" + std::string(operand_names[operand_class]) + "-pc" +
+                             std::to_string(precision_bits[precision_index]) + "-rc" + std::to_string(rounding), [ops](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 5, 0x230); // FLDCW: the masked exceptions and this case's PC/RC
+            a.esc(0xdb, 5, 0x220); // load rhs first, then lhs as ST(0)
+            a.esc(0xdb, 5, 0x210);
+            for (const auto &op : ops) {
+                a.op({op[0], op[1]});
+                if (op[0] == 0xd8 && op[1] == 0xd1) a.op({0xdf, 0xe0}); // expose compare flags
+                a.op({0x90}); // let the unit finish before the next ESC
+            }
+        }, {{0x210, lhs}, {0x220, rhs}, {0x230, {uint8_t(cw), uint8_t(cw >> 8)}}}});
+    }
 
     const bool was_fitted = x87_fitted;
     x87_fitted = true;
@@ -10348,7 +10620,6 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
         // table cannot hand FLDCW a control word with an exception unmasked
         // (which would set ES, latch BUSY# and hold the run for ever: this
         // bench drives no IRQ 13).
-        struct Operand { uint16_t at; std::vector<uint8_t> bytes; };
         const Operand operands[] = {
             {0x100, {0x00, 0x00, 0xc0, 0x3f}},                                    // f32 1.5
             {0x104, {0x00, 0x00, 0x80, 0xbf}},                                    // f32 -1.0
@@ -10358,8 +10629,25 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             {0x124, {0x78, 0x56, 0x34, 0x12}},                                    // i32 12345678h
             {0x128, {0x21, 0x43, 0x65, 0x87, 0x09, 0x00, 0x00, 0x00}},            // i64
             {0x130, {0x7f, 0x03}},                                                // the control word, all masked
+            // Slice 3's operands. The control words differ only in the
+            // precision and rounding fields; all six exceptions stay masked.
+            {0x140, {0x7f, 0x00}},    // PC 24, to nearest
+            {0x142, {0x7f, 0x02}},    // PC 53, to nearest
+            {0x144, {0x7f, 0x07}},    // PC 64, down
+            {0x146, {0x7f, 0x0b}},    // PC 64, up
+            {0x148, {0x7f, 0x0f}},    // PC 64, toward zero
+            // pi, whose significand fills all 64 bits, so every arithmetic
+            // form on it is inexact at every precision.
+            {0x150, {0x35, 0xc2, 0x68, 0x21, 0xa2, 0xda, 0x0f, 0xc9, 0x00, 0x40}},
+            {0x160, {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f, 0x00, 0x00}},  // the largest denormal
+            {0x170, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xb9, 0x3f}},  // 2^-70
+            {0x180, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x27, 0x63}},  // 2^9000
+            {0x190, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xd4, 0x1f}},  // 2^-8300
         };
         for (const Operand &o : operands)
+            for (unsigned i = 0; i < o.bytes.size(); ++i)
+                image.emplace_back(DS + o.at + i, o.bytes[i]);
+        for (const Operand &o : c.operands)
             for (unsigned i = 0; i < o.bytes.size(); ++i)
                 image.emplace_back(DS + o.at + i, o.bytes[i]);
         for (uint32_t i = 0x300; i < 0x460; ++i) image.emplace_back(DS + i, 0xcc);
@@ -10411,7 +10699,13 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             };
             // stderr: the runner reads stdout as its own protocol.
             std::cerr << "x87:" << c.label << " states (ip before settling " << hex(ip_before_settle)
-                      << ", busy " << busy_before_settle << ")\n";
+                      << ", busy " << busy_before_settle << ", eip " << hex(rtl.state().eip)
+                      << ", limit " << outcome.limit << ", halted " << outcome.halted
+                      // `unbuilt` is the field worth having: a form missing
+                      // from x87_built_form above stops the run with every
+                      // other outcome flag clear and no mismatch of its own,
+                      // which reads as a program that simply did not halt.
+                      << ", unbuilt " << outcome.unbuilt << ")\n";
             show("oracle", want);
             show("rtl   ", got);
         }

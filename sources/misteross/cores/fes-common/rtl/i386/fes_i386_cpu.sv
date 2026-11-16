@@ -270,7 +270,7 @@ module fes_i386_cpu #(
     // clear, as a program would after WAIT.
     output logic             trace_x87_busy,
     output logic             trace_x87_latched,  // ... and the board's BUSY# latch
-    output logic [3:0]       trace_x87_seq,      // ... and the unit's sequencer state
+    output logic [4:0]       trace_x87_seq,      // ... and the unit's sequencer state
     output logic [15:0]      arch_x87_cw,
     output logic [15:0]      arch_x87_sw,
     output logic [15:0]      arch_x87_tw,
