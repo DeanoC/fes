@@ -19,10 +19,11 @@ except ImportError:
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
 LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
-# Application, z80 and pc386 are simulation-only families; PC/XT also has a package producer.
+# Application, z80, pc386 and the DE25 x87 backend are simulation-only
+# families; PC/XT also has a package producer.
 CORES = ('application', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest', 'riscv', 'pcxt',
-         'pc386')
-SIMULATION_ONLY_CORES = frozenset({'application', 'z80', 'pc386'})
+         'pc386', 'de25-x87')
+SIMULATION_ONLY_CORES = frozenset({'application', 'z80', 'pc386', 'de25-x87'})
 EXPANSION_ROOT = 'sources/misteross/expansion'
 EMBEDDED_CONTROL_INPUTS = frozenset({
     'sources/mister-packages/packages/fabric/fes_fabric_embedded_control.yaml',
@@ -294,6 +295,8 @@ def fpga_cores(path):
     if path in EMBEDDED_CONTROL_INPUTS or embedded_producer_input(path) or embedded_board_control_input(path):
         return (), 'standalone embedded-control endpoint; no shipped core consumer'
     if len(parts) >= 3 and parts[:2] == ('boards', 'de25nano') and '..' not in parts:
+        if parts[2] == 'x87':
+            return ('de25-x87',), 'standalone DE25 x87 arithmetic simulation'
         if len(parts) >= 4 and parts[2] == 'producers':
             name = parts[3]
             if name in ('build_menu_package.py', 'core_package.py', 'export_core_package.py'):
@@ -421,6 +424,8 @@ def fpga_cores(path):
         if parts[1] in I386_SCRIPTS:
             return (), 'i386 audit, oracle, corpus runners, RTL checks and timing harness; FPGA software classification'
     if parts and parts[0] == 'tests':
+        if len(parts) == 2 and parts[1].startswith('test_de25_x87') and parts[1].endswith('.py'):
+            return ('de25-x87',), 'DE25 x87 arithmetic and build regressions'
         # No simulation recipe reads misteross tests or their fixtures.
         return (), 'FPGA producer/package software tests; RTL unchanged'
     return CORES, 'unclassified FPGA/shared graph input; all core families'

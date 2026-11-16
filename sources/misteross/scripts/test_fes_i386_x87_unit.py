@@ -107,6 +107,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     i386_verilator.add_argument(parser)
     parser.add_argument('--netlist', action='store_true', help="simulate the seal's Yosys netlist of the unit")
+    parser.add_argument('--testfloat-manifest', type=Path,
+                        help='also run extF80 TestFloat vectors listed in this generated manifest')
     parser.add_argument('--jobs', type=int, default=8)
     args = parser.parse_args(argv)
 
@@ -114,12 +116,22 @@ def main(argv: list[str] | None = None) -> int:
     verilator = i386_verilator.locate(args.cache_root)
     yosys = None
     if args.netlist:
-        yosys = args.cache_root and (args.cache_root / 'slots' / verilator.slot / 'install/bin/yosys')
-        if not yosys or not yosys.exists():
-            raise X87UnitError('--netlist needs the lock\'s Yosys in --cache-root')
+        # Through the cache API, as the Verilator above is: the per-tool
+        # layout has no directory a caller can assemble, and a path not held
+        # for this process can be pruned mid-run (i386_verilator.locate_yosys).
+        try:
+            yosys = i386_verilator.locate_yosys(args.cache_root)
+        except i386_verilator.VerilatorError as error:
+            raise X87UnitError(f"--netlist needs the lock's Yosys: {error}") from error
     bench = verilate(verilator, args.jobs, yosys)
-    result = subprocess.run([str(bench)], capture_output=True, text=True, timeout=1800)
+    command = [str(bench)]
+    if args.testfloat_manifest:
+        command.extend(['--testfloat-manifest', str(args.testfloat_manifest.resolve())])
+    result = subprocess.run(command, capture_output=True, text=True, timeout=1800)
     passed, failed, failures = parse(result.stdout)
+    testfloat = next((line.split() for line in result.stdout.splitlines() if line.startswith('TESTFLOAT ')), None)
+    if args.testfloat_manifest and testfloat is None:
+        raise X87UnitError('the bench did not report its TestFloat vector/configuration counts')
     report = {
         'top': TOP,
         'netlist': bool(args.netlist),
@@ -127,10 +139,13 @@ def main(argv: list[str] | None = None) -> int:
         'passed': passed,
         'failed': failed,
         'failures': failures,
+        'testfloat': ({'vectors': int(testfloat[1]), 'configs': int(testfloat[2])} if testfloat else None),
     }
     (OUTPUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(f'fes_i386_x87 against the host x87: {passed} passed, {failed} failed'
-          + (' (netlist)' if args.netlist else ''))
+          + (' (netlist)' if args.netlist else '')
+          + (f"; TestFloat extF80: {testfloat[1]} vectors across {testfloat[2]} configurations"
+             if testfloat else ''))
     for line in failures[:10]:
         print('  ' + line)
     return 1 if failed or result.returncode else 0
