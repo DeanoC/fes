@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: MIT
 // The 387-compatible unit inside fes_i386_cpu (docs/i386-cpu-design.md,
 // "x87"; the plan in docs/validation/2026-11-12-i386-x87-plan). This is the
-// x87 phase's slice 2: the unit's state, its interface to the CPU, the AT
-// board's error path, the loads and stores with their conversions, FXCH, the
-// constants, FCHS, FABS, FTST, FXAM, and the stack faults. Arithmetic (add,
-// subtract, multiply, compare, divide, square root, remainder and the
-// transcendentals) is slices 3 to 5: a form this slice does not build raises
-// FAULT_UNIMPLEMENTED (unimpl), which is how the build stops at an
-// instruction it does not run.
+// x87 phase's slices 2 and 3.
+//
+// Slice 2 built the unit's state, its interface to the CPU, the AT board's
+// error path, the loads and stores with their conversions, FXCH, the
+// constants, FCHS, FABS, FTST, FXAM and the stack faults. Slice 3 adds the
+// arithmetic: add, subtract and reverse subtract with their integer, ST(i)
+// and popping forms, multiply, the ordered and unordered compares, FRNDINT,
+// FSCALE and FXTRACT, under precision as well as rounding control, with
+// every exception they raise. Divide, square root and the remainders are
+// slice 4's, and the transcendentals and BCD slice 5's: a form a later slice
+// builds raises FAULT_UNIMPLEMENTED (unimpl), which is how the build stops
+// at an instruction it does not run.
 //
 // Sources, which the plan record lists in full:
 //   387 PRM  Intel 80387 Programmer's Reference Manual 231917-001 (1987):
@@ -65,13 +70,16 @@
 // - **Shifts are multiplies.** Option A has no barrel shifter: a left shift
 //   by n is a multiply by 2^n and the product's low half, a right shift by n
 //   a multiply by 2^(64-n) with the product's high half and the low half as
-//   the sticky bit. The one multiplier is the 9-DSP block below, which slice
-//   3's multiply shares.
+//   the sticky bit. The one multiplier is the 9-DSP block below, and slice
+//   3's multiply shares it: every step that needs it goes through S_SHIFT
+//   and S_MUL and returns to the state `sh_ret` names, so an operation that
+//   pre-normalises both operands, aligns them and renormalises the result
+//   takes four passes of the same block and no second multiplier.
 //
 // - **Operand registers.** The multiplier and the adder take their operands
-//   from registers of their own (`ua_mul`/`ub_mul` here, the adder's in slice
-//   3), which is the fit spike's remedy for the one shared operand register
-//   its standalone fits could not route.
+//   from registers of their own (`ua_mul`/`ub_mul` and `ua_add`/`ub_add`),
+//   which is the fit spike's remedy for the one shared operand register its
+//   standalone fits could not route, and Deano's D5 decision on #1768.
 //
 // The 80-bit value this unit stores is {sign, exponent[14:0],
 // significand[63:0]}, the memory format, and its value is
@@ -142,7 +150,7 @@ module fes_i386_x87 (
     output logic        busy_o,
     // The sequencer's state, for the unit's own bench and the CPU's trace;
     // nothing in the machine reads it, so the fit trims the wires.
-    output logic [3:0]  trace_seq,
+    output logic [4:0]  trace_seq,
     // FINIT clears the x87 pointers as well as the words (387 PRM, FINIT),
     // and the CPU keeps them, so the unit says when: in the cycle FNINIT
     // commits, or FNSAVE, which leaves the unit as FINIT does. It is in
@@ -299,15 +307,84 @@ module fes_i386_x87 (
         round_sel = {inc, r || s, inc ? q + 65'd1 : q};
     endfunction
 
+    // ---- Rounding to the destination's precision (387 PRM section 2.3.2). ----
+    // The arithmetic rounds its 64-bit significand at the bit the control
+    // word's PC field names -- bit 0 for the extended format (PC 11), bit 11
+    // for the 53-bit (PC 10) and bit 40 for the 24-bit (PC 00) -- and clears
+    // the bits below it, which is what a destination's precision means. The
+    // guard and round bits sit below bit 0 and the sticky holds what the
+    // shifts dropped, so the three positions are one mux and not three
+    // rounders. PC 01 is reserved and reads as the extended format, as
+    // Bochs's softfloat does.
+    //
+    // Precision control applies to add, subtract, multiply, divide and
+    // square root and to nothing else (387 PRM section 2.3.2), so FRNDINT,
+    // FSCALE and FXTRACT pass PC_EXT whatever the control word says.
+    localparam logic [1:0] PC_EXT = 2'd3;
+    // {carry out of bit 63, inexact, the rounding went away from zero (C1),
+    // the rounded magnitude}. On a carry the caller takes the significand as
+    // 2^63 and steps the exponent, which is the only pattern a carry leaves.
+    function automatic logic [66:0] round_pc(input logic [63:0] m, input logic g, input logic r,
+                                            input logic s, input logic sign,
+                                            input logic [1:0] mode, input logic [1:0] prec);
+        logic [64:0] q;
+        logic        rbit, sbit, lsb, inc;
+        case (prec)
+            2'd0:    begin rbit = m[39]; sbit = |m[38:0] || g || r || s; lsb = m[40]; end
+            2'd2:    begin rbit = m[10]; sbit = |m[9:0]  || g || r || s; lsb = m[11]; end
+            default: begin rbit = g;     sbit = r || s;                 lsb = m[0];  end
+        endcase
+        case (mode)
+            2'd0: inc = rbit && (sbit || lsb);   // to nearest, ties to even
+            2'd1: inc = sign && (rbit || sbit);  // down
+            2'd2: inc = !sign && (rbit || sbit); // up
+            default: inc = 1'b0;                 // toward zero
+        endcase
+        case (prec)
+            2'd0:    q = {1'b0, m[63:40], 40'd0} + (inc ? 65'd1 << 40 : 65'd0);
+            2'd2:    q = {1'b0, m[63:11], 11'd0} + (inc ? 65'd1 << 11 : 65'd0);
+            default: q = {1'b0, m} + 65'(inc);
+        endcase
+        round_pc = {q[64], rbit || sbit, inc, q[63:0]};
+    endfunction
+    // The largest finite significand a precision can hold, which masked
+    // overflow stores when the rounding is toward zero.
+    function automatic logic [63:0] max_sig(input logic [1:0] prec);
+        max_sig = prec == 2'd0 ? 64'hffff_ff00_0000_0000
+                : prec == 2'd2 ? 64'hffff_ffff_ffff_f800 : 64'hffff_ffff_ffff_ffff;
+    endfunction
+
     // ---- The instruction in flight. ----
     // One ESC instruction is in flight at a time (the CPU's interlock), so
     // these are the operation's own registers. `busy` is the 387's BUSY#:
     // it stays set until the operation finishes, which for a load is after
     // the instruction has retired, as a real 387's does.
-    typedef enum logic [3:0] {
-        S_IDLE, S_ARG, S_PRE, S_SHIFT, S_MUL, S_POST, S_POST2, S_RDY, S_SAVE_RD, S_APPLY, S_APPLY2
+    // The A_* states are slice 3's arithmetic. Every multiply -- a product
+    // and every shift alike -- goes through S_SHIFT and S_MUL and comes back
+    // to the state `sh_ret` names, so the one multiplier is shared without a
+    // second sequencer.
+    typedef enum logic [4:0] {
+        S_IDLE, S_ARG, S_PRE, S_SHIFT, S_MUL, S_POST, S_POST2, S_RDY, S_SAVE_RD, S_APPLY, S_APPLY2,
+        A_CVT,      // a memory operand's conversion has finished: take it
+        A_CAP,      // take both operands, so the classes below can read them
+        A_SETUP,    // the dispatch, and the pre-normalising shifts
+        A_PNA,      // take pa's pre-normalising shift
+        A_PNB,      // ... and pb's
+        A_OP,       // the operation's first datapath step
+        A_LOAD,     // load the adder's own operand registers
+        A_SUM,      // the 67-bit sum or difference
+        A_PROD,     // the 128-bit product
+        A_NORM,     // take a cancellation's normalising shift
+        A_TINY,     // take the denormalising shift of a tiny result
+        A_RND,      // round at PC, then overflow, underflow and the flags
+        A_SC,       // FSCALE's scale, once the truncating shift has run
+        A_INT,      // FRNDINT's integer, once the fraction is below bit 0
+        A_INT2,     // ... rounded, and its normalising shift started
+        A_PACK,     // ... and packed
+        A_XT        // FXTRACT's exponent, once its magnitude has normalised
     } seq_e;
     seq_e        seq;
+    seq_e        sh_ret;      // the state S_MUL returns to when the multiply is done
     x87_op_e     cur;
     logic [2:0]  cur_fmt;
     logic        cur_pop;       // the form pops ST(0) after it stores
@@ -330,7 +407,7 @@ module fes_i386_x87 (
     logic [10:0] cur_op_raw;    // its 387 opcode, which commit stores
     logic        cur_ctrl;      // ... and whether it is a control form
     assign busy_o = busy;
-    assign trace_seq = 4'(seq);
+    assign trace_seq = 5'(seq);
 
     // ---- The board's BUSY# latch (387 PRM Appendix F.2). ----
     // ERROR# going active latches BUSY#, which holds the next waiting ESC or
@@ -471,9 +548,16 @@ module fes_i386_x87 (
                     ld_expb = 17'd16297;
                     ld_fl = 6'b000010;
                 end else if (e32 == 8'hff) begin
+                    // FLD quiets a signalling NaN and raises invalid. An
+                    // arithmetic or compare form does neither here: the NaN
+                    // reaches the operation still signalling, so the 387's
+                    // NaN rule can tell it from a quiet one -- it delivers
+                    // the quiet operand where the other signals -- and the
+                    // operation raises the invalid itself.
                     ld_v = f32 == 23'd0 ? {mval[31], 15'h7fff, 1'b1, 63'd0}
-                                        : {mval[31], 15'h7fff, 1'b1, f32[22] ? f32 : {1'b1, f32[21:0]}, 40'd0};
-                    if (f32 != 23'd0 && !f32[22]) ld_fl = 6'b000001;  // a signalling NaN: invalid, quieted
+                                        : {mval[31], 15'h7fff, 1'b1,
+                                           f32[22] || a_mem ? f32 : {1'b1, f32[21:0]}, 40'd0};
+                    if (f32 != 23'd0 && !f32[22] && !a_mem) ld_fl = 6'b000001;
                 end else
                     ld_v = {mval[31], 15'(17'(e32) + 17'd16256), 1'b1, f32, 40'd0};
             end
@@ -487,8 +571,9 @@ module fes_i386_x87 (
                     ld_fl = 6'b000010;
                 end else if (e64 == 11'h7ff) begin
                     ld_v = f64 == 52'd0 ? {mval[63], 15'h7fff, 1'b1, 63'd0}
-                                        : {mval[63], 15'h7fff, 1'b1, f64[51] ? f64 : {1'b1, f64[50:0]}, 11'd0};
-                    if (f64 != 52'd0 && !f64[51]) ld_fl = 6'b000001;
+                                        : {mval[63], 15'h7fff, 1'b1,
+                                           f64[51] || a_mem ? f64 : {1'b1, f64[50:0]}, 11'd0};
+                    if (f64 != 52'd0 && !f64[51] && !a_mem) ld_fl = 6'b000001;
                 end else
                     ld_v = {mval[63], 15'(17'(e64) + 17'd15360), 1'b1, f64, 11'd0};
             end
@@ -643,6 +728,12 @@ module fes_i386_x87 (
     // critical path once the rounding was split.
     logic [63:0] sh_src;
     logic [5:0]  sh_pow;      // the shift is a multiply by 2^sh_pow
+    // Slice 3 shares the one multiplier between the shifts and its own
+    // products, so a step says where S_MUL goes when the multiply is done
+    // and whether its second operand is a significand (`sh_b2`) rather than
+    // a power of two.
+    logic [63:0] sh_b2;
+    logic        sh_isprod;
     assign shm = sh_k == 7'd0 ? sh_in : sh_k >= 7'd64 ? 64'd0 : mul_p[127:64];
     assign shs = sh_k == 7'd0 ? 1'b0 : sh_k >= 7'd64 ? sh_in != 64'd0 : mul_p[63:0] != 64'd0;
     logic               c_sign, c_f64, c_int;
@@ -689,6 +780,286 @@ module fes_i386_x87 (
         int_bits = c_sign ? (~rnd_q[63:0] + 64'd1) : rnd_q[63:0];
     end
 
+    // ---- Slice 3's arithmetic: the form. ----
+    // Add, subtract, reverse subtract, multiply, the compares, FRNDINT,
+    // FSCALE and FXTRACT. The operation's own opcode says which it is, which
+    // way round its operands go, where its result lands and what it pops, so
+    // x87_decode gives the unit one X87_ARITH and one X87_CMP and the rest is
+    // read off `cur_op_raw` here.
+    //
+    // The operand order is the trap. D8 E0+i is FSUB ST,ST(i) and D8 E8+i is
+    // FSUBR ST,ST(i), but DC E0+i is FSUBR ST(i),ST and DC E8+i is FSUB
+    // ST(i),ST -- the E0/E8 sense is the other way round once the
+    // destination is ST(i) (386 PRM, the FSUB and FSUBR entries). Written as
+    // "the destination minus the other operand", D8 E8h and DC E0h are the
+    // reversed ones, which is `a_rev` below.
+    logic       a_reg;      // a register form, so the second operand is ST(i)
+    logic [2:0] a_rf;       // a memory form's reg field
+    logic       a_mul;      // the operation is a multiply, not an add
+    logic       a_sub;      // ... a subtract, which is an add with b's sign flipped
+    logic       a_rev;      // ... and the operands go the other way round
+    logic       a_dsti;     // the destination is ST(i), not ST(0)
+    logic       a_pop1;     // the form pops ST(0) when it is done
+    logic       a_pop2;     // ... twice: FCOMPP and FUCOMPP
+    logic       a_unord;    // the compare is the unordered flavour (FUCOM*)
+    logic [2:0] a_dst;      // the destination's physical register
+    logic       a_form;     // the operation in flight is one of slice 3's
+    logic       a_mem;      // ... and its second operand comes from memory
+    assign a_form = cur == X87_ARITH || cur == X87_CMP || cur == X87_RNDINT
+                 || cur == X87_SCALE || cur == X87_XTRACT;
+    assign a_mem = (cur == X87_ARITH || cur == X87_CMP) && cur_op_raw[7:6] != 2'b11;
+    always_comb begin
+        a_reg = cur_op_raw[7:6] == 2'b11;
+        a_rf = cur_op_raw[5:3];
+        a_mul = 1'b0;
+        a_sub = 1'b0;
+        a_rev = 1'b0;
+        a_dsti = 1'b0;
+        a_pop1 = 1'b0;
+        a_pop2 = 1'b0;
+        a_unord = 1'b0;
+        if (cur == X87_ARITH) begin
+            if (!a_reg) begin
+                // D8, DC, DA and DE reg fields 0, 1, 4 and 5: add, multiply,
+                // subtract and reverse subtract, into ST(0).
+                a_mul = a_rf == 3'd1;
+                a_sub = a_rf == 3'd4 || a_rf == 3'd5;
+                a_rev = a_rf == 3'd5;
+            end else begin
+                // C0+i and C8+i are add and multiply, E0+i and E8+i the two
+                // subtracts; DC and DE put the result in ST(i), and DE pops.
+                a_mul = !cur_op_raw[5] && cur_op_raw[3];
+                a_sub = cur_op_raw[5];
+                a_dsti = cur_op_raw[10:8] != 3'b000;
+                a_rev = a_dsti ? !cur_op_raw[3] : cur_op_raw[3];
+                a_pop1 = cur_op_raw[10:8] == 3'b110;
+            end
+        end else if (cur == X87_CMP) begin
+            if (!a_reg) a_pop1 = a_rf == 3'd3;
+            else begin
+                // DD E0+i and E8+i are FUCOM and FUCOMP, DA E9 is FUCOMPP;
+                // D8 D0+i and D8+i are FCOM and FCOMP and DE D9 is FCOMPP.
+                a_unord = cur_op_raw[10:8] == 3'b101 || cur_op_raw[10:8] == 3'b010;
+                a_pop2 = cur_op_raw[10:8] == 3'b110 || cur_op_raw[10:8] == 3'b010;
+                a_pop1 = !a_pop2 && cur_op_raw[3];
+            end
+        end
+    end
+    assign a_dst = a_dsti ? top + cur_i : top;
+
+    // ---- The arithmetic's operands. ----
+    // `pa` and `pb` are the two values in the operation's own order, each
+    // with the empty bit it was read with, and `pb`'s sign is flipped for a
+    // subtract only where the arithmetic uses it: a NaN operand is delivered
+    // with its own sign, so the NaN rule below reads the values as they are.
+    // The adder and the multiplier take their operands from registers of
+    // their own, which is the fit spike's remedy and Deano's D5 decision on
+    // #1768; `ua_mul`/`ub_mul` are the multiplier's and `ua_add`/`ub_add`
+    // the adder's.
+    logic [79:0] pa, pb;
+    logic        pa_e0, pb_e0;      // ... and whether each was empty
+    logic [79:0] m_val;             // a memory form's operand, converted
+    logic [5:0]  m_fl;              // ... and the flags its conversion raised
+    cls_e        ca, cb;
+    logic        sign_a, sign_b;
+    assign ca = class_of(pa, pa_e0);
+    assign cb = class_of(pb, pb_e0);
+    assign sign_a = pa[79];
+    assign sign_b = pb[79] ^ a_sub;
+
+    // The effective exponent: a denormal's exponent field reads 0 and its
+    // value is significand * 2^(1 - 16383 - 63), so one is 1 here and the
+    // significand keeps its leading zeros until the pre-normalising shift.
+    // Reading it this way also puts a pseudo-denormal (field 0 with bit 63
+    // set) at the smallest normal's exponent, which is its value.
+    function automatic logic signed [17:0] eff_e(input logic [79:0] v);
+        eff_e = v[78:64] == 15'd0 ? 18'sd1 : $signed({3'b0, v[78:64]});
+    endfunction
+
+    // ---- The operand classes that give a result without the datapath. ----
+    // An empty register, an unsupported format, a NaN, an infinity and the
+    // zeros (387 PRM section 3.1.7 and Table 3.5). Everything else is a
+    // finite non-zero pair, which the datapath computes.
+    logic        sp_hit;
+    logic [79:0] sp_v;
+    logic [5:0]  sp_fl;
+    logic        sp_sf;
+    // An operand that is empty, an unsupported format or a NaN: the result
+    // and the flags are that operand's alone, so a denormal the memory
+    // conversion already reported is dropped along with it.
+    logic        sp_bad;
+    assign sp_bad = ca == C_EMPTY || cb == C_EMPTY || ca == C_UNSUP || cb == C_UNSUP
+                 || ca == C_QNAN || cb == C_QNAN || ca == C_SNAN || cb == C_SNAN;
+    always_comb begin
+        logic nan_a, nan_b, pick_a;
+        sp_hit = 1'b1;
+        sp_v = INDEFINITE;
+        sp_fl = 6'd0;
+        sp_sf = 1'b0;
+        pick_a = 1'b1;
+        nan_a = ca == C_QNAN || ca == C_SNAN;
+        nan_b = cb == C_QNAN || cb == C_SNAN;
+        if (ca == C_EMPTY || cb == C_EMPTY) begin
+            // A stack underflow: invalid, the stack flag, and the real
+            // indefinite in the destination.
+            sp_fl = 6'b000001;
+            sp_sf = 1'b1;
+        end else if (ca == C_UNSUP || cb == C_UNSUP) begin
+            sp_fl = 6'b000001;
+        end else if (nan_a || nan_b) begin
+            // One NaN is delivered quieted; two give the one with the larger
+            // significand, and a signalling operand raises invalid. The
+            // delivered NaN keeps its own sign, so a subtract's flip does not
+            // reach it.
+            if (nan_a && nan_b) begin
+                // A quiet operand beats a signalling one, and otherwise the
+                // larger significand wins (Intel's NaN rules; the host bench
+                // settles it, where a quiet ST(0) beats a signalling memory
+                // operand whose payload is larger).
+                if (ca == C_SNAN && cb == C_QNAN) pick_a = 1'b0;
+                else if (ca == C_QNAN && cb == C_SNAN) pick_a = 1'b1;
+                else if (pa[62:0] != pb[62:0]) pick_a = pa[62:0] > pb[62:0];
+                // Equal payloads: the positive one is delivered. The host
+                // bench settles it both ways round -- a negative ST(0) with
+                // a positive ST(1) of the same payload gives the positive
+                // one, and so does the other way round -- so it is the sign
+                // that decides and not which operand it is.
+                else pick_a = !pa[79];
+            end else
+                pick_a = nan_a;
+            sp_v = pick_a ? {pa[79:64], 2'b11, pa[61:0]} : {pb[79:64], 2'b11, pb[61:0]};
+            if (ca == C_SNAN || cb == C_SNAN) sp_fl = 6'b000001;
+        end else if (a_mul) begin
+            if (ca == C_INF || cb == C_INF) begin
+                // Infinity times zero is invalid; otherwise an infinity with
+                // the product's sign.
+                if (ca == C_ZERO || cb == C_ZERO) sp_fl = 6'b000001;
+                else sp_v = {sign_a ^ sign_b, 15'h7fff, 1'b1, 63'd0};
+            end else if (ca == C_ZERO || cb == C_ZERO) begin
+                sp_v = {sign_a ^ sign_b, 79'd0};
+            end else
+                sp_hit = 1'b0;
+        end else begin
+            if (ca == C_INF && cb == C_INF) begin
+                // Infinity minus infinity is invalid; two of a sign give it.
+                if (sign_a != sign_b) sp_fl = 6'b000001;
+                else sp_v = {sign_a, 15'h7fff, 1'b1, 63'd0};
+            end else if (ca == C_INF) sp_v = {sign_a, 15'h7fff, 1'b1, 63'd0};
+            else if (cb == C_INF) sp_v = {sign_b, 15'h7fff, 1'b1, 63'd0};
+            else if (ca == C_ZERO && cb == C_ZERO)
+                // Two zeros of a sign give it; of opposite signs the sum is
+                // positive, except under round down (387 PRM section 3.1.7).
+                sp_v = {sign_a == sign_b ? sign_a : rc == 2'd1, 79'd0};
+            else
+                sp_hit = 1'b0;
+        end
+        // A denormal operand raises the denormal exception whatever the
+        // operation does with it -- a real x87 gives the largest denormal
+        // plus zero back with DE alone -- but not beside an operand that is
+        // empty, unsupported or a NaN, where the 387 reports that operand's
+        // own exception or none at all. The host bench found both halves.
+        if (!sp_bad && (ca == C_DEN || cb == C_DEN)) sp_fl[1] = 1'b1;
+    end
+
+    // ---- The compares (387 PRM, the FCOM and FUCOM entries). ----
+    // C3 C2 C0 are 0 0 0 when ST(0) is above the operand, 0 0 1 below,
+    // 1 0 0 equal, and 1 1 1 when the two are not comparable; C1 is cleared.
+    // FCOM raises invalid for any NaN, FUCOM only for a signalling one -- a
+    // quiet NaN answers "not comparable" without an exception, which is what
+    // the unordered compares are for. An empty register is a stack
+    // underflow as well as invalid.
+    //
+    // The order is a magnitude compare on the effective exponent and the
+    // significand, which is the value's own order: a denormal's effective
+    // exponent is the smallest normal's, so its smaller significand puts it
+    // below, and a pseudo-denormal, whose value *is* the smallest normal's,
+    // compares equal to it rather than below.
+    logic [3:0] cmp_cc;
+    logic [5:0] cmp_fl;
+    logic       cmp_sf;
+    always_comb begin
+        logic        gt, lt, eq, uo, nan_q, nan_s;
+        logic [78:0] mag_a, mag_b;
+        nan_q = ca == C_QNAN || cb == C_QNAN;
+        nan_s = ca == C_SNAN || cb == C_SNAN;
+        uo = ca == C_EMPTY || cb == C_EMPTY || ca == C_UNSUP || cb == C_UNSUP || nan_q || nan_s;
+        cmp_fl = 6'd0;
+        cmp_sf = 1'b0;
+        if (ca == C_EMPTY || cb == C_EMPTY) begin
+            cmp_fl = 6'b000001;
+            cmp_sf = 1'b1;
+        end else if (ca == C_UNSUP || cb == C_UNSUP || nan_s) cmp_fl = 6'b000001;
+        else if (nan_q) begin
+            if (!a_unord) cmp_fl = 6'b000001;
+        end else if (ca == C_DEN || cb == C_DEN) cmp_fl = 6'b000010;
+        mag_a = {pa[78:64] == 15'd0 ? 15'd1 : pa[78:64], pa[63:0]};
+        mag_b = {pb[78:64] == 15'd0 ? 15'd1 : pb[78:64], pb[63:0]};
+        gt = 1'b0;
+        lt = 1'b0;
+        eq = 1'b0;
+        if (ca == C_ZERO && cb == C_ZERO) eq = 1'b1;     // +0 and -0 compare equal
+        else if (ca == C_ZERO) begin gt = pb[79]; lt = !pb[79]; end
+        else if (cb == C_ZERO) begin gt = !pa[79]; lt = pa[79]; end
+        else if (pa[79] != pb[79]) begin gt = !pa[79]; lt = pa[79]; end
+        else begin
+            eq = mag_a == mag_b;
+            gt = pa[79] ? mag_a < mag_b : mag_a > mag_b;
+            lt = pa[79] ? mag_a > mag_b : mag_a < mag_b;
+        end
+        cmp_cc = uo ? 4'b1101 : eq ? 4'b1000 : lt ? 4'b0001 : 4'b0000;
+    end
+
+    // ---- The arithmetic's datapath. ----
+    // The working value is a 67-bit field: a 65-bit integer part whose bits
+    // 63:0 are the significand, with a guard and a round bit below it, and a
+    // sticky bit of its own for what a shift dropped. Both operands are
+    // normalised before the datapath sees them, so an add's alignment is the
+    // only shift that drops bits and a subtract's cancellation is the only
+    // one that needs a leading-zero count.
+    logic [63:0]        oa_m, ob_m;    // the operands' significands, normalised
+    logic signed [17:0] oa_e, ob_e;    // ... and their effective exponents
+    logic [63:0]        wm;            // the working significand
+    logic               wg, wrd, ws;   // ... its guard, round and sticky bits
+    logic signed [17:0] we;            // ... and its exponent, biased by 16383
+    logic               wsign;
+    logic [5:0]         wfl;           // the flags the operands and the steps raised
+    logic               wsf;           // ... and the stack flag
+    logic [1:0]         wprec;         // the precision this operation rounds to
+    logic               wtiny;         // the denormalising shift has been taken
+    logic               wsat;          // FSCALE's scale saturated, so the true exponent is
+                                       // out of the bias adjust's reach by construction
+    logic [79:0]        ares, ares2;   // the result the apply writes, and FXTRACT's second
+    logic [3:0]         acc;           // the condition codes it writes
+    logic               acc_wr;
+    logic               a_push;        // the form pushes (FXTRACT)
+    logic signed [17:0] xt_e;          // FXTRACT's exponent, as an integer
+
+    // The adder's own operand registers, which is Deano's D5 decision on
+    // #1768: the multiplier has `ua_mul`/`ub_mul` and the adder these, so
+    // neither waits on the other's operand path.
+    logic [63:0] ua_add, ub_add;
+    logic        ub_g, ub_r, ub_s;     // the aligned operand's bits below bit 0
+    logic        add_neg;              // the step is a subtract
+    // The alignment the adder's load takes: the two significands, the shift,
+    // and whether the smaller operand is an exact zero, which contributes
+    // nothing at all rather than a sticky bit.
+    logic [63:0] al_big, al_small;
+    logic [6:0]  al_k;
+    logic        al_zero;
+    logic [2:0]  a2_idx;               // the register the apply's second cycle writes
+
+    // The 67-bit sum or difference. The sticky is not a bit of the field, so
+    // a subtract takes one unit off the round position and the caller sets
+    // the sticky instead: the true difference lies in the unit below the
+    // computed one, which is exactly what a round bit and a sticky say.
+    logic [66:0] sum_w;
+    always_comb begin
+        logic [66:0] x, y;
+        x = {1'b0, ua_add, 2'b00};
+        y = {1'b0, ub_add, ub_g, ub_r};
+        sum_w = add_neg ? x - y - 67'(ub_s) : x + y;
+    end
+
     // ---- The value the CPU stores. ----
     // A memory store's part of the converted value; FNSTCW's, FNSTSW's and
     // an environment's first three fields out of the words themselves (the
@@ -720,7 +1091,6 @@ module fes_i386_x87 (
     // finishes after the instruction has retired, as a real 387's does with
     // BUSY# still active: the next ESC waits on the hold above.
     logic [2:0]  push_i, pop_i;
-    logic        mul_store;    // the multiply in flight is a store's shift
     logic [79:0] rimg;         // a save image's register, gathered by its chunks
     assign push_i = top - 3'd1;
     assign pop_i = top;
@@ -845,7 +1215,7 @@ module fes_i386_x87 (
                             end
                         endcase
                     end
-                end else if (cur == X87_LD_M || cur == X87_LDCW) begin
+                end else if (cur == X87_LD_M || cur == X87_LDCW || a_mem) begin
                     case (wb_part[1:0])
                         2'd0: mval[31:0] <= wb_val;
                         2'd1: mval[63:32] <= wb_val;
@@ -863,12 +1233,13 @@ module fes_i386_x87 (
                     // S_PRE sees the whole instruction.
                     ra_idx <= top;
                     rb_idx <= top + cur_i;
-                    mul_store <= 1'b0;
                     seq <= S_ARG;
                 end else if (take) begin
                     cur <= iss_dec;
                     cur_fmt <= iss_fmt;
-                    cur_i <= iss_op[2:0];
+                    // FSCALE's second operand is ST(1); its ModRM byte (D9 FDh)
+                    // names no register, so the index comes from the form.
+                    cur_i <= iss_dec == X87_SCALE ? 3'd1 : iss_op[2:0];
                     cur_pop <= iss_dec == X87_STP_M || iss_dec == X87_STP_ST;
                     cur_op_raw <= iss_op;
                     cur_ctrl <= ctrl_form;
@@ -882,7 +1253,6 @@ module fes_i386_x87 (
                     pcc_wr <= 1'b0;
                     if (val_form) begin
                         ra_idx <= top;
-                        mul_store <= 1'b1;
                         seq <= S_ARG;
                     end else if (iss_dec == X87_SAVE) begin
                         ra_idx <= top + iss_part[4:2];
@@ -901,9 +1271,34 @@ module fes_i386_x87 (
                         sh_src <= ld_mag;
                         sh_pow <= 6'(clz64(ld_mag));
                         sh_exp <= 15'(ld_expb - 17'(clz64(ld_mag)));
+                        sh_isprod <= 1'b0;
+                        sh_ret <= S_APPLY;
                         seq <= S_SHIFT;
                     end else
                         seq <= S_APPLY;
+                end else if (a_form) begin
+                    // Slice 3's forms. A memory operand goes through the
+                    // load conversions first, which is a shift of its own
+                    // for a denormal real and for every integer.
+                    pfl <= 6'd0;
+                    psf <= 1'b0;
+                    pc1 <= 1'b0;
+                    pcc_wr <= 1'b0;
+                    wtiny <= 1'b0;
+                    wsat <= 1'b0;
+                    wprec <= cur == X87_ARITH ? pc : PC_EXT;
+                    if (a_mem && ld_shift) begin
+                        sh_src <= ld_mag;
+                        sh_pow <= 6'(clz64(ld_mag));
+                        sh_exp <= 15'(ld_expb - 17'(clz64(ld_mag)));
+                        sh_isprod <= 1'b0;
+                        sh_ret <= A_CVT;
+                        seq <= S_SHIFT;
+                    end else begin
+                        m_val <= ld_v;
+                        m_fl <= a_mem ? ld_fl : 6'd0;
+                        seq <= A_CAP;
+                    end
                 end else if (cur != X87_ST_M && cur != X87_STP_M) seq <= S_APPLY;
                        else begin
                     sh_in <= st_sig;
@@ -923,17 +1318,658 @@ module fes_i386_x87 (
                     end else if (st_shift && st_k < 7'd64) begin
                         sh_src <= st_sig;
                         sh_pow <= 6'(7'd64 - st_k);
+                        sh_isprod <= 1'b0;
+                        sh_ret <= S_POST;
                         seq <= S_SHIFT;
                     end else
                         seq <= S_POST;
                 end
                 S_SHIFT: begin
                     ua_mul <= sh_src;
-                    ub_mul <= 64'd1 << sh_pow;
+                    ub_mul <= sh_isprod ? sh_b2 : 64'd1 << sh_pow;
                     mul_start <= 1'b1;
                     seq <= S_MUL;
                 end
-                S_MUL: if (mul_done) seq <= mul_store ? S_POST : S_APPLY;
+                S_MUL: if (mul_done) seq <= sh_ret;
+
+                // ---- Slice 3's arithmetic. ----
+                // A memory operand's conversion, once its normalising shift
+                // has run: the magnitude is the product's low half and the
+                // exponent the one the conversion worked out before it.
+                A_CVT: begin
+                    m_val <= {ld_sign, sh_exp, mul_p[63:0]};
+                    m_fl <= ld_fl;
+                    seq <= A_CAP;
+                end
+                // Both operands, in the operation's own order. `pa` and `pb`
+                // are registers because the operand classes, the NaN rule
+                // and the compare all read them, so the cycle after this one
+                // is the first that can act on them.
+                A_CAP: begin
+                    logic [79:0] vd, vo;
+                    logic        ed, eo;
+                    // The destination's value and the other operand's. For a
+                    // compare and the one-operand forms the destination is
+                    // ST(0) and the "other" is the operand being compared or
+                    // ignored; FSCALE's is ST(1), which cur_i is set to.
+                    vd = a_dsti ? rb_val : ra_val;
+                    ed = a_dsti ? empty[top + cur_i] : empty[top];
+                    vo = a_dsti ? ra_val : a_mem ? m_val : rb_val;
+                    eo = a_dsti ? empty[top] : a_mem ? 1'b0 : empty[top + cur_i];
+                    // `a_rev` is the only thing that swaps them: the two
+                    // subtract senses, written as the destination minus the
+                    // other operand.
+                    pa <= a_rev ? vo : vd;
+                    pb <= a_rev ? vd : vo;
+                    pa_e0 <= a_rev ? eo : ed;
+                    pb_e0 <= a_rev ? ed : eo;
+                    pfl <= m_fl;
+                    seq <= A_SETUP;
+                end
+                // The dispatch: the operand classes that need no datapath,
+                // the compares, and the pre-normalising shifts. Every
+                // operand the datapath sees has its significand's bit 63
+                // set, so a denormal is shifted left by its leading zeros
+                // and its exponent follows; the exponent is signed and
+                // 18 bits wide, so it may go below zero and come back.
+                A_SETUP: begin
+                    logic [6:0] lza, lzb;
+                    lza = clz64(pa[63:0]);
+                    lzb = clz64(pb[63:0]);
+                    oa_m <= pa[63:0];
+                    ob_m <= pb[63:0];
+                    oa_e <= eff_e(pa);
+                    ob_e <= eff_e(pb);
+                    wsign <= 1'b0;
+                    if (cur == X87_CMP) begin
+                        // A compare writes the condition codes and nothing
+                        // else, and needs no rounding.
+                        pfl <= sp_bad ? cmp_fl : pfl | cmp_fl;
+                        psf <= cmp_sf;
+                        pc1 <= 1'b0;
+                        pcc <= cmp_cc;
+                        pcc_wr <= 1'b1;
+                        seq <= S_APPLY;
+                    end else if (cur == X87_RNDINT || cur == X87_XTRACT) begin
+                        // The one-operand forms: only ST(0)'s class counts,
+                        // so the two-operand special cases do not apply.
+                        pfl <= pfl | (ca == C_EMPTY || ca == C_UNSUP || ca == C_SNAN ? 6'b000001
+                                    : ca == C_DEN ? 6'b000010 : 6'd0);
+                        psf <= ca == C_EMPTY;
+                        wsign <= pa[79];
+                        if (ca == C_EMPTY || ca == C_UNSUP) begin
+                            ares <= INDEFINITE;
+                            ares2 <= INDEFINITE;
+                            seq <= S_APPLY;
+                        end else if (ca == C_QNAN || ca == C_SNAN) begin
+                            ares <= {pa[79:64], 2'b11, pa[61:0]};
+                            ares2 <= {pa[79:64], 2'b11, pa[61:0]};
+                            seq <= S_APPLY;
+                        end else if (cur == X87_XTRACT && ca == C_ZERO) begin
+                            // FXTRACT of zero: the exponent is minus
+                            // infinity and divide-by-zero is raised, and the
+                            // significand keeps the operand's sign
+                            // (387 PRM, the FXTRACT entry).
+                            pfl <= pfl | 6'b000100;
+                            ares <= {1'b1, 15'h7fff, 1'b1, 63'd0};
+                            ares2 <= pa;
+                            seq <= S_APPLY;
+                        end else if (cur == X87_XTRACT && ca == C_INF) begin
+                            ares <= {1'b0, 15'h7fff, 1'b1, 63'd0};
+                            ares2 <= pa;
+                            seq <= S_APPLY;
+                        end else if (cur == X87_RNDINT && (ca == C_ZERO || ca == C_INF)) begin
+                            ares <= pa;
+                            seq <= S_APPLY;
+                        end else if (ca == C_DEN) begin
+                            oa_e <= eff_e(pa) - 18'(lza);
+                            sh_src <= pa[63:0];
+                            sh_pow <= 6'(lza);
+                            sh_isprod <= 1'b0;
+                            sh_ret <= A_PNA;
+                            seq <= S_SHIFT;
+                        end else
+                            seq <= A_OP;
+                    end else if (cur == X87_SCALE) begin
+                        // FSCALE's own operand classes: the add's and the
+                        // multiply's rules do not apply, because the second
+                        // operand is a scale and not a term. An infinite
+                        // scale takes the result to an infinity or a zero,
+                        // and the two combinations that would ask for both
+                        // at once are invalid (387 PRM, the FSCALE entry).
+                        logic bad_pair;
+                        bad_pair = (ca == C_ZERO && cb == C_INF && !pb[79])
+                                || (ca == C_INF && cb == C_INF && pb[79]);
+                        wsign <= pa[79];
+                        if (ca == C_EMPTY || cb == C_EMPTY) begin
+                            pfl <= pfl | 6'b000001;
+                            psf <= 1'b1;
+                            ares <= INDEFINITE;
+                            seq <= S_APPLY;
+                        end else if (ca == C_UNSUP || cb == C_UNSUP || bad_pair) begin
+                            pfl <= pfl | 6'b000001;
+                            ares <= INDEFINITE;
+                            seq <= S_APPLY;
+                        end else if (ca == C_QNAN || ca == C_SNAN || cb == C_QNAN || cb == C_SNAN) begin
+                            pfl <= sp_fl;
+                            ares <= sp_v;
+                            seq <= S_APPLY;
+                        end else if (cb == C_INF) begin
+                            // A finite non-zero ST(0) scaled by an infinity.
+                            pfl <= pfl | (ca == C_DEN ? 6'b000010 : 6'd0);
+                            ares <= pb[79] ? {pa[79], 79'd0} : {pa[79], 15'h7fff, 1'b1, 63'd0};
+                            seq <= S_APPLY;
+                        end else if (ca == C_ZERO || ca == C_INF) begin
+                            // A zero or an infinity scales to itself, and a
+                            // denormal scale still raises the denormal
+                            // exception (the host bench).
+                            pfl <= pfl | (cb == C_DEN ? 6'b000010 : 6'd0);
+                            ares <= pa;
+                            seq <= S_APPLY;
+                        end else begin
+                            pfl <= pfl | (ca == C_DEN || cb == C_DEN ? 6'b000010 : 6'd0);
+                            if (ca == C_DEN) begin
+                                oa_e <= eff_e(pa) - 18'(lza);
+                                sh_src <= pa[63:0];
+                                sh_pow <= 6'(lza);
+                                sh_isprod <= 1'b0;
+                                sh_ret <= A_PNA;
+                                seq <= S_SHIFT;
+                            end else if (cb == C_DEN) begin
+                                ob_e <= eff_e(pb) - 18'(lzb);
+                                sh_src <= pb[63:0];
+                                sh_pow <= 6'(lzb);
+                                sh_isprod <= 1'b0;
+                                sh_ret <= A_PNB;
+                                seq <= S_SHIFT;
+                            end else
+                                seq <= A_OP;
+                        end
+                    end else if (sp_hit) begin
+                        // An empty register, an unsupported format, a NaN,
+                        // an infinity or a pair of zeros: the result is the
+                        // operand classes' and the datapath never runs.
+                        pfl <= sp_bad ? sp_fl : pfl | sp_fl;
+                        psf <= sp_sf;
+                        pc1 <= sp_sf && ca != C_EMPTY && cb != C_EMPTY;
+                        ares <= sp_v;
+                        seq <= S_APPLY;
+                    end else begin
+                        // A denormal operand raises the denormal exception
+                        // even where the result is exact: a real x87 sets DE
+                        // for a pseudo-denormal operand as well, which is
+                        // what class_of calls a denormal.
+                        wsign <= sign_a;
+                        pfl <= pfl | (ca == C_DEN || cb == C_DEN ? 6'b000010 : 6'd0);
+                        if (ca == C_DEN) begin
+                            oa_e <= eff_e(pa) - 18'(lza);
+                            sh_src <= pa[63:0];
+                            sh_pow <= 6'(lza);
+                            sh_isprod <= 1'b0;
+                            sh_ret <= A_PNA;
+                            seq <= S_SHIFT;
+                        end else if (cb == C_DEN) begin
+                            ob_e <= eff_e(pb) - 18'(lzb);
+                            sh_src <= pb[63:0];
+                            sh_pow <= 6'(lzb);
+                            sh_isprod <= 1'b0;
+                            sh_ret <= A_PNB;
+                            seq <= S_SHIFT;
+                        end else
+                            seq <= A_OP;
+                    end
+                end
+                // pa's pre-normalising shift has run; pb may need one too.
+                A_PNA: begin
+                    oa_m <= mul_p[63:0];
+                    if (cb == C_DEN && cur != X87_RNDINT && cur != X87_XTRACT) begin
+                        ob_e <= ob_e - 18'(clz64(ob_m));
+                        sh_src <= ob_m;
+                        sh_pow <= 6'(clz64(ob_m));
+                        sh_isprod <= 1'b0;
+                        sh_ret <= A_PNB;
+                        seq <= S_SHIFT;
+                    end else
+                        seq <= A_OP;
+                end
+                A_PNB: begin
+                    ob_m <= mul_p[63:0];
+                    seq <= A_OP;
+                end
+                // The operation's first datapath step.
+                A_OP: begin
+                    if (cur == X87_ARITH && a_mul) begin
+                        // The product, on the one multiplier. Both operands
+                        // are normalised, so it lands in [1, 4) and needs a
+                        // shift of one bit at most, which A_PROD does with a
+                        // wire. Its sign is the two operands' together.
+                        wsign <= sign_a ^ sign_b;
+                        sh_src <= oa_m;
+                        sh_b2 <= ob_m;
+                        sh_isprod <= 1'b1;
+                        sh_ret <= A_PROD;
+                        seq <= S_SHIFT;
+                    end else if (cur == X87_ARITH) begin
+                        // The alignment: the operand with the smaller
+                        // exponent shifts right by the difference, and the
+                        // sum below adds or subtracts by the effective
+                        // signs. A zero operand shifts nothing: it
+                        // contributes no sticky bit either, so a denormal
+                        // plus zero comes back exactly (the host probe).
+                        logic signed [17:0] d;
+                        logic [6:0]         k;
+                        logic               a_big;
+                        if (ca == C_ZERO || cb == C_ZERO) begin
+                            // Exactly one operand is an exact zero, because
+                            // two of them were a special case above. The
+                            // result is the other operand -- but it still
+                            // goes through the rounding, because precision
+                            // control can shorten it, and a denormal comes
+                            // back as the denormal it was.
+                            al_big <= ca == C_ZERO ? ob_m : oa_m;
+                            al_small <= 64'd0;
+                            al_k <= 7'd0;
+                            al_zero <= 1'b1;
+                            add_neg <= 1'b0;
+                            wsign <= ca == C_ZERO ? sign_b : sign_a;
+                            we <= ca == C_ZERO ? ob_e : oa_e;
+                            seq <= A_LOAD;
+                        end else begin
+                            // Which operand is the larger magnitude. Equal
+                            // exponents leave it to the significands, and a
+                            // subtract that takes the larger from the
+                            // smaller wraps round instead of going negative:
+                            // -2^63 plus (2^64 - 1) came out as -3*2^63.
+                            d = oa_e - ob_e;
+                            a_big = d > 18'sd0 || (d == 18'sd0 && oa_m >= ob_m);
+                            k = (a_big ? d : -d) > 18'sd66 ? 7'd66 : 7'((a_big ? d : -d));
+                            al_big <= a_big ? oa_m : ob_m;
+                            al_small <= a_big ? ob_m : oa_m;
+                            al_k <= k;
+                            al_zero <= 1'b0;
+                            add_neg <= sign_a != sign_b;
+                            wsign <= a_big ? sign_a : sign_b;
+                            we <= a_big ? oa_e : ob_e;
+                            if (k != 7'd0 && k < 7'd65) begin
+                                sh_src <= a_big ? ob_m : oa_m;
+                                sh_pow <= 6'(7'd64 - k);
+                                sh_isprod <= 1'b0;
+                                sh_ret <= A_LOAD;
+                                seq <= S_SHIFT;
+                            end else
+                                seq <= A_LOAD;
+                        end
+                    end else if (cur == X87_RNDINT) begin
+                        // FRNDINT: the fraction is the low bits, so a shift
+                        // right by 63 minus the unbiased exponent leaves the
+                        // integer in the significand and the fraction in the
+                        // guard, round and sticky bits. An operand whose
+                        // exponent is 63 or more is an integer already.
+                        logic signed [17:0] eu;
+                        logic [6:0]         k;
+                        eu = oa_e - 18'sd16383;
+                        k = (18'sd63 - eu) > 18'sd66 ? 7'd66 : (18'sd63 - eu) < 18'sd0 ? 7'd0
+                                                             : 7'((18'sd63 - eu));
+                        al_k <= k;
+                        al_big <= 64'd0;
+                        al_small <= oa_m;
+                        al_zero <= 1'b0;
+                        we <= 18'sd16383 + 18'sd63;
+                        if (eu >= 18'sd63) begin
+                            ares <= pa;
+                            seq <= S_APPLY;
+                        end else if (k < 7'd65) begin
+                            sh_src <= oa_m;
+                            sh_pow <= 6'(7'd64 - k);
+                            sh_isprod <= 1'b0;
+                            sh_ret <= A_INT;
+                            seq <= S_SHIFT;
+                        end else begin
+                            // Smaller than the round bit: nothing but a
+                            // sticky bit, which rounds to zero or to one.
+                            wm <= 64'd0;
+                            wg <= 1'b0;
+                            wrd <= 1'b0;
+                            ws <= 1'b1;
+                            seq <= A_INT2;
+                        end
+                    end else if (cur == X87_SCALE) begin
+                        // FSCALE: ST(0) scaled by ST(1) truncated toward
+                        // zero. The scale's magnitude only matters up to the
+                        // exponent range, so an exponent of 16 or more
+                        // saturates it and the result overflows or
+                        // underflows whatever the rest of ST(1) holds.
+                        logic signed [17:0] eu;
+                        eu = ob_e - 18'sd16383;
+                        wm <= oa_m;
+                        wg <= 1'b0;
+                        wrd <= 1'b0;
+                        ws <= 1'b0;
+                        wsign <= sign_a;
+                        if (cb == C_ZERO || eu < 18'sd0) begin
+                            we <= oa_e;
+                            seq <= A_RND;
+                        end else if (eu >= 18'sd16) begin
+                            // A scale of 2^16 or more takes any operand out
+                            // of range, so it saturates: 36000 is past the
+                            // exponent field's own span either way, because
+                            // the operand's exponent is between -62 (a
+                            // pre-normalised denormal) and 32766. A smaller
+                            // step left a denormal scaled by 2^63 finite.
+                            // The step stands in for the true scale, so the
+                            // bias adjust an unmasked overflow or underflow
+                            // applies cannot stand for it: `wsat` makes
+                            // those deliver the masked result instead, which
+                            // is what a real x87 does for a scale this
+                            // large -- FSCALE of 1 by 2^64 with OM clear
+                            // gives an infinity with OE, PE and C1, and not
+                            // a wrapped exponent.
+                            we <= pb[79] ? oa_e - 18'sd36000 : oa_e + 18'sd36000;
+                            wsat <= 1'b1;
+                            seq <= A_RND;
+                        end else begin
+                            sh_src <= ob_m;
+                            sh_pow <= 6'(18'sd64 - (18'sd63 - eu));
+                            sh_isprod <= 1'b0;
+                            sh_ret <= A_SC;
+                            seq <= S_SHIFT;
+                        end
+                    end else begin
+                        // FXTRACT: the significand with the exponent of one,
+                        // and the unbiased exponent as an integer, which the
+                        // conversion below normalises.
+                        ares2 <= {pa[79], 15'd16383, oa_m};
+                        xt_e <= oa_e - 18'sd16383;
+                        if (oa_e == 18'sd16383) begin
+                            ares <= 80'd0;
+                            seq <= S_APPLY;
+                        end else begin
+                            logic [63:0] mag;
+                            mag = oa_e >= 18'sd16383 ? 64'(oa_e - 18'sd16383) : 64'(18'sd16383 - oa_e);
+                            sh_src <= mag;
+                            sh_pow <= 6'(clz64(mag));
+                            sh_isprod <= 1'b0;
+                            sh_ret <= A_XT;
+                            al_k <= clz64(mag);
+                            seq <= S_SHIFT;
+                        end
+                    end
+                end
+                // FSCALE's scale, once the truncating shift has run.
+                A_SC: begin
+                    // The truncated scale is below 2^16, because an exponent
+                    // of 16 or more saturated above, so its low word is it.
+                    we <= pb[79] ? oa_e - $signed({2'b0, mul_p[79:64]})
+                                 : oa_e + $signed({2'b0, mul_p[79:64]});
+                    seq <= A_RND;
+                end
+                // FXTRACT's exponent, once its magnitude has normalised.
+                A_XT: begin
+                    ares <= {xt_e < 18'sd0, 15'(18'sd16383 + 18'sd63 - 18'(al_k)), mul_p[63:0]};
+                    seq <= S_APPLY;
+                end
+                // The adder's operands, which are registers of their own
+                // (Deano's D5 decision on #1768). The alignment's guard and
+                // round bits are the top two it shifted out and the sticky
+                // the rest; at a shift of 65 the round bit is the operand's
+                // own top bit, and from 66 nothing is left but the sticky.
+                A_LOAD: begin
+                    ua_add <= al_big;
+                    if (al_zero || al_k == 7'd0) begin
+                        ub_add <= al_zero ? 64'd0 : al_small;
+                        ub_g <= 1'b0;
+                        ub_r <= 1'b0;
+                        ub_s <= 1'b0;
+                    end else if (al_k == 7'd65) begin
+                        ub_add <= 64'd0;
+                        ub_g <= 1'b0;
+                        ub_r <= al_small[63];
+                        ub_s <= |al_small[62:0];
+                    end else if (al_k >= 7'd66) begin
+                        ub_add <= 64'd0;
+                        ub_g <= 1'b0;
+                        ub_r <= 1'b0;
+                        ub_s <= 1'b1;
+                    end else begin
+                        ub_add <= mul_p[127:64];
+                        ub_g <= mul_p[63];
+                        ub_r <= mul_p[62];
+                        ub_s <= |mul_p[61:0];
+                    end
+                    seq <= A_SUM;
+                end
+                // The sum. The significand sits at bits 65:2 of the field,
+                // so a carry out lands in bit 66 and a subtract that
+                // cancelled leaves bit 65 clear.
+                A_SUM: begin
+                    logic [66:0] sw;
+                    sw = sum_w;
+                    if (sw[66]) begin
+                        wm <= sw[66:3];
+                        wg <= sw[2];
+                        wrd <= sw[1];
+                        ws <= ub_s || sw[0];
+                        we <= we + 18'sd1;
+                        seq <= A_RND;
+                    end else if (sw[65]) begin
+                        wm <= sw[65:2];
+                        wg <= sw[1];
+                        wrd <= sw[0];
+                        ws <= ub_s;
+                        seq <= A_RND;
+                    end else if (sw[64:1] == 64'd0) begin
+                        // Exact cancellation: a positive zero, except under
+                        // round down (387 PRM section 3.1.7).
+                        ares <= {rc == 2'd1, 79'd0};
+                        pc1 <= 1'b0;
+                        seq <= S_APPLY;
+                    end else begin
+                        // Bit 65 clear: the magnitude is the 64 bits at
+                        // 64:1, one position below the significand's, which
+                        // is the -1 here, and what is left below them is bit
+                        // 0 and the sticky.
+                        //
+                        // A shift of more than one place needs the exponents
+                        // to have been within one of each other, because
+                        // from a difference of two the subtrahend is at most
+                        // a quarter of the minuend and the difference stays
+                        // above 2^62. So where the shift is more than one
+                        // place the alignment dropped nothing -- bit 0 and
+                        // the sticky are both clear -- and where it is one
+                        // place or none they are the result's own guard and
+                        // sticky, which a borrowed sticky makes non-zero.
+                        // Dropping them was what turned -1 plus 2^-16382
+                        // into -(1 - 2^-64).
+                        sh_src <= sw[64:1];
+                        sh_pow <= 6'(clz64(sw[64:1]));
+                        sh_isprod <= 1'b0;
+                        sh_ret <= A_NORM;
+                        we <= we - 18'sd1 - 18'(clz64(sw[64:1]));
+                        wg <= sw[0];
+                        wrd <= 1'b0;
+                        ws <= ub_s;
+                        seq <= S_SHIFT;
+                    end
+                end
+                A_NORM: begin
+                    // The guard and sticky A_SUM worked out stay as they are:
+                    // a shift of more than one place only happens where they
+                    // are both clear.
+                    wm <= mul_p[63:0];
+                    seq <= A_RND;
+                end
+                // The product. Both operands were normalised, so it is in
+                // [1, 4): bit 127 set means it needs no shift and bit 126
+                // one place, which is a wire either way.
+                A_PROD: begin
+                    if (mul_p[127]) begin
+                        wm <= mul_p[127:64];
+                        wg <= mul_p[63];
+                        wrd <= mul_p[62];
+                        ws <= |mul_p[61:0];
+                        we <= oa_e + ob_e - 18'sd16383 + 18'sd1;
+                    end else begin
+                        wm <= mul_p[126:63];
+                        wg <= mul_p[62];
+                        wrd <= mul_p[61];
+                        ws <= |mul_p[60:0];
+                        we <= oa_e + ob_e - 18'sd16383;
+                    end
+                    seq <= A_RND;
+                end
+                // FRNDINT's integer, once the shift has put the fraction
+                // below bit 0.
+                A_INT: begin
+                    wm <= mul_p[127:64];
+                    wg <= mul_p[63];
+                    wrd <= mul_p[62];
+                    ws <= |mul_p[61:0];
+                    seq <= A_INT2;
+                end
+                // FRNDINT rounds at bit 0 whatever PC says, then normalises
+                // the integer it rounded to.
+                A_INT2: begin
+                    logic [66:0] rp;
+                    logic [63:0] mag;
+                    rp = round_pc(wm, wg, wrd, ws, wsign, rc, PC_EXT);
+                    pc1 <= rp[64];
+                    if (rp[65]) pfl[5] <= 1'b1;
+                    // A rounding that carried out of bit 63 is 2^64, which
+                    // is the significand 2^63 one exponent up.
+                    mag = rp[66] ? 64'h8000_0000_0000_0000 : rp[63:0];
+                    if (!rp[66] && rp[63:0] == 64'd0) begin
+                        // Zero keeps the operand's sign: round toward zero
+                        // of -0.3 is -0.0 (387 PRM, the FRNDINT entry).
+                        ares <= {wsign, 79'd0};
+                        seq <= S_APPLY;
+                    end else begin
+                        sh_src <= mag;
+                        sh_pow <= 6'(clz64(mag));
+                        al_k <= clz64(mag);
+                        we <= 18'sd16383 + 18'sd63 + 18'(rp[66]);
+                        sh_isprod <= 1'b0;
+                        sh_ret <= A_PACK;
+                        seq <= S_SHIFT;
+                    end
+                end
+                A_PACK: begin
+                    ares <= {wsign, 15'(we - 18'(al_k)), mul_p[63:0]};
+                    seq <= S_APPLY;
+                end
+                // The denormalising shift of a tiny result, which runs
+                // before the rounding so the result is rounded once.
+                A_TINY: begin
+                    // The guard and round bits the arithmetic left are below
+                    // bit 0 once the shift has moved the significand down,
+                    // so they join the sticky rather than being dropped.
+                    wm <= mul_p[127:64];
+                    wg <= mul_p[63];
+                    wrd <= mul_p[62];
+                    ws <= ws || wg || wrd || |mul_p[61:0];
+                    seq <= A_RND;
+                end
+                // Rounding at the destination's precision, and then the
+                // exponent rules. A real x87 settles those, and the host
+                // bench the record sets out is where they come from.
+                //
+                // The value is rounded once at PC as though the exponent
+                // range were unbounded, and that rounded exponent decides
+                // whether it is tiny: tininess after rounding. A product
+                // whose exact value is below the smallest normal but whose
+                // rounding carries it back up is not tiny and reports
+                // precision alone; one whose rounding does not is tiny and
+                // reports underflow as well. Precision control moves that
+                // line, because it moves where the rounding carries -- one
+                // pair of operands is tiny at PC 64 and not at PC 24, and
+                // another is the other way round, which is how the bench
+                // tells this rule from the alternatives.
+                //
+                // Then:
+                //   - masked overflow stores an infinity, or the precision's
+                //     largest finite value where the rounding is toward
+                //     zero, with OE and PE, and C1 says which way it went;
+                //   - unmasked overflow or underflow stores the result with
+                //     its exponent moved by 24576, which is the 387's bias
+                //     adjust, and reports OE or UE whether or not the result
+                //     is inexact. Where the adjust cannot reach -- FSCALE's
+                //     scale saturates, so its exponent is out of reach by
+                //     construction -- the masked result is stored instead,
+                //     and an infinity in every rounding mode;
+                //   - masked underflow denormalises the value as it was and
+                //     rounds it there, so the result goes through one
+                //     rounding and not two, and reports UE where that
+                //     rounding lost bits: a tiny exact result raises nothing;
+                //   - the precision exception never holds a result back.
+                A_RND: begin
+                    logic [66:0]        rp;
+                    logic [63:0]        mag;
+                    logic signed [17:0] e2;
+                    logic [6:0]         k;
+                    rp = round_pc(wm, wg, wrd, ws, wsign, rc, wprec);
+                    mag = rp[66] ? 64'h8000_0000_0000_0000 : rp[63:0];
+                    e2 = we + 18'(rp[66]);
+                    pc1 <= rp[64];
+                    if (wtiny) begin
+                        // The denormalised value, rounded here for the first
+                        // and only time: the exponent field is 0, or 1 where
+                        // the rounding took it up to the smallest normal.
+                        if (rp[65]) begin
+                            pfl[5] <= 1'b1;
+                            pfl[4] <= 1'b1;
+                        end
+                        ares <= {wsign, mag[63] ? 15'd1 : 15'd0, mag};
+                        seq <= S_APPLY;
+                    end else if (e2 > 18'sd32766) begin
+                        logic inf, fits;
+                        inf = !cw[3] || rc == 2'd0 || (rc == 2'd1 && wsign) || (rc == 2'd2 && !wsign);
+                        fits = e2 - 18'sd24576 <= 18'sd32766 && !wsat;
+                        if (rp[65]) pfl[5] <= 1'b1;
+                        pfl[3] <= 1'b1;
+                        if (cw[3] || !fits) begin
+                            pfl[5] <= 1'b1;
+                            pc1 <= inf;
+                            ares <= inf ? {wsign, 15'h7fff, 1'b1, 63'd0}
+                                        : {wsign, 15'h7ffe, max_sig(wprec)};
+                        end else
+                            ares <= {wsign, 15'(e2 - 18'sd24576), mag};
+                        seq <= S_APPLY;
+                    end else if (e2 < 18'sd1) begin
+                        if (cw[4] || wsat || we < -18'sd24575) begin
+                            // Denormalise the value as it was, not as the
+                            // rounding above left it, so the result goes
+                            // through one rounding only. The precision
+                            // exception is the denormalised rounding's too,
+                            // so nothing is recorded here.
+                            k = (18'sd1 - we) > 18'sd66 ? 7'd66 : 7'((18'sd1 - we));
+                            wtiny <= 1'b1;
+                            we <= 18'sd1;
+                            if (k < 7'd65) begin
+                                sh_src <= wm;
+                                sh_pow <= 6'(7'd64 - k);
+                                sh_isprod <= 1'b0;
+                                sh_ret <= A_TINY;
+                                seq <= S_SHIFT;
+                            end else begin
+                                // Below the round bit: nothing is left but
+                                // the sticky, which rounds to zero or to the
+                                // smallest denormal.
+                                wm <= 64'd0;
+                                wg <= 1'b0;
+                                wrd <= 1'b0;
+                                ws <= 1'b1;
+                            end
+                        end else begin
+                            if (rp[65]) pfl[5] <= 1'b1;
+                            pfl[4] <= 1'b1;
+                            ares <= {wsign, 15'(e2 + 18'sd24576), mag};
+                            seq <= S_APPLY;
+                        end
+                    end else begin
+                        if (rp[65]) pfl[5] <= 1'b1;
+                        ares <= {wsign, 15'(e2), mag};
+                        seq <= S_APPLY;
+                    end
+                end
                 S_POST: begin
                     rnd_q <= rnd_w[64:0];
                     rnd_inex_q <= rnd_w[65];
@@ -999,7 +2035,7 @@ module fes_i386_x87 (
                 // raises ERROR# and latches BUSY#, as a 387 on an AT does.
                 S_APPLY: begin
                     logic [5:0]  f;
-                    logic        stk, um, c1, ccw, wr, pop, push, c1_wr;
+                    logic        stk, um, c1, ccw, wr, pop, push, c1_wr, ovf;
                     logic [79:0] v;
                     logic [3:0]  nc;
                     cls_e        c0cls, cicls;
@@ -1007,12 +2043,19 @@ module fes_i386_x87 (
                     stk = psf;
                     c1 = pc1;
                     ccw = 1'b0;
+                    ovf = 1'b0;
                     // The control forms, FNOP and FFREE leave the condition
                     // codes as they are; every other form writes C1.
                     c1_wr = !(cur == X87_NOP || cur == X87_STCW || cur == X87_STSW || cur == X87_STENV
                               || cur == X87_LDENV || cur == X87_SAVE || cur == X87_RSTOR
                               || cur == X87_FREE || cur == X87_LDCW);
                     nc = cc;
+                    if (pcc_wr) begin
+                        // A compare's codes, worked out when its operands
+                        // were read.
+                        ccw = 1'b1;
+                        nc = pcc;
+                    end
                     v = 80'd0;
                     wr = 1'b0;
                     pop = 1'b0;
@@ -1032,7 +2075,7 @@ module fes_i386_x87 (
                             push = 1'b1;
                             v = cur == X87_CONST ? constant_of(cur_i, rc)
                               : cur == X87_LD_ST ? rb_val
-                              : (sh_k != 7'd0 || mul_store ? 80'd0 : 80'd0);
+                              : 80'd0;
                             if (cur == X87_LD_M) begin
                                 f = ld_fl;
                                 v = ld_shift ? {ld_sign, sh_exp, mul_p[63:0]} : ld_v;
@@ -1125,6 +2168,35 @@ module fes_i386_x87 (
                                 default: nc = {1'b1, 1'b1, 1'b0, 1'b0};  // denormal
                             endcase
                         end
+                        X87_ARITH, X87_RNDINT, X87_SCALE: begin
+                            // The result goes to ST(0), or to ST(i) for the
+                            // DC and DE forms, and DE pops ST(0) after it.
+                            v = ares;
+                            wr = 1'b1;
+                            pop = a_pop1;
+                        end
+                        X87_CMP: pop = a_pop1 || a_pop2;
+                        X87_XTRACT: begin
+                            // FXTRACT replaces ST(0) with its exponent and
+                            // pushes the significand, so the push carries the
+                            // significand and the apply's second cycle writes
+                            // the exponent to the register ST(0) was.
+                            push = 1'b1;
+                            v = ares2;
+                            wr = 1'b1;
+                            if (!empty[push_i]) begin
+                                // A stack overflow, and only that, puts the
+                                // real indefinite in both: a NaN operand
+                                // gives both results the quieted NaN, so the
+                                // second write below tests the overflow and
+                                // not the invalid flag.
+                                f[0] = 1'b1;
+                                stk = 1'b1;
+                                c1 = 1'b1;
+                                ovf = 1'b1;
+                                v = INDEFINITE;
+                            end
+                        end
                         X87_FREE: empty[top + cur_i] <= 1'b1;
                         X87_INCSTP: begin
                             top <= top + 3'd1;
@@ -1174,14 +2246,49 @@ module fes_i386_x87 (
                             if (es) latched <= 1'b1;
                         default: ;  // FNOP, FNSTCW, FNSTSW
                     endcase
-                    um = unmasked(f, cw);
+                    // Invalid, denormal and divide-by-zero are detected
+                    // before the result exists, so an unmasked one leaves the
+                    // operands and TOP alone. Overflow, underflow and
+                    // precision are detected after it: unmasked, the result
+                    // is still written, with the bias adjust A_RND applied,
+                    // so they must not hold the write back. A real x87 is
+                    // where both halves come from (the host probe: 0 times
+                    // infinity with IM clear leaves both operands on the
+                    // stack, while an inexact add with PM clear writes its
+                    // result and pops). Slice 2's forms keep the gate they
+                    // were sealed and lockstepped with; whether a store with
+                    // PE unmasked should make its access is its own question
+                    // and the record names it.
+                    um = a_form ? unmasked(f & 6'b000111, cw) : unmasked(f, cw);
+                    // ... and because such an exception means the operation
+                    // never produced a result, the exceptions the result
+                    // would have raised are not reported with it: a real x87
+                    // adding the largest denormal to just over one with DM
+                    // clear reports the denormal alone, and not the precision
+                    // exception the sum would have raised.
+                    if (a_form && um) begin
+                        f[5:3] = 3'b000;
+                        // ... and C1, which says which way the rounding
+                        // went, has nothing to say about a result that was
+                        // never produced. A stack fault keeps its C1,
+                        // because there it says overflow or underflow and
+                        // the handler reads it.
+                        if (!stk) c1 = 1'b0;
+                    end
                     // ERROR# rises with this apply, and the board latches
                     // BUSY# on that edge. Setting it here rather than from
                     // the edge detector below closes the cycle between this
                     // apply, which makes the unit idle, and the detector's
                     // own edge, where an ESC would see neither busy nor
                     // latched (387 PRM Appendix F.2, the AT's latch).
-                    if (um) latched <= 1'b1;
+                    // Any unmasked exception raises ERROR# and latches
+                    // BUSY#, including the ones that do not hold the result
+                    // back: the latch is what the next ESC waits on, and the
+                    // flags and the latch have to go up together. `um` above
+                    // gates the write and this gates the latch, and they are
+                    // not the same set -- an unmasked precision exception
+                    // writes its result and still latches.
+                    if (unmasked(f, cw)) latched <= 1'b1;
                     // The flags and the stack flag are sticky; ES stays set
                     // until FNCLEX, FNINIT or the F1h reset clears it.
                     if (cur != X87_INIT && cur != X87_SAVE && cur != X87_CLEX) begin
@@ -1194,7 +2301,12 @@ module fes_i386_x87 (
                     // An unmasked exception leaves the registers and TOP as
                     // they were; a masked one delivers its result.
                     if (!um) begin
-                        if (push) begin
+                        if (a_pop2) begin
+                            // FCOMPP and FUCOMPP drop both registers.
+                            empty[top] <= 1'b1;
+                            empty[top + 3'd1] <= 1'b1;
+                            top <= top + 3'd2;
+                        end else if (push) begin
                             top <= push_i;
                             empty[push_i] <= 1'b0;
                             rw_idx <= push_i;
@@ -1231,12 +2343,29 @@ module fes_i386_x87 (
                             empty[top] <= 1'b0;
                             empty[top + cur_i] <= 1'b0;
                             sres <= f[0] ? INDEFINITE : ra_val;
+                            a2_idx <= top + cur_i;
+                            seq <= S_APPLY2;
+                        end
+                        if (cur == X87_ARITH || cur == X87_RNDINT || cur == X87_SCALE) begin
+                            rw_idx <= a_dst;
+                            rw_val <= v;
+                            rw_en <= 1'b1;
+                            // A popping form whose destination is ST(0) --
+                            // FADDP ST(0),ST -- writes the register and pops
+                            // it: the pop wins, so it reads empty.
+                            if (!(pop && a_dst == top)) empty[a_dst] <= 1'b0;
+                        end
+                        if (cur == X87_XTRACT) begin
+                            // The push above wrote the significand; the
+                            // exponent goes to the register ST(0) was.
+                            sres <= ovf ? INDEFINITE : ares;
+                            a2_idx <= top;
                             seq <= S_APPLY2;
                         end
                     end
                 end
                 S_APPLY2: begin
-                    rw_idx <= top + cur_i;
+                    rw_idx <= a2_idx;
                     rw_val <= sres;
                     rw_en <= 1'b1;
                     seq <= S_IDLE;
@@ -1276,7 +2405,16 @@ module fes_i386_x87 (
             // word before the status word, so the summary can rise on the
             // old flags part way through: the latch waits for the whole
             // instruction, and its own apply sets it if ES is still active.
-            if (es && !es_q && !env_load) latched <= 1'b1;
+            //
+            // A write to port F0h in this cycle wins. The apply that raises
+            // an exception sets the latch itself, in the same cycle as the
+            // flags, so this edge fires the cycle *after* it, when ES is up
+            // and `es_q` has not caught up -- and an F0h write landing in
+            // that one cycle would be undone by it, leaving the latch set
+            // and every later ESC held for ever. Clearing the latch is what
+            // the port is for, and a genuinely new exception sets it from
+            // its own apply above and not from here.
+            if (es && !es_q && !env_load && !f0) latched <= 1'b1;
         end
     end
 endmodule
