@@ -544,24 +544,34 @@ class SummaryTest(unittest.TestCase):
         self.assertIsNone(row['pc24_sufficient'])
         self.assertEqual(row['by_class'], {'control': 8})
 
-    def test_the_infinity_test_is_probe_only(self):
-        """The 287/387 infinity test (FLD1, FLDZ, FDIVP, FCHS, FCOMPP) is
-        register-only, so a title that runs it and the detection probe and
-        nothing else is probe-only, even though FDIVP classes as arithmetic.
-        This is the shape the prior census found for DOOM and seven others."""
-        census = ('x87op:dbe3:rm 1 -\nx87op:dfe0:rm 4 -\nx87op:d9.m7:rm 3 -\n'
-                  'x87op:d9e8:rm 1 -\nx87op:d9ee:rm 1 -\nx87op:de.r7:rm 1 -\n'
-                  'x87op:d9e0:rm 1 -\nx87op:ded9:rm 1 -\n'
-                  'x87cw:div:037f 1 -\n')
+    def test_register_arithmetic_is_not_probe_only(self):
+        """The committed rule is the original one: zero load, store, FXCH,
+        arithmetic, FRNDINT and transcendental forms. A title computing from
+        constants and registers moves no memory operand, so a rule keyed on
+        memory operands alone would have called it probe-only and suppressed
+        its verdict; the arithmetic is what matters."""
+        # Control forms only: the detection probe. Probe-only.
+        probe = 'x87op:dbe3:rm 1 -\nx87op:dfe0:rm 4 -\nx87op:d9.m7:rm 3 -\n'
         with tempfile.TemporaryDirectory() as tmp:
-            Path(tmp, 'census.txt').write_text(census)
+            Path(tmp, 'census.txt').write_text(probe)
             row = summary.run('t', Path(tmp))['x87']
         self.assertEqual(row['memory_fp_ops'], 0)
         self.assertTrue(row['probe_only'])
         self.assertIsNone(row['pc24_sufficient'])
-        # One FLD m32 is enough to make it a computing title.
+        # Constants and register-form arithmetic move no memory operand, and
+        # are NOT probe-only: the title computes, and gets a verdict.
+        constants = probe + ('x87op:d9e8:rm 1 -\nx87op:d9eb:rm 1 -\n'
+                             'x87op:de.r1:rm 900 -\nx87cwform:de.r1:0f3f 900 -\n')
         with tempfile.TemporaryDirectory() as tmp:
-            Path(tmp, 'census.txt').write_text(census + 'x87op:d9.m0:rm 1 -\n')
+            Path(tmp, 'census.txt').write_text(constants)
+            row = summary.run('t', Path(tmp))['x87']
+        self.assertEqual(row['memory_fp_ops'], 0)
+        self.assertFalse(row['probe_only'])
+        self.assertFalse(row['pc24_sufficient'])
+        self.assertEqual(row['pc24_insufficient_because'], ['900 arithmetic ESCs at PC=64'])
+        # One FLD m32 is also enough.
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, 'census.txt').write_text(probe + 'x87op:d9.m0:rm 1 -\n')
             row = summary.run('t', Path(tmp))['x87']
         self.assertEqual(row['memory_fp_ops'], 1)
         self.assertFalse(row['probe_only'])

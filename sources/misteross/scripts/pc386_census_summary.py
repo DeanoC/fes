@@ -349,15 +349,22 @@ def x87_summary(counts: dict[str, int]) -> dict:
     for form in ('db.m5', 'db.m7'):
         if ops.get(form):
             reasons.append(f'{ops[form]} {"FLD" if form == "db.m5" else "FSTP"} m80')
-    # Probe only, mechanically: no real or integer memory operand moved, no
-    # FXCH and no transcendental. The 287/387 infinity test (FLD1, FLDZ,
-    # FDIVP, FCHS, FCOMPP) is register-only, so a title that runs nothing but
-    # the detection probe and that test is probe-only under this rule even
-    # though FDIVP is classed as arithmetic.
+    # Probe only, mechanically, and this is the method's ORIGINAL committed
+    # definition: zero load, store, FXCH, arithmetic, FRNDINT and
+    # transcendental forms. Amendment 1 had widened it to "no memory operand,
+    # no FXCH, no transcendental" so that the 287/387 infinity test (FLD1,
+    # FLDZ, FDIVP, FCHS, FCOMPP), which is register-only, would still count as
+    # a probe. That widening also admitted *unbounded* register-form
+    # arithmetic, which would suppress the sufficiency verdict for a title
+    # computing entirely from constants and registers. No title in the census
+    # runs the infinity test -- DOOM retires 11 ESCs and none of them is
+    # arithmetic -- so the narrower original rule classifies all nine
+    # identically, and it is restored rather than patched.
     memory_fp = sum(n for form, n in ops.items()
                     if (X87_FORMS.get(form) or ('', 'none'))[1] in
                     ('real32', 'real64', 'real80', 'int16', 'int32', 'int64', 'bcd80'))
-    computing = bool(memory_fp or by_class.get('fxch', 0) or by_class.get('trans', 0))
+    computing = bool(by_class.get('load', 0) or by_class.get('store', 0) or by_class.get('fxch', 0)
+                     or by_class.get('arith', 0) or by_class.get('round', 0) or by_class.get('trans', 0))
     return {
         'computes': computing,
         'memory_fp_ops': memory_fp,

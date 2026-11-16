@@ -195,7 +195,7 @@ the simulation build was still compiling. Six changes, all of them because
 writing the rules down showed them to be wrong or unmeasurable as stated:
 
 1. **The probe-only rule is now mechanical, and it admits the infinity
-   test.** The method's prose allowed the 287/387 infinity test, but that
+   test.** *(Reverted 16 November 2026 — see amendment 13.)* The method's prose allowed the 287/387 infinity test, but that
    test's FLD1, FLDZ, FDIVP, FCHS and FCOMPP class as `load` and `arith`, so
    the prose and the script disagreed. The committed rule is now the
    script's: **probe only means no real or integer memory operand moved, no
@@ -327,6 +327,31 @@ credited there.
     (vector-independent, and a **superset**, since an unrelated timer tick
     also lands there once ES is set). Reliance is read from the superset,
     which cannot miss a delivery.
+
+### 16 November 2026, after the runs — amendment 1 reverted
+
+13. **Amendment 1's widening is withdrawn and the original rule restored.**
+    Amendment 1 relaxed probe-only from the committed "zero load, store,
+    FXCH, arithmetic and transcendental forms" to "no memory operand, no
+    FXCH, no transcendental", so that the register-only 287/387 infinity
+    test would still count as a probe. Review pointed out that this also
+    admitted **unbounded register-form arithmetic**: a title computing
+    entirely from constants and registers moves no memory operand, so it
+    would have been called probe-only and had its sufficiency verdict
+    **suppressed** — a silent miss, and a contradiction of the rule this
+    method states.
+
+    The original rule is restored, not patched. It is the stricter one and
+    it was pre-registered, so this is a return to the committed method
+    rather than a new rule: **all nine titles classify identically under
+    both**, checked before the change. The widening was never needed —
+    **no title in the census runs the infinity test at all**, and DOOM, the
+    case it was written for, retires 11 ESCs of which none is arithmetic.
+
+    Amendment 1 was itself made before the runs and for a real
+    inconsistency between the prose and the script; what it got wrong was
+    the direction of the fix. The lesson is that a rule relaxed to admit one
+    known case should be checked for what *else* it admits.
 
 ### 16 November 2026 — one promise this record does not keep
 

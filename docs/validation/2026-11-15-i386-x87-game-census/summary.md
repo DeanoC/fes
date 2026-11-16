@@ -3,7 +3,7 @@
 15–16 November 2026. Oracle-only: no RTL, no kit, no fits.
 
 **All nine runs are complete and the negative control passed.** DOOM
-retires 11 ESCs, every one of them a control form — `FNINIT` (DB E3) ×5,
+retires 11 ESCs, **none of them arithmetic** and every one a control form — `FNINIT` (DB E3) ×5,
 `FSETPM` (DB E4) ×4, `FNSTCW m16` ×1, `FNSTSW m16` ×1, which is the classic
 287/387 detection sequence — and **zero** real or integer memory
 operands, zero FXCH and zero transcendentals, which is the committed
