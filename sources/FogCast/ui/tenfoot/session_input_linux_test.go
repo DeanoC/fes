@@ -717,6 +717,27 @@ func TestNativeKeyboardsCoalesceOnlyAdmittedLegacyKeys(t *testing.T) {
 		}
 	}
 
+	// An evdev repeat that arrives after the mode change must not re-admit
+	// the held key under the new mapping: the eventual key-up still has to
+	// release the legacy key first admitted, and no HID press is forwarded.
+	app.mu.Lock()
+	app.session.CoreKeyboardHID = false
+	app.mu.Unlock()
+	send(a, 42, 1)
+	app.mu.Lock()
+	app.session.CoreKeyboardHID = true
+	app.mu.Unlock()
+	send(a, 42, 2)
+	send(a, 42, 0)
+	if releases() != 4 {
+		t.Fatalf("repeat after a mode change replaced the admitted legacy key: %+v", feed.snapshot())
+	}
+	for _, e := range feed.snapshot() {
+		if e.Device == remoteinput.DeviceKeyboard && e.Code == hidShift {
+			t.Fatalf("repeat forwarded the held key under a different mapping: %+v", feed.snapshot())
+		}
+	}
+
 	// A failed press admission never contributes a core hold, even though
 	// evdev correctly records that keyboard as physically held.
 	app.mu.Lock()

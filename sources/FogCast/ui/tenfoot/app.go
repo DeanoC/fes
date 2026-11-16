@@ -2744,6 +2744,15 @@ func (a *App) sendPhysicalPlayKey(source int, name string, usage uint8, event re
 			event = remoteinput.Event{Player: admitted.player, Device: admitted.device, Kind: admitted.kind, Code: admitted.code, Action: remoteinput.ActionRelease}
 		}
 	}
+	if event.Action == remoteinput.ActionPress {
+		// A repeat of an already-held physical key keeps its first admitted
+		// mapping. If the keyboard mode changed while it was held, the repeat
+		// would arrive under a different mapping; forwarding it would press a
+		// second core key and replace the admission its key-up must release.
+		if admitted, ok := a.playKeyAdmitted[physical]; ok && admitted != (playHIDKey{event.Player, event.Device, event.Kind, event.Code}) {
+			return false
+		}
+	}
 	if !a.sendPlayHIDLocked(event) {
 		if event.Action == remoteinput.ActionRelease {
 			if key, ok := a.playKeyAdmitted[physical]; ok {
