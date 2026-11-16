@@ -541,6 +541,34 @@ ALMs needed.
 
 <!-- end generated -->
 
+## PR #1892's own fit, re-run after its files changed
+
+Changing #1892's RTL came with a condition: re-run its **200 MHz four-corner
+fit**, because its record is hash-bound to bytes that no longer exist. Two
+changes touched it — the `fes_x87_core` split and the packed array — and the
+refit **passes**, marginally better than the original on both axes that moved:
+
+| | PR #1892 | after both changes |
+| --- | ---: | ---: |
+| ALMs | 2,660 | **2,643** |
+| Dedicated logic registers | 4,439 | 4,439 |
+| DSP blocks | 9 | 9 |
+| M20K blocks | 4 | 4 |
+| Logical block-memory bits | 1,568 | 1,568 |
+| Worst setup, all four corners | +0.228 ns | **+0.511 ns** |
+| Worst hold, all four corners | +0.001 ns | **+0.004 ns** |
+
+Registers, DSPs, M20Ks and memory bits are **identical**, which is what a
+behaviour-preserving refactor should look like; 17 ALMs and the setup slack
+moved in the design's favour. **No causation is claimed**: two changes, one
+measurement, and 17 ALMs is well inside what a different netlist shape can
+move. The point is that the condition is met with room, not that the changes
+improved anything.
+
+Together with the bench — **368,090 checks, zero failures**, the same figure
+#1892's record gives — the split and the packed array are behaviour-preserving
+and fit-preserving.
+
 ## Whether it fits in the machine is **not** established by any fit that exists
 
 This record measures the envelope-plus-backend **on its own**. Nothing here

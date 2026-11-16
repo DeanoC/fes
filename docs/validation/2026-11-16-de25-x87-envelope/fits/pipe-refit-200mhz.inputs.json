@@ -1,0 +1,63 @@
+{
+  "board": "de25_nano",
+  "clock_hz": 200000000,
+  "device": "A5EB013BB23BE4SCS",
+  "diagnostic_only": true,
+  "evidence_scope": "internal virtual-pin fit; no board I/O or hardware acceptance",
+  "fes_base_revision": "5e011b61276d092ebcf2f3c50bb9d29ea1e9b1c9",
+  "period_ns": 5.0,
+  "primary_clock": "clk (fitter-assigned location)",
+  "project": "fes_de25_x87",
+  "project_sha256": {
+    "clocks.sdc": "d990db96b2629b419ce3e909ca14a59d95f09a6f4b065d02a666d610c5005564",
+    "fes_de25_x87.qpf": "b410a05e369c8f38c82943eeee4b021b3a42edcab6388d3220f79669be177f85",
+    "fes_de25_x87.qsf": "90afe77eae036a25cd223721abba7adc1b9c47935f19c828bc0894664c7b2cb5",
+    "fes_x87_core.sv": "0409811e168e54691abf5196e5a9f3586a43475207b8d9ad5592ad7b1378c4a6",
+    "fes_x87_fast.sv": "4cc6c1a05e3211473895c9acf1864b246af2d5f3e700fbfc038e053d37a9441c",
+    "fes_x87_pipe.sv": "372e67dda79bd6aba42d74c1eac1b1eacdc9bdc0af0321f4c76f467a80375455",
+    "fes_x87_pkg.sv": "86334f83339b10b47598044b74b510bac5829d52f7cbd4eb379570d2f90dd64d",
+    "fes_x87_round.sv": "e642ba79dde9d898ad20259ae6ec5961ed2bfc4001f32ad2c3d3df2a84d70b01",
+    "fes_x87_slow.sv": "45f43d52b5a92c24e99c47a613b1a8c588bd449391d2df9461441aa02ea4e369",
+    "timing.tcl": "ddf7108a7b05dc8dc3455122c147bb3a13d4dd0816a2c7ffbab22727e8b9efb9"
+  },
+  "quartus": {
+    "edition": "Pro",
+    "qsf_version": "26.3.0 Pro Edition",
+    "release": "26.3.0",
+    "series": "26.3"
+  },
+  "source_classification": "working-copy-diagnostic",
+  "source_sha256": {
+    "board-build.py": "095893ffd144d23a6235f2bd8339c1abcd0de32d7ede2ce633fac0c2584d96cc",
+    "build.py": "cd531b5339e8c84feacc0432601ba79016e1226e9ece098fb87c29cdf05e760f",
+    "quartus.lock": "8acef5ec6f0b0fcd7f41966a759e7532cb20857256e7f52be45e14f407b4466d",
+    "quartus_tools.py": "2bd7c473b4f84a14b06ed75c310ba9adeda07c1baafc0ed01b4db068e6dafcd4",
+    "rtl/fes_x87_core.sv": "0409811e168e54691abf5196e5a9f3586a43475207b8d9ad5592ad7b1378c4a6",
+    "rtl/fes_x87_fast.sv": "4cc6c1a05e3211473895c9acf1864b246af2d5f3e700fbfc038e053d37a9441c",
+    "rtl/fes_x87_pipe.sv": "372e67dda79bd6aba42d74c1eac1b1eacdc9bdc0af0321f4c76f467a80375455",
+    "rtl/fes_x87_pkg.sv": "86334f83339b10b47598044b74b510bac5829d52f7cbd4eb379570d2f90dd64d",
+    "rtl/fes_x87_round.sv": "e642ba79dde9d898ad20259ae6ec5961ed2bfc4001f32ad2c3d3df2a84d70b01",
+    "rtl/fes_x87_slow.sv": "45f43d52b5a92c24e99c47a613b1a8c588bd449391d2df9461441aa02ea4e369",
+    "timing.tcl": "ddf7108a7b05dc8dc3455122c147bb3a13d4dd0816a2c7ffbab22727e8b9efb9"
+  },
+  "top": "fes_x87_pipe",
+  "virtual_data_ports": [
+    "reset",
+    "flush",
+    "req_valid",
+    "req_ready",
+    "req_op[*]",
+    "req_a[*]",
+    "req_b[*]",
+    "req_pc[*]",
+    "req_rc[*]",
+    "req_tag[*]",
+    "resp_valid",
+    "resp_ready",
+    "resp_value[*]",
+    "resp_flags[*]",
+    "resp_cc[*]",
+    "resp_incremented",
+    "resp_tag[*]"
+  ]
+}

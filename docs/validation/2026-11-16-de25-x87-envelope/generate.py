@@ -175,7 +175,7 @@ def latency_table(evidence: Path) -> str:
 
 def fit_table(fits: Path) -> str:
     rows = []
-    for record in sorted(list(fits.glob('*/build.json')) + [f for f in fits.glob('*.json')
+    for record in sorted(list(fits.glob('*/build.json')) + [f for f in fits.glob('unit-*.json')
                          if not f.name.endswith('.inputs.json')]):
         r = load(record)
         if not r:
@@ -229,7 +229,7 @@ def exclusion_table(fits: Path) -> str:
     absence; this is the evidence instead, and the positive controls are what
     make an absence mean absent rather than renamed."""
     rows = []
-    for record in sorted(list(fits.glob('*/build.json')) + [f for f in fits.glob('*.json')
+    for record in sorted(list(fits.glob('*/build.json')) + [f for f in fits.glob('unit-*.json')
                          if not f.name.endswith('.inputs.json')]):
         r = load(record)
         if not r or 'exclusion' not in r:
@@ -256,7 +256,7 @@ def rtl_agreement(fits: Path) -> str:
     check."""
     HARNESS = {'x87_envelope_fit.py', 'x87_envelope_timing.tcl'}
     seen = {}
-    for inputs in sorted(fits.glob('*.inputs.json')):
+    for inputs in sorted(fits.glob('unit-*.inputs.json')):
         d = load(inputs)
         if not d:
             continue
