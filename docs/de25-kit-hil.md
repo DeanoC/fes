@@ -47,6 +47,15 @@ input-response and restored frames. Review the frames to verify the screen
 belongs to the claimed board and shows the expected UI or core. Do not open the
 raw MS2109 device or `/dev/video0`/`/dev/video1`.
 
+For the volatile development `fogcast core-load` smoke of `fes.menu`, the
+active MENU plane is expected to be in its validated safe-black initial state:
+`core-load` does not launch the kit's local tenfoot presenter. Verify the exact
+package is active as `fpga_development`, then verify Stop returns to idle and
+the baseline Welcome/MENU screen is visible again. Interactive menu
+presentation is a separate check of the configured idle MENU and its local
+presenter; a black frame during the volatile load does not establish that UI
+acceptance.
+
 ## Restore baseline
 
 The DE25 baseline is separate from the two-kit DE10 baseline. Its machine

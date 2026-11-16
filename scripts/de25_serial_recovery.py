@@ -15,6 +15,8 @@ J8G_SERIAL = 'TRWU8J8G'
 J8G_DEVICE = '/dev/serial/by-id/usb-TERASIC_DE25-Nano_TRWU8J8G-if02-port0'
 BOOT_MARKERS = (b'Linux version ', b'Starting kernel', b'Run /sbin/init as init process')
 LOGIN_MARKERS = (b'login:', b'Login:')
+LINUX_TIOCSBRK = 0x5427
+LINUX_TIOCCBRK = 0x5428
 
 
 def classify_console(data):
@@ -69,13 +71,13 @@ def capture(fd, seconds):
 
 
 def sysrq_reboot(fd):
-    if not hasattr(termios, 'TIOCSBRK') or not hasattr(termios, 'TIOCCBRK'):
-        raise RuntimeError('serial driver lacks break control required for SysRq reboot')
     termios.tcflush(fd, termios.TCIOFLUSH)
     import fcntl
-    fcntl.ioctl(fd, termios.TIOCSBRK)
+    # Python's termios module omits these Linux ioctls on some distributions.
+    # The Linux UAPI values are stable; use module constants when exported.
+    fcntl.ioctl(fd, getattr(termios, 'TIOCSBRK', LINUX_TIOCSBRK))
     time.sleep(0.25)
-    fcntl.ioctl(fd, termios.TIOCCBRK)
+    fcntl.ioctl(fd, getattr(termios, 'TIOCCBRK', LINUX_TIOCCBRK))
     time.sleep(0.15)
     if os.write(fd, b'b') != 1:
         raise RuntimeError('serial SysRq reboot command was not fully written')
@@ -130,9 +132,9 @@ def main(argv=None):
                   'input_sent': False, 'before': classify_console(initial),
                   'before_text': initial.decode('utf-8', 'replace')}
         if args.reboot:
+            sysrq_reboot(fd)
             result['input_sent'] = True
             result['command'] = 'serial-sysrq-break-b'
-            sysrq_reboot(fd)
             output = capture(fd, args.boot_seconds)
             result['after'] = classify_console(output)
             result['after_text'] = output.decode('utf-8', 'replace')

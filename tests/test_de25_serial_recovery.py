@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import call, patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +32,20 @@ class De25SerialRecoveryTests(unittest.TestCase):
         self.assertIn('TRWU8J8G', recovery.J8G_DEVICE)
         self.assertNotIn('TRWU8CBL', recovery.J8G_DEVICE)
         self.assertEqual(recovery.J8G_SERIAL, 'TRWU8J8G')
+
+    @patch('fcntl.ioctl')
+    @patch.object(recovery.os, 'write', return_value=1)
+    @patch.object(recovery.termios, 'tcflush')
+    @patch.object(recovery.time, 'sleep')
+    def test_linux_break_ioctl_fallback_is_used_when_python_omits_constants(
+            self, _sleep, _flush, _write, ioctl):
+        self.assertFalse(hasattr(recovery.termios, 'TIOCSBRK'))
+        self.assertFalse(hasattr(recovery.termios, 'TIOCCBRK'))
+        recovery.sysrq_reboot(7)
+        self.assertEqual(ioctl.call_args_list, [
+            call(7, recovery.LINUX_TIOCSBRK),
+            call(7, recovery.LINUX_TIOCCBRK),
+        ])
 
     def test_receipt_requires_a_detected_boot_and_distinct_network_boot_ids(self):
         with tempfile.TemporaryDirectory() as temporary:
