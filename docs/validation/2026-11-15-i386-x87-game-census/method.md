@@ -238,6 +238,30 @@ credited there.
    control form; it reported 19.6M operations beside an actual FRNDINT count
    of 25,400. It now comes from FRNDINT's own rows.
 
+### 16 November 2026, after the runs — three more, all from review
+
+5. **`x87sig` read the wrong register for `FSTP ST(i)`.** DD /3 is a popping
+   store in *register* form and my test for "this is a store" required a
+   memory form, so its width came from the register underneath. It runs
+   615,685 times in Quake. Fixed in `census.h`; **these runs predate the fix
+   and were not rerun**, so the verdict and the width tables use an
+   aggregate that excludes `dd.r2` and `dd.r3`
+   (`significand_excluding_register_stores`), and the rows carry
+   `register_store_widths_reliable: false`.
+6. **The stored-value table conflated three different things.** It is now
+   four labelled columns — real m64 preserved exactly, real m64 rounded in
+   the store, real m80, real m32, integer conversions — because `FIST`/
+   `FISTP`/`FBSTP` convert to an integer (a wide source says nothing about a
+   floating-point datapath's width), `FST`/`FSTP ST(i)` move no memory
+   operand, and an m32 destination rounds to 24 bits whatever the register
+   held. Only the first three are offered as evidence, and the second as an
+   inference rather than a measurement.
+7. **The never-executed list is generated, with mnemonics, over all nine
+   runs.** Written by hand it was wrong: it claimed every transcendental but
+   FSIN and FCOS went unexecuted when F2XM1, FYL2X, FPTAN, FPATAN, FSINCOS
+   and FSCALE all ran. The "N of 162" fraction is gone for a separate reason
+   — the denominator counted spellings the census cannot emit.
+
 ### 16 November 2026 — one promise this record does not keep
 
 The method says each row will say "what the window reached (prompt, menu, or

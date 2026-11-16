@@ -6,31 +6,31 @@ title's own window, on the drive the method pins.
 
 ## The opcode mix
 
-| Title | x87 retired | load / store / FXCH | arithmetic | compare | transcendental | control |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Quake timedemo (DOSBench) (25.0 s) | 31,997,318 | 22.34% / 11.04% / 20.09% | 38.72% | 2.99% | 0.04% | 4.57% |
-| Screamer (1995) (30.0 s) | 1,266,208 | 26.14% / 12.94% / 7.66% | 33.54% | 3.93% | 1.11% | 11.18% |
-| Chris's 3D Benchmark (20.0 s) | 15,236,311 | 27.90% / 22.66% / 0.61% | 20.26% | 9.15% | 0.02% | 19.39% |
-| Terminal Velocity (1995) (30.0 s) | 6,850 | 15.74% / 15.58% / 7.52% | 23.08% | 0.01% | 7.50% | 22.99% |
-| DOOM (1993) (20.0 s) | 11 | 0.00% / 0.00% / 0.00% | 0.00% | 0.00% | 0.00% | 100.00% |
-| Wolfenstein 3D (1992) (20.0 s) | 13,605 | 20.85% / 19.74% / 0.00% | 23.45% | 2.23% | 5.09% | 27.53% |
-| Ultima VI: The False Prophet (1990) (20.0 s) | 0 | - / - / - | - | - | - | - |
-| Ultima VII: The Black Gate (1992) (20.0 s) | 0 | - / - / - | - | - | - | - |
-| Ultima VII Part Two: Serpent Isle (1993) (20.0 s) | 0 | - / - / - | - | - | - | - |
+| Title | x87 retired | load / store / FXCH | arithmetic | compare | transc. | FRNDINT | simple | control |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Quake timedemo (DOSBench) (25.0 s) | 31,997,318 | 22.34% / 11.04% / 20.09% | 38.72% | 2.99% | 0.04% | 0.08% | 0.14% | 4.57% |
+| Screamer (1995) (30.0 s) | 1,266,208 | 26.14% / 12.94% / 7.66% | 33.54% | 3.93% | 1.11% | 3.15% | 0.35% | 11.18% |
+| Chris's 3D Benchmark (20.0 s) | 15,236,311 | 27.90% / 22.66% / 0.61% | 20.26% | 9.15% | 0.02% | 0.00% | 0.00% | 19.39% |
+| Terminal Velocity (1995) (30.0 s) | 6,850 | 15.74% / 15.58% / 7.52% | 23.08% | 0.01% | 7.50% | 7.56% | 0.01% | 22.99% |
+| DOOM (1993) (20.0 s) | 11 | 0.00% / 0.00% / 0.00% | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% | 100.00% |
+| Wolfenstein 3D (1992) (20.0 s) | 13,605 | 20.85% / 19.74% / 0.00% | 23.45% | 2.23% | 5.09% | 0.00% | 1.12% | 27.53% |
+| Ultima VI: The False Prophet (1990) (20.0 s) | 0 | - / - / - | - | - | - | - | - | - |
+| Ultima VII: The Black Gate (1992) (20.0 s) | 0 | - / - / - | - | - | - | - | - | - |
+| Ultima VII Part Two: Serpent Isle (1993) (20.0 s) | 0 | - / - / - | - | - | - | - | - | - |
 
 ## Precision control, rounding control, and the verdict
 
-| Title | PC over arithmetic | RC over arithmetic | significands above 24 bits | FLD m80 / FSTP m80 | 24-bit significand sufficient? |
-| --- | --- | --- | --- | ---: | --- |
-| Quake timedemo (DOSBench) (25.0 s) | 24 11,926,211, 64 462,063 | zero 10,809,686, up 1,116,525, nearest 462,063 | le53 107,191, le64 58,329 | 47,161 / 46,847 | **no** |
-| Screamer (1995) (30.0 s) | 53 424,703, 64 1 | nearest 424,704 | le53 95,302, le64 36,189 | 524 / 0 | **no** |
-| Chris's 3D Benchmark (20.0 s) | 64 3,086,420 | nearest 3,086,420 | le53 2,849,963, le64 1,882,494 | 55,436 / 55,437 | **no** |
-| Terminal Velocity (1995) (30.0 s) | 53 1,580, 64 1 | nearest 1,581 | le53 2,567, le64 756 | 0 / 0 | **no** |
-| DOOM (1993) (20.0 s) | - | - | - | 0 / 0 | probe only, no verdict |
-| Wolfenstein 3D (1992) (20.0 s) | 64 3,190 | nearest 3,190 | le64 5,554, le53 4,388 | 0 / 0 | **no** |
-| Ultima VI: The False Prophet (1990) (20.0 s) | - | - | - | 0 / 0 | probe only, no verdict |
-| Ultima VII: The Black Gate (1992) (20.0 s) | - | - | - | 0 / 0 | probe only, no verdict |
-| Ultima VII Part Two: Serpent Isle (1993) (20.0 s) | - | - | - | 0 / 0 | probe only, no verdict |
+| Title | PC class | PC over arithmetic | RC over arithmetic | significands above 24 bits (excl. register stores) | FLD m80 / FSTP m80 | 24-bit significand sufficient? |
+| --- | --- | --- | --- | --- | ---: | --- |
+| Quake timedemo (DOSBench) (25.0 s) | mixed (24, 64) | 24 11,926,211, 64 462,063 | zero 10,809,686, up 1,116,525, nearest 462,063 | le53 105,671, le64 58,121 | 47,161 / 46,847 | **no** |
+| Screamer (1995) (30.0 s) | mixed (53, 64) | 53 424,703, 64 1 | nearest 424,704 | le53 85,528, le64 36,189 | 524 / 0 | **no** |
+| Chris's 3D Benchmark (20.0 s) | 64 | 64 3,086,420 | nearest 3,086,420 | le53 2,843,054, le64 1,804,963 | 55,436 / 55,437 | **no** |
+| Terminal Velocity (1995) (30.0 s) | mixed (53, 64) | 53 1,580, 64 1 | nearest 1,581 | le53 2,567, le64 756 | 0 / 0 | **no** |
+| DOOM (1993) (20.0 s) | - | - | - | - | 0 / 0 | probe only, no verdict |
+| Wolfenstein 3D (1992) (20.0 s) | 64 | 64 3,190 | nearest 3,190 | le64 5,554, le53 4,388 | 0 / 0 | **no** |
+| Ultima VI: The False Prophet (1990) (20.0 s) | - | - | - | - | 0 / 0 | probe only, no verdict |
+| Ultima VII: The Black Gate (1992) (20.0 s) | - | - | - | - | 0 / 0 | probe only, no verdict |
+| Ultima VII Part Two: Serpent Isle (1993) (20.0 s) | - | - | - | - | 0 / 0 | probe only, no verdict |
 
 ## The operand precisions actually used
 
@@ -269,8 +269,31 @@ are not always the frequent ones. `class` and `operand` are
 | `df.m7` | store | int64 | 5,888 | 0 | 65,792 | 0 | 0 | 1,146 | 0 | 0 | 0 |
 | `dfe0` | control | none | 969,962 | 30,387 | 1,395,600 | 1 | 0 | 1 | 0 | 0 | 0 |
 
-**Forms no title in this census executed (66 of 162):** `d9e9`, `d9eb`, `d9ec`, `d9f4`, `d9f5`, `d9f6`, `d9f7`, `d9f8`, `d9f9`, `da.r0`, `da.r1`, `da.r2`, `da.r3`, `da.r4`, `da.r5`, `da.r6`, `da.r7`, `db.r0`, `db.r1`, `db.r2`, `db.r3`, `db.r4`, `db.r5`, `db.r6`, `db.r7`, `dbe0`, `dbe1`, `dbe2`, `dc.r2`, `dc.r3`, `dd.m4`, `dd.m6`, `dd.r0`, `dd.r1`, `dd.r2`, `dde5`, `dde6`, `dde7`, `dde8`, `ddea`, `ddeb`, `dded`, `ddee`, `ddef`, `de.m0`, `de.m1`, `de.m2`, `de.m3`, `de.m4`, `de.m5`, `de.m6`, `de.m7`, `de.r2`, `de.r3`, `df.m2`, `df.m3`, `df.m4`, `df.m6`, `df.r0`, `df.r1`, `df.r2`, `df.r3`, `df.r4`, `df.r5`, `df.r6`, `df.r7`.
+**The 387 instructions no title in this census executed**, over all 9 runs:
 
-For slice 6: these are the forms the census titles never reach, so
-optimising them buys nothing measurable here. They must still be *correct* —
-a 387 that is missing a form is not a 387 — but they need not be fast.
+- FLDL2T (`d9e9`)
+- FLDPI (`d9eb`)
+- FLDLG2 (`d9ec`)
+- FXTRACT (`d9f4`)
+- FPREM1 (`d9f5`)
+- FDECSTP (`d9f6`)
+- FINCSTP (`d9f7`)
+- FPREM (`d9f8`)
+- FYL2XP1 (`d9f9`)
+- FNCLEX (`dbe2`)
+- FRSTOR (`dd.m4`)
+- FNSAVE (`dd.m6`)
+- FFREE (`dd.r0`)
+- FST ST(i) (`dd.r2`)
+- FIST m16 (`df.m2`)
+- FISTP m16 (`df.m3`)
+- FBLD (`df.m4`)
+- FBSTP (`df.m6`)
+
+A further 48 register-form spellings in the classification went unexecuted; they are the `ST(i)` variants of forms above and encodings the census cannot emit, so they are not listed as instructions.
+
+For slice 6: the named instructions above are what the census titles never
+reach, so optimising them buys nothing measurable here. They must still be
+*correct* — a 387 that is missing a form is not a 387 — but they need not be
+fast. The caveat is the window's: a title that reaches one only in later
+play is not represented.

@@ -166,6 +166,33 @@ PRECISION = {0: '24', 1: 'reserved', 2: '53', 3: '64'}
 ROUNDING = {0: 'nearest', 1: 'down', 2: 'up', 3: 'zero'}
 
 
+# Mnemonics for the forms, so a generated list can name instructions rather
+# than encodings. A form with no entry keeps its encoding.
+X87_MNEMONIC = {
+    'd9f0': 'F2XM1', 'd9f1': 'FYL2X', 'd9f2': 'FPTAN', 'd9f3': 'FPATAN', 'd9f4': 'FXTRACT',
+    'd9f5': 'FPREM1', 'd9f6': 'FDECSTP', 'd9f7': 'FINCSTP', 'd9f8': 'FPREM', 'd9f9': 'FYL2XP1',
+    'd9fa': 'FSQRT', 'd9fb': 'FSINCOS', 'd9fc': 'FRNDINT', 'd9fd': 'FSCALE', 'd9fe': 'FSIN',
+    'd9ff': 'FCOS', 'd9e0': 'FCHS', 'd9e1': 'FABS', 'd9e4': 'FTST', 'd9e5': 'FXAM',
+    'd9e8': 'FLD1', 'd9e9': 'FLDL2T', 'd9ea': 'FLDL2E', 'd9eb': 'FLDPI', 'd9ec': 'FLDLG2',
+    'd9ed': 'FLDLN2', 'd9ee': 'FLDZ', 'dbe2': 'FNCLEX', 'dbe3': 'FNINIT', 'dbe4': 'FSETPM',
+    'dfe0': 'FNSTSW AX', 'ded9': 'FCOMPP', 'dae9': 'FUCOMPP',
+    'd9.m0': 'FLD m32', 'd9.m2': 'FST m32', 'd9.m3': 'FSTP m32', 'd9.m4': 'FLDENV',
+    'd9.m5': 'FLDCW', 'd9.m6': 'FNSTENV', 'd9.m7': 'FNSTCW', 'd9.r0': 'FLD ST(i)',
+    'd9.r1': 'FXCH', 'dd.m0': 'FLD m64', 'dd.m2': 'FST m64', 'dd.m3': 'FSTP m64',
+    'dd.m4': 'FRSTOR', 'dd.m6': 'FNSAVE', 'dd.m7': 'FNSTSW m16', 'dd.r0': 'FFREE',
+    'dd.r2': 'FST ST(i)', 'dd.r3': 'FSTP ST(i)', 'db.m0': 'FILD m32', 'db.m2': 'FIST m32',
+    'db.m3': 'FISTP m32', 'db.m5': 'FLD m80', 'db.m7': 'FSTP m80',
+    'df.m0': 'FILD m16', 'df.m2': 'FIST m16', 'df.m3': 'FISTP m16', 'df.m4': 'FBLD',
+    'df.m5': 'FILD m64', 'df.m6': 'FBSTP', 'df.m7': 'FISTP m64',
+}
+
+
+def x87_name(form: str) -> str:
+    """'d9f0' -> 'F2XM1 (`d9f0`)'; an unnamed form keeps its encoding."""
+    mnemonic = X87_MNEMONIC.get(form)
+    return f'{mnemonic} (`{form}`)' if mnemonic else f'`{form}`'
+
+
 def x87_form_of(key: str) -> str:
     """The form in an x87 key's field: 'D8.m0:pm3' -> 'D8.m0'."""
     return key.split(':')[0]
@@ -208,12 +235,20 @@ def x87_summary(counts: dict[str, int]) -> dict:
             pc_arith[pc] += n
             rc_arith[rc] += n
     sig: Counter = Counter()
+    sig_conservative: Counter = Counter()
     sig_by_form: dict[str, Counter] = {}
     for key, n in counts.items():
         if key.startswith('x87sig:'):
             form, _, bucket = key[len('x87sig:'):].rpartition(':')
             sig[bucket] += n
             sig_by_form.setdefault(bucket, Counter())[form] += n
+            # The register stores FST/FSTP ST(i) are read from the correct
+            # side only in census files written after the popping-store fix,
+            # and a census file cannot say which it is, so the verdict uses an
+            # aggregate without them. It is conservative either way: their
+            # values were produced by arithmetic or a load that is counted.
+            if form not in ('dd.r2', 'dd.r3'):
+                sig_conservative[bucket] += n
     masks: Counter = Counter()
     for key, n in counts.items():
         if key.startswith('x87cwform:'):
@@ -273,8 +308,8 @@ def x87_summary(counts: dict[str, int]) -> dict:
         if pc != '24' and n:
             reasons.append(f'{n} arithmetic ESCs at PC={pc}')
     for bucket in ('le53', 'le64'):
-        if sig.get(bucket):
-            reasons.append(f'{sig[bucket]} steps left ST(0) with a significand in {bucket}')
+        if sig_conservative.get(bucket):
+            reasons.append(f'{sig_conservative[bucket]} steps left ST(0) with a significand in {bucket}')
     for form in ('db.m5', 'db.m7'):
         if ops.get(form):
             reasons.append(f'{ops[form]} {"FLD" if form == "db.m5" else "FSTP"} m80')
@@ -316,6 +351,9 @@ def x87_summary(counts: dict[str, int]) -> dict:
         'frndint': ops.get('d9fc', 0),
         'frndint_by_pc': dict(sorted(frndint_pc.items())),
         'irq13': irq13,
+        'irq13_recorded': any(k.startswith('x87irq13:') for k in counts),
+        'register_store_widths_reliable': False,
+        'significand_excluding_register_stores': dict(sorted(sig_conservative.items())),
         'relies_on_exceptions': bool(r_es or irq13),
         'fsqrt_by_pc': dict(sorted(pc_by_class.get('sqrt', Counter()).items())),
         'pc_sites': {p: dict(sorted(c.items())) for p, c in sorted(pc_sites.items())},

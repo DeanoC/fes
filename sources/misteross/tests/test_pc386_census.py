@@ -217,6 +217,42 @@ int main(int, char **argv) {
             c.x87(se, se, retired(), st, st, 9.26);
         }
         assert(c.counts.at("x87sig:d9.m2:empty") == 1);
+        // DD /3 is FSTP ST(i): a popping store in REGISTER form, so its value
+        // is also only in the state before the step. Reading after the pop
+        // was a measured bug (the review's finding): here the stored value is
+        // wide and what is left behind is narrow.
+        put(0x244, {0xdd, 0xdb});  // FSTP ST(3)
+        State sr = pm(0x244, 3);
+        c.begin(sr, "site");
+        c.x87(sr, sr, retired(), x87(0x003f, 0x0000, 3), x87(0x003f, 1 << 11, uint64_t(1) << 40), 9.27);
+        assert(c.counts.at("x87sig:dd.r3:le64") == 1);
+        assert(c.counts.count("x87sig:dd.r3:le24") == 0);
+        // FST ST(i) (DD /2) does not pop, but is read from the same side.
+        put(0x248, {0xdd, 0xd3});
+        State sr2 = pm(0x248, 3);
+        c.begin(sr2, "site");
+        c.x87(sr2, sr2, retired(), x87(0x003f, 0x0000, 3), x87(0x003f, 0x0000, 3), 9.28);
+        assert(c.counts.at("x87sig:dd.r2:le64") == 1);
+        // IRQ 13 delivery is counted in every mode, including real mode, and
+        // notes whether ES was already set. A step that only delivers an
+        // interrupt counts no form.
+        {
+            State ri;  // real mode
+            ri.eip = 0x300;
+            put(0x300, {0x90});
+            StepResult irq = with(EventKind::ExternalInterrupt, 0x75, 0, false);
+            X87State es;
+            es.control = 0x003f;
+            es.status = 0x0080;  // ES set
+            c.begin(ri, "site");
+            c.x87(ri, ri, irq, es, es, 9.29);
+            assert(c.counts.at("x87irq13:75:rm:es") == 1);
+            // Another external interrupt is not the coprocessor's.
+            StepResult other = with(EventKind::ExternalInterrupt, 0x08, 0, false);
+            c.begin(ri, "site");
+            c.x87(ri, ri, other, es, es, 9.30);
+            assert(c.counts.count("x87irq13:08:rm:es") == 0);
+        }
         // FDIV m64 (DC /6) at PC=64 on another page: the site key separates them.
         put(0x1240, {0xdc, 0x35, 0, 0, 0, 0});
         State s5 = pm(0x1240, 3);

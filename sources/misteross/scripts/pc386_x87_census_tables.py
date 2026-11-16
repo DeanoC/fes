@@ -42,17 +42,30 @@ def counts(d: dict[str, int]) -> str:
 
 def mix_row(name: str, r: dict) -> str:
     c, t = r['by_class'], r['retired']
+    # Every class, so the row sums to 100%: `round` is FRNDINT, which honours
+    # rounding control and ignores precision control, and `simple` is FCHS,
+    # FABS, FFREE and the stack moves.
     return (f"| {name} | {r['retired']:,} | "
             f"{pct(c.get('load', 0), t)} / {pct(c.get('store', 0), t)} / {pct(c.get('fxch', 0), t)} | "
             f"{pct(c.get('arith', 0), t)} | {pct(c.get('compare', 0), t)} | "
-            f"{pct(c.get('trans', 0), t)} | {pct(c.get('control', 0), t)} |")
+            f"{pct(c.get('trans', 0), t)} | {pct(c.get('round', 0), t)} | "
+            f"{pct(c.get('simple', 0), t)} | {pct(c.get('control', 0), t)} |")
+
+
+def pc_class(r: dict) -> str:
+    """The committed PC class: 24, 53, 64, or mixed when more than one PC
+    appears over the arithmetic forms."""
+    present = [k for k, v in r['pc_arith'].items() if v]
+    if not present:
+        return '-'
+    return present[0] if len(present) == 1 else 'mixed (' + ', '.join(sorted(present)) + ')'
 
 
 def precision_row(name: str, r: dict) -> str:
     verdict = ('probe only, no verdict' if r['probe_only']
                else 'yes' if r['pc24_sufficient'] else '**no**')
-    return (f"| {name} | {counts(r['pc_arith'])} | {counts(r['rc_arith'])} | "
-            f"{counts({k: v for k, v in r['significand'].items() if k in ('le53', 'le64')}) } | "
+    return (f"| {name} | {pc_class(r)} | {counts(r['pc_arith'])} | {counts(r['rc_arith'])} | "
+            f"{counts({k: v for k, v in r['significand_excluding_register_stores'].items() if k in ('le53', 'le64')}) } | "
             f"{r['by_form'].get('db.m5', 0):,} / {r['by_form'].get('db.m7', 0):,} | {verdict} |")
 
 
@@ -103,11 +116,11 @@ def main(argv: list[str] | None = None) -> int:
         out.append('')
 
     table('The opcode mix',
-          '| Title | x87 retired | load / store / FXCH | arithmetic | compare | transcendental | control |',
-          '| --- | ---: | ---: | ---: | ---: | ---: | ---: |', mix_row)
+          '| Title | x87 retired | load / store / FXCH | arithmetic | compare | transc. | FRNDINT | simple | control |',
+          '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |', mix_row)
     table('Precision control, rounding control, and the verdict',
-          '| Title | PC over arithmetic | RC over arithmetic | significands above 24 bits | FLD m80 / FSTP m80 | 24-bit significand sufficient? |',
-          '| --- | --- | --- | --- | ---: | --- |', precision_row)
+          '| Title | PC class | PC over arithmetic | RC over arithmetic | significands above 24 bits (excl. register stores) | FLD m80 / FSTP m80 | 24-bit significand sufficient? |',
+          '| --- | --- | --- | --- | --- | ---: | --- |', precision_row)
     table('The operand precisions actually used',
           '| Title | real m32 | real m64 | real m80 | int m16 / m32 / m64 | BCD m80 | env and save images |',
           '| --- | ---: | ---: | ---: | ---: | ---: | ---: |', operand_row)
@@ -223,12 +236,25 @@ def main(argv: list[str] | None = None) -> int:
         cls, operand = X_UNKNOWN if form not in summary.X87_FORMS else summary.X87_FORMS[form]
         out.append(f'| `{form}` | {cls} | {operand} | ' +
                    ' | '.join(f"{row['x87']['by_form'].get(form, 0):,}" for _, row in rows) + ' |')
-    never = sorted(set(summary.X87_FORMS) - set(forms))
-    out.extend(['', f'**Forms no title in this census executed ({len(never)} of '
-                    f'{len(summary.X87_FORMS)}):** ' + ', '.join(f'`{f}`' for f in never) + '.',
-                '', 'For slice 6: these are the forms the census titles never reach, so',
-                'optimising them buys nothing measurable here. They must still be *correct* —',
-                'a 387 that is missing a form is not a 387 — but they need not be fast.', ''])
+    # The 387 instructions no title executed, named rather than counted as a
+    # fraction: the denominator of key spellings is not meaningful, because the
+    # table holds spellings the census cannot emit and encodings that are not
+    # 387 instructions.
+    never = sorted(f for f in summary.X87_FORMS if f not in forms and f in summary.X87_MNEMONIC)
+    unnamed = sorted(f for f in summary.X87_FORMS if f not in forms and f not in summary.X87_MNEMONIC)
+    out.extend(['', '**The 387 instructions no title in this census executed**, over all '
+                    f'{len(rows)} runs:', ''])
+    for form in never:
+        out.append(f'- {summary.x87_name(form)}')
+    out.extend(['', f'A further {len(unnamed)} register-form spellings in the classification '
+                    'went unexecuted; they are the `ST(i)` variants of forms above and '
+                    'encodings the census cannot emit, so they are not listed as '
+                    'instructions.',
+                '', 'For slice 6: the named instructions above are what the census titles never',
+                'reach, so optimising them buys nothing measurable here. They must still be',
+                '*correct* — a 387 that is missing a form is not a 387 — but they need not be',
+                'fast. The caveat is the window\'s: a title that reaches one only in later',
+                'play is not represented.', ''])
     args.out.write_text('\n'.join(out))
     print(f'{len(rows)} rows -> {args.out}')
     return 0

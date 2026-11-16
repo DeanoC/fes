@@ -52,8 +52,8 @@ than 24 bits in the register file on 165,520 steps.
 precision control bounds add, subtract, multiply, divide and square root and
 does **not** bound `FILD`, `FLD m64`, the constant loads, `FRNDINT`,
 `FPREM`, `FSCALE` or the transcendentals: Quake **163,792** steps, Screamer
-**121,717**, Chris's benchmark **4,648,017**, Wolfenstein 3D 9,942, Terminal
-Velocity 3,323. These exclude `FST`/`FSTP ST(i)`, whose buckets in these
+**121,717**, Chris's benchmark **4,648,017**, Wolfenstein 3D
+9,942, Terminal Velocity 3,323. These exclude `FST`/`FSTP ST(i)`, whose buckets in these
 runs are unreliable — see the note below.
 
 Beyond coverage, two arguments stand independently of any count:
@@ -282,10 +282,13 @@ the significand widths of those very operations.
 | significand `le64` | 1,436 | 1,344 |
 | zero significand | 5,162 | 5,165 |
 
-**Four fifths of them carry values a 24-bit significand holds exactly.** The
-near-equal load and store counts, and the width distribution, are the shape
-of **register spills** — compilers of that era save x87 registers across
-calls in the extended format whatever the value's precision — not of a title
+**Four fifths of them carry values a 24-bit significand holds exactly.**
+That is the measurement. **That they are compiler register spills is an
+inference** — it came to me from the coordinating session and I did not check
+it against Quake's build or a disassembly — resting on the near-equal load
+and store counts (47,161 against 46,847) and that width distribution.
+Whatever the mechanism, the measured fact is enough: four fifths of this
+traffic holds values of 24 bits or fewer, so the counts do not show a title
 relying on extended precision. A narrow unit would round-trip its *own*
 spills exactly, because it would spill its own narrower values. So the m80
 traffic is **not** an independent reason, and where it does carry wide values
@@ -478,27 +481,25 @@ hottest non-trivial FP operation in the corpus.
 
 ### Which 387 operations no title executed
 
-The per-form table is a full histogram, not a top-N, so it can say what was
-never reached. An earlier revision of this record gave a fraction, "71 of
-162 forms"; that is withdrawn, because the denominator counted key spellings
-the census cannot emit and encodings that are not 387 instructions, so the
-ratio was not meaningful.
+**Corrected 16 November 2026: this list was typed and was wrong.** An
+earlier revision said "every transcendental except FSIN and FCOS" never ran,
+and that FSCALE never ran. Checked against all nine runs, **F2XM1, FYL2X,
+FPTAN, FPATAN, FSINCOS and FSCALE all executed** — the claim was false, and
+it was false because I wrote the list by hand instead of generating it. The
+earlier "71 of 162 forms" fraction was withdrawn for a different reason (a
+meaningless denominator) and this replaced it with something worse: a
+confident list that contradicted the census's own rows.
 
-Named instead, the 387 operations **no title in this census executed**:
+The list is now **generated over all nine runs, with mnemonics**, in
+[tables.md](tables.md). The 387 instructions no title executed are
+`FXTRACT`, `FPREM`, `FPREM1`, `FYL2XP1`, `FDECSTP`, `FINCSTP`, `FNCLEX`,
+`FRSTOR`, `FNSAVE`, `FFREE`, `FST ST(i)`, `FIST m16`, `FISTP m16`, `FBLD`,
+`FBSTP` and three of the constant loads (`FLDL2T`, `FLDPI`, `FLDLG2`).
 
-- **every transcendental except `FSIN` and `FCOS`** — no `FPTAN`,
-  `FPATAN`, `F2XM1`, `FYL2X`, `FYL2XP1` or `FSINCOS`;
-- **`FPREM` and `FPREM1`**, and `FSCALE` and `FXTRACT`;
-- **the BCD forms `FBLD` and `FBSTP`**;
-- **`FSAVE` and `FRSTOR`** (no title in these windows took a full save or
-  restore image; `FLDENV` and `FNSTENV` ran twice in Quake);
-- **the 16-bit integer stores `FIST`/`FISTP m16`**, and `FILD m16` outside
-  Screamer.
-
-They must still be *correct* — a 387 missing a form is not a 387 — but they
-need not be fast, and slice 6 should not spend area making them so. The
-caveat is the window's: a title that reaches these only in later play is not
-represented.
+For slice 6: those are what the census titles never reach, so optimising
+them buys nothing measurable here. They must still be *correct* — a 387
+missing a form is not a 387 — but they need not be fast. The caveat is the
+window's: a title that reaches one only in later play is not represented.
 
 ### What is hot
 
