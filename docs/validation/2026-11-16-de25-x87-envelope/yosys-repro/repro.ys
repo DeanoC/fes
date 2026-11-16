@@ -1,0 +1,4 @@
+read_verilog -sv repro.sv
+hierarchy -top repro
+proc -norom; flatten; opt -purge
+write_verilog repro.netlist.v

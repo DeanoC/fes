@@ -22,18 +22,6 @@ module fes_x87_fast (
     } meta_t;
 
     meta_t decoded, meta [1:6];
-    // The locked Yosys (cores/fes-common/rtl/i386/toolchain.lock) does not
-    // read a packed-struct MEMBER of an unpacked-array element: `meta6.slot`
-    // is implicitly declared as a fresh, undriven identifier and reads as
-    // zero, with a warning rather than an error, so the netlist computes
-    // nonsense while the RTL simulation is correct. The unit bench's netlist
-    // mode caught it on the first run with the DE25 backend selected.
-    // Reading the whole element into a wire first is accepted, so every
-    // member read below goes through these. A fork issue and a locked-binary
-    // repro accompany this workaround.
-    meta_t meta4, meta6;
-    assign meta4 = meta[4];
-    assign meta6 = meta[6];
     unpack_t ua, ub;
     logic b_sign, a_larger;
     logic [63:0] large_sig, small_sig;
@@ -227,7 +215,7 @@ module fes_x87_fast (
 
         // 5: cancellation normalization; third multiplier reduction.
         s5_add <= s4_sum << s4_left;
-        s5_add_exponent <= meta4.exponent + $signed({17'd0,s4_carry}) -
+        s5_add_exponent <= meta[4].exponent + $signed({17'd0,s4_carry}) -
                            $signed({11'd0,s4_left});
         s5_low <= s4_low;
         s5_high <= {38'd0,s4_mid} + {s4_high,22'd0};
@@ -239,24 +227,24 @@ module fes_x87_fast (
 
         // 7: multiplier normalization, guard/round/sticky extraction and emit.
         res <= '0;
-        res.slot <= meta6.slot;
-        res.pc <= meta6.pc;
-        res.rc <= meta6.rc;
-        res.sign <= meta6.sign;
-        res.special <= meta6.special;
-        res.value <= meta6.value;
-        res.flags <= meta6.flags;
-        res.cc <= meta6.cc;
-        if (meta6.multiply) begin
-            res.exponent <= meta6.exponent + $signed({17'd0,s6_product[127]});
+        res.slot <= meta[6].slot;
+        res.pc <= meta[6].pc;
+        res.rc <= meta[6].rc;
+        res.sign <= meta[6].sign;
+        res.special <= meta[6].special;
+        res.value <= meta[6].value;
+        res.flags <= meta[6].flags;
+        res.cc <= meta[6].cc;
+        if (meta[6].multiply) begin
+            res.exponent <= meta[6].exponent + $signed({17'd0,s6_product[127]});
             res.significand <= s6_product[127] ?
                 {s6_product[127:62], |s6_product[61:0]} :
                 {s6_product[126:61], |s6_product[60:0]};
         end else begin
             res.exponent <= s6_add_exponent;
             res.significand <= s6_add;
-            if (s6_add == 0 && !meta6.special)
-                res.sign <= meta6.rc == 2'b01;
+            if (s6_add == 0 && !meta[6].special)
+                res.sign <= meta[6].rc == 2'b01;
         end
     end
     assign out_valid = valid[6];
