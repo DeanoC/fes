@@ -478,11 +478,13 @@ def run_x87(testbench: str, env: dict) -> dict:
     (lockstep_tb.cpp's run_x87_cases), the i386dx+387 identity on: the forms
     slices 2 and 3 of the x87 phase build, run through the CPU against the
     oracle's 387, with the 387's whole state compared at every retirement.
-    The random and corpus programs run no ESC, so these are what exercises
-    the unit inside the CPU -- and the only thing that exercises the decode's
-    uops for the arithmetic forms, the x87 pointers and the opcode they
-    leave, and the issue interlock, none of which the unit's own bench
-    reaches."""
+    Alongside these directed streams, run_x87_cases adds seeded mixed
+    arithmetic, compare and FRNDINT guest programs over finite ext80 operands.
+    The ordinary random and corpus programs run no ESC, so the x87 suite
+    exercises the unit inside the CPU -- and the only thing that exercises
+    the decode's uops for the arithmetic forms, the x87 pointers and the
+    opcode they leave, and the issue interlock, none of which the unit's own
+    bench reaches."""
     env = dict(env, FES_I386_MODE='x87', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
@@ -493,7 +495,9 @@ def run_x87(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-X87_CASES = 14
+X87_DIRECTED_CASES = 14
+X87_RANDOM_CASES = 8 * 3 * 4
+X87_CASES = X87_DIRECTED_CASES + X87_RANDOM_CASES
 
 
 def divergence_table(entries: list[dict], path: Path) -> None:

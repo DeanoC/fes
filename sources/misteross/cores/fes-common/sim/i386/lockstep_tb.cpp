@@ -10272,8 +10272,13 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
         void o32() { b.push_back(0x66); }
     };
     constexpr uint32_t CODE = 0x1000, HANDLER = 0x1800, DS = 0x7000;
-    struct Case { const char *label; std::function<void(Asm &)> body; };
-    const Case cases[] = {
+    struct Operand { uint16_t at; std::vector<uint8_t> bytes; };
+    struct Case {
+        std::string label;
+        std::function<void(Asm &)> body;
+        std::vector<Operand> operands{};
+    };
+    std::vector<Case> cases = {
         {"const", [](Asm &a) {
             a.op({0xdb, 0xe3});                                    // FNINIT
             for (uint8_t n = 0xe8; n <= 0xee; ++n) a.op({0xd9, n}); // FLD1 .. FLDZ
@@ -10514,6 +10519,78 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
         }},
     };
 
+    // Seeded guest programs exercise mixed x87 streams in the CPU, rather
+    // than only feeding the unit through its direct interface. Keep the
+    // operands finite and the exponents modest so these cases test the
+    // decode/uop/interlock path without depending on unmasked IRQ 13 wiring.
+    std::mt19937_64 random(0x1879'2026'1115ull);
+    auto random_ext80 = [&]() {
+        std::vector<uint8_t> bytes(10);
+        const uint64_t significand = random() | 0x8000000000000000ull;
+        const uint16_t exponent = uint16_t(0x3fff + int(random() % 25) - 12);
+        const uint16_t sign_exponent = uint16_t(exponent | ((random() & 1) << 15));
+        std::memcpy(bytes.data(), &significand, sizeof significand);
+        std::memcpy(bytes.data() + 8, &sign_exponent, sizeof sign_exponent);
+        return bytes;
+    };
+    auto ext80 = [](uint16_t sign_exponent, uint64_t significand) {
+        std::vector<uint8_t> bytes(10);
+        std::memcpy(bytes.data(), &significand, sizeof significand);
+        std::memcpy(bytes.data() + 8, &sign_exponent, sizeof sign_exponent);
+        return bytes;
+    };
+    const std::vector<uint8_t> one = ext80(0x3fff, 0x8000000000000000ull);
+    const std::vector<uint8_t> negative_one = ext80(0xbfff, 0x8000000000000000ull);
+    const std::array<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>, 8> operand_classes = {{
+        {ext80(0x0000, 0), ext80(0x8000, 0)},                                      // signed zero
+        {ext80(0x0000, 1), ext80(0x0000, 0x7fffffffffffffffull)},                 // denormals
+        {ext80(0x0000, 0x8000000000000000ull), ext80(0x8000, 0x8000000000000000ull)}, // pseudo-denormals
+        {ext80(0x3fff, 0x4000000000000000ull), one},                              // unnormal, normal
+        {ext80(0x7fff, 0x8000000000000000ull), ext80(0xffff, 0x8000000000000000ull)}, // infinities
+        {ext80(0x7fff, 0xc000000000000000ull), one},                              // quiet NaN
+        {ext80(0x7fff, 0xa000000000000000ull), negative_one},                     // signaling NaN
+        {one, negative_one},                                                      // finite random normals below
+    }};
+    constexpr std::array<const char *, 8> operand_names = {
+        "zero", "denormal", "pseudo-denormal", "unnormal", "infinity", "qnan", "snan", "normal"};
+    constexpr std::array<unsigned, 3> precision_fields = {0, 2, 3}; // 24, 53 and 64 bits
+    constexpr std::array<unsigned, 3> precision_bits = {24, 53, 64};
+    constexpr unsigned RANDOM_X87_CASES = 8 * 3 * 4;
+    constexpr unsigned RANDOM_X87_OPS = 24;
+    for (unsigned test = 0; test < RANDOM_X87_CASES; ++test) {
+        const unsigned operand_class = test / 12;
+        const unsigned control = test % 12;
+        const unsigned precision_index = control / 4;
+        const unsigned precision = precision_fields[precision_index];
+        const unsigned rounding = control % 4;
+        const uint16_t cw = uint16_t((0x037f & ~0x0300) | (precision << 8) | (rounding << 10));
+        const auto [lhs, rhs] = operand_class == 7
+                                    ? std::pair<std::vector<uint8_t>, std::vector<uint8_t>>{random_ext80(), random_ext80()}
+                                    : operand_classes[operand_class];
+        std::vector<std::array<uint8_t, 2>> ops;
+        ops.reserve(RANDOM_X87_OPS);
+        constexpr std::array<std::array<uint8_t, 2>, 6> choices = {{{0xd8, 0xc1}, // FADD ST,ST(1)
+                                                                    {0xd8, 0xc9}, // FMUL ST,ST(1)
+                                                                    {0xd8, 0xe1}, // FSUB ST,ST(1)
+                                                                    {0xd8, 0xe9}, // FSUBR ST,ST(1)
+                                                                    {0xd8, 0xd1}, // FCOM ST(1)
+                                                                    {0xd9, 0xfc}}}; // FRNDINT
+        for (unsigned n = 0; n < RANDOM_X87_OPS; ++n)
+            ops.push_back(choices[random() % choices.size()]);
+        cases.push_back({"random-" + std::string(operand_names[operand_class]) + "-pc" +
+                             std::to_string(precision_bits[precision_index]) + "-rc" + std::to_string(rounding), [ops](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 5, 0x230); // FLDCW: the masked exceptions and this case's PC/RC
+            a.esc(0xdb, 5, 0x220); // load rhs first, then lhs as ST(0)
+            a.esc(0xdb, 5, 0x210);
+            for (const auto &op : ops) {
+                a.op({op[0], op[1]});
+                if (op[0] == 0xd8 && op[1] == 0xd1) a.op({0xdf, 0xe0}); // expose compare flags
+                a.op({0x90}); // let the unit finish before the next ESC
+            }
+        }, {{0x210, lhs}, {0x220, rhs}, {0x230, {uint8_t(cw), uint8_t(cw >> 8)}}}});
+    }
+
     const bool was_fitted = x87_fitted;
     x87_fitted = true;
     oracle.set_at_coprocessor(true);
@@ -10543,7 +10620,6 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
         // table cannot hand FLDCW a control word with an exception unmasked
         // (which would set ES, latch BUSY# and hold the run for ever: this
         // bench drives no IRQ 13).
-        struct Operand { uint16_t at; std::vector<uint8_t> bytes; };
         const Operand operands[] = {
             {0x100, {0x00, 0x00, 0xc0, 0x3f}},                                    // f32 1.5
             {0x104, {0x00, 0x00, 0x80, 0xbf}},                                    // f32 -1.0
@@ -10569,6 +10645,9 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             {0x190, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xd4, 0x1f}},  // 2^-8300
         };
         for (const Operand &o : operands)
+            for (unsigned i = 0; i < o.bytes.size(); ++i)
+                image.emplace_back(DS + o.at + i, o.bytes[i]);
+        for (const Operand &o : c.operands)
             for (unsigned i = 0; i < o.bytes.size(); ++i)
                 image.emplace_back(DS + o.at + i, o.bytes[i]);
         for (uint32_t i = 0x300; i < 0x460; ++i) image.emplace_back(DS + i, 0xcc);

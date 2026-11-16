@@ -822,19 +822,61 @@ rather than parsing the status file. What was wrong:
 The command template ends in `{"op": "quit"}`, without which the driver sits
 in a thirty-minute idle wait still holding the lease.
 
+## Coverage finding follow-up (16 November 2026)
+
+This follow-up closes the two coverage gaps called out in review. It changes
+simulation coverage and its runner only; no x87 RTL, package artifact, or
+hardware result changed. The original lockstep totals above predate these
+additional cases.
+
+**TestFloat extF80 passes through the unit interface.** The new
+`scripts/test_fes_i386_x87_testfloat.py` builds level-1 vectors for add, sub,
+mul, eq, le, lt and exact roundToInt in all three precision settings and four
+rounding modes. Its 84 configurations contain **3,356,352 vectors**: 557,568
+each for add, sub, mul, eq, le and lt, and 10,944 for roundToInt. It compares
+ext80 results or compare outcomes and the corresponding x87 exception flags.
+The RTL unit bench passed **621 cases, zero failed**, including all 84 vector
+configurations; the same count passed on the seal's Yosys netlist. TestFloat
+source was `a9c849f1b0eb0264b626d9686ffae167d996e3be`,
+SoftFloat source was `07ebd29db0cfb55723a79fbbffe99103ef38e305`, and the
+`testfloat_gen` binary SHA-256 was
+`3ea46b5c4a4027840cbfcd0fb5b6f25ccb26cba3e444a490298dbd723fbcec09`.
+The exact run was:
+
+```sh
+PATH=/tmp/fes-x87-tool-bin:$PATH python3 scripts/test_fes_i386_x87_testfloat.py \
+  --testfloat-gen /tmp/fes-x87-testfloat/build/Linux-x86_64-GCC/testfloat_gen \
+  --cache-root /home/deano/fes-hil/k1879-fix/wt/out/cache/misteross-toolchains --jobs 8
+```
+
+The same command with `--netlist` also passed all 3,356,352 vectors.
+
+**The CPU lockstep now includes randomized x87 guest programs.** The x87
+runner retains its 14 directed cases and adds 96 seeded mixed streams: each
+of the eight operand classes (zero, denormal, pseudo-denormal, unnormal,
+infinity, quiet NaN, signaling NaN and finite normal) crosses all three
+precision settings and four rounding modes. Each stream selects 24 operations
+from add, multiply, subtract, reverse subtract, ordered compare and FRNDINT.
+Exceptions remain masked in these guest streams; the direct unit bench covers
+unmasked flags and the ERROR# latch, while the lockstep driver does not inject
+the x87 IRQ 13 line. In the bounded run, all **110 x87 cases passed**, with
+121 retirements where the 387's state was compared. The other directed
+buckets also passed; the corpus portion was deliberately limited to one
+`00.MOO` test, and the general random, protected-mode-random, task, debug and
+undefined suites were disabled. The command was:
+
+```sh
+PATH=/tmp/fes-x87-tool-bin:$PATH python3 scripts/test_fes_i386_lockstep.py \
+  --download --opcode 00 --limit-per-file 1 --random-programs 0 --pm-programs 0 \
+  --task-programs 0 --debug-programs 0 --undefined-programs 0 --jobs 8 \
+  --cache-root /home/deano/fes-hil/k1879-fix/wt/out/cache/misteross-toolchains
+```
+
+The focused Python checks passed: 20 tests, 3 skipped. These are host
+simulation results; no kit or hardware test was run.
+
 ## What is left
 
-- **TestFloat's extF80 vectors, which the plan names as this slice's gate,
-  are not built.** The plan asks for TestFloat add, sub, mul, compare and
-  roundToInt in every precision and rounding mode. Berkeley SoftFloat
-  (`07ebd29db0cfb55723a79fbbffe99103ef38e305`) and TestFloat
-  (`a9c849f1b0eb0264b626d9686ffae167d996e3be`) clone cleanly and the 8086
-  specialisation is the right one for an x87 rather than the 8086-SSE
-  default, but building them in this session was refused by its own
-  permission settings, so the gate is **unmet** and the host bench is
-  reported as what it is: the same 80-bit oracle, driving the real CPU
-  interface, over the PRM's operand classes rather than TestFloat's
-  systematic grid. The difference worth naming is coverage, not reference.
 - **Divide, square root, FPREM and FPREM1** are slice 4's, and the
   transcendentals, FBLD and FBSTP slice 5's. They stop as not built.
 - **A store with an unmasked precision exception** should still make its
