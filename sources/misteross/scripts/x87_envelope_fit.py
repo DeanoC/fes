@@ -349,6 +349,28 @@ def prepare(output: Path | None, backend: str, period_ns: float, seed: int,
     return output
 
 
+def guarded_only_registers(rtl: str) -> list[str]:
+    """Registers of fes_i386_x87 written ONLY inside sequencer arms guarded by
+    `X87_BACKEND == 0`, derived from the RTL rather than listed by hand.
+
+    A hand list went stale twice: once when the square root's Q_* arms were
+    never guarded, and once when a merge brought in D_CHECK, D_EXACT and
+    Q_CHECK unguarded. Deriving the list means a new sequenced arm that is
+    left unguarded stops its registers being "guarded-only", and a new guarded
+    arm's registers join the list, with nobody having to remember either."""
+    body = rtl[rtl.index('case (seq)'):]
+    arms = list(re.finditer(r'^\s{16}([ADQPBS]_[A-Z0-9_]+):\s*(if \([^\n]*?\))?\s*begin', body, re.M))
+    writers: dict[str, list[bool]] = {}
+    for k, arm in enumerate(arms):
+        end = arms[k + 1].start() if k + 1 < len(arms) else len(body)
+        guarded = 'X87_BACKEND == 0' in (arm.group(2) or '')
+        for reg in set(re.findall(r'^\s+([a-z_0-9]+)\s*<=', body[arm.end():end], re.M)):
+            writers.setdefault(reg, []).append(guarded)
+    head = rtl[:rtl.index('case (seq)')]
+    return sorted(reg for reg, flags in writers.items()
+                  if all(flags) and not re.search(rf'^\s+{reg}\s*<=', head, re.M))
+
+
 def ram_blocks(text: str) -> list[str]:
     """The memories the fit kept, by name, from the fitter's RAM summary. This
     is how the seed tables' absence is evidenced after commit 4e6e1053b: the
@@ -466,7 +488,8 @@ def compile_project(output: Path, tool: Path, version: str) -> dict:
         # A register may be bit-blasted to name[3] or split by the fitter.
         def held(name: str) -> bool:
             return any(leaf == name or leaf.startswith(name + '[') for leaf in leaves)
-        absent = {n: held(n) for n in ('ua_add', 'ub_add', 'qy_s', 'rcp_q', 'rsq_q')}
+        expected_absent = guarded_only_registers((RTL / 'fes_i386_x87.sv').read_text())
+        absent = {n: held(n) for n in [*expected_absent, 'rcp_q', 'rsq_q']}
         present = {n: held(n) for n in ('wm', 'pa', 'cw')}
         record['exclusion'] = {'absent_expected': absent, 'positive_controls': present,
                                'registers': len(leaves),

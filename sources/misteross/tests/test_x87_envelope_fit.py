@@ -102,5 +102,30 @@ class RecordGenerator(unittest.TestCase):
         self.assertEqual(duplicated, [], f'defined more than once: {duplicated}')
 
 
+class GuardedOnlyRegisters(unittest.TestCase):
+    """The exclusion gate's absent list is derived from the RTL."""
+
+    def test_includes_each_sequenced_datapath(self):
+        regs = fit.guarded_only_registers((fit.RTL / 'fes_i386_x87.sv').read_text())
+        for name in ('ua_add', 'ub_add', 'qy_s', 'dv_c', 'gs_n'):
+            self.assertIn(name, regs)
+
+    def test_excludes_registers_a_kept_form_writes(self):
+        # FPREM is kept in both configurations and writes dv_rem.
+        regs = fit.guarded_only_registers((fit.RTL / 'fes_i386_x87.sv').read_text())
+        self.assertNotIn('dv_rem', regs)
+
+    def test_an_unguarded_arm_drops_its_registers(self):
+        # Q_CHECK arrived unguarded through a merge. Unguarding it must take
+        # the registers it writes out of the guarded-only list, which is what
+        # makes a DE25 fit fail on them instead of relying on an audit.
+        rtl = (fit.RTL / 'fes_i386_x87.sv').read_text()
+        broken = rtl.replace('Q_CHECK: if (X87_BACKEND == 0) begin', 'Q_CHECK: begin', 1)
+        self.assertNotEqual(rtl, broken)
+        before = set(fit.guarded_only_registers(rtl))
+        after = set(fit.guarded_only_registers(broken))
+        self.assertEqual(before - after, {'dv_c', 'dv_sub'})
+
+
 if __name__ == '__main__':
     unittest.main()
