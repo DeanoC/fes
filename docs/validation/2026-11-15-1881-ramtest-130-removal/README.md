@@ -9,9 +9,10 @@ production build identity after the last gated build, and the no-HIL
 conclusion was withdrawn pending the current tree's production-ID timing and
 seal gates.
 
-**Section 5 supplies those gates**, at the head that will merge. With it, all
-three D12 conditions hold for the current tree and the no-HIL conclusion is
-restored. Read section 5 for the current determination; sections 1 to 4 remain
+Section 5 supplied those gates at `e27a20c86`. Main then landed #1882, which
+made `BUILD_ID` the design-v1 design identity, so **section 6 is the current
+determination**, re-measured at the merged head `3a818ae2fc`. All three D12
+conditions hold there and the no-HIL conclusion stands. Sections 1 to 5 remain
 the evidence for the earlier heads they name.
 
 Merge base: `8bbbed8017448873fb33bc42109bc65e296f40ed`. PR head:
@@ -256,6 +257,84 @@ All three of D12's conditions hold for `fes.ramtest` on PR #1881 at
 
 No reseal and no kit HIL are required for this change. This supersedes the
 withdrawal above, which was pending exactly these gates.
+
+## 6. Re-take after #1882's design-identity change, at `3a818ae2f`
+
+Main advanced 24 commits, including #1882 (`9a9b8cbb3`), which separates the
+core design identity from toolchain and recording provenance. `BUILD_ID` is now
+the design-v1 design identity, so section 5's `06f01b2c…`, computed under the
+old combined scheme, is not the identity that ships. Main was merged in at
+`3a818ae2fc` and everything below is measured there.
+
+**Which inputs are design inputs.** `input_role()` from
+`scripts/input_identity.py`, three-dot against `origin/main`, over this PR's 19
+changed files: exactly one is in `fes.ramtest`'s pinned inputs,
+`scripts/build_fes_ramtest.py`, role **design**. AGENTS.md's hard rules say the
+measured D12 exception still applies to "design-generating producer changes
+without RTL edits", so all three conditions are owed.
+
+**What main moved.** `closure_touched.py` gives `fes.ramtest` four hits:
+
+| File | Role |
+| --- | --- |
+| `scripts/export_core_package.py` | packaging |
+| `scripts/input_identity.py` | packaging |
+| `scripts/compiler_read_audit.py` | toolchain |
+| `scripts/pnr_recipe.py` | **design** |
+
+The design-role hit means condition 3 was owed on main's account as well as
+this PR's.
+
+**Conditions 1 and 2 carry.** The route-deciding inputs did not move between
+the bases: `cores/fes-ramtest/toolchain.lock`,
+`cores/fes-ramtest/constraints.qsf` and `boards/de10nano/clocks.sdc` are
+untouched, the `config/core-recipes.toml` diff does not touch the
+`fes.ramtest` block, and `pnr_recipe.recipe_digest("fes.ramtest")` is
+`ede6474bf85ce45e0631d4edb375bc37ab9c1161aae0a265f3c5c34920947781` at both
+`333900cbb` and `c6728f2cd`. Rather than rest on that, the zeroed-`BUILD_ID`
+netlist was measured again, twice at the new base `c6728f2cd` and twice at the
+merged head `3a818ae2fc`: all four give `391b7a6b53a8f818…`. Fifteen synthesis
+runs across four merge bases and three heads now agree on that digest, so
+section 2's RBF comparison carries under D12's merge-forward clause.
+
+**Condition 3 at `3a818ae2fc`**, the normal authenticated producer, unforced:
+
+- design `BUILD_ID` `f31b4a66cd7dcdbbab5b1de07b3359d1`
+- package `74204f8d3807cfc9c7a6f843c186d05e7517288a54a17a57d765e3bd8d0b6b34`
+- `core.rbf` SHA-256 `4b549b5ddef3068f3c3fccbc0feae1f38afa6c0112a973fa24230b84850f6899`, 2,317,012 bytes
+- winning seed 6 at weight 10
+
+| Clock | Achieved MHz | Constraint MHz | Status |
+| --- | ---: | ---: | --- |
+| memory `ram_clock.clocks[0]` | 100.02000 | 100.0 | pass |
+| capture `ram_clock.clocks[1]` | 238.66348 | 100.0 | pass |
+| pixel `display.pixel_clk` | 81.96722 | 74.25007 | pass |
+| reference `FPGA_CLK1_50` | — | 50.0 | pass |
+
+### The memory margin is now 0.02 MHz, and that is the finding
+
+This passes, and it is the narrowest pass this core has recorded. The four
+measured identities give, against a 100.0 MHz constraint:
+
+| Identity | `BUILD_ID` | Memory MHz | Margin |
+| --- | --- | ---: | ---: |
+| merge base `8bbbed801` | `7a60de20…` | 102.37511 | +2.375 |
+| head `984f6e29` | `a3d1efd6…` | 101.44046 | +1.440 |
+| head `e27a20c86` | `06f01b2c…` | 100.97950 | +0.980 |
+| head `3a818ae2f` | `f31b4a66…` | 100.02000 | **+0.020** |
+
+Nothing functional changed across those four. The `BUILD_ID` constant is
+synthesised in via `chparam -set BUILD_ID`, so each identity gives the placer a
+slightly different netlist and the memory clock lands wherever the seed search
+takes it — a spread of 2.36 MHz from the identity alone. At +0.020 MHz this
+core is passing by 0.02%, which is luck rather than margin: the next identity
+move has a good chance of missing, exactly as the same `core_package.py` move
+made `coleco_v2` miss on all ten seeds in #1806.
+
+This is recorded, not acted on. The gate is the producer's own timing and seal
+check, it passed, and this record does not invent a stricter one. But a future
+`fes.ramtest` build failing timing after an unrelated packaging change should
+be read as this spread, not as a regression in the change that triggered it.
 
 ## Scope of this record
 
