@@ -388,9 +388,11 @@ decision ships.
 session in a message, and that session has since published them: they are in
 `docs/validation/2026-11-16-de25-x87-envelope/summary.md` on
 `deano/de25-x87-envelope` ([#1907](https://github.com/DeanoC/fes/pull/1907)),
-with per-seed JSON under `integration-fit/`. Those rows have been read and
-they match what was relayed — 40,986 / 41,055 / 41,122 ALMs at 87.58 / 87.72 /
-87.87%, LABs 97.39–98.33%, **42 DSP**, setup never below +7.58 ns. They remain
+with per-seed JSON under `integration-fit/`. All four of its seed rows have been read
+and they match what was relayed — **40,986 / 41,055 / 41,122 / 41,054 ALMs** at
+87.58 / 87.72 / 87.87 / 87.72%, LABs 4,555–4,602 (97.33–98.33%), **42 DSP on
+every seed**, worst setup +7.582 ns and worst hold +0.018 ns across the four.
+Their stated spread is 136 ALMs, 0.29% of the device. They remain
 **that record's measurement, cited here, not re-measured here**, and nothing
 in this record's own figures depends on them.
 
