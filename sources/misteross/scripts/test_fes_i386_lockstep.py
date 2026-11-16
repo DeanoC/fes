@@ -718,6 +718,9 @@ def main() -> int:
     parser.add_argument('--preset', type=int, default=0, choices=range(8),
                         help="the governor's preset, fes.pc386.machine word 0 (default 0, max)")
     parser.add_argument('--same-as', type=Path, help="max's report.json (absolute), which a governed run must match")
+    parser.add_argument('--backend', choices=('de10', 'de25'), default='de10',
+                        help="which arithmetic the x87 unit uses: 'de10' its own sequenced "
+                             "datapath (the default and the verified reference), 'de25' fes_x87_core")
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
     if not 1 <= args.jobs <= 64:
@@ -742,7 +745,13 @@ def main() -> int:
         divergence_table(entries, table)
         yosys = yosys_netlist.locate(args)
         linked = oracle.link_inputs(args.jobs, args.download)
-        testbench = str(verilate(verilator, linked, args.jobs, yosys.path if yosys else None))
+        # --backend de25 selects the DE25 arithmetic backend inside the
+        # x87 unit. The envelope, the decode and every suite below are the
+        # same either way: what changes is which arithmetic answers, so a
+        # run with each is the gate on the seam.
+        params = {'X87_BACKEND': 1} if args.backend == 'de25' else None
+        testbench = str(verilate(verilator, linked, args.jobs, yosys.path if yosys else None, params))
+        report['x87_backend'] = args.backend
         if yosys:
             report['netlist'] = yosys_netlist.report_record(
                 ROOT, yosys, args.gpu_router, Path(testbench).parent / f'{TOP}.netlist.v')

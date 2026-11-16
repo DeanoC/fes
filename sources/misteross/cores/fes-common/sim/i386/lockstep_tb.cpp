@@ -124,6 +124,7 @@
 // Output: "FAIL <label> <field> <expected> <actual>..." per failing run, then
 // one JSON summary line. Exit status 1 on any failure.
 #include "Vfes_i386_cpu.h"
+#include "Vfes_i386_cpu___024root.h"
 #include "i386_oracle.h"
 #include "pc386_ddr_model.h"
 #include "smc_stale.h"
@@ -377,6 +378,18 @@ struct GuestRam {
     }
 };
 
+// How many arithmetic operations the DE25 backend was offered and took,
+// per req_op, over the whole run. With X87_BACKEND at its default these stay
+// zero, because the unit's own sequenced datapath answers and the backend is
+// not instantiated. With the DE25 backend selected a zero for an operation
+// the suite reaches is a HOLE in the gate, not a pass: a lockstep that issued
+// no arithmetic proves nothing about the arithmetic. The counters are
+// sim-only registers inside fes_i386_x87 with no hardware reader, so
+// synthesis removes them; `verilator public_flat_rd` is what makes them
+// readable here, which is why no port was added to fes_i386_cpu.
+uint64_t x87_backend_offered[8];
+uint64_t x87_backend_taken[8];
+
 class Rtl {
 public:
     explicit Rtl(VerilatedContext &context)
@@ -387,6 +400,13 @@ public:
         set_window(false);
         for (int n = 0; n < 3; ++n) clock();
         top.cold_reset = 0;
+    }
+
+    ~Rtl() {
+        for (int n = 0; n < 8; ++n) {
+            x87_backend_offered[n] += top.rootp->fes_i386_cpu__DOT__x87__DOT__bk_offered[n];
+            x87_backend_taken[n] += top.rootp->fes_i386_cpu__DOT__x87__DOT__bk_taken[n];
+        }
     }
 
     Vfes_i386_cpu top;
@@ -11718,7 +11738,7 @@ int main(int argc, char **argv) {
                 "\"unbuilt_stops\": {%s}, \"pm_kinds\": {%s}, \"cs_limit\": {%s}, "
                 "\"no387_rule\": %llu, \"no387_skips\": %llu, \"x87_compared\": %llu, "
                 "\"dr6_rule\": %llu, \"db_rf_rule\": %llu, "
-                "\"debug_kinds\": {%s}}\n",
+                "\"debug_kinds\": {%s}, \"x87_backend_offered\": [%llu, %llu, %llu, %llu, %llu, %llu, %llu, %llu], \"x87_backend_taken\": [%llu, %llu, %llu, %llu, %llu, %llu, %llu, %llu]}\n",
                 mode.c_str(), (unsigned long long)seed, latency ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
@@ -11755,6 +11775,22 @@ int main(int argc, char **argv) {
                 (unsigned long long)summary.no387_rule,
                 (unsigned long long)summary.no387_skips, (unsigned long long)summary.x87_compared,
                 (unsigned long long)summary.dr6_rule,
-                (unsigned long long)summary.db_rf_rule, named(summary.debug_kinds).c_str());
+                (unsigned long long)summary.db_rf_rule, named(summary.debug_kinds).c_str(),
+                (unsigned long long)x87_backend_offered[0],
+                (unsigned long long)x87_backend_offered[1],
+                (unsigned long long)x87_backend_offered[2],
+                (unsigned long long)x87_backend_offered[3],
+                (unsigned long long)x87_backend_offered[4],
+                (unsigned long long)x87_backend_offered[5],
+                (unsigned long long)x87_backend_offered[6],
+                (unsigned long long)x87_backend_offered[7],
+                (unsigned long long)x87_backend_taken[0],
+                (unsigned long long)x87_backend_taken[1],
+                (unsigned long long)x87_backend_taken[2],
+                (unsigned long long)x87_backend_taken[3],
+                (unsigned long long)x87_backend_taken[4],
+                (unsigned long long)x87_backend_taken[5],
+                (unsigned long long)x87_backend_taken[6],
+                (unsigned long long)x87_backend_taken[7]);
     return summary.failed ? 1 : 0;
 }

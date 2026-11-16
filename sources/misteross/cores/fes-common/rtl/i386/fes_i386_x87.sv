@@ -1478,6 +1478,22 @@ module fes_i386_x87 #(
     // the shifter the conversions need anyway and none needs the adder or the
     // divider. The transcendentals are built on neither and stop in decode.
     assign bk_req_valid = seq == B_ISSUE;
+    // How many operations of each kind the backend has been offered and has
+    // taken. Nothing reads these in hardware, so synthesis removes them; the
+    // `verilator public_flat_rd` attribute is what lets a bench read them, and
+    // it is the whole mechanism -- no port is added, so no other instantiation
+    // of fes_i386_cpu changes. The lockstep run reports them per operation,
+    // because a green lockstep that issued no arithmetic proves nothing: on a
+    // slice-2 base every arithmetic form decodes to X87_UNIMPL and the gate
+    // would pass having reached the backend zero times.
+    logic [31:0] bk_offered [0:7] /* verilator public_flat_rd */;
+    logic [31:0] bk_taken [0:7] /* verilator public_flat_rd */;
+    // No reset: a lockstep run resets the CPU between programs and the count
+    // is wanted over the whole run, not the last program.
+    always_ff @(posedge clk) begin
+        if (bk_req_valid) bk_offered[bk_op] <= bk_offered[bk_op] + 32'd1;
+        if (bk_req_valid && bk_req_ready) bk_taken[bk_op] <= bk_taken[bk_op] + 32'd1;
+    end
     logic bk_form;
     assign bk_form = X87_BACKEND == 1
                   && (cur == X87_ARITH || cur == X87_DIV || cur == X87_SQRT);
