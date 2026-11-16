@@ -360,10 +360,15 @@ public:
         // underneath, or an empty slot whose contents are stale, so the value
         // the title stored is in the state *before* the step. Loads and
         // arithmetic are read after it.
-        const bool stored = (modrm >> 6) != 3 && ((op == 0xd9 && (reg == 2 || reg == 3)) ||
-                                                  (op == 0xdd && (reg == 2 || reg == 3)) ||
-                                                  (op == 0xdb && (reg == 2 || reg == 3 || reg == 7)) ||
-                                                  (op == 0xdf && (reg == 2 || reg == 3 || reg == 6 || reg == 7)));
+        const bool memory_form = (modrm >> 6) != 3;
+        const bool stored = (memory_form && ((op == 0xd9 && (reg == 2 || reg == 3)) ||
+                                             (op == 0xdd && (reg == 2 || reg == 3)) ||
+                                             (op == 0xdb && (reg == 2 || reg == 3 || reg == 7)) ||
+                                             (op == 0xdf && (reg == 2 || reg == 3 || reg == 6 || reg == 7)))) ||
+                            // DD /2 and /3 are FST and FSTP ST(i): register
+                            // stores, and /3 pops, so its value is also only
+                            // in the state before the step.
+                            (!memory_form && op == 0xdd && (reg == 2 || reg == 3));
         const fes_i386::X87State &valued = stored ? before87 : after87;
         const unsigned top = (valued.status >> 11) & 7;
         const uint64_t sig = valued.r[top].significand;
@@ -385,7 +390,7 @@ public:
         // the P6's FCMOVcc) and DE D9 (FCOMPP) are not. The plan record's
         // scratch patch counted DA's register forms as arithmetic and FPREM,
         // FPREM1 and FSCALE as transcendental.
-        const bool memory = (modrm >> 6) != 3;
+        const bool memory = memory_form;
         const bool arith = op == 0xd8 || op == 0xdc || op == 0xde || (op == 0xda && memory);
         std::string cls = "other";
         if (arith && reg >= 6) cls = "div";

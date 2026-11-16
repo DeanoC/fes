@@ -51,9 +51,10 @@ than 24 bits in the register file on 165,520 steps.
 **Every computing title leaves wide significands in the registers**, because
 precision control bounds add, subtract, multiply, divide and square root and
 does **not** bound `FILD`, `FLD m64`, the constant loads, `FRNDINT`,
-`FPREM`, `FSCALE` or the transcendentals: Quake 165,520 steps, Screamer
-131,491, Chris's benchmark 4,732,457, Wolfenstein 3D 9,942, Terminal
-Velocity 3,323.
+`FPREM`, `FSCALE` or the transcendentals: Quake **163,792** steps, Screamer
+**121,717**, Chris's benchmark **4,648,017**, Wolfenstein 3D 9,942, Terminal
+Velocity 3,323. These exclude `FST`/`FSTP ST(i)`, whose buckets in these
+runs are unreliable — see the note below.
 
 Beyond coverage, two arguments stand independently of any count:
 
@@ -91,17 +92,17 @@ closed, and closing it cost a census rather than a slice.
 `x87sig` is read from the state **before** a popping store, so the value
 stored is the one reported. Wide values going to memory, by store width:
 
-| Title | wide into m64 (`FST`/`FSTP m64`, `FISTP m64`, `FSTP ST(i)`) | wide into m80 | wide into m32 (rounds — see below) |
+| Title | wide into m64 (memory only) | wide into m80 | wide into m32 (rounds — see below) |
 | --- | ---: | ---: | ---: |
-| Chris's 3D Benchmark | 153,330 | 4,221 | 879,285 |
-| Quake timedemo | 8,455 | 3,887 | 14,716 |
-| Screamer | 19,077 | 0 | 10,854 |
-| Wolfenstein 3D | 2,343 | 0 | 240 |
-| Terminal Velocity | 0 | 0 | 3 |
+| Chris's 3D Benchmark | 68,890 | 4,221 | 879,285 |
+| Quake timedemo (DOSBench) | 6,727 | 3,887 | 14,716 |
+| Screamer (1995) | 9,303 | 0 | 10,854 |
+| Wolfenstein 3D (1992) | 2,343 | 0 | 240 |
+| Terminal Velocity (1995) | 0 | 0 | 3 |
 
 **The m64 and m80 columns are direct evidence**: a value needing more than
-24 significand bits, stored into a slot wide enough to keep it. Chris's
-benchmark puts 153,330 such values into 64-bit memory and Screamer 19,077.
+24 significand bits, stored into a **memory** slot wide enough to keep it. Chris's
+benchmark puts 68,890 such values into 64-bit memory and Screamer 9,303.
 A 24-bit datapath could not have produced them.
 
 **The m32 column cannot settle anything, and the record says so.** A store
@@ -171,6 +172,28 @@ emulator library's default, not necessarily because the game's own
 computation requires it. What the measurement does say is what a reduced
 unit would have to reproduce when the identity bit is set — which is the
 question for this census, since the same bit selects the unit.
+
+### A measurement error the review caught, and what it costs
+
+`x87sig` reads the value a popping store wrote from the state **before** the
+step, because after the step ST(0) is the register underneath. I applied
+that only to the **memory** store forms. **`DD /3` is `FSTP ST(i)` — a
+popping store in register form** — so its width bucket was read after the
+pop, from the wrong register. It executes 615,685 times in Quake and is
+large in Chris's benchmark, so those forms' per-form buckets in these nine
+runs are **wrong and are not reported**.
+
+What it costs, exactly: the wide-significand totals above are given with
+`dd.r2` and `dd.r3` excluded, which removes 1,728 of Quake's 165,520,
+9,774 of Screamer's 131,491 and 84,440 of Chris's 4,732,457. The remaining
+counts are unaffected and the conclusion does not move. The fix is in
+`census.h` and a rerun would recover those forms; that rerun has **not**
+been made, so this record simply does not use them.
+
+The same finding showed that those two forms never belonged in the
+stored-to-memory table at all: `FST`/`FSTP ST(i)` move no memory operand.
+Removing them is correct on its own terms as well as a consequence of the
+bug, and the table's m64 column is now memory stores only.
 
 ### A classification error the review caught
 

@@ -99,6 +99,9 @@ the full rounding path on them.
 ## What the titles store
 
 Stored values whose significand needs more than 24 bits, by the width of
+the **memory** slot they went to. `FST`/`FSTP ST(i)` (`dd.r2`, `dd.r3`) are
+register stores that move no memory operand, so they are not here; their
+own width buckets in these runs are unreliable (see the record's note).
 the slot they went to. The m64 and m80 columns are direct evidence that a
 24-bit datapath could not have produced the bytes in memory. The m32
 column cannot settle anything: a store to m32 rounds to 24 bits under
@@ -106,9 +109,9 @@ rounding control whatever the register held.
 
 | Title | wide into m64 | wide into m80 | wide into m32 (rounds) |
 | --- | ---: | ---: | ---: |
-| Quake timedemo (DOSBench) | 8,455 | 3,887 | 14,716 |
-| Screamer (1995) | 19,077 | 0 | 10,854 |
-| Chris's 3D Benchmark | 153,330 | 4,221 | 879,285 |
+| Quake timedemo (DOSBench) | 6,727 | 3,887 | 14,716 |
+| Screamer (1995) | 9,303 | 0 | 10,854 |
+| Chris's 3D Benchmark | 68,890 | 4,221 | 879,285 |
 | Terminal Velocity (1995) | 0 | 0 | 3 |
 | DOOM (1993) | 0 | 0 | 0 |
 | Wolfenstein 3D (1992) | 2,343 | 0 | 240 |

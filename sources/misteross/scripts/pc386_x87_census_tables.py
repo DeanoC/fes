@@ -147,11 +147,14 @@ def main(argv: list[str] | None = None) -> int:
     # x87sig reads the state before a popping store, so this is the value
     # stored. A store to m32 rounds to 24 bits under rounding control whatever
     # the register held, so that column cannot settle anything by itself.
-    M64 = ('dd.m2', 'dd.m3', 'df.m7', 'dd.r2', 'dd.r3')
+    M64 = ('dd.m2', 'dd.m3', 'df.m7')
     M80 = ('db.m7',)
     M32 = ('d9.m2', 'd9.m3', 'db.m2', 'db.m3', 'df.m2', 'df.m3')
     out.extend(['## What the titles store', '',
                 'Stored values whose significand needs more than 24 bits, by the width of',
+                'the **memory** slot they went to. `FST`/`FSTP ST(i)` (`dd.r2`, `dd.r3`) are',
+                'register stores that move no memory operand, so they are not here; their',
+                "own width buckets in these runs are unreliable (see the record's note).",
                 'the slot they went to. The m64 and m80 columns are direct evidence that a',
                 '24-bit datapath could not have produced the bytes in memory. The m32',
                 'column cannot settle anything: a store to m32 rounds to 24 bits under',
