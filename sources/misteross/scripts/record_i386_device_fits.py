@@ -66,7 +66,16 @@ def collect(name: str, output: Path) -> dict:
         if "resources_stage" in fit:
             entry["resources_stage"] = fit["resources_stage"]
         elif fit["status"] != "pass":
-            entry["resources_stage"] = "incomplete fit; stage not recorded"
+            # A fit whose timing gate failed is a complete fit: its figures are
+            # a finished fitter report, and only its verdict is a miss. Calling
+            # that an incomplete fit would misdescribe a missing ladder rung,
+            # whose area is exactly what a reader wants beside the ones that
+            # closed.
+            timing = fit.get("timing", {})
+            entry["resources_stage"] = (
+                "complete fit; the timing gate failed, so this is a missed rung and not a "
+                "partial result" if timing.get("status") == "fail" else
+                "incomplete fit; stage not recorded")
     if "timing" in fit:
         entry["timing_status"] = fit["timing"].get("status")
         entry["corner_count"] = fit["timing"].get("corner_count")

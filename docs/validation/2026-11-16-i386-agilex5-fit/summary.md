@@ -31,7 +31,7 @@ amendment dated and stating what had already been seen. Tracker:
 
 ## What was measured
 
-Thirteen internal virtual-pin characterisation fits: the three designs below at
+Fourteen internal virtual-pin characterisation fits: the three designs below at
 61.44 MHz, the CPU's clock ladder on Agilex 5, and one superseded envelope
 kept for comparison. No board shell, no pins, no
 HPS, no PLL, no reset-release IP, no programming artifact, no seal and no
@@ -217,12 +217,13 @@ a result when this record is read are **not measured**, and are listed as that
 rather than trimmed quietly. The CPU's closure on Agilex 5 is in the ladder
 table below; the CPU on the Cyclone V has only its 61.44 MHz rung, and the
 machine has no ladder on either device, so **no closure is claimed for those
-three**. Extra seeds of M and M+ were queued beyond the precommitted set
-because the budget rests on those two fits — an addition at the same rung, not
-a relaxation — and were stopped unrun to free the shared builder lease for the
-front-end cross-check, which had been waiting on it for three hours.
+three**. Extra seeds of M and M+, and the DE10's rungs above 61.44 MHz, were queued and
+then **stopped unrun** to free the shared builder lease for the front-end
+cross-check, which had been waiting on it for three hours. They are therefore
+not measured, and the one seed that did complete — the CPU's second seed at the
+headline rung, 73 ALMs from the first — is in the ladder table.
 
-**The measurement that would settle the DE25 plan, and has not been made:**
+**The measurement that would settle the DE25 plan, and has not been made.**
 `pc386_system` from #1889's head — slice 4 on slice 3, the 387 with divide,
 square root and the remainders — through this runner on Agilex 5, with
 `x87_present` tied high. That is the design the DE10 refused. Everything in
@@ -239,9 +240,9 @@ this record is `main`, whose 387 has no arithmetic.
 | 110 MHz | Agilex 5 | **yes**, all 4 corners | 29,348 | 62.71% | 3,592 | 76.75% | 133.23 MHz |
 | 130 MHz | Agilex 5 | **yes**, all 4 corners, +0.426 ns | 29,455 | 62.94% | 3,597 | 76.86% | 137.63 MHz |
 | 150 MHz | Agilex 5 | **no** — −0.485 ns at Slow fix4 0C, −0.482 at Slow fix4a 0C; passes the other two | 30,000 | 64.10% | 3,688 | 78.80% | 139.84 MHz |
-| 170 MHz | Agilex 5 | running | — | — | — | — | — |
+| 170 MHz | Agilex 5 | **no** — −1.039 ns at Slow fix4a 0C, misses three of four corners | 30,169 | 64.46% | 3,711 | 79.29% | 144.49 MHz |
 | 61.44 MHz | Cyclone V | **yes**, all 8 corners | 31,244 | 74.55% | 3,494 | 83.37% | 63.79 MHz |
-| 75, 90, 110, 130 MHz | Cyclone V | queued, and expected to miss | — | — | — | — | — |
+| 75 MHz and above | Cyclone V | **not measured** — queued, then stopped unrun to free the shared builder lease | — | — | — | — | — |
 
 Two things the ladder shows that a single constraint could not.
 
@@ -278,11 +279,17 @@ is that a rung missing any analysis at any corner does not close. The ceiling
 for this netlist, this envelope and seed 1 therefore sits **between 130 and
 150 MHz**.
 
-The 150 MHz fit is also the one place where area moves: **30,000 ALMs**, 700
-above the 61.44 MHz rung and outside this lane's ±200 noise, with LABs up to
-78.80%. So the area-is-flat finding holds across the rungs that *close* and
-stops holding at the rung that does not — the fitter spends area trying to
-make a target it cannot reach.
+170 MHz misses further, −1.039 ns and three corners of four, which is the
+shape you would expect either side of a real ceiling rather than a seed
+accident.
+
+The two missing rungs are also the only place where area moves: **30,000 and
+30,169 ALMs**, 700 and 869 above the 61.44 MHz rung and outside this lane's
+±200 noise, with LABs up to 79.29%. So the area-is-flat finding holds across
+every rung that *closes* and stops at the rungs that do not — the fitter spends
+area trying to make a target it cannot reach. Both figures are reported with
+their stage: these are complete fits whose **timing gate failed**, not partial
+fits.
 
 Also not measured, and stated as such:
 

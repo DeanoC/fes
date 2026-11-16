@@ -969,9 +969,151 @@
           "used": 21508.0
         }
       },
-      "resources_stage": "incomplete fit; stage not recorded",
+      "resources_stage": "complete fit; the timing gate failed, so this is a missed rung and not a partial result",
       "seed": 1,
       "source_clean": false,
+      "status": "fail",
+      "timing_status": "fail",
+      "top": "fes_i386_cpu",
+      "virtual_port_count": 148,
+      "virtual_port_count_as_run": null,
+      "virtual_port_count_note": null
+    },
+    {
+      "board": "DE25-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_hz": 170000000,
+      "corner_count": 4,
+      "device": "A5EB013BB23BE4SCS",
+      "documented_device_alms": 46800,
+      "error": "timing failed (3); retained /home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu-de25-170-s1/timing.log",
+      "family": "Agilex 5",
+      "fes_revision": {
+        "clean": true,
+        "commit": "356c7557efb421a6ab273716430636c801b9e1d3"
+      },
+      "fit": "cpu-de25-170-MISS",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "164.37",
+              "restricted_fmax": "164.37"
+            }
+          ],
+          "corner": "Slow fix4 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "144.68",
+              "restricted_fmax": "144.68"
+            }
+          ],
+          "corner": "Slow fix4 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "144.49",
+              "restricted_fmax": "144.49"
+            }
+          ],
+          "corner": "Slow fix4a 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "259.34",
+              "restricted_fmax": "259.34"
+            }
+          ],
+          "corner": "Fast fix4 0C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "fitted_netlist": {
+          "duplicate_attribute_count": 0,
+          "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+          "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+          "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+          "ram_attribute_count": 30,
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+          "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v"
+      },
+      "period_ns": 5.8823529412,
+      "programming_artifact": null,
+      "quartus": "26.3.0",
+      "quartus_edition": "pro",
+      "quartus_lock": "boards/de25nano/quartus.lock",
+      "ram_block": "M20K",
+      "real_clocks": [
+        "clk"
+      ],
+      "real_pins": null,
+      "resources": {
+        "alms": {
+          "available": 46800.0,
+          "percent_of_device": 64.46,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 30169.0
+        },
+        "alms_with_virtual_pins": {
+          "available": 46800.0,
+          "percent_of_device": 5.02,
+          "report_label": "* ALMs containing virtual pins",
+          "report_percent": "5",
+          "used": 2351.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 42722.0
+        },
+        "block_memory_bits": {
+          "available": 7331840.0,
+          "percent_of_device": 5.57,
+          "report_label": "Total block memory bits",
+          "report_percent": "6",
+          "used": 408320.0
+        },
+        "dsp_blocks": {
+          "available": 188.0,
+          "percent_of_device": 6.38,
+          "report_label": "DSP Blocks Needed [=A+B+C-D]",
+          "used": 12.0
+        },
+        "labs": {
+          "available": 4680.0,
+          "percent_of_device": 79.29,
+          "report_label": "Total LABs:  partially or completely used",
+          "used": 3711.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 512.0
+        },
+        "ram_blocks": {
+          "available": 358.0,
+          "percent_of_device": 14.8,
+          "report_label": "M20K blocks",
+          "used": 53.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 21206.0
+        }
+      },
+      "resources_stage": "complete fit; the timing gate failed, so this is a missed rung and not a partial result",
+      "seed": 1,
+      "source_clean": true,
       "status": "fail",
       "timing_status": "fail",
       "top": "fes_i386_cpu",

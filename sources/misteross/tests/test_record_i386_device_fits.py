@@ -88,6 +88,24 @@ class Collect(unittest.TestCase):
             fit = json.loads((out / "quartus.json").read_text())["fits"][0]
             self.assertEqual(fit["resources_stage"], "route")
 
+    def test_a_fit_whose_timing_gate_failed_is_not_called_incomplete(self):
+        # A missed ladder rung is a complete fit with a failing verdict, and
+        # its area is exactly what a reader wants beside the rungs that closed.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            missed = write_fit(root / "m", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                               alms=30000, available=46800, device_alms=46800, ram_block="M20K",
+                               status="fail")
+            fit = json.loads((missed / "fit.json").read_text())
+            fit["timing"]["status"] = "fail"
+            (missed / "fit.json").write_text(json.dumps(fit))
+            out = root / "record"
+            record.main(["--record", str(out), f"--fit=cpu-de25-150-MISS={missed}"])
+            entry = json.loads((out / "quartus.json").read_text())["fits"][0]
+            self.assertIn("complete fit", entry["resources_stage"])
+            self.assertIn("missed rung", entry["resources_stage"])
+            self.assertNotIn("incomplete", entry["resources_stage"])
+
     def test_a_failed_fit_without_a_stage_is_still_qualified(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
