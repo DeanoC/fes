@@ -1259,20 +1259,38 @@ int main(int argc, char **argv) {
             u.reg_form(OP_FNINIT);
             u.load(OP_FLD_M80, FMT_F80, two);
             u.load(OP_FLD_M80, FMT_F80, four);
-            u.present(0x0f1, 0, true, true, 0);
-            u.commit(0, 0, true);
-            for (int n = 0; n < 40; ++n) u.tick();   // inside the recurrence
-            u.top.f1 = 1;
-            u.tick();
-            u.top.f1 = 0;
-            u.settle();
-            u.clear_latch();
-            u.reg_form(OP_FNINIT);
-            u.load(OP_FLD_M80, FMT_F80, two);
-            u.load(OP_FLD_M80, FMT_F80, four);
-            u.reg_form(0x0f1);
-            u.st0(got3);
-            if (got3[9] != 0x40 || got3[8] != 0x00) bad("f1-during-divide", hex80(got3));
+            // Swept, and the next instruction is ANOTHER divide with a
+            // different answer, issued as soon as the unit will take it. That
+            // is what a stale result could corrupt: the abandoned divide's
+            // `raw_valid` pulses once, and if it arrives while the new
+            // operation is waiting in B_WAIT the new instruction takes the old
+            // value. 4.0/2.0 is 2.0 and 4.0/4.0 is 1.0, so a stale take is
+            // visible rather than coincidentally equal.
+            int f1_bad = 0;
+            std::string f1_first;
+            for (int at : {2, 4, 8, 12, 16, 20, 24, 28, 32, 40, 48, 56, 64, 72}) {
+                u.clear_latch();
+                u.reg_form(OP_FNINIT);
+                u.load(OP_FLD_M80, FMT_F80, two);
+                u.load(OP_FLD_M80, FMT_F80, four);
+                u.present(0x0f1, 0, true, true, 0);   // FDIV ST,ST(1): 4.0/2.0
+                u.commit(0, 0, true);
+                for (int n = 0; n < at; ++n) u.tick();
+                u.top.f1 = 1;
+                u.tick();
+                u.top.f1 = 0;
+                u.top.eval();
+                // Straight into a second divide with a different answer.
+                u.clear_latch();
+                u.load(OP_FLD_M80, FMT_F80, four);
+                u.load(OP_FLD_M80, FMT_F80, four);
+                u.reg_form(0x0f1);                    // 4.0/4.0 = 1.0
+                u.st0(got3);
+                if ((got3[9] != 0x3f || got3[8] != 0xff) && !f1_bad++)
+                    f1_first = "at " + std::to_string(at) + " clocks: " + hex80(got3);
+            }
+            if (f1_bad) bad("f1-during-divide",
+                            std::to_string(f1_bad) + " offsets, first " + f1_first);
             else ok("f1-during-divide");
         }
 

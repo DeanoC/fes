@@ -235,7 +235,21 @@ Quartus refusal is worth its own line — **a check that fails loudly beat a
 check that reports** — and it is why the exclusion evidence is now a query
 that fails the build rather than a table for a reader to inspect.
 
-A fifth, of the same family, is in the next section: a lockstep that passed
+**And one case that passes but has not been shown able to fail.** The
+`f1-during-divide` case sweeps the port F1h reset through a committed divide
+at fourteen offsets and chains a second divide with a different answer
+immediately after, so a stale result would be visible rather than
+coincidentally equal. It passes — and it **still passes** with `f1` deliberately
+removed from both the backend's reset and the cancel condition. Two breaks,
+neither detected. The reason appears to be a third mechanism: the CPU-side
+core has no completion queue, so the abandoned operation's single `raw_valid`
+pulse is lost long before the next operation reaches `B_WAIT`, and the `f1`
+cancel is redundant with that. So the RTL looks safe by construction, the
+`f1` cancel is belt-and-braces, and **the case is weaker evidence than the
+flush sweep**, which was shown able to fail. It is recorded that way rather
+than counted alongside it.
+
+A sixth, of the same family, is in the next section: a lockstep that passed
 while the count it was gated on was never measured.
 
 ## Two gates that had stopped covering what they named
