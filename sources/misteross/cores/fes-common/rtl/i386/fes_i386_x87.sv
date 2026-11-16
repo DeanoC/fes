@@ -150,7 +150,11 @@ module fes_i386_x87 (
     output logic        busy_o,
     // The sequencer's state, for the unit's own bench and the CPU's trace;
     // nothing in the machine reads it, so the fit trims the wires.
-    output logic [4:0]  trace_seq,
+    // Six bits, not five: slice 4 took the sequencer past 31 states, and a
+    // truncated trace reported Q_SEED as a low-numbered slice-2 state --
+    // wrong precisely while diagnosing the new square-root path. Codex
+    // found it on PR #1889.
+    output logic [5:0]  trace_seq,
     // FINIT clears the x87 pointers as well as the words (387 PRM, FINIT),
     // and the CPU keeps them, so the unit says when: in the cycle FNINIT
     // commits, or FNSAVE, which leaves the unit as FINIT does. It is in
@@ -274,6 +278,253 @@ module fes_i386_x87 (
         .clk, .reset, .start(mul_start), .a(ua_mul), .b(ub_mul), .done(mul_done), .p(mul_p)
     );
 
+    // The seed is read synchronously from the divisor's significand, which is
+    // stable from A_SETUP (or A_PNB for a denormal) onwards, so the entry is
+    // valid by A_OP. A registered read is also what infers M10K rather than
+    // logic.
+    // ---- Slice 4: the reciprocal seed table, and the divide's registers. ----
+    // 128 words of 10 bits in M10K, indexed by the divisor's bits 62:56 --
+    // the shape the fit spike's standalone divider used. The entry
+    // approximates 1/b for b in [0.5, 1) as v/512, so v is in [512, 1024]
+    // and the seed always has bit 63 set once it is left-aligned.
+    //
+    // Goldschmidt with these 64-bit registers floors at about 2^-61 relative
+    // error however long it runs, because every intermediate is the top 64
+    // bits of the multiplier's product. That is short of the 67 bits the
+    // extended format needs, and short in a way no iteration count fixes, so
+    // the iterations are followed by an exact tail: a candidate guaranteed
+    // below the true truncation and `k` restoring compare-subtract steps that
+    // close the gap and leave the exact remainder. The sticky bit round_pc()
+    // needs is that remainder being non-zero, which the tail produces for
+    // free. docs/validation/2026-11-15-i386-x87-s4/design.md has the
+    // measurements and model/fixed_constants.py is the check.
+    (* ramstyle = "M10K" *) logic [9:0] rcp_tab [0:127];
+    // Literals, and not an initial loop that computes them: the locked Yosys
+    // rejects `real` in a module body ("syntax error, unexpected TOK_REAL"),
+    // which the netlist bench found on the first run. The values are
+    // 1/b for b = 0.5 + (i + 0.5)/256 as v/512, rounded to nearest;
+    // model/seed_tables.py emits exactly this block and --check verifies the
+    // RTL still holds it, so they are reproducible rather than magic.
+    initial begin
+        rcp_tab[0] = 10'd1020; rcp_tab[1] = 10'd1012; rcp_tab[2] = 10'd1004; rcp_tab[3] = 10'd997; rcp_tab[4] = 10'd989; rcp_tab[5] = 10'd982; rcp_tab[6] = 10'd975; rcp_tab[7] = 10'd967;
+        rcp_tab[8] = 10'd960; rcp_tab[9] = 10'd953; rcp_tab[10] = 10'd946; rcp_tab[11] = 10'd940; rcp_tab[12] = 10'd933; rcp_tab[13] = 10'd926; rcp_tab[14] = 10'd920; rcp_tab[15] = 10'd913;
+        rcp_tab[16] = 10'd907; rcp_tab[17] = 10'd901; rcp_tab[18] = 10'd895; rcp_tab[19] = 10'd889; rcp_tab[20] = 10'd883; rcp_tab[21] = 10'd877; rcp_tab[22] = 10'd871; rcp_tab[23] = 10'd865;
+        rcp_tab[24] = 10'd859; rcp_tab[25] = 10'd854; rcp_tab[26] = 10'd848; rcp_tab[27] = 10'd843; rcp_tab[28] = 10'd838; rcp_tab[29] = 10'd832; rcp_tab[30] = 10'd827; rcp_tab[31] = 10'd822;
+        rcp_tab[32] = 10'd817; rcp_tab[33] = 10'd812; rcp_tab[34] = 10'd807; rcp_tab[35] = 10'd802; rcp_tab[36] = 10'd797; rcp_tab[37] = 10'd792; rcp_tab[38] = 10'd787; rcp_tab[39] = 10'd783;
+        rcp_tab[40] = 10'd778; rcp_tab[41] = 10'd773; rcp_tab[42] = 10'd769; rcp_tab[43] = 10'd764; rcp_tab[44] = 10'd760; rcp_tab[45] = 10'd755; rcp_tab[46] = 10'd751; rcp_tab[47] = 10'd747;
+        rcp_tab[48] = 10'd743; rcp_tab[49] = 10'd738; rcp_tab[50] = 10'd734; rcp_tab[51] = 10'd730; rcp_tab[52] = 10'd726; rcp_tab[53] = 10'd722; rcp_tab[54] = 10'd718; rcp_tab[55] = 10'd714;
+        rcp_tab[56] = 10'd710; rcp_tab[57] = 10'd707; rcp_tab[58] = 10'd703; rcp_tab[59] = 10'd699; rcp_tab[60] = 10'd695; rcp_tab[61] = 10'd692; rcp_tab[62] = 10'd688; rcp_tab[63] = 10'd684;
+        rcp_tab[64] = 10'd681; rcp_tab[65] = 10'd677; rcp_tab[66] = 10'd674; rcp_tab[67] = 10'd670; rcp_tab[68] = 10'd667; rcp_tab[69] = 10'd664; rcp_tab[70] = 10'd660; rcp_tab[71] = 10'd657;
+        rcp_tab[72] = 10'd654; rcp_tab[73] = 10'd650; rcp_tab[74] = 10'd647; rcp_tab[75] = 10'd644; rcp_tab[76] = 10'd641; rcp_tab[77] = 10'd638; rcp_tab[78] = 10'd635; rcp_tab[79] = 10'd632;
+        rcp_tab[80] = 10'd629; rcp_tab[81] = 10'd626; rcp_tab[82] = 10'd623; rcp_tab[83] = 10'd620; rcp_tab[84] = 10'd617; rcp_tab[85] = 10'd614; rcp_tab[86] = 10'd611; rcp_tab[87] = 10'd608;
+        rcp_tab[88] = 10'd605; rcp_tab[89] = 10'd603; rcp_tab[90] = 10'd600; rcp_tab[91] = 10'd597; rcp_tab[92] = 10'd594; rcp_tab[93] = 10'd592; rcp_tab[94] = 10'd589; rcp_tab[95] = 10'd586;
+        rcp_tab[96] = 10'd584; rcp_tab[97] = 10'd581; rcp_tab[98] = 10'd579; rcp_tab[99] = 10'd576; rcp_tab[100] = 10'd574; rcp_tab[101] = 10'd571; rcp_tab[102] = 10'd569; rcp_tab[103] = 10'd566;
+        rcp_tab[104] = 10'd564; rcp_tab[105] = 10'd561; rcp_tab[106] = 10'd559; rcp_tab[107] = 10'd557; rcp_tab[108] = 10'd554; rcp_tab[109] = 10'd552; rcp_tab[110] = 10'd550; rcp_tab[111] = 10'd547;
+        rcp_tab[112] = 10'd545; rcp_tab[113] = 10'd543; rcp_tab[114] = 10'd541; rcp_tab[115] = 10'd538; rcp_tab[116] = 10'd536; rcp_tab[117] = 10'd534; rcp_tab[118] = 10'd532; rcp_tab[119] = 10'd530;
+        rcp_tab[120] = 10'd527; rcp_tab[121] = 10'd525; rcp_tab[122] = 10'd523; rcp_tab[123] = 10'd521; rcp_tab[124] = 10'd519; rcp_tab[125] = 10'd517; rcp_tab[126] = 10'd515; rcp_tab[127] = 10'd513;
+    end
+    logic [9:0]  rcp_q;          // the seed, valid the cycle after ob_m settles
+    always_ff @(posedge clk) rcp_q <= rcp_tab[ob_m[62:56]];
+
+    // The reciprocal-square-root seeds: 256 words of 11 bits, indexed by the
+    // exponent's parity and the radicand's top 7 bits. The entry approximates
+    // 1/sqrt(a) for a in [1, 4) as v/1024, so v is in [512, 1024].
+    // The entries run from 513 to 1022 over the whole table -- a is never
+    // exactly 1, because the index is an interval's midpoint -- so ten bits
+    // hold them and the left-aligned seed always has bit 63 set.
+    (* ramstyle = "M10K" *) logic [9:0] rsq_tab [0:255];
+    // 1/sqrt(a) for a = (1 + (i + 0.5)/128) * 2^parity as v/1024, from the
+    // same generator. Literals for the same reason as the reciprocal's.
+    initial begin
+        rsq_tab[0] = 10'd1022; rsq_tab[1] = 10'd1018; rsq_tab[2] = 10'd1014; rsq_tab[3] = 10'd1010; rsq_tab[4] = 10'd1006; rsq_tab[5] = 10'd1003; rsq_tab[6] = 10'd999; rsq_tab[7] = 10'd995;
+        rsq_tab[8] = 10'd992; rsq_tab[9] = 10'd988; rsq_tab[10] = 10'd984; rsq_tab[11] = 10'd981; rsq_tab[12] = 10'd977; rsq_tab[13] = 10'd974; rsq_tab[14] = 10'd971; rsq_tab[15] = 10'd967;
+        rsq_tab[16] = 10'd964; rsq_tab[17] = 10'd960; rsq_tab[18] = 10'd957; rsq_tab[19] = 10'd954; rsq_tab[20] = 10'd951; rsq_tab[21] = 10'd948; rsq_tab[22] = 10'd944; rsq_tab[23] = 10'd941;
+        rsq_tab[24] = 10'd938; rsq_tab[25] = 10'd935; rsq_tab[26] = 10'd932; rsq_tab[27] = 10'd929; rsq_tab[28] = 10'd926; rsq_tab[29] = 10'd923; rsq_tab[30] = 10'd920; rsq_tab[31] = 10'd917;
+        rsq_tab[32] = 10'd914; rsq_tab[33] = 10'd912; rsq_tab[34] = 10'd909; rsq_tab[35] = 10'd906; rsq_tab[36] = 10'd903; rsq_tab[37] = 10'd901; rsq_tab[38] = 10'd898; rsq_tab[39] = 10'd895;
+        rsq_tab[40] = 10'd892; rsq_tab[41] = 10'd890; rsq_tab[42] = 10'd887; rsq_tab[43] = 10'd885; rsq_tab[44] = 10'd882; rsq_tab[45] = 10'd880; rsq_tab[46] = 10'd877; rsq_tab[47] = 10'd875;
+        rsq_tab[48] = 10'd872; rsq_tab[49] = 10'd870; rsq_tab[50] = 10'd867; rsq_tab[51] = 10'd865; rsq_tab[52] = 10'd862; rsq_tab[53] = 10'd860; rsq_tab[54] = 10'd858; rsq_tab[55] = 10'd855;
+        rsq_tab[56] = 10'd853; rsq_tab[57] = 10'd851; rsq_tab[58] = 10'd848; rsq_tab[59] = 10'd846; rsq_tab[60] = 10'd844; rsq_tab[61] = 10'd842; rsq_tab[62] = 10'd839; rsq_tab[63] = 10'd837;
+        rsq_tab[64] = 10'd835; rsq_tab[65] = 10'd833; rsq_tab[66] = 10'd831; rsq_tab[67] = 10'd829; rsq_tab[68] = 10'd826; rsq_tab[69] = 10'd824; rsq_tab[70] = 10'd822; rsq_tab[71] = 10'd820;
+        rsq_tab[72] = 10'd818; rsq_tab[73] = 10'd816; rsq_tab[74] = 10'd814; rsq_tab[75] = 10'd812; rsq_tab[76] = 10'd810; rsq_tab[77] = 10'd808; rsq_tab[78] = 10'd806; rsq_tab[79] = 10'd804;
+        rsq_tab[80] = 10'd802; rsq_tab[81] = 10'd800; rsq_tab[82] = 10'd799; rsq_tab[83] = 10'd797; rsq_tab[84] = 10'd795; rsq_tab[85] = 10'd793; rsq_tab[86] = 10'd791; rsq_tab[87] = 10'd789;
+        rsq_tab[88] = 10'd787; rsq_tab[89] = 10'd786; rsq_tab[90] = 10'd784; rsq_tab[91] = 10'd782; rsq_tab[92] = 10'd780; rsq_tab[93] = 10'd778; rsq_tab[94] = 10'd777; rsq_tab[95] = 10'd775;
+        rsq_tab[96] = 10'd773; rsq_tab[97] = 10'd771; rsq_tab[98] = 10'd770; rsq_tab[99] = 10'd768; rsq_tab[100] = 10'd766; rsq_tab[101] = 10'd765; rsq_tab[102] = 10'd763; rsq_tab[103] = 10'd761;
+        rsq_tab[104] = 10'd760; rsq_tab[105] = 10'd758; rsq_tab[106] = 10'd757; rsq_tab[107] = 10'd755; rsq_tab[108] = 10'd753; rsq_tab[109] = 10'd752; rsq_tab[110] = 10'd750; rsq_tab[111] = 10'd749;
+        rsq_tab[112] = 10'd747; rsq_tab[113] = 10'd745; rsq_tab[114] = 10'd744; rsq_tab[115] = 10'd742; rsq_tab[116] = 10'd741; rsq_tab[117] = 10'd739; rsq_tab[118] = 10'd738; rsq_tab[119] = 10'd736;
+        rsq_tab[120] = 10'd735; rsq_tab[121] = 10'd733; rsq_tab[122] = 10'd732; rsq_tab[123] = 10'd731; rsq_tab[124] = 10'd729; rsq_tab[125] = 10'd728; rsq_tab[126] = 10'd726; rsq_tab[127] = 10'd725;
+        rsq_tab[128] = 10'd723; rsq_tab[129] = 10'd720; rsq_tab[130] = 10'd717; rsq_tab[131] = 10'd714; rsq_tab[132] = 10'd712; rsq_tab[133] = 10'd709; rsq_tab[134] = 10'd706; rsq_tab[135] = 10'd704;
+        rsq_tab[136] = 10'd701; rsq_tab[137] = 10'd699; rsq_tab[138] = 10'd696; rsq_tab[139] = 10'd694; rsq_tab[140] = 10'd691; rsq_tab[141] = 10'd689; rsq_tab[142] = 10'd686; rsq_tab[143] = 10'd684;
+        rsq_tab[144] = 10'd681; rsq_tab[145] = 10'd679; rsq_tab[146] = 10'd677; rsq_tab[147] = 10'd675; rsq_tab[148] = 10'd672; rsq_tab[149] = 10'd670; rsq_tab[150] = 10'd668; rsq_tab[151] = 10'd666;
+        rsq_tab[152] = 10'd663; rsq_tab[153] = 10'd661; rsq_tab[154] = 10'd659; rsq_tab[155] = 10'd657; rsq_tab[156] = 10'd655; rsq_tab[157] = 10'd653; rsq_tab[158] = 10'd651; rsq_tab[159] = 10'd649;
+        rsq_tab[160] = 10'd647; rsq_tab[161] = 10'd645; rsq_tab[162] = 10'd643; rsq_tab[163] = 10'd641; rsq_tab[164] = 10'd639; rsq_tab[165] = 10'd637; rsq_tab[166] = 10'd635; rsq_tab[167] = 10'd633;
+        rsq_tab[168] = 10'd631; rsq_tab[169] = 10'd629; rsq_tab[170] = 10'd627; rsq_tab[171] = 10'd626; rsq_tab[172] = 10'd624; rsq_tab[173] = 10'd622; rsq_tab[174] = 10'd620; rsq_tab[175] = 10'd618;
+        rsq_tab[176] = 10'd617; rsq_tab[177] = 10'd615; rsq_tab[178] = 10'd613; rsq_tab[179] = 10'd611; rsq_tab[180] = 10'd610; rsq_tab[181] = 10'd608; rsq_tab[182] = 10'd606; rsq_tab[183] = 10'd605;
+        rsq_tab[184] = 10'd603; rsq_tab[185] = 10'd601; rsq_tab[186] = 10'd600; rsq_tab[187] = 10'd598; rsq_tab[188] = 10'd597; rsq_tab[189] = 10'd595; rsq_tab[190] = 10'd594; rsq_tab[191] = 10'd592;
+        rsq_tab[192] = 10'd590; rsq_tab[193] = 10'd589; rsq_tab[194] = 10'd587; rsq_tab[195] = 10'd586; rsq_tab[196] = 10'd584; rsq_tab[197] = 10'd583; rsq_tab[198] = 10'd581; rsq_tab[199] = 10'd580;
+        rsq_tab[200] = 10'd579; rsq_tab[201] = 10'd577; rsq_tab[202] = 10'd576; rsq_tab[203] = 10'd574; rsq_tab[204] = 10'd573; rsq_tab[205] = 10'd571; rsq_tab[206] = 10'd570; rsq_tab[207] = 10'd569;
+        rsq_tab[208] = 10'd567; rsq_tab[209] = 10'd566; rsq_tab[210] = 10'd565; rsq_tab[211] = 10'd563; rsq_tab[212] = 10'd562; rsq_tab[213] = 10'd561; rsq_tab[214] = 10'd559; rsq_tab[215] = 10'd558;
+        rsq_tab[216] = 10'd557; rsq_tab[217] = 10'd555; rsq_tab[218] = 10'd554; rsq_tab[219] = 10'd553; rsq_tab[220] = 10'd552; rsq_tab[221] = 10'd550; rsq_tab[222] = 10'd549; rsq_tab[223] = 10'd548;
+        rsq_tab[224] = 10'd547; rsq_tab[225] = 10'd546; rsq_tab[226] = 10'd544; rsq_tab[227] = 10'd543; rsq_tab[228] = 10'd542; rsq_tab[229] = 10'd541; rsq_tab[230] = 10'd540; rsq_tab[231] = 10'd538;
+        rsq_tab[232] = 10'd537; rsq_tab[233] = 10'd536; rsq_tab[234] = 10'd535; rsq_tab[235] = 10'd534; rsq_tab[236] = 10'd533; rsq_tab[237] = 10'd532; rsq_tab[238] = 10'd530; rsq_tab[239] = 10'd529;
+        rsq_tab[240] = 10'd528; rsq_tab[241] = 10'd527; rsq_tab[242] = 10'd526; rsq_tab[243] = 10'd525; rsq_tab[244] = 10'd524; rsq_tab[245] = 10'd523; rsq_tab[246] = 10'd522; rsq_tab[247] = 10'd521;
+        rsq_tab[248] = 10'd520; rsq_tab[249] = 10'd519; rsq_tab[250] = 10'd518; rsq_tab[251] = 10'd517; rsq_tab[252] = 10'd516; rsq_tab[253] = 10'd515; rsq_tab[254] = 10'd514; rsq_tab[255] = 10'd513;
+    end
+    logic [9:0]  rsq_q;
+    logic        sq_p;           // the radicand's exponent parity
+    always_ff @(posedge clk) rsq_q <= rsq_tab[{sq_p, oa_m[62:56]}];
+
+    // The square root's working values, each a 64-bit significand with a
+    // small signed exponent: value = sig * 2^(exp - 63). The multiplier's
+    // operands both have bit 63 set, so a product needs at most one bit of
+    // renormalisation, which is a mux and not a shift.
+    logic [63:0]        qy_s;    // y, the reciprocal square root
+    logic signed [5:0]  qy_e;
+    logic [63:0]        qt_s;    // 3 - a*y^2
+    logic signed [5:0]  qt_e;
+    logic [63:0]        qz_s;    // a*y, then a*y^2
+    logic signed [5:0]  qz_e;
+
+    logic [63:0] gs_n, gs_d;     // Goldschmidt's numerator and denominator
+    logic [1:0]  gs_it;          // iterations still to run
+    logic [66:0] dv_c;           // the candidate quotient/root, 66 bits plus a carry
+    logic [95:0] dv_rem;         // low word of the signed residual
+    logic [37:0] dv_hi_rem;      // exact high word, or the fallback radicand
+    logic [3:0]  dv_k;           // restoring steps still to run
+    logic [6:0]  dv_exact_left;  // quotient/root digits still to generate
+    logic        dv_s;           // the pre-scale: the quotient was below one
+    logic        dv_lost;        // exact fallback bits below the selected precision
+    logic        dv_exact_used;  // the certified digit-by-digit fallback supplied the result
+    logic [63:0] pr_q;           // the remainder step's quotient
+    logic [6:0]  pr_n;           // ... how many quotient bits it consumed
+    logic        pr_part;        // ... and whether it is a partial step
+    logic        pr_one;         // the form is FPREM1, so the quotient rounds
+    logic [95:0] dv_sub;          // the tail's subtrahend, held and shifted one
+                                  // place a step rather than formed by a
+                                  // variable shift (see D_TAIL)
+    logic [95:0] dv_pow;          // ... and 2^(2i), which the square root's
+                                  // trial needs and which halves twice a step
+
+    // E and k size the fast correction tail. Their empirical maxima are not
+    // correctness assumptions: D_CHECK/Q_CHECK certify the full residual, and
+    // an out-of-range candidate takes the exact digit-by-digit fallback.
+    // PC 01 is reserved and reads as the extended format, exactly as
+    // round_pc() and Bochs's softfloat read it, so it takes the extended
+    // bound and step count and not the short ones. Getting that wrong left
+    // the reserved encoding one ulp low with the precision exception set --
+    // 150 of 484 cases in the bench's pc01 rows, and nothing else.
+    function automatic logic [7:0] dv_e(input logic [1:0] prec);
+        dv_e = (prec == 2'd0 || prec == 2'd2) ? 8'd4 : 8'd128;
+    endfunction
+    function automatic logic [3:0] dv_steps(input logic [1:0] prec);
+        dv_steps = (prec == 2'd0 || prec == 2'd2) ? 4'd3 : 4'd8;
+    endfunction
+    function automatic logic [1:0] dv_iters(input logic [1:0] prec);
+        dv_iters = prec == 2'd0 ? 2'd2 : 2'd3;   // PC 24 needs two, the rest three
+    endfunction
+    // How many low bits of the 66-bit target this precision does not need.
+    // The 66-bit target's bits 65:2 are the significand, bit 1 the guard and
+    // bit 0 the round. round_pc() at PC 24 reads m[63:40], the round bit
+    // m[39] and a sticky over everything below, so the exact truncation it
+    // needs stops at bit 39 -- which is the 66-bit target with its low 41
+    // bits dropped. PC 53 stops at m[10], dropping 12. The empirical error
+    // and step counts are tuned AT THIS POSITION for the fast path; the
+    // full-width certificate and exact fallback make short results sound
+    // without treating those measurements as an all-input bound.
+    function automatic logic [5:0] dv_drop(input logic [1:0] prec);
+        dv_drop = prec == 2'd0 ? 6'd41 : prec == 2'd2 ? 6'd12 : 6'd0;
+    endfunction
+    function automatic logic [6:0] dv_digits(input logic [1:0] prec);
+        dv_digits = 7'd66 - 7'(dv_drop(prec));
+    endfunction
+    function automatic logic low_dropped_bits(input logic [66:0] v, input logic [1:0] prec);
+        case (prec)
+            2'd0:    low_dropped_bits = |v[40:0];
+            2'd2:    low_dropped_bits = |v[11:0];
+            default: low_dropped_bits = 1'b0;
+        endcase
+    endfunction
+    // High word of A * 2^(65+s-drop), above bit 95. PC 24's dividend
+    // fits below bit 96; the other positions are constant shifts.
+    function automatic logic [35:0] dvdhi(input logic [63:0] m, input logic s,
+                                          input logic [1:0] prec);
+        case (prec)
+            2'd0:    dvdhi = 36'd0;
+            2'd2:    dvdhi = s ? 36'(m >> 42) : 36'(m >> 43);
+            default: dvdhi = s ? 36'(m >> 30) : 36'(m >> 31);
+        endcase
+    endfunction
+    // High word of the scaled square-root radicand used by the fast path.
+    function automatic logic [35:0] sqradhi(input logic [63:0] m, input logic p,
+                                            input logic [1:0] prec);
+        case (prec)
+            2'd0:    sqradhi = 36'd0;
+            2'd2:    sqradhi = p ? 36'(m >> 52) : 36'(m >> 53);
+            default: sqradhi = p ? 36'(m >> 28) : 36'(m >> 29);
+        endcase
+    endfunction
+    // Multiply three high bits by a 64-bit operand using shifts and adds, so
+    // the certificate does not infer another DSP multiplier.
+    function automatic logic [66:0] mul3wide(input logic [2:0] a, input logic [63:0] b);
+        mul3wide = (a[0] ? {3'd0, b} : 67'd0)
+                 + (a[1] ? {2'd0, b, 1'b0} : 67'd0)
+                 + (a[2] ? {1'd0, b, 2'b0} : 67'd0);
+    endfunction
+    // The drop is one of **three constants**, so each place it is applied is a
+    // three-way mux of constant shifts and not a shifter. Writing
+    // `v >> dv_drop(prec)` gives Quartus a variable amount and it builds the
+    // general thing; these say what is meant. Option A has no barrel shifter.
+    //
+    // This was only possible once the remainders stopped sharing these paths:
+    // FPREM needed a genuinely variable drop, and while it did, muxing the
+    // divide's and the square root's constants bought nothing.
+    function automatic logic [66:0] drop67(input logic [66:0] v, input logic [1:0] prec);
+        case (prec)
+            2'd0:    drop67 = v >> 41;
+            2'd2:    drop67 = v >> 12;
+            default: drop67 = v;
+        endcase
+    endfunction
+    // The dividend at the remainder's scale: 65 + s - drop, so 24/25, 53/54
+    // or 65/66 -- six constants, selected by the precision and the pre-scale.
+    function automatic logic [95:0] dvd96(input logic [63:0] m, input logic s,
+                                          input logic [1:0] prec);
+        case (prec)
+            2'd0:    dvd96 = s ? (96'(m) << 25) : (96'(m) << 24);
+            2'd2:    dvd96 = s ? (96'(m) << 54) : (96'(m) << 53);
+            default: dvd96 = s ? (96'(m) << 66) : (96'(m) << 65);
+        endcase
+    endfunction
+    // The exact truncation put back where round_pc() reads it: the candidate's
+    // bits land at m[63:39] at PC 24 and m[63:10] at PC 53, with the guard and
+    // round bits clear because the sticky already covers what was not
+    // computed.
+    function automatic logic [63:0] place64(input logic [66:0] c, input logic [1:0] prec);
+        case (prec)
+            2'd0:    place64 = {c[24:0], 39'd0};
+            2'd2:    place64 = {c[53:0], 10'd0};
+            default: place64 = c[65:2];
+        endcase
+    endfunction
+    // The square root's own bound and step count, measured the same way:
+    // 64 and 7 at the extended format, 4 and 3 at PC 24 and PC 53.
+    function automatic logic [7:0] sq_e(input logic [1:0] prec);
+        sq_e = (prec == 2'd0 || prec == 2'd2) ? 8'd4 : 8'd64;
+    endfunction
+    function automatic logic [3:0] sq_steps(input logic [1:0] prec);
+        sq_steps = (prec == 2'd0 || prec == 2'd2) ? 4'd3 : 4'd7;
+    endfunction
+
+    // One step of the square root's Newton iteration keeps every value
+    // normalised with bit 63 set, so a product of two such values has bit 127
+    // or bit 126 set and renormalising is a choice between two slices.
+    function automatic logic [63:0] norm_hi(input logic [127:0] pr);
+        norm_hi = pr[127] ? pr[127:64] : pr[126:63];
+    endfunction
+    function automatic logic signed [5:0] norm_e(input logic signed [5:0] e,
+                                                input logic p127);
+        norm_e = p127 ? e : e - 6'sd1;
+    endfunction
+
     // The leading-zero count of a 64-bit magnitude (64 when it is zero).
     function automatic logic [6:0] clz64(input logic [63:0] v);
         clz64 = 7'd64;
@@ -363,7 +614,7 @@ module fes_i386_x87 (
     // and every shift alike -- goes through S_SHIFT and S_MUL and comes back
     // to the state `sh_ret` names, so the one multiplier is shared without a
     // second sequencer.
-    typedef enum logic [4:0] {
+    typedef enum logic [5:0] {
         S_IDLE, S_ARG, S_PRE, S_SHIFT, S_MUL, S_POST, S_POST2, S_RDY, S_SAVE_RD, S_APPLY, S_APPLY2,
         A_CVT,      // a memory operand's conversion has finished: take it
         A_CAP,      // take both operands, so the classes below can read them
@@ -381,7 +632,45 @@ module fes_i386_x87 (
         A_INT,      // FRNDINT's integer, once the fraction is below bit 0
         A_INT2,     // ... rounded, and its normalising shift started
         A_PACK,     // ... and packed
-        A_XT        // FXTRACT's exponent, once its magnitude has normalised
+        A_XT,       // FXTRACT's exponent, once its magnitude has normalised
+        // ---- Slice 4's divide. ----
+        // Goldschmidt on the shared multiplier, a short correction tail, and
+        // an exact residual check with a digit-by-digit fallback.
+        D_SEED,     // the reciprocal seed is out of the M10K table: start N = A*R
+        D_N0,       // take N = A*R, start D = B*R
+        D_D0,       // take D = B*R; decide whether to iterate again
+        D_ITN,      // an iteration's N*f: take it, start D*f
+        D_ITD,      // ... take D*f, and loop or fall through
+        D_CAND,     // form the candidate C0 = qhat - E, start C0[63:0]*B
+        D_REM,      // take the product and form the full-width residual
+        D_TAIL,     // the restoring compare-subtract steps, one a clock
+        D_CHECK,    // certify the full-width residual or restart exactly
+        D_EXACT,    // exact digit-by-digit divide or square root fallback
+        D_FIN,      // the quotient, its guard, round and sticky, into A_RND
+        // ---- Slice 4's square root. ----
+        // Newton on the reciprocal square root, y <- y(3 - a*y^2)/2, on the
+        // same multiplier, then the same exact tail with the square root's
+        // own trial: (C + 2^i)^2 - C^2 is (C << (i+1)) + 2^(2i), two shifts
+        // and an add, so the tail needs no multiply at all.
+        Q_SEED,     // the reciprocal-square-root seed is out: start a*y
+        Q_AY,       // take a*y, start (a*y)*y
+        Q_AY2,      // take a*y^2 and form 3 - a*y^2, then start y*that
+        Q_Y,        // take the new y, halve it, loop or fall through
+        Q_RES,      // the result estimate q = a*y
+        Q_CAND,     // the candidate, and start C0*C0
+        Q_REM,      // the radicand's remainder
+        Q_CHECK,    // certify the full-width residual or restart exactly
+        Q_FIN,      // into A_RND
+        // ---- Slice 4's remainders. ----
+        // FPREM and FPREM1 run on the divide's primitive: the divide's tail
+        // already produces the exact 66-bit truncation T of A*2^(65+s)/B, and
+        // the quotient a partial or complete step needs is just T shifted
+        // right, because floor(floor(x*2^k)/2^k) is floor(x). One more
+        // multiply gives the exact remainder for that quotient.
+        P_SH,       // the remainder's doubling loop: no Goldschmidt, no shifter
+        P_FIN,      // FPREM1's round-to-nearest and the normalising shift
+        P_ZERO,     // ... an exact zero remainder, which is packed not shifted
+        P_PACK      // ... and the normalised magnitude, C2 and the quotient bits
     } seq_e;
     seq_e        seq;
     seq_e        sh_ret;      // the state S_MUL returns to when the multiply is done
@@ -407,7 +696,7 @@ module fes_i386_x87 (
     logic [10:0] cur_op_raw;    // its 387 opcode, which commit stores
     logic        cur_ctrl;      // ... and whether it is a control form
     assign busy_o = busy;
-    assign trace_seq = 5'(seq);
+    assign trace_seq = 6'(seq);
 
     // ---- The board's BUSY# latch (387 PRM Appendix F.2). ----
     // ERROR# going active latches BUSY#, which holds the next waiting ESC or
@@ -796,6 +1085,7 @@ module fes_i386_x87 (
     logic       a_reg;      // a register form, so the second operand is ST(i)
     logic [2:0] a_rf;       // a memory form's reg field
     logic       a_mul;      // the operation is a multiply, not an add
+    logic       a_div;      // ... a divide (slice 4)
     logic       a_sub;      // ... a subtract, which is an add with b's sign flipped
     logic       a_rev;      // ... and the operands go the other way round
     logic       a_dsti;     // the destination is ST(i), not ST(0)
@@ -806,30 +1096,37 @@ module fes_i386_x87 (
     logic       a_form;     // the operation in flight is one of slice 3's
     logic       a_mem;      // ... and its second operand comes from memory
     assign a_form = cur == X87_ARITH || cur == X87_CMP || cur == X87_RNDINT
-                 || cur == X87_SCALE || cur == X87_XTRACT;
-    assign a_mem = (cur == X87_ARITH || cur == X87_CMP) && cur_op_raw[7:6] != 2'b11;
+                 || cur == X87_SCALE || cur == X87_XTRACT || cur == X87_DIV
+                 || cur == X87_SQRT || cur == X87_PREM;
+    assign a_mem = (cur == X87_ARITH || cur == X87_CMP || cur == X87_DIV)
+                && cur_op_raw[7:6] != 2'b11;
     always_comb begin
         a_reg = cur_op_raw[7:6] == 2'b11;
         a_rf = cur_op_raw[5:3];
         a_mul = 1'b0;
+        a_div = cur == X87_DIV;
         a_sub = 1'b0;
         a_rev = 1'b0;
         a_dsti = 1'b0;
         a_pop1 = 1'b0;
         a_pop2 = 1'b0;
         a_unord = 1'b0;
-        if (cur == X87_ARITH) begin
+        if (cur == X87_ARITH || cur == X87_DIV) begin
             if (!a_reg) begin
                 // D8, DC, DA and DE reg fields 0, 1, 4 and 5: add, multiply,
-                // subtract and reverse subtract, into ST(0).
-                a_mul = a_rf == 3'd1;
-                a_sub = a_rf == 3'd4 || a_rf == 3'd5;
-                a_rev = a_rf == 3'd5;
+                // subtract and reverse subtract, into ST(0). Fields 6 and 7
+                // are the two divides, and 7 is the reversed one just as 5 is.
+                a_mul = cur == X87_ARITH && a_rf == 3'd1;
+                a_sub = cur == X87_ARITH && (a_rf == 3'd4 || a_rf == 3'd5);
+                a_rev = a_rf == 3'd5 || a_rf == 3'd7;
             end else begin
                 // C0+i and C8+i are add and multiply, E0+i and E8+i the two
-                // subtracts; DC and DE put the result in ST(i), and DE pops.
-                a_mul = !cur_op_raw[5] && cur_op_raw[3];
-                a_sub = cur_op_raw[5];
+                // subtracts, F0+i and F8+i the two divides; DC and DE put the
+                // result in ST(i), and DE pops. The F0/F8 sense is E0/E8's,
+                // including the swap once the destination is ST(i): DC F0+i is
+                // FDIVR ST(i),ST and DC F8+i is FDIV ST(i),ST (386 PRM).
+                a_mul = cur == X87_ARITH && !cur_op_raw[5] && cur_op_raw[3];
+                a_sub = cur == X87_ARITH && cur_op_raw[5];
                 a_dsti = cur_op_raw[10:8] != 3'b000;
                 a_rev = a_dsti ? !cur_op_raw[3] : cur_op_raw[3];
                 a_pop1 = cur_op_raw[10:8] == 3'b110;
@@ -874,6 +1171,15 @@ module fes_i386_x87 (
     // set) at the smallest normal's exponent, which is its value.
     function automatic logic signed [17:0] eff_e(input logic [79:0] v);
         eff_e = v[78:64] == 15'd0 ? 18'sd1 : $signed({3'b0, v[78:64]});
+    endfunction
+
+    // The effective exponent's low bit, which is all the square root's parity
+    // needs. A denormal's effective exponent is 1, so its parity bit is 1;
+    // every other value's is the exponent field's own bit 0. Subtracting the
+    // pre-normalising shift flips it by that shift's low bit, so the parity
+    // after normalisation is one XOR away and needs no subtract.
+    function automatic logic eff_e0(input logic [79:0] v);
+        eff_e0 = v[78:64] == 15'd0 ? 1'b1 : v[64];
     endfunction
 
     // ---- The operand classes that give a result without the datapath. ----
@@ -929,6 +1235,21 @@ module fes_i386_x87 (
                 pick_a = nan_a;
             sp_v = pick_a ? {pa[79:64], 2'b11, pa[61:0]} : {pb[79:64], 2'b11, pb[61:0]};
             if (ca == C_SNAN || cb == C_SNAN) sp_fl = 6'b000001;
+        end else if (a_div) begin
+            // The divide (387 PRM section 3.1.7 and Table 3.5). Zero over
+            // zero and infinity over infinity are invalid; a finite non-zero
+            // over zero is the DIVIDE-BY-ZERO exception, which is a
+            // PRE-operation one, so unmasked it leaves the operands and TOP
+            // alone and reports nothing else (slice 3's rule 1).
+            if (ca == C_INF && cb == C_INF) sp_fl = 6'b000001;
+            else if (ca == C_ZERO && cb == C_ZERO) sp_fl = 6'b000001;
+            else if (ca == C_INF) sp_v = {sign_a ^ sign_b, 15'h7fff, 1'b1, 63'd0};
+            else if (cb == C_INF) sp_v = {sign_a ^ sign_b, 79'd0};
+            else if (cb == C_ZERO) begin
+                sp_fl = 6'b000100;
+                sp_v = {sign_a ^ sign_b, 15'h7fff, 1'b1, 63'd0};
+            end else if (ca == C_ZERO) sp_v = {sign_a ^ sign_b, 79'd0};
+            else sp_hit = 1'b0;
         end else if (a_mul) begin
             if (ca == C_INF || cb == C_INF) begin
                 // Infinity times zero is invalid; otherwise an infinity with
@@ -958,7 +1279,16 @@ module fes_i386_x87 (
         // plus zero back with DE alone -- but not beside an operand that is
         // empty, unsupported or a NaN, where the 387 reports that operand's
         // own exception or none at all. The host bench found both halves.
-        if (!sp_bad && (ca == C_DEN || cb == C_DEN)) sp_fl[1] = 1'b1;
+        //
+        // Slice 4 adds the third half, also measured: **a denormal operand
+        // does not raise DE beside the divide's own invalid or
+        // divide-by-zero either.** A pseudo-denormal divided by zero reports
+        // ZE alone on the host, not DE and ZE, which is the same shape as
+        // the rule above and as slice 3's rule 5 -- the operation's own
+        // pre-operation exception is the only thing reported. Four of 684
+        // cases say so.
+        if (!sp_bad && !sp_fl[0] && !sp_fl[2] && (ca == C_DEN || cb == C_DEN))
+            sp_fl[1] = 1'b1;
     end
 
     // ---- The compares (387 PRM, the FCOM and FUCOM entries). ----
@@ -1106,6 +1436,13 @@ module fes_i386_x87 (
     function automatic logic unmasked(input logic [5:0] f, input logic [15:0] c);
         unmasked = |(f & ~c[5:0]);
     endfunction
+    // Whether an unmasked PRE-operation exception fired: invalid, denormal or
+    // divide-by-zero. Those are detected before the result exists, so an
+    // unmasked one reports nothing else at all -- not the other flags, and
+    // not the condition codes a remainder would otherwise write.
+    function automatic logic pre_um(input logic [5:0] f, input logic [15:0] c);
+        pre_um = |(f[2:0] & ~c[2:0]);
+    endfunction
 
     always_ff @(posedge clk) begin
         mul_start <= 1'b0;
@@ -1127,6 +1464,9 @@ module fes_i386_x87 (
             latched <= 1'b0;
             rw_en <= 1'b0;
             pnx <= 1'b0;
+            dv_hi_rem <= 38'd0;
+            dv_exact_left <= 7'd0;
+            dv_exact_used <= 1'b0;
         end else if (f1) begin
             // The F1h reset: the 387's RESET state (387 PRM Appendix C.1 and
             // section 4.8.1), which is FNINIT's except that IM is clear and
@@ -1148,6 +1488,9 @@ module fes_i386_x87 (
             nw_waiting <= 1'b0;
             rw_en <= 1'b0;
             pnx <= 1'b0;
+            dv_hi_rem <= 38'd0;
+            dv_exact_left <= 7'd0;
+            dv_exact_used <= 1'b0;
         end else begin
             rw_en <= 1'b0;
             es_q <= es;
@@ -1239,7 +1582,8 @@ module fes_i386_x87 (
                     cur_fmt <= iss_fmt;
                     // FSCALE's second operand is ST(1); its ModRM byte (D9 FDh)
                     // names no register, so the index comes from the form.
-                    cur_i <= iss_dec == X87_SCALE ? 3'd1 : iss_op[2:0];
+                    cur_i <= (iss_dec == X87_SCALE || iss_dec == X87_PREM) ? 3'd1
+                           : iss_op[2:0];
                     cur_pop <= iss_dec == X87_STP_M || iss_dec == X87_STP_ST;
                     cur_op_raw <= iss_op;
                     cur_ctrl <= ctrl_form;
@@ -1286,7 +1630,11 @@ module fes_i386_x87 (
                     pcc_wr <= 1'b0;
                     wtiny <= 1'b0;
                     wsat <= 1'b0;
-                    wprec <= cur == X87_ARITH ? pc : PC_EXT;
+                    // Precision control applies to add, subtract, multiply,
+                    // divide and square root and to nothing else (387 PRM
+                    // section 2.3.2).
+                    wprec <= (cur == X87_ARITH || cur == X87_DIV || cur == X87_SQRT)
+                           ? pc : PC_EXT;
                     if (a_mem && ld_shift) begin
                         sh_src <= ld_mag;
                         sh_pow <= 6'(clz64(ld_mag));
@@ -1380,6 +1728,10 @@ module fes_i386_x87 (
                     ob_m <= pb[63:0];
                     oa_e <= eff_e(pa);
                     ob_e <= eff_e(pb);
+                    // The square root's parity, set here because the seed is
+                    // a registered read of it: the radicand's exponent has to
+                    // be made even, so the parity is zero where oa_e is odd.
+                    sq_p <= ~eff_e0(pa);
                     wsign <= 1'b0;
                     if (cur == X87_CMP) begin
                         // A compare writes the condition codes and nothing
@@ -1390,7 +1742,8 @@ module fes_i386_x87 (
                         pcc <= cmp_cc;
                         pcc_wr <= 1'b1;
                         seq <= S_APPLY;
-                    end else if (cur == X87_RNDINT || cur == X87_XTRACT) begin
+                    end else if (cur == X87_RNDINT || cur == X87_XTRACT
+                                 || cur == X87_SQRT) begin
                         // The one-operand forms: only ST(0)'s class counts,
                         // so the two-operand special cases do not apply.
                         pfl <= pfl | (ca == C_EMPTY || ca == C_UNSUP || ca == C_SNAN ? 6'b000001
@@ -1421,8 +1774,23 @@ module fes_i386_x87 (
                         end else if (cur == X87_RNDINT && (ca == C_ZERO || ca == C_INF)) begin
                             ares <= pa;
                             seq <= S_APPLY;
+                        end else if (cur == X87_SQRT && pa[79] && ca != C_ZERO) begin
+                            // The square root of a negative is invalid, and
+                            // that is a pre-operation exception, so it is the
+                            // only thing reported -- a negative denormal gives
+                            // IE and not IE with DE. Negative zero is not a
+                            // negative here: it comes back as itself below.
+                            pfl <= 6'b000001;
+                            ares <= INDEFINITE;
+                            seq <= S_APPLY;
+                        end else if (cur == X87_SQRT && (ca == C_ZERO || ca == C_INF)) begin
+                            // Both zeros and positive infinity are their own
+                            // square roots, with no exception.
+                            ares <= pa;
+                            seq <= S_APPLY;
                         end else if (ca == C_DEN) begin
                             oa_e <= eff_e(pa) - 18'(lza);
+                            sq_p <= ~(eff_e0(pa) ^ lza[0]);
                             sh_src <= pa[63:0];
                             sh_pow <= 6'(lza);
                             sh_isprod <= 1'b0;
@@ -1430,6 +1798,65 @@ module fes_i386_x87 (
                             seq <= S_SHIFT;
                         end else
                             seq <= A_OP;
+                    end else if (cur == X87_PREM) begin
+                        // FPREM's and FPREM1's own operand classes, read off
+                        // the host rather than the manual (model/fprem_host.c
+                        // has the status words): an infinite dividend and a
+                        // zero divisor are invalid, a zero dividend gives
+                        // itself with NO exception at all, and a divisor of
+                        // infinity gives the dividend back unchanged with C2
+                        // clear and no exception -- a divisor of infinity is
+                        // not an invalid case and does not reduce, which is
+                        // the one a PRM reading gets wrong.
+                        wsign <= pa[79];
+                        pcc <= 4'd0;
+                        pcc_wr <= 1'b1;
+                        if (ca == C_EMPTY || cb == C_EMPTY) begin
+                            pfl <= pfl | 6'b000001;
+                            psf <= 1'b1;
+                            ares <= INDEFINITE;
+                            seq <= S_APPLY;
+                        end else if (ca == C_UNSUP || cb == C_UNSUP) begin
+                            pfl <= pfl | 6'b000001;
+                            ares <= INDEFINITE;
+                            seq <= S_APPLY;
+                        end else if (ca == C_QNAN || ca == C_SNAN
+                                     || cb == C_QNAN || cb == C_SNAN) begin
+                            pfl <= sp_fl;
+                            ares <= sp_v;
+                            seq <= S_APPLY;
+                        end else if (ca == C_INF || cb == C_ZERO) begin
+                            pfl <= 6'b000001;
+                            ares <= INDEFINITE;
+                            seq <= S_APPLY;
+                        end else if (ca == C_ZERO) begin
+                            // Zero over anything finite is itself, with no
+                            // exception at all. A DIVISOR of infinity needs no
+                            // case of its own: its exponent makes the
+                            // difference very negative, which is the path that
+                            // hands the dividend back.
+                            pfl <= pfl | (cb == C_DEN ? 6'b000010 : 6'd0);
+                            ares <= pa;
+                            seq <= S_APPLY;
+                        end else begin
+                            pfl <= pfl | (ca == C_DEN || cb == C_DEN ? 6'b000010 : 6'd0);
+                            if (ca == C_DEN) begin
+                                oa_e <= eff_e(pa) - 18'(lza);
+                                sh_src <= pa[63:0];
+                                sh_pow <= 6'(lza);
+                                sh_isprod <= 1'b0;
+                                sh_ret <= A_PNA;
+                                seq <= S_SHIFT;
+                            end else if (cb == C_DEN) begin
+                                ob_e <= eff_e(pb) - 18'(lzb);
+                                sh_src <= pb[63:0];
+                                sh_pow <= 6'(lzb);
+                                sh_isprod <= 1'b0;
+                                sh_ret <= A_PNB;
+                                seq <= S_SHIFT;
+                            end else
+                                seq <= A_OP;
+                        end
                     end else if (cur == X87_SCALE) begin
                         // FSCALE's own operand classes: the add's and the
                         // multiply's rules do not apply, because the second
@@ -1489,7 +1916,17 @@ module fes_i386_x87 (
                         // An empty register, an unsupported format, a NaN,
                         // an infinity or a pair of zeros: the result is the
                         // operand classes' and the datapath never runs.
-                        pfl <= sp_bad ? sp_fl : pfl | sp_fl;
+                        //
+                        // Where the operation's own PRE-operation exception
+                        // fired -- invalid, or slice 4's divide-by-zero --
+                        // it is the only thing reported, so a denormal the
+                        // memory conversion already flagged goes with
+                        // everything else. The host settles it on FDIVR with
+                        // a denormal m32 over zero, which reports ZE alone
+                        // and not ZE and DE: six to eight cases per memory
+                        // row. This is slice 3's rule 5 holding for a masked
+                        // exception as well as an unmasked one.
+                        pfl <= (sp_bad || sp_fl[0] || sp_fl[2]) ? sp_fl : pfl | sp_fl;
                         psf <= sp_sf;
                         pc1 <= sp_sf && ca != C_EMPTY && cb != C_EMPTY;
                         ares <= sp_v;
@@ -1549,6 +1986,134 @@ module fes_i386_x87 (
                         sh_isprod <= 1'b1;
                         sh_ret <= A_PROD;
                         seq <= S_SHIFT;
+                    end else if (cur == X87_PREM) begin
+                        // The step reduces n = (expDiff & 31) | 32 quotient
+                        // bits where the difference is 64 or more, and the
+                        // whole difference where it is less -- measured on the
+                        // host, and exactly what Bochs's cpu/fpu/fprem.cc
+                        // computes at the pinned revision, so lockstep is
+                        // exact on partial steps rather than divergent.
+                        //
+                        // A NEGATIVE difference never reaches the datapath:
+                        // the quotient is zero and the remainder is the
+                        // dividend, and only FPREM1 at a difference of -1 can
+                        // round the quotient up to one.
+                        logic signed [17:0] d;
+                        logic               one, rnd_up;
+                        logic [6:0]         n;
+                        d = oa_e - ob_e;
+                        one = cur_op_raw[3:0] == 4'h5;      // D9 F5 is FPREM1
+                        // A divisor of infinity gives the dividend back and
+                        // never rounds. It cannot be left to the difference
+                        // being "very negative": an infinity's exponent field
+                        // is 7FFFh, the LARGEST, so a dividend at 7FFEh is
+                        // exactly one below it and took FPREM1's round-up path
+                        // at a difference of -1. QEMU's grid found it, 4 cases
+                        // of 23,328, and only a dividend within one binade of
+                        // the top separates the two readings.
+                        rnd_up = one && d == -18'sd1 && oa_m > ob_m
+                              && cb != C_INF;
+                        n = d >= 18'sd64 ? (7'd32 | {2'b0, d[4:0]}) : 7'(d[6:0]);
+                        wsign <= pa[79];
+                        pr_one <= one;
+                        pcc_wr <= 1'b1;
+                        if (d < 18'sd0 || cb == C_INF) begin
+                            // FPREM1 at -1: a/b is in (0.25, 1), so compare A
+                            // with B. Above gives a quotient of one, a
+                            // magnitude of 2B - A and the other sign; equal
+                            // rounds to even and stays zero.
+                            pr_part <= 1'b0;
+                            pr_q <= {63'd0, rnd_up};
+                            pr_one <= 1'b0;   // the rounding is already applied
+                            pcc <= 4'd0;
+                            pc1 <= rnd_up;    // C1 is the quotient's bit 0
+                            if (rnd_up) begin
+                                pr_n <= 7'd0;
+                                dv_rem <= {32'd0, 64'({ob_m, 1'b0} - {1'b0, oa_m})};
+                                wsign <= !pa[79];
+                                we <= oa_e;
+                                seq <= P_FIN;
+                            end else begin
+                                // The dividend comes back **through A_RND**,
+                                // not as it stands. It is exact, so nothing
+                                // rounds, but the exponent still goes through
+                                // the normalise, tiny and bias-adjust rules:
+                                // the host returns a pseudo-denormal as
+                                // 0001 8000... and a genuine denormal with an
+                                // UNMASKED underflow and the exponent moved by
+                                // 24576, which is slice 3's rule 2 reaching a
+                                // form that never rounds. An earlier version
+                                // special-cased the pseudo-denormal and got
+                                // the genuine one wrong.
+                                wm <= oa_m;
+                                wg <= 1'b0;
+                                wrd <= 1'b0;
+                                ws <= 1'b0;
+                                we <= oa_e;
+                                seq <= A_RND;
+                            end
+                        end else begin
+                            // **The remainder needs no Goldschmidt and no
+                            // shifter.** Its quotient is never used beyond
+                            // its low three bits, which are C0, C3 and C1, so
+                            // there is nothing to estimate: the exact
+                            // remainder of A * 2^n by B comes from n
+                            // doublings with a conditional subtract, one
+                            // clock each, and the quotient's bits fall out of
+                            // the same steps.
+                            //
+                            // That is strictly less hardware than reusing the
+                            // divide's tail at a variable scale, which is
+                            // what this slice did first: it needed a general
+                            // shift by 65 + s - n on a path option A says has
+                            // no barrel shifter, and that shifter was shared,
+                            // so the divide's and the square root's own
+                            // constant drops could not be muxed while it
+                            // existed.
+                            pr_part <= d >= 18'sd64;
+                            pr_n <= n;
+                            pr_q <= {63'd0, oa_m >= ob_m};
+                            dv_rem <= {32'd0, oa_m >= ob_m ? oa_m - ob_m : oa_m};
+                            we <= oa_e - 18'({11'd0, n});
+                            seq <= P_SH;
+                        end
+                    end else if (cur == X87_SQRT) begin
+                        // The exponent halving. With the true exponent
+                        // E = oa_e - 16446, the result is
+                        //   we = 16446 + (oa_e - 16509 - p) / 2
+                        // and the parity p is chosen to make that difference
+                        // even: p is zero where oa_e is odd and one where it
+                        // is even. sq_p is already set, because the seed is a
+                        // registered read of it.
+                        wsign <= 1'b0;
+                        we <= 18'sd16446
+                            + ((oa_e - 18'sd16509 - 18'($signed({1'b0, sq_p}))) >>> 1);
+                        gs_it <= dv_iters(wprec);
+                        dv_lost <= 1'b0;
+                        seq <= Q_SEED;
+                    end else if (cur == X87_DIV) begin
+                        // The divide. Both significands are normalised, so
+                        // the quotient is in (0.5, 2); where it is below one
+                        // the result takes one more bit and the exponent one
+                        // less, which `dv_s` carries. The 66-bit target is
+                        // T = floor(A * 2^(65+s) / B), whose bits 65:2 are the
+                        // significand, bit 1 the guard and bit 0 the round,
+                        // with the sticky from the exact remainder.
+                        wsign <= sign_a ^ sign_b;
+                        dv_s <= oa_m < ob_m;
+                        we <= oa_e - ob_e + 18'sd16383 - 18'(oa_m < ob_m);
+                        gs_it <= dv_iters(wprec);
+                        dv_lost <= 1'b0;
+                        // D_SEED and not the multiply directly: `rcp_q` is a
+                        // registered read of ob_m, so the entry for THIS
+                        // divisor is not out of the table until the cycle
+                        // after ob_m settled. A_SETUP assigns ob_m
+                        // non-blocking, so during A_OP rcp_q still holds the
+                        // previous operation's entry. This is the same
+                        // one-cycle hazard that produced slice 2's BUSY#
+                        // latch hole and slice 3's FLDCW bug, and it cost 585
+                        // of 684 cases here before it was found.
+                        seq <= D_SEED;
                     end else if (cur == X87_ARITH) begin
                         // The alignment: the operand with the smaller
                         // exponent shifts right by the difference, and the
@@ -1832,7 +2397,10 @@ module fes_i386_x87 (
                     logic [66:0] rp;
                     logic [63:0] mag;
                     rp = round_pc(wm, wg, wrd, ws, wsign, rc, PC_EXT);
-                    pc1 <= rp[64];
+                    // A remainder's C1 is the quotient's bit 0, set in P_PACK
+                    // and P_ZERO, not the rounding's direction -- and FPREM
+                    // and FPREM1 never round, so there is nothing to record.
+                    if (cur != X87_PREM) pc1 <= rp[64];
                     if (rp[65]) pfl[5] <= 1'b1;
                     // A rounding that carried out of bit 63 is 2^64, which
                     // is the significand 2^63 one exponent up.
@@ -1908,7 +2476,10 @@ module fes_i386_x87 (
                     rp = round_pc(wm, wg, wrd, ws, wsign, rc, wprec);
                     mag = rp[66] ? 64'h8000_0000_0000_0000 : rp[63:0];
                     e2 = we + 18'(rp[66]);
-                    pc1 <= rp[64];
+                    // A remainder's C1 is the quotient's bit 0, set in P_PACK
+                    // and P_ZERO, not the rounding's direction -- and FPREM
+                    // and FPREM1 never round, so there is nothing to record.
+                    if (cur != X87_PREM) pc1 <= rp[64];
                     if (wtiny) begin
                         // The denormalised value, rounded here for the first
                         // and only time: the exponent field is 0, or 1 where
@@ -1969,6 +2540,536 @@ module fes_i386_x87 (
                         ares <= {wsign, 15'(e2), mag};
                         seq <= S_APPLY;
                     end
+                end
+                // ---- Slice 4: the divide. ----
+                // Goldschmidt's two seeded products, then its iterations on
+                // the shared multiplier, then the exact tail. Every
+                // intermediate is the product's top 64 bits, which is why the
+                // iterations alone cannot reach the extended format's 67 bits
+                // and the tail is not optional.
+                D_SEED: begin
+                    ua_mul <= oa_m;
+                    ub_mul <= {rcp_q, 54'd0};
+                    mul_start <= 1'b1;
+                    seq <= D_N0;
+                end
+                D_N0: if (mul_done) begin
+                    gs_n <= mul_p[127:64];
+                    ua_mul <= ob_m;
+                    ub_mul <= {rcp_q, 54'd0};
+                    mul_start <= 1'b1;
+                    seq <= D_D0;
+                end
+                D_D0: if (mul_done) begin
+                    // f = 2 - D, in the scaling where one is 2^63: the two's
+                    // complement of D, and all ones where D is zero.
+                    gs_d <= mul_p[127:64];
+                    ua_mul <= gs_n;
+                    ub_mul <= mul_p[127:64] == 64'd0 ? {64{1'b1}} : (~mul_p[127:64] + 64'd1);
+                    mul_start <= 1'b1;
+                    seq <= D_ITN;
+                end
+                D_ITN: if (mul_done) begin
+                    gs_n <= {mul_p[126:64], 1'b0};
+                    ua_mul <= gs_d;
+                    mul_start <= 1'b1;
+                    seq <= D_ITD;
+                end
+                D_ITD: if (mul_done) begin
+                    logic [63:0] dn;
+                    dn = {mul_p[126:64], 1'b0};
+                    gs_d <= dn;
+                    if (gs_it > 2'd1) begin
+                        gs_it <= gs_it - 2'd1;
+                        ua_mul <= gs_n;
+                        ub_mul <= dn == 64'd0 ? {64{1'b1}} : (~dn + 64'd1);
+                        mul_start <= 1'b1;
+                        seq <= D_ITN;
+                    end else
+                        seq <= D_CAND;
+                end
+                // The fast candidate is qhat minus the precision's empirical
+                // correction budget. The following full-width certificate
+                // makes correctness independent of that budget.
+                D_CAND: begin
+                    logic [66:0] qh, c0;
+                    qh = drop67({3'd0, gs_n} << (dv_s ? 3 : 2), wprec);
+                    // Clamped, which the divide alone never needed: a
+                    // remainder step's quotient can be smaller than the error
+                    // bound, and an unclamped subtract would wrap it to a huge
+                    // candidate that the tail cannot bring back.
+                    c0 = qh > {59'd0, dv_e(wprec)} ? qh - {59'd0, dv_e(wprec)} : 67'd0;
+                    dv_c <= c0;
+                    dv_exact_used <= 1'b0;
+                    dv_k <= dv_steps(wprec);
+                    ua_mul <= c0[63:0];
+                    ub_mul <= ob_m;
+                    mul_start <= 1'b1;
+                    seq <= D_REM;
+                end
+                // Form the residual as low 96 bits plus an exact high word.
+                // The tail changes only the low word; D_CHECK accepts it only
+                // when the full residual is a valid quotient remainder.
+                D_REM: if (mul_done) begin
+                    logic [66:0] chi;
+                    logic [96:0] plo;
+                    logic [95:0] nlo;
+                    logic [37:0] phi, nhi;
+                    logic [3:0]  k;
+                    chi = mul3wide(dv_c[66:64], ob_m);
+                    plo = {1'b0, mul_p[95:0]} + {1'b0, chi[31:0], 64'd0};
+                    nlo = dvd96(oa_m, dv_s, wprec);
+                    phi = {6'd0, mul_p[127:96]} + {3'd0, chi[66:32]} + 38'(plo[96]);
+                    nhi = {2'd0, dvdhi(oa_m, dv_s, wprec)};
+                    k = cur == X87_PREM ? 4'd8 : dv_steps(wprec);
+                    dv_rem <= nlo - plo[95:0];
+                    dv_hi_rem <= dv_c[66] ? 38'd1
+                                           : nhi - phi - 38'(nlo < plo[95:0]);
+                    // The tail's first subtrahend: B << (k - 1), where k is
+                    // one of three constants, so this is a mux and not a
+                    // shifter.
+                    dv_sub <= {32'd0, ob_m} << (k - 4'd1);
+                    dv_pow <= 96'd0;
+                    seq <= D_TAIL;
+                end
+                // The restoring compare-subtract steps, one a clock, a fixed
+                // count per precision: this is not an early-exit search, so a
+                // divide's latency does not depend on its operands.
+                // The restoring steps, with the subtrahend **held and shifted
+                // one place a step** rather than formed by a variable shift.
+                // Option A has no barrel shifter, and forming
+                // `B << i` or `(C << (i+1)) + 2^(2i)` from a counter put two
+                // 96-bit variable shifters on this path. Both recurrences are
+                // exact:
+                //
+                //   divide       S(i) = B * 2^i,  so S(i-1) = S(i) / 2.
+                //   square root  S(i) = C(i) * 2^(i+1) + 2^(2i), and with
+                //                P(i) = 2^(2i),
+                //                  taken      S(i-1) = S/2 + P/2 + P/4
+                //                  not taken  S(i-1) = S/2 - P/2 + P/4
+                //                because taking the step moves C by 2^i.
+                //
+                // Every shift there is by one or two places, and the step
+                // count is still fixed by precision control, so the latency
+                // does not move.
+                D_TAIL: begin
+                    logic [95:0] trial, nsub;
+                    logic [3:0]  i;
+                    i = dv_k - 4'd1;
+                    trial = dv_rem - dv_sub;
+                    nsub = (dv_sub >> 1) + (dv_pow >> 2);
+                    if (!trial[95]) begin
+                        dv_rem <= trial;
+                        if (dv_rem < dv_sub) dv_hi_rem <= dv_hi_rem - 38'd1;
+                        dv_c <= dv_c + (67'd1 << i);
+                        if (cur == X87_SQRT) nsub = nsub + (dv_pow >> 1);
+                    end else if (cur == X87_SQRT)
+                        nsub = nsub - (dv_pow >> 1);
+                    dv_sub <= cur == X87_SQRT ? nsub : (dv_sub >> 1);
+                    dv_pow <= dv_pow >> 2;
+`ifndef SYNTHESIS
+                    // The recurrence against the closed form it replaces, so
+                    // a drift is caught by a check rather than by a result.
+                    if (cur == X87_SQRT) begin
+                        if (dv_sub != ((96'(dv_c) << (i + 4'd1)) + (96'd1 << (i + i))))
+                            $error("x87 sqrt tail subtrahend %h != closed form %h at i=%0d",
+                                   dv_sub, (96'(dv_c) << (i + 4'd1)) + (96'd1 << (i + i)), i);
+                    end else if (dv_sub != ({32'd0, ob_m} << i))
+                        $error("x87 divide tail subtrahend %h != B<<%0d", dv_sub, i);
+`endif
+                    if (dv_k > 4'd1) dv_k <= dv_k - 4'd1;
+                    else seq <= cur == X87_SQRT ? Q_CHECK
+                              : cur == X87_PREM ? P_FIN : D_CHECK;
+                end
+                // The correction constants are an optimization only. Accept
+                // the fast result only when its exact quotient residual is
+                // non-negative and below B; otherwise recompute every digit.
+                D_CHECK: begin
+                    if (dv_c[66] || dv_hi_rem != 38'd0 || dv_rem[95]
+                        || dv_rem >= {32'd0, ob_m}) begin
+                        logic [64:0] r0;
+                        r0 = dv_s ? ({oa_m, 1'b0} - {1'b0, ob_m})
+                                  : ({1'b0, oa_m} - {1'b0, ob_m});
+                        dv_c <= 67'd1;
+                        dv_rem <= {31'd0, r0};
+                        dv_hi_rem <= 38'd0;
+                        dv_exact_left <= dv_digits(wprec) - 7'd1;
+                        dv_exact_used <= 1'b1;
+                        dv_lost <= 1'b0;
+                        seq <= D_EXACT;
+                    end else
+                        seq <= D_FIN;
+                end
+                // The exact fallback emits the normalized quotient one bit
+                // at a time. Its final remainder is the true sticky source.
+                // Square root uses a radix-4 restoring recurrence below and
+                // streams the 132-bit radicand through dv_hi_rem/dv_sub.
+                D_EXACT: begin
+                    if (cur == X87_SQRT) begin
+                        logic [1:0]  pair;
+                        logic [67:0] trial, subroot, rnext;
+                        logic        exact_take;
+                        logic [66:0] cnext;
+                        pair = dv_hi_rem[35:34];
+                        trial = {dv_rem[65:0], pair};
+                        subroot = {dv_c[65:0], 2'b01};
+                        exact_take = trial >= subroot;
+                        rnext = exact_take ? trial - subroot : trial;
+                        cnext = {dv_c[65:0], exact_take};
+                        dv_rem <= {28'd0, rnext};
+                        dv_hi_rem <= {2'd0, dv_hi_rem[33:0], dv_sub[95:94]};
+                        dv_sub <= {dv_sub[93:0], 2'b00};
+                        if (dv_exact_left > 7'd1) begin
+                            dv_c <= cnext;
+                            dv_exact_left <= dv_exact_left - 7'd1;
+                        end else begin
+                            dv_c <= drop67(cnext, wprec);
+                            dv_lost <= low_dropped_bits(cnext, wprec);
+                            seq <= Q_FIN;
+                        end
+                    end else begin
+                        logic [65:0] trial, rnext;
+                        logic        exact_take;
+                        logic [66:0] cnext;
+                        trial = {dv_rem[64:0], 1'b0};
+                        exact_take = trial >= {2'b0, ob_m};
+                        rnext = exact_take ? trial - {2'b0, ob_m} : trial;
+                        cnext = {dv_c[65:0], exact_take};
+                        dv_rem <= {30'd0, rnext};
+                        if (dv_exact_left > 7'd1) begin
+                            dv_c <= cnext;
+                            dv_exact_left <= dv_exact_left - 7'd1;
+                        end else begin
+                            dv_c <= cnext;
+                            dv_hi_rem <= 38'd0;
+                            seq <= D_FIN;
+                        end
+                    end
+                end
+                // The exact truncation, its guard and round bits, and the
+                // sticky the remainder gives for nothing. A_RND then applies
+                // precision control, the overflow and underflow rules and the
+                // bias adjust exactly as it does for slice 3's arithmetic.
+                // The exact truncation at the precision's own position, put
+                // back where round_pc() reads it: at PC 24 the candidate's
+                // bits land at m[63:39] with zeros below and the guard and
+                // round bits clear, because the sticky already covers
+                // everything the shorter target did not compute.
+                D_FIN: begin
+                    logic [5:0] dr;
+                    dr = dv_drop(wprec);
+`ifndef SYNTHESIS
+                    if (dv_hi_rem != 38'd0 || dv_rem[95] || dv_rem >= {32'd0, ob_m})
+                        $error("x87 divide result left residual=%h:%h outside [0, B=%h)",
+                               dv_hi_rem, dv_rem, ob_m);
+`endif
+                    wm <= place64(dv_c, wprec);
+                    wg <= dr == 6'd0 ? dv_c[1] : 1'b0;
+                    wrd <= dr == 6'd0 ? dv_c[0] : 1'b0;
+                    ws <= |dv_rem;
+                    seq <= A_RND;
+                end
+                // ---- Slice 4: the square root. ----
+                // Values here are (significand, exponent) pairs meaning
+                // sig * 2^(exp - 63) with bit 63 of the significand set, which
+                // is what lets one mux renormalise every product. The seed is
+                // v/1024 with v in [513, 1022], so it is left-aligned to bit
+                // 63 with an exponent of -1.
+                Q_SEED: begin
+                    qy_s <= {rsq_q, 54'd0};
+                    qy_e <= -6'sd1;
+                    ua_mul <= oa_m;
+                    ub_mul <= {rsq_q, 54'd0};
+                    mul_start <= 1'b1;
+                    seq <= Q_AY;
+                end
+                Q_AY: if (mul_done) begin
+                    // z = a*y, then start z*y.
+                    qz_s <= norm_hi(mul_p);
+                    qz_e <= norm_e(6'sd1 + {5'd0, sq_p} + qy_e, mul_p[127]);
+                    ua_mul <= norm_hi(mul_p);
+                    ub_mul <= qy_s;
+                    mul_start <= 1'b1;
+                    seq <= Q_AY2;
+                end
+                Q_AY2: if (mul_done) begin
+                    // t = 3 - a*y^2, aligned by the exponent difference and
+                    // renormalised. 3 is 0xC000...  with an exponent of 1, and
+                    // a*y^2 is close to one, so the difference is close to two
+                    // and needs at most a couple of bits of normalisation.
+                    logic [63:0]       z2;
+                    logic signed [5:0] z2e;
+                    logic [63:0]       d;
+                    logic              lz1;
+                    z2 = norm_hi(mul_p);
+                    z2e = norm_e(6'sd1 + qz_e + qy_e, mul_p[127]);
+                    // **Two-way muxes, not shifters.** a*y^2 is within 2^-9 of
+                    // one after the seed, so its exponent is 0 or -1 and the
+                    // alignment against three is one place or two; the
+                    // difference is then within 2^-9 of two, so it needs no
+                    // normalisation or exactly one place. Writing these as
+                    // `z2 >> sh` and `d << clz64(d)` built a 64-bit shifter
+                    // and a leading-zero count for a one-bit decision, on a
+                    // path option A says has no barrel shifter.
+                    //
+                    // The ranges are asserted rather than assumed, because
+                    // they come from the seed's accuracy and a seed-table edit
+                    // could break them silently.
+                    d = 64'hc000_0000_0000_0000 - (z2e == 6'sd0 ? (z2 >> 1) : (z2 >> 2));
+                    lz1 = !d[63];
+                    qt_s <= lz1 ? {d[62:0], 1'b0} : d;
+                    qt_e <= lz1 ? 6'sd0 : 6'sd1;
+`ifndef SYNTHESIS
+                    if (z2e != 6'sd0 && z2e != -6'sd1)
+                        $error("x87 sqrt: a*y^2 exponent %0d is outside {0, -1}", z2e);
+                    if (clz64(d) > 7'd1)
+                        $error("x87 sqrt: 3 - a*y^2 needs %0d places of normalisation, not 0 or 1",
+                               clz64(d));
+`endif
+                    ua_mul <= qy_s;
+                    ub_mul <= lz1 ? {d[62:0], 1'b0} : d;
+                    mul_start <= 1'b1;
+                    seq <= Q_Y;
+                end
+                Q_Y: if (mul_done) begin
+                    // y <- y*t/2: the halving is one off the exponent.
+                    qy_s <= norm_hi(mul_p);
+                    qy_e <= norm_e(qy_e + qt_e, mul_p[127]);
+                    if (gs_it > 2'd1) begin
+                        gs_it <= gs_it - 2'd1;
+                        ua_mul <= oa_m;
+                        ub_mul <= norm_hi(mul_p);
+                        mul_start <= 1'b1;
+                        seq <= Q_AY;
+                    end else begin
+                        ua_mul <= oa_m;
+                        ub_mul <= norm_hi(mul_p);
+                        mul_start <= 1'b1;
+                        seq <= Q_RES;
+                    end
+                end
+                Q_RES: if (mul_done) begin
+                    // q = a*y, the square root's estimate. Its exponent is 0
+                    // where q is in [1, 2) and **-1 where q is just below
+                    // one**, which is what happens when the true root is an
+                    // exact power of two: the iteration converges to it from
+                    // below, so y comes out as 0xFFFF...FFFF with an exponent
+                    // of -1 rather than 2^63 with zero. Hardcoding the shift
+                    // at 2 on the assumption that q is always in [1, 2) put
+                    // the candidate a whole binade high, and it failed on
+                    // exactly the patterns whose root is exact -- 1.0 and the
+                    // pseudo-denormal -- while every inexact root passed.
+                    logic [66:0]       qh, c0;
+                    logic signed [5:0] qe;
+                    // The estimate is in (0.5, 2), so its exponent is 0 or
+                    // -1 and the placement is two places or one -- a mux. The
+                    // -1 case is the one that happens when the true root is an
+                    // exact power of two, which the iteration approaches from
+                    // below.
+                    qe = norm_e(6'sd1 + {5'd0, sq_p} + qy_e, mul_p[127]);
+                    qh = drop67(qe == 6'sd0 ? ({3'd0, norm_hi(mul_p)} << 2)
+                                            : ({3'd0, norm_hi(mul_p)} << 1), wprec);
+`ifndef SYNTHESIS
+                    if (qe != 6'sd0 && qe != -6'sd1)
+                        $error("x87 sqrt: the estimate's exponent %0d is outside {0, -1}", qe);
+`endif
+                    c0 = qh > {59'd0, sq_e(wprec)} ? qh - {59'd0, sq_e(wprec)} : 67'd0;
+                    dv_c <= c0;
+                    dv_exact_used <= 1'b0;
+                    dv_k <= sq_steps(wprec);
+                    ua_mul <= c0[63:0];
+                    ub_mul <= c0[63:0];
+                    mul_start <= 1'b1;
+                    seq <= Q_REM;
+                end
+                // Form the fast path's residual in low and high words. The
+                // high word makes the following check exact even when a
+                // candidate is outside the correction tail's range.
+                Q_REM: if (mul_done) begin
+                    logic signed [8:0] qsh;
+                    logic [66:0]       cross_prod;
+                    logic [96:0]       plo;
+                    logic [37:0]       phi, nhi;
+                    logic [5:0]        hsq;
+                    logic [95:0]       rad;
+                    qsh = 9'sd67 + 9'($signed({1'b0, sq_p}))
+                        - 9'sd2 * 9'($signed({3'b0, dv_drop(wprec)}));
+                    rad = qsh >= 9'sd0 ? (96'(oa_m) << qsh[7:0]) : (96'(oa_m) >> (-qsh));
+                    cross_prod = mul3wide(dv_c[66:64], dv_c[63:0]);
+                    plo = {1'b0, mul_p[95:0]} + {1'b0, cross_prod[30:0], 65'd0};
+                    hsq = 6'(dv_c[66:64]) * 6'(dv_c[66:64]);
+                    phi = {6'd0, mul_p[127:96]} + {2'd0, cross_prod[66:31]}
+                        + {hsq, 32'd0} + 38'(plo[96]);
+                    nhi = {2'd0, sqradhi(oa_m, sq_p, wprec)};
+                    dv_rem <= rad - plo[95:0];
+                    dv_hi_rem <= dv_c[66] ? 38'd1
+                                           : nhi - phi - 38'(rad < plo[95:0]);
+                    dv_lost <= qsh >= 9'sd0 ? 1'b0
+                             : |(oa_m & ((64'd1 << (-qsh)) - 64'd1));
+                    // S(k-1) = C0 * 2^k + 2^(2k-2) and P(k-1) = 2^(2k-2),
+                    // both at one of three constant positions.
+                    dv_sub <= (96'(dv_c) << sq_steps(wprec))
+                            + (96'd1 << (2 * sq_steps(wprec) - 4'd2));
+                    dv_pow <= 96'd1 << (2 * sq_steps(wprec) - 4'd2);
+                    seq <= D_TAIL;
+                end
+                // The exact root certificate is 0 <= N-C^2 <= 2C. If the
+                // short tail did not establish that range, restart with a
+                // radix-4 restoring square root of A*2^(67+parity).
+                Q_CHECK: begin
+                    if (dv_c[66] || dv_hi_rem != 38'd0 || dv_rem[95]
+                        || dv_rem > {28'd0, dv_c, 1'b0}) begin
+                        dv_c <= 67'd0;
+                        dv_rem <= 96'd0;
+                        dv_hi_rem <= sq_p ? {2'd0, oa_m[63:28]} : {3'd0, oa_m[63:29]};
+                        dv_sub <= sq_p ? {oa_m[27:0], 68'd0} : {oa_m[28:0], 67'd0};
+                        dv_exact_left <= 7'd66;
+                        dv_exact_used <= 1'b1;
+                        dv_lost <= 1'b0;
+                        seq <= D_EXACT;
+                    end else
+                        seq <= Q_FIN;
+                end
+                Q_FIN: begin
+                    logic [5:0] dr;
+                    dr = dv_drop(wprec);
+`ifndef SYNTHESIS
+                    // The fast path's certificate is a production check. The
+                    // fallback carries the full-root remainder instead.
+                    if (!dv_exact_used && (dv_hi_rem != 38'd0 || dv_rem[95]
+                        || dv_rem > {28'd0, dv_c, 1'b0}))
+                        $error("x87 sqrt result left residual=%h:%h outside [0, 2C+1] with C=%h",
+                               dv_hi_rem, dv_rem, dv_c);
+`endif
+                    wm <= place64(dv_c, wprec);
+                    wg <= dr == 6'd0 ? dv_c[1] : 1'b0;
+                    wrd <= dr == 6'd0 ? dv_c[0] : 1'b0;
+                    ws <= |dv_rem || dv_lost;
+                    seq <= A_RND;
+                end
+                // The remainder's result: exact, so it does not go through
+                // A_RND at all -- FPREM and FPREM1 ignore both rounding and
+                // precision control. FPREM1's quotient rounds to nearest,
+                // which can flip the sign and replace the magnitude.
+                // One doubling and a conditional subtract a clock. Both
+                // operands are normalised, so the dividend is below twice the
+                // divisor and the initial reduction in A_OP is enough to put
+                // the remainder below it; from there 2*rem is below twice the
+                // divisor at every step, so one compare-subtract keeps it in
+                // range. The quotient shifts in beside it.
+                P_SH: begin
+                    logic [95:0] r2, t;
+                    r2 = {dv_rem[94:0], 1'b0};
+                    t = r2 - {32'd0, ob_m};
+                    if (pr_n == 7'd0) seq <= P_FIN;
+                    else begin
+                        dv_rem <= t[95] ? r2 : t;
+                        pr_q <= {pr_q[62:0], ~t[95]};
+                        pr_n <= pr_n - 7'd1;
+                    end
+`ifndef SYNTHESIS
+                    if (dv_rem >= {32'd0, ob_m})
+                        $error("x87 remainder loop: rem=%h not below B=%h", dv_rem, ob_m);
+`endif
+                end
+                P_FIN: begin
+                    logic [63:0] r0;
+                    logic [64:0] twice, bb;
+                    logic        up, flip;
+`ifndef SYNTHESIS
+                    if (dv_rem[95] || dv_rem >= {32'd0, ob_m})
+                        $error("x87 remainder step left rem=%h outside [0, B=%h)", dv_rem, ob_m);
+`endif
+                    r0 = dv_rem[63:0];
+                    // Compare 2*rem with B and not rem with B/2: `ob_m >> 1`
+                    // drops an odd divisor's low bit, so a remainder strictly
+                    // below half reads as a tie and FPREM1 rounds the
+                    // quotient up where the host does not. Doubling the
+                    // remainder instead is exact for every divisor.
+                    //
+                    // The counterexample is built rather than argued, and the
+                    // bench carries it as `prem1-chain-odd-lo`: FPREM1 of
+                    // 3FFF C000000000000001 by 3FFF 8000000000000001 gives
+                    // BFFE 8000000000000002 with C3 set under `rem vs B >> 1`
+                    // and 3FFE 8000000000000000 with C1 set -- the host's
+                    // answer -- under this one. One case of 738, and only an
+                    // odd divisor near the tie separates them.
+                    twice = {r0, 1'b0};
+                    bb = {1'b0, ob_m};
+                    // Round the quotient to nearest only on a COMPLETING
+                    // FPREM1 step: a partial step's remainder is the running
+                    // dividend in [0, B), and only a completing FPREM1's is
+                    // the IEEE [-B/2, B/2]. Applying the IEEE range everywhere
+                    // is the plausible wrong fix -- an earlier version of this
+                    // slice's own model did it and reported 7,860 violations
+                    // against correct behaviour.
+                    // Every completing FPREM1 step rounds, including one at an
+                    // exponent difference of zero: gating this on a non-zero
+                    // reduction excluded 3 mod 2, whose quotient rounds from
+                    // one to two. The difference-below-zero path clears
+                    // pr_one, which is how it says its rounding is done.
+                    up = pr_one && !pr_part
+                      && (twice > bb || (twice == bb && pr_q[0]));
+                    flip = up;
+                    if (up) pr_q <= pr_q + 64'd1;
+                    if (up) begin
+                        dv_rem <= {32'd0, ob_m - r0};
+                        wsign <= wsign ^ 1'b1;
+                    end
+                    pcc <= pr_part ? 4'b0100               // C2 alone: loop again
+                         : {1'b0, 1'b0, 1'b0, 1'b0};
+                    // The magnitude normalises through the shifter, as every
+                    // other value in this unit does: option A has no barrel
+                    // shifter, so a left shift is a multiply by 2^lz.
+                    if ((up ? ob_m - r0 : r0) == 64'd0) begin
+                        // An exact zero keeps the dividend's sign and is
+                        // packed as a true zero, not normalised.
+                        ares <= {flip ? !pa[79] : pa[79], 79'd0};
+                        seq <= P_ZERO;
+                    end else begin
+                        sh_src <= up ? ob_m - r0 : r0;
+                        sh_pow <= 6'(clz64(up ? ob_m - r0 : r0));
+                        sh_isprod <= 1'b0;
+                        sh_ret <= P_PACK;
+                        we <= we - 18'(clz64(up ? ob_m - r0 : r0));
+                        seq <= S_SHIFT;
+                    end
+                end
+                // The condition codes a completing step reports: C2 clear and
+                // the quotient's low three bits as C0, C3 and C1 -- which is
+                // q = C0*4 + C3*2 + C1, measured on the host over q = 0 to 9
+                // for both instructions. The PRM's q2/q1/q0 map to C0/C3/C1 in
+                // that order, which is easy to get backwards from the manual.
+                P_ZERO: begin
+                    // An unmasked PRE-operation exception reports nothing
+                    // else -- slice 3's rule 5 -- and that includes C2 and
+                    // the quotient bits. A denormal divisor with DM clear
+                    // raises DE before the reduction runs, so the host leaves
+                    // every condition code clear where the exponent
+                    // difference alone would have set C2. The bench's mask
+                    // matrix found it: six cases per unmasked-DE row.
+                    pcc <= pre_um(pfl, cw) ? 4'd0
+                         : pr_part ? 4'b0100
+                         : {pr_q[1], 1'b0, pr_q[0], pr_q[2]};
+                    // C1 comes from pc1 and not from this vector -- S_APPLY
+                    // writes cc as {nc[3], nc[2], c1, nc[0]} -- so a
+                    // remainder's C1, which is the quotient's bit 0 rather
+                    // than a rounding direction, has to go through pc1.
+                    pc1 <= !pre_um(pfl, cw) && !pr_part && pr_q[0];
+                    pcc_wr <= 1'b1;
+                    seq <= S_APPLY;
+                end
+                P_PACK: begin
+                    wm <= mul_p[63:0];
+                    wg <= 1'b0;
+                    wrd <= 1'b0;
+                    ws <= 1'b0;
+                    pcc <= pre_um(pfl, cw) ? 4'd0
+                         : pr_part ? 4'b0100
+                         : {pr_q[1], 1'b0, pr_q[0], pr_q[2]};
+                    pc1 <= !pre_um(pfl, cw) && !pr_part && pr_q[0];
+                    pcc_wr <= 1'b1;
+                    seq <= A_RND;
                 end
                 S_POST: begin
                     rnd_q <= rnd_w[64:0];
@@ -2168,9 +3269,16 @@ module fes_i386_x87 (
                                 default: nc = {1'b1, 1'b1, 1'b0, 1'b0};  // denormal
                             endcase
                         end
-                        X87_ARITH, X87_RNDINT, X87_SCALE: begin
+                        X87_ARITH, X87_RNDINT, X87_SCALE, X87_DIV, X87_SQRT,
+                        X87_PREM: begin
                             // The result goes to ST(0), or to ST(i) for the
                             // DC and DE forms, and DE pops ST(0) after it.
+                            // X87_DIV belongs here and not in a case of its
+                            // own: a divide's destination, pop and write are
+                            // the add's. Leaving it out of this list and the
+                            // register write below left the flags landing and
+                            // the result not written, which read as "the
+                            // divide returned its dividend".
                             v = ares;
                             wr = 1'b1;
                             pop = a_pop1;
@@ -2346,7 +3454,9 @@ module fes_i386_x87 (
                             a2_idx <= top + cur_i;
                             seq <= S_APPLY2;
                         end
-                        if (cur == X87_ARITH || cur == X87_RNDINT || cur == X87_SCALE) begin
+                        if (cur == X87_ARITH || cur == X87_RNDINT || cur == X87_SCALE
+                            || cur == X87_DIV || cur == X87_SQRT
+                            || cur == X87_PREM) begin
                             rw_idx <= a_dst;
                             rw_val <= v;
                             rw_en <= 1'b1;

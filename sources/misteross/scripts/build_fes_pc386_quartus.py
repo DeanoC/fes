@@ -42,8 +42,9 @@ The seal needs a lockstep report (#1581 S5): scripts/test_fes_i386_lockstep.py
 refuses to seal unless the report passed the default suite (default suite
 arguments over every in-scope file of a full corpus download) and names this
 build's Yosys program, CPU sources and Yosys (lock, lock digest, router and
-slot binary), its Verilator is the i386 lock's, and the CPU netlist this
-build's Yosys writes through the seal's passes has the report's digest. The
+slot binary), its Verilator is the i386 lock's, its Bochs revision and
+maintained patch match this source tree, and the CPU netlist this build's
+Yosys writes through the seal's passes has the report's digest. The
 report is copied into the output, and build-summary.json records it under
 "lockstep". Lockstep needs the pinned Bochs and corpus, so it runs on the
 sealing host.
@@ -72,6 +73,7 @@ if __package__ in (None, ""):
 
 from scripts import build_pc386_firmware as firmware
 from scripts import fes_build_common as board
+from scripts import fes_i386_oracle as i386_oracle
 from scripts import lockfile
 from scripts import source_provenance
 from scripts import yosys_netlist
@@ -152,7 +154,10 @@ ROM_HEX = firmware.ROM_HEX.relative_to(ROOT).as_posix()
 PINNED_INPUTS = (
     RECIPE, FIRMWARE_RECIPE, FIRMWARE_LOCK, "scripts/quartus_tools.py", "scripts/fes_build_common.py",
     "scripts/source_provenance.py", "scripts/yosys_netlist.py", "scripts/lockfile.py", ABI_DEFINITION, LOCK,
-    I386_LOCK, QUARTUS_LOCK, QSF, SDC, *INCLUDES, *SHELL_SOURCES,
+    I386_LOCK, QUARTUS_LOCK, QSF, SDC, "scripts/fes_i386_oracle.py", i386_oracle.BOCHS_PATCH_RELATIVE,
+    *(f"cores/fes-common/sim/i386/{name}" for name in i386_oracle.ORACLE_SOURCES),
+    *(name for name in i386_oracle.SUITE_SOURCES if name != "scripts/yosys_netlist.py"),
+    *INCLUDES, *SHELL_SOURCES,
     *MACHINE_SOURCES,
 )
 BUILD_OUTPUTS = (
@@ -503,6 +508,37 @@ def manifest(root: Path, record: bytes, evidence: dict, repository: str, revisio
     })
 
 
+def oracle_identity(root: Path) -> dict[str, str]:
+    """The source identity of this tree's declared lockstep oracle and suite."""
+    try:
+        i386_oracle.require_provisioner_unchanged()
+        target = board._regular_input(root, "scripts/fes_i386_oracle.py")
+        running = Path(i386_oracle.__file__).resolve()
+        if target.read_bytes() != running.read_bytes():
+            raise board.BuildError("target oracle provisioning script differs from the running one")
+        patch = board._regular_input(root, i386_oracle.BOCHS_PATCH_RELATIVE)
+        sim = root / "cores/fes-common/sim/i386"
+        for name in i386_oracle.ORACLE_SOURCES:
+            board._regular_input(root, f"cores/fes-common/sim/i386/{name}")
+        for name in i386_oracle.SUITE_SOURCES:
+            board._regular_input(root, name)
+        return {"revision": i386_oracle.BOCHS_REVISION, "patch_sha256": board._sha256(patch),
+                "provisioner_sha256": board._sha256(target), "adapter_sha256": i386_oracle.adapter_source_sha256(sim),
+                "suite_sha256": i386_oracle.suite_source_sha256(root)}
+    except (OSError, i386_oracle.OracleError) as exc:
+        raise board.BuildError(f"cannot read the Bochs oracle or suite source: {exc}") from exc
+
+
+def require_same_oracle(root: Path, expected: dict) -> None:
+    actual = oracle_identity(root)
+    if any(expected.get(key) != value for key, value in actual.items()):
+        raise board.BuildError("Bochs oracle or lockstep suite source changed during build")
+
+
+def valid_sha256(value) -> bool:
+    return isinstance(value, str) and board.HEX64_RE.fullmatch(value) is not None
+
+
 def check_lockstep_report(root: Path, data: bytes, yosys: board.AuthenticatedTool, gpu_router: str,
                           output: Path) -> dict:
     """The lockstep gate (#1581 S5). data is the report's bytes. Returns the
@@ -535,6 +571,17 @@ def check_lockstep_report(root: Path, data: bytes, yosys: board.AuthenticatedToo
         raise board.BuildError(f"cannot read {I386_LOCK}: {exc}") from exc
     if not isinstance(verilator, dict) or verilator.get("lock") != I386_LOCK or verilator.get("commit") != pinned:
         raise board.BuildError(f"lockstep report's Verilator is not {I386_LOCK}'s {pinned}: {verilator!r}")
+    expected_oracle = oracle_identity(root)
+    measured_oracle = report.get("oracle")
+    if (not isinstance(measured_oracle, dict)
+            or set(measured_oracle) != set(expected_oracle) | {"linked_sha256", "testbench_sha256"}
+            or any(measured_oracle.get(key) != value for key, value in expected_oracle.items())):
+        raise board.BuildError(f"lockstep report's oracle identity {measured_oracle!r} is not {expected_oracle!r}")
+    linked = measured_oracle["linked_sha256"]
+    if (not isinstance(linked, dict) or set(linked) != set(i386_oracle.LINKED_NAMES)
+            or not all(valid_sha256(value) for value in linked.values())
+            or not valid_sha256(measured_oracle["testbench_sha256"])):
+        raise board.BuildError("lockstep report's oracle binary digests are missing or invalid")
     try:
         regenerated = yosys_netlist.seal_netlist(yosys.path, output / "lockstep", root)
     except yosys_netlist.NetlistError as exc:
@@ -545,7 +592,8 @@ def check_lockstep_report(root: Path, data: bytes, yosys: board.AuthenticatedToo
                                f"this build's Yosys writes ({digest})")
     return {"report_sha256": hashlib.sha256(data).hexdigest(), "netlist_sha256": digest,
             "netlist_program_sha256": expected["program_sha256"], "yosys_tool": yosys.identity,
-            "cpu_source_closure_sha256": expected["cpu_source_sha256"], "simulator": verilator}
+            "cpu_source_closure_sha256": expected["cpu_source_sha256"], "simulator": verilator,
+            "oracle": measured_oracle}
 
 
 def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = None, seed: int = 1,
@@ -598,6 +646,7 @@ def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = No
             raise board.BuildError("authenticated tool identity changed during build")
         if require_clean_source(root) != (repository, revision):
             raise board.BuildError("source identity changed during build")
+        require_same_oracle(root, lockstep["oracle"])
         if create_build_record(root, repository, revision, identities, seed, gpu_router) != record:
             raise board.BuildError("source inputs changed during build")
         return export_package(encoded, output / "core.rbf", package_store)

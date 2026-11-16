@@ -33,8 +33,16 @@ def kit_target(paths: list[str], labels: list[str] | None = None) -> str | None:
     return None
 
 
-def de25_producer(paths: list[str]) -> str | None:
+def de25_producer(paths: list[str], labels: list[str] | None = None) -> str | None:
     """Resolve a single DE25 Quartus producer; ambiguity fails closed."""
+    labels = labels or []
+    labelled = {"core:de25-menu": "build_menu_package.py",
+                "core:de25-zx81": "build_zx81_package.py"}
+    selected = {labelled[label] for label in labels if label in labelled}
+    if len(selected) == 1:
+        return next(iter(selected))
+    if selected:
+        return None
     hits = {producer for pattern, producer in _D25_PRODUCERS
             if any(pattern.search(path) for path in paths)}
     return next(iter(hits)) if len(hits) == 1 else None

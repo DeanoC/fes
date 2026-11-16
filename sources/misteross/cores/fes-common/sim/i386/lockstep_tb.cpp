@@ -1732,32 +1732,35 @@ bool x87_built_form(uint8_t esc, uint8_t modrm) {
             case 1 << 3 | 6: case 5 << 3 | 6:                            // FNSTENV, FNSAVE
             case 1 << 3 | 4: case 5 << 3 | 4:                            // FLDENV, FRSTOR
                 return true;
-            // Slice 3's arithmetic and compares: D8 and DC with a 32- or
-            // 64-bit real, DA and DE with a 32- or 16-bit integer, reg
-            // fields 0 to 5. Reg fields 6 and 7 are the divides, slice 4's.
-            case 0 << 3 | 0: case 0 << 3 | 1: case 0 << 3 | 2:
-            case 0 << 3 | 3: case 0 << 3 | 4: case 0 << 3 | 5:           // D8
-            case 4 << 3 | 0: case 4 << 3 | 1: case 4 << 3 | 2:
-            case 4 << 3 | 3: case 4 << 3 | 4: case 4 << 3 | 5:           // DC
-            case 2 << 3 | 0: case 2 << 3 | 1: case 2 << 3 | 2:
-            case 2 << 3 | 3: case 2 << 3 | 4: case 2 << 3 | 5:           // DA
-            case 6 << 3 | 0: case 6 << 3 | 1: case 6 << 3 | 2:
-            case 6 << 3 | 3: case 6 << 3 | 4: case 6 << 3 | 5:           // DE
+            // Slice 3's arithmetic and compares and slice 4's divides: D8
+            // and DC with a 32- or 64-bit real, DA and DE with a 32- or
+            // 16-bit integer, reg fields 0 to 7. Fields 6 and 7 are
+            // FDIV and FDIVR.
+            case 0 << 3 | 0: case 0 << 3 | 1: case 0 << 3 | 2: case 0 << 3 | 3:
+            case 0 << 3 | 4: case 0 << 3 | 5: case 0 << 3 | 6: case 0 << 3 | 7:  // D8
+            case 4 << 3 | 0: case 4 << 3 | 1: case 4 << 3 | 2: case 4 << 3 | 3:
+            case 4 << 3 | 4: case 4 << 3 | 5: case 4 << 3 | 6: case 4 << 3 | 7:  // DC
+            case 2 << 3 | 0: case 2 << 3 | 1: case 2 << 3 | 2: case 2 << 3 | 3:
+            case 2 << 3 | 4: case 2 << 3 | 5: case 2 << 3 | 6: case 2 << 3 | 7:  // DA
+            case 6 << 3 | 0: case 6 << 3 | 1: case 6 << 3 | 2: case 6 << 3 | 3:
+            case 6 << 3 | 4: case 6 << 3 | 5: case 6 << 3 | 6: case 6 << 3 | 7:  // DE
                 return true;
             default:
-                return false;   // the divides, FBLD and FBSTP
+                return false;   // FBLD and FBSTP, slice 5's
         }
     }
     switch (low) {
         case 0:  // D8: the arithmetic and compares into ST(0)
             return (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8     // FADD, FMUL
                 || (modrm & 0xf8) == 0xd0 || (modrm & 0xf8) == 0xd8     // FCOM, FCOMP
-                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8;    // FSUB, FSUBR
+                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8     // FSUB, FSUBR
+                || (modrm & 0xf8) == 0xf0 || (modrm & 0xf8) == 0xf8;    // FDIV, FDIVR
         case 1:  // D9
             if (modrm == 0xd0 || modrm == 0xe0 || modrm == 0xe1 || modrm == 0xe4 || modrm == 0xe5
                 || modrm == 0xf6 || modrm == 0xf7)
                 return true;                                     // FNOP, FCHS, FABS, FTST, FXAM, FDECSTP, FINCSTP
             if (modrm == 0xf4 || modrm == 0xfc || modrm == 0xfd) return true;   // FXTRACT, FRNDINT, FSCALE
+            if (modrm == 0xf5 || modrm == 0xf8 || modrm == 0xfa) return true;   // FPREM1, FPREM, FSQRT
             if ((modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8) return true;  // FLD ST(i), FXCH
             return modrm >= 0xe8 && modrm <= 0xee;               // the constants
         case 2:  // DA
@@ -1766,14 +1769,16 @@ bool x87_built_form(uint8_t esc, uint8_t modrm) {
             return modrm == 0xe0 || modrm == 0xe1 || modrm == 0xe2 || modrm == 0xe3 || modrm == 0xe4;
         case 4:  // DC: the same arithmetic into ST(i)
             return (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8
-                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8;
+                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8
+                || (modrm & 0xf8) == 0xf0 || (modrm & 0xf8) == 0xf8;   // FDIVR, FDIV ST(i)
         case 5:  // DD
             return (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xd0 || (modrm & 0xf8) == 0xd8
                 || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8;   // ... and FUCOM, FUCOMP
         case 6:  // DE: the popping forms, and FCOMPP
             return modrm == 0xd9
                 || (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8
-                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8;
+                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8
+                || (modrm & 0xf8) == 0xf0 || (modrm & 0xf8) == 0xf8;   // FDIVRP, FDIVP
         case 7:  // DF
             return modrm == 0xe0;                                // FNSTSW AX
         default:
@@ -9552,6 +9557,32 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
         user_write.rtl_alone = true; user_write.pte_ad = A | D; user_write.word = 1; user_write.zf = 1;
         cases.push_back(user_write);
     }
+    // The patched Bochs flat-4G path checks the multi-byte SS limit before
+    // paging. Test both cold and already-cached segment access, with and
+    // without the high page mapped, in full lockstep.
+    for (bool word : {true, false}) {
+        for (bool warm : {false, true}) for (bool mapped : {false, true}) {
+            static std::deque<std::string> names;
+            const char *label = names.emplace_back(std::string(word ? "pg-r3-pushfw-wrap" : "pg-r3-pushfd-wrap")
+                                + (warm ? "-warm" : "") + (mapped ? "-mapped" : "-unmapped")).c_str();
+            Case c{label, [word, warm](Asm &a, uint32_t) {
+                if (warm) {
+                    a.mov(4, 0x5001); // a legal cross-page push warms Bochs's flat-SS fast path
+                    a.op({0x66, 0x9c});
+                }
+                a.mov(4, 1); // ESP=1, word/dword push crosses 4 GiB
+                if (word) a.op({0x66, 0x9c}); else a.op({0x9c});
+            }, 12, 0, 0, {}, mapped ? std::vector<std::pair<uint32_t,uint32_t>>{{1023, PT1 | P | W | U}} : std::vector<std::pair<uint32_t,uint32_t>>{},
+               {}, true};
+            if (mapped) { c.ptes.emplace_back(0x7ff, 0x20000 | P | W | U); c.mem.push_back({0x20fff, {0xa5}}); }
+            cases.push_back(c);
+        }
+        Case valid{word ? "pg-r3-pushfw-inlimit-np" : "pg-r3-pushfd-inlimit-np", [word](Asm &a, uint32_t) {
+            a.mov(4, 0); // push starts fffffffe/fffffffc and ends at limit
+            if (word) a.op({0x66, 0x9c}); else a.op({0x9c});
+        }, 14, 6, -1, {}, {}, {}, true};
+        cases.push_back(valid);
+    }
     const char *only = std::getenv("FES_I386_CASE");
     for (const Case &c : cases) {
         if (only && std::string(only) != c.label) continue;
@@ -9689,6 +9720,31 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
             }
         }
         if (c.cr2 >= 0 && s.cr2 != uint32_t(c.cr2)) out.add(label + ".cr2", uint32_t(c.cr2), s.cr2);
+        if (label.rfind("pg-r3-pushf", 0) == 0) {
+            const uint32_t at = s.seg[fes_i386::SEG_SS].base + s.gpr[fes_i386::REG_ESP];
+            const auto rd32 = [&](uint32_t x) {
+                return uint32_t(rtl.ram[x]) | uint32_t(rtl.ram[x + 1]) << 8
+                     | uint32_t(rtl.ram[x + 2]) << 16 | uint32_t(rtl.ram[x + 3]) << 24;
+            };
+            const bool word = label.find("pushfw") != std::string::npos;
+            const bool crossing = label.find("wrap") != std::string::npos;
+            const bool mapped = label.find("-mapped") != std::string::npos;
+            const uint32_t expected_eip = CODE + uint32_t(a.b.size()) - 1 - (word ? 2u : 1u);
+            if (uint64_t(at) + 23 >= RAM_BYTES) out.add(label + ".frame-range", 0, at);
+            else {
+                if (rd32(at+4) != expected_eip) out.add(label + ".frame-eip", expected_eip, rd32(at+4));
+                if ((rd32(at+8) & 0xffff) != 0x7b) out.add(label + ".frame-cs", 0x7b, rd32(at+8));
+                if (rd32(at+16) != uint32_t(crossing)) out.add(label + ".frame-esp", uint32_t(crossing), rd32(at+16));
+                if ((rd32(at+20) & 0xffff) != 0x83) out.add(label + ".frame-ss", 0x83, rd32(at+20));
+            }
+            if (crossing && mapped) {
+                if (rtl.ram[0x20fff] != 0xa5) out.add(label + ".partial-write", 0xa5, rtl.ram[0x20fff]);
+                if (rtl.ram[PD + 4092] & (A | D)) out.add(label + ".high-pde-ad", 0, rtl.ram[PD + 4092] & (A | D));
+                if (rtl.ram[PT1 + 4092] & (A | D)) out.add(label + ".high-pte-ad", 0, rtl.ram[PT1 + 4092] & (A | D));
+            }
+        }
+        if (label == "pg-r3-pushfw-inlimit-np" && s.cr2 != 0xfffffffeu) out.add(label + ".cr2-full", 0xfffffffeu, s.cr2);
+        if (label == "pg-r3-pushfd-inlimit-np" && s.cr2 != 0xfffffffcu) out.add(label + ".cr2-full", 0xfffffffcu, s.cr2);
         end_run(bus, rtl, outcome.halted, out);
         oracle.set_a20(true);
         rtl.top.a20m = 0;
@@ -10315,6 +10371,110 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.esc(0xd9, 0, 0x104);                                 // FLD m32
             a.esc(0xd9, 3, 0x328);                                 // FSTP m32
         }},
+        // ---- Slice 4's forms, through the CPU ----
+        // These are what the unit's own bench cannot reach: the bench supplies
+        // the operand format itself, so a memory divide that x87_decode
+        // accepts but x87_format does not map would pass there and raise
+        // FAULT_UNIMPLEMENTED here. Codex found exactly that on PR #1889, and
+        // `div-mem` is the case that would have caught it.
+        {"div-reg", [](Asm &a) {
+            a.op({0xdb, 0xe3});                                    // FNINIT
+            a.esc(0xd9, 0, 0x100);                                 // FLD m32
+            a.esc(0xdd, 0, 0x108);                                 // FLD m64
+            a.op({0xd8, 0xf1});                                    // FDIV ST,ST(1)
+            a.esc(0xd9, 0, 0x104);
+            a.op({0xd8, 0xf9});                                    // FDIVR ST,ST(1)
+            a.op({0xdc, 0xf1});                                    // FDIVR ST(1),ST
+            a.op({0xdc, 0xf9});                                    // FDIV ST(1),ST
+            a.op({0xde, 0xf9});                                    // FDIVP ST(1),ST
+            a.op({0xdf, 0xe0});                                    // FNSTSW AX
+        }},
+        {"div-mem", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 0, 0x100);                                 // FLD m32
+            a.esc(0xd8, 6, 0x104);                                 // FDIV m32
+            a.esc(0xd8, 7, 0x104);                                 // FDIVR m32
+            a.esc(0xdc, 6, 0x108);                                 // FDIV m64
+            a.esc(0xdc, 7, 0x108);                                 // FDIVR m64
+            a.esc(0xda, 6, 0x124);                                 // FIDIV m32
+            a.esc(0xda, 7, 0x124);                                 // FIDIVR m32
+            a.esc(0xde, 6, 0x120);                                 // FIDIV m16
+            a.esc(0xde, 7, 0x120);                                 // FIDIVR m16
+            a.esc(0xd9, 3, 0x360);                                 // FSTP m32, so the
+            a.op({0xdf, 0xe0});                                    // result lands in RAM
+        }},
+        {"div-zero", [](Asm &a) {
+            // Divide-by-zero and the two invalid pairs, every exception
+            // masked, so the results and flags are compared rather than an
+            // IRQ 13 the bench cannot deliver.
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 0, 0x100);                                 // a finite value
+            a.op({0xd9, 0xee});                                    // FLDZ
+            a.op({0xde, 0xf9});                                    // FDIVP: x / 0
+            a.op({0xdf, 0xe0});
+            a.op({0xdb, 0xe3});
+            a.op({0xd9, 0xee}); a.op({0xd9, 0xee});                // 0 / 0
+            a.op({0xde, 0xf9});
+            a.op({0xdf, 0xe0});
+        }},
+        {"sqrt", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.op({0xd9, 0xe8});                                    // FLD1
+            a.op({0xd9, 0xfa});                                    // FSQRT: an exact root
+            a.esc(0xd9, 0, 0x100);
+            a.op({0xd9, 0xfa});
+            a.esc(0xdd, 0, 0x108);
+            a.op({0xd9, 0xfa});
+            a.op({0xd9, 0xe8}); a.op({0xd9, 0xe0});                // FLD1, FCHS
+            a.op({0xd9, 0xfa});                                    // the root of -1: invalid
+            a.op({0xdf, 0xe0});
+        }},
+        {"prem", [](Asm &a) {
+            // A reduction that needs several partial steps, looped the way
+            // software does: FPREM, then FNSTSW AX, then test C2 and branch
+            // back. That compares every partial step's whole state, and the
+            // step size -- n = (expDiff & 31) | 32 -- against Bochs, which
+            // computes the same quantity in cpu/fpu/fprem.cc.
+            a.op({0xdb, 0xe3});
+            a.esc(0xdb, 5, 0x1a0);                                 // FLD m80: a big dividend
+            a.op({0xd9, 0xe8});                                    // FLD1 as the divisor
+            a.op({0xd9, 0xc9});                                    // FXCH, so ST(1) is the divisor
+            const size_t loop = a.b.size();
+            a.op({0xd9, 0xf8});                                    // FPREM
+            a.op({0xdf, 0xe0});                                    // FNSTSW AX
+            a.op({0xa9}); a.w(0x0400);                             // TEST AX, C2
+            a.op({0x75});                                          // JNZ back to the loop
+            a.b.push_back(uint8_t(int8_t(int(loop) - int(a.b.size()) - 1)));
+            a.esc(0xd9, 3, 0x368);                                 // FSTP m32
+        }},
+        {"prem1", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xdb, 5, 0x1a0);
+            a.op({0xd9, 0xe8});
+            a.op({0xd9, 0xc9});
+            const size_t loop = a.b.size();
+            a.op({0xd9, 0xf5});                                    // FPREM1
+            a.op({0xdf, 0xe0});
+            a.op({0xa9}); a.w(0x0400);
+            a.op({0x75});
+            a.b.push_back(uint8_t(int8_t(int(loop) - int(a.b.size()) - 1)));
+            a.esc(0xd9, 3, 0x36c);
+        }},
+        {"div-prec", [](Asm &a) {
+            // The same divide under each precision-control setting, which is
+            // what the early termination changes: the iteration count is
+            // chosen by PC, so this says the three paths agree with Bochs.
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 5, 0x140);                                 // FLDCW: PC 24
+            a.esc(0xd9, 0, 0x100);
+            a.esc(0xd8, 6, 0x104);                                 // FDIV m32
+            a.esc(0xd9, 5, 0x142);                                 // FLDCW: PC 53
+            a.esc(0xd8, 6, 0x104);
+            a.esc(0xd9, 5, 0x130);                                 // FLDCW: PC 64
+            a.esc(0xd8, 6, 0x104);
+            a.op({0xd9, 0xfa});                                    // FSQRT at PC 64
+            a.op({0xdf, 0xe0});
+        }},
         {"words", [](Asm &a) {
             a.op({0xdb, 0xe3});
             a.esc(0xd9, 5, 0x130);                                 // FLDCW
@@ -10643,6 +10803,10 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             {0x170, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xb9, 0x3f}},  // 2^-70
             {0x180, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x27, 0x63}},  // 2^9000
             {0x190, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xd4, 0x1f}},  // 2^-8300
+            // Slice 4's: a dividend whose exponent is 200 above the divisor's,
+            // so FPREM against 1.0 needs several partial steps and the chain
+            // exercises the step size against Bochs rather than one reduction.
+            {0x1a0, {0x00, 0x00, 0x00, 0x00, 0xf0, 0xbd, 0x57, 0x93, 0xc7, 0x40}},
         };
         for (const Operand &o : operands)
             for (unsigned i = 0; i < o.bytes.size(); ++i)

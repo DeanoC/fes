@@ -71,6 +71,7 @@ import argparse
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 import gzip
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -449,8 +450,8 @@ def run_paging(testbench: str, env: dict) -> dict:
 
 # 77, and #1701's #UD at CPL 0 and 3 before a memory operand on a page not
 # present (8 each), its 45 probes in V86 mode, 6 ARPL paging cases, and
-# #1730's UMOV #PF at CPL 0 and 3 (2 each).
-PAGING_CASES = 77 + 2 * 8 + 45 + 6 + 2 * 2
+# #1730's UMOV #PF at CPL 0 and 3 (2 each), and 10 flat SS boundary controls.
+PAGING_CASES = 77 + 2 * 8 + 45 + 6 + 2 * 2 + 10
 
 
 def run_no387(testbench: str, env: dict) -> dict:
@@ -480,6 +481,9 @@ def run_x87(testbench: str, env: dict) -> dict:
     oracle's 387, with the 387's whole state compared at every retirement.
     Alongside these directed streams, run_x87_cases adds seeded mixed
     arithmetic, compare and FRNDINT guest programs over finite ext80 operands.
+    Slice 4 adds seven more directed streams for the divides, the square
+    root and the remainders, including a memory-divide program and two
+    that loop on C2 the way software does.
     The ordinary random and corpus programs run no ESC, so the x87 suite
     exercises the unit inside the CPU -- and the only thing that exercises
     the decode's uops for the arithmetic forms, the x87 pointers and the
@@ -495,7 +499,9 @@ def run_x87(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-X87_DIRECTED_CASES = 14
+# Slices 2 and 3 contribute 14 directed streams; slice 4 adds div-reg,
+# div-mem, div-zero, sqrt, prem, prem1 and div-prec.
+X87_DIRECTED_CASES = 14 + 7
 X87_RANDOM_CASES = 8 * 3 * 4
 X87_CASES = X87_DIRECTED_CASES + X87_RANDOM_CASES
 
@@ -740,12 +746,16 @@ def main() -> int:
     OUTPUT.mkdir(parents=True, exist_ok=True)
     report: dict[str, object] = {'verilator': verilator.record()}
     try:
+        suite_sha256 = oracle.suite_source_sha256(ROOT)
         entries = vectors.load_divergences()
         table = OUTPUT / 'divergences.txt'
         divergence_table(entries, table)
         yosys = yosys_netlist.locate(args)
         linked = oracle.link_inputs(args.jobs, args.download)
+        report['oracle'] = oracle.build_record(linked)
         testbench = str(verilate(verilator, linked, args.jobs, yosys.path if yosys else None))
+        report['oracle']['suite_sha256'] = suite_sha256
+        report['oracle']['testbench_sha256'] = hashlib.sha256(Path(testbench).read_bytes()).hexdigest()
         if yosys:
             report['netlist'] = yosys_netlist.report_record(
                 ROOT, yosys, args.gpu_router, Path(testbench).parent / f'{TOP}.netlist.v')
@@ -810,6 +820,12 @@ def main() -> int:
             task_results = [future.result() for future in tasks]
             debug_results = [future.result() for future in debugs]
             undefined_results = [future.result() for future in undefined]
+        if oracle.suite_source_sha256(ROOT) != suite_sha256:
+            raise LockstepError('lockstep suite sources changed during the run')
+        final_oracle = oracle.build_record(linked)
+        if (any(report['oracle'].get(key) != value for key, value in final_oracle.items())
+                or hashlib.sha256(Path(testbench).read_bytes()).hexdigest() != report['oracle']['testbench_sha256']):
+            raise LockstepError('oracle or testbench changed during the run')
     except (OSError, oracle.OracleError, frontend.FrontendError, yosys_netlist.NetlistError, vectors.CorpusError, LockstepError,
             json.JSONDecodeError, KeyError) as error:
         print('i386 lockstep error:', error, file=sys.stderr)
