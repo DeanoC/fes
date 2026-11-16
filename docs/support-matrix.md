@@ -110,7 +110,6 @@ The levels never lower a gate on work being done to a core: a netlist that is no
 
 These cells are still open. The wording is in [`support-matrix.json`](support-matrix.json).
 
-- ZX80, TS1000, TS1500 — Quartus oracle
 - Every row with a pad or keyboard — Bluetooth
 - Every row — Mesh / FogCast
 - Registered recipes — Ship both builds

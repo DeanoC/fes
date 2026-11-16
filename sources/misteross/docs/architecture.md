@@ -380,6 +380,17 @@ it does not change the physical-DDR, firmware or package-admission boundaries.
 
 ## DE25-Nano board diagnostic
 
+The standalone [DE25 x87 arithmetic backend](../boards/de25nano/x87/README.md)
+accepts decoded 80-bit add/subtract/multiply/compare requests at one per clock,
+with registered shared operand normalization, an iterative divide/square-root
+lane and a shared precision/rounding pipeline. A 16-entry synchronous completion
+RAM returns results in issue order under backpressure. Its private virtual-pin Quartus fit targets 200 MHz
+on `A5EB013BB23BE4SCS`; host simulation compares results and exception flags
+against real x87 instructions. It has no CPU or package consumer yet: stack
+state, conversion, retirement, unmasked exceptions and the remaining x87
+operations belong to future integration with the existing 387 architecture.
+This diagnostic supplies no board or game acceptance.
+
 The standard ZX81 machine/control/capture is `cores/fes-zx81/rtl/fes_zx81_core.v`.
 The DE10 `top.v` supplies its clocks, HPS GP transport, HDMI, audio serializer,
 registered expansion placement and session-plane memory adapter. The shared
@@ -2463,40 +2474,34 @@ Hard-fault close and execution hold remain blocked while controller responses
 or queued guard commands are stalled; both succeed only after physical drain.
 The existing BASIC and expansion simulations remain part of `make sim-fes-zx81`.
 
-## FES ZX81 Quartus bring-up
+## FES ZX81 Quartus package
 
-`make build-fes-zx81-quartus` is the Quartus Prime Lite 17.0.2 recipe for
-`fes.zx81` 1.2.0 oracle package. It is not a Mistral/nextpnr payload
-and is not the standard socketed package. The board shell
-`cores/fes-zx81/rtl/top.v` uses two `altera_pll` cells from the 50 MHz V11
-reference: 52 MHz system (`fes_z80_nmos`, ULA, mailbox) and 74.25 MHz pixel (HDMI
-1650×750). HDMI RGB/HS/VS/CLK pins and U10/AA4 match FES Pong. The HPS I2C
-cell is at `HPSINTERFACEPERIPHERALI2C_X52_Y60_N111`; `out_clk`/`out_data`
-pull SCL/SDA low and `scl`/`sda` read the pads (Quartus assign-to-Z in place
-of Pong's `MISTRAL_IO`). The Quartus oracle compiles the same `zx81_machine.sv`
-as product simulation and the OSS shell. That module instantiates `fes_z80_nmos`
-with no Quartus-specific CPU.
+`make build-fes-zx81-quartus MODEL=zx81|zx80|ts1000|ts1500` runs
+`scripts/build_fes_zx81_quartus.py`, the Quartus Prime Lite 17.0.2 producer for
+the ZX81 family (design and decisions D1-D6: DeanoC/fes#1873). It
+authenticates `quartus_sh` against `cores/fes-zx81/quartus.lock` and Quartus's
+own front end reads the RTL; no Yosys or nextpnr is involved. The board shell is
+the same `cores/fes-zx81/rtl/top.v` (`QUARTUS=1`: HPS I2C at
+`HPSINTERFACEPERIPHERALI2C_X52_Y60_N111` with assign-to-Z pads, two
+`altera_pll` cells for the 52.224/12.288 MHz system and audio clocks and the
+74.25 MHz pixel clock). It is built without the expansion socket; the carts
+move into the shell separately (DeanoC/fes#1875).
 
-The compile defines `QUARTUS=1`. ROM, 16 KB RAM and the 16 KB media blob
-instantiate `zx81_dpram`. Its Quartus branch is `altsyncram` bidirectional
-dual-port M10K: the address is registered, the output is unregistered, and
-a same-port write returns `NEW_DATA_NO_NBE_READ`, which is one clock of
-read latency. ROM init is the project's `zx81.mif`, written from
-`FES_ZX81_ROM` (`--rom`). Simulation registers `q_a` and `q_b` on that clock
-and uses the matching hex, with the same one-cycle read. The 720p
-capture buffer is a one-dimensional M10K array
-written on `clk_sys` and registered on `pixel_clk`.
+The ROM lanes come from `cores/fes-zx81/quartus/zx81_rom_link.v` instead of
+`rtl/zx81_rom_link.v`: the same 1024x10 lanes and two-stage read, as blank
+`altsyncram` ROMs placed on `M10K_X5_Y73_N0` and up, the blocks the OSS shell
+uses. The package is format 3 with the same `m10k-1024x10-v1` `rom-map.json`,
+so the kit links the user's ROM exactly as it does for the OSS package.
 
-The recipe requires `QUARTUS_ROOTDIR`, version 17.0.2, a clean checkout and
-tracked inputs. It writes canonical `build/fes-zx81-quartus/build-inputs.json`
-before compile, embeds that record's 128-bit id as `BUILD_ID`, runs
-`quartus_sh --flow compile top`, requires TimeQuest multicorner
-Setup/Hold/Recovery/Removal/Minimum Pulse Width worst-case slack ≥ 0, no
-illegal or unconstrained clocks, and the 52 MHz system clock and the
-derived 74.25/74.27 MHz pixel clock named, then seals `manifest.toml` + `core.rbf` through the existing format-2
-exporter. Failed compiles delete the RBF, manifest and passing summary.
-The command never programs hardware. Quartus remains the kit-proven
-bring-up lane.
+Every seed in `SEEDS` must pass the complete TimeQuest gate, and an
+independent rebuild of the first seed must reproduce its RBF. The producer
+also checks the PLL output frequencies, the ROM lane placement and blank
+init files, no MLAB, the three display-plane DSP blocks and the audio pins. A
+post-fit netlist (`quartus_eda`) feeds the shared HPS DDR layout and
+session-display checks (`scripts/quartus_vo_evidence.py`). A ROM self-test
+re-assembles the fitted design with a test pattern and requires the map to
+describe exactly the CRAM bits that change. The record is functional format 2
+with `"toolchain": "quartus"`. The command never programs hardware.
 
 ## FES ZX81 OSS package
 
