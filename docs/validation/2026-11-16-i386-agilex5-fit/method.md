@@ -1042,3 +1042,76 @@ interval between the two settings, and nothing deferred to a later step that a
 signal could arrive before. The rule from the previous round still stands as
 the one to apply next time: a fix that narrows a window is not a fix that
 closes it.
+
+## Amendment, 2026-11-16: the invariant, and every path that releases the lease
+
+A fourth finding in the signal family, from Codex review on `16476dd16`, in the
+cleanup rather than the launch. No figure in this record moves.
+
+The previous amendment said the family "ends here" and that a fourth finding
+would mean the claim was wrong. Scoped precisely: the claim made was about the
+launch -- both masks set by one call -- and that still holds and its tests still
+pass. What was wrong was treating the launch as the whole of the problem. The
+invariant is wider and is now stated as the invariant, which it should have been
+from the first round:
+
+> **The builder lease is never released while a process group this runner
+> started has a live member.**
+
+The launch was one of the places it could be violated. The cleanup was another:
+with a stage that ignores or is slow to honour SIGTERM, a second SIGTERM or
+SIGHUP raised `FitTerminated` again inside the grace wait, the exception left
+before SIGKILL was sent, and the runner exited over a live compile.
+
+Counterexample first, deterministic, and judged by surviving PIDs rather than
+by a pipe reaching end-of-file: a stage that traps SIGTERM and SIGHUP, the
+runner sent SIGTERM, then SIGHUP during the grace. Runner gone, stage alive.
+The old cleanup is kept in the tests as the failing shape.
+
+Two changes, of different kinds:
+
+1. **The reap cannot be left early.** `reap_group` blocks the terminating
+   signals (and SIGINT) for its whole duration, so new ones stay pending;
+   `pthread_sigmask` itself runs any handler tripped before the block took
+   effect, and any exception that still arrives is caught and the reap resumed.
+   A flag making the handler a no-op was not used: it has a window between its
+   check and its set. The polite SIGTERM is sent once and the grace measured
+   from the first attempt, so interruptions cannot extend it. Emptiness is the
+   *group's*, not the leader's.
+2. **The invariant is checked where the lease is released**, not trusted to
+   each path. Every started group is registered while the launch still has the
+   signals blocked and deregistered only when seen empty; `compiler_lease`'s
+   release empties anything still registered, loudly, before unlocking. This is
+   the part that does not depend on having enumerated the paths correctly.
+
+The release paths, and the test that holds each (`tests/test_fit_i386_device.py`):
+
+| Path to the lease's release | Test |
+| --- | --- |
+| Normal exit, group already empty | `test_a_reaped_group_is_no_longer_registered_and_the_mask_is_restored` |
+| Normal exit, leader gone but members left behind | `test_a_stage_that_leaves_members_behind_is_emptied_on_normal_exit` |
+| A stage fails (exception) | `test_a_reaped_group_is_no_longer_registered_and_the_mask_is_restored` |
+| The runtime cap expires on a stage ignoring SIGTERM | `test_the_runtime_cap_empties_the_group_before_the_runner_leaves` |
+| A termination signal during a stage | `test_a_relayed_sigterm_takes_the_stage_group_with_it` |
+| A signal in the launch window | `test_a_blocked_launch_has_no_window` |
+| A second and third signal during the grace | `test_a_second_signal_during_the_grace_cannot_leave_the_reap` |
+| A path that performs no cleanup at all | `test_the_lease_release_empties_a_group_a_path_left_alive` |
+
+**Not covered, and not coverable from inside the runner:** SIGKILL of the
+runner itself, or the host going down. Nothing runs, the kernel drops the
+`flock`, and the stage's group lives on. Only something outside the runner --
+the next lease holder refusing to start while a previous group is alive, or the
+operator's stop order of remote group first -- can hold the invariant there.
+Stated as a limit rather than left to be found.
+
+**Also not tested here:** the machine elaboration's own lock. Yosys is started
+by `scripts/yosys_netlist.py` through `subprocess.run`, which kills its direct
+child when an exception passes through it, and the relayed signals are now
+exceptions; that is the standard library's behaviour and this record has not
+constructed a counterexample against it.
+
+No claim that the family has ended is made this time. What is claimed is
+narrower and checkable: the invariant is written down, it is enforced at the
+single point of release rather than at each path, and each path listed has a
+test. A fifth finding would be either a path that reaches the release with an
+unregistered group, or a release that is not `compiler_lease`'s.

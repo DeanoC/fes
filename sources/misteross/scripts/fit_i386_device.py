@@ -190,6 +190,13 @@ def compiler_lease():
         try:
             yield
         finally:
+            # The one point this lease is released on every path that unwinds:
+            # normal exit, a failed stage, the runtime cap, a termination
+            # signal and a second one. The invariant is checked here rather
+            # than trusted to each path, so a path nobody has thought of is
+            # caught too: no process group this runner started may be alive
+            # when the next fit can take the lock.
+            reap_live_groups("the compiler lease is being released")
             fcntl.flock(lease, fcntl.LOCK_UN)
 
 
@@ -497,6 +504,107 @@ def terminating_signals():
 TERMINATING_SIGNALS = (signal.SIGTERM, signal.SIGHUP)
 
 
+# Process groups this runner started and has not yet seen empty. A stage's
+# group is its session (start_new_session=True), so the group id is the
+# leader's pid. Added while the terminating signals are still blocked from the
+# launch; removed only by reap_group, once the group has no members.
+_LIVE_GROUPS: set[int] = set()
+REAP_GRACE_SECONDS = 15.0
+# After SIGKILL nothing is left to try. A group that still has members this
+# long afterwards is reported as such instead of being waited on for ever.
+REAP_KILL_SECONDS = 60.0
+
+
+def group_alive(group: int) -> bool:
+    try:
+        os.killpg(group, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def reap_group(group: int, process: subprocess.Popen | None = None,
+               grace: float = REAP_GRACE_SECONDS) -> None:
+    """Terminate a stage's process group and return only once it is empty.
+
+    The invariant this serves is that the builder lease is never released
+    while a group this runner started is alive. A cleanup that a second signal
+    can interrupt breaks it: the relayed handler raises inside the grace wait,
+    the exception leaves before SIGKILL is sent, and the lease is released
+    over a live compile. So this cannot be left early. The terminating signals
+    are blocked for its whole duration, which keeps new ones pending; and any
+    exception that still arrives -- a handler tripped just before the block,
+    or a Ctrl-C -- is caught and the reap resumed, because whatever the
+    interruption wants, it cannot want the lease released over a live group.
+    `pthread_sigmask` itself runs handlers tripped before the block took
+    effect, so after it returns cleanly none is outstanding.
+
+    The polite SIGTERM is sent once and the grace measured from the first
+    attempt, so interruptions do not extend it. Emptiness is the group's, not
+    the leader's: a stage whose leader has exited can leave members behind.
+    """
+    deadline = time.monotonic() + grace
+    polite = False
+    killed_at = None
+    previous = None
+    while True:
+        try:
+            try:
+                mask = signal.pthread_sigmask(
+                    signal.SIG_BLOCK, (*TERMINATING_SIGNALS, signal.SIGINT))
+                if previous is None:
+                    previous = mask
+            except (AttributeError, ValueError, OSError):
+                pass
+            while True:
+                if process is not None:
+                    process.poll()  # reap the leader, or its zombie keeps the group alive
+                if not group_alive(group):
+                    break
+                if not polite:
+                    polite = True
+                    try:
+                        os.killpg(group, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+                elif killed_at is None and time.monotonic() >= deadline:
+                    killed_at = time.monotonic()
+                    try:
+                        os.killpg(group, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                elif killed_at is not None and time.monotonic() - killed_at > REAP_KILL_SECONDS:
+                    raise FitError(
+                        f"process group {group} still has members {REAP_KILL_SECONDS:.0f} s "
+                        "after SIGKILL; the builder lease would be released over it")
+                time.sleep(0.05)
+            break
+        except FitError:
+            raise
+        except BaseException:
+            continue
+    _LIVE_GROUPS.discard(group)
+    if previous is not None:
+        # Outside the loop: a signal held pending through the reap is raised
+        # here, after the group is empty, and is free to end the run.
+        signal.pthread_sigmask(signal.SIG_SETMASK, previous)
+
+
+def reap_live_groups(reason: str) -> None:
+    """The chokepoint: every group still registered is emptied, loudly.
+
+    Reaching here with a live group means some path left a stage running; the
+    stage is killed without grace, since nothing orderly put it here.
+    """
+    for group in sorted(_LIVE_GROUPS):
+        if group_alive(group):
+            print(f"i386 fit: process group {group} is still alive while {reason}; "
+                  "killing it before the lease can be taken by another fit", flush=True)
+        reap_group(group, grace=0.0)
+
+
 def start_stage(command: list[str], **popen):
     """Start a stage with the terminating signals blocked, and hand back the
     process together with the call that lets them through again.
@@ -576,6 +684,9 @@ def run(command: list[str], project: Path, output: Path, label: str, deadline: f
         process, deliver_blocked_signals = start_stage(
             command, cwd=project, stdout=stream, stderr=subprocess.STDOUT,
             start_new_session=True, env=dict(os.environ, **(env or {})))
+        # Registered while the terminating signals are still blocked, so the
+        # lease's chokepoint knows of the group before anything can interrupt.
+        _LIVE_GROUPS.add(process.pid)
         try:
             deliver_blocked_signals()
             while True:
@@ -588,13 +699,14 @@ def run(command: list[str], project: Path, output: Path, label: str, deadline: f
                     print(f"i386 fit heartbeat: {label}; pid {process.pid}; "
                           f"{int(deadline - time.monotonic())} s of the cap remain", flush=True)
         except BaseException:
-            os.killpg(process.pid, signal.SIGTERM)  # our own process group, Quartus children included
-            try:
-                process.wait(timeout=15)
-            except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGKILL)
-                process.wait()
+            # Our own process group, Quartus children included. Not left until
+            # the group is empty, whatever arrives meanwhile.
+            reap_group(process.pid, process)
             raise
+        if group_alive(process.pid):
+            print(f"i386 fit: {label} exited but left members in its process group; "
+                  "terminating them before the lease can be released", flush=True)
+        reap_group(process.pid, process)
     if status:
         raise FitError(f"{label} failed ({status}); retained {log}")
 

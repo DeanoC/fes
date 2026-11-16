@@ -659,6 +659,116 @@ with fit.terminating_signals():
             fit.start_stage([str(Path(tempfile.gettempdir()) / "fes-no-such-command")])
         self.assertEqual(signal.pthread_sigmask(signal.SIG_BLOCK, []), before)
 
+    STUBBORN = """
+import signal
+command = ["sh", "-c", "trap '' TERM HUP; while true; do sleep 0.2; done # " + sys.argv[2]]
+fit.REAP_GRACE_SECONDS = 3.0
+{reap}
+with fit.terminating_signals():
+    {lease}
+        fit.run(command, out, out, "stage", time.monotonic() + {cap})
+"""
+    OLD_CLEANUP = """
+def interruptible(group, process=None, grace=3.0):
+    # The cleanup as it stood: a grace wait any relayed signal can leave.
+    os.killpg(group, signal.SIGTERM)
+    try:
+        process.wait(timeout=grace)
+    except subprocess.TimeoutExpired:
+        os.killpg(group, signal.SIGKILL)
+        process.wait()
+fit.reap_group = interruptible
+import subprocess
+"""
+
+    def second_signal_during_the_grace(self, tag, reap="", lease="if True:", cap="120",
+                                       signals=("SIGTERM", "SIGHUP", "SIGTERM")):
+        """A stage that ignores SIGTERM, a runner told to stop, and further
+        signals while it waits out the grace. Returns the survivors and whether
+        the runner was still alive while any member of the group was."""
+        import signal
+        import sys
+        root = str(Path(__file__).resolve().parent.parent)
+        with tempfile.TemporaryDirectory() as temporary:
+            script = Path(temporary) / "stubborn.py"
+            script.write_text(self.HELPER.format(root=root, body=self.STUBBORN.format(
+                reap=reap, lease=lease, cap=cap)))
+            runner = subprocess.Popen([sys.executable, "-u", str(script), temporary, tag],
+                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            try:
+                deadline = time.monotonic() + 30
+                while not self.surviving(tag) and time.monotonic() < deadline:
+                    time.sleep(0.1)
+                self.assertTrue(self.surviving(tag), "the stage's child never started")
+                for name in signals:
+                    if runner.poll() is None:
+                        runner.send_signal(getattr(signal, name))
+                    time.sleep(0.5)
+                runner.wait(timeout=60)
+                # Read at once: the question is what was alive when the
+                # runner, and with it the lease, went away.
+                return self.surviving(tag)
+            finally:
+                if runner.poll() is None:
+                    runner.kill()
+                    runner.wait(timeout=10)
+                for pid in self.surviving(tag):
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except OSError:
+                        pass
+
+    def test_a_second_signal_during_the_grace_left_the_old_cleanup_early(self):
+        # The counterexample for the cleanup. The relayed handler raises again
+        # inside the grace wait, the exception leaves before SIGKILL is sent,
+        # and the runner exits over a live stage.
+        self.assertNotEqual(self.second_signal_during_the_grace(
+            "FESFITSECONDOLD", reap=self.OLD_CLEANUP), [])
+
+    def test_a_second_signal_during_the_grace_cannot_leave_the_reap(self):
+        self.assertEqual(self.second_signal_during_the_grace("FESFITSECOND"), [])
+
+    def test_the_runtime_cap_empties_the_group_before_the_runner_leaves(self):
+        # The timeout path: no signal at all, the cap expires on a stage that
+        # ignores SIGTERM, and the reap must still end in SIGKILL.
+        self.assertEqual(self.second_signal_during_the_grace(
+            "FESFITCAP", cap="1", signals=()), [])
+
+    def test_the_lease_release_empties_a_group_a_path_left_alive(self):
+        # The chokepoint, presented with the fifth path nobody has thought of:
+        # a cleanup that does nothing at all. The lease's release must find
+        # the registered group and empty it before unlocking.
+        nothing = "fit.reap_group_was = fit.reap_group\n" \
+                  "def forgetful(group, process=None, grace=0.0):\n" \
+                  "    if grace == 0.0:\n" \
+                  "        return fit.reap_group_was(group, process, grace)\n" \
+                  "fit.reap_group = forgetful\n" \
+                  "fit.LOCK_FILE = out / 'lease.lock'\n"
+        self.assertEqual(self.second_signal_during_the_grace(
+            "FESFITCHOKE", reap=nothing, lease="with fit.compiler_lease():",
+            signals=("SIGTERM",)), [])
+
+    def test_a_stage_that_leaves_members_behind_is_emptied_on_normal_exit(self):
+        # The normal-exit path. The leader exits 0 and a member of its group
+        # lives on; the stage may not return until the group is empty.
+        with tempfile.TemporaryDirectory() as temporary:
+            out = Path(temporary)
+            tag = "FESFITSTRAGGLER"
+            fit.run(["sh", "-c", f"(sh -c 'while true; do sleep 0.2; done # {tag}' &) ; exit 0"],
+                    out, out, "stage", time.monotonic() + 60)
+            self.assertEqual(self.surviving(tag), [])
+            self.assertEqual(fit._LIVE_GROUPS, set())
+
+    def test_a_reaped_group_is_no_longer_registered_and_the_mask_is_restored(self):
+        import signal
+        before = signal.pthread_sigmask(signal.SIG_BLOCK, [])
+        with tempfile.TemporaryDirectory() as temporary:
+            out = Path(temporary)
+            with self.assertRaises(fit.FitError):
+                fit.run(["sh", "-c", "exit 3"], out, out, "stage", time.monotonic() + 60)
+        self.assertEqual(fit._LIVE_GROUPS, set())
+        self.assertEqual(signal.pthread_sigmask(signal.SIG_BLOCK, []), before)
+
     def test_a_relayed_sigterm_takes_the_stage_group_with_it(self):
         self.assertEqual(self.kill_during_a_stage(self.RELAYED, "FESFITRELAYED"), [])
 
