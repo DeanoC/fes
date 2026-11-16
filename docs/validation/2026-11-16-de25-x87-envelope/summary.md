@@ -349,52 +349,53 @@ numbers mean; that is the prose around them.
 ## Whether it fits in the machine is **not** established by any fit that exists
 
 This record measures the envelope-plus-backend **on its own**. Nothing here
-says it fits inside `fes.pc386`, and the nearest measurements point the other
-way.
+says it fits inside `fes.pc386`, and no fit of `pc386_system` with
+`X87_BACKEND = 1` exists. That fit is the only thing that would settle it.
 
-The sibling Agilex 5 measurement (`docs/validation/2026-11-16-i386-agilex5-fit/`,
-tracker #1898) fitted `pc386_system` on Agilex 5 with the 387 **on** — its fit
-M+ — at **4,590 of 4,680 LABs, 98.08%**, passing all four corners at
-61.44 MHz. That is the good half, and it supports the DE25 being the 387's
-home: the DE10 stopped before placement at 102.4% of Cyclone V LABs, and this
-placed, routed and closed.
+What *is* measured, by the sibling Agilex 5 measurement
+(`docs/validation/2026-11-16-i386-agilex5-fit/`, tracker #1898): `pc386_system`
+on Agilex 5 with main's 387 **on** — its fit M+ — **places, routes and closes
+timing at every published corner at 61.44 MHz**, at **37,255 of 46,800 ALMs,
+79.6%**. The DE10 never placed the identity-on machine at all. That outcome
+comparison is the one that holds across the two devices, and it supports the
+DE25 being the 387's home.
 
-The half that bears on this work: **90 LABs are left**, and the 387 in that
-fit is main's — **slice 2 only, with no arithmetic in it at all**, every
-arithmetic form `X87_UNIMPL`. Its whole cost in the machine, M+ − M, was
-**+1,763 ALMs and +166 LABs**.
+That leaves about **9,545 ALMs**, a fifth of the device. The 387 in that fit is
+main's — **slice 2 only, no arithmetic at all**, every form `X87_UNIMPL` — and
+its whole cost in the machine was **+1,763 ALMs, +9 DSP, +4 M20K**.
 
-So the machine has room for a whole 387 of about **256 LABs**: slice 2's 166,
-which it is already spending, plus the 90 spare.
+**A projection that stood here earlier is withdrawn.** It read the fitter's
+"Total LABs: partially or completely used" row as a capacity figure — 98.08%
+for M+, 90 LABs spare — and derived from it that this work would need roughly
+614 LABs against 256 and so would not fit. That was wrong, and the sibling
+measurement withdrew the underlying reading: **a LAB counts as used when one
+of its ten ALM slots is used**, so M+ touches 98% of LABs while leaving about
+a fifth of their slots free, and the fitter itself estimated 4,210 ALMs
+recoverable by denser packing. The capacity row is ALMs needed, not LABs
+touched. The 10.6-ALMs-per-LAB density that projection used was a measured
+delta's ratio, not a rate at which new LABs get consumed, and using it that way
+was the error. Both the projection and the framing it produced — that nothing
+pointed at fitting — are retracted.
 
-**This work's own unit fit is 6,510 to 6,518 ALMs and 780 to 797 LABs.** At
-the density M+ − M itself gives — 1,763 ALMs per 166 LABs, about 10.6 ALMs per
-LAB — 6,510 ALMs is roughly **614 LABs against that 256**. (An earlier version
-of this section used PR #1892's 2,660 ALMs for the *backend alone*, which gave
-about 250 against 90 — a comparison between a part and a whole. The figure to
-use is this work's, because this work is the integrated envelope plus backend,
-which is what would go in the machine.)
+So: there is apparent ALM headroom, and **nothing here establishes that this
+design fits inside it.** What is genuinely open, rather than invented:
 
-Every part of that is **inference from a measured density, not a
-measurement**, and it is inference that overstates in at least two ways: the
-unit fit carries `regs_o`, the trace outputs and its virtual-pin cells, all of
-which the machine trims, and a standalone unit packs more loosely than the
-same logic under whole-machine pressure, which is exactly why ALM and LAB
-occupancy diverge. An **integration fit is the only thing that settles it**,
-and none exists. But nothing here points at fitting, and this record does not
-claim it does.
-
-It is also all before a **DE25 board shell**, which is measured nowhere: the
-machine fit stands in for one with 651 ALMs of virtual-pin cells, and the DE10
-equivalent is around 770 ALMs.
-
-**One concrete saving is visible in these numbers.** M+ − M includes **+9 DSP
-blocks**, which are exactly `fes_i386_x87_mul`'s nine 22×22 products — the
-envelope's shifter-multiplier. This work's unit fit uses **18**, because the
-backend carries its own nine 22/22/20-bit products for FMUL. **A merged unit
-would share one multiplier rather than build two.** Nobody has costed that,
-and it is one idea rather than a plan, but it is the first place to look if
-the integration fit refuses.
+- **Whether this work and M+'s slice-2 387 combine arithmetically at all.**
+  They cannot simply be added: both carry their own significand multiplier and
+  rounding. This work's unit fit uses **18 DSP blocks** where M+ − M shows
+  **+9**, which is exactly `fes_i386_x87_mul`'s nine 22×22 products — so the
+  integrated design currently builds **two** 64×64 multipliers. **A merged
+  unit would share one.** Nobody has costed that, and it is the first place to
+  look if an integration fit refuses.
+- **What this work's logic costs in the machine rather than standalone.** The
+  unit fit's 6,510 ALMs include `regs_o` (640 register bits), the trace
+  outputs and its own virtual-pin cells, all of which the machine trims, and a
+  standalone unit packs more loosely than the same logic under whole-machine
+  pressure. The figure is an upper bound on a quantity nobody has measured.
+- **The rest of a complete 387** — the remainder on the backend, scale,
+  round-to-integer, the transcendentals, BCD — and **a DE25 board shell**,
+  which nobody has fitted and which the machine fits stand in for with 651
+  ALMs of virtual-pin cells.
 
 ## What is not settled
 

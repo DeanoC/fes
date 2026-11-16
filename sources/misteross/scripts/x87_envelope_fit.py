@@ -199,8 +199,43 @@ def cpu_wrapper(present: int) -> str:
             'endmodule\n')
 
 
+def seal_source(output: Path, sources: dict, entity: str, cache_root: Path | None) -> dict:
+    """Elaborate the design through the seal's own Yosys passes and fit THAT,
+    instead of handing Quartus the SystemVerilog.
+
+    This exists so the figure is on the same front end as the sibling Agilex 5
+    measurement, whose primary flow is this netlist: a direct-SystemVerilog
+    delta of mine would differ from its figures by front end as well as by
+    scope. The seal's SEAL recipe is device-neutral -- no technology mapping --
+    so the same bytes are valid input to either device's Quartus.
+
+    The Yosys log is checked for the implicit-declaration warning of
+    DeanoC/yosys#79. A packed array fixed the one occurrence this design had,
+    but the failure is silent, so the build refuses rather than trusting that.
+    """
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from scripts import yosys_netlist, i386_verilator
+    yosys = i386_verilator.locate_yosys(cache_root)
+    work = output / 'yosys'
+    work.mkdir(parents=True, exist_ok=True)
+    for name, data in sources.items():
+        (work / name).write_bytes(data)
+    netlist = yosys_netlist.seal_netlist(
+        yosys.path if hasattr(yosys, 'path') else yosys, work, work,
+        sources=tuple(sources), top=entity)
+    log = (work / 'yosys.log').read_text(errors='replace')
+    bad = [line for line in log.splitlines() if 'implicitly declared' in line]
+    if bad:
+        raise SystemExit('the seal\'s Yosys reported implicit declarations, which is the '
+                         'silent miscompile of DeanoC/yosys#79; refusing to fit this netlist:\n'
+                         + '\n'.join(bad[:5]))
+    return {netlist.name: netlist.read_bytes()}
+
+
 def prepare(output: Path | None, backend: str, period_ns: float, seed: int,
-            top: str = 'unit', present: int = 1) -> Path:
+            top: str = 'unit', present: int = 1, flow: str = 'sv',
+            cache_root: Path | None = None) -> Path:
     b = board()
     metadata = b.board_tools().quartus_metadata()
     sources = {name: (RTL / name).read_bytes() for name in SOURCES}
@@ -249,12 +284,22 @@ def prepare(output: Path | None, backend: str, period_ns: float, seed: int,
         'set_output_delay -clock x87_clock -min 0.000 [all_outputs]\n')
     (project / f'{PROJECT}.qpf').write_text(
         f'QUARTUS_VERSION = "{metadata["series"]}"\nPROJECT_REVISION = "{PROJECT}"\n')
-    entity = WRAPPER if top == 'cpu' else 'fes_i386_x87.sv'
+    entity = 'x87_fit_cpu_top' if top == 'cpu' else TOP
     virtual = ports((project / WRAPPER).read_text() if top == 'cpu'
-                    else (RTL / 'fes_i386_x87.sv').read_text(),
-                    'x87_fit_cpu_top' if top == 'cpu' else TOP)
+                    else (RTL / 'fes_i386_x87.sv').read_text(), entity)
+    if flow == 'netlist':
+        # Replace the SystemVerilog with one elaborated netlist file. The
+        # virtual-pin list is unchanged: the seal's recipe keeps the top's
+        # ports.
+        netlist = seal_source(output, sources, entity, cache_root)
+        for name in sources:
+            (project / name).unlink()
+        sources = netlist
+        for name, data in sources.items():
+            text, _ = retarget_ram_attribute(data.decode()) if M10K_ATTRIBUTE in data.decode() else (data.decode(), 0)
+            (project / name).write_bytes(text.encode())
     assignments = (('FAMILY', '"Agilex 5"'), ('DEVICE', b.DEVICE),
-                   ('TOP_LEVEL_ENTITY', 'x87_fit_cpu_top' if top == 'cpu' else TOP),
+                   ('TOP_LEVEL_ENTITY', entity),
                    ('PROJECT_OUTPUT_DIRECTORY', 'output_files'),
                    ('LAST_QUARTUS_VERSION', f'"{metadata["qsf_version"]}"'),
                    ('NUM_PARALLEL_PROCESSORS', '2'), ('SEED', str(seed)),
@@ -262,7 +307,8 @@ def prepare(output: Path | None, backend: str, period_ns: float, seed: int,
     qsf = ('# Internal-only virtual-pin characterisation of the x87 envelope plus one\n'
            '# arithmetic backend; never assemble or program.\n')
     qsf += ''.join(f'set_global_assignment -name {k} {v}\n' for k, v in assignments)
-    qsf += ''.join(f'set_global_assignment -name SYSTEMVERILOG_FILE {n}\n' for n in sources)
+    qsf += ''.join(f'set_global_assignment -name {"VERILOG_FILE" if flow == "netlist" else "SYSTEMVERILOG_FILE"} {n}\n'
+                   for n in sources)
     if top != 'cpu':
         qsf += f'set_parameter -name X87_BACKEND {BACKENDS[backend]}\n'
     qsf += ''.join(f'set_instance_assignment -name VIRTUAL_PIN ON -to {{{p}}}\n' for p in virtual)
@@ -271,8 +317,9 @@ def prepare(output: Path | None, backend: str, period_ns: float, seed: int,
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     inputs = {'fes_base_revision': revision, 'source_classification': 'working-copy-diagnostic',
               'board': 'de25_nano', 'device': b.DEVICE, 'project': PROJECT,
-              'top': 'x87_fit_cpu_top' if top == 'cpu' else TOP,
+              'top': entity,
               'fit_kind': top, 'x87_present': present if top == 'cpu' else None,
+              'flow': 'yosys-seal-netlist' if flow == 'netlist' else 'quartus-pro-systemverilog-direct',
               'x87_backend': backend, 'x87_backend_value': BACKENDS[backend],
               'period_ns': period_ns, 'clock_hz': int(1e9 / period_ns), 'seed': seed,
               'quartus': metadata, 'diagnostic_only': True, 'virtual_data_ports': virtual,
@@ -351,7 +398,7 @@ def compile_project(output: Path, tool: Path, version: str) -> dict:
               'top': inputs['top'], 'fit_kind': inputs['fit_kind'],
               'x87_present': inputs.get('x87_present'),
               'virtual_ports': len(inputs['virtual_data_ports']),
-              'flow': 'quartus-pro-systemverilog-direct',
+
               'clock_hz': inputs['clock_hz'], 'seed': inputs['seed'],
               'evidence_scope': inputs['evidence_scope'], 'hardware_acceptance': 'not-run',
               'programming_artifact': None,
@@ -441,15 +488,22 @@ def main(argv: list[str] | None = None) -> int:
                         help="'unit' fits fes_i386_x87 alone; 'cpu' fits fes_i386_cpu with "
                              "x87_present tied, so present=0 against present=1 gives what the "
                              '387 costs inside the CPU')
+    parser.add_argument('--flow', choices=('sv', 'netlist'), default='sv',
+                        help="'sv' hands Quartus Pro the SystemVerilog; 'netlist' fits the "
+                             "seal's own Yosys netlist, which is the front end the sibling "
+                             'Agilex 5 measurement uses, so the figures are comparable')
     parser.add_argument('--present', type=int, choices=(0, 1), default=1,
                         help='with --top cpu: what x87_present is tied to')
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--output', type=Path, help='new output directory; existing ones are refused')
     parser.add_argument('--quartus-root', default=os.environ.get('QUARTUS_ROOTDIR', ''))
+    parser.add_argument('--cache-root', type=Path,
+                        default=os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or None,
+                        help="the shared toolchain cache, for --flow netlist's locked Yosys")
     args = parser.parse_args(argv)
     b = board()
     output = prepare(args.output, args.backend, args.period_ns, args.seed,
-                     args.top, args.present)
+                     args.top, args.present, args.flow, args.cache_root)
     print(f'x87 envelope fit: project in {output}', flush=True)
     if args.action == 'project':
         return 0
