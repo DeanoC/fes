@@ -25,12 +25,14 @@ interfaces and do not replace the kit claim.
 
 ## Run and capture
 
-Use the sealed DE25 package from the exact PR head. The package is imported
-through the normal FES package lifecycle, compatibility is checked against the
-target id, the core is launched, input is driven through the supported DE25
-input path, and Stop returns the runtime to idle. For a full image or boot-path
-change, build the exact DE25 image and run the corresponding boot checks as
-well; a package run does not qualify an image change.
+Use the sealed DE25 package from the exact PR head. The MENU display package is
+loaded with FogCast's volatile `core-load` development path, checked while
+active, captured, then stopped back to the locked idle display. Playable
+packages such as ZX81 use the normal install/launch lifecycle, compatibility
+checks, and supported input path. Both paths compare the serial-bound target
+state before and after. For a full image or boot-path change, build the exact
+DE25 image and run the corresponding boot checks as well; a package run does
+not qualify an image change.
 
 The approved HDMI node is `/dev/v4l/by-id/fes-ms2109-hil`. Save before, active,
 input-response and restored frames. Review the frames to verify the screen
