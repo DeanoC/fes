@@ -5,17 +5,31 @@
 # SPDX-License-Identifier: MIT
 # Fitted internal virtual-pin characterization. No board I/O acceptance.
 load_package sta
-if {[llength $quartus(args)] != 1} {error "expected private build output directory"}
+if {[llength $quartus(args)] != 2} {error "expected: <private build output directory> <period ns>"}
 set output [file normalize [lindex $quartus(args) 0]]
+set want_ns [expr {double([lindex $quartus(args) 1])}]
 cd [file join $output project]
-project_open fes_de25_x87
+project_open fes_i386_x87_fit
 create_timing_netlist
 read_sdc
 update_timing_netlist
+# Amended rule 7's exclusion evidence. The DE10 arithmetic is inline in the
+# sequencer's always_ff, so no entity table can show its absence; these are
+# its named registers, which must not be in a DE25 fit. `wm` and `pa` are
+# POSITIVE CONTROLS: they must be found, so that a zero above means the
+# register is absent rather than merely renamed by the fitter.
+set exclusion {}
+foreach name {ua_add ub_add qy_s dv_rem rcp_q rsq_q wm pa} {
+    set found [get_registers -nowarn "*|$name*"]
+    lappend exclusion "\"$name\": [get_collection_size $found]"
+}
+set xf [open [file join $output exclusion.json] w]
+puts $xf "{[join $exclusion ,]}"
+close $xf
+
 set clocks [get_clocks *]
 if {[get_collection_size $clocks] != 1} {error "expected exactly one x87 clock"}
 set clock [get_clocks x87_clock]
-set want_ns [expr {[lindex $argv 1]}]
 if {[get_collection_size $clock] != 1 || abs([get_clock_info -period $clock] - $want_ns) > 1e-6} {
     error "x87 clock must remain exactly $want_ns ns"
 }

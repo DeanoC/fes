@@ -184,6 +184,19 @@ def compile_project(output: Path, tool: Path, version: str) -> dict:
         record['resources'] = b.resources(text)
         record['entities'] = entities(text)
         record['timing'] = json.loads((output / 'timing.json').read_text())
+        # Amended rule 7: the named-register query, with wm and pa as
+        # positive controls. A zero for a control would mean the query
+        # cannot find registers at all, and the whole result is void.
+        record['exclusion'] = json.loads((output / 'exclusion.json').read_text())
+        controls = {k: v for k, v in record['exclusion'].items() if k in ('wm', 'pa')}
+        if not all(controls.values()):
+            raise SystemExit(f'exclusion query found no positive control: {controls}')
+        if inputs['x87_backend'] == 'de25':
+            present = {k: v for k, v in record['exclusion'].items()
+                       if k not in ('wm', 'pa') and v}
+            if present:
+                raise SystemExit('the DE25 fit still contains the sequenced arithmetic: '
+                                 f'{present}')
         if record['timing'].get('status') != 'pass':
             raise SystemExit(f'all-corner timing gate did not pass at {period} ns')
         sta = (project / 'output_files' / f'{PROJECT}.sta.rpt').read_text(errors='replace')
