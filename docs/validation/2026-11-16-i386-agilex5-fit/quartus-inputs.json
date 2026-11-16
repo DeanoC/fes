@@ -306,6 +306,24 @@
     "quartus": "26.3.0",
     "seed": 1
   },
+  "machine-slice4-de25": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 30,
+        "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "6d48b91bcb1a92317138a3d4d2f75c5223ef139e3cefb71502f53e0e4ca137ce",
+        "ram_attribute": "renamed 59 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 59,
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine-s4.netlist.v",
+        "source_sha256": "4e75de36a861c284d94442efb121c69679ffa15923bbb2d8b86fad73a2d65760"
+      },
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine-s4.netlist.v"
+    },
+    "period_ns": 16.2760416667,
+    "quartus": "26.3.0",
+    "seed": 1
+  },
   "machineplus-de25": {
     "device": "A5EB013BB23BE4SCS",
     "netlist": {

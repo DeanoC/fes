@@ -335,6 +335,30 @@ machineplus-de25	Fast fix4 0C Model	0	recovery	analyzed	1	14.864	reset	machine_a
 machineplus-de25	Fast fix4 0C Model	0	removal	analyzed	1	0.302	reset	machine_at_pic_master_u_Control_Logic_interrupt_vector_address[1]
 machineplus-de25	Fast fix4 0C Model	0	internal_setup	analyzed	1	10.550	machine_display_control_enable	machine_display_scanout_reader_front[83]
 machineplus-de25	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.327		
+machine-slice4-de25	Slow fix4 100C Model	0	setup	analyzed	1	8.027	_41096_[107]~DUPLICATE	cpu_x87_iss_part[1]~DUPLICATE
+machine-slice4-de25	Slow fix4 100C Model	0	hold	analyzed	1	0.081	machine_presenter_width[4]	add_1116~106_ERTM1
+machine-slice4-de25	Slow fix4 100C Model	0	recovery	analyzed	1	13.947	reset	machine_at_pit_u_KF8253_Counter_0_count_preset_lsb[2]
+machine-slice4-de25	Slow fix4 100C Model	0	removal	analyzed	1	0.617	reset	machine_at_pic_master_u_Control_Logic_prev_interrupt_acknowledge_n
+machine-slice4-de25	Slow fix4 100C Model	0	internal_setup	analyzed	1	8.027	_41096_[107]~DUPLICATE	cpu_x87_iss_part[1]~DUPLICATE
+machine-slice4-de25	Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	6.193		
+machine-slice4-de25	Slow fix4 0C Model	0	setup	analyzed	1	6.856	_41096_[107]~DUPLICATE	cpu_x87_iss_part[1]~DUPLICATE
+machine-slice4-de25	Slow fix4 0C Model	0	hold	analyzed	1	0.109	machine_presenter_width[4]	add_1116~106_ERTM1
+machine-slice4-de25	Slow fix4 0C Model	0	recovery	analyzed	1	13.642	reset	machine_at_pit_u_KF8253_Counter_0_count_preset_lsb[2]
+machine-slice4-de25	Slow fix4 0C Model	0	removal	analyzed	1	0.691	reset	machine_at_pic_master_u_Control_Logic_prev_interrupt_acknowledge_n
+machine-slice4-de25	Slow fix4 0C Model	0	internal_setup	analyzed	1	6.856	_41096_[107]~DUPLICATE	cpu_x87_iss_part[1]~DUPLICATE
+machine-slice4-de25	Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.159		
+machine-slice4-de25	Slow fix4a 0C Model	0	setup	analyzed	1	6.863	_41096_[107]~DUPLICATE	cpu_x87_iss_part[1]~DUPLICATE
+machine-slice4-de25	Slow fix4a 0C Model	0	hold	analyzed	1	0.105	machine_presenter_width[4]	add_1116~106_ERTM1
+machine-slice4-de25	Slow fix4a 0C Model	0	recovery	analyzed	1	13.657	reset	machine_at_pit_u_KF8253_Counter_0_count_preset_lsb[2]
+machine-slice4-de25	Slow fix4a 0C Model	0	removal	analyzed	1	0.685	reset	machine_at_pic_master_u_Control_Logic_prev_interrupt_acknowledge_n
+machine-slice4-de25	Slow fix4a 0C Model	0	internal_setup	analyzed	1	6.863	_41096_[107]~DUPLICATE	cpu_x87_iss_part[1]~DUPLICATE
+machine-slice4-de25	Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	6.172		
+machine-slice4-de25	Fast fix4 0C Model	0	setup	analyzed	1	10.641	machine_presenter_h_a[21]~ERTM	machine_presenter_picture[20]~ERTM
+machine-slice4-de25	Fast fix4 0C Model	0	hold	analyzed	1	0.024	machine_presenter_width[4]	add_1116~106_ERTM1
+machine-slice4-de25	Fast fix4 0C Model	0	recovery	analyzed	1	14.773	reset	machine_at_pit_u_KF8253_Counter_0_count_preset_lsb[2]
+machine-slice4-de25	Fast fix4 0C Model	0	removal	analyzed	1	0.375	reset	machine_at_pic_master_u_Control_Logic_prev_interrupt_acknowledge_n
+machine-slice4-de25	Fast fix4 0C Model	0	internal_setup	analyzed	1	10.641	machine_presenter_h_a[21]~ERTM	machine_presenter_picture[20]~ERTM
+machine-slice4-de25	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.329		
 machine-de10	Slow 1100mV 100C Model	0	setup	analyzed	1	0.819	cpu_st_wait	cpu_l1i_page[45]~DUPLICATE
 machine-de10	Slow 1100mV 100C Model	0	hold	analyzed	1	0.249	audio_mixer_dc[24]	audio_mixer_dc[24]
 machine-de10	Slow 1100mV 100C Model	0	recovery	analyzed	1	7.067	reset	machine_at_pic_slave_internal_data_bus[6]

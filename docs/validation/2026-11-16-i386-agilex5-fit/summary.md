@@ -9,8 +9,14 @@ spare; 150 MHz fails setup by −0.485 ns at two of the four and 170 MHz by
 only rung run there. Seed 1 throughout. The 124 MHz figure that appears below
 is the 61.44 MHz rung's own restricted-Fmax **estimate**, not a closure.
 
-**What was not measured, and what the DE25 plan actually turns on:** whether
-the DE25 holds the 387 the DE10 *refused*. `main`'s 387 is slice 2 — state,
+**And the design the DE10 refused fits too**: `pc386_system` from #1889's head,
+slices 3 and 4, closes on Agilex 5 at **41,387 ALMs, 88.43%** — adding 4,132
+ALMs over M+ and **zero LABs**. The question of whether the DE25 holds a
+*complete* 387 was answered first, and by a different design: the sibling
+session's pipelined backend, four seeds at 87.58–87.87%, which is what ships.
+
+**Background on that question, which this record spent the day calling
+unsettled:** `main`'s 387 is slice 2 — state,
 interface, conversions, no arithmetic at all — and the DE10 **holds it with
 the identity on**: [#1821](https://github.com/DeanoC/fes/pull/1821)'s
 identity-on machine fit ran **nine seeds at 38,075–38,257 ALMs, 90.9–91.3% of
@@ -39,14 +45,14 @@ amendment dated and stating what had already been seen. Tracker:
 
 ## What was measured
 
-Fifteen internal virtual-pin characterisation fits: the three designs below
+Sixteen internal virtual-pin characterisation fits: the three designs below
 at the **61.44 MHz** system clock the pc386 seal uses, the CPU's clock ladder
 on Agilex 5 from 75 to 170 MHz, the direct-SystemVerilog cross-check, and one
 superseded envelope kept for comparison. No board shell, no pins, no HPS, no
 PLL, no reset-release IP, no programming artifact, no seal and no hardware
 acceptance.
 
-**Thirteen of the fifteen passed** at **every published operating condition**
+**Fourteen of the sixteen passed** at **every published operating condition**
 of their device — four on Agilex 5, eight on Cyclone V. What "passed" covers,
 exactly, and it is not the same for the two designs:
 
@@ -290,11 +296,76 @@ cross-check, which had been waiting on it for three hours. They are therefore
 not measured, and the one seed that did complete — the CPU's second seed at the
 headline rung, 73 ALMs from the first — is in the ladder table.
 
+## The design the DE10 refused does fit on Agilex 5 — and it adds no LABs
+
+`pc386_system` from [#1889](https://github.com/DeanoC/fes/pull/1889)'s head
+`5f901426e`, **pre-merge** (that PR targets `deano/i386-x87-s3`, whose base is
+conflicting; the tree fitted is the head's own, so this describes the
+slice-3-plus-slice-4 design on #1879's branch and no state of main), with
+`x87_present` tied high by the same one-character scratch flip, in the
+**identical envelope** to M and M+:
+
+| | ALMs needed | % | LABs | % | DSP | M20K | Registers | Worst-corner Fmax |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| M+ (slice 2) | 37,255 | 79.60% | 4,590 | 98.08% | 33 | 138 | 35,233 | 120.47 MHz |
+| **#1889 head (slices 3+4)** | **41,387** | **88.43%** | **4,590** | **98.08%** | 33 | 140 | 37,166 | 106.16 MHz |
+
+**Band 2 of the precommitted bands: it fits and it closes.** Timing passes
+every analysis at all four published corners, 2 real pins against 2 real
+clocks, zero illegal and zero unconstrained clocks. At 88.43% it is below the
+**≥ 92%** band that would have made it "not established pending more seeds" —
+though it is one seed, and 88.43% is the highest ALM utilisation anyone has
+fitted on this device.
+
+So **the design the DE10 could not place does place, route and close on
+Agilex 5.** The DE10 refused it needing 4,292 LABs of 4,191; Agilex 5 has
+4,680 and uses 4,590 of them.
+
+**And this fit is the cleanest demonstration in the record that LAB occupancy
+is not capacity.** Slices 3 and 4 add **4,132 ALMs** over M+ — an eleventh of
+the device — and **exactly zero LABs**: 4,590 before, 4,590 after, 98.08%
+both times. The arithmetic packed entirely into LABs that were already
+occupied. Any reading of 98.08% as "nearly full" would have predicted this fit
+could not happen; the capacity row, which went 79.60% → 88.43%, predicted it
+comfortably. That is the whole argument of the section above, occurring.
+
+### What this fit is and is not for
+
+It was queued as "the only measurement that would settle whether the DE25
+holds a complete 387". **It is not, and that question was answered first by a
+different design.** The sibling DE25 envelope session's integration fit —
+`pc386_system` with `x87_present` high **and** `X87_BACKEND = 1`, the
+pipelined backend, on this runner and this envelope — fits and closes across
+four seeds at **40,986 / 41,055 / 41,122 / 41,054 ALMs, 87.58–87.87%**, every
+corner, setup never below +7.58 ns. Those are their figures, cited, not
+measured here; and that is the configuration the 16 November decision ships.
+
+What this fit is, therefore, is the **A/B of the two arithmetic
+implementations on one device**, same envelope, same front end, same rung:
+
+- **Sequencer, slices 3+4: 41,387 ALMs, 33 DSP, 140 M20K** (one seed, here).
+- **Pipelined backend: 40,986–41,122 ALMs** (four seeds, theirs; its DSP and
+  M20K figures are theirs to state).
+
+In ALMs the two land within a few hundred of each other — about 330 between
+this fit and the backend's four-seed mean, against a 136-ALM spread across
+those four seeds and this lane's ±200 fit-to-fit noise. **That is not a
+resolved difference**, and one seed on this side cannot make it one: what the
+A/B establishes is that **the two implementations cost about the same ALMs on
+this fabric**, not that either is cheaper. Slice 6 should take the comparison
+as "roughly equal in ALMs, so decide on the other axes" — DSP, memory, latency
+and the duplicated 64×64 multiplier — rather than as a ranking. A seed sweep
+on this side would be needed to rank them, and has not been run.
+
+Worth one line on its own: this design's worst-corner Fmax estimate is
+**106.16 MHz** against M+'s 120.47, so the arithmetic costs about 14 MHz of
+estimate at the same rung. Both are estimates at 61.44 MHz, not closures; no
+machine ladder has been run on either.
+
 **The measurement that would settle the DE25 plan, and has not been made.**
-`pc386_system` from #1889's head — slice 4 on slice 3, the 387 with divide,
-square root and the remainders — through this runner on Agilex 5, with
-`x87_present` tied high. That is the design the DE10 refused. Everything in
-this record is `main`, whose 387 has no arithmetic.
+~~`pc386_system` from #1889's head through this runner on Agilex 5.~~ **Run —
+see the section above.** It fits and closes at 88.43%. Everything else in this
+record is `main`, whose 387 has no arithmetic.
 
 ### The ladder
 
