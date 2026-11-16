@@ -401,10 +401,15 @@ public:
         // significand fits, if its exponent is outside binary64's normal
         // range. m80 keeps the register format and so is always exact.
         // Biased 80-bit exponent 16383 +/- 1022 is binary64's normal range.
+        // The key is JOINT -- form, significand bucket and exponent range
+        // together -- because the two marginals cannot answer the question
+        // that matters. "How many le53 values did this form store with an
+        // exponent in range" is not recoverable from separate per-form
+        // significand and exponent counts when a form stores a mixture.
         if (stored && !empty) {
             const unsigned exponent = valued.r[top].sign_exponent & 0x7fff;
             const bool in_double_range = exponent >= 16383 - 1022 && exponent <= 16383 + 1023;
-            count(std::string("x87exp:") + form + (in_double_range ? ":double" : ":outside"));
+            count(std::string("x87store:") + form + ':' + bucket + (in_double_range ? ":double" : ":outside"));
         }
         // Arithmetic by precision control and code page, so a title's
         // non-PC=24 arithmetic can be attributed to its engine or to a
@@ -448,10 +453,14 @@ public:
         //      from the wrong side of the step.
         //   2: x87irq13 recorded in every mode; the register popping stores
         //      read from the state before the step.
-        //   3: x87irq13 counted for any vector delivered with an error
-        //      pending, not only the BIOS's 75h; x87exp records whether a
-        //      stored value's exponent is in binary64's normal range.
-        all["x87census:version"] = 3;
+        //   3: x87errintr counts any maskable interrupt delivered with an
+        //      error pending, whatever the slave PIC's base; x87exp records a
+        //      stored value's exponent range as a separate marginal.
+        //   4: x87store replaces x87exp with a JOINT form/significand/
+        //      exponent key, because the two marginals cannot answer "how
+        //      many le53 values did this form store with an exponent in
+        //      range" when a form stores a mixture.
+        all["x87census:version"] = 4;
         all["paging:steps"] = paged_steps;
         all["paging:page-cross"] = page_cross;
         for (const Tlb *t : {&dtlb, &itlb}) {

@@ -708,6 +708,33 @@ class SummaryTest(unittest.TestCase):
         self.assertFalse(row['probe_only'])
         self.assertIsNotNone(row['pc24_sufficient'])
 
+    def test_store_exactness_needs_the_joint_key(self):
+        """Separate per-form significand and exponent counts cannot say how
+        many `le53` values a form stored with an exponent in binary64's range,
+        once a form stores a mixture. The constructed case: one form, 10
+        stores, 6 `le53` and 4 `le64`, 6 in range and 4 out — consistent with
+        anything from 2 to 6 exact stores, so the marginals are useless and
+        only the joint key answers it."""
+        joint = ('x87census:version 4 -\n'
+                 'x87op:dd.m3:pm3 10 -\n'
+                 'x87sig:dd.m3:le53 6 -\nx87sig:dd.m3:le64 4 -\n'
+                 'x87store:dd.m3:le53:double 2 -\nx87store:dd.m3:le53:outside 4 -\n'
+                 'x87store:dd.m3:le64:double 4 -\n')
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, 'census.txt').write_text(joint)
+            row = summary.run('t', Path(tmp))['x87']
+        self.assertTrue(row['store_exponents_recorded'])
+        # The marginals would have suggested 6; the joint key says 2.
+        self.assertEqual(row['significand']['le53'], 6)
+        self.assertEqual(row['store_joint']['dd.m3:le53:double'], 2)
+        # A version-1 file records none of it and must say so rather than
+        # reading absence as zero.
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, 'census.txt').write_text('x87op:dd.m3:pm3 10 -\n')
+            row = summary.run('t', Path(tmp))['x87']
+        self.assertFalse(row['store_exponents_recorded'])
+        self.assertEqual(row['store_joint'], {})
+
     def test_the_rows_are_stable(self):
         with tempfile.TemporaryDirectory() as tmp:
             Path(tmp, 'census.txt').write_text(self.CENSUS)

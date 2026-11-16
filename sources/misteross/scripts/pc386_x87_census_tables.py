@@ -189,18 +189,28 @@ def main(argv: list[str] | None = None) -> int:
                 '  floating-point datapath needs to hold the result.',
                 '- `FST`/`FSTP ST(i)` move no memory operand and are not here; their own',
                 "  width buckets in these runs are unreliable (see the record's note).", '',
-                '| Title | **real m80 (exact)** | real m64, significand fits | real m64, rounded in the store | real m32 (rounds) | integer conversions |',
-                '| --- | ---: | ---: | ---: | ---: | ---: |'])
+                '| Title | **real m80 (exact)** | **real m64 exact (joint)** | real m64, significand fits | real m64, rounded in the store | real m32 (rounds) | integer conversions |',
+                '| --- | ---: | ---: | ---: | ---: | ---: | ---: |'])
     for name, row in rows:
         r = row['x87']
         def wide(forms, buckets=('le53', 'le64')):
             return sum(v for bucket, fs in r['significand_forms'].items() if bucket in buckets
                        for f, v in fs.items() if f in forms)
         # An m64 destination rounds the source's significand to 53 bits, so an
-        # le53 source is preserved exactly and is the measured figure; an le64
-        # source is rounded in the store, and that its rounded value still
-        # exceeds 24 bits is an inference, not a measurement.
-        out.append(f"| {TITLES.get(name, name)} | {wide(REAL80):,} | "
+        # le53 source keeps its significand; whether the STORE was exact also
+        # needs the exponent to be in binary64's range, which only a census of
+        # key version 4 or later records (jointly with the bucket, since the
+        # marginals cannot answer it). Where it is absent the column is
+        # labelled "significand fits" and claims nothing about exactness.
+        joint = r.get('store_joint') or {}
+        if r.get('store_exponents_recorded'):
+            exact64 = sum(n for k, n in joint.items()
+                          for form, bucket, rng in [k.rsplit(':', 2)]
+                          if form in REAL64 and bucket == 'le53' and rng == 'double')
+            exact_text = f'{exact64:,}'
+        else:
+            exact_text = 'not recorded'
+        out.append(f"| {TITLES.get(name, name)} | {wide(REAL80):,} | {exact_text} | "
                    f"{wide(REAL64, ('le53',)):,} | {wide(REAL64, ('le64',)):,} | "
                    f"{wide(REAL32):,} | {wide(INTEGER):,} |")
     out.append('')

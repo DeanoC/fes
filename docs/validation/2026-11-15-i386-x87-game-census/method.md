@@ -87,11 +87,15 @@ adds, as committed instrumentation in the same header:
    precision control and the code page (CS and EIP>>12) it ran on, so a
    title's non-PC=24 arithmetic can be attributed to the engine or to a
    library or DPMI host.
-6. `x87exp:<form>:<double|outside>` — for each retired store, whether the
-   stored value's exponent is inside binary64's normal range, since an m64
-   destination can overflow, underflow or round a value whose significand
-   fits. Added at key version 3, **after** these nine runs, which therefore
-   do not carry it (amendment 10).
+6. `x87store:<form>:<bucket>:<double|outside>` — for each retired store,
+   its significand bucket and whether the value's exponent is inside
+   binary64's normal range, **jointly**, since an m64 destination can
+   overflow, underflow or round a value whose significand fits. The two
+   marginals cannot answer "how many `le53` values did this form store in
+   range" once a form stores a mixture, which is why the key is joint and
+   why version 3's separate `x87exp` was replaced. Added at key version 4,
+   **after** these nine runs, which therefore do not carry it (amendments 10
+   and 14).
 7. `x87irq13:75:<mode>[:es]` and `x87errintr:<vector>:<mode>` — the AT's
    coprocessor interrupt at the BIOS's own vector, and the
    vector-independent superset of any external interrupt delivered with a
@@ -361,6 +365,19 @@ credited there.
     inconsistency between the prose and the script; what it got wrong was
     the direction of the fix. The lesson is that a rule relaxed to admit one
     known case should be checked for what *else* it admits.
+
+### 16 November 2026, after the runs — the exponent key made joint
+
+14. **`x87exp` was a marginal and is replaced by `x87store`.** Amendment 10
+    added a per-form exponent-range key so that m64 store exactness could be
+    settled by a rerun. Review then showed that it could not: with the
+    significand bucket and the exponent range counted *separately*, a form
+    that stores a mixture leaves the joint question unanswerable. A
+    constructed case makes it plain — one form, 10 stores, 6 `le53` and 4
+    `le64`, 6 in range and 4 out, is consistent with anywhere from 2 to 6
+    exact stores. The key is now joint (key version 4) and the generated
+    table's exactness column reads **not recorded** for these version-1 runs
+    rather than a number.
 
 ### 16 November 2026 — one promise this record does not keep
 

@@ -406,10 +406,12 @@ def x87_summary(counts: dict[str, int]) -> dict:
         # a file written before the key existed.
         'irq13_recorded': version >= 2,
         'irq13_any_vector': version >= 3,
-        'store_exponents_recorded': version >= 3,
+        'store_exponents_recorded': version >= 4,
         'register_store_widths_reliable': version >= 2,
-        'store_exponent_range': {k[len('x87exp:'):]: n for k, n in sorted(counts.items())
-                                 if k.startswith('x87exp:')},
+        # Joint form/significand/exponent counts for the stores, which the
+        # separate marginals could not give: "<form>:<bucket>:<double|outside>".
+        'store_joint': {k[len('x87store:'):]: n for k, n in sorted(counts.items())
+                        if k.startswith('x87store:')},
         'significand_excluding_register_stores': dict(sorted(sig_conservative.items())),
         'interrupts_with_error_pending': err_intr,
         'interrupts_with_error_pending_by_vector': {k[len('x87errintr:'):]: n for k, n in sorted(counts.items())
