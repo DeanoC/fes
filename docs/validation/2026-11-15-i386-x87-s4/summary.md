@@ -519,3 +519,24 @@ record counts it as coverage, and the thing it was supposed to catch goes
 unmeasured with a passing line beside it. Both were found by review, not by
 the tests themselves — which is the argument for reviewing a gate's
 *construction* and not only its verdict.
+
+## The thing worth measuring was the thing nobody runs
+
+The census says **FPREM, FPREM1 and FXTRACT are executed by no title in the
+corpus at all.** So the operation this slice spent longest getting exactly
+right is the one no game reaches — the partial-step semantics, the
+`q = C0·4 + C3·2 + C1` encoding, the tie on an **odd** divisor, the infinite
+divisor sitting one binade below the top, the pseudo-denormal handed back
+canonical.
+
+Every one of those came from **measuring the host** rather than reading the
+manual, and every one of them would have been wrong otherwise. Nothing in the
+corpus would ever have caught them: no title runs the instruction, the
+identity-on lockstep's programs are this slice's own, and three titles that
+run with exceptions unmasked never raise one.
+
+**That is the argument for measuring what nobody will exercise.** A rule that
+no workload reaches has no feedback path at all — it is correct or it is
+quietly wrong forever — so it is exactly the kind that must come from a
+measurement rather than a reading. The parts of this slice a game does reach
+would have failed loudly; these would not have failed at all.

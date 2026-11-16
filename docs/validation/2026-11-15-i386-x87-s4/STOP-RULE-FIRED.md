@@ -214,13 +214,40 @@ reported at **2,660 ALMs at 200 MHz** across all four corners with one
 add/sub/mul/compare a clock, validated over 290,640 requests against the
 host's own x87 with no failures.
 
-**Those DE25 figures are that PR's, not this slice's measurements**, and the
-ALM comparison it draws — 2,660 against 5,035 for the same operations — uses
-a figure this record did not produce: this slice's own standalone numbers are
-4,076 ALMs for the merge base (slices 2 and 3) and 6,923 for slice 4's form,
-neither of which is 5,035, which presumably covers a different subset or
-envelope. The comparison is cited here as #1892's and should be read from
-there rather than from this record.
+**Those DE25 figures are #1892's, not this slice's measurements.** Its
+comparison is **2,660 against 5,035 ALMs for "the same operations"**, and
+three things about that number are worth having straight, because the first
+reading of it in this record was too strong and the comparison itself is not
+like-for-like.
+
+**It is derivable, contrary to what this record first said.** 5,035 is
+**6,923 − 1,888**: this slice's standalone unit in option A's form, minus
+slice 2's standalone unit, which slice 3's record carries at 1,888 ALMs from
+slice 2's own. So it is slices 3 and 4's arithmetic together, and an earlier
+version of this section saying it was unaccounted for was wrong — the useful
+statement is where it comes from, not that it is foreign.
+
+**But the subtraction crosses hosts.** Slice 3's record says explicitly to
+read its own +2,188 standalone delta as *indicative* because slice 2's figure
+was measured on a different host, and 5,035 inherits that: it mixes a figure
+measured here with one measured elsewhere, in a flow where this slice has
+already shown the same RTL fitting 14 ALMs apart between slots.
+
+**And the scopes differ, which flatters the DE25.** #1892 implements add,
+subtract, multiply, compare, divide and square root. Slices 3 and 4 also carry
+**the remainders, FRNDINT, FSCALE and FXTRACT**. So 2,660 against 5,035
+compares a narrower scope against a wider one, and the "53% of the area"
+reading overstates the gap. **The like-for-like gap is unquantified**, and
+this record cannot quantify it: that would need apportioning within
+`fes_i386_x87.sv`, which is exactly the limit
+[the per-entity fit records](restructure.md).
+
+**What survives all three caveats is the part that actually decided the
+phase**, and it needs no ratio: **the DE25 backend fits and closes at 200 MHz
+across all four corners where the DE10 identity-on machine does not fit at
+all**, and it is pipelined at one operation a clock where this slice sequences
+over a shared multiplier. That is decision-grade. The ALM ratio is not, and
+should not be quoted as 53% without the scope caveat attached.
 
 **And the plausible assumption going in was wrong**, which is worth recording
 because this record's own plan raised it: Agilex's **hard floating-point DSP
