@@ -386,7 +386,14 @@ module fes_i386_x87 #(
     end
     logic [9:0]  rsq_q;
     logic        sq_p;           // the radicand's exponent parity
-    always_ff @(posedge clk) rsq_q <= rsq_tab[{sq_p, oa_m[62:56]}];
+    // The only read of the square root's seed table, guarded for the same
+    // reason as the reciprocal's: with the DE25 core selected nothing reads
+    // rsq_q, so the table has no reader and is not built. Quartus Pro found
+    // that this one had been missed -- it refused the Agilex 5 fit because
+    // the surviving table still carried the DE10's `ramstyle = "M10K"`,
+    // which Agilex 5 has no such block for. A fit that refuses is a better
+    // exclusion check than a fit that quietly carries the table.
+    always_ff @(posedge clk) if (X87_BACKEND == 0) rsq_q <= rsq_tab[{sq_p, oa_m[62:56]}];
 
     // The square root's working values, each a 64-bit significand with a
     // small signed exponent: value = sig * 2^(exp - 63). The multiplier's
