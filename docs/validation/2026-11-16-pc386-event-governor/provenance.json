@@ -1,0 +1,166 @@
+{
+  "hires-repeat": {
+    "after_full_manifest_sha256": "4c7029d991fa8cc2f1d9299585170de4b75707561856a3a8e6dbf62a06ff56ff",
+    "before_full_manifest_sha256": "183e87a76655d9c36292d5f88de2cb26e5cfddf81fcbde0157d971e6ff91247d",
+    "config_change": {
+      "reference-vm/vm/86box.cfg": {
+        "after": {
+          "mode": "0o644",
+          "sha256": "aee35b48d95d4972751f9cafddc8141f48153486f648528e3633ef22c6a64788"
+        },
+        "before": {
+          "mode": "0o644",
+          "sha256": "d60ca21c06d9584b225ad8cb69088eea981868ed47d74d5469c2833d17058b43"
+        }
+      }
+    },
+    "emulator_sha256": "ae3dc231824cf0c2facd1af4e2164814cbbb15bb1a9fa0603cdd8e9ee0ad2969",
+    "fixture_manifest_sha256": "246e314ed34687143d43f36e2c719abc4eefaa6e95ee8dc9ce87814ef412c321",
+    "guest_com_sha256": "05176e8283f66b5f51345b8255ba7e018aba81c0d66607858d17b4ea32624acc",
+    "historical_prediction_sha256": "e6bb79acdf96e7c830befd31c7221c5a8b573ea93ba90db8e0316e407b2f55e0",
+    "host_runtime_links": {
+      "reference-vm/app/sq/runtime/default/lib64/ld-linux-x86-64.so.2": {
+        "mode": "0o777",
+        "symlink": "/lib64/ld-linux-x86-64.so.2",
+        "target_sha256": "5fc0940888e9d2e1a00e66d6b1a559c36364ee867683652e1074fa576952cc3f"
+      },
+      "reference-vm/app/sq/usr/lib/x86_64-linux-gnu/libvulkan.so": {
+        "mode": "0o777",
+        "symlink": "../../../../../../../../../../../../../../../../../../../../../../../../../../../../../usr/lib/x86_64-linux-gnu/libvulkan.so.1",
+        "target_sha256": "e833b010f814b72c6aca0300c8b5f19b6106ffa06c24ddc95a293970c7d6058e"
+      }
+    },
+    "reference_asm_sha256": "614d77050b01b851fb99241678bd9d141a3a2ba230283e978335a20280f8af1e",
+    "result_sha256": [
+      "0b33d43ee8ac84702b7a11f21e060238e29eaba2750b5f89373d70fb39a5e9e1",
+      "0b33d43ee8ac84702b7a11f21e060238e29eaba2750b5f89373d70fb39a5e9e1",
+      "0b33d43ee8ac84702b7a11f21e060238e29eaba2750b5f89373d70fb39a5e9e1"
+    ],
+    "rtl_asm_sha256": "621eb2dca359b8a5eb0136822b07c0bb5e8f64f745d87d08d7b4b1c3017dc33c",
+    "speed_audit_sha256": "08d153a2cf46d3c5c0ec150ec21c2c3dd6e932ea4a60aa0e7b9cf1cedc0d1ead",
+    "speed_raw_sha256": "81daa8388129e356dbe3c8eaafb3f2bb20e0ff78c514c325f008719646076c5a"
+  },
+  "primary": {
+    "after_full_manifest_sha256": "0b492470f12baa17d9b7c3308b9944186d1fa14315e97f8e0f48a08000fce239",
+    "before_full_manifest_sha256": "339f6ce9b006aae2e44f1ac81d908e3a160caaf3d21bef1c77f5850877a90bfa",
+    "config_change": {
+      "reference-vm/vm/86box.cfg": {
+        "after": {
+          "mode": "0o644",
+          "sha256": "4a099dfbfb43a0077f027935ff54d41f58015ca08c794eb1666dbe7268c384dd"
+        },
+        "before": {
+          "mode": "0o644",
+          "sha256": "827ba78349e7e6fbed35dfd34cfa565ff451430da49deab4322fe25d56ff7dae"
+        }
+      }
+    },
+    "emulator_sha256": "ae3dc231824cf0c2facd1af4e2164814cbbb15bb1a9fa0603cdd8e9ee0ad2969",
+    "fixture_manifest_sha256": "8f5765b7d451ac26876bf00a7fba7fce6e2ac9d60f6c857a55335a747559ec98",
+    "guest_com_sha256": "32d4000882479e4ef1f035cadcd9ea4ab387b0e2588624d7c7ef24b3795c1444",
+    "historical_prediction_sha256": "0613c9330f9fd669cad6c739e3315fea6db98b849a371cf2504c79d1a45ed15c",
+    "host_runtime_links": {
+      "reference-vm/app/sq/runtime/default/lib64/ld-linux-x86-64.so.2": {
+        "mode": "0o777",
+        "symlink": "/lib64/ld-linux-x86-64.so.2",
+        "target_sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0"
+      },
+      "reference-vm/app/sq/usr/lib/x86_64-linux-gnu/libvulkan.so": {
+        "mode": "0o777",
+        "symlink": "../../../../../../../../../../../../../../../../../../../../../../../../../../../../../usr/lib/x86_64-linux-gnu/libvulkan.so.1",
+        "target_sha256": "bbd6827e9fe418e9b9740aea57ce6d21fcea03e9876b4b17835c5a9c58f849fc"
+      }
+    },
+    "reference_asm_sha256": "090c3072b0e12d59b45d0badeb3e0abc3357499b2d69304524aeaf368cf26c34",
+    "result_sha256": [
+      "efd8515f7410d6f99844901cd20a28a3edbe373ef4898fc64e9eca451b66abc4",
+      "efd8515f7410d6f99844901cd20a28a3edbe373ef4898fc64e9eca451b66abc4",
+      "efd8515f7410d6f99844901cd20a28a3edbe373ef4898fc64e9eca451b66abc4"
+    ],
+    "rtl_asm_sha256": "b80b0608078e2e5cbfaba0fe3d871633b8010047a833f3d8fa249e07ad2fc5b0",
+    "speed_audit_sha256": "94c0a118913e14d943fc52800bd37634474e54ccb9687456e4fc0526168f6dde",
+    "speed_raw_sha256": "e1ea15d51c06f3297c4e3ecabfc3db8f9a65ea8a5ac542fe81ced3fa02134204"
+  },
+  "segment-handler": {
+    "after_full_manifest_sha256": "1d3e85bf5f697fe2736e82ffb8cbffac9e629429ab0183e4592d72e9399fb78d",
+    "before_full_manifest_sha256": "c3f1da31066eb1e7ac57cb6a760ef97c1edb19cbe53496f7f1bd71bee83b5a3b",
+    "config_change": {
+      "reference-vm/vm/86box.cfg": {
+        "after": {
+          "mode": "0o644",
+          "sha256": "53c297ea849cae822f3aab92f73adceeaea0bc2bba43de76e66bd2645396d86c"
+        },
+        "before": {
+          "mode": "0o644",
+          "sha256": "cb82f5a91dcba9d6e82294c20fbecac9b3f57b17b94920e090bc0a958b0d7a42"
+        }
+      }
+    },
+    "emulator_sha256": "ae3dc231824cf0c2facd1af4e2164814cbbb15bb1a9fa0603cdd8e9ee0ad2969",
+    "fixture_manifest_sha256": "5a2b3f3c19b94049594ff4f195c8547416d5ace30286123987129e156d7dab8d",
+    "guest_com_sha256": "1dfb54ae616096595ced5a0dc839d346f1652f70a8a63835ba6f3ed023264bb0",
+    "historical_prediction_sha256": "0b730d8fb67dc776bfc49afa54c6273795f1f40603cc6aefd858734a3267c416",
+    "host_runtime_links": {
+      "reference-vm/app/sq/runtime/default/lib64/ld-linux-x86-64.so.2": {
+        "mode": "0o777",
+        "symlink": "/lib64/ld-linux-x86-64.so.2",
+        "target_sha256": "5fc0940888e9d2e1a00e66d6b1a559c36364ee867683652e1074fa576952cc3f"
+      },
+      "reference-vm/app/sq/usr/lib/x86_64-linux-gnu/libvulkan.so": {
+        "mode": "0o777",
+        "symlink": "../../../../../../../../../../../../../../../../../../../../../../../../../../../../../usr/lib/x86_64-linux-gnu/libvulkan.so.1",
+        "target_sha256": "e833b010f814b72c6aca0300c8b5f19b6106ffa06c24ddc95a293970c7d6058e"
+      }
+    },
+    "reference_asm_sha256": "af3a8964b2e77c3ef6bbd4530c49d65edf408d8eed075ba18b9764ab617ed81b",
+    "result_sha256": [
+      "574179b882536a3cba09cec7812b850c7bd9c4db1418be7fc360eadd35b2d56d",
+      "574179b882536a3cba09cec7812b850c7bd9c4db1418be7fc360eadd35b2d56d",
+      "574179b882536a3cba09cec7812b850c7bd9c4db1418be7fc360eadd35b2d56d"
+    ],
+    "rtl_asm_sha256": "1f5b7acf25e131791ac4db98af9f30d9500c160c90081be8dfe3e84ed0e10de7",
+    "speed_audit_sha256": "2c1b6ab553cab31672e1e4a86fbd52bd4604a0b6f836fad9ceb014faddd285da",
+    "speed_raw_sha256": "ed44784882ce3208271716b4d1bc59239ed724edfe4b868d9fa84133b7b1bd35"
+  },
+  "segment-stack": {
+    "after_full_manifest_sha256": "504b27dc2b77a00dc2292b8226fe910cc8f1f4b66d65ebecb94ed8107e17ff69",
+    "before_full_manifest_sha256": "3e2fd3e64af4acd33db35a306dae1ad490518196ea5853c7e87cd70d4af0bc71",
+    "config_change": {
+      "reference-vm/vm/86box.cfg": {
+        "after": {
+          "mode": "0o644",
+          "sha256": "99ba05953b0b5099a7fa04e9cfbf8a0aa843efc1ecc03c73900f91ecf615e30f"
+        },
+        "before": {
+          "mode": "0o644",
+          "sha256": "38e0ce077d8beb7c30ac53df8fdbc867845ac47036e033eba5f443ac81579f11"
+        }
+      }
+    },
+    "emulator_sha256": "ae3dc231824cf0c2facd1af4e2164814cbbb15bb1a9fa0603cdd8e9ee0ad2969",
+    "fixture_manifest_sha256": "52c167c1829c3a9bfdce43b9e65b62d7621040fdd1a1a973831a06ba34124d1d",
+    "guest_com_sha256": "2f43861ac5b616744a59a1eeb0883003af426c8dbbe4bc721aa9bd2d6395919b",
+    "historical_prediction_sha256": "3bf5da69dd1a4cefef74c1a614db7f880638be7b7749c8cefe5131ce52a5ff9b",
+    "host_runtime_links": {
+      "reference-vm/app/sq/runtime/default/lib64/ld-linux-x86-64.so.2": {
+        "mode": "0o777",
+        "symlink": "/lib64/ld-linux-x86-64.so.2",
+        "target_sha256": "5fc0940888e9d2e1a00e66d6b1a559c36364ee867683652e1074fa576952cc3f"
+      },
+      "reference-vm/app/sq/usr/lib/x86_64-linux-gnu/libvulkan.so": {
+        "mode": "0o777",
+        "symlink": "../../../../../../../../../../../../../../../../../../../../../../../../../../../../../usr/lib/x86_64-linux-gnu/libvulkan.so.1",
+        "target_sha256": "e833b010f814b72c6aca0300c8b5f19b6106ffa06c24ddc95a293970c7d6058e"
+      }
+    },
+    "reference_asm_sha256": "35898a9c0977d575af24ef454fef94d01092c453e3b32a9d8243d0efc88b99b4",
+    "result_sha256": [
+      "36b172116e474524709f4cb4f65580cd6f5f932618fa1b40bfdd2934a5f1ec55",
+      "36b172116e474524709f4cb4f65580cd6f5f932618fa1b40bfdd2934a5f1ec55",
+      "36b172116e474524709f4cb4f65580cd6f5f932618fa1b40bfdd2934a5f1ec55"
+    ],
+    "rtl_asm_sha256": "c7c91168f97155ec3711713fd0217e11d804c2b550fe81d4134072feb5c466d2",
+    "speed_audit_sha256": "8fd54466a8991c8d4783f6683da4c09d12eeb5cad170f5d23064d015d3a32405",
+    "speed_raw_sha256": "6b9eeb8d14957e19796847643badd7777027bd9532aa4edd60fb6ba07e13cf9b"
+  }
+}

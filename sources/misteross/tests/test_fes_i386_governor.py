@@ -37,7 +37,7 @@ class GeneratedTest(unittest.TestCase):
             match = re.fullmatch(r'logic\s*(\[(\d+):0\])?\s*(\w+);', line.split('//')[0].strip())
             if match:
                 declared.append((match.group(3), int(match.group(2)) + 1 if match.group(2) else 1))
-        self.assertEqual(declared, [*governor.KEY_FIELDS, ('ea3', 1), ('ref_test_excluded', 1), ('ref_shift_nonzero', 1),
+        self.assertEqual(declared, [*governor.KEY_FIELDS, ('ea3', 1), ('ref_test_excluded', 1), ('ref_real_mode', 1), ('ref_shift_nonzero', 1),
                                     ('ref_enter_level', 5), ('ref_enter_valid', 1), ('ref_stack32', 1),
                                     ('ref_zero_unsafe', 1), ('ref_prefix_count', 4), ('prefix286', 6)])
 

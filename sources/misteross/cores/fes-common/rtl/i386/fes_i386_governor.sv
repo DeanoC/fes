@@ -63,6 +63,7 @@ module fes_i386_governor #(
     input  logic [3:0]         ilen,
     input  logic               redirect,
     input  logic               abandon,
+    input  logic               preserve_de,
     input  logic               replay,
     input  logic [1:0]         accesses,
     input  logic               dword,
@@ -124,7 +125,7 @@ module fes_i386_governor #(
 
     // WB's retirement, as it happens.
     logic                  s1_boundary, s1_eoi, s1_element, s1_taken, s1_dword;
-    logic                  s1_redirect, s1_abandon, s1_replay, s1_ordinary_ram;
+    logic                  s1_redirect, s1_abandon, s1_preserve_de, s1_replay, s1_ordinary_ram;
     logic [3:0]            s1_ilen;
     fes_i386_pkg::gov_t    s1_gov;
     logic [1:0]            s1_accesses;
@@ -139,6 +140,7 @@ module fes_i386_governor #(
         s1_taken <= taken;
         s1_redirect <= redirect;
         s1_abandon <= abandon;
+        s1_preserve_de <= preserve_de;
         s1_replay <= replay;
         s1_ilen <= ilen;
         s1_gov <= gov;
@@ -181,7 +183,7 @@ module fes_i386_governor #(
                + (s1_mmio_st2 ? {2'd0, mmio_extra(s1_mmio_st2_halves, isa_vga, local_bus)} : 13'd0);
 
     logic        s2_ends, s2_column1, s2_element, s2_ea;
-    logic        s2_boundary, s2_redirect, s2_abandon, s2_ordinary_ram;
+    logic        s2_boundary, s2_redirect, s2_abandon, s2_preserve_de, s2_ordinary_ram;
     logic [3:0]  s2_ilen;
     fes_i386_pkg::gov_t s2_gov;
     logic [7:0] data_bus_acc, s2_data_bus;
@@ -200,6 +202,7 @@ module fes_i386_governor #(
         s2_boundary <= s1_boundary;
         s2_redirect <= s1_redirect && s1_boundary;
         s2_abandon <= s1_abandon;
+        s2_preserve_de <= s1_preserve_de;
         s2_ilen <= s1_ilen;
         s2_ordinary_ram <= ordinary_ram_acc && (s1_accesses == 0 || s1_ordinary_ram);
         s2_gov <= s1_gov;
@@ -231,6 +234,17 @@ module fes_i386_governor #(
     logic reference_zero_shift, reference_zero_kind;
     logic [12:0] reference_pending_sum;
     logic [11:0] reference_pending;
+    // A sampled real-mode #DE that is not during delivery preserves the
+    // committed queue until a real handler instruction consumes it. This
+    // diagnostic does not distinguish nested handlers or qualify their timing.
+    logic de_preserve_now, de_wait_synthetic, de_synthetic_boundary;
+    assign de_preserve_now = reference_on && s2_abandon && s2_preserve_de;
+    assign de_synthetic_boundary = reference_on && de_wait_synthetic && s2_boundary && s2_ilen == 0;
+    always_ff @(posedge clk) begin
+        if (reset || !reference_on) de_wait_synthetic <= 0;
+        else if (s2_abandon) de_wait_synthetic <= de_preserve_now;
+        else if (s2_boundary) de_wait_synthetic <= 0;
+    end
     assign reference_pending_sum = {1'b0, reference_pending} + {9'd0, s2_gov.ref_prefix_count} +
                                    13'(s2_gov.op == 8'hc0 || s2_gov.op == 8'hc1);
     // The 4095-byte bound keeps a later fetch charge within the existing
@@ -240,8 +254,8 @@ module fes_i386_governor #(
         (s2_gov.op == 8'hc0 || s2_gov.op == 8'hc1 || s2_gov.op == 8'hd2 || s2_gov.op == 8'hd3);
     assign reference_zero_shift = reference_zero_kind && !reference_pending_sum[12];
     always_ff @(posedge clk) begin
-        if (reset || s2_abandon || !reference_on) reference_pending <= 0;
-        else if (s2_boundary) reference_pending <= reference_zero_shift ? reference_pending_sum[11:0] : 0;
+        if (reset || !reference_on || (s2_abandon && !de_preserve_now)) reference_pending <= 0;
+        else if (s2_boundary && !de_synthetic_boundary) reference_pending <= reference_zero_shift ? reference_pending_sum[11:0] : 0;
     end
     // This emulator uses a bounded execution budget for each ordinary REP
     // string chunk. CMPS is decoded per element, not by this chunk mechanism.
@@ -276,6 +290,13 @@ module fes_i386_governor #(
             // effective 16-bit operands. Other encoding and memory contexts
             // remain diagnostic and require separate validation.
             if (!s2_gov.o32) begin
+                // Experimental reference-calibrated PUSH ES/CS/DS and POP
+                // ES/DS only: unprefixed real-mode operations on a 16-bit
+                // RAM stack. SS, FS, GS and other forms keep the prior path.
+                if (s2_gov.ref_real_mode && !s2_gov.ref_stack32 && !s2_gov.ref_test_excluded && s2_ordinary_ram) begin
+                    if (s2_gov.op == 8'h06 || s2_gov.op == 8'h0e || s2_gov.op == 8'h1e) execution_clocks = 9'd2;
+                    if (s2_gov.op == 8'h07 || s2_gov.op == 8'h1f) execution_clocks = 9'd7;
+                end
                 // Measured-reference experiment, limited to unprefixed 16-bit forms.
                 if (!s2_gov.ref_test_excluded) begin
                     // Reference costs for unprefixed ordinary 16-bit forms.
@@ -395,10 +416,10 @@ module fes_i386_governor #(
             next_queue = spare >= 8 ? 6'd16 : 6'(present) + (6'(spare) << 1);
             if (next_queue > 16) next_queue = 16;
         end
-        assign reference_fetch = reference_on && s2_boundary && !reference_zero_shift ? words << 1 : 0;
+        assign reference_fetch = reference_on && s2_boundary && !reference_zero_shift && !de_synthetic_boundary ? words << 1 : 0;
         always_ff @(posedge clk) begin
-            if (reset || s2_abandon || !reference_on) begin queue_bytes <= 0; spare_odd <= 0; end
-            else if (s2_boundary && !reference_zero_shift) begin
+            if (reset || !reference_on || (s2_abandon && !de_preserve_now)) begin queue_bytes <= 0; spare_odd <= 0; end
+            else if (s2_boundary && !reference_zero_shift && !de_synthetic_boundary) begin
                 queue_bytes <= s2_redirect ? 0 : next_queue[4:0];
                 spare_odd <= reference_chunkable && !s2_ends ? spare_total[0] : 0;
             end

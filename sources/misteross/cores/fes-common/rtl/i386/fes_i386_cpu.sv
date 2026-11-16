@@ -758,6 +758,7 @@ module fes_i386_cpu #(
                         rm_reg: q_modrm[7:6] == 2'b11, o32: q_opsize32, rep: q.prefixes.rep != 2'b00,
                         ea3: am_has_base && am_has_index && q_modrm[7] != q_modrm[6] && !q_direct,
                         ref_test_excluded: GOV_REFERENCE_DIAGNOSTIC && (code32 || q.prefix_count != 4'd0),
+                        ref_real_mode: 1'b0,
                         ref_shift_nonzero: 1'b0,
                         ref_enter_level: GOV_REFERENCE_DIAGNOSTIC ? q.bytes[3][4:0] : 5'd0,
                         ref_enter_valid: GOV_REFERENCE_DIAGNOSTIC && q.bytes[3][7:5] == 3'd0,
@@ -1844,6 +1845,7 @@ module fes_i386_cpu #(
         d_out.x87 = x87_present && dc.x87 && !dc.x87_wait;
         d_out.x87_part = dc.x87_part;
         d_out.gov = dc.gov;
+        d_out.gov.ref_real_mode = GOV_REFERENCE_DIAGNOSTIC && !cr0_pe;
         d_out.gov.ref_stack32 = GOV_REFERENCE_DIAGNOSTIC && ss32;
         d_out.eip = d_eip;
         d_out.eip_next = d_eip_next;
@@ -3198,7 +3200,11 @@ module fes_i386_cpu #(
         .clk, .reset, .preset(gov_preset), .frequency(gov_frequency), .turbo(gov_turbo),
         .boundary(at_boundary), .eoi(wb_eoi), .element(wb_s.uop.str_cx), .taken(wb_s.taken && !wb_s.uop.seg2),
         .gov(wb_s.gov), .ilen(wb_s.ilen), .redirect(wb_s.taken && wb_s.uop.rep_stop == 2'd0),
-        .abandon(exc_take || int_go || tsw_go), .replay(rp_go),
+        .abandon(exc_take || int_go || tsw_go),
+        // exc_active excludes a fault during delivery; it does not track
+        // whether execution is inside an earlier handler.
+        .preserve_de(exc_take && !exc_active && !cr0_pe && !wb_s.gov.o32 && !wb_s.gov.ref_test_excluded &&
+                     wb_s.uop.ctl.fault == fes_i386_pkg::FAULT_DE), .replay(rp_go),
         .accesses(gov_accesses), .dword(wb_s.uop.mem.bytes[2] || wb_s.uop.mem.bytes[3]),
         // For an instruction's committed accesses, both physical lines
         // must be RAM; no-access uops do not disqualify the instruction.

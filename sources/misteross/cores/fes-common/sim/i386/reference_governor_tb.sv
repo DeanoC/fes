@@ -4,7 +4,7 @@
 module governor_integration_tb;
   import fes_i386_pkg::*;
   logic clk=0; always #1 clk=~clk;
-  logic reset=1, boundary=0,eoi=0,element=0,taken=0,redir=0,abandon=0,replay=0;
+  logic reset=1, boundary=0,eoi=0,element=0,taken=0,redir=0,abandon=0,preserve_de=0,replay=0;
   gov_t gov='0;
   logic [3:0] ilen=0; logic [1:0] accesses=0; logic ordinary_ram=1; int saved_queue; logic [1:0] mmio=0;
   logic [2:0] preset=1; logic turbo=0;
@@ -13,13 +13,13 @@ module governor_integration_tb;
   always @(posedge clk) if(tally) begin sum0 += int'(charge0); sum1 += int'(charge1); end
   fes_i386_governor #(.GOV_N(1),.GOV_D(1000)) baseline (
     .clk,.reset,.preset,.frequency(10'd0),.turbo,
-    .boundary,.eoi,.element,.taken,.gov,.ilen,.redirect(redir),.abandon,.replay,
+    .boundary,.eoi,.element,.taken,.gov,.ilen,.redirect(redir),.abandon,.preserve_de,.replay,
     .accesses,.dword(1'b0),.ordinary_ram,.io(1'b0),.io_port(16'd0),.io_size(2'd0),.mmio,
     .mmio_halves(3'd1),.mmio_st2(1'b0),.mmio_st2_halves(3'd0),.hold(hold0),.debt_clocks(debt0),.charge(charge0)
   );
   fes_i386_governor #(.GOV_N(1),.GOV_D(1000),.REFERENCE_DIAGNOSTIC(1)) candidate (
     .clk,.reset,.preset,.frequency(10'd0),.turbo,
-    .boundary,.eoi,.element,.taken,.gov,.ilen,.redirect(redir),.abandon,.replay,
+    .boundary,.eoi,.element,.taken,.gov,.ilen,.redirect(redir),.abandon,.preserve_de,.replay,
     .accesses,.dword(1'b0),.ordinary_ram,.io(1'b0),.io_port(16'd0),.io_size(2'd0),.mmio,
     .mmio_halves(3'd1),.mmio_st2(1'b0),.mmio_st2_halves(3'd0),.hold(hold1),.debt_clocks(debt1),.charge(charge1)
   );
@@ -28,7 +28,7 @@ module governor_integration_tb;
     boundary=1; eoi=1; taken=branch_taken; redir=branch_taken;
   endtask
   task automatic restart;
-    @(negedge clk); tally=0; reset=1; boundary=0; eoi=0; accesses=0; mmio=0; abandon=0; replay=0; redir=0; taken=0; ordinary_ram=1; gov='0;
+    @(negedge clk); tally=0; reset=1; boundary=0; eoi=0; accesses=0; mmio=0; abandon=0; preserve_de=0; replay=0; redir=0; taken=0; ordinary_ram=1; gov='0;
     repeat(5) @(negedge clk); reset=0; repeat(8) @(negedge clk); sum0=0; sum1=0; tally=1;
   endtask
   task automatic finish_trial(input int expected0,expected1, input string label);
@@ -429,6 +429,170 @@ module governor_integration_tb;
     @(negedge clk);
     if (candidate.execution_clocks != baseline.execution_clocks || candidate.gen_reference_queue.length != 4)
       $fatal(1,"ENTER high encoded nesting fallback");
+    // A committed zero-count instruction can defer bytes into a #DE handler.
+    // The faulting divide does not retire; its synthetic delivery is not an
+    // instruction fetch. The first actual handler instruction consumes them.
+    restart;
+    for (int i=0; i<9; i++) begin
+      instruction(8'hc1,4,3,2,0); gov.ref_shift_nonzero=0;
+    end
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 9 || candidate.gen_reference_queue.queue_bytes != 0)
+      $fatal(1,"committed deferred bytes missing");
+    // Faulted zero shifts have no retirement and must not add their prefixes.
+    gov.op=8'hc1; gov.ref_prefix_count=3; abandon=1; preserve_de=1;
+    @(negedge clk); abandon=0; preserve_de=0;
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 9 || !candidate.de_wait_synthetic || candidate.gen_reference_queue.queue_bytes != 0)
+      $fatal(1,"#DE did not preserve committed bytes");
+    instruction(8'hcd,0,0,0,0);
+    @(negedge clk); boundary=0; eoi=0;
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 9 || candidate.de_wait_synthetic || candidate.gen_reference_queue.queue_bytes != 0)
+      $fatal(1,"synthetic delivery consumed deferred bytes");
+    instruction(8'h90,0,1,0,0);
+    @(negedge clk); boundary=0; eoi=0;
+    @(negedge clk);
+    if(candidate.reference_fetch != 10) $fatal(1,"handler did not fetch the nine deferred bytes");
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 0) $fatal(1,"handler did not consume deferred bytes");
+    restart;
+    instruction(8'hc1,4,3,2,0); gov.ref_shift_nonzero=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(4) @(negedge clk);
+    replay=1; @(negedge clk); replay=0; repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 1) $fatal(1,"internal replay changed committed pending bytes");
+    instruction(8'h75,0,2,0,1);
+    @(negedge clk); boundary=0; eoi=0; redir=0; taken=0;
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 0 || candidate.gen_reference_queue.queue_bytes != 0)
+      $fatal(1,"ordinary redirect failed to consume then flush");
+    restart;
+    instruction(8'hc1,4,3,2,0); gov.ref_shift_nonzero=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(4) @(negedge clk);
+    abandon=1; preserve_de=0; @(negedge clk); abandon=0;
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 0 || candidate.de_wait_synthetic)
+      $fatal(1,"other abandon retained deferred bytes");
+    restart;
+    instruction(8'hc1,4,3,2,0); gov.ref_shift_nonzero=0;
+    @(negedge clk); gov='0; gov.op=8'ha4; gov.rep=1; ilen=2; accesses=2; boundary=1; eoi=0; element=1;
+    @(negedge clk); boundary=0; element=0; accesses=0;
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 0 || !candidate.rep_active)
+      $fatal(1,"partial REP did not consume pending bytes once");
+    abandon=1; preserve_de=1; @(negedge clk); abandon=0; preserve_de=0;
+    repeat(4) @(negedge clk);
+    if(candidate.rep_active || !candidate.de_wait_synthetic)
+      $fatal(1,"partial REP did not reset or #DE transition was lost");
+    instruction(8'hcd,0,0,0,0);
+    @(negedge clk); boundary=0; eoi=0;
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 0 || candidate.de_wait_synthetic)
+      $fatal(1,"synthetic delivery after partial REP retained event state");
+    restart;
+    for (int i=0; i<16; i++) instruction(8'h90,0,1,0,0);
+    @(negedge clk); boundary=0; eoi=0;
+    repeat(4) @(negedge clk);
+    saved_queue = int'(candidate.gen_reference_queue.queue_bytes);
+    if(saved_queue != 16 || candidate.reference_pending != 0) $fatal(1,"NOP priming failed");
+    abandon=1; preserve_de=1; @(negedge clk); abandon=0; preserve_de=0;
+    repeat(4) @(negedge clk);
+    if(int'(candidate.gen_reference_queue.queue_bytes) != saved_queue || !candidate.de_wait_synthetic)
+      $fatal(1,"#DE with no pending bytes lost queue state");
+    instruction(8'hcd,0,0,0,0);
+    @(negedge clk); boundary=0; eoi=0;
+    repeat(4) @(negedge clk);
+    if(int'(candidate.gen_reference_queue.queue_bytes) != saved_queue || candidate.de_wait_synthetic)
+      $fatal(1,"synthetic #DE delivery changed primed queue");
+    repeat(8) @(negedge clk); tally=0;
+    // Adjacent WB inputs: #DE abandon followed immediately by its synthetic
+    // delivery boundary must preserve the same state through the pipeline.
+    restart;
+    instruction(8'hc1,4,3,2,0); gov.ref_shift_nonzero=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 1) $fatal(1,"adjacent setup");
+    abandon=1; preserve_de=1;
+    @(negedge clk); abandon=0; preserve_de=0; gov='0; gov.op=8'hcd; ilen=0; boundary=1; eoi=1;
+    @(negedge clk); boundary=0; eoi=0;
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 1 || candidate.de_wait_synthetic)
+      $fatal(1,"adjacent synthetic delivery lost pending state");
+    instruction(8'h90,0,1,0,0);
+    @(negedge clk); boundary=0; eoi=0; repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 0) $fatal(1,"adjacent handler failed to consume pending byte");
+    // Segment stack surrogate applies only to unprefixed real-mode 16-bit
+    // stack accesses wholly in ordinary RAM.
+    restart;
+    instruction(8'h1f,0,1,1,0); gov.ref_real_mode=1; gov.ref_stack32=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if(candidate.execution_clocks != 7 || candidate.refill_execution != 7)
+      $fatal(1,"real-mode POP DS reference budget");
+    restart;
+    instruction(8'h07,0,1,1,0); gov.ref_real_mode=1; gov.ref_stack32=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if(candidate.execution_clocks != 7 || candidate.refill_execution != 7)
+      $fatal(1,"real-mode POP ES reference budget");
+    restart;
+    instruction(8'h1e,0,1,1,0); gov.ref_real_mode=1; gov.ref_stack32=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if(candidate.execution_clocks != 2 || candidate.refill_execution != 2)
+      $fatal(1,"real-mode PUSH DS reference budget");
+    restart;
+    instruction(8'h1f,0,2,1,0); gov.ref_real_mode=1; gov.ref_stack32=0; gov.ref_test_excluded=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if(candidate.execution_clocks != 5) $fatal(1,"prefixed POP DS changed");
+    restart;
+    instruction(8'h1f,0,1,1,0); gov.ref_real_mode=1; gov.ref_stack32=0; gov.o32=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if(candidate.execution_clocks != 5) $fatal(1,"32-bit POP DS changed");
+    restart;
+    instruction(8'h1f,0,1,1,0); gov.ref_real_mode=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if(candidate.execution_clocks != 5) $fatal(1,"non-real or wide stack POP DS changed");
+    restart;
+    instruction(8'h1f,0,1,1,0); gov.ref_real_mode=1; gov.ref_stack32=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if(candidate.execution_clocks != 5) $fatal(1,"real-mode 32-bit stack POP DS changed");
+    restart;
+    instruction(8'h1f,0,1,1,0); gov.ref_real_mode=1; gov.ref_stack32=0; ordinary_ram=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
+    @(negedge clk);
+    if(candidate.execution_clocks != 5) $fatal(1,"non-RAM POP DS changed");
+    // A later #DE from within an already entered handler is a new event,
+    // not a fault during delivery. Its own committed pending bytes persist.
+    restart;
+    instruction(8'hc1,4,3,2,0); gov.ref_shift_nonzero=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0; repeat(4) @(negedge clk);
+    abandon=1; preserve_de=1;
+    @(negedge clk); abandon=0; preserve_de=0; gov='0; gov.op=8'hcd; ilen=0; boundary=1; eoi=1;
+    @(negedge clk); boundary=0; eoi=0; repeat(4) @(negedge clk);
+    instruction(8'h90,0,1,0,0);
+    @(negedge clk); boundary=0; eoi=0; repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 0) $fatal(1,"outer handler did not consume pending byte");
+    for (int i=0; i<7; i++) begin
+      instruction(8'hc1,4,3,2,0); gov.ref_shift_nonzero=0;
+    end
+    @(negedge clk); boundary=0; eoi=0; accesses=0; repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 7) $fatal(1,"nested handler pending bytes missing");
+    abandon=1; preserve_de=1;
+    @(negedge clk); abandon=0; preserve_de=0; gov='0; gov.op=8'hcd; ilen=0; boundary=1; eoi=1;
+    @(negedge clk); boundary=0; eoi=0; repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 7 || candidate.de_wait_synthetic)
+      $fatal(1,"nested synthetic delivery lost committed pending bytes");
+    instruction(8'h90,0,1,0,0);
+    @(negedge clk); boundary=0; eoi=0; repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 0) $fatal(1,"inner handler did not consume pending bytes");
     preset=3; restart;
     instruction(8'hff,0,4,2,0); instruction(8'h83,7,5,1,0); instruction(8'h75,0,2,0,1);
     finish_trial(19,19,"non-286");

@@ -1,0 +1,18 @@
+{
+  "EMPTY_7_CL": {
+    "charged_per_iteration": 233.141,
+    "elapsed_cycles": 1193682
+  },
+  "EMPTY_7_IMM": {
+    "charged_per_iteration": 241.144,
+    "elapsed_cycles": 1234711
+  },
+  "FILLED_7_CL": {
+    "charged_per_iteration": 271.141,
+    "elapsed_cycles": 1388295
+  },
+  "FILLED_7_IMM": {
+    "charged_per_iteration": 275.112,
+    "elapsed_cycles": 1408410
+  }
+}
