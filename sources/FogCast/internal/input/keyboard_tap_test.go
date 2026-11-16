@@ -33,18 +33,18 @@ func TestTargetTapPreservesLocalHoldAndReleasesOnTarget(t *testing.T) {
 	if err := hid.applyFrom(context.Background(), sourceLocal, keyboardFrameFor(code, remoteinput.ActionPress)); err != nil {
 		t.Fatal(err)
 	}
-	if err := hid.tap(context.Background(), tapFrame(4, 7), nil); err != nil {
+	if err := hid.tap(context.Background(), tapFrame(5, 7), nil); err != nil {
 		t.Fatal(err)
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(posts) != 3 || posts[0][0] != 1<<4 || posts[1][0] != 1<<4 || posts[2][0] != 1<<4 {
+	if len(posts) != 3 || posts[0][0] != 1<<4 || posts[1][0] != 1<<4|1<<5 || posts[2][0] != 1<<4 {
 		t.Fatalf("local hold lost: %+v", posts)
 	}
 	if times[2].Sub(times[1]) < 55*time.Millisecond {
 		t.Fatalf("tap ended too soon: %v", times[2].Sub(times[1]))
 	}
-	if !hid.pressed[sourceLocal][4] || hid.pressed[sourceRemote][4] {
+	if !hid.pressed[sourceLocal][4] || hid.pressed[sourceRemote][5] {
 		t.Fatal("source contributions incorrect")
 	}
 }
@@ -214,5 +214,51 @@ func TestRejectedTapDoesNotMutateExistingRemoteHold(t *testing.T) {
 	}
 	if posts != 1 || !hid.pressed[sourceRemote][4] || hid.binding.Generation != 7 {
 		t.Fatalf("rejected tap changed held input or binding")
+	}
+}
+
+func TestTargetTapRejectsSameLocalHold(t *testing.T) {
+	posts := 0
+	hid := &keyboardHIDSink{}
+	hid.setPoster(func(context.Context, string, uint64, hidkeys.Rows) error { posts++; return nil })
+	hid.bind(&KeyboardHIDBinding{PackageID: "p", Generation: 7})
+	code, _ := hidkeys.Code(4)
+	if err := hid.applyFrom(context.Background(), sourceLocal, keyboardFrameFor(code, remoteinput.ActionPress)); err != nil {
+		t.Fatal(err)
+	}
+	if err := hid.tap(context.Background(), tapFrame(4, 7), nil); !errors.Is(err, errTapUnavailable) {
+		t.Fatalf("tap: %v", err)
+	}
+	if posts != 1 || !hid.pressed[sourceLocal][4] || hid.pressed[sourceRemote][4] {
+		t.Fatal("rejected tap changed local hold")
+	}
+}
+
+func TestTargetTapReportsLocalOverlapDuringHold(t *testing.T) {
+	posts := make(chan hidkeys.Rows, 8)
+	hid := &keyboardHIDSink{}
+	hid.setPoster(func(_ context.Context, _ string, _ uint64, r hidkeys.Rows) error { posts <- r; return nil })
+	hid.bind(&KeyboardHIDBinding{PackageID: "p", Generation: 7})
+	done := make(chan error, 1)
+	go func() { done <- hid.tap(context.Background(), tapFrame(4, 7), nil) }()
+	select {
+	case <-posts:
+	case <-time.After(time.Second):
+		t.Fatal("no tap press")
+	}
+	code, _ := hidkeys.Code(4)
+	if err := hid.applyFrom(context.Background(), sourceLocal, keyboardFrameFor(code, remoteinput.ActionPress)); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if !errors.Is(err, errTapUnavailable) {
+			t.Fatalf("tap: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("tap stuck")
+	}
+	if !hid.pressed[sourceLocal][4] || hid.pressed[sourceRemote][4] {
+		t.Fatal("local hold not preserved")
 	}
 }

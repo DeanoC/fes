@@ -1605,7 +1605,8 @@ waiting for the input lock. It rejects missing, incompatible, or unknown target
 observations. On an explicit tap, the host probes the bridge for target-timed
 tap support, then sends one generation-bound operation. The target observes
 the active core and applies the press and release 60 ms apart using its local
-clock; existing held keys from other sources remain held. A cancellation or
+clock; unrelated held keys from other sources remain held. The tap fails if
+the same key is held locally before the tap or becomes held before its release. A cancellation or
 uncertain press triggers a release attempt; an unconfirmed operation closes
 the bridge and clears host held input without replay. Its correlated receipt
 confirms accepted target sink posts, not guest consumption or a hardware timing

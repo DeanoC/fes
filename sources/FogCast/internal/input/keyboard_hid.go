@@ -197,7 +197,7 @@ func (s *keyboardHIDSink) tap(ctx context.Context, f protocol.InputFrame, afterP
 		cancelPress()
 		return err
 	}
-	if s.binding == nil || s.binding.Generation != f.ServerMonoNS || s.poster == nil || s.pressed[sourceRemote][usage] {
+	if s.binding == nil || s.binding.Generation != f.ServerMonoNS || s.poster == nil || s.heldUsageLocked(usage) {
 		s.mu.Unlock()
 		cancelPress()
 		return errTapUnavailable
@@ -239,7 +239,21 @@ func (s *keyboardHIDSink) tap(ctx context.Context, f protocol.InputFrame, afterP
 		return errors.Join(pressErr, errTapUnavailable)
 	}
 	delete(s.pressed[sourceRemote], usage)
+	if s.heldUsageLocked(usage) {
+		// A local press began during the tap. Preserve it, but do not claim
+		// that a release edge reached the target while the union is held.
+		pressErr = errors.Join(pressErr, errTapUnavailable)
+	}
 	return errors.Join(pressErr, s.postLocked(releaseCtx))
+}
+
+func (s *keyboardHIDSink) heldUsageLocked(usage uint8) bool {
+	for _, pressed := range s.pressed {
+		if pressed[usage] {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *keyboardHIDSink) lockTap(ctx context.Context) error {
