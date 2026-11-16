@@ -16,10 +16,15 @@ of apportioning it.
 | --- | --- | --- |
 | Slice 2, identity on against off, per entity | [slice 2 record](../2026-11-14-i386-x87-s2/summary.md), "Where the ALMs go" | the #1584 method: the sealer's Yosys program without `flatten`, Quartus 17.0.2 seed 1, head `bf581e303` |
 | Slice 2, inside the unit, by ablation | the same record's ablation table | outputs forced constant so the driver chain trims; standalone `unit-noregs` |
-| Slice 3, this branch against its merge base, per entity | PR [#1879](https://github.com/DeanoC/fes/pull/1879) at `3dd62f1e2203d4b627310be0826189100ff205cb`, "Where the ALMs go" | the same method, same CUDA slot and seed for both sides |
+| Slice 3, its branch against its merge base, per entity | [slice 3 record](../2026-11-15-i386-x87-s3/summary.md), "Where the ALMs go" | the same method, same CUDA slot and seed for both sides |
 
-Slice 3's record is on an unmerged branch and is cited at that SHA. It is
-not merged into this one.
+Slice 3's record was cited at PR [#1879](https://github.com/DeanoC/fes/pull/1879)'s
+unmerged head `3dd62f1e2203d4b627310be0826189100ff205cb` when this record was
+written. **#1879 has since merged as `9037d15e8`**, so the citation now
+points at the record in the tree. The figures this record uses are
+unchanged — `fes_i386_x87` 3,851.4 (3,664.0) own against the merge base's
+1,601.9 (1,416.9), delta +2,249.5, and `fes_i386_x87_mul` 187.4 against
+185.0 — checked against the merged copy rather than assumed.
 
 ## The two slices' cost
 
