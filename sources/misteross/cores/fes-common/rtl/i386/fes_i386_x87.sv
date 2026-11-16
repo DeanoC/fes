@@ -2608,8 +2608,14 @@ module fes_i386_x87 #(
                     // The lanes raise IE, DE and ZE; A_RND adds PE, UE and
                     // OE. `special` can only be set for an operand class
                     // A_SETUP has already answered and never reaches here,
-                    // so the value it would carry is not read -- the unit
-                    // bench asserts that it stays clear.
+                    // so the value it would carry is not read. The assertion
+                    // below is what makes that a checked claim rather than a
+                    // comment: every bench case that reaches this state runs
+                    // it, and A_SETUP's dispatch is what has to keep it true.
+                    // synthesis translate_off
+                    if (bk_raw.special)
+                        $fatal(1, "fes_i386_x87: the DE25 backend returned a special-cased result; A_SETUP should have answered this operand class without the datapath");
+                    // synthesis translate_on
                     pfl   <= pfl | bk_raw.flags;
                     seq   <= A_RND;
                     end
