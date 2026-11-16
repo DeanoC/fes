@@ -580,11 +580,80 @@ Together with the bench — **368,090 checks, zero failures**, the same figure
 #1892's record gives — the split and the packed array are behaviour-preserving
 and fit-preserving.
 
-## Whether it fits in the machine is **not** established by any fit that exists
+## It fits, and it closes: band 2
 
-This record measures the envelope-plus-backend **on its own**. Nothing here
-says it fits inside `fes.pc386`, and no fit of `pc386_system` with
-`X87_BACKEND = 1` exists. That fit is the only thing that would settle it.
+**The integration fit passed.** `pc386_system` with `x87_present = 1'b1` and
+`X87_BACKEND = 1` — the machine with this work's complete DE25 387 in it —
+placed, routed and closed timing at **every published corner** at 61.44 MHz.
+
+| | Used | of device |
+| --- | ---: | ---: |
+| **ALMs needed** (the capacity figure) | **40,986** / 46,800 | **87.58%** |
+| LABs touched (spread, *not* fullness) | 4,558 / 4,680 | 97.39% |
+| Dedicated logic registers | 38,828 | — |
+| DSP blocks | 42 / 188 | 22.34% |
+| M20K blocks | 138 / 358 | 38.55% |
+| Block-memory bits | 1,352,230 / 7,331,840 | 18.44% |
+| ALMs containing virtual pins (reported, never subtracted) | 651 | 1.39% |
+
+Timing, all four corners, at a 16.276 ns period:
+
+| Corner | Setup | Hold | Min pulse width |
+| --- | ---: | ---: | ---: |
+| Slow fix4 100C | +8.551 ns | +0.101 ns | +6.205 ns |
+| Slow fix4 0C | +7.602 ns | +0.133 ns | +6.164 ns |
+| Slow fix4a 0C | +7.596 ns | +0.128 ns | +6.175 ns |
+| Fast fix4 0C | +10.513 ns | +0.033 ns | +6.325 ns |
+
+Worst-corner Fmax on the system clock is **115.21 MHz**, against the 61.44 MHz
+constrained — so it is not closing marginally.
+
+**Against the precommitted bands:** it fits, LABs are ≤ 100%, and timing
+passes at all four corners, which is **band 2**. LABs at 97.39% are below band
+4's 99.5% threshold, so band 4 does not apply and the result is not downgraded
+to "not established". That reading follows the bands as written, before the
+result was seen.
+
+### What this result does and does not say
+
+- **Single seed.** Seed 1 only. The sibling measurement found seed 2 landing
+  within 73 ALMs of seed 1 on the CPU at this rung, which is reassuring but is
+  not this design.
+- **87.58% of ALMs is the largest thing fitted on Agilex 5 in this project.**
+  Nothing above 79.6% had been fitted on the device before. It is below the
+  DE10 lane's practical ceiling of around 92%, which is the nearest thing to a
+  prior for how far a fit can be pushed — but that prior is another device's.
+- **LABs at 97.39% are not 97.39% full.** A LAB counts as used when one of its
+  ten ALM slots is used, so this is how sparsely the fitter spread the design,
+  not how close the device is to capacity. The ALM row is the capacity figure.
+- **No DE25 board shell.** The 651 ALMs of virtual-pin cells stand in for one,
+  and a real shell — HPS bridge, EMIF, scanout, audio, reset release — is
+  measured nowhere. On the DE10 the equivalent is around 770 ALMs.
+- **42 DSP blocks, and the two-multiplier saving is still on the table.** The
+  CPU alone uses 12; this machine uses 42. The integrated x87 still builds
+  **two** 64×64 multipliers — the envelope's shifter-multiplier and the
+  backend's FMUL multiplier — and a merged unit would share one. Uncosted, and
+  now a saving rather than a necessity.
+- **No prediction was recorded before this ran**, deliberately, and none is
+  retrofitted now. The record's earlier projection that it would *not* fit was
+  withdrawn before the fit, for reasons unrelated to the outcome.
+
+**Host:** `chip-30x0-ai-dev`, Quartus Pro **26.3.0 Build 114** read off that
+host, not copied from the other. The netlist was elaborated on `powerboat` with
+the authenticated locked Yosys and reused here by hash
+(`95b72a8d546f8c0a1475…`, 133,035 lines, verified at both ends), because the
+chip host has neither the HIP nor the CUDA Yosys slot built. Harness, envelope,
+SDC and report rows are the sibling measurement's, unmodified.
+
+## Whether it fits in the machine was **not** established before this fit
+
+*(This section is kept as it stood before the integration fit, because the
+reasoning it records — and the two projections it withdrew — are what made the
+fit worth running. The answer is in the section above.)*
+
+This record measures the envelope-plus-backend **on its own**. Nothing in
+*this* part of it says it fits inside `fes.pc386`; that was settled only by the
+fit above.
 
 What *is* measured, by the sibling Agilex 5 measurement
 (`docs/validation/2026-11-16-i386-agilex5-fit/`, tracker #1898): `pc386_system`
