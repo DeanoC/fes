@@ -631,3 +631,30 @@ has not found the ceiling, rather than extending a third time; two additions
 chasing a result would stop being a precommitment at all. The DE10's rungs
 above 61.44 MHz are unchanged and still expected to miss against that device's
 own 63.79 MHz estimate.
+
+## Amendment, 16 November 2026: the right evidence that the DE10 holds slice 2
+
+What had been seen: all fourteen fits were complete and recorded, and the
+record and the PR body said the DE10 holds `main`'s 387, citing
+[#1821](https://github.com/DeanoC/fes/pull/1821)'s **seal** at 36,298 of
+41,910 ALMs. That citation is wrong and is corrected here; the amendment it
+corrects is left as it was written.
+
+#1821's sealed package has the identity **off** — `main` ties `x87_present` to
+0, which is the same tie fit M has — so 36,298 ALMs is the DE10 equivalent of
+**fit M**, not of M+, and it shows nothing about the identity being on. The
+right evidence is in the same PR and is stronger: its **identity-on machine
+fit ran nine seeds at 38,075–38,257 ALMs, 90.9–91.3% of the device, every one
+meeting setup and hold, worst +0.454 ns**. That is what establishes the DE10
+holding slice 2's 387, and it is what the record now cites.
+
+Two things that come with it, both from #1821 and both cited rather than
+measured here. It brackets the onset of seed-dependence on the DE10 **between
+91.3% and 91.7%**, which is a better-sourced version of the 8 November audit's
+"anything past about 92% is untested". And its per-entity audit puts the
+identity's whole cost on the DE10 at `fes_i386_x87` 1,414 + `fes_i386_x87_mul`
+178 + `fes_i386_cpu`'s own logic 143 ALMs, with both x87 entities at 0.0 ALMs
+when the identity is off — which is the DE10's own measured version of the
+quantity M+ − M measures on Agilex 5. **The two are not divided or compared
+here**: different device, different toolchain, and this record's whole rule is
+that such a ratio is not available.

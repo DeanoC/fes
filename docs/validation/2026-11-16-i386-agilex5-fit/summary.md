@@ -6,9 +6,12 @@ worst slow corner where the Cyclone V reaches 64.** That is what was measured.
 
 **What was not measured, and what the DE25 plan actually turns on:** whether
 the DE25 holds the 387 the DE10 *refused*. `main`'s 387 is slice 2 — state,
-interface, conversions, no arithmetic at all — and the DE10 **holds it**:
-[#1821](https://github.com/DeanoC/fes/pull/1821) sealed it there at 36,298 of
-41,910 ALMs with every analysis passing.
+interface, conversions, no arithmetic at all — and the DE10 **holds it with
+the identity on**: [#1821](https://github.com/DeanoC/fes/pull/1821)'s
+identity-on machine fit ran **nine seeds at 38,075–38,257 ALMs, 90.9–91.3% of
+the Cyclone V, every one meeting setup and hold, worst +0.454 ns**. (That PR's
+sealed package, 36,298 ALMs, has the identity **off**, so it is the DE10
+equivalent of fit M rather than of M+.)
 [#1889](https://github.com/DeanoC/fes/pull/1889)'s refusal was its own head,
 slice 4 stacked on slice 3, whose 387 has divide, square root and the
 remainders: 8,073 ALMs for the standalone unit against the merge base's 4,076.
@@ -216,7 +219,7 @@ The method precommitted a ladder — 61.44 MHz headline, then 75, 90, 110 and
 130 MHz, seeds 1–4 at the headline — because reported Fmax at one constraint
 is the fitter's estimate and not a closure. **"Closes at" means the highest
 rung passing every analysis at every published corner.** Those rungs and the
-extra seeds are queued; any that have not produced
+extra seeds were queued and then stopped unrun; any that have not produced
 a result when this record is read are **not measured**, and are listed as that
 rather than trimmed quietly. The CPU's closure on Agilex 5 is in the ladder
 table below; the CPU on the Cyclone V has only its 61.44 MHz rung, and the
@@ -250,7 +253,7 @@ this record is `main`, whose 387 has no arithmetic.
 
 Two things the ladder shows that a single constraint could not.
 
-**Area is flat across every rung**: 29,300, 29,360, 29,304, 29,348 and 29,455
+**Area is flat across every rung that closes**: 29,300, 29,360, 29,304, 29,348 and 29,455
 ALMs at 61.44, 75, 90, 110 and 130 MHz — a 155 ALM spread on the same netlist,
 inside this lane's ±200 noise. A second seed at the headline rung lands 73 ALMs
 from the first (29,373 against 29,300), so seed scatter is of the same small
@@ -269,7 +272,9 @@ constraint, and the answer to "what does it close at" is the highest rung that
 passes every analysis at every corner.
 
 So **`fes_i386_cpu` closes at 130 MHz on Agilex 5** — every rung of the
-precommitted ladder passed, the top one with +0.426 ns to spare — against
+precommitted ladder passed, the top one with +0.426 ns to spare. That is the
+design's own register-to-register timing: every path through its ports is cut,
+so this is not a figure any board I/O could be held to. Against against
 **61.44 MHz on the Cyclone V** — which is simply the only rung that has been
 run there. Its 75 MHz rung and above were queued and **not run**, so this
 record does not establish a Cyclone V ceiling either: its 63.79 MHz estimate
@@ -361,9 +366,13 @@ with the same M10K-to-M20K rename applied to the RTL that the primary applies
 to the netlist — ran at the same 61.44 MHz rung, same seed, same envelope. Two
 things came out of it.
 
-**Quartus Pro's SystemVerilog front end accepts this RTL**, where the locked
-Quartus 17.0.2 rejects it outright. The whole reason the DE10 lane feeds
-Quartus a Yosys netlist does not apply on the Pro side.
+**Quartus Pro's SystemVerilog front end elaborates and fits this RTL**, where
+the locked Quartus 17.0.2 rejects it outright. What that does **not** establish
+is that Pro elaborates it *correctly*: 17.0.2's documented problem included a
+silent misread of a variable index into a packed struct member, matching
+resource counts are not functional equivalence, and **no lockstep has been run
+on Pro's elaboration**. This fit is an area and timing cross-check, not a
+front-end qualification.
 
 **And the two front ends agree to within about 1%.** The comparison quantity
 and its threshold were fixed in the method before this fit ran: dedicated
@@ -406,7 +415,11 @@ sealer's own `guest_rates()` at `SYSTEM_CLOCK_HZ` for the N/D parameters and
 
 The CPU netlist **reproduces byte for byte** — a fresh elaboration gave
 `3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024` again. The
-machine netlists do not, for the path-dependence reason in the method
+machine netlists reproduce **within one checkout path**: the fix pins the
+netlist, script and log to fixed paths, but those paths are still absolute, so
+the same sources elaborated from a different checkout location would be
+expected to give a different digest again. That was not tested, and the claim
+is not made. See the path-dependence reason in the method
 ([DeanoC/yosys#80](https://github.com/DeanoC/yosys/issues/80)), which is fixed
 for future fits; each machine fit's own `inputs.json` carries the digest of the
 exact bytes it fitted, and the equivalence check in the method is why their
