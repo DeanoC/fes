@@ -487,7 +487,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                         plls[0]['parameters']['output_clock_frequency0'] = '12.000 MHz'
                         path.write_text(json.dumps(data))
                     with self.assertRaisesRegex(ValueError, 'clock request changed'):
-                        producer.board.validate_renaming(work, package_profile=True)
+                        producer.board.validate_renaming(work, package_profile=True, dos_profile=True)
                     for path, original in zip((before_path, after_path), originals):
                         path.write_text(original)
                 before = json.loads((work / 'before-names.json').read_text())['modules']['top']
