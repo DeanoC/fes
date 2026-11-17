@@ -315,7 +315,7 @@ def lockstep() -> str:
         if built:
             out += ['', f'Built set, the bench\'s copy against the RTL\'s over {built["opcodes"]:,} x87 opcodes: '
                     f'{built["built"]["de10"]:,} built with the DE10 backend, {built["built"]["de25"]:,} with the '
-                    f'DE25\'s, **{built["mismatches"]} mismatches**.']
+                    f'DE25\'s, **{len(built["mismatches"]) if isinstance(built["mismatches"], list) else built["mismatches"]} mismatches**.']
         trans = (_suite(report, 'x87_trans_cases') or {}).get('x87_trans')
         bcd = (_suite(report, 'x87_bcd_cases') or {}).get('x87_bcd_forms')
         if bcd:

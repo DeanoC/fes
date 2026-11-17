@@ -29,6 +29,13 @@ Every figure in the generated files is read out of a committed report under
 [evidence/](evidence/) or [fits/](fits/) by [generate.py](generate.py); this
 file states no figure of its own that those do not carry.
 
+**Which revision the reports are of.** Every report under `evidence/final`
+names `e967bf4fa`, with no tracked file differing from it, and a SHA-256 for
+each source it tested. That is the last commit that changes RTL, a bench, a
+runner or a script; the commits after it change this directory only, which
+`git diff --stat e967bf4fa..HEAD` shows. The lockstep reports under
+`evidence/baseline` are of the merge base, `e2b8130b5`.
+
 ## What is settled and what is not
 
 - **Settled by Deano (17 Nov 2026):** the transcendentals follow the 387's

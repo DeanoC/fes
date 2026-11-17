@@ -1,13 +1,13 @@
 {
   "what": "distance between the Bochs oracle and the host x87 on the x87 transcendentals; no RTL",
   "source": {
-    "fes_revision": "4c5ef203ec1e0bfc0df4968715d2df50ea03bc9b",
+    "fes_revision": "e967bf4fa1b11c3c637c5aa91582b38f28b65afb",
     "tracked_changes": [],
     "files": {
-      "sources/misteross/cores/fes-common/sim/i386/x87_trans_probe.cpp": "4d7c31c91537b97b0054460c64688fc7ee91b847de59ca26d8504983fb77df88",
-      "sources/misteross/cores/fes-common/sim/i386/i386_oracle.h": "a6495941eca2f19994c20cc03e4d47d03bcf20d7e865029be21236a8a2b56524",
-      "sources/misteross/cores/fes-common/sim/i386/bochs_oracle.cpp": "3d5eaefe5983a342154a176d5a78b105813750df29e9ce493fe603bd7a221f56",
-      "sources/misteross/scripts/probe_fes_i386_x87_trans.py": "bf86dc6b63f0ab9c13e48b433ea389e9d920a856dd1259bf471a9adbb7650eee",
+      "sources/misteross/cores/fes-common/sim/i386/x87_trans_probe.cpp": "6dbe6026109ddebd999626a8e1265de820e27a3885336d0428f9d4f9476f5a05",
+      "sources/misteross/cores/fes-common/sim/i386/i386_oracle.h": "504480031562b903770fc94eae278c232c17428a07ba243545f9a16038841795",
+      "sources/misteross/cores/fes-common/sim/i386/bochs_oracle.cpp": "a29f94665bdf6ecf81d453c74dad114e0f626a745230142f6cd5528a3c54bbe5",
+      "sources/misteross/scripts/probe_fes_i386_x87_trans.py": "5dd908b2654581d006f0a94e23be2a450218c04a35ad8173a2590f382923a405",
       "sources/misteross/scripts/fes_i386_oracle.py": "0d47ce9792ca29ae172335f6f11e6c5dcfa73fbf34b76c89e04d072528f454cd"
     }
   },
@@ -15,9 +15,9 @@
     "revision": "30cfd566ecc8deb33e56e801e32b444a7041b6d2",
     "patch_sha256": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377",
     "provisioner_sha256": "0d47ce9792ca29ae172335f6f11e6c5dcfa73fbf34b76c89e04d072528f454cd",
-    "adapter_sha256": "467b86f1a5cec4ddd48d1ac7806eebadba0acf3aa5481e35555d5153180a63fa",
+    "adapter_sha256": "c6414d38406af7bcea64569bee8e84fbdbf1c11d46e9f2953aaa38f0b12e8f1b",
     "linked_sha256": {
-      "adapter": "015b29ab3249ceac38099205db033241585f847bef620cdfd755045582419578",
+      "adapter": "1a1aadd280eda960f727d37020f603a6f2a76a861206ca13123e89ca1e41178a",
       "paramtree": "6b8ba5842ba2bfe611cc7268c331fff50214859a164c95895d966de277893e44",
       "cpu": "eeaefa84209f721cb462358b52d9f59704dbaa2eee3c7b2efc5b73392917d2ee",
       "fpu": "7eb61931bec508d1b9046fac8f1935876cd64f00182e3b4f73875a23b87a3712",
@@ -159,15 +159,15 @@
     ],
     "FPTAN": [
       {
-        "class": "|x| in [2^-8, pi/4]",
+        "class": "|x| in [2^-8, 1)",
         "count": 20000,
-        "identical": 19244,
+        "identical": 19196,
         "flags_differ": 0,
         "c0_c2_c3_differ": 0,
-        "c1_differ": 1551,
+        "c1_differ": 1647,
         "not_a_distance": 0,
         "distance_at_most": {
-          "0": 19244,
+          "0": 19196,
           "1": 20000,
           "2": 20000,
           "4": 20000,
@@ -184,7 +184,7 @@
         "worst_host": "bffed95a3c61c7cd8ce1"
       },
       {
-        "class": "|x| in [pi/4, 2^10]",
+        "class": "|x| in [1, 2^10)",
         "count": 20000,
         "identical": 5162,
         "flags_differ": 0,
@@ -209,7 +209,7 @@
         "worst_host": "c00be275cfcc572dce6c"
       },
       {
-        "class": "|x| in [2^10, 2^62]",
+        "class": "|x| in [2^10, 2^62)",
         "count": 20000,
         "identical": 4786,
         "flags_differ": 0,
@@ -415,15 +415,15 @@
     ],
     "FSINCOS": [
       {
-        "class": "|x| in [2^-8, pi/4]",
+        "class": "|x| in [2^-8, 1)",
         "count": 20000,
-        "identical": 19675,
+        "identical": 19574,
         "flags_differ": 0,
         "c0_c2_c3_differ": 0,
-        "c1_differ": 6015,
+        "c1_differ": 5228,
         "not_a_distance": 0,
         "distance_at_most": {
-          "0": 39672,
+          "0": 39570,
           "1": 40000,
           "2": 40000,
           "4": 40000,
@@ -440,7 +440,7 @@
         "worst_host": "bffe926241df44bcb378"
       },
       {
-        "class": "|x| in [pi/4, 2^10]",
+        "class": "|x| in [1, 2^10)",
         "count": 20000,
         "identical": 5144,
         "flags_differ": 0,
@@ -465,7 +465,7 @@
         "worst_host": "bff0ea490aaf0aff2ff6"
       },
       {
-        "class": "|x| in [2^10, 2^62]",
+        "class": "|x| in [2^10, 2^62)",
         "count": 20000,
         "identical": 4904,
         "flags_differ": 0,
@@ -542,15 +542,15 @@
     ],
     "FSIN": [
       {
-        "class": "|x| in [2^-8, pi/4]",
+        "class": "|x| in [2^-8, 1)",
         "count": 20000,
-        "identical": 19790,
+        "identical": 19758,
         "flags_differ": 0,
         "c0_c2_c3_differ": 0,
-        "c1_differ": 403,
+        "c1_differ": 460,
         "not_a_distance": 0,
         "distance_at_most": {
-          "0": 19790,
+          "0": 19758,
           "1": 20000,
           "2": 20000,
           "4": 20000,
@@ -567,7 +567,7 @@
         "worst_host": "3ffdfeef2731898a3a33"
       },
       {
-        "class": "|x| in [pi/4, 2^10]",
+        "class": "|x| in [1, 2^10)",
         "count": 20000,
         "identical": 8219,
         "flags_differ": 0,
@@ -592,7 +592,7 @@
         "worst_host": "bff2c3e9d74fc454a141"
       },
       {
-        "class": "|x| in [2^10, 2^62]",
+        "class": "|x| in [2^10, 2^62)",
         "count": 20000,
         "identical": 8072,
         "flags_differ": 0,
@@ -669,15 +669,15 @@
     ],
     "FCOS": [
       {
-        "class": "|x| in [2^-8, pi/4]",
+        "class": "|x| in [2^-8, 1)",
         "count": 20000,
-        "identical": 19829,
+        "identical": 19774,
         "flags_differ": 0,
         "c0_c2_c3_differ": 0,
-        "c1_differ": 332,
+        "c1_differ": 447,
         "not_a_distance": 0,
         "distance_at_most": {
-          "0": 19829,
+          "0": 19774,
           "1": 20000,
           "2": 20000,
           "4": 20000,
@@ -694,7 +694,7 @@
         "worst_host": "3ffed06916d600497fb6"
       },
       {
-        "class": "|x| in [pi/4, 2^10]",
+        "class": "|x| in [1, 2^10)",
         "count": 20000,
         "identical": 8263,
         "flags_differ": 0,
@@ -719,7 +719,7 @@
         "worst_host": "bfef98d890c526655ea2"
       },
       {
-        "class": "|x| in [2^10, 2^62]",
+        "class": "|x| in [2^10, 2^62)",
         "count": 20000,
         "identical": 7767,
         "flags_differ": 0,

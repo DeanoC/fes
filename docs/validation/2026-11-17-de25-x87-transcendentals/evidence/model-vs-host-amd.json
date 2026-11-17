@@ -2,12 +2,12 @@
   "what": "the microprogram's integer model against a host's own x87 and against the mathematical result; no RTL",
   "dump": {
     "header": "host-dump samples=20000 seed=1 vectors=yes compiler=\"13.3.0\" cpu=\"AMD Ryzen 7 7800X3D 8-Core Processor\"",
-    "sha256": "41a48cb41f4ec597746efe34ca7566d1aa962117f8215cf535ffe64e6c574457"
+    "sha256": "4c0de43d19d383664a8457a7c4ec5d8a25567668f0e79e6ee8ada47b3e4066ed"
   },
   "rows_per_class_limit": 20000,
-  "microprogram_words": 433,
+  "microprogram_words": 442,
   "constants": 660,
-  "model_sha256": "bceee593ec9437993fc75505b31d515b4cf4776d24b03e588b1c5b7cc9797fbf",
+  "model_sha256": "b9be5b3c6738dd854b2907d08734c0015e0c21c039e73e45f97194e24554e53e",
   "classes": [
     {
       "instruction": "F2XM1",
@@ -68,8 +68,8 @@
       "compared": 20000,
       "not_a_distance": 0,
       "host_distance": {
-        "0": 19969,
-        "1": 31
+        "0": 19953,
+        "1": 47
       },
       "worst_host_distance": 1,
       "backend_operations_most": 25,
@@ -220,8 +220,8 @@
       "compared": 20000,
       "not_a_distance": 0,
       "host_distance": {
-        "0": 13169,
-        "1": 6829,
+        "0": 13909,
+        "1": 6089,
         "2": 2
       },
       "worst_host_distance": 2,
@@ -309,8 +309,8 @@
       "compared": 20000,
       "not_a_distance": 0,
       "host_distance": {
-        "0": 19782,
-        "1": 218
+        "0": 19774,
+        "1": 226
       },
       "worst_host_distance": 1,
       "backend_operations_most": 25,
@@ -392,12 +392,12 @@
       "compared": 20000,
       "not_a_distance": 0,
       "host_distance": {
-        "0": 19952,
-        "1": 48
+        "0": 19768,
+        "1": 232
       },
       "worst_host_distance": 1,
       "backend_operations_most": 32,
-      "steps_most": 44,
+      "steps_most": 43,
       "error_before_rounding": null,
       "error_after_rounding": null
     },
@@ -409,8 +409,8 @@
       "compared": 20000,
       "not_a_distance": 0,
       "host_distance": {
-        "0": 19737,
-        "1": 263
+        "0": 19778,
+        "1": 222
       },
       "worst_host_distance": 1,
       "backend_operations_most": 32,
@@ -426,8 +426,8 @@
       "compared": 20000,
       "not_a_distance": 0,
       "host_distance": {
-        "0": 19749,
-        "1": 251
+        "0": 19737,
+        "1": 263
       },
       "worst_host_distance": 1,
       "backend_operations_most": 32,
@@ -463,7 +463,7 @@
       },
       "worst_host_distance": 0,
       "backend_operations_most": 27,
-      "steps_most": 40,
+      "steps_most": 39,
       "error_before_rounding": null,
       "error_after_rounding": null
     },

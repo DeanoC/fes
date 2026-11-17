@@ -4,17 +4,145 @@
 
 ## DE10 sequencer, RTL, the whole default suite
 
-**Not run.**
+Revision `e967bf4fa`. Verdict: **pass**; `default_suite` true; arguments random_programs=2000, random_seeds=16, seed=1, pm_programs=500, task_programs=250, debug_programs=250, undefined_programs=250, no_latency=False, preset=0, backend=de10.
+
+| Suite | Cases | Passed | Failed | Trace hash | Against the merge-base baseline |
+| --- | ---: | ---: | ---: | --- | --- |
+| reset and store | 1 | 1 | 0 | `14650fb0739d0383` | same cases, same hash |
+| directed | 84 | 84 | 0 | `b314a2470d824fd7` | same cases, same hash |
+| unreal | 7 | 7 | 0 | `286cb5646eac4124` | same cases, same hash |
+| protected mode | 726 | 726 | 0 | `71891e83b5b2bec1` | same cases, same hash |
+| paging | 158 | 158 | 0 | `5390711c0e204d5f` | same cases, same hash |
+| no-387 | 1933 | 1933 | 0 | `ce05ef6f406cea6b` | same cases, same hash |
+| x87 | 120 | 120 | 0 | `583e1508fb9c4027` | same cases, same hash |
+| memory | 27 | 27 | 0 | `14650fb0739d0383` | same cases, same hash |
+| packed decimal (new) | 3 | 3 | 0 | `14650fb0739d0383` | no such suite at the merge base |
+| transcendentals (new) | 10 | 10 | 0 | `14650fb0739d0383` | no such suite at the merge base |
+| corpus files | 941 | | | | 941 of 941 hashes equal the baseline's |
+| random seeds | 16 | | | | 16 of 16 hashes equal the baseline's |
+
+Built set, the bench's copy against the RTL's over 2,048 x87 opcodes: 1,564 built with the DE10 backend, 1,620 with the DE25's, **0 mismatches**.
+
+Packed decimal: FBLD stepped 0 times, FBSTP 0, stopped as not built 2.
+
+Transcendentals: bound against the oracle None (unset: a value compare fails); 0 self-test checks of the compare rule; every exception masked. "Unchecked" results are those the oracle returned outside the trigonometric window (bound.md): everything but their value is still compared exactly.
+
+| Instruction | Executed | Stopped as not built | Results within the bound | Worst | Unchecked | Worst unchecked | Resynchronisations | C1 differs, ungated | Distance: count |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| F2XM1 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | - |
+| FYL2X | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | - |
+| FPTAN | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | - |
+| FPATAN | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | - |
+| FYL2XP1 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | - |
+| FSINCOS | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | - |
+| FSIN | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | - |
+| FCOS | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | - |
 
 ## DE25 backend, RTL, the whole default suite
 
-**Not run.**
+Revision `e967bf4fa`. Verdict: **pass**; `default_suite` false; arguments random_programs=2000, random_seeds=16, seed=1, pm_programs=500, task_programs=250, debug_programs=250, undefined_programs=250, no_latency=False, preset=0, backend=de25, transcendental_ulp_oracle=2097152.
+
+| Suite | Cases | Passed | Failed | Trace hash | Against the merge-base baseline |
+| --- | ---: | ---: | ---: | --- | --- |
+| reset and store | 1 | 1 | 0 | `14650fb0739d0383` | same cases, same hash |
+| directed | 84 | 84 | 0 | `b314a2470d824fd7` | same cases, same hash |
+| unreal | 7 | 7 | 0 | `286cb5646eac4124` | same cases, same hash |
+| protected mode | 726 | 726 | 0 | `71891e83b5b2bec1` | same cases, same hash |
+| paging | 158 | 158 | 0 | `5390711c0e204d5f` | same cases, same hash |
+| no-387 | 1933 | 1933 | 0 | `ce05ef6f406cea6b` | same cases, same hash |
+| x87 | 120 | 120 | 0 | `583e1508fb9c4027` | same cases, same hash |
+| memory | 27 | 27 | 0 | `14650fb0739d0383` | same cases, same hash |
+| packed decimal (new) | 28 | 28 | 0 | `18d7e9d82ef2cd8c` | no such suite at the merge base |
+| transcendentals (new) | 181 | 181 | 0 | `854e48475b03fd95` | no such suite at the merge base |
+| corpus files | 941 | | | | 941 of 941 hashes equal the baseline's |
+| random seeds | 16 | | | | 16 of 16 hashes equal the baseline's |
+
+Built set, the bench's copy against the RTL's over 2,048 x87 opcodes: 1,564 built with the DE10 backend, 1,620 with the DE25's, **0 mismatches**.
+
+Packed decimal: FBLD stepped 112 times, FBSTP 127, stopped as not built 0.
+
+Transcendentals: bound against the oracle 2097152 (the proposed value, not agreed (docs/validation/2026-11-17-de25-x87-transcendentals/bound.md)); 213 self-test checks of the compare rule; every exception masked. "Unchecked" results are those the oracle returned outside the trigonometric window (bound.md): everything but their value is still compared exactly.
+
+| Instruction | Executed | Stopped as not built | Results within the bound | Worst | Unchecked | Worst unchecked | Resynchronisations | C1 differs, ungated | Distance: count |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| F2XM1 | 127 | 0 | 119 | 4,806 | 0 | 0 | 60 | 20 | 0: 70, 1: 21, 16: 1, 17: 1, 20: 1, 25: 4, 26: 3, 45: 1, 174: 1, 286: 1, 466: 1, 537: 1, 696: 1, 1919: 1, 2188: 1, 2541: 1, 3438: 1, 4734: 7, 4806: 1 |
+| FYL2X | 374 | 0 | 215 | 6,670 | 0 | 0 | 94 | 20 | 0: 136, 1: 27, 10: 1, 17: 1, 55: 1, 88: 1, 89: 3, 125: 9, 126: 15, 354: 4, 452: 1, 2358: 12, 6670: 4 |
+| FPTAN | 113 | 0 | 71 | 32 | 26 | 1.84e+19 | 47 | 22 | 0: 30, 1: 9, 2: 1, 3: 3, 4: 7, 5: 3, 6: 2, 7: 2, 8: 2, 11: 1, 12: 5, 13: 3, 17: 1, 23: 1, 32: 1 |
+| FPATAN | 430 | 0 | 324 | 29,739 | 0 | 0 | 104 | 42 | 0: 275, 1: 39, 2: 3, 9: 1, 56: 1, 958: 1, 961: 1, 1884: 1, 17314: 1, 29739: 1 |
+| FYL2XP1 | 370 | 0 | 202 | 9,853 | 0 | 0 | 92 | 9 | 0: 148, 1: 22, 2: 1, 3: 1, 4: 8, 5: 4, 6: 5, 7: 1, 39: 1, 125: 1, 376: 1, 501: 8, 9853: 1 |
+| FSINCOS | 107 | 0 | 157 | 47 | 26 | 1.84e+19 | 46 | 9 | 0: 96, 1: 29, 2: 7, 4: 1, 5: 9, 6: 3, 8: 1, 11: 1, 12: 5, 13: 1, 16: 1, 24: 1, 32: 1, 47: 1 |
+| FSIN | 146 | 0 | 106 | 1,536 | 25 | 1.38e+19 | 62 | 26 | 0: 53, 1: 27, 2: 7, 5: 2, 8: 2, 11: 1, 12: 8, 13: 1, 16: 1, 32: 1, 128: 1, 192: 1, 1536: 1 |
+| FCOS | 113 | 0 | 94 | 8 | 6 | 1.84e+19 | 42 | 23 | 0: 66, 1: 8, 2: 5, 4: 1, 5: 8, 6: 2, 7: 3, 8: 1 |
+
+Recorded divergences taken (divergences.toml): `x87-denormal-flag-intermediate` 36, `x87-denormal-underflow` 16, `x87-fpatan-quotient-underflow` 29, `x87-fyl2xp1-below-minus-one` 20, `x87-fyl2xp1-minus-one` 5, `x87-trig-infinity-c2` 8.
 
 ## DE10 sequencer, locked-Yosys netlist, the directed suites
 
-**Not run.**
+Revision `e967bf4fa`. Verdict: **pass**; `default_suite` false; arguments opcode=['90'], limit_per_file=1, random_programs=0, random_seeds=16, seed=1, pm_programs=0, task_programs=0, debug_programs=0, undefined_programs=0, no_latency=False, preset=0, backend=de10.
+
+| Suite | Cases | Passed | Failed | Trace hash | Against the merge-base baseline |
+| --- | ---: | ---: | ---: | --- | --- |
+| reset and store | 1 | 1 | 0 | `14650fb0739d0383` | same cases, same hash |
+| directed | 84 | 84 | 0 | `b314a2470d824fd7` | same cases, same hash |
+| unreal | 7 | 7 | 0 | `286cb5646eac4124` | same cases, same hash |
+| protected mode | 726 | 726 | 0 | `71891e83b5b2bec1` | same cases, same hash |
+| paging | 158 | 158 | 0 | `5390711c0e204d5f` | same cases, same hash |
+| no-387 | 1933 | 1933 | 0 | `ce05ef6f406cea6b` | same cases, same hash |
+| x87 | 120 | 120 | 0 | `583e1508fb9c4027` | same cases, same hash |
+| memory | 27 | 27 | 0 | `14650fb0739d0383` | same cases, same hash |
+| packed decimal (new) | 3 | 3 | 0 | `14650fb0739d0383` | no such suite at the merge base |
+| transcendentals (new) | 10 | 10 | 0 | `14650fb0739d0383` | no such suite at the merge base |
+
+Built set, the bench's copy against the RTL's over 2,048 x87 opcodes: 1,564 built with the DE10 backend, 1,620 with the DE25's, **0 mismatches**.
+
+Packed decimal: FBLD stepped 0 times, FBSTP 0, stopped as not built 2.
+
+Transcendentals: bound against the oracle None (unset: a value compare fails); 0 self-test checks of the compare rule; every exception masked. "Unchecked" results are those the oracle returned outside the trigonometric window (bound.md): everything but their value is still compared exactly.
+
+| Instruction | Executed | Stopped as not built | Results within the bound | Worst | Unchecked | Worst unchecked | Resynchronisations | C1 differs, ungated | Distance: count |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| F2XM1 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | - |
+| FYL2X | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | - |
+| FPTAN | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | - |
+| FPATAN | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | - |
+| FYL2XP1 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | - |
+| FSINCOS | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | - |
+| FSIN | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | - |
+| FCOS | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | - |
 
 ## DE25 backend, locked-Yosys netlist, the directed suites
 
-**Not run.**
+Revision `e967bf4fa`. Verdict: **pass**; `default_suite` false; arguments opcode=['90'], limit_per_file=1, random_programs=0, random_seeds=16, seed=1, pm_programs=0, task_programs=0, debug_programs=0, undefined_programs=0, no_latency=False, preset=0, backend=de25, transcendental_ulp_oracle=2097152.
+
+| Suite | Cases | Passed | Failed | Trace hash | Against the merge-base baseline |
+| --- | ---: | ---: | ---: | --- | --- |
+| reset and store | 1 | 1 | 0 | `14650fb0739d0383` | same cases, same hash |
+| directed | 84 | 84 | 0 | `b314a2470d824fd7` | same cases, same hash |
+| unreal | 7 | 7 | 0 | `286cb5646eac4124` | same cases, same hash |
+| protected mode | 726 | 726 | 0 | `71891e83b5b2bec1` | same cases, same hash |
+| paging | 158 | 158 | 0 | `5390711c0e204d5f` | same cases, same hash |
+| no-387 | 1933 | 1933 | 0 | `ce05ef6f406cea6b` | same cases, same hash |
+| x87 | 120 | 120 | 0 | `583e1508fb9c4027` | same cases, same hash |
+| memory | 27 | 27 | 0 | `14650fb0739d0383` | same cases, same hash |
+| packed decimal (new) | 28 | 28 | 0 | `18d7e9d82ef2cd8c` | no such suite at the merge base |
+| transcendentals (new) | 181 | 181 | 0 | `854e48475b03fd95` | no such suite at the merge base |
+
+Built set, the bench's copy against the RTL's over 2,048 x87 opcodes: 1,564 built with the DE10 backend, 1,620 with the DE25's, **0 mismatches**.
+
+Packed decimal: FBLD stepped 112 times, FBSTP 127, stopped as not built 0.
+
+Transcendentals: bound against the oracle 2097152 (the proposed value, not agreed (docs/validation/2026-11-17-de25-x87-transcendentals/bound.md)); 213 self-test checks of the compare rule; every exception masked. "Unchecked" results are those the oracle returned outside the trigonometric window (bound.md): everything but their value is still compared exactly.
+
+| Instruction | Executed | Stopped as not built | Results within the bound | Worst | Unchecked | Worst unchecked | Resynchronisations | C1 differs, ungated | Distance: count |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| F2XM1 | 127 | 0 | 119 | 4,806 | 0 | 0 | 60 | 20 | 0: 70, 1: 21, 16: 1, 17: 1, 20: 1, 25: 4, 26: 3, 45: 1, 174: 1, 286: 1, 466: 1, 537: 1, 696: 1, 1919: 1, 2188: 1, 2541: 1, 3438: 1, 4734: 7, 4806: 1 |
+| FYL2X | 374 | 0 | 215 | 6,670 | 0 | 0 | 94 | 20 | 0: 136, 1: 27, 10: 1, 17: 1, 55: 1, 88: 1, 89: 3, 125: 9, 126: 15, 354: 4, 452: 1, 2358: 12, 6670: 4 |
+| FPTAN | 113 | 0 | 71 | 32 | 26 | 1.84e+19 | 47 | 22 | 0: 30, 1: 9, 2: 1, 3: 3, 4: 7, 5: 3, 6: 2, 7: 2, 8: 2, 11: 1, 12: 5, 13: 3, 17: 1, 23: 1, 32: 1 |
+| FPATAN | 430 | 0 | 324 | 29,739 | 0 | 0 | 104 | 42 | 0: 275, 1: 39, 2: 3, 9: 1, 56: 1, 958: 1, 961: 1, 1884: 1, 17314: 1, 29739: 1 |
+| FYL2XP1 | 370 | 0 | 202 | 9,853 | 0 | 0 | 92 | 9 | 0: 148, 1: 22, 2: 1, 3: 1, 4: 8, 5: 4, 6: 5, 7: 1, 39: 1, 125: 1, 376: 1, 501: 8, 9853: 1 |
+| FSINCOS | 107 | 0 | 157 | 47 | 26 | 1.84e+19 | 46 | 9 | 0: 96, 1: 29, 2: 7, 4: 1, 5: 9, 6: 3, 8: 1, 11: 1, 12: 5, 13: 1, 16: 1, 24: 1, 32: 1, 47: 1 |
+| FSIN | 146 | 0 | 106 | 1,536 | 25 | 1.38e+19 | 62 | 26 | 0: 53, 1: 27, 2: 7, 5: 2, 8: 2, 11: 1, 12: 8, 13: 1, 16: 1, 32: 1, 128: 1, 192: 1, 1536: 1 |
+| FCOS | 113 | 0 | 94 | 8 | 6 | 1.84e+19 | 42 | 23 | 0: 66, 1: 8, 2: 5, 4: 1, 5: 8, 6: 2, 7: 3, 8: 1 |
+
+Recorded divergences taken (divergences.toml): `x87-denormal-flag-intermediate` 36, `x87-denormal-underflow` 16, `x87-fpatan-quotient-underflow` 29, `x87-fyl2xp1-below-minus-one` 20, `x87-fyl2xp1-minus-one` 5, `x87-trig-infinity-c2` 8.
 
