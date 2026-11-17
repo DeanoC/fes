@@ -25,7 +25,29 @@ OSS = {"menu": "build/oss/fes-menu-package", "splash": "build/fes-splash",
        "pentagon": "build/fes-pentagon-oss"}
 
 
-def margins(timing: dict) -> dict:
+def margins(timing) -> dict:
+    """The lane's own margin figures, in the lane's own units.
+
+    The two lanes do not measure the same quantity and are not made to look as
+    though they do. nextpnr reports an achieved and a constrained frequency per
+    clock, so its margin is a ratio. Quartus reports *slack in nanoseconds* per
+    analysis type (Setup, Hold, Recovery, Removal, Minimum Pulse Width), so its
+    margin is a slack, and the worst of those is not comparable to a frequency
+    ratio. Forcing one number over both would state something neither report
+    says: a 0.121 ns hold slack is ordinary, while a 0.121x frequency ratio
+    would be a catastrophic miss.
+    """
+    if isinstance(timing, list):
+        rows = {row.get("type", f"row{i}"): row for i, row in enumerate(timing)
+                if isinstance(row, dict) and isinstance(row.get("slack_ns"), (int, float))}
+        if not rows:
+            return {}
+        worst = min(rows.items(), key=lambda kv: kv[1]["slack_ns"])
+        return {"kind": "quartus-slack-ns",
+                "slack_ns": {name: row["slack_ns"] for name, row in rows.items()},
+                "tns_ns": {name: row.get("tns_ns") for name, row in rows.items()},
+                "worst_analysis": worst[0], "worst_slack_ns": worst[1]["slack_ns"],
+                "all_non_negative": all(r["slack_ns"] >= 0 for r in rows.values())}
     out = {}
     for name, row in (timing or {}).items():
         if not isinstance(row, dict):
@@ -35,8 +57,9 @@ def margins(timing: dict) -> dict:
             out[name] = {"achieved_mhz": a, "constraint_mhz": c,
                          "ratio": a / c, "status": row.get("status")}
     if out:
-        out["worst_ratio"] = min(v["ratio"] for v in out.values() if isinstance(v, dict))
-    return out
+        return {"kind": "nextpnr-frequency-ratio", "clocks": out,
+                "worst_ratio": min(v["ratio"] for v in out.values())}
+    return {}
 
 
 def announced_output(key: str) -> Path | None:
@@ -57,14 +80,38 @@ def announced_output(key: str) -> Path | None:
 
 
 def check(key: str, data: dict, path: Path, revision: str | None) -> str | None:
-    """Why this summary must not be collected, or None if it is sound."""
-    if data.get("build_id") in (None, ""):
+    """Why this summary must not be collected, or None if it is sound.
+
+    An earlier version compared the summary's mtime against the run log's.
+    That is a false positive by construction: the log is the build's *output
+    stream*, so it keeps being written until after the summary exists. It
+    refused fes.zx81's genuine seal over a 1.4-second difference.
+
+    What actually ties a summary to this run needs no clock:
+
+    - its `revision` must be the head condition 3 was taken at;
+    - its `build_id` must match the one in its own path, so a directory
+      cannot be credited to an identity it does not hold;
+    - for the Quartus lane the directory must be the one the producer
+      *announced* in its log before compiling, which identifies the run
+      outright.
+
+    A build_id is derived from the producer's closure at a revision, so a
+    summary passing the first two cannot have come from a different revision
+    whatever its timestamps say.
+    """
+    build_id = data.get("build_id")
+    if build_id in (None, ""):
         return "summary has no build_id"
     if revision is not None and data.get("revision") not in (None, revision):
         return f'summary revision {str(data.get("revision"))[:9]} is not the head {revision[:9]}'
-    log = LOGS / f"{key}.log"
-    if log.is_file() and path.stat().st_mtime < log.stat().st_mtime - 1:
-        return "summary predates this run's log: a stale build directory"
+    if build_id not in path.parts and build_id not in str(path):
+        # Only the Quartus lane nests the identity in the path; the OSS
+        # producers write to a fixed directory, so this is informational there.
+        if f"-quartus/" in str(path):
+            return f"build_id {build_id[:12]} is not the identity its path names"
+    if data.get("revision") is None and revision is not None:
+        return "summary records no revision, so it cannot be tied to this head"
     return None
 
 
@@ -91,15 +138,17 @@ def main() -> int:
             refused.append(f"{key}: {why}")
             continue
         result[key] = {"lane": "nextpnr", "build_id": data.get("build_id"),
-                       "unverified": why,
+                       "unverified": why, "revision": data.get("revision"),
                        "placer_seed": data.get("route", {}).get("placer_seed"),
                        "margins": margins(data.get("timing")),
                        "source": str(path)}
     for key in ("zx81", "zx80", "ts1000", "ts1500"):
         announced = announced_output(key)
+        provenance = "announced by the producer in its own log"
         if announced is not None and (announced / "build-summary.json").is_file():
             chosen = announced / "build-summary.json"
         else:
+            provenance = "newest matching directory (the log announced none)"
             found = sorted((TREE / "build").glob(f"fes-{key}-quartus/*/attempt-*/build-summary.json"),
                            key=lambda p: p.stat().st_mtime)
             if not found:
@@ -112,7 +161,8 @@ def main() -> int:
             continue
         runs = data.get("runs", [])
         result[key] = {"lane": "quartus-lite", "build_id": data.get("build_id"),
-                       "unverified": why,
+                       "unverified": why, "provenance": provenance,
+                       "revision": data.get("revision"),
                        "seeds": data.get("seeds"),
                        "repeat_matches_signoff":
                            bool(runs) and runs[0].get("rbf_sha256") == data.get("repeat_rbf_sha256"),
@@ -121,11 +171,17 @@ def main() -> int:
                        "source": str(chosen)}
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "cond3.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
-    print(f'{"artefact":18} {"lane":13} {"build_id":34} worst margin')
+    print(f'{"artefact":18} {"lane":13} {"build_id":34} margin (lane units)')
     for key, row in sorted(result.items()):
-        worst = row["margins"].get("worst_ratio")
-        print(f'{key:18} {row["lane"]:13} {str(row["build_id"]):34} '
-              f'{"n/a" if worst is None else f"{worst:.4f}"}')
+        m = row.get("margins", {})
+        if m.get("kind") == "nextpnr-frequency-ratio":
+            shown = f'{m["worst_ratio"]:.4f}x worst clock'
+        elif m.get("kind") == "quartus-slack-ns":
+            shown = (f'{m["worst_slack_ns"]:+.3f} ns worst slack ({m["worst_analysis"]})'
+                     + ("" if m["all_non_negative"] else "  **NEGATIVE SLACK**"))
+        else:
+            shown = "no margin figures in the summary"
+        print(f'{key:18} {row["lane"]:13} {str(row["build_id"]):34} {shown}')
     if refused:
         print("\nREFUSED (not collected):")
         for line in refused:
