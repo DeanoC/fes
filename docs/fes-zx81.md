@@ -30,7 +30,7 @@ the target links it through the package's sealed ROM map at download time. See
 | Core ID | `fes.zx81` |
 | ABI | `fes.computer` 1.0 |
 | Profile | `fes-gp-v1` |
-| Interfaces | `fes.keyboard.hid`, `fes.gamepad.ports`, `fes.media.zx81-tape`, `fes.media.zx81-tape-write`, `fes.video.fixed-720p60`, `fes.audio.pcm-s16-stereo-48k`, `fes.memory.hps-ddr`, `fes.video.session-display` (required); `fes.expansion.zx81-bus` (optional) |
+| Interfaces | `fes.keyboard.hid`, `fes.gamepad.ports`, `fes.media.zx81-tape`, `fes.media.zx81-tape-write`, `fes.video.fixed-720p60`, `fes.audio.pcm-s16-stereo-48k`, `fes.memory.hps-ddr`, `fes.video.session-display` (required). The registered Quartus package declares no expansion interface until DeanoC/fes#1875; only the advisory nextpnr package declares `fes.expansion.zx81-bus` (optional) |
 | Persistence | none (library launches are volatile) |
 | Input | HID keyboard rows mapped to the 40-key matrix |
 | Stop | ordinary session Stop; Select+Start held for one second on the kit |
@@ -54,7 +54,8 @@ reaches uinput.
 The standard machine, computer mailbox, tape/SAVE and video capture live in
 `sources/misteross/cores/fes-zx81/rtl/fes_zx81_core.v`. Board wrappers provide
 clocks, HPS transport, the session-plane memory adapter, expansion placement and
-HDMI/audio output. DE10's registered expansion boundary remains at its original
+HDMI/audio output. The registered DE10 (Quartus) package builds no expansion
+socket; the advisory nextpnr shell keeps its expansion boundary at the original
 top-level hierarchy. The shared core accepts an explicit guest-clock fraction,
 so it can run the same 6.5 MHz ULA timing from another board's system clock.
 
