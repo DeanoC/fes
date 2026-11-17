@@ -75,7 +75,8 @@ def main() -> int:
     if state:
         cr = state.get("code_review") or {}
         print(f"     status                      : {cr.get('status')}")
-        print(f"     has_any_findings            : {cr.get('has_any_findings')}")
+        print(f"     has_any_findings            : {cr.get('has_any_findings')}"
+              f"   (gated: resolution-independent, measured on #1829)")
         print(f"     has_unresolved_findings     : {cr.get('has_unresolved_findings')}"
               f"   (reported, not gated: reviewer-owned resolution state)")
     print(f"  2. comments RAISED at this head : {len(raised_here)}"
@@ -89,8 +90,10 @@ def main() -> int:
     print(f"  context: {len(review)} review comments total, "
           f"{len([c for c in review if c.get('commit_id') == head])} report commit_id == head "
           f"(carried forward, not raised here)")
-    ok = bool(marker) and (state or {}).get("code_review", {}).get("status") == "completed" \
-        and not raised_here and not unanswered
+    cr = (state or {}).get("code_review", {})
+    ok = (bool(marker) and cr.get("status") == "completed"
+          and cr.get("has_any_findings") is False
+          and not raised_here and not unanswered)
     print()
     print("GATE PASSES" if ok else "GATE DOES NOT PASS YET")
     return 0 if ok else 1
