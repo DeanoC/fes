@@ -117,6 +117,17 @@
 //             387 on a build with the DE25 backend, and the RTL alone
 //             stopping at each as not built on one with the DE10's
 //             (-DFES_X87_BACKEND says which this build is).
+//   x87trans  the eight transcendentals, F2XM1, FYL2X, FPTAN, FPATAN,
+//             FYL2XP1, FSINCOS, FSIN and FCOS (run_x87_trans_cases, #1958),
+//             the identity on: with the DE25 backend through the CPU against
+//             the oracle's 387 under the transcendental rule (trans_compare:
+//             everything exact but a finite, non-zero result, which is
+//             within FES_I386_TRANS_ULP_ORACLE representable values of the
+//             oracle's -- no default, and unset a value compare fails -- and
+//             the oracle resynchronised to the RTL after each compare that
+//             passed); with the DE10's, the RTL alone stopping at each as
+//             not built. FES_I386_TRANS_CASE runs the cases whose labels
+//             start with it, without the self-tests.
 //   no387     the directed cases of the ESC instructions with no 387
 //             (run_no387_cases): every form in real and protected mode,
 //             their faults, #NM, FNSTENV's and FNSAVE's layouts and FPU
@@ -1674,6 +1685,369 @@ bool branch_taken(const uint8_t *code, const State &s, bool code32, bool &taken)
     return true;
 }
 
+// ---- The transcendental rule (#1958): F2XM1, FYL2X, FPTAN, FPATAN, FYL2XP1,
+// FSINCOS, FSIN and FCOS against the oracle. ----
+// The oracle's results for these are not a 387's: against the mathematical
+// result it is off by up to about 250,000 representable values on FPATAN and
+// by about 9e9 beside a multiple of pi/2, where the RTL is within 2 of a real
+// x87 (docs/validation/2026-11-17-de25-x87-transcendentals/references.md). So
+// an exact compare of the result is wrong, and this is the rule in its place
+// (that record's method.md, rules 1 to 8 with amendments 1 and 2, and
+// bound.md). It is on in the x87trans suite alone (trans_rule.on); with it
+// off lockstep() is what it was.
+//
+// At a transcendental's retirement, once the unit is idle:
+//   exactly   the control word, the tag word, the opcode, the four pointers,
+//             the status word but for C1 -- the six flags, SF, ES, B, C0, C2,
+//             C3 and TOP -- every register the instruction did not write, and
+//             any result the oracle does not hold as a normal or denormal
+//             value: a zero with its sign, an infinity, a NaN, the
+//             indefinite, an unsupported encoding. FPTAN's pushed 1.0 is not
+//             a result in this sense: it is compared exactly.
+//   C1        exactly when SF is set or PE is clear; otherwise it is counted
+//             (c1_differs) and not gated, because two real x87 units disagree
+//             on it for results that are equal to the bit.
+//   a result  that the oracle holds as a normal or denormal value: the RTL's
+//             must be one too, of the same sign, and within the bound of it
+//             in representable extended values (x87_order). The bound is
+//             FES_I386_TRANS_ULP_ORACLE, which has no default: a compare
+//             that gets here with it unset fails. For FSIN, FCOS, FSINCOS
+//             and FPTAN the distance is gated only when the oracle's result
+//             has a magnitude in [2^-10, 2^10]; outside it the value is
+//             counted as unchecked, with its distance, and everything else
+//             at that retirement is still exact.
+// After a compare that passed, and only then, the oracle takes the RTL's
+// result registers and the RTL's C0-C3 and flags (which at that point differ
+// from its own in C1 and in a recorded divergence's bits and nowhere else),
+// so that no later instruction of the program inherits the difference; the
+// whole 387 state must then be equal. The registers written are ST(0) for
+// F2XM1, FSIN and FCOS, ST(0) and the pushed register for FSINCOS, ST(0)
+// (the tangent) for FPTAN, and ST(1) for FYL2X, FPATAN and FYL2XP1; none
+// when the instruction changed no register (C2 set) or took a stack fault,
+// where everything is exact.
+//
+// The recorded differences between the 387 and the oracle, each accepted as
+// exactly the difference its divergences.toml entry states and counted in
+// divergence_retirements under its id (trans_compare). The RTL's side is
+// what is asserted: the oracle's state is edited to the 387's before the
+// exact compare.
+using u128 = unsigned __int128;
+
+std::string dec(u128 value) {
+    if (!value) return "0";
+    std::string text;
+    for (; value; value /= 10) text.insert(text.begin(), char('0' + int(value % 10)));
+    return text;
+}
+
+enum TransForm : unsigned { T_F2XM1, T_FYL2X, T_FPTAN, T_FPATAN, T_FYL2XP1, T_FSINCOS, T_FSIN, T_FCOS, TRANS_FORMS };
+constexpr uint8_t TRANS_MODRM[TRANS_FORMS] = {0xf0, 0xf1, 0xf2, 0xf3, 0xf9, 0xfb, 0xfe, 0xff};
+constexpr const char *TRANS_NAME[TRANS_FORMS] = {"f2xm1", "fyl2x", "fptan", "fpatan", "fyl2xp1", "fsincos", "fsin", "fcos"};
+// The form of D9 <modrm>, or -1.
+int trans_form(uint8_t modrm) {
+    for (unsigned f = 0; f < TRANS_FORMS; ++f)
+        if (TRANS_MODRM[f] == modrm) return int(f);
+    return -1;
+}
+bool trans_trig(unsigned form) { return form == T_FPTAN || form == T_FSINCOS || form == T_FSIN || form == T_FCOS; }
+bool trans_two_operand(unsigned form) { return form == T_FYL2X || form == T_FPATAN || form == T_FYL2XP1; }
+
+enum class X87Kind { Zero, Denormal, PseudoDenormal, Normal, Infinity, NaN, Unsupported };
+X87Kind x87_kind(const fes_i386::X87Register &r) {
+    const unsigned exponent = r.sign_exponent & 0x7fff;
+    const bool integer = r.significand >> 63;
+    if (exponent == 0)
+        return r.significand == 0 ? X87Kind::Zero : integer ? X87Kind::PseudoDenormal : X87Kind::Denormal;
+    if (exponent == 0x7fff)
+        return !integer ? X87Kind::Unsupported : r.significand == 1ull << 63 ? X87Kind::Infinity : X87Kind::NaN;
+    return integer ? X87Kind::Normal : X87Kind::Unsupported;
+}
+bool x87_ordered(X87Kind kind) { return kind == X87Kind::Normal || kind == X87Kind::Denormal; }
+// A normal or denormal value's place among the representable magnitudes:
+// consecutive values map to consecutive integers, across a binade's boundary
+// too. `+`, not `|`: the significand's integer bit is 2^63, which an odd
+// exponent - 1 already holds (method.md, amendment 2).
+u128 x87_order(const fes_i386::X87Register &r) {
+    const unsigned exponent = r.sign_exponent & 0x7fff;
+    return exponent == 0 ? u128(r.significand) : (u128(exponent - 1) << 63) + r.significand;
+}
+fes_i386::X87Register x87_from_order(u128 order, bool negative) {
+    const uint16_t sign = negative ? 0x8000 : 0;
+    if (order < (u128(1) << 63)) return {uint64_t(order), sign};
+    const unsigned exponent = unsigned(order >> 63);
+    return {uint64_t(order - (u128(exponent - 1) << 63)), uint16_t(sign | exponent)};
+}
+u128 x87_distance(const fes_i386::X87Register &a, const fes_i386::X87Register &b) {
+    const u128 x = x87_order(a), y = x87_order(b);
+    return x > y ? x - y : y - x;
+}
+// A magnitude in [2^-10, 2^10].
+bool x87_in_window(const fes_i386::X87Register &r) {
+    const unsigned exponent = r.sign_exponent & 0x7fff;
+    return x87_kind(r) == X87Kind::Normal && exponent >= 0x3fff - 10
+        && (exponent < 0x3fff + 10 || (exponent == 0x3fff + 10 && r.significand == 1ull << 63));
+}
+
+struct TransVerdict {
+    std::vector<std::string> failures;       // empty: the compare passed
+    struct Value { unsigned reg; bool checked; u128 distance; };
+    std::vector<Value> values;               // the results compared by distance
+    bool c1_differs = false;                 // C1 differed where it is not gated
+    std::vector<std::string> divergences;    // the recorded differences this retirement showed
+    std::vector<unsigned> written;           // the registers the oracle may take from the RTL
+};
+
+// The rule, as a function of the instruction, the oracle's 387 before its
+// step and after it, the RTL's after it, and the bound. It touches nothing.
+TransVerdict trans_compare(unsigned form, const fes_i386::X87State &before, const fes_i386::X87State &oracle_after,
+                           const fes_i386::X87State &got, const std::optional<uint64_t> &bound) {
+    using fes_i386::X87Register;
+    TransVerdict v;
+    fes_i386::X87State want = oracle_after;
+    const unsigned top = (before.status >> 11) & 7, st1 = (top + 1) & 7, below = (top + 7) & 7;
+    auto empty = [&](unsigned n) { return ((before.tag >> (2 * n)) & 3) == 3; };
+    auto set_tag = [&](unsigned n, unsigned tag) { want.tag = uint16_t((want.tag & ~(3u << (2 * n))) | tag << (2 * n)); };
+    const bool trig = trans_trig(form), two_operand = trans_two_operand(form);
+    const bool pushes = form == T_FPTAN || form == T_FSINCOS;
+    const bool stack_fault = empty(top) || (two_operand && empty(st1)) || (pushes && !empty(below));
+    const X87Kind x_kind = x87_kind(before.r[top]), y_kind = x87_kind(before.r[st1]);
+    auto diverge = [&](const char *id) {
+        if (!(x87_differences(want, oracle_after).empty())) v.divergences.push_back(id);
+    };
+
+    // x87-trig-infinity-c2: FSIN, FCOS, FSINCOS and FPTAN of an infinity. The
+    // 387 raises invalid, returns the indefinite and sets C2 (PRM Table
+    // 3-10); the oracle does all but set C2.
+    if (trig && !stack_fault && x_kind == X87Kind::Infinity) {
+        want.status |= 0x0400;
+        diverge("x87-trig-infinity-c2");
+    }
+    // x87-fyl2xp1-below-minus-one, x87-fyl2xp1-minus-one: FYL2XP1 with ST(0)
+    // a normal value at or below -1 and ST(1) a normal value or a zero. The
+    // oracle returns a finite value with PE. The 387 below -1: invalid and
+    // the indefinite (PRM Table 3-10). At exactly -1, which the manual
+    // leaves undefined, the RTL takes log2 of zero: zero divide and an
+    // infinity of the sign opposite to ST(1)'s, or invalid and the
+    // indefinite when ST(1) is a zero. C1 is clear in each.
+    if (form == T_FYL2XP1 && !stack_fault && x_kind == X87Kind::Normal && (before.r[top].sign_exponent & 0x8000)
+        && (before.r[top].sign_exponent & 0x7fff) >= 0x3fff && (y_kind == X87Kind::Normal || y_kind == X87Kind::Zero)) {
+        const bool minus_one = before.r[top].sign_exponent == 0xbfff && before.r[top].significand == 1ull << 63;
+        const bool zero_divide = minus_one && y_kind != X87Kind::Zero;
+        want.r[st1] = zero_divide ? X87Register{1ull << 63, uint16_t(0x7fff | (~before.r[st1].sign_exponent & 0x8000))}
+                                  : X87Register{0xc000000000000000ull, 0xffff};
+        set_tag(st1, 2);
+        want.status = uint16_t((want.status & ~0x027f) | (before.status & 0x007f) | (zero_divide ? 0x0004 : 0x0001));
+        diverge(minus_one ? "x87-fyl2xp1-minus-one" : "x87-fyl2xp1-below-minus-one");
+    }
+    // The three below were measured, not assumed: each is the set of forms
+    // and operand kinds the oracle was seen to differ on over this suite's
+    // denormal cases (FES_I386_TRANS_SPLIT), and on every instance the RTL's
+    // flags are a real x87's (divergences.toml). Outside these predicates a
+    // flag that differs fails.
+    //
+    // x87-denormal-underflow: FYL2X and FPATAN with a denormal ST(1), a
+    // normal ST(0) and a result too small for a normal value. The
+    // instruction is inexact by definition, so the 387 flags underflow with
+    // precision (PRM 3.2.5.2, 3.2.6); the oracle sets PE and leaves UE
+    // clear.
+    if ((form == T_FYL2X || form == T_FPATAN) && !stack_fault && y_kind == X87Kind::Denormal && x_kind == X87Kind::Normal
+        && x87_kind(want.r[st1]) == X87Kind::Denormal && (want.status & 0x0020) && !(want.status & 0x0010)
+        && !(before.status & 0x0010)) {
+        want.status |= 0x0010;
+        diverge("x87-denormal-underflow");
+    }
+    // x87-denormal-flag-intermediate: FYL2X, FPATAN and FYL2XP1 with both
+    // operands normal values. The oracle sets DE all the same, from a
+    // denormal in its own working; the 387's denormal exception is of an
+    // operand (PRM 3.2.4).
+    if (two_operand && !stack_fault && x_kind == X87Kind::Normal && y_kind == X87Kind::Normal && (want.status & 0x0002)
+        && !(before.status & 0x0002)) {
+        want.status &= ~0x0002;
+        diverge("x87-denormal-flag-intermediate");
+    }
+    // x87-fpatan-quotient-underflow: FPATAN whose result is a normal value.
+    // The oracle flags underflow when its own ST(1) / ST(0) is tiny and
+    // inexact, whatever the result; a result that is not tiny is no
+    // underflow (PRM 3.2.5.2), and the 387 leaves UE as it was.
+    if (form == T_FPATAN && !stack_fault && x87_kind(want.r[st1]) == X87Kind::Normal && (want.status & 0x0010)
+        && !(before.status & 0x0010)) {
+        want.status &= ~0x0010;
+        diverge("x87-fpatan-quotient-underflow");
+    }
+
+    auto fail = [&](const std::string &what) { v.failures.push_back(what); };
+    if (want.control != got.control) fail("control");
+    if (want.tag != got.tag) fail("tag");
+    if (want.opcode != got.opcode) fail("opcode");
+    if (want.pointers.ip != got.pointers.ip) fail("fip");
+    if (want.pointers.cs != got.pointers.cs) fail("fcs");
+    if (want.pointers.dp != got.pointers.dp) fail("fdp");
+    if (want.pointers.ds != got.pointers.ds) fail("fds");
+    const uint16_t status_differs = want.status ^ got.status;
+    if (status_differs & ~0x0200) {
+        fail("status");
+    } else if (status_differs) {
+        if ((want.status & 0x0040) || !(want.status & 0x0020)) fail("status.c1");
+        else v.c1_differs = true;
+    }
+
+    // The registers written: none when a stack fault was taken or the
+    // operand was left (C2 set), where the whole state is exact.
+    const bool c2 = trig && (want.status & 0x0400);
+    const bool pushed = ((want.status >> 11) & 7) == below;
+    if (!stack_fault && !c2) {
+        if (two_operand) v.written = {st1};
+        else if (form == T_FSINCOS && pushed) v.written = {top, below};
+        else v.written = {top};
+    }
+    for (unsigned n = 0; n < 8; ++n) {
+        const X87Register &o = want.r[n], &r = got.r[n];
+        const std::string name = "r" + std::to_string(n);
+        const bool written = std::find(v.written.begin(), v.written.end(), n) != v.written.end();
+        if (!written || ((want.tag >> (2 * n)) & 3) == 3 || !x87_ordered(x87_kind(o))) {
+            if (!(o == r)) fail(written ? name + ".exact" : name);
+            continue;
+        }
+        if (!x87_ordered(x87_kind(r))) { fail(name + ".not-finite"); continue; }
+        if ((o.sign_exponent ^ r.sign_exponent) & 0x8000) { fail(name + ".sign"); continue; }
+        const u128 distance = x87_distance(o, r);
+        if (trig && !x87_in_window(o)) { v.values.push_back({n, false, distance}); continue; }
+        if (!bound) { fail(name + ".bound-unset"); continue; }
+        if (distance > *bound) { fail(name + ".distance." + dec(distance)); continue; }
+        v.values.push_back({n, true, distance});
+    }
+    return v;
+}
+
+struct TransTally {
+    uint64_t executed = 0;        // retirements the rule compared and passed
+    uint64_t values = 0;          // results gated by the bound
+    uint64_t unchecked = 0;       // trigonometric results outside [2^-10, 2^10]: counted, not gated
+    uint64_t resyncs = 0;         // retirements after which the oracle took something from the RTL
+    uint64_t resync_values = 0;   // ... registers it took
+    uint64_t c1_differs = 0;      // retirements whose ungated C1 differed
+    uint64_t not_built = 0;       // the DE10 backend: the RTL alone stopped at the form as not built
+    u128 worst = 0, worst_unchecked = 0;
+    std::map<u128, uint64_t> histogram, histogram_unchecked;   // every distance, each value once
+};
+
+struct TransRule {
+    bool on = false;
+    std::optional<uint64_t> bound;      // FES_I386_TRANS_ULP_ORACLE; no default
+    // A transcendental stepped on both sides whose compare waits for the
+    // unit: the form, the oracle's 387 before its step, its EIP.
+    bool pending = false;
+    unsigned form = 0;
+    uint32_t eip = 0;
+    fes_i386::X87State before;
+    TransTally tally[TRANS_FORMS];
+    // The first retirement of each form with a result gated by the bound,
+    // for the self-test (run_x87_trans_cases).
+    struct Captured { bool have = false; fes_i386::X87State before, oracle, rtl; } captured[TRANS_FORMS];
+    uint64_t selftests = 0;
+    // The open cases (run_x87_trans_cases): how many there are, and whether
+    // this run ran them (FES_I386_TRANS_OPEN).
+    uint64_t open_cases = 0;
+    bool open_run = false;
+} trans_rule;
+
+// A transcendental takes up to about 800 clocks after it retires, BUSY held.
+constexpr int TRANS_SETTLE_CYCLES = 4096;
+
+// Make the pending compare. With `parked` the RTL is held where no
+// instruction can retire -- before an ESC or WAIT, which waits in D for
+// BUSY, or in HLT -- and is clocked until the unit is idle; a retirement
+// while waiting, or a unit still busy after it, fails. After a pass the
+// oracle is resynchronised to the RTL.
+void trans_finish(fes_i386::Oracle &oracle, Rtl &rtl, Summary &summary, Mismatches &out, bool parked) {
+    TransRule &t = trans_rule;
+    const std::string at = std::string("x87trans.") + TRANS_NAME[t.form] + "@" + hex(t.eip) + ".";
+    t.pending = false;
+    if (parked)
+        for (int n = 0; n < TRANS_SETTLE_CYCLES && rtl.top.trace_x87_busy; ++n) {
+            rtl.clock();
+            if (rtl.top.trace_retire) {
+                out.add(at + "retired-while-settling", 0, 1);
+                return;
+            }
+        }
+    if (rtl.top.trace_x87_busy) {
+        out.add(at + "still-busy", 0, 1);
+        return;
+    }
+    const fes_i386::X87State want = oracle.x87_state(), got = rtl.x87_state();
+    const TransVerdict v = trans_compare(t.form, t.before, want, got, t.bound);
+    if (!v.failures.empty()) {
+        for (const std::string &failure : v.failures) out.add(at + failure, 0, 1);
+        auto show = [](const char *side, const fes_i386::X87State &s) {
+            std::cerr << "  " << side << " cw " << hex(s.control) << " sw " << hex(s.status) << " tw " << hex(s.tag)
+                      << " op " << hex(s.opcode) << " ip " << hex(s.pointers.ip) << " dp " << hex(s.pointers.dp);
+            for (int n = 0; n < 8; ++n)
+                std::cerr << " r" << n << ' ' << hex(s.r[n].sign_exponent) << ':' << hex(s.r[n].significand);
+            std::cerr << '\n';
+        };
+        std::cerr << at << " (TOP before " << ((t.before.status >> 11) & 7) << ")\n";
+        show("before", t.before);
+        show("oracle", want);
+        show("rtl   ", got);
+        return;
+    }
+    TransTally &tally = t.tally[t.form];
+    ++tally.executed;
+    ++summary.x87_compared;
+    if (v.c1_differs) ++tally.c1_differs;
+    for (const std::string &id : v.divergences) ++summary.divergences[id];
+    // FES_I386_TRANS_SHOW: each divergence taken and each result compared
+    // by distance, with the operands, on stderr.
+    if (std::getenv("FES_I386_TRANS_SHOW")) {
+        const unsigned top = (t.before.status >> 11) & 7;
+        auto reg = [](const fes_i386::X87Register &r) { return hex(r.sign_exponent) + ":" + hex(r.significand); };
+        const std::string operands = " st0 " + reg(t.before.r[top]) + " st1 " + reg(t.before.r[(top + 1) & 7]) + " cw "
+                                     + hex(t.before.control);
+        for (const std::string &id : v.divergences)
+            std::cerr << "DIVERGENCE " << id << ' ' << TRANS_NAME[t.form] << operands << " sw before " << hex(t.before.status)
+                      << " oracle " << hex(want.status) << " rtl " << hex(got.status) << '\n';
+        for (const TransVerdict::Value &value : v.values)
+            std::cerr << "VALUE " << TRANS_NAME[t.form] << (value.checked ? " gated " : " unchecked ") << dec(value.distance)
+                      << operands << " oracle " << reg(want.r[value.reg]) << " rtl " << reg(got.r[value.reg])
+                      << " sw oracle " << hex(want.status) << " rtl " << hex(got.status) << '\n';
+        if (v.values.empty())
+            std::cerr << "EXACT " << TRANS_NAME[t.form] << operands << " sw oracle " << hex(want.status) << " rtl "
+                      << hex(got.status) << '\n';
+    }
+    bool gated = false;
+    for (const TransVerdict::Value &value : v.values) {
+        if (value.checked) {
+            gated = true;
+            ++tally.values;
+            ++tally.histogram[value.distance];
+            tally.worst = std::max(tally.worst, value.distance);
+        } else {
+            ++tally.unchecked;
+            ++tally.histogram_unchecked[value.distance];
+            tally.worst_unchecked = std::max(tally.worst_unchecked, value.distance);
+        }
+    }
+    if (gated && v.divergences.empty() && !t.captured[t.form].have) t.captured[t.form] = {true, t.before, want, got};
+    // The resynchronisation: the written registers and the status word's
+    // C0-C3 and flags. A register outside `written`, and every other word,
+    // was equal or the compare failed.
+    bool took = false;
+    for (unsigned n : v.written)
+        if (!(want.r[n] == got.r[n])) {
+            oracle.set_x87_register(n, got.r[n]);
+            ++tally.resync_values;
+            took = true;
+        }
+    if ((want.status ^ got.status) & fes_i386::X87_STATUS_SETTABLE) {
+        oracle.set_x87_status_bits(fes_i386::X87_STATUS_SETTABLE, got.status);
+        took = true;
+    }
+    if (took) ++tally.resyncs;
+    for (const std::string &field : fes_i386::x87_differences(oracle.x87_state(), got))
+        out.add(at + "resync." + field, 0, 1);
+}
+
 struct Outcome {
     bool halted = false;   // both sides reached HLT
     int exception = -1;    // the last exception both sides delivered
@@ -2012,10 +2386,24 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         if (x87_fitted) {
             unsigned k = 0;
             while (k < 15 && is_prefix(code[k])) ++k;
+            // The transcendental rule (x87trans): a compare still waiting
+            // for the unit is made before the next ESC or WAIT, which the
+            // RTL holds in D until the unit is idle, so the oracle steps
+            // that instruction on the resynchronised state.
+            if (trans_rule.on && trans_rule.pending && k < 15 && ((code[k] & 0xf8) == 0xd8 || code[k] == 0x9b)) {
+                trans_finish(oracle, rtl, summary, out, true);
+                if (!out.items.empty()) return outcome;
+            }
             if (k < 15 && (code[k] & 0xf8) == 0xd8 && !x87_built_form(code[k], code[k + 1], FES_X87_BACKEND == 1)) {
                 ++summary.unbuilt[UNBUILT_X87];
                 outcome.unbuilt = UNBUILT_X87;
                 return outcome;
+            }
+            if (trans_rule.on && before.eip >= x87_compare_from && k < 15 && code[k] == 0xd9 && trans_form(code[k + 1]) >= 0) {
+                trans_rule.pending = true;
+                trans_rule.form = unsigned(trans_form(code[k + 1]));
+                trans_rule.eip = before.eip;
+                trans_rule.before = oracle.x87_state();
             }
             if (k < 15 && code[k] == 0xdf && (code[k + 1] >> 6) != 3) {
                 if (((code[k + 1] >> 3) & 7) == 4) ++summary.x87_fbld;
@@ -2979,10 +3367,21 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                          rtl.x87_state().opcode, rtl.x87_state().status, oracle.x87_state().pointers.ip,
                          oracle.x87_state().opcode, oracle.x87_state().status);
         if (x87_fitted && before.eip >= x87_compare_from && !rtl.top.trace_x87_busy) {
-            for (const std::string &field : fes_i386::x87_differences(oracle.x87_state(), rtl.x87_state()))
-                out.add(at + "x87." + field, 0, 1);
-            ++summary.x87_compared;
+            if (trans_rule.on && trans_rule.pending) {
+                // A transcendental's compare, under its rule: at its own
+                // retirement or at a later instruction's that found the
+                // unit idle.
+                trans_finish(oracle, rtl, summary, out, false);
+            } else {
+                for (const std::string &field : fes_i386::x87_differences(oracle.x87_state(), rtl.x87_state()))
+                    out.add(at + "x87." + field, 0, 1);
+                ++summary.x87_compared;
+            }
         }
+        // ... or once the program has halted, where waiting for the unit
+        // cannot run another instruction.
+        if (trans_rule.on && trans_rule.pending && out.items.empty() && result.halted && rtl.stopped())
+            trans_finish(oracle, rtl, summary, out, true);
         hash_state(summary, rtl_state);
         if (!out.items.empty()) return outcome;
         if (!skip.empty()) {
@@ -11360,6 +11759,799 @@ int run_x87_bcd_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const 
     return 0;
 }
 
+// ---- The eight transcendentals (#1958), a suite of their own. ----
+// F2XM1, FYL2X, FPTAN, FPATAN, FYL2XP1, FSINCOS, FSIN and FCOS: D9 F0-F3,
+// F9, FB, FE and FF (FES_I386_MODE=x87trans). The x87 and x87bcd suites keep
+// the programs they had, so their trace hashes do not move.
+//
+// With the DE25 backend (FES_X87_BACKEND == 1), which builds them, the
+// programs run through the CPU against the oracle's 387 under the
+// transcendental rule above (trans_compare, trans_finish): everything exact
+// but a finite, non-zero result, which is within FES_I386_TRANS_ULP_ORACLE
+// of the oracle's, and the oracle resynchronised to the RTL after each
+// compare that passed. The cases, by docs/validation/
+// 2026-11-17-de25-x87-transcendentals/rules.md's rule numbers:
+//   <form>-ordinary     operands in range, each result stored and summed, so
+//                       later instructions consume it; every second one with
+//                       non-ESC instructions retiring while the unit works
+//                       (G1; SIN1, COS1, SC1, TAN1, ATAN1, ATAN2, EXP1,
+//                       LOG1, LOG5).
+//   <form>-rc<n>        under each rounding mode, FLDCW 037Fh, 077Fh, 0B7Fh
+//                       and 0F7Fh (G4).
+//   <form>-pc24, -pc53  under precision control 24 and 53 bits, which does
+//                       not apply (G3).
+//   <form>-special      the one-operand forms on zeros of both signs,
+//                       infinities, a quiet and a signalling NaN, two
+//                       denormals and two unsupported encodings, each loaded
+//                       with FLD m80 (G7, G8, G9, G12; TRIG4, SIN1, COS1,
+//                       SC1, TAN1, EXP2).
+//   <form>-special-<y>  the two-operand forms with that ST(1) against each
+//                       of the same in ST(0) and a few normal values (ATAN3,
+//                       ATAN4, LOG2, LOG3, LOG4, LOG6).
+//   <form>-empty        an empty stack, and for the two-operand forms an
+//                       empty ST(1): the masked stack underflow (G13).
+//   <form>-full         FPTAN and FSINCOS with ST(7) in use: the masked
+//                       stack overflow (G13, TAN2).
+//   <form>-range        FSIN, FCOS, FSINCOS and FPTAN at 2^63 - 1 ulp, 2^63,
+//                       2^63 + 1 ulp and the largest finite value, each
+//                       sign: C2 set and the operand unchanged at and above
+//                       2^63, nothing pushed (TRIG1, TRIG2, TRIG3).
+//   <form>-denormal-rc<n>
+//                       denormals, a pseudo-denormal and the smallest normal
+//                       values in each operand slot under each rounding
+//                       mode (G9, G12): where the oracle's flags were
+//                       measured to differ from the 387's, the recorded
+//                       differences (divergences.toml) and nothing wider.
+//                       Nine of these instructions are open cases, not run
+//                       unless FES_I386_TRANS_OPEN is set (see `open`).
+//   fsincos-order       FSINCOS of a zero and of 0.5: ST(0) the cosine,
+//                       ST(1) the sine (SC1); fptan-one, FPTAN's pushed 1.0
+//                       read back by FLD1 and FUCOMPP (TAN1).
+//   fyl2xp1-below-minus-one, fyl2xp1-minus-one
+//                       the recorded difference (LOG5; divergences.toml).
+//   random-<n>          seeded programs mixing the transcendentals with the
+//                       other built forms: results added, multiplied,
+//                       compared, rounded, stored and fed to another
+//                       transcendental, under a random rounding mode.
+//   selftest-<form>     the rule shown able to fail, on the first retirement
+//                       of each form whose result the bound gated: a result
+//                       moved to exactly the bound from the oracle's passes
+//                       and one more fails, an unset bound fails, and so do
+//                       a result of the other sign, a flag, C0, C2, C3 or
+//                       TOP changed, and a register the instruction did not
+//                       write changed by one. selftest-distance: values
+//                       either side of a power of two are 1 apart.
+//   oracle-setter       Oracle::set_x87_register and set_x87_status_bits on
+//                       the oracle alone (both backends).
+// Every exception is masked: this bench drives no IRQ 13, as the x87 and
+// x87bcd suites do not, so the unmasked cases are the unit bench's. No case
+// stores with FSTP m64 or m80 (the RTL's data pointer after those is a known
+// open defect, not this suite's). F2XM1 and FYL2XP1 operands are kept inside
+// the ranges the manual defines (EXP1, LOG5) but for the recorded FYL2XP1
+// cases: outside them the manual says undefined and the references disagree
+// (rules.md M10).
+//
+// With the DE10 backend (FES_X87_BACKEND == 0) none of the eight is built:
+// each is run on the RTL alone and must end in FAULT_UNIMPLEMENTED with
+// nothing retired, beside a control (FNOP, D9 D0, the same ESC byte) that
+// must retire, as run_x87_bcd_cases does and for its reason.
+int run_x87_trans_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                        Summary &summary) {
+    using R = fes_i386::X87Register;
+    constexpr uint32_t CODE = 0x1000, HANDLER = 0x0900, DS = 0x7000;
+    constexpr uint64_t J = 1ull << 63;
+    // A program and the operands it loads, each at its own offset in DS.
+    struct Prog {
+        std::vector<uint8_t> b;
+        std::vector<std::pair<uint16_t, std::vector<uint8_t>>> data;
+        uint16_t next = 0x1000, store = 0x300;
+        void op(std::initializer_list<uint8_t> bytes) { b.insert(b.end(), bytes); }
+        void w(uint16_t v) { b.push_back(uint8_t(v)); b.push_back(uint8_t(v >> 8)); }
+        void esc(uint8_t opcode, unsigned reg, uint16_t off) { b.push_back(opcode); b.push_back(uint8_t(reg << 3 | 6)); w(off); }
+        uint16_t put(const std::vector<uint8_t> &bytes) {
+            const uint16_t at = next;
+            data.emplace_back(at, bytes);
+            next = uint16_t(next + ((bytes.size() + 1) & ~size_t(1)));
+            return at;
+        }
+        void fld(const R &v) {
+            std::vector<uint8_t> out(10);
+            for (int n = 0; n < 8; ++n) out[n] = uint8_t(v.significand >> (8 * n));
+            out[8] = uint8_t(v.sign_exponent);
+            out[9] = uint8_t(v.sign_exponent >> 8);
+            esc(0xdb, 5, put(out));                               // FLD m80
+        }
+        void fldcw(uint16_t cw) { esc(0xd9, 5, put({uint8_t(cw), uint8_t(cw >> 8)})); }
+        void t(unsigned form) { op({0xd9, TRANS_MODRM[form]}); }
+        void fninit() { op({0xdb, 0xe3}); }
+        void fnstsw() { op({0xdf, 0xe0}); }                       // FNSTSW AX: an ESC, so it waits for the unit
+        void fst32() { esc(0xd9, 2, store); store = uint16_t(store + 4); }   // FST m32
+        void nops(unsigned n) { for (unsigned k = 0; k < n; ++k) op({0x90}); }
+    };
+    struct Case {
+        std::string label;
+        std::function<void(Prog &)> body;
+    };
+    // An extended value from a double, exactly (normal doubles and zero).
+    auto dbl = [](double d) {
+        uint64_t bits;
+        std::memcpy(&bits, &d, sizeof bits);
+        const uint16_t sign = uint16_t(bits >> 63 << 15);
+        const unsigned exponent = unsigned(bits >> 52) & 0x7ff;
+        if (exponent == 0) return R{0, sign};
+        return R{J | (bits & 0xfffffffffffffull) << 11, uint16_t(sign | (exponent - 1023 + 0x3fff))};
+    };
+    auto negated = [](R v) { v.sign_exponent ^= 0x8000; return v; };
+    struct Named { const char *name; R v; };
+    const std::vector<Named> specials = {
+        {"pzero", {0, 0x0000}}, {"nzero", {0, 0x8000}},
+        {"pinf", {J, 0x7fff}}, {"ninf", {J, 0xffff}},
+        {"qnan", {0xc000000000000001ull, 0x7fff}}, {"snan", {0xa000000000000000ull, 0xffff}},
+        {"denormal", {0x0000000012345678ull, 0x0000}}, {"ndenormal", {0x7fffffffffffffffull, 0x8000}},
+        {"unnormal", {0x4000000000000000ull, 0x3fff}}, {"pseudonan", {0x4000000000000001ull, 0x7fff}},
+    };
+    const R one = dbl(1.0);
+    const R pi_2{0xc90fdaa22168c235ull, 0x3fff}, pi{0xc90fdaa22168c235ull, 0x4000};   // the nearest to pi/2 and to pi
+    // The operands in range, by form. Trigonometric: small, moderate, beside
+    // a zero and a pole (the oracle's result is then outside [2^-10, 2^10]
+    // for one form or another: value unchecked), and large.
+    const std::vector<R> trig_operands = {dbl(0.5), dbl(-0.5), dbl(1.0), dbl(2.0), dbl(-3.0), dbl(10.0), dbl(100.5),
+                                          dbl(0x1.3c0ca4283de1bp+40), dbl(-0x1.19999999999ap+62), pi_2, pi,
+                                          dbl(0x1p-30), dbl(-0x1.8p-12)};
+    const std::vector<R> exp_operands = {dbl(0.5), dbl(-0.5), dbl(0.75), dbl(-0.999), dbl(0x1p-20), dbl(-0x1.4p-40),
+                                         dbl(1.0), dbl(-1.0), dbl(0.3)};
+    // {ST(1), ST(0)}
+    const std::vector<std::array<R, 2>> log_operands = {{dbl(1.0), dbl(2.0)}, {dbl(3.0), dbl(10.0)}, {dbl(-2.5), dbl(0.3)},
+                                                        {dbl(1.0), dbl(1.0000001)}, {dbl(7.0), dbl(0x1.4cccccccccccdp+100)},
+                                                        {dbl(-0.125), dbl(0x1.8p-200)}, {dbl(5.0), dbl(1.0)},
+                                                        {dbl(1.0), dbl(0.999999)}};
+    const std::vector<std::array<R, 2>> atan_operands = {{dbl(1.0), dbl(1.0)}, {dbl(1.0), dbl(-1.0)}, {dbl(-1.0), dbl(-1.0)},
+                                                         {dbl(-1.0), dbl(1.0)}, {dbl(0.001), dbl(5.0)}, {dbl(5.0), dbl(0.001)},
+                                                         {dbl(3.0), dbl(-4.0)}, {dbl(-0x1p+300), dbl(0x1.8p-200)},
+                                                         {dbl(0x1.2p-70), dbl(-7.5)}};
+    const std::vector<std::array<R, 2>> log1p_operands = {{dbl(1.0), dbl(0.25)}, {dbl(2.0), dbl(-0.25)}, {dbl(-3.0), dbl(0.1)},
+                                                          {dbl(1.0), dbl(0x1p-30)}, {dbl(-0.5), dbl(-0x1.8p-50)},
+                                                          {dbl(100.0), dbl(0.29)}, {dbl(1.5), dbl(-0.29)}};
+    auto pairs_of = [&](unsigned form) -> const std::vector<std::array<R, 2>> & {
+        return form == T_FYL2X ? log_operands : form == T_FPATAN ? atan_operands : log1p_operands;
+    };
+    auto singles_of = [&](unsigned form) -> const std::vector<R> & { return form == T_F2XM1 ? exp_operands : trig_operands; };
+    // One instruction's results into the sum beneath: a two-result form's
+    // two are multiplied first, each result is stored, and the sum is added
+    // to. `busy` puts non-ESC instructions straight after the form, which
+    // retire while the unit works.
+    auto consume = [](Prog &p, unsigned form, bool busy) {
+        p.t(form);
+        if (busy) { p.nops(2); p.op({0x40}); }                    // NOP, NOP, INC AX
+        if (form == T_FPTAN || form == T_FSINCOS) p.op({0xde, 0xc9});   // FMULP ST(1),ST
+        p.fst32();
+        p.op({0xde, 0xc1});                                       // FADDP ST(1),ST
+        p.fnstsw();
+    };
+    auto ordinary = [&](unsigned form, uint16_t cw, size_t limit) {
+        return [=, &consume, &pairs_of, &singles_of](Prog &p) {
+            p.fninit();
+            if (cw != 0x037f) p.fldcw(cw);
+            p.op({0xd9, 0xee});                                    // FLDZ: the sum
+            if (trans_two_operand(form)) {
+                const auto &pairs = pairs_of(form);
+                for (size_t n = 0; n < pairs.size() && n < limit; ++n) {
+                    p.fld(pairs[n][0]);
+                    p.fld(pairs[n][1]);
+                    consume(p, form, n & 1);
+                }
+            } else {
+                const auto &singles = singles_of(form);
+                for (size_t n = 0; n < singles.size() && n < limit; ++n) {
+                    p.fld(singles[n]);
+                    consume(p, form, n & 1);
+                }
+            }
+        };
+    };
+    std::vector<Case> cases;
+    for (unsigned form = 0; form < TRANS_FORMS; ++form) {
+        const std::string name = TRANS_NAME[form];
+        const bool two = trans_two_operand(form), trig = trans_trig(form), pushes = form == T_FPTAN || form == T_FSINCOS;
+        cases.push_back({name + "-ordinary", ordinary(form, 0x037f, 100)});
+        for (unsigned rc = 0; rc < 4; ++rc)
+            cases.push_back({name + "-rc" + std::to_string(rc), ordinary(form, uint16_t(0x037f | rc << 10), 5)});
+        cases.push_back({name + "-pc24", ordinary(form, 0x007f, 5)});
+        cases.push_back({name + "-pc53", ordinary(form, 0x027f, 5)});
+        if (!two) {
+            cases.push_back({name + "-special", [=](Prog &p) {
+                for (const Named &s : specials) {
+                    p.fninit();
+                    p.op({0xd9, 0xe8});                            // FLD1 beneath
+                    p.fld(s.v);
+                    p.t(form);
+                    p.fnstsw();
+                }
+            }});
+            cases.push_back({name + "-empty", [=](Prog &p) {
+                p.fninit();
+                p.t(form);
+                p.fnstsw();
+            }});
+        } else {
+            // ST(0)'s values: the specials and a few normal ones, kept
+            // inside FYL2XP1's range for that form.
+            std::vector<R> xs;
+            for (const Named &s : specials) xs.push_back(s.v);
+            if (form == T_FYL2XP1) {
+                xs.push_back(dbl(0.25));
+                xs.push_back(dbl(-0.25));
+            } else {
+                for (double d : {1.0, 2.0, 0.5, -2.0}) xs.push_back(dbl(d));
+            }
+            std::vector<Named> ys = specials;
+            ys.push_back({"one", dbl(1.0)});
+            ys.push_back({"minus3", dbl(-3.0)});
+            for (const Named &y : ys)
+                cases.push_back({name + "-special-" + y.name, [=](Prog &p) {
+                    for (const R &x : xs) {
+                        p.fninit();
+                        p.op({0xd9, 0xe8});                        // FLD1 beneath, so the pop shows
+                        p.fld(y.v);
+                        p.fld(x);
+                        p.t(form);
+                        p.fnstsw();
+                    }
+                }});
+            cases.push_back({name + "-empty", [=](Prog &p) {
+                p.fninit();
+                p.t(form);                                         // both empty
+                p.fnstsw();
+                p.fninit();
+                p.op({0xd9, 0xe8});
+                p.t(form);                                         // ST(1) empty
+                p.fnstsw();
+            }});
+        }
+        if (pushes)
+            cases.push_back({name + "-full", [=](Prog &p) {
+                p.fninit();
+                for (int n = 0; n < 7; ++n) p.op({0xd9, 0xe8});     // seven FLD1 and the operand: ST(7) in use
+                p.fld(dbl(0.5));
+                p.t(form);
+                p.fnstsw();
+            }});
+        if (trig)
+            cases.push_back({name + "-range", [=](Prog &p) {
+                const R range[] = {{0xffffffffffffffffull, 0x403d}, {J, 0x403e}, {J | 1, 0x403e},
+                                   {0xffffffffffffffffull, 0x7ffe}};
+                for (const R &magnitude : range)
+                    for (bool negative : {false, true}) {
+                        p.fninit();
+                        p.op({0xd9, 0xe8});
+                        p.fld(negative ? negated(magnitude) : magnitude);
+                        p.t(form);
+                        p.fnstsw();
+                    }
+            }});
+    }
+    // Denormal operands, and the smallest normal values, in each slot and
+    // under each rounding mode: where the result is tiny the 387 flags
+    // underflow with precision (G9, G12). One case a form and rounding
+    // mode; FES_I386_TRANS_SPLIT makes each instruction a case of its own,
+    // to see every difference rather than a program's first.
+    {
+        const R tiny{0x0000000012345678ull, 0x0000}, big{0x7fffffffffffffffull, 0x8000}, pseudo{J, 0x0000};
+        const R least{J, 0x0001}, small{0xb504f333f9de6484ull, 0x0180};
+        struct Item { unsigned form, rc; bool two; R y, x; };
+        std::vector<Item> items;
+        for (unsigned form = 0; form < TRANS_FORMS; ++form)
+            for (unsigned rc = 0; rc < 4; ++rc) {
+                if (!trans_two_operand(form)) {
+                    for (const R &x : {tiny, big, pseudo, least, small}) items.push_back({form, rc, false, {}, x});
+                    continue;
+                }
+                // A tiny ST(1) against normal ST(0)s, then a tiny ST(0).
+                const std::vector<R> xs = form == T_FYL2XP1 ? std::vector<R>{dbl(0.2), dbl(-0.2), dbl(0x1p-20)}
+                                          : form == T_FYL2X ? std::vector<R>{dbl(1.5), dbl(3.0), dbl(0.7), dbl(1e10)}
+                                          : std::vector<R>{dbl(1.5), dbl(3.0), dbl(0.7), dbl(-3.0), dbl(-1e10), dbl(1e-10)};
+                for (const R &y : {tiny, big, pseudo, least, small})
+                    for (const R &x : xs) items.push_back({form, rc, true, y, x});
+                for (const R &y : {dbl(1.0), dbl(-3.0), dbl(0x1p-100)})
+                    for (const R &x : {tiny, pseudo, least, small}) items.push_back({form, rc, true, y, x});
+            }
+        auto emit = [](Prog &p, const Item &i) {
+            p.fninit();
+            p.fldcw(uint16_t(0x037f | i.rc << 10));
+            p.op({0xd9, 0xe8});
+            if (i.two) p.fld(i.y);
+            p.fld(i.x);
+            p.t(i.form);
+            p.fnstsw();
+        };
+        auto text = [](const R &r) { return hex(r.sign_exponent) + ":" + hex(r.significand); };
+        // The open cases (divergences.toml x87-tiny-directed-rounding, follow
+        // "open"): nine instructions at the boundary between the denormals
+        // and the normal values under a directed rounding mode, where the
+        // RTL rounds the result in the mode's direction and the oracle (and
+        // the two build hosts' x87) return the operand, so the two results,
+        // one apart, lie either side of the boundary and the tag, and for
+        // FSIN and FSINCOS the underflow flag, follow each side's own
+        // result. Nothing in the rule accepts that. They are kept out of the
+        // gated cases, counted (open_cases) and run, each a case of its own
+        // that is expected to fail, under FES_I386_TRANS_OPEN.
+        auto open = [=](const Item &i) {
+            const bool least_value = i.x == pseudo || i.x == least;
+            return ((i.form == T_FSIN || i.form == T_FSINCOS) && (i.rc == 1 || i.rc == 3) && least_value)
+                || (i.form == T_FPTAN && i.rc == 1 && i.x == big);
+        };
+        auto single = [=](const Item &i) {
+            return std::string(TRANS_NAME[i.form]) + "-denormal-rc" + std::to_string(i.rc) + "-st0-" + text(i.x)
+                 + (i.two ? "-st1-" + text(i.y) : "");
+        };
+        for (const Item &i : items) trans_rule.open_cases += open(i);
+        if (std::getenv("FES_I386_TRANS_SPLIT")) {
+            for (const Item &i : items) cases.push_back({single(i), [=](Prog &p) { emit(p, i); }});
+        } else {
+            for (unsigned form = 0; form < TRANS_FORMS; ++form)
+                for (unsigned rc = 0; rc < 4; ++rc)
+                    cases.push_back({std::string(TRANS_NAME[form]) + "-denormal-rc" + std::to_string(rc), [=](Prog &p) {
+                        for (const Item &i : items)
+                            if (i.form == form && i.rc == rc && !open(i)) emit(p, i);
+                    }});
+            if (std::getenv("FES_I386_TRANS_OPEN")) {
+                trans_rule.open_run = true;
+                for (const Item &i : items)
+                    if (open(i)) cases.push_back({"open-" + single(i), [=](Prog &p) { emit(p, i); }});
+            }
+        }
+    }
+    cases.push_back({"fsincos-order", [=](Prog &p) {
+        p.fninit();
+        p.op({0xd9, 0xee});                                        // FLDZ
+        p.t(T_FSINCOS);                                            // ST(0) 1.0, ST(1) +0
+        p.op({0xd9, 0xe5});                                        // FXAM: a normal value
+        p.fnstsw();
+        p.op({0xd9, 0xc9});                                        // FXCH
+        p.op({0xd9, 0xe5});                                        // FXAM: a zero
+        p.fnstsw();
+        p.fninit();
+        p.fld(dbl(0.5));
+        p.t(T_FSINCOS);                                            // cos 0.5 above sin 0.5
+        p.op({0xd8, 0xd1});                                        // FCOM ST(1): greater
+        p.fnstsw();
+    }});
+    cases.push_back({"fptan-one", [=](Prog &p) {
+        p.fninit();
+        p.fld(dbl(0.5));
+        p.t(T_FPTAN);
+        p.op({0xd9, 0xe8});                                        // FLD1
+        p.op({0xda, 0xe9});                                        // FUCOMPP: equal
+        p.fnstsw();
+        p.fst32();
+    }});
+    cases.push_back({"fyl2xp1-below-minus-one", [=](Prog &p) {
+        for (const R &x : {dbl(-1.5), dbl(-2.0), dbl(-1e10), R{J | 1, 0xbfff}})
+            for (const R &y : {dbl(1.0), dbl(-1.0), dbl(2.5), R{0, 0x0000}, R{0, 0x8000}}) {
+                p.fninit();
+                p.op({0xd9, 0xe8});
+                p.fld(y);
+                p.fld(x);
+                p.t(T_FYL2XP1);
+                p.fnstsw();
+            }
+    }});
+    cases.push_back({"fyl2xp1-minus-one", [=](Prog &p) {
+        for (const R &y : {dbl(1.0), dbl(-1.0), dbl(2.5), R{0, 0x0000}, R{0, 0x8000}}) {
+            p.fninit();
+            p.op({0xd9, 0xe8});
+            p.fld(y);
+            p.fld(dbl(-1.0));
+            p.t(T_FYL2XP1);
+            p.fnstsw();
+        }
+    }});
+    // Seeded programs. Every transcendental's operands are loaded fresh and
+    // in range, or are the results of the ones before it where that keeps
+    // them in range; what follows consumes the result.
+    std::mt19937 random(0x19582027u);
+    constexpr unsigned RANDOM_CASES = 24;
+    for (unsigned n = 0; n < RANDOM_CASES; ++n) {
+        // A normal value with a magnitude in [2^lo, 2^hi) and a random sign.
+        auto value = [&](int lo, int hi, bool positive = false) {
+            const uint64_t sig = (uint64_t(random()) << 32 | random()) | J;
+            const uint16_t exponent = uint16_t(0x3fff + lo + int(random() % unsigned(hi - lo)));
+            return R{sig, uint16_t(exponent | (positive ? 0 : (random() & 1) << 15))};
+        };
+        struct Step { unsigned kind; R a, b; unsigned busy, tail; };
+        std::vector<Step> steps;
+        for (unsigned k = 0; k < 10; ++k) {
+            Step s{unsigned(random() % 9), {}, {}, unsigned(random() % 3), unsigned(random() % 6)};
+            switch (s.kind) {
+                case 0: case 1: case 2: case 3: s.a = value(-6, 20); break;        // FSIN, FCOS, FSINCOS, FPTAN
+                case 4: s.a = value(-30, 0); break;                                 // F2XM1: |x| < 1
+                case 5: s.a = value(-4, 4); s.b = value(-30, 30, true); break;      // FYL2X: x > 0
+                case 6: s.a = value(-4, 4); s.b = value(-40, -2); break;            // FYL2XP1: |x| < 0.25
+                case 7: s.a = value(-20, 20); s.b = value(-20, 20); break;          // FPATAN
+                default: s.a = value(-6, 20); s.b = value(-4, 4); break;            // the chain
+            }
+            steps.push_back(s);
+        }
+        const unsigned rc = random() % 4;
+        cases.push_back({"random-" + std::to_string(n), [=](Prog &p) {
+            p.fninit();
+            p.fldcw(uint16_t(0x037f | rc << 10));
+            p.op({0xd9, 0xe8});                                    // FLD1: the running value
+            for (const Step &s : steps) {
+                auto busy = [&] { if (s.busy == 1) p.nops(1); else if (s.busy == 2) { p.nops(3); p.op({0x40}); } };
+                switch (s.kind) {
+                    case 0: p.fld(s.a); p.t(T_FSIN); busy(); break;
+                    case 1: p.fld(s.a); p.t(T_FCOS); busy(); break;
+                    case 2:
+                        p.fld(s.a); p.t(T_FSINCOS); busy();
+                        if (s.tail & 1) p.t(T_FPATAN);             // atan2(sin, cos)
+                        else p.op({0xde, 0xc9});                   // FMULP
+                        break;
+                    case 3:
+                        p.fld(s.a); p.t(T_FPTAN); busy();
+                        if (s.tail & 1) p.t(T_FPATAN);             // atan(tan x)
+                        else p.op({0xde, 0xf9});                   // FDIVP ST(1),ST: the tangent
+                        break;
+                    case 4:
+                        p.fld(s.a); p.t(T_F2XM1); busy();
+                        if (s.tail & 1) {                          // y * log2(2^x): FLD1; FADDP; FLD1; FXCH; FYL2X
+                            p.op({0xd9, 0xe8}); p.op({0xde, 0xc1}); p.op({0xd9, 0xe8}); p.op({0xd9, 0xc9}); p.t(T_FYL2X);
+                        }
+                        break;
+                    case 5: p.fld(s.a); p.fld(s.b); p.t(T_FYL2X); busy(); break;
+                    case 6: p.fld(s.a); p.fld(s.b); p.t(T_FYL2XP1); busy(); break;
+                    case 7:
+                        p.fld(s.a); p.fld(s.b); p.t(T_FPATAN); busy();
+                        if (s.tail & 1) p.t(s.tail & 2 ? T_FSIN : T_FCOS);   // of the angle
+                        break;
+                    default:
+                        // FSIN, then F2XM1 of it (|sin| <= 1), a quarter of
+                        // that (within [-1/8, 1/4]) as FYL2XP1's ST(0).
+                        p.fld(s.b);
+                        p.fld(s.a); p.t(T_FSIN); p.t(T_F2XM1); busy();
+                        p.fld(R{J, 0x3ffd});                       // 0.25
+                        p.op({0xde, 0xc9});                        // FMULP
+                        p.t(T_FYL2XP1);
+                        break;
+                }
+                // One result above the running value: other built forms
+                // consume it, and it ends in the running value.
+                switch (s.tail) {
+                    case 0: p.op({0xd8, 0xd1}); p.fnstsw(); break;                     // FCOM ST(1)
+                    case 1: p.op({0xd9, 0xe1}); p.op({0xd9, 0xfa}); break;             // FABS, FSQRT
+                    case 2: p.fst32(); break;
+                    case 3: p.op({0xd9, 0xc0}); p.op({0xd9, 0xfc}); p.op({0xde, 0xe9}); break;   // FLD ST; FRNDINT; FSUBP
+                    case 4: p.op({0xd9, 0xe0}); p.op({0xd9, 0xe5}); break;             // FCHS, FXAM
+                    default: p.op({0xd8, 0xc8}); break;                                // FMUL ST,ST(0)
+                }
+                if (s.busy == 0) p.op({0xde, 0xc1});               // FADDP ST(1),ST
+                else p.op({0xde, 0xc9});                           // FMULP ST(1),ST
+                // Keep the running value's exponent modest: back to 1.0 when
+                // it is not a normal value within 2^+-2000. FXTRACT would
+                // do, but a reload is plainer.
+                p.op({0xdd, 0xd8});                                // FSTP ST(0)
+                p.op({0xd9, 0xe8});                                // FLD1
+            }
+            p.fnstsw();
+        }});
+    }
+
+    const bool was_fitted = x87_fitted;
+    x87_fitted = true;
+    oracle.set_at_coprocessor(true);
+    State base;
+    for (int k = 0; k < 6; ++k) base.seg[k] = fes_i386::real_mode_segment(0);
+    base.seg[fes_i386::SEG_DS] = fes_i386::real_mode_segment(uint16_t(DS >> 4));
+    base.eip = CODE;
+    base.gpr[fes_i386::REG_ESP] = 0x0f00;
+    base.cr0 = 0x7ffffff0 | 0x10;   // ET, as with a 387 fitted (run_x87_cases)
+    auto verdict = [&](const std::string &label, const Mismatches &out) {
+        ++summary.runs;
+        if (out.items.empty()) {
+            ++summary.passed;
+        } else {
+            ++summary.failed;
+            std::cout << "FAIL x87trans:" << label;
+            for (const auto &item : out.items) std::cout << ' ' << item;
+            std::cout << '\n';
+        }
+    };
+
+    // oracle-setter: the oracle alone. FNINIT; FLD1; FLDPI; HLT leaves TOP 6
+    // with pi in physical 6 and 1.0 in 7. The setters then write a negative
+    // quiet NaN over ST(0), a negative zero over ST(1) and 2.0 into the
+    // empty physical 2, and status bits; x87_state() must read each back
+    // with its tag and nothing else changed; and FNSTENV, FXAM and FNSTSW AX
+    // stepped after it must see the same tag word, status word and ST(0).
+    {
+        Mismatches out;
+        const uint8_t code[] = {0xdb, 0xe3, 0xd9, 0xe8, 0xd9, 0xeb, 0xf4,          // FNINIT; FLD1; FLDPI; HLT
+                                0xd9, 0x36, 0x00, 0x04,                            // FNSTENV [0400h]
+                                0xd9, 0x2e, 0x00, 0x04,                            // FLDCW [0400h]: the masks back
+                                0xd9, 0xe5, 0xdf, 0xe0, 0xf4};                     // FXAM; FNSTSW AX; HLT
+        std::vector<uint32_t> touched;
+        for (size_t i = 0; i < sizeof code; ++i) touched.push_back(CODE + uint32_t(i));
+        for (uint32_t i = 0; i < 14; ++i) touched.push_back(DS + 0x400 + i);
+        for (size_t i = 0; i < sizeof code; ++i) bus.ram[CODE + i] = rtl.poke(CODE + uint32_t(i), code[i]);
+        for (uint32_t address : touched) oracle.invalidate(address, 1);
+        oracle.reset();
+        oracle.set_state(base);
+        bool halted = false;
+        for (int n = 0; n < 8 && !halted; ++n) halted = oracle.step().halted;
+        if (!halted) out.add("oracle-setter.halt", 1, 0);
+        const fes_i386::X87State s = oracle.x87_state();
+        if (((s.status >> 11) & 7) != 6 || s.tag != 0x0fff) out.add("oracle-setter.before", 0x0fff, s.tag);
+        const R nan{0xc000000000001234ull, 0xffff}, zero{0, 0x8000}, two{J, 0x4000};
+        oracle.set_x87_register(6, nan);
+        oracle.set_x87_register(7, zero);
+        oracle.set_x87_register(2, two);
+        oracle.set_x87_status_bits(0x0200, 0xffff);                 // C1 alone
+        fes_i386::X87State want = s;
+        want.r[6] = nan;
+        want.r[7] = zero;
+        want.r[2] = two;
+        want.tag = uint16_t((0xffff & ~(3u << 4) & ~(3u << 12) & ~(3u << 14)) | 2u << 12 | 1u << 14);   // 2 valid, 6 special, 7 zero
+        want.status = uint16_t(s.status | 0x0200);
+        for (const std::string &field : fes_i386::x87_differences(want, oracle.x87_state()))
+            out.add("oracle-setter.readback." + field, 0, 1);
+        oracle.set_x87_status_bits(0x4500, 0x4100);                 // C3 and C0 set, C2 clear
+        oracle.set_x87_status_bits(0x007f, 0x0021);                 // PE and IE, every mask set: ES stays clear
+        want.status = uint16_t((want.status & ~0x457f) | 0x4121);
+        for (const std::string &field : fes_i386::x87_differences(want, oracle.x87_state()))
+            out.add("oracle-setter.status." + field, want.status, oracle.x87_state().status);
+        // TOP, ES and B are not the setter's, nor is a ninth register.
+        for (uint16_t mask : {uint16_t(0x3800), uint16_t(0x0080), uint16_t(0x8000)}) {
+            bool refused = false;
+            try { oracle.set_x87_status_bits(mask, 0); } catch (const std::invalid_argument &) { refused = true; }
+            if (!refused) out.add("oracle-setter.mask-not-refused", mask, 0);
+        }
+        {
+            bool refused = false;
+            try { oracle.set_x87_register(8, two); } catch (const std::invalid_argument &) { refused = true; }
+            if (!refused) out.add("oracle-setter.register-not-refused", 8, 0);
+        }
+        // What the oracle's own instructions then read.
+        State next = oracle.get_state();
+        next.eip = CODE + 7;
+        oracle.set_state(next);
+        halted = false;
+        for (int n = 0; n < 8 && !halted; ++n) halted = oracle.step().halted;
+        if (!halted) out.add("oracle-setter.halt-2", 1, 0);
+        auto word = [&](uint32_t at) { return uint16_t(bus.ram[DS + at] | bus.ram[DS + at + 1] << 8); };
+        if (word(0x402) != want.status) out.add("oracle-setter.fnstenv-status", want.status, word(0x402));
+        if (word(0x404) != want.tag) out.add("oracle-setter.fnstenv-tag", want.tag, word(0x404));
+        // FXAM of a negative NaN: C3 0, C2 0, C1 1, C0 1.
+        const uint16_t ax = uint16_t(oracle.get_state().gpr[fes_i386::REG_EAX]);
+        if ((ax & 0x4700) != 0x0300) out.add("oracle-setter.fxam", 0x0300, ax & 0x4700);
+        for (uint32_t address : touched) {
+            bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        oracle.reset();
+        verdict("oracle-setter", out);
+    }
+
+    if (FES_X87_BACKEND != 1) {
+        // The DE10 backend: the RTL alone, which must stop at each form.
+        for (unsigned form = 0; form <= TRANS_FORMS; ++form) {
+            const bool control = form == TRANS_FORMS;
+            const uint8_t code[] = {0xd9, control ? uint8_t(0xd0) : TRANS_MODRM[form], 0xf4};   // the form (or FNOP); HLT
+            for (size_t i = 0; i < sizeof code; ++i) rtl.poke(CODE + uint32_t(i), code[i]);
+            rtl.start(base);
+            const Rtl::Event event = rtl.next();
+            const bool nothing_retired = rtl.state().eip == CODE;
+            summary.cycles += rtl.cycles;
+            rtl.cycles = 0;
+            const bool stopped = event == Rtl::Event::Unimplemented && nothing_retired;
+            const bool retired = event == Rtl::Event::Retired && !rtl.top.trace_exception && !nothing_retired;
+            Mismatches out;
+            if (control ? retired : stopped) {
+                if (!control) ++trans_rule.tally[form].not_built;
+            } else {
+                out.add(event == Rtl::Event::Unimplemented ? "stopped-as-not-built"
+                        : event == Rtl::Event::Retired ? (rtl.top.trace_exception ? "exception" : "retired")
+                        : event == Rtl::Event::Shutdown ? "shutdown" : "timeout", 1, 0);
+            }
+            verdict(control ? std::string("de10-control-fnop-retires") : std::string("de10-") + TRANS_NAME[form] + "-not-built",
+                    out);
+            for (size_t i = 0; i < sizeof code; ++i) rtl.poke(CODE + uint32_t(i), 0);
+            for (uint32_t address : rtl.written)
+                if (address < RAM_BYTES) rtl.poke(address, 0);
+            rtl.written.clear();
+        }
+        x87_fitted = was_fitted;
+        oracle.set_at_coprocessor(was_fitted);
+        return 0;
+    }
+
+    trans_rule.on = true;
+    const char *only = std::getenv("FES_I386_TRANS_CASE");   // a label's prefix, to run some cases again
+    for (const Case &c : cases) {
+        if (only && c.label.compare(0, std::strlen(only), only) != 0) continue;
+        Prog p;
+        // run_x87_cases' prologue: every register written and emptied, so
+        // both sides start with the same register contents.
+        p.fninit();
+        const uint16_t f32 = p.put({0x00, 0x00, 0xc0, 0x3f});      // f32 1.5
+        for (int n = 0; n < 8; ++n) p.esc(0xd9, 0, f32);
+        p.fninit();
+        x87_compare_from = CODE + uint32_t(p.b.size());
+        c.body(p);
+        p.op({0xf4});
+        Mismatches out;
+        if (CODE + p.b.size() > DS || p.next < 0x1000 || p.store > 0x460)
+            out.add(c.label + ".program-too-large", DS - CODE, p.b.size());
+        std::vector<std::pair<uint32_t, uint8_t>> image;
+        for (size_t i = 0; i < p.b.size(); ++i) image.emplace_back(CODE + uint32_t(i), p.b[i]);
+        for (unsigned v = 0; v < 32; ++v) {
+            image.emplace_back(v * 4, uint8_t(HANDLER)); image.emplace_back(v * 4 + 1, uint8_t(HANDLER >> 8));
+            image.emplace_back(v * 4 + 2, 0); image.emplace_back(v * 4 + 3, 0);
+        }
+        image.emplace_back(HANDLER, 0xf4);
+        for (const auto &[at, bytes] : p.data)
+            for (unsigned i = 0; i < bytes.size(); ++i) image.emplace_back(DS + at + i, bytes[i]);
+        // The stores' destinations and their neighbours.
+        for (uint32_t i = 0x300; i < 0x460; ++i) image.emplace_back(DS + i, 0xcc);
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, value);
+            oracle.invalidate(address, 1);
+        }
+        oracle.reset();
+        oracle.set_state(base);
+        rtl.start(base);
+        trans_rule.pending = false;
+        Outcome outcome;
+        if (out.items.empty()) {
+            try {
+                outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 4000, true, summary, out, CODE + uint32_t(p.b.size()));
+            } catch (const std::exception &error) {
+                out.add(c.label + ".oracle-error:" + error.what(), 0, 1);
+                oracle.reset();
+            }
+            if (!outcome.halted) out.add(c.label + ".halt", 1, 0);
+            if (outcome.exception >= 0) out.add(c.label + ".exception", 0xff, uint32_t(outcome.exception));
+            if (outcome.unbuilt >= 0) out.add(c.label + ".unbuilt", 0, uint32_t(outcome.unbuilt));
+            if (outcome.limit) out.add(c.label + ".retire-limit", 0, 1);
+            // A transcendental whose compare was never made is not a pass.
+            if (trans_rule.pending) out.add(c.label + ".transcendental-compare-pending", 0, 1);
+            trans_rule.pending = false;
+            rtl.settle_x87();
+            const fes_i386::X87State want = oracle.x87_state(), got = rtl.x87_state();
+            for (const std::string &field : fes_i386::x87_differences(want, got)) out.add(c.label + ".x87." + field, 0, 1);
+            if (!out.items.empty()) {
+                auto show = [](const char *side, const fes_i386::X87State &s) {
+                    std::cerr << "  " << side << " cw " << hex(s.control) << " sw " << hex(s.status)
+                              << " tw " << hex(s.tag) << " op " << hex(s.opcode)
+                              << " ip " << hex(s.pointers.ip) << " dp " << hex(s.pointers.dp);
+                    for (int n = 0; n < 8; ++n)
+                        std::cerr << " r" << n << ' ' << hex(s.r[n].sign_exponent) << ':' << hex(s.r[n].significand);
+                    std::cerr << '\n';
+                };
+                std::cerr << "x87trans:" << c.label << " states at the end (eip " << hex(rtl.state().eip) << ", code "
+                          << outcome.code << ", halted " << outcome.halted << ", unbuilt " << outcome.unbuilt << ")\n";
+                show("oracle", want);
+                show("rtl   ", got);
+            }
+            end_run(bus, rtl, outcome.halted, out);
+        }
+        summary.cycles += rtl.cycles;
+        rtl.cycles = 0;
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        for (uint32_t address : rtl.written) {
+            if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        rtl.written.clear();
+        verdict(c.label, out);
+    }
+    trans_rule.on = false;
+    x87_fitted = was_fitted;
+    x87_compare_from = 0;
+    oracle.set_at_coprocessor(was_fitted);
+    if (only) return 0;
+
+    // The rule shown able to fail (method.md, rule 8), per form, on the
+    // states of a retirement that passed.
+    for (unsigned form = 0; form < TRANS_FORMS; ++form) {
+        Mismatches out;
+        const std::string label = std::string("selftest-") + TRANS_NAME[form];
+        const TransRule::Captured &c = trans_rule.captured[form];
+        if (!c.have) {
+            out.add(label + ".no-gated-result", 1, 0);
+        } else if (!trans_rule.bound) {
+            out.add(label + ".bound-unset", 1, 0);
+        } else {
+            const uint64_t bound = *trans_rule.bound;
+            auto run = [&](const fes_i386::X87State &got, const std::optional<uint64_t> &with) {
+                return trans_compare(form, c.before, c.oracle, got, with);
+            };
+            auto failed_with = [](const TransVerdict &v, const std::string &what) {
+                return std::find(v.failures.begin(), v.failures.end(), what) != v.failures.end();
+            };
+            const TransVerdict as_run = run(c.rtl, bound);
+            if (!as_run.failures.empty()) out.add(label + ".as-run", 0, 1);
+            unsigned gated = 0;
+            for (const TransVerdict::Value &value : as_run.values) {
+                if (!value.checked) continue;
+                ++gated;
+                const unsigned n = value.reg;
+                const std::string r = "r" + std::to_string(n);
+                const bool negative = c.oracle.r[n].sign_exponent & 0x8000;
+                const u128 centre = x87_order(c.oracle.r[n]);
+                for (int direction : {1, -1}) {
+                    fes_i386::X87State got = c.rtl;
+                    got.r[n] = x87_from_order(direction > 0 ? centre + bound : centre - bound, negative);
+                    if (!run(got, bound).failures.empty()) out.add(label + "." + r + ".at-bound-failed", 0, 1);
+                    got.r[n] = x87_from_order(direction > 0 ? centre + bound + 1 : centre - bound - 1, negative);
+                    if (!failed_with(run(got, bound), r + ".distance." + dec(u128(bound) + 1)))
+                        out.add(label + "." + r + ".past-bound-passed", 1, 0);
+                    ++trans_rule.selftests;
+                }
+                if (!failed_with(run(c.rtl, std::nullopt), r + ".bound-unset")) out.add(label + "." + r + ".unset-passed", 1, 0);
+                fes_i386::X87State got = c.rtl;
+                got.r[n].sign_exponent ^= 0x8000;
+                if (!failed_with(run(got, bound), r + ".sign")) out.add(label + "." + r + ".other-sign-passed", 1, 0);
+                got = c.rtl;
+                got.r[n] = {J, 0x7fff};
+                if (!failed_with(run(got, bound), r + ".not-finite")) out.add(label + "." + r + ".infinity-passed", 1, 0);
+                trans_rule.selftests += 3;
+            }
+            if (!gated) out.add(label + ".no-gated-result", 1, 0);
+            // Everything else is exact: each of these alone must fail.
+            for (uint16_t bit : {uint16_t(0x0001), uint16_t(0x0020), uint16_t(0x0040), uint16_t(0x0100), uint16_t(0x0400),
+                                 uint16_t(0x4000), uint16_t(0x0800)}) {
+                fes_i386::X87State got = c.rtl;
+                got.status ^= bit;
+                if (!failed_with(run(got, bound), "status")) out.add(label + ".status-passed", bit, 0);
+                ++trans_rule.selftests;
+            }
+            {
+                fes_i386::X87State got = c.rtl;
+                got.tag ^= 1;
+                if (!failed_with(run(got, bound), "tag")) out.add(label + ".tag-passed", 1, 0);
+                got = c.rtl;
+                got.control ^= 0x0400;
+                if (!failed_with(run(got, bound), "control")) out.add(label + ".control-passed", 1, 0);
+                got = c.rtl;
+                got.pointers.ip ^= 1;
+                if (!failed_with(run(got, bound), "fip")) out.add(label + ".fip-passed", 1, 0);
+                got = c.rtl;
+                got.opcode ^= 1;
+                if (!failed_with(run(got, bound), "opcode")) out.add(label + ".opcode-passed", 1, 0);
+                trans_rule.selftests += 4;
+            }
+            for (unsigned n = 0; n < 8; ++n) {
+                if (std::find(as_run.written.begin(), as_run.written.end(), n) != as_run.written.end()) continue;
+                fes_i386::X87State got = c.rtl;
+                got.r[n].significand ^= 1;
+                if (!failed_with(run(got, bound), "r" + std::to_string(n))) out.add(label + ".unwritten-passed", n, 0);
+                ++trans_rule.selftests;
+            }
+        }
+        verdict(label, out);
+    }
+    {
+        // The distance across a binade's boundary, which `|` in place of `+`
+        // read as about 2^63, and across the denormals' top.
+        Mismatches out;
+        const R below{0xffffffffffffffffull, 0x3ffe}, at{J, 0x3fff}, above{J | 1, 0x3fff};
+        const R below_odd{0xffffffffffffffffull, 0x3fff}, at_odd{J, 0x4000};
+        const R denormal{0x7fffffffffffffffull, 0x0000}, least{J, 0x0001};
+        if (x87_distance(below, at) != 1) out.add("selftest-distance.binade", 1, uint64_t(x87_distance(below, at)));
+        if (x87_distance(below_odd, at_odd) != 1) out.add("selftest-distance.binade-odd", 1, uint64_t(x87_distance(below_odd, at_odd)));
+        if (x87_distance(below, above) != 2) out.add("selftest-distance.two", 2, uint64_t(x87_distance(below, above)));
+        if (x87_distance(denormal, least) != 1) out.add("selftest-distance.denormal", 1, uint64_t(x87_distance(denormal, least)));
+        for (const R &v : {below, at, above, below_odd, at_odd, denormal, least, R{1, 0}, R{0xffffffffffffffffull, 0x7ffe}})
+            if (!(x87_from_order(x87_order(v), false) == v)) out.add("selftest-distance.round-trip", 0, 1);
+        ++trans_rule.selftests;
+        verdict("selftest-distance", out);
+    }
+    return 0;
+}
+
 // 0000:1000 in real mode with a GDT at 2000h (LGDT's pointer at 2100h):
 //   08h code, 16-bit, base 0, 64K      18h data, base 0, 64K
 //   10h data, base 0, 4 GiB (G)        20h code, 16-bit, base 0, 4 GiB (G)
@@ -12271,6 +13463,15 @@ int main(int argc, char **argv) {
         run_x87_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "x87bcd") {
         run_x87_bcd_cases(*oracle, bus, rtl, entries, summary);
+    } else if (mode == "x87trans") {
+        // The bound has no default: unset, a value compare fails.
+        if (const char *text = std::getenv("FES_I386_TRANS_ULP_ORACLE")) {
+            char *end = nullptr;
+            const unsigned long long value = std::strtoull(text, &end, 10);
+            if (!*text || *end) throw std::runtime_error("FES_I386_TRANS_ULP_ORACLE is a decimal count of representable values");
+            trans_rule.bound = uint64_t(value);
+        }
+        run_x87_trans_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "test386") {
         return run_test386(*oracle, rtl);
     } else if (mode == "unbuilt") {
@@ -12313,6 +13514,29 @@ int main(int argc, char **argv) {
         return text;
     };
     const std::string pm_kinds = named(summary.pm_kinds), cs_limit = named(summary.cs_limit);
+    // The transcendental rule's counts, per form: every distance is in its
+    // histogram once.
+    std::string trans = std::string("{\"bound\": ") + (trans_rule.bound ? std::to_string(*trans_rule.bound) : "null")
+                        + ", \"selftests\": " + std::to_string(trans_rule.selftests)
+                        + ", \"open_cases\": " + std::to_string(trans_rule.open_cases)
+                        + ", \"open_run\": " + (trans_rule.open_run ? "true" : "false") + ", \"forms\": {";
+    for (unsigned form = 0; form < TRANS_FORMS; ++form) {
+        const TransTally &tally = trans_rule.tally[form];
+        auto distances = [](const std::map<u128, uint64_t> &map) {
+            std::string text;
+            for (auto &[distance, count] : map)
+                text += (text.empty() ? "" : ", ") + std::string("\"") + dec(distance) + "\": " + std::to_string(count);
+            return "{" + text + "}";
+        };
+        trans += std::string(form ? ", " : "") + "\"" + TRANS_NAME[form] + "\": {\"executed\": " + std::to_string(tally.executed)
+                 + ", \"values\": " + std::to_string(tally.values) + ", \"unchecked\": " + std::to_string(tally.unchecked)
+                 + ", \"resyncs\": " + std::to_string(tally.resyncs) + ", \"resync_values\": " + std::to_string(tally.resync_values)
+                 + ", \"c1_differs\": " + std::to_string(tally.c1_differs) + ", \"not_built\": " + std::to_string(tally.not_built)
+                 + ", \"worst\": " + dec(tally.worst) + ", \"worst_unchecked\": " + dec(tally.worst_unchecked)
+                 + ", \"histogram\": " + distances(tally.histogram)
+                 + ", \"histogram_unchecked\": " + distances(tally.histogram_unchecked) + "}";
+    }
+    trans += "}}";
     // The FAIL lines go through std::cout, unsynced with stdio: flush them
     // first, so the summary line is whole after them.
     std::cout.flush();
@@ -12336,6 +13560,7 @@ int main(int argc, char **argv) {
                 "\"unbuilt_stops\": {%s}, \"pm_kinds\": {%s}, \"cs_limit\": {%s}, "
                 "\"no387_rule\": %llu, \"no387_skips\": %llu, \"x87_compared\": %llu, "
                 "\"x87_bcd_forms\": {\"fbld\": %llu, \"fbstp\": %llu, \"not_built\": %llu}, "
+                "\"x87_trans\": %s, "
                 "\"dr6_rule\": %llu, \"db_rf_rule\": %llu, "
                 "\"debug_kinds\": {%s}, \"x87_backend_offered\": [%llu, %llu, %llu, %llu, %llu, %llu, %llu, %llu], \"x87_backend_taken\": [%llu, %llu, %llu, %llu, %llu, %llu, %llu, %llu]}\n",
                 mode.c_str(), (unsigned long long)seed, latency ? "true" : "false",
@@ -12374,7 +13599,7 @@ int main(int argc, char **argv) {
                 (unsigned long long)summary.no387_rule,
                 (unsigned long long)summary.no387_skips, (unsigned long long)summary.x87_compared,
                 (unsigned long long)summary.x87_fbld, (unsigned long long)summary.x87_fbstp,
-                (unsigned long long)summary.x87_bcd_not_built,
+                (unsigned long long)summary.x87_bcd_not_built, trans.c_str(),
                 (unsigned long long)summary.dr6_rule,
                 (unsigned long long)summary.db_rf_rule, named(summary.debug_kinds).c_str(),
                 (unsigned long long)x87_backend_offered[0],
