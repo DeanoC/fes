@@ -23,6 +23,8 @@ def sha(path):
 
 def checked_build(directory):
     receipt = json.loads((directory / 'result.json').read_text())
+    if receipt.get('reset_entry_probe') is not None:
+        raise ValueError('reset-entry diagnostic requires separate explicit package admission')
     fit, spl, config = (directory / name for name in
                        ('build/u-boot.itb', 'build/spl/u-boot-spl-dtb.hex', 'build/.config'))
     mode = receipt.get('network_recovery', {})

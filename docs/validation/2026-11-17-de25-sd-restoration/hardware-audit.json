@@ -1,0 +1,44 @@
+{
+  "status": "verified-restored-data-and-independent-software-reset-readback",
+  "source_commit": "4c4738b3dfe8d80d5881a3a980cfc507dd276748",
+  "prior_transaction_status": "failed-host-deadline-at-final-redundant-boot-check",
+  "prior_failed_verdict_preserved": true,
+  "restoration_plan_sha256": "1567ad7ddf18f9065ecd11cea18a5ab04db09305be970ec882e5b0a642fd00ea",
+  "final_readback_plan_sha256": "6f92bc24ffee24aebbd0f9ac742c3bae511e0a8c07f5679ff465cc12acef81a1",
+  "exact_original_boot_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+  "previous_boot_sha256": "df0cabe09eb4dbc6453e55766f5e1dfecd3166750e165b554c81d3435ef15520",
+  "prewrite_file_checks": 17,
+  "verified_postwrite_preserved_files": 16,
+  "independent_post_reset_boot_file_checks": 1,
+  "physical_reset_requested": false,
+  "flash_writes": false,
+  "raw_SD_writes": false,
+  "ordinary_runtime_resume": false,
+  "power_loss_durability_verified": false,
+  "normal_HIL_acceptance": false,
+  "roles": {
+    "restore": {
+      "controller_status": "failed",
+      "nonce": "15506363ac46c90b520e8d3713e97be2",
+      "sof_sha256": "e5321ab4ac1f31900ce588af8e28b344aadf8bb94d157a5120280f8f9e52be57",
+      "boot_wire_sha256": "703837da08b4fb5c29e11357bc157f5360cc1ed823b906c2b53a7b467cd4810c",
+      "full_wire_sha256": "c789c578a60baa9be6d59ac7f0d55009a91828a3e2e3ce1680e7497b2bbc6c19",
+      "command_receipts_verified": 771,
+      "NS_SMMU_registers_verified": 19,
+      "elapsed_seconds": 1201.2490775869228,
+      "host_cleanup_independently_verified": true
+    },
+    "verify": {
+      "controller_status": "verified",
+      "nonce": "21ca42bf2e7a6fc12dce9b07f688e544",
+      "sof_sha256": "7d6034ccfe6adf34b9b6482c02042f9dd574e31673f92d3d5d389efa2aea2793",
+      "boot_wire_sha256": "d2ddfd46e2b0639a194c4926a29c7b4f43ae4f86ee839d17571a983e56e9906e",
+      "full_wire_sha256": "ed3793a5b3cbde8f6ffa20dfd5ee3a665937b4fa694853117cf260ee43704913",
+      "command_receipts_verified": 24,
+      "NS_SMMU_registers_verified": 19,
+      "elapsed_seconds": 62.00936487293802,
+      "host_cleanup_independently_verified": true
+    }
+  },
+  "exact_file_writes": 1
+}
