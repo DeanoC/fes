@@ -34,15 +34,41 @@ def retarget_sdram(source):
 
 CACHE_BEFORE = b'(* ramstyle = "M10K" *) reg [15:0] words [0:80];'
 CACHE_AFTER = b'(* ramstyle = "M20K" *) reg [15:0] words [0:80];'
+# The frame store writes one of three banks from a case statement in one
+# clocked block. Yosys infers three dual-clock memories from it; Quartus builds
+# two million registers. The same writes as one plain statement per bank infer
+# block RAM. Condition, address and data are unchanged.
+FRAME_BEFORE = b"""        always @(posedge clk_sys) begin
+            if (frame_write && !reset_sys && !lookup_hold && frame_write_address[16:10] == 7'(chunk)) begin
+                case (frame_write_bank)
+                    2'd0: frame0[frame_write_address[9:0]] <= frame_write_black ? 9'd0 : frame_write_rgb;
+                    2'd1: frame1[frame_write_address[9:0]] <= frame_write_black ? 9'd0 : frame_write_rgb;
+                    2'd2: frame2[frame_write_address[9:0]] <= frame_write_black ? 9'd0 : frame_write_rgb;
+                    default: ;
+                endcase
+            end
+        end
+"""
+FRAME_AFTER = b"""        wire chunk_write = frame_write && !reset_sys && !lookup_hold && frame_write_address[16:10] == 7'(chunk);
+        wire [8:0] chunk_data = frame_write_black ? 9'd0 : frame_write_rgb;
+        always @(posedge clk_sys)
+            if (chunk_write && frame_write_bank == 2'd0) frame0[frame_write_address[9:0]] <= chunk_data;
+        always @(posedge clk_sys)
+            if (chunk_write && frame_write_bank == 2'd1) frame1[frame_write_address[9:0]] <= chunk_data;
+        always @(posedge clk_sys)
+            if (chunk_write && frame_write_bank == 2'd2) frame2[frame_write_address[9:0]] <= chunk_data;
+"""
 
 
 def retarget_native_video(source):
-    """The native low-resolution line cache's block hint is its only family dependence."""
-    if source.count(CACHE_BEFORE) != 1 or source.count(b'ramstyle') != 1:
-        raise ValueError("ST native video cache adaptation contract changed")
-    result = source.replace(CACHE_BEFORE, CACHE_AFTER)
+    """The line cache's block hint and the frame store's write form, for Quartus inference."""
+    if (source.count(CACHE_BEFORE) != 1 or source.count(b'ramstyle') != 1 or
+            source.count(FRAME_BEFORE) != 1 or source.count(b"frame_write_bank)") != 1):
+        raise ValueError("ST native video adaptation contract changed")
+    result = source.replace(CACHE_BEFORE, CACHE_AFTER).replace(FRAME_BEFORE, FRAME_AFTER)
     return result, {"source_sha256": sha(source), "derived_sha256": sha(result),
-                    "before": CACHE_BEFORE.decode(), "after": CACHE_AFTER.decode()}
+                    "changes": [{"before": CACHE_BEFORE.decode(), "after": CACHE_AFTER.decode()},
+                                {"before": FRAME_BEFORE.decode(), "after": FRAME_AFTER.decode()}]}
 
 
 def transport(source):

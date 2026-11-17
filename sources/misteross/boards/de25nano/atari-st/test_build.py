@@ -41,7 +41,9 @@ class Derivations(unittest.TestCase):
     def test_native_video_cache_hint_is_the_only_change(self):
         source = (ROOT / "cores/fes-atari-st/rtl/st_native_low_video.sv").read_bytes()
         result, _ = derive.retarget_native_video(source)
-        self.assertEqual(result.replace(derive.CACHE_AFTER, derive.CACHE_BEFORE), source)
+        self.assertEqual(result.replace(derive.CACHE_AFTER, derive.CACHE_BEFORE)
+                         .replace(derive.FRAME_AFTER, derive.FRAME_BEFORE), source)
+        self.assertEqual(result.count(b"<= chunk_data;"), 3)
         self.assertNotIn(b'"M10K"', result)
         with self.assertRaises(ValueError):
             derive.retarget_native_video(result)

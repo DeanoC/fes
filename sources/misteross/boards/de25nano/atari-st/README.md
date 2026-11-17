@@ -17,6 +17,7 @@ including `st_memory` with its phase slots and posted CPU writes.
 | --- | --- |
 | 192 KiB ROM linked into blank M10K lanes at install (format 3) | `fes_st_firmware_rom`: block RAM with `st_rom`'s request port and latency, filled through [`fes.fabric.firmware-upload`](../../../../mister-packages/docs/firmware-upload.md) |
 | MiSTer addon SDRAM, masks shared with A11/A12, Cyclone V DDR clock cell | Board SDRAM rank 0 with its own mask pins; `derive.py` swaps the forwarded-clock cell for the inverted clock |
+| Native video frame store written from one `case` (yosys infers three memories) | `derive.py` writes each bank from its own statement; Quartus otherwise builds 2.2 million registers |
 | 720p word straight to HDMI through the video socket | The direct video part's word into the session display, so the launcher plane works in a session |
 | `fes_computer_mailbox_direct` | The mailbox with the session display, as on the Spectrum and ZX81 |
 
@@ -35,7 +36,8 @@ make build QUARTUS_ROOTDIR=/absolute/altera_pro/26.3 \
   VENDOR_ARCHIVE=/absolute/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip OUTPUT=/new/private/path
 ```
 
-`sim` assembles the open diagnostic firmware and drives the Avalon computer
+`sim` first runs the DE10 native video bench on the derived frame store. It
+then assembles the open diagnostic firmware and drives the Avalon computer
 slave on three unrelated clocks against a logical SDRAM rank that checks the
 controller's command protocol, recovery times and refresh interval. It checks
 identity and capabilities, that execution cannot be released without

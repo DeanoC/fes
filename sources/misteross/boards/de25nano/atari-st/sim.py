@@ -60,6 +60,24 @@ def includes():
             BOARD / "scanout", BOARD / "scanout/generated", CPU]
 
 
+def run_native_video():
+    """The DE10 native video bench on the derived frame store: same pixels, same ownership."""
+    derive = load(HERE / "derive.py", "de25_atari_st_derive")
+    parent = ROOT / "build/sim/de25-atari-st"
+    parent.mkdir(parents=True, exist_ok=True)
+    output = Path(tempfile.mkdtemp(prefix="native-video-", dir=parent))
+    native = output / "st_native_low_video_de25.sv"
+    native.write_bytes(derive.retarget_native_video((ST / "st_native_low_video.sv").read_bytes())[0])
+    bench = ROOT / "cores/fes-atari-st/sim"
+    subprocess.run(["verilator", "--cc", "--exe", "--build", "-O2", "--top-module", "st_native_video_sim_top",
+                    "-Wall", "-Wno-DECLFILENAME", "-I" + str(COMMON / "generated"), "--Mdir", str(output),
+                    str(bench / "st_native_video_sim_top.sv"), str(ST / "st_video_adapter.sv"),
+                    str(ST / "st_native_border.sv"), str(native), str(ST / "st_video.sv"),
+                    str(COMMON / "rtl/fes_video_part_direct.v"), str(COMMON / "rtl/fes_video_part_scanlines.v"),
+                    str(bench / "native_video_tb.cpp"), "-CFLAGS", "-O2 -std=c++17"], cwd=ROOT, check=True)
+    subprocess.run([str(output / "Vst_native_video_sim_top")], cwd=output, check=True)
+
+
 def run():
     subprocess.run([sys.executable, str(ROOT / "cores/fes-atari-st/sim/check_sources.py")], cwd=ROOT, check=True)
     diagnostic = ROOT / "build/diagnostics/fes-atari-st"
@@ -83,4 +101,5 @@ def run():
 
 
 if __name__ == "__main__":
+    run_native_video()
     run()
