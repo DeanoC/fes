@@ -30,7 +30,7 @@ split all completed. The design fits and every one of the 58 analyses in
 | PLLs | 4 / 11 |
 
 The whole managed shell is in those totals, including the GHRD's 256 KiB
-on-chip memory (about 105 blocks).
+on-chip memory, which is 128 blocks in the Spectrum fit report.
 
 | Clock | Required | Fmax (worst corner) | Worst setup slack |
 | --- | --- | --- | --- |

@@ -21,7 +21,7 @@ including `st_memory` with its phase slots and posted CPU writes.
 | 720p word straight to HDMI through the video socket | The direct video part's word into the session display, so the launcher plane works in a session |
 | `fes_computer_mailbox_direct` | The mailbox with the session display, as on the Spectrum and ZX81 |
 
-The device has 358 M20K blocks and the managed shell uses about 150 of them,
+The device has 358 M20K blocks and the GHRD's on-chip memory alone takes 128,
 so the ROM cannot sit in block RAM beside the frame store. `derive.py` gives
 `st_memory`'s CPU port a ROM region; a ROM read takes the CPU's phase slot as
 a RAM read does. Firmware is written there while the machine is held, when the
