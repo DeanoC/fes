@@ -204,7 +204,7 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 
 ### Cores
 
-| Package | Simulate | OSS seal | Quartus oracle | Parent recipe |
+| Package | Simulate | OSS seal | Quartus | Parent recipe |
 | --- | --- | --- | --- | --- |
 | `fes.menu` | `python3 scripts/sim_fes_menu.py` | `make build-fes-menu-package` | none | image idle display, not a playable core |
 | `fes.pong` | `make sim-fes-pong` | `make build-fes-pong` | none on the product path | library, supported |
@@ -212,14 +212,14 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 | `fes.zx80` | `make sim-fes-zx81` | `make build-fes-zx80` (advisory) | `make build-fes-zx81-quartus MODEL=zx80` (registered) | library, experimental, package-only |
 | `fes.ts1000` | `make sim-fes-zx81` | `make build-fes-ts1000` (advisory) | `make build-fes-zx81-quartus MODEL=ts1000` (registered) | library, experimental, package-only |
 | `fes.ts1500` | `make sim-fes-zx81` | `make build-fes-ts1500` (advisory) | `make build-fes-zx81-quartus MODEL=ts1500` (registered) | library, experimental, package-only |
-| `fes.coleco` | `make sim-fes-coleco` | `make build-fes-coleco` | `make build-fes-coleco-quartus` | library, supported |
-| `fes.sms` | `make sim-fes-sms` and `make sim-fes-sms-oss` | `make build-fes-sms` | `make build-fes-sms-quartus` | development; outside first-party catalog |
-| `fes.sg1000` | `make sim-fes-sg1000-rom-link` (plus `make sim-fes-sg1000` and `make sim-fes-sg1000-oss` diagnostics) | `make build-fes-sg1000` | `make build-fes-sg1000-quartus` | development; outside first-party catalog |
+| `fes.coleco` | `make sim-fes-coleco` | `make build-fes-coleco` | `make build-fes-coleco-quartus` (oracle) | library, supported |
+| `fes.sms` | `make sim-fes-sms` and `make sim-fes-sms-oss` | `make build-fes-sms` | `make build-fes-sms-quartus` (oracle) | development; outside first-party catalog |
+| `fes.sg1000` | `make sim-fes-sg1000-rom-link` (plus `make sim-fes-sg1000` and `make sim-fes-sg1000-oss` diagnostics) | `make build-fes-sg1000` | `make build-fes-sg1000-quartus` (oracle) | development; outside first-party catalog |
 | `fes.spectrum` (48K) | `make sim-fes-spectrum` | `make build-fes-spectrum` | none | library, experimental |
 | `fes.spectrum128` (128K/+2) | `make sim-fes-spectrum` | `make build-fes-spectrum128` | none | library, experimental |
 | `fes.spectrum-plus3` (+2A/+3) | `make sim-fes-spectrum` | `make build-fes-spectrum-plus3` | none | library, experimental |
 | `fes.pentagon` (Pentagon 128) | `make sim-fes-spectrum` | `make build-fes-pentagon` | none | library, experimental |
-| `fes.ramtest` | `make sim-fes-ramtest` | `make build-fes-ramtest-100` | `make build-fes-ramtest-quartus` | library utility, supported, OSS 100 MHz |
+| `fes.ramtest` | `make sim-fes-ramtest` | `make build-fes-ramtest-100` | `make build-fes-ramtest-quartus` (oracle) | library utility, supported, OSS 100 MHz |
 | `fes.riscv` | `make sim-fes-riscv` | `make build-fes-riscv` | none | library, experimental |
 | splash / idle | `make sim-fes-splash` | `make build-fes-splash` | none | `sealed/fes-splash.rbf`, not a play package |
 
@@ -253,9 +253,12 @@ build/fes-splash/core.rbf
 sealed/fes-splash.rbf
 ```
 
-Quartus oracle RBFs, when a recipe has one, are
-`build/fes-<name>-quartus/core.rbf`. They are not a fallback when the OSS
-producer fails.
+The Quartus column has two kinds of command. A `(registered)` entry is the
+package producer that `config/core-recipes.toml` selects for that core: the
+ZX81 family is sealed by Quartus Lite, its seeds come from that row's
+`[recipes.quartus].seeds`, and its nextpnr build is advisory. An `(oracle)`
+entry is a bring-up check whose `build/fes-<name>-quartus/core.rbf` is not a
+product artifact. Neither kind is a fallback when an OSS producer fails.
 
 The ZX81 1.7.0 source drives HDMI through the shared `fes.video.session-display`
 plane, which blends runtime-owned DDR frames over the machine picture for

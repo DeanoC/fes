@@ -1618,7 +1618,9 @@ producer's own `make toolchain-fes-<core>` target writes without a cache
 (`build/toolchain/fes-<core>`, or `build/toolchain/zx81-expansion` and
 `build/toolchain/fes-coleco-socket-v2`), so a core whose lock moves never reads
 another lock's tools. Quartus
-ZX81/Coleco/SG-1000/SMS recipes are oracle-only and are not a nextpnr fallback.
+Coleco/SG-1000/SMS recipes are oracle-only. The ZX81 family's Quartus Lite
+recipe is its registered producer, and its nextpnr build is advisory. No
+Quartus recipe is a nextpnr fallback.
 For a shared cache, the same `CACHE_ROOT=/absolute/cache` spelling selects
 the FES HIP toolchain for every registered `toolchain-fes-<core>` target;
 doctor and doctor-strict use that same selection. An explicit
@@ -2493,7 +2495,8 @@ The ROM lanes come from `cores/fes-zx81/quartus/zx81_rom_link.v` instead of
 uses. The package is format 3 with the same `m10k-1024x10-v1` `rom-map.json`,
 so the kit links the user's ROM exactly as it does for the OSS package.
 
-Every seed in `SEEDS` must pass the complete TimeQuest gate, and an
+Every seed in the core's `[recipes.quartus].seeds` in
+`config/core-recipes.toml` must pass the complete TimeQuest gate, and an
 independent rebuild of the first seed must reproduce its RBF. The producer
 also checks the PLL output frequencies, the ROM lane placement and blank
 init files, no MLAB, the three display-plane DSP blocks and the audio pins. A
@@ -2728,7 +2731,7 @@ matching workaround rather than keep both.
 
 What already works in this design, so a toolchain fix should not regress it: two independent `altera_pll` cells on PIN_V11; 8-bit 16 K `m10k_tdp` infers 16 `MISTRAL_M10K_TDP` cells in under a second; Pong-style `MISTRAL_IO` HDMI I2C at X52/Y60.
 
-The product OSS shell and the Quartus oracle both instantiate `fes_z80_nmos` from `zx81_machine.sv`. That selection is not a nextpnr packing gap, and the oracle has no separate VHDL T80pa CPU.
+The registered Quartus shell and the advisory OSS shell both instantiate `fes_z80_nmos` from `zx81_machine.sv`. That selection is not a nextpnr packing gap, and neither build has a separate VHDL T80pa CPU.
 
 The format-2 package is `fes.pong` version 1.1.0 and requires
 `fes.persistence.words` 1.0 and `fes.pong.progress` 1.0 in addition to gamepad
