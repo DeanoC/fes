@@ -1,0 +1,9 @@
+{
+  "build_id": "cd202566affdc6b347a771223e42fd95",
+  "classification": "de25-zx81-package-candidate",
+  "hardware_acceptance": false,
+  "normal_kit_acceptance": false,
+  "package_timing_admission": true,
+  "rbf_sha256": "d82866b0ec7ab49f90066383afd0b61b36ab1a3a9117e4a29d57dc8194cc30f0",
+  "revision": "106752761f37dbea7ec86767609517b8efa9df44"
+}
