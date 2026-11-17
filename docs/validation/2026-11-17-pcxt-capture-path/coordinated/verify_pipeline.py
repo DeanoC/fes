@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+"""Prove unchanged controller deadline, then test phased capture and its mutations."""
+import argparse, importlib.util, json, tomllib
+from pathlib import Path
+p=argparse.ArgumentParser(description=__doc__)
+p.add_argument('--module-root',type=Path,required=True)
+p.add_argument('--reference-harness',type=Path,required=True)
+p.add_argument('--yosys',type=Path,required=True)
+p.add_argument('--work',type=Path,required=True)
+a=p.parse_args();here=Path(__file__).resolve().parent
+spec=importlib.util.spec_from_file_location('reference',a.reference_harness/'verify_windows.py')
+r=importlib.util.module_from_spec(spec);spec.loader.exec_module(r)
+v=r.verilator_identity('verilator');root=a.module_root.resolve();work=a.work.resolve();work.mkdir(parents=True,exist_ok=False)
+assert r.sha(a.yosys)==tomllib.loads((root/'cores/fes-pcxt/quartus.lock').read_text())['yosys']['sha256']
+controller=root/'cores/fes-ramtest/rtl/sdram_addon_port.v';memory=root/'cores/fes-pcxt/rtl/pcxt_memory.sv';ddio=root/'cores/fes-pcxt/sim/memory_top.sv'
+script=work/'prove.ys'
+script.write_text('read_verilog -formal -sv '+str(controller)+' '+str(here/'controller_contract.sv')+'\nprep -top write_contract -flatten\nmemory_map\nopt_clean\nasync2sync\ndffunmap\nchformal -lower\nsat -seq 8 -tempinduct -maxsteps 40 -prove-asserts -verify -timeout 120\n')
+log=r.run(work,'formal',[a.yosys.resolve(),'-s',script]);assert 'Induction step proven: SUCCESS!' in log
+original=memory.read_text();assert original.count('always @(negedge controller_clk)')==1
+cases=[('positive',memory,0,None),('old-handoff-logical-control',work/'old-handoff.sv',0,None),('negative-next-sample',memory,1,'read deadline selected wrong pin window'),('negative-no-handoff',work/'no-handoff.sv',1,'read deadline selected wrong pin window')]
+cases[1][1].write_text(original.replace('always @(negedge controller_clk)','always @(posedge controller_clk)'))
+cases[3][1].write_text(original.replace('.dq_fall(dq_fall_q)', '.dq_fall(dq_fall)'))
+for name,selected,rc,diagnostic in cases:
+ top=here/'trace_top.sv'
+ if name=='negative-next-sample':
+  top=work/'next-sample.sv';top.write_text((here/'trace_top.sv').read_text().replace('.dq_fall(pin_capture)', '.dq_fall(dq_sample)'))
+ obj=work/('obj-'+name)
+ r.run(work,'build-'+name,[v['executable'],'--cc','--exe','--build','--top-module','pipeline_top','-Wno-fatal','-j','2','--Mdir',obj,controller,selected,ddio,top,here/'trace.cpp'])
+ log=r.run(work,name,[obj/'Vpipeline_top'],expected=rc)
+ if diagnostic:assert diagnostic in log
+ else:
+  checked=json.loads(log.strip().splitlines()[-1]);assert checked['reads']==512
+  if name=='positive':trace=checked
+result={'formal':'PASS: controller temporal induction; unchanged five-cycle pin-observation deadline','trace':trace,'old_handoff_logical_control':'PASS: physical handoff timing is a separate fit gate','negative_missing_handoff':'rejected after real initialization','negative_missing_capture':'rejected after real initialization','verilator':v,'yosys_sha256':r.sha(a.yosys),'sources_sha256':{str(x.relative_to(root)):r.sha(x) for x in (controller,memory,ddio,root/'cores/fes-pcxt/rtl/fes_pcxt_top.sv',root/'cores/fes-pcxt/rtl/pcxt_system.sv')},'fixtures_sha256':{x.name:r.sha(x) for x in here.iterdir() if x.is_file()},'classification':'logical pin-window proof and bounded trace; not physical signoff'}
+(work/'proof.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n');print(json.dumps(result['trace']))

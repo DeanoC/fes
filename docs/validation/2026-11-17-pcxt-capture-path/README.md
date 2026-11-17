@@ -1,11 +1,11 @@
 # PC/XT forwarded-clock and DQ capture investigation, 17 November 2026
 
-This bounded continuation of [#835](https://github.com/DeanoC/fes/issues/835)
-keeps the 100 MHz memory/controller clock, existing capture phase, DDR clock
-polarity, pin assignments, seed 1 and all native timing constraints. It decomposes
-the retained production read paths and requests input-register packing in one
-private diagnostic fit. It changes no production RTL, recipe, compiler pin,
-constraint, package or shared contract. No kit was claimed or programmed.
+The initial bounded audit at `8ff232e21` measured the retained production paths
+and a failed input-packing-only candidate. The continuation now adds an
+experimental, default-off `SDRAM_CAPTURE_PIPELINE` path at 100 MHz: a separate
+forwarding counter, later I/O capture and a falling-edge controller handoff.
+The registered producer does not select it. No kit was claimed or programmed;
+there is no hardware acceptance or production promotion.
 
 The reference is [#1940 at
 70abc256f](https://github.com/DeanoC/fes/tree/70abc256fc2bcc0e99f58a6195f4864b21b63999/docs/validation/2026-11-17-pcxt-sdram-budget),
@@ -149,3 +149,44 @@ as `candidate-postfit-database.json`; its digest and both diagnostic receipts ar
 in the compact assessment. `evidence-manifest.json` binds the protected record,
 receipts, inputs, logs and raw reports. Database inventories include every file;
 no cache filename is excluded from their identity.
+
+## Coordinated continuation
+
+The default-off path requests three 100 MHz PLL outputs: controller phase 0,
+capture +8.125 ns and forwarding +1.250 ns. The forwarded DDR pin retains its
+inverted polarity (ideal rising phase +6.250 ns). A falling-edge controller
+input stage gives the I/O capture 6.875 ns of ideal handoff time. The controller
+state machine and its response deadline are unchanged. The private diagnostic
+also requests 16 input I/O registers and regional routing of `clocks[2]`.
+The normal producer still selects the original path.
+
+[coordinated/verify_pipeline.py](coordinated/verify_pipeline.py) repeats temporal
+induction of the real controller's return deadline. Its phased trace uses the
+real `pcxt_memory`, performs real initialization, reads all 256 byte values on
+both lanes (512 responses), and poisons every pin time outside the first CL2
+word's guaranteed reference interval. Relative to READ, that interval is
+26–32.5 ns, the selected capture is 31.875 ns, the staged handoff is 38.750 ns
+and controller retirement is 43.750 ns. These are ideal RTL phases, not measured
+board delays. Both stage-bypass mutations fail after real initialization. The
+old positive-edge handoff passes logically; its physical timing remains a
+separate fit obligation. Verilator wrapper/engine and locked Yosys identities
+are checked and recorded.
+
+The raw periodic input report chooses the nearest clock edge: 1.875 ns for
+this phase pair. The consumed first burst word instead launches two chip clocks
+after READ and is captured one cycle later, with an 11.875 ns relationship.
+[coordinated/assess_pipeline.py](coordinated/assess_pipeline.py) records that
+proved transaction window as an algebraic +10 ns setup / -10 ns hold adjustment.
+It retains every raw per-edge failure and adds no multicycle constraint or
+production timing exception. This differs from giving the controller an extra
+response cycle; the response state/deadline is unchanged. Raw reports, used-word
+margins, command margins, stage polarity/connections and all internal gates must
+be reported separately. Passing this conditional calculation is not physical
+or production signoff.
+
+The first coordinated fit (capture 6.875 ns) passes native internal timing but
+still misses the consumed-word read setup by 2.093 ns. Its forwarding path keeps
+a 2.848 ns global-clock route to DDIO. The next 8.125 ns attempt used a removed
+alias for its regional assignment and is retained as an ignored-route request.
+The corrected private fit targets the retained `clocks[2]` net. All attempts
+and failures remain protected under `coordinated-fit*`; none is a new seal.

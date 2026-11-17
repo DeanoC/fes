@@ -7,7 +7,7 @@
 // SDRAM keeps its contents across an FPGA reconfiguration, so a cold reset is
 // a power-on: before firmware is accepted it zeroes the BIOS warm-boot word at
 // 0040:0072, and the BIOS then runs its full cold POST (#1534).
-module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTER = 0) (
+module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTER = 0, SDRAM_CAPTURE_PIPELINE = 0) (
     input wire clk, clk_pin, cold_reset, reset,
     output wire initialized,
     input wire memory_valid,
@@ -71,10 +71,20 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
     // Match the controller's conservative 100 MHz capture count: one fabric
     // stage after the board's input capture registers (ramtest rate-3 path).
     reg [15:0] dq_rise_q, dq_fall_q;
-    always @(posedge controller_clk) begin
-        dq_rise_q <= dq_rise;
-        dq_fall_q <= dq_fall;
-    end
+    generate if (SDRAM_CAPTURE_PIPELINE) begin: capture_handoff
+        // The I/O capture is at 8.125 ns; hand off at the following 15 ns
+        // falling edge, leaving 6.875 ns for ingress-to-fabric routing.
+        // The controller consumes this stage on its unchanged next rising edge.
+        always @(negedge controller_clk) begin
+            dq_rise_q <= dq_rise;
+            dq_fall_q <= dq_fall;
+        end
+    end else begin: original_handoff
+        always @(posedge controller_clk) begin
+            dq_rise_q <= dq_rise;
+            dq_fall_q <= dq_fall;
+        end
+    end endgenerate
     wire controller_done;
     wire [15:0] controller_data;
     wire waiting_media = (!reset || media_read_reset_safe) && media_read_valid && !media_seen;

@@ -37,6 +37,19 @@ A scoped reset exception would additionally require validation of the complete
 chain, its synchronous consumers and timed interstage paths; the attribute alone
 is not a timing waiver.
 
+### Experimental 100 MHz capture pipeline
+
+`SDRAM_CAPTURE_PIPELINE=1` is an unfinished, default-off board parameter for
+[#1954](https://github.com/DeanoC/fes/pull/1954). It requests a separate 100 MHz
+forwarding counter at +1.250 ns, I/O capture at +8.125 ns, and a falling-edge
+controller input stage. The controller's read-return state/deadline is unchanged.
+The private diagnostic requests input I/O packing explicitly. The registered DOS
+producer does not enable this parameter or adopt the diagnostic QSF assignments.
+The [capture-path record](../../../../docs/validation/2026-11-17-pcxt-capture-path/README.md)
+contains its logical proof, raw-fit references and qualification boundary. A
+passing reference budget would still require board electrical bounds, normal
+production identity/seal checks and exact-artifact HIL before adoption.
+
 ### FreeDOS DOS-profile package
 
 The `fes.pcxt-dos` package producer always selects `HARDWARE_DOS`. Raw diagnostic

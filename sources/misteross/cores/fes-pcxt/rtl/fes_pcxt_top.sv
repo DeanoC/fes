@@ -5,6 +5,8 @@ module top #(
     parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0,
     parameter bit HARDWARE_DOS = 0,
     parameter bit PHASED_HDMI_CLOCK = 0,
+    // Experimental 100 MHz capture/forwarded-clock pipeline; not production-qualified.
+    parameter bit SDRAM_CAPTURE_PIPELINE = 0,
     parameter bit ENABLE_FES_COMPUTER = 0,
     parameter bit ENABLE_PCXT_MEDIA = 0,
     parameter bit ENABLE_PCXT_FLOPPY_WRITE = 0,
@@ -24,20 +26,24 @@ module top #(
     wire clk, clk_memory, clk_capture, clk_pixel, clk_hdmi, memory_locked, video_locked;
     // Rate-3 consumes the falling-edge sample. A 180 degree fabric capture
     // clock provides that edge without unsupported DDIO on bidirectional IO.
-    wire [(HALF_RATE_BOARD ? 4 : 2)-1:0] clocks;
+    wire [(HALF_RATE_BOARD ? 4 : SDRAM_CAPTURE_PIPELINE ? 3 : 2)-1:0] clocks;
+    initial if (SDRAM_CAPTURE_PIPELINE && HALF_RATE_BOARD)
+        $error("SDRAM_CAPTURE_PIPELINE requires the 100 MHz board");
     altera_pll #(
-        .reference_clock_frequency("50.0 MHz"), .number_of_clocks(HALF_RATE_BOARD ? 4 : 2),
+        .reference_clock_frequency("50.0 MHz"), .number_of_clocks(HALF_RATE_BOARD ? 4 : SDRAM_CAPTURE_PIPELINE ? 3 : 2),
         .output_clock_frequency0("100.0 MHz"), .output_clock_frequency1(HALF_RATE_BOARD ? "50.0 MHz" : "100.0 MHz"),
-        .output_clock_frequency2(HALF_RATE_BOARD ? "50.0 MHz" : "0 MHz"),
+        .output_clock_frequency2(HALF_RATE_BOARD ? "50.0 MHz" : SDRAM_CAPTURE_PIPELINE ? "100.0 MHz" : "0 MHz"),
         .output_clock_frequency3(HALF_RATE_BOARD ? "50.0 MHz" : "0 MHz"),
-        .phase_shift0("0 ps"), .phase_shift1(HALF_RATE_BOARD ? "10000 ps" : "5000 ps"),
-        .phase_shift2("0 ps"), .phase_shift3(HALF_RATE_BOARD ? "18000 ps" : "0 ps"),
+        .phase_shift0("0 ps"), .phase_shift1(HALF_RATE_BOARD ? "10000 ps" : SDRAM_CAPTURE_PIPELINE ? "8125 ps" : "5000 ps"),
+        .phase_shift2(SDRAM_CAPTURE_PIPELINE ? "1250 ps" : "0 ps"), .phase_shift3(HALF_RATE_BOARD ? "18000 ps" : "0 ps"),
         .duty_cycle0(50), .duty_cycle1(50), .duty_cycle2(50), .duty_cycle3(50), .operation_mode("direct"),
         .fractional_vco_multiplier("false")
     ) memory_clock (.refclk(FPGA_CLK1_50), .rst(1'b0), .outclk(clocks), .locked(memory_locked));
     assign clk = clocks[0];
     assign clk_memory = HALF_RATE_BOARD ? clocks[2] : clk;
     assign clk_capture = clocks[1];
+    // Separate counter/net: the forwarded DDIO no longer shares the CPU clock net.
+    wire clk_forward = SDRAM_CAPTURE_PIPELINE ? clocks[2] : clk_memory;
     localparam bit USE_PHASED_HDMI_CLOCK = HALF_RATE_BOARD || PHASED_HDMI_CLOCK;
     wire [(USE_PHASED_HDMI_CLOCK ? 2 : 1)-1:0] video_clocks;
     altera_pll #(
@@ -197,6 +203,7 @@ module top #(
         assign mda_font_data = 8'h81;
     end endgenerate
     pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES), .HALF_RATE_BOARD(HALF_RATE_BOARD),
+                  .SDRAM_CAPTURE_PIPELINE(SDRAM_CAPTURE_PIPELINE),
                   .EXTERNAL_CS_REGISTER(HALF_RATE_BOARD), .FLOPPY(HARDWARE_DOS || LIVE_MEDIA),
                   .FLOPPY_WRITE(LIVE_MEDIA_WRITE),
                   .DIAGNOSTIC_PROBE(!(HARDWARE_DOS || LIVE_MEDIA))) system (
@@ -210,7 +217,7 @@ module top #(
         .keyboard_clock_low(keyboard_clock_low), .keyboard_data_low(keyboard_data_low), .keyboard_clear(keyboard_clear),
         .cga_font_address(cga_font_address), .mda_font_address(mda_font_address),
         .cga_font_data(cga_font_data), .mda_font_data(mda_font_data),
-        .clk(clk_memory), .clk_cpu(clk), .clk_pixel(clk_pixel), .clk_pin(clk_memory), .cold_reset(board_reset_live),
+        .clk(clk_memory), .clk_cpu(clk), .clk_pixel(clk_pixel), .clk_pin(clk_forward), .cold_reset(board_reset_live),
         .reset_pixel(pixel_reset[1]), .warm_reset(exec_reset), .hold(boot_media_hold),
         .firmware_valid(firmware_valid), .firmware_ready(firmware_ready),
         .firmware_done(firmware_done), .firmware_address(firmware_address), .firmware_data(firmware_data),
