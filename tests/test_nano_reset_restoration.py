@@ -64,3 +64,48 @@ class ResetRestorationTests(unittest.TestCase):
                 self.assertEqual(op.receipt['status'],'failed')
                 with self.assertRaises(ValueError):op.run()
                 self.assertEqual(m.writes,count)
+
+    def test_programming_audits_are_constant_across_full_preservation_transaction(self):
+        with tempfile.TemporaryDirectory() as name:
+            op,m,s,p,servers=self.setup_restore(name)
+            observe=op.recovery.transport;program_checks=[]
+            def counted():
+                program_checks.append(True)
+                return observe()
+            op.recovery.transport=counted
+            with patch('builtins.print'),patch('upload.time.sleep'):op.run()
+            self.assertEqual(len(program_checks),9)
+            self.assertGreater(len(self.serial_observations),1000)
+            self.assertEqual(m.writes,1)
+
+    def test_live_serial_replacement_retires_before_write_and_never_retries(self):
+        for field,value in (('claim_token','b'*16),('pid',99999),('start_ticks','999'),
+                            ('cable','another cable'),('config_sha256','c'*64),
+                            ('nonce','d'*32),('uart',[1,2,99]),('usb',[4,5,99])):
+            with self.subTest(field=field),tempfile.TemporaryDirectory() as name:
+                op,m,s,p,servers=self.setup_restore(name)
+                observe=op.recovery.serial_transport;calls=[]
+                def changed():
+                    row=observe();calls.append(True)
+                    if len(calls)>=4:row[field]=value
+                    return row
+                op.recovery.serial_transport=changed
+                with patch('builtins.print'),self.assertRaises(ValueError):op.run()
+                self.assertEqual(m.writes,0);self.assertTrue(s.retired)
+                count=len(calls)
+                with self.assertRaises(ValueError):op.run()
+                self.assertEqual(len(calls),count)
+
+    def test_serial_loss_after_write_keeps_failure_and_does_not_rewrite(self):
+        with tempfile.TemporaryDirectory() as name:
+            op,m,s,p,servers=self.setup_restore(name)
+            observe=op.recovery.serial_transport
+            def changed():
+                row=observe()
+                if m.writes:row['uart']=[1,2,99]
+                return row
+            op.recovery.serial_transport=changed
+            with patch('builtins.print'),patch('upload.time.sleep'),self.assertRaises(ValueError):op.run()
+            self.assertEqual(m.writes,1);self.assertTrue(s.retired)
+            with self.assertRaises(ValueError):op.run()
+            self.assertEqual(m.writes,1)
