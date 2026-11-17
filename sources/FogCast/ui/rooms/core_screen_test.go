@@ -3,6 +3,7 @@ package rooms
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -336,5 +337,74 @@ func TestCoreScreenDrawsOverARunningGame(t *testing.T) {
 	f := stepUntil(t, r, coreScreenSettled)
 	if f.Clear.A == 255 || f.Clear.A == 0 {
 		t.Fatalf("overlay clear is not translucent: %+v", f.Clear)
+	}
+}
+
+// Home opens a family with its machine entry's ID, not a game's.
+func TestCoreScreenOpenedFromHomeStartsOnTheFirstGame(t *testing.T) {
+	machine := preparedComputer("spectrum", "ZX Spectrum 48K", "fes.spectrum")
+	machine.CoreEntryKind = "machine"
+	games := []hostclient.Game{}
+	for i := 0; i < 30; i++ {
+		g := preparedComputer(fmt.Sprintf("title-%02d", i), fmt.Sprintf("Game %02d", i), "fes.spectrum")
+		g.CoreEntryKind = "title"
+		games = append(games, g)
+	}
+	// The machine entry sorts after the games in the library's title order.
+	games = append(games, machine)
+	path := filepath.Join(t.TempDir(), "room.json")
+	for _, size := range [][2]int{{1280, 720}, {1024, 600}} {
+		r := loadCoreScreen(t, &fakeServices{games: games}, machine.ID, machine.CoreID, Options{Width: size[0], Height: size[1]})
+		text := frameText(stepUntil(t, r, coreScreenSettled))
+		for _, want := range []string{"ZX Spectrum 48K\n", "The computer on its own\n", "Game 00\n", "Game 03\n", "30 in your library\n"} {
+			if !strings.Contains(text, want) {
+				t.Fatalf("%dx%d screen from Home is missing %q:\n%s", size[0], size[1], want, text)
+			}
+		}
+		r.Input("select")
+		if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionLaunch || acts[0].GameID != "title-00" {
+			t.Fatalf("focus did not start on the first game: %+v", acts)
+		}
+		// The computer on its own is the row above the first game.
+		r.Input("up")
+		r.Input("select")
+		if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionLaunch || acts[0].GameID != machine.ID {
+			t.Fatalf("the computer's own row did not start it: %+v", acts)
+		}
+		// Held Down reaches the last game with the list still full.
+		for i := 0; i < 40; i++ {
+			r.Input("down")
+		}
+		f := stepUntil(t, r, func(f Frame) bool { return coreScreenSettled(f) && frameHas(f, "Game 29") })
+		rows := 0
+		for _, h := range f.Hits {
+			if strings.HasPrefix(h.ID, "game:") {
+				rows++
+			}
+		}
+		if rows < 4 || !frameHas(f, "Game 26") {
+			t.Fatalf("%dx%d list shows %d rows at its end:\n%s", size[0], size[1], rows, frameText(f))
+		}
+		r.Input("select")
+		if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionLaunch || acts[0].GameID != "title-29" {
+			t.Fatalf("last game launch %+v", acts)
+		}
+		if err := r.Err(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Home names the family's first model; the screen returns to the model
+	// and game last browsed.
+	plus3 := preparedComputer("harbour", "Harbour Mail", "fes.spectrum-plus3")
+	plus3.CoreEntryKind = "title"
+	games = append(games, plus3)
+	r := loadCoreScreen(t, &fakeServices{games: games}, plus3.ID, plus3.CoreID, Options{StorePath: path})
+	stepUntil(t, r, func(f Frame) bool { return coreScreenSettled(f) && frameHas(f, "Harbour Mail") })
+	r.Close()
+	again := loadCoreScreen(t, &fakeServices{games: games}, machine.ID, machine.CoreID, Options{StorePath: path})
+	stepUntil(t, again, func(f Frame) bool { return coreScreenSettled(f) && frameHas(f, "Games for the +2A/+3") })
+	again.Input("select")
+	if acts := again.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionLaunch || acts[0].GameID != plus3.ID {
+		t.Fatalf("reopening from Home lost the last game: %+v", acts)
 	}
 }

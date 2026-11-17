@@ -1472,7 +1472,13 @@ a stale entry.
 The **core screen** (`example.core`, `widgets.core_screen`) is what Home opens
 for the ZX81, Spectrum, Atari ST and Commodore 64 families. It shows one
 family: a Model row for its variants, the computer with its readiness and
-fixed facts on the left, and its drive and games on the right. Each edition of
+fixed facts on the left, and its drive and games on the right. It reads the
+family with the `home_family` library query, the only one that marks a row as
+a machine entry or a title: the machine entry is listed first as the computer
+on its own, and the count is of titles. Home opens the screen with that
+machine entry's `game_id`, which is not a request for a game, so the screen
+returns to the model and game last browsed and otherwise starts on the first
+title. Each edition of
 a title is its own row and Confirm on a row launches that exact entry, or
 returns to it when it is the running game; it does not start over another
 running game. The drive row and its button use `hardware.open_media` for next

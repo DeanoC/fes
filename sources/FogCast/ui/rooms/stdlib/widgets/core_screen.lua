@@ -58,7 +58,7 @@ local TOP_Y, BOTTOM_Y = 112, 618
 local ROW_H, ROW_GAP = 44, 6
 
 local games, all_entries = {}, {}
-local game_i, scroll = 1, 0
+local game_i, scroll, scroll_pending = 1, 0, true
 local focus = "game"
 local right_focus = "game"
 local controls = {}
@@ -195,7 +195,13 @@ local function chip(label, x, y, filled)
   text(label, x + 9 + (filled and 0 or 5), y + 3, size, filled and C.light or C.ink, 0, true)
   return w
 end
+-- Wrapped lines are kept per text, size, width and scale: the fixed facts
+-- wrap the same way on every repaint.
+local wrapped, wrapped_scale = {}, 0
 local function wrap(s, size, w)
+  if wrapped_scale ~= scale then wrapped, wrapped_scale = {}, scale end
+  local key = size .. ":" .. w .. ":" .. s
+  if wrapped[key] then return wrapped[key] end
   local lines, cur = {}, ""
   for word in string.gmatch(s, "%S+") do
     local try = cur == "" and word or (cur .. " " .. word)
@@ -207,6 +213,7 @@ local function wrap(s, size, w)
     end
   end
   if cur ~= "" then lines[#lines + 1] = cur end
+  wrapped[key] = lines
   return lines
 end
 
@@ -239,12 +246,13 @@ local function remember()
   core_choices[selected_core] = {game_id = game_id}
   store.set("navigation", {
     family_variants = family_variants, core_choices = core_choices,
-    focus = focus, core_id = selected_core,
+    core_id = selected_core,
   })
 end
 local function keep_visible()
   if game_i <= scroll then scroll = game_i - 1 end
   if game_i > scroll + visible_games then scroll = game_i - visible_games end
+  if scroll > #games - visible_games then scroll = #games - visible_games end
   if scroll < 0 then scroll = 0 end
 end
 -- Each edition of a title is its own row, so every row starts one exact
@@ -256,21 +264,50 @@ local function rows_for(core_id)
     seen[g.id] = true
     out[#out + 1] = g
   end
-  for _, entry in ipairs(all_entries) do
-    add(entry)
-    for _, v in ipairs(entry.variants or {}) do add(v) end
+  -- The computer on its own leads the list; games follow in library order.
+  for pass = 1, 2 do
+    for _, entry in ipairs(all_entries) do
+      if (entry.core_entry_kind == "machine") == (pass == 1) then
+        add(entry)
+        for _, v in ipairs(entry.variants or {}) do
+          v.core_entry_kind = entry.core_entry_kind
+          add(v)
+        end
+      end
+    end
   end
   return out
 end
+local function title_count()
+  local n = 0
+  for _, g in ipairs(games) do
+    if g.core_entry_kind ~= "machine" then n = n + 1 end
+  end
+  return n
+end
 local function place(list)
   all_entries = list or {}
+  local asked_for_game = false
   if initial_game_id ~= "" then
+    local asked
     for _, entry in ipairs(all_entries) do
-      local found = entry.id == initial_game_id
+      if entry.id == initial_game_id then asked = entry end
       for _, v in ipairs(entry.variants or {}) do
-        if v.id == initial_game_id then found = true end
+        if v.id == initial_game_id then asked = v end
       end
-      if found then selected_core = entry.core_id break end
+      if asked then break end
+    end
+    if asked and asked.core_entry_kind == "machine" then
+      -- A family tile names the family's machine entry, not a game: return
+      -- to the model and game last browsed there.
+      local last = family_variants[family().id]
+      if last and systems.family_by_core[last] == family() then selected_core = last end
+      chosen = (core_choices[selected_core] or {}).game_id or ""
+    elseif asked then
+      selected_core = asked.core_id
+      asked_for_game = true
+    else
+      asked_for_game = true
     end
   end
   games = rows_for(selected_core)
@@ -279,12 +316,18 @@ local function place(list)
   for i, g in ipairs(games) do
     if g.id == chosen then game_i, selected = i, true end
   end
-  if library_error == "" and initial_game_id ~= "" and not selected then
+  if not selected then
+    for i, g in ipairs(games) do
+      if g.core_entry_kind ~= "machine" then game_i = i break end
+    end
+  end
+  if library_error == "" and asked_for_game and not selected then
     message = "That " .. spec().label .. " game is no longer in your library."
   end
   initial_game_id = ""
   if #games == 0 and (focus == "game" or focus == "drive" or focus == "media") then focus = "start" end
-  keep_visible()
+  -- The list's height is known only when it is drawn; it places the window.
+  scroll_pending = true
   rev = rev + 1
   -- selected_core is final here, including for an opening by game.
   firmware_info(true)
@@ -323,12 +366,18 @@ local function play_state()
   if s and s ~= "" then return s end
   return ""
 end
-local function running_game()
+-- One scan per paint: the panel, its buttons and the right column all ask.
+local painting, painted_running = false, nil
+local function find_running()
   if not live or live.state ~= "active" then return nil end
   for _, g in ipairs(games) do
     if g.id == live.game_id then return g end
   end
   return nil
+end
+local function running_game()
+  if painting then return painted_running end
+  return find_running()
 end
 local function this_machine()
   local game = focused()
@@ -595,11 +644,13 @@ local function right_column()
   button("media", label, x, y, text_width(label, 17, true) + 40, 36, can_change, open_media)
   y = y + 36 + 14
 
-  local count = #games == 1 and "1 in your library" or (#games .. " in your library")
+  local titles = title_count()
+  local count = titles == 1 and "1 in your library" or (titles .. " in your library")
   text("Games for the " .. model_name(spec()), x, y, 19, C.ink, w, true)
   text(library_loaded and count or "Reading your library…", x, y + 2, 16, C.muted, w, false, "right")
   y = y + text_height(19, true) + 6
   visible_games = math.max(1, math.floor((BOTTOM_Y - y + ROW_GAP) / (ROW_H + ROW_GAP)))
+  if scroll_pending then scroll, scroll_pending = 0, false end
   keep_visible()
   if #games == 0 then
     local line = library_error ~= "" and library_error or
@@ -621,6 +672,7 @@ local function right_column()
 end
 
 local function picture(part)
+  painted_running, painting = find_running(), true
   if part ~= "lower" then
     controls = {}
     recycle()
@@ -634,8 +686,8 @@ local function picture(part)
     recycle()
     sink = {}
   end
-  if part == "upper" then return end
-  right_column()
+  if part ~= "upper" then right_column() end
+  painting = false
   if part == "lower" then
     gfx.extend(sink)
     for i = 1, #sink do cmds[#cmds + 1] = sink[i] end
@@ -727,7 +779,9 @@ function load()
   local generation = library_generation
   local ids = {}
   for _, variant in ipairs(family().variants) do ids[#ids + 1] = variant.id end
-  library.query({platform = "fpga", core_ids = ids, sort = "title", limit = 2000}, function(found, err)
+  -- home_family asks for machine entries and titles separately, so each row
+  -- carries core_entry_kind; an ordinary query leaves it empty.
+  library.query({platform = "fpga", core_ids = ids, sort = "title", limit = 2000, home_family = true}, function(found, err)
     if generation ~= library_generation then return end
     library_loaded = true
     if err then
@@ -754,7 +808,11 @@ function load()
         local id = g.id
         library.game(id, function(detail, detail_err)
           if generation ~= library_generation then return end
-          if detail and not detail_err and is_system(detail) then replacements[id] = detail end
+          if detail and not detail_err and is_system(detail) then
+            -- A detail read does not say which kind of row it is.
+            detail.core_entry_kind = g.core_entry_kind
+            replacements[id] = detail
+          end
           pending = pending - 1
           if pending == 0 then finish() end
         end)
