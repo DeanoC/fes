@@ -1,0 +1,436 @@
+{
+  "reference": {
+    "0": [
+      {
+        "offset": 452,
+        "bytes": "C8000000",
+        "op": "enter 0,0"
+      },
+      {
+        "offset": 456,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 457,
+        "bytes": "4E",
+        "op": "dec si"
+      },
+      {
+        "offset": 458,
+        "bytes": "75F8",
+        "op": "jnz .i0"
+      }
+    ],
+    "1": [
+      {
+        "offset": 602,
+        "bytes": "C8000001",
+        "op": "enter 0,1"
+      },
+      {
+        "offset": 606,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 607,
+        "bytes": "4E",
+        "op": "dec si"
+      },
+      {
+        "offset": 608,
+        "bytes": "75F8",
+        "op": "jnz .i1"
+      }
+    ],
+    "2": [
+      {
+        "offset": 762,
+        "bytes": "C8000002",
+        "op": "enter 0,2"
+      },
+      {
+        "offset": 766,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 767,
+        "bytes": "4E",
+        "op": "dec si"
+      },
+      {
+        "offset": 768,
+        "bytes": "75F8",
+        "op": "jnz .i2"
+      }
+    ],
+    "3": [
+      {
+        "offset": 934,
+        "bytes": "C8000003",
+        "op": "enter 0,3"
+      },
+      {
+        "offset": 938,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 939,
+        "bytes": "4E",
+        "op": "dec si"
+      },
+      {
+        "offset": 940,
+        "bytes": "75F8",
+        "op": "jnz .i3"
+      }
+    ],
+    "4": [
+      {
+        "offset": 1116,
+        "bytes": "C8000004",
+        "op": "enter 0,4"
+      },
+      {
+        "offset": 1120,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 1121,
+        "bytes": "4E",
+        "op": "dec si"
+      },
+      {
+        "offset": 1122,
+        "bytes": "75F8",
+        "op": "jnz .i4"
+      }
+    ],
+    "5": [
+      {
+        "offset": 1266,
+        "bytes": "C8060001",
+        "op": "enter 6,1"
+      },
+      {
+        "offset": 1270,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 1271,
+        "bytes": "4E",
+        "op": "dec si"
+      },
+      {
+        "offset": 1272,
+        "bytes": "75F8",
+        "op": "jnz .i5"
+      }
+    ],
+    "6": [
+      {
+        "offset": 1426,
+        "bytes": "C80C0002",
+        "op": "enter 12,2"
+      },
+      {
+        "offset": 1430,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 1431,
+        "bytes": "4E",
+        "op": "dec si"
+      },
+      {
+        "offset": 1432,
+        "bytes": "75F8",
+        "op": "jnz .i6"
+      }
+    ],
+    "7": [
+      {
+        "offset": 1598,
+        "bytes": "C8200003",
+        "op": "enter 32,3"
+      },
+      {
+        "offset": 1602,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 1603,
+        "bytes": "4E",
+        "op": "dec si"
+      },
+      {
+        "offset": 1604,
+        "bytes": "75F8",
+        "op": "jnz .i7"
+      }
+    ],
+    "8": [
+      {
+        "offset": 1780,
+        "bytes": "C8000104",
+        "op": "enter 256,4"
+      },
+      {
+        "offset": 1784,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 1785,
+        "bytes": "4E",
+        "op": "dec si"
+      },
+      {
+        "offset": 1786,
+        "bytes": "75F8",
+        "op": "jnz .i8"
+      }
+    ],
+    "9": [
+      {
+        "offset": 1940,
+        "bytes": "C8000002",
+        "op": "enter 0,2"
+      },
+      {
+        "offset": 1944,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 1945,
+        "bytes": "E2F9",
+        "op": "loop .i9"
+      }
+    ]
+  },
+  "rtl": {
+    "0": [
+      {
+        "offset": 26,
+        "bytes": "C8000000",
+        "op": "enter 0,0"
+      },
+      {
+        "offset": 30,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 31,
+        "bytes": "4E",
+        "op": "dec si"
+      },
+      {
+        "offset": 32,
+        "bytes": "75F8",
+        "op": "jnz .i0"
+      }
+    ],
+    "1": [
+      {
+        "offset": 52,
+        "bytes": "C8000001",
+        "op": "enter 0,1"
+      },
+      {
+        "offset": 56,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 57,
+        "bytes": "4E",
+        "op": "dec si"
+      },
+      {
+        "offset": 58,
+        "bytes": "75F8",
+        "op": "jnz .i1"
+      }
+    ],
+    "2": [
+      {
+        "offset": 78,
+        "bytes": "C8000002",
+        "op": "enter 0,2"
+      },
+      {
+        "offset": 82,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 83,
+        "bytes": "4E",
+        "op": "dec si"
+      },
+      {
+        "offset": 84,
+        "bytes": "75F8",
+        "op": "jnz .i2"
+      }
+    ],
+    "3": [
+      {
+        "offset": 104,
+        "bytes": "C8000003",
+        "op": "enter 0,3"
+      },
+      {
+        "offset": 108,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 109,
+        "bytes": "4E",
+        "op": "dec si"
+      },
+      {
+        "offset": 110,
+        "bytes": "75F8",
+        "op": "jnz .i3"
+      }
+    ],
+    "4": [
+      {
+        "offset": 130,
+        "bytes": "C8000004",
+        "op": "enter 0,4"
+      },
+      {
+        "offset": 134,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 135,
+        "bytes": "4E",
+        "op": "dec si"
+      },
+      {
+        "offset": 136,
+        "bytes": "75F8",
+        "op": "jnz .i4"
+      }
+    ],
+    "5": [
+      {
+        "offset": 156,
+        "bytes": "C8060001",
+        "op": "enter 6,1"
+      },
+      {
+        "offset": 160,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 161,
+        "bytes": "4E",
+        "op": "dec si"
+      },
+      {
+        "offset": 162,
+        "bytes": "75F8",
+        "op": "jnz .i5"
+      }
+    ],
+    "6": [
+      {
+        "offset": 182,
+        "bytes": "C80C0002",
+        "op": "enter 12,2"
+      },
+      {
+        "offset": 186,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 187,
+        "bytes": "4E",
+        "op": "dec si"
+      },
+      {
+        "offset": 188,
+        "bytes": "75F8",
+        "op": "jnz .i6"
+      }
+    ],
+    "7": [
+      {
+        "offset": 208,
+        "bytes": "C8200003",
+        "op": "enter 32,3"
+      },
+      {
+        "offset": 212,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 213,
+        "bytes": "4E",
+        "op": "dec si"
+      },
+      {
+        "offset": 214,
+        "bytes": "75F8",
+        "op": "jnz .i7"
+      }
+    ],
+    "8": [
+      {
+        "offset": 234,
+        "bytes": "C8000104",
+        "op": "enter 256,4"
+      },
+      {
+        "offset": 238,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 239,
+        "bytes": "4E",
+        "op": "dec si"
+      },
+      {
+        "offset": 240,
+        "bytes": "75F8",
+        "op": "jnz .i8"
+      }
+    ],
+    "9": [
+      {
+        "offset": 260,
+        "bytes": "C8000002",
+        "op": "enter 0,2"
+      },
+      {
+        "offset": 264,
+        "bytes": "C9",
+        "op": "leave"
+      },
+      {
+        "offset": 265,
+        "bytes": "E2F9",
+        "op": "loop .i9"
+      }
+    ]
+  }
+}

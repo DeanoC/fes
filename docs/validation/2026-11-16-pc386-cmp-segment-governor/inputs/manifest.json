@@ -1,0 +1,161 @@
+{
+  "git_head": "20dae48f098d99fb429e994ce099c356a64fefd3",
+  "cpu_diagnostic_enabled": true,
+  "files": {
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-holdout/generate.py": "aee25f15b0dc910f2651383b3fa6fdffa4f23285544f960f03935499b401ea55",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/pc386-gov-heldout/heldout.asm": "a621ba4ef97cf91ea1df773cf6e5830ce74155483b9cb0bfb8e2f14eacaab286",
+    "/home/deano/fes-scratch/u6ref/tools/nasm/nasm": "d75404632d151de8438081b817d09f56ab9eb4f688a151f55897f2a5396bf01b",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-event-combined-v2/iret-control/Vfes_i386_cpu": "4414d541cb6d386ab7332e7d8f6b0b8a105686d3881945d6a4873bae6576556f",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-event-combined-v2/manifest.json": "c3451930a459b38971e69b0b8212f3149012ce7be4661574b1fb84f6960c6539",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-holdout/reference.asm": "f9b83f3ab7ea9753420ec013841b0ca6daad5099ad54cbf98e8939e6e23eddc1",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-holdout/rtl.asm": "7cb9ed1cf918b0d498f74cc475dd7c1158db86d3f3b60cf1aa8eee5f80d3f859",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-holdout/SURVEY.COM": "cdab5e155bb48a5b24ed8160bb2a6cb4a4e1b590acbcb8903c8adb3e94f87f20",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-holdout/rtl.bin": "d2251209ec3515d1c6657961bbccdb864f7c956dd0268abf161c54b8c3376710",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-holdout/reference-failure.asm": "9304bf60eaa8a9c90932f9ee4d152ad469cf9f06b29784b74f3a89339d190786",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-holdout/rtl-failure.asm": "217df604362693ca539a908c1aac8fb215e145a1936f3ead03a83f3299efb284",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-holdout/FAILCASE.COM": "61779b2924cd9b69d6fd21aef8b8b2684a4e2377d675436270fd8ef3ed3722e7",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-holdout/rtl-failure.bin": "f57b0ea549176fefb62fba062cde53972ce9e7034cd3810f338e5262fc8ec8e4"
+  },
+  "cases": [
+    {
+      "name": "CS8_INDEX",
+      "kind": "db 0x2e\n cmp [bx+si],al",
+      "count": 0,
+      "mode": "loop",
+      "body_sha256": "dd55f223b4b49e0aa9ac1c809bdcfcfe80082cb578d029c1ab0c2804e692359b",
+      "body_hex": "2e38009c5f833e0c8000e2f4",
+      "reference_offset": 512,
+      "rtl_offset": 120
+    },
+    {
+      "name": "CS16_INDEX",
+      "kind": "db 0x2e\n cmp [bx+si],ax",
+      "count": 0,
+      "mode": "loop",
+      "body_sha256": "3688a7374792c12fbfbbe98f8c0ac6e3ab35ada2f2df637d8768f2405c6f65c4",
+      "body_hex": "2e39009c5f833e0c8000e2f4",
+      "reference_offset": 826,
+      "rtl_offset": 424
+    },
+    {
+      "name": "SS8_DISP",
+      "kind": "db 0x36\n cmp [bx+2],al",
+      "count": 0,
+      "mode": "loop",
+      "body_sha256": "88bfc65eadb2c5f257427d5fc7e47fa7a48051270e0efdc8dc8096dc46e47de2",
+      "body_hex": "363847029c5f833e0c8000e2f3",
+      "reference_offset": 1140,
+      "rtl_offset": 728
+    },
+    {
+      "name": "SS16_DISP",
+      "kind": "db 0x36\n cmp [bx+2],ax",
+      "count": 0,
+      "mode": "loop",
+      "body_sha256": "326e62dc371e5c7d376af3f4789ae3a5e1109eae0e625cb193a994dfa372403b",
+      "body_hex": "363947029c5f833e0c8000e2f3",
+      "reference_offset": 1454,
+      "rtl_offset": 1032
+    },
+    {
+      "name": "CSCS8_DIRECT",
+      "kind": "db 0x2e,0x2e\n cmp [0x8004],al",
+      "count": 0,
+      "mode": "loop",
+      "body_sha256": "25567b2359adbeea339be3c4d9a241589b6924e6eb5b334237ee32faa2aee488",
+      "body_hex": "2e2e380604809c5f833e0c8000e2f1",
+      "reference_offset": 1768,
+      "rtl_offset": 1336
+    },
+    {
+      "name": "CSCS16_DIRECT",
+      "kind": "db 0x2e,0x2e\n cmp [0x8004],ax",
+      "count": 0,
+      "mode": "loop",
+      "body_sha256": "d1e0c3dbf16dca83ba930ef9639b1c655d9ff7608d40981337a90986b658678e",
+      "body_hex": "2e2e390604809c5f833e0c8000e2f1",
+      "reference_offset": 2084,
+      "rtl_offset": 1642
+    },
+    {
+      "name": "CSSS8_BX",
+      "kind": "db 0x2e,0x36\n cmp [bx],al",
+      "count": 0,
+      "mode": "loop",
+      "body_sha256": "4056a003d3e74e71e7cd9456e0061f0a4f616fd580cba081252bc80a50006204",
+      "body_hex": "2e3638079c5f833e0c8000e2f3",
+      "reference_offset": 2400,
+      "rtl_offset": 1948
+    },
+    {
+      "name": "CSSS16_BX",
+      "kind": "db 0x2e,0x36\n cmp [bx],ax",
+      "count": 0,
+      "mode": "loop",
+      "body_sha256": "d47467de2d7c8023774e888de9121c041af0ffe7c023d8db614340cbcfec2425",
+      "body_hex": "2e3639079c5f833e0c8000e2f3",
+      "reference_offset": 2714,
+      "rtl_offset": 2252
+    },
+    {
+      "name": "SSCS8_INDEX",
+      "kind": "db 0x36,0x2e\n cmp [bx+si],al",
+      "count": 0,
+      "mode": "loop",
+      "body_sha256": "385393d11d8c8ac636892054ac7deca6f733d6845fad215b593e2e48dd090c80",
+      "body_hex": "362e38009c5f833e0c8000e2f3",
+      "reference_offset": 3028,
+      "rtl_offset": 2556
+    },
+    {
+      "name": "SSCS16_INDEX",
+      "kind": "db 0x36,0x2e\n cmp [bx+si],ax",
+      "count": 0,
+      "mode": "loop",
+      "body_sha256": "342ccc8b161ecbc51ad03f34f46bc2a1d68ec09f444f10410fe4ebc498e37ca2",
+      "body_hex": "362e39009c5f833e0c8000e2f3",
+      "reference_offset": 3342,
+      "rtl_offset": 2860
+    },
+    {
+      "name": "SSSS8_DISP",
+      "kind": "db 0x36,0x36\n cmp [bx+2],al",
+      "count": 0,
+      "mode": "loop",
+      "body_sha256": "c47057fec1d818d41c1b132d3d073c72ffac3542a06385427a3cf2f4a0baeb9f",
+      "body_hex": "36363847029c5f833e0c8000e2f2",
+      "reference_offset": 3656,
+      "rtl_offset": 3164
+    },
+    {
+      "name": "SSSS16_DISP",
+      "kind": "db 0x36,0x36\n cmp [bx+2],ax",
+      "count": 0,
+      "mode": "loop",
+      "body_sha256": "5ca62eeb4b817b96599f18c67ff95877cbfd2726ad2aa0e7de10e9534fd7ac85",
+      "body_hex": "36363947029c5f833e0c8000e2f2",
+      "reference_offset": 3972,
+      "rtl_offset": 3470
+    },
+    {
+      "name": "CS8_NE",
+      "kind": "db 0x2e\n cmp [bx],al",
+      "count": 1,
+      "mode": "loop-ne",
+      "body_sha256": "ea839d1d4e9a72a235355bab866135a01a8f67190ea3f86a5a50b7321dda1e24",
+      "body_hex": "902e38079c5f833e0c8000e2f3",
+      "reference_offset": 4288,
+      "rtl_offset": 3776
+    },
+    {
+      "name": "SS16_NE",
+      "kind": "db 0x36\n cmp [bx],ax",
+      "count": 1,
+      "mode": "loop-ne",
+      "body_sha256": "485807a4f9ea603b109ebf06c075ccbf70e26bb3ad24e5d3eebccaabdc1c9f1d",
+      "body_hex": "903639079c5f833e0c8000e2f3",
+      "reference_offset": 4602,
+      "rtl_offset": 4080
+    }
+  ]
+}

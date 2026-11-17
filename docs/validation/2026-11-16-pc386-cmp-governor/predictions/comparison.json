@@ -1,0 +1,126 @@
+{
+  "formula": "12,500,000 * 64 * 65,536 / 1,193,182 / (blocks * 1,000)",
+  "comparisons": {
+    "MEM8_BX": {
+      "blocks": 1810,
+      "reference_clocks_per_loop_estimate": 24.276420399657272,
+      "rtl_clocks_per_loop": 26.256,
+      "rtl_minus_reference": 1.9795796003427277
+    },
+    "MEM16_BX": {
+      "blocks": 1810,
+      "reference_clocks_per_loop_estimate": 24.276420399657272,
+      "rtl_clocks_per_loop": 26.259,
+      "rtl_minus_reference": 1.9825796003427278
+    },
+    "REG8_BX": {
+      "blocks": 1673,
+      "reference_clocks_per_loop_estimate": 26.264387880083483,
+      "rtl_clocks_per_loop": 26.259,
+      "rtl_minus_reference": -0.005387880083482344
+    },
+    "REG16_BX": {
+      "blocks": 1673,
+      "reference_clocks_per_loop_estimate": 26.264387880083483,
+      "rtl_clocks_per_loop": 26.259,
+      "rtl_minus_reference": -0.005387880083482344
+    },
+    "MEM8_DISP": {
+      "blocks": 1673,
+      "reference_clocks_per_loop_estimate": 26.264387880083483,
+      "rtl_clocks_per_loop": 28.257,
+      "rtl_minus_reference": 1.9926121199165188
+    },
+    "MEM16_INDEX": {
+      "blocks": 1811,
+      "reference_clocks_per_loop_estimate": 24.26301541876293,
+      "rtl_clocks_per_loop": 26.256,
+      "rtl_minus_reference": 1.9929845812370708
+    },
+    "REG8_DIRECT": {
+      "blocks": 1554,
+      "reference_clocks_per_loop_estimate": 28.275624789819606,
+      "rtl_clocks_per_loop": 28.259,
+      "rtl_minus_reference": -0.016624789819605468
+    },
+    "REG16_DISP": {
+      "blocks": 1554,
+      "reference_clocks_per_loop_estimate": 28.275624789819606,
+      "rtl_clocks_per_loop": 28.257,
+      "rtl_minus_reference": -0.01862478981960436
+    },
+    "MEM8_DS": {
+      "blocks": 1452,
+      "reference_clocks_per_loop_estimate": 30.261929010592056,
+      "rtl_clocks_per_loop": 32.256,
+      "rtl_minus_reference": 1.9940709894079447
+    },
+    "MEM16_ES": {
+      "blocks": 1452,
+      "reference_clocks_per_loop_estimate": 30.261929010592056,
+      "rtl_clocks_per_loop": 32.256,
+      "rtl_minus_reference": 1.9940709894079447
+    },
+    "REG8_DS": {
+      "blocks": 1362,
+      "reference_clocks_per_loop_estimate": 32.26161594961796,
+      "rtl_clocks_per_loop": 32.256,
+      "rtl_minus_reference": -0.005615949617961746
+    },
+    "REG16_ES": {
+      "blocks": 1282,
+      "reference_clocks_per_loop_estimate": 34.274821313088665,
+      "rtl_clocks_per_loop": 34.257,
+      "rtl_minus_reference": -0.017821313088667523
+    },
+    "MEM8_LOOP": {
+      "blocks": 1672,
+      "reference_clocks_per_loop_estimate": 26.280096246040472,
+      "rtl_clocks_per_loop": 28.26,
+      "rtl_minus_reference": 1.9799037539595297
+    },
+    "MEM16_LOOP": {
+      "blocks": 1672,
+      "reference_clocks_per_loop_estimate": 26.280096246040472,
+      "rtl_clocks_per_loop": 28.26,
+      "rtl_minus_reference": 1.9799037539595297
+    },
+    "REG8_LOOP": {
+      "blocks": 1554,
+      "reference_clocks_per_loop_estimate": 28.275624789819606,
+      "rtl_clocks_per_loop": 28.26,
+      "rtl_minus_reference": -0.015624789819604246
+    },
+    "REG16_LOOP": {
+      "blocks": 1554,
+      "reference_clocks_per_loop_estimate": 28.275624789819606,
+      "rtl_clocks_per_loop": 28.26,
+      "rtl_minus_reference": -0.015624789819604246
+    },
+    "MEM8_NE": {
+      "blocks": 1611,
+      "reference_clocks_per_loop_estimate": 27.275183689248706,
+      "rtl_clocks_per_loop": 29.256,
+      "rtl_minus_reference": 1.980816310751294
+    },
+    "MEM16_NE": {
+      "blocks": 1611,
+      "reference_clocks_per_loop_estimate": 27.275183689248706,
+      "rtl_clocks_per_loop": 29.256,
+      "rtl_minus_reference": 1.980816310751294
+    },
+    "REG8_NE": {
+      "blocks": 1501,
+      "reference_clocks_per_loop_estimate": 29.27403126141217,
+      "rtl_clocks_per_loop": 29.256,
+      "rtl_minus_reference": -0.01803126141216893
+    },
+    "REG16_NE": {
+      "blocks": 1506,
+      "reference_clocks_per_loop_estimate": 29.17683992256286,
+      "rtl_clocks_per_loop": 29.175,
+      "rtl_minus_reference": -0.0018399225628584759
+    }
+  },
+  "limits": "Whole-loop estimate; one boot, three identical samples; timer quantization, ISR, block/setup and RTL marker overhead remain."
+}

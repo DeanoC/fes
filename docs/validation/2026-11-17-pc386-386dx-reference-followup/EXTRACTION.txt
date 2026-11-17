@@ -1,0 +1,13 @@
+17 November 2026, read-only recheck on Powerboat. The files on the right of
+these commands are the retained private disk snapshots, not part of this PR.
+The `@@32256` suffix selects the existing FAT partition at LBA 63.
+
+mcopy -i out/dev/1902-samsung-rerun/run/pre-disk.img@@32256 '::/MARKS/TOPBENCH/TOPBENCH.EXE' - | sha256sum
+4428fc27d5c2987e5bd177540843190ebb33f31ca6ddacc6e9f8fb994076e63d  -
+
+mcopy -i out/dev/1902-dataexpert-ami/bench-disk.img@@32256 '::/MARKS/TOPBENCH/TOPBENCH.EXE' - | sha256sum
+4428fc27d5c2987e5bd177540843190ebb33f31ca6ddacc6e9f8fb994076e63d  -
+
+The earlier AMI score run's remote pre-run disk is byte-identical to the
+second input by the recorded 802fccc7... SHA-256. This records extraction,
+not redistributable executable bytes or a self-contained disk reproduction.

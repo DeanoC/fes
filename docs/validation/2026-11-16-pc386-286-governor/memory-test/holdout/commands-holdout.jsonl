@@ -1,0 +1,11 @@
+{"op":"sleep","s":45}
+{"op":"grab","name":"boot"}
+{"op":"type","text":"SURVEY > HOLD1.TXT\n"}
+{"op":"sleep","s":65}
+{"op":"grab","name":"run1"}
+{"op":"type","text":"SURVEY > HOLD2.TXT\n"}
+{"op":"sleep","s":65}
+{"op":"grab","name":"run2"}
+{"op":"type","text":"SURVEY > HOLD3.TXT\n"}
+{"op":"sleep","s":65}
+{"op":"grab","name":"run3"}

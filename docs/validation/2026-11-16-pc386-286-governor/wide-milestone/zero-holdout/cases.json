@@ -1,0 +1,15 @@
+{
+  "REG_ROL_ZERO": "xor cx,cx\n rol dl,cl",
+  "REG_SAR_MASK": "mov cl,32\n sar dx,cl",
+  "MEM_SHR_ZERO": "xor cx,cx\n shr byte [bx],cl",
+  "MEM_RCR_MASK": "mov cl,32\n rcr word [bx],cl",
+  "DOUBLE_ZERO": "xor cx,cx\n shr word [bx],cl\n sar byte [bx],cl",
+  "ZERO_THEN_ONE": "xor cx,cx\n shl word [bx],cl\n inc cx\n shr byte [bx],cl",
+  "ONE_THEN_ZERO": "mov cl,1\n rol byte [bx],cl\n dec cx\n sar word [bx],cl",
+  "ZERO_EXTRA_NOP": "xor cx,cx\n shl word [bx],cl\n nop\n nop",
+  "ZERO_ODD": "xor cx,cx\n shl word [bx+1],cl",
+  "ZERO_RCL": "xor cx,cx\n rcl byte [bx],cl",
+  "IMMEDIATE_ZERO": "shr word [bx],0",
+  "COMPLEX_ZERO": "xor cx,cx\n shr word [bx+si+3],cl",
+  "PREFIX_ZERO": "xor cx,cx\n ds shl word [bx],cl"
+}

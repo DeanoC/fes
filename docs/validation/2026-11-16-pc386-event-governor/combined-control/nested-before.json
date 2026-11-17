@@ -1,0 +1,15 @@
+{
+  "input": "19bf896a30d6ec1954a8ee2ef2f83827b44853ea65cef1c116fc8958a3852283",
+  "source": "b5707f8e49d8cd3ca5c5c6cf6799ad6f2ce418f7585c942b57575b69c2ceac23",
+  "runner": "79e69d4b9686f0bee0b58b5d1c93c45d9175e9ff15806e3304539f7d19c4bef8",
+  "cpus": {
+    "old": {
+      "binary": "a583e34c4ec711e86ed384f1a41386df4125cd919c63d9dc81869b6a2e46565b",
+      "source_manifest": "5e96eb4ddb0a887aa7c75d7021e86762e30ac4c5b36b13a6a32b1f522ea1576d"
+    },
+    "new": {
+      "binary": "4414d541cb6d386ab7332e7d8f6b0b8a105686d3881945d6a4873bae6576556f",
+      "source_manifest": "c3451930a459b38971e69b0b8212f3149012ce7be4661574b1fb84f6960c6539"
+    }
+  }
+}

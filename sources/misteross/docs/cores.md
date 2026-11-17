@@ -50,7 +50,7 @@ nothing by itself.
 | `fes.spectrum128` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-spectrum128` | experimental; four edge sockets |
 | `fes.spectrum-plus3` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-spectrum-plus3` | experimental; four edge sockets |
 | `fes.pentagon` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-pentagon` | experimental; four edge sockets |
-| `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `cores/fes-ramtest/toolchain.lock` (100 and 130 MHz) | `make build-fes-ramtest-100` (100 MHz), `make build-fes-ramtest-130` (explicit) | supported; 100 MHz catalog utility, not in the bootstrap image |
+| `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `cores/fes-ramtest/toolchain.lock` (100 MHz) | `make build-fes-ramtest-100` | supported; 100 MHz catalog utility, not in the bootstrap image |
 | `fes.atari-st` | `cores/fes-atari-st` | `fes.computer` | `cores/fes-atari-st/toolchain.lock` | `make build-fes-atari-st` | experimental; Atari 520ST firmware shell and Direct/Scanlines parts |
 | `fes.riscv` | `cores/fes-riscv` | `fes.application` with `fes.gamepad` | `cores/fes-riscv/toolchain.lock` | `make build-fes-riscv` | experimental; original RV32I CPU from `cores/fes-common/rtl/riscv` |
 | `fes.pc386` | `cores/fes-pc386` | `fes.computer` with session display and HPS DDR; `fes_i386_cpu`; the HPS stages the disk and settings in the DDR window until M0 | `cores/fes-pc386/toolchain.lock` (Yosys only; Quartus 17.0.2 fits) | `make build-fes-pc386-quartus` | no; not registered; pc386 M5 bring-up |
@@ -340,8 +340,9 @@ mailbox uses.
 The Atari ST producer selects `cores/fes-atari-st/toolchain.lock`
 (Yosys `3a5accbd`, nextpnr `5fe55f3d`). The factory recipe stays HIP.
 A CUDA route is a separate package. RAM Tester uses the repository-level
-lock's pins, while menu's lock pins nextpnr `1eecf877`. The
-130 MHz timing comparison uses the RAM Tester lock.
+lock's pins, while menu's lock pins nextpnr `1eecf877`. The Quartus
+RAM Tester timing comparison authenticates its own
+`cores/fes-ramtest/quartus.lock`, not the OSS `toolchain.lock`.
 The [2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
 qualifies the earlier private pin and its read-only shell; it does not
 qualify the current `5fe55f3d` pin. The October kit notes do not accept

@@ -1,0 +1,10 @@
+{
+  "verified_disk": "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-form-survey/reference-vm/run/disk.img",
+  "disk_sha256": "29ea2eea8330c54a95786b98e4c973148bcf11366e8415d18bb4681d7a95768a",
+  "readback_sha256": "23f8f0392d651254737ec33ae80213e85f7a734d2239988fb973de3a0e8d2f6b",
+  "result_filenames_absent": [
+    "CM1.TXT",
+    "CM2.TXT",
+    "CM3.TXT"
+  ]
+}

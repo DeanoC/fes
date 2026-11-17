@@ -1,0 +1,155 @@
+{
+  "ROL_B_REG": {
+    "blocks": 2578,
+    "reference": 17.044356467631264,
+    "baseline": 23.028,
+    "candidate": 23.028,
+    "shift_candidate": 17.028,
+    "delta_shift": -0.016356467631265303,
+    "quantization": 0.006608901305789556
+  },
+  "SHR_W_REG": {
+    "blocks": 2577,
+    "reference": 17.05097049808048,
+    "baseline": 23.017,
+    "candidate": 23.017,
+    "shift_candidate": 17.023,
+    "delta_shift": -0.027970498080481576,
+    "quantization": 0.006614030449216633
+  },
+  "SHL_B_ONE": {
+    "blocks": 2088,
+    "reference": 21.044229393464274,
+    "baseline": 21.017,
+    "candidate": 21.017,
+    "shift_candidate": 21.023,
+    "delta_shift": -0.021229393464274438,
+    "quantization": 0.010073829293185387
+  },
+  "SAR_W_CL": {
+    "blocks": 2088,
+    "reference": 21.044229393464274,
+    "baseline": 26.023,
+    "candidate": 26.023,
+    "shift_candidate": 21.023,
+    "delta_shift": -0.021229393464274438,
+    "quantization": 0.010073829293185387
+  },
+  "ROL_B_CL": {
+    "blocks": 2088,
+    "reference": 21.044229393464274,
+    "baseline": 26.017,
+    "candidate": 26.017,
+    "shift_candidate": 21.023,
+    "delta_shift": -0.021229393464274438,
+    "quantization": 0.010073829293185387
+  },
+  "SHL_W_IMM": {
+    "blocks": 1907,
+    "reference": 23.04161036893204,
+    "baseline": 28.017,
+    "candidate": 28.017,
+    "shift_candidate": 23.023,
+    "delta_shift": -0.018610368932041155,
+    "quantization": 0.012076315706987443
+  },
+  "SHL_W_ZERO": {
+    "blocks": 2739,
+    "reference": 16.04247936237802,
+    "baseline": 28.02,
+    "candidate": 28.02,
+    "shift_candidate": 28.026,
+    "delta_shift": 11.983520637621979,
+    "quantization": 0.005854919475320445
+  },
+  "MUL_W_MEM": {
+    "blocks": 1254,
+    "reference": 35.04015229150989,
+    "baseline": 38.017,
+    "candidate": 35.017,
+    "shift_candidate": 35.017,
+    "delta_shift": -0.023152291509887846,
+    "quantization": 0.027920440072916247
+  },
+  "IMUL_B_MEM": {
+    "blocks": 1567,
+    "reference": 28.041066351980472,
+    "baseline": 30.017,
+    "candidate": 28.017,
+    "shift_candidate": 28.017,
+    "delta_shift": -0.02406635198047269,
+    "quantization": 0.017883333132640608
+  },
+  "DIV_W_MEM": {
+    "blocks": 1045,
+    "reference": 42.048182749811865,
+    "baseline": 45.015,
+    "candidate": 42.015,
+    "shift_candidate": 42.015,
+    "delta_shift": -0.0331827498118642,
+    "quantization": 0.040199027485479794
+  },
+  "IDIV_B_MEM": {
+    "blocks": 1186,
+    "reference": 37.04919980906695,
+    "baseline": 38.018,
+    "candidate": 37.018,
+    "shift_candidate": 37.018,
+    "delta_shift": -0.031199809066947637,
+    "quantization": 0.031212468246897176
+  },
+  "MUL_B_REG": {
+    "blocks": 1625,
+    "reference": 27.04021598372517,
+    "baseline": 27.02,
+    "candidate": 27.02,
+    "shift_candidate": 27.02,
+    "delta_shift": -0.020215983725169195,
+    "quantization": 0.01662989912898227
+  },
+  "PUSHA_ONLY": {
+    "blocks": 1291,
+    "reference": 34.03590315534733,
+    "baseline": 35.015,
+    "candidate": 34.017,
+    "shift_candidate": 34.017,
+    "delta_shift": -0.01890315534732423,
+    "quantization": 0.026343578293612484
+  },
+  "PUSHA_PAIR": {
+    "blocks": 784,
+    "reference": 56.04636603769566,
+    "baseline": 50.023,
+    "candidate": 56.023,
+    "shift_candidate": 56.023,
+    "delta_shift": -0.02336603769565926,
+    "quantization": 0.07139664463400722
+  },
+  "LEA_BASE": {
+    "blocks": 2738,
+    "reference": 16.048338558638935,
+    "baseline": 17.023,
+    "candidate": 16.017,
+    "shift_candidate": 16.017,
+    "delta_shift": -0.031338558638935865,
+    "quantization": 0.005859196260912353
+  },
+  "LEA_PAIR": {
+    "blocks": 2738,
+    "reference": 16.048338558638935,
+    "baseline": 17.023,
+    "candidate": 16.023,
+    "shift_candidate": 16.023,
+    "delta_shift": -0.025338558638935638,
+    "quantization": 0.005859196260912353
+  },
+  "LEA_DISP": {
+    "blocks": 2435,
+    "reference": 18.045318674970595,
+    "baseline": 20.023,
+    "candidate": 18.023,
+    "shift_candidate": 18.023,
+    "delta_shift": -0.022318674970595254,
+    "quantization": 0.007407766286933742
+  }
+}

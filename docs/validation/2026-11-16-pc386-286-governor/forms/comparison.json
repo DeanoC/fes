@@ -1,0 +1,44 @@
+{
+  "CMP_WORD_SI": {
+    "blocks": 2435,
+    "reference_estimate_clocks_per_iteration": 18.0453,
+    "one_block_quantization_clocks": 0.0074,
+    "rtl_clocks_per_iteration": 18.018,
+    "difference_clocks_per_iteration": -0.0273
+  },
+  "CMP_BYTE_SI": {
+    "blocks": 2435,
+    "reference_estimate_clocks_per_iteration": 18.0453,
+    "one_block_quantization_clocks": 0.0074,
+    "rtl_clocks_per_iteration": 18.016,
+    "difference_clocks_per_iteration": -0.0293
+  },
+  "FLAGS_OTHER": {
+    "blocks": 2307,
+    "reference_estimate_clocks_per_iteration": 19.0465,
+    "one_block_quantization_clocks": 0.0083,
+    "rtl_clocks_per_iteration": 19.016,
+    "difference_clocks_per_iteration": -0.0305
+  },
+  "SHORT_JMP": {
+    "blocks": 1907,
+    "reference_estimate_clocks_per_iteration": 23.0416,
+    "one_block_quantization_clocks": 0.0121,
+    "rtl_clocks_per_iteration": 23.016,
+    "difference_clocks_per_iteration": -0.0256
+  },
+  "NEAR_JMP": {
+    "blocks": 1754,
+    "reference_estimate_clocks_per_iteration": 25.0515,
+    "one_block_quantization_clocks": 0.0143,
+    "rtl_clocks_per_iteration": 25.016,
+    "difference_clocks_per_iteration": -0.0355
+  },
+  "CALL_RET_NEAR": {
+    "blocks": 878,
+    "reference_estimate_clocks_per_iteration": 50.0459,
+    "one_block_quantization_clocks": 0.0571,
+    "rtl_clocks_per_iteration": 50.019,
+    "difference_clocks_per_iteration": -0.0269
+  }
+}

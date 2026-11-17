@@ -1,0 +1,18 @@
+{
+  "verified_disk": "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-holdout/reference-vm/run/disk.img",
+  "disk_sha256": "08c48cf804cc4c9830375c13140513c557a8901dc2499d6fa0c0e9940ec94af6",
+  "read_only_copy_sha256": "08c48cf804cc4c9830375c13140513c557a8901dc2499d6fa0c0e9940ec94af6",
+  "absent": [
+    "PF0.TXT",
+    "PF1.TXT",
+    "PF2.TXT",
+    "PF3.TXT"
+  ],
+  "predeclared_files": {
+    "out/dev/1902-cmp-segment-model-v2/segment/prediction.json": "eebb4aa84dd0b1a5a8b85c6fbeb640287abcb1ee8fd0ae65afc96efa78acfe9f",
+    "out/dev/1902-cmp-segment-model-v2/binary-manifest.json": "ff100b0f247da1b4d611dc0e833fc3e2a514269ab06aebc9b20ded0f877cc269",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-holdout/safeguard-tests.json": "a7174d2281037371769ea14ca01f3118140e2883ecf7596847363d51ae858673",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-holdout/commands-frozen.jsonl": "88aaa470ccea2ebb1f0b94cc424c09f00e35cac86f7818b21bdda9674ad266b8",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-holdout/run-reference.sh": "d291ccf7ba7a6dfe7ae1bd718d0c06bd42fbaf8f6b6e1d675d2d3b21dfab31af"
+  }
+}

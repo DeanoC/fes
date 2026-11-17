@@ -1,0 +1,74 @@
+{
+  "TEST_RM_B": {
+    "blocks": 2308,
+    "reference_whole_loop": 19.038280317830765,
+    "old_rtl": 20.021,
+    "split_rtl": 19.021,
+    "old_delta": 0.9827196821692361,
+    "split_delta": -0.01728031783076389,
+    "one_block_quantization": 0.00824524916320085
+  },
+  "TEST_RM_W": {
+    "blocks": 2307,
+    "reference_whole_loop": 19.04653271502098,
+    "old_rtl": 20.014,
+    "split_rtl": 19.014,
+    "old_delta": 0.9674672849790191,
+    "split_delta": -0.032532715020980874,
+    "one_block_quantization": 0.008252397190217062
+  },
+  "TEST_IMM_B": {
+    "blocks": 2088,
+    "reference_whole_loop": 21.044229393464274,
+    "old_rtl": 22.014,
+    "split_rtl": 21.014,
+    "old_delta": 0.9697706065357252,
+    "split_delta": -0.03022939346427478,
+    "one_block_quantization": 0.010073829293185387
+  },
+  "TEST_IMM_W": {
+    "blocks": 2088,
+    "reference_whole_loop": 21.044229393464274,
+    "old_rtl": 22.015,
+    "split_rtl": 21.017,
+    "old_delta": 0.9707706065357264,
+    "split_delta": -0.027229393464274665,
+    "one_block_quantization": 0.010073829293185387
+  },
+  "TEST_DIRECT_B": {
+    "blocks": 1907,
+    "reference_whole_loop": 23.04161036893204,
+    "old_rtl": 24.014,
+    "split_rtl": 23.016,
+    "old_delta": 0.9723896310679585,
+    "split_delta": -0.025610368932042604,
+    "one_block_quantization": 0.012076315706987443
+  },
+  "TEST_DIRECT_W": {
+    "blocks": 1907,
+    "reference_whole_loop": 23.04161036893204,
+    "old_rtl": 24.015,
+    "split_rtl": 23.017,
+    "old_delta": 0.9733896310679597,
+    "split_delta": -0.024610368932041382,
+    "one_block_quantization": 0.012076315706987443
+  },
+  "TEST_RM_SI_B": {
+    "blocks": 2307,
+    "reference_whole_loop": 19.04653271502098,
+    "old_rtl": 20.014,
+    "split_rtl": 19.016,
+    "old_delta": 0.9674672849790191,
+    "split_delta": -0.030532715020981982,
+    "one_block_quantization": 0.008252397190217062
+  },
+  "TEST_RM_SI_W": {
+    "blocks": 2307,
+    "reference_whole_loop": 19.04653271502098,
+    "old_rtl": 20.014,
+    "split_rtl": 19.014,
+    "old_delta": 0.9674672849790191,
+    "split_delta": -0.032532715020980874,
+    "one_block_quantization": 0.008252397190217062
+  }
+}

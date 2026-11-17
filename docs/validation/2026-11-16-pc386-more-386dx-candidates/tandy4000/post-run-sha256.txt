@@ -1,0 +1,3 @@
+8d9796c7fcf94e857e60c459f89f99004a5d6bb517431b2e4c067b710a1b12c3  /data/fes1902-tier-survey-4oxl7m1s/vm/tandy4000/86box.cfg
+b93dd623f20fab154524f2d9aede8ca2ed3fa89068b705cf1949345d75340959  /data/fes1902-tier-survey-4oxl7m1s/vm/tandy4000/nvr/tandy4000.nvr
+9b626c788de827f72521dca1af6a5c0ba6108306579c99714edd583bd911b024  /data/fes1902-tier-survey-4oxl7m1s/vm/tandy4000/disk.img

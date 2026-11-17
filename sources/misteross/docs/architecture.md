@@ -1385,27 +1385,22 @@ a passing preflight releases the six full-span patterns. The addon shares chip
 DQML/DQMH with row-address pins A11/A12; the controller keeps the full row for
 ACTIVATE and drives masks on those pins during column setup and WRITE.
 Simulations use that physical wiring, including high rows. After execution
-release it tests the SDRAM addon and all three HPS DDR ports at the memory clock,
-100 or 130 MHz. The DDR ports scan the whole core window `0x30000000-0x3fffffff`
+release it tests the SDRAM addon and all three HPS DDR ports at the 100 MHz
+memory clock. The DDR ports scan the whole core window `0x30000000-0x3fffffff`
 together with seven patterns and report errors, failing bits and MB/s per port.
-The SDRAM clock pin is the inverted DDR output used by MiSTer controllers. Both
-OSS rates select `RAM_OSS_HIGH_SPEED` and sample the bidirectional DQ pads
+The SDRAM clock pin is the inverted DDR output used by MiSTer controllers. The
+OSS rate selects `RAM_OSS_HIGH_SPEED` and samples the bidirectional DQ pads
 with phase-shifted fabric registers. The compiler's later bidirectional DDR
 input support does not change that selected RTL path.
-`make build-fes-ramtest-100` and `make build-fes-ramtest-130` seal packages into
-`build/fes-ramtest-100/` and `build/fes-ramtest-130/` with the
-`cores/fes-ramtest/toolchain.lock` HIP compiler slot, whose Yosys declares every fpga2sdram port. Their
+`make build-fes-ramtest-100` seals the one package into
+`build/fes-ramtest-100/` with the
+`cores/fes-ramtest/toolchain.lock` HIP compiler slot, whose Yosys declares every fpga2sdram port. Its
 timing gate covers the memory, capture and video domains, and the recipe checks
 the synthesized fpga2sdram layout constants. `make build-fes-ramtest-quartus`
 compiles the same RTL with Quartus 17.0.2 at 130 MHz; `RAMTEST_MHZ=100` selects
 a separate 100 MHz diagnostic. A gamepad button, or a keyboard key the host
 maps to one, stops the scans. The ABI has no memory opcode. Hardware results
 are recorded in the [core README](../cores/fes-ramtest/README.md).
-`make diagnose-fes-ramtest-timing` uses `cores/fes-ramtest/toolchain.lock` and
-compares a baseline route with report-guided LUT remapping on the same
-synthesis. It retains the remap only when final memory timing improves without
-regressing the other clocks or reporting hold violations. Both routes remain
-host-only diagnostics; neither RBF is sealed or exported as a package.
 
 ### SDRAM external timing model
 
@@ -4637,10 +4632,9 @@ specified diagnostic schema; they are not an alternate normal product route.
 Historical source-record verification checks original immutable provenance
 without admitting arbitrary live standalone producer roots.
 
-The FES factory/catalog recipe for `fes.ramtest` selects the OSS 100 MHz
-variant through `build_fes_ramtest.py`. Its parent-facing authentication and
-functional-record defaults match that rate; explicit 130 MHz builds retain
-their separate output and timing gates. Quartus remains an oracle.
+The FES factory/catalog recipe for `fes.ramtest` seals the OSS 100 MHz package
+through `build_fes_ramtest.py`, which builds that one rate. Quartus remains an
+oracle.
 
 ## Shared FPGA producer and RTL ownership
 

@@ -1,0 +1,3 @@
+bdeaaa542bc786aa5a3c0189f4c9a1cc8a4b5e546415a06eae760308fd81bac3  /data/fes1902-tier-survey-4oxl7m1s/vm/micronics386/86box.cfg
+ed8628c211544bc35272cef6d619833da8f2c2a3642402f206c368cb054d8481  /data/fes1902-tier-survey-4oxl7m1s/vm/micronics386/nvr/micronics386.nvr
+13af87a8fa82ff4b2b0fcefce09206fa4f00a050cdcb2e92c66b36f926c325b0  /data/fes1902-tier-survey-4oxl7m1s/vm/micronics386/disk.img

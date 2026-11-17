@@ -1,0 +1,26 @@
+{
+  "CMP_WORD_SI": {
+    "charged": 18.018,
+    "cycles": 92098
+  },
+  "CMP_BYTE_SI": {
+    "charged": 18.016,
+    "cycles": 92305
+  },
+  "FLAGS_OTHER": {
+    "charged": 19.016,
+    "cycles": 97425
+  },
+  "SHORT_JMP": {
+    "charged": 23.016,
+    "cycles": 117904
+  },
+  "NEAR_JMP": {
+    "charged": 25.016,
+    "cycles": 128145
+  },
+  "CALL_RET_NEAR": {
+    "charged": 50.019,
+    "cycles": 256112
+  }
+}

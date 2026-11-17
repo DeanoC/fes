@@ -1,0 +1,45 @@
+{
+  "checks": {
+    "outside": {
+      "code": 2,
+      "stdout": "",
+      "stderr": "rejected: target must be a private single-link image directly in the run directory\n"
+    },
+    "dotdot_escape": {
+      "code": 2,
+      "stdout": "",
+      "stderr": "rejected: target must be a private single-link image directly in the run directory\n"
+    },
+    "symlink_escape": {
+      "code": 2,
+      "stdout": "",
+      "stderr": "rejected: target must be an absolute non-symlink path\n"
+    },
+    "hardlink_escape": {
+      "code": 2,
+      "stdout": "",
+      "stderr": "rejected: target must be a private single-link image directly in the run directory\n"
+    },
+    "relative": {
+      "code": 2,
+      "stdout": "",
+      "stderr": "rejected: target must be an absolute non-symlink path\n"
+    },
+    "survey": {
+      "code": 0,
+      "stdout": "verified target: /home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-holdout/reference-vm/run/safeguard-test.img\n",
+      "stderr": ""
+    },
+    "failcase": {
+      "code": 0,
+      "stdout": "verified target: /home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-holdout/reference-vm/run/safeguard-test.img\n",
+      "stderr": ""
+    }
+  },
+  "readback_sha256": {
+    "SURVEY.COM": "cdab5e155bb48a5b24ed8160bb2a6cb4a4e1b590acbcb8903c8adb3e94f87f20",
+    "FAILCASE.COM": "61779b2924cd9b69d6fd21aef8b8b2684a4e2377d675436270fd8ef3ed3722e7"
+  },
+  "outside_unchanged_sha256": "29ea2eea8330c54a95786b98e4c973148bcf11366e8415d18bb4681d7a95768a",
+  "guard_sha256": "94cc1a246300fac9e6ad2124bd1d7f53f7c32e05956abc6eca93ba1a884b87cd"
+}
