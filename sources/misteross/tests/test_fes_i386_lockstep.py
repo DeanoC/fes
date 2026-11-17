@@ -240,6 +240,28 @@ class OutputTest(unittest.TestCase):
 
 @unittest.skipUnless(VERILATOR and BOCHS and CORPUS,
                      VERILATOR_ABSENT or 'the pinned Bochs checkout or the corpus is absent')
+class SourceRecordTest(unittest.TestCase):
+    """A report names the revision and sources it tested (#1907 review)."""
+
+    def test_record_names_the_revision_and_every_cpu_source(self):
+        record = lockstep.source_record()
+        self.assertRegex(record['fes_revision'], r'^[0-9a-f]{40}$')
+        self.assertIsInstance(record['tracked_changes'], list)
+        prefix = 'sources/misteross/cores/fes-common/rtl/i386/'
+        for name in lockstep.CPU_RTL:
+            self.assertRegex(record['files'][prefix + name], r'^[0-9a-f]{64}$')
+        self.assertIn('sources/misteross/cores/fes-common/sim/i386/lockstep_tb.cpp', record['files'])
+        self.assertIn('sources/misteross/scripts/test_fes_i386_lockstep.py', record['files'])
+
+    def test_a_changed_source_changes_the_record(self):
+        before = lockstep.source_record()
+        with mock.patch.object(lockstep, 'tested_sources',
+                               return_value=[lockstep.RTL / lockstep.CPU_RTL[0], lockstep.SIM / 'lockstep_tb.cpp']):
+            narrowed = lockstep.source_record()
+        self.assertNotEqual(before['files_sha256'], narrowed['files_sha256'])
+        self.assertEqual(before['fes_revision'], narrowed['fes_revision'])
+
+
 class LockstepRunTest(unittest.TestCase):
     ARGS = ['--opcode', '00', '--opcode', 'D3.4', '--opcode', '670FAD', '--opcode', '678D', '--opcode', 'E2',
             '--random-programs', '100', '--random-seeds', '2', '--pm-programs', '100',

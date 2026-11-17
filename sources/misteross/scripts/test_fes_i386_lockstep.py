@@ -539,6 +539,34 @@ def label_fields(entries: list[dict], stem: str, test: vectors.MooTest) -> tuple
     return corpus, oracle_side
 
 
+# What the testbench is built from, apart from the oracle's inputs (which
+# report['oracle'] covers): the CPU's RTL, the C++ bench and its two local
+# headers' directories, and this runner.
+def tested_sources() -> list[Path]:
+    return sorted({*(RTL / path for path in CPU_RTL), *SIM.glob('*.cpp'), *SIM.glob('*.h'), *SIM.glob('*.toml'),
+                   *DDR_MODEL.glob('*.h'), Path(__file__).resolve(), Path(yosys_netlist.__file__).resolve()})
+
+
+def source_record() -> dict:
+    """The revision and sources a run tested, so a report names what it is a
+    report of. testbench_sha256 cannot: it is the digest of a built binary
+    nothing commits. `tracked_changes` lists tracked files that differ from
+    the revision; a report with any is not a report of that revision alone,
+    and `files` then says what the tested sources actually were."""
+    repository = ROOT.parents[1]
+    def git(*arguments: str) -> str:
+        result = subprocess.run(['git', '-C', str(repository), *arguments], capture_output=True, text=True)
+        if result.returncode:
+            raise LockstepError('cannot read the tested revision: ' + result.stderr.strip())
+        return result.stdout
+    files = {str(path.relative_to(repository)): hashlib.sha256(path.read_bytes()).hexdigest()
+             for path in tested_sources()}
+    return {'fes_revision': git('rev-parse', 'HEAD').strip(),
+            'tracked_changes': sorted(line[3:] for line in git('status', '--porcelain', '--untracked-files=no').splitlines()),
+            'files': files,
+            'files_sha256': hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()}
+
+
 def verilate(verilator: i386_verilator.LockedVerilator, linked: list[Path], jobs: int, yosys: Path | None,
              parameters: dict[str, int] | None = None) -> Path:
     """The testbench, with the CPU's parameters if any: -G on the RTL, and on
@@ -763,6 +791,7 @@ def main() -> int:
     OUTPUT.mkdir(parents=True, exist_ok=True)
     report: dict[str, object] = {'verilator': verilator.record()}
     try:
+        report['source'] = source_record()
         suite_sha256 = oracle.suite_source_sha256(ROOT)
         entries = vectors.load_divergences()
         table = OUTPUT / 'divergences.txt'
@@ -845,6 +874,8 @@ def main() -> int:
             undefined_results = [future.result() for future in undefined]
         if oracle.suite_source_sha256(ROOT) != suite_sha256:
             raise LockstepError('lockstep suite sources changed during the run')
+        if source_record() != report['source']:
+            raise LockstepError('the tested revision or its sources changed during the run')
         final_oracle = oracle.build_record(linked)
         if (any(report['oracle'].get(key) != value for key, value in final_oracle.items())
                 or hashlib.sha256(Path(testbench).read_bytes()).hexdigest() != report['oracle']['testbench_sha256']):
