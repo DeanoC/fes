@@ -38,13 +38,34 @@ class Derivations(unittest.TestCase):
             with self.assertRaises(ValueError):
                 derive.retarget_sdram(changed)
 
-    def test_native_video_cache_hint_is_the_only_change(self):
+    def test_native_video_keeps_everything_but_the_frame_store(self):
         source = (ROOT / "cores/fes-atari-st/rtl/st_native_low_video.sv").read_bytes()
-        result, _ = derive.retarget_native_video(source)
-        self.assertEqual(result.replace(derive.CACHE_AFTER, derive.CACHE_BEFORE), source)
+        result, record = derive.retarget_native_video(source)
         self.assertNotIn(b'"M10K"', result)
+        self.assertEqual(result.count(b"<= frame_store_data;"), 3)
+        self.assertEqual(record["frame_words"], 79872)
+        # Outside the four replaced regions every source line survives in order.
+        kept = [line for line in result.splitlines() if line in set(source.splitlines())]
+        position = 0
+        lines = source.splitlines()
+        for line in kept:
+            position = lines.index(line, position) if line in lines[position:] else position
+        added = [line for line in result.splitlines() if line not in set(lines)]
+        self.assertLess(len(added), 40)
         with self.assertRaises(ValueError):
             derive.retarget_native_video(result)
+        with self.assertRaises(ValueError):
+            derive.retarget_native_video(source.replace(b"FRAME_CHUNKS = 78", b"FRAME_CHUNKS = 79"))
+
+    def test_memory_gains_only_the_rom_region(self):
+        source = (ROOT / "cores/fes-atari-st/rtl/st_memory.sv").read_bytes()
+        result, _ = derive.retarget_memory(source)
+        self.assertEqual(result.replace(derive.MEMORY_PORT_AFTER, derive.MEMORY_PORT_BEFORE)
+                         .replace(derive.MEMORY_MAP_AFTER, derive.MEMORY_MAP_BEFORE), source)
+        with self.assertRaises(ValueError):
+            derive.retarget_memory(result)
+        with self.assertRaises(ValueError):
+            derive.retarget_memory(source.replace(b"40000-a67ff", b"40000-b67ff"))
 
     def test_component_lists_every_staged_file(self):
         import re

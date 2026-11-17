@@ -15,16 +15,29 @@ including `st_memory` with its phase slots and posted CPU writes.
 
 | DE10 | DE25 |
 | --- | --- |
-| 192 KiB ROM linked into blank M10K lanes at install (format 3) | `fes_st_firmware_rom`: block RAM with `st_rom`'s request port and latency, filled through [`fes.fabric.firmware-upload`](../../../../mister-packages/docs/firmware-upload.md) |
+| 192 KiB ROM linked into blank M10K lanes at install (format 3) | `fes_st_rom_sdram`: the ROM in SDRAM at halfword `c0000`, filled through [`fes.fabric.firmware-upload`](../../../../mister-packages/docs/firmware-upload.md) and read through the CPU's memory port |
 | MiSTer addon SDRAM, masks shared with A11/A12, Cyclone V DDR clock cell | Board SDRAM rank 0 with its own mask pins; `derive.py` swaps the forwarded-clock cell for the inverted clock |
+| Native video frame store: 234 hand-chunked 1024x9 memories written from one `case` | `derive.py` makes each bank one memory for Quartus to shape; as written Quartus builds 2.2 million registers, and one M20K per chunk does not fit |
 | 720p word straight to HDMI through the video socket | The direct video part's word into the session display, so the launcher plane works in a session |
 | `fes_computer_mailbox_direct` | The mailbox with the session display, as on the Spectrum and ZX81 |
+
+The device has 358 M20K blocks and the managed shell uses about 150 of them,
+so the ROM cannot sit in block RAM beside the frame store. `derive.py` gives
+`st_memory`'s CPU port a ROM region; a ROM read takes the CPU's phase slot as
+a RAM read does. Firmware is written there while the machine is held, when the
+memory's phase slots turn on a free count because the raster stands still.
 
 The expansion and video sockets are vacant. RAM (512 KiB) and the floppy image
 keep their DE10 halfword offsets in the first SDRAM rank; the second chip is
 never selected. The wrapper is the Spectrum's: the computer slave stays on the
 100 MHz peripheral clock and `fes_gp_crossing` carries the GP words to the
 machine clock.
+
+`atari-st-clocks.sdc` names every path between the machine and pixel clocks:
+the video adapter's and native capture's request/done toggles as single-bit
+first stages, and each held bundle with a bound taken from its handshake.
+The inventory came from the fitted design, so a new crossing shows up as a
+timing failure, not as an unnamed exception.
 
 ## Run
 
@@ -35,7 +48,8 @@ make build QUARTUS_ROOTDIR=/absolute/altera_pro/26.3 \
   VENDOR_ARCHIVE=/absolute/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip OUTPUT=/new/private/path
 ```
 
-`sim` assembles the open diagnostic firmware and drives the Avalon computer
+`sim` first runs the DE10 native video bench on the derived frame store. It
+then assembles the open diagnostic firmware and drives the Avalon computer
 slave on three unrelated clocks against a logical SDRAM rank that checks the
 controller's command protocol, recovery times and refresh interval. It checks
 identity and capabilities, that execution cannot be released without
@@ -48,11 +62,11 @@ memory master, PLLs, SDRAM pad timing and HDMI are not modeled.
 
 ## Open
 
-- Naming each machine/pixel crossing of the video adapter and native video
-  in `atari-st-clocks.sdc`. They carry one provisional ten-nanosecond bound
-  for the whole clock pair today; that must go before any export.
-- Fit. The DE10 build uses 513 M10K; the uploaded ROM alone is 1.6 Mbit of
-  the device's M20K.
+- External delays for the SDRAM and I2S pins, then the producer's export
+  gates, as for the Spectrum.
+- ROM read timing against the DE10 machine. `st_rom` answered in five clocks;
+  the SDRAM port answers in the CPU's slot. The diagnostic firmware runs, but
+  no cycle-exact comparison or stock TOS boot has been made.
 - SDRAM on the board. The chips are mobile SDRAM: the ramtest controller
   programs their extended mode register and this controller does not. Pad
   timing at the machine clock, with a fabric rising-edge sample, is unproven.

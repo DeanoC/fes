@@ -224,10 +224,12 @@ def prepare(spec, archive, output, revision=None, model=None):
     for name in audio:
         (local / Path(name).name).write_bytes(sources[name])
     qsf_path = project / "golden_top.qsf"
+    # The PLL goes ahead of the constraints: they name the clocks its IP declares.
     qsf = replace_once(qsf_path.read_text(),
         "set_global_assignment -name SDC_FILE fes_mailbox/clocks.sdc\n",
+        "set_global_assignment -name IP_FILE fes_mailbox/machine_pll.ip\n"
         "set_global_assignment -name SDC_FILE fes_mailbox/machine-clocks.sdc\n")
-    qsf += "\nset_global_assignment -name IP_FILE fes_mailbox/machine_pll.ip\n"
+    qsf += "\n"
     if re.search(r"(?m)^\s*set_global_assignment\s+-name\s+VERILOG_MACRO\s+", qsf):
         raise ValueError("upstream already selects Verilog macros; review before adding the model")
     qsf += "set_global_assignment -name VERILOG_MACRO QUARTUS=1\n"

@@ -11,9 +11,11 @@
 //
 // The image is BYTES long exactly. Accepted bytes leave on the write port for
 // one clock, low byte at write_addr and the high byte at write_addr+1, as the
-// mailbox presents media. The store is a plain synchronous RAM with no
-// backpressure. Begin and Data are valid only while execution is held, so the
-// running machine never sees a changing ROM. No FPGA-family primitive belongs
+// mailbox presents media. The write is held until write_ready, which a plain
+// synchronous RAM ties high; a store behind a slower memory raises it for the
+// one clock it takes the pair, and the request is acknowledged on that clock.
+// Begin and Data are valid only while execution is held, so the running
+// machine never sees a changing ROM. No FPGA-family primitive belongs
 // here.
 module fes_firmware_upload #(
     parameter integer AW = 14,
@@ -28,7 +30,8 @@ module fes_firmware_upload #(
     output wire          ready,
     output wire [AW-1:0] write_addr,
     output wire [15:0]   write_data,
-    output wire [1:0]    write_enable
+    output wire [1:0]    write_enable,
+    input  wire          write_ready
 );
     localparam [15:0] E_OPCODE = 16'(`FES_COMPUTER_ERROR_INVALID_OPCODE);
     localparam [15:0] E_INDEX = 16'(`FES_COMPUTER_ERROR_INVALID_INDEX);
@@ -106,7 +109,7 @@ module fes_firmware_upload #(
                 acknowledged <= request_sync;
                 forwarded <= 1'b0;
             end
-        end else if (request) begin
+        end else if (request && (!data_ok || write_ready)) begin
             response_error <= 1'b0;
             response_data <= 16'd0;
             acknowledged <= request_sync;

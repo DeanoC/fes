@@ -4,7 +4,7 @@
 // 68000 machine and the DE10 core's SDRAM controller against a logical SDR
 // SDRAM model that checks its command protocol. Execution cannot be released
 // before the firmware is committed; the open diagnostic firmware is then
-// uploaded and runs from the uploaded ROM with its RAM in SDRAM until the
+// uploaded into SDRAM and runs from there with its RAM beside it until the
 // vacant expansion fails its probe at stage 5, as on the DE10 machine bench.
 // A raw floppy image uploaded while the machine runs lands in the SDRAM media
 // region. The scanout slave and its memory master stay idle.
@@ -52,7 +52,7 @@ uint32_t crc32(const std::vector<uint8_t>& bytes) {
 // one, auto-precharge, byte masks on A11/A12 during the column command, and
 // the controller's packed row/bank/column halfword address.
 struct Sdram {
-    std::vector<uint16_t> words = std::vector<uint16_t>(0xa6800, 0);
+    std::vector<uint16_t> words = std::vector<uint16_t>(0xd8000, 0);
     uint64_t cycle = 0, refreshes = 0, last_refresh = 0, read_due = 0;
     uint16_t pending_read = 0;
     std::array<unsigned, 4> row{};
@@ -216,7 +216,8 @@ struct Board {
     uint32_t request(uint32_t opcode, uint32_t index, uint32_t argument) {
         toggle = !toggle;
         write(kGpo, (opcode << 24) | (index << 16) | argument | (toggle ? 0x80000000u : 0));
-        for (int i = 0; i < 4096; ++i) {
+        // A firmware pair is held while the SDRAM initializes or is busy.
+        for (int i = 0; i < 65536; ++i) {
             const uint32_t word = read(kGpi);
             if ((word >> 24) == 0xf5 && ((word >> 23) & 1u) == static_cast<uint32_t>(toggle))
                 return word;
@@ -265,6 +266,11 @@ int main(int argc, char** argv) {
         board.ok(kData, (i / 2) & 0xff, firmware[i] | (firmware[i + 1] << 8), "firmware data");
     board.ok(kCommit, 0, 0, "firmware commit");
     require(board.ok(kInfo, 2, 0, "state") == 2, "firmware did not become ready");
+    // The ROM is big-endian words in SDRAM at halfword c0000, above RAM and
+    // the floppy region.
+    for (size_t i = 0; i < firmware.size(); i += 2)
+        require(board.sdram.words[0xc0000 + i / 2] == ((firmware[i] << 8) | firmware[i + 1]),
+                "SDRAM firmware word " + std::to_string(i / 2) + " differs");
 
     // The 68000 runs the uploaded ROM with its RAM in SDRAM. With no card in
     // the expansion the diagnostic's probe fails at stage 5.
