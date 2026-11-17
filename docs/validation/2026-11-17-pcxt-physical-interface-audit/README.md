@@ -11,7 +11,9 @@ integration record. Runtime lifecycle and FogCast coordination are unchanged.
 
 ## Source and artifact
 
-- Audited source base: `b79146efc1f05941be64e30e8225887623266cee`.
+- Audited source base: `b79146efc1f05941be64e30e8225887623266cee`;
+  payload-binding re-extraction at `fd44334fa5384de6ddc56b82ba0429068ddcbd9d`
+  retains the same 185 production input files.
 - Artifact source: `85dbb42815a26ef51c490c79a790f861101b96ff`, produced using
   authenticated Yosys and Quartus Lite 17.0.2 Build 602 for `5CSEBA6U23I7`.
 - BUILD_ID: `1d1e4a52fced512afe3c96dc88cc0783`.
@@ -36,6 +38,10 @@ reports and independent seed-1 repeat. Each run retains all four native
 operating conditions. The extractor compares the raw coverage and unconstrained
 port reports against the producer summary, checks both setup and hold port
 inventories, validates the package/record identity and hashes every raw input.
+The sealed payload must also equal both the audited signoff seed-1 RBF and
+its independent repeat RBF. A separately valid package with the same record
+but a changed payload, and a changed repeat, were each rejected before output
+in the review-fix checks; record identity alone is insufficient.
 
 | Signoff seed | Worst reported setup | Hold | Recovery | Removal | Inputs without delay | Outputs without delay | No-clock entries |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |

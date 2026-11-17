@@ -43,6 +43,17 @@ def main():
     assert package.fields['build']['revision'] == record['revision']
     assert all(sha(root / path) == digest for path, digest in record['source_inputs'].items())
     evidence = {'build-inputs.json': sha(record_path)}
+    # A pre-synthesis identity cannot bind timing to exact post-route bytes.
+    # The installed payload is the first signoff seed; its independent repeat
+    # must reproduce it, rather than merely carry the same BUILD_ID.
+    payload_sha = package.fields['payload']['sha256']
+    payload_paths = ('signoff/seed-1/output_files/top.rbf',
+                     'repeat/seed-1/output_files/top.rbf')
+    for name in payload_paths:
+        observed = sha(attempt / name)
+        if observed != payload_sha:
+            raise ValueError('package payload differs from audited RBF: ' + name)
+        evidence[name] = observed
     runs = []
     for phase, expected_seeds in (('signoff', [1, 2, 3]), ('repeat', [1])):
         summary_path = attempt / phase / 'summary.json'
@@ -92,6 +103,7 @@ def main():
         'artifact_revision': record['revision'], 'build_id': package.fields['build']['id'],
         'package_id': package.package_id, 'archive_sha256': sha(args.package),
         'payload_sha256': package.fields['payload']['sha256'],
+        'payload_matches_signoff_and_repeat': True,
         'recorded_inputs_equal_audited_source': len(record['source_inputs']),
         'normal_profile': {'system_clock_hz': 100000000, 'pixel_clock_hz': 74250000,
                            'half_rate_board': False, 'phased_hdmi_clock': True},

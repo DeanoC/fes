@@ -12,6 +12,7 @@
     "system_clock_hz": 100000000
   },
   "package_id": "4e7c0c7ea83702b83987c7ca35c15e00269237a446d8646b51363bf75c9695ec",
+  "payload_matches_signoff_and_repeat": true,
   "payload_sha256": "d10aec8b6295b341e688ab12d358f2864cfeca6bffc4417df7bbfdab1e6ae56c",
   "raw_evidence_sha256": {
     "build-inputs.json": "865ca6328217f7e6ce2ba97654127a2982cb7efa8de3e28a891fbaedc6e78c2d",
@@ -22,6 +23,7 @@
     "repeat/seed-1/audit/endpoints.tsv": "1eb9ce700ed4e7b0178baa5a8906a8a86014c024c675334f70d7dd2975413ad2",
     "repeat/seed-1/audit/ignored-constraints.rpt": "7cbebc48feac4d783f64a2711627d07509f232af5abfae44479518ffe2923f6c",
     "repeat/seed-1/audit/unconstrained.rpt": "f3110081aa74fabb834ae916231801c92c3d1129a4a278d4c692f04114c137cc",
+    "repeat/seed-1/output_files/top.rbf": "d10aec8b6295b341e688ab12d358f2864cfeca6bffc4417df7bbfdab1e6ae56c",
     "repeat/summary.json": "21b8d7c3822324a14f52ef0653a35824b71e1327267cc56cf814f1098ec47319",
     "signoff/seed-1/audit/check-timing.rpt": "641d781e0ce52f36b535398b9101ac83cbd25473fa4679269374e7daff22224f",
     "signoff/seed-1/audit/clocks.tsv": "57c6cbbc363528cceacfd2dc24f8116069ef7f02bc038649367f5a0aed0876a7",
@@ -30,6 +32,7 @@
     "signoff/seed-1/audit/endpoints.tsv": "1eb9ce700ed4e7b0178baa5a8906a8a86014c024c675334f70d7dd2975413ad2",
     "signoff/seed-1/audit/ignored-constraints.rpt": "7cbebc48feac4d783f64a2711627d07509f232af5abfae44479518ffe2923f6c",
     "signoff/seed-1/audit/unconstrained.rpt": "f3110081aa74fabb834ae916231801c92c3d1129a4a278d4c692f04114c137cc",
+    "signoff/seed-1/output_files/top.rbf": "d10aec8b6295b341e688ab12d358f2864cfeca6bffc4417df7bbfdab1e6ae56c",
     "signoff/seed-2/audit/check-timing.rpt": "1499f9b69d6ee8894dd85e1883f6012e95203e693ac5233cd2aa7305b5d4203d",
     "signoff/seed-2/audit/clocks.tsv": "1d2fbc3319b77b68c064ed9ddac712510d5807e2c48799e89bb7b90ce67e88bc",
     "signoff/seed-2/audit/constraints.rpt": "302df12fe1f98af4938cf64e80df9b7c7abd9a8b3c812c2b82c70628cd7fd5ae",
@@ -853,6 +856,6 @@
       }
     }
   ],
-  "source_audit_base": "b79146efc1f05941be64e30e8225887623266cee",
+  "source_audit_base": "fd44334fa5384de6ddc56b82ba0429068ddcbd9d",
   "whole_board_qualified": false
 }
