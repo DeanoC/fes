@@ -278,12 +278,16 @@ make toolchain
 
 `make toolchain` is the generic OSS lane (GPU router off), including splash.
 `make toolchain-fes` provisions the repository-level `toolchain.lock` HIP
-lane for consumers that still select that lock. Every registered core has a
+lane for consumers that still select that lock. Every registered OSS core has a
 matching `toolchain-fes-<core>` target that provisions its
-`cores/fes-<core>/toolchain.lock`: menu, Pong, ZX81, Coleco, SMS,
+`cores/fes-<core>/toolchain.lock`: menu, Pong, Coleco, SMS,
 SG-1000, Apple II, C64, Spectrum, RISC-V, RAM Tester and Atari ST. Without a
 cache, each producer reads the local install that its own target writes.
-Menu and ZX81 pin nextpnr `1eecf877`, Pong's lock pins `552ba246`, and
+The ZX81 family's registered lock is `cores/fes-zx81/quartus.lock`
+(Quartus Lite through `QUARTUS_ROOTDIR`). Its `make toolchain-fes-zx81`
+target provisions `cores/fes-zx81/toolchain.lock`, which supplies the pinned
+Mistral ROM database that producer reads and the advisory nextpnr shell and
+carts. Menu and the advisory ZX81 lane pin nextpnr `1eecf877`, Pong's lock pins `552ba246`, and
 RISC-V's `8f453ebc`, so each has its own slot. Apple II, Atari ST and C64 use
 nextpnr `5fe55f3d` from nextpnr #276; their shell validators require that
 producer pin's exact F0/F1 `$ROUTETHRU` map. Apple II and C64 share one slot,

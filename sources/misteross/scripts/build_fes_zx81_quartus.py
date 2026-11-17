@@ -800,8 +800,10 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
         if runs[0]['rbf_sha256'] != runs[-1]['rbf_sha256']:
             raise BuildError('independent Quartus rebuild changed the RBF')
         base = (signoff / 'output_files/top.rbf').read_bytes()
+        # The package carries the canonical encoding, so the ROM map binds its digest.
+        sealed = canonical_rbf(base)
         try:
-            mapping, map_evidence = rom_map.build_rom_map(database, base, lane_rows=machine.lane_rows)
+            mapping, map_evidence = rom_map.build_rom_map(database, sealed, lane_rows=machine.lane_rows)
         except ValueError as error:
             raise BuildError(f'ROM map: {error}') from error
         if mapping['source_size'] != machine.rom_bytes:
@@ -814,7 +816,9 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
                 or rom_database(cache_root, root) != database):
             raise BuildError('Quartus build inputs changed during compilation')
         payload = output / 'core.rbf'
-        payload.write_bytes(canonical_rbf(base))
+        payload.write_bytes(sealed)
+        if mapping['base_sha256'] != sha(payload):
+            raise BuildError('ROM map does not bind the sealed payload')
         map_bytes = (json.dumps(mapping, sort_keys=True, separators=(',', ':')) + '\n').encode()
         (output / 'rom-map.json').write_bytes(map_bytes)
         rom = {'id': machine.rom_id, 'role': 'firmware', 'source_size': machine.rom_bytes,
