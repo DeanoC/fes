@@ -3538,8 +3538,8 @@ admitted to the ordered queue, not proof that the guest consumed it. If multiple
 keys, on one keyboard or across keyboards, contribute the same core key, a
 release clears that key's hold and modifier state immediately; the core release
 is queued once no other unsuppressed admitted key contributes it. Disconnect
-discards the lost device's holds and suppression and releases only keys no
-surviving admitted physical key still holds.
+discards the lost device's holds and suppression on both SDL and evdev, and
+releases only keys no surviving admitted physical key still holds.
 During a same-session surround transition that keeps machine focus, an
 already-admitted key can still send its neutral release; new presses stay fenced.
 The 1.1 ABI retains its 1.0 keyboard and relative-mouse capabilities; an active
