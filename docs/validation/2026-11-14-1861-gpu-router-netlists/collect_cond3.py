@@ -79,6 +79,42 @@ def announced_output(key: str) -> Path | None:
     return None
 
 
+def derived_build_id(key: str) -> str | None:
+    """Re-derive this artefact's BUILD_ID at the head, for a summary with no revision.
+
+    build_fes_splash writes a format-1 record and its build-summary.json
+    carries no `revision` field -- but the *record* does, and BUILD_ID is taken
+    over the whole record. So the sealed build_id commits to the revision
+    cryptographically, which is a stronger tie than the missing field would
+    have been. Deriving it costs no build: it authenticates the tools and
+    encodes the record, nothing more.
+    """
+    if key != "splash":
+        return None
+    import os
+    saved = sys.path[:], os.getcwd(), os.environ.get("FES_TOOLCHAIN_CACHE_ROOT")
+    try:
+        os.chdir(TREE)
+        sys.path.insert(0, str(TREE))
+        # splash refuses a shared cache root and uses its tree-local install.
+        os.environ.pop("FES_TOOLCHAIN_CACHE_ROOT", None)
+        from scripts import build_fes_splash as sp
+        from scripts.export_core_package import build_identity
+        repository, revision = sp.board._require_clean_source(
+            sp.ROOT, pinned_inputs=sp.PINNED_INPUTS, identity_version=sp.IDENTITY_VERSION)
+        auth = sp.authenticate_oss_tools(sp.ROOT)
+        ids = {n: t.identity for n, t in auth.items()}
+        return build_identity(sp.create_build_record(sp.ROOT, repository, revision, ids))
+    except Exception as exc:
+        print(f"  (could not derive {key}'s BUILD_ID: {type(exc).__name__}: {exc})")
+        return None
+    finally:
+        sys.path[:], cwd, cache = saved
+        os.chdir(cwd)
+        if cache is not None:
+            os.environ["FES_TOOLCHAIN_CACHE_ROOT"] = cache
+
+
 def check(key: str, data: dict, path: Path, revision: str | None) -> str | None:
     """Why this summary must not be collected, or None if it is sound.
 
@@ -111,7 +147,13 @@ def check(key: str, data: dict, path: Path, revision: str | None) -> str | None:
         if f"-quartus/" in str(path):
             return f"build_id {build_id[:12]} is not the identity its path names"
     if data.get("revision") is None and revision is not None:
-        return "summary records no revision, so it cannot be tied to this head"
+        expected = derived_build_id(key)
+        if expected is None:
+            return "summary records no revision and no derivation is available for it"
+        if expected != build_id:
+            return (f"summary build_id {build_id[:12]} is not the {expected[:12]} this head "
+                    f"derives, so it is not this run's seal")
+        return None
     return None
 
 
@@ -139,6 +181,8 @@ def main() -> int:
             continue
         result[key] = {"lane": "nextpnr", "build_id": data.get("build_id"),
                        "unverified": why, "revision": data.get("revision"),
+                       "tied_to_head_by": ("revision field" if data.get("revision")
+                                           else "BUILD_ID re-derived at the head"),
                        "placer_seed": data.get("route", {}).get("placer_seed"),
                        "margins": margins(data.get("timing")),
                        "source": str(path)}

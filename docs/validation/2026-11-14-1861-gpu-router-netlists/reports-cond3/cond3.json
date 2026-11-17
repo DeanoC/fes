@@ -1,0 +1,163 @@
+{
+  "splash": {
+    "build_id": "4ef956237159c1e8fa9b6fb3b5ec87c3",
+    "lane": "nextpnr",
+    "margins": {
+      "clocks": {
+        "pixel": {
+          "achieved_mhz": 236.5743865966797,
+          "constraint_mhz": 74.25006866455078,
+          "ratio": 3.186184078367424,
+          "status": "pass"
+        }
+      },
+      "kind": "nextpnr-frequency-ratio",
+      "worst_ratio": 3.186184078367424
+    },
+    "placer_seed": null,
+    "revision": null,
+    "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-splash/build-summary.json",
+    "tied_to_head_by": "BUILD_ID re-derived at the head",
+    "unverified": null
+  },
+  "ts1000": {
+    "build_id": "1a04c85fb4833db0b77cb8a2d6e8d1d1",
+    "lane": "quartus-lite",
+    "margins": {
+      "all_non_negative": true,
+      "kind": "quartus-slack-ns",
+      "slack_ns": {
+        "Hold": 0.135,
+        "Minimum Pulse Width": 1.122,
+        "Recovery": 77.937,
+        "Removal": 0.715,
+        "Setup": 2.977
+      },
+      "tns_ns": {
+        "Hold": 0.0,
+        "Minimum Pulse Width": 0.0,
+        "Recovery": 0.0,
+        "Removal": 0.0,
+        "Setup": 0.0
+      },
+      "worst_analysis": "Hold",
+      "worst_slack_ns": 0.135
+    },
+    "payload_sha256": "0091f757637241badce2bbde838ddfdf73ea90af6e8bbc6edb07ab841e5c5708",
+    "provenance": "announced by the producer in its own log",
+    "repeat_matches_signoff": true,
+    "revision": "df99f2dfb2084035b213614960b952f5e79ab781",
+    "seeds": [
+      1,
+      2,
+      3
+    ],
+    "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-ts1000-quartus/1a04c85fb4833db0b77cb8a2d6e8d1d1/attempt-gfwti7yn/build-summary.json",
+    "unverified": null
+  },
+  "ts1500": {
+    "build_id": "05db7020951901efbefc2de78c5aa3d0",
+    "lane": "quartus-lite",
+    "margins": {
+      "all_non_negative": true,
+      "kind": "quartus-slack-ns",
+      "slack_ns": {
+        "Hold": 0.11,
+        "Minimum Pulse Width": 1.122,
+        "Recovery": 77.986,
+        "Removal": 0.715,
+        "Setup": 3.428
+      },
+      "tns_ns": {
+        "Hold": 0.0,
+        "Minimum Pulse Width": 0.0,
+        "Recovery": 0.0,
+        "Removal": 0.0,
+        "Setup": 0.0
+      },
+      "worst_analysis": "Hold",
+      "worst_slack_ns": 0.11
+    },
+    "payload_sha256": "cb64b16741eafe5b1aec9e543ed8ee86e67e5356f9fc0fa952c24c441bd9163e",
+    "provenance": "announced by the producer in its own log",
+    "repeat_matches_signoff": true,
+    "revision": "df99f2dfb2084035b213614960b952f5e79ab781",
+    "seeds": [
+      1,
+      2,
+      3
+    ],
+    "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-ts1500-quartus/05db7020951901efbefc2de78c5aa3d0/attempt-7h0eu_u2/build-summary.json",
+    "unverified": null
+  },
+  "zx80": {
+    "build_id": "69bf0d59047eae30eb4e3060a78e60bd",
+    "lane": "quartus-lite",
+    "margins": {
+      "all_non_negative": true,
+      "kind": "quartus-slack-ns",
+      "slack_ns": {
+        "Hold": 0.143,
+        "Minimum Pulse Width": 1.122,
+        "Recovery": 78.989,
+        "Removal": 0.733,
+        "Setup": 2.983
+      },
+      "tns_ns": {
+        "Hold": 0.0,
+        "Minimum Pulse Width": 0.0,
+        "Recovery": 0.0,
+        "Removal": 0.0,
+        "Setup": 0.0
+      },
+      "worst_analysis": "Hold",
+      "worst_slack_ns": 0.143
+    },
+    "payload_sha256": "6e0558e00e3c962aa98f21e75e28f6b5c649d5bdf8790fb9e7dc4a8928feffa2",
+    "provenance": "announced by the producer in its own log",
+    "repeat_matches_signoff": true,
+    "revision": "df99f2dfb2084035b213614960b952f5e79ab781",
+    "seeds": [
+      1,
+      2,
+      3
+    ],
+    "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-zx80-quartus/69bf0d59047eae30eb4e3060a78e60bd/attempt-f0p546lv/build-summary.json",
+    "unverified": null
+  },
+  "zx81": {
+    "build_id": "a33ca899fc7eb70814b3d4b73d3d0dd6",
+    "lane": "quartus-lite",
+    "margins": {
+      "all_non_negative": true,
+      "kind": "quartus-slack-ns",
+      "slack_ns": {
+        "Hold": 0.121,
+        "Minimum Pulse Width": 1.122,
+        "Recovery": 78.921,
+        "Removal": 0.69,
+        "Setup": 3.103
+      },
+      "tns_ns": {
+        "Hold": 0.0,
+        "Minimum Pulse Width": 0.0,
+        "Recovery": 0.0,
+        "Removal": 0.0,
+        "Setup": 0.0
+      },
+      "worst_analysis": "Hold",
+      "worst_slack_ns": 0.121
+    },
+    "payload_sha256": "f203914301a75a5326a5d0f5af1fd348fa7fb895d4ece0626a92c06066521a0a",
+    "provenance": "announced by the producer in its own log",
+    "repeat_matches_signoff": true,
+    "revision": "df99f2dfb2084035b213614960b952f5e79ab781",
+    "seeds": [
+      1,
+      2,
+      3
+    ],
+    "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-zx81-quartus/a33ca899fc7eb70814b3d4b73d3d0dd6/attempt-2vl0v85a/build-summary.json",
+    "unverified": null
+  }
+}
