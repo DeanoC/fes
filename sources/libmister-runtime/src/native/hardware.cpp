@@ -775,6 +775,12 @@ Error NativeHardware::DiscardMediaData(const MediaDataQuery& query, const std::s
 	return native::DiscardMediaData(query.data_root,
 		MediaDataIdentity{query.core_id, query.game_id, query.base_media_id, query.unit}, revision, output);
 }
+Error NativeHardware::ExportMediaData(const MediaDataQuery& query, const std::string& revision,
+	const std::string& path, MediaDataInspection* output)
+{
+	return native::ExportMediaData(query.data_root,
+		MediaDataIdentity{query.core_id, query.game_id, query.base_media_id, query.unit}, revision, path, output);
+}
 Error NativeHardware::UpdateCoreSettings(const std::string& path, const std::string& id,
 	const std::string& root, const std::string& game_id, const std::string& revision,
 	const CoreSettingsUpdate& update, CoreData* output)

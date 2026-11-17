@@ -79,6 +79,12 @@ std::string Controller::Handle(const std::string& line, Deferred& deferred)
 		if (result.ok())
 			media_data = &media;
 		break;
+	case Operation::export_media_data:
+		result = runtime_.ExportMediaData(request.media_query, request.expected_revision,
+			request.media_path, &media);
+		if (result.ok())
+			media_data = &media;
+		break;
 	case Operation::load_core:
 		result = runtime_.LoadCore(request.package_path, request.package_id,
 			request.has_initial_media ? &request.initial_media : nullptr);

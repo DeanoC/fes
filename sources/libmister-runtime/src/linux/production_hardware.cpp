@@ -254,6 +254,11 @@ public:
 	{
 		return hardware_->DiscardMediaData(query, revision, output);
 	}
+	Error ExportMediaData(const MediaDataQuery& query, const std::string& revision,
+		const std::string& path, MediaDataInspection* output) override
+	{
+		return hardware_->ExportMediaData(query, revision, path, output);
+	}
 	Error InspectCoreData(const std::string& directory, const std::string& expected_id,
 		const std::string& root, const std::string& game_id, CoreData* output) override
 	{

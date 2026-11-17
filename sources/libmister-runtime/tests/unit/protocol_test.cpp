@@ -1627,6 +1627,16 @@ void TestMediaDataRecordProtocol()
 	assert(Parse("{\"protocol\":2,\"operation\":\"discard_media_data\"," + identity +
 		",\"expected_revision\":\"" + revision + "\"}", &request).ok());
 	assert(request.operation == Operation::discard_media_data && request.expected_revision == revision);
+	assert(Parse("{\"protocol\":2,\"operation\":\"export_media_data\"," + identity +
+		",\"expected_revision\":\"" + revision + "\",\"path\":\"/tmp/export.st\"}", &request).ok());
+	assert(request.operation == Operation::export_media_data && request.expected_revision == revision &&
+		request.media_path == "/tmp/export.st" && request.media_query.game_id == "atari-st-desktop");
+	assert(!Parse("{\"protocol\":2,\"operation\":\"export_media_data\"," + identity +
+		",\"expected_revision\":\"" + revision + "\"}", &request).ok());
+	assert(!Parse("{\"protocol\":2,\"operation\":\"export_media_data\"," + identity +
+		",\"expected_revision\":\"" + revision + "\",\"path\":\"export.st\"}", &request).ok());
+	assert(!Parse("{\"protocol\":2,\"operation\":\"discard_media_data\"," + identity +
+		",\"expected_revision\":\"" + revision + "\",\"path\":\"/tmp/export.st\"}", &request).ok());
 	// Inspect takes no revision; discard needs a real one.
 	assert(!Parse("{\"protocol\":2,\"operation\":\"inspect_media_data\"," + identity +
 		",\"expected_revision\":\"" + revision + "\"}", &request).ok());

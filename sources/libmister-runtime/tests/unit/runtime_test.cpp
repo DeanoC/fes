@@ -346,6 +346,9 @@ void TestMediaDataDiscardNeedsAnIdleRuntime()
 	assert(f.runtime.LoadCore("/packages/custom", std::string(64, 'a')).ok());
 	assert(f.runtime.status().state == State::running_development);
 	assert(f.runtime.InspectMediaData(query, &state).code == ErrorCode::unsupported_interface);
+	// A running core does not stop its last saved image being read out.
+	assert(f.runtime.ExportMediaData(query, revision, "/tmp/export.st", &state).code == ErrorCode::unsupported_interface);
+	assert(f.runtime.ExportMediaData(query, revision, "export.st", &state).code == ErrorCode::invalid_request);
 	const auto refused = f.runtime.DiscardMediaData(query, revision, &state);
 	assert(refused.code == ErrorCode::busy && refused.message == "stop the running core before discarding saved media");
 	assert(f.runtime.status().state == State::running_development);

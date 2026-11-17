@@ -30,6 +30,7 @@ enum class Operation {
 	update_core_settings,
 	inspect_media_data,
 	discard_media_data,
+	export_media_data,
 	set_keyboard,
 	set_controller,
 	load_media,

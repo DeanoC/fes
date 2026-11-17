@@ -692,6 +692,11 @@ public:
 	{
 		return {ErrorCode::unsupported_interface, "media data unavailable"};
 	}
+	virtual Error ExportMediaData(const MediaDataQuery&, const std::string&, const std::string&,
+		MediaDataInspection*)
+	{
+		return {ErrorCode::unsupported_interface, "media data unavailable"};
+	}
 	virtual Capabilities capabilities() const { return {}; }
 	virtual HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage>,
 		std::uint64_t)
@@ -811,6 +816,9 @@ public:
 	Error InspectMediaData(const MediaDataQuery&, MediaDataInspection*);
 	Error DiscardMediaData(const MediaDataQuery&, const std::string& expected_revision,
 		MediaDataInspection*);
+	// Writes the saved image to a new file at path; the record is unchanged.
+	Error ExportMediaData(const MediaDataQuery&, const std::string& expected_revision,
+		const std::string& path, MediaDataInspection*);
 	Error InspectCore(const std::string& directory,
 		const std::string& expected_package_id, CorePackageInspection*);
 	Error LoadContainedDevelopmentRBF(const std::string&);

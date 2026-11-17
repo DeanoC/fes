@@ -239,6 +239,19 @@ int main()
         auto other=id;other.game_id="atari-st-other";
         assert(InspectMediaData(discard_root,other,&state).ok() && state.state=="absent");
         assert(DiscardMediaData(discard_root,other,saved.revision,&state).code==ErrorCode::stale_revision);
+        // Export writes the saved image to a new file and leaves the record.
+        const std::string out=std::string(discard_root)+"/export.st";
+        assert(ExportMediaData(discard_root,id,std::string(64,'0'),out,&state).code==ErrorCode::stale_revision);
+        assert(stat(out.c_str(),&seen)!=0 && errno==ENOENT);
+        assert(ExportMediaData(discard_root,other,saved.revision,out,&state).code==ErrorCode::stale_revision);
+        assert(ExportMediaData(discard_root,id,saved.revision,"export.st",&state).code==ErrorCode::invalid_request);
+        assert(ExportMediaData(discard_root,id,saved.revision,out,&state).ok() && state.state=="present" && state.revision==saved.revision && state.bytes==record.bytes.size());
+        { std::ifstream exported(out,std::ios::binary); const std::vector<unsigned char> got((std::istreambuf_iterator<char>(exported)),std::istreambuf_iterator<char>()); assert(got==record.bytes); }
+        assert(stat(out.c_str(),&seen)==0 && (seen.st_mode&0777)==0600);
+        // An export never replaces a file that is already there.
+        assert(ExportMediaData(discard_root,id,saved.revision,out,&state).code==ErrorCode::save_failed);
+        assert(unlink(out.c_str())==0);
+        assert(InspectMediaData(discard_root,id,&state).ok() && state.state=="present" && state.revision==saved.revision);
         // A stale revision leaves the record alone.
         assert(DiscardMediaData(discard_root,id,std::string(64,'0'),&state).code==ErrorCode::stale_revision);
         assert(file->Read(&saved).ok() && saved.bytes==record.bytes);
@@ -252,6 +265,8 @@ int main()
         assert(file->Read(&saved).code==ErrorCode::corrupt_data);
         assert(InspectMediaData(discard_root,id,&state).ok() && state.state=="corrupt" && state.revision.size()==64 && state.bytes==3);
         const std::string corrupt_revision=state.revision;
+        assert(ExportMediaData(discard_root,id,corrupt_revision,out,&state).code==ErrorCode::corrupt_data);
+        assert(stat(out.c_str(),&seen)!=0 && errno==ENOENT);
         // A leftover file keeps the namespace; only the record goes.
         { std::ofstream keep(ns+"/chunk-keep"); keep << "x"; }
         assert(DiscardMediaData(discard_root,id,corrupt_revision,&state).ok() && state.state=="absent");

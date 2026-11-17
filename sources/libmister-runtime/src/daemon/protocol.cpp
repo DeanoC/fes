@@ -1591,13 +1591,16 @@ Error ParseRequest(const std::string& line, Request* request)
 			parsed.expected_package_id = *package;
 			parsed.media_unit = static_cast<std::uint8_t>(unit->integer_value);
 		} else if (operation->string_value == "inspect_media_data" ||
-				   operation->string_value == "discard_media_data") {
+				   operation->string_value == "discard_media_data" ||
+				   operation->string_value == "export_media_data") {
 			// A saved media record named by its identity, with no package:
 			// the namespace a library launch of that game and disk binds.
-			const bool discard = operation->string_value == "discard_media_data";
+			// export_media_data also names the new file the image is written to.
+			const bool exporting = operation->string_value == "export_media_data";
+			const bool discard = operation->string_value == "discard_media_data" || exporting;
 			const char* const fields[] = {"protocol", "operation", "data_root", "core_id", "game_id",
-				"base_media_id", "unit", "expected_revision"};
-			if (!HasOnly(root, fields, discard ? 8 : 7, &error)) return error;
+				"base_media_id", "unit", "expected_revision", "path"};
+			if (!HasOnly(root, fields, exporting ? 9 : discard ? 8 : 7, &error)) return error;
 			const std::string *root_path = nullptr, *core = nullptr, *game = nullptr, *base = nullptr;
 			if (!StringMember(root, "data_root", &root_path, &error) ||
 				!StringMember(root, "core_id", &core, &error) ||
@@ -1622,7 +1625,15 @@ Error ParseRequest(const std::string& line, Request* request)
 			parsed.media_query.core_id = *core;
 			parsed.media_query.game_id = *game;
 			parsed.media_query.base_media_id = *base;
-			parsed.operation = discard ? Operation::discard_media_data : Operation::inspect_media_data;
+			if (exporting) {
+				const std::string* path = nullptr;
+				if (!StringMember(root, "path", &path, &error)) return error;
+				if (!Path(*path))
+					return Invalid("path must be an absolute path of at most 4095 bytes");
+				parsed.media_path = *path;
+			}
+			parsed.operation = exporting ? Operation::export_media_data
+				: discard ? Operation::discard_media_data : Operation::inspect_media_data;
 		} else if (operation->string_value == "load_media") {
 			const char* const fields_path[] = {"protocol", "operation", "path"};
 			const char* const fields_bound[] = {"protocol", "operation", "path",

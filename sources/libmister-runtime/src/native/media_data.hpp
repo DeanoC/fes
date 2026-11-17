@@ -47,6 +47,11 @@ Error InspectMediaData(const std::string& root, const MediaDataIdentity&, MediaD
 // not hold the identity bound: a bound disk would be saved straight back.
 Error DiscardMediaData(const std::string& root, const MediaDataIdentity&,
 	const std::string& expected_revision, MediaDataInspection*);
+// Writes the image held in an identity's saved record to a new file at
+// path, when the record still has expected_revision. The record is not
+// changed. A corrupt record is refused; bytes reports the image's length.
+Error ExportMediaData(const std::string& root, const MediaDataIdentity&,
+	const std::string& expected_revision, const std::string& path, MediaDataInspection*);
 // Separate immutable-source disk namespace; neither package versions nor
 // video/firmware selection name it. Open takes the namespace lock and
 // removes leftover private save and probe files. Read reopens the complete

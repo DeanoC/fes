@@ -394,6 +394,63 @@ Error DiscardMediaData(const std::string& root, const MediaDataIdentity& id,
 	*output = MediaDataInspection{};
 	return {};
 }
+Error ExportMediaData(const std::string& root, const MediaDataIdentity& id,
+	const std::string& expected_revision, const std::string& path, MediaDataInspection* output)
+{
+	if (!output || !Digest(expected_revision) || path.empty() || path[0] != '/' || path.size() > 4095 ||
+		path.find('\0') != std::string::npos)
+		return {ErrorCode::invalid_request, "invalid media-data export", "media_data"};
+	int parent_fd = -1, directory_fd = -1;
+	Error error = OpenExistingNamespace(root, id, &parent_fd, &directory_fd);
+	if (!error.ok())
+		return error;
+	FD parent(parent_fd), directory(directory_fd);
+	if (directory.value < 0)
+		return {ErrorCode::stale_revision, "media-data revision changed", "media_data"};
+	MediaDiskRecord record;
+	{
+		Lock lock(directory.value, LOCK_SH);
+		if (!lock.ok())
+			return Io("cannot lock media-data namespace");
+		std::vector<unsigned char> bytes;
+		bool present = false;
+		error = ReadRecordFile(directory.value, &bytes, &present);
+		if (!error.ok())
+			return error;
+		if (!present || Sha256Hex(Hash(bytes.data(), bytes.size())) != expected_revision)
+			return {ErrorCode::stale_revision, "media-data revision changed", "media_data"};
+		error = DecodeMediaData(bytes, id, &record);
+		if (!error.ok())
+			return error;
+	}
+	// A new private file: an export never replaces or follows anything.
+	FD file(open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600));
+	if (file.value < 0)
+		return Io("cannot create media-data export");
+	std::size_t written = 0;
+	while (written < record.bytes.size()) {
+		ssize_t count = write(file.value, record.bytes.data() + written, record.bytes.size() - written);
+		if (count < 0 && errno == EINTR)
+			continue;
+		if (count <= 0) {
+			error = Io("cannot write media-data export");
+			break;
+		}
+		written += count;
+	}
+	if (error.ok() && fsync(file.value) != 0)
+		error = Io("cannot sync media-data export");
+	if (!error.ok()) {
+		unlink(path.c_str());
+		return error;
+	}
+	MediaDataInspection result;
+	result.state = "present";
+	result.revision = expected_revision;
+	result.bytes = record.bytes.size();
+	*output = result;
+	return {};
+}
 Error OpenMediaDataNamespace(const std::string& root, const MediaDataIdentity& id, int* output)
 {
 	int root_fd = -1;
