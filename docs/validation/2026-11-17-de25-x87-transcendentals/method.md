@@ -480,3 +480,43 @@ run with the transcendentals, and no machine fit.
    C2 set (rules.md TRIG4), and FYL2XP1 of an operand at or below -1 is not
    compared with the host at all but asserted against the unit's own rule
    (rules.md LOG5). The report counts both as `manual`.
+
+### 18 Nov 2026, amendment 3: what the lockstep found, and the fits restarted
+
+**What had been seen.** The lockstep's transcendental suite on both backends,
+RTL and locked-Yosys netlist, at `71c412786`: 181 of 181 gated cases on the
+DE25 backend with nine further instructions kept out because they failed,
+and every existing suite's case count and trace hash equal to the baseline.
+One baseline fit (seed 1) had finished; no fit of this work had.
+
+1. **A real difference, fixed in the microprogram and not in the rule.** For
+   FSIN, FSINCOS and FPTAN of an operand beside the boundary between the
+   denormals and the normal values, under a directed rounding mode, the unit
+   returned the operand stepped by one in the mode's direction. That is the
+   mathematically directed result, and it crossed the boundary, so the tag
+   and, for the sine, the underflow flag differed from the oracle **and from
+   both hosts**, which return the operand itself. Rule 1 does not allow a
+   flag to differ from the references, and the manual says nothing either
+   way (rules.md G4). Measured on the host afterwards: below 2^-68 a
+   trigonometric form returns its operand (and FCOS 1.0) in every rounding
+   mode, and above it rounds in the mode's direction. The microprogram now
+   has that threshold. The nine instructions are in the gated suite.
+   **This changed the design to fit the references after a failing result;**
+   it did not change a pass rule.
+2. **Two oracle differences are accepted beyond the three this file's
+   amendment 1 anticipated,** each as a `divergences.toml` entry that names
+   exactly what is accepted, because on every measured instance the unit
+   equals the host x87 and the oracle does not: Bochs raises UE for FPATAN
+   from its own quotient where the result is beside pi, and raises DE in
+   FYL2X, FPATAN and FYL2XP1 with both operands normal. The second entry's
+   predicate is wider than what was measured, and the entry says so.
+3. **The lockstep compares a transcendental where the unit is parked,** not
+   at its own retirement: the instruction retires while the unit still
+   works, as a 387's does with BUSY# active, so the 387 state is compared
+   before the next ESC or WAIT, or at HLT. A program that never gives the
+   bench that point fails as "compare pending"; it does not pass.
+4. **The fits of this work were restarted.** The first arm was elaborated at
+   `b8ca4f3ef`; change 1 altered the microprogram ROM, so that arm was
+   stopped before any of its fits finished, re-elaborated at the commit that
+   holds the change, and requeued. No figure from the abandoned arm exists.
+   The baseline arm, at the merge base, is unaffected.
