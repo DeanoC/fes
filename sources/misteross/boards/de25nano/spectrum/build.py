@@ -25,6 +25,10 @@ COMMON = "sources/misteross/cores/fes-common/"
 MODELS = {"48": None, "128": "SPECTRUM_MODEL_128K"}
 OFFSET = 0x10300
 MACHINE_HZ = 52222222
+# The shared scanout, HPS and reset verifiers recognise one standard-core
+# integration record, under the key the ZX81 gave it. Renaming it there moves
+# the MENU and ZX81 identities, so this record keeps the key and names its core.
+RECORD = "standard_zx81"
 # Spectrum machine sources compiled as they are on the DE10.
 MACHINE_FILES = ("spectrum_ula.sv", "spectrum_contention.sv", "spectrum_snapshot.v", "spectrum_beta.sv",
                  "spectrum_fdd.sv", "spectrum_upd765.sv", "spectrum_keyboard.v", "spectrum_audio.v",
@@ -266,8 +270,9 @@ def prepare(archive, output, revision=None, model="48"):
     if revision is None:
         inputs.pop("fes_revision", None)
         inputs.update(base_revision=selected_revision, source_classification="working-copy-diagnostic")
-    inputs["standard_spectrum"] = {
-        "build_id": build_id, "model": model, "computer_offset": OFFSET, "machine_clock_hz": MACHINE_HZ,
+    inputs[RECORD] = {
+        "core": "fes.spectrum", "build_id": build_id, "model": model, "expansion_socket": False,
+        "computer_offset": OFFSET, "machine_clock_hz": MACHINE_HZ,
         "scope": "standard-core-board-integration", "runtime_admission": "not-qualified",
         "standard_sdc_sha256": sha((local / "spectrum-clocks.sdc").read_bytes()),
         "derivations": derived,
@@ -284,7 +289,7 @@ def prepare(archive, output, revision=None, model="48"):
     if revision is None:
         snapshot.pop("fes_revision", None)
         snapshot.update(base_revision=selected_revision, source_classification="working-copy-diagnostic")
-    snapshot["standard_spectrum"] = inputs["standard_spectrum"]
+    snapshot[RECORD] = inputs[RECORD]
     snapshot_path.write_text(json.dumps(snapshot, indent=2, sort_keys=True) + "\n")
     return output, scanout, combined, hps, display
 
@@ -295,7 +300,7 @@ def verify(output, scanout, hps, display):
     directory = output / "combined/hps"
     inputs = json.loads((directory / "inputs.json").read_text())
     project = directory / "project"
-    selected = inputs["standard_spectrum"]
+    selected = inputs[RECORD]
     if (inputs["scanout"]["build_id"] != selected["build_id"] or
             sha((project / "golden_top.v").read_bytes()) != inputs["scanout"]["compiled_top_sha256"] or
             sha((project / "integrate-mailbox.tcl").read_bytes()) != inputs["scanout"]["rendered_integration_sha256"] or
@@ -353,14 +358,14 @@ def generate(output, scanout, combined, hps, display, tool, version):
     scanout.shared_reset_helper(directory).apply(directory)
     path = directory / "generation.json"
     generation = json.loads(path.read_text())
-    generation["standard_spectrum"] = verify(output, scanout, hps, display)
+    generation[RECORD] = verify(output, scanout, hps, display)
     path.write_text(json.dumps(generation, indent=2, sort_keys=True) + "\n")
 
 
 def compile_board(output, scanout, hps, display, tool):
     """Compile one checked design and retain its Linux phase artifacts."""
     directory = output / "combined/hps"
-    expected = json.loads((directory / "generation.json").read_text())["standard_spectrum"]
+    expected = json.loads((directory / "generation.json").read_text())[RECORD]
     def check():
         if verify(output, scanout, hps, display) != expected:
             raise ValueError("Spectrum source/topology changed after generation")
@@ -371,7 +376,7 @@ def compile_board(output, scanout, hps, display, tool):
     record = {"format": 1, "classification": "unadmitted-HPS-first-standard-computer",
               "inputs_sha256": hps.digest(directory / "inputs.json"),
               "generation_sha256": hps.digest(directory / "generation.json"),
-              "build_id": json.loads((directory / "inputs.json").read_text())["standard_spectrum"]["build_id"],
+              "build_id": json.loads((directory / "inputs.json").read_text())[RECORD]["build_id"],
               **artifacts, "production_admission": False, "hardware_acceptance": False}
     (directory / "linux-programming.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
     check()
