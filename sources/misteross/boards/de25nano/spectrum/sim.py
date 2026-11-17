@@ -40,14 +40,8 @@ def sources(output):
         derived.append(path)
     reader = output / "fes_menu_reader_de25.v"
     reader.write_bytes(display.retarget_menu_ram((SHARED / "fes_menu_reader.v").read_bytes())[0])
-    # Only the shared transport is used from the ZX81 computer file.
-    computer = (BOARD / "zx81-hps/fes_de25_computer.v").read_bytes()
-    marker = b"// Atomic register transport shared by the bring-up and standard-core wrappers.\n"
-    if computer.count(marker) != 1:
-        raise ValueError("DE25 computer transport boundary changed")
     transport = output / "fes_de25_computer_transport.v"
-    transport.write_bytes(b'`include "fes_computer.vh"\n`include "fes_de25_computer.vh"\n' +
-                          computer[computer.index(marker):])
+    transport.write_bytes(derive.transport((BOARD / "zx81-hps/fes_de25_computer.v").read_bytes())[0])
     return [HERE / "fes_de25_spectrum_standard.v", transport, BOARD / "ramtest/sdram.v",
             SHARED / "fes_spectrum_core.v", SHARED / "fes_gp_crossing.v", SHARED / "fes_firmware_upload.v",
             SHARED / "fes_media_sdram.v", SHARED / "fes_spectrum_firmware_rom.v",
@@ -66,7 +60,7 @@ def sources(output):
 
 def includes():
     return [SPECTRUM, COMMON / "generated", COMMON / "rtl", SHARED / "generated",
-            BOARD / "zx81-hps/generated", BOARD / "scanout", BOARD / "scanout/generated", Z80]
+            BOARD / "zx81-hps", BOARD / "scanout", BOARD / "scanout/generated", Z80]
 
 
 def run(model):

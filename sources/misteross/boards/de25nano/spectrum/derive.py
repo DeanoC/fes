@@ -47,3 +47,16 @@ def retarget_machine(source):
 def retarget_ram(name, source):
     return _derive(source, ((b'ramstyle = "M10K"', b'ramstyle = "M20K"', RAM_FILES[name]),),
                    "Spectrum " + name)
+
+
+TRANSPORT_MARKER = b"// Atomic register transport shared by the bring-up and standard-core wrappers.\n"
+
+
+def transport(source):
+    """Only the shared atomic transport from the ZX81 computer file, unchanged."""
+    if source.count(TRANSPORT_MARKER) != 1:
+        raise ValueError("DE25 computer transport boundary changed")
+    result = (b'`include "fes_computer.vh"\n`include "generated/fes_de25_computer.vh"\n' +
+              source[source.index(TRANSPORT_MARKER):])
+    return result, {"source_sha256": sha(source), "derived_sha256": sha(result),
+                    "selection": "fes_de25_computer_transport and its two includes"}
