@@ -470,8 +470,8 @@ for.
 | `fes.menu` | nextpnr | full | identical | CARRIED | pass, 1.1441x worst clock |
 | `fes.c64` | nextpnr | full | identical | CARRIED | pass, 1.1118x worst clock |
 | `fes.spectrum` | nextpnr | full | identical | CARRIED | pass, 1.1668x worst clock |
-| `fes.spectrum128` | nextpnr | full | identical | PASS | not measured |
-| `fes.spectrum-plus3` | nextpnr | full | identical | PASS | not measured |
+| `fes.spectrum128` | nextpnr | full | identical | PASS | pass, 1.1645x worst clock |
+| `fes.spectrum-plus3` | nextpnr | full | identical | PASS | pass, 1.0104x worst clock |
 | `fes.pentagon` | nextpnr | full | identical | PASS | not measured |
 | `fes.zx81` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.121 ns worst slack (Hold) |
 | `fes.zx80` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.143 ns worst slack (Hold) |

@@ -86,6 +86,72 @@
     "tied_to_head_by": "all 52 input digests match the head",
     "unverified": null
   },
+  "spectrum-plus3": {
+    "build_id": "678c01a15543c3677ae0ddd6247eef43",
+    "lane": "nextpnr",
+    "margins": {
+      "clocks": {
+        "audio": {
+          "achieved_mhz": 191.09498596191406,
+          "constraint_mhz": 12.288031578063965,
+          "ratio": 15.551309804822454,
+          "status": "pass"
+        },
+        "pixel": {
+          "achieved_mhz": 92.37875366210938,
+          "constraint_mhz": 74.25006866455078,
+          "ratio": 1.2441571479140432,
+          "status": "pass"
+        },
+        "system": {
+          "achieved_mhz": 52.767662048339844,
+          "constraint_mhz": 52.22477340698242,
+          "ratio": 1.0103952321080791,
+          "status": "pass"
+        }
+      },
+      "kind": "nextpnr-frequency-ratio",
+      "worst_ratio": 1.0103952321080791
+    },
+    "placer_seed": 5,
+    "revision": null,
+    "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-spectrum-plus3-oss/build-summary.json",
+    "tied_to_head_by": "all 52 input digests match the head",
+    "unverified": null
+  },
+  "spectrum128": {
+    "build_id": "9b88aea50e4806fb27362c0b2c14bb0a",
+    "lane": "nextpnr",
+    "margins": {
+      "clocks": {
+        "audio": {
+          "achieved_mhz": 204.08163452148438,
+          "constraint_mhz": 12.288031578063965,
+          "ratio": 16.608163254218976,
+          "status": "pass"
+        },
+        "pixel": {
+          "achieved_mhz": 86.4677963256836,
+          "constraint_mhz": 74.25006866455078,
+          "ratio": 1.1645483685184244,
+          "status": "pass"
+        },
+        "system": {
+          "achieved_mhz": 64.04508972167969,
+          "constraint_mhz": 52.22477340698242,
+          "ratio": 1.2263354255763395,
+          "status": "pass"
+        }
+      },
+      "kind": "nextpnr-frequency-ratio",
+      "worst_ratio": 1.1645483685184244
+    },
+    "placer_seed": 5,
+    "revision": null,
+    "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-spectrum128-oss/build-summary.json",
+    "tied_to_head_by": "all 52 input digests match the head",
+    "unverified": null
+  },
   "splash": {
     "build_id": "4ef956237159c1e8fa9b6fb3b5ec87c3",
     "lane": "nextpnr",
