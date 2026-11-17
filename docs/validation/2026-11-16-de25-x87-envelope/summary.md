@@ -1061,7 +1061,8 @@ committed fit records, which is where the generated table above comes from.
 ## After main was merged (16 November, amendment)
 
 PR #1889 merged to main as `c6728f2cd` (#1879 as `9037d15e8`, the census #1887
-as `655c90e55`), and main was merged into this branch as `7ab177d9c`. Where
+as `655c90e55`), and main was merged into this branch as `7ab177d9c` and
+again, at `f4f308b17`, as `cec08f3a5`. Where
 this record says "PR #1889's head" as its base, that base is now main.
 
 **Everything in the generated results above, and all eight machine fits, was
@@ -1073,7 +1074,8 @@ measurements and have not been re-run. No confirmation fit on the merged tree
 exists yet; until one does, the ALM figures and the controlled A/B describe the
 pre-merge design only.
 
-What was re-run on the merged tree (`7ab177d9c`, RTL unchanged by `9ded25cc1`):
+What was re-run on the merged tree, at `00752ae14568fcb0bda42c4a3bff57460a206446`
+(the second merge plus the report change described below):
 
 | Check | DE10 backend | DE25 backend |
 | --- | --- | --- |
@@ -1086,6 +1088,14 @@ What was re-run on the merged tree (`7ab177d9c`, RTL unchanged by `9ded25cc1`):
 | Lockstep, x87 cycles for 7,034 retirements | 77,322 | 80,376 |
 
 The two lockstep reports are in [`evidence/post-merge/`](evidence/post-merge/).
+**Each names what it tested**, in its `source` field: the FES revision
+(`00752ae14…`, the same in both), an empty list of tracked files differing
+from it, and a SHA-256 per tested source: the CPU RTL, the bench and its
+headers, and the runner. The runner refuses a run during which any of those
+changed. Reports written before that change, including an earlier pair that
+stood here and the pre-merge ones in `evidence/`, carry no revision; the lint
+and unit-bench rows are this session's runs on the same commit and have no
+committed report.
 They are not fed to `generate.py`: the recorded pre-merge reports ran 24 x87 cases (620
 retirements) and these ran 120 (7,034), so they are a different suite from the one the generated tables
 describe, and mixing them would compare unlike runs.
