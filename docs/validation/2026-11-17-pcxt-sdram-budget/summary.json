@@ -12,7 +12,7 @@
   "physical_budget_complete": false,
   "record_sha256": "865ca6328217f7e6ce2ba97654127a2982cb7efa8de3e28a891fbaedc6e78c2d",
   "recorded_inputs_equal_source": 185,
-  "reference_sha256": "147a0dae266a7a3931d8cf5301203e4bf6352765b7cbc02ada168628150cf4d9",
+  "reference_sha256": "3c4bde5eaf886acc73a05402fde86034b371e041f70ce78d85c23222febc42f9",
   "runs": [
     {
       "corners": [
@@ -534,16 +534,16 @@
       "seed": 3
     }
   ],
-  "source_base": "84318b52dbfadcd51b8cd92065756ea50fd5ef91",
+  "source_base": "1033b5bdbf8e8dabf5a1c09c794ce8713249ac4f",
   "sta_binary_sha256": "71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93",
   "unresolved": [
     "actual clock and data flight/skew intervals for Kit A",
     "actual pad/module loading, edge rates and voltage/temperature envelope",
     "fitted second-chip-select inverter and its conditions",
     "pin-level high/low pulse-width and cycle-jitter bounds",
-    "controller-qualified read/write data-valid and consumption edge windows",
     "electrical bus turnaround/non-overlap including tLZ and tHZ",
-    "Kit B fitted memory module/chip identity"
+    "Kit B fitted memory module/chip identity",
+    "physical correlation and fitted timing admission of the proved logical transaction windows"
   ],
   "whole_board_qualified": false
 }

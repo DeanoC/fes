@@ -79,9 +79,10 @@
     "actual pad/module loading, edge rates and voltage/temperature envelope",
     "fitted second-chip-select inverter and its conditions",
     "pin-level high/low pulse-width and cycle-jitter bounds",
-    "controller-qualified read/write data-valid and consumption edge windows",
     "electrical bus turnaround/non-overlap including tLZ and tHZ",
-    "Kit B fitted memory module/chip identity"
+    "Kit B fitted memory module/chip identity",
+    "physical correlation and fitted timing admission of the proved logical transaction windows"
   ],
-  "whole_board_qualified": false
+  "whole_board_qualified": false,
+  "logical_window_evidence": "windows/windows.json"
 }

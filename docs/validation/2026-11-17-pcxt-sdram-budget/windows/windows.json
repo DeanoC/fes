@@ -1,0 +1,68 @@
+{
+  "algebraic_held_write_setup_ns": {
+    "1": 24.418,
+    "2": 22.255,
+    "3": 23.479
+  },
+  "base_summary_sha256": "5009a576d057a1deff9b48df79d2673ab082433e257bc9bfb062054b0e8943b8",
+  "classification": "inductive RTL window proof and bounded tagged-pin trace; not physical signoff",
+  "fixture_sha256": {
+    "trace.cpp": "adecfdad60fa99fccf1d141b5080875f448ac33ab251839225091d5a8dbaf80b",
+    "trace_top.sv": "f70a66df52b843b46c5e5a508707f2f46717ac795c47fd37696f9fb5c11c3cbc",
+    "verify_windows.py": "00e0abe649c451acd7df36bff8c9044cf1c04d760ddfdfd769eb2b22f89716fb",
+    "window_contract.sv": "5eed66b4e2db32796949d35051b5a9f7650e3baddc34ae59ae3236aa9a922f0e"
+  },
+  "formal": "PASS: temporal induction",
+  "formal_read": "No reset in read window: five cycles after sampled READ pins, rdata equals the previous controller input sample",
+  "formal_write": "DQ/OE stable three prior cycles; A11/A12 masks stable two prior cycles",
+  "negative_read": "rejected after real initialization",
+  "negative_write": "rejected after real initialization",
+  "physical_budget_complete": false,
+  "producer_constraints_changed": false,
+  "read_setup_unchanged_ns": {
+    "1": -8.717,
+    "2": -9.558,
+    "3": -8.811
+  },
+  "record_sha256": "865ca6328217f7e6ce2ba97654127a2982cb7efa8de3e28a891fbaedc6e78c2d",
+  "recorded_source_inputs_equal": 185,
+  "source_sha256": {
+    "cores/fes-pcxt/rtl/pcxt_memory.sv": "8d85dc855da2531d46a8d849ffc1603b852e6b8b64ab3db414fc76b3e18ba69d",
+    "cores/fes-pcxt/sim/memory_top.sv": "7d84cd128228eaeae49923310fc7609e6a561b9b32471cce5af8d0500ef4a7d6",
+    "cores/fes-ramtest/rtl/sdram_addon_port.v": "e3ccc890531752d3fd8274ddbfac4401c79374cab80e7404f8825760da002a08"
+  },
+  "trace": {
+    "CONSUME/consume_delay_halfcycles": {
+      "count": 256,
+      "max": 9,
+      "min": 9
+    },
+    "CONSUME/sample_delay_halfcycles": {
+      "count": 256,
+      "max": 6,
+      "min": 6
+    },
+    "OE_ASSERT/after_read_halfcycles": {
+      "count": 255,
+      "max": 61,
+      "min": 23
+    },
+    "OE_RELEASE/after_write_halfcycles": {
+      "count": 257,
+      "max": 3,
+      "min": 3
+    },
+    "WRITE/data_stable_halfcycles": {
+      "count": 257,
+      "max": 26255,
+      "min": 7
+    },
+    "WRITE/oe_stable_halfcycles": {
+      "count": 257,
+      "max": 7,
+      "min": 7
+    }
+  },
+  "write_earlier_launch_cycles": 3,
+  "yosys_sha256": "a17b4c8aeac5373dba86faa67124456834c585924503457387631408f84549f8"
+}

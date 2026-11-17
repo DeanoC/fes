@@ -13,7 +13,8 @@ that a DOS boot failed. #835 remains open.
 
 ## Identity and conditions
 
-Source base: `84318b52dbfadcd51b8cd92065756ea50fd5ef91`. All 185 recorded
+Source base: `84318b52dbfadcd51b8cd92065756ea50fd5ef91`; the window-proof
+continuation uses `1033b5bdbf8e8dabf5a1c09c794ce8713249ac4f`. All 185 recorded
 production inputs match that checkout. Artifact source remains
 `85dbb42815a26ef51c490c79a790f861101b96ff`, BUILD_ID
 `1d1e4a52fced512afe3c96dc88cc0783`. The sealed package is
@@ -124,15 +125,86 @@ not that the negative slacks pass. Each reference run has two expected
 scenario. No constraints are ignored. Original failed/API-probe traces remain
 retained; no failed numerical result is overridden.
 
-## What is still required
+## Controller-window proof and transaction-specific refinement
 
-The controller holds write data/OE before the column command and selects read
-consumption with `wait_count`, `OUT_LATENCY` and `dq_fall`. Consequently these
-single-edge pin checks are a reference screen, not a proved transaction timing
-contract. The next bounded step is to bind the exact READ/WRITE command,
-CAS-2 launch, capture, registered handoff and final consumption edges, and prove
-held-data/OE stability and bus release under the actual controller sequence.
-No multicycle exception is applied here; any allowance must follow that proof.
+[windows/windows.json](windows/windows.json) binds a temporal-induction proof
+and a tagged-input trace to the unchanged source files and authenticated Yosys
+binary. [The harness](windows/window_contract.sv) instantiates the real
+controller with the production rate-3, output-register, byte-mask and single-rank
+refresh settings. Reset, request, address and data inputs are symbolic; no
+controller state is forced past initialization.
+
+The inductive properties pass:
+
+- At every WRITE command, DQ and OE equal their values for the three previous
+  controller cycles; A11/A12 masks are stable for two previous cycles.
+- With no reset in the read window, five rising-edge observations after the
+  READ pin strobe, returned data equals the previous controller-input sample.
+  This binds the selected input rather than assuming a capture count from prose.
+  Reset-aborted reads are outside that returned-data property.
+
+The [trace wrapper](windows/trace_top.sv) uses the actual `pcxt_memory` and its
+existing falling-edge capture fixture. It tags each pin sample, runs real
+power-up initialization and all 256 byte values through alternating writes and
+reads, and checks frontend byte readback against the selected tag. It observes
+257 writes (including the warm-flag initialization write), 256 READs and 256
+read consumptions. No symbolic-to-physical SDRAM data correctness is implied:
+these tags identify selected edges, not an analogue chip model.
+
+Relative to a READ registered by the chip at T0:
+
+| Boundary | Observed ideal edge |
+| --- | --- |
+| CAS-2 data launch from the memory reference | T2 |
+| Selected FPGA falling-edge pin capture | T3 |
+| Registered capture-to-controller handoff | T3.5 |
+| Controller `rdata` retirement | T4.5 |
+
+All 256 reads select those same relative edges. In particular, retirement at
+T4.5 does not give the external data path another cycle: the pin capture was
+already at T3, only one period after T2. The original read setup reference is
+therefore retained unchanged. The controller's `ST_RW` stage and default
+`RATE0_INPUT_REGISTER` setting are included in the real RTL; a guessed
+`wait_count` threshold of three was rejected by the first retained probe.
+
+The trace also observes DQ/OE stable at least 3.5 nominal cycles before WRITE,
+OE release 1.5 nominal cycles after WRITE, and the next OE assertion at least
+11.5 nominal cycles after READ in this bounded request sequence. Only the
+three-cycle pre-WRITE stability is the universal inductive guarantee; the
+post-write/read turnaround observations are bounded digital traces, not
+pin-level non-overlap qualification.
+
+Two private mutations fail after real initialization: changing DQ on each
+controller state violates the held-data assertion, and selecting the opposite
+capture stage violates the returned-tag assertion. Neither mutation touches
+production source files. The real initialization/transaction traces demonstrate
+that the proof obligations are exercised, rather than relying on a short
+bounded run that never exits the 13,000-cycle initialization delay.
+
+The proved three-cycle earlier DQ launch gives the following **algebraic,
+transaction-specific write reference**, with 30 ns added to the existing
+single-edge setup rows. It does not create a new TimeQuest report or change a
+producer constraint. The original hold bounds remain conservatively unchanged.
+
+| DQ write reference setup / hold | Seed 1 | Seed 2 | Seed 3 |
+| --- | ---: | ---: | ---: |
+| Three-cycle held launch | +24.418 / +3.860 ns | +22.255 / +3.951 ns | +23.479 / +4.136 ns |
+
+No such allowance is applied to command/address signals, to reads or to bus
+turnaround. A11/A12 carry row bits during ACTIVATE as well as masks at CAS, so
+the mask property does not justify a blanket address exception. No global
+multicycle constraint is introduced.
+
+## Remaining physical budget
+
+Under the retained 6 ns access reference and fitted electrical assumptions,
+additional clock-out plus returning-data PCB flight subtracts from the read
+setup margin. The worst zero-flight reference is already −9.558 ns; it has no
+nonnegative round-trip-flight allowance. Filling in board flight alone cannot
+make this conditional read model close, and later controller retirement cannot
+recover an already missed capture. The next bounded investigation is the fitted
+forwarded-clock/DQ input-capture path and its physical conditions at the existing
+100 MHz rate, preserving these failed controls.
 
 The second-CS reference also misses setup and needs its fitted part and
 propagation conditions bound. Physical clock high/low width and cycle jitter,
@@ -175,8 +247,25 @@ all 185 source hashes and unchanged copied QSF/SDCs/RBFs. It validates all row
 identities and cardinalities and records conditional misses explicitly.
 Exit 0 means evidence validation, not physical PASS.
 
-Full private fits/reports/logs are under the task checkout's
-`out/sdram-budget/`. Selected reports, raw rows, native handoff inputs,
+The original production attempt retains the fitted databases. The initial
+private STA copies under the task checkout's `out/` were removed during
+workspace cleanup; their selected reports, raw rows, native handoff inputs,
 datasheets, scripts and a verified hash manifest are retained at
 `/home/deano/fes-hil/k835-sdram-budget/`. These are host-only conditional
 post-fit measurements. HIL is N/A for the report/extractor; #835 stays open.
+
+
+To reproduce the controller proofs and positive/negative traces:
+
+```sh
+python3 docs/validation/2026-11-17-pcxt-sdram-budget/windows/verify_windows.py \
+  --module-root sources/misteross --record /absolute/original/build-inputs.json \
+  --yosys /absolute/authenticated/yosys --work /absolute/new/window-work \
+  --output /tmp/pcxt-windows.json
+```
+
+Use a new work directory; each child job is capped at 600 seconds with a
+heartbeat and a 30 GiB space gate. The formal solver has its own 120-second
+limit. The checked record is the original sealed source record, not a new
+artifact identity. These proofs establish logical windows under the documented
+clock fixture; they do not establish physical clock/pad delays or metastability.
