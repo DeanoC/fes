@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/recovery-chain-reset-probe/test_probe.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.20062112901359797,
+  "log_sha256": "7ba96cea382d3e10b27ae234f8c91e2e20d1eac3f210153f91cc16e3eaaacadf"
+}

@@ -1,0 +1,18 @@
+{
+  "status": "passed-independent-warm-prepare-stop-retention",
+  "procedure_sha256": "f998f7ba2e2fbee3905bcccad3d8851553378a06b86db752f525ff5436cd319f",
+  "archive": "/home/deano/fes-retained/de25-usb-close-candidate-stop-physical-20261114-r1/physical-trial.tar.gz",
+  "archive_sha256": "1c63e03c6707cdd94a36741afe86ef81307f83ce25b3c330fa437e0319cafd24",
+  "archive_bytes": 1032004,
+  "files": 158,
+  "initial_MENU_source_and_continuation_verified": true,
+  "first_release_verified": true,
+  "warm_prepare_stopped": true,
+  "processes_stopped": 10,
+  "UART_unheld": true,
+  "clock_USB_cleanup_verified": true,
+  "physical_reset_required": true,
+  "original_FIT_restored": false,
+  "diagnostic_retry_authority": false,
+  "hardware_acceptance": false
+}

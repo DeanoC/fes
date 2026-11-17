@@ -1,0 +1,14 @@
+[
+  "TEST_RAM",
+  "TEST_MMIO",
+  "TEST_CROSS",
+  "MUL_RAM",
+  "MUL_MMIO",
+  "MUL_CROSS",
+  "SHIFT_RAM",
+  "SHIFT_MMIO",
+  "SHIFT_CROSS",
+  "PUSHA_RAM",
+  "PUSHA_MMIO",
+  "PUSHA_MIXED"
+]

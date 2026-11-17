@@ -57,8 +57,128 @@ two-source transport and linked-load path before it becomes selectable.
 Two-source staging retains its parsed sealed map only within that operation,
 reusing it for receipt verification and linking. Publication and restart adoption
 independently validate their retained package bytes.
+Native-video shells also require a matching video part admitted against the
+exact shell in the host's own catalog. The default profile is Direct. If no
+preferred or Direct part is available, launch stops before core-load dispatch
+and reports the missing part as an admission error. Library compositions report
+`video_required` and `video_ready` for selectable-video shells. Readiness uses
+the current profile and its Direct fallback, verifies the selected stored part
+against the exact shell, and checks each part once per listing without composing
+the shell. Built-in Direct remains the final fallback for raster shells; an
+installed selected part that fails verification is not silently bypassed. The
+browser and kit block Play with the same missing-video reason. When the shell
+cannot be inspected, its requirements are unknown, so the row instead blocks
+Play with a missing-package reason. This is host
+catalog readiness, not proof of target readiness or of compatibility with every
+selected CPU/slot combination; launch still performs full admission. The
+`availability=ready` list filter selects available, online sources and can
+therefore return a repairable but launch-ineligible entry with these flags.
 
 This is the canonical description of the working system.
+
+## Embedded launcher boundary
+
+`ui/tenfoot.RunPlatform` runs the existing App, command handling and renderer
+with an injected frame clock, input source and presenter. The caller supplies
+the graphics device and the Client's HTTP transport; the loop does not open an
+SDL window, Linux framebuffer or runtime socket. It starts/stops the App and
+releases its own presentation resources without taking ownership of the
+caller's device. Native entry points continue to use their existing backends.
+
+Local catalog/database startup is kept in the native platform implementation,
+outside the portable App. Pure edition-key normalization lives in `protocol`
+so the room destination model does not import the database implementation.
+Embedded builds reject unsupported native package-inventory and Unix-socket
+operations explicitly; they do not substitute weaker artifact checks.
+
+The injected loop delegates physical ownership to its platform backend. An
+embedded presenter must keep its software framebuffer separate from live DMA
+grants and use the backend's generation-bound pause/drain handoff before
+publishing frames across core transitions. The DE25 native backend now exercises
+package launch and return; that experiment remains opt-in and incomplete.
+
+This boundary supports the experimental
+[Linux-free base](../../../platform/embedded/README.md). Its native QEMU image
+uses real VirtIO networking to a private FogCast host, FAT32 preferences, live
+USB boot-keyboard input and ramfb scanout. `cmd/fogcast-embedded-host` boots
+the current `fogcast.Open`/`Service.Scan` and HTTP handlers on a private loopback
+listener. It requires `FES_EXPERIMENTAL_DE25_EMBEDDED=1`, owns its listener and
+service cleanup, and does not depend on the removed local-kit server helpers.
+The separate DE25 native implementation supplies board USB input, FPGA scanout
+and physical lifecycle controls. Bounded hardware diagnostics have run ZX81 and
+returned to the launcher, but the latest secure source-retirement candidate
+fails on return after tape loading. It is not a complete standalone appliance.
+The whole secure-system investigation remains open in
+[#1867](https://github.com/DeanoC/fes/issues/1867); current evidence and limits
+are recorded in the embedded base guide. The existing Linux launch path and
+package/session contracts are unchanged.
+
+`App.SetPreferenceStore` optionally loads settings from an explicit JSON store
+before App startup. The embedding platform owns its durability contract; a
+successful write must include any required flushes. Existing native callers
+continue to use file paths. Settings are normalized through the same encoder
+and decoder in both paths. The QEMU adapter updates a preallocated FAT32 file;
+its guarantee is clean-restart persistence, not power-loss atomicity.
+
+A queued platform returns `ErrPreferencesPending`, serves the latest cached
+settings and exposes optional cached `PreferenceStatus`. Settings shows
+"Settings waiting to save" until a checkpoint completes, or "Settings not
+saved" after an asynchronous failure. Rendering never asks that status interface
+to perform IO. The Nano adapter loads its settings before menu startup and
+currently keeps changes volatile because its board profile is read-only. Its
+explicit persistent mode writes only during owned SD handoff windows on launch,
+return or final menu shutdown; both a displayed menu and a running core keep SD
+contained. Model and FAT restart tests cover that lifecycle; physical writes
+remain unqualified.
+
+`corepackage.RetainArchive` validates an exact-length reader using the existing
+canonical archive, manifest, payload and ROM-map rules. It retains private
+bytes and exposes copied inspection metadata and a copying payload reader.
+The OS-backed `Stage`/`StageBytes` paths share the canonical decoder with the
+retaining reader before their existing rooted private publication. No separate embedded validator,
+package identity domain, ABI allowlist or hardware admission is introduced.
+The native `packages` diagnostic reads shared conformance archives from FAT32;
+inspection does not authorize a Cyclone V package on an Agilex board. The
+physical runtime remains responsible for compatibility and linked-load receipts.
+The reader also recognizes format-2 `de25_nano` / `A5EB013BB23BE4SCS`
+archives for retained inspection. Their target contributes to package identity.
+This does not register an Agilex programming profile, ABI or physical driver.
+Format 3 also recognizes Nano's `cpu-csr-v1` held-ROM delivery map. It declares
+one 4/8 KiB firmware source and required `fes.embedded.rom` 1.0; the map binds
+the unchanged payload hash and source size without addresses or CRAM locations.
+`LinkROMs` retains that source privately and derives the same content-bound
+activation receipt while preserving the exact FPGA payload. Cyclone V staging,
+part composition, cartridge roles and format 4 are unavailable for this Nano
+delivery path. The Linux runtime's target checks and model/native admission
+policies remain independent; inspection or retention grants no hardware access.
+
+`Archive.LinkROMs` derives format-3 single-source and format-4 BIOS/cartridge
+programming bytes using the existing target linker and the retained package's
+sealed map. It validates source IDs, roles, order and sizes before copying them.
+The opaque `LinkedArchive` owns the package, sources and linked output in RAM;
+copying readers and deep-copied receipts cannot mutate that state. Its content
+receipt binds the exact package, map, source identities and programmed digest.
+A domain-separated SHA256 identifies that receipt. The embedded model requires
+both the expected package ID and receipt hash, and checks programmed bytes before
+starting a transition. This is volatile ownership and software-model evidence,
+not a durable install, authenticated token or physical admission.
+
+`LinkROMs` also accepts selected CPU/video part archives. It retains private
+archive copies, validates each exact asset ID, and uses existing parts admission
+and ROM-input composition. A sealed parts shell requires its selected video
+part; malformed, duplicate, missing and incompatible selections do not publish
+a linked object. The receipt includes the canonical parts tuple and pre-ROM
+overlay identity separately from the final ROM-linked digest. Part archives and
+overlay readers cannot mutate retained state; copied receipt selections cannot
+change it either. This does not change filesystem staging, native package
+formats, physical runtime admission or initial-media delivery.
+
+On TamaGo, the software renderer yields between groups of four raster rows
+and splits whole-frame copies into 32 KiB chunks. The ramfb presenter also
+yields every four scanout rows. These cooperative checkpoints let network and
+timer goroutines progress during rendering; they do not change pixel
+calculations or promise a frame deadline. Other Go targets retain their normal
+preemptive behavior.
 
 ## Normal FPGA game launch
 
@@ -703,6 +823,34 @@ for appliance maintenance. A `menu_display` field it does not define is
 rejected. `underflows` on that object and on a frame completion
 is the runtime's per-present delta. The kit painter and the Linux menu
 client accept a delta of at most one 720p scanline and refuse a larger one.
+The decoder also defines the optional `menu_display.live`: the runtime's
+periodic re-read of the idle display, with `enabled`, `faulted`, `quiesced`,
+`displayed_sequence`, `scanout_frame`, `underflows_total` and
+`recovery_abandoned`, plus a
+nested `transmitter` object carrying `hot_plug`, `rx_sense`, `pll_lock` and
+`vic`. `displayed_sequence` is a sample for logs and diagnostics, taken when
+the check ran and so one behind the committed frame after every present; a
+client does not compare it with the sequence its own present returned.
+`scanout_frame` is that comparison, made by the runtime where both numbers
+are read together: `"matching"`, `"mismatched"`, or `"unknown"` when no
+measurement describes the frame now on the wire, which a present makes true
+until the next check. It reports that comparison alone: a display that is
+disabled, faulted or quiesced says so in those members, and a transmitter
+fault is still scanning out the committed frame, so neither shows up here.
+Only `"mismatched"` is a loss. It is optional, so a
+runtime older than the verdict decodes as having said nothing, and any
+string passes the shape check because a name this client does not know must
+cost a probe interval rather than manufacture a loss.
+`recovery_abandoned` is the runtime's verdict rather than a read: it
+says this loss gets no further reactivation, so a client neither presents to
+force recovery nor withdraws managed readiness over it. It is optional, so a
+runtime that does not send it decodes as willing to reactivate. The ADV7513
+reads succeed or fail together, so `transmitter` is one all-or-nothing object
+rather than four optional members that a re-encode could split. Unlike the
+sibling `underflows`, `live.underflows_total` is the absolute hardware
+counter since the display was programmed, and the one-scanline per-present
+cap does not apply to it. An absent `live` means the runtime measured
+nothing, which is not the same as a healthy display.
 The runtime and this agent must ship in the same image because decoding is
 strict; capability-gated emission and tolerant decoding are not implemented.
 `load_core` carries a rooted staged directory and package ID. The target retains
@@ -913,6 +1061,11 @@ launch-time `POST /api/v1/session/development-media` (`load_media`). See the FES
 [ZX81 tape media](../../../docs/zx81-tape-media.md).
 
 ### Coleco title selector and cartridge swap
+
+Creating a title with `media_role: "cartridge"` and an imported media digest
+binds that exact-size binary to the package's named cartridge ROM in the same
+catalog transaction as the title. Format-4 titles still need their separately
+selected BIOS; cartridge ROMs are not live media units.
 
 Factory Coleco format-4 packages link the 8 KiB BIOS and 16 KiB cartridge into
 the RBF at launch and do not expose a live media unit. Home and F12 during
@@ -1283,7 +1436,8 @@ Stop. A rejected changed-session action triggers a refresh; a subsequent
 explicit Stop uses the refreshed identity. Returning to a reused room calls
 its resume hook immediately, retaining navigation focus while refreshing the
 host snapshot. Failed saves and lost Stop responses retain their existing
-retry behavior.
+retry behavior. Before its first full picture, the workbench prewarms its
+standard description wrapping at the same text size used for display.
 See [hardware rooms](../../../docs/hardware-rooms.md) for the complete scope.
 
 When an entry has no selected expansion and its package lacks session display,
@@ -1448,13 +1602,19 @@ one HID keyboard press `event` only for an active session with a negotiated
 are rejected instead of silently dropping or remapping physical keys. It
 checks the selected kit's connection and lease and input attachment after
 waiting for the input lock. It rejects missing, incompatible, or unknown target
-observations, then sends a press and a release
-under the same lock. A canceled request still releases a potentially applied
-press; an unconfirmed release closes the bridge and clears held input. The
-response includes `host_duration_ms` for the host operation. That duration
-is not a measurement of when either edge reached or was applied by the core.
-Successful writes do not acknowledge guest delivery. The endpoint does not
-turn an uncertain host transport write into a successful tap.
+observations. On an explicit tap, the host probes the bridge for target-timed
+tap support, then sends one generation-bound operation. The target observes
+the active core and applies the press and release 60 ms apart using its local
+clock; unrelated held keys from other sources remain held. The tap fails if
+the same key is held locally before the tap or becomes held before its release. A cancellation or
+uncertain press triggers a release attempt; an unconfirmed operation closes
+the bridge and clears host held input without replay. Its correlated receipt
+confirms accepted target sink posts, not guest consumption or a hardware timing
+bound. The response's `host_duration_ms` measures the host operation only.
+Legacy bridges attach normally, but decline or close on the optional probe and
+receive no tap input. Taps require neutral remote controls so a legacy disconnect or an
+unconfirmed tap cannot release another remote hold. Separate `/event`
+requests still have transport jitter.
 
 `GET /api/v1/session/events` keeps the existing protocol 1 event object.
 The host also sets an optional `flight_id` UUID on those events: one new id
@@ -1645,7 +1805,13 @@ callers retain byte-identical change detection. An unchanged submission that has
 not failed or been dropped is skipped. Once a second after a successful present, that skip
 still reads menu status. A new menu generation is submitted in full; the
 same generation presents nothing.
-The first frame is submitted because nothing has been queued yet. Status
+That skip acknowledges the unchanged frame only while the status reports
+`live.enabled`, not `live.faulted`, not `live.quiesced`, and a
+`live.scanout_frame` that is not `"mismatched"`; against a runtime that
+measures the display but publishes no verdict it falls back to
+`live.displayed_sequence`, and against one that reports no `live` at all to
+the cached `displayed_sequence`. Anything else sends a complete frame rather
+than acknowledging one. The first frame is submitted because nothing has been queued yet. Status
 errors, scanout underflow, and present failures wait 250ms, doubling up to
 5s. An unavailable menu uses that schedule but never waits longer than the
 1s probe, so a Stop redraws within about a second. A generation mismatch
@@ -1700,7 +1866,7 @@ is separate from the broader SDL smoke.
 | FPGA | `gfx.NewFPGA` (`ui/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`ui/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. |
 | FPGA stub | `gfx.NewFPGAStub` (`ui/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. Used by `fogcast-tenfoot -gfx linuxfb`. Look tokens live in `ui/theme` and are consumed by the sofa `Clear` sites. Chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
-| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The base-image supervisor starts `fogcast-tenfoot` on this socket. On this backend tenfoot submits one room launch overlay frame with
+| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status, and acknowledges the unchanged frame only while that status reports `live.enabled`, not `live.faulted`, not `live.quiesced` and a `live.scanout_frame` that is not `"mismatched"` (falling back to the sampled `live.displayed_sequence` against a runtime that publishes no verdict, and to the cached `displayed_sequence` against one that reports no `live`); otherwise it sends a complete frame. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The base-image supervisor starts `fogcast-tenfoot` on this socket. On this backend tenfoot submits one room launch overlay frame with
 phase and elapsed time. Dispatch waits until that frame has been presented,
 then pauses presents and dispatches the host session launch. A completed pause
 also releases the menu client's grant mapping after its last frame transaction
@@ -1856,8 +2022,8 @@ on FAT outside every rootfs. Replacing the system image does not wipe
 
 When leftover card capacity has already been formatted as partition 3 with
 label `FESDATA3`, agent startup bind-mounts that ext4 volume over
-`/media/fat/fogcast/{cache,saves,core-data,launcher-cache,evidence}` and
-`/media/fat/games`. Existing FAT files in these trees are copied onto p3 only
+`/media/fat/fogcast/{cache,saves,core-data,launcher-cache,evidence,disk-images}`
+and `/media/fat/games`. Existing FAT files in these trees are copied onto p3 only
 when the p3 destination is absent; each copied file is published only after a
 complete same-directory temporary has been written and closed, and existing
 p3 files are preserved. The game library is imported once, with a completion
@@ -3593,7 +3759,8 @@ single-event POST, or an `unconfirmed` launcher receipt followed by closure:
 the event may have applied. The host closes its connection
 without replay, clears its held-input snapshot and attempts to stop the bridge;
 the error does not confirm remote release. This adds a bridge round trip to each
-event. The timed key tap does not use this barrier. Receipt capability is
+event. A timed key tap separately probes its capability and waits for a
+completion receipt. Receipt capability is
 probed before the first confirmed event on each connection; an older kit bridge
 still attaches but cannot accept confirmed remote input. Kit-local pads stay on the unix socket
 and do not silently fall back to the host.
@@ -4177,11 +4344,14 @@ A format-3 title whose firmware ROM has no selection gets the host's
 [bundled firmware](../../../docs/bundled-firmware.md) for that core, ROM ID and
 exact size, when the host loaded one from its `[firmware] bundled_dir`. The
 host derives that default for reads and launches without saving it as a user
-selection, so a later bundle update changes the effective default. An explicit
-selection is preserved. Catalog setup also leaves a selected bundled default
+selection, so a later bundle update changes the effective default. A saved
+selection is preserved. Older setups may have saved the then-bundled ZX81 ROM
+as their selection; if that media still exists, they keep it and may remain
+ready after the host default is removed.
+Catalog setup also leaves a selected bundled default
 unsaved. `GET /api/v1/library/core-entries/{game_id}/rom?rom_id={rom_id}` returns an empty
 `media_id` for that unsaved default, with its digest in `bundled_media_id` and
-`bundled_default: true`. Installed setup can use that digest as the
+`bundled_default: true`. PUT responses use the same separation. Installed setup can use that digest as the
 compare-and-swap expectation when replacing it. Library readiness uses the
 validated bundled-object metadata rather than rehashing the image for every
 title; launch still verifies the stored bytes. ZX81-family firmware is not

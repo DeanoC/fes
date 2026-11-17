@@ -1,0 +1,17 @@
+{
+  "status": "failed-warm-menu-stop-with-successful-independent-firmware-closure",
+  "trace_sha256": "faa0663087438c25decb4ab4802bd90a25bbbca3170b5adc7933531cb1bd31bf",
+  "all_wire_sha256": "d5658499d2d36a9f937717fbb1eafe67d1ffc1c293522d30ad66b85a1704d101",
+  "completed_program_epoch": "3097475:158329625",
+  "observed_final_master_stop": "NOTICE:  FES_NANO_MASTER_STOP status=0 owner=a9ff1c2e820181af generation=17 reset=5 reader_reads=88 reader_polls=1 disable=0 probe_polls=2 cancel=0 complete=1 data=active",
+  "observed_final_reader_drain": "NOTICE:  FES_NANO_WINDOW_READER_DRAIN owner=a9ff1c2e820181af generation=17 reset=5 reader_generation=1 request_generation=1 cookie=1 ack_generation=1 ack_cookie=1 status=4 pending=0",
+  "observed_final_bridge_closure": "NOTICE:  FES_NANO_WINDOW_CLOSURE owner=a9ff1c2e820181af generation=18 reset=f hardware_drained=8 data_remained_contained=0 producers_quiescent=1 fabric_acknowledged=0",
+  "panic": "native program service: reboot required; resources retained",
+  "last_command": "s / stop",
+  "root_cause": "unproven: local menu drain or subsequent native validation error is not preserved in the final panic",
+  "firmware_reports_reader_and_bridge_closure": true,
+  "missing_fabric_handshake_inferred": false,
+  "final_park": false,
+  "physical_recovery_qualified": false,
+  "hardware_actions": false
+}

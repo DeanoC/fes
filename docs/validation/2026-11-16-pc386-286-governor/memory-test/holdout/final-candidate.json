@@ -1,0 +1,34 @@
+{
+  "TEST_RM_B": {
+    "charged": 19.021,
+    "cycles": 97234
+  },
+  "TEST_RM_W": {
+    "charged": 19.014,
+    "cycles": 97414
+  },
+  "TEST_IMM_B": {
+    "charged": 21.014,
+    "cycles": 107654
+  },
+  "TEST_IMM_W": {
+    "charged": 21.017,
+    "cycles": 107670
+  },
+  "TEST_DIRECT_B": {
+    "charged": 23.016,
+    "cycles": 117905
+  },
+  "TEST_DIRECT_W": {
+    "charged": 23.017,
+    "cycles": 117910
+  },
+  "TEST_RM_SI_B": {
+    "charged": 19.016,
+    "cycles": 97424
+  },
+  "TEST_RM_SI_W": {
+    "charged": 19.014,
+    "cycles": 97414
+  }
+}

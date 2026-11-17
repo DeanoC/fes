@@ -1,0 +1,42 @@
+{
+  "L0_A0_DEC": {
+    "charged_per_loop": 27.012,
+    "cycles": 138312
+  },
+  "L1_A0_DEC": {
+    "charged_per_loop": 32.013,
+    "cycles": 163917
+  },
+  "L2_A0_DEC": {
+    "charged_per_loop": 36.013,
+    "cycles": 184396
+  },
+  "L3_A0_DEC": {
+    "charged_per_loop": 40.013,
+    "cycles": 204877
+  },
+  "L4_A0_DEC": {
+    "charged_per_loop": 44.013,
+    "cycles": 225356
+  },
+  "L1_A6_DEC": {
+    "charged_per_loop": 32.013,
+    "cycles": 163917
+  },
+  "L2_A12_DEC": {
+    "charged_per_loop": 36.013,
+    "cycles": 184397
+  },
+  "L3_A32_DEC": {
+    "charged_per_loop": 40.013,
+    "cycles": 204876
+  },
+  "L4_A256_DEC": {
+    "charged_per_loop": 44.013,
+    "cycles": 225357
+  },
+  "L2_A0_LOOP": {
+    "charged_per_loop": 38.017,
+    "cycles": 194657
+  }
+}

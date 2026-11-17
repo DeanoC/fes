@@ -2846,7 +2846,7 @@ void TestPcxtFloppyDiscoveryAndLiveInsert()
 	assert(FesComputerCapabilityMediaAtaDisk == (1u << 16));
 	auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
 		FesComputerInterfaceMediaPcxtFloppyID});
-	descriptor.core.id = "fes.pcxt";
+	descriptor.core.id = "fes.pcxt-dos";
 	descriptor.abi.minor = FesComputerExtendedAbiMinor;
 	const std::uint32_t caps = FesComputerCapabilityVideoFixed720p60 |
 		FesComputerCapabilityMediaPcxtFloppy;

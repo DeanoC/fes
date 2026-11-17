@@ -435,6 +435,24 @@ def _require_clean_source(root: Path, *, pinned_inputs: Sequence[str], identity_
     return repository, revision
 
 
+def require_committed_parent_config(root: Path, *relatives: str) -> None:
+    """Parent-owned config a producer reads must be the committed file.
+
+    The module clean-tree gate covers only sources/misteross. A producer that
+    reads a recipe table from the parent repository records that repository's
+    revision, so an uncommitted edit there would build an artifact the
+    recorded revision cannot reproduce.
+    """
+    parent = Path(root).resolve().parents[1]
+    for relative in relatives:
+        try:
+            _git(parent, "ls-files", "--error-unmatch", "--", relative)
+        except BuildError as exc:
+            raise BuildError(f"pinned build input is not tracked: {relative}") from exc
+        if _git(parent, "status", "--porcelain", "--untracked-files=all", "--", relative):
+            raise BuildError(f"{relative} must be committed before build and export")
+
+
 def _read_evidence(path: Path, expected: str) -> str:
     if path.is_symlink() or not path.is_file():
         raise BuildError(f"missing tool authentication evidence: {path}")
@@ -485,7 +503,11 @@ def _authenticate_shared_tools(
     hip_architectures: str | None,
     cache_root: Path,
 ) -> dict[str, AuthenticatedTool]:
-    """Resolve immutable shared tools through the verified cache manifest."""
+    """Resolve immutable shared tools through their verified installs.
+
+    Each tool comes from its own install in the shared cache, keyed by its
+    pin and build configuration, so locks that pin the same tool share it.
+    """
 
     nextpnr_configuration = expected_configuration.get("nextpnr")
     cuda_architectures = (
@@ -504,7 +526,7 @@ def _authenticate_shared_tools(
             hip_architectures=hip_architectures,
             cuda_architectures=cuda_architectures,
         )
-        manifest = toolchain_cache.resolve_ready(request)
+        resolution = toolchain_cache.resolve_ready(request)
     except toolchain_cache.CacheError as exc:
         raise BuildError(f"shared toolchain verification failed: {exc}") from exc
 
@@ -515,31 +537,30 @@ def _authenticate_shared_tools(
     )
     authenticated: dict[str, AuthenticatedTool] = {}
     for record_name, lock_name, executable, arguments in definitions:
-        record = manifest.tools.get(lock_name)
-        if not isinstance(record, Mapping):
-            raise BuildError(f"shared toolchain manifest has no authenticated {lock_name} record")
+        install = resolution.tools.get(lock_name)
+        if install is None:
+            raise BuildError(f"shared toolchain has no authenticated {lock_name} install")
+        record = install.record
         commit = record.get("commit")
         digest = record.get("sha256")
-        binary_name = record.get("binary")
-        manifest_path = record.get("path")
         if commit != expected_commits[lock_name]:
             raise BuildError(
                 f"shared authenticated {lock_name} commit {expected_commits[lock_name]}, got {commit}"
             )
         expected_binary = f"bin/{executable}"
-        if binary_name != expected_binary or manifest_path != f"install/{expected_binary}":
+        if record.get("binary") != expected_binary or record.get("path") != f"install/{expected_binary}":
             raise BuildError(f"shared authenticated tool path is invalid: {executable}")
-        path = manifest.slot / Path(manifest_path)
+        path = install.binary
         if path.is_symlink() or not path.is_file() or not os.access(path, os.X_OK):
             raise BuildError(f"shared authenticated tool is not a regular executable: {path}")
         if not isinstance(digest, str) or HEX64_RE.fullmatch(digest) is None:
             raise BuildError(f"shared authenticated tool digest is invalid: {executable}")
         configuration = expected_configuration.get(lock_name)
         if configuration is not None:
+            if install.configuration is None:
+                raise BuildError(f"shared {lock_name} install records no GPU lane: {executable}")
             try:
-                manifest_configuration = toolchain_cache.configuration_text(
-                    manifest.configuration
-                )
+                manifest_configuration = toolchain_cache.configuration_text(install.configuration)
             except (KeyError, TypeError) as exc:
                 raise BuildError(
                     f"shared toolchain manifest configuration is invalid: {executable}"
@@ -548,7 +569,7 @@ def _authenticate_shared_tools(
                 raise BuildError(
                     f"shared tool configuration does not match the requested build lane: {executable}"
                 )
-            configuration_path = manifest.evidence / lock_name / f".config-{commit}.txt"
+            configuration_path = install.evidence / f".config-{commit}.txt"
             actual_configuration = _read_evidence(configuration_path, "configuration")
             if actual_configuration != configuration:
                 raise BuildError(

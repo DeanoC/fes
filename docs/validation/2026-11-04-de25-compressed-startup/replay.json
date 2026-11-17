@@ -1,0 +1,9 @@
+{
+  "status": "passed",
+  "scope": "incomplete saved capture exactly reproduces the stopped result; original physical attempt remains failed",
+  "complete": false,
+  "last_checkpoint": "el1",
+  "exact_native_receipt_match": true,
+  "capture_sha256": "991d4b76554d5ce6a1804557dc12a237baeec585c5c6c1c3d3b5faa6a5580682",
+  "hardware_access": false
+}

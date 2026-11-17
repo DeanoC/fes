@@ -1,0 +1,6 @@
+d9248a8be310351a0564165fd215a6b7ba0daa4d23811d74681a5e0fef4becdf  /data/fes1902-tier-survey-4oxl7m1s/vm/micronics386px/86box.cfg
+c874bd5b028e749c80520e977712c13552fc3c67d60331d898a398f630b33bce  /data/fes1902-tier-survey-4oxl7m1s/vm/micronics386px/nvr/micronics386px.nvr
+279ac36b8cbf0a77c99899e60be45e975fd33a828e725dd13568e451eee90027  /data/fes1902-tier-survey-4oxl7m1s/vm/micronics386px/disk.img
+c74e7e3a085c624260f0d144c02968d00fa9383f5d7fc46b32f1dc80d371d7ff  /data/fes1902-tier-survey-4oxl7m1s/app/sq/AppRun
+ae3dc231824cf0c2facd1af4e2164814cbbb15bb1a9fa0603cdd8e9ee0ad2969  /data/fes1902-tier-survey-4oxl7m1s/app/sq/usr/local/bin/86Box
+ec38293be553dabc711ef5dd62cb61b45167d2a00e04cc6c49fb8032aac09b94  /data/fes1902-tier-survey-4oxl7m1s/roms.sha256

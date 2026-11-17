@@ -1,0 +1,190 @@
+{
+  "status": "passed",
+  "register_map_zip_sha256": "c4720c039263d5423662994fc41cd1c9a324f9fcf3bc1187a3a742f532537925",
+  "register_map_html_sha256": "871c382b1b390efe7d33d8cfa0dd9cab5f48571296aa71288687d5e20a89d208",
+  "ddr_firewall_base": 402656256,
+  "enable_offset": 0,
+  "region_registers": [
+    {
+      "name": "region0addr_base",
+      "offset": 16,
+      "address": 402656272
+    },
+    {
+      "name": "region0addr_baseext",
+      "offset": 20,
+      "address": 402656276
+    },
+    {
+      "name": "region0addr_limit",
+      "offset": 24,
+      "address": 402656280
+    },
+    {
+      "name": "region0addr_limitext",
+      "offset": 28,
+      "address": 402656284
+    },
+    {
+      "name": "region1addr_base",
+      "offset": 32,
+      "address": 402656288
+    },
+    {
+      "name": "region1addr_baseext",
+      "offset": 36,
+      "address": 402656292
+    },
+    {
+      "name": "region1addr_limit",
+      "offset": 40,
+      "address": 402656296
+    },
+    {
+      "name": "region1addr_limitext",
+      "offset": 44,
+      "address": 402656300
+    },
+    {
+      "name": "region2addr_base",
+      "offset": 48,
+      "address": 402656304
+    },
+    {
+      "name": "region2addr_baseext",
+      "offset": 52,
+      "address": 402656308
+    },
+    {
+      "name": "region2addr_limit",
+      "offset": 56,
+      "address": 402656312
+    },
+    {
+      "name": "region2addr_limitext",
+      "offset": 60,
+      "address": 402656316
+    },
+    {
+      "name": "region3addr_base",
+      "offset": 64,
+      "address": 402656320
+    },
+    {
+      "name": "region3addr_baseext",
+      "offset": 68,
+      "address": 402656324
+    },
+    {
+      "name": "region3addr_limit",
+      "offset": 72,
+      "address": 402656328
+    },
+    {
+      "name": "region3addr_limitext",
+      "offset": 76,
+      "address": 402656332
+    },
+    {
+      "name": "region4addr_base",
+      "offset": 80,
+      "address": 402656336
+    },
+    {
+      "name": "region4addr_baseext",
+      "offset": 84,
+      "address": 402656340
+    },
+    {
+      "name": "region4addr_limit",
+      "offset": 88,
+      "address": 402656344
+    },
+    {
+      "name": "region4addr_limitext",
+      "offset": 92,
+      "address": 402656348
+    },
+    {
+      "name": "region5addr_base",
+      "offset": 96,
+      "address": 402656352
+    },
+    {
+      "name": "region5addr_baseext",
+      "offset": 100,
+      "address": 402656356
+    },
+    {
+      "name": "region5addr_limit",
+      "offset": 104,
+      "address": 402656360
+    },
+    {
+      "name": "region5addr_limitext",
+      "offset": 108,
+      "address": 402656364
+    },
+    {
+      "name": "region6addr_base",
+      "offset": 112,
+      "address": 402656368
+    },
+    {
+      "name": "region6addr_baseext",
+      "offset": 116,
+      "address": 402656372
+    },
+    {
+      "name": "region6addr_limit",
+      "offset": 120,
+      "address": 402656376
+    },
+    {
+      "name": "region6addr_limitext",
+      "offset": 124,
+      "address": 402656380
+    },
+    {
+      "name": "region7addr_base",
+      "offset": 128,
+      "address": 402656384
+    },
+    {
+      "name": "region7addr_baseext",
+      "offset": 132,
+      "address": 402656388
+    },
+    {
+      "name": "region7addr_limit",
+      "offset": 136,
+      "address": 402656392
+    },
+    {
+      "name": "region7addr_limitext",
+      "offset": 140,
+      "address": 402656396
+    }
+  ],
+  "mpfe_reset": [
+    {
+      "name": "mpfe",
+      "bit": 6,
+      "width": 1
+    }
+  ],
+  "vendor_pin": "580dcb5c4e10aa7daff2bf69d493c076a6d3e665",
+  "vendor_source_sha256": "6f866726afda5518e5fcc1fa934a5c88b76a283a9e3935ed327176371899cd70",
+  "generated_adapter": "out/nano-ddr-matched-20261102/sealed-project/board/hps/project/hps_subsys/ip/hps_subsys/f2sdram_adapter/f2sdram_adapter_10/synth/f2sdram_adapter_f2sdram_adapter_10_ebbsmiq.v",
+  "generated_adapter_sha256": "fcc90a71082c709a648265d09d58322ed535ce1499dff474aaf8bb55c53a3431",
+  "adapter_attributes": {
+    "ARCACHE": 2,
+    "ARPROT": 3,
+    "ARUSER": 224
+  },
+  "classification": "register-map and generated-source audit of the exact compiled sealed DDR project; not live firewall or memory access qualification",
+  "sources": [
+    "https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/f2sdram-firewall?contentId=JZo73fDtBno9kTQOAdevlQ",
+    "https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/fpga-to-sdram-direct-cache-non-allocate?contentId=mktCS6TWKV6jFqTeego6Nw"
+  ]
+}

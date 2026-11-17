@@ -1,0 +1,159 @@
+{
+  "status": "passed",
+  "classification": "physical serial Tenfoot App selected-package launch/return diagnostic",
+  "observer_source": "4ecd73cfea5d5e64839025dac14d051a9ecf230b",
+  "native_source": "c0cf35bac0f2c9a8fb846c9f72ca0b281383f239",
+  "firmware_source": "faa14c06b086178f27771113807976c018fc1096",
+  "fpga_source": "7808f74c2fda87cc56a0fe92e5a17454fd31746a",
+  "board_source": "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+  "board_serial": "TRWU8CBL",
+  "hardware_attempts": 1,
+  "hardware_retries": 0,
+  "qualified_recovery": true,
+  "fixed_uploads_and_fresh_readbacks": 7,
+  "cycles": [
+    {
+      "selection": 0,
+      "generation": 1,
+      "package_id": "93a2192a0b1f0c014917dba9d27485798f105beabd466e3026422380edbf5ca5",
+      "build_id": "a44922576284d6d92781c31b27ec4f45",
+      "programmed_sha256": "c0ae20b35077393f1d91dffa0c391f663559e2b4576e7867123079d0ef8d4c41",
+      "elapsed_seconds": 71.73262756504118,
+      "configuration_timing": {
+        "counter_frequency": 400000000,
+        "first_counter": 30766298887,
+        "last_counter": 35814983869,
+        "hash_ticks": 4153709265,
+        "interval_ticks": 5048684982,
+        "interval_hash_ticks": 3776860474
+      }
+    },
+    {
+      "selection": 1,
+      "generation": 3,
+      "package_id": "3901e5349ea384bfc2d2f3ab9c349e5d81892a39fb4dd0d68802cd4b1732eee9",
+      "build_id": "e37f06507e6bdc4c2198f06e6cd5d125",
+      "programmed_sha256": "d071f421316932fbf680ece77ad1830a6ef35447897f1ae0a594061c81d84668",
+      "elapsed_seconds": 71.48490997392219,
+      "configuration_timing": {
+        "counter_frequency": 400000000,
+        "first_counter": 59576842975,
+        "last_counter": 64603574869,
+        "hash_ticks": 8286248735,
+        "interval_ticks": 5026731894,
+        "interval_hash_ticks": 3757682552
+      }
+    },
+    {
+      "selection": 0,
+      "generation": 5,
+      "package_id": "93a2192a0b1f0c014917dba9d27485798f105beabd466e3026422380edbf5ca5",
+      "build_id": "a44922576284d6d92781c31b27ec4f45",
+      "programmed_sha256": "c0ae20b35077393f1d91dffa0c391f663559e2b4576e7867123079d0ef8d4c41",
+      "elapsed_seconds": 71.74171158403624,
+      "configuration_timing": {
+        "counter_frequency": 400000000,
+        "first_counter": 88417220083,
+        "last_counter": 93467100205,
+        "hash_ticks": 12439403773,
+        "interval_ticks": 5049880122,
+        "interval_hash_ticks": 3776414612
+      }
+    }
+  ],
+  "cpu_startup_checkpoints": 14,
+  "initial_app_ready_seconds": 2.0615129900397733,
+  "app_key_exchanges": 8,
+  "return_and_quit_seconds": [
+    0.3619415370048955,
+    0.3134256759658456,
+    0.3128280530218035
+  ],
+  "final_native_generation": 6,
+  "final_native_held": true,
+  "final_native_identity_empty": true,
+  "full_App_cycle_diagnostic_pass": true,
+  "production_core_admission": false,
+  "ordinary_ROM_parts_media_admission": false,
+  "core_execution_or_framebuffer_qualification": false,
+  "physical_usb_hub_input": false,
+  "physical_hdmi": false,
+  "native_ethernet": false,
+  "display": "serial-state-only",
+  "raw_console_sha256": "939010ae7473901e696c782267e8b5033ceb34d6aa4293cec37a62bd36d9723f",
+  "raw_console_bytes": 28896,
+  "cleanup": {
+    "status": "passed",
+    "scope": "independent read-only bounded-procedure host cleanup",
+    "clock_readback": "15M",
+    "exact_usb_permissions_restored": true,
+    "private_JTAG_process_gone": true,
+    "UART_free": true,
+    "claim_retained": true,
+    "hardware_retry": false,
+    "factory_restore": false,
+    "original_factory_card_untouched": true
+  },
+  "retention": {
+    "status": "passed",
+    "classification": "retained physical selected-package Tenfoot App cycle diagnostic; no general runtime admission or physical USB/display qualification",
+    "observer_source": "4ecd73cfea5d5e64839025dac14d051a9ecf230b",
+    "archive": "/home/deano/fes-retained/de25-tenfoot-core-cycle-20261104-r2/observed-chain-and-procedure.tar.gz",
+    "archive_sha256": "af93d4589a1c27cee31547c85be5dd5634bad028dbfef991e7374dad5e30ed03",
+    "archive_bytes": 203698019,
+    "regular_members_verified": 48937,
+    "internal_links_verified": 59,
+    "source_update_bundle": "/home/deano/fes-retained/de25-tenfoot-core-cycle-20261104-r2/source-update.bundle",
+    "source_update_bundle_sha256": "1def434cc2e97d68da24158e8b153e238ecdcf024c060c60c62c8f8a68b8d497",
+    "required_base_bundle": "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/source.bundle",
+    "required_base_bundle_sha256": "daeee37ba8c039ffc165c2c92d7a639af01c441099fe1359ae207846fa75216f",
+    "required_sealed_project_archive": "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/matched-candidate.tar.gz",
+    "required_sealed_project_archive_sha256": "1479d5fa439c77457a3c19959a97b810b8ce5a6aa0672bb4567519f2d7229d17",
+    "combined_source_restore_and_strict_fsck": true,
+    "hardware_attempts": 1,
+    "hardware_retries": 0,
+    "diagnostic_cycles": 3,
+    "production_acceptance": false,
+    "offline_toolchain_export": false
+  },
+  "frozen_operator_helpers_sha256": {
+    "common.py": "82e94457cb9f147f20057c7124b4aff131d1251b954da964242113c822b0c654",
+    "experiment.py": "edeeffa6d31f334df1a169946fbdba2ecebb53c1e30830581fce397904471a86",
+    "native.py": "28d77eea897688645d42bc8decc8c541fe89ed45f43ee30fb138e1b57b0a25f6",
+    "private_jtag.py": "e9979de505d409a7b723bc47aa962384e4b8b664f37c6011059f056e2471f23d",
+    "recovery.py": "6e5ccd595d3bea71f85abe41b3ba562a24119f69dac9f4df577140b2a2fdb8bc",
+    "service_checks.py": "0ed42c4dbda2e7edc550d54bcde5215075422a879e2057048f2ee3e816a313d5",
+    "trial_inputs.py": "9adecf74d745003ea6998f3e4f98afd6439c25715af2f86f06205dde8539c297",
+    "upload_both.py": "dc654b63034d1eb00c70d61dbb9b4d89c2351b40cebe3cb3b0fbeb684ce580c2",
+    "upload_checks.py": "01e9caeb4adf1f70dbecb0c7415f056eb6bbcd2fe1f80c1331fad370cfb4011d"
+  },
+  "retained_records_sha256": {
+    "out/nano-tenfoot-core-cycle-20261104/source.json": "7b866a764e8a488dc880452a5e2f3c265778a75509a52755eac49c06e9b3aeeb",
+    "out/nano-tenfoot-core-cycle-20261104/trial/preflight.json": "a8ea57da514278a30014c26363114bd96e8a15ed3c76628d47d3f42f581caac9",
+    "out/nano-tenfoot-core-cycle-20261104/trial/experiment-result.json": "ff36633e573c71256d3eb9d5df77613696b461d7e109eb9dded41690cf99dc8d",
+    "out/nano-tenfoot-core-cycle-20261104/trial/native-result.json": "72f31a9fdd2ce5032db0acdf3f57ee669fef4c2c15f5f76ddc6416bff5f511cf",
+    "out/nano-tenfoot-core-cycle-20261104/replay.json": "aa4f942841d0510ab8136a2ef5b26c14840802aa8a08e755004a89edddc8e1c1",
+    "out/nano-tenfoot-core-cycle-20261104/cleanup-evidence.json": "42ab82fbdd4edcec6d5513e261f4718bad74780fa21a155bc55d97539c398a64",
+    "out/nano-tenfoot-core-cycle-20261104/retention.json": "59e6e25191f82a9a40175c140c27f5ff5cf64a9c96db435337b86582e63320d1",
+    "out/nano-usb-wire-20261104/catalogue-proof.json": "986dbc1d388e48bdc4a899aa962e444d83153381dda9ae139c8a80f5fb7fbd34",
+    "out/nano-usb-wire-20261104/chain-proof.json": "082c6df74625c8db4a1c9ad6bf817725277fb45ac7d6069045d4ee28484338ce",
+    "out/nano-usb-wire-20261104/app-binary-proof.json": "44be34fa462714aa0a1c1aaa31489851c75701e0416b464b027550890ac477b8",
+    "out/nano-usb-wire-20261104/native-composition/result.json": "18d3c37ea89c1186df8d0203cb303e857fd931c80b9d1944349a3534263b124b"
+  },
+  "host_only_setup_stops": [
+    "catalogue proof/runner filename collision; regenerated proof matches all six original files",
+    "archive checker rejected internal directory symlinks; corrected archive metadata and read back all members"
+  ],
+  "prior_failed_physical_procedure_retained": true,
+  "bounds_seconds": {
+    "prompt_seconds": 50,
+    "startup_seconds": 100,
+    "launch_seconds": 100,
+    "configuration_seconds": 20,
+    "control_seconds": 5,
+    "native_seconds": 450,
+    "native_process_seconds": 480,
+    "outer_seconds": 800
+  },
+  "goal_complete": false
+}

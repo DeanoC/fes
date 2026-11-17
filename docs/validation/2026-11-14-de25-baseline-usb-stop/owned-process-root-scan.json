@@ -1,0 +1,64 @@
+{
+  "status": "passed-root-full-owned-process-record-scan",
+  "records": [
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/server-traced-warm-restoration/attempt/native-baseline/transport.json",
+      "record_sha256": "c705c8337a334c6eb2ff4fc6b222de7fb7ce2251b106827afdae7810275cafc4",
+      "pid": 1359285,
+      "start_ticks": "171176507",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/server-traced-warm-restoration/attempt/native-baseline/owned-worker.json",
+      "record_sha256": "66361e9cfc38cf9b62f7dce99f4b90599e689b28e7ca5a00bd04a8d15843d8a0",
+      "pid": 1358872,
+      "start_ticks": "171175613",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/server-traced-warm-restoration/attempt/native-baseline/owned-programmer.json",
+      "record_sha256": "e2241b155eedca0d543327b8b8a32fcb2835dddbb7c1652fe8b2d7ff565463e1",
+      "pid": 1360130,
+      "start_ticks": "171177016",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/server-traced-warm-restoration/attempt/recovery-rollback/transport.json",
+      "record_sha256": "7f9cb0c7cbadfc93e249776af65e79ad860d9237492cebf051a2b37b532f68c7",
+      "pid": 1347189,
+      "start_ticks": "171152459",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/server-traced-warm-restoration/attempt/recovery-rollback/owned-worker.json",
+      "record_sha256": "392eadb3dd838773b8ee32b1d604de9b9b46a0d9fb16c6ccac032551a3f82132",
+      "pid": 1346809,
+      "start_ticks": "171152193",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/server-traced-warm-restoration/attempt/recovery-rollback/owned-programmer.json",
+      "record_sha256": "76b67db972205106f0b501cc02eb59fa6d0f775449246fcf72a4a69ff4e8a7a0",
+      "pid": 1348044,
+      "start_ticks": "171152974",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/server-traced-warm-restoration/attempt/rollback/owned-worker.json",
+      "record_sha256": "691946f1f37b762ce6c31f11f0f721dcae66b6fd65df8afaa0a1cb9e8ca64b65",
+      "pid": 1349941,
+      "start_ticks": "171155005",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/server-traced-warm-restoration/attempt/native-baseline/file-admission/owned-worker.json",
+      "record_sha256": "6abf570664242fc076a2803a20e176bc7ff3824ec3c176de488b71b3f67bcbd1",
+      "pid": 1359130,
+      "start_ticks": "171175907",
+      "original_process_stopped": true
+    }
+  ],
+  "root_only_preflight_directories_included": true,
+  "device_opened": false,
+  "processes_signalled": false
+}

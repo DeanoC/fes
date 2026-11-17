@@ -69,8 +69,6 @@ help:
 		"  build-fes-video-part  Build VIDEO_VARIANT=direct|scanlines against VIDEO_SHELL and VIDEO_PACKAGE" \
 		"  sim-fes-ramtest  Test the RAM tester against SDRAM and HPS DDR models, holds and identity" \
 		"  build-fes-ramtest-100  Seal the OSS 100 MHz SDRAM and HPS DDR tester with HIP nextpnr" \
-		"  build-fes-ramtest-130  Seal the OSS 130 MHz SDRAM and HPS DDR tester with HIP nextpnr" \
-		"  diagnose-fes-ramtest-timing  Measure the 130 MHz RAM tester on the shared toolchain" \
 		"  toolchain-fes-ramtest  Provision the FES RAM Tester HIP toolchain (per-core lock)" \
 		"  toolchain-fes-atari-st  Provision the Atari ST OSS toolchain (per-core lock)" \
 		"  build-fes-ramtest-quartus  Quartus (cores/fes-ramtest/quartus.lock) SDRAM and HPS DDR tester at 130 MHz (RAMTEST_MHZ=100 for 100 MHz)" \
@@ -95,6 +93,7 @@ help:
 		"  sim-fes-coleco-session  Test the Coleco mailbox, native part raster and live DDR session display" \
 		"  synth-fes-native-video  Diagnostic locked synthesis, requires CACHE_ROOT; no route/seal" \
 		"  sim-fes-z80  Test original NMOS and documented fast Z80 RTL" \
+		"  sim-fes-de25-x87  Check the standalone DE25 x87 arithmetic pipeline against host x87" \
 		"  sim-fes-riscv  Test the original RV32I CPU, the fes.riscv system and its board shell" \
 		"  build-fes-riscv  Seal FES RISC-V with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
 		"  sim-fes-tms9918-timing  Check the shared ~60 Hz NTSC raster enable across Coleco clock rates" \
@@ -105,7 +104,7 @@ help:
 		"  sim-fes-coleco-quartus  Test RAM/media with supplied Quartus 17 models and Icarus" \
 		"  coleco-diagnostic  Generate the open Coleco Graphics I cartridge and reference image" \
 		"  coleco-sprite-diagnostic  Generate the open Coleco Graphics II sprite cartridge and reference image" \
-		"  build-fes-zx81-quartus  Quartus oracle (quartus.lock) package for FES ZX81 (FES_ZX81_ROM=)" \
+		"  build-fes-zx81-quartus  Seal a ZX81-family package with Quartus Lite (MODEL=zx81|zx80|ts1000|ts1500; QUARTUS_ROOTDIR=, CACHE_ROOT=)" \
 		"  build-fes-zx81  Seal FES ZX81 HIP (CACHE_ROOT=; BEST_FMAX=1 GPU_DEVICES=1 uses one selected GPU)" \
 		"  build-fes-zx80  Seal experimental Sinclair ZX80 (package-only; same lock as fes.zx81)" \
 		"  build-fes-ts1000  Seal experimental Timex Sinclair 1000 (package-only; same lock as fes.zx81)" \
@@ -167,7 +166,7 @@ help:
 		"  sim-fes-pc386-vga  Check the pc386 presenter and plane, run the VGA test disk, replay its VGA trace against Bochs" \
 		"  synth-fes-pc386  Synthesize and pack the pc386 machine without the CPU (needs CACHE_ROOT)" \
 		"  build-fes-pc386-quartus  Seal fes.pc386, the machine with fes_i386_cpu, with its locked Quartus (LOCKSTEP_REPORT=, CACHE_ROOT=, SEED=, GPU_ROUTER=HIP|CUDA)" \
-		"  build-fes-pcxt  Quartus PC/XT diagnostic package (QUARTUS_ROOTDIR and pinned Yosys)" \
+		"  build-fes-pcxt-dos  Quartus PC/XT DOS package (QUARTUS_ROOTDIR and pinned Yosys)" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
 		"  build-fes-atari-st-card  Seal a probe in ST_SHELL/ST_PACKAGE socket 1" \
@@ -222,7 +221,7 @@ $(error misteross: shared toolchain cache is unsupported for Make simulation tar
 endif
 endif
 
-.PHONY: toolchain toolchain-fes toolchain-fes-menu toolchain-fes-pong toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-fes-apple2 toolchain-fes-c64 toolchain-fes-spectrum toolchain-fes-riscv toolchain-fes-pc386 toolchain-fes-i386 toolchain-fes-ramtest toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sms-diagnostic sim-fes-c64 c64-diagnostic sim-fes-spectrum spectrum-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong build-fes-c64 build-fes-spectrum oss export-core-package program clean
+.PHONY: toolchain toolchain-fes toolchain-fes-menu toolchain-fes-pong toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-fes-apple2 toolchain-fes-c64 toolchain-fes-spectrum toolchain-fes-riscv toolchain-fes-pc386 toolchain-fes-i386 toolchain-fes-ramtest toolchain-prune toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sms-diagnostic sim-fes-c64 c64-diagnostic sim-fes-spectrum spectrum-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong build-fes-c64 build-fes-spectrum oss export-core-package program clean
 
 sim-pong:
 	$(require_local_sim)
@@ -231,19 +230,13 @@ sim-pong:
 		--Mdir "$(CURDIR)/build/sim/pong" cores/pong/rtl/pong_game.sv "$(CURDIR)/cores/pong/sim/tb.cpp"
 	@build/sim/pong/Vpong_game
 
-.PHONY: sim-fes-application sim-fes-splash build-fes-splash sim-fes-ramtest build-fes-ramtest-100 build-fes-ramtest-130 diagnose-fes-ramtest-timing build-fes-ramtest-quartus
+.PHONY: sim-fes-application sim-fes-splash build-fes-splash sim-fes-ramtest build-fes-ramtest-100 build-fes-ramtest-quartus
 sim-fes-ramtest:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_ramtest.py
 
 build-fes-ramtest-100:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py --memory-mhz 100 $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
-
-build-fes-ramtest-130:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py --memory-mhz 130 $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
-
-diagnose-fes-ramtest-timing:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/diagnose_fes_ramtest_timing.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",) $(if $(GPU_DEVICE),--gpu-device "$(GPU_DEVICE)",)
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
 
 build-fes-ramtest-quartus:
 	$(PYTHON) scripts/build_fes_ramtest_quartus.py
@@ -251,6 +244,11 @@ build-fes-ramtest-quartus:
 sim-fes-application:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_application.py --verilator "$(VERILATOR)"
+
+.PHONY: sim-fes-de25-x87
+sim-fes-de25-x87:
+	$(require_local_sim)
+	$(PYTHON) boards/de25nano/x87/run.py --verilator "$(VERILATOR)"
 
 .PHONY: sim-fes-video-parts build-fes-coleco-video build-fes-video-part
 sim-fes-video-parts:
@@ -1073,7 +1071,7 @@ sim-fes-coleco-board-sprites sim-fes-coleco-board-sprites-oss: coleco-sprite-dia
 		build/diagnostics/fes-coleco/sprites-16k.rom build/diagnostics/fes-coleco/sprites.rom
 
 build-fes-zx81-quartus:
-	$(PYTHON) scripts/build_fes_zx81.py --root "$(CURDIR)"$(if $(strip $(FES_ZX81_ROM)), --rom "$(FES_ZX81_ROM)",)
+	$(PYTHON) scripts/build_fes_zx81_quartus.py --root "$(CURDIR)" --model "$(or $(MODEL),zx81)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
 build-fes-zx81:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_zx81_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(filter 1,$(BEST_FMAX)), --best-fmax$(if $(strip $(GPU_DEVICES)), --gpu-devices "$(GPU_DEVICES)",),)
@@ -2029,7 +2027,8 @@ toolchain-fes-pc386:
 	FES_TOOLCHAIN_GPU_ROUTER=$(if $(strip $(GPU_ROUTER)),$(GPU_ROUTER),HIP) \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
-# The i386 sims (scripts/i386_verilator.py) take Verilator from this slot only.
+# The i386 sims (scripts/i386_verilator.py) take Verilator from the install
+# this lock pins.
 toolchain-fes-i386:
 	@test -n "$(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE))" || { echo 'toolchain-fes-i386 needs CACHE_ROOT (the shared toolchain cache)' >&2; exit 2; }
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-common/rtl/i386/toolchain.lock" \
@@ -2037,6 +2036,15 @@ toolchain-fes-i386:
 
 toolchain-check:
 	@$(SHARED_MAKE_ENV)scripts/bootstrap.sh --check-prereqs
+
+# Report the shared tool installs no toolchain.lock on origin/main pins and
+# nobody used in KEEP_DAYS (default 14). APPLY=1 removes them; LEGACY_SLOTS=1
+# also considers the per-lock slots/ of the old cache layout. Installs whose
+# lock a running build or consumer holds are never removed.
+toolchain-prune:
+	@test -n "$(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE))" || { echo 'toolchain-prune needs CACHE_ROOT (the shared toolchain cache)' >&2; exit 2; }
+	@"$(PYTHON)" scripts/toolchain_cache.py prune --root "$(CURDIR)" --cache "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)" \
+	$(if $(strip $(KEEP_DAYS)),--keep-days "$(KEEP_DAYS)",) $(if $(filter 1,$(APPLY)),--apply,) $(if $(filter 1,$(LEGACY_SLOTS)),--legacy-slots,)
 
 doctor:
 	@if [ -n "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)" ]; then \
@@ -2922,15 +2930,15 @@ synth-fes-pcxt-isa:
 	@test -n "$(CACHE_ROOT)" || { echo 'Set CACHE_ROOT to the authenticated compiler cache'; exit 1; }
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/synth_fes_pcxt.py --cache-root "$(CACHE_ROOT)"
 
-# Quartus diagnostic package; OSS tools remain available for advisory probes.
+# Quartus DOS package; raw diagnostics and OSS advisory probes remain available.
 PCXT_GPU_ROUTER ?= HIP
-.PHONY: build-fes-pcxt toolchain-fes-pcxt
+.PHONY: build-fes-pcxt-dos toolchain-fes-pcxt
 toolchain-fes-pcxt:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-pcxt/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-pcxt") \
 	FES_TOOLCHAIN_GPU_ROUTER="$(PCXT_GPU_ROUTER)" \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
-build-fes-pcxt:
+build-fes-pcxt-dos:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pcxt_quartus.py$(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE), --cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",) $(PCXT_BUILD_ARGS)
 
 .PHONY: sim-fes-c64-session

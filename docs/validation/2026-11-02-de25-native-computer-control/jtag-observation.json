@@ -1,0 +1,24 @@
+{
+  "status": "passed",
+  "source_commit": "3b38d09b67fc7c9d6b153583855b6eaf15d85d95",
+  "serial": "TRWU8CBL",
+  "programming": false,
+  "sd_writes": false,
+  "hps_reset": false,
+  "queries": [
+    {
+      "index": 0,
+      "correct_id": true,
+      "log_sha256": "3d22dbd8f63b57bd1852d55af7fdd05c973cd039b3b3e2a38ab36d61f131fec1"
+    },
+    {
+      "index": 1,
+      "correct_id": true,
+      "log_sha256": "3fa26e1730142da065dba1b00e4c9eebd39f87c7c84849b341b807aa05c4d826"
+    }
+  ],
+  "restored_clock": "15M",
+  "private_server_stopped": true,
+  "usb_permissions_restored": true,
+  "claim_retained": true
+}

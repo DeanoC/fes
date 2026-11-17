@@ -64,8 +64,15 @@ struct NullBus final : fes_i386::Bus {
 
 struct Prefixes {
     bool opsize = false, adsize = false, seg_valid = false, lock = false;
-    unsigned seg = 0, rep = 0;
+    unsigned seg = 0, rep = 0, reference_clocks = 0;
     void add(uint8_t b) {
+        switch (b) {
+        case 0x26: case 0x2e: case 0x36: case 0x3e: case 0x64: case 0x65: case 0xf0:
+            reference_clocks += 4; break;
+        case 0x66: case 0x67: case 0xf2: case 0xf3:
+            reference_clocks += 2; break;
+        default: break;
+        }
         switch (b) {
         case 0x26: seg_valid = true; seg = 0; break;
         case 0x2e: seg_valid = true; seg = 1; break;
@@ -90,7 +97,7 @@ struct Prefixes {
 struct Issued {
     uint64_t cycle;
     uint32_t linear;
-    unsigned length, prefix_count;
+    unsigned length, prefix_count, prefix286;
     Prefixes prefixes;
     bool too_long;
     uint8_t bytes[11];
@@ -171,6 +178,7 @@ private:
         out.linear = top.q_linear;
         out.length = top.q_length;
         out.prefix_count = top.q_prefix_count;
+        out.prefix286 = top.q_prefix286;
         out.too_long = top.q_too_long;
         out.prefixes.opsize = top.q_opsize;
         out.prefixes.adsize = top.q_adsize;
@@ -291,6 +299,8 @@ Expected check(const fes_i386::Oracle &oracle, const Bench &bench, const Issued 
             for (unsigned i = 0; i < want.prefixes; ++i) prefixes.add(bench.byte(got.linear + i));
             if (got.prefix_count != want.prefixes || !(got.prefixes == prefixes))
                 report.fail(describe(bench, got, "prefix mismatch"));
+            if (got.prefix286 != prefixes.reference_clocks)
+                report.fail(describe(bench, got, "diagnostic prefix clocks mismatch"));
         }
         if (!got.too_long && got.length >= want.prefixes) {
             for (unsigned i = 0; i < got.length - want.prefixes && i < 11; ++i) {
@@ -319,6 +329,7 @@ Expected check(const fes_i386::Oracle &oracle, const Bench &bench, const Issued 
     Prefixes prefixes;
     for (unsigned i = 0; i < want.prefixes; ++i) prefixes.add(bench.byte(got.linear + i));
     if (got.prefix_count != want.prefixes || !(got.prefixes == prefixes)) report.fail(describe(bench, got, "prefix mismatch"));
+    if (got.prefix286 != prefixes.reference_clocks) report.fail(describe(bench, got, "diagnostic prefix clocks mismatch"));
     for (unsigned i = 0; got.length >= want.prefixes && i < got.length - want.prefixes && i < 11; ++i) {
         if (got.bytes[i] != bench.byte(got.linear + want.prefixes + i)) {
             report.fail(describe(bench, got, "aligned bytes mismatch"));

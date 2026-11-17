@@ -26,7 +26,23 @@ LGPL-2.1-or-later), configured as a 386DX:
 `scripts/fes_i386_oracle.py` fetches that revision only when a runner is given
 `--download`, refuses a checkout that is not the clean pinned commit, configures
 it with the options above and builds the CPU, FPU and softfloat libraries plus
-Bochs' parameter tree. Nothing else of Bochs is compiled.
+Bochs' parameter tree. Before configuring the copied build tree it applies the
+maintained [386 stack-limit patch](bochs/flat-stack-limit.patch), licensed
+LGPL-2.1-or-later like Bochs. The clean pinned checkout is never modified. The
+patch bytes enter the build key and a copy is retained in the build tree; a
+patch that does not apply with zero fuzz fails the build. The patch corrects a
+flat 4 GiB SS write that straddles the segment limit: this is #SS before page
+translation, as specified by the [80386 manual, section 6.3.1.2](https://pdos.csail.mit.edu/6.828/2018/readings/i386/s06_03.htm)
+and [section 9.8.12](https://pdos.csail.mit.edu/6.828/2007/readings/i386/s09_08.htm).
+The directed paging controls check cold and cached segment access, crossing and
+adjacent in-limit 16- and 32-bit stack writes against the patched oracle and
+expected exception frames. Lockstep reports record the upstream revision and
+source digests for the built patch, provisioner, adapter and test suite, plus
+digests of the linked oracle objects and testbench as execution evidence. The
+pc386 sealer requires the declared source identity to match its target tree;
+it does not require host-specific binaries to be identical. Older reports lack
+these fields and must be regenerated. Nothing else of Bochs is compiled or
+packaged.
 
 ### Choice
 
@@ -214,11 +230,17 @@ differs. Directed tests in later phases decide these, not the oracle:
 
 - Bochs models a 387: MOV CR0 forces ET to 1 and ESC instructions return 387
   results. Its FERR# is routed only with `set_at_coprocessor` (the AT's
-  IRQ 13, [Adapter](#adapter)). The FES CPU models an empty socket. With
-  `FES_I386_X87=387` (the i386dx+387 identity) the lockstep fits the 387 as
-  on an AT, drops the no-387 rule, and ends a run as not built (`unbuilt`
-  387) at its first ESC or WAIT, since this build's RTL has no 387; the
-  comparison of `X87State` at each retirement comes with the RTL's 387. For
+  IRQ 13, [Adapter](#adapter)). With the identity clear the FES CPU models
+  an empty socket, which is what every package ships until the x87 phase's
+  last slice. With `FES_I386_X87=387` (the i386dx+387 identity) the lockstep
+  fits the 387 as on an AT, drops the no-387 rule, and compares `X87State`
+  at every retirement against the RTL's own 387
+  ([fes_i386_x87](../../rtl/i386/README.md#the-387)). The RTL builds the
+  x87 phase's slice 2: the state, the loads and stores, the register forms,
+  the constants, FXAM, FTST, the control and status words and the
+  environment and save layouts. A form a later slice builds -- any
+  arithmetic -- ends the run as not built (`unbuilt` 387), so a run's end
+  marks how far the slices have come rather than the absence of a unit. For
   an ESC instruction with EM and TS clear and no LOCK the lockstep applies
   the no-387 rule (`EscStep`, counted as `no387_rule`):
   - before the step the adapter makes Bochs's 387 read as an empty socket
@@ -383,10 +405,11 @@ Every i386 simulation runner (`test_fes_i386_frontend.py`,
 `test_fes_i386_lockstep.py`, `test_fes_i386_latency.py`,
 `test_fes_i386_governor.py` and `test_fes_i386_test386.py --cpu rtl`) builds
 its testbenches with the Verilator that
-[`toolchain.lock`](../../rtl/i386/toolchain.lock) pins, taken from that lock's
-slot in the shared toolchain cache and authenticated there
+[`toolchain.lock`](../../rtl/i386/toolchain.lock) pins, taken from that
+Verilator's install in the shared toolchain cache and authenticated there
 (`scripts/i386_verilator.py`). None of them reads `verilator` from `PATH`.
-Provision the slot once per host with
+Every lock pinning the same Verilator commit shares that install.
+Provision it once per host with
 `make toolchain-fes-i386 CACHE_ROOT=/abs/out/cache/misteross-toolchains`. Then
 pass the runners `--cache-root`, or set `FES_TOOLCHAIN_CACHE_ROOT`, and the
 unit tests below read the same variable. Each report records the Verilator

@@ -1,0 +1,47 @@
+{
+  "schema": 7,
+  "firmware": "UNQUALIFIED compile-only SD lifecycle profile; no board handoff or deployment authority",
+  "ram_start": 2214592512,
+  "ram_size": 268435456,
+  "entry": 2214723584,
+  "reserved": [
+    {
+      "start": 0,
+      "size": 524288,
+      "owner": "Nano OCRAM, SPL handoff and boot data"
+    },
+    {
+      "start": 2147483648,
+      "size": 33554432,
+      "owner": "Terasic BL31 declared 0x80000000..0x82000000 window including initial U-Boot load"
+    },
+    {
+      "start": 2181038080,
+      "size": 33554432,
+      "owner": "SPL FIT load buffer at 0x82000000, conservative 32 MiB envelope"
+    },
+    {
+      "start": 2952790016,
+      "size": 268435456,
+      "owner": "SPL high-DDR BSS/malloc and conservative U-Boot relocation envelope; live LMB/stack checked"
+    }
+  ],
+  "sd_input_clock_hz": 200000000,
+  "usb_phy_clock_hz": 0,
+  "uart_index": 1,
+  "network": null,
+  "display": null,
+  "fpga_probe": null,
+  "handoff": {
+    "el1": true,
+    "single_cpu": true,
+    "counter_access": true,
+    "exclusive_devices": true,
+    "uart_configured": true,
+    "sd_platform_ready": true,
+    "usb_platform_ready": false,
+    "ethernet_platform_ready": false,
+    "display_platform_ready": false,
+    "mmu_off_caches_clean": true
+  }
+}

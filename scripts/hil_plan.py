@@ -25,6 +25,7 @@ RULES = [
         'scripts/check_doc_links.py', 'scripts/coordination.py', 'scripts/de25_runtime.py',
         'scripts/de25_dma_descriptor.py',
         'scripts/hil_plan.py', 'scripts/hil_go_inventory.py', 'scripts/hil_go_imports.go',
+        'scripts/de25_restore.py',
         'scripts/consistency.py', 'scripts/generate.py',
         'scripts/host_affected.py', 'scripts/runtime_tests.py', 'scripts/input_diagnostic.py',
     )],
@@ -65,6 +66,15 @@ RULES = [
     ('sources/misteross/cores/*/sim/**', 'none', None),
     ('sources/libmister-runtime/tests/**', 'none', None),
     ('sources/misteross/scripts/sim_*', 'none', None),
+    # The HIL run guards are the harness that drives a hardware run from
+    # Powerboat: end of run, the cleanup gate and the run's verdict. They
+    # deploy no bytes to a kit, so a change to them needs no core's overlay.
+    # Their behaviour is checked in sources/misteross/tests/test_kit_hil.py,
+    # and their hardware evidence is the next run that uses them. The lease
+    # client kit.py beside them keeps its producer classification: the import
+    # graph reaches it from an acceptance producer.
+    ('sources/misteross/scripts/kit_hil.py', 'none', None),
+    ('sources/misteross/tools/identity.py', 'none', None),
     # Definitions are checked through their generated deployed consumers below.
     ('sources/mister-packages/packages/board/de25_nano.yaml', 'none', None),
     ('sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'none', None),
@@ -828,6 +838,13 @@ def plan(paths, texts=None, go_inventories=None, go_graph_changes=None, inventor
         decision = 'NO_DEPLOY_CHANGE'
     result = {'rows': rows, 'class': worst, 'components': components,
               'decision': decision}
+    if worst == 'none':
+        result['kit_targets'] = []
+    elif any(component.startswith('core:de25-') for component in components) or any(
+            'de25' in row['path'].lower() for row in rows):
+        result['kit_targets'] = ['D25']
+    else:
+        result['kit_targets'] = ['A', 'B']
     relevant = [row for row in rows if go_input(row)]
     if relevant or commands or inventory_errors:
         required = [command for command in commands

@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "classification": "saved incomplete capture reproduces the stopped result; hardware attempt remains failed",
+  "complete": false,
+  "errors": [],
+  "last_checkpoint": "window_present_present_begin_10",
+  "complete_frames": 9,
+  "progress_points": 39,
+  "exact_native_receipt_match": true,
+  "capture_sha256": "20fa5264a32aa913c2dbd1d6a8bcfc7aa6740d35b7097f669585d64ae41e1b78",
+  "hardware_access": false,
+  "decoder_sha256": {
+    "native_trace.py": "930cf2f87ecffc8fe22b7bc42c3b1c4fa95f51372b019f8cc947588111c0c593",
+    "window_trace.py": "753462df68b48c9dbc9133d1635935502f99884af897e53cc38456742a40b28d"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "status": "passed-postwrite-readonly-inspection",
+  "source_commit": "cb7c36cbec501c570943c06132aaf5a462be99f7",
+  "compiled_source": "a5d6027e9e8697b58f2c06be452995648fa5eb75",
+  "native_build": "72f88abee51877af",
+  "recovery_boot_passed": true,
+  "fixed_fit_upload_and_fresh_readback_passed": true,
+  "native_programming_complete": true,
+  "full_cold_boot_verified": true,
+  "native_trace_complete": true,
+  "scratch_plan": {
+    "format": 1,
+    "scope": "nano-sd-scratch-write-v1",
+    "cid": "275048534430344730da25e394012b",
+    "sectors": 7774208,
+    "mbr_sha256": "13f4a84a267e67f06b1d09fdfa130a7625a0aab9b363163e711aa9854d7c944c",
+    "original_sha256": "e81b5f7145bdf34e823674a03897f858a1f71be2b18b0a139a4261e1dad908d4"
+  },
+  "tail_matches_pre_failed_writer": true,
+  "prior_failed_attempt_outcome": "unknown and unchanged as historical evidence",
+  "final_sd_contained": true,
+  "final_sd_generation": 7,
+  "cpu_park_observed": false,
+  "fpga_data_released": false,
+  "native_sd_writes": false,
+  "new_programming_failures": 0,
+  "cleanup": {
+    "status": "passed",
+    "clock_readback_logs": [
+      {
+        "parameter": "JtagClock",
+        "value": "15M",
+        "log_sha256": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18"
+      },
+      {
+        "parameter": "JtagClockAutoAdjust",
+        "value": 1,
+        "log_sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      }
+    ],
+    "owned_private_server_gone": true,
+    "usb_permissions_exact": true,
+    "usb_node_unchanged": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "experiment_result_sha256": "ee8d502ad69093531cb776b1e65d0541b2c2828e60612c9980e8ce30a302d6fe"
+  },
+  "raw_sha256": {
+    "out/nano-sd-reinspect-trial-20261110/trial/native-console.log": "8d60f4034514f3efe99178e5adbe997dd50436de1780ffb262a3c0a5c70c2303",
+    "out/nano-sd-reinspect-trial-20261110/trial/native-result.json": "10f59d4f275f73ccb591ad3048e289125fda0a369e77aa5dbdf41549a5b14c53",
+    "out/nano-sd-reinspect-trial-20261110/trial/experiment-result.json": "ee8d502ad69093531cb776b1e65d0541b2c2828e60612c9980e8ce30a302d6fe"
+  },
+  "ordinary_admission": false,
+  "owner": "75f2a4a415135879"
+}

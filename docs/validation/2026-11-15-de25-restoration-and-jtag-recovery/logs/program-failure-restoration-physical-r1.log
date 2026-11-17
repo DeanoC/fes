@@ -1,0 +1,22 @@
+PASS complete selected native file/source proof native-baseline no live authority
+Parent/top USB stability 12 s
+Parent/top USB stability 24 s
+Parent/top USB stability 36 s
+Parent/top USB stability 48 s
+Bounded worker running 12 s
+Bounded worker running 12 s
+Bounded worker running 24 s
+Bounded worker running 36 s
+Bounded worker running 48 s
+Bounded worker running 60 s
+Bounded worker running 72 s
+Bounded worker running 84 s
+Bounded worker running 96 s
+Bounded worker running 108 s
+Bounded worker running 120 s
+Bounded worker running 132 s
+Bounded worker running 144 s
+Bounded worker running 156 s
+Bounded worker running 168 s
+Bounded worker running 180 s
+Restoration terminal: verified-original-FIT-files-only-restoration FIT restored: True baseline cycle/Park: False

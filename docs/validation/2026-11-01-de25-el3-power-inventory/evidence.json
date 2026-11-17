@@ -1,0 +1,687 @@
+{
+  "affected_checks": 6,
+  "artifact": {
+    "config_sha256": "bf2a2d28b800ae9064c98ae14ff7fd0e88290a2061b7368c5c9b3ece38a15157",
+    "sof_sha256": "0b52d2f163c4a2aeca0390b33ae56491bbac3cee399262e4c8468170318e6e32",
+    "spl_elf_sha256": "cb55466d36bd4f2c6ef1d43afbf5b68a5da0096f93a7ccad308069cb25c7518b",
+    "spl_sha256": "3d379518d186c3e18aecadce5aa41200329289e7ef089ce28d542d6854d7afc5"
+  },
+  "checks": [
+    {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_cpu_diagnostic.py",
+        "-v"
+      ],
+      "label": "focused",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "138c97166"
+      ],
+      "label": "affected",
+      "returncode": 0
+    }
+  ],
+  "classification": "physical contained EL3 power-inventory diagnostic PASS; native admission still rejects",
+  "diagnostic_id": "cee0d4c723b05b09",
+  "end_state": "diagnostic loaded and unconditionally parked; original card inserted; continuing exclusive claim held; no factory restore after this trace",
+  "first_sample": {
+    "bridge": "0000004f",
+    "cause": "00000004",
+    "cpus": "0000000f",
+    "kind": "4",
+    "per0": "ff7fbfff",
+    "release": "00000000",
+    "valid": "0"
+  },
+  "focused_tests": 4,
+  "fresh_sample": {
+    "cause": "00000004",
+    "core": "0",
+    "cpus": "0000000f",
+    "mpidr": "81000000",
+    "release": "00000000",
+    "reset_timeouts": "00000000"
+  },
+  "native_policy_changed": false,
+  "post_trial_jtag": {
+    "finished_utc": "2026-11-01T10:23:07.453626+00:00",
+    "helper_sha256": "ad8bfff3c367c05e607e7ab0a5edd3d04858aa3146e7568b45e33ea9ecb67dbe",
+    "jtag_id": "4362C0DD",
+    "jtag_id_observed": true,
+    "returncode": 0,
+    "scope": "one read-only exact-cable identity query; diagnostic image retained",
+    "serial": "TRWU8CBL",
+    "started_utc": "2026-11-01T10:23:06.550983+00:00",
+    "usb_node": "/dev/bus/usb/003/061",
+    "usb_permissions_restored": true
+  },
+  "power_read_width": {
+    "native_admission": false,
+    "one_word_load_in_loop_verified": true,
+    "power_load_disassembly": "\n    1748:\t2a0003ec \tmov\tw12, w0\n    174c:\t121b7800 \tand\tw0, w0, #0xffffffef\n    1750:\t7100801f \tcmp\tw0, #0x20\n    1754:\t54000201 \tb.ne\t1794 <fes_nano_cpu_trace_power+0x4c>  // b.any\n    1758:\t900000cd \tadrp\tx13, 19000 <ecc_enable_status+0x68>\n    175c:\t913e21ad \tadd\tx13, x13, #0xf88\n    1760:\ta9bf7bfd \tstp\tx29, x30, [sp, #-16]!\n    1764:\td280000b \tmov\tx11, #0x0                   \t// #0\n    1768:\t910003fd \tmov\tx29, sp\n    176c:\tf86b79a0 \tldr\tx0, [x13, x11, lsl #3]\n    1770:\tb9400001 \tldr\tw1, [x0]\n    1774:\td5033fbf \tdmb\tsy\n    1778:\t0b0b0180 \tadd\tw0, w12, w11\n    177c:\t9100056b \tadd\tx11, x11, #0x1\n    1780:\t97ffffd3 \tbl\t16cc <fes_nano_cpu_trace>\n    1784:\tf1001d7f \tcmp\tx11, #0x7\n    1788:\t54ffff21 \tb.ne\t176c <fes_nano_cpu_trace_power+0x24>  // b.any\n    178c:\ta8c17bfd \tldp\tx29, x30, [sp], #16\n    1790:\td65f03c0 \tret\n    1794:\td65f03c0 \tret\n",
+    "power_registers": [
+      {
+        "address": 282148892,
+        "name": "cpu0-pwrstat",
+        "width": 32
+      },
+      {
+        "address": 282148900,
+        "name": "cpu1-pwrstat",
+        "width": 32
+      },
+      {
+        "address": 282148908,
+        "name": "cpu2-pwrstat",
+        "width": 32
+      },
+      {
+        "address": 282148916,
+        "name": "cpu3-pwrstat",
+        "width": 32
+      },
+      {
+        "address": 282148944,
+        "name": "mpu-pchctlr",
+        "width": 32
+      },
+      {
+        "address": 282148948,
+        "name": "mpu-pchstat",
+        "width": 32
+      },
+      {
+        "address": 282148952,
+        "name": "mpu-bootconfig",
+        "width": 32
+      }
+    ],
+    "spl_elf_sha256": "cb55466d36bd4f2c6ef1d43afbf5b68a5da0096f93a7ccad308069cb25c7518b"
+  },
+  "receipts": {
+    "out/nano-power-inventory-prep-20261101/candidate-v1/result.json": "e8f1929abdef1fa4f0434e0c7defaf3114a290680a0cf0512233d65ab3367e15",
+    "out/nano-power-inventory-prep-20261101/checks-result.json": "45911e44644a90100621e7da3be8b59fb3578fa57d6af8c16bb1a7106c8f2107",
+    "out/nano-power-inventory-trial-20261101/cpu-console.log": "44edbf76c86230dbab1891a3e82fff8555ea0157a688aa355af5fa719fddecf1",
+    "out/nano-power-inventory-trial-20261101/cpu-result.json": "3b8deafbb7558b47b216f598474d3191e6b46b935835b943da74a4f4d3069162",
+    "out/nano-power-inventory-trial-20261101/preflight.json": "f72a5f915ee0f6b3712271dc38f64ea86419e13252065fc4600f64abe549bf38",
+    "out/nano-power-inventory-trial-20261101/retained-jtag-result.json": "33124520e30a06d0071d7555f74084807bfdcc0689494a985735c468d1474bb2"
+  },
+  "remaining": [
+    "implement and test qualified initial parking and blocked secondary release",
+    "rebuild/revalidate matched native boot chain",
+    "native DDR/handoff and real package/core launch-return acceptance"
+  ],
+  "retention": "/home/deano/fes-retained/de25-nano-el3-power-inventory-20261101/",
+  "source_commit": "3ce34748808cd3593067ef6e6928be72c4cfed3b",
+  "trace": {
+    "complete": true,
+    "identity_mismatch": false,
+    "last_checkpoint": {
+      "el": 3,
+      "mpidr": "0000000081000000",
+      "name": "park",
+      "stage": "12",
+      "value": 0
+    },
+    "native_admission": false,
+    "power_inventory": {
+      "current": {
+        "cpu0-pwrstat": 2415919137,
+        "cpu1-pwrstat": 0,
+        "cpu2-pwrstat": 0,
+        "cpu3-pwrstat": 0,
+        "mpu-bootconfig": 7340574,
+        "mpu-pchctlr": 35,
+        "mpu-pchstat": 35
+      },
+      "first": {
+        "cpu0-pwrstat": 2415919137,
+        "cpu1-pwrstat": 0,
+        "cpu2-pwrstat": 0,
+        "cpu3-pwrstat": 0,
+        "mpu-bootconfig": 7340574,
+        "mpu-pchctlr": 35,
+        "mpu-pchstat": 35
+      }
+    },
+    "records": [
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "c-entry",
+        "stage": "01",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "first-cpu0-pwrstat",
+        "stage": "20",
+        "value": 2415919137
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "first-cpu1-pwrstat",
+        "stage": "21",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "first-cpu2-pwrstat",
+        "stage": "22",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "first-cpu3-pwrstat",
+        "stage": "23",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "first-mpu-pchctlr",
+        "stage": "24",
+        "value": 35
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "first-mpu-pchstat",
+        "stage": "25",
+        "value": 35
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "first-mpu-bootconfig",
+        "stage": "26",
+        "value": 7340574
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "sample-done",
+        "stage": "02",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "dm-begin",
+        "stage": "03",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "dm-done",
+        "stage": "04",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "managers-done",
+        "stage": "05",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "pinmux-done",
+        "stage": "06",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "timer-begin",
+        "stage": "07",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "timer-done",
+        "stage": "08",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "mailbox-begin",
+        "stage": "09",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "mailbox-done",
+        "stage": "0a",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "notify-begin",
+        "stage": "0b",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "notify-done",
+        "stage": "0c",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "clock-begin",
+        "stage": "0d",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "clock-done",
+        "stage": "0e",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "console-begin",
+        "stage": "0f",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "console-done",
+        "stage": "10",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "report-begin",
+        "stage": "11",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "current-cpu0-pwrstat",
+        "stage": "30",
+        "value": 2415919137
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "current-cpu1-pwrstat",
+        "stage": "31",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "current-cpu2-pwrstat",
+        "stage": "32",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "current-cpu3-pwrstat",
+        "stage": "33",
+        "value": 0
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "current-mpu-pchctlr",
+        "stage": "34",
+        "value": 35
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "current-mpu-pchstat",
+        "stage": "35",
+        "value": 35
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "current-mpu-bootconfig",
+        "stage": "36",
+        "value": 7340574
+      },
+      {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "park",
+        "stage": "12",
+        "value": 0
+      }
+    ],
+    "sequence_valid": true
+  },
+  "trial": {
+    "console_sha256": "44edbf76c86230dbab1891a3e82fff8555ea0157a688aa355af5fa719fddecf1",
+    "diagnostic_id": "cee0d4c723b05b09",
+    "factory_card_retained": true,
+    "fesboot_sent": false,
+    "finished_utc": "2026-11-01T10:16:39.958493+00:00",
+    "first_sample": {
+      "bridge": "0000004f",
+      "cause": "00000004",
+      "cpus": "0000000f",
+      "kind": "4",
+      "per0": "ff7fbfff",
+      "release": "00000000",
+      "valid": "0"
+    },
+    "fresh_sample": {
+      "cause": "00000004",
+      "core": "0",
+      "cpus": "0000000f",
+      "mpidr": "81000000",
+      "release": "00000000",
+      "reset_timeouts": "00000000"
+    },
+    "initial_proof_observed": true,
+    "jtag_id": "4362C0DD",
+    "native_admission": false,
+    "pass": true,
+    "phase": "cpu",
+    "preflight_sha256": "f72a5f915ee0f6b3712271dc38f64ea86419e13252065fc4600f64abe549bf38",
+    "programming_attempted": true,
+    "programming_complete": true,
+    "runner_sha256": "1a36bb11b548aff6d3625ba505cddfc3e660694b57d46d2282a885a356702f9f",
+    "sd_write_commands_sent": false,
+    "serial": "TRWU8CBL",
+    "sof_sha256": "0b52d2f163c4a2aeca0390b33ae56491bbac3cee399262e4c8468170318e6e32",
+    "source_commit": "3ce34748808cd3593067ef6e6928be72c4cfed3b",
+    "stage": "observation captured",
+    "started_utc": "2026-11-01T10:16:31.936758+00:00",
+    "trace": {
+      "complete": true,
+      "identity_mismatch": false,
+      "last_checkpoint": {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "park",
+        "stage": "12",
+        "value": 0
+      },
+      "native_admission": false,
+      "power_inventory": {
+        "current": {
+          "cpu0-pwrstat": 2415919137,
+          "cpu1-pwrstat": 0,
+          "cpu2-pwrstat": 0,
+          "cpu3-pwrstat": 0,
+          "mpu-bootconfig": 7340574,
+          "mpu-pchctlr": 35,
+          "mpu-pchstat": 35
+        },
+        "first": {
+          "cpu0-pwrstat": 2415919137,
+          "cpu1-pwrstat": 0,
+          "cpu2-pwrstat": 0,
+          "cpu3-pwrstat": 0,
+          "mpu-bootconfig": 7340574,
+          "mpu-pchctlr": 35,
+          "mpu-pchstat": 35
+        }
+      },
+      "records": [
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "c-entry",
+          "stage": "01",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "first-cpu0-pwrstat",
+          "stage": "20",
+          "value": 2415919137
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "first-cpu1-pwrstat",
+          "stage": "21",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "first-cpu2-pwrstat",
+          "stage": "22",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "first-cpu3-pwrstat",
+          "stage": "23",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "first-mpu-pchctlr",
+          "stage": "24",
+          "value": 35
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "first-mpu-pchstat",
+          "stage": "25",
+          "value": 35
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "first-mpu-bootconfig",
+          "stage": "26",
+          "value": 7340574
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "sample-done",
+          "stage": "02",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "dm-begin",
+          "stage": "03",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "dm-done",
+          "stage": "04",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "managers-done",
+          "stage": "05",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "pinmux-done",
+          "stage": "06",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "timer-begin",
+          "stage": "07",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "timer-done",
+          "stage": "08",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "mailbox-begin",
+          "stage": "09",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "mailbox-done",
+          "stage": "0a",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "notify-begin",
+          "stage": "0b",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "notify-done",
+          "stage": "0c",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "clock-begin",
+          "stage": "0d",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "clock-done",
+          "stage": "0e",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "console-begin",
+          "stage": "0f",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "console-done",
+          "stage": "10",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "report-begin",
+          "stage": "11",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "current-cpu0-pwrstat",
+          "stage": "30",
+          "value": 2415919137
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "current-cpu1-pwrstat",
+          "stage": "31",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "current-cpu2-pwrstat",
+          "stage": "32",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "current-cpu3-pwrstat",
+          "stage": "33",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "current-mpu-pchctlr",
+          "stage": "34",
+          "value": 35
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "current-mpu-pchstat",
+          "stage": "35",
+          "value": 35
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "current-mpu-bootconfig",
+          "stage": "36",
+          "value": 7340574
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "park",
+          "stage": "12",
+          "value": 0
+        }
+      ],
+      "sequence_valid": true
+    },
+    "unconditional_park_observed": true,
+    "usb_permissions_restored": true
+  }
+}

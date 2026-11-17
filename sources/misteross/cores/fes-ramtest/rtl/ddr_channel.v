@@ -176,6 +176,9 @@ module ddr_channel #(
     reg [31:0] read_next;
     reg [DATA_W-1:0] expected;
     reg [23:0] idle;
+    // Predict the saturating counter's equality one cycle ahead, keeping
+    // the wide timeout comparison off the command/control paths.
+    reg timed_out;
     reg [31:0] pass_cycles;
     reg [2:0]  drain;
     // Latency read: the line, its beats still due, and the count, which is
@@ -240,15 +243,20 @@ module ddr_channel #(
             read_cycles <= 32'd0;
             in_flight <= 12'd0;
             idle <= 24'd0;
+            timed_out <= TIMEOUT == 24'd0;
             diff_valid <= 1'b0;
             group_valid <= 1'b0;
         end else begin
             in_flight <= in_flight_after;
             pass_cycles <= pass_cycles + 32'd1;
-            if (progress || !waiting)
+            if (progress || !waiting) begin
                 idle <= 24'd0;
-            else if (idle != TIMEOUT)
+                timed_out <= TIMEOUT == 24'd0;
+            end else if (idle != TIMEOUT) begin
                 idle <= idle + 24'd1;
+                if (idle == TIMEOUT - 24'd1)
+                    timed_out <= 1'b1;
+            end
 
             // Returned beats: compare against the expected value, then
             // reduce the difference in groups of eight bits. A latency read
@@ -294,7 +302,7 @@ module ddr_channel #(
                     pass_cycles <= 32'd0;
                 end
                 ST_WRITE: begin
-                    if (idle == TIMEOUT) begin
+                    if (timed_out) begin
                         write <= 1'b0;
                         nack <= 1'b1;
                         state <= ST_NACK;
@@ -341,7 +349,7 @@ module ddr_channel #(
                     pass_cycles <= 32'd0;
                 end
                 ST_READ: begin
-                    if (idle == TIMEOUT) begin
+                    if (timed_out) begin
                         read <= 1'b0;
                         nack <= 1'b1;
                         state <= ST_NACK;
@@ -403,7 +411,7 @@ module ddr_channel #(
                     end
                 end
                 ST_LAT: begin
-                    if (idle == TIMEOUT) begin
+                    if (timed_out) begin
                         read <= 1'b0;
                         nack <= 1'b1;
                         state <= ST_NACK;

@@ -1,0 +1,371 @@
+{
+  "base_commit": "7c5b8d8345a77928fd8fed2a19628f0045d0fe02",
+  "bl31_unchanged": true,
+  "bootchain": {
+    "bl31_sha256": "b7058f9c27f36f59d4b355de336fb67cf26d4bf651eb048a865ed0f63684bd6c",
+    "board_serial": "TRWU8CBL",
+    "classification": "matched serial-only Nano probe candidate; physical boot gate pending",
+    "embedded_spl_independently_decoded": false,
+    "fat32_sectors": 262144,
+    "fat32_start_sector": 32768,
+    "fit_raw_sector": 512,
+    "fit_sha256": "422e555500f96e4d63b6766d03bc190f8fbb1d20378802092438457060f71889",
+    "format": 1,
+    "limitations": [
+      "gate compiled for Nano but not physically executed",
+      "no native SD/USB/network/display/FPGA activation",
+      "test image is a regular file; no card, flash, kit or boot configuration was changed"
+    ],
+    "native_entry_sha256": "1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950",
+    "native_handoff": {
+      "build_id": "25c14e5b3f609e57",
+      "classification": "source-derived serial-only Nano handoff; physical gate not executed",
+      "entry_image_sha256": "1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950",
+      "entry_receipt_sha256": "f2ee3755aaf331934027379e9c84eebae88c6ea40d98b9cfe42642cdd5b4b4da",
+      "producer_sources": {
+        "platform/embedded/nano/handoff.c": "1bffae6e47ae82df75e9ce330f90c312362302aa3b88ff6ca6dba42b02e90785",
+        "platform/embedded/nano/handoff.h": "4b2845a162325c7ca7da00cadce807801d1d4308353ac1c3701419fe83ba9bb5",
+        "platform/embedded/nano/prepare_uboot.py": "a60b3d012943766a765ce4c7b5465c12a4d1ce1f2f9a31f704135b6daf928cc1",
+        "platform/embedded/nano/probe-profile.json": "02c764a2b6fcb0705046c939ad1fabe55a0daf330d4d7f3f1750cde29107a8f8",
+        "platform/embedded/nano/uboot.c": "d1e69267d1e612a19894d1046d2eaf0e6ee5f22c482e426e58a1401d9143441c"
+      },
+      "profile_sha256": "02c764a2b6fcb0705046c939ad1fabe55a0daf330d4d7f3f1750cde29107a8f8"
+    },
+    "profile_sha256": "02c764a2b6fcb0705046c939ad1fabe55a0daf330d4d7f3f1750cde29107a8f8",
+    "recovery_reference_sof_sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+    "sof_sha256": "4a5f3d094356c4b26e984851b4356b4bceb42e1963bc14409c7c99a27ed044a0",
+    "spl_sha256": "dfb4848c6c1220779a8e0de2ecf19a797920deb92485d7e1935f2253d0af7f42"
+  },
+  "build_id": "25c14e5b3f609e57",
+  "classification": "off-board diagnostic candidate; next TRWU8CBL trial not started",
+  "diagnostic_cases": {
+    "acceptance_unchanged": true,
+    "calls_per_gate": 1,
+    "failure_flags": [
+      "smc_error",
+      "reset_mismatch"
+    ],
+    "focused_test_methods": 7,
+    "injected_bridge_cases": 29,
+    "phases": [
+      "before-load",
+      "after-remove"
+    ],
+    "readback_even_on_smc_error": true
+  },
+  "format": 1,
+  "hardware": {
+    "card_written": false,
+    "contacted": false,
+    "live_gate_executed": false,
+    "physical_acceptance": false,
+    "preparation_only": true,
+    "serial": "TRWU8CBL"
+  },
+  "native_entry_unchanged": true,
+  "prior_trial": "../2026-10-31-de25-nano-serial-test/README.md",
+  "retained_directory": "/home/deano/fes-retained/de25-nano-bridge-diagnostics-20261031",
+  "retained_file_hashes": {
+    "source.patch": {
+      "bytes": 9790,
+      "sha256": "fa06595ea98229e0c825d89b7fbed4cd5073481b067755af6f058e9d3bb9de13"
+    },
+    "source/platform/embedded/nano/handoff.c": {
+      "bytes": 2160,
+      "sha256": "1bffae6e47ae82df75e9ce330f90c312362302aa3b88ff6ca6dba42b02e90785"
+    },
+    "source/platform/embedded/nano/handoff.h": {
+      "bytes": 1430,
+      "sha256": "4b2845a162325c7ca7da00cadce807801d1d4308353ac1c3701419fe83ba9bb5"
+    },
+    "source/platform/embedded/nano/package.py": {
+      "bytes": 9125,
+      "sha256": "1c69976f1d32b4d6069bac4b658be70f2f7946ada4e89d3b9cad88c99252c2c5"
+    },
+    "source/platform/embedded/nano/prepare_uboot.py": {
+      "bytes": 3674,
+      "sha256": "a60b3d012943766a765ce4c7b5465c12a4d1ce1f2f9a31f704135b6daf928cc1"
+    },
+    "source/platform/embedded/nano/probe-profile.json": {
+      "bytes": 1172,
+      "sha256": "02c764a2b6fcb0705046c939ad1fabe55a0daf330d4d7f3f1750cde29107a8f8"
+    },
+    "source/platform/embedded/nano/uboot.c": {
+      "bytes": 7555,
+      "sha256": "d1e69267d1e612a19894d1046d2eaf0e6ee5f22c482e426e58a1401d9143441c"
+    },
+    "source/tests/test_embedded_nano_handoff.py": {
+      "bytes": 9947,
+      "sha256": "130a9cf9ed9854a6d7e325b97c87103b03ab01220e17f98cd41b3ac1f8588334"
+    },
+    "test-kit/BOOTCHAIN.JSON": {
+      "bytes": 2150,
+      "sha256": "0140481d5a702c77ab1b326b92802ca63a9098daed65d78bbc0d42c226ed534d"
+    },
+    "test-kit/BOOTCHAIN.JSON.readback": {
+      "bytes": 2150,
+      "sha256": "0140481d5a702c77ab1b326b92802ca63a9098daed65d78bbc0d42c226ed534d"
+    },
+    "test-kit/ENTRY.IMG": {
+      "bytes": 4216289,
+      "sha256": "1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950"
+    },
+    "test-kit/ENTRY.IMG.readback": {
+      "bytes": 4216289,
+      "sha256": "1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950"
+    },
+    "test-kit/NEXT-TEST.md": {
+      "bytes": 3388,
+      "sha256": "4de7f4308af04be562eae3c9707bd047b24d8375520e38578819771e91328eaa"
+    },
+    "test-kit/fat-dir.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "test-kit/fat-format.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "test-kit/fat-read-BOOTCHAIN.JSON.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "test-kit/fat-read-ENTRY.IMG.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "test-kit/fat-read-u-boot.itb.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "test-kit/fat-write-BOOTCHAIN.JSON.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "test-kit/fat-write-ENTRY.IMG.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "test-kit/fat-write-u-boot.itb.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "test-kit/nano-probe-sd.img": {
+      "bytes": 150994944,
+      "sha256": "9f2b21aad34eff23eea8b0f821e3368f99528cb51e6af2e61159d57b1ef72ed0"
+    },
+    "test-kit/native-probe.sof": {
+      "bytes": 1480002,
+      "sha256": "4a5f3d094356c4b26e984851b4356b4bceb42e1963bc14409c7c99a27ed044a0"
+    },
+    "test-kit/pfg-combine.log": {
+      "bytes": 1863,
+      "sha256": "8d7371b61a42e6a1cfefa623948c4ecb3a5d73143afe0218b0d2fe0a2ea6dbde"
+    },
+    "test-kit/pfg-info.log": {
+      "bytes": 4494,
+      "sha256": "0bb43f020268e8d34d9050580d72e1839638c604e24c571c7a8b2a2192ea91d9"
+    },
+    "test-kit/recovery-reference.sof": {
+      "bytes": 1480451,
+      "sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09"
+    },
+    "test-kit/result.json": {
+      "bytes": 7683,
+      "sha256": "92ef7233292312c79cd9a54bd53213c11aa63783d7411b13e647b4eec2f77946"
+    },
+    "test-kit/u-boot-spl-dtb.hex": {
+      "bytes": 716724,
+      "sha256": "dfb4848c6c1220779a8e0de2ecf19a797920deb92485d7e1935f2253d0af7f42"
+    },
+    "test-kit/u-boot.itb": {
+      "bytes": 876648,
+      "sha256": "422e555500f96e4d63b6766d03bc190f8fbb1d20378802092438457060f71889"
+    },
+    "test-kit/u-boot.itb.readback": {
+      "bytes": 876648,
+      "sha256": "422e555500f96e4d63b6766d03bc190f8fbb1d20378802092438457060f71889"
+    },
+    "uboot/build.log": {
+      "bytes": 35203,
+      "sha256": "9a5b0331d21b47d43a1062a4e728c53ca069a10d421c870b2c2c2f0103902e83"
+    },
+    "uboot/build/.config": {
+      "bytes": 52879,
+      "sha256": "b8e914d875295fd418d61901569892641870ca4877246107a2fd29da991f9688"
+    },
+    "uboot/extracted-bl31.bin": {
+      "bytes": 57405,
+      "sha256": "b7058f9c27f36f59d4b355de336fb67cf26d4bf651eb048a865ed0f63684bd6c"
+    },
+    "uboot/extracted-fdt-0.bin": {
+      "bytes": 22768,
+      "sha256": "ff637eda305e47fb53feb24d1461728dcf55cc026e690da343a056cb7d2f75bb"
+    },
+    "uboot/extracted-uboot.bin": {
+      "bytes": 795256,
+      "sha256": "dfabc6239a7232af12ac3bad18a95cb3b3e34a394ea78df0ebe0aa3c7aae1580"
+    },
+    "uboot/fit-info.log": {
+      "bytes": 1299,
+      "sha256": "78328c7f5ea694a2cb1c55b8e0aa284e6cae540385346a751511e7fe32d00cec"
+    },
+    "uboot/result.json": {
+      "bytes": 17577,
+      "sha256": "53ac7b594bc30eefaf4ec16ef11eaa1fbae96ee99f26558669605aae1d15f81d"
+    },
+    "uboot/source/arch/arm/lib/bootm.c": {
+      "bytes": 10300,
+      "sha256": "a3604e00ef7abad8c84c18d4a598d82db4a65e537b14fc2d1746b8f8234454b7"
+    },
+    "uboot/source/cmd/Makefile": {
+      "bytes": 9356,
+      "sha256": "ec997bc4f32be1e887ceabdcc5d0e29b68960a131edcf414d50d5b8633c15619"
+    },
+    "uboot/source/cmd/fes_nano.c": {
+      "bytes": 7555,
+      "sha256": "d1e69267d1e612a19894d1046d2eaf0e6ee5f22c482e426e58a1401d9143441c"
+    },
+    "uboot/source/cmd/fes_nano_config.h": {
+      "bytes": 338,
+      "sha256": "bc6b777bfff2deb5edbff2bec6134833efb83d98bef8e94f5e1b6705b1949fe7"
+    },
+    "uboot/source/cmd/fes_nano_policy.c": {
+      "bytes": 2160,
+      "sha256": "1bffae6e47ae82df75e9ce330f90c312362302aa3b88ff6ca6dba42b02e90785"
+    },
+    "uboot/source/cmd/handoff.h": {
+      "bytes": 1430,
+      "sha256": "4b2845a162325c7ca7da00cadce807801d1d4308353ac1c3701419fe83ba9bb5"
+    },
+    "validation/changed-checks-job.json": {
+      "bytes": 330,
+      "sha256": "351b6ae8025c9a76385fd47b6365dd6c9d1b219fba980c7ee236334e6d3231fc"
+    },
+    "validation/changed-checks.log": {
+      "bytes": 336654,
+      "sha256": "d7fb673c0fad115cb14c16511681c7b7255fcb5d7d04be47a35566ade99c7ae3"
+    },
+    "validation/checks-job.json": {
+      "bytes": 373,
+      "sha256": "0cb1efee808b3415fd04a366274bd07f472b458674eeb4edc7e4196981232d6e"
+    },
+    "validation/checks.log": {
+      "bytes": 664,
+      "sha256": "d208b32119a7221835d37b17eab7ed5f4632298a25dc31411cf8a13f640c3469"
+    },
+    "validation/negative-stale-package.json": {
+      "bytes": 603,
+      "sha256": "8fc948a655eff9ee37ffde85db284a268e0d73d335ae7d1469cec713f67bdbd0"
+    },
+    "validation/negative-stale-package.log": {
+      "bytes": 101,
+      "sha256": "09c8fcc69bce91754abf2011406128d9642725805e2242d1a8aca7ab719ef9d5"
+    },
+    "validation/package-job.json": {
+      "bytes": 681,
+      "sha256": "0d9414e09d94f59c3e590433190a833c0b4e001ffc22fced68dfd14823a888af"
+    },
+    "validation/package.log": {
+      "bytes": 100,
+      "sha256": "be8a29eb87e356d1b6e65c844030e6a502fe2d3f5061f56c0a8b63543e2a35c3"
+    },
+    "validation/run_job.py": {
+      "bytes": 1792,
+      "sha256": "4b1abe865da1ca02e40d6471bba154dd022593eec1d6cc723e7717a517070297"
+    },
+    "validation/uboot-job.json": {
+      "bytes": 693,
+      "sha256": "9e98ca5ce4737d577418ab7abea171cc0dfe40330f5813adc4f7d816d6a84395"
+    },
+    "validation/uboot.log": {
+      "bytes": 112,
+      "sha256": "89c9b32062d90059c4a823a157114d4f7ea632085b910006e3a5b072ff59518a"
+    }
+  },
+  "sd_image": {
+    "bytes": 150994944,
+    "sha256": "9f2b21aad34eff23eea8b0f821e3368f99528cb51e6af2e61159d57b1ef72ed0"
+  },
+  "source_commit": "1009bb61fc2af604c4a09bc1946f7ce4b382cfe4",
+  "stale_uboot_rejected_before_output": true,
+  "test_bounds_seconds": {
+    "matching_boot": 45,
+    "programmer": 90,
+    "single_fesboot": 45
+  },
+  "test_kit": "/home/deano/fes-retained/de25-nano-bridge-diagnostics-20261031/test-kit",
+  "validation": {
+    "focused_host_tests": "7 passed, including 29 injected bridge cases",
+    "git_diff_check": "passed",
+    "initial_test_prerequisite_failure_retained": true,
+    "jobs": {
+      "changed-checks": {
+        "command": [
+          "make",
+          "test-changed",
+          "TEST_CHANGED_ARGS=--base 7c5b8d834"
+        ],
+        "elapsed_seconds": 261.405,
+        "finished_utc": "2026-10-31T11:32:25.045959+00:00",
+        "label": "changed-checks",
+        "returncode": 0,
+        "started_utc": "2026-10-31T11:28:03.641109+00:00",
+        "status": "passed",
+        "time_cap_seconds": 600
+      },
+      "package": {
+        "command": [
+          "python3",
+          "platform/embedded/nano/package.py",
+          "--uboot-build",
+          "out/nano-bridge-diag-uboot-v1",
+          "--entry-build",
+          "out/nano-handoff-entry-v1",
+          "--vendor-sof",
+          "/home/deano/fes-retained/de25-nano-handoff-20261031/evidence/nano-handoff-test-kit-v6/recovery-reference.sof",
+          "--quartus-pfg",
+          "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+          "--output",
+          "out/nano-bridge-diag-test-kit-v1"
+        ],
+        "elapsed_seconds": 5.406,
+        "finished_utc": "2026-10-31T11:27:34.677888+00:00",
+        "label": "package",
+        "returncode": 0,
+        "started_utc": "2026-10-31T11:27:29.271828+00:00",
+        "status": "passed",
+        "time_cap_seconds": 180
+      },
+      "uboot": {
+        "command": [
+          "python3",
+          "platform/embedded/firmware/build_terasic_uboot.py",
+          "--reference-repo",
+          "out/terasic-git-restore-uboot",
+          "--bl31-build",
+          "out/terasic-bl31-build-final-v2",
+          "--cross-prefix",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+          "--native-entry-build",
+          "out/nano-handoff-entry-v1",
+          "--jobs",
+          "8",
+          "--output",
+          "out/nano-bridge-diag-uboot-v1"
+        ],
+        "elapsed_seconds": 19.21,
+        "finished_utc": "2026-10-31T11:27:08.371988+00:00",
+        "label": "uboot",
+        "returncode": 0,
+        "started_utc": "2026-10-31T11:26:49.161831+00:00",
+        "status": "passed",
+        "time_cap_seconds": 600
+      }
+    },
+    "make_check": "passed",
+    "make_check_generated": "passed",
+    "make_test_changed": "passed",
+    "test_changed_base": "7c5b8d8345a77928fd8fed2a19628f0045d0fe02"
+  }
+}

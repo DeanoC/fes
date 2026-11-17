@@ -257,15 +257,23 @@ func (r *Instance) gameRow(g hostclient.Game, withVariants bool) *lua.LTable {
 	t.RawSetString("year", lua.LString(g.Year))
 	t.RawSetString("region", lua.LString(g.Region))
 	t.RawSetString("state", lua.LString(g.State))
+	t.RawSetString("root_online", lua.LBool(g.RootOnline))
 	t.RawSetString("series", lua.LString(g.Series))
 	if g.VariantCount > 0 {
 		t.RawSetString("variant_count", lua.LNumber(g.VariantCount))
 	}
 	t.RawSetString("launchable", lua.LBool(g.LaunchEligible()))
+	// Keep the catalog platform gate separately: launchable is the final
+	// eligibility scripts consume, but a republished row may need its exact
+	// missing-content reason after the cached Game is no longer available.
+	t.RawSetString("catalog_launchable", lua.LBool(g.Launchable))
 	t.RawSetString("firmware_required", lua.LBool(g.FirmwareRequired))
 	t.RawSetString("firmware_ready", lua.LBool(g.FirmwareReady))
 	t.RawSetString("rom_required", lua.LBool(g.ROMRequired))
 	t.RawSetString("rom_ready", lua.LBool(g.ROMReady))
+	t.RawSetString("package_unavailable", lua.LBool(g.PackageUnavailable))
+	t.RawSetString("video_required", lua.LBool(g.VideoRequired))
+	t.RawSetString("video_ready", lua.LBool(g.VideoReady))
 	t.RawSetString("rom_id", lua.LString(g.ROMID))
 	t.RawSetString("rom_media_id", lua.LString(g.ROMMediaID))
 	t.RawSetString("rom_role", lua.LString(g.ROMRole))

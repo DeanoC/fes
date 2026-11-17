@@ -1,0 +1,173 @@
+{
+  "status": "passed-usb-startup-outcome-software-checks",
+  "source_commit": "c62d00a863d6cc65124a97cea09b806dd0924dbf",
+  "selected_gates": 7,
+  "parent_test_counts": [
+    "1935"
+  ],
+  "checks": {
+    "startup-go": {
+      "receipt_sha256": "8b2ffb494ac261d286664bb4f71bdebf6b34b02fc89dfe01d63863434494f74a",
+      "argv": [
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-count=1",
+        "./usbcontrol",
+        "./dwc2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.003144633024931,
+      "log_sha256": "a8300739dc6a2782d95e1f725a07f7109b62b9225cf3480bd84728ea6ae3d867"
+    },
+    "startup-race": {
+      "receipt_sha256": "6ac34a935bdc45d45165d384f3a4d216dc623b100da69d908e23b60f820b3ac6",
+      "argv": [
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-v",
+        "./usbcontrol",
+        "./dwc2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.2034425910096616,
+      "log_sha256": "cb533c474ee7f74af18289565a13a5f07a1f3b03102143ac916a50d4e9cdd1d4"
+    },
+    "software-0": {
+      "receipt_sha256": "6c55b43b2fb9f055f2417340e3607ac9250842ce4b83ff7e39050b26c7645a7a",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2006168169900775,
+      "log_sha256": "cce51a54e30a59742a9687c14625871e2ee1771b69648fbe8c94916c6db0fd9a"
+    },
+    "software-1": {
+      "receipt_sha256": "554e1dd97a3c371365b2b7671612b1f57f5ea97b5f313ca10cf0c31d51e2cbe8",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.2012761270161718,
+      "log_sha256": "6e5461421c2ab7c804834c7ac2127fa69b773e98698cc1da18d034d880c4d359"
+    },
+    "software-2": {
+      "receipt_sha256": "db8bfc12c4773471eb1389a9f9afb3ac4a67cb51aee359387b92e534f2b202ab",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "e67f8c994defd0280f51db4e5cc09347d6544f36",
+        "--head",
+        "c62d00a863d6cc65124a97cea09b806dd0924dbf"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20058857812546194,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-3": {
+      "receipt_sha256": "469c9284ef40198517a8bbeb3cffa81f2c4af0a1c5a20f8ba46e06135f062d93",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2007811430376023,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-4": {
+      "receipt_sha256": "61248f3f814f11d980c99b6614d0895a73189915f3466279c943cdbf03576653",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/tamago/dwc2/startup_test.go\", \"platform/embedded/tamago/usbcontrol/README.md\", \"platform/embedded/tamago/usbcontrol/source.go\", \"platform/embedded/tamago/usbcontrol/startup.go\", \"platform/embedded/tamago/usbcontrol/startup_test.go\"]"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 364.47173653007485,
+      "log_sha256": "1f651975588953a4211f7206a0a772ce654fa9429347ec85243ba3e2f2497f81"
+    },
+    "software-5": {
+      "receipt_sha256": "341e0c84b23702528e9e1c20caad8b582e0b312fe86c0664222287fb744bb33f",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.804510097950697,
+      "log_sha256": "0d3b9149ecd3c2180968462d0aaef1844c3af5a5185fce2b0ed1c02ec490ea89"
+    },
+    "software-6": {
+      "receipt_sha256": "147ccdf9116e4078b1657f6aa7b456c95b6026f4fadbcc17ef17ca6c1a325e14",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 192.1335676999297,
+      "log_sha256": "6930b21d391e3a84b55d247ab57f1727d77d5da26f7db9aec19b4e08e7087621"
+    }
+  },
+  "integration_result_sha256": "73665f446ad8971ff061b306e1fda8ce06809e494e5ce60d3ab4560217e25dc5",
+  "retained_sdk_source_rejection": {
+    "status": "expected-rejection",
+    "error_type": "ValueError",
+    "error": "native selected source changed: platform/embedded/tamago/usbcontrol/source.go",
+    "retained_image_modified": false,
+    "hardware_actions": false,
+    "requires_matched_native_rebuild": true
+  },
+  "hardware_actions": false,
+  "physical_containment_verified": false,
+  "no_device_boot_implemented": false,
+  "hotplug_implemented": false,
+  "physical_installation_verified": false,
+  "persistence_verified": false
+}

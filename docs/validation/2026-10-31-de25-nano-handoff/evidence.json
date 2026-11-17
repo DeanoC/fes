@@ -1,0 +1,115 @@
+{
+  "base_commit": "b7bb73a42d55347e055ace95a41cd15d2846d153",
+  "boot_id": "82a6d9421d08e0e3",
+  "bootchain": {
+    "bl31_sha256": "b7058f9c27f36f59d4b355de336fb67cf26d4bf651eb048a865ed0f63684bd6c",
+    "embedded_spl_independently_decoded": false,
+    "fat32_sectors": 262144,
+    "fat32_start_sector": 32768,
+    "fit_raw_sector": 512,
+    "fit_sha256": "21d9a1bf3c035e5ea4e4330bae15fd7ad8da891f8035a6deed38b94e18a6d6a0",
+    "native_entry_sha256": "1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950",
+    "recovery_reference_sof_sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+    "sd_image_sha256": "150a59128c68662d273b4e5a94477cfa637364f1399ad79e39b5446050ec0ea0",
+    "sd_image_size": 150994944,
+    "sof_sha256": "a1f778ea42ca395ab0994fe0e185e2ce0dfc8d03ecdc1a0b8c6b4d60806e93b4",
+    "spl_sha256": "4b137ccf5cba28429823c185d71349c4576838ae0b25c5900b4f008c750a9c8c"
+  },
+  "classification": "source-derived Nano handoff and matched test files; board trial pending",
+  "files": {
+    "out/nano-handoff-entry-v1/result.json": {
+      "bytes": 8870,
+      "sha256": "f2ee3755aaf331934027379e9c84eebae88c6ea40d98b9cfe42642cdd5b4b4da"
+    },
+    "out/nano-handoff-package-negative-v2/result.json": {
+      "bytes": 625,
+      "sha256": "70e3c27f1519b4cda194595d5c426cd3e7007ac9ef876961a48ec0c481b0c5a8"
+    },
+    "out/nano-handoff-probe-v1/result.json": {
+      "bytes": 223806,
+      "sha256": "cd9c6892746fc39ae7aecca90b026aaf55b2edcbb60e07c540c303ce714a9901"
+    },
+    "out/nano-handoff-qemu-verify-v1/result.json": {
+      "bytes": 4821,
+      "sha256": "6aa993a17f674f215265206bb6e5111775aa6ec382d913f465cd42c105dcc086"
+    },
+    "out/nano-handoff-test-kit-v6/BOOTCHAIN.JSON": {
+      "bytes": 2150,
+      "sha256": "8bb10a95cfe642a098ac1380c125492c14b7621234bad447e38d5b6eeeeaade7"
+    },
+    "out/nano-handoff-test-kit-v6/ENTRY.IMG": {
+      "bytes": 4216289,
+      "sha256": "1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950"
+    },
+    "out/nano-handoff-test-kit-v6/nano-probe-sd.img": {
+      "bytes": 150994944,
+      "sha256": "150a59128c68662d273b4e5a94477cfa637364f1399ad79e39b5446050ec0ea0"
+    },
+    "out/nano-handoff-test-kit-v6/native-probe.sof": {
+      "bytes": 1480003,
+      "sha256": "a1f778ea42ca395ab0994fe0e185e2ce0dfc8d03ecdc1a0b8c6b4d60806e93b4"
+    },
+    "out/nano-handoff-test-kit-v6/pfg-combine.log": {
+      "bytes": 1827,
+      "sha256": "119f7d39247b0ab00245a6d40d6a427ffa63050f5907c0cbfc8065919ba7f94a"
+    },
+    "out/nano-handoff-test-kit-v6/pfg-info.log": {
+      "bytes": 4490,
+      "sha256": "372cdc571e8374ca63b5c38f862e1b7edb76efd39134d8ec5a84ce5346b0ef91"
+    },
+    "out/nano-handoff-test-kit-v6/recovery-reference.sof": {
+      "bytes": 1480451,
+      "sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09"
+    },
+    "out/nano-handoff-test-kit-v6/result.json": {
+      "bytes": 7543,
+      "sha256": "b6206cb15e5706961ed500e64d1bbbeaee16e1aa72d5b137718a9deb4305204a"
+    },
+    "out/nano-handoff-test-kit-v6/u-boot-spl-dtb.hex": {
+      "bytes": 716724,
+      "sha256": "4b137ccf5cba28429823c185d71349c4576838ae0b25c5900b4f008c750a9c8c"
+    },
+    "out/nano-handoff-test-kit-v6/u-boot.itb": {
+      "bytes": 876280,
+      "sha256": "21d9a1bf3c035e5ea4e4330bae15fd7ad8da891f8035a6deed38b94e18a6d6a0"
+    },
+    "out/nano-handoff-uboot-v5/build.log": {
+      "bytes": 35183,
+      "sha256": "9b08b1609d764b92c7cad747a46a2f32fe52a05b73bb9d137ef73522b6b65ac5"
+    },
+    "out/nano-handoff-uboot-v5/build/.config": {
+      "bytes": 52879,
+      "sha256": "9d9643324ba9b3bcf903de78a6e4520664a147983401369548a954930131bce5"
+    },
+    "out/nano-handoff-uboot-v5/result.json": {
+      "bytes": 17317,
+      "sha256": "5045e3b1a1f9fe23b5a826ca7b6cd06f963ca2180d7f908d778e72da6e754df9"
+    }
+  },
+  "hardware": {
+    "contacted": false,
+    "live_gate_executed": false,
+    "physical_boot_accepted": false,
+    "serial": "TRWU8CBL"
+  },
+  "qemu_cases": [
+    {
+      "name": "native-probe",
+      "status": "passed"
+    },
+    {
+      "name": "bad-magic",
+      "status": "passed"
+    },
+    {
+      "name": "staging-overlap",
+      "status": "passed"
+    },
+    {
+      "name": "wrong-exception-level",
+      "status": "passed"
+    }
+  ],
+  "vendor_tfa_commit": "580dcb5c4e10aa7daff2bf69d493c076a6d3e665",
+  "vendor_uboot_commit": "d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413"
+}

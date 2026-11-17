@@ -1,0 +1,84 @@
+test_actual_finish_queue_wire_record (test_nano_source_retirement.SourceRetirementTests.test_actual_finish_queue_wire_record) ... ok
+test_batch_callback_and_table_faults (test_nano_source_retirement.SourceRetirementTests.test_batch_callback_and_table_faults) ... ok
+test_callback_substitution_stops_before_next_operation (test_nano_source_retirement.SourceRetirementTests.test_callback_substitution_stops_before_next_operation) ... ok
+test_command_completion_and_final_validation_policies (test_nano_source_retirement.SourceRetirementTests.test_command_completion_and_final_validation_policies) ... ok
+test_command_progress_callback_and_pointer_failures (test_nano_source_retirement.SourceRetirementTests.test_command_progress_callback_and_pointer_failures) ... ok
+test_command_snapshot_callback_faults (test_nano_source_retirement.SourceRetirementTests.test_command_snapshot_callback_faults) ... ok
+test_command_snapshot_cost_and_unchanged_deadlines (test_nano_source_retirement.SourceRetirementTests.test_command_snapshot_cost_and_unchanged_deadlines) ... ok
+test_counter_boundaries (test_nano_source_retirement.SourceRetirementTests.test_counter_boundaries) ... ok
+test_fresh_prewrite_gates (test_nano_source_retirement.SourceRetirementTests.test_fresh_prewrite_gates) ... ok
+test_joined_launch_retirement_failures (test_nano_source_retirement.SourceRetirementTests.test_joined_launch_retirement_failures) ... ok
+test_joined_retirement_publication_cost_and_expiry (test_nano_source_retirement.SourceRetirementTests.test_joined_retirement_publication_cost_and_expiry) ... ok
+test_measured_scale_preparation_has_room_but_prior_work_and_io_expiry_still_stop (test_nano_source_retirement.SourceRetirementTests.test_measured_scale_preparation_has_room_but_prior_work_and_io_expiry_still_stop) ... ok
+test_native_configuration_checks_still_gate_continuation (test_nano_source_retirement.SourceRetirementTests.test_native_configuration_checks_still_gate_continuation) ... ok
+test_portable_failures (test_nano_source_retirement.SourceRetirementTests.test_portable_failures) ... ok
+test_preparation_completion_and_final_checks_keep_separate_finite_bounds (test_nano_source_retirement.SourceRetirementTests.test_preparation_completion_and_final_checks_keep_separate_finite_bounds) ... ok
+test_preparation_publication_timestamp_and_completion_boundaries (test_nano_source_retirement.SourceRetirementTests.test_preparation_publication_timestamp_and_completion_boundaries) ... FAIL
+test_preparation_staging_and_consumption_keep_distinct_original_bounds (test_nano_source_retirement.SourceRetirementTests.test_preparation_staging_and_consumption_keep_distinct_original_bounds) ... ok
+test_private_table_batches_cover_all_words_with_finite_cold_and_warm_cost (test_nano_source_retirement.SourceRetirementTests.test_private_table_batches_cover_all_words_with_finite_cold_and_warm_cost) ... ok
+test_raw_observations_survive_rejected_guards_without_authority (test_nano_source_retirement.SourceRetirementTests.test_raw_observations_survive_rejected_guards_without_authority) ... ok
+test_reader_gate_stays_closed_after_retained_source_abort (test_nano_source_retirement.SourceRetirementTests.test_reader_gate_stays_closed_after_retained_source_abort) ... ok
+test_real_service_and_supplier_rearm_between_menu_and_computer (test_nano_source_retirement.SourceRetirementTests.test_real_service_and_supplier_rearm_between_menu_and_computer) ... ok
+test_real_source_release_supplier_requires_returned_owned_source (test_nano_source_retirement.SourceRetirementTests.test_real_source_release_supplier_requires_returned_owned_source) ... ok
+test_repeated_queue_generations_wrap_and_pin_callback_ownership (test_nano_source_retirement.SourceRetirementTests.test_repeated_queue_generations_wrap_and_pin_callback_ownership) ... ok
+test_retained_configuration_control_reply_and_native_readiness (test_nano_source_retirement.SourceRetirementTests.test_retained_configuration_control_reply_and_native_readiness) ... ok
+test_retained_continuation_requires_live_retired_state (test_nano_source_retirement.SourceRetirementTests.test_retained_continuation_requires_live_retired_state) ... ok
+test_retirement_keeps_its_original_enclosing_deadline (test_nano_source_retirement.SourceRetirementTests.test_retirement_keeps_its_original_enclosing_deadline) ... ok
+test_retirement_poll_supplier_faults (test_nano_source_retirement.SourceRetirementTests.test_retirement_poll_supplier_faults) ... ok
+test_retirement_staging_publication_completion_and_final_budgets (test_nano_source_retirement.SourceRetirementTests.test_retirement_staging_publication_completion_and_final_budgets) ... ok
+test_retirement_uses_live_setup_cursor_across_generations (test_nano_source_retirement.SourceRetirementTests.test_retirement_uses_live_setup_cursor_across_generations) ... ok
+test_sealed_secure_reader_handoff_and_live_failures (test_nano_source_retirement.SourceRetirementTests.test_sealed_secure_reader_handoff_and_live_failures) ... ok
+test_setup_failure_reports_retained_cause_without_live_callbacks (test_nano_source_retirement.SourceRetirementTests.test_setup_failure_reports_retained_cause_without_live_callbacks) ... ok
+test_start_negotiation_rejects_foreign_and_late_data_headers (test_nano_source_retirement.SourceRetirementTests.test_start_negotiation_rejects_foreign_and_late_data_headers) ... ok
+test_terminal_cold_recovery_uses_live_revoked_scope (test_nano_source_retirement.SourceRetirementTests.test_terminal_cold_recovery_uses_live_revoked_scope) ... ok
+test_terminal_warm_recovery_preserves_previous_source (test_nano_source_retirement.SourceRetirementTests.test_terminal_warm_recovery_preserves_previous_source) ... ok
+test_transition_batches_reject_faults_before_the_next_write (test_nano_source_retirement.SourceRetirementTests.test_transition_batches_reject_faults_before_the_next_write) ... ok
+test_warm_expected_table_generation_uses_bounded_chunks_and_keeps_parent_deadline (test_nano_source_retirement.SourceRetirementTests.test_warm_expected_table_generation_uses_bounded_chunks_and_keeps_parent_deadline) ... ok
+test_warm_probe_reuses_owned_queue_without_clearing_abort (test_nano_source_retirement.SourceRetirementTests.test_warm_probe_reuses_owned_queue_without_clearing_abort) ... ok
+test_disabled_headers_keep_diagnostics_off (test_nano_sdm_input_profile.InputProfileTests.test_disabled_headers_keep_diagnostics_off) ... ok
+test_install_binds_every_source_and_refuses_reuse (test_nano_sdm_input_profile.InputProfileTests.test_install_binds_every_source_and_refuses_reuse) ... ok
+test_invalid_predecessor_rejected_before_writes (test_nano_sdm_input_profile.InputProfileTests.test_invalid_predecessor_rejected_before_writes) ... ok
+test_mutated_contract_and_incomplete_ownership_are_rejected (test_nano_sdm_input_profile.InputProfileTests.test_mutated_contract_and_incomplete_ownership_are_rejected) ... ok
+test_old_preparation_clock_contracts_cannot_supply_publication_timing (test_nano_sdm_input_profile.InputProfileTests.test_old_preparation_clock_contracts_cannot_supply_publication_timing) ... ok
+test_one_second_profiles_cannot_admit_the_four_second_candidate (test_nano_sdm_input_profile.InputProfileTests.test_one_second_profiles_cannot_admit_the_four_second_candidate) ... ok
+test_previous_contracts_cannot_admit_queue_observation_candidate (test_nano_sdm_input_profile.InputProfileTests.test_previous_contracts_cannot_admit_queue_observation_candidate) ... ok
+test_publication_timing_cannot_be_supplied_by_previous_contracts (test_nano_sdm_input_profile.InputProfileTests.test_publication_timing_cannot_be_supplied_by_previous_contracts) ... ok
+test_selection_is_explicit_and_exclusive (test_nano_sdm_input_profile.InputProfileTests.test_selection_is_explicit_and_exclusive) ... ok
+test_build_clis_reject_rearm_without_input_before_creating_output (test_nano_sdm_rearm_profile.RearmProfileTests.test_build_clis_reject_rearm_without_input_before_creating_output) ... ok
+test_cpu_source_and_each_ownership_selection_are_required (test_nano_sdm_rearm_profile.RearmProfileTests.test_cpu_source_and_each_ownership_selection_are_required) ... ok
+test_export_is_bound_to_the_selected_warm_contract (test_nano_sdm_rearm_profile.RearmProfileTests.test_export_is_bound_to_the_selected_warm_contract) ... ok
+test_rearm_elf_requires_real_strong_functions (test_nano_sdm_rearm_profile.RearmProfileTests.test_rearm_elf_requires_real_strong_functions) ... ok
+test_rearm_is_separate_from_the_retained_first_menu (test_nano_sdm_rearm_profile.RearmProfileTests.test_rearm_is_separate_from_the_retained_first_menu) ... ok
+test_both_builders_reject_unbound_recovery_before_output (test_nano_sdm_recovery_profile.RecoveryProfileTests.test_both_builders_reject_unbound_recovery_before_output) ... ok
+test_every_selected_recovery_field_is_required (test_nano_sdm_recovery_profile.RecoveryProfileTests.test_every_selected_recovery_field_is_required) ... ok
+test_recovery_is_separate_from_default_repeated_loading (test_nano_sdm_recovery_profile.RecoveryProfileTests.test_recovery_is_separate_from_default_repeated_loading) ... ok
+test_every_numeric_or_digest_result_mutation_rejects (test_nano_sdm_input_observation.InputObservationTests.test_every_numeric_or_digest_result_mutation_rejects) ... ok
+test_full_bytes_digest_and_no_activation (test_nano_sdm_input_observation.InputObservationTests.test_full_bytes_digest_and_no_activation) ... ok
+test_missing_duplicate_late_or_activation_rejects (test_nano_sdm_input_observation.InputObservationTests.test_missing_duplicate_late_or_activation_rejects) ... ok
+test_modeled_late_event_is_observed_as_failure (test_nano_sdm_input_observation.InputObservationTests.test_modeled_late_event_is_observed_as_failure) ... ok
+test_old_release_or_changed_rearm_and_callback_state_fail_closed (test_nano_sdm_rearm_trace.SourceSequenceTests.test_old_release_or_changed_rearm_and_callback_state_fail_closed) ... ok
+test_selected_recovery_never_continues_the_old_sequence (test_nano_sdm_rearm_trace.SourceSequenceTests.test_selected_recovery_never_continues_the_old_sequence) ... ok
+test_twelve_changing_sources_wrap_queues_and_jobs (test_nano_sdm_rearm_trace.SourceSequenceTests.test_twelve_changing_sources_wrap_queues_and_jobs) ... ok
+test_wrong_role_generation_or_unselected_profile_is_rejected (test_nano_sdm_rearm_trace.SourceSequenceTests.test_wrong_role_generation_or_unselected_profile_is_rejected) ... ok
+
+======================================================================
+FAIL: test_preparation_publication_timestamp_and_completion_boundaries (test_nano_source_retirement.SourceRetirementTests.test_preparation_publication_timestamp_and_completion_boundaries)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-setup-release/tests/test_nano_source_retirement.py", line 191, in test_preparation_publication_timestamp_and_completion_boundaries
+    report = self.run_model("preparation_queue_publication_test")
+  File "/home/deano/fes/out/dev/de25-setup-release/tests/test_nano_source_retirement.py", line 103, in run_model
+    self.assertEqual(compiled.returncode, 0, compiled.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : In file included from /home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/tests/sdm_retire/preparation_queue_publication_test.c:3:
+/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/tests/sdm_retire/command_publication_test.c: In function ‘retirement_publication_fixture_main’:
+/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/tests/sdm_retire/command_publication_test.c:118:1: error: control reaches end of non-void function [-Werror=return-type]
+  118 | }
+      | ^
+cc1: all warnings being treated as errors
+
+
+----------------------------------------------------------------------
+Ran 62 tests in 114.053s
+
+FAILED (failures=1)

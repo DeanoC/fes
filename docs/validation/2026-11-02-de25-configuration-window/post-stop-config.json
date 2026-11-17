@@ -1,0 +1,94 @@
+{
+  "source_commit": "b6301a49572c9b5856777ee299af45ae277ee9ac",
+  "parked_native_source": "f1776384dd3a85d1fb36d5d8c3a8267001607725",
+  "scope": "one documented JTAG CONFIG-status read of the parked diagnostic; no programming or native continuation",
+  "started_utc": "2026-11-02T00:06:20.320064+00:00",
+  "query_attempted": true,
+  "query_passed": true,
+  "programming_requested": false,
+  "sd_writes_requested": false,
+  "runtime_admission": false,
+  "usb_node": "/dev/bus/usb/003/061",
+  "stages": [
+    {
+      "label": "status-clock-before",
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/jtagconfig",
+        "--getparam",
+        "DE25-Nano [3-11.1-iface0]",
+        "JtagClock"
+      ],
+      "returncode": 0,
+      "log_sha256": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18"
+    },
+    {
+      "label": "status-clock-set-6m",
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/jtagconfig",
+        "--setparam",
+        "DE25-Nano [3-11.1-iface0]",
+        "JtagClock",
+        "6M"
+      ],
+      "returncode": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "status-clock-confirm-6m",
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/jtagconfig",
+        "--getparam",
+        "DE25-Nano [3-11.1-iface0]",
+        "JtagClock"
+      ],
+      "returncode": 0,
+      "log_sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    },
+    {
+      "label": "status-config",
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pgm",
+        "-c",
+        "DE25-Nano [3-11.1-iface0]",
+        "-m",
+        "jtag",
+        "--device",
+        "1",
+        "--status",
+        "--status_type",
+        "CONFIG"
+      ],
+      "returncode": 0,
+      "log_sha256": "d129ff0ebb0d6fed0b323d192dba7fcf60a6186b1c1105957154fb14d5b3801e"
+    },
+    {
+      "label": "status-clock-restore",
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/jtagconfig",
+        "--setparam",
+        "DE25-Nano [3-11.1-iface0]",
+        "JtagClock",
+        "15M"
+      ],
+      "returncode": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "status-clock-restored-readback",
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/jtagconfig",
+        "--getparam",
+        "DE25-Nano [3-11.1-iface0]",
+        "JtagClock"
+      ],
+      "returncode": 0,
+      "log_sha256": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18"
+    }
+  ],
+  "restored_clock": "15M",
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "finished_utc": "2026-11-02T00:06:22.154064+00:00",
+  "helper_sha256": "c8bfc106c47a642f1bf2de2a772d16e4bfeb6ec2f400ef0a84c1e68969651041",
+  "tool_sha256": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14"
+}

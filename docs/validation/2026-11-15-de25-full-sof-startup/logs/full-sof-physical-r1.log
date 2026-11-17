@@ -1,0 +1,45 @@
+Parent/top USB stability 12 s
+Parent/top USB stability 24 s
+Parent/top USB stability 36 s
+Parent/top USB stability 48 s
+Bounded worker running 12 s
+Bounded worker running 12 s
+Bounded worker running 24 s
+Bounded worker running 36 s
+Bounded worker running 48 s
+Bounded worker running 60 s
+Bounded worker running 72 s
+Bounded worker running 84 s
+Bounded worker running 96 s
+Bounded worker running 108 s
+Bounded worker running 120 s
+Bounded worker running 132 s
+Bounded worker running 144 s
+Bounded worker running 156 s
+Bounded worker running 168 s
+Bounded worker running 180 s
+Bounded worker running 192 s
+Bounded worker running 12 s
+Bounded worker running 24 s
+Bounded worker running 36 s
+Bounded worker running 48 s
+Bounded worker running 60 s
+Bounded worker running 72 s
+Bounded worker running 84 s
+Bounded worker running 96 s
+Bounded worker running 108 s
+Bounded worker running 120 s
+Bounded worker running 132 s
+Bounded worker running 144 s
+Candidate qualification terminal: stopped candidate Park: False
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/run_trial.py", line 27, in <module>
+    if __name__=='__main__':main()
+                            ~~~~^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/run_trial.py", line 26, in main
+    require(result['status']=='verified-candidate-cycle-Park','diagnostic stopped; keep claim and inspect retained evidence')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/transport.py", line 17, in require
+    if not value:raise ValueError(message)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: diagnostic stopped; keep claim and inspect retained evidence

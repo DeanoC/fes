@@ -5,11 +5,9 @@ an eight-slot virtual ISA backplane. The [machine design](../../docs/architectur
 targets an 8088/8086 PC/XT with IBM graphics and extensions to the existing
 linkable-card mechanism. The motherboard slice adds memory decoding, an 8259A
 PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a transaction-native 8237A DMA subset. Separate ISA CGA and MDA display cards add guest raster output. The XT floppy adapter supports
-sector writes in the DOS profile. The diagnostic package has no
-HID keyboard frontend or physical socket map. The registered `fes.pcxt` recipe
-builds a diagnostic package with fixed CGA Direct video and `fes.computer` 1.1
-read-only floppy media. The separate experimental `fes.pcxt-dos` recipe enables
-GLaBIOS XT/5160 and boots a 360 KiB raw floppy delivered at runtime through
+sector writes in the DOS profile. The diagnostic ROM, board builders and focused simulations remain development
+checks rather than installable catalog packages. The sole registered package,
+`fes.pcxt-dos`, enables GLaBIOS XT/5160 and boots a 360 KiB raw floppy delivered at runtime through
 the mailbox and SDRAM, with writable media and a host keyboard. A previous
 exact DOS package booted the pinned FreeDOS image on Kit B; later packages need their own hardware acceptance. The storage
 lane connects conventional RAM and firmware to the existing
@@ -18,8 +16,7 @@ command interface in host simulation. The normal package producer is Quartus Lit
 CPU/motherboard/SDRAM clock and 74.25 MHz CGA Direct output. It requires
 all declared seeds to pass reported internal setup, hold, recovery, removal
 and pulse-width checks, plus a byte-identical independent seed-1 rebuild.
-External SDRAM/HDMI, HPS and physical reset qualification remain open for both
-packages. Each new DOS package requires its own exact-artifact hardware acceptance.
+External SDRAM/HDMI, HPS and physical reset qualification remain open. Each new DOS package requires its own exact-artifact hardware acceptance.
 Nextpnr is an advisory diagnostic, not the normal package producer.
 The existing RAM Tester
 [external timing model](../../docs/architecture.md#sdram-external-timing-model)
@@ -42,10 +39,12 @@ is not a timing waiver.
 
 ### FreeDOS DOS-profile package
 
-The `fes.pcxt-dos` recipe selects `HARDWARE_DOS` and keeps the diagnostic
-profile unchanged. It includes GLaBIOS, a host HID keyboard frontend and the XT
-keyboard reset response. Its CGA character ROM is the locked public-domain
-CP437 8×8 font in `firmware/cga-font-8x8.bin`, all 256 characters, so games
+The `fes.pcxt-dos` package producer always selects `HARDWARE_DOS`. Raw diagnostic
+board builds and simulations retain their separate diagnostic configuration. It includes GLaBIOS, a host HID keyboard frontend and the XT
+keyboard reset response. Its CGA character ROM is the locked CP437 8×8 font
+in `firmware/cga-font-8x8.bin`. VGABIOS attributes the source table to Joseph
+Gil's fntcol16 collection and identifies those fonts as public domain; see
+`firmware/THIRD-PARTY-NOTICES.md`. It contains all 256 characters, so games
 that draw with box, shade and symbol characters 80h–FFh render them (#1537).
 A 360 KiB raw floppy is delivered at
 runtime through `fes.media.pcxt-floppy` and the complete ordered image is
@@ -190,7 +189,7 @@ From the FES root, with the pinned installations available:
 ```sh
 export QUARTUS_ROOTDIR=/absolute/quartus
 export FES_PCXT_YOSYS=/absolute/pcxt-locked/install/bin/yosys
-python3 scripts/core_dev.py prepare --core fes.pcxt --output /absolute/new-candidate
+python3 scripts/core_dev.py prepare --core fes.pcxt-dos --output /absolute/new-candidate
 ```
 
 The recipe selects `scripts/build_fes_pcxt_quartus.py`. `quartus.lock` binds
@@ -204,21 +203,24 @@ attempts. Builds reject any reported internal timing miss, invalid internal
 clock/constraint checks, missing coverage inventory or changed repeat RBF.
 Unclocked registers must belong to the two elaborated HPS hard primitives;
 their HPS timing remains outside the diagnostic qualification. The resulting format-2
-package remains an experimental diagnostic; external physical acceptance,
-BIOS/DOS boot, keyboard and writable disk support are separate.
+package is the experimental DOS profile; exact-artifact BIOS/DOS boot, keyboard,
+writable disk and external physical acceptance remain separate gates.
 
-The ROM displays black/white stripes. Only after SDRAM, the applicable DMA
+### Diagnostic ROM and capture checks
+
+The standalone diagnostic ROM remains in the simulation and raw board-build
+lanes; it is not sealed as an installable package. It displays black/white stripes. Only after SDRAM, the applicable DMA
 probe, both display adapters and status polling pass does it draw a solid white
 16-dot by 8-line block at the CGA image's top left and write `AA` to RAM `00600`.
 With the floppy enabled, it then polls for media and checks one sector using
 the FDC and DMA. A matching diagnostic image adds a 64-by-32 white block at
 x=64; ejection or a mismatch clears it. The first sector's bytes are
 `(11 + 37 * index) mod 256`, with a 360 KiB image size. This marker checks one
-sector, not the complete floppy. The package exposes no keyboard/debug interface.
+sector, not the complete floppy. This raw diagnostic exposes no keyboard/debug interface.
 
-For a leased kit run, use a private host and the normal package acceptance
-path; do not replace the shared host. Capture three complete HDMI frames after
-boot, then run this checker from the FES root (ffmpeg/ffprobe required):
+The offline capture checker remains available for diagnostic experiments.
+After a separately authorized, leased raw-board experiment, provide three complete
+HDMI frames to this checker (ffmpeg/ffprobe required):
 
 ```sh
 python3 scripts/pcxt_diagnostic_acceptance.py frame1.png frame2.png frame3.png \
@@ -228,7 +230,7 @@ python3 scripts/pcxt_diagnostic_acceptance.py frame1.png frame2.png frame3.png \
 The checker compares the entire scaled stripe picture, each output row,
 monochrome output and all eight completion-block scanlines. Partial drawing
 prefixes fail acceptance. Identical frames are expected.
-A cold launch must first clear the previous execution; verify package/build
+A cold launch must first clear the previous execution; verify the selected build
 identity and Stop/baseline restoration through the normal lease lifecycle.
 For historical captures from the earlier ROM, `--historical-pattern` checks
 the old stripes but explicitly leaves final firmware completion unverified.
@@ -747,7 +749,7 @@ FES_GPU_LEASE_OWNER=pcxt-agent GPU_LEASE_MAX_PER_OWNER=2 python3 scripts/build_f
 # Optional frontend/resource probe; no route:
 python3 scripts/build_fes_pcxt.py --cache-root /absolute/toolchain-cache PCXT_BUILD_ARGS='--synth-only'
 # From the FES repository root, prepare the installable diagnostic package:
-python3 scripts/core_dev.py prepare --core fes.pcxt --output out/pcxt-package
+python3 scripts/core_dev.py prepare --core fes.pcxt-dos --output out/pcxt-package
 ```
 
 The board producer authenticates `cores/fes-pcxt/toolchain.lock`, with reviewed

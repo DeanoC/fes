@@ -1,0 +1,33 @@
+{
+  "checks": {
+    "outside": {
+      "code": 2,
+      "stdout": "",
+      "stderr": "rejected: target must be a private single-link image directly in the run directory\n"
+    },
+    "dotdot_escape": {
+      "code": 2,
+      "stdout": "",
+      "stderr": "rejected: target must be a private single-link image directly in the run directory\n"
+    },
+    "symlink_escape": {
+      "code": 2,
+      "stdout": "",
+      "stderr": "rejected: target must be an absolute non-symlink path\n"
+    },
+    "outside_hardlink": {
+      "code": 2,
+      "stdout": "",
+      "stderr": "rejected: target must be a private single-link image directly in the run directory\n"
+    },
+    "inherited_config_positive": {
+      "code": 0,
+      "stdout": "verified target: /home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-form-survey/reference-vm/run/safeguard-test.img\n",
+      "stderr": ""
+    }
+  },
+  "script_sha256": "2ddb0b4e00d518ab578ed468128b7be5521b2ebff7151e77012a75b6337e6c02",
+  "positive_readback_sha256": "23f8f0392d651254737ec33ae80213e85f7a734d2239988fb973de3a0e8d2f6b",
+  "inherited_config_path": "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-form-survey/reference-vm/inherited-test.conf",
+  "unchanged_outside_disk_sha256": "5f0dd27627f524c0412343169873f617b7906f95ebb7d3fc7f2ac7cc05de383e"
+}

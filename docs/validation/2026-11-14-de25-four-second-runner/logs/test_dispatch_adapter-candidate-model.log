@@ -1,0 +1,9 @@
+test_actual_native_session_and_failure_hook_distinguish_inventory_from_dispatch (test_dispatch_adapter.Tests.test_actual_native_session_and_failure_hook_distinguish_inventory_from_dispatch) ... ok
+test_actual_worker_propagates_the_completed_session_dispatch_scope (test_dispatch_adapter.Tests.test_actual_worker_propagates_the_completed_session_dispatch_scope) ... ok
+test_success_dispatches_after_real_scan_and_marker_precedes_host_program (test_dispatch_adapter.Tests.test_success_dispatches_after_real_scan_and_marker_precedes_host_program) ... ok
+test_unknown_worker_cannot_turn_missing_marker_into_recovery_permission (test_dispatch_adapter.Tests.test_unknown_worker_cannot_turn_missing_marker_into_recovery_permission) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.786s
+
+OK

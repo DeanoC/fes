@@ -1,0 +1,18 @@
+{
+  "OPSIZE_DS": {
+    "charged_per_iteration": 25.063,
+    "elapsed_cycles": 128333
+  },
+  "SEG_ES": {
+    "charged_per_iteration": 29.066,
+    "elapsed_cycles": 148828
+  },
+  "ADDR_DS": {
+    "charged_per_iteration": 25.066,
+    "elapsed_cycles": 128348
+  },
+  "FS_DS": {
+    "charged_per_iteration": 39.062,
+    "elapsed_cycles": 200100
+  }
+}

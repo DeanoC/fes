@@ -38,6 +38,7 @@ func ExpandMask(m *Mask, src image.Rectangle, c Color) *image.RGBA {
 	src = src.Intersect(m.Bounds())
 	img := image.NewRGBA(image.Rect(0, 0, src.Dx(), src.Dy()))
 	for y := 0; y < src.Dy(); y++ {
+		rasterRow(y)
 		row := m.Pix[(src.Min.Y+y)*m.W+src.Min.X : (src.Min.Y+y)*m.W+src.Max.X]
 		out := img.Pix[y*img.Stride:]
 		for x, v := range row {
@@ -65,6 +66,7 @@ func clipMask(m *Mask, src image.Rectangle, x, y, w, h int) (image.Rectangle, im
 // at dst in c, source-over.
 func expandRows(pix []byte, stride int, mask []byte, maskStride int, src image.Rectangle, dst image.Point, c Color) {
 	for y := 0; y < src.Dy(); y++ {
+		rasterRow(y)
 		row := mask[(src.Min.Y+y)*maskStride+src.Min.X : (src.Min.Y+y)*maskStride+src.Max.X]
 		out := pix[(dst.Y+y)*stride+dst.X*4:]
 		for x, v := range row {

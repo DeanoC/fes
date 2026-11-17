@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "source_commit": "f7e4a5bc3f041f83479c64ef9e585629bc6df53e",
+  "native_source_commit": "dc2cf47604ce003744ce2b1cf0e1e53beb1e4738",
+  "archive": "/home/deano/fes-retained/de25-window-service-20261104/matched-native-chain.tar.gz",
+  "archive_sha256": "9bcd66ed009ea20a0845c0649a0ba38aa0e64d4cbc06e1aa0131286db59f28ed",
+  "verified_members": 45165,
+  "previous_job_status": "failed only at final ownership of absent retention.json; completed hardware-retention.json is the intended file",
+  "previous_failure_log_sha256": "9c11da6a2d306fe68e3ebf2c23019c648145f1e622c03448b79df2eaec7e7803",
+  "archive_regenerated": false,
+  "source_bundle_regenerated": false,
+  "hardware_access": false
+}

@@ -1,0 +1,896 @@
+{
+  "format": 1,
+  "source_commit": "9237c375a7f20a1eb41ad60888461215fae4eb2b",
+  "hardware_pass": false,
+  "timing_accounting_valid": true,
+  "observation_errors": [],
+  "fixed_native_deadline_seconds": 20,
+  "counter_frequency": 400000000,
+  "trace_sha256": "223e28177002b9617ed34263726803bb96cccb6edd3fbe93a0e43d92e8bc6dac",
+  "last_checkpoint": "configuration_poll",
+  "confirmed_prefix_bytes": 786432,
+  "secure_digest_seconds_at_first_marker": 1.164858275,
+  "secure_digest_seconds_at_last_marker": 12.719838145,
+  "observed_interval_seconds": 17.881497795,
+  "observed_interval_secure_digest_seconds": 11.55497987,
+  "native_status_at_late_return": {
+    "phase": "completion",
+    "elapsed_seconds": 20.084653,
+    "accepted_bytes": 851968,
+    "completed_bytes": 786432,
+    "outstanding_buffers": 1,
+    "retained_bytes": 2027520
+  },
+  "intervals": [
+    {
+      "from": "configuration_arm",
+      "to": "configuration_start",
+      "completed_before": 0,
+      "elapsed_seconds": 1.5614762425,
+      "secure_digest_seconds": 1.1594637375
+    },
+    {
+      "from": "configuration_start",
+      "to": "configuration_write",
+      "completed_before": 0,
+      "elapsed_seconds": 1.266278375,
+      "secure_digest_seconds": 1.2024489825
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 0,
+      "elapsed_seconds": 0.12096114,
+      "secure_digest_seconds": 0.07534983
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 0,
+      "elapsed_seconds": 0.121995145,
+      "secure_digest_seconds": 0.0753607225
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 0,
+      "elapsed_seconds": 0.1333874075,
+      "secure_digest_seconds": 0.0753503225
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 65536,
+      "elapsed_seconds": 0.121304415,
+      "secure_digest_seconds": 0.0753391275
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 65536,
+      "elapsed_seconds": 0.12230638,
+      "secure_digest_seconds": 0.0753522275
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 65536,
+      "elapsed_seconds": 0.133754915,
+      "secure_digest_seconds": 0.0753553025
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 131072,
+      "elapsed_seconds": 0.12137065,
+      "secure_digest_seconds": 0.0753359625
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 131072,
+      "elapsed_seconds": 0.1223866025,
+      "secure_digest_seconds": 0.0753594825
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 131072,
+      "elapsed_seconds": 0.133825795,
+      "secure_digest_seconds": 0.0753546775
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 196608,
+      "elapsed_seconds": 0.12139001,
+      "secure_digest_seconds": 0.07535139
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 196608,
+      "elapsed_seconds": 0.1224180525,
+      "secure_digest_seconds": 0.0753605875
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 196608,
+      "elapsed_seconds": 0.13382211,
+      "secure_digest_seconds": 0.075352
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 262144,
+      "elapsed_seconds": 0.1213886725,
+      "secure_digest_seconds": 0.0753548825
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 262144,
+      "elapsed_seconds": 0.1224066225,
+      "secure_digest_seconds": 0.0753593625
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 262144,
+      "elapsed_seconds": 0.1338341625,
+      "secure_digest_seconds": 0.0753597625
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 327680,
+      "elapsed_seconds": 0.1213958375,
+      "secure_digest_seconds": 0.0753579225
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 327680,
+      "elapsed_seconds": 0.12239026,
+      "secure_digest_seconds": 0.07536687
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 327680,
+      "elapsed_seconds": 0.1338507975,
+      "secure_digest_seconds": 0.07535177
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 393216,
+      "elapsed_seconds": 0.12138689,
+      "secure_digest_seconds": 0.07533891
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 393216,
+      "elapsed_seconds": 0.12238717,
+      "secure_digest_seconds": 0.0753459975
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 393216,
+      "elapsed_seconds": 0.13383263,
+      "secure_digest_seconds": 0.0753374275
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 458752,
+      "elapsed_seconds": 0.1213722475,
+      "secure_digest_seconds": 0.0753342225
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 458752,
+      "elapsed_seconds": 0.1223739075,
+      "secure_digest_seconds": 0.0753441975
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 458752,
+      "elapsed_seconds": 0.1338341625,
+      "secure_digest_seconds": 0.0753566075
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 524288,
+      "elapsed_seconds": 0.121390545,
+      "secure_digest_seconds": 0.0753516
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 524288,
+      "elapsed_seconds": 0.122423445,
+      "secure_digest_seconds": 0.0753481525
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 524288,
+      "elapsed_seconds": 0.1338218075,
+      "secure_digest_seconds": 0.0753494525
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 589824,
+      "elapsed_seconds": 0.121398225,
+      "secure_digest_seconds": 0.075359925
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 589824,
+      "elapsed_seconds": 0.122392725,
+      "secure_digest_seconds": 0.075364825
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 589824,
+      "elapsed_seconds": 0.133825735,
+      "secure_digest_seconds": 0.0753448075
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 655360,
+      "elapsed_seconds": 0.12138422,
+      "secure_digest_seconds": 0.075347625
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 655360,
+      "elapsed_seconds": 0.122380465,
+      "secure_digest_seconds": 0.075352825
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 655360,
+      "elapsed_seconds": 0.13381472,
+      "secure_digest_seconds": 0.07534219
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 720896,
+      "elapsed_seconds": 0.12138499,
+      "secure_digest_seconds": 0.075346095
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 720896,
+      "elapsed_seconds": 0.12238377,
+      "secure_digest_seconds": 0.07535514
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 720896,
+      "elapsed_seconds": 0.13388765,
+      "secure_digest_seconds": 0.0753571575
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1213931025,
+      "secure_digest_seconds": 0.075350335
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122423095,
+      "secure_digest_seconds": 0.075348755
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223564325,
+      "secure_digest_seconds": 0.0753571325
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122348,
+      "secure_digest_seconds": 0.075348225
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122343865,
+      "secure_digest_seconds": 0.0753474675
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122358845,
+      "secure_digest_seconds": 0.0753602225
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122344515,
+      "secure_digest_seconds": 0.0753486975
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.12235327,
+      "secure_digest_seconds": 0.07535177
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223480825,
+      "secure_digest_seconds": 0.0753499825
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.12235023,
+      "secure_digest_seconds": 0.075355235
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223635225,
+      "secure_digest_seconds": 0.075365415
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122352395,
+      "secure_digest_seconds": 0.075348745
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122359225,
+      "secure_digest_seconds": 0.0753609975
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.12235425,
+      "secure_digest_seconds": 0.0753537325
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223556575,
+      "secure_digest_seconds": 0.075350235
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223526675,
+      "secure_digest_seconds": 0.07535183
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.12235342,
+      "secure_digest_seconds": 0.07535497
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223506025,
+      "secure_digest_seconds": 0.0753573475
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223464425,
+      "secure_digest_seconds": 0.07534783
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223512425,
+      "secure_digest_seconds": 0.0753548
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223521525,
+      "secure_digest_seconds": 0.07535415
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223630975,
+      "secure_digest_seconds": 0.075357405
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223751475,
+      "secure_digest_seconds": 0.075365275
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223639375,
+      "secure_digest_seconds": 0.0753601175
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.12236217,
+      "secure_digest_seconds": 0.07534236
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223439975,
+      "secure_digest_seconds": 0.0753502475
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.12234733,
+      "secure_digest_seconds": 0.075348875
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.12233879,
+      "secure_digest_seconds": 0.0753420425
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122366685,
+      "secure_digest_seconds": 0.07535999
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.12235585,
+      "secure_digest_seconds": 0.0753575
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223435375,
+      "secure_digest_seconds": 0.0753478875
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223535625,
+      "secure_digest_seconds": 0.0753521625
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223532375,
+      "secure_digest_seconds": 0.075351735
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223460875,
+      "secure_digest_seconds": 0.075345875
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.12235498,
+      "secure_digest_seconds": 0.0753539875
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122344965,
+      "secure_digest_seconds": 0.07534998
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.12234455,
+      "secure_digest_seconds": 0.075351495
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223549625,
+      "secure_digest_seconds": 0.07535731
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122360565,
+      "secure_digest_seconds": 0.0753604475
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223510625,
+      "secure_digest_seconds": 0.075356585
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223402275,
+      "secure_digest_seconds": 0.0753447925
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122361395,
+      "secure_digest_seconds": 0.075359035
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223479875,
+      "secure_digest_seconds": 0.0753506975
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223460825,
+      "secure_digest_seconds": 0.075350715
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223610375,
+      "secure_digest_seconds": 0.0753538225
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223506875,
+      "secure_digest_seconds": 0.0753539075
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223536075,
+      "secure_digest_seconds": 0.07535593
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122342415,
+      "secure_digest_seconds": 0.075347055
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223619525,
+      "secure_digest_seconds": 0.07535342
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122349285,
+      "secure_digest_seconds": 0.07535019
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.12236438,
+      "secure_digest_seconds": 0.0753518
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.12235888,
+      "secure_digest_seconds": 0.075365785
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122358425,
+      "secure_digest_seconds": 0.07535799
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122354095,
+      "secure_digest_seconds": 0.0753571
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223466125,
+      "secure_digest_seconds": 0.0753529475
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223569125,
+      "secure_digest_seconds": 0.075357615
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1223455725,
+      "secure_digest_seconds": 0.0753496425
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122352865,
+      "secure_digest_seconds": 0.07535479
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122349035,
+      "secure_digest_seconds": 0.07535695
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122351265,
+      "secure_digest_seconds": 0.075352665
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1224417375,
+      "secure_digest_seconds": 0.075359715
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1224332275,
+      "secure_digest_seconds": 0.0753470325
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1224387275,
+      "secure_digest_seconds": 0.075352675
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1224407025,
+      "secure_digest_seconds": 0.0753530525
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.12243918,
+      "secure_digest_seconds": 0.07536091
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122447235,
+      "secure_digest_seconds": 0.0753589225
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1224378825,
+      "secure_digest_seconds": 0.075352575
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1224401025,
+      "secure_digest_seconds": 0.0753535875
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1224620575,
+      "secure_digest_seconds": 0.075359935
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1224929975,
+      "secure_digest_seconds": 0.075351975
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.12243351,
+      "secure_digest_seconds": 0.0753495575
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122439805,
+      "secure_digest_seconds": 0.0753526925
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122429675,
+      "secure_digest_seconds": 0.07534744
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.12245982,
+      "secure_digest_seconds": 0.07536405
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.12243093,
+      "secure_digest_seconds": 0.07534996
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1224317175,
+      "secure_digest_seconds": 0.0753511125
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122447955,
+      "secure_digest_seconds": 0.0753537275
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.12243421,
+      "secure_digest_seconds": 0.07535229
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1224439725,
+      "secure_digest_seconds": 0.0753452625
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1224361725,
+      "secure_digest_seconds": 0.075347725
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1224621575,
+      "secure_digest_seconds": 0.0753696775
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1224603525,
+      "secure_digest_seconds": 0.075358025
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.12246439,
+      "secure_digest_seconds": 0.0753596025
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1224412475,
+      "secure_digest_seconds": 0.0753565575
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.122445925,
+      "secure_digest_seconds": 0.07535065
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 786432,
+      "elapsed_seconds": 0.1224549575,
+      "secure_digest_seconds": 0.0753530775
+    }
+  ],
+  "runtime_admission": false,
+  "scope": "Clock/digest observations up to the last emitted secure marker; later untraced work is excluded. Late completion is not accepted."
+}

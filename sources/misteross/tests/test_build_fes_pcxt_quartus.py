@@ -1,5 +1,6 @@
 """Quartus package gates must preserve timing failures and artifact identity."""
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,8 @@ import unittest
 from unittest import mock
 from scripts import build_fes_pcxt_quartus as producer
 from scripts.quartus_tools import QuartusLock, load_quartus_lock
+from scripts import export_core_package as export
+from scripts.input_identity import identities, with_identities
 from scripts.export_core_package import build_identity, encode_build_record, _validate_build_record
 
 
@@ -21,7 +24,10 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                     'hdmi_i2c': 'cyclonev_hps_interface_peripheral_i2c',
                     'fes_computer_runtime_hps_gp': 'cyclonev_hps_interface_mpu_general_purpose'}},
                 'profile': {'HALF_RATE_BOARD': 0, 'ENABLE_FES_COMPUTER': 1,
-                            'ENABLE_PCXT_MEDIA': 1, 'ENABLE_PCXT_FLOPPY_WRITE': 0, 'HARDWARE_DOS': 0}, 'runs': [{
+                            'ENABLE_PCXT_MEDIA': 1, 'ENABLE_PCXT_FLOPPY_WRITE': 1, 'HARDWARE_DOS': 1},
+                'audio_binding': {'chains': [{}, {}, {}, {}]},
+                'audio_proof_log_sha256': 'a' * 64, 'runs': [{
+                    'audio_clock': 'audio', 'audio_interstage': [{}] * 32, 'audio_payload': [{}],
                     'seed': 1, 'capture_complete': True, 'reported_endpoint_checks_pass': True,
                     'minimum_pulse_width': {str(c): {'failures': 0} for c in range(4)},
                     'mailbox_interstage': [{'slack_ns': '0.123'} for _ in range(24)],
@@ -40,9 +46,9 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                      lambda s: s['profile'].update(HALF_RATE_BOARD=1),
                      lambda s: s['profile'].update(ENABLE_PCXT_MEDIA=0),
                      lambda s: s['profile'].pop('ENABLE_PCXT_MEDIA'),
-                     lambda s: s['profile'].update(ENABLE_PCXT_FLOPPY_WRITE=1),
+                     lambda s: s['profile'].update(ENABLE_PCXT_FLOPPY_WRITE=0),
                      lambda s: s['profile'].pop('ENABLE_PCXT_FLOPPY_WRITE'),
-                     lambda s: s['profile'].update(HARDWARE_DOS=1),
+                     lambda s: s['profile'].update(HARDWARE_DOS=0),
                      lambda s: s['profile'].pop('HARDWARE_DOS'),
                      lambda s: s.update(video_mailbox_contract=False),
                      lambda s: s['runs'].clear()]
@@ -60,32 +66,31 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         summary['audio_binding'] = {'chains': [{}, {}, {}, {}]}
         summary['audio_proof_log_sha256'] = 'a' * 64
         summary['runs'][0].update(audio_clock='audio', audio_interstage=[{}] * 32, audio_payload=[{}])
-        producer.require_timing(summary, [1], dos_profile=True)
+        producer.require_timing(summary, [1])
         for key in ('audio_clock', 'audio_interstage', 'audio_payload'):
             broken = copy.deepcopy(summary)
             broken['runs'][0].pop(key)
             with self.assertRaises(producer.BuildError):
-                producer.require_timing(broken, [1], dos_profile=True)
+                producer.require_timing(broken, [1])
         broken = copy.deepcopy(summary); broken.pop('audio_proof_log_sha256')
         with self.assertRaises(producer.BuildError):
-            producer.require_timing(broken, [1], dos_profile=True)
+            producer.require_timing(broken, [1])
         broken = copy.deepcopy(summary); broken.pop('audio_binding')
         with self.assertRaises(producer.BuildError):
-            producer.require_timing(broken, [1], dos_profile=True)
+            producer.require_timing(broken, [1])
         summary['profile']['ENABLE_PCXT_FLOPPY_WRITE'] = 0
         with self.assertRaises(producer.BuildError):
-            producer.require_timing(summary, [1], dos_profile=True)
-        summary['profile']['ENABLE_PCXT_FLOPPY_WRITE'] = 1
-        with self.assertRaises(producer.BuildError):
             producer.require_timing(summary, [1])
+        summary['profile']['ENABLE_PCXT_FLOPPY_WRITE'] = 1
+        producer.require_timing(summary, [1])
 
         summary['profile']['HARDWARE_DOS'] = 0
         with self.assertRaises(producer.BuildError):
-            producer.require_timing(summary, [1], dos_profile=True)
+            producer.require_timing(summary, [1])
         summary['profile']['HARDWARE_DOS'] = 1
         summary['profile']['ENABLE_PCXT_MEDIA'] = 0
         with self.assertRaises(producer.BuildError):
-            producer.require_timing(summary, [1], dos_profile=True)
+            producer.require_timing(summary, [1])
 
     def test_dos_assets_match_redistribution_provenance_locks(self):
         metadata, font = producer.dos_assets(producer.ROOT)
@@ -93,12 +98,14 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                          '140a2d0a507f7452790e73416dd4dab2c66a89e09a71e26b2ca8f95d1f3c5e5c')
         self.assertEqual([source['license'] for source in metadata['floppy']['sources']],
                          ['GPL-2.0-or-later', 'GPL-2.0'])
+        self.assertEqual(metadata['font']['license'], 'Public domain')
+        self.assertIn("Joseph Gil's fntcol16", metadata['font']['source'])
         self.assertEqual(len(font), 4096)
         record = producer.create_build_record(
             producer.ROOT, 'https://github.com/DeanoC/fes.git', 'a' * 40,
             {'quartus': 'pinned', 'yosys': 'pinned'},
             execution={'toolchain': 'quartus', 'files': {}},
-            core_id='fes.pcxt-dos', dos_profile=True)
+            identity_version=2)
         parameters = json.loads(record)['parameters']
         self.assertNotIn('freedos_image_sha256', parameters)
         self.assertEqual(parameters['glabios_rom_sha256'], metadata['bios']['sha256'])
@@ -106,14 +113,14 @@ class PCXTQuartusPackageTests(unittest.TestCase):
     def test_dos_resolver_and_producer_use_the_same_record(self):
         registry = tomllib.loads((producer.ROOT.parents[1] / 'config/core-recipes.toml').read_text())
         recipe = next(r for r in registry['recipes'] if r['core_id'] == 'fes.pcxt-dos')
-        options = recipe['producer_options']
-        self.assertEqual(options, {'dos_profile': True})
+        options = recipe.get('producer_options', {})
+        self.assertEqual(options, {})
         arguments = (producer.ROOT, 'https://github.com/DeanoC/fes.git', 'a' * 40,
                      {'quartus': 'pinned', 'yosys': 'pinned'})
         execution = {'toolchain': 'quartus', 'files': {}}
         resolver = producer.create_build_record(*arguments, execution=execution, **options)
         builder = producer.create_build_record(*arguments, execution=execution,
-                                                core_id='fes.pcxt-dos', dos_profile=True)
+                                                identity_version=2)
         self.assertEqual(resolver, builder)
         parameters = json.loads(resolver)['parameters']
         self.assertEqual(parameters['core_id'], 'fes.pcxt-dos')
@@ -123,9 +130,8 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         with mock.patch.object(producer, 'require_clean_source', return_value=('repo', 'a' * 40)) as clean:
             producer._require_clean_source(producer.ROOT, identity_version=2, **options)
             clean.assert_called_once()
-        with self.assertRaisesRegex(producer.BuildError, 'core ID'):
-            producer.create_build_record(*arguments, execution=execution,
-                                         core_id='fes.pcxt', dos_profile=True)
+        with self.assertRaises(TypeError):
+            producer.create_build_record(*arguments, execution=execution, dos_profile=False)
 
     def authenticate_with_fakes(self, directory, *, recipe_version=None, lock=None):
         yosys = Path(directory) / 'yosys'
@@ -147,12 +153,53 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         locate.assert_called_once_with('/quartus', producer.ROOT, lock)
         return tools, quartus_sh, yosys
 
+    def test_cache_yosys_is_the_held_install_of_the_pcxt_toolchain_lock(self):
+        from types import SimpleNamespace
+        from scripts import toolchain_cache
+        from scripts.lockfile import load_lock
+        lock = load_quartus_lock(producer.ROOT, producer.LOCK)
+        # The Quartus lock pins the binary of the Yosys toolchain.lock pins.
+        self.assertEqual(load_lock(producer.ROOT / producer.TOOLCHAIN_LOCK)['yosys'].commit, lock.yosys_commit)
+        line = 'Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition'
+        with tempfile.TemporaryDirectory() as directory:
+            yosys = Path(directory) / 'yosys'
+            yosys.write_text('locked yosys')
+            quartus_sh = Path(directory) / 'quartus_sh'
+            quartus_sh.write_text('locked quartus')
+            hashes = {yosys.resolve(): lock.yosys_sha256, quartus_sh.resolve(): 'q' * 64}
+            environment = {name: value for name, value in os.environ.items() if name != 'FES_PCXT_YOSYS'}
+            environment['QUARTUS_ROOTDIR'] = '/quartus'
+            with mock.patch.dict(os.environ, environment, clear=True), \
+                    mock.patch.object(producer, 'locate_quartus', return_value=(Path('/quartus'), quartus_sh, line)), \
+                    mock.patch.object(producer, 'selected_recipe', return_value={'quartus': {'version': line}}), \
+                    mock.patch.object(producer, 'sha', side_effect=lambda p: hashes[Path(p).resolve()]), \
+                    mock.patch.object(producer.subprocess, 'check_output',
+                                      return_value=f'Yosys 0.47 (git sha1 {lock.yosys_commit[:9]}, clang)\n'), \
+                    mock.patch.object(toolchain_cache, 'request_from_environment', return_value='request') as request, \
+                    mock.patch.object(toolchain_cache, 'resolve_install',
+                                      return_value=SimpleNamespace(binary=yosys)) as resolve:
+                tools = producer.authenticate_tools(producer.ROOT, cache_root=Path(directory) / 'cache')
+                self.assertEqual(tools['yosys'].path, yosys.resolve())
+                request.assert_called_once_with(producer.ROOT, producer.ROOT / producer.TOOLCHAIN_LOCK,
+                                                cache_root=Path(directory) / 'cache', gpu_router='OFF',
+                                                tool='yosys')
+                resolve.assert_called_once_with('request', 'yosys', binary_sha256=lock.yosys_sha256)
+                # An install whose binary is not the one quartus.lock pins is refused.
+                hashes[yosys.resolve()] = 'e' * 64
+                with self.assertRaisesRegex(producer.BuildError, f"sha256 {'e' * 64}, but quartus.lock pins"):
+                    producer.authenticate_tools(producer.ROOT, cache_root=Path(directory) / 'cache')
+                resolve.side_effect = toolchain_cache.CacheError('yosys install is not ready')
+                with self.assertRaisesRegex(producer.BuildError, 'PC/XT Yosys install is not ready'):
+                    producer.authenticate_tools(producer.ROOT, cache_root=Path(directory) / 'cache')
+
     def test_locked_tool_identities_and_labels_match_the_lite_baseline(self):
         lock = load_quartus_lock(producer.ROOT, producer.LOCK)
         self.assertEqual((lock.release, lock.series, lock.qsf_version, lock.compiler, lock.product),
                          ('17.0.2', '17.0', '17.0.2 Lite Edition', 'quartus-17.0.2', 'Quartus Prime Lite 17.0.2'))
         self.assertEqual(lock.version, 'Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition')
         self.assertEqual(lock.yosys_commit, '3a5accbd78c526ab7bae32640044a2e062a3cfc9')
+        self.assertEqual(lock.yosys_sha256,
+                         'a17b4c8aeac5373dba86faa67124456834c585924503457387631408f84549f8')
         with tempfile.TemporaryDirectory() as directory:
             tools, quartus_sh, yosys = self.authenticate_with_fakes(directory)
         self.assertEqual(tools['quartus'], producer.Tool(
@@ -278,13 +325,93 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertEqual(fields['toolchain'], 'quartus')
         self.assertNotIn('gpu_device', fields['parameters'])
         self.assertTrue(fields['parameters']['enable_pcxt_media'])
-        self.assertFalse(fields['parameters']['enable_pcxt_floppy_write'])
+        self.assertTrue(fields['parameters']['enable_pcxt_floppy_write'])
         before = build_identity(record)
-        fields.pop('toolchain')
-        self.assertNotEqual(build_identity(encode_build_record(fields)), before)
+        # `toolchain` is excluded from the design projection, so dropping it must
+        # leave the design identity alone and move only the toolchain one. The
+        # claim is about the projection, so it is asserted on the projection:
+        # round-tripping through encode_build_record() would also re-run record
+        # shape rules that have nothing to do with it -- among them the #1806
+        # rule that only a Quartus record may name a front end, which a record
+        # with no `toolchain` field necessarily breaks.
+        recorded = json.loads(record)['identities']
+        # BUILD_ID *is* the design identity, truncated: the DeanoC/fes#1878 outcome.
+        self.assertEqual(before, recorded['design'][:32])
+        without_toolchain = {key: value for key, value in fields.items() if key != 'toolchain'}
+        self.assertEqual(identities(without_toolchain)['design'], recorded['design'])
+        self.assertNotEqual(identities(without_toolchain)['toolchain'], recorded['toolchain'])
         fields['toolchain'] = 'oss'
         with self.assertRaisesRegex(ValueError, 'toolchain'):
             _validate_build_record(fields)
+
+    def test_one_qsf_digest_covers_every_seed(self):
+        # The recorded QSF leaves out the SEED line, so a signoff's per-seed
+        # QSFs all reduce to the one digest the record carries (#1581 S7).
+        canonical = producer.board.canonical_project_qsf(producer.ROOT, 2)
+        self.assertNotIn(producer.board.SEED_ASSIGNMENT, canonical)
+        for seed in (1, 2, 3):
+            with self.subTest(seed=seed):
+                qsf = producer.board.project_qsf(producer.ROOT, seed, 2, package_profile=True,
+                                                 video_mailbox_contract=True)
+                self.assertIn(f'{producer.board.SEED_ASSIGNMENT}{seed}', qsf)
+                self.assertEqual(producer.board.without_seed(qsf), canonical)
+        with self.assertRaisesRegex(ValueError, 'exactly one SEED'):
+            producer.board.without_seed(canonical)
+
+    def test_one_program_digest_covers_both_runs_and_every_build_id(self):
+        # The recorded program places $SOURCE, $WORK and $YOSYS_LIB and a zeroed
+        # BUILD_ID, so the signoff and repeat runs, whose work trees differ,
+        # share one digest and the digest does not depend on the ID it derives.
+        canonical = producer.board.canonical_elaboration()
+        for root in (producer.board.SOURCE_ROOT, producer.board.WORK_ROOT, producer.board.LIBRARY_ROOT):
+            self.assertIn(root, canonical)
+        self.assertIn("128'h" + producer.board.CANONICAL_BUILD_ID, canonical)
+        library = Path('/opt/yosys/share/yosys/intel_alm/common/megafunction_bb.v')
+        for name in ('signoff', 'repeat'):
+            for build_id in ('0' * 31 + '1', 'f' * 32):
+                with self.subTest(run=name, build_id=build_id):
+                    source = Path(f'/tmp/attempt-xyz/{name}/source')
+                    work = Path(f'/tmp/attempt-xyz/{name}/elaboration')
+                    program = producer.board.executed_elaboration(
+                        source, work, library, build_id=build_id)
+                    self.assertIn("128'h" + build_id, program)
+                    self.assertNotIn(producer.board.SOURCE_ROOT, program)
+                    self.assertEqual(program, producer.board.elaboration(
+                        source, work, library, package_profile=True, build_id=build_id))
+
+    def test_an_elaboration_that_leaves_the_canonical_form_is_refused(self):
+        with mock.patch.object(producer.board, 'canonical_elaboration', return_value='read_verilog x\n'):
+            with self.assertRaisesRegex(ValueError, 'canonical form'):
+                producer.board.executed_elaboration(Path('/s'), Path('/w'), Path('/l'), build_id='a' * 32)
+
+    def test_the_record_binds_the_front_end_its_device_family_and_its_digests(self):
+        execution = {'toolchain': 'quartus', 'files': {}}
+        fields = json.loads(producer.create_build_record(
+            producer.ROOT, 'https://github.com/DeanoC/fes.git', 'a' * 40,
+            {'quartus': 'pinned quartus', 'yosys': 'pinned yosys'}, execution=execution))
+        parameters = fields['parameters']
+        self.assertEqual(parameters['front_end'], 'yosys')
+        self.assertEqual(parameters['device_family'], 'cyclonev')
+        self.assertEqual(parameters['front_end_program_sha256'], hashlib.sha256(
+            producer.board.canonical_elaboration(dos_profile=True).encode()).hexdigest())
+        self.assertEqual(parameters['quartus_qsf_sha256'], hashlib.sha256(
+            producer.board.canonical_project_qsf(
+                producer.ROOT, 2, dos_profile=True).encode()).hexdigest())
+        # The preserved raw diagnostic board is not the sealed DOS profile.
+        self.assertNotEqual(parameters['front_end_program_sha256'], hashlib.sha256(
+            producer.board.canonical_elaboration(dos_profile=False).encode()).hexdigest())
+        self.assertNotEqual(parameters['quartus_qsf_sha256'], hashlib.sha256(
+            producer.board.canonical_project_qsf(
+                producer.ROOT, 2, dos_profile=False).encode()).hexdigest())
+
+    def test_a_compiled_project_that_differs_from_the_record_is_refused(self):
+        identity = {'front_end': 'yosys', 'front_end_program_sha256': 'a' * 64,
+                    'quartus_qsf_sha256': 'b' * 64}
+        for name in identity:
+            with self.subTest(field=name):
+                summary = dict(identity, **{name: 'c' * 64}, status='diagnostic-captured')
+                with self.assertRaisesRegex(producer.BuildError, 'differs from the build record'):
+                    producer.require_timing(summary, [1], identity=identity)
 
     def test_package_uses_common_clock_pad_constraints_not_board50_packing(self):
         qsf = producer.board.project_qsf(producer.ROOT, 1, 2, package_profile=True)
@@ -330,30 +457,14 @@ class PCXTQuartusPackageTests(unittest.TestCase):
             producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
                                        producer.ROOT / 'unused-library', package_profile=True)
 
-    def test_manifest_declares_the_actual_media_enabled_identity(self):
-        record = producer.create_build_record(producer.ROOT, 'https://github.com/DeanoC/fes.git',
-            'a'*40, {'quartus': 'pinned', 'yosys': 'pinned'}, execution={'toolchain': 'quartus'})
-        with tempfile.TemporaryDirectory(prefix='pcxt-manifest-') as directory:
-            payload = Path(directory) / 'core.rbf'
-            payload.write_bytes(b'test diagnostic')
-            manifest = tomllib.loads(producer.manifest(record, payload).decode())
-        self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 1})
-        interfaces = {i['id']: i for i in manifest['interfaces']}
-        self.assertTrue(interfaces['fes.media.pcxt-floppy']['required'])
-        self.assertNotIn('fes.media.pcxt-floppy-write', interfaces)
-        self.assertTrue(interfaces['fes.video.fixed-720p60']['required'])
-
     def test_dos_manifest_declares_runtime_floppy(self):
         record = producer.create_build_record(producer.ROOT, 'https://github.com/DeanoC/fes.git',
             'a'*40, {'quartus': 'pinned', 'yosys': 'pinned'},
-            execution={'toolchain': 'quartus'}, dos_profile=True)
-        metadata = producer.dos_assets(producer.ROOT)[0]
+            execution={'toolchain': 'quartus'})
         with tempfile.TemporaryDirectory(prefix='pcxt-dos-manifest-') as directory:
             payload = Path(directory) / 'core.rbf'
             payload.write_bytes(b'test DOS')
-            manifest = tomllib.loads(producer.manifest(record, payload, dos_profile=True, metadata=metadata).decode())
-            with self.assertRaisesRegex(producer.BuildError, 'manifest profile'):
-                producer.manifest(record, payload)
+            manifest = tomllib.loads(producer.manifest(record, payload).decode())
         self.assertEqual(manifest['core']['id'], 'fes.pcxt-dos')
         self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 1})
         self.assertIn('image is optional', manifest['core']['description'])
@@ -368,10 +479,10 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='pcxt-manifest-negative-') as directory:
             payload = Path(directory) / 'core.rbf'
             payload.write_bytes(b'test DOS')
-            with self.assertRaisesRegex(producer.BuildError, 'manifest profile'):
-                producer.manifest(json.dumps(fields).encode(), payload, dos_profile=True, metadata=metadata)
-        self.assertIn('runtime floppy image is optional', producer.build_limits(True)[1])
-        self.assertNotIn('required', producer.build_limits(True)[1])
+            with self.assertRaisesRegex(producer.BuildError, 'requires the DOS'):
+                producer.manifest(json.dumps(fields).encode(), payload)
+        self.assertIn('runtime floppy image is optional', producer.build_limits()[1])
+        self.assertNotIn('required', producer.build_limits()[1])
 
     def test_yosys_bus_hold_rewrite_runs_after_deferred_hierarchy(self):
         program = producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
@@ -382,7 +493,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         bus_hold = program.index('setparam -set enable_bus_hold "FALSE" t:altiobuf_bidir;')
         self.assertLess(hierarchy, bus_hold)
 
-    def test_yosys_elaborates_diagnostic_and_dos_package_profiles(self):
+    def test_yosys_elaborates_diagnostic_and_dos_board_profiles(self):
         toolchain = tomllib.loads((producer.ROOT / 'cores/fes-pcxt/toolchain.lock').read_text())
         expected_sha = load_quartus_lock(producer.ROOT, producer.LOCK).yosys_sha256
         expected_commit = toolchain['tool']['yosys']['commit']
@@ -395,7 +506,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
             candidates.append(producer.ROOT / 'build/toolchain/fes-pcxt/bin/yosys')
             cache_root = os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT')
             if cache_root:
-                candidates.extend(sorted(Path(cache_root).glob('slots/*/install/bin/yosys')))
+                candidates.extend(sorted(Path(cache_root).glob('tools/yosys/*/install/bin/yosys')))
             system_yosys = shutil.which('yosys')
             if system_yosys:
                 candidates.append(Path(system_yosys))

@@ -1,0 +1,155 @@
+{
+  "records": [
+    {
+      "line": 91,
+      "phase": "loader_begin",
+      "ticks": 6895741711,
+      "hz": 400000000,
+      "el": 2,
+      "sctlr": 818219056
+    },
+    {
+      "line": 92,
+      "phase": "decode_begin",
+      "ticks": 6923440530,
+      "hz": 400000000,
+      "el": 2,
+      "sctlr": 818223157
+    },
+    {
+      "line": 93,
+      "phase": "inflate_end",
+      "ticks": 7385663902,
+      "hz": 400000000,
+      "el": 2,
+      "sctlr": 818223157
+    },
+    {
+      "line": 94,
+      "phase": "checksum_end",
+      "ticks": 7393052287,
+      "hz": 400000000,
+      "el": 2,
+      "sctlr": 818223157
+    },
+    {
+      "line": 95,
+      "phase": "decode_end",
+      "ticks": 7396581120,
+      "hz": 400000000,
+      "el": 2,
+      "sctlr": 818223157
+    },
+    {
+      "line": 96,
+      "phase": "copy_end",
+      "ticks": 7402863621,
+      "hz": 400000000,
+      "el": 2,
+      "sctlr": 818223157
+    },
+    {
+      "line": 97,
+      "phase": "handoff",
+      "ticks": 7420667488,
+      "hz": 400000000,
+      "el": 2,
+      "sctlr": 818219056
+    },
+    {
+      "line": 99,
+      "phase": "go_hwinit",
+      "ticks": 7429982673,
+      "hz": 400000000,
+      "el": 1,
+      "sctlr": 818944005
+    },
+    {
+      "line": 100,
+      "phase": "go_vectors",
+      "ticks": 7433410015,
+      "hz": 400000000,
+      "el": 1,
+      "sctlr": 818944005
+    },
+    {
+      "line": 101,
+      "phase": "go_main",
+      "ticks": 7440513825,
+      "hz": 400000000,
+      "el": 1,
+      "sctlr": 818944005
+    },
+    {
+      "line": 102,
+      "phase": "verifier_ready",
+      "ticks": 7444852660,
+      "hz": 400000000,
+      "el": 1,
+      "sctlr": 818944005
+    },
+    {
+      "line": 103,
+      "phase": "sd_open_begin",
+      "ticks": 7448450452,
+      "hz": 400000000,
+      "el": 1,
+      "sctlr": 818944005
+    },
+    {
+      "line": 104,
+      "phase": "sd_open_end",
+      "ticks": 7464520507,
+      "hz": 400000000,
+      "el": 1,
+      "sctlr": 818944005
+    },
+    {
+      "line": 105,
+      "phase": "fat_mount_end",
+      "ticks": 7477092751,
+      "hz": 400000000,
+      "el": 1,
+      "sctlr": 818944005
+    },
+    {
+      "line": 106,
+      "phase": "retain_begin",
+      "ticks": 7480657842,
+      "hz": 400000000,
+      "el": 1,
+      "sctlr": 818944005
+    },
+    {
+      "line": 107,
+      "phase": "retain_end",
+      "ticks": 29624080599,
+      "hz": 400000000,
+      "el": 1,
+      "sctlr": 818944005
+    }
+  ],
+  "errors": [],
+  "complete": true,
+  "rejected": false,
+  "last_checkpoint": "retain_end",
+  "timings_us": {
+    "loader_begin": 0,
+    "decode_begin": 69247,
+    "inflate_end": 1224805,
+    "checksum_end": 1243276,
+    "decode_end": 1252098,
+    "copy_end": 1267804,
+    "handoff": 1312314,
+    "go_hwinit": 1335602,
+    "go_vectors": 1344170,
+    "go_main": 1361930,
+    "verifier_ready": 1372777,
+    "sd_open_begin": 1381771,
+    "sd_open_end": 1421946,
+    "fat_mount_end": 1453377,
+    "retain_begin": 1462290,
+    "retain_end": 56820847
+  },
+  "core_load_acceptance": false
+}

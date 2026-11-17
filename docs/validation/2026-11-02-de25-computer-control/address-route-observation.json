@@ -1,0 +1,32 @@
+{
+  "classification": "source-only-address-route-observation",
+  "hardware_access_performed": false,
+  "package_id": "07b2d01003dc92e4993ba7f72761444ae801a1a005f87e0a1b65f9aad9dfeb7d",
+  "build_id": "d2435ab5d8221892162a1044d81dfb76",
+  "handoff_sha256": "9ebfd72f5a59417a73ae60b89826e7ee8eb0d05dfa360dc307339674792da06d",
+  "architectural_lw_base": 536870912,
+  "bridge_base": 0,
+  "peripheral_offset": 66304,
+  "span": 32,
+  "cpu_base": 536937216,
+  "physical_mmio": "not-qualified",
+  "runtime_admission": "not-granted",
+  "verified_reference_control": {
+    "architectural_lw_base": 536870912,
+    "bridge_base": 0,
+    "build_id": "d2435ab5d8221892162a1044d81dfb76",
+    "cpu_base": 536937472,
+    "fabric_stop": {
+      "maintenance": "held-reset-from-configuration",
+      "probe_cpu_base": 536936704,
+      "probe_span": 128,
+      "scope": "sealed-ddr-master-stop-v1"
+    },
+    "format": 1,
+    "handoff_sha256": "9ebfd72f5a59417a73ae60b89826e7ee8eb0d05dfa360dc307339674792da06d",
+    "package_id": "07b2d01003dc92e4993ba7f72761444ae801a1a005f87e0a1b65f9aad9dfeb7d",
+    "peripheral_offset": 66560,
+    "scope": "sealed-lw-identity-probe-v1",
+    "span": 256
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/full-sof-warm-files-restoration/run_restoration.py",
+    "--procedure-sha256",
+    "c34868fb09ff76d083e985960acd8b5073ebe08c4572c1e288e8ce67ee446dbf",
+    "--execute"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 283.7894255530555,
+  "log_sha256": "9d07e9843e6343c05bbf4bac675a9bdc236acb2689b7d39e245c5e36e1c55953"
+}

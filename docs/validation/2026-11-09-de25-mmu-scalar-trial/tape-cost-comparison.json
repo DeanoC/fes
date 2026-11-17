@@ -1,0 +1,128 @@
+{
+  "status": "terminal-sampled-cost-comparison",
+  "native_boot_id": "38c6b2fe551dcd88",
+  "prior_native_boot_id": "bd103b1a199bc2be",
+  "sample_rows": [
+    {
+      "family": "callback",
+      "kind": "guard",
+      "calls": 9,
+      "samples": 9,
+      "sampled_ticks": 1142682,
+      "sampled_mean_microseconds": 317.4116666666667,
+      "estimated_total_seconds": 0.002856705,
+      "source_line": "NOTICE:  FES_NANO_TAPE_COST owner=1af4129db5097eb5 generation=11 kind=guard calls=9 samples=9 period=1 ticks=116f9a max=1f440 clock_invalid=0 complete=0 hz=400000000"
+    },
+    {
+      "family": "callback",
+      "kind": "owns",
+      "calls": 14706,
+      "samples": 230,
+      "sampled_ticks": 5861349,
+      "sampled_mean_microseconds": 63.710315217391305,
+      "estimated_total_seconds": 0.9369238955869565,
+      "source_line": "NOTICE:  FES_NANO_TAPE_COST owner=1af4129db5097eb5 generation=11 kind=owns calls=14706 samples=230 period=64 ticks=596fe5 max=64e6 clock_invalid=0 complete=0 hz=400000000"
+    },
+    {
+      "family": "callback",
+      "kind": "read",
+      "calls": 6915,
+      "samples": 109,
+      "sampled_ticks": 20001,
+      "sampled_mean_microseconds": 0.45873853211009175,
+      "estimated_total_seconds": 0.0031721769495412847,
+      "source_line": "NOTICE:  FES_NANO_TAPE_COST owner=1af4129db5097eb5 generation=11 kind=read calls=6915 samples=109 period=64 ticks=4e21 max=14a clock_invalid=0 complete=0 hz=400000000"
+    },
+    {
+      "family": "callback",
+      "kind": "write",
+      "calls": 431,
+      "samples": 7,
+      "sampled_ticks": 113,
+      "sampled_mean_microseconds": 0.040357142857142855,
+      "estimated_total_seconds": 1.739392857142857e-05,
+      "source_line": "NOTICE:  FES_NANO_TAPE_COST owner=1af4129db5097eb5 generation=11 kind=write calls=431 samples=7 period=64 ticks=71 max=11 clock_invalid=0 complete=0 hz=400000000"
+    },
+    {
+      "family": "callback",
+      "kind": "barrier",
+      "calls": 7346,
+      "samples": 115,
+      "sampled_ticks": 63233,
+      "sampled_mean_microseconds": 1.3746304347826084,
+      "estimated_total_seconds": 0.010098035173913042,
+      "source_line": "NOTICE:  FES_NANO_TAPE_COST owner=1af4129db5097eb5 generation=11 kind=barrier calls=7346 samples=115 period=64 ticks=f701 max=230 clock_invalid=0 complete=0 hz=400000000"
+    },
+    {
+      "family": "callback",
+      "kind": "image",
+      "calls": 4,
+      "samples": 4,
+      "sampled_ticks": 250661,
+      "sampled_mean_microseconds": 156.66312499999998,
+      "estimated_total_seconds": 0.0006266525,
+      "source_line": "NOTICE:  FES_NANO_TAPE_COST owner=1af4129db5097eb5 generation=11 kind=image calls=4 samples=4 period=1 ticks=3d325 max=111cd clock_invalid=0 complete=0 hz=400000000"
+    },
+    {
+      "family": "callback",
+      "kind": "hash",
+      "calls": 1,
+      "samples": 1,
+      "sampled_ticks": 173181,
+      "sampled_mean_microseconds": 432.95250000000004,
+      "estimated_total_seconds": 0.0004329525,
+      "source_line": "NOTICE:  FES_NANO_TAPE_COST owner=1af4129db5097eb5 generation=11 kind=hash calls=1 samples=1 period=1 ticks=2a47d max=2a47d clock_invalid=0 complete=0 hz=400000000"
+    },
+    {
+      "family": "ownership-part",
+      "kind": "before",
+      "calls": 14706,
+      "samples": 230,
+      "sampled_ticks": 1784803,
+      "sampled_mean_microseconds": 19.40003260869565,
+      "estimated_total_seconds": 0.2852968795434782,
+      "source_line": "NOTICE:  FES_NANO_TAPE_OWNERSHIP_COST owner=1af4129db5097eb5 generation=11 kind=before samples=230 period=64 ticks=1b3be3 max=1e7b clock_invalid=0 complete=0 hz=400000000 parent_calls=14706 parent_samples=230"
+    },
+    {
+      "family": "ownership-part",
+      "kind": "usb",
+      "calls": 14706,
+      "samples": 230,
+      "sampled_ticks": 1597786,
+      "sampled_mean_microseconds": 17.367239130434783,
+      "estimated_total_seconds": 0.2554026186521739,
+      "source_line": "NOTICE:  FES_NANO_TAPE_OWNERSHIP_COST owner=1af4129db5097eb5 generation=11 kind=usb samples=230 period=64 ticks=18615a max=1bef clock_invalid=0 complete=0 hz=400000000 parent_calls=14706 parent_samples=230"
+    },
+    {
+      "family": "ownership-part",
+      "kind": "registers",
+      "calls": 14706,
+      "samples": 230,
+      "sampled_ticks": 61509,
+      "sampled_mean_microseconds": 0.6685760869565217,
+      "estimated_total_seconds": 0.00983207993478261,
+      "source_line": "NOTICE:  FES_NANO_TAPE_OWNERSHIP_COST owner=1af4129db5097eb5 generation=11 kind=registers samples=230 period=64 ticks=f045 max=246 clock_invalid=0 complete=0 hz=400000000 parent_calls=14706 parent_samples=230"
+    },
+    {
+      "family": "ownership-part",
+      "kind": "after",
+      "calls": 14706,
+      "samples": 230,
+      "sampled_ticks": 1783783,
+      "sampled_mean_microseconds": 19.388945652173913,
+      "estimated_total_seconds": 0.28513383476086956,
+      "source_line": "NOTICE:  FES_NANO_TAPE_OWNERSHIP_COST owner=1af4129db5097eb5 generation=11 kind=after samples=230 period=64 ticks=1b37e7 max=1e5f clock_invalid=0 complete=0 hz=400000000 parent_calls=14706 parent_samples=230"
+    }
+  ],
+  "prior_ownership_mean_microseconds": 67.16024553571428,
+  "ownership_mean_microseconds": 63.710315217391305,
+  "ownership_sample_mean_reduction_fraction": 0.051368637663606886,
+  "mmu_mutable_state_unchanged": true,
+  "scope_wrapper_stack_bytes": 0,
+  "remaining_live_scope_stack_bytes": 144,
+  "remaining_observer_stack_bytes": 112,
+  "observation": "The compiled observer holds ten fresh system-register values across fes_nano_cold_cpu_release_locked, saving/restoring x19 through x28 plus a112-byte frame on the NC stack. Scope itself also uses a144-byte frame. These are inspection targets; this does not prove the benefit of another change.",
+  "limitation": "Systematic one-in64 samples include instrumentation and are not exhaustive timings. The same512/917 completed chunk progress was observed; no extra completed tape payload is claimed. The failing clock/poll branch is not recorded.",
+  "ordinary_core_load_acceptance": false,
+  "goal_complete": false
+}

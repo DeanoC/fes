@@ -1,0 +1,300 @@
+{
+  "status": "passed",
+  "passed": true,
+  "complete": true,
+  "implementation_commit": "1f29d152b",
+  "operator_source_commit": "918b5bfc3",
+  "scope": "All six selected software checks; docs-only procedure commit does not change production source or prepared native SDK",
+  "plan": {
+    "format": 1,
+    "root": "/home/deano/fes/out/dev/de25-embedded-os",
+    "base": "9825421246b76197c20cb54ae3a1897b957f7617",
+    "head": "1f29d152b236d95695b1cbe64464877d2a590f14",
+    "checkout_head": "1f29d152b236d95695b1cbe64464877d2a590f14",
+    "merge_base": "9825421246b76197c20cb54ae3a1897b957f7617",
+    "local_paths": [],
+    "impact": {
+      "lanes": {
+        "parent": true,
+        "host": false,
+        "runtime": false,
+        "contracts": false,
+        "fpga": false
+      },
+      "skipped": [
+        "host",
+        "runtime",
+        "contracts",
+        "fpga"
+      ],
+      "cores": [],
+      "test_modes": {
+        "video": false,
+        "media": false,
+        "full_race": false
+      },
+      "paths": [
+        "platform/embedded/nano/fat_file_readback.py",
+        "platform/embedded/nano/sd_scratch_readback.py",
+        "tests/test_nano_fat_file_readback.py"
+      ],
+      "reasons": [
+        "platform/embedded/nano/fat_file_readback.py: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/nano/sd_scratch_readback.py: parent orchestration/tests/assembly; component sources unchanged",
+        "tests/test_nano_fat_file_readback.py: parent orchestration/tests/assembly; component sources unchanged"
+      ],
+      "always": [
+        "planner tests",
+        "diff whitespace checks"
+      ],
+      "not_run": [
+        "FPGA synthesis/place-and-route",
+        "cold image builds",
+        "hardware acceptance"
+      ]
+    },
+    "commands": [
+      {
+        "lane": "always",
+        "label": "test_affected.py",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_affected.py",
+          "-v"
+        ],
+        "tools": [
+          "/usr/bin/python3"
+        ],
+        "files": [
+          "tests/test_affected.py"
+        ]
+      },
+      {
+        "lane": "always",
+        "label": "test_test_changed.py",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_test_changed.py",
+          "-v"
+        ],
+        "tools": [
+          "/usr/bin/python3"
+        ],
+        "files": [
+          "tests/test_test_changed.py"
+        ]
+      },
+      {
+        "lane": "always",
+        "label": "committed whitespace",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/check_diff.py",
+          "--base",
+          "9825421246b76197c20cb54ae3a1897b957f7617",
+          "--head",
+          "1f29d152b236d95695b1cbe64464877d2a590f14"
+        ],
+        "tools": [
+          "/usr/bin/python3"
+        ],
+        "files": []
+      },
+      {
+        "lane": "always",
+        "label": "working whitespace",
+        "cwd": ".",
+        "argv": [
+          "git",
+          "diff",
+          "--check",
+          "HEAD",
+          "--"
+        ],
+        "tools": [
+          "git"
+        ],
+        "files": []
+      },
+      {
+        "lane": "parent",
+        "label": "parent Python regressions",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/parent_tests.py",
+          "--video",
+          "false",
+          "--media",
+          "false",
+          "--paths-json",
+          "[\"platform/embedded/nano/fat_file_readback.py\", \"platform/embedded/nano/sd_scratch_readback.py\", \"tests/test_nano_fat_file_readback.py\"]"
+        ],
+        "tools": [
+          "/usr/bin/python3",
+          "sh"
+        ],
+        "files": [
+          "scripts/parent_tests.py",
+          "tests"
+        ]
+      },
+      {
+        "lane": "parent",
+        "label": "working-tree generated consumer consistency",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "-c",
+          "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+        ],
+        "tools": [
+          "/usr/bin/python3",
+          "go"
+        ],
+        "files": [
+          "scripts/consistency.py"
+        ]
+      }
+    ],
+    "limits": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance",
+      "platform/image packaging suite",
+      "required browser integration suite",
+      "committed-source/release validation (make check remains separate)"
+    ],
+    "status": "planned"
+  },
+  "results": [
+    {
+      "label": "test_affected.py",
+      "result": {
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_affected.py",
+          "-v"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 0.2007999080233276,
+        "log_sha256": "0019dc7df8ed273d318dc348aac52bdf77cbcb87c6acf5ede396f5fc4aeeb947"
+      }
+    },
+    {
+      "label": "test_test_changed.py",
+      "result": {
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_test_changed.py",
+          "-v"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 1.2010941440239549,
+        "log_sha256": "76140c3fe8095d0b140e14a147f0a97de9fe22b67d8ecb3211483909ddcac580"
+      }
+    },
+    {
+      "label": "committed whitespace",
+      "result": {
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/check_diff.py",
+          "--base",
+          "9825421246b76197c20cb54ae3a1897b957f7617",
+          "--head",
+          "1f29d152b236d95695b1cbe64464877d2a590f14"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 0.20056793000549078,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "label": "working whitespace",
+      "result": {
+        "argv": [
+          "git",
+          "diff",
+          "--check",
+          "HEAD",
+          "--"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 0.2009973528329283,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "label": "parent Python regressions",
+      "result": {
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/parent_tests.py",
+          "--video",
+          "false",
+          "--media",
+          "false",
+          "--paths-json",
+          "[\"platform/embedded/nano/fat_file_readback.py\", \"platform/embedded/nano/sd_scratch_readback.py\", \"tests/test_nano_fat_file_readback.py\"]"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 348.4112056940794,
+        "log_sha256": "69af091a367f6f9e76677402faad70c5681f97ac81b69dd04da1559cc9659a61"
+      }
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "result": {
+        "argv": [
+          "/usr/bin/python3",
+          "-c",
+          "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 6.20367342303507,
+        "log_sha256": "0d3b9149ecd3c2180968462d0aaef1844c3af5a5185fce2b0ed1c02ec490ea89"
+      }
+    }
+  ],
+  "hardware_actions": false
+}

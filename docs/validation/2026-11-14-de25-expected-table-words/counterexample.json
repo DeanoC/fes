@@ -1,0 +1,71 @@
+{
+  "status": "passed-same-fixture-previous-and-current-word-cost-control",
+  "models": {
+    "previous": {
+      "source_sha256": "339f544880b45588a7dbb579277650533ec326d20ff34d69c5e3ff68b835ae5f",
+      "cases": {
+        "0": {
+          "status": "passed",
+          "cost_us": 0,
+          "prepared": 1,
+          "error": 0,
+          "calls": 15360,
+          "words": 15360,
+          "largest": 1,
+          "elapsed_us": 981,
+          "register_writes": 4,
+          "previous_unchanged": true,
+          "hardware_actions": false
+        },
+        "140": {
+          "status": "passed",
+          "cost_us": 140,
+          "prepared": 0,
+          "error": -110,
+          "calls": 7168,
+          "words": 7168,
+          "largest": 1,
+          "elapsed_us": 985806,
+          "register_writes": 0,
+          "previous_unchanged": true,
+          "hardware_actions": false
+        }
+      }
+    },
+    "current": {
+      "source_sha256": "32be42ec3bbbc148b6a28b10f12882253603fe41cd356ee467eba62d38b077db",
+      "cases": {
+        "0": {
+          "status": "passed",
+          "cost_us": 0,
+          "prepared": 1,
+          "error": 0,
+          "calls": 480,
+          "words": 15360,
+          "largest": 32,
+          "elapsed_us": 981,
+          "register_writes": 4,
+          "previous_unchanged": true,
+          "hardware_actions": false
+        },
+        "140": {
+          "status": "passed",
+          "cost_us": 140,
+          "prepared": 1,
+          "error": 0,
+          "calls": 480,
+          "words": 15360,
+          "largest": 32,
+          "elapsed_us": 68181,
+          "register_writes": 4,
+          "previous_unchanged": true,
+          "hardware_actions": false
+        }
+      }
+    }
+  },
+  "fixture_sha256": "e62902bdbd4adb898577f096bce23d79e07fd019037f052961d84eccf1eaef58",
+  "physical_timing_attribution": false,
+  "hardware_actions": false,
+  "firmware_image_built": false
+}

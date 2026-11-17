@@ -6,11 +6,12 @@ Path convention: `M/` means `sources/misteross/`. These are at the repo root: `s
 
 ## Implementation status
 
-As of 11 November 2026:
+As of 13 November 2026:
 
 - S1a–S1d have validation records: [parse census](../validation/2026-11-10-1581-parse-census/README.md) ([#1632](https://github.com/DeanoC/fes/pull/1632)), [Pro probe](../validation/2026-11-10-1581-pro-probe/README.md) ([#1628](https://github.com/DeanoC/fes/pull/1628)), [Quartus-netlist simulation feasibility](../validation/2026-11-10-1581-netlist-sim/README.md) ([#1633](https://github.com/DeanoC/fes/pull/1633)) and [MLAB inference](../validation/2026-11-10-1581-mlab-inference/README.md) ([#1630](https://github.com/DeanoC/fes/pull/1630)). These records report each spike's results and limits; their completion does not by itself approve a native lane.
 - S2's return-stack change landed in [#1638](https://github.com/DeanoC/fes/pull/1638). S3's i386 simulation Verilator lock landed in [#1653](https://github.com/DeanoC/fes/pull/1653); the separate pc386 lock update is open in [#1680](https://github.com/DeanoC/fes/pull/1680).
 - S6a's per-core Quartus Lite locks landed in [#1652](https://github.com/DeanoC/fes/pull/1652). D2's i386 Yosys lock change landed in [#1664](https://github.com/DeanoC/fes/pull/1664).
+- S4's shared Yosys netlist helper landed in [#1758](https://github.com/DeanoC/fes/pull/1758), and S5's pc386 lockstep producer gate in [#1782](https://github.com/DeanoC/fes/pull/1782). S6b's DE25 Pro lock is on main.
 - D12's closure-only BUILD_ID rule landed in [#1649](https://github.com/DeanoC/fes/pull/1649). The binding rule and required evidence are in [AGENTS.md](../../AGENTS.md#hard-rules).
 
 ## Summary
@@ -26,25 +27,25 @@ The issue also asks for a portability header, a primitives library, the front en
 **The area audit removed most of the original reason for this work.** PR #1584 measured the Yosys route against Quartus:
 
 - When `parallel_case` is honoured, synthesis is identical: 56,331 ALUTs, 32,350 registers, 36,751 ALMs, and a byte-identical timing summary (`docs/validation/2026-11-08-i386-area-audit/summary.md:27-38`, `:186`).
-- A flattened fit and a per-module fit differ by 43 ALMs. The audit says "One-hot muxes come out the same either way" (`summary.md:182-200`).
-- The one large loss was the variable-index TLB write. That was a plain RTL change and has **already landed** as `63a186d9e i386 TLB: load each entry under its own enable (-914 ALMs; main routes at seed 1) (#1587)` (`M/cores/fes-common/rtl/i386/fes_i386_tlb.sv:72-80`). It saved 914 ALMs: the seal uses 36,225 against main's 37,139 at seed 2, because main fails seed 1, and fit-to-fit noise is about ±200 (`docs/validation/2026-11-09-i386-tlb-write-enable/summary.md:16-21`). That agrees with the audit's −500 whole-fit and −744 CPU figures (`summary.md:39-41`).
+- A flattened fit and a per-module fit differ by 43 ALMs. The audit says "One-hot muxes come out the same either way" (`docs/validation/2026-11-08-i386-area-audit/summary.md:182-200`).
+- The one large loss was the variable-index TLB write. That was a plain RTL change and has **already landed** as `63a186d9e i386 TLB: load each entry under its own enable (-914 ALMs; main routes at seed 1) (#1587)` (`M/cores/fes-common/rtl/i386/fes_i386_tlb.sv:72-80`). It saved 914 ALMs: the seal uses 36,225 against main's 37,139 at seed 2, because main fails seed 1, and fit-to-fit noise is about ±200 (`docs/validation/2026-11-09-i386-tlb-write-enable/summary.md:16-21`). That agrees with the audit's −500 whole-fit and −744 CPU figures (`docs/validation/2026-11-08-i386-area-audit/summary.md:39-41`).
 - Nobody measured the cost of ignoring `full_case`. FES RTL has no `full_case` anyway.
 
 Measured area still on the table:
 
 | Item | ALMs | Source |
 | --- | ---: | --- |
-| Return stack as a one-write-port MLAB | about −250 (289 → about 20) | `summary.md:96`, `:189`, `:305` |
-| KBC RAM 32×8 as MLAB | "a few tens" | `summary.md:189` |
-| OPL2 small memories as MLAB (vendor code) | about −150 | `summary.md:174-176`, `:309` |
+| Return stack as a one-write-port MLAB | about −250 (289 → about 20) | `docs/validation/2026-11-08-i386-area-audit/summary.md:96`, `:189`, `:305` |
+| KBC RAM 32×8 as MLAB | "a few tens" | `docs/validation/2026-11-08-i386-area-audit/summary.md:189` |
+| OPL2 small memories as MLAB (vendor code) | about −150 | `docs/validation/2026-11-08-i386-area-audit/summary.md:174-176`, `:309` |
 
 That leaves about 250 to 400 ALMs, mostly in one module. The other reasons for #1581 have nothing to do with area:
 
 1. **DE25 / Agilex 5 needs Quartus Pro** (`AGENTS.md:73-76`). The [S1b probe](../validation/2026-11-10-1581-pro-probe/README.md) synthesized both a Yosys netlist and the native OPL2 SystemVerilog on the DE25 part; it did not fit, time or program the design.
-2. **Quartus 17.0.2 cannot parse some FES RTL.** Known cases are the OPL2 `signed'()` cast (error 10170), inline `for (genvar …)`, and a packed-struct member index whose name matches a signal (`docs/validation/2026-10-29-pc386-m4-quartus/summary.md:44-48`, `M/scripts/quartus_fes_i386.py:11-14`).
+2. **Quartus 17.0.2 cannot parse some FES RTL.** Known cases are the OPL2 `signed'()` cast (error 10170), inline `for (genvar …)`, and a packed-struct member index whose name matches a signal (`docs/validation/2026-10-29-pc386-m4-quartus/summary.md:44-48`, `M/scripts/quartus_fes_i386.py:13-16`).
 3. **Build identity cannot tell the routes apart.** In pc386 and PC/XT, Yosys elaborates and Quartus fits. In the ZX81, Coleco, SMS and SG-1000 Quartus sealers and the RAM Tester Quartus diagnostic, Quartus reads the RTL itself. All of them are labelled only "quartus".
 4. **Lockstep checks a different netlist from the one that is sealed** (`docs/validation/2026-11-02-i386-cs-limit/summary.md:91-98`).
-5. **Producer hacks set memory policy, and they disagree.** pc386 maps `WR_PORTS>1` memories that have no `ramstyle` to registers (`M/scripts/build_fes_pc386_quartus.py:245`). PC/XT maps `SIZE<=32` memories to registers (`M/scripts/quartus_fes_pcxt.py:133-134`).
+5. **Producer hacks set memory policy, and they disagree.** pc386 maps `WR_PORTS>1` memories that have no `ramstyle` to registers (`M/scripts/yosys_netlist.py:79`). PC/XT maps `SIZE<=32` memories to registers (`M/scripts/yosys_netlist.py:83`).
 
 What the design does:
 
@@ -68,17 +69,17 @@ What the design does:
 
 | Not built | Why |
 | --- | --- |
-| `FES_PARALLEL_CASE`, a one-hot mux primitive | The audit measured no difference (`summary.md:186`, `:200`). FES RTL has no `full_case`. `parallel_case` appears only in `fes_z80_engine.sv:268,307,697,834` and in vendored mcl86. |
+| `FES_PARALLEL_CASE`, a one-hot mux primitive | The audit measured no difference (`docs/validation/2026-11-08-i386-area-audit/summary.md:186`, `:200`). FES RTL has no `full_case`. `parallel_case` appears only in `fes_z80_engine.sv:268,307,697,834` and in vendored mcl86. |
 | `FES_HAS_UNIQUE_CASE`, `FES_HAS_INTERFACES` | No FES file would use them. `unique case` appears only in vendored OPL2, and FES RTL has no interfaces. |
 | `FES_HAS_SIGNED_CAST` (for now) | The M4 record names `vibrato.sv` (error 10170) and no line (`docs/validation/2026-10-29-pc386-m4-quartus/summary.md:44`). Quartus stops at its first errors, so nobody knows whether other sites fail too. FES-modified files with `signed'()` are `vibrato.sv:73`, `calc_phase_inc.sv:70` (`signed'({1'b0, fnum})`) and `operator.sv:230` (it differs from upstream; `source.json` lists an `operator.sv` rhythm-mode change). `ksl_add_rom.sv:86` is in a file with no `upstream_sha256` recorded, and `opl2_pkg.sv:79` is in a modified file (all under `M/cores/fes-pc386/vendor/opl2_fpga/`). Spike S1a tests all five sites and decides between rewording lines and adding a macro. |
 | A TLB register-array primitive | The per-entry enable is already plain RTL and the same on every lane. It becomes a rule in the common subset. |
-| MLAB for the multi-write tables | The GPR file (five writes, `fes_i386_cpu.sv:2820-2829`), the segment tables, the L1 valid bits and the TLB CAMs cannot be MLAB as designed (`summary.md:177-180`). They stay plain FFs. |
-| KBC RAM in MLAB | `ram[0]` is read every clock as `command` (`M/cores/fes-pc386/rtl/pc386_kbc.sv:46-47`). Reset writes all 32 entries in one clock: `ram[0]` to 63h and the rest to 0 (`:155-157`). There are bit writes to `ram[0][5]` and `ram[0][2]` (`:204-207`). Restructuring it is worth "a few tens" of ALMs (`summary.md:189`), so it is deferred unless a Phase 5 slice runs over budget. |
+| MLAB for the multi-write tables | The GPR file (five writes, `fes_i386_cpu.sv:3336-3345`), the segment tables, the L1 valid bits and the TLB CAMs cannot be MLAB as designed (`docs/validation/2026-11-08-i386-area-audit/summary.md:177-180`). They stay plain FFs. |
+| KBC RAM in MLAB | `ram[0]` is read every clock as `command` (`M/cores/fes-pc386/rtl/pc386_kbc.sv:46-47`). Reset writes all 32 entries in one clock: `ram[0]` to 63h and the rest to 0 (`:155-157`). There are bit writes to `ram[0][5]` and `ram[0][2]` (`:204-207`). Restructuring it is worth "a few tens" of ALMs (`docs/validation/2026-11-08-i386-area-audit/summary.md:189`), so it is deferred unless a Phase 5 slice runs over budget. |
 | Migrating the `VERILATOR`/`SYNTHESIS`/`SIM`/`FES_SIMULATION` guards and about 2,800 `MISTRAL_*` instances in about 48 files | Those cores have no planned Quartus front end. They are touched only if one of them gains a Quartus lane (D7). |
 | A single BUILD_ID injection path (today chparam for Yosys, a `FES_<CORE>_BUILD_ID` VERILOG_MACRO for Quartus) | It touches every top and every producer and does nothing for lanes. Out of scope (D8). |
 | A pc386 OSS/nextpnr producer | The pc386 lock rationale cited `build_fes_pc386_oss.py`, which M5 (#1268) deleted. Fixed with the lock's Verilator move to v5.054 (#1660), not in S6a or D2. |
-| DE25 board shell, FPGA runtime, HIL | Not built yet (`docs/de25-linux.md:10-12`, `:78-88`). DE25 HIL is waived (`AGENTS.md:32`). |
-| A Quartus lane in CI | CI installs no Quartus: no workflow under `.github/workflows/` mentions Quartus. Lite 17.0.2 needs no licence (`quartus-cores.md:240`). What CI should do about Quartus is still open question 2 (`quartus-cores.md:436-437`), and this design does not answer it. |
+| DE25 board shell, FPGA runtime, HIL | Not built yet (`docs/de25-linux.md:10-12`, `:149-153`). DE25 HIL is waived (`AGENTS.md:32`). |
+| A Quartus lane in CI | CI installs no Quartus: no workflow under `.github/workflows/` mentions Quartus. Lite 17.0.2 needs no licence (`docs/design/quartus-cores.md:251`). What CI should do about Quartus is still open question 2 (`docs/design/quartus-cores.md:447-448`), and this design does not answer it. |
 
 ## Lanes and build identity
 
@@ -88,19 +89,19 @@ Today one label, `toolchain = "quartus"`, means "Quartus places and routes". It 
 
 | Producer | Front end | Place and route | Record today |
 | --- | --- | --- | --- |
-| `*_oss.py`, coleco_socket_v2, pong, menu, riscv, ramtest, atari_st (`config/core-recipes.toml:9-1855`) | yosys | nextpnr (HIP/CUDA) | format 2, no `toolchain` |
-| pc386 sealer (`M/scripts/build_fes_pc386_quartus.py:236-248`, `:333`) | yosys for the machine; Quartus reads the shell | Quartus Lite 17.0.2 | format 1, `compiler: quartus-17.0.2` (`:294`) |
-| PC/XT (`M/scripts/quartus_fes_pcxt.py:92-140`) | yosys (whole top) | Quartus Lite 17.0.2 | format 2, `toolchain: quartus` (`build_fes_pcxt_quartus.py:236`) |
-| i386 oracle (`quartus_fes_i386.py:64`) | yosys, unlocked `--yosys` (`:215`) | Quartus Lite 17.0.2 | diagnostic only (`:289`) |
-| Coleco, SMS, SG-1000, ZX81 Quartus sealers (`build_fes_coleco.py:203-214` and the others) | quartus-lite | Quartus Lite 17.0.2 | format 1, `compiler: quartus-17.0.2` |
-| RAM Tester Quartus (`build_fes_ramtest_quartus.py:95-113`) | quartus-lite | Quartus Lite 17.0.2 | Diagnostic comparison package (`:2`, `:235`). No build record. Constant BUILD_ID, a hash of `"fes.ramtest quartus {MHZ} MHz"` (`:39`). Manifest `build.toolchain` is `"quartus 17.0.2"` (`:251`). |
-| DE25 (`M/boards/de25nano/build.py:19`) | quartus-pro 26.3.0 | Quartus Pro 26.3.0 | `not-qualified`, not packaged |
+| `*_oss.py`, coleco_socket_v2, pong, menu, riscv, ramtest, atari_st (`config/core-recipes.toml:9-1759`) | yosys | nextpnr (HIP/CUDA) | format 2, no `toolchain` |
+| pc386 sealer (`M/scripts/build_fes_pc386_quartus.py:281-286`, `:350`) | yosys for the machine; Quartus reads the shell | Quartus Lite 17.0.2 | format 1, `compiler: quartus-17.0.2` (`:307`) |
+| PC/XT (`M/scripts/quartus_fes_pcxt.py:101-126`) | yosys (whole top) | Quartus Lite 17.0.2 | format 2, `toolchain: quartus` (`build_fes_pcxt_quartus.py:257`) |
+| i386 oracle (`quartus_fes_i386.py:73`) | yosys, unlocked `--yosys` (line 215 at `97a589e89`) | Quartus Lite 17.0.2 | diagnostic only (`:319`) |
+| Coleco, SMS, SG-1000, ZX81 Quartus sealers (`build_fes_coleco.py:212-222` and the others) | quartus-lite | Quartus Lite 17.0.2 | format 1, `compiler: quartus-17.0.2` |
+| RAM Tester Quartus (`build_fes_ramtest_quartus.py:98-116`) | quartus-lite | Quartus Lite 17.0.2 | Diagnostic comparison package (`:2`, `:238`). No build record. Constant BUILD_ID, a hash of `"fes.ramtest quartus {MHZ} MHz"` (`:42`). Manifest `build.toolchain` is `"quartus 17.0.2"` (`:254`). |
+| DE25 (`M/boards/de25nano/quartus.lock:3`) | quartus-pro 26.3.0 | Quartus Pro 26.3.0 | `not-qualified`, not packaged |
 
 So a quartus-lite lane already exists for the four small Z80 sealers and the RAM Tester diagnostic, under a label that hides it. Five Quartus producers seal today: pc386, PC/XT and the four Z80 cores. RAM Tester Quartus is a diagnostic. This plan treats it as a diagnostic being promoted to a sealer, not as an existing seal.
 
 The design keeps the existing field and adds one:
 
-- **`toolchain`** ∈ {`oss`, `quartus`} (`scripts/recipes.py:157-174`) keeps its meaning: the place-and-route tool, where `oss` means nextpnr. It is not renamed, so `bundle.py`'s branch on `toolchain == "quartus"` (`scripts/bundle.py:104`) and the export check stay as they are.
+- **`toolchain`** ∈ {`oss`, `quartus`} (`scripts/recipes.py:167-186`) keeps its meaning: the place-and-route tool, where `oss` means nextpnr. It is not renamed, so `bundle.py`'s branch on `toolchain == "quartus"` (`scripts/bundle.py:124`) and the export check stay as they are.
 - **`front_end`** ∈ {`yosys`, `quartus-lite`, `quartus-pro`} is new. It names the tool that elaborates the core's logic.
 
 Legal combinations:
@@ -118,31 +119,31 @@ Quartus Pro does not target Cyclone V. A quartus-pro build can never be compared
 
 ### Where the fields live
 
-The template is the GPU backend. It enters identity as a parameter and through the tool identity string (`M/scripts/fes_build_common.py:558-560`, `:693-695`; `build_fes_zx81_oss.py:150`).
+The template is the GPU backend. It enters identity as a parameter and through the tool identity string (`M/scripts/fes_build_common.py:561-563`, `:692-694`; `build_fes_zx81_oss.py:150`).
 
 **Recipe registry** (`scripts/recipes.py`, `config/core-recipes.toml`):
 
-- `Format2Recipe` (`recipes.py:75-100`) gains an optional `front_end`.
-  - On `toolchain = "oss"` rows it must be absent, and it resolves to `yosys`. The HIP-only rule for these rows stays (`recipes.py:217`, `:282-283`).
-  - On `toolchain = "quartus"` rows it is required. `fes.pcxt` and `fes.pcxt-dos` (`core-recipes.toml:1716-1750`) get `front_end = "yosys"`.
-- `[recipes.quartus]` allows exactly {version, seeds, threads} today (`recipes.py:166`). It gains `edition` ∈ {lite, pro} and `device_family` ∈ {cyclonev, agilex5}, which `quartus-cores.md:156-164` already plans.
+- `Format2Recipe` (`scripts/recipes.py:77-102`) gains an optional `front_end`.
+  - On `toolchain = "oss"` rows it must be absent, and it resolves to `yosys`. The HIP-only rule for these rows stays (`scripts/recipes.py:229`, `:296-297`).
+  - On `toolchain = "quartus"` rows it is required. `fes.pcxt-dos` (`config/core-recipes.toml:1620-1657`) get `front_end = "yosys"`.
+- `[recipes.quartus]` allows exactly {version, seeds, threads} today (`scripts/recipes.py:178`). It gains `edition` ∈ {lite, pro} and `device_family` ∈ {cyclonev, agilex5}, which `docs/design/quartus-cores.md:167-175` already plans.
 - The validator rejects illegal pairs. For example, `quartus-pro` requires `edition = "pro"` and `device_family = "agilex5"`.
 
 **Build record** (`M/scripts/export_core_package.py`):
 
 | Field | Value | Rule |
 | --- | --- | --- |
-| `toolchain` (top level, existing) | `"quartus"` | Unchanged. Still omitted on OSS records, under the asymmetric rule in `quartus-cores.md:200-215`. |
-| `parameters.front_end` | `"yosys"`, `"quartus-lite"` or `"quartus-pro"` | Required on format-2 records with `toolchain == "quartus"`, absent on every other record. Parameters are already open (`:150-161`). `_validate_build_record` (`:75-93`) adds the cross-check against `toolchain`. Format 1 has no validated Quartus discriminator: the validator allows the top-level `toolchain` field only on format 2 (`:88-93`). So a format-1 Quartus record (pc386, the four Z80 sealers) carries no `front_end` until it moves to format 2 (S9b–S9e, S10). Its label stays ambiguous until then, as it is today. |
+| `toolchain` (top level, existing) | `"quartus"` | Unchanged. Still omitted on OSS records, under the asymmetric rule in `docs/design/quartus-cores.md:212-224`. |
+| `parameters.front_end` | `"yosys"`, `"quartus-lite"` or `"quartus-pro"` | Required on format-2 records with `toolchain == "quartus"`, absent on every other record. Parameters are already open (`export_core_package.py:151-161`). `_validate_build_record` (`:75-93`) adds the cross-check against `toolchain`. Format 1 has no validated Quartus discriminator: the validator allows the top-level `toolchain` field only on format 2 (`:88-93`). So a format-1 Quartus record (pc386, the four Z80 sealers) carries no `front_end` until it moves to format 2 (S9b–S9e, S10). Its label stays ambiguous until then, as it is today. |
 | `parameters.device_family` | `"cyclonev"` or `"agilex5"` | On Quartus records. |
-| `parameters.front_end_program_sha256` | For the yosys front end, the digest of the canonical Yosys netlist program: rendered with path placeholders and an all-zero BUILD_ID | Required when `front_end == "yosys"` and rejected otherwise, the same condition as `tools.yosys`. A native Quartus record has no program to record. Replaces pc386's `machine_netlist` (`build_fes_pc386_quartus.py:303`). The key is renamed, not duplicated. The record holds the digest, not the text: a string parameter is limited to 4,096 bytes (`export_core_package.py:53`, `:160`), PC/XT's DOS program is already about 4,080 bytes, and S8 adds an include path and three defines to it. The limit is not raised. The producer writes the canonical program text next to the seal summary so the digest can be checked by hand. The BUILD_ID derives from the record, so the recorded program cannot carry it: a producer that passes the ID in the program (PC/XT's `-set BUILD_ID`, `quartus_fes_pcxt.py:111`) records the program rendered with `128'h0` in its place, then runs the same program with the real ID. Paths are placeholders for the same reason and so that the signoff and repeat runs share one value: PC/XT's program names absolute source, work and Yosys-library paths, and its work tree sits under `build/fes-pcxt-quartus/<BUILD_ID>/attempt-…/{signoff,repeat}`. The recorded form writes `$SOURCE`, `$WORK` and `$YOSYS_LIB` for those roots, as pc386's `machine_program` already writes `$MACHINE_SOURCES` (`build_fes_pc386_quartus.py:303`). One renderer produces both forms, so the executed program is the recorded one with the roots and the ID substituted. |
-| `parameters.quartus_qsf_sha256` | Digest of the canonical QSF: the generated QSF without its BUILD_ID and `SEED` assignments | On every Quartus record. The BUILD_ID derives from the record, so the digest cannot cover a QSF that already carries it. Producers that inject the ID through the QSF (the `FES_<CORE>_BUILD_ID` `VERILOG_MACRO` line, as in `build_fes_coleco.py:207`) render the QSF without that line, hash it, build the record, derive the BUILD_ID, then append the one line. Where the ID enters through the Yosys netlist instead (PC/XT), the QSF has no such line. A signoff writes one QSF per seed that differs only in its `SEED` line (`quartus_fes_pcxt.py:243`), so the canonical QSF leaves that line out and one digest binds every seed's QSF. The seed list is bound separately by `quartus_recipe_sha256`, which hashes the recipe entry (`build_fes_pcxt_quartus.py:230`). For pc386 the digest covers the Quartus-read shell file set. |
+| `parameters.front_end_program_sha256` | For the yosys front end, the digest of the canonical Yosys netlist program: rendered with path placeholders and an all-zero BUILD_ID | Required when `front_end == "yosys"` and rejected otherwise, the same condition as `tools.yosys`. A native Quartus record has no program to record. Replaces pc386's `machine_netlist` (`build_fes_pc386_quartus.py:319`). The key is renamed, not duplicated. The record holds the digest, not the text: a string parameter is limited to 4,096 bytes (`export_core_package.py:53`, `:160`), PC/XT's DOS program is already about 4,080 bytes, and S8 adds an include path and three defines to it. The limit is not raised. The producer writes the canonical program text next to the seal summary so the digest can be checked by hand. The BUILD_ID derives from the record, so the recorded program cannot carry it: a producer that passes the ID in the program (PC/XT's `-set BUILD_ID`, `quartus_fes_pcxt.py:118`) records the program rendered with `128'h0` in its place, then runs the same program with the real ID. Paths are placeholders for the same reason and so that the signoff and repeat runs share one value: PC/XT's program names absolute source, work and Yosys-library paths, and its work tree sits under `build/fes-pcxt-quartus/<BUILD_ID>/attempt-…/{signoff,repeat}`. The recorded form writes `$SOURCE`, `$WORK` and `$YOSYS_LIB` for those roots, as pc386's `machine_program` already writes `$MACHINE_SOURCES` (`build_fes_pc386_quartus.py:319`). One renderer produces both forms, so the executed program is the recorded one with the roots and the ID substituted. |
+| `parameters.quartus_qsf_sha256` | Digest of the canonical QSF: the generated QSF without its BUILD_ID and `SEED` assignments | On every Quartus record. The BUILD_ID derives from the record, so the digest cannot cover a QSF that already carries it. Producers that inject the ID through the QSF (the `FES_<CORE>_BUILD_ID` `VERILOG_MACRO` line, as in `build_fes_coleco.py:216`) render the QSF without that line, hash it, build the record, derive the BUILD_ID, then append the one line. Where the ID enters through the Yosys netlist instead (PC/XT), the QSF has no such line. A signoff writes one QSF per seed that differs only in its `SEED` line (`quartus_fes_pcxt.py:229`), so the canonical QSF leaves that line out and one digest binds every seed's QSF. The seed list is bound separately by `quartus_recipe_sha256`, which hashes the recipe entry (`build_fes_pcxt_quartus.py:251`). For pc386 the digest covers the Quartus-read shell file set. |
 | `tools.yosys` | `commit=…; sha256=…` | Present if and only if Yosys elaborates any part of the build. |
-| `tools.quartus_sh` | `version=<full lock string>; edition=lite\|pro; sha256=…` | Version and edition come from the lock, not from a regex. Pro records also carry `quartus_syn`, which replaces `quartus_map` (`build_fes_pcxt_quartus.py:158`). |
+| `tools.quartus_sh` | `version=<full lock string>; edition=lite\|pro; sha256=…` | Version and edition come from the lock, not from a regex. Pro records also carry `quartus_syn`, which replaces `quartus_map` (`build_fes_pcxt_quartus.py:181`). |
 
-`bundle.py:173-186` rebuilds `build.toolchain` from `record.tools`, so the front-end tool appears in the manifest with no reader change. `build_identity` (`export_core_package.py:184-199`) and the cache key (`scripts/artifact_cache.py:15-23`) separate the lanes with no algorithm change.
+`scripts/bundle.py:202-214` rebuilds `build.toolchain` from `record.tools`, so the front-end tool appears in the manifest with no reader change. `build_identity` (`export_core_package.py:184-199`) and the cache key (`scripts/artifact_cache.py:15-23`) separate the lanes with no algorithm change.
 
-**Manifest** (`M/scripts/core_package.py:236-247`): no new field. `build.toolchain` already carries the tools. The `build.variant` field planned in `quartus-cores.md:176-215` stays with that design's rollout.
+**Manifest** (`M/scripts/core_package.py:236-247`): no new field. `build.toolchain` already carries the tools. The `build.variant` field planned in `docs/design/quartus-cores.md:187-224` stays with that design's rollout.
 
 **Seal summary** (`build-summary.json`, copied to `docs/validation/<date>-<topic>/seal-summary.json`): gains `front_end`, `toolchain`, `quartus_edition`, `quartus_version` and a `lockstep` object:
 
@@ -152,19 +153,19 @@ The template is the GPU backend. It enters identity as a parameter and through t
               "simulator", "models_sha256" }
 ```
 
-`netlist_sha256` is the digest of the CPU-top netlist that lockstep simulated. It cannot be compared with any digest of the sealed netlist. The pc386 seal flattens `pc386_system`, runs `opt -purge`, maps memories and rewrites identifiers (`build_fes_pc386_quartus.py:237-248`, `:378`), and the machine leaves the CPU's trace and arch ports unconnected (`M/cores/fes-pc386/rtl/pc386_system.sv:476-483`). So no separable `fes_i386_cpu` netlist survives in the sealed netlist. The binding between lockstep and seal is therefore **identity of inputs**: the same Yosys tool identity, the same pass list (apart from `top` and `chparam`), and the same CPU source digests (see "Close the yosys-lane gap first").
+`netlist_sha256` is the digest of the CPU-top netlist that lockstep simulated. It cannot be compared with any digest of the sealed netlist. The pc386 seal flattens `pc386_system`, runs `opt -purge`, maps memories and rewrites identifiers (`build_fes_pc386_quartus.py:281-286`, and line 378 at `97a589e89`), and the machine leaves the CPU's trace and arch ports unconnected (`M/cores/fes-pc386/rtl/pc386_system.sv:491-498`). So no separable `fes_i386_cpu` netlist survives in the sealed netlist. The binding between lockstep and seal is therefore **identity of inputs**: the same Yosys tool identity, the same pass list (apart from `top` and `chparam`), and the same CPU source digests (see "Close the yosys-lane gap first").
 
-This follows `sim_fes_coleco_quartus.py:33`, which already records the `altera_mf.v` digest. The free-text `toolchain` label (`build_fes_pc386_quartus.py:468-470`) stays as a description.
+This follows `sim_fes_coleco_quartus.py:34`, which already records the `altera_mf.v` digest. The free-text `toolchain` label (`build_fes_pc386_quartus.py:483-485`) stays as a description.
 
 **Per-lane primitive forms** need no separate marker. Every form is in the source closure, and `front_end` plus the lane macros select one.
 
-**Record format.** Quartus producers move to format 2 on the PC/XT template (`build_fes_pcxt_quartus.py:137-172` for `execution_inputs`, `:205-244` for `create_build_record`). That `execution_inputs` needs no GPU. The shared `functional_execution.execution_inputs` cannot serve Quartus, because it requires a GPU device and KFD/NVIDIA records (`functional_execution.py:49-50`, `:123-126`). PC/XT's version becomes a shared `quartus_execution_inputs(edition, front_end)`, and the PC/XT copy is deleted. PC/XT's version always binds the Yosys install tree, `yosys` and `yosys-abc` (`:140-141`, `:159`). The shared one binds them only when Yosys elaborates part of the build (`front_end = "yosys"`, including the pc386 hybrid), the same rule as `tools.yosys`. A native `quartus-lite` producer binds Quartus alone, so no unused Yosys enters its BUILD_ID. pc386 is format 1 today (`build_fes_pc386_quartus.py:288`), so its BUILD_ID changes with every commit and it has no cache key. It moves in its own slice (S10), and the Z80 sealers move in their S9 PRs, not in the identity slice.
+**Record format.** Quartus producers move to format 2 on the PC/XT template (`build_fes_pcxt_quartus.py:158-193` for `execution_inputs`, `:226-263` for `create_build_record`). That `execution_inputs` needs no GPU. The shared `functional_execution.execution_inputs` cannot serve Quartus, because it requires a GPU device and KFD/NVIDIA records (`functional_execution.py:49-50`, `:123-126`). PC/XT's version becomes a shared `quartus_execution_inputs(edition, front_end)`, and the PC/XT copy is deleted. PC/XT's version always binds the Yosys install tree, `yosys` and `yosys-abc` (`build_fes_pcxt_quartus.py:161-162`, `:180`). The shared one binds them only when Yosys elaborates part of the build (`front_end = "yosys"`, including the pc386 hybrid), the same rule as `tools.yosys`. A native `quartus-lite` producer binds Quartus alone, so no unused Yosys enters its BUILD_ID. pc386 is format 1 today (`build_fes_pc386_quartus.py:301`), so its BUILD_ID changes with every commit and it has no cache key. It moves in its own slice (S10), and the Z80 sealers move in their S9 PRs, not in the identity slice.
 
-**Toolchain cache.** The slot key (`M/scripts/toolchain_cache.py:223-241`, `:268-285`) has no Quartus axis. Quartus is not provisioned through the cache, and this design adds no axis. Quartus identity is the lock plus the authenticated binary digest.
+**Toolchain cache.** The slot key (`M/scripts/toolchain_cache.py:285-300`, `:268-285`) has no Quartus axis. Quartus is not provisioned through the cache, and this design adds no axis. Quartus identity is the lock plus the authenticated binary digest.
 
 **Identity churn.** `export_core_package.py`, `core_package.py` and `fes_build_common.py` appear in all 11 audited entries of `M/scripts/source_closures.json`: apple2_oss, atari_st_oss, c64_oss, coleco_socket_v2, menu_package, pong, ramtest, sg1000_oss, sms_oss, spectrum_oss and zx81_oss. Fallback-closure producers such as PC/XT and RISC-V read them too. An edit to any of these files changes those cores' BUILD_IDs even when the record's fields stay the same. D12 is now recorded in [AGENTS.md](../../AGENTS.md#hard-rules); S7 must supply its required evidence or use the normal reseal and HIL path:
 
-- **If a reseal is needed**, the reseal list is generated from `source_closures.json` plus the producer source lists, not written by hand. That reseal is its own slice (S7r) and is not folded into the header slice. `AGENTS.md:198` requires a pin bump to build every core it touches before merging, and S7r follows the same rule.
+- **If a reseal is needed**, the reseal list is generated from `source_closures.json` plus the producer source lists, not written by hand. It cannot be derived from which cores compile the edited file: closure entries name directory roots, and `source_input_closure` hashes every tracked file under a root, so `build_fes_sms_oss` and `build_fes_sg1000_oss` — which both list `cores/fes-coleco/rtl` — move when Coleco's `top.v` or `coleco_machine.sv` changes, although neither core compiles those two files. The relation is not symmetric: Coleco's own key does not list `cores/fes-sms/rtl`. `build_fes_atari_st_oss` names `cores/fes-ramtest/rtl/sdram_addon_port.v` as a file rather than the directory, so it does not cover `fes-ramtest/rtl/top.v` and Atari ST is unaffected (#1828). That reseal is its own slice (S7r) and is not folded into the header slice. `AGENTS.md:199` requires a pin bump to build every core it touches before merging, and S7r follows the same rule.
 - **If no reseal is needed**, S7 says so and merges alone.
 
 Package-ID churn may also move the designated baseline bundles named in the kit status files (D13).
@@ -177,7 +178,7 @@ The header saves no ALMs. Every reader must find it, and every audited closure t
 
 Which cores get a new closure depends on transitive file reads, not on whether a core's own RTL branches on a lane. Shared wrappers among the 14 files are read by producers well beyond the Z80 cores:
 
-- PC/XT reads `coleco_video_dpram.v` (`M/cores/fes-pcxt/rtl/pcxt_video.sv:141`; `M/scripts/sim_fes_pcxt.py:71-78`, `:88-90`; `quartus_fes_pcxt.py:33`, `:41`).
+- PC/XT reads `coleco_video_dpram.v` (`M/cores/fes-pcxt/rtl/pcxt_video.sv:141`; `M/scripts/sim_fes_pcxt.py:71-78`, `:88-90`; `quartus_fes_pcxt.py:34`, `:43`).
 - The video parts read it too (`M/scripts/build_video_part.py:34`).
 - The ZX81 bus carts read `zx81_dpram.v` (`hip_zx81_bus_carts.py:39`, `build_zx81_bus_validation_cart.py:32-33`).
 - So do the native video, native socket and session sims.
@@ -208,14 +209,14 @@ A simulation names the backend whose primitive forms it models. Today there are 
 | Sim today | Selects today | Lane macros after S8 |
 | --- | --- | --- |
 | Icarus Quartus sims, `-DQUARTUS=1` (`sim_fes_coleco_quartus.py:58`, `sim_fes_sms_quartus.py:46`, `sim_fes_sg1000_quartus.py:46`) | altsyncram RAMs, registered media and VDP | `FES_TC_SIM FES_PNR_QUARTUS FES_DEV_CYCLONEV` |
-| Verilator `-oss` and native sims, `-DFES_COLECO_OSS=1` and the SMS/SG-1000 forms (`M/Makefile:625`, `:659`, `:893-894`, `:1008-1009`, `:1718-1719`, `:1910-1911`, `:2077`; `scripts/sim_fes_coleco_native.py:21`) | `m10k_tdp` RAM, registered media and VDP | `FES_TC_SIM FES_PNR_NEXTPNR FES_DEV_CYCLONEV` |
+| Verilator `-oss` and native sims, `-DFES_COLECO_OSS=1` and the SMS/SG-1000 forms (`M/Makefile:633`, `:667`, `:877-878`, `:992-993`, `:1711-1712`, `:1918-1919`, `:2096`; `scripts/sim_fes_coleco_native.py:21`) | `m10k_tdp` RAM, registered media and VDP | `FES_TC_SIM FES_PNR_NEXTPNR FES_DEV_CYCLONEV` |
 | Plain Verilator sims (neither macro) | unregistered sim read, unregistered media and VDP | `FES_TC_SIM FES_PNR_NEXTPNR FES_DEV_CYCLONEV` plus `FES_Z80_UNREGISTERED_SIM` |
 
 `FES_Z80_UNREGISTERED_SIM` is a sim-only switch for the legacy unregistered read. The header rejects it unless `FES_TC_SIM` is set. S11 deletes it together with the unregistered form, so it does not outlive that form.
 
 The testbench C++ branches on the same state today through Verilator `-CFLAGS`:
 
-- `M/cores/fes-coleco/sim/machine_tb.cpp:40,54,65`, `gp_tb.cpp:96,102`, `expansion_tb.cpp:33,40`, `vdp_machine_tb.cpp:35`;
+- `M/cores/fes-coleco/sim/machine_tb.cpp:40,54,65`, `M/cores/fes-coleco/sim/gp_tb.cpp:96,102`, `M/cores/fes-coleco/sim/expansion_tb.cpp:33,40`, `M/cores/fes-coleco/sim/vdp_machine_tb.cpp:33`;
 - `M/cores/fes-sms/sim/machine_tb.cpp:116,128,139`;
 - `M/cores/fes-sg1000/sim/machine_tb.cpp:147,167,178`.
 
@@ -227,7 +228,7 @@ Today one Makefile target can set some of the three `FES_*_OSS` macros and not o
 
 - `FES_TC_QUARTUS` is defined when `FES_TC_QLITE` or `FES_TC_QPRO` is set. It means "Quartus reads this file directly", which the RAM Tester build-ID macro needs. The `.mif` init path follows the altsyncram form, so it keys on `FES_VENDOR_RAM` (site 15).
 - `FES_VENDOR_RAM` is defined when `FES_PNR_QUARTUS` is set and `FES_TC_YOSYS` is not. It means "Quartus maps this file's RAM itself, or a sim models that". It selects the altsyncram forms at sites 7–9. A Yosys run that feeds Quartus keeps the inferred form, so PC/XT's read of `coleco_video_dpram.v` keeps today's inferred `(* ramstyle = "M10K" *)` branch (`coleco_video_dpram.v:81-85`). It does not switch to the altsyncram blackbox.
-- RAM attributes are named by intent and keyed on backend and device, not on the raw tool string. The DE25 build already byte-patches M10K into M20K (`display/build.py:105-113`, `combined/build.py:66-80`):
+- RAM attributes are named by intent and keyed on backend and device, not on the raw tool string. The DE25 build already byte-patches M10K into M20K, at five sites: `display/build.py:106-114` (`retarget_menu_ram`), `combined/build.py:67-81` (`derive_video`), `zx81/build.py:84-87` and `:90-92` (`retarget_ram` and `retarget_video`), `zx81-hps/build.py:59-68` (`retarget_tape`, whose contract check is `:64-66`) and `link-proof/zx81-ram/profile.py:68-70`. The Agilex 5 column below produces exactly what those patchers produce, so S11 makes all five superseded code to delete rather than keep beside the macros (#1828):
 
   | Macro | nextpnr (Cyclone V) | Quartus, Cyclone V | Quartus, Agilex 5 |
   | --- | --- | --- | --- |
@@ -236,7 +237,7 @@ Today one Makefile target can set some of the three `FES_*_OSS` macros and not o
   | `FES_RAM_MLAB` | `(* ram_style = "logic" *)` (FFs, as Yosys does for small memories today) | `(* ramstyle = "MLAB, no_rw_check" *)` | `(* ramstyle = "MLAB, no_rw_check" *)` |
   | `FES_RAM_LOGIC` | `(* ram_style = "logic" *)` | `(* ramstyle = "logic" *)` | `(* ramstyle = "logic" *)` |
 
-  On the yosys→Quartus lane, Quartus is the backend, so that column applies and the attribute has to survive the netlist. pc386 keeps attributes and strips only `src` and `hdlname` (`build_fes_pc386_quartus.py:246`). PC/XT writes `-noattr` (`quartus_fes_pcxt.py:140`), which would strip an MLAB request. Dropping `-noattr` is a measured PC/XT PR, needed only when a PC/XT file first uses a RAM macro.
+  On the yosys→Quartus lane, Quartus is the backend, so that column applies and the attribute has to survive the netlist. pc386 keeps attributes and strips only `src` and `hdlname` (`M/scripts/yosys_netlist.py:94`). PC/XT writes `-noattr` (`M/scripts/yosys_netlist.py:98`), which would strip an MLAB request. Dropping `-noattr` is a measured PC/XT PR, needed only when a PC/XT file first uses a RAM macro.
 
   Today no yosys→Quartus producer selects a RAM attribute through a lane macro. The one yosys→Quartus reader of a guarded RAM file is PC/XT, which takes the inferred `coleco_video_dpram.v` branch described above. When S11 moves PC/XT onto `fes_tdp_ram`, PC/XT becomes the first yosys→Quartus user of `FES_RAM_TDP`. S11 carries a measured PC/XT fit for that change.
 
@@ -261,17 +262,17 @@ Today one Makefile target can set some of the three `FES_*_OSS` macros and not o
 A core may be built differently for DE25 than for DE10-Nano: a larger cache, more TLB entries, a DSP-based datapath, a feature that only fits the larger device. Three rules keep that from turning `FES_DEV_AGILEX5` into the next `QUARTUS`:
 
 1. **Device macros stay in primitives and board shells.** `FES_DEV_*` may be tested only in `fes_toolchain.svh`, in `M/cores/fes-common/rtl/prim/` and under `M/boards/`. Core RTL never branches on the device. A core that needs a device-specific structure gets it through a primitive, which has one form per lane and device. S8a adds a test over RTL sources (`.v`, `.sv`, `.svh`, `.vh`) that fails on any other file that names a `FES_DEV_*` macro. Producers set the macros, so `fes_lanes.py`, its tests and docs are outside the check.
-2. **A core-level difference is a module parameter.** Sizes and optional features are parameters on the core's top, with one value set per target in the core's recipe (schema below). The producer passes them (Yosys `chparam`, or a Quartus parameter assignment) and writes each one into the build record's `parameters`, as PC/XT does for its profile switches (`build_fes_pcxt_quartus.py:220-230`). Two targets with different values therefore get different BUILD_IDs, and each value set is sealed on its own. Lockstep runs on every sealed value set, not only on the DE10-Nano one.
+2. **A core-level difference is a module parameter.** Sizes and optional features are parameters on the core's top, with one value set per target in the core's recipe (schema below). The producer passes them (Yosys `chparam`, or a Quartus parameter assignment) and writes each one into the build record's `parameters`, as PC/XT does for its profile switches (`build_fes_pcxt_quartus.py:241-251`). Two targets with different values therefore get different BUILD_IDs, and each value set is sealed on its own. Lockstep runs on every sealed value set, not only on the DE10-Nano one.
 3. **Native Pro is the lane for a core that specialises.** On yosys → Quartus Pro, Pro fits a netlist Yosys has already mapped, so Pro's own DSP inference and register retiming have little to work on. That route is the DE25 bring-up path (D3). A core moves to `front_end = "quartus-pro"` when a measured Pro fit shows the native read is better for it, on each flow's best settings. `FES_TC_QPRO` therefore stays in the header.
 
-**Recipe schema for a second target.** Today a recipe row has one scalar lane and device, and the loader rejects a second row with the same `core_id` (`scripts/recipes.py:296-298`). S16 changes that, with the first DE25 core:
+**Recipe schema for a second target.** Today a recipe row has one scalar lane and device, and the loader rejects a second row with the same `core_id` (`scripts/recipes.py:310-312`). S16 changes that, with the first DE25 core:
 
 - A row gains `target`, `"de10nano"` or `"de25"`. An absent `target` means `"de10nano"`, so no existing row changes.
 - The loader's key becomes (`core_id`, `target`). Each row still has its own `selection_filename` and package environment names, and those stay unique across all rows.
 - Each row carries its own `front_end`, `[recipes.quartus]` (`edition`, `device_family`) and an optional `[recipes.parameters]` table of scalar values. The producer passes exactly that table to the core's top and copies it into the record's `parameters`.
 - The validator ties `target = "de25"` to `device_family = "agilex5"` and `target = "de10nano"` to `cyclonev`.
 - `Format2Recipe` gains `target` and `parameters`. `recipe_for` takes (`core_id`, `target`) with no default, so every call site names its target.
-- The package selection carries the target. `scripts/bundle.py:353-362` writes only `core_id` today, and its consumers resolve it with `recipe_for(core_id)` (`scripts/build.py:491-515`), which would turn a DE25 selection back into the DE10-Nano recipe. The selection gains `target`, written by every producer in the same PR; a reader rejects a selection without it and passes it to `recipe_for`. The package profile contract gains the same field.
+- The package selection carries the target. `scripts/bundle.py:382-391` writes only `core_id` today, and its consumers resolve it with `recipe_for(core_id)` (`scripts/build.py:491-515`), which would turn a DE25 selection back into the DE10-Nano recipe. The selection gains `target`, written by every producer in the same PR; a reader rejects a selection without it and passes it to `recipe_for`. The package profile contract gains the same field.
 - New tests: two rows for one core with different targets load; two rows with the same pair are rejected; the two rows' records differ in `parameters` and BUILD_ID; a `de25` row with `cyclonev` is rejected; a DE25 selection reloads to the DE25 recipe and its parameters; a selection without `target` is rejected.
 
 S7 does not need this schema, because every row there has one target.
@@ -285,25 +286,25 @@ One function, `lane_inputs(front_end, toolchain, device, sim_flags=()) -> (inclu
 | Reader | Header path | Lane macros |
 | --- | --- | --- |
 | Yosys `read_verilog -sv`, and `read_slang` for Atari ST if it ever reads a header file (`build_fes_atari_st_oss.py:368-370`) | `-I M/cores/fes-common/include` | `-DFES_TC_YOSYS -DFES_PNR_… -DFES_DEV_…` |
-| Quartus Lite QSF | `SEARCH_PATH` gains the include dir | `VERILOG_MACRO` lines for the three macros. They replace `"QUARTUS=1"` at `build_fes_pc386_quartus.py:329`, `build_fes_coleco.py:206`, `build_fes_sms.py:202`, `build_fes_sg1000.py:199`, `build_fes_zx81.py:215`, and bare `QUARTUS` at `build_fes_ramtest_quartus.py:98-101`. |
-| Quartus Pro QSF (DE25) | The header is copied into the flat project, as DE25 copies its sources (`display/build.py:159-178`) | `VERILOG_MACRO` for `FES_TC_QPRO FES_PNR_QUARTUS FES_DEV_AGILEX5` |
+| Quartus Lite QSF | `SEARCH_PATH` gains the include dir | `VERILOG_MACRO` lines for the three macros. They replace `"QUARTUS=1"` at `build_fes_pc386_quartus.py:346`, `build_fes_coleco.py:215`, `build_fes_sms.py:211`, `build_fes_sg1000.py:209`, `build_fes_zx81.py:224`, and bare `QUARTUS` at `build_fes_ramtest_quartus.py:101`. (Every line in this row was stale by 9 to 17 lines before #1828; these are the census-verified ones. The bare spelling is why the acceptance pattern had to change.) |
+| Quartus Pro QSF (DE25) | **Four routes across five projects, not one copy site** (#1828). `display/` has no `QUARTUS` guard at all; the six DE25 guards live in `zx81/`, `zx81-hps/`, `shared-rtl/` and `link-proof/`, which stage into `fes_mailbox/` and `fes_link/`. The header travels as `zx81_model.vh` does today: explicit path tuples (`zx81/build.py:42`, `zx81-hps/build.py:33`, `:151`, `link-proof/zx81-ram/profile.py:28`, `producers/build_zx81_package.py:37`), `add_fileset_file … VERILOG_INCLUDE` (`fes_de25_computer_hw.tcl:15`, `:77`, `fes_de25_zx81_standard_hw.tcl:39`), QSF `SEARCH_PATH`, and Verilator/Icarus `-I`. The `_hw.tcl` filesets and the flat staging mean a copy-in, not a search path, for the Platform Designer components | `VERILOG_MACRO` for `FES_TC_QPRO FES_PNR_QUARTUS FES_DEV_AGILEX5`, replacing `QUARTUS=1` at `zx81/build.py:162`, `zx81-hps/build.py:345`, `:641`, `link-proof/zx81-ram/profile.py:110` and `link-proof/zx81-computer/profile.py:94`, with the guard regex at `zx81-hps/build.py:341` and the count check at `:388` retargeted |
 | Verilator | `+incdir+` | `+define+`, plus `-CFLAGS` for any sim-only switch the C++ reads |
 | Icarus | `-I` | `-D` |
 
-The include directory is new, so no reader has it on its path today, including readers that already search `fes-common/generated` (for example `build_fes_coleco.py:205`, `build_fes_zx81.py:212-214`, `build_fes_ramtest_quartus.py:97`). **Every reader of a header-using file adds `M/cores/fes-common/include`**: Yosys `-I`, QSF `SEARCH_PATH`, Verilator `+incdir+`, Icarus `-I`. For pc386 the only header user is `top.sv` (sites 6 and 18), and only Quartus reads it, so the change goes in the QSF `SEARCH_PATH` at `build_fes_pc386_quartus.py:328`. The Yosys `INCLUDE_DIRS` at `:79` serves the machine read, which contains no `QUARTUS` guard, and stays unchanged.
+The include directory is new, so no reader has it on its path today, including readers that already search `fes-common/generated` (for example `build_fes_coleco.py:214`, `build_fes_zx81.py:221-223`, `build_fes_ramtest_quartus.py:100`). **Every reader of a header-using file adds `M/cores/fes-common/include`**: Yosys `-I`, QSF `SEARCH_PATH`, Verilator `+incdir+`, Icarus `-I`. For pc386 the only header user is `top.sv` (sites 6 and 18), and only Quartus reads it, so the change goes in the QSF `SEARCH_PATH` at `build_fes_pc386_quartus.py:345`. The Yosys `INCLUDE_DIRS` at `:107` serves the machine read, which contains no `QUARTUS` guard, and stays unchanged.
 
 Readers that never reach the 14 files are left alone. The S8 census confirms which these are, and expects pong, `build_fes_slot.py`, the i386 oracle, the benchmark and lockstep among them.
 
-**Source closure.** The header joins `PINNED_INPUTS`/`INCLUDES` of every producer that reads a header-using file. It also joins the matching audited entries in `M/scripts/source_closures.json`, which are regenerated with `M/scripts/closure_tools/manifest.py`. Otherwise the read guard fails with "source open outside audited closure" (`compiler_read_audit.py:62-68`). The format-1 provenance fixtures (`M/tests/test_source_provenance.py:17-18,49-52`) pick it up through `PINNED_INPUTS`. After S8 the header is frozen: any edit reseals every core that reads it.
+**Source closure.** The header joins `PINNED_INPUTS`/`INCLUDES` of every producer that reads a header-using file. It also joins the matching audited entries in `M/scripts/source_closures.json`, which are regenerated with `M/scripts/closure_tools/manifest.py`. Otherwise the read guard fails with "source open outside audited closure" (`compiler_read_audit.py:62-68`). The format-1 provenance fixtures (`M/tests/test_source_provenance.py:17-18,50-52`) pick it up through `PINNED_INPUTS`. After S8 the header is frozen: any edit reseals every core that reads it.
 
 ### Lane per file set (the pc386 hybrid)
 
-pc386 mixes a machine that Yosys elaborated with shell files that Quartus reads (`build_fes_pc386_quartus.py:333-337`). Lane macros are set per **file set**, so each set says truthfully what reads it:
+pc386 mixes a machine that Yosys elaborated (`build_fes_pc386_quartus.py:284-286`) with shell files that Quartus reads (`:117` lists `top.sv` in `SHELL_SOURCES`, `:330` builds the project QSF, `:346` sets `QUARTUS=1`, `:352` emits the file assignments). Lane macros are set per **file set**, so each set says truthfully what reads it:
 
 - Yosys reads the machine with `FES_TC_YOSYS FES_PNR_QUARTUS FES_DEV_CYCLONEV`. The machine sources include no header today.
 - The shell QSF sets `FES_TC_QLITE FES_PNR_QUARTUS FES_DEV_CYCLONEV`.
 
-The parameter drop at `top.sv:88-95` is a fact about build shape, not about lanes. The comment at `M/cores/fes-pc386/rtl/top.sv:84-86` says: "The Quartus seal reads the machine as the netlist Yosys elaborates with these rates (scripts/build_fes_pc386_quartus.py), so there it takes no parameters." The rates reach the netlist through `-chparam` (`build_fes_pc386_quartus.py:239`). The drop becomes a core-local macro, `FES_PC386_MACHINE_NETLIST`, set by the pc386 sealer's QSF next to the lane macros. Any other reader of `top.sv` passes the parameters as it does today. A search of the scripts and tests finds `top.sv` read only by `build_fes_pc386_quartus.py` and its test.
+The parameter drop at `M/cores/fes-pc386/rtl/top.sv:88-95` is a fact about build shape, not about lanes. The comment at `M/cores/fes-pc386/rtl/top.sv:84-86` says: "The Quartus seal reads the machine as the netlist Yosys elaborates with these rates (scripts/build_fes_pc386_quartus.py), so there it takes no parameters." The rates reach the netlist as `parameters=guest_rates()` on the `yosys_netlist.program` call at `build_fes_pc386_quartus.py:284-286`; the `chparam` text itself is emitted by `M/scripts/yosys_netlist.py:160`, and the word appears nowhere in the pc386 sealer (#1828). The drop becomes a core-local macro, `FES_PC386_MACHINE_NETLIST`, set by the pc386 sealer's QSF next to the lane macros. Any other reader of `top.sv` passes the parameters as it does today. A search of the scripts and tests finds `top.sv` read only by `build_fes_pc386_quartus.py` and its test.
 
 PC/XT has one file set, because Quartus reads only `elaborated.v`, so it gets `FES_TC_YOSYS FES_PNR_QUARTUS FES_DEV_CYCLONEV`. With `FES_VENDOR_RAM` unset, its `coleco_video_dpram.v` read keeps the inferred branch. The record's `front_end` is `yosys` for both cores. For pc386, `quartus_qsf_sha256` covers the shell's Quartus read.
 
@@ -327,54 +328,56 @@ This reproduces today's selection for each lane:
 
 S8 shows this with per-target diffs. It is not assumed.
 
+These 18 sites are the ones under `M/cores`. The census (#1828) found six more `QUARTUS` guards in five files under `M/boards/de25nano`, which this table does not number; one of them, `zx81-hps/tape_store.v:80`, is already dead, unreachable inside the `` `else `` arm of the guard at `:5`, and S8a deletes it. See [`de25.md`](../validation/2026-11-14-1581-s8-reader-census/de25.md).
+
 | # | Site | Selects today | Header slice (S8) | Final form |
 | --- | --- | --- | --- | --- |
-| 1 | `M/cores/fes-coleco/rtl/top.v:107` | HPS I2C atom with assign-to-Z, or `MISTRAL_IO` pads plus BEL-pinned I2C | `fes_hdmi_i2c_pad` (S8) | same |
+| 1 | `M/cores/fes-coleco/rtl/top.v:104` | HPS I2C atom with assign-to-Z, or `MISTRAL_IO` pads plus BEL-pinned I2C | `fes_hdmi_i2c_pad` (S8) | same |
 | 2 | `M/cores/fes-sms/rtl/top.v:57` | same | same | same |
-| 3 | `M/cores/fes-sg1000/rtl/top.v:58` | same | same | same |
+| 3 | `M/cores/fes-sg1000/rtl/top.v:57` | same | same | same |
 | 4 | `M/cores/fes-zx81/rtl/top.v:74` | same | same | same |
 | 5 | `M/cores/fes-ramtest/rtl/top.v:49` | same | same | same |
 | 6 | `M/cores/fes-pc386/rtl/top.sv:52` | same | same | same |
 | 7 | `M/cores/fes-common/rtl/coleco_dpram.v:20` | altsyncram under `QUARTUS`; `m10k_tdp` under `FES_COLECO_OSS` (`:76-101`); otherwise an unregistered sim read | shared rule above | `fes_tdp_ram` (S11) |
 | 8 | `M/cores/fes-common/rtl/coleco_video_dpram.v:20` | altsyncram, or inferred `ramstyle = "M10K"` (`:81-85`) | `` `ifdef FES_VENDOR_RAM `` (PC/XT keeps inferred) | `fes_tdp_ram` |
 | 9 | `M/cores/fes-zx81/rtl/zx81_dpram.v:23` | altsyncram or inferred | `` `ifdef FES_VENDOR_RAM `` | `fes_tdp_ram` |
-| 10 | `M/cores/fes-zx81/rtl/zx81_tape_store.v:21` | `"M10K, no_rw_check"` or `"m10k_tdp"` | `` `FES_RAM_TDP `` (readers are the ZX81 Quartus and OSS producers, per `rg`; no yosys→Quartus reader) | `fes_tdp_ram` |
+| 10 | `M/cores/fes-zx81/rtl/zx81_tape_store.v:21` | `"M10K, no_rw_check"` or `"m10k_tdp"` | `` `FES_RAM_TDP ``. **The highest-risk site in S8a** (#1828): besides the ZX81 Quartus and OSS producers, DE25 reads this file *as bytes* and requires byte-identity. `M/boards/de25nano/zx81-hps/tape_store.v:60-102` is byte-identical to it; `test_tape_store.py:32-33` and `retarget_tape` (`zx81-hps/build.py:59-68`, contract check at `:64-66`) both assert that, the latter also requiring the wrapper's QUARTUS arm to hold exactly one `` `ifdef `` and zero `` `endif ``; and `link-proof/zx81-standard/reviewed-inputs.json` pins this file, `zx81_dpram.v` and the wrapper by sha256, enforced at `link-proof/zx81-standard/static_reference.py:83-84` with its own hash bound at `:27`. So the wrapper is ported in the same commit — `` `ifdef FES_DEV_AGILEX5 `` keeps the required prefix shape, a nested or multi-arm guard does not — and the reviewed-input set is re-approved | `fes_tdp_ram` |
 | 11 | `M/cores/fes-coleco/rtl/coleco_machine.sv:11` | `FES_COLECO_OSS` or `QUARTUS` → `FES_COLECO_REGISTERED_MEDIA` (`:9-13`) | Registered unless `FES_Z80_UNREGISTERED_SIM` | S11 makes registered unconditional and deletes the unregistered form |
 | 12 | `M/cores/fes-sms/rtl/sms_machine.sv:17` | same pattern | same | same |
 | 13 | `M/cores/fes-sg1000/rtl/sg1000_machine.sv:13` | same pattern | same | same |
 | 14 | `M/cores/fes-common/rtl/coleco_vdp.sv:75` | → `FES_COLECO_REGISTERED_VDP` (`:73-77`) | same | same |
-| 15 | `M/cores/fes-coleco/rtl/coleco_machine.sv:391` | `.mif` or `.hex` reset-ROM init | `` `ifdef FES_VENDOR_RAM `` (one line; the `.mif` is the altsyncram image and the `.hex` is for `$readmemh`). The Icarus Quartus sim sets `QUARTUS=1` today and so takes the `.mif`; `FES_VENDOR_RAM` keeps it there, where `FES_TC_QUARTUS` would not | same |
+| 15 | `M/cores/fes-coleco/rtl/coleco_machine.sv:387` | `.mif` or `.hex` reset-ROM init | `` `ifdef FES_VENDOR_RAM `` (one line; the `.mif` is the altsyncram image and the `.hex` is for `$readmemh`). The Icarus Quartus sim sets `QUARTUS=1` today and so takes the `.mif`; `FES_VENDOR_RAM` keeps it there, where `FES_TC_QUARTUS` would not | same |
 | 16 | `M/cores/fes-ramtest/rtl/top.v:11` | `` `RAMTEST_BUILD_ID `` or zero | `` `ifdef FES_TC_QUARTUS `` (BUILD_ID path unchanged, D8) | same |
-| 17 | `M/cores/fes-ramtest/rtl/top.v:398` | altiobuf `enable_bus_hold` `"FALSE"` or `"OFF"` | `` `ifdef FES_PNR_QUARTUS `` (one megafunction parameter spelling) | same |
+| 17 | `M/cores/fes-ramtest/rtl/top.v:404` | altiobuf `enable_bus_hold` `"FALSE"` or `"OFF"` | `` `ifdef FES_PNR_QUARTUS `` (one megafunction parameter spelling) | same |
 | 18 | `M/cores/fes-pc386/rtl/top.sv:88` | Drop the `pc386_system` parameters for the netlist | `` `ifndef FES_PC386_MACHINE_NETLIST `` | same |
 
 **Tests that assert the old text** and move in the same PR:
 
-- `QUARTUS` text: `M/tests/test_build_fes_pc386_quartus.py:133`, `test_build_fes_coleco.py:387,401,440`, `test_build_fes_sms.py:232`, `test_build_fes_sg1000.py:339`, `test_build_fes_zx81.py:155`, `test_fes_ramtest.py:139`, `test_build_fes_zx81_oss.py:446`.
-- `FES_*_OSS` text: `test_build_fes_coleco.py:253-254,275,390`; `test_build_fes_sg1000.py:88-90,101-102,147,150,401,535`; `test_build_fes_sms.py:103,117-119,162,165,341,602`; `test_coleco_sim_shards.py:62-69`, which pins the `-oss` lane flag and becomes a check of the new lane mapping; `test_coleco_megacart_build.py:64`.
+- `QUARTUS` text: `M/tests/test_build_fes_pc386_quartus.py:155`, `test_build_fes_coleco.py:424,438,477`, `test_build_fes_sms.py:269`, `test_build_fes_sg1000.py:377`, `test_build_fes_zx81.py:256`, `test_fes_ramtest.py:144`, `test_build_fes_zx81_oss.py:446`.
+- `FES_*_OSS` text: `test_build_fes_coleco.py:290-291,312,427`; `test_build_fes_sg1000.py:125-127,138-139,184,187,446,579`; `test_build_fes_sms.py:140,154-156,199,202,378,638`; `test_coleco_sim_shards.py:62-69`, which pins the `-oss` lane flag and becomes a check of the new lane mapping; `test_coleco_megacart_build.py:63`.
 
 The S8 census `rg` finds any others, and they move in the same PR.
 
 **Docs that describe `QUARTUS=1` or the `FES_*_OSS` scheme as current** move in the same PR:
 
-- `M/docs/cores.md:257-259`;
-- `M/docs/architecture.md:1230-1232`, `:1244-1245`, `:1321`, `:1335`, `:1540`;
+- `M/docs/cores.md:264-266`;
+- `M/docs/architecture.md:2080`, `:2082`, `:2094-2095`, `:2170`, `:2184`, `:2395`, `:2456` (the earlier list -- `:1731`, `:1733`, `:1745-1746`, `:1821`, `:1835`, `:2046`, `:2107` -- was published against a pre-move tree and none of those seven lines names either scheme today, DeanoC/fes#1829 review; `:1328` is deliberately not in the list, being the `QUARTUS_17_0_2_RAMTEST` profile name rather than the `QUARTUS=1` macro);
 - `M/cores/fes-sms/README.md:183-184`, `:210`;
-- `M/cores/fes-sg1000/README.md:179-181`, `:205`;
-- `M/cores/fes-coleco/README.md:375`, `:462`, `:707`, `:718`;
-- `M/cores/fes-pc386/README.md:446`.
+- `M/cores/fes-sg1000/README.md:181-183`, `:207-208`;
+- `M/cores/fes-coleco/README.md:346`, `:433`, `:678`, `:689`;
+- `M/cores/fes-pc386/README.md:454`.
 
 ### Common subset
 
 There is one rule list. It is kept in this document and linked from `M/cores/fes-common/rtl/i386/README.md`, so that a Quartus-lite fix cannot reintroduce a Yosys break, and a Yosys fix cannot reintroduce a Quartus break.
 
-**Yosys-fork gaps the RTL already follows** (`i386/README.md:1334-1356`, OPL2 `source.json` local_changes):
+**Yosys-fork gaps the RTL already follows** (`M/cores/fes-common/rtl/i386/README.md:1682-1703`, OPL2 `source.json` local_changes):
 
 - no `$bits` of a type;
 - no typed 2-D localparam;
 - no initialisers on anonymous enums or structs;
 - no `'{default:}` on packed types;
-- no unsized `'0` on a port of a parameterised cell in the `-chparam` top; size the literal (#71, `i386/README.md:1342-1344`);
+- no unsized `'0` on a port of a parameterised cell in the `-chparam` top; size the literal (#71, `M/cores/fes-common/rtl/i386/README.md:1689-1691`);
 - index into a width-typed wire, not into a sum (#69);
 - copy whole records for variable-indexed structs (#59);
 - keep replica registers (#51).
@@ -396,7 +399,7 @@ The i386 does not follow these today. It has 36 inline genvar loops in 12 files,
 **Yosys-only idioms** must be fenced or measured before a Quartus front end reads the file:
 
 - `(* no_carry *)` (11 i386 sites);
-- reliance on `proc -norom` to keep opcode tables in LUTs (`README.md:1322-1333`).
+- reliance on `proc -norom` to keep opcode tables in LUTs (`M/cores/fes-common/rtl/i386/README.md:1669-1675`).
 
 ## Primitives library
 
@@ -412,8 +415,8 @@ A lane form is the only implementation for its lane. It is never a fallback, so 
 
 ### P1. Return stack with one write port (RTL change; it becomes a primitive only when it has a second user)
 
-- **Measurement:** 289 ALMs and 520 registers as FFs, against about 20 ALMs in MLAB, so about −250 (`summary.md:96`, `:189`, `:305`).
-- **Change:** `M/cores/fes-common/rtl/i386/fes_i386_ras.sv:29-46` has two write sites that never fire together: `stack[set_ptr]` on a redirect and `stack[ptr+1]` on a push. Both sit under a reset branch that takes priority and writes no entry (`:34-46`). They become one port, which keeps the reset priority:
+- **Measurement:** 289 ALMs and 520 registers as FFs, against about 20 ALMs in MLAB, so about −250 (`docs/validation/2026-11-08-i386-area-audit/summary.md:96`, `:189`, `:305`).
+- **Change:** `M/cores/fes-common/rtl/i386/fes_i386_ras.sv`, lines 29-46 at `97a589e89`, has two write sites that never fire together: `stack[set_ptr]` on a redirect and `stack[ptr+1]` on a push. Both sit under a reset branch that takes priority and writes no entry (lines 34-46 at `97a589e89`). They become one port, which keeps the reset priority:
 
   ```
   we = !reset && (redirect ? set_wr  : push)
@@ -422,11 +425,11 @@ A lane form is the only implementation for its lane. It is never a fallback, so 
   ```
 
   Add `(* ramstyle = "MLAB, no_rw_check" *)` on `stack`. The async read `top = stack[ptr]` (`:32`) is the read an MLAB provides. The attribute is a literal, because the i386 reaches Quartus only through Yosys and so does not include the header.
-- **Why no lane machinery is needed:** pc386 maps a memory to registers only if it has `WR_PORTS>1` **and no** `ramstyle` (`build_fes_pc386_quartus.py:245`). It keeps attributes and removes only `src` and `hdlname` (`:246`). The rewritten single-port memory therefore reaches Quartus with its attribute.
-- **Inference risk:** Quartus left the OPL2 async-read memories uninferred (warning 276007, `summary.md:174-176`). Spike S1d measures three forms before any RTL PR: the current form, single-port with async read, and single-port with registered read.
+- **Why no lane machinery is needed:** pc386 maps a memory to registers only if it has `WR_PORTS>1` **and no** `ramstyle` (`M/scripts/yosys_netlist.py:79`). It keeps attributes and removes only `src` and `hdlname` (`:94`). The rewritten single-port memory therefore reaches Quartus with its attribute.
+- **Inference risk:** Quartus left the OPL2 async-read memories uninferred (warning 276007, `docs/validation/2026-11-08-i386-area-audit/summary.md:174-176`). Spike S1d measures three forms before any RTL PR: the current form, single-port with async read, and single-port with registered read.
 - **Merge rule:** the RTL PR (S2) lands only if the fit saves at least 150 ALMs with timing met. A registered read would delay `top` by one clock. That changes front-end timing and needs its own measurement plus a DOOM rerun.
 - **Deleted:** the two-site write form.
-- **Becomes `fes_ram_ar`** only when a second user is measured, such as the KBC RAM or OPL2 `mem_simple_dual_port_async_read.sv:60` (if D5 allows vendor edits). Its interface would be:
+- **Becomes `fes_ram_ar`** only when a second user is measured, such as the KBC RAM or OPL2 `mem_simple_dual_port_async_read.sv:70` (if D5 allows vendor edits). Its interface would be:
 
   ```
   module fes_ram_ar #(parameter int W = 32, parameter int D = 16) (
@@ -475,14 +478,14 @@ Reads are registered. A read during a write returns the new data. `WORDS` is the
   - Otherwise: `FES_RAM_TDP`, inferred. On nextpnr that is `m10k_tdp`. On yosys→Quartus (PC/XT) it is `"M10K, no_rw_check"`, which S11 measures.
   - Selection order: `FES_VENDOR_RAM` first, then the inferred form. The Icarus Quartus sims set `FES_TC_SIM FES_PNR_QUARTUS`, so they get `FES_VENDOR_RAM` and keep the altsyncram model from `altera_mf.v`, as today. The inferred form is the registered behavioural model for every other sim, so the primitive has no separate `FES_TC_SIM` branch. S11 checks that each `quartus_ram_tb.sv` run still elaborates altsyncram.
   - Agilex 5 gets M20K through `FES_DEV_AGILEX5`.
-- **Why registered-only is required on Quartus:** an unregistered VDP VRAM under Quartus produced 186,906 combinational nodes and could not fit (`M/cores/fes-coleco/README.md:707`).
+- **Why registered-only is required on Quartus:** an unregistered VDP VRAM under Quartus produced 186,906 combinational nodes and could not fit (`M/cores/fes-coleco/README.md:678`).
 - **Measurement:** structural. For every producer that reads a converted wrapper, M10K count, ALMs and Fmax must equal today's, or any change is explained and measured.
 - **Instantiating modules** (every one must be converted before its wrapper is deleted):
 
   | Wrapper | Instantiated at |
   | --- | --- |
-  | `coleco_dpram` | `M/cores/fes-common/rtl/coleco_vdp.sv:414,429,444,459`; `fes-common/rtl/fes_computer_gp.v:153` (needs a `MEDIA_AW`/`MEDIA_WORDS` mapping); `fes-coleco/rtl/coleco_machine.sv:358,374,399`; `fes-coleco/rtl/coleco_application_gp.v:62`; `fes-sms/rtl/sms_vdp.sv:304`; `fes-sms/rtl/sms_machine.sv:262,278`; `fes-sg1000/rtl/sg1000_machine.sv:253,269`; `{fes-coleco,fes-sms,fes-sg1000}/sim/quartus_ram_tb.sv:11` |
-  | `coleco_video_dpram` | `fes-common/rtl/coleco_vdp.sv:355,372`; `fes-common/rtl/coleco_video_720p.v:53`; `fes-common/rtl/fes_native_video.v:58`; `fes-sms/rtl/sms_vdp.sv:319,336`; `fes-sms/rtl/sms_video_720p.v:49`; `fes-pcxt/rtl/pcxt_video.sv:141`; `{fes-coleco,fes-sms,fes-sg1000}/sim/quartus_ram_tb.sv:14` |
+  | `coleco_dpram` | `M/cores/fes-common/rtl/coleco_vdp.sv:414,429,444,459`; `fes-common/rtl/fes_computer_gp.v:153` (needs a `MEDIA_AW`/`MEDIA_WORDS` mapping); `fes-coleco/rtl/coleco_machine.sv:354,370,395`; `fes-coleco/rtl/coleco_application_gp.v:56`; `fes-sms/rtl/sms_vdp.sv:304`; `fes-sms/rtl/sms_machine.sv:262,278`; `fes-sg1000/rtl/sg1000_machine.sv:254,270`; `fes-coleco/sim/quartus_ram_tb.sv:11`, `fes-sms/sim/quartus_ram_tb.sv:11`, `fes-sg1000/sim/quartus_ram_tb.sv:11` |
+  | `coleco_video_dpram` | `fes-common/rtl/coleco_vdp.sv:355,372`; `fes-common/rtl/coleco_video_720p.v:53`; `fes-common/rtl/fes_native_video.v:58`; `fes-sms/rtl/sms_vdp.sv:319,336`; `fes-sms/rtl/sms_video_720p.v:49`; `fes-pcxt/rtl/pcxt_video.sv:141`; `fes-coleco/sim/quartus_ram_tb.sv:14`, `fes-sms/sim/quartus_ram_tb.sv:14`, `fes-sg1000/sim/quartus_ram_tb.sv:14` |
   | `zx81_dpram` | `fes-zx81/rtl/zx81_machine.sv:219,233,263,293`; `fes-zx81/rtl/zx81_ram_pack.v:45`; `fes-zx81/rtl/fes_computer_gp.v:127`; `fes-zx81/expansions/qs_chrs.v:57`; `fes-zx81/sim/rom_init_window.v:13` |
 
   The producers and sims behind each module come from the S8 reader census. They include the Z80 Quartus and OSS producers, PC/XT, `build_video_part.py`, the native video, socket and session sims, the ZX81 bus carts, and the Icarus Quartus sims (`sim_fes_coleco_quartus.py:53`, `sim_fes_sms_quartus.py:39`, `sim_fes_sg1000_quartus.py:39`). The Icarus benches' expected output changes. For example, `sim_fes_coleco_quartus.py:72` checks "unexpected read cycle".
@@ -503,7 +506,7 @@ module fes_regarray #(parameter int W, parameter int D, parameter int WP) (
 
 Write port 0 has priority. Each entry is its own register under its own decoded enable, so neither tool ever sees a multi-driver `$mem`.
 
-- **Why it exists:** to delete both producer memory policies: `memory_map … r:WR_PORTS>1 %i a:ramstyle %d` (`build_fes_pc386_quartus.py:245`) and `memory_map … r:SIZE<=32` (`quartus_fes_pcxt.py:133-134`). These memories are already FFs, so there is no area gain.
+- **Why it exists:** to delete both producer memory policies: `memory_map … r:WR_PORTS>1 %i a:ramstyle %d` (`M/scripts/yosys_netlist.py:79`) and `memory_map … r:SIZE<=32` (`M/scripts/yosys_netlist.py:83`). These memories are already FFs, so there is no area gain.
 - **Users:**
   - OPL2 `carrier_delay`, the 10028 case (`channels.sv:69`, `:208-210`), which is vendor code;
   - `fes_dma8237.sv:43-45`;
@@ -528,33 +531,33 @@ Each lane PR names its check. An i386-style lockstep is not assumed for any othe
 
 ### Close the yosys-lane gap first
 
-- **Lockstep before S4:** `read_verilog -sv; hierarchy -top fes_i386_cpu; proc -norom; flatten; opt -purge; write_verilog -noattr`, with the i386 lock's Yosys 0a7927bf (238eac9a before D2) and no `-I` or `-D` (`M/scripts/test_fes_i386_frontend.py:93-97`; `M/cores/fes-common/rtl/i386/toolchain.lock:1-5`).
-- **The seal before S4:** the pc386 lock's Yosys 0a7927bf on `pc386_system`, with `-chparam` rates, `flatten`, `opt -purge`, `memory_collect`, `memory_map`, `attrmap` and a Python identifier rewrite (`build_fes_pc386_quartus.py:60`, `:236-275`, `:369-382`).
-- **Port trimming:** the sealed machine leaves the CPU's trace and arch ports unconnected (`M/cores/fes-pc386/rtl/pc386_system.sv:476-483`). So a whole-machine netlist cannot drive lockstep, and no CPU sub-netlist can be digested out of it.
+- **Lockstep before S4:** `read_verilog -sv; hierarchy -top fes_i386_cpu; proc -norom; flatten; opt -purge; write_verilog -noattr`, with the i386 lock's Yosys 0a7927bf (238eac9a before D2) and no `-I` or `-D` (lines 93-97 of `M/scripts/test_fes_i386_frontend.py` and lines 1-5 of `M/cores/fes-common/rtl/i386/toolchain.lock`, both at `4d439f23c`, the last commit before S4).
+- **The seal before S4:** the pc386 lock's Yosys 0a7927bf on `pc386_system`, with `-chparam` rates, `flatten`, `opt -purge`, `memory_collect`, `memory_map`, `attrmap` and a Python identifier rewrite (`build_fes_pc386_quartus.py:85`, and lines 237-275 and 369-382 at `97a589e89`).
+- **Port trimming:** the sealed machine leaves the CPU's trace and arch ports unconnected (`M/cores/fes-pc386/rtl/pc386_system.sv:491-498`). So a whole-machine netlist cannot drive lockstep, and no CPU sub-netlist can be digested out of it.
 
 **Fix:** one function, `yosys_netlist(top, sources, lane, chparams, memory_policy, attr_mode, lock)`, in `M/scripts/yosys_netlist.py` (new). The pc386 sealer, `quartus_fes_pcxt.py`, `quartus_fes_i386.py`, `benchmark_fes_i386.py` and `test_fes_i386_frontend.synthesize_netlist` all call it.
 
 - **Lockstep** calls it with `top = fes_i386_cpu`, using the sealing producer's lock and passes. That is the honest definition: the same tool identity, the same passes, a different top.
 - **Binding to the seal:** the seal records the `yosys_netlist()` program (its pass list minus `top` and `chparam`), the Yosys lock identity, and the digest of the CPU source closure. The lockstep report records the same three items plus the digest of the CPU-top netlist it simulated (S4 records these under the report's and the seal summary's `netlist`, `netlist.netlist_sha256` for the CPU netlist). The S5 gate checks two things. First, the program, lock and CPU source digests are equal. Second, the report's netlist digest equals a CPU-top netlist that the sealer regenerates with the same call. It never compares against the sealed machine netlist.
-- **Escaped names:** one mechanism, `rename -unescape`, in the same Yosys run. A JSON round trip loses the signed PLL parameters (`quartus_fes_pcxt.py:136-139`). At 0a7927bf the pass asserted on the pc386 machine (`cpu.ex_out` and `cpu.ex.out` both map to `cpu_ex_out`) and left memories escaped; DeanoC/yosys#75 fixed both, and S4 moves the i386 and pc386 locks to that fix and deletes pc386's `plain_identifiers`.
+- **Escaped names:** one mechanism, `rename -unescape`, in the same Yosys run. A JSON round trip loses the signed PLL parameters (`quartus_fes_pcxt.py:104-106`). At 0a7927bf the pass asserted on the pc386 machine (`cpu.ex_out` and `cpu.ex.out` both map to `cpu_ex_out`) and left memories escaped; DeanoC/yosys#75 fixed both, and S4 moves the i386 and pc386 locks to that fix and deletes pc386's `plain_identifiers`.
 - **Memory policies:** each producer's rule stays a named argument until P4 deletes it.
 - **Attribute mode:** a named argument. pc386 keeps attributes, PC/XT uses `-noattr`.
 
 ### Quartus front-end lanes: proposed mechanism
 
-1. Build a CPU-only Quartus project with every port kept. Start from the `spike_cpu` project in `quartus_fes_i386.py` (`:249-267`), reading RTL under the lane macros, with the seal's version, edition and settings.
+1. Build a CPU-only Quartus project with every port kept. Start from the `spike_cpu` project in `quartus_fes_i386.py` (`:273-293`), reading RTL under the lane macros, with the seal's version, edition and settings.
 2. Run `quartus_map`, then `quartus_eda <top> --simulation --tool=modelsim --format=verilog --functional=on` to write a `.vo`. The [S1c record](../validation/2026-11-10-1581-netlist-sim/README.md) confirms these flags on Lite 17.0.2; `--tool=modelsim` chooses the output dialect and directory and does not require ModelSim to write the file.
-3. Simulate the `.vo` against the Intel models from the locked install. `cyclonev_atoms.v` holds `cyclonev_ff` (`:394`), `cyclonev_lcell_comb` (`:567`), `cyclonev_ram_block` (`:961`) and `cyclonev_mlab_cell` (`:1208`). `altera_lnsim.sv` holds `generic_m10k` (`:4269`) and `generic_28nm_lc_mlab_cell_impl` (`:5062-5220`). All of these are plain text.
-4. `lockstep_tb.cpp` reads only top-level ports and never uses `rootp`, so a netlist with the same ports drops in (`fes_i386_cpu.sv:214-251`).
+3. Simulate the `.vo` against the Intel models from the locked install. In the locked Quartus install (not in this tree), `cyclonev_atoms.v` holds `cyclonev_ff` at line 394, `cyclonev_lcell_comb` at 567, `cyclonev_ram_block` at 961 and `cyclonev_mlab_cell` at 1208; `altera_lnsim.sv` holds `generic_m10k` at 4269 and `generic_28nm_lc_mlab_cell_impl` at 5062-5220. All of these are plain text.
+4. `lockstep_tb.cpp` reads only top-level ports and never uses `rootp`, so a netlist with the same ports drops in (`fes_i386_cpu.sv:221-258`).
 
 **Gating questions, answered in S1c before any Quartus lane is promised:**
 
 1. Does 17.0.2's `quartus_eda` write a functional post-map `.vo` for Cyclone V? How does it name bit-blasted packed ports such as `trace_store_data[7:0][7:0]`?
 2. Does Verilator 5.032 compile the atoms that are used, with or without `--timing`? Known obstacles:
    - 3 UDPs and 11 specify blocks in `cyclonev_atoms.v`;
-   - a level-listed `always` with notifiers in `cyclonev_ff` (`cyclonev_atoms.v:394-566`);
-   - Verilator 5.051 already rejects the `altera_mf.v` model's `i_good_to_write_a2/b2` feedback constructs (`M/cores/fes-coleco/README.md:667-669`, `:717`).
-3. Does the netlist contain `cyclonev_mac`? It wraps an encrypted model (`cyclonev_atoms.v:4449`) that open tools cannot simulate. Quartus maps i386 stride multiplies to DSPs (`quartus_fes_i386.py:20-24`). This is D6.
+   - a level-listed `always` with notifiers in `cyclonev_ff` (lines 394-566 of the install's `cyclonev_atoms.v`);
+   - Verilator 5.051 already rejects the `altera_mf.v` model's `i_good_to_write_a2/b2` feedback constructs (`M/cores/fes-coleco/README.md:639-640`, `:688`).
+3. Does the netlist contain `cyclonev_mac`? It wraps an encrypted model (line 4449 of the install's `cyclonev_atoms.v`) that open tools cannot simulate. Quartus maps i386 stride multiplies to DSPs (`quartus_fes_i386.py:25-29`). This is D6.
 4. Is the CPU cycle-equivalent after `quartus_map`, with no retiming and no register duplication at map, so that trace hashes compare exactly? No retiming setting is written today, and the 17.0.2 defaults are not recorded.
 5. (Z80 leg) Can a `quartus_eda` `.vo` of one native-Lite Z80 top run through one existing machine suite? Those suites are Verilator C++ with M10K atoms in the netlist, or Icarus, and Icarus is not installed on this host.
 
@@ -568,7 +571,7 @@ Each lane PR names its check. An i386-style lockstep is not assumed for any othe
 
 ### Gate strength
 
-- **Yosys lane.** Lockstep stays reviewed PR evidence, as it is today, plus the input-identity binding in the seal summary. Once the Verilator lock is fixed (S3), the pc386 sealer gains `--lockstep-report`. It refuses to seal unless the report's Yosys program, lock and CPU source digests match the build, and the report's netlist digest matches a regenerated CPU-top netlist (S5). A producer gate needs Bochs and the corpus in the seal environment. CI has neither (`.github/workflows/check.yml:257-295`), so the gate runs on the sealing host.
+- **Yosys lane.** Lockstep stays reviewed PR evidence, as it is today, plus the input-identity binding in the seal summary. Once the Verilator lock is fixed (S3), the pc386 sealer gains `--lockstep-report`. It refuses to seal unless the report's Yosys program, lock and CPU source digests match the build, and the report's netlist digest matches a regenerated CPU-top netlist (S5). A producer gate needs Bochs and the corpus in the seal environment. CI has neither (`.github/workflows/check.yml:294-312`), so the gate runs on the sealing host.
 - **New Quartus front-end lanes** get the producer gate from their first seal.
 - **Pre-existing failures** follow the existing rule: record them, file issues, and do not block. The RTL run and the lane run must fail identically.
 
@@ -576,11 +579,11 @@ Each lane PR names its check. An i386-style lockstep is not assumed for any othe
 
 `M/scripts/quartus_signoff.py` (new) applies the strongest gate in the tree to every Quartus seal of every lane:
 
-- **From pc386** (`build_fes_pc386_quartus.py:396-427`, `:442-465`): fail on negative worst slack or TNS in Setup, Hold, Recovery, Removal or MPW on any corner; fail on any Illegal or Unconstrained clock row; fail on any PLL frequency outside tolerance.
-- **From PC/XT** (`build_fes_pcxt_quartus.py:245-280`, `:343-360`): signoff seeds [1, 2, 3], the clock-pair matrix audit, and a repeat build of seed 1 that must give a byte-identical RBF.
-- **Authentication:** clean pinned sources, a lock-authenticated Yosys, the `quartus_sh` sha256, and post-compile re-checks (`build_fes_pc386_quartus.py:206-228`, `:518-523`).
+- **From pc386** (`build_fes_pc386_quartus.py:411-442`, `:457-480`): fail on negative worst slack or TNS in Setup, Hold, Recovery, Removal or MPW on any corner; fail on any Illegal or Unconstrained clock row; fail on any PLL frequency outside tolerance.
+- **From PC/XT** (`build_fes_pcxt_quartus.py:266-299`, `:344-361`): signoff seeds [1, 2, 3], the clock-pair matrix audit, and a repeat build of seed 1 that must give a byte-identical RBF.
+- **Authentication:** clean pinned sources, a lock-authenticated Yosys, the `quartus_sh` sha256, and post-compile re-checks (`build_fes_pc386_quartus.py:239-268`, `:597-602`).
 
-This raises the bar for the single-seed Z80 sealers (`build_fes_coleco.py:174`, `:202`) and for RAM Tester, which checks setup rows only today (`build_fes_ramtest_quartus.py:132-183`). Each of those moves in its own PR (S9b–S9f). If a core fails the raised bar, only that core's PR stops and reports. No exception is added.
+This raises the bar for the single-seed Z80 sealers (`build_fes_coleco.py:183`, `:211`) and for RAM Tester, which checks setup rows only today (`build_fes_ramtest_quartus.py:135-186`). Each of those moves in its own PR (S9b–S9f). If a core fails the raised bar, only that core's PR stops and reports. No exception is added.
 
 Each lane seals from its own production build. No seal is reused across lanes.
 
@@ -590,13 +593,13 @@ Each lane seals from its own production build. No seal is reused across lanes.
 
 The version is scattered across:
 
-- `M/scripts/quartus_tools.py:6`, `:57-74` (a regex that must match exactly one line);
-- `build_fes_pc386_quartus.py:294`, `:327`, `:468-470`;
-- the `LAST_QUARTUS_VERSION` constants in the Z80 and RAM Tester producers (`build_fes_coleco.py:203` and the others);
+- `M/scripts/quartus_tools.py`, lines 6 and 57-74 at `97a589e89` (a regex that must match exactly one line);
+- `build_fes_pc386_quartus.py`, lines 294, 327 and 468-470 at `97a589e89`;
+- the `LAST_QUARTUS_VERSION` constants in the Z80 and RAM Tester producers (`build_fes_coleco.py`, line 204 at `97a589e89`, and the others);
 - `M/cores/fes-pcxt/quartus.lock:1-3`;
-- `config/core-recipes.toml:1716-1731`.
+- `config/core-recipes.toml:1633` and `:1655`.
 
-No doc says why 17.0.2 was chosen (`M/AGENTS.md:81`).
+No doc says why 17.0.2 was chosen (`sources/misteross/AGENTS.md:83`).
 
 **Design:** a per-core `quartus.lock` in PC/XT's shape, extended as follows:
 
@@ -611,29 +614,29 @@ commit = "…"
 sha256 = "…"
 ```
 
-- Extend the existing `quartus_tools.locate_quartus(quartus_root, repo_root)` (`quartus_tools.py:27`) with an edition argument, and take the expected version line from the lock.
-- **Deleted, with no fallback:** the regex, every `LAST_QUARTUS_VERSION`, and the pc386 hard-coded label. In S6b (with S16), also DE25's `QUARTUS_VERSION` and its separate `locate_quartus(root)` (`M/boards/de25nano/build.py:19`, `:68-82`).
+- Extend the existing `quartus_tools.locate_quartus(quartus_root, repo_root)` (`quartus_tools.py`, line 27 at `97a589e89`) with an edition argument, and take the expected version line from the lock.
+- **Deleted, with no fallback:** the regex, every `LAST_QUARTUS_VERSION`, and the pc386 hard-coded label. In S6b (with S16), also DE25's `QUARTUS_VERSION` (line 19 of `M/boards/de25nano/build.py` at `97a589e89`) and its separate `locate_quartus(root)` (`M/boards/de25nano/build.py:79-86`).
 - **A core's Yosys pin stays where its Yosys is built.** `[yosys]` appears only in a lock whose core has no `toolchain.lock` of its own (PC/XT, whose Yosys slot comes from the shared lock). pc386 keeps its Yosys pin in `M/cores/fes-pc386/toolchain.lock`: `make toolchain-fes-pc386` builds that slot from the whole file, and the slot key includes the file's sha256, so moving the pin would leave either a second pin or no builder (S6a, #1647). The rationale text that named the deleted `build_fes_pc386_oss.py` was corrected with that lock's Verilator move to v5.054 (#1660). Any byte of the lock moves the fes.pc386 BUILD_ID, so that PR carries the D12 evidence (`docs/validation/2026-11-11-1660-pc386-verilator-lock`).
-- **Locks are per core and last known good**, like nextpnr locks (`quartus-cores.md:288-297`).
+- **Locks are per core and last known good**, like nextpnr locks (`docs/design/quartus-cores.md:299-308`).
 
 ### A newer Lite
 
-No newer Lite release has been tried on FES RTL. S1a runs its parse census on 17.0.2 at `SYSTEMVERILOG_2005`, which every QSF sets today (for example `build_fes_pc386_quartus.py:326`), and at `SYSTEMVERILOG_2009`. If a newer Lite that still supports Cyclone V can be installed beside 17.0.2 on Powerboat, S1a runs it too.
+No newer Lite release has been tried on FES RTL. S1a runs its parse census on 17.0.2 at `SYSTEMVERILOG_2005`, which every QSF sets today (for example `build_fes_pc386_quartus.py:343`), and at `SYSTEMVERILOG_2009`. If a newer Lite that still supports Cyclone V can be installed beside 17.0.2 on Powerboat, S1a runs it too.
 
-If the newer release accepts the i386 genvar and struct forms, moving the lock forward is cheaper than rewriting 36 loop sites. That move is its own pin-bump PR: it rebuilds and reseals every core on that lock under the signoff helper before merging (`AGENTS.md:196-198`).
+If the newer release accepts the i386 genvar and struct forms, moving the lock forward is cheaper than rewriting 36 loop sites. That move is its own pin-bump PR: it rebuilds and reseals every core on that lock under the signoff helper before merging (`AGENTS.md:197-199`).
 
 ### Quartus Pro for Agilex 5
 
-26.3.0 is hard-coded today (`M/boards/de25nano/build.py:19`). The docs disagree about it:
+26.3.0 is hard-coded today (`M/boards/de25nano/build.py`, line 19 at `97a589e89`). The docs disagree about it:
 
-- `AGENTS.md:74-75` and `:88-91` say Pro 26.3 is installed on Powerboat and on fes-build-3090, and that fes-build-3090 is preferred.
-- `quartus-cores.md:27-31` and `:240-245` listed the entitlement as open. S0 marks both passages as conflicting.
+- `AGENTS.md:74-75` and `:89-92` say Pro 26.3 is installed on Powerboat and on fes-build-3090, and that fes-build-3090 is preferred.
+- `docs/design/quartus-cores.md:29-35` and `:251-256` listed the entitlement as open. S0 marks both passages as conflicting.
 
 S1b records the actual install, build string and licence state on both hosts. Then, in S6b, the DE25 lock gets `edition = "pro"`, the full 26.3.0 version string and `device_family = "agilex5"`. If the install-tree digests differ between the two hosts, the host goes into the record, and the comparison is not relaxed.
 
 ### Verilator
 
-The i386 lock's old 5e4151e3 hit an internal error at `fes_i386_seq.sv:317`, so earlier evidence used the unlocked system Verilator 5.020 and 5.032 with `-Wno-fatal` (`docs/validation/2026-11-02-i386-cs-limit/summary.md:86-94`). S3 (#1653) moved the i386 lock to v5.054, and the i386 sims take it from that lock's slot. The pc386 lock follows (#1660); the pc386 sims still take the system Verilator until they build under v5.054 (#1678).
+The i386 lock's old 5e4151e3 hit an internal error at `fes_i386_seq.sv:390`, so earlier evidence used the unlocked system Verilator 5.020 and 5.032 with `-Wno-fatal` (`docs/validation/2026-11-02-i386-cs-limit/summary.md:86-94`). S3 (#1653) moved the i386 lock to v5.054, and the i386 sims take it from that lock's slot. The pc386 lock follows (#1660); the pc386 sims still take the system Verilator until they build under v5.054 (#1678).
 
 ## Implementation plan
 
@@ -649,7 +652,7 @@ Rules for every slice:
 
 - **Scope:**
   - add `docs/design/rtl-frontend-lanes.md` (this document);
-  - in `quartus-cores.md` (done in this PR): point open question 3 at S1b; fix the stale "registry selects only OSS" text (status paragraph and `:48-49`); mark the Pro entitlement text and the "oracle only" status as conflicting with `AGENTS.md:73-76`, `:88-91`. S6a and S6b correct them once S1b has the facts.
+  - in `docs/design/quartus-cores.md` (done in this PR): point open question 3 at S1b; fix the stale "registry selects only OSS" text (status paragraph and `:52-53`); mark the Pro entitlement text and the "oracle only" status as conflicting with `AGENTS.md:73-76`, `:89-92`. S6a and S6b correct them once S1b has the facts.
 - **Acceptance:** Deano's review. **Dependencies:** none. **Kit:** no.
 
 ### S1. Spikes (validation-record PRs, no production code, parallel)
@@ -668,7 +671,7 @@ Each spike lands as its own `docs/validation/<date>-1581-<name>/` record.
   - struct-typed ports;
   - `(* no_carry *)` on `+`;
   - an attribute inside a `` `define ``;
-  - whether `SYNTHESIS` is predefined (OPL2 `control_operators.sv:444`);
+  - whether `SYNTHESIS` is predefined (OPL2 `control_operators.sv:449`);
   - whether an undefined-macro use stops preprocessing.
 
   Run each form under 17.0.2 at SV2005 and SV2009, and under a newer Lite if one is installed. Run the same forms through both Yosys locks, Verilator and Icarus.
@@ -704,7 +707,7 @@ Each spike lands as its own `docs/validation/<date>-1581-<name>/` record.
 - **Files:**
   - `M/cores/fes-common/rtl/i386/fes_i386_ras.sv`;
   - the area tooling's for-the-record search for variable-index writes and multi-site memories in the CPU (the `~/fes-scratch/area1548` method).
-- **Acceptance:** the i386 slice merge gate (`M/docs/i386-cpu-design.md:2221-2235`):
+- **Acceptance:** the i386 slice merge gate (`M/docs/i386-cpu-design.md:2260-2274`):
   - lockstep on RTL and on the netlist, with identical trace hashes;
   - test386 to POST;
   - a pc386 Quartus seal with every analysis met;
@@ -745,17 +748,17 @@ Each spike lands as its own `docs/validation/<date>-1581-<name>/` record.
 ### S6a. Lock-driven Quartus versions (Lite)
 
 - **Files:**
-  - `quartus_tools.py` (extend `locate_quartus` at `:27`);
+  - `quartus_tools.py` (extend `locate_quartus`, line 27 at `97a589e89`);
   - the pc386, Coleco, SMS, SG-1000 and ZX81 sealers and the RAM Tester Quartus producer;
   - a new `quartus.lock` for each of those cores;
-  - version-pinning tests (`test_build_fes_pc386_quartus.py:205-220`, `test_build_fes_zx81.py:190`).
+  - version-pinning tests (`test_build_fes_pc386_quartus.py:227-242`, `test_build_fes_zx81.py:291`).
 - **Acceptance:** every Lite Quartus producer authenticates from its lock. One compile per producer shows the lock's version in its identity string. The constants are gone.
 - **Measurement:** none (no RTL change).
 - **Dependencies:** none. It merges to main before the S7/S8 work opens. **Kit:** no.
 
 ### S6b. DE25 Pro lock
 
-- **Files:** `M/boards/de25nano/build.py` (delete `QUARTUS_VERSION` at `:19` and the private `locate_quartus` at `:68-82`, and use the shared one with `edition = "pro"`), a DE25 `quartus.lock`, and the Pro text in `quartus-cores.md`.
+- **Files:** `M/boards/de25nano/build.py` (delete `QUARTUS_VERSION`, line 19 at `97a589e89`, and the private `locate_quartus` at `:79-86`, and use the shared one with `edition = "pro"`), a DE25 `quartus.lock`, and the Pro text in `quartus-cores.md`.
 - **Dependencies:** S1b, S6a. It folds into S16 if S16 is reached first. **Kit:** no.
 
 ### S7. Front-end identity fields
@@ -763,11 +766,12 @@ Each spike lands as its own `docs/validation/<date>-1581-<name>/` record.
 - **Files:**
   - `scripts/recipes.py` and `config/core-recipes.toml` (`front_end`, `edition`, `device_family`, pair checks);
   - `M/scripts/export_core_package.py` (cross-check);
+  - `M/scripts/quartus_fes_pcxt.py` (the canonical QSF and Yosys program, and the check that the compiled project is the recorded one);
   - every format-2 Quartus producer (PC/XT today) writes `front_end`, `device_family`, `quartus_qsf_sha256` and, on the yosys front end, `front_end_program_sha256`. The format-1 producers gain them when they move to format 2 (S9b–S9f, S10); the native `quartus-lite` ones never write `front_end_program_sha256`;
   - the seal-summary fields;
-  - `docs/support-matrix.py:383-384`.
+  - `docs/support-matrix.py`, the `quartus_role` comparison in `validate()` (named rather than numbered, because this file's line numbers move whenever the matrix's checks do).
 - **Tests:**
-  - updated: `test_build_fes_pcxt_quartus.py:215-230`, `test_export_core_package.py:238`, `test_pnr_recipes.py:239-242`, `tests/test_recipes.py:152-155`;
+  - updated, named rather than numbered for the reason the bullet above gives -- all four line ranges had already gone stale against this tree, which is the defect DeanoC/fes#1829 exists to catch: `test_quartus_has_a_distinct_functional_identity_without_gpu_inputs` in `test_build_fes_pcxt_quartus.py`; `test_quartus_record_names_its_front_end_and_that_front_end_s_digests` and `test_a_record_that_misstates_its_front_end_is_rejected` in `test_export_core_package.py`; the format-2 Quartus golden/lock assertions in `test_pnr_recipes.py`; and the DE25 Quartus-table assertion in `tests/test_recipes.py`;
   - new: every seed's final QSF minus its BUILD_ID and `SEED` lines hashes to the recorded `quartus_qsf_sha256`; each executed Yosys program (signoff and repeat), with its roots replaced by the placeholders and its BUILD_ID zeroed, hashes to the recorded `front_end_program_sha256`; two builds that differ only in BUILD_ID record the same digest and program; records that differ only in `front_end` get different BUILD_IDs and functional keys; an OSS record's field set and functional projection are byte-identical for identical inputs; illegal pairs are rejected; a format-1 record that carries `front_end` is rejected; a `quartus-lite` record that carries `front_end_program_sha256` is rejected, and a `yosys` Quartus record without it is rejected.
 - **Acceptance:** the tests pass. The PR states D12's answer. If D12 needs a reseal, the PR includes the generated list of every core whose closure contains an S7-changed file, and S7r is opened with it.
 - **Dependencies:** S6a merged. **Kit:** none in S7 itself.
@@ -780,27 +784,33 @@ Each spike lands as its own `docs/validation/<date>-1581-<name>/` record.
 ### S8. fes_toolchain.svh, fes_lanes.py and fes_hdmi_i2c_pad
 
 - **Opens on main** after S7 (and S7r, if needed) has merged.
-- **Reader census, first commit:** `rg` over the 14 files, the three `FES_*_OSS` macros and `QUARTUS` in `M/scripts`, `M/Makefile`, `M/tests`, `*.cpp`, `M/docs` and the READMEs, plus `source_closures.json`. The PR keeps the census output. Every reader it finds is in scope. Known readers beyond the Z80 producers:
-  - **Producers and tools:** `build_fes_coleco_megacart.py:94`, `build_fes_coleco_socket_dev.py:105`, `build_video_part.py:34`, `:167`, `hip_zx81_bus_carts.py:39`, `:71`, `build_zx81_bus_validation_cart.py:32-33`, and the PC/XT set (`quartus_fes_pcxt.py`, `build_fes_pcxt_quartus.py`, `sim_fes_pcxt.py`, `synth_fes_pcxt.py`).
-  - **Sims:** `sim_fes_coleco_native.py:21`, `sim_fes_zx81_session.py`, `sim_fes_native_video.py`, `synth_fes_native_video.py`, `sim_fes_native_socket.py`, `sim_fes_coleco_session.py`, and every `M/Makefile` Verilator target that reads a guarded file (for example `:355`, `:387`, `:403`, `:420`, `:437`, `:463`, `:625-630`) or sets `FES_*_OSS` (about 25 sites, including `:659`, `:725`, `:765`, `:823`, `:893-894`, `:928`, `:952`, `:1008-1009`, `:1017-1018`, `:1027-1028`, `:1048-1050`, `:1718-1719`, `:1739`, `:1872`, `:1886`, `:1898`, `:1910-1911`, `:2077`).
-  - **Testbenches:** `M/cores/fes-coleco/sim/{machine,gp,expansion,vdp_machine}_tb.cpp`, `M/cores/fes-sms/sim/machine_tb.cpp`, `M/cores/fes-sg1000/sim/machine_tb.cpp`.
+- **Reader census, first commit:** done, in [`docs/validation/2026-11-14-1581-s8-reader-census`](../validation/2026-11-14-1581-s8-reader-census/README.md) — 402 sites in eight areas, with the DE25 tree in [`de25.md`](../validation/2026-11-14-1581-s8-reader-census/de25.md) and the inventory in [`census-tables.md`](../validation/2026-11-14-1581-s8-reader-census/census-tables.md). A macro `rg` alone does not find the readers: a large class names no macro at all, and the census had to follow imports and module instantiations to reach them. Every reader it found is in scope. Known readers beyond the Z80 producers, with the lines as the census verified them:
+  - **Producers and tools:** `build_fes_coleco_megacart.py:94`, `build_fes_coleco_socket_dev.py:105`, `build_video_part.py:34`, `:167`, `hip_zx81_bus_carts.py:39`, `:71`, `hip_zx81_bus_socket.py:54`, `:138`, `build_zx81_bus_validation_cart.py:32-33` and its compile at `:157`, `quartus_x87_spike.py:367` (its `machine()` mode reuses the pc386 sealer's `write_project()`, so it emits the same `QUARTUS=1` QSF and read of `top.sv`; its `spike()` mode reads no guarded file), and the PC/XT set (`quartus_fes_pcxt.py`, `build_fes_pcxt_quartus.py`, `sim_fes_pcxt.py`, `synth_fes_pcxt.py:49`, which also hashes `coleco_video_dpram.v` into a diagnostic receipt).
+  - **Sims:** `sim_fes_coleco_native.py:21`, `sim_fes_zx81_session.py:31`, `sim_fes_native_video.py:23`, `synth_fes_native_video.py:14`, `sim_fes_native_socket.py:22`, `sim_fes_coleco_session.py:20`, `sim_fes_ramtest.py:100` (the only sim of `fes-ramtest/rtl/top.v`, whose source list opens at `:99`), the three Icarus Quartus sims, which both set `QUARTUS=1` and read guarded files through the `build_fes_*` source lists (`sim_fes_coleco_quartus.py:58` and `:32-33`, `sim_fes_sms_quartus.py:46`, `sim_fes_sg1000_quartus.py:46`), and the three PC/XT wrapper sims that reach `coleco_video_dpram.v` only through `sim.SYSTEM_SOURCES` and so match no macro pattern (`sim_fes_pcxt_dos.py:188`, `sim_fes_pcxt_media.py:39`, `sim_fes_pcxt_media_diag.py:17`). In `M/Makefile`, 26 lines define an `FES_*_OSS` macro across 15 recipes (`:633`, `:667`, `:733`, `:773`, `:877-878`, `:912`, `:936`, `:992-993`, `:1001-1002`, `:1011-1012`, `:1032`, `:1034`, `:1711-1712`, `:1732`, `:1768`, `:1880`, `:1894`, `:1906`, `:1918-1919`, `:2096`) and about 72 lines compile a guarded file; the Makefile sets `QUARTUS` on no line at all, since the Icarus Quartus sims are reached through the delegating script targets above. Two of the 26 put the define inside a `$(if $(filter %-oss,$@),…)`, at `:633` and `:667`, so the macro state depends on which name in a multi-target recipe was asked for.
+  - **Testbenches:** `M/cores/fes-coleco/sim/{machine,gp,expansion,vdp_machine}_tb.cpp`, `M/cores/fes-sms/sim/machine_tb.cpp`, `M/cores/fes-sg1000/sim/machine_tb.cpp` — 14 `#ifdef` lines, and the census confirms there are no others in the tree. Two further C++ benches compile a guarded file without testing a macro, and must still build after the rewrite: `M/cores/fes-ramtest/sim/tb.cpp` (sites 5, 16 and 17, and it exercises site 17's `enable_bus_hold` spelling through `sim/altiobuf_model.v`) and `M/cores/fes-zx81/sim/zonx_firmware_tb.cpp`.
+  - **Tests that run a real tool**, each spelling its own `-I` list, so each needs `M/cores/fes-common/include` added: `test_coleco_megacart_build.py:63`, `test_build_fes_sms.py:638`, `test_build_fes_sg1000.py:579`, `test_build_fes_zx81_oss.py:687` (Yosys), and `test_computer_memory_backend.py:33`, `test_zonx_firmware.py:38` (bare Verilator, no lane macro today). All four Yosys tests skip unless Yosys is on `PATH`, so a miss here passes locally and breaks wherever Yosys is installed.
+  - **Three `*.sv` sim benches** — `M/cores/fes-coleco/sim/quartus_ram_tb.sv:3`, `M/cores/fes-sms/sim/quartus_ram_tb.sv:3` and `M/cores/fes-sg1000/sim/quartus_ram_tb.sv:3` — each carrying `// Run with QUARTUS and Intel's unmodified altera_mf.v, not a RAM stand-in.` They hold no guard, so they compile either way and nothing breaks at build time, but the broadened acceptance pattern below matches the comment where the narrower one did not, so S8 must reword all three. `sim_fes_coleco_quartus.py:58`, `sim_fes_sms_quartus.py:46` and `sim_fes_sg1000_quartus.py:46` are what actually set the macro for them.
+  - **The DE25 board tree**, which this record did not previously cover at all: six more `QUARTUS` guards in five RTL files, seven producer sites, three test sites and eleven readers that set no macro. It has no `FES_*_OSS` exposure, so all of its work is S8a. See [`de25.md`](../validation/2026-11-14-1581-s8-reader-census/de25.md), and the dependency note below.
 - **Files:**
   - new `M/cores/fes-common/include/fes_toolchain.svh`, `M/scripts/fes_lanes.py` and `M/cores/fes-common/rtl/prim/fes_hdmi_i2c_pad.sv`;
   - the 14 files and 18 sites in the table;
   - every reader in the census, moved to `lane_inputs`, with the include dir added (the megacart and socket-dev producers move too; deleting them, if they are superseded, is a separate PR);
   - `source_closures.json` regenerated, and `PINNED_INPUTS`;
-  - the tests and docs listed above.
+  - the tests and docs listed above, and the three `quartus_ram_tb.sv` comments.
 - **Deleted:** `QUARTUS`, `QUARTUS=1`, `FES_COLECO_OSS`, `FES_SMS_OSS`, `FES_SG1000_OSS` (Verilog and `-CFLAGS`), and the six inline pad blocks.
 - **Acceptance:**
   - no RTL source outside the header, `rtl/prim/` and `M/boards/` names a `FES_DEV_*` macro (new test; scripts, tests and docs are not scanned);
   - every OSS Yosys netlist, the PC/XT `elaborated.v`, the video-part netlists and the ZX81 cart netlists are byte-identical to main, except for the BUILD_ID constant and the pad hierarchy names;
   - every native-Lite `quartus_map` resource summary is identical;
   - per Makefile sim target and sim script, the output is identical to main, or a target that set part of the `FES_*_OSS` set is listed with its chosen state and diff;
-  - `rg 'QUARTUS=1|ifdef QUARTUS|elsif QUARTUS|ifndef QUARTUS|FES_(COLECO|SMS|SG1000)_OSS'` over `M/` RTL, scripts, Makefile, `*.cpp`, tests, current docs and READMEs finds nothing. Dated records (`M/docs/validation/`, `docs/validation/`, dated plans) and this design record are excluded and not edited: they describe the commands that were run and the sites this plan replaces;
+  - `rg '\bQUARTUS\b|FES_(COLECO|SMS|SG1000)_OSS'`, with `QUARTUS_ROOTDIR`, `QUARTUS_LOCK` and `QUARTUS_VERSION` excluded, over `M/` RTL, scripts, Makefile, `*.cpp`, tests, current docs and READMEs finds nothing. Dated records (`M/docs/validation/`, `docs/validation/`, dated plans) and this design record are excluded and not edited: they describe the commands that were run and the sites this plan replaces. **The narrower pattern this record carried until #1828 — `QUARTUS=1|ifdef QUARTUS|elsif QUARTUS|ifndef QUARTUS|FES_(COLECO|SMS|SG1000)_OSS` — does not hold, and must not be used:** it misses bare `VERILOG_MACRO "QUARTUS"` (`build_fes_ramtest_quartus.py:101`, a reader this record already names), a guard asserted as a regex so that the source text is `ifdef\s+QUARTUS` (`tests/test_build_fes_zx81.py:68`), `` `define QUARTUS ``/`` `undef QUARTUS `` (`boards/de25nano/zx81-hps/test_tape_store.py:62`) and a `VERILOG_MACRO\s+.*QUARTUS` guard regex (`boards/de25nano/zx81-hps/build.py:341`). The slice could otherwise pass its own acceptance with live `QUARTUS` machinery still in the tree;
+  - **every reader in the census compiles.** A macro grep of any shape is necessary but not sufficient: the census found a large class of readers that name no macro at all — path-joined reads (`test_fes_ramtest.py:121`, `:145`, `:151`, `:152`, `:173`), wrapper sims reaching a guarded file only through `sim.SYSTEM_SOURCES`, bare Verilator compiles, and eleven DE25 readers. Their failure mode is a missing include directory, not a surviving macro, so the macro criterion cannot see it;
   - the Icarus and Verilator sims pass;
   - every core and artifact whose closure changed reseals under its existing gate. The list is generated from the census and `source_closures.json`, and it includes PC/XT, the video parts and the ZX81 carts.
 - **Measurement:** a per-core resource diff table showing zero change, or explaining any change.
 - **Dependencies:** S1a (attribute forms and check mechanism accepted by every reader), S7 merged.
+- **DE25 is inside S8a, not after it** (#1828). S16 lists S8 as *its* dependency, but the DE25 ZX81 static package's reviewed-input gate and the site-10 byte contract have no S16 to wait for: they fail the moment site 10 changes. S8a therefore carries the DE25 work — port the `tape_store.v` wrapper guard to `` `ifdef FES_DEV_AGILEX5 `` and re-copy the new core text into its else arm in the same commit, delete the dead guard at `:80`, move the three `.mif`/`.hex` guards to `` `ifdef FES_VENDOR_RAM `` as site 15, retarget the five DE25 `QUARTUS=1` setters and the two checks over them, add the include directory by all four routes, and re-hash `reviewed-inputs.json` with its binding at `static_reference.py:27`. `shared-rtl/zx81_top.v` appears to be dead (reached only through a staging rename, with no `VERILOG_FILE` entry and no pinned hash), so S8a either deletes it with its guard, under the project's rule against keeping superseded code, or ports it to `fes_hdmi_i2c_pad`; either way it touches `scripts/affected.py:309` (inside the `shared-rtl` arm that opens at `:303`) and `scripts/hil_plan.py:250`; `tests/test_hil_plan.py:709-710` is the test over that arm, but it names `fes_zx81_core.v` and `fes_menu_reader.v` and no `zx81_top.v` at all, so the deletion has no direct test coverage to update -- add a row rather than edit one (DeanoC/fes#1829 review). **Confirm the deadness before acting on it** — the census flagged it rather than settling it. `retarget_ram`'s three anchors survive S8a and break at S11, which the S11 entry should carry.
+- **Two things S8b decides rather than inherits** (#1828). **One** Makefile recipe has a real lane asymmetry: `M/Makefile:1732` (`sim-fes-sg1000-rom-link`) passes `-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1` to Verilog while its `-CFLAGS` carries only `-DFES_SG1000_ROM_LINK=1`, so `sg1000/machine_tb.cpp` — which does test the macros — compiles its *non*-OSS arm against OSS, registered-media RTL. `FES_Z80_UNREGISTERED_SIM` has to resolve that deliberately. Deriving the set needs two conditions, not one: a recipe whose Verilog `-D` macros exceed its `-CFLAGS` macros **and** whose C++ bench actually tests an `FES_*_OSS` macro. Only `machine_tb.cpp`, `gp_tb.cpp`, `expansion_tb.cpp` and `vdp_machine_tb.cpp` contain such a conditional; the first condition alone matches eight recipes, and the other seven compile `graphics_tb.cpp`, `megacart_machine_tb.cpp`, `sgm_shell_ram_tb.cpp`, `diagnostic_machine_tb.cpp`, `gp_media_tb.cpp` or `stream_tb.cpp`, none of which has an arm to choose. Earlier revisions of this bullet listed five such recipes and then eight; both were wrong for that reason. And `sim_fes_coleco_quartus.py:50-52` indexes its source list by the literal string `cores/fes-common/rtl/coleco_video_dpram.v`, so if a later slice moves that path its `--baseline` mode raises `ValueError` instead of failing a check.
 - **Kit:** bundle HIL for each core whose package ID changed, on a claimed free kit with install-then-restore. Include an HDMI EDID/I2C check on one Z80 core and on RAM Tester. pc386 is N/A.
 
 S8 is large because the guarded files are shared. If the census shows the PR is too big to review, it splits along the two legacy macros, so neither PR has to keep a macro that its own header rejects:
@@ -812,7 +822,7 @@ Each half carries its own byte-identity and sim-diff acceptance from the list ab
 
 ### S9. Shared Quartus signoff
 
-- **S9a, the helper:** new `M/scripts/quartus_signoff.py`, plus a shared `quartus_execution_inputs(edition, front_end)` taken from `build_fes_pcxt_quartus.py:137-172`, with the PC/XT copy deleted. pc386 and PC/XT move to the signoff helper, since they already meet most of the bar, and their per-sealer timing parsers are deleted. Acceptance: both seal under the helper at the full bar, and PC/XT's execution inputs are unchanged by the move. Dependencies: S6a, S7. It may run beside S8.
+- **S9a, the helper:** new `M/scripts/quartus_signoff.py`, plus a shared `quartus_execution_inputs(edition, front_end)` taken from `build_fes_pcxt_quartus.py:158-193`, with the PC/XT copy deleted. pc386 and PC/XT move to the signoff helper, since they already meet most of the bar, and their per-sealer timing parsers are deleted. Acceptance: both seal under the helper at the full bar, and PC/XT's execution inputs are unchanged by the move. Dependencies: S6a, S7. It may run beside S8.
 - **S9b–S9e, one PR per Z80 sealer** (Coleco, SMS, SG-1000, ZX81), and **S9f, RAM Tester**, which promotes the diagnostic to a sealer with a build record. Each one moves to the helper, deletes its own parser, and moves to a format-2 record with `toolchain = "quartus"` and `front_end = "quartus-lite"`, so its route is labelled and validated. A failure stops only that core's PR, with a report.
 - **Measurement:** a per-core slack table at the new bar.
 - **Kit:** smoke runs of each resealed RAM Tester and Z80 package, under the kit rules.
@@ -832,7 +842,7 @@ Each half carries its own byte-identity and sim-diff acceptance from the list ab
 - **S11a:** add `M/cores/fes-common/rtl/prim/fes_tdp_ram.sv` and convert every `zx81_dpram` instantiator (including the ROM `MEM_INIT_FILE` path, `qs_chrs.v`, `zx81_ram_pack.v` and `rom_init_window.v`). Delete `zx81_dpram.v` and the `zx81_tape_store` spelling split.
 - **S11b:** convert every `coleco_video_dpram` instantiator, including `pcxt_video.sv:141`, `fes_native_video.v` and the 720p and VDP sites. Delete `coleco_video_dpram.v`. PC/XT gets a fit and a repeat-RBF check here, because it moves from the inferred `"M10K"` form to `FES_RAM_TDP`.
 - **S11c:** convert every `coleco_dpram` instantiator, including both `fes_computer_gp.v` (with the `MEDIA_AW`/`MEDIA_WORDS` mapping) and `coleco_application_gp.v`. Delete `coleco_dpram.v`, the `REGISTERED_*` switches, `FES_Z80_UNREGISTERED_SIM` and its targets, `-CFLAGS` and C++ branches.
-- **Each PR's files:** the converted modules, the producer and sim source lists from the S8 census (including `build_fes_coleco.py:49-51`, `build_fes_sms.py:48-50`, `build_fes_sg1000.py:47-49` and the OSS producers), the `quartus_ram_tb.sv` benches and their expected output (`sim_fes_coleco_quartus.py:72`), and the regenerated closures.
+- **Each PR's files:** the converted modules, the producer and sim source lists from the S8 census (including `build_fes_coleco.py:50-52`, `build_fes_sms.py:49-51`, `build_fes_sg1000.py:49-51` and the OSS producers), the `quartus_ram_tb.sv` benches and their expected output (`sim_fes_coleco_quartus.py:72`), and the regenerated closures.
 - **Acceptance:**
   - M10K count, ALMs and Fmax are equal for each affected producer, or the change is explained and measured;
   - the sims pass on the registered model, and any sim change caused by losing the unregistered read is investigated, not hidden;
@@ -878,10 +888,10 @@ Each half carries its own byte-identity and sim-diff acceptance from the list ab
 - **If S1b passes:** bring DE25 up with `front_end = yosys` and the Pro backend. `FES_TC_QPRO` stays in the header for the native Pro lane, which is built when the first core needs it (Device specialisation, rule 3).
 - **If S1b fails:** build the native Pro lane now, for the files DE25 needs.
 - **Either way:**
-  - widen the target check (`M/scripts/core_package.py:160-165`) and make `fes_build_common.TARGET` (`:21`) a parameter;
+  - widen the target check (`M/scripts/core_package.py:160-165`) and make `fes_build_common.TARGET` (`M/scripts/fes_build_common.py:21`) a parameter;
   - add the Pro executables to `quartus_execution_inputs`;
   - move `fes_menu_reader` to `FES_RAM_BLOCK`;
-  - delete the M10K→M20K byte patches (`display/build.py:105-113`, `combined/build.py:66-80`);
+  - delete the M10K→M20K byte patches (`display/build.py:106-114`, `combined/build.py:67-81`);
   - fold in S6b if it has not landed;
   - seal under the S9 helper.
 - **Device specialisation:** the first DE25 core lands the target-keyed recipe schema and its tests (Device specialisation, recipe schema), with its per-target parameter values recorded (rule 2).
@@ -899,9 +909,9 @@ Each half carries its own byte-identity and sim-diff acceptance from the list ab
 - **MLAB inference.** Async-read MLAB may not infer under 17.0.2 (276007 on OPL2). S1d runs before S2, and S2 can be dropped.
 - **MLAB timing.** An MLAB in the front end's return path may cost Fmax. S2 makes timing part of acceptance.
 - **The raised signoff bar may fail cores that seal today**: Z80 cores on extra seeds, RAM Tester on hold or MPW. Each core's PR stops and reports on its own, which can block that package until it is fixed.
-- **Phase 5 area pressure.** The working ceiling is about 92% (38,500 ALMs), and Quartus has never been run above 88% (`summary.md:39-47`). S2 and S12 touch the pc386 fit and must not block Phase 5 slices.
+- **Phase 5 area pressure.** The working ceiling is about 92% (38,500 ALMs), and Quartus has never been run above 88% (`docs/validation/2026-11-08-i386-area-audit/summary.md:39-47`). S2 and S12 touch the pc386 fit and must not block Phase 5 slices.
 - **Two Yosys locks for one CPU** (0a7927bf and 238eac9a). Closed by D2: the i386 lock pinned 0a7927bf, and S4 moved both locks to e240a465.
-- **The docs disagree** on whether Pro is installed and licensed, and on whether Quartus is primary or oracle-only for pc386 (`quartus-cores.md` and `getting-started.md:12-18` against `AGENTS.md:73-76`). S1b, S6a and S6b settle it.
+- **The docs disagree** on whether Pro is installed and licensed, and on whether Quartus is primary or oracle-only for pc386 (`docs/design/quartus-cores.md` and `docs/getting-started.md:12-18` against `AGENTS.md:73-76`). S1b, S6a and S6b settle it.
 
 ## Open decisions for Deano
 
@@ -917,4 +927,4 @@ Each half carries its own byte-identity and sim-diff acceptance from the list ab
 10. **D10. Production lane per core when two lanes can seal it.** Recommendation: the recipe names one production `front_end` per core. A second lane is promoted only on a measured win, and the losing lane's producer configuration is then deleted, not kept as a fallback.
 11. **D11. Header location.** Recommendation: `M/cores/fes-common/include/`, a directory for hand-written files only, rather than `generated/`.
 12. **D12. Does a BUILD_ID change caused only by a closure edit require a reseal and HIL on main?** Decided in [#1649](https://github.com/DeanoC/fes/pull/1649): the exception and all required evidence are stated in [AGENTS.md](../../AGENTS.md#hard-rules). S7 must meet that rule for each affected core or use the normal reseal and HIL path.
-13. **D13. Kit baselines.** If S7r, S8 or S11 changes the package IDs of cores in the designated baseline bundles named in `~/kit-status/kit{A,B}-STATUS.md`, do the baselines move, and who updates them and when? Recommendation: the PR that changes a baseline core's package ID names the candidate package, and nobody moves a status file by hand. PR-head HIL restores the kit to the baseline its status file names. After the merge, `baseline-auto.py` promotes from main and publishes the new baseline (`AGENTS.md:59`, `:63-66`).
+13. **D13. Kit baselines.** If S7r, S8 or S11 changes the package IDs of cores in the designated baseline bundles named in `~/kit-status/kit{A,B}-STATUS.md`, do the baselines move, and who updates them and when? Recommendation: the PR that changes a baseline core's package ID names the candidate package, and nobody moves a status file by hand. PR-head HIL restores the kit to the baseline its status file names. After the merge, `baseline-auto.py` promotes from main and publishes the new baseline (`AGENTS.md:60`, `:63-66`).

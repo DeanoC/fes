@@ -1,0 +1,5 @@
+{"op": "sleep", "s": 45}
+{"op": "grab", "name": "boot"}
+{"op": "type", "text": "SURVEY > SURVEY1.TXT\n"}
+{"op": "sleep", "s": 35}
+{"op": "grab", "name": "result"}

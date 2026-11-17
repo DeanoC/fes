@@ -85,6 +85,29 @@ func TestCoreSetupKeepsBundledFirmwareAsDerivedDefault(t *testing.T) {
 	if err != nil || effective.MediaID != bundled.Firmware[0].MediaID || !effective.BundledDefault {
 		t.Fatalf("effective default %+v, err %v", effective, err)
 	}
+	// A supplied ROM for a core with a bundled default must be stored, not
+	// mistaken for the derived default merely because one exists.
+	userImage := bytes.Repeat([]byte{0x5a}, len(image))
+	userROM, _, err := s.ImportCoreMedia(ctx, int64(len(userImage)), bytes.NewReader(userImage))
+	if err != nil {
+		t.Fatal(err)
+	}
+	custom, err := s.CreateCoreSetupEntry(ctx, CoreSetupRequest{
+		LibrarySourceID: "test-library", SourceID: "fes-first-party", CoreID: coreID,
+		PackageID: packageID, Title: "Spectrum with user firmware",
+		ROMs: map[string]string{"spectrum-firmware": userROM.MediaID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err = store.CoreEntryROM(ctx, custom.GameID, "spectrum-firmware")
+	if err != nil || raw.MediaID != userROM.MediaID {
+		t.Fatalf("user ROM selection not saved: %+v, err %v", raw, err)
+	}
+	effective, err = s.CoreEntryROM(ctx, custom.GameID, "spectrum-firmware")
+	if err != nil || effective.MediaID != userROM.MediaID || effective.BundledDefault {
+		t.Fatalf("effective user selection %+v, err %v", effective, err)
+	}
 }
 
 func publishSetupFixture(t *testing.T, s *Service, raw []byte) (string, string) {

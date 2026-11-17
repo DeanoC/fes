@@ -57,7 +57,9 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertEqual(selected.producer_module, 'boards.de25nano.producers.build_menu_package')
         self.assertEqual(selected.board, 'de25-nano')
         self.assertEqual(selected.toolchain, 'quartus')
-        self.assertEqual(selected.quartus, {'version': '26.3.0', 'seeds': [1], 'threads': 2})
+        self.assertEqual(selected.quartus, {'version': '26.3.0', 'edition': 'pro',
+                                            'device_family': 'agilex5', 'seeds': [1], 'threads': 2})
+        self.assertEqual(selected.front_end, 'quartus-pro')
         self.assertIsNone(selected.pnr)
         with patch.dict(os.environ, {'BOARD': 'de25-nano', 'FES_TARGET_BOARD': 'de25-nano'}):
             self.assertIs(recipes.recipe_for('fes.menu'), default)
@@ -105,8 +107,8 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertNotIn("fes.riscv", build.selected_packages(
             {"fpga_packages": [{"core_id": "fes.pong"}]}, "native-integration-dev"))
 
-    def test_pcxt_is_a_quartus_diagnostic_without_dummy_gpu_fields(self):
-        recipe = recipes.recipe_for("fes.pcxt")
+    def test_pcxt_dos_is_quartus_without_dummy_gpu_fields(self):
+        recipe = recipes.recipe_for("fes.pcxt-dos")
         self.assertEqual(recipe.producer_module, "scripts.build_fes_pcxt_quartus")
         self.assertEqual(recipe.toolchain, "quartus")
         self.assertEqual(recipe.lock_path, "cores/fes-pcxt/quartus.lock")
@@ -117,12 +119,16 @@ class RecipeRegistryTest(unittest.TestCase):
         env = recipes.producer_environment({"FES_TOOLCHAIN_GPU_ROUTER": "HIP"}, recipe)
         self.assertNotIn("FES_TOOLCHAIN_GPU_ROUTER", env)
 
+    def test_pcxt_diagnostic_package_is_not_registered(self):
+        with self.assertRaises(ValueError):
+            recipes.recipe_for("fes.pcxt")
+
     def test_pcxt_dos_recipe_selects_hardware_check_and_kit_preference(self):
         recipe = recipes.recipe_for("fes.pcxt-dos")
         self.assertEqual(recipe.producer_module, "scripts.build_fes_pcxt_quartus")
         self.assertEqual(recipe.quartus_role, "FreeDOS SDRAM floppy package producer")
-        self.assertEqual(recipe.producer_arguments, ("--dos-profile",))
-        self.assertEqual(dict(recipe.producer_options), {"dos_profile": True})
+        self.assertEqual(recipe.producer_arguments, ())
+        self.assertEqual(dict(recipe.producer_options), {})
         self.assertEqual(recipe.hil_check, "scripts/pcxt_dos_hil_acceptance.py")
         self.assertEqual(recipe.hil_kits, ("B", "A"))
         self.assertEqual(recipe.quartus["seeds"], [1, 2, 3])
@@ -181,7 +187,7 @@ class RecipeRegistryTest(unittest.TestCase):
 
     def assert_existing_descriptors(self):
         self.assertTrue(
-            {"fes.pong", "fes.zx81", "fes.coleco", "fes.sms", "fes.sg1000", "fes.apple2", "fes.c64", "fes.spectrum", "fes.pcxt"}
+            {"fes.pong", "fes.zx81", "fes.coleco", "fes.sms", "fes.sg1000", "fes.apple2", "fes.c64", "fes.spectrum", "fes.pcxt-dos"}
             <= recipes.FORMAT2_RECIPES.keys())
         expected = {
             "fes.pong": {
@@ -192,15 +198,6 @@ class RecipeRegistryTest(unittest.TestCase):
                 "authenticate": "_authenticate_tools",
                 "package_dir_env": "FES_PONG_PACKAGE_DIR",
                 "package_selection_env": "FES_PONG_PACKAGE_SELECTION",
-            },
-            "fes.zx81": {
-                "producer_script": "scripts/build_fes_zx81_oss.py",
-                "producer_module": "scripts.build_fes_zx81_oss",
-                "lock_path": "cores/fes-zx81/toolchain.lock",
-                "selection_filename": "fes-zx81.package-selection.toml",
-                "authenticate": "_authenticate_tools",
-                "package_dir_env": "FES_ZX81_PACKAGE_DIR",
-                "package_selection_env": "FES_ZX81_PACKAGE_SELECTION",
             },
             "fes.coleco": {
                 "producer_script": "scripts/build_fes_coleco_socket_v2.py",
@@ -276,14 +273,25 @@ class RecipeRegistryTest(unittest.TestCase):
                 "fes.c64": "no oracle required",
                 "fes.spectrum": "no oracle required"}.get(core_id, "bring-up/check oracle"))
         pong = recipes.recipe_for("fes.pong")
-        zx81 = recipes.recipe_for("fes.zx81")
         coleco = recipes.recipe_for("fes.coleco")
         sms = recipes.recipe_for("fes.sms")
-        for core_id in ("fes.pong", "fes.zx81", "fes.coleco", "fes.sms",
+        for core_id in ("fes.pong", "fes.coleco", "fes.sms",
                         "fes.sg1000", "fes.apple2", "fes.c64", "fes.spectrum"):
             self.assertEqual(recipes.recipe_for(core_id).lock_path,
                              f"cores/fes-{core_id.removeprefix('fes.')}/toolchain.lock")
-        self.assertEqual(len({r.lock_path for r in (pong, zx81, coleco, sms)}), 4)
+        self.assertEqual(len({r.lock_path for r in (pong, coleco, sms)}), 3)
+        # The ZX81 family selects its Quartus Lite producer, one row per model;
+        # its nextpnr table is advisory (config/advisory-pnr-recipes.toml).
+        for model in ("zx81", "zx80", "ts1000", "ts1500"):
+            recipe = recipes.recipe_for(f"fes.{model}")
+            self.assertEqual(recipe.toolchain, "quartus")
+            self.assertEqual(recipe.producer_script, "scripts/build_fes_zx81_quartus.py")
+            self.assertEqual(recipe.producer_module, "scripts.build_fes_zx81_quartus")
+            self.assertEqual(recipe.authenticate, "authenticate_tools")
+            self.assertEqual(recipe.lock_path, "cores/fes-zx81/quartus.lock")
+            self.assertEqual(recipe.producer_arguments, ("--model", model))
+            self.assertEqual(recipe.quartus["seeds"], [1, 2, 3])
+            self.assertEqual(recipe.selection_filename, f"fes-{model}.package-selection.toml")
         self.assertEqual(pong.cache_root, coleco.cache_root)
         self.assertEqual(pong.cache_root, sms.cache_root)
         with self.assertRaisesRegex(ValueError, "unknown format-2 recipe"):
@@ -357,6 +365,52 @@ class RecipeDataTest(unittest.TestCase):
     def document(self):
         import tomllib
         return tomllib.loads(recipes.REGISTRY_PATH.read_text())
+
+    def test_a_quartus_row_names_a_front_end_that_fits_its_edition_and_device(self):
+        # The front end selects the Quartus edition and device family, and the
+        # core's quartus.lock holds the same pair (#1581 S7).
+        for front_end, (edition, family) in recipes.FRONT_ENDS.items():
+            with self.subTest(front_end=front_end):
+                document = self.document()
+                row = next(r for r in document['recipes'] if r['core_id'] == 'fes.pcxt-dos')
+                row['front_end'] = front_end
+                row['quartus'] = dict(row['quartus'], edition=edition, device_family=family)
+                self.assertEqual(self.load_document(document)['fes.pcxt-dos'].front_end, front_end)
+
+    def test_a_quartus_row_that_misstates_its_front_end_is_rejected(self):
+        cases = (
+            # Yosys on Pro/Agilex 5 is design decision D3 and is not taken.
+            {'front_end': 'yosys', 'quartus': {'edition': 'pro', 'device_family': 'agilex5'}},
+            {'front_end': 'quartus-pro', 'quartus': {'edition': 'lite', 'device_family': 'cyclonev'}},
+            {'front_end': 'quartus-lite', 'quartus': {'device_family': 'agilex5'}},
+            {'front_end': 'quartus-standard', 'quartus': {}},
+            {'front_end': 'yosys', 'quartus': {'edition': 'standard'}},
+            {'front_end': None, 'quartus': {}},
+            # front_end is optional in the schema, so it escapes the generic
+            # string check and needs a type guard of its own.
+            {'front_end': ['yosys'], 'quartus': {}},
+            {'front_end': True, 'quartus': {}},
+        )
+        for index, case in enumerate(cases):
+            with self.subTest(case=index):
+                document = self.document()
+                row = next(r for r in document['recipes'] if r['core_id'] == 'fes.pcxt-dos')
+                if case['front_end'] is None:
+                    del row['front_end']
+                else:
+                    row['front_end'] = case['front_end']
+                row['quartus'] = dict(row['quartus'], **case['quartus'])
+                with self.assertRaises(ValueError):
+                    self.load_document(document)
+
+    def test_an_oss_row_elaborates_with_yosys_by_omission(self):
+        document = self.document()
+        row = next(r for r in document['recipes'] if r.get('toolchain', 'oss') == 'oss')
+        self.assertNotIn('front_end', row)
+        self.assertEqual(self.load_document(document)[row['core_id']].front_end, 'yosys')
+        row['front_end'] = 'yosys'
+        with self.assertRaisesRegex(ValueError, 'cannot name a front end'):
+            self.load_document(document)
 
     def test_fifth_recipe_is_only_data(self):
         document = self.document()
@@ -509,7 +563,7 @@ class RecipeResolverTest(unittest.TestCase):
 
     def test_each_descriptor_dispatches_its_producer_with_explicit_cache_root(self):
         module = self.module()
-        for core_id in ("fes.pong", "fes.zx81", "fes.coleco", "fes.sms"):
+        for core_id in ("fes.pong", "fes.sms", "fes.coleco", "fes.sg1000"):
             with self.subTest(core_id=core_id), tempfile.TemporaryDirectory() as temporary:
                 source = Path(temporary)
                 recipe = recipes.recipe_for(core_id)
@@ -554,7 +608,7 @@ class RecipeResolverTest(unittest.TestCase):
 
     def test_canonical_record_passes_cache_root_and_keeps_hip_identity(self):
         module = self.module()
-        recipe = recipes.recipe_for("fes.zx81")
+        recipe = recipes.recipe_for("fes.sms")
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary)
             payload = b'{"format":2,"repository":"https://github.com/DeanoC/fes.git","revision":"cccccccccccccccccccccccccccccccccccccccc","source_inputs":{"x":"y"},"source_path":"sources/misteross"}\n'

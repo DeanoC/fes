@@ -1,0 +1,36 @@
+{
+  "base": {
+    "ram_mmio_cross": {
+      "charged_per_iteration": 32.72,
+      "total_charged": 3272,
+      "cycles": 16472
+    },
+    "protected_default32": {
+      "charged_per_iteration": 38.94,
+      "total_charged": 3894,
+      "cycles": 19980
+    },
+    "protected_16": {
+      "charged_per_iteration": 32.59,
+      "total_charged": 3259,
+      "cycles": 16705
+    }
+  },
+  "candidate": {
+    "ram_mmio_cross": {
+      "charged_per_iteration": 32.72,
+      "total_charged": 3272,
+      "cycles": 16472
+    },
+    "protected_default32": {
+      "charged_per_iteration": 38.94,
+      "total_charged": 3894,
+      "cycles": 19980
+    },
+    "protected_16": {
+      "charged_per_iteration": 32.59,
+      "total_charged": 3259,
+      "cycles": 16705
+    }
+  }
+}

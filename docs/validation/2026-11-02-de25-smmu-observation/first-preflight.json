@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "source_commit": "64157280e2e7b06d08c1e43fb7ceff6c0214e3ed",
+  "classification": "read-only preflight; no hardware trial started",
+  "usb_node": "/dev/bus/usb/003/061",
+  "usb_serial": "TRWU8CBL",
+  "continued_claim_owned": true,
+  "uart_free": true,
+  "same_usb_as_last_contained_native": true,
+  "prior_native_sha256": "2ec186fb9b1f410892ad36040d0e68be742e1457fd24ed88699cc19a0cfe2473",
+  "fit_sha256": "76dc261e8e5fa6655d9e478496f6ebe10fffbf8abd1fe0c743faa7d6eb567fce",
+  "sof_sha256": "a6cea2259714cadfab111cea8c4c7eb89dac5f00b0122ff26dd09a692ba8127f",
+  "host_ip": "192.168.10.202",
+  "input_sha256": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/u-boot.itb": "76dc261e8e5fa6655d9e478496f6ebe10fffbf8abd1fe0c743faa7d6eb567fce",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/spl/u-boot-spl-dtb.hex": "86b3271de4aac12e058dcca2ca65089c7a2dcbcf87f523fd28c5f1a708c7054f",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-entry/entry.img": "cbea67ca1cfe52df32dea1b59254f7701423c3f320a927708839cddc58039c21",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-kit/native-probe.sof": "a6cea2259714cadfab111cea8c4c7eb89dac5f00b0122ff26dd09a692ba8127f",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-kit/result.json": "9dbddc7426473ab59598e034d98f741f60ab7e0a492c8a8680af5a2298d4b90c",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/result.json": "acdd60a563ab0958565ce065cfe4a2e4590caa8a48b79080172507d391f83cea",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-entry/result.json": "780fb4fbee6b089100db361b6638ac339f975bdfea8257c876f613a903b076da",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/software-result.json": "4eef57be689fe0e2d156b21af03de05e21ec169ef05cf0f344ae8235f265b734",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/make-check-result.json": "e1d2075385094e1c698bd56db08403689ff615467e3f759d4b9650c49dee231e",
+    "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/nano/native_trace.py": "1afa6f6e14839fa08d71f96e2d62d09b2627bea94a0aa7b1998f0d218c84af49",
+    "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/nano/upload.py": "98383cb5126d544a36e133f4bba09b2a6ef089ba626a2964c0c6a7843c01f43e",
+    "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/nano/upload_transport.py": "ed06e8c283440333d558a3348429f4f175abb8f8d8b90c6358d0ec952049292a",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-recovery-phy-20261101/recovery-kit/result.json": "01c689ddfe98d8cd4c612e115aca8a7294a2ca4be0318093f09b48cda658481f",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-recovery-phy-20261101/recovery-kit/network-recovery.sof": "07cdad09617584c454fe3d54d3d2b8afd83327e1fa39607cd8ebc634363e7a6b",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-recovery-phy-20261101/recovery-kit/u-boot.itb": "25ebdf98d253e41f51e4b55b78314ffe6e03d346825af8582268eacef1d25f90",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-recovery-phy-20261101/recovery-kit/RECOVERY.JSON": "56102162f328d0a4325cd7c827159f9612c3f81c95fe6df9d5ad147b343b1539"
+  },
+  "helper_sha256": {
+    "common.py": "d438da14af953aee7c2656113ee2ab2958dae45ebbde4f1ddfc9cdc3310b751b",
+    "upload_trial.py": "2e7e6f725b7143d2676cc74dcfda1bea190ba77908d932ef5e4d1c13b137cd49",
+    "boot.py": "8ce30485c23370dcea5d0b286b5b26548291129ed09878be0d3baceed12270db",
+    "preflight.py": "33af374aa29bf89208e0d1a20c652b4f0bb815ea90f2c75595f5ac191e36521e",
+    "experiment.py": "675e48fd616551eaf6f7e64434bf071b1d19e34c5ab0b0b1987a9a810695b502"
+  },
+  "ddr_data_grant": false,
+  "runtime_admission": false,
+  "utc": "2026-11-02T05:24:05.958784+00:00"
+}

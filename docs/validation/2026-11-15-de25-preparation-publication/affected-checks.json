@@ -1,0 +1,82 @@
+{
+  "status": "passed-all-eleven-selected-affected-phases-across-recorded-runs",
+  "source_commit": "82e607abffa26a182c02ffad82d1056f210b380e",
+  "first_run_results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "Go command inventory",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "native runtime firmware and FPGA launch integration",
+      "lane": "parent",
+      "returncode": 1
+    }
+  ],
+  "final_stable_results": [
+    {
+      "label": "native runtime firmware and FPGA launch integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded producer identity and native control integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded firmware and identity/drain RTL integration",
+      "lane": "fpga",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ],
+  "first_run_observer_edit_guard": "caught source edit; failed integration and unstarted phases rerun only",
+  "stable_source_files": 799,
+  "stable_source_hashes_match_frozen_commit": true,
+  "parent_summary": [
+    "2749",
+    "468.805",
+    "15"
+  ],
+  "FPGA_summary": [
+    "2181",
+    "838.759",
+    "88"
+  ],
+  "hardware_actions": false
+}

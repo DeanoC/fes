@@ -443,7 +443,13 @@ class ParentAffectedTests(unittest.TestCase):
         full, room = plan(), plan([ROOM])
         self.assertEqual(sorted(full['selected'] + full['omitted']),
                          sorted(room['selected'] + room['omitted']))
-        self.assertLess(2 * len(room['selected']), len(full['selected']))
+        # Unassigned modules always run in both plans. Compare only reviewed
+        # groups, so adding an unrelated baseline test cannot break this bound.
+        assigned = set().union(*policy.GROUPS.values())
+        reviewed = lambda tests: {test for test in tests if test.split('.')[0] in assigned}
+        self.assertLess(2 * len(reviewed(room['selected'])), len(reviewed(full['selected'])))
+        unassigned = set(full['selected']) - reviewed(full['selected'])
+        self.assertLessEqual(unassigned, set(room['selected']))
         self.assertTrue(any('test_parent_affected.' in test for test in room['selected']))
         self.assertEqual(plan(['<new-branch>'])['selected'], full['selected'])
         receipt = plan(['tests/test_receipt.py'])

@@ -1,0 +1,265 @@
+{
+  "status": "passed",
+  "classification": "bounded persistent fixed-package window service diagnostic; full Tenfoot App/backend and ordinary core loading incomplete",
+  "native_source_commit": "dc2cf47604ce003744ce2b1cf0e1e53beb1e4738",
+  "observer_source_commit": "f7e4a5bc3f041f83479c64ef9e585629bc6df53e",
+  "fpga_source_commit": "df234b524d0e1340b343df411c841bd1dc553817",
+  "board": "TRWU8CBL",
+  "native_boot_id": "b518581f86ee3a9b",
+  "startup_seconds": 77.71972066501621,
+  "relaunch_seconds": [
+    75.32997979095671,
+    75.30982919596136
+  ],
+  "presentation_seconds": [
+    2.1195585739333183,
+    2.1692362730391324,
+    2.1366065859328955
+  ],
+  "return_seconds": [
+    0.9147273340495303,
+    0.9178988779895008,
+    0.5649900659918785
+  ],
+  "configuration_cycles": 3,
+  "frames": 6,
+  "commands": 19,
+  "expected_stale_rejections": 6,
+  "bridge_closures": [
+    7,
+    13,
+    19
+  ],
+  "final": {
+    "scope": "nano-contained-window-service-v1",
+    "op": "park",
+    "ok": true,
+    "state": "parked",
+    "owner": "bfd8436271e81aaf",
+    "generation": 6,
+    "frames": 2,
+    "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+    "last_frame": {
+      "source_generation": 16,
+      "reader_generation": 3,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 1202889335,
+      "read_crc32": 1202889335,
+      "frame_sha256": "ca61e5504ffb7b1af1a3f28eafb8dde5315d57c57db4632982be52896b3c5ca1",
+      "drain_generation": 3,
+      "drain_cookie": 3
+    },
+    "last_return": {
+      "source_generation": 16,
+      "closed_generation": 19,
+      "frames": 2,
+      "reset": 15,
+      "masters_contained": true
+    },
+    "storage": {
+      "generation": 16,
+      "active": false,
+      "prepared": false
+    }
+  },
+  "bounds": {
+    "prompt_seconds": 50,
+    "startup_seconds": 100,
+    "launch_seconds": 100,
+    "configuration_seconds": 20,
+    "control_seconds": 5,
+    "native_seconds": 450,
+    "native_process_seconds": 480,
+    "outer_seconds": 800
+  },
+  "bound_origin": "existing accepted persistent request-service recipe,2026-11-03; no retry or deadline change after failure",
+  "startup": {
+    "records": [
+      {
+        "line": 91,
+        "phase": "loader_begin",
+        "ticks": 6978900608,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818219056
+      },
+      {
+        "line": 92,
+        "phase": "decode_begin",
+        "ticks": 7006602608,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 93,
+        "phase": "inflate_end",
+        "ticks": 7470163078,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 94,
+        "phase": "checksum_end",
+        "ticks": 7477566655,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 95,
+        "phase": "decode_end",
+        "ticks": 7481095468,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 96,
+        "phase": "copy_end",
+        "ticks": 7487385301,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 97,
+        "phase": "handoff",
+        "ticks": 7505199536,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818219056
+      },
+      {
+        "line": 99,
+        "phase": "go_hwinit",
+        "ticks": 7514540281,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 100,
+        "phase": "go_vectors",
+        "ticks": 7517967928,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 101,
+        "phase": "go_main",
+        "ticks": 7525086184,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 102,
+        "phase": "verifier_ready",
+        "ticks": 7529435107,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 103,
+        "phase": "sd_open_begin",
+        "ticks": 7533032972,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 104,
+        "phase": "sd_open_end",
+        "ticks": 7549173341,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 105,
+        "phase": "fat_mount_end",
+        "ticks": 7561739278,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 106,
+        "phase": "retain_begin",
+        "ticks": 7565304517,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 107,
+        "phase": "retain_end",
+        "ticks": 29708837597,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      }
+    ],
+    "errors": [],
+    "complete": true,
+    "rejected": false,
+    "last_checkpoint": "retain_end",
+    "timings_us": {
+      "loader_begin": 0,
+      "decode_begin": 69255,
+      "inflate_end": 1228156,
+      "checksum_end": 1246665,
+      "decode_end": 1255487,
+      "copy_end": 1271211,
+      "handoff": 1315747,
+      "go_hwinit": 1339099,
+      "go_vectors": 1347668,
+      "go_main": 1365463,
+      "verifier_ready": 1376336,
+      "sd_open_begin": 1385330,
+      "sd_open_end": 1425681,
+      "fat_mount_end": 1457096,
+      "retain_begin": 1466009,
+      "retain_end": 56824842
+    },
+    "core_load_acceptance": false
+  },
+  "new_physical_procedures": 1,
+  "new_native_programming_attempts": 1,
+  "retries": 0,
+  "prior_failed_window_procedures": 7,
+  "host_cleanup_passed": true,
+  "jtag_clock_restored": "15M",
+  "exact_usb_permissions_restored": true,
+  "private_server_stopped": true,
+  "uart_free": true,
+  "factory_restore_performed": false,
+  "exclusive_claim_retained": true,
+  "spare_card_retained": true,
+  "memory_lifetime": "until-reboot",
+  "native_SD_writes": false,
+  "ordinary_runtime_admission": false,
+  "full_tenfoot_app_backend": false,
+  "hdmi_qualified": false,
+  "usb_hub_input_qualified": false,
+  "native_network_qualified": false,
+  "archive": "/home/deano/fes-retained/de25-window-service-20261104/matched-native-chain.tar.gz",
+  "archive_sha256": "9bcd66ed009ea20a0845c0649a0ba38aa0e64d4cbc06e1aa0131286db59f28ed",
+  "archive_bytes": 206311745,
+  "verified_members": 45165,
+  "replay_rejected_captures": 44,
+  "files": {
+    "hardware-evidence.json": "3216896eb0d0dfafaf47573e47b8d1038396b5715d30b2aab7de9f8f9b16402d",
+    "replay.json": "96aabc465ab67e20c044709a6b46611e1c3e61bbd95c65852d48dbae0a632d8e",
+    "retention.json": "e55ddccedb8abb54dcd5edc292600b3ac45120a4b32a201eada3d834ee6c6b4b",
+    "retention-finalized.json": "e1d0c6175acbeb5e7118948dbd1b79cca5de76c07adecc73180e2650872e1a51",
+    "native-console.log": "ab4d5f46781083a8bfb32f49f3f2ceee2757a2a68198f6f081acaee41b1d991d",
+    "experiment-result.json": "8c4d2b9740f410d5adaf0f148e7b7c3cbab42af053ef262f033aa288e2d3044f"
+  },
+  "next_step": "Connect the complete Tenfoot App/backend to the native lifecycle, then integrate ordinary package/ROM/parts/media admission and physical HDMI/input."
+}

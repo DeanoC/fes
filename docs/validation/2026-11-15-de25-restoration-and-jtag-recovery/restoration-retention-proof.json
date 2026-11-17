@@ -1,0 +1,14 @@
+{
+  "status": "passed-self-contained-restoration-only-retention",
+  "procedure_sha256": "b94fc4870e849bb85cbb2f81bfef6e713ab5146a6ab871d457f573370faf8f58",
+  "archive": "/home/deano/fes-retained/de25-candidate-files-restoration-prepared-20261115-r1/prepared-procedure.tar.gz",
+  "archive_sha256": "5591381f7817ead5245aac16846dc872e6b1d2b261fbb3471948f36e7162f507",
+  "archive_bytes": 279760703,
+  "logical_files": 12228,
+  "verified_unique_blobs": 5107,
+  "hardware_actions": false,
+  "attempt_reserved": false,
+  "execution_approval_created": false,
+  "diagnostic_authority": false,
+  "human_reset_confirmed": true
+}

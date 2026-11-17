@@ -1,0 +1,7 @@
+test_strong_cold_provider_with_pinned_sha_and_real_dispatch (tests.test_nano_configuration.NanoConfigurationTests.test_strong_cold_provider_with_pinned_sha_and_real_dispatch) ... PASS 8 strong-provider/SD/configuration/actual-reader-RTL success and failure cases
+ok
+
+----------------------------------------------------------------------
+Ran 1 test in 6.221s
+
+OK

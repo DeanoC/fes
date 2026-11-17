@@ -1,0 +1,27 @@
+{
+  "verification_status": "passed",
+  "hardware_result": "recovery-phy-autonegotiation-failed-before-native",
+  "source_commit": "6e75ec57f3447cbe3e805ba6f6d9b1884046c00b",
+  "trial_failed": true,
+  "hardware_failures_on_implementation": 1,
+  "native_boot_attempted": false,
+  "sd_write_attempted": false,
+  "native_retry": false,
+  "runtime_admission": false,
+  "cleanup": {
+    "original_clock_restored": true,
+    "usb_permissions_restored": true,
+    "private_server_stopped": true,
+    "uart_free": true
+  },
+  "board_state": "qualified recovery U-Boot prompt retained; spare and exclusive claim retained; factory card safe",
+  "raw_upload_console_sha256": "c508848a0924789c5835971e8ca22b236207c96c2b05ec9e5620b31c15daf35e",
+  "raw_upload_console_bytes": 5879,
+  "input_sha256": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-return-sd-20261103/trial/experiment-result.json": "00aa16ca907ee3c8e1028c0056b5947ce3e672ee6247c7f72234cbf47eaa9dcd",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-return-sd-20261103/trial/uploads/result.json": "2857d804ad05ad628e9ccc5865c81eeb212bfec17f894acd0ff5c36cdcb619d2",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-return-sd-20261103/trial/transport.json": "583a113185ddffed868ef12ec3dffbe7686768410de522e0e79d7146ddd05cee",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-return-sd-20261103/trial/clock-restored-readback.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-return-sd-20261103/hardware-result.json": "d21f1a03408849100138fcd2b0a6a23ea819aaf736d5d91f00dd066bc4976b21"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "source_commit": "cac97213eee7619bd40d99173b46f3ce1c14968f",
+  "tree": "eb1b75d8cac4fddfd5e82c0fee1a16c9d680292b",
+  "bundle_sha256": "9c79c60507e759fa8b86016d6b1eccef63a38cab428a0d3ba1b544c40d776d39",
+  "prerequisite_commit": "02b3cd155cd9f97e8e076ab569af0ab2a0f84b6f",
+  "previous_object_store": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-large-blocks-20261102/source-restore.git",
+  "alternate_object_stores": [
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-sdm-status-20261102/source-restore.git/objects",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-failure-status-20261102/source-restore.git/objects",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-failure-status-v2-20261102/source-restore.git/objects",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-large-blocks-20261102/source-restore.git/objects"
+  ],
+  "restored_tree_verified": true,
+  "verified_reachable_objects": 8642,
+  "missing_objects": 0,
+  "scope": "incremental bundle; requires the documented prior source-retention chain"
+}

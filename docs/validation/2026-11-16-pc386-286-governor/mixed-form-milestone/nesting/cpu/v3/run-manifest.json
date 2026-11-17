@@ -1,0 +1,28 @@
+{
+  "before": {
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested-v3/frozen-cpu/Vfes_i386_cpu": "7c052900a2ea0b35487e4b4ee02f518016f375a64cf4fb585b8517c9fd7423c2",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested-v3/frozen-cpu/rtl.bin": "85df0ef9d3e3ae548d4418f376f4b185c8f08aa7e9b2d2d543fbefe62cd8f1ae",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested-v3/frozen-cpu/producer.json": "38e880fb719859d10f9901374e0ac02e7390404103ebd70bd9f243cd5ac25750",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested-v3/frozen-cpu/rtl.asm": "f95819ab9a2ba0e603106a2513796d8a9f39b99e8ccc572af9af0483d04d4531",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested-v3/frozen-cpu/cases.json": "7a252e857cc9b92a9034e6f43039141dd7e1969a690d85bf8d69bd9d534e5acc"
+  },
+  "after": {
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested-v3/frozen-cpu/Vfes_i386_cpu": "7c052900a2ea0b35487e4b4ee02f518016f375a64cf4fb585b8517c9fd7423c2",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested-v3/frozen-cpu/rtl.bin": "85df0ef9d3e3ae548d4418f376f4b185c8f08aa7e9b2d2d543fbefe62cd8f1ae",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested-v3/frozen-cpu/producer.json": "38e880fb719859d10f9901374e0ac02e7390404103ebd70bd9f243cd5ac25750",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested-v3/frozen-cpu/rtl.asm": "f95819ab9a2ba0e603106a2513796d8a9f39b99e8ccc572af9af0483d04d4531",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested-v3/frozen-cpu/cases.json": "7a252e857cc9b92a9034e6f43039141dd7e1969a690d85bf8d69bd9d534e5acc"
+  },
+  "cases": 10,
+  "env": {
+    "FES_I386_MODE": "governor",
+    "FES_I386_LATENCY": "0",
+    "FES_I386_PROGRAM": "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested-v3/frozen-cpu/rtl.bin",
+    "FES_I386_PRESET": "1",
+    "FES_I386_FREQUENCY": "0",
+    "FES_I386_TURBO": "0",
+    "FES_I386_IRQ_PERIOD": "0",
+    "FES_I386_CYCLE_LIMIT": "20000000"
+  },
+  "exit": 0
+}

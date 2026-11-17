@@ -140,10 +140,10 @@ The default FES integration profile is `native-integration-dev`. It selects only
 run as part of this image. The clean, development, verification and media paths
 reuse the same closed package set. Install `fes.pong`, `fes.zx81`, `fes.coleco`
 and other systems independently through the [core catalog](core-packages.md).
-Individual packages currently use HIP/nextpnr; Quartus is an explicit oracle
-where specified. The accepted policy also permits labelled Quartus variants,
-but the current recipe and package resolver do not select them yet; see
-[Quartus-built cores](design/quartus-cores.md). Host builds and [kit software
+Individual packages use their core's registered producer: Quartus Lite for
+the ZX81 family and PC/XT, HIP/nextpnr otherwise; other Quartus recipes are
+explicit oracles. The resolver does not yet choose between OSS and Quartus
+variants of one core; see [Quartus-built cores](design/quartus-cores.md). Host builds and [kit software
 updates](kit-software-releases.md) do not build FPGA packages. Build and verify
 do not deploy.
 
@@ -284,8 +284,8 @@ remain in each task's disposable snapshots. Cache contents are not independent
 provenance or acceptance evidence.
 
 Do not copy authenticated compiler installations to another path and assume
-that their qualification survives relocation. Authenticate/build a new slot
-when changing the cache location. Inspect a failing cache slot and the recorded
+that their qualification survives relocation. Build and authenticate new
+installs when changing the cache location. Inspect a failing install and the recorded
 path before any targeted repair; never remove all of `out/`, which may contain
 other worktrees and uncommitted work.
 
@@ -422,6 +422,12 @@ One lease holder owns the kit for the duration of a test. The lease is sufficien
 for ordinary diagnostics; coordinate disruptive deployment, service replacement
 or reboot separately.
 
+Route DE25 package, runtime, board and image changes to Kit D25 (`de25-j8g`,
+serial `TRWU8J8G`) using the [DE25 kit HIL guide](de25-kit-hil.md). Route DE10
+paths to Kit A or B. DE25 remains Quartus Pro 26.3 only; prefer
+`fes-build-3090`. The exact-head HIL gate includes visible DE25 capture, input,
+Stop to idle, and a verified restore diff.
+
 Report component work with this short handoff:
 
 - Scope and changed behavior.
@@ -470,7 +476,10 @@ Canonical package definitions and runtime fixtures remain owner-maintained input
 Compiler caches and functional core artifacts use the primary Git checkout's
 `out/cache/`, shared across its worktrees. `FES_CACHE_ROOT=/absolute/path` selects
 another stable cache explicitly. Relocating an authenticated compiler installation
-is not supported by merely copying its directory; build/authenticate a new slot.
+is not supported by merely copying its directory; build/authenticate new installs.
+`make -C sources/misteross toolchain-prune CACHE_ROOT=…` reports the compiler
+installs no lock on `origin/main` pins and nobody used recently, and
+removes them with `APPLY=1`; never delete installs by hand.
 Mutable source builds stay in individual snapshots. Cached packages retain their
 original manifests and records; a separate `.provenance.json` selection receipt
 identifies selected versus original source and the exact payload digest.
@@ -510,11 +519,11 @@ builds include explicit `development-only` provenance there. Cold host readers
 validate this sidecar when present and reject diagnostic output. Historical
 ordinary receipts without the sidecar remain readable.
 
-For a missing authenticated compiler slot, use the recipe-specific command
+For a missing authenticated compiler install, use the recipe-specific command
 printed by FES, then rerun the original build. It includes the selected shared
 cache, lock and HIP settings. See [compiler provisioning](core-packages.md)
 for clean-module provisioning commands. A plain `make toolchain` without those
-settings can populate a different slot. Manual provisioning inherits shell
+settings can build a different nextpnr lane. Manual provisioning inherits shell
 compiler overrides that FES normally removes for producer execution.
 
 ## Compatible kit software updates

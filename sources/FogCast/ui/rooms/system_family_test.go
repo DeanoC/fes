@@ -88,6 +88,20 @@ func TestSpectrumFamilyVariantKeepsExactSavedSetup(t *testing.T) {
 	})
 }
 
+func TestSinclairSystemWorkbenchNamesSelectedSetup(t *testing.T) {
+	game := preparedComputer("timex-setup", "My Timex setup", "fes.ts1000")
+	r := loadSystemWorkbench(t, &fakeServices{games: []hostclient.Game{game}}, game.ID, game.CoreID)
+	frame := stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Set up TS1000") })
+	if strings.Contains(frameText(frame), "Set up system") {
+		t.Fatalf("generic setup label does not match the firmware card:\n%s", frameText(frame))
+	}
+	r.Activate("setup")
+	actions := r.TakeActions()
+	if len(actions) != 1 || actions[0].Kind != ActionHardwareSetup || actions[0].CoreID != "fes.ts1000" {
+		t.Fatalf("Timex setup action: %+v", actions)
+	}
+}
+
 func TestSpectrumFamilyInitialEntryOverridesSavedVariant(t *testing.T) {
 	games := spectrumFamilyEntries()
 	path := filepath.Join(t.TempDir(), "room.json")
@@ -173,7 +187,14 @@ func TestFamilyVariantSelectionSurvivesRoomReopen(t *testing.T) {
 			return
 		}
 		reopened.Activate("system")
-		stepUntil(t, reopened, func(f Frame) bool { return strings.Contains(frameText(f), "Set up system") })
+		stepUntil(t, reopened, func(f Frame) bool {
+			for _, core := range []string{"fes.zx81", "fes.zx80", "fes.ts1000", "fes.ts1500", "other"} {
+				if strings.Contains(frameText(f), workbenchSetupLabel(core)) {
+					return true
+				}
+			}
+			return false
+		})
 	}
 	t.Fatal("Spectrum family was not reachable after reopen")
 }

@@ -1,0 +1,66 @@
+{
+  "status": "passed",
+  "classification": "Actual C cold/USB-board/USB-platform/composed-private-master ownership paths, injected register cost counts; no hardware timing claim",
+  "source": "4095b0fd19290c8b0e1df9ab0f42ef06331a320a",
+  "rows": [
+    {
+      "path": "cold_owns",
+      "cycle": "0",
+      "accesses": "1530",
+      "ulpi_requests": "16",
+      "waits": "16"
+    },
+    {
+      "path": "bridges_observe",
+      "cycle": "0",
+      "accesses": "47434",
+      "ulpi_requests": "496",
+      "waits": "496"
+    },
+    {
+      "path": "cold_owns",
+      "cycle": "1",
+      "accesses": "1530",
+      "ulpi_requests": "16",
+      "waits": "16"
+    },
+    {
+      "path": "bridges_observe",
+      "cycle": "1",
+      "accesses": "47434",
+      "ulpi_requests": "496",
+      "waits": "496"
+    },
+    {
+      "path": "cold_owns",
+      "cycle": "2",
+      "accesses": "1530",
+      "ulpi_requests": "16",
+      "waits": "16"
+    },
+    {
+      "path": "bridges_observe",
+      "cycle": "2",
+      "accesses": "47434",
+      "ulpi_requests": "496",
+      "waits": "496"
+    }
+  ],
+  "source_sha256": {
+    "platform/embedded/firmware/nano_cold.c": "6960c2144a3e81d08155fb4de973a8a505e16c06c354d39f62a0c1534c73b93e",
+    "platform/embedded/firmware/nano_hps_io.c": "fbf6db20753c36d84cc88d8c732fa1c57a4adbe386da2e300976aac7e3d5c8dc",
+    "platform/embedded/firmware/nano_bridges.c": "c0f0a0a46a16f572672606c43a2721e01f94dd595c3b028bb854fadfb588fcbd",
+    "platform/embedded/firmware/nano_boot.c": "26743350f942fcbb0bb64744f8aa34683ce82274773c21401786c91cde5140ab",
+    "platform/embedded/firmware/nano_sd.c": "46dfb6c3dc6785ce5060d9bea62fcac5cc28fb7cda4e94df16ffbee07005da9b",
+    "platform/embedded/firmware/nano_sd_platform.c": "78ffcfcbb451663f5bab0fb8ad72daeb656cebf558d5630d099f0ac972f8f96f",
+    "platform/embedded/firmware/nano_usb_platform.c": "7421e6d6585dafb979f139ff0cf7376ed9f970894d822521fd72f53287124143",
+    "platform/embedded/firmware/nano_usb_board.c": "7a9bbe00673874ab4330fb465a7a8368e9e22c8cc40892e304865f93cf7f3c95",
+    "platform/embedded/firmware/nano_usb_service.c": "218a8629ce6c5beb65f7460b48811b1b17b2c6224220b3fee9e99fc4274586f9",
+    "platform/embedded/firmware/nano_usb_composition.c": "2d28e0a3441dba17cf741295cfd0416b6ed81025ceb67e0682e6e8d5e308c5ff",
+    "platform/embedded/firmware/tests/nano_usb_shared_boot_test.c": "8ebd9f5426c7a08c652f47d8fe213551df62fa4ecf46d24009f4a6cae8fe0a6f",
+    "platform/embedded/firmware/tests/nano_usb_board_fixture.h": "ae9fae639649d94dc1f909cdeeac96a23cbfd31d9e5032475ebb56942de1521b",
+    "out/nano-shared-guard-cost-20261105/measured.c": "5856674cb6391713586ff461c24ba41622d576fcf88fd744590e05f475cb5f4c",
+    "out/nano-shared-guard-cost-20261105/usb_board_policy.h": "6e093b278042217b422e466d5007412cfe09e1cab26f7285430af74f9cda059a"
+  },
+  "hardware_actions": false
+}

@@ -218,13 +218,17 @@ sim.run_simulation([sys.executable, '-c', sys.argv[2], sys.argv[3], sys.argv[5]]
             temp = Path(temp)
             worker = '''import ctypes, os, signal, sys, time
 marker, descendants = sys.argv[1:]
-open(marker, 'w').write(str(os.getpid()))
+with open(marker + '.tmp', 'w') as pid_file:
+    pid_file.write(str(os.getpid()))
+os.replace(marker + '.tmp', marker)
 parent = os.getpid()
 child = os.fork()
 if child == 0:
     if ctypes.CDLL(None).prctl(1, signal.SIGKILL, 0, 0, 0) or os.getppid() != parent:
         os._exit(2)
-    open(descendants, 'w').write(str(os.getpid()))
+    with open(descendants + '.tmp', 'w') as pid_file:
+        pid_file.write(str(os.getpid()))
+    os.replace(descendants + '.tmp', descendants)
     while True:
         time.sleep(0.05)
 while True:

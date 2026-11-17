@@ -66,7 +66,8 @@ class ZX81ProducerTests(unittest.TestCase):
         self.assertEqual(value['parameters']['reset_timing_policy'],producer.common.TIMED_RESET_RELEASE)
         changed=dict(self.tools,quartus='changed actual compiler')
         other=producer.create_build_record(self.root,'https://github.com/DeanoC/fes',self.revision,changed,self.execution,self.captured)
-        self.assertNotEqual(build_identity(record),build_identity(other))
+        self.assertEqual(build_identity(record),build_identity(other))
+        self.assertNotEqual(json.loads(record)['identities']['toolchain'],json.loads(other)['identities']['toolchain'])
         name='sources/misteross/cores/fes-common/rtl/z80/engine.sv';self.captured[name]=b'changed'
         with self.assertRaisesRegex(producer.BuildError,'differs from canonical closure'):self.record()
 

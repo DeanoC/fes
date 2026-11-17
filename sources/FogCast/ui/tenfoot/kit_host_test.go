@@ -340,10 +340,23 @@ func TestKitHostStartupAndActiveSessionDoNotPresentOverGame(t *testing.T) {
 }
 
 func TestKitHostWaitsForDisplayHandoffBeforeLaunching(t *testing.T) {
-	var requests atomic.Int32
+	var launches atomic.Int32
+	eventSeen := make(chan struct{}, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requests.Add(1)
-		http.Error(w, "unexpected", http.StatusInternalServerError)
+		switch r.URL.Path {
+		case "/api/v1/debug/ui-events":
+			_, _ = io.WriteString(w, `{"count":1}`)
+			select {
+			case eventSeen <- struct{}{}:
+			default:
+			}
+		case "/api/v1/session/launch":
+			launches.Add(1)
+			http.Error(w, "unexpected launch", http.StatusInternalServerError)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}
 	}))
 	defer server.Close()
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 50)
@@ -353,11 +366,18 @@ func TestKitHostWaitsForDisplayHandoffBeforeLaunching(t *testing.T) {
 	app.mu.Lock()
 	app.startLaunchGameLocked(hostclient.Game{ID: "game", Title: "Game", State: "available", RootOnline: true, Launchable: true})
 	app.mu.Unlock()
-	if !app.Snapshot().HostPresentsPaused || requests.Load() != 0 {
+	// Telemetry may arrive while display handoff is pending. Wait for it so
+	// that legitimate UI traffic cannot be mistaken for an early launch.
+	select {
+	case <-eventSeen:
+	case <-time.After(testwait.Timeout):
+		t.Fatal("launch telemetry did not arrive")
+	}
+	if !app.Snapshot().HostPresentsPaused || launches.Load() != 0 {
 		t.Fatal("host launch was not held for the display")
 	}
 	app.completeHostLaunchHandoff(errors.New("display unavailable"))
-	if requests.Load() != 0 || app.Snapshot().HostPresentsPaused || app.Snapshot().Launch.Phase != "error" {
+	if launches.Load() != 0 || app.Snapshot().HostPresentsPaused || app.Snapshot().Launch.Phase != "error" {
 		t.Fatal("failed display handoff did not abort the launch")
 	}
 }

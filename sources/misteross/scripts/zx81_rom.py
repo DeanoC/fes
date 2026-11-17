@@ -2,7 +2,7 @@
 """Check a user-supplied ZX81 BASIC ROM and write it as a simulation hex or MIF.
 
 ZX81-family firmware is user-supplied, so no ROM bytes are committed.
-Simulations, ROM-link tests and the Quartus oracle take the 8 KiB edition 3
+Simulations and ROM-link tests take the 8 KiB edition 3
 image by path (FES_ZX81_ROM) and accept only its digest.
 """
 import argparse

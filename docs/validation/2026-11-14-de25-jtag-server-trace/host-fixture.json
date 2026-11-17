@@ -1,0 +1,32 @@
+{
+  "scope": "nano-private-jtag-server-trace-v1",
+  "target": {
+    "pid": 213716,
+    "start_ticks": "170660476",
+    "executable_sha256": "5cb7ee2332bcd93a666442c10917908ecce36e9a383c13005c5c9495e8e383d4",
+    "server_record_sha256": "dd1967bc41635adce07fd93483fd4263e6b1ef57d1b2881556e2791fcdb6bdee"
+  },
+  "attached": true,
+  "tracer_stopped": true,
+  "target_detached": true,
+  "ownership_verified": true,
+  "tracer_exited_before_close": false,
+  "tracer_returncode": -2,
+  "trace_sha256": "8d0f75458eb5e12b9c367868d09edbae935115087559f96dbe657d011dccce6e",
+  "trace_bytes": 159,
+  "trace_limit_bytes": 8388608,
+  "trace_limit_seconds": 120,
+  "hardware_acceptance": false,
+  "programming_authority": false,
+  "reset_completed": false,
+  "recovery_authority": false,
+  "source_sha256": "58f3665320c489a1cad640544b291d3aa3037a323fd163e109be25a330a07d0e",
+  "status": "passed-real-host-ptrace-attach-ioctl-detach",
+  "target_identity_injected": true,
+  "live_pid_start_ticks_and_tracer_verified": true,
+  "fixture_survived_detach": true,
+  "fixture_survived_tracer_SIGKILL": true,
+  "fixture_stopped": true,
+  "hardware_actions": false,
+  "USB_device_opened": false
+}

@@ -1,0 +1,86 @@
+{
+  "status": "passed-off-board-observer-repair",
+  "base_source": "0888a321c1b5ad7be58e33506b51c0431de24c97",
+  "focused_observer_tests": 48,
+  "parent_regression_tests": 1851,
+  "selected_commands": 6,
+  "checks": {
+    "observer-focused-final": {
+      "path": "out/nano-controlled-keyboard-board-20261110/observer-focused-final-result.json",
+      "sha256": "4fcb8cde6df68d475d9b73700753602465e830890b3284f10fcbd7c81a9030a9",
+      "log_sha256": "453ca4cb85b4aef5ff581ef738e33da5df8d3e9a2ef380b26b610b2a71fb69c5"
+    },
+    "observer-affected": {
+      "path": "out/nano-controlled-keyboard-board-20261110/observer-affected-result.json",
+      "sha256": "48452fe865e8d14aaf31ad62288cbb5422ad566cdb3fe77070cc47c164eec640",
+      "log_sha256": "f7527956abe762dbfa88d0ab2fae26f64c92e9bbb2ffca23a9b441ab4dd1085f"
+    },
+    "observer-staging-replay": {
+      "path": "out/nano-controlled-keyboard-board-20261110/observer-staging-replay-result.json",
+      "sha256": "bd2bf2cc9c6855d179aefdd18aa7c16992a27b9afbb35bcbb0a4f7488a11f056",
+      "log_sha256": "d7ac3203fb0deb864f9c182da515d8b80b1d6b3e8f670b1dc2e183dccaf4dc68"
+    },
+    "observer-native-files": {
+      "path": "out/nano-controlled-keyboard-board-20261110/observer-native-files-result.json",
+      "sha256": "675db1ad6a346c9b065eceb64c66c8ce3e441299c8dab16dfc4c7f3b74e8bb44",
+      "log_sha256": "e9a5833540b2c820422118f804c6284b1f0fff346293dbf98bb2726204557d9e"
+    },
+    "observer-cleanup-audit": {
+      "path": "out/nano-controlled-keyboard-board-20261110/observer-cleanup-audit-result.json",
+      "sha256": "29bc8ae74482af256e9ab3473177ec5d2ec922202aae95aa65ae44c447632dc0",
+      "log_sha256": "697f7641a68cae4a45acb61f8cffbb0fc7f26e06df604a89a911f458810ac9e5"
+    }
+  },
+  "source_sha256": {
+    "platform/embedded/nano/paired_tenfoot_trace.py": "89d60a2e13a850574b4f64c02315f4b99ce97cd3b2706f288f246c798b8b1e4e",
+    "platform/embedded/nano/tenfoot_trace.py": "2626759f691a0d931aa3cbb0a710b3b0289cd724624bab3a7a888af41d63e69c",
+    "tests/fixtures/nano-tenfoot-staging/README.md": "09de6f3f4bbf19795eb7be431ea476c8282bc2dea37910fe6ffd22373552e1ee",
+    "tests/fixtures/nano-tenfoot-staging/producer.txt": "031f9e456ed3a770025a8f9c54a456e690f8bd48c735c5199b5c45f56a548714",
+    "tests/test_nano_paired_tenfoot_trace.py": "eb15bcc7e39d73ed88c870d83e06ffc85af9151201a689ef05d5284b5a432fe9",
+    "tests/test_nano_tenfoot_trace.py": "a81ecea3e708f883fc6f4979c1782658f49ea458621411eb61ae448a51013382"
+  },
+  "saved_staging_replay": {
+    "status": "passed-startup-and-held-staged-selection-only",
+    "console_sha256": "c2e510410319e634f0602da49458d21caca3d794c537d6f3b755aaeffef44896",
+    "source_head": "0888a321c1b5ad7be58e33506b51c0431de24c97",
+    "startup_replayed": true,
+    "staged_identity_matches_request": true,
+    "startup_configuration": 4,
+    "selected_state": {
+      "State": "loading",
+      "Owner": 13604623723433406117,
+      "Generation": 1,
+      "Identity": {
+        "PackageID": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+        "CoreID": "fes.zx81",
+        "ABI": "fes.computer",
+        "BuildID": "0792e51a2e51512bfb8fe44e93a69ddd",
+        "Platform": "de25_nano",
+        "Device": "A5EB013BB23BE4SCS",
+        "ProgrammingProfile": "de25-native-computer-v1",
+        "ActivationReceiptSHA256": "5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c",
+        "ProgrammedSHA256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949",
+        "Major": 1,
+        "Minor": 0
+      },
+      "rom_receipt_sha256": "5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c",
+      "Held": true,
+      "Error": ""
+    },
+    "launch_completion_verified": false,
+    "normal_return_verified": false,
+    "final_park_verified": false,
+    "original_hardware_capture_remains_failed": true,
+    "live_authority": false,
+    "hardware_actions": false,
+    "decoder_sha256": {
+      "platform/embedded/nano/tenfoot_trace.py": "2626759f691a0d931aa3cbb0a710b3b0289cd724624bab3a7a888af41d63e69c",
+      "platform/embedded/nano/paired_tenfoot_trace.py": "89d60a2e13a850574b4f64c02315f4b99ce97cd3b2706f288f246c798b8b1e4e"
+    }
+  },
+  "native_boot_artifacts_unchanged": true,
+  "hardware_trial_still_failed": true,
+  "hardware_actions": false,
+  "live_admission": false,
+  "ordinary_admission": false
+}

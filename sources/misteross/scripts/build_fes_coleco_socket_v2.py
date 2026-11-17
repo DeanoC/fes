@@ -330,7 +330,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
                 routed=True, nextpnr_commit=pnr_recipe.nextpnr_pin("fes.coleco"))
         evidence = factory.validate_build_evidence(output, root, gpu_backend=backend,
                                                    session_display=native_video)
-        database_root = tools["mistral"].path.parents[2] / "src/mistral"
+        database_root = rom_map.database_root(tools["mistral"].path)
         database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
         mapping, map_evidence = rom_map.build_rom_map(
             database, (output / "core.rbf").read_bytes(),

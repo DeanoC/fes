@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/preparation-after-usb-reset-trial/run_trial.py",
+    "--procedure-sha256",
+    "dfef7b983d4d9df1b57206d973b912a3eabc3af6e9bf5eafc9e0f9476f00d4d9",
+    "--execute"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 1,
+  "timed_out": false,
+  "elapsed": 327.1466856638435,
+  "log_sha256": "f7b4ead6049b9dcf20b6c52c69a5eb99eeae6ada30e04fbab314214d845d59fe"
+}

@@ -1,0 +1,58 @@
+{
+  "LOAD_ODD": {
+    "charged": 17.026,
+    "cycles": 87019
+  },
+  "STORE_ODD": {
+    "charged": 15.023,
+    "cycles": 76981
+  },
+  "ADD_ODD": {
+    "charged": 20.023,
+    "cycles": 102590
+  },
+  "CMP_ODD": {
+    "charged": 20.023,
+    "cycles": 102591
+  },
+  "INC_ODD": {
+    "charged": 20.024,
+    "cycles": 102586
+  },
+  "PUSH_ODD": {
+    "charged": 22.023,
+    "cycles": 112820
+  },
+  "SHL_B_CL": {
+    "charged": 23.028,
+    "cycles": 117966
+  },
+  "SHL_W_CL": {
+    "charged": 23.022,
+    "cycles": 117936
+  },
+  "MUL_B_MEM": {
+    "charged": 27.022,
+    "cycles": 138415
+  },
+  "DIV_B_MEM": {
+    "charged": 32.018,
+    "cycles": 163995
+  },
+  "PUSHA_POPA": {
+    "charged": 47.017,
+    "cycles": 240789
+  },
+  "PUSHF_POPF": {
+    "charged": 20.028,
+    "cycles": 102606
+  },
+  "XLAT": {
+    "charged": 16.026,
+    "cycles": 82116
+  },
+  "LEA_COMPLEX": {
+    "charged": 17.023,
+    "cycles": 87221
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "base_commit": "a0c9cdcf1b4f59bfb534a38a7a7013b0bca66b0f",
+  "sources": {
+    "platform/embedded/entry/build.py": "37e1a25a1f7c50e5b014a0aa2101e210387394a1ad3613170fec2a7ef88ec03f",
+    "platform/embedded/firmware/nano_tape_platform.inc": "c2dfa162fcc669189b3629322a75ab32e37c6a3a99be0d41be1de7ee0670fb74",
+    "platform/embedded/firmware/tests/nano_mixed_cold_test.inc": "be4872f0025144a69d0a7780f9683b056d4a011743e76c213c8b9f5811ba5b50",
+    "platform/embedded/firmware/tests/nano_mixed_tape_test.inc": "b90ebff639b8f5bbdbb5e464fd4b45c215df9592faec2fa40a165369e7009339",
+    "platform/embedded/nano/cold_profile.py": "d9786f43eb24cf4e006fa962360c75e235b2a840be04d8b02a566ec0af32101b",
+    "platform/embedded/nano/initial_tape.py": "238b479f91cd776eb085f4e836b7c7ba6239effd9f68a54a3a66ef98b97a5610",
+    "platform/embedded/tamago/board/arm64map/tape_test.go": "117f66e66bced44d82fd111371c3070494057d5ffeb3c734db8af2c6b2c2fea7",
+    "platform/embedded/tamago/board/de25nano/configuration.go": "4520ac019bac8b8ce5e5efb03d7524c154ebf96923a30f80b2fa5fde14024e4e",
+    "platform/embedded/tamago/board/de25nano/devices.go": "e1d181e217d6c24b95dff856e7e18cd2e1c9520542d51f67f0bbd3f5936ef081",
+    "platform/embedded/tamago/board/de25nano/fabric.go": "0f917a1b942480536956af6e5c3b882840229a2e80c7600917c663ab0d6b8bcf",
+    "platform/embedded/tamago/board/de25nano/initial_tape.go": "2cb488863c5fe569678438752cb8eb3c4af4eba6f78840db028d341909d064ea",
+    "platform/embedded/tamago/board/de25nano/initial_tape_test.go": "43797272b16267d215966d02982a14e0f7ac8ec4b22042d38eb765bfa064569e",
+    "platform/embedded/tamago/build.py": "c4e7a5a836a763a1e451e8576e44f17ab37d4066afad0376ce316c82d796e3b4",
+    "platform/embedded/tamago/nativefabric/configuration_arena.go": "779698b6d79407f375d804aef62f78bbdde028b6e2ef5c6836cabc07dba5f7de",
+    "platform/embedded/tamago/nativefabric/initial_tape_arena.go": "0a7f7a63423755539beeeb9bf6299f11fa9e1aa94a8e3f687f55feaebfb9942f",
+    "platform/embedded/tamago/nativefabric/initial_tape_publication.go": "e6725bc115801192abcf02e32a87d4cf77ec5dc36e0bce1beb6af37c1736165b",
+    "platform/embedded/tamago/nativefabric/initial_tape_publication_test.go": "16ba3de4e21f187585ed746f6d90c17d7ffe7f52097e62dd36b3565fd30eb874",
+    "platform/embedded/tamago/nativefabric/retained_arena_test.go": "ade3fb7e10a09c5bef6509ada71f164c3bfc05548e0433992cda90852c1a4f93",
+    "tests/test_nano_firmware_mmu.py": "6f71f8e9fd1cdbeafbc46e80c61bf64429afd4708bff61bb80a7fb8121531cdb",
+    "tests/test_nano_initial_tape.py": "d61bf715e7ca7e0c7712e14f5df75c7442c10a5950d802c9130682285a619406",
+    "tests/test_nano_mixed_cold.py": "1dae82218aba1080ab08558a1154ff02689e5052024e3741d1b574431e233627"
+  },
+  "hardware_actions": false
+}

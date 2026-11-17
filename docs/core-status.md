@@ -68,8 +68,10 @@ acceptance or promotion remains open. Keyboard transposition
 ([#750](https://github.com/DeanoC/fes/issues/750)) is unrelated. The factory
 packages and Apple II seal with HIP/nextpnr. The accepted policy allows
 labelled Quartus product variants alongside OSS builds; current registered
-playable recipes use HIP/nextpnr. PC/XT selects a Quartus diagnostic package
-through its normal recipe; nextpnr remains advisory for that core. Quartus
+playable recipes use HIP/nextpnr, except the ZX81 family. PC/XT selects its sole
+Quartus DOS package through its normal recipe, and the ZX81 family (ZX81, ZX80,
+TS1000, TS1500) selects the Quartus Lite package producer
+`build_fes_zx81_quartus.py`; nextpnr remains advisory for those cores. Quartus
 remains an oracle where other recipes say so until variant support lands.
 A failed OSS route never falls back to Quartus.
 
@@ -77,12 +79,12 @@ A failed OSS route never falls back to Quartus.
 
 | Package | Version | Standing | ABI | Required interfaces | Optional | What it implements |
 | --- | --- | --- | --- | --- | --- | --- |
-| `fes.ramtest` | 1.1.0 | Package-only | `fes.application` 1.0 | `fes.gamepad` 1.0, `fes.video.fixed-720p60` 1.0, `fes.memory.hps-ddr` 1.0 | — | ROM-less RAM testing utility for the SDRAM addon and all three HPS DDR ports. After the scans it measures single-line read latency on each memory ([2026-10-25 kit record](validation/2026-10-25-hps-ddr-latency.md)). Ships the OSS 100 MHz variant using `sources/misteross/cores/fes-ramtest/toolchain.lock`; 130 MHz timing closure remains open (#264). No exact-image hardware acceptance is claimed. |
+| `fes.ramtest` | 1.1.0 | Package-only | `fes.application` 1.0 | `fes.gamepad` 1.0, `fes.video.fixed-720p60` 1.0, `fes.memory.hps-ddr` 1.0 | — | ROM-less RAM testing utility for the SDRAM addon and all three HPS DDR ports. After the scans it measures single-line read latency on each memory ([2026-10-25 kit record](validation/2026-10-25-hps-ddr-latency.md)). Ships the one OSS 100 MHz package using `sources/misteross/cores/fes-ramtest/toolchain.lock`. The separately sealed OSS 130 MHz package was removed; the OSS-versus-Quartus 130 MHz gap (#264) no longer has a package behind it. No exact-image hardware acceptance is claimed. |
 | `fes.pong` | 1.1.0 | Package-only | `fes.simple-game` 1.0 | `fes.gamepad` 1.0, `fes.video.fixed-720p60` 1.0, `fes.persistence.words` 1.0, `fes.pong.progress` 1.0 | — | ROM-less Pong. Paddle speed and best rally persist. Lock `toolchain.lock`. |
-| `fes.zx81` | 1.7.0 | Package-only | `fes.computer` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.keyboard.hid` 1.0, `fes.gamepad.ports` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.media.zx81-tape` 1.0, `fes.media.zx81-tape-write` 1.0, `fes.memory.hps-ddr` 1.0, `fes.video.session-display` 1.0, `fes.fabric.video.display-plane` 1.0 | `fes.expansion.zx81-bus` 2.0 | Sinclair ZX81. 1 KiB RAM, HID keyboard mapped to the 40-key matrix, exact 8192-byte `machine-rom` linked before download, and a 1..16384-byte `.p` media unit. Completed BASIC SAVE images remain pending until FogCast stores them for the library game and acknowledges that package generation. HDMI passes through the shared [display plane](display-pipeline.md), which blends premultiplied launcher frames over the machine picture and restores machine pixels on close. This is host-software coverage; the 2 Oct note does not accept these bytes. Still the first-party NMOS Z80. Lock `toolchain.lock`. |
-| `fes.zx80` | 0.1.0 | Package-only | `fes.computer` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.keyboard.hid` 1.0, `fes.gamepad.ports` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.media.zx81-tape` 1.0, `fes.memory.hps-ddr` 1.0, `fes.video.session-display` 1.0, `fes.fabric.video.display-plane` 1.0 | `fes.expansion.zx81-bus` 2.0 | Sinclair ZX80 from the ZX81 shell. PAL, 4 KiB `zx80-rom`, 1 KiB internal RAM, no NMI. Raw image load at `$4000`. Experimental and package-only. Not in the factory image. Lock `cores/fes-zx81/toolchain.lock`. |
-| `fes.ts1000` | 0.1.0 | Package-only | `fes.computer` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.keyboard.hid` 1.0, `fes.gamepad.ports` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.media.zx81-tape` 1.0, `fes.media.zx81-tape-write` 1.0, `fes.memory.hps-ddr` 1.0, `fes.video.session-display` 1.0, `fes.fabric.video.display-plane` 1.0 | `fes.expansion.zx81-bus` 2.0 | Timex Sinclair 1000 from the ZX81 shell. NTSC, 8 KiB `ts1000-firmware`, 2 KiB internal RAM, NMI, and the ZX81 ROM BASIC SAVE path. Experimental and package-only. Not in the factory image. Lock `cores/fes-zx81/toolchain.lock`. |
-| `fes.ts1500` | 0.1.0 | Package-only | `fes.computer` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.keyboard.hid` 1.0, `fes.gamepad.ports` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.media.zx81-tape` 1.0, `fes.media.zx81-tape-write` 1.0, `fes.memory.hps-ddr` 1.0, `fes.video.session-display` 1.0, `fes.fabric.video.display-plane` 1.0 | `fes.expansion.zx81-bus` 2.0 | Timex Sinclair 1500 from the ZX81 shell. NTSC, 8 KiB `ts1500-firmware`, 16 KiB internal RAM, NMI, and the ZX81 ROM BASIC SAVE path. Experimental and package-only. Not in the factory image. Lock `cores/fes-zx81/toolchain.lock`. |
+| `fes.zx81` | 1.7.0 | Package-only | `fes.computer` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.keyboard.hid` 1.0, `fes.gamepad.ports` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.media.zx81-tape` 1.0, `fes.media.zx81-tape-write` 1.0, `fes.memory.hps-ddr` 1.0, `fes.video.session-display` 1.0, `fes.fabric.video.display-plane` 1.0 | — | Sinclair ZX81. 1 KiB RAM, HID keyboard mapped to the 40-key matrix, exact 8192-byte `machine-rom` linked before download, and a 1..16384-byte `.p` media unit. Completed BASIC SAVE images remain pending until FogCast stores them for the library game and acknowledges that package generation. HDMI passes through the shared [display plane](display-pipeline.md), which blends premultiplied launcher frames over the machine picture and restores machine pixels on close. This is host-software coverage; the 2 Oct note does not accept these bytes. Still the first-party NMOS Z80. Built by the Quartus Lite producer (`build_fes_zx81_quartus.py`); lock `cores/fes-zx81/quartus.lock`. No expansion socket until DeanoC/fes#1875 builds the 16K RAM and Zon X carts into the shell; the nextpnr lock `cores/fes-zx81/toolchain.lock` is advisory. |
+| `fes.zx80` | 0.1.0 | Package-only | `fes.computer` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.keyboard.hid` 1.0, `fes.gamepad.ports` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.media.zx81-tape` 1.0, `fes.memory.hps-ddr` 1.0, `fes.video.session-display` 1.0, `fes.fabric.video.display-plane` 1.0 | — | Sinclair ZX80 from the ZX81 shell. PAL, 4 KiB `zx80-rom`, 1 KiB internal RAM, no NMI. Raw image load at `$4000`. Experimental and package-only. Not in the factory image. Built by the Quartus Lite producer (`build_fes_zx81_quartus.py`); lock `cores/fes-zx81/quartus.lock`. No expansion socket until DeanoC/fes#1875 builds the 16K RAM and Zon X carts into the shell; the nextpnr lock `cores/fes-zx81/toolchain.lock` is advisory. |
+| `fes.ts1000` | 0.1.0 | Package-only | `fes.computer` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.keyboard.hid` 1.0, `fes.gamepad.ports` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.media.zx81-tape` 1.0, `fes.media.zx81-tape-write` 1.0, `fes.memory.hps-ddr` 1.0, `fes.video.session-display` 1.0, `fes.fabric.video.display-plane` 1.0 | — | Timex Sinclair 1000 from the ZX81 shell. NTSC, 8 KiB `ts1000-firmware`, 2 KiB internal RAM, NMI, and the ZX81 ROM BASIC SAVE path. Experimental and package-only. Not in the factory image. Built by the Quartus Lite producer (`build_fes_zx81_quartus.py`); lock `cores/fes-zx81/quartus.lock`. No expansion socket until DeanoC/fes#1875 builds the 16K RAM and Zon X carts into the shell; the nextpnr lock `cores/fes-zx81/toolchain.lock` is advisory. |
+| `fes.ts1500` | 0.1.0 | Package-only | `fes.computer` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.keyboard.hid` 1.0, `fes.gamepad.ports` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.media.zx81-tape` 1.0, `fes.media.zx81-tape-write` 1.0, `fes.memory.hps-ddr` 1.0, `fes.video.session-display` 1.0, `fes.fabric.video.display-plane` 1.0 | — | Timex Sinclair 1500 from the ZX81 shell. NTSC, 8 KiB `ts1500-firmware`, 16 KiB internal RAM, NMI, and the ZX81 ROM BASIC SAVE path. Experimental and package-only. Not in the factory image. Built by the Quartus Lite producer (`build_fes_zx81_quartus.py`); lock `cores/fes-zx81/quartus.lock`. No expansion socket until DeanoC/fes#1875 builds the 16K RAM and Zon X carts into the shell; the nextpnr lock `cores/fes-zx81/toolchain.lock` is advisory. |
 | `fes.coleco` | 1.5.0 | Package-only | `fes.application` 1.0 | `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.gamepad.ports` 1.0, `fes.keypad.ports` 1.0, `fes.video.fixed-720p60` 1.0, `fes.memory.hps-ddr` 1.0, `fes.video.session-display` 1.0, `fes.fabric.video.display-plane` 1.0 | `fes.expansion.coleco-bus` 2.0, `fes.fabric.video.native-pixels` 1.0 | Format 4 ColecoVision. Exact 8 KiB `coleco-bios` at source offset 0 and 16 KiB `coleco-cart` at offset 8192; the cartridge map is mirrored at `0x8000`. Pad a shorter cart with `0xff` before import. Two gamepads, two 12-key keypads, SN76489, and an optional SGM socket. No blob, stream, or firmware mailbox. The factory shell is the native-pixel video lane and requires a linked part; the shared session-display plane follows the part. Not a retail-complete core. Lock `cores/fes-coleco/toolchain.lock` (Yosys `5391eeb1`; nextpnr `bec82e36` and Mistral `8fcc4cb4`). |
 | `fes.sms` | 1.4.0 | Package-only | `fes.simple-computer` 1.0 | `fes.keyboard` 1.0, `fes.video.fixed-720p60` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0 | — | Sega Master System slice. Do not use `fes.mastersystem`. Exact 32 KiB `cartridge-rom` is linked through a sealed ROM map before download; pad shorter fixed-map images with `0xff`. 8 KiB RAM at `0xc000`, Mode 4 VDP, SN76489 on `0x7E`/`0x7F`, shared PCM-to-I2S into the ADV7513. No host audio-stream mailbox or Sega mapper. Lock `toolchain.lock` (shared pin). |
 | `fes.atari-st` | 0.2.0 | Package-only | `fes.computer` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.keyboard.hid` 1.0, `fes.gamepad.ports` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.media.atari-st-floppy` 1.0, `fes.mouse.relative` 1.0, `fes.media.atari-st-floppy-write` 1.0, `fes.media.atari-st-floppy-geometry` 1.0 | `fes.expansion.atari-st-bus` 1.0, `fes.fabric.video.raster-rgb888` 1.0 | Atari 520ST: 8 MHz 68000, 512 KiB SDRAM, exact 192 KiB `atari-st-firmware` link, original MMU aliases, MFP/ACIA/IKBD/YM2149, writable 80–82 track, one/two-sided, nine/ten-sector `.st` drive A, relative mouse and all three video modes. Library-bound disk saves and independently selected video parts pass host tests. Stock EmuTOS runs the original GEMDOS write/read/rename/delete diagnostic through the real CPU and modeled SDRAM. The earlier 0.1.0 shell seals at seed 4 (74.45/53.55/276.63 MHz), with separate sealed Direct/Scanlines parts. Both physical memory diagnostics, stock GEM/mouse and independent Direct/Scanlines video checks pass on Kit A. Automatic initial-disk boot and save/Stop/cold-reload/restore pass in the same runtime and agent lifetime, with exact complete payload comparisons against the guest model. See the [automatic-boot record](validation/2026-10-06-atari-st-auto-boot.md) and the [startup budget follow-up](validation/2026-10-06-atari-st-startup-budget.md). See the [current bring-up record](validation/2026-10-06-atari-st-bringup.md). Lock `cores/fes-atari-st/toolchain.lock` (nextpnr `5fe55f3d`); the [earlier qualification](validation/2026-10-04-atari-st-nextpnr-head.md) records the read-only shell. |
@@ -335,14 +337,14 @@ PC/XT is outside the factory image package set. Its assembled 8088, motherboard,
 SDRAM, ISA CGA/MDA and one Direct/Scanlines pipeline have host simulation
 coverage, including DMA and refresh. The diagnostic board builder supplies
 PLL/reset, SDRAM capture/pads and HDMI, with separate retained attempts under
-`sources/misteross/build/diagnostic/fes-pcxt/`. `fes.pcxt` has an installable
-format-2 diagnostic package with `fes.computer` 1.1 live floppy media and
-fixed CGA Direct video. A separate `fes.pcxt-dos` recipe enables the GLaBIOS
+`sources/misteross/build/diagnostic/fes-pcxt/`. `fes.pcxt-dos` is the sole installable PC/XT profile. The diagnostic ROM,
+raw board builders and focused simulation/capture tests remain development
+checks without a separate package or catalog entry. The DOS recipe enables the GLaBIOS
 XT/5160 ROM, host keyboard, PC speaker and writable floppy controller. It accepts a 360 KiB floppy image
 at runtime and stores it in SDRAM before releasing the 8088 when booting that
 image. Releasing execution with an empty drive starts the BIOS. The registered
 package producer uses Quartus with a common 100 MHz board,
-74.25 MHz CGA Direct video and a visible firmware-completion block. All declared
+74.25 MHz CGA Direct video. The raw diagnostic ROM retains its visible completion block. All declared
 seeds must pass reported internal timing; the first seed must reproduce its RBF.
 Nextpnr remains advisory under [#840](https://github.com/DeanoC/fes/issues/840).
 Build success does not establish external SDRAM/HDMI/HPS/reset qualification
@@ -513,26 +515,90 @@ Manager ([Windows corpus](../sources/misteross/docs/pc386-windows-corpus.md)).
 Its first kit runs are in the
 [corpus record](validation/2026-11-12-pc386-windows-corpus/summary.md).
 
-Still open for the games ([#1368](https://github.com/DeanoC/fes/issues/1368)):
-- Ultima VI walking speed at 286-12, against a reference;
-- Ultima VII NPC pace, against a reference.
+Still open for the games ([#1368](https://github.com/DeanoC/fes/issues/1368)).
+An 86Box 286 at 12.5 MHz is now named as Ultima VI's reference, and scores in
+the middle of real 286 boards of that clock in TopBench's own database, where
+the 286-12 preset scores above all of them
+([record](validation/2026-11-14-pc386-u6-u7-reference/summary.md)):
+- Ultima VI's speaker effects play about 2.4 semitones flat against it
+  (840.69 and 499.78 Hz against 962.95 and 573.56), which fails
+  ([#1837](https://github.com/DeanoC/fes/issues/1837)). The condition is not
+  new: on #1474's own ratio across #1453, its ISA charges added about two of the
+  twelve-and-a-half points and the rest predates them;
+- Ultima VI walking speed at 286-12 is **not measurable by any method tried**,
+  and the record names all three rather than quoting a number: the game steps
+  when it next polls the keyboard and drops what is queued, so the rate follows
+  how the keys arrive, and keying harder makes it walk slower — the reference
+  gives 2.94 steps a second at 10 keys a second and 2.06 and 2.07 at 12.3 and
+  25, a steady figure but a suppressed one, not a plateau. Two routes stay
+  open, and the record keeps both: the game's own step count rather than
+  motion counted in frames, which is the surer one, and a sweep of the
+  unsampled key rates below 12.3 a second on both machines
+  ([`method.md`](validation/2026-11-14-pc386-u6-u7-reference/method.md) under
+  its correction to the seventh amendment, and
+  [`summary.md`](validation/2026-11-14-pc386-u6-u7-reference/summary.md) under
+  the walk);
+- Ultima VII NPC pace is **not established**, which is not the same as the
+  walk above: no pace was measured, and nothing says it cannot be. The Black
+  Gate does not start on the reference at all — it stops at its own memory
+  check, because a real 386 board has no RAM behind C800-DFFF for the games
+  image's UMB provider where the kit's machine does. The routes left are an
+  86Box ISA memory board there, and settling the 386DX-25 reference board;
+  both are work not reached, not dead ends, and both are carried forward as
+  [#1853](https://github.com/DeanoC/fes/issues/1853).
 
-Launches with Serpent Isle's disk image sometimes show a black picture at
-the DOS prompt: 12 black DOS-prompt grabs in 400 launches on Kit B. Four of
-those cases were also observed through gameplay (`k1`, `k3` twice, `k6`):
-Serpent Isle was started and ran underneath (its CPU, sound or VRAM
-progressed as in a lit launch). The other eight were prompt-only: `k8`'s
-six grabs stopped at the DOS prompt, before the game ran, and `k9`'s two
-were taken at the prompt; that run then started the game for audio checks
-with no later video grab. In the eight black
-prompt grabs on an instrumented scratch seal, the core still drove lit pixels
-onto the HDMI transmitter pins, so for those the fault is after the core.
-In two of them, the only ones checked, the ADV7513 was set up as in a lit
-launch and HDMI audio arrived. The candidates are the ADV7513's sampling of
-the pixel bus, its internal video path or TMDS video output, and the capture
-grabber's video path. The four earlier gameplay-observed black cases had no such probe
+The walk also waits on [#1840](https://github.com/DeanoC/fes/issues/1840): the
+286-12 preset scores TopBench 33 where AT-class real 286 boards of its clock
+score 21 to 27, so a pace measured at a preset is qualified by how well that
+preset is calibrated. That is CPU throughput, and the pitch failure runs the
+other way, so they are not the same measurement; whether they share a cause in
+the governor's clock table is open. The Black Gate runs at preset 3, which has
+the same question on weaker evidence and is not filed.
+
+Launches with Serpent Isle's disk image sometimes capture a black picture at
+the DOS prompt: 12 black DOS-prompt grabs in 400 launches on Kit B. For the
+eight of them that were probed, it is not pc386's; the other four are
+unclassified, and a probed recurrence belongs to
+[#1833](https://github.com/DeanoC/fes/issues/1833). In the eight black prompt
+grabs taken on an instrumented scratch seal the core still drove lit pixels onto the HDMI transmitter pins, with the
+picture present in DDR, and in the two that were checked the ADV7513 read
+powered, link-ready, PLL-locked and detecting 720p60 while HDMI audio arrived at
+full level. The four earlier black launches (main's seal and `d1`) had no
+presenter, plane or transmitter probe at all, so nothing is concluded about
+them. The same capture — a uniform RGB-0
+frame — also appears on Kit A through a different grabber and a different
+transmitter, and with no pc386 core loaded at all: it is the FES Home screen
+going black after a baseline restore in #1767's Kit A run, which that run itself
+classified `REAL_FAILURE` after a passing Home a minute earlier. So the stage
+that blackens the picture sits in the display or capture path that every core
+and the menu share. One pc386-side path is not excluded: those probes read
+logical presenter and plane values, not the electrical timing at the
+transmitter's pins, and no `HDMI_TX_*` output carries an output-delay
+constraint, so a pc386 HDMI egress fault that is sampled as blanking would look
+the same from inside the fabric. #1494 therefore stays open. It is the symptom
+[#1823](https://github.com/DeanoC/fes/issues/1823) tracks (fully black HDMI
+after an activation, every log reporting success) reached through a core load —
+both run the same `QuiesceAdv` power-down and `hdmi_verify` bring-up. Whether
+the cause is the same is not established: #1823's menu episodes have no
+FPGA-side reading. Which stage blackens the picture, the ADV7513's own video
+path or Powerboat's capture chain, is
+[#1833](https://github.com/DeanoC/fes/issues/1833); #1003's `0xBA` sweep and a
+capture restart during an episode are the cheapest shots at it. Deano has
+approved both for an episode only, and the pc386 kit driver implements them in
+that order; each can name a side only by recovering the picture, and an episode
+that survives both is inconclusive. 83 further Kit B launches produced no
+episode to spend them on; the probe-armed run of those ended early on an
+unclassified I2C bus fault that left the kit's transmitter unreadable until a
+power cycle, recorded with the rest
 ([#1494](https://github.com/DeanoC/fes/issues/1494),
-[record](validation/2026-11-10-pc386-si-reload-presets/summary.md)).
+[record](validation/2026-11-14-pc386-si-black-capture/summary.md)).
+
+The 10–20 s black main menu of run `v1` is a different shape — the picture came
+back inside that launch — and none of the 400 probed launches reproduced it.
+
+Serpent Isle's save and load themselves work: a save made blind through a black
+launch is listed back, and all 22 Journey Onward loads in lit launches put the
+party on the ship in 3–6 s, against about 5.5 s on the Bochs-oracle machine.
 
 The keyboard and mouse, the `fes.computer` 1.1 mailbox and the disk round
 trip with the runtime remain open.

@@ -175,7 +175,7 @@ for core_id, module_name, options in json.loads(sys.argv[1]):
         module = self.module()
         with tempfile.TemporaryDirectory(prefix="fes quote ' space ") as temporary:
             source = Path(temporary)
-            for core in ('fes.pong', 'fes.zx81', 'fes.coleco'):
+            for core in ('fes.pong', 'fes.sms', 'fes.coleco'):
                 recipe = replace(module.recipe_for(core), cache_root=source / "cache with ' quote")
                 with patch.object(module, 'authenticate_misteross_origin'), \
                         patch.object(module.subprocess, 'check_output', side_effect=subprocess.CalledProcessError(1, ['producer'])):
@@ -603,8 +603,13 @@ assert lock == expected == pnr_recipe.lock_path(Path.cwd(), sys.argv[5]).resolve
 
         self.assertIn(
             'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  make -C "$work" toolchain-fes', docs)
+        # The ZX81 family is Quartus-built: its example provisions only the
+        # Mistral ROM database and names the pinned Quartus install.
         self.assertIn(
-            'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  FES_TOOLCHAIN_LOCKFILE=cores/fes-zx81/toolchain.lock \\\n  FES_TOOLCHAIN_GPU_ROUTER=HIP \\\n  FES_TOOLCHAIN_HIP_ARCHITECTURES=\'gfx1100;gfx1201\' \\\n  make -C "$work" doctor-strict', docs)
+            'install cores/fes-zx81/quartus.lock pins. Its ROM map reads the pinned\n'
+            '# Mistral database, which this target places in the shared cache:\n'
+            'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  make -C "$work" toolchain-fes-zx81', docs)
+        self.assertNotIn('FES_TOOLCHAIN_LOCKFILE=cores/fes-zx81/toolchain.lock', docs)
 
     def test_canonical_package_record_forwards_package_environment(self):
         module = self.module()
@@ -625,6 +630,14 @@ assert lock == expected == pnr_recipe.lock_path(Path.cwd(), sys.argv[5]).resolve
             self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', caller)
             self.assertEqual(os.environ.get('FES_TOOLCHAIN_CACHE_ROOT'), sentinel)
 
+    def test_selection_only_rejects_unmarked_legacy_producer_record(self):
+        module = self.module()
+        payload = b'{"format":2,"repository":"https://github.com/DeanoC/fes.git","revision":"cccccccccccccccccccccccccccccccccccccccc","source_inputs":{"x":"y"},"source_path":"sources/misteross"}\n'
+        with patch.object(module, 'authenticate_misteross_origin'), \
+             patch.object(module.subprocess, 'check_output', return_value=payload):
+            with self.assertRaisesRegex(ValueError, 'does not support selection-only'):
+                module.canonical_package_record(Path('/unused'), selection_only=True)
+
     def test_package_resolution_forwards_env_to_record_and_build_subprocesses(self):
         module = self.module()
         with tempfile.TemporaryDirectory() as temporary:
@@ -632,6 +645,12 @@ assert lock == expected == pnr_recipe.lock_path(Path.cwd(), sys.argv[5]).resolve
             store = source / 'build/packages'
             identity = 'a' * 64
             record = b'{"format":2,"repository":"https://github.com/DeanoC/fes.git","revision":"cccccccccccccccccccccccccccccccccccccccc","source_inputs":{"x":"y"},"source_path":"sources/misteross"}\n'
+            fields = module.artifact_cache.identity.with_identities(
+                dict(json.loads(record), tools={}, parameters={}))
+            record = module.artifact_cache.identity.canonical(fields) + b'\n'
+            selection = module.artifact_cache.identity.with_identities(
+                dict(fields, parameters=dict(fields['parameters'], selection_only=True)))
+            selection_record = module.artifact_cache.identity.canonical(selection) + b'\n'
             inspected = {
                 'package_id': identity,
                 'manifest': {'core': {'id': 'fes.pong'},
@@ -645,7 +664,7 @@ assert lock == expected == pnr_recipe.lock_path(Path.cwd(), sys.argv[5]).resolve
 
             def fake_check_output(args, **kwargs):
                 received.append(kwargs.get('env'))
-                return record
+                return selection_record if '--selection-only' in args else record
 
             def fake_run(args, **kwargs):
                 received.append(kwargs.get('env'))
@@ -664,7 +683,7 @@ assert lock == expected == pnr_recipe.lock_path(Path.cwd(), sys.argv[5]).resolve
                 module.resolve_core_package(
                     source, 'd' * 40, source / 'selection.toml', env=caller,
                     recipe=module.recipe_for('fes.pong'))
-            self.assertEqual(len(received), 2)
+            self.assertEqual(len(received), 3)
             for env in received:
                 self.assertEqual(env['KEEP'], '1')
                 self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', env)

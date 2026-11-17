@@ -35,7 +35,7 @@ module spike_cpu (
     logic [15:0]      init_ldtr_sel, init_ldtr_ar, init_tr_sel, init_tr_ar;
     logic [31:0]      init_ldtr_base, init_ldtr_limit, init_tr_base, init_tr_limit;
     logic             init_ldtr_valid;
-    logic             a20m, queue16, gov_turbo;
+    logic             a20m, queue16, gov_turbo, x87_f0, x87_f1;
     logic [2:0]       gov_preset;
     logic [9:0]       gov_frequency;
     always_ff @(posedge clk) begin
@@ -44,6 +44,8 @@ module spike_cpu (
         gov_preset <= noise[11:9];
         gov_frequency <= noise[21:12];
         gov_turbo <= &noise[23:22];
+        x87_f0 <= noise[24];
+        x87_f1 <= noise[25];
         if (reset) begin
             init_gpr <= noise[511:256];
             init_eflags <= noise[415:384];
@@ -149,12 +151,20 @@ module spike_cpu (
     logic             trace_pw;
     logic [fes_i386_pkg::PA-1:0] trace_pw_addr;
     logic [31:0]      trace_pw_data;
+    logic             x87_irq13, trace_x87_busy, trace_x87_latched;
+    logic [4:0]       trace_x87_seq;
+    logic [15:0]      arch_x87_cw, arch_x87_sw, arch_x87_tw;
+    logic [10:0]      arch_x87_opcode;
+    logic [639:0]     arch_x87_regs;
+    logic [31:0]      arch_x87_ip, arch_x87_dp;
+    logic [15:0]      arch_x87_cs, arch_x87_ds;
 
     fes_i386_cpu dut (
         .clk, .cold_reset(reset), .reset, .init_gpr, .init_eflags, .init_eip, .init_cr0, .init_cr2, .init_cr3, .init_dr, .init_dr6, .init_dr7,
         .init_gdtr_base, .init_gdtr_limit, .init_idtr_base, .init_idtr_limit, .init_sel, .init_base, .init_limit,
         .init_ar, .init_ldtr_sel, .init_ldtr_base, .init_ldtr_limit, .init_ldtr_ar, .init_ldtr_valid, .init_tr_sel,
         .init_tr_base, .init_tr_limit, .init_tr_ar, .a20m, .attr_upper(ATTR_UPPER), .ram_top(7'd16), .queue16, .gov_preset, .gov_frequency, .gov_turbo,
+        .x87_present(1'b1), .x87_f0, .x87_f1,
         .ddr_address, .ddr_burstcount, .ddr_read, .ddr_write, .ddr_writedata, .ddr_byteenable, .ddr_waitrequest,
         .ddr_readdata, .ddr_readdatavalid,
         .mmio_valid, .mmio_write, .mmio_address, .mmio_byteenable, .mmio_wdata, .mmio_ready, .mmio_rvalid, .mmio_rdata,
@@ -167,7 +177,10 @@ module spike_cpu (
         .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar,
         .trace_dread_addr, .trace_ex_store, .trace_gov_hold, .trace_gov_debt, .trace_gov_charge, .arch_cr0, .arch_cr2,
         .arch_cr3, .arch_dr, .arch_dr6, .arch_dr7, .arch_gdtr_base, .arch_gdtr_limit, .arch_idtr_base, .arch_idtr_limit, .arch_ldtr_sel, .arch_ldtr_base,
-        .arch_ldtr_limit, .arch_ldtr_ar, .arch_ldtr_valid, .arch_tr_sel, .arch_tr_base, .arch_tr_limit, .arch_tr_ar, .arch_cpl
+        .arch_ldtr_limit, .arch_ldtr_ar, .arch_ldtr_valid, .arch_tr_sel, .arch_tr_base, .arch_tr_limit, .arch_tr_ar, .arch_cpl,
+        .x87_irq13, .trace_x87_busy, .trace_x87_latched, .trace_x87_seq,
+        .arch_x87_cw, .arch_x87_sw, .arch_x87_tw, .arch_x87_opcode, .arch_x87_regs,
+        .arch_x87_ip, .arch_x87_cs, .arch_x87_dp, .arch_x87_ds
     );
 
     logic [31:0] signature, observed;
@@ -183,7 +196,11 @@ module spike_cpu (
                  ^ 32'({mmio_address, mmio_valid, mmio_write}) ^ {mmio_byteenable, 28'd0} ^ mmio_wdata
                  ^ {dma_rdata, dma_done, flush_done, 8'd0, trace_gov_debt, trace_gov_hold, trace_md_wait}
                  ^ io_wdata ^ {io_port, 11'b0, inta_req, io_req, io_write, io_size}
-                 ^ 32'({trace_store_pg1, trace_store_pg0}) ^ 32'({trace_pw, trace_pw_addr}) ^ trace_pw_data;
+                 ^ 32'({trace_store_pg1, trace_store_pg0}) ^ 32'({trace_pw, trace_pw_addr}) ^ trace_pw_data
+                 ^ arch_x87_ip ^ arch_x87_dp ^ {arch_x87_cw, arch_x87_sw} ^ {arch_x87_tw, 5'd0, arch_x87_opcode}
+                 ^ {arch_x87_cs, arch_x87_ds}
+                 ^ {24'd0, trace_x87_seq, trace_x87_latched, trace_x87_busy, x87_irq13};
+        for (int n = 0; n < 20; n++) observed ^= arch_x87_regs[n*32 +: 32];
         for (int n = 0; n < 8; n++) observed ^= arch_gpr[n];
         for (int n = 0; n < 6; n++) observed ^= arch_base[n] ^ arch_limit[n] ^ {arch_sel[n], arch_ar[n]};
         observed ^= arch_ldtr_base ^ arch_ldtr_limit ^ {arch_ldtr_sel, arch_ldtr_ar} ^ {31'd0, arch_ldtr_valid}

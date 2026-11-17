@@ -1,0 +1,62 @@
+{
+  "scope": "one fresh recovery boot and verified FIT upload; one native source-context read; restore15M",
+  "source_commit": "9743c0819eb34e3ebcce81f286eb2210a37be22b",
+  "native_build_source_commit": "6e8102da071676abe56a38e7deca39b673a8d394",
+  "native_sof_sha256": "616ee321fbef264be244f3725ad79905707b237a8968b64241ed1d4f4db44910",
+  "target_clock": "6M",
+  "clock_change_attempted": true,
+  "pass": true,
+  "sd_write_commands_sent": true,
+  "started_utc": "2026-11-01T19:13:31.644360+00:00",
+  "stages": [
+    {
+      "clock_operation": "clock-before",
+      "returncode": 0,
+      "output": "15M"
+    },
+    {
+      "clock_operation": "clock-set-6M",
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "clock_operation": "clock-confirm-6M",
+      "returncode": 0,
+      "output": "6M"
+    },
+    {
+      "phase": "recovery-boot",
+      "returncode": 0
+    },
+    {
+      "phase": "upload-boot",
+      "returncode": 0
+    },
+    {
+      "clock_operation": "clock-before-native",
+      "returncode": 0,
+      "output": "6M"
+    },
+    {
+      "phase": "native",
+      "returncode": 0
+    },
+    {
+      "clock_operation": "clock-restore",
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "clock_operation": "clock-restored-readback",
+      "returncode": 0,
+      "output": "15M"
+    }
+  ],
+  "original_clock": "15M",
+  "stage": "native",
+  "native_phase_passed": true,
+  "restored_clock": "15M",
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "finished_utc": "2026-11-01T19:14:22.407999+00:00"
+}

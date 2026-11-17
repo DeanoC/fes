@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/nano-computer-activity-20261102/audit_upload_stop.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 20.022005026927218,
+  "log_sha256": "0f00fb62e10fbbb1a90985e6a8b7cc04a8084aa8cba4ce76efe3b9c85aa05069"
+}

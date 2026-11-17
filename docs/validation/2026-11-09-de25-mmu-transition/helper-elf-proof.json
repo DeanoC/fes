@@ -1,0 +1,87 @@
+{
+  "status": "passed",
+  "complete_matched_elf_proof": {
+    "format": 1,
+    "scope": "experimental-el3-static-private-cache-v1",
+    "granule": 4096,
+    "va_bits": 32,
+    "pa_bits": 32,
+    "mair": 4456703,
+    "tcr": 2155885856,
+    "table_bytes": 24576,
+    "ddr_limit": 3221225472,
+    "firmware_limit": 2149580800,
+    "runtime_enabled": false,
+    "hardware_authority": false,
+    "status": "static-table-layout-verified",
+    "layout": {
+      "ro_end": 2147733504,
+      "tables_start": 2147733504,
+      "tables_end": 2147758080,
+      "data_start": 2147758080,
+      "data_end": 2147758405,
+      "image_end": 2147762176,
+      "tables": {
+        "root": 2147733504,
+        "low": 2147737600,
+        "ocram": 2147741696,
+        "gic": 2147745792,
+        "ddr": 2147749888,
+        "firmware": 2147753984
+      }
+    },
+    "table_sha256": {
+      "root": "34ea79cc3fd33712f59f4fed05d46a2889342ca6de5a9cfbc67d9a24da41f1e9",
+      "low": "3d9b24c7307c6ad513c094288847e27cd7914c79161b42c97da2f3817c184b22",
+      "ocram": "e05bd8cec4a650a47ed983fd4b7dbb11703e04c719e64a6a8b7371c1742ecd3a",
+      "gic": "2eb3cc769aac8aa9c3d23f4940e43087907d28e403f725680d22788085a27ed6",
+      "ddr": "0491172cac4336a71756375500f0791a6fbe931c873ded279424f8057996e418",
+      "firmware": "7837ddde6f9067bf11f6fda2962d8ca4770583bc41c222fbd6a882162270e3ea"
+    },
+    "image_sha256": "a3a2280a82ca013da21d2b24fb67acc655e1cb007b37149b80024b84cb122b22",
+    "chain_sha256": "80e76e33580a91b83a2e83ff0322c7a7363f8a936cd29af101bf057acdbf98c1",
+    "core_load_accepted": false,
+    "selected_policy": {
+      "format": 3,
+      "scope": "matched-cold-el3-private-cache-v3",
+      "mair": 4456703,
+      "tcr": 2155885856,
+      "table_bytes": 24576,
+      "granule": 4096,
+      "va_bits": 32,
+      "pa_bits": 32,
+      "memory_probe": "private-line-clean-invalidate-reread-v1",
+      "enable_phase": "after-startup-cache-maintenance-before-el3-exit",
+      "single_cpu": "a55-cpu0-release-locked",
+      "boot_steps": "admit-register-barrier-private-clean-v1",
+      "vendor_cache_policy": "restore-caller-scr-and-return-v1",
+      "hardware_authority": false
+    },
+    "witness": 385984,
+    "witness_bytes": 64,
+    "startup_cache_helper": {
+      "address": 2147630332,
+      "bytes": 44,
+      "sha256": "c16b4d1b6931e6d4d92ac017ba23457ff59d6d5ac9e4279b6c9fb031114b305c"
+    }
+  },
+  "negative_cases": [
+    {
+      "case": "missing-original-invalidation",
+      "error": "selected lower-EL cache helper does not restore SCR and return",
+      "offset": 150796
+    },
+    {
+      "case": "missing-scr-restore",
+      "error": "selected lower-EL cache helper does not restore SCR and return",
+      "offset": 150812
+    },
+    {
+      "case": "missing-return",
+      "error": "selected lower-EL cache helper does not restore SCR and return",
+      "offset": 150820
+    }
+  ],
+  "real_arm_elf_sha256": "a3a2280a82ca013da21d2b24fb67acc655e1cb007b37149b80024b84cb122b22",
+  "hardware_actions": false
+}

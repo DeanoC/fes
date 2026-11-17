@@ -44,45 +44,48 @@ type Service interface {
 }
 
 type gameResult struct {
-	ID               string              `json:"id"`
-	Title            string              `json:"title"`
-	System           protocol.System     `json:"system"`
-	CoreID           string              `json:"core_id,omitempty"`
-	PackageID        string              `json:"package_id,omitempty"`
-	MediaID          string              `json:"media_id,omitempty"`
-	MediaRole        string              `json:"media_role,omitempty"`
-	Kind             catalog.SourceKind  `json:"kind"`
-	State            catalog.SourceState `json:"state"`
-	RootOnline       bool                `json:"root_online"`
-	ContentPrepared  bool                `json:"content_prepared"`
-	Execution        string              `json:"execution"`
-	Genre            string              `json:"genre,omitempty"`
-	Year             string              `json:"year,omitempty"`
-	Platform         protocol.System     `json:"platform,omitempty"`
-	Favorite         bool                `json:"favorite,omitempty"`
-	PlayCount        int64               `json:"play_count,omitempty"`
-	LastPlayedAt     int64               `json:"last_played_at,omitempty"`
-	Collections      []string            `json:"collections,omitempty"`
-	Cover            string              `json:"cover,omitempty"`
-	Launchable       bool                `json:"launchable"`
-	ROMCached        *bool               `json:"rom_cached,omitempty"`
-	CanonicalTitle   string              `json:"canonical_title,omitempty"`
-	Region           string              `json:"region,omitempty"`
-	Revision         string              `json:"revision,omitempty"`
-	DumpFlags        string              `json:"dump_flags,omitempty"`
-	GroupKey         string              `json:"group_key,omitempty"`
-	VariantCount     int                 `json:"variant_count,omitempty"`
-	Variants         []gameResult        `json:"variants,omitempty"`
-	FirmwareRequired bool                `json:"firmware_required,omitempty"`
-	ExpansionID      string              `json:"expansion_id,omitempty"`
-	ROMRequired      bool                `json:"rom_required,omitempty"`
-	ROMReady         bool                `json:"rom_ready,omitempty"`
-	ROMID            string              `json:"rom_id,omitempty"`
-	ROMMediaID       string              `json:"rom_media_id,omitempty"`
-	ROMRole          string              `json:"rom_role,omitempty"`
-	ROMSourceSize    int64               `json:"rom_source_size,omitempty"`
-	ExpansionReady   bool                `json:"expansion_ready,omitempty"`
-	FirmwareReady    bool                `json:"firmware_ready,omitempty"`
+	ID                 string              `json:"id"`
+	Title              string              `json:"title"`
+	System             protocol.System     `json:"system"`
+	CoreID             string              `json:"core_id,omitempty"`
+	PackageID          string              `json:"package_id,omitempty"`
+	MediaID            string              `json:"media_id,omitempty"`
+	MediaRole          string              `json:"media_role,omitempty"`
+	Kind               catalog.SourceKind  `json:"kind"`
+	State              catalog.SourceState `json:"state"`
+	RootOnline         bool                `json:"root_online"`
+	ContentPrepared    bool                `json:"content_prepared"`
+	Execution          string              `json:"execution"`
+	Genre              string              `json:"genre,omitempty"`
+	Year               string              `json:"year,omitempty"`
+	Platform           protocol.System     `json:"platform,omitempty"`
+	Favorite           bool                `json:"favorite,omitempty"`
+	PlayCount          int64               `json:"play_count,omitempty"`
+	LastPlayedAt       int64               `json:"last_played_at,omitempty"`
+	Collections        []string            `json:"collections,omitempty"`
+	Cover              string              `json:"cover,omitempty"`
+	Launchable         bool                `json:"launchable"`
+	ROMCached          *bool               `json:"rom_cached,omitempty"`
+	CanonicalTitle     string              `json:"canonical_title,omitempty"`
+	Region             string              `json:"region,omitempty"`
+	Revision           string              `json:"revision,omitempty"`
+	DumpFlags          string              `json:"dump_flags,omitempty"`
+	GroupKey           string              `json:"group_key,omitempty"`
+	VariantCount       int                 `json:"variant_count,omitempty"`
+	Variants           []gameResult        `json:"variants,omitempty"`
+	FirmwareRequired   bool                `json:"firmware_required,omitempty"`
+	PackageUnavailable bool                `json:"package_unavailable,omitempty"`
+	ExpansionID        string              `json:"expansion_id,omitempty"`
+	ROMRequired        bool                `json:"rom_required,omitempty"`
+	ROMReady           bool                `json:"rom_ready,omitempty"`
+	VideoRequired      bool                `json:"video_required,omitempty"`
+	VideoReady         bool                `json:"video_ready,omitempty"`
+	ROMID              string              `json:"rom_id,omitempty"`
+	ROMMediaID         string              `json:"rom_media_id,omitempty"`
+	ROMRole            string              `json:"rom_role,omitempty"`
+	ROMSourceSize      int64               `json:"rom_source_size,omitempty"`
+	ExpansionReady     bool                `json:"expansion_ready,omitempty"`
+	FirmwareReady      bool                `json:"firmware_ready,omitempty"`
 	// SlotExpansions lists a multi-socket title's selected cards and readiness.
 	SlotExpansions []protocol.SlotExpansionStatus `json:"slot_expansions,omitempty"`
 	// ReadyHere is set only when a mesh execute session is installed.
@@ -510,6 +513,10 @@ func New(service Service, options ...ServerOption) http.Handler {
 		coordinator := requestSessionCoordinator(session, service, r, "")
 		duration, err := coordinator.tapCoreKey(r.Context(), body.SessionID, *body.Event)
 		if err != nil {
+			if errors.Is(err, host.ErrRemoteInputUnconfirmed) {
+				writeError(w, http.StatusServiceUnavailable, "INPUT_UNCONFIRMED", "input may have applied but could not be confirmed")
+				return
+			}
 			if errors.Is(err, host.ErrRemoteInputInvalid) {
 				writeError(w, http.StatusBadRequest, "BAD_REQUEST", "input tap or session is invalid")
 				return

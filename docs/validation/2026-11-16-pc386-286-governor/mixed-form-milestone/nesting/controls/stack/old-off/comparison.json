@@ -1,0 +1,34 @@
+{
+  "inputs": {
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-stackwidth-v5-offcheck/run/old-off/Vfes_i386_cpu": "ebccd192ae00cadc4b27017bb4dab83a8ddc48efd8c57ef967109c6c4d25e347",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-stackwidth-v5-offcheck/run/old-off/producer.json": "b61443509f343274b86443eefdf150a3422917b6c16f37605cff8e22300faf65",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-stackwidth-v5-offcheck/run/stackwidth.bin": "ac82e944e17b806e13253c760969068ce8dc4924b8f5e6aa2ae2a2a8ee9ae46e"
+  },
+  "old": [
+    "MARK 80 0 400 146",
+    "MARK 80 1 593 180",
+    "MARK 80 2 1035 270",
+    "MARK 80 3 1210 304",
+    "MARK 80 4 1669 394",
+    "MARK 80 5 1840 422",
+    "MARK 80 6 2274 512",
+    "MARK 80 7 2445 540",
+    "MARK 8f 0 2573 584",
+    "STATE 7fff0000 00000000 00000000 00000000 00018000 00011357 00000010 00000000 00000046 000011a6",
+    "GOVERNOR cycles=3760 retired=121 halted=1 debt_max=100 hold_cycles=2174 charged=596"
+  ],
+  "new": [
+    "MARK 80 0 400 146",
+    "MARK 80 1 593 180",
+    "MARK 80 2 1035 270",
+    "MARK 80 3 1210 304",
+    "MARK 80 4 1669 394",
+    "MARK 80 5 1840 422",
+    "MARK 80 6 2274 512",
+    "MARK 80 7 2445 540",
+    "MARK 8f 0 2573 584",
+    "STATE 7fff0000 00000000 00000000 00000000 00018000 00011357 00000010 00000000 00000046 000011a6",
+    "GOVERNOR cycles=3760 retired=121 halted=1 debt_max=100 hold_cycles=2174 charged=596"
+  ],
+  "equal": true
+}

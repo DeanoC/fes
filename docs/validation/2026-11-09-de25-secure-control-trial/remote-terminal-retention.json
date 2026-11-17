@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "source_head": "8c82746a7adc3d4ac07b6584faef5057acbdde91",
+  "operator_source": "ec6b704500f8a84b4d824a62203d5a1de8f78d81",
+  "compiled_firmware_source": "599ffbdb07291fa6ab2b0e5f2f64d58a4c9e2888",
+  "host": "chip-30x0-ai-dev",
+  "path": "/data/projects/de25-embedded-retained-20261109/terminal",
+  "files": 88796,
+  "full_archive_readback": true,
+  "archive_modes_verified": true,
+  "bundle_import_and_pack_verified": true,
+  "standalone_source_restore_and_strict_fsck": true,
+  "full_original_retainer_closure": true,
+  "archive_sha256": "95a74ed3abbd5a3fa304eb2b8e711dc20b360edbb23a4343b1611de8a1284da2",
+  "bundle_sha256": "fc98f043da73aa1409472ef4319a134e9e33e79191aa2c3c8326a819dba5715a",
+  "manifest_sha256": "83e853eff438e1ed80b1a5f2d771857ab2bd340f9bfd0e44e887d60c5aea4f49",
+  "hardware_actions": false
+}

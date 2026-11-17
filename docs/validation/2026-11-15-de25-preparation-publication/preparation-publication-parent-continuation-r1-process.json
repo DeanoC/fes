@@ -1,0 +1,10 @@
+{
+  "pid": 1046372,
+  "process_start_ticks": "176969918",
+  "cap_seconds": 1800,
+  "start_monotonic": 1769699.181056402,
+  "argv": [
+    "python3",
+    "out/publication/run-preparation-publication-parent-continuation.py"
+  ]
+}

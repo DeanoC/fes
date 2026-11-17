@@ -1,0 +1,131 @@
+{
+  "status": "passed-seven-software-gates-and-native-cross-build",
+  "source_head": "ed3cfbb17f9374c6070b84e7ceb7fe307349090f",
+  "parent_test_counts": [
+    "1935"
+  ],
+  "checks": {
+    "software-0": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20149748004041612,
+      "log_sha256": "459060c2dab08a0674e412b1c63d2458540bebf2497238a13cb1437d5659cd8f"
+    },
+    "software-1": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.0008926780428737,
+      "log_sha256": "48806cb9d04edc4dbef951f75e0f71357924e18090e639375b91cdcbd518a258"
+    },
+    "software-2": {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "a179f81c052db6216ed1ae57bae0f5e1c114690a",
+        "--head",
+        "ed3cfbb17f9374c6070b84e7ceb7fe307349090f"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20043437997810543,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-3": {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2005406068637967,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-4": {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/tamago/board/de25nano/network.go\", \"platform/embedded/tamago/cmd/fpgaload/main.go\", \"platform/embedded/tamago/cmd/fpgaload/shared_network.go\", \"platform/embedded/tamago/cmd/fpgaload/tenfoot.go\", \"platform/embedded/tamago/nativefabric/README.md\", \"platform/embedded/tamago/nativefabric/program_network.go\", \"platform/embedded/tamago/nativefabric/program_network_startup_test.go\", \"platform/embedded/tamago/nativefabric/program_network_test.go\", \"platform/embedded/tamago/nativefabric/program_service.go\", \"platform/embedded/tamago/network/README.md\"]"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 336.8178083128296,
+      "log_sha256": "4ff0a5c79fdfeb976ddbc19f965e79f51bb6457d92502c34810192a097cb8dc2"
+    },
+    "software-5": {
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 6.403558750171214,
+      "log_sha256": "0d3b9149ecd3c2180968462d0aaef1844c3af5a5185fce2b0ed1c02ec490ea89"
+    },
+    "software-6": {
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 188.71223287284374,
+      "log_sha256": "a78373592020f8b70270d573762741cd201cf59fa2de647a331bd0f6b1faa8cd"
+    },
+    "sdk-build": {
+      "argv": [
+        "python3",
+        "out/nano-network-startup-wire-r2-20261111/build_sdk.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 73.4378041389864,
+      "log_sha256": "e6ee9abe39a0abf9d8f853f1062a3e67bb15f57e01b696705080c9f7939ac299"
+    }
+  },
+  "startup_lifetime_regression_integration_verified": true,
+  "network_profile_enabled": false,
+  "physical_mac_qualified": false,
+  "hardware_actions": false,
+  "deployed": false,
+  "matched_boot_chain_built": false
+}

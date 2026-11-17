@@ -59,7 +59,7 @@ def deny_outside_access():
 
 args = dict(root=root, repository='https://example.invalid/fes', revision='a' * 40,
             identities={'yosys': 'test', 'nextpnr-mistral': 'test'},
-            memory_mhz=100, execution={'gpu_device': 'lease'})
+            execution={'gpu_device': 'lease'})
 _settle_import_root(root)
 with python_source_guard(root, AuditedRoots(['scripts'])):
     before = ram.create_build_record(**args)

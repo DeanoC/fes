@@ -1,0 +1,703 @@
+{
+ "issue": 1853,
+ "what": "Ultima VII: The Black Gate NPC pace, kit preset 3 against an 86Box 386DX-25 reference",
+ "metric": "the paced townsperson's walk-cycle period in seconds, from the autocorrelation of its position; see method.md second amendment",
+ "band": "+/-10%",
+ "reference_clock_sweep": {
+  "33MHz": {
+   "cycle_s": 9.467,
+   "cycle_correlation": 0.522,
+   "window_s": 37.73,
+   "world_s": 31.33,
+   "conversation_s": 69.07,
+   "speed_readout_steady": true
+  },
+  "40MHz": {
+   "cycle_s": 8.467,
+   "cycle_correlation": 0.606,
+   "window_s": 33.4,
+   "world_s": 28.07,
+   "conversation_s": 61.47,
+   "speed_readout_steady": false
+  }
+ },
+ "topbench": {
+  "reference_25MHz": 40,
+  "reference_25MHz_waitstates_0": 40,
+  "reference_25MHz_waitstates_1": 40,
+  "reference_33MHz": 46,
+  "reference_40MHz": 48,
+  "kit_preset3": 68,
+  "kit_no_preset": 303,
+  "note": "303 is the core with no governor preset applied -- the first kit run set settings for the first game only, which is why its second and third windows are not at preset 3",
+  "provenance": "reference figures from separate benchmark VMs (same board and clock, XT-IDE controller, benchmark drive); the kit figure from the same claim as its pace windows"
+ },
+ "verdict": {
+  "windows": "r15a, r15b, r15d against q1, q2, q3. Gates met: no input during any window; 86Box read 100% for every frame against the committed readout hash; both sides' drive copies digested before their runs at the same 41c7b9d8. Gate NOT met, reported as a deviation: gate 3, the capture rate -- both sets are derived at 15 fps, but the reference was captured at 15 and the kit at 60, and the gate asks for capture.",
+  "reference_cycles_s": [
+   11.8,
+   11.8,
+   11.8
+  ],
+  "reference_cycle_mean_s": 11.8,
+  "reference_cycle_spread_pct": 0.0,
+  "kit_cycles_s": [
+   8.733,
+   8.733,
+   8.733
+  ],
+  "kit_cycle_mean_s": 8.733,
+  "kit_cycle_spread_pct": 0.0,
+  "kit_minus_reference_pct": -26.0,
+  "band_pct": 10,
+  "result": "MISS (26.0%) on a quantity method.md did not commit, measured on windows that meet every gate but gate 3, which is reported as a deviation. Not the committed check decided; see committed_metric_outcome.",
+  "window_ratio_kit_over_reference": 0.7347,
+  "kit_scene_speed_vs_reference": 1.351,
+  "quantisation_pct": {
+   "both_sides_15fps": 0.57
+  },
+  "pace_equivalent_386dx_clock_mhz": "between 33.3 and 40, about 38 by a three-point fit",
+  "gate_status": {
+   "no_input": "met",
+   "emulator_100_percent": "met",
+   "drive_image_digest": "met (41c7b9d8 both sides)",
+   "capture_rate_gate_3": "NOT met -- derived at one rate, captured at two; reported as a deviation",
+   "one_mover_counted": "met",
+   "single_emulator_on_host": "met"
+  }
+ },
+ "kit_mem_c": {
+  "free_conventional_bytes": 594272,
+  "largest_program_bytes": 594256,
+  "upper_total_k": 96,
+  "upper_free_k": 84,
+  "high_modules": [
+   "HIMEMX",
+   "COMMAND",
+   "CTMOUSE"
+  ],
+  "source": "kit/runs/u7pace/fr/p1-mem.png"
+ },
+ "reference_mem_c": {
+  "free_conventional_bytes": 595312,
+  "largest_program_bytes": 595296,
+  "upper_total_k": 96,
+  "upper_free_k": 84,
+  "high_modules": [
+   "HIMEMX",
+   "COMMAND",
+   "CTMOUSE"
+  ],
+  "source": "runs/r1/fr/r1-mem.png"
+ },
+ "speed_readouts": {
+  "m1": "100% every frame",
+  "m2": "100% every frame",
+  "m6": "100% every frame",
+  "33MHz": "100% every frame",
+  "40MHz": "100% in 486 of 501 window frames, 101% in 15",
+  "m3": "85-104%, 100% in 55% of frames",
+  "m4": "83-101%, 100% in 90%",
+  "m5": "91-104%, 100% in 73%"
+ },
+ "kit_disk_sha256_staged": "41c7b9d8ed5dab75de2792b62fab448bab29d20bcc1837bf79c6c23b1389c34f",
+ "committed_metric_outcome": {
+  "quantity": "displacement per second (heights/s), the quantity method.md committed",
+  "result": "NOT DECIDED",
+  "why": "validity gate 3 -- one capture rate on both sides -- is NOT met: the reference was captured at 15 fps and the kit at 60, with the kit derived at 15. A window counts only if every gate holds, so these windows do not count and the check is not decided by the method. The repeat count is NOT the blocker and saying so would invent a condition the method never set: it asks for three windows a side, and r15a/r15b/r15d against q1/q2/q3 are three a side, with spreads of 2.7% and 0.2% against a +/-10% band, so the spread rule is satisfied too. On those two rules the check would be decided, at ratio 1.220 -- a miss of +22.0%. Separately, the earlier claim that the spread is not reproducible is WITHDRAWN: m1/m2/m6 fail the drive-image gate (two FAT timestamp bytes; m1 never digested) so they are observations only and cannot be weighed against r15.",
+  "window_set_A": {
+   "runs": [
+    "m1",
+    "m2",
+    "m6"
+   ],
+   "gate_status": "FAILS the drive-image gate; m1 also lacks a pre-run digest",
+   "reference": [
+    0.04306,
+    0.0501,
+    0.05941
+   ],
+   "spread_pct": 32.1,
+   "ratio_kit_over_reference": 1.096,
+   "use": "out-of-gate observation only; not acceptance evidence and not a valid repeat set"
+  },
+  "window_set_B": {
+   "runs": [
+    "r15a",
+    "r15b",
+    "r15d"
+   ],
+   "gate_status": "meets the drive-image gate; carries the gate-3 capture-rate deviation",
+   "reference": [
+    0.04716,
+    0.04712,
+    0.04592
+   ],
+   "spread_pct": 2.7,
+   "ratio_kit_over_reference": 1.22,
+   "use": "the in-gate set; one set alone cannot decide the committed check"
+  },
+  "kit": [
+   0.05698,
+   0.05711,
+   0.05699
+  ],
+  "kit_spread_pct": 0.2,
+  "band_pct": 10,
+  "direction": "the in-gate set puts the kit above the reference, as the cycle does; the out-of-gate set agrees in direction but carries no weight",
+  "withdrawn_claim": "an earlier revision of this file and of summary.md said the committed metric's spread is not reproducible, comparing set A with set B. That comparison is invalid because set A is out of gate, and the claim is withdrawn here rather than removed silently.",
+  "what_would_decide_it": "one capture rate on both sides, not more repeats: either a host that can drive 86Box at the kit's 60 fps while holding 100% (this one cannot -- three runs tried, all failed the speed gate), or a kit capture taken at 15 fps.",
+  "if_gate_3_were_met": {
+   "ratio_kit_over_reference": 1.22,
+   "miss_pct": 22.0,
+   "status": "observation, not a verdict: the windows do not count"
+  }
+ },
+ "prior_reference_runs": {
+  "m1": {
+   "cycle_s": 11.733,
+   "cycle_correlation": 0.633,
+   "window_s": 46.67,
+   "world_s": 37.73,
+   "conversation_s": 84.4,
+   "pace_heights_per_s": 0.04306,
+   "motion_frames": 70,
+   "speed_readout_steady": true,
+   "fps": 15,
+   "picture": [
+    667,
+    400
+   ]
+  },
+  "m2": {
+   "cycle_s": 11.8,
+   "cycle_correlation": 0.591,
+   "window_s": 46.67,
+   "world_s": 37.67,
+   "conversation_s": 84.33,
+   "pace_heights_per_s": 0.0501,
+   "motion_frames": 72,
+   "speed_readout_steady": true,
+   "fps": 15,
+   "picture": [
+    667,
+    400
+   ]
+  },
+  "m3": {
+   "cycle_s": 12.067,
+   "cycle_correlation": 0.625,
+   "window_s": 47.6,
+   "world_s": 37.8,
+   "conversation_s": 85.4,
+   "pace_heights_per_s": 0.04413,
+   "motion_frames": 70,
+   "speed_readout_steady": false,
+   "fps": 15,
+   "picture": [
+    667,
+    400
+   ]
+  },
+  "m4": {
+   "cycle_s": 11.867,
+   "cycle_correlation": 0.704,
+   "window_s": 46.8,
+   "world_s": 37.93,
+   "conversation_s": 84.73,
+   "pace_heights_per_s": 0.06254,
+   "motion_frames": 74,
+   "speed_readout_steady": false,
+   "fps": 15,
+   "picture": [
+    667,
+    400
+   ]
+  },
+  "m5": {
+   "cycle_s": 11.867,
+   "cycle_correlation": 0.698,
+   "window_s": 46.93,
+   "world_s": 37.67,
+   "conversation_s": 84.6,
+   "pace_heights_per_s": 0.05058,
+   "motion_frames": 70,
+   "speed_readout_steady": false,
+   "fps": 15,
+   "picture": [
+    667,
+    400
+   ]
+  },
+  "m6": {
+   "cycle_s": 11.867,
+   "cycle_correlation": 0.706,
+   "window_s": 46.6,
+   "world_s": 37.67,
+   "conversation_s": 84.27,
+   "pace_heights_per_s": 0.05941,
+   "motion_frames": 72,
+   "speed_readout_steady": true,
+   "fps": 15,
+   "picture": [
+    667,
+    400
+   ]
+  }
+ },
+ "prior_kit_windows_60fps": {
+  "p1": {
+   "cycle_s": 8.733,
+   "cycle_correlation": 0.597,
+   "window_s": 34.35,
+   "world_s": 22.12,
+   "conversation_s": 56.47,
+   "pace_heights_per_s": 0.05573,
+   "motion_frames": 69,
+   "fps": 60,
+   "picture": [
+    480,
+    270
+   ],
+   "run": "u7pace"
+  },
+  "q1": {
+   "cycle_s": 8.733,
+   "cycle_correlation": 0.599,
+   "window_s": 34.33,
+   "world_s": 22.12,
+   "conversation_s": 56.45,
+   "pace_heights_per_s": 0.05571,
+   "motion_frames": 69,
+   "fps": 60,
+   "picture": [
+    480,
+    270
+   ],
+   "run": "u7pace2"
+  },
+  "q2": {
+   "cycle_s": 8.733,
+   "cycle_correlation": 0.596,
+   "window_s": 34.35,
+   "world_s": 22.07,
+   "conversation_s": 56.42,
+   "pace_heights_per_s": 0.05573,
+   "motion_frames": 69,
+   "fps": 60,
+   "picture": [
+    480,
+    270
+   ],
+   "run": "u7pace2"
+  },
+  "q3": {
+   "cycle_s": 8.733,
+   "cycle_correlation": 0.599,
+   "window_s": 34.35,
+   "world_s": 22.08,
+   "conversation_s": 56.43,
+   "pace_heights_per_s": 0.05571,
+   "motion_frames": 69,
+   "fps": 60,
+   "picture": [
+    480,
+    270
+   ],
+   "run": "u7pace2"
+  }
+ },
+ "reference": {
+  "r15a": {
+   "source": "runs/r15a/approach.gray",
+   "frames": 1800,
+   "fps": 15,
+   "lit_level": 66.6,
+   "picture": [
+    667,
+    400
+   ],
+   "crop": [
+    55,
+    41
+   ],
+   "decimate": 1,
+   "world_s": 38.07,
+   "conversation_s": 84.73,
+   "window_s": 46.67,
+   "character_band_x": [
+    486,
+    618
+   ],
+   "motion_frames": 69,
+   "jumps_dropped": 0,
+   "path_px": 825.0,
+   "measured_span_s": 43.73,
+   "pace_px_per_s": 18.865,
+   "pace_heights_per_s": 0.04716,
+   "cycle_s": 11.8,
+   "cycle_correlation": 0.707,
+   "speed_rect": [
+    263,
+    25,
+    667,
+    52
+   ],
+   "speed_sha": "92f3943e2eac8b376656f6b193aba5d817697ef26e037eb30e154f2d187ae7f3",
+   "speed_readout_steady": true,
+   "speed_readout_is_100": true,
+   "speed_gate": true
+  },
+  "r15b": {
+   "source": "runs/r15b/approach.gray",
+   "frames": 1800,
+   "fps": 15,
+   "lit_level": 66.6,
+   "picture": [
+    667,
+    400
+   ],
+   "crop": [
+    55,
+    41
+   ],
+   "decimate": 1,
+   "world_s": 37.93,
+   "conversation_s": 84.6,
+   "window_s": 46.67,
+   "character_band_x": [
+    486,
+    618
+   ],
+   "motion_frames": 69,
+   "jumps_dropped": 0,
+   "path_px": 824.4,
+   "measured_span_s": 43.73,
+   "pace_px_per_s": 18.85,
+   "pace_heights_per_s": 0.04712,
+   "cycle_s": 11.8,
+   "cycle_correlation": 0.706,
+   "speed_rect": [
+    263,
+    25,
+    667,
+    52
+   ],
+   "speed_sha": "92f3943e2eac8b376656f6b193aba5d817697ef26e037eb30e154f2d187ae7f3",
+   "speed_readout_steady": true,
+   "speed_readout_is_100": true,
+   "speed_gate": true
+  },
+  "r15c": {
+   "source": "runs/r15c/approach.gray",
+   "frames": 1800,
+   "fps": 15,
+   "lit_level": 66.6,
+   "picture": [
+    667,
+    400
+   ],
+   "crop": [
+    55,
+    41
+   ],
+   "decimate": 1,
+   "world_s": 37.73,
+   "conversation_s": 84.4,
+   "window_s": 46.67,
+   "character_band_x": [
+    486,
+    618
+   ],
+   "motion_frames": 69,
+   "jumps_dropped": 1,
+   "path_px": 765.9,
+   "measured_span_s": 45.67,
+   "pace_px_per_s": 16.772,
+   "pace_heights_per_s": 0.04193,
+   "cycle_s": 11.733,
+   "cycle_correlation": 0.627,
+   "speed_readout_steady": false,
+   "speed_readout_is_100": false,
+   "speed_gate": false
+  },
+  "r15d": {
+   "source": "runs/r15d/approach.gray",
+   "frames": 1800,
+   "fps": 15,
+   "lit_level": 66.6,
+   "picture": [
+    667,
+    400
+   ],
+   "crop": [
+    55,
+    41
+   ],
+   "decimate": 1,
+   "world_s": 37.6,
+   "conversation_s": 84.27,
+   "window_s": 46.67,
+   "character_band_x": [
+    486,
+    618
+   ],
+   "motion_frames": 71,
+   "jumps_dropped": 1,
+   "path_px": 838.9,
+   "measured_span_s": 45.67,
+   "pace_px_per_s": 18.37,
+   "pace_heights_per_s": 0.04592,
+   "cycle_s": 11.8,
+   "cycle_correlation": 0.629,
+   "speed_rect": [
+    263,
+    25,
+    667,
+    52
+   ],
+   "speed_sha": "92f3943e2eac8b376656f6b193aba5d817697ef26e037eb30e154f2d187ae7f3",
+   "speed_readout_steady": true,
+   "speed_readout_is_100": true,
+   "speed_gate": true
+  }
+ },
+ "reference_60fps_attempt": {
+  "r60a": {
+   "source": "runs/r60a/approach.gray",
+   "frames": 7200,
+   "fps": 60,
+   "lit_level": 66.6,
+   "picture": [
+    667,
+    400
+   ],
+   "crop": [
+    55,
+    41
+   ],
+   "world_s": 37.78,
+   "conversation_s": 84.93,
+   "window_s": 47.15,
+   "character_band_x": [
+    486,
+    618
+   ],
+   "motion_frames": 82,
+   "jumps_dropped": 2,
+   "path_px": 1326.5,
+   "measured_span_s": 47.13,
+   "pace_px_per_s": 28.145,
+   "pace_heights_per_s": 0.07036,
+   "cycle_s": 11.85,
+   "cycle_correlation": 0.518,
+   "speed_readout_steady": false,
+   "speed_readout_is_100": false,
+   "speed_gate": false
+  },
+  "r60b": {
+   "source": "runs/r60b/approach.gray",
+   "frames": 7200,
+   "fps": 60,
+   "lit_level": 66.6,
+   "picture": [
+    667,
+    400
+   ],
+   "crop": [
+    55,
+    41
+   ],
+   "world_s": 37.82,
+   "conversation_s": 84.75,
+   "window_s": 46.93,
+   "character_band_x": [
+    486,
+    618
+   ],
+   "motion_frames": 78,
+   "jumps_dropped": 1,
+   "path_px": 1194.1,
+   "measured_span_s": 45.93,
+   "pace_px_per_s": 25.997,
+   "pace_heights_per_s": 0.06499,
+   "cycle_s": 11.833,
+   "cycle_correlation": 0.621,
+   "speed_readout_steady": false,
+   "speed_readout_is_100": false,
+   "speed_gate": false
+  },
+  "r60c": {
+   "source": "runs/r60c/approach.gray",
+   "frames": 7200,
+   "fps": 60,
+   "lit_level": 66.6,
+   "picture": [
+    667,
+    400
+   ],
+   "crop": [
+    55,
+    41
+   ],
+   "world_s": 37.8,
+   "conversation_s": 84.63,
+   "window_s": 46.83,
+   "character_band_x": [
+    486,
+    618
+   ],
+   "motion_frames": 82,
+   "jumps_dropped": 1,
+   "path_px": 1423.1,
+   "measured_span_s": 45.73,
+   "pace_px_per_s": 31.117,
+   "pace_heights_per_s": 0.07779,
+   "cycle_s": 11.717,
+   "cycle_correlation": 0.621,
+   "speed_readout_steady": false,
+   "speed_readout_is_100": false,
+   "speed_gate": false
+  }
+ },
+ "kit": {
+  "q1": {
+   "source": "kit/runs/u7pace2/q1-approach.gray",
+   "frames": 1800,
+   "fps": 15.0,
+   "lit_level": 45.7,
+   "picture": [
+    480,
+    270
+   ],
+   "crop": [
+    0,
+    0
+   ],
+   "decimate": 4,
+   "world_s": 22.13,
+   "conversation_s": 56.4,
+   "window_s": 34.27,
+   "character_band_x": [
+    311,
+    407
+   ],
+   "motion_frames": 68,
+   "jumps_dropped": 0,
+   "path_px": 496.4,
+   "measured_span_s": 32.27,
+   "pace_px_per_s": 15.384,
+   "pace_heights_per_s": 0.05698,
+   "cycle_s": 8.733,
+   "cycle_correlation": 0.708,
+   "speed_rect": null,
+   "speed_sha": null,
+   "speed_readout_steady": null,
+   "speed_readout_is_100": null,
+   "speed_gate": null
+  },
+  "q2": {
+   "source": "kit/runs/u7pace2/q2-approach.gray",
+   "frames": 1800,
+   "fps": 15.0,
+   "lit_level": 45.7,
+   "picture": [
+    480,
+    270
+   ],
+   "crop": [
+    0,
+    0
+   ],
+   "decimate": 4,
+   "world_s": 22.07,
+   "conversation_s": 56.4,
+   "window_s": 34.33,
+   "character_band_x": [
+    311,
+    407
+   ],
+   "motion_frames": 68,
+   "jumps_dropped": 0,
+   "path_px": 496.5,
+   "measured_span_s": 32.2,
+   "pace_px_per_s": 15.421,
+   "pace_heights_per_s": 0.05711,
+   "cycle_s": 8.733,
+   "cycle_correlation": 0.71,
+   "speed_rect": null,
+   "speed_sha": null,
+   "speed_readout_steady": null,
+   "speed_readout_is_100": null,
+   "speed_gate": null
+  },
+  "q3": {
+   "source": "kit/runs/u7pace2/q3-approach.gray",
+   "frames": 1800,
+   "fps": 15.0,
+   "lit_level": 45.7,
+   "picture": [
+    480,
+    270
+   ],
+   "crop": [
+    0,
+    0
+   ],
+   "decimate": 4,
+   "world_s": 22.13,
+   "conversation_s": 56.4,
+   "window_s": 34.27,
+   "character_band_x": [
+    311,
+    407
+   ],
+   "motion_frames": 68,
+   "jumps_dropped": 0,
+   "path_px": 496.5,
+   "measured_span_s": 32.27,
+   "pace_px_per_s": 15.387,
+   "pace_heights_per_s": 0.05699,
+   "cycle_s": 8.733,
+   "cycle_correlation": 0.707,
+   "speed_rect": null,
+   "speed_sha": null,
+   "speed_readout_steady": null,
+   "speed_readout_is_100": null,
+   "speed_gate": null
+  }
+ },
+ "rate_independence": {
+  "reference_60fps": [
+   11.85,
+   11.833,
+   11.717
+  ],
+  "reference_60fps_gate": "all three failed the 100% gate: x11grab at 60 fps on this host costs 86Box its real-time margin",
+  "reference_15fps": [
+   11.8,
+   11.8,
+   11.8
+  ],
+  "kit_60fps": [
+   8.733,
+   8.733,
+   8.733
+  ],
+  "kit_15fps_derived": [
+   8.733,
+   8.733,
+   8.733
+  ],
+  "note": "the cycle is unchanged by the rate on the side where both were measured; the kit figures are the same captures derived at the two rates"
+ },
+ "invocations": {
+  "reference": "tools/venv/bin/python -I u7pace.py runs/<run>/approach.geom runs/<run>/approach.gray --crop=55,41 --speed=263,25,667,52 --speed-sha=92f3943e2eac8b376656f6b193aba5d817697ef26e037eb30e154f2d187ae7f3",
+  "kit": "tools/venv/bin/python -I u7pace.py kit/runs/u7pace2/<window>-approach.geom kit/runs/u7pace2/<window>-approach.gray --crop=0,0 --decimate=4",
+  "speed_rect_meaning": "x0,y0,x1,y1 in the 667x496 capture: 86Box's tool bar, from the left edge of the text to the window's right edge. speed-100.png in this directory is that rectangle rendering 100%, kept for inspection.",
+  "kit_speed_gate": "none: the kit is hardware and has no emulator speed readout, so its windows carry no speed fields",
+  "note": "every window record below also carries its own speed_rect, speed_sha and decimate, so a gate result can be rederived without this block",
+  "speed_sha_is": "the SHA-256 of the rectangle's DECODED 404x27 8-bit grayscale pixel bytes -- 10,908 bytes, the same bytes u7pace.py slices out of a capture frame -- NOT the SHA-256 of the PNG file. Decoded pixels: 92f3943e2eac8b376656f6b193aba5d817697ef26e037eb30e154f2d187ae7f3. The PNG file itself: 75f35c7e269ab82e0a5bfc6ba4f8d1802304d4a388eae3db01698453f4bae830. To rederive: ffmpeg -loglevel error -i speed-100.png -pix_fmt gray -f rawvideo - | sha256sum"
+ },
+ "prior_reference_runs_note": "m1-m6 and the clock-sweep runs are prior runs. Their drive copies differ from the required 41c7b9d8 image in two FAT timestamp bytes (m1 was never digested), so they fail the drive-image gate and are observations only, not acceptance evidence."
+}

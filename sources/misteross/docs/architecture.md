@@ -28,8 +28,368 @@ It opens no device and performs no bit editing. The format1 CRAM linker refuses
 these assets. Format1 identities and framing remain covered by the existing
 full expansion suite. This preparation grants no normal package seal, runtime
 programming profile, physical PR or timing acceptance.
+## Embedded control endpoint
+
+The shared package reader recognizes Nano format-3 `cpu-csr-v1` held-ROM maps:
+one required `fes.embedded.rom` 1.0 interface and a 4/8 KiB firmware source,
+with no bitstream destinations or physical addresses in the map. Its payload
+stays unchanged and the source is delivered separately by a compatible native
+runtime. Cyclone V maps and linking retain their existing rules. This structural
+recognition does not register a Nano programming profile or establish physical
+activation support. The explicit held-ROM diagnostic producer exports format 3
+with a size-bound map and unchanged FPGA payload; ordinary diagnostic variants
+retain format 2. The separate firmware source is selected by the native runtime.
+
+The experimental `fes_embedded_control` component supplies immutable build/ABI
+identity and generation/cookie-bound drain for one single-ID AXI read port.
+Its CSR constants come from the separate `fes.fabric.embedded.control` package.
+It holds an offered AR through disable, drains accepted bursts, and makes read
+protocol faults sticky. It is single-clock; board interconnect/CDC, DDR window
+validation, global containment, scanout and Nano pin/clock/reset glue are not
+provided. No shipped core or production producer includes it. The standalone
+`prototypes/embedded_control/producer.py` producer creates a format-2 functional
+input record, derives its 128-bit ID with the existing `build_identity`, and
+passes that ID and an explicit experimental ABI value into a simulation top
+that instantiates the endpoint. It emits a host executable and diagnostic
+descriptor under FES `out/`; verification compares the record, artifact hash,
+live identity and held-read drain. The FES native integration check reads the
+same descriptor and exercises the Go control adapter against that model.
+This is an experimental simulation, not a package, RBF, authenticated toolchain
+seal or board producer. FES also integrates its Verilator
+test with the portable firmware adapter and actual prepared TF-A C functions;
+see the [contract](../../mister-packages/docs/embedded-control.md) and
+[verifier](../../../platform/embedded/firmware/README.md). This simulation is
+not an RBF, timing result or hardware acceptance.
+
+The separate `prototypes/embedded_control/verify_window.py` simulation connects
+the endpoint to a fixed XRGB8888 window source. It renders the actual tenfoot
+App/Presenter, stages those pixels through the native `scanout.Surface`, and
+checks every returned pixel against an independent external AXI memory model.
+Requests stop at each row and 4 KiB boundary; padded rows do not enter the pixel
+stream. Full frames may repeat within an admitted reader generation. A partial
+or aborted frame requires a strictly newer admitted generation before restart;
+the endpoint exposes that generation directly to the source. A frame-complete
+event is only delivery, and never supplies the endpoint's generation/cookie
+drain acknowledgement or permission to reclaim memory.
+Resetting only the window cannot adopt a previously active endpoint; losing
+only the endpoint generation poisons the still-owned window source.
+
+The model covers held addresses, consumer stalls through the final beat,
+four outstanding reads, missing/error/stale responses, rejected stops, reset,
+and reuse only after actual response drain. Invalid windows offer no read.
+Its functional record binds the RTL, parameters, actual renderer executable and
+both frame images. A digested sidecar records the selected first-party renderer
+source closure within the existing functional-record size bound.
+
+The real Nano Avalon adapter now has a separate `hps-ddr-window` diagnostic
+backend (`0x10203042`). It connects this source to a fixed 1280×720/5120-byte
+stride, 4 MiB bus window and an IEEE CRC32 sink. CPU START must match the enabled
+reader generation and carry a fresh cookie. STATUS latches the frame generation,
+cookie, byte counts and CRC together; completion grants no reader drain. Up to
+four reads use the same AXI endpoint and its actual disable/drain ledger. The
+new native `scanout.WindowReader` checks the live identity and geometry, submits
+each command once, verifies full counts and expected CRC, and checks ownership
+again before publishing a result. Uncertain operations retire it and leave
+memory and containment with the platform. The integrated host model exercises
+the actual Avalon wrapper and native driver, including corruption, coherent
+observations, cancellation, concurrency and owner changes after completion.
+
+Backend/window/profile and both window RTL units enter the sealed board source
+closure. Generated handoff verification checks those installed bytes and the
+four-read issuing contract. The dedicated native cold path binds the full
+4 MiB reservation through secure firmware and retains it until reboot.
+The [matched full-width diagnostic](../../../docs/validation/2026-11-04-de25-fullwidth-window/README.md)
+passes one 3,686,400-byte frame, reader/master drain and hardware bridge closure
+on TRWU8CBL. Its FPGA producer uses 256-bit HPS reads and retains both 128-bit
+response halves in the endpoint's drain ledger. Pixel-clock crossing, HDMI,
+buffer reuse and registered Nano admission remain unfinished. Physical evidence
+applies to the exact producer and native sources named in that record.
+
+The opt-in `prototypes/embedded_control/fes_embedded_menu_scanout.sv` now
+connects the existing menu video/FIFO to that owned read endpoint. Unlike the
+window CRC sink, this path produces the actual 1280×720 RGB/sync stream. Two
+4 MiB slots in one fixed 8 MiB arena supply packed XRGB frames. An explicit
+Start requires an observed endpoint retirement and a newer live generation;
+submissions alternate slots and use strictly increasing nonzero sequences.
+The existing `COMPLETE_FRAME_ACK` mode acknowledges only a fully scanned frame,
+including its final pixel. Underflow blanks missed pixels without shifting the
+remaining stream and cannot acknowledge an incomplete submission.
+
+The shared pipeline's ports use one qualified pixel clock. The board producer
+now has an explicit `hps-ddr-menu` personality, described below; its matched
+native boot selection and physical HDMI qualification remain open. The existing
+4 MiB window profile cannot authorize this 8 MiB source. The runtime keeps both slots
+pinned, publishes immutable pixels before submission, and waits for the new slot's
+complete-frame acknowledgement before updating its predecessor. Local Quiesce
+stops new frames, preserves a stalled command and drains the menu reader before
+reporting Stopped. It neither disables the owned AXI endpoint nor grants memory
+reclamation; firmware's endpoint/all-master stop and bridge closure still follow.
+Ownership loss, invalid submissions and an uncertain source reset cannot create
+a new session. Faults blank RGB and require containment rather than replay.
+
+`verify_menu.py` runs actual Tenfoot-rendered/native-copy frames through that
+source, the real menu video/reader, embedded endpoint and Nano 128/256-bit DDR
+adapter. Its independent memory/raster model checks every active pixel, page and
+slot bounds, complete-frame acknowledgement, normal backpressure, stalled stop,
+underflow, bus errors, stale submissions and video-only reset. A prefetch-time
+acknowledgement mutation must fail, and a one-slot reservation must offer no DDR
+read. The only menu-reader derivation is the existing guarded M10K-to-M20K RAM
+hint replacement. Verilator suppresses inherited empty-pin and unused-signal
+style warnings; functional warnings remain fatal. This is a host simulation,
+not a compiled Nano package, physical HDMI result or runtime admission grant.
+
+The separate private `fes_embedded_menu_control.sv` now binds that source to
+relative CSR commands in the upper aperture: generation/sequence/slot staging,
+Start, Submit and Quiesce, plus coherent STATUS/result and fixed geometry reads.
+Its FMS1 layout and `0x10203043` test ABI are experimental; no registered package
+or production profile selects them. The host top's opt-in CSR mode shares the
+existing endpoint response channel and the same qualified pixel clock.
+
+The native `scanout.MenuPresenter` now drives those controls through injected
+platform ownership, memory and register hooks. It copies only the spare slot
+through `Surface.Present`, orders publication, then submits once and waits for
+full display completion. Once the preceding frame completes, CSR submission
+capacity stays available through repeat-frame prefetch. One accepted descriptor
+is held until the video side can consume it; a second outstanding descriptor
+rejects. Staging-register changes cannot alter that pending descriptor. Stop or
+ownership loss discards the pending handoff without releasing either slot.
+Stop must complete local Quiesce before the existing
+endpoint Disable/drain. Both slots stay pinned and firmware's independent
+all-master stop/bridge closure is still required. Unknown ownership, partial
+copy/publication, uncertain commands and failed stops retire without replay.
+The explicit native menu diagnostic selects a matching sealed Nano package;
+ordinary appliance and physical display acceptance remain separate.
+
+`nativefabric.MenuSession` now requires its own compiled source/control/memory/
+access contracts, an ordered boot-pinned 8 MiB arena and the same owner's fresh
+completed transfer. It supplies the presenter's private CSR and memory hooks,
+then independently requests the existing firmware master-stop and bridge close.
+The menu ABI's maintenance-held register is `0xcc`; the board selection derives
+it from the same static hold that drives its maintenance reset output. The C
+helper accepts only the explicit ABI/8 MiB pair. Native ownership/failure tests
+inject secure responses; separate actual C/RTL tests check active and already
+locally drained stop, wrong geometry and lost ownership. No test grants physical
+DDR, HDMI, memory release or menu storage/reconfiguration acceptance.
+
+The opt-in board producer selects `--reader-memory hps-ddr-menu` with HPS-first,
+the reviewed board revision and the exact `0x95000000` / 8 MiB arena. It installs
+`fes_de25_menu`: CPU Avalon control stays on the existing 100 MHz clock, while
+the shared video/reader/width adapter uses the existing 74.25 MHz pixel clock.
+The HDMI wrapper exports its qualified pixel reset. The generated video export
+selects the menu's RGB/sync, while Platform Designer connects its read-only AXI
+port to the retained HPS DDR adapter. Source/generation checks reject changed
+clocks, reset/video exports, widths, master inventory, FIFO derivation or source.
+Explicit parent clock/reset bridges supply that clock owner to generated
+interconnect; their complete generated parameters and connections are checked.
+Its distinct private HPS profile and canonical functional identity bind those
+files, two-slot geometry and clock/timeout parameters. It registers no normal
+FES menu programming profile.
+
+`fes_de25_menu_cdc` carries one complete CSR request and response using a
+four-phase handshake. Both packets remain stable until acknowledgement returns.
+The CPU-side timeout is 1,048,576 clocks (about 10.49 ms at the declared rate).
+After first use, pixel reset or timeout permanently retires that bridge; later
+calls return an error. A timed-out request is uncertain and may have executed
+once; timeout is neither cancellation nor drain. Backend reset waits for the
+old request to withdraw before accepting another, so reset cannot replay it.
+Error replies also return `0xffffffff`, which the existing native identity and
+status checks reject, because generated upstream masters may discard Avalon
+response codes. The error bit therefore remains physically observable in data.
+The 45/33-bit packets have explicit 10 ns flight/skew bounds; only the three
+first-stage control inputs and four raw reset-release ingress pins are cut.
+Second stages, reset recovery/removal and HDMI output paths remain timed.
+The menu has its own constraints because its predecessor's unused video logic
+may be pruned; existing computer/window constraints are unchanged.
+
+`prototypes/de25_board_control/verify_menu.py` tests that actual board module at
+the 100/74.25 MHz ratio with independent memory/raster checks of actual Tenfoot
+frames, three submissions, local stop and owned endpoint drain. It also checks
+640 exact CSR packets over five phases and stopped-clock/reset failure cases.
+Removing the reset re-arm fence or timeout must fail a negative control. The
+standalone board verifier includes these checks. This is host simulation;
+generated HPS AXI clock-crossing simulation, routed timing, matched native boot
+and physical display/input remain separate gates.
+
+The same verifier now runs the actual native presenter with race detection
+against the CSR/video/DDR model. CPU writes populate independent model memory,
+whose published bytes and output pixels must equal actual Tenfoot renderings.
+It rejects writes into a currently fetched slot or outstanding DDR request.
+The direct video checks retain their independent final-pixel/early-ack negative
+control. Source-only reset, held addresses, corruption, callback failures and
+concurrent/replayed calls supply no frame, drain or memory-release receipt.
+
+The separate `prototypes/de25_board_control` overlay builds a private copy of
+an explicitly selected DE25 ZX81 diagnostic producer and adds an Avalon
+aperture for this endpoint. It includes its adapter and endpoint sources in
+the board producer's existing source/vendor fingerprint, and supplies that
+same fingerprint to the computer and embedded-control endpoints. The fingerprint
+also binds the overlay's version-1.1 computer transport and generated register
+headers. Its read-only fetch count/address sample actual Z80 bus activity,
+preserve the count across execution Hold and add no clock, master or GP opcode.
+The generated component HDL must match those installed source bytes. This
+observation measures fetch cycles rather than retired instructions or video.
+
+The overlay also owns the board-local capture HDL. Its system token owner uses
+the computer's already qualified 100 MHz Platform Designer reset; its pixel
+token owner and readiness synchronizer share one local pixel release chain.
+Both resets assert asynchronously, including with stopped clocks, and release
+on their own clock. The source-bound timing file rejects the removed private
+release chains, removes their obsolete ingress cuts and retains recovery/removal
+checks on the shared reset fan-out. Execution Hold does not reset or reclaim an outstanding
+frame bank. A transport reset retires the enclosing computer epoch rather than
+manufacturing a new ready session. Writer-control induction and full video
+comparison cover identical qualified release inputs; the actual board ROM model
+separately checks the enclosing reset wiring and stopped-clock retirement with
+a broken-wiring negative control. The outer HDMI wrapper and vendor reset
+controllers still have separate release cones; no reset-domain rule is waived.
+
+The capture's external RGB/DE/sync mask is qualified in the pixel domain by
+the same reset that owns scanout state. No direct system-reset mask reaches
+those signals. Asynchronous assertion remains available with stopped clocks;
+release waits for pixel edges. This closes a direct system-clock data path to
+the HDMI pads without a reset-to-output timing exception. Pad skew/load and the
+complete external timing contract remain separate qualification work.
+
+Its source-bound SDC forwards the actual pixel PLL clock to the clock pad and
+requires all 27 RGB/control pads to meet the ADV7513 Rev B receiver minima,
+1.8 ns setup and 1.3 ns hold, including every launch source. Exact clock/target
+and pad inventories reject missing constraints. This receiver-only requirement
+has a zero board-skew reference; actual board skew/loading and the inherited
+vendor clock-voltage discrepancy remain unresolved. It lets the fitter repair
+receiver timing without claiming external electrical or board qualification.
+
+The captured HDMI wrapper qualifies the asynchronous interrupt through two
+50 MHz stages using the existing configuration reset. Only its first D pin
+has an asynchronous-input exception; the second stage and divided-clock
+consumer remain timed. A guarded initializer change waits for actual busy
+entry before accepting completion, preventing a stale `END` from completing
+a newly asserted `GO`. Its byte controller, divider and register table retain
+their captured bytes. Original/derived source hashes enter verification.
+The actual wrapper/reset and process-synthesized control circuit are tested
+with an open-drain bus model, NACK retry, IRQ reinitialization, reset mid-transfer
+and negative controls for both repairs. Digital circuit modeling does not
+establish Quartus circuit equivalence or board I2C timing/loading.
+
+The reviewed ROM/HPS-DDR variant declares the 100 MHz association on both reset
+bridges. Platform Designer consequently shares the memory reset-request
+controller's reset and early request with the peripheral devices through an
+owned combinational bridge. The memory reset output itself asserts on a clock
+edge, so its early asynchronous request is required to contain devices with
+stopped clocks. Both inputs must clear before release. Its OCM reset/request
+connections and complete sequencing parameters are checked in generated HDL;
+the remaining peripheral controller synchronizes interconnect reset on both
+edges. This preserves memory reset sequencing while removing the independent
+peripheral asynchronous release. Native context verification binds the helper
+and the generated ownership evidence. This does not qualify vendor maintenance
+or outer HDMI reset reconvergence.
+
+The separate ROM stream prototype buffers one 4 KiB or 8 KiB image in
+synchronous FPGA RAM. It accepts complete little-endian 128-bit beats with
+backpressure and exposes no read bytes until exact length, final-beat position
+and IEEE CRC32 agree. Abort, lost execution Hold, a repeated Start or bad CRC
+retires the image until reset. The portable ZX81 machine's explicit
+`EXTERNAL_ROM` parameter selects its one-clock ROM read input; the default
+internal and linked-ROM paths retain their existing source and address decode.
+The simulation wrapper holds the real ZX80/ZX81 CPU through image admission,
+then checks a streamed program's RAM write and HALT. No physical producer
+selects that wrapper. The standalone verifier supplies only its synthetic
+streamed image; it requires no bundled ZX81 firmware file, and the internal ROM
+stays blank. A relative ROM CSR wrapper now joins the receiver to a
+freestanding C firmware transfer. The shared fabric definition supplies
+its C/Verilog offsets, identity, FIFO and status constants. Secure code must
+supply owned, bounded MMIO hooks under its lifecycle lock; the transfer copies
+the input, checks its CRC, brackets accesses with live ownership and verifies
+held completion and build identity. It performs no CPU release, bridge opening,
+retry or automatic cleanup. The opt-in strong cold provider connects the transfer
+to the existing computer control-opening gate under its secure lock. Version-2
+program bindings capture a fixed ROM extension and bind an aligned image within
+the existing configuration reservation; SHA-384 checks the private input before
+endpoint access. The gate returns success only after ROM completion, and uses
+its existing containment path on failure. Model tests run that actual provider
+include and gate against the RTL with injected platform/digest operations. No
+generated cold profile enables the ROM binding, and ordinary native retained-
+package admission remains incomplete. The producer's explicit `--external-rom`
+variant adds the real computer/ROM conduit and a 128-byte slave at peripheral
+offset `0x10500`, with a distinct HPS-first ROM diagnostic profile. It refreshes
+the three reviewed machine/clock/mailbox files from the overlay revision and
+names them in the canonical source roots. Generated-interface checks require
+the exact slave, no new master, the same 100 MHz clock/reset and held ROM path.
+The machine's rational clock defaults retain 1625/13056 at 52.224 MHz; DE25
+selects 13/200 at 100 MHz. The board model exercises actual Avalon peripherals
+and mailbox Run/Hold, with a separate reset gate for unloaded or failed ROM.
+This source/model integration is not routed timing or a physical ROM result.
+
+The board overlay also has an explicit `--sealed-computer` export choice for
+the reviewed HPS-first CPU-fed ROM variant. It declares the existing
+`fes.computer` 1.0 ABI and the shared `de25-native-computer-v1` compatibility
+profile, with separate retained firmware. That choice and both shared
+definitions enter the pre-synthesis functional identity, so its package and
+build ID are distinct from the embedded diagnostic export. This is a package
+candidate from the private two-revision producer; normal Nano boot/firmware
+activation and physical acceptance remain separate and incomplete.
+
+The fingerprint is diagnostic, not the canonical record or a sealed package identity. The
+overlay records its board and overlay revisions separately. Generated handoff
+checks the 256-byte peripheral-relative window, its clock/reset and the JTAG
+route; a JTAG address is not a CPU physical address. The default on-chip responder
+exercises held addresses, partial bursts and faults without DDR. The explicit
+manual DDR variant routes the same control/drain endpoint's read-only AXI port to
+the HPS memory adapter. It bounds each snapshotted request to a compiled bus
+window and one 4 KiB page, permits one burst at a time, and uses actual AXI
+response/error/backpressure signals. Backend, window and distinct control ABI
+enter the source/vendor fingerprint and canonical functional identity. Its
+generated interface and HPS route are checked separately from its external-bus
+RTL model. The board's read-width adapter emits aligned 256-bit HPS transfers
+and returns each response as two ordered 128-bit beats to the portable reader.
+Its buffered upper half remains in the original reader's outstanding ledger;
+raw response validity remains visible while empty so it cannot create a false
+drain acknowledgement. Manual DDR requests require 32-byte alignment and an
+even number of reader beats. The fixed frame retains its full byte count and
+CRC contract. DDR mode disables the unused coherent F2H hard interface and removes
+its maintenance manager/translator. Holding that manager in reset otherwise
+lets synthesis prune its connection while leaving an enabled hard port
+unconnected. Both remaining maintenance JTAG managers stay in reset through
+checked generated routes. The inherited probe retains independent cancellation/drain requirements;
+its actual Avalon RTL is tested with the native firmware stop helper. This
+structural and model evidence does not prove complete master containment,
+firmware operation, physical
+MMIO, a Nano profile, reset lifetime or production admission. The overlay never
+programs hardware. The hardware-independent verifier also exercises the same
+Avalon adapter through the native Go control code.
+
+The overlay's explicit computer model selects the captured ZX81 (default) or
+ZX80 machine logic. ZX80 also derives its firmware from the reviewed combined
+ROM into the decoder's first 4 KiB; a different source layout rejects. Both
+retain the diagnostic's built-in 16 KiB RAM and existing HPS/DDR/master envelope.
+The model enters the functional fingerprint and canonical record before
+synthesis. Artifact verification checks the model macro and actual firmware
+copies; the native computer RTL verifier applies the same selection. Neither
+variant registers an ordinary Nano profile or establishes physical acceptance.
+
+The diagnostic uses the standard Quartus Pro compile tasks separately, from
+IP generation and synthesis through every fitter stage, signoff timing and
+assembly. Each task has a 120-second limit, heartbeat and retained log. Failed
+tasks stop sealing and terminate only their owned process group. The recipe
+accepts an explicit 1–16 compiler worker limit, binding the selected count in
+the project, functional record and build receipt. The default is two workers.
+It changes no timing constraint, seed or optimization mode. Its canonical record
+binds this bounded flow and the actual `quartus_syn` executable.
+The [physical diagnostic](../../../docs/validation/2026-10-30-de25-embedded-control-hardware/README.md)
+checks that endpoint and its local responder on one exact DE25 SOF through JTAG;
+it does not change the physical-DDR, firmware or package-admission boundaries.
 
 ## DE25-Nano board diagnostic
+
+The standalone [DE25 x87 arithmetic backend](../boards/de25nano/x87/README.md)
+accepts decoded 80-bit add/subtract/multiply/compare requests at one per clock,
+with registered shared operand normalization, an iterative divide/square-root
+lane and a shared precision/rounding pipeline. A 16-entry synchronous completion
+RAM returns results in issue order under backpressure. Its private virtual-pin Quartus fit targets 200 MHz
+on `A5EB013BB23BE4SCS`; host simulation compares results and exception flags
+against real x87 instructions. It has no CPU or package consumer yet: stack
+state, conversion, retirement, unmasked exceptions and the remaining x87
+operations belong to future integration with the existing 387 architecture.
+This diagnostic supplies no board or game acceptance.
 
 The standard ZX81 machine/control/capture is `cores/fes-zx81/rtl/fes_zx81_core.v`.
 The DE10 `top.v` supplies its clocks, HPS GP transport, HDMI, audio serializer,
@@ -637,16 +997,99 @@ remain separate gates. No normal runtime profile is admitted by these models.
 
 Pong, ZX81, Coleco, SMS and SG-1000 use functional
 identity 2 exclusively. Both Python and CLI entrypoints default to 2 and reject
-other identity versions. Quartus oracle and board-firmware records retain their
-current evidence schema. Rebuilt script closures receive new identities;
-existing artifacts and caches are never relabelled or deleted.
+other identity versions. Native oracle/diagnostic records without the design-v1
+policy retain their legacy identity semantics. Normal source-closed producers
+and board firmware use design-v1 while retaining record format 2. Design-input
+changes receive new embedded IDs; packaging/toolchain-only changes retain the
+design ID. Existing artifacts and caches are never relabelled or deleted.
 ZX81, SMS, SG-1000, Apple II, C64, Spectrum and Atari ST use format 3 to seal
 one ROM map. The factory Coleco package and its MegaCart development producer
 use format 4 for two ordered ROM sources and one sealed map. ROM-less producers
 keep format 2.
-The external `build-inputs.json` record is format 2.
-`build_identity` still hashes a format-1 record with the original full-record
-SHA256; a format-2 record uses the domain-separated functional projection.
+The external `build-inputs.json` record is format 2. New source-closed producers
+set `parameters.identity_policy = "design-v1"` and record three validated full
+SHA256 digests under `identities`:
+
+- `design` binds the ABI, design source inputs, producer recipe, explicit P&R
+  choices and synthesis/design parameters. Its first 32 hex characters are
+  the embedded `BUILD_ID` and its full digest indexes reusable artifacts.
+- `toolchain` binds authenticated tool versions, controlled execution,
+  compiler locks, toolchain helpers and backend selection. Drift is advisory
+  for an existing design; deliberately rebuilding adopts the selected tools.
+- `record` hashes canonical record bytes before adding the derived
+  `identities` object. It includes the entire source closure, packaging code,
+  repository/revision and all execution/recording data. The SHA256 of the final
+  record bytes remains a separate receipt integrity check.
+
+`scripts/input_identity.py` is the shared projection implementation for both
+board exporters and the parent cache. Its versioned exception lists classify
+only audited packaging/record modules and tool authentication/execution modules;
+unknown files and parameters remain design inputs. Producer scripts, shared
+build helpers, ROM/layout generators, constraints and firmware remain in the
+design closure. Packaging exceptions cover the codecs/exporters, URI and Git
+provenance helpers, closure enumeration and identity recording. Toolchain
+exceptions cover bootstrap/lock parsing/cache installation, controlled execution,
+read-audit wrappers, Quartus tool location and `toolchain.lock`/`quartus.lock`.
+This is a module-boundary audit, not an automatic semantic classification of
+arbitrary future Python edits. A helper that starts generating design inputs
+must move into the design class. Native compiler read auditing rejects reads
+of excluded packaging or toolchain source files; all existing Markdown and
+source-closure checks still apply. Python recording code may read those files
+to bind their exact bytes into provenance.
+
+The full original closure remains recorded and is verified against Git history
+on every cache hit. Packaging edits therefore change recording provenance
+without requiring a rebuild. They reuse an original sealed package, rather
+than relabelling its manifest or sidecar. Recording location and provenance do
+not enter the design/toolchain projections or the manifest's toolchain label.
+The exporter retains the original primary sidecar and writes additional
+`<package-id>.<record-digest>.build-inputs.json` attestations independently.
+The cache indexes the design and stores each immutable record separately by
+its digest, containing the unchanged content-addressed package. Thus identical
+package bytes can have multiple valid records without a provenance collision.
+Package wire formats and artifact keys are unchanged by recording metadata.
+Exact-shell composition continues to bind the package ID and payload SHA256 as
+well as BUILD_ID; a shared design ID does not make different routed artifacts
+interchangeable. Video-part cache keys bind the exact package and the part's
+design inputs. A complete sealed pair reuses its original toolchain and recipe
+provenance without authenticating a newly selected compiler. Its retained
+shell proof is checked against a sealed snapshot of every original proof file;
+part source history, archive hashes, timing, clock ownership and CRAM containment
+are still validated on reuse. Missing or changed proof files fail closed. A
+missing part still requires authenticated tools and the ordinary frozen-shell
+validation/build path. Source changes invalidate the part key. Runtime identity checks still correlate the loaded core with
+its selected manifest.
+
+A design-only selection request captures committed inputs and current lock pins
+before authenticating or installing any compiler. It is explicitly marked
+`parameters.selection_only = true`; both exporters, package inspection and
+cache publication reject such a request as build evidence. A cache hit keeps
+its original authenticated execution, with built-with and currently-selected
+pins in the selection provenance receipt. A miss authenticates tools, checks
+the design key again, builds, and runs the normal timing/seal gates. A forced
+build must select its exact new execution record and cannot fall back to an
+older toolchain's artifact. Different outcomes claiming the same design and
+toolchain identity fail closed. Nightly paired checks require equal execution
+identities and normalize only manifest Git provenance; they still compare RBF,
+ROM map and all other manifest bytes.
+
+`python3 tools/identity.py /absolute/build-inputs.json` reports the identities.
+Add `--source /absolute/committed/sources/misteross --core fes.zx81` (and
+`--board de25-nano` when needed) to report built-with versus currently selected
+pins without a compiler or build. Alternatively `--current /absolute/record`
+compares two captured records. A source-only report explicitly marks execution
+comparison unavailable: it does not pretend to authenticate installed tools.
+
+Historical format-1 and format-2 records retain their original identities and
+validation. Design-v1 cache entries use a separate `design-v1/` namespace;
+legacy entries are never relabelled or used as migrated builds. Each newly
+built design therefore needs one migration build with its new embedded ID,
+normal timing/seal checks and applicable hardware acceptance (or the existing
+measured D12 exception). A packaging-only change after migration needs none of
+that when the original sealed artifact is reused. A new toolchain merely
+being available is advisory; a committed pin bump is still deliberate adoption
+and must force-build every affected core before merge. No timing, seal or HIL
+gate is relaxed by the identity split.
 
 The package exporter and inspector also recognize format 4 with two ordered ROM
 requirements and one sealed map. The factory Coleco recipe selects
@@ -656,9 +1099,9 @@ producer (`scripts/build_fes_coleco_megacart.py`) also emits format 4. Which
 format a new core uses, and when an older format is retired, is
 [core alignment](../../../docs/core-alignment.md).
 
-Record 2 keeps repository/revision and `source_path` as original build provenance, but derives
-its embedded 128-bit ID from a domain-separated functional projection excluding
-those provenance fields. For producers without an audited manifest entry, it
+Record 2 keeps repository/revision and `source_path` as original build provenance.
+The full source closure includes packaging and toolchain inputs even where
+they do not contribute to a design-v1 embedded ID. For producers without an audited manifest entry, it
 includes every tracked regular file under `scripts/` and the owning core/board
 modules of each declared input, including shared RTL, root or core compiler locks,
 the recipe/ABI digests, authenticated
@@ -676,8 +1119,8 @@ their original semantics, including documentation in declared roots.
 
 Factory producers, including RISC-V, select committed per-producer roots from
 `scripts/source_closures.json`, setting `parameters.source_closure_mode` to
-`audited-v1`. Their source key covers the declared import, HDL, recipe, ABI and
-toolchain-lock closure rather than the entire scripts and shared-core trees.
+`audited-v1`. Their provenance closure covers the declared import, HDL, recipe,
+ABI and toolchain-lock inputs rather than the entire scripts and shared-core trees.
 Python and traced compiler reads and directory listings enforce these roots;
 an uncovered source access fails the build. Other producers retain the broad
 roots. RISC-V's closure includes its firmware, CPU, board constraints and tool
@@ -723,8 +1166,10 @@ outside `gpu-run`, so a normal seal does not see a grant. The sealed execution
 record sets `gpu_device` and `gpu_selection` to `lease`: gpu-run chooses any
 free GPU while nextpnr routes, after the record is sealed. The requested
 `--gpu-device` index is not that device and is not part of the digest.
-`BUILD_ID` is a synthesis parameter, so recording the granted id in the sealed
-record would change placement and RBF bytes whenever a different GPU was free.
+GPU selection remains execution provenance and does not enter a design-v1
+`BUILD_ID`. The canonical execution record keeps the lease unbound rather than
+capturing transient scheduler state; the actual grant is retained in route logs.
+Historical combined-key records retain their original hashing semantics.
 HIP and CUDA routes match each other and the CPU reference, so the bitstream
 does not depend on which physical GPU was granted. The route log line
 `FES-GPU-GRANT <id>` names the physical GPU that routed. SMS `build-summary.json`
@@ -739,8 +1184,8 @@ Only a single routing device is supported in this lane; use
 flags size or label the request. They do not pin the lease. Execution
 inputs are rechecked before sealing and their full description is retained in
 `build-summary.json`; the canonical record includes their digest. Installation
-paths remain part of this conservative identity, so tool relocation does not
-silently reuse hardware qualification. This is an input identity, not a promise
+paths remain in toolchain and recording identity. Relocation can reuse an
+existing sealed design, but a new execution inherits no hardware qualification. This is an input identity, not a promise
 of identical placement bytes across runs. Authentication probes remain the
 existing toolchain checks; actual compiler invocations use the controlled env.
 
@@ -752,7 +1197,7 @@ before reusing it. `verify_record_source_at_revision(root, record)` reads the
 recorded commit's exact module closure from Git objects without changing HEAD,
 the index or working files; absent history and altered member sets fail closed.
 It does not substitute for current tool authentication or payload verification.
-Existing FES whole-record matching continues to distinguish
+FES recording provenance continues to distinguish
 commits until that coordinated change lands. No new hardware acceptance is
 claimed by these host-side identity and exporter tests.
 
@@ -808,12 +1253,12 @@ python3 -m unittest discover -s tests -p test_pnr_recipes.py
 The `0a253257` schema review is recorded in the
 [upstream source comparison](https://github.com/DeanoC/nextpnr/compare/552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b...0a253257eadd8a7877b881ab1f940cbd9739c1be).
 
-Each distinct lock selects its own cached toolchain slot. Menu and ZX81 pin
+Each lock resolves to the shared installs of the tools it pins. Menu and ZX81 pin
 nextpnr `1eecf877` (ZX81 fes#936; Menu moved when its blitter took DSP
 multipliers), Pong's lock pins `552ba246` (fes#887), RISC-V's `8f453ebc`
 (fes#945), and Coleco's pins Yosys `5391eeb1` with nextpnr `bec82e36`
 (current main includes #296 and #299, retaining #289, #290, #292); each
-selects its own slot. Apple II, Atari ST (fes#910) and C64 pin nextpnr
+of those nextpnr pins is its own install. Apple II, Atari ST (fes#910) and C64 pin nextpnr
 `5fe55f3d` for nextpnr #276's F0/F1 boundary `$ROUTETHRU` map. Spectrum pins
 nextpnr main `bd7a1c0d`, which contains #276 as merged and keeps that map, in
 its own slot. Coleco keeps the F0/F1 map on `bec82e36`. The Apple II and C64
@@ -940,27 +1385,22 @@ a passing preflight releases the six full-span patterns. The addon shares chip
 DQML/DQMH with row-address pins A11/A12; the controller keeps the full row for
 ACTIVATE and drives masks on those pins during column setup and WRITE.
 Simulations use that physical wiring, including high rows. After execution
-release it tests the SDRAM addon and all three HPS DDR ports at the memory clock,
-100 or 130 MHz. The DDR ports scan the whole core window `0x30000000-0x3fffffff`
+release it tests the SDRAM addon and all three HPS DDR ports at the 100 MHz
+memory clock. The DDR ports scan the whole core window `0x30000000-0x3fffffff`
 together with seven patterns and report errors, failing bits and MB/s per port.
-The SDRAM clock pin is the inverted DDR output used by MiSTer controllers. Both
-OSS rates select `RAM_OSS_HIGH_SPEED` and sample the bidirectional DQ pads
+The SDRAM clock pin is the inverted DDR output used by MiSTer controllers. The
+OSS rate selects `RAM_OSS_HIGH_SPEED` and samples the bidirectional DQ pads
 with phase-shifted fabric registers. The compiler's later bidirectional DDR
 input support does not change that selected RTL path.
-`make build-fes-ramtest-100` and `make build-fes-ramtest-130` seal packages into
-`build/fes-ramtest-100/` and `build/fes-ramtest-130/` with the
-`cores/fes-ramtest/toolchain.lock` HIP compiler slot, whose Yosys declares every fpga2sdram port. Their
+`make build-fes-ramtest-100` seals the one package into
+`build/fes-ramtest-100/` with the
+`cores/fes-ramtest/toolchain.lock` HIP compiler slot, whose Yosys declares every fpga2sdram port. Its
 timing gate covers the memory, capture and video domains, and the recipe checks
 the synthesized fpga2sdram layout constants. `make build-fes-ramtest-quartus`
 compiles the same RTL with Quartus 17.0.2 at 130 MHz; `RAMTEST_MHZ=100` selects
 a separate 100 MHz diagnostic. A gamepad button, or a keyboard key the host
 maps to one, stops the scans. The ABI has no memory opcode. Hardware results
 are recorded in the [core README](../cores/fes-ramtest/README.md).
-`make diagnose-fes-ramtest-timing` uses `cores/fes-ramtest/toolchain.lock` and
-compares a baseline route with report-guided LUT remapping on the same
-synthesis. It retains the remap only when final memory timing improves without
-regressing the other clocks or reporting hold violations. Both routes remain
-host-only diagnostics; neither RBF is sealed or exported as a package.
 
 ### SDRAM external timing model
 
@@ -1006,7 +1446,10 @@ compiler model nor supplies external board requirements or hardware acceptance.
 `cores/fes-common/rtl/fes_hps_ddr.v` is the shared `fes.memory.hps-ddr` port
 module: the fpga2sdram cell in the generated layout (a 128-bit port and two
 64-bit Avalon-MM ports) with a registered guard per port
-(`fes_hps_ddr_guard.v`). The core's execution reset holds the ports; the guard
+(`fes_hps_ddr_guard.v`). Its two command banks capture accepted payloads
+independently of controller readiness. The controller advances a registered
+head pointer instead of enabling the whole payload register bank; a full
+queue applies backpressure until a command retires. The core's execution reset holds the ports; the guard
 then finishes a write burst the core started, with byte enables cleared, and
 hides read data issued before the hold, because the controller cannot recover
 a burst stopped midway. The endpoint parameter `ENABLE_HPS_DDR` advertises
@@ -1145,13 +1588,25 @@ is not the product bitstream and is not a fallback when the HIP seal fails.
 
 ## Shared compiler installation
 
+The PC/XT Quartus sealer selects Yosys by the exact binary SHA256 in its
+Quartus lock. Shared-cache selection verifies the published install's source
+pin, original build key, host architecture and complete read-only closure,
+then holds its prune lock for the build. A newer provisioning recipe may
+create a different install of the same source commit; it does not replace
+the explicitly pinned binary. Missing or corrupt pinned installs fail closed.
+Pruning reads binary pins from the selected Git ref's Quartus locks and keeps
+matching source/binary installs even when their bootstrap recipe or compiler
+differs from today's provisioning identity. Uncommitted lock edits do not
+change retention; aged installs become collectible when their committed pin
+is removed or moved.
+
 Registered FES producers select compiler pins from their corresponding
-`cores/fes-<core>/toolchain.lock`. Four locks contain the repository-level
-commits and share its compiler-cache slot. Apple II and C64 share a second
-slot on nextpnr `5fe55f3d` (nextpnr #276). Menu and ZX81 (nextpnr
-`1eecf877`), Pong (`552ba246`), RISC-V (`8f453ebc`), Atari ST (`5fe55f3d`),
+`cores/fes-<core>/toolchain.lock`. The shared cache holds one install per tool,
+commit and build configuration, not one per lock, so locks that pin the same
+Yosys or Verilator share it: Menu and ZX81 (nextpnr `1eecf877`), Pong
+(`552ba246`), RISC-V (`8f453ebc`), Apple II, C64 and Atari ST (`5fe55f3d`),
 Spectrum (nextpnr main `bd7a1c0d`) and Coleco (Yosys `5391eeb1` with nextpnr
-`bec82e36`) each have their own.
+`bec82e36`) differ only in the installs those pins name.
 Producers select that cache only through an explicit `--cache-root` argument or the Make
 `CACHE_ROOT=` variable. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is not a policy
 selector for registered producers. HIP (`gpu-router=HIP`,
@@ -1170,32 +1625,56 @@ producer's own `make toolchain-fes-<core>` target writes without a cache
 (`build/toolchain/fes-<core>`, or `build/toolchain/zx81-expansion` and
 `build/toolchain/fes-coleco-socket-v2`), so a core whose lock moves never reads
 another lock's tools. Quartus
-ZX81/Coleco/SG-1000/SMS recipes are oracle-only and are not a nextpnr fallback.
+Coleco/SG-1000/SMS recipes are oracle-only. The ZX81 family's Quartus Lite
+recipe is its registered producer, and its nextpnr build is advisory. No
+Quartus recipe is a nextpnr fallback.
 For a shared cache, the same `CACHE_ROOT=/absolute/cache` spelling selects
 the FES HIP toolchain for every registered `toolchain-fes-<core>` target;
 doctor and doctor-strict use that same selection. An explicit
 `FES_TOOLCHAIN_CACHE_ROOT` remains accepted and wins when it agrees with
 `CACHE_ROOT`.
 
-Version 1 supports one user on one Linux x86-64 glibc host. The request
-identity combines the selected lock and recipe bytes, normalized host/compiler
-probes, and the OFF/HIP/CUDA configuration. The per-key lock covers private
-source/build directories and publication. The resulting slot keeps the
+The cache supports one user on one Linux x86-64 glibc host. Each tool's
+install lives at `<cache>/tools/<tool>/<key>`. Its key reads:
+
+- the tool's pin (repo and commit only, through `scripts/lockfile.py`; the
+  lock's rationale text and its bytes are not part of it);
+- the complete `scripts/bootstrap.sh`, so shared checkout, environment and
+  build orchestration changes cannot reuse an install made under older build
+  behavior. Any bootstrap edit conservatively changes every tool key;
+- the normalized host and compiler probes, without the kernel release or the
+  accelerator compiler.
+
+Only nextpnr adds the OFF/HIP/CUDA configuration, the accelerator compiler
+and backend environment, and the Mistral pin it compiles against. The HIP,
+OFF and CUDA lanes of a lock therefore share Yosys, Mistral, Verilator and
+openFPGALoader. Each install's own lock covers its private source/build
+directories and publication; after a verified publication bootstrap deletes
+`src/` and `build/`, keeping `install/`, the small `evidence/` records and
+`ready.json`. The Mistral install also carries the database sources producers
+pin (`share/mistral/source`, `scripts/rom_map.py`). An install keeps the
 compiled-in absolute prefix and is consumed in place; its ready manifest
 authenticates the complete install/support-file closure, internal links, and
 evidence before any tool path is used.
+
+A consumer that resolves an install holds a shared lock on it until the
+process exits and stamps the lock file's mtime as its last use.
+`make toolchain-prune CACHE_ROOT=…` (`scripts/toolchain_cache.py prune`) reports
+the installs that no `toolchain.lock` on `origin/main` pins for this host and
+nobody used in `KEEP_DAYS` (default 14), and removes them with `APPLY=1`. It
+never removes an install whose lock a build or consumer holds, removes failed
+builds, and considers the per-lock `slots/` of the old layout only with
+`LEGACY_SLOTS=1`, judging their last use by their binaries' access times.
 
 `FES_TOOLCHAIN_GPU_ROUTER` (default `OFF`) selects the lane.
 `FES_TOOLCHAIN_HIP_ARCHITECTURES` (default `gfx1100;gfx1201`) and
 `FES_TOOLCHAIN_CUDA_ARCHITECTURES` (default `86`) select the device targets;
 `scripts/bootstrap.sh` passes them to nextpnr as `CMAKE_HIP_ARCHITECTURES` or
 `CMAKE_CUDA_ARCHITECTURES` and to `scripts/toolchain_cache.py` as
-`--hip-architectures` / `--cuda-architectures`. A CUDA slot records
+`--hip-architectures` / `--cuda-architectures`. A CUDA nextpnr install records
 `gpu-router=CUDA; hip-architectures=unused; cuda-architectures=86`, and its
 key covers the architecture list. HIP and OFF configurations carry no CUDA
-field, so their keys do not depend on it. Those keys still include the bytes
-of `scripts/bootstrap.sh`, `scripts/lockfile.py` and `scripts/toolchain_cache.py`,
-so editing any of those scripts selects a new slot on every lane. The default builds native sm_86 code
+field, so their keys do not depend on it. The default builds native sm_86 code
 (RTX 3070/3090), so routing never JIT-compiles PTX; that JIT fails with "the
 provided PTX was compiled with an unsupported toolchain" when the NVIDIA
 driver is older than the CUDA toolkit. The list takes explicit CMake entries
@@ -1204,17 +1683,16 @@ they do not name a reproducible identity. The shared lane rejects the CMake
 environment selectors `CUDAARCHS` and `HIPARCHS` unless the router matches and
 the value equals the selected list, because CMake would otherwise build a
 different binary under the same key. CUDA producers (`gpu_choice("CUDA")`)
-authenticate the slot named by `FES_TOOLCHAIN_CUDA_ARCHITECTURES` (default
+authenticate the nextpnr install named by `FES_TOOLCHAIN_CUDA_ARCHITECTURES` (default
 `86`). That configuration is the nextpnr tool identity, so the package build
 id records the selection.
 
-A failed or interrupted build leaves a partial slot and no ready manifest.
-The resolver reports that slot and refuses to retry until an operator performs
-manual recovery. The legacy sourced `scripts/env.sh`, `scripts/run_sim.sh`,
+A failed or interrupted build leaves a partial install and no ready manifest.
+Consumers refuse it; the next bootstrap, holding that install's exclusive
+lock, removes it and builds again. The legacy sourced `scripts/env.sh`, `scripts/run_sim.sh`,
 Make simulation goals, `scripts/program.py`, and generic `make oss` paths
 reject a set `FES_TOOLCHAIN_CACHE_ROOT` rather than selecting a local or
-ambient tool; only the FES Python recipes have shared-slot consumers in this
-version. FPGA output schemas and the `BUILD_ID` algorithm are unchanged,
+ambient tool; only the FES Python recipes consume the shared installs. FPGA output schemas and the `BUILD_ID` algorithm are unchanged,
 although tool hashes and resulting artifacts may differ when a shared compiler
 is used.
 
@@ -1910,7 +2388,7 @@ The core is `fes.computer` 1.0 unless a shell enables a 1.1 interface:
 `ENABLE_ATA_DISK`, `ENABLE_PERSISTENCE`, `ENABLE_WALL_CLOCK`,
 `ENABLE_PC386_MACHINE` and `ENABLE_PCXT_FLOPPY` expose capability bits 16..20
 respectively and make it minor 1, answering identity word 16. `fes.pc386`
-uses bits 16..19; `fes.pcxt` uses bit 20. `pc386_system` hands its storage
+uses bits 16..19; `fes.pcxt-dos` uses bit 20. `pc386_system` hands its storage
 opcodes to `fes_computer_storage` (`rtl/fes_computer_storage.v`) and holds each
 until the reply, as it does menu opcodes for the display plane. That endpoint
 owns the ATA disk's unit
@@ -2005,40 +2483,35 @@ Hard-fault close and execution hold remain blocked while controller responses
 or queued guard commands are stalled; both succeed only after physical drain.
 The existing BASIC and expansion simulations remain part of `make sim-fes-zx81`.
 
-## FES ZX81 Quartus bring-up
+## FES ZX81 Quartus package
 
-`make build-fes-zx81-quartus` is the Quartus Prime Lite 17.0.2 recipe for
-`fes.zx81` 1.2.0 oracle package. It is not a Mistral/nextpnr payload
-and is not the standard socketed package. The board shell
-`cores/fes-zx81/rtl/top.v` uses two `altera_pll` cells from the 50 MHz V11
-reference: 52 MHz system (`fes_z80_nmos`, ULA, mailbox) and 74.25 MHz pixel (HDMI
-1650×750). HDMI RGB/HS/VS/CLK pins and U10/AA4 match FES Pong. The HPS I2C
-cell is at `HPSINTERFACEPERIPHERALI2C_X52_Y60_N111`; `out_clk`/`out_data`
-pull SCL/SDA low and `scl`/`sda` read the pads (Quartus assign-to-Z in place
-of Pong's `MISTRAL_IO`). The Quartus oracle compiles the same `zx81_machine.sv`
-as product simulation and the OSS shell. That module instantiates `fes_z80_nmos`
-with no Quartus-specific CPU.
+`make build-fes-zx81-quartus MODEL=zx81|zx80|ts1000|ts1500` runs
+`scripts/build_fes_zx81_quartus.py`, the Quartus Prime Lite 17.0.2 producer for
+the ZX81 family (design and decisions D1-D6: DeanoC/fes#1873). It
+authenticates `quartus_sh` against `cores/fes-zx81/quartus.lock` and Quartus's
+own front end reads the RTL; no Yosys or nextpnr is involved. The board shell is
+the same `cores/fes-zx81/rtl/top.v` (`QUARTUS=1`: HPS I2C at
+`HPSINTERFACEPERIPHERALI2C_X52_Y60_N111` with assign-to-Z pads, two
+`altera_pll` cells for the 52.224/12.288 MHz system and audio clocks and the
+74.25 MHz pixel clock). It is built without the expansion socket; the carts
+move into the shell separately (DeanoC/fes#1875).
 
-The compile defines `QUARTUS=1`. ROM, 16 KB RAM and the 16 KB media blob
-instantiate `zx81_dpram`. Its Quartus branch is `altsyncram` bidirectional
-dual-port M10K: the address is registered, the output is unregistered, and
-a same-port write returns `NEW_DATA_NO_NBE_READ`, which is one clock of
-read latency. ROM init is the project's `zx81.mif`, written from
-`FES_ZX81_ROM` (`--rom`). Simulation registers `q_a` and `q_b` on that clock
-and uses the matching hex, with the same one-cycle read. The 720p
-capture buffer is a one-dimensional M10K array
-written on `clk_sys` and registered on `pixel_clk`.
+The ROM lanes come from `cores/fes-zx81/quartus/zx81_rom_link.v` instead of
+`rtl/zx81_rom_link.v`: the same 1024x10 lanes and two-stage read, as blank
+`altsyncram` ROMs placed on `M10K_X5_Y73_N0` and up, the blocks the OSS shell
+uses. The package is format 3 with the same `m10k-1024x10-v1` `rom-map.json`,
+so the kit links the user's ROM exactly as it does for the OSS package.
 
-The recipe requires `QUARTUS_ROOTDIR`, version 17.0.2, a clean checkout and
-tracked inputs. It writes canonical `build/fes-zx81-quartus/build-inputs.json`
-before compile, embeds that record's 128-bit id as `BUILD_ID`, runs
-`quartus_sh --flow compile top`, requires TimeQuest multicorner
-Setup/Hold/Recovery/Removal/Minimum Pulse Width worst-case slack ≥ 0, no
-illegal or unconstrained clocks, and the 52 MHz system clock and the
-derived 74.25/74.27 MHz pixel clock named, then seals `manifest.toml` + `core.rbf` through the existing format-2
-exporter. Failed compiles delete the RBF, manifest and passing summary.
-The command never programs hardware. Quartus remains the kit-proven
-bring-up lane.
+Every seed in the core's `[recipes.quartus].seeds` in
+`config/core-recipes.toml` must pass the complete TimeQuest gate, and an
+independent rebuild of the first seed must reproduce its RBF. The producer
+also checks the PLL output frequencies, the ROM lane placement and blank
+init files, no MLAB, the three display-plane DSP blocks and the audio pins. A
+post-fit netlist (`quartus_eda`) feeds the shared HPS DDR layout and
+session-display checks (`scripts/quartus_vo_evidence.py`). A ROM self-test
+re-assembles the fitted design with a test pattern and requires the map to
+describe exactly the CRAM bits that change. The record is functional format 2
+with `"toolchain": "quartus"`. The command never programs hardware.
 
 ## FES ZX81 OSS package
 
@@ -2266,7 +2739,7 @@ matching workaround rather than keep both.
 
 What already works in this design, so a toolchain fix should not regress it: two independent `altera_pll` cells on PIN_V11; 8-bit 16 K `m10k_tdp` infers 16 `MISTRAL_M10K_TDP` cells in under a second; Pong-style `MISTRAL_IO` HDMI I2C at X52/Y60.
 
-The product OSS shell and the Quartus oracle both instantiate `fes_z80_nmos` from `zx81_machine.sv`. That selection is not a nextpnr packing gap, and the oracle has no separate VHDL T80pa CPU.
+The registered Quartus shell and the advisory OSS shell both instantiate `fes_z80_nmos` from `zx81_machine.sv`. That selection is not a nextpnr packing gap, and neither build has a separate VHDL T80pa CPU.
 
 The format-2 package is `fes.pong` version 1.1.0 and requires
 `fes.persistence.words` 1.0 and `fes.pong.progress` 1.0 in addition to gamepad
@@ -3459,28 +3932,19 @@ key before bootstrap. This diskless fixture is not a packaged BIOS, a host HID
 path or kit acceptance. The diagnostic board ties its
 keyboard cable inactive and retains its fixed glyph input.
 
-**The full PC/XT product remains in development.** The registered `fes.pcxt`
-recipe now exports an installable format-2 diagnostic package with the standard
-identity/execution mailbox and fixed CGA Direct video. Its forwarded HDMI clock
-uses an 8.979 ns phase offset from pixel-data updates; the system and pixel
-rates do not change. Fixed video is inline in the RBF and needs no external
-video-part index. The `fes.computer` 1.1 mailbox declares one read-only 360 KiB
-PC/XT floppy unit; keyboard and physical socket interfaces are not declared.
-The registered producer is Quartus, with the common 100 MHz package profile,
-proof-bound video mailbox constraints and phased HDMI. All declared seeds
-must pass reported internal checks; an independent first-seed rebuild must
-reproduce the RBF. Internal clock-validity checks must pass, and every unclocked
-register must belong to an elaborated HPS hard primitive. Functional identity
-binds the installed tools, actual Python interpreter/standard library, host
-helper/library bytes and full selected source closure. Retries retain each
-attempt beneath the build ID. External physical timing/reset qualification and
-exact-artifact hardware acceptance remain separate from this diagnostic seal.
-Existing linker layout admission remains closed until an exact shell and its
-physical sockets are qualified.
+**The full PC/XT product remains in development.** `fes.pcxt-dos` is its sole
+installable package. The diagnostic ROM, focused simulations and raw board
+builders remain development checks and have no separate registry/catalog entry.
+The format-2 DOS package uses `fes.computer` 1.1, inline CGA Direct video,
+a common 100 MHz board clock and a forwarded HDMI clock phased by 8.979 ns.
+All declared Quartus seeds must pass the complete reported internal checks,
+and the first seed's RBF must reproduce independently. External physical
+timing/reset qualification and exact-artifact acceptance remain separate.
+Physical socket admission remains closed until an exact shell is qualified.
 
-The independent `fes.pcxt-dos` recipe selects the default-off `HARDWARE_DOS`
+The DOS producer always selects the `HARDWARE_DOS`
 top parameter. It enables the GLaBIOS XT/5160 ROM, a host HID to XT set-1
-keyboard frontend with BAT response, and the read-only floppy controller. The `fes.computer` 1.1
+keyboard frontend with BAT response, PC speaker and writable floppy controller. The `fes.computer` 1.1
 mailbox accepts a 360 KiB runtime floppy and writes it into SDRAM. When an
 initial disk is being loaded, the first boot waits for complete physical writes
 and media commit. Releasing execution with an empty drive starts the BIOS so
@@ -3824,7 +4288,7 @@ removing that decode from the peripheral's same-cycle control path. Warm reset/H
 preserve storage/refresh; HOLD resets the machine and mutes video.
 `python3 scripts/build_fes_pcxt.py --cache-root /absolute/cache` retains each standalone
 diagnostic synthesis/route attempt under `build/diagnostic/fes-pcxt/`.
-`python3 scripts/core_dev.py prepare --core fes.pcxt --output out/pcxt-package`
+`python3 scripts/core_dev.py prepare --core fes.pcxt-dos --output out/pcxt-package`
 uses the registered Quartus producer to create an installable RBF and manifest
 under `build/packages/`. Export requires all declared timing seeds and the
 independent repeat to pass; missing or failing internal timing blocks it.
@@ -4175,10 +4639,9 @@ specified diagnostic schema; they are not an alternate normal product route.
 Historical source-record verification checks original immutable provenance
 without admitting arbitrary live standalone producer roots.
 
-The FES factory/catalog recipe for `fes.ramtest` selects the OSS 100 MHz
-variant through `build_fes_ramtest.py`. Its parent-facing authentication and
-functional-record defaults match that rate; explicit 130 MHz builds retain
-their separate output and timing gates. Quartus remains an oracle.
+The FES factory/catalog recipe for `fes.ramtest` seals the OSS 100 MHz package
+through `build_fes_ramtest.py`, which builds that one rate. Quartus remains an
+oracle.
 
 ## Shared FPGA producer and RTL ownership
 
@@ -4198,7 +4661,8 @@ retain their original SPDX notices. Core-specific machines, reset ROMs, diagnost
 and constraints remain in their existing directories. The old Coleco producer
 selects the repository-level `toolchain.lock`. Registered Coleco, SMS and
 SG-1000 producers select per-core locks. SMS and SG-1000 match the repository
-lock and share its slot. Coleco pins Yosys `5391eeb1` and uses its own slot.
+lock and share its installs. Coleco pins Yosys `5391eeb1`, which has its own
+Yosys install.
 Per-core generated simple-computer headers remain checked against mister-packages;
 consumers use their own generated include directory.
 

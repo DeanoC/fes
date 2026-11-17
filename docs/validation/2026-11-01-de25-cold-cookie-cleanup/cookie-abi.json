@@ -1,0 +1,21 @@
+{
+  "source_commit": "c768ef002b2208fc67d3d3238f82a6a5d42cc5a5",
+  "scope": "compiled SPL-to-BL31 x3 ABI inspection; not a hardware consume result",
+  "prior_cookie": "0x464e433100000001",
+  "current_cookie": "0x464e433200000002",
+  "prior_spl_elf_sha256": "a0ca6aab19aeffe451d503b9d1857ce11c73ad9c98912cbdd7502b73d306e873",
+  "current_spl_elf_sha256": "3f15bd6afb7cb54284228d694594197e26b13dda611d240794354e7cc3fb3a46",
+  "prior_call_disassembly_sha256": "d23aa18d9e52f6f374558ab0168cadaea7a82d02c83f2acc4f098cbf42b0419d",
+  "current_call_disassembly_sha256": "86074b56abefaef4e78cdd68b586d646bf4071f7ae06f60f6e80ba784ae0368c",
+  "consumer_rejects_v1": true,
+  "physical_fix_acceptance": false,
+  "observed_provider": {
+    "provider": -1,
+    "result": -1,
+    "reset": "0000000f"
+  },
+  "native_launch_sent_for_prior": false,
+  "reason_scope": "A stale x3 cookie is sufficient for early capture rejection. The v14 trace does not expose each later consumer condition; v15 must verify all of them on hardware.",
+  "actual_generated_caller_fixture_passed": true,
+  "old_cookie_consumer_fixture_passed": true
+}

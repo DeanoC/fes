@@ -1,0 +1,10 @@
+{
+  "pid": 1471443,
+  "process_start_ticks": "177362816",
+  "cap_seconds": 180,
+  "start_monotonic": 1773628.159877418,
+  "argv": [
+    "python3",
+    "out/publication/run-independent-tape-arena-tests.py"
+  ]
+}

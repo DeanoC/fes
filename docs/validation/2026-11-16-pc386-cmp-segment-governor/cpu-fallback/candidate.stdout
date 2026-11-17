@@ -1,0 +1,32 @@
+MARK 80 0 44 19
+MARK 80 1 123726 24242
+MARK 80 2 123890 24254
+MARK 80 3 247798 48476
+MARK 80 4 247968 48488
+MARK 80 5 433302 84710
+MARK 80 6 433486 84722
+MARK 80 7 618834 120944
+MARK 80 8 619004 120956
+MARK 80 9 804338 157178
+MARK 80 10 804522 157190
+MARK 80 11 989870 193412
+MARK 80 12 990040 193424
+MARK 80 13 1165134 227646
+MARK 80 14 1165319 227658
+MARK 80 15 1340436 261882
+MARK 80 16 1340607 261894
+MARK 80 17 1515700 296116
+MARK 80 18 1515885 296128
+MARK 80 19 1690992 330350
+MARK 80 20 1691163 330362
+MARK 80 21 1861137 363584
+MARK 80 22 1861321 363596
+MARK 80 23 2031309 396818
+MARK 80 24 2031479 396830
+MARK 80 25 2186093 427052
+MARK 80 26 2186277 427064
+MARK 80 27 2340804 457265
+MARK 8f 0 2340968 457277
+STATE 12340000 00000000 00000000 00008004 00007000 00000000 00000000 00000044 00000046 00001996
+GOVERNOR cycles=2341975 retired=70614 halted=1 debt_max=128 hold_cycles=2251224 charged=457289
+{"mode": "governor", "seed": 1, "latency": false, "runs": 1, "passed": 1, "failed": 0, "retirements": 0, "cycles": 0, "halts": 0, "interrupts": 0, "faults": 0, "fault_vectors": {}, "shutdowns": 0, "nested": 0, "retire_limits": 0, "load_wait_cycles": 0, "io_accesses": 0, "external_interrupts": 0, "nmis": 0, "rep_interrupts": 0, "vector_moved_stops": 0, "divergence_retirements": {}, "trace_hash": "14650fb0739d0383", "gaps": {"sequential": {}, "prefixed": {}, "lea": {}, "selector": {}, "after_taken": {}, "after_not_taken": {}, "shift_consumer": {}, "after_shift": {}, "store_load": {}, "store_other": {}, "after_store": {}, "address": {}, "after_segment": {}, "after_stack": {}, "stack_stack": {}, "several": {}, "after_string": {}, "after_io": {}, "memory": {}, "smc": {}, "fetch": {}}, "mmio_accesses": 0, "mmio_runs": 0, "replays": 0, "smc_restarts": 0, "window_code_stops": 0, "code_store_stops": 0, "stray_stops": 0, "port0_reads": 162, "port0_writes": 28110, "pm_retirements": 0, "cs_rule": 0, "ss_error_rule": 0, "fetch_rule": 0, "iret_save_rule": 0, "pm_deliveries": {}, "unbuilt_stops": {}, "pm_kinds": {}, "cs_limit": {}, "no387_rule": 0, "no387_skips": 0, "x87_compared": 0, "dr6_rule": 0, "db_rf_rule": 0, "debug_kinds": {}}

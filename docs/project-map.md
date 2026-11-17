@@ -70,6 +70,7 @@ the agent, runtime, libraries and ordered package set. FogCast remains an input
 | `image/` | Native Buildroot, container and SD/rootfs assembly | Parent image recipe |
 | `scripts/build.py`, `scripts/native_dev.py` | Clean and incremental orchestration | Parent implementation |
 | `platform/` | FES-owned appliance boot selector (`fes-boot`) and Linux boot helpers | Parent boot source; built against the selected FogCast `appliance` module |
+| `platform/embedded/` | Opt-in Linux-free base: native-Go Tenfoot, injected services and DE25 drivers | Explicit experimental builds; bounded hardware diagnostics, incomplete appliance support |
 | `scripts/appliance.py`, `scripts/appliance_media.py`, `scripts/platform.py` | Versioned releases, bootstrap and provisioned appliance card files | Parent assembly; see [the release guide](appliance-releases.md) |
 | `scripts/bundle.py`, `scripts/environment.py` | Bundle validation and build environment | Parent implementation |
 | `tests/` | Parent regression tests | With relevant parent behavior changes |

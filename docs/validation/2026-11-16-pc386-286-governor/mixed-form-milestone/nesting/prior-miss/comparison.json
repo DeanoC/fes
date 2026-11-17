@@ -1,0 +1,142 @@
+{
+  "cases": {
+    "LOD_BYTE": {
+      "count": 2737,
+      "reference_clocks": 16.054202036373184,
+      "old_clocks": 16.031,
+      "v2_clocks": 16.031,
+      "old_minus_reference": -0.023202036373184853,
+      "v2_minus_reference": -0.023202036373184853
+    },
+    "LOD_WORD": {
+      "count": 2737,
+      "reference_clocks": 16.054202036373184,
+      "old_clocks": 16.034,
+      "v2_clocks": 16.034,
+      "old_minus_reference": -0.02020203637318474,
+      "v2_minus_reference": -0.02020203637318474
+    },
+    "STO_BYTE": {
+      "count": 2919,
+      "reference_clocks": 15.053220614441042,
+      "old_clocks": 14.034,
+      "v2_clocks": 15.034,
+      "old_minus_reference": -1.019220614441041,
+      "v2_minus_reference": -0.01922061444104095
+    },
+    "STO_WORD": {
+      "count": 2919,
+      "reference_clocks": 15.053220614441042,
+      "old_clocks": 14.034,
+      "v2_clocks": 15.034,
+      "old_minus_reference": -1.019220614441041,
+      "v2_minus_reference": -0.01922061444104095
+    },
+    "LOD_STO": {
+      "count": 2191,
+      "reference_clocks": 20.054929700389504,
+      "old_clocks": 19.034,
+      "v2_clocks": 20.034,
+      "old_minus_reference": -1.0209297003895053,
+      "v2_minus_reference": -0.020929700389505257
+    },
+    "BYTE_MIX": {
+      "count": 1992,
+      "reference_clocks": 22.05840912326978,
+      "old_clocks": 21.031,
+      "v2_clocks": 22.029,
+      "old_minus_reference": -1.0274091232697806,
+      "v2_minus_reference": -0.029409123269779514
+    },
+    "TEST_AX_IMM": {
+      "count": 2919,
+      "reference_clocks": 15.053220614441042,
+      "old_clocks": 16.031,
+      "v2_clocks": 15.029,
+      "old_minus_reference": 0.9777793855589572,
+      "v2_minus_reference": -0.024220614441041732
+    },
+    "TEST_AL_IMM": {
+      "count": 3366,
+      "reference_clocks": 13.054174383111528,
+      "old_clocks": 14.034,
+      "v2_clocks": 13.034,
+      "old_minus_reference": 0.9798256168884727,
+      "v2_minus_reference": -0.020174383111527305
+    },
+    "MUL_TEST": {
+      "count": 1045,
+      "reference_clocks": 42.048182749811865,
+      "old_clocks": 43.031,
+      "v2_clocks": 42.031,
+      "old_minus_reference": 0.982817250188134,
+      "v2_minus_reference": -0.01718274981186596
+    },
+    "MUL_NO_TEST": {
+      "count": 1097,
+      "reference_clocks": 40.05501456112434,
+      "old_clocks": 40.019,
+      "v2_clocks": 40.019,
+      "old_minus_reference": -0.03601456112433965,
+      "v2_minus_reference": -0.03601456112433965
+    },
+    "ENTER_ZERO": {
+      "count": 1625,
+      "reference_clocks": 27.04021598372517,
+      "old_clocks": 29.022,
+      "v2_clocks": 27.022,
+      "old_minus_reference": 1.9817840162748297,
+      "v2_minus_reference": -0.018215983725170304
+    },
+    "ENTER_SIX": {
+      "count": 1625,
+      "reference_clocks": 27.04021598372517,
+      "old_clocks": 29.026,
+      "v2_clocks": 27.024,
+      "old_minus_reference": 1.985784016274831,
+      "v2_minus_reference": -0.01621598372516786
+    },
+    "ENTER_MANUAL": {
+      "count": 1513,
+      "reference_clocks": 29.041871099506544,
+      "old_clocks": 30.026,
+      "v2_clocks": 29.024,
+      "old_minus_reference": 0.9841289004934559,
+      "v2_minus_reference": -0.017871099506542976
+    },
+    "LEAVE_ONLY": {
+      "count": 2087,
+      "reference_clocks": 21.05431287664274,
+      "old_clocks": 22.026,
+      "v2_clocks": 21.024,
+      "old_minus_reference": 0.9716871233572597,
+      "v2_minus_reference": -0.030312876642739184
+    },
+    "ENTER_NEST1": {
+      "count": 1371,
+      "reference_clocks": 32.0498548311841,
+      "old_clocks": 29.029,
+      "v2_clocks": 28.029,
+      "old_minus_reference": -3.0208548311840993,
+      "v2_minus_reference": -4.020854831184099
+    },
+    "REP_STO": {
+      "count": 1625,
+      "reference_clocks": 27.04021598372517,
+      "old_clocks": 27.028,
+      "v2_clocks": 27.028,
+      "old_minus_reference": -0.012215983725170076,
+      "v2_minus_reference": -0.012215983725170076
+    }
+  },
+  "input_hashes": {
+    "reference_result_sha256": [
+      "3751f26d6a5ee1f6b5ae89b6a5531e51ab73b0b8235dc9d21534f847d1515396",
+      "3751f26d6a5ee1f6b5ae89b6a5531e51ab73b0b8235dc9d21534f847d1515396",
+      "3751f26d6a5ee1f6b5ae89b6a5531e51ab73b0b8235dc9d21534f847d1515396"
+    ],
+    "v2_prediction_sha256": "338bb09e296e7232acf6704504d6fd452dc0217713dbfc5a916f857fdaade047",
+    "speed_audit_sha256": "0b01d4c6e8ab206d4a6f0cfde074a7ec08e102dc3ce1b363fb7c6841aa6a1c4d"
+  },
+  "limitations": "Whole-loop timing includes ISR and different block setup; sampled speeds do not establish speed between frames; one reference boot."
+}

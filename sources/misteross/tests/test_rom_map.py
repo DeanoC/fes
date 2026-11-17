@@ -178,6 +178,20 @@ class ROMMapTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'symlink'):
                 rom_map.read_database(root, pins)
 
+    def test_mistral_install_carries_the_pinned_database_files(self):
+        import re
+        from pathlib import Path
+        from scripts import rom_map, toolchain_cache
+        bootstrap = Path(rom_map.__file__).with_name('bootstrap.sh').read_text(encoding='utf-8')
+        recipe = toolchain_cache.tool_recipe(bootstrap, 'mistral')
+        files = re.search(r'for file in ([^;]+); do', recipe)
+        self.assertIsNotNone(files)
+        self.assertEqual(tuple(files.group(1).split()), rom_map.DATABASE_FILES)
+        self.assertIn('"$INSTALL_ROOT/share/mistral/source/$file"', recipe)
+        self.assertEqual(toolchain_cache.MISTRAL_DATABASE, 'share/mistral/source')
+        self.assertEqual(rom_map.database_root(Path('/cache/tools/mistral/k/install/bin/mistral-cv')),
+                         Path('/cache/tools/mistral/k/install/share/mistral/source'))
+
     def test_database_coordinates_and_lane_offsets(self):
         blocks = rom_blocks(parse_ram_offsets(mux_text()), ZX81_LANE_ROWS)
         self.assertEqual(len(blocks), 8)

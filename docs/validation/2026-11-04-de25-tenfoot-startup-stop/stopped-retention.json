@@ -1,0 +1,19 @@
+{
+  "status": "passed",
+  "classification": "retention of failed physical procedure; startup-only evidence, zero core loads",
+  "observer_source": "98fd021ad7a42c6fb22230e1bd66a6e1a2365f6e",
+  "native_source": "e225ea89b002fcc53a90c743f66c592d1f8d35ff",
+  "archive": "/home/deano/fes-retained/de25-tenfoot-stopped-20261104/stopped-procedure.tar.gz",
+  "archive_sha256": "6c41771938f90af0804138e57ece0ddf31623007728b9a7925ae6cf17a063f24",
+  "archive_bytes": 165572,
+  "members_independently_read_back": 112,
+  "observer_delta_bundle": "/home/deano/fes-retained/de25-tenfoot-stopped-20261104/observer.bundle",
+  "observer_delta_bundle_sha256": "7b0b6815f11f48cc3d1e484c2732837fbc96847242040dd673223b6c11c5e3d1",
+  "required_native_source_bundle": "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/source.bundle",
+  "required_native_source_bundle_sha256": "daeee37ba8c039ffc165c2c92d7a639af01c441099fe1359ae207846fa75216f",
+  "combined_bundle_restore_and_strict_fsck": true,
+  "hardware_retries": 0,
+  "core_loads": 0,
+  "hardware_acceptance": false,
+  "ordinary_admission": false
+}

@@ -1,0 +1,5 @@
+FES native Go probe os=tamago arch=arm64 EL=1 counter=62500000Hz
+PASS timer goroutine allocation GC
+PASS volatile memory filesystem (not SD/FAT32)
+FES_NATIVE_GO_PROBE PASS os=tamago hardware=qemu-virt
+qemu-system-aarch64: terminating on signal 15 from pid 1628255 (python3)

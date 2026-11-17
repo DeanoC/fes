@@ -1,0 +1,126 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "case": 0,
+      "accepted": true,
+      "entry_commands": 1
+    },
+    {
+      "case": 1,
+      "accepted": false,
+      "entry_commands": 0
+    },
+    {
+      "case": 2,
+      "accepted": false,
+      "entry_commands": 0
+    },
+    {
+      "case": 3,
+      "accepted": false,
+      "entry_commands": 0
+    },
+    {
+      "case": 4,
+      "accepted": false,
+      "entry_commands": 0
+    },
+    {
+      "case": 5,
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": 6,
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": 7,
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": 8,
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": 9,
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": 10,
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": 11,
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": 12,
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": 13,
+      "accepted": false,
+      "entry_commands": 0
+    },
+    {
+      "case": 14,
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": 15,
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": 16,
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": 17,
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": 18,
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": 19,
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": 20,
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": 21,
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": 22,
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": 23,
+      "accepted": false,
+      "entry_commands": 1
+    }
+  ],
+  "helper_sha256": "18d7f9d1e2ff482aab9248b5c25d45a7acbba1f93c777b2e46e1b4c5423280eb"
+}

@@ -20,11 +20,14 @@ equivalence only; production builds, promotion and seal evidence still require a
 authenticated live HIP or CUDA backend as producer validators require, and they do
 not accept Metal yet. Registered producers reject CPU-reference fallback
 (`NEXTPNR_REQUIRE_GPU=1`), so CPU replays can inform experiments only. HIP, CUDA
-and Metal builds keep distinct `BUILD_ID`s and artifact identities because backend
-is part of functional execution identity, even though their timing and route
-evidence is interchangeable. Among current core
-package producers, Apple II, Atari ST, C64, Coleco socket-v2, SG-1000, SMS,
-Spectrum and ZX81 accept `--gpu-router {HIP,CUDA}`. The pc386 Quartus sealer
+and Metal builds share a design-v1 `BUILD_ID` when their design inputs match;
+backend remains part of toolchain and recording identity. Exact artifacts are
+identified by package/payload hashes, and hardware acceptance follows those
+exact bytes even though timing and route evidence is interchangeable. Historical combined identities are unchanged. Among current core
+package producers, Apple II, Atari ST, C64, Coleco socket-v2, SG-1000, SMS
+and Spectrum accept `--gpu-router {HIP,CUDA}`. The ZX81 family's registered
+producer is Quartus Lite and takes neither option; its advisory nextpnr
+producer still accepts `--gpu-router`. The pc386 Quartus sealer
 accepts it too, but only to select which toolchain slot it authenticates; it
 routes nothing on a GPU. Menu, Pong, RAM Tester
 and RISC-V accept only `--gpu-device`; their authenticated toolchain determines
@@ -35,7 +38,7 @@ record the backend in the build record. Never require a separate HIP run or
 discount CUDA or Metal evidence. Never set `GPU_LEASE_IDS` per job (it is a box
 inventory override).
 
-Apple II evidence note: the producer's statement that a CUDA seal is not HIP closure refers to backend-specific `BUILD_ID` and artifact identity, not route outcomes. The CUDA result was exploratory as seal evidence only and is not a recorded seal; HIP and CUDA route outcomes remain interchangeable. See the Apple II row in `docs/core-status.md` for the current seal boundary.
+Apple II evidence note: the producer's statement that a CUDA seal is not HIP closure refers to backend-specific toolchain and artifact identity (or historical combined `BUILD_ID`), not route outcomes. The CUDA result was exploratory as seal evidence only and is not a recorded seal; HIP and CUDA route outcomes remain interchangeable. See the Apple II row in `docs/core-status.md` for the current seal boundary.
 
 Then read `docs/architecture.md` for the build contract you are about to
 change. It is not a task list. Per-experiment results are

@@ -90,8 +90,10 @@ class ManifestTests(unittest.TestCase):
         from scripts.source_closure import TOOLCHAIN_RECIPE_FILES as RECIPE_FILES
         from scripts.closure_tools.manifest import required
         from scripts import toolchain_cache
-        request = type('Request', (), {'recipe_paths': (), 'root': ROOT})()
-        self.assertEqual(toolchain_cache._recipe_paths(request), tuple(ROOT / path for path in RECIPE_FILES))
+        # Tool authentication reads bootstrap.sh (each install's recipe key)
+        # and lockfile.py (the pins) besides toolchain_cache.py itself.
+        self.assertEqual(RECIPE_FILES, ('scripts/bootstrap.sh', 'scripts/lockfile.py', 'scripts/toolchain_cache.py'))
+        self.assertIn("'scripts' / 'bootstrap.sh'", Path(toolchain_cache.__file__).read_text().replace('"', "'"))
         manifest = load_manifest()
         for name, roots in manifest.items():
             self.assertTrue(set(RECIPE_FILES) <= required(name), name)

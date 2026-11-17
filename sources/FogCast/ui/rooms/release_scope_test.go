@@ -43,7 +43,7 @@ func TestReleaseOnlyHardwareLeavesOutHeldBackCores(t *testing.T) {
 	}
 	snap := hostclient.HardwareSnapshot{
 		Machines:  []hostclient.HardwareMachine{{CoreID: "fes.zx81"}, {CoreID: "fes.coleco"}},
-		Computers: []hostclient.ShelfComputer{{CoreID: "fes.spectrum"}, {CoreID: "fes.pcxt"}},
+		Computers: []hostclient.ShelfComputer{{CoreID: "fes.spectrum"}, {CoreID: "fes.pcxt-dos"}},
 	}
 	table := r.hardwareTable(snap)
 	machines := table.RawGetString("machines").(interface{ Len() int })

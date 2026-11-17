@@ -105,11 +105,10 @@ func normalizePinnedRooms(ids []string) []string {
 }
 
 func (a *App) loadPinnedRoomsLocked() {
-	path := strings.TrimSpace(a.prefsPath)
-	if path == "" {
+	if a.preferenceStore == nil && strings.TrimSpace(a.prefsPath) == "" {
 		return
 	}
-	prefs, err := loadTenfootPrefs(path)
+	prefs, err := a.readPreferencesLocked()
 	if err != nil {
 		return
 	}

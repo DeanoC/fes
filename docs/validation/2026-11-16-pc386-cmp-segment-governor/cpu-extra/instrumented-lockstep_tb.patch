@@ -1,0 +1,16 @@
+--- a/lockstep_tb.cpp
++++ b/lockstep_tb.cpp
+@@ -11536,6 +11536,13 @@
+         if (halted_for > 1000 && marks.empty()) break;
+         ++cycle;
+     }
++    size_t trace_ram=0, trace_mmio=0, trace_writes=0;
++    for (const auto addr : rtl.dmem_reads) if (addr >= 0x9fff0 && addr < 0xa0000) ++trace_ram;
++    for (const auto &access : rtl.mmio_log) {
++        if (access.write) ++trace_writes;
++        if (!access.write && access.address == 0xa0000) ++trace_mmio;
++    }
++    std::printf("PROBE_RAM_9FFFF_READS %zu MMIO_A0000_READS %zu MMIO_WRITES %zu\n",trace_ram,trace_mmio,trace_writes);
+     const bool halted = rtl.top.trace_halt && !rtl.top.trace_unimplemented;
+     const State s = rtl.state();
+     std::printf("STATE");

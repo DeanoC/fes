@@ -1,0 +1,44 @@
+MARK 80 0 452 147
+MARK 80 1 124632 24401
+MARK 80 2 124640 24413
+MARK 80 3 248890 48670
+MARK 80 4 248898 48682
+MARK 80 5 383387 74939
+MARK 80 6 383395 74951
+MARK 80 7 517884 101208
+MARK 80 8 517892 101220
+MARK 80 9 652371 127475
+MARK 80 10 652379 127487
+MARK 80 11 776613 151741
+MARK 80 12 776621 151753
+MARK 80 13 921351 180010
+MARK 80 14 921359 180022
+MARK 80 15 1066078 208277
+MARK 80 16 1066086 208289
+MARK 80 17 1231279 240543
+MARK 80 18 1231287 240555
+MARK 80 19 1396481 272809
+MARK 80 20 1396489 272821
+MARK 80 21 1561683 305075
+MARK 80 22 1561691 305087
+MARK 80 23 1737130 339342
+MARK 80 24 1737138 339354
+MARK 80 25 1871633 365612
+MARK 80 26 1871641 365624
+MARK 80 27 2006135 391882
+MARK 80 28 2006143 391894
+MARK 80 29 2150878 420152
+MARK 80 30 2150886 420164
+MARK 80 31 2295620 448422
+MARK 80 32 2295628 448434
+MARK 80 33 2435222 475688
+MARK 80 34 2435230 475700
+MARK 80 35 2574824 502954
+MARK 80 36 2574832 502966
+MARK 80 37 2724666 532220
+MARK 80 38 2724674 532232
+MARK 80 39 2874001 561405
+MARK 8f 0 2874165 561417
+STATE 00000000 000003e8 00000000 00008004 00007000 00000000 00000000 00000095 00000046 00001da2
+GOVERNOR cycles=2875172 retired=100927 halted=1 debt_max=128 hold_cycles=2751889 charged=561429
+{"mode": "governor", "seed": 1, "latency": false, "runs": 1, "passed": 1, "failed": 0, "retirements": 0, "cycles": 0, "halts": 0, "interrupts": 0, "faults": 0, "fault_vectors": {}, "shutdowns": 0, "nested": 0, "retire_limits": 0, "load_wait_cycles": 0, "io_accesses": 0, "external_interrupts": 0, "nmis": 0, "rep_interrupts": 0, "vector_moved_stops": 0, "divergence_retirements": {}, "trace_hash": "14650fb0739d0383", "gaps": {"sequential": {}, "prefixed": {}, "lea": {}, "selector": {}, "after_taken": {}, "after_not_taken": {}, "shift_consumer": {}, "after_shift": {}, "store_load": {}, "store_other": {}, "after_store": {}, "address": {}, "after_segment": {}, "after_stack": {}, "stack_stack": {}, "several": {}, "after_string": {}, "after_io": {}, "memory": {}, "smc": {}, "fetch": {}}, "mmio_accesses": 0, "mmio_runs": 0, "replays": 0, "smc_restarts": 0, "window_code_stops": 0, "code_store_stops": 0, "stray_stops": 0, "port0_reads": 234, "port0_writes": 40146, "pm_retirements": 0, "cs_rule": 0, "ss_error_rule": 0, "fetch_rule": 0, "iret_save_rule": 0, "pm_deliveries": {}, "unbuilt_stops": {}, "pm_kinds": {}, "cs_limit": {}, "no387_rule": 0, "no387_skips": 0, "x87_compared": 0, "dr6_rule": 0, "db_rf_rule": 0, "debug_kinds": {}}

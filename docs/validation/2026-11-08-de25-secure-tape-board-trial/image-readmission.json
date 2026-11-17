@@ -1,0 +1,58 @@
+{
+  "status": "passed",
+  "classification": "new matched native image includes retained initial game tape; no hardware result",
+  "controller_source": "d08b327c3f45a6fd6de6ca94e7f5393b9b79fae9",
+  "compiled_source": "211ab49464df5ed93c31f33312a6567f2c4b32e3",
+  "native_boot_id": "e93ab2e295f96494",
+  "producer_proof_sha256": "16ff96b036f6dcd59b2d105945978f4583499d7fe867489296ab2ca775f06823",
+  "receipt_sha256": {
+    "out/nano-tape-runtime-20261108/native-sdk/result.json": "d711121ff2d69e5bba3cbcbef7ae649320ad008ffb3b5c60f3e6fb99828910d9",
+    "out/nano-tape-runtime-20261108/native-entry/result.json": "ace7a62a7938287f6ed7c2df5672a87e6a256e33cd7ab462f95532f50c066efe",
+    "out/nano-tape-runtime-20261108/native-bl31/result.json": "468ae2806bd025eed76812723a00918abbe0eb29c936fbc1f398b25b07bfd7a0",
+    "out/nano-tape-runtime-20261108/native-uboot/result.json": "5eeac260ae32a19e6fd64856033c3de7732237e0130fc5b1a49d4a2d6244ace1",
+    "out/nano-tape-runtime-20261108/native-composition/result.json": "c3eb7ee0d31f1351781da7544f7211e5f15c8a513b25868b7723e7a58020b174"
+  },
+  "artifacts": {
+    "sdk": {
+      "path": "out/nano-tape-runtime-20261108/native-sdk/fpgaload.elf",
+      "bytes": 15737007,
+      "sha256": "52a4b2c382a705f0af439f9d238886fd2c8565fce873379c02d6bc0d27f0af32"
+    },
+    "entry": {
+      "path": "out/nano-tape-runtime-20261108/native-entry/entry.img",
+      "bytes": 7614464,
+      "sha256": "87ec449ac622e50e1f5fa83a89eb0908545cb9f8e80efc800649660e4f4b31b5"
+    },
+    "BL31": {
+      "path": "out/nano-tape-runtime-20261108/native-bl31/source/build/agilex5/release/bl31.bin",
+      "bytes": 237893,
+      "sha256": "f732d74fe6bbb23ea0a4b7b25c7385bae57cf0199f8c9ebc92738acbea854a20"
+    },
+    "FIT": {
+      "path": "out/nano-tape-runtime-20261108/native-uboot/build/u-boot.itb",
+      "bytes": 8309296,
+      "sha256": "4551fed5bfe889aa22f1a85831a28c3725c8c8f16b169f1f161d8cd117c3c860"
+    },
+    "SPL": {
+      "path": "out/nano-tape-runtime-20261108/native-uboot/build/spl/u-boot-spl-dtb.hex",
+      "bytes": 461189,
+      "sha256": "316b3f2a7328388de722885aaced58839dbcd9c9492b29232266eb144797b534"
+    },
+    "SOF": {
+      "path": "out/nano-tape-runtime-20261108/native-composition/native-hps-first.sof",
+      "bytes": 1578888,
+      "sha256": "e3603ca03d6ac5b7455d360bfcef148625efc4384583943432d5002b1214aa88"
+    }
+  },
+  "all_selected_inputs_unchanged": true,
+  "native_rebuilt": true,
+  "prior_compiled_image_attempts": 0,
+  "max_compiled_image_attempts": 1,
+  "preceding_compiled_image_attempts": 1,
+  "prior_allowance_exhausted": false,
+  "new_procedure_attempts_allowed": 1,
+  "prior_trial_result_sha256": "0c56efdb8e39bd1bb3a63fd04cc787e5da27e0e82847d6a9710c372325113787",
+  "hardware_actions": false,
+  "full_cycle_verified": false,
+  "ordinary_admission": false
+}

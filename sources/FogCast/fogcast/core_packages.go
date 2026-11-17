@@ -493,7 +493,38 @@ func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected
 	if check.Descriptor.Format == 4 {
 		firmwareRequired = true
 	}
-	if err := s.validateCoreEntryMedia(ctx, check.Descriptor, role, mediaID); err != nil {
+	if firmwareRequired && check.Descriptor.Format == 3 && check.Descriptor.ROM != nil && check.Descriptor.ROM.Role == "cartridge" {
+		return catalog.CoreEntry{}, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	var cartridge *corepackage.ROM
+	if gameID == "" && kit == nil && role == "cartridge" {
+		if protocol.ValidateDigest(mediaID) != nil || !linkedCartridge(check.Descriptor) {
+			return catalog.CoreEntry{}, romAdmissionError()
+		}
+		if err := validateROMMediaContract(check.Descriptor); err != nil {
+			return catalog.CoreEntry{}, err
+		}
+		if check.Descriptor.Format == 3 {
+			cartridge = check.Descriptor.ROM
+		} else {
+			rom := check.Descriptor.ROMs[1]
+			cartridge = &corepackage.ROM{ID: rom.ID, Role: rom.Role, SourceSize: rom.SourceSize}
+		}
+		mediaStore, ok := s.catalog.(coreMediaCatalog)
+		if !ok {
+			return catalog.CoreEntry{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+		}
+		media, reader, err := mediaStore.OpenCoreMedia(ctx, mediaID)
+		if err != nil {
+			return catalog.CoreEntry{}, romSelectionError(err)
+		}
+		if err := reader.Close(); err != nil {
+			return catalog.CoreEntry{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+		}
+		if media.MediaID != mediaID || media.Size != cartridge.SourceSize {
+			return catalog.CoreEntry{}, romAdmissionError()
+		}
+	} else if err := s.validateCoreEntryMedia(ctx, check.Descriptor, role, mediaID); err != nil {
 		return catalog.CoreEntry{}, err
 	}
 	if current != nil && current.PersistenceLayout != nil && !reflect.DeepEqual(current.PersistenceLayout, check.PersistenceLayout) {
@@ -532,6 +563,17 @@ func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected
 				return catalog.CoreEntry{}, romAdmissionError()
 			}
 			entry, err = kitStore.CreateKitHostEntry(ctx, title, check.Descriptor.Core.ID, id, role, mediaID, *kit)
+		} else if cartridge != nil {
+			romStore, ok := s.catalog.(interface {
+				CreateCoreROMEntry(context.Context, string, string, string, string, int64, string, bool) (catalog.CoreEntry, error)
+			})
+			if !ok {
+				return catalog.CoreEntry{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+			}
+			entry, err = romStore.CreateCoreROMEntry(ctx, title, check.Descriptor.Core.ID, id, cartridge.ID, cartridge.SourceSize, mediaID, firmwareRequired)
+			if err != nil {
+				return catalog.CoreEntry{}, romSelectionError(err)
+			}
 		} else if firmwareRequired {
 			if mediaStore, ok := s.catalog.(coreFirmwareCatalog); ok {
 				entry, err = mediaStore.CreateFirmwareRequiredEntry(ctx, title, check.Descriptor.Core.ID, id, role, mediaID)

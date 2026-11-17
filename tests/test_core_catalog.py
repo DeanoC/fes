@@ -148,6 +148,7 @@ x=read_package(p/'core.fcore');print(json.dumps({'package_id':x.package_id,'core
         self.assertTrue(retired <= recipes)
         self.assertTrue(set(rows) <= recipes)
         self.assertNotIn('fes.menu', rows)
+        self.assertNotIn('fes.pcxt', rows)
         self.assertEqual(rows['fes.apple2']['standing'], 'experimental')
         self.assertEqual(rows['fes.c64']['standing'], 'experimental')
         self.assertEqual(rows['fes.c64']['system'], 'c64')

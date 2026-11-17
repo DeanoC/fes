@@ -125,6 +125,12 @@ to a new commit, imported layout or assembled image. The designated kit and its
 operating instructions remain in FogCast's
 [development guide](../sources/FogCast/docs/DEVELOPMENT.md).
 
+For kit selection, route DE25 package, runtime, board and image changes to Kit
+D25 (`de25-j8g`, serial `TRWU8J8G`) under the [DE25 kit HIL
+guide](de25-kit-hil.md). Route DE10 changes to Kit A or B. A DE10 HIL result
+cannot replace DE25 PASS on the exact head, and a DE25 run does not satisfy a
+DE10 hardware gate.
+
 ## GitHub delivery coordination
 
 Use the existing [FES project](https://github.com/users/DeanoC/projects/4) as the

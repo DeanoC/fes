@@ -1,0 +1,8 @@
+{
+  "path": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/command-completion-trial/procedure.json",
+  "sha256": "2db3b49429f454c1f4bba4d90c53bcfbb0a3f3820fba0dc809b350d3608407f1",
+  "files": 30685,
+  "nested_native_closures_reloaded_before_freeze": true,
+  "hardware_actions": false,
+  "authorized_for_execution": false
+}

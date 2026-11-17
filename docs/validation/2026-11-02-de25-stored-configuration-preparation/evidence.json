@@ -1,0 +1,19 @@
+{
+  "native_source_commit": "12a0d0caf487f3984b49b5af6aed629868a41572",
+  "native_boot_id": "3cd79bb0c7e60ae1",
+  "native_attempted": false,
+  "software_groups_passed": 12,
+  "matched_builds_passed": 6,
+  "core_embedded": false,
+  "package_sha256": "c75abfe867e7f20e4fba527a53db157df3f524465084871936acbe24addcf2ff",
+  "package_bytes": 2030592,
+  "boot_upload_verified": true,
+  "package_upload_verified": false,
+  "package_sd_write_attempted": false,
+  "stop_reason": "scratch RAM overlaps a reservation or live reservations are unavailable",
+  "cleanup_verified": true,
+  "runtime_admission": false,
+  "core_load_acceptance": false,
+  "board_state": "qualified recovery loader, prompt parked,15M restored,USB root:root0664,UART free;spare card retained",
+  "next": "fresh qualified recovery before each upload; separate bounded SD-retention observation from the unchanged20s transfer deadline"
+}

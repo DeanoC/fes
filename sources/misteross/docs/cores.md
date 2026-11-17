@@ -50,7 +50,7 @@ nothing by itself.
 | `fes.spectrum128` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-spectrum128` | experimental; four edge sockets |
 | `fes.spectrum-plus3` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-spectrum-plus3` | experimental; four edge sockets |
 | `fes.pentagon` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-pentagon` | experimental; four edge sockets |
-| `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `cores/fes-ramtest/toolchain.lock` (100 and 130 MHz) | `make build-fes-ramtest-100` (100 MHz), `make build-fes-ramtest-130` (explicit) | supported; 100 MHz catalog utility, not in the bootstrap image |
+| `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `cores/fes-ramtest/toolchain.lock` (100 MHz) | `make build-fes-ramtest-100` | supported; 100 MHz catalog utility, not in the bootstrap image |
 | `fes.atari-st` | `cores/fes-atari-st` | `fes.computer` | `cores/fes-atari-st/toolchain.lock` | `make build-fes-atari-st` | experimental; Atari 520ST firmware shell and Direct/Scanlines parts |
 | `fes.riscv` | `cores/fes-riscv` | `fes.application` with `fes.gamepad` | `cores/fes-riscv/toolchain.lock` | `make build-fes-riscv` | experimental; original RV32I CPU from `cores/fes-common/rtl/riscv` |
 | `fes.pc386` | `cores/fes-pc386` | `fes.computer` with session display and HPS DDR; `fes_i386_cpu`; the HPS stages the disk and settings in the DDR window until M0 | `cores/fes-pc386/toolchain.lock` (Yosys only; Quartus 17.0.2 fits) | `make build-fes-pc386-quartus` | no; not registered; pc386 M5 bring-up |
@@ -73,11 +73,11 @@ contracts is [core alignment](../../../docs/core-alignment.md). A dedicated
 lock in the table above is the pin that producer authenticates today. It is
 not permission to add another lock.
 
-Quartus recipes (`make build-fes-zx81-quartus`, `build-fes-coleco-quartus`,
-`build-fes-sg1000-quartus`, `build-fes-sms-quartus`) are bring-up oracles.
+Quartus recipes `build-fes-coleco-quartus`, `build-fes-sg1000-quartus` and
+`build-fes-sms-quartus` are bring-up oracles. `make build-fes-zx81-quartus`
+is the ZX81-family Quartus Lite producer: a format-3 package with blank ROM
+lanes and the same ROM map as the OSS package, without the expansion socket.
 A failed HIP route does not fall back to Quartus. Quartus never programs a kit.
-The ZX81 oracle emits a format-2 `fes.computer` package with its ROM embedded;
-unlike the standard format-3 package, it has no expansion socket or ROM map.
 `--compile-only`, where the recipe has it, writes an RBF and timing evidence
 without sealing. `--synth-only` on the OSS producers is a dirty-tree Yosys
 probe and does not seal.
@@ -172,7 +172,7 @@ CPU expansion. Audio follows the shell's existing machine path.
 | --- | --- | --- |
 | `make sim-fes-*` | Host simulation of the RTL you ran | An RBF, timing, HDMI, audio, or a kit |
 | `make build-fes-*` (OSS) | A sealed artifact when the clean-tree checks and timing pass | Kit behavior, or acceptance of an older seal |
-| `make build-fes-*-quartus` | The Quartus oracle for that recipe | The product bitstream |
+| `make build-fes-*-quartus` | A sealed artifact for a registered Quartus producer (the ZX81 family); otherwise the Quartus oracle for that recipe | Kit behavior; for an oracle recipe, the product bitstream |
 
 Simulation targets refuse a shared toolchain cache. Unset
 `FES_TOOLCHAIN_CACHE_ROOT` and do not pass `CACHE_ROOT` to `make sim-fes-*`.
@@ -208,15 +208,13 @@ The `sim-fes-pcxt-fdc`, `sim-fes-pcxt-media`, and
 `sim-fes-pcxt-mailbox` targets cover floppy command/DMA behavior, runtime media
 loading into SDRAM and the PC/XT mailbox ABI. These focused benches run on pull
 requests; the complete FreeDOS boot remains in the full nightly/manual tier.
-The registered `fes.pcxt` recipe exports a format-2 package that starts this
-built-in CGA Direct diagnostic through the standard `fes.computer` identity and
-execution mailbox. It declares fixed 720p60 video only; keyboard and media
-remain unavailable. Quartus is the registered package producer: all three
-seeds must pass the complete reported internal timing inventory and an
-independent seed-1 rebuild must reproduce the RBF. External IO/HPS/reset and
-exact-artifact hardware qualification remain separate. Its forwarded HDMI
-clock is phased 8979 ps after pixel-data updates so the receiver samples while
-pixel data is stable; this fixed-video output is inline and has no
+The sole registered PC/XT package, `fes.pcxt-dos`, enables the BIOS, keyboard,
+PC speaker and writable runtime floppy. The diagnostic ROM and raw board
+builders remain development tools, with no separate catalog or sealed diagnostic
+package. Quartus is the DOS package producer: all three seeds must pass the
+complete reported internal timing inventory and an independent seed-1 rebuild
+must reproduce the RBF. External IO/HPS/reset and exact-artifact hardware
+qualification remain separate. Its CGA Direct output is inline and needs no
 external video-parts index.
 The `system` and `system-mda` suites assemble CPU, motherboard, real SDRAM,
 DMA/refresh and one Direct/Scanlines pipeline, using the original diagnostic
@@ -291,16 +289,15 @@ path.
 
 Each registered package authenticates the lock named by its `lock_path` in
 `config/core-recipes.toml`. A lock can move to another nextpnr that
-`scripts/pnr_recipe.py` classifies; that core then gets its own slot. Pong's
+`scripts/pnr_recipe.py` classifies; the shared cache then adds that nextpnr's
+install and keeps sharing the other tools. Pong's
 lock pins nextpnr `552ba246`, Menu's and ZX81's pin `1eecf877` (Menu moved
 when its blitter took DSP multipliers), RISC-V's pins `8f453ebc`, and
-Coleco's pins Yosys `5391eeb1` with nextpnr `bec82e36`; each has its own slot.
-Apple II and C64 pin nextpnr `5fe55f3d` for its F0/F1 boundary `$ROUTETHRU`
-map (#1007); their locks are identical and share one slot. Atari ST pins
-`5fe55f3d` (#910) in its own slot, and Spectrum pins nextpnr main `bd7a1c0d`
-(#1001, which contains #276 as merged) in its own slot. The other three
-per-core lock files still contain the same bytes as `toolchain.lock` and
-therefore share one cached compiler slot. Use the
+Coleco's pins Yosys `5391eeb1` with nextpnr `bec82e36`.
+Apple II, C64 (#1007) and Atari ST (#910) pin nextpnr `5fe55f3d` for its
+F0/F1 boundary `$ROUTETHRU` map, and Spectrum pins nextpnr main `bd7a1c0d`
+(#1001, which contains #276 as merged). The cache holds one install per tool
+and commit, so every lock pinning Yosys `3a5accbd` uses the same Yosys. Use the
 matching `make toolchain-fes-<core>` target to provision a local toolchain.
 The splash continues to select the repository-level `toolchain.lock`.
 
@@ -341,8 +338,9 @@ mailbox uses.
 The Atari ST producer selects `cores/fes-atari-st/toolchain.lock`
 (Yosys `3a5accbd`, nextpnr `5fe55f3d`). The factory recipe stays HIP.
 A CUDA route is a separate package. RAM Tester uses the repository-level
-slot, while menu selects its own slot on nextpnr `1eecf877`. The
-130 MHz timing comparison uses the RAM Tester lock.
+lock's pins, while menu's lock pins nextpnr `1eecf877`. The Quartus
+RAM Tester timing comparison authenticates its own
+`cores/fes-ramtest/quartus.lock`, not the OSS `toolchain.lock`.
 The [2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
 qualifies the earlier private pin and its read-only shell; it does not
 qualify the current `5fe55f3d` pin. The October kit notes do not accept
