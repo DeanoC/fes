@@ -1,6 +1,6 @@
 # Nano recovery uploads and cold serial boot
 
-The latest [preservation checkpoint](../../../docs/validation/2026-11-15-de25-merge-readiness/README.md) records a matched boot chain and a physical ZX81 launch with initial tape. Return to MENU stops at secure source release; the complete cycle remains unqualified. [Issue #1867](https://github.com/DeanoC/fes/issues/1867) tracks the whole secure ownership, memory, lifecycle and recovery investigation. The candidate remains stopped on the spare card, with host handles closed and a physical reset required before restoration. This merge preparation makes no new board changes.
+The latest [preservation checkpoint](../../../docs/validation/2026-11-15-de25-merge-readiness/README.md) records a matched boot chain and a physical ZX81 launch with initial tape. Return to MENU stops at secure source release; the complete cycle remains unqualified. [Issue #1867](https://github.com/DeanoC/fes/issues/1867) tracks the whole secure ownership, memory, lifecycle and recovery investigation. The subsequent [bounded reset-recovery test](../../../docs/validation/2026-11-17-de25-reset-recovery/README.md) reached a fresh recovery loader through volatile JTAG reload without a power cycle and verified the unchanged card files. The top kit is now parked at that recovery prompt with the candidate retained; no native retry or SD/flash write occurred.
 
 
 The explicit reset-recovery diagnostic adds a nonce-bound SPL witness before
@@ -19,8 +19,8 @@ file readback is required. Partial boot, stale nonce, lost ownership, failed
 programming or changed card retires the attempt. No retry, SD/flash write, old
 source reuse or normal runtime resume is authorized. This observes HPS
 rebootstrap and reset-held masters; it does not prove SDM reset, old fabric
-master drain or a complete native launch/return cycle. Hardware recovery is
-still unqualified until a separately recorded bounded physical test passes.
+master drain or a complete native launch/return cycle. The linked bounded physical test qualifies this read-only bootstrap route;
+SDM reset and normal runtime acceptance remain separate.
 
 The paired launcher auditor accepts an explicit `retained_reader_route` only
 when the complete compiled boot and MENU roles match its sealed route binding

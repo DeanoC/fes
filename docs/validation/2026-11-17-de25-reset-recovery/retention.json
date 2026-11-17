@@ -1,0 +1,27 @@
+{
+  "directory": "/home/deano/fes-retained/de25-reset-recovery-20261117-r1",
+  "status": "verified",
+  "tested_source": "23113b14496b89d673efe0c29a196970317bf3a6",
+  "regular_members": 44244,
+  "archives": {
+    "tested-source.tar.gz": {
+      "sha256": "99ca8d251aa0ed1a0671f754bda66b667662b09a5a925ab45082062ee718e5f0",
+      "bytes": 188163085
+    },
+    "artifacts.tar.gz": {
+      "sha256": "bd9051b26eac42bd082c4b4fec43a7b3fc6aa5d40811758d784fe912b0616354",
+      "bytes": 107436076
+    },
+    "members.json": {
+      "sha256": "383ba0ccfe8b00ca353fb68fd00cfe467f1be7da109ab49f643103d054fb06c7",
+      "bytes": 10066716
+    }
+  },
+  "wider_software_job_still_running_and_excluded": true,
+  "source_archive_verification": {
+    "status": "verified",
+    "source_commit": "23113b14496b89d673efe0c29a196970317bf3a6",
+    "git_blobs_verified": 17105,
+    "archive_sha256": "99ca8d251aa0ed1a0671f754bda66b667662b09a5a925ab45082062ee718e5f0"
+  }
+}
