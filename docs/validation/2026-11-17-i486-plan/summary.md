@@ -99,13 +99,18 @@ classification rule:
   the census would get them.
 - **The lockstep ran at reduced program counts,** given in the table
   below, to fit the host's load. `method.md` gave no counts.
-- **The `--disable-fpu` build was not tried.** Bochs refuses a 486 model
-  without an x87 at start-up (`cpu/cpuid.cc:1623`), which answers the
-  question it was for.
-- **WfW 3.11 and the Linux drives were not run** at level 4: their suites
-  are separate from the game suite, and the sweep's time went to the 53
-  titles. Their level-3 records already show which 486 tests they make
-  ([demand](#demand)).
+- **The `--disable-fpu` build was tried only as far as its library.**
+  Level 4 with `--disable-fpu` configures and `libcpu.a` builds. It was
+  not linked or booted: the adapter requires the FPU
+  (`bochs_oracle.cpp:30`; without it Bochs raises #UD for WAIT and never
+  faults on ESC), and Bochs's one 486 model enables the x87 extension
+  unconditionally and panics if a 486 model lacks it
+  (`cpu/cpudb/intel/i486dx4.cc:39`; `cpu/cpuid.cc:1623-1624`). So it is
+  not a 486SX either way.
+- **WfW 3.11 and the Linux drives are not in the sweep.** `wfw-386` on
+  the `win-msdos` drive is a game-suite title and runs after the 53; the
+  three Linux drives were not run at level 4, for time. Their level-3
+  records show which 486 tests they make ([demand](#demand)).
 
 ## The delta, checked against the RTL
 
@@ -205,7 +210,8 @@ three years after the first 486, has no CPUID, so software written for a
 486 runs on A. B is needed only by software that wants CPUID on a 486, and
 [the census](#demand)'s CPUID count per title is the evidence for whether
 any does. A is the smaller target and is the
-one the 1992 PRM, the fullest source, describes. Neither target is an
+one the 1992 PRM, the fullest source, describes; that lean is pending
+those counts. Neither target is an
 A-step (the 0F A6/A7 CMPXCHG): no document here covers it and no title is
 known to need it. The choice is Deano's:
 [open question 1](#open-questions-for-deano).
@@ -239,18 +245,20 @@ known to need it. The choice is Deano's:
   and FINIT clears the instruction and data pointers (PRM §25.1 item 2).
 - **The 486SX has no FPU.** Software is told to set EM = 1 and MP = 0, and
   then every ESC takes vector 7 (PRM §19.2.3.2; data book Table 4-5). With
-  EM = 0 the documents disagree with each other:
-  - PRM §10.2: after FNINIT, "the FSTCW instruction will give a value of
-    FFFFh for the Intel486 SX microprocessor", which is its detection
-    sequence, so the ESC runs without a trap and stores nothing;
-  - PRM §19.2.3.2 and data book §4.2.3.1: "interrupt 7 will be generated
-    upon encountering any floating point instruction regardless of the
-    value of the NE bit";
+  EM = 0 the documents do not agree:
+  - PRM §10.2 gives the detection sequence FNINIT, FSTCW: "the FSTCW
+    instruction will give a value of FFFFh for the Intel486 SX
+    microprocessor". That needs the ESC to run without a trap and FFFFh
+    to arrive in memory;
   - data book §4.2.3.1: "if EM bit is 0 for the Intel486 SX and IntelSX2
     processors, the system will hang".
-  The detection sequence only works if the first is true, and it is how
-  every FPU probe of the era behaves, so the plan takes the first and
-  lists the question for a real 486SX
+  (Both also say an SX takes "interrupt 7 … upon encountering any
+  floating point instruction regardless of the value of the NE bit";
+  that sentence is about NE and sits under the advice to set EM.) The
+  detection sequence only works if the first holds, and it is exactly
+  what the RTL's empty socket does today: FNSTCW stores FFFFh
+  (`fes_i386_decode.sv:50`). The plan takes the first and lists the
+  question for a real 486SX
   ([open question 6](#open-questions-for-deano)).
 - **The SX's CR0 resets to 60000010h like the DX's** (data book Table 9-8
   gives one value for the family), so ET reads 1 on an SX. On the RTL's
@@ -266,7 +274,7 @@ known to need it. The choice is Deano's:
 | | Today | 486SX | 486DX |
 | --- | --- | --- | --- |
 | The x87 unit | `fes_i386_x87` and its backends, selected by `x87_present` and `X87_BACKEND` (`fes_i386_cpu.sv:130`, `:266-270`) | Not instantiated. `x87_present = 0`, as the package ships today (`fes-pc386/rtl/pc386_system.sv:470`) | The same unit with a different shell: see below |
-| ESC with EM = 0, TS = 0 | The empty-socket path: no trap, stores read all ones (`fes_i386_decode.sv:47-61`) | The same path gives PRM §10.2's FFFFh | Executes |
+| ESC with EM = 0, TS = 0 | The empty-socket path: no trap; FNSTCW and FNSTSW store FFFFh (`fes_i386_decode.sv:47-61`) | The same path gives PRM §10.2's FFFFh | Executes |
 | ET | Follows `x87_present` | Hard-wired 1 | Hard-wired 1 |
 | Error reporting | The AT's latch on IRQ 13 with ports F0h and F1h (`fes_i386_x87.sv:730-737`) | None | NE = 0: FERR# to the same IRQ 13 and F0h latch, with the 486's freeze rule in place of BUSY#. NE = 1: vector 16 |
 | CMOS 14h bit 1, INT 11h | From `x87_present` (`fes-pc386/rtl/pc386_rtc.sv:166`) | 0 | 1 |
@@ -400,8 +408,8 @@ What is measured, and on which core:
   benchmark has been rerun since.
 - **The governor bench on main, run for this record.** `test_fes_i386_governor.py` on main
   `e2b8130b5`, host simulation of the RTL at the package's 61.44 MHz
-  (19 microbenchmark loops; PASS). It is the first run of the 486 presets
-  since Phase 4 landed:
+  (19 microbenchmark loops; PASS). No committed record carries the 486
+  presets' bench results from after Phase 4:
   - **486DX-33 paces every loop:** all 19 within +0.29% of the table's
     time, none beyond the CPU. Before Phase 4 it was beyond the CPU on
     four ([governor record](../2026-11-01-pc386-m5-governor/summary.md)).
@@ -423,7 +431,18 @@ What is measured, and on which core:
   benchmark") have no reference figures behind them. TopBench's database
   figure above is the only one.
 
-So, by preset:
+What that table does show about reach is on whole benchmarks, and it is
+kit evidence: even before Phase 4, 486DX2-66 scored about half of `max`
+(3DBench 26.3 against 50.0, pack DOOM 12.5 fps against 24.3). A score
+below `max` means the governor, not the core, set the pace over the
+benchmark as a whole. It does not mean every stretch kept up: where the
+core is slower than the table the governor banks nothing, and that
+stretch runs late. One limit is by construction: 486DX2-66 pays down
+667 reference clocks per 614.4 core clocks, and the core retires at most
+one instruction a clock, so a run of one-clock 486 instructions cannot
+be paced at 66.7 MHz at any CPI.
+
+So, by preset, on the bench's loops, which are the worst case:
 
 | Preset | DE10, 61.44 MHz | DE25 |
 | --- | --- | --- |
@@ -520,7 +539,7 @@ Read from the source at the pin:
 | Reset EDX | Zero at every level; the line that would set it is commented out (`init.cc:896`) | 04xxh |
 | DR6 at reset | FFFF1FF0h; the 486 value is under `BX_CPU_LEVEL >= 5` (`init.cc:1038-1043`) | FFFF0FF0h (PRM Table 10-1) |
 | MOV TRn | #UD at every level | TR3–TR7 |
-| A 486 without an FPU | Not possible: a 486 model without x87 is fatal (`cpuid.cc:1623`) | The 486SX |
+| A 486 without an FPU | Not available: the 486 model enables x87 unconditionally, and a 486 model without it is fatal (`i486dx4.cc:39`; `cpuid.cc:1623-1624`) | The 486SX |
 
 So Bochs's level 4 is close to option B without its reset values and
 test registers, and it cannot be a 486SX. The SX is checked the way the
@@ -535,7 +554,7 @@ Logs stay on the host.
 | Run | Result | What it establishes |
 | --- | --- | --- |
 | `sim_fes_pc386.py --suite boot` | **PASS.** FreeDOS reaches its prompt at 3.7 simulated seconds after 89,865,920 steps; the VGA replay matches with 0 mismatches | The Bochs BIOS, VGABIOS and FreeDOS boot on the level-4 oracle unchanged. Nothing in the boot path depends on the 386's CR0 or EFLAGS answers |
-| `test_fes_i386_test386.py` (oracle) | **Passes, unchanged.** POST reaches FFh through the same codes; the same nine divergence groups with the same counts; the POST EEh text is identical to the reference in all 44,926 lines; the SingleStepTests cross-check agrees | test386 built for `CPU_FAMILY=3` still passes on a level-4 Bochs, undefined flags included: Bochs's flag results do not change with the level. It does not establish that a real 486's undefined flags equal the 386's |
+| `test_fes_i386_test386.py` (oracle) | **Passes, identical to level 3.** POST reaches FFh; nine divergence groups; the POST EEh text equals the reference in all 44,926 lines; the SingleStepTests cross-check agrees. A level-3 run on main the same day gives the same POST codes, the same 79,641,629 steps, the same count in each divergence group and the same final-RAM SHA-256 (`44597188…`) | test386 built for `CPU_FAMILY=3` still passes on a level-4 Bochs, undefined flags included: Bochs's flag results do not change with the level. It does not establish that a real 486's undefined flags equal the 386's |
 | `test_fes_i386_vectors.py` | **Unchanged.** 1,437,596 of 1,758,700 states pass and 321,103 fail, every failure covered by the same 21 divergence entries with the same counts, at level 4 and, rerun on main the same day, at level 3 | The 386EX corpus cannot tell the two levels apart. It is a 386 corpus and says nothing about a 486 |
 | `test_fes_i386_lockstep.py`, reduced (`--limit-per-file 20 --random-programs 200 --pm-programs 50 --task-programs 20 --debug-programs 20 --undefined-programs 50`) | **Fails, as expected of a 386 against a 486.** Details below | The size of the lockstep's rule change |
 
@@ -578,7 +597,7 @@ The lockstep run, the RTL as it is (a 386) against the level-4 oracle:
 - a per-identity CR0 read value and write mask (`CR0_MASK` is 8000000Fh,
   `lockstep_tb.cpp:1263-1266`) and an EFLAGS mask that includes AC, and ID
   for option B (`EFLAGS_MASK` is 0003FFFFh, `:206`);
-- the #UD probe list (`ud_probes16`, `:7340-7350`) and the runner's
+- the #UD probe list (`ud_probes16`, `:7344-7355`) and the runner's
   386 decoder classes (`test_fes_i386_lockstep.py:211-214`) per identity;
 - the divergence list: `ud-invlpg` becomes agreement on a 486; `mov-tr`
   grows TR3; `dr6-sticky`, `db-frame-rf`, `icebp-gd`, `umov` and
@@ -814,8 +833,9 @@ unchanged in behaviour.
    against the level-4 oracle with directed cases for each item and
    random programs; the AC and CPUID detection routines answer 386 with
    the identity off and 486 with it on; Duke Nukem 3D gets past
-   0180:00222BE2 on the RTL and on a kit; the census rerun on the RTL
-   with the identity on.
+   0180:00222BE2 on the RTL and on a kit (pending the pilot: this gate
+   assumes the instruction there is one of the six); the census rerun on
+   the RTL with the identity on.
 3. **486 speed.** The reach measurement per preset on a kit after Phase
    4; reference scores for a 486 from the chosen source; the frequency
    override documented as the way to 25 and 50 MHz, or named presets if
@@ -826,9 +846,10 @@ unchanged in behaviour.
 4. **486DX.** After the x87 unit is complete and pc386 builds for the
    DE25. NE and vector 16, the freeze rule and IGNNE#, the 486's ESC
    rules, the governor's 486 x87 column. **Gate:** the x87 lockstep's
-   387-present rule in its 486 form against the level-4 oracle; Linux
-   2.0.0 booting with NE set (a 486 kernel uses vector 16, where the 386
-   one uses IRQ 13); the x87 acceptance titles on the DE25 kit.
+   387-present rule in its 486 form against the level-4 oracle; a
+   directed NE = 1 case and an operating system that sets NE (Linux
+   2.0.0 is the candidate; what it does on a 486 identity was not run
+   for this record); the x87 acceptance titles on the DE25 kit.
 
 ### SX first or DX first
 
