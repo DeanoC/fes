@@ -63,8 +63,8 @@ no physical address, SMC operation or accepted programming profile.
 
 [`fes.fabric.firmware-upload`](docs/firmware-upload.md) carries launch-time
 machine firmware over the fes.computer mailbox framing, for boards whose
-bitstream cannot take linked ROM lanes. It supplies matching Verilog and C++
-constants; a package declares it as a required manifest interface.
+bitstream cannot take linked ROM lanes. It supplies Verilog constants; a
+package declares it as a required manifest interface.
 
 The `emit-c` command supplies standalone numeric constant headers for fabric
 and ABI consumers such as the DE25 firmware diagnostics. ABI output contains
