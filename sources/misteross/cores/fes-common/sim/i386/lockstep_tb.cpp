@@ -392,6 +392,31 @@ struct GuestRam {
 uint64_t x87_backend_offered[8];
 uint64_t x87_backend_taken[8];
 
+// Recognize only single-element decrements from the known initial REP count.
+// A jump or increase invalidates progress, preventing a faulty counter from
+// keeping the per-retirement no-progress watchdog alive indefinitely.
+struct RepProgress {
+    uint32_t remaining;
+    bool valid = true;
+    bool observe(uint32_t value) {
+        if (!valid || value == remaining) return false;
+        if (remaining == 0 || value != remaining - 1) { valid = false; return false; }
+        remaining = value;
+        return true;
+    }
+};
+
+struct NoProgressWatchdog {
+    int limit;
+    int idle = 0;
+    uint64_t total = 0;
+    uint64_t total_limit;
+    explicit NoProgressWatchdog(int cycle_limit, uint32_t possible_progress = 0)
+        : limit(cycle_limit), total_limit(uint64_t(cycle_limit) * (uint64_t(possible_progress) + 1)) {}
+    bool expired() const { return idle >= limit || total >= total_limit; }
+    void tick(bool progress) { ++total; idle = progress ? 0 : idle + 1; }
+};
+
 class Rtl {
 public:
     explicit Rtl(VerilatedContext &context)
@@ -767,17 +792,19 @@ public:
     // an interrupt line is up, which may wake it, or once it has taken INTR
     // (its INTA drops the line before the delivery starts). tick, if given,
     // runs before each cycle.
-    Event next(const std::function<void()> &tick = {}) {
+    Event next(const std::function<void()> &tick = {}, RepProgress *rep_progress = nullptr) {
         step_writes.clear();
         step_first_write_values.clear();
         io.log.clear();
         const uint64_t acks = pic.acks;
-        for (int n = 0; n < event_cycles; ++n) {
+        NoProgressWatchdog watchdog(event_cycles, rep_progress ? rep_progress->remaining : 0);
+        while (!watchdog.expired()) {
             if (top.trace_unimplemented || top.shutdown || (top.trace_halt && !pic.intr && !pic.nmi && pic.acks == acks))
                 break;
             if (tick) tick();
             clock();
             if (top.trace_retire) return Event::Retired;
+            watchdog.tick(rep_progress && rep_progress->observe(top.arch_gpr[fes_i386::REG_ECX]));
         }
         if (top.trace_unimplemented) return Event::Unimplemented;
         if (top.shutdown) return Event::Shutdown;
@@ -1951,7 +1978,7 @@ EscStep esc_step(const uint8_t *code, bool code32, const State &state, const fes
 
 Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                  const Fields &label_corpus, uint64_t retire_limit, bool stop_at_exception, Summary &summary,
-                 Mismatches &out, uint32_t code_hi = 0, Irq *irq = nullptr, const Code *own = nullptr) {
+                 Mismatches &out, uint32_t code_hi = 0, Irq *irq = nullptr, const Code *own = nullptr, bool long_rep_progress = false) {
     Outcome outcome;
     // Raise INTR (or NMI) for the boundary after the instruction at code, on
     // the RTL now; for the oracle in this step, or for a HLT's wake before
@@ -2142,7 +2169,11 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         if (verbose && irq)
             std::fprintf(stderr, "  rtl lines intr %d nmi %d, raised at %d %d, plans %u %u\n", rtl.pic.intr, rtl.pic.nmi,
                          irq->intr_at, irq->nmi_at, intr_plan, nmi_plan);
-        Rtl::Event event = rtl.next(watch);
+        // Only the directed 1280-element paging case opts in. Other tests
+        // retain the original fixed per-retirement watchdog unchanged.
+        RepProgress progress{before.gpr[fes_i386::REG_ECX]};
+        RepProgress *rep = long_rep_progress && rep_count(code, code32, before) == 0x500 ? &progress : nullptr;
+        Rtl::Event event = rtl.next(watch, rep);
         if (verbose && irq) std::fprintf(stderr, "  rtl raised at %d %d\n", irq->intr_at, irq->nmi_at);
         if (verbose)
             std::fprintf(stderr, "  rtl event %d vector %x unbuilt %d error %x\n", int(event), unsigned(rtl.top.trace_vector),
@@ -9707,7 +9738,7 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
             outcome.halted = rtl.stopped();
         } else {
             try {
-                outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 96, !c.through, summary, out, 0);
+                outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 96, !c.through, summary, out, 0, nullptr, nullptr, std::string(c.label) == "pg-rep-movs-long");
             } catch (const std::exception &error) {
                 out.add(std::string(c.label) + ".oracle-error:" + error.what(), 0, 1);
                 oracle.reset();
@@ -11801,6 +11832,32 @@ int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
     std::ios::sync_with_stdio(false);
     const std::string mode = std::getenv("FES_I386_MODE") ? std::getenv("FES_I386_MODE") : "corpus";
+    const auto watchdog_selftest = [] {
+        RepProgress progress{3};
+        NoProgressWatchdog stall(GOVERNED_EVENT_CYCLES, progress.remaining);
+        // No architectural progress must still exhaust the original bound.
+        for (int n = 0; n < GOVERNED_EVENT_CYCLES; ++n) {
+            if (stall.expired()) return false;
+            stall.tick(progress.observe(3));
+        }
+        if (!stall.expired() || stall.total != GOVERNED_EVENT_CYCLES) return false;
+        if (!progress.observe(2) || progress.observe(2) || !progress.observe(1)) return false;
+        if (progress.observe(3) || progress.valid || progress.observe(0)) return false;
+        RepProgress jump{3};
+        if (jump.observe(1) || jump.valid || jump.observe(2)) return false;
+        NoProgressWatchdog total(3, 1);
+        for (int n = 0; n < 6; ++n) {
+            if (total.expired()) return false;
+            total.tick(true);
+        }
+        return total.expired();
+    };
+    if (mode == "rep-watchdog-selftest") {
+        if (!watchdog_selftest()) return 1;
+        std::puts("PASS REP watchdog no-progress and total bounds, strict decrement");
+        return 0;
+    }
+    if (mode == "paging" && !watchdog_selftest()) return 1;
     mixed = mode == "random" || mode == "memory";
     const uint64_t seed = env("FES_I386_SEED", 1);
 
