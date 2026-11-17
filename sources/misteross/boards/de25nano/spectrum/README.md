@@ -16,7 +16,7 @@ a DE25 replacement in `../shared-rtl/`:
 | --- | --- |
 | ROM bytes linked into blank M10K lanes at install (format 3) | `fes_spectrum_firmware_rom`: block RAM filled at launch through [`fes.fabric.firmware-upload`](../../../../mister-packages/docs/firmware-upload.md) |
 | Tape image in the reserved HPS DDR window (`fes_media_ddr`) | `fes_media_sdram`: the same client ports over the board SDRAM |
-| 52.224 MHz system PLL on the fabric | `machine_pll.ip`: the 100 MHz system clock x 47/90 = 52.222222 MHz (-34 ppm) |
+| 52.224 MHz system PLL on the fabric | `machine_pll.ip` on `CLOCK1_50`: 52.222222 MHz for the machine and 12.287582 MHz for audio (both -34 ppm, in the DE10 ratio), in place of the stock audio PLL |
 
 `fes_spectrum_core` is the portable core: firmware front end, mailbox,
 keyboard, tape store, machine, 720p capture and the audio mix. Its edge

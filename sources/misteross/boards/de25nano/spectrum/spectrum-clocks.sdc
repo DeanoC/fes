@@ -1,10 +1,11 @@
 # Standard ZX Spectrum uses the same qualified board/reset/fabric shell as
 # MENU and the standard ZX81. Select only its memory-fault hierarchy in that
-# shared constraint. The machine runs on its own PLL clock (the 100 MHz system
-# clock x 47/90, 52.222222 MHz); the PLL IP declares it. The design treats it
-# as unrelated to the peripheral clock it is derived from and to the pixel
-# clock: every path between those clocks is one of the crossings named here.
-# No clock group is cut, so an unnamed crossing is timed, not hidden.
+# shared constraint. One PLL on CLOCK1_50 makes the machine clock
+# (52.222222 MHz) and the audio master clock (12.287582 MHz); the PLL IP
+# declares both. The design treats the machine clock as unrelated to the
+# peripheral and pixel clocks, and the PCM crossing as unrelated to the audio
+# clock it shares a PLL with: every path between them is one of the crossings
+# named here. No clock group is cut, so an unnamed crossing is timed.
 set fes_de25_standard_endpoint {soc_inst|subsys_periph|fes_scanout|fes_scanout}
 source [file join [file dirname [info script]] clocks.sdc]
 unset fes_de25_standard_endpoint

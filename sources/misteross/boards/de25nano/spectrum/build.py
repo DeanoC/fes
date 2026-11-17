@@ -3,7 +3,7 @@
 
 The board, reset, HDMI, allocated-display and Linux memory recipe is the
 managed MENU/ZX81 one, reused through its builders. This selects the Spectrum
-component, its machine PLL, the board SDRAM pins and live PCM. It never
+component, its machine and audio PLL, the board SDRAM pins and live PCM. It never
 programs a kit. A compile here is a diagnostic candidate: package export,
 timing review and runtime admission are separate gates.
 """
@@ -77,7 +77,7 @@ def capture(revision=None):
     paths |= {BOARD + "shared-rtl/" + name for name in SHARED_FILES + ("fes_menu_reader.v",)}
     paths |= {BOARD + "shared-rtl/generated/fes_firmware_upload.vh", BOARD + "ramtest/sdram.v",
               BOARD + "zx81-hps/fes_de25_computer.v", BOARD + "zx81-hps/generated/fes_de25_computer.vh",
-              BOARD + "zx81-hps/build.py", BOARD + "zx81-hps/fes_de25_audio.v",
+              BOARD + "zx81-hps/build.py", BOARD + "shared-rtl/fes_de25_machine_audio.v",
               "sources/misteross/cores/fes-zx81/expansions/zonx_ay.v", COMMON + "rtl/fes_display_cdc.v"}
     paths |= {CORE + name for name in MACHINE_FILES + ("spectrum_machine.sv", "spectrum_ram.v",
                                                       "spectrum_video.v", "spectrum_tape.v")}
@@ -138,8 +138,8 @@ def shared_resets(scanout, directory):
 
 def machine_pll(display, data):
     parameters = display.pll_parameters(data)
-    expected = {"gui_reference_clock_frequency": "100.0", "gui_output_clock_frequency0": "52.222222",
-                "gui_number_of_clocks": "1", "gui_use_locked": "true", "gui_enable_permit_cal": "true",
+    expected = {"gui_reference_clock_frequency": "50.0", "gui_output_clock_frequency0": "52.222222",
+                "gui_output_clock_frequency1": "12.287582", "gui_number_of_clocks": "2", "gui_use_locked": "true",
                 "system_info_device_component": "A5EB013BB23BE4SCS"}
     if any(parameters.get(key) != value for key, value in expected.items()):
         raise ValueError("Spectrum machine PLL contract changed")
@@ -149,22 +149,21 @@ def machine_pll(display, data):
 TOP_BEFORE = "qsys_top soc_inst ("
 TOP_AFTER = """wire [15:0] standard_audio_sample;
 wire standard_exec_reset;
-wire machine_clk, machine_pll_locked;
+wire machine_clk, machine_audio_clk, machine_pll_locked;
 wire [15:0] fes_dram_dq_o;
 wire [1:0] fes_dram_dqm;
 wire fes_dram_dq_oe;
-// The 100 MHz system clock x 47/90: the machine's 52.224 MHz to -34 ppm.
-// Each 50 MHz pin already feeds one PLL and can reach no second one, so this
-// PLL takes the global system clock as its reference, and calibrates only
-// once the system PLL has locked.
+// One PLL on CLOCK1_50 in place of the stock audio PLL, whose pin can feed no
+// second one: x 188/15, then /12 for the machine's 52.224 MHz and /51 for the
+// 12.288 MHz audio master clock, both -34 ppm and in the DE10 cores' ratio.
 machine_pll fes_machine_pll (
-  .refclk(system_clk_100_internal), .rst(!top_reset_n), .permit_cal(pll_locked),
-  .outclk_0(machine_clk), .locked(machine_pll_locked)
+  .refclk(CLOCK1_50), .rst(!top_reset_n), .outclk_0(machine_clk), .outclk_1(machine_audio_clk),
+  .locked(machine_pll_locked)
 );
-fes_de25_audio fes_audio_inst (
-  .CLOCK1_50(CLOCK1_50), .source_clk(machine_clk),
-  .reset_n(top_reset_n), .hold(standard_exec_reset || scanout_clock_fault),
-  .left_sample(standard_audio_sample), .right_sample(standard_audio_sample), .locked(),
+fes_de25_machine_audio fes_audio_inst (
+  .source_clk(machine_clk), .audio_clk(machine_audio_clk), .locked(machine_pll_locked),
+  .hold(standard_exec_reset || scanout_clock_fault),
+  .left_sample(standard_audio_sample), .right_sample(standard_audio_sample),
   .HDMI_MCLK(HDMI_MCLK), .HDMI_SCLK(HDMI_SCLK),
   .HDMI_LRCLK(HDMI_LRCLK), .HDMI_I2S(HDMI_I2S)
 );
@@ -243,33 +242,18 @@ def prepare(archive, output, revision=None, model="48"):
     for pin in ("HDMI_MCLK", "HDMI_SCLK", "HDMI_LRCLK", "HDMI_I2S"):
         top = replace_once(top, f".{pin}({pin})", f".{pin}()")
     top_path.write_text(replace_once(top, TOP_BEFORE, TOP_AFTER))
-    # The locked Terasic audio PLL, as the standard ZX81 selects it.
-    with zipfile.ZipFile(archive) as package:
-        name = "Demonstration/FPGA/HDMI_ASx4/av_pll.ip"
-        if package.namelist().count(name) != 1:
-            raise ValueError("missing/duplicate stock audio PLL")
-        original = package.read(name)
-    before = b"<ipxact:value>A5EB013BB23BE4SR1</ipxact:value>"
-    if original.count(before) != 2:
-        raise ValueError("stock audio PLL device metadata changed")
-    audio_pll = original.replace(before, b"<ipxact:value>A5EB013BB23BE4SCS</ipxact:value>")
-    audio_parameters = display.pll_parameters(audio_pll)
-    if (audio_parameters.get("gui_reference_clock_frequency") != "50.0" or
-            audio_parameters.get("gui_output_clock_frequency0") != "12.288"):
-        raise ValueError("stock audio PLL contract changed")
-    (local / "av_pll.ip").write_bytes(audio_pll)
     machine_ip = sources[BOARD + "spectrum/machine_pll.ip"]
     machine_parameters = machine_pll(display, machine_ip)
     (local / "machine_pll.ip").write_bytes(machine_ip)
-    audio = ZX81.standard_audio_paths()
+    audio = [BOARD + "shared-rtl/fes_de25_machine_audio.v"] + [
+        COMMON + "rtl/" + name for name in ("fes_audio_output.v", "fes_audio_i2s.v")]
     for name in audio:
         (local / Path(name).name).write_bytes(sources[name])
     qsf_path = project / "golden_top.qsf"
     qsf = replace_once(qsf_path.read_text(),
         "set_global_assignment -name SDC_FILE fes_mailbox/clocks.sdc\n",
         "set_global_assignment -name SDC_FILE fes_mailbox/spectrum-clocks.sdc\n")
-    qsf += "\nset_global_assignment -name IP_FILE fes_mailbox/av_pll.ip\n"
-    qsf += "set_global_assignment -name IP_FILE fes_mailbox/machine_pll.ip\n"
+    qsf += "\nset_global_assignment -name IP_FILE fes_mailbox/machine_pll.ip\n"
     if re.search(r"(?m)^\s*set_global_assignment\s+-name\s+VERILOG_MACRO\s+", qsf):
         raise ValueError("upstream already selects Verilog macros; review before adding the model")
     qsf += "set_global_assignment -name VERILOG_MACRO QUARTUS=1\n"
@@ -294,8 +278,6 @@ def prepare(archive, output, revision=None, model="48"):
         "scope": "standard-core-board-integration", "runtime_admission": "not-qualified",
         "standard_sdc_sha256": sha((local / "spectrum-clocks.sdc").read_bytes()),
         "derivations": derived,
-        "audio_pll": {"vendor_sha256": sha(original), "derived_sha256": sha(audio_pll),
-                      "parameters": audio_parameters},
         "machine_pll": {"sha256": sha(machine_ip), "parameters": machine_parameters},
         "staged_source_sha256": ZX81.standard_staged_sources(project)}
     inputs["scanout"]["build_identity_scheme"] = "standard-board-integration-source-profile"
@@ -354,10 +336,9 @@ def verify(output, scanout, hps, display):
     ):
         if ("reset", start, end) not in connections:
             raise ValueError("generated Spectrum reset differs: " + end)
-    for name in ("av_pll.ip", "machine_pll.ip"):
-        key = "audio_pll" if name == "av_pll.ip" else "machine_pll"
-        if display.pll_parameters((project / "fes_mailbox" / name).read_bytes()) != selected[key]["parameters"]:
-            raise ValueError("generation changed a selected PLL: " + name)
+    if (display.pll_parameters((project / "fes_mailbox/machine_pll.ip").read_bytes()) !=
+            selected["machine_pll"]["parameters"]):
+        raise ValueError("generation changed the machine PLL")
     return {"build_identity": build_identity, "standard_sdc_sha256": selected["standard_sdc_sha256"],
             "computer_offset": OFFSET, "managed_fabric": scanout.verify_managed_fabric(directory, hps),
             "reset_timing": scanout.verify_generated_reset_timing(directory),
