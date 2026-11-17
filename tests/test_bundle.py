@@ -603,8 +603,13 @@ assert lock == expected == pnr_recipe.lock_path(Path.cwd(), sys.argv[5]).resolve
 
         self.assertIn(
             'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  make -C "$work" toolchain-fes', docs)
+        # The ZX81 family is Quartus-built: its example provisions only the
+        # Mistral ROM database and names the pinned Quartus install.
         self.assertIn(
-            'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  FES_TOOLCHAIN_LOCKFILE=cores/fes-zx81/toolchain.lock \\\n  FES_TOOLCHAIN_GPU_ROUTER=HIP \\\n  FES_TOOLCHAIN_HIP_ARCHITECTURES=\'gfx1100;gfx1201\' \\\n  make -C "$work" doctor-strict', docs)
+            'install cores/fes-zx81/quartus.lock pins. Its ROM map reads the pinned\n'
+            '# Mistral database, which this target places in the shared cache:\n'
+            'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  make -C "$work" toolchain-fes-zx81', docs)
+        self.assertNotIn('FES_TOOLCHAIN_LOCKFILE=cores/fes-zx81/toolchain.lock', docs)
 
     def test_canonical_package_record_forwards_package_environment(self):
         module = self.module()

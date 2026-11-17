@@ -6,6 +6,9 @@ import subprocess
 import tempfile
 import time
 
+# Every parent-owned file a producer's PARENT_CONFIG may name.
+PARENT_CONFIG = ('config/core-recipes.toml', 'config/advisory-pnr-recipes.toml')
+
 EXECUTION = {"gpu_device": 0, "version": 1, "environment": {"LANG": "C"}}
 
 
@@ -58,7 +61,7 @@ def clean_module(source):
     root = Path(temporary.name) / 'sources/misteross'
     shutil.copytree(source, root, ignore=de10_copy_ignore(source))
     # Producers that read parent-owned recipe tables require them committed.
-    for relative in ('config/core-recipes.toml', 'config/advisory-pnr-recipes.toml'):
+    for relative in PARENT_CONFIG:
         parent = Path(source).resolve().parents[1] / relative
         if parent.is_file():
             (root.parents[1] / relative).parent.mkdir(parents=True, exist_ok=True)

@@ -77,6 +77,7 @@ SDC = 'cores/fes-zx81/clocks.sdc'
 QSF_PINS = 'cores/fes-zx81/constraints.qsf'
 ROM_LINK = 'cores/fes-zx81/quartus/zx81_rom_link.v'
 REGISTRY = 'config/core-recipes.toml'  # parent-owned, relative to the repository root
+PARENT_CONFIG = (REGISTRY,)
 VERILOG_SOURCES = (
     'cores/fes-zx81/rtl/sys_pll.v', 'cores/fes-zx81/rtl/pixel_pll.v',
     'cores/fes-common/rtl/fes_audio_i2s.v', 'cores/fes-common/rtl/fes_audio_output.v',
@@ -239,7 +240,7 @@ def _require_clean_source(root, *, identity_version=2, model='zx81'):
     model_for(model)
     source = require_clean_source(Path(root), pinned_inputs=(RECIPE, LOCK, ABI, ROM_LINK),
                                   identity_version=identity_version)
-    require_committed_parent_config(root, REGISTRY)
+    require_committed_parent_config(root, *PARENT_CONFIG)
     return source
 
 

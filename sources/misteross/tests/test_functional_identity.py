@@ -85,6 +85,9 @@ class FunctionalColecoTests(unittest.TestCase):
                 if source_path.is_dir():
                     shutil.copytree(source_path, root / relative, ignore=de10_copy_ignore(source))
             shutil.copy2(source / "toolchain.lock", root / "toolchain.lock")
+            for relative in build_fes_zx81_oss.PARENT_CONFIG:
+                (root / relative).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source.parents[1] / relative, root / relative)
             def git(*args):
                 return subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()
             git("init", "-q")

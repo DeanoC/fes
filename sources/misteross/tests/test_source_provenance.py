@@ -38,6 +38,11 @@ class SourceProvenanceTests(unittest.TestCase):
             target = module / name
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes((ROOT / name).read_bytes())
+        if nested:
+            for name in getattr(producer, 'PARENT_CONFIG', ()):
+                target = repo / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes((ROOT.parents[1] / name).read_bytes())
         git(repo, 'add', '.')
         git(repo, 'commit', '-qm', 'source')
         return repo, module
