@@ -41,24 +41,83 @@ foreach {label source expected head second} {
     set_false_path -from $launches -to $first_d
 }
 
-# PROVISIONAL, and owed before any export: the ST video adapter and native
-# video paths cross between the machine and pixel clocks with request/done
-# toggles, held configuration and job bundles and small line caches. They are
-# not yet named one by one as the crossings above are. Until they are, every
-# machine<->pixel path that no named exception covers is bounded as a held
-# bundle (ten nanoseconds, less than either period) instead of being timed
-# against an arbitrary edge alignment of two unrelated PLLs. This is a bound,
-# not a cut, but it would also pass an unsynchronized crossing shorter than
-# ten nanoseconds; naming each crossing removes that.
-set st_machine_clock [get_clocks {fes_machine_pll|machine_pll_outclk0}]
-set st_pixel_clock [get_clocks {fes_video_inst|video_clock|iopll_0_outclk0}]
-if {[get_collection_size $st_machine_clock] != 1 || [get_collection_size $st_pixel_clock] != 1} {
-    error "DE25 Atari ST machine or pixel clock changed"
+# The ST video adapter and native capture cross between the machine and pixel
+# clocks with request/done toggles and bundles held across each round trip.
+# Every such path in the fitted design is named below; nothing else crosses.
+# Toggles and levels: one launch register per bit into its own first stage.
+foreach {label source head bits} {
+    video_hold {core|machine_reset} {core|video|hold_meta} 1
+    config_request {core|video|config_request*} {core|video|config_req_meta} 1
+    config_ack {core|video|config_ack} {core|video|config_ack_meta} 1
+    job_request {core|video|job_request[*]} {core|video|job_req_meta[*]} 2
+    job_done {core|video|job_done[*]} {core|video|job_done_meta[*]} 2
+    published {core|video|native_capture.capture|published[*]*} {core|video|native_capture.capture|pub_meta[*]} 3
+    released {core|video|native_capture.capture|released[*]} {core|video|native_capture.capture|release_meta[*]} 3
+} {
+    set launches [get_registers "${base}|${source}"]
+    set first_d [get_pins -compatibility_mode -nocase "${base}|${head}|d"]
+    # Physical synthesis may duplicate a launch register; it never drops one.
+    if {[get_collection_size $launches] < $bits || [get_collection_size $first_d] != $bits} {
+        error "DE25 Atari ST $label crossing endpoints changed"
+    }
+    set_false_path -from $launches -to $first_d
 }
-foreach {from to} [list $st_machine_clock $st_pixel_clock $st_pixel_clock $st_machine_clock] {
-    set_max_delay 10.000 -from $from -to $to
-    set_min_delay 0.000 -from $from -to $to
+
+# Held bundles. Each is written on the launch clock no later than its toggle
+# and read at least two receiving edges after the toggle's first stage, so a
+# ten-nanosecond flight is well inside every window:
+#   config      the system snapshot, taken with config_ack, loaded by the pixel
+#               side when the acknowledge has synchronized
+#   job_result  job_ok, written with job_done
+#   publication a frame's height, standard and number, written with published
+#   job         a line job's resolution and start word, written with or one
+#               pixel edge after job_request
+foreach {label source sink} {
+    config {core|video|config_bundle_sys[*]}
+        {core|video|pending_config[*] core|video|active_base[*] core|video|active_resolution[*]
+         core|video|active_palette[*]}
+    job_result {core|video|job_ok[*]} {core|video|cache_valid[*]}
+    publication {core|video|native_capture.capture|height[*][*] core|video|native_capture.capture|pal_banks[*]
+                 core|video|native_capture.capture|publication_number[*][*]}
+        {core|video|native_capture.capture|output_height[*] core|video|native_capture.capture|output_pal
+         core|video|native_capture.capture|front_bank[*] core|video|native_capture.capture|released[*]
+         core|video|native_capture.capture|borders|next_pointer[*]
+         core|video|native_capture.capture|borders|remaining[*]}
+    job {core|video|job_high[*] core|video|job_start[*][*]}
+        {core|video|memory_words[*] core|video|legacy_addr[*]}
+} {
+    set patterns {}
+    foreach name $source {lappend patterns "${base}|${name}"}
+    set launches [get_registers $patterns]
+    set patterns {}
+    foreach name $sink {lappend patterns "${base}|${name}"}
+    set captures [get_registers $patterns]
+    if {[get_collection_size $launches] == 0 || [get_collection_size $captures] == 0} {
+        error "DE25 Atari ST held $label bundle endpoints changed"
+    }
+    set_net_delay -max 10.000 -from $launches -to $captures
+    set_data_delay 10.000 -from $launches -to $captures
+    set_max_skew 10.000 -from $launches -to $captures
+    set_max_delay 10.000 -from $launches -to $captures
+    set_min_delay 0.000 -from $launches -to $captures
 }
+# job_start_ok is the last of a line job's metadata: st_video_adapter registers
+# it two pixel edges after it launches job_request. The system side acts on
+# the job on the second machine edge after job_req_meta captures the toggle,
+# which is no sooner than two machine periods after the launch. That leaves
+# 2 x 19.149 - 2 x 13.468 = 11.36 ns from job_start_ok to the machine
+# registers it steers, and eleven is the bound.
+set job_ok_launches [get_registers "${base}|core|video|job_start_ok[*]"]
+set job_ok_captures [get_registers [list "${base}|core|video|job_done[*]" "${base}|core|video|job_ok[*]" \
+    "${base}|core|video|legacy_addr[*]" "${base}|core|video|legacy_req" "${base}|core|video|memory_state.*"]]
+if {[get_collection_size $job_ok_launches] != 2 || [get_collection_size $job_ok_captures] == 0} {
+    error "DE25 Atari ST job bounds bundle endpoints changed"
+}
+set_net_delay -max 11.000 -from $job_ok_launches -to $job_ok_captures
+set_data_delay 11.000 -from $job_ok_launches -to $job_ok_captures
+set_max_skew 11.000 -from $job_ok_launches -to $job_ok_captures
+set_max_delay 11.000 -from $job_ok_launches -to $job_ok_captures
+set_min_delay 0.000 -from $job_ok_launches -to $job_ok_captures
 
 # Bundles are held throughout their toggle round trip. A ten-nanosecond flight
 # is at most one fast system period, less than either two-stage control delay.

@@ -33,6 +33,12 @@ never selected. The wrapper is the Spectrum's: the computer slave stays on the
 100 MHz peripheral clock and `fes_gp_crossing` carries the GP words to the
 machine clock.
 
+`atari-st-clocks.sdc` names every path between the machine and pixel clocks:
+the video adapter's and native capture's request/done toggles as single-bit
+first stages, and each held bundle with a bound taken from its handshake.
+The inventory came from the fitted design, so a new crossing shows up as a
+timing failure, not as an unnamed exception.
+
 ## Run
 
 ```sh
@@ -56,9 +62,8 @@ memory master, PLLs, SDRAM pad timing and HDMI are not modeled.
 
 ## Open
 
-- Naming each machine/pixel crossing of the video adapter and native video
-  in `atari-st-clocks.sdc`. They carry one provisional ten-nanosecond bound
-  for the whole clock pair today; that must go before any export.
+- External delays for the SDRAM and I2S pins, then the producer's export
+  gates, as for the Spectrum.
 - ROM read timing against the DE10 machine. `st_rom` answered in five clocks;
   the SDRAM port answers in the CPU's slot. The diagnostic firmware runs, but
   no cycle-exact comparison or stock TOS boot has been made.
