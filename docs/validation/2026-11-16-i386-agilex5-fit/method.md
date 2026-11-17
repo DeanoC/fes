@@ -705,11 +705,21 @@ corner, hold strictly positive, setup never below +7.58 ns. It is reported to ha
 runner, this envelope, this SDC and these report rows, so it should be on the
 same scale as M and M+.
 
-**Those figures were relayed in a message and are not verified here.** At the
-time of writing they appear in no committed artifact that could be found, on
+**When this amendment was written, those figures had only been relayed in a
+message.** They appeared in no committed artifact that could be found, on
 that session's PR [#1907](https://github.com/DeanoC/fes/pull/1907) or
-elsewhere, and none of its fit output was read. They are cited as that
-session's report. Nothing measured in this record depends on them.
+elsewhere, and none of its fit output had been read. The bands below were set
+in that state.
+
+**Status since, added 17 November 2026: published and read.** That session
+committed them to `deano/de25-x87-envelope` (#1907, still open, so not on
+main): `docs/validation/2026-11-16-de25-x87-envelope/summary.md`, with the
+per-seed files `integration-fit/fit-seed1.json` to `fit-seed4.json`. Read at
+that branch's `71816faac`, the four `resources.alms` rows are 40,986 / 41,055 /
+41,122 / 41,054 of 46,800, 87.58 / 87.72 / 87.87 / 87.72%, which is what was
+relayed. That is a check that the committed rows equal the relayed figures. It
+is not a re-measurement: none of those fits was re-run here, and nothing
+measured in this record depends on them. `summary.md` carries the same status.
 
 **So the question this record kept naming as unsettled is settled, by a
 different design.** "Does the DE25 hold a complete 387" is answered **yes**,
