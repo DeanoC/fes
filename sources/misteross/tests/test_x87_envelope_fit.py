@@ -126,6 +126,42 @@ class GuardedOnlyRegisters(unittest.TestCase):
         after = set(fit.guarded_only_registers(broken))
         self.assertEqual(before - after, {'dv_c', 'dv_sub'})
 
+    def test_the_default_direction_is_the_de10_arms(self):
+        rtl = (fit.RTL / 'fes_i386_x87.sv').read_text()
+        self.assertEqual(fit.guarded_only_registers(rtl), fit.guarded_only_registers(rtl, 0))
+
+
+class De25OnlyRegisters(unittest.TestCase):
+    """The mirror direction (#1958): registers written only inside arms
+    guarded by `X87_BACKEND == 1`, which a DE10 build must not hold."""
+
+    BCD = {'bl_acc', 'bl_dig', 'bl_n', 'bs_bin', 'bs_bcd', 'bs_n'}
+
+    def test_is_exactly_the_packed_decimal_registers(self):
+        regs = fit.guarded_only_registers((fit.RTL / 'fes_i386_x87.sv').read_text(), 1)
+        self.assertEqual(set(regs), self.BCD)
+
+    def test_the_two_directions_share_nothing(self):
+        rtl = (fit.RTL / 'fes_i386_x87.sv').read_text()
+        self.assertEqual(set(fit.guarded_only_registers(rtl, 0)) & set(fit.guarded_only_registers(rtl, 1)), set())
+
+    def test_an_unguarded_arm_drops_its_registers(self):
+        # The mirror of the Q_CHECK test: T_BST without its guard would be
+        # built into a DE10 unit, and exactly the registers it writes must
+        # leave the list, so a DE10 fit stops being required to lack them
+        # by an audit and starts failing on them.
+        rtl = (fit.RTL / 'fes_i386_x87.sv').read_text()
+        broken = rtl.replace('T_BST: if (X87_BACKEND == 1) begin', 'T_BST: begin', 1)
+        self.assertNotEqual(rtl, broken)
+        before = set(fit.guarded_only_registers(rtl, 1))
+        after = set(fit.guarded_only_registers(broken, 1))
+        self.assertEqual(before - after, {'bs_bin', 'bs_bcd', 'bs_n'})
+        self.assertEqual(after, {'bl_acc', 'bl_dig', 'bl_n'})
+
+    def test_refuses_another_backend_value(self):
+        with self.assertRaises(ValueError):
+            fit.guarded_only_registers((fit.RTL / 'fes_i386_x87.sv').read_text(), 2)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -44,6 +44,18 @@ constexpr int X87_WAIT = 512;
 constexpr unsigned FMT_F32 = 1, FMT_F64 = 2, FMT_F80 = 3;
 constexpr unsigned FMT_I16 = 4, FMT_I32 = 5, FMT_I64 = 6, FMT_ENV = 7;
 
+// Which arithmetic backend the unit under test was built with: the runner
+// passes -DFES_X87_BACKEND with the value it gives X87_BACKEND (0 the DE10's,
+// 1 the DE25's), on the RTL build and the netlist build alike. The cases
+// that existed before the packed decimal forms do not read it.
+#ifndef FES_X87_BACKEND
+#define FES_X87_BACKEND 0
+#endif
+// How often the sequencer entered each state, over the whole run, read from
+// the unit's trace_seq port (which a netlist keeps). The packed decimal
+// cases report from it how many FBLD and FBSTP conversions actually ran.
+unsigned long seq_entries[64] = {0};
+
 std::string hex(uint64_t v, int digits) {
     char buf[32];
     std::snprintf(buf, sizeof buf, "%0*llx", digits, (unsigned long long)v);
@@ -178,12 +190,16 @@ struct Unit {
         top.reset = 0;
         tick();
     }
+    unsigned prev_seq = 0;
     void tick() {
         top.eval();
         top.clk = 1;
         top.eval();
         top.clk = 0;
         top.eval();
+        const unsigned now = unsigned(top.trace_seq) & 63u;
+        if (now != prev_seq) ++seq_entries[now];
+        prev_seq = now;
     }
     void idle(int n = 1) {
         for (int i = 0; i < n; ++i) tick();
@@ -290,6 +306,39 @@ struct Unit {
         top.eval();
         commit(0, 0, true);
         settle();
+    }
+    // One uop presented in the same cycle the previous instruction's last
+    // uop commits, as `overlap` does for two register forms, but for any
+    // uop of any form: the packed decimal pairs need memory forms in flight.
+    // Returns the value the CPU would store for it.
+    uint32_t present_over(unsigned op, unsigned fmt, bool first, bool last, unsigned part,
+                          unsigned commit_part, uint32_t commit_val) {
+        top.wb = 1;
+        top.wb_part = commit_part;
+        top.wb_val = commit_val;
+        top.wb_last = 1;
+        top.iss = 1;
+        top.iss_wait = 0;
+        top.iss_op = op;
+        top.iss_fmt = fmt;
+        top.iss_first = first;
+        top.iss_last = last;
+        top.iss_part = part;
+        top.iss_fire = 0;
+        tick();
+        top.wb = top.wb_last = 0;
+        top.eval();
+        int waited = 0;
+        for (; waited < X87_WAIT && top.hold; ++waited) tick();
+        if (waited >= X87_WAIT) ++held_for_ever;
+        const uint32_t v = top.sval;
+        top.iss_fire = 1;
+        top.eval();
+        tick();
+        top.iss = 0;
+        top.iss_fire = 0;
+        top.eval();
+        return v;
     }
     // Unmask the invalid-operation exception and raise one, which sets ES
     // and latches BUSY#.
@@ -633,6 +682,591 @@ void set_rc(Unit &u, unsigned rc) {
     u.present(OP_FLDCW, FMT_F32, true, true, 0);
     u.commit(0, cw, true);
     u.settle();
+}
+
+// ---- Packed decimal: FBLD and FBSTP (#1958, DF /4 and DF /6). ----
+// Built on the DE25 backend only. Both are exact conversions (FBSTP rounds
+// to an integer under RC first), so every case here compares the unit with
+// the host's own instruction bit for bit: the bytes stored, the registers,
+// the six flags, SF, ES, B, C1, TOP and the tags, which is the whole FNSAVE
+// image and the memory the instructions touched.
+//
+// What the 387's manual says and what was measured are kept apart. From the
+// 387 PRM (231917-001): FBLD keeps the sign of a negative zero (section
+// 4.3.8), ignores bits 78 to 72 of the sign byte (Figure 2-10, note 3) and
+// does not check for digits A to F, whose result is undefined (4.3.8);
+// FBSTP rounds under RC (4.3.9) and is invalid for an empty register, a NaN,
+// an infinity or a value of more than 18 digits, storing the packed decimal
+// indefinite (Table 3-10), of which the manual fixes only the top two bytes
+// (Table 3-7). Measured on this host's x87 and on the Bochs oracle, which
+// agreed on every masked case: digits A to F load as acc * 10 + nibble; a
+// masked invalid FBSTP stores FFFF C000 0000 0000 0000 and pops; a non-zero
+// value that rounds to zero stores a zero with the source's sign; a denormal
+// or pseudo-denormal source raises no denormal exception; a masked FBLD stack
+// overflow leaves the real indefinite with C1 set. Measured on the host
+// alone (the oracle probe drives no IRQ 13): with invalid unmasked FBSTP
+// stores nothing and does not pop, and with precision unmasked it stores,
+// pops and sets ES.
+constexpr unsigned SEQ_T_BLD_IN = 54, SEQ_T_BST_IN = 56;   // fes_i386_x87's seq_e
+constexpr unsigned OP_FBLD = (7u << 8) | 0x25;             // DF /4
+constexpr unsigned OP_FBSTP = (7u << 8) | 0x35;            // DF /6
+// The status-word bits these forms define: everything but C0, C2 and C3.
+constexpr uint16_t BCD_SW = 0xbaff;
+constexpr unsigned BCD_MEM = 128;
+long bcd_issued[2] = {0, 0};   // FBLD and FBSTP instructions the unit was given
+
+// One instruction of a sequence: a register form, or a memory form whose
+// operand is at `disp` in the sequence's memory.
+struct BStep { uint8_t esc, modrm, disp; unsigned fmt; bool store; };
+BStep bmem(uint8_t esc, unsigned reg, unsigned fmt, bool store, uint8_t disp) {
+    return {esc, uint8_t(reg << 3 | 0x05), disp, fmt, store};
+}
+BStep breg(uint8_t esc, uint8_t modrm) { return {esc, modrm, 0, 0, false}; }
+bool is_fbld(const BStep &s) { return s.esc == 0xdf && s.modrm < 0xc0 && ((s.modrm >> 3) & 7) == 4; }
+bool is_fbstp(const BStep &s) { return s.esc == 0xdf && s.modrm < 0xc0 && ((s.modrm >> 3) & 7) == 6; }
+
+// The sequence on the host: each memory form addresses disp8(%rcx).
+bool host_seq(StubPage &page, uint16_t cw, const uint8_t (*stack)[10], unsigned pushes,
+              const std::vector<BStep> &steps, uint8_t *mem, Image &out) {
+    std::vector<uint8_t> code;
+    for (const BStep &s : steps) {
+        code.push_back(s.esc);
+        if (s.modrm < 0xc0) {
+            code.push_back(uint8_t((s.modrm & 0x38) | 0x41));
+            code.push_back(s.disp);
+        } else {
+            code.push_back(s.modrm);
+        }
+    }
+    return host_form(page, cw, stack, pushes, mem, code.data(), unsigned(code.size()), out);
+}
+
+// The same sequence on the unit. With `inflight` each instruction's first
+// uop is presented in the cycle the one before it commits, so it waits in D
+// while that one's work runs -- the CPU's own timing, and the only way to
+// reach a stale working register. A store's bytes reach `mem` only when the
+// unit says the access is made, as the CPU's are.
+void unit_seq(Unit &u, uint16_t cw, const uint8_t (*stack)[10], unsigned pushes,
+              const std::vector<BStep> &steps, uint8_t *mem, Image &out, bool inflight) {
+    u.clear_latch();
+    u.reg_form(OP_FNINIT);
+    u.present(OP_FLDCW, FMT_I16, true, true, 0);
+    u.commit(0, cw, true);
+    u.settle();
+    out.setup_ok = u.cw() == cw;
+    for (unsigned n = pushes; n-- > 0;) u.load(OP_FLD_M80, FMT_F80, stack[n]);
+    bool pending = false;       // the previous instruction's last uop has issued and not committed
+    unsigned pend_part = 0;
+    uint32_t pend_val = 0;
+    for (const BStep &s : steps) {
+        const unsigned op = ((s.esc & 7u) << 8) | s.modrm;
+        const bool memform = s.modrm < 0xc0;
+        const int parts = !memform ? 1 : s.fmt == FMT_F80 ? 3 : (s.fmt == FMT_F64 || s.fmt == FMT_I64) ? 2 : 1;
+        if (is_fbld(s)) ++bcd_issued[0];
+        if (is_fbstp(s)) ++bcd_issued[1];
+        for (int k = 0; k < parts; ++k) {
+            // A load's parts commit high first and a store's low first, as
+            // the CPU's microcode moves them -- except FBSTP's, which the
+            // CPU stores from the top word down (ucode.toml's fbst10), so
+            // that the uop at the operand's own offset is the last.
+            const int p = memform && (!s.store || is_fbstp(s)) ? parts - 1 - k : k;
+            const bool first = k == 0, last = k == parts - 1;
+            uint32_t v;
+            if (pending && inflight) {
+                v = u.present_over(op, memform ? s.fmt : 0, first, last, unsigned(p), pend_part, pend_val);
+            } else {
+                if (pending) {
+                    u.commit(pend_part, pend_val, true);
+                    u.settle();
+                }
+                v = u.present(op, memform ? s.fmt : 0, first, last, unsigned(p));
+            }
+            pending = false;
+            uint32_t load = 0;
+            const unsigned width = p == 2 ? 2 : (s.fmt == FMT_I16 ? 2 : 4);
+            if (memform && s.store) {
+                if (u.access_made()) std::memcpy(mem + s.disp + 4 * p, &v, width);
+            } else if (memform) {
+                std::memcpy(&load, mem + s.disp + 4 * p, width);
+            }
+            if (last) {
+                pending = true;
+                pend_part = unsigned(p);
+                pend_val = load;
+            } else {
+                u.commit(unsigned(p), load, false);
+            }
+        }
+    }
+    if (pending) u.commit(pend_part, pend_val, true);
+    u.settle();
+    out.cw = u.cw();
+    out.sw = u.sw();
+    out.tw = u.tw();
+    for (unsigned n = 0; n < 8; ++n) u.sti(n, out.reg[n]);
+}
+
+std::string hexmem(const uint8_t *m, unsigned at, unsigned n) {
+    std::string s;
+    for (unsigned i = n; i-- > 0;) s += hex(m[at + i], 2);
+    return s;
+}
+
+// Run one sequence both ways and say how they differ, or "" when they do not.
+std::string bcd_differ(StubPage &page, Unit &u, uint16_t cw, const uint8_t (*stack)[10], unsigned pushes,
+                       const std::vector<BStep> &steps, const uint8_t *mem0, bool inflight,
+                       uint8_t *unit_mem_out = nullptr) {
+    alignas(16) uint8_t hmem[BCD_MEM], umem[BCD_MEM];
+    std::memcpy(hmem, mem0, BCD_MEM);
+    std::memcpy(umem, mem0, BCD_MEM);
+    Image want{}, got{};
+    if (!host_seq(page, cw, stack, pushes, steps, hmem, want)) return "no stub page";
+    unit_seq(u, cw, stack, pushes, steps, umem, got, inflight);
+    if (unit_mem_out) std::memcpy(unit_mem_out, umem, BCD_MEM);
+    ++compared;
+    if (same_state(want, got, BCD_SW) && std::memcmp(hmem, umem, BCD_MEM) == 0) return "";
+    std::string what = "cw=" + hex(cw, 4) + " ops";
+    for (const BStep &s : steps) what += " " + hex(s.esc, 2) + hex(s.modrm, 2) + (s.modrm < 0xc0 ? "@" + std::to_string(s.disp) : "");
+    what += " st";
+    for (unsigned n = 0; n < pushes; ++n) what += " " + hex80(stack[n]);
+    what += " got " + state_str(got, BCD_SW) + " want " + state_str(want, BCD_SW);
+    for (unsigned at = 0; at < BCD_MEM; at += 16)
+        if (std::memcmp(hmem + at, umem + at, 16) != 0)
+            what += " mem@" + std::to_string(at) + " got " + hexmem(umem, at, 16) + " want " + hexmem(hmem, at, 16);
+    return what;
+}
+
+void ext_bytes(uint8_t out[10], uint16_t se, uint64_t sig) {
+    std::memcpy(out, &sig, 8);
+    out[8] = uint8_t(se);
+    out[9] = uint8_t(se >> 8);
+}
+// Ten packed decimal bytes from 20 hex digits, most significant first.
+void bcd_bytes(uint8_t out[10], const char *digits) {
+    for (int n = 0; n < 10; ++n) {
+        unsigned v = 0;
+        std::sscanf(digits + 2 * n, "%2x", &v);
+        out[9 - n] = uint8_t(v);
+    }
+}
+void bcd_random(uint8_t out[10], std::mt19937_64 &rng, bool valid, bool sign) {
+    for (int n = 0; n < 9; ++n) {
+        const unsigned lo = valid ? unsigned(rng() % 10) : unsigned(rng() & 15);
+        const unsigned hi = valid ? unsigned(rng() % 10) : unsigned(rng() & 15);
+        out[n] = uint8_t(hi << 4 | lo);
+    }
+    out[9] = sign ? 0x80 : 0x00;
+}
+
+// A sequence's verdict, gathered over many operands into one named case.
+struct BcdTally {
+    int ran = 0, diffs = 0;
+    std::string first;
+    void add(const std::string &what) {
+        ++ran;
+        if (!what.empty()) {
+            if (!diffs) first = what;
+            const char *vb = std::getenv("X87_TB_VERBOSE");
+            if (vb && (std::string(vb) == "all" || std::string(vb) == "bcd"))
+                std::fprintf(stderr, "DIFF bcd %s\n", what.c_str());
+            ++diffs;
+        }
+    }
+    void report(const std::string &name) const {
+        if (ran == 0) bad(name, "ran nothing");
+        else if (diffs) bad(name, std::to_string(diffs) + " of " + std::to_string(ran) + " " + first);
+        else ok(name);
+    }
+};
+
+// With the DE10 backend FBLD and FBSTP are not built: fes_i386_decode stops
+// the instruction, and the unit, given one all the same, must neither hold
+// it, nor take it, nor change anything. The unit's bench cannot see the
+// decode's stop (the lockstep does); what it can see is that the unit's
+// `unbuilt` kept the instruction out, which is what this checks. FILD m64,
+// DF /5, through the same steps is the control: it must make the unit busy
+// and push, so a check that could see nothing would fail on it.
+void run_bcd_unbuilt() {
+    struct Form { const char *name; unsigned op; bool store; };
+    const Form forms[] = {{"fbld", OP_FBLD, false}, {"fbstp", OP_FBSTP, true}, {"control-fild-m64", OP_FILD_M64, false}};
+    for (const Form &f : forms) {
+        Unit u;
+        u.reg_form(OP_FNINIT);
+        const uint8_t one[10] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0xff, 0x3f};
+        u.load(OP_FLD_M80, FMT_F80, one);
+        const uint16_t sw0 = u.sw(), tw0 = u.tw(), cw0 = u.cw();
+        uint8_t regs0[8][10], regs1[8][10];
+        for (unsigned n = 0; n < 8; ++n) u.reg(n, regs0[n]);
+        const bool control = f.op == OP_FILD_M64;
+        const unsigned fmt = control ? FMT_I64 : FMT_F80;
+        const int parts = control ? 2 : 3;
+        bool held = false, busy = false;
+        if (!control) ++bcd_issued[f.store ? 1 : 0];
+        for (int k = 0; k < parts; ++k) {
+            const int p = parts - 1 - k;   // FBLD's order, and FBSTP's (fbst10)
+            u.top.iss = 1;
+            u.top.iss_wait = 0;
+            u.top.iss_op = f.op;
+            u.top.iss_fmt = fmt;
+            u.top.iss_first = k == 0;
+            u.top.iss_last = k == parts - 1;
+            u.top.iss_part = unsigned(p);
+            u.top.iss_fire = 0;
+            u.top.eval();
+            for (int n = 0; n < 8; ++n) {
+                held = held || u.top.hold;
+                busy = busy || u.top.busy_o;
+                u.tick();
+            }
+            u.top.iss_fire = 1;
+            u.top.eval();
+            u.tick();
+            u.top.iss = 0;
+            u.top.iss_fire = 0;
+            u.top.eval();
+            u.commit(unsigned(p), p == 0 ? 0x00000042u : 0, k == parts - 1);
+            for (int n = 0; n < 8; ++n) {
+                busy = busy || u.top.busy_o;
+                u.tick();
+            }
+        }
+        for (int n = 0; n < 200; ++n) {
+            busy = busy || u.top.busy_o;
+            u.tick();
+        }
+        for (unsigned n = 0; n < 8; ++n) u.reg(n, regs1[n]);
+        const bool unchanged = u.sw() == sw0 && u.tw() == tw0 && u.cw() == cw0
+                            && std::memcmp(regs0, regs1, sizeof regs0) == 0;
+        const std::string name = std::string("bcd-de10-unbuilt-") + f.name;
+        const std::string seen = std::string("held=") + (held ? "1" : "0") + " busy=" + (busy ? "1" : "0")
+                               + " sw " + hex(sw0, 4) + "->" + hex(u.sw(), 4) + " tw " + hex(tw0, 4) + "->" + hex(u.tw(), 4);
+        if (control) {
+            // The control must be taken: busy, and a push (TOP moves).
+            if (busy && !unchanged) ok(name);
+            else bad(name, "the control form was not seen to run: " + seen);
+        } else if (held || busy || !unchanged) {
+            bad(name, "the unit acted on a form the DE10 backend does not build: " + seen);
+        } else {
+            ok(name);
+        }
+    }
+}
+
+void run_bcd_cases() {
+    if (FES_X87_BACKEND != 1) {
+        run_bcd_unbuilt();
+        std::printf("BCDFORMS fbld issued %ld converted %lu fbstp issued %ld converted %lu\n", bcd_issued[0],
+                    seq_entries[SEQ_T_BLD_IN], bcd_issued[1], seq_entries[SEQ_T_BST_IN]);
+        return;
+    }
+    StubPage page;
+    std::mt19937_64 rng(1958);
+    const uint8_t one[10] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0xff, 0x3f};
+    alignas(16) uint8_t mem0[BCD_MEM];
+    std::memset(mem0, 0xcc, BCD_MEM);
+
+    // ---- FBSTP: every rounding mode over the operand classes. ----
+    struct V { const char *name; uint16_t se; uint64_t sig; };
+    const V classes[] = {
+        {"+0", 0x0000, 0}, {"-0", 0x8000, 0},
+        // Values that round to zero in some mode or other, both signs.
+        {"+0.25", 0x3ffd, 1ull << 63}, {"-0.25", 0xbffd, 1ull << 63},
+        {"+0.5", 0x3ffe, 1ull << 63}, {"-0.5", 0xbffe, 1ull << 63},
+        {"+0.75", 0x3ffe, 3ull << 62}, {"-0.75", 0xbffe, 3ull << 62},
+        {"+tiny", 0x0001, 1ull << 63}, {"-tiny", 0x8001, 1ull << 63},
+        // Ties.
+        {"+1.5", 0x3fff, 3ull << 62}, {"-1.5", 0xbfff, 3ull << 62},
+        {"+2.5", 0x4000, 5ull << 61}, {"-2.5", 0xc000, 5ull << 61},
+        // The 18-digit extremes, and the first values past them.
+        {"+999999999999999999", 0x403a, 0xde0b6b3a763ffff0ull}, {"-999999999999999999", 0xc03a, 0xde0b6b3a763ffff0ull},
+        {"+999999999999999999.25", 0x403a, 0xde0b6b3a763ffff4ull}, {"-999999999999999999.25", 0xc03a, 0xde0b6b3a763ffff4ull},
+        {"+999999999999999999.5", 0x403a, 0xde0b6b3a763ffff8ull}, {"-999999999999999999.5", 0xc03a, 0xde0b6b3a763ffff8ull},
+        {"+999999999999999998.5", 0x403a, 0xde0b6b3a763fffe8ull}, {"-999999999999999998.5", 0xc03a, 0xde0b6b3a763fffe8ull},
+        {"+1e18", 0x403a, 0xde0b6b3a76400000ull}, {"-1e18", 0xc03a, 0xde0b6b3a76400000ull},
+        {"+1e18+1", 0x403a, 0xde0b6b3a76400010ull}, {"-1e18-1", 0xc03a, 0xde0b6b3a76400010ull},
+        {"+1e30", 0x4062, 0xc9f2c9cd04674edfull}, {"-1e30", 0xc062, 0xc9f2c9cd04674edfull},
+        {"+2^63-1", 0x403d, 0xfffffffffffffffeull}, {"+2^63", 0x403e, 1ull << 63}, {"-2^63", 0xc03e, 1ull << 63},
+        {"+2^64-1", 0x403e, 0xffffffffffffffffull}, {"+2^64", 0x403f, 1ull << 63}, {"+largest", 0x7ffe, 0xffffffffffffffffull},
+        {"+inf", 0x7fff, 1ull << 63}, {"-inf", 0xffff, 1ull << 63},
+        {"qnan", 0x7fff, 3ull << 62}, {"-qnan", 0xffff, (3ull << 62) | 5},
+        {"snan", 0x7fff, (1ull << 63) | 1}, {"-snan", 0xffff, (1ull << 63) | 0x1234},
+        {"pseudo-denormal", 0x0000, (1ull << 63) | 12345}, {"-pseudo-denormal", 0x8000, 1ull << 63},
+        {"denormal", 0x0000, 1}, {"-denormal", 0x8000, 0x7fffffffffffffffull},
+        {"unnormal", 0x4000, 1ull << 62}, {"unnormal-zero", 0x4000, 0}, {"-unnormal", 0xc03a, 0x5e0b6b3a763ffff0ull},
+        {"pseudo-nan", 0x7fff, 1}, {"pseudo-infinity", 0x7fff, 0}, {"-pseudo-infinity", 0xffff, 0},
+    };
+    std::vector<std::array<uint8_t, 10>> values;
+    for (const V &v : classes) {
+        std::array<uint8_t, 10> b{};
+        ext_bytes(b.data(), v.se, v.sig);
+        values.push_back(b);
+    }
+    // Random bits across the exponents an 18-digit integer spans and a
+    // margin either side, then integers with a quarter, a half or three
+    // quarters added, which is where the rounding modes part.
+    for (int n = 0; n < 400; ++n) {
+        std::array<uint8_t, 10> b{};
+        const uint16_t e = uint16_t(0x3fff - 8 + int(rng() % 76));
+        ext_bytes(b.data(), uint16_t(e | ((rng() & 1) << 15)), rng() | 1ull << 63);
+        values.push_back(b);
+    }
+    for (int n = 0; n < 16; ++n) {
+        std::array<uint8_t, 10> b{};
+        ext_bytes(b.data(), uint16_t((rng() % 0x7fff) | ((rng() & 1) << 15)), rng() | 1ull << 63);
+        values.push_back(b);
+    }
+    for (int n = 0; n < 400; ++n) {
+        const int bits = 1 + int(rng() % 60);
+        const uint64_t whole = rng() >> (64 - bits);
+        const long double v = (long double)whole + 0.25L * (long double)(rng() & 3);
+        const long double sv = (rng() & 1) ? -v : v;
+        std::array<uint8_t, 10> b{};
+        std::memcpy(b.data(), &sv, 10);
+        values.push_back(b);
+    }
+    struct Mask { const char *name; uint16_t cw; };
+    // All masked; invalid unmasked; precision unmasked.
+    const Mask masks[] = {{"masked", 0x037f}, {"unmasked-invalid", 0x037e}, {"unmasked-precision", 0x035f}};
+    const std::vector<BStep> fbstp = {bmem(0xdf, 6, FMT_F80, true, 32)};
+    for (const Mask &m : masks) {
+        for (unsigned rc = 0; rc < 4; ++rc) {
+            const uint16_t cw = uint16_t(m.cw | rc << 10);
+            Unit u;
+            BcdTally t;
+            for (const auto &v : values) {
+                // ST(1) is 1.0, so a pop that should not have happened, or
+                // one that did not, shows in TOP and in ST(0).
+                uint8_t stack[2][10];
+                std::memcpy(stack[0], v.data(), 10);
+                std::memcpy(stack[1], one, 10);
+                t.add(bcd_differ(page, u, cw, stack, 2, fbstp, mem0, false));
+            }
+            // An empty ST(0): the stack fault.
+            t.add(bcd_differ(page, u, cw, nullptr, 0, fbstp, mem0, false));
+            t.report(std::string("bcd-fbstp-") + m.name + "-rc" + std::to_string(rc));
+        }
+    }
+
+    // ---- FBSTP: the rules the manual states, against fixed bytes. ----
+    // Independent of the host, so a host that differed from the 387 here
+    // could not carry the unit with it: 18 nines store 18 nines, 10^18 is
+    // invalid and stores the indefinite with IE set and the register popped,
+    // and a negative zero stores the sign byte 80h.
+    {
+        struct Fixed { const char *name; uint16_t se; uint64_t sig; const char *bytes; uint16_t flags; };
+        const Fixed fixed[] = {
+            {"limit-inside", 0x403a, 0xde0b6b3a763ffff0ull, "00999999999999999999", 0x0000},
+            {"limit-inside-neg", 0xc03a, 0xde0b6b3a763ffff0ull, "80999999999999999999", 0x0000},
+            {"limit-outside", 0x403a, 0xde0b6b3a76400000ull, "ffffc000000000000000", 0x0001},
+            {"limit-outside-neg", 0xc03a, 0xde0b6b3a76400000ull, "ffffc000000000000000", 0x0001},
+            {"limit-rounds-out", 0x403a, 0xde0b6b3a763ffff8ull, "ffffc000000000000000", 0x0001},
+            {"zero-neg", 0x8000, 0, "80000000000000000000", 0x0000},
+            {"zero-pos", 0x0000, 0, "00000000000000000000", 0x0000},
+        };
+        Unit u;
+        for (const Fixed &f : fixed) {
+            uint8_t stack[2][10], want[10], umem[BCD_MEM];
+            ext_bytes(stack[0], f.se, f.sig);
+            std::memcpy(stack[1], one, 10);
+            bcd_bytes(want, f.bytes);
+            const std::string differ = bcd_differ(page, u, 0x037f, stack, 2, fbstp, mem0, false, umem);
+            const std::string name = std::string("bcd-fbstp-") + f.name;
+            if (!differ.empty()) bad(name, differ);
+            else if (std::memcmp(umem + 32, want, 10) != 0 || (u.sw() & 0x007f) != f.flags || u.top_of() != 7)
+                bad(name, "stored " + hexmem(umem, 32, 10) + " sw " + hex(u.sw(), 4) + ", want " + f.bytes
+                          + " flags " + hex(f.flags, 4) + " and the register popped");
+            else ok(name);
+        }
+    }
+
+    // ---- FBLD. ----
+    const std::vector<BStep> fbld = {bmem(0xdf, 4, FMT_F80, false, 0)};
+    auto fbld_case = [&](const std::string &name, const std::vector<std::array<uint8_t, 10>> &operands, uint16_t cwbase,
+                         unsigned pushes) {
+        for (unsigned rc = 0; rc < 4; ++rc) {
+            Unit u;
+            BcdTally t;
+            uint8_t stack[8][10];
+            for (unsigned n = 0; n < 8; ++n) std::memcpy(stack[n], one, 10);
+            for (const auto &o : operands) {
+                alignas(16) uint8_t m[BCD_MEM];
+                std::memcpy(m, mem0, BCD_MEM);
+                std::memcpy(m, o.data(), 10);
+                t.add(bcd_differ(page, u, uint16_t(cwbase | rc << 10), stack, pushes, fbld, m, false));
+            }
+            t.report(name + "-rc" + std::to_string(rc));
+        }
+    };
+    auto digits = [](const char *text) {
+        std::array<uint8_t, 10> b{};
+        bcd_bytes(b.data(), text);
+        return b;
+    };
+    std::vector<std::array<uint8_t, 10>> valid = {
+        digits("00000000000000000000"), digits("80000000000000000000"),
+        digits("00000000000000000001"), digits("80000000000000000001"),
+        digits("00999999999999999999"), digits("80999999999999999999"),
+        digits("00100000000000000000"), digits("80100000000000000000"),
+        digits("00000000001000000000"), digits("00000000000000000009"),
+        digits("00123456789012345678"), digits("80987654321098765432"),
+    };
+    for (int n = 0; n < 300; ++n) {
+        std::array<uint8_t, 10> b{};
+        bcd_random(b.data(), rng, true, rng() & 1);
+        // Leading zeros, so short magnitudes and their shifts are reached too.
+        const int keep = 1 + int(rng() % 9);
+        for (int k = keep; k < 9; ++k) b[k] = 0;
+        valid.push_back(b);
+    }
+    fbld_case("bcd-fbld-valid", valid, 0x037f, 1);
+    // Bits 78 to 72 of the sign byte are ignored: every junk value there,
+    // on zero and on non-zero digits, with each sign.
+    std::vector<std::array<uint8_t, 10>> junk;
+    for (unsigned j = 1; j < 128; ++j) {
+        std::array<uint8_t, 10> b = valid[2 + (j % (valid.size() - 2))];
+        b[9] = uint8_t((b[9] & 0x80) | j);
+        junk.push_back(b);
+        std::array<uint8_t, 10> z{};
+        z[9] = uint8_t(((j & 1) << 7) | j);
+        junk.push_back(z);
+    }
+    fbld_case("bcd-fbld-sign-byte-junk", junk, 0x037f, 1);
+    // Digits A to F. The manual calls the result undefined; the host and
+    // the oracle were both measured to compute acc * 10 + nibble, over 4,000
+    // random encodings, so the unit does that and is held to it here.
+    std::vector<std::array<uint8_t, 10>> invalid = {
+        digits("0000000000000000000a"), digits("0000000000000000000f"), digits("000000000000000000f0"),
+        digits("00a00000000000000000"), digits("00f00000000000000000"), digits("00ffffffffffffffffff"),
+        digits("80ffffffffffffffffff"), digits("ffffc000000000000000"), digits("00a1b2c3d4e5f6789abc"),
+    };
+    for (int n = 0; n < 300; ++n) {
+        std::array<uint8_t, 10> b{};
+        bcd_random(b.data(), rng, false, rng() & 1);
+        invalid.push_back(b);
+    }
+    fbld_case("bcd-fbld-invalid-digits", invalid, 0x037f, 1);
+    // ST(7) occupied: the stack overflow, masked and unmasked.
+    const std::vector<std::array<uint8_t, 10>> few = {valid[0], valid[1], valid[4], valid[11]};
+    fbld_case("bcd-fbld-overflow-masked", few, 0x037f, 8);
+    fbld_case("bcd-fbld-overflow-unmasked", few, 0x037e, 8);
+    // The manual's rule against fixed bytes: a negative zero loads as -0.
+    {
+        Unit u;
+        uint8_t umem[BCD_MEM];
+        alignas(16) uint8_t m[BCD_MEM];
+        std::memcpy(m, mem0, BCD_MEM);
+        bcd_bytes(m, "80000000000000000000");
+        const std::string differ = bcd_differ(page, u, 0x037f, nullptr, 0, fbld, m, false, umem);
+        uint8_t st0[10];
+        u.st0(st0);
+        const uint8_t minus_zero[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0x80};
+        if (!differ.empty()) bad("bcd-fbld-zero-sign", differ);
+        else if (std::memcmp(st0, minus_zero, 10) != 0 || u.top_of() != 7 || (u.sw() & 0x02ff) != 0)
+            bad("bcd-fbld-zero-sign", "loaded " + hex80(st0) + " sw " + hex(u.sw(), 4) + ", want -0 and no flag");
+        else ok("bcd-fbld-zero-sign");
+    }
+
+    // ---- Back-to-back, in flight. ----
+    // Each new form between a form that leaves working state behind and a
+    // form presented while the new one is still in flight: one that reads
+    // what it wrote and one that does not (method.md, pass rule 4). The
+    // packed decimal arms keep registers of their own -- FBLD's binary
+    // integer and FBSTP's digits -- so the pairs that reach a stale one are
+    // FBLD after FBLD and FBSTP after FBSTP, large then small, and those are
+    // here in both orders.
+    {
+        struct Named { const char *name; BStep step; };
+        const Named before[] = {
+            {"none", breg(0xd9, 0xd0)},                          // FNOP
+            {"fdiv", breg(0xd8, 0xf1)},                          // FDIV ST,ST(1)
+            {"fsqrt", breg(0xd9, 0xfa)},
+            {"fmul", breg(0xd8, 0xc9)},
+            {"fist16", bmem(0xdf, 2, FMT_I16, true, 96)},        // FIST m16
+            {"fistp64", bmem(0xdf, 7, FMT_I64, true, 72)},       // FISTP m64
+            {"fld80-denormal", bmem(0xdb, 5, FMT_F80, false, 80)},
+            {"fld64-denormal", bmem(0xdd, 0, FMT_F64, false, 64)},
+            {"fild64", bmem(0xdf, 5, FMT_I64, false, 104)},
+            {"fbstp", bmem(0xdf, 6, FMT_F80, true, 48)},
+            {"fbld", bmem(0xdf, 4, FMT_F80, false, 16)},
+        };
+        const Named middle[] = {
+            {"fbld", bmem(0xdf, 4, FMT_F80, false, 0)},
+            {"fbstp", bmem(0xdf, 6, FMT_F80, true, 32)},
+        };
+        const Named after[] = {
+            {"none", breg(0xd9, 0xd0)},
+            // Reading what the new form wrote: the register FBLD pushed or
+            // the one FBSTP's pop exposed, and the bytes FBSTP stored.
+            {"fbstp", bmem(0xdf, 6, FMT_F80, true, 48)},
+            {"fistp64", bmem(0xdf, 7, FMT_I64, true, 72)},
+            {"fstp80", bmem(0xdb, 7, FMT_F80, true, 48)},
+            {"fadd", breg(0xd8, 0xc1)},
+            {"fxam", breg(0xd9, 0xe5)},
+            {"fld-st0", breg(0xd9, 0xc0)},
+            {"fbld-stored", bmem(0xdf, 4, FMT_F80, false, 32)},
+            // Not reading it.
+            {"fbld-other", bmem(0xdf, 4, FMT_F80, false, 16)},
+            {"fld1", breg(0xd9, 0xe8)},
+            {"fild64", bmem(0xdf, 5, FMT_I64, false, 104)},
+        };
+        struct Set { const char *name; const char *a, *b, *stored; uint16_t se[3]; uint64_t sig[3]; };
+        const Set sets[] = {
+            // A large FBLD operand first and a zero second, over ordinary values.
+            {"large-then-zero", "00999999999999999999", "80000000000000000000", "00000000000000000042",
+             {0x4000, 0x4000, 0x4019}, {0xc000000000000000ull, 0x8000000000000000ull, 0xeb79a2a000000000ull}},
+            // ... and the other order, with FBSTP sources at the range limit.
+            {"zero-then-large", "80000000000000000000", "80987654321098765432", "80999999999999999999",
+             {0x403a, 0x3ffe, 0xc001}, {0xde0b6b3a763ffff8ull, 0x8000000000000000ull, 0xe800000000000000ull}},
+            // FBSTP sources that round to zero, are out of range, and are in range.
+            {"tiny-out-in", "00000000000000000007", "00100000000000000000", "ffffc000000000000000",
+             {0xbffd, 0x403b, 0x4037}, {0x8000000000000000ull, 0x8000000000000000ull, 0xb1a2bc2ec5000000ull}},
+            // Invalid sources: an infinity, a NaN and a negative zero.
+            {"inf-nan-zero", "80123456789012345678", "00000000000000000001", "00000000000000000000",
+             {0x7fff, 0xffff, 0x8000}, {0x8000000000000000ull, 0xc000000000000000ull, 0}},
+        };
+        for (const Set &set : sets) {
+            alignas(16) uint8_t m[BCD_MEM];
+            std::memcpy(m, mem0, BCD_MEM);
+            bcd_bytes(m + 0, set.a);
+            bcd_bytes(m + 16, set.b);
+            bcd_bytes(m + 32, set.stored);
+            const uint64_t tiny64 = 0x0000000000000123ull;          // a denormal 64-bit real
+            std::memcpy(m + 64, &tiny64, 8);
+            ext_bytes(m + 80, 0x0000, 0x0000000012345678ull);        // a denormal extended
+            const int64_t whole = -123456789012345ll;
+            std::memcpy(m + 104, &whole, 8);
+            uint8_t stack[3][10];
+            for (int n = 0; n < 3; ++n) ext_bytes(stack[n], set.se[n], set.sig[n]);
+            for (unsigned rc = 0; rc < 4; ++rc) {
+                Unit u;
+                BcdTally t;
+                for (const Named &b : before)
+                    for (const Named &mid : middle)
+                        for (const Named &a : after) {
+                            const std::vector<BStep> steps = {b.step, mid.step, a.step};
+                            std::string what = bcd_differ(page, u, uint16_t(0x037f | rc << 10), stack, 3, steps, m, true);
+                            if (!what.empty()) what = std::string(b.name) + "/" + mid.name + "/" + a.name + " " + what;
+                            t.add(what);
+                        }
+                t.report(std::string("bcd-b2b-") + set.name + "-rc" + std::to_string(rc));
+            }
+        }
+    }
+
+    // ---- The counts (method.md, pass rule 3). ----
+    // How many of each form the unit was given, and how many conversions its
+    // sequencer was seen to enter: FBLD always converts, FBSTP only when its
+    // source rounds to an integer in range (a zero and the invalid cases
+    // store directly). A form claimed as built with a count of zero is a
+    // hole in the gate, so it fails here rather than being read off a line.
+    std::printf("BCDFORMS fbld issued %ld converted %lu fbstp issued %ld converted %lu\n", bcd_issued[0],
+                seq_entries[SEQ_T_BLD_IN], bcd_issued[1], seq_entries[SEQ_T_BST_IN]);
+    if (bcd_issued[0] == 0 || bcd_issued[1] == 0 || seq_entries[SEQ_T_BLD_IN] == 0 || seq_entries[SEQ_T_BST_IN] == 0)
+        bad("bcd-forms-reached", "a packed decimal form the DE25 backend builds was never converted");
+    else if (seq_entries[SEQ_T_BLD_IN] != (unsigned long)bcd_issued[0])
+        bad("bcd-forms-reached", "FBLD was issued " + std::to_string(bcd_issued[0]) + " times and converted "
+                                 + std::to_string(seq_entries[SEQ_T_BLD_IN]));
+    else ok("bcd-forms-reached");
 }
 
 std::array<uint8_t, 10> parse_ext80(const std::string &text) {
@@ -2499,6 +3133,11 @@ int main(int argc, char **argv) {
             u.clear_latch();
         }
     }
+
+    // ---- Packed decimal: FBLD and FBSTP (#1958). ----
+    // After every case that existed before them, and from a generator of
+    // their own, so nothing above sees a different random stream.
+    run_bcd_cases();
 
     if (!testfloat_manifest.empty()) {
         const TestFloatManifest testfloat = run_testfloat_manifest(testfloat_manifest);

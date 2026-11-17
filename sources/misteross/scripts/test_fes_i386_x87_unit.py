@@ -41,8 +41,10 @@ Writes build/sim/fes-i386-x87-unit/report.json.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -50,6 +52,7 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import i386_verilator
+from scripts import x87_envelope_fit
 from scripts import yosys_netlist
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -78,6 +81,74 @@ class X87UnitError(RuntimeError):
     pass
 
 
+def tested_sources(backend: str) -> list[Path]:
+    """What the bench is built from: the unit's RTL for this backend, the C++
+    bench, this runner, the netlist recipe and the audit a netlist run reads
+    its register lists from."""
+    rtl = RTL_SOURCES if backend == 'de10' else (RTL_SOURCES[:-1] + DE25_SOURCES + RTL_SOURCES[-1:])
+    return sorted({*(RTL / path for path in rtl), SIM / 'x87_unit_tb.cpp', Path(__file__).resolve(),
+                   Path(yosys_netlist.__file__).resolve(), Path(x87_envelope_fit.__file__).resolve()})
+
+
+def source_record(backend: str) -> dict:
+    """The revision and sources a run tested, so a report names what it is a
+    report of, as the lockstep runner's source_record does: `tracked_changes`
+    lists tracked files that differ from the revision, and a report with any
+    is not a report of that revision alone."""
+    repository = ROOT.parents[1]
+
+    def git(*arguments: str) -> str:
+        result = subprocess.run(['git', '-C', str(repository), *arguments], capture_output=True, text=True)
+        if result.returncode:
+            raise X87UnitError('cannot read the tested revision: ' + result.stderr.strip())
+        return result.stdout
+
+    files = {str(path.relative_to(repository)): hashlib.sha256(path.read_bytes()).hexdigest()
+             for path in tested_sources(backend)}
+    return {'fes_revision': git('rev-parse', 'HEAD').strip(),
+            'tracked_changes': sorted(line[3:] for line in git('status', '--porcelain', '--untracked-files=no').splitlines()),
+            'files': files,
+            'files_sha256': hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()}
+
+
+def netlist_exclusion(netlist: Path, backend: str) -> dict:
+    """Which backend-only registers the Yosys netlist holds, by name: those
+    written only inside arms guarded for this backend (the control: if none
+    of them can be found, an absence below means nothing) and those written
+    only inside arms guarded for the other one, which must all be gone.
+    The lists are x87_envelope_fit.guarded_only_registers', derived from the
+    RTL. A DE10 netlist must not hold the packed decimal registers (#1958)
+    and a DE25 netlist must not hold the sequenced arithmetic's."""
+    text = netlist.read_text()
+    rtl = (RTL / 'fes_i386_x87.sv').read_text()
+
+    def held(name: str) -> bool:
+        return re.search(rf'(?<![A-Za-z0-9_$]){re.escape(name)}(?![A-Za-z0-9_$])', text) is not None
+
+    own = {name: held(name) for name in x87_envelope_fit.guarded_only_registers(rtl, BACKENDS[backend])}
+    other = {name: held(name) for name in x87_envelope_fit.guarded_only_registers(rtl, 1 - BACKENDS[backend])}
+    if not own or not other:
+        raise X87UnitError('the guarded-register audit derived an empty list, so the exclusion check checks nothing')
+    if not any(own.values()):
+        raise X87UnitError(f'the netlist holds none of the {backend} backend\'s own registers by name, '
+                           'so an absence means nothing')
+    return {'own_backend_only': own, 'other_backend_only': other,
+            'leaked': sorted(name for name, present in other.items() if present)}
+
+
+def bcd_forms(text: str) -> dict | None:
+    """The bench's count of packed decimal instructions (#1958): how many FBLD
+    and FBSTP the unit was given and how many conversions its sequencer was
+    seen to enter. On the DE10 backend, which does not build them, the issued
+    count is of the not-built checks and the converted count must be zero."""
+    for line in text.splitlines():
+        if line.startswith('BCDFORMS '):
+            fields = line.split()
+            return {'fbld': {'issued': int(fields[3]), 'converted': int(fields[5])},
+                    'fbstp': {'issued': int(fields[8]), 'converted': int(fields[10])}}
+    return None
+
+
 def verilate(verilator: i386_verilator.LockedVerilator, jobs: int, yosys: Path | None = None,
              backend: str = 'de10') -> Path:
     """Build the bench, from the RTL or Yosys's netlist of the unit."""
@@ -96,7 +167,10 @@ def verilate(verilator: i386_verilator.LockedVerilator, jobs: int, yosys: Path |
         warnings = []
     command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', TOP,
                '-Wall', '-Wno-UNUSEDSIGNAL', *warnings, *select, '--Mdir', str(output),
-               '-CFLAGS', f'-std=c++17 -O2 -I{SIM}', *map(str, design), str(SIM / 'x87_unit_tb.cpp')]
+               # -D, not +define+: the bench is C++, and it has to know the backend
+               # on a netlist build too, where no -G reaches the design.
+               '-CFLAGS', f'-std=c++17 -O2 -I{SIM} -DFES_X87_BACKEND={BACKENDS[backend]}',
+               *map(str, design), str(SIM / 'x87_unit_tb.cpp')]
     log = output / 'build.log'
     with log.open('w') as stream:
         result = subprocess.run(command, cwd=ROOT, env=verilator.environment(), stdout=stream,
@@ -141,6 +215,7 @@ def main(argv: list[str] | None = None) -> int:
 
     OUTPUT.mkdir(parents=True, exist_ok=True)
     verilator = i386_verilator.locate(args.cache_root)
+    source = source_record(args.backend)
     yosys = None
     if args.netlist:
         # Through the cache API, as the Verilator above is: the per-tool
@@ -159,25 +234,45 @@ def main(argv: list[str] | None = None) -> int:
     testfloat = next((line.split() for line in result.stdout.splitlines() if line.startswith('TESTFLOAT ')), None)
     if args.testfloat_manifest and testfloat is None:
         raise X87UnitError('the bench did not report its TestFloat vector/configuration counts')
+    exclusion = netlist_exclusion(bench.parent / f'{TOP}.netlist.v', args.backend) if args.netlist else None
+    forms = bcd_forms(result.stdout)
+    if forms is None:
+        raise X87UnitError('the bench did not report its packed decimal form counts')
+    # A run during which a tested source changed is a report of neither.
+    if source_record(args.backend) != source:
+        raise X87UnitError('a tested source or the revision changed during the run')
     report = {
         'top': TOP,
         'netlist': bool(args.netlist),
         'backend': args.backend,
+        'source': source,
         'verilator': verilator.record(),
         'passed': passed,
         'failed': failed,
         'failures': failures,
+        'cases': sum(line.startswith(('PASS ', 'FAIL ')) for line in result.stdout.splitlines()),
+        'bcd_cases': sum(line.startswith(('PASS bcd-', 'FAIL bcd-')) for line in result.stdout.splitlines()),
+        'bcd_forms': forms,
+        'netlist_exclusion': exclusion,
         'latency_clocks': latencies(result.stdout),
         'testfloat': ({'vectors': int(testfloat[1]), 'configs': int(testfloat[2])} if testfloat else None),
     }
     (OUTPUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(f'fes_i386_x87 against the host x87: {passed} passed, {failed} failed'
           + (' (netlist)' if args.netlist else '')
+          + f" [{args.backend}; packed decimal: {report['bcd_cases']} cases, FBLD {forms['fbld']['issued']} issued "
+            f"{forms['fbld']['converted']} converted, FBSTP {forms['fbstp']['issued']} issued "
+            f"{forms['fbstp']['converted']} converted]"
           + (f"; TestFloat extF80: {testfloat[1]} vectors across {testfloat[2]} configurations"
              if testfloat else ''))
     for line in failures[:10]:
         print('  ' + line)
-    return 1 if failed or result.returncode else 0
+    if exclusion is not None:
+        print(f"  netlist holds {sum(exclusion['own_backend_only'].values())} of "
+              f"{len(exclusion['own_backend_only'])} {args.backend}-only registers by name and "
+              f"{len(exclusion['leaked'])} of {len(exclusion['other_backend_only'])} of the other backend's"
+              + (f": {exclusion['leaked']}" if exclusion['leaked'] else ''))
+    return 1 if failed or result.returncode or (exclusion and exclusion['leaked']) else 0
 
 
 if __name__ == '__main__':
