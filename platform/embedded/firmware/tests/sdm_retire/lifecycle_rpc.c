@@ -61,6 +61,8 @@ int main(void)
   }else if(!strcmp(operation,"release")){
    assert(scanf("%" SCNx64 " %" SCNu64 " %u",&owner,&generation,&fault)==3);
    assert(configurations && owner==configuration.owner);
+   lifecycle_active_reader=fault==100;
+   lifecycle_drained_reader=fault==101;
    lifecycle_return();
    assert(generation==fes_nano_owned_bridges.state.generation);
    /* Failures enter through real predicates; never manufacture an SMC result. */
@@ -74,12 +76,29 @@ int main(void)
    case 6:transfer.completed_buffer_bytes-=4;break;
    case 7:case 8:
     release_fault=fault==7 ? 56:57;inject=1;mutation_seen=0;break;
+   case 9:fabric_stop.last_observed.generation=1;break;
+   case 10:fabric_stop.last_observed.request_generation=1;break;
+   case 11:fabric_stop.last_observed.cookie=1;break;
+   case 12:fabric_stop.last_observed.ack_generation=1;break;
+   case 13:fabric_stop.last_observed.ack_cookie=1;break;
+   case 14:fabric_stop.last_observed.status=FES_EMBEDDED_STATUS_DRAINED;break;
+   case 15:fabric_stop.last_observed.status=FES_EMBEDDED_STATUS_ENABLED;break;
+   case 16:fabric_stop.last_observed.pending=1;break;
+   case 17:fabric_stop.disable_issued=1;break;
+   case 18:fabric_stop.done=0;break;
+   case 19:fabric_stop.probe.done=0;break;
+   case 20:fabric_stop.probe.failed=1;break;
+   case 21:fes_nano_owned_bridges.closure.data_remained_contained=0;break;
+   case 22:identity_probe.failed=1;break;
+   case 100:break; /* Actual reader_stop issues one DISABLE and validates ACK. */
+   case 101:break; /* Actual reader_stop verifies an already-drained endpoint. */
    default:assert(0);
    }
-   uint64_t r[4];unsigned writes=smmu_writes,stores=cb_stores,posts=data_posts;
+   uint64_t r[4];unsigned writes=smmu_writes,stores=cb_stores,posts=data_posts,endpoint_writes=lifecycle_endpoint_writes;
    fes_nano_configuration_release_source(&configuration,owner,generation,0,r);
    if(r[0] && terminal_used)fputs(terminal_log,stdout);
    assert(writes==smmu_writes && stores==cb_stores && posts==data_posts);
+   assert(endpoint_writes==lifecycle_endpoint_writes);
    releases++;
    printf("R %" PRIu64 " %" PRIx64 " %" PRIx64 " %" PRIu64 " %u %u\n",
     r[0],r[1],r[2],r[3],sdm_probe_scope_reason,releases);

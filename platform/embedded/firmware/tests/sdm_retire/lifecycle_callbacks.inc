@@ -18,6 +18,7 @@
 static uint64_t fabric_reported_generation;
 static uint32_t lifecycle_registers[64];
 static unsigned lifecycle_endpoint_reads,lifecycle_endpoint_writes,lifecycle_rom_calls;
+static unsigned lifecycle_active_reader,lifecycle_drained_reader;
 static int cold_master_cpu_scope(void){return release_cpu && release_frequency==400000000U;}
 static int smmu_owns(void *p){return p==&provider && provider.control_expected &&
  fes_nano_cold_owns(&provider,17,provider.record.boot.epoch)==1;}
@@ -127,7 +128,7 @@ static int lifecycle_control(uint64_t operation,uint64_t owner,uint64_t generati
  memset(r,0,4*sizeof(*r));r[0]=2;
  int result=fes_nano_program_control(FES_EMBEDDED_BRIDGE_CALL,
  operation,owner,FES_EMBEDDED_BRIDGE_COOKIE,generation,&configuration,0,r);
- if(r[0])fprintf(stderr,"control op=%llx result=%d status=%llu phase=%u idstage=%u first=%d stop=%d scope=%u prepared=%u issued=%u reset=%x gen=%llu fabricgen=%llu\n",
+ if(result && r[0])fprintf(stderr,"control op=%llx result=%d status=%llu phase=%u idstage=%u first=%d stop=%d scope=%u prepared=%u issued=%u reset=%x gen=%llu fabricgen=%llu\n",
   (unsigned long long)operation,result,(unsigned long long)r[0],fes_nano_window_phase,
   identity_probe.stage,identity_probe.first_error,fabric_stop.first_error,sdm_probe_scope_reason,
   window_prepared,window_issued,fes_nano_owned_bridges.state.reset,
@@ -140,17 +141,22 @@ static void lifecycle_return(void)
  assert(lifecycle_control(FES_EMBEDDED_BRIDGE_CONTROL,17,configuration.generation,r)==1 && !r[0]);
  if(menu){
   assert(lifecycle_control(FES_EMBEDDED_BRIDGE_RELEASE | (8ULL<<FES_EMBEDDED_BRIDGE_RELEASE_SHIFT),17,r[3],r)==1 && !r[0]);
+ }
+ if(menu || lifecycle_active_reader || lifecycle_drained_reader){
+  assert(menu || !fabric_stop.attempted);
   /* Model the endpoint's completed menu frame, never a secure receipt. */
   lifecycle_registers[FES_EMBEDDED_REG_GENERATION_LO/4]=1;
   lifecycle_registers[FES_EMBEDDED_REG_REQUEST_GENERATION_LO/4]=1;
   lifecycle_registers[FES_EMBEDDED_REG_REQUEST_COOKIE_LO/4]=7;
-  lifecycle_registers[FES_EMBEDDED_REG_STATUS/4]=FES_EMBEDDED_STATUS_DRAINED;
-  lifecycle_registers[FES_EMBEDDED_REG_ACK_GENERATION_LO/4]=1;
-  lifecycle_registers[FES_EMBEDDED_REG_ACK_COOKIE_LO/4]=7;
+  unsigned drained=menu || lifecycle_drained_reader;
+  lifecycle_registers[FES_EMBEDDED_REG_STATUS/4]=drained ? FES_EMBEDDED_STATUS_DRAINED:FES_EMBEDDED_STATUS_ENABLED;
+  lifecycle_registers[FES_EMBEDDED_REG_ACK_GENERATION_LO/4]=drained ? 1:0;
+  lifecycle_registers[FES_EMBEDDED_REG_ACK_COOKIE_LO/4]=drained ? 7:0;
  }
  uint64_t returned=configuration.generation+(menu ? 3:2);
  assert(lifecycle_control(FES_EMBEDDED_BRIDGE_CLOSE | (menu ? 0:FES_EMBEDDED_BRIDGE_REQUEST_HELD),17,r[3],r)==1 && !r[0]);
  assert(r[3]==returned && fabric_stop.done && !fabric_stop.failed);
+ if(!menu)assert(fabric_stop.disable_issued==lifecycle_active_reader);
  assert(!call(&model.base,FES_EMBEDDED_SD_RESUME));native_prepare(&model.base);
  assert(!call(&model.base,FES_EMBEDDED_SD_PREPARE));model.base.h.srs[0x234/4]=0;
  assert(!call(&model.base,FES_EMBEDDED_SD_STOP));

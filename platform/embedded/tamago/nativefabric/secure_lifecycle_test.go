@@ -20,7 +20,8 @@ import (
 )
 
 // The real C source supplier replaces the previously fabricated release reply.
-// MMIO, activation, hashes and device completion remain injected. These tests
+// Activation, master-stop/close and return callbacks are real C code. MMIO,
+// hashes, ROM device work and tape completion remain injected. These tests
 // join the retained native runtime boundary, not target execution or DMA proof.
 type secureLifecycleCPU struct {
 	*programMenuCPU
@@ -182,7 +183,7 @@ func secureLifecycleFixture(t *testing.T, fault int) (*programMenuFixture, *secu
 }
 
 func TestSecureLifecycleRetainedMenuComputerAndPark(t *testing.T) {
-	for _, fault := range []int{0, 5} {
+	for _, fault := range []int{0, 5, 100, 101} {
 		t.Run(fmt.Sprint(fault), func(t *testing.T) {
 			f, cpu := secureLifecycleFixture(t, fault)
 			cpu.tapeWire = &tapeCPU{CPUTransport: cpu.programMenuCPU, base: f.r.f.cpu.computerCPU, files: f.r.f.files}
@@ -228,7 +229,7 @@ func TestSecureLifecycleRetainedMenuComputerAndPark(t *testing.T) {
 }
 
 func TestSecureLifecycleRejectedReturnRetainsSourceAndCannotRetry(t *testing.T) {
-	for _, fault := range []int{1, 2, 3, 4, 6, 7, 8} {
+	for _, fault := range []int{1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22} {
 		t.Run(fmt.Sprint(fault), func(t *testing.T) {
 			f, cpu := secureLifecycleFixture(t, fault)
 			request, _, _ := addROMProgram(t, f.r, 0, 8192)
@@ -245,6 +246,9 @@ func TestSecureLifecycleRejectedReturnRetainsSourceAndCannotRetry(t *testing.T) 
 			}
 			if fault != 2 {
 				stage := map[int]int{1: 2, 3: 2, 4: 3, 6: 1, 7: 0, 8: 0}[fault]
+				if fault >= 9 {
+					stage = 2
+				}
 				clock := map[int]int{7: -110, 8: -34}[fault]
 				if len(cpu.diagnostics) != 1 || !strings.Contains(cpu.diagnostics[0], fmt.Sprintf("stage=%d clock_error=%d ", stage, clock)) {
 					t.Fatal("failure lost its original boundary/clock diagnostic", cpu.diagnostics)

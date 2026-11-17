@@ -90,9 +90,15 @@ static int sdm_release_returned(const struct nano_probe_binding *binding)
   !identity_probe.reader && identity_probe.abi==FES_NANO_PROGRAM_COMPUTER_ABI &&
   identity_probe.bridges==&fes_nano_owned_bridges && identity_probe.io.context==&provider && fabric_stop.qualified==1 &&
   fabric_stop.attempted==1 && fabric_stop.done==1 && !fabric_stop.failed && !fabric_stop.first_error &&
-  fabric_stop.probe.done==1 && !fabric_stop.probe.failed && last->generation &&
+  fabric_stop.probe.done==1 && !fabric_stop.probe.failed &&
   last->generation==last->request_generation && last->generation==last->ack_generation &&
-  last->cookie && last->cookie==last->ack_cookie && last->status==FES_EMBEDDED_STATUS_DRAINED && !last->pending &&
+  last->cookie==last->ack_cookie && !last->pending &&
+  /* The completed stop engine accepts either a drained reader or its exact
+   * never-enabled zero state. A held computer never enables the DDR reader.
+   * Retain the complete stop/probe, activation and held-return proofs around
+   * this cached observation; zero status or reset alone grants nothing. */
+  ((last->generation && last->cookie && last->status==FES_EMBEDDED_STATUS_DRAINED) ||
+   (!last->generation && !last->cookie && !last->status && !fabric_stop.disable_issued)) &&
   fes_nano_bridges_held_return(&fes_nano_owned_bridges,&returned)==1;
  return binding && !sdm_source_released && FES_PROBE_SD_IO_BINDING_VALID() && configuration.source_release_attempted==1 &&
   !configuration.source_released && configuration.source_release_source==binding->generation &&
