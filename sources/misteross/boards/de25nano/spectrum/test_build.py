@@ -48,7 +48,7 @@ class Derivations(unittest.TestCase):
                 # The banks no longer ride a synchronizer: only the two toggles do.
                 self.assertIn(b"ready_meta <= ready_toggle;", result)
                 self.assertIn(b"shown_meta <= shown_toggle;", result)
-                self.assertEqual(result.count(b"<= ready_bank;"), 1)
+                self.assertEqual(result.count(b"shown_bank <= ready_bank;"), 1)
                 self.assertEqual(result.count(b"<= shown_bank;"), 1)
                 self.assertNotIn(b"{ready_toggle, ready_bank}", result)
                 with self.assertRaises(ValueError):

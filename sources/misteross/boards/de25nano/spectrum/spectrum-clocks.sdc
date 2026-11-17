@@ -43,8 +43,8 @@ foreach {label source expected head second} {
 
 # The frame store tells the pixel side a frame is ready with a toggle and
 # takes the shown bank back the same way. Each two-bit bank is held behind its
-# toggle and copied in the receiving clock one clock after the toggle's second
-# stage shows it, so it is a held bundle like those below.
+# toggle and copied in the receiving clock no sooner than one clock after the
+# toggle's second stage shows it, so it is a held bundle like those below.
 foreach {label source head} {
     frame_ready {core|video|ready_toggle} {core|video|ready_meta}
     frame_shown {core|video|shown_toggle} {core|video|shown_meta}
@@ -66,7 +66,7 @@ foreach {label source sink expected} {
         {display|crossing|pixel_opcode[*] display|crossing|pixel_index[*] display|crossing|pixel_argument[*]} 31
     reply {display|crossing|returned_payload[*]}
         {display|crossing|response_error display|crossing|response_data[*]} 17
-    ready_bank {core|video|ready_bank[*]} {core|video|ready_bank_pixel[*]} 2
+    ready_bank {core|video|ready_bank[*]} {core|video|shown_bank[*]} 2
     shown_bank {core|video|shown_bank[*]} {core|video|shown_sync[*]} 2
 } {
     set launches [get_registers "${base}|${source}"]
