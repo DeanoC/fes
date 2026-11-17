@@ -1,0 +1,590 @@
+{
+  "what": "the microprogram's integer model against a host's own x87 and against the mathematical result; no RTL",
+  "dump": {
+    "header": "host-dump samples=20000 seed=1 vectors=yes compiler=\"14.2.0\" cpu=\"Intel(R) Core(TM) Ultra 7 270K Plus\"",
+    "sha256": "442d6f59f26c151dd5349dddf2cd4eff198473c23057c145bfd4865ced1e09f3"
+  },
+  "rows_per_class_limit": 20000,
+  "microprogram_words": 433,
+  "constants": 660,
+  "model_sha256": "bceee593ec9437993fc75505b31d515b4cf4776d24b03e588b1c5b7cc9797fbf",
+  "classes": [
+    {
+      "instruction": "F2XM1",
+      "class": -1,
+      "rows": 1103,
+      "outside_engine": 2,
+      "compared": 1101,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 980,
+        "1": 121
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 26,
+      "steps_most": 32,
+      "error_before_rounding": 0.6382,
+      "error_after_rounding": 1.043
+    },
+    {
+      "instruction": "F2XM1",
+      "class": 0,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 16266,
+        "1": 3734
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 26,
+      "steps_most": 32,
+      "error_before_rounding": 0.7698,
+      "error_after_rounding": 1.151
+    },
+    {
+      "instruction": "F2XM1",
+      "class": 1,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 14661,
+        "1": 5339
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 26,
+      "steps_most": 31,
+      "error_before_rounding": 0.717,
+      "error_after_rounding": 1.1561
+    },
+    {
+      "instruction": "FCOS",
+      "class": 0,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 19831,
+        "1": 169
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 25,
+      "steps_most": 34,
+      "error_before_rounding": 0.0291,
+      "error_after_rounding": 0.5156
+    },
+    {
+      "instruction": "FCOS",
+      "class": 1,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 19404,
+        "1": 596
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 25,
+      "steps_most": 34,
+      "error_before_rounding": 0.1083,
+      "error_after_rounding": 0.5936
+    },
+    {
+      "instruction": "FCOS",
+      "class": 2,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 19420,
+        "1": 580
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 25,
+      "steps_most": 34,
+      "error_before_rounding": 0.1071,
+      "error_after_rounding": 0.5595
+    },
+    {
+      "instruction": "FCOS",
+      "class": 3,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 20000
+      },
+      "worst_host_distance": 0,
+      "backend_operations_most": 14,
+      "steps_most": 22,
+      "error_before_rounding": 0.0237,
+      "error_after_rounding": 0.5219
+    },
+    {
+      "instruction": "FCOS",
+      "class": 4,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 20000
+      },
+      "worst_host_distance": 0,
+      "backend_operations_most": 13,
+      "steps_most": 21,
+      "error_before_rounding": 0.25,
+      "error_after_rounding": 0.5
+    },
+    {
+      "instruction": "FPATAN",
+      "class": -1,
+      "rows": 1032,
+      "outside_engine": 32,
+      "compared": 1000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 868,
+        "1": 132
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 19,
+      "steps_most": 32,
+      "error_before_rounding": 0.6824,
+      "error_after_rounding": 1.0484
+    },
+    {
+      "instruction": "FPATAN",
+      "class": 0,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 14956,
+        "1": 5042,
+        "2": 2
+      },
+      "worst_host_distance": 2,
+      "backend_operations_most": 19,
+      "steps_most": 32,
+      "error_before_rounding": 1.1001,
+      "error_after_rounding": 1.5508
+    },
+    {
+      "instruction": "FPATAN",
+      "class": 1,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 16206,
+        "1": 3794
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 19,
+      "steps_most": 31,
+      "error_before_rounding": 0.5,
+      "error_after_rounding": 0.991
+    },
+    {
+      "instruction": "FPATAN",
+      "class": 2,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 19463,
+        "1": 537
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 19,
+      "steps_most": 32,
+      "error_before_rounding": 0.5689,
+      "error_after_rounding": 0.9688
+    },
+    {
+      "instruction": "FPTAN",
+      "class": 0,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 13244,
+        "1": 6753,
+        "2": 3
+      },
+      "worst_host_distance": 2,
+      "backend_operations_most": 33,
+      "steps_most": 43,
+      "error_before_rounding": 1.3133,
+      "error_after_rounding": 1.6579
+    },
+    {
+      "instruction": "FPTAN",
+      "class": 1,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 13616,
+        "1": 6354,
+        "2": 30
+      },
+      "worst_host_distance": 2,
+      "backend_operations_most": 33,
+      "steps_most": 43,
+      "error_before_rounding": 1.3708,
+      "error_after_rounding": 1.8301
+    },
+    {
+      "instruction": "FPTAN",
+      "class": 2,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 13602,
+        "1": 6376,
+        "2": 22
+      },
+      "worst_host_distance": 2,
+      "backend_operations_most": 33,
+      "steps_most": 43,
+      "error_before_rounding": 1.329,
+      "error_after_rounding": 1.7333
+    },
+    {
+      "instruction": "FPTAN",
+      "class": 3,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 14271,
+        "1": 5712,
+        "2": 17
+      },
+      "worst_host_distance": 2,
+      "backend_operations_most": 28,
+      "steps_most": 39,
+      "error_before_rounding": 1.4171,
+      "error_after_rounding": 1.827
+    },
+    {
+      "instruction": "FPTAN",
+      "class": 4,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 17782,
+        "1": 2218
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 28,
+      "steps_most": 39,
+      "error_before_rounding": 0.967,
+      "error_after_rounding": 1.3094
+    },
+    {
+      "instruction": "FSIN",
+      "class": 0,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 19759,
+        "1": 241
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 25,
+      "steps_most": 34,
+      "error_before_rounding": 0.1043,
+      "error_after_rounding": 0.5871
+    },
+    {
+      "instruction": "FSIN",
+      "class": 1,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 19442,
+        "1": 558
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 25,
+      "steps_most": 34,
+      "error_before_rounding": 0.1019,
+      "error_after_rounding": 0.5883
+    },
+    {
+      "instruction": "FSIN",
+      "class": 2,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 19383,
+        "1": 617
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 25,
+      "steps_most": 34,
+      "error_before_rounding": 0.096,
+      "error_after_rounding": 0.569
+    },
+    {
+      "instruction": "FSIN",
+      "class": 3,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 20000
+      },
+      "worst_host_distance": 0,
+      "backend_operations_most": 14,
+      "steps_most": 22,
+      "error_before_rounding": 0.0237,
+      "error_after_rounding": 0.5222
+    },
+    {
+      "instruction": "FSIN",
+      "class": 4,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 20000
+      },
+      "worst_host_distance": 0,
+      "backend_operations_most": 14,
+      "steps_most": 22,
+      "error_before_rounding": 0.1487,
+      "error_after_rounding": 0.5208
+    },
+    {
+      "instruction": "FSINCOS",
+      "class": 0,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 19870,
+        "1": 130
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 32,
+      "steps_most": 44,
+      "error_before_rounding": 0.0304,
+      "error_after_rounding": 0.5235
+    },
+    {
+      "instruction": "FSINCOS",
+      "class": 1,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 19376,
+        "1": 624
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 32,
+      "steps_most": 44,
+      "error_before_rounding": 0.0973,
+      "error_after_rounding": 0.5741
+    },
+    {
+      "instruction": "FSINCOS",
+      "class": 2,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 19394,
+        "1": 606
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 32,
+      "steps_most": 44,
+      "error_before_rounding": 0.1097,
+      "error_after_rounding": 0.5847
+    },
+    {
+      "instruction": "FSINCOS",
+      "class": 3,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 20000
+      },
+      "worst_host_distance": 0,
+      "backend_operations_most": 27,
+      "steps_most": 40,
+      "error_before_rounding": 0.0237,
+      "error_after_rounding": 0.5196
+    },
+    {
+      "instruction": "FSINCOS",
+      "class": 4,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 20000
+      },
+      "worst_host_distance": 0,
+      "backend_operations_most": 27,
+      "steps_most": 40,
+      "error_before_rounding": 0.25,
+      "error_after_rounding": 0.4999
+    },
+    {
+      "instruction": "FYL2X",
+      "class": -1,
+      "rows": 1122,
+      "outside_engine": 20,
+      "compared": 1102,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 840,
+        "1": 262
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 41,
+      "steps_most": 55,
+      "error_before_rounding": 0.4994,
+      "error_after_rounding": 0.9758
+    },
+    {
+      "instruction": "FYL2X",
+      "class": 0,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 15316,
+        "1": 4684
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 41,
+      "steps_most": 55,
+      "error_before_rounding": 0.6842,
+      "error_after_rounding": 0.987
+    },
+    {
+      "instruction": "FYL2X",
+      "class": 1,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 16103,
+        "1": 3897
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 37,
+      "steps_most": 51,
+      "error_before_rounding": 0.0,
+      "error_after_rounding": 0.5
+    },
+    {
+      "instruction": "FYL2X",
+      "class": 2,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 15358,
+        "1": 4642
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 41,
+      "steps_most": 55,
+      "error_before_rounding": 0.6472,
+      "error_after_rounding": 0.9887
+    },
+    {
+      "instruction": "FYL2XP1",
+      "class": -1,
+      "rows": 1117,
+      "outside_engine": 16,
+      "compared": 1101,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 861,
+        "1": 240
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 40,
+      "steps_most": 56,
+      "error_before_rounding": 0.9069,
+      "error_after_rounding": 1.0591
+    },
+    {
+      "instruction": "FYL2XP1",
+      "class": 0,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 15768,
+        "1": 4232
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 40,
+      "steps_most": 56,
+      "error_before_rounding": 0.9733,
+      "error_after_rounding": 1.1011
+    },
+    {
+      "instruction": "FYL2XP1",
+      "class": 1,
+      "rows": 20000,
+      "outside_engine": 0,
+      "compared": 20000,
+      "not_a_distance": 0,
+      "host_distance": {
+        "0": 17907,
+        "1": 2093
+      },
+      "worst_host_distance": 1,
+      "backend_operations_most": 35,
+      "steps_most": 48,
+      "error_before_rounding": 0.031,
+      "error_after_rounding": 0.5246
+    }
+  ]
+}
