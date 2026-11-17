@@ -541,9 +541,19 @@ def build_program(rom: Rom) -> Program:
     p.ret()
 
     # ---- FSIN, FCOS: one kernel, chosen by the octant. ----
+    # Below 2^-32 the argument is its own sine and tangent and the cosine is
+    # 1, to well inside the format: the result is handed back an eighth of a
+    # unit to the side the true value lies, so the unit's rounding under the
+    # control word is the directed one. Below 2^-68 it is handed back exactly:
+    # both build hosts and the oracle return the operand itself there in every
+    # rounding mode, and a result stepped off a denormal would raise an
+    # underflow none of them raises (measured: the threshold is 2^-68).
     p.entry('FSIN')
     p.br('T32', 0, 'fsin_reduce')
     p.op('SETE', arg='XE')
+    p.br('T68', 0, 'fsin_small')
+    p.fin('MOV', a=T_MX, use_e=True)
+    p.label('fsin_small')
     p.fin('BELOW', a=T_MX, use_e=True)                  # sin x = x - x^3/6: just short of x
     p.label('fsin_reduce')
     p.op('TRED')
@@ -557,6 +567,9 @@ def build_program(rom: Rom) -> Program:
     p.entry('FCOS')
     p.br('T32', 0, 'fcos_reduce')
     p.mov(8, 'one')
+    p.br('T68', 0, 'fcos_small')
+    p.fin('MOV', a=8)
+    p.label('fcos_small')
     p.fin('BELOW', a=8)                                 # cos x = 1 - x^2/2
     p.label('fcos_reduce')
     p.op('TRED')
@@ -573,6 +586,9 @@ def build_program(rom: Rom) -> Program:
     p.br('T32', 0, 'fsincos_reduce')
     p.mov(8, 'one')
     p.op('SETE', arg='XE')
+    p.br('T68', 0, 'fsincos_small')
+    p.fin('MOV', a=T_MX, use_e=True, second=8)
+    p.label('fsincos_small')
     p.fin('BELOW', a=T_MX, use_e=True, second=8)        # sin x just short of x, cos x = 1
     p.label('fsincos_reduce')
     p.op('TRED')
@@ -594,6 +610,9 @@ def build_program(rom: Rom) -> Program:
     p.entry('FPTAN')
     p.br('T32', 0, 'fptan_reduce')
     p.op('SETE', arg='XE')
+    p.br('T68', 0, 'fptan_small')
+    p.fin('MOV', a=T_MX, use_e=True)
+    p.label('fptan_small')
     p.fin('ABOVE', a=T_MX, use_e=True)                  # tan x = x + x^3/3
     p.label('fptan_reduce')
     p.op('TRED')

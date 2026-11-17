@@ -29,9 +29,7 @@
 #   The x87-* entries are the transcendental rule's (trans_compare, the
 #   x87trans suite, #1958), where the unit follows the 387 ("387"): each is
 #   accepted as exactly the difference stated, the RTL's side is asserted,
-#   and the oracle then takes it. "open" there is a difference the rule does
-#   not accept: its cases are kept out of the gated suite and fail when run
-#   (FES_I386_TRANS_OPEN), until it is decided.
+#   and the oracle then takes it.
 #
 # [[x87]]  Where the oracle's 387, fitted as on an AT board by its adapter
 #   (Oracle::set_at_coprocessor in bochs_oracle.cpp), follows the 386, 387 and
@@ -659,16 +657,6 @@ oracle = "Bochs sets DE when a denormal arises in its own working, with neither 
 i386 = "The 387's denormal exception is raised for a denormal operand. With both operands normal values the RTL leaves DE as it was, and so does the build host's x87 on all 36 instances. The lockstep requires DE clear on the RTL and then clears it on the oracle. Applied to the three two-operand forms with both operands normal values, which is wider than what was measured (ST(1) the smallest normal value): with no denormal operand a DE the oracle raises is this difference whatever the operands."
 source = "80387 Programmer's Reference Manual 231917-001, 3.2.4 (p.3-22) and Appendix C.2; rules.md G9."
 follow = "387"
-
-[[lockstep]]
-id = "x87-tiny-directed-rounding"
-title = "FSIN, FSINCOS and FPTAN at the smallest normal value under a directed rounding mode"
-rule = "none: the transcendental rule does not accept it"
-cases = ["open-fsin-denormal-rc1-st0-0:8000000000000000", "open-fsin-denormal-rc1-st0-1:8000000000000000", "open-fsin-denormal-rc3-st0-0:8000000000000000", "open-fsin-denormal-rc3-st0-1:8000000000000000", "open-fsincos-denormal-rc1-st0-0:8000000000000000", "open-fsincos-denormal-rc1-st0-1:8000000000000000", "open-fsincos-denormal-rc3-st0-0:8000000000000000", "open-fsincos-denormal-rc3-st0-1:8000000000000000", "open-fptan-denormal-rc1-st0-8000:7fffffffffffffff"]
-oracle = "Bochs returns the operand as the sine or the tangent of a tiny operand under every rounding mode. FSIN and FSINCOS of 2^-16382 (as the pseudo-denormal 0000:8000000000000000 or the normal 0001:8000000000000000), rounding down or toward zero: the sine is 0001:8000000000000000, a normal value, tag valid, PE and no UE. FPTAN of 8000:7FFFFFFFFFFFFFFF rounding down: the tangent is the operand, a denormal, tag special, PE and UE. The build host's x87 returns the same values and flags as Bochs in all nine."
-i386 = "The RTL rounds the result in the rounding mode's direction: the sine is 0000:7FFFFFFFFFFFFFFF, one below the operand, which is a denormal, so the tag is special and UE is set with PE; the tangent is 8001:8000000000000000, one beyond the operand, a normal value, so the tag is valid (UE and PE set on both). The results are 1 apart, inside any bound, but lie either side of the boundary between the denormals and the normal values, so the tag, and for the sine the underflow flag, differ with them. The manual says rounding control applies and gives no result for it beyond the 2^-62 error bound; whether a 387 returns the operand here is not known. Not accepted by the lockstep: the nine instructions are open cases, out of the gated suite, and fail when run."
-source = "80387 Programmer's Reference Manual 231917-001, Table 3-1 (p.3-2), 3.2.5.2 and 4.6 (p.4-16); rules.md G1, G4, G12 and 'Rounding control' under what the modern references are known not to share with a 387."
-follow = "open"
 
 [[x87]]
 id = "at-error-path"

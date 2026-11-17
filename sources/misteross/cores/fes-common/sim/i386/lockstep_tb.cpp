@@ -12068,26 +12068,15 @@ int run_x87_trans_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, cons
             p.fnstsw();
         };
         auto text = [](const R &r) { return hex(r.sign_exponent) + ":" + hex(r.significand); };
-        // The open cases (divergences.toml x87-tiny-directed-rounding, follow
-        // "open"): nine instructions at the boundary between the denormals
-        // and the normal values under a directed rounding mode, where the
-        // RTL rounds the result in the mode's direction and the oracle (and
-        // the two build hosts' x87) return the operand, so the two results,
-        // one apart, lie either side of the boundary and the tag, and for
-        // FSIN and FSINCOS the underflow flag, follow each side's own
-        // result. Nothing in the rule accepts that. They are kept out of the
-        // gated cases, counted (open_cases) and run, each a case of its own
-        // that is expected to fail, under FES_I386_TRANS_OPEN.
-        auto open = [=](const Item &i) {
-            const bool least_value = i.x == pseudo || i.x == least;
-            return ((i.form == T_FSIN || i.form == T_FSINCOS) && (i.rc == 1 || i.rc == 3) && least_value)
-                || (i.form == T_FPTAN && i.rc == 1 && i.x == big);
-        };
+        // Every item is gated. Nine of them -- FSIN and FSINCOS of the
+        // smallest normal value and FPTAN of the largest denormal, under a
+        // directed rounding mode -- once differed from the oracle and both
+        // hosts in a flag and a tag, because the unit stepped a tiny result
+        // off its operand; below 2^-68 it now returns the operand, as they do.
         auto single = [=](const Item &i) {
             return std::string(TRANS_NAME[i.form]) + "-denormal-rc" + std::to_string(i.rc) + "-st0-" + text(i.x)
                  + (i.two ? "-st1-" + text(i.y) : "");
         };
-        for (const Item &i : items) trans_rule.open_cases += open(i);
         if (std::getenv("FES_I386_TRANS_SPLIT")) {
             for (const Item &i : items) cases.push_back({single(i), [=](Prog &p) { emit(p, i); }});
         } else {
@@ -12095,13 +12084,8 @@ int run_x87_trans_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, cons
                 for (unsigned rc = 0; rc < 4; ++rc)
                     cases.push_back({std::string(TRANS_NAME[form]) + "-denormal-rc" + std::to_string(rc), [=](Prog &p) {
                         for (const Item &i : items)
-                            if (i.form == form && i.rc == rc && !open(i)) emit(p, i);
+                            if (i.form == form && i.rc == rc) emit(p, i);
                     }});
-            if (std::getenv("FES_I386_TRANS_OPEN")) {
-                trans_rule.open_run = true;
-                for (const Item &i : items)
-                    if (open(i)) cases.push_back({"open-" + single(i), [=](Prog &p) { emit(p, i); }});
-            }
         }
     }
     cases.push_back({"fsincos-order", [=](Prog &p) {

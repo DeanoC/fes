@@ -775,7 +775,7 @@ def run_x87_trans(testbench: str, env: dict, backend: str, bound: int | None) ->
                                               'oracle\'s result has a magnitude in [2^-10, 2^10]; the rest are "unchecked"'},
             'exceptions': 'masked only: the bench drives no IRQ 13',
             'open_cases': {'count': trans['open_cases'], 'run': trans['open_run'],
-                           'divergence': 'x87-tiny-directed-rounding (follow "open"): not in the gated cases'}}
+                           'divergence': 'none: every case is gated'}}
 
 
 # What a governed run must share with max's (--same-as): every count but

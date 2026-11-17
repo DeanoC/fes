@@ -333,9 +333,7 @@ differs. Directed tests in later phases decide these, not the oracle:
   accepted as exactly what each entry states: C2 after a trigonometric form
   of an infinity, FYL2XP1 at and below -1, and three where Bochs's underflow
   and denormal flags come from its own working rather than the operands and
-  the result. A seventh, `x87-tiny-directed-rounding`, is open: the rule does
-  not accept it, and its nine instructions are kept out of the gated cases
-  (`FES_I386_TRANS_OPEN` runs them, and they fail).
+  the result.
 - Bochs's 386 reads CR0's bits 30-5 as ones and forces ET with its 387; the
   corpus's 386EX reads bit 16 as 0. The lockstep compares PE, MP, EM, TS and
   PG, and the random programs start from Bochs's reset CR0 and write ET set.

@@ -65,13 +65,13 @@ package fes_x87_trans_pkg;
     function automatic logic [8:0] entry_of(input logic [2:0] instruction);
         case (instruction)
             3'd0: entry_of = 9'd153;
-            3'd1: entry_of = 9'd162;
-            3'd2: entry_of = 9'd171;
-            3'd3: entry_of = 9'd186;
-            3'd4: entry_of = 9'd196;
-            3'd5: entry_of = 9'd340;
-            3'd6: entry_of = 9'd346;
-            3'd7: entry_of = 9'd401;
+            3'd1: entry_of = 9'd164;
+            3'd2: entry_of = 9'd175;
+            3'd3: entry_of = 9'd192;
+            3'd4: entry_of = 9'd204;
+            3'd5: entry_of = 9'd348;
+            3'd6: entry_of = 9'd354;
+            3'd7: entry_of = 9'd409;
             default: entry_of = 9'd0;
         endcase
     endfunction
