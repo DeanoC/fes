@@ -1,0 +1,60 @@
+{
+  "claimed": [
+    "fes.spectrum128",
+    "zx80",
+    "zx81"
+  ],
+  "not_measured": [
+    "fes.menu: base, head",
+    "fes.c64: base, head",
+    "fes.spectrum: base, head",
+    "fes.spectrum-plus3: base, head",
+    "fes.pentagon: base, head",
+    "ts1000: base, head",
+    "ts1500: base, head"
+  ],
+  "rows": {
+    "fes.spectrum128": {
+      "base_pinned_inputs_sha256": "1e3fb7c90f2c273443ef7d72fc9d9eff764243b9b556def48a6b210db1e51c42",
+      "base_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "build_id": "c1a739bb78c24b55eadbfc0473a68d45",
+      "head_pinned_inputs_sha256": "c7ff55a895adc18363a4e93dd6096eae598dff6833bff3a4cdfee081aa4f1aba",
+      "head_revision": "b0f05545183f7d06e58a7dae7123eabe8770ea9a",
+      "inputs_moved": true,
+      "lane": "nextpnr",
+      "netlist_or_qsf": "e9b2506f18b9f3d31bd6183281278c92c1aed5ac37603a8d879bef67509b4a58",
+      "rbf_bytes": 2974269,
+      "rbf_sha256": "34c2b5fc92b0cd9f8aaf58bdc7b088eb589a06e8bc4056863acfda4700440746",
+      "seed": 5,
+      "verdict": "PASS"
+    },
+    "zx80": {
+      "base_declared_inputs_sha256": "7a6e3d9c6f58e78a278b536f04cd38cde9f5ce9f74e4f818f503d312987f9acf",
+      "base_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "build_id": "c35171885bf84738cf3e1c6e2ba99908",
+      "head_declared_inputs_sha256": "d24cb66ae6a55a1f3d16543807bd128fc8d2740baaf4540f77e43d9cb77555cc",
+      "head_revision": "d83212c98ef581862002ade3a0e76755e018c4a9",
+      "inputs_moved": true,
+      "lane": "quartus-lite",
+      "netlist_or_qsf": "1b6fbd3540794511a330df0048fa32f41381e4b76c472ef57a6f428de4a0c4f5",
+      "rbf_bytes": 2303760,
+      "rbf_sha256": "abc7e320086ca908c66df3f537510e42cdeab229af237633b11515dbe0587557",
+      "seed": 1,
+      "verdict": "PASS"
+    },
+    "zx81": {
+      "base_declared_inputs_sha256": "7a6e3d9c6f58e78a278b536f04cd38cde9f5ce9f74e4f818f503d312987f9acf",
+      "base_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "build_id": "d7fadc3a87a7b3fe12a164d2dd62e126",
+      "head_declared_inputs_sha256": "d24cb66ae6a55a1f3d16543807bd128fc8d2740baaf4540f77e43d9cb77555cc",
+      "head_revision": "d83212c98ef581862002ade3a0e76755e018c4a9",
+      "inputs_moved": true,
+      "lane": "quartus-lite",
+      "netlist_or_qsf": "f6a3d0924446994d2c31f4c3f42b615de0c293923e47525e1c89ebb5eeaddd47",
+      "rbf_bytes": 2403052,
+      "rbf_sha256": "756ccc23d7ad2243635f42378086f127d76501d4b83cae54de638f443809d221",
+      "seed": 1,
+      "verdict": "PASS"
+    }
+  }
+}
