@@ -1396,7 +1396,10 @@ input support does not change that selected RTL path.
 `build/fes-ramtest-100/` with the
 `cores/fes-ramtest/toolchain.lock` HIP compiler slot, whose Yosys declares every fpga2sdram port. Its
 timing gate covers the memory, capture and video domains, and the recipe checks
-the synthesized fpga2sdram layout constants. `make build-fes-ramtest-quartus`
+the synthesized fpga2sdram layout constants. Before sealing, it also requires
+each of the 20 routed SDRAM address, bank and command outputs to have one direct
+`MISTRAL_SDROUT` pad driver. This checks output-register packing; it does not
+replace routed timing or board validation. `make build-fes-ramtest-quartus`
 compiles the same RTL with Quartus 17.0.2 at 130 MHz; `RAMTEST_MHZ=100` selects
 a separate 100 MHz diagnostic. A gamepad button, or a keyboard key the host
 maps to one, stops the scans. The ABI has no memory opcode. Hardware results
