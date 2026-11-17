@@ -71,12 +71,19 @@ const heroPlaysOnThisTV = "Plays on this TV"
 // 5% safe area, and at 1024×600.
 const heroStopCopy = "Stop: hold Select+Start for one second."
 
+func heroStopCopyFor(snap Snapshot) string {
+	if snap.Affinity == InputGamepad {
+		return "Stop: hold " + snap.padHint("SELECT") + " + " + snap.padHint("START") + " for one second."
+	}
+	return heroStopCopy
+}
+
 // heroPendingCopy is a remembered core shown before the kit lists its cores.
 const heroPendingCopy = "Play now and it starts once this kit has checked it."
 
 // waitAckCopy answers a Confirm received while Checking.
-func waitAckCopy(kind InputKind) string {
-	return "Still checking. Press " + selectWord(kind) + " again once it has finished."
+func waitAckCopy(snap Snapshot) string {
+	return "Still checking. Press " + snap.padHint(selectWord(snap.Affinity)) + " again once it has finished."
 }
 
 // heroInputsLine names required input devices before Play.
@@ -147,7 +154,6 @@ func heroCoreBlocked(d rooms.Destination) (headline, explain string) {
 
 func heroDestinationCopy(snap Snapshot) heroCopy {
 	d := snap.Room.Destination
-	kind := snap.Affinity
 	c := heroCopy{Kind: d.Kind, Title: strings.TrimSpace(d.Label)}
 	switch d.Kind {
 	case rooms.KindCore:
@@ -164,7 +170,7 @@ func heroDestinationCopy(snap Snapshot) heroCopy {
 		case d.Confirm() == rooms.ConfirmLaunchCore:
 			c.State = heroStateReady
 			c.Headline = heroPlaysOnThisTV
-			c.Explain = heroStopCopy
+			c.Explain = heroStopCopyFor(snap)
 			c.Primary, c.Filled = "Play", true
 			c.Secondary = "Details"
 		case d.Confirm() == rooms.ConfirmWait:
@@ -265,7 +271,7 @@ func heroDestinationCopy(snap Snapshot) heroCopy {
 		c.Title = "Selected"
 	}
 	if snap.Room.WaitAck {
-		c.Ack = waitAckCopy(kind)
+		c.Ack = waitAckCopy(snap)
 	}
 	return c
 }
@@ -345,9 +351,10 @@ func heroOutline(dev gfx.Device, x, y, w, h, t int, c gfx.Color) {
 
 // heroButton draws one action with its prompt word and returns its width.
 // Filled is the primary action; an outline is a secondary one.
-func heroButton(dev gfx.Device, labels map[string]gpuTexture, used map[string]struct{}, x, y, h int, prompt, label string, filled bool) int {
+func heroButton(snap Snapshot, dev gfx.Device, labels map[string]gpuTexture, used map[string]struct{}, x, y, h int, prompt, label string, filled bool) int {
+	prompt = snap.padHint(prompt)
 	text := strings.TrimSpace(prompt + "  " + label)
-	w := heroButtonWidth(prompt, label)
+	w := heroButtonWidth(snap, prompt, label)
 	fg := heroText
 	if filled {
 		dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(w), H: float32(h)}, heroAccent)
@@ -414,8 +421,8 @@ const (
 	heroButtonGap    = 14
 )
 
-func heroButtonWidth(prompt, label string) int {
-	return gfx.MeasureTextWeight(strings.TrimSpace(prompt+"  "+label), heroButtonPx, gfx.WeightBold) + 40
+func heroButtonWidth(snap Snapshot, prompt, label string) int {
+	return gfx.MeasureTextWeight(strings.TrimSpace(snap.padHint(prompt)+"  "+label), heroButtonPx, gfx.WeightBold) + 40
 }
 
 // heroButtonRects is where the primary and secondary actions are drawn;
@@ -426,7 +433,7 @@ func heroButtonRects(snap Snapshot, pane rectI) (primary, secondary rectI) {
 	y := pane.Y + pane.H - heroButtonH
 	x := pane.X
 	if c.Primary != "" {
-		primary = rectI{X: x, Y: y, W: heroButtonWidth(selectWord(kind), c.Primary), H: heroButtonH}
+		primary = rectI{X: x, Y: y, W: heroButtonWidth(snap, selectWord(kind), c.Primary), H: heroButtonH}
 		x += primary.W + heroButtonGap
 	}
 	if c.Secondary != "" {
@@ -434,7 +441,7 @@ func heroButtonRects(snap Snapshot, pane rectI) (primary, secondary rectI) {
 		if snap.BrowseActions.Focused && snap.BrowseActions.Index == 1 {
 			prompt = selectWord(kind)
 		}
-		secondary = rectI{X: x, Y: y, W: heroButtonWidth(prompt, c.Secondary), H: heroButtonH}
+		secondary = rectI{X: x, Y: y, W: heroButtonWidth(snap, prompt, c.Secondary), H: heroButtonH}
 	}
 	return primary, secondary
 }
@@ -588,14 +595,14 @@ func drawHeroDestination(dev gfx.Device, snap Snapshot, pane rectI, labels map[s
 	}
 	primary, secondary := heroButtonRects(snap, pane)
 	if c.Primary != "" {
-		heroButton(dev, labels, used, primary.X, primary.Y, primary.H, selectWord(kind), c.Primary, c.Filled)
+		heroButton(snap, dev, labels, used, primary.X, primary.Y, primary.H, selectWord(kind), c.Primary, c.Filled)
 	}
 	if c.Secondary != "" {
 		prompt := detailsWord(kind)
 		if snap.BrowseActions.Focused && snap.BrowseActions.Index == 1 {
 			prompt = selectWord(kind)
 		}
-		heroButton(dev, labels, used, secondary.X, secondary.Y, secondary.H, prompt, c.Secondary, false)
+		heroButton(snap, dev, labels, used, secondary.X, secondary.Y, secondary.H, prompt, c.Secondary, false)
 	}
 	if snap.BrowseActions.Focused {
 		focused := primary

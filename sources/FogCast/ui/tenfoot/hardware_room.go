@@ -556,5 +556,5 @@ func drawHardwareRoomButton(dev gfx.Device, snap Snapshot, labels map[string]gpu
 		return
 	}
 	fillRect(dev, float32(button.X), float32(button.Y), float32(button.W), float32(button.H), 48, 84, 103, 255)
-	drawLabel(dev, labels, used, "np-hardware", button.X+14, button.Y+11, button.W-28, 18, playingRoomLabel(snap.Session)+" · "+hardwareRoomWord(snap.Affinity))
+	drawLabel(dev, labels, used, "np-hardware", button.X+14, button.Y+11, button.W-28, 18, snap.padHint(playingRoomLabel(snap.Session)+" · "+hardwareRoomWord(snap.Affinity)))
 }
