@@ -53,6 +53,39 @@
     "tied_to_head_by": "source_commit field matches the head",
     "unverified": null
   },
+  "pentagon": {
+    "build_id": "9f822a406d33a4c298443f15cf13b463",
+    "lane": "nextpnr",
+    "margins": {
+      "clocks": {
+        "audio": {
+          "achieved_mhz": 193.23670959472656,
+          "constraint_mhz": 12.288031578063965,
+          "ratio": 15.725603272348676,
+          "status": "pass"
+        },
+        "pixel": {
+          "achieved_mhz": 91.44947052001953,
+          "constraint_mhz": 74.25006866455078,
+          "ratio": 1.231641561614882,
+          "status": "pass"
+        },
+        "system": {
+          "achieved_mhz": 58.90322494506836,
+          "constraint_mhz": 52.22477340698242,
+          "ratio": 1.127878995013371,
+          "status": "pass"
+        }
+      },
+      "kind": "nextpnr-frequency-ratio",
+      "worst_ratio": 1.127878995013371
+    },
+    "placer_seed": 5,
+    "revision": null,
+    "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-pentagon-oss/build-summary.json",
+    "tied_to_head_by": "all 52 input digests match the head",
+    "unverified": null
+  },
   "spectrum": {
     "build_id": "b4649c8dd5cf3b9cf222b60d5e2b79ba",
     "lane": "nextpnr",
