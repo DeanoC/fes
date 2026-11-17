@@ -60,7 +60,8 @@ func (a *App) suppressHeldPlayKeysLocked() {
 }
 
 // physicalPlayKey distinguishes identical usages held on different keyboards.
-// SDL and name-only callers use source -1; native evdev callers use their fd.
+// SDL callers use the keyboard instance ID, native evdev callers use their fd,
+// and legacy name-only callers use source -1.
 type physicalPlayKey struct {
 	source int
 	key    string

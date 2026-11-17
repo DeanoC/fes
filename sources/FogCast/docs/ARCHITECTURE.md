@@ -3528,12 +3528,13 @@ map; the core owns characters, shifted symbols, repeat and reset chords. The hos
 attaches input for these sessions even without controller ports and passes the
 events through `POST /api/v1/session/input/event` and the host stream unchanged.
 On the kit, the linuxfb evdev loop reads `EV_KEY` records, maps Linux key codes
-through `internal/hidkeys.FromLinuxKey`, and passes the resulting usage to
-`HandlePlayHIDScancode` and the ordered `SendPlayHID` path. Tenfoot tracks each
-physical keyboard's held and suppressed keys by source and HID usage in all
-sessions, including the name-mapped keyboard path. Suppression follows that
-keyboard until it releases the key. A contribution records an input admitted to
-the ordered queue, not proof that the guest consumed it. If multiple physical
+through `internal/hidkeys.FromLinuxKey`, and passes the resulting usage through
+Tenfoot's source-aware play-key handling and ordered `SendPlayHID` path. SDL uses
+its keyboard instance ID and linuxfb uses its evdev fd as the physical source.
+Tenfoot tracks each physical keyboard's held and suppressed keys by source and
+HID usage in all sessions, including the name-mapped keyboard path. Suppression
+follows that keyboard until it releases the key. A contribution records an input
+admitted to the ordered queue, not proof that the guest consumed it. If multiple physical
 keys, on one keyboard or across keyboards, contribute the same core key, a
 release clears that key's hold and modifier state immediately; the core release
 is queued once no other unsuppressed admitted key contributes it. Disconnect

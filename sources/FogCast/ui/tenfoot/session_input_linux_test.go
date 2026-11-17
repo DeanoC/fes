@@ -712,6 +712,49 @@ func TestNativeKeyboardsDoNotRepeatSharedKeyPress(t *testing.T) {
 		remoteinput.ActionPress, remoteinput.ActionPress, remoteinput.ActionRelease, remoteinput.ActionPress, remoteinput.ActionRelease)
 }
 
+func TestDistinctKeyboardSourcesHoldSharedHIDUsageUntilLastRelease(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(http.NotFound))
+	t.Cleanup(server.Close)
+	app, feed := kitDisplayApp(t, server)
+	app.mu.Lock()
+	app.session.CoreKeyboardHID = true
+	app.mu.Unlock()
+
+	key, ok := hidkeys.Code(0x04) // USB HID A.
+	if !ok {
+		t.Fatal("A has no HID event code")
+	}
+	now := time.Now()
+	send := func(source int, down bool) {
+		t.Helper()
+		if !app.handlePlayHIDScancode(source, "a", 0x04, down, now) {
+			t.Fatalf("keyboard event was not handled for source %d", source)
+		}
+		drainLocalKeyQueue(t, app)
+	}
+	assertActions := func(want ...remoteinput.Action) {
+		t.Helper()
+		var got []remoteinput.Action
+		for _, event := range feed.snapshot() {
+			if event.Device == remoteinput.DeviceKeyboard && event.Code == key {
+				got = append(got, event.Action)
+			}
+		}
+		if !slices.Equal(got, want) {
+			t.Fatalf("shared-key actions = %v, want %v", got, want)
+		}
+	}
+
+	// SDL keyboard instance IDs enter the same source-aware path as evdev fds.
+	send(41, true)
+	send(42, true)
+	assertActions(remoteinput.ActionPress)
+	send(41, false)
+	assertActions(remoteinput.ActionPress)
+	send(42, false)
+	assertActions(remoteinput.ActionPress, remoteinput.ActionRelease)
+}
+
 func TestNativeKeyboardsCoalesceOnlyAdmittedLegacyKeys(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(http.NotFound))
 	t.Cleanup(server.Close)

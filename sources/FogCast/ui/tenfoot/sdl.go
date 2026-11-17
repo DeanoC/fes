@@ -845,6 +845,17 @@ func dispatchSyntheticSDL(app *App, kind, which int) bool {
 	return handleSDLEvent(app, map[C.SDL_JoystickID]*C.SDL_Gamepad{}, &ev, time.Now(), nil)
 }
 
+func dispatchSyntheticSDLKey(app *App, keyboardID, keycode, scancode int, down bool, now time.Time) bool {
+	ev := C.FogcastEvent{
+		kind: C.int(evKey), code: C.int(keycode), value: C.int(scancode),
+		which: C.int(keyboardID), down: 0,
+	}
+	if down {
+		ev.down = 1
+	}
+	return handleSDLEvent(app, map[C.SDL_JoystickID]*C.SDL_Gamepad{}, &ev, now, nil)
+}
+
 func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.FogcastEvent, now time.Time, stick *stickTracker) bool {
 	switch ev.kind {
 	case evQuit:
@@ -855,7 +866,7 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 			app.TypeText(text, now)
 		}
 	case evKey:
-		if app.HandlePlayHIDScancode(sdlPlayKeyName(ev.code), sdlHIDUsage(ev.value), ev.down != 0, now) {
+		if app.handlePlayHIDScancode(int(ev.which), sdlPlayKeyName(ev.code), sdlHIDUsage(ev.value), ev.down != 0, now) {
 			return false
 		}
 		if ev.down != 0 {

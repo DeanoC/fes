@@ -2452,7 +2452,8 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 	return a.handlePlayHIDScancode(-1, name, usage, down, now)
 }
 
-// source is the evdev fd for a native keyboard, or -1 for the SDL/legacy path.
+// source identifies a physical keyboard: SDL instance ID or native evdev fd.
+// Legacy callers without a device identity use -1.
 func (a *App) handlePlayHIDScancode(source int, name string, usage uint8, down bool, now time.Time) bool {
 	if a == nil {
 		return false
@@ -2710,6 +2711,11 @@ func (a *App) releaseTransitionPlayKey(source int, name string, usage uint8) boo
 		delete(a.playKeyAdmitted, physical)
 		return true
 	}
+	if a.hasOtherPlayKeyContributorLocked(physical, key) {
+		delete(a.playKeyAdmitted, physical)
+		a.traceKeyRouteLocked("coalesced-release", source)
+		return true
+	}
 	delete(a.playKeyAdmitted, physical)
 	if !a.playHIDRouteReadyLocked() || a.playHIDFailClosedLocked() || a.client == nil {
 		if a.playKeyPendingRelease == nil {
@@ -2746,6 +2752,11 @@ func (a *App) sendPhysicalPlayKey(source int, name string, usage uint8, event re
 	physical := physicalPlayKey{source: source, key: playHeldKey(name, usage)}
 	if event.Action == remoteinput.ActionRelease {
 		if admitted, ok := a.playKeyAdmitted[physical]; ok {
+			if a.hasOtherPlayKeyContributorLocked(physical, admitted) {
+				delete(a.playKeyAdmitted, physical)
+				a.traceKeyRouteLocked("coalesced-release", source)
+				return true
+			}
 			event = remoteinput.Event{Player: admitted.player, Device: admitted.device, Kind: admitted.kind, Code: admitted.code, Action: remoteinput.ActionRelease}
 		}
 	}
@@ -2763,10 +2774,7 @@ func (a *App) sendPhysicalPlayKey(source int, name string, usage uint8, event re
 		// from an already admitted physical key retain their existing behavior.
 		if _, alreadyAdmitted := a.playKeyAdmitted[physical]; !alreadyAdmitted {
 			key := playHIDKey{event.Player, event.Device, event.Kind, event.Code}
-			for other, heldKey := range a.playKeyAdmitted {
-				if other == physical || heldKey != key || !a.playKeyHeld[other] || a.playKeySuppressed[other] {
-					continue
-				}
+			if a.hasOtherPlayKeyContributorLocked(physical, key) {
 				// Apply the same admission gates as an ordinary press. Flush
 				// deferred releases first so an old neutral cannot follow a new
 				// contribution on the same route.
@@ -2774,12 +2782,11 @@ func (a *App) sendPhysicalPlayKey(source int, name string, usage uint8, event re
 					return false
 				}
 				a.flushPendingPlayKeyReleasesLocked()
-				if _, stillHeld := a.playHIDHeld[key]; !stillHeld {
-					break
+				if _, stillHeld := a.playHIDHeld[key]; stillHeld {
+					a.playKeyAdmitted[physical] = key
+					a.traceKeyRouteLocked("coalesced", source)
+					return true
 				}
-				a.playKeyAdmitted[physical] = key
-				a.traceKeyRouteLocked("coalesced", source)
-				return true
 			}
 		}
 	}
@@ -2807,6 +2814,17 @@ func (a *App) sendPhysicalPlayKey(source int, name string, usage uint8, event re
 		a.traceKeyRouteLocked("admitted", source)
 	}
 	return true
+}
+
+// hasOtherPlayKeyContributorLocked reports whether another unsuppressed
+// physical hold already contributes this admitted core key.
+func (a *App) hasOtherPlayKeyContributorLocked(physical physicalPlayKey, key playHIDKey) bool {
+	for other, heldKey := range a.playKeyAdmitted {
+		if other != physical && heldKey == key && a.playKeyHeld[other] && !a.playKeySuppressed[other] {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *App) sendPlayHIDLocked(event remoteinput.Event) bool {
