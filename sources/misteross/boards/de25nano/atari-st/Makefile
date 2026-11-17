@@ -1,6 +1,11 @@
 PYTHON ?= python3
+QUARTUS_ROOTDIR ?=
+VENDOR_ARCHIVE ?=
+OUTPUT ?=
 
-.PHONY: sim test
+.PHONY: project generate build sim test
+project generate build:
+	$(PYTHON) build.py $@ --quartus-root "$(QUARTUS_ROOTDIR)" --vendor-archive "$(VENDOR_ARCHIVE)" --output "$(OUTPUT)"
 sim:
 	$(PYTHON) sim.py
 test:

@@ -57,7 +57,7 @@ class Derivations(unittest.TestCase):
 
     def test_component_lists_every_staged_file(self):
         build = load("build")
-        files, derived, _ = build.component_files(build.capture())
+        files, derived, _ = build.board.component_files(build, build.board.capture(build))
         tcl = files["fes_de25_spectrum_standard_hw.tcl"].decode()
         named = set()
         for group in __import__("re").findall(r"foreach file \{([^}]*)\}", tcl):
