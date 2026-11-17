@@ -431,3 +431,52 @@ What those two reports show, stated because the changes below follow from it:
    and expected bytes are run as the unit bench's own directed FBSTP cases,
    written from the instruction's rules, and the QEMU file is fetched and its
    seventeen expectations compared with those cases' at run time.
+
+### 17 Nov 2026, amendment 2: C1, the distance function, and the engine's first size
+
+**What had been seen.** The engine RTL against its model: 49,304 vectors,
+every one equal bit for bit, and a rounding fault injected on purpose caught.
+The unit with the engine in it, on the DE25 backend, against the host at the
+proposed bound of 4: first 16,935 of 18,177 cases passing, and after the
+changes below all 18,177, on the RTL and on the locked-Yosys netlist, with
+7,994 of the model's instruction-level vectors equal bit for bit and the
+largest distance from the host 2. The DE10 backend: 774 of 774. No lockstep
+run with the transcendentals, and no machine fit.
+
+1. **Rule 5 on C1 could not stand, and is replaced.** It gated C1 "exactly
+   when the two results are bit-identical". The first unit run failed 1,042
+   cases on that alone, and the reason is not the unit: the two build hosts
+   disagree with each other on C1 for results that are identical to the bit
+   (the host comparison has it on thousands of such rows). C1 after an
+   inexact transcendental is the round-up bit of each implementation's own
+   last rounding and nothing else. **The rule is now: C1 is compared exactly
+   where a stack fault set it and where the result was exact (PE clear);
+   elsewhere it is counted and not gated.** This is weaker than what was
+   written. It was changed after a result that failed it, which this file
+   forbids for a pass rule on the unit's behaviour; it is recorded as a rule
+   that the references themselves cannot meet, with the measurement that
+   shows it, rather than as a rule the unit now passes.
+2. **The distance function was wrong at a binade boundary.** Rule 3's integer
+   was computed as `(exponent - 1) << 63 | significand` in every copy, which
+   drops 2^63 where `exponent - 1` is odd. Two results either side of a
+   power of two then read as about 2^63 apart, not 1. It showed as 92 unit
+   failures at exactly that distance. It is `+`, and the committed
+   distance reports are regenerated with the corrected function; a distance
+   inside one binade was never affected.
+3. **FSINCOS's last result is the sine**, which replaces ST(0), and the
+   cosine is the other, pushed: the unit's two-result apply is FXTRACT's,
+   and this is its order. The model and the engine were changed together
+   and re-checked against each other.
+4. **A first, non-gating size.** `fes_x87_trans` alone, every port a virtual
+   pin, one seed, an ad hoc project on chip-30x0-ai-dev with Quartus Pro
+   26.3: 1,687 ALMs, 706 registers, 7 RAM blocks, no DSP block, and a setup
+   slack of 10.7 ns at 16.276 ns. It is not a fit of the machine, its
+   virtual pins are counted in it, and no band is judged on it. It is
+   recorded because band 4's threshold is about 2,000 ALMs above the
+   baseline's median, so the machine fits may land beside it.
+5. **Manual over host, in the unit bench.** Two classes of case follow the
+   manual where the host does otherwise, and say so in the bench: a
+   trigonometric form of an infinity is compared with the host's state with
+   C2 set (rules.md TRIG4), and FYL2XP1 of an operand at or below -1 is not
+   compared with the host at all but asserted against the unit's own rule
+   (rules.md LOG5). The report counts both as `manual`.
