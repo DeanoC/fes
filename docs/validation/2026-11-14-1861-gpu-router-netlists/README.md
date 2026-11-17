@@ -2,47 +2,133 @@
 
 PR #1862 edits five producer scripts and one shared helper
 (`scripts/fes_de10nano_evidence.py`). No RTL, QSF, SDC, lock or placement
-recipe changes. The record of every core whose producer imports a changed file
-therefore moves through `source_inputs`, and with it `BUILD_ID`, so
-[D12](../../../AGENTS.md) applies.
+recipe changes. The record of every artefact whose producer closure holds a
+changed file therefore moves through its source inputs, and with it `BUILD_ID`,
+so [D12](../../../AGENTS.md) applies.
 
-D12 asks for three things. Where this record stands on each:
+**This record was re-derived at the merge base `a482f14c0` after three things
+moved underneath it.** The earlier version of this page claimed a five-artefact
+scope agreed verbally on 2026-11-15; that claim is withdrawn below, with what
+replaced it and why.
 
-1. the core's Yosys netlist is byte-identical to main apart from the `BUILD_ID`
-   constant and `src` file paths — **done for all 15 affected artifacts**, in
-   two agreeing passes, and for 14 of them with neither exemption needed: the
-   netlists are identical outright. `splash` is the exception and needs the
-   `src` path exemption, for the reason given below;
-2. a build with the PR's tooling and main's `BUILD_ID` reproduces main's RBF
-   byte for byte — **done for the five artifacts Deano scoped**, each after a
-   control run that had to reproduce the producer's own RBF first;
-3. the PR's own build passes the core's normal timing and seal gates —
-   **done for those same five**.
+## Which artefacts are affected, measured rather than argued
 
-So this directory discharges D12 in full for `splash`, `fes.menu`, `fes.zx81`,
-`fes.spectrum` and `fes.c64`, and condition 1 for all 15. The ten artifacts
-outside the scoped set carry condition 1 only, which is the priority call
-recorded under "Agreed scope" below rather than left implicit.
+`design_identity.py --tree-a <base> --tree-b <head>` answers it from the two
+trees alone: for each support-matrix row it takes that row's producer, the
+producer's own closure roots, and compares the design-role half of the closure
+(`scripts/input_identity.py`, `input_role`). **15 affected, 5 unchanged, 0
+unanswered** (`reports-scope/affected.log`).
 
-## Agreed scope for conditions 2 and 3
+It reads the roots from the producer and not from
+`scripts/source_closures.json`, because that manifest holds only the twelve
+registered nextpnr producers and would silently miss `build_fes_zx81_quartus`
+and `build_fes_splash`. `closure_touched.py` in the #1581 record hard-codes the
+same twelve and has the same blind spot.
 
-Deano scoped the route-based evidence on 2026-11-15: **firmware plus one
-representative per affected machine family**, rather than all 15 artifacts.
-That is `fes.menu`, `splash`, `fes.zx81`, `fes.spectrum` and `fes.c64`. The
-sibling variants (`zx80`, `ts1000`, `ts1500`, `spectrum128`, `spectrum-plus3`,
-`pentagon`) share a producer, a lock and a constraint set with their
-representative and have identical netlists, and the held-back cores (`fes.pong`,
-`fes.ramtest`, `fes.coleco`, `fes.riscv`) are not shipped. Their conditions 2
-and 3 are deliberately not measured; that is a priority call, recorded here so
-the gap is explicit rather than silent.
+Unaffected, and so outside this record entirely: `fes.sms`, `fes.sg1000`,
+`fes.apple2`, `fes.atari-st`, `fes.pcxt-dos`.
 
-| Artifact | Condition 1 | Condition 2 | Condition 3 |
-| --- | --- | --- | --- |
-| `splash` | done (src exempt) | **done** | **done** |
-| `fes.menu` | done | **done** | **done** |
-| `fes.zx81` | done | **done** | **done** |
-| `fes.spectrum` | done | **done** | **done** |
-| `fes.c64` | done | **done** | **done** |
+## Three changes on main that moved the work, and what each did
+
+**#1891 moved the ZX81 family to a Quartus front end.** `fes.zx81`, `fes.zx80`,
+`fes.ts1000` and `fes.ts1500` now select `build_fes_zx81_quartus`, whose own
+`SOURCE_ROOTS` name `scripts/fes_de10nano_evidence.py`, so they remain affected
+artefacts. What changed is the object D12 compares: that producer runs no Yosys
+program, and D12 says "for a native Quartus front end, its QSF". So their
+condition 1 is the canonical QSF, which `qsf_identity.py` measures using the
+producer's own `canonical_qsf_sha256` — `BUILD_ID` zeroed, seed and per-run
+project path dropped, checkout prefix rewritten. All four are byte-identical,
+recipes included, at no Quartus cost at all
+(`reports-scope/zx81-quartus-qsf.log`). Their rows under `reports/` and
+`reports-pass2/` were produced by `build_fes_zx81_oss` and now describe the
+advisory nextpnr lane, not the shipping package.
+
+**#1881 removed the 130 MHz RAM Tester package** and rewrote
+`build_fes_ramtest.py`. The `--gpu-router` option was re-applied on main's
+shape; the 130 MHz target, its timing diagnostic and the `memory_mhz` argument
+stay deleted. `cores/fes-ramtest/rtl/ram_font.v` also moved, so `fes.ramtest`
+is the one affected artefact whose *compiled* source set changed across the
+base move and whose condition 1 could not simply carry forward.
+
+**#1863 merged `check_level`.** Its rule drops conditions 2 and 3 for a core
+recorded `reduced`, but puts that core back under the full rule for a change
+touching "the core's own RTL, programs, toolchain lock or placement recipe".
+This PR edits producers, which hold both the Yosys program and the nextpnr
+options, so that clause is discharged by measurement, not by assertion — see
+below. Eleven affected artefacts are `full` and four are `reduced`
+(`fes.pong`, `fes.ramtest`, `fes.coleco`, `fes.riscv`).
+
+## Withdrawn: the five-artefact scope
+
+The earlier page recorded a verbal call of 2026-11-15 to measure conditions 2
+and 3 for "firmware plus one representative per affected machine family", and
+claimed D12 discharged in full for `splash`, `fes.menu`, `fes.zx81`,
+`fes.spectrum` and `fes.c64`. That is withdrawn, for three reasons that are
+each measured here:
+
+- `check_level` merged after that call and does not grant a sibling-variant
+  exemption. The siblings `zx80`, `ts1000`, `ts1500`, `spectrum128`,
+  `spectrum-plus3` and `pentagon` are all `full`.
+- `fes.zx81`'s evidence was taken on `build_fes_zx81_oss`, which no longer
+  produces its package.
+- **Condition 3 does not carry forward across a merge at all.** It is about the
+  identity that ships, and the shipped `BUILD_ID` moved: `fes.spectrum` derives
+  `184fe9efe3208b902e377c8764fd1abc` at `a482f14c0`, where the recorded
+  condition-2 run used `401632145ba4e7c84cbae6544b2d6d53`. The same mistake was
+  made on #1881 and raised there as a P1.
+
+## What the merge-forward clause does carry
+
+D12 carries conditions 1 and 2 for an artefact whose compiled source set is
+unchanged between the old base and the new one and whose route-deciding inputs
+— lock, timing and pin constraints, placement recipe — are unchanged too.
+Both halves are measured:
+
+- `reports-scope/base-move.log` (`design_identity.py idold idbase`): across
+  `72d2fc4da` to `a482f14c0` the only compiled inputs that moved for an
+  affected artefact are `cores/fes-ramtest/rtl/ram_font.v` and two `fes.c64`
+  diagnostic generators. Everything else that moved is a shared script.
+- `reports-scope/route-inputs-base-move.log` (`route_inputs.py`): no
+  artefact's toolchain lock, QSF, SDC or `pnr_recipe.recipe_digest` moved
+  across that span. `git diff` over the same span confirms no `toolchain.lock`
+  changed. `design_recipe_digest` is unanswerable at the old base because the
+  function postdates it, and is reported as unanswered rather than as a pass.
+
+## The check_level clause, discharged mechanically
+
+`front_end_program.py` compares the exact command lists each producer's
+`build_commands` emits, `BUILD_ID` pinned to 32 zeros and one identical set of
+tool paths on both sides. All thirteen nextpnr cases are byte-identical
+(`reports-scope/front-end-programs.log`).
+
+That alone does **not** cover the placement recipe, because `fes.spectrum`,
+`fes.ramtest`, `fes.c64` and `fes.coleco` ignore the route tuple
+`build_commands` returns and call `route_after_synth` with their own
+`pnr_recipe` arguments. `route_inputs.py` covers it directly: per artefact it
+reads the toolchain lock, QSF, SDC and both `pnr_recipe` digests, taking each
+path from the producer's own declared input list rather than a guessed
+attribute name. Every one is byte-identical across this change
+(`reports-scope/route-inputs.log`).
+
+### Every comparator here was checked against a constructed counterexample
+
+Reasoning about what a check would catch is not evidence that it catches it:
+
+| Perturbation | Expected | Result |
+| --- | --- | --- |
+| extra `synth_intel_alm` option in `build_fes_pong` | that core only | `fes.pong` MOVED, others quiet |
+| `--freq 74.25` to `74.20` in `build_fes_ramtest` | that core only | `fes.ramtest` MOVED, others quiet |
+| trailing whitespace on one `set_location_assignment` | all four ZX81 QSFs | all four MOVED, exit 1 |
+| one seed changed in `fes.pentagon`'s recipe table | that core only | `fes.pentagon` recipe + design digests MOVED |
+
+Two defects in this record's own tooling were found that way and are recorded
+rather than quietly amended: `build_fes_splash` emits a **format-1** record and
+hashes no source closure at all, so an earlier version of `design_identity.py`
+credited it with a 613-file design set and five moved producer scripts it
+hashes none of (it has 11 declared inputs, of which this PR moves one); and
+`route_inputs.py` first read the lock by a guessed attribute name, which missed
+six producers that keep it under a prefixed name and reported them as sharing
+the repository-root lock.
 
 ### How condition 2 is measured, and the control that makes it mean anything
 
