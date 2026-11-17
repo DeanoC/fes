@@ -83,8 +83,10 @@ mouse and the floppy with its write and geometry interfaces). Both add
 patched, so the payload is programmed unchanged and the sealed ROM requirement
 names the image the core's upload endpoint takes (Spectrum 16384 or 32768
 bytes, Atari ST 196608). Any other interface set, size, format or version is
-refused before programming. Host software coverage only; DE25 hardware
-acceptance of either machine does not exist.
+refused before programming. `misteross/boards/de25nano/machine/driver_proof.py`
+runs this driver and its DE25 transport against the Verilated RTL of both
+machines. Host software coverage only; DE25 hardware acceptance of either
+machine does not exist.
 
 The static format5 variant additionally requires the optional
 `fes.expansion.zx81-bus` 2.0 declaration. It retains all nine required standard
