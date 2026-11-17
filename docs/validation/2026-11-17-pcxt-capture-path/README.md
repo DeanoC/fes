@@ -251,7 +251,10 @@ elaboration at the fitted experimental ID, using the identical source/work paths
 inside a private mount namespace, reproduces the fitted Verilog byte for byte:
 both SHA256 values are
 `c178780411d6ad402c47521b56c2e66959644379e987dec51a08389a3997fed6`.
-Neither the original frozen source nor its outputs were modified. A comparison
+The pre-fit qualification proof is [fit-proof.json](coordinated/fit-proof.json);
+the final-source trace is [proof.json](coordinated/proof.json), with both digests
+bound explicitly in the result. Neither the original frozen source nor its
+outputs were modified. A comparison
 at different paths first exposed path text inside generated function names;
 that failed comparison is retained, not normalized away. The same-path result
 and its exact command are retained in the protected evidence.

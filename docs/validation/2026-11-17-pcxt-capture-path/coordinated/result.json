@@ -34,6 +34,9 @@
     "setup": 3.578
   },
   "experimental_id": "5e5d6ccd354bed7d29a93dca7bf09524",
+  "final_source_proof_path": "proof.json",
+  "final_source_proof_sha256": "f8847ce1484ec69bccf8e82180e03ef201b64bfb8085716f1a0b5347bb77cfc3",
+  "fit_proof_path": "fit-proof.json",
   "generic_read_per_edge_min_ns": {
     "hold": 10.912,
     "setup": -9.66
