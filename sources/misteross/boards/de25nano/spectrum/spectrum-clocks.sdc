@@ -41,28 +41,20 @@ foreach {label source expected head second} {
     set_false_path -from $launches -to $first_d
 }
 
-# The frame store hands the pixel side a three-bit {toggle, bank} word and
-# takes back the two-bit bank on show. Each bit enters its own first stage,
-# as in the DE10 machine. Their flight and skew are bounded so the bits of a
-# word arrive together; later stages stay timed in the receiving clock. A
-# receiving edge inside the skew window can still see a mixed word for one
-# clock, which the DE10 source does not qualify either.
-foreach {label source head bits} {
-    frame_ready {core|video|ready_toggle core|video|ready_bank[*]} {core|video|ready_meta[*]} 3
-    frame_shown {core|video|shown_bank[*]} {core|video|shown_meta[*]} 2
+# The frame store tells the pixel side a frame is ready with a toggle and
+# takes the shown bank back the same way. Each two-bit bank is held behind its
+# toggle and copied in the receiving clock one clock after the toggle's second
+# stage shows it, so it is a held bundle like those below.
+foreach {label source head} {
+    frame_ready {core|video|ready_toggle} {core|video|ready_meta}
+    frame_shown {core|video|shown_toggle} {core|video|shown_meta}
 } {
-    set patterns {}
-    foreach name $source {lappend patterns "${base}|${name}"}
-    set launches [get_registers $patterns]
-    set captures [get_registers "${base}|${head}"]
-    if {[get_collection_size $launches] != $bits || [get_collection_size $captures] != $bits} {
-        error "DE25 Spectrum $label crossing endpoints changed"
+    set launches [get_registers "${base}|${source}"]
+    set first_d [get_pins -compatibility_mode -nocase "${base}|${head}|d"]
+    if {[get_collection_size $launches] != 1 || [get_collection_size $first_d] != 1} {
+        error "DE25 Spectrum $label synchronizer endpoints changed"
     }
-    set_net_delay -max 10.000 -from $launches -to $captures
-    set_data_delay 10.000 -from $launches -to $captures
-    set_max_skew 2.000 -from $launches -to $captures
-    set_max_delay 10.000 -from $launches -to $captures
-    set_min_delay 0.000 -from $launches -to $captures
+    set_false_path -from $launches -to $first_d
 }
 
 # Bundles are held throughout their toggle round trip. A ten-nanosecond flight
@@ -74,6 +66,8 @@ foreach {label source sink expected} {
         {display|crossing|pixel_opcode[*] display|crossing|pixel_index[*] display|crossing|pixel_argument[*]} 31
     reply {display|crossing|returned_payload[*]}
         {display|crossing|response_error display|crossing|response_data[*]} 17
+    ready_bank {core|video|ready_bank[*]} {core|video|ready_bank_pixel[*]} 2
+    shown_bank {core|video|shown_bank[*]} {core|video|shown_sync[*]} 2
 } {
     set launches [get_registers "${base}|${source}"]
     set patterns {}
@@ -202,7 +196,13 @@ if {[get_collection_size $i2s_data] != 1 || [get_collection_size $i2s_launch] !=
 }
 set_output_delay -clock de25_i2s_bit_clock_output -max 2.000 $i2s_data
 set_output_delay -clock de25_i2s_bit_clock_output -min -2.000 $i2s_data
+set_multicycle_path -setup -start 1 -from $i2s_launch -to $i2s_data
 set_multicycle_path -hold -start 1 -from $i2s_launch -to $i2s_data
+# PLL lock gates the data pin low until the clocks are valid. It is an
+# asynchronous level from the PLL's own control register, not serial data.
+set i2s_lock [get_registers {fes_machine_pll|machine_pll|tennm_ph2_iopll~pll_ctrl_reg}]
+if {[get_collection_size $i2s_lock] != 1} {error "DE25 Spectrum I2S lock gate changed"}
+set_false_path -from $i2s_lock -to $i2s_data
 
 # The SDRAM clock pin is the inverted machine clock: the chips sample half a
 # machine period after the fabric launches a command.

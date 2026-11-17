@@ -43,8 +43,18 @@ class Derivations(unittest.TestCase):
         for name in derive.RAM_FILES:
             source = (SPECTRUM / name).read_bytes()
             result, _ = derive.retarget_ram(name, source)
-            self.assertEqual(result.replace(b'"M20K"', b'"M10K"'), source)
             self.assertNotIn(b"M10K", result.replace(b"M10K blocks", b""))
+            if name == "spectrum_video.v":
+                # The banks no longer ride a synchronizer: only the two toggles do.
+                self.assertIn(b"ready_meta <= ready_toggle;", result)
+                self.assertIn(b"shown_meta <= shown_toggle;", result)
+                self.assertEqual(result.count(b"<= ready_bank;"), 1)
+                self.assertEqual(result.count(b"<= shown_bank;"), 1)
+                self.assertNotIn(b"{ready_toggle, ready_bank}", result)
+                with self.assertRaises(ValueError):
+                    derive.retarget_ram(name, source.replace(b"shown_sync <= shown_meta;", b"shown_sync <= 0;"))
+            else:
+                self.assertEqual(result.replace(b'"M20K"', b'"M10K"'), source)
 
     def test_transport_slice_is_the_shared_module(self):
         source = (HERE.parent / "zx81-hps/fes_de25_computer.v").read_bytes()

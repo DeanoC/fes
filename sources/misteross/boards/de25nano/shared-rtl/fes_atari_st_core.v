@@ -101,6 +101,9 @@ module fes_atari_st_core #(
     always @(posedge clk_sys)
         machine_reset <= exec_reset || cold_reset || reset_hold || !initialized;
     assign machine_held = machine_reset;
+    // The video's hold crosses into the pixel clock from a register of its own.
+    (* preserve, dont_merge *) reg video_hold = 1'b1;
+    always @(posedge clk_sys) video_hold <= machine_reset;
     wire rom_req, rom_ready, ram_req, ram_ready, ram_write;
     wire [17:1] rom_addr;
     wire [18:1] ram_addr;
@@ -184,7 +187,7 @@ module fes_atari_st_core #(
         .native_blank(native_blank), .native_word_loss(native_word_loss), .native_line(native_line),
         .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(exp_phi2),
         .sync_mode(sync_mode),
-        .hold(machine_reset), .screen_base(screen_base), .resolution(resolution), .palette(palette),
+        .hold(video_hold), .screen_base(screen_base), .resolution(resolution), .palette(palette),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),
         .video_request(video_request), .debug_underruns(), .debug_frame()
     );

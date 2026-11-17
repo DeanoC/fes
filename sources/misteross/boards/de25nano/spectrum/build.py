@@ -16,6 +16,7 @@ SDC = BOARD + "spectrum/spectrum-clocks.sdc"
 MODELS = {"48": None, "128": "SPECTRUM_MODEL_128K"}
 # The exact image each model's upload endpoint takes.
 FIRMWARE_BYTES = {"48": 16384, "128": 32768}
+ASSIGNMENTS = ()
 # Qsys writes this peripheral subsystem for the component: the standard ZX81
 # parent with the machine clock bridge and the SDRAM conduit in place of the
 # expansion conduit, and the same four reset controllers. The shared FIFO

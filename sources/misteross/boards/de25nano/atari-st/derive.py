@@ -54,7 +54,8 @@ def retarget_sdram(source):
 
 
 CACHE_BEFORE = b'(* ramstyle = "M10K" *) reg [15:0] words [0:80];'
-CACHE_AFTER = b'(* ramstyle = "M20K" *) reg [15:0] words [0:80];'
+# 81 words fill a twentieth of an M20K; the line caches are LUT RAM here.
+CACHE_AFTER = b'(* ramstyle = "MLAB" *) reg [15:0] words [0:80];'
 # The DE10 frame store is 234 hand-chunked 1024x9 memories with a grouped read
 # mux, shaped for M10K blocks and written from one case statement. Quartus
 # builds that write from two million registers, and one M20K per chunk needs
@@ -116,6 +117,195 @@ def _region(source, begin, end, after, label):
     return source[:start] + after + source[stop:], source[start:stop]
 
 
+def _edits(source, edits, label):
+    """Apply exact single-occurrence replacements, in order; refuse any drift."""
+    result, changes = source, []
+    for before, after in edits:
+        if result.count(before) != 1:
+            raise ValueError(label + " adaptation contract changed: " + before.decode().strip().splitlines()[0])
+        result = result.replace(before, after)
+        changes.append({"before": before.decode(), "after": after.decode()})
+    return result, {"source_sha256": sha(source), "derived_sha256": sha(result), "changes": changes}
+
+
+# The DE10 video crosses between the machine and pixel clocks with toggles and
+# bundles held across each round trip, and the receiving side reads each bundle
+# through its own logic. That is sound, but it leaves logic on every crossing
+# path. Here each bundle is copied into a receiving-clock register when its
+# toggle arrives, with nothing but that register's enable, and the logic reads
+# the copy one receiving clock later. Each synchronizer runs free, outside its
+# clock's synchronous reset, so nothing but its source reaches its first stage.
+ADAPTER_EDITS = (
+    # 80 words fill a twentieth of an M20K; the line caches are LUT RAM here.
+    (b"    reg [15:0] cache0 [0:79];\n    reg [15:0] cache1 [0:79];\n",
+     b'    (* ramstyle = "MLAB" *) reg [15:0] cache0 [0:79];\n'
+     b'    (* ramstyle = "MLAB" *) reg [15:0] cache1 [0:79];\n'),
+    (b"    wire config_complete = config_waiting && config_ack_sync == config_request;\n",
+     b"    wire config_arrived = config_waiting && config_ack_sync == config_request;\n"
+     b"    reg config_complete;\n"
+     b"    reg [169:0] config_bundle_pixel;\n"),
+    (b"    reg [1:0] job_start_ok;\n",
+     b"    reg [1:0] job_start_ok;\n"
+     b"    reg [1:0] job_taken, job_start_ok_sys, job_high_sys;\n"
+     b"    reg [17:0] job_start_sys [0:1];\n"
+     b"    reg [1:0] job_done_taken, job_ok_pixel;\n"),
+    (b"    wire pending0 = job_req_sync[0] != job_done[0];\n"
+     b"    wire pending1 = job_req_sync[1] != job_done[1];\n",
+     b"    wire pending0 = job_taken[0] != job_done[0];\n"
+     b"    wire pending1 = job_taken[1] != job_done[1];\n"),
+    (b"    wire [6:0] selected_words = job_high[selected_bank] ? 7'd40 : 7'd80;\n",
+     b"    wire [6:0] selected_words = job_high_sys[selected_bank] ? 7'd40 : 7'd80;\n"),
+    (b"    always @(posedge clk_sys) begin\n"
+     b"        if (reset_sys) begin\n"
+     b"            config_req_meta <= 1'b0;\n"
+     b"            config_req_sync <= 1'b0;\n"
+     b"            config_ack <= 1'b0;\n",
+     b"    always @(posedge clk_sys) begin\n"
+     b"        config_req_meta <= config_request;\n"
+     b"        config_req_sync <= config_req_meta;\n"
+     b"        job_req_meta <= job_request;\n"
+     b"        job_req_sync <= job_req_meta;\n"
+     b"    end\n"
+     b"    always @(posedge clk_sys) begin\n"
+     b"        if (reset_sys) begin\n"
+     b"            job_taken <= 2'd0;\n"
+     b"            config_ack <= 1'b0;\n"),
+    (b"            job_req_meta <= 2'd0;\n"
+     b"            job_req_sync <= 2'd0;\n"
+     b"            job_done <= 2'd0;\n",
+     b"            job_done <= 2'd0;\n"),
+    (b"            config_req_meta <= config_request;\n"
+     b"            config_req_sync <= config_req_meta;\n"
+     b"            job_req_meta <= job_request;\n"
+     b"            job_req_sync <= job_req_meta;\n",
+     b"            job_taken <= job_req_sync;\n"
+     b"            if (job_req_sync[0] != job_taken[0]) begin\n"
+     b"                job_start_sys[0] <= job_start[0][17:0];\n"
+     b"                job_start_ok_sys[0] <= job_start_ok[0];\n"
+     b"                job_high_sys[0] <= job_high[0];\n"
+     b"            end\n"
+     b"            if (job_req_sync[1] != job_taken[1]) begin\n"
+     b"                job_start_sys[1] <= job_start[1][17:0];\n"
+     b"                job_start_ok_sys[1] <= job_start_ok[1];\n"
+     b"                job_high_sys[1] <= job_high[1];\n"
+     b"            end\n"),
+    (b"                    memory_token <= job_req_sync[selected_bank];\n",
+     b"                    memory_token <= job_taken[selected_bank];\n"),
+    (b"                    if (job_start_ok[selected_bank]) begin\n"
+     b"                        legacy_addr <= job_start[selected_bank][17:0];\n",
+     b"                    if (job_start_ok_sys[selected_bank]) begin\n"
+     b"                        legacy_addr <= job_start_sys[selected_bank];\n"),
+    (b"                        job_done[selected_bank] <= job_req_sync[selected_bank];\n",
+     b"                        job_done[selected_bank] <= job_taken[selected_bank];\n"),
+    (b"    always @(posedge clk_pixel) begin\n"
+     b"        if (reset_pixel) begin\n"
+     b"            horizontal <= 11'd0;\n"
+     b"            vertical <= 10'd0;\n"
+     b"            hold_meta <= 1'b0;\n"
+     b"            hold_sync <= 1'b0;\n"
+     b"            config_ack_meta <= 1'b0;\n"
+     b"            config_ack_sync <= 1'b0;\n",
+     b"    always @(posedge clk_pixel) begin\n"
+     b"        hold_meta <= hold;\n"
+     b"        hold_sync <= hold_meta;\n"
+     b"        config_ack_meta <= config_ack;\n"
+     b"        config_ack_sync <= config_ack_meta;\n"
+     b"        job_done_meta <= job_done;\n"
+     b"        job_done_sync <= job_done_meta;\n"
+     b"    end\n"
+     b"    always @(posedge clk_pixel) begin\n"
+     b"        if (reset_pixel) begin\n"
+     b"            horizontal <= 11'd0;\n"
+     b"            vertical <= 10'd0;\n"
+     b"            config_complete <= 1'b0;\n"
+     b"            job_done_taken <= 2'd0;\n"),
+    (b"            job_done_meta <= 2'd0;\n"
+     b"            job_done_sync <= 2'd0;\n"
+     b"            job_request <= 2'd0;\n",
+     b"            job_request <= 2'd0;\n"),
+    (b"            hold_meta <= hold;\n"
+     b"            hold_sync <= hold_meta;\n"
+     b"            config_ack_meta <= config_ack;\n"
+     b"            config_ack_sync <= config_ack_meta;\n"
+     b"            job_done_meta <= job_done;\n"
+     b"            job_done_sync <= job_done_meta;\n",
+     b"            config_complete <= config_arrived && !config_complete;\n"
+     b"            if (config_arrived && !config_complete) config_bundle_pixel <= config_bundle_sys;\n"
+     b"            job_done_taken <= job_done_sync;\n"
+     b"            if (job_done_sync[0] != job_done_taken[0]) job_ok_pixel[0] <= job_ok[0];\n"
+     b"            if (job_done_sync[1] != job_done_taken[1]) job_ok_pixel[1] <= job_ok[1];\n"),
+    (b"                pending_config <= config_bundle_sys;\n",
+     b"                pending_config <= config_bundle_pixel;\n"),
+    (b"                if (cache_busy[bank] && job_done_sync[bank] == job_request[bank]) begin\n"
+     b"                    cache_busy[bank] <= 1'b0;\n"
+     b"                    cache_valid[bank] <= job_ok[bank] && job_current[bank];\n",
+     b"                if (cache_busy[bank] && job_done_taken[bank] == job_request[bank]) begin\n"
+     b"                    cache_busy[bank] <= 1'b0;\n"
+     b"                    cache_valid[bank] <= job_ok_pixel[bank] && job_current[bank];\n"),
+    (b"                            config_complete ? config_bundle_sys : pending_config;\n",
+     b"                            config_complete ? config_bundle_pixel : pending_config;\n"),
+)
+
+
+def retarget_video_adapter(source):
+    """Copy each held bundle into its receiving clock before any logic reads it."""
+    return _edits(source, ADAPTER_EDITS, "ST video adapter crossing")
+
+
+NATIVE_CROSSING_EDITS = (
+    (b'    (* async_reg = "true" *) reg [2:0] pub_meta, pub_sync, release_meta, release_sync;\n',
+     b'    (* async_reg = "true" *) reg [2:0] pub_meta, pub_sync, release_meta, release_sync;\n'
+     b"    reg [2:0] pub_taken, pal_pixel;\n"
+     b"    reg [2:0] publication_pixel [0:2];\n"
+     b"    reg [8:0] border_pixel [0:2];\n"
+     b"    reg [8:0] height_pixel [0:2];\n"),
+    (b"    wire [2:0] pending_publications = pub_sync ^ seen;\n"
+     b"    wire bank1_newer0 = newer_publication(publication_number[1], publication_number[0]);\n"
+     b"    wire bank2_newer0 = newer_publication(publication_number[2], publication_number[0]);\n"
+     b"    wire bank2_newer1 = newer_publication(publication_number[2], publication_number[1]);\n",
+     b"    wire [2:0] pending_publications = pub_taken ^ seen;\n"
+     b"    wire bank1_newer0 = newer_publication(publication_pixel[1], publication_pixel[0]);\n"
+     b"    wire bank2_newer0 = newer_publication(publication_pixel[2], publication_pixel[0]);\n"
+     b"    wire bank2_newer1 = newer_publication(publication_pixel[2], publication_pixel[1]);\n"),
+    (b"    always @(posedge clk_pixel) begin\n"
+     b"        if (reset_pixel) begin\n"
+     b"            pub_meta <= 3'd0; pub_sync <= 3'd0;\n",
+     b"    always @(posedge clk_pixel) begin\n"
+     b"        pub_meta <= published;\n"
+     b"        pub_sync <= pub_meta;\n"
+     b"    end\n"
+     b"    always @(posedge clk_sys) begin\n"
+     b"        release_meta <= released;\n"
+     b"        release_sync <= release_meta;\n"
+     b"    end\n"
+     b"    always @(posedge clk_pixel) begin\n"
+     b"        if (reset_pixel) begin\n"
+     b"            pub_taken <= 3'd0;\n"),
+    (b"            pub_meta <= published; pub_sync <= pub_meta;\n",
+     b"            pub_taken <= pub_sync;\n"
+     b"            for (candidate = 0; candidate < 3; candidate = candidate + 1)\n"
+     b"                if (pub_sync[candidate] != pub_taken[candidate]) begin\n"
+     b"                    publication_pixel[candidate] <= publication_number[candidate];\n"
+     b"                    border_pixel[candidate] <= border[candidate];\n"
+     b"                    height_pixel[candidate] <= height[candidate];\n"
+     b"                    pal_pixel[candidate] <= pal_banks[candidate];\n"
+     b"                end\n"),
+    (b"                    if (2'(candidate) != choose_bank) released[candidate] <= pub_sync[candidate];\n"
+     b"                    seen[candidate] <= pub_sync[candidate];\n",
+     b"                    if (2'(candidate) != choose_bank) released[candidate] <= pub_taken[candidate];\n"
+     b"                    seen[candidate] <= pub_taken[candidate];\n"),
+    (b"                front_border <= border[choose_bank];\n"
+     b"                output_height <= height[choose_bank];\n"
+     b"                output_pal <= pal_banks[choose_bank];\n",
+     b"                front_border <= border_pixel[choose_bank];\n"
+     b"                output_height <= height_pixel[choose_bank];\n"
+     b"                output_pal <= pal_pixel[choose_bank];\n"),
+    (b"            release_meta <= 3'd0; release_sync <= 3'd0; published <= 3'd0;\n",
+     b"            published <= 3'd0;\n"),
+    (b"            release_meta <= released; release_sync <= release_meta;\n", b""),
+)
+
+
 def retarget_native_video(source):
     """The line cache's block hint and one inferable memory per frame bank."""
     if source.count(CACHE_BEFORE) != 1 or source.count(b"ramstyle") != 1 or source.count(OUTPUT_BEFORE) != 1:
@@ -136,9 +326,10 @@ def retarget_native_video(source):
     for name in (b"FRAME_CHUNKS", b"chunk_read", b"group_read", b"frame_chunks"):
         if name in result:
             raise ValueError("ST native video adaptation left " + name.decode())
+    result, crossing = _edits(result, NATIVE_CROSSING_EDITS, "ST native video crossing")
     return result, {"source_sha256": sha(source), "derived_sha256": sha(result),
                     "removed_sha256": {name: sha(data) for name, data in removed.items()},
-                    "frame_words": FRAME_WORDS}
+                    "frame_words": FRAME_WORDS, "crossing_changes": crossing["changes"]}
 
 
 def transport(source):

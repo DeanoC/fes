@@ -51,11 +51,41 @@ class Derivations(unittest.TestCase):
         for line in kept:
             position = lines.index(line, position) if line in lines[position:] else position
         added = [line for line in result.splitlines() if line not in set(lines)]
-        self.assertLess(len(added), 40)
+        self.assertLess(len(added), 60)
+        # The pixel side chooses among its own copies of the publication metadata.
+        self.assertEqual(len(record["crossing_changes"]), len(derive.NATIVE_CROSSING_EDITS))
+        self.assertIn(b"newer_publication(publication_pixel[1], publication_pixel[0])", result)
+        self.assertNotIn(b"height[choose_bank]", result)
+        self.assertNotIn(b"pub_sync ^ seen", result)
+        self.assertEqual(result.count(b"pub_meta <= "), 1)
+        self.assertEqual(result.count(b"release_meta <= "), 1)
         with self.assertRaises(ValueError):
             derive.retarget_native_video(result)
         with self.assertRaises(ValueError):
             derive.retarget_native_video(source.replace(b"FRAME_CHUNKS = 78", b"FRAME_CHUNKS = 79"))
+
+    def test_video_adapter_reads_each_bundle_from_a_receiving_clock_copy(self):
+        source = (ROOT / "cores/fes-atari-st/rtl/st_video_adapter.sv").read_bytes()
+        result, record = derive.retarget_video_adapter(source)
+        self.assertEqual(len(record["changes"]), len(derive.ADAPTER_EDITS))
+        # Each bundle crosses once, into its copy; each synchronizer has one, unreset, assignment.
+        self.assertEqual(result.count(b"<= config_bundle_sys;"), 1)
+        self.assertEqual(result.count(b"config_bundle_pixel <= config_bundle_sys;"), 1)
+        for line in (b"job_start_sys[0] <= job_start[0][17:0];", b"job_start_ok_sys[0] <= job_start_ok[0];",
+                     b"job_high_sys[0] <= job_high[0];", b"job_ok_pixel[0] <= job_ok[0];"):
+            self.assertEqual(result.count(line), 1, line)
+        for name in (b"job_start[selected_bank]", b"job_start_ok[selected_bank]", b"job_high[selected_bank]"):
+            self.assertNotIn(name, result)
+        for name in (b"hold_meta", b"config_ack_meta", b"config_req_meta", b"job_req_meta", b"job_done_meta"):
+            self.assertEqual(result.count(name + b" <= "), 1, name)
+        self.assertNotIn(b"job_req_sync[selected_bank]", result)
+        self.assertNotIn(b"job_ok[bank]", result)
+        self.assertEqual(result.count(b'(* ramstyle = "MLAB" *)'), 2)
+        with self.assertRaises(ValueError):
+            derive.retarget_video_adapter(result)
+        with self.assertRaises(ValueError):
+            derive.retarget_video_adapter(source.replace(b"reg [169:0] pending_config;", b"reg [170:0] pending_config;")
+                                          .replace(b"pending_config <= config_bundle_sys;", b"pending_config <= 0;"))
 
     def test_memory_gains_only_the_rom_region(self):
         source = (ROOT / "cores/fes-atari-st/rtl/st_memory.sv").read_bytes()

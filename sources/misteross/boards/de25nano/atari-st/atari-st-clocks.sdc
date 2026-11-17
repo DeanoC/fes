@@ -46,107 +46,66 @@ foreach {label source expected head second} {
 # Every such path in the fitted design is named below; nothing else crosses.
 # Toggles and levels: one launch register per bit into its own first stage.
 foreach {label source head bits} {
-    video_hold {core|machine_reset} {core|video|hold_meta} 1
-    config_request {core|video|config_request*} {core|video|config_req_meta} 1
+    video_hold {core|video_hold} {core|video|hold_meta} 1
+    config_request {core|video|config_request} {core|video|config_req_meta} 1
     config_ack {core|video|config_ack} {core|video|config_ack_meta} 1
     job_request {core|video|job_request[*]} {core|video|job_req_meta[*]} 2
     job_done {core|video|job_done[*]} {core|video|job_done_meta[*]} 2
-    published {core|video|native_capture.capture|published[*]*} {core|video|native_capture.capture|pub_meta[*]} 3
+    published {core|video|native_capture.capture|published[*]} {core|video|native_capture.capture|pub_meta[*]} 3
     released {core|video|native_capture.capture|released[*]} {core|video|native_capture.capture|release_meta[*]} 3
 } {
     set launches [get_registers "${base}|${source}"]
     set first_d [get_pins -compatibility_mode -nocase "${base}|${head}|d"]
-    # Physical synthesis may duplicate a launch register; it never drops one.
-    if {[get_collection_size $launches] < $bits || [get_collection_size $first_d] != $bits} {
+    if {[get_collection_size $launches] != $bits || [get_collection_size $first_d] != $bits} {
         error "DE25 Atari ST $label crossing endpoints changed"
     }
     set_false_path -from $launches -to $first_d
 }
 
-# Held bundles into the pixel clock. Each is written on the machine edge that
-# toggles its handshake, and the pixel side reads it no sooner than two pixel
-# edges after the toggle's first stage captured it: 2 x 13.468 = 26.94 ns
-# after the launch at the least. One pixel period, half of that window, is
-# the bound. It counts the skew between the two PLL networks, which is why
-# the ten nanoseconds used for same-source bundles elsewhere is too little.
-#   config      the system snapshot, taken with config_ack, loaded when the
-#               acknowledge has synchronized or at the next frame
-#   job_result  job_ok, written with job_done
-foreach {label source sink} {
-    config {core|video|config_bundle_sys[*]}
-        {core|video|pending_config[*] core|video|active_base[*] core|video|active_resolution[*]
-         core|video|active_palette[*]}
-    job_result {core|video|job_ok[*]} {core|video|cache_valid[*]}
+# Held bundles. Each is copied into a receiving-clock register, with nothing
+# on the path but that register's enable, on the receiving edge after its
+# toggle's second synchronizer stage shows it: no sooner than two receiving
+# periods after the toggle launched. Synthesis drops constant and unused
+# bits, so each end is counted against a floor, not an exact width.
+#   config       the system snapshot, written with config_ack; into the pixel
+#                clock, 2 x 13.468 = 26.94 ns later at the least
+#   job_result   job_ok, written with job_done; the same window
+#   publication  a frame's number, height, border and standard, written with
+#                published; the same window
+#   job          a line job's resolution is written with job_request, its
+#                start word one pixel edge later and its bounds check two.
+#                Into the machine clock, 2 x 19.149 ns after the request at
+#                the least, which leaves 2 x 19.149 - 2 x 13.468 = 11.36 ns
+#                after the bounds check
+# One pixel period bounds the first three and eleven nanoseconds the job. The
+# bound counts the skew between the two PLL networks.
+foreach {label bound source sink launches_minimum captures_minimum} {
+    config 13.400 {core|video|config_bundle_sys[*]} {core|video|config_bundle_pixel[*]} 100 100
+    job_result 13.400 {core|video|job_ok[*]} {core|video|job_ok_pixel[*]} 2 2
+    publication 13.400
+        {core|video|native_capture.capture|publication_number[*][*] core|video|native_capture.capture|height[*][*]
+         core|video|native_capture.capture|border[*][*] core|video|native_capture.capture|pal_banks[*]}
+        {core|video|native_capture.capture|publication_pixel[*][*] core|video|native_capture.capture|height_pixel[*][*]
+         core|video|native_capture.capture|border_pixel[*][*] core|video|native_capture.capture|pal_pixel[*]} 12 12
+    job 11.000
+        {core|video|job_start[*][*] core|video|job_start_ok[*] core|video|job_high[*]}
+        {core|video|job_start_sys[*][*] core|video|job_start_ok_sys[*] core|video|job_high_sys[*]} 20 20
 } {
     set patterns {}
     foreach name $source {lappend patterns "${base}|${name}"}
-    set launches [get_registers $patterns]
+    set launches [get_registers -nowarn $patterns]
     set patterns {}
     foreach name $sink {lappend patterns "${base}|${name}"}
-    set captures [get_registers $patterns]
-    if {[get_collection_size $launches] == 0 || [get_collection_size $captures] == 0} {
+    set captures [get_registers -nowarn $patterns]
+    if {[get_collection_size $launches] < $launches_minimum || [get_collection_size $captures] < $captures_minimum} {
         error "DE25 Atari ST held $label bundle endpoints changed"
     }
-    set_net_delay -max 13.400 -from $launches -to $captures
-    set_data_delay 13.400 -from $launches -to $captures
-    set_max_skew 13.400 -from $launches -to $captures
-    set_max_delay 13.400 -from $launches -to $captures
+    set_net_delay -max $bound -from $launches -to $captures
+    set_data_delay $bound -from $launches -to $captures
+    set_max_skew $bound -from $launches -to $captures
+    set_max_delay $bound -from $launches -to $captures
     set_min_delay 0.000 -from $launches -to $captures
 }
-# A line job's resolution is written with job_request and its start word one
-# pixel edge later. The system side acts two machine periods after the launch
-# at the least, so ten nanoseconds is well inside the window.
-set job_launches [get_registers [list "${base}|core|video|job_high[*]" "${base}|core|video|job_start[*][*]"]]
-set job_captures [get_registers [list "${base}|core|video|memory_words[*]" "${base}|core|video|legacy_addr[*]"]]
-if {[get_collection_size $job_launches] == 0 || [get_collection_size $job_captures] == 0} {
-    error "DE25 Atari ST held job bundle endpoints changed"
-}
-set_net_delay -max 10.000 -from $job_launches -to $job_captures
-set_data_delay 10.000 -from $job_launches -to $job_captures
-set_max_skew 10.000 -from $job_launches -to $job_captures
-set_max_delay 10.000 -from $job_launches -to $job_captures
-set_min_delay 0.000 -from $job_launches -to $job_captures
-
-# A published frame's height, standard and publication number are written on
-# the machine edge that toggles published. The pixel side chooses among them
-# only at a start of frame where pub_sync shows the toggle, two pixel edges
-# after pub_meta captured it: 2 x 13.468 = 26.94 ns after the launch at the
-# least, as for the bundles above; one pixel period is the bound.
-set publication_launches [get_registers [list "${base}|core|video|native_capture.capture|height[*][*]" \
-    "${base}|core|video|native_capture.capture|pal_banks[*]" \
-    "${base}|core|video|native_capture.capture|publication_number[*][*]"]]
-set publication_captures [get_registers [list "${base}|core|video|native_capture.capture|output_height[*]" \
-    "${base}|core|video|native_capture.capture|output_pal" \
-    "${base}|core|video|native_capture.capture|front_bank[*]" \
-    "${base}|core|video|native_capture.capture|released[*]" \
-    "${base}|core|video|native_capture.capture|borders|next_pointer[*]" \
-    "${base}|core|video|native_capture.capture|borders|remaining[*]"]]
-if {[get_collection_size $publication_launches] == 0 || [get_collection_size $publication_captures] == 0} {
-    error "DE25 Atari ST held publication bundle endpoints changed"
-}
-set_net_delay -max 13.400 -from $publication_launches -to $publication_captures
-set_data_delay 13.400 -from $publication_launches -to $publication_captures
-set_max_skew 13.400 -from $publication_launches -to $publication_captures
-set_max_delay 13.400 -from $publication_launches -to $publication_captures
-set_min_delay 0.000 -from $publication_launches -to $publication_captures
-
-# job_start_ok is the last of a line job's metadata: st_video_adapter registers
-# it two pixel edges after it launches job_request. The system side acts on
-# the job on the second machine edge after job_req_meta captures the toggle,
-# which is no sooner than two machine periods after the launch. That leaves
-# 2 x 19.149 - 2 x 13.468 = 11.36 ns from job_start_ok to the machine
-# registers it steers, and eleven is the bound.
-set job_ok_launches [get_registers "${base}|core|video|job_start_ok[*]"]
-set job_ok_captures [get_registers [list "${base}|core|video|job_done[*]" "${base}|core|video|job_ok[*]" \
-    "${base}|core|video|legacy_addr[*]" "${base}|core|video|legacy_req" "${base}|core|video|memory_state.*"]]
-if {[get_collection_size $job_ok_launches] != 2 || [get_collection_size $job_ok_captures] == 0} {
-    error "DE25 Atari ST job bounds bundle endpoints changed"
-}
-set_net_delay -max 11.000 -from $job_ok_launches -to $job_ok_captures
-set_data_delay 11.000 -from $job_ok_launches -to $job_ok_captures
-set_max_skew 11.000 -from $job_ok_launches -to $job_ok_captures
-set_max_delay 11.000 -from $job_ok_launches -to $job_ok_captures
-set_min_delay 0.000 -from $job_ok_launches -to $job_ok_captures
 
 # Bundles are held throughout their toggle round trip. A ten-nanosecond flight
 # is at most one fast system period, less than either two-stage control delay.
@@ -285,7 +244,13 @@ if {[get_collection_size $i2s_data] != 1 || [get_collection_size $i2s_launch] !=
 }
 set_output_delay -clock de25_i2s_bit_clock_output -max 2.000 $i2s_data
 set_output_delay -clock de25_i2s_bit_clock_output -min -2.000 $i2s_data
+set_multicycle_path -setup -start 1 -from $i2s_launch -to $i2s_data
 set_multicycle_path -hold -start 1 -from $i2s_launch -to $i2s_data
+# PLL lock gates the data pin low until the clocks are valid. It is an
+# asynchronous level from the PLL's own control register, not serial data.
+set i2s_lock [get_registers {fes_machine_pll|machine_pll|tennm_ph2_iopll~pll_ctrl_reg}]
+if {[get_collection_size $i2s_lock] != 1} {error "DE25 Atari ST I2S lock gate changed"}
+set_false_path -from $i2s_lock -to $i2s_data
 
 # The SDRAM clock pin is the inverted machine clock: the chips sample half a
 # machine period after the fabric launches a command.

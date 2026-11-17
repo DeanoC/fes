@@ -44,8 +44,51 @@ def retarget_machine(source):
                             (PORTS_BEFORE, PORTS_AFTER, 1)), "Spectrum machine ROM")
 
 
+# The DE10 frame store passes the pixel side a {toggle, bank} word and takes
+# the shown bank back, each bit through its own two-stage synchronizer: a
+# receiving edge between two bits' arrivals can see a mixed word. Here only a
+# toggle crosses a synchronizer in each direction. The bank is held behind it
+# and copied into a receiving-clock register once the toggle has arrived.
+VIDEO_CROSSING = (
+    (b'    (* async_reg = "true" *) reg [1:0] shown_meta = 2\'d2;\n'
+     b'    (* async_reg = "true" *) reg [1:0] shown_sync = 2\'d2;\n',
+     b"    reg shown_toggle = 1'b0;\n"
+     b'    (* async_reg = "true" *) reg shown_meta = 1\'b0;\n'
+     b'    (* async_reg = "true" *) reg shown_arrived = 1\'b0;\n'
+     b"    reg shown_taken = 1'b0;\n"
+     b"    reg [1:0] shown_sync = 2'd2;\n", 1),
+    (b"        shown_meta <= shown_bank;\n"
+     b"        shown_sync <= shown_meta;\n",
+     b"        shown_meta <= shown_toggle;\n"
+     b"        shown_arrived <= shown_meta;\n"
+     b"        shown_taken <= shown_arrived;\n"
+     b"        if (shown_arrived != shown_taken) shown_sync <= shown_bank;\n", 1),
+    (b'    (* async_reg = "true" *) reg [2:0] ready_meta = 3\'b001;\n'
+     b'    (* async_reg = "true" *) reg [2:0] ready_sync = 3\'b001;\n',
+     b'    (* async_reg = "true" *) reg ready_meta = 1\'b0;\n'
+     b'    (* async_reg = "true" *) reg ready_sync = 1\'b0;\n'
+     b"    reg ready_taken = 1'b0;\n"
+     b"    reg [1:0] ready_bank_pixel = 2'd1;\n", 1),
+    (b"        ready_meta <= {ready_toggle, ready_bank};\n"
+     b"        ready_sync <= ready_meta;\n",
+     b"        ready_meta <= ready_toggle;\n"
+     b"        ready_sync <= ready_meta;\n"
+     b"        ready_taken <= ready_sync;\n"
+     b"        if (ready_sync != ready_taken) ready_bank_pixel <= ready_bank;\n", 1),
+    (b"                if (ready_sync[2] != ready_seen) begin\n"
+     b"                    ready_seen <= ready_sync[2];\n"
+     b"                    shown_bank <= ready_sync[1:0];\n",
+     b"                if (ready_taken != ready_seen) begin\n"
+     b"                    ready_seen <= ready_taken;\n"
+     b"                    shown_bank <= ready_bank_pixel;\n"
+     b"                    shown_toggle <= ~shown_toggle;\n", 1),
+)
+
+
 def retarget_ram(name, source):
-    return _derive(source, ((b'ramstyle = "M10K"', b'ramstyle = "M20K"', RAM_FILES[name]),),
+    """Block RAM hints for this family and, for the video, the frame-bank crossing."""
+    return _derive(source, ((b'ramstyle = "M10K"', b'ramstyle = "M20K"', RAM_FILES[name]),
+                            *(VIDEO_CROSSING if name == "spectrum_video.v" else ())),
                    "Spectrum " + name)
 
 

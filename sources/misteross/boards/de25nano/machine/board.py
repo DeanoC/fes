@@ -23,6 +23,7 @@ BOARD = "sources/misteross/boards/de25nano/"
 COMMON = "sources/misteross/cores/fes-common/"
 OFFSET = 0x10300
 MACHINE_HZ = 52222222
+ENDPOINT = "soc_inst|subsys_periph|fes_scanout|fes_scanout"
 # The shared scanout, HPS and reset verifiers recognise one standard-core
 # integration record, under the key the ZX81 gave it. Renaming it there moves
 # the MENU and ZX81 identities, so this record keeps the key and names its core.
@@ -245,6 +246,9 @@ def prepare(spec, archive, output, revision=None, model=None, *, package_build_i
         qsf += f"set_global_assignment -name VERILOG_MACRO {spec.MODELS[model]}=1\n"
     for name in audio:
         qsf += "set_global_assignment -name VERILOG_FILE fes_mailbox/" + Path(name).name + "\n"
+    # A machine's own synthesis assignments, each on a node under its component.
+    for option, value, node in spec.ASSIGNMENTS:
+        qsf += f'set_instance_assignment -name {option} {value} -to "{ENDPOINT}|{node}"\n'
     for pattern in (r"set_location_assignment\s+PIN_V16\s+-to\s+CLOCK1_50\s*$",
                     r"set_location_assignment\s+PIN_\w+\s+-to\s+DRAM_CLK\s*$",
                     r"set_location_assignment\s+PIN_\w+\s+-to\s+DRAM_DQ\[15\]\s*$"):
