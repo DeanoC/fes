@@ -50,7 +50,7 @@ and game titles remain intact. Core, package, media and saved-selection IDs do
 not depend on these display names.
 
 Release Home presents family tiles and Recently played. Opening a family enters
-its workbench; Play on a recent title starts that game. Settings is the only
+its core screen; Play on a recent title starts that game. Settings is the only
 Home header route in the v1 release scope. Show all cores restores the Library
 and Systems routes and the additional families. At release Home's root, Back
 keeps Home open; the room picker is the fallback when Home cannot open. System

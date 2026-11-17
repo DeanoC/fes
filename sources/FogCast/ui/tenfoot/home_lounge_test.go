@@ -280,7 +280,7 @@ func TestHomeWorkbenchReturnsToTheSameFamily(t *testing.T) {
 	app.HandleCommand(CmdRight, time.Now())
 	waitFor(t, app, "Spectrum", func(s Snapshot) bool { return s.Room.Destination.Label == "ZX Spectrum" })
 	app.HandleCommand(CmdSelect, time.Now())
-	snap := waitFor(t, app, "workbench", func(s Snapshot) bool { return s.Room.Open && s.Room.ID == systemRoomID })
+	snap := waitFor(t, app, "core screen", func(s Snapshot) bool { return s.Room.Open && s.Room.ID == coreRoomID })
 	if app.Snapshot().Launch.Phase == "launching" {
 		t.Fatalf("Open started a launch: %s", app.Snapshot().Launch.Phase)
 	}
@@ -402,7 +402,7 @@ func TestHomeHeroButtonsDoWhatTheySayWithAPointer(t *testing.T) {
 		t.Fatalf("Details button: detail=%v launch=%s", app.Snapshot().Room.HeroDetail, app.Snapshot().Launch.Phase)
 	}
 	app.PointerClick(primary.X+primary.W/2, primary.Y+primary.H/2, time.Now())
-	waitFor(t, app, "workbench", func(s Snapshot) bool { return s.Room.ID == hardwareRoomID })
+	waitFor(t, app, "core screen", func(s Snapshot) bool { return s.Room.ID == coreRoomID })
 	if app.Snapshot().Launch.Phase == "launching" {
 		t.Fatalf("Open started a launch: %s", app.Snapshot().Launch.Phase)
 	}
@@ -493,7 +493,7 @@ func TestHomeFamilyHeroFitsAtSafe720pSize(t *testing.T) {
 	}
 	d := rooms.Destination{
 		Kind: rooms.KindFamily, Label: "Sinclair ZX Spectrum 128K +2A Expanded Edition With A Long Name",
-		RoomID: "example.system", CoreID: "fes.spectrum", GameID: "spectrum",
+		RoomID: "example.core", CoreID: "fes.spectrum", GameID: "spectrum",
 		Availability: rooms.AvailReady, Status: "4 games", Models: "48K, 128K, +3, Pentagon 128",
 		Kicker: "Computers", Action: "Open the selected model's workbench.",
 	}

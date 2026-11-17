@@ -7,6 +7,12 @@ set and for pc386, which is tier 1 pending. Read with the
 [hardware rooms](../../../hardware-rooms.md) and the
 [v1 references](../v1/README.md), whose method this folder reuses.
 
+The first slice is built: Home opens `example.core`
+(`widgets.core_screen`) for the ZX81, Spectrum, Atari ST and Commodore 64
+families, with the model row, the computer panel, one drive row and the games
+list on the actions that exist today. The disk shelf, new disks, disk sets,
+the saves tag on a drive, and the PC/XT and 386 PC screens are not built.
+
 These pictures are **proposals, not captures of product code**. They are host
 software-renderer fixtures. They establish no hardware, controller, scanout or
 readability acceptance, and no kit was used. Every game, disk, count and folder

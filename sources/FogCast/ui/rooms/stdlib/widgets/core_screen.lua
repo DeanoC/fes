@@ -1,0 +1,930 @@
+-- The core screen: one computer family's model, drives and games
+-- (docs/ux/references/core-screens). It uses the ordinary library launch,
+-- setup and media paths; only navigation lives in room storage.
+return function()
+local systems = require "systems"
+local families = require "families"
+local selected_core = room.initial_core_id or ""
+local function spec()
+  return systems.by_id[selected_core] or {
+    label = "Unsupported system", mark = selected_core, media = "Media",
+  }
+end
+local function family()
+  return systems.family_by_core[selected_core] or {
+    id = selected_core, label = "Unsupported system", variants = {{id = selected_core}},
+  }
+end
+local function model_name(row) return row.model or row.mark or row.id end
+-- The launcher shows a family's firmware card: once on its first opening,
+-- and again from the Firmware button.
+local function firmware_info(first_use)
+  if not systems.by_id[selected_core] then return end
+  local ids = {}
+  for _, variant in ipairs(family().variants) do ids[#ids + 1] = variant.id end
+  hardware.firmware_info({core_id=selected_core, family_id=family().id, family_label=family().label, core_ids=ids, first_use=first_use})
+end
+local function rgb(r, g, b, a)
+  if a then return {r = r, g = g, b = b, a = a} end
+  return {r = r, g = g, b = b}
+end
+local LIGHT = {
+  paper = rgb(244, 240, 232), panel = rgb(255, 252, 245),
+  raised = rgb(233, 230, 220), muted = rgb(83, 98, 90),
+  ink = rgb(36, 54, 49), line = rgb(206, 207, 192),
+  accent = rgb(35, 90, 70), light = rgb(252, 252, 243),
+  warm = rgb(246, 235, 203), warm_bar = rgb(217, 180, 92),
+}
+local DARK = {
+  paper = {r = 20, g = 25, b = 24, a = 200}, panel = rgb(32, 39, 37),
+  raised = rgb(48, 57, 54), muted = rgb(190, 204, 194),
+  ink = rgb(237, 243, 233), line = rgb(74, 86, 80),
+  accent = rgb(200, 227, 172), light = rgb(32, 55, 39),
+  warm = rgb(48, 57, 54), warm_bar = rgb(217, 180, 92),
+}
+local C, overlay = LIGHT, false
+local function appearance()
+  overlay = room.overlay and true or false
+  C = overlay and DARK or LIGHT
+end
+local function same_appearance()
+  return (room.overlay and true or false) == overlay
+end
+
+-- Layout, in a 1120 by 630 picture scaled to the room.
+local LEFT_X, LEFT_W = 24, 344
+local RIGHT_X, RIGHT_W = 388, 708
+local TOP_Y, BOTTOM_Y = 112, 618
+local ROW_H, ROW_GAP = 44, 6
+
+local games, all_entries = {}, {}
+local game_i, scroll = 1, 0
+local focus = "game"
+local right_focus = "game"
+local controls = {}
+local live
+local computers = {}
+local machine_media = {}
+local hardware_unavailable = false
+local rev = 0
+local last_hw = 0
+local hw_busy = false
+local hw_refresh_pending = false
+local observed_session = session.state()
+local library_generation = 0
+local library_error = ""
+local library_loaded = false
+local cmds, pool, sink = {}, {}, nil
+local heights = {}
+local scale, ox, oy = 1, 0, 0
+local boot = 0
+local held_w, held_h, held_rev, held_overlay, held_session = -1, -1, -1, false, ""
+local visible_games = 1
+
+local nav = store.get("navigation", {})
+local initial_game_id = room.initial_game_id or ""
+local family_variants = type(nav.family_variants) == "table" and nav.family_variants or {}
+local core_choices = type(nav.core_choices) == "table" and nav.core_choices or {}
+if selected_core == "" and systems.by_id[nav.core_id or ""] then selected_core = nav.core_id end
+if selected_core == "" then
+  local first = systems.families[1]
+  selected_core = first and first.variants[1].id or ""
+end
+-- A family tile opens the family, not one model: return to the model last
+-- browsed there unless a game was asked for.
+if initial_game_id == "" then
+  local last = family_variants[family().id]
+  if last and systems.family_by_core[last] == systems.family_by_core[selected_core] then selected_core = last end
+end
+local chosen = initial_game_id ~= "" and initial_game_id or (core_choices[selected_core] or {}).game_id or ""
+local message = ""
+
+local function take()
+  local n = #pool
+  if n == 0 then return {} end
+  local row = pool[n]
+  pool[n] = nil
+  return row
+end
+local function recycle()
+  for i = #cmds, 1, -1 do
+    pool[#pool + 1] = cmds[i]
+    cmds[i] = nil
+  end
+end
+local function push(row)
+  local dest = sink or cmds
+  dest[#dest + 1] = row
+end
+local function clear_row(c)
+  local row = take()
+  row[1], row[2] = "c", c
+  row[3], row[4], row[5], row[6], row[7], row[8], row[9] = nil, nil, nil, nil, nil, nil, nil
+  push(row)
+end
+local function rect(x, y, w, h, c)
+  local row = take()
+  row[1], row[2], row[3], row[4], row[5], row[6] = "r", ox + x * scale, oy + y * scale, w * scale, h * scale, c
+  row[7], row[8], row[9] = nil, nil, nil
+  push(row)
+end
+local function px(size) return math.max(12, math.floor(size * scale)) end
+local function text(s, x, y, size, c, w, bold, align)
+  if not s or s == "" then return end
+  local row = take()
+  row[1], row[2], row[3], row[4] = "t", s, ox + x * scale, oy + y * scale
+  row[5], row[6], row[7], row[8], row[9] = px(size), c or C.ink, (w or 0) * scale, bold or false, align or "left"
+  push(row)
+end
+local function hit(id, x, y, w, h)
+  local row = take()
+  row[1], row[2], row[3], row[4], row[5], row[6] = "h", id, ox + x * scale, oy + y * scale, w * scale, h * scale
+  row[7], row[8], row[9] = nil, nil, nil
+  push(row)
+end
+-- Text height in picture units for a picture-unit size.
+local function text_height(size, bold)
+  local p = px(size)
+  local key = bold and -p or p
+  local h = heights[key]
+  if not h then
+    local _, measured = gfx.measure("Ag", p, bold)
+    h = measured
+    heights[key] = h
+  end
+  return h / scale
+end
+-- families.measure remembers results, so a repaint does not measure again.
+local function text_width(s, size, bold)
+  local w = families.measure(s, px(size), bold)
+  return w / scale
+end
+local function outline(x, y, w, h, t, c)
+  rect(x, y, w, t, c)
+  rect(x, y + h - t, w, t, c)
+  rect(x, y, t, h, c)
+  rect(x + w - t, y, t, h, c)
+end
+local function control(id, x, y, w, h, enabled, fn)
+  hit(id, x, y, w, h)
+  controls[#controls + 1] = {id = id, enabled = enabled and true or false, fn = fn}
+end
+local function has_control(id)
+  for _, c in ipairs(controls) do if c.id == id then return true end end
+  return false
+end
+-- filled marks the screen's main action; focus is an outline outside it.
+local function button(id, label, x, y, w, h, enabled, fn, filled)
+  local on = enabled and true or false
+  if id == focus then outline(x - 4, y - 4, w + 8, h + 8, 3, C.accent) end
+  rect(x, y, w, h, C.line)
+  rect(x + 1, y + 1, w - 2, h - 2, (filled and on) and C.accent or (on and C.panel or C.raised))
+  local size = math.min(19, h - 14)
+  local bold = on
+  local th = text_height(size, bold)
+  local color = (filled and on) and C.light or (on and C.ink or C.muted)
+  text(label, x + 8, y + (h - th) / 2, size, color, w - 16, bold, "center")
+  control(id, x, y, w, h, on, fn)
+end
+local function chip(label, x, y, filled)
+  local size = 15
+  local tw, th = text_width(label, size, true), text_height(size, true)
+  local w, h = tw + 18 + (filled and 0 or 5), th + 6
+  rect(x, y, w, h, filled and C.accent or C.raised)
+  if not filled then rect(x, y, 5, h, C.ink) end
+  text(label, x + 9 + (filled and 0 or 5), y + 3, size, filled and C.light or C.ink, 0, true)
+  return w
+end
+local function wrap(s, size, w)
+  local lines, cur = {}, ""
+  for word in string.gmatch(s, "%S+") do
+    local try = cur == "" and word or (cur .. " " .. word)
+    if cur ~= "" and text_width(try, size, false) > w then
+      lines[#lines + 1] = cur
+      cur = word
+    else
+      cur = try
+    end
+  end
+  if cur ~= "" then lines[#lines + 1] = cur end
+  return lines
+end
+
+local function is_system(g)
+  return type(g) == "table" and systems.family_by_core[g.core_id or ""] == family() and g.id and g.id ~= ""
+end
+local function title_of(g)
+  local line = g.title or g.id
+  if g.region and g.region ~= "" then line = line .. " (" .. g.region .. ")" end
+  return line
+end
+local function media_word(g)
+  if g.media_role == "disk" then return "Disk" end
+  if g.media_role == "cassette" then return spec().disk and "Tape" or (spec().media:match("^%a+") or "Tape") end
+  return ""
+end
+local function game_sub(g)
+  if g.core_entry_kind == "machine" then return "The computer on its own" end
+  return media_word(g)
+end
+local function focused()
+  return games[game_i]
+end
+local function remember()
+  if not systems.by_id[selected_core] then return end
+  local game = focused()
+  local game_id = game and game.id or chosen
+  if game_id ~= "" then chosen = game_id end
+  family_variants[family().id] = selected_core
+  core_choices[selected_core] = {game_id = game_id}
+  store.set("navigation", {
+    family_variants = family_variants, core_choices = core_choices,
+    focus = focus, core_id = selected_core,
+  })
+end
+local function keep_visible()
+  if game_i <= scroll then scroll = game_i - 1 end
+  if game_i > scroll + visible_games then scroll = game_i - visible_games end
+  if scroll < 0 then scroll = 0 end
+end
+-- Each edition of a title is its own row, so every row starts one exact
+-- library entry.
+local function rows_for(core_id)
+  local out, seen = {}, {}
+  local function add(g)
+    if type(g) ~= "table" or g.core_id ~= core_id or not g.id or g.id == "" or seen[g.id] then return end
+    seen[g.id] = true
+    out[#out + 1] = g
+  end
+  for _, entry in ipairs(all_entries) do
+    add(entry)
+    for _, v in ipairs(entry.variants or {}) do add(v) end
+  end
+  return out
+end
+local function place(list)
+  all_entries = list or {}
+  if initial_game_id ~= "" then
+    for _, entry in ipairs(all_entries) do
+      local found = entry.id == initial_game_id
+      for _, v in ipairs(entry.variants or {}) do
+        if v.id == initial_game_id then found = true end
+      end
+      if found then selected_core = entry.core_id break end
+    end
+  end
+  games = rows_for(selected_core)
+  game_i, scroll = 1, 0
+  local selected = false
+  for i, g in ipairs(games) do
+    if g.id == chosen then game_i, selected = i, true end
+  end
+  if library_error == "" and initial_game_id ~= "" and not selected then
+    message = "That " .. spec().label .. " game is no longer in your library."
+  end
+  initial_game_id = ""
+  if #games == 0 and (focus == "game" or focus == "drive" or focus == "media") then focus = "start" end
+  keep_visible()
+  rev = rev + 1
+  -- selected_core is final here, including for an opening by game.
+  firmware_info(true)
+end
+local function read_hardware()
+  if hw_busy then
+    hw_refresh_pending = true
+    return
+  end
+  hw_busy = true
+  hardware.read(function(value, err)
+    hw_busy = false
+    if hw_refresh_pending then
+      hw_refresh_pending = false
+      read_hardware()
+      return
+    end
+    computers, machine_media = {}, {}
+    if value and not err then
+      live = value.session
+      hardware_unavailable = false
+      for _, c in ipairs(value.computers or {}) do computers[c.core_id] = c end
+      for _, m in ipairs(value.machines or {}) do
+        if m.game_id ~= "" and m.media_name ~= "" then machine_media[m.game_id] = m.media_name end
+      end
+    else
+      live = nil
+      hardware_unavailable = true
+    end
+    rev = rev + 1
+  end)
+end
+local function play_state()
+  if live and live.state and live.state ~= "" then return live.state end
+  local s = session.state()
+  if s and s ~= "" then return s end
+  return ""
+end
+local function running_game()
+  if not live or live.state ~= "active" then return nil end
+  for _, g in ipairs(games) do
+    if g.id == live.game_id then return g end
+  end
+  return nil
+end
+local function this_machine()
+  local game = focused()
+  return live and game and live.state == "active" and live.game_id == game.id
+end
+-- What the computer's panel says about starting: a chip and one line.
+local function readiness()
+  if hardware_unavailable then return "Unavailable", "Can't check this computer right now." end
+  if running_game() then return "Running", "Running on this TV." end
+  local c = computers[selected_core]
+  if c and not c.ready then
+    local why = c.unavailable_reason or ""
+    return "Unavailable", why ~= "" and why or "This computer can't start yet."
+  end
+  local game = focused()
+  if game and game.firmware_required and not game.firmware_ready then
+    return "Unavailable", "Needs its firmware files before it can start."
+  end
+  if c or game then return "Ready", "" end
+  return "Unavailable", "Not set up on this kit yet."
+end
+
+local function choose_core(core_id)
+  if core_id == selected_core or not systems.by_id[core_id] then return end
+  remember()
+  selected_core = core_id
+  chosen = (core_choices[core_id] or {}).game_id or ""
+  message = library_error
+  local keep = focus
+  place(all_entries)
+  focus = keep
+  remember()
+end
+local function step_model(d)
+  local variants = family().variants
+  for i, variant in ipairs(variants) do
+    if variant.id == selected_core then
+      local to = variants[i + d]
+      if to then choose_core(to.id) end
+      return
+    end
+  end
+end
+local function launch(game)
+  if not game then return end
+  if hardware_unavailable then
+    message = "Can't check this computer right now."
+  elseif live and live.state == "active" and live.game_id == game.id then
+    session.resume()
+  elseif play_state() ~= "idle" then
+    message = "Stop the running game before starting another."
+  elseif not game.launchable then
+    message = "This game can't start yet."
+  else
+    session.launch(game.id)
+  end
+  rev = rev + 1
+end
+local function open_media()
+  local game = focused()
+  if not game then return end
+  if this_machine() then
+    session.open_tape(live)
+    return
+  end
+  hardware.open_media({game_id=game.id, core_id=game.core_id, package_id=game.package_id, expected_media_id=game.media_id or ""})
+end
+
+local function paint_opening()
+  controls = {}
+  recycle()
+  sink = nil
+  appearance()
+  clear_row(C.paper)
+  rect(24, 18, 18, 5, C.accent)
+  text("FES", 50, 14, 24, C.ink, 80, true)
+  text(family().label, 118, 17, 19, C.ink, 400)
+  text("Opening the " .. family().label .. "…", 24, 84, 22, C.muted, 700)
+  gfx.paint(cmds)
+end
+
+local function header()
+  rect(24, 18, 18, 5, C.accent)
+  text("FES", 50, 14, 24, C.ink, 80, true)
+  rect(104, 16, 2, 26, C.line)
+  text("Computers", 118, 15, 22, C.ink, 360)
+  button("back", "Back", 860, 10, 110, 38, true, function() rooms.back() end)
+  button("home", "Home", 984, 10, 110, 38, true, function() rooms.home() end)
+  rect(0, 56, 1120, 2, C.line)
+end
+
+local function models()
+  local variants = family().variants
+  local tw = text_width(family().label, 30, true)
+  text(family().label, 24, 66, 30, C.ink, 700, true)
+  if #variants < 2 then return end
+  local x, y = 24 + tw + 28, 70
+  text("Model", x, y + 6, 15, C.muted, 80)
+  x = x + text_width("Model", 15, false) + 12
+  for _, variant in ipairs(variants) do
+    local on = variant.id == selected_core
+    local name = model_name(variant)
+    local w, h = text_width(name, 16, on) + 24, 30
+    rect(x, y, w, h, on and C.panel or C.raised)
+    if on then
+      outline(x, y, w, h, 2, C.line)
+      rect(x, y + h - 4, w, 4, C.accent)
+      if focus == "model" then outline(x - 4, y - 4, w + 8, h + 8, 3, C.accent) end
+    end
+    text(name, x + 12, y + (h - text_height(16, on)) / 2, 16, on and C.ink or C.muted, 0, on)
+    local id = variant.id
+    hit("model:" .. id, x, y, w, h)
+    x = x + w + 8
+  end
+  controls[#controls + 1] = {id = "model", enabled = true, fn = function() end}
+end
+
+-- Buttons stack up from the bottom of the computer panel: the main action
+-- last, so it is always in the same place.
+local function left_buttons()
+  local game = focused()
+  local state = play_state()
+  local known = systems.by_id[selected_core] ~= nil
+  local idle = state == "idle" and not hardware_unavailable and known
+  local out = {}
+  if family().id == "zx81" then
+    -- The workshop reads the machine itself, so it opens in any state.
+    out[#out + 1] = {id = "expansions", label = "Expansions", enabled = known, fn = function()
+      rooms.open("example.hardware", {game_id = game and game.id or "", core_id = selected_core})
+    end}
+  end
+  out[#out + 1] = {id = "firmware", label = "Firmware", enabled = known, fn = function() firmware_info(false) end}
+  local name = model_name(spec())
+  if running_game() then
+    out[#out + 1] = {id = "stop", label = "Stop the " .. name, enabled = true, fn = function() session.stop(live) end}
+    out[#out + 1] = {id = "start", label = "Return to play", enabled = true, filled = true, fn = function() session.resume() end}
+  elseif #games == 0 then
+    out[#out + 1] = {id = "start", label = "Set up the " .. name, enabled = idle and library_loaded, filled = true, fn = function()
+      hardware.setup({core_id = selected_core})
+    end}
+  elseif hardware_unavailable then
+    out[#out + 1] = {id = "start", label = "Status unavailable", enabled = false}
+  elseif state == "active" then
+    out[#out + 1] = {id = "resume", label = "Return to play", enabled = true, fn = function() session.resume() end}
+    out[#out + 1] = {id = "start", label = "Another game is running", enabled = false}
+  else
+    out[#out + 1] = {id = "start", label = "Start", enabled = game and game.launchable and idle, filled = true, fn = function() launch(game) end}
+  end
+  return out
+end
+
+local function computer_panel()
+  local x, y, w, h = LEFT_X, TOP_Y, LEFT_W, BOTTOM_Y - TOP_Y
+  rect(x, y, w, h, C.line)
+  rect(x + 2, y + 2, w - 4, h - 4, C.panel)
+  local pad = 16
+  local ix, iw = x + pad, w - 2 * pad
+  local yy = y + pad
+  if not overlay then
+    rect(ix, yy, 84, 64, families.ground(selected_core))
+    text(spec().mark, ix, yy + 20, 20, C.light, 84, true, "center")
+  end
+  local tx = overlay and ix or ix + 98
+  text(spec().label, tx, yy, 21, C.ink, x + w - pad - tx, true)
+  local state, line = readiness()
+  chip(state, tx, yy + text_height(21, true) + 6, state ~= "Unavailable")
+  yy = yy + 76
+  if line ~= "" then
+    for _, l in ipairs(wrap(line, 16, iw)) do
+      text(l, ix, yy, 16, C.ink, iw, true)
+      yy = yy + text_height(16, true) + 2
+    end
+    yy = yy + 4
+  end
+  rect(ix, yy, iw, 2, C.line)
+  yy = yy + 10
+  local buttons = left_buttons()
+  local bh, gap = 42, 10
+  local top = y + h - pad - #buttons * bh - (#buttons - 1) * gap
+  local label_w = 92
+  for _, fact in ipairs(spec().facts or {}) do
+    local lines = wrap(fact[2], 16, iw - label_w)
+    local fh = #lines * (text_height(16, false) + 2) + 5
+    if yy + fh > top - 8 then break end
+    text(fact[1], ix, yy, 16, C.muted, label_w)
+    for i, l in ipairs(lines) do
+      text(l, ix + label_w, yy + (i - 1) * (text_height(16, false) + 2), 16, C.ink, iw - label_w)
+    end
+    yy = yy + fh
+  end
+  for i, b in ipairs(buttons) do
+    button(b.id, b.label, ix, top + (i - 1) * (bh + gap), iw, bh, b.enabled, b.fn or function() end, b.filled)
+  end
+end
+
+local function note(head, x, y, w)
+  local h = text_height(16, true) + 18
+  rect(x, y, w, h, C.warm)
+  rect(x, y, 6, h, C.warm_bar)
+  text(head, x + 18, y + 9, 16, C.ink, w - 30, true)
+  return y + h
+end
+
+local function list_row(id, x, y, w, lead, lead_w, name, sub, tag, tag_filled, marked, off)
+  rect(x, y, w, ROW_H, C.line)
+  rect(x + 2, y + 2, w - 4, ROW_H - 4, off and C.raised or C.panel)
+  if marked then rect(x, y, 7, ROW_H, C.accent) end
+  if id == focus or (id == "game:" .. game_i and focus == "game") then
+    outline(x - 4, y - 4, w + 8, ROW_H + 8, 3, C.accent)
+  end
+  local tx, right = x + 16 + (marked and 5 or 0), x + w - 14
+  if tag and tag ~= "" then
+    local tw = text_width(tag, 15, true) + 18 + (tag_filled and 0 or 5)
+    chip(tag, right - tw, y + (ROW_H - text_height(15, true) - 6) / 2, tag_filled)
+    right = right - tw - 12
+  end
+  local ty = y + (ROW_H - text_height(19, true)) / 2
+  if lead then
+    text(lead, tx, ty, 19, C.ink, lead_w - 8, true)
+    tx = tx + lead_w
+  end
+  local color = off and C.muted or C.ink
+  text(name, tx, ty, 19, color, right - tx, false)
+  if sub and sub ~= "" then
+    local nw = text_width(name, 19, false)
+    if tx + nw + 24 < right then
+      text(sub, tx + nw + 18, ty + 2, 16, C.muted, right - tx - nw - 18)
+    end
+  end
+end
+
+local function drive_name(game)
+  if not game or not game.media_id or game.media_id == "" then return nil end
+  if game.core_entry_kind ~= "machine" then return title_of(game) end
+  return machine_media[game.id] or "Saved " .. string.lower(media_word(game) ~= "" and media_word(game) or "media")
+end
+
+local function right_column()
+  local x, w = RIGHT_X, RIGHT_W
+  local y = TOP_Y
+  local game = focused()
+  local running = running_game()
+  local live_here = this_machine()
+  if running then
+    y = note((running.title or "A game") .. " is running. Stopping it clears its memory.", x, y, w) + 10
+  elseif message ~= "" then
+    y = note(message, x, y, w) + 10
+  end
+  text(live_here and "In the drive now" or "Drives", x, y, 19, C.ink, w, true)
+  text(spec().media, x, y + 2, 16, C.muted, w, false, "right")
+  y = y + text_height(19, true) + 6
+  local role = game and game.media_role or ""
+  local lead = role == "disk" and (spec().drive or "Drive") or (role == "cassette" and "Cassette")
+    or (spec().disk and "Media" or spec().drive or "Cassette")
+  local lead_w = text_width(lead, 19, true) + 18
+  local name = drive_name(game)
+  local can_change = game and game.package_id and game.package_id ~= "" and
+    ((live_here and live.removable_available) or (play_state() == "idle" and not hardware_unavailable))
+  list_row("drive", x, y, w, lead, lead_w, name or "Nothing chosen", name and (live_here and "" or "For next start") or "", nil, false, false, not name)
+  control("drive", x, y, w, ROW_H, can_change, open_media)
+  y = y + ROW_H + 8
+  local word = string.lower(media_word(game or {}) ~= "" and media_word(game) or (spec().media:match("^%a+") or "media"))
+  local label = (live_here and "Change the " or "Choose a ") .. word
+  button("media", label, x, y, text_width(label, 17, true) + 40, 36, can_change, open_media)
+  y = y + 36 + 14
+
+  local count = #games == 1 and "1 in your library" or (#games .. " in your library")
+  text("Games for the " .. model_name(spec()), x, y, 19, C.ink, w, true)
+  text(library_loaded and count or "Reading your library…", x, y + 2, 16, C.muted, w, false, "right")
+  y = y + text_height(19, true) + 6
+  visible_games = math.max(1, math.floor((BOTTOM_Y - y + ROW_GAP) / (ROW_H + ROW_GAP)))
+  keep_visible()
+  if #games == 0 then
+    local line = library_error ~= "" and library_error or
+      (library_loaded and ("No " .. model_name(spec()) .. " games yet. Set it up to add one.") or "")
+    text(line, x, y + 8, 17, C.muted, w)
+    return
+  end
+  for n = 1, visible_games do
+    local i = scroll + n
+    local g = games[i]
+    if not g then break end
+    local is_live = live and live.state == "active" and live.game_id == g.id
+    local tag = is_live and "Running" or ((not g.launchable) and "Can't start yet" or "")
+    list_row("game:" .. i, x, y, w, nil, 0, title_of(g), game_sub(g), tag, is_live, i == game_i, false)
+    hit("game:" .. i, x, y, w, ROW_H)
+    y = y + ROW_H + ROW_GAP
+  end
+  controls[#controls + 1] = {id = "game", enabled = true, fn = function() launch(focused()) end}
+end
+
+local function picture(part)
+  if part ~= "lower" then
+    controls = {}
+    recycle()
+    sink = nil
+    appearance()
+    clear_row(C.paper)
+    header()
+    models()
+    computer_panel()
+  else
+    recycle()
+    sink = {}
+  end
+  if part == "upper" then return end
+  right_column()
+  if part == "lower" then
+    gfx.extend(sink)
+    for i = 1, #sink do cmds[#cmds + 1] = sink[i] end
+    sink = nil
+  end
+end
+
+local function scene_same()
+  if room.width ~= held_w or room.height ~= held_h then return false end
+  if rev ~= held_rev then return false end
+  if session.state() ~= held_session then return false end
+  if (room.overlay and true or false) ~= held_overlay then return false end
+  return true
+end
+local function remember_scene()
+  held_w, held_h = room.width, room.height
+  held_rev = rev
+  held_overlay = overlay
+  held_session = session.state()
+end
+
+local warm_px, warm_at
+local pool_rows = 160
+local function warm_done()
+  return warm_px and warm_at > #warm_px
+end
+local function warm_more()
+  if not warm_px then
+    warm_px = {}
+    warm_at = 1
+    for _, s in ipairs({15, 16, 17, 19, 20, 21, 22, 24, 30}) do
+      warm_px[#warm_px + 1] = {s, false}
+      warm_px[#warm_px + 1] = {s, true}
+    end
+  end
+  local n = 0
+  while warm_at <= #warm_px and n < 4 do
+    local job = warm_px[warm_at]
+    text_height(job[1], job[2])
+    warm_at = warm_at + 1
+    n = n + 1
+  end
+end
+local function boot_step()
+  if boot == 0 then
+    paint_opening()
+    boot = 1
+    return
+  end
+  if boot == 1 then
+    if #pool < pool_rows then
+      recycle()
+      local add = math.min(40, pool_rows - #pool)
+      for _ = 1, add do pool[#pool + 1] = {} end
+    elseif not warm_done() then
+      warm_more()
+    else
+      boot = 2
+    end
+    if room.presented and same_appearance() and gfx.reuse() then return end
+    paint_opening()
+    return
+  end
+  if boot == 2 then
+    picture("upper")
+    gfx.paint(cmds)
+    remember_scene()
+    boot = 3
+    return
+  end
+  if not scene_same() then
+    boot = 2
+    if not same_appearance() then
+      paint_opening()
+      return
+    end
+    if room.presented and gfx.reuse() then return end
+    return
+  end
+  picture("lower")
+  boot = 4
+  remember_scene()
+end
+
+function load()
+  last_hw = room.time
+  read_hardware()
+  library_generation = library_generation + 1
+  local generation = library_generation
+  local ids = {}
+  for _, variant in ipairs(family().variants) do ids[#ids + 1] = variant.id end
+  library.query({platform = "fpga", core_ids = ids, sort = "title", limit = 2000}, function(found, err)
+    if generation ~= library_generation then return end
+    library_loaded = true
+    if err then
+      library_error = err
+      message = err
+      place({})
+      return
+    end
+    library_error, message = "", ""
+    local prepared = {}
+    for _, g in ipairs(found or {}) do
+      if is_system(g) then prepared[#prepared + 1] = g end
+    end
+    -- A title with several editions lists them only in its detail.
+    local pending, replacements = 0, {}
+    local function finish()
+      local merged = {}
+      for _, item in ipairs(prepared) do merged[#merged + 1] = replacements[item.id] or item end
+      place(merged)
+    end
+    for _, g in ipairs(prepared) do
+      if (g.variant_count or 0) > 1 and #(g.variants or {}) <= 1 then
+        pending = pending + 1
+        local id = g.id
+        library.game(id, function(detail, detail_err)
+          if generation ~= library_generation then return end
+          if detail and not detail_err and is_system(detail) then replacements[id] = detail end
+          pending = pending - 1
+          if pending == 0 then finish() end
+        end)
+      end
+    end
+    if pending == 0 then finish() end
+  end)
+end
+
+function update()
+  local state = session.state()
+  if state ~= observed_session then
+    observed_session = state
+    live = nil
+    last_hw = room.time
+    rev = rev + 1
+    read_hardware()
+  end
+  if room.time - last_hw >= 15 then
+    last_hw = room.time
+    read_hardware()
+  end
+end
+
+function on_resume()
+  read_hardware()
+  load()
+end
+
+function unload() remember() end
+
+local function set_focus(id)
+  if id == focus then return end
+  focus = id
+  if id == "drive" or id == "media" or id == "game" then right_focus = id end
+  rev = rev + 1
+  remember()
+end
+local function activate(id)
+  for _, c in ipairs(controls) do
+    if c.id == id then
+      set_focus(id)
+      if c.enabled then c.fn() end
+      rev = rev + 1
+      remember()
+      return true
+    end
+  end
+  return false
+end
+local function pointer(id)
+  local core = id:match("^model:(.+)$")
+  if core then return "model", function() choose_core(core) end end
+  local i = tonumber(id:match("^game:(%d+)$") or "")
+  if i then
+    return "game", function()
+      if games[i] and i ~= game_i then
+        game_i = i
+        rev = rev + 1
+      end
+    end
+  end
+  return id, function() end
+end
+function on_hover(id)
+  local target, apply = pointer(id)
+  if target == "model" then return end
+  if not has_control(target) then return end
+  apply()
+  set_focus(target)
+end
+function on_activate(id)
+  local target, apply = pointer(id)
+  apply()
+  activate(target)
+end
+
+-- The left column, top to bottom, and the right column's stops.
+local function left_ids()
+  local out = {}
+  for _, id in ipairs({"expansions", "firmware", "stop", "resume", "start"}) do
+    if has_control(id) then out[#out + 1] = id end
+  end
+  return out
+end
+local function index_of(list, id)
+  for i, v in ipairs(list) do if v == id then return i end end
+  return nil
+end
+local function top_stop()
+  return has_control("model") and "model" or "back"
+end
+function on_input(cmd)
+  if cmd == "select" then return activate(focus) end
+  if not has_control(focus) then
+    set_focus(has_control("game") and #games > 0 and "game" or "start")
+    return true
+  end
+  local left = left_ids()
+  local li = index_of(left, focus)
+  if cmd == "tab" or cmd == "tab_prev" then
+    local order = {"back", "home"}
+    if has_control("model") then order[#order + 1] = "model" end
+    for _, id in ipairs(left) do order[#order + 1] = id end
+    order[#order + 1] = "drive"
+    order[#order + 1] = "media"
+    if #games > 0 then order[#order + 1] = "game" end
+    local i = index_of(order, focus) or 1
+    set_focus(order[(i - 1 + (cmd == "tab" and 1 or -1)) % #order + 1])
+    return true
+  end
+  if cmd ~= "left" and cmd ~= "right" and cmd ~= "up" and cmd ~= "down" then return false end
+  if focus == "back" or focus == "home" then
+    if cmd == "left" then set_focus("back")
+    elseif cmd == "right" then set_focus("home")
+    elseif cmd == "down" then set_focus(has_control("model") and "model" or "drive") end
+  elseif focus == "model" then
+    if cmd == "left" then step_model(-1)
+    elseif cmd == "right" then step_model(1)
+    elseif cmd == "up" then set_focus("back")
+    else set_focus("drive") end
+  elseif li then
+    if cmd == "up" then set_focus(left[li - 1] or top_stop())
+    elseif cmd == "down" then set_focus(left[li + 1] or focus)
+    elseif cmd == "right" then
+      local to = right_focus
+      if to == "game" and #games == 0 then to = "drive" end
+      set_focus(to)
+    end
+  elseif focus == "drive" then
+    if cmd == "up" then set_focus(top_stop())
+    elseif cmd == "down" then set_focus("media")
+    elseif cmd == "left" then set_focus("start") end
+  elseif focus == "media" then
+    if cmd == "up" then set_focus("drive")
+    elseif cmd == "down" then if #games > 0 then set_focus("game") end
+    elseif cmd == "left" then set_focus("start") end
+  elseif focus == "game" then
+    if cmd == "left" then set_focus("start")
+    elseif cmd == "up" then
+      if game_i > 1 then
+        game_i = game_i - 1
+        keep_visible()
+        rev = rev + 1
+        remember()
+      else
+        set_focus("media")
+      end
+    elseif cmd == "down" and game_i < #games then
+      game_i = game_i + 1
+      keep_visible()
+      rev = rev + 1
+      remember()
+    end
+  end
+  return true
+end
+
+function draw()
+  scale = math.min(room.width / 1120, room.height / 630)
+  ox = (room.width - 1120 * scale) / 2
+  oy = (room.height - 630 * scale) / 2
+  if boot == 4 and scene_same() and room.presented and gfx.reuse() then return end
+  if boot < 4 then
+    boot_step()
+    return
+  end
+  picture("all")
+  gfx.paint(cmds)
+  remember_scene()
+end
+
+end

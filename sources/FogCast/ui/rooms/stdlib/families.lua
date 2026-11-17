@@ -43,15 +43,18 @@ local V1 = {
   { id = "fes.c64", mark = "64", short = "C64", ground = "#E08A63" },
 }
 
--- Workbenches by core: the ZX81 family has its own; Coleco opens its
+-- Rooms by core: the v1 computers open the core screen; Coleco opens its
 -- arcade room; everything else uses the shared system setup.
 local WORKBENCH = {
-  ["fes.zx81"] = "example.hardware",
-  ["fes.zx80"] = "example.hardware",
-  ["fes.ts1000"] = "example.hardware",
-  ["fes.ts1500"] = "example.hardware",
   ["fes.coleco"] = "example.coleco-arcade",
 }
+for _, art in ipairs(V1) do
+  for _, family in ipairs(systems.families) do
+    if family.id == art.id then
+      for _, v in ipairs(family.variants) do WORKBENCH[v.id] = "example.core" end
+    end
+  end
+end
 local SYSTEM_SETUP = "example.system"
 
 function M.hash(s)
