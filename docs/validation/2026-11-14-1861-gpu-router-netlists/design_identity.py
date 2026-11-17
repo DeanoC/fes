@@ -165,6 +165,16 @@ def main() -> int:
     parser.add_argument("--tree-b", type=Path, required=True)
     parser.add_argument("--json", type=Path)
     args = parser.parse_args()
+    # Resolve every output path before anything chdirs. These programs import
+    # producers, and _load() does os.chdir(tree) so the producer sees its own
+    # tree as cwd -- so a relative --json or --dump path would be written
+    # *inside the tree being measured*. That happened: three summaries landed
+    # in nb2/ and nh2/ and were saved only by sources/misteross/.gitignore
+    # listing *.json, which kept those worktrees clean by luck rather than by
+    # design. A stray file in a measured tree can change the very cleanliness
+    # the records assert.
+    if args.json is not None:
+        args.json = args.json.resolve()
     a, b = args.tree_a.resolve(), args.tree_b.resolve()
     rows_a, rows_b = _rows(a), _rows(b)
     ids_a = {row[0]: row for row in rows_a}
