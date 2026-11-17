@@ -59,6 +59,20 @@ def _load(tree: Path, module: str):
         sys.path.remove(str(root))
 
 
+def _emits_source_closure(producer) -> bool:
+    """Does this producer's record hash a source closure at all?
+
+    A format-1 producer (build_fes_splash) hashes its whole record instead:
+    the explicit PINNED_INPUTS digests plus `repository` and `revision`. Asking
+    source_roots_for_producer for its roots gets the broad fallback, the entire
+    scripts/ directory, which that producer never uses. Reporting that fallback
+    as its closure would attribute an invented 600-file design set and an
+    invented list of moved files to a record that hashes neither.
+    """
+    text = (producer.ROOT / "scripts" / f"{producer.__name__.split('.')[-1]}.py").read_text()
+    return "functional_record_fields" in text or "source_input_closure" in text
+
+
 def _roots(producer):
     """The producer's own declared closure roots, however it declares them."""
     value = getattr(producer, "SOURCE_ROOTS", None)
@@ -81,20 +95,61 @@ def measure(tree: Path, module: str) -> dict:
     producer = _load(tree, module)
     from scripts.export_core_package import source_input_closure
     from scripts.compiler_read_audit import POLICY
-    from scripts.input_identity import input_role
+    try:
+        from scripts.input_identity import input_role
+        split = True
+    except ModuleNotFoundError:
+        # design-v1 (#1882) is newer than the old evidence base, so a tree from
+        # before it has no role split. Compare the whole closure there and say
+        # so, rather than refusing to answer or pretending to a split.
+        input_role, split = (lambda path: "design"), False
+    if not _emits_source_closure(producer):
+        return _measure_format1(producer)
     roots = _roots(producer)
     closure = source_input_closure(producer.ROOT, roots, policy=POLICY)
     design = {p: d for p, d in closure.items() if input_role(p) == "design"}
     other = {p: d for p, d in closure.items() if input_role(p) != "design"}
     return {
+        "role_split": split,
         "roots": len(roots),
         "closure_files": len(closure),
         "design_files": len(design),
         "design_sha256": hashlib.sha256(
             json.dumps(sorted(design.items()), separators=(",", ":")).encode()).hexdigest(),
+        "closure_sha256": hashlib.sha256(
+            json.dumps(sorted(closure.items()), separators=(",", ":")).encode()).hexdigest(),
         "non_design_sha256": hashlib.sha256(
             json.dumps(sorted(other.items()), separators=(",", ":")).encode()).hexdigest(),
         "design": design,
+        "closure": closure,
+    }
+
+
+def _measure_format1(producer) -> dict:
+    """What a format-1 record actually hashes: PINNED_INPUTS, and the revision.
+
+    `revision` is a field of the record the identity is taken over, so such an
+    identity moves on every commit whether or not any input changed. That is
+    why the per-file list matters more here than the digest: it says which of
+    the producer's own declared inputs this change touches.
+    """
+    inputs = tuple(getattr(producer, "PINNED_INPUTS"))
+    listing = {relative: hashlib.sha256((producer.ROOT / relative).read_bytes()).hexdigest()
+               for relative in sorted(inputs)}
+    return {
+        "record_format": 1,
+        "identity_covers": "whole record: pinned inputs, repository and revision",
+        "roots": 0,
+        "closure_files": len(listing),
+        "design_files": len(listing),
+        "design_sha256": hashlib.sha256(
+            json.dumps(sorted(listing.items()), separators=(",", ":")).encode()).hexdigest(),
+        "closure_sha256": hashlib.sha256(
+            json.dumps(sorted(listing.items()), separators=(",", ":")).encode()).hexdigest(),
+        "non_design_sha256": None,
+        "role_split": True,
+        "design": listing,
+        "closure": listing,
     }
 
 
@@ -122,24 +177,36 @@ def main() -> int:
         mb = measure(b, module)
         if ma is None:
             verdict = "NEW ROW OR PRODUCER CHANGED -- no tree-a counterpart"
-        elif ma["design_sha256"] == mb["design_sha256"]:
-            verdict = "design identity unchanged"
         else:
-            moved = sorted(k for k in set(ma["design"]) | set(mb["design"])
-                           if ma["design"].get(k) != mb["design"].get(k))
-            verdict = "MOVED: " + ", ".join(moved)
+            # The design/toolchain split arrived with design-v1 (#1882). If
+            # either side predates it, the two "design" sets are built by
+            # different rules and differencing them reports every file the
+            # newer side reclassifies as toolchain -- bootstrap.sh, the locks,
+            # lockfile.py -- as though its bytes had changed. Compare the whole
+            # closure on both sides instead, and say which was compared.
+            split = ma.get("role_split", True) and mb.get("role_split", True)
+            field = "design" if split else "closure"
+            label = "design identity" if split else "source closure (no role split on one side)"
+            if ma[f"{field}_sha256"] == mb[f"{field}_sha256"]:
+                verdict = f"{label} unchanged"
+            else:
+                moved = sorted(k for k in set(ma[field]) | set(mb[field])
+                               if ma[field].get(k) != mb[field].get(k))
+                verdict = f"MOVED ({label}): " + ", ".join(moved)
         result["rows"][core_id] = {
             "producer": module, "check_level": check_level,
-            "tree_a": None if ma is None else {k: v for k, v in ma.items() if k != "design"},
-            "tree_b": {k: v for k, v in mb.items() if k != "design"},
+            "tree_a": None if ma is None else {k: v for k, v in ma.items()
+                                               if k not in ("design", "closure")},
+            "tree_b": {k: v for k, v in mb.items() if k not in ("design", "closure")},
             "verdict": verdict,
         }
         print(f"{core_id:22} {module:28} {str(check_level):8} {mb['design_files']:<7} {verdict}")
     moved = [c for c, row in result["rows"].items() if row["verdict"].startswith("MOVED")]
     unchanged = [c for c, row in result["rows"].items()
-                 if row["verdict"] == "design identity unchanged"]
+                 if row["verdict"].endswith("unchanged")]
     unanswered = [c for c, row in result["rows"].items()
-                  if not row["verdict"].startswith(("MOVED", "design identity unchanged"))]
+                  if not (row["verdict"].startswith("MOVED")
+                          or row["verdict"].endswith("unchanged"))]
     result["summary"] = {"moved": sorted(moved), "unchanged": sorted(unchanged),
                          "unanswered": sorted(unanswered)}
     print()

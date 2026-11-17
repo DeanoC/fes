@@ -1,24 +1,24 @@
 artefact               producer                     chk      design  verdict
-fes.menu               build_fes_menu_package       full     33      MOVED: scripts/build_fes_menu.py, scripts/build_fes_menu_package.py, scripts/fes_de10nano_evidence.py
-fes.pong               build_fes_pong               reduced  16      MOVED: scripts/build_fes_pong.py, scripts/fes_de10nano_evidence.py
-fes.ramtest            build_fes_ramtest            reduced  32      MOVED: scripts/build_fes_ramtest.py, scripts/fes_de10nano_evidence.py
-fes.zx81               build_fes_zx81_quartus       full     52      MOVED: scripts/fes_de10nano_evidence.py
-fes.zx80               build_fes_zx81_quartus       full     52      MOVED: scripts/fes_de10nano_evidence.py
-fes.ts1000             build_fes_zx81_quartus       full     52      MOVED: scripts/fes_de10nano_evidence.py
-fes.ts1500             build_fes_zx81_quartus       full     52      MOVED: scripts/fes_de10nano_evidence.py
-fes.coleco             build_fes_coleco_socket_v2   reduced  69      MOVED: scripts/fes_de10nano_evidence.py
+fes.menu               build_fes_menu_package       full     33      MOVED (design identity): scripts/build_fes_menu.py, scripts/build_fes_menu_package.py, scripts/fes_de10nano_evidence.py
+fes.pong               build_fes_pong               reduced  16      MOVED (design identity): scripts/build_fes_pong.py, scripts/fes_de10nano_evidence.py
+fes.ramtest            build_fes_ramtest            reduced  32      MOVED (design identity): scripts/build_fes_ramtest.py, scripts/fes_de10nano_evidence.py
+fes.zx81               build_fes_zx81_quartus       full     52      MOVED (design identity): scripts/fes_de10nano_evidence.py
+fes.zx80               build_fes_zx81_quartus       full     52      MOVED (design identity): scripts/fes_de10nano_evidence.py
+fes.ts1000             build_fes_zx81_quartus       full     52      MOVED (design identity): scripts/fes_de10nano_evidence.py
+fes.ts1500             build_fes_zx81_quartus       full     52      MOVED (design identity): scripts/fes_de10nano_evidence.py
+fes.coleco             build_fes_coleco_socket_v2   reduced  69      MOVED (design identity): scripts/fes_de10nano_evidence.py
 fes.sms                build_fes_sms_oss            reduced  64      design identity unchanged
 fes.sg1000             build_fes_sg1000_oss         reduced  62      design identity unchanged
 fes.apple2             build_fes_apple2_oss         reduced  39      design identity unchanged
-fes.c64                build_fes_c64_oss            full     90      MOVED: scripts/fes_de10nano_evidence.py
-fes.spectrum           build_fes_spectrum_oss       full     52      MOVED: scripts/fes_de10nano_evidence.py
-fes.spectrum128        build_fes_spectrum_oss       full     52      MOVED: scripts/fes_de10nano_evidence.py
-fes.spectrum-plus3     build_fes_spectrum_oss       full     52      MOVED: scripts/fes_de10nano_evidence.py
-fes.pentagon           build_fes_spectrum_oss       full     52      MOVED: scripts/fes_de10nano_evidence.py
+fes.c64                build_fes_c64_oss            full     90      MOVED (design identity): scripts/fes_de10nano_evidence.py
+fes.spectrum           build_fes_spectrum_oss       full     52      MOVED (design identity): scripts/fes_de10nano_evidence.py
+fes.spectrum128        build_fes_spectrum_oss       full     52      MOVED (design identity): scripts/fes_de10nano_evidence.py
+fes.spectrum-plus3     build_fes_spectrum_oss       full     52      MOVED (design identity): scripts/fes_de10nano_evidence.py
+fes.pentagon           build_fes_spectrum_oss       full     52      MOVED (design identity): scripts/fes_de10nano_evidence.py
 fes.atari-st           build_fes_atari_st_oss       full     59      design identity unchanged
-fes.riscv              build_fes_riscv              reduced  30      MOVED: scripts/build_fes_riscv.py, scripts/fes_de10nano_evidence.py
+fes.riscv              build_fes_riscv              reduced  30      MOVED (design identity): scripts/build_fes_riscv.py, scripts/fes_de10nano_evidence.py
 fes.pcxt-dos           build_fes_pcxt_quartus       full     169     design identity unchanged
-splash                 build_fes_splash             full     613     MOVED: scripts/build_fes_menu.py, scripts/build_fes_menu_package.py, scripts/build_fes_pong.py, scripts/build_fes_ramtest.py, scripts/build_fes_riscv.py, scripts/fes_de10nano_evidence.py
+splash                 build_fes_splash             full     11      MOVED (design identity): scripts/fes_de10nano_evidence.py
 
 15 affected, 5 unchanged, 0 unanswered
 wrote /data/fes1861-netlist/identity/affected.json

@@ -1,0 +1,20 @@
+artefact               lock   qsf    sdc    recipe   design  
+fes.menu               same   same   same   same     ?       
+splash                 same   same   same   -        -       
+fes.pong               same   same   same   same     ?       
+fes.ramtest            same   same   same   same     ?       
+fes.riscv              same   same   same   same     ?       
+fes.coleco             same   same   same   same     ?       
+fes.c64                same   same   same   same     ?       
+fes.spectrum           same   same   same   same     ?       
+fes.spectrum128        same   same   same   same     ?       
+fes.spectrum-plus3     same   same   same   same     ?       
+fes.pentagon           same   same   same   same     ?       
+fes.zx81               PRODUCER ABSENT ON ONE SIDE: scripts.build_fes_zx81_quartus
+fes.zx80               PRODUCER ABSENT ON ONE SIDE: scripts.build_fes_zx81_quartus
+fes.ts1000             PRODUCER ABSENT ON ONE SIDE: scripts.build_fes_zx81_quartus
+fes.ts1500             PRODUCER ABSENT ON ONE SIDE: scripts.build_fes_zx81_quartus
+
+UNANSWERED: fes.menu.design_recipe_digest, fes.pong.design_recipe_digest, fes.ramtest.design_recipe_digest, fes.riscv.design_recipe_digest, fes.coleco.design_recipe_digest, fes.c64.design_recipe_digest, fes.spectrum.design_recipe_digest, fes.spectrum128.design_recipe_digest, fes.spectrum-plus3.design_recipe_digest, fes.pentagon.design_recipe_digest, fes.zx81: producer absent on one side, fes.zx80: producer absent on one side, fes.ts1000: producer absent on one side, fes.ts1500: producer absent on one side
+every route-deciding input is byte-identical
+wrote /data/fes1861-netlist/identity/route-inputs-main.json
