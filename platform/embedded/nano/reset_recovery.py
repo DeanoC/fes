@@ -6,6 +6,8 @@ helper never requests power, programs flash, writes SD, resumes native work or
 reuses any old source. Posting a reset or successful programming is insufficient.
 """
 import copy
+from contextlib import contextmanager
+import secrets
 import hashlib
 import os
 from pathlib import Path
@@ -26,18 +28,62 @@ def sha(raw):
     return hashlib.sha256(raw).hexdigest()
 
 
+class ResetCapture:
+    """One UART window drained/armed immediately before program dispatch.
+
+    The transport feeds bytes as they arrive, including while programming.
+    A persistent nonce reservation additionally forbids another attempt from
+    accepting output from an earlier boot of the same reset-entry artifact.
+    """
+    def __init__(self, drain, collect):
+        if not callable(drain) or not callable(collect):
+            raise ValueError('live UART drain and collection callbacks required')
+        self.drain, self.collect = drain, collect
+        self.raw = bytearray(); self.armed = self.finished = self.retired = False
+        self.boundary = None
+
+    def arm(self, nonce):
+        if self.armed or self.retired:
+            raise ValueError('reset capture is consumed')
+        self.retired = True
+        old = self.drain()
+        if type(old) is not bytes or len(old) > 1 << 20 or nonce.encode() in old:
+            raise ValueError('reset nonce already appeared before program dispatch')
+        self.boundary = dict(id=secrets.token_hex(16), preprogram_wire_sha256=sha(old),
+                             nonce=nonce, armed_before_dispatch=True)
+        self.raw.clear(); self.armed = True
+
+    def feed(self, data):
+        if not self.armed or self.finished or type(data) is not bytes:
+            raise ValueError('bytes require an active program-bound capture')
+        if len(self.raw) + len(data) > 1 << 20:
+            raise ValueError('reset capture byte bound')
+        self.raw.extend(data)
+
+    def read(self):
+        if not self.armed or self.finished:
+            raise ValueError('program-bound capture required')
+        if self.collect(self, timeout=90, maximum=1 << 20) is not None:
+            raise ValueError('capture must feed live bytes, not substitute a transcript')
+        self.finished = True
+        return bytes(self.raw)
+
+
 class ResetRecoveryAttempt:
     def __init__(self, consumed, *, serial, source_commit, image, nonce, failed_wire,
                  expected_payload, loader_fit_sha256, loader_manifest_sha256,
+                 loader_prefix_sha256, loader_image_sha256, nonce_registry,
                  transport, scan, program, capture, session_factory):
         if (serial != 'TRWU8CBL' or type(source_commit) is not str or
                 re.fullmatch('[0-9a-f]{40}', source_commit) is None or
                 type(image) is not dict or set(image) != {'path', 'sha256'} or
                 any(type(v) is not str or re.fullmatch('[0-9a-f]{64}', v) is None
-                    for v in (image['sha256'], loader_fit_sha256, loader_manifest_sha256)) or
+                    for v in (image['sha256'], loader_fit_sha256, loader_manifest_sha256,
+                              loader_prefix_sha256, loader_image_sha256)) or
                 type(failed_wire) is not bytes or not 0 < len(failed_wire) <= 1 << 20 or
                 type(expected_payload) is not bytes or not 0 < len(expected_payload) <= 16 << 20 or
-                any(not callable(f) for f in (transport, scan, program, capture, session_factory))):
+                any(not callable(f) for f in (transport, scan, program, session_factory)) or
+                type(capture) is not ResetCapture):
             raise ValueError('fixed top-kit source, image, prior wire and read-only loader inputs required')
         checked_nonce(nonce)
         p = Path(image['path'])
@@ -45,10 +91,16 @@ class ResetRecoveryAttempt:
                 re.fullmatch(r'[A-Za-z0-9_./-]+', str(p)) is None or
                 any(q.is_symlink() for q in (p, *p.parents))):
             raise ValueError('exact regular volatile SOF path required')
+        registry = Path(nonce_registry)
+        if (not registry.is_absolute() or '..' in registry.parts or
+                any(q.is_symlink() for q in (registry, *registry.parents))):
+            raise ValueError('persistent shared nonce registry required')
+        self.nonce_registry = registry
         self.path, self.image = Path(consumed), copy.deepcopy(image)
         self.serial, self.source, self.nonce = serial, source_commit, nonce
         self.failed_wire, self.payload = failed_wire, expected_payload
         self.loader_fit, self.loader_manifest = loader_fit_sha256, loader_manifest_sha256
+        self.loader_prefix, self.loader_image = loader_prefix_sha256, loader_image_sha256
         self.transport, self.scan, self.program = transport, scan, program
         self.capture, self.session_factory = capture, session_factory
         self.retired = False; self.lock = threading.Lock(); self.binding = None
@@ -67,7 +119,8 @@ class ResetRecoveryAttempt:
                 raise ValueError('reset/recovery SOF identity changed')
         return current
 
-    def run(self):
+    @contextmanager
+    def _admitted_session(self, *, restoration=False):
         require_experiment()
         if not self.lock.acquire(blocking=False):
             raise ValueError('reset/recovery attempt is active')
@@ -78,12 +131,22 @@ class ResetRecoveryAttempt:
             self.retired = True
             _persist(self.path, dict(format=1, source_commit=self.source, image=self.image,
                      nonce=self.nonce, previous_wire_sha256=sha(self.failed_wire),
-                     state='consumed-before-recovery', automatic_retry=False, sd_write_authorized=False))
+                     state='consumed-before-recovery', automatic_retry=False,
+                     scope='boot-restoration' if restoration else 'read-only',
+                     sd_write_authorized=restoration))
+            if any(q.is_symlink() for q in (self.nonce_registry, *self.nonce_registry.parents)):
+                raise ValueError('nonce registry changed')
+            self.nonce_registry.mkdir(parents=True, exist_ok=True)
+            _persist(self.nonce_registry / (self.nonce + '.json'),
+                     dict(nonce=self.nonce, source_commit=self.source, image=self.image,
+                          attempt=str(self.path), state='consumed-before-scan'))
             self.binding = copy.deepcopy(self._guard())
             def programming(cable):
                 self._guard()
                 if cable != self.binding['cable']:
                     raise ValueError('recovery cable changed')
+                self.capture.arm(self.nonce)
+                self._guard()
                 # A full volatile image only. No flash/erase/verify-write command.
                 return self.program(['-c', cable, '-m', 'jtag', '-o', 'p;' + self.image['path'] + '@1'], timeout=90)
             gate = ProgramAttempt(self.path.with_name(self.path.name + '.program'),
@@ -91,7 +154,7 @@ class ResetRecoveryAttempt:
             grant, result = gate.run('recovery', self.image['sha256'])
             programmer_success(result)
             self._guard()
-            raw = self.capture(timeout=90, maximum=1 << 20)
+            raw = self.capture.read()
             witness = observe(raw, nonce=self.nonce)
             if witness['boot_kind'] != 4:
                 raise ValueError('volatile JTAG qualification requires the JTAG boot-kind witness')
@@ -100,7 +163,9 @@ class ResetRecoveryAttempt:
             session = self.session_factory(owns=guard)
             if (type(session) is not UploadSession or session.owns is not guard or
                     sha(session.kit['fit']) != self.loader_fit or
-                    sha(session.kit['manifest']) != self.loader_manifest):
+                    sha(session.kit['manifest']) != self.loader_manifest or
+                    session.kit.get('prefix_sha256') != self.loader_prefix or
+                    session.kit.get('image_sha256') != self.loader_image):
                 raise ValueError('actual new read-only upload session and pinned loader/card required')
             receipt = {'commands': [], 'sd_write_attempted': False}
             session.read_existing(self.payload, receipt, purpose='boot')
@@ -110,16 +175,24 @@ class ResetRecoveryAttempt:
                     receipt.get('boot_files_unchanged') is not True or
                     receipt.get('recovery_manifest_unchanged') is not True):
                 raise ValueError('protected recovery loader/readback incomplete')
-            return dict(status='verified-read-only-recovery-bootstrap', source_commit=self.source,
+            report = dict(status='verified-read-only-recovery-bootstrap', source_commit=self.source,
                         image_sha256=self.image['sha256'], previous_wire_sha256=sha(self.failed_wire),
                         programming_grant=grant, reset_entry=witness, loader_readback=receipt,
                         recovery_loader_admitted=True, old_source_reuse_authorized=False,
                         ordinary_runtime_resume=False, sdm_reset_verified=False,
                         sd_write_authorized=False, cid_verified=False, power_cycle_requested=False,
-                        transport_cleanup_verified=False, hardware_acceptance=False)
+                        transport_cleanup_verified=False, hardware_acceptance=False,
+                        capture_boundary=dict(self.capture.boundary),
+                        protected_prefix_sha256=self.loader_prefix, loader_image_sha256=self.loader_image)
+            yield session, report
         finally:
             try:
                 if session is not None and type(session) is UploadSession:
                     session.close()
             finally:
                 self.lock.release()
+
+
+    def run(self):
+        with self._admitted_session() as (_, report):
+            return report

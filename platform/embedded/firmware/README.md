@@ -22,6 +22,19 @@ rebootstrap and reset-held masters; it does not prove SDM reset, old fabric
 master drain or a complete native launch/return cycle. The linked bounded physical test qualifies this read-only bootstrap route;
 SDM reset and normal runtime acceptance remain separate.
 
+The reset gate now requires a shared persistent nonce registry and an actual
+`ResetCapture` window drained and armed immediately before program dispatch.
+A reused nonce or a transcript supplied outside that window rejects. Admission
+also pins the protected card-prefix and image digests independently of the
+session factory. ELF section/LOAD bytes for the early probe code and data must
+match the decoded SPL image.
+
+`ResetRestorationAttempt` is the separately selected boot-file transaction. It
+retains the new `UploadSession` through independent source checks, one fixed
+boot FIT write and protected readback, then retires it. This grants neither
+native activation nor power-loss durability. Its caller still owns the serial
+claim, reset-register observation, finite deadlines and complete host cleanup.
+
 This is exploratory firmware and native integration for the Linux-free base.
 It supplies a pinned TF-A source transformation, a freestanding C++14 control
 adapter, and verification against actual FPGA RTL. These tools build firmware

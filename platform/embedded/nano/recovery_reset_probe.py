@@ -214,3 +214,53 @@ def check_binary(raw, nonce):
                 b'FES_RECOVERY_RESET_BEGIN nonce=', b'FES_RECOVERY_RESET_%s cause=',
                 b'FES_RECOVERY_RESET_END nonce='))):
         raise ValueError('selected SPL reset-entry code/nonce missing or ambiguous')
+
+
+def check_elf_image(elf, image, symbols):
+    """Bind each early code/data symbol to file-backed LOAD bytes in the HEX."""
+    import struct
+    if (type(elf) is not bytes or not 64 <= len(elf) <= 32 << 20 or
+            elf[:7] != b'\x7fELF\x02\x01\x01' or
+            type(image) is not bytes or not 0 < len(image) <= 0x40000):
+        raise ValueError('bounded little-endian ELF64 SPL and loaded bytes required')
+    h = struct.unpack_from('<HHIQQQIHHHHHH', elf, 16)
+    typ, machine, version, entry, phoff, shoff, flags, ehsize, phsize, phnum, shsize, shnum, shstr = h
+    if (typ != 2 or machine != 183 or version != 1 or ehsize != 64 or phsize != 56 or
+            shsize != 64 or not 0 < phnum <= 32 or not 0 < shnum <= 4096 or
+            phoff < 64 or shoff < 64 or phoff + phnum * phsize > len(elf) or
+            shoff + shnum * shsize > len(elf)):
+        raise ValueError('SPL ELF header/tables differ')
+    check_linked(symbols); check_state(symbols)
+    loads = [struct.unpack_from('<IIQQQQQQ', elf, phoff + i * phsize) for i in range(phnum)]
+    sections = [struct.unpack_from('<IIQQQQIIQQ', elf, shoff + i * shsize) for i in range(shnum)]
+    names = ('fes_recovery_reset_begin', 'fes_recovery_reset_report', 'fes_recovery_reset')
+    proof = {}
+    for name in names:
+        row = next(line.split() for line in symbols.splitlines() if line.split() and line.split()[-1] == name)
+        address, size = int(row[1], 16), int(row[2]); state = name == names[-1]
+        try: index = int(row[6])
+        except ValueError as e: raise ValueError('loaded section index required') from e
+        if not 0 < index < len(sections):
+            raise ValueError('SPL symbol section is absent')
+        _, kind, attrs, base, offset, length, _, _, _, _ = sections[index]
+        if (kind != 1 or attrs & 2 != 2 or attrs & (1 if state else 4) == 0 or
+                not base <= address < address + size <= base + length or
+                offset + length > len(elf) or address + size > len(image)):
+            raise ValueError('early SPL symbol lacks loaded PROGBITS: ' + name)
+        source = offset + address - base
+        matched = []
+        for segment in loads:
+            typ, permissions, fileoff, virtual, physical, filesz, memsz, align = segment
+            if typ != 1 or not virtual <= address < address + size <= virtual + filesz:
+                continue
+            if (filesz > memsz or virtual != physical or fileoff + filesz > len(elf) or
+                    virtual + filesz > len(image) or permissions & (2 if state else 1) == 0 or
+                    fileoff + address - virtual != source or
+                    elf[fileoff:fileoff + filesz] != image[virtual:virtual + filesz]):
+                raise ValueError('early SPL LOAD/file/HEX binding differs: ' + name)
+            matched.append(segment)
+        if len(matched) != 1 or elf[source:source + size] != image[address:address + size]:
+            raise ValueError('one file-backed SPL LOAD required: ' + name)
+        proof[name] = dict(address=address, size=size, section=index,
+                           bytes_sha256=sha(image[address:address + size]))
+    return dict(format=1, image_sha256=sha(image), symbols=proof)

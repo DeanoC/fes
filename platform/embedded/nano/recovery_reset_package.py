@@ -18,7 +18,7 @@ from sof_hps import decode_hex, inspect
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 EXTRA = {'producer_sha256', 'spl_elf_sha256', 'console_route',
-         'compiled_fdt_sha256', 'fit_fdt_sha256'}
+         'compiled_fdt_sha256', 'fit_fdt_sha256', 'loaded_image'}
 
 
 def checked_build(directory):
@@ -42,6 +42,9 @@ def checked_build(directory):
         directory/'build/spl/u-boot-spl'], env=env, text=True, timeout=30)
     probe.check_linked(symbols); probe.check_state(symbols)
     probe.check_binary(decode_hex((directory/'build/spl/u-boot-spl-dtb.hex').read_bytes()), mode['nonce'])
+    if probe.check_elf_image((directory/'build/spl/u-boot-spl').read_bytes(),
+            decode_hex((directory/'build/spl/u-boot-spl-dtb.hex').read_bytes()), symbols) != mode['loaded_image']:
+        raise ValueError('SPL loaded-image proof differs')
     tool = receipt['cross_tools']['host_fdtget']['path']
     for name in ('build/u-boot.dtb', 'extracted-fdt-0.bin'):
         if console.check_console(tool, directory/name, env=env) != mode['console_route']:

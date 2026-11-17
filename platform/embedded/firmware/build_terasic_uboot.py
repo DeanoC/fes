@@ -461,7 +461,9 @@ def main():
         reset_probe.check_state(reset_symbols)
         spec=importlib.util.spec_from_file_location('fes_reset_sof_hps',HERE.parent/'nano/sof_hps.py')
         reset_sof=importlib.util.module_from_spec(spec);spec.loader.exec_module(reset_sof)
-        reset_probe.check_binary(reset_sof.decode_hex(spl.read_bytes()),args.recovery_reset_nonce)
+        reset_image=reset_sof.decode_hex(spl.read_bytes())
+        reset_probe.check_binary(reset_image,args.recovery_reset_nonce)
+        reset_loaded=reset_probe.check_elf_image((build/'spl/u-boot-spl').read_bytes(),reset_image,reset_symbols)
         spec=importlib.util.spec_from_file_location('fes_reset_console',HERE.parent/'nano/recovery_return_trace.py')
         reset_console=importlib.util.module_from_spec(spec);spec.loader.exec_module(reset_console)
         reset_route=reset_console.check_console(fdtget,build/'u-boot.dtb',env=env)
@@ -469,7 +471,7 @@ def main():
             raise ValueError('reset probe compiled and FIT UART routes differ')
         report['reset_entry_probe']=dict(reset_entry_probe,
             producer_sha256=sha(HERE.parent/'nano/recovery_reset_probe.py'),
-            spl_elf_sha256=sha(build/'spl/u-boot-spl'),
+            spl_elf_sha256=sha(build/'spl/u-boot-spl'), loaded_image=reset_loaded,
             console_route=reset_route, compiled_fdt_sha256=sha(build/'u-boot.dtb'),
             fit_fdt_sha256=sha(output/'extracted-fdt-0.bin'))
         report['limitations'].append('reset-entry witness is diagnostic-only; fresh hardware recovery and protected-card admission remain unqualified')
