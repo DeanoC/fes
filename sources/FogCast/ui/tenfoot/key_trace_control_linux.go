@@ -15,9 +15,11 @@ import (
 )
 
 const (
-	keyTraceArmRequest    = "/run/fogcast/tenfoot-key-trace-arm"
-	keyTraceDumpRequest   = "/run/fogcast/tenfoot-key-trace-dump"
-	keyTraceRequestMaxAge = 10 * time.Second
+	keyTraceArmRequest             = "/run/fogcast/tenfoot-key-trace-arm"
+	keyTraceDumpRequest            = "/run/fogcast/tenfoot-key-trace-dump"
+	keyTraceSurroundHoldRequest    = "/run/fogcast/tenfoot-key-trace-surround-hold"
+	keyTraceSurroundReleaseRequest = "/run/fogcast/tenfoot-key-trace-surround-release"
+	keyTraceRequestMaxAge          = 10 * time.Second
 )
 
 // consumeKeyTraceRequest accepts a fresh, owner-only regular request containing
@@ -40,6 +42,13 @@ func keyTraceProcessStart() (string, error) {
 }
 
 func consumeKeyTraceRequest(path string, pid int, start string, uid int, now time.Time) bool {
+	if start == "" {
+		return false
+	}
+	return consumeKeyTraceExpected(path, fmt.Sprintf("%d %s\n", pid, start), uid, now)
+}
+
+func consumeKeyTraceExpected(path, expected string, uid int, now time.Time) bool {
 	parent, err := os.Lstat(filepath.Dir(path))
 	if err != nil || !parent.IsDir() || parent.Mode().Perm()&0o022 != 0 {
 		return false
@@ -62,8 +71,8 @@ func consumeKeyTraceRequest(path string, pid int, start string, uid int, now tim
 	if !ok || int(st.Uid) != uid || now.Before(info.ModTime()) || now.Sub(info.ModTime()) > keyTraceRequestMaxAge {
 		return false
 	}
-	body, err := io.ReadAll(io.LimitReader(f, 64))
-	if err != nil || start == "" || string(body) != fmt.Sprintf("%d %s\n", pid, start) {
+	body, err := io.ReadAll(io.LimitReader(f, 256))
+	if err != nil || expected == "" || string(body) != expected {
 		return false
 	}
 	current, err := os.Lstat(path)

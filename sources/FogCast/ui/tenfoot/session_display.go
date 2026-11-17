@@ -144,6 +144,14 @@ func (a *App) surroundOfferedLocked() bool {
 // sessionReturnDisplayLocked gives input back to the machine: the surround
 // when it is offered, otherwise machine pixels only.
 func (a *App) sessionReturnDisplayLocked() protocol.SessionDisplay {
+	if !a.diagnosticSurroundUntil.IsZero() {
+		if time.Now().Before(a.diagnosticSurroundUntil) && samePlayHIDSession(a.session, a.diagnosticSurroundSession) &&
+			!a.playHIDFailClosedLocked() && !a.playHIDInputBlockedLocked() {
+			return protocol.SessionDisplayClosed
+		}
+		a.diagnosticSurroundUntil = time.Time{}
+		a.diagnosticSurroundSession = hostclient.SessionResult{}
+	}
 	if a.surroundOfferedLocked() {
 		return protocol.SessionDisplayShown
 	}

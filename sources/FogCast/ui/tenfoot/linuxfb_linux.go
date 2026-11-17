@@ -16,6 +16,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/remoteinput"
@@ -1270,6 +1271,7 @@ func startFrameTrace(ctx context.Context, app *App, dev gfx.Device, label string
 							fmt.Fprintf(os.Stderr, "%s: frame trace written to %s\n", label, path)
 						}
 					}
+					app.handleDiagnosticSurroundRequest(os.Getpid(), processStart, 0, now, keyTraceSurroundHoldRequest, keyTraceSurroundReleaseRequest)
 				}
 			case <-signals:
 				path, err := trace.dump(os.Getenv("FOGCAST_FRAME_TRACE_DIR"))
@@ -1290,6 +1292,8 @@ func startFrameTrace(ctx context.Context, app *App, dev gfx.Device, label string
 				display.SetTraceSink(nil)
 			}
 			app.mu.Lock()
+			app.diagnosticSurroundUntil = time.Time{}
+			app.diagnosticSurroundSession = hostclient.SessionResult{}
 			if app.frameTrace == trace {
 				app.frameTrace = nil
 			}

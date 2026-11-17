@@ -150,6 +150,15 @@ func (f *frameTrace) armKeyRouting(now time.Time) {
 	f.mu.Unlock()
 }
 
+func (f *frameTrace) keyRoutingActive(now time.Time) bool {
+	if f == nil || !f.routingEnabled.Load() {
+		return false
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.routingEnabled.Load() && now.Before(f.routingUntil)
+}
+
 func (f *frameTrace) keyRouting(now time.Time, route string, source int, epoch uint64, nonHandoff bool) {
 	if f == nil || !f.routingEnabled.Load() {
 		return

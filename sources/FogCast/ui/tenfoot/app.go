@@ -583,6 +583,11 @@ type App struct {
 	tapePickerSession        hostclient.SessionResult
 	tapePickerStarters       []hostclient.HardwareTape
 
+	// A bounded, root-requested test observation may defer the surround for
+	// this exact play session. It never changes the saved user preference.
+	diagnosticSurroundSession hostclient.SessionResult
+	diagnosticSurroundUntil   time.Time
+
 	safeAreaPct        float64
 	prefsPath          string
 	preferenceStore    PreferenceStore

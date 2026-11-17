@@ -65,6 +65,21 @@ not prove the guest consumed the input.
 This control path requires a kit lease and a verified tenfoot binary containing
 the control handler. It does not signal or restart the managed service.
 
+To diagnose a keyboard hold across a later non-handoff transition, a root-only
+test may temporarily hide the surround with
+`/run/fogcast/tenfoot-key-trace-surround-hold`, then restore it with
+`/run/fogcast/tenfoot-key-trace-surround-release`. Create each as a fresh,
+root-owned, mode-0600 one-shot file while routing tracing is armed. Its content
+is `<pid> <process-start> <session-token>\n`. The token is lowercase SHA-256
+of the session ID, game ID, literal `kit`, target ID, flight ID, core package
+ID and decimal generation, each followed by a newline. It must identify the
+currently active play. The hold only takes effect on a shown machine-focused
+surround and uses the normal Tenfoot display transitions. It expires after 15
+seconds or a session change, and does not persist a preference. Confirm the
+`diagnostic-surround-held` and `diagnostic-surround-released` routing records
+before relying on a controlled test. This intervention is diagnostic evidence
+and does not establish that the ordinary settings UI exposes this transition.
+
 ## Summarise
 
 From `sources/FogCast`, on the development host:
