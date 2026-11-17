@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DeanoC/FogCast/ui/gfx"
@@ -38,6 +39,12 @@ type frameTraceRecord struct {
 
 	// input
 	Cmd string `json:"cmd,omitempty"`
+
+	// Opt-in keyboard routing diagnostics contain no key names, codes or text.
+	Route      string `json:"route,omitempty"`
+	Source     int    `json:"source,omitempty"`
+	Epoch      uint64 `json:"epoch,omitempty"`
+	NonHandoff bool   `json:"non_handoff,omitempty"`
 
 	// present (Seq also marks the tick that queued it)
 	Seq         uint64 `json:"seq,omitempty"`
@@ -99,11 +106,13 @@ func traceTiming(t menudisplay.Timing) *frameTraceTiming {
 // until a dump is requested (SIGUSR1), so it needs no configuration change
 // on a managed kit and no budget or behaviour depends on it.
 type frameTrace struct {
-	mu    sync.Mutex
-	ring  []frameTraceRecord
-	next  int
-	full  bool
-	dumps int
+	mu             sync.Mutex
+	ring           []frameTraceRecord
+	next           int
+	full           bool
+	dumps          int
+	routingEnabled atomic.Bool
+	routingUntil   time.Time // guarded by mu; retains Go's monotonic clock
 }
 
 func newFrameTrace() *frameTrace {
@@ -115,13 +124,52 @@ func (f *frameTrace) add(r frameTraceRecord) {
 		return
 	}
 	f.mu.Lock()
+	f.addLocked(r)
+	f.mu.Unlock()
+}
+
+func (f *frameTrace) addLocked(r frameTraceRecord) {
 	f.ring[f.next] = r
 	f.next++
 	if f.next == len(f.ring) {
 		f.next = 0
 		f.full = true
 	}
+}
+
+// armKeyRouting enables a bounded, explicitly requested diagnostic window.
+// It intentionally never records a key's identity or character.
+func (f *frameTrace) armKeyRouting(now time.Time) {
+	if f == nil {
+		return
+	}
+	f.mu.Lock()
+	f.routingUntil = now.Add(time.Minute)
+	f.routingEnabled.Store(true)
+	f.addLocked(frameTraceRecord{T: now.UnixMicro(), Kind: "key-route-arm"})
 	f.mu.Unlock()
+}
+
+func (f *frameTrace) keyRoutingActive(now time.Time) bool {
+	if f == nil || !f.routingEnabled.Load() {
+		return false
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.routingEnabled.Load() && now.Before(f.routingUntil)
+}
+
+func (f *frameTrace) keyRouting(now time.Time, route string, source int, epoch uint64, nonHandoff bool) {
+	if f == nil || !f.routingEnabled.Load() {
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.routingEnabled.Load() || !now.Before(f.routingUntil) {
+		f.routingEnabled.Store(false)
+		return
+	}
+	f.addLocked(frameTraceRecord{T: now.UnixMicro(), Kind: "key-route", Route: route, Source: source, Epoch: epoch, NonHandoff: nonHandoff})
 }
 
 func (f *frameTrace) input(cmd Command, now time.Time) {
@@ -174,7 +222,7 @@ func (f *frameTrace) dump(dir string) (string, error) {
 	recs := f.snapshotLocked()
 	f.mu.Unlock()
 	tmp := path + ".tmp"
-	file, err := os.Create(tmp)
+	file, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return "", err
 	}
@@ -195,6 +243,14 @@ func (f *frameTrace) dump(dir string) (string, error) {
 func (a *App) traceInputLocked(cmd Command, now time.Time) {
 	if a.frameTrace != nil {
 		a.frameTrace.input(cmd, now)
+	}
+}
+
+// traceKeyRouteLocked must be called with a.mu held so the recorded epoch and
+// transition state describe the routing decision itself.
+func (a *App) traceKeyRouteLocked(route string, source int) {
+	if a.frameTrace != nil {
+		a.frameTrace.keyRouting(time.Now(), route, source, a.sessionDisplayEpoch, a.sessionDisplayNonHandoff)
 	}
 }
 
