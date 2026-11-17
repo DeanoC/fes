@@ -25,8 +25,11 @@ reproduces the failure through production activation, control, master-stop and
 return callbacks: the stop engine accepts a never-enabled computer reader,
 while source release required a nonzero drained receipt. The repair accepts
 the exact zero tuple with the full activation, stop/probe, held-return and SD
-ownership proof. Four valid scenarios and 27 rejected returns pass off-board;
-the new matched chain is unprogrammed. The
+ownership proof. Four valid scenarios and 27 rejected returns pass off-board.
+The [physical trial](../../../../docs/validation/2026-11-17-de25-guard34-physical/README.md)
+passes source release 10→15 in 918,403 µs, then stops at the next MENU's
+four-second preparation guard. ZX80 and final Park remain unreached; the
+original FIT is restored through fresh recovery without power cycling. The
 [lifecycle audit](../../../../docs/design/de25-native-secure-lifecycle.md) records
 the injected boundaries and remaining physical cost, repeated-cycle, final
 Park and recovery gates. [#1867](https://github.com/DeanoC/fes/issues/1867)

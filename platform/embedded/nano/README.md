@@ -8,7 +8,9 @@ passes complete candidate/original FIT transactions within the unchanged
 bound. Its native diagnostic captures guard 34 on computer return. The
 [guard 34 repair](../../../docs/validation/2026-11-17-de25-guard34-fix/README.md)
 now reproduces and fixes the never-enabled reader mismatch through production
-callbacks off-board. The fresh matched image is unprogrammed; complete physical
+callbacks off-board. The [new physical trial](../../../docs/validation/2026-11-17-de25-guard34-physical/README.md)
+passes the formerly rejected release, then stops during next-MENU preparation.
+Exact original-FIT restoration passes without power cycling. Complete
 launch/return/Park and declared failure recovery remain open. #1938 is merged.
 Current board state belongs to its kit ledger.
 

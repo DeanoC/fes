@@ -10,7 +10,10 @@ Source release accepts that exact zero receipt only with the complete stop,
 probe, held-return and ownership proofs. Partial acknowledgements still reject;
 no deadline changes. The [guard 34 validation](../../../docs/validation/2026-11-17-de25-guard34-fix/README.md)
 records the before-fix reproduction, repaired checks and unprogrammed matched
-chain. The repair requires a fresh matched hardware test.
+chain. The later [physical trial](../../../docs/validation/2026-11-17-de25-guard34-physical/README.md)
+passes the formerly rejected release in 918,403 µs, then stops during the next
+MENU's four-second preparation. The complete two-core return/Park cycle stays
+unqualified. Fresh recovery restores the original FIT without power cycling.
 
 
 The explicit reset-recovery diagnostic adds a nonce-bound SPL witness before

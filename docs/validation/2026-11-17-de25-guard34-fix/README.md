@@ -1,5 +1,12 @@
 # DE25 guard 34: never-enabled computer reader
 
+This records the off-board repair checkpoint. The later
+[bounded physical trial](../2026-11-17-de25-guard34-physical/README.md) passes
+release 10→15 in 918,403 µs, then stops at the next MENU preparation guard.
+The full cycle remains failed; exact original-FIT restoration passes without
+power cycling. Unprogrammed/no-kit statements below describe this earlier
+checkpoint and do not change the later trial's verdict.
+
 The native ZX81 return completed its master-stop and held bridge close, then
 rejected source release at generation 15. The stop engine accepts a reader
 that was never enabled: every mutable generation, request, cookie, ACK,

@@ -21,6 +21,11 @@ guard 34 for a legitimate never-enabled reader before the repair, and pass
 after it. The [new evidence](../validation/2026-11-17-de25-guard34-fix/README.md)
 does not retroactively change the original trace or qualify the new image.
 
+The subsequent [physical trial](../validation/2026-11-17-de25-guard34-physical/README.md)
+clears release 10→15 in 918,403 µs. The complete cycle then stops at the next
+MENU's four-second preparation guard; ZX80 and final Park are not reached.
+Fresh recovery restores the exact original FIT without power cycling.
+
 ## Trust and authority
 
 | Actor | Current responsibility | What it does not prove |
@@ -270,8 +275,9 @@ accepts either the existing fully drained tuple or the exact zero tuple with
 no DISABLE issued. Generation/request/ACK equality, cookie/ACK equality, zero
 pending work, complete activation/stop/probe, held return, SD provenance,
 source/table and one-use checks remain required. No deadline is changed.
-The repaired callbacks pass the valid and rejected cases above; acceptance of
-the new matched artifact on physical hardware remains outstanding.
+The repaired callbacks pass the valid and rejected cases above. The new
+physical trial also passes the formerly failing release; the full lifecycle
+remains unqualified after the next MENU preparation failure.
 
 ## Stopped states and recovery
 
@@ -337,20 +343,32 @@ The guard mismatch is now reproduced and repaired off-board through production
 activation, stop and return callbacks. The new
 [validation record](../validation/2026-11-17-de25-guard34-fix/README.md) separates
 the before-fix failure, repaired software checks, ARM link and fresh matched
-chain from physical acceptance. The fresh chain (boot ID `6bd8f8bff436443a`)
-passes complete source/file admission and remains unprogrammed. No kit action
-was taken for this repair.
+chain from physical acceptance. The later
+[physical trial](../validation/2026-11-17-de25-guard34-physical/README.md) uses
+boot ID `6bd8f8bff436443a`: MENU, ZX81/tape/fetch and releases 4→10 / 10→15
+pass, the latter in 918,403 µs. Preparation of the next MENU at generation 15
+then fails with `-110` at stage 2, with no prepared/armed grant. Its last
+accepted sample is 3,997,499 µs into the four-second preparation bound, not
+the exact rejected duration. The queue command completes in 83,076 µs within
+100,000 µs. Source analysis places the stop in post-command layout checks;
+there is no recorded callback or ownership-scope error. ZX80 and final Park
+remain unreached. Original FIT restoration passes in 300.473 s through a fresh
+recovery without power cycling; the independent audit verifies all preserved
+files and closed handles. The failed cycle stays failed and consumed.
 
 1. Review the model against vendor reset, NoC completion, SMMU and SDM
    guarantees, including what source DMA retirement proves and which resets
    clear outstanding transactions. The unanswered guarantees above remain.
-2. Independently recheck the new matched source/artifacts before use, including
+2. Reproduce the second warm preparation cost through the actual suppliers and
+   reduce its validation cost, keeping ownership and the finite bounds intact.
+   Command completion and source release already pass their separate bounds.
+   Independently recheck the new matched source/artifacts before use, including
    OCRAM and every memory/source admission check. A later implementation edit
    requires a fresh chain; file admission is not runtime authority.
 3. Use a new bounded procedure to qualify repeated
    `MENU → ZX81+tape → MENU → ZX80 → MENU → Park` on that exact artifact.
-   Measure newly reached warm source validation cost without weakening its
-   finite bound. Capture source reuse, final USB shutdown and declared failure
+   Qualify the repaired preparation cost within its existing bound. Capture
+   source reuse, final USB shutdown and declared failure
    recovery; retain any stopped state and do not retry its consumed procedure.
 4. Extend the combined regression for cancellation, mapping/acknowledgement and
    partial completion at the remaining boundaries. Separate component coverage
