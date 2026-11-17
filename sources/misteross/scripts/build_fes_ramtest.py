@@ -223,6 +223,61 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str, iden
     })
 
 
+def sdram_output_register_evidence(design: dict) -> dict:
+    """Require each SDRAM command/address pad to be driven by a packed output FF."""
+    modules = design.get("modules") if isinstance(design, dict) else None
+    top = modules.get("top") if isinstance(modules, dict) else None
+    if not isinstance(top, dict) or not isinstance(top.get("ports"), dict) or not isinstance(top.get("cells"), dict):
+        raise board.BuildError("routed design lacks top ports or cells for SDRAM output registers")
+    ports, cells = top["ports"], top["cells"]
+    widths = {"SDRAM_A": 13, "SDRAM_BA": 2, "SDRAM_CKE": 1, "SDRAM_nCS": 1,
+              "SDRAM_nRAS": 1, "SDRAM_nCAS": 1, "SDRAM_nWE": 1}
+    expected = {}
+    for name, width in widths.items():
+        port = ports.get(name)
+        if not isinstance(port, dict) or port.get("direction") != "output":
+            raise board.BuildError(f"routed SDRAM output port missing or invalid: {name}")
+        bits = port.get("bits")
+        if not isinstance(bits, list) or len(bits) != width or any(type(bit) is not int for bit in bits):
+            raise board.BuildError(f"routed SDRAM output port has invalid bits: {name}")
+        for index, bit in enumerate(bits):
+            label = f"{name}[{index}]" if width != 1 else name
+            if bit in expected:
+                raise board.BuildError(f"routed SDRAM pads share net: {expected[bit]} and {label}")
+            expected[bit] = label
+
+    drivers = {bit: [] for bit in expected}
+    for cell_name, cell in cells.items():
+        if not isinstance(cell, dict):
+            raise board.BuildError(f"invalid routed cell: {cell_name}")
+        directions, connections = cell.get("port_directions"), cell.get("connections")
+        if not isinstance(directions, dict) or not isinstance(connections, dict):
+            raise board.BuildError(f"routed cell lacks port data: {cell_name}")
+        for port_name, direction in directions.items():
+            bits = connections.get(port_name)
+            if direction in ("output", "inout") and isinstance(bits, list):
+                for bit in bits:
+                    if type(bit) is int and bit in drivers:
+                        drivers[bit].append((cell_name, cell, port_name, bits))
+
+    pads = {}
+    for bit, label in expected.items():
+        found = drivers[bit]
+        if len(found) != 1:
+            raise board.BuildError(f"{label} requires one routed output driver, got {len(found)}")
+        cell_name, cell, port_name, bits = found[0]
+        if cell.get("type") != "MISTRAL_SDROUT" or port_name != "PAD" or bits != [bit]:
+            raise board.BuildError(f"{label} is not driven directly by a MISTRAL_SDROUT PAD")
+        if cell["port_directions"].get("PAD") != "output":
+            raise board.BuildError(f"{label} has an invalid MISTRAL_SDROUT PAD direction")
+        for signal in ("I", "CLK"):
+            nets = cell["connections"].get(signal)
+            if cell["port_directions"].get(signal) != "input" or not isinstance(nets, list) or len(nets) != 1 or type(nets[0]) is not int:
+                raise board.BuildError(f"{label} has an invalid MISTRAL_SDROUT {signal}")
+        pads[label] = cell_name
+    return {"count": len(pads), "pads": pads}
+
+
 def require_clean_source(root, pinned_inputs):
     try:
         return board._require_clean_source(root, pinned_inputs=pinned_inputs)
@@ -269,6 +324,8 @@ def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = No
             ordinary_resources=ORDINARY_RESOURCES, required_resources=REQUIRED_RESOURCES,
             forbidden_resources=FORBIDDEN_RESOURCES, required_zero_resources=REQUIRED_ZERO_RESOURCES,
             gpu_backend=gpu_choice(gpu_router)[0])
+        evidence["sdram_output_registers"] = sdram_output_register_evidence(
+            board._read_json(output / "routed.json", "routed design"))
         evidence["hps_ddr"] = board_evidence.hps_ddr_layout_evidence(
             board._read_json(output / "synth.json", "synthesis evidence"), "synthesized", root, idle=False)
         evidence.update({"build_id": build_identity(record), "device": board.TARGET,

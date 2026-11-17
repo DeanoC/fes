@@ -1,0 +1,4 @@
+read_verilog -sv t.sv
+hierarchy -top t
+proc -norom; flatten; opt -purge
+write_verilog t.nl.v

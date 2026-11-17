@@ -1,7 +1,39 @@
 # Contained firmware and FPGA control prototype
 
-The latest [preservation checkpoint](../../../docs/validation/2026-11-15-de25-merge-readiness/README.md) records a matched boot chain and a physical ZX81 launch with initial tape. Return to MENU stops at secure source release; the complete cycle remains unqualified. [Issue #1867](https://github.com/DeanoC/fes/issues/1867) tracks the whole secure ownership, memory, lifecycle and recovery investigation. The candidate remains stopped on the spare card, with host handles closed and a physical reset required before restoration. This merge preparation makes no new board changes.
+The latest [preservation checkpoint](../../../docs/validation/2026-11-15-de25-merge-readiness/README.md) records a matched boot chain and a physical ZX81 launch with initial tape. Return to MENU stops at secure source release; the complete cycle remains unqualified. [Issue #1867](https://github.com/DeanoC/fes/issues/1867) tracks the whole secure ownership, memory, lifecycle and recovery investigation. The subsequent [bounded reset-recovery test](../../../docs/validation/2026-11-17-de25-reset-recovery/README.md) reached a fresh recovery loader through volatile JTAG reload without a power cycle and verified the unchanged card files. The later [SD restoration test](../../../docs/validation/2026-11-17-de25-sd-restoration/README.md) restored the original experimental boot FIT with one file write and verified it after another software recovery boot. Its first transaction retains a host-deadline failure at the final redundant check; all 16 preserved files passed, and separate read-only verification confirmed the original FIT. The top kit is parked at the recovery prompt with the original FIT restored; native activation remains unqualified.
 
+
+The explicit reset-recovery diagnostic adds a nonce-bound SPL witness before
+DDR/SD initialization. Build with `--network-recovery --recovery-reset-nonce`
+and a fresh nonzero 32-digit hexadecimal nonce. `recovery_reset_package.py`
+validates this separate profile and composes a volatile SOF under the shared
+Quartus Pro lock; it creates no card image. Default recovery packaging rejects
+this profile. The embedded SPL is independently decoded and the compiled UART
+route is checked against UART1.
+
+`ResetRecoveryAttempt` connects the existing one-use fresh-scan JTAG gate to
+that witness and a new `UploadSession.read_existing` operation. The caller owns
+the serial-bound claim, private server, capture window, finite callback bounds
+and cleanup. A complete new witness plus protected loader/card and candidate
+file readback is required. Partial boot, stale nonce, lost ownership, failed
+programming or changed card retires the attempt. No retry, SD/flash write, old
+source reuse or normal runtime resume is authorized. This observes HPS
+rebootstrap and reset-held masters; it does not prove SDM reset, old fabric
+master drain or a complete native launch/return cycle. The linked bounded physical test qualifies this read-only bootstrap route;
+SDM reset and normal runtime acceptance remain separate.
+
+The reset gate now requires a shared persistent nonce registry and an actual
+`ResetCapture` window drained and armed immediately before program dispatch.
+A reused nonce or a transcript supplied outside that window rejects. Admission
+also pins the protected card-prefix and image digests independently of the
+session factory. ELF section/LOAD bytes for the early probe code and data must
+match the decoded SPL image.
+
+`ResetRestorationAttempt` is the separately selected boot-file transaction. It
+retains the new `UploadSession` through independent source checks, one fixed
+boot FIT write and protected readback, then retires it. This grants neither
+native activation nor power-loss durability. Its caller still owns the serial
+claim, reset-register observation, finite deadlines and complete host cleanup.
 
 This is exploratory firmware and native integration for the Linux-free base.
 It supplies a pinned TF-A source transformation, a freestanding C++14 control

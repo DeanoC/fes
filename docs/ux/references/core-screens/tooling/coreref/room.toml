@@ -1,0 +1,11 @@
+id = "coreref.core-screens"
+title = "FES core screens reference"
+author = "FES docs"
+description = "Throwaway reference renders for docs/ux/references/core-screens. Not a product room."
+version = 1
+main = "main.lua"
+destination_panel = "hero"
+
+[theme]
+background = "#F4F0E8"
+accent = "#235A46"
