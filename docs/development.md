@@ -140,10 +140,10 @@ The default FES integration profile is `native-integration-dev`. It selects only
 run as part of this image. The clean, development, verification and media paths
 reuse the same closed package set. Install `fes.pong`, `fes.zx81`, `fes.coleco`
 and other systems independently through the [core catalog](core-packages.md).
-Individual packages currently use HIP/nextpnr; Quartus is an explicit oracle
-where specified. The accepted policy also permits labelled Quartus variants,
-but the current recipe and package resolver do not select them yet; see
-[Quartus-built cores](design/quartus-cores.md). Host builds and [kit software
+Individual packages use their core's registered producer: Quartus Lite for
+the ZX81 family and PC/XT, HIP/nextpnr otherwise; other Quartus recipes are
+explicit oracles. The resolver does not yet choose between OSS and Quartus
+variants of one core; see [Quartus-built cores](design/quartus-cores.md). Host builds and [kit software
 updates](kit-software-releases.md) do not build FPGA packages. Build and verify
 do not deploy.
 

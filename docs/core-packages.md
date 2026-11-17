@@ -51,10 +51,11 @@ The default `native-integration-dev` profile installs the locked idle RBF and
 
 The FES image route is package-only. The accepted product policy allows a
 labelled `quartus` variant alongside an `oss` (HIP/nextpnr) build; see
-[Quartus-built cores](design/quartus-cores.md). The current recipe registry
-and package resolver still produce and select only OSS packages. Quartus is
-used only for a documented bring-up or oracle/check while that rollout is
-pending. There is no `FES_OSS_ONLY` control in this tree. Each package can be
+[Quartus-built cores](design/quartus-cores.md). The recipe registry selects
+exactly one producer per core and board: Quartus Lite for the ZX81 family and
+PC/XT, OSS for every other core. It does not yet choose between OSS and
+Quartus variants of one core, and other Quartus recipes are bring-up or
+oracle checks. There is no `FES_OSS_ONLY` control in this tree. Each package can be
 installed on the host and given an explicit library entry; the package route
 does not infer ROM or media inputs or replace the existing catalog system.
 
