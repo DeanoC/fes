@@ -1,0 +1,3240 @@
+{
+  "fits": [
+    {
+      "board": "DE25-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_coverage_note": null,
+      "clock_hz": 61440000,
+      "corner_count": 4,
+      "device": "A5EB013BB23BE4SCS",
+      "documented_device_alms": 46800,
+      "family": "Agilex 5",
+      "fes_revision": null,
+      "fit": "cpu-de25",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "142.09",
+              "restricted_fmax": "142.09"
+            }
+          ],
+          "corner": "Slow fix4 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "124.35",
+              "restricted_fmax": "124.35"
+            }
+          ],
+          "corner": "Slow fix4 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "124.35",
+              "restricted_fmax": "124.35"
+            }
+          ],
+          "corner": "Slow fix4a 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "225.73",
+              "restricted_fmax": "225.73"
+            }
+          ],
+          "corner": "Fast fix4 0C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "fitted_netlist": {
+          "duplicate_attribute_count": 0,
+          "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+          "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+          "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+          "ram_attribute_count": 30,
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+          "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+      },
+      "period_ns": 16.2760416667,
+      "programming_artifact": null,
+      "quartus": "26.3.0",
+      "quartus_edition": "pro",
+      "quartus_lock": "boards/de25nano/quartus.lock",
+      "ram_block": "M20K",
+      "real_clocks": [
+        "clk"
+      ],
+      "real_pins": 1,
+      "real_pins_note": null,
+      "resources": {
+        "alms": {
+          "available": 46800.0,
+          "percent_of_device": 62.61,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 29300.0
+        },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 63.96,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 29932.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.76,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3164.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.41,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2532.0
+        },
+        "alms_with_virtual_pins": {
+          "available": 46800.0,
+          "percent_of_device": 5.02,
+          "report_label": "* ALMs containing virtual pins",
+          "report_percent": "5",
+          "used": 2351.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 42126.0
+        },
+        "block_memory_bits": {
+          "available": 7331840.0,
+          "percent_of_device": 5.57,
+          "report_label": "Total block memory bits",
+          "report_percent": "6",
+          "used": 408320.0
+        },
+        "dsp_blocks": {
+          "available": 188.0,
+          "percent_of_device": 6.38,
+          "report_label": "DSP Blocks Needed [=A+B+C-D]",
+          "used": 12.0
+        },
+        "labs": {
+          "available": 4680.0,
+          "percent_of_device": 77.48,
+          "report_label": "Total LABs:  partially or completely used",
+          "used": 3626.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3624.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
+        },
+        "ram_blocks": {
+          "available": 358.0,
+          "percent_of_device": 14.8,
+          "report_label": "M20K blocks",
+          "used": 53.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 20842.0
+        }
+      },
+      "seed": 1,
+      "source_clean": null,
+      "status": "pass",
+      "timing_status": "pass",
+      "top": "fes_i386_cpu",
+      "unconstrained_clock_rows": [
+        [
+          "Illegal Clocks",
+          "0",
+          "0"
+        ],
+        [
+          "Unconstrained Clocks",
+          "0",
+          "0"
+        ]
+      ],
+      "virtual_port_count": 148,
+      "virtual_port_count_as_run": 1306,
+      "virtual_port_count_note": "corrected after the fit: the count used when this fit ran was 1306, which included the flattened module's Verilog function inputs as if they were ports. The corrected count is read from the netlist this fit actually fitted. The extra assignments named nodes that do not exist, Quartus reported nothing about them, and the fit's real pin count gates the envelope, so no figure changes."
+    },
+    {
+      "board": "DE25-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_coverage_note": null,
+      "clock_hz": 61440000,
+      "corner_count": 4,
+      "device": "A5EB013BB23BE4SCS",
+      "documented_device_alms": 46800,
+      "family": "Agilex 5",
+      "fes_revision": {
+        "clean": true,
+        "commit": "eceb97bd4fc17500164434785bec7bf3e8e35984"
+      },
+      "fit": "cpu-de25-s2",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "144.03",
+              "restricted_fmax": "144.03"
+            }
+          ],
+          "corner": "Slow fix4 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "128.37",
+              "restricted_fmax": "128.37"
+            }
+          ],
+          "corner": "Slow fix4 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "128.12",
+              "restricted_fmax": "128.12"
+            }
+          ],
+          "corner": "Slow fix4a 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "222.47",
+              "restricted_fmax": "222.47"
+            }
+          ],
+          "corner": "Fast fix4 0C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "fitted_netlist": {
+          "duplicate_attribute_count": 0,
+          "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+          "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+          "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+          "ram_attribute_count": 30,
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+          "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+      },
+      "period_ns": 16.2760416667,
+      "programming_artifact": null,
+      "quartus": "26.3.0",
+      "quartus_edition": "pro",
+      "quartus_lock": "boards/de25nano/quartus.lock",
+      "ram_block": "M20K",
+      "real_clocks": [
+        "clk"
+      ],
+      "real_pins": 1,
+      "real_pins_note": null,
+      "resources": {
+        "alms": {
+          "available": 46800.0,
+          "percent_of_device": 62.76,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 29373.0
+        },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 63.96,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 29932.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.65,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3110.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.45,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2551.0
+        },
+        "alms_with_virtual_pins": {
+          "available": 46800.0,
+          "percent_of_device": 5.02,
+          "report_label": "* ALMs containing virtual pins",
+          "report_percent": "5",
+          "used": 2351.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 42126.0
+        },
+        "block_memory_bits": {
+          "available": 7331840.0,
+          "percent_of_device": 5.57,
+          "report_label": "Total block memory bits",
+          "report_percent": "6",
+          "used": 408320.0
+        },
+        "dsp_blocks": {
+          "available": 188.0,
+          "percent_of_device": 6.38,
+          "report_label": "DSP Blocks Needed [=A+B+C-D]",
+          "used": 12.0
+        },
+        "labs": {
+          "available": 4680.0,
+          "percent_of_device": 77.07,
+          "report_label": "Total LABs:  partially or completely used",
+          "used": 3607.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3605.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
+        },
+        "ram_blocks": {
+          "available": 358.0,
+          "percent_of_device": 14.8,
+          "report_label": "M20K blocks",
+          "used": 53.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 20857.0
+        }
+      },
+      "seed": 2,
+      "source_clean": true,
+      "status": "pass",
+      "timing_status": "pass",
+      "top": "fes_i386_cpu",
+      "unconstrained_clock_rows": [
+        [
+          "Illegal Clocks",
+          "0",
+          "0"
+        ],
+        [
+          "Unconstrained Clocks",
+          "0",
+          "0"
+        ]
+      ],
+      "virtual_port_count": 148,
+      "virtual_port_count_as_run": null,
+      "virtual_port_count_note": null
+    },
+    {
+      "board": "DE25-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_coverage_note": null,
+      "clock_hz": 61440000,
+      "corner_count": 4,
+      "device": "A5EB013BB23BE4SCS",
+      "documented_device_alms": 46800,
+      "family": "Agilex 5",
+      "fes_revision": {
+        "clean": true,
+        "commit": "ed6d2ccb543707859a249de0439d9ea3ab86cecd"
+      },
+      "fit": "cpu-de25-s3",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "140.27",
+              "restricted_fmax": "140.27"
+            }
+          ],
+          "corner": "Slow fix4 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "124.55",
+              "restricted_fmax": "124.55"
+            }
+          ],
+          "corner": "Slow fix4 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "124.64",
+              "restricted_fmax": "124.64"
+            }
+          ],
+          "corner": "Slow fix4a 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "221.19",
+              "restricted_fmax": "221.19"
+            }
+          ],
+          "corner": "Fast fix4 0C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "fitted_netlist": {
+          "duplicate_attribute_count": 0,
+          "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+          "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+          "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+          "ram_attribute_count": 30,
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+          "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+      },
+      "period_ns": 16.2760416667,
+      "programming_artifact": null,
+      "quartus": "26.3.0",
+      "quartus_edition": "pro",
+      "quartus_lock": "boards/de25nano/quartus.lock",
+      "ram_block": "M20K",
+      "real_clocks": [
+        "clk"
+      ],
+      "real_pins": 1,
+      "real_pins_note": null,
+      "resources": {
+        "alms": {
+          "available": 46800.0,
+          "percent_of_device": 62.82,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 29400.0
+        },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 63.9,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 29905.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.51,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3046.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.43,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2541.0
+        },
+        "alms_with_virtual_pins": {
+          "available": 46800.0,
+          "percent_of_device": 5.02,
+          "report_label": "* ALMs containing virtual pins",
+          "report_percent": "5",
+          "used": 2351.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 42126.0
+        },
+        "block_memory_bits": {
+          "available": 7331840.0,
+          "percent_of_device": 5.57,
+          "report_label": "Total block memory bits",
+          "report_percent": "6",
+          "used": 408320.0
+        },
+        "dsp_blocks": {
+          "available": 188.0,
+          "percent_of_device": 6.38,
+          "report_label": "DSP Blocks Needed [=A+B+C-D]",
+          "used": 12.0
+        },
+        "labs": {
+          "available": 4680.0,
+          "percent_of_device": 76.77,
+          "report_label": "Total LABs:  partially or completely used",
+          "used": 3593.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3591.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
+        },
+        "ram_blocks": {
+          "available": 358.0,
+          "percent_of_device": 14.8,
+          "report_label": "M20K blocks",
+          "used": 53.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 20887.0
+        }
+      },
+      "seed": 3,
+      "source_clean": true,
+      "status": "pass",
+      "timing_status": "pass",
+      "top": "fes_i386_cpu",
+      "unconstrained_clock_rows": [
+        [
+          "Illegal Clocks",
+          "0",
+          "0"
+        ],
+        [
+          "Unconstrained Clocks",
+          "0",
+          "0"
+        ]
+      ],
+      "virtual_port_count": 148,
+      "virtual_port_count_as_run": null,
+      "virtual_port_count_note": null
+    },
+    {
+      "board": "DE25-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_coverage_note": null,
+      "clock_hz": 75000000,
+      "corner_count": 4,
+      "device": "A5EB013BB23BE4SCS",
+      "documented_device_alms": 46800,
+      "family": "Agilex 5",
+      "fes_revision": "42c2a23337ac029929a8a7b28e4153a3093b175d",
+      "fit": "cpu-de25-75",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "148.39",
+              "restricted_fmax": "148.39"
+            }
+          ],
+          "corner": "Slow fix4 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "132.01",
+              "restricted_fmax": "132.01"
+            }
+          ],
+          "corner": "Slow fix4 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "132.29",
+              "restricted_fmax": "132.29"
+            }
+          ],
+          "corner": "Slow fix4a 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "231.05",
+              "restricted_fmax": "231.05"
+            }
+          ],
+          "corner": "Fast fix4 0C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "fitted_netlist": {
+          "duplicate_attribute_count": 0,
+          "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+          "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+          "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+          "ram_attribute_count": 30,
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+          "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+      },
+      "period_ns": 13.3333333333,
+      "programming_artifact": null,
+      "quartus": "26.3.0",
+      "quartus_edition": "pro",
+      "quartus_lock": "boards/de25nano/quartus.lock",
+      "ram_block": "M20K",
+      "real_clocks": [
+        "clk"
+      ],
+      "real_pins": 1,
+      "real_pins_note": null,
+      "resources": {
+        "alms": {
+          "available": 46800.0,
+          "percent_of_device": 62.74,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 29360.0
+        },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 63.85,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 29880.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.52,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3051.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.41,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2531.0
+        },
+        "alms_with_virtual_pins": {
+          "available": 46800.0,
+          "percent_of_device": 5.02,
+          "report_label": "* ALMs containing virtual pins",
+          "report_percent": "5",
+          "used": 2351.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 42125.0
+        },
+        "block_memory_bits": {
+          "available": 7331840.0,
+          "percent_of_device": 5.57,
+          "report_label": "Total block memory bits",
+          "report_percent": "6",
+          "used": 408320.0
+        },
+        "dsp_blocks": {
+          "available": 188.0,
+          "percent_of_device": 6.38,
+          "report_label": "DSP Blocks Needed [=A+B+C-D]",
+          "used": 12.0
+        },
+        "labs": {
+          "available": 4680.0,
+          "percent_of_device": 77.16,
+          "report_label": "Total LABs:  partially or completely used",
+          "used": 3611.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3609.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
+        },
+        "ram_blocks": {
+          "available": 358.0,
+          "percent_of_device": 14.8,
+          "report_label": "M20K blocks",
+          "used": 53.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 20829.0
+        }
+      },
+      "seed": 1,
+      "source_clean": null,
+      "status": "pass",
+      "timing_status": "pass",
+      "top": "fes_i386_cpu",
+      "unconstrained_clock_rows": [
+        [
+          "Illegal Clocks",
+          "0",
+          "0"
+        ],
+        [
+          "Unconstrained Clocks",
+          "0",
+          "0"
+        ]
+      ],
+      "virtual_port_count": 148,
+      "virtual_port_count_as_run": 1306,
+      "virtual_port_count_note": "corrected after the fit: the count used when this fit ran was 1306, which included the flattened module's Verilog function inputs as if they were ports. The corrected count is read from the netlist this fit actually fitted. The extra assignments named nodes that do not exist, Quartus reported nothing about them, and the fit's real pin count gates the envelope, so no figure changes."
+    },
+    {
+      "board": "DE25-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_coverage_note": null,
+      "clock_hz": 90000000,
+      "corner_count": 4,
+      "device": "A5EB013BB23BE4SCS",
+      "documented_device_alms": 46800,
+      "family": "Agilex 5",
+      "fes_revision": {
+        "clean": true,
+        "commit": "832716f82840f9b931fbb0efdb1eaac8eb31ec5d"
+      },
+      "fit": "cpu-de25-90",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "142.69",
+              "restricted_fmax": "142.69"
+            }
+          ],
+          "corner": "Slow fix4 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "125.69",
+              "restricted_fmax": "125.69"
+            }
+          ],
+          "corner": "Slow fix4 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "125.91",
+              "restricted_fmax": "125.91"
+            }
+          ],
+          "corner": "Slow fix4a 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "226.65",
+              "restricted_fmax": "226.65"
+            }
+          ],
+          "corner": "Fast fix4 0C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "fitted_netlist": {
+          "duplicate_attribute_count": 0,
+          "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+          "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+          "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+          "ram_attribute_count": 30,
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+          "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+      },
+      "period_ns": 11.1111111111,
+      "programming_artifact": null,
+      "quartus": "26.3.0",
+      "quartus_edition": "pro",
+      "quartus_lock": "boards/de25nano/quartus.lock",
+      "ram_block": "M20K",
+      "real_clocks": [
+        "clk"
+      ],
+      "real_pins": 1,
+      "real_pins_note": null,
+      "resources": {
+        "alms": {
+          "available": 46800.0,
+          "percent_of_device": 62.62,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 29304.0
+        },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 63.85,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 29882.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.62,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3096.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.38,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2518.0
+        },
+        "alms_with_virtual_pins": {
+          "available": 46800.0,
+          "percent_of_device": 5.02,
+          "report_label": "* ALMs containing virtual pins",
+          "report_percent": "5",
+          "used": 2351.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 42125.0
+        },
+        "block_memory_bits": {
+          "available": 7331840.0,
+          "percent_of_device": 5.57,
+          "report_label": "Total block memory bits",
+          "report_percent": "6",
+          "used": 408320.0
+        },
+        "dsp_blocks": {
+          "available": 188.0,
+          "percent_of_device": 6.38,
+          "report_label": "DSP Blocks Needed [=A+B+C-D]",
+          "used": 12.0
+        },
+        "labs": {
+          "available": 4680.0,
+          "percent_of_device": 76.71,
+          "report_label": "Total LABs:  partially or completely used",
+          "used": 3590.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3588.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
+        },
+        "ram_blocks": {
+          "available": 358.0,
+          "percent_of_device": 14.8,
+          "report_label": "M20K blocks",
+          "used": 53.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 20826.0
+        }
+      },
+      "seed": 1,
+      "source_clean": true,
+      "status": "pass",
+      "timing_status": "pass",
+      "top": "fes_i386_cpu",
+      "unconstrained_clock_rows": [
+        [
+          "Illegal Clocks",
+          "0",
+          "0"
+        ],
+        [
+          "Unconstrained Clocks",
+          "0",
+          "0"
+        ]
+      ],
+      "virtual_port_count": 148,
+      "virtual_port_count_as_run": null,
+      "virtual_port_count_note": null
+    },
+    {
+      "board": "DE25-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_coverage_note": null,
+      "clock_hz": 110000000,
+      "corner_count": 4,
+      "device": "A5EB013BB23BE4SCS",
+      "documented_device_alms": 46800,
+      "family": "Agilex 5",
+      "fes_revision": {
+        "clean": true,
+        "commit": "27eb79d86a0c07b2653a6c3a5ac49f17b6fac147"
+      },
+      "fit": "cpu-de25-110",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "150.47",
+              "restricted_fmax": "150.47"
+            }
+          ],
+          "corner": "Slow fix4 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "133.3",
+              "restricted_fmax": "133.3"
+            }
+          ],
+          "corner": "Slow fix4 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "133.23",
+              "restricted_fmax": "133.23"
+            }
+          ],
+          "corner": "Slow fix4a 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "236.8",
+              "restricted_fmax": "236.8"
+            }
+          ],
+          "corner": "Fast fix4 0C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "fitted_netlist": {
+          "duplicate_attribute_count": 0,
+          "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+          "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+          "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+          "ram_attribute_count": 30,
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+          "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+      },
+      "period_ns": 9.0909090909,
+      "programming_artifact": null,
+      "quartus": "26.3.0",
+      "quartus_edition": "pro",
+      "quartus_lock": "boards/de25nano/quartus.lock",
+      "ram_block": "M20K",
+      "real_clocks": [
+        "clk"
+      ],
+      "real_pins": 1,
+      "real_pins_note": null,
+      "resources": {
+        "alms": {
+          "available": 46800.0,
+          "percent_of_device": 62.71,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 29348.0
+        },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 63.95,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 29929.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.65,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3114.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.41,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2533.0
+        },
+        "alms_with_virtual_pins": {
+          "available": 46800.0,
+          "percent_of_device": 5.02,
+          "report_label": "* ALMs containing virtual pins",
+          "report_percent": "5",
+          "used": 2351.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 42135.0
+        },
+        "block_memory_bits": {
+          "available": 7331840.0,
+          "percent_of_device": 5.57,
+          "report_label": "Total block memory bits",
+          "report_percent": "6",
+          "used": 408320.0
+        },
+        "dsp_blocks": {
+          "available": 188.0,
+          "percent_of_device": 6.38,
+          "report_label": "DSP Blocks Needed [=A+B+C-D]",
+          "used": 12.0
+        },
+        "labs": {
+          "available": 4680.0,
+          "percent_of_device": 76.75,
+          "report_label": "Total LABs:  partially or completely used",
+          "used": 3592.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3590.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
+        },
+        "ram_blocks": {
+          "available": 358.0,
+          "percent_of_device": 14.8,
+          "report_label": "M20K blocks",
+          "used": 53.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 20867.0
+        }
+      },
+      "seed": 1,
+      "source_clean": true,
+      "status": "pass",
+      "timing_status": "pass",
+      "top": "fes_i386_cpu",
+      "unconstrained_clock_rows": [
+        [
+          "Illegal Clocks",
+          "0",
+          "0"
+        ],
+        [
+          "Unconstrained Clocks",
+          "0",
+          "0"
+        ]
+      ],
+      "virtual_port_count": 148,
+      "virtual_port_count_as_run": null,
+      "virtual_port_count_note": null
+    },
+    {
+      "board": "DE25-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_coverage_note": null,
+      "clock_hz": 130000000,
+      "corner_count": 4,
+      "device": "A5EB013BB23BE4SCS",
+      "documented_device_alms": 46800,
+      "family": "Agilex 5",
+      "fes_revision": {
+        "clean": true,
+        "commit": "164881d12fc7e09c738e60db359cad20f986c052"
+      },
+      "fit": "cpu-de25-130",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "156.64",
+              "restricted_fmax": "156.64"
+            }
+          ],
+          "corner": "Slow fix4 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "137.63",
+              "restricted_fmax": "137.63"
+            }
+          ],
+          "corner": "Slow fix4 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "137.65",
+              "restricted_fmax": "137.65"
+            }
+          ],
+          "corner": "Slow fix4a 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "251.7",
+              "restricted_fmax": "251.7"
+            }
+          ],
+          "corner": "Fast fix4 0C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "fitted_netlist": {
+          "duplicate_attribute_count": 0,
+          "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+          "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+          "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+          "ram_attribute_count": 30,
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+          "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+      },
+      "period_ns": 7.6923076923,
+      "programming_artifact": null,
+      "quartus": "26.3.0",
+      "quartus_edition": "pro",
+      "quartus_lock": "boards/de25nano/quartus.lock",
+      "ram_block": "M20K",
+      "real_clocks": [
+        "clk"
+      ],
+      "real_pins": 1,
+      "real_pins_note": null,
+      "resources": {
+        "alms": {
+          "available": 46800.0,
+          "percent_of_device": 62.94,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 29455.0
+        },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 64.13,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 30012.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.65,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3112.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.46,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2555.0
+        },
+        "alms_with_virtual_pins": {
+          "available": 46800.0,
+          "percent_of_device": 5.02,
+          "report_label": "* ALMs containing virtual pins",
+          "report_percent": "5",
+          "used": 2351.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 42216.0
+        },
+        "block_memory_bits": {
+          "available": 7331840.0,
+          "percent_of_device": 5.57,
+          "report_label": "Total block memory bits",
+          "report_percent": "6",
+          "used": 408320.0
+        },
+        "dsp_blocks": {
+          "available": 188.0,
+          "percent_of_device": 6.38,
+          "report_label": "DSP Blocks Needed [=A+B+C-D]",
+          "used": 12.0
+        },
+        "labs": {
+          "available": 4680.0,
+          "percent_of_device": 76.86,
+          "report_label": "Total LABs:  partially or completely used",
+          "used": 3597.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3595.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
+        },
+        "ram_blocks": {
+          "available": 358.0,
+          "percent_of_device": 14.8,
+          "report_label": "M20K blocks",
+          "used": 53.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 20880.0
+        }
+      },
+      "seed": 1,
+      "source_clean": true,
+      "status": "pass",
+      "timing_status": "pass",
+      "top": "fes_i386_cpu",
+      "unconstrained_clock_rows": [
+        [
+          "Illegal Clocks",
+          "0",
+          "0"
+        ],
+        [
+          "Unconstrained Clocks",
+          "0",
+          "0"
+        ]
+      ],
+      "virtual_port_count": 148,
+      "virtual_port_count_as_run": null,
+      "virtual_port_count_note": null
+    },
+    {
+      "board": "DE25-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_coverage_note": "verified from the retained TimeQuest report after the fact: this fit predates the coverage check running on the timing-failure path",
+      "clock_hz": 150000000,
+      "corner_count": 4,
+      "device": "A5EB013BB23BE4SCS",
+      "documented_device_alms": 46800,
+      "error": "timing failed (3); retained /home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu-de25-150-s1/timing.log",
+      "family": "Agilex 5",
+      "fes_revision": {
+        "clean": false,
+        "commit": "eceb97bd4fc17500164434785bec7bf3e8e35984",
+        "note": "prepared from a modified checkout; this commit alone does not describe the source that ran, and the diff above does",
+        "tracked_diff": "diff --git a/docs/validation/2026-11-16-i386-agilex5-fit/method.md b/docs/validation/2026-11-16-i386-agilex5-fit/method.md\nindex f12ec27c4..514fda22b 100644\n--- a/docs/validation/2026-11-16-i386-agilex5-fit/method.md\n+++ b/docs/validation/2026-11-16-i386-agilex5-fit/method.md\n@@ -602,3 +602,32 @@ assignment warnings in any fit \u2014 so they were inert. The published port counts\n were simply wrong, and are corrected here and in the summary. The reader is\n fixed to skip `function`/`endfunction` blocks, with a test that puts a\n function's inputs in a module header and requires them not to appear.\n+\n+## Amendment, 16 November 2026: the ladder's top rung was not high enough\n+\n+What had been seen: **every rung of the precommitted ladder closed on\n+Agilex 5** \u2014 61.44, 75, 90, 110 and 130 MHz, each passing setup, hold,\n+recovery, removal and minimum pulse width at all four published corners. The\n+130 MHz rung passed with **+0.426 ns** of setup slack at its worst slow corner\n+and a 137.63 MHz restricted-Fmax estimate. Area was flat across all five:\n+29,300 to 29,455 ALMs, a 155 ALM spread. On the DE10, only the 61.44 MHz rung\n+had run; its higher rungs and the extra seeds were queued.\n+\n+So the ladder did its job on the pass side and failed to bound the answer: it\n+establishes that `fes_i386_cpu` **closes at 130 MHz on Agilex 5**, and it does\n+not establish a ceiling, because its top rung was the last one it had.\n+\n+**The ladder is extended to 150 and 170 MHz, seed 1, on Agilex 5.** This is\n+stated as what it is: rungs added **after** seeing the top rung pass. It\n+changes no pass rule \u2014 a rung still closes only by passing every analysis at\n+every corner, and the rungs already run keep their verdicts \u2014 and it adds\n+evidence in the same direction rather than rescuing a failure. The reason to\n+do it rather than report \"at least 130 MHz\" is that the DE25 plan needs to\n+know where the CPU actually stops, and 130 MHz with +0.426 ns of slack is\n+plainly not it.\n+\n+If 170 MHz also closes, the record will say so and say again that the ladder\n+has not found the ceiling, rather than extending a third time; two additions\n+chasing a result would stop being a precommitment at all. The DE10's rungs\n+above 61.44 MHz are unchanged and still expected to miss against that device's\n+own 63.79 MHz estimate.\n",
+        "tracked_diff_sha256": "9367b83842b31d43b138d9780318870cc4c0c39ef9979bd598f57abca1c15e2f"
+      },
+      "fit": "cpu-de25-150-MISS",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "159.44",
+              "restricted_fmax": "159.44"
+            }
+          ],
+          "corner": "Slow fix4 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "139.84",
+              "restricted_fmax": "139.84"
+            }
+          ],
+          "corner": "Slow fix4 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "139.9",
+              "restricted_fmax": "139.9"
+            }
+          ],
+          "corner": "Slow fix4a 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "254.07",
+              "restricted_fmax": "254.07"
+            }
+          ],
+          "corner": "Fast fix4 0C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "fitted_netlist": {
+          "duplicate_attribute_count": 0,
+          "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+          "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+          "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+          "ram_attribute_count": 30,
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+          "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+      },
+      "period_ns": 6.6666666667,
+      "programming_artifact": null,
+      "quartus": "26.3.0",
+      "quartus_edition": "pro",
+      "quartus_lock": "boards/de25nano/quartus.lock",
+      "ram_block": "M20K",
+      "real_clocks": [
+        "clk"
+      ],
+      "real_pins": 1,
+      "real_pins_note": "verified from the retained fit report after the fact: this fit predates the envelope check running on the timing-failure path",
+      "resources": {
+        "alms": {
+          "available": 46800.0,
+          "percent_of_device": 64.1,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 30000.0
+        },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 65.45,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 30630.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.82,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3193.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.48,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2563.0
+        },
+        "alms_with_virtual_pins": {
+          "available": 46800.0,
+          "percent_of_device": 5.02,
+          "report_label": "* ALMs containing virtual pins",
+          "report_percent": "5",
+          "used": 2351.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 42547.0
+        },
+        "block_memory_bits": {
+          "available": 7331840.0,
+          "percent_of_device": 5.57,
+          "report_label": "Total block memory bits",
+          "report_percent": "6",
+          "used": 408320.0
+        },
+        "dsp_blocks": {
+          "available": 188.0,
+          "percent_of_device": 6.38,
+          "report_label": "DSP Blocks Needed [=A+B+C-D]",
+          "used": 12.0
+        },
+        "labs": {
+          "available": 4680.0,
+          "percent_of_device": 78.8,
+          "report_label": "Total LABs:  partially or completely used",
+          "used": 3688.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3686.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
+        },
+        "ram_blocks": {
+          "available": 358.0,
+          "percent_of_device": 14.8,
+          "report_label": "M20K blocks",
+          "used": 53.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 21508.0
+        }
+      },
+      "resources_stage": "complete fit; the timing gate failed, so this is a missed rung and not a partial result",
+      "seed": 1,
+      "source_clean": false,
+      "status": "fail",
+      "timing_status": "fail",
+      "top": "fes_i386_cpu",
+      "unconstrained_clock_rows": [
+        [
+          "Illegal Clocks",
+          "0",
+          "0"
+        ],
+        [
+          "Unconstrained Clocks",
+          "0",
+          "0"
+        ]
+      ],
+      "virtual_port_count": 148,
+      "virtual_port_count_as_run": null,
+      "virtual_port_count_note": null
+    },
+    {
+      "board": "DE25-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_coverage_note": "verified from the retained TimeQuest report after the fact: this fit predates the coverage check running on the timing-failure path",
+      "clock_hz": 170000000,
+      "corner_count": 4,
+      "device": "A5EB013BB23BE4SCS",
+      "documented_device_alms": 46800,
+      "error": "timing failed (3); retained /home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu-de25-170-s1/timing.log",
+      "family": "Agilex 5",
+      "fes_revision": {
+        "clean": true,
+        "commit": "356c7557efb421a6ab273716430636c801b9e1d3"
+      },
+      "fit": "cpu-de25-170-MISS",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "164.37",
+              "restricted_fmax": "164.37"
+            }
+          ],
+          "corner": "Slow fix4 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "144.68",
+              "restricted_fmax": "144.68"
+            }
+          ],
+          "corner": "Slow fix4 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "144.49",
+              "restricted_fmax": "144.49"
+            }
+          ],
+          "corner": "Slow fix4a 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "259.34",
+              "restricted_fmax": "259.34"
+            }
+          ],
+          "corner": "Fast fix4 0C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "fitted_netlist": {
+          "duplicate_attribute_count": 0,
+          "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+          "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+          "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+          "ram_attribute_count": 30,
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+          "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+      },
+      "period_ns": 5.8823529412,
+      "programming_artifact": null,
+      "quartus": "26.3.0",
+      "quartus_edition": "pro",
+      "quartus_lock": "boards/de25nano/quartus.lock",
+      "ram_block": "M20K",
+      "real_clocks": [
+        "clk"
+      ],
+      "real_pins": 1,
+      "real_pins_note": "verified from the retained fit report after the fact: this fit predates the envelope check running on the timing-failure path",
+      "resources": {
+        "alms": {
+          "available": 46800.0,
+          "percent_of_device": 64.46,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 30169.0
+        },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 66.03,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 30903.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.95,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3252.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.38,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2518.0
+        },
+        "alms_with_virtual_pins": {
+          "available": 46800.0,
+          "percent_of_device": 5.02,
+          "report_label": "* ALMs containing virtual pins",
+          "report_percent": "5",
+          "used": 2351.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 42722.0
+        },
+        "block_memory_bits": {
+          "available": 7331840.0,
+          "percent_of_device": 5.57,
+          "report_label": "Total block memory bits",
+          "report_percent": "6",
+          "used": 408320.0
+        },
+        "dsp_blocks": {
+          "available": 188.0,
+          "percent_of_device": 6.38,
+          "report_label": "DSP Blocks Needed [=A+B+C-D]",
+          "used": 12.0
+        },
+        "labs": {
+          "available": 4680.0,
+          "percent_of_device": 79.29,
+          "report_label": "Total LABs:  partially or completely used",
+          "used": 3711.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3709.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
+        },
+        "ram_blocks": {
+          "available": 358.0,
+          "percent_of_device": 14.8,
+          "report_label": "M20K blocks",
+          "used": 53.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 21206.0
+        }
+      },
+      "resources_stage": "complete fit; the timing gate failed, so this is a missed rung and not a partial result",
+      "seed": 1,
+      "source_clean": true,
+      "status": "fail",
+      "timing_status": "fail",
+      "top": "fes_i386_cpu",
+      "unconstrained_clock_rows": [
+        [
+          "Illegal Clocks",
+          "0",
+          "0"
+        ],
+        [
+          "Unconstrained Clocks",
+          "0",
+          "0"
+        ]
+      ],
+      "virtual_port_count": 148,
+      "virtual_port_count_as_run": null,
+      "virtual_port_count_note": null
+    },
+    {
+      "board": "DE25-Nano",
+      "classification": "internal virtual-pin characterisation fit, SECONDARY direct-SystemVerilog front end; a cross-check on the netlist flow, not a second area result; no seal, no board I/O, no hardware acceptance",
+      "clock_coverage_note": null,
+      "clock_hz": 61440000,
+      "corner_count": 4,
+      "device": "A5EB013BB23BE4SCS",
+      "documented_device_alms": 46800,
+      "family": "Agilex 5",
+      "fes_revision": "50ea47e53c3d987e3f9b01e7c282904153882ac1",
+      "fit": "cpu-de25-direct-sv",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "134.54",
+              "restricted_fmax": "134.54"
+            }
+          ],
+          "corner": "Slow fix4 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "120.96",
+              "restricted_fmax": "120.96"
+            }
+          ],
+          "corner": "Slow fix4 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "120.86",
+              "restricted_fmax": "120.86"
+            }
+          ],
+          "corner": "Slow fix4a 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "209.56",
+              "restricted_fmax": "209.56"
+            }
+          ],
+          "corner": "Fast fix4 0C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "fitted_source_sha256": {
+          "fes_i386_agu.sv": "790424c71234d13b52aca15dcf06c897c1df7868184047f9704497b620dfb236",
+          "fes_i386_amode.sv": "8c751ec8a884f0dddd2f767ed94738842260ca0d8dd9080253a81139cb6c7759",
+          "fes_i386_biu.sv": "a9ed2b2b277b03a8b73e8f070fa5c6e7a75f7ab8edf425809bd938aa7eba0a59",
+          "fes_i386_btb.sv": "1032db787cd3d1dba47c2288fcec3e083f783edb2197d8d1502b1b821e97f677",
+          "fes_i386_cpu.sv": "7e27cee7baba335f68e138c1aa445bad62bb0d314cb833a5294e1bfc606d5564",
+          "fes_i386_decode.sv": "abe32da906298f0519c7a0bc4be190488cd23f9ab85fb3dda25de3766c7fa502",
+          "fes_i386_dfwd.sv": "e7f5f51a89fdd63744f8c92cbe8bb1aedd45835b37be0f7ed7f0db8d54739f59",
+          "fes_i386_dops.sv": "769aae53a66479ac3cc2cf8ad986b0c442846d2997454a3dc33d6e17d9d06dc8",
+          "fes_i386_ex.sv": "a7a961bbd5fdd7990053ef0f929c966035e6c0efc36f46b4cf428f348d5ad4a3",
+          "fes_i386_exctl.sv": "c286815ee0aa7c1348182988cefaebc6c1fc5e3fe777645fbd58cb91ba67938b",
+          "fes_i386_fetchbuf.sv": "dee382095912c0f46deab01aa206a4f91cd12c783843a4a469436bbea1f28872",
+          "fes_i386_frontend.sv": "aa78f075f9437eab3f9d6584eb6a3b1287b709c4799718073387baf74524f3f4",
+          "fes_i386_gov_pkg.sv": "92cde4ed68e17e686819c7d2b7ac00b6347e7bfaadb17ed9f065dcf97f11571d",
+          "fes_i386_gov_rom.sv": "9ad1d753d239142d0bbe14a27b37e73ad3840000fb576b7e642b81c390696fdc",
+          "fes_i386_governor.sv": "9907b47638890e6ebf910de7354eee59539e7cb2bccf11727ad3500c70d10cf4",
+          "fes_i386_l1d.sv": "47ef9aeb71550032dd053e7cad454194ff7bd7ec1d11bbce32625abc3283c3ae",
+          "fes_i386_l1i.sv": "5eb9f9f96353e3e0737c932c86cbfcf04e4ac436451725e2ff173e225aef348a",
+          "fes_i386_lendec.sv": "097cd45ba9774cfc3fb17b6fbaf6994c22bf8b93278300a0cbb3b99d2faea47b",
+          "fes_i386_lstage.sv": "0da7e9b4df54fa365da63dfcce0cdd4cf6779ff2191206a835f3b4a4fc8bb757",
+          "fes_i386_muldiv.sv": "13854a2c8bb898a0388aae2cb3315cc3fc57790deb353324ef372660eaad82a9",
+          "fes_i386_oplen.sv": "ce0ad49a2915be5896d7bf8786807ec8f3d5adef3ffe6a023294c8148fe19430",
+          "fes_i386_pkg.sv": "619198f15942b2a78c5c8acdbd586d159a2d7406ced0fba0209e56f1581db88e",
+          "fes_i386_qalign.sv": "30d4b5b87fb4a27834efca3c2c65b795d0db31dc6b0a8ed3b3fcb06c53897fdd",
+          "fes_i386_ras.sv": "7ac962343dc69ee0727de061209f39271c050aa7f7f8f2a3b2f3fcf0d9b38a64",
+          "fes_i386_seq.sv": "6d06f3583e66ec68c32a1168f74f90f24f5e7b889b67f313cd19836fcc72a3f0",
+          "fes_i386_shflags.sv": "71f769ca4b7b93d7a2833f8027551250e0e1f13bc39fdabd3ffa867c38abf70a",
+          "fes_i386_shift.sv": "0accbdf9c6380081620eff3fa9baebcb47f191026e6c8546859cd4e3a93e65c2",
+          "fes_i386_tlb.sv": "bda833c3c892c0cae4505a128404301b8720c887d4df0f82d258d5634a0f6d12",
+          "fes_i386_ucode_pkg.sv": "16ac5bb0d6dd961785b204c751ae5f4bd7430c84b76d25f0843d38184bafeaf8",
+          "fes_i386_ucode_rom.sv": "ee6ce9d8ea85c1e552b9749d7d1eace9382aa1503f71e4021cbdb0330d4456be",
+          "fes_i386_x87.sv": "f261dcbab56eab4c6bc89a76fa3e0083719a9ad6b87a220748b7c38a59d52e72",
+          "fes_i386_x87_mul.sv": "1c07ac7b90d76654495e21996d991647da67c144985ac61fdb332e37392190ce"
+        },
+        "front_end": "quartus-systemverilog",
+        "note": "no Yosys netlist; Quartus read the RTL itself",
+        "provenance_note": "copied from this fit's own inputs.json after the fact: the fit predates the runner writing the rewrite provenance into netlist.json",
+        "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"' across the RTL sources, as the primary flow does to the netlist; verified by round trip; nothing else changed",
+        "ram_attribute_count": 30,
+        "source_sha256": {
+          "fes_i386_agu.sv": "790424c71234d13b52aca15dcf06c897c1df7868184047f9704497b620dfb236",
+          "fes_i386_amode.sv": "8c751ec8a884f0dddd2f767ed94738842260ca0d8dd9080253a81139cb6c7759",
+          "fes_i386_biu.sv": "a9ed2b2b277b03a8b73e8f070fa5c6e7a75f7ab8edf425809bd938aa7eba0a59",
+          "fes_i386_btb.sv": "1e79cb7e2b6abfedb651f514d843052f0dfb05bda19005af3c1ea43a2e09dca9",
+          "fes_i386_cpu.sv": "7e27cee7baba335f68e138c1aa445bad62bb0d314cb833a5294e1bfc606d5564",
+          "fes_i386_decode.sv": "abe32da906298f0519c7a0bc4be190488cd23f9ab85fb3dda25de3766c7fa502",
+          "fes_i386_dfwd.sv": "e7f5f51a89fdd63744f8c92cbe8bb1aedd45835b37be0f7ed7f0db8d54739f59",
+          "fes_i386_dops.sv": "769aae53a66479ac3cc2cf8ad986b0c442846d2997454a3dc33d6e17d9d06dc8",
+          "fes_i386_ex.sv": "a7a961bbd5fdd7990053ef0f929c966035e6c0efc36f46b4cf428f348d5ad4a3",
+          "fes_i386_exctl.sv": "c286815ee0aa7c1348182988cefaebc6c1fc5e3fe777645fbd58cb91ba67938b",
+          "fes_i386_fetchbuf.sv": "dee382095912c0f46deab01aa206a4f91cd12c783843a4a469436bbea1f28872",
+          "fes_i386_frontend.sv": "aa78f075f9437eab3f9d6584eb6a3b1287b709c4799718073387baf74524f3f4",
+          "fes_i386_gov_pkg.sv": "92cde4ed68e17e686819c7d2b7ac00b6347e7bfaadb17ed9f065dcf97f11571d",
+          "fes_i386_gov_rom.sv": "9ad1d753d239142d0bbe14a27b37e73ad3840000fb576b7e642b81c390696fdc",
+          "fes_i386_governor.sv": "9907b47638890e6ebf910de7354eee59539e7cb2bccf11727ad3500c70d10cf4",
+          "fes_i386_l1d.sv": "422e9cba20cbe5d8bfdda77a61801aaa2c39e1e3c5585ff5d0f1fb5d66e6cdbd",
+          "fes_i386_l1i.sv": "f839aab032854e8304a98ea6681ea4b3affaec5ba2fed552660a0010a18822e7",
+          "fes_i386_lendec.sv": "097cd45ba9774cfc3fb17b6fbaf6994c22bf8b93278300a0cbb3b99d2faea47b",
+          "fes_i386_lstage.sv": "0da7e9b4df54fa365da63dfcce0cdd4cf6779ff2191206a835f3b4a4fc8bb757",
+          "fes_i386_muldiv.sv": "13854a2c8bb898a0388aae2cb3315cc3fc57790deb353324ef372660eaad82a9",
+          "fes_i386_oplen.sv": "ce0ad49a2915be5896d7bf8786807ec8f3d5adef3ffe6a023294c8148fe19430",
+          "fes_i386_pkg.sv": "619198f15942b2a78c5c8acdbd586d159a2d7406ced0fba0209e56f1581db88e",
+          "fes_i386_qalign.sv": "30d4b5b87fb4a27834efca3c2c65b795d0db31dc6b0a8ed3b3fcb06c53897fdd",
+          "fes_i386_ras.sv": "7ac962343dc69ee0727de061209f39271c050aa7f7f8f2a3b2f3fcf0d9b38a64",
+          "fes_i386_seq.sv": "6d06f3583e66ec68c32a1168f74f90f24f5e7b889b67f313cd19836fcc72a3f0",
+          "fes_i386_shflags.sv": "71f769ca4b7b93d7a2833f8027551250e0e1f13bc39fdabd3ffa867c38abf70a",
+          "fes_i386_shift.sv": "0accbdf9c6380081620eff3fa9baebcb47f191026e6c8546859cd4e3a93e65c2",
+          "fes_i386_tlb.sv": "bda833c3c892c0cae4505a128404301b8720c887d4df0f82d258d5634a0f6d12",
+          "fes_i386_ucode_pkg.sv": "16ac5bb0d6dd961785b204c751ae5f4bd7430c84b76d25f0843d38184bafeaf8",
+          "fes_i386_ucode_rom.sv": "ee6ce9d8ea85c1e552b9749d7d1eace9382aa1503f71e4021cbdb0330d4456be",
+          "fes_i386_x87.sv": "f261dcbab56eab4c6bc89a76fa3e0083719a9ad6b87a220748b7c38a59d52e72",
+          "fes_i386_x87_mul.sv": "1c07ac7b90d76654495e21996d991647da67c144985ac61fdb332e37392190ce"
+        }
+      },
+      "period_ns": 16.2760416667,
+      "programming_artifact": null,
+      "quartus": "26.3.0",
+      "quartus_edition": "pro",
+      "quartus_lock": "boards/de25nano/quartus.lock",
+      "ram_block": "M20K",
+      "real_clocks": [
+        "clk"
+      ],
+      "real_pins": 1,
+      "real_pins_note": null,
+      "resources": {
+        "alms": {
+          "available": 46800.0,
+          "percent_of_device": 62.04,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 29035.0
+        },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 63.51,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 29721.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.9,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3228.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.43,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2542.0
+        },
+        "alms_with_virtual_pins": {
+          "available": 46800.0,
+          "percent_of_device": 5.02,
+          "report_label": "* ALMs containing virtual pins",
+          "report_percent": "5",
+          "used": 2351.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 41609.0
+        },
+        "block_memory_bits": {
+          "available": 7331840.0,
+          "percent_of_device": 5.57,
+          "report_label": "Total block memory bits",
+          "report_percent": "6",
+          "used": 408320.0
+        },
+        "dsp_blocks": {
+          "available": 188.0,
+          "percent_of_device": 6.38,
+          "report_label": "DSP Blocks Needed [=A+B+C-D]",
+          "used": 12.0
+        },
+        "labs": {
+          "available": 4680.0,
+          "percent_of_device": 77.12,
+          "report_label": "Total LABs:  partially or completely used",
+          "used": 3609.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3607.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
+        },
+        "ram_blocks": {
+          "available": 358.0,
+          "percent_of_device": 14.8,
+          "report_label": "M20K blocks",
+          "used": 53.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 20893.0
+        }
+      },
+      "seed": 1,
+      "source_clean": null,
+      "status": "pass",
+      "timing_status": "pass",
+      "top": "fes_i386_cpu",
+      "unconstrained_clock_rows": [
+        [
+          "Illegal Clocks",
+          "0",
+          "0"
+        ],
+        [
+          "Unconstrained Clocks",
+          "0",
+          "0"
+        ]
+      ],
+      "virtual_port_count": 1,
+      "virtual_port_count_as_run": null,
+      "virtual_port_count_note": null
+    },
+    {
+      "board": "DE10-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_coverage_note": null,
+      "clock_hz": 61440000,
+      "corner_count": 8,
+      "device": "5CSEBA6U23I7",
+      "documented_device_alms": 41910,
+      "family": "Cyclone V",
+      "fes_revision": null,
+      "fit": "cpu-de10",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "64.46",
+              "restricted_fmax": "64.46"
+            }
+          ],
+          "corner": "Slow 1100mV 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "63.79",
+              "restricted_fmax": "63.79"
+            }
+          ],
+          "corner": "Slow 1100mV -40C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "65.01",
+              "restricted_fmax": "65.01"
+            }
+          ],
+          "corner": "Slow 1100mV 85C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "64.57",
+              "restricted_fmax": "64.57"
+            }
+          ],
+          "corner": "Slow 1100mV 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "135.08",
+              "restricted_fmax": "135.08"
+            }
+          ],
+          "corner": "Fast 1100mV -40C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "130.57",
+              "restricted_fmax": "130.57"
+            }
+          ],
+          "corner": "Fast 1100mV 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "116.6",
+              "restricted_fmax": "116.6"
+            }
+          ],
+          "corner": "Fast 1100mV 85C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "113.19",
+              "restricted_fmax": "113.19"
+            }
+          ],
+          "corner": "Fast 1100mV 100C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "fitted_netlist": {
+          "fitted_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024",
+          "ram_attribute": "unchanged: the RTL already names this device's block",
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+          "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+      },
+      "period_ns": 16.2760416667,
+      "programming_artifact": null,
+      "quartus": "17.0.2",
+      "quartus_edition": "lite",
+      "quartus_lock": "cores/fes-pc386/quartus.lock",
+      "ram_block": "M10K",
+      "real_clocks": [
+        "clk"
+      ],
+      "real_pins": 1,
+      "real_pins_note": null,
+      "resources": {
+        "alms": {
+          "available": 41910.0,
+          "percent_of_device": 74.55,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 31244.0
+        },
+        "alms_in_final_placement": {
+          "available": 41910.0,
+          "percent_of_device": 73.19,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 30672.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 41910.0,
+          "percent_of_device": 6.16,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 2582.0
+        },
+        "alms_unavailable": {
+          "available": 41910.0,
+          "percent_of_device": 7.53,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 3154.0
+        },
+        "alms_with_virtual_pins": {
+          "available": 41910.0,
+          "percent_of_device": 5.61,
+          "report_label": "* ALMs containing virtual pins",
+          "report_percent": "6",
+          "used": 2351.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 43032.0
+        },
+        "block_memory_bits": {
+          "available": 5662720.0,
+          "percent_of_device": 7.23,
+          "report_label": "Total block memory bits",
+          "report_percent": "7",
+          "used": 409384.0
+        },
+        "dsp_blocks": {
+          "available": 112.0,
+          "percent_of_device": 20.54,
+          "report_label": "Total DSP Blocks",
+          "report_percent": "21",
+          "used": 23.0
+        },
+        "labs": {
+          "available": 4191.0,
+          "percent_of_device": 83.37,
+          "report_label": "Total LABs:  partially or completely used",
+          "used": 3494.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3492.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
+        },
+        "ram_blocks": {
+          "available": 553.0,
+          "percent_of_device": 16.27,
+          "report_label": "M10K blocks",
+          "used": 90.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 19268.0
+        },
+        "virtual_pins": {
+          "report_label": "Total virtual pins",
+          "used": 4700.0
+        }
+      },
+      "seed": 1,
+      "source_clean": null,
+      "status": "pass",
+      "timing_status": "pass",
+      "top": "fes_i386_cpu",
+      "unconstrained_clock_rows": [
+        [
+          "Illegal Clocks",
+          "0",
+          "0"
+        ],
+        [
+          "Unconstrained Clocks",
+          "0",
+          "0"
+        ]
+      ],
+      "virtual_port_count": 148,
+      "virtual_port_count_as_run": 1306,
+      "virtual_port_count_note": "corrected after the fit: the count used when this fit ran was 1306, which included the flattened module's Verilog function inputs as if they were ports. The corrected count is read from the netlist this fit actually fitted. The extra assignments named nodes that do not exist, Quartus reported nothing about them, and the fit's real pin count gates the envelope, so no figure changes."
+    },
+    {
+      "board": "DE25-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_coverage_note": null,
+      "clock_hz": 61440000,
+      "corner_count": 4,
+      "device": "A5EB013BB23BE4SCS",
+      "documented_device_alms": 46800,
+      "family": "Agilex 5",
+      "fes_revision": null,
+      "fit": "machine-de25",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "132.22",
+              "restricted_fmax": "132.22"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "222.37",
+              "restricted_fmax": "222.37"
+            }
+          ],
+          "corner": "Slow fix4 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "117.92",
+              "restricted_fmax": "117.92"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "187.3",
+              "restricted_fmax": "187.3"
+            }
+          ],
+          "corner": "Slow fix4 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "117.8",
+              "restricted_fmax": "117.8"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "190.62",
+              "restricted_fmax": "190.62"
+            }
+          ],
+          "corner": "Slow fix4a 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "207.08",
+              "restricted_fmax": "207.08"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "374.39",
+              "restricted_fmax": "374.39"
+            }
+          ],
+          "corner": "Fast fix4 0C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "fitted_netlist": {
+          "duplicate_attribute_count": 30,
+          "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+          "fitted_sha256": "769b2b52252dc7b30017c7480c74c93d959dfa424551336832b7505b685c3368",
+          "ram_attribute": "renamed 57 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+          "ram_attribute_count": 57,
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v",
+          "source_sha256": "8d9840ebd591372715ada99970933ed1e2f54e2e1b13034482715194240d2be4"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Not byte-reproducible, for the path dependence in DeanoC/yosys#80; the M and M+ pair were re-elaborated from a clean checkout at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 and reproduced the pair's 4,117-line delta exactly, which is recorded in m-plus-baseline.json.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+      },
+      "period_ns": 16.2760416667,
+      "programming_artifact": null,
+      "quartus": "26.3.0",
+      "quartus_edition": "pro",
+      "quartus_lock": "boards/de25nano/quartus.lock",
+      "ram_block": "M20K",
+      "real_clocks": [
+        "clk",
+        "pixel_clk"
+      ],
+      "real_pins": 2,
+      "real_pins_note": null,
+      "resources": {
+        "alms": {
+          "available": 46800.0,
+          "percent_of_device": 75.84,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 35492.0
+        },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 82.8,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 38750.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 8.94,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 4183.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 1.98,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 925.0
+        },
+        "alms_with_virtual_pins": {
+          "available": 46800.0,
+          "percent_of_device": 1.39,
+          "report_label": "* ALMs containing virtual pins",
+          "report_percent": "1",
+          "used": 651.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 55055.0
+        },
+        "block_memory_bits": {
+          "available": 7331840.0,
+          "percent_of_device": 18.43,
+          "report_label": "Total block memory bits",
+          "report_percent": "18",
+          "used": 1350950.0
+        },
+        "dsp_blocks": {
+          "available": 188.0,
+          "percent_of_device": 12.77,
+          "report_label": "DSP Blocks Needed [=A+B+C-D]",
+          "used": 24.0
+        },
+        "labs": {
+          "available": 4680.0,
+          "percent_of_device": 94.53,
+          "report_label": "Total LABs:  partially or completely used",
+          "used": 4424.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 4414.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 10.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 1421.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
+        },
+        "ram_blocks": {
+          "available": 358.0,
+          "percent_of_device": 37.43,
+          "report_label": "M20K blocks",
+          "used": 134.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 33908.0
+        }
+      },
+      "seed": 1,
+      "source_clean": null,
+      "status": "pass",
+      "timing_status": "pass",
+      "top": "pc386_system",
+      "unconstrained_clock_rows": [
+        [
+          "Illegal Clocks",
+          "0",
+          "0"
+        ],
+        [
+          "Unconstrained Clocks",
+          "0",
+          "0"
+        ]
+      ],
+      "virtual_port_count": 41,
+      "virtual_port_count_as_run": 1991,
+      "virtual_port_count_note": "corrected after the fit: the count used when this fit ran was 1991, which included the flattened module's Verilog function inputs as if they were ports. The corrected count is read from the netlist this fit actually fitted. The extra assignments named nodes that do not exist, Quartus reported nothing about them, and the fit's real pin count gates the envelope, so no figure changes."
+    },
+    {
+      "board": "DE25-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_coverage_note": null,
+      "clock_hz": 61440000,
+      "corner_count": 4,
+      "device": "A5EB013BB23BE4SCS",
+      "documented_device_alms": 46800,
+      "family": "Agilex 5",
+      "fes_revision": {
+        "clean": false,
+        "commit": "beaaaa42aa4cce6e7d9d651357a6f8bc943556bd",
+        "note": "prepared from a modified checkout -- the one-character x87_present flip above -- and attached after the fit, because this fit predates the runner recording it. The commit field is not a reliable identity for this fit; the diff and the netlist digest are.",
+        "tracked_diff": "diff --git a/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv b/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv\nindex d6f27d302..06538e948 100644\n--- a/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv\n+++ b/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv\n@@ -467,7 +467,7 @@ module pc386_system #(\n     // package until slice 5 of the x87 phase (#1768), where the plan's\n     // slices put the transcendentals every computing title also runs; its\n     // record word and FogCast setting come with it.\n-    wire x87_present = 1'b0;\n+    wire x87_present = 1'b1;  // SCRATCH, fit M+ only: never committed\n     wire x87_f0, x87_f1, x87_irq13;\n \n     fes_i386_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D)) cpu (\n",
+        "tracked_diff_sha256": "01a13643690a3f4b3133e221dfba95c109db26c17bcffe914ab88065ce1f435d"
+      },
+      "fit": "machineplus-de25",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "134.26",
+              "restricted_fmax": "134.26"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "209.25",
+              "restricted_fmax": "209.25"
+            }
+          ],
+          "corner": "Slow fix4 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "120.47",
+              "restricted_fmax": "120.47"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "175.96",
+              "restricted_fmax": "175.96"
+            }
+          ],
+          "corner": "Slow fix4 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "120.51",
+              "restricted_fmax": "120.51"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "178.86",
+              "restricted_fmax": "178.86"
+            }
+          ],
+          "corner": "Slow fix4a 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "208.46",
+              "restricted_fmax": "208.46"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "342.7",
+              "restricted_fmax": "342.7"
+            }
+          ],
+          "corner": "Fast fix4 0C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "fitted_netlist": {
+          "duplicate_attribute_count": 30,
+          "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+          "fitted_sha256": "b77fef099342a81074a3c0384f641eb47b14ee34c07594a71d89395bb446268a",
+          "ram_attribute": "renamed 57 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+          "ram_attribute_count": 57,
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine-plus.netlist.v",
+          "source_sha256": "b90abd889b75d5dc8f1c17543750f3500a4420f5781f740561e31e4c59aff545"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine-plus.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Not byte-reproducible, for the path dependence in DeanoC/yosys#80; the M and M+ pair were re-elaborated from a clean checkout at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 and reproduced the pair's 4,117-line delta exactly, which is recorded in m-plus-baseline.json. M+ additionally carries the one-character x87_present scratch diff, recorded in its inputs.json.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+      },
+      "period_ns": 16.2760416667,
+      "programming_artifact": null,
+      "quartus": "26.3.0",
+      "quartus_edition": "pro",
+      "quartus_lock": "boards/de25nano/quartus.lock",
+      "ram_block": "M20K",
+      "real_clocks": [
+        "clk",
+        "pixel_clk"
+      ],
+      "real_pins": 2,
+      "real_pins_note": null,
+      "resources": {
+        "alms": {
+          "available": 46800.0,
+          "percent_of_device": 79.6,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 37255.0
+        },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 86.65,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 40550.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 9.0,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 4210.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 1.96,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 915.0
+        },
+        "alms_with_virtual_pins": {
+          "available": 46800.0,
+          "percent_of_device": 1.39,
+          "report_label": "* ALMs containing virtual pins",
+          "report_percent": "1",
+          "used": 651.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 57906.0
+        },
+        "block_memory_bits": {
+          "available": 7331840.0,
+          "percent_of_device": 18.44,
+          "report_label": "Total block memory bits",
+          "report_percent": "18",
+          "used": 1352230.0
+        },
+        "dsp_blocks": {
+          "available": 188.0,
+          "percent_of_device": 17.55,
+          "report_label": "DSP Blocks Needed [=A+B+C-D]",
+          "used": 33.0
+        },
+        "labs": {
+          "available": 4680.0,
+          "percent_of_device": 98.08,
+          "report_label": "Total LABs:  partially or completely used",
+          "used": 4590.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 4580.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 10.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 1421.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
+        },
+        "ram_blocks": {
+          "available": 358.0,
+          "percent_of_device": 38.55,
+          "report_label": "M20K blocks",
+          "used": 138.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 35233.0
+        }
+      },
+      "seed": 1,
+      "source_clean": false,
+      "status": "pass",
+      "timing_status": "pass",
+      "top": "pc386_system",
+      "unconstrained_clock_rows": [
+        [
+          "Illegal Clocks",
+          "0",
+          "0"
+        ],
+        [
+          "Unconstrained Clocks",
+          "0",
+          "0"
+        ]
+      ],
+      "virtual_port_count": 41,
+      "virtual_port_count_as_run": 2168,
+      "virtual_port_count_note": "corrected after the fit: the count used when this fit ran was 2168, which included the flattened module's Verilog function inputs as if they were ports. The corrected count is read from the netlist this fit actually fitted. The extra assignments named nodes that do not exist, Quartus reported nothing about them, and the fit's real pin count gates the envelope, so no figure changes."
+    },
+    {
+      "board": "DE25-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_coverage_note": null,
+      "clock_hz": 61440000,
+      "corner_count": 4,
+      "device": "A5EB013BB23BE4SCS",
+      "documented_device_alms": 46800,
+      "family": "Agilex 5",
+      "fes_revision": {
+        "clean": true,
+        "commit": "0024ae08f1ec1f3eef67398335c9efe8172520c0"
+      },
+      "fit": "machine-slice4-de25",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "121.23",
+              "restricted_fmax": "121.23"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "209.07",
+              "restricted_fmax": "209.07"
+            }
+          ],
+          "corner": "Slow fix4 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "106.16",
+              "restricted_fmax": "106.16"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "177.46",
+              "restricted_fmax": "177.46"
+            }
+          ],
+          "corner": "Slow fix4 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "106.24",
+              "restricted_fmax": "106.24"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "180.41",
+              "restricted_fmax": "180.41"
+            }
+          ],
+          "corner": "Slow fix4a 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "194.33",
+              "restricted_fmax": "194.33"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "353.73",
+              "restricted_fmax": "353.73"
+            }
+          ],
+          "corner": "Fast fix4 0C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "elaboration_path": "fixed relative path build/diagnostic/s4-elab/ inside the extracted tree (DeanoC/yosys#80)",
+        "fitted_netlist": {
+          "duplicate_attribute_count": 30,
+          "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+          "fitted_sha256": "6d48b91bcb1a92317138a3d4d2f75c5223ef139e3cefb71502f53e0e4ca137ce",
+          "ram_attribute": "renamed 59 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+          "ram_attribute_count": 59,
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine-s4.netlist.v",
+          "source_sha256": "4e75de36a861c284d94442efb121c69679ffa15923bbb2d8b86fad73a2d65760"
+        },
+        "front_end_identical_to_main_record": "verified byte-identical between the two trees before elaborating: scripts/yosys_netlist.py, scripts/build_fes_pc386_quartus.py and cores/fes-pc386/toolchain.lock",
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine-s4.netlist.v",
+        "rom_hex_note": "firmware.lock verified byte-identical between the two trees; this record's built hex reused",
+        "rom_hex_sha256": "815620361ef28a2bbdd97b1964700a4678a26c0ffc9582bb95544473fe099d18",
+        "source_revision": "5f901426e60f47fb2463f31ed6c4ca2f7f62e3a4",
+        "source_revision_note": "NOT this record's checkout. The netlist was elaborated from PR #1889's head tree, extracted with `git archive 5f901426e`, PRE-MERGE: that PR targets deano/i386-x87-s3, whose base is conflicting, so no merge was attempted and the tree is the head's own. The fit therefore describes the slice-3-plus-slice-4 design on #1879's branch and no state of main. The fes_revision in quartus.json is the checkout that ran the fitter, which is a different thing and is not this fit's source.",
+        "source_revision_short": "5f901426e",
+        "source_scratch_diff": "--- a/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv\n+++ b/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv\n-    wire x87_present = 1'b0;\n+    wire x87_present = 1'b1;  // SCRATCH, DE25 A/B fit only: never committed\n",
+        "source_scratch_diff_sha256": "f2763dbd70d88c6dcdde4c6ea05aee314eb21bbd60da788833d96f38dc71d33d",
+        "yosys": {
+          "tool": "commit=e240a4653bb6578e0b267f730128f8a5dac28483"
+        }
+      },
+      "period_ns": 16.2760416667,
+      "programming_artifact": null,
+      "quartus": "26.3.0",
+      "quartus_edition": "pro",
+      "quartus_lock": "boards/de25nano/quartus.lock",
+      "ram_block": "M20K",
+      "real_clocks": [
+        "clk",
+        "pixel_clk"
+      ],
+      "real_pins": 2,
+      "real_pins_note": null,
+      "resources": {
+        "alms": {
+          "available": 46800.0,
+          "percent_of_device": 88.43,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 41387.0
+        },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 92.54,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 43308.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.01,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 2814.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 1.91,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 893.0
+        },
+        "alms_with_virtual_pins": {
+          "available": 46800.0,
+          "percent_of_device": 1.39,
+          "report_label": "* ALMs containing virtual pins",
+          "report_percent": "1",
+          "used": 651.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 65920.0
+        },
+        "block_memory_bits": {
+          "available": 7331840.0,
+          "percent_of_device": 18.5,
+          "report_label": "Total block memory bits",
+          "report_percent": "18",
+          "used": 1356070.0
+        },
+        "dsp_blocks": {
+          "available": 188.0,
+          "percent_of_device": 17.55,
+          "report_label": "DSP Blocks Needed [=A+B+C-D]",
+          "used": 33.0
+        },
+        "labs": {
+          "available": 4680.0,
+          "percent_of_device": 98.08,
+          "report_label": "Total LABs:  partially or completely used",
+          "used": 4590.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 4580.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 10.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 1421.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Medium"
+        },
+        "ram_blocks": {
+          "available": 358.0,
+          "percent_of_device": 39.11,
+          "report_label": "M20K blocks",
+          "used": 140.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 37166.0
+        }
+      },
+      "seed": 1,
+      "source_clean": true,
+      "status": "pass",
+      "timing_status": "pass",
+      "top": "pc386_system",
+      "unconstrained_clock_rows": [
+        [
+          "Illegal Clocks",
+          "0",
+          "0"
+        ],
+        [
+          "Unconstrained Clocks",
+          "0",
+          "0"
+        ]
+      ],
+      "virtual_port_count": 41,
+      "virtual_port_count_as_run": null,
+      "virtual_port_count_note": null
+    },
+    {
+      "board": "DE10-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_coverage_note": null,
+      "clock_hz": 61440000,
+      "corner_count": 8,
+      "device": "5CSEBA6U23I7",
+      "documented_device_alms": 41910,
+      "family": "Cyclone V",
+      "fes_revision": "50ea47e53c3d987e3f9b01e7c282904153882ac1",
+      "fit": "machine-de10",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "64.7",
+              "restricted_fmax": "64.7"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "81.41",
+              "restricted_fmax": "81.41"
+            }
+          ],
+          "corner": "Slow 1100mV 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "63.83",
+              "restricted_fmax": "63.83"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "80.85",
+              "restricted_fmax": "80.85"
+            }
+          ],
+          "corner": "Slow 1100mV -40C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "65.04",
+              "restricted_fmax": "65.04"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "81.58",
+              "restricted_fmax": "81.58"
+            }
+          ],
+          "corner": "Slow 1100mV 85C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "64.28",
+              "restricted_fmax": "64.28"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "81.48",
+              "restricted_fmax": "81.48"
+            }
+          ],
+          "corner": "Slow 1100mV 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "132.31",
+              "restricted_fmax": "132.31"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "190.04",
+              "restricted_fmax": "190.04"
+            }
+          ],
+          "corner": "Fast 1100mV -40C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "127.26",
+              "restricted_fmax": "127.26"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "185.29",
+              "restricted_fmax": "185.29"
+            }
+          ],
+          "corner": "Fast 1100mV 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "112.45",
+              "restricted_fmax": "112.45"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "170.47",
+              "restricted_fmax": "170.47"
+            }
+          ],
+          "corner": "Fast 1100mV 85C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "108.24",
+              "restricted_fmax": "108.24"
+            },
+            {
+              "clock": "pixel_clk_clock",
+              "fmax": "166.03",
+              "restricted_fmax": "166.03"
+            }
+          ],
+          "corner": "Fast 1100mV 100C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "fitted_netlist": {
+          "fitted_sha256": "8d9840ebd591372715ada99970933ed1e2f54e2e1b13034482715194240d2be4",
+          "ram_attribute": "unchanged: the RTL already names this device's block",
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v",
+          "source_sha256": "8d9840ebd591372715ada99970933ed1e2f54e2e1b13034482715194240d2be4"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Not byte-reproducible, for the path dependence in DeanoC/yosys#80; the M and M+ pair were re-elaborated from a clean checkout at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 and reproduced the pair's 4,117-line delta exactly, which is recorded in m-plus-baseline.json.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+      },
+      "period_ns": 16.2760416667,
+      "programming_artifact": null,
+      "quartus": "17.0.2",
+      "quartus_edition": "lite",
+      "quartus_lock": "cores/fes-pc386/quartus.lock",
+      "ram_block": "M10K",
+      "real_clocks": [
+        "clk",
+        "pixel_clk"
+      ],
+      "real_pins": 2,
+      "real_pins_note": null,
+      "resources": {
+        "alms": {
+          "available": 41910.0,
+          "percent_of_device": 88.54,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 37108.0
+        },
+        "alms_in_final_placement": {
+          "available": 41910.0,
+          "percent_of_device": 89.59,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 37549.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 41910.0,
+          "percent_of_device": 4.56,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 1910.0
+        },
+        "alms_unavailable": {
+          "available": 41910.0,
+          "percent_of_device": 3.51,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 1469.0
+        },
+        "alms_with_virtual_pins": {
+          "available": 41910.0,
+          "percent_of_device": 1.55,
+          "report_label": "* ALMs containing virtual pins",
+          "report_percent": "2",
+          "used": 651.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 56271.0
+        },
+        "block_memory_bits": {
+          "available": 5662720.0,
+          "percent_of_device": 23.92,
+          "report_label": "Total block memory bits",
+          "report_percent": "24",
+          "used": 1354284.0
+        },
+        "dsp_blocks": {
+          "available": 112.0,
+          "percent_of_device": 35.71,
+          "report_label": "Total DSP Blocks",
+          "report_percent": "36",
+          "used": 40.0
+        },
+        "labs": {
+          "available": 4191.0,
+          "percent_of_device": 94.15,
+          "report_label": "Total LABs:  partially or completely used",
+          "used": 3946.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3938.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 8.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 1229.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
+        },
+        "ram_blocks": {
+          "available": 553.0,
+          "percent_of_device": 49.55,
+          "report_label": "M10K blocks",
+          "used": 274.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 30756.0
+        },
+        "virtual_pins": {
+          "report_label": "Total virtual pins",
+          "used": 1301.0
+        }
+      },
+      "seed": 1,
+      "source_clean": null,
+      "status": "pass",
+      "timing_status": "pass",
+      "top": "pc386_system",
+      "unconstrained_clock_rows": [
+        [
+          "Illegal Clocks",
+          "0",
+          "0"
+        ],
+        [
+          "Unconstrained Clocks",
+          "0",
+          "0"
+        ]
+      ],
+      "virtual_port_count": 41,
+      "virtual_port_count_as_run": 1991,
+      "virtual_port_count_note": "corrected after the fit: the count used when this fit ran was 1991, which included the flattened module's Verilog function inputs as if they were ports. The corrected count is read from the netlist this fit actually fitted. The extra assignments named nodes that do not exist, Quartus reported nothing about them, and the fit's real pin count gates the envelope, so no figure changes."
+    },
+    {
+      "board": "DE25-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_coverage_note": "verified from the retained reports after the fact: this fit predates both checks",
+      "clock_hz": 61440000,
+      "corner_count": 4,
+      "device": "A5EB013BB23BE4SCS",
+      "documented_device_alms": 46800,
+      "family": "Agilex 5",
+      "fes_revision": null,
+      "fit": "cpu-de25-zerodelay-envelope",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "109.21",
+              "restricted_fmax": "109.21"
+            }
+          ],
+          "corner": "Slow fix4 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "97.9",
+              "restricted_fmax": "97.9"
+            }
+          ],
+          "corner": "Slow fix4 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "97.77",
+              "restricted_fmax": "97.77"
+            }
+          ],
+          "corner": "Slow fix4a 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "171.47",
+              "restricted_fmax": "171.47"
+            }
+          ],
+          "corner": "Fast fix4 0C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": null,
+      "netlist": {
+        "fitted_netlist": {
+          "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+          "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+          "ram_attribute_count": 30,
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+          "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+      },
+      "period_ns": 16.2760416667,
+      "programming_artifact": null,
+      "quartus": "26.3.0",
+      "quartus_edition": "pro",
+      "quartus_lock": "boards/de25nano/quartus.lock",
+      "ram_block": "M20K",
+      "real_clocks": [
+        "clk"
+      ],
+      "real_pins": 1,
+      "real_pins_note": "verified from the retained reports after the fact: this fit predates both checks",
+      "resources": {
+        "alms": {
+          "available": 46800.0,
+          "percent_of_device": 62.21,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 29114.0
+        },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 63.0,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 29484.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.2,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 2900.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.41,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2530.0
+        },
+        "alms_with_virtual_pins": {
+          "available": 46800.0,
+          "percent_of_device": 5.02,
+          "report_label": "* ALMs containing virtual pins",
+          "report_percent": "5",
+          "used": 2351.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 42193.0
+        },
+        "block_memory_bits": {
+          "available": 7331840.0,
+          "percent_of_device": 5.57,
+          "report_label": "Total block memory bits",
+          "report_percent": "6",
+          "used": 408320.0
+        },
+        "dsp_blocks": {
+          "available": 188.0,
+          "percent_of_device": 6.38,
+          "report_label": "DSP Blocks Needed [=A+B+C-D]",
+          "used": 12.0
+        },
+        "labs": {
+          "available": 4680.0,
+          "percent_of_device": 75.04,
+          "report_label": "Total LABs:  partially or completely used",
+          "used": 3512.0
+        },
+        "logic_labs": {
+          "report_label": "-- Logic LABs",
+          "used": 3510.0
+        },
+        "memory_labs": {
+          "report_label": "-- Memory LABs (up to half of total LABs)",
+          "used": 2.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
+        },
+        "ram_blocks": {
+          "available": 358.0,
+          "percent_of_device": 14.8,
+          "report_label": "M20K blocks",
+          "used": 53.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 23024.0
+        }
+      },
+      "seed": 1,
+      "source_clean": null,
+      "status": "pass",
+      "timing_status": "pass",
+      "top": "fes_i386_cpu",
+      "unconstrained_clock_rows": [
+        [
+          "Illegal Clocks",
+          "0",
+          "0"
+        ],
+        [
+          "Unconstrained Clocks",
+          "0",
+          "0"
+        ]
+      ],
+      "virtual_port_count": 148,
+      "virtual_port_count_as_run": null,
+      "virtual_port_count_note": "corrected after the fit: the count used when this fit ran was None, which included the flattened module's Verilog function inputs as if they were ports. The corrected count is read from the netlist this fit actually fitted. The extra assignments named nodes that do not exist, Quartus reported nothing about them, and the fit's real pin count gates the envelope, so no figure changes."
+    }
+  ]
+}

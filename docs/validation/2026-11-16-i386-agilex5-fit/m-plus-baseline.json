@@ -1,0 +1,22 @@
+{
+  "baseline_revision_elaboration": {
+    "m_lines": 121641,
+    "m_plus_lines": 125758,
+    "m_plus_sha256": "af24402c7922649c67236ccdfb3b6cc05598754e1ae978731c9e3e7d44c7c6dd",
+    "m_sha256": "77f02ced6e4130ec72e0f1620a206f500ac870ae26a281fa87fd131f88f7e302",
+    "note": "M and M+ re-elaborated from one clean checkout at this record head, minutes apart, with only the one-character x87_present flip between them, at the SAME output-path length so the yosys#80 path dependence is held constant",
+    "x87_mul_signals_m": 0,
+    "x87_mul_signals_m_plus": 66
+  },
+  "conclusion": "The M+ minus M line delta reproduces from a clean checkout at this head (4117 lines) and matches the fitted pair's delta (4117 lines), and in both pairs the x87 multiplier is absent from M and present in M+ with the same count. So the pair differ by the x87 unit and nothing else, which is what the M+ minus M figure attributes the difference to.",
+  "fitted_netlists": {
+    "m_lines": 121641,
+    "m_plus_lines": 125758,
+    "m_plus_sha256": "b90abd889b75d5dc8f1c17543750f3500a4420f5781f740561e31e4c59aff545",
+    "m_sha256": "8d9840ebd591372715ada99970933ed1e2f54e2e1b13034482715194240d2be4",
+    "x87_mul_signals_m": 0,
+    "x87_mul_signals_m_plus": 66
+  },
+  "line_delta_baseline": 4117,
+  "line_delta_fitted": 4117
+}
