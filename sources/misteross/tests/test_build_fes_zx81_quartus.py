@@ -233,6 +233,8 @@ class ProjectTests(unittest.TestCase):
         machine = producer.model_for("zx81")
         recipe = producer.selected_recipe(ROOT, machine.core_id)
         digest = producer.canonical_qsf_sha256(ROOT, machine, recipe)
+        # The project must sit under the module root; build/ is untracked and may be absent.
+        (ROOT / "build").mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=ROOT / "build") as directory:
             producer.write_project(ROOT, Path(directory) / "ok", BUILD_ID, 2, machine, recipe, digest)
             with self.assertRaisesRegex(BuildError, "differs from the canonical QSF"):
