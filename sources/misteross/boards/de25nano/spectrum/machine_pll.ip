@@ -1,5 +1,5 @@
 <?xml version="1.0" ?>
-<!--Your use of Altera Corporation's design tools, logic functions 
+<!--Your use of Altera Corporation's design tools, logic functions
 and other software and tools, and any partner logic
 functions, and any output files from any of the foregoing
 (including device programming or simulation files), and any
@@ -1680,7 +1680,7 @@ Altera and sold by Altera or its authorized distributors.-->
         <ipxact:parameter parameterId="bonusData" type="string">
           <ipxact:name>bonusData</ipxact:name>
           <ipxact:displayName>bonusData</ipxact:displayName>
-          <ipxact:value>bonusData 
+          <ipxact:value>bonusData
 {
 }
 </ipxact:value>
