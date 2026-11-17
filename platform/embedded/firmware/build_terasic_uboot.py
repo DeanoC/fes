@@ -137,6 +137,8 @@ def main():
                         help="require the selected matched SPL/EL3/native OCRAM reservation")
     parser.add_argument("--network-recovery", action="store_true",
                         help="separate vendor Ethernet/TFTP and SD-writing recovery loader; manual prompt only")
+    parser.add_argument("--recovery-reset-nonce",
+                        help="explicit 128-bit nonce for a separate read-only recovery SPL reset-entry witness")
     parser.add_argument("--network-return-trace", action="store_true",
                         help="explicit recovery-only bounded return observations; separate diagnostic artifact")
     parser.add_argument("--nano-firmware-mmu", action="store_true", help="selected late EL3 private-cache profile and writeback diagnostic")
@@ -163,6 +165,13 @@ def main():
         parser.error('native autoboot requires --native-entry-build')
     if args.nano_firmware_mmu and not args.nano_firmware_ocram:
         parser.error("firmware MMU requires --nano-firmware-ocram")
+    if args.recovery_reset_nonce is not None:
+        if not args.network_recovery or args.network_return_trace:
+            parser.error("reset-entry witness requires the separate plain network recovery profile")
+        spec=importlib.util.spec_from_file_location('fes_recovery_reset_probe',HERE.parent/'nano/recovery_reset_probe.py')
+        reset_probe=importlib.util.module_from_spec(spec);spec.loader.exec_module(reset_probe)
+        try: reset_probe.checked_nonce(args.recovery_reset_nonce)
+        except ValueError as error: parser.error(str(error))
     if args.network_return_trace and not args.network_recovery:
         parser.error("network return observations require the separate network recovery profile")
     if args.network_recovery and args.native_entry_build is not None:
@@ -228,6 +237,7 @@ def main():
     recovery_sources = None
     return_trace = None
     return_sources = None
+    reset_entry_probe = None
     if args.network_recovery:
         recovery_path = HERE.parent / "nano/recovery.py"
         spec = importlib.util.spec_from_file_location("fes_nano_recovery", recovery_path)
@@ -248,6 +258,8 @@ def main():
             archive.extractall(build_repo, filter="data")
     if recovery is not None:
         recovery_sources = recovery.prepare_phy_sources(build_repo)
+        if args.recovery_reset_nonce is not None:
+            reset_entry_probe = reset_probe.prepare(build_repo,args.recovery_reset_nonce)
         if return_trace is not None:
             return_sources = return_trace.prepare(build_repo)
     if args.native_entry_build is not None:
@@ -442,6 +454,25 @@ def main():
         if return_trace is not None:
             report['classification'] = 'off-board recovery return-observation diagnostic; not accepted by the default recovery package validator'
             report['limitations'].append('requires separate trace-aware package/delivery validation before any hardware test')
+    if reset_entry_probe is not None:
+        reset_probe.check_sources(build_repo,reset_entry_probe)
+        reset_symbols=subprocess.check_output(['readelf','-Ws',build/'spl/u-boot-spl'],text=True,timeout=30)
+        reset_probe.check_linked(reset_symbols)
+        reset_probe.check_state(reset_symbols)
+        spec=importlib.util.spec_from_file_location('fes_reset_sof_hps',HERE.parent/'nano/sof_hps.py')
+        reset_sof=importlib.util.module_from_spec(spec);spec.loader.exec_module(reset_sof)
+        reset_probe.check_binary(reset_sof.decode_hex(spl.read_bytes()),args.recovery_reset_nonce)
+        spec=importlib.util.spec_from_file_location('fes_reset_console',HERE.parent/'nano/recovery_return_trace.py')
+        reset_console=importlib.util.module_from_spec(spec);spec.loader.exec_module(reset_console)
+        reset_route=reset_console.check_console(fdtget,build/'u-boot.dtb',env=env)
+        if reset_console.check_console(fdtget,output/'extracted-fdt-0.bin',env=env)!=reset_route:
+            raise ValueError('reset probe compiled and FIT UART routes differ')
+        report['reset_entry_probe']=dict(reset_entry_probe,
+            producer_sha256=sha(HERE.parent/'nano/recovery_reset_probe.py'),
+            spl_elf_sha256=sha(build/'spl/u-boot-spl'),
+            console_route=reset_route, compiled_fdt_sha256=sha(build/'u-boot.dtb'),
+            fit_fdt_sha256=sha(output/'extracted-fdt-0.bin'))
+        report['limitations'].append('reset-entry witness is diagnostic-only; fresh hardware recovery and protected-card admission remain unqualified')
     (output / "result.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     print("Built experimental FIT:", fit)
 

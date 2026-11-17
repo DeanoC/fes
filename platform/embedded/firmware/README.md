@@ -3,6 +3,25 @@
 The latest [preservation checkpoint](../../../docs/validation/2026-11-15-de25-merge-readiness/README.md) records a matched boot chain and a physical ZX81 launch with initial tape. Return to MENU stops at secure source release; the complete cycle remains unqualified. [Issue #1867](https://github.com/DeanoC/fes/issues/1867) tracks the whole secure ownership, memory, lifecycle and recovery investigation. The candidate remains stopped on the spare card, with host handles closed and a physical reset required before restoration. This merge preparation makes no new board changes.
 
 
+The explicit reset-recovery diagnostic adds a nonce-bound SPL witness before
+DDR/SD initialization. Build with `--network-recovery --recovery-reset-nonce`
+and a fresh nonzero 32-digit hexadecimal nonce. `recovery_reset_package.py`
+validates this separate profile and composes a volatile SOF under the shared
+Quartus Pro lock; it creates no card image. Default recovery packaging rejects
+this profile. The embedded SPL is independently decoded and the compiled UART
+route is checked against UART1.
+
+`ResetRecoveryAttempt` connects the existing one-use fresh-scan JTAG gate to
+that witness and a new `UploadSession.read_existing` operation. The caller owns
+the serial-bound claim, private server, capture window, finite callback bounds
+and cleanup. A complete new witness plus protected loader/card and candidate
+file readback is required. Partial boot, stale nonce, lost ownership, failed
+programming or changed card retires the attempt. No retry, SD/flash write, old
+source reuse or normal runtime resume is authorized. This observes HPS
+rebootstrap and reset-held masters; it does not prove SDM reset, old fabric
+master drain or a complete native launch/return cycle. Hardware recovery is
+still unqualified until a separately recorded bounded physical test passes.
+
 This is exploratory firmware and native integration for the Linux-free base.
 It supplies a pinned TF-A source transformation, a freestanding C++14 control
 adapter, and verification against actual FPGA RTL. These tools build firmware
