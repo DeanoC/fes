@@ -1428,7 +1428,8 @@ uint16_t testfloat_flags(unsigned flags) {
 // FYL2XP1 of an operand at or below -1 is not the host's.
 // Beside the host, FES_X87_TRANS_VECTORS names the model's vectors
 // (scripts/x87_trans_ucode.py --unit-vectors): there the compare is exact,
-// bit for bit, with no bound.
+// bit for bit, with no bound. And FES_X87_TRANS_BRACKETS names QEMU's
+// bracket tables' rows, which the runner fetches at their pinned revision.
 struct TransForm { const char *name; uint8_t modrm; bool two, push, trig; };
 const TransForm TRANS_FORMS[8] = {
     {"FSIN", 0xfe, false, false, true},   {"FCOS", 0xff, false, false, true},
@@ -1787,6 +1788,76 @@ void run_trans_cases() {
         if (wrong) bad("trans-model-vectors", std::to_string(wrong) + " of " + std::to_string(vectors) + " differ; first " + first);
         else if (!vectors) bad("trans-model-vectors", "no vectors read");
         else ok("trans-model-vectors");
+    }
+
+    // ---- QEMU's bracket tables (tests/tcg/i386, pinned and fetched by the runner). ----
+    // "<instruction> <first loaded> <second loaded> <down> <up>": the two
+    // extended values that bracket the mathematical result, equal where it
+    // is exact. A result that is one of the two is inside; any other is
+    // judged by how far outside it lies, under the same bound as the host
+    // compare, and a bracket that is not a finite non-zero value is exact.
+    if (const char *path = std::getenv("FES_X87_TRANS_BRACKETS")) {
+        std::ifstream file(path);
+        std::string name, at, bt, dt, ut;
+        struct Tally { uint64_t rows = 0, inside = 0, worst = 0; std::map<uint64_t, uint64_t> outside; };
+        std::map<std::string, Tally> tally;
+        unsigned wrong = 0, rows = 0;
+        std::string first;
+        while (file >> name >> at >> bt >> dt >> ut) {
+            unsigned form = 8;
+            for (unsigned n = 0; n < 8; ++n)
+                if (name == TRANS_FORMS[n].name) form = n;
+            if (form == 8) continue;
+            const TransForm &f = TRANS_FORMS[form];
+            auto bytes = [](const std::string &t, uint8_t out[10]) {
+                trans_put(out, uint16_t(std::strtoul(t.substr(0, 4).c_str(), nullptr, 16)),
+                          std::strtoull(t.substr(4).c_str(), nullptr, 16));
+            };
+            // The first loaded is ST(1) of a two-operand form and the second ST(0).
+            uint8_t stack[2][10], down[10], up[10];
+            bytes(f.two ? bt : at, stack[0]);
+            bytes(at, stack[1]);
+            bytes(dt, down);
+            bytes(ut, up);
+            Image unit;
+            trans_unit(u, form, 0x037f, stack, f.two ? 2 : 1, unit);
+            Tally &t = tally[name];
+            ++t.rows;
+            ++rows;
+            const uint8_t *got = unit.reg[f.push ? 1 : 0];
+            bool good = unit.setup_ok && reg_live(unit, f.push ? 1 : 0);
+            uint64_t outside = 0;
+            if (good && std::memcmp(got, down, 10) != 0 && std::memcmp(got, up, 10) != 0) {
+                bool gs, ds, us;
+                unsigned __int128 go, d_o, uo;
+                if (!trans_ordinary(got, gs, go) || !trans_ordinary(down, ds, d_o) || !trans_ordinary(up, us, uo)
+                    || gs != ds || gs != us)
+                    good = false;
+                else {
+                    const unsigned __int128 lo = d_o < uo ? d_o : uo, hi = d_o < uo ? uo : d_o;
+                    const unsigned __int128 d = go < lo ? lo - go : go > hi ? go - hi : 0;
+                    outside = d > ~0ull ? ~0ull : uint64_t(d);
+                    good = trans_bound >= 0 && outside <= uint64_t(trans_bound);
+                }
+            }
+            if (good && outside == 0) ++t.inside;
+            if (good || outside) {
+                ++t.outside[outside];
+                if (outside > t.worst) t.worst = outside;
+            }
+            if (!good && !wrong++)
+                first = name + " " + at + " " + bt + ": " + hex80(got) + " against " + dt + " and " + ut;
+        }
+        for (const auto &row : tally) {
+            std::printf("TRANS_QEMU %s rows %llu inside %llu worst %llu outside", row.first.c_str(),
+                        (unsigned long long)row.second.rows, (unsigned long long)row.second.inside,
+                        (unsigned long long)row.second.worst);
+            for (const auto &bin : row.second.outside) std::printf(" %llu:%llu", (unsigned long long)bin.first, (unsigned long long)bin.second);
+            std::printf("\n");
+        }
+        if (wrong) bad("trans-qemu-brackets", std::to_string(wrong) + " of " + std::to_string(rows) + " rows; first " + first);
+        else if (!rows) bad("trans-qemu-brackets", "no rows read");
+        else ok("trans-qemu-brackets");
     }
 
     // ---- In flight: a second instruction while the engine runs. ----

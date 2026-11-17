@@ -62,6 +62,7 @@ if __package__ in (None, ''):
 from scripts import i386_verilator
 from scripts import x87_envelope_fit
 from scripts import x87_trans_ucode
+from scripts import probe_fes_i386_x87_trans as trans_probe
 from scripts import yosys_netlist
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -207,7 +208,19 @@ def transcendentals(text: str, args) -> dict | None:
         return None
     single = {line.split()[0]: line.split()[1:] for line in text.splitlines()
               if line.startswith(('TRANS_VECTORS ', 'TRANS_BOUND ', 'TRANS_SWEEP '))}
+    qemu_rows = {}
+    for line in text.splitlines():
+        if line.startswith('TRANS_QEMU '):
+            fields = line.split()
+            index = fields.index('outside')
+            qemu_rows[fields[1]] = {'rows': int(fields[3]), 'inside': int(fields[5]), 'worst_outside': int(fields[7]),
+                                    'outside': {k: int(v) for k, v in (item.split(':') for item in fields[index + 1:])}}
+    if args.qemu_brackets and not qemu_rows:
+        raise X87UnitError('--qemu-brackets was given and the bench reported no bracket rows')
     return {'bound_host': args.transcendental_ulp_host,
+            'qemu_brackets': ({'revision': trans_probe.QEMU_REVISION, 'license': trans_probe.QEMU_LICENSE,
+                               'files_sha256': {name: digest for name, digest, _, _ in trans_probe.QEMU_TABLES},
+                               'instructions': qemu_rows} if qemu_rows else None),
             'bound_is': 'proposed, not agreed: see the record\'s bound.md',
             'model_vectors_compared_exactly': int(single['TRANS_VECTORS'][0]),
             'reset_and_squash_offsets_inside_engine': int(single['TRANS_SWEEP'][1]),
@@ -246,6 +259,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--transcendental-ulp-host', type=int,
                         help="the bound, in representable values, on a transcendental result's distance from "
                              "the host's. No default: unset, every such compare fails")
+    parser.add_argument('--qemu-brackets', action='store_true',
+                        help="also run QEMU's pinned bracket tables for F2XM1, FYL2X, FYL2XP1 and FPATAN on the unit")
+    parser.add_argument('--download', action='store_true',
+                        help='with --qemu-brackets: explicitly fetch the pinned tables into ignored build/')
     parser.add_argument('--transcendental-vectors', type=int, default=250,
                         help="the model's vectors a class and rounding mode, compared exactly (default 250)")
     parser.add_argument('--testfloat-manifest', type=Path,
@@ -279,6 +296,16 @@ def main(argv: list[str] | None = None) -> int:
         vectors = bench.parent / 'trans-vectors.txt'
         vectors.write_text('\n'.join(x87_trans_ucode.unit_vectors(program, args.transcendental_vectors, 1958)) + '\n')
         environment['FES_X87_TRANS_VECTORS'] = str(vectors)
+        if args.qemu_brackets:
+            # QEMU's tests/tcg/i386 tables for F2XM1, FYL2X, FYL2XP1 and FPATAN:
+            # GPL-2.0-or-later test inputs, pinned by commit and SHA-256 in
+            # probe_fes_i386_x87_trans.py, fetched only with --download, parsed
+            # here and never committed.
+            try:
+                brackets, qemu = trans_probe.qemu_vectors(args.download)
+            except trans_probe.oracle.OracleError as error:
+                raise X87UnitError(f'--qemu-brackets: {error}') from error
+            environment['FES_X87_TRANS_BRACKETS'] = str(brackets)
     if args.testfloat_manifest:
         command.extend(['--testfloat-manifest', str(args.testfloat_manifest.resolve())])
     result = subprocess.run(command, capture_output=True, text=True, timeout=3600, env=environment)

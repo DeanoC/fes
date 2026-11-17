@@ -229,6 +229,17 @@ def results() -> str:
                        f'{row["identical"]:,} | {hist} | {row["worst"]} | {row["c1_differs"]:,} | {row["manual"]:,} |')
         out += ['', f'Reset and squash sweep: {trans["reset_and_squash_offsets_inside_engine"]} offsets landed inside '
                 'the engine.']
+        qemu = trans.get('qemu_brackets')
+        if qemu:
+            out += ['', f'QEMU\'s bracket tables on the unit (`tests/tcg/i386` at `{qemu["revision"][:9]}`, '
+                    f'{qemu["license"]}, fetched at run time and not committed). A result is inside when it is one '
+                    'of the two extended values that bracket the mathematical result.', '',
+                    '| Instruction | Rows | Inside | Distance outside: count | Worst |', '| --- | ---: | ---: | --- | ---: |']
+            for name, row in qemu['instructions'].items():
+                hist = ', '.join(f'{d}: {c:,}' for d, c in sorted(row['outside'].items(), key=lambda kv: int(kv[0])))
+                out.append(f'| {name} | {row["rows"]:,} | {row["inside"]:,} | {hist} | {row["worst_outside"]} |')
+        else:
+            out += ['', 'QEMU\'s bracket tables: **not run** in this report.']
     forms = (units.get(('de25', 'rtl')) or {}).get('bcd_forms')
     if forms:
         out += ['', '### Packed decimal, DE25 backend, RTL', '',
