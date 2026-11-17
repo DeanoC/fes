@@ -567,26 +567,28 @@ def build_program(rom: Rom) -> Program:
     p.call('sin_kernel')
     p.fin('ADD', 8, 9, negate='CNEG')
 
-    # ---- FSINCOS: the cosine is the last result, the sine the other. ----
+    # ---- FSINCOS: the sine is the last result, which replaces ST; the ----
+    # cosine, rounded to nearest, is the other, which the unit pushes.
     p.entry('FSINCOS')
     p.br('T32', 0, 'fsincos_reduce')
     p.mov(8, 'one')
-    p.fin('BELOW', a=8, second='X')                     # the sine is x itself
+    p.op('SETE', arg='XE')
+    p.fin('BELOW', a=T_MX, use_e=True, second=8)        # sin x just short of x, cos x = 1
     p.label('fsincos_reduce')
     p.op('TRED')
     p.call('sincos_kernel')
     p.br('SWAP', 1, 'fsincos_swap')
-    p.add(12, 8, 9)                                     # the sine, rounded to nearest
-    p.br('SNEG', 0, 'fsincos_a')
+    p.add(12, 14, 15)                                   # the cosine
+    p.br('CNEG', 0, 'fsincos_a')
     p.op('NEG', 12, 0, 12)
     p.label('fsincos_a')
-    p.fin('ADD', 14, 15, negate='CNEG', second=12)
+    p.fin('ADD', 8, 9, negate='SNEG', second=12)
     p.label('fsincos_swap')
-    p.add(12, 14, 15)                                   # the sine is the cosine kernel's
-    p.br('SNEG', 0, 'fsincos_b')
+    p.add(12, 8, 9)                                     # the cosine is the sine kernel's
+    p.br('CNEG', 0, 'fsincos_b')
     p.op('NEG', 12, 0, 12)
     p.label('fsincos_b')
-    p.fin('ADD', 8, 9, negate='CNEG', second=12)
+    p.fin('ADD', 14, 15, negate='SNEG', second=12)
 
     # ---- FPTAN: sine over cosine; the unit pushes the 1.0. ----
     p.entry('FPTAN')
@@ -988,7 +990,7 @@ def truth(name: str, x, y=None) -> Fraction:
             cos = -cos
         if vx < 0:
             sin = -sin
-        return {'FSIN': frac(sin), 'FCOS': frac(cos), 'FSINCOS': frac(cos),
+        return {'FSIN': frac(sin), 'FCOS': frac(cos), 'FSINCOS': frac(sin),
                 'FPTAN': Fraction(sin, cos)}[name]
     if name == 'F2XM1':
         return frac(fx_exp(fx_mul(fx(vx), LN2))) - 1
@@ -1075,7 +1077,7 @@ def compare_with_host(program: Program, dump: str, limit: int, with_truth: bool)
             continue
         result = run(program, name, x, y)
         got = final_round(result.exact, 0)
-        host = r1 if name == 'FPTAN' else r0
+        host = r1 if name in ('FPTAN', 'FSINCOS') else r0   # ST(1): the tangent, the sine
         host_bits = (int(host[:4], 16), int(host[4:], 16))
         g, h = ordinal(got[0], got[1]), ordinal(*host_bits)
         row['compared'] += 1
@@ -1141,7 +1143,7 @@ def compare_specials(program: Program, path: str) -> dict:
             continue
         result = run(program, name, x, y)
         got = final_round(result.exact, cw >> 10 & 3)
-        host = m[7] if name == 'FPTAN' else m[6]
+        host = m[7] if name in ('FPTAN', 'FSINCOS') else m[6]
         host_bits = (int(host[:4], 16), int(host[4:], 16))
         g, h = ordinal(got[0], got[1]), ordinal(*host_bits)
         if (got[0], got[1]) == host_bits:
@@ -1161,6 +1163,145 @@ def compare_specials(program: Program, path: str) -> dict:
     return {'kinds': dict(sorted(kinds.items())), 'examples': examples}
 
 
+# ---- The ROMs fes_x87_trans reads. ----
+OPCODES = ('NOP', 'ADD', 'SUB', 'RSUB', 'MUL', 'DIV', 'MOV', 'NEG', 'ABS', 'HI', 'LO', 'SCALE', 'ITOF', 'TIDX',
+           'LSPL', 'SETE', 'CMP', 'TRED', 'BR', 'JMP', 'CALL', 'RET', 'FIN')
+FIN_KINDS = ('ADD', 'SUB', 'MUL', 'DIV', 'MOV', 'BELOW', 'ABOVE')
+SETE_KINDS = ('XE', 'YE', 'YE-XE', 'XE-YE', 'XE+YE', 'ZERO')
+INSTRUCTIONS = ('FSIN', 'FCOS', 'FSINCOS', 'FPTAN', 'F2XM1', 'FYL2X', 'FYL2XP1', 'FPATAN')
+WORD_BITS, PROGRAM_DEPTH, CONSTANT_DEPTH = 40, 512, 1024
+
+
+def encode(word) -> int:
+    """A microprogram word: op [4:0], dst [8:5], a [12:9], b's mode [14:13]
+    (0 a temporary, 1 a constant, 2 a constant at base + J) and address
+    [24:15]; for FIN, add E [25], the negating flag [30:27] and whether there
+    is one [26], and the other result [32:31] (0 none, 1 a temporary, 2 the x
+    operand) and its temporary [36:33]."""
+    op, dst, a, (mode, ref), arg = word
+    use_e = neg_valid = neg_flag = sec_mode = sec_temp = 0
+    if op == 'TIDX':
+        dst = arg
+    elif op == 'LSPL':
+        a = arg
+    elif op == 'SETE':
+        a = SETE_KINDS.index(arg)
+    elif op == 'SCALE':
+        a = int(arg == 'NEG')
+    elif op == 'CMP':
+        assert FLAGS[arg] == 'C'
+    elif op == 'BR':
+        a, dst, ref, mode = arg[0], arg[1], arg[2], 't'
+    elif op in ('JMP', 'CALL'):
+        ref, mode = arg, 't'
+    elif op == 'FIN':
+        kind, use_e, negate, second = arg
+        dst = FIN_KINDS.index(kind)
+        if negate is not None:
+            neg_valid, neg_flag = 1, negate
+        if second == 'X':
+            sec_mode = 2
+        elif second is not None:
+            sec_mode, sec_temp = 1, second
+    assert 0 <= dst < 16 and 0 <= a < 16 and 0 <= ref < 1024, word
+    return (OPCODES.index(op) | dst << 5 | a << 9 | {'t': 0, 'c': 1, 'j': 2}[mode] << 13 | ref << 15
+            | int(use_e) << 25 | neg_valid << 26 | neg_flag << 27 | sec_mode << 31 | sec_temp << 33)
+
+
+def emit(program: Program) -> dict[str, str]:
+    """The generated SystemVerilog, by file name."""
+    assert len(program.words) <= PROGRAM_DEPTH and len(program.rom.words) <= CONSTANT_DEPTH
+    head = ['// SPDX-License-Identifier: MIT',
+            '// Generated by scripts/x87_trans_ucode.py; do not edit.', '//']
+    package = head + [
+        '// The x87 transcendentals\' microprogram: its operations, its flags, each',
+        '// instruction\'s entry, and the reduction constant. The microprogram and what',
+        '// each word means are in scripts/x87_trans_ucode.py, which also holds the',
+        '// exact model the engine is checked against.',
+        'package fes_x87_trans_pkg;']
+    package += [f'    localparam logic [4:0] U_{name} = 5\'d{n};' for n, name in enumerate(OPCODES)]
+    package += [f'    localparam logic [2:0] UF_{name} = 3\'d{n};' for n, name in enumerate(FIN_KINDS)]
+    package += [f'    localparam logic [3:0] FL_{name} = 4\'d{n};' for n, name in enumerate(FLAGS)]
+    package += [f'    localparam logic [2:0] TR_{name} = 3\'d{n};' for n, name in enumerate(INSTRUCTIONS)]
+    package += ['    // Each instruction\'s entry, indexed by TR_*.',
+                '    function automatic logic [8:0] entry_of(input logic [2:0] instruction);',
+                '        case (instruction)']
+    package += [f'            3\'d{n}: entry_of = 9\'d{program.entries[name]};' for n, name in enumerate(INSTRUCTIONS)]
+    package += ['            default: entry_of = 9\'d0;', '        endcase', '    endfunction',
+                '    // pi/4 to 67 significant bits, the 387\'s reduction constant, times 2^67.',
+                f'    localparam logic [66:0] PM = 67\'h{PM:017x};',
+                '    // sqrt 2\'s significand, truncated: a significand above it is halved.',
+                f'    localparam logic [63:0] SQRT2 = 64\'h{SQRT2_SIG:016x};',
+                'endpackage', '']
+    rom = head + [
+        '// The engine\'s two memories, each read with a registered output: the',
+        f'// microprogram, {len(program.words)} words of {WORD_BITS} bits, and the constants, {len(program.rom.words)} values of 80.',
+        'module fes_x87_trans_rom (',
+        '    input  logic        clk,',
+        '    input  logic [8:0]  pc,',
+        '    output logic [39:0] word,',
+        '    input  logic [9:0]  address,',
+        '    output logic [79:0] constant',
+        ');',
+        f'    (* ramstyle = "M20K" *) logic [{WORD_BITS - 1}:0] program_rom [0:{PROGRAM_DEPTH - 1}];',
+        f'    (* ramstyle = "M20K" *) logic [79:0] constant_rom [0:{CONSTANT_DEPTH - 1}];',
+        '    initial begin']
+    rom += [f'        program_rom[{n}] = 40\'h{(encode(program.words[n]) if n < len(program.words) else 0):010x};'
+            for n in range(PROGRAM_DEPTH)]
+    rom += [f'        constant_rom[{n}] = 80\'h'
+            + (f'{program.rom.words[n][0]:04x}{program.rom.words[n][1]:016x}' if n < len(program.rom.words)
+               else '0' * 20) + ';' for n in range(CONSTANT_DEPTH)]
+    rom += ['    end', '    always_ff @(posedge clk) begin', '        word <= program_rom[pc];',
+            '        constant <= constant_rom[address];', '    end', 'endmodule', '']
+    return {'fes_x87_trans_pkg.sv': '\n'.join(package), 'fes_x87_trans_rom.sv': '\n'.join(rom)}
+
+
+def raw_of(exact: Fraction) -> tuple[int, int, int, int]:
+    """A value as the engine hands it to the unit: (zero, sign, the biased
+    exponent as 18 signed bits, the 67-bit significand, whose low three bits
+    are the guard, the round and the sticky)."""
+    if exact == 0:
+        return 1, 0, 0, 0
+    sign, mag = (1, -exact) if exact < 0 else (0, exact)
+    exponent = mag.numerator.bit_length() - mag.denominator.bit_length()
+    if Fraction(2) ** exponent > mag:
+        exponent -= 1
+    scaled = mag / Fraction(2) ** (exponent - 66)
+    whole = scaled.numerator // scaled.denominator
+    if scaled != whole:
+        whole |= 1
+    return 0, sign, (exponent + BIAS) & 0x3ffff, whole
+
+
+def vectors(program: Program, dump: str, per_class: int) -> list[str]:
+    """Engine vectors from a host dump's operands: the instruction, x and y as
+    the unit normalises them, and what the engine must hand back."""
+    lines, seen = [], {}
+    for line in open(dump):
+        if line.startswith('#'):
+            continue
+        name, cls, ta, tb = line.split()[:4]
+        seen[(name, cls)] = seen.get((name, cls), 0) + 1
+        if seen[(name, cls)] > per_class:
+            continue
+        a = from_bits(int(ta[:4], 16), int(ta[4:], 16))
+        b = from_bits(int(tb[:4], 16), int(tb[4:], 16))
+        x, y = (b, a) if name in TWO else (a, (0, 0, 1 << 63))
+        if (x[1] is None or y[1] is None or any(int(t[:4], 16) & 0x7fff == 0x7fff for t in (ta, tb))
+                or (name == 'FYL2X' and (x[0] or (x[2] == 1 << 63 and x[1] == 0)))
+                or (name == 'FYL2XP1' and value(x) <= -1)):
+            continue
+        result = run(program, name, x, y)
+        zero, sign, exponent, significand = raw_of(result.exact)
+        second = result.second
+        mode = 0 if second is None else 2 if second is x else 1
+        bits = to_bits(second) if mode == 1 else (0, 0)
+        lines.append(f'{INSTRUCTIONS.index(name)} {x[0]} {x[1] & 0x3ffff:05x} {x[2]:016x} '
+                     f'{y[0]} {y[1] & 0x3ffff:05x} {y[2]:016x} '
+                     f'{zero} {sign} {exponent:05x} {significand:017x} {mode} {bits[0]:04x}{bits[1]:016x}')
+    return lines
+
+
 def main() -> int:
     import json
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -1170,10 +1311,30 @@ def main() -> int:
                                                              'mathematical result')
     parser.add_argument('--report', help='with --hosts: write the comparison here as JSON')
     parser.add_argument('--specials', help='a `x87_trans_special` output to compare the model with')
+    parser.add_argument('--emit', action='store_true', help="write the engine's generated SystemVerilog")
+    parser.add_argument('--check', action='store_true', help='fail if the checked-in generated files differ')
+    parser.add_argument('--vectors', help='with --hosts: write engine vectors here, --limit rows a class')
     args = parser.parse_args()
     rom = build_rom()
     program = build_program(rom)
     print(f'{len(program.words)} microprogram words, {len(rom.words)} constants', file=sys.stderr)
+    if args.emit or args.check:
+        from pathlib import Path
+        rtl = Path(__file__).resolve().parents[1] / 'cores/fes-common/rtl/i386'
+        stale = []
+        for name, text in emit(program).items():
+            if args.check:
+                if not (rtl / name).is_file() or (rtl / name).read_text() != text:
+                    stale.append(name)
+            else:
+                (rtl / name).write_text(text)
+        if stale:
+            print('stale generated files: ' + ', '.join(stale), file=sys.stderr)
+            return 1
+    if args.vectors:
+        with open(args.vectors, 'w') as out:
+            out.write('\n'.join(vectors(program, args.hosts, args.limit)) + '\n')
+        return 0
     if args.specials:
         result = compare_specials(program, args.specials)
         for kind, count in result['kinds'].items():
