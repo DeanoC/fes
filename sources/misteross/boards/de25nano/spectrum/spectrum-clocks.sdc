@@ -164,6 +164,6 @@ foreach {label bit edges port} {
 # The SDRAM clock pin is the inverted machine clock: the chips sample half a
 # machine period after the fabric launches a command. No guessed external
 # input/output delays; board flight time remains a physical qualification.
-set machine_clock_source [get_pins {fes_machine_pll|iopll_0|tennm_ph2_iopll|out_clk[0]}]
+set machine_clock_source [get_pins {fes_machine_pll|machine_pll|tennm_ph2_iopll|out_clk[0]}]
 if {[get_collection_size $machine_clock_source] != 1} {error "DE25 Spectrum machine clock source changed"}
 create_generated_clock -name DRAM_CLK -source $machine_clock_source -invert [get_ports {DRAM_CLK}]

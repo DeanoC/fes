@@ -153,6 +153,53 @@ Altera and sold by Altera or its authorized distributors.-->
       </ipxact:vendorExtensions>
     </ipxact:busInterface>
     <ipxact:busInterface>
+      <ipxact:name>permit_cal</ipxact:name>
+      <ipxact:busType vendor="intel" library="intel" name="conduit" version="26.3"></ipxact:busType>
+      <ipxact:abstractionTypes>
+        <ipxact:abstractionType>
+          <ipxact:abstractionRef vendor="intel" library="intel" name="conduit" version="26.3"></ipxact:abstractionRef>
+          <ipxact:portMaps>
+            <ipxact:portMap>
+              <ipxact:logicalPort>
+                <ipxact:name>export</ipxact:name>
+              </ipxact:logicalPort>
+              <ipxact:physicalPort>
+                <ipxact:name>permit_cal</ipxact:name>
+              </ipxact:physicalPort>
+            </ipxact:portMap>
+          </ipxact:portMaps>
+        </ipxact:abstractionType>
+      </ipxact:abstractionTypes>
+      <ipxact:slave></ipxact:slave>
+      <ipxact:parameters>
+        <ipxact:parameter parameterId="associatedClock" type="string">
+          <ipxact:name>associatedClock</ipxact:name>
+          <ipxact:displayName>associatedClock</ipxact:displayName>
+          <ipxact:value></ipxact:value>
+        </ipxact:parameter>
+        <ipxact:parameter parameterId="associatedReset" type="string">
+          <ipxact:name>associatedReset</ipxact:name>
+          <ipxact:displayName>associatedReset</ipxact:displayName>
+          <ipxact:value></ipxact:value>
+        </ipxact:parameter>
+        <ipxact:parameter parameterId="prSafe" type="bit">
+          <ipxact:name>prSafe</ipxact:name>
+          <ipxact:displayName>Partial Reconfiguration Safe</ipxact:displayName>
+          <ipxact:value>false</ipxact:value>
+        </ipxact:parameter>
+      </ipxact:parameters>
+      <ipxact:vendorExtensions>
+        <altera:altera_assignments>
+          <ipxact:parameters>
+            <ipxact:parameter parameterId="ui.blockdiagram.direction" type="string">
+              <ipxact:name>ui.blockdiagram.direction</ipxact:name>
+              <ipxact:value>input</ipxact:value>
+            </ipxact:parameter>
+          </ipxact:parameters>
+        </altera:altera_assignments>
+      </ipxact:vendorExtensions>
+    </ipxact:busInterface>
+    <ipxact:busInterface>
       <ipxact:name>outclk0</ipxact:name>
       <ipxact:busType vendor="intel" library="intel" name="clock" version="26.3"></ipxact:busType>
       <ipxact:abstractionTypes>
@@ -254,6 +301,18 @@ Altera and sold by Altera or its authorized distributors.-->
       </ipxact:port>
       <ipxact:port>
         <ipxact:name>rst</ipxact:name>
+        <ipxact:wire>
+          <ipxact:direction>in</ipxact:direction>
+          <ipxact:wireTypeDefs>
+            <ipxact:wireTypeDef>
+              <ipxact:typeName>STD_LOGIC</ipxact:typeName>
+              <ipxact:viewRef>QUARTUS_SYNTH</ipxact:viewRef>
+            </ipxact:wireTypeDef>
+          </ipxact:wireTypeDefs>
+        </ipxact:wire>
+      </ipxact:port>
+      <ipxact:port>
+        <ipxact:name>permit_cal</ipxact:name>
         <ipxact:wire>
           <ipxact:direction>in</ipxact:direction>
           <ipxact:wireTypeDefs>
@@ -740,7 +799,7 @@ Altera and sold by Altera or its authorized distributors.-->
         <ipxact:parameter parameterId="gui_enable_permit_cal" type="bit">
           <ipxact:name>gui_enable_permit_cal</ipxact:name>
           <ipxact:displayName>Connect to an upstream PLL through Core Clock Network Cascading (create a permit_cal input signal)</ipxact:displayName>
-          <ipxact:value>false</ipxact:value>
+          <ipxact:value>true</ipxact:value>
         </ipxact:parameter>
         <ipxact:parameter parameterId="gui_enable_upstream_out_clk" type="bit">
           <ipxact:name>gui_enable_upstream_out_clk</ipxact:name>
@@ -1734,6 +1793,9 @@ Altera and sold by Altera or its authorized distributors.-->
       </altera:interface_mapping>
       <altera:interface_mapping altera:name="outclk0" altera:internal="machine_pll.outclk0" altera:type="clock" altera:dir="start">
         <altera:port_mapping altera:name="outclk_0" altera:internal="outclk_0"></altera:port_mapping>
+      </altera:interface_mapping>
+      <altera:interface_mapping altera:name="permit_cal" altera:internal="machine_pll.permit_cal" altera:type="conduit" altera:dir="end">
+        <altera:port_mapping altera:name="permit_cal" altera:internal="permit_cal"></altera:port_mapping>
       </altera:interface_mapping>
       <altera:interface_mapping altera:name="refclk" altera:internal="machine_pll.refclk" altera:type="clock" altera:dir="end">
         <altera:port_mapping altera:name="refclk" altera:internal="refclk"></altera:port_mapping>
