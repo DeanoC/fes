@@ -4,9 +4,9 @@
 // ROM lanes (fes.computer 1.0 with fes.fabric.firmware-upload). The machine
 // sources are the DE10 core's; this replaces its shell. clk_sys is the
 // machine's 52.224 MHz. Firmware arrives through the mailbox front end before
-// execution can be released. RAM and the floppy image live in one SDRAM rank
-// through the DE10 core's own st_memory, on the same clock and with the same
-// phase slots. The expansion and video sockets are vacant: the 720p word
+// execution can be released. RAM, the floppy image and the ROM live in one
+// SDRAM rank through the DE10 core's own st_memory, on the same clock and with
+// the same phase slots; the ROM shares the CPU's memory port. The expansion and video sockets are vacant: the 720p word
 // leaves through the direct video part for the session display.
 // Board wrappers own clocks, HPS transport, the SDRAM pads, HDMI and audio
 // serialization. No FPGA-family primitive belongs here.
@@ -41,11 +41,12 @@ module fes_atari_st_core #(
     wire [17:0] firmware_write_addr;
     wire [15:0] firmware_write_data;
     wire [1:0] firmware_write_enable;
+    wire firmware_write_ready;
     fes_firmware_upload #(.AW(18), .BYTES(32'd196608)) firmware (
         .clk(clk_sys), .gpo(gpo), .gpi(gpi),
         .mailbox_gpo(mailbox_gpo), .mailbox_gpi(mailbox_gpi), .exec_reset(exec_reset),
         .ready(), .write_addr(firmware_write_addr), .write_data(firmware_write_data),
-        .write_enable(firmware_write_enable)
+        .write_enable(firmware_write_enable), .write_ready(firmware_write_ready)
     );
 
     wire [143:0] keyboard;
@@ -127,11 +128,19 @@ module fes_atari_st_core #(
     wire native_pixel_ce;
     wire native_short_line, native_blank;
     wire [8:0] native_word_loss;
-    fes_st_firmware_rom rom (
-        .clk(clk_sys), .reset(machine_reset), .req(rom_req), .address(rom_addr),
-        .rdata(rom_rdata), .ready(rom_ready),
-        .write_addr(firmware_write_addr), .write_data(firmware_write_data),
-        .write_enable(firmware_write_enable)
+    wire cpu_req, cpu_rom, cpu_write, cpu_ready;
+    wire [18:1] cpu_addr;
+    wire [15:0] cpu_wdata, cpu_rdata;
+    wire [1:0] cpu_byte_enable;
+    fes_st_rom_sdram rom (
+        .rom_req(rom_req), .rom_addr(rom_addr), .rom_rdata(rom_rdata), .rom_ready(rom_ready),
+        .ram_req(ram_req), .ram_write(ram_write), .ram_addr(ram_addr), .ram_wdata(ram_wdata),
+        .ram_byte_enable(ram_byte_enable), .ram_rdata(ram_rdata), .ram_ready(ram_ready),
+        .firmware_write_addr(firmware_write_addr), .firmware_write_data(firmware_write_data),
+        .firmware_write_enable(firmware_write_enable), .firmware_write_ready(firmware_write_ready),
+        .cpu_req(cpu_req), .cpu_rom(cpu_rom), .cpu_write(cpu_write), .cpu_addr(cpu_addr),
+        .cpu_wdata(cpu_wdata), .cpu_byte_enable(cpu_byte_enable), .cpu_ready(cpu_ready),
+        .cpu_rdata(cpu_rdata)
     );
     st_system #(.ENABLE_FLOPPY_WRITE(1), .EARLY_RAM_WRITE_COMPLETION(1)) system (
         .clk_sys(clk_sys), .reset(machine_reset), .cold_reset(cold_reset),
@@ -230,6 +239,13 @@ module fes_atari_st_core #(
     assign media_data = shared_read_data;
     assign snapshot_data = shared_read_data;
 
+    // The memory's phase slots follow the machine's raster cycle, which stands
+    // still while the machine is held. Firmware is written through the CPU's
+    // write slot during that hold, so the slots turn on a free count then. No
+    // machine or video request is in flight across the change.
+    reg [1:0] hold_phase = 2'd0;
+    always @(posedge clk_sys) hold_phase <= hold_phase + 2'd1;
+    wire [1:0] memory_phase = machine_reset ? hold_phase : native_cycle[1:0];
     // Rate 0 consumes only the rising-edge sample, taken in the fabric as on
     // the DE10 shell.
     reg [15:0] dq_sample;
@@ -238,10 +254,11 @@ module fes_atari_st_core #(
                 .SINGLE_RANK_REFRESH(1), .SLOT_REFRESH(1)) memory (
         .ram_write_committed(ram_write_committed), .ram_write_addr(ram_write_addr),
         .ram_write_data(ram_write_data), .ram_write_lanes(ram_write_lanes),
-        .clk(clk_sys), .clk_pin(clk_sys), .memory_phase(native_cycle[1:0]),
+        .clk(clk_sys), .clk_pin(clk_sys), .memory_phase(memory_phase),
         .raster_reset(exp_reset), .cold_reset(cold_reset), .reset(1'b0), .initialized(initialized),
-        .cpu_req(ram_req), .cpu_addr(ram_addr), .cpu_write(ram_write), .cpu_wdata(ram_wdata),
-        .cpu_byte_enable(ram_byte_enable), .cpu_ready(ram_ready), .cpu_rdata(ram_rdata),
+        .cpu_req(cpu_req), .cpu_rom(cpu_rom), .cpu_addr(cpu_addr), .cpu_write(cpu_write),
+        .cpu_wdata(cpu_wdata), .cpu_byte_enable(cpu_byte_enable), .cpu_ready(cpu_ready),
+        .cpu_rdata(cpu_rdata),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),
         .dma_req(dma_req), .dma_addr(dma_addr), .dma_write(dma_write), .dma_wdata(dma_wdata),
         .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready), .dma_rdata(dma_rdata),

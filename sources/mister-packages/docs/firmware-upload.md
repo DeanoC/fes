@@ -46,7 +46,10 @@ A matching total arms the transfer with zero bytes received.
 (invalid state). The index must equal the next word ordinal modulo 256
 (invalid index). The low byte is stored first. The last word of an odd-length
 image carries one byte and its high byte must be zero (invalid argument). A
-valid word advances the received count and the CRC exactly once.
+valid word advances the received count and the CRC exactly once. An endpoint
+whose store is a slower memory may hold the acknowledgement until the pair is
+stored, including while that memory initializes after configuration: a host
+allows for that on a Data request and does not treat it as a lost request.
 
 **FirmwareCommit** (32): index and argument are 0. Not armed, or received not
 equal to the total, is invalid state. A CRC mismatch is an invalid argument

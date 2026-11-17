@@ -19,12 +19,12 @@ foreach file {fes_de25_computer_transport.v sdram_addon_port_de25.v fes_gp_cross
 }
 # The portable machine, mailbox and display sources use SystemVerilog sized
 # casts and typed parameters under a .v name too.
-foreach file {fes_atari_st_core.v fes_firmware_upload.v fes_st_firmware_rom.v
+foreach file {fes_atari_st_core.v fes_firmware_upload.v fes_st_rom_sdram.v
     fes_computer_mailbox.v fes_de25_session_display.v fes_display_plane.v fes_menu_control.v
     fes_video_part_direct.v zonx_ay.v
     st_system.sv st_cpu.sv st_machine.sv st_io.sv st_mfp.sv st_acia.sv st_ikbd.sv st_ym2149.sv
     st_ym_filter.sv st_ym_mixer.sv st_ym_mix_rom.sv st_floppy.sv st_floppy_writer.sv
-    st_native_border.sv st_native_low_video_de25.sv st_video.sv st_video_adapter.sv st_memory.sv
+    st_native_border.sv st_native_low_video_de25.sv st_video.sv st_video_adapter.sv st_memory_de25.sv
     st_media_writer.sv st_media_port.sv fx68k.sv fx68kAlu.sv uaddrPla.sv} {
     add_fileset_file $file SYSTEM_VERILOG PATH $file
 }

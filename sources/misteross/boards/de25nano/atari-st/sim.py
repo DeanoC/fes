@@ -23,7 +23,7 @@ WAIVERS = ("WIDTH", "TIMESCALEMOD", "MULTIDRIVEN", "INITIALDLY", "ALWCOMBORDER",
 MACHINE = ("st_system.sv", "st_cpu.sv", "st_machine.sv", "st_io.sv", "st_mfp.sv", "st_acia.sv",
            "st_ikbd.sv", "st_ym2149.sv", "st_ym_filter.sv", "st_ym_mixer.sv", "st_ym_mix_rom.sv",
            "st_floppy.sv", "st_floppy_writer.sv", "st_native_border.sv",
-           "st_video.sv", "st_video_adapter.sv", "st_memory.sv", "st_media_writer.sv", "st_media_port.sv")
+           "st_video.sv", "st_video_adapter.sv", "st_media_writer.sv", "st_media_port.sv")
 
 
 def load(path, name):
@@ -41,13 +41,15 @@ def sources(output):
     sdram.write_bytes(derive.retarget_sdram((ROOT / "cores/fes-ramtest/rtl/sdram_addon_port.v").read_bytes())[0])
     native = output / "st_native_low_video_de25.sv"
     native.write_bytes(derive.retarget_native_video((ST / "st_native_low_video.sv").read_bytes())[0])
+    memory = output / "st_memory_de25.sv"
+    memory.write_bytes(derive.retarget_memory((ST / "st_memory.sv").read_bytes())[0])
     reader = output / "fes_menu_reader_de25.v"
     reader.write_bytes(display.retarget_menu_ram((SHARED / "fes_menu_reader.v").read_bytes())[0])
     transport = output / "fes_de25_computer_transport.v"
     transport.write_bytes(derive.transport((BOARD / "zx81-hps/fes_de25_computer.v").read_bytes())[0])
-    return [HERE / "fes_de25_atari_st_standard.v", transport, sdram, native,
+    return [HERE / "fes_de25_atari_st_standard.v", transport, sdram, native, memory,
             SHARED / "fes_atari_st_core.v", SHARED / "fes_gp_crossing.v", SHARED / "fes_firmware_upload.v",
-            SHARED / "fes_st_firmware_rom.v", SHARED / "fes_computer_mailbox.v",
+            SHARED / "fes_st_rom_sdram.v", SHARED / "fes_computer_mailbox.v",
             SHARED / "fes_display_plane.v", SHARED / "fes_menu_control.v", SHARED / "fes_menu_video.v",
             reader, BOARD / "scanout/fes_de25_session_display.v", BOARD / "scanout/fes_de25_scanout.v",
             COMMON / "rtl/fes_display_cdc.v", COMMON / "rtl/fes_video_part_direct.v",

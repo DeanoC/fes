@@ -59,7 +59,7 @@ module fes_spectrum_core #(
         .clk(clk_sys), .gpo(gpo), .gpi(gpi),
         .mailbox_gpo(mailbox_gpo), .mailbox_gpi(mailbox_gpi), .exec_reset(exec_reset),
         .ready(), .write_addr(firmware_write_addr), .write_data(firmware_write_data),
-        .write_enable(firmware_write_enable)
+        .write_enable(firmware_write_enable), .write_ready(1'b1)
     );
 
     wire [143:0] keyboard_rows;

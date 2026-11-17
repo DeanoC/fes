@@ -23,15 +23,14 @@ PARENT_SHA256 = "a08edf0b098e0ddb583a98963efa6bcce1735fc41a0a28c4a9019e2eb27f1ca
 MACHINE_FILES = ("st_system.sv", "st_cpu.sv", "st_machine.sv", "st_io.sv", "st_mfp.sv", "st_acia.sv",
                  "st_ikbd.sv", "st_ym2149.sv", "st_ym_filter.sv", "st_ym_mixer.sv", "st_ym_mix_rom.sv",
                  "st_floppy.sv", "st_floppy_writer.sv", "st_native_border.sv",
-                 "st_video.sv", "st_video_adapter.sv", "st_memory.sv", "st_media_writer.sv",
-                 "st_media_port.sv")
+                 "st_video.sv", "st_video_adapter.sv", "st_media_writer.sv", "st_media_port.sv")
 CPU_FILES = ("fx68k.sv", "fx68kAlu.sv", "uaddrPla.sv", "microrom.mem", "nanorom.mem")
-SHARED_FILES = ("fes_atari_st_core.v", "fes_st_firmware_rom.v")
+SHARED_FILES = ("fes_atari_st_core.v", "fes_st_rom_sdram.v")
 LOCAL_FILES = ("fes_de25_atari_st_standard.v", "fes_de25_atari_st_standard_hw.tcl",
                "atari-st-clocks.sdc", "derive.py", "build.py")
 SOURCES = ({BOARD + "atari-st/" + name for name in LOCAL_FILES} |
            {BOARD + "shared-rtl/" + name for name in SHARED_FILES} |
-           {CORE + name for name in MACHINE_FILES + ("st_native_low_video.sv",)} | {CPU + name for name in CPU_FILES} |
+           {CORE + name for name in MACHINE_FILES + ("st_native_low_video.sv", "st_memory.sv")} | {CPU + name for name in CPU_FILES} |
            {SDRAM, COMMON + "rtl/fes_video_part_direct.v", COMMON + "generated/fes_video_part.vh",
             "sources/misteross/cores/fes-zx81/expansions/zonx_ay.v"})
 
@@ -63,6 +62,7 @@ def component_files(sources):
     files["generated/fes_video_part.vh"] = sources[COMMON + "generated/fes_video_part.vh"]
     files["st_native_low_video_de25.sv"], derived["st_native_low_video_de25.sv"] = derive.retarget_native_video(
         sources[CORE + "st_native_low_video.sv"])
+    files["st_memory_de25.sv"], derived["st_memory_de25.sv"] = derive.retarget_memory(sources[CORE + "st_memory.sv"])
     files["sdram_addon_port_de25.v"], derived["sdram_addon_port_de25.v"] = derive.retarget_sdram(sources[SDRAM])
     files["fes_de25_computer_transport.v"], derived["fes_de25_computer_transport.v"] = derive.transport(
         sources[BOARD + "zx81-hps/fes_de25_computer.v"])
