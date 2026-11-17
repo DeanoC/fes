@@ -146,7 +146,6 @@ module fes_i386_decode #(
     logic [7:0]       b0, op2, modrm;
     logic [1:0]       mode;
     logic [2:0]       reg_f, rm;
-    logic [5:0]       x87_shape;  // an ESC memory form's access shape: {ESC's low bits, reg}
     logic             two, addr32, reg_form;
     logic [1:0]       osz;  // a size_e: SIZE_16 or SIZE_32
 
@@ -338,7 +337,6 @@ module fes_i386_decode #(
         x87_insn = 1'b0;
         x87_wait = 1'b0;
         x87_fmt = 3'(fes_i386_pkg::X87F_NONE);
-        x87_shape = 6'd0;
         x87_op = {b0[2:0], modrm};
         moff = 7'd0;
         x87p = 2'(fes_i386_pkg::X87P_NONE);
@@ -1198,19 +1196,49 @@ module fes_i386_decode #(
                             size = 2'd2;
                             mbytes = 3'd4;
                             x87p = 2'(fes_i386_pkg::X87P_IPDP);
-                            // The access shape, by ESC and reg field. FBLD
-                            // and FBSTP (DF /4, /6) move ten bytes exactly as
-                            // FLD and FSTP m80 do, so on the DE25 backend,
-                            // which builds them, they take those two arms.
-                            // On the DE10's they keep their own selectors and
-                            // fall to the default below, as they always have.
+                            // The access shape, by ESC and reg field.
+                            // FBLD and FBSTP (DF /4, /6) come first and only
+                            // on the DE25 backend, which builds them; on the
+                            // DE10's the case below is all there is, and they
+                            // fall to its default as they always have.
                             // **This is the table that fails unsafe** (see
                             // the D8 arm): the lockstep's x87 BCD suite reads
                             // and writes operands a wrong shape would misread.
-                            x87_shape = {b0[2:0], reg_f};
-                            if (X87_BACKEND == 1 && x87_shape == 6'o74) x87_shape = 6'o35;
-                            if (X87_BACKEND == 1 && x87_shape == 6'o76) x87_shape = 6'o37;
-                            case (x87_shape)
+                            if (X87_BACKEND == 1 && {b0[2:0], reg_f} == 6'o74) begin
+                                // FBLD (DF /4): ten bytes read as FLD m80's
+                                // are, the word at 8, then the ROM's dwords
+                                // at 4 and 0.
+                                size = 2'd1;
+                                mbytes = 3'd2;
+                                mkind = 2'd1;
+                                moff = 7'd8;
+                                x87p = 2'(fes_i386_pkg::X87P_NONE);
+                                seq = fes_i386_pkg::SEQ_UCODE;
+                                upc = fes_i386_ucode_pkg::UC_FRD10;
+                                eoi = 1'b0;
+                            end else if (X87_BACKEND == 1 && {b0[2:0], reg_f} == 6'o76) begin
+                                // FBSTP (DF /6): ten bytes stored from the
+                                // top down, the word at 8, then the ROM's
+                                // dwords at 4 and 0, so the uop that writes
+                                // the x87 pointers is the one at the
+                                // operand's own offset. FSTP m80 below
+                                // stores upwards and leaves the data pointer
+                                // at the operand's offset plus 8, which the
+                                // lockstep's BCD suite found; that routine
+                                // is not this change's to alter.
+                                size = 2'd1;
+                                mbytes = 3'd2;
+                                moff = 7'd8;
+                                m_in_a = 1'b1;
+                                mkind = 2'd2;
+                                b_sys = 1'b1;
+                                sys_idx = 5'(fes_i386_pkg::SYS_RD_ONES);
+                                x87p = 2'(fes_i386_pkg::X87P_NONE);
+                                seq = fes_i386_pkg::SEQ_UCODE;
+                                upc = fes_i386_ucode_pkg::UC_FBST10;
+                                eoi = 1'b0;
+                            end else
+                            case ({b0[2:0], reg_f})
                                 6'o17, 6'o57: begin
                                     // FNSTCW (D9 /7), FNSTSW m16 (DD /7):
                                     // the unit's word.
@@ -1271,9 +1299,8 @@ module fes_i386_decode #(
                                     eoi = 1'b0;
                                 end
                                 6'o35: begin
-                                    // FLD m80 (DB /5), and FBLD on the DE25
-                                    // backend: the word at 8, then the ROM's
-                                    // dwords at 4 and 0.
+                                    // FLD m80 (DB /5): the word at 8, then
+                                    // the ROM's dwords at 4 and 0.
                                     size = 2'd1;
                                     mbytes = 3'd2;
                                     mkind = 2'd1;
@@ -1353,9 +1380,8 @@ module fes_i386_decode #(
                                     eoi = 1'b0;
                                 end
                                 6'o37: begin
-                                    // FSTP m80 (DB /7), and FBSTP on the DE25
-                                    // backend: the dword at 0, then the ROM's
-                                    // at 4 and its word at 8.
+                                    // FSTP m80 (DB /7): the dword at 0, then
+                                    // the ROM's at 4 and its word at 8.
                                     m_in_a = 1'b1;
                                     mkind = 2'd2;
                                     b_sys = 1'b1;
