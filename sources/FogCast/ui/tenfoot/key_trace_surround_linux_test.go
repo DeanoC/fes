@@ -155,6 +155,69 @@ func TestDiagnosticHoldUsesRealNonHandoffTransition(t *testing.T) {
 	}
 }
 
+func TestDisconnectNeutralTraceIdentifiesSourceAndTransition(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(http.NotFound))
+	t.Cleanup(server.Close)
+	app, feed := kitDisplayApp(t, server)
+	app.mu.Lock()
+	app.session.CoreKeyboardHID = true
+	app.frameTrace = newFrameTrace()
+	app.frameTrace.armKeyRouting(time.Now())
+	app.mu.Unlock()
+	open := func() (*nativeInput, *os.File) {
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = r.Close(); _ = w.Close() })
+		fd := int(r.Fd())
+		if err := unix.SetNonblock(fd, true); err != nil {
+			t.Fatal(err)
+		}
+		return &nativeInput{fd: fd, kind: InputKeyboard}, w
+	}
+	first, a := open()
+	second, b := open()
+	inputs := &nativeInputs{devices: []*nativeInput{first, second}}
+	send := func(w *os.File, value int32) {
+		t.Helper()
+		if _, err := w.Write(nativeTestEvent(1, 59, value)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := inputs.poll(app, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		drainLocalKeyQueue(t, app)
+	}
+	send(a, 1)
+	app.mu.Lock()
+	app.sessionDisplayBusy, app.sessionDisplayNonHandoff, app.sessionDisplayEpoch = true, true, 42
+	app.mu.Unlock()
+	send(b, 1)
+	inputs.devices = []*nativeInput{second}
+	inputs.releaseLostPlayInput(app, first)
+	drainLocalKeyQueue(t, app)
+	var found bool
+	for _, r := range app.frameTrace.records() {
+		if r.Route == "disconnect-neutral" && r.Source == first.fd && r.Epoch == 42 && r.NonHandoff {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("missing source-bound disconnect trace: %+v", app.frameTrace.records())
+	}
+	code, _ := hidkeys.Code(0x3a)
+	var actions []remoteinput.Action
+	for _, e := range feed.snapshot() {
+		if e.Device == remoteinput.DeviceKeyboard && e.Code == code {
+			actions = append(actions, e.Action)
+		}
+	}
+	if len(actions) != 2 || actions[0] != remoteinput.ActionPress || actions[1] != remoteinput.ActionRelease {
+		t.Fatalf("disconnect actions = %v", actions)
+	}
+}
+
 func TestDiagnosticSurroundIsSessionBoundAndExpires(t *testing.T) {
 	s := computerTapeDisplaySession()
 	s.ID, s.GameID, s.Target, s.TargetID, s.FlightID = "session", "game", "kit", "target", "flight"

@@ -1156,6 +1156,9 @@ func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
 	}
 	feed := app.localFeed
 	if keyForward {
+		if len(keyEvents) != 0 {
+			app.traceKeyRouteLocked("disconnect-neutral", lost.fd)
+		}
 		app.queuePlayHIDLocked(keyEvents)
 	}
 	app.mu.Unlock()
