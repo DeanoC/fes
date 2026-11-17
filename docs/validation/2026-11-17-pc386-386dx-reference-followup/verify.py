@@ -58,7 +58,7 @@ def main() -> None:
     # Check only entries whose exact bytes are included in this record.
     for name, manifest, included in (
         ('samsung', 'FROZEN.sha256', {'PLAN.md', 'run.sh', 'prompt_gate.py', 'templates/bios.raw', 'templates/dos.raw', 'STAGED.sha256'}),
-        ('ami', 'SCORE2-FROZEN.sha256', {'CORRECTION.md', 'SCORE2-PLAN.md', 'score2.sh', 'supervise-score2.sh'}),
+        ('ami', 'SCORE2-FROZEN.sha256', {'CORRECTION.md', 'SCORE2-PLAN.md', 'score2.sh'}),
     ):
         d = ROOT / name
         found = set()
@@ -71,6 +71,11 @@ def main() -> None:
                 found.add(relative)
         if found != included:
             raise ValueError(f'{name}: precommitted included files missing')
+    ami_supervisor = (ROOT / 'ami' / 'supervise-score2.sh').read_text()
+    if ('expected_driver_sha256=7c39d9caafa80e19d426e7143fe2f887c26579acb4bb0ac78c6c67fa23aef6bb' not in ami_supervisor
+            or 'timeout 480s bash "$driver" "$root"' not in ami_supervisor
+            or '$root/bench.sh' in ami_supervisor):
+        raise ValueError('AMI supervisor does not bind and invoke the retained driver')
     rom = ROOT.parent / '2026-11-16-pc386-386dx-reference-candidates' / 'roms.sha256'
     if digest(rom) != ROM_MANIFEST:
         raise ValueError('referenced ROM-manifest digest differs')

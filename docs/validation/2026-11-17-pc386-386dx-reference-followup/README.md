@@ -49,6 +49,19 @@ records the file hashes and does not change that attempt's outcome. The new
 native screenshots and enlarged review copies. The [driver](ami/score2.sh),
 [heartbeat](ami/heartbeat.log), [recording](ami/discovery.mkv), [DOS](ami/dos.png),
 [probe](ami/cache.png) and [directory](ami/topbench.png) captures are retained.
+The staged driver digest in [the frozen manifest](ami/SCORE2-FROZEN.sha256)
+matches the retained `ami/score2.sh` byte for byte (SHA-256
+`7c39d9caafa80e19d426e7143fe2f887c26579acb4bb0ac78c6c67fa23aef6bb`). The
+[supervisor](ami/supervise-score2.sh) verifies that digest, logs the driver path
+and digest, and invokes that retained script under the 480-second cap. The
+retained `supervisor.log` records only the old wrapper's exit status; it does not
+record the digest of its root-local `bench.sh`, so that log alone cannot prove
+which driver bytes the historical run executed. A replay with the corrected
+supervisor will identify the exact driver. To repeat the workflow, run
+`bash ami/supervise-score2.sh /absolute/private-run-root`; the root must contain
+the private `vm/`, `app/` and `roms/` inputs described in the frozen plan. Those
+private inputs remain omitted, so this record does not by itself reconstruct the
+full run environment.
 The review display sometimes rendered even enlarged dark frames incorrectly,
 so the independent reviewer checked the native final frame as well. The AMI
 run's score captures and the 100% speed sample were independently checked.
