@@ -7,7 +7,7 @@
     "install": "1cd6c9741d903760a2b1c4283b6830f63c0974f8478b06fb7f8dabd3c4304d8c"
   },
   "source": {
-    "fes_revision": "00752ae14568fcb0bda42c4a3bff57460a206446",
+    "fes_revision": "a95863ddd2b5b3f820b63ecbeb86c4e696b19ea1",
     "tracked_changes": [],
     "files": {
       "sources/misteross/cores/fes-common/rtl/i386/fes_i386_agu.sv": "790424c71234d13b52aca15dcf06c897c1df7868184047f9704497b620dfb236",
@@ -53,7 +53,7 @@
       "sources/misteross/cores/fes-common/sim/i386/frontend_tb.cpp": "f67cbe91cf0416d599ac8273db95ef354a28976c942ec16b742d2badf4d99c69",
       "sources/misteross/cores/fes-common/sim/i386/i386_oracle.h": "a6495941eca2f19994c20cc03e4d47d03bcf20d7e865029be21236a8a2b56524",
       "sources/misteross/cores/fes-common/sim/i386/lendec_tb.cpp": "29ad2459588684bbd7a6cdedb1885042a9f6f5521fc9e7c4d5946c44c42cd37e",
-      "sources/misteross/cores/fes-common/sim/i386/lockstep_tb.cpp": "236cb774dc68db72ad76fc12e06fafd2d89527ac022a4496fcefc7a57231b0e5",
+      "sources/misteross/cores/fes-common/sim/i386/lockstep_tb.cpp": "9e2cd34070489bee348d37d0ae352b141fda67ee2c1c6d519150395af5668044",
       "sources/misteross/cores/fes-common/sim/i386/smc_stale.h": "98c0586990cbf42b7516578bfb80fcf82b98863f6414c8418b89c4d5b4ad8358",
       "sources/misteross/cores/fes-common/sim/i386/smc_stale_tb.cpp": "d8c75dada22674c07fa7add2c0031bb118063e58b2c2f2dc5c8872d49eab5477",
       "sources/misteross/cores/fes-common/sim/i386/test386_tb.cpp": "b35f1c5d55787b9b83cfdcee4ab231e9d3c4d9382f4780b639be1a08dd95b7ce",
@@ -73,7 +73,7 @@
       "sources/misteross/scripts/test_fes_i386_lockstep.py": "017dddfe9efeebfdf3e4c0208b1de5620a8ceffa995dc519bb126987f7a51af9",
       "sources/misteross/scripts/yosys_netlist.py": "1362a38add40b4d0bce1832ba4737ec939856170394508c0ef37c65066dda62d"
     },
-    "files_sha256": "136a0108f69dc7b3b7ff15e8ca21436570010dd21ba66d90d8c0b55929becdb7"
+    "files_sha256": "76f35082ba18cc853a25705479a40401177757dda7f02a364401b2b2989e4c24"
   },
   "oracle": {
     "revision": "30cfd566ecc8deb33e56e801e32b444a7041b6d2",
@@ -87,8 +87,8 @@
       "fpu": "2c2b2541f71b1a6f54b463d07c306cb4bd18f40b59fcea92f87e3ce90a69cc66",
       "softfloat": "e5d65f562500bb1dadb9f13525b43403948a2d8da1cff82bd64f867e9b86c5b1"
     },
-    "suite_sha256": "511573bb685229d1731acfd0d4121ef168a93aaf64a78edfde4ee516b38ed111",
-    "testbench_sha256": "fd337833a093be756f00ed4558c867619cd1457b70e9f153d9f069b7494d157b"
+    "suite_sha256": "f54e05141d54c1c2e8d91287f84b85a107203c851e7eec49dda620152a186f94",
+    "testbench_sha256": "22006d0ea5f5a865f2e561a78a43db3114854d82eeb83349ffd4bbdaa53c8374"
   },
   "x87_backend": "de10",
   "biu_dma_test": {

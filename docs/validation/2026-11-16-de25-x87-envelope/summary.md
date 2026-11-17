@@ -1062,7 +1062,7 @@ committed fit records, which is where the generated table above comes from.
 
 PR #1889 merged to main as `c6728f2cd` (#1879 as `9037d15e8`, the census #1887
 as `655c90e55`), and main was merged into this branch as `7ab177d9c` and
-again, at `f4f308b17`, as `cec08f3a5`. Where
+again, at `f4f308b17` as `cec08f3a5` and at `7c174a0cd` as `a95863ddd`. Where
 this record says "PR #1889's head" as its base, that base is now main.
 
 **Everything in the generated results above, and all eight machine fits, was
@@ -1080,8 +1080,8 @@ the controlled A/B's size (462 ALMs between medians) describes the pre-merge
 design only: the merged pair differs by 1,393 ALMs in the same direction, on
 one seed a side.
 
-What was re-run on the merged tree, at `00752ae14568fcb0bda42c4a3bff57460a206446`
-(the second merge plus the report change described below):
+What was re-run on the merged tree, at `a95863ddd2b5b3f820b63ecbeb86c4e696b19ea1`
+(the third merge):
 
 | Check | DE10 backend | DE25 backend |
 | --- | --- | --- |
@@ -1095,13 +1095,21 @@ What was re-run on the merged tree, at `00752ae14568fcb0bda42c4a3bff57460a206446
 
 The two lockstep reports are in [`evidence/post-merge/`](evidence/post-merge/).
 **Each names what it tested**, in its `source` field: the FES revision
-(`00752ae14…`, the same in both), an empty list of tracked files differing
+(`a95863ddd…`, the same in both), an empty list of tracked files differing
 from it, and a SHA-256 per tested source: the CPU RTL, the bench and its
 headers, and the runner. The runner refuses a run during which any of those
 changed. Reports written before that change, including an earlier pair that
-stood here and the pre-merge ones in `evidence/`, carry no revision; the lint
-and unit-bench rows are this session's runs on the same commit and have no
-committed report.
+stood here and the pre-merge ones in `evidence/`, carry no revision; the
+unit-bench row is this session's run on the same commit and has no committed
+report, and the lint row was last run at `7ab177d9c`.
+
+**The confirmation fits were not repeated for the third merge.** They were
+fitted from `00752ae14`. Between that commit and `a95863ddd` the only file
+changed under `sources/misteross/cores` or `sources/misteross/boards` is the
+C++ bench `sim/i386/lockstep_tb.cpp` (main's #1930 watchdog), and the
+per-source digests in these reports equal those of the reports taken at
+`00752ae14` for every file except that one. The fitted RTL is therefore the
+same.
 They are not fed to `generate.py`: the recorded pre-merge reports ran 24 x87 cases (620
 retirements) and these ran 120 (7,034), so they are a different suite from the one the generated tables
 describe, and mixing them would compare unlike runs.
