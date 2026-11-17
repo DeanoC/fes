@@ -11,7 +11,7 @@ rows=list(csv.DictReader((fit/'conditional/channels.tsv').open(),delimiter='\t')
 assert len(rows)==568
 clocks={r['name']:r for r in native['clocks']}
 phases={}
-for n,phase in ((0,0),(1,8.125),(2,1.25)):
+for n,phase in ((0,0),(1,9.375),(2,1.25),(3,8.75)):
  name=f'memory_clock|general[{n}].gpll~PLL_OUTPUT_COUNTER|divclk';r=clocks[name]
  assert float(r['period_ns'])==10 and abs(float(r['waveform_ns'].split()[0])-phase)<0.001
  phases[str(n)]={'period_ns':10,'phase_ns':phase}
@@ -24,10 +24,16 @@ for bit in range(16):
  bits=model['netnames'][f'sdram_pads_{bit}__captured']['bits'];capture_bits+=bits
  regs=[c for c in model['cells'].values() if c['type']=='$dff' and c['connections']['Q']==bits]
  assert len(regs)==1 and regs[0]['connections']['CLK']==outputs[1:2] and int(regs[0]['parameters']['CLK_POLARITY'],2)==1
-stage_bits=model['netnames']['system_storage_controller_dq_fall']['bits']
-stages=[c for c in model['cells'].values() if c['type']=='$dff' and c['connections']['Q']==stage_bits]
-assert len(stages)==1 and stages[0]['connections']['CLK']==outputs[0:1] and int(stages[0]['parameters']['CLK_POLARITY'],2)==0
-assert stages[0]['connections']['D']==capture_bits
+word_bits=model['netnames']['system_storage_capture_handoff_read_word']['bits']
+word_regs=[c for c in model['cells'].values() if c['type']=='$dffe' and c['connections']['Q']==word_bits]
+assert len(word_regs)==1 and word_regs[0]['connections']['CLK']==outputs[3:4]
+assert int(word_regs[0]['parameters']['CLK_POLARITY'],2)==1 and int(word_regs[0]['parameters']['EN_POLARITY'],2)==1
+assert word_regs[0]['connections']['D']==capture_bits
+assert word_regs[0]['connections']['EN']==model['netnames']['system_storage_capture_handoff_read_window']['bits'][3:4]
+landing_bits=model['netnames']['system_storage_capture_handoff_return_word']['bits']
+land_regs=[c for c in model['cells'].values() if c['type']=='$dff' and c['connections']['Q']==landing_bits]
+assert len(land_regs)==1 and land_regs[0]['connections']['CLK']==outputs[0:1]
+assert int(land_regs[0]['parameters']['CLK_POLARITY'],2)==0 and land_regs[0]['connections']['D']==word_bits
 read=[r for r in rows if r['role']=='read'];assert len(read)==128
 expected_relation=proof['trace']['selected_capture_ps']/1000-20
 setup=[r for r in read if r['kind']=='setup'];hold=[r for r in read if r['kind']=='hold']
@@ -43,15 +49,17 @@ window={'classification':'algebraic first-word transaction window; not a TimeQue
  'hold_min_ns':round(min(float(r['slack_ns'])-10 for r in hold),3)}
 captures={r['to'] for r in setup};assert len(captures)==16
 endpoints=list(csv.DictReader((fit/'audit/endpoints.tsv').open(),delimiter='\t'))
-handoff=[r for r in endpoints if r['from'] in captures and r['to'].startswith('system_storage_controller_dq_fall[')]
-assert len(handoff)==128 and all(r['to_inverted']=='1' for r in handoff)
+handoff=[r for r in endpoints if r['from'] in captures and r['to'].startswith('system_storage_capture_handoff_read_word[')]
+assert len(handoff)==128 and all(r['to_inverted']=='0' for r in handoff)
+landing=[r for r in endpoints if r['from'].startswith('system_storage_capture_handoff_read_word[') and r['to'].startswith('system_storage_capture_handoff_return_word[')]
+assert len(landing)==128 and all(r['to_inverted']=='1' for r in landing)
 commands=[r for r in rows if r['role']=='write' and r['port'].startswith(('SDRAM_A[','SDRAM_BA[','SDRAM_n'))]
 mins=lambda xs:{kind:min(float(r['slack_ns']) for r in xs if r['kind']==kind) for kind in ('setup','hold')}
 section=(fit/'output_files/top.fit.rpt').read_text(encoding='latin1').split('; Bidir Pins',1)[1].split('; I/O Bank Usage',1)[0]
 lines=[[s.strip() for s in line.split(';')[1:-1]] for line in section.splitlines()];header=next(x for x in lines if x and x[0]=='Name')
 pins=[dict(zip(header,x)) for x in lines if x and x[0].startswith('SDRAM_DQ[')];assert len(pins)==16 and all(r['Input Register']=='yes' for r in pins)
 result={'classification':'100 MHz source-frozen diagnostic; not physical acceptance','clock_phases':phases,'proof_sha256':q.sha(a.proof),
- 'generic_read_per_edge_min_ns':mins(read),'used_read_word_window':window,'capture_to_controller_min_ns':mins(handoff),
+ 'generic_read_per_edge_min_ns':mins(read),'used_read_word_window':window,'capture_to_held_word_min_ns':mins(handoff),'held_word_to_landing_min_ns':mins(landing),
  'direct_command_min_ns':mins(commands),'internal_checks_pass':native['reported_endpoint_checks_pass'],
  'pulse_width_pass':all(not r['failures'] for r in native['minimum_pulse_width'].values()),
  'internal_minima':{k:float(v['worst']['slack_ns']) if v['endpoints'] else None for k,v in native['by_corner_and_check'].items()},

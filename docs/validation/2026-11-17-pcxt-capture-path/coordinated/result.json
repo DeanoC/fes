@@ -1,0 +1,91 @@
+{
+  "audio_interstage_min_ns": 0.198,
+  "audio_payload_min_ns": 0.408,
+  "capture_to_held_word_min_ns": {
+    "hold": 1.894,
+    "setup": 0.41
+  },
+  "classification": "100 MHz source-frozen diagnostic; not physical acceptance",
+  "clock_phases": {
+    "0": {
+      "period_ns": 10,
+      "phase_ns": 0
+    },
+    "1": {
+      "period_ns": 10,
+      "phase_ns": 9.375
+    },
+    "2": {
+      "period_ns": 10,
+      "phase_ns": 1.25
+    },
+    "3": {
+      "period_ns": 10,
+      "phase_ns": 8.75
+    }
+  },
+  "conditional_second_cs_min_ns": {
+    "hold": 1.876,
+    "setup": 0.131
+  },
+  "default_off": true,
+  "direct_command_min_ns": {
+    "hold": 0.869,
+    "setup": 3.578
+  },
+  "experimental_id": "5e5d6ccd354bed7d29a93dca7bf09524",
+  "generic_read_per_edge_min_ns": {
+    "hold": 10.912,
+    "setup": -9.66
+  },
+  "hardware_run": false,
+  "held_word_to_landing_min_ns": {
+    "hold": 3.279,
+    "setup": 2.307
+  },
+  "internal_checks_pass": true,
+  "internal_minima": {
+    "7_slow_1100mv_-40c/hold": 0.242,
+    "7_slow_1100mv_-40c/recovery": 5.481,
+    "7_slow_1100mv_-40c/removal": 0.647,
+    "7_slow_1100mv_-40c/setup": 0.627,
+    "7_slow_1100mv_100c/hold": 0.255,
+    "7_slow_1100mv_100c/recovery": 5.33,
+    "7_slow_1100mv_100c/removal": 0.696,
+    "7_slow_1100mv_100c/setup": 0.41,
+    "MIN_fast_1100mv_-40c/hold": 0.122,
+    "MIN_fast_1100mv_-40c/recovery": 7.77,
+    "MIN_fast_1100mv_-40c/removal": 0.265,
+    "MIN_fast_1100mv_-40c/setup": 3.327,
+    "MIN_fast_1100mv_100c/hold": 0.138,
+    "MIN_fast_1100mv_100c/recovery": 7.347,
+    "MIN_fast_1100mv_100c/removal": 0.309,
+    "MIN_fast_1100mv_100c/setup": 3.022
+  },
+  "mailbox_interstage_min_ns": 0.248,
+  "normal_seal_created": false,
+  "production_adopted": false,
+  "proof_sha256": "d05fd72480a6b51b5459160680a3cd2f1f15bf47fc645dc8c68195b96870b09b",
+  "pulse_width_pass": true,
+  "rbf_sha256": "8a8d5b40ecb24ea2bcd6737e5280ef2cff3eddb1e62b16c3fad2ac3be54409ed",
+  "report_sha256": {
+    "audio.sdc": "e91adcaf068ff8e9f2044ebb262e15811a486db7015bf6b03a3d89a7ac929260",
+    "audit/clocks.tsv": "b7fe14b9a24976e20e81728cb4bac6115494d45ec40a76bb7107ba85474e95de",
+    "audit/endpoints.tsv": "e32140c0dae2f6edb7c294ada568c37d2f5b1f1514e645047487de2700ae21b4",
+    "clocks.sdc": "467d51b57ab79ccaa00f62af705759a03220fbf66e7ec1371a36f4df22ed514d",
+    "conditional/channels.tsv": "a0cf1d2d9a929a5a444a7bdc477b3e1c17bad3b79ae6d3d89e299ed19c8aeffa",
+    "mailbox.sdc": "8199fc2a4441b39f7935cf83cd6fef1b8db7da8b746e84e19c1b6bc18b02f78f",
+    "output_files/top.fit.rpt": "09588fe6c054f0053a27ae568e9fe39cb7a2f6e800d0f66f2af53d3a4c30204c",
+    "top.qsf": "3fd00079401719f9611de4ac2b457eebecc276591658162e684ab82a5f8688af"
+  },
+  "selected_path_gates_pass": true,
+  "source_binding": "Frozen fitted source plus byte-identical final opt-in elaboration at the fitted experiment ID; inactive default-branch lint fix only.",
+  "used_read_word_window": {
+    "classification": "algebraic first-word transaction window; not a TimeQuest exception or seal",
+    "expected_launch_to_capture_ns": 13.125,
+    "hold_edge_debit_ns": 10,
+    "hold_min_ns": 0.912,
+    "setup_edge_credit_ns": 10,
+    "setup_min_ns": 0.34
+  }
+}

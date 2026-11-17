@@ -150,43 +150,138 @@ in the compact assessment. `evidence-manifest.json` binds the protected record,
 receipts, inputs, logs and raw reports. Database inventories include every file;
 no cache filename is excluded from their identity.
 
-## Coordinated continuation
+## Coordinated continuation: selected-path reference passes
 
-The default-off path requests three 100 MHz PLL outputs: controller phase 0,
-capture +8.125 ns and forwarding +1.250 ns. The forwarded DDR pin retains its
-inverted polarity (ideal rising phase +6.250 ns). A falling-edge controller
-input stage gives the I/O capture 6.875 ns of ideal handoff time. The controller
-state machine and its response deadline are unchanged. The private diagnostic
-also requests 16 input I/O registers and regional routing of `clocks[2]`.
-The normal producer still selects the original path.
+The default-off `SDRAM_CAPTURE_PIPELINE` implementation uses four 100 MHz PLL
+outputs: controller phase 0, I/O capture +9.375 ns, DDR forwarding +1.250 ns and
+read-word handoff +8.750 ns. The forwarding pin retains the DDR inversion,
+with an ideal rising phase of +6.250 ns. This is an explicit RTL clock/data
+pipeline; no regional-clock assignment is required or adopted.
+
+A controller-domain four-cycle READ history enables one handoff per transaction.
+The handoff register latches the selected word once and holds it through the
+frontend response. A falling-edge controller-domain register lands that retained
+word before response. The shared controller's unused legacy rdata cone is removed
+in this opt-in mode. Its state/done sequence and the frontend response cycle are
+unchanged. The registered DOS producer still selects the original path.
+
+### Logical deadline and input contract
 
 [coordinated/verify_pipeline.py](coordinated/verify_pipeline.py) repeats temporal
-induction of the real controller's return deadline. Its phased trace uses the
-real `pcxt_memory`, performs real initialization, reads all 256 byte values on
-both lanes (512 responses), and poisons every pin time outside the first CL2
-word's guaranteed reference interval. Relative to READ, that interval is
-26–32.5 ns, the selected capture is 31.875 ns, the staged handoff is 38.750 ns
-and controller retirement is 43.750 ns. These are ideal RTL phases, not measured
-board delays. Both stage-bypass mutations fail after real initialization. The
-old positive-edge handoff passes logically; its physical timing remains a
-separate fit obligation. Verilator wrapper/engine and locked Yosys identities
-are checked and recorded.
+induction on the unchanged shared controller. Separately, the active-pipeline
+trace performs real initialization and 512 reads covering all 256 byte values
+on each lane. It checks one retained-word latch and one landing per READ and
+asserts the existing frontend response deadline for every request. Mutations
+that bypass capture, hand off on the wrong edge, or remove word retention fail.
+The missing-retention mutation reaches the frontend and corrupts its response;
+a passing early controller-state observation alone would not detect that bug.
 
-The raw periodic input report chooses the nearest clock edge: 1.875 ns for
-this phase pair. The consumed first burst word instead launches two chip clocks
-after READ and is captured one cycle later, with an 11.875 ns relationship.
-[coordinated/assess_pipeline.py](coordinated/assess_pipeline.py) records that
-proved transaction window as an algebraic +10 ns setup / -10 ns hold adjustment.
-It retains every raw per-edge failure and adds no multicycle constraint or
-production timing exception. This differs from giving the controller an extra
-response cycle; the response state/deadline is unchanged. Raw reports, used-word
-margins, command margins, stage polarity/connections and all internal gates must
-be reported separately. Passing this conditional calculation is not physical
-or production signoff.
+The trace uses a **logical selected-word input contract** and poisons all other
+capture edges. It is not a zero-delay SDRAM electrical model and does not claim
+that the device's tAC/tOH interval is located at the ideal RTL clock phases.
+Physical word validity is the separate all-corner timing obligation below.
+Relative to the ideal transaction READ observation, the checked events are:
 
-The first coordinated fit (capture 6.875 ns) passes native internal timing but
-still misses the consumed-word read setup by 2.093 ns. Its forwarding path keeps
-a 2.848 ns global-clock route to DDIO. The next 8.125 ns attempt used a removed
-alias for its regional assignment and is retained as an ignored-route request.
-The corrected private fit targets the retained `clocks[2]` net. All attempts
-and failures remain protected under `coordinated-fit*`; none is a new seal.
+| Event | Time after READ |
+| --- | ---: |
+| Selected I/O sample | 33.125 ns |
+| Retained-word handoff | 42.500 ns |
+| Original controller capture-state transition | 43.750 ns |
+| Controller-domain landing | 48.750 ns |
+| Frontend response | 73.750 ns |
+
+The experimental response uses the landed retained word, not the unused legacy
+controller rdata. Its internal landing is later than the old rdata observation
+but still precedes the unchanged consumer deadline. This adds no external
+memory capture cycle: it retains the one selected first word. The ordinary
+[component regression](../../../sources/misteross/tests/test_pcxt_capture_pipeline.py)
+exercises this active path and rejects the missing-retention mutation in CI.
+Verilator wrapper/engine and locked Yosys are authenticated for the qualification
+run; the ordinary regression follows the component's normal tool selection.
+
+### Fitted timing
+
+The source-frozen fixed-seed-1 diagnostic completed in 281.390 seconds with
+experimental ID `5e5d6ccd354bed7d29a93dca7bf09524`. This ID is not a registered
+design-v1 package identity. Its raw RBF SHA256 is
+`8a8d5b40ecb24ea2bcd6737e5280ef2cff3eddb1e62b16c3fad2ac3be54409ed`.
+All four requested clock periods and phases are present in the native report.
+All 16 capture inputs are physically packed. The elaborated model binds the
+DDR source to PLL counter 2, capture FFs to counter 1, the enabled held-word
+register to counter 3, and the landing register to the falling controller edge.
+
+[coordinated/assess_pipeline.py](coordinated/assess_pipeline.py) keeps the raw
+periodic-edge report separate from the consumed first-word obligation. The raw
+report selects the nearest edge, a 3.125 ns relationship. CAS-2 launches the
+consumed word two chip clocks after READ; the selected capture has a 13.125 ns
+relationship to that launch. The assessment therefore records an algebraic
++10 ns setup / -10 ns hold adjustment for this transaction, checked against the
+trace's selected edge. It retains every raw failure. It adds no multicycle
+constraint, false path, timing-allow-fail option or production seal exception.
+The actual routed forwarding/capture clock paths and uncertainty remain in the
+measurement. This conditional calculation is not production signoff.
+
+| Check, minimum over four corners | Setup (ns) | Hold (ns) |
+| --- | ---: | ---: |
+| Consumed first-word reference | +0.340 | +0.912 |
+| I/O capture to held word, 128 rows | +0.410 | +1.894 |
+| Held word to landing, 128 rows | +2.307 | +3.279 |
+| Direct connector command/address | +3.578 | +0.869 |
+| Conditional second-CS inverter reference | +0.131 | +1.876 |
+
+All native reported setup, hold, recovery, removal and pulse checks pass.
+Audio payload/interstage and mailbox interstage minima remain positive.
+The generic periodic read report remains -9.660 ns setup / +10.912 ns hold;
+it is not relabelled as passing. Generic DQ-write/OE pin-window rows also remain
+in the report. The earlier controller-held write proof gives transaction-specific
+data allowance, while electrical output-enable turnaround remains unqualified.
+See [coordinated/result.json](coordinated/result.json) for identities and margins.
+
+The original input-packing-only candidate, the first coordinated DDR fit, both
+ignored regional requests and the slower direct-PLL forwarding candidate remain
+retained. The direct-PLL candidate still misses the consumed-word setup by
+2.777 ns and native handoff by 0.578 ns; its longer fabric feeder is not adopted.
+The complete candidate `db/` and `incremental_db/` inventory, raw project files,
+source snapshots and reports are retained. Quartus's project metadata rewrites
+are recorded with both raw before/after digests; no compiled input, route-deciding
+QSF statement or timing constraint change is accepted by the diagnostic driver.
+
+A final unused-clock lint fix affects only the disabled branch. Fresh opt-in
+elaboration at the fitted experimental ID, using the identical source/work paths
+inside a private mount namespace, reproduces the fitted Verilog byte for byte:
+both SHA256 values are
+`c178780411d6ad402c47521b56c2e66959644379e987dec51a08389a3997fed6`.
+Neither the original frozen source nor its outputs were modified. A comparison
+at different paths first exposed path text inside generated function names;
+that failed comparison is retained, not normalized away. The same-path result
+and its exact command are retained in the protected evidence.
+
+### Scope, validation and remaining gates
+
+The native Quartus binaries match the original pinned producer identities.
+The source-frozen fit and its matching logic proof precede fitting; final source
+binding is strengthened by the byte-identical opt-in netlist comparison above.
+Focused validation passes 55 Quartus/package/pipeline tests with locked Yosys,
+the default memory regression at all mask delays, and whole-system CGA/Direct
+cold/warm boots with CPU/DMA activity. The new optional clock is tied explicitly
+in default simulation fixtures. `make check` and whitespace checks pass.
+The broad affected-check run reported video-part fixture errors and reached its
+local 600-second cap. It is not claimed passing or proven to be a baseline
+failure. Exact-final-head CI is recorded on the PR separately.
+
+This is **host proof and diagnostic post-fit timing**, not physical hardware
+acceptance or production qualification. The positive read reference has only
+0.340 ns setup headroom before missing board flight/load/slew bounds. The
+inverter result remains conditional on the unverified fitted part and loading.
+Pin pulse/jitter, electrical turnaround, other interfaces and physical ISA
+containment remain open in #835. Normal production identity, declared-seed
+signoff, repeat/seal and exact-artifact HIL are still required before adoption.
+No package was sealed/exported/installed and no kit was claimed. The feature
+stays default-off and #1954 stays draft in lane:deano.
+
+Protected evidence is under `/home/deano/fes-hil/k835-capture-path/`, including
+`coordinated-fit-retained`, `coordinated-proof-retained`, `coordinated-proof-final`,
+`final-elaboration-same-path`, the complete database inventory and the verified
+`coordinated-evidence-manifest.json`. The retained reference harness is an
+unchanged copy of #1940's reviewed helper; the normal CI regression has no
+external worktree dependency.

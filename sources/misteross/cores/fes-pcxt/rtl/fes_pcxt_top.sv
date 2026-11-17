@@ -26,16 +26,16 @@ module top #(
     wire clk, clk_memory, clk_capture, clk_pixel, clk_hdmi, memory_locked, video_locked;
     // Rate-3 consumes the falling-edge sample. A 180 degree fabric capture
     // clock provides that edge without unsupported DDIO on bidirectional IO.
-    wire [(HALF_RATE_BOARD ? 4 : SDRAM_CAPTURE_PIPELINE ? 3 : 2)-1:0] clocks;
+    wire [(HALF_RATE_BOARD ? 4 : SDRAM_CAPTURE_PIPELINE ? 4 : 2)-1:0] clocks;
     initial if (SDRAM_CAPTURE_PIPELINE && HALF_RATE_BOARD)
         $error("SDRAM_CAPTURE_PIPELINE requires the 100 MHz board");
     altera_pll #(
-        .reference_clock_frequency("50.0 MHz"), .number_of_clocks(HALF_RATE_BOARD ? 4 : SDRAM_CAPTURE_PIPELINE ? 3 : 2),
+        .reference_clock_frequency("50.0 MHz"), .number_of_clocks(HALF_RATE_BOARD ? 4 : SDRAM_CAPTURE_PIPELINE ? 4 : 2),
         .output_clock_frequency0("100.0 MHz"), .output_clock_frequency1(HALF_RATE_BOARD ? "50.0 MHz" : "100.0 MHz"),
         .output_clock_frequency2(HALF_RATE_BOARD ? "50.0 MHz" : SDRAM_CAPTURE_PIPELINE ? "100.0 MHz" : "0 MHz"),
-        .output_clock_frequency3(HALF_RATE_BOARD ? "50.0 MHz" : "0 MHz"),
-        .phase_shift0("0 ps"), .phase_shift1(HALF_RATE_BOARD ? "10000 ps" : SDRAM_CAPTURE_PIPELINE ? "8125 ps" : "5000 ps"),
-        .phase_shift2(SDRAM_CAPTURE_PIPELINE ? "1250 ps" : "0 ps"), .phase_shift3(HALF_RATE_BOARD ? "18000 ps" : "0 ps"),
+        .output_clock_frequency3(HALF_RATE_BOARD ? "50.0 MHz" : SDRAM_CAPTURE_PIPELINE ? "100.0 MHz" : "0 MHz"),
+        .phase_shift0("0 ps"), .phase_shift1(HALF_RATE_BOARD ? "10000 ps" : SDRAM_CAPTURE_PIPELINE ? "9375 ps" : "5000 ps"),
+        .phase_shift2(SDRAM_CAPTURE_PIPELINE ? "1250 ps" : "0 ps"), .phase_shift3(HALF_RATE_BOARD ? "18000 ps" : SDRAM_CAPTURE_PIPELINE ? "8750 ps" : "0 ps"),
         .duty_cycle0(50), .duty_cycle1(50), .duty_cycle2(50), .duty_cycle3(50), .operation_mode("direct"),
         .fractional_vco_multiplier("false")
     ) memory_clock (.refclk(FPGA_CLK1_50), .rst(1'b0), .outclk(clocks), .locked(memory_locked));
@@ -69,7 +69,8 @@ module top #(
         if (!locked) pixel_reset <= 2'b11;
         else pixel_reset <= {pixel_reset[0], 1'b0};
     wire board_reset_live;
-    wire controller_cs;
+    wire controller_cs, controller_sdram_clk;
+    assign SDRAM_CLK = controller_sdram_clk;
     generate if (HALF_RATE_BOARD) begin: early_chip_select
         // Source CS is ready a board cycle before the command pads. Capture
         // it 2ns before their final stage, giving the addon inverter headroom.
@@ -217,14 +218,14 @@ module top #(
         .keyboard_clock_low(keyboard_clock_low), .keyboard_data_low(keyboard_data_low), .keyboard_clear(keyboard_clear),
         .cga_font_address(cga_font_address), .mda_font_address(mda_font_address),
         .cga_font_data(cga_font_data), .mda_font_data(mda_font_data),
-        .clk(clk_memory), .clk_cpu(clk), .clk_pixel(clk_pixel), .clk_pin(clk_forward), .cold_reset(board_reset_live),
+        .clk(clk_memory), .clk_cpu(clk), .clk_pixel(clk_pixel), .clk_pin(clk_forward), .clk_handoff(SDRAM_CAPTURE_PIPELINE ? clocks[3] : clk_memory), .cold_reset(board_reset_live),
         .reset_pixel(pixel_reset[1]), .warm_reset(exec_reset), .hold(boot_media_hold),
         .firmware_valid(firmware_valid), .firmware_ready(firmware_ready),
         .firmware_done(firmware_done), .firmware_address(firmware_address), .firmware_data(firmware_data),
         .firmware_loaded(firmware_loaded), .initialized(), .machine_reset(machine_reset), .fault(), .halted(),
         .dma_owner(), .refresh_done(), .audio_valid(speaker_audio_valid), .audio_sample(speaker_audio_sample),
         .video_request(video_request), .video_response(video_response),
-        .sdram_clk(SDRAM_CLK), .sdram_cke(SDRAM_CKE), .sdram_ncs(controller_cs),
+        .sdram_clk(controller_sdram_clk), .sdram_cke(SDRAM_CKE), .sdram_ncs(controller_cs),
         .sdram_nras(SDRAM_nRAS), .sdram_ncas(SDRAM_nCAS), .sdram_nwe(SDRAM_nWE),
         .sdram_ba(SDRAM_BA), .sdram_a(SDRAM_A), .sdram_dqml(SDRAM_DQML), .sdram_dqmh(SDRAM_DQMH),
         .dq_out(dq_out), .dq_oe(dq_oe), .dq_rise(dq_sample), .dq_fall(dq_sample)

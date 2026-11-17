@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Fresh, source-frozen elaboration and fixed-seed diagnostic; never seal or export."""
-import argparse, hashlib, importlib.util, json, shutil, subprocess, threading, time
+import argparse, hashlib, importlib.util, json, re, shutil, subprocess, threading, time
 from pathlib import Path
 p=argparse.ArgumentParser(description=__doc__)
 for n in ('module-root','yosys','quartus-root','work','collector','proof'):
@@ -27,7 +27,7 @@ try:
  source,record['source_sha256']=q.capture_sources(root,work)
  proof=json.loads(a.proof.read_text())
  if any(q.sha(source/n)!=h for n,h in proof['sources_sha256'].items()):raise ValueError('proof does not cover captured source bytes')
- config={'capture_pipeline':1,'seed':1,'system_mhz':100,'capture_phase_ps':8125,'forward_phase_ps':1250,'input_registers':16,'forward_clock_routing':'REGIONAL CLOCK','forward_clock_net':'clocks[2]'}
+ config={'capture_pipeline':1,'seed':1,'system_mhz':100,'capture_phase_ps':9375,'forward_phase_ps':1250,'handoff_phase_ps':8750,'input_registers':16,'forward_clock_routing':'DDR output; first-word capture and hold'}
  record['config']=config
  record['experimental_id']=hashlib.sha256(json.dumps({'sources':record['source_sha256'],'config':config},sort_keys=True).encode()).hexdigest()[:32]
  elab=work/'elaboration';elab.mkdir();q.prepare_elaboration_inputs(source,elab,dos_profile=True)
@@ -48,7 +48,6 @@ try:
  lock=q.load_quartus_lock(root,str(q.QUARTUS_LOCK));(fit/'top.qpf').write_text(q.project_qpf(lock))
  qsf=q.project_qsf(source,1,2,package_profile=True,video_mailbox_contract=True,audio_contract=True)
  qsf+='\n'+''.join(f'set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[{n}]\n' for n in range(16))
- qsf+='set_instance_assignment -name GLOBAL_SIGNAL "REGIONAL CLOCK" -to clocks[2]\n'
  (fit/'top.qsf').write_text(qsf);(fit/'clocks.sdc').write_text(q.SDC+'\nsource audio.sdc\nsource mailbox.sdc\n')
  # Only the generated-clock source changes to the separate forwarded counter.
  original=a.collector.read_text();assert original.count('memory_clock|general[0]')==1
@@ -62,7 +61,15 @@ try:
   shutil.copy2(work/(label+'.log'),fit/(label+'.log'))
  record['timing']=q.timing_summary(fit,mailbox_contract=True,audio_profile=True)
  record['rbf_sha256']=q.sha(fit/'output_files/top.rbf')
- assert all(q.sha(fit/n)==v for n,v in record['inputs_sha256'].items())
+ record['post_inputs_sha256']={n:q.sha(fit/n) for n in record['inputs_sha256']}
+ changed={n for n,h in record['post_inputs_sha256'].items() if h!=record['inputs_sha256'][n]}
+ assert changed <= {'top.qsf','top.qpf'},changed
+ # Quartus rewrites project metadata; retain both raw digests and accept no
+ # change to any route-deciding QSF statement or compiled/constraint input.
+ statements=lambda text:[l.strip() for l in text.splitlines() if l.strip() and not l.startswith('set_global_assignment -name LAST_QUARTUS_VERSION ')]
+ assert statements((fit/'top.qsf').read_text())==statements(qsf)
+ revision=re.findall(r'^PROJECT_REVISION\s*=\s*\"?([^\"\n]+)\"?\s*$',(fit/'top.qpf').read_text(),re.M)
+ assert revision==['top'],revision
  record['status']='captured; acceptance requires complete internal and conditional gate assessment'
 except Exception as e:
  record['status']='failed';record['error']=str(e);raise

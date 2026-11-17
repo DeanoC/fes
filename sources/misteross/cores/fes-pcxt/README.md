@@ -40,9 +40,13 @@ is not a timing waiver.
 ### Experimental 100 MHz capture pipeline
 
 `SDRAM_CAPTURE_PIPELINE=1` is an unfinished, default-off board parameter for
-[#1954](https://github.com/DeanoC/fes/pull/1954). It requests a separate 100 MHz
-forwarding counter at +1.250 ns, I/O capture at +8.125 ns, and a falling-edge
-controller input stage. The controller's read-return state/deadline is unchanged.
+[#1954](https://github.com/DeanoC/fes/pull/1954). It requests four 100 MHz PLL
+outputs: controller phase 0, input capture +9.375 ns, DDR forwarding +1.250 ns
+and read-word handoff +8.750 ns. The handoff latches the selected word once per
+READ and retains it through the existing frontend response. A falling-edge
+controller-domain register lands that retained word before response; the old
+shared-controller rdata cone is unused in this mode. The controller's state/done
+sequence and the frontend response cycle are unchanged.
 The private diagnostic requests input I/O packing explicitly. The registered DOS
 producer does not enable this parameter or adopt the diagnostic QSF assignments.
 The [capture-path record](../../../../docs/validation/2026-11-17-pcxt-capture-path/README.md)
