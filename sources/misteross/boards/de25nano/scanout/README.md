@@ -204,7 +204,7 @@ scanout-to-F2SDRAM route remain required.
 
 The on-chip memory was the only responder on the full HPS-to-FPGA bridge. No
 FES kernel module, runtime, device tree or boot stage addresses it, and it
-held about 105 of the device's 358 M20K blocks in every managed core. With it
+held 128 of the device's 358 M20K blocks in every managed core. With it
 gone the bridge would have no responder, so the bridge is disabled with the
 supported HPS `H2F_Width=0` (Unused) parameter instead of being left enabled
 and stalling any access. Its child exports, top-level clock/reset connections

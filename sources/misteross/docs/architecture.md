@@ -707,7 +707,7 @@ recovery remain separate acceptance gates.
 Canonical MENU also selects `managed-scanout-initiators-v4` before generation.
 It removes the vendor JTAG Avalon masters, their separate ACE5-Lite F2H
 translator and the vendor on-chip memory, which nothing in FES addresses and
-which held about 105 M20K blocks. The normal HPS lightweight control path and sole
+which held 128 M20K blocks. The normal HPS lightweight control path and sole
 SID13 scanout-to-F2SDRAM path remain required. The generator checks the exact
 seven initiator endpoints (including the CPU bridge and relay stages), every
 control ingress and the sole fabric-to-HPS route. It also checks the actual
