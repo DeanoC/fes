@@ -177,15 +177,15 @@ def synth_menu(tree: Path, cache_root: Path):
 
 
 def synth_ramtest(tree: Path, cache_root: Path):
+    # #1881 removed the 130 MHz package: one shipped rate, so no rate argument.
     producer = _load(tree, "build_fes_ramtest")
-    authenticated = producer.authenticate_for(producer.ROOT, 100, cache_root)
-    relative = producer.output_for(100)
+    authenticated = producer.authenticate_for(producer.ROOT, cache_root)
+    relative = producer.OUTPUT_100
     output = producer.board._prepare_output(
         producer.ROOT, relative=relative, build_outputs=producer.BUILD_OUTPUTS)
     commands = producer.build_commands(
         producer.ROOT, BUILD_ID, {name: authenticated[name].path
-                                  for name in ("yosys", "nextpnr-mistral")},
-        memory_mhz=100)
+                                  for name in ("yosys", "nextpnr-mistral")})
     _run_yosys(producer, authenticated, output, commands[0], relative)
     return output / "synth.json", {n: t.identity for n, t in authenticated.items()}, producer
 
