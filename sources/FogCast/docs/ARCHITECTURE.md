@@ -3578,9 +3578,12 @@ port. Only physical gamepads occupy the two stable controller slots: the first
 two pads opened take ports 1 and 2 (pads present at startup in `/dev/input`
 order, later ones as they are plugged in, each taking the lowest free port) and
 keep them until unplugged. The kits' `081f:e401` fixture pad is the
-exception: it yields its port to any other pad that arrives, releasing what
-it held there, and takes the port that pad would have had. A later pad that finds both taken never reaches a machine: it
-drives the menu where a pad with a port would, and its Guide button still stops
+exception: when an arriving non-fixture would otherwise get a higher port or
+none, the fixture releases its old port and takes the next free port, if any.
+Held hat and stick directions already reaching the core follow it, except
+suppressed input and directions remapped to Select or Start. A menu-only
+fixture does not reclaim a subsequently freed port. A later pad that finds
+both taken never reaches a machine: it drives the menu where a pad with a port would, and its Guide button still stops
 a kit-local core. A `-input` node the classifier cannot place also takes a
 port. Keyboard
 connection or removal does not shift either controller. Keyboard disconnect
