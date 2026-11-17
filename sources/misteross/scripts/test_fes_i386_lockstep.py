@@ -821,11 +821,11 @@ def same_as(report: dict, other: dict) -> list[str]:
                  'reset_store'):
         for key in SAME_MODE:
             compare(f'{mode} {key}', report[mode]['summary'].get(key), other[mode]['summary'].get(key))
-    # The packed decimal and transcendental suites (#1958), which a report
-    # from before them does not have.
-    for mode in ('x87_bcd_cases', 'x87_trans_cases'):
-        for key in SAME_MODE:
-            compare(f'{mode} {key}', report[mode]['summary'].get(key), other.get(mode, {}).get('summary', {}).get(key))
+    # The transcendental suite (#1958), which a report from before it does
+    # not have.
+    for key in SAME_MODE:
+        compare(f'x87_trans_cases {key}', report.get('x87_trans_cases', {}).get('summary', {}).get(key),
+                other.get('x87_trans_cases', {}).get('summary', {}).get(key))
     compare('unbuilt encodings', report['unbuilt']['encodings'], other['unbuilt']['encodings'])
     mine, theirs = report.get('undefined', {}), other.get('undefined', {})
     for key in SAME_RANDOM:
