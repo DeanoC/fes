@@ -36,6 +36,16 @@ func NewRemapper(p Profile) (*Remapper, error) {
 	return r, nil
 }
 
+// Target is the control a button sends. Unbound codes send themselves.
+func (r *Remapper) Target(code remoteinput.Code) remoteinput.Code {
+	if r != nil {
+		if dst, ok := r.logical[code]; ok {
+			return dst
+		}
+	}
+	return code
+}
+
 // Apply remaps a normalized event. Unbound codes pass through.
 func (r *Remapper) Apply(e remoteinput.Event) remoteinput.Event {
 	if r == nil {

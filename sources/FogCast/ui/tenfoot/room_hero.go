@@ -679,7 +679,7 @@ func drawHeroChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(f.W), H: 2}, heroDivider)
 	margin := layout.Card.X
 	textY := y + (f.H-gfx.TextHeight(heroFooterPx))/2
-	hint := heroFooterHint(snap)
+	hint := snap.padHint(heroFooterHint(snap))
 	status := heroFooterStatus(snap)
 	hintMaxW := f.W - 2*margin
 	if status != "" {

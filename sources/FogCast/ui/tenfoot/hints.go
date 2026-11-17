@@ -195,8 +195,21 @@ func (s Snapshot) AffinityBadge() string {
 	}
 }
 
-// HeaderHint is the on-screen footer/header hint for the affinity device.
+// HeaderHint is the on-screen footer/header hint for the affinity device,
+// with a pad's buttons drawn as its glyphs.
 func (s Snapshot) HeaderHint() string {
+	return s.padHint(s.headerHintWords())
+}
+
+// padHint draws a hint's button words as the affinity pad's glyphs.
+func (s Snapshot) padHint(hint string) string {
+	if s.Affinity != InputGamepad {
+		return hint
+	}
+	return s.Prompts.apply(hint)
+}
+
+func (s Snapshot) headerHintWords() string {
 	kind := s.Affinity
 	if s.OSK.Open {
 		if h := strings.TrimSpace(s.OSK.Hint); h != "" {

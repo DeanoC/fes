@@ -175,6 +175,8 @@ type nativeInput struct {
 	mapper   *controller.Mapper
 	// remap is the profile saved for this pad, applied after mapper.
 	remap *inputmap.Remapper
+	// prompts is the pad's hint glyphs, nil for anything but a real pad.
+	prompts PadPrompts
 }
 type nativeInputs struct {
 	devices   []*nativeInput
@@ -272,7 +274,11 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 	if kind == InputGamepad {
 		var vendor, product uint16
 		if ins.kindOf == nil {
-			in.mapper, in.remap, vendor, product = nativeGamepadMapper(fd, ins.padRemap)
+			var family controller.Family
+			in.mapper, in.remap, vendor, product, family = nativeGamepadMapper(fd, ins.padRemap)
+			if in.mapper != nil {
+				in.prompts = NewPadPrompts(family, in.remap)
+			}
 		} else if ins.padID != nil {
 			vendor, product = ins.padID(fd)
 		}
@@ -310,6 +316,9 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 		ins.devices = append(ins.devices, in)
 	}
 	if app != nil {
+		if in.prompts != nil {
+			app.SetPadPrompts(fd, in.prompts)
+		}
 		app.AttachInput(kind, fd)
 	}
 	return nil
@@ -971,13 +980,13 @@ func nativeDeviceName(fd int) string {
 
 // nativeGamepadMapper gives the controller mapper the pad's identity, its
 // EVIOCGBIT key/axis capabilities and the range of every reported axis. It
-// also returns the pad's vendor and product.
-func nativeGamepadMapper(fd int, padRemap func(guid string) (*inputmap.Remapper, error)) (*controller.Mapper, *inputmap.Remapper, uint16, uint16) {
+// also returns the pad's vendor, product and family.
+func nativeGamepadMapper(fd int, padRemap func(guid string) (*inputmap.Remapper, error)) (*controller.Mapper, *inputmap.Remapper, uint16, uint16, controller.Family) {
 	var id [8]byte
 	const idRequest = uintptr(0x80000000 | (8 << 16) | ('E' << 8) | 0x02)
 	_, _, err := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), idRequest, uintptr(unsafe.Pointer(&id[0])))
 	if err != 0 {
-		return nil, nil, 0, 0
+		return nil, nil, 0, 0, controller.FamilyGeneric
 	}
 	device := controller.Device{
 		Name:    nativeDeviceName(fd),
@@ -1004,7 +1013,7 @@ func nativeGamepadMapper(fd int, padRemap func(guid string) (*inputmap.Remapper,
 		}
 	}
 	mapper, remap := padMapper(device, padRemap)
-	return mapper, remap, device.Vendor, device.Product
+	return mapper, remap, device.Vendor, device.Product, device.Family()
 }
 
 // padMapper reads a pad through its mapping and the profile saved for its
@@ -1025,8 +1034,8 @@ func padMapper(device controller.Device, padRemap func(guid string) (*inputmap.R
 			mapping += ", saved profile"
 		}
 	}
-	fmt.Fprintf(os.Stderr, "tenfoot: gamepad %q %04x:%04x v%04x bus %d guid %s: %s\n",
-		device.Name, device.Vendor, device.Product, device.Version, device.Bus, guid, mapping)
+	fmt.Fprintf(os.Stderr, "tenfoot: gamepad %q %04x:%04x v%04x bus %d guid %s: %s; %s glyphs\n",
+		device.Name, device.Vendor, device.Product, device.Version, device.Bus, guid, mapping, device.Family())
 	return mapper, remap
 }
 func nativeKindFromKeys(keys []byte) InputKind {
@@ -1041,6 +1050,9 @@ func nativeKindFromKeys(keys []byte) InputKind {
 }
 func (ins *nativeInputs) seed(app *App) {
 	for _, in := range ins.devices {
+		if in.prompts != nil {
+			app.SetPadPrompts(in.fd, in.prompts)
+		}
 		app.SeedInput(in.kind, in.fd)
 	}
 	app.FinishInputSeed()

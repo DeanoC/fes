@@ -225,7 +225,7 @@ func labelFace(sizePx int) font.Face {
 	if len(labelFonts) == 0 {
 		return nil
 	}
-	face := &fallbackFace{sizePx: sizePx}
+	face := gfx.PromptFace(&fallbackFace{sizePx: sizePx}, sizePx)
 	labelFaces[sizePx] = face
 	return face
 }
