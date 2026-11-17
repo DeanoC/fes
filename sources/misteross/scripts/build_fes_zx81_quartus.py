@@ -56,7 +56,7 @@ if __package__ in (None, ''):
 
 from scripts import quartus_timing_summary, quartus_vo_evidence, rom_map
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
-from scripts.cyclonev_rbf import rbf_load
+from scripts.cyclonev_rbf import SX120F, rbf_load, rbf_save
 from scripts.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
 from scripts.input_identity import with_identities
 from scripts.fes_build_common import (BuildError, _require_clean_source as require_clean_source,
@@ -631,14 +631,36 @@ def fit_evidence(fit: str, machine: Model) -> dict:
             'audio_pins': {name: location for name, location in AUDIO_PINS.items()}}
 
 
-def require_compressed_rbf(data: bytes) -> None:
+def require_compressed_rbf(data: bytes, die=SX120F) -> None:
     """The kit configures in compressed FPP mode (DE10-Nano MSEL), so refuse anything else."""
     try:
-        compressed = rbf_load(data).compressed
+        compressed = rbf_load(data, die).compressed
     except ValueError as error:
         raise BuildError(f'RBF is not a readable Cyclone V bitstream: {error}') from error
     if not compressed:
         raise BuildError('RBF must be compressed: the DE10-Nano MSEL selects compressed FPP configuration')
+
+
+def canonical_rbf(data: bytes, die=SX120F) -> bytes:
+    """The sealed form of a compressed Quartus RBF: the same CRAM, canonically encoded.
+
+    Quartus ends a compressed bitstream with its own nibble stream tail and
+    postamble. The kit links the user's ROM through FogCast's RBF reader
+    (misteross/expansion), which accepts only the canonical compressed
+    encoding and postamble that rbf_save writes and rejects Quartus's
+    ("invalid RBF postamble", Kit A, 17 Nov 2026). Re-encoding changes no
+    configuration bit; this refuses any result that does not hold exactly the
+    Quartus CRAM or does not re-encode to itself.
+    """
+    require_compressed_rbf(data, die)
+    loaded = rbf_load(data, die)
+    canonical = rbf_save(loaded, compressed=True)
+    again = rbf_load(canonical, die)
+    if again.cram != loaded.cram or again.header != loaded.header or not again.compressed:
+        raise BuildError('canonical RBF does not hold the Quartus configuration bits')
+    if rbf_save(again, compressed=True) != canonical:
+        raise BuildError('canonical RBF encoding is not stable')
+    return canonical
 
 
 def seed_evidence(project: Path, machine: Model) -> dict:
@@ -792,7 +814,7 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
                 or rom_database(cache_root, root) != database):
             raise BuildError('Quartus build inputs changed during compilation')
         payload = output / 'core.rbf'
-        payload.write_bytes(base)
+        payload.write_bytes(canonical_rbf(base))
         map_bytes = (json.dumps(mapping, sort_keys=True, separators=(',', ':')) + '\n').encode()
         (output / 'rom-map.json').write_bytes(map_bytes)
         rom = {'id': machine.rom_id, 'role': 'firmware', 'source_size': machine.rom_bytes,
@@ -802,7 +824,9 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
         (output / 'build-summary.json').write_text(json.dumps({
             'classification': 'installable-quartus-package', 'build_id': build_id, 'revision': revision,
             'core_id': machine.core_id, 'model': machine.key, 'seeds': list(seeds), 'runs': runs,
-            'repeat_rbf_sha256': runs[-1]['rbf_sha256'], 'rom_map': map_evidence, 'rom_selftest': selftest,
+            'repeat_rbf_sha256': runs[-1]['rbf_sha256'], 'payload_sha256': sha(payload),
+            'payload_encoding': 'canonical compressed re-encoding of the seed-1 Quartus RBF (same CRAM)',
+            'rom_map': map_evidence, 'rom_selftest': selftest,
             'session_display': session, 'hardware_acceptance': False,
             'limits': ['external I/O timing is unconstrained, as in the OSS lane',
                        'no expansion socket: the carts move into the shell in DeanoC/fes#1875']},

@@ -250,6 +250,27 @@ class ProjectTests(unittest.TestCase):
             with self.assertRaisesRegex(BuildError, "not a readable"):
                 producer.require_compressed_rbf(b"x")
 
+    def test_sealed_rbf_is_the_canonical_encoding_of_the_quartus_cram(self) -> None:
+        from scripts.cyclonev_rbf import LoadedRbf, _cram_bytes, _header_bytes, cram_set, rbf_load, rbf_save
+        from tests.test_cyclonev_rbf import TINY
+        cram = bytearray(_cram_bytes(TINY))
+        for x, y in ((1, 3), (2, 40), (5, 77), (6, 200)):
+            cram_set(cram, TINY, x, y, 1)
+        canonical = rbf_save(LoadedRbf(die=TINY, header=bytes(_header_bytes(TINY)), cram=cram,
+                                       compressed=True), compressed=True)
+        reference = rbf_load(canonical, TINY).cram
+        self.assertTrue(any(reference))
+        # Quartus ends its compressed stream with a different tail and postamble;
+        # the kit's RBF reader accepts only the canonical form.
+        postamble = TINY.postamble_1 + 2 + 12 + TINY.postamble_2
+        quartus_like = canonical[:-postamble] + bytes.fromhex("d715efba0f000f00f06044") + b"\xff" * 40
+        self.assertEqual(rbf_load(quartus_like, TINY).cram, reference)
+        self.assertEqual(producer.canonical_rbf(quartus_like, TINY), canonical)
+        self.assertEqual(producer.canonical_rbf(canonical, TINY), canonical)
+        uncompressed = rbf_save(rbf_load(canonical, TINY), compressed=False)
+        with self.assertRaisesRegex(BuildError, "must be compressed"):
+            producer.canonical_rbf(uncompressed, TINY)
+
     def test_only_declared_seeds_and_valid_build_ids(self) -> None:
         with self.assertRaisesRegex(BuildError, "not a declared sign-off seed"):
             self.qsf(seed=4)
