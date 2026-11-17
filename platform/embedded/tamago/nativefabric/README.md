@@ -17,19 +17,20 @@ held-ROM, digest, frame and deadline checks remain. SDK, entry and cold producer
 bind the same typed memory contract and reject the former borrowed-storage
 selection. The borrowed configuration publisher has been removed.
 
-The matched source now passes boot-chain/file admission and physical ZX81
-launch with a 917-byte tape. Return to MENU stops at secure source release;
-repeated loading and final Park remain unqualified. The full secure-system
-investigation is tracked in [#1867](https://github.com/DeanoC/fes/issues/1867).
-The [lifecycle audit](../../../../docs/design/de25-native-secure-lifecycle.md)
-documents the live ownership/memory contract and the joined retained native/C
-supplier regression. Valid modeled generation-15 release passes; the historical
-physical rejection remains unexplained. New failure snapshots distinguish clock,
-return-scope, mailbox and observed table/register failures without granting reuse.
-The [fresh diagnostic chain](../../../../docs/validation/2026-11-17-de25-secure-lifecycle/README.md)
-passes complete build/file admission; it has not been programmed on a kit.
-[Current evidence and preservation scope](../../../../docs/validation/2026-11-15-de25-merge-readiness/README.md)
-separate that historical artifact from the newly integrated tree.
+The earlier matched source physically launches ZX81 with a 917-byte tape, then
+rejects return at secure source release. The later instrumented diagnostic
+identifies guard 34 with no clock error. The
+[guard 34 repair](../../../../docs/validation/2026-11-17-de25-guard34-fix/README.md)
+reproduces the failure through production activation, control, master-stop and
+return callbacks: the stop engine accepts a never-enabled computer reader,
+while source release required a nonzero drained receipt. The repair accepts
+the exact zero tuple with the full activation, stop/probe, held-return and SD
+ownership proof. Four valid scenarios and 27 rejected returns pass off-board;
+the new matched chain is unprogrammed. The
+[lifecycle audit](../../../../docs/design/de25-native-secure-lifecycle.md) records
+the injected boundaries and remaining physical cost, repeated-cycle, final
+Park and recovery gates. [#1867](https://github.com/DeanoC/fes/issues/1867)
+remains open; earlier hardware evidence does not qualify the new artifact.
 
 The selected native Tenfoot image now accepts an explicit
 `--writable-storage-plan FILE --sd-transfer-clock 25000000`. That compiled

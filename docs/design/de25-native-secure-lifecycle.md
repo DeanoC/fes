@@ -15,6 +15,12 @@ SMC result words and the supplier emitted no failure boundary. **The original
 trace cannot identify the rejecting guard.** A timeout is one possibility,
 not an established cause. Preserve the failed procedure and its verdict.
 
+A later instrumented physical run identified stage 2 / guard 34 with no
+release-clock error. Production activation/stop/return callbacks now reproduce
+guard 34 for a legitimate never-enabled reader before the repair, and pass
+after it. The [new evidence](../validation/2026-11-17-de25-guard34-fix/README.md)
+does not retroactively change the original trace or qualify the new image.
+
 ## Trust and authority
 
 | Actor | Current responsibility | What it does not prove |
@@ -78,7 +84,7 @@ separate sequence and must not be used in these equations.
 | Final Park | Stop owned input/network activity, close current endpoint once, shut down owned device paths | Terminal native service; no subsequent source reuse or activation |
 
 The actual source-return predicate checks role-specific closure, identity probe
-completion, master-stop request/ack generation and cookie, zero pending work,
+completion, a fully drained or exact never-enabled reader tuple, zero pending work,
 `fabric_generation+1`, all SD callbacks and the SD grant/return/stop record.
 It does not accept a caller assertion of “closed”. MENU and computer have
 different generation increments because MENU opened a reader data path.
@@ -217,40 +223,55 @@ validation. A nonzero mismatch address identifies the first already-read
 register/table value; zero means none was recorded. These are observations,
 not an alternate success or retry interface.
 
-The new [native test](../../platform/embedded/tamago/nativefabric/secure_lifecycle_test.go)
-connects actual `ProgramService`, store/loader, retained arena, transfers,
-ROM handling, independent tape publisher, MENU/computer sessions and return
-to the [C fixture](../../platform/embedded/firmware/tests/sdm_retire/lifecycle_rpc.c).
-That fixture executes the real selected source supplier, transfer/parser,
-vendor mailbox/DATA, SMMU preparation/retirement/release and SD return engines.
-Source byte length, chunk, SHA-384, owner, source generation, role and ROM size
-cross the boundary; release replies come from C, not a fabricated success.
+The [native test](../../platform/embedded/tamago/nativefabric/secure_lifecycle_test.go)
+connects actual `ProgramService`, store/loader, retained arena, ROM handling,
+independent tape publisher and MENU/computer sessions to the
+[C fixture](../../platform/embedded/firmware/tests/sdm_retire/lifecycle_rpc.c).
+The fixture executes the selected source supplier, transfer/parser, vendor
+mailbox/DATA, SMMU preparation/retirement/release and SD-return engines. It now
+also runs production configuration completion, program control dispatch,
+identity activation, window/control open and close, master-stop/probe and held
+return callbacks. It no longer fabricates a completed computer drain receipt.
 
-The joined test covers four launches/returns per valid case, alternating both
-ROM sizes, tape lengths 917/0/1/16,375, one very long simulated session, and final
-Park. Seven rejected returns cover identity, cross-epoch context, changed table,
-pending mailbox, incomplete ledger, elapsed and backwards clocks. Every
-rejected return preserves the entire retained source/ROM/header backing and
-prevents a second secure release. C asserts no release register/table/DATA
-writes. Existing component suites cover additional faults and cancellation.
+Each of four valid scenarios covers four launches/returns, alternating 8/4 KiB
+ROMs, tape lengths 917/0/1/16,375 and final native/model Park. They exercise the
+never-enabled computer reader, very long simulated gameplay, an active reader
+requiring a real DISABLE/ACK, and an already-drained reader requiring no
+DISABLE. Twenty-seven rejected returns cover identity, epoch, table, mailbox,
+ledger, elapsed/backwards clocks, partial reader/ACK tuples, incomplete stop or
+probe, broken held-return containment, stale SD records and stale activation
+provenance. Each rejection preserves all 8 MiB of source/ROM/header backing and
+prevents another secure release. C also asserts no release register, table,
+DATA or endpoint writes. Existing component suites cover further failures and
+cancellation.
 
-Important limits: source hash suppliers, physical MMIO/CPU/device completion,
-native secure dispatch and activation are injected. C transfer execution is
-joined at completed configuration boundaries rather than every individual Go
-SMC. Tape completion is injected in this combined test; the actual C tape
-engine has separate joined publication tests. The fixture's final Park is a
-native/model result, not physical USB shutdown or HDMI acceptance. This closes
-a previously mocked *boundary*, not every off-board deliverable in #1867.
-The configuration payloads are synthetic 128-byte packages; component transfer
-tests separately cover large payloads and fragmentation. These runs do not
-measure the physical image's source hashing or transfer cost.
+Physical MMIO/CPU observations, source hashing/sealed inputs and ROM device
+work remain injected. The C transfer is joined at configuration boundaries,
+not at every Go SMC. Tape firmware completion is injected in this combined
+test; actual C tape execution has separate joined publication tests. Park is
+a native/model result, not physical USB shutdown or HDMI acceptance. Synthetic
+128-byte configuration packages do not measure physical hashing, transfer or
+full-table timing. This closes the activation/stop/return boundary; it does not
+complete every off-board deliverable in #1867.
 
-Valid generation-15 release succeeds in this model. Several distinct real
-supplier predicates can produce the old outer error. Thus neither the model
-nor its injected failures establish the historical board failure's cause.
-The pre-change control passes valid cycles but fails the new diagnostic
-assertions; the observability repair makes those assertions pass. No claim
-is made that a source-release behavior defect has been repaired.
+The [guard 34 regression](../validation/2026-11-17-de25-guard34-fix/README.md)
+reproduces generation 10→15 rejection on test-only commit
+`95c8e9aef93d6a5c1e8890051ac37731bb3a167e`, before changing the supplier. The
+actual master-stop succeeds with 88 reader reads, one reader poll, no DISABLE
+and two probe polls, matching the later physical diagnostic. Source release
+then rejects at stage 2, reason 34, with no release-clock error.
+
+The demonstrated mismatch is the computer reader's **never-enabled state**.
+The stop engine accepts its exact all-zero mutable reader tuple after checking
+identity/geometry/held state and the independent probe. Source release had
+unconditionally required nonzero generation/cookie and DRAINED status. The old
+fixture supplied such a fabricated receipt and hid the mismatch. The repair
+accepts either the existing fully drained tuple or the exact zero tuple with
+no DISABLE issued. Generation/request/ACK equality, cookie/ACK equality, zero
+pending work, complete activation/stop/probe, held return, SD provenance,
+source/table and one-use checks remain required. No deadline is changed.
+The repaired callbacks pass the valid and rejected cases above; acceptance of
+the new matched artifact on physical hardware remains outstanding.
 
 ## Stopped states and recovery
 
@@ -274,7 +295,9 @@ not this document or the historical issue description.
 The original restoration controller still failed at its host deadline after
 verified writing/preservation. A separate fresh read-only procedure completed
 the original-FIT check. Successful restored data and that independent readback
-do not turn the stopped controller into a hardware pass.
+do not turn the stopped controller into a hardware pass. The later #1953
+host repair independently passes complete candidate/original transactions
+within the unchanged bound; it supersedes that cost blocker, not its verdict.
 
 The vendor documentation reviewed on 2026-11-17 supports these distinctions:
 
@@ -299,30 +322,40 @@ separate from the reset-register observations already qualified in #1938.
 
 ## Remaining work before hardware qualification / issue closure
 
-The [fresh diagnostic chain](../validation/2026-11-17-de25-secure-lifecycle/matched-boot-chain.json)
-now passes SDK, entry, BL31, SPL/U-Boot, full-SOF composition and checked native
-file admission on implementation `b700d743c7e0799cf2a78ed2fce710b23a59f5ae`.
-Its native boot ID is `7876283624f9c3d4`; the 8,571,584-byte FIT and full SOF are
-unprogrammed. Both FPGA core payloads are unchanged. This advances build/file
-evidence only. The existing host restoration-cost problem must be repaired
-before another bounded trial; repeating its stopped controller adds no proof.
+The first diagnostic chain on implementation
+`b700d743c7e0799cf2a78ed2fce710b23a59f5ae` ran in #1953: MENU, warm ZX81,
+917-byte tape and CPU fetch passed; return 10→15 failed at stage 2, guard 34,
+with `clock_error=0`. Its last accepted clock sample was 319 µs after start,
+not a measured rejection duration. The failed diagnostic remains failed. The
+host phase-cost repair completed candidate upload and original-FIT restoration
+in 303.116 s and 297.497 s within the unchanged 1,200 s per-role bounds. #1938
+is merged; #1953 now targets main. The original FIT was restored without a
+power cycle and the board was parked at its recovery prompt. The kit ledger,
+not this historical checkpoint, governs current physical state.
 
-1. Review this model against the vendor reset, NoC completion, SMMU and SDM
-   guarantees. In particular, bound what retired source DMA completion proves
-   and which resets actually clear outstanding transactions. Record unanswered
-   guarantees explicitly rather than treating a passing model as a guarantee.
-2. Preserve and recheck the prepared matched diagnostic artifacts before use,
-   including OCRAM and every source/memory check. A later implementation repair
-   requires a fresh complete chain. Do not inherit the historical image's board
-   evidence or treat file admission as runtime authority.
-3. In a new bounded procedure, capture the failed release's response and new
-   supplier snapshot. Rejecting before supplier entry needs dispatcher/USB/
-   configuration evidence, not a speculative source-clock adjustment.
-4. Repair only the demonstrated guard/cost/ownership mismatch. Extend the
-   actual supplier/native regression to reproduce that condition before the
-   fix. Add remaining combined cancellation, mapping/acknowledgement and
-   partial-completion boundaries; existing separate tests are not the same proof.
-5. Qualify repeated `MENU → ZX81+tape → MENU → ZX80 → MENU → Park` on the exact
-   matched artifact, including source reuse, USB shutdown and declared failure
-   recovery. Record serial, physical display/input and ordinary HIL separately.
-   Keep #1867 open until its full completion criteria are met.
+The guard mismatch is now reproduced and repaired off-board through production
+activation, stop and return callbacks. The new
+[validation record](../validation/2026-11-17-de25-guard34-fix/README.md) separates
+the before-fix failure, repaired software checks, ARM link and fresh matched
+chain from physical acceptance. The fresh chain (boot ID `6bd8f8bff436443a`)
+passes complete source/file admission and remains unprogrammed. No kit action
+was taken for this repair.
+
+1. Review the model against vendor reset, NoC completion, SMMU and SDM
+   guarantees, including what source DMA retirement proves and which resets
+   clear outstanding transactions. The unanswered guarantees above remain.
+2. Independently recheck the new matched source/artifacts before use, including
+   OCRAM and every memory/source admission check. A later implementation edit
+   requires a fresh chain; file admission is not runtime authority.
+3. Use a new bounded procedure to qualify repeated
+   `MENU → ZX81+tape → MENU → ZX80 → MENU → Park` on that exact artifact.
+   Measure newly reached warm source validation cost without weakening its
+   finite bound. Capture source reuse, final USB shutdown and declared failure
+   recovery; retain any stopped state and do not retry its consumed procedure.
+4. Extend the combined regression for cancellation, mapping/acknowledgement and
+   partial completion at the remaining boundaries. Separate component coverage
+   is useful but does not prove every combined failure path.
+5. Record serial diagnostics, physical display/input and ordinary exact-head
+   Kit D25 HIL/restore separately. Previous clean reviews cover the earlier
+   diagnostic milestone, not this new behavior repair. Keep #1867 open until
+   its full completion criteria are met.

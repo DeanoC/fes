@@ -8,7 +8,9 @@ now uses production activation, control, master-stop and return callbacks.
 It reproduces guard 34 when a held computer's DDR reader was never enabled.
 Source release accepts that exact zero receipt only with the complete stop,
 probe, held-return and ownership proofs. Partial acknowledgements still reject;
-no deadline changes. The repair requires a fresh matched hardware test.
+no deadline changes. The [guard 34 validation](../../../docs/validation/2026-11-17-de25-guard34-fix/README.md)
+records the before-fix reproduction, repaired checks and unprogrammed matched
+chain. The repair requires a fresh matched hardware test.
 
 
 The explicit reset-recovery diagnostic adds a nonce-bound SPL witness before

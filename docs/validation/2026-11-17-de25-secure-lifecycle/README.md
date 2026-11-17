@@ -1,5 +1,11 @@
 # DE25 secure lifecycle investigation, 2026-11-17
 
+This records the initial diagnostic milestone on `b700d743` / `3f103b19`.
+The later instrumented physical failure and behavior repair are documented in
+the [guard 34 checkpoint](../2026-11-17-de25-guard34-fix/README.md). Statements
+below describe this earlier snapshot; its failed or unprogrammed verdicts are
+not retroactively changed.
+
 This is an off-board investigation milestone for [#1867](https://github.com/DeanoC/fes/issues/1867), preserved in [draft #1952](https://github.com/DeanoC/fes/pull/1952), `lane:deano`. No kit operation occurred.
 
 The [design audit](../../design/de25-native-secure-lifecycle.md) maps the trust, memory, generations, clocks and recovery contract. Valid modeled generation-15 release passes. The historical physical failure remains unexplained; its original result is preserved. The five relevant historical release-source files are byte-identical to this milestone's main baseline, as recorded in [the source/trace comparison](historical-release-analysis.json).

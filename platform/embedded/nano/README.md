@@ -3,6 +3,15 @@
 The latest [preservation checkpoint](../../../docs/validation/2026-11-15-de25-merge-readiness/README.md) records a matched boot chain and a physical ZX81 launch with initial tape. Return to MENU stops at secure source release; the complete cycle remains unqualified. [Issue #1867](https://github.com/DeanoC/fes/issues/1867) tracks the whole secure ownership, memory, lifecycle and recovery investigation. The subsequent [bounded reset-recovery test](../../../docs/validation/2026-11-17-de25-reset-recovery/README.md) reached a fresh recovery loader through volatile JTAG reload without a power cycle and verified the unchanged card files. The later [SD restoration test](../../../docs/validation/2026-11-17-de25-sd-restoration/README.md) restored the original experimental boot FIT with one file write and verified it after another software recovery boot. Its first transaction retains a host-deadline failure at the final redundant check; all 16 preserved files passed, and separate read-only verification confirmed the original FIT. The top kit is parked at the recovery prompt with the original FIT restored; native activation remains unqualified.
 
 
+The later host-cost repair in [#1953](https://github.com/DeanoC/fes/pull/1953)
+passes complete candidate/original FIT transactions within the unchanged
+bound. Its native diagnostic captures guard 34 on computer return. The
+[guard 34 repair](../../../docs/validation/2026-11-17-de25-guard34-fix/README.md)
+now reproduces and fixes the never-enabled reader mismatch through production
+callbacks off-board. The fresh matched image is unprogrammed; complete physical
+launch/return/Park and declared failure recovery remain open. #1938 is merged.
+Current board state belongs to its kit ledger.
+
 The explicit reset-recovery diagnostic adds a nonce-bound SPL witness before
 DDR/SD initialization. Build with `--network-recovery --recovery-reset-nonce`
 and a fresh nonzero 32-digit hexadecimal nonce. `recovery_reset_package.py`
