@@ -390,6 +390,7 @@ func drawFilePicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	if hint == "" {
 		hint = firmwarePickerHint(snap.Affinity)
 	}
+	hint = snap.padHint(hint)
 	drawFESLabel(dev, labels, used, "fw-hint", x+16, y+panelH-29, panelW-32, 18, hint)
 }
 
@@ -436,6 +437,7 @@ func drawTapePicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	if hint == "" {
 		hint = tapePickerHint(snap.Affinity)
 	}
+	hint = snap.padHint(hint)
 	drawFESLabel(dev, labels, used, "tape-hint", x+16, y+panelH-29, panelW-32, 18, hint)
 }
 
@@ -572,6 +574,7 @@ func drawLaunchOverlay(dev gfx.Device, snap Snapshot, labels map[string]gpuTextu
 			hint = launchOverlayBusyHint(snap.Affinity)
 		}
 	}
+	hint = snap.padHint(hint)
 	drawLabel(dev, labels, used, "launch-ov-hint", x+20, y+panelH-28, panelW-40, 14, hint)
 }
 

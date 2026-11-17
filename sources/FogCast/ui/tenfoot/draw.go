@@ -750,6 +750,7 @@ func drawCollectionMenu(dev gfx.Device, snap Snapshot, labels map[string]gpuText
 	if hint == "" {
 		hint = collectionHintFor(snap.Affinity, menu.Confirm)
 	}
+	hint = snap.padHint(hint)
 	drawFESLabel(dev, labels, used, "cmenu-hint", x+16, y+panelH-24, panelW-32, 18, hint)
 }
 
