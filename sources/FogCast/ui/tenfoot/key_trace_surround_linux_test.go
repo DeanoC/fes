@@ -77,7 +77,7 @@ func TestDiagnosticHoldUsesRealNonHandoffTransition(t *testing.T) {
 		}
 	}
 	write(hold)
-	app.handleDiagnosticSurroundRequest(os.Getpid(), "start", os.Getuid(), now, hold, release)
+	app.handleDiagnosticSurroundRequest(os.Getpid(), "start", os.Getuid(), time.Now(), hold, release)
 	app.mu.Lock()
 	if app.diagnosticSurroundUntil.IsZero() {
 		app.mu.Unlock()
@@ -241,17 +241,17 @@ func TestDiagnosticSurroundIsSessionBoundAndExpires(t *testing.T) {
 		}
 	}
 	write(hold, request)
-	a.handleDiagnosticSurroundRequest(os.Getpid(), "start", os.Getuid(), now, hold, release)
+	a.handleDiagnosticSurroundRequest(os.Getpid(), "start", os.Getuid(), time.Now(), hold, release)
 	if a.diagnosticSurroundUntil.IsZero() || a.sessionReturnDisplayLocked() != protocol.SessionDisplayClosed || !a.surround {
 		t.Fatal("valid hold did not close only the diagnostic surround")
 	}
 	write(release, request)
-	a.handleDiagnosticSurroundRequest(os.Getpid(), "start", os.Getuid(), now, hold, release)
+	a.handleDiagnosticSurroundRequest(os.Getpid(), "start", os.Getuid(), time.Now(), hold, release)
 	if !a.diagnosticSurroundUntil.IsZero() || a.sessionReturnDisplayLocked() != protocol.SessionDisplayShown || !a.surround {
 		t.Fatal("release did not restore the non-persistent preference")
 	}
 	write(hold, request)
-	a.handleDiagnosticSurroundRequest(os.Getpid(), "start", os.Getuid(), now, hold, release)
+	a.handleDiagnosticSurroundRequest(os.Getpid(), "start", os.Getuid(), time.Now(), hold, release)
 	a.session.FlightID = "replacement"
 	if a.sessionReturnDisplayLocked() != protocol.SessionDisplayShown || !a.diagnosticSurroundUntil.IsZero() {
 		t.Fatal("hold crossed a session change")
@@ -282,13 +282,13 @@ func TestDiagnosticSurroundRejectsStaleAndWrongSessionRequests(t *testing.T) {
 	if err := os.WriteFile(hold, []byte(fmt.Sprintf("%d start %s\n", os.Getpid(), diagnosticSessionToken(s))), 0600); err != nil {
 		t.Fatal(err)
 	}
-	a.handleDiagnosticSurroundRequest(os.Getpid(), "start", os.Getuid(), now, hold, release)
+	a.handleDiagnosticSurroundRequest(os.Getpid(), "start", os.Getuid(), time.Now(), hold, release)
 	if !a.diagnosticSurroundUntil.IsZero() {
 		t.Fatal("expired trace accepted")
 	}
 	a.frameTrace.armKeyRouting(now)
 	a.session.FlightID = "replacement"
-	a.handleDiagnosticSurroundRequest(os.Getpid(), "start", os.Getuid(), now, hold, release)
+	a.handleDiagnosticSurroundRequest(os.Getpid(), "start", os.Getuid(), time.Now(), hold, release)
 	if !a.diagnosticSurroundUntil.IsZero() {
 		t.Fatal("request for old session accepted")
 	}
