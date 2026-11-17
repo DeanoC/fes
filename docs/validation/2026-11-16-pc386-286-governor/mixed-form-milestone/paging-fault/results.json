@@ -1,0 +1,82 @@
+{
+  "v3": {
+    "hashes": {
+      "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-paging-controls/v3/Vfes_i386_cpu": "7c052900a2ea0b35487e4b4ee02f518016f375a64cf4fb585b8517c9fd7423c2",
+      "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-paging-controls/v3/producer.json": "38e880fb719859d10f9901374e0ac02e7390404103ebd70bd9f243cd5ac25750",
+      "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-paging-controls/v3/controls.bin": "4122716665994435e47b91347eb52cf16888ccf8877adc000df9fa82cd314b0d",
+      "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-paging-controls/v3/controls.asm": "8655f4bc7486b8574d8411eaf9058f8096aa0a34202819e4689fff6300b8849c"
+    },
+    "state": "STATE 00008000 00000000 0000f003 00000000 00007000 00005001 00000000 00009040 00000046 00001139",
+    "charge": {
+      "page_cross": 23,
+      "page_end": 23,
+      "fault_cross": 146
+    },
+    "marks": {
+      "0": [
+        4766,
+        988
+      ],
+      "1": [
+        5075,
+        1011
+      ],
+      "2": [
+        5218,
+        1089
+      ],
+      "3": [
+        5419,
+        1112
+      ],
+      "4": [
+        5901,
+        1220
+      ],
+      "5": [
+        7132,
+        1366
+      ]
+    }
+  },
+  "v5": {
+    "hashes": {
+      "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-paging-controls/v5/Vfes_i386_cpu": "4bc89a543794f1fca3ccedb87b507117eeb88418818d1ff7c4902768eba2e03d",
+      "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-paging-controls/v5/producer.json": "6c68583ebeea42cdc4a815e8dd96438fccb7c2d6f5426fd6b674ee74b81d8da8",
+      "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-paging-controls/v5/controls.bin": "4122716665994435e47b91347eb52cf16888ccf8877adc000df9fa82cd314b0d",
+      "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-paging-controls/v5/controls.asm": "8655f4bc7486b8574d8411eaf9058f8096aa0a34202819e4689fff6300b8849c"
+    },
+    "state": "STATE 00008000 00000000 0000f003 00000000 00007000 00005001 00000000 00009040 00000046 00001139",
+    "charge": {
+      "page_cross": 23,
+      "page_end": 31,
+      "fault_cross": 146
+    },
+    "marks": {
+      "0": [
+        4766,
+        988
+      ],
+      "1": [
+        5075,
+        1011
+      ],
+      "2": [
+        5218,
+        1089
+      ],
+      "3": [
+        5419,
+        1120
+      ],
+      "4": [
+        5890,
+        1218
+      ],
+      "5": [
+        7122,
+        1364
+      ]
+    }
+  }
+}

@@ -1,0 +1,146 @@
+{
+  "A": {
+    "opcode": "movsb",
+    "count": 28,
+    "charged": 149.998,
+    "count_blocks": 293,
+    "reference": 149.96706816912425,
+    "quantization": 0.5100920686024634,
+    "error": 0.030931830875744026
+  },
+  "B": {
+    "opcode": "movsb",
+    "count": 40,
+    "charged": 198.004,
+    "count_blocks": 222,
+    "reference": 197.9295088898802,
+    "quantization": 0.88757627304879,
+    "error": 0.07449111011979426
+  },
+  "C": {
+    "opcode": "movsb",
+    "count": 54,
+    "charged": 258.004,
+    "count_blocks": 171,
+    "reference": 256.96111680440583,
+    "quantization": 1.4939599814209643,
+    "error": 1.042883195594186
+  },
+  "D": {
+    "opcode": "movsb",
+    "count": 80,
+    "charged": 366.004,
+    "count_blocks": 120,
+    "reference": 366.16959144627833,
+    "quantization": 3.0261949706303994,
+    "error": -0.16559144627831301
+  },
+  "E": {
+    "opcode": "stosb",
+    "count": 1,
+    "charged": 37.004,
+    "count_blocks": 1187,
+    "reference": 37.01798734082005,
+    "quantization": 0.031159922004057282,
+    "error": -0.013987340820051486
+  },
+  "F": {
+    "opcode": "stosb",
+    "count": 8,
+    "charged": 70.004,
+    "count_blocks": 628,
+    "reference": 69.96871174132707,
+    "quantization": 0.11123801548700647,
+    "error": 0.03528825867293506
+  },
+  "G": {
+    "opcode": "stosb",
+    "count": 22,
+    "charged": 142.002,
+    "count_blocks": 310,
+    "reference": 141.74306765662388,
+    "quantization": 0.4557654908573115,
+    "error": 0.2589323433761308
+  },
+  "H": {
+    "opcode": "stosb",
+    "count": 40,
+    "charged": 232.002,
+    "count_blocks": 190,
+    "reference": 231.26500512396527,
+    "quantization": 1.2108115451516506,
+    "error": 0.7369948760347427
+  },
+  "I": {
+    "opcode": "lodsb",
+    "count": 1,
+    "charged": 37.0,
+    "count_blocks": 1187,
+    "reference": 37.01798734082005,
+    "quantization": 0.031159922004057282,
+    "error": -0.01798734082004927
+  },
+  "J": {
+    "opcode": "lodsb",
+    "count": 8,
+    "charged": 70.004,
+    "count_blocks": 628,
+    "reference": 69.96871174132707,
+    "quantization": 0.11123801548700647,
+    "error": 0.03528825867293506
+  },
+  "K": {
+    "opcode": "lodsb",
+    "count": 22,
+    "charged": 142.002,
+    "count_blocks": 310,
+    "reference": 141.74306765662388,
+    "quantization": 0.4557654908573115,
+    "error": 0.2589323433761308
+  },
+  "L": {
+    "opcode": "lodsb",
+    "count": 40,
+    "charged": 232.002,
+    "count_blocks": 190,
+    "reference": 231.26500512396527,
+    "quantization": 1.2108115451516506,
+    "error": 0.7369948760347427
+  },
+  "M": {
+    "opcode": "scasb",
+    "count": 1,
+    "charged": 38.002,
+    "count_blocks": 1155,
+    "reference": 38.04359391649645,
+    "quantization": 0.032909683318768555,
+    "error": -0.041593916496445615
+  },
+  "N": {
+    "opcode": "scasb",
+    "count": 8,
+    "charged": 94.004,
+    "count_blocks": 468,
+    "reference": 93.88963883237906,
+    "quantization": 0.200191127574369,
+    "error": 0.11436116762094173
+  },
+  "O": {
+    "opcode": "scasb",
+    "count": 14,
+    "charged": 144.002,
+    "count_blocks": 305,
+    "reference": 144.06672450345377,
+    "quantization": 0.4708062892269731,
+    "error": -0.06472450345376046
+  },
+  "P": {
+    "opcode": "scasb",
+    "count": 28,
+    "charged": 258.002,
+    "count_blocks": 171,
+    "reference": 256.96111680440583,
+    "quantization": 1.4939599814209643,
+    "error": 1.0408831955941764
+  }
+}

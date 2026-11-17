@@ -1,0 +1,30 @@
+{
+  "before": {
+    "TEST_RAM": 18.06,
+    "TEST_MMIO": 25.06,
+    "TEST_CROSS": 18.06,
+    "MUL_RAM": 35.06,
+    "MUL_MMIO": 42.06,
+    "MUL_CROSS": 35.06,
+    "SHIFT_RAM": 23.06,
+    "SHIFT_MMIO": 37.06,
+    "SHIFT_CROSS": 23.06,
+    "PUSHA_RAM": 32.04,
+    "PUSHA_MMIO": 88.06,
+    "PUSHA_MIXED": 60.06
+  },
+  "after": {
+    "TEST_RAM": 18.06,
+    "TEST_MMIO": 25.06,
+    "TEST_CROSS": 18.06,
+    "MUL_RAM": 32.06,
+    "MUL_MMIO": 42.06,
+    "MUL_CROSS": 35.06,
+    "SHIFT_RAM": 18.06,
+    "SHIFT_MMIO": 37.06,
+    "SHIFT_CROSS": 23.06,
+    "PUSHA_RAM": 31.06,
+    "PUSHA_MMIO": 88.06,
+    "PUSHA_MIXED": 60.06
+  }
+}

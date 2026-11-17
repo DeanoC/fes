@@ -1,0 +1,57 @@
+{
+  "git_head": "c136167e5ebd881293af6e80140a13a165c8a3c4",
+  "cpu_diagnostic_enabled": true,
+  "files": {
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-de-hires-holdout/generate.py": "eff6d6eee2b5eda77754936b9b680c0785e014ef999fff586ea3835450b5dfe3",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/pc386-gov-heldout/heldout.asm": "a621ba4ef97cf91ea1df773cf6e5830ce74155483b9cb0bfb8e2f14eacaab286",
+    "/home/deano/fes-scratch/u6ref/tools/nasm/nasm": "d75404632d151de8438081b817d09f56ab9eb4f688a151f55897f2a5396bf01b",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-wide-zero-v11/build/rtl-GOV_D3072-GOV_N5-GOV_REFERENCE_DIAGNOSTIC1/Vfes_i386_cpu": "a583e34c4ec711e86ed384f1a41386df4125cd919c63d9dc81869b6a2e46565b",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-wide-zero-v11/manifest.json": "5e96eb4ddb0a887aa7c75d7021e86762e30ac4c5b36b13a6a32b1f522ea1576d",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-de-hires-holdout/reference.asm": "614d77050b01b851fb99241678bd9d141a3a2ba230283e978335a20280f8af1e",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-de-hires-holdout/rtl.asm": "621eb2dca359b8a5eb0136822b07c0bb5e8f64f745d87d08d7b4b1c3017dc33c",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-de-hires-holdout/SURVEY.COM": "05176e8283f66b5f51345b8255ba7e018aba81c0d66607858d17b4ea32624acc",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-de-hires-holdout/rtl.bin": "eed6e88fb8f19b796183c855394c7e00fcbd2d082a9211b8dcb9f49cc6af4107"
+  },
+  "cases": [
+    {
+      "name": "EMPTY_7_CL",
+      "kind": "empty",
+      "count": 7,
+      "mode": "CL",
+      "body_sha256": "f4d1c6ad17cd44fba2e8a9736335610a7a547b0877d864667b505188fa67e58b",
+      "body_hex": "31c031d2f8eb00d32cd32cd32cd32cd32cd32cd32cf6374d75e6",
+      "reference_offset": 294,
+      "rtl_offset": 84
+    },
+    {
+      "name": "EMPTY_7_IMM",
+      "kind": "empty",
+      "count": 7,
+      "mode": "IMM",
+      "body_sha256": "c4f4b949863d140463d291c502796d97a8e295835f113a4098a34022a38154a1",
+      "body_hex": "31c031d2f8eb00c12c00c12c00c12c00c12c00c12c00c12c00c12c00f6374d75df",
+      "reference_offset": 418,
+      "rtl_offset": 200
+    },
+    {
+      "name": "FILLED_7_CL",
+      "kind": "filled",
+      "count": 7,
+      "mode": "CL",
+      "body_sha256": "428c814caa429dd7d809cfd2d64fda190b4ca2cd4712026804eff9dba0ea0a2d",
+      "body_hex": "31c031d2f8eb0090909090909090909090909090909090d32cd32cd32cd32cd32cd32cd32cf6374d75d6",
+      "reference_offset": 548,
+      "rtl_offset": 322
+    },
+    {
+      "name": "FILLED_7_IMM",
+      "kind": "filled",
+      "count": 7,
+      "mode": "IMM",
+      "body_sha256": "bf093d32cb1a67f2c4e561c052b6c8f6b228539b9b2f91642f37ed9cbcacc385",
+      "body_hex": "31c031d2f8eb0090909090909090909090909090909090c12c00c12c00c12c00c12c00c12c00c12c00c12c00f6374d75cf",
+      "reference_offset": 690,
+      "rtl_offset": 454
+    }
+  ]
+}

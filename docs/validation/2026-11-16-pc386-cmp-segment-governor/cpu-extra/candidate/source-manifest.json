@@ -1,0 +1,7 @@
+{
+  "role": "candidate",
+  "purpose": "CPU differential with same read-only crossing telemetry appended to governor harness",
+  "harness_sha256": "ec0c705de53b4f86d13af5761ea0111e386a94bfcebb79a58b093582713cd261",
+  "rtl_sha256": "9ddc2319d5e3d72b33d966edbc9c2512005af49fe63087bca716862cc52323e8",
+  "input_sha256": "4dca659ea16500de53e344f05532c852e0aa4849317bd3a806beec863ad21a23"
+}

@@ -1,0 +1,31 @@
+{
+  "files": {
+    "manifest.json": "0a53954d11ddbd6ea45f94729b10103f9e4ad764c6315e5aab8a2cb5f3fd3c66",
+    "instruction-identity.json": "f3241de082bc70e2bba7665c98ab42e079b976dded1e14832c1c4239e21d8f06",
+    "commands-frozen.jsonl": "88aaa470ccea2ebb1f0b94cc424c09f00e35cac86f7818b21bdda9674ad266b8",
+    "SURVEY.COM": "cdab5e155bb48a5b24ed8160bb2a6cb4a4e1b590acbcb8903c8adb3e94f87f20",
+    "rtl.bin": "d2251209ec3515d1c6657961bbccdb864f7c956dd0268abf161c54b8c3376710",
+    "FAILCASE.COM": "61779b2924cd9b69d6fd21aef8b8b2684a4e2377d675436270fd8ef3ed3722e7",
+    "rtl-failure.bin": "f57b0ea549176fefb62fba062cde53972ce9e7034cd3810f338e5262fc8ec8e4",
+    "frozen-prediction.json": "1a7b56ecdc8883e3e41f7acc3c0ae24363ace3d10b02e77e4355a3be90a75e0a",
+    "prediction/Vfes_i386_cpu": "4414d541cb6d386ab7332e7d8f6b0b8a105686d3881945d6a4873bae6576556f",
+    "prediction/normal.bin": "d2251209ec3515d1c6657961bbccdb864f7c956dd0268abf161c54b8c3376710",
+    "prediction/failure.bin": "f57b0ea549176fefb62fba062cde53972ce9e7034cd3810f338e5262fc8ec8e4",
+    "prediction/normal.stdout": "724a5e04d7953c816a3b5d031f3b7d8784c49cd12febb44d3218a2f6497e8d88",
+    "prediction/failure.stdout": "b994f80e680a480428d8888b82c2cb987a86365dde88eaa66bd3b514ce52642f",
+    "prediction/normal.exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "prediction/failure.exit": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+    "prediction/before.sha256": "1e95ed5d3ef35ef7e5e50017d6c9f85b7b668dfe31bc7737f1d1f35cc96d651b",
+    "run-predictions.sh": "0b8dffa031b0c2740fef039f842e3fb5e74e30e1aef591f6a2d082e426118424",
+    "prediction-run.log": "892d82a3743085f982c2f18cf72e8cfa12733e1f5832ea7c69428b5feb48dcb5"
+  },
+  "settings": {
+    "mode": "governor",
+    "preset": 1,
+    "frequency": 0,
+    "turbo": 0,
+    "irq_period": 0,
+    "latency": 0
+  },
+  "failure_control": "Expected port 8e ff and exit 1; distinct fe denotes bad restored SS/SP/IF."
+}

@@ -1,0 +1,18 @@
+{
+  "DS_DS": {
+    "charged_per_iteration": 20.135,
+    "elapsed_cycles": 103091
+  },
+  "CS_DS": {
+    "charged_per_iteration": 20.138,
+    "elapsed_cycles": 103160
+  },
+  "ES_ES": {
+    "charged_per_iteration": 20.112,
+    "elapsed_cycles": 102994
+  },
+  "CS_ES": {
+    "charged_per_iteration": 20.108,
+    "elapsed_cycles": 102910
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "FULL_P0": {
+    "count": 197,
+    "reference_estimated_clocks": 223.0473143318765,
+    "rtl_clocks": 231.172,
+    "rtl_minus_reference": 8.124685668123504
+  },
+  "REDUCED_P0": {
+    "count": 215,
+    "reference_estimated_clocks": 204.373585690138,
+    "rtl_clocks": 213.172,
+    "rtl_minus_reference": 8.798414309862011
+  },
+  "FULL_P8": {
+    "count": 184,
+    "reference_estimated_clocks": 238.8060919748895,
+    "rtl_clocks": 247.172,
+    "rtl_minus_reference": 8.365908025110485
+  },
+  "REDUCED_P8": {
+    "count": 199,
+    "reference_estimated_clocks": 220.80563278080237,
+    "rtl_clocks": 229.14,
+    "rtl_minus_reference": 8.334367219197617
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "PLAIN": {
+    "charged": 21.022,
+    "cycles": 107489
+  },
+  "ADDR_PREFIX": {
+    "charged": 24.02,
+    "cycles": 123045
+  },
+  "OP_PREFIX": {
+    "charged": 24.021,
+    "cycles": 123050
+  },
+  "FS_PREFIX": {
+    "charged": 26.021,
+    "cycles": 133291
+  },
+  "FS_DS_PREFIX": {
+    "charged": 32.021,
+    "cycles": 164010
+  },
+  "DS_PREFIX": {
+    "charged": 26.018,
+    "cycles": 133275
+  }
+}

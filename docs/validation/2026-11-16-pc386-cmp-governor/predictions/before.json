@@ -1,0 +1,16 @@
+{
+  "candidate_manifest": "09a1666d6c8331776a72ca25834cfe5acc5f6c88744482cc38d1f0843da5700c",
+  "fixture_manifest": "520753fbd248d7914274be3d07646b6eae20447e263c7fd082bd46f28338fa8e",
+  "cpu": "ac8cfcd44af95eda83f7d10433411b0a8c33ba20dcfee53472f652cd5c003418",
+  "input": "40b52093b0b372f84a038bd45109a985001c75961ee34c7dc22ad2e074167f9b",
+  "runner": "96d83d142545de7d9e05e98a903569f1af8c8882b38d1f13412903975197c12d",
+  "settings": {
+    "FES_I386_MODE": "governor",
+    "FES_I386_LATENCY": "0",
+    "FES_I386_PROGRAM": "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-model-v1/cmp-form/input.bin",
+    "FES_I386_PRESET": "1",
+    "FES_I386_FREQUENCY": "0",
+    "FES_I386_TURBO": "0",
+    "FES_I386_IRQ_PERIOD": "0"
+  }
+}

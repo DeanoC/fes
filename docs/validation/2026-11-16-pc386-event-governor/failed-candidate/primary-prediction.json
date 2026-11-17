@@ -1,0 +1,58 @@
+{
+  "DE_1_CL": {
+    "charged_per_iteration": 225.141,
+    "elapsed_cycles": 1152722
+  },
+  "DE_1_IMM": {
+    "charged_per_iteration": 223.142,
+    "elapsed_cycles": 1142540
+  },
+  "DE_4_CL": {
+    "charged_per_iteration": 225.141,
+    "elapsed_cycles": 1152776
+  },
+  "DE_4_IMM": {
+    "charged_per_iteration": 225.144,
+    "elapsed_cycles": 1152790
+  },
+  "DE_12_CL": {
+    "charged_per_iteration": 225.144,
+    "elapsed_cycles": 1152791
+  },
+  "DE_12_IMM": {
+    "charged_per_iteration": 233.144,
+    "elapsed_cycles": 1193751
+  },
+  "DB_0_CL": {
+    "charged_per_iteration": 230.144,
+    "elapsed_cycles": 1178391
+  },
+  "DB_0_IMM": {
+    "charged_per_iteration": 230.141,
+    "elapsed_cycles": 1178375
+  },
+  "DB_2_CL": {
+    "charged_per_iteration": 238.144,
+    "elapsed_cycles": 1219351
+  },
+  "DB_2_IMM": {
+    "charged_per_iteration": 238.141,
+    "elapsed_cycles": 1219335
+  },
+  "DB_8_CL": {
+    "charged_per_iteration": 262.144,
+    "elapsed_cycles": 1342231
+  },
+  "DB_8_IMM": {
+    "charged_per_iteration": 262.141,
+    "elapsed_cycles": 1342215
+  },
+  "DB_12_CL": {
+    "charged_per_iteration": 278.13,
+    "elapsed_cycles": 1423960
+  },
+  "DB_12_IMM": {
+    "charged_per_iteration": 278.107,
+    "elapsed_cycles": 1423680
+  }
+}

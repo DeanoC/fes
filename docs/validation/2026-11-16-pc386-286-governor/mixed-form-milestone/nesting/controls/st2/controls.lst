@@ -1,0 +1,290 @@
+     1                                  bits 16
+     2                                  cpu 286
+     3                                  org 0x1000
+     4                                  start:
+     5 00000000 FA                       cli
+     6 00000001 FC                       cld
+     7 00000002 31C0                     xor ax,ax
+     8 00000004 8ED8                     mov ds,ax
+     9                                  
+    10                                   ; ram: source ES:5000, frame targets ES:6ffe/6ffc/6ffa
+    11 00000006 B80000                   mov ax,0x0000
+    12 00000009 8ED0                     mov ss,ax
+    13 0000000B 8EC0                     mov es,ax
+    14 0000000D BC0070                   mov sp,0x7000
+    15 00000010 BD0250                   mov bp,0x5002
+    16 00000013 26C7060050CDAB           mov word [es:0x5000],0xabcd
+    17 0000001A EB00                     jmp .clean0
+    18                                  .clean0:
+    19 0000001C 90                       nop
+    20 0000001D 90                       nop
+    21 0000001E 90                       nop
+    22 0000001F 90                       nop
+    23 00000020 B000                     mov al,0
+    24 00000022 E680                     out 0x80,al
+    25 00000024 C8000002                 enter 0,2
+    26 00000028 B001                     mov al,1
+    27 0000002A E680                     out 0x80,al
+    28 0000002C 81FDFE6F                 cmp bp,0x6ffe
+    29 00000030 7403E92F03               jne fail
+    30 00000035 81FCFA6F                 cmp sp,0x6ffa
+    31 00000039 7403E92603               jne fail
+    32 0000003E 26813EFE6F0250           cmp word [es:0x6ffe],0x5002
+    33 00000045 7403E91A03               jne fail
+    34 0000004A 26813EFC6FCDAB           cmp word [es:0x6ffc],0xabcd
+    35 00000051 7403E90E03               jne fail
+    36 00000056 26813EFA6FFE6F           cmp word [es:0x6ffa],0x6ffe
+    37 0000005D 7403E90203               jne fail
+    38 00000062 C9                       leave
+    39 00000063 81FD0250                 cmp bp,0x5002
+    40 00000067 7403E9F802               jne fail
+    41 0000006C 81FC0070                 cmp sp,0x7000
+    42 00000070 7403E9EF02               jne fail
+    43                                  
+    44                                   ; source_page_end: source ES:4ffe, frame targets ES:6ffe/6ffc/6ffa
+    45 00000075 B80000                   mov ax,0x0000
+    46 00000078 8ED0                     mov ss,ax
+    47 0000007A 8EC0                     mov es,ax
+    48 0000007C BC0070                   mov sp,0x7000
+    49 0000007F BD0050                   mov bp,0x5000
+    50 00000082 26C706FE4FCDAB           mov word [es:0x4ffe],0xabcd
+    51 00000089 EB00                     jmp .clean1
+    52                                  .clean1:
+    53 0000008B 90                       nop
+    54 0000008C 90                       nop
+    55 0000008D 90                       nop
+    56 0000008E 90                       nop
+    57 0000008F B002                     mov al,2
+    58 00000091 E680                     out 0x80,al
+    59 00000093 C8000002                 enter 0,2
+    60 00000097 B003                     mov al,3
+    61 00000099 E680                     out 0x80,al
+    62 0000009B 81FDFE6F                 cmp bp,0x6ffe
+    63 0000009F 7403E9C002               jne fail
+    64 000000A4 81FCFA6F                 cmp sp,0x6ffa
+    65 000000A8 7403E9B702               jne fail
+    66 000000AD 26813EFE6F0050           cmp word [es:0x6ffe],0x5000
+    67 000000B4 7403E9AB02               jne fail
+    68 000000B9 26813EFC6FCDAB           cmp word [es:0x6ffc],0xabcd
+    69 000000C0 7403E99F02               jne fail
+    70 000000C5 26813EFA6FFE6F           cmp word [es:0x6ffa],0x6ffe
+    71 000000CC 7403E99302               jne fail
+    72 000000D1 C9                       leave
+    73 000000D2 81FD0050                 cmp bp,0x5000
+    74 000000D6 7403E98902               jne fail
+    75 000000DB 81FC0070                 cmp sp,0x7000
+    76 000000DF 7403E98002               jne fail
+    77                                  
+    78                                   ; source_page_cross: source ES:4fff, frame targets ES:6ffe/6ffc/6ffa
+    79 000000E4 B80000                   mov ax,0x0000
+    80 000000E7 8ED0                     mov ss,ax
+    81 000000E9 8EC0                     mov es,ax
+    82 000000EB BC0070                   mov sp,0x7000
+    83 000000EE BD0150                   mov bp,0x5001
+    84 000000F1 26C706FF4FCDAB           mov word [es:0x4fff],0xabcd
+    85 000000F8 EB00                     jmp .clean2
+    86                                  .clean2:
+    87 000000FA 90                       nop
+    88 000000FB 90                       nop
+    89 000000FC 90                       nop
+    90 000000FD 90                       nop
+    91 000000FE B004                     mov al,4
+    92 00000100 E680                     out 0x80,al
+    93 00000102 C8000002                 enter 0,2
+    94 00000106 B005                     mov al,5
+    95 00000108 E680                     out 0x80,al
+    96 0000010A 81FDFE6F                 cmp bp,0x6ffe
+    97 0000010E 7403E95102               jne fail
+    98 00000113 81FCFA6F                 cmp sp,0x6ffa
+    99 00000117 7403E94802               jne fail
+   100 0000011C 26813EFE6F0150           cmp word [es:0x6ffe],0x5001
+   101 00000123 7403E93C02               jne fail
+   102 00000128 26813EFC6FCDAB           cmp word [es:0x6ffc],0xabcd
+   103 0000012F 7403E93002               jne fail
+   104 00000134 26813EFA6FFE6F           cmp word [es:0x6ffa],0x6ffe
+   105 0000013B 7403E92402               jne fail
+   106 00000140 C9                       leave
+   107 00000141 81FD0150                 cmp bp,0x5001
+   108 00000145 7403E91A02               jne fail
+   109 0000014A 81FC0070                 cmp sp,0x7000
+   110 0000014E 7403E91102               jne fail
+   111                                  
+   112                                   ; target_ram_line_cross: source ES:5000, frame targets ES:7001/6fff/6ffd
+   113 00000153 B80000                   mov ax,0x0000
+   114 00000156 8ED0                     mov ss,ax
+   115 00000158 8EC0                     mov es,ax
+   116 0000015A BC0370                   mov sp,0x7003
+   117 0000015D BD0250                   mov bp,0x5002
+   118 00000160 26C7060050CDAB           mov word [es:0x5000],0xabcd
+   119 00000167 EB00                     jmp .clean3
+   120                                  .clean3:
+   121 00000169 90                       nop
+   122 0000016A 90                       nop
+   123 0000016B 90                       nop
+   124 0000016C 90                       nop
+   125 0000016D B006                     mov al,6
+   126 0000016F E680                     out 0x80,al
+   127 00000171 C8000002                 enter 0,2
+   128 00000175 B007                     mov al,7
+   129 00000177 E680                     out 0x80,al
+   130 00000179 81FD0170                 cmp bp,0x7001
+   131 0000017D 7403E9E201               jne fail
+   132 00000182 81FCFD6F                 cmp sp,0x6ffd
+   133 00000186 7403E9D901               jne fail
+   134 0000018B 26813E01700250           cmp word [es:0x7001],0x5002
+   135 00000192 7403E9CD01               jne fail
+   136 00000197 26813EFF6FCDAB           cmp word [es:0x6fff],0xabcd
+   137 0000019E 7403E9C101               jne fail
+   138 000001A3 26813EFD6F0170           cmp word [es:0x6ffd],0x7001
+   139 000001AA 7403E9B501               jne fail
+   140 000001AF C9                       leave
+   141 000001B0 81FD0250                 cmp bp,0x5002
+   142 000001B4 7403E9AB01               jne fail
+   143 000001B9 81FC0370                 cmp sp,0x7003
+   144 000001BD 7403E9A201               jne fail
+   145                                  
+   146                                   ; source_mmio: source ES:8000, frame targets ES:6ffe/6ffc/6ffa
+   147 000001C2 B80098                   mov ax,0x9800
+   148 000001C5 8ED0                     mov ss,ax
+   149 000001C7 8EC0                     mov es,ax
+   150 000001C9 BC0070                   mov sp,0x7000
+   151 000001CC BD0280                   mov bp,0x8002
+   152 000001CF 26C7060080CDAB           mov word [es:0x8000],0xabcd
+   153 000001D6 EB00                     jmp .clean4
+   154                                  .clean4:
+   155 000001D8 90                       nop
+   156 000001D9 90                       nop
+   157 000001DA 90                       nop
+   158 000001DB 90                       nop
+   159 000001DC B008                     mov al,8
+   160 000001DE E680                     out 0x80,al
+   161 000001E0 C8000002                 enter 0,2
+   162 000001E4 B009                     mov al,9
+   163 000001E6 E680                     out 0x80,al
+   164 000001E8 81FDFE6F                 cmp bp,0x6ffe
+   165 000001EC 7403E97301               jne fail
+   166 000001F1 81FCFA6F                 cmp sp,0x6ffa
+   167 000001F5 7403E96A01               jne fail
+   168 000001FA 26813EFE6F0280           cmp word [es:0x6ffe],0x8002
+   169 00000201 7403E95E01               jne fail
+   170 00000206 26813EFC6FCDAB           cmp word [es:0x6ffc],0xabcd
+   171 0000020D 7403E95201               jne fail
+   172 00000212 26813EFA6FFE6F           cmp word [es:0x6ffa],0x6ffe
+   173 00000219 7403E94601               jne fail
+   174 0000021E C9                       leave
+   175 0000021F 81FD0280                 cmp bp,0x8002
+   176 00000223 7403E93C01               jne fail
+   177 00000228 81FC0070                 cmp sp,0x7000
+   178 0000022C 7403E93301               jne fail
+   179                                  
+   180                                   ; target_mmio: source ES:7000, frame targets ES:8004/8002/8000
+   181 00000231 B80098                   mov ax,0x9800
+   182 00000234 8ED0                     mov ss,ax
+   183 00000236 8EC0                     mov es,ax
+   184 00000238 BC0680                   mov sp,0x8006
+   185 0000023B BD0270                   mov bp,0x7002
+   186 0000023E 26C7060070CDAB           mov word [es:0x7000],0xabcd
+   187 00000245 EB00                     jmp .clean5
+   188                                  .clean5:
+   189 00000247 90                       nop
+   190 00000248 90                       nop
+   191 00000249 90                       nop
+   192 0000024A 90                       nop
+   193 0000024B B00A                     mov al,10
+   194 0000024D E680                     out 0x80,al
+   195 0000024F C8000002                 enter 0,2
+   196 00000253 B00B                     mov al,11
+   197 00000255 E680                     out 0x80,al
+   198 00000257 81FD0480                 cmp bp,0x8004
+   199 0000025B 7403E90401               jne fail
+   200 00000260 81FC0080                 cmp sp,0x8000
+   201 00000264 7403E9FB00               jne fail
+   202 00000269 26813E04800270           cmp word [es:0x8004],0x7002
+   203 00000270 7403E9EF00               jne fail
+   204 00000275 26813E0280CDAB           cmp word [es:0x8002],0xabcd
+   205 0000027C 7403E9E300               jne fail
+   206 00000281 26813E00800480           cmp word [es:0x8000],0x8004
+   207 00000288 7403E9D700               jne fail
+   208 0000028D C9                       leave
+   209 0000028E 81FD0270                 cmp bp,0x7002
+   210 00000292 7403E9CD00               jne fail
+   211 00000297 81FC0680                 cmp sp,0x8006
+   212 0000029B 7403E9C400               jne fail
+   213                                  
+   214                                   ; target_mmio_ram_cross: source ES:a000, frame targets ES:8001/7fff/7ffd
+   215 000002A0 B800B8                   mov ax,0xb800
+   216 000002A3 8ED0                     mov ss,ax
+   217 000002A5 8EC0                     mov es,ax
+   218 000002A7 BC0380                   mov sp,0x8003
+   219 000002AA BD02A0                   mov bp,0xa002
+   220 000002AD 26C70600A0CDAB           mov word [es:0xa000],0xabcd
+   221 000002B4 EB00                     jmp .clean6
+   222                                  .clean6:
+   223 000002B6 90                       nop
+   224 000002B7 90                       nop
+   225 000002B8 90                       nop
+   226 000002B9 90                       nop
+   227 000002BA B00C                     mov al,12
+   228 000002BC E680                     out 0x80,al
+   229 000002BE C8000002                 enter 0,2
+   230 000002C2 B00D                     mov al,13
+   231 000002C4 E680                     out 0x80,al
+   232 000002C6 81FD0180                 cmp bp,0x8001
+   233 000002CA 7403E99500               jne fail
+   234 000002CF 81FCFD7F                 cmp sp,0x7ffd
+   235 000002D3 7403E98C00               jne fail
+   236 000002D8 26813E018002A0           cmp word [es:0x8001],0xa002
+   237 000002DF 7403E98000               jne fail
+   238 000002E4 26813EFF7FCDAB           cmp word [es:0x7fff],0xabcd
+   239 000002EB 7577                     jne fail
+   240 000002ED 26813EFD7F0180           cmp word [es:0x7ffd],0x8001
+   241 000002F4 756E                     jne fail
+   242 000002F6 C9                       leave
+   243 000002F7 81FD02A0                 cmp bp,0xa002
+   244 000002FB 7567                     jne fail
+   245 000002FD 81FC0380                 cmp sp,0x8003
+   246 00000301 7561                     jne fail
+   247                                  
+   248                                   ; prefix_fallback: source ES:5000, frame targets ES:6ffe/6ffc/6ffa
+   249 00000303 B80000                   mov ax,0x0000
+   250 00000306 8ED0                     mov ss,ax
+   251 00000308 8EC0                     mov es,ax
+   252 0000030A BC0070                   mov sp,0x7000
+   253 0000030D BD0250                   mov bp,0x5002
+   254 00000310 26C7060050CDAB           mov word [es:0x5000],0xabcd
+   255 00000317 EB00                     jmp .clean7
+   256                                  .clean7:
+   257 00000319 90                       nop
+   258 0000031A 90                       nop
+   259 0000031B 90                       nop
+   260 0000031C 90                       nop
+   261 0000031D B00E                     mov al,14
+   262 0000031F E680                     out 0x80,al
+   263 00000321 26                       db 0x26
+   264 00000322 C8000002                 enter 0,2
+   265 00000326 B00F                     mov al,15
+   266 00000328 E680                     out 0x80,al
+   267 0000032A 81FDFE6F                 cmp bp,0x6ffe
+   268 0000032E 7534                     jne fail
+   269 00000330 81FCFA6F                 cmp sp,0x6ffa
+   270 00000334 752E                     jne fail
+   271 00000336 26813EFE6F0250           cmp word [es:0x6ffe],0x5002
+   272 0000033D 7525                     jne fail
+   273 0000033F 26813EFC6FCDAB           cmp word [es:0x6ffc],0xabcd
+   274 00000346 751C                     jne fail
+   275 00000348 26813EFA6FFE6F           cmp word [es:0x6ffa],0x6ffe
+   276 0000034F 7513                     jne fail
+   277 00000351 C9                       leave
+   278 00000352 81FD0250                 cmp bp,0x5002
+   279 00000356 750C                     jne fail
+   280 00000358 81FC0070                 cmp sp,0x7000
+   281 0000035C 7506                     jne fail
+   282 0000035E FA                       cli
+   283 0000035F 30C0                     xor al,al
+   284 00000361 E68F                     out 0x8f,al
+   285 00000363 F4                       hlt
+   286                                  fail:
+   287 00000364 FA                       cli
+   288 00000365 B0EE                     mov al,0xee
+   289 00000367 E68F                     out 0x8f,al
+   290 00000369 F4                       hlt

@@ -1,0 +1,21 @@
+2026-11-16 18:42:33 86Box pid 2789762
+2026-11-16 18:42:34 window 2097158 (0, 0, 754, 445)
+2026-11-16 18:42:34 cmd {"op": "sleep", "s": 45}
+2026-11-16 18:43:19 cmd {"op": "grab", "name": "boot"}
+2026-11-16 18:43:19 cmd {"op": "video_start", "name": "speed-trace", "s": 245}
+2026-11-16 18:43:19 cmd {"op": "type", "text": "FAILCASE > PF0.TXT\n"}
+2026-11-16 18:43:22 cmd {"op": "sleep", "s": 10}
+2026-11-16 18:43:32 cmd {"op": "grab", "name": "failure_control"}
+2026-11-16 18:43:32 cmd {"op": "type", "text": "SURVEY > PF1.TXT\n"}
+2026-11-16 18:43:35 cmd {"op": "sleep", "s": 70}
+2026-11-16 18:44:45 cmd {"op": "grab", "name": "run1"}
+2026-11-16 18:44:45 cmd {"op": "type", "text": "SURVEY > PF2.TXT\n"}
+2026-11-16 18:44:48 cmd {"op": "sleep", "s": 70}
+2026-11-16 18:45:58 cmd {"op": "grab", "name": "run2"}
+2026-11-16 18:45:58 cmd {"op": "type", "text": "SURVEY > PF3.TXT\n"}
+2026-11-16 18:46:00 cmd {"op": "sleep", "s": 70}
+2026-11-16 18:47:10 cmd {"op": "grab", "name": "run3"}
+2026-11-16 18:47:11 cmd {"op": "video_stop"}
+2026-11-16 18:47:24 cmd {"op": "quit"}
+2026-11-16 18:47:24 skipped quit
+2026-11-16 18:47:24 done

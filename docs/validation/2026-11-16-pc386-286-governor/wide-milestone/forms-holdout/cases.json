@@ -1,0 +1,19 @@
+{
+  "ROL_B_REG": "rol dl,cl",
+  "SHR_W_REG": "shr dx,cl",
+  "SHL_B_ONE": "shl byte [bx],1",
+  "SAR_W_CL": "sar word [bx],cl",
+  "ROL_B_CL": "rol byte [bx],cl",
+  "SHL_W_IMM": "shl word [bx],3",
+  "SHL_W_ZERO": "xor cx,cx\n shl word [bx],cl",
+  "MUL_W_MEM": "mul word [bx]",
+  "IMUL_B_MEM": "imul byte [bx]",
+  "DIV_W_MEM": "mov ax,0x0100\n xor dx,dx\n div word [bx]",
+  "IDIV_B_MEM": "mov ax,0x0100\n idiv byte [bx]",
+  "MUL_B_REG": "mul dl",
+  "PUSHA_ONLY": "pusha\n add sp,16",
+  "PUSHA_PAIR": "pusha\n popa",
+  "LEA_BASE": "lea ax,[bx]",
+  "LEA_PAIR": "lea ax,[bx+si]",
+  "LEA_DISP": "lea ax,[bx+si+0x123]"
+}

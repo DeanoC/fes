@@ -1,0 +1,31 @@
+{
+  "method": "NASM listing bytes from each .iN through its jnz, including branch displacement",
+  "matched_loops": {
+    "0": "AC4D75FC",
+    "1": "AD4D75FC",
+    "2": "AA4D75FC",
+    "3": "AB4D75FC",
+    "4": "ACAA4D75FB",
+    "5": "AC3455AA4D75F9",
+    "6": "A908004D75FA",
+    "7": "A8084D75FB",
+    "8": "8B07BA0700F7E2A908004D75F3",
+    "9": "8B07BA0700F7E24D75F6",
+    "10": "C8000000C94D75F8",
+    "11": "C8060000C94D75F8",
+    "12": "C806000089EC5D4D75F6",
+    "13": "5589E5C94D75F9",
+    "14": "C8060001C94D75F8",
+    "15": "B90200F3AA4D75F8"
+  },
+  "input_sha256": {
+    "reference-checked.asm": "7925f91698ee4930b1758bf9d656531005f980b2d7a9277441d8df5df1d1be48",
+    "reference-checked.lst": "51070c17f6f31acb8fa1a0c80858125cc0d763b33aa9446d2b5ef39a25bb4941",
+    "SURVEY-CHECKED.COM": "1304a777fb5a5ccfb5aa9aea1ef1455372d00f3e1aec6663d036cdec1f7b2361",
+    "rtl.asm": "13018dd0181e07ce1f0715568b0fda3c8bda9750a77e6e806645c3d8f6fefe5d",
+    "rtl.lst": "54e0c6ad5602ebe0bb19e322ac7d891510f7d8fb37ecec13b22311c76c4beb19",
+    "rtl.bin": "8f7bf56aaae579b32f9964e498b43301787b8d4852157005926a47f34b9bad77",
+    "survey.py": "93aadad38416c1d34edec7bdea8f43bbdf35d28d1904e030d56a707b79c01721",
+    "cases.json": "8c56f82b9ba30a9af6a39e0be8a2975bff8cfb5b07f57057d689416562761ce0"
+  }
+}

@@ -1,0 +1,26 @@
+MARK 80 0 677 191
+MARK 80 1 138989 27203
+MARK 80 2 140346 27470
+MARK 80 3 304263 59483
+MARK 80 4 305722 59770
+MARK 80 5 449169 87785
+MARK 80 6 450751 88096
+MARK 80 7 604428 118109
+MARK 80 8 606133 118444
+MARK 80 9 759809 148457
+MARK 80 10 761166 148724
+MARK 80 11 925083 180737
+MARK 80 12 926542 181024
+MARK 80 13 1069989 209039
+MARK 80 14 1071571 209350
+MARK 80 15 1225248 239363
+MARK 80 16 1226953 239698
+MARK 80 17 1380630 269711
+MARK 80 18 1382089 269998
+MARK 80 19 1535797 300017
+MARK 8f 0 1535806 300032
+STATE 00000000 00000000 00000047 00006ffc 00007000 00006000 00000000 00000000 00000046 00001115
+GOVERNOR cycles=1536934 retired=39514 halted=1 debt_max=110 hold_cycles=1424116 charged=300044
+{"mode": "governor", "seed": 1, "latency": false, "runs": 1, "passed": 1, "failed": 0, "retirements": 0, "cycles": 0, "halts": 0, "interrupts": 0, "faults": 0, "fault_vectors": {}, "shutdowns": 0, "nested": 0, "retire_limits": 0, "load_wait_cycles": 0, "io_accesses": 0, "external_interrupts": 0, "nmis": 0, "rep_interrupts": 0, "vector_moved_stops": 0, "divergence_retirements": {}, "trace_hash": "14650fb0739d0383", "gaps": {"sequential": {}, "prefixed": {}, "lea": {}, "selector": {}, "after_taken": {}, "after_not_taken": {}, "shift_consumer": {}, "after_shift": {}, "store_load": {}, "store_other": {}, "after_store": {}, "address": {}, "after_segment": {}, "after_stack": {}, "stack_stack": {}, "several": {}, "after_string": {}, "after_io": {}, "memory": {}, "smc": {}, "fetch": {}}, "mmio_accesses": 0, "mmio_runs": 0, "replays": 0, "smc_restarts": 0, "window_code_stops": 0, "code_store_stops": 0, "stray_stops": 0, "port0_reads": 116, "port0_writes": 20140, "pm_retirements": 0, "cs_rule": 0, "ss_error_rule": 0, "fetch_rule": 0, "iret_save_rule": 0, "pm_deliveries": {}, "unbuilt_stops": {}, "pm_kinds": {}, "cs_limit": {}, "no387_rule": 0, "no387_skips": 0, "x87_compared": 0, "dr6_rule": 0, "db_rf_rule": 0, "debug_kinds": {}}
+
+STDERR

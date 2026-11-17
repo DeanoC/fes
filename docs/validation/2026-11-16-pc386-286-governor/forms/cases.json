@@ -1,0 +1,8 @@
+{
+  "CMP_WORD_SI": "cmp dx,[si]",
+  "CMP_BYTE_SI": "cmp dh,[si]",
+  "FLAGS_OTHER": "pushf\n pop si",
+  "SHORT_JMP": "jmp short .jump_done\n nop\n.jump_done: nop",
+  "NEAR_JMP": "jmp near .near_done\n nop\n.near_done: nop",
+  "CALL_RET_NEAR": "call .callee\n jmp near .call_done\n.callee: inc dx\n ret\n.call_done: nop"
+}

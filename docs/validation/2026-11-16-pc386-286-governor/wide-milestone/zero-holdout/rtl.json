@@ -1,0 +1,54 @@
+{
+  "REG_ROL_ZERO": {
+    "charged": 16.026,
+    "cycles": 82060
+  },
+  "REG_SAR_MASK": {
+    "charged": 16.023,
+    "cycles": 82100
+  },
+  "MEM_SHR_ZERO": {
+    "charged": 16.023,
+    "cycles": 82101
+  },
+  "MEM_RCR_MASK": {
+    "charged": 16.023,
+    "cycles": 82100
+  },
+  "DOUBLE_ZERO": {
+    "charged": 16.023,
+    "cycles": 82101
+  },
+  "ZERO_THEN_ONE": {
+    "charged": 25.023,
+    "cycles": 128180
+  },
+  "ONE_THEN_ZERO": {
+    "charged": 25.026,
+    "cycles": 128196
+  },
+  "ZERO_EXTRA_NOP": {
+    "charged": 22.026,
+    "cycles": 112836
+  },
+  "ZERO_ODD": {
+    "charged": 16.021,
+    "cycles": 82090
+  },
+  "ZERO_RCL": {
+    "charged": 16.026,
+    "cycles": 82116
+  },
+  "IMMEDIATE_ZERO": {
+    "charged": 28.023,
+    "cycles": 143540
+  },
+  "COMPLEX_ZERO": {
+    "charged": 31.018,
+    "cycles": 158875
+  },
+  "PREFIX_ZERO": {
+    "charged": 34.018,
+    "cycles": 174235
+  }
+}

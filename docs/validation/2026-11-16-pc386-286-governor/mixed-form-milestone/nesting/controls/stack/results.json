@@ -1,0 +1,152 @@
+{
+  "baseline": {
+    "frozen_sha256": {
+      "stackwidth.asm": "c5630a2fa11b8ec67167b8f17bc54612851e3b7cda9004bffad5180614d5d708",
+      "stackwidth.bin": "ac82e944e17b806e13253c760969068ce8dc4924b8f5e6aa2ae2a2a8ee9ae46e",
+      "baseline/Vfes_i386_cpu": "a583e34c4ec711e86ed384f1a41386df4125cd919c63d9dc81869b6a2e46565b",
+      "baseline/producer.json": "5e96eb4ddb0a887aa7c75d7021e86762e30ac4c5b36b13a6a32b1f522ea1576d"
+    },
+    "marks": {
+      "0": [
+        466,
+        161
+      ],
+      "1": [
+        642,
+        186
+      ],
+      "2": [
+        1306,
+        325
+      ],
+      "3": [
+        1464,
+        350
+      ],
+      "4": [
+        2146,
+        489
+      ],
+      "5": [
+        2300,
+        508
+      ],
+      "6": [
+        2934,
+        643
+      ],
+      "7": [
+        3088,
+        662
+      ]
+    },
+    "charge": {
+      "enter32": 25,
+      "enter16": 25,
+      "leave32": 19,
+      "leave16": 19
+    },
+    "state": "STATE 7fff0000 00000000 00000000 00000000 00018000 00011357 00000010 00000000 00000046 000011a6",
+    "exit": 0
+  },
+  "candidate": {
+    "frozen_sha256": {
+      "stackwidth.asm": "c5630a2fa11b8ec67167b8f17bc54612851e3b7cda9004bffad5180614d5d708",
+      "stackwidth.bin": "ac82e944e17b806e13253c760969068ce8dc4924b8f5e6aa2ae2a2a8ee9ae46e",
+      "candidate/Vfes_i386_cpu": "4bc89a543794f1fca3ccedb87b507117eeb88418818d1ff7c4902768eba2e03d",
+      "candidate/producer.json": "6c68583ebeea42cdc4a815e8dd96438fccb7c2d6f5426fd6b674ee74b81d8da8"
+    },
+    "marks": {
+      "0": [
+        466,
+        161
+      ],
+      "1": [
+        642,
+        186
+      ],
+      "2": [
+        1306,
+        325
+      ],
+      "3": [
+        1464,
+        349
+      ],
+      "4": [
+        2140,
+        488
+      ],
+      "5": [
+        2295,
+        507
+      ],
+      "6": [
+        2929,
+        642
+      ],
+      "7": [
+        3083,
+        660
+      ]
+    },
+    "charge": {
+      "enter32": 25,
+      "enter16": 24,
+      "leave32": 19,
+      "leave16": 18
+    },
+    "state": "STATE 7fff0000 00000000 00000000 00000000 00018000 00011357 00000010 00000000 00000046 000011a6",
+    "exit": 0
+  },
+  "off": {
+    "frozen_sha256": {
+      "stackwidth.asm": "c5630a2fa11b8ec67167b8f17bc54612851e3b7cda9004bffad5180614d5d708",
+      "stackwidth.bin": "ac82e944e17b806e13253c760969068ce8dc4924b8f5e6aa2ae2a2a8ee9ae46e",
+      "off/Vfes_i386_cpu": "f15fb68ef1c9339dfb49c21d3b82ea91c3636443dda3e53b82e8a86e06cac981",
+      "off/producer.json": "1cd42fefcbc5527f5284bd108a4c651b47e1c66137f304f97fac5fb1b91e2fc8"
+    },
+    "marks": {
+      "0": [
+        400,
+        146
+      ],
+      "1": [
+        593,
+        180
+      ],
+      "2": [
+        1035,
+        270
+      ],
+      "3": [
+        1210,
+        304
+      ],
+      "4": [
+        1669,
+        394
+      ],
+      "5": [
+        1840,
+        422
+      ],
+      "6": [
+        2274,
+        512
+      ],
+      "7": [
+        2445,
+        540
+      ]
+    },
+    "charge": {
+      "enter32": 34,
+      "enter16": 34,
+      "leave32": 28,
+      "leave16": 28
+    },
+    "state": "STATE 7fff0000 00000000 00000000 00000000 00018000 00011357 00000010 00000000 00000046 000011a6",
+    "exit": 0
+  }
+}

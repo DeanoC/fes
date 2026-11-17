@@ -1,0 +1,77 @@
+--- a/fes_i386_pkg.sv
++++ b/fes_i386_pkg.sv
+@@ -596,6 +596,7 @@
+         logic       rep;
+         logic       ea3;
+         logic       ref_test_excluded;  // unmeasured TEST encoding: 32-bit code or any prefix
++        logic       ref_shift_nonzero;  // resolved 5-bit shift count at EX
+         logic [5:0] prefix286;  // diagnostic reference prefix clocks
+     } gov_t;
+ 
+--- a/fes_i386_cpu.sv
++++ b/fes_i386_cpu.sv
+@@ -758,6 +758,7 @@
+                         rm_reg: q_modrm[7:6] == 2'b11, o32: q_opsize32, rep: q.prefixes.rep != 2'b00,
+                         ea3: am_has_base && am_has_index && q_modrm[7] != q_modrm[6] && !q_direct,
+                         ref_test_excluded: GOV_REFERENCE_DIAGNOSTIC && (code32 || q.prefix_count != 4'd0),
++                        ref_shift_nonzero: 1'b0,
+                         prefix286: q.prefix286};
+     assign dc_q.seq = q_seq;
+     assign dc_q.step = 3'd0;
+@@ -2690,6 +2691,8 @@
+     end
+     always_comb begin
+         ex_out = ex_s;
++        if (GOV_REFERENCE_DIAGNOSTIC && ex_s.uop.cls == fes_i386_pkg::UOP_SHIFT)
++            ex_out.gov.ref_shift_nonzero = ex_s.exc.byp_c ? wb_s.result[4:0] != 5'd0 : ex_s.exc.sh.count != 5'd0;
+         ex_out.result = ex_result;
+         ex_out.eflags = ex_flags_out;
+         // An I/O uop's port (b) and OUT's data or IN's merge (a) are used at
+--- a/fes_i386_governor.sv
++++ b/fes_i386_governor.sv
+@@ -249,6 +249,36 @@
+             // effective 16-bit operands. Other encoding and memory contexts
+             // remain diagnostic and require separate validation.
+             if (!s2_gov.o32) begin
++                // Measured-reference experiment, limited to unprefixed 16-bit forms.
++                if (!s2_gov.ref_test_excluded) begin
++                    // Count zero keeps the prior diagnostic path pending validation.
++                    if (!s2_gov.ea3 && s2_gov.ref_shift_nonzero &&
++                        (s2_gov.op == 8'hc0 || s2_gov.op == 8'hc1 ||
++                         (s2_gov.op >= 8'hd0 && s2_gov.op <= 8'hd3))) begin
++                        if (s2_gov.mreg == 3'd2 || s2_gov.mreg == 3'd3)
++                            execution_clocks = s2_gov.rm_reg ? 9'd9 : 9'd10;
++                        else execution_clocks = s2_gov.rm_reg ? 9'd3 : 9'd7;
++                    end
++                    if (s2_gov.op == 8'h60) execution_clocks = 9'd18;
++                    if (s2_gov.op == 8'h61) execution_clocks = 9'd24;
++                    if (s2_gov.op == 8'h8d) execution_clocks = 9'd2;
++                    if (s2_gov.op == 8'hf6) begin
++                        case (s2_gov.mreg)
++                            3'd4: execution_clocks = 9'd13;
++                            3'd5, 3'd6: execution_clocks = 9'd14;
++                            3'd7: execution_clocks = 9'd19;
++                            default: ;
++                        endcase
++                    end
++                    if (s2_gov.op == 8'hf7) begin
++                        case (s2_gov.mreg)
++                            3'd4: execution_clocks = 9'd21;
++                            3'd5, 3'd6: execution_clocks = 9'd22;
++                            3'd7: execution_clocks = 9'd27;
++                            default: ;
++                        endcase
++                    end
++                end
+                 if (!s2_gov.ref_test_excluded && !s2_gov.rm_reg && (s2_gov.op == 8'h84 || s2_gov.op == 8'h85 ||
+                     ((s2_gov.op == 8'hf6 || s2_gov.op == 8'hf7) && s2_gov.mreg == 3'd0)))
+                     execution_clocks = 9'd5;
+@@ -338,7 +368,7 @@
+     end endgenerate
+     always_ff @(posedge clk)
+         charge <= {4'd0, execution_clocks} + {7'd0, reference_fetch} + {7'd0, reference_prefix}
+-                + {12'd0, s2_ea} + {8'd0, s2_memory} + s2_isa;
++                + {12'd0, s2_ea && !(reference_on && !s2_gov.ref_test_excluded && !s2_gov.two && !s2_gov.o32 && s2_gov.op == 8'h8d)} + {8'd0, s2_memory} + s2_isa;
+ 
+     // The debt, paid down by step each clock and never below zero.
+     logic [27:0] debt;

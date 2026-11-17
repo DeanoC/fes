@@ -1,0 +1,79 @@
+{
+  "frames": 1040,
+  "fps": 4,
+  "seconds": 260.0,
+  "toolbar_positions": {
+    "(0, 690, 28)": 1024
+  },
+  "unreadable_or_not_100_percent": [
+    {
+      "frame": 872,
+      "matches": []
+    },
+    {
+      "frame": 873,
+      "matches": []
+    },
+    {
+      "frame": 874,
+      "matches": []
+    },
+    {
+      "frame": 875,
+      "matches": []
+    },
+    {
+      "frame": 880,
+      "matches": []
+    },
+    {
+      "frame": 881,
+      "matches": []
+    },
+    {
+      "frame": 882,
+      "matches": []
+    },
+    {
+      "frame": 883,
+      "matches": []
+    },
+    {
+      "frame": 884,
+      "matches": []
+    },
+    {
+      "frame": 885,
+      "matches": []
+    },
+    {
+      "frame": 886,
+      "matches": []
+    },
+    {
+      "frame": 887,
+      "matches": []
+    },
+    {
+      "frame": 940,
+      "matches": []
+    },
+    {
+      "frame": 941,
+      "matches": []
+    },
+    {
+      "frame": 942,
+      "matches": []
+    },
+    {
+      "frame": 943,
+      "matches": []
+    }
+  ],
+  "raw_sha256": "1fe3ec77bebb6afbc5adf2da046e2877702cbd695bc0f5498a4a3f6b295934a8",
+  "template_sha256": [
+    "c673200de0cbb720ffa793aa914e94cce712773baee744a0863ecc4847f78033"
+  ],
+  "note": "Exact screenshot-template match; unreadable samples and any speed other than boot 100% fail. Sampling does not measure between frames."
+}

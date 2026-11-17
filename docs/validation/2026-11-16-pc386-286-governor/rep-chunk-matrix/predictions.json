@@ -1,0 +1,82 @@
+{
+  "A": {
+    "opcode": "movsb",
+    "count": 28,
+    "charged": 149.998
+  },
+  "B": {
+    "opcode": "movsb",
+    "count": 40,
+    "charged": 198.004
+  },
+  "C": {
+    "opcode": "movsb",
+    "count": 54,
+    "charged": 258.004
+  },
+  "D": {
+    "opcode": "movsb",
+    "count": 80,
+    "charged": 366.004
+  },
+  "E": {
+    "opcode": "stosb",
+    "count": 1,
+    "charged": 37.004
+  },
+  "F": {
+    "opcode": "stosb",
+    "count": 8,
+    "charged": 70.004
+  },
+  "G": {
+    "opcode": "stosb",
+    "count": 22,
+    "charged": 142.002
+  },
+  "H": {
+    "opcode": "stosb",
+    "count": 40,
+    "charged": 232.002
+  },
+  "I": {
+    "opcode": "lodsb",
+    "count": 1,
+    "charged": 37.0
+  },
+  "J": {
+    "opcode": "lodsb",
+    "count": 8,
+    "charged": 70.004
+  },
+  "K": {
+    "opcode": "lodsb",
+    "count": 22,
+    "charged": 142.002
+  },
+  "L": {
+    "opcode": "lodsb",
+    "count": 40,
+    "charged": 232.002
+  },
+  "M": {
+    "opcode": "scasb",
+    "count": 1,
+    "charged": 38.002
+  },
+  "N": {
+    "opcode": "scasb",
+    "count": 8,
+    "charged": 94.004
+  },
+  "O": {
+    "opcode": "scasb",
+    "count": 14,
+    "charged": 144.002
+  },
+  "P": {
+    "opcode": "scasb",
+    "count": 28,
+    "charged": 258.002
+  }
+}

@@ -1,0 +1,40 @@
+--- a/fes_i386_governor.sv
++++ b/fes_i386_governor.sv
+@@ -249,6 +249,28 @@
+             // effective 16-bit operands. Other encoding and memory contexts
+             // remain diagnostic and require separate validation.
+             if (!s2_gov.o32) begin
++                // Measured-reference experiment, limited to unprefixed 16-bit forms.
++                if (!s2_gov.ref_test_excluded) begin
++                    if (s2_gov.op == 8'h60) execution_clocks = 9'd18;
++                    if (s2_gov.op == 8'h61) execution_clocks = 9'd24;
++                    if (s2_gov.op == 8'h8d) execution_clocks = 9'd2;
++                    if (s2_gov.op == 8'hf6) begin
++                        case (s2_gov.mreg)
++                            3'd4: execution_clocks = 9'd13;
++                            3'd5, 3'd6: execution_clocks = 9'd14;
++                            3'd7: execution_clocks = 9'd19;
++                            default: ;
++                        endcase
++                    end
++                    if (s2_gov.op == 8'hf7) begin
++                        case (s2_gov.mreg)
++                            3'd4: execution_clocks = 9'd21;
++                            3'd5, 3'd6: execution_clocks = 9'd22;
++                            3'd7: execution_clocks = 9'd27;
++                            default: ;
++                        endcase
++                    end
++                end
+                 if (!s2_gov.ref_test_excluded && !s2_gov.rm_reg && (s2_gov.op == 8'h84 || s2_gov.op == 8'h85 ||
+                     ((s2_gov.op == 8'hf6 || s2_gov.op == 8'hf7) && s2_gov.mreg == 3'd0)))
+                     execution_clocks = 9'd5;
+@@ -338,7 +360,7 @@
+     end endgenerate
+     always_ff @(posedge clk)
+         charge <= {4'd0, execution_clocks} + {7'd0, reference_fetch} + {7'd0, reference_prefix}
+-                + {12'd0, s2_ea} + {8'd0, s2_memory} + s2_isa;
++                + {12'd0, s2_ea && !(reference_on && !s2_gov.ref_test_excluded && !s2_gov.two && !s2_gov.o32 && s2_gov.op == 8'h8d)} + {8'd0, s2_memory} + s2_isa;
+ 
+     // The debt, paid down by step each clock and never below zero.
+     logic [27:0] debt;
