@@ -194,15 +194,25 @@ and compilation verify the derived board SDC, all six generated files and their
 receipt; regenerated or changed constraints stop the build before Linux phase
 conversion. The canonical record binds this policy before IP generation.
 
-The canonical `managed-scanout-initiators-v3` profile removes the entire vendor
-debug subsystem and its separate ACE5-Lite F2H translator. The maintenance
+The canonical `managed-scanout-initiators-v4` profile removes the entire vendor
+debug subsystem, its separate ACE5-Lite F2H translator and the vendor on-chip
+memory (`ocm`, 16384 x 128 bits). The maintenance
 Linux-DMA profile above retains its other debug paths. FPGA configuration over
 JTAG remains available; these removed components are Avalon transaction masters.
-The normal HPS lightweight control route, HPS-to-OCM route and isolated SID13
+The normal HPS lightweight control route and isolated SID13
 scanout-to-F2SDRAM route remain required.
 
-Generation checks all eight elaborated initiator endpoints, including the CPU
-bridges and relay stages; they are not eight independent DMA devices. Exactly
+The on-chip memory was the only responder on the full HPS-to-FPGA bridge. No
+FES kernel module, runtime, device tree or boot stage addresses it, and it
+held about 105 of the device's 358 M20K blocks in every managed core. With it
+gone the bridge would have no responder, so the bridge is disabled with the
+supported HPS `H2F_Width=0` (Unused) parameter instead of being left enabled
+and stalling any access. Its child exports, top-level clock/reset connections
+and generated HPS ports must be absent, as for F2H. v3 required the HPS-to-OCM
+route; v4 fails if the memory, the route or the bridge interface is present.
+
+Generation checks all seven elaborated initiator endpoints, including the CPU
+bridge and relay stages; they are not seven independent DMA devices. Exactly
 one fabric path enters HPS, through the checked F2SDRAM adapter. Every control
 stage must have its single expected ingress. The unused native F2H bridge is
 disabled with the supported HPS `f2s_data_width=0` (Unused) parameter. Its child
@@ -212,7 +222,7 @@ control bypasses, retained debug instances, wrong routes and stale generated
 interfaces fail closed. The captured verifier and the complete generated
 graph receipt are rechecked before and after compilation, before conversion.
 The full vendor HPS/EMIF parameter review permits only the existing F2SDRAM
-SMMU exposure and this F2H disable for canonical MENU. Standalone maintenance
+SMMU exposure and these F2H and H2F disables for canonical MENU. Standalone maintenance
 keeps its existing bridge parameters. The disabled bridge is checked in the
 actual HPS IP, elaborated interface definition and generated parent RTL; no
 manual parent RTL tie-offs are used. This parameter change still requires
