@@ -24,6 +24,7 @@
 namespace {
 
 constexpr uint64_t kSysHalfPs = 9574;    // nominal 52.224 MHz, rounded to ps
+constexpr uint64_t kBusHalfPs = 5000;    // 100 MHz peripheral clock
 constexpr uint64_t kPixelHalfPs = 6734;  // nominal 74.25 MHz, rounded to ps
 constexpr uint32_t kGpo = 0x0c, kGpi = 0x10, kFault = 0x14;
 constexpr uint32_t kInfo = 29, kBegin = 30, kData = 31, kCommit = 32;
@@ -55,7 +56,7 @@ std::vector<uint8_t> read_file(const char* path) {
 struct Board {
     Vfes_de25_spectrum_standard dut;
     Vfes_de25_spectrum_standard___024root& root;
-    uint64_t next_sys = 0, next_pixel = 0;
+    uint64_t next_sys = 0, next_pixel = 0, next_bus = 0;
     bool toggle = false;
     // Logical CL2/BL1 SDRAM, as the ramtest controller bench models it: the
     // chips sample on the fabric falling edge, and read data is valid from
@@ -69,6 +70,7 @@ struct Board {
     Board() : root(*dut.rootp) {
         for (auto& chip : rows) chip.fill(-1);
         dut.clk_sys = 0;
+        dut.machine_clk = 0;
         dut.pixel_clk = 0;
         dut.reset_n = 0;
         dut.pixel_reset_n = 0;
@@ -137,22 +139,32 @@ struct Board {
             }
         }
     }
-    // Advance to the next edge of either unrelated clock; true on a system rise.
-    bool step() {
-        if (next_pixel < next_sys) {
+    // Advance to the next edge of the three unrelated clocks: 0 pixel or a
+    // falling edge, 1 a machine rise, 2 a peripheral (computer slave) rise.
+    int step() {
+        if (next_pixel < next_sys && next_pixel < next_bus) {
             next_pixel += kPixelHalfPs;
             dut.pixel_clk = !dut.pixel_clk;
             dut.eval();
-            return false;
+            return 0;
+        }
+        if (next_bus < next_sys) {
+            next_bus += kBusHalfPs;
+            dut.clk_sys = !dut.clk_sys;
+            dut.eval();
+            return dut.clk_sys ? 2 : 0;
         }
         next_sys += kSysHalfPs;
-        dut.clk_sys = !dut.clk_sys;
+        dut.machine_clk = !dut.machine_clk;
         dut.eval();
-        if (!dut.clk_sys) sdram_falling();
-        return dut.clk_sys;
+        if (!dut.machine_clk) sdram_falling();
+        return dut.machine_clk ? 1 : 0;
     }
     void run_clocks(int clocks) {
-        for (int i = 0; i < clocks;) i += step();
+        for (int i = 0; i < clocks;) i += step() == 1;
+    }
+    void run_bus(int clocks) {
+        for (int i = 0; i < clocks;) i += step() == 2;
     }
     void write(uint32_t address, uint32_t value) {
         dut.computer_address = address;
@@ -161,7 +173,7 @@ struct Board {
         dut.computer_write = 1;
         for (int i = 0; i < 16; ++i) {
             const bool accepted = !dut.computer_waitrequest;
-            run_clocks(1);
+            run_bus(1);
             if (accepted) {
                 dut.computer_write = 0;
                 require(dut.computer_writeresponsevalid && dut.computer_response == 0,
@@ -176,7 +188,7 @@ struct Board {
         dut.computer_read = 1;
         for (int i = 0; i < 16; ++i) {
             const bool accepted = !dut.computer_waitrequest;
-            run_clocks(1);
+            run_bus(1);
             if (accepted) {
                 dut.computer_read = 0;
                 require(dut.computer_readdatavalid && dut.computer_response == 0,

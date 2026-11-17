@@ -49,7 +49,7 @@ def sources(output):
     transport.write_bytes(b'`include "fes_computer.vh"\n`include "fes_de25_computer.vh"\n' +
                           computer[computer.index(marker):])
     return [HERE / "fes_de25_spectrum_standard.v", transport, BOARD / "ramtest/sdram.v",
-            SHARED / "fes_spectrum_core.v", SHARED / "fes_firmware_upload.v",
+            SHARED / "fes_spectrum_core.v", SHARED / "fes_gp_crossing.v", SHARED / "fes_firmware_upload.v",
             SHARED / "fes_media_sdram.v", SHARED / "fes_spectrum_firmware_rom.v",
             SHARED / "fes_computer_mailbox.v", SHARED / "fes_display_plane.v",
             SHARED / "fes_menu_control.v", SHARED / "fes_menu_video.v", reader,
