@@ -1,0 +1,15 @@
+artefact             lane          build_id                           inputs  verdict
+fes.menu             nextpnr       60bccd54ecb727e9a6c809388fa9c470   moved   CARRIED from 72d2fc4da (identical)
+fes.c64              nextpnr       310c87314680b122595bb792ab7429c9   moved   CARRIED from 72d2fc4da (identical)
+fes.spectrum         nextpnr       401632145ba4e7c84cbae6544b2d6d53   moved   CARRIED from 72d2fc4da (identical)
+fes.spectrum128      nextpnr       c1a739bb78c24b55eadbfc0473a68d45   moved   PASS
+fes.spectrum-plus3   nextpnr       -                                  -       NOT MEASURED (base, head)
+fes.pentagon         nextpnr       -                                  -       NOT MEASURED (head)
+zx81                 quartus-lite  d7fadc3a87a7b3fe12a164d2dd62e126   moved   PASS
+zx80                 quartus-lite  c35171885bf84738cf3e1c6e2ba99908   moved   PASS
+ts1000               quartus-lite  ade15fe738cb33a5e05eb7251fc70cf3   moved   PASS
+ts1500               quartus-lite  d058332894c54b349c648c1fc6177022   moved   PASS
+splash               nextpnr       b19d12426e4c1323c859199c1798fe07   moved   PASS (no BUILD_ID in the program) -- RBF equal at two different ids
+
+9 artefact(s) claimed on condition 2
+not measured: fes.spectrum-plus3: base, head; fes.pentagon: head

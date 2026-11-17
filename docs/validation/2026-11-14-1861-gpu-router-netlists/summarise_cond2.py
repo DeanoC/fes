@@ -18,6 +18,13 @@ import argparse, json
 from pathlib import Path
 
 ROOT = Path("/data/fes1861-netlist")
+RECORD = Path(__file__).resolve().parent
+# Where the old-base condition-2 runs and the carry-forward measurement live.
+# A row carries only where BOTH are true: the recorded pair itself passed, and
+# main's own netlist is byte-identical at the old base and the new one
+# (base_move_netlist.py). Neither alone is enough, so neither is assumed.
+OLD_COND2 = RECORD / "reports-cond2"
+CARRY = ROOT / "identity/base-move-netlist.json"
 LANES = {
     "nextpnr": (ROOT / "cond2", "pinned_inputs_sha256",
                 ("fes.menu", "fes.c64", "fes.spectrum", "fes.spectrum128",
@@ -25,6 +32,49 @@ LANES = {
     "quartus-lite": (ROOT / "qcond2", "declared_inputs_sha256",
                      ("zx81", "zx80", "ts1000", "ts1500")),
 }
+
+
+def carried(artefact: str) -> dict | None:
+    """Does D12's merge-forward clause carry this artefact's recorded pair?"""
+    key = artefact.removeprefix("fes.")
+    control = OLD_COND2 / f"{key}-main-control.json"
+    forced = OLD_COND2 / f"{key}-branch-forced.json"
+    if not (control.is_file() and forced.is_file() and CARRY.is_file()):
+        return None
+    a, b = json.loads(control.read_text()), json.loads(forced.read_text())
+    if a["build_id"] != b["build_id"] or a["rbf_sha256"] != b["rbf_sha256"]:
+        return None
+    row = json.loads(CARRY.read_text())["rows"].get(key)
+    if row is None or not row.get("verdict", "").startswith("identical"):
+        return None
+    return {"recorded_build_id": a["build_id"], "recorded_rbf_sha256": a["rbf_sha256"],
+            "recorded_revision": a["revision"],
+            "main_netlist_at_both_bases": row["verdict"]}
+
+
+def splash_row() -> dict | None:
+    """splash is condition 2 without forcing the constant, and a stronger case.
+
+    Its Yosys program sets no BUILD_ID at all, so the RBF cannot depend on one:
+    the two sides reproduce the same RBF while their format-1 records -- which
+    hash the revision -- give *different* BUILD_IDs. That is reproduction under
+    main's BUILD_ID a fortiori, so it is reported on its own terms rather than
+    folded in with the forced-constant rows, and the carry check still applies.
+    """
+    seal = RECORD / "reports-seal" / "splash.json"
+    if not (seal.is_file() and CARRY.is_file()):
+        return None
+    d = json.loads(seal.read_text())
+    row = json.loads(CARRY.read_text())["rows"].get("splash")
+    if not (d.get("rbf_identical") and d.get("build_ids_differ")
+            and d["main"]["status"] == "pass" and d["branch"]["status"] == "pass"):
+        return None
+    if row is None or not row.get("verdict", "").startswith("identical"):
+        return None
+    return {"lane": "nextpnr", "verdict": "PASS (no BUILD_ID in the program)",
+            "main_build_id": d["main"]["build_id"], "branch_build_id": d["branch"]["build_id"],
+            "rbf_sha256": d["main"]["rbf_sha256"], "rbf_bytes": d["main"]["rbf_bytes"],
+            "main_netlist_at_both_bases": row["verdict"]}
 
 
 def main() -> int:
@@ -42,6 +92,14 @@ def main() -> int:
                 path = directory / f"{key}-{label}" / "rbf.json"
                 legs[leg] = json.loads(path.read_text()) if path.is_file() else None
             if any(v is None for v in legs.values()):
+                carry = carried(artefact)
+                if carry is not None:
+                    claimed.append(artefact)
+                    rows[artefact] = {"lane": lane, "verdict": "CARRIED", **carry}
+                    print(f'{artefact:20} {lane:13} {carry["recorded_build_id"]:34} '
+                          f'{"moved":7} CARRIED from {carry["recorded_revision"][:9]} '
+                          f'({carry["main_netlist_at_both_bases"]})')
+                    continue
                 absent = [l for l, v in legs.items() if v is None]
                 missing.append(f"{artefact}: {', '.join(absent)}")
                 print(f"{artefact:20} {lane:13} {'-':34} {'-':7} NOT MEASURED ({', '.join(absent)})")
@@ -67,6 +125,15 @@ def main() -> int:
             }
             print(f'{artefact:20} {lane:13} {b["build_id"]:34} '
                   f'{"moved" if inputs_moved else "SAME!":7} {verdict}')
+    sp = splash_row()
+    if sp is None:
+        missing.append("splash: seal record or carry measurement absent")
+        print(f'{"splash":20} {"nextpnr":13} {"-":34} {"-":7} NOT MEASURED')
+    else:
+        rows["splash"] = sp
+        claimed.append("splash")
+        print(f'{"splash":20} {"nextpnr":13} {sp["main_build_id"]:34} '
+              f'{"moved":7} {sp["verdict"]} -- RBF equal at two different ids')
     print()
     print(f"{len(claimed)} artefact(s) claimed on condition 2")
     if missing:
