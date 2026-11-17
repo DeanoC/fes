@@ -1396,7 +1396,10 @@ input support does not change that selected RTL path.
 `build/fes-ramtest-100/` with the
 `cores/fes-ramtest/toolchain.lock` HIP compiler slot, whose Yosys declares every fpga2sdram port. Its
 timing gate covers the memory, capture and video domains, and the recipe checks
-the synthesized fpga2sdram layout constants. `make build-fes-ramtest-quartus`
+the synthesized fpga2sdram layout constants. Before sealing, it also requires
+each of the 20 routed SDRAM address, bank and command outputs to have one direct
+`MISTRAL_SDROUT` pad driver. This checks output-register packing; it does not
+replace routed timing or board validation. `make build-fes-ramtest-quartus`
 compiles the same RTL with Quartus 17.0.2 at 130 MHz; `RAMTEST_MHZ=100` selects
 a separate 100 MHz diagnostic. A gamepad button, or a keyboard key the host
 maps to one, stops the scans. The ABI has no memory opcode. Hardware results
@@ -1588,6 +1591,18 @@ is not the product bitstream and is not a fallback when the HIP seal fails.
 
 ## Shared compiler installation
 
+The PC/XT Quartus sealer selects Yosys by the exact binary SHA256 in its
+Quartus lock. Shared-cache selection verifies the published install's source
+pin, original build key, host architecture and complete read-only closure,
+then holds its prune lock for the build. A newer provisioning recipe may
+create a different install of the same source commit; it does not replace
+the explicitly pinned binary. Missing or corrupt pinned installs fail closed.
+Pruning reads binary pins from the selected Git ref's Quartus locks and keeps
+matching source/binary installs even when their bootstrap recipe or compiler
+differs from today's provisioning identity. Uncommitted lock edits do not
+change retention; aged installs become collectible when their committed pin
+is removed or moved.
+
 Registered FES producers select compiler pins from their corresponding
 `cores/fes-<core>/toolchain.lock`. The shared cache holds one install per tool,
 commit and build configuration, not one per lock, so locks that pin the same
@@ -1613,7 +1628,9 @@ producer's own `make toolchain-fes-<core>` target writes without a cache
 (`build/toolchain/fes-<core>`, or `build/toolchain/zx81-expansion` and
 `build/toolchain/fes-coleco-socket-v2`), so a core whose lock moves never reads
 another lock's tools. Quartus
-ZX81/Coleco/SG-1000/SMS recipes are oracle-only and are not a nextpnr fallback.
+Coleco/SG-1000/SMS recipes are oracle-only. The ZX81 family's Quartus Lite
+recipe is its registered producer, and its nextpnr build is advisory. No
+Quartus recipe is a nextpnr fallback.
 For a shared cache, the same `CACHE_ROOT=/absolute/cache` spelling selects
 the FES HIP toolchain for every registered `toolchain-fes-<core>` target;
 doctor and doctor-strict use that same selection. An explicit
@@ -2374,7 +2391,7 @@ The core is `fes.computer` 1.0 unless a shell enables a 1.1 interface:
 `ENABLE_ATA_DISK`, `ENABLE_PERSISTENCE`, `ENABLE_WALL_CLOCK`,
 `ENABLE_PC386_MACHINE` and `ENABLE_PCXT_FLOPPY` expose capability bits 16..20
 respectively and make it minor 1, answering identity word 16. `fes.pc386`
-uses bits 16..19; `fes.pcxt` uses bit 20. `pc386_system` hands its storage
+uses bits 16..19; `fes.pcxt-dos` uses bit 20. `pc386_system` hands its storage
 opcodes to `fes_computer_storage` (`rtl/fes_computer_storage.v`) and holds each
 until the reply, as it does menu opcodes for the display plane. That endpoint
 owns the ATA disk's unit
@@ -2488,7 +2505,8 @@ The ROM lanes come from `cores/fes-zx81/quartus/zx81_rom_link.v` instead of
 uses. The package is format 3 with the same `m10k-1024x10-v1` `rom-map.json`,
 so the kit links the user's ROM exactly as it does for the OSS package.
 
-Every seed in `SEEDS` must pass the complete TimeQuest gate, and an
+Every seed in the core's `[recipes.quartus].seeds` in
+`config/core-recipes.toml` must pass the complete TimeQuest gate, and an
 independent rebuild of the first seed must reproduce its RBF. The producer
 also checks the PLL output frequencies, the ROM lane placement and blank
 init files, no MLAB, the three display-plane DSP blocks and the audio pins. A
@@ -2594,9 +2612,10 @@ validation cart; mixed-width `A1EN`/`A1BE` decoded but did not hold `POKE`/`OUT`
 Cart M10K keep a distinct top clock port (`FPGA_CLK1_50`) so
 `--fes-slot-clock clk_sys` can splice the inferred IB onto the shell 52.224 MHz
 net; naming that port `clk_sys` leaves M10K on the pad output. During `/RFSH` the shell presents the ULA character-ROM address as the QS
-`8400–87FF` window so the same 1 KiB cell supplies glyphs. QS power-up
-loads Sinclair glyphs 0–63 (ROM `1E00–1FFF`) into that cell so boot text
-is readable; CPU writes still replace rows. The shifter loads a
+`8400–87FF` window so the same 1 KiB cell supplies glyphs. The cell starts
+empty and holds no ROM bytes. QS claims those fetches only after the first
+CPU write to the window, which is the real board's character switch; until
+then, and again after CPU reset, the shell shows its own ROM glyphs. The shifter loads a
 registered `rfsh_chr` hold that keeps the first ROMCS byte; `/RFSH` is
 not muxed into `cpu_din` (that loop stopped the FES GP mailbox). The validation
 cart is the first consumer on that edge; Zon X and QS Character Board RTL share
@@ -2723,7 +2742,7 @@ matching workaround rather than keep both.
 
 What already works in this design, so a toolchain fix should not regress it: two independent `altera_pll` cells on PIN_V11; 8-bit 16 K `m10k_tdp` infers 16 `MISTRAL_M10K_TDP` cells in under a second; Pong-style `MISTRAL_IO` HDMI I2C at X52/Y60.
 
-The product OSS shell and the Quartus oracle both instantiate `fes_z80_nmos` from `zx81_machine.sv`. That selection is not a nextpnr packing gap, and the oracle has no separate VHDL T80pa CPU.
+The registered Quartus shell and the advisory OSS shell both instantiate `fes_z80_nmos` from `zx81_machine.sv`. That selection is not a nextpnr packing gap, and neither build has a separate VHDL T80pa CPU.
 
 The format-2 package is `fes.pong` version 1.1.0 and requires
 `fes.persistence.words` 1.0 and `fes.pong.progress` 1.0 in addition to gamepad
@@ -3916,28 +3935,19 @@ key before bootstrap. This diskless fixture is not a packaged BIOS, a host HID
 path or kit acceptance. The diagnostic board ties its
 keyboard cable inactive and retains its fixed glyph input.
 
-**The full PC/XT product remains in development.** The registered `fes.pcxt`
-recipe now exports an installable format-2 diagnostic package with the standard
-identity/execution mailbox and fixed CGA Direct video. Its forwarded HDMI clock
-uses an 8.979 ns phase offset from pixel-data updates; the system and pixel
-rates do not change. Fixed video is inline in the RBF and needs no external
-video-part index. The `fes.computer` 1.1 mailbox declares one read-only 360 KiB
-PC/XT floppy unit; keyboard and physical socket interfaces are not declared.
-The registered producer is Quartus, with the common 100 MHz package profile,
-proof-bound video mailbox constraints and phased HDMI. All declared seeds
-must pass reported internal checks; an independent first-seed rebuild must
-reproduce the RBF. Internal clock-validity checks must pass, and every unclocked
-register must belong to an elaborated HPS hard primitive. Functional identity
-binds the installed tools, actual Python interpreter/standard library, host
-helper/library bytes and full selected source closure. Retries retain each
-attempt beneath the build ID. External physical timing/reset qualification and
-exact-artifact hardware acceptance remain separate from this diagnostic seal.
-Existing linker layout admission remains closed until an exact shell and its
-physical sockets are qualified.
+**The full PC/XT product remains in development.** `fes.pcxt-dos` is its sole
+installable package. The diagnostic ROM, focused simulations and raw board
+builders remain development checks and have no separate registry/catalog entry.
+The format-2 DOS package uses `fes.computer` 1.1, inline CGA Direct video,
+a common 100 MHz board clock and a forwarded HDMI clock phased by 8.979 ns.
+All declared Quartus seeds must pass the complete reported internal checks,
+and the first seed's RBF must reproduce independently. External physical
+timing/reset qualification and exact-artifact acceptance remain separate.
+Physical socket admission remains closed until an exact shell is qualified.
 
-The independent `fes.pcxt-dos` recipe selects the default-off `HARDWARE_DOS`
+The DOS producer always selects the `HARDWARE_DOS`
 top parameter. It enables the GLaBIOS XT/5160 ROM, a host HID to XT set-1
-keyboard frontend with BAT response, and the read-only floppy controller. The `fes.computer` 1.1
+keyboard frontend with BAT response, PC speaker and writable floppy controller. The `fes.computer` 1.1
 mailbox accepts a 360 KiB runtime floppy and writes it into SDRAM. When an
 initial disk is being loaded, the first boot waits for complete physical writes
 and media commit. Releasing execution with an empty drive starts the BIOS so
@@ -4281,7 +4291,7 @@ removing that decode from the peripheral's same-cycle control path. Warm reset/H
 preserve storage/refresh; HOLD resets the machine and mutes video.
 `python3 scripts/build_fes_pcxt.py --cache-root /absolute/cache` retains each standalone
 diagnostic synthesis/route attempt under `build/diagnostic/fes-pcxt/`.
-`python3 scripts/core_dev.py prepare --core fes.pcxt --output out/pcxt-package`
+`python3 scripts/core_dev.py prepare --core fes.pcxt-dos --output out/pcxt-package`
 uses the registered Quartus producer to create an installable RBF and manifest
 under `build/packages/`. Export requires all declared timing seeds and the
 independent repeat to pass; missing or failing internal timing blocks it.

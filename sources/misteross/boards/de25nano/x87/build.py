@@ -27,8 +27,12 @@ PERIOD_NS = 5.0
 TIMEOUT_SECONDS = 30 * 60
 MIN_FREE_BYTES = 30 * 1024 ** 3
 LOCK = Path("/tmp/lander-quartus-3090.lock")
-RTL = ("fes_x87_pkg.sv", "fes_x87_fast.sv", "fes_x87_slow.sv",
+# The backend's RTL is shared i386 RTL: `fes_i386_x87` instantiates
+# `fes_x87_core` directly when its DE25 arithmetic backend is selected, so the
+# files live beside the CPU rather than under this board.
+RTL = ("fes_x87_pkg.sv", "fes_x87_fast.sv", "fes_x87_slow.sv", "fes_x87_core.sv",
        "fes_x87_round.sv", "fes_x87_pipe.sv")
+SHARED_RTL = HERE.parents[2] / "cores/fes-common/rtl/i386"
 
 
 class BuildError(RuntimeError):
@@ -78,7 +82,7 @@ def compiler_lease():
 def prepare(output: Path | None = None) -> Path:
     board = board_tools()
     metadata = board.quartus_metadata()
-    sources = {"rtl/" + name: (HERE / "rtl" / name).read_bytes() for name in RTL}
+    sources = {"rtl/" + name: (SHARED_RTL / name).read_bytes() for name in RTL}
     sources.update({"build.py": (HERE / "build.py").read_bytes(),
                     "timing.tcl": (HERE / "timing.tcl").read_bytes(),
                     "board-build.py": (HERE.parent / "build.py").read_bytes(),

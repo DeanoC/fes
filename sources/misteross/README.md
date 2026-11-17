@@ -99,14 +99,14 @@ ABI. CI runs these focused floppy checks on pull requests. The complete
 `make sim-fes-pcxt-dos` simulation boots the pinned GLaBIOS XT/5160 BIOS
 and FreeDOS through the same whole-machine SDRAM, keyboard and floppy paths;
 it permits downloads of pinned BIOS and FreeDOS fixtures. The DOS profile uses
-the runtime PC floppy media path and does not accept host keyboard input.
-Host simulations do not qualify hardware. `make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache` builds the
-normal Quartus diagnostic package, with authenticated tool/source identity,
+the runtime PC floppy media path, host HID keyboard input and PC speaker audio.
+Host simulations do not qualify hardware. `make build-fes-pcxt-dos CACHE_ROOT=/absolute/toolchain-cache` builds the
+normal Quartus DOS package, with authenticated tool/source identity,
 three timing seeds and an independent byte-identical rebuild under
 `build/fes-pcxt-quartus/`. The [core README](cores/fes-pcxt/README.md) describes
-tool selection and the separate advisory nextpnr diagnostic. The exact package
-in the [reviewed Kit A record](../../docs/validation/2026-10-29-pcxt-quartus-package/review-followup.json)
-passes the static picture/completion-block and launch/Stop checks. External
+tool selection and the separate advisory nextpnr diagnostic. Exact-package DOS acceptance is recorded in [core status](../../docs/core-status.md);
+a fresh seal needs its own hardware check. The diagnostic ROM, raw board builds
+and offline capture checkers remain development tools. External
 SDRAM/HDMI timing, whole-board qualification, physically linkable ISA sockets
 and BIOS/DOS/game compatibility remain open.
 
@@ -204,22 +204,22 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 
 ### Cores
 
-| Package | Simulate | OSS seal | Quartus oracle | Parent recipe |
+| Package | Simulate | OSS seal | Quartus | Parent recipe |
 | --- | --- | --- | --- | --- |
 | `fes.menu` | `python3 scripts/sim_fes_menu.py` | `make build-fes-menu-package` | none | image idle display, not a playable core |
 | `fes.pong` | `make sim-fes-pong` | `make build-fes-pong` | none on the product path | library, supported |
-| `fes.zx81` | `make sim-fes-zx81` (includes live session display) | `make build-fes-zx81` | `make build-fes-zx81-quartus` | library, supported |
-| `fes.zx80` | `make sim-fes-zx81` | `make build-fes-zx80` | `make build-fes-zx81-quartus MODEL=zx80` | library, experimental, package-only |
-| `fes.ts1000` | `make sim-fes-zx81` | `make build-fes-ts1000` | `make build-fes-zx81-quartus MODEL=ts1000` | library, experimental, package-only |
-| `fes.ts1500` | `make sim-fes-zx81` | `make build-fes-ts1500` | `make build-fes-zx81-quartus MODEL=ts1500` | library, experimental, package-only |
-| `fes.coleco` | `make sim-fes-coleco` | `make build-fes-coleco` | `make build-fes-coleco-quartus` | library, supported |
-| `fes.sms` | `make sim-fes-sms` and `make sim-fes-sms-oss` | `make build-fes-sms` | `make build-fes-sms-quartus` | development; outside first-party catalog |
-| `fes.sg1000` | `make sim-fes-sg1000-rom-link` (plus `make sim-fes-sg1000` and `make sim-fes-sg1000-oss` diagnostics) | `make build-fes-sg1000` | `make build-fes-sg1000-quartus` | development; outside first-party catalog |
+| `fes.zx81` | `make sim-fes-zx81` (includes live session display) | `make build-fes-zx81` (advisory) | `make build-fes-zx81-quartus` (registered) | library, supported |
+| `fes.zx80` | `make sim-fes-zx81` | `make build-fes-zx80` (advisory) | `make build-fes-zx81-quartus MODEL=zx80` (registered) | library, experimental, package-only |
+| `fes.ts1000` | `make sim-fes-zx81` | `make build-fes-ts1000` (advisory) | `make build-fes-zx81-quartus MODEL=ts1000` (registered) | library, experimental, package-only |
+| `fes.ts1500` | `make sim-fes-zx81` | `make build-fes-ts1500` (advisory) | `make build-fes-zx81-quartus MODEL=ts1500` (registered) | library, experimental, package-only |
+| `fes.coleco` | `make sim-fes-coleco` | `make build-fes-coleco` | `make build-fes-coleco-quartus` (oracle) | library, supported |
+| `fes.sms` | `make sim-fes-sms` and `make sim-fes-sms-oss` | `make build-fes-sms` | `make build-fes-sms-quartus` (oracle) | development; outside first-party catalog |
+| `fes.sg1000` | `make sim-fes-sg1000-rom-link` (plus `make sim-fes-sg1000` and `make sim-fes-sg1000-oss` diagnostics) | `make build-fes-sg1000` | `make build-fes-sg1000-quartus` (oracle) | development; outside first-party catalog |
 | `fes.spectrum` (48K) | `make sim-fes-spectrum` | `make build-fes-spectrum` | none | library, experimental |
 | `fes.spectrum128` (128K/+2) | `make sim-fes-spectrum` | `make build-fes-spectrum128` | none | library, experimental |
 | `fes.spectrum-plus3` (+2A/+3) | `make sim-fes-spectrum` | `make build-fes-spectrum-plus3` | none | library, experimental |
 | `fes.pentagon` (Pentagon 128) | `make sim-fes-spectrum` | `make build-fes-pentagon` | none | library, experimental |
-| `fes.ramtest` | `make sim-fes-ramtest` | `make build-fes-ramtest-100` | `make build-fes-ramtest-quartus` | library utility, supported, OSS 100 MHz |
+| `fes.ramtest` | `make sim-fes-ramtest` | `make build-fes-ramtest-100` | `make build-fes-ramtest-quartus` (oracle) | library utility, supported, OSS 100 MHz |
 | `fes.riscv` | `make sim-fes-riscv` | `make build-fes-riscv` | none | library, experimental |
 | splash / idle | `make sim-fes-splash` | `make build-fes-splash` | none | `sealed/fes-splash.rbf`, not a play package |
 
@@ -253,9 +253,12 @@ build/fes-splash/core.rbf
 sealed/fes-splash.rbf
 ```
 
-Quartus oracle RBFs, when a recipe has one, are
-`build/fes-<name>-quartus/core.rbf`. They are not a fallback when the OSS
-producer fails.
+The Quartus column has two kinds of command. A `(registered)` entry is the
+package producer that `config/core-recipes.toml` selects for that core: the
+ZX81 family is sealed by Quartus Lite, its seeds come from that row's
+`[recipes.quartus].seeds`, and its nextpnr build is advisory. An `(oracle)`
+entry is a bring-up check whose `build/fes-<name>-quartus/core.rbf` is not a
+product artifact. Neither kind is a fallback when an OSS producer fails.
 
 The ZX81 1.7.0 source drives HDMI through the shared `fes.video.session-display`
 plane, which blends runtime-owned DDR frames over the machine picture for
@@ -275,12 +278,16 @@ make toolchain
 
 `make toolchain` is the generic OSS lane (GPU router off), including splash.
 `make toolchain-fes` provisions the repository-level `toolchain.lock` HIP
-lane for consumers that still select that lock. Every registered core has a
+lane for consumers that still select that lock. Every registered OSS core has a
 matching `toolchain-fes-<core>` target that provisions its
-`cores/fes-<core>/toolchain.lock`: menu, Pong, ZX81, Coleco, SMS,
+`cores/fes-<core>/toolchain.lock`: menu, Pong, Coleco, SMS,
 SG-1000, Apple II, C64, Spectrum, RISC-V, RAM Tester and Atari ST. Without a
 cache, each producer reads the local install that its own target writes.
-Menu and ZX81 pin nextpnr `1eecf877`, Pong's lock pins `552ba246`, and
+The ZX81 family's registered lock is `cores/fes-zx81/quartus.lock`
+(Quartus Lite through `QUARTUS_ROOTDIR`). Its `make toolchain-fes-zx81`
+target provisions `cores/fes-zx81/toolchain.lock`, which supplies the pinned
+Mistral ROM database that producer reads and the advisory nextpnr shell and
+carts. Menu and the advisory ZX81 lane pin nextpnr `1eecf877`, Pong's lock pins `552ba246`, and
 RISC-V's `8f453ebc`, so each has its own slot. Apple II, Atari ST and C64 use
 nextpnr `5fe55f3d` from nextpnr #276; their shell validators require that
 producer pin's exact F0/F1 `$ROUTETHRU` map. Apple II and C64 share one slot,

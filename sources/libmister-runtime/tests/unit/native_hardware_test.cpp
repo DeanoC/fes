@@ -5486,7 +5486,7 @@ void TestPcxtFloppyLifecycleThroughRuntime()
 	ReplaceAll(&manifest, "id = \"fes.computer\"\nmajor = 1\nminor = 0",
 		"id = \"fes.computer\"\nmajor = 1\nminor = 1");
 	ReplaceAll(&manifest, "fes.media.apple2-floppy", "fes.media.pcxt-floppy");
-	ReplaceAll(&manifest, "fes.pong", "fes.pcxt");
+	ReplaceAll(&manifest, "fes.pong", "fes.pcxt-dos");
 	TempDirectory package;
 	package.File("manifest.toml", manifest);
 	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));

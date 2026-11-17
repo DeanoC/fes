@@ -73,9 +73,10 @@ Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and m
 - The scripts live in `~/lander-hilq` on Powerboat.
 
 ### Toolchains
-- Quartus is primary for DE25, pc386 and PC/XT. nextpnr is advisory for those.
+- Quartus is primary for DE25, pc386, PC/XT and the DE10 ZX81 family (ZX81, ZX80, TS1000, TS1500). nextpnr is advisory for those.
+- Use Quartus wherever nextpnr timing closure is hard (Deano, 15 November 2026). An advisory nextpnr table for such a core lives in `config/advisory-pnr-recipes.toml`.
 - DE25 is Quartus-only and needs Quartus Pro (Agilex 5). Both Powerboat and the 3090 box (fes-build-3090) have Quartus Pro 26.3 and can build DE25; send DE25 builds to the 3090 by preference to keep Powerboat free.
-- Cyclone V is the primary platform and builds with Quartus Lite on Powerboat.
+- Cyclone V is the primary platform and builds with Quartus Lite on Powerboat or chip-30x0-ai-dev (same install and `quartus_sh` digest).
 
 ### Hard rules
 - No rebase, force-push or amend.
@@ -302,8 +303,10 @@ it, so it is a design input and a Cyclone V build and an Agilex 5 build of one
 source set do not share a design identity. Exact artifacts are
 identified by package/payload hashes, and hardware acceptance follows those
 exact bytes even though timing and route evidence is interchangeable. Historical combined identities are unchanged. Among current core
-package producers, Apple II, Atari ST, C64, Coleco socket-v2, SG-1000, SMS,
-Spectrum and ZX81 accept `--gpu-router {HIP,CUDA}`. The pc386 Quartus sealer
+package producers, Apple II, Atari ST, C64, Coleco socket-v2, SG-1000, SMS
+and Spectrum accept `--gpu-router {HIP,CUDA}`. The ZX81 family's registered
+producer is Quartus Lite and takes neither option; its advisory nextpnr
+producer still accepts `--gpu-router`. The pc386 Quartus sealer
 accepts it too, but only to select which toolchain slot it authenticates; it
 routes nothing on a GPU. Menu, Pong, RAM Tester
 and RISC-V accept only `--gpu-device`; their authenticated toolchain determines

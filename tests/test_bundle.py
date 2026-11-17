@@ -175,7 +175,7 @@ for core_id, module_name, options in json.loads(sys.argv[1]):
         module = self.module()
         with tempfile.TemporaryDirectory(prefix="fes quote ' space ") as temporary:
             source = Path(temporary)
-            for core in ('fes.pong', 'fes.zx81', 'fes.coleco'):
+            for core in ('fes.pong', 'fes.sms', 'fes.coleco'):
                 recipe = replace(module.recipe_for(core), cache_root=source / "cache with ' quote")
                 with patch.object(module, 'authenticate_misteross_origin'), \
                         patch.object(module.subprocess, 'check_output', side_effect=subprocess.CalledProcessError(1, ['producer'])):
@@ -603,8 +603,13 @@ assert lock == expected == pnr_recipe.lock_path(Path.cwd(), sys.argv[5]).resolve
 
         self.assertIn(
             'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  make -C "$work" toolchain-fes', docs)
+        # The ZX81 family is Quartus-built: its example provisions only the
+        # Mistral ROM database and names the pinned Quartus install.
         self.assertIn(
-            'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  FES_TOOLCHAIN_LOCKFILE=cores/fes-zx81/toolchain.lock \\\n  FES_TOOLCHAIN_GPU_ROUTER=HIP \\\n  FES_TOOLCHAIN_HIP_ARCHITECTURES=\'gfx1100;gfx1201\' \\\n  make -C "$work" doctor-strict', docs)
+            'install cores/fes-zx81/quartus.lock pins. Its ROM map reads the pinned\n'
+            '# Mistral database, which this target places in the shared cache:\n'
+            'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  make -C "$work" toolchain-fes-zx81', docs)
+        self.assertNotIn('FES_TOOLCHAIN_LOCKFILE=cores/fes-zx81/toolchain.lock', docs)
 
     def test_canonical_package_record_forwards_package_environment(self):
         module = self.module()

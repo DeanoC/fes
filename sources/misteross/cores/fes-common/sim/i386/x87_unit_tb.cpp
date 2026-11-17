@@ -1327,6 +1327,124 @@ int main(int argc, char **argv) {
         if (got[9] == 0xbf) ok("flush-store-next");
         else bad("flush-store-next", hex80(got));
 
+        // A flush DURING a committed divide must not lose it either, and
+        // must not strand the unit. This is the case a straight-through
+        // flush mapping would have broken on the DE25 backend: arithmetic is
+        // entered after the instruction commits, the envelope deliberately
+        // lets a retired instruction run on through a later squash, and a
+        // backend cancelled mid-recurrence would never return a result. A
+        // load's flush case cannot reach it, because a load has no multi-
+        // cycle arithmetic to cancel.
+        {
+            uint8_t got2[10];
+            const uint8_t two[10]  = {0,0,0,0,0,0,0,0x80,0x00,0x40};  // 2.0
+            const uint8_t four[10] = {0,0,0,0,0,0,0,0x80,0x01,0x40};  // 4.0
+            u.clear_latch();
+            u.reg_form(OP_FNINIT);
+            u.load(OP_FLD_M80, FMT_F80, two);    // ST(1) <- 2.0
+            u.load(OP_FLD_M80, FMT_F80, four);   // ST(0) <- 4.0
+            // FDIV ST(0),ST(1): D8 F1. Commit it, then squash a younger
+            // instruction while its arithmetic is still running.
+            // The flush is SWEPT across the operation rather than pulsed at one
+            // offset. A divide takes tens of clocks and the offset at which the
+            // backend is actually running is not something the bench should
+            // assume: the first version of this case pulsed at 4 clocks, which
+            // is still in the envelope's dispatch, and a deliberately wrong
+            // `.flush(flush)` mapping passed it. Sweeping means at least one
+            // offset lands inside the recurrence, and that mapping now fails.
+            int flush_bad = 0;
+            std::string flush_first;
+            for (int at : {2, 4, 8, 12, 16, 24, 32, 40, 48, 56, 64, 72, 80}) {
+                u.clear_latch();
+                u.reg_form(OP_FNINIT);
+                u.load(OP_FLD_M80, FMT_F80, two);
+                u.load(OP_FLD_M80, FMT_F80, four);
+                u.present(0x0f1, 0, true, true, 0);
+                u.commit(0, 0, true);
+                for (int n = 0; n < at; ++n) u.tick();
+                u.top.flush = 1;
+                u.tick();
+                u.top.flush = 0;
+                u.settle();
+                u.st0(got2);
+                const bool wrong = u.top.busy_o || got2[9] != 0x40 || got2[8] != 0x00;
+                if (wrong && !flush_bad++)
+                    flush_first = "at " + std::to_string(at) + " clocks: " +
+                                  (u.top.busy_o ? std::string("the unit stayed busy")
+                                                : hex80(got2));
+            }
+            if (flush_bad) bad("flush-during-divide",
+                               std::to_string(flush_bad) + " offsets, first " + flush_first);
+            else ok("flush-during-divide");
+            u.clear_latch();
+            u.reg_form(OP_FNINIT);
+            u.load(OP_FLD_M80, FMT_F80, two);
+            u.load(OP_FLD_M80, FMT_F80, four);
+            u.reg_form(0x0f1);
+            // And the unit takes a fresh operation afterwards.
+            u.reg_form(OP_FCHS);
+            u.st0(got2);
+            if (got2[9] == 0xc0) ok("flush-during-divide-next");   // FCHS of 2.0
+            else bad("flush-during-divide-next", hex80(got2));
+        }
+
+        // The port F1h reset while a divide is in flight: the unit comes back
+        // in its RESET state and answers the next operation, rather than
+        // waiting for a result that was thrown away.
+        {
+            uint8_t got3[10];
+            const uint8_t two[10]  = {0,0,0,0,0,0,0,0x80,0x00,0x40};
+            const uint8_t four[10] = {0,0,0,0,0,0,0,0x80,0x01,0x40};
+            u.clear_latch();
+            u.reg_form(OP_FNINIT);
+            u.load(OP_FLD_M80, FMT_F80, two);
+            u.load(OP_FLD_M80, FMT_F80, four);
+            // Swept, with a FAST form chained immediately after, which is
+            // what a stale result corrupts. With `f1` removed from both the
+            // backend's reset and the cancel condition this fails at nine
+            // offsets, first at 36 clocks, returning the abandoned divide's
+            // quotient as the sum -- so the `f1` cancel is load-bearing, not
+            // belt-and-braces. An earlier version of this case chained a
+            // divide and could not fail; see the record.
+            int f1_bad = 0;
+            std::string f1_first;
+            // Every clock across the divide, not a sample: the offsets at
+            // which this can go wrong are a narrow window.
+            for (int at = 1; at < 85; ++at) {
+                u.clear_latch();
+                u.reg_form(OP_FNINIT);
+                u.load(OP_FLD_M80, FMT_F80, two);
+                u.load(OP_FLD_M80, FMT_F80, four);
+                u.present(0x0f1, 0, true, true, 0);   // FDIV ST,ST(1): 4.0/2.0
+                u.commit(0, 0, true);
+                for (int n = 0; n < at; ++n) u.tick();
+                u.top.f1 = 1;
+                u.tick();
+                u.top.f1 = 0;
+                u.top.eval();
+                // Straight into a second divide with a different answer.
+                u.clear_latch();
+                u.load(OP_FLD_M80, FMT_F80, four);
+                u.load(OP_FLD_M80, FMT_F80, four);
+                // An FADD, deliberately, NOT a second divide. A divide is
+                // held in B_ISSUE by the slow lane's own admission interlock
+                // (`slow_ready && !slow_reserved`) until the abandoned one
+                // drains, so chaining a divide cannot see a stale result and
+                // this case passed with the cancel broken. A fast form is
+                // accepted at once, and `raw = fast_valid ? fast_raw :
+                // slow_raw` hands B_WAIT the old quotient if the abandoned
+                // divide completes first. 4.0+4.0 is 8.0 and the abandoned
+                // quotient is 2.0, so a stale take is visible.
+                u.reg_form(0x0c1);                    // FADD ST,ST(1): 8.0
+                u.st0(got3);
+                if ((got3[9] != 0x40 || got3[8] != 0x02) && !f1_bad++)
+                    f1_first = "at " + std::to_string(at) + " clocks: " + hex80(got3);
+            }
+            if (f1_bad) bad("f1-during-divide",
+                            std::to_string(f1_bad) + " offsets, first " + f1_first);
+            else ok("f1-during-divide");
+        }
+
         // A flush after the load's commit must not lose it.
         u.reg_form(OP_FNINIT);
         u.present(OP_FLD_M80, FMT_F80, true, false, 2);
@@ -1618,6 +1736,106 @@ int main(int argc, char **argv) {
         }
     }
 
+
+    // ---- Back-to-back arithmetic pairs. ----
+    // The registered-read hazard is this unit's recurring defect: anything
+    // derived from a REGISTERED value is a cycle late relative to a
+    // sequencer that transitions in one edge, so work begun in the assigning
+    // state sees the PREVIOUS operation's value. It has appeared in every
+    // slice, and because the stale value is usually plausible the symptom is
+    // a wrong result rather than a crash. A single operation hides the class
+    // entirely: the working registers start from a settled unit, so a late
+    // read and a timely one give the same answer.
+    //
+    // So every pair below runs the second instruction through `overlap`,
+    // which presents it while the first is still in flight -- the CPU's own
+    // timing, and the only way the bench reaches the state a stale read
+    // would corrupt. The pairs deliberately cross the two arithmetic paths:
+    // FSCALE and FRNDINT stay on the sequencer in both configurations, and
+    // FADD, FSUB, FMUL, FDIV and FSQRT move to fes_x87_core when the DE25
+    // backend is selected, so an op-A/op-B pair tests a handover in each
+    // direction as well as each path against itself. The operands are chosen
+    // so that the FIRST operation leaves each kind of working state the
+    // second could inherit: an exact cancellation to zero, a tiny result, an
+    // overflow, a saturating scale and an exact normal.
+    {
+        StubPage page;
+        const uint16_t ARITH_SW = 0xfaff;   // everything but C0, C2 and C3
+        struct Op { const char *name; uint8_t esc, modrm; };
+        // The five forms the DE25 backend answers, then the two that stay on
+        // the sequencer whichever backend is selected.
+        const Op ops[] = {
+            {"fadd",  0xd8, 0xc1}, {"fsub",  0xd8, 0xe1}, {"fmul", 0xd8, 0xc9},
+            {"fdiv",  0xd8, 0xf1}, {"fsqrt", 0xd9, 0xfa},
+            {"fscale", 0xd9, 0xfd}, {"frndint", 0xd9, 0xfc},
+        };
+        struct Pair { const char *name; uint8_t a[10], b[10]; };
+        const Pair cases[] = {
+            // 1.0 and -1.0: FADD cancels exactly to zero, which is the one
+            // state the backend's raw result cannot pack by itself.
+            {"cancel", {0,0,0,0,0,0,0,0x80,0xff,0x3f}, {0,0,0,0,0,0,0,0x80,0xff,0xbf}},
+            // The smallest normal over a large value: a tiny result, so the
+            // first operation leaves wtiny set.
+            {"tiny",   {0,0,0,0,0,0,0,0x80,0x01,0x00}, {0,0,0,0,0,0,0,0x80,0xfe,0x7f}},
+            // Two values near the top of the range: a product overflows.
+            {"over",   {0,0,0,0,0,0,0,0x80,0xfe,0x7f}, {0,0,0,0,0,0,0,0x80,0xfe,0x7f}},
+            // A denormal operand, which raises DE on either path.
+            {"denorm", {1,0,0,0,0,0,0,0x00,0x00,0x00}, {0,0,0,0,0,0,0,0x80,0xff,0x3f}},
+            // Exact normals, where nothing rounds and nothing is flagged.
+            {"exact",  {0,0,0,0,0,0,0,0x80,0x00,0x40}, {0,0,0,0,0,0,0,0x80,0xff,0x3f}},
+        };
+        for (const Pair &c : cases) {
+            for (unsigned rc = 0; rc < 4; ++rc) {
+                const uint16_t cw = host_cw(rc);
+                int diffs = 0, ran = 0;
+                std::string first;
+                Unit u;
+                for (const Op &a : ops) {
+                    for (const Op &b : ops) {
+                        const uint8_t bytes[4] = {a.esc, a.modrm, b.esc, b.modrm};
+                        uint8_t stack[2][10];
+                        std::memcpy(stack[0], c.a, 10);
+                        std::memcpy(stack[1], c.b, 10);
+                        Image want{}, got{};
+                        if (!host_form(page, cw, stack, 2, nullptr, bytes, 4, want)) {
+                            bad(std::string("b2b-") + c.name, "no stub page");
+                            break;
+                        }
+                        // The unit side: the same two instructions, with the
+                        // second presented before the first commits.
+                        u.clear_latch();
+                        u.reg_form(OP_FNINIT);
+                        u.present(OP_FLDCW, FMT_I16, true, true, 0);
+                        u.commit(0, cw, true);
+                        u.settle();
+                        got.setup_ok = u.cw() == cw;
+                        for (unsigned n = 2; n-- > 0;) u.load(OP_FLD_M80, FMT_F80, stack[n]);
+                        u.overlap(((a.esc & 7) << 8) | a.modrm, ((b.esc & 7) << 8) | b.modrm);
+                        got.cw = u.cw();
+                        got.sw = u.sw();
+                        got.tw = u.tw();
+                        for (unsigned n = 0; n < 8; ++n) u.sti(n, got.reg[n]);
+                        ++ran;
+                        ++compared;
+                        if (!same_state(want, got, ARITH_SW)) {
+                            const std::string what = std::string(a.name) + "/" + b.name +
+                                                     " st0=" + hex80(c.a) + " st1=" + hex80(c.b) +
+                                                     " got " + state_str(got, ARITH_SW) +
+                                                     " want " + state_str(want, ARITH_SW);
+                            if (!diffs) first = what;
+                            const char *vb = std::getenv("X87_TB_VERBOSE");
+                            if (vb && (std::string(vb) == "all" || std::string(vb) == "b2b"))
+                                std::fprintf(stderr, "DIFF b2b-%s-rc%u %s\n", c.name, rc, what.c_str());
+                            ++diffs;
+                        }
+                    }
+                }
+                const std::string name = std::string("b2b-") + c.name + "-rc" + std::to_string(rc);
+                if (diffs) bad(name, std::to_string(diffs) + " of " + std::to_string(ran) + " " + first);
+                else ok(name);
+            }
+        }
+    }
 
     // ---- The remainders' partial steps, chained. ----
     // The plan names this gate: directed FPREM and FPREM1 cases over large
@@ -2298,6 +2516,52 @@ int main(int argc, char **argv) {
     if (held_for_ever) bad("protocol.hold", std::to_string(held_for_ever) + " uops held past the bench's wait");
     else ok("protocol.hold");
     std::printf("COMPARED %ld\n", compared);
+    // ---- Per-form latency, in CPU clocks ----
+    // Measured, not inferred. The claim this checks is that the DE25
+    // backend's pipeline cannot be amortised by a consumer that holds one ESC
+    // instruction in flight, so its DEPENDENT latency is what matters and may
+    // be worse than the sequencer's. Which forms it is worse on, and by how
+    // much, is a measurement: the first guess -- that more ESCs in flight
+    // would be the remedy -- is only sound if the adds and multiplies
+    // dominate, and x87 code chains through ST(0), so it might instead be the
+    // divide and square root, where 76 clocks of digit recurrence meet
+    // Goldschmidt.
+    //
+    // The number is clocks from the instruction's commit to `busy_o` falling,
+    // which is what the next ESC waits for.
+    {
+        struct LForm { const char *name; unsigned op; };
+        const LForm forms[] = {
+            {"fadd",  0x0c1}, {"fsub",  0x0e1}, {"fmul", 0x0c9}, {"fdiv", 0x0f1},
+            {"fsqrt", 0x1fa}, {"fscale", 0x1fd}, {"frndint", 0x1fc}, {"fprem", 0x1f8},
+        };
+        const uint8_t two[10]  = {0,0,0,0,0,0,0,0x80,0x00,0x40};
+        const uint8_t three[10] = {0,0,0,0,0,0,0,0xc0,0x00,0x40};
+        Unit u;
+        // Over all three precisions, because the divide and the square root
+        // are precision-dependent on BOTH sides and in different ways: the
+        // backend's digit recurrence stops at 25, 54 or 65 clocks by
+        // precision, while the sequencer's Goldschmidt drops an iteration
+        // only at PC24. A PC64-only table would have made "the divide gap is
+        // algorithmic" look larger and more uniform than it is.
+        for (unsigned pc : {0u, 2u, 3u}) {
+            const unsigned bits = pc == 0 ? 24 : pc == 2 ? 53 : 64;
+            for (const LForm &f : forms) {
+                u.clear_latch();
+                u.reg_form(OP_FNINIT);
+                u.present(OP_FLDCW, FMT_I16, true, true, 0);
+                u.commit(0, cw_of(0, pc), true);
+                u.settle();
+                u.load(OP_FLD_M80, FMT_F80, two);
+                u.load(OP_FLD_M80, FMT_F80, three);
+                u.present(f.op, 0, true, true, 0);
+                u.commit(0, 0, true);
+                int clocks = 0;
+                while (u.top.busy_o && clocks < 4000) { u.tick(); ++clocks; }
+                std::printf("LATENCY %s pc%u %d\n", f.name, bits, clocks);
+            }
+        }
+    }
     std::printf("SUMMARY %d %d\n", passed, failed);
     return failed ? 1 : 0;
 }

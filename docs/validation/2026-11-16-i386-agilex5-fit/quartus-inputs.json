@@ -1,0 +1,399 @@
+{
+  "cpu-de10": {
+    "device": "5CSEBA6U23I7",
+    "netlist": {
+      "fitted_netlist": {
+        "fitted_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024",
+        "ram_attribute": "unchanged: the RTL already names this device's block",
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+      },
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+      "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+      "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+      "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+    },
+    "period_ns": 16.2760416667,
+    "quartus": "17.0.2",
+    "seed": 1
+  },
+  "cpu-de25": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 0,
+        "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+        "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 30,
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+      },
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+      "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+      "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+      "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+    },
+    "period_ns": 16.2760416667,
+    "quartus": "26.3.0",
+    "seed": 1
+  },
+  "cpu-de25-110": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 0,
+        "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+        "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 30,
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+      },
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+      "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+      "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+      "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+    },
+    "period_ns": 9.0909090909,
+    "quartus": "26.3.0",
+    "seed": 1
+  },
+  "cpu-de25-130": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 0,
+        "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+        "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 30,
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+      },
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+      "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+      "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+      "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+    },
+    "period_ns": 7.6923076923,
+    "quartus": "26.3.0",
+    "seed": 1
+  },
+  "cpu-de25-150-MISS": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 0,
+        "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+        "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 30,
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+      },
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+      "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+      "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+      "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+    },
+    "period_ns": 6.6666666667,
+    "quartus": "26.3.0",
+    "seed": 1
+  },
+  "cpu-de25-170-MISS": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 0,
+        "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+        "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 30,
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+      },
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+      "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+      "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+      "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+    },
+    "period_ns": 5.8823529412,
+    "quartus": "26.3.0",
+    "seed": 1
+  },
+  "cpu-de25-75": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 0,
+        "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+        "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 30,
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+      },
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+      "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+      "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+      "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+    },
+    "period_ns": 13.3333333333,
+    "quartus": "26.3.0",
+    "seed": 1
+  },
+  "cpu-de25-90": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 0,
+        "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+        "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 30,
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+      },
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+      "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+      "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+      "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+    },
+    "period_ns": 11.1111111111,
+    "quartus": "26.3.0",
+    "seed": 1
+  },
+  "cpu-de25-direct-sv": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_source_sha256": {
+        "fes_i386_agu.sv": "790424c71234d13b52aca15dcf06c897c1df7868184047f9704497b620dfb236",
+        "fes_i386_amode.sv": "8c751ec8a884f0dddd2f767ed94738842260ca0d8dd9080253a81139cb6c7759",
+        "fes_i386_biu.sv": "a9ed2b2b277b03a8b73e8f070fa5c6e7a75f7ab8edf425809bd938aa7eba0a59",
+        "fes_i386_btb.sv": "1032db787cd3d1dba47c2288fcec3e083f783edb2197d8d1502b1b821e97f677",
+        "fes_i386_cpu.sv": "7e27cee7baba335f68e138c1aa445bad62bb0d314cb833a5294e1bfc606d5564",
+        "fes_i386_decode.sv": "abe32da906298f0519c7a0bc4be190488cd23f9ab85fb3dda25de3766c7fa502",
+        "fes_i386_dfwd.sv": "e7f5f51a89fdd63744f8c92cbe8bb1aedd45835b37be0f7ed7f0db8d54739f59",
+        "fes_i386_dops.sv": "769aae53a66479ac3cc2cf8ad986b0c442846d2997454a3dc33d6e17d9d06dc8",
+        "fes_i386_ex.sv": "a7a961bbd5fdd7990053ef0f929c966035e6c0efc36f46b4cf428f348d5ad4a3",
+        "fes_i386_exctl.sv": "c286815ee0aa7c1348182988cefaebc6c1fc5e3fe777645fbd58cb91ba67938b",
+        "fes_i386_fetchbuf.sv": "dee382095912c0f46deab01aa206a4f91cd12c783843a4a469436bbea1f28872",
+        "fes_i386_frontend.sv": "aa78f075f9437eab3f9d6584eb6a3b1287b709c4799718073387baf74524f3f4",
+        "fes_i386_gov_pkg.sv": "92cde4ed68e17e686819c7d2b7ac00b6347e7bfaadb17ed9f065dcf97f11571d",
+        "fes_i386_gov_rom.sv": "9ad1d753d239142d0bbe14a27b37e73ad3840000fb576b7e642b81c390696fdc",
+        "fes_i386_governor.sv": "9907b47638890e6ebf910de7354eee59539e7cb2bccf11727ad3500c70d10cf4",
+        "fes_i386_l1d.sv": "47ef9aeb71550032dd053e7cad454194ff7bd7ec1d11bbce32625abc3283c3ae",
+        "fes_i386_l1i.sv": "5eb9f9f96353e3e0737c932c86cbfcf04e4ac436451725e2ff173e225aef348a",
+        "fes_i386_lendec.sv": "097cd45ba9774cfc3fb17b6fbaf6994c22bf8b93278300a0cbb3b99d2faea47b",
+        "fes_i386_lstage.sv": "0da7e9b4df54fa365da63dfcce0cdd4cf6779ff2191206a835f3b4a4fc8bb757",
+        "fes_i386_muldiv.sv": "13854a2c8bb898a0388aae2cb3315cc3fc57790deb353324ef372660eaad82a9",
+        "fes_i386_oplen.sv": "ce0ad49a2915be5896d7bf8786807ec8f3d5adef3ffe6a023294c8148fe19430",
+        "fes_i386_pkg.sv": "619198f15942b2a78c5c8acdbd586d159a2d7406ced0fba0209e56f1581db88e",
+        "fes_i386_qalign.sv": "30d4b5b87fb4a27834efca3c2c65b795d0db31dc6b0a8ed3b3fcb06c53897fdd",
+        "fes_i386_ras.sv": "7ac962343dc69ee0727de061209f39271c050aa7f7f8f2a3b2f3fcf0d9b38a64",
+        "fes_i386_seq.sv": "6d06f3583e66ec68c32a1168f74f90f24f5e7b889b67f313cd19836fcc72a3f0",
+        "fes_i386_shflags.sv": "71f769ca4b7b93d7a2833f8027551250e0e1f13bc39fdabd3ffa867c38abf70a",
+        "fes_i386_shift.sv": "0accbdf9c6380081620eff3fa9baebcb47f191026e6c8546859cd4e3a93e65c2",
+        "fes_i386_tlb.sv": "bda833c3c892c0cae4505a128404301b8720c887d4df0f82d258d5634a0f6d12",
+        "fes_i386_ucode_pkg.sv": "16ac5bb0d6dd961785b204c751ae5f4bd7430c84b76d25f0843d38184bafeaf8",
+        "fes_i386_ucode_rom.sv": "ee6ce9d8ea85c1e552b9749d7d1eace9382aa1503f71e4021cbdb0330d4456be",
+        "fes_i386_x87.sv": "f261dcbab56eab4c6bc89a76fa3e0083719a9ad6b87a220748b7c38a59d52e72",
+        "fes_i386_x87_mul.sv": "1c07ac7b90d76654495e21996d991647da67c144985ac61fdb332e37392190ce"
+      },
+      "front_end": "quartus-systemverilog",
+      "note": "no Yosys netlist; Quartus read the RTL itself",
+      "provenance_note": "copied from this fit's own inputs.json after the fact: the fit predates the runner writing the rewrite provenance into netlist.json",
+      "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"' across the RTL sources, as the primary flow does to the netlist; verified by round trip; nothing else changed",
+      "ram_attribute_count": 30,
+      "source_sha256": {
+        "fes_i386_agu.sv": "790424c71234d13b52aca15dcf06c897c1df7868184047f9704497b620dfb236",
+        "fes_i386_amode.sv": "8c751ec8a884f0dddd2f767ed94738842260ca0d8dd9080253a81139cb6c7759",
+        "fes_i386_biu.sv": "a9ed2b2b277b03a8b73e8f070fa5c6e7a75f7ab8edf425809bd938aa7eba0a59",
+        "fes_i386_btb.sv": "1e79cb7e2b6abfedb651f514d843052f0dfb05bda19005af3c1ea43a2e09dca9",
+        "fes_i386_cpu.sv": "7e27cee7baba335f68e138c1aa445bad62bb0d314cb833a5294e1bfc606d5564",
+        "fes_i386_decode.sv": "abe32da906298f0519c7a0bc4be190488cd23f9ab85fb3dda25de3766c7fa502",
+        "fes_i386_dfwd.sv": "e7f5f51a89fdd63744f8c92cbe8bb1aedd45835b37be0f7ed7f0db8d54739f59",
+        "fes_i386_dops.sv": "769aae53a66479ac3cc2cf8ad986b0c442846d2997454a3dc33d6e17d9d06dc8",
+        "fes_i386_ex.sv": "a7a961bbd5fdd7990053ef0f929c966035e6c0efc36f46b4cf428f348d5ad4a3",
+        "fes_i386_exctl.sv": "c286815ee0aa7c1348182988cefaebc6c1fc5e3fe777645fbd58cb91ba67938b",
+        "fes_i386_fetchbuf.sv": "dee382095912c0f46deab01aa206a4f91cd12c783843a4a469436bbea1f28872",
+        "fes_i386_frontend.sv": "aa78f075f9437eab3f9d6584eb6a3b1287b709c4799718073387baf74524f3f4",
+        "fes_i386_gov_pkg.sv": "92cde4ed68e17e686819c7d2b7ac00b6347e7bfaadb17ed9f065dcf97f11571d",
+        "fes_i386_gov_rom.sv": "9ad1d753d239142d0bbe14a27b37e73ad3840000fb576b7e642b81c390696fdc",
+        "fes_i386_governor.sv": "9907b47638890e6ebf910de7354eee59539e7cb2bccf11727ad3500c70d10cf4",
+        "fes_i386_l1d.sv": "422e9cba20cbe5d8bfdda77a61801aaa2c39e1e3c5585ff5d0f1fb5d66e6cdbd",
+        "fes_i386_l1i.sv": "f839aab032854e8304a98ea6681ea4b3affaec5ba2fed552660a0010a18822e7",
+        "fes_i386_lendec.sv": "097cd45ba9774cfc3fb17b6fbaf6994c22bf8b93278300a0cbb3b99d2faea47b",
+        "fes_i386_lstage.sv": "0da7e9b4df54fa365da63dfcce0cdd4cf6779ff2191206a835f3b4a4fc8bb757",
+        "fes_i386_muldiv.sv": "13854a2c8bb898a0388aae2cb3315cc3fc57790deb353324ef372660eaad82a9",
+        "fes_i386_oplen.sv": "ce0ad49a2915be5896d7bf8786807ec8f3d5adef3ffe6a023294c8148fe19430",
+        "fes_i386_pkg.sv": "619198f15942b2a78c5c8acdbd586d159a2d7406ced0fba0209e56f1581db88e",
+        "fes_i386_qalign.sv": "30d4b5b87fb4a27834efca3c2c65b795d0db31dc6b0a8ed3b3fcb06c53897fdd",
+        "fes_i386_ras.sv": "7ac962343dc69ee0727de061209f39271c050aa7f7f8f2a3b2f3fcf0d9b38a64",
+        "fes_i386_seq.sv": "6d06f3583e66ec68c32a1168f74f90f24f5e7b889b67f313cd19836fcc72a3f0",
+        "fes_i386_shflags.sv": "71f769ca4b7b93d7a2833f8027551250e0e1f13bc39fdabd3ffa867c38abf70a",
+        "fes_i386_shift.sv": "0accbdf9c6380081620eff3fa9baebcb47f191026e6c8546859cd4e3a93e65c2",
+        "fes_i386_tlb.sv": "bda833c3c892c0cae4505a128404301b8720c887d4df0f82d258d5634a0f6d12",
+        "fes_i386_ucode_pkg.sv": "16ac5bb0d6dd961785b204c751ae5f4bd7430c84b76d25f0843d38184bafeaf8",
+        "fes_i386_ucode_rom.sv": "ee6ce9d8ea85c1e552b9749d7d1eace9382aa1503f71e4021cbdb0330d4456be",
+        "fes_i386_x87.sv": "f261dcbab56eab4c6bc89a76fa3e0083719a9ad6b87a220748b7c38a59d52e72",
+        "fes_i386_x87_mul.sv": "1c07ac7b90d76654495e21996d991647da67c144985ac61fdb332e37392190ce"
+      }
+    },
+    "period_ns": 16.2760416667,
+    "quartus": "26.3.0",
+    "seed": 1
+  },
+  "cpu-de25-s2": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 0,
+        "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+        "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 30,
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+      },
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+      "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+      "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+      "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+    },
+    "period_ns": 16.2760416667,
+    "quartus": "26.3.0",
+    "seed": 2
+  },
+  "cpu-de25-s3": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 0,
+        "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+        "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 30,
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+      },
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+      "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+      "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+      "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+    },
+    "period_ns": 16.2760416667,
+    "quartus": "26.3.0",
+    "seed": 3
+  },
+  "cpu-de25-zerodelay-envelope": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+        "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 30,
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+      },
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+      "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+      "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+      "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+    },
+    "period_ns": 16.2760416667,
+    "quartus": "26.3.0",
+    "seed": 1
+  },
+  "machine-de10": {
+    "device": "5CSEBA6U23I7",
+    "netlist": {
+      "fitted_netlist": {
+        "fitted_sha256": "8d9840ebd591372715ada99970933ed1e2f54e2e1b13034482715194240d2be4",
+        "ram_attribute": "unchanged: the RTL already names this device's block",
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v",
+        "source_sha256": "8d9840ebd591372715ada99970933ed1e2f54e2e1b13034482715194240d2be4"
+      },
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v",
+      "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+      "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Not byte-reproducible, for the path dependence in DeanoC/yosys#80; the M and M+ pair were re-elaborated from a clean checkout at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 and reproduced the pair's 4,117-line delta exactly, which is recorded in m-plus-baseline.json.",
+      "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+    },
+    "period_ns": 16.2760416667,
+    "quartus": "17.0.2",
+    "seed": 1
+  },
+  "machine-de25": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 30,
+        "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "769b2b52252dc7b30017c7480c74c93d959dfa424551336832b7505b685c3368",
+        "ram_attribute": "renamed 57 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 57,
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v",
+        "source_sha256": "8d9840ebd591372715ada99970933ed1e2f54e2e1b13034482715194240d2be4"
+      },
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v",
+      "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+      "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Not byte-reproducible, for the path dependence in DeanoC/yosys#80; the M and M+ pair were re-elaborated from a clean checkout at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 and reproduced the pair's 4,117-line delta exactly, which is recorded in m-plus-baseline.json.",
+      "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+    },
+    "period_ns": 16.2760416667,
+    "quartus": "26.3.0",
+    "seed": 1
+  },
+  "machine-slice4-de25": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "elaboration_path": "fixed relative path build/diagnostic/s4-elab/ inside the extracted tree (DeanoC/yosys#80)",
+      "fitted_netlist": {
+        "duplicate_attribute_count": 30,
+        "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "6d48b91bcb1a92317138a3d4d2f75c5223ef139e3cefb71502f53e0e4ca137ce",
+        "ram_attribute": "renamed 59 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 59,
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine-s4.netlist.v",
+        "source_sha256": "4e75de36a861c284d94442efb121c69679ffa15923bbb2d8b86fad73a2d65760"
+      },
+      "front_end_identical_to_main_record": "verified byte-identical between the two trees before elaborating: scripts/yosys_netlist.py, scripts/build_fes_pc386_quartus.py and cores/fes-pc386/toolchain.lock",
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine-s4.netlist.v",
+      "rom_hex_note": "firmware.lock verified byte-identical between the two trees; this record's built hex reused",
+      "rom_hex_sha256": "815620361ef28a2bbdd97b1964700a4678a26c0ffc9582bb95544473fe099d18",
+      "source_revision": "5f901426e60f47fb2463f31ed6c4ca2f7f62e3a4",
+      "source_revision_note": "NOT this record's checkout. The netlist was elaborated from PR #1889's head tree, extracted with `git archive 5f901426e`, PRE-MERGE: that PR targets deano/i386-x87-s3, whose base is conflicting, so no merge was attempted and the tree is the head's own. The fit therefore describes the slice-3-plus-slice-4 design on #1879's branch and no state of main. The fes_revision in quartus.json is the checkout that ran the fitter, which is a different thing and is not this fit's source.",
+      "source_revision_short": "5f901426e",
+      "source_scratch_diff": "--- a/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv\n+++ b/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv\n-    wire x87_present = 1'b0;\n+    wire x87_present = 1'b1;  // SCRATCH, DE25 A/B fit only: never committed\n",
+      "source_scratch_diff_sha256": "f2763dbd70d88c6dcdde4c6ea05aee314eb21bbd60da788833d96f38dc71d33d",
+      "yosys": {
+        "tool": "commit=e240a4653bb6578e0b267f730128f8a5dac28483"
+      }
+    },
+    "period_ns": 16.2760416667,
+    "quartus": "26.3.0",
+    "seed": 1
+  },
+  "machineplus-de25": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 30,
+        "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "b77fef099342a81074a3c0384f641eb47b14ee34c07594a71d89395bb446268a",
+        "ram_attribute": "renamed 57 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 57,
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine-plus.netlist.v",
+        "source_sha256": "b90abd889b75d5dc8f1c17543750f3500a4420f5781f740561e31e4c59aff545"
+      },
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine-plus.netlist.v",
+      "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+      "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Not byte-reproducible, for the path dependence in DeanoC/yosys#80; the M and M+ pair were re-elaborated from a clean checkout at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 and reproduced the pair's 4,117-line delta exactly, which is recorded in m-plus-baseline.json. M+ additionally carries the one-character x87_present scratch diff, recorded in its inputs.json.",
+      "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
+    },
+    "period_ns": 16.2760416667,
+    "quartus": "26.3.0",
+    "seed": 1
+  }
+}

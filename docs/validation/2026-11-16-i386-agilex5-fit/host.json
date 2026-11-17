@@ -1,0 +1,40 @@
+{
+  "collected_at_revision": "f844f791bf9b4341aa9473503bda36466e3fca9c",
+  "comparison_note": "Cyclone V ALMs and Agilex 5 ALMs are different units, and M10K and M20K are different blocks. Figures are reported per device with that device's totals. No cross-device ratio is computed here.",
+  "evidence_scope": "internal virtual-pin characterisation fits; no board I/O, no seal, no programming artifact and no hardware acceptance",
+  "fes_revision": null,
+  "fit_revisions": [
+    "0024ae08f1ec1f3eef67398335c9efe8172520c0",
+    "164881d12fc7e09c738e60db359cad20f986c052",
+    "27eb79d86a0c07b2653a6c3a5ac49f17b6fac147",
+    "356c7557efb421a6ab273716430636c801b9e1d3",
+    "42c2a23337ac029929a8a7b28e4153a3093b175d",
+    "50ea47e53c3d987e3f9b01e7c282904153882ac1",
+    "832716f82840f9b931fbb0efdb1eaac8eb31ec5d",
+    "beaaaa42aa4cce6e7d9d651357a6f8bc943556bd",
+    "eceb97bd4fc17500164434785bec7bf3e8e35984",
+    "ed6d2ccb543707859a249de0439d9ea3ab86cecd"
+  ],
+  "fits_from_a_modified_checkout": [
+    "cpu-de25-150-MISS",
+    "machineplus-de25"
+  ],
+  "fits_with_no_recorded_revision": [
+    "cpu-de10",
+    "cpu-de25",
+    "cpu-de25-zerodelay-envelope",
+    "machine-de25"
+  ],
+  "hosts": [
+    "powerboat"
+  ],
+  "revision_note": "the fits were prepared from different revisions, or some predate the revision being recorded; see each fit's own fes_revision. A commit alone does not describe a fit prepared from a modified checkout: those fits are named in fits_from_a_modified_checkout and each carries its own tracked diff",
+  "uname": {
+    "machine": "x86_64",
+    "node": "powerboat",
+    "processor": "",
+    "release": "6.12.101-p2pdma-p2pdma",
+    "system": "Linux",
+    "version": "#2 SMP PREEMPT_DYNAMIC Sat Aug 15 13:46:54 EEST 2026"
+  }
+}
