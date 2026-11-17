@@ -2757,6 +2757,31 @@ func (a *App) sendPhysicalPlayKey(source int, name string, usage uint8, event re
 		if admitted, ok := a.playKeyAdmitted[physical]; ok && admitted != (playHIDKey{event.Player, event.Device, event.Kind, event.Code}) {
 			return false
 		}
+		// Distinct physical keys may contribute the same core key. Keep the
+		// second contribution for its eventual release, but don't send the core
+		// a second press while the first contribution is still held. Repeats
+		// from an already admitted physical key retain their existing behavior.
+		if _, alreadyAdmitted := a.playKeyAdmitted[physical]; !alreadyAdmitted {
+			key := playHIDKey{event.Player, event.Device, event.Kind, event.Code}
+			for other, heldKey := range a.playKeyAdmitted {
+				if other == physical || heldKey != key || !a.playKeyHeld[other] || a.playKeySuppressed[other] {
+					continue
+				}
+				// Apply the same admission gates as an ordinary press. Flush
+				// deferred releases first so an old neutral cannot follow a new
+				// contribution on the same route.
+				if !a.forwardsPlayHIDLocked() || a.playHIDInputBlockedLocked() || a.playHIDFailClosedLocked() || a.client == nil || a.playHIDPending >= maxPendingPlayHID {
+					return false
+				}
+				a.flushPendingPlayKeyReleasesLocked()
+				if _, stillHeld := a.playHIDHeld[key]; !stillHeld {
+					break
+				}
+				a.playKeyAdmitted[physical] = key
+				a.traceKeyRouteLocked("coalesced", source)
+				return true
+			}
+		}
 	}
 	if !a.sendPlayHIDLocked(event) {
 		if event.Action == remoteinput.ActionRelease {

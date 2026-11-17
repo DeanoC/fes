@@ -633,6 +633,85 @@ func TestNativeKeyboardReleaseDuringActualNonHandoffSurroundTransition(t *testin
 	}
 }
 
+func TestNativeKeyboardsDoNotRepeatSharedKeyPress(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(http.NotFound))
+	t.Cleanup(server.Close)
+	app, feed := kitDisplayApp(t, server)
+	app.mu.Lock()
+	app.session.CoreKeyboardHID = true
+	app.mu.Unlock()
+	open := func() (*nativeInput, *os.File) {
+		t.Helper()
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = r.Close(); _ = w.Close() })
+		fd := int(r.Fd())
+		if err := unix.SetNonblock(fd, true); err != nil {
+			t.Fatal(err)
+		}
+		return &nativeInput{fd: fd, kind: InputKeyboard}, w
+	}
+	first, a := open()
+	second, b := open()
+	inputs := &nativeInputs{devices: []*nativeInput{first, second}}
+	send := func(w *os.File, value int32) {
+		t.Helper()
+		if _, err := w.Write(nativeTestEvent(1, 59, value)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := inputs.poll(app, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		drainLocalKeyQueue(t, app)
+	}
+	key, _ := hidkeys.Code(0x3a)
+	assert := func(actions ...remoteinput.Action) {
+		t.Helper()
+		var got []remoteinput.Action
+		for _, event := range feed.snapshot() {
+			if event.Device == remoteinput.DeviceKeyboard && event.Code == key {
+				got = append(got, event.Action)
+			}
+		}
+		if !slices.Equal(got, actions) {
+			t.Fatalf("shared key actions = %v, want %v", got, actions)
+		}
+	}
+	send(a, 1)
+	send(b, 1)
+	assert(remoteinput.ActionPress)
+	send(a, 0)
+	assert(remoteinput.ActionPress)
+	send(b, 0)
+	assert(remoteinput.ActionPress, remoteinput.ActionRelease)
+	// Releasing the second contributor first must leave the first held.
+	send(a, 1)
+	send(b, 1)
+	send(b, 0)
+	assert(remoteinput.ActionPress, remoteinput.ActionRelease, remoteinput.ActionPress)
+	send(a, 0)
+	assert(remoteinput.ActionPress, remoteinput.ActionRelease, remoteinput.ActionPress, remoteinput.ActionRelease)
+	// An evdev repeat from the same admitted physical key is unchanged.
+	send(a, 1)
+	send(a, 2)
+	send(a, 0)
+	assert(remoteinput.ActionPress, remoteinput.ActionRelease, remoteinput.ActionPress, remoteinput.ActionRelease,
+		remoteinput.ActionPress, remoteinput.ActionPress, remoteinput.ActionRelease)
+	// Disconnecting the first contributor also leaves the shared key down.
+	send(a, 1)
+	send(b, 1)
+	inputs.devices = []*nativeInput{second}
+	inputs.releaseLostPlayInput(app, first)
+	drainLocalKeyQueue(t, app)
+	assert(remoteinput.ActionPress, remoteinput.ActionRelease, remoteinput.ActionPress, remoteinput.ActionRelease,
+		remoteinput.ActionPress, remoteinput.ActionPress, remoteinput.ActionRelease, remoteinput.ActionPress)
+	send(b, 0)
+	assert(remoteinput.ActionPress, remoteinput.ActionRelease, remoteinput.ActionPress, remoteinput.ActionRelease,
+		remoteinput.ActionPress, remoteinput.ActionPress, remoteinput.ActionRelease, remoteinput.ActionPress, remoteinput.ActionRelease)
+}
+
 func TestNativeKeyboardsCoalesceOnlyAdmittedLegacyKeys(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(http.NotFound))
 	t.Cleanup(server.Close)
