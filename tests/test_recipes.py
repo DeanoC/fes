@@ -107,8 +107,8 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertNotIn("fes.riscv", build.selected_packages(
             {"fpga_packages": [{"core_id": "fes.pong"}]}, "native-integration-dev"))
 
-    def test_pcxt_is_a_quartus_diagnostic_without_dummy_gpu_fields(self):
-        recipe = recipes.recipe_for("fes.pcxt")
+    def test_pcxt_dos_is_quartus_without_dummy_gpu_fields(self):
+        recipe = recipes.recipe_for("fes.pcxt-dos")
         self.assertEqual(recipe.producer_module, "scripts.build_fes_pcxt_quartus")
         self.assertEqual(recipe.toolchain, "quartus")
         self.assertEqual(recipe.lock_path, "cores/fes-pcxt/quartus.lock")
@@ -119,12 +119,16 @@ class RecipeRegistryTest(unittest.TestCase):
         env = recipes.producer_environment({"FES_TOOLCHAIN_GPU_ROUTER": "HIP"}, recipe)
         self.assertNotIn("FES_TOOLCHAIN_GPU_ROUTER", env)
 
+    def test_pcxt_diagnostic_package_is_not_registered(self):
+        with self.assertRaises(ValueError):
+            recipes.recipe_for("fes.pcxt")
+
     def test_pcxt_dos_recipe_selects_hardware_check_and_kit_preference(self):
         recipe = recipes.recipe_for("fes.pcxt-dos")
         self.assertEqual(recipe.producer_module, "scripts.build_fes_pcxt_quartus")
         self.assertEqual(recipe.quartus_role, "FreeDOS SDRAM floppy package producer")
-        self.assertEqual(recipe.producer_arguments, ("--dos-profile",))
-        self.assertEqual(dict(recipe.producer_options), {"dos_profile": True})
+        self.assertEqual(recipe.producer_arguments, ())
+        self.assertEqual(dict(recipe.producer_options), {})
         self.assertEqual(recipe.hil_check, "scripts/pcxt_dos_hil_acceptance.py")
         self.assertEqual(recipe.hil_kits, ("B", "A"))
         self.assertEqual(recipe.quartus["seeds"], [1, 2, 3])
@@ -183,7 +187,7 @@ class RecipeRegistryTest(unittest.TestCase):
 
     def assert_existing_descriptors(self):
         self.assertTrue(
-            {"fes.pong", "fes.zx81", "fes.coleco", "fes.sms", "fes.sg1000", "fes.apple2", "fes.c64", "fes.spectrum", "fes.pcxt"}
+            {"fes.pong", "fes.zx81", "fes.coleco", "fes.sms", "fes.sg1000", "fes.apple2", "fes.c64", "fes.spectrum", "fes.pcxt-dos"}
             <= recipes.FORMAT2_RECIPES.keys())
         expected = {
             "fes.pong": {
@@ -368,10 +372,10 @@ class RecipeDataTest(unittest.TestCase):
         for front_end, (edition, family) in recipes.FRONT_ENDS.items():
             with self.subTest(front_end=front_end):
                 document = self.document()
-                row = next(r for r in document['recipes'] if r['core_id'] == 'fes.pcxt')
+                row = next(r for r in document['recipes'] if r['core_id'] == 'fes.pcxt-dos')
                 row['front_end'] = front_end
                 row['quartus'] = dict(row['quartus'], edition=edition, device_family=family)
-                self.assertEqual(self.load_document(document)['fes.pcxt'].front_end, front_end)
+                self.assertEqual(self.load_document(document)['fes.pcxt-dos'].front_end, front_end)
 
     def test_a_quartus_row_that_misstates_its_front_end_is_rejected(self):
         cases = (
@@ -390,7 +394,7 @@ class RecipeDataTest(unittest.TestCase):
         for index, case in enumerate(cases):
             with self.subTest(case=index):
                 document = self.document()
-                row = next(r for r in document['recipes'] if r['core_id'] == 'fes.pcxt')
+                row = next(r for r in document['recipes'] if r['core_id'] == 'fes.pcxt-dos')
                 if case['front_end'] is None:
                     del row['front_end']
                 else:

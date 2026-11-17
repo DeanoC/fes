@@ -69,7 +69,7 @@ authenticated HIP/nextpnr producer. FES policy also allows labelled
 Quartus-built core variants (accepted in #1163), and Quartus is used wherever
 nextpnr timing closure is hard. Playable recipes use OSS packages except the
 ZX81 family (ZX81, ZX80, TS1000, TS1500), which selects its Quartus Lite
-producer with nextpnr as an advisory lane; PC/XT selects a Quartus diagnostic package.
+producer with nextpnr as an advisory lane; PC/XT selects its sole Quartus DOS package.
 The general variant selector and OSS-only image option are rollout
 work described in the design. See
 [Quartus-built cores](docs/design/quartus-cores.md).
@@ -234,8 +234,8 @@ The parent defaults to the DE10 integration profile. Systems whose nextpnr route
 not implemented yet are checked explicitly with Quartus when their recipe
 requires it; that check does not create an image package or change the default
 package-only path. The accepted policy also allows labelled Quartus variants:
-the ZX81 family selects its Quartus Lite package producer and PC/XT selects a
-Quartus diagnostic package; see
+the ZX81 family selects its Quartus Lite package producer and PC/XT selects its
+sole Quartus DOS package; see
 [Quartus-built cores](docs/design/quartus-cores.md). Quartus is never an
 automatic fallback.
 

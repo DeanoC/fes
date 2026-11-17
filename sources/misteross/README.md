@@ -99,14 +99,14 @@ ABI. CI runs these focused floppy checks on pull requests. The complete
 `make sim-fes-pcxt-dos` simulation boots the pinned GLaBIOS XT/5160 BIOS
 and FreeDOS through the same whole-machine SDRAM, keyboard and floppy paths;
 it permits downloads of pinned BIOS and FreeDOS fixtures. The DOS profile uses
-the runtime PC floppy media path and does not accept host keyboard input.
-Host simulations do not qualify hardware. `make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache` builds the
-normal Quartus diagnostic package, with authenticated tool/source identity,
+the runtime PC floppy media path, host HID keyboard input and PC speaker audio.
+Host simulations do not qualify hardware. `make build-fes-pcxt-dos CACHE_ROOT=/absolute/toolchain-cache` builds the
+normal Quartus DOS package, with authenticated tool/source identity,
 three timing seeds and an independent byte-identical rebuild under
 `build/fes-pcxt-quartus/`. The [core README](cores/fes-pcxt/README.md) describes
-tool selection and the separate advisory nextpnr diagnostic. The exact package
-in the [reviewed Kit A record](../../docs/validation/2026-10-29-pcxt-quartus-package/review-followup.json)
-passes the static picture/completion-block and launch/Stop checks. External
+tool selection and the separate advisory nextpnr diagnostic. Exact-package DOS acceptance is recorded in [core status](../../docs/core-status.md);
+a fresh seal needs its own hardware check. The diagnostic ROM, raw board builds
+and offline capture checkers remain development tools. External
 SDRAM/HDMI timing, whole-board qualification, physically linkable ISA sockets
 and BIOS/DOS/game compatibility remain open.
 

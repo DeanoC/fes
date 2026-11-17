@@ -469,7 +469,7 @@ func TestSessionInputTapRejectsForeignLeaseAndInvalidKey(t *testing.T) {
 }
 
 func tapHIDStatus() protocol.Status {
-	core := "fes.pcxt"
+	core := "fes.pcxt-dos"
 	return protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core,
 		CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 7,
 			ABI:              protocol.RuntimeContract{ID: "fes.computer", Major: 1},

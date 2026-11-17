@@ -3,7 +3,7 @@
 Status: accepted policy (issue #1163, Deano, 27 October 2026), including the
 15% threshold under [What "significantly" means](#what-significantly-means).
 Registered recipes support a single OSS or Quartus producer for each core ID
-and board. PC/XT selects its Quartus diagnostic producer, and the DE10 ZX81
+and board. PC/XT selects its sole Quartus DOS producer, and the DE10 ZX81
 family selects its Quartus Lite package producer under Deano's 15 November 2026
 decision to use Quartus wherever nextpnr timing closure is hard (DeanoC/fes#1873);
 its nextpnr table stays advisory in `config/advisory-pnr-recipes.toml`. Explicit DE25 MENU
@@ -37,7 +37,7 @@ Two reasons:
   `AGENTS.md` (Toolchains, Machines) records Pro 26.3 on both build hosts;
   [RTL front-end lanes](rtl-frontend-lanes.md) S1b and S6b settle the entitlement.
 
-PC/XT now selects a single Quartus diagnostic producer through the normal
+PC/XT selects a single Quartus DOS producer through the normal
 package-preparation path. Its lane-specific recipe omits GPU/nextpnr settings;
 functional records explicitly name Quartus and bind installed tool bytes.
 The complete reported internal timing gate and repeat-RBF check apply, while

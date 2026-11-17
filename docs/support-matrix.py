@@ -39,7 +39,7 @@ ZX81_POLICY_CITE = 'policy: Deano 2026-11-15'
 QUARTUS_PRIMARY = 'Quartus (primary, policy)'
 DE25_CELL = 'Quartus-only (policy); shell pending'
 # i386, pc386 and PC/XT. nextpnr on these rows is advisory.
-QUARTUS_PRIMARY_IDS = frozenset({'i386', 'fes.pc386', 'fes.pcxt', 'fes.pcxt-dos',
+QUARTUS_PRIMARY_IDS = frozenset({'i386', 'fes.pc386', 'fes.pcxt-dos',
                                  'fes.zx81', 'fes.zx80', 'fes.ts1000', 'fes.ts1500'})
 BOARDS = frozenset({'de10', 'device', 'none'})
 # Human-table feature words. The long `features` string stays in the JSON.
@@ -66,7 +66,6 @@ HIGHLIGHTS = {
     'fes.atari-ste': '—',
     'fes.riscv': 'pad, HDMI',
     'sim.pong': '—',
-    'fes.pcxt': 'disk, HDMI',
     'fes.pcxt-dos': 'disk, keys, HDMI',
     'fes.pc386': 'disk, keys, mouse, HDMI',
     'i386': '—',
@@ -99,7 +98,6 @@ DETAILS = {
     'fes.atari-ste': ('sources/misteross/cores/fes-atari-st/README.md', 'README'),
     'fes.riscv': ('sources/misteross/cores/fes-riscv/README.md', 'README'),
     'sim.pong': ('sources/misteross/docs/cores.md', 'cores'),
-    'fes.pcxt': ('sources/misteross/cores/fes-pcxt/README.md', 'README'),
     'fes.pcxt-dos': ('sources/misteross/cores/fes-pcxt/README.md', 'README'),
     'fes.pc386': ('sources/misteross/cores/fes-pc386/README.md', 'README'),
     'i386': ('sources/misteross/docs/i386-cpu-design.md', 'design'),
@@ -127,7 +125,7 @@ QUALITY_TIER_IDS = {
     '1': frozenset({
         'fes.zx81', 'fes.zx80', 'fes.ts1000', 'fes.ts1500',
         'fes.spectrum', 'fes.spectrum128', 'fes.spectrum-plus3', 'fes.pentagon',
-        'fes.c64', 'fes.atari-st', 'fes.pcxt', 'fes.pcxt-dos',
+        'fes.c64', 'fes.atari-st', 'fes.pcxt-dos',
     }),
     '1-pending': frozenset({'fes.pc386'}),
     '2-pending': frozenset({'fes.coleco', 'fes.sms', 'fes.sg1000', 'fes.apple2'}),
