@@ -384,6 +384,21 @@ def guarded_only_registers(rtl: str, backend: int = 0) -> list[str]:
                   if all(flags) and not re.search(rf'^\s+{reg}\s*<=', head, re.M))
 
 
+# The transcendental engine (#1958) is an entity with memories of its own, not
+# sequencer arms, so the register derivation above cannot see it. It is built
+# only for the DE25 backend, as fes_x87_core is.
+ENGINE_ENTITY = 'fes_x87_trans'
+ENGINE_MEMORIES = ('program_rom', 'constant_rom', 'temps')
+
+
+def engine_presence(entity_rows: list[dict], memories: list[str]) -> dict:
+    """What a fit holds of the transcendental engine: the entity rows that name
+    it and the memories that are its."""
+    return {'entities': sorted({str(value) for row in entity_rows for value in row.values()
+                                if ENGINE_ENTITY in str(value)}),
+            'memories': sorted(name for name in memories if name in ENGINE_MEMORIES)}
+
+
 def ram_blocks(text: str) -> list[str]:
     """The memories the fit kept, by name, from the fitter's RAM summary. This
     is how the seed tables' absence is evidenced after commit 4e6e1053b: the
@@ -535,6 +550,13 @@ def compile_project(output: Path, tool: Path, version: str) -> dict:
             if tables:
                 raise SystemExit('the DE25 fit still contains the sequenced arithmetic\'s '
                                  f'seed tables: {tables}')
+        engine = engine_presence(record.get('entities', []), record.get('ram_blocks', []))
+        record['exclusion']['transcendental_engine'] = engine
+        if inputs['x87_backend'] == 'de10' and not skip and (engine['entities'] or engine['memories']):
+            raise SystemExit(f'the DE10 fit contains the transcendental engine: {engine}')
+        if inputs['x87_backend'] == 'de25' and not skip and inputs.get('flow') != 'yosys-seal-netlist' \
+                and not engine['entities']:
+            raise SystemExit('the DE25 fit holds no transcendental engine, so its absence elsewhere means nothing')
         if inputs['x87_backend'] == 'de10' and not skip:
             leaked = {n: v for n, v in de25_only.items() if v}
             if leaked:

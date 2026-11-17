@@ -163,5 +163,28 @@ class De25OnlyRegisters(unittest.TestCase):
             fit.guarded_only_registers((fit.RTL / 'fes_i386_x87.sv').read_text(), 2)
 
 
+
+class EnginePresence(unittest.TestCase):
+    """The transcendental engine is an entity, so it is found by name."""
+
+    def test_finds_the_entity_and_its_memories(self):
+        rows = [{'name': 'fes_i386_x87', 'alms': '5000'}, {'name': '|fes_x87_trans:trans|', 'alms': '1200'}]
+        found = fit.engine_presence(rows, ['rf_a', 'program_rom', 'constant_rom'])
+        self.assertEqual(found['entities'], ['|fes_x87_trans:trans|'])
+        self.assertEqual(found['memories'], ['constant_rom', 'program_rom'])
+
+    def test_a_fit_without_it_is_empty(self):
+        found = fit.engine_presence([{'name': 'fes_i386_x87'}, {'name': 'fes_x87_core:core'}], ['rf_a', 'rf_b'])
+        self.assertEqual(found, {'entities': [], 'memories': []})
+
+    def test_the_rtl_still_names_what_the_check_looks_for(self):
+        # If the engine or its memories are renamed, the check would find
+        # nothing and pass for the wrong reason.
+        rtl = fit.RTL
+        self.assertIn(f'module {fit.ENGINE_ENTITY} ', (rtl / 'fes_x87_trans.sv').read_text())
+        text = (rtl / 'fes_x87_trans.sv').read_text() + (rtl / 'fes_x87_trans_rom.sv').read_text()
+        for memory in fit.ENGINE_MEMORIES:
+            self.assertRegex(text, rf'\b{memory} \[0:')
+
 if __name__ == '__main__':
     unittest.main()
