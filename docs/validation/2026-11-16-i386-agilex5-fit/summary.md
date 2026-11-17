@@ -7,12 +7,12 @@ passed every **applicable** analysis at every published corner, the top one
 with +0.426 ns to spare. For the CPU that is setup, hold and minimum pulse
 width: recovery and removal find zero paths there, because its resets are
 synchronous, and are recorded as not applicable rather than passed. 150 MHz fails setup by −0.485 ns at two of the four and 170 MHz by
-−1.039 ns at three. On the Cyclone V the same CPU closes at **61.44 MHz**, the
-only rung run there. Seed 1 throughout. The 124 MHz figure that appears below
+−1.039 ns at three. On the Cyclone V the same CPU passes timing at **61.44 MHz**, the
+only rung run there, so no closure is claimed for it. Seed 1 throughout. The 124 MHz figure that appears below
 is the 61.44 MHz rung's own restricted-Fmax **estimate**, not a closure.
 
 **And the design the DE10 refused fits too**: `pc386_system` from #1889's head,
-slices 3 and 4, closes on Agilex 5 at **41,387 ALMs, 88.43%** — adding 4,132
+slices 3 and 4, fits on Agilex 5 at **41,387 ALMs, 88.43%** and passes timing at 61.44 MHz — adding 4,132
 ALMs over M+ and **zero LABs**. The question of whether the DE25 holds a
 *complete* 387 was answered first, and by a different design: the pipelined
 backend, at four seeds, 87.58–87.87% — **that session's measurement, published
@@ -34,7 +34,7 @@ remainders. Its standalone unit is **6,923 ALMs** in the form #1889 settled on
 against the merge base's 4,076, and its identity-on machine required 4,292 LABs
 of 4,191 and never placed. **That design has since been
 fitted here** — see [the section on it](#the-design-the-de10-refused-does-fit-on-agilex-5--and-it-adds-no-labs):
-it closes on Agilex 5 at 41,387 ALMs, 88.43%.
+it fits on Agilex 5 at 41,387 ALMs, 88.43%, and passes timing at 61.44 MHz.
 
 The question, in his words: *"we need see the entire size of the 386 on the
 agilex 5, it may be bigger or smaller as different fabric and toolchain."* It
@@ -63,7 +63,7 @@ of their device — four on Agilex 5, eight on Cyclone V. What "passed" covers,
 exactly, and it is not the same for the two designs:
 
 - **Setup, hold and minimum pulse width were analysed at every corner of every
-  fit**, and they are the analyses the closure rests on. Among the fourteen
+  fit**, and they are the analyses every timing verdict here rests on. Among the fourteen
   that passed, the worst setup slack is **+0.426 ns** (the 130 MHz rung) and
   the worst hold slack is **0.000 ns exactly**, on the superseded zero-delay
   envelope fit — which met the gate, since the gate requires non-negative, and
@@ -156,8 +156,8 @@ from paths inside that clock's domain. So the pixel domain carried registers
 and was analysed in all four. No figure in this record moves.
 
 The figures in that table are the **fitter's estimates at a 61.44 MHz
-constraint, not closures**. The closures come from the ladder below: the CPU
-closes at **130 MHz** on Agilex 5 and at **61.44 MHz** on the Cyclone V, which
+constraint, not closures**. The one closure comes from the ladder below: the CPU
+closes at **130 MHz** on Agilex 5. On the Cyclone V it passes timing at **61.44 MHz**, which
 is the only rung that has been run there. The machine has **no ladder at all**,
 on either device, so its 117.80 MHz and 63.83 MHz are estimates and nothing
 more. These are each device's separate figures and no ratio between them is
@@ -271,9 +271,9 @@ difficulty. "Agilex 5 placed what the DE10 could not" cannot rest on M+.
 
 **It rests on the slice-4 fit instead, which has since been run**: #1889's own
 head, [fitted here](#the-design-the-de10-refused-does-fit-on-agilex-5--and-it-adds-no-labs)
-at 41,387 ALMs, 88.43%, placing, routing and closing. So the outcome
+at 41,387 ALMs, 88.43%, placing, routing and passing timing at 61.44 MHz. So the outcome
 comparison is now available and it is a like-for-like one — the same design on
-both devices, refused on the Cyclone V and closing on Agilex 5 — rather than
+both devices, refused on the Cyclone V and passing timing at 61.44 MHz on Agilex 5 — rather than
 the mismatched one this paragraph originally warned against.
 
 **And the DE10 settles it directly, on a fit whose total independently
@@ -348,15 +348,16 @@ ALMs with 4,210 recoverable and 915 unavailable, difficulty **Low**; the
 slice-4 fit places **43,308** with only **2,814** recoverable and 893
 unavailable, difficulty **Medium**.
 
-**Band 2 of the precommitted bands: it fits and it closes.** Timing passes
+**Band 2 of the precommitted bands: it fits and it passes timing at
+61.44 MHz.** Timing passes
 every analysis at all four published corners, 2 real pins against 2 real
 clocks, zero illegal and zero unconstrained clocks. At 88.43% it is below the
 **≥ 92%** band that would have made it "not established pending more seeds" —
 though it is one seed, and 88.43% is the highest ALM utilisation anyone has
 fitted on this device.
 
-So **the design the DE10 could not place does place, route and close on
-Agilex 5.** That is an **outcome** comparison, and it is the only form this
+So **the design the DE10 could not place does place, route and pass timing at
+61.44 MHz on Agilex 5.** That is an **outcome** comparison, and it is the only form this
 record will make of it. It deliberately does not set #1889's "4,292 LABs
 required of 4,191" against this fit's "4,590 LABs used of 4,680": those are the
 two different quantities the section above refuses to put on one scale, and
@@ -393,7 +394,7 @@ It was queued as "the only measurement that would settle whether the DE25
 holds a complete 387". **It is not, and that question was answered first by a
 different design.** The sibling DE25 envelope session reports that its integration fit —
 `pc386_system` with `x87_present` high **and** `X87_BACKEND = 1`, the
-pipelined backend, on this runner and this envelope — fits and closes across
+pipelined backend, on this runner and this envelope — fits and passes timing at 61.44 MHz across
 four seeds at **40,986 / 41,055 / 41,122 / 41,054 ALMs, 87.58–87.87%**, every
 corner, setup never below +7.58 ns. That is the configuration the 16 November
 decision ships.
@@ -470,12 +471,12 @@ the pipelined backend from "about the same ALMs" into a ranking. Not run.
 
 **`pc386_system` from #1889's head on Agilex 5 — run, and reported
 [above](#the-design-the-de10-refused-does-fit-on-agilex-5--and-it-adds-no-labs):
-it fits and closes at 41,387 ALMs, 88.43%.** Every other fit in this record is
+it fits at 41,387 ALMs, 88.43%, and passes timing at 61.44 MHz.** Every other fit in this record is
 `main`, whose 387 has no arithmetic.
 
 ### The ladder
 
-| Rung | Device | Closed? | ALMs | % | LABs | % | Worst-corner Fmax estimate |
+| Rung | Device | Passes? | ALMs | % | LABs | % | Worst-corner Fmax estimate |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | 61.44 MHz | Agilex 5 | **yes**, all 4 corners | 29,300 | 62.61% | 3,626 | 77.48% | 124.35 MHz |
 | 61.44 MHz, seed 2 | Agilex 5 | **yes**, all 4 corners | 29,373 | 62.76% | 3,607 | 77.07% | 128.12 MHz |
@@ -635,7 +636,7 @@ an area result.
 | ALMs containing virtual pins | 2,351 | 2,351 | **0** |
 
 The gated quantity lands at **+0.24%**, well inside ±5%, so the secondary is
-reported as the cross-check it was meant to be. Both fits closed 61.44 MHz at
+reported as the cross-check it was meant to be. Both fits passed timing at 61.44 MHz at
 every corner with one real pin.
 
 **What that buys.** [#1892](https://github.com/DeanoC/fes/pull/1892) and the

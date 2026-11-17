@@ -484,7 +484,7 @@ is.
 
 **What remains comparable with #1889 is not a percentage but an outcome.** On
 the DE10 the identity-on machine required more LABs than the device has and
-never placed. On Agilex 5 it placed, routed and closed timing at every corner.
+never placed. On Agilex 5 it placed, routed and passed timing at 61.44 MHz at every corner.
 That is the comparison this record makes.
 
 **The secondary front end's threshold, fixed before its fit prints anything.**
@@ -529,7 +529,7 @@ So M+ — `main` plus a one-character flip — measures a 387 the DE10 already
 carries, and this record establishes **nothing** about whether the DE25 holds
 the one the DE10 refused. The headline is withdrawn from the record and the PR
 body. What M+ establishes is exactly this: the machine with slice 2's 387
-takes 79.6% of the Agilex 5's ALMs and closes 61.44 MHz at every corner.
+takes 79.6% of the Agilex 5's ALMs and passes timing at 61.44 MHz at every corner.
 
 **The measurement that would settle the DE25 plan is now named as not made:**
 `pc386_system` from #1889's head, through this runner, on Agilex 5, with
@@ -699,7 +699,7 @@ What had been seen: the fifteen fits above, all recorded, with the budget and
 the ladder settled. **And, from the sibling DE25 envelope session, something
 that changes this fit's purpose:** its integration fit of `pc386_system` with
 `x87_present = 1'b1` **and** `X87_BACKEND = 1` — the machine with a *complete*
-DE25 387, the pipelined backend — fits and closes on Agilex 5 across four
+DE25 387, the pipelined backend — fits and passes timing at 61.44 MHz on Agilex 5 across four
 seeds at **40,986 / 41,055 / 41,122 / 41,054 ALMs, 87.58–87.87%**, every
 corner, hold strictly positive, setup never below +7.58 ns. It is reported to have run on this
 runner, this envelope, this SDC and these report rows, so it should be on the
@@ -751,7 +751,7 @@ to M and M+**, because being on one scale with the 37,255 is the entire point.
 2. Fits, ALMs needed ≤ 100%, timing **passes every analysis at all four
    corners** → **Agilex 5 holds the design the DE10 refused**: the decisive
    positive.
-3. Fits, but timing **fails at any corner** → **"fits but does not close"**,
+3. Fits, but timing **fails at any corner** → **"fits but fails timing"**,
    which is **not** a pass; the worst slack and its corner are reported.
 4. In band 2 or 3 with ALMs needed **≥ 92%** → recorded as **not established,
    pending more seeds**, whatever the timing says. The DE10 lane's practical
@@ -1242,3 +1242,17 @@ towards holding the lease. The test helpers that stand in for the runner call
 test process and is removed;
 `test_an_orphan_beneath_a_non_reaping_ancestor_does_not_stall_the_reap` covers
 the same path (a leader that exits 0 leaving a member) in a process of its own.
+
+## Amendment, 17 November 2026: "closes" is kept for configurations with a ladder
+
+What had been seen: every fit recorded, and a review finding that the summary
+said the slice-4 machine "closes".
+
+This method defines "closes at" as the highest ladder rung that passes. Only
+`fes_i386_cpu` on Agilex 5 has a ladder. The CPU on the Cyclone V and every
+machine fit (M, M+, the #1889 head, and the sibling session's integration
+fits cited here) ran one rung, 61.44 MHz, so what each establishes is that it
+places, routes and passes timing at that constraint. The summary and the
+earlier amendments above used "closes" for some of them. Those sentences now
+read "passes timing at 61.44 MHz", and band 3's label reads "fits but fails
+timing". No rule, band boundary, verdict or figure changes.
