@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/controller"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/inputmap"
 )
@@ -18,16 +17,7 @@ type PadPrompts map[string]string
 // so each word gets the glyph of the button that sends that control through
 // the pad's saved profile: with A and B swapped, "A" is drawn as the pad's
 // right-hand face button.
-func NewPadPrompts(family controller.Family, remap *inputmap.Remapper) PadPrompts {
-	f := gfx.PromptGeneric
-	switch family {
-	case controller.FamilyXbox:
-		f = gfx.PromptXbox
-	case controller.FamilyPlayStation:
-		f = gfx.PromptPlayStation
-	case controller.FamilyNintendo:
-		f = gfx.PromptNintendo
-	}
+func NewPadPrompts(f gfx.PromptFamily, remap *inputmap.Remapper) PadPrompts {
 	buttons := []struct {
 		word    string
 		code    remoteinput.Code

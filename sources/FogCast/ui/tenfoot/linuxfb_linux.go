@@ -277,7 +277,7 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 			var family controller.Family
 			in.mapper, in.remap, vendor, product, family = nativeGamepadMapper(fd, ins.padRemap)
 			if in.mapper != nil {
-				in.prompts = NewPadPrompts(family, in.remap)
+				in.prompts = NewPadPrompts(promptFamily(family), in.remap)
 			}
 		} else if ins.padID != nil {
 			vendor, product = ins.padID(fd)
@@ -1038,6 +1038,21 @@ func padMapper(device controller.Device, padRemap func(guid string) (*inputmap.R
 		device.Name, device.Vendor, device.Product, device.Version, device.Bus, guid, mapping, device.Family())
 	return mapper, remap
 }
+
+// promptFamily is the glyph set for a pad's family.
+func promptFamily(family controller.Family) gfx.PromptFamily {
+	switch family {
+	case controller.FamilyXbox:
+		return gfx.PromptXbox
+	case controller.FamilyPlayStation:
+		return gfx.PromptPlayStation
+	case controller.FamilyNintendo:
+		return gfx.PromptNintendo
+	default:
+		return gfx.PromptGeneric
+	}
+}
+
 func nativeKindFromKeys(keys []byte) InputKind {
 	has := func(code int) bool { return code/8 < len(keys) && keys[code/8]&(1<<uint(code%8)) != 0 }
 	if has(304) || has(305) || (has(288) && has(289)) {

@@ -3,7 +3,6 @@ package tenfoot
 import (
 	"testing"
 
-	"github.com/DeanoC/FogCast/ui/controller"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/inputmap"
 )
@@ -13,11 +12,11 @@ func promptWords(p PadPrompts, hint string) string { return gfx.PromptWords(p.ap
 func TestPadPromptsFollowTheFamily(t *testing.T) {
 	t.Parallel()
 	hint := "LB/RB platform  X sort  hold X filter  Y search  hold A view  SELECT layout  hold B home  GUIDE settings"
-	for family, want := range map[controller.Family]string{
-		controller.FamilyXbox:        "LBRB platform  X sort  hold X filter  Y search  hold A view  VIEW layout  hold B home  GUIDE settings",
-		controller.FamilyPlayStation: "L1R1 platform  Square sort  hold Square filter  Triangle search  hold Cross view  CREATE layout  hold Circle home  PS settings",
-		controller.FamilyNintendo:    "LR platform  Y sort  hold Y filter  X search  hold B view  - layout  hold A home  HOME settings",
-		controller.FamilyGeneric:     "LR platform  left button sort  hold left button filter  top button search  hold bottom button view  SELECT layout  hold right button home  GUIDE settings",
+	for family, want := range map[gfx.PromptFamily]string{
+		gfx.PromptXbox:        "LBRB platform  X sort  hold X filter  Y search  hold A view  VIEW layout  hold B home  GUIDE settings",
+		gfx.PromptPlayStation: "L1R1 platform  Square sort  hold Square filter  Triangle search  hold Cross view  CREATE layout  hold Circle home  PS settings",
+		gfx.PromptNintendo:    "LR platform  Y sort  hold Y filter  X search  hold B view  - layout  hold A home  HOME settings",
+		gfx.PromptGeneric:     "LR platform  left button sort  hold left button filter  top button search  hold bottom button view  SELECT layout  hold right button home  GUIDE settings",
 	} {
 		if got := promptWords(NewPadPrompts(family, nil), hint); got != want {
 			t.Errorf("%v:\n got %q\nwant %q", family, got, want)
@@ -32,10 +31,10 @@ func TestPadPromptsFollowTheSavedProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := promptWords(NewPadPrompts(controller.FamilyNintendo, swap), "A select  B back"); got != "A select  B back" {
+	if got := promptWords(NewPadPrompts(gfx.PromptNintendo, swap), "A select  B back"); got != "A select  B back" {
 		t.Errorf("Nintendo pad with A and B swapped shows %q", got)
 	}
-	if got := promptWords(NewPadPrompts(controller.FamilyPlayStation, swap), "A select  B back"); got != "Circle select  Cross back" {
+	if got := promptWords(NewPadPrompts(gfx.PromptPlayStation, swap), "A select  B back"); got != "Circle select  Cross back" {
 		t.Errorf("PlayStation pad with A and B swapped shows %q", got)
 	}
 	// X sends A as well; the button that still sends A keeps the prompt.
@@ -44,7 +43,7 @@ func TestPadPromptsFollowTheSavedProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := promptWords(NewPadPrompts(controller.FamilyPlayStation, both), "A select  X sort"); got != "Cross select  X sort" {
+	if got := promptWords(NewPadPrompts(gfx.PromptPlayStation, both), "A select  X sort"); got != "Cross select  X sort" {
 		t.Errorf("x bound to a shows %q", got)
 	}
 	// Only Y sends A.
@@ -52,14 +51,14 @@ func TestPadPromptsFollowTheSavedProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := promptWords(NewPadPrompts(controller.FamilyXbox, moved), "A select"); got != "Y select" {
+	if got := promptWords(NewPadPrompts(gfx.PromptXbox, moved), "A select"); got != "Y select" {
 		t.Errorf("y bound to a shows %q", got)
 	}
 }
 
 func TestPadPromptsLeaveProseAlone(t *testing.T) {
 	t.Parallel()
-	p := NewPadPrompts(controller.FamilyPlayStation, nil)
+	p := NewPadPrompts(gfx.PromptPlayStation, nil)
 	for hint, want := range map[string]string{
 		"A choose  B return to session  ·  Stop to play another cartridge": "Cross choose  Circle return to session  ·  Stop to play another cartridge",
 		"D-pad move  ·  A select  ·  B back":                               "D-pad move  ·  Cross select  ·  Circle back",
@@ -79,7 +78,7 @@ func TestPadPromptsLeaveProseAlone(t *testing.T) {
 func TestHeaderHintUsesTheAffinityPadsGlyphs(t *testing.T) {
 	t.Parallel()
 	app := NewApp(nil, 1280, 720, 100)
-	app.SetPadPrompts(7, NewPadPrompts(controller.FamilyPlayStation, nil))
+	app.SetPadPrompts(7, NewPadPrompts(gfx.PromptPlayStation, nil))
 	app.AttachInput(InputGamepad, 7)
 	words := app.Snapshot()
 	words.Prompts = nil
