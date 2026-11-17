@@ -1070,9 +1070,15 @@ measured before that merge**, on slice 4's RTL as it stood at `79f34caa8` and
 its successors. The merge brought slice 4's review fixes into
 `fes_i386_x87.sv` (new arms `D_CHECK`, `D_EXACT`, `Q_CHECK`, among others), so
 the fitted design is not the merged one. The fits are kept as pre-merge
-measurements and have not been re-run. No confirmation fit on the merged tree
-exists yet; until one does, the ALM figures and the controlled A/B describe the
-pre-merge design only.
+measurements. **One seed of each backend has since been fitted on the merged
+tree** (`00752ae14`), recorded with its provenance in
+[`integration-fit/merged/`](integration-fit/merged/README.md). Both fit and
+pass timing at every corner (band 2). X87_BACKEND=1 is unchanged at 40,982
+ALMs (87.57%); X87_BACKEND=0 rose to 42,375 (90.54%), above every pre-merge
+seed. So the ALM figures above still describe the DE25-backend machine, and
+the controlled A/B's size (462 ALMs between medians) describes the pre-merge
+design only: the merged pair differs by 1,393 ALMs in the same direction, on
+one seed a side.
 
 What was re-run on the merged tree, at `00752ae14568fcb0bda42c4a3bff57460a206446`
 (the second merge plus the report change described below):
