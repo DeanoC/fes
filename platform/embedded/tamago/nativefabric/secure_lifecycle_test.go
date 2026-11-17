@@ -229,7 +229,7 @@ func TestSecureLifecycleRetainedMenuComputerAndPark(t *testing.T) {
 }
 
 func TestSecureLifecycleRejectedReturnRetainsSourceAndCannotRetry(t *testing.T) {
-	for _, fault := range []int{1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22} {
+	for _, fault := range []int{1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28} {
 		t.Run(fmt.Sprint(fault), func(t *testing.T) {
 			f, cpu := secureLifecycleFixture(t, fault)
 			request, _, _ := addROMProgram(t, f.r, 0, 8192)

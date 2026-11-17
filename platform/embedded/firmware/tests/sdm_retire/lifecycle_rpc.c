@@ -90,6 +90,12 @@ int main(void)
    case 20:fabric_stop.probe.failed=1;break;
    case 21:fes_nano_owned_bridges.closure.data_remained_contained=0;break;
    case 22:identity_probe.failed=1;break;
+   case 23:fes_nano_owned_sd.grant_generation++;break;
+   case 24:fes_nano_owned_sd.return_generation++;break;
+   case 25:fes_nano_owned_sd.stopped_generation++;break;
+   case 26:fabric_configuration_generation++;break;
+   case 27:fabric_stop.qualified=0;break;
+   case 28:fabric_stop.attempted=0;break;
    case 100:break; /* Actual reader_stop issues one DISABLE and validates ACK. */
    case 101:break; /* Actual reader_stop verifies an already-drained endpoint. */
    default:assert(0);
