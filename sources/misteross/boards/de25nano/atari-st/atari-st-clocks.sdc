@@ -63,28 +63,20 @@ foreach {label source head bits} {
     set_false_path -from $launches -to $first_d
 }
 
-# Held bundles. Each is written on the launch clock no later than its toggle
-# and read at least two receiving edges after the toggle's first stage, so a
-# ten-nanosecond flight is well inside every window:
-#   config      the system snapshot, taken with config_ack, loaded by the pixel
-#               side when the acknowledge has synchronized
+# Held bundles into the pixel clock. Each is written on the machine edge that
+# toggles its handshake, and the pixel side reads it no sooner than two pixel
+# edges after the toggle's first stage captured it: 2 x 13.468 = 26.94 ns
+# after the launch at the least. One pixel period, half of that window, is
+# the bound. It counts the skew between the two PLL networks, which is why
+# the ten nanoseconds used for same-source bundles elsewhere is too little.
+#   config      the system snapshot, taken with config_ack, loaded when the
+#               acknowledge has synchronized or at the next frame
 #   job_result  job_ok, written with job_done
-#   publication a frame's height, standard and number, written with published
-#   job         a line job's resolution and start word, written with or one
-#               pixel edge after job_request
 foreach {label source sink} {
     config {core|video|config_bundle_sys[*]}
         {core|video|pending_config[*] core|video|active_base[*] core|video|active_resolution[*]
          core|video|active_palette[*]}
     job_result {core|video|job_ok[*]} {core|video|cache_valid[*]}
-    publication {core|video|native_capture.capture|height[*][*] core|video|native_capture.capture|pal_banks[*]
-                 core|video|native_capture.capture|publication_number[*][*]}
-        {core|video|native_capture.capture|output_height[*] core|video|native_capture.capture|output_pal
-         core|video|native_capture.capture|front_bank[*] core|video|native_capture.capture|released[*]
-         core|video|native_capture.capture|borders|next_pointer[*]
-         core|video|native_capture.capture|borders|remaining[*]}
-    job {core|video|job_high[*] core|video|job_start[*][*]}
-        {core|video|memory_words[*] core|video|legacy_addr[*]}
 } {
     set patterns {}
     foreach name $source {lappend patterns "${base}|${name}"}
@@ -95,12 +87,49 @@ foreach {label source sink} {
     if {[get_collection_size $launches] == 0 || [get_collection_size $captures] == 0} {
         error "DE25 Atari ST held $label bundle endpoints changed"
     }
-    set_net_delay -max 10.000 -from $launches -to $captures
-    set_data_delay 10.000 -from $launches -to $captures
-    set_max_skew 10.000 -from $launches -to $captures
-    set_max_delay 10.000 -from $launches -to $captures
+    set_net_delay -max 13.400 -from $launches -to $captures
+    set_data_delay 13.400 -from $launches -to $captures
+    set_max_skew 13.400 -from $launches -to $captures
+    set_max_delay 13.400 -from $launches -to $captures
     set_min_delay 0.000 -from $launches -to $captures
 }
+# A line job's resolution is written with job_request and its start word one
+# pixel edge later. The system side acts two machine periods after the launch
+# at the least, so ten nanoseconds is well inside the window.
+set job_launches [get_registers [list "${base}|core|video|job_high[*]" "${base}|core|video|job_start[*][*]"]]
+set job_captures [get_registers [list "${base}|core|video|memory_words[*]" "${base}|core|video|legacy_addr[*]"]]
+if {[get_collection_size $job_launches] == 0 || [get_collection_size $job_captures] == 0} {
+    error "DE25 Atari ST held job bundle endpoints changed"
+}
+set_net_delay -max 10.000 -from $job_launches -to $job_captures
+set_data_delay 10.000 -from $job_launches -to $job_captures
+set_max_skew 10.000 -from $job_launches -to $job_captures
+set_max_delay 10.000 -from $job_launches -to $job_captures
+set_min_delay 0.000 -from $job_launches -to $job_captures
+
+# A published frame's height, standard and publication number are written on
+# the machine edge that toggles published. The pixel side chooses among them
+# only at a start of frame where pub_sync shows the toggle, two pixel edges
+# after pub_meta captured it: 2 x 13.468 = 26.94 ns after the launch at the
+# least, as for the bundles above; one pixel period is the bound.
+set publication_launches [get_registers [list "${base}|core|video|native_capture.capture|height[*][*]" \
+    "${base}|core|video|native_capture.capture|pal_banks[*]" \
+    "${base}|core|video|native_capture.capture|publication_number[*][*]"]]
+set publication_captures [get_registers [list "${base}|core|video|native_capture.capture|output_height[*]" \
+    "${base}|core|video|native_capture.capture|output_pal" \
+    "${base}|core|video|native_capture.capture|front_bank[*]" \
+    "${base}|core|video|native_capture.capture|released[*]" \
+    "${base}|core|video|native_capture.capture|borders|next_pointer[*]" \
+    "${base}|core|video|native_capture.capture|borders|remaining[*]"]]
+if {[get_collection_size $publication_launches] == 0 || [get_collection_size $publication_captures] == 0} {
+    error "DE25 Atari ST held publication bundle endpoints changed"
+}
+set_net_delay -max 13.400 -from $publication_launches -to $publication_captures
+set_data_delay 13.400 -from $publication_launches -to $publication_captures
+set_max_skew 13.400 -from $publication_launches -to $publication_captures
+set_max_delay 13.400 -from $publication_launches -to $publication_captures
+set_min_delay 0.000 -from $publication_launches -to $publication_captures
+
 # job_start_ok is the last of a line job's metadata: st_video_adapter registers
 # it two pixel edges after it launches job_request. The system side acts on
 # the job on the second machine edge after job_req_meta captures the toggle,
