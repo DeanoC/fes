@@ -405,7 +405,7 @@ int main(int argc, char **argv) {
         };
         std::vector<Class> classes;
         const bool trig = op == FSIN || op == FCOS || op == FSINCOS || op == FPTAN;
-        if (trig) classes = {{"|x| in [2^-8, pi/4]", 0}, {"|x| in [pi/4, 2^10]", 1}, {"|x| in [2^10, 2^62]", 2},
+        if (trig) classes = {{"|x| in [2^-8, 1)", 0}, {"|x| in [1, 2^10)", 1}, {"|x| in [2^10, 2^62)", 2},
                              {"within 2^-20 relative of k*pi/2, k in 1..64", 3}, {"|x| in [2^-70, 2^-8]", 4}};
         else if (op == F2XM1) classes = {{"|x| in [2^-8, 1)", 0}, {"|x| in [2^-70, 2^-8]", 4}};
         else if (op == FYL2X) classes = {{"x in [2^-4, 2^4], y in [2^-4, 2^4]", 0},
@@ -423,10 +423,11 @@ int main(int argc, char **argv) {
                 F80 a, b;
                 const int kind = classes[c].kind;
                 if (trig) {
-                    if (kind == 0) {
-                        a = rng.value(-8, -1, 0);
-                        if ((a.se & 0x7fff) == 16382 && a.sig > HALF_PI_SIG) a.sig = HALF_PI_SIG;  // <= pi/4
-                    } else if (kind == 1) a = rng.value(0, 9, 0);
+                    // Every exponent from -8 to 61 is sampled, with no clamp at
+                    // pi/4: operands either side of the first reduction are in
+                    // class 0 together.
+                    if (kind == 0) a = rng.value(-8, -1, 0);
+                    else if (kind == 1) a = rng.value(0, 9, 0);
                     else if (kind == 2) a = rng.value(10, 61, 0);
                     else if (kind == 3) {
                         // k * pi/2 with the low 43 bits randomised.
