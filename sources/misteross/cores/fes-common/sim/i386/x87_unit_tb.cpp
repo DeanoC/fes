@@ -1260,6 +1260,113 @@ void run_bcd_cases() {
         }
     }
 
+    // Every FBLD issued so far ran to its end, so each must have converted;
+    // the sweep below interrupts some before they start, so the exact count
+    // is taken here.
+    const long fbld_issued_whole = bcd_issued[0];
+    const unsigned long fbld_converted_whole = seq_entries[SEQ_T_BLD_IN];
+
+    // ---- A squash, and the F1h reset, while a conversion runs. ----
+    // FBSTP converts while its first uop waits in D, for some 65 clocks, so
+    // the pipeline can squash it part way; FBLD converts after it has
+    // retired, where a flush must not lose it. The arms keep counters and
+    // working registers of their own, so each is interrupted at every offset
+    // and the next instruction of the same kind, with a smaller value, is
+    // then compared with the host: anything left behind shows there. The
+    // sweep reports how many offsets landed inside the conversion arm, and a
+    // sweep that never did fails rather than passing on nothing.
+    {
+        const std::vector<BStep> small_store = {bmem(0xdf, 6, FMT_F80, true, 32)};
+        uint8_t big[10], seven[10];
+        ext_bytes(big, 0x403a, 0xde0b6b3a763ffff0ull);       // 999999999999999999
+        ext_bytes(seven, 0x4001, 0xe000000000000000ull);     // 7.0
+        alignas(16) uint8_t mb[BCD_MEM];
+        std::memcpy(mb, mem0, BCD_MEM);
+        bcd_bytes(mb, "80999999999999999999");
+        alignas(16) uint8_t ms[BCD_MEM];
+        std::memcpy(ms, mem0, BCD_MEM);
+        bcd_bytes(ms, "00000000000000000042");
+        for (int kind = 0; kind < 4; ++kind) {
+            // 0: FBSTP squashed; 1: FBSTP under F1h; 2: FBLD flushed after it retired; 3: FBLD under F1h.
+            const bool store = kind < 2, reset = kind == 1 || kind == 3;
+            const unsigned arm = store ? SEQ_T_BST_IN + 1 : SEQ_T_BLD_IN + 1;
+            Unit u;
+            int inside = 0, wrong = 0;
+            std::string first;
+            for (int at = 0; at < 80; ++at) {
+                u.clear_latch();
+                u.reg_form(OP_FNINIT);
+                u.load(OP_FLD_M80, FMT_F80, one);
+                const unsigned top_before = u.top_of();
+                uint8_t st_before[10];
+                ++bcd_issued[store ? 1 : 0];
+                if (store) {
+                    u.load(OP_FLD_M80, FMT_F80, big);
+                    // The first uop (the top word) waits in D and never issues.
+                    u.top.iss = 1;
+                    u.top.iss_wait = 0;
+                    u.top.iss_op = OP_FBSTP;
+                    u.top.iss_fmt = FMT_F80;
+                    u.top.iss_first = 1;
+                    u.top.iss_last = 0;
+                    u.top.iss_part = 2;
+                    u.top.iss_fire = 0;
+                    u.top.eval();
+                } else {
+                    for (int p = 2; p >= 0; --p) {
+                        u.present(OP_FBLD, FMT_F80, p == 2, p == 0, unsigned(p));
+                        uint32_t v = 0;
+                        std::memcpy(&v, mb + 4 * p, p == 2 ? 2 : 4);
+                        u.commit(unsigned(p), v, p == 0);
+                    }
+                }
+                u.st0(st_before);
+                for (int n = 0; n < at; ++n) u.tick();
+                if ((unsigned(u.top.trace_seq) & 63u) == arm) ++inside;
+                (reset ? u.top.f1 : u.top.flush) = 1;
+                u.top.iss = u.top.iss_first = 0;
+                u.tick();
+                u.top.f1 = u.top.flush = 0;
+                u.top.eval();
+                u.settle();
+                std::string what;
+                if (u.top.busy_o) what = "the unit stayed busy";
+                else if (reset) {
+                    if (u.tw() != 0xffff || u.cw() != 0x037e) what = "not the reset state: cw " + hex(u.cw(), 4) + " tw " + hex(u.tw(), 4);
+                } else if (store) {
+                    // Squashed: the source is still ST(0) and nothing popped.
+                    uint8_t st_after[10];
+                    u.st0(st_after);
+                    if (u.top_of() != ((top_before + 7) & 7) || std::memcmp(st_after, st_before, 10) != 0)
+                        what = "the squashed store changed the stack: top " + std::to_string(u.top_of());
+                } else {
+                    // Retired: the load lands whatever the flush.
+                    uint8_t st_after[10], want[10];
+                    u.st0(st_after);
+                    ext_bytes(want, 0xc03a, 0xde0b6b3a763ffff0ull);
+                    if (u.top_of() != ((top_before + 7) & 7) || std::memcmp(st_after, want, 10) != 0)
+                        what = "the retired load was lost or wrong: " + hex80(st_after);
+                }
+                // The next one, smaller, against the host.
+                if (what.empty()) {
+                    uint8_t stack[2][10];
+                    std::memcpy(stack[0], seven, 10);
+                    std::memcpy(stack[1], one, 10);
+                    what = store ? bcd_differ(page, u, 0x037f, stack, 2, small_store, mem0, false)
+                                 : bcd_differ(page, u, 0x037f, stack, 1, fbld, ms, false);
+                    if (!what.empty()) what = "the next instruction: " + what;
+                }
+                if (!what.empty() && !wrong++) first = "at " + std::to_string(at) + " clocks: " + what;
+            }
+            const std::string name = std::string("bcd-") + (store ? "fbstp" : "fbld") + (reset ? "-f1-reset" : "-flush")
+                                   + "-during-conversion";
+            if (wrong) bad(name, std::to_string(wrong) + " offsets, first " + first);
+            else if (inside < 10) bad(name, "only " + std::to_string(inside) + " of 80 offsets landed inside the conversion");
+            else ok(name);
+            std::printf("BCDSWEEP %s offsets 80 inside-conversion %d\n", name.c_str(), inside);
+        }
+    }
+
     // ---- The counts (method.md, pass rule 3). ----
     // How many of each form the unit was given, and how many conversions its
     // sequencer was seen to enter: FBLD always converts, FBSTP only when its
@@ -1270,9 +1377,9 @@ void run_bcd_cases() {
                 seq_entries[SEQ_T_BLD_IN], bcd_issued[1], seq_entries[SEQ_T_BST_IN]);
     if (bcd_issued[0] == 0 || bcd_issued[1] == 0 || seq_entries[SEQ_T_BLD_IN] == 0 || seq_entries[SEQ_T_BST_IN] == 0)
         bad("bcd-forms-reached", "a packed decimal form the DE25 backend builds was never converted");
-    else if (seq_entries[SEQ_T_BLD_IN] != (unsigned long)bcd_issued[0])
-        bad("bcd-forms-reached", "FBLD was issued " + std::to_string(bcd_issued[0]) + " times and converted "
-                                 + std::to_string(seq_entries[SEQ_T_BLD_IN]));
+    else if (fbld_converted_whole != (unsigned long)fbld_issued_whole)
+        bad("bcd-forms-reached", "FBLD was issued " + std::to_string(fbld_issued_whole) + " times uninterrupted and converted "
+                                 + std::to_string(fbld_converted_whole));
     else ok("bcd-forms-reached");
 }
 
