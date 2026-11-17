@@ -463,27 +463,31 @@ each and are not committed; the digests and the command are the record D12 asks
 for.
 
 <!-- results:start -->
-| Core | Changed files in its closure | Pinned inputs | Netlist sha256 | Two passes | Match |
-| --- | --- | --- | --- | --- | --- |
-| `fes.c64` | `fes_de10nano_evidence.py` | differ | `1b7efc74cd4f637d0e0ecdafc52ac06c49664de7ded7974938f07e0a7567ef83` | agree | **byte-identical** |
-| `fes.coleco` | `fes_de10nano_evidence.py` | differ | `58e3e313595a9d481a3b43544766d145c56d92ff519f7955fd3c8699ffa52844` | agree | **byte-identical** |
-| `fes.menu` | `build_fes_menu_package.py`, `build_fes_menu.py`, `fes_de10nano_evidence.py` | differ | `05ab4ada678920c408b045026fbd88073f05152867ba628ff253757bc23d0a31` | agree | **byte-identical** |
-| `fes.pentagon` | `fes_de10nano_evidence.py` | differ | `b7e23071f5bb22020bd14c58b03b1e6a2b65b9254b7cf10ce52a3ce81b7bf334` | agree | **byte-identical** |
-| `fes.pong` | `build_fes_pong.py`, `fes_de10nano_evidence.py` | differ | `e7948651bcc0cc2ffbbd3c52c8643c642bc6964826e2a0ae65d18e3fd90cf12b` | agree | **byte-identical** |
-| `fes.ramtest` | `build_fes_ramtest.py`, `fes_de10nano_evidence.py` | differ | `0d59db94f2352a40c9b0e57ab69c6626ff5a3f7b33f5843ae9507e9bf3bf6c7a` | agree | **byte-identical** |
-| `fes.riscv` | `build_fes_riscv.py`, `fes_de10nano_evidence.py` | differ | `e8db4d58afb81e7766d7e21c9ce6d1d18736196badb9dbc23fb742d8c4549be8` | agree | **byte-identical** |
-| `fes.spectrum` | `fes_de10nano_evidence.py` | differ | `3f2dfb764a86b215ad4878203392ebd5823c2218e00e10f8f321eddaa85eccc7` | agree | **byte-identical** |
-| `fes.spectrum-plus3` | `fes_de10nano_evidence.py` | differ | `2646f83230b81acf14bf7ca62bafd1f77aa30602874e05d713ec4c5f4afa4fce` | agree | **byte-identical** |
-| `fes.spectrum128` | `fes_de10nano_evidence.py` | differ | `cd62753ae45dbfe930671831ed66ebec568ae4e0b1738fc3ee68ac5b2dda1957` | agree | **byte-identical** |
-| `fes.splash` | `fes_de10nano_evidence.py` | differ | 68858653e28f06b85f4bf3249a2d5e169becb650e9f235d2627cc7f4c4f7410e (after D12's `src` path exemption) | agree | **identical, src paths exempt** |
-| `fes.ts1000` | `fes_de10nano_evidence.py` | differ | `96bcf1f6411ab04324e86a58fd525bd5c722f3afbf02c7db67365be074cc6dca` | agree | **byte-identical** |
-| `fes.ts1500` | `fes_de10nano_evidence.py` | differ | `d29bb54e119907959fb104890f8d2d038fff625cf84b2cdea09cc7525bbf37a7` | agree | **byte-identical** |
-| `fes.zx80` | `fes_de10nano_evidence.py` | differ | `b7effcba3f7a30349ae55aef0eac6a857d00f04dc4fe1b959a0c482534df6f82` | agree | **byte-identical** |
-| `fes.zx81` | `fes_de10nano_evidence.py` | differ | `b5c296e5c76810f5655e70a945518dd511654e8b450fb7bbbb616e442f15604b` | agree | **byte-identical** |
 
-Revisions measured on main: `72d2fc4da`.
-Revisions measured on branch: `480c924f8`, `760d8a8f0`, `b5d3ae232`, `cf8ec7bec`.
-Each row's pinned inputs were unmodified at the revision shown; `summarise.py` refuses to render a record with no revision or with a modified pinned input, and the driver refuses to write one.
+| Artefact | Lane | `check_level` | Condition 1 | Condition 2 | Condition 3 |
+| --- | --- | --- | --- | --- | --- |
+| `splash` | nextpnr | full | identical (src exempt) | PASS (no BUILD_ID in the program) | pass, 3.1862x worst clock |
+| `fes.menu` | nextpnr | full | identical | CARRIED | pass, 1.1441x worst clock |
+| `fes.c64` | nextpnr | full | identical | CARRIED | pass, 1.1118x worst clock |
+| `fes.spectrum` | nextpnr | full | identical | CARRIED | pass, 1.1668x worst clock |
+| `fes.spectrum128` | nextpnr | full | identical | PASS | not measured |
+| `fes.spectrum-plus3` | nextpnr | full | identical | PASS | not measured |
+| `fes.pentagon` | nextpnr | full | identical | PASS | not measured |
+| `fes.zx81` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.121 ns worst slack (Hold) |
+| `fes.zx80` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.143 ns worst slack (Hold) |
+| `fes.ts1000` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.135 ns worst slack (Hold) |
+| `fes.ts1500` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.110 ns worst slack (Hold) |
+| `fes.pong` | nextpnr | reduced | identical | not owed (#1863) | not owed (#1863) |
+| `fes.ramtest` | nextpnr | reduced | identical | not owed (#1863) | not owed (#1863) |
+| `fes.coleco` | nextpnr | reduced | identical | not owed (#1863) | not owed (#1863) |
+| `fes.riscv` | nextpnr | reduced | identical | not owed (#1863) | not owed (#1863) |
+
+Condition 1 for the Quartus Lite rows is the canonical QSF, which is what
+D12 names for a native Quartus front end; those four run no Yosys program.
+A `CARRIED` condition 2 is a recorded pair that D12's merge-forward clause
+carries, and it is claimed only where the recorded pair passed *and* main's
+own netlist is byte-identical at the old base and the new one.
+
 <!-- results:end -->
 
 The table is rendered into those markers by `python3 summarise.py --write`, so

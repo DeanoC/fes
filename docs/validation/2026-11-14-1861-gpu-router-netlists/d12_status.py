@@ -45,15 +45,27 @@ def main() -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--write", action="store_true")
     parser.add_argument("--scope", type=Path, default=HERE / "reports-scope")
+    parser.add_argument("--cond3", type=Path, default=HERE / "reports-cond3" / "cond3.json")
     arguments = parser.parse_args()
-    c1 = load(arguments.scope / "cond1-summary.json")
-    c2 = load(arguments.scope / "cond2-summary.json")
-    c3 = load(arguments.scope / "cond3.json")
+    wanted = {"condition 1": arguments.scope / "cond1-summary.json",
+              "condition 2": arguments.scope / "cond2-summary.json",
+              "condition 3": arguments.cond3,
+              "ZX81 QSFs": arguments.scope / "zx81-quartus-qsf.json"}
+    absent = {name: path for name, path in wanted.items() if not path.is_file()}
+    if absent:
+        # Say the input is missing rather than let every cell read "not
+        # measured", which would blame the measurement for a path mistake.
+        for name, path in absent.items():
+            print(f"WARNING: no {name} summary at {path}; its column is unknown, not unmeasured",
+                  file=sys.stderr)
+    c1 = load(wanted["condition 1"])
+    c2 = load(wanted["condition 2"])
+    c3 = load(arguments.cond3)
 
     def cell1(artefact: str) -> str:
         key = artefact.removeprefix("fes.")
         if artefact in LANE:
-            qsf = load(arguments.scope / "zx81-quartus-qsf.json")
+            qsf = load(wanted["ZX81 QSFs"])
             if qsf is None:
                 return "not measured"
             model = key
@@ -81,11 +93,22 @@ def main() -> int:
         row = (c3 or {}).get(key)
         if row is None:
             return "not measured"
-        worst = row.get("margins", {}).get("worst_ratio")
-        note = "" if worst is None else f" (worst margin {worst:.4f}x)"
+        if row.get("unverified"):
+            return f'**unverified**: {row["unverified"]}'
+        m = row.get("margins", {})
+        # Each lane in its own units: nextpnr reports a frequency ratio,
+        # Quartus a slack in nanoseconds. They are not comparable.
+        if m.get("kind") == "nextpnr-frequency-ratio":
+            margin = f'{m["worst_ratio"]:.4f}x worst clock'
+        elif m.get("kind") == "quartus-slack-ns":
+            if not m.get("all_non_negative", True):
+                return "**NEGATIVE SLACK**"
+            margin = f'{m["worst_slack_ns"]:+.3f} ns worst slack ({m["worst_analysis"]})'
+        else:
+            return "pass (no margin figures in the summary)"
         if artefact in LANE and not row.get("repeat_matches_signoff", True):
             return "**repeat changed the RBF**"
-        return f"pass{note}"
+        return f"pass, {margin}"
 
     lines = [START, "",
              "| Artefact | Lane | `check_level` | Condition 1 | Condition 2 | Condition 3 |",
