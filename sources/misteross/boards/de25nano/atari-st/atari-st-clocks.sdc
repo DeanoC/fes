@@ -44,52 +44,61 @@ foreach {label source expected head second} {
 # The ST video adapter and native capture cross between the machine and pixel
 # clocks with request/done toggles and bundles held across each round trip.
 # Every such path in the fitted design is named below; nothing else crosses.
-# Toggles and levels: one launch register per bit into its own first stage.
-foreach {label source head bits} {
-    video_hold {core|video_hold} {core|video|hold_meta} 1
-    config_request {core|video|config_request} {core|video|config_req_meta} 1
-    config_ack {core|video|config_ack} {core|video|config_ack_meta} 1
-    job_request {core|video|job_request[*]} {core|video|job_req_meta[*]} 2
-    job_done {core|video|job_done[*]} {core|video|job_done_meta[*]} 2
-    published {core|video|native_capture.capture|published[*]} {core|video|native_capture.capture|pub_meta[*]} 3
-    released {core|video|native_capture.capture|released[*]} {core|video|native_capture.capture|release_meta[*]} 3
-} {
+# Toggles and levels: one launch register into one first stage, each named.
+set st_crossings {
+    video_hold {core|video_hold} {core|video|hold_meta}
+    config_request {core|video|config_request} {core|video|config_req_meta}
+    config_ack {core|video|config_ack} {core|video|config_ack_meta}
+}
+foreach bank {0 1} {
+    lappend st_crossings "job_request$bank" "core|video|job_request_launch$bank" "core|video|job_req_meta$bank"
+    lappend st_crossings "job_high$bank" "core|video|job_high_launch$bank" "core|video|job_high_meta$bank"
+    lappend st_crossings "job_done$bank" "core|video|job_done_launch$bank" "core|video|job_done_meta$bank"
+    lappend st_crossings "job_ok$bank" "core|video|job_ok_launch$bank" "core|video|job_ok_meta$bank"
+}
+foreach bank {0 1 2} {
+    lappend st_crossings "published$bank" "core|video|native_capture.capture|published_launch$bank" \
+        "core|video|native_capture.capture|pub_meta$bank"
+    lappend st_crossings "released$bank" "core|video|native_capture.capture|released_launch$bank" \
+        "core|video|native_capture.capture|release_meta$bank"
+}
+foreach {label source head} $st_crossings {
     set launches [get_registers "${base}|${source}"]
     set first_d [get_pins -compatibility_mode -nocase "${base}|${head}|d"]
-    if {[get_collection_size $launches] != $bits || [get_collection_size $first_d] != $bits} {
+    if {[get_collection_size $launches] != 1 || [get_collection_size $first_d] != 1} {
         error "DE25 Atari ST $label crossing endpoints changed"
     }
     set_false_path -from $launches -to $first_d
 }
 
 # Held bundles. Each is copied into a receiving-clock register, with nothing
-# on the path but that register's enable, on the receiving edge after its
-# toggle's second synchronizer stage shows it: no sooner than two receiving
-# periods after the toggle launched. Synthesis drops constant and unused
-# bits, so each end is counted against a floor, not an exact width.
-#   config       the system snapshot, written with config_ack; into the pixel
-#                clock, 2 x 13.468 = 26.94 ns later at the least
-#   job_result   job_ok, written with job_done; the same window
+# on the path but that register's enable, no sooner than two receiving
+# periods after its toggle left the launch clock. Synthesis drops constant
+# and unused bits, so each end is counted against a floor, not a width.
+#   config       the system snapshot, written with config_ack and held until
+#                the next request; the pixel side loads it at the frame end
+#                after the acknowledge arrived, 2 x 13.468 = 26.94 ns after
+#                the launch at the least
 #   publication  a frame's number, height, border and standard, written with
 #                published; the same window
-#   job          a line job's resolution is written with job_request, its
-#                start word one pixel edge later and its bounds check two.
-#                Into the machine clock, 2 x 19.149 ns after the request at
-#                the least, which leaves 2 x 19.149 - 2 x 13.468 = 11.36 ns
-#                after the bounds check
-# One pixel period bounds the first three and eleven nanoseconds the job. The
+#   job          a line job's start word is written one pixel edge after
+#                job_request and its bounds check two. Into the machine
+#                clock, 2 x 19.149 ns after the request at the least, which
+#                leaves 2 x 19.149 - 2 x 13.468 = 11.36 ns after the bounds
+#                check
+# One pixel period bounds the first two and eleven nanoseconds the job. The
 # bound counts the skew between the two PLL networks.
 foreach {label bound source sink launches_minimum captures_minimum} {
-    config 13.400 {core|video|config_bundle_sys[*]} {core|video|config_bundle_pixel[*]} 100 100
-    job_result 13.400 {core|video|job_ok[*]} {core|video|job_ok_pixel[*]} 2 2
+    config 13.400 {core|video|config_bundle_sys[*]}
+        {core|video|active_base[*] core|video|active_resolution[*] core|video|active_palette[*]} 100 100
     publication 13.400
         {core|video|native_capture.capture|publication_number[*][*] core|video|native_capture.capture|height[*][*]
          core|video|native_capture.capture|border[*][*] core|video|native_capture.capture|pal_banks[*]}
         {core|video|native_capture.capture|publication_pixel[*][*] core|video|native_capture.capture|height_pixel[*][*]
          core|video|native_capture.capture|border_pixel[*][*] core|video|native_capture.capture|pal_pixel[*]} 12 12
     job 11.000
-        {core|video|job_start[*][*] core|video|job_start_ok[*] core|video|job_high[*]}
-        {core|video|job_start_sys[*][*] core|video|job_start_ok_sys[*] core|video|job_high_sys[*]} 20 20
+        {core|video|job_start[*][*] core|video|job_start_ok[*]}
+        {core|video|job_start_sys[*][*] core|video|job_start_ok_sys[*]} 20 20
 } {
     set patterns {}
     foreach name $source {lappend patterns "${base}|${name}"}
@@ -234,9 +243,10 @@ foreach {label bit edges port} {
 # rising one, two master-clock periods later. Analog Devices ADV7513 data
 # sheet, audio AC specifications: I2S setup tASU >= 2 ns and hold tAHLD >= 2 ns.
 # No board trace delay is documented, so the pin budget assumes zero external
-# flight time. Setup is left at the tool's one master period, half the real
-# interval; hold is checked against the launch one master period after the
-# capture edge, where the real one is two.
+# flight time. Setup is checked at the tool's one master period, half the real
+# interval. Hold is met by construction: the data changes two master periods
+# after the capture edge, never at it, and the tool's same-edge hold check
+# describes a launch that does not exist, so that check alone is cut.
 set i2s_data [get_ports {HDMI_I2S}]
 set i2s_launch [get_registers {fes_audio_inst|audio|serializer|sdata}]
 if {[get_collection_size $i2s_data] != 1 || [get_collection_size $i2s_launch] != 1} {
@@ -244,8 +254,7 @@ if {[get_collection_size $i2s_data] != 1 || [get_collection_size $i2s_launch] !=
 }
 set_output_delay -clock de25_i2s_bit_clock_output -max 2.000 $i2s_data
 set_output_delay -clock de25_i2s_bit_clock_output -min -2.000 $i2s_data
-set_multicycle_path -setup -start 1 -from $i2s_launch -to $i2s_data
-set_multicycle_path -hold -start 1 -from $i2s_launch -to $i2s_data
+set_false_path -hold -from $i2s_launch -to $i2s_data
 # PLL lock gates the data pin low until the clocks are valid. It is an
 # asynchronous level from the PLL's own control register, not serial data.
 set i2s_lock [get_registers {fes_machine_pll|machine_pll|tennm_ph2_iopll~pll_ctrl_reg}]

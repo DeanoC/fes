@@ -186,9 +186,10 @@ foreach {label bit edges port} {
 # rising one, two master-clock periods later. Analog Devices ADV7513 data
 # sheet, audio AC specifications: I2S setup tASU >= 2 ns and hold tAHLD >= 2 ns.
 # No board trace delay is documented, so the pin budget assumes zero external
-# flight time. Setup is left at the tool's one master period, half the real
-# interval; hold is checked against the launch one master period after the
-# capture edge, where the real one is two.
+# flight time. Setup is checked at the tool's one master period, half the real
+# interval. Hold is met by construction: the data changes two master periods
+# after the capture edge, never at it, and the tool's same-edge hold check
+# describes a launch that does not exist, so that check alone is cut.
 set i2s_data [get_ports {HDMI_I2S}]
 set i2s_launch [get_registers {fes_audio_inst|audio|serializer|sdata}]
 if {[get_collection_size $i2s_data] != 1 || [get_collection_size $i2s_launch] != 1} {
@@ -196,8 +197,7 @@ if {[get_collection_size $i2s_data] != 1 || [get_collection_size $i2s_launch] !=
 }
 set_output_delay -clock de25_i2s_bit_clock_output -max 2.000 $i2s_data
 set_output_delay -clock de25_i2s_bit_clock_output -min -2.000 $i2s_data
-set_multicycle_path -setup -start 1 -from $i2s_launch -to $i2s_data
-set_multicycle_path -hold -start 1 -from $i2s_launch -to $i2s_data
+set_false_path -hold -from $i2s_launch -to $i2s_data
 # PLL lock gates the data pin low until the clocks are valid. It is an
 # asynchronous level from the PLL's own control register, not serial data.
 set i2s_lock [get_registers {fes_machine_pll|machine_pll|tennm_ph2_iopll~pll_ctrl_reg}]

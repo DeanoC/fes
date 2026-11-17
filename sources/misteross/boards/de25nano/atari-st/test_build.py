@@ -51,14 +51,15 @@ class Derivations(unittest.TestCase):
         for line in kept:
             position = lines.index(line, position) if line in lines[position:] else position
         added = [line for line in result.splitlines() if line not in set(lines)]
-        self.assertLess(len(added), 60)
+        self.assertLess(len(added), 80)
         # The pixel side chooses among its own copies of the publication metadata.
         self.assertEqual(len(record["crossing_changes"]), len(derive.NATIVE_CROSSING_EDITS))
         self.assertIn(b"newer_publication(publication_pixel[1], publication_pixel[0])", result)
         self.assertNotIn(b"height[choose_bank]", result)
         self.assertNotIn(b"pub_sync ^ seen", result)
-        self.assertEqual(result.count(b"pub_meta <= "), 1)
-        self.assertEqual(result.count(b"release_meta <= "), 1)
+        for name in (b"pub_meta0", b"pub_meta2", b"release_meta1", b"published_launch0", b"released_launch2"):
+            self.assertEqual(result.count(name + b" <= "), 1, name)
+        self.assertNotIn(b"pub_meta <= ", result)
         with self.assertRaises(ValueError):
             derive.retarget_native_video(result)
         with self.assertRaises(ValueError):
@@ -68,18 +69,20 @@ class Derivations(unittest.TestCase):
         source = (ROOT / "cores/fes-atari-st/rtl/st_video_adapter.sv").read_bytes()
         result, record = derive.retarget_video_adapter(source)
         self.assertEqual(len(record["changes"]), len(derive.ADAPTER_EDITS))
-        # Each bundle crosses once, into its copy; each synchronizer has one, unreset, assignment.
-        self.assertEqual(result.count(b"<= config_bundle_sys;"), 1)
-        self.assertEqual(result.count(b"config_bundle_pixel <= config_bundle_sys;"), 1)
-        for line in (b"job_start_sys[0] <= job_start[0][17:0];", b"job_start_ok_sys[0] <= job_start_ok[0];",
-                     b"job_high_sys[0] <= job_high[0];", b"job_ok_pixel[0] <= job_ok[0];"):
+        # The configuration bundle crosses once, at the frame end; the job's
+        # start word and bounds check once each, into their copies.
+        self.assertEqual(result.count(b" <= config_bundle_sys;") + result.count(b"                            config_bundle_sys;"), 1)
+        self.assertNotIn(b"pending_config <= config_bundle_sys", result)
+        for line in (b"job_start_sys[0] <= job_start[0][17:0];", b"job_start_ok_sys[0] <= job_start_ok[0];"):
             self.assertEqual(result.count(line), 1, line)
-        for name in (b"job_start[selected_bank]", b"job_start_ok[selected_bank]", b"job_high[selected_bank]"):
-            self.assertNotIn(name, result)
-        for name in (b"hold_meta", b"config_ack_meta", b"config_req_meta", b"job_req_meta", b"job_done_meta"):
+        # Every toggle and level has a launch register and a scalar synchronizer, assigned once, unreset.
+        for name in (b"hold_meta", b"config_ack_meta", b"config_req_meta", b"job_req_meta0", b"job_req_meta1",
+                     b"job_done_meta0", b"job_done_meta1", b"job_ok_meta0", b"job_high_meta1",
+                     b"job_request_launch0", b"job_done_launch1", b"job_ok_launch0", b"job_high_launch1"):
             self.assertEqual(result.count(name + b" <= "), 1, name)
-        self.assertNotIn(b"job_req_sync[selected_bank]", result)
-        self.assertNotIn(b"job_ok[bank]", result)
+        for name in (b"job_start[selected_bank]", b"job_start_ok[selected_bank]", b"job_high[selected_bank]",
+                     b"job_req_sync[selected_bank]", b"job_ok[bank]", b"job_req_meta <=", b"job_done_meta <="):
+            self.assertNotIn(name, result)
         self.assertEqual(result.count(b'(* ramstyle = "MLAB" *)'), 2)
         with self.assertRaises(ValueError):
             derive.retarget_video_adapter(result)

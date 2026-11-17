@@ -249,10 +249,14 @@ module fes_atari_st_core #(
     reg [1:0] hold_phase = 2'd0;
     always @(posedge clk_sys) hold_phase <= hold_phase + 2'd1;
     wire [1:0] memory_phase = machine_reset ? hold_phase : native_cycle[1:0];
-    // Rate 0 consumes only the rising-edge sample, taken in the fabric as on
-    // the DE10 shell.
+    // Rate 0 consumes one sample a machine clock. The SDRAM clock pin is the
+    // inverted machine clock, and this board's SDRAM answers up to 8 ns after
+    // it: too late for the rising fabric edge half a period on. The sample is
+    // taken on the next falling edge, at the chip's following clock edge and
+    // before its data changes, and the controller reads it on the rising edge
+    // where it read the DE10 shell's sample.
     reg [15:0] dq_sample;
-    always @(posedge clk_sys) dq_sample <= dq_in;
+    always @(negedge clk_sys) dq_sample <= dq_in;
     st_memory #(.PHASE_SLOTS(1), .POSTED_CPU_WRITES(1),
                 .SINGLE_RANK_REFRESH(1), .SLOT_REFRESH(1)) memory (
         .ram_write_committed(ram_write_committed), .ram_write_addr(ram_write_addr),

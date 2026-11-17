@@ -130,25 +130,37 @@ def _edits(source, edits, label):
 
 # The DE10 video crosses between the machine and pixel clocks with toggles and
 # bundles held across each round trip, and the receiving side reads each bundle
-# through its own logic. That is sound, but it leaves logic on every crossing
-# path. Here each bundle is copied into a receiving-clock register when its
-# toggle arrives, with nothing but that register's enable, and the logic reads
-# the copy one receiving clock later. Each synchronizer runs free, outside its
-# clock's synchronous reset, so nothing but its source reaches its first stage.
+# through its own logic. That is sound, but signoff refuses logic on a crossing
+# path and a vector of independent bits through per-bit synchronizers. Here:
+#   - every toggle and single-bit level leaves a launch register of its own
+#     and crosses its own two-stage synchronizer, which runs free of its
+#     clock's synchronous reset;
+#   - every wider bundle is copied into a receiving-clock register when its
+#     toggle arrives, with nothing on the path but that register's enable,
+#     and the logic reads the copy one receiving clock later.
+# A level and its toggle change on one launch edge and cross the same number
+# of stages; the toggle is then acted on one clock later, after the level.
 ADAPTER_EDITS = (
     # 80 words fill a twentieth of an M20K; the line caches are LUT RAM here.
     (b"    reg [15:0] cache0 [0:79];\n    reg [15:0] cache1 [0:79];\n",
      b'    (* ramstyle = "MLAB" *) reg [15:0] cache0 [0:79];\n'
      b'    (* ramstyle = "MLAB" *) reg [15:0] cache1 [0:79];\n'),
-    (b"    wire config_complete = config_waiting && config_ack_sync == config_request;\n",
-     b"    wire config_arrived = config_waiting && config_ack_sync == config_request;\n"
-     b"    reg config_complete;\n"
-     b"    reg [169:0] config_bundle_pixel;\n"),
+    (b'    (* async_reg = "true" *) reg [1:0] job_req_meta, job_req_sync;\n'
+     b'    (* async_reg = "true" *) reg [1:0] job_done_meta, job_done_sync;\n',
+     b"    reg job_request_launch0, job_request_launch1, job_done_launch0, job_done_launch1;\n"
+     b"    reg job_ok_launch0, job_ok_launch1, job_high_launch0, job_high_launch1;\n"
+     b'    (* async_reg = "true" *) reg job_req_meta0, job_req_sync0, job_req_meta1, job_req_sync1;\n'
+     b'    (* async_reg = "true" *) reg job_done_meta0, job_done_sync0, job_done_meta1, job_done_sync1;\n'
+     b'    (* async_reg = "true" *) reg job_ok_meta0, job_ok_pixel0, job_ok_meta1, job_ok_pixel1;\n'
+     b'    (* async_reg = "true" *) reg job_high_meta0, job_high_sys0, job_high_meta1, job_high_sys1;\n'
+     b"    wire [1:0] job_req_sync = {job_req_sync1, job_req_sync0};\n"
+     b"    wire [1:0] job_done_sync = {job_done_sync1, job_done_sync0};\n"
+     b"    wire [1:0] job_ok_pixel = {job_ok_pixel1, job_ok_pixel0};\n"
+     b"    wire [1:0] job_high_sys = {job_high_sys1, job_high_sys0};\n"),
     (b"    reg [1:0] job_start_ok;\n",
      b"    reg [1:0] job_start_ok;\n"
-     b"    reg [1:0] job_taken, job_start_ok_sys, job_high_sys;\n"
-     b"    reg [17:0] job_start_sys [0:1];\n"
-     b"    reg [1:0] job_done_taken, job_ok_pixel;\n"),
+     b"    reg [1:0] job_taken, job_start_ok_sys, job_done_taken;\n"
+     b"    reg [17:0] job_start_sys [0:1];\n"),
     (b"    wire pending0 = job_req_sync[0] != job_done[0];\n"
      b"    wire pending1 = job_req_sync[1] != job_done[1];\n",
      b"    wire pending0 = job_taken[0] != job_done[0];\n"
@@ -163,8 +175,18 @@ ADAPTER_EDITS = (
      b"    always @(posedge clk_sys) begin\n"
      b"        config_req_meta <= config_request;\n"
      b"        config_req_sync <= config_req_meta;\n"
-     b"        job_req_meta <= job_request;\n"
-     b"        job_req_sync <= job_req_meta;\n"
+     b"        job_req_meta0 <= job_request_launch0;\n"
+     b"        job_req_sync0 <= job_req_meta0;\n"
+     b"        job_req_meta1 <= job_request_launch1;\n"
+     b"        job_req_sync1 <= job_req_meta1;\n"
+     b"        job_high_meta0 <= job_high_launch0;\n"
+     b"        job_high_sys0 <= job_high_meta0;\n"
+     b"        job_high_meta1 <= job_high_launch1;\n"
+     b"        job_high_sys1 <= job_high_meta1;\n"
+     b"        job_done_launch0 <= job_done[0];\n"
+     b"        job_done_launch1 <= job_done[1];\n"
+     b"        job_ok_launch0 <= job_ok[0];\n"
+     b"        job_ok_launch1 <= job_ok[1];\n"
      b"    end\n"
      b"    always @(posedge clk_sys) begin\n"
      b"        if (reset_sys) begin\n"
@@ -182,12 +204,10 @@ ADAPTER_EDITS = (
      b"            if (job_req_sync[0] != job_taken[0]) begin\n"
      b"                job_start_sys[0] <= job_start[0][17:0];\n"
      b"                job_start_ok_sys[0] <= job_start_ok[0];\n"
-     b"                job_high_sys[0] <= job_high[0];\n"
      b"            end\n"
      b"            if (job_req_sync[1] != job_taken[1]) begin\n"
      b"                job_start_sys[1] <= job_start[1][17:0];\n"
      b"                job_start_ok_sys[1] <= job_start_ok[1];\n"
-     b"                job_high_sys[1] <= job_high[1];\n"
      b"            end\n"),
     (b"                    memory_token <= job_req_sync[selected_bank];\n",
      b"                    memory_token <= job_taken[selected_bank];\n"),
@@ -210,14 +230,23 @@ ADAPTER_EDITS = (
      b"        hold_sync <= hold_meta;\n"
      b"        config_ack_meta <= config_ack;\n"
      b"        config_ack_sync <= config_ack_meta;\n"
-     b"        job_done_meta <= job_done;\n"
-     b"        job_done_sync <= job_done_meta;\n"
+     b"        job_done_meta0 <= job_done_launch0;\n"
+     b"        job_done_sync0 <= job_done_meta0;\n"
+     b"        job_done_meta1 <= job_done_launch1;\n"
+     b"        job_done_sync1 <= job_done_meta1;\n"
+     b"        job_ok_meta0 <= job_ok_launch0;\n"
+     b"        job_ok_pixel0 <= job_ok_meta0;\n"
+     b"        job_ok_meta1 <= job_ok_launch1;\n"
+     b"        job_ok_pixel1 <= job_ok_meta1;\n"
+     b"        job_request_launch0 <= job_request[0];\n"
+     b"        job_request_launch1 <= job_request[1];\n"
+     b"        job_high_launch0 <= job_high[0];\n"
+     b"        job_high_launch1 <= job_high[1];\n"
      b"    end\n"
      b"    always @(posedge clk_pixel) begin\n"
      b"        if (reset_pixel) begin\n"
      b"            horizontal <= 11'd0;\n"
      b"            vertical <= 10'd0;\n"
-     b"            config_complete <= 1'b0;\n"
      b"            job_done_taken <= 2'd0;\n"),
     (b"            job_done_meta <= 2'd0;\n"
      b"            job_done_sync <= 2'd0;\n"
@@ -229,13 +258,13 @@ ADAPTER_EDITS = (
      b"            config_ack_sync <= config_ack_meta;\n"
      b"            job_done_meta <= job_done;\n"
      b"            job_done_sync <= job_done_meta;\n",
-     b"            config_complete <= config_arrived && !config_complete;\n"
-     b"            if (config_arrived && !config_complete) config_bundle_pixel <= config_bundle_sys;\n"
-     b"            job_done_taken <= job_done_sync;\n"
-     b"            if (job_done_sync[0] != job_done_taken[0]) job_ok_pixel[0] <= job_ok[0];\n"
-     b"            if (job_done_sync[1] != job_done_taken[1]) job_ok_pixel[1] <= job_ok[1];\n"),
-    (b"                pending_config <= config_bundle_sys;\n",
-     b"                pending_config <= config_bundle_pixel;\n"),
+     b"            job_done_taken <= job_done_sync;\n"),
+    # The configuration snapshot is held from its acknowledge until the next
+    # request, which follows the frame end that applies it: the pixel side
+    # loads it there, once, straight from the held snapshot.
+    (b"                pending_config <= config_bundle_sys;\n", b""),
+    (b"    reg [169:0] pending_config;\n", b""),
+    (b"            pending_config <= 170'd0;\n", b""),
     (b"                if (cache_busy[bank] && job_done_sync[bank] == job_request[bank]) begin\n"
      b"                    cache_busy[bank] <= 1'b0;\n"
      b"                    cache_valid[bank] <= job_ok[bank] && job_current[bank];\n",
@@ -243,18 +272,24 @@ ADAPTER_EDITS = (
      b"                    cache_busy[bank] <= 1'b0;\n"
      b"                    cache_valid[bank] <= job_ok_pixel[bank] && job_current[bank];\n"),
     (b"                            config_complete ? config_bundle_sys : pending_config;\n",
-     b"                            config_complete ? config_bundle_pixel : pending_config;\n"),
+     b"                            config_bundle_sys;\n"),
 )
 
 
 def retarget_video_adapter(source):
-    """Copy each held bundle into its receiving clock before any logic reads it."""
+    """Give every crossing one launch register and one receiving-clock landing."""
     return _edits(source, ADAPTER_EDITS, "ST video adapter crossing")
 
 
 NATIVE_CROSSING_EDITS = (
     (b'    (* async_reg = "true" *) reg [2:0] pub_meta, pub_sync, release_meta, release_sync;\n',
-     b'    (* async_reg = "true" *) reg [2:0] pub_meta, pub_sync, release_meta, release_sync;\n'
+     b"    reg published_launch0, published_launch1, published_launch2;\n"
+     b"    reg released_launch0, released_launch1, released_launch2;\n"
+     b'    (* async_reg = "true" *) reg pub_meta0, pub_sync0, pub_meta1, pub_sync1, pub_meta2, pub_sync2;\n'
+     b'    (* async_reg = "true" *) reg release_meta0, release_sync0, release_meta1, release_sync1;\n'
+     b'    (* async_reg = "true" *) reg release_meta2, release_sync2;\n'
+     b"    wire [2:0] pub_sync = {pub_sync2, pub_sync1, pub_sync0};\n"
+     b"    wire [2:0] release_sync = {release_sync2, release_sync1, release_sync0};\n"
      b"    reg [2:0] pub_taken, pal_pixel;\n"
      b"    reg [2:0] publication_pixel [0:2];\n"
      b"    reg [8:0] border_pixel [0:2];\n"
@@ -271,12 +306,20 @@ NATIVE_CROSSING_EDITS = (
      b"        if (reset_pixel) begin\n"
      b"            pub_meta <= 3'd0; pub_sync <= 3'd0;\n",
      b"    always @(posedge clk_pixel) begin\n"
-     b"        pub_meta <= published;\n"
-     b"        pub_sync <= pub_meta;\n"
+     b"        pub_meta0 <= published_launch0; pub_sync0 <= pub_meta0;\n"
+     b"        pub_meta1 <= published_launch1; pub_sync1 <= pub_meta1;\n"
+     b"        pub_meta2 <= published_launch2; pub_sync2 <= pub_meta2;\n"
+     b"        released_launch0 <= released[0];\n"
+     b"        released_launch1 <= released[1];\n"
+     b"        released_launch2 <= released[2];\n"
      b"    end\n"
      b"    always @(posedge clk_sys) begin\n"
-     b"        release_meta <= released;\n"
-     b"        release_sync <= release_meta;\n"
+     b"        release_meta0 <= released_launch0; release_sync0 <= release_meta0;\n"
+     b"        release_meta1 <= released_launch1; release_sync1 <= release_meta1;\n"
+     b"        release_meta2 <= released_launch2; release_sync2 <= release_meta2;\n"
+     b"        published_launch0 <= published[0];\n"
+     b"        published_launch1 <= published[1];\n"
+     b"        published_launch2 <= published[2];\n"
      b"    end\n"
      b"    always @(posedge clk_pixel) begin\n"
      b"        if (reset_pixel) begin\n"
