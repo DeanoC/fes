@@ -1,0 +1,6 @@
+{
+  "scope": "Host-only tagged-trace tool identity; not an FPGA production toolchain lock",
+  "version_prefix": "Verilator 5.032 ",
+  "wrapper_sha256": "672a1ccf3468902f66387049f001b04f254bbcece7d5e816e3861715889bf252",
+  "engine_sha256": "619464a17a8c212219abceeeee23f529b72801ef594814ae32f4b9747fd38703"
+}
