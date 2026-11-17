@@ -1,0 +1,43 @@
+{
+  "classification": "legacy-controller induction and bounded experimental frontend-deadline trace; selected-word input contract requires separate physical timing validation",
+  "fixtures_sha256": {
+    "/home/deano/.codex/worktrees/8ce6/fes/out/dev/pcxt-capture-path/docs/validation/2026-11-17-pcxt-capture-path/coordinated/controller_contract.sv": "5eed66b4e2db32796949d35051b5a9f7650e3baddc34ae59ae3236aa9a922f0e",
+    "/home/deano/.codex/worktrees/8ce6/fes/out/dev/pcxt-capture-path/docs/validation/2026-11-17-pcxt-capture-path/coordinated/verify_pipeline.py": "8c35d5a05b2aeefd6a1691964d14f0e7e256bba50af4f9593e41970047711792",
+    "/home/deano/.codex/worktrees/8ce6/fes/out/dev/pcxt-capture-path/sources/misteross/cores/fes-pcxt/sim/capture_pipeline_tb.cpp": "62abf2ab5cc612826cf2905b7dbf507e79ae1a37a3f1e735b567880e74ecc6e6",
+    "/home/deano/.codex/worktrees/8ce6/fes/out/dev/pcxt-capture-path/sources/misteross/cores/fes-pcxt/sim/capture_pipeline_top.sv": "fcdf48da3f5ffbc29a48b42e7022e0f58119c257dc9995b21cd5f58f6701bf56"
+  },
+  "formal": "PASS: controller temporal induction; unchanged five-cycle pin-observation deadline",
+  "negative_early_handoff": "rejected after real initialization",
+  "negative_missing_capture": "rejected after real initialization",
+  "negative_no_freeze": "rejected before frontend retirement",
+  "sources_sha256": {
+    "cores/fes-pcxt/rtl/fes_pcxt_top.sv": "df04ba0d0b1b456cfe2e5f34f95aceda89366f2433ca9b0e3691b43c846c203c",
+    "cores/fes-pcxt/rtl/pcxt_memory.sv": "0e74af3dd389e84c807c4d449b747c3a9c27f5efa4371690ed1ca0f0bb1e29b7",
+    "cores/fes-pcxt/rtl/pcxt_system.sv": "403ea305d689bc59600d699fb02e3f63e87732ea3f3939afb2b0e20f72211345",
+    "cores/fes-pcxt/sim/memory_top.sv": "2a2ef00629edebd2741c299564c44ead37fe1ec597e436df77d18f76e4ea4a65",
+    "cores/fes-ramtest/rtl/sdram_addon_port.v": "e3ccc890531752d3fd8274ddbfac4401c79374cab80e7404f8825760da002a08"
+  },
+  "trace": {
+    "consumptions": 512,
+    "controller_state_deadline_ps": 43750,
+    "frontend_deadline_ps": 73750,
+    "handoff_ps": 42500,
+    "landing_ps": 48750,
+    "pin_valid_end_ps": 33250,
+    "pin_valid_start_ps": 33000,
+    "reads": 512,
+    "selected_capture_ps": 33125,
+    "status": "PASS",
+    "warm_flag_writes": 1
+  },
+  "verilator": {
+    "engine": "/usr/bin/verilator_bin",
+    "engine_sha256": "619464a17a8c212219abceeeee23f529b72801ef594814ae32f4b9747fd38703",
+    "executable": "/usr/bin/verilator",
+    "reference_sha256": "20f7d50d274b3d04f5acd995740f4ff95022456355d75105f5b6c86297dd03d4",
+    "sdk_root": "/usr/share/verilator",
+    "version": "Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)",
+    "wrapper_sha256": "672a1ccf3468902f66387049f001b04f254bbcece7d5e816e3861715889bf252"
+  },
+  "yosys_sha256": "a17b4c8aeac5373dba86faa67124456834c585924503457387631408f84549f8"
+}
