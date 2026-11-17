@@ -1,0 +1,23 @@
+{
+  "directory": "/home/deano/fes-retained/de25-reset-restoration-20261117-r1",
+  "status": "verified",
+  "tested_code": "4c4738b3dfe8d80d5881a3a980cfc507dd276748",
+  "artifact_members": 86571,
+  "git_blobs_verified": 17114,
+  "archives": {
+    "tested-source.tar.gz": {
+      "sha256": "2cee5f7e82f42a5b68e562890e25db8a5bef048b570e5836e9593d7f4f63c672",
+      "bytes": 188172453
+    },
+    "artifacts.tar.gz": {
+      "sha256": "506deade21e760af89dd7baee4f688e9ef6e97bdac5154f815d8d753e048bbd4",
+      "bytes": 201447229
+    },
+    "members.json": {
+      "sha256": "b954d15dbd7e4d3d0cb8cdf2876743bd2ba0dc14dfe31bbb94216a3607b9f9c8",
+      "bytes": 22005260
+    }
+  },
+  "failed_deadline_verdict_preserved": true,
+  "independent_read_only_completion_preserved": true
+}

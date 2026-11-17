@@ -57,7 +57,16 @@ RTL = ROOT / 'cores/fes-common/rtl/i386'
 SIM = ROOT / 'cores/fes-common/sim/i386'
 OUTPUT = ROOT / 'build/sim/fes-i386-x87-unit'
 TOP = 'fes_i386_x87'
-RTL_SOURCES = ('fes_i386_pkg.sv', 'fes_i386_x87_mul.sv', 'fes_i386_x87.sv')
+# fes_x87_pkg is in both builds: fes_i386_x87 names its operation encoding
+# unconditionally, and a package declares types rather than logic, so the
+# default build parses it and instantiates nothing from it.
+RTL_SOURCES = ('fes_i386_pkg.sv', 'fes_x87_pkg.sv', 'fes_i386_x87_mul.sv', 'fes_i386_x87.sv')
+# --backend de25 adds the DE25 arithmetic core and selects it with
+# X87_BACKEND=1. The bench itself is unchanged: the envelope's behaviour is
+# what it checks, and that behaviour must not depend on which arithmetic
+# answers, so the same cases passing both ways is the pass rule.
+DE25_SOURCES = ('fes_x87_fast.sv', 'fes_x87_slow.sv', 'fes_x87_core.sv')
+BACKENDS = {'de10': 0, 'de25': 1}
 # Verilator on a Yosys netlist: the lint warnings its flat output raises by
 # construction, as the other i386 benches pass them
 # (scripts/test_fes_i386_frontend.py).
@@ -69,20 +78,24 @@ class X87UnitError(RuntimeError):
     pass
 
 
-def verilate(verilator: i386_verilator.LockedVerilator, jobs: int, yosys: Path | None = None) -> Path:
+def verilate(verilator: i386_verilator.LockedVerilator, jobs: int, yosys: Path | None = None,
+             backend: str = 'de10') -> Path:
     """Build the bench, from the RTL or Yosys's netlist of the unit."""
-    output = OUTPUT / ('netlist' if yosys else 'rtl')
+    output = OUTPUT / (('netlist' if yosys else 'rtl') + ('' if backend == 'de10' else f'-{backend}'))
+    sources = RTL_SOURCES if backend == 'de10' else (RTL_SOURCES[:-1] + DE25_SOURCES + RTL_SOURCES[-1:])
+    select = [f'-GX87_BACKEND={BACKENDS[backend]}'] if not yosys else []
     output.mkdir(parents=True, exist_ok=True)
     if yosys:
         netlist = yosys_netlist.seal_netlist(yosys, output, ROOT,
-                                             sources=[RTL / path for path in RTL_SOURCES], top=TOP)
+                                             sources=[RTL / path for path in sources], top=TOP,
+                                             parameters={'X87_BACKEND': BACKENDS[backend]})
         design = [netlist, RTL / 'fes_i386_pkg.sv']
         warnings = [*NETLIST_WARNINGS, '+define+FES_I386_NETLIST']
     else:
-        design = [RTL / path for path in RTL_SOURCES]
+        design = [RTL / path for path in sources]
         warnings = []
     command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', TOP,
-               '-Wall', '-Wno-UNUSEDSIGNAL', *warnings, '--Mdir', str(output),
+               '-Wall', '-Wno-UNUSEDSIGNAL', *warnings, *select, '--Mdir', str(output),
                '-CFLAGS', f'-std=c++17 -O2 -I{SIM}', *map(str, design), str(SIM / 'x87_unit_tb.cpp')]
     log = output / 'build.log'
     with log.open('w') as stream:
@@ -91,6 +104,17 @@ def verilate(verilator: i386_verilator.LockedVerilator, jobs: int, yosys: Path |
     if result.returncode:
         raise X87UnitError(f'verilator failed; see {log}\n' + '\n'.join(log.read_text().splitlines()[-30:]))
     return output / ('V' + TOP)
+
+
+def latencies(text: str) -> dict[str, int]:
+    """The bench's per-form latency lines, so the record's table is generated
+    from the run rather than typed out of a terminal."""
+    out = {}
+    for line in text.splitlines():
+        if line.startswith('LATENCY '):
+            _, form, pc, clocks = line.split()
+            out[f'{form}.{pc}'] = int(clocks)
+    return out
 
 
 def parse(text: str) -> tuple[int, int, list[str]]:
@@ -107,6 +131,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     i386_verilator.add_argument(parser)
     parser.add_argument('--netlist', action='store_true', help="simulate the seal's Yosys netlist of the unit")
+    parser.add_argument('--backend', choices=sorted(BACKENDS), default='de10',
+                        help="which arithmetic answers: 'de10' the unit's own sequenced datapath "
+                             "(the default and the verified reference), 'de25' the pipelined fes_x87_core")
     parser.add_argument('--testfloat-manifest', type=Path,
                         help='also run extF80 TestFloat vectors listed in this generated manifest')
     parser.add_argument('--jobs', type=int, default=8)
@@ -123,7 +150,7 @@ def main(argv: list[str] | None = None) -> int:
             yosys = i386_verilator.locate_yosys(args.cache_root)
         except i386_verilator.VerilatorError as error:
             raise X87UnitError(f"--netlist needs the lock's Yosys: {error}") from error
-    bench = verilate(verilator, args.jobs, yosys)
+    bench = verilate(verilator, args.jobs, yosys, args.backend)
     command = [str(bench)]
     if args.testfloat_manifest:
         command.extend(['--testfloat-manifest', str(args.testfloat_manifest.resolve())])
@@ -135,10 +162,12 @@ def main(argv: list[str] | None = None) -> int:
     report = {
         'top': TOP,
         'netlist': bool(args.netlist),
+        'backend': args.backend,
         'verilator': verilator.record(),
         'passed': passed,
         'failed': failed,
         'failures': failures,
+        'latency_clocks': latencies(result.stdout),
         'testfloat': ({'vectors': int(testfloat[1]), 'configs': int(testfloat[2])} if testfloat else None),
     }
     (OUTPUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')

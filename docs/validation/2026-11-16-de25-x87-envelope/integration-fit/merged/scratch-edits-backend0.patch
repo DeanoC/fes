@@ -1,0 +1,11 @@
+--- /dev/fd/63	2026-11-17 09:42:56.574987777 +0200
++++ sources/misteross/build/diagnostic/m0-src/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv	2026-11-17 09:01:48.829778782 +0200
+@@ -467,7 +467,7 @@
+     // package until slice 5 of the x87 phase (#1768), where the plan's
+     // slices put the transcendentals every computing title also runs; its
+     // record word and FogCast setting come with it.
+-    wire x87_present = 1'b0;
++    wire x87_present = 1'b1;   // SCRATCH: the integration fit's identity-on
+     wire x87_f0, x87_f1, x87_irq13;
+ 
+     fes_i386_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D)) cpu (

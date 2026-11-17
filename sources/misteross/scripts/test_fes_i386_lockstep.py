@@ -98,6 +98,12 @@ TOP = yosys_netlist.CPU_TOP
 # default is the default suite, the one the pc386 sealer accepts (#1581 S5).
 SUITE_ARGUMENTS = ('opcode', 'limit_per_file', 'random_programs', 'random_seeds', 'seed',
                    'pm_programs', 'task_programs', 'debug_programs', 'undefined_programs', 'no_latency', 'preset',
+                   # `backend` is here so that a DE25 run cannot be mistaken for
+                   # the default suite: the pc386 seal is of the DE10 build, and
+                   # a report from a differently parameterised CPU must not
+                   # satisfy --lockstep-report. Its default is 'de10', so the
+                   # default suite is unchanged.
+                   'backend',
                    'same_as')
 
 # What the CPU executes, by MOO stem without 66h/67h prefixes: every form of
@@ -500,8 +506,10 @@ def run_x87(testbench: str, env: dict) -> dict:
 
 
 # Slices 2 and 3 contribute 14 directed streams; slice 4 adds div-reg,
-# div-mem, div-zero, sqrt, prem, prem1 and div-prec.
-X87_DIRECTED_CASES = 14 + 7
+# div-mem, div-zero, sqrt, prem, prem1 and div-prec; and #1903 adds
+# arith-forms-reg, arith-forms-mem and sqrt-chain, which deepen the arithmetic
+# the DE25 backend gate reaches.
+X87_DIRECTED_CASES = 14 + 7 + 3
 X87_RANDOM_CASES = 8 * 3 * 4
 X87_CASES = X87_DIRECTED_CASES + X87_RANDOM_CASES
 
@@ -531,6 +539,34 @@ def label_fields(entries: list[dict], stem: str, test: vectors.MooTest) -> tuple
     return corpus, oracle_side
 
 
+# What the testbench is built from, apart from the oracle's inputs (which
+# report['oracle'] covers): the CPU's RTL, the C++ bench and its two local
+# headers' directories, and this runner.
+def tested_sources() -> list[Path]:
+    return sorted({*(RTL / path for path in CPU_RTL), *SIM.glob('*.cpp'), *SIM.glob('*.h'), *SIM.glob('*.toml'),
+                   *DDR_MODEL.glob('*.h'), Path(__file__).resolve(), Path(yosys_netlist.__file__).resolve()})
+
+
+def source_record() -> dict:
+    """The revision and sources a run tested, so a report names what it is a
+    report of. testbench_sha256 cannot: it is the digest of a built binary
+    nothing commits. `tracked_changes` lists tracked files that differ from
+    the revision; a report with any is not a report of that revision alone,
+    and `files` then says what the tested sources actually were."""
+    repository = ROOT.parents[1]
+    def git(*arguments: str) -> str:
+        result = subprocess.run(['git', '-C', str(repository), *arguments], capture_output=True, text=True)
+        if result.returncode:
+            raise LockstepError('cannot read the tested revision: ' + result.stderr.strip())
+        return result.stdout
+    files = {str(path.relative_to(repository)): hashlib.sha256(path.read_bytes()).hexdigest()
+             for path in tested_sources()}
+    return {'fes_revision': git('rev-parse', 'HEAD').strip(),
+            'tracked_changes': sorted(line[3:] for line in git('status', '--porcelain', '--untracked-files=no').splitlines()),
+            'files': files,
+            'files_sha256': hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()}
+
+
 def verilate(verilator: i386_verilator.LockedVerilator, linked: list[Path], jobs: int, yosys: Path | None,
              parameters: dict[str, int] | None = None) -> Path:
     """The testbench, with the CPU's parameters if any: -G on the RTL, and on
@@ -540,14 +576,20 @@ def verilate(verilator: i386_verilator.LockedVerilator, linked: list[Path], jobs
     output.mkdir(parents=True, exist_ok=True)
     if yosys:
         design = [yosys_netlist.seal_netlist(yosys, output, ROOT, parameters=parameters)]
-        warnings = frontend.NETLIST_WARNINGS
+        # A flattened, purged netlist has no hierarchy, so the bench cannot
+        # read the x87's sim-only backend counters there; the define tells it
+        # so, as the x87 unit runner's netlist mode already does.
+        warnings = [*frontend.NETLIST_WARNINGS]
     else:
         design = [RTL / path for path in CPU_RTL]
         warnings = []
     command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', TOP,
                '-Wall', '-Wno-UNUSEDSIGNAL', *warnings, '--Mdir', str(output),
                *(f'-G{name}={value}' for name, value in sorted((parameters or {}).items()) if not yosys),
-               '-CFLAGS', f'-std=c++17 -O2 -I{SIM} -I{DDR_MODEL}', '-LDFLAGS', '-pthread',
+               # -D, not +define+: the guard is in the C++ testbench, not the RTL. A
+               # flattened netlist has no hierarchy for the x87's backend counters.
+               '-CFLAGS', f'-std=c++17 -O2 -I{SIM} -I{DDR_MODEL}'
+                         + (' -DFES_I386_NETLIST' if yosys else ''), '-LDFLAGS', '-pthread',
                *map(str, design), str(SIM / 'lockstep_tb.cpp'), *map(str, linked)]
     log = output / 'build.log'
     with log.open('w') as stream:
@@ -727,6 +769,9 @@ def main() -> int:
     parser.add_argument('--preset', type=int, default=0, choices=range(8),
                         help="the governor's preset, fes.pc386.machine word 0 (default 0, max)")
     parser.add_argument('--same-as', type=Path, help="max's report.json (absolute), which a governed run must match")
+    parser.add_argument('--backend', choices=('de10', 'de25'), default='de10',
+                        help="which arithmetic the x87 unit uses: 'de10' its own sequenced "
+                             "datapath (the default and the verified reference), 'de25' fes_x87_core")
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
     if not 1 <= args.jobs <= 64:
@@ -746,14 +791,21 @@ def main() -> int:
     OUTPUT.mkdir(parents=True, exist_ok=True)
     report: dict[str, object] = {'verilator': verilator.record()}
     try:
+        report['source'] = source_record()
         suite_sha256 = oracle.suite_source_sha256(ROOT)
         entries = vectors.load_divergences()
         table = OUTPUT / 'divergences.txt'
         divergence_table(entries, table)
         yosys = yosys_netlist.locate(args)
         linked = oracle.link_inputs(args.jobs, args.download)
+        # --backend de25 selects the DE25 arithmetic backend inside the
+        # x87 unit. The envelope, the decode and every suite below are the
+        # same either way: what changes is which arithmetic answers, so a
+        # run with each is the gate on the seam.
+        params = {'X87_BACKEND': 1} if args.backend == 'de25' else None
         report['oracle'] = oracle.build_record(linked)
-        testbench = str(verilate(verilator, linked, args.jobs, yosys.path if yosys else None))
+        testbench = str(verilate(verilator, linked, args.jobs, yosys.path if yosys else None, params))
+        report['x87_backend'] = args.backend
         report['oracle']['suite_sha256'] = suite_sha256
         report['oracle']['testbench_sha256'] = hashlib.sha256(Path(testbench).read_bytes()).hexdigest()
         if yosys:
@@ -822,6 +874,8 @@ def main() -> int:
             undefined_results = [future.result() for future in undefined]
         if oracle.suite_source_sha256(ROOT) != suite_sha256:
             raise LockstepError('lockstep suite sources changed during the run')
+        if source_record() != report['source']:
+            raise LockstepError('the tested revision or its sources changed during the run')
         final_oracle = oracle.build_record(linked)
         if (any(report['oracle'].get(key) != value for key, value in final_oracle.items())
                 or hashlib.sha256(Path(testbench).read_bytes()).hexdigest() != report['oracle']['testbench_sha256']):

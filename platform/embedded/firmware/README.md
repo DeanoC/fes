@@ -1,15 +1,47 @@
 # Contained firmware and FPGA control prototype
 
-The historical [preservation checkpoint](../../../docs/validation/2026-11-15-de25-merge-readiness/README.md) records a matched boot chain and a physical ZX81 launch with initial tape. Return to MENU stops at secure source release; the complete cycle remains unqualified. [Issue #1867](https://github.com/DeanoC/fes/issues/1867) tracks the whole secure ownership, memory, lifecycle and recovery investigation. Current board state belongs to its kit status ledger, not that historical checkpoint.
+The historical [preservation checkpoint](../../../docs/validation/2026-11-15-de25-merge-readiness/README.md) records a matched boot chain and a physical ZX81 launch with initial tape. Return to MENU stops at secure source release; the complete cycle remains unqualified. [Issue #1867](https://github.com/DeanoC/fes/issues/1867) tracks the whole secure ownership, memory, lifecycle and recovery investigation. The later [reset-recovery](../../../docs/validation/2026-11-17-de25-reset-recovery/README.md) and [SD restoration](../../../docs/validation/2026-11-17-de25-sd-restoration/README.md) checkpoints qualify bounded recovery/readback without a physical cycle. Their original host-deadline failure remains failed. Current board state belongs to the kit ledger.
 
 The [secure lifecycle investigation](../../../docs/design/de25-native-secure-lifecycle.md)
-maps the trust, memory, generation, timing and recovery contracts. A joined
-native/actual-supplier regression now exercises retained MENU/computer returns,
-both ROM sizes and independent tape publication. Failed release records preserve
-the service boundary, first clock error and observed table/register mismatch
-without new source/SMMU reads for snapshot collection. No deadline or release permission changes; the
-historical generation-15 failure still needs a fresh matched diagnostic trace.
+maps trust, memory, generations, timing and recovery. The native/C regression
+now uses production activation, control, master-stop and return callbacks.
+It reproduces guard 34 when a held computer's DDR reader was never enabled.
+Source release accepts that exact zero receipt only with the complete stop,
+probe, held-return and ownership proofs. Partial acknowledgements still reject;
+no deadline changes. The repair requires a fresh matched hardware test.
 
+
+The explicit reset-recovery diagnostic adds a nonce-bound SPL witness before
+DDR/SD initialization. Build with `--network-recovery --recovery-reset-nonce`
+and a fresh nonzero 32-digit hexadecimal nonce. `recovery_reset_package.py`
+validates this separate profile and composes a volatile SOF under the shared
+Quartus Pro lock; it creates no card image. Default recovery packaging rejects
+this profile. The embedded SPL is independently decoded and the compiled UART
+route is checked against UART1.
+
+`ResetRecoveryAttempt` connects the existing one-use fresh-scan JTAG gate to
+that witness and a new `UploadSession.read_existing` operation. The caller owns
+the serial-bound claim, private server, capture window, finite callback bounds
+and cleanup. A complete new witness plus protected loader/card and candidate
+file readback is required. Partial boot, stale nonce, lost ownership, failed
+programming or changed card retires the attempt. No retry, SD/flash write, old
+source reuse or normal runtime resume is authorized. This observes HPS
+rebootstrap and reset-held masters; it does not prove SDM reset, old fabric
+master drain or a complete native launch/return cycle. The linked bounded physical test qualifies this read-only bootstrap route;
+SDM reset and normal runtime acceptance remain separate.
+
+The reset gate now requires a shared persistent nonce registry and an actual
+`ResetCapture` window drained and armed immediately before program dispatch.
+A reused nonce or a transcript supplied outside that window rejects. Admission
+also pins the protected card-prefix and image digests independently of the
+session factory. ELF section/LOAD bytes for the early probe code and data must
+match the decoded SPL image.
+
+`ResetRestorationAttempt` is the separately selected boot-file transaction. It
+retains the new `UploadSession` through independent source checks, one fixed
+boot FIT write and protected readback, then retires it. This grants neither
+native activation nor power-loss durability. Its caller still owns the serial
+claim, reset-register observation, finite deadlines and complete host cleanup.
 
 This is exploratory firmware and native integration for the Linux-free base.
 It supplies a pinned TF-A source transformation, a freestanding C++14 control

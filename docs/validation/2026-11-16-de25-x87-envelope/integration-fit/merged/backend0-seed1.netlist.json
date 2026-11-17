@@ -1,0 +1,14 @@
+{
+  "fitted_netlist": {
+    "duplicate_attribute_count": 30,
+    "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+    "fitted_sha256": "c910891c96fdcf1719df5f0514e30335fdc23113b669909ad56ab5c9dcee491c",
+    "ram_attribute": "renamed 59 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+    "ram_attribute_count": 59,
+    "source": "/home/deano/x87-m0-netlist.v",
+    "source_sha256": "12f98f8d95d7141f158dcfe9f61cd310f71be651f434c4ab63ad71f9b4a6e901"
+  },
+  "reused": "/home/deano/x87-m0-netlist.v",
+  "source_revision": "00752ae14568fcb0bda42c4a3bff57460a206446",
+  "source_revision_note": "git archive of the revision plus the scratch edits: x87_present=1, X87_BACKEND=0; elaborated on powerboat by the locked Yosys"
+}

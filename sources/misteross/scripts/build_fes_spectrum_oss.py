@@ -366,8 +366,43 @@ def build_commands(root: Path, output: Path, build_id: str,
     return yosys, route
 
 
+def _boundary_drivers(top: dict) -> dict[int, list[tuple]]:
+    """Index stable driver endpoints; Yosys and nextpnr renumber net bits."""
+    drivers: dict[int, list[tuple]] = {}
+    for name, cell in top.get("cells", {}).items():
+        for port, bits in cell.get("connections", {}).items():
+            if cell.get("port_directions", {}).get(port) != "output":
+                continue
+            for index, bit in enumerate(bits):
+                if type(bit) is not int:
+                    continue
+                endpoint = ("cell", name, port, index)
+                # nextpnr replaces literal rails with packer constant drivers.
+                if cell.get("type") == "MISTRAL_CONST" and port == "Q" and \
+                        cell.get("parameters", {}).get("LUT") in ("0" * 32, "0" * 31 + "1"):
+                    endpoint = ("constant", cell["parameters"]["LUT"][-1])
+                drivers.setdefault(bit, []).append(endpoint)
+    for name, port in top.get("ports", {}).items():
+        if port.get("direction") == "input":
+            for index, bit in enumerate(port.get("bits", [])):
+                if type(bit) is int:
+                    drivers.setdefault(bit, []).append(("port", name, index))
+    return drivers
+
+
+def _boundary_source(data: object, drivers: dict[int, list[tuple]], name: str) -> tuple:
+    if not isinstance(data, list) or len(data) != 1:
+        raise BuildError(f"slot boundary data input has no unique driver: {name}")
+    bit = data[0]
+    if type(bit) is str and bit in ("0", "1"):
+        return ("constant", bit)
+    if type(bit) is not int or len(drivers.get(bit, [])) != 1:
+        raise BuildError(f"slot boundary data input has no unique driver: {name}")
+    return drivers[bit][0]
+
+
 def validate_routed_shell(
-    routed: dict, *, nextpnr_commit: str = pnr_recipe.nextpnr_pin("fes.spectrum")
+    routed: dict, synthesis: dict, *, nextpnr_commit: str = pnr_recipe.nextpnr_pin("fes.spectrum")
 ) -> dict:
     """Every socket holds only pinned boundary FFs and verified paired buffers."""
     top = routed.get("modules", {}).get(TOP, {})
@@ -389,29 +424,25 @@ def validate_routed_shell(
             nextpnr_commit=nextpnr_commit)
     except ValueError as exc:
         raise BuildError(str(exc)) from exc
-    drivers = {}
-    for cell in cells.values():
-        for port, bits in cell.get("connections", {}).items():
-            if cell.get("port_directions", {}).get(port) == "output":
-                for bit in bits:
-                    if type(bit) is int:
-                        drivers[bit] = drivers.get(bit, 0) + 1
-    for port in top.get("ports", {}).values():
-        if port.get("direction") == "input":
-            for bit in port.get("bits", []):
-                if type(bit) is int:
-                    drivers[bit] = drivers.get(bit, 0) + 1
+    synth_top = synthesis.get("modules", {}).get(TOP, {})
+    synth_cells = synth_top.get("cells", {})
+    synth_drivers = _boundary_drivers(synth_top)
+    routed_drivers = _boundary_drivers(top)
     for name in expected:
+        original = synth_cells.get(name)
+        if not isinstance(original, dict) or original.get("type") != "MISTRAL_FF":
+            raise BuildError(f"synthesis is missing slot boundary FF: {name}")
+        before = original.get("connections", {}).get("DATAIN")
         companion = name + "$ROUTETHRU"
-        data = (cells[companion]["connections"]["A"] if companion in route_through else
-                cells[name].get("connections", {}).get("DATAIN"))
-        # Older snapshots can disconnect an unused clock-only data input.
-        if data == [] and ".clock_coverage_ff_" in name:
+        after = (cells[companion]["connections"]["A"] if companion in route_through else
+                 cells[name].get("connections", {}).get("DATAIN"))
+        # Older snapshots can leave an unused clock-only data input disconnected.
+        if before == [] and after == [] and ".clock_coverage_ff_" in name:
             continue
-        if not isinstance(data, list) or len(data) != 1 or not (
-                (type(data[0]) is int and drivers.get(data[0]) == 1) or
-                (type(data[0]) is str and data[0] in ("0", "1"))):
-            raise BuildError(f"slot boundary data input has no unique driver: {name}")
+        expected_source = _boundary_source(before, synth_drivers, name)
+        actual_source = _boundary_source(after, routed_drivers, name)
+        if expected_source != actual_source:
+            raise BuildError(f"slot boundary data input changed source: {name}")
     allowed = set(expected) | route_through
     for name, cell in cells.items():
         bel = cell.get("attributes", {}).get("NEXTPNR_BEL", "") if isinstance(cell, dict) else ""
@@ -536,7 +567,8 @@ def validate_build_evidence(output: Path, *, model: str = "48",
     reject_async_m10k_reads(routed)
     _i2c_evidence(routed, "routed")
     display = _hps_ddr_evidence(routed, "routed", source_root, model_for(model).key in DISK_MODELS)
-    sockets = validate_routed_shell(routed)
+    synthesis = _read_json(output / "synth.json", "synthesis evidence")
+    sockets = validate_routed_shell(routed, synthesis)
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
