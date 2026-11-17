@@ -63,6 +63,29 @@ def run(work, name, command, expected=0):
     return (stage / 'log').read_text()
 
 
+def verilator_identity(selected):
+    # A trusted wrapper always selects its sibling engine with these overrides
+    # unset. Do not authenticate one executable and run a PATH/env substitute.
+    if any(os.environ.get(k) for k in ('VERILATOR_BIN', 'VERILATOR_ROOT')):
+        raise ValueError('unset Verilator engine/root overrides for this evidence run')
+    found = shutil.which(str(selected))
+    if found is None:
+        raise ValueError('Verilator executable not found')
+    wrapper = Path(found).resolve()
+    engine = wrapper.with_name('verilator_bin').resolve()
+    reference = json.loads((HERE / 'verilator-reference.json').read_text())
+    if sha(wrapper) != reference['wrapper_sha256'] or sha(engine) != reference['engine_sha256']:
+        raise ValueError('Verilator wrapper/engine differs from the recorded trace tool')
+    version = subprocess.check_output([str(wrapper), '--version'], text=True, timeout=10).strip()
+    if not version.startswith(reference['version_prefix']):
+        raise ValueError('Verilator version differs from the recorded trace tool')
+    sdk = subprocess.check_output([str(wrapper), '--getenv', 'VERILATOR_ROOT'], text=True, timeout=10).strip()
+    return {'executable': str(wrapper), 'wrapper_sha256': sha(wrapper),
+            'engine': str(engine), 'engine_sha256': sha(engine),
+            'version': version, 'sdk_root': sdk,
+            'reference_sha256': sha(HERE / 'verilator-reference.json')}
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     for name in ('module-root', 'record', 'yosys', 'work', 'output'):
@@ -70,6 +93,7 @@ def main():
     p.add_argument('--verilator', default='verilator')
     args = p.parse_args()
     root, work = args.module_root.resolve(), args.work.resolve()
+    verilator = verilator_identity(args.verilator)
     work.mkdir(parents=True, exist_ok=True)
     record = json.loads(args.record.read_text())
     assert record['parameters']['system_clock_hz'] == 100000000
@@ -100,7 +124,7 @@ def main():
     traces = {}
     for name, selected, expected, diagnostic in cases:
         obj = work / ('obj-' + name)
-        run(work, 'build-' + name, [args.verilator, '--cc', '--exe', '--build', '--top-module',
+        run(work, 'build-' + name, [verilator['executable'], '--cc', '--exe', '--build', '--top-module',
             'contract_top', '-Wno-fatal', '-j', '2', '--Mdir', obj, selected, frontend, capture,
             HERE / 'trace_top.sv', HERE / 'trace.cpp'])
         log = run(work, name, [obj / 'Vcontract_top'], expected=expected)
@@ -123,6 +147,7 @@ def main():
         'record_sha256': sha(args.record), 'recorded_source_inputs_equal': len(record['source_inputs']),
         'source_sha256': {str(x.relative_to(root)): sha(x) for x in (controller, frontend, capture)},
         'fixture_sha256': {x.name: sha(x) for x in HERE.iterdir() if x.is_file() and x.name != 'windows.json'},
+        'verilator': verilator,
         'yosys_sha256': sha(args.yosys), 'formal': 'PASS: temporal induction',
         'formal_write': 'DQ/OE stable three prior cycles; A11/A12 masks stable two prior cycles',
         'formal_read': 'No reset in read window: five cycles after sampled READ pins, rdata equals the previous controller input sample',

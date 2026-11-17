@@ -21,6 +21,9 @@
         "MIN_fast_1100mv_-40c",
         "MIN_fast_1100mv_100c"
       ],
+      "database_input_sha256": "a6df18604364af7eebd5a6ee6ad3932c5adde5b673987fc96fa1bffdacd21613",
+      "database_output_sha256": "7f4be54965706943f3af1dc93860b7c23a2b9b2db4ef870e91708aa9326cb8da",
+      "database_receipt_sha256": "6bda173c01f9b9379a6e749a90ff552496696205431aca1359f41da561b523d5",
       "fitted_rbf_sha256": "d10aec8b6295b341e688ab12d358f2864cfeca6bffc4417df7bbfdab1e6ae56c",
       "minima": {
         "output_enable_pin_window_only": {
@@ -148,6 +151,7 @@
         "hold": 4.343,
         "setup": 0.908
       },
+      "native_endpoint_receipt_verified": true,
       "native_endpoint_sha256": "1eb9ce700ed4e7b0178baa5a8906a8a86014c024c675334f70d7dd2975413ad2",
       "report_sha256": {
         "conditional/7_slow_1100mv_-40c/internal-pulse.rpt": "53b02f73627219bbc0beea9e260c0336ada9dd080d4e74079bec48ca729e43fa",
@@ -194,6 +198,9 @@
         "MIN_fast_1100mv_-40c",
         "MIN_fast_1100mv_100c"
       ],
+      "database_input_sha256": "36be7774970a5aa79400fcbd0d71d6d9404e8cbbd727f9384f82fba640a19df3",
+      "database_output_sha256": "f9cd3708f0a3fcb3b52be3aa0097c28804ba3023ad4322be975c7e9743ea26f4",
+      "database_receipt_sha256": "134d3fce7a02a443d89bf23824875bda92d108dc4b9c78cd4ed899d172601b11",
       "fitted_rbf_sha256": "dfe08513c648d00b283ded5a2bde2489b6cfaa9808a8056e9e2d41082c1de241",
       "minima": {
         "output_enable_pin_window_only": {
@@ -321,6 +328,7 @@
         "hold": 4.319,
         "setup": 1.522
       },
+      "native_endpoint_receipt_verified": true,
       "native_endpoint_sha256": "9bdcb6ae8972997875ccfa07bb62e92a869ce702fa0a8e5b39dd1b5f1c932ec0",
       "report_sha256": {
         "conditional/7_slow_1100mv_-40c/internal-pulse.rpt": "1c15b9e35d32e778d0b350b8247f5243277672fd6eee619521efd563e97ee15f",
@@ -367,6 +375,9 @@
         "MIN_fast_1100mv_-40c",
         "MIN_fast_1100mv_100c"
       ],
+      "database_input_sha256": "50288a9920eb352d5f4659f4677c0c53e459ce9cc4dfc8e3036e5fe57891e22e",
+      "database_output_sha256": "9e115ef9f72cde12c530793e59b77680d6891937ed2b68d10cce42751fade7d4",
+      "database_receipt_sha256": "4d06ab7535a14c9b3d96afbbcd39bc6cd74ed167e1032b5f2ee1e144314ab8e4",
       "fitted_rbf_sha256": "2f697466c9d94469a25e5cd93a1e97b745ffb71ee49a37e1b1e7c2cac0de6d38",
       "minima": {
         "output_enable_pin_window_only": {
@@ -494,6 +505,7 @@
         "hold": 4.321,
         "setup": 0.827
       },
+      "native_endpoint_receipt_verified": true,
       "native_endpoint_sha256": "a1c9b413392fe671aa036b362f64efec9d9d94cb513bc9c2a36718447caa3125",
       "report_sha256": {
         "conditional/7_slow_1100mv_-40c/internal-pulse.rpt": "d4f795f5bb467f2e00cf64b312845343fef03d97758e92ebeb463b60044e882e",
@@ -534,7 +546,7 @@
       "seed": 3
     }
   ],
-  "source_base": "1033b5bdbf8e8dabf5a1c09c794ce8713249ac4f",
+  "source_base": "cdb863f848f253d22749a3e11f350dc174fda808",
   "sta_binary_sha256": "71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93",
   "unresolved": [
     "actual clock and data flight/skew intervals for Kit A",

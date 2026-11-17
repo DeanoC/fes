@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+from database_identity import verify as verify_database
 
 
 def sha(path):
@@ -17,6 +18,13 @@ def sha(path):
 
 def load(path):
     return json.loads(path.read_text())
+
+
+def verify_native_endpoint(native, native_run):
+    path = native / 'audit/endpoints.tsv'
+    if sha(path) != native_run['captures_sha256']['audit/endpoints.tsv']:
+        raise ValueError('native endpoint report differs from producer receipt')
+    return path
 
 
 def summarize(args):
@@ -43,9 +51,14 @@ def summarize(args):
     for seed in (1, 2, 3):
         work = args.work / ('seed-' + str(seed))
         native = args.attempt / 'signoff' / ('seed-' + str(seed))
+        native_run = next(r for r in original['runs'] if r['seed'] == seed)
+        assert sha(native / 'output_files/top.rbf') == native_run['rbf_sha256']
         assert sha(work / 'output_files/top.rbf') == sha(native / 'output_files/top.rbf')
         for name in ('top.qsf', 'clocks.sdc', 'mailbox.sdc', 'audio.sdc'):
             assert (work / name).read_bytes() == (native / name).read_bytes(), name
+        receipt = verify_database(native, work, Path(__file__).with_name('collect.tcl'))
+        assert receipt['quartus_sta_sha256'] == sha(args.quartus_sta)
+        assert receipt['quartus_asm_sha256'] == original['quartus_binaries']['quartus_asm']
         assert load(work / 'conditional-result.json')['exit_code'] == 0
         assert 'No constraints were ignored.' in (work / 'conditional/ignored.rpt').read_text()
         table = work / 'conditional/channels.tsv'
@@ -89,7 +102,7 @@ def summarize(args):
                     'row_count': len(selected),
                 }
         # This separately timed handoff comes from the unchanged native reports.
-        endpoint_path = native / 'audit/endpoints.tsv'
+        endpoint_path = verify_native_endpoint(native, native_run)
         with endpoint_path.open() as stream:
             handoff = [r for r in csv.DictReader(stream, delimiter='\t')
                        if re.fullmatch(r'sdram_pads_\d+__captured', r['from'])]
@@ -102,6 +115,10 @@ def summarize(args):
                 assert all(float(r['slack_ns']) >= 0 for r in selected)
         hashes = {str(p.relative_to(work)): sha(p) for p in (work / 'conditional').rglob('*') if p.is_file()}
         runs.append({
+            'database_receipt_sha256': sha(work / 'database-receipt.json'),
+            'database_input_sha256': receipt['pre_sta']['sha256'],
+            'database_output_sha256': receipt['post_sta']['sha256'],
+            'native_endpoint_receipt_verified': True,
             'seed': seed, 'fitted_rbf_sha256': sha(native / 'output_files/top.rbf'),
             'sealed_payload_seed': seed == 1, 'rows': len(rows), 'corners': corners,
             'minima': minima,

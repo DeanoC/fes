@@ -4,12 +4,13 @@
     "2": 22.255,
     "3": 23.479
   },
-  "base_summary_sha256": "5009a576d057a1deff9b48df79d2673ab082433e257bc9bfb062054b0e8943b8",
+  "base_summary_sha256": "a8bb9dcdee7cfdb0f897cdb95e5b295a23cc810b50c098efa9ecd0463cadfa27",
   "classification": "inductive RTL window proof and bounded tagged-pin trace; not physical signoff",
   "fixture_sha256": {
     "trace.cpp": "adecfdad60fa99fccf1d141b5080875f448ac33ab251839225091d5a8dbaf80b",
     "trace_top.sv": "f70a66df52b843b46c5e5a508707f2f46717ac795c47fd37696f9fb5c11c3cbc",
-    "verify_windows.py": "00e0abe649c451acd7df36bff8c9044cf1c04d760ddfdfd769eb2b22f89716fb",
+    "verify_windows.py": "3f787492d8add1fb5917a05d77b0d320fb7b879c75e3f9657f929ad83525d7d8",
+    "verilator-reference.json": "20f7d50d274b3d04f5acd995740f4ff95022456355d75105f5b6c86297dd03d4",
     "window_contract.sv": "5eed66b4e2db32796949d35051b5a9f7650e3baddc34ae59ae3236aa9a922f0e"
   },
   "formal": "PASS: temporal induction",
@@ -62,6 +63,15 @@
       "max": 7,
       "min": 7
     }
+  },
+  "verilator": {
+    "engine": "/usr/bin/verilator_bin",
+    "engine_sha256": "619464a17a8c212219abceeeee23f529b72801ef594814ae32f4b9747fd38703",
+    "executable": "/usr/bin/verilator",
+    "reference_sha256": "20f7d50d274b3d04f5acd995740f4ff95022456355d75105f5b6c86297dd03d4",
+    "sdk_root": "/usr/share/verilator",
+    "version": "Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)",
+    "wrapper_sha256": "672a1ccf3468902f66387049f001b04f254bbcece7d5e816e3861715889bf252"
   },
   "write_earlier_launch_cycles": 3,
   "yosys_sha256": "a17b4c8aeac5373dba86faa67124456834c585924503457387631408f84549f8"

@@ -56,6 +56,22 @@ loading is substituted for the unknown physical values.
 ## Budget construction
 
 Each run uses a **private copy** of an existing seed's post-fit database.
+The review-fix collection now hashes every regular file under both `db/` and
+`incremental_db/`. Before STA, the complete private database must equal the
+native database. A fresh `quartus_asm` run from that exact copy first reproduces
+the producer-recorded RBF byte for byte; its private DB metadata is then restored
+from the native snapshot before STA. The original native directory is never
+written. Pre/post database identities, the assembler digest/output and every
+collected report digest are retained in `database-receipt.json`. STA cache
+changes are recorded completely, not hidden by a filename exclusion. The
+summarizer rechecks the current native/private trees and bound report hashes.
+
+The native endpoint table's digest must separately equal the producer's
+`signoff/summary.json` `captures_sha256` receipt before its handoff rows are
+accepted. All 1,704 fresh conditional rows match the earlier reference in every
+field. A changed routed DB with unchanged RBF/config, a changed report, and a
+changed native endpoint table are rejected. This strengthens attribution without
+altering the numerical timing result.
 [collect.tcl](collect.tcl) reads its original SDCs and derives a generated clock
 at `SDRAM_CLK`, inverted from the actual memory PLL output, matching the
 controller's DDR forwarded-clock polarity. The retained full-path reports show
@@ -129,7 +145,12 @@ retained; no failed numerical result is overridden.
 
 [windows/windows.json](windows/windows.json) binds a temporal-induction proof
 and a tagged-input trace to the unchanged source files and authenticated Yosys
-binary. [The harness](windows/window_contract.sv) instantiates the real
+binary. The tagged-trace runner also resolves and authenticates both the
+Verilator wrapper and sibling engine against
+[verilator-reference.json](windows/verilator-reference.json), checks its
+version and records those identities plus SDK root. Engine/root environment
+overrides and substituted executables are rejected. These are host evidence
+tool identities, not a production FPGA compiler pin. [The harness](windows/window_contract.sv) instantiates the real
 controller with the production rate-3, output-register, byte-mask and single-rank
 refresh settings. Reset, request, address and data inputs are symbolic; no
 controller state is forced past initialization.
@@ -219,9 +240,25 @@ HDMI, HPS/I2C, reset/PLL and physical ISA containment remain the other separate
 
 ## Reproduce and retain
 
-Use an original production attempt containing `signoff/seed-{1,2,3}` and
+For bound collection, use an original production attempt containing
+`signoff/seed-{1,2,3}` and
 `repeat/seed-1`, and the sealed package above. Preserve those inputs. Copy a
-seed directory to a private output directory, then run:
+seed directory only for exploratory STA. Accepted collection instead creates
+its own fresh private directory and binds the DB and assembler result:
+
+```sh
+python3 docs/validation/2026-11-17-pcxt-sdram-budget/collect_bound.py \
+  --native /absolute/original/attempt/signoff/seed-1 \
+  --work /absolute/new/private/seed-1 \
+  --quartus-root /home/deano/intelFPGA_lite/17.0/quartus \
+  --collector docs/validation/2026-11-17-pcxt-sdram-budget/collect.tcl
+```
+
+Repeat bound collection for seeds 2/3. Each child uses a capped shared-host/Lite
+lock wait and emits a heartbeat. Assembler replay is evidence binding only;
+it does not synthesize, fit, export a package or program a board.
+
+For an exploratory STA-only run on an already copied seed:
 
 ```sh
 python3 docs/validation/2026-11-17-pcxt-sdram-budget/run_sta.py \
@@ -229,7 +266,7 @@ python3 docs/validation/2026-11-17-pcxt-sdram-budget/run_sta.py \
   docs/validation/2026-11-17-pcxt-sdram-budget/collect.tcl
 ```
 
-Repeat for seeds 2/3. The driver refuses under 30 GiB free, records the argv and
+The exploratory driver refuses under 30 GiB free, records the argv and
 cwd, emits a 15-second heartbeat, caps each STA process at 600 seconds and
 terminates only its owned process group. It invokes the existing Quartus Lite
 17.0.2 installation on Powerboat; it does not compile, fit, export or deploy.
@@ -243,6 +280,7 @@ python3 docs/validation/2026-11-17-pcxt-sdram-budget/summarize.py \
 ```
 
 The summarizer binds the record/package, signoff/repeat payload, tool binary,
+complete fitted databases/assembler replay, report receipts,
 all 185 source hashes and unchanged copied QSF/SDCs/RBFs. It validates all row
 identities and cardinalities and records conditional misses explicitly.
 Exit 0 means evidence validation, not physical PASS.
