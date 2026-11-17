@@ -61,7 +61,6 @@ local games, all_entries = {}, {}
 local game_i, scroll, scroll_pending = 1, 0, true
 local focus = "game"
 local right_focus = "game"
-local controls = {}
 local live
 local computers = {}
 local machine_media = {}
@@ -74,7 +73,16 @@ local observed_session = session.state()
 local library_generation = 0
 local library_error = ""
 local library_loaded = false
-local cmds, pool, sink = {}, {}, nil
+-- The picture is kept in three parts, each a list of paint rows with its
+-- controls: the header and model row, the computer panel, and the drive and
+-- games. A part is rebuilt only when what it shows changed, and one draw
+-- rebuilds at most one part, so no one callback builds the whole screen (#1770: a kit starting a core leaves little time for a callback).
+local pool, sink, control_sink = {}, nil, nil
+local head = {rows = {}, controls = {}, sig = nil}
+local upper = {rows = {}, controls = {}, sig = nil}
+local lower = {rows = {}, controls = {}, sig = nil}
+local opening = {rows = {}, controls = {}}
+local cmds = {}
 local heights = {}
 local scale, ox, oy = 1, 0, 0
 local boot = 0
@@ -106,15 +114,18 @@ local function take()
   pool[n] = nil
   return row
 end
-local function recycle()
-  for i = #cmds, 1, -1 do
-    pool[#pool + 1] = cmds[i]
-    cmds[i] = nil
+-- begin starts rebuilding one part, returning its old rows to the pool.
+local function begin(part)
+  local rows = part.rows
+  for i = #rows, 1, -1 do
+    pool[#pool + 1] = rows[i]
+    rows[i] = nil
   end
+  part.controls = {}
+  sink, control_sink = rows, part.controls
 end
 local function push(row)
-  local dest = sink or cmds
-  dest[#dest + 1] = row
+  sink[#sink + 1] = row
 end
 local function clear_row(c)
   local row = take()
@@ -167,12 +178,15 @@ local function outline(x, y, w, h, t, c)
 end
 local function control(id, x, y, w, h, enabled, fn)
   hit(id, x, y, w, h)
-  controls[#controls + 1] = {id = id, enabled = enabled and true or false, fn = fn}
+  control_sink[#control_sink + 1] = {id = id, enabled = enabled and true or false, fn = fn}
 end
-local function has_control(id)
-  for _, c in ipairs(controls) do if c.id == id then return true end end
-  return false
+local function find_control(id)
+  for _, c in ipairs(head.controls) do if c.id == id then return c end end
+  for _, c in ipairs(upper.controls) do if c.id == id then return c end end
+  for _, c in ipairs(lower.controls) do if c.id == id then return c end end
+  return nil
 end
+local function has_control(id) return find_control(id) ~= nil end
 -- filled marks the screen's main action; focus is an outline outside it.
 local function button(id, label, x, y, w, h, enabled, fn, filled)
   local on = enabled and true or false
@@ -447,16 +461,14 @@ local function open_media()
 end
 
 local function paint_opening()
-  controls = {}
-  recycle()
-  sink = nil
+  begin(opening)
   appearance()
   clear_row(C.paper)
   rect(24, 18, 18, 5, C.accent)
   text("FES", 50, 14, 24, C.ink, 80, true)
   text(family().label, 118, 17, 19, C.ink, 400)
   text("Opening the " .. family().label .. "…", 24, 84, 22, C.muted, 700)
-  gfx.paint(cmds)
+  gfx.paint(opening.rows)
 end
 
 local function header()
@@ -492,7 +504,7 @@ local function models()
     hit("model:" .. id, x, y, w, h)
     x = x + w + 8
   end
-  controls[#controls + 1] = {id = "model", enabled = true, fn = function() end}
+  control_sink[#control_sink + 1] = {id = "model", enabled = true, fn = function() end}
 end
 
 -- Buttons stack up from the bottom of the computer panel: the main action
@@ -506,7 +518,8 @@ local function left_buttons()
   if family().id == "zx81" then
     -- The workshop reads the machine itself, so it opens in any state.
     out[#out + 1] = {id = "expansions", label = "Expansions", enabled = known, fn = function()
-      rooms.open("example.hardware", {game_id = game and game.id or "", core_id = selected_core})
+      local at = focused()
+      rooms.open("example.hardware", {game_id = at and at.id or "", core_id = selected_core})
     end}
   end
   out[#out + 1] = {id = "firmware", label = "Firmware", enabled = known, fn = function() firmware_info(false) end}
@@ -524,7 +537,7 @@ local function left_buttons()
     out[#out + 1] = {id = "resume", label = "Return to play", enabled = true, fn = function() session.resume() end}
     out[#out + 1] = {id = "start", label = "Another game is running", enabled = false}
   else
-    out[#out + 1] = {id = "start", label = "Start", enabled = game and game.launchable and idle, filled = true, fn = function() launch(game) end}
+    out[#out + 1] = {id = "start", label = "Start", enabled = game and game.launchable and idle, filled = true, fn = function() launch(focused()) end}
   end
   return out
 end
@@ -668,31 +681,48 @@ local function right_column()
     hit("game:" .. i, x, y, w, ROW_H)
     y = y + ROW_H + ROW_GAP
   end
-  controls[#controls + 1] = {id = "game", enabled = true, fn = function() launch(focused()) end}
+  control_sink[#control_sink + 1] = {id = "game", enabled = true, fn = function() launch(focused()) end}
 end
 
-local function picture(part)
+-- What the header and model row show.
+local function head_sig()
+  local at = (focus == "back" or focus == "home" or focus == "model") and focus or ""
+  return table.concat({selected_core, at, tostring(overlay), room.width, room.height}, "|")
+end
+-- What the computer panel shows. A move in the games list leaves it alone
+-- unless the chosen game changes one of these.
+local function upper_sig()
+  local game = focused()
+  local c = computers[selected_core]
+  local run = find_running()
+  local at = (focus == "drive" or focus == "media" or focus == "game" or focus == "back" or focus == "home" or focus == "model") and "" or focus
+  return table.concat({
+    selected_core, at, play_state(), run and run.id or "", tostring(this_machine()),
+    tostring(game and game.launchable), tostring(game and game.firmware_required and not game.firmware_ready),
+    tostring(game ~= nil), tostring(hardware_unavailable), tostring(library_loaded),
+    tostring(c and c.ready), c and c.unavailable_reason or "", tostring(overlay),
+    room.width, room.height,
+  }, "|")
+end
+local function build(part, sig, fn)
   painted_running, painting = find_running(), true
-  if part ~= "lower" then
-    controls = {}
-    recycle()
-    sink = nil
-    appearance()
-    clear_row(C.paper)
-    header()
-    models()
-    computer_panel()
-  else
-    recycle()
-    sink = {}
-  end
-  if part ~= "upper" then right_column() end
+  begin(part)
+  fn()
   painting = false
-  if part == "lower" then
-    gfx.extend(sink)
-    for i = 1, #sink do cmds[#cmds + 1] = sink[i] end
-    sink = nil
+  part.sig = sig
+end
+local function head_rows()
+  clear_row(C.paper)
+  header()
+  models()
+end
+local function present()
+  local n = 0
+  for _, part in ipairs({head, upper, lower}) do
+    for i = 1, #part.rows do n = n + 1 cmds[n] = part.rows[i] end
   end
+  for i = #cmds, n + 1, -1 do cmds[i] = nil end
+  gfx.paint(cmds)
 end
 
 local function scene_same()
@@ -707,6 +737,25 @@ local function remember_scene()
   held_rev = rev
   held_overlay = overlay
   held_session = session.state()
+end
+
+-- One step towards the current picture: rebuild one stale part, and present
+-- once none is left. While parts are still stale the presented frame stays.
+local function refresh()
+  appearance()
+  local hs, us = head_sig(), upper_sig()
+  local ls = rev .. (overlay and "|overlay" or "")
+  local stale = (head.sig ~= hs and 1 or 0) + (upper.sig ~= us and 1 or 0) + (lower.sig ~= ls and 1 or 0)
+  if head.sig ~= hs then build(head, hs, head_rows)
+  elseif upper.sig ~= us then build(upper, us, computer_panel)
+  elseif lower.sig ~= ls then build(lower, ls, right_column) end
+  if stale > 1 and room.presented and gfx.reuse() then return end
+  -- Nothing presented to keep: finish the picture in this draw.
+  if head.sig ~= hs then build(head, hs, head_rows) end
+  if upper.sig ~= us then build(upper, us, computer_panel) end
+  if lower.sig ~= ls then build(lower, ls, right_column) end
+  present()
+  remember_scene()
 end
 
 local warm_px, warm_at
@@ -737,39 +786,17 @@ local function boot_step()
     boot = 1
     return
   end
-  if boot == 1 then
-    if #pool < pool_rows then
-      recycle()
-      local add = math.min(40, pool_rows - #pool)
-      for _ = 1, add do pool[#pool + 1] = {} end
-    elseif not warm_done() then
-      warm_more()
-    else
-      boot = 2
-    end
-    if room.presented and same_appearance() and gfx.reuse() then return end
-    paint_opening()
-    return
-  end
-  if boot == 2 then
-    picture("upper")
-    gfx.paint(cmds)
-    remember_scene()
-    boot = 3
-    return
-  end
-  if not scene_same() then
+  if #pool < pool_rows then
+    local add = math.min(40, pool_rows - #pool)
+    for _ = 1, add do pool[#pool + 1] = {} end
+  elseif not warm_done() then
+    warm_more()
+  else
     boot = 2
-    if not same_appearance() then
-      paint_opening()
-      return
-    end
-    if room.presented and gfx.reuse() then return end
     return
   end
-  picture("lower")
-  boot = 4
-  remember_scene()
+  if room.presented and same_appearance() and gfx.reuse() then return end
+  paint_opening()
 end
 
 function load()
@@ -852,16 +879,13 @@ local function set_focus(id)
   remember()
 end
 local function activate(id)
-  for _, c in ipairs(controls) do
-    if c.id == id then
-      set_focus(id)
-      if c.enabled then c.fn() end
-      rev = rev + 1
-      remember()
-      return true
-    end
-  end
-  return false
+  local c = find_control(id)
+  if not c then return false end
+  set_focus(id)
+  if c.enabled then c.fn() end
+  rev = rev + 1
+  remember()
+  return true
 end
 local function pointer(id)
   local core = id:match("^model:(.+)$")
@@ -975,14 +999,12 @@ function draw()
   scale = math.min(room.width / 1120, room.height / 630)
   ox = (room.width - 1120 * scale) / 2
   oy = (room.height - 630 * scale) / 2
-  if boot == 4 and scene_same() and room.presented and gfx.reuse() then return end
-  if boot < 4 then
+  if boot < 2 then
     boot_step()
     return
   end
-  picture("all")
-  gfx.paint(cmds)
-  remember_scene()
+  if scene_same() and room.presented and gfx.reuse() then return end
+  refresh()
 end
 
 end

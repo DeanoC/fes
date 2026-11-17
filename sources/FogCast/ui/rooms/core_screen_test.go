@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
 )
@@ -334,7 +335,8 @@ func TestCoreScreenDrawsOverARunningGame(t *testing.T) {
 	r := loadCoreScreen(t, &fakeServices{games: spectrumGames()}, "", "fes.spectrum", Options{})
 	stepUntil(t, r, coreScreenSettled)
 	r.SetOverlay(true)
-	f := stepUntil(t, r, coreScreenSettled)
+	// The light frame stays up while the parts are rebuilt, one per draw.
+	f := stepUntil(t, r, func(f Frame) bool { return coreScreenSettled(f) && f.Clear.A != 255 })
 	if f.Clear.A == 255 || f.Clear.A == 0 {
 		t.Fatalf("overlay clear is not translucent: %+v", f.Clear)
 	}
@@ -407,4 +409,52 @@ func TestCoreScreenOpenedFromHomeStartsOnTheFirstGame(t *testing.T) {
 	if acts := again.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionLaunch || acts[0].GameID != plus3.ID {
 		t.Fatalf("reopening from Home lost the last game: %+v", acts)
 	}
+}
+
+// TestCoreScreenDrawWorkCeiling holds one draw callback under a fixed count
+// of Lua instructions (#1770). On Kit B a 12,800-instruction repaint at
+// session start missed the hard deadline while the core loaded and retired
+// the room, so the picture is built in two parts on separate draws. The
+// ceiling is about 1.25x the worst draw measured (7,046).
+func TestCoreScreenDrawWorkCeiling(t *testing.T) {
+	const ceiling = 8800
+	games := []hostclient.Game{}
+	for i := 0; i < 30; i++ {
+		g := preparedComputer(fmt.Sprintf("title-%02d", i), fmt.Sprintf("Game %02d", i), "fes.spectrum")
+		g.CoreEntryKind = "title"
+		games = append(games, g)
+	}
+	w := &workMeter{}
+	r := newRoom(t, examplePack(t, "example.core"), Options{
+		Services: c64ServicesWithEmptyHardware{Services: &fakeServices{games: games}},
+		Width:    1280, Height: 720, InitialCoreID: "fes.spectrum",
+	})
+	r.work = w
+	r.SetSessionState("idle")
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	check := func(what string) {
+		t.Helper()
+		stepUntil(t, r, coreScreenSettled)
+		for i := 0; i < 6; i++ {
+			r.Step(time.Now())
+		}
+		for _, c := range w.calls {
+			if c.kind == "draw" && c.instructions > ceiling {
+				t.Fatalf("%s: a draw ran %d instructions, over %d", what, c.instructions, ceiling)
+			}
+		}
+		w.calls = w.calls[:0]
+	}
+	check("first picture")
+	r.Input("down")
+	check("a move in the list")
+	r.Input("left")
+	check("a move to the computer panel")
+	// A session start changes both parts at once.
+	r.SetSessionState("active")
+	check("session start")
+	r.Activate("model:fes.spectrum-plus3")
+	check("a model change")
 }
