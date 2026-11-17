@@ -33,14 +33,18 @@ def add_buffer(design, name, bel, half, bit):
         "connections": {"A": data, "Q": [bit]}}
 
 
+def validate(routed, synthesis=None):
+    return producer.validate_routed_shell(routed, synthesis if synthesis is not None else shell_fixture())
+
+
 class SpectrumSocketRouteThroughTests(unittest.TestCase):
     def test_old_and_both_physical_halves_and_clock_anchor(self):
         design = shell_fixture()
-        self.assertEqual(producer.validate_routed_shell(design)["boundary_route_through_cells"], 0)
+        self.assertEqual(validate(design)["boundary_route_through_cells"], 0)
         add_buffer(design, "slot1.plug_request_ff_0", "MISTRAL_COMB.24.1.0", 0, 4000)
         add_buffer(design, "slot1.plug_request_ff_1", "MISTRAL_COMB.24.1.1", 1, 4001)
         add_buffer(design, "slot1.clock_coverage_ff_32", "MISTRAL_MCOMB.28.18.54", 0, 4002)
-        result = producer.validate_routed_shell(design)
+        result = validate(design)
         self.assertEqual(result["pinned_boundary_cells"], 93)
         self.assertEqual(result["boundary_route_through_cells"], 3)
 
@@ -56,7 +60,7 @@ class SpectrumSocketRouteThroughTests(unittest.TestCase):
             with self.subTest(field=field, value=value):
                 bad = copy.deepcopy(design)
                 bad["modules"]["top"]["cells"][buffer_name][field] = value
-                with self.assertRaises(BuildError): producer.validate_routed_shell(bad)
+                with self.assertRaises(BuildError): validate(bad)
         for field, value in [("NEXTPNR_BEL", "MISTRAL_MCOMB.28.18.55"),
                              ("NEXTPNR_BEL", "MISTRAL_MCOMB.28.77.54"),
                              ("FES_PINMAP_V1", "bad"),
@@ -65,11 +69,11 @@ class SpectrumSocketRouteThroughTests(unittest.TestCase):
             with self.subTest(field=field, value=value):
                 bad = copy.deepcopy(design)
                 bad["modules"]["top"]["cells"][buffer_name]["attributes"][field] = value
-                with self.assertRaises(BuildError): producer.validate_routed_shell(bad)
+                with self.assertRaises(BuildError): validate(bad)
         bad = copy.deepcopy(design)
         cells = bad["modules"]["top"]["cells"]
         cells[buffer_name + "_fake"] = cells.pop(buffer_name)
-        with self.assertRaises(BuildError): producer.validate_routed_shell(bad)
+        with self.assertRaises(BuildError): validate(bad)
 
     def test_rejects_extra_fanout_top_port_and_anchor_use(self):
         design = shell_fixture()
@@ -82,18 +86,18 @@ class SpectrumSocketRouteThroughTests(unittest.TestCase):
                         top["ports"]["leaked"] = {"direction": "output", "bits": [bit]}
                     else:
                         top["cells"]["extra"] = {"type": "MISTRAL_BUF", "connections": {"A": [bit]}}
-                    with self.assertRaises(BuildError): producer.validate_routed_shell(bad)
+                    with self.assertRaises(BuildError): validate(bad)
 
     def test_unrelated_inside_cell_and_changed_ff_are_rejected(self):
         design = shell_fixture(); cells = design["modules"]["top"]["cells"]
         cells["shell$ROUTETHRU"] = {"type": "MISTRAL_BUF", "attributes": {
             "NEXTPNR_BEL": "MISTRAL_MCOMB.25.5.0"}, "connections": {}}
         with self.assertRaisesRegex(BuildError, "inside the slot 1 socket"):
-            producer.validate_routed_shell(design)
+            validate(design)
         del cells["shell$ROUTETHRU"]
         cells["slot1.plug_request_ff_0"]["attributes"]["NEXTPNR_BEL"] = "MISTRAL_FF.24.2.2"
         with self.assertRaisesRegex(BuildError, "slot boundary cell"):
-            producer.validate_routed_shell(design)
+            validate(design)
 
     def test_helper_is_in_functional_source_closure(self):
         self.assertIn("scripts/coleco_expansion.py", producer.PINNED_INPUTS)
@@ -115,13 +119,54 @@ class SpectrumSocketRouteThroughTests(unittest.TestCase):
                 else:
                     top["cells"]["slot1.plug_request_ff_0"]["connections"]["DATAIN"] = [99999]
                 with self.assertRaisesRegex(BuildError, "no unique driver"):
-                    producer.validate_routed_shell(bad)
+                    validate(bad)
 
     def test_legacy_literal_and_disconnected_unused_anchor(self):
         design = shell_fixture(); cells = design["modules"]["top"]["cells"]
         cells["slot1.plug_response_ff_0"]["connections"]["DATAIN"] = ["0"]
         cells["slot1.clock_coverage_ff_32"]["connections"]["DATAIN"] = []
-        producer.validate_routed_shell(design)
+        validate(design, copy.deepcopy(design))
+
+    def test_rejects_crosswired_inputs_and_missing_synthesis_boundary(self):
+        synthesis = shell_fixture()
+        routed = copy.deepcopy(synthesis)
+        name = "slot1.plug_request_ff_0"
+        add_buffer(routed, name, "MISTRAL_COMB.24.1.0", 0, 4000)
+        validate(routed, synthesis)
+        bad = copy.deepcopy(routed)
+        bad["modules"]["top"]["cells"][name + "$ROUTETHRU"]["connections"]["A"] = \
+            bad["modules"]["top"]["cells"]["slot1.plug_request_ff_1"]["connections"]["DATAIN"]
+        with self.assertRaisesRegex(BuildError, "changed source"):
+            validate(bad, synthesis)
+        direct = copy.deepcopy(synthesis)
+        cells = direct["modules"]["top"]["cells"]
+        cells[name]["connections"]["DATAIN"] = cells["slot1.plug_request_ff_1"]["connections"]["DATAIN"]
+        with self.assertRaisesRegex(BuildError, "changed source"):
+            validate(direct, synthesis)
+        missing = copy.deepcopy(synthesis)
+        del missing["modules"]["top"]["cells"][name]
+        with self.assertRaisesRegex(BuildError, "missing slot boundary FF"):
+            validate(routed, missing)
+
+    def test_accepts_renumbered_nets_and_packer_constants(self):
+        synthesis = shell_fixture()
+        synth_top = synthesis["modules"]["top"]
+        name = "slot1.plug_response_ff_0"
+        synth_top["cells"][name]["connections"]["DATAIN"] = ["0"]
+        routed = copy.deepcopy(synthesis)
+        top = routed["modules"]["top"]
+        for port in top["ports"].values():
+            port["bits"] = [bit + 10000 for bit in port["bits"]]
+        for cell in top["cells"].values():
+            cell["connections"]["DATAIN"] = [bit + 10000 if type(bit) is int else bit
+                                                   for bit in cell["connections"]["DATAIN"]]
+        top["cells"][name]["connections"]["DATAIN"] = [50000]
+        top["cells"]["$PACKER_GND_DRV"] = {"type": "MISTRAL_CONST", "parameters": {"LUT": "0" * 32},
+            "connections": {"Q": [50000]}, "port_directions": {"Q": "output"}}
+        validate(routed, synthesis)
+        top["cells"]["$PACKER_GND_DRV"]["parameters"]["LUT"] = "0" * 31 + "1"
+        with self.assertRaisesRegex(BuildError, "changed source"):
+            validate(routed, synthesis)
 
 
 if __name__ == "__main__":
