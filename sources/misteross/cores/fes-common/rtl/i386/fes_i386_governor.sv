@@ -60,6 +60,7 @@ module fes_i386_governor #(
     input  logic               element,
     input  logic               taken,
     input  fes_i386_pkg::gov_t gov,
+    input  logic               imul_safe,  // issue and retirement satisfy the diagnostic's 286 guard
     input  logic [3:0]         ilen,
     input  logic               redirect,
     input  logic               abandon,
@@ -125,7 +126,7 @@ module fes_i386_governor #(
 
     // WB's retirement, as it happens.
     logic                  s1_boundary, s1_eoi, s1_element, s1_taken, s1_dword;
-    logic                  s1_redirect, s1_abandon, s1_preserve_de, s1_replay, s1_ordinary_ram;
+    logic                  s1_redirect, s1_abandon, s1_preserve_de, s1_replay, s1_ordinary_ram, s1_imul_safe;
     logic [3:0]            s1_ilen;
     fes_i386_pkg::gov_t    s1_gov;
     logic [1:0]            s1_accesses;
@@ -147,6 +148,7 @@ module fes_i386_governor #(
         s1_accesses <= on ? accesses : 2'd0;
         s1_dword <= dword;
         s1_ordinary_ram <= ordinary_ram;
+        s1_imul_safe <= imul_safe;
         s1_io <= on && io;
         s1_io_port <= io_port;
         s1_io_size <= io_size;
@@ -187,7 +189,7 @@ module fes_i386_governor #(
                + (s1_mmio_st2 ? {2'd0, mmio_extra(s1_mmio_st2_halves, isa_vga, local_bus)} : 13'd0);
 
     logic        s2_ends, s2_column1, s2_element, s2_ea;
-    logic        s2_boundary, s2_redirect, s2_abandon, s2_preserve_de, s2_ordinary_ram;
+    logic        s2_boundary, s2_redirect, s2_abandon, s2_preserve_de, s2_ordinary_ram, s2_imul_safe;
     logic [3:0]  s2_ilen;
     fes_i386_pkg::gov_t s2_gov;
     logic [7:0] data_bus_acc, s2_data_bus;
@@ -209,6 +211,7 @@ module fes_i386_governor #(
         s2_preserve_de <= s1_preserve_de;
         s2_ilen <= s1_ilen;
         s2_ordinary_ram <= ordinary_ram_acc && (s1_accesses == 0 || s1_ordinary_ram);
+        s2_imul_safe <= s1_imul_safe;
         s2_gov <= s1_gov;
         s2_data_bus <= data_bus_sum > 10'd255 ? 8'hff : data_bus_sum[7:0];
         if (reset || s1_abandon || s1_replay || !on || s1_boundary) begin
@@ -371,11 +374,17 @@ module fes_i386_governor #(
                 (s2_gov.op == 8'h80 || s2_gov.op == 8'h81 || s2_gov.op == 8'h82 || s2_gov.op == 8'h83))
                 execution_clocks = 9'd7;
         end
+        if (reference_on && s2_ends && !s2_gov.two && !s2_gov.o32 && !s2_gov.ref_test_excluded &&
+            !s2_gov.ea3 && s2_imul_safe && s2_ordinary_ram && (s2_gov.op == 8'h69 || s2_gov.op == 8'h6b))
+            execution_clocks = s2_gov.rm_reg ? 9'd14 : 9'd17;
         if (reference_zero_shift) execution_clocks = 9'd0;
         if (s2_element) execution_clocks = execution_clocks + {1'b0, reference_element};
     end
     always_comb begin
         refill_execution = execution_clocks[8] ? 8'hff : execution_clocks[7:0];
+        if (reference_on && s2_ends && !s2_gov.two && !s2_gov.o32 && !s2_gov.ref_test_excluded &&
+            !s2_gov.ea3 && s2_imul_safe && s2_ordinary_ram && (s2_gov.op == 8'h69 || s2_gov.op == 8'h6b))
+            refill_execution = s2_gov.rm_reg ? 8'd12 : 8'd17;
         if (reference_on && s2_ends && !s2_gov.two && !s2_gov.o32 && !s2_gov.ref_test_excluded && !s2_gov.rm_reg &&
             (s2_gov.op == 8'h84 || s2_gov.op == 8'h85)) refill_execution = 8'd7;
         if (reference_on && s2_ends && !s2_gov.two && !s2_gov.o32 &&
