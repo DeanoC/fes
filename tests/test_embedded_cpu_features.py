@@ -58,6 +58,7 @@ class CPUFeatureOverlayTests(unittest.TestCase):
             self.assertEqual((directory/'cpu_arm64_other.go').read_bytes(),ORIGINAL)
 
     def test_nano_option_rejects_qemu_before_creating_output(self):
+        (ROOT/'out').mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=ROOT/'out',prefix='cpu-option-test-') as name:
             output=Path(name)/'not-created'
             result=subprocess.run(['python3',str(ROOT/'platform/embedded/tamago/run.py'),'probe',
