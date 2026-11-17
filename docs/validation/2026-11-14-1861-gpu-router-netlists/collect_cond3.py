@@ -203,10 +203,23 @@ def main() -> int:
         LOGS = arguments.logs.resolve()
     if arguments.out is not None:
         OUT = arguments.out.resolve()
-    revision = arguments.revision
-    if revision is None:
-        revision = subprocess.run(("git", "-C", str(TREE), "rev-parse", "HEAD"),
-                                  capture_output=True, text=True).stdout.strip() or None
+    # The tree is the source of its own revision. An earlier run was given
+    # --revision by hand and the tail of the SHA was mistyped, so all four
+    # Spectrum rows recorded 541e3c548ea1d3d... -- deliberately truncated here,
+    # because it resolves to nothing and check_shas.py is strict with no
+    # exemptions: a bad SHA quoted in a comment would be the one thing it flags. Nothing consumed the
+    # value, which is exactly why it survived: those rows are tied to the head
+    # by input digests compared against the tree, so the seals were sound while
+    # their label was fiction. Codex caught it as a P1 on #1862.
+    actual = subprocess.run(("git", "-C", str(TREE), "rev-parse", "HEAD"),
+                            capture_output=True, text=True).stdout.strip() or None
+    if arguments.revision is not None and actual is not None:
+        if not (arguments.revision == actual
+                or (len(arguments.revision) >= 7 and actual.startswith(arguments.revision))):
+            raise SystemExit(
+                f"--revision {arguments.revision} is not {TREE}'s HEAD {actual}; "
+                "refusing to label seals with a revision the tree does not hold")
+    revision = actual
     result = {}
     if arguments.merge_into is not None and arguments.merge_into.is_file():
         result = json.loads(arguments.merge_into.read_text())

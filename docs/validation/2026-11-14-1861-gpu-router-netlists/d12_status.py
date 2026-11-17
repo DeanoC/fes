@@ -111,7 +111,12 @@ def main() -> int:
         # Two heads: the second main move forced only the Spectrum four to be
         # resealed, so the row says which head it was taken at rather than
         # leaving one to be assumed for all of them.
-        head = (row.get("taken_at_head") or "")[:9]
+        # 12, not 9. The mistyped revision Codex caught shared its first nine
+        # characters with the real one (541e3c548ea1... vs 541e3c5487...), so a
+        # nine-character column rendered the wrong SHA indistinguishably from
+        # the right one. The collector now validates against the tree, which is
+        # the real fix; this is so the table cannot hide the next one either.
+        head = (row.get("taken_at_head") or "")[:12]
         return f"pass, {margin}" + (f" @ `{head}`" if head else "")
 
     lines = [START, "",

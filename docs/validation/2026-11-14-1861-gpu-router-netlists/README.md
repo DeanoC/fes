@@ -34,12 +34,12 @@ drift from the evidence; these are the same facts in prose.
   Each Quartus model's repeat run reproduced its sign-off RBF.
 
 Condition 3 spans two heads because main moved twice under this record. The
-four Spectrum machines were resealed at `541e3c548`, since #1948 edited their
+four Spectrum machines were resealed at `541e3c548751`, since #1948 edited their
 producer and condition 3 never carries across an identity move. The other seven
-were taken at `df99f2dfb`, and their identities are *unchanged* at `541e3c548`
+were taken at `df99f2dfb208`, and their identities are *unchanged* at `541e3c548751`
 -- measured in `reports-scope2/cond3-head-move.log`, which reports only
 `fes.ramtest`, the Spectrum four and the out-of-scope `fes.pcxt-dos` as moved.
-`541e3c548` in turn has no difference from this branch's tip under
+`541e3c548751` in turn has no difference from this branch's tip under
 `sources/misteross/` or `config/`. So every seal here describes an identity
 that ships.
 
@@ -507,17 +507,17 @@ for.
 
 | Artefact | Lane | `check_level` | Condition 1 | Condition 2 | Condition 3 |
 | --- | --- | --- | --- | --- | --- |
-| `splash` | nextpnr | full | identical (src exempt) | PASS (no BUILD_ID in the program) | pass, 3.1862x worst clock @ `df99f2dfb` |
-| `fes.menu` | nextpnr | full | identical | CARRIED | pass, 1.1441x worst clock @ `df99f2dfb` |
-| `fes.c64` | nextpnr | full | identical | CARRIED | pass, 1.1118x worst clock @ `df99f2dfb` |
-| `fes.spectrum` | nextpnr | full | identical | CARRIED | pass, 1.1082x worst clock @ `541e3c548` |
-| `fes.spectrum128` | nextpnr | full | identical | PASS | pass, 1.2059x worst clock @ `541e3c548` |
-| `fes.spectrum-plus3` | nextpnr | full | identical | PASS | pass, 1.1054x worst clock @ `541e3c548` |
-| `fes.pentagon` | nextpnr | full | identical | PASS | pass, 1.2623x worst clock @ `541e3c548` |
-| `fes.zx81` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.121 ns worst slack (Hold) @ `df99f2dfb` |
-| `fes.zx80` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.143 ns worst slack (Hold) @ `df99f2dfb` |
-| `fes.ts1000` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.135 ns worst slack (Hold) @ `df99f2dfb` |
-| `fes.ts1500` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.110 ns worst slack (Hold) @ `df99f2dfb` |
+| `splash` | nextpnr | full | identical (src exempt) | PASS (no BUILD_ID in the program) | pass, 3.1862x worst clock @ `df99f2dfb208` |
+| `fes.menu` | nextpnr | full | identical | CARRIED | pass, 1.1441x worst clock @ `df99f2dfb208` |
+| `fes.c64` | nextpnr | full | identical | CARRIED | pass, 1.1118x worst clock @ `df99f2dfb208` |
+| `fes.spectrum` | nextpnr | full | identical | CARRIED | pass, 1.1082x worst clock @ `541e3c548751` |
+| `fes.spectrum128` | nextpnr | full | identical | PASS | pass, 1.2059x worst clock @ `541e3c548751` |
+| `fes.spectrum-plus3` | nextpnr | full | identical | PASS | pass, 1.1054x worst clock @ `541e3c548751` |
+| `fes.pentagon` | nextpnr | full | identical | PASS | pass, 1.2623x worst clock @ `541e3c548751` |
+| `fes.zx81` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.121 ns worst slack (Hold) @ `df99f2dfb208` |
+| `fes.zx80` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.143 ns worst slack (Hold) @ `df99f2dfb208` |
+| `fes.ts1000` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.135 ns worst slack (Hold) @ `df99f2dfb208` |
+| `fes.ts1500` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.110 ns worst slack (Hold) @ `df99f2dfb208` |
 | `fes.pong` | nextpnr | reduced | identical | not owed (#1863) | not owed (#1863) |
 | `fes.ramtest` | nextpnr | reduced | identical | not owed (#1863) | not owed (#1863) |
 | `fes.coleco` | nextpnr | reduced | identical | not owed (#1863) | not owed (#1863) |
@@ -529,9 +529,9 @@ A `CARRIED` condition 2 is a recorded pair that D12's merge-forward clause
 carries, and it is claimed only where the recorded pair passed *and* main's
 own netlist is byte-identical at the old base and the new one.
 Condition 3 names the head each seal was taken at. The four Spectrum machines
-were resealed at `541e3c548` because the second main move touched their
+were resealed at `541e3c548751` because the second main move touched their
 producer; the other seven were taken at `df99f2dfb` and their identities are
-unchanged at `541e3c548`, which `reports-scope2/cond3-head-move.log` measures.
+unchanged at `541e3c548751`, which `reports-scope2/cond3-head-move.log` measures.
 
 <!-- results:end -->
 

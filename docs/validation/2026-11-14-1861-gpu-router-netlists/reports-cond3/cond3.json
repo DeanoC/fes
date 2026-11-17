@@ -87,7 +87,7 @@
     "placer_seed": 5,
     "revision": null,
     "source": "/data/fes1861-netlist/identity/c3head2/sources/misteross/build/fes-pentagon-oss/build-summary.json",
-    "taken_at_head": "541e3c548ea1d3d91f3b9b71a86be46e2e6a9b1f",
+    "taken_at_head": "541e3c5487518496fd8fe66457313b528daeec09",
     "tied_to_head_by": "all 52 input digests match the head",
     "tree": "/data/fes1861-netlist/identity/c3head2/sources/misteross",
     "unverified": null
@@ -122,7 +122,7 @@
     "placer_seed": 5,
     "revision": null,
     "source": "/data/fes1861-netlist/identity/c3head2/sources/misteross/build/fes-spectrum-oss/build-summary.json",
-    "taken_at_head": "541e3c548ea1d3d91f3b9b71a86be46e2e6a9b1f",
+    "taken_at_head": "541e3c5487518496fd8fe66457313b528daeec09",
     "tied_to_head_by": "all 52 input digests match the head",
     "tree": "/data/fes1861-netlist/identity/c3head2/sources/misteross",
     "unverified": null
@@ -157,7 +157,7 @@
     "placer_seed": 4,
     "revision": null,
     "source": "/data/fes1861-netlist/identity/c3head2/sources/misteross/build/fes-spectrum-plus3-oss/build-summary.json",
-    "taken_at_head": "541e3c548ea1d3d91f3b9b71a86be46e2e6a9b1f",
+    "taken_at_head": "541e3c5487518496fd8fe66457313b528daeec09",
     "tied_to_head_by": "all 52 input digests match the head",
     "tree": "/data/fes1861-netlist/identity/c3head2/sources/misteross",
     "unverified": null
@@ -192,7 +192,7 @@
     "placer_seed": 4,
     "revision": null,
     "source": "/data/fes1861-netlist/identity/c3head2/sources/misteross/build/fes-spectrum128-oss/build-summary.json",
-    "taken_at_head": "541e3c548ea1d3d91f3b9b71a86be46e2e6a9b1f",
+    "taken_at_head": "541e3c5487518496fd8fe66457313b528daeec09",
     "tied_to_head_by": "all 52 input digests match the head",
     "tree": "/data/fes1861-netlist/identity/c3head2/sources/misteross",
     "unverified": null
