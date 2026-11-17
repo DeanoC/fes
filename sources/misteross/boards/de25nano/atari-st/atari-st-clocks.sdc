@@ -157,7 +157,6 @@ foreach {label source sink expected} {
         {display|crossing|pixel_opcode[*] display|crossing|pixel_index[*] display|crossing|pixel_argument[*]} 31
     reply {display|crossing|returned_payload[*]}
         {display|crossing|response_error display|crossing|response_data[*]} 17
-    gp_request {gp_crossing|request_payload[*]} {gp_crossing|machine_gpo[*]} 32
 } {
     set launches [get_registers "${base}|${source}"]
     set patterns {}
@@ -172,19 +171,30 @@ foreach {label source sink expected} {
     set_max_delay 10.000 -from $launches -to $captures
     set_min_delay 0.000 -from $launches -to $captures
 }
-# The reply word's signature and unused bits are constants, so synthesis
-# keeps fewer capture registers than launch registers: the acknowledge, the
-# error flag and sixteen response bits at least.
-set gp_reply_launches [get_registers "${base}|gp_crossing|reply_payload[*]"]
-set gp_reply_captures [get_registers "${base}|gp_crossing|gpi[*]"]
-if {[get_collection_size $gp_reply_launches] != 32 || [get_collection_size $gp_reply_captures] < 18} {
-    error "DE25 Atari ST held gp_reply bundle endpoints changed"
+# The two GP words. Each toggle bit leaves its launch register only into its
+# synchronizer (cut above); the receiver rebuilds that bit from the
+# synchronizer, so the held bundle is the other 31 bits. The reply word's
+# signature and unused bits are constants, so synthesis keeps fewer capture
+# registers than launch registers: the error flag and sixteen response bits
+# at least.
+foreach {label source sink toggle launches_expected captures_minimum} {
+    gp_request request_payload machine_gpo 31 31 31
+    gp_reply reply_payload gpi 23 31 17
+} {
+    set launches [remove_from_collection [get_registers "${base}|gp_crossing|${source}[*]"] \
+        [get_registers "${base}|gp_crossing|${source}[$toggle]"]]
+    set captures [remove_from_collection [get_registers "${base}|gp_crossing|${sink}[*]"] \
+        [get_registers "${base}|gp_crossing|${sink}[$toggle]"]]
+    if {[get_collection_size $launches] != $launches_expected ||
+        [get_collection_size $captures] < $captures_minimum || [get_collection_size $captures] > 31} {
+        error "DE25 Atari ST held $label bundle endpoints changed"
+    }
+    set_net_delay -max 10.000 -from $launches -to $captures
+    set_data_delay 10.000 -from $launches -to $captures
+    set_max_skew 10.000 -from $launches -to $captures
+    set_max_delay 10.000 -from $launches -to $captures
+    set_min_delay 0.000 -from $launches -to $captures
 }
-set_net_delay -max 10.000 -from $gp_reply_launches -to $gp_reply_captures
-set_data_delay 10.000 -from $gp_reply_launches -to $gp_reply_captures
-set_max_skew 10.000 -from $gp_reply_launches -to $gp_reply_captures
-set_max_delay 10.000 -from $gp_reply_launches -to $gp_reply_captures
-set_min_delay 0.000 -from $gp_reply_launches -to $gp_reply_captures
 
 # The peripheral reset asserts the machine-clock release chain at once. Its
 # two clear pins are asynchronous ingress; the chain's data path and the
@@ -218,11 +228,20 @@ foreach {label source head} {
     }
     set_false_path -from $launches -to $first_d
 }
-# Mute is execution hold or a scanout clock fault, each a registered level
-# from its own clock, into one first stage.
-set audio_hold [get_pins -compatibility_mode -nocase {fes_audio_inst|audio|hold_meta|d}]
-if {[get_collection_size $audio_hold] != 1} {error "DE25 Atari ST PCM mute ingress changed"}
-set_false_path -to $audio_hold
+# The scanout clock fault is a registered level from the peripheral clock into
+# one machine-clock first stage; mute, execution hold joined with that
+# synchronized fault, is one machine-clock register into the audio clock's.
+foreach {label source head} {
+    scanout_fault {fes_video_inst|fault} {fes_audio_inst|fault_sync[0]}
+    pcm_mute {fes_audio_inst|mute} {fes_audio_inst|audio|hold_meta}
+} {
+    set launches [get_registers $source]
+    set first_d [get_pins -compatibility_mode -nocase "${head}|d"]
+    if {[get_collection_size $launches] != 1 || [get_collection_size $first_d] != 1} {
+        error "DE25 Atari ST $label synchronizer endpoints changed"
+    }
+    set_false_path -from $launches -to $first_d
+}
 # PLL lock asynchronously asserts the two-register audio reset-release chain.
 # Its output -> serializer reset and all later recovery/removal stay timed.
 set audio_release [get_registers {fes_audio_inst|audio|lock_meta fes_audio_inst|audio|lock_sync}]
@@ -252,9 +271,39 @@ foreach {label bit edges port} {
         -source $divided_clock -divide_by 1 $target
 }
 
+# I2S data changes on the falling bit clock and the ADV7513 samples it on the
+# rising one, two master-clock periods later. Analog Devices ADV7513 data
+# sheet, audio AC specifications: I2S setup tASU >= 2 ns and hold tAHLD >= 2 ns.
+# No board trace delay is documented, so the pin budget assumes zero external
+# flight time. Setup is left at the tool's one master period, half the real
+# interval; hold is checked against the launch one master period after the
+# capture edge, where the real one is two.
+set i2s_data [get_ports {HDMI_I2S}]
+set i2s_launch [get_registers {fes_audio_inst|audio|serializer|sdata}]
+if {[get_collection_size $i2s_data] != 1 || [get_collection_size $i2s_launch] != 1} {
+    error "DE25 Atari ST I2S data endpoints changed"
+}
+set_output_delay -clock de25_i2s_bit_clock_output -max 2.000 $i2s_data
+set_output_delay -clock de25_i2s_bit_clock_output -min -2.000 $i2s_data
+set_multicycle_path -hold -start 1 -from $i2s_launch -to $i2s_data
+
 # The SDRAM clock pin is the inverted machine clock: the chips sample half a
-# machine period after the fabric launches a command. No guessed external
-# input/output delays; board flight time remains a physical qualification.
+# machine period after the fabric launches a command.
 set machine_clock_source [get_pins {fes_machine_pll|machine_pll|tennm_ph2_iopll|out_clk[0]}]
 if {[get_collection_size $machine_clock_source] != 1} {error "DE25 Atari ST machine clock source changed"}
 create_generated_clock -name DRAM_CLK -source $machine_clock_source -invert [get_ports {DRAM_CLK}]
+# ISSI IS42/45VM16320G data sheet Rev. 0A, Table 11, taking the worst of the
+# -5, -6 and -75 grades: command, address and data-in setup 2.0 ns and hold
+# 1.0 ns; at CAS latency 2, access time tAC <= 8 ns and data-out hold
+# tOH >= 2.1 ns. No board trace delay is documented, so the pin budget assumes
+# zero external flight time for the clock and for every signal.
+set sdram_outputs [get_ports {DRAM_ADDR[*] DRAM_BA[*] DRAM_CS_n[*] DRAM_CKE DRAM_RAS_n DRAM_CAS_n DRAM_WE_n
+    DRAM_LDQM DRAM_UDQM DRAM_DQ[*]}]
+set sdram_data [get_ports {DRAM_DQ[*]}]
+if {[get_collection_size $sdram_outputs] != 39 || [get_collection_size $sdram_data] != 16} {
+    error "DE25 Atari ST SDRAM pins changed"
+}
+set_output_delay -clock DRAM_CLK -max 2.000 $sdram_outputs
+set_output_delay -clock DRAM_CLK -min -1.000 $sdram_outputs
+set_input_delay -clock DRAM_CLK -max 8.000 $sdram_data
+set_input_delay -clock DRAM_CLK -min 2.100 $sdram_data

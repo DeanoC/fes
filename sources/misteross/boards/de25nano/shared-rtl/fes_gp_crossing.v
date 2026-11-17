@@ -6,7 +6,9 @@
 // request, GPI acknowledge), and stays put until the other side answers. The
 // toggle alone crosses a two-stage synchronizer; the receiver copies the held
 // word one receiving clock after it sees the toggle move, so the payload has
-// had at least a full receiving period to arrive. Board constraints cut only
+// had at least a full receiving period to arrive. The received word takes its
+// toggle bit from that synchronizer, never from the launch register, so the
+// toggle has exactly one path into the other clock. Board constraints cut only
 // the two toggle ingress paths and bound both held payloads.
 // Like the transport's GP word, nothing here is reset: a transport fault
 // holds the machine instead, and only reconfiguration starts a new epoch.
@@ -33,10 +35,14 @@ module fes_gp_crossing (
     always @(posedge machine_clk) reply_payload <= machine_gpi;
     always @(posedge machine_clk) begin
         request_sync <= {request_sync[0], request_toggle};
-        if (request_sync[1] != machine_toggle) machine_gpo <= request_payload;
+        if (request_sync[1] != machine_toggle)
+            machine_gpo <= (request_payload & ~`FES_COMPUTER_REQUEST_MASK) |
+                           (request_sync[1] ? `FES_COMPUTER_REQUEST_MASK : 32'd0);
     end
     always @(posedge transport_clk) begin
         reply_sync <= {reply_sync[0], reply_toggle};
-        if (reply_sync[1] != transport_toggle) gpi <= reply_payload;
+        if (reply_sync[1] != transport_toggle)
+            gpi <= (reply_payload & ~`FES_COMPUTER_ACK_MASK) |
+                   (reply_sync[1] ? `FES_COMPUTER_ACK_MASK : 32'd0);
     end
 endmodule

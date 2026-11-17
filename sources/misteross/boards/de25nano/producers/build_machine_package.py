@@ -106,7 +106,7 @@ class Machine:
                 'hdmi_output_policy': async_inputs.vendor_reference.POLICY,
                 'hdmi_video_timing_policy': async_inputs.video_outputs.POLICY,
                 'hdmi_output_reset_review_policy': async_inputs.output_reset.POLICY,
-                'audio_clock_reference_policy': audio_reference.POLICY,
+                'audio_clock_reference_policy': audio_reference.MACHINE_POLICY,
                 'pixel_clock_hz': 74250000, 'system_clock_hz': 100000000,
                 'execution_sha256': execution_digest(execution)}}
         if execution.get('selection_only'):

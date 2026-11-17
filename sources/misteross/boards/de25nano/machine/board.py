@@ -132,7 +132,7 @@ machine_pll fes_machine_pll (
 );
 fes_de25_machine_audio fes_audio_inst (
   .source_clk(machine_clk), .audio_clk(machine_audio_clk), .locked(machine_pll_locked),
-  .hold(standard_exec_reset || scanout_clock_fault),
+  .hold(standard_exec_reset), .fault(scanout_clock_fault),
   .left_sample(standard_audio_sample), .right_sample(standard_audio_sample),
   .HDMI_MCLK(HDMI_MCLK), .HDMI_SCLK(HDMI_SCLK),
   .HDMI_LRCLK(HDMI_LRCLK), .HDMI_I2S(HDMI_I2S)

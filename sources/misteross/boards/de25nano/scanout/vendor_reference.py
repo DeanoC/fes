@@ -96,7 +96,8 @@ def validate_project(project, expected, core_id, *, standard_core=False):
     require(actual_pins == {n: {'pin': v['pin'], 'standard': normalize(v['standard'])}
                             for n, v in expected['pins'].items()},
             'actual fitted pin locations/I/O standards differ from Terasic')
-    require(type(standard_core) is bool and (not standard_core or core_id == 'fes.zx81'),
+    require(type(standard_core) is bool and
+            (not standard_core or core_id in ('fes.zx81', 'fes.spectrum', 'fes.atari-st')),
             'unsupported standard-core reference selection')
     board_name, pixel, pll_name = {
         'fes.menu': ('fes_de25_scanout_board.v', 'pixel_clk', 'fes_combined/sys_pll.ip'),

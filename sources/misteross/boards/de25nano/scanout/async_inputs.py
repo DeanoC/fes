@@ -146,7 +146,10 @@ def bindings(directory):
     record = (directory.parent / 'build-inputs.json').read_bytes()
     fields = json.loads(record)
     selection = {'fes.menu': ('scanout', 'boards/de25nano/producers/build_menu_package.py'),
-                 'fes.zx81': ('computer', 'boards/de25nano/producers/build_zx81_package.py')}.get(fields['parameters']['core_id'])
+                 'fes.zx81': ('computer', 'boards/de25nano/producers/build_zx81_package.py'),
+                 'fes.spectrum': ('computer', 'boards/de25nano/producers/build_spectrum_package.py'),
+                 'fes.atari-st': ('computer', 'boards/de25nano/producers/build_atari_st_package.py'),
+                 }.get(fields['parameters']['core_id'])
     require(selection is not None and fields['recipe'] == selection[1], 'unsupported canonical input-review core/recipe')
     profile = 'standard_zx81' if fields['parameters'].get('standard_core') is True else selection[0]
     inputs = json.loads((hps / 'inputs.json').read_text())

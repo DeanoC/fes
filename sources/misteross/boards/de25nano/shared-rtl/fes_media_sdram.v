@@ -30,6 +30,9 @@ module fes_media_sdram #(
     input  wire [AW-1:0] write_addr,
     input  wire [15:0]   write_data,
     input  wire [1:0]    write_enable,
+    // Kept out of a synchronous clear: busy would otherwise clear this
+    // register on one polarity and others on the opposite one.
+    (* altera_attribute = "-name ALLOW_SYNCH_CTRL_USAGE OFF" *)
     output reg           write_ready = 1'b0,
     input  wire          stream_enable,
     input  wire [AW:0]   stream_bytes,
