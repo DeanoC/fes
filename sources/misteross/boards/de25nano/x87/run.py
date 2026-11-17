@@ -18,6 +18,9 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+import build as backend_build  # noqa: E402  (needs ROOT on the path)
+
 OUTPUT = ROOT.parents[2] / 'build/sim/de25-x87-pipeline'
 
 
@@ -36,8 +39,9 @@ def main() -> int:
     if not verilator:
         parser.error(f'Verilator executable not found: {args.verilator}')
     OUTPUT.mkdir(parents=True, exist_ok=True)
-    package = ROOT / 'rtl/fes_x87_pkg.sv'
-    sources = [package, *sorted(p for p in (ROOT / 'rtl').glob('*.sv') if p != package)]
+    # The backend's RTL is shared i386 RTL (backend_build.RTL names it in dependency
+    # order, package first), because fes_i386_x87 instantiates fes_x87_core.
+    sources = [backend_build.SHARED_RTL / name for name in backend_build.RTL]
     inputs = [*sources, ROOT / 'sim/x87_pipe_tb.cpp', Path(__file__).resolve()]
     bindings = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 
@@ -86,7 +90,7 @@ def main() -> int:
         'reference': 'host x87 instructions with FNSAVE/FRSTOR preservation',
         'verilator': subprocess.check_output([verilator, '--version'], text=True).strip(),
         'samples_per_operation_mode': args.samples,
-        'source_sha256': {str(path.relative_to(ROOT)): digest for path, digest in bindings.items()},
+        'source_sha256': {str(path.relative_to(ROOT.parents[2])): digest for path, digest in bindings.items()},
         'passed': passed, 'failed': failed, 'metrics': metrics, 'failures': failures,
     }
     (OUTPUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')

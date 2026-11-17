@@ -105,7 +105,18 @@
 // A load's operation finishes after the instruction retires, as a real 387's
 // does with BUSY# still active: nothing the CPU does depends on it, and the
 // next ESC holds in D until the unit is idle.
-module fes_i386_x87 (
+module fes_i386_x87 #(
+    // Which arithmetic implementation the unit's A_RND state is fed from.
+    // 0 is this file's own sequenced datapath (the A_* and D_* states), which
+    // is the DE10's and the verified reference. 1 is the DE25's pipelined
+    // `fes_x87_core`, whose pre-rounding `raw_t` lands in the same working
+    // registers A_RND already reads. Only one is instantiated: at 1 the
+    // sequencer's adder, its Goldschmidt divide and its reciprocal seed table
+    // are unreachable and synthesis removes them. The rounding, the masked and
+    // unmasked rules, the stack, the conversions and the AT error path are
+    // the same code either way, which is the point of the split.
+    parameter int X87_BACKEND = 0
+) (
     input  logic        clk,
     input  logic        reset,
     input  logic        present,     // the i386dx+387 identity
@@ -324,7 +335,11 @@ module fes_i386_x87 (
         rcp_tab[120] = 10'd527; rcp_tab[121] = 10'd525; rcp_tab[122] = 10'd523; rcp_tab[123] = 10'd521; rcp_tab[124] = 10'd519; rcp_tab[125] = 10'd517; rcp_tab[126] = 10'd515; rcp_tab[127] = 10'd513;
     end
     logic [9:0]  rcp_q;          // the seed, valid the cycle after ob_m settles
-    always_ff @(posedge clk) rcp_q <= rcp_tab[ob_m[62:56]];
+    // The only read of the table. With the DE25 core selected nothing reads
+    // rcp_q either, so the table has no reader and is not built: that is the
+    // marker to look for in the fit, because an M10K or M20K that survived
+    // would mean the Goldschmidt divide came along uninvited.
+    always_ff @(posedge clk) if (X87_BACKEND == 0) rcp_q <= rcp_tab[ob_m[62:56]];
 
     // The reciprocal-square-root seeds: 256 words of 11 bits, indexed by the
     // exponent's parity and the radicand's top 7 bits. The entry approximates
@@ -371,7 +386,14 @@ module fes_i386_x87 (
     end
     logic [9:0]  rsq_q;
     logic        sq_p;           // the radicand's exponent parity
-    always_ff @(posedge clk) rsq_q <= rsq_tab[{sq_p, oa_m[62:56]}];
+    // The only read of the square root's seed table, guarded for the same
+    // reason as the reciprocal's: with the DE25 core selected nothing reads
+    // rsq_q, so the table has no reader and is not built. Quartus Pro found
+    // that this one had been missed -- it refused the Agilex 5 fit because
+    // the surviving table still carried the DE10's `ramstyle = "M10K"`,
+    // which Agilex 5 has no such block for. A fit that refuses is a better
+    // exclusion check than a fit that quietly carries the table.
+    always_ff @(posedge clk) if (X87_BACKEND == 0) rsq_q <= rsq_tab[{sq_p, oa_m[62:56]}];
 
     // The square root's working values, each a 64-bit significand with a
     // small signed exponent: value = sig * 2^(exp - 63). The multiplier's
@@ -671,6 +693,13 @@ module fes_i386_x87 (
         P_FIN,      // FPREM1's round-to-nearest and the normalising shift
         P_ZERO,     // ... an exact zero remainder, which is packed not shifted
         P_PACK      // ... and the normalised magnitude, C2 and the quotient bits
+        ,
+        // ---- The DE25 backend's two states (X87_BACKEND = 1). ----
+        // Appended, not inserted: the A_* and D_* states keep the
+        // encodings they had, so `trace_seq` means the same thing in a
+        // default build as it did before this change.
+        B_ISSUE,    // offer the operation to fes_x87_core
+        B_WAIT      // ... and take its pre-rounding result into A_RND's registers
     } seq_e;
     seq_e        seq;
     seq_e        sh_ret;      // the state S_MUL returns to when the multiply is done
@@ -1424,6 +1453,82 @@ module fes_i386_x87 (
     logic [79:0] rimg;         // a save image's register, gathered by its chunks
     assign push_i = top - 3'd1;
     assign pop_i = top;
+    // ---- The DE25 arithmetic backend (X87_BACKEND = 1). ----
+    // `fes_x87_core` takes the operands as they stand -- it normalises
+    // denormals itself, so the A_PNA/A_PNB pre-normalising shifts are not on
+    // this path -- and returns the result BEFORE rounding. Its `raw_t` and
+    // A_RND's working registers are the same representation: the exponent is
+    // biased by 16383 and signed, the significand's bit 66 is the integer
+    // bit, and bits 2, 1 and 0 are the guard, round and sticky. The bit
+    // positions were checked against round_pc at all three precisions rather
+    // than assumed; the record records that check.
+    //
+    // The lanes raise IE, DE and ZE only -- never PE, UE or OE, which are the
+    // rounding's -- so OR-ing `bk_raw.flags` into `pfl` cannot double-count
+    // what A_RND is about to set.
+    logic                     bk_req_valid, bk_req_ready, bk_raw_valid;
+    logic [2:0]               bk_op;
+    logic                     bk_cancel;
+    fes_x87_pkg::raw_t        bk_raw;
+    // The CPU's `flush` must NOT reach the backend. Arithmetic is entered
+    // after the instruction commits (S_IDLE on `wb && wb_last`), and a
+    // retired instruction deliberately runs on through a later squash
+    // (`flush && started && !committed` below is the only thing that stops
+    // it), exactly as a 387 does with BUSY# still active. A straight-through
+    // flush would cancel a committed operation and leave the unit waiting for
+    // a result that was thrown away.
+    assign bk_cancel = reset || f1 || (flush && started && !committed);
+    generate
+        if (X87_BACKEND == 1) begin : g_de25
+            fes_x87_core core (
+                .clk, .reset(reset || f1), .flush(bk_cancel),
+                .req_valid(bk_req_valid), .ext_ready(1'b1), .req_ready(bk_req_ready),
+                .req_op(bk_op), .req_a(pa), .req_b(pb),
+                .req_pc(wprec), .req_rc(rc), .req_slot(4'd0),
+                .raw_valid(bk_raw_valid), .raw(bk_raw)
+            );
+        end else begin : g_de10
+            assign bk_req_ready = 1'b0;
+            assign bk_raw_valid  = 1'b0;
+            assign bk_raw        = '0;
+        end
+    endgenerate
+    // The decoded operation, from the same form bits the sequencer's datapath
+    // reads. `pb`'s sign already carries `a_sub` through `sign_b`, but the
+    // backend takes the operands as stored, so a subtract is OP_SUB rather
+    // than an add of a negated operand.
+    always_comb begin
+        if (cur == X87_SQRT)      bk_op = 3'(fes_x87_pkg::OP_SQRT);
+        else if (cur == X87_DIV)  bk_op = 3'(fes_x87_pkg::OP_DIV);
+        else if (a_mul)           bk_op = 3'(fes_x87_pkg::OP_MUL);
+        else if (a_sub)           bk_op = 3'(fes_x87_pkg::OP_SUB);
+        else                      bk_op = 3'(fes_x87_pkg::OP_ADD);
+    end
+    // The forms the backend answers. Everything else -- FRNDINT, FSCALE,
+    // FXTRACT, FPREM and FPREM1 -- stays on the sequencer, because each needs
+    // the shifter the conversions need anyway and none needs the adder or the
+    // divider. The transcendentals are built on neither and stop in decode.
+    assign bk_req_valid = seq == B_ISSUE;
+    // How many operations of each kind the backend has been offered and has
+    // taken. Nothing reads these in hardware, so synthesis removes them; the
+    // `verilator public_flat_rd` attribute is what lets a bench read them, and
+    // it is the whole mechanism -- no port is added, so no other instantiation
+    // of fes_i386_cpu changes. The lockstep run reports them per operation,
+    // because a green lockstep that issued no arithmetic proves nothing: on a
+    // slice-2 base every arithmetic form decodes to X87_UNIMPL and the gate
+    // would pass having reached the backend zero times.
+    logic [31:0] bk_offered [0:7] /* verilator public_flat_rd */;
+    logic [31:0] bk_taken [0:7] /* verilator public_flat_rd */;
+    // No reset: a lockstep run resets the CPU between programs and the count
+    // is wanted over the whole run, not the last program.
+    always_ff @(posedge clk) begin
+        if (bk_req_valid) bk_offered[bk_op] <= bk_offered[bk_op] + 32'd1;
+        if (bk_req_valid && bk_req_ready) bk_taken[bk_op] <= bk_taken[bk_op] + 32'd1;
+    end
+    logic bk_form;
+    assign bk_form = X87_BACKEND == 1
+                  && (cur == X87_ARITH || cur == X87_DIV || cur == X87_SQRT);
+
     assign busy = seq != S_IDLE || rw_en;
     assign env_load = started && (cur == X87_LDENV || cur == X87_RSTOR);
     // The cycle FNINIT or FNSAVE commits, which is when the CPU clears the
@@ -1973,8 +2078,20 @@ module fes_i386_x87 (
                     ob_m <= mul_p[63:0];
                     seq <= A_OP;
                 end
-                // The operation's first datapath step.
-                A_OP: begin
+                // The operation's first datapath step. With the DE25
+                // backend selected the four forms it answers divert here,
+                // which catches every path into A_OP -- the direct one and
+                // the two that come back from a denormal's pre-normalising
+                // shift. The shift is wasted work on this path, because the
+                // backend normalises its own operands out of `pa` and `pb`,
+                // which A_PNA and A_PNB do not touch; it costs cycles after
+                // the instruction has already retired and nothing waits on
+                // it. Correctness does not depend on skipping it, so it is
+                // left where it is rather than threaded through three more
+                // branches.
+                A_OP: if (bk_form) begin
+                    seq <= B_ISSUE;
+                end else begin
                     if (cur == X87_ARITH && a_mul) begin
                         // The product, on the one multiplier. Both operands
                         // are normalised, so it lands in [1, 4) and needs a
@@ -2278,8 +2395,13 @@ module fes_i386_x87 (
                 // round bits are the top two it shifted out and the sticky
                 // the rest; at a shift of 65 the round bit is the operand's
                 // own top bit, and from 66 nothing is left but the sticky.
-                A_LOAD: begin
-                    ua_add <= al_big;
+                A_LOAD: if (X87_BACKEND == 0) begin
+                    // X87_BACKEND is a parameter, so this condition is settled at
+                    // elaboration: with the DE25 core selected the state is
+                    // unreachable and its datapath is not built at all. That is
+                    // the point -- you pay for one arithmetic implementation,
+                    // not both -- and the fit's entity list is the evidence.
+                                        ua_add <= al_big;
                     if (al_zero || al_k == 7'd0) begin
                         ub_add <= al_zero ? 64'd0 : al_small;
                         ub_g <= 1'b0;
@@ -2306,8 +2428,13 @@ module fes_i386_x87 (
                 // The sum. The significand sits at bits 65:2 of the field,
                 // so a carry out lands in bit 66 and a subtract that
                 // cancelled leaves bit 65 clear.
-                A_SUM: begin
-                    logic [66:0] sw;
+                A_SUM: if (X87_BACKEND == 0) begin
+                    // X87_BACKEND is a parameter, so this condition is settled at
+                    // elaboration: with the DE25 core selected the state is
+                    // unreachable and its datapath is not built at all. That is
+                    // the point -- you pay for one arithmetic implementation,
+                    // not both -- and the fit's entity list is the evidence.
+                                        logic [66:0] sw;
                     sw = sum_w;
                     if (sw[66]) begin
                         wm <= sw[66:3];
@@ -2356,8 +2483,13 @@ module fes_i386_x87 (
                         seq <= S_SHIFT;
                     end
                 end
-                A_NORM: begin
-                    // The guard and sticky A_SUM worked out stay as they are:
+                A_NORM: if (X87_BACKEND == 0) begin
+                    // X87_BACKEND is a parameter, so this condition is settled at
+                    // elaboration: with the DE25 core selected the state is
+                    // unreachable and its datapath is not built at all. That is
+                    // the point -- you pay for one arithmetic implementation,
+                    // not both -- and the fit's entity list is the evidence.
+                                        // The guard and sticky A_SUM worked out stay as they are:
                     // a shift of more than one place only happens where they
                     // are both clear.
                     wm <= mul_p[63:0];
@@ -2366,8 +2498,13 @@ module fes_i386_x87 (
                 // The product. Both operands were normalised, so it is in
                 // [1, 4): bit 127 set means it needs no shift and bit 126
                 // one place, which is a wire either way.
-                A_PROD: begin
-                    if (mul_p[127]) begin
+                A_PROD: if (X87_BACKEND == 0) begin
+                    // X87_BACKEND is a parameter, so this condition is settled at
+                    // elaboration: with the DE25 core selected the state is
+                    // unreachable and its datapath is not built at all. That is
+                    // the point -- you pay for one arithmetic implementation,
+                    // not both -- and the fit's entity list is the evidence.
+                                        if (mul_p[127]) begin
                         wm <= mul_p[127:64];
                         wg <= mul_p[63];
                         wrd <= mul_p[62];
@@ -2468,6 +2605,58 @@ module fes_i386_x87 (
                 //     rounding and not two, and reports UE where that
                 //     rounding lost bits: a tiny exact result raises nothing;
                 //   - the precision exception never holds a result back.
+                // Offer the operation. `req_ready` can only be low here
+                // for a divide or a square root whose lane has not drained,
+                // which one ESC in flight makes unreachable; the handshake is
+                // held anyway, because that is the backend's contract.
+                B_ISSUE: if (bk_req_ready) seq <= B_WAIT;
+                // Take the result before rounding. `bk_raw` and `bk_raw_valid`
+                // are both lane outputs registered on the same edge, so this
+                // reads a settled value and not one assigned in this state --
+                // the hazard that has appeared in every slice of this unit.
+                B_WAIT: if (bk_raw_valid) begin
+                    // An exact cancellation. The core leaves the exponent it
+                    // was working at beside a significand of zero, and it is
+                    // `fes_x87_round` that zeroes the exponent field when the
+                    // significand rounds to nothing -- so on this path, which
+                    // does not use that rounder, the zero has to be packed
+                    // here. A_RND would otherwise store {sign, e, 0}, which
+                    // is a pseudo-denormal rather than a zero: the unit bench
+                    // caught it 240 times, on every add and subtract case
+                    // whose operands cancel, and on no multiply, divide or
+                    // square root.
+                    //
+                    // Guard, round and sticky are in the same 67 bits, so a
+                    // zero there is an exact zero and nothing rounds. The
+                    // sign is the core's, which already carries x87's rule
+                    // that a cancellation is +0 except when rounding down.
+                    if (bk_raw.significand == 67'd0) begin
+                        pfl  <= pfl | bk_raw.flags;
+                        pc1  <= 1'b0;
+                        ares <= {bk_raw.sign, 79'd0};
+                        seq  <= S_APPLY;
+                    end else begin
+                    wsign <= bk_raw.sign;
+                    we    <= bk_raw.exponent;
+                    wm    <= bk_raw.significand[66:3];
+                    wg    <= bk_raw.significand[2];
+                    wrd   <= bk_raw.significand[1];
+                    ws    <= bk_raw.significand[0];
+                    // The lanes raise IE, DE and ZE; A_RND adds PE, UE and
+                    // OE. `special` can only be set for an operand class
+                    // A_SETUP has already answered and never reaches here,
+                    // so the value it would carry is not read. The assertion
+                    // below is what makes that a checked claim rather than a
+                    // comment: every bench case that reaches this state runs
+                    // it, and A_SETUP's dispatch is what has to keep it true.
+                    // synthesis translate_off
+                    if (bk_raw.special)
+                        $fatal(1, "fes_i386_x87: the DE25 backend returned a special-cased result; A_SETUP should have answered this operand class without the datapath");
+                    // synthesis translate_on
+                    pfl   <= pfl | bk_raw.flags;
+                    seq   <= A_RND;
+                    end
+                end
                 A_RND: begin
                     logic [66:0]        rp;
                     logic [63:0]        mag;
@@ -2547,21 +2736,36 @@ module fes_i386_x87 (
                 // intermediate is the product's top 64 bits, which is why the
                 // iterations alone cannot reach the extended format's 67 bits
                 // and the tail is not optional.
-                D_SEED: begin
-                    ua_mul <= oa_m;
+                D_SEED: if (X87_BACKEND == 0) begin
+                    // X87_BACKEND is a parameter, so this condition is settled at
+                    // elaboration: with the DE25 core selected the state is
+                    // unreachable and its datapath is not built at all. That is
+                    // the point -- you pay for one arithmetic implementation,
+                    // not both -- and the fit's entity list is the evidence.
+                                        ua_mul <= oa_m;
                     ub_mul <= {rcp_q, 54'd0};
                     mul_start <= 1'b1;
                     seq <= D_N0;
                 end
-                D_N0: if (mul_done) begin
-                    gs_n <= mul_p[127:64];
+                D_N0: if (X87_BACKEND == 0 && mul_done) begin
+                    // X87_BACKEND is a parameter, so this condition is settled at
+                    // elaboration: with the DE25 core selected the state is
+                    // unreachable and its datapath is not built at all. That is
+                    // the point -- you pay for one arithmetic implementation,
+                    // not both -- and the fit's entity list is the evidence.
+                                        gs_n <= mul_p[127:64];
                     ua_mul <= ob_m;
                     ub_mul <= {rcp_q, 54'd0};
                     mul_start <= 1'b1;
                     seq <= D_D0;
                 end
-                D_D0: if (mul_done) begin
-                    // f = 2 - D, in the scaling where one is 2^63: the two's
+                D_D0: if (X87_BACKEND == 0 && mul_done) begin
+                    // X87_BACKEND is a parameter, so this condition is settled at
+                    // elaboration: with the DE25 core selected the state is
+                    // unreachable and its datapath is not built at all. That is
+                    // the point -- you pay for one arithmetic implementation,
+                    // not both -- and the fit's entity list is the evidence.
+                                        // f = 2 - D, in the scaling where one is 2^63: the two's
                     // complement of D, and all ones where D is zero.
                     gs_d <= mul_p[127:64];
                     ua_mul <= gs_n;
@@ -2569,14 +2773,24 @@ module fes_i386_x87 (
                     mul_start <= 1'b1;
                     seq <= D_ITN;
                 end
-                D_ITN: if (mul_done) begin
-                    gs_n <= {mul_p[126:64], 1'b0};
+                D_ITN: if (X87_BACKEND == 0 && mul_done) begin
+                    // X87_BACKEND is a parameter, so this condition is settled at
+                    // elaboration: with the DE25 core selected the state is
+                    // unreachable and its datapath is not built at all. That is
+                    // the point -- you pay for one arithmetic implementation,
+                    // not both -- and the fit's entity list is the evidence.
+                                        gs_n <= {mul_p[126:64], 1'b0};
                     ua_mul <= gs_d;
                     mul_start <= 1'b1;
                     seq <= D_ITD;
                 end
-                D_ITD: if (mul_done) begin
-                    logic [63:0] dn;
+                D_ITD: if (X87_BACKEND == 0 && mul_done) begin
+                    // X87_BACKEND is a parameter, so this condition is settled at
+                    // elaboration: with the DE25 core selected the state is
+                    // unreachable and its datapath is not built at all. That is
+                    // the point -- you pay for one arithmetic implementation,
+                    // not both -- and the fit's entity list is the evidence.
+                                        logic [63:0] dn;
                     dn = {mul_p[126:64], 1'b0};
                     gs_d <= dn;
                     if (gs_it > 2'd1) begin
@@ -2591,7 +2805,10 @@ module fes_i386_x87 (
                 // The fast candidate is qhat minus the precision's empirical
                 // correction budget. The following full-width certificate
                 // makes correctness independent of that budget.
-                D_CAND: begin
+                D_CAND: if (X87_BACKEND == 0) begin
+                    // Guarded on the parameter, like every other arm of the sequenced
+                    // divide and square root: with the DE25 core selected this
+                    // state is unreachable and its datapath is not built.
                     logic [66:0] qh, c0;
                     qh = drop67({3'd0, gs_n} << (dv_s ? 3 : 2), wprec);
                     // Clamped, which the divide alone never needed: a
@@ -2610,7 +2827,10 @@ module fes_i386_x87 (
                 // Form the residual as low 96 bits plus an exact high word.
                 // The tail changes only the low word; D_CHECK accepts it only
                 // when the full residual is a valid quotient remainder.
-                D_REM: if (mul_done) begin
+                D_REM: if (X87_BACKEND == 0 && mul_done) begin
+                    // Guarded on the parameter, like every other arm of the sequenced
+                    // divide and square root: with the DE25 core selected this
+                    // state is unreachable and its datapath is not built.
                     logic [66:0] chi;
                     logic [96:0] plo;
                     logic [95:0] nlo;
@@ -2652,8 +2872,13 @@ module fes_i386_x87 (
                 // Every shift there is by one or two places, and the step
                 // count is still fixed by precision control, so the latency
                 // does not move.
-                D_TAIL: begin
-                    logic [95:0] trial, nsub;
+                D_TAIL: if (X87_BACKEND == 0) begin
+                    // X87_BACKEND is a parameter, so this condition is settled at
+                    // elaboration: with the DE25 core selected the state is
+                    // unreachable and its datapath is not built at all. That is
+                    // the point -- you pay for one arithmetic implementation,
+                    // not both -- and the fit's entity list is the evidence.
+                                        logic [95:0] trial, nsub;
                     logic [3:0]  i;
                     i = dv_k - 4'd1;
                     trial = dv_rem - dv_sub;
@@ -2684,7 +2909,10 @@ module fes_i386_x87 (
                 // The correction constants are an optimization only. Accept
                 // the fast result only when its exact quotient residual is
                 // non-negative and below B; otherwise recompute every digit.
-                D_CHECK: begin
+                D_CHECK: if (X87_BACKEND == 0) begin
+                    // Guarded on the parameter, like every other arm of the sequenced
+                    // divide and square root: with the DE25 core selected this
+                    // state is unreachable and its datapath is not built.
                     if (dv_c[66] || dv_hi_rem != 38'd0 || dv_rem[95]
                         || dv_rem >= {32'd0, ob_m}) begin
                         logic [64:0] r0;
@@ -2704,7 +2932,10 @@ module fes_i386_x87 (
                 // at a time. Its final remainder is the true sticky source.
                 // Square root uses a radix-4 restoring recurrence below and
                 // streams the 132-bit radicand through dv_hi_rem/dv_sub.
-                D_EXACT: begin
+                D_EXACT: if (X87_BACKEND == 0) begin
+                    // Guarded on the parameter, like every other arm of the sequenced
+                    // divide and square root: with the DE25 core selected this
+                    // state is unreachable and its datapath is not built.
                     if (cur == X87_SQRT) begin
                         logic [1:0]  pair;
                         logic [67:0] trial, subroot, rnext;
@@ -2755,8 +2986,13 @@ module fes_i386_x87 (
                 // bits land at m[63:39] with zeros below and the guard and
                 // round bits clear, because the sticky already covers
                 // everything the shorter target did not compute.
-                D_FIN: begin
-                    logic [5:0] dr;
+                D_FIN: if (X87_BACKEND == 0) begin
+                    // X87_BACKEND is a parameter, so this condition is settled at
+                    // elaboration: with the DE25 core selected the state is
+                    // unreachable and its datapath is not built at all. That is
+                    // the point -- you pay for one arithmetic implementation,
+                    // not both -- and the fit's entity list is the evidence.
+                                        logic [5:0] dr;
                     dr = dv_drop(wprec);
 `ifndef SYNTHESIS
                     if (dv_hi_rem != 38'd0 || dv_rem[95] || dv_rem >= {32'd0, ob_m})
@@ -2775,16 +3011,22 @@ module fes_i386_x87 (
                 // is what lets one mux renormalise every product. The seed is
                 // v/1024 with v in [513, 1022], so it is left-aligned to bit
                 // 63 with an exponent of -1.
-                Q_SEED: begin
-                    qy_s <= {rsq_q, 54'd0};
+                Q_SEED: if (X87_BACKEND == 0) begin
+                    // Guarded on the parameter for the reason A_SUM's arm gives: with
+                    // the DE25 core selected this state is unreachable and its
+                    // datapath is not built.
+                                        qy_s <= {rsq_q, 54'd0};
                     qy_e <= -6'sd1;
                     ua_mul <= oa_m;
                     ub_mul <= {rsq_q, 54'd0};
                     mul_start <= 1'b1;
                     seq <= Q_AY;
                 end
-                Q_AY: if (mul_done) begin
-                    // z = a*y, then start z*y.
+                Q_AY: if (X87_BACKEND == 0 && mul_done) begin
+                    // Guarded on the parameter for the reason A_SUM's arm gives: with
+                    // the DE25 core selected this state is unreachable and its
+                    // datapath is not built.
+                                        // z = a*y, then start z*y.
                     qz_s <= norm_hi(mul_p);
                     qz_e <= norm_e(6'sd1 + {5'd0, sq_p} + qy_e, mul_p[127]);
                     ua_mul <= norm_hi(mul_p);
@@ -2792,8 +3034,11 @@ module fes_i386_x87 (
                     mul_start <= 1'b1;
                     seq <= Q_AY2;
                 end
-                Q_AY2: if (mul_done) begin
-                    // t = 3 - a*y^2, aligned by the exponent difference and
+                Q_AY2: if (X87_BACKEND == 0 && mul_done) begin
+                    // Guarded on the parameter for the reason A_SUM's arm gives: with
+                    // the DE25 core selected this state is unreachable and its
+                    // datapath is not built.
+                                        // t = 3 - a*y^2, aligned by the exponent difference and
                     // renormalised. 3 is 0xC000...  with an exponent of 1, and
                     // a*y^2 is close to one, so the difference is close to two
                     // and needs at most a couple of bits of normalisation.
@@ -2831,8 +3076,11 @@ module fes_i386_x87 (
                     mul_start <= 1'b1;
                     seq <= Q_Y;
                 end
-                Q_Y: if (mul_done) begin
-                    // y <- y*t/2: the halving is one off the exponent.
+                Q_Y: if (X87_BACKEND == 0 && mul_done) begin
+                    // Guarded on the parameter for the reason A_SUM's arm gives: with
+                    // the DE25 core selected this state is unreachable and its
+                    // datapath is not built.
+                                        // y <- y*t/2: the halving is one off the exponent.
                     qy_s <= norm_hi(mul_p);
                     qy_e <= norm_e(qy_e + qt_e, mul_p[127]);
                     if (gs_it > 2'd1) begin
@@ -2848,8 +3096,11 @@ module fes_i386_x87 (
                         seq <= Q_RES;
                     end
                 end
-                Q_RES: if (mul_done) begin
-                    // q = a*y, the square root's estimate. Its exponent is 0
+                Q_RES: if (X87_BACKEND == 0 && mul_done) begin
+                    // Guarded on the parameter for the reason A_SUM's arm gives: with
+                    // the DE25 core selected this state is unreachable and its
+                    // datapath is not built.
+                                        // q = a*y, the square root's estimate. Its exponent is 0
                     // where q is in [1, 2) and **-1 where q is just below
                     // one**, which is what happens when the true root is an
                     // exact power of two: the iteration converges to it from
@@ -2885,7 +3136,10 @@ module fes_i386_x87 (
                 // Form the fast path's residual in low and high words. The
                 // high word makes the following check exact even when a
                 // candidate is outside the correction tail's range.
-                Q_REM: if (mul_done) begin
+                Q_REM: if (X87_BACKEND == 0 && mul_done) begin
+                    // Guarded on the parameter, like every other arm of the sequenced
+                    // divide and square root: with the DE25 core selected this
+                    // state is unreachable and its datapath is not built.
                     logic signed [8:0] qsh;
                     logic [66:0]       cross_prod;
                     logic [96:0]       plo;
@@ -2916,7 +3170,10 @@ module fes_i386_x87 (
                 // The exact root certificate is 0 <= N-C^2 <= 2C. If the
                 // short tail did not establish that range, restart with a
                 // radix-4 restoring square root of A*2^(67+parity).
-                Q_CHECK: begin
+                Q_CHECK: if (X87_BACKEND == 0) begin
+                    // Guarded on the parameter, like every other arm of the sequenced
+                    // divide and square root: with the DE25 core selected this
+                    // state is unreachable and its datapath is not built.
                     if (dv_c[66] || dv_hi_rem != 38'd0 || dv_rem[95]
                         || dv_rem > {28'd0, dv_c, 1'b0}) begin
                         dv_c <= 67'd0;
@@ -2930,7 +3187,10 @@ module fes_i386_x87 (
                     end else
                         seq <= Q_FIN;
                 end
-                Q_FIN: begin
+                Q_FIN: if (X87_BACKEND == 0) begin
+                    // Guarded on the parameter, like every other arm of the sequenced
+                    // divide and square root: with the DE25 core selected this
+                    // state is unreachable and its datapath is not built.
                     logic [5:0] dr;
                     dr = dv_drop(wprec);
 `ifndef SYNTHESIS
