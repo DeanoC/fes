@@ -238,8 +238,6 @@ class OutputTest(unittest.TestCase):
         self.assertTrue((lockstep.SIM / 'lockstep_tb.cpp').is_file())
 
 
-@unittest.skipUnless(VERILATOR and BOCHS and CORPUS,
-                     VERILATOR_ABSENT or 'the pinned Bochs checkout or the corpus is absent')
 class SourceRecordTest(unittest.TestCase):
     """A report names the revision and sources it tested (#1907 review)."""
 
@@ -262,6 +260,8 @@ class SourceRecordTest(unittest.TestCase):
         self.assertEqual(before['fes_revision'], narrowed['fes_revision'])
 
 
+@unittest.skipUnless(VERILATOR and BOCHS and CORPUS,
+                     VERILATOR_ABSENT or 'the pinned Bochs checkout or the corpus is absent')
 class LockstepRunTest(unittest.TestCase):
     ARGS = ['--opcode', '00', '--opcode', 'D3.4', '--opcode', '670FAD', '--opcode', '678D', '--opcode', 'E2',
             '--random-programs', '100', '--random-seeds', '2', '--pm-programs', '100',
