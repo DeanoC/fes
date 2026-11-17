@@ -112,6 +112,11 @@
 //             strings that fault or cross pages, frames past RAM, in the
 //             reset shadow and under A20M, double faults, PE and PG set
 //             together, and paging toggled around a far jump.
+//   x87bcd    the packed decimal cases, FBLD and FBSTP (run_x87_bcd_cases,
+//             #1958), the identity on: through the CPU against the oracle's
+//             387 on a build with the DE25 backend, and the RTL alone
+//             stopping at each as not built on one with the DE10's
+//             (-DFES_X87_BACKEND says which this build is).
 //   no387     the directed cases of the ESC instructions with no 387
 //             (run_no387_cases): every form in real and protected mode,
 //             their faults, #NM, FNSTENV's and FNSAVE's layouts and FPU
@@ -131,6 +136,7 @@
 #include "pc386_ddr_model.h"
 #include "smc_stale.h"
 #include "verilated.h"
+#include "x87_built_form.h"
 
 #include <algorithm>
 #include <array>
@@ -1437,6 +1443,10 @@ struct Summary {
     uint64_t no387_rule = 0, no387_skips = 0;
     // The retirements the 387-present rule compared the unit's state at.
     uint64_t x87_compared = 0;
+    // The packed decimal forms (#1958): FBLD and FBSTP instructions stepped
+    // on both sides with the identity on, and the forms the RTL alone was
+    // seen to stop at as not built (the DE10 backend's cases).
+    uint64_t x87_fbld = 0, x87_fbstp = 0, x87_bcd_not_built = 0;
 };
 
 void hash_state(Summary &summary, const State &s) {
@@ -1767,86 +1777,18 @@ bool rep_writes_own_instruction(const Code *own, const uint8_t *code, bool code3
     return !rep_self_store_writes(own, code, code32, before, result, oracle).empty();
 }
 
+// The ESC forms the RTL's x87 unit builds are x87_built_form.h's, which takes
+// the backend: the runner passes -DFES_X87_BACKEND with the value it gives
+// the CPU's X87_BACKEND (0 the DE10's, 1 the DE25's), on the RTL build and
+// the netlist build alike.
+#ifndef FES_X87_BACKEND
+#define FES_X87_BACKEND 0
+#endif
+
 // An ESC instruction's memory operand: its offset, wrapped by address size,
 // and its segment (fes_i386::SEG_*), from the bytes at code and the state.
 // The 386EX's scaled base for a SIB index of 100b (the divergence
 // invalid-sib-scales-base) is not modelled: no case here uses one.
-// The ESC forms the RTL's x87 unit builds, which must track
-// fes_i386_pkg::x87_decode and x87_format: #1768 slice 2 built the
-// interface, the state, the loads, the stores and the register forms, and
-// slice 3 the arithmetic -- add, subtract, multiply, the compares, FRNDINT,
-// FSCALE and FXTRACT. Divide, square root and the remainders are slice 4's
-// and the transcendentals and BCD slice 5's. A form it does not build stops
-// the RTL as not built, which is how the lockstep cannot pass over an
-// instruction the build does not run.
-bool x87_built_form(uint8_t esc, uint8_t modrm) {
-    const unsigned low = esc & 7u;
-    const unsigned rf = (modrm >> 3) & 7u;
-    if ((modrm >> 6) != 3) {
-        switch (low << 3 | rf) {
-            case 1 << 3 | 0: case 5 << 3 | 0: case 3 << 3 | 5:           // FLD m32, m64, m80
-            case 3 << 3 | 0: case 7 << 3 | 0: case 7 << 3 | 5:           // FILD m32, m16, m64
-            case 1 << 3 | 2: case 5 << 3 | 2: case 3 << 3 | 2: case 7 << 3 | 2:   // FST, FIST
-            case 1 << 3 | 3: case 5 << 3 | 3: case 3 << 3 | 7:           // FSTP m32, m64, m80
-            case 3 << 3 | 3: case 7 << 3 | 3: case 7 << 3 | 7:           // FISTP m32, m16, m64
-            case 1 << 3 | 5: case 1 << 3 | 7: case 5 << 3 | 7:           // FLDCW, FNSTCW, FNSTSW m16
-            case 1 << 3 | 6: case 5 << 3 | 6:                            // FNSTENV, FNSAVE
-            case 1 << 3 | 4: case 5 << 3 | 4:                            // FLDENV, FRSTOR
-                return true;
-            // Slice 3's arithmetic and compares and slice 4's divides: D8
-            // and DC with a 32- or 64-bit real, DA and DE with a 32- or
-            // 16-bit integer, reg fields 0 to 7. Fields 6 and 7 are
-            // FDIV and FDIVR.
-            case 0 << 3 | 0: case 0 << 3 | 1: case 0 << 3 | 2: case 0 << 3 | 3:
-            case 0 << 3 | 4: case 0 << 3 | 5: case 0 << 3 | 6: case 0 << 3 | 7:  // D8
-            case 4 << 3 | 0: case 4 << 3 | 1: case 4 << 3 | 2: case 4 << 3 | 3:
-            case 4 << 3 | 4: case 4 << 3 | 5: case 4 << 3 | 6: case 4 << 3 | 7:  // DC
-            case 2 << 3 | 0: case 2 << 3 | 1: case 2 << 3 | 2: case 2 << 3 | 3:
-            case 2 << 3 | 4: case 2 << 3 | 5: case 2 << 3 | 6: case 2 << 3 | 7:  // DA
-            case 6 << 3 | 0: case 6 << 3 | 1: case 6 << 3 | 2: case 6 << 3 | 3:
-            case 6 << 3 | 4: case 6 << 3 | 5: case 6 << 3 | 6: case 6 << 3 | 7:  // DE
-                return true;
-            default:
-                return false;   // FBLD and FBSTP, slice 5's
-        }
-    }
-    switch (low) {
-        case 0:  // D8: the arithmetic and compares into ST(0)
-            return (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8     // FADD, FMUL
-                || (modrm & 0xf8) == 0xd0 || (modrm & 0xf8) == 0xd8     // FCOM, FCOMP
-                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8     // FSUB, FSUBR
-                || (modrm & 0xf8) == 0xf0 || (modrm & 0xf8) == 0xf8;    // FDIV, FDIVR
-        case 1:  // D9
-            if (modrm == 0xd0 || modrm == 0xe0 || modrm == 0xe1 || modrm == 0xe4 || modrm == 0xe5
-                || modrm == 0xf6 || modrm == 0xf7)
-                return true;                                     // FNOP, FCHS, FABS, FTST, FXAM, FDECSTP, FINCSTP
-            if (modrm == 0xf4 || modrm == 0xfc || modrm == 0xfd) return true;   // FXTRACT, FRNDINT, FSCALE
-            if (modrm == 0xf5 || modrm == 0xf8 || modrm == 0xfa) return true;   // FPREM1, FPREM, FSQRT
-            if ((modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8) return true;  // FLD ST(i), FXCH
-            return modrm >= 0xe8 && modrm <= 0xee;               // the constants
-        case 2:  // DA
-            return modrm == 0xe9;                                // FUCOMPP
-        case 3:  // DB
-            return modrm == 0xe0 || modrm == 0xe1 || modrm == 0xe2 || modrm == 0xe3 || modrm == 0xe4;
-        case 4:  // DC: the same arithmetic into ST(i)
-            return (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8
-                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8
-                || (modrm & 0xf8) == 0xf0 || (modrm & 0xf8) == 0xf8;   // FDIVR, FDIV ST(i)
-        case 5:  // DD
-            return (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xd0 || (modrm & 0xf8) == 0xd8
-                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8;   // ... and FUCOM, FUCOMP
-        case 6:  // DE: the popping forms, and FCOMPP
-            return modrm == 0xd9
-                || (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8
-                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8
-                || (modrm & 0xf8) == 0xf0 || (modrm & 0xf8) == 0xf8;   // FDIVRP, FDIVP
-        case 7:  // DF
-            return modrm == 0xe0;                                // FNSTSW AX
-        default:
-            return false;
-    }
-}
-
 struct EscOperand {
     uint32_t offset = 0;
     int seg = fes_i386::SEG_DS;
@@ -2070,10 +2012,14 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         if (x87_fitted) {
             unsigned k = 0;
             while (k < 15 && is_prefix(code[k])) ++k;
-            if (k < 15 && (code[k] & 0xf8) == 0xd8 && !x87_built_form(code[k], code[k + 1])) {
+            if (k < 15 && (code[k] & 0xf8) == 0xd8 && !x87_built_form(code[k], code[k + 1], FES_X87_BACKEND == 1)) {
                 ++summary.unbuilt[UNBUILT_X87];
                 outcome.unbuilt = UNBUILT_X87;
                 return outcome;
+            }
+            if (k < 15 && code[k] == 0xdf && (code[k + 1] >> 6) != 3) {
+                if (((code[k + 1] >> 3) & 7) == 4) ++summary.x87_fbld;
+                if (((code[k + 1] >> 3) & 7) == 6) ++summary.x87_fbstp;
             }
         }
         if (const char *dump = std::getenv("FES_I386_DUMP")) {
@@ -11014,6 +10960,406 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
     return 0;
 }
 
+// ---- Packed decimal: FBLD and FBSTP (#1958), a suite of its own. ----
+// The x87 suite above keeps the programs it had, so its trace hash does not
+// move; everything for DF /4 and DF /6 is here (FES_I386_MODE=x87bcd).
+//
+// With the DE25 backend (FES_X87_BACKEND == 1), which builds the two forms,
+// the programs run through the CPU against the oracle's 387 with the 387's
+// state compared at every retirement. This is the only place the third
+// decode table is checked: the access shape in fes_i386_decode fails unsafe
+// -- a form missing from it runs and reads or writes the wrong bytes -- so
+// every operand here has ten distinct bytes and every store's neighbours are
+// compared. The forms are reached through 16-bit and 32-bit addressing.
+// Every exception is masked: this bench drives no IRQ 13, as the x87 suite
+// does not, so the unmasked cases are the unit bench's.
+//
+// With the DE10 backend (FES_X87_BACKEND == 0) neither form is built, and
+// the check is that the RTL itself stops at each as not built. lockstep()
+// cannot make that check: it reads x87_built_form and returns before
+// stepping the RTL, so it would pass whatever the RTL did. Each form is
+// therefore run on the RTL alone and must end in FAULT_UNIMPLEMENTED with
+// nothing retired, beside a control (FILD m64, DF /5, the same ESC byte)
+// that must retire -- so a stop is the form's, not the 387 being absent.
+int run_x87_bcd_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                      Summary &summary) {
+    struct Asm {
+        std::vector<uint8_t> b;
+        void op(std::initializer_list<uint8_t> bytes) { b.insert(b.end(), bytes); }
+        void w(uint16_t v) { b.push_back(uint8_t(v)); b.push_back(uint8_t(v >> 8)); }
+        void d(uint32_t v) { w(uint16_t(v)); w(uint16_t(v >> 16)); }
+        // [disp16]
+        void esc(uint8_t opcode, unsigned reg, uint16_t off) { b.push_back(opcode); b.push_back(uint8_t(reg << 3 | 6)); w(off); }
+        // [BX+SI+disp8]
+        void esc_bxsi(uint8_t opcode, unsigned reg, uint8_t d8) { op({opcode, uint8_t(reg << 3 | 0x40), d8}); }
+        // 67h: [disp32], and [EBX+disp8]
+        void esc32(uint8_t opcode, unsigned reg, uint32_t off) { op({0x67, opcode, uint8_t(reg << 3 | 5)}); d(off); }
+        void esc32_ebx(uint8_t opcode, unsigned reg, uint8_t d8) { op({0x67, opcode, uint8_t(reg << 3 | 0x43), d8}); }
+        void fbld(uint16_t off) { esc(0xdf, 4, off); }
+        void fbstp(uint16_t off) { esc(0xdf, 6, off); }
+        void fld80(uint16_t off) { esc(0xdb, 5, off); }
+        void fnstsw() { op({0xdf, 0xe0}); }
+        // FNSTSW AX, which puts the flags, C1 and TOP where every retirement
+        // compares them, then NOPs: the 387's whole state is compared only
+        // at a retirement the unit is idle at, and the NOPs are those.
+        void look() { fnstsw(); op({0x90, 0x90, 0x90}); }
+    };
+    constexpr uint32_t CODE = 0x1000, HANDLER = 0x1800, DS = 0x7000;
+    struct Operand { uint16_t at; std::vector<uint8_t> bytes; };
+    struct Case {
+        std::string label;
+        std::function<void(Asm &)> body;
+        std::vector<Operand> operands{};
+    };
+    auto bcd = [](const char *digits) {   // 20 hex digits, most significant first
+        std::vector<uint8_t> v(10);
+        for (int n = 0; n < 10; ++n) v[9 - n] = uint8_t(std::stoul(std::string(digits + 2 * n, 2), nullptr, 16));
+        return v;
+    };
+    auto ext = [](uint16_t se, uint64_t sig) {
+        std::vector<uint8_t> v(10);
+        for (int n = 0; n < 8; ++n) v[n] = uint8_t(sig >> (8 * n));
+        v[8] = uint8_t(se);
+        v[9] = uint8_t(se >> 8);
+        return v;
+    };
+    // The operands every case has. Each packed decimal operand's ten bytes
+    // differ from one another, so a read of the wrong width or at the wrong
+    // offset loads a different value.
+    const std::vector<Operand> common = {
+        {0x100, bcd("00123456789012345678")},
+        {0x110, bcd("80987654321098765432")},
+        {0x120, bcd("00000000000000000000")},
+        {0x130, bcd("80000000000000000000")},
+        {0x140, bcd("00999999999999999999")},
+        {0x150, bcd("7f102938475610293847")},   // junk in bits 78 to 72
+        {0x160, bcd("ff564738291056473829")},
+        {0x170, bcd("00a1b2c3d4e5f6789abc")},   // digits A to F: acc * 10 + nibble on both references
+        {0x180, bcd("80ffffffffffffffffff")},
+        {0x190, {0x7f, 0x03}}, {0x192, {0x7f, 0x07}}, {0x194, {0x7f, 0x0b}}, {0x196, {0x7f, 0x0f}},  // RC 0 to 3
+        {0x1a0, ext(0x3fff, 0xc000000000000000ull)},   // 1.5
+        {0x1b0, ext(0x4000, 0xa000000000000000ull)},   // 2.5
+        {0x1c0, ext(0xbffe, 0x8000000000000000ull)},   // -0.5
+        {0x1d0, ext(0xbffd, 0x8000000000000000ull)},   // -0.25
+        {0x1e0, ext(0x403a, 0xde0b6b3a763ffff0ull)},   // 999999999999999999
+        {0x1f0, ext(0x403a, 0xde0b6b3a763fffe8ull)},   // 999999999999999998.5
+        {0x200, ext(0x4016, 0xbc614ec000000000ull)},   // 12345678.75
+        {0x210, ext(0x8001, 0x8000000000000000ull)},   // the smallest normal, negative
+        {0x220, ext(0x403a, 0xde0b6b3a76400000ull)},   // 10^18: out of range
+        {0x230, ext(0x7fff, 0x8000000000000000ull)},   // infinity
+        {0x240, ext(0xffff, 0xc000000000000001ull)},   // a quiet NaN
+        {0x250, ext(0xc062, 0xc9f2c9cd04674edfull)},   // -10^30
+        {0x260, ext(0x403a, 0xde0b6b3a763ffff8ull)},   // 999999999999999999.5
+        {0x270, ext(0x0000, 0x0000000012345678ull)},   // a denormal
+        {0x280, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xc0}},   // f64 -2.25
+        {0x288, {0x00, 0x00, 0xc0, 0x3f}},                           // f32 1.5
+        {0x290, {0x21, 0x43, 0x65, 0x87, 0x09, 0x00, 0x00, 0x00}},   // i64
+    };
+    std::vector<Case> cases = {
+        {"fbld-forms", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            for (uint16_t at : {0x100, 0x110, 0x120, 0x130, 0x140, 0x150, 0x160}) {
+                a.fbld(at);
+                a.op({0xd9, 0xe5});                                // FXAM
+                a.look();
+            }
+        }},
+        {"fbld-invalid-digits", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.fbld(0x170);
+            a.fbld(0x180);
+            a.look();
+        }},
+        {"fbld-overflow", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            for (int n = 0; n < 8; ++n) a.op({0xd9, 0xe8});         // eight FLD1: ST(7) is in use
+            a.fbld(0x100);                                         // a masked stack overflow
+            a.look();
+            a.fbld(0x130);                                         // ... and of a negative zero
+            a.look();
+        }},
+        {"fbstp-invalid", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            uint16_t dst = 0x300;
+            for (uint16_t at : {0x220, 0x230, 0x240, 0x250}) {
+                a.op({0xd9, 0xe8});                                // FLD1 beneath, so the pop shows
+                a.fld80(at);
+                a.fbstp(dst);
+                dst = uint16_t(dst + 0x10);
+                a.look();
+                a.op({0xd9, 0xe5});                                // FXAM of what the pop exposed
+            }
+            a.op({0xdb, 0xe3});
+            a.fbstp(dst);                                          // an empty ST(0): the stack fault
+            a.look();
+            a.op({0xd9, 0xe8});
+            a.fld80(0x260);                                        // rounds up to 10^18 to nearest
+            a.fbstp(uint16_t(dst + 0x10));
+            a.look();
+        }},
+        {"addr16-bx-si", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.op({0xbb}); a.w(0x0100);                             // MOV BX, 100h
+            a.op({0xbe}); a.w(0x0008);                             // MOV SI, 8
+            a.esc_bxsi(0xdf, 4, 0x08);                             // FBLD [BX+SI+8]: 110h
+            a.esc_bxsi(0xdf, 4, 0x38);                             // FBLD [BX+SI+38h]: 140h
+            a.op({0xbb}); a.w(0x0300);
+            a.esc_bxsi(0xdf, 6, 0x18);                             // FBSTP [BX+SI+18h]: 320h
+            a.esc_bxsi(0xdf, 6, 0x48);                             // FBSTP: 350h
+            a.look();
+        }},
+        {"addr32", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.op({0x66, 0xbb}); a.d(0x00000100);                   // MOV EBX, 100h
+            a.esc32_ebx(0xdf, 4, 0x10);                            // FBLD [EBX+10h]: 110h
+            a.esc32(0xdf, 4, 0x00000100);                          // FBLD [100h]
+            a.op({0x66, 0xbb}); a.d(0x00000300);
+            a.esc32_ebx(0xdf, 6, 0x20);                            // FBSTP [EBX+20h]: 320h
+            a.esc32(0xdf, 6, 0x00000340);                          // FBSTP [340h]
+            a.look();
+        }},
+        {"roundtrip-in-flight", [](Asm &a) {
+            // No instruction between the ESCs, so each waits in D while the
+            // one before it finishes: a load read by a store, a store read
+            // back by a load, two loads and two stores running.
+            a.op({0xdb, 0xe3});
+            a.fbld(0x100);
+            a.fbstp(0x300);
+            a.fbld(0x300);
+            a.fbstp(0x310);
+            a.fbld(0x140);                                         // 18 nines, then
+            a.fbld(0x130);                                         // a negative zero
+            a.fbld(0x110);
+            a.op({0xde, 0xc1});                                    // FADDP ST(1),ST
+            a.fbstp(0x320);
+            a.fbstp(0x330);                                        // the zero
+            a.fbstp(0x340);                                        // the nines
+            a.fnstsw();
+        }},
+        {"after-other-forms", [](Asm &a) {
+            // Each new form after a form that leaves working state behind.
+            a.op({0xdb, 0xe3});
+            a.esc(0xdd, 0, 0x280);                                 // FLD m64
+            a.esc(0xd9, 0, 0x288);                                 // FLD m32
+            a.op({0xd8, 0xf1});                                    // FDIV ST,ST(1)
+            a.fbstp(0x300);
+            a.op({0xd9, 0xe1});                                    // FABS
+            a.op({0xd9, 0xfa});                                    // FSQRT
+            a.fbld(0x110);
+            a.esc(0xdf, 2, 0x360);                                 // FIST m16 (out of range: invalid)
+            a.fbstp(0x310);
+            a.fld80(0x270);                                        // a denormal
+            a.fbstp(0x320);
+            a.fbld(0x100);
+            a.esc(0xdf, 7, 0x368);                                 // FISTP m64
+            a.esc(0xdf, 5, 0x290);                                 // FILD m64
+            a.fbld(0x150);
+            a.op({0xd8, 0xc9});                                    // FMUL ST,ST(1)
+            a.fbstp(0x330);
+            a.fbstp(0x340);
+            a.fnstsw();
+        }},
+    };
+    // FBSTP under each rounding mode: the control word, then stores whose
+    // results the modes round apart, and each read back with FBLD.
+    for (unsigned rc = 0; rc < 4; ++rc) {
+        cases.push_back({"fbstp-rc" + std::to_string(rc), [rc](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 5, uint16_t(0x190 + 2 * rc));              // FLDCW
+            uint16_t dst = 0x300;
+            for (uint16_t at : {0x1a0, 0x1b0, 0x1c0, 0x1d0, 0x1e0, 0x1f0, 0x200, 0x210, 0x260}) {
+                a.fld80(at);
+                a.fbstp(dst);
+                a.look();
+                a.fbld(dst);
+                a.op({0xdd, 0xd8});                                // FSTP ST(0), to keep the stack short
+                dst = uint16_t(dst + 0x10);
+            }
+        }});
+    }
+    // Seeded programs: packed decimal loads of random digits, loads of
+    // random finite values across the exponents 18 digits span, and stores
+    // under a random rounding mode, with nothing between the ESCs.
+    std::mt19937 random(0x19582026u);
+    constexpr unsigned RANDOM_CASES = 16;
+    for (unsigned n = 0; n < RANDOM_CASES; ++n) {
+        std::vector<Operand> operands;
+        for (unsigned k = 0; k < 4; ++k) {
+            std::vector<uint8_t> digits(10);
+            for (int i = 0; i < 9; ++i) digits[i] = uint8_t((random() % 10) << 4 | (random() % 10));
+            const unsigned keep = 1 + random() % 9;
+            for (unsigned i = keep; i < 9; ++i) digits[i] = 0;
+            digits[9] = uint8_t(random() & 0x80);
+            operands.push_back({uint16_t(0x2a0 + 0x10 * k), digits});
+            const uint16_t se = uint16_t((0x3fff - 3 + random() % 64) | (random() & 1) << 15);
+            const uint64_t sig = (uint64_t(random()) << 32 | random()) | 1ull << 63;
+            operands.push_back({uint16_t(0x2e0 + 0x10 * k), ext(se, sig)});
+        }
+        std::vector<std::array<unsigned, 2>> ops;
+        unsigned depth = 0;
+        for (unsigned k = 0; k < 14; ++k) {
+            unsigned kind = random() % 5;   // 0 FBLD, 1 FLD m80, 2 or 3 FBSTP, 4 FCHS
+            if (depth == 0 && kind > 1) kind = random() % 2;
+            if (depth >= 6 && kind < 2) kind = 2;
+            ops.push_back({kind, unsigned(random() % 4)});
+            depth = kind < 2 ? depth + 1 : kind < 4 ? depth - 1 : depth;
+        }
+        const unsigned rc = random() % 4;
+        cases.push_back({"random-" + std::to_string(n), [ops, rc](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 5, uint16_t(0x190 + 2 * rc));
+            uint16_t dst = 0x300;
+            for (const auto &o : ops) {
+                if (o[0] == 0) a.fbld(uint16_t(0x2a0 + 0x10 * o[1]));
+                else if (o[0] == 1) a.fld80(uint16_t(0x2e0 + 0x10 * o[1]));
+                else if (o[0] == 4) a.op({0xd9, 0xe0});
+                else {
+                    a.fbstp(dst);
+                    dst = uint16_t(dst + 0x10);
+                }
+            }
+            a.fnstsw();
+        }, operands});
+    }
+
+    const bool was_fitted = x87_fitted;
+    x87_fitted = true;
+    oracle.set_at_coprocessor(true);
+    State base;
+    for (int k = 0; k < 6; ++k) base.seg[k] = fes_i386::real_mode_segment(0);
+    base.seg[fes_i386::SEG_DS] = fes_i386::real_mode_segment(uint16_t(DS >> 4));
+    base.eip = CODE;
+    base.gpr[fes_i386::REG_ESP] = 0x0f00;
+    base.cr0 = 0x7ffffff0 | 0x10;   // ET, as with a 387 fitted (run_x87_cases)
+
+    if (FES_X87_BACKEND != 1) {
+        // The DE10 backend: the RTL alone, which must stop at each form.
+        struct Stop { const char *label; uint8_t reg; bool built; };
+        const Stop stops[] = {{"de10-fbld-not-built", 4, false}, {"de10-fbstp-not-built", 6, false},
+                              {"de10-control-fild-m64-retires", 5, true}};
+        for (const Stop &stop : stops) {
+            const uint8_t code[] = {0xdf, uint8_t(stop.reg << 3 | 6), 0x00, 0x01, 0xf4};   // DF /r [0100h]; HLT
+            std::vector<uint32_t> poked;
+            for (size_t i = 0; i < sizeof code; ++i) { rtl.poke(CODE + uint32_t(i), code[i]); poked.push_back(CODE + uint32_t(i)); }
+            for (const Operand &o : common)
+                for (unsigned i = 0; i < o.bytes.size(); ++i) { rtl.poke(DS + o.at + i, o.bytes[i]); poked.push_back(DS + o.at + i); }
+            rtl.start(base);
+            const Rtl::Event event = rtl.next();
+            const bool nothing_retired = rtl.state().eip == CODE;
+            ++summary.runs;
+            summary.cycles += rtl.cycles;
+            rtl.cycles = 0;
+            const bool stopped = event == Rtl::Event::Unimplemented && nothing_retired;
+            const bool retired = event == Rtl::Event::Retired && !rtl.top.trace_exception && !nothing_retired;
+            if (stop.built ? retired : stopped) {
+                ++summary.passed;
+                if (!stop.built) ++summary.x87_bcd_not_built;
+            } else {
+                ++summary.failed;
+                std::cout << "FAIL x87bcd:" << stop.label << ' '
+                          << (event == Rtl::Event::Unimplemented ? "stopped-as-not-built"
+                              : event == Rtl::Event::Retired ? (rtl.top.trace_exception ? "exception" : "retired")
+                              : event == Rtl::Event::Shutdown ? "shutdown" : "timeout")
+                          << " 1 0\n";
+            }
+            for (uint32_t address : poked) rtl.poke(address, 0);
+            for (uint32_t address : rtl.written)
+                if (address < RAM_BYTES) rtl.poke(address, 0);
+            rtl.written.clear();
+        }
+        x87_fitted = was_fitted;
+        oracle.set_at_coprocessor(was_fitted);
+        return 0;
+    }
+
+    for (const Case &c : cases) {
+        Asm a;
+        // run_x87_cases' prologue: every register written and emptied, so
+        // both sides start with the same register contents.
+        a.op({0xdb, 0xe3});
+        for (int n = 0; n < 8; ++n) a.esc(0xd9, 0, 0x288);
+        a.op({0xdb, 0xe3});
+        x87_compare_from = CODE + uint32_t(a.b.size());
+        c.body(a);
+        a.op({0xf4});
+        std::vector<std::pair<uint32_t, uint8_t>> image;
+        for (size_t i = 0; i < a.b.size(); ++i) image.emplace_back(CODE + uint32_t(i), a.b[i]);
+        for (unsigned v = 0; v < 32; ++v) {
+            image.emplace_back(v * 4, uint8_t(HANDLER)); image.emplace_back(v * 4 + 1, uint8_t(HANDLER >> 8));
+            image.emplace_back(v * 4 + 2, 0); image.emplace_back(v * 4 + 3, 0);
+        }
+        image.emplace_back(HANDLER, 0xf4);
+        for (const std::vector<Operand> *set : {&common, &c.operands})
+            for (const Operand &o : *set)
+                for (unsigned i = 0; i < o.bytes.size(); ++i) image.emplace_back(DS + o.at + i, o.bytes[i]);
+        // The stores' destinations and their neighbours, which a store of
+        // the wrong width or at the wrong offset would leave differing.
+        for (uint32_t i = 0x300; i < 0x460; ++i) image.emplace_back(DS + i, 0xcc);
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, value);
+            oracle.invalidate(address, 1);
+        }
+        oracle.reset();
+        oracle.set_state(base);
+        rtl.start(base);
+        Mismatches out;
+        Outcome outcome;
+        try {
+            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 400, true, summary, out,
+                               CODE + uint32_t(a.b.size()));
+        } catch (const std::exception &error) {
+            out.add(std::string(c.label) + ".oracle-error:" + error.what(), 0, 1);
+            oracle.reset();
+        }
+        if (!outcome.halted) out.add(std::string(c.label) + ".halt", 1, 0);
+        if (outcome.exception >= 0) out.add(std::string(c.label) + ".exception", 0xff, uint32_t(outcome.exception));
+        if (outcome.unbuilt >= 0) out.add(std::string(c.label) + ".unbuilt", 0, uint32_t(outcome.unbuilt));
+        rtl.settle_x87();
+        const fes_i386::X87State want = oracle.x87_state(), got = rtl.x87_state();
+        for (const std::string &field : fes_i386::x87_differences(want, got))
+            out.add(std::string(c.label) + ".x87." + field, 0, 1);
+        if (!out.items.empty()) {
+            auto show = [](const char *side, const fes_i386::X87State &s) {
+                std::cerr << "  " << side << " cw " << hex(s.control) << " sw " << hex(s.status)
+                          << " tw " << hex(s.tag) << " op " << hex(s.opcode)
+                          << " ip " << hex(s.pointers.ip) << " dp " << hex(s.pointers.dp);
+                for (int n = 0; n < 8; ++n)
+                    std::cerr << " r" << n << ' ' << hex(s.r[n].sign_exponent) << ':' << hex(s.r[n].significand);
+                std::cerr << '\n';
+            };
+            std::cerr << "x87bcd:" << c.label << " states (eip " << hex(rtl.state().eip) << ", halted "
+                      << outcome.halted << ", unbuilt " << outcome.unbuilt << ")\n";
+            show("oracle", want);
+            show("rtl   ", got);
+        }
+        end_run(bus, rtl, outcome.halted, out);
+        summary.cycles += rtl.cycles;
+        rtl.cycles = 0;
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        for (uint32_t address : rtl.written) {
+            if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        rtl.written.clear();
+        ++summary.runs;
+        if (out.items.empty()) {
+            ++summary.passed;
+        } else {
+            ++summary.failed;
+            std::cout << "FAIL x87bcd:" << c.label;
+            for (const auto &item : out.items) std::cout << ' ' << item;
+            std::cout << '\n';
+        }
+    }
+    x87_fitted = was_fitted;
+    x87_compare_from = 0;
+    oracle.set_at_coprocessor(was_fitted);
+    return 0;
+}
+
 // 0000:1000 in real mode with a GDT at 2000h (LGDT's pointer at 2100h):
 //   08h code, 16-bit, base 0, 64K      18h data, base 0, 64K
 //   10h data, base 0, 4 GiB (G)        20h code, 16-bit, base 0, 4 GiB (G)
@@ -11923,6 +12269,8 @@ int main(int argc, char **argv) {
         run_no387_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "x87") {
         run_x87_cases(*oracle, bus, rtl, entries, summary);
+    } else if (mode == "x87bcd") {
+        run_x87_bcd_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "test386") {
         return run_test386(*oracle, rtl);
     } else if (mode == "unbuilt") {
@@ -11987,6 +12335,7 @@ int main(int argc, char **argv) {
                 "\"iret_save_rule\": %llu, \"pm_deliveries\": {%s}, "
                 "\"unbuilt_stops\": {%s}, \"pm_kinds\": {%s}, \"cs_limit\": {%s}, "
                 "\"no387_rule\": %llu, \"no387_skips\": %llu, \"x87_compared\": %llu, "
+                "\"x87_bcd_forms\": {\"fbld\": %llu, \"fbstp\": %llu, \"not_built\": %llu}, "
                 "\"dr6_rule\": %llu, \"db_rf_rule\": %llu, "
                 "\"debug_kinds\": {%s}, \"x87_backend_offered\": [%llu, %llu, %llu, %llu, %llu, %llu, %llu, %llu], \"x87_backend_taken\": [%llu, %llu, %llu, %llu, %llu, %llu, %llu, %llu]}\n",
                 mode.c_str(), (unsigned long long)seed, latency ? "true" : "false",
@@ -12024,6 +12373,8 @@ int main(int argc, char **argv) {
                 unbuilt.c_str(), pm_kinds.c_str(), cs_limit.c_str(),
                 (unsigned long long)summary.no387_rule,
                 (unsigned long long)summary.no387_skips, (unsigned long long)summary.x87_compared,
+                (unsigned long long)summary.x87_fbld, (unsigned long long)summary.x87_fbstp,
+                (unsigned long long)summary.x87_bcd_not_built,
                 (unsigned long long)summary.dr6_rule,
                 (unsigned long long)summary.db_rf_rule, named(summary.debug_kinds).c_str(),
                 (unsigned long long)x87_backend_offered[0],

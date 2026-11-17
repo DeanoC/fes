@@ -544,6 +544,7 @@ def label_fields(entries: list[dict], stem: str, test: vectors.MooTest) -> tuple
 # headers' directories, and this runner.
 def tested_sources() -> list[Path]:
     return sorted({*(RTL / path for path in CPU_RTL), *SIM.glob('*.cpp'), *SIM.glob('*.h'), *SIM.glob('*.toml'),
+                   SIM / 'x87_built_tb_top.sv',
                    *DDR_MODEL.glob('*.h'), Path(__file__).resolve(), Path(yosys_netlist.__file__).resolve()})
 
 
@@ -588,7 +589,11 @@ def verilate(verilator: i386_verilator.LockedVerilator, linked: list[Path], jobs
                *(f'-G{name}={value}' for name, value in sorted((parameters or {}).items()) if not yosys),
                # -D, not +define+: the guard is in the C++ testbench, not the RTL. A
                # flattened netlist has no hierarchy for the x87's backend counters.
+               # FES_X87_BACKEND tells the bench which x87 forms this build
+               # runs (x87_built_form.h); a netlist takes no -G, so it is a -D
+               # on both builds.
                '-CFLAGS', f'-std=c++17 -O2 -I{SIM} -I{DDR_MODEL}'
+                         + f" -DFES_X87_BACKEND={(parameters or {}).get('X87_BACKEND', 0)}"
                          + (' -DFES_I386_NETLIST' if yosys else ''), '-LDFLAGS', '-pthread',
                *map(str, design), str(SIM / 'lockstep_tb.cpp'), *map(str, linked)]
     log = output / 'build.log'
@@ -617,6 +622,62 @@ def run_biu_dma_test(verilator: i386_verilator.LockedVerilator, jobs: int) -> di
     result = subprocess.run([str(output / 'Vfes_i386_biu')], cwd=ROOT, capture_output=True, text=True)
     (output / 'run.log').write_text(result.stdout + result.stderr)
     return {'exit': result.returncode, 'output': result.stdout.strip(), 'error': result.stderr.strip()}
+
+
+def run_x87_built_forms(verilator: i386_verilator.LockedVerilator, jobs: int) -> dict:
+    """Compare the bench's copy of the x87 built set (sim/i386/x87_built_form.h)
+    with the RTL's x87_decode and x87_format over all 2^11 x87 opcodes at both
+    X87_BACKEND values, and report the count of built forms per backend."""
+    output = OUTPUT / 'x87-built'
+    output.mkdir(parents=True, exist_ok=True)
+    top = 'x87_built_tb_top'
+    command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', top,
+               '-Wall', '-Wno-UNUSEDSIGNAL', '--Mdir', str(output), '-CFLAGS', f'-std=c++17 -O2 -I{SIM}',
+               str(RTL / 'fes_i386_pkg.sv'), str(SIM / f'{top}.sv'), str(SIM / 'x87_built_tb.cpp')]
+    log = output / 'build.log'
+    with log.open('w') as stream:
+        result = subprocess.run(command, cwd=ROOT, env=verilator.environment(), stdout=stream,
+                                stderr=subprocess.STDOUT)
+    if result.returncode:
+        raise LockstepError(f'x87 built-form comparison build failed; see {log}\n'
+                            + '\n'.join(log.read_text().splitlines()[-30:]))
+    result = subprocess.run([str(output / f'V{top}')], cwd=ROOT, capture_output=True, text=True)
+    lines = result.stdout.splitlines()
+    summary = next((line.split() for line in lines if line.startswith('BUILT ')), None)
+    if summary is None or result.returncode not in (0, 1):
+        raise LockstepError(f'x87 built-form comparison exited {result.returncode} with no summary\n{result.stderr[-2000:]}')
+    return {'opcodes': 2048, 'built': {'de10': int(summary[2]), 'de25': int(summary[4])},
+            'mismatches': [line for line in lines if line.startswith('MISMATCH ')], 'output': lines[-1]}
+
+
+# The packed decimal suite's cases by backend: with the DE25's, eight directed
+# programs, one a rounding mode and sixteen seeded; with the DE10's, the two
+# forms stopping as not built and the control that retires.
+X87_BCD_CASES = {'de10': 3, 'de25': 8 + 4 + 16}
+
+
+def run_x87_bcd(testbench: str, env: dict, backend: str) -> dict:
+    """The packed decimal cases, FBLD and FBSTP (#1958; lockstep_tb.cpp's
+    run_x87_bcd_cases), the i386dx+387 identity on. They are a suite of their
+    own so that the x87 suite's programs, and so its trace hash, are what
+    they were. With the DE25 backend, which builds the two forms, they run
+    through the CPU against the oracle's 387 with memory operands a wrong
+    access shape would misread; with the DE10's, which does not, the RTL
+    alone must stop at each as not built. The bench knows the backend from
+    -DFES_X87_BACKEND."""
+    env = dict(env, FES_I386_MODE='x87bcd', FES_I386_LATENCY='1')
+    result = subprocess.run([testbench], env=env, capture_output=True, text=True)
+    if result.returncode not in (0, 1):
+        raise LockstepError(f'x87 BCD cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
+    summary, failures = parse_output(result.stdout)
+    if summary['runs'] != X87_BCD_CASES[backend]:
+        raise LockstepError(f'x87 BCD cases: testbench ran {summary["runs"]} of {X87_BCD_CASES[backend]} cases')
+    # The DE10 backend's check is that the RTL stopped at both forms: a run
+    # that reports no failure without having seen the two stops checked nothing.
+    stops = summary['x87_bcd_forms']['not_built']
+    if stops != (2 if backend == 'de10' else 0):
+        failures.append(f'FAIL x87bcd: {stops} forms stopped as not built with the {backend} backend')
+    return {'summary': summary, 'failures': failures}
 
 
 # What a governed run must share with max's (--same-as): every count but
@@ -812,6 +873,7 @@ def main() -> int:
             report['netlist'] = yosys_netlist.report_record(
                 ROOT, yosys, args.gpu_router, Path(testbench).parent / f'{TOP}.netlist.v')
         biu_dma = run_biu_dma_test(verilator, args.jobs)
+        x87_built = run_x87_built_forms(verilator, args.jobs)
         env = dict(os.environ, FES_I386_DIVERGENCES=str(table), FES_I386_LATENCY='0' if args.no_latency else '1',
                    FES_I386_PRESET=str(args.preset))
         reset_store = run_reset_store(testbench, env)
@@ -821,6 +883,7 @@ def main() -> int:
         paging_cases = run_paging(testbench, env)
         no387 = run_no387(testbench, env)
         x87 = run_x87(testbench, env)
+        x87_bcd = run_x87_bcd(testbench, env, args.backend)
         memory = run_memory(testbench, env)
 
         corpus = args.corpus or vectors.OUTPUT / 'corpus' / vectors.REVISION
@@ -948,7 +1011,14 @@ def main() -> int:
     random_failures += held
     reset_store_failures = reset_store['failures']
     directed_failures = (directed['failures'] + unreal['failures'] + pmode_cases['failures'] + paging_cases['failures']
-                         + no387['failures'] + x87['failures'])
+                         + no387['failures'] + x87['failures'] + x87_bcd['failures'])
+    directed_failures += [f'FAIL x87 built forms: {line}' for line in x87_built['mismatches']]
+    # A form claimed as built whose count is zero is a hole in the gate
+    # (#1958's method, pass rule 3): the DE25 run must reach both.
+    bcd_forms = x87_bcd['summary'].get('x87_bcd_forms', {})
+    if args.backend == 'de25':
+        directed_failures += [f'FAIL x87 BCD cases: no {name} was stepped' for name in ('fbld', 'fbstp')
+                              if not bcd_forms.get(name)]
     # #1730's [[lockstep]] rules (divergences.toml umov, mov-tr, icebp-gd):
     # each must still be taken by its directed cases, or its entry no longer
     # matches.
@@ -969,6 +1039,8 @@ def main() -> int:
         'paging_cases': paging_cases,
         'no387_cases': no387,
         'x87_cases': x87,
+        'x87_bcd_cases': x87_bcd,
+        'x87_built_forms': x87_built,
         'memory_cases': memory,
         'governor': {'preset': args.preset},
         'corpus': {'revision': vectors.REVISION, 'files': len(corpus_results), 'totals': dict(totals),
@@ -1102,6 +1174,13 @@ def main() -> int:
           f"({paging_cases['summary']['nested']} faults in a delivery delivered)")
     print(f"x87 cases (the identity on): {x87['summary']['passed']} pass, {x87['summary']['failed']} fail, "
           f"{x87['summary'].get('x87_compared', 0)} retirements with the 387's state compared")
+    print(f"x87 BCD cases ({args.backend}): {x87_bcd['summary']['passed']} pass, {x87_bcd['summary']['failed']} fail "
+          f"(FBLD stepped {bcd_forms.get('fbld', 0)}, FBSTP stepped {bcd_forms.get('fbstp', 0)}, "
+          f"stopped as not built {bcd_forms.get('not_built', 0)}, "
+          f"{x87_bcd['summary'].get('x87_compared', 0)} retirements with the 387's state compared)")
+    print(f"x87 built forms, the bench's copy against the RTL's over {x87_built['opcodes']} opcodes: "
+          f"{x87_built['built']['de10']} built with the DE10 backend, {x87_built['built']['de25']} with the DE25's, "
+          f"{len(x87_built['mismatches'])} mismatches")
     print(f"no-387 cases: {no387['summary']['passed']} pass, {no387['summary']['failed']} fail "
           f"({no387['summary']['no387_rule']} ESC instructions under the no-387 rule, "
           f"{no387['summary']['no387_skips']} of them not stepped on the oracle)")
