@@ -1,0 +1,163 @@
+--- a/fes_i386_pkg.sv
++++ b/fes_i386_pkg.sv
+@@ -596,6 +596,7 @@
+         logic       rep;
+         logic       ea3;
+         logic       ref_test_excluded;  // unmeasured TEST encoding: 32-bit code or any prefix
++        logic       ref_shift_nonzero;  // resolved 5-bit shift count at EX
+         logic [5:0] prefix286;  // diagnostic reference prefix clocks
+     } gov_t;
+ 
+--- a/fes_i386_cpu.sv
++++ b/fes_i386_cpu.sv
+@@ -758,6 +758,7 @@
+                         rm_reg: q_modrm[7:6] == 2'b11, o32: q_opsize32, rep: q.prefixes.rep != 2'b00,
+                         ea3: am_has_base && am_has_index && q_modrm[7] != q_modrm[6] && !q_direct,
+                         ref_test_excluded: GOV_REFERENCE_DIAGNOSTIC && (code32 || q.prefix_count != 4'd0),
++                        ref_shift_nonzero: 1'b0,
+                         prefix286: q.prefix286};
+     assign dc_q.seq = q_seq;
+     assign dc_q.step = 3'd0;
+@@ -2690,6 +2691,8 @@
+     end
+     always_comb begin
+         ex_out = ex_s;
++        if (GOV_REFERENCE_DIAGNOSTIC && ex_s.uop.cls == fes_i386_pkg::UOP_SHIFT)
++            ex_out.gov.ref_shift_nonzero = ex_s.exc.byp_c ? wb_s.result[4:0] != 5'd0 : ex_s.exc.sh.count != 5'd0;
+         ex_out.result = ex_result;
+         ex_out.eflags = ex_flags_out;
+         // An I/O uop's port (b) and OUT's data or IN's merge (a) are used at
+@@ -3181,6 +3184,9 @@
+         .gov(wb_s.gov), .ilen(wb_s.ilen), .redirect(wb_s.taken && wb_s.uop.rep_stop == 2'd0),
+         .abandon(exc_take || int_go || tsw_go), .replay(rp_go),
+         .accesses(gov_accesses), .dword(wb_s.uop.mem.bytes[2] || wb_s.uop.mem.bytes[3]),
++        .ordinary_ram(wb_s.uop.mem.kind == fes_i386_pkg::MEM_NONE ||
++                      wb_s.uop.mem.kind == fes_i386_pkg::MEM_RMW && !wb_s.uop.st2 &&
++                      wb_at0 == fes_i386_pkg::ATTR_RAM && (!wb_cross || wb_at1 == fes_i386_pkg::ATTR_RAM)),
+         .io(wb_commit && wb_s.uop.io != 2'd0), .io_port, .io_size,
+         .mmio(gov_mmio), .mmio_halves(halves(wb_s.maddr[0], wb_s.uop.mem.bytes)),
+         .mmio_st2(gov_mmio_st2), .mmio_st2_halves(halves(wb_s.target[0], wb_s.uop.mem.bytes)),
+--- a/fes_i386_governor.sv
++++ b/fes_i386_governor.sv
+@@ -66,6 +66,7 @@
+     input  logic               replay,
+     input  logic [1:0]         accesses,
+     input  logic               dword,
++    input  logic               ordinary_ram,  // register or RMW wholly in RAM
+     // ... its I/O access (io: the port and size, 0 a byte, 1 a word, 2 a
+     // dword), and which of its memory accesses are MMIO: mmio of those at its
+     // operand (a read-modify-write's two), mmio_st2 its st2 store, with the
+@@ -123,7 +124,7 @@
+ 
+     // WB's retirement, as it happens.
+     logic                  s1_boundary, s1_eoi, s1_element, s1_taken, s1_dword;
+-    logic                  s1_redirect, s1_abandon, s1_replay;
++    logic                  s1_redirect, s1_abandon, s1_replay, s1_ordinary_ram;
+     logic [3:0]            s1_ilen;
+     fes_i386_pkg::gov_t    s1_gov;
+     logic [1:0]            s1_accesses;
+@@ -143,6 +144,7 @@
+         s1_gov <= gov;
+         s1_accesses <= on ? accesses : 2'd0;
+         s1_dword <= dword;
++        s1_ordinary_ram <= ordinary_ram;
+         s1_io <= on && io;
+         s1_io_port <= io_port;
+         s1_io_size <= io_size;
+@@ -179,7 +181,7 @@
+                + (s1_mmio_st2 ? {2'd0, mmio_extra(s1_mmio_st2_halves, isa_vga, local_bus)} : 13'd0);
+ 
+     logic        s2_ends, s2_column1, s2_element, s2_ea;
+-    logic        s2_boundary, s2_redirect, s2_abandon;
++    logic        s2_boundary, s2_redirect, s2_abandon, s2_ordinary_ram;
+     logic [3:0]  s2_ilen;
+     fes_i386_pkg::gov_t s2_gov;
+     logic [7:0] data_bus_acc, s2_data_bus;
+@@ -198,6 +200,7 @@
+         s2_redirect <= s1_redirect && s1_boundary;
+         s2_abandon <= s1_abandon;
+         s2_ilen <= s1_ilen;
++        s2_ordinary_ram <= s1_ordinary_ram;
+         s2_gov <= s1_gov;
+         s2_data_bus <= data_bus_sum > 10'd255 ? 8'hff : data_bus_sum[7:0];
+         if (reset || s1_abandon || s1_replay || !on || s1_boundary) data_bus_acc <= 8'd0;
+@@ -216,6 +219,12 @@
+     logic [7:0] reference_element;
+     logic [7:0] reference_chunk_clocks;
+     assign reference_on = REFERENCE_DIAGNOSTIC && on && p_id == 3'd1;
++    // Reference leaves its fetch queue unchanged for zero CL-count group 2.
++    // Restrict this experiment to known RAM or register operands.
++    logic reference_zero_shift;
++    assign reference_zero_shift = reference_on && s2_boundary && s2_ends && !s2_gov.two &&
++        !s2_gov.o32 && !s2_gov.ref_test_excluded && !s2_gov.ea3 && s2_ordinary_ram &&
++        !s2_gov.ref_shift_nonzero && (s2_gov.op == 8'hd2 || s2_gov.op == 8'hd3);
+     // This emulator uses a bounded execution budget for each ordinary REP
+     // string chunk. CMPS is decoded per element, not by this chunk mechanism.
+     assign reference_chunkable = s2_gov.rep && !s2_gov.two &&
+@@ -249,6 +258,36 @@
+             // effective 16-bit operands. Other encoding and memory contexts
+             // remain diagnostic and require separate validation.
+             if (!s2_gov.o32) begin
++                // Measured-reference experiment, limited to unprefixed 16-bit forms.
++                if (!s2_gov.ref_test_excluded) begin
++                    // Count zero keeps the prior diagnostic path pending validation.
++                    if (!s2_gov.ea3 && s2_gov.ref_shift_nonzero &&
++                        (s2_gov.op == 8'hc0 || s2_gov.op == 8'hc1 ||
++                         (s2_gov.op >= 8'hd0 && s2_gov.op <= 8'hd3))) begin
++                        if (s2_gov.mreg == 3'd2 || s2_gov.mreg == 3'd3)
++                            execution_clocks = s2_gov.rm_reg ? 9'd9 : 9'd10;
++                        else execution_clocks = s2_gov.rm_reg ? 9'd3 : 9'd7;
++                    end
++                    if (s2_gov.op == 8'h60) execution_clocks = 9'd18;
++                    if (s2_gov.op == 8'h61) execution_clocks = 9'd24;
++                    if (s2_gov.op == 8'h8d) execution_clocks = 9'd2;
++                    if (s2_gov.op == 8'hf6) begin
++                        case (s2_gov.mreg)
++                            3'd4: execution_clocks = 9'd13;
++                            3'd5, 3'd6: execution_clocks = 9'd14;
++                            3'd7: execution_clocks = 9'd19;
++                            default: ;
++                        endcase
++                    end
++                    if (s2_gov.op == 8'hf7) begin
++                        case (s2_gov.mreg)
++                            3'd4: execution_clocks = 9'd21;
++                            3'd5, 3'd6: execution_clocks = 9'd22;
++                            3'd7: execution_clocks = 9'd27;
++                            default: ;
++                        endcase
++                    end
++                end
+                 if (!s2_gov.ref_test_excluded && !s2_gov.rm_reg && (s2_gov.op == 8'h84 || s2_gov.op == 8'h85 ||
+                     ((s2_gov.op == 8'hf6 || s2_gov.op == 8'hf7) && s2_gov.mreg == 3'd0)))
+                     execution_clocks = 9'd5;
+@@ -277,6 +316,7 @@
+                 (s2_gov.op == 8'h80 || s2_gov.op == 8'h81 || s2_gov.op == 8'h82 || s2_gov.op == 8'h83))
+                 execution_clocks = 9'd7;
+         end
++        if (reference_zero_shift) execution_clocks = 9'd0;
+         if (s2_element) execution_clocks = execution_clocks + {1'b0, reference_element};
+     end
+     always_comb begin
+@@ -325,10 +365,10 @@
+             next_queue = spare >= 8 ? 6'd16 : present + (6'(spare) << 1);
+             if (next_queue > 16) next_queue = 16;
+         end
+-        assign reference_fetch = reference_on && s2_boundary ? words << 1 : 0;
++        assign reference_fetch = reference_on && s2_boundary && !reference_zero_shift ? words << 1 : 0;
+         always_ff @(posedge clk) begin
+             if (reset || s2_abandon || !reference_on) begin queue_bytes <= 0; spare_odd <= 0; end
+-            else if (s2_boundary) begin
++            else if (s2_boundary && !reference_zero_shift) begin
+                 queue_bytes <= s2_redirect ? 0 : next_queue[4:0];
+                 spare_odd <= reference_chunkable && !s2_ends ? spare_total[0] : 0;
+             end
+@@ -338,7 +378,7 @@
+     end endgenerate
+     always_ff @(posedge clk)
+         charge <= {4'd0, execution_clocks} + {7'd0, reference_fetch} + {7'd0, reference_prefix}
+-                + {12'd0, s2_ea} + {8'd0, s2_memory} + s2_isa;
++                + {12'd0, s2_ea && !(reference_on && !s2_gov.ref_test_excluded && !s2_gov.two && !s2_gov.o32 && s2_gov.op == 8'h8d)} + {8'd0, s2_memory} + s2_isa;
+ 
+     // The debt, paid down by step each clock and never below zero.
+     logic [27:0] debt;

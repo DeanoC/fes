@@ -306,6 +306,9 @@ the sealed splash through the contained programming profile and ADV7513 path.
 If selected MENU startup fails, DE10 can fall back to splash idle. DE25 refuses
 the Cyclone V splash, so a failed MENU still requires recovery. Stop restores
 the selected MENU; bounded failure recovery uses the board's idle recipe.
+A DE25 MENU package may also be loaded through volatile development
+`core-load`; library launches still refuse MENU packages, and DE10 keeps MENU
+as an idle configuration only.
 A `fes-gp-v1` package
 load releases the HPS bridges after the FPGA enters user mode. The SDR FPGA
 ports stay in reset unless the package requires `fes.memory.hps-ddr` 1.0,

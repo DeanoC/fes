@@ -1,0 +1,66 @@
+{
+  "LOD_BYTE": {
+    "charged": 16.031,
+    "cycles": 82084
+  },
+  "LOD_WORD": {
+    "charged": 16.034,
+    "cycles": 82157
+  },
+  "STO_BYTE": {
+    "charged": 15.034,
+    "cycles": 77037
+  },
+  "STO_WORD": {
+    "charged": 15.034,
+    "cycles": 77036
+  },
+  "LOD_STO": {
+    "charged": 20.034,
+    "cycles": 102637
+  },
+  "BYTE_MIX": {
+    "charged": 22.029,
+    "cycles": 112851
+  },
+  "TEST_AX_IMM": {
+    "charged": 15.029,
+    "cycles": 77011
+  },
+  "TEST_AL_IMM": {
+    "charged": 13.034,
+    "cycles": 66797
+  },
+  "MUL_TEST": {
+    "charged": 42.031,
+    "cycles": 215262
+  },
+  "MUL_NO_TEST": {
+    "charged": 40.019,
+    "cycles": 204960
+  },
+  "ENTER_ZERO": {
+    "charged": 27.022,
+    "cycles": 138415
+  },
+  "ENTER_SIX": {
+    "charged": 27.024,
+    "cycles": 138425
+  },
+  "ENTER_MANUAL": {
+    "charged": 29.024,
+    "cycles": 148666
+  },
+  "LEAVE_ONLY": {
+    "charged": 21.024,
+    "cycles": 107706
+  },
+  "ENTER_NEST1": {
+    "charged": 28.029,
+    "cycles": 143571
+  },
+  "REP_STO": {
+    "charged": 27.028,
+    "cycles": 138446
+  }
+}

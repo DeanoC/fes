@@ -1,6 +1,6 @@
 # HIL plan
 
-The Kit A/B HIL baseline tracks main through promote and rollback scripts, and ABI PRs use core+sw mode. Kit D25 has a separate serial-bound baseline and promotion record. See "Kit HIL baseline tracking" in `AGENTS.md` and the [DE25 kit HIL guide](de25-kit-hil.md).
+DE25 is part of the normal development and HIL process. Kit D25 uses the same claim, lock, exact-head result, restore, and recovery rules as A/B, with its own serial-bound baseline and promotion record. DE25 work remains D25-only and Quartus Pro 26.3-only. Its independent promotion timer is enabled after a clean first promotion. See "Kit HIL baseline tracking" in `AGENTS.md` and the [DE25 kit HIL guide](de25-kit-hil.md).
 
 ## Shared kits and Powerboat (READ FIRST)
 
@@ -88,7 +88,8 @@ Each changed path gets a class and a component:
   open and never falls back to A or B. The repo planner and Powerboat HILQ select D25 only. HILQ supervises exact-head
   D25 runs through lander-watch with an explicit cap.
   DE25 HIL is a normal exact-head merge gate.
-  PASS requires package import and launch, visible capture from
+  MENU uses volatile `fogcast core-load`; ZX81 uses package import and launch.
+  PASS requires visible capture from
   `/dev/v4l/by-id/fes-ms2109-hil`, input, Stop to idle, and a verified restore
   diff against the D25 baseline. Only N/A or Deano's explicit waiver can
   replace PASS.

@@ -1,0 +1,11 @@
+{
+  "base_commit": "20dae48f098d99fb429e994ce099c356a64fefd3",
+  "files": {
+    "cores/fes-common/rtl/i386/fes_i386_pkg.sv": "d44b59165e055698394c86ee7f6703b47fb59b4d631f7c035017aec1734ac4fa",
+    "cores/fes-common/rtl/i386/fes_i386_cpu.sv": "b349387def3d57080e581f89174ffcbd037c7aea77eb5fdec7dd173268bb6ea1",
+    "cores/fes-common/rtl/i386/fes_i386_governor.sv": "d1310a6026ecaca3e1d7e6cb1cdc73af2ce997c6055bd2cb3933884906859dfe",
+    "cores/fes-common/sim/i386/reference_governor_tb.sv": "6eb7157abde4b5df9fe98e947814ea6d6c811b628a3146486e959371268b1b81",
+    "tests/test_fes_i386_governor.py": "5e4c762723ecdec09959d9ff61e97640a32208bce97108ba7037baaf0254ea3d"
+  },
+  "scope": "Separate private diagnostic-only candidate, including tracked 286 segment prefixes; pending independent prospective reference."
+}

@@ -1,0 +1,11 @@
+{
+  "base_commit": "16b10bd948929107a4e19652084a95c9b2729495",
+  "files": {
+    "cores/fes-common/rtl/i386/fes_i386_pkg.sv": "d44b59165e055698394c86ee7f6703b47fb59b4d631f7c035017aec1734ac4fa",
+    "cores/fes-common/rtl/i386/fes_i386_cpu.sv": "b349387def3d57080e581f89174ffcbd037c7aea77eb5fdec7dd173268bb6ea1",
+    "cores/fes-common/rtl/i386/fes_i386_governor.sv": "f7b9aaa3ce1deb209363b7daf4e13f9db1788f7b2fd8b2cf676ca4cde6cdee5b",
+    "cores/fes-common/sim/i386/reference_governor_tb.sv": "18610f75db99007468b70438622f2d3b827df9db9cb7bf19a76d151990c292b0",
+    "tests/test_fes_i386_governor.py": "5e4c762723ecdec09959d9ff61e97640a32208bce97108ba7037baaf0254ea3d"
+  },
+  "scope": "Private split-budget CMP 38/39 ordinary RAM experiment, based on separately reviewed event snapshot; diagnostic-only and not yet reference-qualified."
+}

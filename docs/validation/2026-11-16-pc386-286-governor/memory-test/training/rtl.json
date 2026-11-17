@@ -1,0 +1,58 @@
+{
+  "XCHG_B": {
+    "charged": 18.017,
+    "cycles": 92093
+  },
+  "XCHG_W": {
+    "charged": 18.017,
+    "cycles": 92310
+  },
+  "TEST_B": {
+    "charged": 19.017,
+    "cycles": 97430
+  },
+  "TEST_W": {
+    "charged": 19.012,
+    "cycles": 97404
+  },
+  "NOT_B": {
+    "charged": 18.017,
+    "cycles": 92310
+  },
+  "NEG_W": {
+    "charged": 18.019,
+    "cycles": 92320
+  },
+  "INC_B": {
+    "charged": 18.019,
+    "cycles": 92319
+  },
+  "DEC_W": {
+    "charged": 18.019,
+    "cycles": 92320
+  },
+  "ADD_IMM_B": {
+    "charged": 20.017,
+    "cycles": 102550
+  },
+  "ADD_IMM_W": {
+    "charged": 20.014,
+    "cycles": 102535
+  },
+  "ADC_LOAD_W": {
+    "charged": 18.014,
+    "cycles": 92294
+  },
+  "SUB_RMW_W": {
+    "charged": 20.015,
+    "cycles": 102539
+  },
+  "PUSH_M": {
+    "charged": 22.017,
+    "cycles": 112790
+  },
+  "POP_M": {
+    "charged": 20.014,
+    "cycles": 102534
+  }
+}

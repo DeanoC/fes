@@ -1,0 +1,68 @@
+{
+  "cases": [
+    {
+      "name": "BASE8",
+      "instruction": "cmp [bx],al"
+    },
+    {
+      "name": "BASE16",
+      "instruction": "cmp [bx],ax"
+    },
+    {
+      "name": "FS_DS8",
+      "instruction": "db 0x64,0x3e\n cmp [bx],al"
+    },
+    {
+      "name": "FS_DS16",
+      "instruction": "db 0x64,0x3e\n cmp [bx],ax"
+    },
+    {
+      "name": "GS_DS8",
+      "instruction": "db 0x65,0x3e\n cmp [bx],al"
+    },
+    {
+      "name": "GS_DS16",
+      "instruction": "db 0x65,0x3e\n cmp [bx],ax"
+    },
+    {
+      "name": "OPSIZE8",
+      "instruction": "db 0x66,0x3e\n cmp [bx],al"
+    },
+    {
+      "name": "OPSIZE32",
+      "instruction": "db 0x3e\n cmp [bx],eax"
+    },
+    {
+      "name": "ADDRSIZE8",
+      "instruction": "db 0x3e\n cmp [ebx],al"
+    },
+    {
+      "name": "ADDRSIZE16",
+      "instruction": "db 0x3e\n cmp [ebx],ax"
+    },
+    {
+      "name": "EA3_8",
+      "instruction": "db 0x3e\n cmp [bx+si+2],al"
+    },
+    {
+      "name": "EA3_16",
+      "instruction": "db 0x3e\n cmp [bx+si+2],ax"
+    },
+    {
+      "name": "SEG8",
+      "instruction": "db 0x3e\n cmp [bx],al"
+    },
+    {
+      "name": "SEG16",
+      "instruction": "db 0x3e\n cmp [bx],ax"
+    }
+  ],
+  "files": {
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-prefix-fallback-cpu/generate.py": "ad0d4749b5f668a5c6a8d4ed44f935d6c6b4243e53acf50242b5dc5b3f107f40",
+    "/home/deano/fes-scratch/u6ref/tools/nasm/nasm": "d75404632d151de8438081b817d09f56ab9eb4f688a151f55897f2a5396bf01b",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-prefix-fallback-cpu/rtl.asm": "8f3e415c501b4acfd8b7065a3f9230e0f8f2a01fa01f57aeadc32844528357c6",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-prefix-fallback-cpu/rtl.bin": "35b40f6c68b644dee0c5542cfb0742ebaaec3ac2b9f4f5b8837b8881804aa821",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-milestone-v1/build/rtl-GOV_D3072-GOV_N5-GOV_REFERENCE_DIAGNOSTIC1/Vfes_i386_cpu": "ac8cfcd44af95eda83f7d10433411b0a8c33ba20dcfee53472f652cd5c003418",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v3/build/rtl-GOV_D3072-GOV_N5-GOV_REFERENCE_DIAGNOSTIC1/Vfes_i386_cpu": "ab6aa42a61d5c4cd331b73432ac62b3f6d1834452928a81ef1ad7f4552facd97"
+  }
+}

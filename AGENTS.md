@@ -62,7 +62,7 @@ Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and m
 
 ### Kit HIL baseline tracking
 - The kit HIL baseline (shared host plus kit agent and software, recorded in `current.json` in Powerboat's hil-queue) tracks main. Do not pin it to an old host.
-- DE25 has a separate `current-restore-de25.json` baseline in Powerboat's HIL baselines; it is keyed by `de25-j8g` and records the managed image, active bundle, target identity and verified restore evidence. The independently locked DE25 promotion runner builds the main MENU and ZX81 packages with Quartus Pro, requires distinct exact-main D25 smoke runs and verified restore, and updates only this record; it does not participate in the two-kit DE10 `current.json` promotion.
+- DE25 is a standard development kit on the same claim, lock, exact-head HIL, restore and recovery rules as DE10, using only Kit D25 (`de25-j8g`, serial `TRWU8J8G`). Its independent `current-restore-de25.json` promotion runner builds exact-main MENU and ZX81 with Quartus Pro 26.3, requires both exact-main smokes and verified restore, and updates only that record. The DE25 timer remains enabled only after a clean promotion. Use the serial-checked J8G recovery procedure in `docs/de25-kit-hil.md`; never touch TRWU8CBL or its serial ports.
 - Powerboat's `lander-baseline-promote.timer` checks every 15 minutes; `lander-baseline-nightly.timer` is the 02:30 Europe/Sofia backstop. Both start `lander-baseline-promote.service`, which runs `baseline-auto.py`. It passes the cumulative unchecked `origin/main` range to `post-merge-promote.sh` with `--since <last_checked>`. Let this automation handle main updates; do not run a manual promote after each qualifying merge. The promotion lock is non-blocking: if another run holds it, the timer records `AUTO_WAIT` and leaves the candidate for a later pass. A direct run without `--since` checks only the tip commit, so it does not catch up multiple unchecked commits.
 - Baseline promotion considers every non-documentation, non-test file under `sources/FogCast/`, `sources/libmister-runtime/`, `sources/mister-packages/`, `platform/` and `image/`, plus `Makefile`, `scripts/build.py`, `scripts/kit_software.py` and `scripts/environment.py`. ABI or capability changes, and any `abi_path` edit, select hil-queue `core+sw`; that classification does not decide whether to promote the baseline.
 - `promote-baseline.sh` builds from fetched main only. It smokes available kits and logs busy kits as `BUSY`; if neither kit is free, maintenance waits for Kit B's lock until it is `FREE`, then continues. It publishes `current.json` only after smoke and activation succeed and keeps the previous baseline. A failed candidate is latched and reported rather than retried automatically.
@@ -291,7 +291,16 @@ authenticated live HIP or CUDA backend as producer validators require, and they 
 not accept Metal yet. Registered producers reject CPU-reference fallback
 (`NEXTPNR_REQUIRE_GPU=1`), so CPU replays can inform experiments only. HIP, CUDA
 and Metal builds share a design-v1 `BUILD_ID` when their design inputs match;
-backend remains part of toolchain and recording identity. Exact artifacts are
+backend remains part of toolchain and recording identity. The front end that
+elaborates the logic is the same kind of input: on a design-v1 record `front_end`
+(`yosys`, `quartus-lite`, `quartus-pro`) and its program digest are toolchain
+parameters, so which compiler elaborates a design does not move that design's
+`BUILD_ID`, and a front-end change is advisory for an already sealed design
+rather than a rebuild. The record's `device_family` parameter is the deliberate exception (distinct
+from the `device_family` a toolchain lock entry carries, which rides in
+`toolchain_pins`): it names what the design is compiled *for* rather than what compiled
+it, so it is a design input and a Cyclone V build and an Agilex 5 build of one
+source set do not share a design identity. Exact artifacts are
 identified by package/payload hashes, and hardware acceptance follows those
 exact bytes even though timing and route evidence is interchangeable. Historical combined identities are unchanged. Among current core
 package producers, Apple II, Atari ST, C64, Coleco socket-v2, SG-1000, SMS

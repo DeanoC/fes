@@ -1,0 +1,34 @@
+MARK 80 0 63 39
+MARK 80 1 87082 17065
+MARK 80 2 87091 17079
+MARK 80 3 164072 32102
+MARK 80 4 164081 32118
+MARK 80 5 266671 52141
+MARK 80 6 266680 52157
+MARK 80 7 369271 72180
+MARK 80 8 369280 72194
+MARK 80 9 471866 92218
+MARK 80 10 471875 92232
+MARK 80 11 584695 114255
+MARK 80 12 584704 114269
+MARK 80 13 702670 137297
+MARK 80 14 702679 137311
+MARK 80 15 820615 160333
+MARK 80 16 820624 160347
+MARK 80 17 959039 187369
+MARK 80 18 959048 187383
+MARK 80 19 1123043 219401
+MARK 80 20 1123052 219415
+MARK 80 21 1363841 266432
+MARK 80 22 1363850 266446
+MARK 80 23 1466456 286474
+MARK 80 24 1466465 286488
+MARK 80 25 1548581 302514
+MARK 80 26 1548590 302528
+MARK 80 27 1635811 319551
+MARK 8f 0 1635819 319563
+STATE 00008000 00000003 00000001 00008000 00007000 00000000 00000000 00000000 00000046 000011e3
+GOVERNOR cycles=1636933 retired=46160 halted=1 debt_max=151 hold_cycles=1546681 charged=319575
+{"mode": "governor", "seed": 1, "latency": false, "runs": 1, "passed": 1, "failed": 0, "retirements": 0, "cycles": 0, "halts": 0, "interrupts": 0, "faults": 0, "fault_vectors": {}, "shutdowns": 0, "nested": 0, "retire_limits": 0, "load_wait_cycles": 0, "io_accesses": 0, "external_interrupts": 0, "nmis": 0, "rep_interrupts": 0, "vector_moved_stops": 0, "divergence_retirements": {}, "trace_hash": "14650fb0739d0383", "gaps": {"sequential": {}, "prefixed": {}, "lea": {}, "selector": {}, "after_taken": {}, "after_not_taken": {}, "shift_consumer": {}, "after_shift": {}, "store_load": {}, "store_other": {}, "after_store": {}, "address": {}, "after_segment": {}, "after_stack": {}, "stack_stack": {}, "several": {}, "after_string": {}, "after_io": {}, "memory": {}, "smc": {}, "fetch": {}}, "mmio_accesses": 0, "mmio_runs": 0, "replays": 0, "smc_restarts": 0, "window_code_stops": 0, "code_store_stops": 0, "stray_stops": 0, "port0_reads": 40, "port0_writes": 11030, "pm_retirements": 0, "cs_rule": 0, "ss_error_rule": 0, "fetch_rule": 0, "iret_save_rule": 0, "pm_deliveries": {}, "unbuilt_stops": {}, "pm_kinds": {}, "cs_limit": {}, "no387_rule": 0, "no387_skips": 0, "x87_compared": 0, "dr6_rule": 0, "db_rf_rule": 0, "debug_kinds": {}}
+
+STDERR

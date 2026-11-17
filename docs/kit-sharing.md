@@ -107,14 +107,18 @@ automatically. This post-use bundle step is that explicit activation. It
 is not a file-swap restore, and it does not cancel another owner's pending
 activation. The stable supervisor owns the complete service group.
 
-DE25 uses the serial-bound ledger and restore baseline in
+DE25 follows the same claim, lock, exact-head HIL, restore and recovery rules
+as A/B, with its serial-bound ledger and independent restore baseline in
 [the DE25 kit HIL guide](de25-kit-hil.md). Claim both
 `~/kit-status/de25-TRWU8J8G-STATUS.lock` and
 `~/kit-status/de25-TRWU8J8G-STATUS.md.lock`, append the standard `KIT D25 IN USE`
 record, and hold the locks through restore verification. Capture only through
 `/dev/v4l/by-id/fes-ms2109-hil`; the raw MS2109 device is prohibited. Release
 the kit only after runtime idle, lease-free state, image and bundle identity,
-and the recorded restore diff all pass.
+and the recorded restore diff all pass. On restore failure, use only J8G's
+serial-by-id console and the documented serial-checked reboot/reimage path;
+never touch TRWU8CBL or ttyUSB0/ttyUSB1. Keep the D25 promotion timer enabled
+only after the first MENU+ZX81 baseline promotion passes cleanly.
 
 Host, agent and runtime revisions may differ when their advertised contracts are
 supported. Diagnostics pin the active bundle and base-image digests; sealed

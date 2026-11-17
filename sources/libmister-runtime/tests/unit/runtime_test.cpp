@@ -628,6 +628,20 @@ void TestStopFromBothRunningStatesLoadsIdleOnce()
 	assert(development.runtime.status().state == State::running_development);
 }
 
+void TestLibraryMenuRejectedBeforeDataPreparation()
+{
+	Fixture fixture;
+	Start(fixture);
+	fixture.hardware.core_info.declared_core = "fes.menu";
+	fixture.hardware.core_info.descriptor.core.id = "fes.menu";
+	const mister::Error error = fixture.runtime.LoadLibraryCore(
+		"/package", std::string(64, 'a'), "/tmp/fes-menu-data", "menu");
+	assert(error.code == ErrorCode::unsupported_interface);
+	assert(error.phase == "admission");
+	assert(fixture.hardware.core_calls == 0);
+	assert(fixture.runtime.status().state == State::idle);
+}
+
 void TestStopFromIdleIsIdempotent()
 {
 	Fixture fixture;
@@ -2196,6 +2210,7 @@ int main()
 	TestEveryDevelopmentFailureUsesItsMutationBoundary();
 	TestDevelopmentCleanupFailureRequiresReboot();
 	TestStopFromBothRunningStatesLoadsIdleOnce();
+ TestLibraryMenuRejectedBeforeDataPreparation();
 	TestStopFromIdleIsIdempotent();
 	TestStopFromRebootRequiredDoesNotCallHardware();
 	TestRecoverIdleRetriesProgramFromRebootRequired();

@@ -1,0 +1,32 @@
+MARK 80 0 179 93
+MARK 80 1 82249 16121
+MARK 80 2 82258 16135
+MARK 80 3 164384 32163
+MARK 80 4 164393 32177
+MARK 80 5 236264 46202
+MARK 80 6 236273 46216
+MARK 80 7 308169 60246
+MARK 80 8 308178 60260
+MARK 80 9 390304 76288
+MARK 80 10 390313 76302
+MARK 80 11 492904 96327
+MARK 80 12 492913 96341
+MARK 80 13 626239 122369
+MARK 80 14 626248 122383
+MARK 80 15 728839 142408
+MARK 80 16 728848 142422
+MARK 80 17 862158 168447
+MARK 80 18 862167 168461
+MARK 80 19 990358 193486
+MARK 80 20 990367 193500
+MARK 80 21 1118563 218526
+MARK 80 22 1118572 218540
+MARK 80 23 1221178 238568
+MARK 80 24 1221187 238582
+MARK 80 25 1303323 254612
+MARK 8f 0 1303331 254624
+STATE 00000000 00000020 00000001 00008000 00007000 00000000 00000000 00000000 00000046 0000122c
+GOVERNOR cycles=1304445 retired=64175 halted=1 debt_max=119 hold_cycles=1233852 charged=254636
+{"mode": "governor", "seed": 1, "latency": false, "runs": 1, "passed": 1, "failed": 0, "retirements": 0, "cycles": 0, "halts": 0, "interrupts": 0, "faults": 0, "fault_vectors": {}, "shutdowns": 0, "nested": 0, "retire_limits": 0, "load_wait_cycles": 0, "io_accesses": 0, "external_interrupts": 0, "nmis": 0, "rep_interrupts": 0, "vector_moved_stops": 0, "divergence_retirements": {}, "trace_hash": "14650fb0739d0383", "gaps": {"sequential": {}, "prefixed": {}, "lea": {}, "selector": {}, "after_taken": {}, "after_not_taken": {}, "shift_consumer": {}, "after_shift": {}, "store_load": {}, "store_other": {}, "after_store": {}, "address": {}, "after_segment": {}, "after_stack": {}, "stack_stack": {}, "several": {}, "after_string": {}, "after_io": {}, "memory": {}, "smc": {}, "fetch": {}}, "mmio_accesses": 0, "mmio_runs": 0, "replays": 0, "smc_restarts": 0, "window_code_stops": 0, "code_store_stops": 0, "stray_stops": 0, "port0_reads": 46, "port0_writes": 24082, "pm_retirements": 0, "cs_rule": 0, "ss_error_rule": 0, "fetch_rule": 0, "iret_save_rule": 0, "pm_deliveries": {}, "unbuilt_stops": {}, "pm_kinds": {}, "cs_limit": {}, "no387_rule": 0, "no387_skips": 0, "x87_compared": 0, "dr6_rule": 0, "db_rf_rule": 0, "debug_kinds": {}}
+
+STDERR

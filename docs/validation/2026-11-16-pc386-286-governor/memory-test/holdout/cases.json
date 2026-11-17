@@ -1,0 +1,10 @@
+{
+  "TEST_RM_B": "test [bx],al",
+  "TEST_RM_W": "test [bx],ax",
+  "TEST_IMM_B": "test byte [bx+si],0x5a",
+  "TEST_IMM_W": "test word [bx+si],0x5678",
+  "TEST_DIRECT_B": "test byte [0x8000],0x5a",
+  "TEST_DIRECT_W": "test word [0x8000],0x5678",
+  "TEST_RM_SI_B": "test [bx+si],dl",
+  "TEST_RM_SI_W": "test [bx+si],dx"
+}

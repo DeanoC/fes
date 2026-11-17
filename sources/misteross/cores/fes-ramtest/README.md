@@ -3,8 +3,8 @@
 Utility core for the MiSTer GPIO SDRAM addon and the HPS DDR3 on the SoC.
 The host mailbox is `fes.application` 1.0, with the fixed 720p picture, the
 gamepad and `fes.memory.hps-ddr` 1.0. There is no memory opcode. After
-execution release both memories are tested at the memory clock, 100 or
-130 MHz. A `fes.gamepad` button stops every scan and the status says `STOP`.
+execution release both memories are tested at the 100 MHz memory clock.
+A `fes.gamepad` button stops every scan and the status says `STOP`.
 The host maps a keyboard onto those buttons (arrows, Enter, Space, and the
 letter keys it already forwards). Escape and Backspace leave the session in
 the host and are not delivered to the core.
@@ -65,9 +65,10 @@ scan that produced it, including a mismatch on the last word.
 The SDRAM clock pin uses a DDR output and rises on the fabric falling edge.
 Quartus selects the frequency directly from the PLL, packs SDRAM
 command/address registers into the output cells, and captures read data on a
-shifted clock in the input cells; the 130 MHz path also pipelines the
+shifted clock in the input cells; at 130 MHz it also pipelines the
 captured data before the controller. The controller uses CAS latency 3 at
-130 MHz and CAS latency 2 at 100 MHz. The OSS recipe selects
+130 MHz and CAS latency 2 at 100 MHz. Only the Quartus comparison below
+builds the 130 MHz path. The OSS recipe selects
 `RAM_OSS_HIGH_SPEED` and retains a phase-shifted capture clock and fabric
 input registers. The compiler now supports bidirectional DDR input packing;
 that support does not change the capture circuit selected by this recipe.
@@ -223,19 +224,19 @@ lists the full investigation.
 ```sh
 make toolchain-fes-ramtest
 make build-fes-ramtest-100
-make build-fes-ramtest-130
 ```
 
-Both OSS rates use `cores/fes-ramtest/toolchain.lock` and its HIP compiler slot. Its Yosys declares every
+The OSS build uses `cores/fes-ramtest/toolchain.lock` and its HIP compiler slot. Its Yosys declares every
 fpga2sdram port, so all three ports reach the netlist; the pinned blackbox
 before it listed only command port 2 and data port 3. The OSS recipe checks
 that the synthesized fpga2sdram cell carries the generated layout constants.
-Each rate seals a package into `build/fes-ramtest-100/` or
-`build/fes-ramtest-130/`; its timing report covers the memory, capture and
-74.25 MHz video domains. FES registers and ships the OSS 100 MHz variant as a standard catalog
-utility. Direct recipe invocation defaults to `--memory-mhz 100`;
-`--memory-mhz 130` requests the separate higher-rate build. The default
-retains timing signoff; the open 130 MHz timing work does not block shipment.
+It seals one package into `build/fes-ramtest-100/`; its timing report covers
+the memory, capture and 74.25 MHz video domains. FES registers and ships that
+package as a standard catalog utility. The producer takes no rate argument:
+100 MHz is the only OSS rate it builds. The separately sealed OSS 130 MHz
+package and its 130 MHz timing diagnostic were removed, so the records above
+and the OSS-versus-Quartus gap in #264 are history rather than open OSS work.
+The Quartus comparison below still compiles the 130 MHz path.
 
 The build ID hashes the source revision, so each commit synthesises a slightly
 different netlist. The seal therefore routes `PLACER_SEEDS` in turn and keeps
@@ -243,35 +244,9 @@ the first seed that meets every clock at analogue signoff.
 `qor-ranking.json` lists the seeds it tried, and `build-summary.json`
 records the winning seed.
 
-For the 130 MHz timing diagnostic, provision the per-core RAM Tester toolchain
-and run the paired seed-2 routes:
-
-```sh
-make toolchain-fes-ramtest
-make diagnose-fes-ramtest-timing GPU_DEVICE=1
-```
-
-The diagnostic uses `cores/fes-ramtest/toolchain.lock`. It first routes
-with up to four generic local enable copies. It then uses that timing report
-to try local LUT remap candidate 0 with up to eight LAB groups, routing the
-same synthesis and BUILD_ID again. Both attempts retain their own outputs in
-`build/fes-ramtest-timing-130/{qor-search,remap-search}/`; `ranking.json`
-records which result was selected and why the remap was selected, rejected,
-or had no qualifying candidate.
-
-Both completed routes must prove a live HIP backend, final signoff and all
-three clock rows; CPU fallback or incomplete routing fails the diagnostic.
-The remap wins only with improved memory Fmax, no regression in the other
-clock maxima and no final reported hold violations. A completed HIP route is
-reported even below 130 MHz; `passing` records whether all three frequency
-constraints were met. The hold screen covers final nextpnr warnings, not the
-full package evidence or hardware acceptance. The diagnostic RBF is not a
-sealed package. The normal 100 and 130 MHz package builds use
-`cores/fes-ramtest/toolchain.lock` and keep their signoff gate. The historical
-116.918 MHz route
-also used two opt-in,
-cell-name-specific probes. Those probes no longer match the current RTL and
-remain disabled here; 116.918 MHz is not a result for the current source.
+The historical 116.918 MHz route also used two opt-in, cell-name-specific
+probes. Those probes no longer match the current RTL and are not selected by
+this recipe; 116.918 MHz is not a result for the current source.
 
 The [merged-compiler measurement](../../docs/validation/2026-09-29-ramtest-merged-compilers.md)
 reaches 109.951 MHz memory with generic remapping, from a 106.157 MHz baseline.
@@ -312,15 +287,12 @@ identity and the video, gamepad and HPS DDR capability bits, execution
 release, a green status glyph, the `ADDR` signature at three addresses per
 port, holds that land inside a write burst and during reads, and a button
 stop. The OSS 100 MHz package is registered in FES and included in the
-factory image and standard catalog. The 130 MHz build remains explicit.
+factory image and standard catalog.
 
 The simulation also exercises the OSS 100 MHz fabric-capture and registered
 output path, including a control with the output-register capture shift
 removed. Its idealized clocks and zero-delay SDRAM check functional edge
-ordering, not board timing. `FES_RAMTEST_130_DIAGNOSTIC=1 make sim-fes-ramtest`
-runs the 130 MHz path as well, then exits nonzero with an ambiguity report:
-the current model does not establish the DQ valid window at its capture edge.
-It is not a passing 130 MHz simulation, timing closure or hardware acceptance.
+ordering, not board timing.
 
 The RTL is GPL-2.0-or-later. The license text and corresponding-source notice
 are in [the FES release notices](../../../../image/licenses/fes.ramtest/SOURCE.md).

@@ -1,0 +1,72 @@
+{
+  "BASE8": {
+    "base": 24.223,
+    "candidate": 24.223,
+    "delta": 0.0
+  },
+  "BASE16": {
+    "base": 24.222,
+    "candidate": 24.222,
+    "delta": 0.0
+  },
+  "FS_DS8": {
+    "base": 36.222,
+    "candidate": 36.222,
+    "delta": 0.0
+  },
+  "FS_DS16": {
+    "base": 36.222,
+    "candidate": 36.222,
+    "delta": 0.0
+  },
+  "GS_DS8": {
+    "base": 36.222,
+    "candidate": 36.222,
+    "delta": 0.0
+  },
+  "GS_DS16": {
+    "base": 36.222,
+    "candidate": 36.222,
+    "delta": 0.0
+  },
+  "OPSIZE8": {
+    "base": 34.222,
+    "candidate": 34.222,
+    "delta": 0.0
+  },
+  "OPSIZE32": {
+    "base": 34.224,
+    "candidate": 34.224,
+    "delta": 0.0
+  },
+  "ADDRSIZE8": {
+    "base": 34.222,
+    "candidate": 34.222,
+    "delta": 0.0
+  },
+  "ADDRSIZE16": {
+    "base": 34.222,
+    "candidate": 34.222,
+    "delta": 0.0
+  },
+  "EA3_8": {
+    "base": 33.222,
+    "candidate": 33.222,
+    "delta": 0.0
+  },
+  "EA3_16": {
+    "base": 33.222,
+    "candidate": 33.222,
+    "delta": 0.0
+  },
+  "SEG8": {
+    "base": 32.222,
+    "candidate": 30.222,
+    "delta": -2.0
+  },
+  "SEG16": {
+    "base": 32.201,
+    "candidate": 30.201,
+    "delta": -2.0
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "REG_ROL_ZERO": {
+    "blocks": 2738,
+    "reference": 16.048338558638935,
+    "candidate": 16.026,
+    "delta": -0.022338558638935524,
+    "quantization": 0.005859196260912353
+  },
+  "REG_SAR_MASK": {
+    "blocks": 2738,
+    "reference": 16.048338558638935,
+    "candidate": 16.023,
+    "delta": -0.025338558638935638,
+    "quantization": 0.005859196260912353
+  },
+  "MEM_SHR_ZERO": {
+    "blocks": 2738,
+    "reference": 16.048338558638935,
+    "candidate": 16.023,
+    "delta": -0.025338558638935638,
+    "quantization": 0.005859196260912353
+  },
+  "MEM_RCR_MASK": {
+    "blocks": 2738,
+    "reference": 16.048338558638935,
+    "candidate": 16.023,
+    "delta": -0.025338558638935638,
+    "quantization": 0.005859196260912353
+  },
+  "DOUBLE_ZERO": {
+    "blocks": 2738,
+    "reference": 16.048338558638935,
+    "candidate": 16.023,
+    "delta": -0.025338558638935638,
+    "quantization": 0.005859196260912353
+  },
+  "ZERO_THEN_ONE": {
+    "blocks": 1754,
+    "reference": 25.051511387430672,
+    "candidate": 25.023,
+    "delta": -0.028511387430672386,
+    "quantization": 0.01427436546292346
+  },
+  "ONE_THEN_ZERO": {
+    "blocks": 1755,
+    "reference": 25.03723702196775,
+    "candidate": 25.026,
+    "delta": -0.01123702196775156,
+    "quantization": 0.014258107643489608
+  },
+  "ZERO_EXTRA_NOP": {
+    "blocks": 1993,
+    "reference": 22.047341180909886,
+    "candidate": 22.026,
+    "delta": -0.021341180909885793,
+    "quantization": 0.011056841113796331
+  },
+  "ZERO_ODD": {
+    "blocks": 2738,
+    "reference": 16.048338558638935,
+    "candidate": 16.021,
+    "delta": -0.02733855863893453,
+    "quantization": 0.005859196260912353
+  },
+  "ZERO_RCL": {
+    "blocks": 2739,
+    "reference": 16.04247936237802,
+    "candidate": 16.026,
+    "delta": -0.01647936237802128,
+    "quantization": 0.005854919475320445
+  },
+  "IMMEDIATE_ZERO": {
+    "blocks": 3128,
+    "reference": 14.047426781826536,
+    "candidate": 28.023,
+    "delta": 13.975573218173464,
+    "quantization": 0.00448943009965693
+  },
+  "COMPLEX_ZERO": {
+    "blocks": 2739,
+    "reference": 16.04247936237802,
+    "candidate": 31.018,
+    "delta": 14.97552063762198,
+    "quantization": 0.005854919475320445
+  },
+  "PREFIX_ZERO": {
+    "blocks": 2192,
+    "reference": 20.045780553628376,
+    "candidate": 34.018,
+    "delta": 13.972219446371625,
+    "quantization": 0.009140802806032092
+  }
+}

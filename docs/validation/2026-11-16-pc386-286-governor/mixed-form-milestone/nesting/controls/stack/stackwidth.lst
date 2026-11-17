@@ -1,0 +1,248 @@
+     1                                  ; Whole-CPU, diagnostic governor scope control. 16-bit CS, SS.B changes.
+     2                                  ; Ports 80h/8fh are the private governor bench's markers, not real hardware.
+     3                                  bits 16
+     4                                  cpu 386
+     5                                  org 0x1000
+     6                                  start:
+     7 00000000 FA                          cli
+     8 00000001 FC                          cld
+     9 00000002 31C0                        xor ax,ax
+    10 00000004 8ED8                        mov ds,ax
+    11 00000006 0F0116[D001]                lgdt [gdtr]
+    12 0000000B 0F20C0                      mov eax,cr0
+    13 0000000E 0C01                        or al,1
+    14 00000010 0F22C0                      mov cr0,eax
+    15 00000013 EA[1800]0800                jmp 0x08:pm
+    16                                  pm:
+    17 00000018 B81800                      mov ax,0x18             ; flat 32-bit data descriptor, 16-bit code
+    18 0000001B 8ED8                        mov ds,ax
+    19 0000001D 8EC0                        mov es,ax
+    20 0000001F 8ED0                        mov ss,ax
+    21 00000021 66BC00800100                mov esp,0x00018000
+    22                                  
+    23                                  ; The taken branch and NOPs put each marked window behind the same queue
+    24                                  ; flush. The SS write is immediately followed by the instruction under test.
+    25                                  %macro PREP 3
+    26                                      mov ax,%1              ; initial SS selector
+    27                                      mov ss,ax
+    28                                      mov esp,0x00018000
+    29                                      mov ebp,%3
+    30                                      mov word [0x7ffe],0x1357
+    31                                      mov word [dword 0x17ffe],0x2468
+    32                                      mov si,%2              ; destination SS selector
+    33                                      jmp %%clean
+    34                                  %%clean:
+    35                                      nop
+    36                                      nop
+    37                                      nop
+    38                                      nop
+    39                                  %endmacro
+    40                                  %macro MARK 1
+    41                                      mov al,%1
+    42                                      out 0x80,al
+    43                                  %endmacro
+    44                                  %macro ENTER_CASE 4
+    45                                      PREP %1,%2,0x00013456
+    46                                      MARK %3
+    47                                      mov ss,si
+    48                                      enter 0x20,0
+    49                                      MARK %4
+    50                                      cmp esp,0x00017fde
+    51                                      jne fail
+    52                                      cmp ebp,0x00017ffe
+    53                                      jne fail
+    54                                      %if %2 == 0x10
+    55                                          cmp word [0x7ffe],0x3456
+    56                                          jne fail
+    57                                          cmp word [dword 0x17ffe],0x2468
+    58                                          jne fail
+    59                                      %else
+    60                                          cmp word [dword 0x17ffe],0x3456
+    61                                          jne fail
+    62                                          cmp word [0x7ffe],0x1357
+    63                                          jne fail
+    64                                      %endif
+    65                                  %endmacro
+    66                                  %macro LEAVE_CASE 4
+    67                                      PREP %1,%2,0x00017ffe
+    68                                      MARK %3
+    69                                      mov ss,si
+    70                                      leave
+    71                                      MARK %4
+    72                                      cmp esp,0x00018000
+    73                                      jne fail
+    74                                      %if %2 == 0x10
+    75                                          cmp ebp,0x00011357
+    76                                      %else
+    77                                          cmp ebp,0x00012468
+    78                                      %endif
+    79                                      jne fail
+    80                                      cmp word [0x7ffe],0x1357
+    81                                      jne fail
+    82                                      cmp word [dword 0x17ffe],0x2468
+    83                                      jne fail
+    84                                  %endmacro
+    85                                  
+    86                                      ENTER_CASE 0x10,0x18,0,1 ; SS.B 0 -> 1
+    45                              <1>  PREP %1,%2,0x00013456
+    26 00000027 B81000              <2>  mov ax,%1
+    27 0000002A 8ED0                <2>  mov ss,ax
+    28 0000002C 66BC00800100        <2>  mov esp,0x00018000
+    29 00000032 66BD56340100        <2>  mov ebp,%3
+    30 00000038 C706FE7F5713        <2>  mov word [0x7ffe],0x1357
+    31 0000003E 67C705FE7F01006824  <2>  mov word [dword 0x17ffe],0x2468
+    32 00000047 BE1800              <2>  mov si,%2
+    33 0000004A EB00                <2>  jmp %%clean
+    34                              <2> %%clean:
+    35 0000004C 90                  <2>  nop
+    36 0000004D 90                  <2>  nop
+    37 0000004E 90                  <2>  nop
+    38 0000004F 90                  <2>  nop
+    46                              <1>  MARK %3
+    41 00000050 B000                <2>  mov al,%1
+    42 00000052 E680                <2>  out 0x80,al
+    47 00000054 8ED6                <1>  mov ss,si
+    48 00000056 C8200000            <1>  enter 0x20,0
+    49                              <1>  MARK %4
+    41 0000005A B001                <2>  mov al,%1
+    42 0000005C E680                <2>  out 0x80,al
+    50 0000005E 6681FCDE7F0100      <1>  cmp esp,0x00017fde
+    51 00000065 0F853D01            <1>  jne fail
+    52 00000069 6681FDFE7F0100      <1>  cmp ebp,0x00017ffe
+    53 00000070 0F853201            <1>  jne fail
+    54                              <1>  %if %2 == 0x10
+    55                              <1>  cmp word [0x7ffe],0x3456
+    56                              <1>  jne fail
+    57                              <1>  cmp word [dword 0x17ffe],0x2468
+    58                              <1>  jne fail
+    59                              <1>  %else
+    60 00000074 67813DFE7F01005634  <1>  cmp word [dword 0x17ffe],0x3456
+    61 0000007D 0F852501            <1>  jne fail
+    62 00000081 813EFE7F5713        <1>  cmp word [0x7ffe],0x1357
+    63 00000087 0F851B01            <1>  jne fail
+    64                              <1>  %endif
+    87                                      ENTER_CASE 0x18,0x10,2,3 ; SS.B 1 -> 0
+    45                              <1>  PREP %1,%2,0x00013456
+    26 0000008B B81800              <2>  mov ax,%1
+    27 0000008E 8ED0                <2>  mov ss,ax
+    28 00000090 66BC00800100        <2>  mov esp,0x00018000
+    29 00000096 66BD56340100        <2>  mov ebp,%3
+    30 0000009C C706FE7F5713        <2>  mov word [0x7ffe],0x1357
+    31 000000A2 67C705FE7F01006824  <2>  mov word [dword 0x17ffe],0x2468
+    32 000000AB BE1000              <2>  mov si,%2
+    33 000000AE EB00                <2>  jmp %%clean
+    34                              <2> %%clean:
+    35 000000B0 90                  <2>  nop
+    36 000000B1 90                  <2>  nop
+    37 000000B2 90                  <2>  nop
+    38 000000B3 90                  <2>  nop
+    46                              <1>  MARK %3
+    41 000000B4 B002                <2>  mov al,%1
+    42 000000B6 E680                <2>  out 0x80,al
+    47 000000B8 8ED6                <1>  mov ss,si
+    48 000000BA C8200000            <1>  enter 0x20,0
+    49                              <1>  MARK %4
+    41 000000BE B003                <2>  mov al,%1
+    42 000000C0 E680                <2>  out 0x80,al
+    50 000000C2 6681FCDE7F0100      <1>  cmp esp,0x00017fde
+    51 000000C9 0F85D900            <1>  jne fail
+    52 000000CD 6681FDFE7F0100      <1>  cmp ebp,0x00017ffe
+    53 000000D4 0F85CE00            <1>  jne fail
+    54                              <1>  %if %2 == 0x10
+    55 000000D8 813EFE7F5634        <1>  cmp word [0x7ffe],0x3456
+    56 000000DE 0F85C400            <1>  jne fail
+    57 000000E2 67813DFE7F01006824  <1>  cmp word [dword 0x17ffe],0x2468
+    58 000000EB 0F85B700            <1>  jne fail
+    59                              <1>  %else
+    60                              <1>  cmp word [dword 0x17ffe],0x3456
+    61                              <1>  jne fail
+    62                              <1>  cmp word [0x7ffe],0x1357
+    63                              <1>  jne fail
+    64                              <1>  %endif
+    88                                      LEAVE_CASE 0x10,0x18,4,5 ; SS.B 0 -> 1
+    67                              <1>  PREP %1,%2,0x00017ffe
+    26 000000EF B81000              <2>  mov ax,%1
+    27 000000F2 8ED0                <2>  mov ss,ax
+    28 000000F4 66BC00800100        <2>  mov esp,0x00018000
+    29 000000FA 66BDFE7F0100        <2>  mov ebp,%3
+    30 00000100 C706FE7F5713        <2>  mov word [0x7ffe],0x1357
+    31 00000106 67C705FE7F01006824  <2>  mov word [dword 0x17ffe],0x2468
+    32 0000010F BE1800              <2>  mov si,%2
+    33 00000112 EB00                <2>  jmp %%clean
+    34                              <2> %%clean:
+    35 00000114 90                  <2>  nop
+    36 00000115 90                  <2>  nop
+    37 00000116 90                  <2>  nop
+    38 00000117 90                  <2>  nop
+    68                              <1>  MARK %3
+    41 00000118 B004                <2>  mov al,%1
+    42 0000011A E680                <2>  out 0x80,al
+    69 0000011C 8ED6                <1>  mov ss,si
+    70 0000011E C9                  <1>  leave
+    71                              <1>  MARK %4
+    41 0000011F B005                <2>  mov al,%1
+    42 00000121 E680                <2>  out 0x80,al
+    72 00000123 6681FC00800100      <1>  cmp esp,0x00018000
+    73 0000012A 757A                <1>  jne fail
+    74                              <1>  %if %2 == 0x10
+    75                              <1>  cmp ebp,0x00011357
+    76                              <1>  %else
+    77 0000012C 6681FD68240100      <1>  cmp ebp,0x00012468
+    78                              <1>  %endif
+    79 00000133 7571                <1>  jne fail
+    80 00000135 813EFE7F5713        <1>  cmp word [0x7ffe],0x1357
+    81 0000013B 7569                <1>  jne fail
+    82 0000013D 67813DFE7F01006824  <1>  cmp word [dword 0x17ffe],0x2468
+    83 00000146 755E                <1>  jne fail
+    89                                      LEAVE_CASE 0x18,0x10,6,7 ; SS.B 1 -> 0
+    67                              <1>  PREP %1,%2,0x00017ffe
+    26 00000148 B81800              <2>  mov ax,%1
+    27 0000014B 8ED0                <2>  mov ss,ax
+    28 0000014D 66BC00800100        <2>  mov esp,0x00018000
+    29 00000153 66BDFE7F0100        <2>  mov ebp,%3
+    30 00000159 C706FE7F5713        <2>  mov word [0x7ffe],0x1357
+    31 0000015F 67C705FE7F01006824  <2>  mov word [dword 0x17ffe],0x2468
+    32 00000168 BE1000              <2>  mov si,%2
+    33 0000016B EB00                <2>  jmp %%clean
+    34                              <2> %%clean:
+    35 0000016D 90                  <2>  nop
+    36 0000016E 90                  <2>  nop
+    37 0000016F 90                  <2>  nop
+    38 00000170 90                  <2>  nop
+    68                              <1>  MARK %3
+    41 00000171 B006                <2>  mov al,%1
+    42 00000173 E680                <2>  out 0x80,al
+    69 00000175 8ED6                <1>  mov ss,si
+    70 00000177 C9                  <1>  leave
+    71                              <1>  MARK %4
+    41 00000178 B007                <2>  mov al,%1
+    42 0000017A E680                <2>  out 0x80,al
+    72 0000017C 6681FC00800100      <1>  cmp esp,0x00018000
+    73 00000183 7521                <1>  jne fail
+    74                              <1>  %if %2 == 0x10
+    75 00000185 6681FD57130100      <1>  cmp ebp,0x00011357
+    76                              <1>  %else
+    77                              <1>  cmp ebp,0x00012468
+    78                              <1>  %endif
+    79 0000018C 7518                <1>  jne fail
+    80 0000018E 813EFE7F5713        <1>  cmp word [0x7ffe],0x1357
+    81 00000194 7510                <1>  jne fail
+    82 00000196 67813DFE7F01006824  <1>  cmp word [dword 0x17ffe],0x2468
+    83 0000019F 7505                <1>  jne fail
+    90 000001A1 30C0                        xor al,al
+    91 000001A3 E68F                        out 0x8f,al
+    92 000001A5 F4                          hlt
+    93                                  fail:
+    94 000001A6 B0EE                        mov al,0xee
+    95 000001A8 E68F                        out 0x8f,al
+    96 000001AA F4                          hlt
+    97 000001AB 00<rep 5h>              align 8, db 0
+    98                                  gdt:
+    99 000001B0 0000000000000000            dq 0
+   100 000001B8 FFFF0000009B0000            dq 0x00009b000000ffff     ; 08: 16-bit code, base zero, 64 KiB
+   101 000001C0 FFFF000000930000            dq 0x000093000000ffff     ; 10: 16-bit stack, base zero, 64 KiB
+   102 000001C8 FFFF00000093CF00            dq 0x00cf93000000ffff     ; 18: 32-bit stack/data, flat 4 GiB
+   103                                  gdt_end:
+   104                                  gdtr:
+   105 000001D0 1F00                        dw gdt_end-gdt-1
+   106 000001D2 [B0010000]                  dd gdt

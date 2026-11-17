@@ -1,0 +1,40 @@
+MARK 80 0 63 39
+MARK 80 1 87093 17067
+MARK 80 2 87102 17081
+MARK 80 3 174322 34104
+MARK 80 4 174331 34118
+MARK 80 5 282031 55141
+MARK 80 6 282040 55155
+MARK 80 7 389741 76178
+MARK 80 8 389750 76192
+MARK 80 9 497450 97215
+MARK 80 10 497459 97229
+MARK 80 11 615400 120252
+MARK 80 12 615409 120266
+MARK 80 13 758965 148292
+MARK 80 14 758974 148306
+MARK 80 15 938323 183323
+MARK 80 16 938332 183337
+MARK 80 17 1081842 211354
+MARK 80 18 1081851 211368
+MARK 80 19 1297031 253383
+MARK 80 20 1297040 253397
+MARK 80 21 1486634 290415
+MARK 80 22 1486643 290429
+MARK 80 23 1625048 317449
+MARK 80 24 1625057 317463
+MARK 80 25 1799287 351480
+MARK 80 26 1799296 351494
+MARK 80 27 2086197 407517
+MARK 80 28 2086206 407531
+MARK 80 29 2168275 423548
+MARK 80 30 2168284 423562
+MARK 80 31 2250385 439585
+MARK 80 32 2250394 439599
+MARK 80 33 2342734 457622
+MARK 8f 0 2342742 457634
+STATE 00008100 00000003 00000001 00008000 00007000 00000000 00000000 00000000 00000046 00001251
+GOVERNOR cycles=2343856 retired=74186 halted=1 debt_max=129 hold_cycles=2215161 charged=457646
+{"mode": "governor", "seed": 1, "latency": false, "runs": 1, "passed": 1, "failed": 0, "retirements": 0, "cycles": 0, "halts": 0, "interrupts": 0, "faults": 0, "fault_vectors": {}, "shutdowns": 0, "nested": 0, "retire_limits": 0, "load_wait_cycles": 0, "io_accesses": 0, "external_interrupts": 0, "nmis": 0, "rep_interrupts": 0, "vector_moved_stops": 0, "divergence_retirements": {}, "trace_hash": "14650fb0739d0383", "gaps": {"sequential": {}, "prefixed": {}, "lea": {}, "selector": {}, "after_taken": {}, "after_not_taken": {}, "shift_consumer": {}, "after_shift": {}, "store_load": {}, "store_other": {}, "after_store": {}, "address": {}, "after_segment": {}, "after_stack": {}, "stack_stack": {}, "several": {}, "after_string": {}, "after_io": {}, "memory": {}, "smc": {}, "fetch": {}}, "mmio_accesses": 0, "mmio_runs": 0, "replays": 0, "smc_restarts": 0, "window_code_stops": 0, "code_store_stops": 0, "stray_stops": 0, "port0_reads": 46, "port0_writes": 14028, "pm_retirements": 0, "cs_rule": 0, "ss_error_rule": 0, "fetch_rule": 0, "iret_save_rule": 0, "pm_deliveries": {}, "unbuilt_stops": {}, "pm_kinds": {}, "cs_limit": {}, "no387_rule": 0, "no387_skips": 0, "x87_compared": 0, "dr6_rule": 0, "db_rf_rule": 0, "debug_kinds": {}}
+
+STDERR

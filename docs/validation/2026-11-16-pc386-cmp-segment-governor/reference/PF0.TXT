@@ -1,0 +1,2 @@
+pc386 governor probe v1
+CS8_INDEX=EVENT_CONTROL_FAILED

@@ -1,0 +1,11 @@
+{
+  "base_commit": "d5f8c94a8dc0b68574efd74558955f86d72e4f0e",
+  "files": {
+    "cores/fes-common/rtl/i386/fes_i386_pkg.sv": "d44b59165e055698394c86ee7f6703b47fb59b4d631f7c035017aec1734ac4fa",
+    "cores/fes-common/rtl/i386/fes_i386_cpu.sv": "b349387def3d57080e581f89174ffcbd037c7aea77eb5fdec7dd173268bb6ea1",
+    "cores/fes-common/rtl/i386/fes_i386_governor.sv": "9ddc2319d5e3d72b33d966edbc9c2512005af49fe63087bca716862cc52323e8",
+    "cores/fes-common/sim/i386/reference_governor_tb.sv": "72fe716a83d040004aec9876b6cd9c8c6804625e5c37714095324f87e3b62070",
+    "tests/test_fes_i386_governor.py": "5e4c762723ecdec09959d9ff61e97640a32208bce97108ba7037baaf0254ea3d"
+  },
+  "scope": "Private diagnostic-only real-mode 286 segment-prefix CMP candidate, excluding newly admitted EA3 and unsafe prefixes."
+}
