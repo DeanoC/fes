@@ -69,10 +69,11 @@ class Derivations(unittest.TestCase):
         source = (ROOT / "cores/fes-atari-st/rtl/st_video_adapter.sv").read_bytes()
         result, record = derive.retarget_video_adapter(source)
         self.assertEqual(len(record["changes"]), len(derive.ADAPTER_EDITS))
-        # The configuration bundle crosses once, at the frame end; the job's
+        # The configuration bundle crosses once, into its copy; the job's
         # start word and bounds check once each, into their copies.
+        self.assertEqual(result.count(b"config_bundle_pixel <= config_bundle_sys;"), 1)
         self.assertEqual(result.count(b" <= config_bundle_sys;") + result.count(b"                            config_bundle_sys;"), 1)
-        self.assertNotIn(b"pending_config <= config_bundle_sys", result)
+        self.assertNotIn(b"pending_config", result)
         for line in (b"job_start_sys[0] <= job_start[0][17:0];", b"job_start_ok_sys[0] <= job_start_ok[0];"):
             self.assertEqual(result.count(line), 1, line)
         # Every toggle and level has a launch register and a scalar synchronizer, assigned once, unreset.

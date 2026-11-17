@@ -75,10 +75,8 @@ foreach {label source head} $st_crossings {
 # on the path but that register's enable, no sooner than two receiving
 # periods after its toggle left the launch clock. Synthesis drops constant
 # and unused bits, so each end is counted against a floor, not a width.
-#   config       the system snapshot, written with config_ack and held until
-#                the next request; the pixel side loads it at the frame end
-#                after the acknowledge arrived, 2 x 13.468 = 26.94 ns after
-#                the launch at the least
+#   config       the system snapshot, written with config_ack; copied into
+#                the pixel clock 2 x 13.468 = 26.94 ns later at the least
 #   publication  a frame's number, height, border and standard, written with
 #                published; the same window
 #   job          a line job's start word is written one pixel edge after
@@ -89,8 +87,7 @@ foreach {label source head} $st_crossings {
 # One pixel period bounds the first two and eleven nanoseconds the job. The
 # bound counts the skew between the two PLL networks.
 foreach {label bound source sink launches_minimum captures_minimum} {
-    config 13.400 {core|video|config_bundle_sys[*]}
-        {core|video|active_base[*] core|video|active_resolution[*] core|video|active_palette[*]} 100 100
+    config 13.400 {core|video|config_bundle_sys[*]} {core|video|config_bundle_pixel[*]} 100 100
     publication 13.400
         {core|video|native_capture.capture|publication_number[*][*] core|video|native_capture.capture|height[*][*]
          core|video|native_capture.capture|border[*][*] core|video|native_capture.capture|pal_banks[*]}

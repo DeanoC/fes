@@ -141,6 +141,14 @@ def _edits(source, edits, label):
 # A level and its toggle change on one launch edge and cross the same number
 # of stages; the toggle is then acted on one clock later, after the level.
 ADAPTER_EDITS = (
+    # The configuration snapshot is copied when its acknowledge arrives and
+    # used one pixel clock later. The copy stands until the next request,
+    # which follows the frame end that applies it, so the frame end loads the
+    # active configuration from the copy and the pending register goes.
+    (b"    wire config_complete = config_waiting && config_ack_sync == config_request;\n",
+     b"    wire config_arrived = config_waiting && config_ack_sync == config_request;\n"
+     b"    reg config_complete;\n"
+     b"    reg [169:0] config_bundle_pixel;\n"),
     # 80 words fill a twentieth of an M20K; the line caches are LUT RAM here.
     (b"    reg [15:0] cache0 [0:79];\n    reg [15:0] cache1 [0:79];\n",
      b'    (* ramstyle = "MLAB" *) reg [15:0] cache0 [0:79];\n'
@@ -247,6 +255,7 @@ ADAPTER_EDITS = (
      b"        if (reset_pixel) begin\n"
      b"            horizontal <= 11'd0;\n"
      b"            vertical <= 10'd0;\n"
+     b"            config_complete <= 1'b0;\n"
      b"            job_done_taken <= 2'd0;\n"),
     (b"            job_done_meta <= 2'd0;\n"
      b"            job_done_sync <= 2'd0;\n"
@@ -258,10 +267,9 @@ ADAPTER_EDITS = (
      b"            config_ack_sync <= config_ack_meta;\n"
      b"            job_done_meta <= job_done;\n"
      b"            job_done_sync <= job_done_meta;\n",
-     b"            job_done_taken <= job_done_sync;\n"),
-    # The configuration snapshot is held from its acknowledge until the next
-    # request, which follows the frame end that applies it: the pixel side
-    # loads it there, once, straight from the held snapshot.
+     b"            job_done_taken <= job_done_sync;\n"
+     b"            config_complete <= config_arrived && !config_complete;\n"
+     b"            if (config_arrived && !config_complete) config_bundle_pixel <= config_bundle_sys;\n"),
     (b"                pending_config <= config_bundle_sys;\n", b""),
     (b"    reg [169:0] pending_config;\n", b""),
     (b"            pending_config <= 170'd0;\n", b""),
@@ -272,7 +280,7 @@ ADAPTER_EDITS = (
      b"                    cache_busy[bank] <= 1'b0;\n"
      b"                    cache_valid[bank] <= job_ok_pixel[bank] && job_current[bank];\n"),
     (b"                            config_complete ? config_bundle_sys : pending_config;\n",
-     b"                            config_bundle_sys;\n"),
+     b"                            config_bundle_pixel;\n"),
 )
 
 
