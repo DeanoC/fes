@@ -552,10 +552,34 @@ the first attempt. Nothing changed but the constant.
 
 The comparable case is `fes.ramtest` in the #1881 record, whose three measured
 identities gave 102.375, 101.440 and 100.980 MHz against a 100.0 MHz
-constraint with no functional change at all. `fes.ramtest` (#1926) and
-`fes.coleco` (#1894) are already tracked as thin; on this evidence
-`fes.spectrum-plus3` belongs in that set, and that is a follow-up rather than
-anything this PR should change.
+constraint with no functional change at all.
+
+### A second identity, measured, and why it does not retire the warning
+
+The second main move forced this core to be resealed, which gave a second
+measurement of the same RTL at a different identity one merge apart:
+
+| identity | winning seed | system clock | ratio |
+| --- | --- | --- | --- |
+| `678c01a1` | 5 | 52.768 MHz | 1.0104x |
+| `516d9107` | 4 | **57.727 MHz** | **1.1054x** |
+
+Nothing functional differs between those two builds. The achieved system
+frequency moved 9.4%, the binding margin went from 1% to 11%, and the seed
+that wins changed. The current seal is comfortable.
+
+That is **not** a reason to drop the warning; it is the evidence for it. One
+identity of the two sat 1% above constraint, so the distribution for this core
+includes values that close by a whisker, and nothing says 1.0104x was the
+lowest it can go. Reporting only the comfortable second measurement would be
+choosing the flattering half of a two-point sample. The honest statement is
+that `fes.spectrum-plus3`'s margin is identity-dependent across at least
+1.01x-1.11x, and a future `BUILD_ID` can therefore miss on a PR that changed
+nothing about this core.
+
+`fes.ramtest` (#1926) and `fes.coleco` (#1894) are already tracked as thin; on
+this evidence `fes.spectrum-plus3` belongs in that set, and that is a follow-up
+rather than anything this PR should change.
 
 The table is rendered into those markers by `python3 summarise.py --write`, so
 no digest in it is transcribed by hand.
