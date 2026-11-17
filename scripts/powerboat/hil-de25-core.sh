@@ -197,6 +197,39 @@ PY
 fi
 set -e
 [ "$SMOKE_RC" -eq 0 ] && PASS=1 || fail "package lifecycle smoke rc=$SMOKE_RC"
+# Bind the smoke result to the package that this runner actually verified and
+# loaded. The smoke engines have different result schemas, so normalize these
+# two identity fields here before recording the run verdict.
+if [ "$CORE_ID" = fes.menu ]; then
+  RESULT="$D/out/menu-result.json"
+else
+  RESULT="$D/out/result.json"
+fi
+if [ -s "$RESULT" ]; then
+  C_RESULT="$RESULT" C_CORE_ID="$CORE_ID" C_PACKAGE_ID="$(basename "$PKG" .fcore)" python3 - <<'PY' || { fail "could not bind smoke result to its package"; PASS=0; }
+import json
+import os
+from pathlib import Path
+import re
+
+path = Path(os.environ['C_RESULT'])
+core_id = os.environ['C_CORE_ID']
+package_id = os.environ['C_PACKAGE_ID']
+if not re.fullmatch(r'fes\.[a-z0-9.-]+', core_id):
+    raise SystemExit('invalid core ID from package manifest')
+if not re.fullmatch(r'[0-9a-f]{64}', package_id):
+    raise SystemExit('invalid package ID from sealed package filename')
+result = json.loads(path.read_text())
+if not isinstance(result, dict):
+    raise SystemExit('smoke result is not a JSON object')
+result['core_id'] = core_id
+result['package_id'] = package_id
+path.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+PY
+else
+  fail "smoke result is missing: $RESULT"
+  PASS=0
+fi
 # Stop is repeated idempotently, then the recorded baseline bundle is reactivated.
 curl --noproxy '*' -sS --max-time 30 -H 'Content-Type: application/json' -d '{"target":"de25"}' "http://$API/api/v1/session/stop" > "$D/out/stop-final.json" || true
 sleep 2
