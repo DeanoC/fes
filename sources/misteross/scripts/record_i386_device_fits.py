@@ -92,10 +92,44 @@ def validation_gaps(entry: dict, fit: dict, inputs: dict) -> dict:
     return gaps
 
 
+def check_provenance_matches_inputs(output: Path, inputs: dict, provenance: dict) -> None:
+    """Refuse a netlist.json that does not describe the bytes that were fitted.
+
+    inputs.json holds the hash of what was copied into the project, which
+    compile_project() verifies before Quartus starts. netlist.json holds where
+    those bytes came from. They are two files, so a directory can hold a
+    netlist.json from another run, and its source revision would then be
+    published for a netlist it does not describe. A mismatch is refused, not
+    qualified: there is no telling which of the two files is the stray.
+    """
+    fitted = inputs.get("netlist_sha256")
+    if fitted is not None:
+        recorded = (provenance.get("fitted_netlist") or {}).get("fitted_sha256")
+        if recorded != fitted:
+            raise RecordError(
+                f"{output}: netlist.json describes fitted netlist {recorded} but inputs.json "
+                f"records that {fitted} was fitted; the provenance is not this fit's")
+        return
+    # The direct-SystemVerilog flow has no netlist: the same question is asked
+    # of the source files Quartus read, both as found and as fitted.
+    for key in ("source_sha256", "fitted_source_sha256"):
+        fitted, recorded = inputs.get(key), provenance.get(key)
+        if not isinstance(fitted, dict) or not fitted or fitted != recorded:
+            files = sorted(set(fitted or {}) | set(recorded or {})) if (
+                isinstance(fitted, dict) and isinstance(recorded, dict)) else []
+            differing = [f"{file}: netlist.json {recorded.get(file)}, inputs.json {fitted.get(file)}"
+                         for file in files if recorded.get(file) != fitted.get(file)]
+            raise RecordError(
+                f"{output}: netlist.json and inputs.json disagree on {key} "
+                f"({'; '.join(differing) or 'one of them records none'}); "
+                "the provenance is not this fit's")
+
+
 def collect(name: str, output: Path) -> dict:
     fit = read(output / "fit.json")
     inputs = read(output / "inputs.json")
     netlist_provenance = read(output / "netlist.json")
+    check_provenance_matches_inputs(output, inputs, netlist_provenance)
     fit = dict(fit, netlist=netlist_provenance)
     entry = {
         "fit": name, "status": fit["status"], "top": fit["top"],

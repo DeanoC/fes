@@ -13,7 +13,8 @@ from scripts import record_i386_device_fits as record
 def write_fit(directory: Path, *, device: str, family: str, alms: float, available: float,
               device_alms: int, ram_block: str, host: str = "powerboat",
               status: str = "pass", stage: str | None = None,
-              revision: str = "a" * 40, clean: bool = True) -> Path:
+              revision: str = "a" * 40, clean: bool = True,
+              netlist_sha256: str = "a" * 64) -> Path:
     directory.mkdir(parents=True)
     fit = {
         "status": status, "top": "fes_i386_cpu", "device": device, "family": family,
@@ -41,13 +42,15 @@ def write_fit(directory: Path, *, device: str, family: str, alms: float, availab
     (directory / "inputs.json").write_text(json.dumps({
         "board": "DE25-Nano", "documented_device_alms": device_alms, "ram_block": ram_block,
         "clock_hz": 61_440_000, "real_clocks": ["clk"], "virtual_port_count": 1306,
+        "netlist_sha256": netlist_sha256,
         "fes_revision": ({"commit": revision, "clean": True} if clean else
                          {"commit": revision, "clean": False,
                           "tracked_diff": "-a\n+b\n", "tracked_diff_sha256": "f" * 64}),
     }))
     (directory / "netlist.json").write_text(json.dumps(
-        {"netlist_sha256": "a" * 64, "reused": "/some/netlist.v",
-         "source_revision": "c" * 40}))
+        {"reused": "/some/netlist.v", "source_revision": "c" * 40,
+         "fitted_netlist": {"source": "/some/netlist.v", "source_sha256": netlist_sha256,
+                            "fitted_sha256": netlist_sha256}}))
     # Four rows, because fit.json above records a four-corner verdict; the
     # collector refuses a table that does not cover every corner.
     # Four corners, each carrying the three checks a closure rests on, because
@@ -497,6 +500,94 @@ class Collect(unittest.TestCase):
                             alms=3, available=4, device_alms=46800, ram_block="M20K")
             self.assertEqual(record.main(["--record", str(root / "r"),
                                           f"--fit=same={one}", f"--fit=same={two}"]), 1)
+
+
+class ProvenanceBelongsToTheFittedBytes(unittest.TestCase):
+    """netlist.json says where a netlist came from; inputs.json says which
+    bytes Quartus was given. A revision is only published for bytes it
+    describes."""
+
+    def fits(self, root: Path):
+        one = write_fit(root / "1", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                        alms=1, available=2, device_alms=46800, ram_block="M20K",
+                        netlist_sha256="1" * 64)
+        two = write_fit(root / "2", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                        alms=3, available=4, device_alms=46800, ram_block="M20K",
+                        netlist_sha256="2" * 64)
+        return one, two
+
+    def collect(self, root: Path, fit: Path):
+        import contextlib
+        import io
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            code = record.main(["--record", str(root / "r"), f"--fit=x={fit}"])
+        return code, stderr.getvalue()
+
+    def test_a_netlist_json_from_another_run_is_refused(self):
+        # The counterexample: fit 1's directory holding fit 2's netlist.json
+        # would publish fit 2's source revision for fit 1's netlist bytes.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            one, two = self.fits(root)
+            (one / "netlist.json").write_text((two / "netlist.json").read_text())
+            code, message = self.collect(root, one)
+            self.assertEqual(code, 1)
+            self.assertIn("1" * 64, message)
+            self.assertIn("2" * 64, message)
+            self.assertFalse((root / "r" / "quartus.json").exists())
+
+    def test_the_same_directories_unswapped_collect(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            one, _two = self.fits(root)
+            self.assertEqual(self.collect(root, one)[0], 0)
+
+    def test_a_provenance_with_no_fitted_hash_is_refused(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            one, _two = self.fits(root)
+            net = json.loads((one / "netlist.json").read_text())
+            del net["fitted_netlist"]
+            (one / "netlist.json").write_text(json.dumps(net))
+            code, message = self.collect(root, one)
+            self.assertEqual(code, 1)
+            self.assertIn("1" * 64, message)
+
+    def direct(self, root: Path, name: str, digest: str) -> Path:
+        fit = write_fit(root / name, device="A5EB013BB23BE4SCS", family="Agilex 5",
+                        alms=1, available=2, device_alms=46800, ram_block="M20K")
+        hashes = {"source_sha256": {"fes_i386_cpu.sv": digest},
+                  "fitted_source_sha256": {"fes_i386_cpu.sv": digest}}
+        inputs = json.loads((fit / "inputs.json").read_text())
+        inputs.update(hashes, netlist_sha256=None)
+        (fit / "inputs.json").write_text(json.dumps(inputs))
+        (fit / "netlist.json").write_text(json.dumps(
+            dict(hashes, front_end="quartus-direct-systemverilog")))
+        return fit
+
+    def test_direct_systemverilog_hashes_from_another_run_are_refused(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            one = self.direct(root, "1", "1" * 64)
+            two = self.direct(root, "2", "2" * 64)
+            self.assertEqual(self.collect(root, one)[0], 0)
+            (one / "netlist.json").write_text((two / "netlist.json").read_text())
+            code, message = self.collect(root, one)
+            self.assertEqual(code, 1)
+            self.assertIn("1" * 64, message)
+            self.assertIn("2" * 64, message)
+
+    def test_one_differing_source_file_is_refused_and_named(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            one = self.direct(root, "1", "1" * 64)
+            net = json.loads((one / "netlist.json").read_text())
+            net["fitted_source_sha256"]["fes_i386_cpu.sv"] = "3" * 64
+            (one / "netlist.json").write_text(json.dumps(net))
+            code, message = self.collect(root, one)
+            self.assertEqual(code, 1)
+            self.assertIn("fes_i386_cpu.sv", message)
 
 
 if __name__ == "__main__":

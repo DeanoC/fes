@@ -1256,3 +1256,27 @@ places, routes and passes timing at that constraint. The summary and the
 earlier amendments above used "closes" for some of them. Those sentences now
 read "passes timing at 61.44 MHz", and band 3's label reads "fits but fails
 timing". No rule, band boundary, verdict or figure changes.
+
+## Amendment, 17 November 2026: provenance must describe the fitted bytes
+
+What had been seen: every fit recorded, and a review finding that the
+collector attached `netlist.json`'s source revision to a result without
+checking it against the netlist hash in `inputs.json`.
+
+`inputs.json` records the hash of what was copied into the project, and
+`compile_project()` verifies that before Quartus starts. `netlist.json` records
+where those bytes came from. A fit directory holding a `netlist.json` from
+another run would have had that run's revision published for its own netlist.
+The collector now refuses a fit whose two files disagree, naming both hashes:
+`fitted_netlist.fitted_sha256` against `netlist_sha256` for the netlist flow,
+and `source_sha256` and `fitted_source_sha256` file by file for the
+direct-SystemVerilog flow. A missing hash is refused too. The counterexample,
+one fit directory given another's `netlist.json`, is
+`test_a_netlist_json_from_another_run_is_refused`, and it failed on
+`db11855b4`.
+
+All sixteen retained fit directories were re-collected with the check in
+place. None was refused, and `quartus.json`, `quartus-inputs.json` and
+`timing.tsv` came out byte-identical to the committed files. `host.json`
+differed only in `collected_at_revision`, the collector's own checkout, so the
+committed file is left as it was. No figure changes.
