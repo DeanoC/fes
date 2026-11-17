@@ -126,6 +126,7 @@ type Staged struct {
 	ROMLink            *ROMLinkIdentity             `json:"rom_link,omitempty"`
 	ROMLinks           *ROMLinksIdentity            `json:"rom_links,omitempty"`
 	ProgrammedPath     string                       `json:"programmed_path,omitempty"`
+	FirmwarePath       string                       `json:"firmware_path,omitempty"` // a Nano upload package's ROM source, in place of ProgrammedPath
 	Composition        *expansion.Composition       `json:"composition,omitempty"`
 	ExpansionDirectory string                       `json:"expansion_directory,omitempty"`
 	PayloadPath        string                       `json:"payload_path,omitempty"`

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"slices"
 	"unicode/utf8"
 )
 
@@ -40,6 +41,26 @@ func nanoROMEncoding(d Descriptor) (string, bool) {
 		}
 	}
 	return encoding, transports == 1 && encoding != ""
+}
+
+// FirmwareUpload reports a Nano package whose one firmware image the runtime
+// uploads over the fes.computer mailbox at launch. Its payload is programmed
+// unchanged, so no linker runs and the ROM source itself goes to the kit.
+func FirmwareUpload(d Descriptor) bool {
+	encoding, ok := nanoROMEncoding(d)
+	return nanoROM(d) && d.ROM != nil && ok && encoding == "gp-firmware-upload-v1"
+}
+
+// firmwareUploadMachine admits the machines the DE25 runtime launches this
+// way, each with its endpoint's exact image sizes. The package format allows
+// any 1 KiB multiple; a launch does not.
+func firmwareUploadMachine(d Descriptor) error {
+	sizes := map[string][]int64{"fes.spectrum": {16384, 32768}, "fes.atari-st": {196608}}[d.Core.ID]
+	if !FirmwareUpload(d) || d.Target.ProgrammingProfile != "de25-linux-computer-v1" ||
+		d.ABI != (Contract{ID: "fes.computer", Major: 1}) || !slices.Contains(sizes, d.ROM.SourceSize) {
+		return errors.New("firmware upload requires a DE25 Spectrum or Atari ST computer package and its exact image size")
+	}
+	return nil
 }
 
 func validateNanoROMMap(ctx context.Context, r io.Reader, size int64, d Descriptor) error {
