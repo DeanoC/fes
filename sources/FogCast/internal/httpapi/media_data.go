@@ -13,6 +13,7 @@ import (
 type mediaRecordController interface {
 	InspectMediaRecord(context.Context, protocol.MediaRecordIdentity) (protocol.MediaRecord, *protocol.APIError)
 	DiscardMediaRecord(context.Context, protocol.MediaRecordDiscard) (protocol.MediaRecord, *protocol.APIError)
+	ExportMediaRecord(context.Context, protocol.MediaRecordDiscard) ([]byte, *protocol.APIError)
 }
 
 type mediaDataController interface {
@@ -66,8 +67,9 @@ func registerMediaDataRoutes(mux *http.ServeMux, token string, controller Develo
 	}))))
 	// One library disk's saved record, named by its identity. Inspect changes
 	// nothing; discard removes the record and is lease-guarded.
-	for _, path := range []string{"/v1/library/media/record", "/v1/library/media/record/discard"} {
-		discard := path == "/v1/library/media/record/discard"
+	for _, path := range []string{"/v1/library/media/record", "/v1/library/media/record/discard", "/v1/library/media/record/export"} {
+		export := path == "/v1/library/media/record/export"
+		discard := path == "/v1/library/media/record/discard" || export
 		mux.Handle(path, authenticate(token, exactMethod(http.MethodPost, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			r.Body = http.MaxBytesReader(w, r.Body, 1024)
 			decoder := json.NewDecoder(r.Body)
@@ -91,6 +93,20 @@ func registerMediaDataRoutes(mux *http.ServeMux, token string, controller Develo
 			}
 			var record protocol.MediaRecord
 			var e *protocol.APIError
+			if export {
+				// The saved image itself; the record stays as it is.
+				data, e := c.ExportMediaRecord(r.Context(), request)
+				if e != nil {
+					setRequestError(r, e.Code)
+					writeAPIError(w, statusForError(e.Code), e)
+					return
+				}
+				w.Header().Set("Content-Type", "application/octet-stream")
+				w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(data)
+				return
+			}
 			if discard {
 				record, e = c.DiscardMediaRecord(r.Context(), request)
 			} else {

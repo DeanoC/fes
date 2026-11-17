@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/DeanoC/FogCast/protocol"
@@ -69,4 +70,42 @@ func (c *Client) mediaRecord(ctx context.Context, path string, payload any) (pro
 		return protocol.MediaRecord{}, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "saved media response is invalid", Phase: "recovery"}
 	}
 	return record, nil
+}
+
+// ExportMediaRecord fetches the image held in one library disk's saved
+// record, when it still has d.ExpectedRevision. Nothing on the kit changes.
+func (c *Client) ExportMediaRecord(ctx context.Context, d protocol.MediaRecordDiscard) ([]byte, error) {
+	if !d.Valid() {
+		return nil, errMediaRecordRequest
+	}
+	body, err := json.Marshal(d)
+	if err != nil {
+		return nil, err
+	}
+	r, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint("/v1/library/media/record/export", nil).String(), bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	r.Header.Set("Authorization", "Bearer "+c.token)
+	r.Header.Set("Content-Type", "application/json")
+	response, err := c.httpClient.Do(r)
+	if err != nil {
+		if response != nil && response.Body != nil {
+			response.Body.Close()
+		}
+		return nil, newTransferError(err)
+	}
+	defer response.Body.Close()
+	const limit = 4 << 20
+	data, err := io.ReadAll(io.LimitReader(response.Body, limit+1))
+	if err != nil {
+		return nil, newTransferError(err)
+	}
+	if response.StatusCode != http.StatusOK {
+		return nil, decodeResponse(&http.Response{StatusCode: response.StatusCode, Body: io.NopCloser(bytes.NewReader(data)), Header: response.Header}, &struct{}{})
+	}
+	if !protocol.AdmitLibraryFloppySize(int64(len(data))) {
+		return nil, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "saved media image is the wrong size", Phase: "recovery"}
+	}
+	return data, nil
 }

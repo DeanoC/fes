@@ -108,6 +108,21 @@ func (c *Coordinator) LoadComposedCore(ctx context.Context, size int64, body io.
 type mediaRecordRuntime interface {
 	InspectMediaRecord(context.Context, protocol.MediaRecordIdentity) (protocol.MediaRecord, *protocol.APIError)
 	DiscardMediaRecord(context.Context, protocol.MediaRecordDiscard) (protocol.MediaRecord, *protocol.APIError)
+	ExportMediaRecord(context.Context, protocol.MediaRecordDiscard) ([]byte, *protocol.APIError)
+}
+
+// ExportMediaRecord returns one library disk's saved image without changing
+// it. A running core's last saved image can be read.
+func (c *Coordinator) ExportMediaRecord(ctx context.Context, d protocol.MediaRecordDiscard) ([]byte, *protocol.APIError) {
+	if !c.begin() {
+		return nil, &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running"}
+	}
+	defer c.end()
+	runtime, ok := c.runtime.(mediaRecordRuntime)
+	if !ok {
+		return nil, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
+	}
+	return runtime.ExportMediaRecord(ctx, d)
 }
 
 // InspectMediaRecord reports what is saved for one library disk. It runs as

@@ -18,6 +18,7 @@ type mediaRecordHTTPController struct {
 	mediaUnitHTTPController
 	inspected []protocol.MediaRecordIdentity
 	discarded []protocol.MediaRecordDiscard
+	exported  []protocol.MediaRecordDiscard
 	err       *protocol.APIError
 }
 
@@ -29,6 +30,11 @@ func (c *mediaRecordHTTPController) InspectMediaRecord(_ context.Context, id pro
 func (c *mediaRecordHTTPController) DiscardMediaRecord(_ context.Context, d protocol.MediaRecordDiscard) (protocol.MediaRecord, *protocol.APIError) {
 	c.discarded = append(c.discarded, d)
 	return protocol.MediaRecord{State: protocol.MediaRecordAbsent, Revision: "absent"}, c.err
+}
+
+func (c *mediaRecordHTTPController) ExportMediaRecord(_ context.Context, d protocol.MediaRecordDiscard) ([]byte, *protocol.APIError) {
+	c.exported = append(c.exported, d)
+	return []byte(strings.Repeat("d", 737280)), c.err
 }
 
 func TestSavedMediaRecordRoutes(t *testing.T) {
@@ -65,6 +71,15 @@ func TestSavedMediaRecordRoutes(t *testing.T) {
 	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &record) != nil || record.State != protocol.MediaRecordAbsent ||
 		len(c.discarded) != 1 || c.discarded[0].MediaRecordIdentity != id || c.discarded[0].ExpectedRevision != revision {
 		t.Fatalf("discard %d %s %+v", w.Code, w.Body, c.discarded)
+	}
+	// Export hands back the saved image and needs no lease.
+	w = send("/v1/library/media/record/export", string(discard), func(r *http.Request) { r.Header.Del(httpapi.KitLeaseHeader) })
+	if w.Code != 200 || w.Header().Get("Content-Type") != "application/octet-stream" || w.Body.Len() != 737280 ||
+		len(c.exported) != 1 || c.exported[0].ExpectedRevision != revision {
+		t.Fatalf("export %d %d bytes %+v", w.Code, w.Body.Len(), c.exported)
+	}
+	if w = send("/v1/library/media/record/export", string(identity), nil); w.Code != 400 || len(c.exported) != 1 {
+		t.Fatalf("export without a revision: %d", w.Code)
 	}
 	// Discard removes saved data, so it needs the kit lease.
 	if w = send("/v1/library/media/record/discard", string(discard), func(r *http.Request) { r.Header.Del(httpapi.KitLeaseHeader) }); w.Code == 200 || len(c.discarded) != 1 {
