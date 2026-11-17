@@ -28,7 +28,8 @@ def _build(root: Path, *, cache_root: Path | None, gpu_router: str | None,
     runner = root / 'scripts/test_fes_i386_lockstep.py'
     sealer = root / ('cores/fes-pc386/tools/build_pc386_product.py' if product else 'scripts/build_fes_pc386_quartus.py')
     launcher = root / 'cores/fes-pc386/tools/pc386_run_lockstep.py'
-    for source in (runner, sealer, *([launcher] if product else [])):
+    firmware = root / 'scripts/build_pc386_firmware.py'
+    for source in (runner, sealer, *([launcher, firmware] if product else [])):
         current = root
         parts = source.relative_to(root).parts
         for index, part in enumerate(parts):
@@ -63,6 +64,21 @@ def _build(root: Path, *, cache_root: Path | None, gpu_router: str | None,
         common.extend(('--cache-root', str(cache_root)))
     if gpu_router is not None:
         common.extend(('--gpu-router', gpu_router))
+    if product:
+        # A cache miss must work from a clean checkout. The stock firmware
+        # builder checks both source provenance and the locked ROM hashes; do
+        # this before the expensive lockstep suite and never update the lock.
+        command = [sys.executable, str(firmware), '--jobs', '2']
+        if download:
+            command.append('--download')
+        try:
+            status = run(command, cwd=root, timeout=15 * 60, label='pc386 firmware')
+        except TimeoutError:
+            print('pc386 firmware preparation timed out', file=sys.stderr)
+            return 124
+        if status:
+            print(f'pc386 firmware preparation failed (exit {status})', file=sys.stderr)
+            return status
     suite = ([sys.executable, str(launcher), '--output', str(report_dir)] if product else [sys.executable, str(runner)])
     suite += ['--netlist', *(['--download'] if download else []), *common]
     try:

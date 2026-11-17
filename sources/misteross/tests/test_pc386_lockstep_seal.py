@@ -27,9 +27,17 @@ class OrchestratorTest(unittest.TestCase):
         (self.root / 'scripts').mkdir()
         self.runner = self.root / 'scripts/test_fes_i386_lockstep.py'
         self.sealer = self.root / 'scripts/build_fes_pc386_quartus.py'
+        self.firmware = self.root / 'scripts/build_pc386_firmware.py'
+        self.firmware.write_text('''import json,sys
+from pathlib import Path
+root=Path.cwd(); (root/'firmware-args.json').write_text(json.dumps(sys.argv[1:]))
+with (root/'events').open('a') as f: f.write('firmware\\n')
+if (root/'firmware-fails').exists(): raise SystemExit(9)
+''')
         self.runner.write_text('''import json,sys
 from pathlib import Path
 root=Path.cwd(); (root/'suite-args.json').write_text(json.dumps(sys.argv[1:]))
+with (root/'events').open('a') as f: f.write('suite\\n')
 mode=(root/'mode').read_text() if (root/'mode').exists() else 'pass'
 if mode != 'missing': (root/'build/sim/fes-i386-lockstep/report.json').write_text('fresh')
 if mode == 'fail': raise SystemExit(7)
@@ -38,6 +46,7 @@ if mode == 'fail': raise SystemExit(7)
 from pathlib import Path
 root=Path.cwd(); args=sys.argv[1:]
 assert Path(args[args.index('--lockstep-report')+1]).read_text() == 'fresh'
+with (root/'events').open('a') as f: f.write('seal\\n')
 (root/'seal-args.json').write_text(json.dumps(args))
 ''')
 
@@ -51,6 +60,7 @@ assert Path(args[args.index('--lockstep-report')+1]).read_text() == 'fresh'
                                         package_output=Path('/packages')), 0)
         suite = json.loads((self.root/'suite-args.json').read_text())
         seal = json.loads((self.root/'seal-args.json').read_text())
+        self.assertFalse((self.root/'firmware-args.json').exists())
         self.assertEqual(suite, ['--netlist', '--cache-root', '/cache', '--gpu-router', 'CUDA'])
         self.assertEqual(seal, ['--root', str(self.root), '--lockstep-report',
             str(self.root/'build/sim/fes-i386-lockstep/report.json'), '--cache-root', '/cache',
@@ -70,8 +80,11 @@ assert Path(args[args.index('--lockstep-report')+1]).read_text() == 'fresh'
 from pathlib import Path
 args=sys.argv[1:]; out=Path(args[args.index('--output')+1]); args=args[2:]
 (Path.cwd()/'suite-args.json').write_text(json.dumps(args)); (out/'report.json').write_text('fresh')
+with (Path.cwd()/'events').open('a') as f: f.write('suite\\n')
 ''')
         self.assertEqual(self.run_build(product=True, download=True, gpu_router='CUDA'), 0)
+        self.assertEqual(json.loads((self.root/'firmware-args.json').read_text()), ['--jobs', '2', '--download'])
+        self.assertEqual((self.root/'events').read_text().splitlines(), ['firmware', 'suite', 'seal'])
         suite = json.loads((self.root / 'suite-args.json').read_text())
         self.assertEqual(suite, ['--netlist', '--download', '--gpu-router', 'CUDA'])
         args = json.loads((self.root / 'seal-args.json').read_text())
@@ -85,6 +98,43 @@ args=sys.argv[1:]; out=Path(args[args.index('--output')+1]); args=args[2:]
         self.assertNotEqual(first, second)
         self.assertEqual(first.read_text(), 'fresh')
         self.assertEqual(second.read_text(), 'fresh')
+        self.assertEqual(self.run_build(product=True, download=False), 0)
+        self.assertEqual(json.loads((self.root/'firmware-args.json').read_text()), ['--jobs', '2'])
+
+    def test_product_firmware_failure_stops_before_lockstep_and_seal(self):
+        product = self.root / 'cores/fes-pc386/tools/build_pc386_product.py'
+        product.parent.mkdir(parents=True)
+        product.write_bytes(self.sealer.read_bytes())
+        (product.parent / 'pc386_run_lockstep.py').write_text('raise AssertionError("must not run")')
+        (self.root / 'firmware-fails').write_text('fail')
+        self.assertEqual(self.run_build(product=True, download=True), 9)
+        self.assertEqual((self.root/'events').read_text().splitlines(), ['firmware'])
+        self.assertFalse((self.root/'suite-args.json').exists())
+        self.assertFalse((self.root/'seal-args.json').exists())
+
+    def test_product_firmware_timeout_stops_before_lockstep_and_seal(self):
+        product = self.root / 'cores/fes-pc386/tools/build_pc386_product.py'
+        product.parent.mkdir(parents=True)
+        product.write_bytes(self.sealer.read_bytes())
+        (product.parent / 'pc386_run_lockstep.py').write_text('raise AssertionError("must not run")')
+        with mock.patch.object(pc386_owned_job, 'run', side_effect=TimeoutError) as run:
+            self.assertEqual(self.run_build(product=True, download=True), 124)
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_args.kwargs['timeout'], 15 * 60)
+        self.assertFalse((self.root/'events').exists())
+
+    def test_product_refuses_symlinked_firmware_before_any_command(self):
+        product = self.root / 'cores/fes-pc386/tools/build_pc386_product.py'
+        product.parent.mkdir(parents=True)
+        product.write_bytes(self.sealer.read_bytes())
+        (product.parent / 'pc386_run_lockstep.py').write_text('raise AssertionError("must not run")')
+        target = self.root / 'outside.py'
+        target.write_text('raise AssertionError("must not run")')
+        self.firmware.unlink()
+        self.firmware.symlink_to(target)
+        with self.assertRaisesRegex(ValueError, 'non-symlinked'):
+            self.run_build(product=True, download=True)
+        self.assertFalse((self.root/'events').exists())
 
     def test_product_build_lock_rejects_a_concurrent_owner(self):
         directory = self.root / 'build/sim'
