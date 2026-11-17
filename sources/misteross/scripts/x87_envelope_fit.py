@@ -39,7 +39,8 @@ BACKENDS = {'de10': 0, 'de25': 1}
 # what changes is the parameter, and the fitter's entity table is what shows
 # which arithmetic was actually built.
 SOURCES = ('fes_i386_pkg.sv', 'fes_x87_pkg.sv', 'fes_i386_x87_mul.sv',
-           'fes_x87_fast.sv', 'fes_x87_slow.sv', 'fes_x87_core.sv', 'fes_i386_x87.sv')
+           'fes_x87_fast.sv', 'fes_x87_slow.sv', 'fes_x87_core.sv',
+           'fes_x87_trans_pkg.sv', 'fes_x87_trans_rom.sv', 'fes_x87_trans.sv', 'fes_i386_x87.sv')
 # --top cpu fits fes_i386_cpu with `x87_present` TIED, so that the pair
 # present=0 and present=1 gives what the 387 costs inside the CPU. The unit
 # fit above cannot answer that: it keeps regs_o (640 register bits) and the

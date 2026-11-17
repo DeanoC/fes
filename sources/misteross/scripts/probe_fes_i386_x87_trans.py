@@ -145,7 +145,7 @@ def _ordinal(text: str):
     exponent = sign_exponent & 0x7fff
     if exponent == 0x7fff or significand == 0 or bool(significand >> 63) != bool(exponent):
         return None
-    return sign_exponent >> 15, significand if exponent == 0 else (exponent - 1) << 63 | significand
+    return sign_exponent >> 15, significand if exponent == 0 else ((exponent - 1) << 63) + significand
 
 
 def compare_hosts(first: Path, second: Path) -> dict:

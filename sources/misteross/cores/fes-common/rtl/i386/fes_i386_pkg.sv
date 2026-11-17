@@ -1307,7 +1307,10 @@ package fes_i386_pkg;
         // `rev` sense read off the opcode.
         X87_DIV,      // FDIV, FDIVR, FIDIV, FIDIVR and their forms
         X87_SQRT,     // FSQRT (D9 FA)
-        X87_PREM      // FPREM (D9 F8) and FPREM1 (D9 F5)
+        X87_PREM,     // FPREM (D9 F8) and FPREM1 (D9 F5)
+        // The transcendentals, built on the DE25 backend only (#1958): which
+        // one is read off the opcode, as the arithmetic's forms are.
+        X87_TRANS     // F2XM1, FYL2X, FPTAN, FPATAN, FYL2XP1, FSINCOS, FSIN, FCOS
     } x87_op_e;
 
     // The eight constants FLD1 to FLDZ push, in the 387's order (D9 E8-EE),
@@ -1446,6 +1449,10 @@ package fes_i386_pkg;
                         8'hf7: x87_decode = X87_INCSTP;
                         8'hfc: x87_decode = X87_RNDINT;
                         8'hfd: x87_decode = X87_SCALE;
+                        // D9 F0-F3, F9, FB, FE, FF: the transcendentals, on
+                        // the DE25 backend; elsewhere they stop as not built.
+                        8'hf0, 8'hf1, 8'hf2, 8'hf3, 8'hf9, 8'hfb, 8'hfe, 8'hff:
+                            x87_decode = de25 ? X87_TRANS : X87_UNIMPL;
                         default: begin
                             if (o[7:3] == 5'b11000) x87_decode = X87_LD_ST;        // D9 C0+i
                             else if (o[7:3] == 5'b11001) x87_decode = X87_XCH;     // D9 C8+i

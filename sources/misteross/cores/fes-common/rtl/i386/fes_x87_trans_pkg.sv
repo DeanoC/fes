@@ -6,6 +6,8 @@
 // each word means are in scripts/x87_trans_ucode.py, which also holds the
 // exact model the engine is checked against.
 package fes_x87_trans_pkg;
+    // Every name is listed, whether or not the engine reads it.
+    /* verilator lint_off UNUSEDPARAM */
     localparam logic [4:0] U_NOP = 5'd0;
     localparam logic [4:0] U_ADD = 5'd1;
     localparam logic [4:0] U_SUB = 5'd2;
@@ -77,4 +79,5 @@ package fes_x87_trans_pkg;
     localparam logic [66:0] PM = 67'h6487ed5110b4611a6;
     // sqrt 2's significand, truncated: a significand above it is halved.
     localparam logic [63:0] SQRT2 = 64'hb504f333f9de6484;
+    /* verilator lint_on UNUSEDPARAM */
 endpackage

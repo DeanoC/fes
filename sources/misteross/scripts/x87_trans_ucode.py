@@ -1032,7 +1032,7 @@ def ordinal(sign_exponent: int, significand: int):
     field = sign_exponent & 0x7fff
     if field == 0x7fff or significand == 0 or bool(significand >> 63) != bool(field):
         return None
-    return sign_exponent >> 15, significand if field == 0 else (field - 1) << 63 | significand
+    return sign_exponent >> 15, significand if field == 0 else ((field - 1) << 63) + significand
 
 
 TWO = ('FYL2X', 'FPATAN', 'FYL2XP1')
@@ -1218,7 +1218,9 @@ def emit(program: Program) -> dict[str, str]:
         '// instruction\'s entry, and the reduction constant. The microprogram and what',
         '// each word means are in scripts/x87_trans_ucode.py, which also holds the',
         '// exact model the engine is checked against.',
-        'package fes_x87_trans_pkg;']
+        'package fes_x87_trans_pkg;',
+        '    // Every name is listed, whether or not the engine reads it.',
+        '    /* verilator lint_off UNUSEDPARAM */']
     package += [f'    localparam logic [4:0] U_{name} = 5\'d{n};' for n, name in enumerate(OPCODES)]
     package += [f'    localparam logic [2:0] UF_{name} = 3\'d{n};' for n, name in enumerate(FIN_KINDS)]
     package += [f'    localparam logic [3:0] FL_{name} = 4\'d{n};' for n, name in enumerate(FLAGS)]
@@ -1232,6 +1234,7 @@ def emit(program: Program) -> dict[str, str]:
                 f'    localparam logic [66:0] PM = 67\'h{PM:017x};',
                 '    // sqrt 2\'s significand, truncated: a significand above it is halved.',
                 f'    localparam logic [63:0] SQRT2 = 64\'h{SQRT2_SIG:016x};',
+                '    /* verilator lint_on UNUSEDPARAM */',
                 'endpackage', '']
     rom = head + [
         '// The engine\'s two memories, each read with a registered output: the',
@@ -1302,6 +1305,74 @@ def vectors(program: Program, dump: str, per_class: int) -> list[str]:
     return lines
 
 
+def unit_vectors(program: Program, per_class: int, seed: int) -> list[str]:
+    """Instruction-level vectors for the unit bench, from operands of this
+    script's own: the instruction, the control word (every exception masked,
+    each rounding mode), x and y as 80-bit values, and the model's result,
+    rounded as the unit's A_RND rounds it, with PE, UE and OE.
+    "<instruction> <cw> <x> <y> <ST(0)> <ST(1) or -> <flags>"."""
+    import random
+    rng = random.Random(seed)
+
+    def operand(low: int, high: int, sign: int = 0):
+        exponent = rng.randint(low, high)
+        negative = sign < 0 or (sign == 0 and rng.random() < 0.5)
+        return from_bits((0x8000 if negative else 0) | max(exponent + BIAS, 0),
+                         (rng.getrandbits(64) | 1 << 63) >> max(0, -(exponent + BIAS) + 1))
+
+    def bits(f) -> str:
+        sign, exponent, significand = f
+        if exponent < E_MIN:                           # a denormal, back in its own encoding
+            return f'{sign << 15:04x}{significand >> (E_MIN - exponent):016x}'
+        return f'{sign << 15 | (exponent + BIAS):04x}{significand:016x}'
+
+    classes = {
+        'FSIN': [(-8, -1), (0, 9), (10, 62), (-70, -9), (-16440, -16300)],
+        'F2XM1': [(-8, -1), (-70, -9), (-16440, -16300), (0, 3)],
+    }
+    for name in ('FCOS', 'FSINCOS', 'FPTAN'):
+        classes[name] = classes['FSIN']
+    lines = []
+    for name in INSTRUCTIONS:
+        for index in range(per_class * 4):
+            rc = index & 3
+            y = (0, 0, 1 << 63)
+            if name in classes:
+                low, high = classes[name][(index >> 2) % len(classes[name])]
+                x = operand(low, high)
+            elif name == 'FYL2X':
+                kind = (index >> 2) % 4
+                y = operand(-4, 3) if kind < 3 else operand(-16440, 16383)
+                x = operand(-4, 3, 1) if kind == 0 else operand(-16440, 16383, 1) if kind == 1 else \
+                    (0, rng.randint(-40, 40), 1 << 63) if kind == 2 else operand(-1, 0, 1)
+                if x[2] == 1 << 63 and x[1] == 0:
+                    continue                           # exactly 1: the unit's, not the engine's
+            elif name == 'FYL2XP1':
+                kind = (index >> 2) % 4
+                y = operand(-4, 3) if kind < 3 else operand(-16440, 16383)
+                x = operand(-8, -2) if kind == 0 else operand(-70, -9) if kind == 1 else \
+                    operand(-16440, -16300) if kind == 2 else operand(-2, 40, 1)
+            else:
+                kind = (index >> 2) % 4
+                y = operand(-4, 3) if kind == 0 else operand(-70, -9) if kind == 1 else operand(-16440, 16383)
+                x = operand(-4, 3) if kind < 2 else operand(-16440, 16383)
+                if kind == 3:
+                    x = (rng.getrandbits(1), y[1], y[2])   # |y| = |x|
+            result = run(program, name, x, y)
+            sign_exponent, significand, flags = final_round(result.exact, rc)
+            flags |= 0x20 | (0x10 if not sign_exponent & 0x7fff and significand else 0)
+            final = f'{sign_exponent:04x}{significand:016x}'
+            if name == 'FSINCOS':
+                st0, st1 = bits(result.second), final
+            elif name == 'FPTAN':
+                st0, st1 = '3fff8000000000000000', final
+            else:
+                st0, st1 = final, '-'
+            lines.append(f'{INSTRUCTIONS.index(name)} {0x037f | rc << 10:04x} {bits(x)} {bits(y)} {st0} {st1} '
+                         f'{flags:02x}')
+    return lines
+
+
 def main() -> int:
     import json
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -1314,6 +1385,9 @@ def main() -> int:
     parser.add_argument('--emit', action='store_true', help="write the engine's generated SystemVerilog")
     parser.add_argument('--check', action='store_true', help='fail if the checked-in generated files differ')
     parser.add_argument('--vectors', help='with --hosts: write engine vectors here, --limit rows a class')
+    parser.add_argument('--unit-vectors', help='write instruction-level vectors for the unit bench here, '
+                                               '--limit rows a class and rounding mode')
+    parser.add_argument('--seed', type=int, default=1958)
     args = parser.parse_args()
     rom = build_rom()
     program = build_program(rom)
@@ -1331,6 +1405,10 @@ def main() -> int:
         if stale:
             print('stale generated files: ' + ', '.join(stale), file=sys.stderr)
             return 1
+    if args.unit_vectors:
+        with open(args.unit_vectors, 'w') as out:
+            out.write('\n'.join(unit_vectors(program, args.limit, args.seed)) + '\n')
+        return 0
     if args.vectors:
         with open(args.vectors, 'w') as out:
             out.write('\n'.join(vectors(program, args.hosts, args.limit)) + '\n')

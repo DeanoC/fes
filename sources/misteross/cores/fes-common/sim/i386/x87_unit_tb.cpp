@@ -37,6 +37,7 @@
 #include <string>
 #include <fstream>
 #include <iomanip>
+#include <map>
 #include <sstream>
 #include <vector>
 
@@ -46,7 +47,7 @@ namespace {
 // cycles, but slice 3's arithmetic runs up to four multiplies of four
 // clocks apiece, so a 64-cycle wait ran out and let a uop issue while the
 // unit still held it, which wedged the case and every one after it.
-constexpr int X87_WAIT = 512;
+constexpr int X87_WAIT = 4096;   // above the longest transcendental, which is under 1,000 clocks
 
 constexpr unsigned FMT_F32 = 1, FMT_F64 = 2, FMT_F80 = 3;
 constexpr unsigned FMT_I16 = 4, FMT_I32 = 5, FMT_I64 = 6, FMT_ENV = 7;
@@ -1405,6 +1406,528 @@ uint16_t testfloat_flags(unsigned flags) {
     return uint16_t(((flags & 0x01) ? 0x20 : 0) | ((flags & 0x02) ? 0x10 : 0) |
                     ((flags & 0x04) ? 0x08 : 0) | ((flags & 0x08) ? 0x04 : 0) |
                     ((flags & 0x10) ? 0x01 : 0));
+}
+
+// ---- The transcendentals (#1958, D9 F0-F3, F9, FB, FE, FF). ----
+// Built on the DE25 backend only. The host's x87 is neither a 387 nor the
+// unit's algorithm, so a result is compared within a bound and everything
+// else exactly (the record's method.md, "The eight transcendentals"):
+//   - the control word, the tag word, TOP, the six flags, SF, ES and C0, C2
+//     and C3: exactly;
+//   - a result that is not a finite non-zero value on both sides: exactly;
+//   - a finite non-zero result: by its distance from the host's in
+//     representable values, which must be within the bound. The bound is
+//     FES_X87_TRANS_ULP_HOST and has no default: with it unset every such
+//     compare fails, it does not pass and it does not skip;
+//   - C1: exactly on a stack fault and where the result was exact, and
+//     counted, not gated, elsewhere: it is the round-up bit of each
+//     implementation's own last rounding, and the two build hosts disagree
+//     on it for results that are identical to the bit.
+// Where the 387's manual and the host disagree the case follows the manual
+// and says so (rules.md): a trigonometric form of an infinity sets C2, and
+// FYL2XP1 of an operand at or below -1 is not the host's.
+// Beside the host, FES_X87_TRANS_VECTORS names the model's vectors
+// (scripts/x87_trans_ucode.py --unit-vectors): there the compare is exact,
+// bit for bit, with no bound.
+struct TransForm { const char *name; uint8_t modrm; bool two, push, trig; };
+const TransForm TRANS_FORMS[8] = {
+    {"FSIN", 0xfe, false, false, true},   {"FCOS", 0xff, false, false, true},
+    {"FSINCOS", 0xfb, false, true, true}, {"FPTAN", 0xf2, false, true, true},
+    {"F2XM1", 0xf0, false, false, false}, {"FYL2X", 0xf1, true, false, false},
+    {"FYL2XP1", 0xf9, true, false, false}, {"FPATAN", 0xf3, true, false, false},
+};
+constexpr unsigned SEQ_T_RUN = 59;      // fes_i386_x87's T_RUN, where the engine's result is taken
+long trans_bound = -1;                  // FES_X87_TRANS_ULP_HOST
+struct TransTally {
+    uint64_t cases = 0, values = 0, identical = 0, c1_differs = 0, manual = 0;
+    std::map<uint64_t, uint64_t> distance;   // the whole histogram
+    uint64_t worst = 0;
+};
+TransTally trans_tally[8];
+uint64_t trans_engine_runs[8] = {0};
+
+// A finite, non-zero normal or denormal value, and the integer that orders
+// the format's magnitudes.
+bool trans_ordinary(const uint8_t *b, bool &sign, unsigned __int128 &ord) {
+    uint64_t sig;
+    std::memcpy(&sig, b, 8);
+    const unsigned se = unsigned(b[8]) | unsigned(b[9]) << 8, e = se & 0x7fff;
+    if (e == 0x7fff || sig == 0 || bool(sig >> 63) != bool(e)) return false;
+    sign = se >> 15;
+    ord = e == 0 ? (unsigned __int128)sig : ((unsigned __int128)(e - 1) << 63) + sig;
+    return true;
+}
+
+// The tolerant compare. Returns the reason for a failure, or empty.
+std::string trans_compare(unsigned form, const Image &host, const Image &unit) {
+    const TransForm &f = TRANS_FORMS[form];
+    TransTally &t = trans_tally[form];
+    if (!host.setup_ok || !unit.setup_ok) return "setup";
+    if (host.cw != unit.cw) return "cw";
+    if (host.tw != unit.tw) return "tw " + hex(host.tw, 4) + " against " + hex(unit.tw, 4);
+    if ((host.sw ^ unit.sw) & 0xfdff) return "sw " + hex(host.sw, 4) + " against " + hex(unit.sw, 4);
+    bool all_same = true;
+    for (unsigned n = 0; n < 8; ++n) {
+        if (!reg_live(host, n)) continue;
+        const bool result = n == 0 || (f.push && n == 1);
+        if (result) ++t.values;
+        if (std::memcmp(host.reg[n], unit.reg[n], 10) == 0) {
+            if (result) {
+                ++t.identical;
+                ++t.distance[0];
+            }
+            continue;
+        }
+        all_same = false;
+        bool hs, us;
+        unsigned __int128 ho, uo;
+        if (!result || !trans_ordinary(host.reg[n], hs, ho) || !trans_ordinary(unit.reg[n], us, uo) || hs != us)
+            return "ST(" + std::to_string(n) + ") " + hex80(host.reg[n]) + " against " + hex80(unit.reg[n]);
+        const unsigned __int128 d = ho > uo ? ho - uo : uo - ho;
+        const uint64_t d64 = d > ~0ull ? ~0ull : uint64_t(d);
+        ++t.distance[d64];
+        if (d64 > t.worst) t.worst = d64;
+        if (trans_bound < 0) return "FES_X87_TRANS_ULP_HOST is unset: no bound to compare ST(" + std::to_string(n) + ") within";
+        if (d64 > uint64_t(trans_bound))
+            return "ST(" + std::to_string(n) + ") " + hex80(host.reg[n]) + " against " + hex80(unit.reg[n]) + ", "
+                   + std::to_string(d64) + " apart";
+    }
+    if ((host.sw ^ unit.sw) & 0x0200) {
+        // Gated where it is defined without reference to the algorithm: on a
+        // stack fault, and where nothing was inexact.
+        if ((host.sw & 0x0040) || !(host.sw & 0x0020)) return "C1: sw " + hex(host.sw, 4) + " against " + hex(unit.sw, 4);
+        (void)all_same;
+        ++t.c1_differs;
+    }
+    return "";
+}
+
+void trans_unit(Unit &u, unsigned form, uint16_t cw, const uint8_t (*stack)[10], unsigned pushes, Image &out) {
+    const uint64_t before = seq_entries[SEQ_T_RUN];
+    unit_form(u, cw, stack, pushes, nullptr, (1u << 8) | TRANS_FORMS[form].modrm, 0, out);
+    trans_engine_runs[form] += seq_entries[SEQ_T_RUN] - before;
+}
+
+struct TransOperand { const char *name; uint16_t se; uint64_t sig; };
+const TransOperand TRANS_OPERANDS[] = {
+    {"+0", 0x0000, 0}, {"-0", 0x8000, 0}, {"+1", 0x3fff, 1ull << 63}, {"-1", 0xbfff, 1ull << 63},
+    {"+0.5", 0x3ffe, 1ull << 63}, {"-0.5", 0xbffe, 1ull << 63}, {"+2", 0x4000, 1ull << 63},
+    {"+4", 0x4001, 1ull << 63}, {"+3", 0x4000, 3ull << 62}, {"-3", 0xc000, 3ull << 62},
+    {"+0.25", 0x3ffd, 1ull << 63}, {"+0.3", 0x3ffd, 0x999999999999999aull},
+    {"-0.3", 0xbffd, 0x999999999999999aull}, {"-0.99", 0xbffe, 0xfd70a3d70a3d70a4ull},
+    {"-1.5", 0xbfff, 3ull << 62}, {"+1.5", 0x3fff, 3ull << 62},
+    {"+inf", 0x7fff, 1ull << 63}, {"-inf", 0xffff, 1ull << 63},
+    {"qnan", 0x7fff, 0xc000000000000001ull}, {"snan", 0x7fff, 0x8000000000000001ull},
+    {"+denormal", 0x0000, 1ull << 62}, {"-denormal", 0x8000, 1ull << 62}, {"+min-denormal", 0x0000, 1},
+    {"+pseudo-denormal", 0x0000, 1ull << 63}, {"+unnormal", 0x3fff, 1ull << 62}, {"+pseudo-zero", 0x3fff, 0},
+    {"+pseudo-nan", 0x7fff, 1}, {"+pseudo-inf", 0x7fff, 0},
+    {"+2^-70", 0x3fff - 70, 1ull << 63}, {"-2^-70", 0xbfff - 70, 1ull << 63},
+    {"+2^-16000", 0x3fff - 16000, 1ull << 63},
+    {"+2^63-ulp", 0x403d, ~0ull}, {"+2^63", 0x403e, 1ull << 63}, {"-2^63", 0xc03e, 1ull << 63},
+    {"+2^63+ulp", 0x403e, (1ull << 63) + 1}, {"+2^64", 0x403f, 1ull << 63},
+    {"+max", 0x7ffe, ~0ull}, {"-max", 0xfffe, ~0ull}, {"+2^16000", 0x3fff + 16000, 1ull << 63},
+};
+const char *const TRANS_PAIR[] = {"+0", "-0", "+1", "-1", "+2", "+0.5", "+0.3", "-0.3", "+inf", "-inf", "qnan",
+                                  "snan", "+denormal", "+unnormal", "+2^16000", "+2^-16000", "+max"};
+const TransOperand &trans_operand(const char *name) {
+    for (const TransOperand &o : TRANS_OPERANDS)
+        if (!std::strcmp(o.name, name)) return o;
+    std::abort();
+}
+
+// One case against the host, with the manual's two overrides.
+void trans_case(Unit &u, StubPage &page, unsigned form, uint16_t cw, const uint8_t (*stack)[10], unsigned pushes,
+                const std::string &name, bool full = false) {
+    const TransForm &f = TRANS_FORMS[form];
+    const uint8_t ops[2] = {0xd9, f.modrm};
+    Image host, unit;
+    ++trans_tally[form].cases;
+    if (!host_form(page, cw, stack, pushes, nullptr, ops, 2, host)) {
+        bad(name, "no host stub");
+        return;
+    }
+    trans_unit(u, form, cw, stack, pushes, unit);
+    // x is ST(0): the first of the stack.
+    const unsigned xse = pushes ? unsigned(stack[0][8]) | unsigned(stack[0][9]) << 8 : 0;
+    uint64_t xsig = 0;
+    if (pushes) std::memcpy(&xsig, stack[0], 8);
+    const bool x_inf = pushes && (xse & 0x7fff) == 0x7fff && xsig == 1ull << 63;
+    if (f.trig && x_inf && !full) {
+        // rules.md TRIG4: the manual sets C2 with the invalid; the host does not.
+        host.sw |= 0x0400;
+        ++trans_tally[form].manual;
+    }
+    if (form == 6 && pushes == 2 && (xse & 0x8000) && (xse & 0x7fff) >= 0x3fff && (xse & 0x7fff) != 0x7fff
+        && (xsig >> 63)) {
+        // rules.md LOG5: FYL2XP1 of an operand more negative than -1 is
+        // invalid in the manual, and at -1 undefined; the host returns a
+        // finite value for both. The unit's rule is asserted here instead:
+        // invalid below -1, and at -1 the logarithm of zero.
+        ++trans_tally[form].manual;
+        const bool below = (xse & 0x7fff) > 0x3fff || xsig != 1ull << 63;
+        const unsigned yse = unsigned(stack[1][8]) | unsigned(stack[1][9]) << 8;
+        uint64_t ysig;
+        std::memcpy(&ysig, stack[1], 8);
+        const bool y_plain = (yse & 0x7fff) != 0x7fff && ((yse & 0x7fff) == 0 || (ysig >> 63)) && ysig != 0;
+        if (below && y_plain && !(unit.sw & 0x0001)) bad(name, "FYL2XP1 below -1 did not raise invalid: sw " + hex(unit.sw, 4));
+        else ok(name);
+        return;
+    }
+    const std::string why = trans_compare(form, host, unit);
+    if (why.empty()) ok(name);
+    else bad(name, why + " | host " + state_str(host, 0xffff) + " | unit " + state_str(unit, 0xffff));
+}
+
+void trans_put(uint8_t out[10], uint16_t se, uint64_t sig) {
+    std::memcpy(out, &sig, 8);
+    out[8] = uint8_t(se);
+    out[9] = uint8_t(se >> 8);
+}
+
+// A random operand for the sweep: a normal value with a uniform exponent.
+void trans_random(uint8_t out[10], std::mt19937_64 &rng, int lo, int hi, int sign) {
+    const int e = lo + int(rng() % uint64_t(hi - lo + 1));
+    const bool neg = sign < 0 || (sign == 0 && (rng() & 1));
+    trans_put(out, uint16_t((neg ? 0x8000 : 0) | (e + 16383)), rng() | 1ull << 63);
+}
+
+void run_trans_unbuilt() {
+    // The DE10 backend: each form stops as not built, taken by neither the
+    // unit's sequencer nor its hold.
+    for (unsigned form = 0; form < 8; ++form) {
+        Unit u;
+        u.reg_form(OP_FNINIT);
+        const uint8_t one[10] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0xff, 0x3f};
+        u.load(OP_FLD_M80, FMT_F80, one);
+        u.load(OP_FLD_M80, FMT_F80, one);
+        const uint16_t sw0 = u.sw(), tw0 = u.tw();
+        u.top.iss = 1;
+        u.top.iss_wait = 0;
+        u.top.iss_op = (1u << 8) | TRANS_FORMS[form].modrm;
+        u.top.iss_fmt = 0;
+        u.top.iss_first = u.top.iss_last = 1;
+        u.top.iss_part = 0;
+        u.top.iss_fire = 0;
+        u.top.eval();
+        bool held = false, busy = false;
+        for (int n = 0; n < 8; ++n) {
+            held = held || u.top.hold;
+            busy = busy || u.top.busy_o;
+            u.tick();
+        }
+        u.top.iss = u.top.iss_first = u.top.iss_last = 0;
+        u.top.eval();
+        for (int n = 0; n < 64; ++n) {
+            busy = busy || u.top.busy_o;
+            u.tick();
+        }
+        const std::string name = std::string("trans-de10-unbuilt-") + TRANS_FORMS[form].name;
+        if (held || busy || u.sw() != sw0 || u.tw() != tw0)
+            bad(name, "held " + std::to_string(held) + " busy " + std::to_string(busy) + " sw " + hex(sw0, 4) + "->"
+                          + hex(u.sw(), 4));
+        else ok(name);
+    }
+}
+
+void run_trans_cases() {
+    if (FES_X87_BACKEND != 1) {
+        run_trans_unbuilt();
+        return;
+    }
+    if (const char *bound = std::getenv("FES_X87_TRANS_ULP_HOST")) trans_bound = std::strtol(bound, nullptr, 10);
+    StubPage page;
+    Unit u;
+    std::mt19937_64 rng(0x1958);
+
+    // ---- Every special operand, masked and unmasked, and the stack faults. ----
+    for (uint16_t cw : {uint16_t(0x037f), uint16_t(0x0340)}) {
+        for (unsigned form = 0; form < 8; ++form) {
+            const TransForm &f = TRANS_FORMS[form];
+            const std::string base = std::string("trans-") + f.name + "-cw" + hex(cw, 4) + "-";
+            uint8_t stack[8][10];
+            if (!f.two) {
+                for (const TransOperand &x : TRANS_OPERANDS) {
+                    trans_put(stack[0], x.se, x.sig);
+                    trans_case(u, page, form, cw, stack, 1, base + x.name);
+                }
+                trans_case(u, page, form, cw, stack, 0, base + "empty");
+                for (const char *x : {"+0.5", "+2^63", "+inf", "qnan"}) {
+                    // Eight registers in use: a push form overflows.
+                    trans_put(stack[0], trans_operand(x).se, trans_operand(x).sig);
+                    for (int n = 1; n < 8; ++n) trans_put(stack[n], 0x3fff, 1ull << 63);
+                    trans_case(u, page, form, cw, stack, 8, base + "full-" + x, f.push);
+                }
+            } else {
+                for (const TransOperand &x : TRANS_OPERANDS)
+                    for (const char *y : TRANS_PAIR) {
+                        trans_put(stack[0], x.se, x.sig);
+                        trans_put(stack[1], trans_operand(y).se, trans_operand(y).sig);
+                        trans_case(u, page, form, cw, stack, 2, base + "y" + y + "-x" + x.name);
+                    }
+                trans_case(u, page, form, cw, stack, 0, base + "empty");
+                trans_put(stack[0], 0x4000, 1ull << 63);
+                trans_case(u, page, form, cw, stack, 1, base + "st1-empty");
+            }
+        }
+    }
+
+    // ---- Random operands, every rounding mode. ----
+    for (unsigned form = 0; form < 8; ++form) {
+        const TransForm &f = TRANS_FORMS[form];
+        for (int n = 0; n < 1600; ++n) {
+            const uint16_t cw = host_cw(unsigned(n) & 3);
+            const int kind = (n >> 2) % 5;
+            uint8_t stack[2][10];
+            if (f.trig) {
+                if (kind == 0) trans_random(stack[0], rng, -8, -1, 0);
+                else if (kind == 1) trans_random(stack[0], rng, 0, 9, 0);
+                else if (kind == 2) trans_random(stack[0], rng, 10, 62, 0);
+                else if (kind == 3) {
+                    // Beside a multiple of pi/2: k pi/2 with the low 43 bits random.
+                    const unsigned k = 1 + unsigned(rng() % 64);
+                    unsigned __int128 m = (unsigned __int128)0xc90fdaa22168c235ull * k;
+                    int e = 0;
+                    while (m >> 64) {
+                        m >>= 1;
+                        ++e;
+                    }
+                    const uint64_t sig = (uint64_t(m) & ~((1ull << 43) - 1)) | (rng() & ((1ull << 43) - 1));
+                    trans_put(stack[0], uint16_t(((rng() & 1) ? 0x8000 : 0) | (e + 16383)), sig);
+                } else trans_random(stack[0], rng, -70, -9, 0);
+            } else if (form == 4) {
+                if (kind < 3) trans_random(stack[0], rng, -8, -1, 0);
+                else if (kind == 3) trans_random(stack[0], rng, -70, -9, 0);
+                else trans_random(stack[0], rng, -16440, -16300, 0);
+            } else if (form == 5) {
+                trans_random(stack[1], rng, kind == 4 ? -16000 : -4, kind == 4 ? 16000 : 3, 0);
+                if (kind == 0) trans_random(stack[0], rng, -4, 3, 1);
+                else if (kind == 1) {
+                    const uint64_t low = rng() & ((1ull << 43) - 1);
+                    if (rng() & 1) trans_put(stack[0], 0x3ffe, ~0ull - low);
+                    else trans_put(stack[0], 0x3fff, 1ull << 63 | low);
+                } else if (kind == 2) trans_random(stack[0], rng, -16440, 16383, 1);
+                else if (kind == 3) trans_put(stack[0], uint16_t(16383 + int(rng() % 200) - 100), 1ull << 63);
+                else trans_random(stack[0], rng, -1000, 1000, 1);
+            } else if (form == 6) {
+                trans_random(stack[1], rng, kind == 4 ? -16000 : -4, kind == 4 ? 16000 : 3, 0);
+                if (kind < 2) {
+                    trans_random(stack[0], rng, -8, -2, 0);
+                    uint64_t sig;
+                    std::memcpy(&sig, stack[0], 8);
+                    if (stack[0][8] == 0xfd && (stack[0][9] & 0x7f) == 0x3f && sig > 0x94c583ada5b52800ull) {
+                        sig = 0x94c583ada5b52800ull;
+                        std::memcpy(stack[0], &sig, 8);
+                    }
+                } else if (kind == 2) trans_random(stack[0], rng, -70, -9, 0);
+                else if (kind == 3) trans_random(stack[0], rng, -16440, -16300, 0);
+                else trans_random(stack[0], rng, -2, 40, 1);      // outside the 387's range, above -1
+            } else {
+                if (kind == 0) {
+                    trans_random(stack[1], rng, -4, 3, 0);
+                    trans_random(stack[0], rng, -4, 3, 0);
+                } else if (kind == 1) {
+                    trans_random(stack[1], rng, -70, -9, 0);
+                    trans_random(stack[0], rng, -4, 3, 0);
+                } else if (kind == 2) {
+                    trans_random(stack[1], rng, -16440, 16383, 0);
+                    trans_random(stack[0], rng, -16440, 16383, 0);
+                } else if (kind == 3) {
+                    trans_random(stack[1], rng, -4, 3, 0);
+                    std::memcpy(stack[0], stack[1], 10);       // |y| = |x|, or one step off
+                    stack[0][0] ^= uint8_t(rng() & 1);
+                    stack[0][9] ^= uint8_t((rng() & 1) << 7);
+                } else {
+                    trans_random(stack[1], rng, -100, 100, 0);
+                    trans_random(stack[0], rng, -100, 100, 0);
+                }
+            }
+            trans_case(u, page, form, cw, stack, f.two ? 2 : 1,
+                       std::string("trans-") + f.name + "-random-" + std::to_string(n));
+        }
+    }
+
+    // ---- The model's vectors: exact. ----
+    // "<instruction> <cw> <x> <y> <st0> <st1 or -> <flags>": the unit's
+    // result and PE, UE and OE must equal the model's, bit for bit.
+    uint64_t vectors = 0;
+    if (const char *path = std::getenv("FES_X87_TRANS_VECTORS")) {
+        std::ifstream file(path);
+        std::string line;
+        unsigned row = 0, wrong = 0;
+        std::string first;
+        while (std::getline(file, line)) {
+            ++row;
+            std::istringstream in(line);
+            unsigned form;
+            std::string cw_text, xt, yt, r0, r1, flags_text;
+            if (!(in >> form >> cw_text >> xt >> yt >> r0 >> r1 >> flags_text) || form >= 8) continue;
+            const TransForm &f = TRANS_FORMS[form];
+            auto bytes = [](const std::string &t, uint8_t out[10]) {
+                trans_put(out, uint16_t(std::strtoul(t.substr(0, 4).c_str(), nullptr, 16)),
+                          std::strtoull(t.substr(4).c_str(), nullptr, 16));
+            };
+            uint8_t stack[2][10], want0[10], want1[10];
+            bytes(xt, stack[0]);
+            bytes(yt, stack[1]);
+            bytes(r0, want0);
+            if (r1 != "-") bytes(r1, want1);
+            const uint16_t cw = uint16_t(std::strtoul(cw_text.c_str(), nullptr, 16));
+            const unsigned flags = unsigned(std::strtoul(flags_text.c_str(), nullptr, 16));
+            Image unit;
+            trans_unit(u, form, cw, stack, f.two ? 2 : 1, unit);
+            ++vectors;
+            const bool good = unit.setup_ok && std::memcmp(unit.reg[0], want0, 10) == 0
+                              && (r1 == "-" || std::memcmp(unit.reg[1], want1, 10) == 0)
+                              && (unit.sw & 0x0038) == flags;
+            if (!good && !wrong++)
+                first = "row " + std::to_string(row) + " " + f.name + ": unit " + hex80(unit.reg[0]) + " "
+                        + (r1 == "-" ? std::string("-") : hex80(unit.reg[1])) + " flags " + hex(unit.sw & 0x38, 2)
+                        + ", model " + r0 + " " + r1 + " flags " + flags_text;
+        }
+        if (wrong) bad("trans-model-vectors", std::to_string(wrong) + " of " + std::to_string(vectors) + " differ; first " + first);
+        else if (!vectors) bad("trans-model-vectors", "no vectors read");
+        else ok("trans-model-vectors");
+    }
+
+    // ---- In flight: a second instruction while the engine runs. ----
+    // Each form is followed, with no settling, by one that reads what it
+    // wrote (FLD ST(0), a copy, so the tolerance carries and nothing
+    // amplifies it) and by one that does not (FLD1), and is preceded by
+    // forms that leave each kind of working state behind.
+    {
+        const uint8_t before[][2] = {{0xd9, 0xe8} /* FLD1: nothing */, {0xd8, 0xf1} /* FDIV ST,ST(1) */,
+                                     {0xd9, 0xfa} /* FSQRT */, {0xd9, 0xfc} /* FRNDINT */,
+                                     {0xd8, 0xc9} /* FMUL ST,ST(1) */};
+        const uint8_t after[][2] = {{0xd9, 0xc0} /* FLD ST(0) */, {0xd9, 0xe8} /* FLD1 */, {0xd9, 0xe0} /* FCHS */};
+        for (unsigned form = 0; form < 8; ++form)
+            for (unsigned b = 0; b < 5; ++b)
+                for (unsigned a = 0; a < 3; ++a) {
+                    const TransForm &f = TRANS_FORMS[form];
+                    uint8_t stack[2][10];
+                    // 0.3 and 0.26: in every form's range, and nothing exact.
+                    trans_put(stack[0], 0x3ffd, 0x999999999999999aull);
+                    trans_put(stack[1], 0x3ffd, 0x851eb851eb851eb8ull);
+                    const bool pre = b != 0;
+                    uint8_t ops[6];
+                    unsigned nops = 0;
+                    if (pre) {
+                        ops[nops++] = before[b][0];
+                        ops[nops++] = before[b][1];
+                    }
+                    ops[nops++] = 0xd9;
+                    ops[nops++] = f.modrm;
+                    ops[nops++] = after[a][0];
+                    ops[nops++] = after[a][1];
+                    const std::string name = std::string("trans-b2b-") + f.name + "-" + std::to_string(b) + "-" + std::to_string(a);
+                    Image host, unit;
+                    ++trans_tally[form].cases;
+                    if (!host_form(page, 0x037f, stack, 2, nullptr, ops, nops, host)) {
+                        bad(name, "no host stub");
+                        continue;
+                    }
+                    u.clear_latch();
+                    u.reg_form(OP_FNINIT);
+                    u.load(OP_FLD_M80, FMT_F80, stack[1]);
+                    u.load(OP_FLD_M80, FMT_F80, stack[0]);
+                    const uint64_t runs = seq_entries[SEQ_T_RUN];
+                    for (unsigned n = 0; n < nops; n += 2) {
+                        // No settle between them: the next waits in D on the hold.
+                        u.present((unsigned(ops[n]) & 7u) << 8 | ops[n + 1], 0, true, true, 0);
+                        u.commit(0, 0, true);
+                    }
+                    u.settle();
+                    trans_engine_runs[form] += seq_entries[SEQ_T_RUN] - runs;
+                    unit.cw = u.cw();
+                    unit.sw = u.sw();
+                    unit.tw = u.tw();
+                    for (unsigned n = 0; n < 8; ++n) u.sti(n, unit.reg[n]);
+                    // After FLD ST(0) the result is in ST(0) and ST(1), and a
+                    // push form's other result below them: every live
+                    // register may carry the tolerance here.
+                    std::string why;
+                    if (host.cw != unit.cw || host.tw != unit.tw || ((host.sw ^ unit.sw) & 0xfdff)) why = "state";
+                    for (unsigned n = 0; n < 8 && why.empty(); ++n) {
+                        if (!reg_live(host, n) || std::memcmp(host.reg[n], unit.reg[n], 10) == 0) continue;
+                        bool hs, us;
+                        unsigned __int128 ho, uo;
+                        if (!trans_ordinary(host.reg[n], hs, ho) || !trans_ordinary(unit.reg[n], us, uo) || hs != us
+                            || trans_bound < 0 || (ho > uo ? ho - uo : uo - ho) > (unsigned __int128)trans_bound)
+                            why = "ST(" + std::to_string(n) + ")";
+                    }
+                    if (why.empty()) ok(name);
+                    else bad(name, why + " | host " + state_str(host, 0xffff) + " | unit " + state_str(unit, 0xffff));
+                }
+    }
+
+    // ---- The F1h reset and a squash, at every clock of the engine. ----
+    // A reset while the engine runs must leave the reset state and an idle
+    // unit, and the backend must not hand a later operation the abandoned
+    // one's result: 4 + 4 afterwards is 8. A squash after the instruction
+    // has retired changes nothing: the result still lands.
+    {
+        uint8_t x[10], four[10];
+        trans_put(x, 0x3ffd, 0x999999999999999aull);
+        trans_put(four, 0x4001, 1ull << 63);
+        unsigned inside = 0, first_bad = 0, bad_count = 0;
+        std::string what;
+        for (int reset = 0; reset < 2; ++reset)
+            for (unsigned at = 1; at < 900; at += 3) {
+                u.clear_latch();
+                u.reg_form(OP_FNINIT);
+                u.load(OP_FLD_M80, FMT_F80, x);
+                u.load(OP_FLD_M80, FMT_F80, x);
+                u.present((1u << 8) | 0xf3, 0, true, true, 0);      // FPATAN
+                u.commit(0, 0, true);
+                for (unsigned n = 0; n < at; ++n) u.tick();
+                if ((unsigned(u.top.trace_seq) & 63u) == SEQ_T_RUN) ++inside;
+                (reset ? u.top.f1 : u.top.flush) = 1;
+                u.tick();
+                u.top.f1 = u.top.flush = 0;
+                u.top.eval();
+                u.settle();
+                std::string why;
+                if (u.top.busy_o) why = "the unit stayed busy";
+                else if (reset) {
+                    if (u.tw() != 0xffff) why = "not the reset state: tw " + hex(u.tw(), 4);
+                } else if (u.tw() == 0xffff || (u.sw() & 0x3800) != 0x3800) why = "the retired FPATAN did not land: sw " + hex(u.sw(), 4);
+                if (why.empty()) {
+                    u.reg_form(OP_FNINIT);
+                    u.load(OP_FLD_M80, FMT_F80, four);
+                    u.load(OP_FLD_M80, FMT_F80, four);
+                    u.reg_form((6u << 8) | 0xc1);                   // FADDP ST(1),ST
+                    uint8_t got[10], eight[10];
+                    u.st0(got);
+                    trans_put(eight, 0x4002, 1ull << 63);
+                    if (std::memcmp(got, eight, 10) != 0) why = "4 + 4 afterwards is " + hex80(got);
+                }
+                if (!why.empty() && !bad_count++) {
+                    first_bad = at;
+                    what = std::string(reset ? "F1h" : "flush") + " at " + std::to_string(at) + ": " + why;
+                }
+            }
+        if (bad_count) bad("trans-reset-and-squash-sweep", std::to_string(bad_count) + " offsets, first " + what
+                                                              + " (" + std::to_string(first_bad) + ")");
+        else if (inside < 100) bad("trans-reset-and-squash-sweep", "only " + std::to_string(inside) + " offsets landed inside the engine");
+        else ok("trans-reset-and-squash-sweep");
+        std::printf("TRANS_SWEEP inside %u\n", inside);
+    }
+
+    // ---- What ran, and how far from the host. ----
+    bool reached = true;
+    for (unsigned form = 0; form < 8; ++form) {
+        const TransTally &t = trans_tally[form];
+        std::printf("TRANS %s cases %llu engine_runs %llu values %llu identical %llu worst %llu c1_differs %llu manual %llu distance",
+                    TRANS_FORMS[form].name, (unsigned long long)t.cases, (unsigned long long)trans_engine_runs[form],
+                    (unsigned long long)t.values, (unsigned long long)t.identical, (unsigned long long)t.worst,
+                    (unsigned long long)t.c1_differs, (unsigned long long)t.manual);
+        for (const auto &bin : t.distance) std::printf(" %llu:%llu", (unsigned long long)bin.first, (unsigned long long)bin.second);
+        std::printf("\n");
+        if (!trans_engine_runs[form]) reached = false;
+    }
+    std::printf("TRANS_VECTORS %llu\n", (unsigned long long)vectors);
+    std::printf("TRANS_BOUND %ld\n", trans_bound);
+    if (reached) ok("trans-forms-reached");
+    else bad("trans-forms-reached", "a form the build claims never entered the engine");
 }
 
 struct TestFloatManifest {
@@ -3252,6 +3775,9 @@ int main(int argc, char **argv) {
     // After every case that existed before them, and from a generator of
     // their own, so nothing above sees a different random stream.
     run_bcd_cases();
+
+    // ---- The transcendentals (#1958): after everything that existed before. ----
+    run_trans_cases();
 
     if (!testfloat_manifest.empty()) {
         const TestFloatManifest testfloat = run_testfloat_manifest(testfloat_manifest);

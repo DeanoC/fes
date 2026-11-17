@@ -50,6 +50,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -60,6 +61,7 @@ if __package__ in (None, ''):
 
 from scripts import i386_verilator
 from scripts import x87_envelope_fit
+from scripts import x87_trans_ucode
 from scripts import yosys_netlist
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -75,7 +77,8 @@ RTL_SOURCES = ('fes_i386_pkg.sv', 'fes_x87_pkg.sv', 'fes_i386_x87_mul.sv', 'fes_
 # X87_BACKEND=1. The bench itself is unchanged: the envelope's behaviour is
 # what it checks, and that behaviour must not depend on which arithmetic
 # answers, so the same cases passing both ways is the pass rule.
-DE25_SOURCES = ('fes_x87_fast.sv', 'fes_x87_slow.sv', 'fes_x87_core.sv')
+DE25_SOURCES = ('fes_x87_fast.sv', 'fes_x87_slow.sv', 'fes_x87_core.sv',
+                'fes_x87_trans_pkg.sv', 'fes_x87_trans_rom.sv', 'fes_x87_trans.sv')
 BACKENDS = {'de10': 0, 'de25': 1}
 # Verilator on a Yosys netlist: the lint warnings its flat output raises by
 # construction, as the other i386 benches pass them
@@ -94,7 +97,8 @@ def tested_sources(backend: str) -> list[Path]:
     its register lists from."""
     rtl = RTL_SOURCES if backend == 'de10' else (RTL_SOURCES[:-1] + DE25_SOURCES + RTL_SOURCES[-1:])
     return sorted({*(RTL / path for path in rtl), SIM / 'x87_unit_tb.cpp', Path(__file__).resolve(),
-                   Path(yosys_netlist.__file__).resolve(), Path(x87_envelope_fit.__file__).resolve()})
+                   Path(yosys_netlist.__file__).resolve(), Path(x87_envelope_fit.__file__).resolve(),
+                   Path(x87_trans_ucode.__file__).resolve()})
 
 
 def source_record(backend: str) -> dict:
@@ -187,6 +191,30 @@ def verilate(verilator: i386_verilator.LockedVerilator, jobs: int, yosys: Path |
     return output / ('V' + TOP)
 
 
+def transcendentals(text: str, args) -> dict | None:
+    """What the bench says of the transcendentals: per instruction, the cases,
+    how many entered the engine, and the whole histogram of the distance
+    between the unit's results and the host's."""
+    rows = {}
+    for line in text.splitlines():
+        if line.startswith('TRANS '):
+            fields = line.split()
+            index = fields.index('distance')
+            row = {fields[n]: int(fields[n + 1]) for n in range(2, index, 2)}
+            row['distance'] = {key: int(count) for key, count in (item.split(':') for item in fields[index + 1:])}
+            rows[fields[1]] = row
+    if not rows:
+        return None
+    single = {line.split()[0]: line.split()[1:] for line in text.splitlines()
+              if line.startswith(('TRANS_VECTORS ', 'TRANS_BOUND ', 'TRANS_SWEEP '))}
+    return {'bound_host': args.transcendental_ulp_host,
+            'bound_is': 'proposed, not agreed: see the record\'s bound.md',
+            'model_vectors_compared_exactly': int(single['TRANS_VECTORS'][0]),
+            'reset_and_squash_offsets_inside_engine': int(single['TRANS_SWEEP'][1]),
+            'cases': sum(line.startswith(('PASS trans-', 'FAIL trans-')) for line in text.splitlines()),
+            'instructions': rows}
+
+
 def latencies(text: str) -> dict[str, int]:
     """The bench's per-form latency lines, so the record's table is generated
     from the run rather than typed out of a terminal."""
@@ -215,6 +243,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--backend', choices=sorted(BACKENDS), default='de10',
                         help="which arithmetic answers: 'de10' the unit's own sequenced datapath "
                              "(the default and the verified reference), 'de25' the pipelined fes_x87_core")
+    parser.add_argument('--transcendental-ulp-host', type=int,
+                        help="the bound, in representable values, on a transcendental result's distance from "
+                             "the host's. No default: unset, every such compare fails")
+    parser.add_argument('--transcendental-vectors', type=int, default=250,
+                        help="the model's vectors a class and rounding mode, compared exactly (default 250)")
     parser.add_argument('--testfloat-manifest', type=Path,
                         help='also run extF80 TestFloat vectors listed in this generated manifest')
     parser.add_argument('--jobs', type=int, default=8)
@@ -234,9 +267,21 @@ def main(argv: list[str] | None = None) -> int:
             raise X87UnitError(f"--netlist needs the lock's Yosys: {error}") from error
     bench = verilate(verilator, args.jobs, yosys, args.backend)
     command = [str(bench)]
+    # The transcendentals (#1958), DE25 only. The bound against the host has
+    # no default: unset, every transcendental result compare fails. The
+    # model's instruction-level vectors are generated here, so the exact
+    # compare is against the model this revision holds.
+    environment = {name: value for name, value in os.environ.items() if not name.startswith('FES_X87_TRANS_')}
+    if args.transcendental_ulp_host is not None:
+        environment['FES_X87_TRANS_ULP_HOST'] = str(args.transcendental_ulp_host)
+    if args.backend == 'de25':
+        program = x87_trans_ucode.build_program(x87_trans_ucode.build_rom())
+        vectors = bench.parent / 'trans-vectors.txt'
+        vectors.write_text('\n'.join(x87_trans_ucode.unit_vectors(program, args.transcendental_vectors, 1958)) + '\n')
+        environment['FES_X87_TRANS_VECTORS'] = str(vectors)
     if args.testfloat_manifest:
         command.extend(['--testfloat-manifest', str(args.testfloat_manifest.resolve())])
-    result = subprocess.run(command, capture_output=True, text=True, timeout=1800)
+    result = subprocess.run(command, capture_output=True, text=True, timeout=3600, env=environment)
     passed, failed, failures = parse(result.stdout)
     testfloat = next((line.split() for line in result.stdout.splitlines() if line.startswith('TESTFLOAT ')), None)
     if args.testfloat_manifest and testfloat is None:
@@ -260,6 +305,7 @@ def main(argv: list[str] | None = None) -> int:
         'cases': sum(line.startswith(('PASS ', 'FAIL ')) for line in result.stdout.splitlines()),
         'bcd_cases': sum(line.startswith(('PASS bcd-', 'FAIL bcd-')) for line in result.stdout.splitlines()),
         'bcd_forms': forms,
+        'transcendentals': transcendentals(result.stdout, args),
         'netlist_exclusion': exclusion,
         'latency_clocks': latencies(result.stdout),
         'testfloat': ({'vectors': int(testfloat[1]), 'configs': int(testfloat[2])} if testfloat else None),

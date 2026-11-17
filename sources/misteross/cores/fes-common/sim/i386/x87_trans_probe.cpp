@@ -88,7 +88,7 @@ static bool ordinary(const F80 &v) {
 static unsigned __int128 ordinal(const F80 &v) {
     const unsigned e = v.se & 0x7fff;
     if (e == 0) return v.sig;
-    return (unsigned __int128)(e - 1) << 63 | v.sig;
+    return ((unsigned __int128)(e - 1) << 63) + v.sig;
 }
 
 enum Op { F2XM1, FYL2X, FPTAN, FPATAN, FYL2XP1, FSINCOS, FSIN, FCOS, OPS };
