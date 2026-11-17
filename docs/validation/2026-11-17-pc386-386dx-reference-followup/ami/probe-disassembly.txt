@@ -1,0 +1,38 @@
+
+docs/validation/2026-11-17-pc386-386dx-reference-followup/ami/CACHE.COM:     file format binary
+
+
+Disassembly of section .data:
+
+00000000 <.data>:
+   0:	e4 22                	in     al,0x22
+   2:	88 c1                	mov    cl,al
+   4:	b0 21                	mov    al,0x21
+   6:	e6 22                	out    0x22,al
+   8:	e4 24                	in     al,0x24
+   a:	88 c3                	mov    bl,al
+   c:	88 c8                	mov    al,cl
+   e:	e6 22                	out    0x22,al
+  10:	88 d8                	mov    al,bl
+  12:	c0 e8 04             	shr    al,0x4
+  15:	e8 19 00             	call   0x31
+  18:	a2 3e 01             	mov    ds:0x13e,al
+  1b:	88 d8                	mov    al,bl
+  1d:	24 0f                	and    al,0xf
+  1f:	e8 0f 00             	call   0x31
+  22:	a2 3f 01             	mov    ds:0x13f,al
+  25:	ba 3a 01             	mov    dx,0x13a
+  28:	b4 09                	mov    ah,0x9
+  2a:	cd 21                	int    0x21
+  2c:	b8 00 4c             	mov    ax,0x4c00
+  2f:	cd 21                	int    0x21
+  31:	04 30                	add    al,0x30
+  33:	3c 39                	cmp    al,0x39
+  35:	76 02                	jbe    0x39
+  37:	04 07                	add    al,0x7
+  39:	c3                   	ret
+  3a:	52                   	push   dx
+  3b:	45                   	inc    bp
+  3c:	47                   	inc    di
+  3d:	3d 30 30             	cmp    ax,0x3030
+  40:	0d 0a 24             	or     ax,0x240a
