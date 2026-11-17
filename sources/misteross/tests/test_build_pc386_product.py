@@ -330,17 +330,33 @@ class GpuRouterTest(unittest.TestCase):
     def test_controlled_environment_preserves_hip_and_cuda_probe_keys(self):
         from scripts import toolchain_cache
         with tempfile.TemporaryDirectory() as temp:
-            fake = Path(temp) / 'accelerator-bin'
+            fake = Path(temp) / 'probe-bin'
             fake.mkdir()
-            for name in ('hipcc', 'nvcc'):
+            # Keep command identity probing real while making the test
+            # independent of the host's installed compiler and build tools.
+            names = ('git', 'cc', 'c++', 'cmake', 'ninja', 'make', 'perl',
+                     'python3', 'python3-config', 'pkg-config', 'autoconf',
+                     'flex', 'bison', 'help2man', 'hipcc', 'nvcc')
+            body = '#!/bin/sh\nprintf "%s synthetic 1\\n" "${0##*/}"\n'
+            for name in names:
                 command = fake / name
-                command.write_text('#!/bin/sh\necho synthetic-accelerator\n')
+                command.write_text(body)
                 command.chmod(0o755)
-            original = {'PATH': str(fake) + ':/usr/bin:/bin', 'HOME': temp,
+            original = {'PATH': str(fake), 'HOME': temp,
                         'USER': 'fixture', 'LOGNAME': 'fixture', 'LANG': 'C'}
             paths = {'yosys': Path('/usr/bin/yosys'), 'quartus': Path('/usr/bin/quartus_sh')}
             for router in ('HIP', 'CUDA'):
-                with self.subTest(router=router), mock.patch.dict(os.environ, original, clear=True):
+                selectors = ({'ROCM_PATH': temp + '/rocm', 'HIPCC': str(fake / 'hipcc')}
+                             if router == 'HIP' else
+                             {'CUDA_HOME': temp + '/cuda', 'CUDA_PATH': temp + '/cuda',
+                              'CUDACXX': str(fake / 'nvcc')})
+                # Dependency probes normally inspect real headers and libs;
+                # isolate those unrelated inputs, retaining command probes,
+                # environment validation and real request/key derivation.
+                with self.subTest(router=router), \
+                        mock.patch.dict(os.environ, {**original, **selectors}, clear=True), \
+                        mock.patch.object(toolchain_cache, '_dependency_inventory',
+                                          return_value={'synthetic': 'stable'}) as dependencies:
                     config = quartus.gpu_choice(router)
                     kwargs = {'cache_root': Path(temp) / 'cache', 'gpu_router': router,
                               'hip_architectures': config[1],
@@ -349,9 +365,34 @@ class GpuRouterTest(unittest.TestCase):
                     controlled = quartus.execution_environment(Path(temp) / 'private-home', paths)
                     with mock.patch.dict(os.environ, controlled, clear=True):
                         after = toolchain_cache.request_from_environment(ROOT, ROOT / quartus.TOOLCHAIN_LOCK, **kwargs)
-                    self.assertEqual(toolchain_cache.tool_keys(before), toolchain_cache.tool_keys(after))
+                    keys = toolchain_cache.tool_keys(before)
+                    self.assertEqual(keys, toolchain_cache.tool_keys(after))
                     self.assertEqual(before.environment, after.environment)
-                    self.assertIn(str(fake), controlled['PATH'])
+                    self.assertEqual(str(fake), controlled['PATH'])
+                    for name, value in selectors.items():
+                        self.assertEqual(value, controlled[name])
+                    self.assertTrue(all(Path(item['path']).parent == fake
+                                        for item in before.compiler_identity['commands'].values()))
+                    self.assertEqual(2, dependencies.call_count)
+                    selected = fake / ('hipcc' if router == 'HIP' else 'nvcc')
+                    unselected = fake / ('nvcc' if router == 'HIP' else 'hipcc')
+                    unselected.write_text(body + '# different unselected compiler\n')
+                    unchanged = toolchain_cache.request_from_environment(ROOT, ROOT / quartus.TOOLCHAIN_LOCK, **kwargs)
+                    self.assertEqual(keys, toolchain_cache.tool_keys(unchanged))
+                    unselected.write_text(body)
+                    selected.write_text(body + '# different selected compiler\n')
+                    changed = toolchain_cache.request_from_environment(ROOT, ROOT / quartus.TOOLCHAIN_LOCK, **kwargs)
+                    self.assertNotEqual(keys['nextpnr'], toolchain_cache.tool_keys(changed)['nextpnr'])
+                    selected.unlink()
+                    with self.assertRaisesRegex(toolchain_cache.CacheError, 'required host command is missing'):
+                        toolchain_cache.request_from_environment(ROOT, ROOT / quartus.TOOLCHAIN_LOCK, **kwargs)
+                    selected.write_text(body)
+                    selected.chmod(0o755)
+                    (fake / 'cmake').unlink()
+                    with self.assertRaisesRegex(toolchain_cache.CacheError, 'required host command is missing: cmake'):
+                        toolchain_cache.request_from_environment(ROOT, ROOT / quartus.TOOLCHAIN_LOCK, **kwargs)
+                    (fake / 'cmake').write_text(body)
+                    (fake / 'cmake').chmod(0o755)
 
     def test_other_checkout_and_symlink_alias_are_rejected_before_authentication(self):
         with tempfile.TemporaryDirectory() as temporary:
