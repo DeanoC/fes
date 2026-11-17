@@ -1385,15 +1385,15 @@ func ValidateDescriptor(d Descriptor) error {
 		return errors.New("core package: unsupported target")
 	}
 	if nanoROM(d) {
-		if d.ROM.Role != "firmware" || (d.ROM.SourceSize != 4096 && d.ROM.SourceSize != 8192) || d.ROM.Size > maxNanoROMMapBytes {
-			return errors.New("core package: Nano requires a bounded 4/8 KiB held firmware ROM")
+		if d.ROM.Role != "firmware" || d.ROM.Size > maxNanoROMMapBytes {
+			return errors.New("core package: Nano requires a bounded firmware ROM map")
 		}
-		found := false
-		for _, i := range d.Interfaces {
-			found = found || i.ID == "fes.embedded.rom" && i.Major == 1 && i.Minor == 0 && i.Required
+		encoding, ok := nanoROMEncoding(d)
+		if !ok {
+			return errors.New("core package: Nano ROM requires exactly one firmware transport interface at 1.0")
 		}
-		if !found {
-			return errors.New("core package: Nano ROM requires its held transport interface")
+		if encoding == "cpu-csr-v1" && d.ROM.SourceSize != 4096 && d.ROM.SourceSize != 8192 {
+			return errors.New("core package: Nano held ROM is exactly 4 or 8 KiB")
 		}
 	}
 	if d.Payload.File != "core.rbf" {

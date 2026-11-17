@@ -9,12 +9,37 @@ import (
 	"unicode/utf8"
 )
 
-// Nano format 3 retains one firmware image for the CPU-fed held-ROM endpoint.
-// This map names no physical address, bridge grant or bitstream destinations.
+// Nano format 3 retains one firmware image that is delivered beside the
+// unchanged payload: to the CPU-fed held-ROM endpoint, or at launch over the
+// fes.computer mailbox. This map names no physical address, bridge grant or
+// bitstream destinations.
 const maxNanoROMMapBytes = 1024
 
 func nanoROM(d Descriptor) bool {
 	return d.Format == 3 && d.Target.Platform == "de25_nano" && d.Target.Device == "A5EB013BB23BE4SCS"
+}
+
+// nanoROMEncoding is the map encoding fixed by the package's one required ROM
+// transport interface. Declaring both, neither, or one that is optional or at
+// another version has no encoding.
+func nanoROMEncoding(d Descriptor) (string, bool) {
+	encoding, transports := "", 0
+	for _, i := range d.Interfaces {
+		selected := ""
+		switch i.ID {
+		case "fes.embedded.rom":
+			selected = "cpu-csr-v1"
+		case "fes.fabric.firmware-upload":
+			selected = "gp-firmware-upload-v1"
+		default:
+			continue
+		}
+		transports++
+		if i.Major == 1 && i.Minor == 0 && i.Required {
+			encoding = selected
+		}
+	}
+	return encoding, transports == 1 && encoding != ""
 }
 
 func validateNanoROMMap(ctx context.Context, r io.Reader, size int64, d Descriptor) error {
@@ -69,8 +94,9 @@ func validateNanoROMMap(ctx context.Context, r io.Reader, size int64, d Descript
 		return errors.New("incomplete held-ROM map")
 	}
 	var extra any
-	if decoder.Decode(&extra) != io.EOF || len(seen) != 5 || format != 1 ||
-		device != d.Target.Device || encoding != "cpu-csr-v1" ||
+	expected, ok := nanoROMEncoding(d)
+	if decoder.Decode(&extra) != io.EOF || len(seen) != 5 || format != 1 || !ok ||
+		device != d.Target.Device || encoding != expected ||
 		base != d.Payload.SHA256 || sourceSize != d.ROM.SourceSize {
 		return errors.New("held-ROM map differs from sealed package")
 	}

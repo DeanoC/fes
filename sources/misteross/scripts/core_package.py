@@ -250,11 +250,22 @@ def _validate_fields(fields: object, payload: bytes | None) -> dict:
         raise PackageError("build.recipe_sha256 must be 64 lowercase hexadecimal characters")
     _string(build["toolchain"], "build.toolchain", nonempty=True, max_bytes=1_024)
     if nano and format_version == 3:
-        if root['rom']['role'] != 'firmware' or root['rom']['source_size'] not in (4096,8192) or root['rom']['size'] > 1024:
-            raise PackageError('Nano requires a bounded 4/8 KiB held firmware ROM')
-        if {'id':'fes.embedded.rom','major':1,'minor':0,'required':True} not in interfaces:
-            raise PackageError('Nano ROM requires its held transport interface')
+        if root['rom']['role'] != 'firmware' or root['rom']['size'] > 1024:
+            raise PackageError('Nano requires a bounded firmware ROM map')
+        encoding = _nano_rom_encoding(interfaces)
+        if encoding == 'cpu-csr-v1' and root['rom']['source_size'] not in (4096,8192):
+            raise PackageError('Nano held ROM is exactly 4 or 8 KiB')
     return root
+
+
+def _nano_rom_encoding(interfaces) -> str:
+    """The map encoding fixed by a Nano package's one required ROM transport."""
+    declared = {entry['id'] for entry in interfaces}
+    transports = {'fes.embedded.rom': 'cpu-csr-v1', 'fes.fabric.firmware-upload': 'gp-firmware-upload-v1'}
+    selected = [name for name in transports if name in declared]
+    if len(selected) != 1 or {'id':selected[0],'major':1,'minor':0,'required':True} not in interfaces:
+        raise PackageError('Nano ROM requires exactly one firmware transport interface at 1.0')
+    return transports[selected[0]]
 
 
 def _decode_manifest(manifest: bytes, payload: bytes | None) -> dict:
@@ -299,7 +310,8 @@ def validate_rom_map(data: bytes, fields: dict) -> dict:
     _exact_dict(mapping, {"format", "device", "encoding", "base_sha256", "source_size"} | (set() if nano else {'blocks'}), set(), "ROM map")
     if type(mapping["format"]) is not int or mapping["format"] != 1:
         raise PackageError("unsupported ROM map format")
-    if mapping["device"] != fields["target"]["device"] or mapping["encoding"] != ('cpu-csr-v1' if nano else 'm10k-1024x10-v1'):
+    if mapping["device"] != fields["target"]["device"] or mapping["encoding"] != (
+            _nano_rom_encoding(fields['interfaces']) if nano else 'm10k-1024x10-v1'):
         raise PackageError("unsupported ROM map device or encoding")
     if mapping["base_sha256"] != fields["payload"]["sha256"]:
         raise PackageError("ROM map base digest mismatch")

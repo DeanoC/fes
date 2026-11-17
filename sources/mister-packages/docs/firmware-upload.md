@@ -2,9 +2,12 @@
 
 `fes.fabric.firmware-upload` sends a machine's firmware to a core at launch,
 over the [fes.computer](computer-io.md) mailbox framing. It is for boards
-whose bitstream cannot take linked ROM lanes: DE25 packages cannot seal a ROM
-map, so a DE25 core keeps its ROM in block RAM and the host fills it before
-the machine first runs. Constants are in
+whose bitstream cannot take linked ROM lanes: an Agilex bitstream is not
+patched, so a DE25 core keeps its ROM in block RAM and the host fills it before
+the machine first runs. Such a package is
+[format 3](schema.md#core-bundle-manifest-format-3-and-rom-map-format-1) with
+the `gp-firmware-upload-v1` map encoding: it seals the firmware's ID and size,
+and its payload is the unmodified bitstream. Constants are in
 [`fes_fabric_firmware_upload.yaml`](../packages/fabric/fes_fabric_firmware_upload.yaml).
 
 It is not a GP capability bit. A package declares this ID as a required

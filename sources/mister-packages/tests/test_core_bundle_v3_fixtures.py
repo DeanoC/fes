@@ -58,6 +58,9 @@ class CoreBundleV3Fixtures(unittest.TestCase):
                             errors.append('map target binding')
                         if value['device']=='A5EB013BB23BE4SCS':
                             if len(mapping)>1024:errors.append('held ROM map bound')
+                            upload={'id':'fes.fabric.firmware-upload','major':1,'minor':0,'required':True} in parsed['interfaces']
+                            if value['encoding']!=('gp-firmware-upload-v1' if upload else 'cpu-csr-v1'):
+                                errors.append('map encoding differs from the declared transport')
                         else:
                             blocks=value['blocks']
                             if len(blocks)*1024 != value['source_size']:
