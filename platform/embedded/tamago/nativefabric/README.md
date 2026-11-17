@@ -21,6 +21,11 @@ The matched source now passes boot-chain/file admission and physical ZX81
 launch with a 917-byte tape. Return to MENU stops at secure source release;
 repeated loading and final Park remain unqualified. The full secure-system
 investigation is tracked in [#1867](https://github.com/DeanoC/fes/issues/1867).
+The [lifecycle audit](../../../../docs/design/de25-native-secure-lifecycle.md)
+documents the live ownership/memory contract and the joined retained native/C
+supplier regression. Valid modeled generation-15 release passes; the historical
+physical rejection remains unexplained. New failure snapshots distinguish clock,
+return-scope, mailbox and observed table/register failures without granting reuse.
 [Current evidence and preservation scope](../../../../docs/validation/2026-11-15-de25-merge-readiness/README.md)
 separate that historical artifact from the newly integrated tree.
 

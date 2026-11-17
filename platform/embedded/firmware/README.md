@@ -1,6 +1,14 @@
 # Contained firmware and FPGA control prototype
 
-The latest [preservation checkpoint](../../../docs/validation/2026-11-15-de25-merge-readiness/README.md) records a matched boot chain and a physical ZX81 launch with initial tape. Return to MENU stops at secure source release; the complete cycle remains unqualified. [Issue #1867](https://github.com/DeanoC/fes/issues/1867) tracks the whole secure ownership, memory, lifecycle and recovery investigation. The candidate remains stopped on the spare card, with host handles closed and a physical reset required before restoration. This merge preparation makes no new board changes.
+The historical [preservation checkpoint](../../../docs/validation/2026-11-15-de25-merge-readiness/README.md) records a matched boot chain and a physical ZX81 launch with initial tape. Return to MENU stops at secure source release; the complete cycle remains unqualified. [Issue #1867](https://github.com/DeanoC/fes/issues/1867) tracks the whole secure ownership, memory, lifecycle and recovery investigation. Current board state belongs to its kit status ledger, not that historical checkpoint.
+
+The [secure lifecycle investigation](../../../docs/design/de25-native-secure-lifecycle.md)
+maps the trust, memory, generation, timing and recovery contracts. A joined
+native/actual-supplier regression now exercises retained MENU/computer returns,
+both ROM sizes and independent tape publication. Failed release records preserve
+the service boundary, first clock error and observed table/register mismatch
+without new hardware reads. No deadline or release permission changes; the
+historical generation-15 failure still needs a fresh matched diagnostic trace.
 
 
 This is exploratory firmware and native integration for the Linux-free base.

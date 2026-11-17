@@ -42,6 +42,7 @@ static unsigned sdm_arm_entered,sdm_probe_scope_reason,sdm_input_phase;
 static unsigned sdm_source_failed;
 static unsigned sdm_source_released;
 static int sdm_release_clock(void);
+static int sdm_release_mismatch(uint64_t address,uint64_t value);
 static uint32_t sdm_source_bad_offset,sdm_source_bad_value;
 static unsigned sdm_source_clock_started;
 static uint64_t sdm_source_clock_start,sdm_source_clock_last;

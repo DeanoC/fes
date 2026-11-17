@@ -35,7 +35,7 @@ static int retained_source_view(const struct nano_sdm_input_binding *binding,uns
  if(!retained_source_owned(binding,reader))return 0;
  for(unsigned n=0;n<sizeof(rows)/sizeof(rows[0]);n++){
   FES_PROBE_BARRIER();uint32_t value=FES_PROBE_READ32(UINT64_C(0x16000000)+rows[n][0]);FES_PROBE_BARRIER();
-  if(value!=rows[n][1])return 0;
+  if(value!=rows[n][1])return reader==2 ? sdm_release_mismatch(UINT64_C(0x16000000)+rows[n][0],value):0;
  }
  return retained_source_owned(binding,reader);
 }
@@ -51,7 +51,7 @@ static int retained_source_ready(const struct nano_sdm_input_binding *binding,un
     if(nano_sdm_input_words(binding,at,expected,NANO_PROBE_MEMORY_WORDS))return 0;
     for(unsigned n=0;n<NANO_PROBE_MEMORY_WORDS;n++){
      FES_PROBE_BARRIER();uint64_t value=FES_PROBE_LOAD64(NANO_PROBE_BASE+at+n*8);FES_PROBE_BARRIER();
-     if(value!=expected[n])return 0;
+     if(value!=expected[n])return reader==2 ? sdm_release_mismatch(NANO_PROBE_BASE+at+n*8,value):0;
     }
    }
    if(!retained_source_owned(binding,reader))return 0;

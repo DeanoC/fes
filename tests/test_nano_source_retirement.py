@@ -1,6 +1,7 @@
 """Sanitized retirement models use active controllers and injected hardware."""
 import json
 import hashlib
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -77,7 +78,7 @@ class SourceRetirementTests(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def run_model(self, name, joined=False, arguments=()):
+    def build_model(self, name, joined=False):
         binary = self.output / name
         sources = [FIXTURE / (name + ".c"), FW / "source_retire.c", FW / "command_queue.c", FW / "input_tables.c"]
         if name in ("warm_probe_test", "setup_validation_test", "setup_batch_cost_test", "setup_preparation_budget_test", "setup_publication_test"):
@@ -101,6 +102,10 @@ class SourceRetirementTests(unittest.TestCase):
         if not binary.exists():
             compiled = subprocess.run(command + [str(p) for p in sources] + ["-o", str(binary)], timeout=90, capture_output=True, text=True)
             self.assertEqual(compiled.returncode, 0, compiled.stderr)
+        return binary
+
+    def run_model(self, name, joined=False, arguments=()):
+        binary = self.build_model(name, joined)
         result = subprocess.run([str(binary), *map(str, arguments)], timeout=180, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         report = json.loads(result.stdout.splitlines()[-1])
@@ -133,6 +138,15 @@ class SourceRetirementTests(unittest.TestCase):
         report = self.run_model("source_release_test", joined=True)
         self.assertEqual(report["cases"], 66)
         self.assertTrue(report["actual_source_release_supplier"])
+
+    def test_native_retained_menu_and_computer_call_actual_source_supplier(self):
+        binary = self.build_model("lifecycle_rpc", joined=True)
+        env = dict(os.environ, GOWORK="off", FES_NANO_LIFECYCLE_RPC=str(binary))
+        result = subprocess.run(["go", "test", "./nativefabric", "-run", "^TestSecureLifecycle", "-count=1", "-timeout=120s", "-v"],
+                                cwd=ROOT / "platform/embedded/tamago", env=env,
+                                capture_output=True, text=True, timeout=150)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        print(result.stdout, end="")
 
     def test_terminal_cold_recovery_uses_live_revoked_scope(self):
         report=self.run_model('terminal_recovery_test',joined=True)
