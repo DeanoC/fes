@@ -408,64 +408,10 @@ class LockstepGateTest(unittest.TestCase):
             "simulator": self.report["verilator"], "oracle": self.report["oracle"]})
 
     def test_a_missing_report_is_refused(self):
-        with self.assertRaisesRegex(board.BuildError, "needs exactly one"):
+        with self.assertRaisesRegex(board.BuildError, "needs --lockstep-report"):
             quartus.build(ROOT, cache_root=Path("/cache"))
-        with self.assertRaisesRegex(board.BuildError, "needs exactly one"):
-            quartus.build(ROOT, lockstep_report=self.output / "report.json", run_lockstep=True)
         with self.assertRaisesRegex(board.BuildError, "cannot read the lockstep report"):
             quartus.build(ROOT, cache_root=Path("/cache"), lockstep_report=self.output / "absent.json")
-
-    def test_generated_report_uses_fresh_directory_and_full_suite(self):
-        scripts = self.output / "scripts"
-        scripts.mkdir()
-        runner = scripts / "test_fes_i386_lockstep.py"
-        runner.write_text('''import json, sys
-from pathlib import Path
-args = sys.argv[1:]
-run = Path(args[args.index("--output-dir") + 1])
-assert run.is_absolute() and not list(run.iterdir())
-(run / "report.json").write_text(json.dumps(args))
-''')
-        data = quartus.run_full_lockstep(self.output, self.output, Path("/cache"), "CUDA")
-        args = json.loads(data)
-        self.assertEqual(args[:3], ["--netlist", "--gpu-router", "CUDA"])
-        self.assertEqual(args[-2:], ["--cache-root", "/cache"])
-        self.assertNotIn("--opcode", args)
-        self.assertNotIn("--download", args)
-        self.assertNotIn("--preset", args)
-        self.assertNotEqual(args[args.index("--output-dir") + 1],
-                            json.loads(quartus.run_full_lockstep(self.output, self.output, None, "HIP"))[
-                                args.index("--output-dir") + 1])
-
-    def test_failed_generation_does_not_consume_a_report(self):
-        scripts = self.output / "scripts"
-        scripts.mkdir()
-        runner = scripts / "test_fes_i386_lockstep.py"
-        runner.write_text('''import sys
-from pathlib import Path
-run = Path(sys.argv[sys.argv.index("--output-dir") + 1])
-(run / "report.json").write_text("stale")
-raise SystemExit(1)
-''')
-        with self.assertRaisesRegex(board.BuildError, "full netlist lockstep failed"):
-            quartus.run_full_lockstep(self.output, self.output, None, "HIP")
-        runner.write_text("pass\n")
-        with self.assertRaisesRegex(board.BuildError, "full netlist lockstep failed"):
-            quartus.run_full_lockstep(self.output, self.output, None, "HIP")
-
-    def test_generated_report_must_pass_the_existing_gate_before_synthesis(self):
-        tools = {"yosys": self.yosys, "identities": dict(IDENTITIES)}
-        with mock.patch.object(quartus, "require_clean_source", return_value=("repo", "a" * 40)), \
-                mock.patch.object(quartus, "_authenticate_tools", return_value=tools), \
-                mock.patch.object(quartus, "create_build_record", return_value=b"record"), \
-                mock.patch.object(quartus, "build_identity", return_value="a" * 32), \
-                mock.patch.object(quartus.board, "_prepare_output", return_value=self.output), \
-                mock.patch.object(quartus, "run_full_lockstep", return_value=b"not JSON") as run, \
-                mock.patch.object(quartus, "elaborate_machine") as elaborate:
-            with self.assertRaisesRegex(board.BuildError, "lockstep report is not JSON"):
-                quartus.build(ROOT, cache_root=Path("/cache"), gpu_router="CUDA", run_lockstep=True)
-        run.assert_called_once_with(ROOT, self.output, Path("/cache"), "CUDA")
-        elaborate.assert_not_called()
 
     def test_a_failed_or_partial_run_is_refused(self):
         with self.assertRaisesRegex(board.BuildError, "not JSON"):
