@@ -16,6 +16,7 @@
 //
 //   x87_trans_probe <samples> <seed>
 //   x87_trans_probe --vectors <file>
+//   x87_trans_probe --host-dump <samples> <seed> [<vectors file>]
 //
 // The second form judges each reference separately against a third: lines of
 // "<instruction> <a> <b> <down> <up>", 20 hex digits a value, where down and
@@ -29,8 +30,17 @@
 // each class reports the count, how many results were bit-identical, a
 // cumulative histogram of the distance, the largest distance with its
 // operands, and the count of flag disagreements.
+//
+// The third form runs the host alone, over the same operands as the first
+// form and then the vector file's, and writes one line a result:
+// "<instruction> <class> <a> <b> <ST(0)> <ST(1)> <status word>". Two hosts'
+// dumps compared line by line say whether two x87 units agree. Built with
+// -DFES_PROBE_HOST_ONLY it needs no oracle, so it compiles on a host that has
+// none: g++ -std=c++17 -O2 -DFES_PROBE_HOST_ONLY x87_trans_probe.cpp.
 // scripts/probe_fes_i386_x87_trans.py builds and runs it.
+#ifndef FES_PROBE_HOST_ONLY
 #include "i386_oracle.h"
+#endif
 
 #include <cinttypes>
 #include <cstdint>
@@ -43,8 +53,10 @@
 
 namespace {
 
+#ifndef FES_PROBE_HOST_ONLY
 using fes_i386::State;
 using fes_i386::StepResult;
+#endif
 
 struct F80 {
     uint64_t sig = 0;
@@ -82,7 +94,7 @@ static unsigned __int128 ordinal(const F80 &v) {
 enum Op { F2XM1, FYL2X, FPTAN, FPATAN, FYL2XP1, FSINCOS, FSIN, FCOS, OPS };
 const char *const NAMES[OPS] = {"F2XM1", "FYL2X", "FPTAN", "FPATAN", "FYL2XP1", "FSINCOS", "FSIN", "FCOS"};
 const uint8_t MODRM[OPS] = {0xf0, 0xf1, 0xf2, 0xf3, 0xf9, 0xfb, 0xfe, 0xff};
-static bool two_operands(Op op) { return op == FYL2X || op == FPATAN || op == FYL2XP1; }
+[[maybe_unused]] static bool two_operands(Op op) { return op == FYL2X || op == FPATAN || op == FYL2XP1; }
 static bool two_results(Op op) { return op == FPTAN || op == FSINCOS; }
 
 struct Result {
@@ -116,6 +128,7 @@ __attribute__((noinline)) static Result host(Op op, const F80 &a, const F80 &b) 
     return {from_bytes(out0), from_bytes(out1), sw};
 }
 
+#ifndef FES_PROBE_HOST_ONLY
 class FlatBus final : public fes_i386::Bus {
 public:
     fes_i386::PageMemory ram{1u << 20};
@@ -169,6 +182,22 @@ public:
         return r;
     }
 };
+
+#else
+// No oracle in this build: only --host-dump is offered.
+class OracleRun {
+public:
+    bool ok = true;
+    Result run(Op, const F80 &, const F80 &) { return {}; }
+};
+#endif
+
+std::FILE *host_dump = nullptr;
+static void dump_row(Op op, int cls, const F80 &a, const F80 &b, const Result &h) {
+    std::fprintf(host_dump, "%s %d %04x%016" PRIx64 " %04x%016" PRIx64 " %04x%016" PRIx64 " %04x%016" PRIx64 " %04x\n",
+                 NAMES[op], cls, unsigned(a.se), a.sig, unsigned(b.se), b.sig, unsigned(h.r0.se), h.r0.sig,
+                 unsigned(h.r1.se), h.r1.sig, unsigned(h.sw));
+}
 
 struct Rng {
     uint64_t s;
@@ -277,7 +306,12 @@ static int run_vectors(const char *path) {
             return 2;
         }
         const F80 a = parse_f80(ta), b = parse_f80(tb), down = parse_f80(td), up = parse_f80(tu);
-        const Result o = oracle.run(Op(op), a, b), h = host(Op(op), a, b);
+        const Result h = host(Op(op), a, b);
+        if (host_dump) {
+            dump_row(Op(op), -1, a, b, h);
+            continue;
+        }
+        const Result o = oracle.run(Op(op), a, b);
         ++per[op].count;
         auto tally = [&](Side &side, const F80 &r) {
             unsigned __int128 d;
@@ -299,6 +333,7 @@ static int run_vectors(const char *path) {
         tally(per[op].host, h.r0);
     }
     std::fclose(file);
+    if (host_dump) return 0;
     const char *const labels[ClassStats::BINS] = {"0", "1", "2", "4", "16", "256", "65536", "2^32", "any"};
     std::printf("{\"brackets\": {\n");
     bool first = true;
@@ -325,15 +360,41 @@ static int run_vectors(const char *path) {
 }
 
 int main(int argc, char **argv) {
-    if (argc == 3 && !std::strcmp(argv[1], "--vectors")) return run_vectors(argv[2]);
-    if (argc != 3) {
+    if (argc >= 4 && !std::strcmp(argv[1], "--host-dump")) {
+        host_dump = stdout;
+        // What produced this dump: the CPU, the compiler, the sweep.
+        char model[256] = "unknown";
+        if (std::FILE *info = std::fopen("/proc/cpuinfo", "r")) {
+            char line[512];
+            while (std::fgets(line, sizeof line, info))
+                if (!std::strncmp(line, "model name", 10)) {
+                    const char *colon = std::strchr(line, ':');
+                    if (colon) std::snprintf(model, sizeof model, "%s", colon + 2);
+                    model[std::strcspn(model, "\n")] = 0;
+                    break;
+                }
+            std::fclose(info);
+        }
+        std::printf("# host-dump samples=%s seed=%s vectors=%s compiler=\"%s\" cpu=\"%s\"\n", argv[2], argv[3],
+                    argc == 5 ? "yes" : "no", __VERSION__, model);
+        if (argc == 5 && run_vectors(argv[4])) return 2;
+        argv += 1;
+    } else {
+#ifdef FES_PROBE_HOST_ONLY
+        std::fprintf(stderr, "this build has no oracle: only --host-dump\n");
+        return 2;
+#endif
+        if (argc == 3 && !std::strcmp(argv[1], "--vectors")) return run_vectors(argv[2]);
+    }
+    if (!host_dump && argc != 3) {
         std::fprintf(stderr, "usage: x87_trans_probe <samples> <seed>\n");
         return 2;
     }
     const uint64_t samples = std::strtoull(argv[1], nullptr, 10);
     Rng rng{std::strtoull(argv[2], nullptr, 10) * 0x9e3779b97f4a7c15ull + 1};
     OracleRun oracle;
-    std::printf("{\"samples_per_class\": %" PRIu64 ", \"seed\": %s, \"instructions\": {\n", samples, argv[2]);
+    if (!host_dump)
+        std::printf("{\"samples_per_class\": %" PRIu64 ", \"seed\": %s, \"instructions\": {\n", samples, argv[2]);
     for (int i = 0; i < OPS; ++i) {
         const Op op = Op(i);
         // The operand classes. Each is a generator of (a, b); a one-operand
@@ -354,7 +415,7 @@ int main(int argc, char **argv) {
                                            {"|x| in [2^-70, 2^-8], y in [2^-4, 2^4]", 4}};
         else classes = {{"|y|, |x| in [2^-4, 2^4]", 0}, {"|y| in [2^-70, 2^-8], |x| in [2^-4, 2^4]", 4},
                         {"|y|, |x| in [2^-1000, 2^1000]", 2}};
-        std::printf("  \"%s\": [\n", NAMES[op]);
+        if (!host_dump) std::printf("  \"%s\": [\n", NAMES[op]);
         for (size_t c = 0; c < classes.size(); ++c) {
             ClassStats st;
             st.name = classes[c].name;
@@ -410,7 +471,12 @@ int main(int argc, char **argv) {
                         b = rng.value(-1000, 1000, 0);
                     }
                 }
-                const Result o = oracle.run(op, a, b), h = host(op, a, b);
+                const Result h = host(op, a, b);
+                if (host_dump) {
+                    dump_row(op, int(c), a, b, h);
+                    continue;
+                }
+                const Result o = oracle.run(op, a, b);
                 ++st.count;
                 if (o.r0 == h.r0 && (!two_results(op) || o.r1 == h.r1)) ++st.identical;
                 if ((o.sw ^ h.sw) & 0x00ff) ++st.flags_differ;   // the six flags, SF and ES
@@ -424,6 +490,7 @@ int main(int argc, char **argv) {
                     if (op == FSINCOS) account(st, a, b, o.r1, h.r1);
                 }
             }
+            if (host_dump) continue;
             std::printf("    {\"class\": \"%s\", \"count\": %" PRIu64 ", \"identical\": %" PRIu64
                         ", \"flags_differ\": %" PRIu64 ", \"c0_c2_c3_differ\": %" PRIu64 ", \"c1_differ\": %" PRIu64
                         ", \"not_a_distance\": %" PRIu64 ",\n     \"distance_at_most\": {",
@@ -440,8 +507,9 @@ int main(int argc, char **argv) {
             print_f80("worst_host", st.worst_host, "}");
             std::printf("%s\n", c + 1 < classes.size() ? "," : "");
         }
-        std::printf("  ]%s\n", i + 1 < OPS ? "," : "");
+        if (!host_dump) std::printf("  ]%s\n", i + 1 < OPS ? "," : "");
     }
+    if (host_dump) return 0;
     std::printf("}, \"oracle_ran_every_program\": %s}\n", oracle.ok ? "true" : "false");
     return oracle.ok ? 0 : 1;
 }

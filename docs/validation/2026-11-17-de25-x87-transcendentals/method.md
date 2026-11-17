@@ -340,3 +340,94 @@ Stated so the rules above cannot be read as fitted to results.
   or script had been changed. The 387 manual and the datasheet had not been
   opened for this work; the plan record's summary of them is all that had
   been read.
+
+## Amendments
+
+Each is dated and says what had been seen when it was made.
+
+### 17 Nov 2026, amendment 1: the route is decided, and the references are not equal
+
+**What had been seen.** Deano's answer to the plan record's question 3,
+relayed by the coordinating session: "Follow the 387, we can use the real x87
+unit in the 2 build pcs if thats useful?". The reference probe
+([evidence/reference-probe.json](evidence/reference-probe.json), at
+`4c5ef203e`, 20,000 operands a class) and the two-host comparison
+([evidence/host-comparison.json](evidence/host-comparison.json)), both of
+which run **no RTL**: no RTL of this work existed. The merge-base baseline's
+unit bench (763 of 763 on both backends); its lockstep was still running. The
+387 manual had still not been read for this work.
+
+What those two reports show, stated because the changes below follow from it:
+
+- The Bochs oracle and the host x87 agree on **every** exception flag and on
+  C0, C2 and C3 over every operand class probed, and disagree on C1 often.
+- Against QEMU's bracket tables (4,374 rows over F2XM1, FYL2X, FYL2XP1 and
+  FPATAN) the host returned one of the two neighbours of the mathematical
+  result on **every** row. The oracle was outside the bracket on 57 to 498
+  rows of each table, by up to about 247,000 representable values (FPATAN).
+- The two build hosts, an Intel Core Ultra 7 270K Plus and an AMD Ryzen 7
+  7800X3D, never differ by more than **one** representable value over 704,374
+  result values, large arguments and arguments beside multiples of pi/2
+  included, and never in a flag or in C0, C2 or C3.
+- For operands beside a multiple of pi/2 the oracle and the host differ by up
+  to about 8.6e9 representable values while the two hosts agree bit for bit.
+
+**The changes.**
+
+1. **The stop line moves.** The route is the 387's: its argument reduction,
+   its ranges and rules, its stated error bound. Algorithm RTL may be written.
+   **The numeric bound is still not fixed**, and no transcendental result
+   gate is declared passed until it is agreed. Nothing of Bochs's
+   transcendental code is ported, copied or read.
+2. **Two bounds, not one.** Rule 4's single `--transcendental-ulp` cannot
+   serve both references: a bound wide enough for the oracle's own error
+   (hundreds of thousands of representable values on FPATAN) checks nothing
+   when applied to the host, and one tight enough for the host fails the
+   oracle on correct results. It is replaced by
+   `--transcendental-ulp-host` on the unit bench and
+   `--transcendental-ulp-oracle` on the lockstep, each with no default and
+   each refusing a tolerance compare when unset. **This is weaker for the
+   lockstep than what was written**: against the oracle the value compare can
+   only be a coarse sanity check, and the accuracy gate is the unit bench
+   against the host and the bracket tables. Rule 1 (flags, C0, C2, C3, TOP,
+   tags and everything else exact) is unchanged in both, and is the part of
+   the lockstep that keeps its force.
+3. **What the hosts establish.** They are modern x87 units, not 387s, and
+   this is not a real-387 capture. They are used as a reference where the two
+   agree with each other **and** the 387's documentation gives the same rule;
+   where they differ from each other or from the documented rule,
+   `rules.md` wins and the case is listed. The unit bench runs on one host;
+   the second host's agreement is carried by the comparison report, which is
+   re-run on the final directed cases.
+4. **The proposed bound is committed before the RTL is run against it.**
+   `bound.md` beside this file proposes the two bounds from the 387's
+   documented error and from the measured distributions, with the whole
+   histograms. It is a proposal for Deano; until he agrees it, results are
+   reported as distributions and no pass is claimed.
+5. **A model stands between the RTL and the references.** The kernels are
+   sequences of the backend's own add, subtract, multiply and divide over
+   constants in memory, as the brief's Phase B asks, **not** the 387's CORDIC:
+   its microcode is unpublished and unobservable. What follows the 387 is what
+   its manual states and software can see. Because every step is an exactly
+   defined rounded operation, the sequences are written once, in a generator,
+   and run two ways: by an integer model in Python and by the RTL. **The RTL
+   must equal the model bit for bit** on every operand both run, which is an
+   exact check with no tolerance; the model is what is compared with the
+   mathematical result, to a stated error, over far more operands than a
+   simulation can reach. The tolerance compares against the host and the
+   oracle remain, as the check that the model computes the right function.
+6. **Trigonometric brackets.** QEMU has no table for FSIN, FCOS, FSINCOS or
+   FPTAN (confirmed in its `tests/tcg/i386` at v11.1.3). Their mathematical
+   reference is the model's own high-precision evaluation, and their second
+   reference the two hosts.
+7. **QEMU's tables, now that they have been read** (pinned at v11.1.3,
+   `005c61c0e`, with the digests in `probe_fes_i386_x87_trans.py`). Each of
+   the four transcendental tables gives, per row, the two extended values
+   bracketing the mathematical result under the default control word, and
+   passes either; none checks a flag, a rounding mode or the stack. They are
+   parsed at run time into operand and bracket; the pass rule for those rows
+   is the host bound applied to the distance outside the bracket.
+   `test-i386-fbstp.c` is seventeen inline cases, not a table: its operands
+   and expected bytes are run as the unit bench's own directed FBSTP cases,
+   written from the instruction's rules, and the QEMU file is fetched and its
+   seventeen expectations compared with those cases' at run time.

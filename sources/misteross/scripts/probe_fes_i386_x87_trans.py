@@ -135,6 +135,69 @@ def qemu_vectors(download: bool) -> tuple[Path, dict]:
                      'files_sha256': {name: digest for name, digest, _, _ in QEMU_TABLES}, 'rows': counts}
 
 
+CLASS_EDGES = ((0, '0'), (1, '1'), (2, '2'), (4, '4'), (16, '16'), (256, '256'), (65536, '65536'))
+
+
+def _ordinal(text: str):
+    """(sign, the integer that orders the magnitudes) of a finite non-zero
+    normal or denormal value; None for anything else."""
+    sign_exponent, significand = int(text[:4], 16), int(text[4:], 16)
+    exponent = sign_exponent & 0x7fff
+    if exponent == 0x7fff or significand == 0 or bool(significand >> 63) != bool(exponent):
+        return None
+    return sign_exponent >> 15, significand if exponent == 0 else (exponent - 1) << 63 | significand
+
+
+def compare_hosts(first: Path, second: Path) -> dict:
+    """Two --host-dump files, line by line: per instruction and operand class,
+    how many results are bit-identical, the whole histogram of the distance
+    between the two hosts' results, and how often the flags and the condition
+    codes differ. Class -1 is the QEMU bracket tables' operands."""
+    def header(path: Path) -> tuple[dict, list[str]]:
+        lines = path.read_text().splitlines()
+        if not lines or not lines[0].startswith('# host-dump '):
+            raise oracle.OracleError(f'{path} is not a host dump')
+        fields = dict(re.findall(r'(\w+)=("[^"]*"|\S+)', lines[0]))
+        return ({key: value.strip('"') for key, value in fields.items()}
+                | {'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'rows': len(lines) - 1}), lines[1:]
+    (meta_a, rows_a), (meta_b, rows_b) = header(first), header(second)
+    if len(rows_a) != len(rows_b):
+        raise oracle.OracleError('the two dumps are of different sweeps')
+    classes: dict[tuple[str, str], dict] = {}
+    for line_a, line_b in zip(rows_a, rows_b):
+        a, b = line_a.split(), line_b.split()
+        if a[:4] != b[:4]:
+            raise oracle.OracleError('the two dumps are of different operands')
+        row = classes.setdefault((a[0], a[1]), {
+            'count': 0, 'values': 0, 'identical': 0, 'not_a_distance': 0, 'flags_differ': 0, 'c0_c2_c3_differ': 0,
+            'c1_differ': 0, 'distance': {label: 0 for _, label in CLASS_EDGES} | {'more': 0}, 'worst_distance': 0})
+        row['count'] += 1
+        status = int(a[6], 16) ^ int(b[6], 16)
+        row['flags_differ'] += bool(status & 0x00ff)
+        row['c0_c2_c3_differ'] += bool(status & 0x4500)
+        row['c1_differ'] += bool(status & 0x0200)
+        # FPTAN's value is under its pushed 1.0; FSINCOS has two; the rest one.
+        for column in {'FPTAN': (5,), 'FSINCOS': (4, 5)}.get(a[0], (4,)):
+            row['values'] += 1
+            if a[column] == b[column]:
+                row['identical'] += 1
+                row['distance']['0'] += 1
+                continue
+            x, y = _ordinal(a[column]), _ordinal(b[column])
+            if x is None or y is None or x[0] != y[0]:
+                row['not_a_distance'] += 1
+                continue
+            distance = abs(x[1] - y[1])
+            row['worst_distance'] = max(row['worst_distance'], distance)
+            # Each value lands in exactly one bin: the smallest edge it is within.
+            row['distance'][next((label for edge, label in CLASS_EDGES if distance <= edge), 'more')] += 1
+    return {'what': 'distance between two hosts\' own x87 units on the x87 transcendentals; no RTL and no oracle',
+            'hosts': [meta_a, meta_b],
+            'probe_sha256': hashlib.sha256((oracle.SIM / 'x87_trans_probe.cpp').read_bytes()).hexdigest(),
+            'classes': [{'instruction': name, 'class': int(index), **row}
+                        for (name, index), row in sorted(classes.items())]}
+
+
 def source_record() -> dict:
     repository = ROOT.parents[1]
 
@@ -166,10 +229,23 @@ def main() -> int:
     parser.add_argument('--brackets', action='store_true',
                         help="also judge each reference against QEMU's bracket tables")
     parser.add_argument('--jobs', type=int, default=4)
+    parser.add_argument('--compare-hosts', type=Path, nargs=2, metavar='DUMP',
+                        help="compare two hosts' `x87_trans_probe --host-dump` files instead of probing "
+                             '(the probe\'s header says how to build it on a host with no oracle)')
     parser.add_argument('--output', type=Path, required=True, help='the report to write (absolute)')
     args = parser.parse_args()
     if not args.output.is_absolute():
         parser.error('--output must be absolute')
+    if args.compare_hosts:
+        try:
+            report = compare_hosts(*args.compare_hosts)
+        except (OSError, oracle.OracleError) as error:
+            print('x87 transcendental probe error:', error, file=sys.stderr)
+            return 2
+        args.output.write_text(json.dumps(report, indent=2) + '\n')
+        print(f'x87 host comparison: {report["hosts"][0]["cpu"]} against {report["hosts"][1]["cpu"]} '
+              f'(report: {args.output})')
+        return 0
     try:
         source = source_record()
         linked = oracle.link_inputs(args.jobs, args.download)
