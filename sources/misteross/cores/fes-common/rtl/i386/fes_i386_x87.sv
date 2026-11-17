@@ -699,7 +699,17 @@ module fes_i386_x87 #(
         // encodings they had, so `trace_seq` means the same thing in a
         // default build as it did before this change.
         B_ISSUE,    // offer the operation to fes_x87_core
-        B_WAIT      // ... and take its pre-rounding result into A_RND's registers
+        B_WAIT,     // ... and take its pre-rounding result into A_RND's registers
+        // ---- Packed decimal (X87_BACKEND = 1, #1958). ----
+        // Appended for the same reason. FBLD and FBSTP are built on the DE25
+        // backend only, and every register these four arms write is written
+        // nowhere else, so a DE10 build holds none of them: the start arms
+        // exist so that not even the loop counters need a write outside a
+        // guarded arm (x87_envelope_fit.py derives that list from this file).
+        T_BLD_IN,   // FBLD: take the 18 digits
+        T_BLD,      // ... acc = acc * 10 + digit, 18 times, then the normalising shift
+        T_BST_IN,   // FBSTP: take the rounded integer
+        T_BST       // ... double-dabble it to 18 digits, a bit a clock, and pack
     } seq_e;
     seq_e        seq;
     seq_e        sh_ret;      // the state S_MUL returns to when the multiply is done
@@ -727,6 +737,48 @@ module fes_i386_x87 #(
     assign busy_o = busy;
     assign trace_seq = 6'(seq);
 
+    // ---- Packed decimal: FBLD and FBSTP (DF /4 and /6, #1958). ----
+    // Built on the DE25 backend only. Their operand is ten bytes, moved in
+    // the chunks FLD and FSTP m80 use, so it arrives as X87F_F80 (all eight
+    // format values are taken); the opcode says which it is, since DF's only
+    // other memory forms are integers. Both `cur_fmt` and `cur_op_raw` are
+    // set when the instruction is taken, so this is settled from S_ARG on.
+    // At X87_BACKEND = 0 it is constant zero and every use of it folds away.
+    logic bcd;
+    assign bcd = X87_BACKEND == 1 && cur_fmt == X87F_F80 && cur_op_raw[10:8] == 3'b111;
+    // FBLD's working registers: the digits still to take, most significant
+    // first, the binary integer so far and the count left. Eighteen digits
+    // of at most 15 each stay below 2^61, so 64 bits hold any encoding.
+    logic [63:0] bl_acc;
+    logic [71:0] bl_dig;
+    logic [4:0]  bl_n;
+    // FBSTP's: the rounded integer still to shift out (at most 10^18 - 1,
+    // which is below 2^60), the digits so far and the count left.
+    logic [59:0] bs_bin;
+    logic [71:0] bs_bcd;
+    logic [5:0]  bs_n;
+    // Double-dabble's adjustment: a digit of five or more gains three
+    // before the shift, so the shift's doubling carries into the next digit
+    // (5..9 become 8..12, and twice 5..9 is 10..18).
+    // A function, as this file's other loops are: the locked Yosys loses the
+    // package's type names after a `for (int ...)` loop in an always block
+    // (the netlist bench found it on the first run of this code), and a
+    // loop in a function does not have that effect.
+    function automatic logic [71:0] bcd_adjust(input logic [71:0] d);
+        for (int n = 0; n < 18; n++)
+            bcd_adjust[4*n +: 4] = d[4*n +: 4] >= 4'd5 ? d[4*n +: 4] + 4'd3 : d[4*n +: 4];
+    endfunction
+    logic [71:0] bs_adj;
+    assign bs_adj = bcd_adjust(bs_bcd);
+    // The value a masked invalid FBSTP stores, "packed decimal indefinite".
+    // The 387 PRM (Table 3-7) fixes only its top two bytes, FFh FFh, and
+    // prints the low eight as undefined; C0h then zeros is what the host
+    // x87 and the oracle both store, so bytes 0 to 7 are theirs, measured,
+    // and not the manual's.
+    localparam logic [79:0] BCD_INDEFINITE = 80'hffff_c000_0000_0000_0000;
+    // The largest magnitude 18 digits hold, 10^18 - 1.
+    localparam logic [64:0] BCD_MAX = 65'h0_0de0_b6b3_a763_ffff;
+
     // ---- The board's BUSY# latch (387 PRM Appendix F.2). ----
     // ERROR# going active latches BUSY#, which holds the next waiting ESC or
     // WAIT until a write to port F0h clears it. A write to F1h resets the
@@ -741,7 +793,7 @@ module fes_i386_x87 #(
     // WAIT, holds on it. They do not pass the unit's own work (`hold`).
     x87_op_e iss_dec;
     logic iss_nowait;
-    assign iss_dec = x87_decode(iss_op, iss_fmt);
+    assign iss_dec = x87_decode(iss_op, iss_fmt, X87_BACKEND == 1);
     assign iss_nowait = !iss_wait && (iss_dec == X87_INIT || iss_dec == X87_CLEX);
     // The forms whose value the CPU needs before the instruction retires:
     // a real or integer store, whose conversion the unit runs as the
@@ -854,7 +906,26 @@ module fes_i386_x87 #(
         f64 = mval[51:0];
         e64 = mval[62:52];
         case (cur_fmt)
-            X87F_F80: ld_v = mval;
+            X87F_F80:
+                if (bcd) begin
+                    // FBLD: the 18 digits as the binary integer T_BLD left
+                    // in bl_acc, normalised as FILD's magnitude is. It is
+                    // exact and raises nothing. The sign is bit 79 and bits
+                    // 78 to 72 are ignored (387 PRM Figure 2-10, note 3),
+                    // and unlike FILD a zero keeps its sign: "the sign of
+                    // the source is preserved, including the case where the
+                    // value is negative zero" (387 PRM section 4.3.8).
+                    // **bl_acc is a register T_BLD writes**, so this is the
+                    // loaded value only once T_BLD's count has run out:
+                    // T_BLD's last step and S_APPLY read it, S_PRE must not.
+                    ld_sign = mval[79];
+                    if (bl_acc == 64'd0) ld_v = {mval[79], 79'd0};
+                    else begin
+                        ld_shift = 1'b1;
+                        ld_mag = bl_acc;
+                        ld_expb = 17'd16446;
+                    end
+                end else ld_v = mval;
             X87F_F32: begin
                 ld_sign = mval[31];
                 if (e32 == 8'd0 && f32 == 23'd0) ld_v = {mval[31], 79'd0};
@@ -943,7 +1014,7 @@ module fes_i386_x87 #(
     logic [1:0] f_iw;
     logic [14:0] f_bias;
     assign f_f64 = cur_fmt == X87F_F64;
-    assign f_int = cur_fmt == X87F_I16 || cur_fmt == X87F_I32 || cur_fmt == X87F_I64;
+    assign f_int = cur_fmt == X87F_I16 || cur_fmt == X87F_I32 || cur_fmt == X87F_I64 || bcd;
     assign f_iw = cur_fmt == X87F_I16 ? 2'd0 : cur_fmt == X87F_I32 ? 2'd1 : 2'd2;
     assign f_bias = f_f64 ? 15'd1023 : 15'd127;
     logic signed [17:0] st_te;
@@ -962,7 +1033,44 @@ module fes_i386_x87 #(
         st_v = 80'd0;
         st_fl = 6'd0;
         case (cur_fmt)
-            X87F_F80: begin
+            X87F_F80: if (bcd) begin
+                // FBSTP rounds ST(0) to an integer under RC exactly as the
+                // 64-bit integer store below does (f_iw is 2 for this
+                // format), and S_POST2 then range-checks the rounded
+                // magnitude against 18 digits and T_BST converts it. What
+                // differs here: a zero keeps its sign in the sign byte, and
+                // every invalid source -- empty, a NaN, an infinity, an
+                // unsupported format, or a magnitude of 2^64 or more, which
+                // cannot be 18 digits whatever it rounds to -- stores the
+                // packed decimal indefinite (387 PRM Table 3-10). A denormal
+                // or pseudo-denormal source raises no denormal exception:
+                // the PRM's Appendix B lists only IS, I and P for FBSTP, and
+                // the host x87 and the oracle were both measured to set PE
+                // alone.
+                case (st_cls)
+                    C_ZERO: st_v = {st_sign, 79'd0};
+                    C_EMPTY, C_QNAN, C_SNAN, C_INF, C_UNSUP: begin
+                        st_big = 1'b1;
+                        st_fl = 6'b000001;
+                        st_v = BCD_INDEFINITE;
+                    end
+                    default: begin
+                        st_direct = 1'b0;
+                        st_p = P_1;
+                        if (st_e > 18'sd63) begin
+                            st_big = 1'b1;
+                            st_direct = 1'b1;
+                            st_fl = 6'b000001;
+                            st_v = BCD_INDEFINITE;
+                        end else if (st_e == 18'sd63) begin
+                            st_p = P_0;
+                        end else begin
+                            st_k = (18'sd62 - st_e) > 18'sd64 ? 7'd64 : 7'((18'sd62 - st_e));
+                            st_shift = st_k != 7'd0;
+                        end
+                    end
+                endcase
+            end else begin
                 // FSTP m80 is a bit copy, so no operand raises anything but
                 // the stack fault of an empty ST(0).
                 st_v = st_cls == C_EMPTY ? INDEFINITE : ra_val;
@@ -1713,8 +1821,12 @@ module fes_i386_x87 #(
                 // target or an integer, then the rounding.
                 S_ARG: seq <= S_PRE;
                 S_PRE: if (cur == X87_LD_M) begin
+                    // FBLD's digits become a binary integer first, and the
+                    // conversion above is that integer's: nothing here may
+                    // read ld_shift or ld_mag for it yet.
+                    if (bcd) seq <= T_BLD_IN;
                     // A load's normalising left shift, a multiply by 2^lz.
-                    if (ld_shift) begin
+                    else if (ld_shift) begin
                         sh_in <= ld_mag;
                         sh_k <= 7'd0;
                         sh_src <= ld_mag;
@@ -3344,7 +3456,20 @@ module fes_i386_x87 #(
                     logic       c1v;
                     f = pfl;
                     c1v = rnd_up_q;
-                    if (c_int) begin
+                    if (bcd) begin
+                        // FBSTP: the rounded magnitude has to fit 18 digits.
+                        // One that does not is invalid and stores the packed
+                        // decimal indefinite, with nothing rounded up; one
+                        // that does goes to T_BST with its flags, C1 and
+                        // the no-access decision already final, since the
+                        // CPU takes the value the moment the sequencer
+                        // reaches S_RDY.
+                        if (rnd_q > BCD_MAX) begin
+                            f[0] = 1'b1;
+                            c1v = 1'b0;
+                            sres <= BCD_INDEFINITE;
+                        end else if (rnd_inex_q) f[5] = 1'b1;
+                    end else if (c_int) begin
                         if (int_oor) begin
                             f[0] = 1'b1;
                             c1v = 1'b0;
@@ -3378,8 +3503,74 @@ module fes_i386_x87 #(
                     end
                     pfl <= f;
                     pc1 <= c1v;
-                    pnx <= unmasked(f, cw);
-                    seq <= S_RDY;
+                    // FBSTP with the precision exception unmasked stores its
+                    // digits and pops: precision is detected after the
+                    // result exists, and the host x87 was measured to store,
+                    // pop and raise ES. Only invalid holds the access back.
+                    // (The integer and real stores keep the gate they were
+                    // sealed with, which S_APPLY's comment names.)
+                    pnx <= unmasked(bcd ? f & 6'b000111 : f, cw);
+                    seq <= bcd && !f[0] ? T_BST_IN : S_RDY;
+                end
+                // ---- Packed decimal (#1958). ----
+                // FBLD: 18 steps of acc * 10 + digit, the most significant
+                // digit first, with the multiply as two shifts and an add.
+                // A digit of A to F is not checked for: the 387 "does not
+                // check for invalid digits" and calls the result undefined
+                // (387 PRM section 4.3.8), and this arithmetic is what the
+                // host x87 and the oracle were both measured to do with one.
+                T_BLD_IN: if (X87_BACKEND == 1) begin
+                    bl_acc <= 64'd0;
+                    bl_dig <= mval[71:0];
+                    bl_n <= 5'd18;
+                    seq <= T_BLD;
+                end
+                // The step that starts the normalising shift reads bl_acc
+                // through ld_shift and ld_mag, so it has to be a clock after
+                // the last digit went in: the count runs out first and the
+                // shift starts from the settled register, never in the
+                // clock that assigns it. bl_acc then stays as it is until
+                // S_APPLY, which reads the same conversion again.
+                T_BLD: if (X87_BACKEND == 1) begin
+                    if (bl_n != 5'd0) begin
+                        bl_acc <= {bl_acc[60:0], 3'd0} + {bl_acc[62:0], 1'b0} + {60'd0, bl_dig[71:68]};
+                        bl_dig <= {bl_dig[67:0], 4'd0};
+                        bl_n <= bl_n - 5'd1;
+                    end else if (ld_shift) begin
+                        sh_in <= ld_mag;
+                        sh_k <= 7'd0;
+                        sh_src <= ld_mag;
+                        sh_pow <= 6'(clz64(ld_mag));
+                        sh_exp <= 15'(ld_expb - 17'(clz64(ld_mag)));
+                        sh_isprod <= 1'b0;
+                        sh_ret <= S_APPLY;
+                        seq <= S_SHIFT;
+                    end else
+                        seq <= S_APPLY;
+                end
+                // FBSTP: the rounded integer to 18 digits by double-dabble,
+                // one bit a clock from the top: each digit of five or more
+                // gains three, then the digits shift left with the next bit
+                // coming in at the bottom. Sixty bits hold 10^18 - 1.
+                T_BST_IN: if (X87_BACKEND == 1) begin
+                    bs_bin <= rnd_q[59:0];
+                    bs_bcd <= 72'd0;
+                    bs_n <= 6'd60;
+                    seq <= T_BST;
+                end
+                // The packed value: the sign in bit 79, zeros in bits 78 to
+                // 72 (387 PRM Figure 2-10, note 3: "zeros when storing") and
+                // the digits. It is assigned from bs_bcd a clock after the
+                // last bit went in, for the same reason as above.
+                T_BST: if (X87_BACKEND == 1) begin
+                    if (bs_n != 6'd0) begin
+                        bs_bcd <= {bs_adj[70:0], bs_bin[59]};
+                        bs_bin <= {bs_bin[58:0], 1'b0};
+                        bs_n <= bs_n - 6'd1;
+                    end else begin
+                        sres <= {c_sign, 7'd0, bs_bcd};
+                        seq <= S_RDY;
+                    end
                 end
                 S_RDY: if (flush) seq <= S_IDLE;
                        else if (wb && wb_last) seq <= S_APPLY;
@@ -3627,7 +3818,9 @@ module fes_i386_x87 #(
                     // were sealed and lockstepped with; whether a store with
                     // PE unmasked should make its access is its own question
                     // and the record names it.
-                    um = a_form ? unmasked(f & 6'b000111, cw) : unmasked(f, cw);
+                    // FBSTP follows the same measurement: with PE unmasked it
+                    // has stored and it pops.
+                    um = a_form || bcd ? unmasked(f & 6'b000111, cw) : unmasked(f, cw);
                     // ... and because such an exception means the operation
                     // never produced a result, the exceptions the result
                     // would have raised are not reported with it: a real x87

@@ -85,7 +85,12 @@
 // src1 is always the destination's register: a byte or word result merges
 // into its old value. A LOOP or JCXZ counts in CX or ECX by address size, which
 // is the uop's size; its target is truncated by operand size (opsize32).
-module fes_i386_decode (
+module fes_i386_decode #(
+    // The x87 unit's arithmetic backend, as fes_i386_cpu's parameter of the
+    // same name: it decides which ESC forms are built (fes_i386_pkg's
+    // x87_format and x87_decode take it) and so which this decode stops.
+    parameter int X87_BACKEND = 0
+) (
     input  fes_i386_pkg::fetched_t q,
     input  logic                   code32,      // CS.D
     input  logic                   stack,       // the address is BP-, EBP- or ESP-based (fes_i386_amode)
@@ -141,6 +146,7 @@ module fes_i386_decode (
     logic [7:0]       b0, op2, modrm;
     logic [1:0]       mode;
     logic [2:0]       reg_f, rm;
+    logic [5:0]       x87_shape;  // an ESC memory form's access shape: {ESC's low bits, reg}
     logic             two, addr32, reg_form;
     logic [1:0]       osz;  // a size_e: SIZE_16 or SIZE_32
 
@@ -332,6 +338,7 @@ module fes_i386_decode (
         x87_insn = 1'b0;
         x87_wait = 1'b0;
         x87_fmt = 3'(fes_i386_pkg::X87F_NONE);
+        x87_shape = 6'd0;
         x87_op = {b0[2:0], modrm};
         moff = 7'd0;
         x87p = 2'(fes_i386_pkg::X87P_NONE);
@@ -1161,12 +1168,13 @@ module fes_i386_decode (
                     nm = esc_nm;
                     x87_insn = 1'b1;
                     if (x87) begin
-                        x87_fmt = fes_i386_pkg::x87_format(b0[2:0], reg_f);
+                        x87_fmt = fes_i386_pkg::x87_format(b0[2:0], reg_f, X87_BACKEND == 1);
                         // A form a later slice builds stops as not built,
                         // but #NM comes first: with EM or TS set a 386
                         // raises it for every ESC, whatever the form, which
                         // is what lazy context switching relies on.
-                        known = esc_nm || fes_i386_pkg::x87_decode({b0[2:0], modrm}, x87_fmt)
+                        known = esc_nm || fes_i386_pkg::x87_decode({b0[2:0], modrm}, x87_fmt,
+                                                                   X87_BACKEND == 1)
                                        != fes_i386_pkg::X87_UNIMPL;
                         if (reg_form) begin
                             if (b0 == 8'hdf && modrm == 8'he0) begin
@@ -1190,7 +1198,19 @@ module fes_i386_decode (
                             size = 2'd2;
                             mbytes = 3'd4;
                             x87p = 2'(fes_i386_pkg::X87P_IPDP);
-                            case ({b0[2:0], reg_f})
+                            // The access shape, by ESC and reg field. FBLD
+                            // and FBSTP (DF /4, /6) move ten bytes exactly as
+                            // FLD and FSTP m80 do, so on the DE25 backend,
+                            // which builds them, they take those two arms.
+                            // On the DE10's they keep their own selectors and
+                            // fall to the default below, as they always have.
+                            // **This is the table that fails unsafe** (see
+                            // the D8 arm): the lockstep's x87 BCD suite reads
+                            // and writes operands a wrong shape would misread.
+                            x87_shape = {b0[2:0], reg_f};
+                            if (X87_BACKEND == 1 && x87_shape == 6'o74) x87_shape = 6'o35;
+                            if (X87_BACKEND == 1 && x87_shape == 6'o76) x87_shape = 6'o37;
+                            case (x87_shape)
                                 6'o17, 6'o57: begin
                                     // FNSTCW (D9 /7), FNSTSW m16 (DD /7):
                                     // the unit's word.
@@ -1251,8 +1271,9 @@ module fes_i386_decode (
                                     eoi = 1'b0;
                                 end
                                 6'o35: begin
-                                    // FLD m80 (DB /5): the word at 8, then
-                                    // the ROM's dwords at 4 and 0.
+                                    // FLD m80 (DB /5), and FBLD on the DE25
+                                    // backend: the word at 8, then the ROM's
+                                    // dwords at 4 and 0.
                                     size = 2'd1;
                                     mbytes = 3'd2;
                                     mkind = 2'd1;
@@ -1332,8 +1353,9 @@ module fes_i386_decode (
                                     eoi = 1'b0;
                                 end
                                 6'o37: begin
-                                    // FSTP m80 (DB /7): the dword at 0, then
-                                    // the ROM's at 4 and its word at 8.
+                                    // FSTP m80 (DB /7), and FBSTP on the DE25
+                                    // backend: the dword at 0, then the ROM's
+                                    // at 4 and its word at 8.
                                     m_in_a = 1'b1;
                                     mkind = 2'd2;
                                     b_sys = 1'b1;
@@ -1344,8 +1366,9 @@ module fes_i386_decode (
                                     eoi = 1'b0;
                                 end
                                 default: begin
-                                    // The divides (reg fields 6 and 7),
-                                    // FBLD and FBSTP: a later slice's,
+                                    // A form this build does not run (FBLD
+                                    // and FBSTP on the DE10 backend, and
+                                    // the encodings no 387 defines),
                                     // stopped by known above. The offset
                                     // goes to AG, as the empty socket's
                                     // does, so the trace has the data

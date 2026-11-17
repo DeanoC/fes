@@ -1214,7 +1214,18 @@ package fes_i386_pkg;
     // multiply, compare, compare-and-pop, subtract and reverse subtract.
     // Reg fields 6 and 7 are the divides, which **slice 4 adds**: they are in
     // this table, and they have to be, for the reason the case below gives.
-    function automatic logic [2:0] x87_format(input logic [2:0] esc, input logic [2:0] rf);
+    //
+    // `de25` is the backend the unit is built with (X87_BACKEND == 1), and it
+    // is the one thing that says what is built: fes_i386_decode's `known` and
+    // the unit's `unbuilt` both pass it here and to x87_decode, and the
+    // lockstep bench's C++ copy (sim/i386/x87_built_form.h) is compared with
+    // the two functions over every opcode at both values. With it low both
+    // functions return what they returned before it existed. With it high
+    // FBLD and FBSTP (DF /4 and /6, #1958) are built: all eight format values
+    // are taken, so their 10-byte packed decimal operand reuses X87F_F80's
+    // chunking and the unit tells it from FLD and FSTP m80 by the opcode.
+    function automatic logic [2:0] x87_format(input logic [2:0] esc, input logic [2:0] rf,
+                                              input logic de25);
         case ({esc, rf})
             // Reg fields 0 to 5 are slice 3's arithmetic and compares and 6
             // and 7 are slice 4's divides. **The whole field has to be here**:
@@ -1246,6 +1257,7 @@ package fes_i386_pkg;
             {3'b001, 3'd4}, {3'b001, 3'd6}, {3'b101, 3'd4}, {3'b101, 3'd6}: x87_format = X87F_ENV;
             default: x87_format = X87F_NONE;
         endcase
+        if (de25 && esc == 3'b111 && (rf == 3'd4 || rf == 3'd6)) x87_format = X87F_F80;  // FBLD, FBSTP
     endfunction
 
     // The operations the x87 unit builds. A form a later slice builds
@@ -1325,7 +1337,10 @@ package fes_i386_pkg;
 
     // ---- Decode: the 387 opcode to an operation. ----
     // op[10:8] is ESC's low three bits (D8h-DFh), op[7:0] the ModRM byte.
-    function automatic x87_op_e x87_decode(input logic [10:0] o, input logic [2:0] fmt);
+    // `de25` is x87_format's: the backend, which decides whether FBLD and
+    // FBSTP are built.
+    function automatic x87_op_e x87_decode(input logic [10:0] o, input logic [2:0] fmt,
+                                           input logic de25);
         logic [2:0] esc, rf;
         logic       regform;
         esc = o[10:8];
@@ -1365,7 +1380,11 @@ package fes_i386_pkg;
                 {3'b001, 3'd4}: x87_decode = X87_LDENV;
                 {3'b101, 3'd6}: x87_decode = X87_SAVE;
                 {3'b101, 3'd4}: x87_decode = X87_RSTOR;
-                default: x87_decode = X87_UNIMPL;  // FBLD and FBSTP (DF /4, /6), slice 5's
+                // FBLD and FBSTP (DF /4, /6): a load and a store-and-pop on
+                // the DE25 backend, not built on the DE10's.
+                {3'b111, 3'd4}: x87_decode = de25 ? X87_LD_M : X87_UNIMPL;
+                {3'b111, 3'd6}: x87_decode = de25 ? X87_STP_M : X87_UNIMPL;
+                default: x87_decode = X87_UNIMPL;
             endcase
             // A memory form needs its operand's format, and the four
             // environment and save forms the environment's.
