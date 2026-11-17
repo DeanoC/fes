@@ -462,10 +462,11 @@ the gamepad OSK and POSTs the file bytes.
 
 ## Repository boundaries
 
-These are modules in the FES repository. Quartus Lite 17.0.2 remains an
-explicit oracle/check in the current recipes. Accepted FES policy also allows
-a labelled Quartus-built variant after recipe and package-selection support
-lands; the current normal product route uses HIP/nextpnr.
+These are modules in the FES repository. The product route builds each core
+with its registered producer: Quartus Lite 17.0.2 for the ZX81 family
+(`fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`) and PC/XT, HIP/nextpnr
+for the other cores. Other Quartus recipes remain explicit oracle checks, and
+the ZX81 family's nextpnr build is advisory.
 
 | Module | Owns |
 | --- | --- |

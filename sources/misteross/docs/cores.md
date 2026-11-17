@@ -172,7 +172,7 @@ CPU expansion. Audio follows the shell's existing machine path.
 | --- | --- | --- |
 | `make sim-fes-*` | Host simulation of the RTL you ran | An RBF, timing, HDMI, audio, or a kit |
 | `make build-fes-*` (OSS) | A sealed artifact when the clean-tree checks and timing pass | Kit behavior, or acceptance of an older seal |
-| `make build-fes-*-quartus` | The Quartus oracle for that recipe | The product bitstream |
+| `make build-fes-*-quartus` | A sealed artifact for a registered Quartus producer (the ZX81 family); otherwise the Quartus oracle for that recipe | Kit behavior; for an oracle recipe, the product bitstream |
 
 Simulation targets refuse a shared toolchain cache. Unset
 `FES_TOOLCHAIN_CACHE_ROOT` and do not pass `CACHE_ROOT` to `make sim-fes-*`.

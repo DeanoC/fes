@@ -199,15 +199,6 @@ class RecipeRegistryTest(unittest.TestCase):
                 "package_dir_env": "FES_PONG_PACKAGE_DIR",
                 "package_selection_env": "FES_PONG_PACKAGE_SELECTION",
             },
-            "fes.zx81": {
-                "producer_script": "scripts/build_fes_zx81_oss.py",
-                "producer_module": "scripts.build_fes_zx81_oss",
-                "lock_path": "cores/fes-zx81/toolchain.lock",
-                "selection_filename": "fes-zx81.package-selection.toml",
-                "authenticate": "_authenticate_tools",
-                "package_dir_env": "FES_ZX81_PACKAGE_DIR",
-                "package_selection_env": "FES_ZX81_PACKAGE_SELECTION",
-            },
             "fes.coleco": {
                 "producer_script": "scripts/build_fes_coleco_socket_v2.py",
                 "producer_module": "scripts.build_fes_coleco_socket_v2",
@@ -282,14 +273,25 @@ class RecipeRegistryTest(unittest.TestCase):
                 "fes.c64": "no oracle required",
                 "fes.spectrum": "no oracle required"}.get(core_id, "bring-up/check oracle"))
         pong = recipes.recipe_for("fes.pong")
-        zx81 = recipes.recipe_for("fes.zx81")
         coleco = recipes.recipe_for("fes.coleco")
         sms = recipes.recipe_for("fes.sms")
-        for core_id in ("fes.pong", "fes.zx81", "fes.coleco", "fes.sms",
+        for core_id in ("fes.pong", "fes.coleco", "fes.sms",
                         "fes.sg1000", "fes.apple2", "fes.c64", "fes.spectrum"):
             self.assertEqual(recipes.recipe_for(core_id).lock_path,
                              f"cores/fes-{core_id.removeprefix('fes.')}/toolchain.lock")
-        self.assertEqual(len({r.lock_path for r in (pong, zx81, coleco, sms)}), 4)
+        self.assertEqual(len({r.lock_path for r in (pong, coleco, sms)}), 3)
+        # The ZX81 family selects its Quartus Lite producer, one row per model;
+        # its nextpnr table is advisory (config/advisory-pnr-recipes.toml).
+        for model in ("zx81", "zx80", "ts1000", "ts1500"):
+            recipe = recipes.recipe_for(f"fes.{model}")
+            self.assertEqual(recipe.toolchain, "quartus")
+            self.assertEqual(recipe.producer_script, "scripts/build_fes_zx81_quartus.py")
+            self.assertEqual(recipe.producer_module, "scripts.build_fes_zx81_quartus")
+            self.assertEqual(recipe.authenticate, "authenticate_tools")
+            self.assertEqual(recipe.lock_path, "cores/fes-zx81/quartus.lock")
+            self.assertEqual(recipe.producer_arguments, ("--model", model))
+            self.assertEqual(recipe.quartus["seeds"], [1, 2, 3])
+            self.assertEqual(recipe.selection_filename, f"fes-{model}.package-selection.toml")
         self.assertEqual(pong.cache_root, coleco.cache_root)
         self.assertEqual(pong.cache_root, sms.cache_root)
         with self.assertRaisesRegex(ValueError, "unknown format-2 recipe"):
@@ -561,7 +563,7 @@ class RecipeResolverTest(unittest.TestCase):
 
     def test_each_descriptor_dispatches_its_producer_with_explicit_cache_root(self):
         module = self.module()
-        for core_id in ("fes.pong", "fes.zx81", "fes.coleco", "fes.sms"):
+        for core_id in ("fes.pong", "fes.sms", "fes.coleco", "fes.sg1000"):
             with self.subTest(core_id=core_id), tempfile.TemporaryDirectory() as temporary:
                 source = Path(temporary)
                 recipe = recipes.recipe_for(core_id)
@@ -606,7 +608,7 @@ class RecipeResolverTest(unittest.TestCase):
 
     def test_canonical_record_passes_cache_root_and_keeps_hip_identity(self):
         module = self.module()
-        recipe = recipes.recipe_for("fes.zx81")
+        recipe = recipes.recipe_for("fes.sms")
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary)
             payload = b'{"format":2,"repository":"https://github.com/DeanoC/fes.git","revision":"cccccccccccccccccccccccccccccccccccccccc","source_inputs":{"x":"y"},"source_path":"sources/misteross"}\n'
