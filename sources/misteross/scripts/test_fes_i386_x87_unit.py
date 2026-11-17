@@ -18,6 +18,10 @@ the host's own instruction:
   protocol the no-wait forms under the board's BUSY# latch, the latch's edge,
            a squashed instruction and one squashed after it has retired, and
            that a control form leaves the condition codes alone
+  decimal  FBLD and FBSTP (#1958), which only the DE25 backend builds: with
+           --backend de25 exactly against the host, in every rounding mode,
+           masked and unmasked, alone and in flight between other forms;
+           with --backend de10 that the unit keeps both forms out
 
 Where the host and a 387 differ the case follows the 387 Programmer's
 Reference Manual, not the host; those are in the unit's header and in
@@ -36,7 +40,10 @@ Example:
   python3 scripts/test_fes_i386_x87_unit.py
   python3 scripts/test_fes_i386_x87_unit.py --netlist
 
-Writes build/sim/fes-i386-x87-unit/report.json.
+Writes build/sim/fes-i386-x87-unit/report.json, which names the revision and
+the sources it tested and gives the packed decimal forms' counts. A --netlist
+run also checks, by name, that the netlist holds none of the registers only
+the other backend builds.
 """
 from __future__ import annotations
 

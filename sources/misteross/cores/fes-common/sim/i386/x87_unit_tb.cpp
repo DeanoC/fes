@@ -12,8 +12,15 @@
 // through `wb`, a store's value comes out of `sval` once `hold` drops, and
 // every state change lands at the instruction's commit (`wb_last`).
 //
-// Output: one "PASS <case>" or "FAIL <case> <what>" line per case, then
-// "SUMMARY <passed> <failed>". Exit status 1 on any failure.
+// The packed decimal forms, FBLD and FBSTP (#1958), are built on the DE25
+// backend only, and their cases (bcd-*) are at the end with a random
+// generator of their own; the runner says which backend this is with
+// -DFES_X87_BACKEND.
+//
+// Output: one "PASS <case>" or "FAIL <case> <what>" line per case, a
+// "BCDFORMS" line counting the packed decimal instructions issued and the
+// conversions the sequencer entered, then "SUMMARY <passed> <failed>". Exit
+// status 1 on any failure.
 // scripts/test_fes_i386_x87_unit.py builds and runs it.
 #include "Vfes_i386_x87.h"
 #include "verilated.h"
