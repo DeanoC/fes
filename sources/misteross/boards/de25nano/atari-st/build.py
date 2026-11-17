@@ -16,6 +16,8 @@ CORE_ID = "fes.atari-st"
 COMPONENT = "fes_de25_atari_st_standard"
 SDC = BOARD + "atari-st/atari-st-clocks.sdc"
 MODELS = {"520st": None}
+# The exact image the upload endpoint takes.
+FIRMWARE_BYTES = {"520st": 196608}
 # Qsys writes the same peripheral subsystem as for the Spectrum component:
 # the two components have the same interfaces. See ../spectrum/build.py.
 PARENT_SHA256 = "a08edf0b098e0ddb583a98963efa6bcce1735fc41a0a28c4a9019e2eb27f1ca8"

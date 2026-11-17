@@ -301,6 +301,12 @@ def fpga_cores(path):
             if name in ('build_zx81_package.py', 'build_zx81_static_package.py',
                         'export_static_persona.py', 'review_audio_clocks.py'):
                 return ('zx81',), 'DE25 ZX81 package producer and qualified review'
+            if name == 'build_machine_package.py':
+                return ('spectrum', 'atari-st'), 'DE25 uploaded-firmware machine package producer'
+            if name == 'build_spectrum_package.py':
+                return ('spectrum',), 'DE25 Spectrum package producer'
+            if name == 'build_atari_st_package.py':
+                return ('atari-st',), 'DE25 Atari ST package producer'
         if len(parts) >= 4 and parts[2] == 'package':
             return ('menu', 'zx81'), 'DE25 package format implementation'
         if len(parts) >= 4 and parts[2] == 'shared-rtl':

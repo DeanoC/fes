@@ -147,6 +147,9 @@ and retains the eleven exact generated inputs and verifies the derived wiring
 before and after compilation. Existing reset SDCs stay unchanged. This source
 repair does not close the remaining reset or HDMI signoff findings; package
 and native acceptance remain separate gates.
+The standard Spectrum and Atari ST producers are `boards/de25nano/producers/build_spectrum_package.py`
+and `build_atari_st_package.py`, sharing `build_machine_package.py` and the ZX81's gates;
+their packages are format 3 with firmware uploaded at launch.
 The canonical standard ZX81 producer is `boards/de25nano/producers/build_zx81_package.py`.
 It selects the shared computer core, 16 KiB internal RAM, allocated session
 display and fixed audio under `de25-linux-computer-v1`. The board recipe binds

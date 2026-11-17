@@ -4,8 +4,10 @@ This lane brings the FES Atari 520ST to the DE25-Nano behind the same shell
 as the [standard ZX Spectrum](../spectrum/README.md): the managed board
 recipe's atomic computer transport and allocated display, launch-time firmware
 upload, the board SDRAM and a 52.222222 MHz machine clock. It has a simulated
-component and a Quartus project on the shared builder. There is no recipe or
-runtime admission yet, and nothing here programs a kit.
+component and a Quartus project on the shared builder. Its producer is
+`../producers/build_atari_st_package.py`, selected by the `de25-nano`
+`fes.atari-st` recipe; the producer's signoff gate does not admit a package
+yet (see Open), and nothing here programs a kit.
 
 ## What differs from the DE10 core
 
@@ -62,8 +64,13 @@ memory master, PLLs, SDRAM pad timing and HDMI are not modeled.
 
 ## Open
 
-- External delays for the SDRAM and I2S pins, then the producer's export
-  gates, as for the Spectrum.
+- The producer refuses to package the
+  [compile that meets timing](../../../docs/validation/2026-11-17-de25-atari-st-compile/README.md):
+  eleven of the 85 Design Assistant signoff rules fail. Beside the
+  Spectrum's pin-delay, audio-hold and reset-polarity findings, the video
+  crossings are reported as 251 unsynchronized and 154 under-constrained
+  one-bit transfers (CDC-50001, CDC-50002), and five `set_net_delay`
+  assignments in `atari-st-clocks.sdc` are invalid (TMC-20023).
 - ROM read timing against the DE10 machine. `st_rom` answered in five clocks;
   the SDRAM port answers in the CPU's slot. The diagnostic firmware runs, but
   no cycle-exact comparison or stock TOS boot has been made.

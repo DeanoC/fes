@@ -3,8 +3,10 @@
 This lane brings the FES ZX Spectrum to the DE25-Nano on the managed
 MENU/ZX81 board recipe: the same GHRD, HDMI shell, kernel-owned allocated
 display and atomic computer transport at peripheral offset `0x10300`. It
-builds the 48K and the 128K/+2. It is not a package yet: no recipe selects it,
-the runtime does not admit it, and nothing here programs a kit.
+builds the 48K and the 128K/+2. Its producer is
+`../producers/build_spectrum_package.py`, selected by the `de25-nano`
+`fes.spectrum` recipe; the producer's signoff gate does not admit a package
+yet (see Open), and nothing here programs a kit.
 
 ## What differs from the DE10 core
 
@@ -73,12 +75,15 @@ timing review, no reviewed input/output reference and no package identity.
 ## Open
 
 - The [first compile](../../../docs/validation/2026-11-17-de25-spectrum-compile/README.md)
-  fits with clean timing. Owed: external delays for the SDRAM and I2S pins,
-  then the ZX81 producer's export gates (fitted input/output review,
-  repeat-RBF identity).
+  fits with clean timing, but the producer refuses to package it: seven of
+  the 85 Design Assistant signoff rules fail and none is reviewed. They are
+  the missing SDRAM and I2S pin delays (TMC-20011, TMC-20012), the two
+  toggle bits carried in the `fes_gp_crossing` payload (CDC-50001), the
+  unconstrained frame-bank synchronizers in the video (CDC-50007), the
+  audio hold synchronizer fed from two clocks (CDC-50012), a reset polarity
+  conflict in the tape store (LNT-30023) and the shell's reviewed RDC-50003.
+  The stock audio-clock review also expects the PLL this machine replaces.
 - SDRAM pad timing at the machine clock. The controller was qualified on the
   board at 50 MHz; the half-period sample is 4% shorter here.
-- Runtime and FogCast: admit `fes.spectrum` on `de25-linux-computer-v1`, and
-  deliver the user's ROM at launch.
 - Disk models, snapshots through the tape unit on hardware, and the edge
   sockets.

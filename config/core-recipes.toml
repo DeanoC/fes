@@ -1895,3 +1895,41 @@ quartus_role = "primary DE25 BRAM ZX81 package producer"
 version = "26.3.0"
 seeds = [1]
 threads = 2
+
+[[recipes]]
+core_id = "fes.spectrum"
+board = "de25-nano"
+toolchain = "quartus"
+identity_version = 2
+producer_script = "boards/de25nano/producers/build_spectrum_package.py"
+producer_module = "boards.de25nano.producers.build_spectrum_package"
+authenticate = "_authenticate_tools"
+lock_path = "boards/de25nano/quartus.lock"
+selection_filename = "fes-spectrum.package-selection.toml"
+package_dir_env = "FES_SPECTRUM_PACKAGE_DIR"
+package_selection_env = "FES_SPECTRUM_PACKAGE_SELECTION"
+quartus_role = "primary DE25 SDRAM Spectrum package producer"
+
+[recipes.quartus]
+version = "26.3.0"
+seeds = [1]
+threads = 2
+
+[[recipes]]
+core_id = "fes.atari-st"
+board = "de25-nano"
+toolchain = "quartus"
+identity_version = 2
+producer_script = "boards/de25nano/producers/build_atari_st_package.py"
+producer_module = "boards.de25nano.producers.build_atari_st_package"
+authenticate = "_authenticate_tools"
+lock_path = "boards/de25nano/quartus.lock"
+selection_filename = "fes-atari-st.package-selection.toml"
+package_dir_env = "FES_ATARI_ST_PACKAGE_DIR"
+package_selection_env = "FES_ATARI_ST_PACKAGE_SELECTION"
+quartus_role = "primary DE25 SDRAM Atari ST package producer"
+
+[recipes.quartus]
+version = "26.3.0"
+seeds = [1]
+threads = 2

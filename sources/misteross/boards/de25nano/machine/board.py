@@ -70,7 +70,7 @@ def capture(spec, revision=None):
     paths |= {BOARD + "machine/board.py", BOARD + "machine/machine_pll.ip",
               BOARD + "shared-rtl/generated/fes_firmware_upload.vh",
               BOARD + "zx81-hps/fes_de25_computer.v", BOARD + "zx81-hps/generated/fes_de25_computer.vh",
-              BOARD + "zx81-hps/build.py", COMMON + "rtl/fes_display_cdc.v"}
+              BOARD + "zx81-hps/build.py", BOARD + "zx81/build.py", COMMON + "rtl/fes_display_cdc.v"}
     paths |= {COMMON + "rtl/" + name for name in ("fes_audio_output.v", "fes_audio_i2s.v")}
     paths |= {COMMON + "generated/" + name for name in
               ("fes_computer.vh", "fes_application.vh", "fes_display_plane.vh")}
@@ -150,16 +150,24 @@ qsys_top soc_inst (
 .fes_scanout_sdram_dq_o(fes_dram_dq_o), .fes_scanout_sdram_dq_oe(fes_dram_dq_oe),"""
 
 
-def prepare(spec, archive, output, revision=None, model=None):
-    """Select the standard machine in the managed GHRD; never deploy it."""
+def prepare(spec, archive, output, revision=None, model=None, *, package_build_id=None):
+    """Select the standard machine in the managed GHRD; never deploy it.
+
+    A producer passes the build identity of its record, which the machine then
+    reports; without one the identity is a source profile, not a package seal.
+    """
     model = model or next(iter(spec.MODELS))
     if model not in spec.MODELS:
         raise ValueError("unknown " + spec.NAME + " model")
     sources = capture(spec, revision)
     scanout = selected_scanout(sources[BOARD + "scanout/build.py"])
     files, derived, _ = component_files(spec, sources)
-    build_id = sha(json.dumps({"sources": {name: sha(data) for name, data in sorted(sources.items())},
-                               "model": model}, sort_keys=True).encode())[:32]
+    if package_build_id is not None and (not revision or not isinstance(package_build_id, str) or
+            not re.fullmatch(r"[0-9a-f]{32}", package_build_id) or package_build_id == "0" * 32):
+        raise ValueError("machine package identity requires committed source and a nonzero 128-bit ID")
+    build_id = package_build_id or sha(json.dumps(
+        {"sources": {name: sha(data) for name, data in sorted(sources.items())},
+         "model": model}, sort_keys=True).encode())[:32]
     scanout.capture = lambda revision=None: sources.copy()
     observed = identity() if revision is None else {}
     selected_revision = revision or observed.get("base_revision", observed.get("fes_revision"))
@@ -256,7 +264,8 @@ def prepare(spec, archive, output, revision=None, model=None):
         "derivations": derived,
         "machine_pll": {"sha256": sha(machine_ip), "parameters": machine_parameters},
         "staged_source_sha256": ZX81.standard_staged_sources(project)}
-    inputs["scanout"]["build_identity_scheme"] = "standard-board-integration-source-profile"
+    inputs["scanout"]["build_identity_scheme"] = (
+        "canonical-standard-computer-v2" if package_build_id else "standard-board-integration-source-profile")
     inputs["scanout"]["compiled_top_sha256"] = sha(top_path.read_bytes())
     inputs["scanout"]["rendered_integration_sha256"] = sha(script_path.read_bytes())
     inputs_path.write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")
