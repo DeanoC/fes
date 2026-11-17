@@ -33,10 +33,14 @@ DE25 = Path('sources/misteross/boards/de25nano')
 SKIP_CORE_DIRS = frozenset({'fes-common'})
 DE10_DEVICE = '5CSEBA6U23I7'
 POLICY_CITE = 'policy: Deano 2026-10-29'
+# The ZX81 family moved to Quartus under the later decision to use Quartus
+# wherever nextpnr closure is hard (DeanoC/fes#1873).
+ZX81_POLICY_CITE = 'policy: Deano 2026-11-15'
 QUARTUS_PRIMARY = 'Quartus (primary, policy)'
 DE25_CELL = 'Quartus-only (policy); shell pending'
 # i386, pc386 and PC/XT. nextpnr on these rows is advisory.
-QUARTUS_PRIMARY_IDS = frozenset({'i386', 'fes.pc386', 'fes.pcxt', 'fes.pcxt-dos'})
+QUARTUS_PRIMARY_IDS = frozenset({'i386', 'fes.pc386', 'fes.pcxt-dos',
+                                 'fes.zx81', 'fes.zx80', 'fes.ts1000', 'fes.ts1500'})
 BOARDS = frozenset({'de10', 'device', 'none'})
 # Human-table feature words. The long `features` string stays in the JSON.
 HIGHLIGHTS = {
@@ -62,7 +66,6 @@ HIGHLIGHTS = {
     'fes.atari-ste': '—',
     'fes.riscv': 'pad, HDMI',
     'sim.pong': '—',
-    'fes.pcxt': 'disk, HDMI',
     'fes.pcxt-dos': 'disk, keys, HDMI',
     'fes.pc386': 'disk, keys, mouse, HDMI',
     'i386': '—',
@@ -95,7 +98,6 @@ DETAILS = {
     'fes.atari-ste': ('sources/misteross/cores/fes-atari-st/README.md', 'README'),
     'fes.riscv': ('sources/misteross/cores/fes-riscv/README.md', 'README'),
     'sim.pong': ('sources/misteross/docs/cores.md', 'cores'),
-    'fes.pcxt': ('sources/misteross/cores/fes-pcxt/README.md', 'README'),
     'fes.pcxt-dos': ('sources/misteross/cores/fes-pcxt/README.md', 'README'),
     'fes.pc386': ('sources/misteross/cores/fes-pc386/README.md', 'README'),
     'i386': ('sources/misteross/docs/i386-cpu-design.md', 'design'),
@@ -123,7 +125,7 @@ QUALITY_TIER_IDS = {
     '1': frozenset({
         'fes.zx81', 'fes.zx80', 'fes.ts1000', 'fes.ts1500',
         'fes.spectrum', 'fes.spectrum128', 'fes.spectrum-plus3', 'fes.pentagon',
-        'fes.c64', 'fes.atari-st', 'fes.pcxt', 'fes.pcxt-dos',
+        'fes.c64', 'fes.atari-st', 'fes.pcxt-dos',
     }),
     '1-pending': frozenset({'fes.pc386'}),
     '2-pending': frozenset({'fes.coleco', 'fes.sms', 'fes.sg1000', 'fes.apple2'}),
@@ -472,7 +474,7 @@ def render(data: dict) -> str:
         lines.append(f"| {cell(tier['label'])} | {cell(tier['meaning'])} |")
     lines += [
         '',
-        f'**DE10-Nano** (MiSTer, Cyclone V) **OSS** is Yosys + nextpnr-mistral, the installed toolchain. i386, pc386 and PC/XT are {QUARTUS_PRIMARY} ({POLICY_CITE}). nextpnr builds there are advisory; a miss is filed as a nextpnr issue, not a blocker. A dash means this row has no DE10-Nano bitstream. i386 is a CPU spike with no board shell of its own; the sealed pc386 development package runs on the DE10-Nano.',
+        f'**DE10-Nano** (MiSTer, Cyclone V) **OSS** is Yosys + nextpnr-mistral, the installed toolchain. i386, pc386 and PC/XT are {QUARTUS_PRIMARY} ({POLICY_CITE}), and so is the ZX81 family ({ZX81_POLICY_CITE}, where nextpnr closure is hard). nextpnr builds there are advisory; a miss is filed as a nextpnr issue, not a blocker. A dash means this row has no DE10-Nano bitstream. i386 is a CPU spike with no board shell of its own; the sealed pc386 development package runs on the DE10-Nano.',
         '',
         f'**DE25-Nano** (Agilex 5) follows {DE25_CELL} ({POLICY_CITE}). Rows with a board bitstream show Quartus; rows without one show a dash. Agilex 5 has no OSS reverse-engineering. Per-core ports are re-checked only after the shell is on this branch.',
         '',
@@ -759,7 +761,7 @@ def validate(root: Path, data: dict) -> list[str]:
         )
     for core_id in sorted(QUARTUS_PRIMARY_IDS & set(by_id)):
         recorded = by_id[core_id].get('quartus') or ''
-        if QUARTUS_PRIMARY not in recorded or POLICY_CITE not in recorded:
+        if QUARTUS_PRIMARY not in recorded or not any(cite in recorded for cite in (POLICY_CITE, ZX81_POLICY_CITE)):
             errors.append(f'{core_id} JSON toolchain is missing the Quartus-primary policy')
     ids = {row['id'] for row in rows}
     if set(HIGHLIGHTS) != ids:

@@ -90,6 +90,8 @@ PLACER_FIRST_PASS_WEIGHTS = tuple(PNR['timing_weights'])
 PLACER_QOR_BUDGET = 24
 PLACER_QOR_CLOCKS = pnr_recipe.required_clocks('fes.zx81')
 RTL_SOURCES = ('cores/fes-zx81/rtl/sys_pll.v', 'cores/fes-zx81/rtl/pixel_pll.v', 'cores/fes-common/rtl/fes_audio_i2s.v', 'cores/fes-common/rtl/fes_audio_output.v', 'cores/fes-common/rtl/fes_computer_mailbox.v', 'cores/fes-zx81/rtl/zx81_keyboard.v', 'cores/fes-zx81/rtl/zx81_tape_store.v', 'cores/fes-zx81/rtl/zx81_dpram.v', 'cores/fes-zx81/rtl/zx81_rom_link.v', 'cores/fes-zx81/rtl/zx81_expansion_socket.v', 'cores/fes-zx81/rtl/zx81_bus_pack.vh', 'cores/fes-zx81/rtl/zx81_video_720p.v', 'cores/fes-common/rtl/fes_display_cdc.v', 'cores/fes-common/rtl/fes_display_plane.v', 'cores/fes-menu/rtl/fes_menu_control.v', 'cores/fes-menu/rtl/fes_menu_video.v', 'cores/fes-menu/rtl/fes_menu_reader.v', 'cores/fes-common/rtl/fes_hps_ddr.v', 'cores/fes-common/rtl/fes_hps_ddr_guard.v', 'cores/fes-zx81/rtl/zx81_machine_clock.v', 'cores/fes-zx81/rtl/zx81_machine.sv', 'cores/fes-common/rtl/z80/fes_z80_alu.sv', 'cores/fes-common/rtl/z80/fes_z80_engine.sv', 'cores/fes-common/rtl/z80/fes_z80_bus.sv', 'cores/fes-common/rtl/z80/fes_z80_nmos.sv', 'cores/fes-zx81/rtl/top.v')
+# Parent-owned recipe tables pnr_recipe reads for this advisory build.
+PARENT_CONFIG = ('config/core-recipes.toml', 'config/' + pnr_recipe.ADVISORY_NAME)
 PINNED_INPUTS = (RECIPE, 'scripts/compiler_read_audit.py', 'scripts/source_repository.py', 'scripts/fes_build_common.py', 'scripts/pnr_recipe.py', 'scripts/zx81_expansion.py', 'scripts/rom_map.py', 'scripts/cyclonev_rbf.py', ABI_DEFINITION, 'cores/fes-zx81/generated/fes_simple_computer.vh', DDR_ATOM, 'cores/fes-common/generated/fes_application.vh', 'cores/fes-common/generated/fes_display_plane.vh', 'scripts/fes_de10nano_evidence.py', SOCKET_TOOLCHAIN_LOCK, QSF, SDC, 'cores/fes-zx81/rtl/zx81_model.vh', *RTL_SOURCES)
 BUILD_OUTPUTS = ('synth.json', 'routed.json', 'core.rbf', 'timing.json', 'yosys.log', 'nextpnr.log', 'build-summary.json', 'manifest.toml', 'qor-ranking.json', 'rom-map.json')
 DSP_RESOURCES = frozenset({PLANE_DSP})
@@ -133,8 +135,12 @@ def _regular_input(root: Path, relative: str) -> Path:
 
 def _require_clean_source(root: Path, *, identity_version: int=2, model: str='zx81') -> tuple[str, str]:
     model_for(model)
-    from scripts.fes_build_common import _require_clean_source as require_source
-    return require_source(root, pinned_inputs=PINNED_INPUTS, identity_version=identity_version)
+    from scripts.fes_build_common import _require_clean_source as require_source, require_committed_parent_config
+    source = require_source(root, pinned_inputs=PINNED_INPUTS, identity_version=identity_version)
+    # The advisory nextpnr table and the registry it replaces a row of are
+    # parent-owned, so the module gate above does not see them.
+    require_committed_parent_config(root, *PARENT_CONFIG)
+    return source
 
 def placement_policy(mode: str) -> tuple[tuple[int, ...], int]:
     if mode == 'first-pass-paired':

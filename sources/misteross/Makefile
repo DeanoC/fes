@@ -69,8 +69,6 @@ help:
 		"  build-fes-video-part  Build VIDEO_VARIANT=direct|scanlines against VIDEO_SHELL and VIDEO_PACKAGE" \
 		"  sim-fes-ramtest  Test the RAM tester against SDRAM and HPS DDR models, holds and identity" \
 		"  build-fes-ramtest-100  Seal the OSS 100 MHz SDRAM and HPS DDR tester (GPU_ROUTER=HIP|CUDA, default HIP)" \
-		"  build-fes-ramtest-130  Seal the OSS 130 MHz SDRAM and HPS DDR tester (GPU_ROUTER=HIP|CUDA, default HIP)" \
-		"  diagnose-fes-ramtest-timing  Measure the 130 MHz RAM tester on the shared toolchain" \
 		"  toolchain-fes-ramtest  Provision the FES RAM Tester toolchain (per-core lock, GPU_ROUTER=HIP|CUDA)" \
 		"  toolchain-fes-atari-st  Provision the Atari ST OSS toolchain (per-core lock)" \
 		"  build-fes-ramtest-quartus  Quartus (cores/fes-ramtest/quartus.lock) SDRAM and HPS DDR tester at 130 MHz (RAMTEST_MHZ=100 for 100 MHz)" \
@@ -168,7 +166,7 @@ help:
 		"  sim-fes-pc386-vga  Check the pc386 presenter and plane, run the VGA test disk, replay its VGA trace against Bochs" \
 		"  synth-fes-pc386  Synthesize and pack the pc386 machine without the CPU (needs CACHE_ROOT)" \
 		"  build-fes-pc386-quartus  Seal fes.pc386, the machine with fes_i386_cpu, with its locked Quartus (LOCKSTEP_REPORT=, CACHE_ROOT=, SEED=, GPU_ROUTER=HIP|CUDA)" \
-		"  build-fes-pcxt  Quartus PC/XT diagnostic package (QUARTUS_ROOTDIR and pinned Yosys)" \
+		"  build-fes-pcxt-dos  Quartus PC/XT DOS package (QUARTUS_ROOTDIR and pinned Yosys)" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
 		"  build-fes-atari-st-card  Seal a probe in ST_SHELL/ST_PACKAGE socket 1" \
@@ -232,19 +230,13 @@ sim-pong:
 		--Mdir "$(CURDIR)/build/sim/pong" cores/pong/rtl/pong_game.sv "$(CURDIR)/cores/pong/sim/tb.cpp"
 	@build/sim/pong/Vpong_game
 
-.PHONY: sim-fes-application sim-fes-splash build-fes-splash sim-fes-ramtest build-fes-ramtest-100 build-fes-ramtest-130 diagnose-fes-ramtest-timing build-fes-ramtest-quartus
+.PHONY: sim-fes-application sim-fes-splash build-fes-splash sim-fes-ramtest build-fes-ramtest-100 build-fes-ramtest-quartus
 sim-fes-ramtest:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_ramtest.py
 
 build-fes-ramtest-100:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py --memory-mhz 100 $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
-
-build-fes-ramtest-130:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py --memory-mhz 130 $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
-
-diagnose-fes-ramtest-timing:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/diagnose_fes_ramtest_timing.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",) $(if $(GPU_DEVICE),--gpu-device "$(GPU_DEVICE)",)
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
 
 build-fes-ramtest-quartus:
 	$(PYTHON) scripts/build_fes_ramtest_quartus.py
@@ -2938,15 +2930,15 @@ synth-fes-pcxt-isa:
 	@test -n "$(CACHE_ROOT)" || { echo 'Set CACHE_ROOT to the authenticated compiler cache'; exit 1; }
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/synth_fes_pcxt.py --cache-root "$(CACHE_ROOT)"
 
-# Quartus diagnostic package; OSS tools remain available for advisory probes.
+# Quartus DOS package; raw diagnostics and OSS advisory probes remain available.
 PCXT_GPU_ROUTER ?= HIP
-.PHONY: build-fes-pcxt toolchain-fes-pcxt
+.PHONY: build-fes-pcxt-dos toolchain-fes-pcxt
 toolchain-fes-pcxt:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-pcxt/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-pcxt") \
 	FES_TOOLCHAIN_GPU_ROUTER="$(PCXT_GPU_ROUTER)" \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
-build-fes-pcxt:
+build-fes-pcxt-dos:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pcxt_quartus.py$(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE), --cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",) $(PCXT_BUILD_ARGS)
 
 .PHONY: sim-fes-c64-session

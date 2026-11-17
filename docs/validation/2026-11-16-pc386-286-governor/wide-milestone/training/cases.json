@@ -1,0 +1,16 @@
+{
+  "LOAD_ODD": "mov ax,[bx+1]",
+  "STORE_ODD": "mov [bx+1],ax",
+  "ADD_ODD": "add [bx+1],dx",
+  "CMP_ODD": "cmp word [bx+1],0",
+  "INC_ODD": "inc word [bx+1]",
+  "PUSH_ODD": "push word [bx+1]\n pop si",
+  "SHL_B_CL": "shl byte [bx],cl",
+  "SHL_W_CL": "shl word [bx],cl",
+  "MUL_B_MEM": "mul byte [bx]",
+  "DIV_B_MEM": "mov ax,0x0100\n div byte [bx]",
+  "PUSHA_POPA": "pusha\n popa",
+  "PUSHF_POPF": "pushf\n popf",
+  "XLAT": "xlatb",
+  "LEA_COMPLEX": "lea ax,[bx+si+123]"
+}

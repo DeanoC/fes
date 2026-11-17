@@ -26,7 +26,6 @@ var scopes = map[string]Scope{
 	"fes.c64":            V1,
 	"fes.atari-st":       V1,
 	"fes.pc386":          V2,
-	"fes.pcxt":           V2,
 	"fes.pcxt-dos":       V2,
 }
 

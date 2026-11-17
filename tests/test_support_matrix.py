@@ -88,11 +88,11 @@ class SupportMatrixTests(unittest.TestCase):
         for issue in ('#1837', '#1840', '#1853'):
             self.assertIn(issue, row['notes'])
         self.assertEqual('Quartus', SUPPORT_MATRIX.de10_cell(row))
-        # bring-up here is a profile, not an absent recipe: fes.pcxt has one.
+        # bring-up here is a profile, not an absent recipe: fes.pcxt-dos has one.
         meaning = next(t['meaning'] for t in SUPPORT_MATRIX.load_json(ROOT)['tiers']
                        if t['id'] == 'bring-up')
-        # It claims neither an absent recipe (fes.pcxt has one), nor an
-        # absent catalog standing (fes.pcxt is experimental in the library),
+        # It claims neither an absent recipe (fes.pcxt-dos has one), nor an
+        # absent catalog standing (fes.pcxt-dos is experimental in the library),
         # nor a separate playable row (pc386 has none).
         self.assertNotIn('No recipe', meaning)
         self.assertNotIn('No catalog package', meaning)
@@ -438,7 +438,7 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertEqual('v2', by_id['fes.pc386']['release'])
         self.assertEqual('held-back', by_id['fes.coleco']['release'])
         self.assertNotIn('release', by_id['fes.menu'])
-        self.assertIn('- **v2:** `fes.pcxt`, `fes.pcxt-dos`, `fes.pc386`', SUPPORT_MATRIX.render(data))
+        self.assertIn('- **v2:** `fes.pcxt-dos`, `fes.pc386`', SUPPORT_MATRIX.render(data))
         del by_id['fes.sms']['release']
         by_id['z80']['release'] = 'v1'
         errors = SUPPORT_MATRIX.validate(ROOT, data)

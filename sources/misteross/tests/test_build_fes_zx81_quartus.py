@@ -7,7 +7,7 @@ from pathlib import Path
 
 from scripts import build_fes_zx81_quartus as producer
 from scripts import quartus_vo_evidence
-from scripts.fes_build_common import BuildError
+from scripts.fes_build_common import BuildError, require_committed_parent_config
 from scripts.fes_de10nano_evidence import HPS_DDR_CFG_PORTS, hps_ddr_layout
 from tests.quartus_timing_fixture import MISS_REPORT, PASSING_REPORT
 
@@ -88,6 +88,65 @@ class ModelTests(unittest.TestCase):
             producer.model_for("zx82")
 
 
+class RegistryTests(unittest.TestCase):
+    def test_every_model_row_selects_this_producer(self) -> None:
+        for key, machine in producer.MODELS.items():
+            recipe = producer.selected_recipe(ROOT, machine.core_id)
+            self.assertEqual(producer.recipe_seeds(recipe), (1, 2, 3), key)
+            self.assertEqual(recipe["lock_path"], producer.LOCK)
+            self.assertEqual(recipe["producer_arguments"], ["--model", key])
+
+    def test_registry_mismatch_is_refused(self) -> None:
+        import shutil
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            fake = Path(directory) / "a" / "b"
+            (fake.parents[1] / "config").mkdir(parents=True)
+            text = (ROOT.parents[1] / "config/core-recipes.toml").read_text()
+            shutil.copytree(ROOT / "cores/fes-zx81", fake / "cores/fes-zx81", dirs_exist_ok=True)
+            # The first match of each is the fes.zx81 row, the registry's first Lite row.
+            for old, new, message in (
+                    ('producer_options = { model = "ts1000" }', 'producer_options = { model = "zx81" }', "must select"),
+                    ('version = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"\nedition = "lite"',
+                     'version = "Version 17.0.1 Build 1 01/01/2017 SJ Lite Edition"\nedition = "lite"',
+                     "version differs"),
+                    ('front_end = "quartus-lite"', 'front_end = "yosys"', "must elaborate with Quartus Lite"),
+                    ('device_family = "cyclonev"', 'device_family = "agilex5"', "edition or device family differs")):
+                self.assertIn(old, text)
+                (fake.parents[1] / "config/core-recipes.toml").write_text(text.replace(old, new, 1))
+                with self.subTest(message), self.assertRaisesRegex(BuildError, message):
+                    model = "ts1000" if "select" in message else "zx81"
+                    producer.selected_recipe(fake, producer.model_for(model).core_id)
+
+
+    def test_parent_registry_must_be_committed(self) -> None:
+        # Also the guard the advisory OSS producer applies to advisory-pnr-recipes.toml.
+        import subprocess
+        import tempfile
+
+        def git(repo, *args):
+            subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            module = repo / "sources/misteross"
+            module.mkdir(parents=True)
+            registry = repo / producer.REGISTRY
+            git(repo, "init", "-q")
+            with self.assertRaisesRegex(BuildError, "not tracked"):
+                require_committed_parent_config(module, producer.REGISTRY)
+            registry.parent.mkdir()
+            registry.write_text("[[recipes]]\n")
+            with self.assertRaisesRegex(BuildError, "not tracked"):
+                require_committed_parent_config(module, producer.REGISTRY)
+            git(repo, "add", producer.REGISTRY)
+            git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "r")
+            require_committed_parent_config(module, producer.REGISTRY)
+            registry.write_text("[[recipes]]\nseeds = [9]\n")
+            with self.assertRaisesRegex(BuildError, "must be committed"):
+                require_committed_parent_config(module, producer.REGISTRY)
+
+
 class DatabaseTests(unittest.TestCase):
     def test_database_is_found_by_digest_in_cache_then_repo_local_install(self):
         import tempfile
@@ -121,7 +180,9 @@ class DatabaseTests(unittest.TestCase):
 
 class ProjectTests(unittest.TestCase):
     def qsf(self, model="zx81", seed=1) -> str:
-        return producer.project_qsf(ROOT, ROOT / "build/test-project", BUILD_ID, seed, producer.model_for(model))
+        machine = producer.model_for(model)
+        return producer.project_qsf(ROOT, ROOT / "build/test-project", BUILD_ID, seed, machine,
+                                    producer.selected_recipe(ROOT, machine.core_id))
 
     def test_project_selects_the_quartus_rom_link_and_no_socket(self) -> None:
         text = self.qsf()
@@ -147,11 +208,77 @@ class ProjectTests(unittest.TestCase):
             else:
                 self.assertNotIn("ZX81_MODEL_", text)
 
+    def test_project_writes_a_compressed_rbf(self) -> None:
+        text = self.qsf()
+        self.assertIn("set_global_assignment -name ON_CHIP_BITSTREAM_DECOMPRESSION ON", text)
+        self.assertNotIn("ON_CHIP_BITSTREAM_DECOMPRESSION OFF", text)
+
+    def test_canonical_qsf_ignores_build_id_seed_and_run_path(self) -> None:
+        machine = producer.model_for("zx81")
+        recipe = producer.selected_recipe(ROOT, machine.core_id)
+        a_dir = ROOT / "build/a/signoff/seed-1"
+        b_dir = ROOT / "build/somewhere/else/deeper/repeat/seed-2"
+        a = producer.canonical_qsf(producer.project_qsf(ROOT, a_dir, BUILD_ID, 1, machine, recipe), ROOT, a_dir)
+        b = producer.canonical_qsf(producer.project_qsf(ROOT, b_dir, "f" * 32, 2, machine, recipe), ROOT, b_dir)
+        self.assertEqual(a, b)
+        self.assertNotIn(BUILD_ID, a)
+        self.assertIn('"<ROOT>/cores/fes-zx81/quartus/zx81_rom_link.v"', a)
+        digest = producer.canonical_qsf_sha256(ROOT, machine, recipe)
+        self.assertRegex(digest, "^[0-9a-f]{64}$")
+        other = producer.canonical_qsf_sha256(ROOT, producer.model_for("ts1500"), producer.selected_recipe(ROOT, "fes.ts1500"))
+        self.assertNotEqual(digest, other)
+
+    def test_project_must_match_the_recorded_qsf(self) -> None:
+        import tempfile
+        machine = producer.model_for("zx81")
+        recipe = producer.selected_recipe(ROOT, machine.core_id)
+        digest = producer.canonical_qsf_sha256(ROOT, machine, recipe)
+        # The project must sit under the module root; build/ is untracked and may be absent.
+        (ROOT / "build").mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=ROOT / "build") as directory:
+            producer.write_project(ROOT, Path(directory) / "ok", BUILD_ID, 2, machine, recipe, digest)
+            with self.assertRaisesRegex(BuildError, "differs from the canonical QSF"):
+                producer.write_project(ROOT, Path(directory) / "bad", BUILD_ID, 1, machine, recipe, "0" * 64)
+
+    def test_uncompressed_rbf_is_refused(self) -> None:
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        with patch.object(producer, "rbf_load", return_value=SimpleNamespace(compressed=False)):
+            with self.assertRaisesRegex(BuildError, "must be compressed"):
+                producer.require_compressed_rbf(b"x")
+        with patch.object(producer, "rbf_load", return_value=SimpleNamespace(compressed=True)):
+            producer.require_compressed_rbf(b"x")
+        with patch.object(producer, "rbf_load", side_effect=ValueError("short")):
+            with self.assertRaisesRegex(BuildError, "not a readable"):
+                producer.require_compressed_rbf(b"x")
+
+    def test_sealed_rbf_is_the_canonical_encoding_of_the_quartus_cram(self) -> None:
+        from scripts.cyclonev_rbf import LoadedRbf, _cram_bytes, _header_bytes, cram_set, rbf_load, rbf_save
+        from tests.test_cyclonev_rbf import TINY
+        cram = bytearray(_cram_bytes(TINY))
+        for x, y in ((1, 3), (2, 40), (5, 77), (6, 200)):
+            cram_set(cram, TINY, x, y, 1)
+        canonical = rbf_save(LoadedRbf(die=TINY, header=bytes(_header_bytes(TINY)), cram=cram,
+                                       compressed=True), compressed=True)
+        reference = rbf_load(canonical, TINY).cram
+        self.assertTrue(any(reference))
+        # Quartus ends its compressed stream with a different tail and postamble;
+        # the kit's RBF reader accepts only the canonical form.
+        postamble = TINY.postamble_1 + 2 + 12 + TINY.postamble_2
+        quartus_like = canonical[:-postamble] + bytes.fromhex("d715efba0f000f00f06044") + b"\xff" * 40
+        self.assertEqual(rbf_load(quartus_like, TINY).cram, reference)
+        self.assertEqual(producer.canonical_rbf(quartus_like, TINY), canonical)
+        self.assertEqual(producer.canonical_rbf(canonical, TINY), canonical)
+        uncompressed = rbf_save(rbf_load(canonical, TINY), compressed=False)
+        with self.assertRaisesRegex(BuildError, "must be compressed"):
+            producer.canonical_rbf(uncompressed, TINY)
+
     def test_only_declared_seeds_and_valid_build_ids(self) -> None:
         with self.assertRaisesRegex(BuildError, "not a declared sign-off seed"):
             self.qsf(seed=4)
         with self.assertRaisesRegex(BuildError, "32 lowercase hexadecimal"):
-            producer.project_qsf(ROOT, ROOT / "build/x", "XYZ", 1, producer.model_for("zx81"))
+            machine = producer.model_for("zx81")
+            producer.project_qsf(ROOT, ROOT / "build/x", "XYZ", 1, machine, producer.selected_recipe(ROOT, machine.core_id))
 
     def test_quartus_rom_link_keeps_the_lane_interface(self) -> None:
         text = (ROOT / producer.ROM_LINK).read_text()

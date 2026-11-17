@@ -9,18 +9,23 @@ full-chip RBF: a frozen empty socket plus an independent cart in a reserved
 CRAM rectangle. Each shell and cart is built independently; launch does no
 synthesis, placement or routing.
 
-## Normal library use
+## ZX81 bus carts (advisory)
 
-The [ZX81 expansion-bus guide](zx81-expansion-bus.md) describes the registered
-Z80-like edge and its validation cart. An ordinary entry may select an immutable
-bus asset against an exact sealed shell. Clearing the selection loads that same
-original shell. Host and target independently verify composition bytes; the
-runtime programs the admitted payload and retains the base package identity.
+The registered ZX81-family packages are built by the Quartus Lite producer
+(`cores/fes-zx81/quartus.lock`) and have no expansion socket, so no library
+entry can select a ZX81 bus cart for them. DeanoC/fes#1875 builds the 16K RAM
+and Zon X carts into that shell, selected at launch.
 
-This uses `toolchain.lock` and a separate expansion
-archive; the cart is bound to the exact sealed ZX81 shell. Selecting a cart
-does not change that shell's package identity or the factory package set.
-Build, software verification and exact-kit acceptance remain separate evidence.
+The [ZX81 expansion-bus guide](zx81-expansion-bus.md) describes the Z80-like
+edge as the advisory nextpnr shell (`build_fes_zx81_oss.py`,
+`toolchain.lock`) still builds it, with its validation cart. On that shell an
+entry may select an immutable bus asset against the exact sealed shell, and
+clearing the selection loads the original shell. Host and target
+independently verify composition bytes; the runtime programs the admitted
+payload and retains the base package identity. The cart is a separate
+expansion archive bound to that exact shell. This is a diagnostic path:
+build, software verification and exact-kit acceptance remain separate
+evidence, and the factory package set never contains it.
 
 ## Earlier development experiments
 
@@ -41,7 +46,7 @@ there. The module README has the short entry point. The compose entry point is
 The compose support originated in [misteross #79](https://github.com/DeanoC/misteross/pull/79);
 that historical component revision is not the current source selection.
 Use the selected experiment's recipe and lock for these developer probes.
-The normal ZX81 library producer selects the shared `toolchain.lock`, not an
+The advisory nextpnr ZX81 shell selects the shared `toolchain.lock`, not an
 ambient compiler override. Other qualified core compiler selections remain
 separate.
 

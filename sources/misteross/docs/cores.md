@@ -50,7 +50,7 @@ nothing by itself.
 | `fes.spectrum128` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-spectrum128` | experimental; four edge sockets |
 | `fes.spectrum-plus3` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-spectrum-plus3` | experimental; four edge sockets |
 | `fes.pentagon` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-pentagon` | experimental; four edge sockets |
-| `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `cores/fes-ramtest/toolchain.lock` (100 and 130 MHz) | `make build-fes-ramtest-100` (100 MHz), `make build-fes-ramtest-130` (explicit) | supported; 100 MHz catalog utility, not in the bootstrap image |
+| `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `cores/fes-ramtest/toolchain.lock` (100 MHz) | `make build-fes-ramtest-100` | supported; 100 MHz catalog utility, not in the bootstrap image |
 | `fes.atari-st` | `cores/fes-atari-st` | `fes.computer` | `cores/fes-atari-st/toolchain.lock` | `make build-fes-atari-st` | experimental; Atari 520ST firmware shell and Direct/Scanlines parts |
 | `fes.riscv` | `cores/fes-riscv` | `fes.application` with `fes.gamepad` | `cores/fes-riscv/toolchain.lock` | `make build-fes-riscv` | experimental; original RV32I CPU from `cores/fes-common/rtl/riscv` |
 | `fes.pc386` | `cores/fes-pc386` | `fes.computer` with session display and HPS DDR; `fes_i386_cpu`; the HPS stages the disk and settings in the DDR window until M0 | `cores/fes-pc386/toolchain.lock` (Yosys only; Quartus 17.0.2 fits) | `make build-fes-pc386-quartus` | no; not registered; pc386 M5 bring-up |
@@ -172,7 +172,7 @@ CPU expansion. Audio follows the shell's existing machine path.
 | --- | --- | --- |
 | `make sim-fes-*` | Host simulation of the RTL you ran | An RBF, timing, HDMI, audio, or a kit |
 | `make build-fes-*` (OSS) | A sealed artifact when the clean-tree checks and timing pass | Kit behavior, or acceptance of an older seal |
-| `make build-fes-*-quartus` | The Quartus oracle for that recipe | The product bitstream |
+| `make build-fes-*-quartus` | A sealed artifact for a registered Quartus producer (the ZX81 family); otherwise the Quartus oracle for that recipe | Kit behavior; for an oracle recipe, the product bitstream |
 
 Simulation targets refuse a shared toolchain cache. Unset
 `FES_TOOLCHAIN_CACHE_ROOT` and do not pass `CACHE_ROOT` to `make sim-fes-*`.
@@ -208,15 +208,13 @@ The `sim-fes-pcxt-fdc`, `sim-fes-pcxt-media`, and
 `sim-fes-pcxt-mailbox` targets cover floppy command/DMA behavior, runtime media
 loading into SDRAM and the PC/XT mailbox ABI. These focused benches run on pull
 requests; the complete FreeDOS boot remains in the full nightly/manual tier.
-The registered `fes.pcxt` recipe exports a format-2 package that starts this
-built-in CGA Direct diagnostic through the standard `fes.computer` identity and
-execution mailbox. It declares fixed 720p60 video only; keyboard and media
-remain unavailable. Quartus is the registered package producer: all three
-seeds must pass the complete reported internal timing inventory and an
-independent seed-1 rebuild must reproduce the RBF. External IO/HPS/reset and
-exact-artifact hardware qualification remain separate. Its forwarded HDMI
-clock is phased 8979 ps after pixel-data updates so the receiver samples while
-pixel data is stable; this fixed-video output is inline and has no
+The sole registered PC/XT package, `fes.pcxt-dos`, enables the BIOS, keyboard,
+PC speaker and writable runtime floppy. The diagnostic ROM and raw board
+builders remain development tools, with no separate catalog or sealed diagnostic
+package. Quartus is the DOS package producer: all three seeds must pass the
+complete reported internal timing inventory and an independent seed-1 rebuild
+must reproduce the RBF. External IO/HPS/reset and exact-artifact hardware
+qualification remain separate. Its CGA Direct output is inline and needs no
 external video-parts index.
 The `system` and `system-mda` suites assemble CPU, motherboard, real SDRAM,
 DMA/refresh and one Direct/Scanlines pipeline, using the original diagnostic
@@ -340,8 +338,9 @@ mailbox uses.
 The Atari ST producer selects `cores/fes-atari-st/toolchain.lock`
 (Yosys `3a5accbd`, nextpnr `5fe55f3d`). The factory recipe stays HIP.
 A CUDA route is a separate package. RAM Tester uses the repository-level
-lock's pins, while menu's lock pins nextpnr `1eecf877`. The
-130 MHz timing comparison uses the RAM Tester lock.
+lock's pins, while menu's lock pins nextpnr `1eecf877`. The Quartus
+RAM Tester timing comparison authenticates its own
+`cores/fes-ramtest/quartus.lock`, not the OSS `toolchain.lock`.
 The [2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
 qualifies the earlier private pin and its read-only shell; it does not
 qualify the current `5fe55f3d` pin. The October kit notes do not accept

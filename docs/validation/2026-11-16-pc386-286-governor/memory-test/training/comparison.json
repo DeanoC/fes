@@ -1,0 +1,100 @@
+{
+  "XCHG_B": {
+    "blocks": 2436,
+    "reference_whole_loop": 18.037910908683664,
+    "rtl_whole_loop": 18.017,
+    "delta": -0.020910908683664076,
+    "one_block_quantization": 0.0074016868726646135
+  },
+  "XCHG_W": {
+    "blocks": 2436,
+    "reference_whole_loop": 18.037910908683664,
+    "rtl_whole_loop": 18.017,
+    "delta": -0.020910908683664076,
+    "one_block_quantization": 0.0074016868726646135
+  },
+  "TEST_B": {
+    "blocks": 2436,
+    "reference_whole_loop": 18.037910908683664,
+    "rtl_whole_loop": 19.017,
+    "delta": 0.9790890913163359,
+    "one_block_quantization": 0.0074016868726646135
+  },
+  "TEST_W": {
+    "blocks": 2435,
+    "reference_whole_loop": 18.045318674970595,
+    "rtl_whole_loop": 19.012,
+    "delta": 0.9666813250294055,
+    "one_block_quantization": 0.007407766286933742
+  },
+  "NOT_B": {
+    "blocks": 2436,
+    "reference_whole_loop": 18.037910908683664,
+    "rtl_whole_loop": 18.017,
+    "delta": -0.020910908683664076,
+    "one_block_quantization": 0.0074016868726646135
+  },
+  "NEG_W": {
+    "blocks": 2436,
+    "reference_whole_loop": 18.037910908683664,
+    "rtl_whole_loop": 18.019,
+    "delta": -0.018910908683665184,
+    "one_block_quantization": 0.0074016868726646135
+  },
+  "INC_B": {
+    "blocks": 2436,
+    "reference_whole_loop": 18.037910908683664,
+    "rtl_whole_loop": 18.019,
+    "delta": -0.018910908683665184,
+    "one_block_quantization": 0.0074016868726646135
+  },
+  "DEC_W": {
+    "blocks": 2436,
+    "reference_whole_loop": 18.037910908683664,
+    "rtl_whole_loop": 18.019,
+    "delta": -0.018910908683665184,
+    "one_block_quantization": 0.0074016868726646135
+  },
+  "ADD_IMM_B": {
+    "blocks": 2193,
+    "reference_whole_loop": 20.036639750822346,
+    "rtl_whole_loop": 20.017,
+    "delta": -0.019639750822346258,
+    "one_block_quantization": 0.009132470260174268
+  },
+  "ADD_IMM_W": {
+    "blocks": 2193,
+    "reference_whole_loop": 20.036639750822346,
+    "rtl_whole_loop": 20.014,
+    "delta": -0.02263975082234637,
+    "one_block_quantization": 0.009132470260174268
+  },
+  "ADC_LOAD_W": {
+    "blocks": 2436,
+    "reference_whole_loop": 18.037910908683664,
+    "rtl_whole_loop": 18.014,
+    "delta": -0.02391090868366419,
+    "one_block_quantization": 0.0074016868726646135
+  },
+  "SUB_RMW_W": {
+    "blocks": 2193,
+    "reference_whole_loop": 20.036639750822346,
+    "rtl_whole_loop": 20.015,
+    "delta": -0.02163975082234515,
+    "one_block_quantization": 0.009132470260174268
+  },
+  "PUSH_M": {
+    "blocks": 1994,
+    "reference_whole_loop": 22.03628433979609,
+    "rtl_whole_loop": 22.017,
+    "delta": -0.019284339796090677,
+    "one_block_quantization": 0.011045756561301297
+  },
+  "POP_M": {
+    "blocks": 2192,
+    "reference_whole_loop": 20.045780553628376,
+    "rtl_whole_loop": 20.014,
+    "delta": -0.031780553628376396,
+    "one_block_quantization": 0.009140802806032092
+  }
+}

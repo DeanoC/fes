@@ -17,6 +17,7 @@ import (
 
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/inputmap"
 	"golang.org/x/sys/unix"
 )
 
@@ -162,6 +163,192 @@ func TestFixturePadYieldsItsPort(t *testing.T) {
 	}
 	if got := padPorts(inputs); !reflect.DeepEqual(got, map[string]int8{"fixture0": noLocalPlayer, "event0": 0, "event1": 1}) {
 		t.Fatalf("ports after second pad = %v", got)
+	}
+}
+
+// Held hat and stick directions leave the old port before reaching the new
+// one. A later yield to menu-only must not disturb the other player's hold.
+func TestFixturePadHeldDirectionsFollowItsPort(t *testing.T) {
+	dir := t.TempDir()
+	inputs := fixturePadInputs(t, dir)
+	feed := &localPadRecorder{}
+	app := runningLocalCoreApp(feed)
+	if err := inputs.openPath(app, pipePad(t, dir, "fixture0")); err != nil {
+		t.Fatal(err)
+	}
+	fixture := inputs.devices[0]
+	now := time.Now()
+	fixture.hat(app, 17, 1, now)
+	fixture.axis(app, remoteinput.AxisLeftX, -1, now)
+	feed.events = nil
+	if err := inputs.openPath(app, pipePad(t, dir, "event0")); err != nil {
+		t.Fatal(err)
+	}
+	checkYieldDirections(t, feed.events, 0, 1, remoteinput.ButtonDPadDown, remoteinput.ButtonDPadLeft)
+	feed.events = nil
+	fixture.hat(app, 17, 1, now)
+	fixture.axis(app, remoteinput.AxisLeftX, -1, now)
+	if len(feed.events) != 0 {
+		t.Fatalf("unchanged held directions repeated: %+v", feed.events)
+	}
+	other := inputs.devices[1]
+	other.button(app, ButtonSouth, 1, now)
+	feed.events = nil
+	if err := inputs.openPath(app, pipePad(t, dir, "event1")); err != nil {
+		t.Fatal(err)
+	}
+	checkYieldDirections(t, feed.events, 1, noLocalPlayer, remoteinput.ButtonDPadDown, remoteinput.ButtonDPadLeft)
+	if _, ok := other.padHeld[padKey{0, remoteinput.ButtonA}]; !ok {
+		t.Fatal("other player's hold was cleared")
+	}
+	feed.events = nil
+	fixture.hat(app, 17, 0, now)
+	fixture.axis(app, remoteinput.AxisLeftX, 0, now)
+	if len(feed.events) != 0 {
+		t.Fatalf("portless release reached the core: %+v", feed.events)
+	}
+	inputs.drop(app, inputs.devices[2])
+	if fixture.player != noLocalPlayer {
+		t.Fatalf("fixture reclaimed port: %d", fixture.player)
+	}
+}
+
+func checkYieldDirections(t *testing.T, events []remoteinput.Event, old, next int8, codes ...remoteinput.Code) {
+	t.Helper()
+	want := 2*len(codes) + 1
+	if next == noLocalPlayer {
+		want = len(codes) + 1
+	}
+	if len(events) != want {
+		t.Fatalf("yield events: %+v", events)
+	}
+	for _, code := range codes {
+		found := false
+		for _, e := range events[:len(codes)] {
+			if e.Player == uint8(old) && e.Code == code && e.Action == remoteinput.ActionRelease {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("missing old release for %v: %+v", code, events)
+		}
+	}
+	if e := events[len(codes)]; !remoteinput.IsLocalPlayerDeparture(e) || e.Player != uint8(old) {
+		t.Fatalf("missing departure: %+v", events)
+	}
+	if next != noLocalPlayer {
+		for _, code := range codes {
+			found := false
+			for _, e := range events[len(codes)+1:] {
+				if e.Player == uint8(next) && e.Code == code && e.Action == remoteinput.ActionPress {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("missing new press for %v: %+v", code, events)
+			}
+		}
+	}
+}
+
+func TestFixturePadRemappedDirectionFollowsItsPort(t *testing.T) {
+	dir := t.TempDir()
+	inputs := fixturePadInputs(t, dir)
+	feed := &localPadRecorder{}
+	app := runningLocalCoreApp(feed)
+	if err := inputs.openPath(app, pipePad(t, dir, "fixture0")); err != nil {
+		t.Fatal(err)
+	}
+	fixture := inputs.devices[0]
+	var err error
+	fixture.remap, err = inputmap.NewRemapper(inputmap.Profile{Bindings: map[string]string{"dpad-down": "a"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture.hat(app, 17, 1, time.Now())
+	feed.events = nil
+	if err := inputs.openPath(app, pipePad(t, dir, "event0")); err != nil {
+		t.Fatal(err)
+	}
+	checkYieldDirections(t, feed.events, 0, 1, remoteinput.ButtonA)
+	feed.events = nil
+	fixture.hat(app, 17, 0, time.Now())
+	if len(feed.events) != 1 || feed.events[0].Player != 1 || feed.events[0].Code != remoteinput.ButtonA || feed.events[0].Action != remoteinput.ActionRelease {
+		t.Fatalf("new port release: %+v", feed.events)
+	}
+}
+
+func TestFixturePadDoesNotReplaySuppressedOrChordDirections(t *testing.T) {
+	for _, tc := range []struct {
+		name, mapped string
+		busy         bool
+	}{{"suppressed", "a", true}, {"select", "select", false}, {"start", "start", false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			inputs := fixturePadInputs(t, dir)
+			feed := &localPadRecorder{}
+			app := runningLocalCoreApp(feed)
+			if err := inputs.openPath(app, pipePad(t, dir, "fixture0")); err != nil {
+				t.Fatal(err)
+			}
+			fixture := inputs.devices[0]
+			var err error
+			fixture.remap, err = inputmap.NewRemapper(inputmap.Profile{Bindings: map[string]string{"dpad-down": tc.mapped}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			app.mu.Lock()
+			app.sessionDisplayBusy = tc.busy
+			app.mu.Unlock()
+			fixture.hat(app, 17, 1, time.Now())
+			feed.events = nil
+			if err := inputs.openPath(app, pipePad(t, dir, "event0")); err != nil {
+				t.Fatal(err)
+			}
+			for _, e := range feed.events {
+				if e.Player == 1 && e.Action == remoteinput.ActionPress {
+					t.Fatalf("replayed suppressed or chord direction: %+v", feed.events)
+				}
+			}
+			feed.events = nil
+			app.mu.Lock()
+			app.sessionDisplayBusy = false
+			app.mu.Unlock()
+			fixture.hat(app, 17, 0, time.Now())
+			if len(feed.events) != 0 {
+				t.Fatalf("swallowed hold escaped on release: %+v", feed.events)
+			}
+			app.mu.Lock()
+			defer app.mu.Unlock()
+			if app.playPadPair.at(1) != (chordPair{}) || app.roomDuringPlay {
+				t.Fatalf("yield triggered chord or room: %+v", app.playPadPair)
+			}
+		})
+	}
+}
+
+func TestFixturePadMenuDirectionIsNotRepressed(t *testing.T) {
+	dir := t.TempDir()
+	inputs := fixturePadInputs(t, dir)
+	app := NewApp(nil, 1280, 720, 10)
+	if err := inputs.openPath(app, pipePad(t, dir, "fixture0")); err != nil {
+		t.Fatal(err)
+	}
+	fixture := inputs.devices[0]
+	fixture.hat(app, 17, 1, time.Now())
+	before := map[uint16]Command{}
+	for key, cmd := range fixture.controls {
+		before[key] = cmd
+	}
+	if err := inputs.openPath(app, pipePad(t, dir, "event0")); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(before, fixture.controls) {
+		t.Fatalf("menu hold changed: before=%v after=%v", before, fixture.controls)
+	}
+	fixture.hat(app, 17, 0, time.Now())
+	if len(fixture.controls) != 0 {
+		t.Fatalf("menu hold was not released: %v", fixture.controls)
 	}
 }
 

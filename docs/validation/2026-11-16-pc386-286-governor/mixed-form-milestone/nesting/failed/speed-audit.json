@@ -1,0 +1,12 @@
+{
+  "frames": 1020,
+  "fps": 4,
+  "seconds": 255.0,
+  "toolbar_positions": {
+    "(690, 28)": 1020
+  },
+  "unreadable_or_not_100_percent": [],
+  "raw_sha256": "e184604b050fd61175b9594da95d2e2f851c4d88ac8af0bde53647cb98f3727f",
+  "template_sha256": "e4ffa8bb9f228cfd8747edd7428ccfdc102715844dbdcb86f17f0022ec6df03b",
+  "note": "Exact screenshot-template match; unreadable samples and any speed other than boot 100% fail. Sampling does not measure between frames."
+}

@@ -1,0 +1,21 @@
+heartbeat cycle=0
+heartbeat cycle=16384
+heartbeat cycle=32768
+heartbeat cycle=49152
+heartbeat cycle=65536
+heartbeat cycle=81920
+heartbeat cycle=98304
+heartbeat cycle=114688
+heartbeat cycle=131072
+heartbeat cycle=147456
+heartbeat cycle=163840
+heartbeat cycle=180224
+heartbeat cycle=196608
+heartbeat cycle=212992
+heartbeat cycle=229376
+heartbeat cycle=245760
+PASS default-off original-vs-current: 262144 sampled cycles, all presets and turbo
+- /home/deano/.codex/worktrees/d31c/fes/out/dev/1902-event-combined-v2/default-off/tb.sv:37: Verilog $finish
+- S i m u l a t i o n   R e p o r t: Verilator 5.032 2025-01-01
+- Verilator: $finish at 3ms; walltime 0.103 s; speed 25.274 ms/s
+- Verilator: cpu 0.104 s on 1 threads; alloced 185 MB

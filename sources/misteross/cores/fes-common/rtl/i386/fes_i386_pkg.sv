@@ -55,6 +55,8 @@ package fes_i386_pkg;
         logic [31:0]      linear;        // linear address of the first byte
         logic [3:0]       length;        // every byte, prefixes included
         logic [3:0]       prefix_count;
+        logic             ref_bad_zero_prefix; // any prefix outside 286 segment overrides
+        logic [5:0]       prefix286;      // diagnostic reference prefix clocks
         prefixes_t        prefixes;
         logic             too_long;      // over 15 bytes: #GP(0) at D
         // The branch target buffer (fes_i386_btb; fes_i386_qalign): bm, the
@@ -594,6 +596,15 @@ package fes_i386_pkg;
         logic       o32;
         logic       rep;
         logic       ea3;
+        logic       ref_test_excluded;  // unmeasured TEST encoding: 32-bit code or any prefix
+        logic       ref_real_mode;      // diagnostic: real mode sampled at issue
+        logic       ref_shift_nonzero;  // resolved 5-bit shift count at EX
+        logic [4:0] ref_enter_level;    // supported 286 nesting level
+        logic       ref_enter_valid;    // encoded nesting byte is at most 31
+        logic       ref_stack32;        // stack width sampled at issue
+        logic       ref_zero_unsafe; // 32-bit default code or unsupported prefix
+        logic [3:0] ref_prefix_count;
+        logic [5:0] prefix286;  // diagnostic reference prefix clocks
     } gov_t;
 
     // An instruction decoded in DC, as D takes it (fes_i386_decode and

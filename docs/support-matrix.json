@@ -57,7 +57,7 @@
     "Labels follow the accepted Quartus policy in [Quartus-built cores](design/quartus-cores.md) (issue #1163). `oss` is the Debian-style main set: Yosys + nextpnr-mistral. `quartus` is the non-free set: a proprietary toolchain. A core build is supposed to say which one made it, so an all-OSS selection can exclude every Quartus build. `FES_OSS_ONLY` is not implemented. Current registered recipes and package selection build the OSS lane only. A failed OSS route never falls back to Quartus.",
     "Both labelled builds ship only when the published rule is met, on the same RTL and the same target clocks. Either every Quartus sign-off seed closes a required clock that an OSS sign-off seed misses, or the best complete-seed Fmax is at least 15% higher on any required clock: `100 \u00d7 (Quartus best \u2212 OSS best) / OSS best`. Otherwise the core ships OSS only. No registered recipe declares a `toolchains` list yet, so no core ships both builds today. The i386 far-transfer numbers (about 40%) remain the worked example of a gap large enough for that rule. i386, pc386 and PC/XT are separately Quartus-primary; their nextpnr builds are advisory.",
     "DE25-Nano (Agilex 5) is Quartus-only (policy); shell pending. policy: Deano 2026-10-29. Rows with a DE10 board bitstream show Quartus; rows without a board bitstream show no DE25 toolchain cell. Agilex 5 has no OSS reverse-engineering, so there is no OSS toolchain for that device. nextpnr-mistral targets Cyclone V (`5CSEBA6U23I7` in [the DE10-Nano board note](../sources/misteross/boards/de10nano/README.md)). Quartus Pro 24.1 or later is the first release that supports Agilex 5 ([Quartus-built cores](design/quartus-cores.md)). `sources/misteross/boards/de25nano` may be absent or present; the checker treats that landing as expected. Per-core DE25 cells stay on the policy line until the shell is on this branch and those cells are re-verified.",
-    "i386, pc386 and PC/XT use Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss there is filed as a nextpnr issue, not a blocker. PC/XT has a registered Quartus diagnostic package producer and an advisory nextpnr diagnostic. pc386 retains pack-only nextpnr synthesis, and i386 retains the Quartus 17.0.2 fit of its Yosys netlist ([i386 CPU design](../sources/misteross/docs/i386-cpu-design.md), DeanoC/nextpnr#300). Those tree facts do not change the primary label.",
+    "i386, pc386 and PC/XT use Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss there is filed as a nextpnr issue, not a blocker. PC/XT has a sole registered Quartus DOS package producer and an advisory nextpnr diagnostic. pc386 retains pack-only nextpnr synthesis, and i386 retains the Quartus 17.0.2 fit of its Yosys netlist ([i386 CPU design](../sources/misteross/docs/i386-cpu-design.md), DeanoC/nextpnr#300). Those tree facts do not change the primary label.",
     "ColecoVision still uses the old media handling. Its example arcade room has an empty-library status when no matching titles are available. Updating that handling is low priority and is folded into the wider Coleco work (for example Adam support). policy: Deano 2026-10-29. The checked-in factory recipe is the format-4 ROM map, and it strips the blob and blob-stream mailboxes that the older Coleco producers still declare."
   ],
   "cores": [
@@ -271,7 +271,7 @@
       },
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA`, defaulting to HIP (`scripts/build_fes_ramtest.py`); `make` forwards `GPU_ROUTER=`.",
-      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-ramtest-quartus` is Quartus 17.0.2 at 130 MHz (`RAMTEST_MHZ=100` selects 100 MHz). The catalog utility is the OSS 100 MHz variant. 130 MHz closure remains open.",
+      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-ramtest-quartus` is Quartus 17.0.2 at 130 MHz (`RAMTEST_MHZ=100` selects 100 MHz). The catalog utility is the one OSS 100 MHz package; the separately sealed OSS 130 MHz package was removed. The OSS-versus-Quartus 130 MHz gap is #264.",
       "features": "Media: ROM-less utility. Input: `fes.gamepad`. HDMI: fixed 720p60. Memory: SDRAM addon and `fes.memory.hps-ddr`. Display plane is Planned in `docs/display-pipeline.md`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Library standing `supported`. Not in the bootstrap image. No exact-image hardware acceptance is claimed in core status.",
       "evidence": [
@@ -329,9 +329,9 @@
       "paths": [],
       "recipe": true,
       "optional": false,
-      "quartus_role": "bring-up/check oracle",
-      "recipe_gpu_router": "HIP",
-      "producer_script": "scripts/build_fes_zx81_oss.py",
+      "quartus_role": "primary ZX81-family package producer; nextpnr is advisory (config/advisory-pnr-recipes.toml)",
+      "recipe_gpu_router": null,
+      "producer_script": "scripts/build_fes_zx81_quartus.py",
       "library_standing": "supported",
       "in_bootstrap_image": false,
       "oss_lock": {
@@ -341,9 +341,9 @@
         "nextpnr": "1eecf877"
       },
       "board": "de10",
-      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
-      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-zx81-quartus` runs the Quartus Lite 17.0.2 family producer (`scripts/build_fes_zx81_quartus.py`, `sources/misteross/docs/architecture.md` \"FES ZX81 Quartus package\"). Not the installed package until the registry switch (DeanoC/fes#1876).",
-      "features": "Media: format-3 `machine-rom` plus `fes.media.zx81-tape` and tape-write (`.p`). Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 through `fes_display_plane`. Optional `fes.expansion.zx81-bus` 2.0. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "router": "Quartus Lite is the registered package producer (Quartus where nextpnr closure is hard). The nextpnr producer `scripts/build_fes_zx81_oss.py` remains an advisory lane through `config/advisory-pnr-recipes.toml` and accepts `--gpu-router HIP` or `CUDA`.",
+      "quartus": "Quartus (primary, policy). policy: Deano 2026-11-15. Quartus Lite 17.0.2 Build 602: `scripts/build_fes_zx81_quartus.py --model zx81`, seeds [1, 2, 3] all passing the complete TimeQuest gate, an independent seed-1 RBF repeat, the m10k-1024x10-v1 ROM map with an update-MIF self-test, and post-fit HPS DDR evidence. No expansion socket until DeanoC/fes#1875.",
+      "features": "Media: format-3 `machine-rom` plus `fes.media.zx81-tape` and tape-write (`.p`). Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 through `fes_display_plane`. No expansion socket in the Quartus package; the 16K RAM and Zon X carts move into the shell in DeanoC/fes#1875. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Library standing `supported`. Not in the bootstrap image. ZX80, TS1000 and TS1500 are other models of this shell.",
       "evidence": [
         "config/core-recipes.toml",
@@ -357,7 +357,9 @@
         "sources/misteross/AGENTS.md",
         "sources/misteross/cores/fes-zx81/toolchain.lock",
         "sources/misteross/scripts/build_fes_zx81_oss.py",
-        "sources/misteross/scripts/build_fes_zx81_quartus.py"
+        "sources/misteross/scripts/build_fes_zx81_quartus.py",
+        "sources/misteross/cores/fes-zx81/quartus.lock",
+        "config/advisory-pnr-recipes.toml"
       ],
       "tier_role": "play",
       "family": "zx81",
@@ -385,7 +387,12 @@
         "catalog_standing": "supported"
       },
       "quality_tier": "1",
-      "check_level": "full"
+      "check_level": "full",
+      "quartus_lock": {
+        "path": "sources/misteross/cores/fes-zx81/quartus.lock",
+        "version": "17.0.2 Build 602"
+      },
+      "primary_toolchain": "quartus"
     },
     {
       "id": "fes.zx80",
@@ -396,9 +403,9 @@
       "paths": [],
       "recipe": true,
       "optional": false,
-      "quartus_role": "bring-up/check oracle",
-      "recipe_gpu_router": "HIP",
-      "producer_script": "scripts/build_fes_zx81_oss.py",
+      "quartus_role": "primary ZX81-family package producer; nextpnr is advisory (config/advisory-pnr-recipes.toml)",
+      "recipe_gpu_router": null,
+      "producer_script": "scripts/build_fes_zx81_quartus.py",
       "library_standing": "experimental",
       "in_bootstrap_image": false,
       "oss_lock": {
@@ -408,8 +415,8 @@
         "nextpnr": "1eecf877"
       },
       "board": "de10",
-      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
-      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`, the same wording as ZX81. `make build-fes-zx81-quartus MODEL=zx80` builds it with the family's Quartus Lite producer (`scripts/build_fes_zx81_quartus.py`).",
+      "router": "Quartus Lite is the registered package producer (Quartus where nextpnr closure is hard). The nextpnr producer `scripts/build_fes_zx81_oss.py` remains an advisory lane through `config/advisory-pnr-recipes.toml` and accepts `--gpu-router HIP` or `CUDA`.",
+      "quartus": "Quartus (primary, policy). policy: Deano 2026-11-15. Quartus Lite 17.0.2 Build 602: `scripts/build_fes_zx81_quartus.py --model zx80`, seeds [1, 2, 3] all passing the complete TimeQuest gate, an independent seed-1 RBF repeat, the m10k-1024x10-v1 ROM map with an update-MIF self-test, and post-fit HPS DDR evidence. No expansion socket until DeanoC/fes#1875.",
       "features": "Media: format-3 linked `zx80-rom` firmware plus tape load (`fes.media.zx81-tape`); the producer omits tape-write for this model. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 through the session display plane. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Same tree and lock as ZX81. Experimental: PAL, 4 KiB ROM, 1 KiB RAM, no NMI. Not in the bootstrap image. No sealed package and no hardware acceptance are recorded in core alignment.",
       "evidence": [
@@ -423,7 +430,10 @@
         "sources/misteross/boards/de10nano/README.md",
         "sources/misteross/AGENTS.md",
         "sources/misteross/cores/fes-zx81/toolchain.lock",
-        "sources/misteross/scripts/build_fes_zx81_oss.py"
+        "sources/misteross/scripts/build_fes_zx81_oss.py",
+        "sources/misteross/cores/fes-zx81/quartus.lock",
+        "sources/misteross/scripts/build_fes_zx81_quartus.py",
+        "config/advisory-pnr-recipes.toml"
       ],
       "tier_role": "play",
       "family": "zx81",
@@ -448,7 +458,12 @@
         "catalog_standing": "experimental"
       },
       "quality_tier": "1",
-      "check_level": "full"
+      "check_level": "full",
+      "quartus_lock": {
+        "path": "sources/misteross/cores/fes-zx81/quartus.lock",
+        "version": "17.0.2 Build 602"
+      },
+      "primary_toolchain": "quartus"
     },
     {
       "id": "fes.ts1000",
@@ -459,9 +474,9 @@
       "paths": [],
       "recipe": true,
       "optional": false,
-      "quartus_role": "bring-up/check oracle",
-      "recipe_gpu_router": "HIP",
-      "producer_script": "scripts/build_fes_zx81_oss.py",
+      "quartus_role": "primary ZX81-family package producer; nextpnr is advisory (config/advisory-pnr-recipes.toml)",
+      "recipe_gpu_router": null,
+      "producer_script": "scripts/build_fes_zx81_quartus.py",
       "library_standing": "experimental",
       "in_bootstrap_image": false,
       "oss_lock": {
@@ -471,8 +486,8 @@
         "nextpnr": "1eecf877"
       },
       "board": "de10",
-      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
-      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-zx81-quartus MODEL=ts1000` builds it with the family's Quartus Lite producer (`scripts/build_fes_zx81_quartus.py`).",
+      "router": "Quartus Lite is the registered package producer (Quartus where nextpnr closure is hard). The nextpnr producer `scripts/build_fes_zx81_oss.py` remains an advisory lane through `config/advisory-pnr-recipes.toml` and accepts `--gpu-router HIP` or `CUDA`.",
+      "quartus": "Quartus (primary, policy). policy: Deano 2026-11-15. Quartus Lite 17.0.2 Build 602: `scripts/build_fes_zx81_quartus.py --model ts1000`, seeds [1, 2, 3] all passing the complete TimeQuest gate, an independent seed-1 RBF repeat, the m10k-1024x10-v1 ROM map with an update-MIF self-test, and post-fit HPS DDR evidence. No expansion socket until DeanoC/fes#1875.",
       "features": "Media: format-3 linked `ts1000-firmware`, tape and tape-write. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 through the session display plane. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Same tree and lock as ZX81. Experimental: NTSC, 8 KiB ROM, 2 KiB RAM. Not in the bootstrap image.",
       "evidence": [
@@ -486,7 +501,10 @@
         "sources/misteross/boards/de10nano/README.md",
         "sources/misteross/AGENTS.md",
         "sources/misteross/cores/fes-zx81/toolchain.lock",
-        "sources/misteross/scripts/build_fes_zx81_oss.py"
+        "sources/misteross/scripts/build_fes_zx81_oss.py",
+        "sources/misteross/cores/fes-zx81/quartus.lock",
+        "sources/misteross/scripts/build_fes_zx81_quartus.py",
+        "config/advisory-pnr-recipes.toml"
       ],
       "tier_role": "play",
       "family": "zx81",
@@ -511,7 +529,12 @@
         "catalog_standing": "experimental"
       },
       "quality_tier": "1",
-      "check_level": "full"
+      "check_level": "full",
+      "quartus_lock": {
+        "path": "sources/misteross/cores/fes-zx81/quartus.lock",
+        "version": "17.0.2 Build 602"
+      },
+      "primary_toolchain": "quartus"
     },
     {
       "id": "fes.ts1500",
@@ -522,9 +545,9 @@
       "paths": [],
       "recipe": true,
       "optional": false,
-      "quartus_role": "bring-up/check oracle",
-      "recipe_gpu_router": "HIP",
-      "producer_script": "scripts/build_fes_zx81_oss.py",
+      "quartus_role": "primary ZX81-family package producer; nextpnr is advisory (config/advisory-pnr-recipes.toml)",
+      "recipe_gpu_router": null,
+      "producer_script": "scripts/build_fes_zx81_quartus.py",
       "library_standing": "experimental",
       "in_bootstrap_image": false,
       "oss_lock": {
@@ -534,8 +557,8 @@
         "nextpnr": "1eecf877"
       },
       "board": "de10",
-      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
-      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-zx81-quartus MODEL=ts1500` builds it with the family's Quartus Lite producer (`scripts/build_fes_zx81_quartus.py`).",
+      "router": "Quartus Lite is the registered package producer (Quartus where nextpnr closure is hard). The nextpnr producer `scripts/build_fes_zx81_oss.py` remains an advisory lane through `config/advisory-pnr-recipes.toml` and accepts `--gpu-router HIP` or `CUDA`.",
+      "quartus": "Quartus (primary, policy). policy: Deano 2026-11-15. Quartus Lite 17.0.2 Build 602: `scripts/build_fes_zx81_quartus.py --model ts1500`, seeds [1, 2, 3] all passing the complete TimeQuest gate, an independent seed-1 RBF repeat, the m10k-1024x10-v1 ROM map with an update-MIF self-test, and post-fit HPS DDR evidence. No expansion socket until DeanoC/fes#1875.",
       "features": "Media: format-3 linked `ts1500-firmware`, tape and tape-write. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 through the session display plane. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Same tree and lock as ZX81. Experimental: NTSC, 8 KiB ROM, 16 KiB RAM. Not in the bootstrap image.",
       "evidence": [
@@ -549,7 +572,10 @@
         "sources/misteross/boards/de10nano/README.md",
         "sources/misteross/AGENTS.md",
         "sources/misteross/cores/fes-zx81/toolchain.lock",
-        "sources/misteross/scripts/build_fes_zx81_oss.py"
+        "sources/misteross/scripts/build_fes_zx81_oss.py",
+        "sources/misteross/cores/fes-zx81/quartus.lock",
+        "sources/misteross/scripts/build_fes_zx81_quartus.py",
+        "config/advisory-pnr-recipes.toml"
       ],
       "tier_role": "play",
       "family": "zx81",
@@ -574,7 +600,12 @@
         "catalog_standing": "experimental"
       },
       "quality_tier": "1",
-      "check_level": "full"
+      "check_level": "full",
+      "quartus_lock": {
+        "path": "sources/misteross/cores/fes-zx81/quartus.lock",
+        "version": "17.0.2 Build 602"
+      },
+      "primary_toolchain": "quartus"
     },
     {
       "id": "fes.coleco",
@@ -1525,87 +1556,13 @@
       "check_level": "none"
     },
     {
-      "id": "fes.pcxt",
-      "label": "`fes.pcxt`",
-      "tier": "bring-up",
-      "release": "v2",
-      "covers": [
-        "fes-pcxt"
-      ],
-      "paths": [],
-      "recipe": true,
-      "optional": false,
-      "quartus_role": "primary diagnostic package producer",
-      "recipe_gpu_router": null,
-      "producer_script": "scripts/build_fes_pcxt_quartus.py",
-      "library_standing": "experimental",
-      "in_bootstrap_image": false,
-      "oss_lock": {
-        "path": "sources/misteross/cores/fes-pcxt/toolchain.lock",
-        "yosys": "3a5accbd",
-        "mistral": "9ab65220",
-        "nextpnr": "2fa5ec4c"
-      },
-      "board": "de10",
-      "primary_toolchain": "quartus",
-      "router": "Quartus is the normal diagnostic package producer. Nextpnr remains an explicit advisory diagnostic.",
-      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. Quartus Lite 17.0.2 Build 602: common 100 MHz package profile, three-seed reported internal timing gate and independent RBF repeat. External IO/HPS/reset and exact-artifact hardware acceptance remain separate.",
-      "features": "Media: read-only 360 KiB floppy through fes.computer 1.1 live media, with a guest FDC/DMA diagnostic. Input: no HID keyboard frontend. HDMI: fixed CGA Direct 720p diagnostic on the DE10-Nano shell. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Experimental Quartus format-2 diagnostic package outside the bootstrap image. On Kit B, exact package 65dd840f from source a54ea0cd passed the empty, wrong, matching, eject and Stop disk sector diagnostic on 31 October, after #1286; the earlier parent-merge package 187f31ce passed the same sequence. Kit A accepted package 9d46fefc through normal import, launch and Stop. This diagnostic profile has no bootable BIOS, host keyboard or write support; those are provided by the separate experimental fes.pcxt-dos profile, which shares this core's RTL and carries PC/XT's qualification evidence. PC/XT is tier 1 by quality in the forward plan (decided) and is scoped to the release after v1. External board qualification remains open (#835); #840 tracks advisory nextpnr timing.",
-      "evidence": [
-        "sources/misteross/cores/fes-pcxt/README.md",
-        "sources/misteross/cores/fes-pcxt/toolchain.lock",
-        "sources/misteross/scripts/build_fes_pcxt.py",
-        "sources/misteross/scripts/build_fes_pcxt_quartus.py",
-        "config/core-recipes.toml",
-        "config/core-library.toml",
-        "sources/misteross/docs/cores.md",
-        "docs/design/quartus-cores.md",
-        "docs/validation/2026-10-29-pcxt-quartus-package/result.json",
-        "docs/core-status.md",
-        "docs/plans/forward-plan.md",
-        "docs/validation/2026-10-30-pcxt-floppy-media/result-current-parent-merge.json"
-      ],
-      "tier_role": "bring-up",
-      "family": "pc",
-      "variant": "XT",
-      "display": "PC/XT",
-      "signals": {
-        "as_of": "2026-10-29",
-        "window_start": "2026-08-30",
-        "recent_cutoff": "2026-10-16",
-        "catalog_weight": "weak",
-        "last_rtl_change": "2026-10-21",
-        "last_rtl_sha": "e9ece2993",
-        "last_rtl_subject": "PC/XT: assemble SDRAM and ISA graphics in a diagnostic board shell (#836)",
-        "last_host_change": null,
-        "last_host_sha": null,
-        "last_host_subject": null,
-        "last_hil_pass": "2026-10-31",
-        "hil_note": "docs/validation/2026-10-30-pcxt-floppy-media/result-current-parent-merge.json",
-        "hil_scope": "exact package 65dd840f from source a54ea0cd: a single read-only floppy sector read by the guest through the FDC and DMA2, across the empty, wrong, matching, eject and Stop sequence on Kit B. No DOS boot, no writes, no external interface timing",
-        "open_issues": [
-          "#835",
-          "#840",
-          "#1429"
-        ],
-        "media_gen": "diagnostic",
-        "image_role": "none",
-        "catalog_standing": "experimental"
-      },
-      "quartus_lock": {
-        "path": "sources/misteross/cores/fes-pcxt/quartus.lock",
-        "version": "17.0.2 Build 602"
-      },
-      "quality_tier": "1",
-      "check_level": "full"
-    },
-    {
       "id": "fes.pcxt-dos",
       "label": "`fes.pcxt-dos`",
       "tier": "current",
       "release": "v2",
-      "covers": [],
+      "covers": [
+        "fes-pcxt"
+      ],
       "paths": [],
       "recipe": true,
       "optional": false,

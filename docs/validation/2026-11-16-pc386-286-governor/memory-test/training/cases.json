@@ -1,0 +1,16 @@
+{
+  "XCHG_B": "xchg al,[bx]",
+  "XCHG_W": "xchg ax,[bx]",
+  "TEST_B": "test byte [bx],0x55",
+  "TEST_W": "test word [bx],0x1234",
+  "NOT_B": "not byte [bx]",
+  "NEG_W": "neg word [bx]",
+  "INC_B": "inc byte [bx]",
+  "DEC_W": "dec word [bx]",
+  "ADD_IMM_B": "add byte [bx],3",
+  "ADD_IMM_W": "add word [bx],3",
+  "ADC_LOAD_W": "adc ax,[bx]",
+  "SUB_RMW_W": "sub [bx],dx",
+  "PUSH_M": "push word [bx]\n pop si",
+  "POP_M": "push dx\n pop word [bx]"
+}

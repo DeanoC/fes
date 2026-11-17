@@ -24,7 +24,7 @@ Coleco is Aging: work toward Current is in progress and still needs work. Spectr
 | Demo | Registered demo package, not a machine. |
 | Reference | Simulation module or non-play shell. |
 
-**DE10-Nano** (MiSTer, Cyclone V) **OSS** is Yosys + nextpnr-mistral, the installed toolchain. i386, pc386 and PC/XT are Quartus (primary, policy) (policy: Deano 2026-10-29). nextpnr builds there are advisory; a miss is filed as a nextpnr issue, not a blocker. A dash means this row has no DE10-Nano bitstream. i386 is a CPU spike with no board shell of its own; the sealed pc386 development package runs on the DE10-Nano.
+**DE10-Nano** (MiSTer, Cyclone V) **OSS** is Yosys + nextpnr-mistral, the installed toolchain. i386, pc386 and PC/XT are Quartus (primary, policy) (policy: Deano 2026-10-29), and so is the ZX81 family (policy: Deano 2026-11-15, where nextpnr closure is hard). nextpnr builds there are advisory; a miss is filed as a nextpnr issue, not a blocker. A dash means this row has no DE10-Nano bitstream. i386 is a CPU spike with no board shell of its own; the sealed pc386 development package runs on the DE10-Nano.
 
 **DE25-Nano** (Agilex 5) follows Quartus-only (policy); shell pending (policy: Deano 2026-10-29). Rows with a board bitstream show Quartus; rows without one show a dash. Agilex 5 has no OSS reverse-engineering. Per-core ports are re-checked only after the shell is on this branch.
 
@@ -42,7 +42,7 @@ Atari ST is still the only optional recipe (`FES_SKIP_OPTIONAL_CORES`). That fla
 | splash / idle | Firmware | OSS | Quartus | HDMI | [README](../sources/misteross/cores/fes-splash/README.md) |
 | `fes.pong` | Stale | OSS | Quartus | pad, HDMI | [cores](../sources/misteross/docs/cores.md) |
 | `fes.ramtest` | Current | OSS | Quartus | pad, HDMI | [README](../sources/misteross/cores/fes-ramtest/README.md) |
-| ZX81 (ZX81, ZX80, TS1000, TS1500) | Current | OSS | Quartus | tape, keys, HDMI | [cores](../sources/misteross/docs/cores.md) |
+| ZX81 (ZX81, ZX80, TS1000, TS1500) | Current | Quartus | Quartus | tape, keys, HDMI | [cores](../sources/misteross/docs/cores.md) |
 | `fes.coleco` | Aging | OSS | Quartus | cart, pad, HDMI | [README](../sources/misteross/cores/fes-coleco/README.md) |
 | `fes.sms` | Aging | OSS | Quartus | cart, keys, HDMI | [README](../sources/misteross/cores/fes-sms/README.md) |
 | `fes.sg1000` | Aging | OSS | Quartus | cart, pad, HDMI | [README](../sources/misteross/cores/fes-sg1000/README.md) |
@@ -54,7 +54,6 @@ Atari ST is still the only optional recipe (`FES_SKIP_OPTIONAL_CORES`). That fla
 | Atari ST (STE) | Bring-up (queued) | — | — | — | [README](../sources/misteross/cores/fes-atari-st/README.md) |
 | `fes.riscv` | Aging | OSS | Quartus | pad, HDMI | [README](../sources/misteross/cores/fes-riscv/README.md) |
 | `cores/pong` simulation | Reference | — | — | — | [cores](../sources/misteross/docs/cores.md) |
-| PC/XT | Bring-up | Quartus | Quartus | disk, HDMI | [README](../sources/misteross/cores/fes-pcxt/README.md) |
 | PC/XT (FreeDOS) | Current | Quartus | Quartus | disk, keys, HDMI | [README](../sources/misteross/cores/fes-pcxt/README.md) |
 | pc386 | Bring-up | Quartus | Quartus | disk, keys, mouse, HDMI | [README](../sources/misteross/cores/fes-pc386/README.md) |
 | `fes_i386_cpu` | Shared | — | — | — | [design](../sources/misteross/docs/i386-cpu-design.md) |
@@ -68,7 +67,7 @@ Atari ST is still the only optional recipe (`FES_SKIP_OPTIONAL_CORES`). That fla
 The first release lists only v1 cores in tenfoot Home, the rooms and the core catalog view. The tenfoot Settings row Show all cores lists the rest, for development and HIL. The scope is not a tier, and v1 does not mean the exact release package has passed kit HIL.
 
 - **v1:** `fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`, `fes.c64`, `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon`, `fes.atari-st`
-- **v2:** `fes.pcxt`, `fes.pcxt-dos`, `fes.pc386`
+- **v2:** `fes.pcxt-dos`, `fes.pc386`
 - **Held back:** `fes.pong`, `fes.ramtest`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, C64 NTSC, Atari STE, `fes.riscv`
 
 ## Quality tier and checks
@@ -97,12 +96,12 @@ The levels never lower a gate on work being done to a core: a netlist that is no
 | Via consumer | Not a package. Evidence rides with the packages that embed it. |
 | None | No built artifact yet. |
 
-- **Tier 1:** `fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`, `fes.c64`, `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon`, `fes.atari-st`, `fes.pcxt`, `fes.pcxt-dos`
+- **Tier 1:** `fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`, `fes.c64`, `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon`, `fes.atari-st`, `fes.pcxt-dos`
 - **Tier 1 pending:** `fes.pc386`
 - **Tier 2 pending:** `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`
 - **Outside the ladder:** `fes.pong`, `fes.ramtest`, `fes.riscv`
 
-- **Full checks:** `fes.menu`, splash / idle, `fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`, `fes.c64`, `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon`, `fes.atari-st`, `fes.pcxt`, `fes.pcxt-dos`, `fes.pc386`
+- **Full checks:** `fes.menu`, splash / idle, `fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`, `fes.c64`, `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon`, `fes.atari-st`, `fes.pcxt-dos`, `fes.pc386`
 - **Reduced checks:** `fes.pong`, `fes.ramtest`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, `fes.riscv`
 - **Via consumer checks:** `fes_i386_cpu`, `fes_z80_nmos` / `fes_z80_fast`, `cpu6502`, `fx68k`, TV80
 - **None checks:** C64 NTSC, Atari STE, `cores/pong` simulation

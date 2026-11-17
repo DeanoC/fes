@@ -1,0 +1,709 @@
+// SPDX-License-Identifier: MIT
+// Default-off reference-model integration checks against the real governor and cost ROM.
+`timescale 1ns/1ps
+module governor_integration_tb;
+  import fes_i386_pkg::*;
+  logic clk=0; always #1 clk=~clk;
+  logic reset=1, boundary=0,eoi=0,element=0,taken=0,redir=0,abandon=0,preserve_de=0,replay=0;
+  gov_t gov='0;
+  logic [3:0] ilen=0; logic [1:0] accesses=0; logic ordinary_ram=1; int saved_queue; logic [1:0] mmio=0;
+  logic st2=0; logic [2:0] mmio_halves=1, st2_halves=0;
+  logic [2:0] preset=1; logic turbo=0;
+  logic hold0,hold1; logic [11:0] debt0,debt1; logic [12:0] charge0,charge1;
+  logic tally=0; int sum0=0,sum1=0;
+  always @(posedge clk) if(tally) begin sum0 += int'(charge0); sum1 += int'(charge1); end
+  fes_i386_governor #(.GOV_N(1),.GOV_D(1000)) baseline (
+    .clk,.reset,.preset,.frequency(10'd0),.turbo,
+    .boundary,.eoi,.element,.taken,.gov,.ilen,.redirect(redir),.abandon,.preserve_de,.replay,
+    .accesses,.dword(1'b0),.ordinary_ram,.io(1'b0),.io_port(16'd0),.io_size(2'd0),.mmio,
+    .mmio_halves,.mmio_st2(st2),.mmio_st2_halves(st2_halves),.hold(hold0),.debt_clocks(debt0),.charge(charge0)
+  );
+  fes_i386_governor #(.GOV_N(1),.GOV_D(1000),.REFERENCE_DIAGNOSTIC(1)) candidate (
+    .clk,.reset,.preset,.frequency(10'd0),.turbo,
+    .boundary,.eoi,.element,.taken,.gov,.ilen,.redirect(redir),.abandon,.preserve_de,.replay,
+    .accesses,.dword(1'b0),.ordinary_ram,.io(1'b0),.io_port(16'd0),.io_size(2'd0),.mmio,
+    .mmio_halves,.mmio_st2(st2),.mmio_st2_halves(st2_halves),.hold(hold1),.debt_clocks(debt1),.charge(charge1)
+  );
+  task automatic instruction(input byte op, input int regfield, nbytes, naccess, input bit branch_taken);
+    @(negedge clk); gov='0; gov.op=op; gov.mreg=3'(regfield); ilen=4'(nbytes); accesses=2'(naccess);
+    boundary=1; eoi=1; taken=branch_taken; redir=branch_taken;
+  endtask
+  task automatic restart;
+    @(negedge clk); tally=0; reset=1; boundary=0; eoi=0; accesses=0; mmio=0; st2=0; mmio_halves=1; st2_halves=0; abandon=0; preserve_de=0; replay=0; redir=0; taken=0; ordinary_ram=1; gov='0;
+    repeat(5) @(negedge clk); reset=0; repeat(8) @(negedge clk); sum0=0; sum1=0; tally=1;
+  endtask
+  task automatic finish_trial(input int expected0,expected1, input string label);
+    @(negedge clk); boundary=0; eoi=0; taken=0; redir=0; accesses=0; mmio=0; gov='0; abandon=0; replay=0;
+    repeat(8) @(negedge clk); tally=0;
+    if(sum0!=expected0 || sum1!=expected1) $fatal(1,"%s base=%0d expected=%0d candidate=%0d expected=%0d",label,sum0,expected0,sum1,expected1);
+  endtask
+  task automatic mixed_check(input byte op, input int nbytes, naccess, expected, expected_length, input bit ram, is_rep, excluded, enter_zero, stack32, baseline_cost);
+    restart;
+    instruction(op,0,nbytes,naccess,0);
+    gov.rep=is_rep; gov.ref_test_excluded=excluded; gov.ref_enter_valid=1; gov.ref_enter_level=enter_zero ? 5'd0 : 5'd1; gov.ref_stack32=stack32; ordinary_ram=ram;
+    @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
+    @(negedge clk);
+    if (int'(candidate.execution_clocks) != expected || (baseline_cost && candidate.execution_clocks != baseline.execution_clocks))
+      $fatal(1,"mixed candidate op=%h rep=%0d excluded=%0d enter0=%0d stack32=%0d ram=%0d actual=%0d expected=%0d baseline=%0d",op,is_rep,excluded,enter_zero,stack32,ram,candidate.execution_clocks,expected,baseline.execution_clocks);
+    if (int'(candidate.gen_reference_queue.length) != expected_length)
+      $fatal(1,"mixed queue length op=%h actual=%0d expected=%0d",op,candidate.gen_reference_queue.length,expected_length);
+  endtask
+  initial begin
+    repeat(5) @(negedge clk); reset=0; repeat(8) @(negedge clk); tally=1;
+    instruction(8'hff,0,4,2,0);
+    instruction(8'h83,7,5,1,0);
+    instruction(8'h75,0,2,0,1);
+    finish_trial(24,29,"consecutive");
+    restart;
+    instruction(8'hff,0,4,2,0); ordinary_ram=0;
+    finish_trial(9,13,"unknown RMW keeps both legacy waits");
+    restart;
+    @(negedge clk); gov='0; gov.op=8'hff; ilen=4; accesses=1; ordinary_ram=1; boundary=0; eoi=0;
+    @(negedge clk); accesses=1; ordinary_ram=0; boundary=1; eoi=1;
+    @(negedge clk); accesses=0; ordinary_ram=1; boundary=0; eoi=0;
+    finish_trial(9,12,"mixed RAM then unknown keeps one legacy wait");
+    restart;
+    @(negedge clk); gov='0; gov.op=8'hff; ilen=4; accesses=1; ordinary_ram=0; boundary=0; eoi=0;
+    @(negedge clk); accesses=1; ordinary_ram=1; boundary=1; eoi=1;
+    @(negedge clk); accesses=0; boundary=0; eoi=0;
+    finish_trial(9,12,"mixed unknown then RAM keeps one legacy wait");
+    restart;
+    @(negedge clk); gov='0; gov.op=8'hff; ilen=4; accesses=1; ordinary_ram=0; boundary=0; eoi=0;
+    @(negedge clk); accesses=0; ordinary_ram=1; abandon=1;
+    @(negedge clk); abandon=0;
+    instruction(8'hff,0,4,2,0);
+    finish_trial(10,12,"abandoned partial keeps committed unknown wait");
+    restart;
+    @(negedge clk); gov='0; gov.op=8'hff; ilen=4; accesses=1; ordinary_ram=0; boundary=0; eoi=0;
+    @(negedge clk); accesses=0; ordinary_ram=1; replay=1;
+    @(negedge clk); replay=0;
+    instruction(8'hff,0,4,2,0);
+    finish_trial(10,12,"replayed partial keeps committed unknown wait");
+    // Keep the diagnostic queue semantics explicit across mixed histories.
+    restart;
+    instruction(8'hff,0,4,2,0);
+    instruction(8'hff,0,4,2,0); ordinary_ram=0;
+    instruction(8'h8b,0,4,1,0); ordinary_ram=1; gov.o32=1;
+    instruction(8'hff,0,4,2,0);
+    finish_trial(33,38,"RAM/unknown/unsupported/RAM sequence");
+    restart;
+    @(negedge clk); gov='0; gov.op=8'hff; ilen=4; accesses=1; boundary=0; eoi=0;
+    @(negedge clk); accesses=1; boundary=1; eoi=1;
+    instruction(8'h83,7,5,1,0);
+    instruction(8'h75,0,2,0,1);
+    finish_trial(24,29,"multi-uop accumulation");
+    restart;
+    instruction(8'hff,0,4,2,0);
+    instruction(8'h83,7,6,1,0); gov.prefix286=4;
+    instruction(8'h75,0,2,0,1);
+    finish_trial(24,33,"segment prefix");
+    restart;
+    instruction(8'hff,0,4,2,0);
+    instruction(8'h75,0,2,0,1);
+    instruction(8'hff,0,4,2,0);
+    finish_trial(26,29,"redirect");
+    restart;
+    @(negedge clk); gov='0; gov.op=8'hff; ilen=4; accesses=1; boundary=0; eoi=0;
+    @(negedge clk); accesses=0; abandon=1;
+    @(negedge clk); abandon=0;
+    instruction(8'hff,0,4,2,0);
+    finish_trial(10,11,"abandon partial");
+    restart;
+    instruction(8'hff,0,4,2,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0; replay=1;
+    @(negedge clk); replay=0;
+    instruction(8'h83,7,5,1,0);
+    finish_trial(16,22,"replay preserves queued bytes");
+    restart;
+    instruction(8'h8b,0,4,1,0); ordinary_ram=0; mmio=1;
+    finish_trial(12,15,"MMIO wait and subtraction");
+    // The physical attributes qualify the entire uop conservatively. A
+    // st2 access or a crossing can therefore charge both memory cycles on
+    // the legacy path even when only one touches non-RAM.
+    for (int shape=0; shape<3; shape++) begin
+      restart;
+      instruction(8'h8b,0,4,shape==0 ? 1 : 2,0); ordinary_ram=0;
+      if (shape==0) begin mmio=1; mmio_halves=2; end // crossing operand
+      if (shape==1) begin st2=1; st2_halves=1; end // secondary MMIO store
+      if (shape==2) begin mmio=1; mmio_halves=1; st2=1; st2_halves=2; end
+      @(negedge clk); boundary=0; eoi=0; accesses=0; mmio=0; st2=0;
+      @(negedge clk);
+      if (candidate.s2_memory != baseline.s2_memory || candidate.s2_isa != baseline.s2_isa ||
+          candidate.s2_memory != (shape==0 ? 1 : 2) ||
+          candidate.s2_isa != (shape==0 ? 15 : shape==1 ? 6 : 21))
+        $fatal(1,"mixed MMIO fallback shape=%0d memory=%0d isa=%0d",shape,candidate.s2_memory,candidate.s2_isa);
+    end
+    restart;
+    instruction(8'h01,0,4,2,0);
+    instruction(8'h83,7,5,1,0);
+    instruction(8'he2,0,2,0,1);
+    finish_trial(25,35,"word ALU overlap");
+    restart;
+    instruction(8'h00,0,4,2,0);
+    instruction(8'h83,7,5,1,0);
+    instruction(8'he2,0,2,0,1);
+    finish_trial(25,33,"byte ALU overlap");
+    restart;
+    @(negedge clk); gov='0; gov.op=8'ha4; gov.rep=1; gov.prefix286=2; ilen=2; accesses=2; boundary=1; eoi=0; element=1;
+    @(negedge clk); boundary=1; eoi=0; element=1;
+    @(negedge clk); boundary=1; eoi=1; element=1;
+    @(negedge clk); element=0; boundary=0; eoi=0; accesses=0;
+    finish_trial(23,16,"REP MOVS boundary mechanics");
+    restart;
+    @(negedge clk); gov='0; gov.op=8'ha7; gov.rep=1; gov.prefix286=2; ilen=2; accesses=2; boundary=1; eoi=0; element=1;
+    @(negedge clk); boundary=1; eoi=0; element=1;
+    @(negedge clk); boundary=1; eoi=1; element=1;
+    @(negedge clk); element=0; boundary=0; eoi=0; accesses=0;
+    finish_trial(38,35,"REP CMPS re-decode");
+    restart;
+    @(negedge clk); gov='0; gov.op=8'haf; gov.rep=1; gov.prefix286=2; ilen=2; accesses=1; boundary=1; eoi=0; element=1;
+    @(negedge clk); boundary=1; eoi=0; element=1;
+    @(negedge clk); boundary=1; eoi=1; element=1;
+    @(negedge clk); element=0; boundary=0; eoi=0; accesses=0;
+    finish_trial(32,28,"REP SCAS chunk");
+    restart; instruction(8'h3b,0,2,1,0); finish_trial(7,9,"CMP memory form");
+    restart; instruction(8'h9c,0,1,1,0); finish_trial(4,6,"PUSHF form");
+    restart; instruction(8'heb,0,2,0,1); finish_trial(8,9,"short JMP form");
+    restart; instruction(8'he8,0,3,1,1); finish_trial(9,11,"relative CALL form");
+    restart; instruction(8'hc3,0,1,1,1); finish_trial(13,12,"near RET form");
+    restart;
+    for (int i=0; i<27; i++) begin
+      @(negedge clk); gov='0; gov.op=8'ha4; gov.rep=1; gov.prefix286=2; ilen=2;
+      accesses=2; boundary=1; eoi=(i==26); element=1;
+    end
+    @(negedge clk); element=0; boundary=0; eoi=0; accesses=0;
+    finish_trial(167,116,"REP MOVS crosses execution chunk");
+    restart;
+    for (int i=0; i<64; i++) begin
+      @(negedge clk); gov='0; gov.op=8'ha4; gov.rep=1; gov.prefix286=2; ilen=2;
+      accesses=2; boundary=1; eoi=(i==63); element=1;
+    end
+    @(negedge clk); element=0; boundary=0; eoi=0; accesses=0;
+    finish_trial(389,268,"REP MOVS crosses two execution chunks");
+    restart;
+    for (int i=0; i<22; i++) begin
+      @(negedge clk); gov='0; gov.op=8'haa; gov.rep=1; gov.prefix286=2; ilen=2;
+      accesses=1; boundary=1; eoi=(i==21); element=1;
+    end
+    @(negedge clk); element=0; boundary=0; eoi=0; accesses=0;
+    finish_trial(92,116,"REP STOS crosses chunk and retains refill fraction");
+    restart;
+    for (int i=0; i<22; i++) begin
+      @(negedge clk); gov='0; gov.op=8'hac; gov.rep=1; gov.prefix286=2; ilen=2;
+      accesses=1; boundary=1; eoi=(i==21); element=1;
+    end
+    @(negedge clk); element=0; boundary=0; eoi=0; accesses=0;
+    finish_trial(115,116,"REP LODS crosses chunk and retains refill fraction");
+    restart;
+    for (int i=0; i<14; i++) begin
+      @(negedge clk); gov='0; gov.op=8'hae; gov.rep=1; gov.prefix286=2; ilen=2;
+      accesses=1; boundary=1; eoi=(i==13); element=1;
+    end
+    @(negedge clk); element=0; boundary=0; eoi=0; accesses=0;
+    finish_trial(131,118,"REP SCAS crosses chunk");
+    restart;
+    for (int i=0; i<13; i++) begin
+      @(negedge clk); gov='0; gov.op=8'ha4; gov.rep=1; gov.prefix286=2; ilen=2;
+      accesses=2; boundary=1; eoi=0; element=1;
+    end
+    @(negedge clk); boundary=0; element=0; accesses=0; abandon=1;
+    @(negedge clk); abandon=0;
+    repeat(4) @(negedge clk);
+    for (int i=0; i<14; i++) begin
+      @(negedge clk); gov='0; gov.op=8'ha4; gov.rep=1; gov.prefix286=2; ilen=2;
+      accesses=2; boundary=1; eoi=(i==13); element=1;
+    end
+    @(negedge clk); element=0; boundary=0; eoi=0; accesses=0;
+    finish_trial(167,116,"REP MOVS interrupted and refetched");
+    restart;
+    for (int i=0; i<26; i++) begin
+      @(negedge clk); gov='0; gov.op=8'ha4; gov.rep=1; gov.prefix286=2; ilen=2;
+      accesses=2; boundary=1; eoi=0; element=1;
+    end
+    @(negedge clk); boundary=0; element=0; accesses=0; replay=1;
+    @(negedge clk); replay=0;
+    repeat(4) @(negedge clk);
+    @(negedge clk); gov='0; gov.op=8'ha4; gov.rep=1; gov.prefix286=2; ilen=2;
+    accesses=2; boundary=1; eoi=1; element=1;
+    @(negedge clk); element=0; boundary=0; eoi=0; accesses=0;
+    finish_trial(167,116,"REP MOVS replay preserves chunk budget");
+    // CMP r/m,reg: execute 5 clocks, but preserve the 7-clock queue budget.
+    for (int op=56; op<=57; op++) begin
+      restart; instruction(8'(op),0,2,1,0);
+      @(negedge clk); boundary=0; eoi=0; accesses=0;
+      @(negedge clk);
+      if (candidate.execution_clocks != 5 || candidate.refill_execution != 7)
+        $fatal(1,"CMP RAM split budgets op=%h",op);
+      finish_trial(8,7,"CMP ordinary RAM");
+    end
+    // A 286 segment prefix is accepted, but tracked unsafe prefixes are not.
+    for (int op=56; op<=57; op++) begin
+      restart; instruction(8'(op),0,3,1,0); gov.ref_test_excluded=1; gov.ref_real_mode=1; gov.prefix286=4;
+      @(negedge clk); boundary=0; eoi=0; accesses=0;
+      @(negedge clk);
+      if (candidate.execution_clocks != 5 || candidate.refill_execution != 7)
+        $fatal(1,"286 segment CMP split budgets op=%h",op);
+    end
+    // Disallowed encodings and non-RAM contexts retain the earlier path.
+    for (int op=56; op<=57; op++) for (int test=0; test<8; test++) begin
+      restart; instruction(8'(op),0,2,1,0);
+      if (test==0) ordinary_ram=0;
+      if (test==1) begin ordinary_ram=0; mmio=1; end
+      if (test==2) begin gov.ref_test_excluded=1; gov.ref_zero_unsafe=1; gov.ref_real_mode=1; end
+      if (test==3) gov.o32=1;
+      if (test==4) gov.rm_reg=1;
+      if (test==5) gov.two=1;
+      if (test==6) begin gov.ref_test_excluded=1; gov.ref_real_mode=0; end
+      if (test==7) begin gov.ref_test_excluded=1; gov.ref_real_mode=1; gov.ea3=1; end
+      @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1; mmio=0;
+      @(negedge clk);
+      if (candidate.execution_clocks != baseline.execution_clocks ||
+          9'(candidate.refill_execution) != candidate.execution_clocks)
+        $fatal(1,"CMP unsupported fallback test=%0d candidate=%0d baseline=%0d",test,candidate.execution_clocks,baseline.execution_clocks);
+    end
+    // Both access orders disqualify a mixed RAM/non-RAM instruction.
+    for (int op=56; op<=57; op++) for (int reverse=0; reverse<2; reverse++) begin
+      restart;
+      @(negedge clk); gov='0; gov.op=8'(op); ilen=2; accesses=1; ordinary_ram=(reverse!=0); boundary=0; eoi=0;
+      @(negedge clk); accesses=1; ordinary_ram=(reverse==0); boundary=1; eoi=1;
+      @(negedge clk); accesses=0; boundary=0; eoi=0; ordinary_ram=1;
+      @(negedge clk);
+      if (candidate.s2_ordinary_ram || candidate.execution_clocks != baseline.execution_clocks ||
+          9'(candidate.refill_execution) != candidate.execution_clocks)
+        $fatal(1,"CMP mixed access fallback op=%0d reverse=%0d",op,reverse);
+    end
+    // Reverse-direction CMP remains on the pre-existing path.
+    for (int op=58; op<=59; op++) begin
+      restart; instruction(8'(op),0,2,1,0);
+      @(negedge clk); boundary=0; eoi=0; accesses=0;
+      @(negedge clk);
+      if (candidate.execution_clocks != 7 || candidate.refill_execution != 7)
+        $fatal(1,"CMP reverse direction changed");
+    end
+    // TEST with a memory operand has separate execution and overlap clocks.
+    restart;
+    instruction(8'hf6,0,3,1,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 5 || candidate.refill_execution != 5)
+      $fatal(1,"immediate byte TEST timing");
+    finish_trial(7,9,"immediate byte TEST");
+    restart;
+    instruction(8'hf7,0,4,1,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 5 || candidate.refill_execution != 5)
+      $fatal(1,"immediate word TEST timing");
+    finish_trial(7,9,"immediate word TEST");
+    restart;
+    instruction(8'h84,0,2,1,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 5 || candidate.refill_execution != 7)
+      $fatal(1,"register/memory byte TEST timing");
+    finish_trial(7,7,"register/memory byte TEST");
+    restart;
+    instruction(8'h85,0,2,1,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 5 || candidate.refill_execution != 7)
+      $fatal(1,"register/memory word TEST timing");
+    finish_trial(7,7,"register/memory word TEST");
+    restart;
+    instruction(8'hf6,1,3,1,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 6 || candidate.refill_execution != 6)
+      $fatal(1,"unmeasured TEST extension changed");
+    finish_trial(7,10,"unmeasured TEST extension");
+    restart;
+    instruction(8'hf7,2,2,2,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 7 || candidate.refill_execution != 7)
+      $fatal(1,"unrelated F7 unary form changed");
+    finish_trial(9,9,"unrelated unary memory form");
+    restart;
+    instruction(8'h85,0,2,0,0); gov.rm_reg=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 2 || candidate.refill_execution != 2)
+      $fatal(1,"register-only TEST changed");
+    finish_trial(2,4,"register-only TEST");
+    restart;
+    instruction(8'hf7,0,6,1,0); gov.o32=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 6 || candidate.refill_execution != 6)
+      $fatal(1,"32-bit TEST fallback changed");
+    finish_trial(7,12,"32-bit TEST fallback");
+    restart;
+    instruction(8'h84,0,4,1,0); gov.ref_test_excluded=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 6 || candidate.refill_execution != 6)
+      $fatal(1,"32-bit address TEST fallback changed");
+    finish_trial(7,10,"32-bit address TEST fallback");
+    restart;
+    instruction(8'hd3,4,2,2,0); gov.ref_shift_nonzero=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (!candidate.reference_zero_shift || candidate.execution_clocks != 0)
+      $fatal(1,"zero-count RAM did not select zero handling");
+    finish_trial(14,0,"zero-count RAM");
+    restart;
+    instruction(8'hd3,4,2,2,0); gov.ref_shift_nonzero=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.reference_zero_shift || candidate.execution_clocks != 7)
+      $fatal(1,"nonzero memory shift did not select normal handling");
+    finish_trial(14,9,"nonzero-count RAM");
+    restart;
+    instruction(8'hd3,4,2,2,0); gov.ref_shift_nonzero=0; ordinary_ram=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
+    @(negedge clk);
+    if (candidate.reference_zero_shift || candidate.execution_clocks != 12)
+      $fatal(1,"unknown operand did not retain prior diagnostic path");
+    finish_trial(14,16,"unknown zero-count operand, legacy waits plus reference fetch");
+    restart;
+    instruction(8'hd3,4,2,2,0); gov.ref_shift_nonzero=0; ordinary_ram=0; mmio=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1; mmio=0;
+    @(negedge clk);
+    if (candidate.reference_zero_shift || candidate.execution_clocks != 12)
+      $fatal(1,"MMIO did not retain prior diagnostic path");
+    repeat(8) @(negedge clk); tally=0;
+    restart;
+    instruction(8'h90,0,1,0,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(4) @(negedge clk);
+    saved_queue = int'(candidate.gen_reference_queue.queue_bytes);
+    instruction(8'hd3,4,2,2,0); gov.ref_shift_nonzero=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(4) @(negedge clk);
+    if (int'(candidate.gen_reference_queue.queue_bytes) != saved_queue)
+      $fatal(1,"zero-count RAM altered queue");
+    tally=0;
+    restart;
+    for (int i=0; i<8; i++) begin
+      @(negedge clk); gov='0; gov.op=8'h60; ilen=1; accesses=1;
+      boundary=(i==7); eoi=(i==7);
+    end
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 18 || candidate.s2_data_bus != 16)
+      $fatal(1,"PUSHA execution or bus accumulation");
+    finish_trial(25,20,"PUSHA eight committed stores");
+    restart;
+    for (int i=0; i<7; i++) begin
+      @(negedge clk); gov='0; gov.op=8'h61; ilen=1; accesses=1;
+      boundary=(i==6); eoi=(i==6);
+    end
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 24 || candidate.s2_data_bus != 14)
+      $fatal(1,"POPA execution or bus accumulation");
+    finish_trial(26,26,"POPA seven committed loads");
+    restart;
+    instruction(8'h8d,0,3,0,0); gov.ea3=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 2 || !candidate.s2_ea)
+      $fatal(1,"complex LEA input classification");
+    finish_trial(4,6,"complex LEA without diagnostic EA surcharge");
+    restart;
+    instruction(8'hf6,4,2,1,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 13 || candidate.refill_execution != 13)
+      $fatal(1,"byte MUL memory reference budget");
+    finish_trial(17,15,"byte MUL memory");
+    restart;
+    instruction(8'hf6,6,2,1,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 14 || candidate.refill_execution != 14)
+      $fatal(1,"byte DIV memory reference budget");
+    finish_trial(18,16,"byte DIV memory");
+    restart;
+    instruction(8'hc1,4,3,2,0); gov.ref_shift_nonzero=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(4) @(negedge clk);
+    if (candidate.reference_pending != 1 || candidate.gen_reference_queue.queue_bytes != 0)
+      $fatal(1,"immediate zero did not defer one fetch byte");
+    instruction(8'h90,0,2,0,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(4) @(negedge clk);
+    if (candidate.reference_pending != 0)
+      $fatal(1,"normal instruction failed to consume deferred byte");
+    tally=0;
+    restart;
+    instruction(8'hd3,4,4,2,0); gov.ref_shift_nonzero=0; gov.ref_prefix_count=2; gov.prefix286=8;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(4) @(negedge clk);
+    if (candidate.reference_pending != 2 || candidate.gen_reference_queue.queue_bytes != 0 || sum1 != 8)
+      $fatal(1,"two segment prefixes were not charged and deferred");
+    tally=0;
+    restart;
+    instruction(8'hd3,4,4,2,0); gov.ref_shift_nonzero=0; gov.ea3=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (!candidate.reference_zero_shift || candidate.execution_clocks != 0)
+      $fatal(1,"complex-EA zero not selected");
+    finish_trial(15,0,"complex-EA zero reference handling");
+    restart;
+    instruction(8'hd3,4,4,2,0); gov.ref_shift_nonzero=0; gov.ref_zero_unsafe=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.reference_zero_shift || candidate.execution_clocks != 12)
+      $fatal(1,"unsupported prefix did not retain prior path");
+    finish_trial(14,16,"unsupported-prefix fallback");
+    restart;
+    for (int i=0; i<4096; i++) begin
+      @(negedge clk); gov='0; gov.op=8'hc1; gov.mreg=4; gov.ref_shift_nonzero=0;
+      ilen=3; accesses=2; boundary=1; eoi=1;
+    end
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(5) @(negedge clk);
+    if (candidate.reference_pending != 0)
+      $fatal(1,"pending boundary did not drain");
+    finish_trial(57344,4110,"pending bound fallback does not wrap");
+    restart;
+    for (int i=0; i<8; i++) begin
+      @(negedge clk); gov='0; gov.op=8'h60; ilen=1; accesses=1; ordinary_ram=(i!=2);
+      boundary=(i==7); eoi=(i==7);
+    end
+    @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
+    @(negedge clk);
+    if (candidate.s2_ordinary_ram || candidate.execution_clocks != 17)
+      $fatal(1,"mixed-access PUSHA failed to retain prior path");
+    finish_trial(25,20,"mixed-access PUSHA fallback");
+    restart;
+    instruction(8'hd3,4,2,2,0); gov.ref_shift_nonzero=1; ordinary_ram=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
+    @(negedge clk);
+    if (candidate.s2_ordinary_ram || candidate.execution_clocks != 12)
+      $fatal(1,"nonzero shift outside RAM changed");
+    finish_trial(14,16,"nonzero shift outside RAM");
+    restart;
+    instruction(8'hf6,4,2,1,0); ordinary_ram=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
+    @(negedge clk);
+    if (candidate.s2_ordinary_ram || candidate.execution_clocks != 16)
+      $fatal(1,"MUL outside RAM changed");
+    finish_trial(17,19,"MUL outside RAM");
+    restart;
+    instruction(8'hf6,0,3,1,0); ordinary_ram=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
+    @(negedge clk);
+    if (candidate.s2_ordinary_ram || candidate.execution_clocks != 5 || candidate.refill_execution != 5)
+      $fatal(1,"pre-existing TEST path outside RAM changed");
+    finish_trial(7,10,"pre-existing TEST path outside RAM");
+    restart;
+    instruction(8'hf6,4,2,1,0); ordinary_ram=0;
+    instruction(8'hf6,4,2,1,0); ordinary_ram=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
+    @(negedge clk);
+    if (!candidate.s2_ordinary_ram || candidate.execution_clocks != 13)
+      $fatal(1,"adjacent RAM instruction inherited previous non-RAM access");
+    repeat(8) @(negedge clk); tally=0;
+    // New candidate form guards, including SS.B and exact encoded nesting.
+    mixed_check(8'ha8,2,0,2,2,1,0,0,0,0,0);
+    mixed_check(8'ha8,2,0,3,2,1,0,1,0,0,1);
+    mixed_check(8'haa,1,1,4,1,1,0,0,0,0,0);
+    mixed_check(8'haa,1,1,3,1,0,0,0,0,0,1);
+    mixed_check(8'haa,1,1,0,1,1,1,0,0,0,0);
+    mixed_check(8'hc8,4,1,10,3,1,0,0,1,0,0);
+    mixed_check(8'hc8,4,1,11,4,1,0,0,1,1,1);
+    mixed_check(8'hc8,4,1,15,3,1,0,0,0,0,0);
+    mixed_check(8'hc8,4,1,11,4,1,0,1,1,0,1);
+    mixed_check(8'hc8,4,1,11,4,0,0,0,1,0,1);
+    mixed_check(8'hc9,1,1,4,1,1,0,0,0,0,0);
+    mixed_check(8'hc9,1,1,5,1,1,0,0,0,1,1);
+    restart;
+    instruction(8'hc8,0,4,1,0); gov.ref_enter_valid=1; gov.ref_enter_level=31;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 135 || candidate.gen_reference_queue.length != 3)
+      $fatal(1,"ENTER level 31 budget or fetch");
+    restart;
+    instruction(8'hc8,0,4,1,0); gov.ref_enter_valid=0; gov.ref_enter_level=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != baseline.execution_clocks || candidate.gen_reference_queue.length != 4)
+      $fatal(1,"ENTER high encoded nesting fallback");
+    // A committed zero-count instruction can defer bytes into a #DE handler.
+    // The faulting divide does not retire; its synthetic delivery is not an
+    // instruction fetch. The first actual handler instruction consumes them.
+    restart;
+    for (int i=0; i<9; i++) begin
+      instruction(8'hc1,4,3,2,0); gov.ref_shift_nonzero=0;
+    end
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 9 || candidate.gen_reference_queue.queue_bytes != 0)
+      $fatal(1,"committed deferred bytes missing");
+    // Faulted zero shifts have no retirement and must not add their prefixes.
+    gov.op=8'hc1; gov.ref_prefix_count=3; abandon=1; preserve_de=1;
+    @(negedge clk); abandon=0; preserve_de=0;
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 9 || !candidate.de_wait_synthetic || candidate.gen_reference_queue.queue_bytes != 0)
+      $fatal(1,"#DE did not preserve committed bytes");
+    instruction(8'hcd,0,0,0,0);
+    @(negedge clk); boundary=0; eoi=0;
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 9 || candidate.de_wait_synthetic || candidate.gen_reference_queue.queue_bytes != 0)
+      $fatal(1,"synthetic delivery consumed deferred bytes");
+    instruction(8'h90,0,1,0,0);
+    @(negedge clk); boundary=0; eoi=0;
+    @(negedge clk);
+    if(candidate.reference_fetch != 10) $fatal(1,"handler did not fetch the nine deferred bytes");
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 0) $fatal(1,"handler did not consume deferred bytes");
+    restart;
+    instruction(8'hc1,4,3,2,0); gov.ref_shift_nonzero=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(4) @(negedge clk);
+    replay=1; @(negedge clk); replay=0; repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 1) $fatal(1,"internal replay changed committed pending bytes");
+    instruction(8'h75,0,2,0,1);
+    @(negedge clk); boundary=0; eoi=0; redir=0; taken=0;
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 0 || candidate.gen_reference_queue.queue_bytes != 0)
+      $fatal(1,"ordinary redirect failed to consume then flush");
+    restart;
+    instruction(8'hc1,4,3,2,0); gov.ref_shift_nonzero=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(4) @(negedge clk);
+    abandon=1; preserve_de=0; @(negedge clk); abandon=0;
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 0 || candidate.de_wait_synthetic)
+      $fatal(1,"other abandon retained deferred bytes");
+    restart;
+    instruction(8'hc1,4,3,2,0); gov.ref_shift_nonzero=0;
+    @(negedge clk); gov='0; gov.op=8'ha4; gov.rep=1; ilen=2; accesses=2; boundary=1; eoi=0; element=1;
+    @(negedge clk); boundary=0; element=0; accesses=0;
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 0 || !candidate.rep_active)
+      $fatal(1,"partial REP did not consume pending bytes once");
+    abandon=1; preserve_de=1; @(negedge clk); abandon=0; preserve_de=0;
+    repeat(4) @(negedge clk);
+    if(candidate.rep_active || !candidate.de_wait_synthetic)
+      $fatal(1,"partial REP did not reset or #DE transition was lost");
+    instruction(8'hcd,0,0,0,0);
+    @(negedge clk); boundary=0; eoi=0;
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 0 || candidate.de_wait_synthetic)
+      $fatal(1,"synthetic delivery after partial REP retained event state");
+    restart;
+    for (int i=0; i<16; i++) instruction(8'h90,0,1,0,0);
+    @(negedge clk); boundary=0; eoi=0;
+    repeat(4) @(negedge clk);
+    saved_queue = int'(candidate.gen_reference_queue.queue_bytes);
+    if(saved_queue != 16 || candidate.reference_pending != 0) $fatal(1,"NOP priming failed");
+    abandon=1; preserve_de=1; @(negedge clk); abandon=0; preserve_de=0;
+    repeat(4) @(negedge clk);
+    if(int'(candidate.gen_reference_queue.queue_bytes) != saved_queue || !candidate.de_wait_synthetic)
+      $fatal(1,"#DE with no pending bytes lost queue state");
+    instruction(8'hcd,0,0,0,0);
+    @(negedge clk); boundary=0; eoi=0;
+    repeat(4) @(negedge clk);
+    if(int'(candidate.gen_reference_queue.queue_bytes) != saved_queue || candidate.de_wait_synthetic)
+      $fatal(1,"synthetic #DE delivery changed primed queue");
+    repeat(8) @(negedge clk); tally=0;
+    // Adjacent WB inputs: #DE abandon followed immediately by its synthetic
+    // delivery boundary must preserve the same state through the pipeline.
+    restart;
+    instruction(8'hc1,4,3,2,0); gov.ref_shift_nonzero=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 1) $fatal(1,"adjacent setup");
+    abandon=1; preserve_de=1;
+    @(negedge clk); abandon=0; preserve_de=0; gov='0; gov.op=8'hcd; ilen=0; boundary=1; eoi=1;
+    @(negedge clk); boundary=0; eoi=0;
+    repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 1 || candidate.de_wait_synthetic)
+      $fatal(1,"adjacent synthetic delivery lost pending state");
+    instruction(8'h90,0,1,0,0);
+    @(negedge clk); boundary=0; eoi=0; repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 0) $fatal(1,"adjacent handler failed to consume pending byte");
+    // Segment stack surrogate applies only to unprefixed real-mode 16-bit
+    // stack accesses wholly in ordinary RAM.
+    restart;
+    instruction(8'h1f,0,1,1,0); gov.ref_real_mode=1; gov.ref_stack32=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if(candidate.execution_clocks != 7 || candidate.refill_execution != 7)
+      $fatal(1,"real-mode POP DS reference budget");
+    restart;
+    instruction(8'h07,0,1,1,0); gov.ref_real_mode=1; gov.ref_stack32=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if(candidate.execution_clocks != 7 || candidate.refill_execution != 7)
+      $fatal(1,"real-mode POP ES reference budget");
+    restart;
+    instruction(8'h1e,0,1,1,0); gov.ref_real_mode=1; gov.ref_stack32=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if(candidate.execution_clocks != 2 || candidate.refill_execution != 2)
+      $fatal(1,"real-mode PUSH DS reference budget");
+    restart;
+    instruction(8'h1f,0,2,1,0); gov.ref_real_mode=1; gov.ref_stack32=0; gov.ref_test_excluded=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if(candidate.execution_clocks != 5) $fatal(1,"prefixed POP DS changed");
+    restart;
+    instruction(8'h1f,0,1,1,0); gov.ref_real_mode=1; gov.ref_stack32=0; gov.o32=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if(candidate.execution_clocks != 5) $fatal(1,"32-bit POP DS changed");
+    restart;
+    instruction(8'h1f,0,1,1,0); gov.ref_real_mode=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if(candidate.execution_clocks != 5) $fatal(1,"non-real or wide stack POP DS changed");
+    restart;
+    instruction(8'h1f,0,1,1,0); gov.ref_real_mode=1; gov.ref_stack32=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if(candidate.execution_clocks != 5) $fatal(1,"real-mode 32-bit stack POP DS changed");
+    restart;
+    instruction(8'h1f,0,1,1,0); gov.ref_real_mode=1; gov.ref_stack32=0; ordinary_ram=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
+    @(negedge clk);
+    if(candidate.execution_clocks != 5) $fatal(1,"non-RAM POP DS changed");
+    // A later #DE from within an already entered handler is a new event,
+    // not a fault during delivery. Its own committed pending bytes persist.
+    restart;
+    instruction(8'hc1,4,3,2,0); gov.ref_shift_nonzero=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0; repeat(4) @(negedge clk);
+    abandon=1; preserve_de=1;
+    @(negedge clk); abandon=0; preserve_de=0; gov='0; gov.op=8'hcd; ilen=0; boundary=1; eoi=1;
+    @(negedge clk); boundary=0; eoi=0; repeat(4) @(negedge clk);
+    instruction(8'h90,0,1,0,0);
+    @(negedge clk); boundary=0; eoi=0; repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 0) $fatal(1,"outer handler did not consume pending byte");
+    for (int i=0; i<7; i++) begin
+      instruction(8'hc1,4,3,2,0); gov.ref_shift_nonzero=0;
+    end
+    @(negedge clk); boundary=0; eoi=0; accesses=0; repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 7) $fatal(1,"nested handler pending bytes missing");
+    abandon=1; preserve_de=1;
+    @(negedge clk); abandon=0; preserve_de=0; gov='0; gov.op=8'hcd; ilen=0; boundary=1; eoi=1;
+    @(negedge clk); boundary=0; eoi=0; repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 7 || candidate.de_wait_synthetic)
+      $fatal(1,"nested synthetic delivery lost committed pending bytes");
+    instruction(8'h90,0,1,0,0);
+    @(negedge clk); boundary=0; eoi=0; repeat(4) @(negedge clk);
+    if(candidate.reference_pending != 0) $fatal(1,"inner handler did not consume pending bytes");
+    preset=3; restart;
+    instruction(8'hff,0,4,2,0); instruction(8'h83,7,5,1,0); instruction(8'h75,0,2,0,1);
+    finish_trial(19,19,"non-286");
+    preset=0; restart;
+    instruction(8'hff,0,4,2,0); instruction(8'h83,7,5,1,0); instruction(8'h75,0,2,0,1);
+    finish_trial(0,0,"max");
+    preset=1; turbo=1; restart;
+    instruction(8'hff,0,4,2,0); instruction(8'h83,7,5,1,0); instruction(8'h75,0,2,0,1);
+    finish_trial(0,0,"turbo");
+    $display("PASS reference governor integration"); $finish;
+  end
+endmodule

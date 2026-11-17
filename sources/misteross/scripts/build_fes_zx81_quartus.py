@@ -11,7 +11,7 @@ m10k-1024x10-v1 rom-map.json and the kit splices the user's ROM unchanged.
 
 The package is published only when all of these hold:
 
-- every seed in SEEDS passes the complete TimeQuest gate
+- every seed in the registered [recipes.quartus] seeds passes the complete TimeQuest gate
   (scripts/quartus_timing_summary.py: setup, hold, recovery, removal and
   minimum pulse width at every corner, with no unanalysed clock), and an
   independent rebuild of the first seed reproduces its RBF byte for byte;
@@ -49,15 +49,18 @@ import sys
 import sysconfig
 import tempfile
 import time
+import tomllib
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import quartus_timing_summary, quartus_vo_evidence, rom_map
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
-from scripts.cyclonev_rbf import rbf_load
+from scripts.cyclonev_rbf import SX120F, rbf_load, rbf_save
 from scripts.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
-from scripts.fes_build_common import BuildError, _require_clean_source as require_clean_source
+from scripts.input_identity import with_identities
+from scripts.fes_build_common import (BuildError, _require_clean_source as require_clean_source,
+                                      require_committed_parent_config)
 from scripts.functional_execution import execution_digest, execution_environment
 from scripts.quartus_tools import RebuildError, load_quartus_lock, locate_quartus
 
@@ -67,14 +70,14 @@ LOCK = 'cores/fes-zx81/quartus.lock'
 ABI = 'cores/fes-common/generated/fes_computer.vh'
 TARGET = '5CSEBA6U23I7'
 TOP = 'top'
-SEEDS = (1, 2, 3)
-THREADS = 4
 COMPILE_TIMEOUT_S = 3600
 HEARTBEAT_S = 60
 MIN_FREE_BYTES = 30 * 10**9
 SDC = 'cores/fes-zx81/clocks.sdc'
 QSF_PINS = 'cores/fes-zx81/constraints.qsf'
 ROM_LINK = 'cores/fes-zx81/quartus/zx81_rom_link.v'
+REGISTRY = 'config/core-recipes.toml'  # parent-owned, relative to the repository root
+PARENT_CONFIG = (REGISTRY,)
 VERILOG_SOURCES = (
     'cores/fes-zx81/rtl/sys_pll.v', 'cores/fes-zx81/rtl/pixel_pll.v',
     'cores/fes-common/rtl/fes_audio_i2s.v', 'cores/fes-common/rtl/fes_audio_output.v',
@@ -111,6 +114,8 @@ ROM_DATABASE_SHA256 = {
     'libmistral/cyclonev.h': '185c24e2b75385d8e62a7144f12488eb68f7d8159af0a8a603cc4a3de1749ee9',
 }
 ROM_ENCODING = 'm10k-1024x10-v1'
+# Quartus Lite reads the RTL itself (#1806): no Yosys program, so no front_end_program_sha256.
+FRONT_END = 'quartus-lite'
 ROM_FIRST_ROW = 73
 ROM_COLUMN = 5
 # m10k-1024x10-v1: stored bit i of a 40-bit word holds logical bit PERMUTATION[i]
@@ -165,6 +170,54 @@ MODELS = {model.key: model for model in (
 )}
 
 
+def selected_recipe(root=ROOT, core_id: str = 'fes.zx81') -> dict:
+    """The core's registered DE10 row, which must select this producer and its model.
+
+    Its [recipes.quartus] table sets the sign-off seeds and fitter threads, and
+    its version must be the lock's version line.
+    """
+    machine = next((model for model in MODELS.values() if model.core_id == core_id), None)
+    if machine is None:
+        raise BuildError(f'{core_id} is not a ZX81-family model')
+    data = tomllib.loads((Path(root).parents[1] / REGISTRY).read_text(encoding='utf-8'))
+    rows = [row for row in data['recipes'] if row.get('core_id') == machine.core_id
+            and row.get('board', 'de10-nano') == 'de10-nano']
+    if (len(rows) != 1 or rows[0].get('toolchain') != 'quartus' or rows[0].get('producer_script') != RECIPE
+            or rows[0].get('producer_options') != {'model': machine.key}):
+        raise BuildError(f'{machine.core_id} must select {RECIPE} --model {machine.key} in the registry')
+    quartus = rows[0]['quartus']
+    lock = load_quartus_lock(root, LOCK)
+    if quartus['version'] != lock.version:
+        raise BuildError(f'{machine.core_id} registry Quartus version differs from {LOCK}')
+    # The front end, its edition and its device family are declared twice: in the
+    # recipe the BUILD_ID hashes and in the lock Quartus is authenticated against.
+    if rows[0].get('front_end') != FRONT_END:
+        raise BuildError(f'{machine.core_id} must elaborate with Quartus Lite\'s own front end ({FRONT_END})')
+    if (quartus.get('edition'), quartus.get('device_family')) != (lock.edition, lock.device_family):
+        raise BuildError(f'{machine.core_id} registry edition or device family differs from {LOCK}')
+    return rows[0]
+
+
+def quartus_recipe_parameters(quartus: dict) -> dict:
+    """Split the registered [recipes.quartus] table as the PC/XT producer does.
+
+    The Quartus version and the fitter thread count are toolchain identity;
+    every other field, including the ordered seed list, is hashed into the
+    design identity.
+    """
+    design = {key: value for key, value in quartus.items() if key not in ('version', 'threads')}
+    return {'quartus_recipe_sha256': hashlib.sha256(json.dumps(design, sort_keys=True).encode()).hexdigest(),
+            'quartus_version': quartus['version'], 'quartus_threads': quartus['threads']}
+
+
+def recipe_seeds(recipe: dict) -> tuple[int, ...]:
+    return tuple(recipe['quartus']['seeds'])
+
+
+def recipe_threads(recipe: dict) -> int:
+    return recipe['quartus']['threads']
+
+
 def model_for(key: str) -> Model:
     try:
         return MODELS[key]
@@ -185,8 +238,10 @@ def sha(path) -> str:
 
 def _require_clean_source(root, *, identity_version=2, model='zx81'):
     model_for(model)
-    return require_clean_source(Path(root), pinned_inputs=(RECIPE, LOCK, ABI, ROM_LINK),
-                                identity_version=identity_version)
+    source = require_clean_source(Path(root), pinned_inputs=(RECIPE, LOCK, ABI, ROM_LINK),
+                                  identity_version=identity_version)
+    require_committed_parent_config(root, *PARENT_CONFIG)
+    return source
 
 
 def authenticate_tools(root, *, cache_root=None):
@@ -308,13 +363,13 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
         raise BuildError('Quartus package requires controlled functional execution inputs')
     machine = model_for(model)
     root = Path(root).resolve()
+    recipe = selected_recipe(root, machine.core_id)
     top = Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], cwd=root, text=True).strip())
     roots = list(SOURCE_ROOTS)
     lock = load_quartus_lock(root, LOCK)
     parameters = {
         'core_id': machine.core_id, 'model': machine.key, 'model_define': machine.define or 'none',
         'device': TARGET, 'top': TOP, 'compiler': lock.compiler,
-        'seeds': ','.join(str(seed) for seed in SEEDS), 'threads': THREADS,
         'sys_clock_hz': 52224000, 'pixel_clock_hz': 74250000, 'audio_clock_hz': 12288000,
         'reference_clock_hz': 50000000, 'machine_clock_hz': 6500000, 'cpu_clock_hz': 3250000,
         'expansion_socket': 'none',
@@ -324,13 +379,18 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
         'rom_database_sha256': json.dumps(ROM_DATABASE_SHA256, sort_keys=True, separators=(',', ':')),
         'rom_selftest': SELFTEST_DOMAIN.decode(),
         'execution_sha256': execution_digest(execution)}
+    parameters.update(quartus_recipe_parameters(recipe['quartus']))
+    parameters.update(front_end=FRONT_END, device_family=lock.device_family,
+                      quartus_qsf_sha256=canonical_qsf_sha256(root, machine, recipe))
     fields = {'format': 2, 'toolchain': 'quartus', 'repository': repository, 'revision': revision,
               'source_path': root.relative_to(top).as_posix(), 'source_roots': roots,
               'source_inputs': source_input_closure(root, roots),
               'recipe': RECIPE, 'recipe_sha256': sha(root / RECIPE),
               'abi_definition': ABI, 'abi_definition_sha256': sha(root / ABI),
               'dependencies': {}, 'tools': dict(tool_identities), 'parameters': parameters}
-    return encode_build_record(fields)
+    if execution.get('selection_only'):
+        fields['parameters']['selection_only'] = True
+    return encode_build_record(with_identities(fields, root=root))
 
 
 def blank_mif() -> str:
@@ -352,10 +412,10 @@ def pattern_mif(data: bytes) -> str:
     return f'DEPTH = 1024;\nWIDTH = 10;\nADDRESS_RADIX = HEX;\nDATA_RADIX = HEX;\nCONTENT BEGIN\n{rows}END;\n'
 
 
-def project_qsf(root: Path, project: Path, build_id: str, seed: int, machine: Model) -> str:
+def project_qsf(root: Path, project: Path, build_id: str, seed: int, machine: Model, recipe: dict) -> str:
     if not re.fullmatch(r'[0-9a-f]{32}', build_id):
         raise BuildError('build ID must be 32 lowercase hexadecimal characters')
-    if seed not in SEEDS:
+    if seed not in recipe_seeds(recipe):
         raise BuildError(f'seed {seed} is not a declared sign-off seed')
     rel = Path(os.path.relpath(Path(root).resolve(), Path(project).resolve())).as_posix()
     lock = load_quartus_lock(root, LOCK)
@@ -365,8 +425,11 @@ def project_qsf(root: Path, project: Path, build_id: str, seed: int, machine: Mo
         f'set_global_assignment -name TOP_LEVEL_ENTITY {TOP}',
         'set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files',
         'set_global_assignment -name GENERATE_RBF_FILE ON',
-        'set_global_assignment -name ON_CHIP_BITSTREAM_DECOMPRESSION OFF',
-        f'set_global_assignment -name NUM_PARALLEL_PROCESSORS {THREADS}',
+        # The DE10-Nano MSEL switches select compressed FPP configuration, and the kit's
+        # FPGA manager derives its clock/data ratio from MSEL: an uncompressed RBF never
+        # reaches CONF_DONE (Kit A, 16 Nov 2026). require_compressed_rbf() enforces it.
+        'set_global_assignment -name ON_CHIP_BITSTREAM_DECOMPRESSION ON',
+        f'set_global_assignment -name NUM_PARALLEL_PROCESSORS {recipe_threads(recipe)}',
         f'set_global_assignment -name SEED {seed}',
         'set_global_assignment -name VERILOG_INPUT_VERSION SYSTEMVERILOG_2005',
         f'set_global_assignment -name LAST_QUARTUS_VERSION "{lock.qsf_version}"',
@@ -388,11 +451,38 @@ def project_qsf(root: Path, project: Path, build_id: str, seed: int, machine: Mo
     return '\n'.join(lines) + '\n\n' + pins
 
 
-def write_project(root: Path, project: Path, build_id: str, seed: int, machine: Model) -> Path:
+def canonical_qsf(text: str, root: Path, project: Path) -> str:
+    """The recorded form of a project QSF (#1806).
+
+    It leaves out what the record cannot cover: the BUILD_ID macro the record
+    derives, the seed, and the per-run project path. One digest therefore binds
+    every sign-off seed's QSF and the repeat run's.
+    """
+    rel = Path(os.path.relpath(Path(root).resolve(), Path(project).resolve())).as_posix()
+    lines = []
+    for line in text.splitlines():
+        if line.startswith('set_global_assignment -name SEED ') or 'FES_ZX81_BUILD_ID=' in line:
+            continue
+        lines.append(line.replace(f'"{rel}/', '"<ROOT>/'))
+    return '\n'.join(lines) + '\n'
+
+
+def canonical_qsf_sha256(root: Path, machine: Model, recipe: dict) -> str:
+    project = Path(root) / 'build/qsf-canonical/project'
+    text = project_qsf(root, project, '0' * 32, recipe_seeds(recipe)[0], machine, recipe)
+    return hashlib.sha256(canonical_qsf(text, root, project).encode()).hexdigest()
+
+
+def write_project(root: Path, project: Path, build_id: str, seed: int, machine: Model, recipe: dict,
+                  expected_qsf_sha256: str | None = None) -> Path:
     project.mkdir(parents=True, exist_ok=False)
     lock = load_quartus_lock(root, LOCK)
     (project / 'top.qpf').write_text(f'QUARTUS_VERSION = "{lock.series}";\nPROJECT_REVISION = "{TOP}";\n')
-    (project / 'top.qsf').write_text(project_qsf(root, project, build_id, seed, machine))
+    text = project_qsf(root, project, build_id, seed, machine, recipe)
+    if (expected_qsf_sha256 is not None
+            and hashlib.sha256(canonical_qsf(text, root, project).encode()).hexdigest() != expected_qsf_sha256):
+        raise BuildError('the project QSF differs from the canonical QSF the build record names')
+    (project / 'top.qsf').write_text(text)
     for lane in range(8):
         (project / f'zx81_rom_lane{lane}.mif').write_text(blank_mif())
     return project
@@ -541,6 +631,38 @@ def fit_evidence(fit: str, machine: Model) -> dict:
             'audio_pins': {name: location for name, location in AUDIO_PINS.items()}}
 
 
+def require_compressed_rbf(data: bytes, die=SX120F) -> None:
+    """The kit configures in compressed FPP mode (DE10-Nano MSEL), so refuse anything else."""
+    try:
+        compressed = rbf_load(data, die).compressed
+    except ValueError as error:
+        raise BuildError(f'RBF is not a readable Cyclone V bitstream: {error}') from error
+    if not compressed:
+        raise BuildError('RBF must be compressed: the DE10-Nano MSEL selects compressed FPP configuration')
+
+
+def canonical_rbf(data: bytes, die=SX120F) -> bytes:
+    """The sealed form of a compressed Quartus RBF: the same CRAM, canonically encoded.
+
+    Quartus ends a compressed bitstream with its own nibble stream tail and
+    postamble. The kit links the user's ROM through FogCast's RBF reader
+    (misteross/expansion), which accepts only the canonical compressed
+    encoding and postamble that rbf_save writes and rejects Quartus's
+    ("invalid RBF postamble", Kit A, 17 Nov 2026). Re-encoding changes no
+    configuration bit; this refuses any result that does not hold exactly the
+    Quartus CRAM or does not re-encode to itself.
+    """
+    require_compressed_rbf(data, die)
+    loaded = rbf_load(data, die)
+    canonical = rbf_save(loaded, compressed=True)
+    again = rbf_load(canonical, die)
+    if again.cram != loaded.cram or again.header != loaded.header or not again.compressed:
+        raise BuildError('canonical RBF does not hold the Quartus configuration bits')
+    if rbf_save(again, compressed=True) != canonical:
+        raise BuildError('canonical RBF encoding is not stable')
+    return canonical
+
+
 def seed_evidence(project: Path, machine: Model) -> dict:
     built = project / 'output_files'
     for name in ('top.rbf', 'top.sta.rpt', 'top.fit.rpt'):
@@ -550,6 +672,7 @@ def seed_evidence(project: Path, machine: Model) -> dict:
     rbf = built / 'top.rbf'
     if not 1 <= rbf.stat().st_size <= MAX_PAYLOAD_SIZE:
         raise BuildError(f'RBF must be a nonempty bounded file: {rbf}')
+    require_compressed_rbf(rbf.read_bytes())
     sta = (built / 'top.sta.rpt').read_text(encoding='utf-8', errors='replace')
     fit = (built / 'top.fit.rpt').read_text(encoding='utf-8', errors='replace')
     return {'timing': quartus_timing_summary.validate_timing_report(sta, BuildError),
@@ -664,18 +787,23 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
         (output / 'build-inputs.json').write_bytes(record)
         print(f'{machine.core_id} Quartus build {build_id}: {output}', flush=True)
         runs = []
-        for name, seed in [*(('signoff', seed) for seed in SEEDS), ('repeat', SEEDS[0])]:
-            project = write_project(root, output / name / f'seed-{seed}', build_id, seed, machine)
+        recipe = selected_recipe(root, machine.core_id)
+        seeds = recipe_seeds(recipe)
+        for name, seed in [*(('signoff', seed) for seed in seeds), ('repeat', seeds[0])]:
+            project = write_project(root, output / name / f'seed-{seed}', build_id, seed, machine, recipe,
+                                    json.loads(record)['parameters']['quartus_qsf_sha256'])
             compile_project(project, quartus, env)
             evidence = seed_evidence(project, machine)
             runs.append({'stage': name, 'seed': seed, **evidence})
             print(f'  {name} seed {seed}: pass, RBF {evidence["rbf_sha256"][:16]}', flush=True)
-        signoff = output / 'signoff' / f'seed-{SEEDS[0]}'
+        signoff = output / 'signoff' / f'seed-{seeds[0]}'
         if runs[0]['rbf_sha256'] != runs[-1]['rbf_sha256']:
             raise BuildError('independent Quartus rebuild changed the RBF')
         base = (signoff / 'output_files/top.rbf').read_bytes()
+        # The package carries the canonical encoding, so the ROM map binds its digest.
+        sealed = canonical_rbf(base)
         try:
-            mapping, map_evidence = rom_map.build_rom_map(database, base, lane_rows=machine.lane_rows)
+            mapping, map_evidence = rom_map.build_rom_map(database, sealed, lane_rows=machine.lane_rows)
         except ValueError as error:
             raise BuildError(f'ROM map: {error}') from error
         if mapping['source_size'] != machine.rom_bytes:
@@ -688,7 +816,9 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
                 or rom_database(cache_root, root) != database):
             raise BuildError('Quartus build inputs changed during compilation')
         payload = output / 'core.rbf'
-        payload.write_bytes(base)
+        payload.write_bytes(sealed)
+        if mapping['base_sha256'] != sha(payload):
+            raise BuildError('ROM map does not bind the sealed payload')
         map_bytes = (json.dumps(mapping, sort_keys=True, separators=(',', ':')) + '\n').encode()
         (output / 'rom-map.json').write_bytes(map_bytes)
         rom = {'id': machine.rom_id, 'role': 'firmware', 'source_size': machine.rom_bytes,
@@ -697,8 +827,10 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
         (output / 'manifest.toml').write_bytes(encoded)
         (output / 'build-summary.json').write_text(json.dumps({
             'classification': 'installable-quartus-package', 'build_id': build_id, 'revision': revision,
-            'core_id': machine.core_id, 'model': machine.key, 'seeds': list(SEEDS), 'runs': runs,
-            'repeat_rbf_sha256': runs[-1]['rbf_sha256'], 'rom_map': map_evidence, 'rom_selftest': selftest,
+            'core_id': machine.core_id, 'model': machine.key, 'seeds': list(seeds), 'runs': runs,
+            'repeat_rbf_sha256': runs[-1]['rbf_sha256'], 'payload_sha256': sha(payload),
+            'payload_encoding': 'canonical compressed re-encoding of the seed-1 Quartus RBF (same CRAM)',
+            'rom_map': map_evidence, 'rom_selftest': selftest,
             'session_display': session, 'hardware_acceptance': False,
             'limits': ['external I/O timing is unconstrained, as in the OSS lane',
                        'no expansion socket: the carts move into the shell in DeanoC/fes#1875']},

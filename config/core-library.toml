@@ -92,12 +92,6 @@ system = "atari-st"
 standing = "experimental"
 
 [[cores]]
-core_id = "fes.pcxt"
-label = "FES PC/XT Diagnostic"
-system = "pcxt"
-standing = "experimental"
-
-[[cores]]
 core_id = "fes.pcxt-dos"
 label = "FES PC/XT FreeDOS"
 system = "pcxt"

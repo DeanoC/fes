@@ -23,7 +23,7 @@ func pcxtComputerPackageFixture(t *testing.T) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest = bytes.Replace(manifest, []byte("id = \"fes.pong\""), []byte("id = \"fes.pcxt\""), 1)
+	manifest = bytes.Replace(manifest, []byte("id = \"fes.pong\""), []byte("id = \"fes.pcxt-dos\""), 1)
 	manifest = bytes.Replace(manifest, []byte("name = \"FES Pong\""), []byte("name = \"FES PC/XT Diagnostic\""), 1)
 	manifest = bytes.Replace(manifest, []byte("id = \"fes.simple-game\""), []byte("id = \"fes.computer\""), 1)
 	manifest = bytes.Replace(manifest, []byte("[[interfaces]]\nid = \"fes.gamepad\"\nmajor = 1\nminor = 0\nrequired = true\n\n"), nil, 1)
@@ -63,7 +63,7 @@ func TestPCXTComputerPackageLaunchesAsNativePlay(t *testing.T) {
 	ctx := context.Background()
 	raw := pcxtComputerPackageFixture(t)
 	service, client, entry, inspection := newCoreEntryLaunchFixture(t, raw, "FES PC/XT Diagnostic")
-	if entry.CoreID != "fes.pcxt" || inspection.Descriptor.Format != 2 ||
+	if entry.CoreID != "fes.pcxt-dos" || inspection.Descriptor.Format != 2 ||
 		inspection.Descriptor.ABI.ID != "fes.computer" || inspection.Descriptor.ABI.Major != 1 ||
 		inspection.Descriptor.ABI.Minor != 0 {
 		t.Fatalf("PC/XT package entry = %+v descriptor = %+v", entry, inspection.Descriptor)
@@ -79,7 +79,7 @@ func TestPCXTComputerPackageLaunchesAsNativePlay(t *testing.T) {
 		if err != nil || size != int64(len(raw)) || !bytes.Equal(loaded, raw) {
 			t.Fatalf("loaded PC/XT package size=%d bytes=%d err=%v", size, len(loaded), err)
 		}
-		observed := "fes.pcxt"
+		observed := "fes.pcxt-dos"
 		return protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &observed,
 			CorePackage: &protocol.CorePackageStatus{PackageID: inspection.PackageID, Generation: 4,
 				ABI:     protocol.RuntimeContract{ID: inspection.Descriptor.ABI.ID, Major: 1},

@@ -1,0 +1,122 @@
+{
+  "MEM8_BX": {
+    "reference_clocks": 24.276420399657276,
+    "old_clocks": 26.256,
+    "candidate_clocks": 24.254,
+    "delta": -0.022420399657274714
+  },
+  "MEM16_BX": {
+    "reference_clocks": 24.276420399657276,
+    "old_clocks": 26.259,
+    "candidate_clocks": 24.257,
+    "delta": -0.0194203996572746
+  },
+  "REG8_BX": {
+    "reference_clocks": 26.264387880083483,
+    "old_clocks": 26.259,
+    "candidate_clocks": 26.257,
+    "delta": -0.007387880083481235
+  },
+  "REG16_BX": {
+    "reference_clocks": 26.264387880083483,
+    "old_clocks": 26.259,
+    "candidate_clocks": 26.257,
+    "delta": -0.007387880083481235
+  },
+  "MEM8_DISP": {
+    "reference_clocks": 26.264387880083483,
+    "old_clocks": 28.257,
+    "candidate_clocks": 26.255,
+    "delta": -0.00938788008348368
+  },
+  "MEM16_INDEX": {
+    "reference_clocks": 24.263015418762933,
+    "old_clocks": 26.256,
+    "candidate_clocks": 24.254,
+    "delta": -0.00901541876293166
+  },
+  "REG8_DIRECT": {
+    "reference_clocks": 28.275624789819606,
+    "old_clocks": 28.259,
+    "candidate_clocks": 28.257,
+    "delta": -0.01862478981960436
+  },
+  "REG16_DISP": {
+    "reference_clocks": 28.275624789819606,
+    "old_clocks": 28.257,
+    "candidate_clocks": 28.255,
+    "delta": -0.020624789819606804
+  },
+  "MEM8_DS": {
+    "reference_clocks": 30.26192901059206,
+    "old_clocks": 32.256,
+    "candidate_clocks": 32.254,
+    "delta": 1.9920709894079387
+  },
+  "MEM16_ES": {
+    "reference_clocks": 30.26192901059206,
+    "old_clocks": 32.256,
+    "candidate_clocks": 32.254,
+    "delta": 1.9920709894079387
+  },
+  "REG8_DS": {
+    "reference_clocks": 32.26161594961796,
+    "old_clocks": 32.256,
+    "candidate_clocks": 32.254,
+    "delta": -0.0076159496179641906
+  },
+  "REG16_ES": {
+    "reference_clocks": 34.274821313088665,
+    "old_clocks": 34.257,
+    "candidate_clocks": 34.255,
+    "delta": -0.019821313088662862
+  },
+  "MEM8_LOOP": {
+    "reference_clocks": 26.280096246040472,
+    "old_clocks": 28.26,
+    "candidate_clocks": 26.258,
+    "delta": -0.022096246040472778
+  },
+  "MEM16_LOOP": {
+    "reference_clocks": 26.280096246040472,
+    "old_clocks": 28.26,
+    "candidate_clocks": 26.258,
+    "delta": -0.022096246040472778
+  },
+  "REG8_LOOP": {
+    "reference_clocks": 28.275624789819606,
+    "old_clocks": 28.26,
+    "candidate_clocks": 28.258,
+    "delta": -0.01762478981960669
+  },
+  "REG16_LOOP": {
+    "reference_clocks": 28.275624789819606,
+    "old_clocks": 28.26,
+    "candidate_clocks": 28.258,
+    "delta": -0.01762478981960669
+  },
+  "MEM8_NE": {
+    "reference_clocks": 27.27518368924871,
+    "old_clocks": 29.256,
+    "candidate_clocks": 27.254,
+    "delta": -0.021183689248708504
+  },
+  "MEM16_NE": {
+    "reference_clocks": 27.27518368924871,
+    "old_clocks": 29.256,
+    "candidate_clocks": 27.254,
+    "delta": -0.021183689248708504
+  },
+  "REG8_NE": {
+    "reference_clocks": 29.274031261412173,
+    "old_clocks": 29.256,
+    "candidate_clocks": 29.254,
+    "delta": -0.020031261412171375
+  },
+  "REG16_NE": {
+    "reference_clocks": 29.176839922562863,
+    "old_clocks": 29.175,
+    "candidate_clocks": 29.173,
+    "delta": -0.003839922562864473
+  }
+}

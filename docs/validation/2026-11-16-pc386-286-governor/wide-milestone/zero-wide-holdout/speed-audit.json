@@ -1,0 +1,17 @@
+{
+  "video_geometry": {
+    "w": 750,
+    "h": 496,
+    "fps": 4
+  },
+  "frames": 1080,
+  "duration_seconds": 270.0,
+  "complete_raw_video_sha256": "e93923432d832cab577735d7bbbebfa26c917cf41b3872c1f438b9506036a44d",
+  "strip_geometry": [
+    56,
+    18
+  ],
+  "all_strips_identical": true,
+  "sample_indicator": "100% (OCR and visually inspected)",
+  "raw_video_retained_locally": true
+}

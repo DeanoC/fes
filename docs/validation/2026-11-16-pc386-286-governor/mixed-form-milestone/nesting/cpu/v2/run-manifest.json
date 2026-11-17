@@ -1,0 +1,28 @@
+{
+  "before": {
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested/frozen-cpu/Vfes_i386_cpu": "d72449f75939c204877dcaf10af10492e52799dee958631d08bba967def27db6",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested/frozen-cpu/rtl.bin": "85df0ef9d3e3ae548d4418f376f4b185c8f08aa7e9b2d2d543fbefe62cd8f1ae",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested/frozen-cpu/producer.json": "c7552da09626231f7349ac8d7e9f51555bbe555e01b3096de78a382ef01c6ce0",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested/frozen-cpu/rtl.asm": "f95819ab9a2ba0e603106a2513796d8a9f39b99e8ccc572af9af0483d04d4531",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested/frozen-cpu/cases.json": "7a252e857cc9b92a9034e6f43039141dd7e1969a690d85bf8d69bd9d534e5acc"
+  },
+  "after": {
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested/frozen-cpu/Vfes_i386_cpu": "d72449f75939c204877dcaf10af10492e52799dee958631d08bba967def27db6",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested/frozen-cpu/rtl.bin": "85df0ef9d3e3ae548d4418f376f4b185c8f08aa7e9b2d2d543fbefe62cd8f1ae",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested/frozen-cpu/producer.json": "c7552da09626231f7349ac8d7e9f51555bbe555e01b3096de78a382ef01c6ce0",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested/frozen-cpu/rtl.asm": "f95819ab9a2ba0e603106a2513796d8a9f39b99e8ccc572af9af0483d04d4531",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested/frozen-cpu/cases.json": "7a252e857cc9b92a9034e6f43039141dd7e1969a690d85bf8d69bd9d534e5acc"
+  },
+  "cases": 10,
+  "env": {
+    "FES_I386_MODE": "governor",
+    "FES_I386_LATENCY": "0",
+    "FES_I386_PROGRAM": "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-nested/frozen-cpu/rtl.bin",
+    "FES_I386_PRESET": "1",
+    "FES_I386_FREQUENCY": "0",
+    "FES_I386_TURBO": "0",
+    "FES_I386_IRQ_PERIOD": "0",
+    "FES_I386_CYCLE_LIMIT": "20000000"
+  },
+  "exit": 0
+}

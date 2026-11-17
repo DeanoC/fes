@@ -11,16 +11,18 @@ The locked idle core is the in-tree misteross seal
 `/usr/share/mister-runtime/idle.rbf`, which the runtime loads for Stop. Attract and rooms are not that
 bitstream; see [Idle MENU → rooms](idle-menu-rooms.md).
 
-The recipe registry supports the described `fes.pong`, `fes.zx81`,
+The recipe registry supports the described `fes.pong`,
 `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, `fes.c64`, `fes.spectrum`,
 `fes.riscv`, `fes.ramtest` and `fes.atari-st` HIP/nextpnr
-producers, and `fes.pcxt` through its Quartus diagnostic producer. The default target-image selector installs the closed package set
+producers, the ZX81 family (`fes.zx81`, `fes.zx80`, `fes.ts1000`,
+`fes.ts1500`) through its Quartus Lite producer, and `fes.pcxt-dos` through its
+Quartus DOS producer. The default target-image selector installs the closed package set
 containing only `fes.menu` display firmware. All playable systems are installed
 independently. The first-party catalog excludes SMS and SG-1000; their recipes
 remain available for development. Coleco and Atari ST installations need
 their matching Direct/Scanlines video parts; firmware remains user-supplied.
 Their package builds and timing results no longer gate the default OS image.
-PC/XT is an installable Quartus diagnostic package. Its producer gates reported
+`fes.pcxt-dos` is the sole installable PC/XT package, built with Quartus. Its producer gates reported
 internal timing and repeat RBF identity; physical interface/reset and hardware
 acceptance remain separate. Nextpnr is advisory under issue [#840](https://github.com/DeanoC/fes/issues/840).
 For a deliberately expanded image selection, optional-core omission still uses
@@ -49,10 +51,11 @@ The default `native-integration-dev` profile installs the locked idle RBF and
 
 The FES image route is package-only. The accepted product policy allows a
 labelled `quartus` variant alongside an `oss` (HIP/nextpnr) build; see
-[Quartus-built cores](design/quartus-cores.md). The current recipe registry
-and package resolver still produce and select only OSS packages. Quartus is
-used only for a documented bring-up or oracle/check while that rollout is
-pending. There is no `FES_OSS_ONLY` control in this tree. Each package can be
+[Quartus-built cores](design/quartus-cores.md). The recipe registry selects
+exactly one producer per core and board: Quartus Lite for the ZX81 family and
+PC/XT, OSS for every other core. It does not yet choose between OSS and
+Quartus variants of one core, and other Quartus recipes are bring-up or
+oracle checks. There is no `FES_OSS_ONLY` control in this tree. Each package can be
 installed on the host and given an explicit library entry; the package route
 does not infer ROM or media inputs or replace the existing catalog system.
 
@@ -179,7 +182,12 @@ package is reused only when its matching build-input bytes, manifest, payload,
 build identity and provenance all validate. A miss runs that recipe once and
 the result goes through the same checks.
 
-The default FES package producers use the authenticated HIP/nextpnr route.
+The FES package producers use the authenticated HIP/nextpnr route, except
+where a core's registered row selects Quartus: the ZX81 family (`fes.zx81`,
+`fes.zx80`, `fes.ts1000`, `fes.ts1500`) and PC/XT. A miss for one of those
+runs its Quartus Lite producer, authenticated against the core's
+`quartus.lock` through `QUARTUS_ROOTDIR`; the ZX81 family's nextpnr build is
+advisory and is never selected for a package or image.
 Functional builds also require `/usr/bin/strace` with `--kill-on-exit` support
 for compiler input checks. The tracer and its libraries are fingerprinted;
 changing them changes the execution identity. Non-executable Markdown remains
@@ -206,14 +214,11 @@ FES_TOOLCHAIN_CACHE_ROOT="$cache" \
   FES_TOOLCHAIN_GPU_ROUTER=HIP \
   FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' \
   make -C "$work" doctor-strict
-# Seed the standard ZX81 socket slot when the ZX81 package is selected:
+# A ZX81-family package is built by Quartus Lite: set QUARTUS_ROOTDIR to the
+# install cores/fes-zx81/quartus.lock pins. Its ROM map reads the pinned
+# Mistral database, which this target places in the shared cache:
 FES_TOOLCHAIN_CACHE_ROOT="$cache" \
   make -C "$work" toolchain-fes-zx81
-FES_TOOLCHAIN_CACHE_ROOT="$cache" \
-  FES_TOOLCHAIN_LOCKFILE=cores/fes-zx81/toolchain.lock \
-  FES_TOOLCHAIN_GPU_ROUTER=HIP \
-  FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' \
-  make -C "$work" doctor-strict
 # Seed the Coleco slot when Coleco packages are selected:
 FES_TOOLCHAIN_CACHE_ROOT="$cache" \
   make -C "$work" toolchain-fes-coleco
@@ -232,8 +237,8 @@ repository-level lock; registered package builds use their corresponding
 core against the installs its own lock pins, and its error names the lock
 whose install is missing. The cache holds one install per tool and commit, so after a core's
 lock moves, provision that core's target to build the newly pinned tool. The
-ZX81 and Coleco examples above compile the authenticated HIP nextpnr their
-locks pin. `make toolchain` may compile the pinned tools into the shared
+Coleco example above compiles the authenticated HIP nextpnr its lock pins; the
+ZX81 example provisions only the Mistral database its Quartus producer reads. `make toolchain` may compile the pinned tools into the shared
 installs and is intentionally separate from ordinary parent tests.
 `make host` remains independent of package and FPGA tool authentication.
 CUDA nextpnr installs (`FES_TOOLCHAIN_GPU_ROUTER=CUDA`) also key on

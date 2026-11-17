@@ -1,0 +1,1 @@
+Initial positive safeguard test failed without writing: copy inherited source mode 0400 and mcopy reported Permission denied. Corrected the private test target to mode 0600, then reran the full test matrix.

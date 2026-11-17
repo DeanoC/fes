@@ -1,0 +1,11 @@
+{
+  "base_commit": "20dae48f098d99fb429e994ce099c356a64fefd3",
+  "files": {
+    "cores/fes-common/rtl/i386/fes_i386_pkg.sv": "d44b59165e055698394c86ee7f6703b47fb59b4d631f7c035017aec1734ac4fa",
+    "cores/fes-common/rtl/i386/fes_i386_cpu.sv": "b349387def3d57080e581f89174ffcbd037c7aea77eb5fdec7dd173268bb6ea1",
+    "cores/fes-common/rtl/i386/fes_i386_governor.sv": "f7b9aaa3ce1deb209363b7daf4e13f9db1788f7b2fd8b2cf676ca4cde6cdee5b",
+    "cores/fes-common/sim/i386/reference_governor_tb.sv": "083d3fddf90b414f1100c469f107096b5cd6ca7acd570ec251051321ab9f1d23",
+    "tests/test_fes_i386_governor.py": "5e4c762723ecdec09959d9ff61e97640a32208bce97108ba7037baaf0254ea3d"
+  },
+  "scope": "Private diagnostic-only unprefixed ordinary-RAM CMP 38/39 split-budget candidate."
+}

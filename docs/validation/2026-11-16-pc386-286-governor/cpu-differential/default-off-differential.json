@@ -1,0 +1,2183 @@
+{
+  "main_sha256": "15c2f51357be613fbc44d5444ee4c4cb347401edf8c8bc4e07c84458fd9fcc02",
+  "candidate_sha256": "6c175f30e041c49e3bb4f0121281aac171b0066d48155cb1a21ec554ae23ee23",
+  "program_sha256": "78b9be2b559cd3f1914aceac5b134f6655c9aa52613d4de90130dab498550e32",
+  "parameters": {
+    "GOV_N": 5,
+    "GOV_D": 3072,
+    "GOV_REFERENCE_DIAGNOSTIC": 0
+  },
+  "irq_period": 1000000,
+  "results": {
+    "0-0-0": {
+      "before": {
+        "preset": 0,
+        "marks": [
+          {
+            "port": 128,
+            "value": 0,
+            "cycle": 89,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 1,
+            "cycle": 24128,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 2,
+            "cycle": 24139,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 3,
+            "cycle": 48282,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 4,
+            "cycle": 48290,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 5,
+            "cycle": 66329,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 6,
+            "cycle": 66337,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 7,
+            "cycle": 142991,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 8,
+            "cycle": 142999,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 9,
+            "cycle": 173038,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 10,
+            "cycle": 173048,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 11,
+            "cycle": 218087,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 12,
+            "cycle": 218095,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 13,
+            "cycle": 235580,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 14,
+            "cycle": 235590,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 15,
+            "cycle": 259629,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 16,
+            "cycle": 259688,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 17,
+            "cycle": 284726,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 18,
+            "cycle": 284734,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 19,
+            "cycle": 318775,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 20,
+            "cycle": 318783,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 21,
+            "cycle": 341841,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 22,
+            "cycle": 341850,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 23,
+            "cycle": 361890,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 24,
+            "cycle": 361898,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 25,
+            "cycle": 367938,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 26,
+            "cycle": 367946,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 27,
+            "cycle": 385486,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 28,
+            "cycle": 385495,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 29,
+            "cycle": 395534,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 30,
+            "cycle": 395542,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 31,
+            "cycle": 407612,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 32,
+            "cycle": 407621,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 33,
+            "cycle": 416660,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 34,
+            "cycle": 416670,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 35,
+            "cycle": 471131,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 36,
+            "cycle": 471143,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 37,
+            "cycle": 586172,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 64,
+            "cycle": 586183,
+            "charged": 0
+          },
+          {
+            "port": 143,
+            "value": 202,
+            "cycle": 694227,
+            "charged": 0
+          }
+        ],
+        "irqs": [],
+        "state": [
+          "ffff02ca",
+          "00000000",
+          "00000002",
+          "00000007",
+          "00007000",
+          "00000000",
+          "00008000",
+          "0000a000",
+          "00000047",
+          "00001290"
+        ],
+        "run": {
+          "cycles": 695234,
+          "retired": 262738,
+          "halted": 1,
+          "debt_max": 0,
+          "hold_cycles": 0,
+          "charged": 0
+        }
+      },
+      "after": {
+        "preset": 0,
+        "marks": [
+          {
+            "port": 128,
+            "value": 0,
+            "cycle": 89,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 1,
+            "cycle": 24128,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 2,
+            "cycle": 24139,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 3,
+            "cycle": 48282,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 4,
+            "cycle": 48290,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 5,
+            "cycle": 66329,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 6,
+            "cycle": 66337,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 7,
+            "cycle": 142991,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 8,
+            "cycle": 142999,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 9,
+            "cycle": 173038,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 10,
+            "cycle": 173048,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 11,
+            "cycle": 218087,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 12,
+            "cycle": 218095,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 13,
+            "cycle": 235580,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 14,
+            "cycle": 235590,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 15,
+            "cycle": 259629,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 16,
+            "cycle": 259688,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 17,
+            "cycle": 284726,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 18,
+            "cycle": 284734,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 19,
+            "cycle": 318775,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 20,
+            "cycle": 318783,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 21,
+            "cycle": 341841,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 22,
+            "cycle": 341850,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 23,
+            "cycle": 361890,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 24,
+            "cycle": 361898,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 25,
+            "cycle": 367938,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 26,
+            "cycle": 367946,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 27,
+            "cycle": 385486,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 28,
+            "cycle": 385495,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 29,
+            "cycle": 395534,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 30,
+            "cycle": 395542,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 31,
+            "cycle": 407612,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 32,
+            "cycle": 407621,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 33,
+            "cycle": 416660,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 34,
+            "cycle": 416670,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 35,
+            "cycle": 471131,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 36,
+            "cycle": 471143,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 37,
+            "cycle": 586172,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 64,
+            "cycle": 586183,
+            "charged": 0
+          },
+          {
+            "port": 143,
+            "value": 202,
+            "cycle": 694227,
+            "charged": 0
+          }
+        ],
+        "irqs": [],
+        "state": [
+          "ffff02ca",
+          "00000000",
+          "00000002",
+          "00000007",
+          "00007000",
+          "00000000",
+          "00008000",
+          "0000a000",
+          "00000047",
+          "00001290"
+        ],
+        "run": {
+          "cycles": 695234,
+          "retired": 262738,
+          "halted": 1,
+          "debt_max": 0,
+          "hold_cycles": 0,
+          "charged": 0
+        }
+      },
+      "identical": true
+    },
+    "1-0-0": {
+      "before": {
+        "preset": 1,
+        "marks": [
+          {
+            "port": 128,
+            "value": 0,
+            "cycle": 89,
+            "charged": 47
+          },
+          {
+            "port": 128,
+            "value": 1,
+            "cycle": 368636,
+            "charged": 72056
+          },
+          {
+            "port": 128,
+            "value": 2,
+            "cycle": 368647,
+            "charged": 72074
+          },
+          {
+            "port": 128,
+            "value": 3,
+            "cycle": 1059975,
+            "charged": 207083
+          },
+          {
+            "port": 128,
+            "value": 4,
+            "cycle": 1059983,
+            "charged": 207095
+          },
+          {
+            "port": 128,
+            "value": 5,
+            "cycle": 1628402,
+            "charged": 318104
+          },
+          {
+            "port": 128,
+            "value": 6,
+            "cycle": 1628410,
+            "charged": 318116
+          },
+          {
+            "port": 128,
+            "value": 7,
+            "cycle": 2319710,
+            "charged": 453125
+          },
+          {
+            "port": 128,
+            "value": 8,
+            "cycle": 2319718,
+            "charged": 453137
+          },
+          {
+            "port": 128,
+            "value": 9,
+            "cycle": 2934217,
+            "charged": 573146
+          },
+          {
+            "port": 128,
+            "value": 10,
+            "cycle": 2934227,
+            "charged": 573162
+          },
+          {
+            "port": 128,
+            "value": 11,
+            "cycle": 3390025,
+            "charged": 662171
+          },
+          {
+            "port": 128,
+            "value": 12,
+            "cycle": 3390033,
+            "charged": 662183
+          },
+          {
+            "port": 128,
+            "value": 13,
+            "cycle": 3693237,
+            "charged": 721392
+          },
+          {
+            "port": 128,
+            "value": 14,
+            "cycle": 3693247,
+            "charged": 721408
+          },
+          {
+            "port": 128,
+            "value": 15,
+            "cycle": 4323125,
+            "charged": 844417
+          },
+          {
+            "port": 128,
+            "value": 16,
+            "cycle": 4323227,
+            "charged": 844437
+          },
+          {
+            "port": 128,
+            "value": 17,
+            "cycle": 4937658,
+            "charged": 964443
+          },
+          {
+            "port": 128,
+            "value": 18,
+            "cycle": 4937666,
+            "charged": 964455
+          },
+          {
+            "port": 128,
+            "value": 19,
+            "cycle": 5296165,
+            "charged": 1034464
+          },
+          {
+            "port": 128,
+            "value": 20,
+            "cycle": 5296173,
+            "charged": 1034476
+          },
+          {
+            "port": 128,
+            "value": 21,
+            "cycle": 5449873,
+            "charged": 1064485
+          },
+          {
+            "port": 128,
+            "value": 22,
+            "cycle": 5449882,
+            "charged": 1064499
+          },
+          {
+            "port": 128,
+            "value": 23,
+            "cycle": 5757191,
+            "charged": 1124508
+          },
+          {
+            "port": 128,
+            "value": 24,
+            "cycle": 5757199,
+            "charged": 1124520
+          },
+          {
+            "port": 128,
+            "value": 25,
+            "cycle": 5941618,
+            "charged": 1160529
+          },
+          {
+            "port": 128,
+            "value": 26,
+            "cycle": 5941626,
+            "charged": 1160541
+          },
+          {
+            "port": 128,
+            "value": 27,
+            "cycle": 6100446,
+            "charged": 1191550
+          },
+          {
+            "port": 128,
+            "value": 28,
+            "cycle": 6100455,
+            "charged": 1191564
+          },
+          {
+            "port": 128,
+            "value": 29,
+            "cycle": 6346323,
+            "charged": 1239573
+          },
+          {
+            "port": 128,
+            "value": 30,
+            "cycle": 6346331,
+            "charged": 1239585
+          },
+          {
+            "port": 128,
+            "value": 31,
+            "cycle": 6653631,
+            "charged": 1299594
+          },
+          {
+            "port": 128,
+            "value": 32,
+            "cycle": 6653640,
+            "charged": 1299608
+          },
+          {
+            "port": 128,
+            "value": 33,
+            "cycle": 7094069,
+            "charged": 1385617
+          },
+          {
+            "port": 128,
+            "value": 34,
+            "cycle": 7094079,
+            "charged": 1385633
+          },
+          {
+            "port": 128,
+            "value": 35,
+            "cycle": 7796661,
+            "charged": 1522842
+          },
+          {
+            "port": 128,
+            "value": 36,
+            "cycle": 7796772,
+            "charged": 1522862
+          },
+          {
+            "port": 128,
+            "value": 37,
+            "cycle": 9174089,
+            "charged": 1791871
+          },
+          {
+            "port": 128,
+            "value": 64,
+            "cycle": 9174100,
+            "charged": 1791889
+          },
+          {
+            "port": 129,
+            "value": 202,
+            "cycle": 10174418,
+            "charged": 1987246
+          },
+          {
+            "port": 129,
+            "value": 202,
+            "cycle": 11174759,
+            "charged": 2182625
+          },
+          {
+            "port": 143,
+            "value": 202,
+            "cycle": 11443012,
+            "charged": 2235021
+          }
+        ],
+        "irqs": [
+          10174100,
+          11174418
+        ],
+        "state": [
+          "ffff02ca",
+          "00000000",
+          "00000002",
+          "00000007",
+          "00007000",
+          "00000000",
+          "00008000",
+          "0000a000",
+          "00000047",
+          "00001290"
+        ],
+        "run": {
+          "cycles": 11444019,
+          "retired": 262744,
+          "halted": 1,
+          "debt_max": 174,
+          "hold_cycles": 10879271,
+          "charged": 2235033
+        }
+      },
+      "after": {
+        "preset": 1,
+        "marks": [
+          {
+            "port": 128,
+            "value": 0,
+            "cycle": 89,
+            "charged": 47
+          },
+          {
+            "port": 128,
+            "value": 1,
+            "cycle": 368636,
+            "charged": 72056
+          },
+          {
+            "port": 128,
+            "value": 2,
+            "cycle": 368647,
+            "charged": 72074
+          },
+          {
+            "port": 128,
+            "value": 3,
+            "cycle": 1059975,
+            "charged": 207083
+          },
+          {
+            "port": 128,
+            "value": 4,
+            "cycle": 1059983,
+            "charged": 207095
+          },
+          {
+            "port": 128,
+            "value": 5,
+            "cycle": 1628402,
+            "charged": 318104
+          },
+          {
+            "port": 128,
+            "value": 6,
+            "cycle": 1628410,
+            "charged": 318116
+          },
+          {
+            "port": 128,
+            "value": 7,
+            "cycle": 2319710,
+            "charged": 453125
+          },
+          {
+            "port": 128,
+            "value": 8,
+            "cycle": 2319718,
+            "charged": 453137
+          },
+          {
+            "port": 128,
+            "value": 9,
+            "cycle": 2934217,
+            "charged": 573146
+          },
+          {
+            "port": 128,
+            "value": 10,
+            "cycle": 2934227,
+            "charged": 573162
+          },
+          {
+            "port": 128,
+            "value": 11,
+            "cycle": 3390025,
+            "charged": 662171
+          },
+          {
+            "port": 128,
+            "value": 12,
+            "cycle": 3390033,
+            "charged": 662183
+          },
+          {
+            "port": 128,
+            "value": 13,
+            "cycle": 3693237,
+            "charged": 721392
+          },
+          {
+            "port": 128,
+            "value": 14,
+            "cycle": 3693247,
+            "charged": 721408
+          },
+          {
+            "port": 128,
+            "value": 15,
+            "cycle": 4323125,
+            "charged": 844417
+          },
+          {
+            "port": 128,
+            "value": 16,
+            "cycle": 4323227,
+            "charged": 844437
+          },
+          {
+            "port": 128,
+            "value": 17,
+            "cycle": 4937658,
+            "charged": 964443
+          },
+          {
+            "port": 128,
+            "value": 18,
+            "cycle": 4937666,
+            "charged": 964455
+          },
+          {
+            "port": 128,
+            "value": 19,
+            "cycle": 5296165,
+            "charged": 1034464
+          },
+          {
+            "port": 128,
+            "value": 20,
+            "cycle": 5296173,
+            "charged": 1034476
+          },
+          {
+            "port": 128,
+            "value": 21,
+            "cycle": 5449873,
+            "charged": 1064485
+          },
+          {
+            "port": 128,
+            "value": 22,
+            "cycle": 5449882,
+            "charged": 1064499
+          },
+          {
+            "port": 128,
+            "value": 23,
+            "cycle": 5757191,
+            "charged": 1124508
+          },
+          {
+            "port": 128,
+            "value": 24,
+            "cycle": 5757199,
+            "charged": 1124520
+          },
+          {
+            "port": 128,
+            "value": 25,
+            "cycle": 5941618,
+            "charged": 1160529
+          },
+          {
+            "port": 128,
+            "value": 26,
+            "cycle": 5941626,
+            "charged": 1160541
+          },
+          {
+            "port": 128,
+            "value": 27,
+            "cycle": 6100446,
+            "charged": 1191550
+          },
+          {
+            "port": 128,
+            "value": 28,
+            "cycle": 6100455,
+            "charged": 1191564
+          },
+          {
+            "port": 128,
+            "value": 29,
+            "cycle": 6346323,
+            "charged": 1239573
+          },
+          {
+            "port": 128,
+            "value": 30,
+            "cycle": 6346331,
+            "charged": 1239585
+          },
+          {
+            "port": 128,
+            "value": 31,
+            "cycle": 6653631,
+            "charged": 1299594
+          },
+          {
+            "port": 128,
+            "value": 32,
+            "cycle": 6653640,
+            "charged": 1299608
+          },
+          {
+            "port": 128,
+            "value": 33,
+            "cycle": 7094069,
+            "charged": 1385617
+          },
+          {
+            "port": 128,
+            "value": 34,
+            "cycle": 7094079,
+            "charged": 1385633
+          },
+          {
+            "port": 128,
+            "value": 35,
+            "cycle": 7796661,
+            "charged": 1522842
+          },
+          {
+            "port": 128,
+            "value": 36,
+            "cycle": 7796772,
+            "charged": 1522862
+          },
+          {
+            "port": 128,
+            "value": 37,
+            "cycle": 9174089,
+            "charged": 1791871
+          },
+          {
+            "port": 128,
+            "value": 64,
+            "cycle": 9174100,
+            "charged": 1791889
+          },
+          {
+            "port": 129,
+            "value": 202,
+            "cycle": 10174418,
+            "charged": 1987246
+          },
+          {
+            "port": 129,
+            "value": 202,
+            "cycle": 11174759,
+            "charged": 2182625
+          },
+          {
+            "port": 143,
+            "value": 202,
+            "cycle": 11443012,
+            "charged": 2235021
+          }
+        ],
+        "irqs": [
+          10174100,
+          11174418
+        ],
+        "state": [
+          "ffff02ca",
+          "00000000",
+          "00000002",
+          "00000007",
+          "00007000",
+          "00000000",
+          "00008000",
+          "0000a000",
+          "00000047",
+          "00001290"
+        ],
+        "run": {
+          "cycles": 11444019,
+          "retired": 262744,
+          "halted": 1,
+          "debt_max": 174,
+          "hold_cycles": 10879271,
+          "charged": 2235033
+        }
+      },
+      "identical": true
+    },
+    "3-0-0": {
+      "before": {
+        "preset": 3,
+        "marks": [
+          {
+            "port": 128,
+            "value": 0,
+            "cycle": 89,
+            "charged": 35
+          },
+          {
+            "port": 128,
+            "value": 1,
+            "cycle": 176984,
+            "charged": 72060
+          },
+          {
+            "port": 128,
+            "value": 2,
+            "cycle": 176995,
+            "charged": 72094
+          },
+          {
+            "port": 128,
+            "value": 3,
+            "cycle": 442557,
+            "charged": 180119
+          },
+          {
+            "port": 128,
+            "value": 4,
+            "cycle": 442565,
+            "charged": 180147
+          },
+          {
+            "port": 128,
+            "value": 5,
+            "cycle": 597520,
+            "charged": 243172
+          },
+          {
+            "port": 128,
+            "value": 6,
+            "cycle": 597528,
+            "charged": 243200
+          },
+          {
+            "port": 128,
+            "value": 7,
+            "cycle": 907315,
+            "charged": 369225
+          },
+          {
+            "port": 128,
+            "value": 8,
+            "cycle": 907323,
+            "charged": 369253
+          },
+          {
+            "port": 128,
+            "value": 9,
+            "cycle": 1136008,
+            "charged": 462278
+          },
+          {
+            "port": 128,
+            "value": 10,
+            "cycle": 1136018,
+            "charged": 462310
+          },
+          {
+            "port": 128,
+            "value": 11,
+            "cycle": 1327846,
+            "charged": 540335
+          },
+          {
+            "port": 128,
+            "value": 12,
+            "cycle": 1327854,
+            "charged": 540363
+          },
+          {
+            "port": 128,
+            "value": 13,
+            "cycle": 1450859,
+            "charged": 590388
+          },
+          {
+            "port": 128,
+            "value": 14,
+            "cycle": 1450869,
+            "charged": 590420
+          },
+          {
+            "port": 128,
+            "value": 15,
+            "cycle": 1709054,
+            "charged": 695445
+          },
+          {
+            "port": 128,
+            "value": 16,
+            "cycle": 1709137,
+            "charged": 695479
+          },
+          {
+            "port": 128,
+            "value": 17,
+            "cycle": 1967248,
+            "charged": 800502
+          },
+          {
+            "port": 128,
+            "value": 18,
+            "cycle": 1967256,
+            "charged": 800530
+          },
+          {
+            "port": 128,
+            "value": 19,
+            "cycle": 2291790,
+            "charged": 932555
+          },
+          {
+            "port": 128,
+            "value": 20,
+            "cycle": 2291798,
+            "charged": 932583
+          },
+          {
+            "port": 128,
+            "value": 21,
+            "cycle": 2376709,
+            "charged": 967108
+          },
+          {
+            "port": 128,
+            "value": 22,
+            "cycle": 2376718,
+            "charged": 967138
+          },
+          {
+            "port": 128,
+            "value": 23,
+            "cycle": 2509558,
+            "charged": 1021163
+          },
+          {
+            "port": 128,
+            "value": 24,
+            "cycle": 2509566,
+            "charged": 1021191
+          },
+          {
+            "port": 128,
+            "value": 25,
+            "cycle": 2620293,
+            "charged": 1066220
+          },
+          {
+            "port": 128,
+            "value": 26,
+            "cycle": 2620301,
+            "charged": 1066248
+          },
+          {
+            "port": 128,
+            "value": 27,
+            "cycle": 2684323,
+            "charged": 1092273
+          },
+          {
+            "port": 128,
+            "value": 28,
+            "cycle": 2684332,
+            "charged": 1092303
+          },
+          {
+            "port": 128,
+            "value": 29,
+            "cycle": 2797510,
+            "charged": 1138328
+          },
+          {
+            "port": 128,
+            "value": 30,
+            "cycle": 2797518,
+            "charged": 1138356
+          },
+          {
+            "port": 128,
+            "value": 31,
+            "cycle": 2915608,
+            "charged": 1186381
+          },
+          {
+            "port": 128,
+            "value": 32,
+            "cycle": 2915617,
+            "charged": 1186411
+          },
+          {
+            "port": 128,
+            "value": 33,
+            "cycle": 3195917,
+            "charged": 1300436
+          },
+          {
+            "port": 128,
+            "value": 34,
+            "cycle": 3195927,
+            "charged": 1300468
+          },
+          {
+            "port": 128,
+            "value": 35,
+            "cycle": 3832100,
+            "charged": 1559293
+          },
+          {
+            "port": 128,
+            "value": 36,
+            "cycle": 3832192,
+            "charged": 1559329
+          },
+          {
+            "port": 128,
+            "value": 37,
+            "cycle": 5179048,
+            "charged": 2107354
+          },
+          {
+            "port": 128,
+            "value": 64,
+            "cycle": 5179059,
+            "charged": 2107388
+          },
+          {
+            "port": 143,
+            "value": 202,
+            "cycle": 5943533,
+            "charged": 2418417
+          }
+        ],
+        "irqs": [],
+        "state": [
+          "ffff02ca",
+          "00000000",
+          "00000002",
+          "00000007",
+          "00007000",
+          "00000000",
+          "00008000",
+          "0000a000",
+          "00000047",
+          "00001290"
+        ],
+        "run": {
+          "cycles": 5944540,
+          "retired": 262738,
+          "halted": 1,
+          "debt_max": 247,
+          "hold_cycles": 5371983,
+          "charged": 2418448
+        }
+      },
+      "after": {
+        "preset": 3,
+        "marks": [
+          {
+            "port": 128,
+            "value": 0,
+            "cycle": 89,
+            "charged": 35
+          },
+          {
+            "port": 128,
+            "value": 1,
+            "cycle": 176984,
+            "charged": 72060
+          },
+          {
+            "port": 128,
+            "value": 2,
+            "cycle": 176995,
+            "charged": 72094
+          },
+          {
+            "port": 128,
+            "value": 3,
+            "cycle": 442557,
+            "charged": 180119
+          },
+          {
+            "port": 128,
+            "value": 4,
+            "cycle": 442565,
+            "charged": 180147
+          },
+          {
+            "port": 128,
+            "value": 5,
+            "cycle": 597520,
+            "charged": 243172
+          },
+          {
+            "port": 128,
+            "value": 6,
+            "cycle": 597528,
+            "charged": 243200
+          },
+          {
+            "port": 128,
+            "value": 7,
+            "cycle": 907315,
+            "charged": 369225
+          },
+          {
+            "port": 128,
+            "value": 8,
+            "cycle": 907323,
+            "charged": 369253
+          },
+          {
+            "port": 128,
+            "value": 9,
+            "cycle": 1136008,
+            "charged": 462278
+          },
+          {
+            "port": 128,
+            "value": 10,
+            "cycle": 1136018,
+            "charged": 462310
+          },
+          {
+            "port": 128,
+            "value": 11,
+            "cycle": 1327846,
+            "charged": 540335
+          },
+          {
+            "port": 128,
+            "value": 12,
+            "cycle": 1327854,
+            "charged": 540363
+          },
+          {
+            "port": 128,
+            "value": 13,
+            "cycle": 1450859,
+            "charged": 590388
+          },
+          {
+            "port": 128,
+            "value": 14,
+            "cycle": 1450869,
+            "charged": 590420
+          },
+          {
+            "port": 128,
+            "value": 15,
+            "cycle": 1709054,
+            "charged": 695445
+          },
+          {
+            "port": 128,
+            "value": 16,
+            "cycle": 1709137,
+            "charged": 695479
+          },
+          {
+            "port": 128,
+            "value": 17,
+            "cycle": 1967248,
+            "charged": 800502
+          },
+          {
+            "port": 128,
+            "value": 18,
+            "cycle": 1967256,
+            "charged": 800530
+          },
+          {
+            "port": 128,
+            "value": 19,
+            "cycle": 2291790,
+            "charged": 932555
+          },
+          {
+            "port": 128,
+            "value": 20,
+            "cycle": 2291798,
+            "charged": 932583
+          },
+          {
+            "port": 128,
+            "value": 21,
+            "cycle": 2376709,
+            "charged": 967108
+          },
+          {
+            "port": 128,
+            "value": 22,
+            "cycle": 2376718,
+            "charged": 967138
+          },
+          {
+            "port": 128,
+            "value": 23,
+            "cycle": 2509558,
+            "charged": 1021163
+          },
+          {
+            "port": 128,
+            "value": 24,
+            "cycle": 2509566,
+            "charged": 1021191
+          },
+          {
+            "port": 128,
+            "value": 25,
+            "cycle": 2620293,
+            "charged": 1066220
+          },
+          {
+            "port": 128,
+            "value": 26,
+            "cycle": 2620301,
+            "charged": 1066248
+          },
+          {
+            "port": 128,
+            "value": 27,
+            "cycle": 2684323,
+            "charged": 1092273
+          },
+          {
+            "port": 128,
+            "value": 28,
+            "cycle": 2684332,
+            "charged": 1092303
+          },
+          {
+            "port": 128,
+            "value": 29,
+            "cycle": 2797510,
+            "charged": 1138328
+          },
+          {
+            "port": 128,
+            "value": 30,
+            "cycle": 2797518,
+            "charged": 1138356
+          },
+          {
+            "port": 128,
+            "value": 31,
+            "cycle": 2915608,
+            "charged": 1186381
+          },
+          {
+            "port": 128,
+            "value": 32,
+            "cycle": 2915617,
+            "charged": 1186411
+          },
+          {
+            "port": 128,
+            "value": 33,
+            "cycle": 3195917,
+            "charged": 1300436
+          },
+          {
+            "port": 128,
+            "value": 34,
+            "cycle": 3195927,
+            "charged": 1300468
+          },
+          {
+            "port": 128,
+            "value": 35,
+            "cycle": 3832100,
+            "charged": 1559293
+          },
+          {
+            "port": 128,
+            "value": 36,
+            "cycle": 3832192,
+            "charged": 1559329
+          },
+          {
+            "port": 128,
+            "value": 37,
+            "cycle": 5179048,
+            "charged": 2107354
+          },
+          {
+            "port": 128,
+            "value": 64,
+            "cycle": 5179059,
+            "charged": 2107388
+          },
+          {
+            "port": 143,
+            "value": 202,
+            "cycle": 5943533,
+            "charged": 2418417
+          }
+        ],
+        "irqs": [],
+        "state": [
+          "ffff02ca",
+          "00000000",
+          "00000002",
+          "00000007",
+          "00007000",
+          "00000000",
+          "00008000",
+          "0000a000",
+          "00000047",
+          "00001290"
+        ],
+        "run": {
+          "cycles": 5944540,
+          "retired": 262738,
+          "halted": 1,
+          "debt_max": 247,
+          "hold_cycles": 5371983,
+          "charged": 2418448
+        }
+      },
+      "identical": true
+    },
+    "1-0-1": {
+      "before": {
+        "preset": 1,
+        "marks": [
+          {
+            "port": 128,
+            "value": 0,
+            "cycle": 89,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 1,
+            "cycle": 24128,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 2,
+            "cycle": 24139,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 3,
+            "cycle": 48282,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 4,
+            "cycle": 48290,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 5,
+            "cycle": 66329,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 6,
+            "cycle": 66337,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 7,
+            "cycle": 142991,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 8,
+            "cycle": 142999,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 9,
+            "cycle": 173038,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 10,
+            "cycle": 173048,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 11,
+            "cycle": 218087,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 12,
+            "cycle": 218095,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 13,
+            "cycle": 235580,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 14,
+            "cycle": 235590,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 15,
+            "cycle": 259629,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 16,
+            "cycle": 259688,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 17,
+            "cycle": 284726,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 18,
+            "cycle": 284734,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 19,
+            "cycle": 318775,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 20,
+            "cycle": 318783,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 21,
+            "cycle": 341841,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 22,
+            "cycle": 341850,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 23,
+            "cycle": 361890,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 24,
+            "cycle": 361898,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 25,
+            "cycle": 367938,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 26,
+            "cycle": 367946,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 27,
+            "cycle": 385486,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 28,
+            "cycle": 385495,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 29,
+            "cycle": 395534,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 30,
+            "cycle": 395542,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 31,
+            "cycle": 407612,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 32,
+            "cycle": 407621,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 33,
+            "cycle": 416660,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 34,
+            "cycle": 416670,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 35,
+            "cycle": 471131,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 36,
+            "cycle": 471143,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 37,
+            "cycle": 586172,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 64,
+            "cycle": 586183,
+            "charged": 0
+          },
+          {
+            "port": 143,
+            "value": 202,
+            "cycle": 694227,
+            "charged": 0
+          }
+        ],
+        "irqs": [],
+        "state": [
+          "ffff02ca",
+          "00000000",
+          "00000002",
+          "00000007",
+          "00007000",
+          "00000000",
+          "00008000",
+          "0000a000",
+          "00000047",
+          "00001290"
+        ],
+        "run": {
+          "cycles": 695234,
+          "retired": 262738,
+          "halted": 1,
+          "debt_max": 0,
+          "hold_cycles": 0,
+          "charged": 0
+        }
+      },
+      "after": {
+        "preset": 1,
+        "marks": [
+          {
+            "port": 128,
+            "value": 0,
+            "cycle": 89,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 1,
+            "cycle": 24128,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 2,
+            "cycle": 24139,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 3,
+            "cycle": 48282,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 4,
+            "cycle": 48290,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 5,
+            "cycle": 66329,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 6,
+            "cycle": 66337,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 7,
+            "cycle": 142991,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 8,
+            "cycle": 142999,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 9,
+            "cycle": 173038,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 10,
+            "cycle": 173048,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 11,
+            "cycle": 218087,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 12,
+            "cycle": 218095,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 13,
+            "cycle": 235580,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 14,
+            "cycle": 235590,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 15,
+            "cycle": 259629,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 16,
+            "cycle": 259688,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 17,
+            "cycle": 284726,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 18,
+            "cycle": 284734,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 19,
+            "cycle": 318775,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 20,
+            "cycle": 318783,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 21,
+            "cycle": 341841,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 22,
+            "cycle": 341850,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 23,
+            "cycle": 361890,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 24,
+            "cycle": 361898,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 25,
+            "cycle": 367938,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 26,
+            "cycle": 367946,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 27,
+            "cycle": 385486,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 28,
+            "cycle": 385495,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 29,
+            "cycle": 395534,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 30,
+            "cycle": 395542,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 31,
+            "cycle": 407612,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 32,
+            "cycle": 407621,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 33,
+            "cycle": 416660,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 34,
+            "cycle": 416670,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 35,
+            "cycle": 471131,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 36,
+            "cycle": 471143,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 37,
+            "cycle": 586172,
+            "charged": 0
+          },
+          {
+            "port": 128,
+            "value": 64,
+            "cycle": 586183,
+            "charged": 0
+          },
+          {
+            "port": 143,
+            "value": 202,
+            "cycle": 694227,
+            "charged": 0
+          }
+        ],
+        "irqs": [],
+        "state": [
+          "ffff02ca",
+          "00000000",
+          "00000002",
+          "00000007",
+          "00007000",
+          "00000000",
+          "00008000",
+          "0000a000",
+          "00000047",
+          "00001290"
+        ],
+        "run": {
+          "cycles": 695234,
+          "retired": 262738,
+          "halted": 1,
+          "debt_max": 0,
+          "hold_cycles": 0,
+          "charged": 0
+        }
+      },
+      "identical": true
+    }
+  }
+}

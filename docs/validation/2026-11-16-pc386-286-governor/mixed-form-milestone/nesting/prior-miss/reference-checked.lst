@@ -1,0 +1,596 @@
+     1                                  ; Reference-only pc386 governor discriminator. See method.md.
+     2                                  ; Every benchmark emits completed 1000-iteration blocks in 64 BIOS ticks.
+     3                                  ; NASM -f bin -o GOVPROBE.COM govprobe.asm
+     4                                          cpu 286
+     5                                          bits 16
+     6                                          org 0x100
+     7 00000000 FC                      start:  cld
+     8 00000001 8CC8                            mov ax,cs
+     9 00000003 8ED8                            mov ds,ax
+    10 00000005 8EC0                            mov es,ax
+    11 00000007 B81C35                          mov ax,0x351c
+    12 0000000A CD21                            int 0x21
+    13 0000000C 891E[F005]                      mov [oldoff],bx
+    14 00000010 8C06[F205]                      mov [oldseg],es
+    15 00000014 8CC8                            mov ax,cs
+    16 00000016 8ED8                            mov ds,ax
+    17 00000018 BA[B604]                        mov dx,tickisr
+    18 0000001B B81C25                          mov ax,0x251c
+    19 0000001E CD21                            int 0x21
+    20 00000020 8CC8                            mov ax,cs
+    21 00000022 8ED8                            mov ds,ax
+    22 00000024 8EC0                            mov es,ax
+    23 00000026 C7060080A55A                    mov word [0x8000],0x5aa5
+    24 0000002C C70600900000                    mov word [0x9000],0
+    25 00000032 BE0080                          mov si,0x8000
+    26 00000035 BF0090                          mov di,0x9000
+    27 00000038 A5                              movsw
+    28 00000039 813E0090A55A                    cmp word [0x9000],0x5aa5
+    29 0000003F 7403E94B01                      jne invalid_memory
+    30 00000044 BE[1605]                        mov si,msg_ram
+    31 00000047 E88904                          call puts
+    32 0000004A C70600800100                    mov word [0x8000],1
+    33 00000050 C70602800000                    mov word [0x8002],0
+    34 00000056 BE[FC04]                        mov si,hdr
+    35 00000059 E87704                          call puts
+    36                                  %macro MEASURE 2
+    37                                          mov si,%1
+    38                                          call puts
+    39                                          call %2
+    40                                          mov ax,[blocks]
+    41                                          call putu
+    42                                          call crlf
+    43                                  %endmacro
+    44                                          MEASURE msg_0, test_0
+    37 0000005C BE[3C05]            <1>  mov si,%1
+    38 0000005F E87104              <1>  call puts
+    39 00000062 E85D01              <1>  call %2
+    40 00000065 A1[F605]            <1>  mov ax,[blocks]
+    41 00000068 E87304              <1>  call putu
+    42 0000006B E85A04              <1>  call crlf
+    45                                          MEASURE msg_1, test_1
+    37 0000006E BE[4605]            <1>  mov si,%1
+    38 00000071 E85F04              <1>  call puts
+    39 00000074 E87701              <1>  call %2
+    40 00000077 A1[F605]            <1>  mov ax,[blocks]
+    41 0000007A E86104              <1>  call putu
+    42 0000007D E84804              <1>  call crlf
+    46                                          MEASURE msg_2, test_2
+    37 00000080 BE[5005]            <1>  mov si,%1
+    38 00000083 E84D04              <1>  call puts
+    39 00000086 E89101              <1>  call %2
+    40 00000089 A1[F605]            <1>  mov ax,[blocks]
+    41 0000008C E84F04              <1>  call putu
+    42 0000008F E83604              <1>  call crlf
+    47                                          MEASURE msg_3, test_3
+    37 00000092 BE[5A05]            <1>  mov si,%1
+    38 00000095 E83B04              <1>  call puts
+    39 00000098 E8AB01              <1>  call %2
+    40 0000009B A1[F605]            <1>  mov ax,[blocks]
+    41 0000009E E83D04              <1>  call putu
+    42 000000A1 E82404              <1>  call crlf
+    48                                          MEASURE msg_4, test_4
+    37 000000A4 BE[6405]            <1>  mov si,%1
+    38 000000A7 E82904              <1>  call puts
+    39 000000AA E8C501              <1>  call %2
+    40 000000AD A1[F605]            <1>  mov ax,[blocks]
+    41 000000B0 E82B04              <1>  call putu
+    42 000000B3 E81204              <1>  call crlf
+    49                                          MEASURE msg_5, test_5
+    37 000000B6 BE[6D05]            <1>  mov si,%1
+    38 000000B9 E81704              <1>  call puts
+    39 000000BC E8E001              <1>  call %2
+    40 000000BF A1[F605]            <1>  mov ax,[blocks]
+    41 000000C2 E81904              <1>  call putu
+    42 000000C5 E80004              <1>  call crlf
+    50                                          MEASURE msg_6, test_6
+    37 000000C8 BE[7705]            <1>  mov si,%1
+    38 000000CB E80504              <1>  call puts
+    39 000000CE E8FE01              <1>  call %2
+    40 000000D1 A1[F605]            <1>  mov ax,[blocks]
+    41 000000D4 E80704              <1>  call putu
+    42 000000D7 E8EE03              <1>  call crlf
+    51                                          MEASURE msg_7, test_7
+    37 000000DA BE[8405]            <1>  mov si,%1
+    38 000000DD E8F303              <1>  call puts
+    39 000000E0 E81B02              <1>  call %2
+    40 000000E3 A1[F605]            <1>  mov ax,[blocks]
+    41 000000E6 E8F503              <1>  call putu
+    42 000000E9 E8DC03              <1>  call crlf
+    52                                          MEASURE msg_8, test_8
+    37 000000EC BE[9105]            <1>  mov si,%1
+    38 000000EF E8E103              <1>  call puts
+    39 000000F2 E83602              <1>  call %2
+    40 000000F5 A1[F605]            <1>  mov ax,[blocks]
+    41 000000F8 E8E303              <1>  call putu
+    42 000000FB E8CA03              <1>  call crlf
+    53                                          MEASURE msg_9, test_9
+    37 000000FE BE[9B05]            <1>  mov si,%1
+    38 00000101 E8CF03              <1>  call puts
+    39 00000104 E85A02              <1>  call %2
+    40 00000107 A1[F605]            <1>  mov ax,[blocks]
+    41 0000010A E8D103              <1>  call putu
+    42 0000010D E8B803              <1>  call crlf
+    54                                          MEASURE msg_10, test_10
+    37 00000110 BE[A805]            <1>  mov si,%1
+    38 00000113 E8BD03              <1>  call puts
+    39 00000116 E87B02              <1>  call %2
+    40 00000119 A1[F605]            <1>  mov ax,[blocks]
+    41 0000011C E8BF03              <1>  call putu
+    42 0000011F E8A603              <1>  call crlf
+    55                                          MEASURE msg_11, test_11
+    37 00000122 BE[B405]            <1>  mov si,%1
+    38 00000125 E8AB03              <1>  call puts
+    39 00000128 E89902              <1>  call %2
+    40 0000012B A1[F605]            <1>  mov ax,[blocks]
+    41 0000012E E8AD03              <1>  call putu
+    42 00000131 E89403              <1>  call crlf
+    56                                          MEASURE msg_12, test_12
+    37 00000134 BE[BF05]            <1>  mov si,%1
+    38 00000137 E89903              <1>  call puts
+    39 0000013A E8B702              <1>  call %2
+    40 0000013D A1[F605]            <1>  mov ax,[blocks]
+    41 00000140 E89B03              <1>  call putu
+    42 00000143 E88203              <1>  call crlf
+    57                                          MEASURE msg_13, test_13
+    37 00000146 BE[CD05]            <1>  mov si,%1
+    38 00000149 E88703              <1>  call puts
+    39 0000014C E8D702              <1>  call %2
+    40 0000014F A1[F605]            <1>  mov ax,[blocks]
+    41 00000152 E88903              <1>  call putu
+    42 00000155 E87003              <1>  call crlf
+    58                                          MEASURE msg_14, test_14
+    37 00000158 BE[D905]            <1>  mov si,%1
+    38 0000015B E87503              <1>  call puts
+    39 0000015E E8F402              <1>  call %2
+    40 00000161 A1[F605]            <1>  mov ax,[blocks]
+    41 00000164 E87703              <1>  call putu
+    42 00000167 E85E03              <1>  call crlf
+    59                                          MEASURE msg_15, test_15
+    37 0000016A BE[E605]            <1>  mov si,%1
+    38 0000016D E86303              <1>  call puts
+    39 00000170 E81303              <1>  call %2
+    40 00000173 A1[F605]            <1>  mov ax,[blocks]
+    41 00000176 E86503              <1>  call putu
+    42 00000179 E84C03              <1>  call crlf
+    60 0000017C 8B16[F005]                      mov dx,[oldoff]
+    61 00000180 A1[F205]                        mov ax,[oldseg]
+    62 00000183 8ED8                            mov ds,ax
+    63 00000185 B81C25                          mov ax,0x251c
+    64 00000188 CD21                            int 0x21
+    65 0000018A B8004C                          mov ax,0x4c00
+    66 0000018D CD21                            int 0x21
+    67                                  
+    68                                  invalid_memory:
+    69 0000018F BE[2A05]                        mov si,msg_bad
+    70 00000192 E83E03                          call puts
+    71 00000195 8B16[F005]                      mov dx,[oldoff]
+    72 00000199 A1[F205]                        mov ax,[oldseg]
+    73 0000019C 8ED8                            mov ds,ax
+    74 0000019E B81C25                          mov ax,0x251c
+    75 000001A1 CD21                            int 0x21
+    76 000001A3 B8014C                          mov ax,0x4c01
+    77 000001A6 CD21                            int 0x21
+    78                                  
+    79                                  t_start:
+    80 000001A8 C706[F605]0000                  mov word [blocks],0
+    81 000001AE C706[F405]0000                  mov word [tick],0
+    82 000001B4 833E[F405]00            .sync:  cmp word [tick],0
+    83 000001B9 74F9                            je .sync
+    84 000001BB C706[F405]0000                  mov word [tick],0
+    85 000001C1 C3                              ret
+    86                                  %macro FINISH 0
+    87                                          inc word [blocks]
+    88                                          cmp word [tick],64
+    89                                          jb .block
+    90                                          ret
+    91                                  %endmacro
+    92 000001C2 E8E3FF                  test_0: call t_start
+    93 000001C5 BDE803                  .block: mov bp,1000
+    94 000001C8 BB0080                          mov bx,0x8000
+    95 000001CB BA0100                          mov dx,1
+    96 000001CE B90300                          mov cx,3
+    97 000001D1 C7070700                        mov word [bx],7
+    98 000001D5 BE0080                          mov si,0x8000
+    99 000001D8 BF0090                          mov di,0x9000
+   100 000001DB B8A55A                          mov ax,0x5aa5
+   101                                          align 2
+   102                                  .i0:
+   103 000001DE AC                        lodsb
+   104 000001DF 4D                        dec bp
+   105 000001E0 75FC                      jnz .i0
+   106                                          FINISH
+    87 000001E2 FF06[F605]          <1>  inc word [blocks]
+    88 000001E6 833E[F405]40        <1>  cmp word [tick],64
+    89 000001EB 72D8                <1>  jb .block
+    90 000001ED C3                  <1>  ret
+   107 000001EE E8B7FF                  test_1: call t_start
+   108 000001F1 BDE803                  .block: mov bp,1000
+   109 000001F4 BB0080                          mov bx,0x8000
+   110 000001F7 BA0100                          mov dx,1
+   111 000001FA B90300                          mov cx,3
+   112 000001FD C7070700                        mov word [bx],7
+   113 00000201 BE0080                          mov si,0x8000
+   114 00000204 BF0090                          mov di,0x9000
+   115 00000207 B8A55A                          mov ax,0x5aa5
+   116                                          align 2
+   117                                  .i1:
+   118 0000020A AD                        lodsw
+   119 0000020B 4D                        dec bp
+   120 0000020C 75FC                      jnz .i1
+   121                                          FINISH
+    87 0000020E FF06[F605]          <1>  inc word [blocks]
+    88 00000212 833E[F405]40        <1>  cmp word [tick],64
+    89 00000217 72D8                <1>  jb .block
+    90 00000219 C3                  <1>  ret
+   122 0000021A E88BFF                  test_2: call t_start
+   123 0000021D BDE803                  .block: mov bp,1000
+   124 00000220 BB0080                          mov bx,0x8000
+   125 00000223 BA0100                          mov dx,1
+   126 00000226 B90300                          mov cx,3
+   127 00000229 C7070700                        mov word [bx],7
+   128 0000022D BE0080                          mov si,0x8000
+   129 00000230 BF0090                          mov di,0x9000
+   130 00000233 B8A55A                          mov ax,0x5aa5
+   131                                          align 2
+   132                                  .i2:
+   133 00000236 AA                        stosb
+   134 00000237 4D                        dec bp
+   135 00000238 75FC                      jnz .i2
+   136                                          FINISH
+    87 0000023A FF06[F605]          <1>  inc word [blocks]
+    88 0000023E 833E[F405]40        <1>  cmp word [tick],64
+    89 00000243 72D8                <1>  jb .block
+    90 00000245 C3                  <1>  ret
+   137 00000246 E85FFF                  test_3: call t_start
+   138 00000249 BDE803                  .block: mov bp,1000
+   139 0000024C BB0080                          mov bx,0x8000
+   140 0000024F BA0100                          mov dx,1
+   141 00000252 B90300                          mov cx,3
+   142 00000255 C7070700                        mov word [bx],7
+   143 00000259 BE0080                          mov si,0x8000
+   144 0000025C BF0090                          mov di,0x9000
+   145 0000025F B8A55A                          mov ax,0x5aa5
+   146                                          align 2
+   147                                  .i3:
+   148 00000262 AB                        stosw
+   149 00000263 4D                        dec bp
+   150 00000264 75FC                      jnz .i3
+   151                                          FINISH
+    87 00000266 FF06[F605]          <1>  inc word [blocks]
+    88 0000026A 833E[F405]40        <1>  cmp word [tick],64
+    89 0000026F 72D8                <1>  jb .block
+    90 00000271 C3                  <1>  ret
+   152 00000272 E833FF                  test_4: call t_start
+   153 00000275 BDE803                  .block: mov bp,1000
+   154 00000278 BB0080                          mov bx,0x8000
+   155 0000027B BA0100                          mov dx,1
+   156 0000027E B90300                          mov cx,3
+   157 00000281 C7070700                        mov word [bx],7
+   158 00000285 BE0080                          mov si,0x8000
+   159 00000288 BF0090                          mov di,0x9000
+   160 0000028B B8A55A                          mov ax,0x5aa5
+   161                                          align 2
+   162                                  .i4:
+   163 0000028E AC                        lodsb
+   164 0000028F AA                       stosb
+   165 00000290 4D                        dec bp
+   166 00000291 75FB                      jnz .i4
+   167                                          FINISH
+    87 00000293 FF06[F605]          <1>  inc word [blocks]
+    88 00000297 833E[F405]40        <1>  cmp word [tick],64
+    89 0000029C 72D7                <1>  jb .block
+    90 0000029E C3                  <1>  ret
+   168 0000029F E806FF                  test_5: call t_start
+   169 000002A2 BDE803                  .block: mov bp,1000
+   170 000002A5 BB0080                          mov bx,0x8000
+   171 000002A8 BA0100                          mov dx,1
+   172 000002AB B90300                          mov cx,3
+   173 000002AE C7070700                        mov word [bx],7
+   174 000002B2 BE0080                          mov si,0x8000
+   175 000002B5 BF0090                          mov di,0x9000
+   176 000002B8 B8A55A                          mov ax,0x5aa5
+   177 000002BB 90                              align 2
+   178                                  .i5:
+   179 000002BC AC                        lodsb
+   180 000002BD 3455                     xor al,0x55
+   181 000002BF AA                       stosb
+   182 000002C0 4D                        dec bp
+   183 000002C1 75F9                      jnz .i5
+   184                                          FINISH
+    87 000002C3 FF06[F605]          <1>  inc word [blocks]
+    88 000002C7 833E[F405]40        <1>  cmp word [tick],64
+    89 000002CC 72D4                <1>  jb .block
+    90 000002CE C3                  <1>  ret
+   185 000002CF E8D6FE                  test_6: call t_start
+   186 000002D2 BDE803                  .block: mov bp,1000
+   187 000002D5 BB0080                          mov bx,0x8000
+   188 000002D8 BA0100                          mov dx,1
+   189 000002DB B90300                          mov cx,3
+   190 000002DE C7070700                        mov word [bx],7
+   191 000002E2 BE0080                          mov si,0x8000
+   192 000002E5 BF0090                          mov di,0x9000
+   193 000002E8 B8A55A                          mov ax,0x5aa5
+   194 000002EB 90                              align 2
+   195                                  .i6:
+   196 000002EC A90800                    test ax,8
+   197 000002EF 4D                        dec bp
+   198 000002F0 75FA                      jnz .i6
+   199                                          FINISH
+    87 000002F2 FF06[F605]          <1>  inc word [blocks]
+    88 000002F6 833E[F405]40        <1>  cmp word [tick],64
+    89 000002FB 72D5                <1>  jb .block
+    90 000002FD C3                  <1>  ret
+   200 000002FE E8A7FE                  test_7: call t_start
+   201 00000301 BDE803                  .block: mov bp,1000
+   202 00000304 BB0080                          mov bx,0x8000
+   203 00000307 BA0100                          mov dx,1
+   204 0000030A B90300                          mov cx,3
+   205 0000030D C7070700                        mov word [bx],7
+   206 00000311 BE0080                          mov si,0x8000
+   207 00000314 BF0090                          mov di,0x9000
+   208 00000317 B8A55A                          mov ax,0x5aa5
+   209                                          align 2
+   210                                  .i7:
+   211 0000031A A808                      test al,8
+   212 0000031C 4D                        dec bp
+   213 0000031D 75FB                      jnz .i7
+   214                                          FINISH
+    87 0000031F FF06[F605]          <1>  inc word [blocks]
+    88 00000323 833E[F405]40        <1>  cmp word [tick],64
+    89 00000328 72D7                <1>  jb .block
+    90 0000032A C3                  <1>  ret
+   215 0000032B E87AFE                  test_8: call t_start
+   216 0000032E BDE803                  .block: mov bp,1000
+   217 00000331 BB0080                          mov bx,0x8000
+   218 00000334 BA0100                          mov dx,1
+   219 00000337 B90300                          mov cx,3
+   220 0000033A C7070700                        mov word [bx],7
+   221 0000033E BE0080                          mov si,0x8000
+   222 00000341 BF0090                          mov di,0x9000
+   223 00000344 B8A55A                          mov ax,0x5aa5
+   224 00000347 90                              align 2
+   225                                  .i8:
+   226 00000348 8B07                      mov ax,[bx]
+   227 0000034A BA0700                   mov dx,7
+   228 0000034D F7E2                     mul dx
+   229 0000034F A90800                   test ax,8
+   230 00000352 4D                        dec bp
+   231 00000353 75F3                      jnz .i8
+   232                                          FINISH
+    87 00000355 FF06[F605]          <1>  inc word [blocks]
+    88 00000359 833E[F405]40        <1>  cmp word [tick],64
+    89 0000035E 72CE                <1>  jb .block
+    90 00000360 C3                  <1>  ret
+   233 00000361 E844FE                  test_9: call t_start
+   234 00000364 BDE803                  .block: mov bp,1000
+   235 00000367 BB0080                          mov bx,0x8000
+   236 0000036A BA0100                          mov dx,1
+   237 0000036D B90300                          mov cx,3
+   238 00000370 C7070700                        mov word [bx],7
+   239 00000374 BE0080                          mov si,0x8000
+   240 00000377 BF0090                          mov di,0x9000
+   241 0000037A B8A55A                          mov ax,0x5aa5
+   242 0000037D 90                              align 2
+   243                                  .i9:
+   244 0000037E 8B07                      mov ax,[bx]
+   245 00000380 BA0700                   mov dx,7
+   246 00000383 F7E2                     mul dx
+   247 00000385 4D                        dec bp
+   248 00000386 75F6                      jnz .i9
+   249                                          FINISH
+    87 00000388 FF06[F605]          <1>  inc word [blocks]
+    88 0000038C 833E[F405]40        <1>  cmp word [tick],64
+    89 00000391 72D1                <1>  jb .block
+    90 00000393 C3                  <1>  ret
+   250 00000394 E811FE                  test_10: call t_start
+   251 00000397 BDE803                  .block: mov bp,1000
+   252 0000039A BB0080                          mov bx,0x8000
+   253 0000039D BA0100                          mov dx,1
+   254 000003A0 B90300                          mov cx,3
+   255 000003A3 C7070700                        mov word [bx],7
+   256 000003A7 BE0080                          mov si,0x8000
+   257 000003AA BF0090                          mov di,0x9000
+   258 000003AD B8A55A                          mov ax,0x5aa5
+   259                                          align 2
+   260                                  .i10:
+   261 000003B0 C8000000                  enter 0,0
+   262 000003B4 C9                       leave
+   263 000003B5 4D                        dec bp
+   264 000003B6 75F8                      jnz .i10
+   265                                          FINISH
+    87 000003B8 FF06[F605]          <1>  inc word [blocks]
+    88 000003BC 833E[F405]40        <1>  cmp word [tick],64
+    89 000003C1 72D4                <1>  jb .block
+    90 000003C3 C3                  <1>  ret
+   266 000003C4 E8E1FD                  test_11: call t_start
+   267 000003C7 BDE803                  .block: mov bp,1000
+   268 000003CA BB0080                          mov bx,0x8000
+   269 000003CD BA0100                          mov dx,1
+   270 000003D0 B90300                          mov cx,3
+   271 000003D3 C7070700                        mov word [bx],7
+   272 000003D7 BE0080                          mov si,0x8000
+   273 000003DA BF0090                          mov di,0x9000
+   274 000003DD B8A55A                          mov ax,0x5aa5
+   275                                          align 2
+   276                                  .i11:
+   277 000003E0 C8060000                  enter 6,0
+   278 000003E4 C9                       leave
+   279 000003E5 4D                        dec bp
+   280 000003E6 75F8                      jnz .i11
+   281                                          FINISH
+    87 000003E8 FF06[F605]          <1>  inc word [blocks]
+    88 000003EC 833E[F405]40        <1>  cmp word [tick],64
+    89 000003F1 72D4                <1>  jb .block
+    90 000003F3 C3                  <1>  ret
+   282 000003F4 E8B1FD                  test_12: call t_start
+   283 000003F7 BDE803                  .block: mov bp,1000
+   284 000003FA BB0080                          mov bx,0x8000
+   285 000003FD BA0100                          mov dx,1
+   286 00000400 B90300                          mov cx,3
+   287 00000403 C7070700                        mov word [bx],7
+   288 00000407 BE0080                          mov si,0x8000
+   289 0000040A BF0090                          mov di,0x9000
+   290 0000040D B8A55A                          mov ax,0x5aa5
+   291                                          align 2
+   292                                  .i12:
+   293 00000410 C8060000                  enter 6,0
+   294 00000414 89EC                     mov sp,bp
+   295 00000416 5D                       pop bp
+   296 00000417 4D                        dec bp
+   297 00000418 75F6                      jnz .i12
+   298                                          FINISH
+    87 0000041A FF06[F605]          <1>  inc word [blocks]
+    88 0000041E 833E[F405]40        <1>  cmp word [tick],64
+    89 00000423 72D2                <1>  jb .block
+    90 00000425 C3                  <1>  ret
+   299 00000426 E87FFD                  test_13: call t_start
+   300 00000429 BDE803                  .block: mov bp,1000
+   301 0000042C BB0080                          mov bx,0x8000
+   302 0000042F BA0100                          mov dx,1
+   303 00000432 B90300                          mov cx,3
+   304 00000435 C7070700                        mov word [bx],7
+   305 00000439 BE0080                          mov si,0x8000
+   306 0000043C BF0090                          mov di,0x9000
+   307 0000043F B8A55A                          mov ax,0x5aa5
+   308                                          align 2
+   309                                  .i13:
+   310 00000442 55                        push bp
+   311 00000443 89E5                     mov bp,sp
+   312 00000445 C9                       leave
+   313 00000446 4D                        dec bp
+   314 00000447 75F9                      jnz .i13
+   315                                          FINISH
+    87 00000449 FF06[F605]          <1>  inc word [blocks]
+    88 0000044D 833E[F405]40        <1>  cmp word [tick],64
+    89 00000452 72D5                <1>  jb .block
+    90 00000454 C3                  <1>  ret
+   316 00000455 E850FD                  test_14: call t_start
+   317 00000458 BDE803                  .block: mov bp,1000
+   318 0000045B BB0080                          mov bx,0x8000
+   319 0000045E BA0100                          mov dx,1
+   320 00000461 B90300                          mov cx,3
+   321 00000464 C7070700                        mov word [bx],7
+   322 00000468 BE0080                          mov si,0x8000
+   323 0000046B BF0090                          mov di,0x9000
+   324 0000046E B8A55A                          mov ax,0x5aa5
+   325 00000471 90                              align 2
+   326                                  .i14:
+   327 00000472 C8060001                  enter 6,1
+   328 00000476 C9                       leave
+   329 00000477 4D                        dec bp
+   330 00000478 75F8                      jnz .i14
+   331                                          FINISH
+    87 0000047A FF06[F605]          <1>  inc word [blocks]
+    88 0000047E 833E[F405]40        <1>  cmp word [tick],64
+    89 00000483 72D3                <1>  jb .block
+    90 00000485 C3                  <1>  ret
+   332 00000486 E81FFD                  test_15: call t_start
+   333 00000489 BDE803                  .block: mov bp,1000
+   334 0000048C BB0080                          mov bx,0x8000
+   335 0000048F BA0100                          mov dx,1
+   336 00000492 B90300                          mov cx,3
+   337 00000495 C7070700                        mov word [bx],7
+   338 00000499 BE0080                          mov si,0x8000
+   339 0000049C BF0090                          mov di,0x9000
+   340 0000049F B8A55A                          mov ax,0x5aa5
+   341                                          align 2
+   342                                  .i15:
+   343 000004A2 B90200                    mov cx,2
+   344 000004A5 F3AA                     rep stosb
+   345 000004A7 4D                        dec bp
+   346 000004A8 75F8                      jnz .i15
+   347                                          FINISH
+    87 000004AA FF06[F605]          <1>  inc word [blocks]
+    88 000004AE 833E[F405]40        <1>  cmp word [tick],64
+    89 000004B3 72D4                <1>  jb .block
+    90 000004B5 C3                  <1>  ret
+   348                                  
+   349 000004B6 1E                      tickisr: push ds
+   350 000004B7 0E                              push cs
+   351 000004B8 1F                              pop ds
+   352 000004B9 FF06[F405]                      inc word [tick]
+   353 000004BD 1F                              pop ds
+   354 000004BE CF                              iret
+   355 000004BF 52                      putc:   push dx
+   356 000004C0 88C2                            mov dl,al
+   357 000004C2 B402                            mov ah,2
+   358 000004C4 CD21                            int 0x21
+   359 000004C6 5A                              pop dx
+   360 000004C7 C3                              ret
+   361 000004C8 B00D                    crlf:   mov al,13
+   362 000004CA E8F2FF                          call putc
+   363 000004CD B00A                            mov al,10
+   364 000004CF E8EDFF                          call putc
+   365 000004D2 C3                              ret
+   366 000004D3 AC                      puts:   lodsb
+   367 000004D4 08C0                            or al,al
+   368 000004D6 7405                            jz .done
+   369 000004D8 E8E4FF                          call putc
+   370 000004DB EBF6                            jmp puts
+   371 000004DD C3                      .done:  ret
+   372 000004DE 53                      putu:   push bx
+   373 000004DF 51                              push cx
+   374 000004E0 52                              push dx
+   375 000004E1 BB0A00                          mov bx,10
+   376 000004E4 31C9                            xor cx,cx
+   377 000004E6 31D2                    .d1:    xor dx,dx
+   378 000004E8 F7F3                            div bx
+   379 000004EA 52                              push dx
+   380 000004EB 41                              inc cx
+   381 000004EC 09C0                            or ax,ax
+   382 000004EE 75F6                            jnz .d1
+   383 000004F0 58                      .d2:    pop ax
+   384 000004F1 0430                            add al,'0'
+   385 000004F3 E8C9FF                          call putc
+   386 000004F6 E2F8                            loop .d2
+   387 000004F8 5A                              pop dx
+   388 000004F9 59                              pop cx
+   389 000004FA 5B                              pop bx
+   390 000004FB C3                              ret
+   391 000004FC 706333383620676F76-     hdr:    db 'pc386 governor probe v1',13,10,0
+   391 00000505 65726E6F722070726F-
+   391 0000050E 62652076310D0A00   
+   392 00000516 52414D5F434F50595F-     msg_ram: db 'RAM_COPY_VERIFIED',13,10,0
+   392 0000051F 56455249464945440D-
+   392 00000528 0A00               
+   393 0000052A 52414D5F434F50595F-     msg_bad: db 'RAM_COPY_FAILED',13,10,0
+   393 00000533 4641494C45440D0A00 
+   394 0000053C 4C4F445F425954453D-     msg_0: db 'LOD_BYTE=',0
+   394 00000545 00                 
+   395 00000546 4C4F445F574F52443D-     msg_1: db 'LOD_WORD=',0
+   395 0000054F 00                 
+   396 00000550 53544F5F425954453D-     msg_2: db 'STO_BYTE=',0
+   396 00000559 00                 
+   397 0000055A 53544F5F574F52443D-     msg_3: db 'STO_WORD=',0
+   397 00000563 00                 
+   398 00000564 4C4F445F53544F3D00      msg_4: db 'LOD_STO=',0
+   399 0000056D 425954455F4D49583D-     msg_5: db 'BYTE_MIX=',0
+   399 00000576 00                 
+   400 00000577 544553545F41585F49-     msg_6: db 'TEST_AX_IMM=',0
+   400 00000580 4D4D3D00           
+   401 00000584 544553545F414C5F49-     msg_7: db 'TEST_AL_IMM=',0
+   401 0000058D 4D4D3D00           
+   402 00000591 4D554C5F544553543D-     msg_8: db 'MUL_TEST=',0
+   402 0000059A 00                 
+   403 0000059B 4D554C5F4E4F5F5445-     msg_9: db 'MUL_NO_TEST=',0
+   403 000005A4 53543D00           
+   404 000005A8 454E5445525F5A4552-     msg_10: db 'ENTER_ZERO=',0
+   404 000005B1 4F3D00             
+   405 000005B4 454E5445525F534958-     msg_11: db 'ENTER_SIX=',0
+   405 000005BD 3D00               
+   406 000005BF 454E5445525F4D414E-     msg_12: db 'ENTER_MANUAL=',0
+   406 000005C8 55414C3D00         
+   407 000005CD 4C454156455F4F4E4C-     msg_13: db 'LEAVE_ONLY=',0
+   407 000005D6 593D00             
+   408 000005D9 454E5445525F4E4553-     msg_14: db 'ENTER_NEST1=',0
+   408 000005E2 54313D00           
+   409 000005E6 5245505F53544F3D00      msg_15: db 'REP_STO=',0
+   410 000005EF 90                              align 2
+   411 000005F0 0000                    oldoff: dw 0
+   412 000005F2 0000                    oldseg: dw 0
+   413 000005F4 0000                    tick:   dw 0
+   414 000005F6 0000                    blocks: dw 0
+   415 000005F8 0000                    dcnt:   dw 0
+   416 000005FA 0000                    target: dw 0
+   417 000005FC 0000                    zero:   dw 0

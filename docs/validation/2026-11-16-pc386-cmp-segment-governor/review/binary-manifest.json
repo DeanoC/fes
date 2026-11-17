@@ -1,0 +1,58 @@
+{
+  "sources": {
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_pkg.sv": "d44b59165e055698394c86ee7f6703b47fb59b4d631f7c035017aec1734ac4fa",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_gov_pkg.sv": "92cde4ed68e17e686819c7d2b7ac00b6347e7bfaadb17ed9f065dcf97f11571d",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_oplen.sv": "ce0ad49a2915be5896d7bf8786807ec8f3d5adef3ffe6a023294c8148fe19430",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_lendec.sv": "097cd45ba9774cfc3fb17b6fbaf6994c22bf8b93278300a0cbb3b99d2faea47b",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_lstage.sv": "0da7e9b4df54fa365da63dfcce0cdd4cf6779ff2191206a835f3b4a4fc8bb757",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_btb.sv": "1e79cb7e2b6abfedb651f514d843052f0dfb05bda19005af3c1ea43a2e09dca9",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_ras.sv": "7ac962343dc69ee0727de061209f39271c050aa7f7f8f2a3b2f3fcf0d9b38a64",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_fetchbuf.sv": "dee382095912c0f46deab01aa206a4f91cd12c783843a4a469436bbea1f28872",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_qalign.sv": "3e269de9d98bc79c08190ac635243babc0e8ace324b9143198d70b67abaf93ca",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_frontend.sv": "aa78f075f9437eab3f9d6584eb6a3b1287b709c4799718073387baf74524f3f4",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_amode.sv": "8c751ec8a884f0dddd2f767ed94738842260ca0d8dd9080253a81139cb6c7759",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_dfwd.sv": "e7f5f51a89fdd63744f8c92cbe8bb1aedd45835b37be0f7ed7f0db8d54739f59",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_agu.sv": "790424c71234d13b52aca15dcf06c897c1df7868184047f9704497b620dfb236",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_ucode_pkg.sv": "16ac5bb0d6dd961785b204c751ae5f4bd7430c84b76d25f0843d38184bafeaf8",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_ucode_rom.sv": "ee6ce9d8ea85c1e552b9749d7d1eace9382aa1503f71e4021cbdb0330d4456be",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_decode.sv": "5351d994595be178d1afb5c47106cf46ecdda8fc5b274d48d7ff921e842ecbf0",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_seq.sv": "6d06f3583e66ec68c32a1168f74f90f24f5e7b889b67f313cd19836fcc72a3f0",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_dops.sv": "769aae53a66479ac3cc2cf8ad986b0c442846d2997454a3dc33d6e17d9d06dc8",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_shift.sv": "0accbdf9c6380081620eff3fa9baebcb47f191026e6c8546859cd4e3a93e65c2",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_shflags.sv": "71f769ca4b7b93d7a2833f8027551250e0e1f13bc39fdabd3ffa867c38abf70a",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_exctl.sv": "c286815ee0aa7c1348182988cefaebc6c1fc5e3fe777645fbd58cb91ba67938b",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_muldiv.sv": "13854a2c8bb898a0388aae2cb3315cc3fc57790deb353324ef372660eaad82a9",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87_mul.sv": "1c07ac7b90d76654495e21996d991647da67c144985ac61fdb332e37392190ce",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87.sv": "da35a4d698d8ead84d0c95e26c02e3083ed2c59672d5a8655f46d83877442952",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_ex.sv": "a7a961bbd5fdd7990053ef0f929c966035e6c0efc36f46b4cf428f348d5ad4a3",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_tlb.sv": "bda833c3c892c0cae4505a128404301b8720c887d4df0f82d258d5634a0f6d12",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1i.sv": "f839aab032854e8304a98ea6681ea4b3affaec5ba2fed552660a0010a18822e7",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1d.sv": "422e9cba20cbe5d8bfdda77a61801aaa2c39e1e3c5585ff5d0f1fb5d66e6cdbd",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_biu.sv": "a9ed2b2b277b03a8b73e8f070fa5c6e7a75f7ab8edf425809bd938aa7eba0a59",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_gov_rom.sv": "9ad1d753d239142d0bbe14a27b37e73ad3840000fb576b7e642b81c390696fdc",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_governor.sv": "d1310a6026ecaca3e1d7e6cb1cdc73af2ce997c6055bd2cb3933884906859dfe",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv": "b349387def3d57080e581f89174ffcbd037c7aea77eb5fdec7dd173268bb6ea1",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-cmp-segment-model-v2/sources/misteross/cores/fes-common/sim/i386/lockstep_tb.cpp": "4315693cd31614c2569fcace7ed5bca8e57bec8f14ed97851f7f78bc4461c369"
+  },
+  "binary_sha256": "9cb2c6aff92be5d6da6118715fad738614df03b3d005bfbdd5d397569900f20d",
+  "source_manifest_sha256": "89ad3d210d86460b518f9284d848180d79b682620ec85a121446cfe2c585d494",
+  "verilator": {
+    "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+    "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+    "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+    "version": "Verilator 5.054 2026-11-01 rev v5.054",
+    "install": "1cd6c9741d903760a2b1c4283b6830f63c0974f8478b06fb7f8dabd3c4304d8c"
+  },
+  "linked": {
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/pc386-clean-main/linked/0-bochs_oracle-41505d0285d4648f.o": "015b29ab3249ceac38099205db033241585f847bef620cdfd755045582419578",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/pc386-clean-main/linked/1-fes-paramtree.o": "6b8ba5842ba2bfe611cc7268c331fff50214859a164c95895d966de277893e44",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/pc386-clean-main/linked/2-libcpu.a": "b103454718e9346505addc74fcb91639e1039cf088ad34a1329d2a0873a7c26d",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/pc386-clean-main/linked/3-libfpu.a": "dc3ab5661da74830077a6eef0623df30a7da39400b3943a5a355caf8037327f4",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/pc386-clean-main/linked/4-libsoftfloat.a": "11260d44283513b2cca7e3cfcbb59e3be9f317012c56669804a0a61b39e2a4a4"
+  },
+  "parameters": {
+    "GOV_N": 5,
+    "GOV_D": 3072,
+    "GOV_REFERENCE_DIAGNOSTIC": 1
+  }
+}

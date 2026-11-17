@@ -137,8 +137,8 @@ class RecordRouterTests(unittest.TestCase):
         return fields["parameters"]
 
     def test_ramtest_record_fields_follow_the_router(self):
-        hip = ramtest.record_fields(ROOT, "repo", "a" * 40, {}, memory_mhz=100)
-        cuda = ramtest.record_fields(ROOT, "repo", "a" * 40, {}, memory_mhz=100,
+        hip = ramtest.record_fields(ROOT, "repo", "a" * 40, {})
+        cuda = ramtest.record_fields(ROOT, "repo", "a" * 40, {},
                                      gpu_router="CUDA")
         self.assertEqual(self._parameters(hip)["gpu_backend"], "hip")
         self.assertEqual(self._parameters(hip)["gpu_architectures"],
@@ -158,8 +158,8 @@ class RecordRouterTests(unittest.TestCase):
     def test_ramtest_default_record_fields_are_unchanged_by_the_option(self):
         """Naming HIP explicitly must give the same fields as naming nothing."""
         self.assertEqual(
-            ramtest.record_fields(ROOT, "repo", "a" * 40, {}, memory_mhz=100),
-            ramtest.record_fields(ROOT, "repo", "a" * 40, {}, memory_mhz=100,
+            ramtest.record_fields(ROOT, "repo", "a" * 40, {}),
+            ramtest.record_fields(ROOT, "repo", "a" * 40, {},
                                   gpu_router="HIP"),
         )
 

@@ -486,6 +486,13 @@ builds of pc386 are parked with [#1235](https://github.com/DeanoC/fes/issues/123
   is copied into the output, and `build-summary.json` records it under
   `lockstep` (#1581 S5). Lockstep needs the pinned Bochs and corpus, so it
   runs on the sealing host.
+- To run the full netlist suite and then seal it in one command, use
+  `python3 cores/fes-pc386/tools/build_pc386_with_lockstep.py` with the same
+  `--cache-root` and optional `--gpu-router` as the sealer. The wrapper uses
+  the stock suite and sealer, and requires an unused
+  `build/sim/fes-i386-lockstep` output directory so an older report cannot be
+  mistaken for a new one. Preserve or move an existing run before starting;
+  the wrapper does not download the pinned Bochs or corpus.
 
 **M4.** The diagnostic package `fes.pc386-diag`, the machine with a bus master
 running commands from a DDR ring in the CPU's place, passed every program on

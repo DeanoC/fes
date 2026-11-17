@@ -1,0 +1,5 @@
+PASS reference governor integration
+- /home/deano/.codex/worktrees/d31c/fes/out/dev/1902-mixed-candidate-v3/reference_governor_tb-v3.sv:441: Verilog $finish
+- S i m u l a t i o n   R e p o r t: Verilator 5.032 2025-01-01
+- Verilator: $finish at 12us; walltime 0.004 s; speed 2.668 ms/s
+- Verilator: cpu 0.004 s on 1 threads; alloced 185 MB
