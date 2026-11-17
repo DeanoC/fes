@@ -16,7 +16,7 @@ a DE25 replacement in `../shared-rtl/`:
 | --- | --- |
 | ROM bytes linked into blank M10K lanes at install (format 3) | `fes_spectrum_firmware_rom`: block RAM filled at launch through [`fes.fabric.firmware-upload`](../../../../mister-packages/docs/firmware-upload.md) |
 | Tape image in the reserved HPS DDR window (`fes_media_ddr`) | `fes_media_sdram`: the same client ports over the board SDRAM |
-| 52.224 MHz system PLL on the fabric | `machine_pll.ip` on `CLOCK1_50`: 52.222222 MHz for the machine and 12.287582 MHz for audio (both -34 ppm, in the DE10 ratio), in place of the stock audio PLL |
+| 52.224 MHz system PLL on the fabric | `../machine/machine_pll.ip` on `CLOCK1_50`: 52.222222 MHz for the machine and 12.287582 MHz for audio (both -34 ppm, in the DE10 ratio), in place of the stock audio PLL |
 
 `fes_spectrum_core` is the portable core: firmware front end, mailbox,
 keyboard, tape store, machine, 720p capture and the audio mix. Its edge
@@ -64,15 +64,18 @@ halfword) and read back from SDRAM by the firmware's loader, HID and
 controller input, and that a hold keeps the firmware. The HPS, scanout memory
 master, PLLs, SDRAM pad timing and HDMI are not modeled.
 
-`project` permits inspection of local edits. `generate` and `build` require
+`build.py` is this machine's spec for the shared builder, `../machine/board.py`,
+which the Atari ST uses too. `project` permits inspection of local edits. `generate` and `build` require
 clean committed source and an output directory that does not exist. A build is
 a diagnostic candidate with the HPS-first Linux artifacts beside it; it has no
 timing review, no reviewed input/output reference and no package identity.
 
 ## Open
 
-- Quartus fit and timing on the three clocks, then the ZX81 producer's
-  export gates (fitted input/output review, repeat-RBF identity).
+- The [first compile](../../../docs/validation/2026-11-17-de25-spectrum-compile/README.md)
+  fits with clean timing. Owed: external delays for the SDRAM and I2S pins,
+  then the ZX81 producer's export gates (fitted input/output review,
+  repeat-RBF identity).
 - SDRAM pad timing at the machine clock. The controller was qualified on the
   board at 50 MHz; the half-period sample is 4% shorter here.
 - Runtime and FogCast: admit `fes.spectrum` on `de25-linux-computer-v1`, and

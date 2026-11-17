@@ -24,7 +24,7 @@ foreach file {fes_atari_st_core.v fes_firmware_upload.v fes_st_firmware_rom.v
     fes_video_part_direct.v zonx_ay.v
     st_system.sv st_cpu.sv st_machine.sv st_io.sv st_mfp.sv st_acia.sv st_ikbd.sv st_ym2149.sv
     st_ym_filter.sv st_ym_mixer.sv st_ym_mix_rom.sv st_floppy.sv st_floppy_writer.sv
-    st_native_border.sv st_native_low_video.sv st_video.sv st_video_adapter.sv st_memory.sv
+    st_native_border.sv st_native_low_video_de25.sv st_video.sv st_video_adapter.sv st_memory.sv
     st_media_writer.sv st_media_port.sv fx68k.sv fx68kAlu.sv uaddrPla.sv} {
     add_fileset_file $file SYSTEM_VERILOG PATH $file
 }

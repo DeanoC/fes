@@ -3,9 +3,9 @@
 This lane brings the FES Atari 520ST to the DE25-Nano behind the same shell
 as the [standard ZX Spectrum](../spectrum/README.md): the managed board
 recipe's atomic computer transport and allocated display, launch-time firmware
-upload, the board SDRAM and a 52.222222 MHz machine clock. It is a simulated
-component only. There is no Quartus project, recipe or runtime admission yet,
-and nothing here programs a kit.
+upload, the board SDRAM and a 52.222222 MHz machine clock. It has a simulated
+component and a Quartus project on the shared builder. There is no recipe or
+runtime admission yet, and nothing here programs a kit.
 
 ## What differs from the DE10 core
 
@@ -31,6 +31,8 @@ machine clock.
 ```sh
 make test   # derivation contracts; no simulator or Quartus
 make sim    # the component through its real computer slave
+make build QUARTUS_ROOTDIR=/absolute/altera_pro/26.3 \
+  VENDOR_ARCHIVE=/absolute/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip OUTPUT=/new/private/path
 ```
 
 `sim` assembles the open diagnostic firmware and drives the Avalon computer
@@ -46,8 +48,9 @@ memory master, PLLs, SDRAM pad timing and HDMI are not modeled.
 
 ## Open
 
-- The Quartus project, on the Spectrum lane's builder: the same machine PLL,
-  SDRAM pins and crossings, plus this component's own reset and video paths.
+- Naming each machine/pixel crossing of the video adapter and native video
+  in `atari-st-clocks.sdc`. They carry one provisional ten-nanosecond bound
+  for the whole clock pair today; that must go before any export.
 - Fit. The DE10 build uses 513 M10K; the uploaded ROM alone is 1.6 Mbit of
   the device's M20K.
 - SDRAM on the board. The chips are mobile SDRAM: the ramtest controller

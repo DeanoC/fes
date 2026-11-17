@@ -38,6 +38,30 @@ class Derivations(unittest.TestCase):
             with self.assertRaises(ValueError):
                 derive.retarget_sdram(changed)
 
+    def test_native_video_cache_hint_is_the_only_change(self):
+        source = (ROOT / "cores/fes-atari-st/rtl/st_native_low_video.sv").read_bytes()
+        result, _ = derive.retarget_native_video(source)
+        self.assertEqual(result.replace(derive.CACHE_AFTER, derive.CACHE_BEFORE), source)
+        self.assertNotIn(b'"M10K"', result)
+        with self.assertRaises(ValueError):
+            derive.retarget_native_video(result)
+
+    def test_component_lists_every_staged_file(self):
+        import re
+        spec = importlib.util.spec_from_file_location("de25_atari_st_build", HERE / "build.py")
+        build = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(build)
+        files, derived, _ = build.board.component_files(build, build.board.capture(build))
+        named = {"fes_de25_atari_st_standard.v"}
+        for group in re.findall(r"foreach file \{([^}]*)\}", files["fes_de25_atari_st_standard_hw.tcl"].decode()):
+            named |= set(group.split())
+        staged = {Path(name).name for name in files} - {"fes_de25_atari_st_standard_hw.tcl"}
+        self.assertEqual(named, staged)
+        for name, data in files.items():
+            if name.endswith((".v", ".sv")):
+                self.assertNotIn(b'"M10K"', data, name)
+                self.assertNotIn(b"altddio", data, name)
+
     def test_transport_slice_matches_the_spectrum_lane(self):
         other = importlib.util.spec_from_file_location("de25_spectrum_derive", HERE.parent / "spectrum/derive.py")
         spectrum = importlib.util.module_from_spec(other)
