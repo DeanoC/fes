@@ -1,4 +1,91 @@
 {
+  "c64": {
+    "build_id": "999bb2113df2afe0b4cdf2b10a9c9ba8",
+    "lane": "nextpnr",
+    "margins": {
+      "clocks": {
+        "audio": {
+          "achieved_mhz": 174.73353576660156,
+          "constraint_mhz": 12.288031578063965,
+          "ratio": 14.21981500100699,
+          "status": "pass"
+        },
+        "pixel": {
+          "achieved_mhz": 85.22242736816406,
+          "constraint_mhz": 74.25006866455078,
+          "ratio": 1.1477757381368163,
+          "status": "pass"
+        },
+        "system": {
+          "achieved_mhz": 58.06189727783203,
+          "constraint_mhz": 52.22477340698242,
+          "ratio": 1.1117692522160219,
+          "status": "pass"
+        }
+      },
+      "kind": "nextpnr-frequency-ratio",
+      "worst_ratio": 1.1117692522160219
+    },
+    "placer_seed": 2,
+    "revision": null,
+    "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-c64-oss/build-summary.json",
+    "tied_to_head_by": "all 73 input digests match the head",
+    "unverified": null
+  },
+  "menu": {
+    "build_id": "92ae48c4e6433b21f8712c18a0575a05",
+    "lane": "nextpnr",
+    "margins": {
+      "clocks": {
+        "pixel": {
+          "achieved_mhz": 84.94732666015625,
+          "constraint_mhz": 74.25006866455078,
+          "ratio": 1.1440706815226511,
+          "status": "pass"
+        }
+      },
+      "kind": "nextpnr-frequency-ratio",
+      "worst_ratio": 1.1440706815226511
+    },
+    "placer_seed": 5,
+    "revision": null,
+    "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/oss/fes-menu-package/build-summary.json",
+    "tied_to_head_by": "source_commit field matches the head",
+    "unverified": null
+  },
+  "spectrum": {
+    "build_id": "b4649c8dd5cf3b9cf222b60d5e2b79ba",
+    "lane": "nextpnr",
+    "margins": {
+      "clocks": {
+        "audio": {
+          "achieved_mhz": 196.77293395996094,
+          "constraint_mhz": 12.288031578063965,
+          "ratio": 16.013381208364653,
+          "status": "pass"
+        },
+        "pixel": {
+          "achieved_mhz": 88.73902130126953,
+          "constraint_mhz": 74.25006866455078,
+          "ratio": 1.195137228790688,
+          "status": "pass"
+        },
+        "system": {
+          "achieved_mhz": 60.93474197387695,
+          "constraint_mhz": 52.22477340698242,
+          "ratio": 1.1667784845904188,
+          "status": "pass"
+        }
+      },
+      "kind": "nextpnr-frequency-ratio",
+      "worst_ratio": 1.1667784845904188
+    },
+    "placer_seed": 4,
+    "revision": null,
+    "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-spectrum-oss/build-summary.json",
+    "tied_to_head_by": "all 52 input digests match the head",
+    "unverified": null
+  },
   "splash": {
     "build_id": "4ef956237159c1e8fa9b6fb3b5ec87c3",
     "lane": "nextpnr",
@@ -53,6 +140,7 @@
       3
     ],
     "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-ts1000-quartus/1a04c85fb4833db0b77cb8a2d6e8d1d1/attempt-gfwti7yn/build-summary.json",
+    "tied_to_head_by": "revision field matches the head",
     "unverified": null
   },
   "ts1500": {
@@ -88,6 +176,7 @@
       3
     ],
     "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-ts1500-quartus/05db7020951901efbefc2de78c5aa3d0/attempt-7h0eu_u2/build-summary.json",
+    "tied_to_head_by": "revision field matches the head",
     "unverified": null
   },
   "zx80": {
@@ -123,6 +212,7 @@
       3
     ],
     "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-zx80-quartus/69bf0d59047eae30eb4e3060a78e60bd/attempt-f0p546lv/build-summary.json",
+    "tied_to_head_by": "revision field matches the head",
     "unverified": null
   },
   "zx81": {
@@ -158,6 +248,7 @@
       3
     ],
     "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-zx81-quartus/a33ca899fc7eb70814b3d4b73d3d0dd6/attempt-2vl0v85a/build-summary.json",
+    "tied_to_head_by": "revision field matches the head",
     "unverified": null
   }
 }

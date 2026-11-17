@@ -7,7 +7,7 @@ ratio of achieved to constrained, because a core that clears by under one per
 cent is the case a later failure would be misread as a regression.
 """
 from __future__ import annotations
-import json, sys
+import hashlib, json, sys
 from pathlib import Path
 
 TREE = Path("/data/fes1861-netlist/identity/c3head/sources/misteross")
@@ -115,46 +115,67 @@ def derived_build_id(key: str) -> str | None:
             os.environ["FES_TOOLCHAIN_CACHE_ROOT"] = cache
 
 
-def check(key: str, data: dict, path: Path, revision: str | None) -> str | None:
-    """Why this summary must not be collected, or None if it is sound.
+def inputs_match_head(data: dict) -> tuple[bool, str]:
+    """Do every digest in the summary's `inputs` map match the head's files?
 
-    An earlier version compared the summary's mtime against the run log's.
-    That is a false positive by construction: the log is the build's *output
-    stream*, so it keeps being written until after the summary exists. It
-    refused fes.zx81's genuine seal over a 1.4-second difference.
+    This is a stronger statement than a commit string, not a weaker one: it
+    says the build consumed exactly these bytes, whereas a revision only says
+    which tree was checked out. BUILD_ID hashes those same inputs, so a summary
+    whose inputs all match the head cannot be a build of different sources.
+    """
+    inputs = data.get("inputs")
+    if not isinstance(inputs, dict) or not inputs:
+        return False, "summary has no inputs map"
+    wrong = []
+    for relative, digest in sorted(inputs.items()):
+        path = TREE / relative
+        if not path.is_file():
+            wrong.append(f"{relative} absent")
+            continue
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        if actual != digest:
+            wrong.append(relative)
+    if wrong:
+        return False, f"{len(wrong)} input(s) differ from the head: " + ", ".join(wrong[:3])
+    return True, f"all {len(inputs)} input digests match the head"
 
-    What actually ties a summary to this run needs no clock:
 
-    - its `revision` must be the head condition 3 was taken at;
-    - its `build_id` must match the one in its own path, so a directory
-      cannot be credited to an identity it does not hold;
-    - for the Quartus lane the directory must be the one the producer
-      *announced* in its log before compiling, which identifies the run
-      outright.
+def check(key: str, data: dict, path: Path, revision: str | None) -> tuple[str | None, str]:
+    """Why this summary must not be collected, and what tied it to this run.
 
-    A build_id is derived from the producer's closure at a revision, so a
-    summary passing the first two cannot have come from a different revision
-    whatever its timestamps say.
+    An earlier version compared the summary's mtime against the run log's,
+    which is a false positive by construction: the log is the build's output
+    stream and keeps being written until after the summary exists. It refused
+    fes.zx81's genuine seal over 1.4 seconds. Removed.
+
+    The producers then turned out to name the revision three different ways, or
+    not at all: the Quartus lane writes `revision`, build_fes_menu_package
+    writes `source_commit`, and build_fes_c64_oss, build_fes_spectrum_oss and
+    build_fes_splash write neither. So this is a ladder of anchors, each
+    recorded by name, rather than one field assumed to be present.
     """
     build_id = data.get("build_id")
     if build_id in (None, ""):
-        return "summary has no build_id"
-    if revision is not None and data.get("revision") not in (None, revision):
-        return f'summary revision {str(data.get("revision"))[:9]} is not the head {revision[:9]}'
-    if build_id not in path.parts and build_id not in str(path):
-        # Only the Quartus lane nests the identity in the path; the OSS
-        # producers write to a fixed directory, so this is informational there.
-        if f"-quartus/" in str(path):
-            return f"build_id {build_id[:12]} is not the identity its path names"
-    if data.get("revision") is None and revision is not None:
-        expected = derived_build_id(key)
-        if expected is None:
-            return "summary records no revision and no derivation is available for it"
+        return "summary has no build_id", "nothing"
+    if f"-quartus/" in str(path) and build_id not in str(path):
+        return f"build_id {build_id[:12]} is not the identity its path names", "nothing"
+    for field in ("revision", "source_commit"):
+        value = data.get(field)
+        if value is not None:
+            if revision is not None and value != revision:
+                return (f"summary {field} {str(value)[:9]} is not the head {revision[:9]}",
+                        "nothing")
+            return None, f"{field} field matches the head"
+    expected = derived_build_id(key)
+    if expected is not None:
         if expected != build_id:
             return (f"summary build_id {build_id[:12]} is not the {expected[:12]} this head "
-                    f"derives, so it is not this run's seal")
-        return None
-    return None
+                    f"derives, so it is not this run's seal"), "nothing"
+        return None, "BUILD_ID re-derived at the head"
+    ok, detail = inputs_match_head(data)
+    if ok:
+        return None, detail
+    return f"cannot tie this summary to the head: {detail}", "nothing"
 
 
 def main() -> int:
@@ -175,14 +196,13 @@ def main() -> int:
         if not path.is_file():
             continue
         data = json.loads(path.read_text())
-        why = check(key, data, path, revision)
+        why, tie = check(key, data, path, revision)
         if why and not arguments.allow_unverified:
             refused.append(f"{key}: {why}")
             continue
         result[key] = {"lane": "nextpnr", "build_id": data.get("build_id"),
                        "unverified": why, "revision": data.get("revision"),
-                       "tied_to_head_by": ("revision field" if data.get("revision")
-                                           else "BUILD_ID re-derived at the head"),
+                       "tied_to_head_by": tie,
                        "placer_seed": data.get("route", {}).get("placer_seed"),
                        "margins": margins(data.get("timing")),
                        "source": str(path)}
@@ -199,14 +219,14 @@ def main() -> int:
                 continue
             chosen = found[-1]
         data = json.loads(chosen.read_text())
-        why = check(key, data, chosen, revision)
+        why, tie = check(key, data, chosen, revision)
         if why and not arguments.allow_unverified:
             refused.append(f"{key}: {why}")
             continue
         runs = data.get("runs", [])
         result[key] = {"lane": "quartus-lite", "build_id": data.get("build_id"),
                        "unverified": why, "provenance": provenance,
-                       "revision": data.get("revision"),
+                       "revision": data.get("revision"), "tied_to_head_by": tie,
                        "seeds": data.get("seeds"),
                        "repeat_matches_signoff":
                            bool(runs) and runs[0].get("rbf_sha256") == data.get("repeat_rbf_sha256"),

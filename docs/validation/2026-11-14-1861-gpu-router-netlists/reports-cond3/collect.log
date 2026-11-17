@@ -1,8 +1,11 @@
 artefact           lane          build_id                           margin (lane units)
+c64                nextpnr       999bb2113df2afe0b4cdf2b10a9c9ba8   1.1118x worst clock
+menu               nextpnr       92ae48c4e6433b21f8712c18a0575a05   1.1441x worst clock
+spectrum           nextpnr       b4649c8dd5cf3b9cf222b60d5e2b79ba   1.1668x worst clock
 splash             nextpnr       4ef956237159c1e8fa9b6fb3b5ec87c3   3.1862x worst clock
 ts1000             quartus-lite  1a04c85fb4833db0b77cb8a2d6e8d1d1   +0.135 ns worst slack (Hold)
 ts1500             quartus-lite  05db7020951901efbefc2de78c5aa3d0   +0.110 ns worst slack (Hold)
 zx80               quartus-lite  69bf0d59047eae30eb4e3060a78e60bd   +0.143 ns worst slack (Hold)
 zx81               quartus-lite  a33ca899fc7eb70814b3d4b73d3d0dd6   +0.121 ns worst slack (Hold)
 
-wrote /data/fes1861-netlist/cond3/cond3.json (5 artefacts collected)
+wrote /data/fes1861-netlist/cond3/cond3.json (8 artefacts collected)
