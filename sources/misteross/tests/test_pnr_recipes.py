@@ -65,7 +65,6 @@ FLAGS_SHA256 = {
     65: "38d02f4b8db3804837214ed9227bbac0b2b92f4687a3bb31a9d88d48d30ba5e6",
     67: "1a6b1280f5a3303b8ac0447b56e9af53d606633ec29ae9c4004ca700bf9d82b2",
 }
-PCXT_FLAGS_SHA256 = "1df45a51d1ebb46353c90454cf28986b9c565f05185a5a4adfc4fcaac9508b5a"
 ZX81_FLAGS_SHA256 = "0d8e2411d19f74c2af22177bb9c5836ab7cb0e7713e5931f0eca7b0b11914d7e"
 ZX81_FAMILY = {"fes.zx81", "fes.zx80", "fes.ts1000", "fes.ts1500"}
 
@@ -165,8 +164,6 @@ def _legacy_argv(core_id, recipe, *, slot=SLOT, synth=SYNTH, output=OUTPUT,
                         "--detailed-timing-report"))
         if recipe["gpu_device"] == "lease":
             command.extend(("--gpu-device", "0"))
-    if core_id == "fes.pcxt":
-        command.extend(("--timing-report-paths", str(recipe["flags"]["timing_report_paths"])))
     if core_id in ZX81_FAMILY:
         command.append("--arrival-pin-assignment")
     return command
@@ -244,7 +241,7 @@ class PnrRecipeTests(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(lock.read_bytes()).hexdigest(), LOCK_SHA256[core_id])
                 pin = load_lock(lock)["nextpnr"].commit
                 self.assertEqual(pnr_recipe.nextpnr_pin(core_id), pin)
-                if core_id in {"fes.coleco", "fes.pcxt"}:
+                if core_id == "fes.coleco":
                     option_count = 107
                 elif core_id in {"fes.pong", "fes.riscv", "fes.atari-st"} | ZX81_FAMILY:
                     option_count = 105
@@ -503,8 +500,7 @@ class PnrRecipeTests(unittest.TestCase):
                 self.assertEqual(pnr_recipe.recipe_digest(core_id), recipe_sha)
                 flags_sha = hashlib.sha256(json.dumps(
                     recipe["flags"], sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-                expected_flags_sha = (PCXT_FLAGS_SHA256 if core_id == "fes.pcxt" else
-                                      ZX81_FLAGS_SHA256 if core_id in ZX81_FAMILY else
+                expected_flags_sha = (ZX81_FLAGS_SHA256 if core_id in ZX81_FAMILY else
                                       FLAGS_SHA256[len(recipe["flags"])])
                 self.assertEqual(flags_sha, expected_flags_sha)
                 weights = tuple(dict.fromkeys((*recipe["timing_weights"], *recipe["search_weights"])))
@@ -734,17 +730,6 @@ class PnrRecipeTests(unittest.TestCase):
                 continue
             source = ROOT / "sources/misteross" / entry["producer_script"]
             tree = ast.parse(source.read_text())
-            if entry["core_id"] == "fes.pcxt":
-                calls = [node for node in ast.walk(tree)
-                         if isinstance(node, ast.Call)
-                         and isinstance(node.func, ast.Attribute)
-                         and node.func.attr == "build"
-                         and isinstance(node.func.value, ast.Name)
-                         and node.func.value.id == "pnr_recipe"]
-                self.assertEqual(len(calls), 1, entry["producer_script"])
-                self.assertEqual(calls[0].args[0].value, entry["core_id"])
-                self.assertTrue(any(keyword.arg == "env" for keyword in calls[0].keywords))
-                continue
             calls = [node for node in ast.walk(tree)
                      if isinstance(node, ast.Call)
                      and isinstance(node.func, ast.Name)

@@ -68,7 +68,7 @@ acceptance or promotion remains open. Keyboard transposition
 ([#750](https://github.com/DeanoC/fes/issues/750)) is unrelated. The factory
 packages and Apple II seal with HIP/nextpnr. The accepted policy allows
 labelled Quartus product variants alongside OSS builds; current registered
-playable recipes use HIP/nextpnr. PC/XT selects a Quartus diagnostic package
+playable recipes use HIP/nextpnr. PC/XT selects its sole Quartus DOS package
 through its normal recipe; nextpnr remains advisory for that core. Quartus
 remains an oracle where other recipes say so until variant support lands.
 A failed OSS route never falls back to Quartus.
@@ -335,14 +335,14 @@ PC/XT is outside the factory image package set. Its assembled 8088, motherboard,
 SDRAM, ISA CGA/MDA and one Direct/Scanlines pipeline have host simulation
 coverage, including DMA and refresh. The diagnostic board builder supplies
 PLL/reset, SDRAM capture/pads and HDMI, with separate retained attempts under
-`sources/misteross/build/diagnostic/fes-pcxt/`. `fes.pcxt` has an installable
-format-2 diagnostic package with `fes.computer` 1.1 live floppy media and
-fixed CGA Direct video. A separate `fes.pcxt-dos` recipe enables the GLaBIOS
+`sources/misteross/build/diagnostic/fes-pcxt/`. `fes.pcxt-dos` is the sole installable PC/XT profile. The diagnostic ROM,
+raw board builders and focused simulation/capture tests remain development
+checks without a separate package or catalog entry. The DOS recipe enables the GLaBIOS
 XT/5160 ROM, host keyboard, PC speaker and writable floppy controller. It accepts a 360 KiB floppy image
 at runtime and stores it in SDRAM before releasing the 8088 when booting that
 image. Releasing execution with an empty drive starts the BIOS. The registered
 package producer uses Quartus with a common 100 MHz board,
-74.25 MHz CGA Direct video and a visible firmware-completion block. All declared
+74.25 MHz CGA Direct video. The raw diagnostic ROM retains its visible completion block. All declared
 seeds must pass reported internal timing; the first seed must reproduce its RBF.
 Nextpnr remains advisory under [#840](https://github.com/DeanoC/fes/issues/840).
 Build success does not establish external SDRAM/HDMI/HPS/reset qualification
