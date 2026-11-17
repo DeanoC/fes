@@ -646,7 +646,7 @@ title = "FPATAN flags no underflow when its result is a normal value"
 rule = "trans_compare"
 cases = ["fpatan-special-ndenormal", "fpatan-denormal-rc0", "fpatan-denormal-rc1", "fpatan-denormal-rc2", "fpatan-denormal-rc3"]
 oracle = "Bochs sets UE when its own ST(1) / ST(0) is tiny and inexact, though the result is not: with a negative ST(0) the result is beside pi. Measured: 29 instances, ST(1) a denormal, a pseudo-denormal or the smallest normal value and ST(0) -2, -3 or -1e10, the last two under every rounding mode; for example ST(1) 8000:7FFFFFFFFFFFFFFF, ST(0) -2: result C000:C90FDAA22168C235 on both, status 3232h on the oracle, 3222h on the RTL."
-i386 = "Underflow is of the result: flagged when the result is tiny and inexact. A result beside pi is not tiny, so the 387 leaves UE as it was. The RTL does, and so does the build host's x87 on all 29 instances. The lockstep requires UE clear on the RTL and then clears it on the oracle. Applied only to FPATAN with a normal result."
+i386 = "Underflow is of the result: flagged when the result is tiny and inexact. A result beside pi is not tiny, so the 387 leaves UE as it was. The RTL does, and so does the build host's x87 on all 29 instances. The lockstep requires UE clear on the RTL and then clears it on the oracle. Applied only to FPATAN with a negative normal ST(0) and a normal result."
 source = "80387 Programmer's Reference Manual 231917-001, 3.2.5.2 (p.3-24); rules.md G12."
 follow = "387"
 
@@ -656,7 +656,7 @@ title = "FYL2X, FPATAN and FYL2XP1 of normal operands raise no denormal exceptio
 rule = "trans_compare"
 cases = ["fyl2x-denormal-rc0", "fpatan-denormal-rc0", "fyl2xp1-denormal-rc0", "fyl2x-denormal-rc1", "fpatan-denormal-rc1", "fyl2xp1-denormal-rc1", "fyl2x-denormal-rc2", "fpatan-denormal-rc2", "fyl2xp1-denormal-rc2", "fyl2x-denormal-rc3", "fpatan-denormal-rc3", "fyl2xp1-denormal-rc3"]
 oracle = "Bochs sets DE when a denormal arises in its own working, with neither operand a denormal. Measured: 36 instances, each with ST(1) the smallest normal value 0001:8000000000000000 and a normal ST(0), under every rounding mode (FYL2X 8, FPATAN 16, FYL2XP1 12); for example FYL2X with ST(0) 1.5: flags 32h on the oracle, 30h on the RTL."
-i386 = "The 387's denormal exception is raised for a denormal operand. With both operands normal values the RTL leaves DE as it was, and so does the build host's x87 on all 36 instances. The lockstep requires DE clear on the RTL and then clears it on the oracle. Applied only to the three two-operand forms with both operands normal values."
+i386 = "The 387's denormal exception is raised for a denormal operand. With both operands normal values the RTL leaves DE as it was, and so does the build host's x87 on all 36 instances. The lockstep requires DE clear on the RTL and then clears it on the oracle. Applied to the three two-operand forms with both operands normal values, which is wider than what was measured (ST(1) the smallest normal value): with no denormal operand a DE the oracle raises is this difference whatever the operands."
 source = "80387 Programmer's Reference Manual 231917-001, 3.2.4 (p.3-22) and Appendix C.2; rules.md G9."
 follow = "387"
 

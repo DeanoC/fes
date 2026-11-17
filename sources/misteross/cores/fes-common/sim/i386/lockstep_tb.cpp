@@ -1865,12 +1865,13 @@ TransVerdict trans_compare(unsigned form, const fes_i386::X87State &before, cons
         want.status &= ~0x0002;
         diverge("x87-denormal-flag-intermediate");
     }
-    // x87-fpatan-quotient-underflow: FPATAN whose result is a normal value.
-    // The oracle flags underflow when its own ST(1) / ST(0) is tiny and
-    // inexact, whatever the result; a result that is not tiny is no
-    // underflow (PRM 3.2.5.2), and the 387 leaves UE as it was.
-    if (form == T_FPATAN && !stack_fault && x87_kind(want.r[st1]) == X87Kind::Normal && (want.status & 0x0010)
-        && !(before.status & 0x0010)) {
+    // x87-fpatan-quotient-underflow: FPATAN with a negative normal ST(0),
+    // whose result is a normal value beside pi. The oracle flags underflow
+    // when its own ST(1) / ST(0) is tiny and inexact, whatever the result;
+    // a result that is not tiny is no underflow (PRM 3.2.5.2), and the 387
+    // leaves UE as it was.
+    if (form == T_FPATAN && !stack_fault && x_kind == X87Kind::Normal && (before.r[top].sign_exponent & 0x8000)
+        && x87_kind(want.r[st1]) == X87Kind::Normal && (want.status & 0x0010) && !(before.status & 0x0010)) {
         want.status &= ~0x0010;
         diverge("x87-fpatan-quotient-underflow");
     }
@@ -11819,7 +11820,9 @@ int run_x87_bcd_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const 
 //                       and one more fails, an unset bound fails, and so do
 //                       a result of the other sign, a flag, C0, C2, C3 or
 //                       TOP changed, and a register the instruction did not
-//                       write changed by one. selftest-distance: values
+//                       write changed by one; a C1 that differs passes with
+//                       PE set and fails with PE clear or SF set.
+//                       selftest-distance: values
 //                       either side of a power of two are 1 apart.
 //   oracle-setter       Oracle::set_x87_register and set_x87_status_bits on
 //                       the oracle alone (both backends).
@@ -12507,6 +12510,25 @@ int run_x87_trans_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, cons
                 got.status ^= bit;
                 if (!failed_with(run(got, bound), "status")) out.add(label + ".status-passed", bit, 0);
                 ++trans_rule.selftests;
+            }
+            // C1: with PE set and SF clear, as every captured retirement
+            // has them, a C1 that differs passes and is counted; with PE
+            // clear on both sides, or SF set on both, it fails.
+            {
+                fes_i386::X87State oracle_state = c.oracle, got = c.rtl;
+                got.status = uint16_t((got.status & ~0x0200) | (~oracle_state.status & 0x0200));
+                if ((oracle_state.status & 0x0060) != 0x0020) out.add(label + ".captured-flags", 0x20, oracle_state.status & 0x60);
+                const TransVerdict ungated = trans_compare(form, c.before, oracle_state, got, bound);
+                if (!ungated.failures.empty() || !ungated.c1_differs) out.add(label + ".c1-ungated-failed", 0, 1);
+                oracle_state.status &= ~0x0020;
+                got.status &= ~0x0020;
+                if (!failed_with(trans_compare(form, c.before, oracle_state, got, bound), "status.c1"))
+                    out.add(label + ".c1-exact-result-passed", 1, 0);
+                oracle_state.status |= 0x0060;
+                got.status |= 0x0060;
+                if (!failed_with(trans_compare(form, c.before, oracle_state, got, bound), "status.c1"))
+                    out.add(label + ".c1-stack-fault-passed", 1, 0);
+                trans_rule.selftests += 3;
             }
             {
                 fes_i386::X87State got = c.rtl;
