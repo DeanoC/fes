@@ -1,0 +1,98 @@
+{
+  "COPY_WORDS": {
+    "blocks": 479,
+    "reference_clocks_per_iteration": 91.73350933935991,
+    "rtl_clocks_per_iteration": 91.774,
+    "delta_clocks": 0.04049066064008855,
+    "relative_percent": 0.044139443625001995,
+    "one_block_quantization": 0.19111147779033316
+  },
+  "FILL_WORDS": {
+    "blocks": 408,
+    "reference_clocks_per_iteration": 107.6969386606701,
+    "rtl_clocks_per_iteration": 107.771,
+    "delta_clocks": 0.07406133932990144,
+    "relative_percent": 0.06876828649999833,
+    "one_block_quantization": 0.2633176984368462
+  },
+  "SCAN_BYTES": {
+    "blocks": 282,
+    "reference_clocks_per_iteration": 155.81684742394822,
+    "rtl_clocks_per_iteration": 155.769,
+    "delta_clocks": -0.04784742394821251,
+    "relative_percent": -0.030707477874991618,
+    "one_block_quantization": 0.550589566869075
+  },
+  "COMPARE_WORDS": {
+    "blocks": 218,
+    "reference_clocks_per_iteration": 201.56124299795138,
+    "rtl_clocks_per_iteration": 201.77,
+    "delta_clocks": 0.20875700204862824,
+    "relative_percent": 0.10357001125000931,
+    "one_block_quantization": 0.9203709725933853
+  },
+  "DRAW_WORDS": {
+    "blocks": 1194,
+    "reference_clocks_per_iteration": 36.800963964450084,
+    "rtl_clocks_per_iteration": 36.769,
+    "delta_clocks": -0.031963964450085314,
+    "relative_percent": -0.08685632387500641,
+    "one_block_quantization": 0.030795785744309693
+  },
+  "CHECKSUM": {
+    "blocks": 1077,
+    "reference_clocks_per_iteration": 40.79884027256583,
+    "rtl_clocks_per_iteration": 40.771,
+    "delta_clocks": -0.027840272565832436,
+    "relative_percent": -0.06823790181249567,
+    "one_block_quantization": 0.03784679060534864
+  },
+  "BRANCH_SCAN": {
+    "blocks": 1300,
+    "reference_clocks_per_iteration": 33.80026997965646,
+    "rtl_clocks_per_iteration": 33.778,
+    "delta_clocks": -0.022269979656464045,
+    "relative_percent": -0.06588698750000788,
+    "one_block_quantization": 0.025980222889820492
+  },
+  "STACK_CALL": {
+    "blocks": 689,
+    "reference_clocks_per_iteration": 63.774094301238605,
+    "rtl_clocks_per_iteration": 63.772,
+    "delta_clocks": -0.002094301238606988,
+    "relative_percent": -0.0032839372499982034,
+    "one_block_quantization": 0.0924262236249835
+  },
+  "BYTE_STREAM": {
+    "blocks": 1640,
+    "reference_clocks_per_iteration": 26.792896935093538,
+    "rtl_clocks_per_iteration": 25.771,
+    "delta_clocks": -1.0218969350935367,
+    "relative_percent": -3.8140591424999926,
+    "one_block_quantization": 0.01632717668195828
+  },
+  "BUSY_WAIT": {
+    "blocks": 195,
+    "reference_clocks_per_iteration": 225.33513319770975,
+    "rtl_clocks_per_iteration": 225.774,
+    "delta_clocks": 0.4388668022902493,
+    "relative_percent": 0.19476181812498883,
+    "one_block_quantization": 1.1496690469270905
+  },
+  "ARITH_BRANCH": {
+    "blocks": 788,
+    "reference_clocks_per_iteration": 55.76186671770736,
+    "rtl_clocks_per_iteration": 56.769,
+    "delta_clocks": 1.007133282292635,
+    "relative_percent": 1.8061326522500032,
+    "one_block_quantization": 0.07067410230381162
+  },
+  "ENTER_LEAVE": {
+    "blocks": 1228,
+    "reference_clocks_per_iteration": 35.7820447667373,
+    "rtl_clocks_per_iteration": 37.776,
+    "delta_clocks": 1.993955233262703,
+    "relative_percent": 5.572502204000007,
+    "one_block_quantization": 0.029114763846002683
+  }
+}

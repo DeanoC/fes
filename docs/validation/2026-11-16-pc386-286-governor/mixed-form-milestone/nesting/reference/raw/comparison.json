@@ -1,0 +1,149 @@
+{
+  "reference": {
+    "runs": 3,
+    "boot_count": 1,
+    "sha256": "512206c89af27e3955ce7be7c7bc3d3773a1b5e1c221876e545184addbc1cb7c",
+    "program_sha256": "1508b9b7470e241e970e4ba84873ccba6497a26a25156552bc3f9fef2c544c14",
+    "bios_ticks": 64,
+    "bios_hz": 18.2065,
+    "cpu_hz": 12500000,
+    "iterations": 1000,
+    "speed_audit_sha256": "4392ac417bb4576a89008c659babfbf5c5a31b0d29cdaabada852c61f3d9fabd",
+    "speed_sample_note": "1,020 template-matched 100% sampled indicators, not continuous between samples."
+  },
+  "candidates": {
+    "v3": {
+      "binary_sha256": "7c052900a2ea0b35487e4b4ee02f518016f375a64cf4fb585b8517c9fd7423c2",
+      "prediction_sha256": "95bd55a2754d692b0bf2f886f565afa519dd54a89eb5e9b51937632aad10cefd",
+      "cases": {
+        "L0_A0_DEC": {
+          "blocks": 1626,
+          "reference_clocks_per_whole_loop": 27.02358608459619,
+          "candidate_clocks_per_whole_loop": 27.012,
+          "reference_minus_candidate": 0.011586084596189039
+        },
+        "L1_A0_DEC": {
+          "blocks": 1372,
+          "reference_clocks_per_whole_loop": 32.02649487868324,
+          "candidate_clocks_per_whole_loop": 32.013,
+          "reference_minus_candidate": 0.01349487868323962
+        },
+        "L2_A0_DEC": {
+          "blocks": 1220,
+          "reference_clocks_per_whole_loop": 36.01668112586345,
+          "candidate_clocks_per_whole_loop": 28.015,
+          "reference_minus_candidate": 8.001681125863449
+        },
+        "L3_A0_DEC": {
+          "blocks": 1098,
+          "reference_clocks_per_whole_loop": 40.01853458429272,
+          "candidate_clocks_per_whole_loop": 30.013,
+          "reference_minus_candidate": 10.005534584292722
+        },
+        "L4_A0_DEC": {
+          "blocks": 998,
+          "reference_clocks_per_whole_loop": 44.02840778913166,
+          "candidate_clocks_per_whole_loop": 30.013,
+          "reference_minus_candidate": 14.015407789131661
+        },
+        "L1_A6_DEC": {
+          "blocks": 1372,
+          "reference_clocks_per_whole_loop": 32.02649487868324,
+          "candidate_clocks_per_whole_loop": 32.013,
+          "reference_minus_candidate": 0.01349487868323962
+        },
+        "L2_A12_DEC": {
+          "blocks": 1220,
+          "reference_clocks_per_whole_loop": 36.01668112586345,
+          "candidate_clocks_per_whole_loop": 28.015,
+          "reference_minus_candidate": 8.001681125863449
+        },
+        "L3_A32_DEC": {
+          "blocks": 1098,
+          "reference_clocks_per_whole_loop": 40.01853458429272,
+          "candidate_clocks_per_whole_loop": 30.013,
+          "reference_minus_candidate": 10.005534584292722
+        },
+        "L4_A256_DEC": {
+          "blocks": 998,
+          "reference_clocks_per_whole_loop": 44.02840778913166,
+          "candidate_clocks_per_whole_loop": 30.013,
+          "reference_minus_candidate": 14.015407789131661
+        },
+        "L2_A0_LOOP": {
+          "blocks": 1155,
+          "reference_clocks_per_whole_loop": 38.043593916496455,
+          "candidate_clocks_per_whole_loop": 30.019,
+          "reference_minus_candidate": 8.024593916496457
+        }
+      }
+    },
+    "v5": {
+      "binary_sha256": "4bc89a543794f1fca3ccedb87b507117eeb88418818d1ff7c4902768eba2e03d",
+      "prediction_sha256": "d8002eda74f179cdb51755792aabd69d407c0830cfb665742da68ebfdaa64d57",
+      "cases": {
+        "L0_A0_DEC": {
+          "blocks": 1626,
+          "reference_clocks_per_whole_loop": 27.02358608459619,
+          "candidate_clocks_per_whole_loop": 27.012,
+          "reference_minus_candidate": 0.011586084596189039
+        },
+        "L1_A0_DEC": {
+          "blocks": 1372,
+          "reference_clocks_per_whole_loop": 32.02649487868324,
+          "candidate_clocks_per_whole_loop": 32.013,
+          "reference_minus_candidate": 0.01349487868323962
+        },
+        "L2_A0_DEC": {
+          "blocks": 1220,
+          "reference_clocks_per_whole_loop": 36.01668112586345,
+          "candidate_clocks_per_whole_loop": 36.013,
+          "reference_minus_candidate": 0.0036811258634514843
+        },
+        "L3_A0_DEC": {
+          "blocks": 1098,
+          "reference_clocks_per_whole_loop": 40.01853458429272,
+          "candidate_clocks_per_whole_loop": 40.013,
+          "reference_minus_candidate": 0.005534584292725242
+        },
+        "L4_A0_DEC": {
+          "blocks": 998,
+          "reference_clocks_per_whole_loop": 44.02840778913166,
+          "candidate_clocks_per_whole_loop": 44.013,
+          "reference_minus_candidate": 0.015407789131664629
+        },
+        "L1_A6_DEC": {
+          "blocks": 1372,
+          "reference_clocks_per_whole_loop": 32.02649487868324,
+          "candidate_clocks_per_whole_loop": 32.013,
+          "reference_minus_candidate": 0.01349487868323962
+        },
+        "L2_A12_DEC": {
+          "blocks": 1220,
+          "reference_clocks_per_whole_loop": 36.01668112586345,
+          "candidate_clocks_per_whole_loop": 36.013,
+          "reference_minus_candidate": 0.0036811258634514843
+        },
+        "L3_A32_DEC": {
+          "blocks": 1098,
+          "reference_clocks_per_whole_loop": 40.01853458429272,
+          "candidate_clocks_per_whole_loop": 40.013,
+          "reference_minus_candidate": 0.005534584292725242
+        },
+        "L4_A256_DEC": {
+          "blocks": 998,
+          "reference_clocks_per_whole_loop": 44.02840778913166,
+          "candidate_clocks_per_whole_loop": 44.013,
+          "reference_minus_candidate": 0.015407789131664629
+        },
+        "L2_A0_LOOP": {
+          "blocks": 1155,
+          "reference_clocks_per_whole_loop": 38.043593916496455,
+          "candidate_clocks_per_whole_loop": 38.017,
+          "reference_minus_candidate": 0.026593916496452152
+        }
+      }
+    }
+  },
+  "limitations": "One boot; reference whole-loop estimates include timer/ISR, per-block setup and quantization. Guest tested frame/SP/BP/flags before timing. Not hardware, full machine, real speaker, paging, fault or replay qualification."
+}

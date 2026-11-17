@@ -1,0 +1,174 @@
+{
+  "v3": {
+    "hashes": {
+      "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-st2-controls/v3/Vfes_i386_cpu": "7c052900a2ea0b35487e4b4ee02f518016f375a64cf4fb585b8517c9fd7423c2",
+      "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-st2-controls/v3/producer.json": "38e880fb719859d10f9901374e0ac02e7390404103ebd70bd9f243cd5ac25750",
+      "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-st2-controls/v3/controls.bin": "9a9b04f2a5bae3d23225b2a3c938df6f8e6e361700277afb935d102d255c5ab2",
+      "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-st2-controls/v3/controls.asm": "df7edae5b789d301a45f8d8b6cd5ca9a8d66ca699d9926a96818dca5a620c2ee",
+      "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-st2-controls/v3/cases.json": "86e2b97077fb5ba4394dcc2f577eb52cf4d589e5be406dd68cc4c70b733379e0"
+    },
+    "state": "STATE 00000000 00000000 00000000 00000000 00007000 00005002 00000000 00000000 00000046 00001364",
+    "charge": {
+      "ram": 23,
+      "source_page_end": 23,
+      "source_page_cross": 23,
+      "target_ram_line_cross": 23,
+      "source_mmio": 30,
+      "target_mmio": 44,
+      "target_mmio_ram_cross": 55,
+      "prefix_fallback": 27
+    },
+    "marks": {
+      "0": [
+        67,
+        59
+      ],
+      "1": [
+        114,
+        82
+      ],
+      "2": [
+        1045,
+        274
+      ],
+      "3": [
+        1232,
+        297
+      ],
+      "4": [
+        2146,
+        489
+      ],
+      "5": [
+        2329,
+        512
+      ],
+      "6": [
+        3246,
+        704
+      ],
+      "7": [
+        3441,
+        727
+      ],
+      "8": [
+        4383,
+        926
+      ],
+      "9": [
+        4558,
+        956
+      ],
+      "10": [
+        5520,
+        1148
+      ],
+      "11": [
+        5707,
+        1192
+      ],
+      "12": [
+        6876,
+        1413
+      ],
+      "13": [
+        7049,
+        1468
+      ],
+      "14": [
+        8151,
+        1662
+      ],
+      "15": [
+        8318,
+        1689
+      ]
+    }
+  },
+  "v5": {
+    "hashes": {
+      "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-st2-controls/v5/Vfes_i386_cpu": "4bc89a543794f1fca3ccedb87b507117eeb88418818d1ff7c4902768eba2e03d",
+      "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-st2-controls/v5/producer.json": "6c68583ebeea42cdc4a815e8dd96438fccb7c2d6f5426fd6b674ee74b81d8da8",
+      "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-st2-controls/v5/controls.bin": "9a9b04f2a5bae3d23225b2a3c938df6f8e6e361700277afb935d102d255c5ab2",
+      "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-st2-controls/v5/controls.asm": "df7edae5b789d301a45f8d8b6cd5ca9a8d66ca699d9926a96818dca5a620c2ee",
+      "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-enter-st2-controls/v5/cases.json": "86e2b97077fb5ba4394dcc2f577eb52cf4d589e5be406dd68cc4c70b733379e0"
+    },
+    "state": "STATE 00000000 00000000 00000000 00000000 00007000 00005002 00000000 00000000 00000046 00001364",
+    "charge": {
+      "ram": 31,
+      "source_page_end": 31,
+      "source_page_cross": 23,
+      "target_ram_line_cross": 31,
+      "source_mmio": 30,
+      "target_mmio": 44,
+      "target_mmio_ram_cross": 55,
+      "prefix_fallback": 27
+    },
+    "marks": {
+      "0": [
+        67,
+        59
+      ],
+      "1": [
+        114,
+        90
+      ],
+      "2": [
+        1086,
+        282
+      ],
+      "3": [
+        1273,
+        313
+      ],
+      "4": [
+        2227,
+        505
+      ],
+      "5": [
+        2411,
+        528
+      ],
+      "6": [
+        3328,
+        720
+      ],
+      "7": [
+        3523,
+        751
+      ],
+      "8": [
+        4506,
+        950
+      ],
+      "9": [
+        4681,
+        980
+      ],
+      "10": [
+        5643,
+        1172
+      ],
+      "11": [
+        5830,
+        1216
+      ],
+      "12": [
+        6999,
+        1437
+      ],
+      "13": [
+        7171,
+        1492
+      ],
+      "14": [
+        8274,
+        1686
+      ],
+      "15": [
+        8441,
+        1713
+      ]
+    }
+  }
+}

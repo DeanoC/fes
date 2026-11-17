@@ -1,0 +1,26 @@
+{
+  "files": {
+    "fes_i386_cpu.sv": {
+      "gzip_sha256": "53bb5c88bbf03107e8e471245de8cc87a8467ea1865ed95d228eae5098904eca",
+      "sha256": "d41837f6dd245471db47bb3344882468dd54eb95918189f4502aa9a4fb7dcee6",
+      "size": 258111
+    },
+    "fes_i386_governor.sv": {
+      "gzip_sha256": "892802e521e70a70ed1f35db049fc34b4b03adc5daaf1120f7c4dbf7ae5bf78c",
+      "sha256": "15f41414645848d88ede40fdb37fdfb3d581a0c81303e9a50a2fceae440e8478",
+      "size": 19192
+    },
+    "fes_i386_pkg.sv": {
+      "gzip_sha256": "2767a316a67808ff2ac858904580cf8a51a61f5c1fb8bf8ab47ad4025c0c9e87",
+      "sha256": "c279f23195092191fda0ec6803dec977872cd6fdca4925fd4ac53995f11f256c",
+      "size": 77545
+    },
+    "fes_i386_qalign.sv": {
+      "gzip_sha256": "e03a4c197efff3aac892fbc8db3ce57fec5f44d439caae5add30f006379ff5fe",
+      "sha256": "9b537a40f30a401884bb9a61e38326cff00985ebc95e5f51130df095e34b85d1",
+      "size": 11348
+    }
+  },
+  "source_commit": "22fdddd3704768946df40b6ff7333e9225486106",
+  "source_path": "sources/misteross/cores/fes-common/rtl/i386"
+}

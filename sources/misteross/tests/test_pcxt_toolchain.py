@@ -119,8 +119,8 @@ class PcxtToolchainTest(unittest.TestCase):
         # OSS provisioning remains available for advisory diagnostics.
         self.assertIn(f'FES_TOOLCHAIN_ROOT="{builder.ROOT / "build/toolchain/fes-pcxt"}"',
                       dry_run('toolchain-fes-pcxt'))
-        self.assertEqual(dry_run('build-fes-pcxt').split(),
+        self.assertEqual(dry_run('build-fes-pcxt-dos').split(),
                          ['python3', 'scripts/build_fes_pcxt_quartus.py'])
         for variables, extra in ((('CACHE_ROOT=/cache',), {}), ((), {'FES_TOOLCHAIN_CACHE_ROOT': '/cache'})):
             with self.subTest(variables=variables, extra=extra):
-                self.assertIn('--cache-root "/cache"', dry_run('build-fes-pcxt', *variables, **extra))
+                self.assertIn('--cache-root "/cache"', dry_run('build-fes-pcxt-dos', *variables, **extra))

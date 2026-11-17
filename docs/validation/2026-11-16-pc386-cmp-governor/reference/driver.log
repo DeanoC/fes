@@ -1,0 +1,18 @@
+2026-11-16 18:25:28 86Box pid 2710478
+2026-11-16 18:25:29 window 2097158 (0, 0, 754, 445)
+2026-11-16 18:25:29 cmd {"op": "sleep", "s": 45}
+2026-11-16 18:26:14 cmd {"op": "grab", "name": "boot"}
+2026-11-16 18:26:15 cmd {"op": "video_start", "name": "speed-trace", "s": 285}
+2026-11-16 18:26:15 cmd {"op": "type", "text": "SURVEY > CM1.TXT\n"}
+2026-11-16 18:26:17 cmd {"op": "sleep", "s": 90}
+2026-11-16 18:27:47 cmd {"op": "grab", "name": "run1"}
+2026-11-16 18:27:48 cmd {"op": "type", "text": "SURVEY > CM2.TXT\n"}
+2026-11-16 18:27:50 cmd {"op": "sleep", "s": 90}
+2026-11-16 18:29:20 cmd {"op": "grab", "name": "run2"}
+2026-11-16 18:29:20 cmd {"op": "type", "text": "SURVEY > CM3.TXT\n"}
+2026-11-16 18:29:23 cmd {"op": "sleep", "s": 90}
+2026-11-16 18:30:53 cmd {"op": "grab", "name": "run3"}
+2026-11-16 18:30:53 cmd {"op": "video_stop"}
+2026-11-16 18:31:00 cmd {"op": "quit"}
+2026-11-16 18:31:00 skipped quit
+2026-11-16 18:31:00 done

@@ -32,6 +32,13 @@ type Sink interface {
 	Close() error
 }
 
+// TimedTapSink applies both edges on the target and returns only after the
+// release is accepted. It must attempt release even when press is uncertain.
+// A receipt is sink acceptance, not proof that the guest consumed the tap.
+type TimedTapSink interface {
+	Tap(context.Context, protocol.InputFrame) error
+}
+
 // errRejectedInputFrame marks validation failures that occur before a sink
 // can mutate its device. The stream may reject these frames and keep serving;
 // all other Apply errors are treated as possibly partial device writes.
@@ -243,6 +250,7 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 	}
 	tracker := protocol.SequenceTracker{}
 	rejectedSinceReceipt := false
+	tapProbed := false
 	last := time.Now()
 	timer := time.NewTicker(100 * time.Millisecond)
 	defer timer.Stop()
@@ -269,12 +277,19 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 			if f.Header.Session != s.cfg.Session {
 				return
 			}
-			wantsReceipt := f.Header.Flags == protocol.InputFlagReceiptRequested
+			probeTap := f.Header.Flags == protocol.InputFlagTapProbe
+			wantsReceipt := f.Header.Flags == protocol.InputFlagReceiptRequested || probeTap
 			if wantsReceipt {
 				f.Header.Type = protocol.InputTypeReceipt
 				f.Header.Flags = 0
+				if probeTap {
+					_, tapProbed = s.sink.(TimedTapSink)
+					if tapProbed {
+						f.Header.Flags = protocol.InputFlagTapSupported
+					}
+				}
 				if rejectedSinceReceipt {
-					f.Header.Flags = protocol.InputFlagReceiptRejected
+					f.Header.Flags |= protocol.InputFlagReceiptRejected
 				}
 			} else {
 				f.Header.Type = protocol.InputTypePong
@@ -289,6 +304,42 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 			}
 			if wantsReceipt {
 				rejectedSinceReceipt = false
+			}
+			continue
+		}
+		if f.Header.Type == protocol.InputTypeTap {
+			if f.Header.Session != s.cfg.Session || !tapProbed {
+				return
+			}
+			accepted, gap := tracker.ObserveTransient(f.Seq)
+			if gap {
+				s.metrics.SequenceGaps.Add(1)
+			}
+			if !accepted {
+				return
+			}
+			// Tap is serialized with all other events on this connection. The
+			// target sink owns the two edges and must release on cancellation.
+			err := s.sink.(TimedTapSink).Tap(ctx, f)
+			last = time.Now()
+			reply := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypeReceipt, Session: s.cfg.Session}, Seq: f.Seq, ClientMonoNS: f.ClientMonoNS, ServerMonoNS: uint64(time.Now().UnixNano())}
+			if err != nil {
+				reply.Header.Flags = protocol.InputFlagReceiptRejected
+				s.metrics.Rejected.Add(1)
+			} else {
+				s.metrics.Applied.Add(1)
+			}
+			wire, encodeErr := protocol.EncodeInputFrame(reply)
+			if encodeErr != nil {
+				return
+			}
+			if n, writeErr := conn.Write(wire); writeErr != nil || n != len(wire) {
+				return
+			}
+			if err != nil {
+				// A failed tap can have partially reached the sink. Close the
+				// stream so its remote source is released rather than replayed.
+				return
 			}
 			continue
 		}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Seal the 100 or 130 MHz RAM tester through the authenticated HIP lane.
+"""Seal the 100 MHz RAM tester through the authenticated HIP lane.
 
 The core speaks fes.application 1.0 with fixed 720p, the gamepad and
 fes.memory.hps-ddr. It tests the SDRAM addon and all three HPS DDR ports at
@@ -67,7 +67,7 @@ RTL_SOURCES = (
     "cores/fes-ramtest/rtl/top.v",
 )
 RAM_PLL = "cores/fes-ramtest/rtl/ram_pll.v"
-# Both rates use the per-core lock and common HIP compiler slot. Yosys
+# The rate uses the per-core lock and common HIP compiler slot. Yosys
 # declares every fpga2sdram port and nextpnr times the HPS port paths.
 TOOLCHAIN_LOCK = "cores/fes-ramtest/toolchain.lock"
 TOOLCHAIN_ROOT = "build/toolchain/fes-ramtest"
@@ -77,8 +77,8 @@ PINNED_INPUTS = (
     "scripts/fes_de10nano_evidence.py", "scripts/pnr_recipe.py", ABI_DEFINITION, TOOLCHAIN_LOCK,
     QSF, board_evidence.SDC, *RTL_SOURCES,
 )
+MEMORY_MHZ = 100
 OUTPUT_100 = Path("build/fes-ramtest-100")
-OUTPUT_130 = Path("build/fes-ramtest-130")
 MEMORY_PLL_100 = {
     "duty_cycle0": "00000000000000000000000000110010",
     "duty_cycle1": "00000000000000000000000000110010",
@@ -91,15 +91,6 @@ MEMORY_PLL_100 = {
     "phase_shift1": "5000 ps",
     "reference_clock_frequency": "50.0 MHz",
 }
-MEMORY_PLL_130 = {**MEMORY_PLL_100,
-    "output_clock_frequency0": "130.0 MHz",
-    "output_clock_frequency1": "130.0 MHz",
-    "phase_shift1": "6538 ps",
-}
-
-
-def output_for(memory_mhz: int) -> Path:
-    return {100: OUTPUT_100, 130: OUTPUT_130}[memory_mhz]
 
 
 # The build ID hashes the source revision, so each commit synthesises a
@@ -113,11 +104,14 @@ PLACER_CRITICALITY_EXPONENT = PNR["critexp"]
 ROUTE_TIMEOUT_SECONDS = PNR["timeout_s"]
 
 
-def inputs_for(memory_mhz: int) -> tuple[str, ...]:
+def inputs_for(memory_mhz: int = MEMORY_MHZ) -> tuple[str, ...]:
+    # compiler_read_audit's generic producer guard passes the rate through for
+    # this producer. That hook sits in every core's source closure, so it is
+    # left alone here and the argument is accepted and ignored.
     return PINNED_INPUTS + (RAM_PLL,)
 
 
-def authenticate_for(root: Path, memory_mhz: int, cache_root: Path | None):
+def authenticate_for(root: Path, cache_root: Path | None):
     return board._authenticate_tools(
         root, lock_path=root / TOOLCHAIN_LOCK, toolchain_root=root / TOOLCHAIN_ROOT,
         cache_root=cache_root,
@@ -125,14 +119,14 @@ def authenticate_for(root: Path, memory_mhz: int, cache_root: Path | None):
 
 
 def _require_clean_source(root, *, identity_version=2):
-    return board._require_clean_source(root, pinned_inputs=inputs_for(100), identity_version=identity_version)
+    return board._require_clean_source(root, pinned_inputs=inputs_for(), identity_version=identity_version)
 
 
 def _authenticate_tools(root, *, cache_root=None):
-    return authenticate_for(root, 100, cache_root)
+    return authenticate_for(root, cache_root)
 
 
-def record_fields(root: Path, repository: str, revision: str, identities: dict[str, str], *, memory_mhz: int) -> dict:
+def record_fields(root: Path, repository: str, revision: str, identities: dict[str, str]) -> dict:
     return {
         "format": 1, "repository": repository, "revision": revision,
         "recipe": RECIPE, "recipe_sha256": board._sha256(board._regular_input(root, RECIPE)),
@@ -145,31 +139,30 @@ def record_fields(root: Path, repository: str, revision: str, identities: dict[s
             "placer_heap_timingweight": PLACER_TIMING_WEIGHT,
             "placer_heap_critexp": PLACER_CRITICALITY_EXPONENT, "top": "top",
             "pixel_clock_hz": 74_250_000, "reference_clock_hz": 50_000_000,
-            "memory_clock_hz": memory_mhz * 1_000_000, "pll_fractional_vco_multiplier": True,
+            "memory_clock_hz": MEMORY_MHZ * 1_000_000, "pll_fractional_vco_multiplier": True,
         },
     }
 
 
 @guard_functional_source
-def create_build_record(root, repository, revision, identities, *, memory_mhz=100, identity_version=2, execution=None):
+def create_build_record(root, repository, revision, identities, *, identity_version=2, execution=None):
     if identity_version != 2:
         raise board.BuildError("unsupported build identity version")
     return encode_build_record(functional_record_fields(
-        root, record_fields(root, repository, revision, identities, memory_mhz=memory_mhz),
-        source_roots_for_producer(__name__, inputs_for(memory_mhz), root),
-        execution, pinned_inputs=inputs_for(memory_mhz)))
+        root, record_fields(root, repository, revision, identities),
+        source_roots_for_producer(__name__, inputs_for(), root),
+        execution, pinned_inputs=inputs_for()))
 
 
-def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, memory_mhz: int,
-                   output_relative: Path | None = None):
+def build_commands(root: Path, build_id: str, tools: dict[str, Path]):
     if board.HEX32_RE.fullmatch(build_id) is None:
         raise board.BuildError("build ID must be 32 lowercase hexadecimal characters")
     if set(tools) != {"yosys", "nextpnr-mistral"}:
         raise board.BuildError("build commands require authenticated tool paths")
-    output = (output_for(memory_mhz) if output_relative is None else output_relative).as_posix()
+    output = OUTPUT_100.as_posix()
     program = (
         "read_verilog -sv "
-        + f"-D RAM_RATE_SWEEP=1 -D RAM_{memory_mhz}_ONLY=1 -D RAM_OSS_HIGH_SPEED=1 "
+        + "-D RAM_RATE_SWEEP=1 -D RAM_100_ONLY=1 -D RAM_OSS_HIGH_SPEED=1 "
         + "-I cores/fes-common/generated "
         + " ".join(RTL_SOURCES + (RAM_PLL,))
         + f"; chparam -set BUILD_ID 128'h{build_id} top; "
@@ -187,13 +180,13 @@ def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, memory_
     )
 
 
-def manifest(record: bytes, evidence: dict, repository: str, revision: str, identities: dict[str, str], *, memory_mhz: int) -> bytes:
+def manifest(record: bytes, evidence: dict, repository: str, revision: str, identities: dict[str, str]) -> bytes:
     return encode_manifest({
         "format": 2,
         "core": {
             "id": "fes.ramtest",
             "name": "FES RAM Tester",
-            "description": f"Fixed-720p utility that pattern-tests the SDRAM addon and the HPS DDR window at {memory_mhz} MHz",
+            "description": f"Fixed-720p utility that pattern-tests the SDRAM addon and the HPS DDR window at {MEMORY_MHZ} MHz",
             "version": "1.1.0",
         },
         "target": {"platform": "de10_nano", "device": board.TARGET, "programming_profile": "fes-gp-v1"},
@@ -218,29 +211,26 @@ def require_clean_source(root, pinned_inputs):
 
 
 @guard_functional_source
-def build(root: Path = ROOT, package_store=None, *, memory_mhz=100, cache_root: Path | None = None, identity_version=2, gpu_device=0) -> Path:
+def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = None, identity_version=2, gpu_device=0) -> Path:
     root = Path(root).resolve()
     if identity_version != 2:
         raise board.BuildError("unsupported build identity version")
-    if memory_mhz not in (100, 130):
-        raise board.BuildError("OSS RAM tester supports 100 or 130 MHz")
-    pinned_inputs = inputs_for(memory_mhz)
-    output_relative = output_for(memory_mhz)
+    pinned_inputs = inputs_for()
+    output_relative = OUTPUT_100
     package_store = root / "build/packages" if package_store is None else Path(package_store).resolve()
     if package_store != root / "build/packages":
         raise board.BuildError("package store must be build/packages")
     repository, revision = require_clean_source(root, pinned_inputs)
-    authenticated = authenticate_for(root, memory_mhz, cache_root)
+    authenticated = authenticate_for(root, cache_root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     invocation = FunctionalInvocation(authenticated, gpu_device)
     record = create_build_record(root, repository, revision, identities,
-                                 execution=invocation.inputs, memory_mhz=memory_mhz)
+                                 execution=invocation.inputs)
     output = board._prepare_output(root, relative=output_relative, build_outputs=BUILD_OUTPUTS)
     board._write_atomic(output / "build-inputs.json", record)
     try:
         commands = build_commands(root, build_identity(record),
-            {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
-            memory_mhz=memory_mhz)
+            {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")})
         board._run_tool(commands[0], root, output / "yosys.log", output_relative=output_relative, env=invocation.env, audit_source_root=root)
         try:
             winner = route_after_synth(
@@ -253,9 +243,9 @@ def build(root: Path = ROOT, package_store=None, *, memory_mhz=100, cache_root: 
         except SearchError as exc:
             raise board.BuildError(str(exc)) from exc
         evidence = board_evidence.validate_build_evidence(
-            output, root, memory_clock_mhz=float(memory_mhz),
-            capture_clock_mhz=float(memory_mhz),
-            memory_pll_parameters={100: MEMORY_PLL_100, 130: MEMORY_PLL_130}[memory_mhz],
+            output, root, memory_clock_mhz=float(MEMORY_MHZ),
+            capture_clock_mhz=float(MEMORY_MHZ),
+            memory_pll_parameters=MEMORY_PLL_100,
             ordinary_resources=ORDINARY_RESOURCES, required_resources=REQUIRED_RESOURCES,
             forbidden_resources=FORBIDDEN_RESOURCES, required_zero_resources=REQUIRED_ZERO_RESOURCES)
         evidence["hps_ddr"] = board_evidence.hps_ddr_layout_evidence(
@@ -267,16 +257,16 @@ def build(root: Path = ROOT, package_store=None, *, memory_mhz=100, cache_root: 
         evidence["route"]["placer_heap_timingweight"] = winner.weight
         board._write_atomic(output / "build-summary.json",
                             (json.dumps(evidence, indent=2, sort_keys=True) + "\n").encode())
-        encoded = manifest(record, evidence, repository, revision, identities, memory_mhz=memory_mhz)
+        encoded = manifest(record, evidence, repository, revision, identities)
         board._write_atomic(output / "manifest.toml", encoded)
-        final_tools = authenticate_for(root, memory_mhz, cache_root)
+        final_tools = authenticate_for(root, cache_root)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise board.BuildError("authenticated tool identity changed during build")
         if require_clean_source(root, pinned_inputs) != (repository, revision):
             raise board.BuildError("source identity changed during build")
         invocation.verify()
         if create_build_record(root, repository, revision, identities,
-                               execution=invocation.inputs, memory_mhz=memory_mhz) != record:
+                               execution=invocation.inputs) != record:
             raise board.BuildError("functional source inputs changed during build")
         return export_package(encoded, output / "core.rbf", package_store)
     except Exception:
@@ -291,13 +281,11 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--gpu-device", type=int, default=0)
-    parser.add_argument("--memory-mhz", type=int, choices=(100, 130), default=100)
     parser.add_argument("--package-output", type=Path)
     parser.add_argument("--identity-version", type=int, choices=(2,), default=2)
     args = parser.parse_args()
     print(build(args.root, package_store=args.package_output, cache_root=args.cache_root,
-                identity_version=args.identity_version, gpu_device=args.gpu_device,
-                memory_mhz=args.memory_mhz))
+                identity_version=args.identity_version, gpu_device=args.gpu_device))
     return 0
 
 

@@ -1,0 +1,6 @@
+f7ea9d86317cc2c11f8a139ce19cf6db4ed949618cae5cb3027187ef0d8e051b  /data/fes1902-samsung-prompt-bySONsIF/vm/86box.cfg
+fc6711966d760fea031aba8adb877d33f8d7a77c89e3ec671ea4fcabd20e3830  /data/fes1902-samsung-prompt-bySONsIF/vm/nvr/spc6000a.nvr
+279ac36b8cbf0a77c99899e60be45e975fd33a828e725dd13568e451eee90027  /data/fes1902-samsung-prompt-bySONsIF/vm/disk.img
+c74e7e3a085c624260f0d144c02968d00fa9383f5d7fc46b32f1dc80d371d7ff  /data/fes1902-samsung-prompt-bySONsIF/app/sq/AppRun
+ae3dc231824cf0c2facd1af4e2164814cbbb15bb1a9fa0603cdd8e9ee0ad2969  /data/fes1902-samsung-prompt-bySONsIF/app/sq/usr/local/bin/86Box
+ec38293be553dabc711ef5dd62cb61b45167d2a00e04cc6c49fb8032aac09b94  /data/fes1902-samsung-prompt-bySONsIF/roms.sha256

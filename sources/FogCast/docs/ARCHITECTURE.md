@@ -1436,7 +1436,8 @@ Stop. A rejected changed-session action triggers a refresh; a subsequent
 explicit Stop uses the refreshed identity. Returning to a reused room calls
 its resume hook immediately, retaining navigation focus while refreshing the
 host snapshot. Failed saves and lost Stop responses retain their existing
-retry behavior.
+retry behavior. Before its first full picture, the workbench prewarms its
+standard description wrapping at the same text size used for display.
 See [hardware rooms](../../../docs/hardware-rooms.md) for the complete scope.
 
 When an entry has no selected expansion and its package lacks session display,
@@ -1601,13 +1602,19 @@ one HID keyboard press `event` only for an active session with a negotiated
 are rejected instead of silently dropping or remapping physical keys. It
 checks the selected kit's connection and lease and input attachment after
 waiting for the input lock. It rejects missing, incompatible, or unknown target
-observations, then sends a press and a release
-under the same lock. A canceled request still releases a potentially applied
-press; an unconfirmed release closes the bridge and clears held input. The
-response includes `host_duration_ms` for the host operation. That duration
-is not a measurement of when either edge reached or was applied by the core.
-Successful writes do not acknowledge guest delivery. The endpoint does not
-turn an uncertain host transport write into a successful tap.
+observations. On an explicit tap, the host probes the bridge for target-timed
+tap support, then sends one generation-bound operation. The target observes
+the active core and applies the press and release 60 ms apart using its local
+clock; unrelated held keys from other sources remain held. The tap fails if
+the same key is held locally before the tap or becomes held before its release. A cancellation or
+uncertain press triggers a release attempt; an unconfirmed operation closes
+the bridge and clears host held input without replay. Its correlated receipt
+confirms accepted target sink posts, not guest consumption or a hardware timing
+bound. The response's `host_duration_ms` measures the host operation only.
+Legacy bridges attach normally, but decline or close on the optional probe and
+receive no tap input. Taps require neutral remote controls so a legacy disconnect or an
+unconfirmed tap cannot release another remote hold. Separate `/event`
+requests still have transport jitter.
 
 `GET /api/v1/session/events` keeps the existing protocol 1 event object.
 The host also sets an optional `flight_id` UUID on those events: one new id
@@ -3571,9 +3578,12 @@ port. Only physical gamepads occupy the two stable controller slots: the first
 two pads opened take ports 1 and 2 (pads present at startup in `/dev/input`
 order, later ones as they are plugged in, each taking the lowest free port) and
 keep them until unplugged. The kits' `081f:e401` fixture pad is the
-exception: it yields its port to any other pad that arrives, releasing what
-it held there, and takes the port that pad would have had. A later pad that finds both taken never reaches a machine: it
-drives the menu where a pad with a port would, and its Guide button still stops
+exception: when an arriving non-fixture would otherwise get a higher port or
+none, the fixture releases its old port and takes the next free port, if any.
+Held hat and stick directions already reaching the core follow it, except
+suppressed input and directions remapped to Select or Start. A menu-only
+fixture does not reclaim a subsequently freed port. A later pad that finds
+both taken never reaches a machine: it drives the menu where a pad with a port would, and its Guide button still stops
 a kit-local core. A `-input` node the classifier cannot place also takes a
 port. Keyboard
 connection or removal does not shift either controller. Keyboard disconnect
@@ -3752,7 +3762,8 @@ single-event POST, or an `unconfirmed` launcher receipt followed by closure:
 the event may have applied. The host closes its connection
 without replay, clears its held-input snapshot and attempts to stop the bridge;
 the error does not confirm remote release. This adds a bridge round trip to each
-event. The timed key tap does not use this barrier. Receipt capability is
+event. A timed key tap separately probes its capability and waits for a
+completion receipt. Receipt capability is
 probed before the first confirmed event on each connection; an older kit bridge
 still attaches but cannot accept confirmed remote input. Kit-local pads stay on the unix socket
 and do not silently fall back to the host.

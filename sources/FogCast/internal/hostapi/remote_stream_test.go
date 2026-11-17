@@ -44,6 +44,25 @@ func (s *streamSink) Apply(frame protocol.InputFrame) error {
 }
 func (s *streamSink) ReleaseAll() error { return nil }
 func (s *streamSink) Close() error      { return nil }
+func (s *streamSink) Tap(ctx context.Context, frame protocol.InputFrame) error {
+	if frame.ServerMonoNS != 7 {
+		return errors.New("stale test generation")
+	}
+	frame.Header.Type = protocol.InputTypeInput
+	frame.ServerMonoNS = 0
+	frame.Value = 0
+	if err := s.Apply(frame); err != nil {
+		return err
+	}
+	timer := time.NewTimer(time.Duration(protocol.InputTapHoldMS) * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+	case <-ctx.Done():
+	}
+	frame.Action = 0
+	return errors.Join(ctx.Err(), s.Apply(frame))
+}
 func (s *streamSink) count() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -450,7 +469,7 @@ func TestSessionInputTapRejectsForeignLeaseAndInvalidKey(t *testing.T) {
 }
 
 func tapHIDStatus() protocol.Status {
-	core := "fes.pcxt"
+	core := "fes.pcxt-dos"
 	return protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core,
 		CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 7,
 			ABI:              protocol.RuntimeContract{ID: "fes.computer", Major: 1},
@@ -645,7 +664,7 @@ type gatedTapInput struct {
 	delivered        bool
 }
 
-func (r *gatedTapInput) TapKey(_ context.Context, _ string, _ remoteinput.Event, check func() error) (time.Duration, error) {
+func (r *gatedTapInput) TapKey(_ context.Context, _ string, _ uint64, _ remoteinput.Event, check func() error) (time.Duration, error) {
 	close(r.entered)
 	<-r.proceed
 	if err := check(); err != nil {

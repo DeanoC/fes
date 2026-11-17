@@ -28,7 +28,7 @@ class GeneratedTest(unittest.TestCase):
                 self.assertEqual(path.read_text(), text)
 
     def test_key_matches_the_package(self):
-        # gov_t's fields, in order, as fes_i386_pkg declares them: the key, then ea3.
+        # gov_t's fields, in order: classification key, then diagnostic metadata.
         package = (governor.RTL / 'fes_i386_pkg.sv').read_text()
         end = package.index('} gov_t;')
         body = package[package.rindex('typedef struct packed {', 0, end):end]
@@ -37,7 +37,9 @@ class GeneratedTest(unittest.TestCase):
             match = re.fullmatch(r'logic\s*(\[(\d+):0\])?\s*(\w+);', line.split('//')[0].strip())
             if match:
                 declared.append((match.group(3), int(match.group(2)) + 1 if match.group(2) else 1))
-        self.assertEqual(declared, [*governor.KEY_FIELDS, ('ea3', 1)])
+        self.assertEqual(declared, [*governor.KEY_FIELDS, ('ea3', 1), ('ref_test_excluded', 1), ('ref_real_mode', 1), ('ref_shift_nonzero', 1),
+                                    ('ref_enter_level', 5), ('ref_enter_valid', 1), ('ref_stack32', 1),
+                                    ('ref_zero_unsafe', 1), ('ref_prefix_count', 4), ('prefix286', 6)])
 
 
 class TableTest(unittest.TestCase):

@@ -1,0 +1,11 @@
+{"op": "sleep", "s": 45}
+{"op": "grab", "name": "boot"}
+{"op": "type", "text": "HELDOUT > H1.TXT\n"}
+{"op": "sleep", "s": 30}
+{"op": "grab", "name": "run1"}
+{"op": "type", "text": "HELDOUT > H2.TXT\n"}
+{"op": "sleep", "s": 30}
+{"op": "grab", "name": "run2"}
+{"op": "type", "text": "HELDOUT > H3.TXT\n"}
+{"op": "sleep", "s": 30}
+{"op": "grab", "name": "run3"}

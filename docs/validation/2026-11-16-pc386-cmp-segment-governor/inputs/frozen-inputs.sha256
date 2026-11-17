@@ -1,0 +1,9 @@
+aee25f15b0dc910f2651383b3fa6fdffa4f23285544f960f03935499b401ea55  out/dev/1902-cmp-segment-holdout/generate.py
+0a53954d11ddbd6ea45f94729b10103f9e4ad764c6315e5aab8a2cb5f3fd3c66  out/dev/1902-cmp-segment-holdout/manifest.json
+f3241de082bc70e2bba7665c98ab42e079b976dded1e14832c1c4239e21d8f06  out/dev/1902-cmp-segment-holdout/instruction-identity.json
+88aaa470ccea2ebb1f0b94cc424c09f00e35cac86f7818b21bdda9674ad266b8  out/dev/1902-cmp-segment-holdout/commands-frozen.jsonl
+cdab5e155bb48a5b24ed8160bb2a6cb4a4e1b590acbcb8903c8adb3e94f87f20  out/dev/1902-cmp-segment-holdout/SURVEY.COM
+d2251209ec3515d1c6657961bbccdb864f7c956dd0268abf161c54b8c3376710  out/dev/1902-cmp-segment-holdout/rtl.bin
+61779b2924cd9b69d6fd21aef8b8b2684a4e2377d675436270fd8ef3ed3722e7  out/dev/1902-cmp-segment-holdout/FAILCASE.COM
+f57b0ea549176fefb62fba062cde53972ce9e7034cd3810f338e5262fc8ec8e4  out/dev/1902-cmp-segment-holdout/rtl-failure.bin
+e350e2e673c9f0a071113627979e6c15cba98a3b7c1a5a9d194464b7348af984  out/dev/1902-cmp-segment-holdout/README.md

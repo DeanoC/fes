@@ -1,0 +1,58 @@
+{
+  "CS8_INDEX": {
+    "charged_per_iteration": 41.38,
+    "elapsed_cycles": 211866
+  },
+  "CS16_INDEX": {
+    "charged_per_iteration": 41.38,
+    "elapsed_cycles": 211919
+  },
+  "SS8_DISP": {
+    "charged_per_iteration": 41.38,
+    "elapsed_cycles": 211919
+  },
+  "SS16_DISP": {
+    "charged_per_iteration": 41.379,
+    "elapsed_cycles": 211914
+  },
+  "CSCS8_DIRECT": {
+    "charged_per_iteration": 47.379,
+    "elapsed_cycles": 242633
+  },
+  "CSCS16_DIRECT": {
+    "charged_per_iteration": 47.379,
+    "elapsed_cycles": 242634
+  },
+  "CSSS8_BX": {
+    "charged_per_iteration": 45.379,
+    "elapsed_cycles": 232394
+  },
+  "CSSS16_BX": {
+    "charged_per_iteration": 45.379,
+    "elapsed_cycles": 232394
+  },
+  "SSCS8_INDEX": {
+    "charged_per_iteration": 45.379,
+    "elapsed_cycles": 232394
+  },
+  "SSCS16_INDEX": {
+    "charged_per_iteration": 45.379,
+    "elapsed_cycles": 232394
+  },
+  "SSSS8_DISP": {
+    "charged_per_iteration": 47.377,
+    "elapsed_cycles": 242624
+  },
+  "SSSS16_DISP": {
+    "charged_per_iteration": 47.38,
+    "elapsed_cycles": 242639
+  },
+  "CS8_NE": {
+    "charged_per_iteration": 42.38,
+    "elapsed_cycles": 217039
+  },
+  "SS16_NE": {
+    "charged_per_iteration": 42.349,
+    "elapsed_cycles": 216880
+  }
+}

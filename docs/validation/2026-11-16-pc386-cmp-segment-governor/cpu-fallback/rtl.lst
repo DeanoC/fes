@@ -1,0 +1,744 @@
+     1                                  bits 16
+     2                                  cpu 386
+     3                                  org 0x1000
+     4                                  start:
+     5 00000000 FA                       cli
+     6 00000001 FC                       cld
+     7 00000002 31C0                     xor ax,ax
+     8 00000004 8ED8                     mov ds,ax
+     9 00000006 8EC0                     mov es,ax
+    10 00000008 8ED0                     mov ss,ax
+    11 0000000A BC0070                   mov sp,0x7000
+    12                                  case_0:
+    13 0000000D B000                     mov al,0
+    14 0000000F E680                     out 0x80,al
+    15 00000011 BDE803                  mov bp,1000
+    16 00000014 66BB04800000             mov ebx,0x8004
+    17 0000001A 6631F6                   xor esi,esi
+    18 0000001D 66B834123412             mov eax,0x12341234
+    19 00000023 C7060080A55A             mov word [0x8000],0x5aa5
+    20 00000029 C70604803412             mov word [0x8004],0x1234
+    21 0000002F C70606803412             mov word [0x8006],0x1234
+    22 00000035 C70608803412             mov word [0x8008],0x1234
+    23 0000003B 89260A80                 mov [0x800a],sp
+    24 0000003F 90                       align 2
+    25                                  .inner:
+    26 00000040 3807                     cmp [bx],al
+    27 00000042 9C                       pushf
+    28 00000043 5F                       pop di
+    29 00000044 4D                       dec bp
+    30 00000045 75F9                     jnz .inner
+    31 00000047 81E7D508                and di,0x8d5
+    32 0000004B 83FF44                   cmp di,0x44
+    33 0000004E 0F854409                 jne failed
+    34 00000052 663D34123412             cmp eax,0x12341234
+    35 00000058 0F853A09                 jne failed
+    36 0000005C 6681FB04800000           cmp ebx,0x8004
+    37 00000063 0F852F09                 jne failed
+    38 00000067 6683FE00                 cmp esi,0
+    39 0000006B 0F852709                 jne failed
+    40 0000006F 83FD00                   cmp bp,0
+    41 00000072 0F852009                 jne failed
+    42 00000076 813E0080A55A             cmp word [0x8000],0x5aa5
+    43 0000007C 0F851609                 jne failed
+    44 00000080 813E04803412             cmp word [0x8004],0x1234
+    45 00000086 0F850C09                 jne failed
+    46 0000008A 813E06803412             cmp word [0x8006],0x1234
+    47 00000090 0F850209                 jne failed
+    48 00000094 813E08803412             cmp word [0x8008],0x1234
+    49 0000009A 0F85F808                 jne failed
+    50 0000009E 39260A80                 cmp [0x800a],sp
+    51 000000A2 0F85F008                 jne failed
+    52 000000A6 1E                       push ds
+    53 000000A7 58                       pop ax
+    54 000000A8 8CCA                     mov dx,cs
+    55 000000AA 39D0                     cmp ax,dx
+    56 000000AC 0F85E608                 jne failed
+    57 000000B0 06                       push es
+    58 000000B1 58                       pop ax
+    59 000000B2 39D0                     cmp ax,dx
+    60 000000B4 0F85DE08                 jne failed
+    61 000000B8 B001                     mov al,1
+    62 000000BA E680                     out 0x80,al
+    63                                  case_1:
+    64 000000BC B002                     mov al,2
+    65 000000BE E680                     out 0x80,al
+    66 000000C0 BDE803                  mov bp,1000
+    67 000000C3 66BB04800000             mov ebx,0x8004
+    68 000000C9 6631F6                   xor esi,esi
+    69 000000CC 66B834123412             mov eax,0x12341234
+    70 000000D2 C7060080A55A             mov word [0x8000],0x5aa5
+    71 000000D8 C70604803412             mov word [0x8004],0x1234
+    72 000000DE C70606803412             mov word [0x8006],0x1234
+    73 000000E4 C70608803412             mov word [0x8008],0x1234
+    74 000000EA 89260A80                 mov [0x800a],sp
+    75                                   align 2
+    76                                  .inner:
+    77 000000EE 3907                     cmp [bx],ax
+    78 000000F0 9C                       pushf
+    79 000000F1 5F                       pop di
+    80 000000F2 4D                       dec bp
+    81 000000F3 75F9                     jnz .inner
+    82 000000F5 81E7D508                and di,0x8d5
+    83 000000F9 83FF44                   cmp di,0x44
+    84 000000FC 0F859608                 jne failed
+    85 00000100 663D34123412             cmp eax,0x12341234
+    86 00000106 0F858C08                 jne failed
+    87 0000010A 6681FB04800000           cmp ebx,0x8004
+    88 00000111 0F858108                 jne failed
+    89 00000115 6683FE00                 cmp esi,0
+    90 00000119 0F857908                 jne failed
+    91 0000011D 83FD00                   cmp bp,0
+    92 00000120 0F857208                 jne failed
+    93 00000124 813E0080A55A             cmp word [0x8000],0x5aa5
+    94 0000012A 0F856808                 jne failed
+    95 0000012E 813E04803412             cmp word [0x8004],0x1234
+    96 00000134 0F855E08                 jne failed
+    97 00000138 813E06803412             cmp word [0x8006],0x1234
+    98 0000013E 0F855408                 jne failed
+    99 00000142 813E08803412             cmp word [0x8008],0x1234
+   100 00000148 0F854A08                 jne failed
+   101 0000014C 39260A80                 cmp [0x800a],sp
+   102 00000150 0F854208                 jne failed
+   103 00000154 1E                       push ds
+   104 00000155 58                       pop ax
+   105 00000156 8CCA                     mov dx,cs
+   106 00000158 39D0                     cmp ax,dx
+   107 0000015A 0F853808                 jne failed
+   108 0000015E 06                       push es
+   109 0000015F 58                       pop ax
+   110 00000160 39D0                     cmp ax,dx
+   111 00000162 0F853008                 jne failed
+   112 00000166 B003                     mov al,3
+   113 00000168 E680                     out 0x80,al
+   114                                  case_2:
+   115 0000016A B004                     mov al,4
+   116 0000016C E680                     out 0x80,al
+   117 0000016E BDE803                  mov bp,1000
+   118 00000171 66BB04800000             mov ebx,0x8004
+   119 00000177 6631F6                   xor esi,esi
+   120 0000017A 66B834123412             mov eax,0x12341234
+   121 00000180 C7060080A55A             mov word [0x8000],0x5aa5
+   122 00000186 C70604803412             mov word [0x8004],0x1234
+   123 0000018C C70606803412             mov word [0x8006],0x1234
+   124 00000192 C70608803412             mov word [0x8008],0x1234
+   125 00000198 89260A80                 mov [0x800a],sp
+   126                                   align 2
+   127                                  .inner:
+   128 0000019C 643E                     db 0x64,0x3e
+   129 0000019E 3807                     cmp [bx],al
+   130 000001A0 9C                       pushf
+   131 000001A1 5F                       pop di
+   132 000001A2 4D                       dec bp
+   133 000001A3 75F7                     jnz .inner
+   134 000001A5 81E7D508                and di,0x8d5
+   135 000001A9 83FF44                   cmp di,0x44
+   136 000001AC 0F85E607                 jne failed
+   137 000001B0 663D34123412             cmp eax,0x12341234
+   138 000001B6 0F85DC07                 jne failed
+   139 000001BA 6681FB04800000           cmp ebx,0x8004
+   140 000001C1 0F85D107                 jne failed
+   141 000001C5 6683FE00                 cmp esi,0
+   142 000001C9 0F85C907                 jne failed
+   143 000001CD 83FD00                   cmp bp,0
+   144 000001D0 0F85C207                 jne failed
+   145 000001D4 813E0080A55A             cmp word [0x8000],0x5aa5
+   146 000001DA 0F85B807                 jne failed
+   147 000001DE 813E04803412             cmp word [0x8004],0x1234
+   148 000001E4 0F85AE07                 jne failed
+   149 000001E8 813E06803412             cmp word [0x8006],0x1234
+   150 000001EE 0F85A407                 jne failed
+   151 000001F2 813E08803412             cmp word [0x8008],0x1234
+   152 000001F8 0F859A07                 jne failed
+   153 000001FC 39260A80                 cmp [0x800a],sp
+   154 00000200 0F859207                 jne failed
+   155 00000204 1E                       push ds
+   156 00000205 58                       pop ax
+   157 00000206 8CCA                     mov dx,cs
+   158 00000208 39D0                     cmp ax,dx
+   159 0000020A 0F858807                 jne failed
+   160 0000020E 06                       push es
+   161 0000020F 58                       pop ax
+   162 00000210 39D0                     cmp ax,dx
+   163 00000212 0F858007                 jne failed
+   164 00000216 B005                     mov al,5
+   165 00000218 E680                     out 0x80,al
+   166                                  case_3:
+   167 0000021A B006                     mov al,6
+   168 0000021C E680                     out 0x80,al
+   169 0000021E BDE803                  mov bp,1000
+   170 00000221 66BB04800000             mov ebx,0x8004
+   171 00000227 6631F6                   xor esi,esi
+   172 0000022A 66B834123412             mov eax,0x12341234
+   173 00000230 C7060080A55A             mov word [0x8000],0x5aa5
+   174 00000236 C70604803412             mov word [0x8004],0x1234
+   175 0000023C C70606803412             mov word [0x8006],0x1234
+   176 00000242 C70608803412             mov word [0x8008],0x1234
+   177 00000248 89260A80                 mov [0x800a],sp
+   178                                   align 2
+   179                                  .inner:
+   180 0000024C 643E                     db 0x64,0x3e
+   181 0000024E 3907                     cmp [bx],ax
+   182 00000250 9C                       pushf
+   183 00000251 5F                       pop di
+   184 00000252 4D                       dec bp
+   185 00000253 75F7                     jnz .inner
+   186 00000255 81E7D508                and di,0x8d5
+   187 00000259 83FF44                   cmp di,0x44
+   188 0000025C 0F853607                 jne failed
+   189 00000260 663D34123412             cmp eax,0x12341234
+   190 00000266 0F852C07                 jne failed
+   191 0000026A 6681FB04800000           cmp ebx,0x8004
+   192 00000271 0F852107                 jne failed
+   193 00000275 6683FE00                 cmp esi,0
+   194 00000279 0F851907                 jne failed
+   195 0000027D 83FD00                   cmp bp,0
+   196 00000280 0F851207                 jne failed
+   197 00000284 813E0080A55A             cmp word [0x8000],0x5aa5
+   198 0000028A 0F850807                 jne failed
+   199 0000028E 813E04803412             cmp word [0x8004],0x1234
+   200 00000294 0F85FE06                 jne failed
+   201 00000298 813E06803412             cmp word [0x8006],0x1234
+   202 0000029E 0F85F406                 jne failed
+   203 000002A2 813E08803412             cmp word [0x8008],0x1234
+   204 000002A8 0F85EA06                 jne failed
+   205 000002AC 39260A80                 cmp [0x800a],sp
+   206 000002B0 0F85E206                 jne failed
+   207 000002B4 1E                       push ds
+   208 000002B5 58                       pop ax
+   209 000002B6 8CCA                     mov dx,cs
+   210 000002B8 39D0                     cmp ax,dx
+   211 000002BA 0F85D806                 jne failed
+   212 000002BE 06                       push es
+   213 000002BF 58                       pop ax
+   214 000002C0 39D0                     cmp ax,dx
+   215 000002C2 0F85D006                 jne failed
+   216 000002C6 B007                     mov al,7
+   217 000002C8 E680                     out 0x80,al
+   218                                  case_4:
+   219 000002CA B008                     mov al,8
+   220 000002CC E680                     out 0x80,al
+   221 000002CE BDE803                  mov bp,1000
+   222 000002D1 66BB04800000             mov ebx,0x8004
+   223 000002D7 6631F6                   xor esi,esi
+   224 000002DA 66B834123412             mov eax,0x12341234
+   225 000002E0 C7060080A55A             mov word [0x8000],0x5aa5
+   226 000002E6 C70604803412             mov word [0x8004],0x1234
+   227 000002EC C70606803412             mov word [0x8006],0x1234
+   228 000002F2 C70608803412             mov word [0x8008],0x1234
+   229 000002F8 89260A80                 mov [0x800a],sp
+   230                                   align 2
+   231                                  .inner:
+   232 000002FC 653E                     db 0x65,0x3e
+   233 000002FE 3807                     cmp [bx],al
+   234 00000300 9C                       pushf
+   235 00000301 5F                       pop di
+   236 00000302 4D                       dec bp
+   237 00000303 75F7                     jnz .inner
+   238 00000305 81E7D508                and di,0x8d5
+   239 00000309 83FF44                   cmp di,0x44
+   240 0000030C 0F858606                 jne failed
+   241 00000310 663D34123412             cmp eax,0x12341234
+   242 00000316 0F857C06                 jne failed
+   243 0000031A 6681FB04800000           cmp ebx,0x8004
+   244 00000321 0F857106                 jne failed
+   245 00000325 6683FE00                 cmp esi,0
+   246 00000329 0F856906                 jne failed
+   247 0000032D 83FD00                   cmp bp,0
+   248 00000330 0F856206                 jne failed
+   249 00000334 813E0080A55A             cmp word [0x8000],0x5aa5
+   250 0000033A 0F855806                 jne failed
+   251 0000033E 813E04803412             cmp word [0x8004],0x1234
+   252 00000344 0F854E06                 jne failed
+   253 00000348 813E06803412             cmp word [0x8006],0x1234
+   254 0000034E 0F854406                 jne failed
+   255 00000352 813E08803412             cmp word [0x8008],0x1234
+   256 00000358 0F853A06                 jne failed
+   257 0000035C 39260A80                 cmp [0x800a],sp
+   258 00000360 0F853206                 jne failed
+   259 00000364 1E                       push ds
+   260 00000365 58                       pop ax
+   261 00000366 8CCA                     mov dx,cs
+   262 00000368 39D0                     cmp ax,dx
+   263 0000036A 0F852806                 jne failed
+   264 0000036E 06                       push es
+   265 0000036F 58                       pop ax
+   266 00000370 39D0                     cmp ax,dx
+   267 00000372 0F852006                 jne failed
+   268 00000376 B009                     mov al,9
+   269 00000378 E680                     out 0x80,al
+   270                                  case_5:
+   271 0000037A B00A                     mov al,10
+   272 0000037C E680                     out 0x80,al
+   273 0000037E BDE803                  mov bp,1000
+   274 00000381 66BB04800000             mov ebx,0x8004
+   275 00000387 6631F6                   xor esi,esi
+   276 0000038A 66B834123412             mov eax,0x12341234
+   277 00000390 C7060080A55A             mov word [0x8000],0x5aa5
+   278 00000396 C70604803412             mov word [0x8004],0x1234
+   279 0000039C C70606803412             mov word [0x8006],0x1234
+   280 000003A2 C70608803412             mov word [0x8008],0x1234
+   281 000003A8 89260A80                 mov [0x800a],sp
+   282                                   align 2
+   283                                  .inner:
+   284 000003AC 653E                     db 0x65,0x3e
+   285 000003AE 3907                     cmp [bx],ax
+   286 000003B0 9C                       pushf
+   287 000003B1 5F                       pop di
+   288 000003B2 4D                       dec bp
+   289 000003B3 75F7                     jnz .inner
+   290 000003B5 81E7D508                and di,0x8d5
+   291 000003B9 83FF44                   cmp di,0x44
+   292 000003BC 0F85D605                 jne failed
+   293 000003C0 663D34123412             cmp eax,0x12341234
+   294 000003C6 0F85CC05                 jne failed
+   295 000003CA 6681FB04800000           cmp ebx,0x8004
+   296 000003D1 0F85C105                 jne failed
+   297 000003D5 6683FE00                 cmp esi,0
+   298 000003D9 0F85B905                 jne failed
+   299 000003DD 83FD00                   cmp bp,0
+   300 000003E0 0F85B205                 jne failed
+   301 000003E4 813E0080A55A             cmp word [0x8000],0x5aa5
+   302 000003EA 0F85A805                 jne failed
+   303 000003EE 813E04803412             cmp word [0x8004],0x1234
+   304 000003F4 0F859E05                 jne failed
+   305 000003F8 813E06803412             cmp word [0x8006],0x1234
+   306 000003FE 0F859405                 jne failed
+   307 00000402 813E08803412             cmp word [0x8008],0x1234
+   308 00000408 0F858A05                 jne failed
+   309 0000040C 39260A80                 cmp [0x800a],sp
+   310 00000410 0F858205                 jne failed
+   311 00000414 1E                       push ds
+   312 00000415 58                       pop ax
+   313 00000416 8CCA                     mov dx,cs
+   314 00000418 39D0                     cmp ax,dx
+   315 0000041A 0F857805                 jne failed
+   316 0000041E 06                       push es
+   317 0000041F 58                       pop ax
+   318 00000420 39D0                     cmp ax,dx
+   319 00000422 0F857005                 jne failed
+   320 00000426 B00B                     mov al,11
+   321 00000428 E680                     out 0x80,al
+   322                                  case_6:
+   323 0000042A B00C                     mov al,12
+   324 0000042C E680                     out 0x80,al
+   325 0000042E BDE803                  mov bp,1000
+   326 00000431 66BB04800000             mov ebx,0x8004
+   327 00000437 6631F6                   xor esi,esi
+   328 0000043A 66B834123412             mov eax,0x12341234
+   329 00000440 C7060080A55A             mov word [0x8000],0x5aa5
+   330 00000446 C70604803412             mov word [0x8004],0x1234
+   331 0000044C C70606803412             mov word [0x8006],0x1234
+   332 00000452 C70608803412             mov word [0x8008],0x1234
+   333 00000458 89260A80                 mov [0x800a],sp
+   334                                   align 2
+   335                                  .inner:
+   336 0000045C 663E                     db 0x66,0x3e
+   337 0000045E 3807                     cmp [bx],al
+   338 00000460 9C                       pushf
+   339 00000461 5F                       pop di
+   340 00000462 4D                       dec bp
+   341 00000463 75F7                     jnz .inner
+   342 00000465 81E7D508                and di,0x8d5
+   343 00000469 83FF44                   cmp di,0x44
+   344 0000046C 0F852605                 jne failed
+   345 00000470 663D34123412             cmp eax,0x12341234
+   346 00000476 0F851C05                 jne failed
+   347 0000047A 6681FB04800000           cmp ebx,0x8004
+   348 00000481 0F851105                 jne failed
+   349 00000485 6683FE00                 cmp esi,0
+   350 00000489 0F850905                 jne failed
+   351 0000048D 83FD00                   cmp bp,0
+   352 00000490 0F850205                 jne failed
+   353 00000494 813E0080A55A             cmp word [0x8000],0x5aa5
+   354 0000049A 0F85F804                 jne failed
+   355 0000049E 813E04803412             cmp word [0x8004],0x1234
+   356 000004A4 0F85EE04                 jne failed
+   357 000004A8 813E06803412             cmp word [0x8006],0x1234
+   358 000004AE 0F85E404                 jne failed
+   359 000004B2 813E08803412             cmp word [0x8008],0x1234
+   360 000004B8 0F85DA04                 jne failed
+   361 000004BC 39260A80                 cmp [0x800a],sp
+   362 000004C0 0F85D204                 jne failed
+   363 000004C4 1E                       push ds
+   364 000004C5 58                       pop ax
+   365 000004C6 8CCA                     mov dx,cs
+   366 000004C8 39D0                     cmp ax,dx
+   367 000004CA 0F85C804                 jne failed
+   368 000004CE 06                       push es
+   369 000004CF 58                       pop ax
+   370 000004D0 39D0                     cmp ax,dx
+   371 000004D2 0F85C004                 jne failed
+   372 000004D6 B00D                     mov al,13
+   373 000004D8 E680                     out 0x80,al
+   374                                  case_7:
+   375 000004DA B00E                     mov al,14
+   376 000004DC E680                     out 0x80,al
+   377 000004DE BDE803                  mov bp,1000
+   378 000004E1 66BB04800000             mov ebx,0x8004
+   379 000004E7 6631F6                   xor esi,esi
+   380 000004EA 66B834123412             mov eax,0x12341234
+   381 000004F0 C7060080A55A             mov word [0x8000],0x5aa5
+   382 000004F6 C70604803412             mov word [0x8004],0x1234
+   383 000004FC C70606803412             mov word [0x8006],0x1234
+   384 00000502 C70608803412             mov word [0x8008],0x1234
+   385 00000508 89260A80                 mov [0x800a],sp
+   386                                   align 2
+   387                                  .inner:
+   388 0000050C 3E                       db 0x3e
+   389 0000050D 663907                   cmp [bx],eax
+   390 00000510 9C                       pushf
+   391 00000511 5F                       pop di
+   392 00000512 4D                       dec bp
+   393 00000513 75F7                     jnz .inner
+   394 00000515 81E7D508                and di,0x8d5
+   395 00000519 83FF44                   cmp di,0x44
+   396 0000051C 0F857604                 jne failed
+   397 00000520 663D34123412             cmp eax,0x12341234
+   398 00000526 0F856C04                 jne failed
+   399 0000052A 6681FB04800000           cmp ebx,0x8004
+   400 00000531 0F856104                 jne failed
+   401 00000535 6683FE00                 cmp esi,0
+   402 00000539 0F855904                 jne failed
+   403 0000053D 83FD00                   cmp bp,0
+   404 00000540 0F855204                 jne failed
+   405 00000544 813E0080A55A             cmp word [0x8000],0x5aa5
+   406 0000054A 0F854804                 jne failed
+   407 0000054E 813E04803412             cmp word [0x8004],0x1234
+   408 00000554 0F853E04                 jne failed
+   409 00000558 813E06803412             cmp word [0x8006],0x1234
+   410 0000055E 0F853404                 jne failed
+   411 00000562 813E08803412             cmp word [0x8008],0x1234
+   412 00000568 0F852A04                 jne failed
+   413 0000056C 39260A80                 cmp [0x800a],sp
+   414 00000570 0F852204                 jne failed
+   415 00000574 1E                       push ds
+   416 00000575 58                       pop ax
+   417 00000576 8CCA                     mov dx,cs
+   418 00000578 39D0                     cmp ax,dx
+   419 0000057A 0F851804                 jne failed
+   420 0000057E 06                       push es
+   421 0000057F 58                       pop ax
+   422 00000580 39D0                     cmp ax,dx
+   423 00000582 0F851004                 jne failed
+   424 00000586 B00F                     mov al,15
+   425 00000588 E680                     out 0x80,al
+   426                                  case_8:
+   427 0000058A B010                     mov al,16
+   428 0000058C E680                     out 0x80,al
+   429 0000058E BDE803                  mov bp,1000
+   430 00000591 66BB04800000             mov ebx,0x8004
+   431 00000597 6631F6                   xor esi,esi
+   432 0000059A 66B834123412             mov eax,0x12341234
+   433 000005A0 C7060080A55A             mov word [0x8000],0x5aa5
+   434 000005A6 C70604803412             mov word [0x8004],0x1234
+   435 000005AC C70606803412             mov word [0x8006],0x1234
+   436 000005B2 C70608803412             mov word [0x8008],0x1234
+   437 000005B8 89260A80                 mov [0x800a],sp
+   438                                   align 2
+   439                                  .inner:
+   440 000005BC 3E                       db 0x3e
+   441 000005BD 673803                   cmp [ebx],al
+   442 000005C0 9C                       pushf
+   443 000005C1 5F                       pop di
+   444 000005C2 4D                       dec bp
+   445 000005C3 75F7                     jnz .inner
+   446 000005C5 81E7D508                and di,0x8d5
+   447 000005C9 83FF44                   cmp di,0x44
+   448 000005CC 0F85C603                 jne failed
+   449 000005D0 663D34123412             cmp eax,0x12341234
+   450 000005D6 0F85BC03                 jne failed
+   451 000005DA 6681FB04800000           cmp ebx,0x8004
+   452 000005E1 0F85B103                 jne failed
+   453 000005E5 6683FE00                 cmp esi,0
+   454 000005E9 0F85A903                 jne failed
+   455 000005ED 83FD00                   cmp bp,0
+   456 000005F0 0F85A203                 jne failed
+   457 000005F4 813E0080A55A             cmp word [0x8000],0x5aa5
+   458 000005FA 0F859803                 jne failed
+   459 000005FE 813E04803412             cmp word [0x8004],0x1234
+   460 00000604 0F858E03                 jne failed
+   461 00000608 813E06803412             cmp word [0x8006],0x1234
+   462 0000060E 0F858403                 jne failed
+   463 00000612 813E08803412             cmp word [0x8008],0x1234
+   464 00000618 0F857A03                 jne failed
+   465 0000061C 39260A80                 cmp [0x800a],sp
+   466 00000620 0F857203                 jne failed
+   467 00000624 1E                       push ds
+   468 00000625 58                       pop ax
+   469 00000626 8CCA                     mov dx,cs
+   470 00000628 39D0                     cmp ax,dx
+   471 0000062A 0F856803                 jne failed
+   472 0000062E 06                       push es
+   473 0000062F 58                       pop ax
+   474 00000630 39D0                     cmp ax,dx
+   475 00000632 0F856003                 jne failed
+   476 00000636 B011                     mov al,17
+   477 00000638 E680                     out 0x80,al
+   478                                  case_9:
+   479 0000063A B012                     mov al,18
+   480 0000063C E680                     out 0x80,al
+   481 0000063E BDE803                  mov bp,1000
+   482 00000641 66BB04800000             mov ebx,0x8004
+   483 00000647 6631F6                   xor esi,esi
+   484 0000064A 66B834123412             mov eax,0x12341234
+   485 00000650 C7060080A55A             mov word [0x8000],0x5aa5
+   486 00000656 C70604803412             mov word [0x8004],0x1234
+   487 0000065C C70606803412             mov word [0x8006],0x1234
+   488 00000662 C70608803412             mov word [0x8008],0x1234
+   489 00000668 89260A80                 mov [0x800a],sp
+   490                                   align 2
+   491                                  .inner:
+   492 0000066C 3E                       db 0x3e
+   493 0000066D 673903                   cmp [ebx],ax
+   494 00000670 9C                       pushf
+   495 00000671 5F                       pop di
+   496 00000672 4D                       dec bp
+   497 00000673 75F7                     jnz .inner
+   498 00000675 81E7D508                and di,0x8d5
+   499 00000679 83FF44                   cmp di,0x44
+   500 0000067C 0F851603                 jne failed
+   501 00000680 663D34123412             cmp eax,0x12341234
+   502 00000686 0F850C03                 jne failed
+   503 0000068A 6681FB04800000           cmp ebx,0x8004
+   504 00000691 0F850103                 jne failed
+   505 00000695 6683FE00                 cmp esi,0
+   506 00000699 0F85F902                 jne failed
+   507 0000069D 83FD00                   cmp bp,0
+   508 000006A0 0F85F202                 jne failed
+   509 000006A4 813E0080A55A             cmp word [0x8000],0x5aa5
+   510 000006AA 0F85E802                 jne failed
+   511 000006AE 813E04803412             cmp word [0x8004],0x1234
+   512 000006B4 0F85DE02                 jne failed
+   513 000006B8 813E06803412             cmp word [0x8006],0x1234
+   514 000006BE 0F85D402                 jne failed
+   515 000006C2 813E08803412             cmp word [0x8008],0x1234
+   516 000006C8 0F85CA02                 jne failed
+   517 000006CC 39260A80                 cmp [0x800a],sp
+   518 000006D0 0F85C202                 jne failed
+   519 000006D4 1E                       push ds
+   520 000006D5 58                       pop ax
+   521 000006D6 8CCA                     mov dx,cs
+   522 000006D8 39D0                     cmp ax,dx
+   523 000006DA 0F85B802                 jne failed
+   524 000006DE 06                       push es
+   525 000006DF 58                       pop ax
+   526 000006E0 39D0                     cmp ax,dx
+   527 000006E2 0F85B002                 jne failed
+   528 000006E6 B013                     mov al,19
+   529 000006E8 E680                     out 0x80,al
+   530                                  case_10:
+   531 000006EA B014                     mov al,20
+   532 000006EC E680                     out 0x80,al
+   533 000006EE BDE803                  mov bp,1000
+   534 000006F1 66BB04800000             mov ebx,0x8004
+   535 000006F7 6631F6                   xor esi,esi
+   536 000006FA 66B834123412             mov eax,0x12341234
+   537 00000700 C7060080A55A             mov word [0x8000],0x5aa5
+   538 00000706 C70604803412             mov word [0x8004],0x1234
+   539 0000070C C70606803412             mov word [0x8006],0x1234
+   540 00000712 C70608803412             mov word [0x8008],0x1234
+   541 00000718 89260A80                 mov [0x800a],sp
+   542                                   align 2
+   543                                  .inner:
+   544 0000071C 3E                       db 0x3e
+   545 0000071D 384002                   cmp [bx+si+2],al
+   546 00000720 9C                       pushf
+   547 00000721 5F                       pop di
+   548 00000722 4D                       dec bp
+   549 00000723 75F7                     jnz .inner
+   550 00000725 81E7D508                and di,0x8d5
+   551 00000729 83FF44                   cmp di,0x44
+   552 0000072C 0F856602                 jne failed
+   553 00000730 663D34123412             cmp eax,0x12341234
+   554 00000736 0F855C02                 jne failed
+   555 0000073A 6681FB04800000           cmp ebx,0x8004
+   556 00000741 0F855102                 jne failed
+   557 00000745 6683FE00                 cmp esi,0
+   558 00000749 0F854902                 jne failed
+   559 0000074D 83FD00                   cmp bp,0
+   560 00000750 0F854202                 jne failed
+   561 00000754 813E0080A55A             cmp word [0x8000],0x5aa5
+   562 0000075A 0F853802                 jne failed
+   563 0000075E 813E04803412             cmp word [0x8004],0x1234
+   564 00000764 0F852E02                 jne failed
+   565 00000768 813E06803412             cmp word [0x8006],0x1234
+   566 0000076E 0F852402                 jne failed
+   567 00000772 813E08803412             cmp word [0x8008],0x1234
+   568 00000778 0F851A02                 jne failed
+   569 0000077C 39260A80                 cmp [0x800a],sp
+   570 00000780 0F851202                 jne failed
+   571 00000784 1E                       push ds
+   572 00000785 58                       pop ax
+   573 00000786 8CCA                     mov dx,cs
+   574 00000788 39D0                     cmp ax,dx
+   575 0000078A 0F850802                 jne failed
+   576 0000078E 06                       push es
+   577 0000078F 58                       pop ax
+   578 00000790 39D0                     cmp ax,dx
+   579 00000792 0F850002                 jne failed
+   580 00000796 B015                     mov al,21
+   581 00000798 E680                     out 0x80,al
+   582                                  case_11:
+   583 0000079A B016                     mov al,22
+   584 0000079C E680                     out 0x80,al
+   585 0000079E BDE803                  mov bp,1000
+   586 000007A1 66BB04800000             mov ebx,0x8004
+   587 000007A7 6631F6                   xor esi,esi
+   588 000007AA 66B834123412             mov eax,0x12341234
+   589 000007B0 C7060080A55A             mov word [0x8000],0x5aa5
+   590 000007B6 C70604803412             mov word [0x8004],0x1234
+   591 000007BC C70606803412             mov word [0x8006],0x1234
+   592 000007C2 C70608803412             mov word [0x8008],0x1234
+   593 000007C8 89260A80                 mov [0x800a],sp
+   594                                   align 2
+   595                                  .inner:
+   596 000007CC 3E                       db 0x3e
+   597 000007CD 394002                   cmp [bx+si+2],ax
+   598 000007D0 9C                       pushf
+   599 000007D1 5F                       pop di
+   600 000007D2 4D                       dec bp
+   601 000007D3 75F7                     jnz .inner
+   602 000007D5 81E7D508                and di,0x8d5
+   603 000007D9 83FF44                   cmp di,0x44
+   604 000007DC 0F85B601                 jne failed
+   605 000007E0 663D34123412             cmp eax,0x12341234
+   606 000007E6 0F85AC01                 jne failed
+   607 000007EA 6681FB04800000           cmp ebx,0x8004
+   608 000007F1 0F85A101                 jne failed
+   609 000007F5 6683FE00                 cmp esi,0
+   610 000007F9 0F859901                 jne failed
+   611 000007FD 83FD00                   cmp bp,0
+   612 00000800 0F859201                 jne failed
+   613 00000804 813E0080A55A             cmp word [0x8000],0x5aa5
+   614 0000080A 0F858801                 jne failed
+   615 0000080E 813E04803412             cmp word [0x8004],0x1234
+   616 00000814 0F857E01                 jne failed
+   617 00000818 813E06803412             cmp word [0x8006],0x1234
+   618 0000081E 0F857401                 jne failed
+   619 00000822 813E08803412             cmp word [0x8008],0x1234
+   620 00000828 0F856A01                 jne failed
+   621 0000082C 39260A80                 cmp [0x800a],sp
+   622 00000830 0F856201                 jne failed
+   623 00000834 1E                       push ds
+   624 00000835 58                       pop ax
+   625 00000836 8CCA                     mov dx,cs
+   626 00000838 39D0                     cmp ax,dx
+   627 0000083A 0F855801                 jne failed
+   628 0000083E 06                       push es
+   629 0000083F 58                       pop ax
+   630 00000840 39D0                     cmp ax,dx
+   631 00000842 0F855001                 jne failed
+   632 00000846 B017                     mov al,23
+   633 00000848 E680                     out 0x80,al
+   634                                  case_12:
+   635 0000084A B018                     mov al,24
+   636 0000084C E680                     out 0x80,al
+   637 0000084E BDE803                  mov bp,1000
+   638 00000851 66BB04800000             mov ebx,0x8004
+   639 00000857 6631F6                   xor esi,esi
+   640 0000085A 66B834123412             mov eax,0x12341234
+   641 00000860 C7060080A55A             mov word [0x8000],0x5aa5
+   642 00000866 C70604803412             mov word [0x8004],0x1234
+   643 0000086C C70606803412             mov word [0x8006],0x1234
+   644 00000872 C70608803412             mov word [0x8008],0x1234
+   645 00000878 89260A80                 mov [0x800a],sp
+   646                                   align 2
+   647                                  .inner:
+   648 0000087C 3E                       db 0x3e
+   649 0000087D 3807                     cmp [bx],al
+   650 0000087F 9C                       pushf
+   651 00000880 5F                       pop di
+   652 00000881 4D                       dec bp
+   653 00000882 75F8                     jnz .inner
+   654 00000884 81E7D508                and di,0x8d5
+   655 00000888 83FF44                   cmp di,0x44
+   656 0000088B 0F850701                 jne failed
+   657 0000088F 663D34123412             cmp eax,0x12341234
+   658 00000895 0F85FD00                 jne failed
+   659 00000899 6681FB04800000           cmp ebx,0x8004
+   660 000008A0 0F85F200                 jne failed
+   661 000008A4 6683FE00                 cmp esi,0
+   662 000008A8 0F85EA00                 jne failed
+   663 000008AC 83FD00                   cmp bp,0
+   664 000008AF 0F85E300                 jne failed
+   665 000008B3 813E0080A55A             cmp word [0x8000],0x5aa5
+   666 000008B9 0F85D900                 jne failed
+   667 000008BD 813E04803412             cmp word [0x8004],0x1234
+   668 000008C3 0F85CF00                 jne failed
+   669 000008C7 813E06803412             cmp word [0x8006],0x1234
+   670 000008CD 0F85C500                 jne failed
+   671 000008D1 813E08803412             cmp word [0x8008],0x1234
+   672 000008D7 0F85BB00                 jne failed
+   673 000008DB 39260A80                 cmp [0x800a],sp
+   674 000008DF 0F85B300                 jne failed
+   675 000008E3 1E                       push ds
+   676 000008E4 58                       pop ax
+   677 000008E5 8CCA                     mov dx,cs
+   678 000008E7 39D0                     cmp ax,dx
+   679 000008E9 0F85A900                 jne failed
+   680 000008ED 06                       push es
+   681 000008EE 58                       pop ax
+   682 000008EF 39D0                     cmp ax,dx
+   683 000008F1 0F85A100                 jne failed
+   684 000008F5 B019                     mov al,25
+   685 000008F7 E680                     out 0x80,al
+   686                                  case_13:
+   687 000008F9 B01A                     mov al,26
+   688 000008FB E680                     out 0x80,al
+   689 000008FD BDE803                  mov bp,1000
+   690 00000900 66BB04800000             mov ebx,0x8004
+   691 00000906 6631F6                   xor esi,esi
+   692 00000909 66B834123412             mov eax,0x12341234
+   693 0000090F C7060080A55A             mov word [0x8000],0x5aa5
+   694 00000915 C70604803412             mov word [0x8004],0x1234
+   695 0000091B C70606803412             mov word [0x8006],0x1234
+   696 00000921 C70608803412             mov word [0x8008],0x1234
+   697 00000927 89260A80                 mov [0x800a],sp
+   698 0000092B 90                       align 2
+   699                                  .inner:
+   700 0000092C 3E                       db 0x3e
+   701 0000092D 3907                     cmp [bx],ax
+   702 0000092F 9C                       pushf
+   703 00000930 5F                       pop di
+   704 00000931 4D                       dec bp
+   705 00000932 75F8                     jnz .inner
+   706 00000934 81E7D508                and di,0x8d5
+   707 00000938 83FF44                   cmp di,0x44
+   708 0000093B 7559                     jne failed
+   709 0000093D 663D34123412             cmp eax,0x12341234
+   710 00000943 7551                     jne failed
+   711 00000945 6681FB04800000           cmp ebx,0x8004
+   712 0000094C 7548                     jne failed
+   713 0000094E 6683FE00                 cmp esi,0
+   714 00000952 7542                     jne failed
+   715 00000954 83FD00                   cmp bp,0
+   716 00000957 753D                     jne failed
+   717 00000959 813E0080A55A             cmp word [0x8000],0x5aa5
+   718 0000095F 7535                     jne failed
+   719 00000961 813E04803412             cmp word [0x8004],0x1234
+   720 00000967 752D                     jne failed
+   721 00000969 813E06803412             cmp word [0x8006],0x1234
+   722 0000096F 7525                     jne failed
+   723 00000971 813E08803412             cmp word [0x8008],0x1234
+   724 00000977 751D                     jne failed
+   725 00000979 39260A80                 cmp [0x800a],sp
+   726 0000097D 7517                     jne failed
+   727 0000097F 1E                       push ds
+   728 00000980 58                       pop ax
+   729 00000981 8CCA                     mov dx,cs
+   730 00000983 39D0                     cmp ax,dx
+   731 00000985 750F                     jne failed
+   732 00000987 06                       push es
+   733 00000988 58                       pop ax
+   734 00000989 39D0                     cmp ax,dx
+   735 0000098B 7509                     jne failed
+   736 0000098D B01B                     mov al,27
+   737 0000098F E680                     out 0x80,al
+   738 00000991 B000                    mov al,0
+   739 00000993 E68F                     out 0x8f,al
+   740 00000995 F4                       hlt
+   741                                  failed:
+   742 00000996 B0FF                     mov al,0xff
+   743 00000998 E68E                     out 0x8e,al
+   744 0000099A F4                       hlt

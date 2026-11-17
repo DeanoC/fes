@@ -81,6 +81,19 @@ class TierTests(unittest.TestCase):
 
 
 class GateTests(unittest.TestCase):
+    def test_de25_x87_requires_the_pinned_simulation_job_in_both_tiers(self):
+        for tier in ('smoke', 'full'):
+            with self.subTest(tier=tier):
+                self.assertEqual(simulation_matrix(['de25-x87'], tier), {'include': [
+                    {'core': 'de25-x87', 'target': 'sim-fes-de25-x87'}]})
+                baseline = results_for(('parent', 'fpga'), ('de25-x87',), tier=tier)
+                require_success(baseline)
+                for job in ('simulation-tools', 'fpga-simulation'):
+                    failed = copy.deepcopy(baseline)
+                    failed[job]['result'] = 'skipped'
+                    with self.subTest(job=job), self.assertRaises(ValueError):
+                        require_success(failed)
+
     def test_menu_has_a_required_simulation_job(self):
         self.assertEqual(simulation_matrix(['menu']),
                          {'include': [{'core': 'menu', 'target': 'sim-fes-menu'}]})

@@ -1,0 +1,18 @@
+{
+  "FULL_P0": {
+    "charged_per_iteration": 227.17,
+    "elapsed_cycles": 1163132
+  },
+  "REDUCED_P0": {
+    "charged_per_iteration": 209.17,
+    "elapsed_cycles": 1071026
+  },
+  "FULL_P8": {
+    "charged_per_iteration": 243.17,
+    "elapsed_cycles": 1245107
+  },
+  "REDUCED_P8": {
+    "charged_per_iteration": 225.138,
+    "elapsed_cycles": 1152576
+  }
+}

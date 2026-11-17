@@ -293,7 +293,9 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 		}
 		in.player = ins.freePlayer()
 		yielder := ins.yieldingPad(in)
+		var directions []yieldedDirection
 		if yielder != nil {
+			directions = yielder.yieldedDirections(app)
 			ins.releasePort(app, yielder)
 			in.player = yielder.player
 			yielder.player = noLocalPlayer
@@ -306,6 +308,7 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 		ins.devices = append(ins.devices, in)
 		if yielder != nil {
 			yielder.player = ins.freePlayer()
+			yielder.restoreYieldedDirections(app, directions)
 			if yielder.player == noLocalPlayer {
 				fmt.Fprintf(os.Stderr, "%s: gamepad %s: gave its controller port to %s; menu only\n", ins.label, yielder.path, path)
 			} else {
@@ -332,8 +335,8 @@ func (ins *nativeInputs) deviceKind(fd int) InputKind {
 }
 
 // freePlayer is the lowest controller port no connected pad holds. Ports
-// follow the order pads are opened (path order at startup, then hotplug) and
-// stay with a pad until it is unplugged.
+// follow the order pads are opened (path order at startup, then hotplug). A
+// pad retains its port until unplugged unless it is a yielding fixture.
 func (ins *nativeInputs) freePlayer() int8 {
 	var taken [localControllerPorts]bool
 	for _, in := range ins.devices {
@@ -347,6 +350,75 @@ func (ins *nativeInputs) freePlayer() int8 {
 		}
 	}
 	return noLocalPlayer
+}
+
+// yieldedDirection is a still-held hat/stick direction at the time the
+// fixture is moved. Button is before user remapping, while code is the
+// remapped core key used for suppression and per-player tracking.
+type yieldedDirection struct {
+	button     Button
+	code       remoteinput.Code
+	suppressed bool
+	forwarded  bool
+}
+
+// Snapshot while the old player's held and suppression records still exist.
+// Menu-only analog axes use in.axes, not in.hatHeld; their existing menu hold
+// is unaffected by a port reassignment and must not be pressed a second time.
+func (in *nativeInput) yieldedDirections(app *App) []yieldedDirection {
+	if app == nil || in.player == noLocalPlayer || len(in.hatHeld) == 0 {
+		return nil
+	}
+	var result []yieldedDirection
+	seen := map[Button]bool{}
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	for _, button := range in.hatHeld {
+		if button == ButtonNone || seen[button] {
+			continue
+		}
+		seen[button] = true
+		e := remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Code: LogicalFromButton(button)}
+		if in.remap != nil {
+			e = in.remap.Apply(e)
+		}
+		key := padKey{uint8(in.player), e.Code}
+		_, sent := in.padHeld[key]
+		_, tracked := app.playPadHeld[key]
+		// Never synthesize a Select/Start press or a swallowed transition
+		// event on the new port. Swallow its eventual release there too.
+		suppressed := app.playPadSuppressed[key] || app.sessionDisplayBusy || app.sessionDisplayUncertain ||
+			app.stopPhase == "stopping" || app.retryStopLock || app.playHIDFailClosedLocked() ||
+			e.Code == remoteinput.ButtonSelect || e.Code == remoteinput.ButtonStart
+		coreOwns := app.needsSessionDisplayLocked() && app.session.State == "active" && !app.roomDuringPlay
+		result = append(result, yieldedDirection{button: button, code: e.Code, suppressed: suppressed, forwarded: sent && tracked && coreOwns})
+	}
+	return result
+}
+
+// Restore only directions the active machine was already seeing. The
+// release/departure of the old player is sent before this is called. A
+// portless fixture cannot send to a machine, and ports do not auto-compact.
+func (in *nativeInput) restoreYieldedDirections(app *App, directions []yieldedDirection) {
+	if app == nil || in.player == noLocalPlayer {
+		return
+	}
+	for _, direction := range directions {
+		if direction.suppressed {
+			app.mu.Lock()
+			if app.needsSessionDisplayLocked() && app.session.State == "active" {
+				if app.playPadSuppressed == nil {
+					app.playPadSuppressed = make(map[padKey]bool)
+				}
+				app.playPadSuppressed[padKey{uint8(in.player), direction.code}] = true
+			}
+			app.mu.Unlock()
+			continue
+		}
+		if direction.forwarded {
+			in.button(app, direction.button, 1, time.Now())
+		}
+	}
 }
 
 // yieldingPad is the pad that gives up its controller port to arriving, or

@@ -1,0 +1,433 @@
+fit	corner	hold_only	check	coverage	paths	worst_slack_ns	from	to
+cpu-de25	Slow fix4 100C Model	0	setup	analyzed	1	9.238	dfwd_ready[27]	_28159_[12]
+cpu-de25	Slow fix4 100C Model	0	hold	analyzed	1	0.107	_30068_[110]	_30071_[170]
+cpu-de25	Slow fix4 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25	Slow fix4 100C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25	Slow fix4 100C Model	0	internal_setup	analyzed	1	9.238	dfwd_ready[27]	_28159_[12]
+cpu-de25	Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	7.533		
+cpu-de25	Slow fix4 0C Model	0	setup	analyzed	1	8.234	dfwd_ready[27]	r_dst[1]
+cpu-de25	Slow fix4 0C Model	0	hold	analyzed	1	0.148	x87_mul_r0[5]	x87_mul_p[5]
+cpu-de25	Slow fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25	Slow fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25	Slow fix4 0C Model	0	internal_setup	analyzed	1	8.234	dfwd_ready[27]	r_dst[1]
+cpu-de25	Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	7.499		
+cpu-de25	Slow fix4a 0C Model	0	setup	analyzed	1	8.234	dfwd_ready[27]	r_dst[1]
+cpu-de25	Slow fix4a 0C Model	0	hold	analyzed	1	0.144	_30068_[110]	_30071_[170]
+cpu-de25	Slow fix4a 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25	Slow fix4a 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25	Slow fix4a 0C Model	0	internal_setup	analyzed	1	8.234	dfwd_ready[27]	r_dst[1]
+cpu-de25	Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	7.500		
+cpu-de25	Fast fix4 0C Model	0	setup	analyzed	1	11.846	dfwd_ready[27]	r_dst[1]
+cpu-de25	Fast fix4 0C Model	0	hold	analyzed	1	0.049	x87_ra_idx[1]	x87_ra_live[1]
+cpu-de25	Fast fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25	Fast fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25	Fast fix4 0C Model	0	internal_setup	analyzed	1	11.846	dfwd_ready[27]	r_dst[1]
+cpu-de25	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	7.735		
+cpu-de25-s2	Slow fix4 100C Model	0	setup	analyzed	1	9.333	decode_by[2]	_28159_[146]
+cpu-de25-s2	Slow fix4 100C Model	0	hold	analyzed	1	0.130	x87_mul_r0[18]	Select_2374~92_ERTM
+cpu-de25-s2	Slow fix4 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-s2	Slow fix4 100C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-s2	Slow fix4 100C Model	0	internal_setup	analyzed	1	9.333	decode_by[2]	_28159_[146]
+cpu-de25-s2	Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	7.522		
+cpu-de25-s2	Slow fix4 0C Model	0	setup	analyzed	1	8.486	decode_by[2]	_28159_[146]
+cpu-de25-s2	Slow fix4 0C Model	0	hold	analyzed	1	0.152	x87_mul_r0[17]	x87_mul_p[17]
+cpu-de25-s2	Slow fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-s2	Slow fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-s2	Slow fix4 0C Model	0	internal_setup	analyzed	1	8.486	decode_by[2]	_28159_[146]
+cpu-de25-s2	Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	7.496		
+cpu-de25-s2	Slow fix4a 0C Model	0	setup	analyzed	1	8.471	decode_by[2]	_28159_[146]
+cpu-de25-s2	Slow fix4a 0C Model	0	hold	analyzed	1	0.153	x87_mul_r0[18]	Select_2374~92_ERTM
+cpu-de25-s2	Slow fix4a 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-s2	Slow fix4a 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-s2	Slow fix4a 0C Model	0	internal_setup	analyzed	1	8.471	decode_by[2]	_28159_[146]
+cpu-de25-s2	Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	7.497		
+cpu-de25-s2	Fast fix4 0C Model	0	setup	analyzed	1	11.781	decode_by[2]	_28159_[146]
+cpu-de25-s2	Fast fix4 0C Model	0	hold	analyzed	1	0.053	x87_mul_r0[18]	Select_2374~92_ERTM
+cpu-de25-s2	Fast fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-s2	Fast fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-s2	Fast fix4 0C Model	0	internal_setup	analyzed	1	11.781	decode_by[2]	_28159_[146]
+cpu-de25-s2	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	7.735		
+cpu-de25-s3	Slow fix4 100C Model	0	setup	analyzed	1	9.147	_30067_[215]	_28159_[10]
+cpu-de25-s3	Slow fix4 100C Model	0	hold	analyzed	1	0.133	_30067_[798]	_30068_[807]
+cpu-de25-s3	Slow fix4 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-s3	Slow fix4 100C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-s3	Slow fix4 100C Model	0	internal_setup	analyzed	1	9.147	_30067_[215]	_28159_[10]
+cpu-de25-s3	Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	7.522		
+cpu-de25-s3	Slow fix4 0C Model	0	setup	analyzed	1	8.247	_30067_[215]	r_src[10]
+cpu-de25-s3	Slow fix4 0C Model	0	hold	analyzed	1	0.151	_29857_[10]	_30068_[498]
+cpu-de25-s3	Slow fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-s3	Slow fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-s3	Slow fix4 0C Model	0	internal_setup	analyzed	1	8.247	_30067_[215]	r_src[10]
+cpu-de25-s3	Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	7.466		
+cpu-de25-s3	Slow fix4a 0C Model	0	setup	analyzed	1	8.253	_30067_[215]	r_src[10]
+cpu-de25-s3	Slow fix4a 0C Model	0	hold	analyzed	1	0.154	x87_mul_r0[15]	x87_mul_p[15]
+cpu-de25-s3	Slow fix4a 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-s3	Slow fix4a 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-s3	Slow fix4a 0C Model	0	internal_setup	analyzed	1	8.253	_30067_[215]	r_src[10]
+cpu-de25-s3	Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	7.480		
+cpu-de25-s3	Fast fix4 0C Model	0	setup	analyzed	1	11.755	decode_by[13]~DUPLICATE	_28159_[155]
+cpu-de25-s3	Fast fix4 0C Model	0	hold	analyzed	1	0.064	x87_mul_r0[15]	x87_mul_p[15]
+cpu-de25-s3	Fast fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-s3	Fast fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-s3	Fast fix4 0C Model	0	internal_setup	analyzed	1	11.755	decode_by[13]~DUPLICATE	_28159_[155]
+cpu-de25-s3	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	7.729		
+cpu-de25-75	Slow fix4 100C Model	0	setup	analyzed	1	6.594	decode_by[15]~DUPLICATE	_28159_[151]
+cpu-de25-75	Slow fix4 100C Model	0	hold	analyzed	1	0.116	_28367_[5]	ag_seg_hi_plus1[5]
+cpu-de25-75	Slow fix4 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-75	Slow fix4 100C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-75	Slow fix4 100C Model	0	internal_setup	analyzed	1	6.594	decode_by[15]~DUPLICATE	_28159_[151]
+cpu-de25-75	Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	6.060		
+cpu-de25-75	Slow fix4 0C Model	0	setup	analyzed	1	5.758	_28158_[124]	_28159_[101]
+cpu-de25-75	Slow fix4 0C Model	0	hold	analyzed	1	0.150	x87_mul_r0[9]	x87_mul_p[9]
+cpu-de25-75	Slow fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-75	Slow fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-75	Slow fix4 0C Model	0	internal_setup	analyzed	1	5.758	_28158_[124]	_28159_[101]
+cpu-de25-75	Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.027		
+cpu-de25-75	Slow fix4a 0C Model	0	setup	analyzed	1	5.774	_28158_[124]	_28159_[101]
+cpu-de25-75	Slow fix4a 0C Model	0	hold	analyzed	1	0.150	x87_mul_r0[9]	x87_mul_p[9]
+cpu-de25-75	Slow fix4a 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-75	Slow fix4a 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-75	Slow fix4a 0C Model	0	internal_setup	analyzed	1	5.774	_28158_[124]	_28159_[101]
+cpu-de25-75	Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	6.028		
+cpu-de25-75	Fast fix4 0C Model	0	setup	analyzed	1	9.005	decode_by[15]~DUPLICATE	_28159_[151]
+cpu-de25-75	Fast fix4 0C Model	0	hold	analyzed	1	0.051	x87_ra_idx[0]	x87_ra_live[0]
+cpu-de25-75	Fast fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-75	Fast fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-75	Fast fix4 0C Model	0	internal_setup	analyzed	1	9.005	decode_by[15]~DUPLICATE	_28159_[151]
+cpu-de25-75	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.264		
+cpu-de25-90	Slow fix4 100C Model	0	setup	analyzed	1	4.103	dfwd_ready[23]	_28159_[80]
+cpu-de25-90	Slow fix4 100C Model	0	hold	analyzed	1	0.131	x87_ra_idx[2]	x87_ra_live[2]
+cpu-de25-90	Slow fix4 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-90	Slow fix4 100C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-90	Slow fix4 100C Model	0	internal_setup	analyzed	1	4.103	dfwd_ready[23]	_28159_[80]
+cpu-de25-90	Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	4.949		
+cpu-de25-90	Slow fix4 0C Model	0	setup	analyzed	1	3.155	dfwd_ld_ex[1]	_28159_[80]
+cpu-de25-90	Slow fix4 0C Model	0	hold	analyzed	1	0.149	_29857_[11]	_30068_[499]
+cpu-de25-90	Slow fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-90	Slow fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-90	Slow fix4 0C Model	0	internal_setup	analyzed	1	3.155	dfwd_ld_ex[1]	_28159_[80]
+cpu-de25-90	Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	4.917		
+cpu-de25-90	Slow fix4a 0C Model	0	setup	analyzed	1	3.169	dfwd_ld_ex[1]	_28159_[80]
+cpu-de25-90	Slow fix4a 0C Model	0	hold	analyzed	1	0.151	_29857_[10]	_30068_[498]
+cpu-de25-90	Slow fix4a 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-90	Slow fix4a 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-90	Slow fix4a 0C Model	0	internal_setup	analyzed	1	3.169	dfwd_ld_ex[1]	_28159_[80]
+cpu-de25-90	Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	4.917		
+cpu-de25-90	Fast fix4 0C Model	0	setup	analyzed	1	6.699	dfwd_ld_ex[1]	_28159_[80]
+cpu-de25-90	Fast fix4 0C Model	0	hold	analyzed	1	0.046	x87_ra_idx[2]	x87_ra_live[2]
+cpu-de25-90	Fast fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-90	Fast fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-90	Fast fix4 0C Model	0	internal_setup	analyzed	1	6.699	dfwd_ld_ex[1]	_28159_[80]
+cpu-de25-90	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	5.153		
+cpu-de25-110	Slow fix4 100C Model	0	setup	analyzed	1	2.444	decode_by[12]~DUPLICATE	_28159_[149]
+cpu-de25-110	Slow fix4 100C Model	0	hold	analyzed	1	0.124	_30070_[1]	_30055_[23]
+cpu-de25-110	Slow fix4 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-110	Slow fix4 100C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-110	Slow fix4 100C Model	0	internal_setup	analyzed	1	2.444	decode_by[12]~DUPLICATE	_28159_[149]
+cpu-de25-110	Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	3.939		
+cpu-de25-110	Slow fix4 0C Model	0	setup	analyzed	1	1.588	decode_by[12]~DUPLICATE	_28159_[149]
+cpu-de25-110	Slow fix4 0C Model	0	hold	analyzed	1	0.150	x87_mul_r0[6]	x87_mul_p[6]
+cpu-de25-110	Slow fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-110	Slow fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-110	Slow fix4 0C Model	0	internal_setup	analyzed	1	1.588	decode_by[12]~DUPLICATE	_28159_[149]
+cpu-de25-110	Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	3.906		
+cpu-de25-110	Slow fix4a 0C Model	0	setup	analyzed	1	1.584	decode_by[12]~DUPLICATE	_28159_[149]
+cpu-de25-110	Slow fix4a 0C Model	0	hold	analyzed	1	0.152	x87_mul_r0[6]	x87_mul_p[6]
+cpu-de25-110	Slow fix4a 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-110	Slow fix4a 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-110	Slow fix4a 0C Model	0	internal_setup	analyzed	1	1.584	decode_by[12]~DUPLICATE	_28159_[149]
+cpu-de25-110	Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	3.907		
+cpu-de25-110	Fast fix4 0C Model	0	setup	analyzed	1	4.867	decode_by[12]~DUPLICATE	_28159_[149]
+cpu-de25-110	Fast fix4 0C Model	0	hold	analyzed	1	0.052	x87_ra_idx[0]	x87_ra_live[0]
+cpu-de25-110	Fast fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-110	Fast fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-110	Fast fix4 0C Model	0	internal_setup	analyzed	1	4.867	decode_by[12]~DUPLICATE	_28159_[149]
+cpu-de25-110	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	4.142		
+cpu-de25-130	Slow fix4 100C Model	0	setup	analyzed	1	1.308	_30068_[216]	_28159_[3]
+cpu-de25-130	Slow fix4 100C Model	0	hold	analyzed	1	0.133	x87_mul_r0[4]	x87_mul_p[4]
+cpu-de25-130	Slow fix4 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-130	Slow fix4 100C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-130	Slow fix4 100C Model	0	internal_setup	analyzed	1	1.308	_30068_[216]	_28159_[3]
+cpu-de25-130	Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	3.239		
+cpu-de25-130	Slow fix4 0C Model	0	setup	analyzed	1	0.426	_30068_[216]	_28159_[3]
+cpu-de25-130	Slow fix4 0C Model	0	hold	analyzed	1	0.149	x87_mul_r0[4]	x87_mul_p[4]
+cpu-de25-130	Slow fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-130	Slow fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-130	Slow fix4 0C Model	0	internal_setup	analyzed	1	0.426	_30068_[216]	_28159_[3]
+cpu-de25-130	Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	3.207		
+cpu-de25-130	Slow fix4a 0C Model	0	setup	analyzed	1	0.427	_30068_[216]	_28159_[3]
+cpu-de25-130	Slow fix4a 0C Model	0	hold	analyzed	1	0.152	x87_mul_r0[4]	x87_mul_p[4]
+cpu-de25-130	Slow fix4a 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-130	Slow fix4a 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-130	Slow fix4a 0C Model	0	internal_setup	analyzed	1	0.427	_30068_[216]	_28159_[3]
+cpu-de25-130	Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	3.207		
+cpu-de25-130	Fast fix4 0C Model	0	setup	analyzed	1	3.719	_30068_[216]	_28159_[3]
+cpu-de25-130	Fast fix4 0C Model	0	hold	analyzed	1	0.062	x87_mul_r0[4]	x87_mul_p[4]
+cpu-de25-130	Fast fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-130	Fast fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-130	Fast fix4 0C Model	0	internal_setup	analyzed	1	3.719	_30068_[216]	_28159_[3]
+cpu-de25-130	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	3.443		
+cpu-de25-150-MISS	Slow fix4 100C Model	0	setup	analyzed	1	0.394	ex_ag_result[3]	_28159_[146]
+cpu-de25-150-MISS	Slow fix4 100C Model	0	hold	analyzed	1	0.040	dc0[422]	_28158_[165]
+cpu-de25-150-MISS	Slow fix4 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-150-MISS	Slow fix4 100C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-150-MISS	Slow fix4 100C Model	0	internal_setup	analyzed	1	0.394	ex_ag_result[3]	_28159_[146]
+cpu-de25-150-MISS	Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	2.719		
+cpu-de25-150-MISS	Slow fix4 0C Model	0	setup	analyzed	1	-0.485	ex_ag_result[3]	_28160_[1]
+cpu-de25-150-MISS	Slow fix4 0C Model	0	hold	analyzed	1	0.052	dc0[422]	_28158_[165]
+cpu-de25-150-MISS	Slow fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-150-MISS	Slow fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-150-MISS	Slow fix4 0C Model	0	internal_setup	analyzed	1	-0.485	ex_ag_result[3]	_28160_[1]
+cpu-de25-150-MISS	Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	2.691		
+cpu-de25-150-MISS	Slow fix4a 0C Model	0	setup	analyzed	1	-0.482	ex_ag_result[3]	_28160_[1]
+cpu-de25-150-MISS	Slow fix4a 0C Model	0	hold	analyzed	1	0.053	dc0[422]	_28158_[165]
+cpu-de25-150-MISS	Slow fix4a 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-150-MISS	Slow fix4a 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-150-MISS	Slow fix4a 0C Model	0	internal_setup	analyzed	1	-0.482	ex_ag_result[3]	_28160_[1]
+cpu-de25-150-MISS	Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	2.690		
+cpu-de25-150-MISS	Fast fix4 0C Model	0	setup	analyzed	1	2.730	dfwd_ready[6]	_28158_[103]
+cpu-de25-150-MISS	Fast fix4 0C Model	0	hold	analyzed	1	0.016	dc0[422]	_28158_[165]
+cpu-de25-150-MISS	Fast fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-150-MISS	Fast fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-150-MISS	Fast fix4 0C Model	0	internal_setup	analyzed	1	2.730	dfwd_ready[6]	_28158_[103]
+cpu-de25-150-MISS	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	2.930		
+cpu-de25-170-MISS	Slow fix4 100C Model	0	setup	analyzed	1	-0.202	ex_ag_result[3]	_28159_[28]
+cpu-de25-170-MISS	Slow fix4 100C Model	0	hold	analyzed	1	0.071	decode_by[6]	_28159_[257]
+cpu-de25-170-MISS	Slow fix4 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-170-MISS	Slow fix4 100C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-170-MISS	Slow fix4 100C Model	0	internal_setup	analyzed	1	-0.202	ex_ag_result[3]	_28159_[28]
+cpu-de25-170-MISS	Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	2.328		
+cpu-de25-170-MISS	Slow fix4 0C Model	0	setup	analyzed	1	-1.030	ex_ag_result[3]	_28159_[28]
+cpu-de25-170-MISS	Slow fix4 0C Model	0	hold	analyzed	1	0.112	decode_by[6]	_28159_[257]
+cpu-de25-170-MISS	Slow fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-170-MISS	Slow fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-170-MISS	Slow fix4 0C Model	0	internal_setup	analyzed	1	-1.030	ex_ag_result[3]	_28159_[28]
+cpu-de25-170-MISS	Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	2.131		
+cpu-de25-170-MISS	Slow fix4a 0C Model	0	setup	analyzed	1	-1.039	ex_ag_result[3]	_28159_[28]
+cpu-de25-170-MISS	Slow fix4a 0C Model	0	hold	analyzed	1	0.098	decode_by[6]	_28159_[257]
+cpu-de25-170-MISS	Slow fix4a 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-170-MISS	Slow fix4a 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-170-MISS	Slow fix4a 0C Model	0	internal_setup	analyzed	1	-1.039	ex_ag_result[3]	_28159_[28]
+cpu-de25-170-MISS	Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	2.227		
+cpu-de25-170-MISS	Fast fix4 0C Model	0	setup	analyzed	1	2.026	_28159_[7]	_30010_[2]
+cpu-de25-170-MISS	Fast fix4 0C Model	0	hold	analyzed	1	0.041	decode_by[6]	_28159_[257]
+cpu-de25-170-MISS	Fast fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-170-MISS	Fast fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-170-MISS	Fast fix4 0C Model	0	internal_setup	analyzed	1	2.026	_28159_[7]	_30010_[2]
+cpu-de25-170-MISS	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	2.538		
+cpu-de25-direct-sv	Slow fix4 100C Model	0	setup	analyzed	1	8.843	frontend|align|q.bytes[0][5]	dc.lea_disp[1]
+cpu-de25-direct-sv	Slow fix4 100C Model	0	hold	analyzed	1	0.087	x87|ra_idx[0]	x87|ra_live[0]
+cpu-de25-direct-sv	Slow fix4 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-direct-sv	Slow fix4 100C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-direct-sv	Slow fix4 100C Model	0	internal_setup	analyzed	1	8.843	frontend|align|q.bytes[0][5]	dc.lea_disp[1]
+cpu-de25-direct-sv	Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	7.521		
+cpu-de25-direct-sv	Slow fix4 0C Model	0	setup	analyzed	1	8.009	frontend|align|q.bytes[0][5]	dc.lea_disp[5]
+cpu-de25-direct-sv	Slow fix4 0C Model	0	hold	analyzed	1	0.111	x87|ra_idx[0]	x87|ra_live[0]
+cpu-de25-direct-sv	Slow fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-direct-sv	Slow fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-direct-sv	Slow fix4 0C Model	0	internal_setup	analyzed	1	8.009	frontend|align|q.bytes[0][5]	dc.lea_disp[5]
+cpu-de25-direct-sv	Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	7.495		
+cpu-de25-direct-sv	Slow fix4a 0C Model	0	setup	analyzed	1	8.002	frontend|align|q.bytes[0][5]	dc.lea_disp[5]
+cpu-de25-direct-sv	Slow fix4a 0C Model	0	hold	analyzed	1	0.109	x87|ra_idx[0]	x87|ra_live[0]
+cpu-de25-direct-sv	Slow fix4a 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-direct-sv	Slow fix4a 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-direct-sv	Slow fix4a 0C Model	0	internal_setup	analyzed	1	8.002	frontend|align|q.bytes[0][5]	dc.lea_disp[5]
+cpu-de25-direct-sv	Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	7.495		
+cpu-de25-direct-sv	Fast fix4 0C Model	0	setup	analyzed	1	11.504	frontend|align|q.bytes[0][5]	dc.lea_disp[1]
+cpu-de25-direct-sv	Fast fix4 0C Model	0	hold	analyzed	1	0.022	x87|ra_idx[0]	x87|ra_live[0]
+cpu-de25-direct-sv	Fast fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-direct-sv	Fast fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-direct-sv	Fast fix4 0C Model	0	internal_setup	analyzed	1	11.504	frontend|align|q.bytes[0][5]	dc.lea_disp[1]
+cpu-de25-direct-sv	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	7.736		
+cpu-de10	Slow 1100mV 100C Model	0	setup	analyzed	1	0.763	dfwd_ready[17]	_28159_[0]
+cpu-de10	Slow 1100mV 100C Model	0	hold	analyzed	1	0.273	x87_mul_a[10]	x87_mul_ar[10]
+cpu-de10	Slow 1100mV 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de10	Slow 1100mV 100C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de10	Slow 1100mV 100C Model	0	internal_setup	analyzed	1	0.763	dfwd_ready[17]	_28159_[0]
+cpu-de10	Slow 1100mV 100C Model	0	minimum_pulse_width	analyzed	1	6.754		
+cpu-de10	Slow 1100mV -40C Model	0	setup	analyzed	1	0.600	decode_by[2]	_28158_[13]
+cpu-de10	Slow 1100mV -40C Model	0	hold	analyzed	1	0.080	x87_mul_a[10]	x87_mul_ar[10]
+cpu-de10	Slow 1100mV -40C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de10	Slow 1100mV -40C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de10	Slow 1100mV -40C Model	0	internal_setup	analyzed	1	0.600	decode_by[2]	_28158_[13]
+cpu-de10	Slow 1100mV -40C Model	0	minimum_pulse_width	analyzed	1	6.693		
+cpu-de10	Slow 1100mV 85C Model	0	setup	analyzed	1	0.894	dfwd_ready[17]	_28159_[0]
+cpu-de10	Slow 1100mV 85C Model	0	hold	analyzed	1	0.232	x87_mul_a[10]	x87_mul_ar[10]
+cpu-de10	Slow 1100mV 85C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de10	Slow 1100mV 85C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de10	Slow 1100mV 85C Model	0	internal_setup	analyzed	1	0.894	dfwd_ready[17]	_28159_[0]
+cpu-de10	Slow 1100mV 85C Model	0	minimum_pulse_width	analyzed	1	6.749		
+cpu-de10	Slow 1100mV 0C Model	0	setup	analyzed	1	0.790	decode_by[2]	_28158_[13]
+cpu-de10	Slow 1100mV 0C Model	0	hold	analyzed	1	0.088	x87_mul_a[10]	x87_mul_ar[10]
+cpu-de10	Slow 1100mV 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de10	Slow 1100mV 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de10	Slow 1100mV 0C Model	0	internal_setup	analyzed	1	0.790	decode_by[2]	_28158_[13]
+cpu-de10	Slow 1100mV 0C Model	0	minimum_pulse_width	analyzed	1	6.698		
+cpu-de10	Fast 1100mV -40C Model	0	setup	analyzed	1	8.873	_28519_[164]	m2_rw[3]
+cpu-de10	Fast 1100mV -40C Model	0	hold	analyzed	1	0.069	x87_mul_a[9]	x87_mul_ar[9]
+cpu-de10	Fast 1100mV -40C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de10	Fast 1100mV -40C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de10	Fast 1100mV -40C Model	0	internal_setup	analyzed	1	8.873	_28519_[164]	m2_rw[3]
+cpu-de10	Fast 1100mV -40C Model	0	minimum_pulse_width	analyzed	1	6.921		
+cpu-de10	Fast 1100mV 0C Model	0	setup	analyzed	1	8.617	_28519_[164]	m2_rw[3]
+cpu-de10	Fast 1100mV 0C Model	0	hold	analyzed	1	0.086	x87_mul_a[9]	x87_mul_ar[9]
+cpu-de10	Fast 1100mV 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de10	Fast 1100mV 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de10	Fast 1100mV 0C Model	0	internal_setup	analyzed	1	8.617	_28519_[164]	m2_rw[3]
+cpu-de10	Fast 1100mV 0C Model	0	minimum_pulse_width	analyzed	1	6.922		
+cpu-de10	Fast 1100mV 85C Model	0	setup	analyzed	1	7.700	_28519_[164]	m2_rw[3]
+cpu-de10	Fast 1100mV 85C Model	0	hold	analyzed	1	0.151	_30071_[356]	_29861_[13]
+cpu-de10	Fast 1100mV 85C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de10	Fast 1100mV 85C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de10	Fast 1100mV 85C Model	0	internal_setup	analyzed	1	7.700	_28519_[164]	m2_rw[3]
+cpu-de10	Fast 1100mV 85C Model	0	minimum_pulse_width	analyzed	1	6.932		
+cpu-de10	Fast 1100mV 100C Model	0	setup	analyzed	1	7.441	_28519_[164]	m2_rw[3]
+cpu-de10	Fast 1100mV 100C Model	0	hold	analyzed	1	0.159	_30071_[356]	_29861_[13]
+cpu-de10	Fast 1100mV 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de10	Fast 1100mV 100C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de10	Fast 1100mV 100C Model	0	internal_setup	analyzed	1	7.441	_28519_[164]	m2_rw[3]
+cpu-de10	Fast 1100mV 100C Model	0	minimum_pulse_width	analyzed	1	6.934		
+machine-de25	Slow fix4 100C Model	0	setup	analyzed	1	8.713	cpu_decode_by[3]~DUPLICATE	_37690_[110]~DUPLICATE
+machine-de25	Slow fix4 100C Model	0	hold	analyzed	1	0.092	audio_opl2_index[4]	audio_opl2_queue_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a12~FITTER_CREATED_MLAB_CELL0~reg0
+machine-de25	Slow fix4 100C Model	0	recovery	analyzed	1	14.222	reset	machine_at_pit_u_KF8253_Counter_0_dec2_binary_q[3]
+machine-de25	Slow fix4 100C Model	0	removal	analyzed	1	0.806	reset	machine_at_pit_u_KF8253_Counter_1_dec2_binary_q[6]
+machine-de25	Slow fix4 100C Model	0	internal_setup	analyzed	1	8.713	cpu_decode_by[3]~DUPLICATE	_37690_[110]~DUPLICATE
+machine-de25	Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	6.193		
+machine-de25	Slow fix4 0C Model	0	setup	analyzed	1	7.796	cpu_decode_by[3]~DUPLICATE	_37690_[110]~DUPLICATE
+machine-de25	Slow fix4 0C Model	0	hold	analyzed	1	0.126	audio_opl2_index[4]	audio_opl2_queue_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a12~FITTER_CREATED_MLAB_CELL0~reg0
+machine-de25	Slow fix4 0C Model	0	recovery	analyzed	1	13.958	reset	machine_at_pic_master_u_Control_Logic_command_state[1]~DUPLICATE
+machine-de25	Slow fix4 0C Model	0	removal	analyzed	1	0.961	reset	machine_at_pit_u_KF8253_Counter_1_dec2_binary_q[6]
+machine-de25	Slow fix4 0C Model	0	internal_setup	analyzed	1	7.796	cpu_decode_by[3]~DUPLICATE	_37690_[110]~DUPLICATE
+machine-de25	Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.159		
+machine-de25	Slow fix4a 0C Model	0	setup	analyzed	1	7.787	cpu_decode_by[3]~DUPLICATE	_37690_[110]~DUPLICATE
+machine-de25	Slow fix4a 0C Model	0	hold	analyzed	1	0.125	audio_opl2_index[4]	audio_opl2_queue_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a12~FITTER_CREATED_MLAB_CELL0~reg0
+machine-de25	Slow fix4a 0C Model	0	recovery	analyzed	1	13.972	reset	machine_at_pic_master_u_Control_Logic_command_state[1]~DUPLICATE
+machine-de25	Slow fix4a 0C Model	0	removal	analyzed	1	0.945	reset	machine_at_pit_u_KF8253_Counter_1_dec2_binary_q[6]
+machine-de25	Slow fix4a 0C Model	0	internal_setup	analyzed	1	7.787	cpu_decode_by[3]~DUPLICATE	_37690_[110]~DUPLICATE
+machine-de25	Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	6.171		
+machine-de25	Fast fix4 0C Model	0	setup	analyzed	1	10.797	machine_presenter_h_b[0]~ERTM	machine_presenter_picture[5]~ERTM
+machine-de25	Fast fix4 0C Model	0	hold	analyzed	1	0.022	machine_presenter_p_b0[18]~ERTM	add_1027~11_ERTM
+machine-de25	Fast fix4 0C Model	0	recovery	analyzed	1	14.972	reset	machine_at_pit_u_KF8253_Counter_0_dec2_binary_q[3]
+machine-de25	Fast fix4 0C Model	0	removal	analyzed	1	0.477	reset	machine_at_pit_u_KF8253_Counter_1_dec2_binary_q[6]
+machine-de25	Fast fix4 0C Model	0	internal_setup	analyzed	1	10.797	machine_presenter_h_b[0]~ERTM	machine_presenter_picture[5]~ERTM
+machine-de25	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.332		
+machineplus-de25	Slow fix4 100C Model	0	setup	analyzed	1	8.689	machine_presenter_h_a[16]~ERTM	machine_presenter_picture[22]~ERTM
+machineplus-de25	Slow fix4 100C Model	0	hold	analyzed	1	0.096	machine_presenter_p_b0[10]~ERTM	add_1065~11_ERTM
+machineplus-de25	Slow fix4 100C Model	0	recovery	analyzed	1	14.043	reset	machine_at_pit_u_KF8253_Counter_2_dec2_bcd_q[3]
+machineplus-de25	Slow fix4 100C Model	0	removal	analyzed	1	0.520	reset	machine_at_pic_master_u_Control_Logic_interrupt_vector_address[1]
+machineplus-de25	Slow fix4 100C Model	0	internal_setup	analyzed	1	8.689	machine_presenter_h_a[16]~ERTM	machine_presenter_picture[22]~ERTM
+machineplus-de25	Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	6.193		
+machineplus-de25	Slow fix4 0C Model	0	setup	analyzed	1	7.785	machine_presenter_h_a[16]~ERTM	machine_presenter_picture[22]~ERTM
+machineplus-de25	Slow fix4 0C Model	0	hold	analyzed	1	0.125	machine_presenter_p_b0[10]~ERTM	add_1065~11_ERTM
+machineplus-de25	Slow fix4 0C Model	0	recovery	analyzed	1	13.722	reset	machine_at_pit_u_KF8253_Counter_2_dec2_bcd_q[3]
+machineplus-de25	Slow fix4 0C Model	0	removal	analyzed	1	0.601	reset	machine_at_pic_master_u_Control_Logic_interrupt_vector_address[1]
+machineplus-de25	Slow fix4 0C Model	0	internal_setup	analyzed	1	7.785	machine_presenter_h_a[16]~ERTM	machine_presenter_picture[22]~ERTM
+machineplus-de25	Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.158		
+machineplus-de25	Slow fix4a 0C Model	0	setup	analyzed	1	7.877	machine_presenter_h_a[16]~ERTM	machine_presenter_picture[22]~ERTM
+machineplus-de25	Slow fix4a 0C Model	0	hold	analyzed	1	0.121	machine_presenter_p_b0[10]~ERTM	add_1065~11_ERTM
+machineplus-de25	Slow fix4a 0C Model	0	recovery	analyzed	1	13.737	reset	machine_at_pit_u_KF8253_Counter_2_dec2_bcd_q[3]
+machineplus-de25	Slow fix4a 0C Model	0	removal	analyzed	1	0.596	reset	machine_at_pic_master_u_Control_Logic_interrupt_vector_address[1]
+machineplus-de25	Slow fix4a 0C Model	0	internal_setup	analyzed	1	7.877	machine_presenter_h_a[16]~ERTM	machine_presenter_picture[22]~ERTM
+machineplus-de25	Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	6.171		
+machineplus-de25	Fast fix4 0C Model	0	setup	analyzed	1	10.550	machine_display_control_enable	machine_display_scanout_reader_front[83]
+machineplus-de25	Fast fix4 0C Model	0	hold	analyzed	1	0.020	machine_presenter_p_b0[10]~ERTM	add_1065~11_ERTM
+machineplus-de25	Fast fix4 0C Model	0	recovery	analyzed	1	14.864	reset	machine_at_pit_u_KF8253_Counter_2_dec2_bcd_q[3]
+machineplus-de25	Fast fix4 0C Model	0	removal	analyzed	1	0.302	reset	machine_at_pic_master_u_Control_Logic_interrupt_vector_address[1]
+machineplus-de25	Fast fix4 0C Model	0	internal_setup	analyzed	1	10.550	machine_display_control_enable	machine_display_scanout_reader_front[83]
+machineplus-de25	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.327		
+machine-slice4-de25	Slow fix4 100C Model	0	setup	analyzed	1	8.027	_41096_[107]~DUPLICATE	cpu_x87_iss_part[1]~DUPLICATE
+machine-slice4-de25	Slow fix4 100C Model	0	hold	analyzed	1	0.081	machine_presenter_width[4]	add_1116~106_ERTM1
+machine-slice4-de25	Slow fix4 100C Model	0	recovery	analyzed	1	13.947	reset	machine_at_pit_u_KF8253_Counter_0_count_preset_lsb[2]
+machine-slice4-de25	Slow fix4 100C Model	0	removal	analyzed	1	0.617	reset	machine_at_pic_master_u_Control_Logic_prev_interrupt_acknowledge_n
+machine-slice4-de25	Slow fix4 100C Model	0	internal_setup	analyzed	1	8.027	_41096_[107]~DUPLICATE	cpu_x87_iss_part[1]~DUPLICATE
+machine-slice4-de25	Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	6.193		
+machine-slice4-de25	Slow fix4 0C Model	0	setup	analyzed	1	6.856	_41096_[107]~DUPLICATE	cpu_x87_iss_part[1]~DUPLICATE
+machine-slice4-de25	Slow fix4 0C Model	0	hold	analyzed	1	0.109	machine_presenter_width[4]	add_1116~106_ERTM1
+machine-slice4-de25	Slow fix4 0C Model	0	recovery	analyzed	1	13.642	reset	machine_at_pit_u_KF8253_Counter_0_count_preset_lsb[2]
+machine-slice4-de25	Slow fix4 0C Model	0	removal	analyzed	1	0.691	reset	machine_at_pic_master_u_Control_Logic_prev_interrupt_acknowledge_n
+machine-slice4-de25	Slow fix4 0C Model	0	internal_setup	analyzed	1	6.856	_41096_[107]~DUPLICATE	cpu_x87_iss_part[1]~DUPLICATE
+machine-slice4-de25	Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.159		
+machine-slice4-de25	Slow fix4a 0C Model	0	setup	analyzed	1	6.863	_41096_[107]~DUPLICATE	cpu_x87_iss_part[1]~DUPLICATE
+machine-slice4-de25	Slow fix4a 0C Model	0	hold	analyzed	1	0.105	machine_presenter_width[4]	add_1116~106_ERTM1
+machine-slice4-de25	Slow fix4a 0C Model	0	recovery	analyzed	1	13.657	reset	machine_at_pit_u_KF8253_Counter_0_count_preset_lsb[2]
+machine-slice4-de25	Slow fix4a 0C Model	0	removal	analyzed	1	0.685	reset	machine_at_pic_master_u_Control_Logic_prev_interrupt_acknowledge_n
+machine-slice4-de25	Slow fix4a 0C Model	0	internal_setup	analyzed	1	6.863	_41096_[107]~DUPLICATE	cpu_x87_iss_part[1]~DUPLICATE
+machine-slice4-de25	Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	6.172		
+machine-slice4-de25	Fast fix4 0C Model	0	setup	analyzed	1	10.641	machine_presenter_h_a[21]~ERTM	machine_presenter_picture[20]~ERTM
+machine-slice4-de25	Fast fix4 0C Model	0	hold	analyzed	1	0.024	machine_presenter_width[4]	add_1116~106_ERTM1
+machine-slice4-de25	Fast fix4 0C Model	0	recovery	analyzed	1	14.773	reset	machine_at_pit_u_KF8253_Counter_0_count_preset_lsb[2]
+machine-slice4-de25	Fast fix4 0C Model	0	removal	analyzed	1	0.375	reset	machine_at_pic_master_u_Control_Logic_prev_interrupt_acknowledge_n
+machine-slice4-de25	Fast fix4 0C Model	0	internal_setup	analyzed	1	10.641	machine_presenter_h_a[21]~ERTM	machine_presenter_picture[20]~ERTM
+machine-slice4-de25	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.329		
+machine-de10	Slow 1100mV 100C Model	0	setup	analyzed	1	0.819	cpu_st_wait	cpu_l1i_page[45]~DUPLICATE
+machine-de10	Slow 1100mV 100C Model	0	hold	analyzed	1	0.249	audio_mixer_dc[24]	audio_mixer_dc[24]
+machine-de10	Slow 1100mV 100C Model	0	recovery	analyzed	1	7.067	reset	machine_at_pic_slave_internal_data_bus[6]
+machine-de10	Slow 1100mV 100C Model	0	removal	analyzed	1	4.791	reset	machine_at_pit_u_KF8253_Counter_2_dec_binary_q[3]
+machine-de10	Slow 1100mV 100C Model	0	internal_setup	analyzed	1	0.819	cpu_st_wait	cpu_l1i_page[45]~DUPLICATE
+machine-de10	Slow 1100mV 100C Model	0	minimum_pulse_width	analyzed	1	5.346		
+machine-de10	Slow 1100mV -40C Model	0	setup	analyzed	1	0.609	cpu_governor_isa8[0]	cpu_governor_s2_isa[12]
+machine-de10	Slow 1100mV -40C Model	0	hold	analyzed	1	0.118	machine_display_stage1[18]	machine_display_stage2[18]
+machine-de10	Slow 1100mV -40C Model	0	recovery	analyzed	1	7.114	reset	machine_at_pic_master_special_fully_nest_config
+machine-de10	Slow 1100mV -40C Model	0	removal	analyzed	1	4.851	reset	machine_at_pic_master_u_Control_Logic_cascade_device_config[7]
+machine-de10	Slow 1100mV -40C Model	0	internal_setup	analyzed	1	0.609	cpu_governor_isa8[0]	cpu_governor_s2_isa[12]
+machine-de10	Slow 1100mV -40C Model	0	minimum_pulse_width	analyzed	1	5.283		
+machine-de10	Slow 1100mV 85C Model	0	setup	analyzed	1	0.900	cpu_st_wait	cpu_l1i_page[67]
+machine-de10	Slow 1100mV 85C Model	0	hold	analyzed	1	0.253	audio_mixer_dc[24]	audio_mixer_dc[24]
+machine-de10	Slow 1100mV 85C Model	0	recovery	analyzed	1	7.074	reset	machine_at_pic_master_u_Control_Logic_interrupt_when_ack1[6]
+machine-de10	Slow 1100mV 85C Model	0	removal	analyzed	1	4.834	reset	machine_at_pic_master_u_Control_Logic_cascade_device_config[7]
+machine-de10	Slow 1100mV 85C Model	0	internal_setup	analyzed	1	0.900	cpu_st_wait	cpu_l1i_page[67]
+machine-de10	Slow 1100mV 85C Model	0	minimum_pulse_width	analyzed	1	5.341		
+machine-de10	Slow 1100mV 0C Model	0	setup	analyzed	1	0.720	cpu_governor_isa8[0]	cpu_governor_s2_isa[12]
+machine-de10	Slow 1100mV 0C Model	0	hold	analyzed	1	0.117	machine_display_stage1[18]	machine_display_stage2[18]
+machine-de10	Slow 1100mV 0C Model	0	recovery	analyzed	1	7.194	reset	machine_at_pic_master_special_fully_nest_config
+machine-de10	Slow 1100mV 0C Model	0	removal	analyzed	1	4.759	reset	machine_at_pic_master_u_Control_Logic_cascade_device_config[7]
+machine-de10	Slow 1100mV 0C Model	0	internal_setup	analyzed	1	0.720	cpu_governor_isa8[0]	cpu_governor_s2_isa[12]
+machine-de10	Slow 1100mV 0C Model	0	minimum_pulse_width	analyzed	1	5.292		
+machine-de10	Fast 1100mV -40C Model	0	setup	analyzed	1	8.206	machine_presenter_width[0]	machine_presenter_p_wx[4]
+machine-de10	Fast 1100mV -40C Model	0	hold	analyzed	1	0.108	_38032_[355]	altshift_taps:_37957__rtl_0|shift_taps_6iv:auto_generated|altsyncram_bv91:altsyncram4|ram_block5a130~porta_datain_reg11
+machine-de10	Fast 1100mV -40C Model	0	recovery	analyzed	1	11.958	reset	machine_at_pic_master_special_fully_nest_config
+machine-de10	Fast 1100mV -40C Model	0	removal	analyzed	1	2.238	reset	machine_at_pic_master_u_Control_Logic_cascade_device_config[7]
+machine-de10	Fast 1100mV -40C Model	0	internal_setup	analyzed	1	8.206	machine_presenter_width[0]	machine_presenter_p_wx[4]
+machine-de10	Fast 1100mV -40C Model	0	minimum_pulse_width	analyzed	1	5.518		
+machine-de10	Fast 1100mV 0C Model	0	setup	analyzed	1	8.071	machine_presenter_width[0]	machine_presenter_p_wx[4]
+machine-de10	Fast 1100mV 0C Model	0	hold	analyzed	1	0.119	audio_mixer_dc[24]	audio_mixer_dc[24]
+machine-de10	Fast 1100mV 0C Model	0	recovery	analyzed	1	11.866	reset	machine_at_pic_master_special_fully_nest_config
+machine-de10	Fast 1100mV 0C Model	0	removal	analyzed	1	2.284	reset	machine_at_pic_master_u_Control_Logic_cascade_device_config[7]
+machine-de10	Fast 1100mV 0C Model	0	internal_setup	analyzed	1	8.071	machine_presenter_width[0]	machine_presenter_p_wx[4]
+machine-de10	Fast 1100mV 0C Model	0	minimum_pulse_width	analyzed	1	5.521		
+machine-de10	Fast 1100mV 85C Model	0	setup	analyzed	1	7.383	_37695_[192]	cpu_ag_disp[20]
+machine-de10	Fast 1100mV 85C Model	0	hold	analyzed	1	0.130	audio_mixer_dc[24]	audio_mixer_dc[24]
+machine-de10	Fast 1100mV 85C Model	0	recovery	analyzed	1	11.579	reset	machine_at_pic_slave_internal_data_bus[2]
+machine-de10	Fast 1100mV 85C Model	0	removal	analyzed	1	2.481	reset	machine_at_pic_master_u_Control_Logic_cascade_device_config[7]
+machine-de10	Fast 1100mV 85C Model	0	internal_setup	analyzed	1	7.383	_37695_[192]	cpu_ag_disp[20]
+machine-de10	Fast 1100mV 85C Model	0	minimum_pulse_width	analyzed	1	5.528		
+machine-de10	Fast 1100mV 100C Model	0	setup	analyzed	1	7.037	_37695_[192]	cpu_ag_disp[20]
+machine-de10	Fast 1100mV 100C Model	0	hold	analyzed	1	0.132	audio_mixer_dc[24]	audio_mixer_dc[24]
+machine-de10	Fast 1100mV 100C Model	0	recovery	analyzed	1	11.566	reset	machine_at_pic_slave_u_Control_Logic_single_or_cascade_config
+machine-de10	Fast 1100mV 100C Model	0	removal	analyzed	1	2.506	reset	machine_at_pic_master_u_Control_Logic_cascade_device_config[7]
+machine-de10	Fast 1100mV 100C Model	0	internal_setup	analyzed	1	7.037	_37695_[192]	cpu_ag_disp[20]
+machine-de10	Fast 1100mV 100C Model	0	minimum_pulse_width	analyzed	1	5.533		
+cpu-de25-zerodelay-envelope	Slow fix4 100C Model	0	setup	analyzed	1	7.119	x87_rf_a_rtl_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a75~reg0	x87_pop_i[2]~DUPLICATE
+cpu-de25-zerodelay-envelope	Slow fix4 100C Model	0	hold	analyzed	1	0.000	reset	_28438_[58]~DUPLICATE
+cpu-de25-zerodelay-envelope	Slow fix4 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-zerodelay-envelope	Slow fix4 100C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-zerodelay-envelope	Slow fix4 100C Model	0	internal_setup	analyzed	1	7.119	x87_rf_a_rtl_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a75~reg0	x87_pop_i[2]~DUPLICATE
+cpu-de25-zerodelay-envelope	Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	7.533		
+cpu-de25-zerodelay-envelope	Slow fix4 0C Model	0	setup	analyzed	1	6.062	x87_rf_a_rtl_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a75~reg0	x87_pop_i[2]
+cpu-de25-zerodelay-envelope	Slow fix4 0C Model	0	hold	analyzed	1	0.086	init_tr_limit[22]	arch_tr_limit[22]~reg0
+cpu-de25-zerodelay-envelope	Slow fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-zerodelay-envelope	Slow fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-zerodelay-envelope	Slow fix4 0C Model	0	internal_setup	analyzed	1	6.062	x87_rf_a_rtl_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a75~reg0	x87_pop_i[2]
+cpu-de25-zerodelay-envelope	Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	7.499		
+cpu-de25-zerodelay-envelope	Slow fix4a 0C Model	0	setup	analyzed	1	6.048	x87_rf_a_rtl_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a75~reg0	x87_pop_i[2]
+cpu-de25-zerodelay-envelope	Slow fix4a 0C Model	0	hold	analyzed	1	0.029	init_tr_limit[22]	arch_tr_limit[22]~reg0
+cpu-de25-zerodelay-envelope	Slow fix4a 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-zerodelay-envelope	Slow fix4a 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-zerodelay-envelope	Slow fix4a 0C Model	0	internal_setup	analyzed	1	6.048	x87_rf_a_rtl_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a75~reg0	x87_pop_i[2]
+cpu-de25-zerodelay-envelope	Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	7.499		
+cpu-de25-zerodelay-envelope	Fast fix4 0C Model	0	setup	analyzed	1	10.444	x87_rf_a_rtl_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a75~reg0	x87_pop_i[2]~DUPLICATE
+cpu-de25-zerodelay-envelope	Fast fix4 0C Model	0	hold	analyzed	1	0.005	init_ar[94]	_28438_[371]
+cpu-de25-zerodelay-envelope	Fast fix4 0C Model	0	recovery	not_applicable_synchronous_reset	0	null		
+cpu-de25-zerodelay-envelope	Fast fix4 0C Model	0	removal	not_applicable_synchronous_reset	0	null		
+cpu-de25-zerodelay-envelope	Fast fix4 0C Model	0	internal_setup	analyzed	1	10.444	x87_rf_a_rtl_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a75~reg0	x87_pop_i[2]~DUPLICATE
+cpu-de25-zerodelay-envelope	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	7.735		

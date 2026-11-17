@@ -1,0 +1,21 @@
+{
+  "files": {
+    "manifest.json": "bde476c4a216c55454674f71a2a78e72fc0684a484a90616fb06f51be0d3d2ee",
+    "handler-byte-identity.json": "18abdeb6448b3fbd7744abb4e71b1bb7faa03767b15ec65bfec19b826b0367eb",
+    "SURVEY.COM": "22434a7ca6e84882f9742974082fa67bc55c4f3bb06c2ba95c7655fc843d501d",
+    "rtl.bin": "cb1f9bd4fd34e14348ba59e87d3a7659d34623851e6c8607d6b02d60c3940ea2",
+    "frozen-prediction.json": "3f413129394d715a3932fe44e40437f7ff7574641cb99fd68f16b7d8ae1ca1e6",
+    "prediction/Vfes_i386_cpu": "4414d541cb6d386ab7332e7d8f6b0b8a105686d3881945d6a4873bae6576556f",
+    "prediction/input.bin": "cb1f9bd4fd34e14348ba59e87d3a7659d34623851e6c8607d6b02d60c3940ea2",
+    "prediction/stdout": "d605e0f1c783a03f08637981f1d0b289e83fe3a1bd9dc7495559c1d3a287345e",
+    "prediction/before.sha256": "cc6fe2bb735dc1650671b772b88a84733b17c0f9aef6f505dd9137778fdadeef"
+  },
+  "settings": {
+    "mode": "governor",
+    "preset": 1,
+    "frequency": 0,
+    "turbo": 0,
+    "irq_period": 0,
+    "latency": 0
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "LOAD_ODD": {
+    "blocks": 2578,
+    "reference_whole_loop": 17.044356467631264,
+    "rtl_whole_loop": 17.026,
+    "delta": -0.018356467631264195,
+    "one_block_quantization": 0.006608901305789556
+  },
+  "STORE_ODD": {
+    "blocks": 2920,
+    "reference_whole_loop": 15.04806540190185,
+    "rtl_whole_loop": 15.023,
+    "delta": -0.025065401901850137,
+    "one_block_quantization": 0.005151682780521003
+  },
+  "ADD_ODD": {
+    "blocks": 2191,
+    "reference_whole_loop": 20.054929700389504,
+    "rtl_whole_loop": 20.023,
+    "delta": -0.03192970038950449,
+    "one_block_quantization": 0.009149146761126598
+  },
+  "CMP_ODD": {
+    "blocks": 2192,
+    "reference_whole_loop": 20.045780553628376,
+    "rtl_whole_loop": 20.023,
+    "delta": -0.022780553628376055,
+    "one_block_quantization": 0.009140802806032092
+  },
+  "INC_ODD": {
+    "blocks": 2192,
+    "reference_whole_loop": 20.045780553628376,
+    "rtl_whole_loop": 20.024,
+    "delta": -0.021780553628374832,
+    "one_block_quantization": 0.009140802806032092
+  },
+  "PUSH_ODD": {
+    "blocks": 1993,
+    "reference_whole_loop": 22.047341180909886,
+    "rtl_whole_loop": 22.023,
+    "delta": -0.024341180909885907,
+    "one_block_quantization": 0.011056841113796331
+  },
+  "SHL_B_CL": {
+    "blocks": 2435,
+    "reference_whole_loop": 18.045318674970595,
+    "rtl_whole_loop": 23.028,
+    "delta": 4.982681325029404,
+    "one_block_quantization": 0.007407766286933742
+  },
+  "SHL_W_CL": {
+    "blocks": 2435,
+    "reference_whole_loop": 18.045318674970595,
+    "rtl_whole_loop": 23.022,
+    "delta": 4.9766813250294035,
+    "one_block_quantization": 0.007407766286933742
+  },
+  "MUL_B_MEM": {
+    "blocks": 1828,
+    "reference_whole_loop": 24.037391123388076,
+    "rtl_whole_loop": 27.022,
+    "delta": 2.9846088766119223,
+    "one_block_quantization": 0.013142368028096268
+  },
+  "DIV_B_MEM": {
+    "blocks": 1513,
+    "reference_whole_loop": 29.041871099506544,
+    "rtl_whole_loop": 32.018,
+    "delta": 2.976128900493457,
+    "one_block_quantization": 0.019182213407864294
+  },
+  "PUSHA_POPA": {
+    "blocks": 829,
+    "reference_whole_loop": 53.00404218763981,
+    "rtl_whole_loop": 47.017,
+    "delta": -5.987042187639808,
+    "one_block_quantization": 0.06386029179233711
+  },
+  "PUSHF_POPF": {
+    "blocks": 2192,
+    "reference_whole_loop": 20.045780553628376,
+    "rtl_whole_loop": 20.028,
+    "delta": -0.01778055362837705,
+    "one_block_quantization": 0.009140802806032092
+  },
+  "XLAT": {
+    "blocks": 2739,
+    "reference_whole_loop": 16.04247936237802,
+    "rtl_whole_loop": 16.026,
+    "delta": -0.01647936237802128,
+    "one_block_quantization": 0.005854919475320445
+  },
+  "LEA_COMPLEX": {
+    "blocks": 2920,
+    "reference_whole_loop": 15.04806540190185,
+    "rtl_whole_loop": 17.023,
+    "delta": 1.9749345980981499,
+    "one_block_quantization": 0.005151682780521003
+  }
+}

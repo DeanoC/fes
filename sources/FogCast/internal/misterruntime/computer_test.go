@@ -87,8 +87,8 @@ func TestComputerVersionAndPcxtMediaResponseValidation(t *testing.T) {
 	}
 	pcxt := computerResponse(t)
 	disk := protocol.PcxtFloppyInterface()
-	pcxt.ActivePackage.Descriptor.Core.ID = "fes.pcxt"
-	*pcxt.Core = "fes.pcxt"
+	pcxt.ActivePackage.Descriptor.Core.ID = "fes.pcxt-dos"
+	*pcxt.Core = "fes.pcxt-dos"
 	for i := range pcxt.ActivePackage.Descriptor.Interfaces {
 		if pcxt.ActivePackage.Descriptor.Interfaces[i].ID == protocol.Apple2FloppyInterface().ID {
 			pcxt.ActivePackage.Descriptor.Interfaces[i].ID = disk.ID

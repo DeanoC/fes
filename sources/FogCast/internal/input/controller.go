@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/bridge"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 const streamDialTimeout = 2 * time.Second
@@ -215,7 +216,12 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec) error {
 	if c.ports != nil {
 		// The host bridge releases only its own source. The retained sink
 		// still receives lease and core-replacement neutralization.
-		sink = retainedSink{Sink: remoteSourceSink{ports: c.ports}}
+		retained := retainedSink{Sink: remoteSourceSink{ports: c.ports}}
+		if c.ports.hid != nil {
+			sink = retainedTapSink{retainedSink: retained, controller: c, hid: c.ports.hid}
+		} else {
+			sink = retained
+		}
 	} else if c.persistent != nil {
 		sink = retainedSink{Sink: c.persistent}
 	} else {
@@ -486,6 +492,54 @@ type retainedSink struct {
 }
 
 func (retainedSink) Close() error { return nil }
+
+// Only the native HID sink offers target-timed taps. Other bridges continue
+// their existing input behavior and decline the optional tap probe.
+type retainedTapSink struct {
+	retainedSink
+	controller *TargetController
+	hid        *keyboardHIDSink
+}
+
+func (s retainedTapSink) Tap(ctx context.Context, f protocol.InputFrame) error {
+	// Match kit-local admission: no new press may race core replacement or
+	// an unconfirmed active generation. Do not hold lifecycle over the tap
+	// interval, because doing so would drop unrelated kit-local input.
+	if !s.controller.lifecycle.TryLock() {
+		return errTapUnavailable
+	}
+	locked := true
+	defer func() {
+		if locked {
+			s.controller.lifecycle.Unlock()
+		}
+	}()
+	observeCtx, cancel := context.WithTimeout(ctx, localCoreObserveTimeout)
+	s.controller.mu.Lock()
+	observe := s.controller.observe
+	s.controller.mu.Unlock()
+	if observe == nil {
+		cancel()
+		return errTapUnavailable
+	}
+	obs, err := observe(observeCtx)
+	if err == nil && observeCtx.Err() != nil {
+		err = observeCtx.Err()
+	}
+	if err != nil || !obs.Active || obs.KeyboardHID == nil || obs.KeyboardHID.Generation != f.ServerMonoNS {
+		cancel()
+		return errors.Join(errTapUnavailable, err)
+	}
+	err = s.controller.setLocalObservation(observeCtx, obs)
+	cancel()
+	if err != nil {
+		return errors.Join(errTapUnavailable, err)
+	}
+	return s.hid.tap(ctx, f, func() {
+		locked = false
+		s.controller.lifecycle.Unlock()
+	})
+}
 
 func stopLease(current *lease) error {
 	if current == nil {

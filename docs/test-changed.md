@@ -249,6 +249,10 @@ sets in both tiers. The full tier preserves the cases and compiler flags in the
 local aggregate commands. Each job has isolated build output; the matrix runs
 at most eight jobs concurrently.
 
+The standalone `de25-x87` family runs `sim-fes-de25-x87` with the pinned
+Verilator in both tiers; its board sources and `test_de25_x87*.py` regressions
+select that family without selecting existing core simulations.
+
 PRs run against their merge result; pushes to `main` validate the merged result.
 Feature-branch pushes do not duplicate PR runs. Merge groups remain supported;
 nightly and manual runs cover the complete suite. The stable `integration`

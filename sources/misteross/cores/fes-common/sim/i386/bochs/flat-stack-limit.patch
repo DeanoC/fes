@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# Bochs REL_3_1_FINAL: 80386 SS accesses may not cross the 4 GiB limit.
+--- a/cpu/cpu.h
++++ b/cpu/cpu.h
+@@ -5712,2 +5712,7 @@
+   if (seg->cache.valid & SegAccessWOK4G) {
++#if BX_CPU_LEVEL == 3
++    // A 386 stack operand may not cross the end of a 4 GiB segment.
++    if (s == BX_SEG_REG_SS && len > 1 && offset > 0xffffffffu - (len - 1))
++      exception(BX_SS_EXCEPTION, 0);
++#endif
+     return offset;
+--- a/cpu/access.cc
++++ b/cpu/access.cc
+@@ -84,2 +84,7 @@
+       if (seg->cache.u.segment.limit_scaled == 0xffffffff && seg->cache.u.segment.base == 0) {
++#if BX_CPU_LEVEL == 3
++        // length is already reduced by one; test before the flat fast path.
++        if (seg == &BX_CPU_THIS_PTR sregs[BX_SEG_REG_SS] && offset > 0xffffffffu - length)
++          return false;
++#endif
+         seg->cache.valid |= SegAccessROK | SegAccessWOK | SegAccessROK4G | SegAccessWOK4G;

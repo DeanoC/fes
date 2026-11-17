@@ -47,8 +47,11 @@ compiled from scratch on each launch. The package, socket, build and payload
 identities constrain which assets may be linked. Apple II titles can select
 multiple independently named slot cards. Video parts likewise belong to their
 compatible shells and the selected output must be available before launch.
-The standard ZX81 shell has 1 KiB internal RAM and a vacant expansion bus;
-compatible bus carts, including the 16 KiB RAM cart, link at load time.
+The registered (Quartus Lite) ZX81-family packages have no expansion socket,
+so no bus cart links to them until DeanoC/fes#1875 builds the carts into the
+shell. The advisory nextpnr ZX81 shell keeps 1 KiB internal RAM and a vacant
+expansion bus, and its bus carts, including the 16 KiB RAM cart, still link
+at load time there as a diagnostic path.
 See [expansions and named ROMs](core-package-library.md) and the
 [ZX81 expansion-bus guide](../../../docs/zx81-expansion-bus.md).
 

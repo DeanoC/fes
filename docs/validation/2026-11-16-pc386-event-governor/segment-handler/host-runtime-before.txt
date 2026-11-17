@@ -1,0 +1,8 @@
+chip-30x0-ai-dev
+Linux 6.8.0-147-generic
+ldd (Ubuntu GLIBC 2.39-0ubuntu8.12) 2.39
+ 17:11:52 up 21 days,  8:17, 14 users,  load average: 0.21, 0.23, 0.45
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda1       678G  332G  346G  50% /
+c6026db92d61dd3078b6ad74776834dfee185f748c2769afde5f0f991da6d8c8  reference-vm/disk.img
+aa38b52edb664e3547bb8bbe3a62a25b252e14f590622eefdc723ff733a5fd37  reference-vm/vm/nvr/award286.nvr
