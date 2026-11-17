@@ -484,8 +484,10 @@ builds of pc386 are parked with [#1235](https://github.com/DeanoC/fes/issues/123
   build's, its Verilator is the i386 lock's, and the CPU netlist this build's
   Yosys writes through the seal's passes has the report's digest. The report
   is copied into the output, and `build-summary.json` records it under
-  `lockstep` (#1581 S5). Lockstep needs the pinned Bochs and corpus, so it
-  runs on the sealing host.
+  `lockstep` (#1581 S5). Alternatively `RUN_LOCKSTEP=1` for make, or
+  `--run-lockstep` for the script, generates that full netlist report in a
+  fresh output directory before applying the same gate. Both ways need the
+  pinned Bochs and full corpus on the sealing host; neither downloads them.
 
 **M4.** The diagnostic package `fes.pc386-diag`, the machine with a bus master
 running commands from a DDR ring in the CPU's place, passed every program on

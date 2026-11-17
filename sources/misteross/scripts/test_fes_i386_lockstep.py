@@ -704,7 +704,10 @@ def run_random(testbench: str, env: dict, seed: int, programs: int, latency: boo
 
 
 def main() -> int:
+    global OUTPUT
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--output-dir', type=Path,
+                        help='an absolute, empty output directory for this run')
     parser.add_argument('--download', action='store_true',
                         help='explicitly fetch the pinned oracle and corpus into ignored build/')
     parser.add_argument('--corpus', type=Path, help='an existing SingleStepTests/80386 data directory (absolute)')
@@ -729,6 +732,12 @@ def main() -> int:
     parser.add_argument('--same-as', type=Path, help="max's report.json (absolute), which a governed run must match")
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
+    if args.output_dir is not None:
+        path = args.output_dir
+        if (not path.is_absolute() or path.is_symlink() or
+                (path.exists() and (not path.is_dir() or any(path.iterdir())))):
+            parser.error('--output-dir must be an absolute, empty, non-symlink directory')
+        OUTPUT = path
     if not 1 <= args.jobs <= 64:
         parser.error('--jobs must be between 1 and 64')
     if args.corpus is not None and not args.corpus.is_absolute():

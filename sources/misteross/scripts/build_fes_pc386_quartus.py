@@ -52,6 +52,10 @@ sealing host.
   QUARTUS_ROOTDIR=/abs/<the Quartus install quartus.lock names>/quartus \\
     python3 scripts/build_fes_pc386_quartus.py --cache-root /abs/out/cache/misteross-toolchains \\
     --lockstep-report /abs/build/sim/fes-i386-lockstep/report.json [--gpu-router CUDA]
+
+Alternatively --run-lockstep generates the full report in a fresh build output
+directory before sealing. It requires the same locally provisioned corpus and
+oracle; it does not download either. Both paths use the same report validation.
 """
 from __future__ import annotations
 
@@ -67,6 +71,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -596,15 +601,31 @@ def check_lockstep_report(root: Path, data: bytes, yosys: board.AuthenticatedToo
             "oracle": measured_oracle}
 
 
-def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = None, seed: int = 1,
-          gpu_router: str = "HIP", lockstep_report: Path | None = None) -> Path:
-    _check_seed(seed)
-    if lockstep_report is None:
-        raise board.BuildError("fes.pc386 needs --lockstep-report (scripts/test_fes_i386_lockstep.py --netlist)")
+def run_full_lockstep(root: Path, output: Path, cache_root: Path | None, gpu_router: str) -> bytes:
+    """Generate a fresh default-suite netlist report; validation stays in the sealer."""
+    run = Path(tempfile.mkdtemp(prefix="full-lockstep-", dir=output))
+    command = [sys.executable, str(root / "scripts/test_fes_i386_lockstep.py"), "--netlist",
+               "--gpu-router", gpu_router, "--output-dir", str(run)]
+    if cache_root is not None:
+        command.extend(("--cache-root", str(cache_root)))
     try:
-        lockstep_data = Path(lockstep_report).read_bytes()
-    except OSError as exc:
-        raise board.BuildError(f"cannot read the lockstep report: {exc}") from exc
+        subprocess.run(command, cwd=root, check=True)
+        return (run / "report.json").read_bytes()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise board.BuildError(f"full netlist lockstep failed; output: {run}: {exc}") from exc
+
+
+def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = None, seed: int = 1,
+          gpu_router: str = "HIP", lockstep_report: Path | None = None, run_lockstep: bool = False) -> Path:
+    _check_seed(seed)
+    if (lockstep_report is None) == (not run_lockstep):
+        raise board.BuildError("fes.pc386 needs exactly one of --lockstep-report or --run-lockstep")
+    lockstep_data = None
+    if lockstep_report is not None:
+        try:
+            lockstep_data = Path(lockstep_report).read_bytes()
+        except OSError as exc:
+            raise board.BuildError(f"cannot read the lockstep report: {exc}") from exc
     backend = gpu_choice(gpu_router)[0]
     root = Path(root).resolve()
     package_store = root / "build/packages" if package_store is None else Path(package_store).resolve()
@@ -619,6 +640,8 @@ def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = No
         build_id = build_identity(record)
         output = board._prepare_output(root, relative=OUTPUT, build_outputs=BUILD_OUTPUTS)
         board._write_atomic(output / "build-inputs.json", record)
+        if run_lockstep:
+            lockstep_data = run_full_lockstep(root, output, cache_root, gpu_router)
         lockstep = check_lockstep_report(root, lockstep_data, tools["yosys"], gpu_router, output)
         board._write_atomic(output / LOCKSTEP_REPORT, lockstep_data)
         project = write_project(root, output, build_id, seed)
@@ -664,12 +687,15 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=1, help="Quartus fitter seed; a timing miss fails")
     parser.add_argument("--gpu-router", choices=("HIP", "CUDA"), default="HIP",
                         help="the toolchain lock's slot to authenticate: HIP or CUDA (no GPU routing)")
-    parser.add_argument("--lockstep-report", type=Path, required=True,
-                        help="report.json of scripts/test_fes_i386_lockstep.py --netlist on this tree")
+    lockstep = parser.add_mutually_exclusive_group(required=True)
+    lockstep.add_argument("--lockstep-report", type=Path,
+                          help="report.json of scripts/test_fes_i386_lockstep.py --netlist on this tree")
+    lockstep.add_argument("--run-lockstep", action="store_true",
+                          help="run the full default netlist suite before sealing")
     args = parser.parse_args()
     try:
         print(build(args.root, args.package_output, cache_root=args.cache_root, seed=args.seed,
-                    gpu_router=args.gpu_router, lockstep_report=args.lockstep_report))
+                    gpu_router=args.gpu_router, lockstep_report=args.lockstep_report, run_lockstep=args.run_lockstep))
     except (board.BuildError, OSError, ValueError) as exc:
         print(f"FES pc386 (Quartus): {exc}", file=sys.stderr)
         return 1

@@ -52,6 +52,20 @@ BOCHS = (oracle.BUILD / ('bochs-' + oracle.BOCHS_REVISION) / '.git').is_dir()
 CORPUS = (vectors.OUTPUT / 'corpus' / vectors.REVISION / '00.MOO.gz').is_file()
 
 
+class OutputDirectoryTest(unittest.TestCase):
+    def test_explicit_output_must_be_absolute_and_empty(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            occupied = Path(temporary) / 'occupied'
+            occupied.mkdir()
+            (occupied / 'report.json').write_text('old report')
+            for path in ('relative', str(occupied)):
+                result = subprocess.run([sys.executable, str(lockstep.ROOT / 'scripts/test_fes_i386_lockstep.py'),
+                                         '--output-dir', path], text=True, capture_output=True)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn('--output-dir must be an absolute, empty', result.stderr)
+            self.assertEqual((occupied / 'report.json').read_text(), 'old report')
+
+
 def moo_test(instruction: bytes, index: int = 0) -> vectors.MooTest:
     return vectors.MooTest(index, 'test', instruction, [0] * len(vectors.REGISTERS), [], 0, {}, [], None, '0' * 40)
 
