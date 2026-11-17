@@ -128,6 +128,14 @@ aliases for remapper/mailbox/TCU access are explicit descriptors, not normal
 heap memory. Source hashing, native mapping observations and SMMU translation
 retirement are separate checks.
 
+SMMU source permissions have 4 KiB granularity. The final source page may also
+contain padding or the beginning of its 64-byte-aligned retained ROM. The map
+therefore does not provide byte-exact isolation of that tail. The guarded DATA
+address/length ledger supplies the exact source extent, while the native arena
+separately protects ROM/header immutability. Do not describe the page map alone
+as excluding every adjacent byte. This observation is not evidence of the
+historical failure and does not authorize weakening either check.
+
 The boot-FIT allowance is 16 MiB. FPGA package/configuration storage retains its
 independent 8 MiB arena (with ROM/metadata consuming part of it); increasing the
 FIT allowance never enlarges that arena. The entry decoder retains a 32 MiB ELF
@@ -160,6 +168,17 @@ samples and first clock failure. It never reads a new counter while reporting.
 Model ticks and operation counts are synthetic; no new physical release cost
 has been measured and **no bound is changed by this investigation**.
 
+There is a specific cost lead, without a failure attribution. The retained
+physical first release (`source_generation=4`, target `10`) records
+`elapsed_us=929971`, leaving 70,029 microseconds of its one-second budget. An
+instrumented copy of the joined synthetic supplier fixture counts 296 SMMU
+reads on that first release and 3,176 on the warm computer release (`10 → 15`),
+with 10,240 table-word loads in each. The warm ownership predicate adds its
+six-register secure SMMU view repeatedly. These counts exclude other CPU/device
+checks and are not physical latency measurements or a calibration of the old
+trace. They justify observing the failed release's own clock/stage before any
+cost or budget repair, not declaring a timeout from the outer error.
+
 Host ownership needs a separate follow-up: validate programming ownership for
 the programming phase, then bind SD commands to the exact fresh serial/boot/
 card session. Continue to check live owner/epoch/integrity where mutable, but
@@ -176,7 +195,8 @@ If the selected supplier is entered and fails, one
 `FES_NANO_SOURCE_RELEASE_FAIL` snapshot records source/target generation,
 transfer-service stage, first clock error, scope reason, accepted/rejected
 clock samples and the first observed table/register mismatch. It grants no
-reuse and performs no additional counter/MMIO/table/ownership callbacks.
+reuse. Snapshot collection performs no additional source/SMMU, table,
+ownership or counter callbacks; UART emission uses the existing console path.
 There is no supplier record when an earlier configuration/dispatcher gate
 rejects before entry; the native response and preceding trace remain necessary.
 
@@ -251,16 +271,50 @@ CPU-only reset may leave fabric/SDM/DMA state; a full volatile SOF/SPL boot need
 its own fresh witness and containment checks. A genuinely wedged SDM/JTAG path
 can still need power removal. Current kit state belongs to its status ledger,
 not this document or the historical issue description.
+The original restoration controller still failed at its host deadline after
+verified writing/preservation. A separate fresh read-only procedure completed
+the original-FIT check. Successful restored data and that independent readback
+do not turn the stopped controller into a hardware pass.
+
+The vendor documentation reviewed on 2026-11-17 supports these distinctions:
+
+- The [Agilex 3/5 Booting User Guide 26.3, Reset](https://docs.altera.com/r/docs/813762/26.3/hard-processor-system-booting-user-guide-agilex-3-and-agilex-5-socs/reset)
+  says CPU software reset leaves SDM functionality unaffected and HPS cold/warm
+  reset does not reconfigure the FPGA. The
+  [Agilex 5 configuration reset table](https://docs.altera.com/r/docs/813773/26.1/device-configuration-user-guide-agilextm-5-fpgas-and-socs/device-response-to-configuration-and-reset-events)
+  marks SDM reset/boot-ROM restart for a power cycle, not nCONFIG or the HPS
+  cold-reset pin. A healthy JTAG-delivered loader does not contradict that.
+- The [SMMU/F2H/reconfiguration erratum](https://docs.altera.com/r/docs/825514/current/agilex-5-es-device-errata-and-user-guidelines/fpga-to-hps-f2h-bridge-hps-warm/cold-reset-and-fpga-reconfiguration-issues-with-smmu-enabled)
+  describes repeated-loading/reset failures. Its
+  [2026-10-02 applicability table](https://docs.altera.com/r/docs/825514/current/agilex-5-es-device-errata-and-user-guidelines/altera-specific-errata-for-the-agilex-5-es-devices)
+  lists ES 065 A/B R0 parts for that entry, not the sealed
+  `A5EB013BB23BE4SCS` target. Symptom similarity does not establish applicability.
+  This comparison is not a fresh reading of the kit's physical silicon marking
+  or a review of every CPU/SMMU erratum.
+
+Vendor guarantees still needed include end-to-end source-read completion after
+the acknowledged SDM DATA path, the exact TBU/NoC transaction retirement scope,
+and whether a supported non-power sequence restarts SDM itself. Keep these
+separate from the reset-register observations already qualified in #1938.
 
 ## Remaining work before hardware qualification / issue closure
+
+The [fresh diagnostic chain](../validation/2026-11-17-de25-secure-lifecycle/matched-boot-chain.json)
+now passes SDK, entry, BL31, SPL/U-Boot, full-SOF composition and checked native
+file admission on implementation `b700d743c7e0799cf2a78ed2fce710b23a59f5ae`.
+Its native boot ID is `7876283624f9c3d4`; the 8,571,584-byte FIT and full SOF are
+unprogrammed. Both FPGA core payloads are unchanged. This advances build/file
+evidence only. The existing host restoration-cost problem must be repaired
+before another bounded trial; repeating its stopped controller adds no proof.
 
 1. Review this model against the vendor reset, NoC completion, SMMU and SDM
    guarantees. In particular, bound what retired source DMA completion proves
    and which resets actually clear outstanding transactions. Record unanswered
    guarantees explicitly rather than treating a passing model as a guarantee.
-2. Build/admit a fresh complete native/entry/BL31/SPL/U-Boot/full-SOF chain with
-   these diagnostics, preserving OCRAM and all source/memory checks. Do not
-   inherit the historical image's admission or board evidence.
+2. Preserve and recheck the prepared matched diagnostic artifacts before use,
+   including OCRAM and every source/memory check. A later implementation repair
+   requires a fresh complete chain. Do not inherit the historical image's board
+   evidence or treat file admission as runtime authority.
 3. In a new bounded procedure, capture the failed release's response and new
    supplier snapshot. Rejecting before supplier entry needs dispatcher/USB/
    configuration evidence, not a speculative source-clock adjustment.

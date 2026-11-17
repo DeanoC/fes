@@ -26,6 +26,8 @@ documents the live ownership/memory contract and the joined retained native/C
 supplier regression. Valid modeled generation-15 release passes; the historical
 physical rejection remains unexplained. New failure snapshots distinguish clock,
 return-scope, mailbox and observed table/register failures without granting reuse.
+The [fresh diagnostic chain](../../../../docs/validation/2026-11-17-de25-secure-lifecycle/README.md)
+passes complete build/file admission; it has not been programmed on a kit.
 [Current evidence and preservation scope](../../../../docs/validation/2026-11-15-de25-merge-readiness/README.md)
 separate that historical artifact from the newly integrated tree.
 

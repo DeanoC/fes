@@ -7,7 +7,7 @@ maps the trust, memory, generation, timing and recovery contracts. A joined
 native/actual-supplier regression now exercises retained MENU/computer returns,
 both ROM sizes and independent tape publication. Failed release records preserve
 the service boundary, first clock error and observed table/register mismatch
-without new hardware reads. No deadline or release permission changes; the
+without new source/SMMU reads for snapshot collection. No deadline or release permission changes; the
 historical generation-15 failure still needs a fresh matched diagnostic trace.
 
 

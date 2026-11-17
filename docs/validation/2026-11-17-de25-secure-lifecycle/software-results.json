@@ -1,0 +1,120 @@
+{
+  "scope": "off-board-secure-lifecycle-investigation-v1",
+  "tested_code": "b700d743c7e0799cf2a78ed2fce710b23a59f5ae",
+  "base": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+  "hardware_actions": false,
+  "focused_supplier_tests": 38,
+  "affected_scopes": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "Go command inventory",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "native runtime firmware and FPGA launch integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded producer identity and native control integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded firmware and identity/drain RTL integration",
+      "lane": "fpga",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ],
+  "parent_tests": 2877,
+  "parent_skips": 21,
+  "fpga_software_tests": 2493,
+  "fpga_skips": 90,
+  "source_archive": {
+    "commit": "b700d743c7e0799cf2a78ed2fce710b23a59f5ae",
+    "archive_sha256": "ba98612d0bcf2a400b9bc8e4ef97721370590407c710c04bdd4192dde5be5d5d",
+    "verified_git_blobs": 17120,
+    "status": "verified"
+  },
+  "log_sha256": "0a2c0faf8db91f35115fb29bb66dfc5fc5236d1e6e3f1f1482c67a3935b0ec17",
+  "first_review": "https://github.com/DeanoC/fes/pull/1952#issuecomment-6955135643",
+  "code_ci_run": 44132649086,
+  "limits": [
+    "Synthetic 128-byte configuration packages; MMIO, source hashes, role activation/dispatch and tape firmware completion injected.",
+    "Preview remains unadmitted. Separately rebuilt complete diagnostic chain passes file/source admission, without hardware acceptance.",
+    "Historical generation-15 rejecting guard remains unknown; no source-release behavior repair or physical-cycle acceptance.",
+    "New bounded physical trace, demonstrated repair/regression and full repeated lifecycle/HIL remain. Repair the known host phase-cost issue before another board trial."
+  ],
+  "matched_boot_chain": {
+    "source_commit": "b700d743c7e0799cf2a78ed2fce710b23a59f5ae",
+    "chain_sha256": "772c99386c6754e18d60e6bdd71a0c889d3213f1825532fd4d9adc3604d12431",
+    "native_boot_id": "7876283624f9c3d4",
+    "fit_sha256": "bdd2093de0732df419dbdd3b3bbd74151b3da3eb62bc2c15765bd41ef31e074c",
+    "fit_bytes": 8571584,
+    "sof_sha256": "5c5307f5038e95cec32b5402f75a96bf1ca8302456ebd1000bae3d2b1d271789",
+    "full_checked_native_admission_sha256": "a0635ed690049a52e73294c04f5afebd422a68123afa76c5842dcbdb2e0c83c8",
+    "hardware_actions": false,
+    "hardware_accepted": false
+  },
+  "retention_receipts": {
+    "source": {
+      "commit": "b700d743c7e0799cf2a78ed2fce710b23a59f5ae",
+      "archive_sha256": "ba98612d0bcf2a400b9bc8e4ef97721370590407c710c04bdd4192dde5be5d5d",
+      "verified_git_blobs": 17120,
+      "status": "verified"
+    },
+    "software": {
+      "archive": "software-outputs.tar.gz",
+      "archive_sha256": "444b2312b7f072a88f11cd63f591c120934268bf78beec4253d92e4cca68d264",
+      "entries": 11442,
+      "classification": "off-board software outputs; no hardware actions; matched boot build retained separately",
+      "excluded": [
+        "active matched boot outputs/logs",
+        "Go cache",
+        "this archival job"
+      ]
+    },
+    "matched": {
+      "archive": "matched-boot.tar.gz",
+      "archive_sha256": "2a3d6716a999e1a39732e72eeb614b7fbf2a04b5d6d3df0e5275c3c3f31f4963",
+      "entries": 46685,
+      "classification": "complete matched diagnostic boot chain; file admission only; not programmed",
+      "hardware_actions": false
+    }
+  }
+}
