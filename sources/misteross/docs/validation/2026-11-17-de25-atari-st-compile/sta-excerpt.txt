@@ -2,12 +2,12 @@
 +------------+-----------------+--------------------------------------------+--------------------------------------------------+---------------------------------+
 ; Fmax       ; Restricted Fmax ; Clock Name                                 ; Note                                             ; Worst-Case Operating Conditions ;
 +------------+-----------------+--------------------------------------------+--------------------------------------------------+---------------------------------+
-; 128.02 MHz ; 128.02 MHz      ; fes_machine_pll|machine_pll_outclk0        ;                                                  ; Slow fix4a 0C Model             ;
-; 135.89 MHz ; 135.89 MHz      ; fes_video_inst|video_clock|iopll_0_outclk0 ;                                                  ; Slow fix4 0C Model              ;
-; 166.09 MHz ; 166.09 MHz      ; pll_inst|iopll_0_outclk0                   ;                                                  ; Slow fix4 0C Model              ;
-; 293.86 MHz ; 293.86 MHz      ; adv7513_config                             ;                                                  ; Slow fix4 0C Model              ;
-; 396.67 MHz ; 396.67 MHz      ; fes_video_inst|video_clock|iopll_0_refclk  ;                                                  ; Slow fix4a 0C Model             ;
-; 444.64 MHz ; 408.83 MHz      ; fes_machine_pll|machine_pll_outclk1        ; limit due to low minimum pulse width restriction ; Slow fix4 0C Model              ;
+; 131.86 MHz ; 131.86 MHz      ; fes_machine_pll|machine_pll_outclk0        ;                                                  ; Slow fix4 0C Model              ;
+; 147.1 MHz  ; 147.1 MHz       ; fes_video_inst|video_clock|iopll_0_outclk0 ;                                                  ; Slow fix4 0C Model              ;
+; 162.21 MHz ; 162.21 MHz      ; pll_inst|iopll_0_outclk0                   ;                                                  ; Slow fix4 0C Model              ;
+; 342.58 MHz ; 342.58 MHz      ; adv7513_config                             ;                                                  ; Slow fix4a 0C Model             ;
+; 469.04 MHz ; 408.83 MHz      ; fes_machine_pll|machine_pll_outclk1        ; limit due to low minimum pulse width restriction ; Slow fix4 0C Model              ;
+; 551.88 MHz ; 551.88 MHz      ; fes_video_inst|video_clock|iopll_0_refclk  ;                                                  ; Slow fix4 0C Model              ;
 +------------+-----------------+--------------------------------------------+--------------------------------------------------+---------------------------------+
 This panel reports FMAX for every clock in the design, regardless of the user-specified clock periods.  FMAX is only computed for paths where the source and destination registers or ports are driven by the same clock.  Paths of different clocks, including generated clocks, are ignored.  For paths between a clock and its inversion, FMAX is computed as if the rising and falling edges are scaled along with FMAX, such that the duty cycle (in terms of a percentage) is maintained. Altera recommends that you always use clock constraints and other slack reports for sign-off analysis.
 ; Unconstrained Paths Summary                                      ;
@@ -19,19 +19,6 @@ This panel reports FMAX for every clock in the design, regardless of the user-sp
 ; Unconstrained Input Ports                         ; 16    ; 16   ;
 ; Paths from Unconstrained Input Ports (Pairs-Only) ; 16    ; 16   ;
 ; Unconstrained Output Ports                        ; 42    ; 42   ;
-; Paths to Unconstrained Output Ports (Pairs-Only)  ; 67    ; 67   ;
+; Paths to Unconstrained Output Ports (Pairs-Only)  ; 66    ; 66   ;
 +---------------------------------------------------+-------+------+
 
-
-+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-; Summary of Paths                                                                                                                                                                                                                                                                                                                       ;
-+--------+----------------------------------------------------------------------------+------------------------------------------------------------------------------------+--------------------------------------------+-------------------------------------+--------------+------------+------------+---------------------------------+
-; Slack  ; From Node                                                                  ; To Node                                                                            ; Launch Clock                               ; Latch Clock                         ; Relationship ; Clock Skew ; Data Delay ; Worst-Case Operating Conditions ;
-+--------+----------------------------------------------------------------------------+------------------------------------------------------------------------------------+--------------------------------------------+-------------------------------------+--------------+------------+------------+---------------------------------+
-; -0.114 ; soc_inst|subsys_periph|fes_scanout|fes_scanout|core|video|job_start_ok[1]  ; soc_inst|subsys_periph|fes_scanout|fes_scanout|core|video|legacy_req               ; fes_video_inst|video_clock|iopll_0_outclk0 ; fes_machine_pll|machine_pll_outclk0 ; 10.000       ; -0.268     ; 8.399      ; Slow fix4 0C Model              ;
-; -0.080 ; soc_inst|subsys_periph|fes_scanout|fes_scanout|core|video|job_start_ok[1]  ; soc_inst|subsys_periph|fes_scanout|fes_scanout|core|video|legacy_req               ; fes_video_inst|video_clock|iopll_0_outclk0 ; fes_machine_pll|machine_pll_outclk0 ; 10.000       ; -0.268     ; 8.365      ; Slow fix4 0C Model              ;
-; -0.045 ; soc_inst|subsys_periph|fes_scanout|fes_scanout|core|video|job_start_ok[1]  ; soc_inst|subsys_periph|fes_scanout|fes_scanout|core|video|memory_state.MEMORY_READ ; fes_video_inst|video_clock|iopll_0_outclk0 ; fes_machine_pll|machine_pll_outclk0 ; 10.000       ; -0.268     ; 8.351      ; Slow fix4 0C Model              ;
-; 1.894  ; soc_inst|subsys_periph|fes_scanout|fes_scanout|core|video|job_start[1][5]  ; soc_inst|subsys_periph|fes_scanout|fes_scanout|core|video|legacy_addr[6]           ; fes_video_inst|video_clock|iopll_0_outclk0 ; fes_machine_pll|machine_pll_outclk0 ; 10.000       ; -0.274     ; 6.402      ; Slow fix4 0C Model              ;
-; 1.947  ; soc_inst|subsys_periph|fes_scanout|fes_scanout|core|video|job_start[0][8]  ; soc_inst|subsys_periph|fes_scanout|fes_scanout|core|video|legacy_addr[9]           ; fes_video_inst|video_clock|iopll_0_outclk0 ; fes_machine_pll|machine_pll_outclk0 ; 10.000       ; -0.279     ; 6.343      ; Slow fix4 0C Model              ;
-; 1.969  ; soc_inst|subsys_periph|fes_scanout|fes_scanout|core|video|job_start[1][14] ; soc_inst|subsys_periph|fes_scanout|fes_scanout|core|video|legacy_addr[15]          ; fes_video_inst|video_clock|iopll_0_outclk0 ; fes_machine_pll|machine_pll_outclk0 ; 10.000       ; -0.275     ; 6.326      ; Slow fix4 0C Model              ;
-; 2.136  ; soc_inst|subsys_periph|fes_scanout|fes_scanout|core|video|job_start[1][6]  ; soc_inst|subsys_periph|fes_scanout|fes_scanout|core|video|legacy_addr[7]           ; fes_video_inst|video_clock|iopll_0_outclk0 ; fes_machine_pll|machine_pll_outclk0 ; 10.000       ; -0.274     ; 6.162      ; Slow fix4 0C Model              ;
