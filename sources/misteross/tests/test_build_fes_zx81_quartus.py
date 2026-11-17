@@ -119,6 +119,33 @@ class RegistryTests(unittest.TestCase):
                     producer.selected_recipe(fake, producer.model_for(model).core_id)
 
 
+    def test_parent_registry_must_be_committed(self) -> None:
+        import subprocess
+        import tempfile
+
+        def git(repo, *args):
+            subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            module = repo / "sources/misteross"
+            module.mkdir(parents=True)
+            registry = repo / producer.REGISTRY
+            git(repo, "init", "-q")
+            with self.assertRaisesRegex(BuildError, "not tracked"):
+                producer.require_clean_registry(module)
+            registry.parent.mkdir()
+            registry.write_text("[[recipes]]\n")
+            with self.assertRaisesRegex(BuildError, "not tracked"):
+                producer.require_clean_registry(module)
+            git(repo, "add", producer.REGISTRY)
+            git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "r")
+            producer.require_clean_registry(module)
+            registry.write_text("[[recipes]]\nseeds = [9]\n")
+            with self.assertRaisesRegex(BuildError, "must be committed"):
+                producer.require_clean_registry(module)
+
+
 class DatabaseTests(unittest.TestCase):
     def test_database_is_found_by_digest_in_cache_then_repo_local_install(self):
         import tempfile

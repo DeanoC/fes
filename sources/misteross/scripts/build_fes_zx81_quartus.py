@@ -59,7 +59,7 @@ from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.cyclonev_rbf import rbf_load
 from scripts.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
 from scripts.input_identity import with_identities
-from scripts.fes_build_common import BuildError, _require_clean_source as require_clean_source
+from scripts.fes_build_common import BuildError, _git, _require_clean_source as require_clean_source
 from scripts.functional_execution import execution_digest, execution_environment
 from scripts.quartus_tools import RebuildError, load_quartus_lock, locate_quartus
 
@@ -176,7 +176,7 @@ def selected_recipe(root=ROOT, core_id: str = 'fes.zx81') -> dict:
     machine = next((model for model in MODELS.values() if model.core_id == core_id), None)
     if machine is None:
         raise BuildError(f'{core_id} is not a ZX81-family model')
-    data = tomllib.loads((Path(root).parents[1] / 'config/core-recipes.toml').read_text(encoding='utf-8'))
+    data = tomllib.loads((Path(root).parents[1] / REGISTRY).read_text(encoding='utf-8'))
     rows = [row for row in data['recipes'] if row.get('core_id') == machine.core_id
             and row.get('board', 'de10-nano') == 'de10-nano']
     if (len(rows) != 1 or rows[0].get('toolchain') != 'quartus' or rows[0].get('producer_script') != RECIPE
@@ -233,10 +233,32 @@ def sha(path) -> str:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
+REGISTRY = 'config/core-recipes.toml'
+
+
+def require_clean_registry(root):
+    """The parent registry selected_recipe reads must be the committed file.
+
+    The module's clean-tree gate covers only sources/misteross. The registry
+    row sets the seeds and threads, and the record names the repository
+    revision, so an uncommitted registry edit would build an artifact that
+    revision cannot reproduce.
+    """
+    parent = Path(root).resolve().parents[1]
+    try:
+        _git(parent, 'ls-files', '--error-unmatch', '--', REGISTRY)
+    except BuildError as error:
+        raise BuildError(f'pinned build input is not tracked: {REGISTRY}') from error
+    if _git(parent, 'status', '--porcelain', '--untracked-files=all', '--', REGISTRY):
+        raise BuildError(f'{REGISTRY} must be committed before build and export')
+
+
 def _require_clean_source(root, *, identity_version=2, model='zx81'):
     model_for(model)
-    return require_clean_source(Path(root), pinned_inputs=(RECIPE, LOCK, ABI, ROM_LINK),
-                                identity_version=identity_version)
+    source = require_clean_source(Path(root), pinned_inputs=(RECIPE, LOCK, ABI, ROM_LINK),
+                                  identity_version=identity_version)
+    require_clean_registry(root)
+    return source
 
 
 def authenticate_tools(root, *, cache_root=None):
