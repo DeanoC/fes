@@ -299,20 +299,20 @@ func BenchmarkHomeFocusChange(b *testing.B) {
 // Home records them again from this test's failure output.
 var homeTourFrames = []string{
 	"4f0c06e40a1b2d47", "8d94681b59611559", "038def75933ffbb4", "038def75933ffbb4",
-	"1edd9f1fb5c2a1ff", "576e3ed68a81f2f6", "0577bf99f6f2f513", "65d7c78c0164398d",
-	"3fe70f906c5116d4", "7cf48f193939a22a", "aaa50709bc7a242f", "e5858b042ba13bc4",
-	"37668531d81dc5aa", "9c5469c036f0fa61", "f71922d3f00c03d8", "f71922d3f00c03d8",
-	"f71922d3f00c03d8", "9c5469c036f0fa61", "37668531d81dc5aa", "e5858b042ba13bc4",
-	"aaa50709bc7a242f", "7cf48f193939a22a", "3fe70f906c5116d4", "65d7c78c0164398d",
-	"0577bf99f6f2f513", "576e3ed68a81f2f6", "1edd9f1fb5c2a1ff", "1edd9f1fb5c2a1ff",
+	"1edd9f1fb5c2a1ff", "4af0add8551bc843", "c986d030e5e19284", "d3001d9d2c9c315a",
+	"60a6b527fb3dfc35", "f09abb9415236cdf", "9636d6407476b73e", "8750bc1efa49ddff",
+	"0c294a2723585a99", "470d5e84fa1f5120", "64da2639afe4f44b", "99db510bf4f8139f",
+	"42c48a3072ef2660", "99db510bf4f8139f", "64da2639afe4f44b", "470d5e84fa1f5120",
+	"0c294a2723585a99", "8750bc1efa49ddff", "9636d6407476b73e", "f09abb9415236cdf",
+	"60a6b527fb3dfc35", "d3001d9d2c9c315a", "c986d030e5e19284", "4af0add8551bc843",
 	"1edd9f1fb5c2a1ff", "038def75933ffbb4", "8d94681b59611559", "97f57277d57cc897",
 	"97f57277d57cc897", "97f57277d57cc897", "cb719c7b3897fc45", "8d94681b59611559",
-	"1edd9f1fb5c2a1ff", "576e3ed68a81f2f6", "0577bf99f6f2f513", "b66694787ea48943",
-	"8b650fa075063de8", "659a5fd8a967b30c", "b66694787ea48943", "1edd9f1fb5c2a1ff",
-	"65d7c78c0164398d", "a2d308b6e73d513e", "96dbe0bbe43e4c3d", "b10990f7d18bb3eb",
-	"96dbe0bbe43e4c3d", "3fe70f906c5116d4", "3fe70f906c5116d4", "3fe70f906c5116d4",
-	"3fe70f906c5116d4", "3fe70f906c5116d4", "3fe70f906c5116d4", "3fe70f906c5116d4",
-	"7cf48f193939a22a", "a4ed722a5f274bea", "193c8e7aad3c7a56",
+	"1edd9f1fb5c2a1ff", "4af0add8551bc843", "c986d030e5e19284", "54e0e64580a93db6",
+	"6e165f99e37572b6", "6bc4a5c5056ed485", "54e0e64580a93db6", "1edd9f1fb5c2a1ff",
+	"d3001d9d2c9c315a", "a2d308b6e73d513e", "4a81813cca32c0ec", "6b511d11c5b0ff86",
+	"4a81813cca32c0ec", "60a6b527fb3dfc35", "60a6b527fb3dfc35", "60a6b527fb3dfc35",
+	"60a6b527fb3dfc35", "60a6b527fb3dfc35", "60a6b527fb3dfc35", "60a6b527fb3dfc35",
+	"f09abb9415236cdf", "dcf148beb271ea4c", "2f398212a6c46dd3",
 }
 
 // TestHomeTourFramesMatchRecorded holds Home's settled picture and every

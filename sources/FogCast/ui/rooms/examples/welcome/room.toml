@@ -1,7 +1,7 @@
 id = "example.welcome"
 title = "Welcome"
 author = "FES"
-description = "First-run setup, step 1: what FES is, the four computers, and what is built in."
+description = "First-run setup, step 1: the classic computers, including PC/XT and PC 386, and what is built in."
 version = 1
 main = "main.lua"
 destination_panel = "none"

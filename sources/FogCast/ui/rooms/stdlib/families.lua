@@ -1,7 +1,7 @@
 -- Computer families, readiness and shared presentation for Home and setup.
 --
--- The families are systems.families: the four v1 families in a fixed order
--- (ZX81, Spectrum, Atari ST, C64), then, when the launcher shows all cores,
+-- The families are systems.families: the v1 and PC families in a fixed order
+-- (ZX81, Spectrum, Atari ST, C64, PC/XT, PC 386), then, when the launcher shows all cores,
 -- every other registered family. A family's state comes from the host's
 -- admitted hardware.computers projection for its models, and its game
 -- count from the library's titles with media. A selected cassette does not
@@ -34,13 +34,15 @@ local C = M.colors
 local GROUNDS = { "#7097A8", "#9690B5", "#E08A63", "#8DB07A", "#D9B45A", "#6E8F80" }
 M.grounds = GROUNDS
 
--- The v1 families, in order, with their placeholder marks (#1351 replaces
+-- The default families, in order, with their placeholder marks (#1351 replaces
 -- them with icons). Family ids are systems.lua's.
-local V1 = {
+local DEFAULTS = {
   { id = "zx81", mark = "ZX81", short = "ZX81", ground = "#7097A8" },
   { id = "spectrum", mark = "ZX", short = "Spectrum", ground = "#9690B5" },
   { id = "fes.atari-st", mark = "ST", short = "Atari ST", ground = "#8DB07A" },
   { id = "fes.c64", mark = "64", short = "C64", ground = "#E08A63" },
+  { id = "fes.pcxt-dos", mark = "XT", short = "PC/XT", ground = "#D9B45A" },
+  { id = "fes.pc386", mark = "386", short = "PC 386", ground = "#6E8F80" },
 }
 
 -- Workbenches by core: the ZX81 family has its own; Coleco opens its
@@ -66,7 +68,7 @@ end
 local list = {}
 do
   local placed = {}
-  for _, art in ipairs(V1) do
+  for _, art in ipairs(DEFAULTS) do
     for _, family in ipairs(systems.families) do
       if family.id == art.id then
         list[#list + 1] = { id = family.id, label = family.label, variants = family.variants, art = art }

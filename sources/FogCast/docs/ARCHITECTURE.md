@@ -1462,8 +1462,8 @@ navigation stays unavailable while the shelf or its editions are loading. ZX81-f
 entries use `example.hardware`; Commodore 64 and other families use
 `example.system` with the selected core and game IDs. The shared
 `widgets.system_workbench` implementation covers every registered playable
-system and model, including the Spectrum models, Apple II, Atari ST, consoles,
-ROM-less games and utilities.
+system and model, including the Spectrum models, PC/XT, PC 386, Apple II,
+Atari ST, consoles, ROM-less games and utilities.
 Resume refreshes retain the selected game ID when title order changes and keep
 the prior row position, clamped to the new list, if that game disappears. A
 failed refresh clears both the shelf rows and list widget so Set up cannot open
@@ -1485,6 +1485,10 @@ capabilities and saves the selected role with package/media compare-and-swap.
 Saved media labels name the selected role; package guidance still describes the
 model's full media support. Adding a setup confirms only the library entry;
 expansion fitting is a separate operation.
+The `hard-disk` role uses the existing ATA import and purpose-specific storage
+read APIs for 1–128 MiB sector-aligned images, including launcher files and
+saved local/host drives. Its transfer budget covers reading and uploading the
+disk; ordinary media retain their 32 MiB limit and existing timeout.
 **Expansion sockets** reads the package's declared physical topology and saved
 slot choices. Exact-package/socket archive import and fitting are separate;
 selection checks the previous card. Library metadata shows selected cards
@@ -1673,7 +1677,7 @@ selected by flag, saved preferences or `FOGCAST_HOME_ROOM` defaults to kit Home
 readiness, explanation and action in a large FES-owned panel
 (`ui/tenfoot/room_hero.go`, geometry `rooms.HeroPanel`), while the room draws
 the family tiles, artwork motifs and Home routes. Family Open enters the
-workbench; Play on a recent title starts that title. In the v1 release scope,
+workbench; Play on a recent title starts that title. In the default scope,
 Settings is the only header route and Back at Home's root keeps Home open.
 Show all cores restores Library and Systems routes and the remaining families.
 Home retries each failed family read at most three times, after 1, 2 and 4
@@ -3363,7 +3367,11 @@ queries count titles without changing the machine or its selected media. The
 hardware refreshes requested while a previous read is pending coalesce into
 one fresh read after its callback. Home discards the superseded response and
 clears old host admission if the fresh read fails. The
-v1 release scope shows its fixed families;
+default scope shows the ZX81 and Spectrum families, Atari ST, C64, PC/XT and
+PC 386. The PC families use `example.system`, retaining each package's disk
+and launch checks. Welcome and the setup-completion summary include all six;
+PC 386 is identified as in development. Their release-plan scopes and PC 386's
+pending quality tier are independent of this visibility.
 **Show all cores**, available through Settings, `tenfoot.json` `all_cores`, or
 `FOGCAST_TENFOOT_ALL_CORES=1`, adds the remaining families in `systems.lua`
 order and restores the Library and Systems routes. The host Library remains
