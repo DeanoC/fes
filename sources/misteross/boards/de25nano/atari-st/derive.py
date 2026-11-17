@@ -142,13 +142,26 @@ def _edits(source, edits, label):
 # of stages; the toggle is then acted on one clock later, after the level.
 ADAPTER_EDITS = (
     # The configuration snapshot is copied when its acknowledge arrives and
-    # used one pixel clock later. The copy stands until the next request,
-    # which follows the frame end that applies it, so the frame end loads the
-    # active configuration from the copy and the pending register goes.
+    # used one pixel clock later. There are two copies: an arriving snapshot
+    # lands in the one not in use, and the frame end that applied the pending
+    # configuration now switches to it. The active configuration is that
+    # selection, so no register sits bare behind a copy, which signoff would
+    # read as a second synchronizer.
+    (b"    reg [23:0] active_base;\n"
+     b"    reg [1:0] active_resolution;\n"
+     b"    reg [143:0] active_palette;\n",
+     b"    wire [23:0] active_base;\n"
+     b"    wire [1:0] active_resolution;\n"
+     b"    wire [143:0] active_palette;\n"),
     (b"    wire config_complete = config_waiting && config_ack_sync == config_request;\n",
      b"    wire config_arrived = config_waiting && config_ack_sync == config_request;\n"
-     b"    reg config_complete;\n"
-     b"    reg [169:0] config_bundle_pixel;\n"),
+     b"    reg config_complete, active_slot;\n"
+     b"    reg [169:0] config_copy0, config_copy1;\n"
+     b"    assign {active_base, active_resolution, active_palette} = active_slot ? config_copy1 : config_copy0;\n"),
+    (b"            active_base <= 24'd0;\n"
+     b"            active_resolution <= 2'd0;\n"
+     b"            active_palette <= 144'd0;\n",
+     b"            active_slot <= 1'b0;\n"),
     # 80 words fill a twentieth of an M20K; the line caches are LUT RAM here.
     (b"    reg [15:0] cache0 [0:79];\n    reg [15:0] cache1 [0:79];\n",
      b'    (* ramstyle = "MLAB" *) reg [15:0] cache0 [0:79];\n'
@@ -269,7 +282,8 @@ ADAPTER_EDITS = (
      b"            job_done_sync <= job_done_meta;\n",
      b"            job_done_taken <= job_done_sync;\n"
      b"            config_complete <= config_arrived && !config_complete;\n"
-     b"            if (config_arrived && !config_complete) config_bundle_pixel <= config_bundle_sys;\n"),
+     b"            if (config_arrived && !config_complete && active_slot) config_copy0 <= config_bundle_sys;\n"
+     b"            if (config_arrived && !config_complete && !active_slot) config_copy1 <= config_bundle_sys;\n"),
     (b"                pending_config <= config_bundle_sys;\n", b""),
     (b"    reg [169:0] pending_config;\n", b""),
     (b"            pending_config <= 170'd0;\n", b""),
@@ -279,8 +293,9 @@ ADAPTER_EDITS = (
      b"                if (cache_busy[bank] && job_done_taken[bank] == job_request[bank]) begin\n"
      b"                    cache_busy[bank] <= 1'b0;\n"
      b"                    cache_valid[bank] <= job_ok_pixel[bank] && job_current[bank];\n"),
-    (b"                            config_complete ? config_bundle_sys : pending_config;\n",
-     b"                            config_bundle_pixel;\n"),
+    (b"                        {active_base, active_resolution, active_palette} <=\n"
+     b"                            config_complete ? config_bundle_sys : pending_config;\n",
+     b"                        active_slot <= !active_slot;\n"),
 )
 
 

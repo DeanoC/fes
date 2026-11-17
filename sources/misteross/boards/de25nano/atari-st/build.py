@@ -22,16 +22,11 @@ FIRMWARE_BYTES = {"520st": 196608}
 # the machine reset is one register for some eight thousand endpoints; the
 # 68000's ALU rows take one instruction bit as a synchronous clear on both
 # polarities; and one SDRAM address register takes the reset as a clock enable
-# where every other register takes it as a synchronous clear. The active video
-# configuration keeps its reset in logic, so it is not a bare register behind
-# the copied snapshot, which signoff would read as a second synchronizer.
+# where every other register takes it as a synchronous clear.
 ASSIGNMENTS = (
     ("MAX_FANOUT", "256", "core|machine_reset"),
     ("ALLOW_SYNCH_CTRL_USAGE", "OFF", "core|system|machine|cpu|cpu|excUnit|alu|row[*]"),
     ("AUTO_CLOCK_ENABLE_RECOGNITION", "OFF", "core|memory|controller|sdram_a_r[10]"),
-    ("ALLOW_SYNCH_CTRL_USAGE", "OFF", "core|video|active_base[*]"),
-    ("ALLOW_SYNCH_CTRL_USAGE", "OFF", "core|video|active_resolution[*]"),
-    ("ALLOW_SYNCH_CTRL_USAGE", "OFF", "core|video|active_palette[*]"),
 )
 # Qsys writes the same peripheral subsystem as for the Spectrum component:
 # the two components have the same interfaces. See ../spectrum/build.py.
