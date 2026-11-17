@@ -304,8 +304,19 @@ class SoftwareWorkflowTests(unittest.TestCase):
         directory = self.root / 'factory'; directory.mkdir()
         receipt, manifest, packages = FactoryReceiptTests().fixture(directory, factory)
         producer = subprocess.check_output(['git', '-C', ROOT, 'rev-parse', 'HEAD'], text=True).strip()
+        # The receipt belongs to the recorded Git producer, not to this
+        # working tree's possibly newer factory recipe inputs.
+        producer_root = self.root / 'recorded-producer'; producer_root.mkdir()
+        source_tar = self.root / 'recorded-producer.tar'
+        subprocess.run(['git', '-C', ROOT, 'archive', '--format=tar', '--output', source_tar,
+                        producer, 'image', 'scripts'], check=True)
+        subprocess.run(['tar', '-xf', source_tar, '-C', producer_root, '--no-same-owner'], check=True)
+        producer_recipe = factory.recipe_key(producer_root)
         receipt['fes_revision'] = producer
-        inputs = json.loads((directory / factory.INPUTS).read_text()); inputs['fes_revision'] = producer
+        receipt['recipe_sha256'] = producer_recipe
+        inputs = json.loads((directory / factory.INPUTS).read_text())
+        inputs['fes_revision'] = producer
+        inputs['recipe_sha256'] = producer_recipe
         (directory / factory.INPUTS).write_text(json.dumps(inputs))
         with tarfile.open(directory / 'aarch64-sdk.tar.gz', 'w:gz') as archive:
             item = tarfile.TarInfo('sdk/bin/aarch64-buildroot-linux-gnu-g++'); item.size = 8

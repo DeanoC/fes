@@ -27,7 +27,10 @@ class BundleTest(unittest.TestCase):
 
     def test_de25_cached_package_uses_its_source_closed_board_reader(self):
         module = self.module()
-        source = SCRIPT.parents[1] / 'sources/misteross'
+        from tests.committed_misteross_fixture import make_snapshot
+        source_temp = tempfile.TemporaryDirectory()
+        self.addCleanup(source_temp.cleanup)
+        source = make_snapshot(source_temp.name)
         # Parser fixture only: no synthesis, timing qualification or deployment.
         program = '''
 import json, subprocess, sys
@@ -154,15 +157,21 @@ if __name__ == '__main__':
         module = self.module()
         source = Path(__file__).resolve().parents[1] / "sources/misteross"
         recipes = [
-            (recipe.core_id, recipe.producer_module, dict(recipe.producer_options))
+            (recipe.core_id, recipe.producer_module, recipe.producer_script, dict(recipe.producer_options))
             for recipe in [*module.FORMAT2_RECIPES.values(),
                            module.recipe_for('fes.menu', board='de25-nano')]
         ]
         probe = '''
-import importlib, inspect, json, sys
+import importlib, importlib.util, inspect, json, sys
 from pathlib import Path
-for core_id, module_name, options in json.loads(sys.argv[1]):
-    producer = importlib.import_module(module_name)
+for core_id, module_name, script, options in json.loads(sys.argv[1]):
+    if module_name.startswith('cores.'):
+        spec = importlib.util.spec_from_file_location(module_name, Path.cwd() / script)
+        producer = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = producer
+        spec.loader.exec_module(producer)
+    else:
+        producer = importlib.import_module(module_name)
     source_check = getattr(producer, "_require_clean_source", None)
     assert callable(source_check), f"{core_id}: {module_name} lacks _require_clean_source"
     inspect.signature(source_check).bind(Path.cwd(), **options, identity_version=2)
@@ -556,7 +565,14 @@ import inspect
 import sys
 from pathlib import Path
 from scripts import pnr_recipe, toolchain_cache
-producer = importlib.import_module(sys.argv[1])
+if sys.argv[1].startswith('cores.'):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(sys.argv[1], sys.argv[3])
+    producer = importlib.util.module_from_spec(spec)
+    sys.modules[sys.argv[1]] = producer
+    spec.loader.exec_module(producer)
+else:
+    producer = importlib.import_module(sys.argv[1])
 assert Path(producer.__file__).resolve() == Path(sys.argv[3]).resolve()
 authenticate = getattr(producer, sys.argv[2])
 inspect.signature(authenticate).bind(

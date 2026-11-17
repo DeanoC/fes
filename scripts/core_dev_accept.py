@@ -61,7 +61,28 @@ def source_selection(root, record, sources, selected, package, payload):
         "format", "selected_repository", "selected_revision", "selected_source_path",
         "original_repository", "original_revision", "original_source_path",
         "functional_inputs_sha256", "original_record_sha256", "selected_record_sha256",
-        "package_id", "core_rbf_sha256"})
+        "package_id", "core_rbf_sha256"}, {
+        "identity_policy", "design_id", "built_toolchain_id", "built_record_id", "built_with",
+        "built_pins", "selected_pins", "built_toolchain_inputs", "selected_toolchain_inputs",
+        "toolchain_update_available", "pc386_evidence_sha256"})
+    design_fields = {"identity_policy", "design_id", "built_toolchain_id", "built_record_id", "built_with",
+                     "built_pins", "selected_pins", "built_toolchain_inputs", "selected_toolchain_inputs",
+                     "toolchain_update_available"}
+    present = design_fields & value.keys()
+    if present:
+        if present != design_fields or value["identity_policy"] != "design-v1":
+            raise ValueError("invalid design-v1 source selection")
+        if (not isinstance(value["design_id"], str) or not re.fullmatch(r"[0-9a-f]{32}", value["design_id"])
+                or any(not isinstance(value[k], str) or not re.fullmatch(r"[0-9a-f]{64}", value[k])
+                       for k in ("built_toolchain_id", "built_record_id"))
+                or type(value["toolchain_update_available"]) is not bool
+                or any(not isinstance(value[k], dict) for k in
+                       ("built_with", "built_pins", "selected_pins", "built_toolchain_inputs", "selected_toolchain_inputs"))):
+            raise ValueError("invalid design-v1 source selection fields")
+    if "pc386_evidence_sha256" in value:
+        if not present or not isinstance(value["pc386_evidence_sha256"], str) or not re.fullmatch(
+                r"[0-9a-f]{64}", value["pc386_evidence_sha256"]):
+            raise ValueError("invalid pc386 evidence digest")
     if type(value["format"]) is not int or value["format"] != 1:
         raise ValueError("unsupported source selection format")
     for prefix in ("selected", "original"):
