@@ -18,15 +18,17 @@ fi
 free=$(df --output=avail -BG /home/deano | tail -1 | tr -dc 0-9)
 [ "$free" -ge 30 ] || { echo "FAIL disk below 30G: ${free}G"; exit 1; }
 git -C "$REPO" fetch origin main
+MAIN_HEAD=$(git -C "$REPO" rev-parse FETCH_HEAD)
 if [[ -n "${D25_PROMOTION_HEAD:-}" ]]; then
   [[ "$D25_PROMOTION_HEAD" =~ ^[0-9a-f]{40}$ ]] || { echo "FAIL requested D25 promotion head is not a full SHA"; exit 1; }
   git -C "$REPO" fetch origin "$D25_PROMOTION_HEAD"
   HEAD=$(git -C "$REPO" rev-parse FETCH_HEAD)
   [[ "$HEAD" = "$D25_PROMOTION_HEAD" ]] || { echo "FAIL requested D25 promotion head resolved differently"; exit 1; }
 else
-  HEAD=$(git -C "$REPO" rev-parse FETCH_HEAD)
+  HEAD=$MAIN_HEAD
 fi
 [[ "$HEAD" =~ ^[0-9a-f]{40}$ ]] || { echo "FAIL invalid fetched main head"; exit 1; }
+[[ "$HEAD" = "$MAIN_HEAD" ]] || { echo "FAIL requested D25 promotion head is not fetched origin/main ($MAIN_HEAD)"; exit 1; }
 mkdir -p "$Q/heartbeats"
 HEARTBEAT="$Q/heartbeats/de25-promotion-${HEAD:0:8}.heartbeat"
 (while :; do date -Is > "$HEARTBEAT"; sleep 30; done) &

@@ -6,6 +6,7 @@ Q=${SEAL_Q:-/home/deano/fes-hil-work/hilq}
 R=${SEAL_R:-/home/deano/fes-hil-work/fes}
 B=$Q/builds/$PR-${HEAD:0:8} W=$Q/builds/$PR-${HEAD:0:8}/wt-seal
 L=$Q/builds/$PR-${HEAD:0:8}/logs/de25-quartus.log
+PRODUCER_TIME_CAP=10800
 mkdir -p "$B/logs" "$B/package-out" "$Q/heartbeats"
 fail(){ echo "FAIL $*" > "$B/seal.result"; echo "FAIL $*" > "$B/core-build.result"; [[ "$KIND" == core || "$KIND" == de25-core ]] && echo "FAIL $*" > "$B/build.result"; exit 1; }
 [ "$PRODUCER" = build_menu_package.py ] || [ "$PRODUCER" = build_zx81_package.py ] || fail "unsupported DE25 producer $PRODUCER"
@@ -38,12 +39,16 @@ case "$PRODUCER" in
 esac
 cd "$W/sources/misteross"
 set +e
-python3 "$SRC" --root "$W/sources/misteross" --quartus-root "$QUARTUS_ROOTDIR" \
+timeout --signal=TERM --kill-after=60s "$PRODUCER_TIME_CAP" python3 "$SRC" \
+  --root "$W/sources/misteross" --quartus-root "$QUARTUS_ROOTDIR" \
   --cache-root "${SEAL_TOOLROOT:-$R/out/cache/misteross-toolchains}" \
   --package-output "$B/package-out" > "$L" 2>&1
 rc=$?
 set -e
 F=$(find "$B/package-out" -maxdepth 2 -type f -name '*.fcore' -print -quit)
+if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+  fail "producer $PRODUCER exceeded ${PRODUCER_TIME_CAP}s time cap (rc=$rc)"
+fi
 [ "$rc" -eq 0 ] && [ -n "$F" ] || fail "producer $PRODUCER rc=$rc"
 SHA=$(sha256sum "$F" | cut -d' ' -f1)
 RESULT="DONE $F $SHA"

@@ -54,6 +54,8 @@ class De25KitSoftwareTests(unittest.TestCase):
         sealer = (root / "scripts/powerboat/de25-seal-auto.sh").read_text()
         self.assertIn("scripts/kit_software.py", runner)
         self.assertIn("--head \"$HEAD\"", runner)
+        self.assertLess(runner.index('CORE_ID=$(python3 - "$PKG"'), runner.index("flock -n 8"))
+        self.assertLess(runner.index('CORE_ID=$(python3 - "$PKG"'), runner.index('--action activate --candidate "$SW_BUNDLE_ID"'))
         self.assertIn("--action install --bundle \"$SW_BUNDLE\"", runner)
         self.assertIn("--action activate --candidate \"$SW_BUNDLE_ID\"", runner)
         self.assertIn("verify-runtime --expected \"$SW_RUNTIME_SHA\"", runner)
@@ -63,9 +65,15 @@ class De25KitSoftwareTests(unittest.TestCase):
         self.assertGreaterEqual(runner.count(".pending == null"), 2)
         self.assertIn('"$Q/hil-de25-core.sh" D25', promoter)
         self.assertIn('de25-promotion-${HEAD:0:8}.heartbeat', promoter)
+        self.assertIn('MAIN_HEAD=$(git -C "$REPO" rev-parse FETCH_HEAD)', promoter)
+        self.assertLess(promoter.index('[[ "$HEAD" = "$MAIN_HEAD" ]]'), promoter.index('HEARTBEAT='))
+        self.assertLess(promoter.index('[[ "$HEAD" = "$MAIN_HEAD" ]]'), promoter.index('python3 "$VALIDATOR"'))
         self.assertIn('git -C "$REPO" show "$HEAD:scripts/de25_promotion.py"', promoter)
         self.assertIn('python3 "$VALIDATOR"', promoter)
         self.assertIn('git -C "$R" fetch -q origin "$HEAD"', sealer)
+        self.assertIn('PRODUCER_TIME_CAP=10800', sealer)
+        self.assertIn('timeout --signal=TERM --kill-after=60s "$PRODUCER_TIME_CAP" python3 "$SRC"', sealer)
+        self.assertIn('exceeded ${PRODUCER_TIME_CAP}s time cap', sealer)
 
 
 if __name__ == "__main__":

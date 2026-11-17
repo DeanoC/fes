@@ -50,6 +50,20 @@ r=json.load(open(sys.argv[1])); print(r.get('bundle',{}).get('id') or r.get('id'
 PY
 )
 [[ "$SW_BUNDLE_ID" =~ ^[0-9a-f]{64}$ ]] || { echo NOTSTARTED > "$D/verdict"; echo "invalid software bundle ID"; exit 3; }
+# Verify the exact sealed package before claiming J8G or activating candidate software.
+LINE=$(cat "$B/core-build.result" 2>/dev/null || true)
+read -r STATE PKG PKG_SHA <<< "$LINE"
+[ "$STATE" = DONE ] && [ -f "$PKG" ] || { echo NOTSTARTED > "$D/verdict"; echo "exact-head sealed package missing"; exit 3; }
+ACTUAL=$(sha256sum "$PKG" | cut -d' ' -f1)
+[ "$ACTUAL" = "$PKG_SHA" ] || { echo NOTSTARTED > "$D/verdict"; echo "sealed package digest mismatch"; exit 3; }
+CORE_ID=$(python3 - "$PKG" <<'PY' || { echo NOTSTARTED > "$D/verdict"; echo "sealed package manifest invalid"; exit 3; }
+import sys,tarfile,tomllib
+with tarfile.open(sys.argv[1], 'r:*') as archive:
+    member=archive.extractfile('manifest.toml')
+    if member is None: raise SystemExit('package manifest missing')
+    print(tomllib.loads(member.read().decode())['core']['id'])
+PY
+)
 exec 8>"$LOCK1" 9>"$LOCK2"
 flock -n 8 || { echo "J8G status lock busy"; echo NOTSTARTED > "$D/verdict"; exit 3; }
 flock -n 9 || { echo "J8G ledger lock busy"; echo NOTSTARTED > "$D/verdict"; exit 3; }
@@ -141,22 +155,8 @@ if [ "$(cat "$D/verdict" 2>/dev/null || true)" != FAIL ]; then
     fail "running runtime differs from software manifest"; echo FAIL > "$D/verdict"
   fi
 fi
-# Verify exact build result and package SHA before any session mutation.
-LINE=$(cat "$B/core-build.result" 2>/dev/null || true)
-read -r STATE PKG PKG_SHA <<< "$LINE"
-[ "$STATE" = DONE ] && [ -f "$PKG" ] || { fail "exact-head sealed package missing"; echo NOTSTARTED > "$D/verdict"; exit 3; }
-ACTUAL=$(sha256sum "$PKG" | cut -d' ' -f1)
-[ "$ACTUAL" = "$PKG_SHA" ] || { fail "sealed package digest mismatch"; echo NOTSTARTED > "$D/verdict"; exit 3; }
 # MENU is a volatile development-core load, not an installable playable library entry.
 # Other DE25 packages use the existing package-install/launch smoke engine.
-CORE_ID=$(python3 - "$PKG" <<'PY'
-import sys,tarfile,tomllib
-with tarfile.open(sys.argv[1], 'r:*') as archive:
-    member=archive.extractfile('manifest.toml')
-    if member is None: raise SystemExit('package manifest missing')
-    print(tomllib.loads(member.read().decode())['core']['id'])
-PY
-)
 set +e
 if [ "$SW_READY" != 1 ]; then
   echo "smoke skipped because exact-head kit software was not verified" > "$D/logs/smoke.log"
