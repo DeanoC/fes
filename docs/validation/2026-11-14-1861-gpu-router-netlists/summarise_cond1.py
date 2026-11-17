@@ -14,7 +14,6 @@ from __future__ import annotations
 import argparse, json
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
 ARTEFACTS = ("menu", "splash", "pong", "ramtest", "riscv", "coleco", "c64",
              "spectrum", "spectrum128", "spectrum-plus3", "pentagon")
 
@@ -27,8 +26,16 @@ def load(directory: Path, artefact: str, side: str):
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--pass1", type=Path, default=HERE.parent / "cond1-p1")
-    parser.add_argument("--pass2", type=Path, default=HERE.parent / "cond1-p2")
+    # No defaults. These were HERE.parent/"cond1-p1", which resolves against
+    # wherever this file sits: correct in the scratch directory it was written
+    # in, and silently wrong once committed into the record, where it pointed
+    # at docs/validation/cond1-p1 and reported every artefact NOT MEASURED. It
+    # failed loudly, but a committed program should not carry a machine path at
+    # all, so the caller names both passes.
+    parser.add_argument("--pass1", type=Path, required=True,
+                        help="directory of pass-1 reports (<artefact>-id{base,head}/netlist.json)")
+    parser.add_argument("--pass2", type=Path, required=True,
+                        help="directory of pass-2 reports, same layout")
     parser.add_argument("--json", type=Path)
     arguments = parser.parse_args()
     rows, incomplete = {}, []
