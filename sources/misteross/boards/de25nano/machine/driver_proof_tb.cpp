@@ -93,6 +93,11 @@ int main(int argc, char** argv) {
     require(!firmware.empty(), "no firmware image");
 
     Board board;
+    // A machine that stores its firmware in SDRAM holds the first
+    // FirmwareData until that memory has initialized. On the kit that is
+    // over long before the runtime's first request; here it must be simulated
+    // first, because the transport bounds each exchange by wall time.
+    board.run_clocks(8000);
     SlaveRegisters slave(board);
     mister::native::De25ComputerMmio registers(slave);
     WallClock clock;
