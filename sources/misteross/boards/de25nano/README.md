@@ -15,6 +15,11 @@ GHRD lightweight bridge to the current computer mailbox for keyboard and
 CRC-checked tape delivery. Its computer/control runs at 100 MHz independently
 of the HDMI pixel clock. Production MMIO/runtime binding remains closed.
 
+The [standard ZX Spectrum](spectrum/README.md) reuses the DE10 machine sources
+unchanged behind a DE25 shell: launch-time firmware upload, the tape in board
+SDRAM and its own machine clock. It passes its mailbox simulation; Quartus
+timing, package export and runtime admission remain open.
+
 DE25-only menu and ZX81 adaptations live under `shared-rtl/`; the DE10 core
 sources remain byte-identical to `origin/main`. The three HDMI board shells
 register D/DE/HS/VS at the pixel clock and constrain the ADV7513's documented
