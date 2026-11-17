@@ -49,5 +49,7 @@ for spec in menu:build_menu_package.py zx81:build_zx81_package.py; do
   cat "$watcher/result.txt" > "$E/$name-watcher-result.txt"
   [ "$(cat "$run/verdict" 2>/dev/null || true)" = PASS ] || { echo "FAIL $name exact-main HIL"; exit 1; }
 done
-python3 "$REPO/scripts/de25_promotion.py" --baseline "$BASE" --head "$HEAD" \
+VALIDATOR="$E/de25-promotion-$HEAD.py"
+git -C "$REPO" show "$HEAD:scripts/de25_promotion.py" > "$VALIDATOR"
+python3 "$VALIDATOR" --baseline "$BASE" --head "$HEAD" \
   --menu-run "$(cat "$E/menu-run-dir.txt")" --zx81-run "$(cat "$E/zx81-run-dir.txt")"
