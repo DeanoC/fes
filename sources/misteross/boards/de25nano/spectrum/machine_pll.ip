@@ -39,7 +39,7 @@ Altera and sold by Altera or its authorized distributors.-->
         <ipxact:parameter parameterId="clockRate" type="longint">
           <ipxact:name>clockRate</ipxact:name>
           <ipxact:displayName>Clock rate</ipxact:displayName>
-          <ipxact:value>50000000</ipxact:value>
+          <ipxact:value>100000000</ipxact:value>
         </ipxact:parameter>
         <ipxact:parameter parameterId="externallyDriven" type="bit">
           <ipxact:name>externallyDriven</ipxact:name>
@@ -495,7 +495,7 @@ Altera and sold by Altera or its authorized distributors.-->
         <ipxact:parameter parameterId="gui_reference_clock_frequency" type="real">
           <ipxact:name>gui_reference_clock_frequency</ipxact:name>
           <ipxact:displayName>Reference Clock Frequency</ipxact:displayName>
-          <ipxact:value>50.0</ipxact:value>
+          <ipxact:value>100.0</ipxact:value>
         </ipxact:parameter>
         <ipxact:parameter parameterId="gui_reference_clock_frequency_ps" type="real">
           <ipxact:name>gui_reference_clock_frequency_ps</ipxact:name>

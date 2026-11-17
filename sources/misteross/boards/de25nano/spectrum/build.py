@@ -138,7 +138,7 @@ def shared_resets(scanout, directory):
 
 def machine_pll(display, data):
     parameters = display.pll_parameters(data)
-    expected = {"gui_reference_clock_frequency": "50.0", "gui_output_clock_frequency0": "52.222222",
+    expected = {"gui_reference_clock_frequency": "100.0", "gui_output_clock_frequency0": "52.222222",
                 "gui_number_of_clocks": "1", "gui_use_locked": "true",
                 "system_info_device_component": "A5EB013BB23BE4SCS"}
     if any(parameters.get(key) != value for key, value in expected.items()):
@@ -153,9 +153,11 @@ wire machine_clk, machine_pll_locked;
 wire [15:0] fes_dram_dq_o;
 wire [1:0] fes_dram_dqm;
 wire fes_dram_dq_oe;
-// CLOCK1_50 x 188/15/12: the machine's 52.224 MHz to -34 ppm.
+// The 100 MHz system clock x 47/90: the machine's 52.224 MHz to -34 ppm.
+// Each 50 MHz pin already feeds one PLL and can reach no second one, so this
+// PLL takes the global system clock as its reference.
 machine_pll fes_machine_pll (
-  .refclk(CLOCK1_50), .rst(!top_reset_n), .outclk_0(machine_clk), .locked(machine_pll_locked)
+  .refclk(system_clk_100_internal), .rst(!top_reset_n), .outclk_0(machine_clk), .locked(machine_pll_locked)
 );
 fes_de25_audio fes_audio_inst (
   .CLOCK1_50(CLOCK1_50), .source_clk(machine_clk),
