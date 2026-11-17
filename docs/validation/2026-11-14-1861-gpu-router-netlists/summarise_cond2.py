@@ -34,6 +34,55 @@ LANES = {
 }
 
 
+SEARCH = {"fes.spectrum": "fes-spectrum-oss", "fes.spectrum128": "fes-spectrum128-oss",
+          "fes.spectrum-plus3": "fes-spectrum-plus3-oss", "fes.pentagon": "fes-pentagon-oss",
+          "fes.c64": "fes-c64-oss", "fes.menu": "oss/fes-menu-package"}
+TREES = {"main-control": ROOT / "identity/c2base/sources/misteross",
+         "branch-forced": ROOT / "identity/c2head/sources/misteross"}
+
+
+def seed_outcomes(artefact: str) -> dict[str, dict]:
+    """Which seeds timed out on each leg, read from the per-seed route logs.
+
+    PRECOMMITTED, written before fes.spectrum-plus3's result existed.
+
+    The per-seed budget (pnr_recipe timeout_s) is enforced in
+    scripts/nextpnr_lease.py against time.monotonic() minus GPU lease wait --
+    wall clock, not CPU time. Powerboat is shared, so a seed that would close
+    can exceed the budget purely because of load this session does not control
+    and must not kill. The two legs of a pair run at different times under
+    different foreign load, so they can in principle time out on different
+    seeds and settle on different winners.
+
+    That would make the RBFs differ for a reason that has nothing to do with
+    this change. The rule, fixed in advance: a pair whose legs chose different
+    winning seeds is reported NOT COMPARABLE and re-run when the host is quiet.
+    It is NOT reported as a condition-2 failure, and the timeout is NOT raised
+    to make it pass -- timeout_s is a route-deciding input, so changing it
+    would make the comparison unrepresentative of production, and swapping a
+    pass rule after seeing a result that fails it is exactly what a
+    precommitted gate forbids.
+    """
+    out = {}
+    relative = SEARCH.get(artefact)
+    if relative is None:
+        return out
+    for leg, tree in TREES.items():
+        search = tree / "build" / relative / "qor-search"
+        if not search.is_dir():
+            continue
+        timed_out, completed = [], []
+        for attempt in sorted(search.glob("s*-w*-c*")):
+            log = attempt / "route.log"
+            if not log.is_file():
+                continue
+            text = log.read_text(errors="replace")
+            seed = attempt.name.split("-")[0].removeprefix("s")
+            (timed_out if "route timed out after" in text else completed).append(seed)
+        out[leg] = {"timed_out_seeds": timed_out, "completed_seeds": completed}
+    return out
+
+
 def carried(artefact: str) -> dict | None:
     """Does D12's merge-forward clause carry this artefact's recorded pair?"""
     key = artefact.removeprefix("fes.")
@@ -105,17 +154,28 @@ def main() -> int:
                 print(f"{artefact:20} {lane:13} {'-':34} {'-':7} NOT MEASURED ({', '.join(absent)})")
                 continue
             b, h = legs["base"], legs["head"]
+            seeds = seed_outcomes(artefact)
             if b["build_id"] != h["build_id"]:
                 verdict = "INVALID: the two legs used different BUILD_IDs"
             elif b["rbf_sha256"] == h["rbf_sha256"]:
                 verdict = "PASS"
+            elif (b.get("placer_seed") is not None
+                  and b.get("placer_seed") != h.get("placer_seed")):
+                # See seed_outcomes: a wall-clock seed budget on a shared host.
+                verdict = (f"NOT COMPARABLE: legs settled on different winning seeds "
+                           f"({b.get('placer_seed')} vs {h.get('placer_seed')}); re-run when quiet")
             else:
                 verdict = "FAIL: RBF differs"
             inputs_moved = b[inputs_key] != h[inputs_key]
             if verdict == "PASS" and inputs_moved:
                 claimed.append(artefact)
+            elif verdict.startswith("NOT COMPARABLE"):
+                missing.append(f"{artefact}: {verdict}")
             rows[artefact] = {
                 "lane": lane, "build_id": b["build_id"], "verdict": verdict,
+                "seed_outcomes": seeds,
+                "winning_seed_base": b.get("placer_seed"),
+                "winning_seed_head": h.get("placer_seed"),
                 "inputs_moved": inputs_moved,
                 "rbf_sha256": b["rbf_sha256"], "rbf_bytes": b["rbf_bytes"],
                 "netlist_or_qsf": b.get("netlist_sha256") or b.get("canonical_qsf_sha256"),
