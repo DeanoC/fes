@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import re
 import unittest
 import sys
 
@@ -73,6 +74,39 @@ class SourceRetirementTests(unittest.TestCase):
             end += 1
         (cls.output / "vendor_source_idle_test.inc").write_text(source[start:end])
 
+        # The combined lifecycle uses the production activation, master-stop,
+        # window and bridge-target callbacks, with only device I/O injected.
+        source = (FW / "nano_cold_platform.c").read_text()
+        functions = (
+            ('static int fabric_owns(', None), ('static int fabric_read(', None),
+            ('static int fabric_write(', None), ('static int probe_read(', None),
+            ('static int probe_write(', None), ('static void fabric_wait(', None),
+            ('static int master_failure(', None),
+            ('static int cold_master_quiesce(', 'production_master_quiesce'),
+            ('static int cold_producer_sample(', 'production_producer_sample'),
+            ('static struct fes_nano_fabric_stop new_fabric_stop(', None),
+            ('int fes_nano_platform_window_prepare(', None),
+            ('int fes_nano_platform_ddr_target(', None),
+            ('int fes_nano_platform_control_target(', None),
+            ('int fes_nano_platform_configuration_diagnostic_ready(', None),
+            ('static int configuration_complete(', 'production_configuration_complete'))
+        parts = []
+        for signature, rename in functions:
+            name = signature.split()[-1].split('(')[0]
+            match = re.search(re.escape(signature)+r'[^;{}]*\{', source)
+            if match is None:
+                raise ValueError('missing platform callback '+signature)
+            start, at = match.start(), match.end()-1
+            depth, end = 1, at+1
+            while depth:
+                depth += (source[end] == '{') - (source[end] == '}')
+                end += 1
+            text = source[start:end]
+            if rename:
+                text = text.replace(name+'(', rename+'(', 1)
+            parts.append(text)
+        (cls.output/'lifecycle_platform_test.inc').write_text('\n'.join(parts))
+
 
     @classmethod
     def tearDownClass(cls):
@@ -93,6 +127,8 @@ class SourceRetirementTests(unittest.TestCase):
         if joined:
             sources += [self.output / "probe_setup.c", FW / "input_transfer.c", FW / "nano_smmu.c", FW / "nano_sdm_reader.c"]
             sources += [FW / (n + ".c") for n in ("nano_cold", "nano_hps_io", "nano_bridges", "nano_boot", "nano_sd", "nano_sd_platform", "nano_usb_platform", "nano_usb_board", "nano_mac", "nano_usb_service", "nano_usb_composition", "nano_configuration")]
+        if name == 'lifecycle_rpc':
+            sources += [FW/(n+'.c') for n in ('nano_program','nano_identity','nano_bridge_sip','nano_fabric_stop','nano_probe_stop')]
         command = [shutil.which("cc") or "cc", "-std=c11", "-O1", "-g", "-Wall", "-Wextra", "-Werror",
                    "-Wno-misleading-indentation", "-Wno-unused-function", "-Wno-unused-variable", "-Wno-sign-compare",
                    "-fsanitize=address,undefined", "-fno-sanitize-recover=all", "-DFES_NANO_RETIRE_BATCHED_OBSERVE=1"]

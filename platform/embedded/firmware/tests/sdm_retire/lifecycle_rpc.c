@@ -1,10 +1,14 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 /* Joined off-board boundary. Real transfer/parser, selected source supplier,
  * retirement, release and SD-return engines; injected MMIO, source hashing,
- * CPU/session completion and sealed metadata. Never a boot or DMA proof. */
+ * ROM device work and sealed metadata. Activation, control/held close and
+ * master-stop callbacks are production code. Never a boot or DMA proof. */
 #define FES_TEST_WARM_SERVICE_MAIN unused_warm_service_main
+#define FES_TEST_LIFECYCLE_CALLBACKS 1
+static void lifecycle_identity_setup(void);
 #include "warm_service_test.c"
 #include <inttypes.h>
+#include "lifecycle_callbacks.inc"
 
 static uint32_t selected_bytes,selected_chunk,selected_rom;
 static uint8_t selected_digest[48];
@@ -19,20 +23,8 @@ static int selected_bind(void *context,uint64_t owner,uint64_t generation,uint32
  configuration_program.control_abi=next_role==FES_NANO_PROGRAM_ROLE_MENU ?
   FES_NANO_PROGRAM_MENU_ABI:FES_NANO_PROGRAM_COMPUTER_ABI;
  memcpy(configuration_program.header+FES_NANO_PROGRAM_SHA384,selected_digest,48);
+ memcpy(configuration_program.header+FES_NANO_PROGRAM_BUILD,selected_digest,16);
  *bytes=selected_bytes;return 0;
-}
-static int selected_complete(void *context,uint64_t owner,uint64_t generation,unsigned rearmed)
-{
- assert(context==&provider && owner==configuration.owner && generation==configuration.generation);
- assert(transfer.configured && source_retirement.retired && source_retirement.continued && !configuration.pending);
- if(rearmed)assert(configuration_return_generation(owner,generation)==1);
- fabric_configuration_generation=generation;fabric_generation=0;
- memset(&fabric_stop,0,sizeof(fabric_stop));fabric_stop.qualified=1;
- identity_probe.reader=0;identity_probe.abi=configuration_program.control_abi;
- identity_probe.initialized=1;identity_probe.bridges=&fes_nano_owned_bridges;identity_probe.io.context=&provider;
- window_prepared=window_issued=0;
- window_rearm_owner=window_rearm_generation=window_rearm_return=0;
- active_program_role=configuration_program.role;complete_calls++;return 0;
 }
 int main(void)
 {
@@ -48,16 +40,17 @@ int main(void)
     joined_setup();expected_sd_io=sd_platform.io;configuration.attempted=1;
     fes_nano_owned_sd.ops.returned=window_sd_return;
     configuration.bytes=selected_bytes;configuration.chunk=selected_chunk;
-    assert(!selected_bind(&provider,owner,generation,&configuration.bytes));
+   assert(!selected_bind(&provider,owner,generation,&configuration.bytes));
+   lifecycle_setup();
    }else{
     uint64_t r[4];assert(sdm_source_released && configuration.source_released);
-    if(configuration_program.role==FES_NANO_PROGRAM_ROLE_MENU)
-     assert(fes_nano_platform_window_rearm(owner,generation)==1);
     configuration.io.bind=selected_bind;
-    fes_nano_configuration_rearm(&configuration,owner,generation,0,r);assert(!r[0]);
+    if(!lifecycle_control(FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION,owner,generation,r))
+     fes_nano_configuration_rearm(&configuration,owner,generation,0,r);
+    assert(!r[0]);
    }
    assert(owner==configuration.owner && generation==configuration.generation);
-   configuration.io.complete=selected_complete;
+   configuration.io.complete=lifecycle_complete;
    expected.generation=generation;expected.bytes=selected_bytes;expected.chunk=selected_chunk;
    memcpy(expected.digest384,selected_digest,48);sdm_bytes=0;
    if(setjmp(terminal)){fprintf(stderr,"terminal transfer: %s\n",terminal_log);return 2;}
@@ -68,7 +61,7 @@ int main(void)
   }else if(!strcmp(operation,"release")){
    assert(scanf("%" SCNx64 " %" SCNu64 " %u",&owner,&generation,&fault)==3);
    assert(configurations && owner==configuration.owner);
-   native_return();
+   lifecycle_return();
    assert(generation==fes_nano_owned_bridges.state.generation);
    /* Failures enter through real predicates; never manufacture an SMC result. */
    switch(fault){

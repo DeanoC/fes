@@ -430,6 +430,9 @@ static void source_setup(unsigned selected){mode=selected;
  struct fes_nano_master_ops masters_ops={&provider,cold_master_owns,cold_master_quiesce,cold_master_quiescent,master_per0,master_assert,barrier,barrier};
  struct fes_nano_bridge_ops raw={.context=&model.base,.read_reset=bridge_read,.enable=no_bridge,.disable=no_bridge};
  assert(!fes_nano_boot_accept(&model.base.master_boot,&model.base.bridges,&provider.record.boot,&policy,masters_ops,raw));
+#ifdef FES_TEST_LIFECYCLE_CALLBACKS
+ lifecycle_identity_setup();
+#endif
  assert(!initialize(&model.base));assert(!fes_nano_sd_init(&model.base.service,&model.base.bridges,fes_nano_sd_platform_ops(&sd_platform),FES_NANO_SD_QUALIFIED));
  assert(fes_nano_platform_usb_setup()==1);uint64_t r[4];
  fes_nano_usb_service_sip(&fes_nano_owned_usb,FES_EMBEDDED_USB_ACQUIRE,17,0,0,r);assert(!r[0]);host_started(&model);
