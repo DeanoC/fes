@@ -8,7 +8,9 @@
 // compares, FRNDINT, FSCALE and FXTRACT -- and slice 4 the divides, the square
 // root and the remainders. FBLD and FBSTP (#1958) are built on the DE25
 // backend only, so the predicate takes the backend, as the RTL's does: `de25`
-// is X87_BACKEND == 1. The transcendentals are not built on either. A form
+// is X87_BACKEND == 1. So are the eight transcendentals (#1958): F2XM1,
+// FYL2X, FPTAN, FPATAN, FYL2XP1, FSINCOS, FSIN and FCOS, the register forms
+// D9 F0-F3, F9, FB, FE and FF. A form
 // the unit does not build stops the RTL as not built, which is how the
 // lockstep cannot pass over an instruction the build does not run.
 //
@@ -68,6 +70,9 @@ inline bool x87_built_form(uint8_t esc, uint8_t modrm, bool de25) {
             if (modrm == 0xf4 || modrm == 0xfc || modrm == 0xfd) return true;   // FXTRACT, FRNDINT, FSCALE
             if (modrm == 0xf5 || modrm == 0xf8 || modrm == 0xfa) return true;   // FPREM1, FPREM, FSQRT
             if ((modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8) return true;  // FLD ST(i), FXCH
+            // The transcendentals: built on the DE25 backend only.
+            if (modrm == 0xf0 || modrm == 0xf1 || modrm == 0xf2 || modrm == 0xf3) return de25;  // F2XM1, FYL2X, FPTAN, FPATAN
+            if (modrm == 0xf9 || modrm == 0xfb || modrm == 0xfe || modrm == 0xff) return de25;  // FYL2XP1, FSINCOS, FSIN, FCOS
             return modrm >= 0xe8 && modrm <= 0xee;               // the constants
         case 2:  // DA
             return modrm == 0xe9;                                // FUCOMPP
