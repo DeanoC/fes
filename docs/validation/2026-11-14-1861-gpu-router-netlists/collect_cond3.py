@@ -10,6 +10,11 @@ from __future__ import annotations
 import hashlib, json, sys
 from pathlib import Path
 
+# Mutable, set from the command line. Condition 3 for this record spans two
+# heads: the second main move forced only the four Spectrum machines to be
+# resealed, so their seals live in a different tree from the other seven, and
+# every row records the head it was taken at rather than one being assumed for
+# all of them.
 TREE = Path("/data/fes1861-netlist/identity/c3head/sources/misteross")
 OUT = Path("/data/fes1861-netlist/cond3")
 LOGS = Path("/data/fes1861-netlist/cond3-logs")
@@ -182,16 +187,34 @@ def main() -> int:
     import argparse, subprocess
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--revision", help="the head condition 3 was taken at")
+    parser.add_argument("--tree", type=Path, help="override the tree the seals live in")
+    parser.add_argument("--logs", type=Path, help="override the run-log directory")
+    parser.add_argument("--out", type=Path, help="override the output json path")
+    parser.add_argument("--only", nargs="+", help="collect only these artefacts")
+    parser.add_argument("--merge-into", type=Path,
+                        help="start from this json and replace only the collected rows")
     parser.add_argument("--allow-unverified", action="store_true",
                         help="collect summaries that fail the staleness check, marking them")
     arguments = parser.parse_args()
+    global TREE, LOGS, OUT
+    if arguments.tree is not None:
+        TREE = arguments.tree.resolve()
+    if arguments.logs is not None:
+        LOGS = arguments.logs.resolve()
+    if arguments.out is not None:
+        OUT = arguments.out.resolve()
     revision = arguments.revision
     if revision is None:
         revision = subprocess.run(("git", "-C", str(TREE), "rev-parse", "HEAD"),
                                   capture_output=True, text=True).stdout.strip() or None
     result = {}
+    if arguments.merge_into is not None and arguments.merge_into.is_file():
+        result = json.loads(arguments.merge_into.read_text())
+    keep = set(arguments.only) if arguments.only else None
     refused = []
     for key, relative in OSS.items():
+        if keep is not None and key not in keep:
+            continue
         path = TREE / relative / "build-summary.json"
         if not path.is_file():
             continue
@@ -202,11 +225,14 @@ def main() -> int:
             continue
         result[key] = {"lane": "nextpnr", "build_id": data.get("build_id"),
                        "unverified": why, "revision": data.get("revision"),
-                       "tied_to_head_by": tie,
+                       "tied_to_head_by": tie, "taken_at_head": revision,
+                       "tree": str(TREE),
                        "placer_seed": data.get("route", {}).get("placer_seed"),
                        "margins": margins(data.get("timing")),
                        "source": str(path)}
     for key in ("zx81", "zx80", "ts1000", "ts1500"):
+        if keep is not None and key not in keep:
+            continue
         announced = announced_output(key)
         provenance = "announced by the producer in its own log"
         if announced is not None and (announced / "build-summary.json").is_file():
@@ -227,6 +253,7 @@ def main() -> int:
         result[key] = {"lane": "quartus-lite", "build_id": data.get("build_id"),
                        "unverified": why, "provenance": provenance,
                        "revision": data.get("revision"), "tied_to_head_by": tie,
+                       "taken_at_head": revision, "tree": str(TREE),
                        "seeds": data.get("seeds"),
                        "repeat_matches_signoff":
                            bool(runs) and runs[0].get("rbf_sha256") == data.get("repeat_rbf_sha256"),

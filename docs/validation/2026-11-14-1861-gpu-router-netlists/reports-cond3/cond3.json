@@ -29,7 +29,9 @@
     "placer_seed": 2,
     "revision": null,
     "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-c64-oss/build-summary.json",
+    "taken_at_head": "df99f2dfb2084035b213614960b952f5e79ab781",
     "tied_to_head_by": "all 73 input digests match the head",
+    "tree": "/data/fes1861-netlist/identity/c3head/sources/misteross",
     "unverified": null
   },
   "menu": {
@@ -50,139 +52,149 @@
     "placer_seed": 5,
     "revision": null,
     "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/oss/fes-menu-package/build-summary.json",
+    "taken_at_head": "df99f2dfb2084035b213614960b952f5e79ab781",
     "tied_to_head_by": "source_commit field matches the head",
+    "tree": "/data/fes1861-netlist/identity/c3head/sources/misteross",
     "unverified": null
   },
   "pentagon": {
-    "build_id": "9f822a406d33a4c298443f15cf13b463",
+    "build_id": "8735c4b466dd568a3e112f7149b7e692",
     "lane": "nextpnr",
     "margins": {
       "clocks": {
         "audio": {
-          "achieved_mhz": 193.23670959472656,
+          "achieved_mhz": 177.08518981933594,
           "constraint_mhz": 12.288031578063965,
-          "ratio": 15.725603272348676,
+          "ratio": 14.411192605938641,
           "status": "pass"
         },
         "pixel": {
-          "achieved_mhz": 91.44947052001953,
+          "achieved_mhz": 96.2093505859375,
           "constraint_mhz": 74.25006866455078,
-          "ratio": 1.231641561614882,
+          "ratio": 1.2957476311650973,
           "status": "pass"
         },
         "system": {
-          "achieved_mhz": 58.90322494506836,
+          "achieved_mhz": 65.9239273071289,
           "constraint_mhz": 52.22477340698242,
-          "ratio": 1.127878995013371,
+          "ratio": 1.2623114090585008,
           "status": "pass"
         }
       },
       "kind": "nextpnr-frequency-ratio",
-      "worst_ratio": 1.127878995013371
+      "worst_ratio": 1.2623114090585008
     },
     "placer_seed": 5,
     "revision": null,
-    "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-pentagon-oss/build-summary.json",
+    "source": "/data/fes1861-netlist/identity/c3head2/sources/misteross/build/fes-pentagon-oss/build-summary.json",
+    "taken_at_head": "541e3c548ea1d3d91f3b9b71a86be46e2e6a9b1f",
     "tied_to_head_by": "all 52 input digests match the head",
+    "tree": "/data/fes1861-netlist/identity/c3head2/sources/misteross",
     "unverified": null
   },
   "spectrum": {
-    "build_id": "b4649c8dd5cf3b9cf222b60d5e2b79ba",
+    "build_id": "5b934d4f669b86bed095b323fc1904d0",
     "lane": "nextpnr",
     "margins": {
       "clocks": {
         "audio": {
-          "achieved_mhz": 196.77293395996094,
+          "achieved_mhz": 213.17416381835938,
           "constraint_mhz": 12.288031578063965,
-          "ratio": 16.013381208364653,
+          "ratio": 17.34811328113025,
           "status": "pass"
         },
         "pixel": {
-          "achieved_mhz": 88.73902130126953,
+          "achieved_mhz": 85.93280029296875,
           "constraint_mhz": 74.25006866455078,
-          "ratio": 1.195137228790688,
+          "ratio": 1.157343041407794,
           "status": "pass"
         },
         "system": {
-          "achieved_mhz": 60.93474197387695,
+          "achieved_mhz": 57.873722076416016,
           "constraint_mhz": 52.22477340698242,
-          "ratio": 1.1667784845904188,
+          "ratio": 1.1081660733194936,
           "status": "pass"
         }
       },
       "kind": "nextpnr-frequency-ratio",
-      "worst_ratio": 1.1667784845904188
+      "worst_ratio": 1.1081660733194936
     },
-    "placer_seed": 4,
+    "placer_seed": 5,
     "revision": null,
-    "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-spectrum-oss/build-summary.json",
+    "source": "/data/fes1861-netlist/identity/c3head2/sources/misteross/build/fes-spectrum-oss/build-summary.json",
+    "taken_at_head": "541e3c548ea1d3d91f3b9b71a86be46e2e6a9b1f",
     "tied_to_head_by": "all 52 input digests match the head",
+    "tree": "/data/fes1861-netlist/identity/c3head2/sources/misteross",
     "unverified": null
   },
   "spectrum-plus3": {
-    "build_id": "678c01a15543c3677ae0ddd6247eef43",
+    "build_id": "516d91073319b430dae0f41d8745400c",
     "lane": "nextpnr",
     "margins": {
       "clocks": {
         "audio": {
-          "achieved_mhz": 191.09498596191406,
+          "achieved_mhz": 152.60186767578125,
           "constraint_mhz": 12.288031578063965,
-          "ratio": 15.551309804822454,
+          "ratio": 12.418739869467716,
           "status": "pass"
         },
         "pixel": {
-          "achieved_mhz": 92.37875366210938,
+          "achieved_mhz": 94.65216064453125,
           "constraint_mhz": 74.25006866455078,
-          "ratio": 1.2441571479140432,
+          "ratio": 1.2747753954565841,
           "status": "pass"
         },
         "system": {
-          "achieved_mhz": 52.767662048339844,
+          "achieved_mhz": 57.726722717285156,
           "constraint_mhz": 52.22477340698242,
-          "ratio": 1.0103952321080791,
+          "ratio": 1.105351329481635,
           "status": "pass"
         }
       },
       "kind": "nextpnr-frequency-ratio",
-      "worst_ratio": 1.0103952321080791
+      "worst_ratio": 1.105351329481635
     },
-    "placer_seed": 5,
+    "placer_seed": 4,
     "revision": null,
-    "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-spectrum-plus3-oss/build-summary.json",
+    "source": "/data/fes1861-netlist/identity/c3head2/sources/misteross/build/fes-spectrum-plus3-oss/build-summary.json",
+    "taken_at_head": "541e3c548ea1d3d91f3b9b71a86be46e2e6a9b1f",
     "tied_to_head_by": "all 52 input digests match the head",
+    "tree": "/data/fes1861-netlist/identity/c3head2/sources/misteross",
     "unverified": null
   },
   "spectrum128": {
-    "build_id": "9b88aea50e4806fb27362c0b2c14bb0a",
+    "build_id": "21d2b95ebf343e86ecc8d5a2c836358f",
     "lane": "nextpnr",
     "margins": {
       "clocks": {
         "audio": {
-          "achieved_mhz": 204.08163452148438,
+          "achieved_mhz": 166.16815185546875,
           "constraint_mhz": 12.288031578063965,
-          "ratio": 16.608163254218976,
+          "ratio": 13.522764065166026,
           "status": "pass"
         },
         "pixel": {
-          "achieved_mhz": 86.4677963256836,
+          "achieved_mhz": 89.54154205322266,
           "constraint_mhz": 74.25006866455078,
-          "ratio": 1.1645483685184244,
+          "ratio": 1.20594557909106,
           "status": "pass"
         },
         "system": {
-          "achieved_mhz": 64.04508972167969,
+          "achieved_mhz": 67.69105529785156,
           "constraint_mhz": 52.22477340698242,
-          "ratio": 1.2263354255763395,
+          "ratio": 1.2961483771378375,
           "status": "pass"
         }
       },
       "kind": "nextpnr-frequency-ratio",
-      "worst_ratio": 1.1645483685184244
+      "worst_ratio": 1.20594557909106
     },
-    "placer_seed": 5,
+    "placer_seed": 4,
     "revision": null,
-    "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-spectrum128-oss/build-summary.json",
+    "source": "/data/fes1861-netlist/identity/c3head2/sources/misteross/build/fes-spectrum128-oss/build-summary.json",
+    "taken_at_head": "541e3c548ea1d3d91f3b9b71a86be46e2e6a9b1f",
     "tied_to_head_by": "all 52 input digests match the head",
+    "tree": "/data/fes1861-netlist/identity/c3head2/sources/misteross",
     "unverified": null
   },
   "splash": {
@@ -203,7 +215,9 @@
     "placer_seed": null,
     "revision": null,
     "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-splash/build-summary.json",
+    "taken_at_head": "df99f2dfb2084035b213614960b952f5e79ab781",
     "tied_to_head_by": "BUILD_ID re-derived at the head",
+    "tree": "/data/fes1861-netlist/identity/c3head/sources/misteross",
     "unverified": null
   },
   "ts1000": {
@@ -239,7 +253,9 @@
       3
     ],
     "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-ts1000-quartus/1a04c85fb4833db0b77cb8a2d6e8d1d1/attempt-gfwti7yn/build-summary.json",
+    "taken_at_head": "df99f2dfb2084035b213614960b952f5e79ab781",
     "tied_to_head_by": "revision field matches the head",
+    "tree": "/data/fes1861-netlist/identity/c3head/sources/misteross",
     "unverified": null
   },
   "ts1500": {
@@ -275,7 +291,9 @@
       3
     ],
     "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-ts1500-quartus/05db7020951901efbefc2de78c5aa3d0/attempt-7h0eu_u2/build-summary.json",
+    "taken_at_head": "df99f2dfb2084035b213614960b952f5e79ab781",
     "tied_to_head_by": "revision field matches the head",
+    "tree": "/data/fes1861-netlist/identity/c3head/sources/misteross",
     "unverified": null
   },
   "zx80": {
@@ -311,7 +329,9 @@
       3
     ],
     "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-zx80-quartus/69bf0d59047eae30eb4e3060a78e60bd/attempt-f0p546lv/build-summary.json",
+    "taken_at_head": "df99f2dfb2084035b213614960b952f5e79ab781",
     "tied_to_head_by": "revision field matches the head",
+    "tree": "/data/fes1861-netlist/identity/c3head/sources/misteross",
     "unverified": null
   },
   "zx81": {
@@ -347,7 +367,9 @@
       3
     ],
     "source": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-zx81-quartus/a33ca899fc7eb70814b3d4b73d3d0dd6/attempt-2vl0v85a/build-summary.json",
+    "taken_at_head": "df99f2dfb2084035b213614960b952f5e79ab781",
     "tied_to_head_by": "revision field matches the head",
+    "tree": "/data/fes1861-netlist/identity/c3head/sources/misteross",
     "unverified": null
   }
 }

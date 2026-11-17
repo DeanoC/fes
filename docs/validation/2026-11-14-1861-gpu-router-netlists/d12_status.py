@@ -108,7 +108,11 @@ def main() -> int:
             return "pass (no margin figures in the summary)"
         if artefact in LANE and not row.get("repeat_matches_signoff", True):
             return "**repeat changed the RBF**"
-        return f"pass, {margin}"
+        # Two heads: the second main move forced only the Spectrum four to be
+        # resealed, so the row says which head it was taken at rather than
+        # leaving one to be assumed for all of them.
+        head = (row.get("taken_at_head") or "")[:9]
+        return f"pass, {margin}" + (f" @ `{head}`" if head else "")
 
     lines = [START, "",
              "| Artefact | Lane | `check_level` | Condition 1 | Condition 2 | Condition 3 |",
@@ -125,6 +129,10 @@ def main() -> int:
               "A `CARRIED` condition 2 is a recorded pair that D12's merge-forward clause",
               "carries, and it is claimed only where the recorded pair passed *and* main's",
               "own netlist is byte-identical at the old base and the new one.",
+              "Condition 3 names the head each seal was taken at. The four Spectrum machines",
+              "were resealed at `541e3c548` because the second main move touched their",
+              "producer; the other seven were taken at `df99f2dfb` and their identities are",
+              "unchanged at `541e3c548`, which `reports-scope2/cond3-head-move.log` measures.",
               "", END]
     table = "\n".join(lines)
     print(table)

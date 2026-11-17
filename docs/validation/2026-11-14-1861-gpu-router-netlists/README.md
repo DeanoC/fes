@@ -26,16 +26,22 @@ drift from the evidence; these are the same facts in prose.
   nextpnr, four Quartus Lite), three carried from `72d2fc4da` under the
   merge-forward clause, and `splash` on its own stronger footing. The four
   `reduced` artefacts are not owed it (#1863).
-- **Condition 3: 11 of 11 full-tier,** every one at head `df99f2dfb` and tied
-  to it by a named anchor, because the producers record the revision three
-  different ways or not at all: `revision` (the Quartus lane), `source_commit`
-  (`fes.menu`), a BUILD_ID re-derived at the head (`splash`), and the full set
-  of input digests (`fes.c64`, 73 files; the Spectrum family, 52 each). No row
-  is unverified. Each Quartus model's repeat run reproduced its sign-off RBF.
+- **Condition 3: 11 of 11 full-tier,** across two heads and tied to them by a
+  named anchor, because the producers record the revision three different ways
+  or not at all: `revision` (the Quartus lane), `source_commit` (`fes.menu`), a
+  BUILD_ID re-derived at the head (`splash`), and the full set of input digests
+  (`fes.c64`, 73 files; the Spectrum family, 52 each). No row is unverified.
+  Each Quartus model's repeat run reproduced its sign-off RBF.
 
-`df99f2dfb` has no difference from this branch's tip under `sources/misteross/`
-or `config/`, so nothing in any producer's closure moved after condition 3 was
-taken and these identities are the ones that ship.
+Condition 3 spans two heads because main moved twice under this record. The
+four Spectrum machines were resealed at `541e3c548`, since #1948 edited their
+producer and condition 3 never carries across an identity move. The other seven
+were taken at `df99f2dfb`, and their identities are *unchanged* at `541e3c548`
+-- measured in `reports-scope2/cond3-head-move.log`, which reports only
+`fes.ramtest`, the Spectrum four and the out-of-scope `fes.pcxt-dos` as moved.
+`541e3c548` in turn has no difference from this branch's tip under
+`sources/misteross/` or `config/`. So every seal here describes an identity
+that ships.
 
 **One margin is thin and is called out deliberately.**
 `fes.spectrum-plus3`'s system clock closes at 52.768 MHz against a 52.225 MHz
@@ -501,17 +507,17 @@ for.
 
 | Artefact | Lane | `check_level` | Condition 1 | Condition 2 | Condition 3 |
 | --- | --- | --- | --- | --- | --- |
-| `splash` | nextpnr | full | identical (src exempt) | PASS (no BUILD_ID in the program) | pass, 3.1862x worst clock |
-| `fes.menu` | nextpnr | full | identical | CARRIED | pass, 1.1441x worst clock |
-| `fes.c64` | nextpnr | full | identical | CARRIED | pass, 1.1118x worst clock |
-| `fes.spectrum` | nextpnr | full | identical | CARRIED | pass, 1.1668x worst clock |
-| `fes.spectrum128` | nextpnr | full | identical | PASS | pass, 1.1645x worst clock |
-| `fes.spectrum-plus3` | nextpnr | full | identical | PASS | pass, 1.0104x worst clock |
-| `fes.pentagon` | nextpnr | full | identical | PASS | pass, 1.1279x worst clock |
-| `fes.zx81` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.121 ns worst slack (Hold) |
-| `fes.zx80` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.143 ns worst slack (Hold) |
-| `fes.ts1000` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.135 ns worst slack (Hold) |
-| `fes.ts1500` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.110 ns worst slack (Hold) |
+| `splash` | nextpnr | full | identical (src exempt) | PASS (no BUILD_ID in the program) | pass, 3.1862x worst clock @ `df99f2dfb` |
+| `fes.menu` | nextpnr | full | identical | CARRIED | pass, 1.1441x worst clock @ `df99f2dfb` |
+| `fes.c64` | nextpnr | full | identical | CARRIED | pass, 1.1118x worst clock @ `df99f2dfb` |
+| `fes.spectrum` | nextpnr | full | identical | CARRIED | pass, 1.1082x worst clock @ `541e3c548` |
+| `fes.spectrum128` | nextpnr | full | identical | PASS | pass, 1.2059x worst clock @ `541e3c548` |
+| `fes.spectrum-plus3` | nextpnr | full | identical | PASS | pass, 1.1054x worst clock @ `541e3c548` |
+| `fes.pentagon` | nextpnr | full | identical | PASS | pass, 1.2623x worst clock @ `541e3c548` |
+| `fes.zx81` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.121 ns worst slack (Hold) @ `df99f2dfb` |
+| `fes.zx80` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.143 ns worst slack (Hold) @ `df99f2dfb` |
+| `fes.ts1000` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.135 ns worst slack (Hold) @ `df99f2dfb` |
+| `fes.ts1500` | Quartus Lite | full | canonical QSF identical | PASS | pass, +0.110 ns worst slack (Hold) @ `df99f2dfb` |
 | `fes.pong` | nextpnr | reduced | identical | not owed (#1863) | not owed (#1863) |
 | `fes.ramtest` | nextpnr | reduced | identical | not owed (#1863) | not owed (#1863) |
 | `fes.coleco` | nextpnr | reduced | identical | not owed (#1863) | not owed (#1863) |
@@ -522,13 +528,22 @@ D12 names for a native Quartus front end; those four run no Yosys program.
 A `CARRIED` condition 2 is a recorded pair that D12's merge-forward clause
 carries, and it is claimed only where the recorded pair passed *and* main's
 own netlist is byte-identical at the old base and the new one.
+Condition 3 names the head each seal was taken at. The four Spectrum machines
+were resealed at `541e3c548` because the second main move touched their
+producer; the other seven were taken at `df99f2dfb` and their identities are
+unchanged at `541e3c548`, which `reports-scope2/cond3-head-move.log` measures.
 
 <!-- results:end -->
 
-## A thin margin: `fes.spectrum-plus3` at 1.04%
+## A margin that moves: `fes.spectrum-plus3` between 1.01x and 1.11x
 
-Recorded here rather than left in the table, because a number this close needs
-its consequence stated.
+Recorded here rather than left in the table, because the shipping number alone
+would misdescribe this core. **The seal that ships closes by 11%** (`516d9107`,
+below). One identity earlier it closed by 1%, with identical RTL. The margin is
+a property of the identity, not of the design, so neither number on its own is
+the truth about it.
+
+The first measured identity, `678c01a1`:
 
 | clock | achieved | constraint | ratio |
 | --- | --- | --- | --- |
@@ -536,8 +551,8 @@ its consequence stated.
 | pixel | 92.379 MHz | 74.250 MHz | 1.2442x |
 | system | **52.768 MHz** | **52.225 MHz** | **1.0104x** |
 
-The seal passes on its own gates and nothing was tuned, waived or re-run to
-make it pass. The point is what happens next. A core that clears by one per
+Both seals pass on their own gates and nothing was tuned, waived or re-run to
+make either pass. The point is what happens next. A core that clears by one per
 cent is one whose next `BUILD_ID` move may miss, and D12 exists precisely
 because that constant is synthesised in and reshuffles placement. When such a
 miss happens it will arrive in whatever PR is in flight at the time and will
