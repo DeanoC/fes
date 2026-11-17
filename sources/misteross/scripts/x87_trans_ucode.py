@@ -1239,6 +1239,8 @@ def emit(program: Program) -> dict[str, str]:
     rom = head + [
         '// The engine\'s two memories, each read with a registered output: the',
         f'// microprogram, {len(program.words)} words of {WORD_BITS} bits, and the constants, {len(program.rom.words)} values of 80.',
+        '// They ask for block RAM by the Cyclone V name, as the rest of the i386 RTL',
+        '// does: the Agilex 5 flows retarget that one attribute (fit_i386_device.py).',
         'module fes_x87_trans_rom (',
         '    input  logic        clk,',
         '    input  logic [8:0]  pc,',
@@ -1246,8 +1248,8 @@ def emit(program: Program) -> dict[str, str]:
         '    input  logic [9:0]  address,',
         '    output logic [79:0] constant',
         ');',
-        f'    (* ramstyle = "M20K" *) logic [{WORD_BITS - 1}:0] program_rom [0:{PROGRAM_DEPTH - 1}];',
-        f'    (* ramstyle = "M20K" *) logic [79:0] constant_rom [0:{CONSTANT_DEPTH - 1}];',
+        f'    (* ramstyle = "M10K" *) logic [{WORD_BITS - 1}:0] program_rom [0:{PROGRAM_DEPTH - 1}];',
+        f'    (* ramstyle = "M10K" *) logic [79:0] constant_rom [0:{CONSTANT_DEPTH - 1}];',
         '    initial begin']
     rom += [f'        program_rom[{n}] = 40\'h{(encode(program.words[n]) if n < len(program.words) else 0):010x};'
             for n in range(PROGRAM_DEPTH)]
@@ -1305,12 +1307,16 @@ def vectors(program: Program, dump: str, per_class: int) -> list[str]:
     return lines
 
 
-def unit_vectors(program: Program, per_class: int, seed: int) -> list[str]:
+def unit_vectors(program: Program, per_class: int, seed: int, engine: bool = False) -> list[str]:
     """Instruction-level vectors for the unit bench, from operands of this
     script's own: the instruction, the control word (every exception masked,
     each rounding mode), x and y as 80-bit values, and the model's result,
     rounded as the unit's A_RND rounds it, with PE, UE and OE.
-    "<instruction> <cw> <x> <y> <ST(0)> <ST(1) or -> <flags>"."""
+    "<instruction> <cw> <x> <y> <ST(0)> <ST(1) or -> <flags>".
+
+    With `engine` the same operands as engine vectors instead (x87_trans_tb):
+    the operands as the unit normalises them and what the engine hands back
+    before any rounding, as `vectors` writes them."""
     import random
     rng = random.Random(seed)
 
@@ -1359,6 +1365,17 @@ def unit_vectors(program: Program, per_class: int, seed: int) -> list[str]:
                 if kind == 3:
                     x = (rng.getrandbits(1), y[1], y[2])   # |y| = |x|
             result = run(program, name, x, y)
+            if engine:
+                if rc:
+                    continue                           # the engine does not see the rounding mode
+                zero, sign, exponent, raw = raw_of(result.exact)
+                second = result.second
+                held = to_bits(second) if second is not None else (0, 0)
+                lines.append(f'{INSTRUCTIONS.index(name)} {x[0]} {x[1] & 0x3ffff:05x} {x[2]:016x} '
+                             f'{y[0]} {y[1] & 0x3ffff:05x} {y[2]:016x} '
+                             f'{zero} {sign} {exponent:05x} {raw:017x} {int(second is not None)} '
+                             f'{held[0]:04x}{held[1]:016x}')
+                continue
             sign_exponent, significand, flags = final_round(result.exact, rc)
             flags |= 0x20 | (0x10 if not sign_exponent & 0x7fff and significand else 0)
             final = f'{sign_exponent:04x}{significand:016x}'

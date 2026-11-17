@@ -198,6 +198,88 @@ def compare_hosts(first: Path, second: Path) -> dict:
                         for (name, index), row in sorted(classes.items())]}
 
 
+def specials(directory: Path, other_host: Path | None, jobs: int, download: bool) -> dict:
+    """Run cores/fes-common/sim/i386/x87_trans_special.cpp on this host's x87
+    and on the oracle, keep both outputs (gzip) in `directory`, and compare
+    them line by line -- and with a second host's output, if one is given.
+    A register the tag word marks empty is not compared; a result one
+    representable value from the other's counts as agreeing, and C1 is
+    reported apart."""
+    import gzip
+    source = oracle.SIM / 'x87_trans_special.cpp'
+    linked = oracle.link_inputs(jobs, download)
+    build = ROOT / 'build/sim/fes-i386-x87-special'
+    build.mkdir(parents=True, exist_ok=True)
+    binary = build / 'x87_trans_special'
+    subprocess.run(['g++', '-std=c++17', '-O2', f'-I{oracle.SIM}', str(source), *map(str, linked), '-o',
+                    str(binary)], check=True)
+    outputs = {}
+    for name in ('host', 'oracle'):
+        result = subprocess.run([str(binary), name], capture_output=True, text=True)
+        if result.returncode:
+            raise oracle.OracleError(f'x87_trans_special {name} exited {result.returncode}')
+        outputs[name] = result.stdout
+    if other_host:
+        outputs['other host'] = other_host.read_text()
+    directory.mkdir(parents=True, exist_ok=True)
+    files = {}
+    for name, text in outputs.items():
+        path = directory / f'special-{name.replace(" ", "-")}.txt.gz'
+        with gzip.GzipFile(path, 'wb', mtime=0) as out:
+            out.write(text.encode())
+        files[name] = {'file': path.name, 'sha256_of_text': hashlib.sha256(text.encode()).hexdigest(),
+                       'cases': len(text.splitlines())}
+
+    def parse(text: str) -> dict:
+        rows = {}
+        for line in text.splitlines():
+            head, tail = line.split(' | ')
+            m = re.search(r'sw=(\w+) tw=(\w+) st0=(\w+) st1=(\w+) st2=(\w+)', tail)
+            status, tags = int(m[1], 16), int(m[2], 16)
+            top = status >> 11 & 7
+            rows[head] = (status, tags, tuple(m[3 + n] if tags >> 2 * (top + n & 7) & 3 != 3 else None
+                                              for n in range(3)))
+        return rows
+
+    def compare(a: dict, b: dict) -> dict:
+        kinds: dict = {}
+        examples: dict = {}
+        for case, (sa, ta, ra) in a.items():
+            sb, tb, rb = b[case]
+            what = []
+            if (sa ^ sb) & 0x00ff:
+                what.append('flags')
+            if (sa ^ sb) & 0x4500:
+                what.append('C0 C2 C3')
+            if (sa ^ sb) & 0x3800:
+                what.append('TOP')
+            if ta != tb:
+                what.append('tags')
+            for x, y in zip(ra, rb):
+                if x == y:
+                    continue
+                p, q = (_ordinal(x) if x else None), (_ordinal(y) if y else None)
+                if p is None or q is None or p[0] != q[0] or abs(p[1] - q[1]) > 1:
+                    what.append('a value, by more than one')
+                    break
+            key = case.split()[0] + ': ' + (', '.join(what) if what else 'agree (a value within one; C1 apart)')
+            kinds[key] = kinds.get(key, 0) + 1
+            if what:
+                examples.setdefault(key, []).append(case)
+        return {'kinds': dict(sorted(kinds.items())),
+                'first_cases': {key: cases[:6] for key, cases in sorted(examples.items())},
+                'c1_differs': sum(bool((a[c][0] ^ b[c][0]) & 0x0200) for c in a)}
+
+    parsed = {name: parse(text) for name, text in outputs.items()}
+    report = {'what': 'the references on the special operands the 387 manual leaves open; no RTL',
+              'files': files, 'host_cpu': host_cpu(),
+              'probe_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
+              'host_against_oracle': compare(parsed['host'], parsed['oracle'])}
+    if other_host:
+        report['host_against_other_host'] = compare(parsed['host'], parsed['other host'])
+    return report
+
+
 def source_record() -> dict:
     repository = ROOT.parents[1]
 
@@ -232,10 +314,25 @@ def main() -> int:
     parser.add_argument('--compare-hosts', type=Path, nargs=2, metavar='DUMP',
                         help="compare two hosts' `x87_trans_probe --host-dump` files instead of probing "
                              '(the probe\'s header says how to build it on a host with no oracle)')
+    parser.add_argument('--specials', type=Path, metavar='DIRECTORY',
+                        help="run x87_trans_special on this host and the oracle instead, keep both outputs in "
+                             'DIRECTORY and compare them')
+    parser.add_argument('--other-host', type=Path, help="with --specials: a second host's `x87_trans_special host` "
+                                                        'output to compare as well')
     parser.add_argument('--output', type=Path, required=True, help='the report to write (absolute)')
     args = parser.parse_args()
     if not args.output.is_absolute():
         parser.error('--output must be absolute')
+    if args.specials:
+        try:
+            report = specials(args.specials, args.other_host, args.jobs, args.download)
+            report['source'] = source_record()
+        except (OSError, oracle.OracleError, subprocess.CalledProcessError) as error:
+            print('x87 transcendental probe error:', error, file=sys.stderr)
+            return 2
+        args.output.write_text(json.dumps(report, indent=2) + '\n')
+        print(f'x87 special operands: host against oracle (report: {args.output})')
+        return 0
     if args.compare_hosts:
         try:
             report = compare_hosts(*args.compare_hosts)

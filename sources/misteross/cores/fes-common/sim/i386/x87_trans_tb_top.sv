@@ -1,0 +1,39 @@
+// SPDX-License-Identifier: MIT
+// The transcendental engine with the backend it drives, for x87_trans_tb.cpp.
+module x87_trans_tb_top (
+    input  logic        clk,
+    input  logic        reset,
+    input  logic        start,
+    input  logic [2:0]  instruction,
+    input  logic        xs,
+    input  logic [17:0] xe,
+    input  logic [63:0] xm,
+    input  logic        ys,
+    input  logic [17:0] ye,
+    input  logic [63:0] ym,
+    output logic        busy,
+    output logic        done,
+    output logic        fin_zero,
+    output logic        fin_sign,
+    output logic [17:0] fin_exp,
+    output logic [66:0] fin_sig,
+    output logic [1:0]  second_mode,
+    output logic [79:0] second
+);
+    logic              req_valid, req_ready, raw_valid;
+    logic [2:0]        req_op;
+    logic [79:0]       req_a, req_b;
+    fes_x87_pkg::raw_t raw;
+    fes_x87_trans engine (
+        .clk, .reset, .cancel(1'b0), .start, .instruction, .xs, .xe, .xm, .ys, .ye, .ym,
+        .req_valid, .req_ready, .req_op, .req_a, .req_b, .raw_valid, .raw,
+        .busy, .done, .fin_zero, .fin_sign, .fin_exp, .fin_sig, .second_mode, .second
+    );
+    // Round to nearest and extended precision: an intermediate's rounding is
+    // the engine's own, and a zero's sign follows the nearest rule.
+    fes_x87_core core (
+        .clk, .reset, .flush(1'b0), .req_valid, .ext_ready(1'b1), .req_ready,
+        .req_op, .req_a, .req_b, .req_pc(2'd3), .req_rc(2'd0), .req_slot(4'd0),
+        .raw_valid, .raw
+    );
+endmodule

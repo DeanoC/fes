@@ -3,6 +3,8 @@
 //
 // The engine's two memories, each read with a registered output: the
 // microprogram, 434 words of 40 bits, and the constants, 660 values of 80.
+// They ask for block RAM by the Cyclone V name, as the rest of the i386 RTL
+// does: the Agilex 5 flows retarget that one attribute (fit_i386_device.py).
 module fes_x87_trans_rom (
     input  logic        clk,
     input  logic [8:0]  pc,
@@ -10,8 +12,8 @@ module fes_x87_trans_rom (
     input  logic [9:0]  address,
     output logic [79:0] constant
 );
-    (* ramstyle = "M20K" *) logic [39:0] program_rom [0:511];
-    (* ramstyle = "M20K" *) logic [79:0] constant_rom [0:1023];
+    (* ramstyle = "M10K" *) logic [39:0] program_rom [0:511];
+    (* ramstyle = "M10K" *) logic [79:0] constant_rom [0:1023];
     initial begin
         program_rom[0] = 40'h000001a810;
         program_rom[1] = 40'h0000089012;

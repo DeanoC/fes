@@ -101,21 +101,35 @@ M5 and M6.**
 ## Where the manual is silent: measured rules
 
 Each is filled in from a measurement on the references and says which. They
-are the hosts' and the oracle's behaviour, adopted because the three agree
+are the hosts' and the oracle's behaviour, adopted where the references agree
 and the manual does not contradict them; none is evidence about a 387.
 
 | Rule | The question the manual leaves open | What is adopted, and from what |
 | --- | --- | --- |
-| M1 | Is PE set on the exact special cases (G6)? | *To be measured before the RTL: the hosts and the oracle on each exact case.* |
-| M2 | Do FSINCOS and FPTAN push when C2 is set (TRIG3)? | *To be measured.* |
-| M3 | What do FSINCOS and FPTAN leave for an infinite or NaN operand, masked (TRIG4)? | *To be measured.* |
-| M4 | FSINCOS's masked stack overflow (TAN2). | *To be measured.* |
-| M5 | Can FYL2XP1 overflow? | *To be measured.* |
-| M6 | Does FBSTP of a denormal raise D or U? | *To be measured.* |
-| M7 | FBLD of digits A to F (BLD2). | *To be measured; lockstep and random cases keep to what the references agree on.* |
-| M8 | The low eight bytes of the packed decimal indefinite (BST3), whether FBSTP pops on a masked invalid, and the sign of a zero that a small non-zero value rounds to. | *To be measured.* |
-| M9 | A masked stack underflow in FPATAN, FYL2X and FYL2XP1: is the pop still made? | *To be measured.* |
-| M10 | F2XM1 and FYL2XP1 outside their ranges, which the manual calls undefined. | *To be measured; where the references disagree the result is not compared and the case is listed.* |
+| M1 | Is PE set on the exact special cases (G6)? | **Not for a zero operand; always for a finite non-zero one.** Both hosts and the oracle leave PE clear for F2XM1, FSIN and FPTAN of a zero, FCOS of a zero (+1), FPATAN's zero results and FYL2X of exactly 1. They set it for every other finite operand, including results that are exactly representable: F2XM1 of +1 and -1, FYL2X of a power of two, FPATAN's multiples of pi/4. |
+| M2 | Do FSINCOS and FPTAN push when C2 is set (TRIG3)? | **No.** At and above 2^63 all three references set C2 and nothing else: no push, the operand unchanged, no flag, C1 clear. |
+| M3 | What do FSINCOS and FPTAN leave for an infinite or NaN operand, masked (TRIG4)? | **Both results, pushed:** the indefinite in ST(0) and ST(1) for an infinity or an unsupported format, the quieted NaN in both for a NaN. All three references. The references leave C2 clear for the infinity; the unit sets it, by TRIG4, and that is a listed divergence. |
+| M4 | FSINCOS's masked stack overflow (TAN2). | **As FPTAN's:** the push is made, both registers hold the indefinite, C1 is set, and nothing else is flagged, not even PE. All three references. |
+| M5 | Can FYL2XP1 overflow? | **Yes.** The hosts deliver an overflowed result for a large ST(1); the unit's last multiply overflows through A_RND as theirs does. |
+| M6 | Does FBSTP of a denormal raise D or U? | **Neither.** PE only, on the host and the oracle, including with DE unmasked. |
+| M7 | FBLD of digits A to F (BLD2). | **`acc * 10 + nibble`**, on the host and the oracle, over 4,000 random encodings. The unit does the same. |
+| M8 | The packed decimal indefinite's low bytes (BST3), FBSTP's pop on a masked invalid, and the sign of a zero a small value rounds to. | **`FFFF C000 0000 0000 0000`**, whose low eight bytes are the references' and not the manual's; **the pop is made**; **the source's sign** is stored. Host and oracle. |
+| M9 | A masked stack underflow in FPATAN, FYL2X and FYL2XP1: is the pop still made? | **Yes.** The indefinite goes to ST(1) and ST(0) is popped; C1 is clear. All three references. |
+| M10 | F2XM1 and FYL2XP1 outside their ranges. | **F2XM1 beyond 1: the operand comes back unchanged, with PE**, on all three references, and the unit does the same. **FYL2XP1 above the range: the hosts compute y log2(1 + x)** and so does the unit (its model is within 1 of the host there). **At and below -1 the references return a finite value**; the unit follows the manual below -1 (invalid) and treats -1 as the logarithm of zero, and neither is compared with a reference. |
+| M11 | A denormal operand where the answer comes from the operand classes (a zero, an infinity, a multiple of pi/4). | **DE is raised there too**, unless an invalid or a zero divide is the only thing reported. Both hosts. |
+| M12 | A tiny result. | **UE with PE whenever the result is a denormal**, the instruction being inexact by definition (G6, G12). Both hosts. The oracle leaves UE clear on some of these (FPATAN, FYL2X and FYL2XP1 with a denormal ST(1)), which is a listed divergence. |
+| M13 | The sign of FYL2X's zero-divide infinity (LOG3). | **The opposite of ST(1)'s**, whatever the zero's sign: the logarithm of zero is minus infinity. All three references. The manual's "exclusive OR of the signs" contradicts its own "FYL2X(-0) = -infinity" and is not followed. |
+
+Where each answer comes from: FBLD and FBSTP (M6 to M8) were measured by the
+unit bench's own packed decimal cases against the host and by the lockstep
+against the oracle. Everything else is the special-operand probe: 4,460
+cases on the Intel host, the AMD host and the oracle, kept under
+[evidence/](evidence/) as `special-host.txt.gz`, `special-other-host.txt.gz`
+and `special-oracle.txt.gz`, with their comparison in
+`special-comparison.json`. The two hosts agree on all 4,460 (a value within
+one, C1 apart). The oracle differs from the host in flags, TOP or tags on 82:
+the unmasked overflow and underflow results, which a host delivers scaled as
+G12 says and the oracle does not, and M12's underflow flag.
 
 ## What the modern references are known not to share with a 387
 
