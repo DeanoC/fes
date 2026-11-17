@@ -150,9 +150,9 @@ their shared compiler cache beneath the primary FES checkout’s `out/cache`
 (or the absolute `FES_CACHE_ROOT` override), reused across FES worktrees. A
 matching package is reused only after its locked inputs, manifest, payload and
 sealed selection are checked; a miss runs that package's registered producer.
-The menu uses its per-core HIP lock. Both RAM Tester rates and the RAM Tester
-timing diagnostic use `sources/misteross/cores/fes-ramtest/toolchain.lock`;
-these per-core locks currently select the same compiler pins.
+The menu uses its per-core HIP lock. The RAM Tester's one OSS build uses
+`sources/misteross/cores/fes-ramtest/toolchain.lock`; these per-core locks
+currently select the same compiler pins.
 Quartus Lite 17.0.2 is available as an explicit bring-up/oracle check where a
 recipe documents one. The [Quartus-built cores](docs/design/quartus-cores.md)
 policy also allows a labelled Quartus variant of a core, built on a pinned host

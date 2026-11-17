@@ -388,6 +388,18 @@ class SearchPlacerQorTests(unittest.TestCase):
         self.assertTrue(passing_recipe)
         self.assertGreater(worst, 1.0)
 
+    def test_score_report_rejects_a_missing_required_clock(self) -> None:
+        report = {
+            "fmax": {
+                "display.pixel_clk": {"achieved": 77, "constraint": 74.25007},
+                "ram_clock.clocks[0]": {"achieved": 117, "constraint": 100.0045},
+            }
+        }
+        with self.assertRaisesRegex(ValueError, "ram_clock.clocks\\[1\\]"):
+            _score_report(report, required=(("display.pixel_clk", 74.25),
+                                            ("ram_clock.clocks[0]", 100.0),
+                                            ("ram_clock.clocks[1]", 100.0)))
+
     def test_finished_nextpnr_exit_1_is_still_scored(self) -> None:
         fake = r"""#!/usr/bin/env python3
 import json, pathlib, sys
