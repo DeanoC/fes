@@ -37,9 +37,10 @@ of the current tree.
 
 1. FES allows both OSS (`oss`) and Quartus (`quartus`) as product toolchains
    (policy accepted in #1163; see
-   [Quartus-built cores](design/quartus-cores.md)). Current registered recipes
-   and package selection still build only the HIP/nextpnr OSS lane. A recipe
-   that later offers both lanes must select one explicitly, use a pinned host
+   [Quartus-built cores](design/quartus-cores.md)). The registered recipes
+   for the ZX81 family and PC/XT select Quartus Lite; every other registered
+   recipe builds the HIP/nextpnr OSS lane, and the ZX81 family's nextpnr build
+   is advisory. A recipe that offers both lanes must select one explicitly, use a pinned host
    authorized for the Quartus edition and device (with a license when required),
    and pass the same timing and seal checks. A failed HIP
    route never falls back to Quartus. Where a recipe still says oracle only,

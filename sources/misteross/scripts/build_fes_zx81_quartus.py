@@ -59,7 +59,8 @@ from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.cyclonev_rbf import rbf_load
 from scripts.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
 from scripts.input_identity import with_identities
-from scripts.fes_build_common import BuildError, _git, _require_clean_source as require_clean_source
+from scripts.fes_build_common import (BuildError, _require_clean_source as require_clean_source,
+                                      require_committed_parent_config)
 from scripts.functional_execution import execution_digest, execution_environment
 from scripts.quartus_tools import RebuildError, load_quartus_lock, locate_quartus
 
@@ -75,6 +76,7 @@ MIN_FREE_BYTES = 30 * 10**9
 SDC = 'cores/fes-zx81/clocks.sdc'
 QSF_PINS = 'cores/fes-zx81/constraints.qsf'
 ROM_LINK = 'cores/fes-zx81/quartus/zx81_rom_link.v'
+REGISTRY = 'config/core-recipes.toml'  # parent-owned, relative to the repository root
 VERILOG_SOURCES = (
     'cores/fes-zx81/rtl/sys_pll.v', 'cores/fes-zx81/rtl/pixel_pll.v',
     'cores/fes-common/rtl/fes_audio_i2s.v', 'cores/fes-common/rtl/fes_audio_output.v',
@@ -233,31 +235,11 @@ def sha(path) -> str:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
-REGISTRY = 'config/core-recipes.toml'
-
-
-def require_clean_registry(root):
-    """The parent registry selected_recipe reads must be the committed file.
-
-    The module's clean-tree gate covers only sources/misteross. The registry
-    row sets the seeds and threads, and the record names the repository
-    revision, so an uncommitted registry edit would build an artifact that
-    revision cannot reproduce.
-    """
-    parent = Path(root).resolve().parents[1]
-    try:
-        _git(parent, 'ls-files', '--error-unmatch', '--', REGISTRY)
-    except BuildError as error:
-        raise BuildError(f'pinned build input is not tracked: {REGISTRY}') from error
-    if _git(parent, 'status', '--porcelain', '--untracked-files=all', '--', REGISTRY):
-        raise BuildError(f'{REGISTRY} must be committed before build and export')
-
-
 def _require_clean_source(root, *, identity_version=2, model='zx81'):
     model_for(model)
     source = require_clean_source(Path(root), pinned_inputs=(RECIPE, LOCK, ABI, ROM_LINK),
                                   identity_version=identity_version)
-    require_clean_registry(root)
+    require_committed_parent_config(root, REGISTRY)
     return source
 
 

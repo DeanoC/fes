@@ -133,8 +133,12 @@ def _regular_input(root: Path, relative: str) -> Path:
 
 def _require_clean_source(root: Path, *, identity_version: int=2, model: str='zx81') -> tuple[str, str]:
     model_for(model)
-    from scripts.fes_build_common import _require_clean_source as require_source
-    return require_source(root, pinned_inputs=PINNED_INPUTS, identity_version=identity_version)
+    from scripts.fes_build_common import _require_clean_source as require_source, require_committed_parent_config
+    source = require_source(root, pinned_inputs=PINNED_INPUTS, identity_version=identity_version)
+    # The advisory nextpnr table and the registry it replaces a row of are
+    # parent-owned, so the module gate above does not see them.
+    require_committed_parent_config(root, 'config/core-recipes.toml', 'config/' + pnr_recipe.ADVISORY_NAME)
+    return source
 
 def placement_policy(mode: str) -> tuple[tuple[int, ...], int]:
     if mode == 'first-pass-paired':

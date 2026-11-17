@@ -57,6 +57,12 @@ def clean_module(source):
     temporary = SourceTree(tempfile.mkdtemp())
     root = Path(temporary.name) / 'sources/misteross'
     shutil.copytree(source, root, ignore=de10_copy_ignore(source))
+    # Producers that read parent-owned recipe tables require them committed.
+    for relative in ('config/core-recipes.toml', 'config/advisory-pnr-recipes.toml'):
+        parent = Path(source).resolve().parents[1] / relative
+        if parent.is_file():
+            (root.parents[1] / relative).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(parent, root.parents[1] / relative)
     init_source(root)
     return temporary, root
 

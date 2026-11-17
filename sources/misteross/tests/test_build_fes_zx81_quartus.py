@@ -7,7 +7,7 @@ from pathlib import Path
 
 from scripts import build_fes_zx81_quartus as producer
 from scripts import quartus_vo_evidence
-from scripts.fes_build_common import BuildError
+from scripts.fes_build_common import BuildError, require_committed_parent_config
 from scripts.fes_de10nano_evidence import HPS_DDR_CFG_PORTS, hps_ddr_layout
 from tests.quartus_timing_fixture import MISS_REPORT, PASSING_REPORT
 
@@ -120,6 +120,7 @@ class RegistryTests(unittest.TestCase):
 
 
     def test_parent_registry_must_be_committed(self) -> None:
+        # Also the guard the advisory OSS producer applies to advisory-pnr-recipes.toml.
         import subprocess
         import tempfile
 
@@ -133,17 +134,17 @@ class RegistryTests(unittest.TestCase):
             registry = repo / producer.REGISTRY
             git(repo, "init", "-q")
             with self.assertRaisesRegex(BuildError, "not tracked"):
-                producer.require_clean_registry(module)
+                require_committed_parent_config(module, producer.REGISTRY)
             registry.parent.mkdir()
             registry.write_text("[[recipes]]\n")
             with self.assertRaisesRegex(BuildError, "not tracked"):
-                producer.require_clean_registry(module)
+                require_committed_parent_config(module, producer.REGISTRY)
             git(repo, "add", producer.REGISTRY)
             git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "r")
-            producer.require_clean_registry(module)
+            require_committed_parent_config(module, producer.REGISTRY)
             registry.write_text("[[recipes]]\nseeds = [9]\n")
             with self.assertRaisesRegex(BuildError, "must be committed"):
-                producer.require_clean_registry(module)
+                require_committed_parent_config(module, producer.REGISTRY)
 
 
 class DatabaseTests(unittest.TestCase):
