@@ -114,15 +114,26 @@ python3 "$D/snapshot.py" "http://$API" D25 "$D/out/baseline-before.json" || { fa
 # Install and activate the exact-head managed software before either smoke.
 SOFTWARE_CLI=(go run ./cmd/fes-software --config "$SWAP_HOME/.config/fogcast/config.toml")
 SW_READY=0
+software_status(){
+  local output=$1
+  (cd "$FES_SOURCE/sources/FogCast" && GOFLAGS=-mod=readonly timeout 120 "${SOFTWARE_CLI[@]}" --action status) >"$output" 2>"$D/logs/software-status-poll.log"
+}
 (cd "$FES_SOURCE/sources/FogCast" && GOFLAGS=-mod=readonly timeout 900 "${SOFTWARE_CLI[@]}" --action install --bundle "$SW_BUNDLE") >"$D/out/software-install.json" 2>"$D/logs/software-install.log" || { fail "exact-head kit-software install failed"; echo FAIL > "$D/verdict"; }
 if [ "$(cat "$D/verdict" 2>/dev/null || true)" != FAIL ]; then
   (cd "$FES_SOURCE/sources/FogCast" && GOFLAGS=-mod=readonly timeout 900 "${SOFTWARE_CLI[@]}" --action activate --candidate "$SW_BUNDLE_ID" --requester "lander-hilq-$PR") >"$D/out/software-activate.json" 2>"$D/logs/software-activate.log" || fail "exact-head kit-software activation request failed"
   for attempt in $(seq 1 36); do
     python3 "$D/snapshot.py" "http://$API" D25 "$D/out/candidate-active.json" >/dev/null 2>&1 || true
-    [ "$(jq -r '.host_health.target.software.active_bundle // empty' "$D/out/candidate-active.json" 2>/dev/null)" = "$SW_BUNDLE_ID" ] && break
+    if software_status "$D/out/software-status-candidate.json" && \
+      [ "$(jq -r '.host_health.target.software.active_bundle // empty' "$D/out/candidate-active.json" 2>/dev/null)" = "$SW_BUNDLE_ID" ] && \
+      [ "$(jq -r '.selected // empty' "$D/out/software-status-candidate.json" 2>/dev/null)" = "$SW_BUNDLE_ID" ] && \
+      [ "$(jq -r 'if .pending == null then "clear" else "pending" end' "$D/out/software-status-candidate.json" 2>/dev/null)" = clear ]; then break; fi
     sleep 5
   done
-  if [ "$(jq -r '.host_health.target.software.active_bundle // empty' "$D/out/candidate-active.json" 2>/dev/null)" != "$SW_BUNDLE_ID" ]; then fail "exact-head kit-software did not become active"; echo FAIL > "$D/verdict"; fi
+  if [ "$(jq -r '.host_health.target.software.active_bundle // empty' "$D/out/candidate-active.json" 2>/dev/null)" != "$SW_BUNDLE_ID" ] || \
+    [ "$(jq -r '.selected // empty' "$D/out/software-status-candidate.json" 2>/dev/null)" != "$SW_BUNDLE_ID" ] || \
+    [ "$(jq -r 'if .pending == null then "clear" else "pending" end' "$D/out/software-status-candidate.json" 2>/dev/null)" != clear ]; then
+    fail "exact-head kit-software activation did not settle on the selected bundle"; echo FAIL > "$D/verdict"
+  fi
   /home/deano/lander-hilq/kits/kssh D25 "p=\$(pidof mister-runtime); test -n \"\$p\"; sha256sum /proc/\$p/exe | awk '{print \$1}'" >"$D/out/runtime-active.sha256" 2>"$D/logs/runtime-active.log" || fail "could not read running mister-runtime digest"
   if python3 "$FES_SOURCE/scripts/de25_kit_software.py" verify-runtime --expected "$SW_RUNTIME_SHA" --observed-file "$D/out/runtime-active.sha256" >"$D/out/runtime-manifest-verification.txt"; then
     SW_READY=1
@@ -193,10 +204,17 @@ BASE_SW=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["kit_sw
 (cd "$FES_SOURCE/sources/FogCast" && GOFLAGS=-mod=readonly timeout 900 "${SOFTWARE_CLI[@]}" --action activate --candidate "$BASE_SW" --requester "lander-hilq-$PR-restore") >"$D/out/software-restore.json" 2>"$D/logs/software-restore.log" || fail "recorded baseline software reactivation failed"
 for attempt in $(seq 1 36); do
   python3 "$D/snapshot.py" "http://$API" D25 "$D/out/baseline-after.json" >/dev/null 2>&1 || true
-  [ "$(jq -r '.host_health.target.software.active_bundle // empty' "$D/out/baseline-after.json" 2>/dev/null)" = "$BASE_SW" ] && break
+  if software_status "$D/out/software-status-baseline-restore.json" && \
+    [ "$(jq -r '.host_health.target.software.active_bundle // empty' "$D/out/baseline-after.json" 2>/dev/null)" = "$BASE_SW" ] && \
+    [ "$(jq -r '.selected // empty' "$D/out/software-status-baseline-restore.json" 2>/dev/null)" = "$BASE_SW" ] && \
+    [ "$(jq -r 'if .pending == null then "clear" else "pending" end' "$D/out/software-status-baseline-restore.json" 2>/dev/null)" = clear ]; then break; fi
   sleep 5
 done
-if [ "$(jq -r '.host_health.target.software.active_bundle // empty' "$D/out/baseline-after.json" 2>/dev/null)" != "$BASE_SW" ]; then fail "baseline software bundle was not restored"; fi
+if [ "$(jq -r '.host_health.target.software.active_bundle // empty' "$D/out/baseline-after.json" 2>/dev/null)" != "$BASE_SW" ] || \
+  [ "$(jq -r '.selected // empty' "$D/out/software-status-baseline-restore.json" 2>/dev/null)" != "$BASE_SW" ] || \
+  [ "$(jq -r 'if .pending == null then "clear" else "pending" end' "$D/out/software-status-baseline-restore.json" 2>/dev/null)" != clear ]; then
+  fail "baseline software activation did not settle on the recorded bundle"
+fi
 python3 "$D/snapshot.py" "http://$API" D25 "$D/out/baseline-after.json" || fail "after snapshot failed"
 RESTORE_TOOL="$FES_SOURCE/scripts/de25_restore.py"
 [ -f "$RESTORE_TOOL" ] || RESTORE_TOOL="$ROOT/wt/scripts/de25_restore.py"
