@@ -37,6 +37,16 @@ Error DecodeMediaData(const std::vector<unsigned char>&, const MediaDataIdentity
 // absent, with leftover private save, probe and chunk temporaries removed
 // under its lock. The caller owns the descriptor.
 Error OpenMediaDataNamespace(const std::string& root, const MediaDataIdentity&, int* directory);
+// The saved record of an identity, read without creating its namespace or
+// binding it. state is absent, present or corrupt; revision is the digest of
+// the record file as it stands, or absent.
+Error InspectMediaData(const std::string& root, const MediaDataIdentity&, MediaDataInspection*);
+// Removes an identity's saved record when its file still has
+// expected_revision, then its namespace when that leaves it empty. The next
+// start of that identity reads the immutable source again. The caller must
+// not hold the identity bound: a bound disk would be saved straight back.
+Error DiscardMediaData(const std::string& root, const MediaDataIdentity&,
+	const std::string& expected_revision, MediaDataInspection*);
 // Separate immutable-source disk namespace; neither package versions nor
 // video/firmware selection name it. Open takes the namespace lock and
 // removes leftover private save and probe files. Read reopens the complete

@@ -6,6 +6,7 @@
 #include <iterator>
 #include <map>
 #include <cassert>
+#include <cerrno>
 #include <fstream>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -220,4 +221,42 @@ int main()
     assert(!EncodeMediaData(tape,&tape_wire).ok());
     auto odd=tape; odd.bytes.assign(125,0x5a); odd.layout=MediaDataLayout::zx81_tape;
     assert(EncodeMediaData(odd,&tape_wire).ok() && DecodeMediaData(tape_wire,id,&tape_back).ok() && tape_back.bytes==odd.bytes);
+    // Inspect and discard name a record without binding it.
+    {
+        char discard_root[]="/tmp/fes-media-discard-XXXXXX";assert(mkdtemp(discard_root));
+        const std::string ns=std::string(discard_root)+"/"+MediaDataNamespace(id);
+        struct stat seen {};
+        MediaDataInspection state;
+        // Looking at a disk that was never saved creates nothing.
+        assert(InspectMediaData(discard_root,id,&state).ok() && state.state=="absent" && state.revision=="absent" && state.bytes==0);
+        assert(stat(ns.c_str(),&seen)!=0 && errno==ENOENT);
+        assert(DiscardMediaData(discard_root,id,std::string(64,'0'),&state).code==ErrorCode::stale_revision);
+        assert(DiscardMediaData(discard_root,id,"absent",&state).code==ErrorCode::invalid_request);
+        std::unique_ptr<MediaDataFile> file;MediaDiskRecord saved;
+        assert(MediaDataFile::Open(discard_root,id,&file).ok() && file->Persist(record,"absent",&saved).ok());
+        assert(InspectMediaData(discard_root,id,&state).ok() && state.state=="present" && state.revision==saved.revision && state.bytes==encoded.size());
+        // Another game's copy of the same disk is its own record.
+        auto other=id;other.game_id="atari-st-other";
+        assert(InspectMediaData(discard_root,other,&state).ok() && state.state=="absent");
+        assert(DiscardMediaData(discard_root,other,saved.revision,&state).code==ErrorCode::stale_revision);
+        // A stale revision leaves the record alone.
+        assert(DiscardMediaData(discard_root,id,std::string(64,'0'),&state).code==ErrorCode::stale_revision);
+        assert(file->Read(&saved).ok() && saved.bytes==record.bytes);
+        file.reset();
+        assert(DiscardMediaData(discard_root,id,saved.revision,&state).ok() && state.state=="absent" && state.revision=="absent");
+        assert(stat(ns.c_str(),&seen)!=0 && errno==ENOENT);
+        // The next start of that disk reads its immutable source again.
+        assert(MediaDataFile::Open(discard_root,id,&file).ok() && file->Read(&saved).ok() && saved.revision=="absent" && saved.bytes.empty());
+        // A record that fails its checks is named by its file and can go.
+        { std::ofstream corrupt(ns+"/record.bin",std::ios::binary|std::ios::trunc); corrupt << "bad"; }
+        assert(file->Read(&saved).code==ErrorCode::corrupt_data);
+        assert(InspectMediaData(discard_root,id,&state).ok() && state.state=="corrupt" && state.revision.size()==64 && state.bytes==3);
+        const std::string corrupt_revision=state.revision;
+        // A leftover file keeps the namespace; only the record goes.
+        { std::ofstream keep(ns+"/chunk-keep"); keep << "x"; }
+        assert(DiscardMediaData(discard_root,id,corrupt_revision,&state).ok() && state.state=="absent");
+        assert(stat((ns+"/record.bin").c_str(),&seen)!=0 && errno==ENOENT && stat(ns.c_str(),&seen)==0);
+        file.reset();
+        assert(unlink((ns+"/chunk-keep").c_str())==0 && rmdir(ns.c_str())==0 && rmdir(discard_root)==0);
+    }
 }

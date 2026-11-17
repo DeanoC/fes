@@ -245,7 +245,9 @@ Error MediaDataFile::Open(
 		output->reset(new MediaDataFile(directory, id));
 	return error;
 }
-Error OpenMediaDataNamespace(const std::string& root, const MediaDataIdentity& id, int* output)
+namespace {
+// Walks an absolute root one no-follow component at a time.
+Error OpenMediaDataRoot(const std::string& root, const MediaDataIdentity& id, int* output)
 {
 	if (!output || !ValidMediaDataIdentity(id) || root.empty() || root[0] != '/' || root.size() > 4095 ||
 		root.find('\0') != std::string::npos)
@@ -269,6 +271,136 @@ Error OpenMediaDataNamespace(const std::string& root, const MediaDataIdentity& i
 		parent.value = next;
 		at = end + 1;
 	}
+	*output = parent.value;
+	parent.value = -1;
+	return {};
+}
+// Reads the whole record file. *present is false when there is none.
+Error ReadRecordFile(int directory, std::vector<unsigned char>* bytes, bool* present)
+{
+	*present = false;
+	FD file(openat(directory, "record.bin", O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK));
+	if (file.value < 0)
+		return errno == ENOENT ? Error{} : Io("cannot open media-data record");
+	struct stat st {};
+	if (fstat(file.value, &st) != 0)
+		return Io("cannot inspect media-data record");
+	if (!S_ISREG(st.st_mode) || st.st_size < 0 ||
+		static_cast<std::uint64_t>(st.st_size) > kMaximumMediaDataBytes)
+		return Bad("invalid media-data record file");
+	bytes->assign(static_cast<std::size_t>(st.st_size), 0);
+	std::size_t read_bytes = 0;
+	while (read_bytes < bytes->size()) {
+		ssize_t count = read(file.value, bytes->data() + read_bytes, bytes->size() - read_bytes);
+		if (count < 0 && errno == EINTR)
+			continue;
+		if (count <= 0)
+			return Bad("truncated media-data record");
+		read_bytes += count;
+	}
+	*present = true;
+	return {};
+}
+// The record's state under a held namespace lock. A record that fails its
+// checks is reported as corrupt with the digest of the file as it stands, so
+// it can still be named and discarded.
+Error InspectLocked(int directory, const MediaDataIdentity& id, MediaDataInspection* output)
+{
+	std::vector<unsigned char> bytes;
+	bool present = false;
+	Error error = ReadRecordFile(directory, &bytes, &present);
+	if (!error.ok() && error.code != ErrorCode::corrupt_data)
+		return error;
+	MediaDataInspection result;
+	if (error.ok() && !present) {
+		*output = result;
+		return {};
+	}
+	result.bytes = bytes.size();
+	result.revision = Sha256Hex(Hash(bytes.data(), bytes.size()));
+	MediaDiskRecord record;
+	result.state = error.ok() && DecodeMediaData(bytes, id, &record).ok() ? "present" : "corrupt";
+	*output = result;
+	return {};
+}
+// Opens an identity's namespace without creating it. *directory is -1 when
+// the namespace does not exist.
+Error OpenExistingNamespace(const std::string& root, const MediaDataIdentity& id, int* parent, int* directory)
+{
+	*parent = *directory = -1;
+	Error error = OpenMediaDataRoot(root, id, parent);
+	if (!error.ok())
+		return error;
+	const std::string name = MediaDataNamespace(id);
+	*directory = openat(*parent, name.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+	if (*directory < 0 && errno != ENOENT) {
+		close(*parent);
+		*parent = -1;
+		return Io("cannot open media-data namespace");
+	}
+	return {};
+}
+} // namespace
+Error InspectMediaData(const std::string& root, const MediaDataIdentity& id, MediaDataInspection* output)
+{
+	if (!output)
+		return Bad("missing media-data output");
+	int parent_fd = -1, directory_fd = -1;
+	Error error = OpenExistingNamespace(root, id, &parent_fd, &directory_fd);
+	if (!error.ok())
+		return error;
+	FD parent(parent_fd), directory(directory_fd);
+	if (directory.value < 0) {
+		*output = MediaDataInspection{};
+		return {};
+	}
+	Lock lock(directory.value, LOCK_SH);
+	if (!lock.ok())
+		return Io("cannot lock media-data namespace");
+	return InspectLocked(directory.value, id, output);
+}
+Error DiscardMediaData(const std::string& root, const MediaDataIdentity& id,
+	const std::string& expected_revision, MediaDataInspection* output)
+{
+	if (!output || !Digest(expected_revision))
+		return {ErrorCode::invalid_request, "invalid media-data revision", "media_data"};
+	int parent_fd = -1, directory_fd = -1;
+	Error error = OpenExistingNamespace(root, id, &parent_fd, &directory_fd);
+	if (!error.ok())
+		return error;
+	FD parent(parent_fd), directory(directory_fd);
+	if (directory.value < 0)
+		return {ErrorCode::stale_revision, "media-data revision changed", "media_data"};
+	{
+		Lock lock(directory.value, LOCK_EX);
+		if (!lock.ok())
+			return Io("cannot lock media-data namespace");
+		MediaDataInspection current;
+		error = InspectLocked(directory.value, id, &current);
+		if (!error.ok())
+			return error;
+		if (current.revision != expected_revision)
+			return {ErrorCode::stale_revision, "media-data revision changed", "media_data"};
+		if (unlinkat(directory.value, "record.bin", 0) != 0)
+			return Io("cannot remove media-data record");
+		if (fsync(directory.value) != 0)
+			return Io("media-data record removed; durability is uncertain; retry required");
+	}
+	// An emptied namespace is removed so a deleted disk leaves nothing behind.
+	// Anything else in it, or a racing open, keeps the directory.
+	const std::string name = MediaDataNamespace(id);
+	if (unlinkat(parent.value, name.c_str(), AT_REMOVEDIR) == 0 && fsync(parent.value) != 0)
+		return Io("media-data namespace removed; durability is uncertain; retry required");
+	*output = MediaDataInspection{};
+	return {};
+}
+Error OpenMediaDataNamespace(const std::string& root, const MediaDataIdentity& id, int* output)
+{
+	int root_fd = -1;
+	const Error opened_root = OpenMediaDataRoot(root, id, &root_fd);
+	if (!opened_root.ok())
+		return opened_root;
+	FD parent(root_fd);
 	const std::string name = MediaDataNamespace(id);
 	if (mkdirat(parent.value, name.c_str(), 0700) != 0 && errno != EEXIST)
 		return Io("cannot create media-data namespace");

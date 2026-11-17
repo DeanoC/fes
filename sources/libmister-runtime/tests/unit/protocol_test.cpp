@@ -1613,8 +1613,48 @@ void TestDeveloperPartsProtocol() {
  assert(native_encoded.find("\"layout\":\"fes.coleco-native-video.parts/1\"")!=std::string::npos);
 }
 
+// inspect_media_data and discard_media_data name one saved record.
+void TestMediaDataRecordProtocol()
+{
+	const std::string base(64, 'a'), revision(64, 'b');
+	const std::string identity = "\"data_root\":\"/data/media\",\"core_id\":\"fes.atari-st\","
+		"\"game_id\":\"atari-st-desktop\",\"base_media_id\":\"" + base + "\",\"unit\":0";
+	Request request;
+	assert(Parse("{\"protocol\":2,\"operation\":\"inspect_media_data\"," + identity + "}", &request).ok());
+	assert(request.operation == Operation::inspect_media_data && request.media_query.data_root == "/data/media" &&
+		request.media_query.core_id == "fes.atari-st" && request.media_query.game_id == "atari-st-desktop" &&
+		request.media_query.base_media_id == base && request.media_query.unit == 0);
+	assert(Parse("{\"protocol\":2,\"operation\":\"discard_media_data\"," + identity +
+		",\"expected_revision\":\"" + revision + "\"}", &request).ok());
+	assert(request.operation == Operation::discard_media_data && request.expected_revision == revision);
+	// Inspect takes no revision; discard needs a real one.
+	assert(!Parse("{\"protocol\":2,\"operation\":\"inspect_media_data\"," + identity +
+		",\"expected_revision\":\"" + revision + "\"}", &request).ok());
+	assert(!Parse("{\"protocol\":2,\"operation\":\"discard_media_data\"," + identity + "}", &request).ok());
+	assert(!Parse("{\"protocol\":2,\"operation\":\"discard_media_data\"," + identity +
+		",\"expected_revision\":\"absent\"}", &request).ok());
+	for (const std::string& bad : std::vector<std::string>{
+			"\"data_root\":\"data\",\"core_id\":\"fes.atari-st\",\"game_id\":\"g\",\"base_media_id\":\"" + base + "\",\"unit\":0",
+			"\"data_root\":\"/d\",\"core_id\":\"Fes\",\"game_id\":\"g\",\"base_media_id\":\"" + base + "\",\"unit\":0",
+			"\"data_root\":\"/d\",\"core_id\":\"fes.atari-st\",\"game_id\":\"-g\",\"base_media_id\":\"" + base + "\",\"unit\":0",
+			"\"data_root\":\"/d\",\"core_id\":\"fes.atari-st\",\"game_id\":\"g\",\"base_media_id\":\"abc\",\"unit\":0",
+			"\"data_root\":\"/d\",\"core_id\":\"fes.atari-st\",\"game_id\":\"g\",\"base_media_id\":\"" + base + "\",\"unit\":1",
+			"\"data_root\":\"/d\",\"core_id\":\"fes.atari-st\",\"game_id\":\"g\",\"base_media_id\":\"" + base + "\""})
+		assert(!Parse("{\"protocol\":2,\"operation\":\"inspect_media_data\"," + bad + "}", &request).ok());
+	mister::MediaDataInspection state;
+	const std::string absent = mister::daemon::EncodeResponse(2, true, Status{}, "fixture", nullptr, nullptr, nullptr, &state);
+	assert(absent.find(",\"media_data\":{\"state\":\"absent\",\"revision\":\"absent\",\"bytes\":0}}") != std::string::npos);
+	state.state = "present";
+	state.revision = revision;
+	state.bytes = 737453;
+	const std::string present = mister::daemon::EncodeResponse(2, true, Status{}, "fixture", nullptr, nullptr, nullptr, &state);
+	assert(present.find(",\"media_data\":{\"state\":\"present\",\"revision\":\"" + revision + "\",\"bytes\":737453}}") != std::string::npos);
+	assert(mister::daemon::EncodeResponse(2, true, Status{}, "fixture").find("media_data") == std::string::npos);
+}
+
 int main(int argc, char** argv)
 {
+ TestMediaDataRecordProtocol();
  TestDeveloperPartsProtocol();
  TestLibraryDiskProtocol();
  TestSessionDisplayRequestAndBoundStatus();

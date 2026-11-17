@@ -322,6 +322,35 @@ void TestFailedStartRequiresReboot()
 }
 
 
+// A saved disk can be looked at whenever the runtime is settled, but only an
+// idle runtime may discard one: a running core may hold it bound and would
+// save it straight back at Stop.
+void TestMediaDataDiscardNeedsAnIdleRuntime()
+{
+	Fixture f;
+	Start(f);
+	mister::MediaDataQuery query;
+	query.data_root = "/data/media";
+	query.core_id = "fes.atari-st";
+	query.game_id = "atari-st-desktop";
+	query.base_media_id = std::string(64, 'a');
+	const std::string revision(64, 'b');
+	mister::MediaDataInspection state;
+	// Idle requests reach the hardware, which this fixture does not provide.
+	assert(f.runtime.InspectMediaData(query, &state).code == ErrorCode::unsupported_interface);
+	assert(f.runtime.DiscardMediaData(query, revision, &state).code == ErrorCode::unsupported_interface);
+	assert(f.runtime.DiscardMediaData(query, "absent", &state).code == ErrorCode::invalid_request);
+	auto relative = query;
+	relative.data_root = "data/media";
+	assert(f.runtime.InspectMediaData(relative, &state).code == ErrorCode::invalid_request);
+	assert(f.runtime.LoadCore("/packages/custom", std::string(64, 'a')).ok());
+	assert(f.runtime.status().state == State::running_development);
+	assert(f.runtime.InspectMediaData(query, &state).code == ErrorCode::unsupported_interface);
+	const auto refused = f.runtime.DiscardMediaData(query, revision, &state);
+	assert(refused.code == ErrorCode::busy && refused.message == "stop the running core before discarding saved media");
+	assert(f.runtime.status().state == State::running_development);
+}
+
 void TestControllerSnapshotBindingAndFaultCleanup()
 {
 	Fixture f;
@@ -2182,6 +2211,7 @@ int main()
 	TestComputerMediaUnitsStayLiveAndReportUnitState();
 	TestStaticCompositionRequiresStopAndReportsExactSelection();
 	TestCompositionUsesExistingLifecycle();
+	TestMediaDataDiscardNeedsAnIdleRuntime();
 	TestControllerSnapshotBindingAndFaultCleanup();
 	TestStreamBindingCapacityOwnershipAndStop();
 	TestLiveMediaGenerationBindingAndBusy();

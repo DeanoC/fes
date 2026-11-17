@@ -764,6 +764,17 @@ Error NativeHardware::InspectCoreData(const std::string& path, const std::string
 		error = PrepareCoreDataInternal(admitted.get(), root, game_id, output, false);
 	return error;
 }
+Error NativeHardware::InspectMediaData(const MediaDataQuery& query, MediaDataInspection* output)
+{
+	return native::InspectMediaData(query.data_root,
+		MediaDataIdentity{query.core_id, query.game_id, query.base_media_id, query.unit}, output);
+}
+Error NativeHardware::DiscardMediaData(const MediaDataQuery& query, const std::string& revision,
+	MediaDataInspection* output)
+{
+	return native::DiscardMediaData(query.data_root,
+		MediaDataIdentity{query.core_id, query.game_id, query.base_media_id, query.unit}, revision, output);
+}
 Error NativeHardware::UpdateCoreSettings(const std::string& path, const std::string& id,
 	const std::string& root, const std::string& game_id, const std::string& revision,
 	const CoreSettingsUpdate& update, CoreData* output)

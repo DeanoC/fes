@@ -129,6 +129,8 @@ public:
 		const std::string&, CoreData*) override;
 	Error UpdateCoreSettings(const std::string&, const std::string&, const std::string&,
 		const std::string&, const std::string&, const CoreSettingsUpdate&, CoreData*) override;
+	Error InspectMediaData(const MediaDataQuery&, MediaDataInspection*) override;
+	Error DiscardMediaData(const MediaDataQuery&, const std::string&, MediaDataInspection*) override;
 	Error AttachROMBitstream(AdmittedCorePackage*, const std::string&, const CoreROMLink&) override;
 	Error AttachROMsBitstream(AdmittedCorePackage*, const std::string&, const CoreROMLinks&) override;
 	Error RecheckProgrammedBitstream(AdmittedCorePackage*) override;
