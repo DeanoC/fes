@@ -47,7 +47,7 @@ foreach {label source expected head second} {
 # toggle's second stage shows it, so it is a held bundle like those below.
 foreach {label source head} {
     frame_ready {core|video|ready_toggle} {core|video|ready_meta}
-    frame_shown {core|video|shown_toggle} {core|video|shown_meta}
+    frame_shown {core|video|ready_seen} {core|video|shown_meta}
 } {
     set launches [get_registers "${base}|${source}"]
     set first_d [get_pins -compatibility_mode -nocase "${base}|${head}|d"]

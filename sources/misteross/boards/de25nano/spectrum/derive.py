@@ -53,18 +53,18 @@ def retarget_machine(source):
 # does: a ready bank stands for a whole machine frame, about 20 ms, and a
 # pixel frame end comes within 16.7 ms of the toggle's arrival. That load is
 # decided one pixel clock ahead and registered, so the bank register's only
-# input logic is its enable.
+# input logic is its enable. ready_seen flips with every such load, so it is
+# also the toggle that carries the shown bank back.
 VIDEO_CROSSING = (
     (b'    (* async_reg = "true" *) reg [1:0] shown_meta = 2\'d2;\n'
      b'    (* async_reg = "true" *) reg [1:0] shown_sync = 2\'d2;\n',
-     b"    reg shown_toggle = 1'b0;\n"
      b'    (* async_reg = "true" *) reg shown_meta = 1\'b0;\n'
      b'    (* async_reg = "true" *) reg shown_arrived = 1\'b0;\n'
      b"    reg shown_taken = 1'b0;\n"
      b"    reg [1:0] shown_sync = 2'd2;\n", 1),
     (b"        shown_meta <= shown_bank;\n"
      b"        shown_sync <= shown_meta;\n",
-     b"        shown_meta <= shown_toggle;\n"
+     b"        shown_meta <= ready_seen;\n"
      b"        shown_arrived <= shown_meta;\n"
      b"        shown_taken <= shown_arrived;\n"
      b"        if (shown_arrived != shown_taken) shown_sync <= shown_bank;\n", 1),
@@ -83,7 +83,6 @@ VIDEO_CROSSING = (
      b"        if (frame_take) begin\n"
      b"            ready_seen <= ~ready_seen;\n"
      b"            shown_bank <= ready_bank;\n"
-     b"            shown_toggle <= ~shown_toggle;\n"
      b"        end\n", 1),
     (b"                if (ready_sync[2] != ready_seen) begin\n"
      b"                    ready_seen <= ready_sync[2];\n"
