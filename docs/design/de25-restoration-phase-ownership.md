@@ -39,4 +39,7 @@ of its thousands of live serial observations. Regressions cover replacement of
 the claim, server, cable, configuration, reset nonce, USB and UART, plus ownership
 loss after the single write. These are injected-device checks. Hardware phase
 cost, full restoration completion and the separate native release diagnostic
-still require a fresh bounded physical procedure.
+are recorded in the [bounded physical result](../validation/2026-11-17-de25-restoration-phase-cost/README.md).
+Both complete FIT transactions pass within the unchanged bound; the native
+diagnostic separately fails returned-state guard 34. The exact original FIT is
+restored without a power cycle. This is CBL diagnostic evidence, not normal HIL.

@@ -1,0 +1,49 @@
+{
+  "tested_code": "488f02b222dad8c4e951bce4d0066924159e1b54",
+  "base": "e6e9320cf6f85d13899f4f33e733a507e42d13d7",
+  "status": "passed",
+  "affected_scopes": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "Go command inventory",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    }
+  ],
+  "parent_tests": 2900,
+  "parent_skips": 21,
+  "focused_tests": 90,
+  "model_programming_observations": 9,
+  "model_serial_observations_minimum": 1000,
+  "retained": "/home/deano/fes-retained/de25-restoration-phase-cost-20261117-r1",
+  "hardware_evidence_class": "bounded CBL diagnostic; not normal D25 HIL"
+}
