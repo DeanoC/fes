@@ -74,15 +74,12 @@ timing review, no reviewed input/output reference and no package identity.
 
 ## Open
 
-- The [first compile](../../../docs/validation/2026-11-17-de25-spectrum-compile/README.md)
-  fits with clean timing, but the producer refuses to package it: seven of
-  the 85 Design Assistant signoff rules fail and none is reviewed. They are
-  the missing SDRAM and I2S pin delays (TMC-20011, TMC-20012), the two
-  toggle bits carried in the `fes_gp_crossing` payload (CDC-50001), the
-  unconstrained frame-bank synchronizers in the video (CDC-50007), the
-  audio hold synchronizer fed from two clocks (CDC-50012), a reset polarity
-  conflict in the tape store (LNT-30023) and the shell's reviewed RDC-50003.
-  The stock audio-clock review also expects the PLL this machine replaces.
+- The 48K model [passes signoff and packages](../../../docs/validation/2026-11-18-de25-machine-signoff/README.md);
+  the 128K model has not been through the producer. The package is a
+  candidate with no hardware acceptance, and its audio-clock review uses the
+  new `de25-machine-pll-audio-clocks-v1` policy, which is unreviewed.
+- The frame-bank load at frame end assumes a machine frame (about 20 ms) is
+  longer than a pixel frame (16.7 ms).
 - SDRAM pad timing at the machine clock. The controller was qualified on the
   board at 50 MHz; the half-period sample is 4% shorter here.
 - Disk models, snapshots through the tape unit on hardware, and the edge

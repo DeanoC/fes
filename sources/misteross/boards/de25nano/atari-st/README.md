@@ -64,19 +64,17 @@ memory master, PLLs, SDRAM pad timing and HDMI are not modeled.
 
 ## Open
 
-- The producer refuses to package the
-  [compile that meets timing](../../../docs/validation/2026-11-17-de25-atari-st-compile/README.md):
-  eleven of the 85 Design Assistant signoff rules fail. Beside the
-  Spectrum's pin-delay, audio-hold and reset-polarity findings, the video
-  crossings are reported as 251 unsynchronized and 154 under-constrained
-  one-bit transfers (CDC-50001, CDC-50002), and five `set_net_delay`
-  assignments in `atari-st-clocks.sdc` are invalid (TMC-20023).
+- The producer refuses the package on one unreviewed signoff finding,
+  TMC-20602 (Low) on the machine reset and the 68000's `oReset`
+  ([record](../../../docs/validation/2026-11-18-de25-machine-signoff/README.md)).
+  Timing and every other rule pass.
 - ROM read timing against the DE10 machine. `st_rom` answered in five clocks;
   the SDRAM port answers in the CPU's slot. The diagnostic firmware runs, but
   no cycle-exact comparison or stock TOS boot has been made.
 - SDRAM on the board. The chips are mobile SDRAM: the ramtest controller
   programs their extended mode register and this controller does not. Pad
-  timing at the machine clock, with a fabric rising-edge sample, is unproven.
+  timing at the machine clock meets the datasheet delays in analysis, with a
+  falling-edge sample, and is unproven on the board.
 - A stock TOS or EmuTOS boot in simulation and on hardware, mono and medium
   resolution through the session display, and the picture rectangle the
   plane reports (the whole raster for now).
