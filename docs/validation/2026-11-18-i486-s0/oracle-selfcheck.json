@@ -995,21 +995,21 @@
     }
   ],
   "cases_sha256": "563043ee5f32e6ead19c813d47e1bdaf985479b9d8b3041aed2911dd721ea8b6",
-  "commit": "e9d9d8a2ff0984d6a16a6fd392ff539ee6317308",
+  "commit": "7e813da4656adbf048d079bd9aa110f53fc52ebd",
   "oracle": {
     "adapter_sha256": "8476a65df29382fdfdb5b8ce342495f3491fd2c7e5c5df40018d3a3d68bb21e3",
     "cpu_level": 4,
     "level3_provisioner_sha256": "0d47ce9792ca29ae172335f6f11e6c5dcfa73fbf34b76c89e04d072528f454cd",
     "linked_sha256": {
       "adapter": "0331d57ed896ba6b74dc21e91a9f2ab80880266c0cae1c12a403c9a2abcd28b2",
-      "cpu": "1d1b4e784dc4857fb5c741bd994a438e86bbe0000140c4de295deae1b16bbba0",
-      "cpudb": "125b607feb40b485667c37ef3ed045907d4cb3ad193aea843eb2f2707a40b6d0",
-      "fpu": "5e98788105b4bfb95eb38ecca0d6886376dc6f2c58b87fe98e88054fc4210d70",
+      "cpu": "521696773fc345c4a5e88d746721ec74e6c6376f5132c257cad2f20f72498d9f",
+      "cpudb": "8ff67d9c37bfbb1bf84ba33f88fb632cb3acaf02dd40c6c1fa1302512497aae4",
+      "fpu": "fdba8abcbed313ec15815bae0975b46fd09bbbdf7d21b5987e313c99be5f765f",
       "paramtree": "6b8ba5842ba2bfe611cc7268c331fff50214859a164c95895d966de277893e44",
-      "softfloat": "aeecafdd2eb044ad93f0cb1832ea7251886f1cc2a2caa27751e5cad3cb23ee7c"
+      "softfloat": "7f2004380f0089a800da35c796c5c523f3984eef7116697056362d28ffefe66b"
     },
-    "patch_sha256": "555888f73318761fa3f6ab333d7d7326c7a5eb723927cfbe81c3ff8db51c5922",
-    "provisioner_sha256": "77d98a335ba7a239c109f26129df8492965f135a7c7cefc76196070a5f4c7b4c",
+    "opcode_table_sha256": "16d2719ba433c51858ba0f1602c41a9b2f56e89dc35a133a235b87fe2948db09",
+    "provisioner_sha256": "203fece878fb7494cc95e069b97a340b361ffcb6e248b7e2aeeaf989e5380ea1",
     "revision": "30cfd566ecc8deb33e56e801e32b444a7041b6d2"
   },
   "reset": [
