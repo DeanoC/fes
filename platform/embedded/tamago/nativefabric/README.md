@@ -1,13 +1,14 @@
 # Native contained-fabric endpoint
 
-The [final input proof repair](../../../../docs/validation/2026-11-18-de25-final-input-proof/README.md) now reproduces source-clock
-expiry through production finish/retirement callbacks under synthetic costs.
-It retains the original ownership checks and all table comparisons, with
-full barriers around each existing 256-byte read block. First-rejection
-clock diagnostics distinguish all seven guard-31 members without new
-observations. Software, target ordering/layout and matched file admission
-pass. The image is unprogrammed; the historical physical member and full
-repeated-cycle acceptance remain open.
+The [final-validation cost repair](../../../../docs/validation/2026-11-18-de25-final-validation-cost/README.md) profiles actual cold/USB
+containment through production final-proof callbacks. Sharing each reset
+read's completion barrier with its controller observation removes 31,104
+modeled final-path barriers while preserving every ownership check and
+device read. All 11 affected scopes, target ordering/layout and fresh
+matched file admission pass. Deadlines and clock origins are unchanged.
+The [previous physical trial](../../../../docs/validation/2026-11-18-de25-guard31-physical/README.md) identifies reason-7 source
+expiry at 20,576,301 us. That failure remains failed; the new image is
+unprogrammed and complete repeated-cycle qualification remains open.
 
 The [private comparison repair](../../../../docs/validation/2026-11-18-de25-warm-preparation-comparison/README.md) now reproduces the second warm
 preparation boundary through production callbacks under synthetic costs and

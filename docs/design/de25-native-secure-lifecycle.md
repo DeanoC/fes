@@ -1,5 +1,14 @@
 # DE25 native secure lifecycle investigation
 
+The [final-validation cost repair](../validation/2026-11-18-de25-final-validation-cost/README.md)
+profiles production cold/USB ownership callbacks and removes 31,104 duplicate
+final-path ordering barriers by sharing a reset-read completion boundary.
+Every device read, ownership/integrity predicate and clock origin/deadline
+remains. All affected checks, target ordering/layout and a fresh matched
+file-admitted chain pass. The new image is unprogrammed; these work counts
+are not hardware latency measurements. The following physical failure
+remains the latest kit result.
+
 The [latest bounded hardware diagnostic](../validation/2026-11-18-de25-guard31-physical/README.md)
 identifies guard 31 as reason 7: the original 20-second source deadline expires
 at 20,576,301 us after full next-MENU configuration, before final proof and
