@@ -7,6 +7,7 @@
   suite     the level-4 runner's report: self-check and RTL stops (rules 3, 4)
   boot      the level-4 FreeDOS boot's report (rule 5)
   census    the level-4 census rows, and their comparison with the plan's
+  cachechk  CACHECHK at both levels, with the faulting step of each trace (rule 6)
   summary   summary.md from the files the others wrote
 
 Each command reads files the runs wrote and writes one file beside this
@@ -386,6 +387,68 @@ def census(args) -> int:
     return 0 if out['pass'] else 1
 
 
+# ---- rule 6 ----------------------------------------------------------------
+
+def trace_fault(path: Path) -> dict:
+    """The faulting step of a scratch DE trace (see the summary's notes): numbers only."""
+    rows = [line.split() for line in path.read_text().splitlines() if line.startswith('DE ')]
+    last = rows[-1]
+    fields = dict(word.split('=') for word in last[3:])
+    code = bytes.fromhex(last[2])
+    # F7 /6 with a register operand is DIV r16; the register number is ModRM's low three bits.
+    register = ('ax', 'cx', 'dx', 'bx', 'sp', 'bp', 'si', 'di')[code[1] & 7]
+    is_div16 = code[0] == 0xf7 and code[1] >> 3 == 0b11110
+    values = {name: int(fields['e' + name], 16) & 0xffff for name in ('ax', 'cx', 'dx', 'bx', 'si', 'di')}
+    return {'steps_in_trace': len(rows), 'site': last[1], 'seconds': float(fields['t']),
+            'instruction': f'DIV {register.upper()}' if is_div16 else 'not a 16-bit register DIV',
+            'dividend_dx_ax': f"{values['dx']:04x}:{values['ax']:04x}",
+            'divisor': f'{values[register]:04x}' if register in values else None,
+            'divide_by_zero': is_div16 and values.get(register) == 0}
+
+
+def cachechk(args) -> int:
+    out = {'commit': git('rev-parse', args.commit), 'host': args.host, 'levels': {}}
+    for level in (3, 4):
+        report = json.loads((args.directory / f'report-l{level}.json').read_text())
+        screen = report.get('screen', [])
+        clock = next((re.search(r'([0-9.]+) MHz', row).group(1) for row in screen if 'MHz' in row), None)
+        out['levels'][str(level)] = {
+            'end': report.get('end'), 'divide_error_printed': any('Divide error' in row for row in screen),
+            'clock_mhz_printed': clock, 'trace': trace_fault(args.directory / f'de-l{level}.txt')}
+    three, four = out['levels']['3'], out['levels']['4']
+    same_site = three['trace']['site'] == four['trace']['site']
+    both = three['divide_error_printed'] and four['divide_error_printed']
+    out['same_fault_site'] = same_site
+    explained = both and same_site and three['trace']['divide_by_zero'] and four['trace']['divide_by_zero']
+    out['result'] = 'explained' if explained else 'still open'
+    out['one_line'] = ('It is not a level-4 behaviour: the level-3 oracle prints it too, at the same instruction, '
+                       'a division by zero in the program\'s own arithmetic after it measures an impossible clock.'
+                       if explained else 'The two levels did not show the same fault; see below.')
+    findings = []
+    for level, row in (('3', three), ('4', four)):
+        trace = row['trace']
+        findings.append(
+            f"Level {level}: the run ends at `{row['end']['reason']}` after {row['end']['seconds']} simulated seconds and "
+            f"{row['end']['steps']:,} steps; \"Divide error\" on the screen: {'yes' if row['divide_error_printed'] else 'no'}; "
+            f"the clock it prints: {row['clock_mhz_printed']} MHz. Exception 0 is raised at `{trace['site']}` at "
+            f"{trace['seconds']} s by `{trace['instruction']}` with DX:AX {trace['dividend_dx_ax']} and divisor "
+            f"{trace['divisor']}: {'a division by zero' if trace['divide_by_zero'] else 'not a division by zero'}.")
+    findings.append(f"The fault site is the same at both levels: {'yes' if same_site else 'no'}.")
+    findings.append('What was measured: the control, the faulting instruction and its operands at each level, from '
+                    'a scratch trace of the last 3,000 oracle steps before the first exception 0. The divisor is '
+                    'the low word of a 32-bit value the program\'s own scaling routine had just shifted left; the '
+                    'trace window (about 0.1 ms) does not reach back to the timing loop that produced the value.')
+    findings.append('What that supports: the oracle has no CPU speed (every instruction takes the same machine '
+                    'time), so the program\'s timing gives a clock no CPU has, at either level, and its arithmetic '
+                    'then divides by zero. The committed kit runs of CACHECHK on the RTL, which has a speed, print '
+                    'its table. What was not measured: which timing loop, and why the two levels print different '
+                    'clocks.')
+    out['findings'] = findings
+    write('cachechk.json', out)
+    print(out['result'], same_site)
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest='command', required=True)
@@ -404,13 +467,18 @@ def main() -> int:
     sub.add_argument('--commit', required=True, help='the commit the sweep ran at')
     sub.add_argument('--host', required=True)
     sub.add_argument('--plan', default='origin/deano/i486-plan-50e04f')
+    sub = commands.add_parser('cachechk')
+    sub.add_argument('--directory', type=Path, required=True, help='report-l3.json, report-l4.json, de-l3.txt, de-l4.txt')
+    sub.add_argument('--commit', required=True)
+    sub.add_argument('--host', required=True)
     commands.add_parser('summary')
     args = parser.parse_args()
     if args.command == 'summary':
         from summary_text import render
         (HERE / 'summary.md').write_text(render(read, inputs_changed, git('rev-parse', 'HEAD')))
         return 0
-    return {'identity': identity, 'level3': level3, 'suite': suite, 'boot': boot, 'census': census}[args.command](args)
+    return {'identity': identity, 'level3': level3, 'suite': suite, 'boot': boot, 'census': census,
+            'cachechk': cachechk}[args.command](args)
 
 
 if __name__ == '__main__':
