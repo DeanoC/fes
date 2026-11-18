@@ -99,7 +99,7 @@ What the vendoring is worth, measured rather than asserted, in
 | a vendored summary reformatted after the fact | `SUBSTITUTED`, rc=1 |
 | the same, on a row that also has a design anchor | `SUBSTITUTED`, rc=1 -- an edited seal is not rescued |
 | `source_sha256` dropped from every row | `unpinned` on all eleven, rc=1 |
-| every row pointed back into the deleted scratch | four rows `unverifiable`, rc=1 |
+| every row pointed back into the deleted scratch | four rows `unverifiable`, 7 of 11, rc=1 |
 | one vendored summary deleted | `ABSENT`, rc=1 |
 | one artefact's summary filed under another's row, pin updated to match | `WRONG SEAL` on BUILD_ID, rc=1 |
 | `vendor_cond3.py --check` on the edited copy | names the row, rc=1 |
