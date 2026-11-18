@@ -123,6 +123,20 @@ sources/misteross e046d3c23156  config b4bb5aa71451
 route comparisons in use: 541e3c548751 -> this head, df99f2dfb208 -> this head
 ```
 
+And it verifies from nothing but a clone. `reports-preserve/fresh-clone.log`
+is a run inside `git clone --branch <this branch> https://github.com/DeanoC/fes`,
+from a working directory of `/` so that nothing resolves by accident against
+this checkout, with no `/data/fes1861` path in its output at all:
+
+```
+== vendor_cond3.py --check ==   11 of 11 rows verified        rc=0
+== seals_at_head.py ==          11 of 11 seals still match    rc=0
+== check_shas.py ==             every referenced object resolves (21 commit, 13 tree)
+```
+
+That last line resolves because a clone fetches the merged branch too. It is
+the exposure below, not a contradiction of it.
+
 This is a stronger statement than the merged record's, which stopped at the PR
 branch: every one of the eleven seals is still a seal of main's sources, and
 every route-deciding input is still byte-identical, after `#1970` and `#1983`
