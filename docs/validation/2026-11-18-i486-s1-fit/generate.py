@@ -54,6 +54,7 @@ def load_fits() -> dict:
                    'minutes': s['compile_minutes'], 'failure': s['timing_failure']}
         else:
             f = json.loads((path / 'fit.json').read_text())
+            syn = json.loads((path / 'synthesis.json').read_text())
             n = json.loads((path / 'netlist.json').read_text())
             corners = f['timing']['corners']
             fmax = {c['corner']: {k['clock']: float(k['fmax']) for k in c['clocks']} for c in f['timing']['fmax']}
@@ -69,7 +70,8 @@ def load_fits() -> dict:
                    'netlist': n['fitted_netlist']['source_sha256'],
                    'fitted_netlist': n['fitted_netlist']['fitted_sha256'],
                    'commit': n.get('source_revision'), 'packing': f['resources']['packing_difficulty']['value'],
-                   'host': f['host'], 'corners': corners, 'fmax': fmax}
+                   'host': f['host'], 'corners': corners, 'fmax': fmax,
+                   'synthesis': {'alm_estimate': syn['alm_estimate'], 'registers': syn['registers']}}
         if kind == 'hier':
             hier[(board, arm)] = rec
         else:
@@ -162,6 +164,12 @@ def reading_strap(delta, unc, closing_b, closing_c):
     return f'not resolved (under {unc:.0f} ALMs), timing differs'
 
 
+def netlist_flops(arm: str) -> int:
+    """Flip-flop bits in an arm's netlist: Yosys `proc; opt_clean; stat -width` on it (elaboration/stat-width-*.txt)."""
+    rows = re.findall(r'^\s+(\d+)\s+(\$\w+?)_(\d+)\s*$', (HERE / 'elaboration' / f'stat-width-{arm}.txt').read_text(), re.M)
+    return sum(int(count) * int(width) for count, kind, width in rows if 'dff' in kind)
+
+
 def elaborations() -> dict:
     return {path.stem: json.loads(path.read_text()) for path in sorted((HERE / 'elaboration').glob('*.json'))}
 
@@ -237,6 +245,47 @@ def fmt(v):
     return f'{v:,.0f}' if isinstance(v, (int, float)) and float(v).is_integer() else f'{v:,.1f}' if isinstance(v, float) else str(v)
 
 
+def corner_rows(rec: dict, board: str) -> dict:
+    """{corner: {column: worst slack}} for one fit."""
+    out = {}
+    if board == 'de10':
+        for r in rec['corners']:
+            row = out.setdefault(r['corner'], {})
+            cpu = r['clock'].startswith('system_clock|pll|general[0]')
+            for col in ([f'cpu {r["analysis"]}'] if cpu else []) + [f'any {r["analysis"]}']:
+                row[col] = min(row.get(col, 1e9), r['slack_ns'])
+    else:
+        for c in rec['corners']:
+            a = c['analyses']
+            out[c['corner']] = {'cpu setup': a['clk_clock_setup']['worst_slack_ns'],
+                                'cpu hold': a['clk_clock_hold']['worst_slack_ns'],
+                                'any setup': a['setup']['worst_slack_ns'], 'any hold': a['hold']['worst_slack_ns'],
+                                'any recovery': a['recovery']['worst_slack_ns'],
+                                'any removal': a['removal']['worst_slack_ns'],
+                                'fmax': rec['fmax'][c['corner']]['clk_clock']}
+    return out
+
+
+def corner_table(data: dict, board: str) -> list:
+    cols = ['cpu setup', 'cpu hold', 'any setup', 'any hold', 'any recovery', 'any removal'] \
+        + (['fmax'] if board == 'de25' else [])
+    lines = ['| Arm | Corner | ' + ' | '.join(cols) + ' |', '| --- | --- |' + ' ---: |' * len(cols)]
+    for arm in ARMS:
+        per = [corner_rows(r, board) for r in data['fits'][board][arm].values()]
+        for corner in sorted(per[0]):
+            cells = []
+            for col in cols:
+                vals = [p[corner][col] for p in per if col in p.get(corner, {})]
+                if not vals:
+                    cells.append('-')
+                elif col == 'fmax':
+                    cells.append(f'{median(vals):.1f}')
+                else:
+                    cells.append(f'{min(vals):+.3f} / {median(vals):+.3f}')
+            lines.append(f'| {arm} | {corner} | ' + ' | '.join(cells) + ' |')
+    return lines
+
+
 def render(data: dict, res: dict, lockstep: dict) -> str:
     lines = ['# i486 slice 1: generated results', '',
              'Written by `generate.py` from the reports in `fits/`, `elaboration/` and `lockstep/`. Do not edit by hand.', '']
@@ -252,6 +301,12 @@ def render(data: dict, res: dict, lockstep: dict) -> str:
                 lines.append(f"| {arm} | {seed} | {rec['alms']:,} | {100 * rec['alms'] / total:.2f} | {rec['registers']:,} | "
                              f"{rec['ram']} | {rec['dsp']} | {rec['cpu_setup_ns']:+.3f} | {rec['worst_hold_ns']:+.3f} | "
                              f"{'yes' if rec['closes'] else 'no'} |" + (f" {rec['clk_fmax_worst']:.2f} |" if board == 'de25' else ''))
+        lines += ['', '### Timing at every corner', '',
+                  'Worst slack over the four seeds at each corner (min / median of the seeds\' worst), in ns. '
+                  + ('CPU clock: `system_clock|pll|general[0]` at 61.44 MHz; "any clock" is every clock the sealer constrains.'
+                     if board == 'de10' else 'CPU clock: `clk_clock` at 61.44 MHz; Fmax is the CPU clock\'s, median of the seeds.'),
+                  '']
+        lines += corner_table(data, board)
         lines += ['', '### By arm', '', '| Arm | Seeds | Median ALMs | Spread | Seeds closing | Median CPU-clock setup (ns) | Worst CPU-clock setup (ns) |',
                   '| --- | --- | ---: | ---: | ---: | ---: | ---: |']
         for arm, s in r['arms'].items():
@@ -327,15 +382,35 @@ def result_block(res: dict) -> str:
            f"{c10['setup_min']:+.3f} ns. Reading: {d10['timing_reading']}.",
            f"- **The DE25 (Agilex 5 ALMs, a different unit, not held to the band): {fmt(sx25['delta'])} ALMs** between "
            f"medians (uncertainty {fmt(sx25['uncertainty'])}); arm b at {fmt(b25['median'])} "
-           f"({pct(b25['median'], DE25_ALMS)}), {sx25['total_reading']}. Every DE25 fit closes at 61.44 MHz; the "
+           f"({pct(b25['median'], DE25_ALMS)}), {sx25['total_reading']}. Its uncertainty is the seed spread alone "
+           f"(no per-module DE25 fit). Quartus Pro's synthesis, which no seed moves, adds "
+           f"{int(res['synthesis_delta']['de25']['alm_estimate']):+,} estimated ALMs and "
+           f"{int(res['synthesis_delta']['de25']['registers']):+,} registers. Every DE25 fit closes at 61.44 MHz; the "
            f"worst-corner `clk` Fmax medians are {fmax_median(res, 'a'):.1f}, {fmax_median(res, 'b'):.1f} and "
            f"{fmax_median(res, 'c'):.1f} MHz for arms a, b and c; both clock domains were analysed at every "
-           f"corner in {res['de25_coverage']} of {res['de25_fits']} DE25 fits.",
+           f"corner in {res['de25_coverage']} of {res['de25_fits']} DE25 fits. "
+           + (f"Every arm b seed's Fmax is below every arm a seed's, but arm c, the same logic plus the strap, is "
+              f"back near arm a's ({fmax_median(res, 'c'):.1f} against {fmax_median(res, 'a'):.1f} MHz): a placement "
+              f"effect, not the delta's logic depth, by this record's reading."
+              if fmax_separated(res, 'a', 'b') and not fmax_separated(res, 'a', 'c') else
+              "The arms' Fmax ranges overlap or move together; no reading is drawn from them."),
+           f"- **Arm c, the shipped package if the strap is chosen:** {fmt(c10['median'])} ALMs median on the DE10 "
+           f"({pct(c10['median'], DE10_ALMS)}), {against(c10['median'] - a10['median'])} arm a; "
+           f"{fmt(c25['median'])} on the DE25 ({pct(c25['median'], DE25_ALMS)}), "
+           f"{against(c25['median'] - a25['median'])} arm a.",
            f"- **The strap over the build parameter (arm c minus arm b): {fmt(st10['delta'])} ALMs on the DE10** "
            f"(uncertainty {fmt(st10['uncertainty'])}) **and {fmt(st25['delta'])} on the DE25** (uncertainty "
            f"{fmt(st25['uncertainty'])}). DE10 reading: **{st10['reading']}**. DE25 reading: {st25['reading']}. "
            f"On the DE10, arm c's synthesis has {int(res['synthesis_delta_strap']['registers']):+,} register and "
-           f"{int(res['synthesis_delta_strap']['aluts']):+,} ALUTs over arm b: the strap's latch and its gating.",
+           f"{int(res['synthesis_delta_strap']['aluts']):+,} ALUTs over arm b: the strap's latch and its gating; on "
+           f"the DE25, {int(res['synthesis_delta_strap_de25']['registers']):+,} registers and "
+           f"{int(res['synthesis_delta_strap_de25']['alm_estimate']):+,} estimated ALMs.",
+           f"- **The 486 state is in the fits.** Arm b's netlist has {res['netlist_flops']['b'] - res['netlist_flops']['a']:+,} "
+           f"flip-flop bits over arm a's (TR3's 32, CR0's five new bits, and AC and ID in each EFLAGS copy) and arm "
+           f"c's {res['netlist_flops']['c'] - res['netlist_flops']['b']:+,} over arm b's; Quartus's synthesis keeps "
+           f"{int(res['synthesis_delta']['de10']['registers']):+,} registers of arm b's on the DE10 and "
+           f"{int(res['synthesis_delta']['de25']['registers']):+,} on the DE25. Which individual bits it kept was not "
+           f"checked.",
            f"- **Lockstep:** with the identity on, {on['agree']} of {on['cases']} directed cases agree with the level-4 "
            f"oracle (the 386 agrees on {off['agree']}); the {len(on['stops'])} that stop are the ones `method.md` "
            f"names as stops by design. With the identity off, the stops "
@@ -352,6 +427,14 @@ def b10_syn(res: dict, key: str) -> int:
     return res['synthesis_delta']['de10'][key]
 
 
+def against(d) -> str:
+    return f"{fmt(abs(d))} {'over' if d >= 0 else 'under'}"
+
+
+def fmax_separated(res: dict, x: str, y: str) -> bool:
+    return max(res['boards']['de25']['fmax_seeds'][y]) < min(res['boards']['de25']['fmax_seeds'][x])
+
+
 def fmax_median(res: dict, arm: str) -> float:
     return res['boards']['de25']['fmax_median'][arm]
 
@@ -366,8 +449,11 @@ def recommendation(res: dict) -> str:
         return (measured + ' The strap costs nothing this spike can measure over the build parameter, so a runtime '
                 'strap is affordable on area and timing. What it costs instead is outside the fit: a record bit, '
                 'the ABI and FogCast fields, and lockstep, test386 and kit runs of both identities on one netlist. '
-                'The spike recommends the strap if per-title identity selection is wanted; otherwise the build '
-                'parameter alone is the smaller change.')
+                'One more difference is not area: with a strap the 486 logic is in the package every 386 title runs, '
+                'so that package\'s seal and kit runs move with the strap\'s first merge, where a build parameter left '
+                'at 0 leaves the 386 package\'s logic as it is (the tracker\'s rule that the identity defaults off '
+                'holds either way). The spike recommends the strap if per-title identity selection is wanted; '
+                'otherwise the build parameter alone is the smaller change.')
     if reading.startswith('resolved, at most'):
         return (measured + ' The strap has a small, measured area cost and no timing cost the spike resolves. The '
                 'spike recommends it if per-title identity selection is wanted.')
@@ -393,15 +479,23 @@ def main() -> int:
     res = analyse(data)
     lockstep = lockstep_summary() if (HERE / 'lockstep').is_dir() else {}
     res['lockstep'] = lockstep
-    res['synthesis_delta'] = {'de10': {key: median([r['synthesis'][key] for r in data['fits']['de10']['b'].values()])
-                                            - median([r['synthesis'][key] for r in data['fits']['de10']['a'].values()])
-                                            for key in ('aluts', 'registers', 'alm_estimate')}}
-    res['synthesis_delta_strap'] = {key: median([r['synthesis'][key] for r in data['fits']['de10']['c'].values()])
-                                     - median([r['synthesis'][key] for r in data['fits']['de10']['b'].values()])
-                                     for key in ('aluts', 'registers', 'alm_estimate')}
+    def syn_delta(board, x, y, keys):
+        return {key: median([r['synthesis'][key] for r in data['fits'][board][y].values()])
+                - median([r['synthesis'][key] for r in data['fits'][board][x].values()]) for key in keys}
+    res['synthesis_delta'] = {'de10': syn_delta('de10', 'a', 'b', ('aluts', 'registers', 'alm_estimate')),
+                              'de25': syn_delta('de25', 'a', 'b', ('registers', 'alm_estimate'))}
+    res['synthesis_delta_strap'] = syn_delta('de10', 'b', 'c', ('aluts', 'registers', 'alm_estimate'))
+    res['synthesis_delta_strap_de25'] = syn_delta('de25', 'b', 'c', ('registers', 'alm_estimate'))
+    res['synthesis_spread'] = {board: {arm: {key: max(r['synthesis'][key] for r in data['fits'][board][arm].values())
+                                             - min(r['synthesis'][key] for r in data['fits'][board][arm].values())
+                                             for key in ('registers', 'alm_estimate')} for arm in ARMS}
+                               for board in BOARDS}
+    res['boards']['de25']['fmax_seeds'] = {arm: sorted(r['clk_fmax_worst'] for r in data['fits']['de25'][arm].values())
+                                            for arm in ARMS}
     res['boards']['de25']['fmax_median'] = {arm: median([r['clk_fmax_worst'] for r in data['fits']['de25'][arm].values()])
                                              for arm in ARMS}
     res['extension'] = extension(res)
+    res['netlist_flops'] = {arm: netlist_flops(arm) for arm in ARMS}
     res['de25_fits'] = sum(len(data['fits']['de25'][arm]) for arm in ARMS)
     res['de25_coverage'] = sum(r['both_clocks_every_corner'] for arm in ARMS for r in data['fits']['de25'][arm].values())
     t386 = json.loads((HERE / 'test386' / 'identity-off-rtl.json').read_text())

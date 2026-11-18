@@ -161,6 +161,26 @@
         "b": 117.12,
         "c": 121.735
       },
+      "fmax_seeds": {
+        "a": [
+          120.44,
+          122.44,
+          123.44,
+          124.88
+        ],
+        "b": [
+          115.51,
+          116.7,
+          117.54,
+          118.04
+        ],
+        "c": [
+          118.48,
+          121.49,
+          121.98,
+          124.24
+        ]
+      },
       "hier": {},
       "strap": {
         "cpu_delta_hier": null,
@@ -245,6 +265,11 @@
       }
     }
   },
+  "netlist_flops": {
+    "a": 34805,
+    "b": 34858,
+    "c": 34861
+  },
   "netlists": {
     "a": {
       "changed_from_base": [],
@@ -300,12 +325,50 @@
       "alm_estimate": -37.0,
       "aluts": 195.0,
       "registers": 44.0
+    },
+    "de25": {
+      "alm_estimate": 46.0,
+      "registers": 46.0
     }
   },
   "synthesis_delta_strap": {
     "alm_estimate": -10.0,
     "aluts": 38.0,
     "registers": 1.0
+  },
+  "synthesis_delta_strap_de25": {
+    "alm_estimate": -46.0,
+    "registers": 3.0
+  },
+  "synthesis_spread": {
+    "de10": {
+      "a": {
+        "alm_estimate": 0,
+        "registers": 0
+      },
+      "b": {
+        "alm_estimate": 0,
+        "registers": 0
+      },
+      "c": {
+        "alm_estimate": 0,
+        "registers": 0
+      }
+    },
+    "de25": {
+      "a": {
+        "alm_estimate": 0,
+        "registers": 0
+      },
+      "b": {
+        "alm_estimate": 0,
+        "registers": 0
+      },
+      "c": {
+        "alm_estimate": 0,
+        "registers": 0
+      }
+    }
   },
   "test386": {
     "commit": "c4d5cb71b0e403131a5315dbb33a41c064e74039",

@@ -21,13 +21,15 @@ fails when either is stale.
 - **The 486SX delta on the DE10 (arm b minus arm a): -53.5 ALMs between medians**, against an uncertainty of 55 (seed spread 55, netlist floor 10.3). Reading against the plan's 350 to 850: **not resolved: under 55 ALMs**. It is 1.5 ALMs short of resolving; resolved or not it reads below 350, so neither band edge is near. Synthesis, which no seed moves, adds +195 ALUTs and +44 registers; the per-module fits (one seed) put 309.3 ALMs of change in `fes_i386_cpu` (299 in the whole machine); the modules are in `results.md`.
 - **The 486SX machine on the DE10: 36,405.5 ALMs median (86.87%)**, against arm a's 36,459: at or under 36,880 (88%): inside the range the machine has closed at before.
 - **DE10 timing at 61.44 MHz:** arm a closes on 4 of 4 seeds, arm b on 4, arm c on 4; median CPU-clock setup slack +0.482, +0.559 and +0.582 ns, worst +0.338, +0.118 and +0.474 ns. Reading: no timing cost the spike can resolve.
-- **The DE25 (Agilex 5 ALMs, a different unit, not held to the band): 204.5 ALMs** between medians (uncertainty 108); arm b at 35,763.5 (76.42%), at or under 41,184 (88%). Every DE25 fit closes at 61.44 MHz; the worst-corner `clk` Fmax medians are 122.9, 117.1 and 121.7 MHz for arms a, b and c; both clock domains were analysed at every corner in 12 of 12 DE25 fits.
-- **The strap over the build parameter (arm c minus arm b): 37.5 ALMs on the DE10** (uncertainty 59) **and -93 on the DE25** (uncertainty 108). DE10 reading: **not resolved, timing equal within a seed: the strap costs under 59 ALMs**. DE25 reading: not resolved, timing equal within a seed: the strap costs under 108 ALMs. On the DE10, arm c's synthesis has +1 register and +38 ALUTs over arm b: the strap's latch and its gating.
+- **The DE25 (Agilex 5 ALMs, a different unit, not held to the band): 204.5 ALMs** between medians (uncertainty 108); arm b at 35,763.5 (76.42%), at or under 41,184 (88%). Its uncertainty is the seed spread alone (no per-module DE25 fit). Quartus Pro's synthesis, which no seed moves, adds +46 estimated ALMs and +46 registers. Every DE25 fit closes at 61.44 MHz; the worst-corner `clk` Fmax medians are 122.9, 117.1 and 121.7 MHz for arms a, b and c; both clock domains were analysed at every corner in 12 of 12 DE25 fits. Every arm b seed's Fmax is below every arm a seed's, but arm c, the same logic plus the strap, is back near arm a's (121.7 against 122.9 MHz): a placement effect, not the delta's logic depth, by this record's reading.
+- **Arm c, the shipped package if the strap is chosen:** 36,443 ALMs median on the DE10 (86.96%), 16 under arm a; 35,670.5 on the DE25 (76.22%), 111.5 over arm a.
+- **The strap over the build parameter (arm c minus arm b): 37.5 ALMs on the DE10** (uncertainty 59) **and -93 on the DE25** (uncertainty 108). DE10 reading: **not resolved, timing equal within a seed: the strap costs under 59 ALMs**. DE25 reading: not resolved, timing equal within a seed: the strap costs under 108 ALMs. On the DE10, arm c's synthesis has +1 register and +38 ALUTs over arm b: the strap's latch and its gating; on the DE25, +3 registers and -46 estimated ALMs.
+- **The 486 state is in the fits.** Arm b's netlist has +53 flip-flop bits over arm a's (TR3's 32, CR0's five new bits, and AC and ID in each EFLAGS copy) and arm c's +3 over arm b's; Quartus's synthesis keeps +44 registers of arm b's on the DE10 and +46 on the DE25. Which individual bits it kept was not checked.
 - **Lockstep:** with the identity on, 45 of 48 directed cases agree with the level-4 oracle (the 386 agrees on 6); the 3 that stop are the ones `method.md` names as stops by design. With the identity off, the stops equal slice 0's committed list.
 - **test386 with the identity off** (the spike RTL, CPU alone): POST codes end at FFh with 0 errors and no stop, 79,640,765 retirements to its halt.
 - **Extension rule:** did not fire; four seeds an arm on both boards.
 
-**Recommendation on the strap, for Deano to decide.** Measured: arm c minus arm b is 37.5 ALMs on the DE10 against an uncertainty of 59, and arm c closes on 4 DE10 seeds to arm b's 4. The strap costs nothing this spike can measure over the build parameter, so a runtime strap is affordable on area and timing. What it costs instead is outside the fit: a record bit, the ABI and FogCast fields, and lockstep, test386 and kit runs of both identities on one netlist. The spike recommends the strap if per-title identity selection is wanted; otherwise the build parameter alone is the smaller change.
+**Recommendation on the strap, for Deano to decide.** Measured: arm c minus arm b is 37.5 ALMs on the DE10 against an uncertainty of 59, and arm c closes on 4 DE10 seeds to arm b's 4. The strap costs nothing this spike can measure over the build parameter, so a runtime strap is affordable on area and timing. What it costs instead is outside the fit: a record bit, the ABI and FogCast fields, and lockstep, test386 and kit runs of both identities on one netlist. One more difference is not area: with a strap the 486 logic is in the package every 386 title runs, so that package's seal and kit runs move with the strap's first merge, where a build parameter left at 0 leaves the 386 package's logic as it is (the tracker's rule that the identity defaults off holds either way). The spike recommends the strap if per-title identity selection is wanted; otherwise the build parameter alone is the smaller change.
 <!-- generated:end -->
 
 ## What was fitted
@@ -156,6 +158,19 @@ beside it. The plan's 350 to 850 was an estimate item by item, and nothing
 here measures it item by item; but every measure in the generated block,
 the DE25's included, is below its low end.
 
+**The "under N ALMs" figures are not bounds on the cost.** The bands and
+readings stand as `method.md` committed them. But two deltas in the
+generated block are impossible as true costs: the DE10's SX delta, which is
+negative while synthesis shows the logic added, and the DE25's strap delta,
+negative where arm c holds arm b's logic plus a latch. So a change of
+netlist moves ALMs needed by more than the precommitted uncertainty
+captured on either board: the netlist floor read the logic outside the CPU
+in the per-module fits, where the change barely moved it, and the DE25's
+uncertainty is its seed spread alone. Read "not resolved, under N" as "this
+flow cannot separate it from the netlist's own noise", not as "it costs
+less than N". For the same reason the DE25's resolved SX delta is weaker
+than its reading looks.
+
 **Why the spike is cheap (this record's reading, not a measurement).** It
 builds the new instructions out of machinery the CPU already has: XADD and
 CMPXCHG are uop sequences through T1 like XCHG's, three new results are
@@ -173,11 +188,29 @@ them cost the DE10 a closing seed.
   DE10 fits were running and before any arm c fit; arm a's seeds 1 and 2
   and arm b's seed 1 do not carry it. It reads the synthesis report and changes
   nothing fitted.
-- **The DE25 strap check** (`strap.json`) was added after the DE25 fits had
-  run; it reads their retained synthesis reports and fitted netlists.
+- **Read after the fits, from retained files:** the DE25 strap check
+  (`strap.json`) and synthesis counts (`synthesis.json`), from each fit's
+  synthesis report and fitted netlist; and each arm's flip-flop bits
+  (`elaboration/stat-width-*.txt`, Yosys `stat -width` on the arm's
+  netlist). None changes a fit.
 - **The two DE10 queues ran interleaved** under the one Lite lock, so arm
   a's per-module fit ran after arm b's first seeds. Order does not change a
   fit.
+- **The DE10 fits read the board files from a checkout at another arm's
+  commit.** The elaboration checkout moved to arm b's, then arm c's, commit
+  while arm a's later DE10 fits (seeds 3 and 4 and its per-module fit) and
+  all of arm b's were queued. `fit_arm.py de10` takes only the board
+  shell's project files (QSF, pins, SDC, the toolchain locks) from the
+  checkout; the netlist is the arm's own file, checked against its digest.
+  None of those project files differs between the three commits
+  (`fit_arm.py` refuses an arm that changes anything outside the CPU RTL and
+  `pc386_system.sv`).
+- **The lockstep ran on** the throwaway branch `scratch/i486-s1-lockstep`
+  at `d7ca63ec2` (local, not pushed): slice 0's head `da4aee953` merged with the spike's
+  RTL at `15d53ac41016` (arm b's commit; arm c changes only
+  `pc386_system.sv`, which the CPU-only lockstep does not build), plus the
+  testbench line in `lockstep-scratch.patch`. test386 ran on the spike
+  branch at `c4d5cb71b0e4`, whose CPU RTL is arm b's.
 - **test386 ran** (the method allowed it "if time allows"), with
   `--no-cross-check`, its Bochs source copied from the lockstep worktree's
   verified fetch rather than fetched again. The level-3 lockstep did not
