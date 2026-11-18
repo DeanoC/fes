@@ -164,6 +164,37 @@ every route-deciding input is still byte-identical, after `#1970` and `#1983`
 landed. The four ZX81 rows ride their design anchor as before; the rest match
 their own input digests.
 
+### What the re-verification is pinned to, and when it expires
+
+`_usable_routes` accepts a route comparison only if it ends at the checkout's
+own `sources/misteross` and `config` trees, which is what stops a comparison
+from another head being described as applying to this one. So the reports in
+`reports-preserve/` are pinned to exactly one pair:
+
+```
+sources/misteross e046d3c23156a236cc356d97bf298bc6926bfd41
+config            b4bb5aa7145110d9dabd482097080c608e240c99   = main at 1ec592670
+```
+
+Main's sources tree moved within hours of #1862 merging and will move again.
+When it does, running this against a *current* clone of main reads 0 of 11 with
+both comparisons ignored -- and that is the refusal working, not a defect. The
+durable form names the commit the evidence is about:
+
+```
+$ git worktree add --detach /tmp/pinned 1ec592670
+$ python3 seals_at_head.py --cond3 reports-cond3/cond3.json --tree /tmp/pinned \
+    --design-move reports-preserve/seal-to-head-design.json \
+    --route-inputs reports-preserve/seal-to-head-route-inputs.json \
+                   reports-preserve/seal2-to-head-route-inputs.json
+11 of 11 seals still match this head
+```
+
+`reports-preserve/pinned-head.log` is that run. Re-anchoring the record at a
+later head is cheap -- no GPU, no Quartus -- but it needs *checkouts of the two
+seal commits*, which is the strongest reason to keep them reachable: without
+them the eleven seals can never be re-tied to a newer main, only to this one.
+
 ### The squash merge, measured
 
 `#1862` was squash-merged, so no commit of that branch is an ancestor of main.
@@ -199,7 +230,9 @@ objects, and those are main's.
   seventeen exposed objects, both seal commits and both seals' source trees
   among them. Not pushed: `reports-preserve/fresh-clone.log` shows the damage
   without it, `check_shas.py` exit 1.
-- Merging this PR without squashing would keep its own citations resolvable.
+- A second tag at this PR's own merged head would do the same for its reports.
+  Merging this PR without squashing would too, but main's history is all squash
+  commits and `lane:lander` auto-merges, so the tag is the robust one.
 
 ## Which artefacts are affected, measured rather than argued
 
@@ -799,7 +832,7 @@ python3 netlist_digest.py --tree <tree>/sources/misteross --core fes.pong \
 | main, fourth base | `/data/fes1861-netlist/identity/nb4` | `6ee9f1113` |
 | seal tree | `/data/fes1861-netlist/identity/c3head` | `df99f2dfb`, where seven seals were taken |
 | seal tree, second | `/data/fes1861-netlist/identity/c3head2` | `541e3c548`, where the four Spectrum-family seals were taken |
-| seal trees, after the delete | `/data/fes1862-preserve/seal-df99f2df`, `seal-541e3c54` | re-cut from the branch ref to re-run the anchors at main |
+| seal trees, after the delete | re-cut with `git worktree add --detach <seal commit>`, removed again after the run | the anchors in `reports-preserve/` came from these; reproducible only while those commits are reachable |
 | branch | `/home/deano/fes/.claude/worktrees/gpu-router-default` | recorded per run |
 
 Every `/data/fes1861-netlist` tree above was deleted after #1862 merged. The
