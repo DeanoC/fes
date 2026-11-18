@@ -417,17 +417,26 @@ func TestCoreScreenOpenedFromHomeStartsOnTheFirstGame(t *testing.T) {
 // the room, so the picture is built in two parts on separate draws. The
 // ceiling is about 1.25x the worst draw measured (7,046).
 func TestCoreScreenDrawWorkCeiling(t *testing.T) {
+	coreScreenDrawWork(t, "fes.spectrum", "model:fes.spectrum-plus3")
+}
+
+// The Atari ST's drive row carries one more button, "Your disks".
+func TestCoreScreenDrawWorkCeilingWithADiskShelf(t *testing.T) {
+	coreScreenDrawWork(t, "fes.atari-st", "")
+}
+
+func coreScreenDrawWork(t *testing.T, coreID, otherModel string) {
 	const ceiling = 8800
 	games := []hostclient.Game{}
 	for i := 0; i < 30; i++ {
-		g := preparedComputer(fmt.Sprintf("title-%02d", i), fmt.Sprintf("Game %02d", i), "fes.spectrum")
-		g.CoreEntryKind = "title"
+		g := preparedComputer(fmt.Sprintf("title-%02d", i), fmt.Sprintf("Game %02d", i), coreID)
+		g.CoreEntryKind, g.PackageID, g.MediaRole, g.MediaID = "title", strings.Repeat("a", 64), "disk", strings.Repeat("1", 64)
 		games = append(games, g)
 	}
 	w := &workMeter{}
 	r := newRoom(t, examplePack(t, "example.core"), Options{
 		Services: c64ServicesWithEmptyHardware{Services: &fakeServices{games: games}},
-		Width:    1280, Height: 720, InitialCoreID: "fes.spectrum",
+		Width:    1280, Height: 720, InitialCoreID: coreID,
 	})
 	r.work = w
 	r.SetSessionState("idle")
@@ -455,6 +464,39 @@ func TestCoreScreenDrawWorkCeiling(t *testing.T) {
 	// A session start changes both parts at once.
 	r.SetSessionState("active")
 	check("session start")
-	r.Activate("model:fes.spectrum-plus3")
-	check("a model change")
+	if otherModel != "" {
+		r.Activate(otherModel)
+		check("a model change")
+	}
+}
+
+func TestCoreScreenAtariSTOpensItsDiskShelf(t *testing.T) {
+	pkg := strings.Repeat("a", 64)
+	game := preparedComputer("st-game", "Dungeon", "fes.atari-st")
+	game.CoreEntryKind, game.PackageID, game.MediaRole, game.MediaID = "title", pkg, "disk", strings.Repeat("1", 64)
+	r := loadCoreScreen(t, &fakeServices{games: []hostclient.Game{game}}, "", "fes.atari-st", Options{})
+	frame := stepUntil(t, r, coreScreenSettled)
+	if !frameHas(frame, "Your disks") || !frameHasHit(frame, "disks") {
+		t.Fatalf("the ST screen has no disk shelf button:\n%s", frameText(frame))
+	}
+	// The button sits right of the media button and is one stop from it.
+	r.Input("up")
+	r.Input("right")
+	r.Input("select")
+	acts := r.TakeActions()
+	if len(acts) != 1 || acts[0].Kind != ActionHardwareDisks || acts[0].CoreID != "fes.atari-st" || acts[0].PackageID != pkg {
+		t.Fatalf("Your disks: %+v", acts)
+	}
+	r.Input("left")
+	r.Input("select")
+	if acts = r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionHardwareMedia {
+		t.Fatalf("left of Your disks: %+v", acts)
+	}
+	// A family without a shelf has no such button.
+	zx := preparedComputer("zx81-setup", "ZX81", "fes.zx81")
+	zx.CoreEntryKind = "machine"
+	other := loadCoreScreen(t, &fakeServices{games: []hostclient.Game{zx}}, zx.ID, zx.CoreID, Options{})
+	if f := stepUntil(t, other, coreScreenSettled); frameHas(f, "Your disks") || frameHasHit(f, "disks") {
+		t.Fatal("the ZX81 screen offers a disk shelf")
+	}
 }

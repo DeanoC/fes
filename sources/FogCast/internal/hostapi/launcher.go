@@ -264,7 +264,7 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 		pairedLaunch := r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/launch"
 		pairedMedia := launcherLiveMutation(r.Method, r.URL.Path)
 		pairedStorage := storageOperation(r.Method, r.URL.Path)
-		pairedImport := r.Method == http.MethodPost && (r.URL.Path == "/api/v1/core-media" || r.URL.Path == "/api/v1/core-expansions" || r.URL.Path == "/api/v1/library/atari-st-disks" || launcherTapeImportPath(r.URL.Path))
+		pairedImport := r.Method == http.MethodPost && (r.URL.Path == "/api/v1/core-media" || r.URL.Path == "/api/v1/core-expansions" || launcherTapeImportPath(r.URL.Path))
 		if !pairedRead && !pairedStop && !pairedLaunch && !pairedMedia && !pairedImport && !pairedStorage {
 			a.targetMu.Lock()
 			defer a.targetMu.Unlock()
@@ -316,6 +316,13 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 		if pairedStop {
 			r = r.WithContext(fogcast.WithPairedTarget(r.Context(), headerID))
 			r = r.WithContext(withLauncherTarget(r.Context(), name))
+			a.routes.ServeHTTP(w, r)
+			return
+		}
+		if launcherStShelfOperation(r.Method, r.URL.Path) {
+			// Saved disk changes live on a kit: the shelf is this kit's, even
+			// when another target remains foreground.
+			r = r.WithContext(fogcast.WithSessionTarget(r.Context(), name))
 			a.routes.ServeHTTP(w, r)
 			return
 		}
@@ -579,6 +586,9 @@ func launcherOperation(method, path string) bool {
 	if launcherLiveMutation(method, path) || method == http.MethodPost && launcherTapeImportPath(path) {
 		return true
 	}
+	if launcherStShelfOperation(method, path) {
+		return true
+	}
 	if method == http.MethodPut && (launcherExpansionSelectionPath(path) || launcherSlotExpansionSelectionPath(path)) {
 		return true
 	}
@@ -595,10 +605,28 @@ func launcherOperation(method, path string) bool {
 		return true
 	}
 	switch method + " " + path {
-	case "GET /api/v1/core-catalog", "POST /api/v1/core-catalog/install", "POST /api/v1/core-catalog/entries", "POST /api/v1/library/atari-st-disks", "GET /api/v1/core-expansions", "POST /api/v1/core-expansions", "GET /api/v1/library/firmware/bundled", "GET /api/v1/kit/software/releases", "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/launcher/kit-lease", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "GET /api/v1/library/cache", "GET /api/v1/library/collections", "GET /api/v1/library/core-entries", "GET /api/v1/library/facets", "GET /api/v1/library/hardware", "GET /api/v1/library/titles", "GET /api/v1/library/zx81-tapes", "GET /api/v1/core-packages", "GET /api/v1/mesh/content/source", "GET /api/v1/mesh/content/object", "POST /api/v1/session/launch", "POST /api/v1/session/stop", "POST /api/v1/core-media", "POST /api/v1/library/core-entries":
+	case "GET /api/v1/core-catalog", "POST /api/v1/core-catalog/install", "POST /api/v1/core-catalog/entries", "GET /api/v1/core-expansions", "POST /api/v1/core-expansions", "GET /api/v1/library/firmware/bundled", "GET /api/v1/kit/software/releases", "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/launcher/kit-lease", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "GET /api/v1/library/cache", "GET /api/v1/library/collections", "GET /api/v1/library/core-entries", "GET /api/v1/library/facets", "GET /api/v1/library/hardware", "GET /api/v1/library/titles", "GET /api/v1/library/zx81-tapes", "GET /api/v1/core-packages", "GET /api/v1/mesh/content/source", "GET /api/v1/mesh/content/object", "POST /api/v1/session/launch", "POST /api/v1/session/stop", "POST /api/v1/core-media", "POST /api/v1/library/core-entries":
 		return true
 	}
 	return method == http.MethodGet && (launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path) || launcherCoreEntryPath(path) || launcherCorePackageReadPath(path) || launcherROMSelectionPath(path) || launcherExpansionReadPath(path) || launcherCoreCatalogSetupPath(path))
+}
+
+// launcherStShelfOperation admits the Atari ST disk shelf: its list, a new
+// disk, and the four actions on one disk.
+func launcherStShelfOperation(method, path string) bool {
+	const base = "/api/v1/library/atari-st-shelf"
+	if path == base {
+		return method == http.MethodGet || method == http.MethodPost
+	}
+	rest, ok := strings.CutPrefix(path, base+"/")
+	if !ok || method != http.MethodPost {
+		return false
+	}
+	game, action, ok := strings.Cut(rest, "/")
+	if !ok || protocol.ValidateGameID(game) != nil {
+		return false
+	}
+	return action == "copy" || action == "revert" || action == "rename" || action == "delete"
 }
 
 func launcherCoreCatalogSetupPath(path string) bool {

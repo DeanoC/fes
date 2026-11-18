@@ -2,7 +2,7 @@
 -- admission, media size and launch support; these labels guide navigation.
 -- model is the short name Home lists under a family. drive names the disk
 -- drive and facts are the fixed things the core screen lists; both are
--- display text only.
+-- display text only. shelf says the core screen offers "Your disks".
 local rows = {
   {id="fes.zx81", label="Sinclair ZX81", mark="ZX81", model="ZX81", media="Cassette .p", hint="Type LOAD \"\", then RUN.", facts={{"Memory","1K, or 16K with the RAM pack"},{"Saves","SAVE keeps your program as a new cassette"}}},
   {id="fes.zx80", label="Sinclair ZX80", mark="ZX80", model="ZX80", media="Cassette .p", hint="Choose a saved program before starting."},
@@ -14,7 +14,7 @@ local rows = {
   {id="fes.spectrum-plus3", label="ZX Spectrum +3", mark="+3", model="+2A/+3", media="Tape, snapshot or disk", disk="Disk .dsk", cassette="Tape or snapshot", hint="Disk .dsk; snapshot .z80 / .sna", drive="Drive A", facts={{"Memory","128K"},{"Sound","Beeper and AY"},{"Joysticks","Pad 1 is Kempston, pad 2 is Sinclair"},{"Drives","Cassette and one 3-inch drive. No drive B"},{"Saves","Disks are read only for now"}}},
   {id="fes.pentagon", label="Pentagon 128", mark="128", model="Pentagon", media="Tape, snapshot or disk", disk="Disk .trd", cassette="Tape or snapshot", hint="Disk .trd; tape .tzx / .tap / .pzx / .csw", drive="Drive A", facts={{"Memory","128K"},{"Saves","Disks are read only for now"}}},
   {id="fes.apple2", label="Apple II", mark="APPLE II", media="Disk .dsk / .do", hint="Drive  ·  Disk II  ·  unit 0"},
-  {id="fes.atari-st", label="Atari ST", mark="ST", model="520ST", media="Disk .st", hint="Drive A  ·  writable raw .st disk", drive="Drive A", facts={{"Memory","512K"},{"Joysticks","Pad 1 is joystick 1, pad 2 is joystick 0"},{"Drives","Drive A. No drive B or hard disk"},{"Saves","A disk keeps its changes when you stop or swap it"}}},
+  {id="fes.atari-st", label="Atari ST", mark="ST", model="520ST", media="Disk .st", hint="Drive A  ·  writable raw .st disk", drive="Drive A", shelf=true, facts={{"Memory","512K"},{"Joysticks","Pad 1 is joystick 1, pad 2 is joystick 0"},{"Drives","Drive A. No drive B or hard disk"},{"Saves","A disk keeps its changes when you stop or swap it"}}},
   {id="fes.coleco", label="ColecoVision", mark="COLECO", media="Linked cartridge", hint="Select the cartridge ROM in system setup."},
   {id="fes.sms", label="Sega Master System", mark="SMS", media="Linked cartridge", hint="Select the cartridge ROM in system setup."},
   {id="fes.sg1000", label="Sega SG-1000", mark="SG-1000", media="Linked cartridge", hint="Select the cartridge ROM in system setup."},

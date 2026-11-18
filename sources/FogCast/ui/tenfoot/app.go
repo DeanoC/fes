@@ -2028,6 +2028,8 @@ func (a *App) oskSnapshotLocked() shared.OSKSnapshot {
 			snap.Prompt = "DIAGNOSTIC RBF path"
 		case settingsOSKCoreTitle:
 			snap.Prompt = "Game title"
+		case settingsOSKShelfName:
+			snap.Prompt = "Disk name"
 		case settingsOSKCorePath:
 			snap.Prompt = "ROM or media path"
 		case settingsOSKFirmwarePath:
