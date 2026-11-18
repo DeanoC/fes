@@ -142,7 +142,7 @@ func TestControllersRebindSwapsTakenTarget(t *testing.T) {
 	}
 }
 
-func TestControllersUnrelatedRebindRepairsPersistedDuplicateProfile(t *testing.T) {
+func TestControllersRebindKeepsAControlSentByTwoButtons(t *testing.T) {
 	app := controllersApp(t)
 	prefs := tenfootPrefs{Controllers: map[string]inputmap.Profile{
 		testPadGUID: {Bindings: map[string]string{"x": "a", "y": "a"}},
@@ -151,31 +151,14 @@ func TestControllersUnrelatedRebindRepairsPersistedDuplicateProfile(t *testing.T
 		t.Fatal(err)
 	}
 	app.mu.Lock()
-	app.padProfiles = nil // Reload the persisted profile into the running page.
+	app.padProfiles = nil // Reload the saved profile into the running page.
+	app.setPadTargetLocked(remoteinput.ButtonL, remoteinput.ButtonA)
 	app.mu.Unlock()
 
-	if _, err := app.padRemap(testPadGUID); err == nil {
-		t.Fatal("duplicate persisted targets were accepted")
-	}
-	app.mu.Lock()
-	app.setPadTargetLocked(remoteinput.ButtonL, remoteinput.ButtonC)
-	app.mu.Unlock()
-
+	// Three buttons sent A, so no single one takes over L's control.
 	profile, ok := savedProfile(t, app)
-	if !ok || len(profile.Bindings) != 1 || profile.Bindings["l"] != "c" {
-		t.Fatalf("unrelated rebind did not repair the profile: %+v", profile)
-	}
-	remap, err := newPadRemapper(profile)
-	if err != nil {
-		t.Fatalf("repaired profile is not one-to-one: %v", err)
-	}
-	seen := map[remoteinput.Code]bool{}
-	for _, source := range padSources {
-		target := remap.Target(source.code)
-		if seen[target] {
-			t.Fatalf("repaired profile still maps multiple buttons to %s", inputmap.Name(target))
-		}
-		seen[target] = true
+	if !ok || profile.Bindings["l"] != "a" || profile.Bindings["x"] != "a" || profile.Bindings["y"] != "a" {
+		t.Fatalf("saved profile = %+v", profile)
 	}
 }
 

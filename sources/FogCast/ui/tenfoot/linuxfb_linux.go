@@ -172,6 +172,10 @@ type nativeInput struct {
 	controls map[uint16]Command
 	hatHeld  map[uint16]Button
 	padHeld  map[padKey]remoteinput.Event
+	// padSent is what each held button pressed on the port. Several buttons
+	// can send one control: it goes down with the first of them and up with
+	// the last.
+	padSent  map[Button]padKey
 	keysHeld map[uint16]string
 	mapper   *controller.Mapper
 	// remap is the profile saved for this pad, applied after mapper.
@@ -768,6 +772,24 @@ func (in *nativeInput) button(app *App, button Button, value int32, now time.Tim
 	}
 	e.Player = uint8(in.player)
 	key := padKey{e.Player, e.Code}
+	if value != 0 {
+		shared := in.holding(key)
+		if in.padSent == nil {
+			in.padSent = make(map[Button]padKey)
+		}
+		in.padSent[button] = key
+		if shared {
+			return
+		}
+	} else if sent, ok := in.padSent[button]; ok {
+		// Release what this button pressed, even if the profile changed.
+		key = sent
+		e.Code = sent.code
+		delete(in.padSent, button)
+		if in.holding(key) {
+			return
+		}
+	}
 	if in.padHeld == nil {
 		in.padHeld = make(map[padKey]remoteinput.Event)
 	}
@@ -787,6 +809,17 @@ func (in *nativeInput) button(app *App, button Button, value int32, now time.Tim
 		app.NoteInput(InputGamepad, in.fd)
 	}
 }
+
+// holding reports whether a held button already holds key on the port.
+func (in *nativeInput) holding(key padKey) bool {
+	for _, sent := range in.padSent {
+		if sent == key {
+			return true
+		}
+	}
+	return false
+}
+
 func (in *nativeInput) localHat(app *App, code uint16, value int32, now time.Time) {
 	button := ButtonNone
 	if code == 16 {
@@ -1324,6 +1357,7 @@ func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
 func (ins *nativeInputs) releasePort(app *App, in *nativeInput) {
 	if app == nil {
 		in.padHeld = nil
+		in.padSent = nil
 		return
 	}
 	app.mu.Lock()
@@ -1352,6 +1386,7 @@ func releasePortLocked(app *App, in *nativeInput) []remoteinput.Event {
 			padEvents = append(padEvents, event)
 		}
 		in.padHeld = nil
+		in.padSent = nil
 		app.forgetPadLocked(player, time.Now())
 		// After its releases, the pad gives its port back. mister-agent
 		// drops that player's claim and leaves the other pad alone.

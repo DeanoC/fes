@@ -268,32 +268,11 @@ func (a *App) padRemapLocked(guid string) *inputmap.Remapper {
 	if !ok {
 		return nil
 	}
-	remap, err := newPadRemapper(profile)
+	remap, err := inputmap.NewRemapper(profile)
 	if err != nil {
 		return nil
 	}
 	return remap
-}
-
-// newPadRemapper rejects profiles that make two rebindable buttons send the
-// same control. Session input tracks holds by remapped control, so applying
-// such a profile would let one physical release release the other button's
-// hold too.
-func newPadRemapper(profile inputmap.Profile) (*inputmap.Remapper, error) {
-	remap, err := inputmap.NewRemapper(profile)
-	if err != nil {
-		return nil, err
-	}
-	targets := make(map[remoteinput.Code]remoteinput.Code, len(padSources))
-	for _, source := range padSources {
-		target := remap.Target(source.code)
-		if previous, ok := targets[target]; ok {
-			return nil, fmt.Errorf("inputmap: buttons %q and %q both send %q",
-				inputmap.Name(previous), inputmap.Name(source.code), inputmap.Name(target))
-		}
-		targets[target] = source.code
-	}
-	return remap, nil
 }
 
 func (a *App) refreshPadPromptsLocked(id int) {
@@ -515,9 +494,10 @@ func (a *App) padEffectiveLocked() map[remoteinput.Code]remoteinput.Code {
 // padEssential are the controls FES menus cannot do without.
 var padEssential = []remoteinput.Code{remoteinput.ButtonA, remoteinput.ButtonB}
 
-// setPadTargetLocked makes a button of the shown pad send target. When that
-// would leave Confirm or Back without a button, the button that sent target
-// takes over what this one sent; if there is none, nothing changes.
+// setPadTargetLocked makes a button of the shown pad send target. The one
+// other button that sent target takes over what this one sent, so a rebind
+// moves a control rather than doubling it. Nothing changes if that would
+// leave Confirm or Back without a button.
 func (a *App) setPadTargetLocked(source, target remoteinput.Code) {
 	c := &a.controllers
 	sends := a.padEffectiveLocked()
@@ -525,21 +505,14 @@ func (a *App) setPadTargetLocked(source, target remoteinput.Code) {
 	if old == target {
 		return
 	}
-	// Keep the mapping one-to-one. Session input is represented by its
-	// remapped code, so two physical buttons sending the same code would make
-	// either button's release look like the logical control was released.
-	var swapped remoteinput.Code
+	var others []remoteinput.Code
 	for _, s := range padSources {
 		if s.code != source && sends[s.code] == target {
-			if swapped != 0 {
-				c.status = fmt.Sprintf("Not changed: more than one button already sends %s. Reset this pad's controls first.", padTargetLabel(target))
-				return
-			}
-			swapped = s.code
+			others = append(others, s.code)
 		}
 	}
-	if swapped != 0 {
-		sends[swapped] = old
+	if len(others) == 1 {
+		sends[others[0]] = old
 	}
 	sends[source] = target
 	sent := func(code remoteinput.Code) bool {
@@ -581,8 +554,8 @@ func (a *App) setPadTargetLocked(source, target remoteinput.Code) {
 		return
 	}
 	c.status = fmt.Sprintf("%s now sends %s.", padSourceLabel(source), padTargetLabel(target))
-	if swapped != 0 {
-		c.status += fmt.Sprintf(" %s took %s.", padSourceLabel(swapped), padTargetLabel(old))
+	if len(others) == 1 {
+		c.status += fmt.Sprintf(" %s took %s.", padSourceLabel(others[0]), padTargetLabel(old))
 	}
 }
 

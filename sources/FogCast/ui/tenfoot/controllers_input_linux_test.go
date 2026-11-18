@@ -42,10 +42,12 @@ func TestProfileEditReachesAnAttachedPadOnceItsButtonsAreUp(t *testing.T) {
 	}
 }
 
-func TestDuplicatePersistedProfileCannotShareHeldSessionTarget(t *testing.T) {
+// A profile may send one control from several buttons, including the d-pad.
+// The control stays held until the last of them comes up.
+func TestButtonsSharingAControlHoldItUntilTheLastIsUp(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "tenfoot.json")
 	prefs := tenfootPrefs{Controllers: map[string]inputmap.Profile{
-		testPadGUID: {Bindings: map[string]string{"x": "a", "y": "a"}},
+		testPadGUID: {Bindings: map[string]string{"x": "a", "dpad-up": "a"}},
 	}}
 	if err := saveTenfootPrefs(path, prefs); err != nil {
 		t.Fatal(err)
@@ -54,28 +56,64 @@ func TestDuplicatePersistedProfileCannotShareHeldSessionTarget(t *testing.T) {
 	app := runningLocalCoreApp(feed)
 	app.SetPrefsPath(path)
 	remap, err := app.padRemap(testPadGUID)
-	if err == nil {
-		t.Fatal("duplicate persisted targets were accepted")
+	if err != nil || remap == nil {
+		t.Fatalf("profile sharing a control was refused: %v", err)
 	}
-	if remap != nil {
-		t.Fatal("invalid profile returned an active remapper")
-	}
-	in := &nativeInput{fd: 7, player: 0, info: PadInfo{GUID: testPadGUID}}
+	in := &nativeInput{fd: 7, player: 0, info: PadInfo{GUID: testPadGUID}, remap: remap}
 	now := time.Now()
-	in.button(app, ButtonWest, 1, now)  // X
-	in.button(app, ButtonNorth, 1, now) // Y
-	in.button(app, ButtonNorth, 0, now)
-	if len(feed.events) != 3 ||
-		feed.events[0].Code != remoteinput.ButtonX || feed.events[0].Action != remoteinput.ActionPress ||
-		feed.events[1].Code != remoteinput.ButtonY || feed.events[1].Action != remoteinput.ActionPress ||
-		feed.events[2].Code != remoteinput.ButtonY || feed.events[2].Action != remoteinput.ActionRelease {
-		t.Fatalf("releasing Y affected X's held input: %+v", feed.events)
+	want := func(step string, events ...remoteinput.Action) {
+		t.Helper()
+		if len(feed.events) != len(events) {
+			t.Fatalf("%s: events = %+v, want %d", step, feed.events, len(events))
+		}
+		for i, action := range events {
+			if e := feed.events[i]; e.Code != remoteinput.ButtonA || e.Action != action {
+				t.Fatalf("%s: event %d = %+v", step, i, e)
+			}
+		}
+		_, held := app.playPadHeld[padKey{0, remoteinput.ButtonA}]
+		if want := len(events)%2 == 1; held != want {
+			t.Fatalf("%s: A held = %v, want %v", step, held, want)
+		}
 	}
-	if _, ok := app.playPadHeld[padKey{0, remoteinput.ButtonX}]; !ok {
-		t.Fatal("X's hold was released with Y")
-	}
+	in.button(app, ButtonWest, 1, now) // X sends A.
+	want("X down", remoteinput.ActionPress)
+	in.button(app, ButtonSouth, 1, now)
+	in.localHat(app, 17, -1, now) // Up sends A.
+	want("A and up down", remoteinput.ActionPress)
 	in.button(app, ButtonWest, 0, now)
-	if len(feed.events) != 4 || feed.events[3].Code != remoteinput.ButtonX || feed.events[3].Action != remoteinput.ActionRelease {
-		t.Fatalf("X release was not kept independent: %+v", feed.events)
+	in.button(app, ButtonSouth, 0, now)
+	want("X and A up, up still held", remoteinput.ActionPress)
+	in.localHat(app, 17, 0, now)
+	want("all up", remoteinput.ActionPress, remoteinput.ActionRelease)
+
+	// A port release lets everything go, so nothing is left counted.
+	in.button(app, ButtonWest, 1, now)
+	in.button(app, ButtonSouth, 1, now)
+	app.mu.Lock()
+	releasePortLocked(app, in)
+	app.mu.Unlock()
+	if len(in.padSent) != 0 || len(in.padHeld) != 0 {
+		t.Fatalf("port release left holds: sent=%v held=%v", in.padSent, in.padHeld)
+	}
+}
+
+// A release comes up as what the button pressed, even if the pad's profile
+// changed while it was held.
+func TestPadReleaseFollowsWhatTheButtonPressed(t *testing.T) {
+	feed := &localPadRecorder{}
+	app := runningLocalCoreApp(feed)
+	swap, err := inputmap.NewRemapper(inputmap.Profile{Preset: "swap-ab"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := &nativeInput{fd: 7, player: 0, remap: swap}
+	now := time.Now()
+	in.button(app, ButtonSouth, 1, now)
+	in.remap = nil
+	in.button(app, ButtonSouth, 0, now)
+	if len(feed.events) != 2 || feed.events[0].Code != remoteinput.ButtonB || feed.events[1].Code != remoteinput.ButtonB ||
+		feed.events[1].Action != remoteinput.ActionRelease {
+		t.Fatalf("events = %+v, want B down then B up", feed.events)
 	}
 }
