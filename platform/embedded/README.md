@@ -1,5 +1,12 @@
 # Embedded FES base
 
+The [25-second source budget](../../docs/validation/2026-11-18-de25-source-budget25/README.md) deliberately replaces the
+enclosing 20-second policy for the native experiment. Firmware, native
+computer/MENU services, sealed manifests and trace validation agree; all
+shorter phase limits, ownership checks and the original clock origin remain.
+Validation and a fresh bounded hardware cycle are pending. The historical
+20-second trial below remains failed and consumed.
+
 The [fresh final-validation cost trial](../../docs/validation/2026-11-18-de25-final-cost-physical/README.md) completes initial MENU,
 ZX81 with tape, both releases and full next-MENU configuration, then
 rejects guard 31 / reason 7 at source elapsed 20,142,473 us under the

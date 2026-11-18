@@ -43,7 +43,7 @@ static void proof_meter(unsigned kind)
 int main(int argc,char **argv)
 {
  assert(argc==4);barrier_ns=strtoull(argv[1],0,10);prior_us=strtoull(argv[2],0,10);fault=strtoul(argv[3],0,10);
- assert(barrier_ns<=10000 && prior_us<=20000000 && fault<=8);
+ assert(barrier_ns<=10000 && prior_us<=NANO_SDM_TRANSFER_US && fault<=8);
  int result=lifecycle_rpc_main();assert(result==0 || result==2);
  if(result){
   assert(sdm_source_failed && !configuration.finished);

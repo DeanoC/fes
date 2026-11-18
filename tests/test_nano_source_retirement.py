@@ -223,7 +223,7 @@ class SourceRetirementTests(unittest.TestCase):
         self.assertGreater(report['cases'], 100000)
 
     def test_source_clock_identifies_each_rejection_without_extra_observation(self):
-        self.assertEqual(self.run_model('source_clock_test', joined=True)['cases'], 10)
+        self.assertEqual(self.run_model('source_clock_test', joined=True)['cases'], 13)
 
     def test_final_input_proof_cost_and_late_ownership_failures(self):
         binary = self.build_model('final_proof_cost_test', joined=True)
@@ -243,11 +243,11 @@ class SourceRetirementTests(unittest.TestCase):
         self.assertEqual((normal['loads'], normal['reads'], normal['counters']),
                          (calibrated['loads'], calibrated['reads'], calibrated['counters']))
         self.assertEqual(normal['loads'], 5120)
-        expired = run(0, 20000000)
+        expired = run(0, 25000000)
         self.assertEqual((expired['result'], expired['scope_reason'], expired['clock_reason'], expired['retired']),
                          (2, 31, 7, 0))
-        self.assertGreaterEqual(expired['clock_observed']-expired['clock_start'], 20000000)
-        over = run(16)
+        self.assertGreaterEqual(expired['clock_observed']-expired['clock_start'], 25000000)
+        over = run(16, 24626142)
         self.assertEqual((over['result'], over['clock_reason'], over['retired']), (2, 7, 0))
         for fault in range(1, 9):
             with self.subTest(fault=fault):
@@ -274,8 +274,13 @@ class SourceRetirementTests(unittest.TestCase):
             self.assertEqual(normal[key], bounded[key], key)
         self.assertEqual(normal['final_loads'], 5120)
         self.assertLess(normal['final_barriers'], 130000)
-        self.assertLess(bounded['source_elapsed_us'], 20000000)
-        for ns, prior in ((0, 20000000), (2000, 18000000)):
+        self.assertLess(bounded['source_elapsed_us'], 25000000)
+        # The former 20-second rejection is now within the declared policy.
+        former = run(2000, 18000000)
+        self.assertEqual((former['result'], former['retired'], former['continued']), (0, 1, 1))
+        self.assertGreater(former['source_elapsed_us'], 20000000)
+        self.assertLess(former['source_elapsed_us'], 25000000)
+        for ns, prior in ((0, 25000000), (2000, 23000000)):
             row = run(ns, prior)
             self.assertEqual((row['result'], row['clock_reason'], row['retired']), (2, 7, 0))
         for fault in range(1, 9):

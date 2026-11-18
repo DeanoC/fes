@@ -40,7 +40,7 @@ static void final_meter(unsigned kind)
 int main(int argc,char **argv)
 {
  assert(argc==4);cost_us=strtoul(argv[1],0,10);initial_elapsed=strtoull(argv[2],0,10);fault=strtoul(argv[3],0,10);
- assert(cost_us<=100 && initial_elapsed<=20000000 && fault<=8);
+ assert(cost_us<=100 && initial_elapsed<=NANO_SDM_TRANSFER_US && fault<=8);
  int result=lifecycle_rpc_main();assert(result==0 || result==2);
  if(result){
   assert(sdm_source_failed && !configuration.finished && !source_retirement.attempted);

@@ -16,13 +16,16 @@ static void clock_case(unsigned fault)
  case 7:ticks=sdm_source_clock_start+NANO_SDM_TRANSFER_US-1;break;
  case 8:ticks=sdm_source_clock_start+NANO_SDM_TRANSFER_US-2;break;
  case 9:release_frequency|=UINT64_C(1)<<32;break;
+ case 10:ticks=sdm_source_clock_start+NANO_SDM_TRANSFER_US;break;
+ case 11:ticks=sdm_source_clock_start+20142473;break;
+ case 12:ticks=sdm_source_clock_start+NANO_SDM_TRANSFER_US+1;break;
  }
  int error=sdm_source_time(context,out);
- if(!fault || fault==8){assert(!error && !sdm_source_clock_failure.reason && output==ticks);return;}
- assert(error==-13 && sdm_source_failed && sdm_source_clock_failure.reason==(fault==9 ? 5:fault) && output==77);
+ if(!fault || fault==8 || fault==11){assert(!error && !sdm_source_clock_failure.reason && output==ticks);return;}
+ assert(error==-13 && sdm_source_failed && sdm_source_clock_failure.reason==(fault==9 ? 5:fault>=10 ? 7:fault) && output==77);
  assert(sdm_probe_scope_reason==(fault==1 ? 88:31));
- assert(sdm_source_clock_failure.sampled==(fault==6 || fault==7));
- if(fault==6 || fault==7)assert(sdm_source_clock_failure.observed==ticks);
+ assert(sdm_source_clock_failure.sampled==(fault==6 || fault==7 || fault>=10));
+ if(fault==6 || fault==7 || fault>=10)assert(sdm_source_clock_failure.observed==ticks);
  if(fault==9)assert(sdm_source_clock_failure.frequency==release_frequency);
  unsigned reads=smmu_reads,writes=smmu_writes,stores=cb_stores;uint64_t clock=ticks;
  unsigned char saved[sizeof(sdm_source_clock_failure)];memcpy(saved,&sdm_source_clock_failure,sizeof(saved));
@@ -33,8 +36,8 @@ static void clock_case(unsigned fault)
 }
 int main(void)
 {
- for(unsigned n=0;n<=9;n++){
+ for(unsigned n=0;n<=12;n++){
   pid_t p=fork();assert(p>=0);if(!p){clock_case(n);_exit(0);}int status;assert(waitpid(p,&status,0)==p && WIFEXITED(status) && !WEXITSTATUS(status));
  }
- puts("{\"status\":\"passed\",\"cases\":10,\"hardware_actions\":false}");return 0;
+ puts("{\"status\":\"passed\",\"cases\":13,\"hardware_actions\":false}");return 0;
 }

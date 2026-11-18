@@ -1,5 +1,12 @@
 # DE25 native secure lifecycle investigation
 
+The [25-second source budget](../validation/2026-11-18-de25-source-budget25/README.md) deliberately replaces the
+enclosing 20-second policy for the native experiment. Firmware, native
+computer/MENU services, sealed manifests and trace validation agree; all
+shorter phase limits, ownership checks and the original clock origin remain.
+Validation and a fresh bounded hardware cycle are pending. The historical
+20-second trial below remains failed and consumed.
+
 The [latest bounded hardware test](../validation/2026-11-18-de25-final-cost-physical/README.md)
 still rejects guard 31 / reason 7 at source elapsed 20,142,473 us under the
 unchanged 20-second bound. The USB barrier repair preserves ownership and

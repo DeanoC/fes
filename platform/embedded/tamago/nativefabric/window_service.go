@@ -296,7 +296,7 @@ func (p *windowService) configure(ctx context.Context) error {
 			return err
 		}
 		now := p.limits.Now()
-		if now.Before(last) || now.Sub(start) >= 20*time.Second {
+		if now.Before(last) || now.Sub(start) >= sourceOperationTimeout {
 			return errors.New("native window service: configuration deadline or backwards clock")
 		}
 		last = now

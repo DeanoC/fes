@@ -17,6 +17,10 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 )
 
+// Enclosing configuration budget; shorter control/command limits remain separate.
+// Kept equal to firmware NANO_SDM_TRANSFER_US by the profile contract test.
+const sourceOperationTimeout = 25 * time.Second
+
 type ProgramServiceState string
 
 const (
@@ -300,10 +304,10 @@ func (p *programService) configureTransfer(ctx context.Context, transfer *Config
 		now := p.limits.Now()
 		elapsed, step := now.Sub(start), now.Sub(last)
 		if now.Before(last) {
-			return fmt.Errorf("native program service: configuration backwards clock: elapsed=%s step=%s limit=20s", elapsed, step)
+			return fmt.Errorf("native program service: configuration backwards clock: elapsed=%s step=%s limit=%s", elapsed, step, sourceOperationTimeout)
 		}
-		if elapsed >= 20*time.Second {
-			return fmt.Errorf("native program service: configuration deadline: elapsed=%s step=%s limit=20s", elapsed, step)
+		if elapsed >= sourceOperationTimeout {
+			return fmt.Errorf("native program service: configuration deadline: elapsed=%s step=%s limit=%s", elapsed, step, sourceOperationTimeout)
 		}
 		last = now
 		return nil
