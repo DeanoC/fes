@@ -1,6 +1,6 @@
 # #1984: scoping pc386's build identity (proposal, 18 Nov 2026)
 
-A proposal for [#1984](https://github.com/DeanoC/fes/issues/1984), for Deano to decide. It changes nothing: no producer, `scripts/input_identity.py`, lock or AGENTS.md edit, no Quartus run, no kit. Tree: `main` at `1ec592670` (the scripts ran on this branch, whose `sources/misteross` is identical to main's). Path convention: `M/` means `sources/misteross/`.
+A proposal for [#1984](https://github.com/DeanoC/fes/issues/1984). **Accepted by Deano on 18 Nov 2026: see [Decisions](#decisions-18-nov-2026).** The measured proposal below is unchanged from what he reviewed. It changes nothing: no producer, `scripts/input_identity.py`, lock or AGENTS.md edit, no Quartus run, no kit. Tree: `main` at `1ec592670` (the scripts ran on this branch, whose `sources/misteross` is identical to main's). Path convention: `M/` means `sources/misteross/`.
 
 The aim is that pc386 edits that cannot change the bitstream stop moving `BUILD_ID`, with D12 and the seal unchanged. D12 stays right wherever the ID really moves: on the DE10 a `BUILD_ID` change alone has moved clocks by MHz (#1894, #1926).
 
@@ -225,6 +225,25 @@ Each is one scope and one PR. S3 depends on S2. S4 depends on S1, S2 and S3: the
 4. **Migration evidence.** A normal reseal for the v1→v2 design-ID migration (recommended; about half the Quartus time D12 evidence would need), or D12 evidence?
 5. **S1's seal.** S2 moves no ID. S1 moves only pc386's v1 ID, with no RTL change. Should S1 merge under the in-progress pc386 exemption, so that S4's migration reseal is the only seal and also covers the x87 RTL drift since #1951? Or should S1 carry its own reseal or D12 evidence?
 6. **The manual sealer.** May S5 delete the format-1 manual sealer path, whose ID moves on every commit, now that the registered producer replaces it?
+
+## Decisions (18 Nov 2026)
+
+The six questions above, each with its recommended answer, went to Deano through the coordinating session. His reply, verbatim: **"Accept all six"**. It was relayed to this session, not given in the PR.
+
+1. **Evidence role: yes.** Under a new `design-v2` policy, the Bochs oracle, the lockstep suite and the two pc386 lockstep runners (the 16 files in `proposal.py`) leave the design ID. They stay in the record, with their own evidence digest.
+2. **Reuse after an evidence-only change: (b).** When only the suite or oracle changed, a sealed package is reused only after a fresh full lockstep on the current suite passes against the regenerated CPU netlist. No Quartus run is needed.
+3. **Firmware: F2, binding the design to the firmware output digests.** Condition: the slice that pins `rom_hex` must also confirm the ROM hex digest on a GitHub runner, not only the image digests, because this record measured the ROM digest only on Powerboat.
+4. **Migration evidence: a normal reseal** for the one-time v1→v2 design-ID migration, not D12 evidence.
+5. **S1's seal: yes.** The producer slice (S1) may merge under the in-progress pc386 exemption. The S4 migration reseal is then the only seal, and it also covers the x87 RTL drift since #1951.
+6. **The manual sealer: yes.** A separate PR (S5) may delete the format-1 manual sealer path.
+
+The accepted plan is option C. The slices run in order, one scope and one PR each, and none is implemented in this PR:
+
+1. **S1**: stop running evidence and firmware-recipe code in the seal process, pin `rom_hex` in `firmware.lock`, and check the file Yosys reads. It moves pc386's v1 ID under the pc386 exemption. It also carries decision 3's GitHub-runner ROM digest check.
+2. **S2**: add `design-v2` to `input_identity.py`, with the evidence set, its growth test, and the AGENTS.md and design-doc wording. It moves no ID.
+3. **S3**: reuse after evidence drift by fresh lockstep, with `_historical_sources` reading the original record's file list. It moves no ID and must merge before S4.
+4. **S4**: the pc386 producer writes design-v2 records, through a normal migration reseal.
+5. **S5**: a separate cleanup that deletes the manual format-1 sealer.
 
 ## Found in passing (follow-ups, not fixed here)
 
