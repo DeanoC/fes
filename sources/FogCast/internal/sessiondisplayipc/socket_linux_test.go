@@ -31,17 +31,6 @@ func testPath(t *testing.T) string {
 func transition() Transition {
 	return Transition{PackageID: strings.Repeat("a", 64), Generation: 7, TargetID: "kit-a", Display: protocol.SessionDisplayFocused}
 }
-func waitSocket(t *testing.T, path string) {
-	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		if _, err := os.Lstat(path); err == nil {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	t.Fatal("socket did not appear")
-}
 func startLauncher(t *testing.T, path string, uid uint32, prepare func(context.Context, Transition) (func(context.Context, Outcome) error, error)) context.CancelFunc {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
