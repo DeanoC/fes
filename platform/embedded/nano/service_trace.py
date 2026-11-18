@@ -1,7 +1,7 @@
 """Check the request service's serial evidence; no device access or admission."""
 import json
 import re
-from configuration_trace import extract as extract_configuration
+from configuration_trace import extract as extract_configuration, SOURCE_OPERATION_TICKS
 from native_trace import RULES, DECIMAL, decode_native_boot
 
 PREFIX=b'FES_NATIVE_PROGRAM_REPLY '
@@ -95,7 +95,7 @@ def opening(data,configuration,owner,generation,previous,*,retained_source=False
                                  require_activation=True,require_programmed=False,expected_owner=owner)
     require(not parsed['errors'] and parsed['complete'],'incomplete or invalid configuration transfer')
     timing=parsed['timing']
-    require(timing is not None and 0<timing['interval_ticks']<20*400000000,'configuration exceeded the original20s bound')
+    require(timing is not None and 0<timing['interval_ticks']<SOURCE_OPERATION_TICKS,'configuration exceeded declared source budget')
     require(any(row['stage']=='configuration_mailbox' for row in parsed['records']) and any(row['stage']=='configuration_engine' for row in parsed['records']),'missing configuration queue observations')
     require(parsed['records'] and parsed['records'][-1]['stage']=='configuration_complete','configuration did not finish before opening')
     rows=_records(b'\n'.join(parsed['parts']))

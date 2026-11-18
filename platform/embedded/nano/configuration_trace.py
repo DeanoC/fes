@@ -1,5 +1,13 @@
 """Decode bounded configuration-engine observations without granting boot authority."""
 import re
+import importlib.util
+from pathlib import Path
+
+_budget_spec=importlib.util.spec_from_file_location("configuration_source_budget",Path(__file__).resolve().parents[1]/"firmware/nano_sdm_input_profile.py")
+_budget=importlib.util.module_from_spec(_budget_spec);_budget_spec.loader.exec_module(_budget)
+SOURCE_OPERATION_US=_budget.CONTRACT["transfer_bound_us"]
+# The checked native counter frequency is fixed at 400 MHz.
+SOURCE_OPERATION_TICKS=SOURCE_OPERATION_US*400
 from remap_trace import extract as extract_remap
 
 H=r'[0-9a-f]{1,16}'

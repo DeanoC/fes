@@ -14,7 +14,7 @@ import call_trace
 import mmu_trace
 import fat_file_trace
 import startup as startup_policy
-from configuration_trace import extract as extract_configuration
+from configuration_trace import extract as extract_configuration, SOURCE_OPERATION_TICKS
 from hps_context import reader_pattern, digest as context_digest
 from hps_io import validate as validate_hps_io
 from reader_trace import extract as extract_reader_trace,validate as validate_reader_trace
@@ -1103,7 +1103,7 @@ def decode_native_computer_reload(data, build_id, owner_seed, *, fpga_identity, 
         if ended:
             require(decoded['complete'],'ended reload cycle lacks complete transfer and return evidence')
             timing=decoded.get('configuration_timing')
-            require(timing is not None and 0<timing['interval_ticks']<=20*400000000,
+            require(timing is not None and 0<timing['interval_ticks']<SOURCE_OPERATION_TICKS,
                     'reload lacks bounded configuration timing')
             samples=decoded.get('computer_activity',{}).get('samples',[])
             require(bool(samples) and samples[0]['fetches']==0 and samples[0]['address']==0,

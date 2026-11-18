@@ -10,7 +10,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'platform/embedded/nano'))
 import paired_tenfoot_trace as paired
-from paired_firmware_trace import menu_closed
+from paired_firmware_trace import menu_closed, configuration as paired_configuration
 import test_nano_combined_program as combined
 from test_nano_program_client import LAUNCH, BOOT, SPEC, OWNER
 from test_nano_tenfoot_trace import Model as AppModel, PROGRAMS, STAGING_FAULTS, corrupt_staging
@@ -28,6 +28,36 @@ CPU = (ROOT/'tests/fixtures/nano-tenfoot-startup/cpu.txt').read_bytes()
 
 def wire(prefix, row):
     return prefix+json.dumps(row, separators=(',', ':')).encode()+b'\n'
+
+
+class ConfigurationBudgetTests(unittest.TestCase):
+    def test_all_configuration_observers_share_the_declared_budget(self):
+        import configuration_trace, native_trace, service_trace, window_service_trace, window_reload_trace, paired_firmware_trace
+        self.assertEqual(configuration_trace.SOURCE_OPERATION_US, 25000000)
+        for module in (native_trace, service_trace, window_service_trace, window_reload_trace, paired_firmware_trace):
+            self.assertEqual(module.SOURCE_OPERATION_TICKS, 25000000*400)
+
+    def test_actual_paired_configuration_accepts_former_boundary_and_rejects_expiry(self):
+        model = Model()
+        raw = model.configure(10)
+        matches = list(re.finditer(rb'\bcounter=([0-9a-f]+)', raw))
+        self.assertGreater(len(matches), 2)
+        first = int(matches[0][1], 16)
+        for elapsed in (20142473, 24999999, 25000000, 25000001):
+            index = 0
+            def counter(match):
+                nonlocal index
+                value = first + elapsed*400*index//(len(matches)-1)
+                index += 1
+                return b'counter='+format(value, 'x').encode()
+            changed = re.sub(rb'\bcounter=([0-9a-f]+)', counter, raw)
+            with self.subTest(elapsed=elapsed):
+                if elapsed < 25000000:
+                    parsed, _ = paired_configuration(changed, SPEC['configuration'], int(OWNER,16), 10, 4)
+                    self.assertEqual(parsed['timing']['interval_ticks'], elapsed*400)
+                else:
+                    with self.assertRaisesRegex(ValueError, 'declared source budget'):
+                        paired_configuration(changed, SPEC['configuration'], int(OWNER,16), 10, 4)
 
 
 class Model(AppModel):

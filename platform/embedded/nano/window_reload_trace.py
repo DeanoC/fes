@@ -1,6 +1,6 @@
 """Audit a complete owned window/SD return followed by one fresh window load."""
 import re
-from configuration_trace import extract
+from configuration_trace import extract, SOURCE_OPERATION_TICKS
 from native_trace import RULES
 from window_storage_trace import decode as decode_storage
 from window_trace import validate
@@ -90,7 +90,7 @@ def decode(data,build_id,owner_seed,*,window_reload=False,**options):
     observed.update(configuration={k:v for k,v in parsed.items() if k!='parts'},window=window)
     for reason in window['errors']:reject(reason)
     if parsed['timing'] is not None:observed['configuration_timing']=parsed['timing']
-    if parsed['complete'] and (parsed['timing'] is None or not 0<=parsed['timing']['interval_ticks']<20*400000000):
+    if parsed['complete'] and (parsed['timing'] is None or not 0<=parsed['timing']['interval_ticks']<SOURCE_OPERATION_TICKS):
         reject('window reload lacks bounded current configuration timing')
     transfer_complete=parsed['complete'] and parsed['programmed'] is not None and parsed['activation'] is not None
     if final and not (transfer_complete and window['complete']):reject('window reload receipt preceded its complete new configuration and return')
