@@ -212,70 +212,151 @@ def cases() -> list[Case]:
     real('xadd-r8', 'PRM ch. 26, XADD', {'end': 'halt', 'eax': 0x10, 'ebx': 0x0f, 'eflags': 0x12}, xadd8,
          what='XADD AL, BL with a half carry')
 
-    def xadd_memory(lock):
+    def xadd_memory(width, lock):
         def build(a):
-            a.op(0x66, 0xc7, 0x06).w(DATA).d(5)       # MOV dword [2800h], 5
-            a.op(0x66, 0xbb).d(7)                     # MOV EBX, 7
+            if width == 8:
+                a.op(0xc6, 0x06).w(DATA).op(0xff, 0xb3, 0x01)  # byte [2800h] = FFh; BL = 1
+            elif width == 16:
+                a.op(0xc7, 0x06).w(DATA).w(0x7fff).op(0xbb, 0x01, 0x00)  # word [2800h] = 7FFFh; BX = 1
+            else:
+                a.op(0x66, 0xc7, 0x06).w(DATA).d(5).op(0x66, 0xbb).d(7)  # dword [2800h] = 5; EBX = 7
             probe = a.here()
             if lock:
                 a.op(0xf0)
-            a.op(0x66, 0x0f, 0xc1, 0x1e).w(DATA)      # XADD [2800h], EBX
-            a.op(0x66, 0x8b, 0x0e).w(DATA)            # MOV ECX, [2800h]
+            if width == 8:
+                a.op(0x0f, 0xc0, 0x1e).w(DATA)        # XADD byte [2800h], BL
+                a.op(0x8a, 0x0e).w(DATA)              # MOV CL, [2800h]
+            elif width == 16:
+                a.op(0x0f, 0xc1, 0x1e).w(DATA)        # XADD word [2800h], BX
+                a.op(0x8b, 0x0e).w(DATA)              # MOV CX, [2800h]
+            else:
+                a.op(0x66, 0x0f, 0xc1, 0x1e).w(DATA)  # XADD dword [2800h], EBX
+                a.op(0x66, 0x8b, 0x0e).w(DATA)        # MOV ECX, [2800h]
             return probe
         return build
-    real('xadd-m32', 'PRM ch. 26, XADD', {'end': 'halt', 'ecx': 12, 'ebx': 5, 'eflags': 0x06}, xadd_memory(False),
-         what='XADD to memory')
-    real('xadd-m32-lock', 'PRM ch. 26, XADD; LOCK', {'end': 'halt', 'ecx': 12, 'ebx': 5, 'eflags': 0x06}, xadd_memory(True),
-         what='LOCK XADD to memory')
-    real('xadd-reg-lock', 'PRM ch. 26, LOCK (only with a memory destination; else #UD)', {'end': 'exception:6'},
-         lambda a: a.op(0xf0, 0x0f, 0xc1, 0xd8) and None, what='LOCK XADD with a register destination is #UD')
+
+    for width in (8, 16, 32):
+        for lock in (False, True):
+            label = f'xadd-m{width}' + ('-lock' if lock else '')
+            builder = xadd_memory(width, lock)
+
+            def build(a, builder=builder):
+                return builder(a)
+
+            # The expected state is fixed by this width and arithmetic case.
+            expect = ({'ecx': 0, 'ebx': 0xff, 'eflags': 0x57} if width == 8 else
+                      {'ecx': 0x8000, 'ebx': 0x7fff, 'eflags': 0x896} if width == 16 else
+                      {'ecx': 12, 'ebx': 5, 'eflags': 0x06})
+            real(label, 'PRM ch. 26, XADD' + ('; LOCK' if lock else ''), {'end': 'halt', **expect}, build,
+                 what=f'{"LOCK " if lock else ""}XADD {width}-bit memory form; carry, auxiliary carry or overflow result')
+        opcode = (0x0f, 0xc0, 0xd8) if width == 8 else (0x0f, 0xc1, 0xd8) if width == 16 else (0x66, 0x0f, 0xc1, 0xd8)
+        real(f'xadd-r{width}-lock', 'PRM ch. 26, LOCK (only with a memory destination; else #UD)',
+             {'end': 'exception:6'}, lambda a, opcode=opcode: a.op(0xf0, *opcode) and None,
+             what=f'LOCK XADD {width}-bit register form is #UD')
 
     # ---- CMPXCHG ----
-    def cmpxchg32(accumulator, destination):
+    def cmpxchg_register(width, outcome):
+        equal = outcome == 'equal'
+
         def build(a):
-            a.op(0x66, 0xb8).d(accumulator).op(0x66, 0xbb).d(destination).op(0x66, 0xb9).d(9)
+            if width == 8:
+                a.op(0xb0, 5, 0xb3, 5 if equal else 7, 0xb1, 9)
+                operation = (0x0f, 0xb0, 0xcb)      # CMPXCHG BL, CL
+            elif width == 16:
+                a.op(0xb8).w(5).op(0xbb).w(5 if equal else 7).op(0xb9).w(9)
+                operation = (0x0f, 0xb1, 0xcb)    # CMPXCHG BX, CX
+            else:
+                accumulator, destination, source = (0x12345678, 0x12345678, 0xdeadbeef) if equal else (1, 0x12345678, 0xdeadbeef)
+                a.op(0x66, 0xb8).d(accumulator).op(0x66, 0xbb).d(destination).op(0x66, 0xb9).d(source)
+                operation = (0x66, 0x0f, 0xb1, 0xcb)  # CMPXCHG EBX, ECX
             probe = a.here()
-            a.op(0x66, 0x0f, 0xb1, 0xcb)              # CMPXCHG EBX, ECX
+            a.op(*operation)
             return probe
+
         return build
-    real('cmpxchg-r32-equal', 'PRM ch. 26, CMPXCHG', {'end': 'halt', 'eax': 5, 'ebx': 9, 'ecx': 9, 'eflags': 0x46},
-         cmpxchg32(5, 5), what='CMPXCHG, accumulator equal: the destination takes the source, ZF set')
-    real('cmpxchg-r32-unequal', 'PRM ch. 26, CMPXCHG', {'end': 'halt', 'eax': 7, 'ebx': 7, 'ecx': 9, 'eflags': 0x93},
-         cmpxchg32(5, 7), what='CMPXCHG, accumulator unequal: the accumulator takes the destination, flags are CMP\'s')
 
-    def cmpxchg_m8(a):
-        a.op(0xc6, 0x06).w(DATA).op(0x33, 0xb0, 0x33, 0xb1, 0x44)  # MOV byte [2800h], 33h; MOV AL, 33h; MOV CL, 44h
-        probe = a.here()
-        a.op(0x0f, 0xb0, 0x0e).w(DATA)                # CMPXCHG [2800h], CL
-        a.op(0x8a, 0x16).w(DATA)                      # MOV DL, [2800h]
-        return probe
-    real('cmpxchg-m8-equal', 'PRM ch. 26, CMPXCHG', {'end': 'halt', 'eax': 0x33, 'edx': 0x44, 'eflags': 0x46}, cmpxchg_m8,
-         what='CMPXCHG to a byte in memory, equal')
+    def cmpxchg_memory(width, outcome, lock=False):
+        equal = outcome == 'equal'
 
-    def cmpxchg_m16(a):
-        a.op(0xc7, 0x06).w(DATA).w(0x1234).op(0xb8).w(0x1111).op(0xb9).w(0x5555)
-        probe = a.here()
-        a.op(0x0f, 0xb1, 0x0e).w(DATA)                # CMPXCHG [2800h], CX
-        a.op(0x8b, 0x16).w(DATA)                      # MOV DX, [2800h]
-        return probe
-    real('cmpxchg-m16-unequal', 'PRM ch. 26, CMPXCHG', {'end': 'halt', 'eax': 0x1234, 'edx': 0x1234, 'eflags': 0x97},
-         cmpxchg_m16, what='CMPXCHG to a word in memory, unequal')
-
-    def cmpxchg_m32(accumulator, lock):
         def build(a):
-            a.op(0x66, 0xc7, 0x06).w(DATA).d(0x12345678)
-            a.op(0x66, 0xb8).d(accumulator).op(0x66, 0xb9).d(0xdeadbeef)
+            if width == 8:
+                memory, accumulator, source = 0x33, 0x33 if equal else 0x22, 0x44
+                a.op(0xc6, 0x06).w(DATA).op(memory, 0xb0, accumulator, 0xb1, source)
+                operation = (0x0f, 0xb0, 0x0e)      # CMPXCHG byte [2800h], CL
+                load = (0x8a, 0x16)                  # MOV DL, [2800h]
+            elif width == 16:
+                memory, accumulator, source = 0x1234, 0x1234 if equal else 0x1111, 0x5678
+                a.op(0xc7, 0x06).w(DATA).w(memory).op(0xb8).w(accumulator).op(0xb9).w(source)
+                operation = (0x0f, 0xb1, 0x0e)      # CMPXCHG word [2800h], CX
+                load = (0x8b, 0x16)                  # MOV DX, [2800h]
+            else:
+                memory, accumulator, source = 0x12345678, 0x12345678 if equal else 1, 0xdeadbeef
+                a.op(0x66, 0xc7, 0x06).w(DATA).d(memory)
+                a.op(0x66, 0xb8).d(accumulator).op(0x66, 0xb9).d(source)
+                operation = (0x66, 0x0f, 0xb1, 0x0e)  # CMPXCHG dword [2800h], ECX
+                load = (0x66, 0x8b, 0x16)              # MOV EDX, [2800h]
             probe = a.here()
             if lock:
                 a.op(0xf0)
-            a.op(0x66, 0x0f, 0xb1, 0x0e).w(DATA)      # CMPXCHG [2800h], ECX
-            a.op(0x66, 0x8b, 0x16).w(DATA)            # MOV EDX, [2800h]
+            a.op(*operation)
+            a.w(DATA)
+            a.op(*load)
+            a.w(DATA)
             return probe
+
         return build
-    real('cmpxchg-m32-equal-lock', 'PRM ch. 26, CMPXCHG; LOCK', {'end': 'halt', 'eax': 0x12345678, 'edx': 0xdeadbeef, 'eflags': 0x46},
-         cmpxchg_m32(0x12345678, True), what='LOCK CMPXCHG to a doubleword in memory, equal')
-    real('cmpxchg-m32-unequal', 'PRM ch. 26, CMPXCHG', {'end': 'halt', 'eax': 0x12345678, 'edx': 0x12345678, 'eflags': 0x93},
-         cmpxchg_m32(1, False), what='CMPXCHG to a doubleword in memory, unequal')
+
+    for width in (8, 16, 32):
+        locked_operation = ((0x0f, 0xb0, 0xcb) if width == 8 else
+                            (0x0f, 0xb1, 0xcb) if width == 16 else
+                            (0x66, 0x0f, 0xb1, 0xcb))
+        real(f'cmpxchg-r{width}-lock', 'PRM ch. 26, LOCK (only with a memory destination; else #UD)',
+             {'end': 'exception:6'}, lambda a, op=locked_operation: a.op(0xf0, *op) and None,
+             what=f'LOCK CMPXCHG {width}-bit register form is #UD')
+
+        for outcome in ('equal', 'unequal'):
+            register = cmpxchg_register(width, outcome)
+            label = f'cmpxchg-r{width}-{outcome}'
+
+            def build_register(a, register=register):
+                return register(a)
+
+            if width == 8:
+                expected = {'eax': 5 if outcome == 'equal' else 7, 'ebx': 9 if outcome == 'equal' else 7,
+                            'ecx': 9, 'eflags': 0x46 if outcome == 'equal' else 0x93}
+            elif width == 16:
+                expected = {'eax': 5 if outcome == 'equal' else 7, 'ebx': 9 if outcome == 'equal' else 7,
+                            'ecx': 9, 'eflags': 0x46 if outcome == 'equal' else 0x93}
+            else:
+                expected = {'eax': 0x12345678,
+                            'ebx': 0xdeadbeef if outcome == 'equal' else 0x12345678, 'ecx': 0xdeadbeef,
+                            'eflags': 0x46 if outcome == 'equal' else 0x93}
+            real(label, 'PRM ch. 26, CMPXCHG', {'end': 'halt', **expected}, build_register,
+                 what=f'{width}-bit register CMPXCHG, accumulator {outcome}')
+            memory = cmpxchg_memory(width, outcome)
+            memory_label = f'cmpxchg-m{width}-{outcome}'
+
+            def build_memory(a, memory=memory):
+                return memory(a)
+
+            if width == 8:
+                memory_expected = {'eax': 0x33, 'edx': 0x44 if outcome == 'equal' else 0x33,
+                                   'eflags': 0x46 if outcome == 'equal' else 0x93}
+            elif width == 16:
+                memory_expected = {'eax': 0x1234, 'edx': 0x5678 if outcome == 'equal' else 0x1234,
+                                   'eflags': 0x46 if outcome == 'equal' else 0x97}
+            else:
+                memory_expected = {'eax': 0x12345678, 'edx': 0xdeadbeef if outcome == 'equal' else 0x12345678,
+                                   'eflags': 0x46 if outcome == 'equal' else 0x93}
+            real(memory_label, 'PRM ch. 26, CMPXCHG', {'end': 'halt', **memory_expected}, build_memory,
+                 what=f'{width}-bit memory CMPXCHG, accumulator {outcome}')
+            locked_memory = cmpxchg_memory(width, outcome, lock=True)
+
+            def build_locked_memory(a, locked_memory=locked_memory):
+                return locked_memory(a)
+
+            real(memory_label + '-lock', 'PRM ch. 26, CMPXCHG; LOCK', {'end': 'halt', **memory_expected}, build_locked_memory,
+                 what=f'LOCK {width}-bit memory CMPXCHG, accumulator {outcome}')
     real('cmpxchg-a6', 'Bochs', {'end': 'exception:6'}, lambda a: a.op(0x0f, 0xa6, 0xc8) and None,
          what='0F A6, the first stepping\'s CMPXCHG encoding, is #UD')
 
@@ -402,10 +483,10 @@ def cases() -> list[Case]:
             a.op(0x0f, 0x24, 0xc3 | n << 3)           # MOV EBX, TRn
             return probe
         return build
-    real('mov-tr3', 'Bochs', {'end': 'exception:6'}, test_register(3), divergence='mov-tr',
-         i486='TR3 exists (PRM Appendix E, Table 10.1: MOV to and from TR3): no #UD', what='MOV to and from TR3')
-    real('mov-tr6', 'Bochs', {'end': 'exception:6'}, test_register(6), divergence='mov-tr',
-         i486='TR6 exists, as on the 386: no #UD', what='MOV to and from TR6')
+    for n in range(3, 8):
+        real(f'mov-tr{n}', 'Bochs', {'end': 'exception:6'}, test_register(n), divergence='mov-tr',
+             i486=(f'TR{n} exists (PRM Appendix E, Table 10.1: MOV to and from TR3-TR7): no #UD'),
+             what=f'MOV to and from TR{n}')
     real('mov-cr4-read', 'Bochs', {'end': 'halt', 'eax': 0}, lambda a: a.op(0x0f, 0x20, 0xe0) and 0, probe_at=0,
          divergence='mov-cr4', i486='CR4 is only on parts with VME, PVI or PSE (DB 4.2.3.1)',
          what='MOV EAX, CR4 with VME excluded reads 0')

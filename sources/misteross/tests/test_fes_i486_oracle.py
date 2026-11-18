@@ -86,6 +86,39 @@ class CasesTest(unittest.TestCase):
                      'ac-fault', 'cpuid-0', 'cpuid-1', 'mov-tr3', 'mov-cr4'):
             self.assertIn(item, text)
 
+    def test_atomic_instruction_matrix_covers_width_form_outcome_and_lock(self):
+        labels = {case.label for case in self.cases}
+        for width in (8, 16, 32):
+            self.assertIn(f'xadd-r{width}', labels)
+            self.assertIn(f'xadd-r{width}-lock', labels)
+            self.assertIn(f'xadd-m{width}', labels)
+            self.assertIn(f'xadd-m{width}-lock', labels)
+            self.assertIn(f'cmpxchg-r{width}-lock', labels)
+            for outcome in ('equal', 'unequal'):
+                self.assertIn(f'cmpxchg-r{width}-{outcome}', labels)
+                self.assertIn(f'cmpxchg-m{width}-{outcome}', labels)
+                self.assertIn(f'cmpxchg-m{width}-{outcome}-lock', labels)
+
+    def test_each_test_register_tr3_through_tr7_has_a_directed_case(self):
+        labels = {case.label for case in self.cases}
+        self.assertTrue({f'mov-tr{number}' for number in range(3, 8)} <= labels)
+
+    def test_lockstep_selects_masks_probes_and_cr4_by_identity(self):
+        testbench = (level4.SIM / 'lockstep_tb.cpp').read_text()
+        adapter = (level4.SIM / 'bochs_oracle.cpp').read_text()
+        oracle_state = (level4.SIM / 'i386_oracle.h').read_text()
+        self.assertIn('EFLAGS_486_MASK', testbench)
+        self.assertIn('CR0_486_MASK', testbench)
+        self.assertIn('if (i486 && id == "ud-invlpg") continue;', testbench)
+        self.assertIn('while (i486 && (opcode == 0x08', testbench)
+        self.assertIn('if (i486_identity)', testbench)
+        self.assertIn('defined.count(probe.first)', testbench)
+        for probe in ('wbinvd', 'cmpxchg8', 'xadd8', 'xadd16', 'xadd32'):
+            self.assertIn(f'"{probe}"', testbench)
+        self.assertIn('uint32_t cr0 = 0, cr2 = 0, cr3 = 0, cr4 = 0;', oracle_state)
+        self.assertIn('state.cr4 = Bit32u(bx_cpu.cr4.get());', adapter)
+        self.assertIn('bx_cpu.cr4.set(state.cr4);', adapter)
+
     def test_lines_place_code_at_1000h_and_the_probe_inside_it(self):
         for case in self.cases:
             label, probe, runs = case.line().split(' ')

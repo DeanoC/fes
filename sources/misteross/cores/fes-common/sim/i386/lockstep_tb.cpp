@@ -228,6 +228,8 @@ bool in_rom(uint32_t paddr) { return mixed && paddr >= ROM_LO && paddr < HOLE_LO
 bool in_hole(uint32_t paddr) { return mixed && paddr >= HOLE_LO && paddr < HOLE_HI; }
 uint32_t window_top() { return mixed ? HOLE_HI : MMIO_HI; }  // code stays clear of the window below this
 constexpr uint32_t EFLAGS_MASK = 0x0003ffff;
+constexpr uint32_t EFLAGS_486_MASK = EFLAGS_MASK | (1u << 18) | (1u << 21);
+uint32_t eflags_comparison_mask() { return i486 ? EFLAGS_486_MASK : EFLAGS_MASK; }
 constexpr int EVENT_CYCLES = 20000;  // an RTL retirement or fault must come within this many cycles
                                      // (a REP string of 63 elements, each missing in both caches)
 constexpr int GOVERNED_EVENT_CYCLES = 80000;  // ... under a preset, whose ISA bus time holds a REP string of
@@ -878,10 +880,11 @@ public:
     State state() const {
         State s;
         for (int n = 0; n < 8; ++n) s.gpr[n] = top.arch_gpr[n];
-        s.eflags = top.arch_eflags & EFLAGS_MASK;
+        s.eflags = top.arch_eflags & eflags_comparison_mask();
         s.cr0 = top.arch_cr0;
         s.cr2 = top.arch_cr2;
         s.cr3 = top.arch_cr3;
+        s.cr4 = 0;  // fes_i386_cpu has no CR4 until the 486 identity is built
         for (int n = 0; n < 4; ++n) s.dr[n] = top.arch_dr[n];
         s.dr6 = top.arch_dr6;
         s.dr7 = top.arch_dr7;
@@ -1205,6 +1208,9 @@ std::vector<Entry> load_entries(const char *path) {
         std::istringstream words(line);
         std::string id, follow, stems, when, fields;
         if (!(words >> id >> follow >> stems >> when >> fields)) continue;
+        // INVLPG is a 486 instruction. This divergence describes only the
+        // 386 decoder rejecting 0F 01 /7 while the level-3 oracle runs it.
+        if (i486 && id == "ud-invlpg") continue;
         Entry e;
         e.id = id;
         e.corpus = follow == "corpus";
@@ -1288,12 +1294,16 @@ bool clear_of_window(uint32_t a) { return a + 16 <= MMIO_LO || a >= window_top()
 // Bochs's 387 forces ET (a known limit), and the bits Bochs's 386 reads as
 // ones are left as a state loads them (the corpus's 386EX reads bit 16 as 0).
 constexpr uint32_t CR0_MASK = 0x8000000fu;
+constexpr uint32_t CR0_486_MASK = 0xe005003fu;
+uint32_t cr0_comparison_mask() { return i486 ? CR0_486_MASK : CR0_MASK; }
 
 // RTL against the oracle, leaving out skip's fields.
 void compare(const State &want, const State &got, const Fields &skip, const std::string &at, Mismatches &out) {
     if (skip.all) return;
     if (!skip.has("eip") && want.eip != got.eip) out.add(at + "eip", want.eip, got.eip);
-    if ((want.cr0 ^ got.cr0) & CR0_MASK) out.add(at + "cr0", want.cr0 & CR0_MASK, got.cr0 & CR0_MASK);
+    const uint32_t cr0_mask = cr0_comparison_mask();
+    if ((want.cr0 ^ got.cr0) & cr0_mask) out.add(at + "cr0", want.cr0 & cr0_mask, got.cr0 & cr0_mask);
+    if (i486 && want.cr4 != got.cr4) out.add(at + "cr4", want.cr4, got.cr4);
     // The CPL, in protected mode (real mode's is 0 on both sides).
     if ((want.cr0 & 1) && want.cpl != got.cpl) out.add(at + "cpl", want.cpl, got.cpl);
     // LDTR and TR, with their caches; LDTR's valid bit (a null LLDT clears
@@ -1318,7 +1328,7 @@ void compare(const State &want, const State &got, const Fields &skip, const std:
         out.add(at + "idtr", uint64_t(want.idtr.base) << 16 | want.idtr.limit, uint64_t(got.idtr.base) << 16 | got.idtr.limit);
     for (int n = 0; n < 8; ++n)
         if (!skip.has(GPR_NAMES[n]) && want.gpr[n] != got.gpr[n]) out.add(at + GPR_NAMES[n], want.gpr[n], got.gpr[n]);
-    const uint32_t mask = EFLAGS_MASK & ~skip.eflags;
+    const uint32_t mask = eflags_comparison_mask() & ~skip.eflags;
     if ((want.eflags & mask) != (got.eflags & mask)) out.add(at + "eflags", want.eflags & mask, got.eflags & mask);
     for (int n = 0; n < 6; ++n) {
         if (skip.has(SEG_NAMES[n])) continue;
@@ -1335,7 +1345,9 @@ void compare(const State &want, const State &got, const Fields &skip, const std:
 void adopt(State &oracle_state, const State &rtl, const Fields &fields) {
     if (fields.all) {
         for (int n = 0; n < 8; ++n) oracle_state.gpr[n] = rtl.gpr[n];
-        oracle_state.eflags = (oracle_state.eflags & ~EFLAGS_MASK) | (rtl.eflags & EFLAGS_MASK);
+        const uint32_t mask = eflags_comparison_mask();
+        oracle_state.eflags = (oracle_state.eflags & ~mask) | (rtl.eflags & mask);
+        if (i486) oracle_state.cr4 = rtl.cr4;
         oracle_state.eip = rtl.eip;
         // A segment whose cache agrees keeps the oracle's valid bit: the
         // RTL's state gives valid from P, which a data segment an outer
@@ -4560,7 +4572,7 @@ State to_state(const Registers &r) {
                              fes_i386::SEG_FS, fes_i386::SEG_GS, fes_i386::SEG_SS};
     for (int n = 0; n < 6; ++n) state.seg[seg_order[n]] = fes_i386::real_mode_segment(uint16_t(r[10 + n]));
     state.eip = r[16];
-    state.eflags = r[17] & EFLAGS_MASK;
+    state.eflags = r[17] & eflags_comparison_mask();
     // DR6's and DR7's fixed bits as a 386 holds them (the corpus lists 0;
     // none of its instructions touch the debug registers).
     state.dr6 = r[18] | 0xffff0ff0u;
@@ -4797,7 +4809,15 @@ private:
         auto reg = [&](unsigned r) { modrm = uint8_t((modrm & 0xc7) | r << 3); };
         auto regform = [&]() { modrm |= 0xc0; };
         switch (side() % 12) {
-        case 0: case 1: case 2: case 3: out.insert(out.end(), {0x0f, ud_0f[side() % sizeof ud_0f]}); break;
+        case 0: case 1: case 2: case 3: {
+            uint8_t opcode;
+            do {
+                opcode = ud_0f[side() % sizeof ud_0f];
+            } while (i486 && (opcode == 0x08 || opcode == 0x09 || opcode == 0xa2 || opcode == 0xb0 || opcode == 0xb1
+                              || opcode == 0xc0 || opcode == 0xc1 || (opcode >= 0xc8 && opcode <= 0xcf)));
+            out.insert(out.end(), {0x0f, opcode});
+            break;
+        }
         case 4: out.push_back(0xfe); reg(2 + unsigned(side() % 6)); break;
         case 5: out.push_back(0xff); reg(7); break;
         case 6: out.insert(out.end(), {0x0f, 0xba}); reg(unsigned(side() % 4)); break;
@@ -4823,8 +4843,10 @@ private:
             static const uint8_t ops[] = {0x20, 0x22, 0x24, 0x26};
             const uint8_t op = ops[side() % 4];
             out.insert(out.end(), {0x0f, op});
-            if (op < 0x24) reg(side() % 2 ? 1 : 4 + unsigned(side() % 4));
-            else reg(unsigned(side() % 4));
+            if (op < 0x24)
+                reg(i486 ? (side() % 2 ? 1 : 5 + unsigned(side() % 3)) : side() % 2 ? 1 : 4 + unsigned(side() % 4));
+            else
+                reg(i486 ? unsigned(side() % 3) : unsigned(side() % 4));
             break;
         }
         default:  // MOV Sreg 6, 7 and to CS; group 6 /6, /7
@@ -7694,14 +7716,17 @@ int run_test386(fes_i386::Oracle &oracle, Rtl &rtl) {
 // 80386 decoder23.txt), for 16-bit code: undefined 0Fh opcodes, XBTS and
 // IBTS, the undefined ModRM reg fields, register forms of the memory-only
 // instructions, MOV of CR1 and TR0; with prefixes, LOCK, and memory
-// operands, which must not be read. 0F 0D and INVLPG are not here: Bochs
-// runs them (divergences.toml ud-0f0d, ud-invlpg), and the unbuilt sweep
-// checks the RTL's #UD alone.
-std::vector<std::pair<std::string, std::vector<uint8_t>>> ud_probes16() {
-    return {
+// operands, which must not be read. 0F 0D and INVLPG's memory form are not
+// 386 #UD probes: Bochs runs them (divergences.toml ud-0f0d, ud-invlpg).
+// The invalid-register INVLPG form is still probed as #UD.
+std::vector<std::pair<std::string, std::vector<uint8_t>>> ud_probes16(bool i486_identity) {
+    std::vector<std::pair<std::string, std::vector<uint8_t>>> probes = {
         {"xbts", {0x0f, 0xa6, 0xc0}}, {"ibts", {0x0f, 0xa7, 0xc8}}, {"xbts-mem", {0x0f, 0xa6, 0x07}},
         {"0fff", {0x0f, 0xff, 0x00}}, {"ud2", {0x0f, 0x0b}}, {"0f05", {0x0f, 0x05}}, {"cpuid", {0x0f, 0xa2}},
-        {"invd", {0x0f, 0x08}}, {"rdtsc", {0x0f, 0x31}}, {"cmpxchg", {0x0f, 0xb1, 0xc8}}, {"bswap", {0x0f, 0xc8}},
+        {"invd", {0x0f, 0x08}}, {"wbinvd", {0x0f, 0x09}}, {"rdtsc", {0x0f, 0x31}},
+        {"cmpxchg8", {0x0f, 0xb0, 0xc8}}, {"cmpxchg", {0x0f, 0xb1, 0xc8}},
+        {"xadd8", {0x0f, 0xc0, 0xc8}}, {"xadd16", {0x0f, 0xc1, 0xc8}}, {"xadd32", {0x66, 0x0f, 0xc1, 0xc8}},
+        {"bswap", {0x0f, 0xc8}},
         {"0fc7", {0x0f, 0xc7, 0x08}}, {"fe2", {0xfe, 0xd0}}, {"fe7-mem", {0xfe, 0x3f}}, {"ff7", {0xff, 0xf8}},
         {"ff3-reg", {0xff, 0xd8}}, {"ff5-reg", {0xff, 0xe8}}, {"les-reg", {0xc4, 0xc0}}, {"lds-reg", {0xc5, 0xc0}},
         {"lea-reg", {0x8d, 0xc0}}, {"bound-reg", {0x62, 0xc0}}, {"lss-reg", {0x0f, 0xb2, 0xc0}},
@@ -7709,12 +7734,24 @@ std::vector<std::pair<std::string, std::vector<uint8_t>>> ud_probes16() {
         {"sgdt-reg", {0x0f, 0x01, 0xc0}}, {"lidt-reg", {0x0f, 0x01, 0xd8}}, {"grp6-6", {0x0f, 0x00, 0xf0}},
         {"bt0", {0x0f, 0xba, 0xc0, 0x01}}, {"bt3-mem", {0x0f, 0xba, 0x1f, 0x01}}, {"mov-cr1", {0x0f, 0x20, 0xc8}},
         {"mov-cr4", {0x0f, 0x22, 0xe0}}, {"mov-tr0", {0x0f, 0x24, 0xc0}}, {"mov-tr3", {0x0f, 0x26, 0xd8}},
+        {"invlpg-reg", {0x0f, 0x01, 0xf8}},
         {"pop-8f1", {0x8f, 0xc8}}, {"mov-c6-1", {0xc6, 0xc8, 0x00}}, {"mov-c7-7-mem", {0xc7, 0x3f, 0x00, 0x00}},
         {"mov-sreg6", {0x8c, 0xf0}}, {"lock-0fff", {0xf0, 0x0f, 0xff, 0x00}}, {"lock-fe2-mem", {0xf0, 0xfe, 0x17}},
         {"prefixed-xbts", {0x26, 0x66, 0x67, 0x0f, 0xa6, 0x00}}, {"rep-0f0b", {0xf3, 0x0f, 0x0b}},
         // #1730: LOCK on ICEBP, UMOV and MOV TRn.
         {"lock-icebp", {0xf0, 0xf1}}, {"lock-umov-mem", {0xf0, 0x0f, 0x11, 0x07}}, {"lock-tr6", {0xf0, 0x0f, 0x24, 0xf0}},
     };
+    if (i486_identity) {
+        // On option B, these opcodes are defined (CR4 is present in the model
+        // even though VME/PVI/PSE are excluded). TR3 is defined too. Keep the
+        // invalid-register INVLPG probe: its memory form is defined on the 486.
+        static const std::set<std::string> defined = {"cpuid", "invd", "wbinvd", "cmpxchg8", "cmpxchg",
+                                                      "xadd8", "xadd16", "xadd32", "bswap", "mov-cr4", "mov-tr3"};
+        probes.erase(std::remove_if(probes.begin(), probes.end(), [&](const auto &probe) {
+            return defined.count(probe.first);
+        }), probes.end());
+    }
+    return probes;
 }
 
 int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
@@ -8479,7 +8516,7 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     // of each kind, with prefixes, LOCK and memory operands.
     {
         static std::deque<std::string> labels;
-        for (const auto &[name, bytes] : ud_probes16()) {
+        for (const auto &[name, bytes] : ud_probes16(i486)) {
             auto body = [bytes = bytes](Asm &a) { a.b.insert(a.b.end(), bytes.begin(), bytes.end()); };
             cases.push_back(Case{labels.emplace_back("ud-real-" + name).c_str(), body, 6, -1, {}, true});
             cases.push_back(Case{labels.emplace_back("ud-pm-" + name).c_str(), body, 6, -1, {}, false});
@@ -9848,7 +9885,7 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
                                          if (name == "bt0") a.op({0x01});
                                      }, 6, -1, -1, {{0x10, 0x20000 | W | U}}, {}, {}, r3});
             }
-        for (const auto &[name, bytes] : ud_probes16())
+        for (const auto &[name, bytes] : ud_probes16(i486))
             cases.push_back(Case{labels.emplace_back("pg-ud-v86-" + name).c_str(), [=, bytes = bytes](Asm &a, uint32_t) {
                                      to_v86(a);
                                      a.b.insert(a.b.end(), bytes.begin(), bytes.end());

@@ -22,10 +22,16 @@ NOTES = '''\
 - **Main was merged in after the first full set of runs** (the x87
   transcendentals, #1959, and the dev86 mirror, #1978; no conflicts). Rules
   1 to 4 and the boot were then run again, against the new merge base and
-  at the merge commit, and those are the figures here. The census and the
-  CACHECHK runs were not: each says above which commit it ran at. The
+  at the merge commit, and those are the figures here. The census was not
+  rerun; its post-merge equivalence audit is below. CACHECHK was not rerun:
+  its section says which commit it ran at. The
   pre-merge comparison (merge base `5e592f003`, head `75bd225a2`) also
   passed; it is in this file's history.
+- **Review follow-up:** the case generator now covers all XADD/CMPXCHG
+  widths, forms, outcomes and LOCK cases, and the pinned level-4 oracle-only
+  check passes 72 of 72 rows. The RTL stop list is still the old 48-case
+  measurement: the pinned Verilator was unavailable, so no stop result for
+  the expanded suite is claimed here.
 - **The level-3 lockstep at the first merge base was run twice.** The first had
   `--corpus` naming the corpus; the head run found the same corpus at its
   default path. The base was rerun the head's way so the arguments are the
@@ -61,22 +67,12 @@ NOTES = '''\
 DEPARTURES = '''\
 ## Where this departs from the plan's slice 0
 
-The plan record's slice 0 definition is the scope. Three things it names
-are defined here but not built, each because the RTL has no 486 identity
-to hold them to yet:
-
-- **"The wider EFLAGS and CR0 masks."** The state comparison's masks are
-  still the 386's. The 486's are written down in the oracle README's scope
-  table, and the directed cases read CR0's 486 bits and EFLAGS.AC and ID
-  into registers, which is how every one of those stops was found.
-- **"Its #UD probes and the `ud-invlpg` entry become per-identity."** They
-  are per-identity in the scope table, not in code: the level-4 oracle runs
-  only the `i486` mode, so the 386's probes and divergence list are never
-  run against it.
-- **"CR4 only for option B."** B is the chosen target, and `State` still has
-  no CR4, because the oracle excludes VME, as the plan's own runs did; CR4
-  then has no writable bit. Which later stepping B is was not decided. A
-  part with VME adds CR4 to `State` and V86 extensions to the CPU work.
+The plan record's slice 0 definition is the scope. The reviewed comparator
+scope is now implemented: the EFLAGS and CR0 masks select the active identity;
+the generated #UD probes and `ud-invlpg` divergence select 386 or 486 behavior;
+and option B's CR4 is carried in oracle state. The RTL still has no 486
+identity, so this is implementation evidence, not acceptance. In particular,
+the exact 72-case RTL stop list has not been run with the pinned Verilator.
 
 One thing was added that the plan's definition does not ask for: the
 adapter sets a 486's reset EDX and DR6, which Bochs leaves as the 386's.
@@ -87,7 +83,11 @@ NOT_RUN = '''\
 
 - No seal, no D12 netlist and RBF comparison, and no kit.
 - No netlist lockstep for the `i486` mode: it runs the RTL only.
-- The census and the CACHECHK runs were not repeated after main was merged.
+- The 54-row census was not repeated after main was merged; the source
+  equivalence audit below carries its six reported keys to the current tree.
+- The CACHECHK run was not repeated after main was merged.
+- The 72-case RTL stop list was not run: the pinned i386 Verilator cache was
+  unavailable. The committed stop list still describes the prior 48 cases.
 - `wfw-msdos` and the three Linux drives were not run at level 4; the plan
   did not run them either.
 - CACHECHK's timing loop was not traced, only the divide and its operands.
@@ -113,8 +113,8 @@ def carried(kind: str, commit: str, head: str, inputs_changed) -> str:
 
 def render(read, inputs_changed, record: str) -> str:
     identity, level3, selfcheck = read('identity.json'), read('level3-compare.json'), read('oracle-selfcheck.json')
-    stops, boot, census, cachechk = (read('expected-stops.json'), read('boot.json'), read('census-compare.json'),
-                                     read('cachechk.json'))
+    stops, boot, census, cachechk, census_equivalence = (read('expected-stops.json'), read('boot.json'),
+        read('census-compare.json'), read('cachechk.json'), read('census-equivalence.json'))
     out: list[str] = []
     add = out.append
     add('# i486 slice 0: the Bochs oracle and the lockstep at CPU level 4, 18 November 2026\n')
@@ -161,6 +161,9 @@ def render(read, inputs_changed, record: str) -> str:
             f"{sum(row['isolated'] for row in rows)} of {len(rows)} are isolated** (agree, or first mismatch at or "
             f"after the probe). Two runs gave the same list: {yes(stops['runs_equal'])}. "
             f"{sum(not row['as_predicted'] for row in rows)} cases differ from `method.md`'s prediction.")
+        if selfcheck and len(rows) != len(selfcheck['cases']):
+            add(f" The stop report is still for the prior {len(rows)}-case matrix; the oracle-only self-check below "
+                f"covers {len(selfcheck['cases'])} cases, and the expanded matrix has no RTL stop result.")
     if boot:
         end = boot['end'] or {}
         add(f"- **Rule 5, the level-4 boot: {'pass' if boot['pass'] else 'FAIL'}.** FreeDOS ends at "
@@ -169,9 +172,9 @@ def render(read, inputs_changed, record: str) -> str:
     else:
         add('- **Rule 5, the level-4 boot: not run.**')
     if census:
-        add(f"- **Rule 5, the census: {'pass' if census['pass'] else 'not passed'}.** {census['rows_run']} of "
-            f"{census['plan_rows']} of the plan's rows were run again; {census['rows_equal']} equal the plan's counts"
-            + (f"; {len(census['not_run'])} not run" if census['not_run'] else '') + '.')
+        audit = 'current-tree equivalence audit passes' if census_equivalence and census_equivalence['pass'] else 'current-tree equivalence not established'
+        add(f"- **Rule 5, the census: {census['rows_equal']} of {census['plan_rows']} rows passed at "
+            f"`{census['commit'][:9]}`; {audit}.** It was not rerun on the current tree.")
     else:
         add('- **Rule 5, the census: still running when this was generated; no row is reported.**')
     if cachechk:
@@ -313,6 +316,10 @@ def render(read, inputs_changed, record: str) -> str:
         add('The list is committed as '
             '[`i486-expected-stops.txt`](../../../sources/misteross/cores/fes-common/sim/i386/i486-expected-stops.txt), '
             'and `scripts/test_fes_i486_lockstep.py` fails when a run differs from it.\n')
+        if selfcheck and len(stops['cases']) != len(selfcheck['cases']):
+            add(f"This stop report and expected list are historical for {len(stops['cases'])} cases. The current "
+                f"{len(selfcheck['cases'])}-case matrix has no measured RTL stop list; do not use this report as "
+                'its lockstep result.\n')
         inputs = stops['machine_reset_inputs']
         add('What this does not show: the reset values. The CPU takes its reset state from inputs the machine '
             'drives, so the lockstep starts every case from a state the bench loads. At this commit '
@@ -328,7 +335,7 @@ def render(read, inputs_changed, record: str) -> str:
     else:
         add('**Boot.** Not run.\n')
     if census:
-        add(f"**Census.** Run on {census['host']}, {carried('machine', census['commit'], record, inputs_changed)}. "
+        add(f"**Census.** Run on {census['host']} at `{census['commit'][:9]}`, before main was merged. "
             f"The plan's `census.jsonl` at `{census['plan_revision'][:9]}` has {census['plan_rows']} rows. "
             f"{census['rows_run']} were run again on this slice's level-4 oracle; compared keys: "
             f"{', '.join('`' + key + '`' for key in census['compared_keys'])}.\n")
@@ -344,6 +351,24 @@ def render(read, inputs_changed, record: str) -> str:
             + '. Their rows are counted. The plan record has the same for `chkcpu`: it prints and exits, so the '
               'game check sees no screen progress' if nonzero else '') + '.')
         add('\nThe rows are in [`census.jsonl`](census.jsonl): counts only.\n')
+        if census_equivalence:
+            add('**Current-tree equivalence audit; no rerun.** The audit in '
+                '[`census-equivalence.json`](census-equivalence.json) checks the source path from the measured run '
+                f"to `{census_equivalence['current_commit'][:9]}`. Result: "
+                f"{'pass' if census_equivalence['pass'] else 'FAIL'} for the six compared keys. The exact machine "
+                f"selector, census accumulator, and level-4 provisioner files have matching SHA-256 values:\n")
+            add('| File | SHA-256 at both trees |\n| --- | --- |')
+            for path, row in census_equivalence['control_hashes'].items():
+                add(f"| `{path}` | `{row['current']}` |")
+            add('\nAll changed machine inputs are classified in the audit JSON:\n')
+            for category, paths in census_equivalence['changed_input_classes'].items():
+                if paths:
+                    add(f"- `{category}`: {len(paths)} paths.")
+            fw = census_equivalence['firmware']
+            add(f"- Oracle-only mode constructs no RTL; the level-4 Bochs provisioner is unchanged. The new CR4 "
+                f"snapshot is not consumed by the census keys. Firmware pins retain dev86 `{fw['dev86_revision']}`, "
+                f"BIOS `{fw['bios_sha256']}` and VGA BIOS `{fw['vgabios_sha256']}`. This audit carries only "
+                'the reported census keys and is not a rerun or hardware acceptance.\n')
     else:
         add('**Census.** Still running when this was generated.\n')
 

@@ -42,7 +42,7 @@ struct State {
     Segment seg[SEG_COUNT];
     Segment ldtr, tr;
     Table gdtr, idtr;
-    uint32_t cr0 = 0, cr2 = 0, cr3 = 0;
+    uint32_t cr0 = 0, cr2 = 0, cr3 = 0, cr4 = 0;
     uint32_t dr[4] = {};
     uint32_t dr6 = 0xffff0ff0, dr7 = 0x400;
     // The CPL in protected mode. It is CS's RPL only once CS has been loaded

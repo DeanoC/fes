@@ -477,6 +477,9 @@ public:
         state.cpl = uint8_t(bx_cpu.sregs[BX_SEG_REG_CS].selector.rpl);
         state.cr2 = Bit32u(bx_cpu.cr2);
         state.cr3 = Bit32u(bx_cpu.cr3);
+#if BX_CPU_LEVEL == 4
+        state.cr4 = Bit32u(bx_cpu.cr4.get());
+#endif
         for (int n = 0; n < 4; ++n) state.dr[n] = Bit32u(bx_cpu.dr[n]);
         state.dr6 = bx_cpu.dr6.get32();
         state.dr7 = bx_cpu.dr7.get32();
@@ -488,6 +491,9 @@ public:
         bx_cpu.cr0.set32(state.cr0);
         bx_cpu.cr2 = state.cr2;
         bx_cpu.cr3 = state.cr3;
+#if BX_CPU_LEVEL == 4
+        bx_cpu.cr4.set(state.cr4);
+#endif
         bx_cpu.setEFlags(state.eflags);
         for (int n = 0; n < REG_COUNT; ++n) BX_WRITE_32BIT_REGZ(n, state.gpr[n]);
         RIP = bx_cpu.prev_rip = state.eip;
