@@ -73,23 +73,10 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
     reg [15:0] dq_rise_q, dq_fall_q;
     wire [15:0] controller_data, legacy_data;
     generate if (SDRAM_CAPTURE_PIPELINE) begin: capture_handoff
-        // READ is sampled once in the controller domain. Its first word is
-        // captured by the board I/O registers three chip cycles later.
-        reg [3:0] read_window = 0;
-        reg [15:0] read_word, return_word;
-        always @(posedge controller_clk)
-            if (controller_reset) read_window <= 0;
-            else read_window <= {read_window[2:0],
-                sdram_cke && sdram_nras && !sdram_ncas && sdram_nwe};
-        // Latch the selected word once, then retain it through done/retirement.
-        // The unused legacy rdata cone is removed in this experimental mode.
-        always @(posedge clk_handoff)
-            if (read_window[3]) read_word <= dq_fall;
-        // Land the retained word in the controller clock domain before the
-        // existing done-driven frontend response. No narrow half-cycle bus
-        // crossing is imposed between the selected I/O sample and response.
-        always @(negedge controller_clk) return_word <= read_word;
-        assign controller_data = return_word;
+        sdram_cas3_capture pipeline (
+            .clk(controller_clk), .clk_handoff(clk_handoff), .reset(controller_reset),
+            .read_strobe(sdram_cke && sdram_nras && !sdram_ncas && sdram_nwe),
+            .captured(dq_fall), .rdata(controller_data));
         assign dq_rise_q = 0;
         assign dq_fall_q = 0;
     end else begin: original_handoff
@@ -119,10 +106,14 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
     // Separate the controller state/enable muxes from the physical pad FFs.
     // The existing controller mode delays command, address, data and OE
     // together and compensates its read-capture count for the extra cycle.
+    // Profile 1 selects the existing CAS-3 mode and extra read cycle; the
+    // PLL stays at 100 MHz. Override its 130 MHz refresh count to 700 clocks
+    // (7 us) here so selecting CAS-3 cannot lengthen the refresh interval.
     sdram_addon_port #(.BYTE_MASK_ENABLED(1), .SINGLE_RANK_REFRESH(1),
                        .IO_OUTPUT_REGISTERS(1), .EXTERNAL_CS_REGISTER(EXTERNAL_CS_REGISTER),
-                       .REFRESH_INTERVAL_CYCLES(HALF_RATE_CONTROLLER ? 12'd349 : 12'd0)) controller (
-        .clk(controller_clk), .clk_pin(clk_pin), .reset(controller_reset), .rate(2'd3),
+                       .REFRESH_INTERVAL_CYCLES(SDRAM_CAPTURE_PIPELINE ? 12'd699 :
+                           HALF_RATE_CONTROLLER ? 12'd349 : 12'd0)) controller (
+        .clk(controller_clk), .clk_pin(clk_pin), .reset(controller_reset), .rate(SDRAM_CAPTURE_PIPELINE ? 2'd1 : 2'd3),
         .refresh_window(1'b0), .refresh_pending(), .initialized(controller_initialized),
         .start(busy && physical), .write(held_write), .addr(held_address),
         .wdata(held_data), .write_byte_enable(held_lanes),

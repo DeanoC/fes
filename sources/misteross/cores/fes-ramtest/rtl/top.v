@@ -170,6 +170,14 @@ module top #(
 `endif
 `endif
     wire dq_oe;
+`ifdef RAM_CAS3_CAPTURE
+    wire clk_forward, clk_handoff;
+    wire [15:0] legacy_sdram_rdata;
+    sdram_cas3_capture capture_pipeline (
+        .clk(mem_clk), .clk_handoff(clk_handoff), .reset(mem_reset_sync[1]),
+        .read_strobe(SDRAM_CKE && SDRAM_nRAS && !SDRAM_nCAS && SDRAM_nWE),
+        .captured(dq_fall), .rdata(sdram_rdata));
+`endif
     reg [1:0] stop_sync = 2'b00;
     reg [1:0] mem_reset_sync = 2'b00;
     // OSS and Quartus builds select either 100 or 130 MHz directly from the
@@ -183,6 +191,9 @@ module top #(
         .outclk_0(clk130),
         .outclk_1(clk100),
         .outclk_2(clk_cap),
+`ifdef RAM_CAS3_CAPTURE
+        .outclk_forward(clk_forward), .outclk_handoff(clk_handoff),
+`endif
         .locked(ram_locked)
     );
 `ifdef RAM_130_ONLY
@@ -198,8 +209,13 @@ module top #(
 `elsif RAM_100_ONLY
     assign mem_clk = clk100;
     assign cap_clk = clk_cap;
+`ifdef RAM_CAS3_CAPTURE
+    wire sdram_pin_clk = clk_forward;
+    wire [1:0] rate = 2'd1;
+`else
     wire sdram_pin_clk = mem_clk;
     wire [1:0] rate = 2'd2;
+`endif
     wire rate_reset = ~ram_locked;
     wire stop_level = |app_buttons;
     wire [7:0] sdram_mhz = 8'd100;
@@ -335,6 +351,9 @@ module top #(
         .lat_first(lat_first[55:42]), .lat_last(lat_last[55:42])
     );
 
+`ifdef RAM_CAS3_CAPTURE
+`define RAM_SDRAM_IO_REGISTERS
+`endif
 `ifdef RAM_OSS_HIGH_SPEED
 `define RAM_SDRAM_IO_REGISTERS
 `endif
@@ -347,6 +366,9 @@ module top #(
     localparam SDRAM_IO_OUTPUT_REGISTERS = 0;
 `endif
     sdram_addon_port #(.BYTE_MASK_ENABLED(1),
+`ifdef RAM_CAS3_CAPTURE
+                       .REFRESH_INTERVAL_CYCLES(12'd699),
+`endif
                        .IO_OUTPUT_REGISTERS(SDRAM_IO_OUTPUT_REGISTERS)) sdram (
         .refresh_window(1'b1), .refresh_pending(),
         .clk(mem_clk),
@@ -355,22 +377,29 @@ module top #(
         .reset(mem_reset_sync[1]),
         .start(sdram_start), .write(sdram_write), .addr(sdram_addr), .wdata(sdram_wdata),
         .write_byte_enable(byte_pass ? 2'b11 : byte_enable), .initialized(),
-        .done(sdram_done), .rdata(sdram_rdata),
+        .done(sdram_done),
+`ifdef RAM_CAS3_CAPTURE
+        .rdata(legacy_sdram_rdata),
+`else
+        .rdata(sdram_rdata),
+`endif
         .sdram_clk(SDRAM_CLK), .sdram_cke(SDRAM_CKE),
         .sdram_ncs(SDRAM_nCS), .sdram_nras(SDRAM_nRAS),
         .sdram_ncas(SDRAM_nCAS), .sdram_nwe(SDRAM_nWE),
         .sdram_dqml(SDRAM_DQML), .sdram_dqmh(SDRAM_DQMH),
         .sdram_ba(SDRAM_BA), .sdram_a(SDRAM_A),
         .dq_out(dq_out), .dq_oe(dq_oe),
-`ifndef RAM_OSS_HIGH_SPEED
+`ifdef RAM_CAS3_CAPTURE
+        .dq_rise(16'b0), .dq_fall(16'b0)
+`elsif RAM_OSS_HIGH_SPEED
 `ifndef RAM_100_ONLY
-        .dq_rise(dq_rise_q), .dq_fall(dq_fall_q)
+        .dq_rise(dq_oss_hold), .dq_fall(dq_oss_hold)
 `else
         .dq_rise(dq_rise), .dq_fall(dq_fall)
 `endif
 `else
 `ifndef RAM_100_ONLY
-        .dq_rise(dq_oss_hold), .dq_fall(dq_oss_hold)
+        .dq_rise(dq_rise_q), .dq_fall(dq_fall_q)
 `else
         .dq_rise(dq_rise), .dq_fall(dq_fall)
 `endif
@@ -412,7 +441,12 @@ module top #(
                 .datain(dq_out[dq_bit]),
                 .dataout(dq_pin)
             );
-`ifdef RAM_OSS_HIGH_SPEED
+`ifdef RAM_CAS3_CAPTURE
+            reg dq_sample;
+            always @(posedge cap_clk) dq_sample <= dq_pin;
+            assign dq_rise[dq_bit] = dq_sample;
+            assign dq_fall[dq_bit] = dq_sample;
+`elsif RAM_OSS_HIGH_SPEED
             // The OSS packer cannot attach DDR input capture to a
             // bidirectional pad. Shift the PLL by the former falling-edge
             // offset and sample the pad on the rising fabric clock instead.

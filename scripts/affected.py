@@ -317,6 +317,8 @@ def fpga_cores(path):
         return (), 'standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer'
     if relative.as_posix() == 'cores/fes-pong/rtl/pixel_pll.v':
         return ('pong', 'ramtest', 'riscv'), 'shared fixed-raster clock consumers'
+    if relative.as_posix() == 'cores/fes-ramtest/rtl/sdram_cas3_capture.v':
+        return ('ramtest', 'pcxt'), 'shared CAS-3 retained-word consumers'
     if relative.as_posix() == 'cores/fes-ramtest/rtl/sdram_addon_port.v':
         return ('ramtest', 'atari-st', 'pcxt'), 'shared SDRAM controller consumers'
     if relative.as_posix() == 'cores/fes-zx81/expansions/zonx_ay.v':
