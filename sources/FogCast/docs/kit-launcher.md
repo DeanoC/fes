@@ -61,9 +61,10 @@ B goes up one level and closes Settings from the section list. A paired kit's
 listener serves no library settings, so the host's rows (libraries, targets,
 video preference, idle, regions) are left out there.
 
-Home, the rooms and the core catalog view list only the v1 release cores
-(`internal/release`, recorded in `docs/support-matrix.md` as v1, v2 or held
-back). Settings › About & help › Diagnostics › Show all cores,
+Home, first-run setup, the rooms and the core catalog view list the planned v1
+and v2 cores by default, including PC/XT and PC 386 (`internal/release`, recorded
+in `docs/support-matrix.md` as v1, v2 or held back). PC 386 remains in
+development. Settings › About & help › Diagnostics › Show all cores,
 `tenfoot.json` `all_cores`, or
 `FOGCAST_TENFOOT_ALL_CORES=1` lists every core for development and HIL.
 In the release, Home has no Library or Systems route; Show all cores brings

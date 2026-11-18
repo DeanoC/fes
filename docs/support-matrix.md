@@ -64,7 +64,7 @@ Atari ST is still the only optional recipe (`FES_SKIP_OPTIONAL_CORES`). That fla
 
 ## Release scope
 
-The first release lists only v1 cores in tenfoot Home, the rooms and the core catalog view. The tenfoot Settings row Show all cores lists the rest, for development and HIL. The scope is not a tier, and v1 does not mean the exact release package has passed kit HIL.
+The release classifications below remain v1, v2 and held back. Tenfoot Home, first-run setup, the Systems room and the core catalog show the planned v1 and v2 cores by default, including PC/XT and PC 386. Show all cores adds held-back cores for development and HIL. Visibility does not change release scope or quality tier, and it does not mean the exact release package has passed kit HIL.
 
 - **v1:** `fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`, `fes.c64`, `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon`, `fes.atari-st`
 - **v2:** `fes.pcxt-dos`, `fes.pc386`
