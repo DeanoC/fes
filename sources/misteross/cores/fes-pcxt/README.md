@@ -58,8 +58,8 @@ SDRAM qualification targets common timing and electrical requirements across
 MiSTer-compatible chip makers, with Kit A as one test target. The
 [cross-vendor envelope](../../../../docs/validation/2026-11-18-pcxt-sdram-envelope/README.md)
 compares Etron, Alliance, ISSI and Winbond specifications. Physical qualification
-is blocked: the retained read reference has only 0.340 ns of setup allowance
-before board effects, and the common CL2 cycle requirement leaves no nominal
+is blocked: the inherited selected-word binding is invalid, so its read
+setup allowance is unknown. The common CL2 cycle requirement leaves no nominal
 headroom at 100 MHz. Module branding or a passing boot does not clear those
 gates; the production producer keeps this path disabled.
 

@@ -35,6 +35,7 @@
   "physical_timing": "BLOCKED",
   "production_build_authorized_by_timing": false,
   "production_seal": "NOT ATTEMPTED",
+  "read_setup_allowance_ns": null,
   "reference_margins": {
     "command": {
       "hold": {
@@ -57,14 +58,14 @@
         "corner": "MIN_fast_1100mv_-40c",
         "port": "SDRAM_DQ[2]",
         "raw_margin_ns": 10.912,
-        "reference_margin_ns": 0.912,
+        "reference_margin_ns": null,
         "rows": 64
       },
       "setup": {
         "corner": "7_slow_1100mv_100c",
         "port": "SDRAM_DQ[9]",
         "raw_margin_ns": -9.66,
-        "reference_margin_ns": 0.34,
+        "reference_margin_ns": null,
         "rows": 64
       }
     },
