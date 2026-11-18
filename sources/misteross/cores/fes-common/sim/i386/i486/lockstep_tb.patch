@@ -14,7 +14,7 @@
  // FES_I386_X87=387 fits the oracle's 387 as on an AT (x87_fitted): the no-387
  // rule is off and a run stops as not built (unbuilt 387) at its first ESC or
  // WAIT. Unset or "none", the CPU has an empty socket. The testbench reads it
-@@ -186,6 +189,10 @@ bool debug_programs = false;
+@@ -186,6 +189,10 @@
  // joins the rule with the RTL's 387. Without it the lockstep is as before.
  bool x87_fitted = false;
  constexpr int UNBUILT_X87 = 387;
@@ -25,7 +25,7 @@
  // The 387's state is compared from this EIP on. A directed program's
  // prologue writes all eight registers and empties them, so that both sides
  // start its body with the same register contents; before that they differ,
-@@ -512,7 +519,7 @@ public:
+@@ -512,7 +519,7 @@
      // TR4-TR7 as the RTL keeps them (#1730), which Bochs at CPU level 3 has
      // not: what MOV TRn writes, read back by MOV r32, TRn (lockstep's
      // tr_rule). Reset clears them, as it clears the RTL's.
@@ -34,7 +34,7 @@
  
      // Reset with this architectural state.
      void start(const State &s) {
-@@ -2236,6 +2243,9 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
+@@ -2236,6 +2243,9 @@
          // (rtl.trn) give a read's result, set on the oracle after the step,
          // or take a write's value. A LOCK is #UD on both sides as written.
          std::vector<std::pair<unsigned, uint8_t>> undoc;
@@ -44,7 +44,7 @@
          int tr_read = -1, tr_write = -1;  // the TR4-TR7 index a CPL-0 MOV TRn reads or writes
          unsigned tr_rm = 0;
          {
-@@ -2246,13 +2256,13 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
+@@ -2246,13 +2256,13 @@
              if (!lock && !v86_gp && code[k] == 0x0f && (code[k + 1] & 0xfc) == 0x10) {
                  undoc = {{k, 0xf3}, {k + 1, uint8_t(0x88 | (code[k + 1] & 3))}};
                  ++summary.divergences["umov"];
@@ -60,7 +60,7 @@
                  }
                  ++summary.divergences["mov-tr"];
              }
-@@ -11216,6 +11226,80 @@ int run_unreal_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
+@@ -11216,6 +11226,80 @@
      return 0;
  }
  
@@ -141,7 +141,7 @@
  // The memory system's ports the lockstep does not drive: DMA and FLUSH. Each
  // case runs a program from 0000:1000 in real mode with the RTL alone, makes
  // its request part way, and checks what the CPU or DDR shows after it.
-@@ -11863,6 +11947,9 @@ int main(int argc, char **argv) {
+@@ -11863,6 +11947,9 @@
  
      OracleBus bus;
      std::unique_ptr<fes_i386::Oracle> oracle = fes_i386::make_oracle(bus);
@@ -151,12 +151,12 @@
      if (const char *x87 = std::getenv("FES_I386_X87")) {
          if (std::string(x87) != "387" && std::string(x87) != "none")
              throw std::runtime_error("FES_I386_X87 is 387 or none");
-@@ -11923,6 +12010,8 @@ int main(int argc, char **argv) {
-         run_no387_cases(*oracle, bus, rtl, entries, summary);
-     } else if (mode == "x87") {
-         run_x87_cases(*oracle, bus, rtl, entries, summary);
-+    } else if (mode == "i486") {
-+        run_i486_cases(*oracle, bus, rtl, summary);
-     } else if (mode == "test386") {
+@@ -11927,6 +12014,8 @@
          return run_test386(*oracle, rtl);
      } else if (mode == "unbuilt") {
+         run_unbuilt(*oracle, bus, rtl, entries, summary);
++    } else if (mode == "i486") {
++        run_i486_cases(*oracle, bus, rtl, summary);
+     } else if (mode == "memory") {
+         run_memory_cases(rtl, summary);
+     } else if (mode == "governor") {

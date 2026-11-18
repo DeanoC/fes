@@ -151,13 +151,19 @@ the files and deleted.
 The CPU is Bochs's one 486 model, `i486dx4`, with VME excluded: the six 486
 instructions and CPUID, CR0's NE, WP, AM, NW and CD with WP enforced,
 EFLAGS.AC and ID, and exception 17. That is a later-stepping 486 with CPUID.
+VME is excluded by one string in the adapter's patch: with it CR4 has no
+writable bit, so the oracle's `State` needs no CR4. Which later stepping the
+486 identity is, and so whether it has VME and CR4, is not decided; a part
+with them adds CR4 to `State` and V86 extensions to the CPU.
+
 It is not every 486, and in these places it is not a 486 at all:
 
 | Item | Bochs level 4 | A 486 | What is done |
 | --- | --- | --- | --- |
-| Reset EDX | 0 (`cpu/init.cc`) | The identifier, family 04h in DH (Intel486 data book 241731-002, 9.5 and Table 9-9) | The adapter's `reset()` sets EDX to CPUID leaf 1's EAX, 0480h |
+| Reset EDX | 0 (`cpu/init.cc`) | The identifier, family 04h in DH (Intel486 Programmer's Reference Manual 10.1 and Figure 10-1; data book 241731-002, Tables 9-8 and 9-9) | The adapter's `reset()` sets EDX to CPUID leaf 1's EAX, 0480h |
 | DR6 at reset | FFFF1FF0h (`cpu/init.cc`) | FFFF0FF0h (Intel486 Programmer's Reference Manual, Table 10-1) | The adapter's `reset()` sets it |
-| MOV TRn | #UD at every level | TR3 to TR7 exist (PRM 21.3.3; data book 14.0 item 9) | The lockstep's MOV TRn rule steps a substitute on the oracle; the level-4 testbench takes in TR3. The registers' cache and TLB test functions have no oracle |
+| DR7 at reset | 00000400h | 00000000h in both documents (PRM Table 10-1, data book Table 9-8), which call undefined bits reserved | Nothing: bit 10 reads 1 on the RTL's 386 too. What a 486 reads there is a question for a real one |
+| MOV TRn | #UD at every level | TR3 to TR7 exist (PRM Appendix E, Table 10.1; data book 14.0 item 9) | The lockstep's MOV TRn rule steps a substitute on the oracle; the level-4 testbench takes in TR3. The registers' cache and TLB test functions have no oracle |
 | MOV CR4 | Runs: CR4 reads 0 and a set bit is #GP(0) | CR4 is only on parts with VME, PVI or PSE (data book 4.2.3.1) | Not checked against the oracle: the suite's two cases pin what Bochs does |
 | A 486 without an FPU | None: the model enables the x87 and a 486 model without it is fatal (`cpu/cpudb/intel/i486dx4.cc`, `cpu/cpuid.cc`) | The 486SX | An SX is to be checked as the empty 387 socket is, by the no-387 rule. Not built yet |
 | CPUID leaf 1 | EAX 0480h, EDX bit 0 set | Per part (data book Table 9-9, AP-485) | The suite pins the DX4's values; another identity's are its build parameter's |
@@ -193,6 +199,33 @@ With it the instruction census adds `ac:<stem>` and `id:<stem>` (EFLAGS.AC
 or ID changed), `cr0.486:<bits>:<stem>` (CR0's NE, WP, AM, NW or CD changed)
 and `exc:<vector>:<stem>` (exception 6, 16 or 17 raised, which names an
 instruction the CPU rejected: it did not retire, so no other key has it).
+
+#### The 486 lockstep scope
+
+What the lockstep is for a 486 identity. Today only the directed cases run
+at level 4, because the RTL has no 486 identity to hold to the rest; the
+level-4 testbench refuses every other mode so that a 386 rule is never run
+against a 486 oracle by accident. Each row below is what the change that
+builds the identity (the 486 tracker's slice 2) does to that part. The
+counts are the plan record's (`docs/validation/2026-11-17-i486-plan/summary.md`
+in [#1963](https://github.com/DeanoC/fes/pull/1963), "What ran, and what it
+showed"), from the unchanged level-3 suite run against a level-4 oracle at
+reduced program counts.
+
+| Part of the lockstep | Level 3, the 386 | A 486 identity |
+| --- | --- | --- |
+| State comparison, CR0 | Mask 8000000Fh: PE, MP, EM, TS, PG | Mask E005003Fh: those and ET, NE, WP, AM, NW, CD. Reserved bits read 0 on the oracle |
+| State comparison, EFLAGS | Mask 0003FFFFh | Adds AC (bit 18) and ID (bit 21) |
+| A run's starting CR0 | Bits 30-5 ones, as Bochs's 386 reads them | 60000010h. Nearly every level-3 failure against a level-4 oracle is this read value |
+| Directed 486 cases | None | `scripts/fes_i486_cases.py`, in this slice; each moves to `agree` as its feature is built |
+| The #UD probes (`ud_probes16`) | CPUID, INVD, CMPXCHG, BSWAP, MOV CR4 and MOV TR3 are #UD | They leave the list. MOV CR4 stays unchecked against the oracle |
+| The every-encoding sweep (`unbuilt`) | The 0F 08, 09, A2, B0, B1, C0, C1, C8-CF and 0F 01 /7 rows are #UD | They execute: 3,904 of 53,008 encodings change |
+| `divergences.toml` | `ud-invlpg`: Bochs runs INVLPG, the 386 rejects it | Agreement. `mov-tr` takes in TR3. `dr6-sticky`, `db-frame-rf`, `icebp-gd`, `umov` and `ud-0f0d` each need a 486 answer, which no document read gives. The five `[[x87]]` entries are the 387's BUSY# latch and need 486DX versions |
+| Random, protected-mode, task, debug and undefined programs | Treat CR0's upper bits as inert | A program that writes back what it read from CR0 turns on WP, AM, NW and CD: the generators must choose those bits |
+| SingleStepTests corpus | The 386EX's results decide | Stays a 386 corpus. It runs on the 386 identity only |
+| test386 | `CPU_FAMILY=3`, undefined flags checked | A 386 test. On a 486 identity only with `TEST_UNDEF` off |
+| No-387 rule | The empty socket | The 486SX, with ET's value excepted (ET reads 1) |
+| Stack-limit patch | Applied | Not applied. Whether a 486 keeps that #SS is not established |
 
 ## Corpora
 

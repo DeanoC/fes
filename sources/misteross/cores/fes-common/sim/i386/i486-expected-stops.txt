@@ -33,7 +33,7 @@ lmsw-keeps-ne stop @100e.ebx 30 7ffffff0
 wp-clear-user-readonly agree
 wp-set-user-readonly stop @103e.exception e ff
 wp-set-supervisor-readonly stop @103e.exception e ff
-wp-set-writable agree
+wp-set-writable stop @104e.edx 80010011 fffffff1
 ac-toggle stop @1011.write.efe 4 0
 id-toggle stop @1011.write.efe 20 0
 ac-fault-dword stop @1057.exception 11 ff
@@ -44,7 +44,7 @@ ac-aligned stop @105c.write.df6 4 0
 ac-byte stop @105c.write.df6 4 0
 ac-am-clear stop @1052.write.df6 4 0
 ac-flag-clear agree
-ac-cpl0 agree
+ac-cpl0 stop @1044.write.efe 4 0
 cpuid-0 stop @1003.unexpected-exception 0 6
 cpuid-1 stop @1006.unexpected-exception 0 6
 mov-tr3 stop @1006.unexpected-exception 0 6
