@@ -29,7 +29,7 @@ static void final_meter(unsigned kind)
    case 5:configuration.generation++;break;
    case 6:mode=28;break;
    case 7:configuration_program.header[FES_NANO_PROGRAM_SHA384]^=1;break;
-   case 8:registers[0x9c/4]^=1;break;
+   case 8:registers[0x98/4]^=1;break;
    default:assert(0);
    }
   }
@@ -50,10 +50,10 @@ int main(int argc,char **argv)
   assert(sdm_source_time(&sdm_arm_probe,&output));
   assert(old_reads==smmu_reads && old_writes==smmu_writes && old_stores==cb_stores && old_posts==data_posts);
  }
- printf("{\"result\":%d,\"cost_us\":%u,\"initial_elapsed\":%llu,\"fault\":%u,\"loads\":%u,\"barriers\":%u,\"reads\":%u,\"counters\":%u,\"measured\":%u,\"scope_reason\":%u,\"clock_reason\":%u,\"clock_sampled\":%u,\"clock_start\":%llu,\"clock_last\":%llu,\"clock_observed\":%llu,\"retired\":%u,\"continued\":%u,\"hardware_actions\":false}\n",
+ printf("{\"result\":%d,\"cost_us\":%u,\"initial_elapsed\":%llu,\"fault\":%u,\"loads\":%u,\"barriers\":%u,\"reads\":%u,\"counters\":%u,\"measured\":%u,\"scope_reason\":%u,\"clock_reason\":%u,\"clock_sampled\":%u,\"clock_start\":%llu,\"clock_last\":%llu,\"clock_observed\":%llu,\"retired\":%u,\"continued\":%u,\"source_elapsed_us\":%llu,\"hardware_actions\":false}\n",
  result,cost_us,(unsigned long long)initial_elapsed,fault,loads,barriers,reads,counters,measured,sdm_probe_scope_reason,
  sdm_source_clock_failure.reason,sdm_source_clock_failure.sampled,(unsigned long long)sdm_source_clock_failure.start,
  (unsigned long long)sdm_source_clock_failure.last,(unsigned long long)sdm_source_clock_failure.observed,
- source_retirement.retired,source_retirement.continued);
+ source_retirement.retired,source_retirement.continued,(unsigned long long)(sdm_source_clock_last-sdm_source_clock_start));
  return 0;
 }

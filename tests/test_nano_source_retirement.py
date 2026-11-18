@@ -247,6 +247,8 @@ class SourceRetirementTests(unittest.TestCase):
         self.assertEqual((expired['result'], expired['scope_reason'], expired['clock_reason'], expired['retired']),
                          (2, 31, 7, 0))
         self.assertGreaterEqual(expired['clock_observed']-expired['clock_start'], 20000000)
+        over = run(16)
+        self.assertEqual((over['result'], over['clock_reason'], over['retired']), (2, 7, 0))
         for fault in range(1, 9):
             with self.subTest(fault=fault):
                 row = run(0, fault=fault)

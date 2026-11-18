@@ -422,10 +422,16 @@ int fes_nano_sdm_source_validate(void)
   if(!nano_sdm_input_table_range(at,NANO_PROBE_MEMORY_WORDS*8))continue;
   if(sdm_source_owns(&sdm_arm_probe,&sdm_arm_probe.input)!=1 ||
      nano_sdm_input_words(&sdm_arm_probe.input,at,expected,NANO_PROBE_MEMORY_WORDS))return sdm_source_stop(29),-13;
+  /* Normal-NC table memory, not MMIO. Complete the same bounded 256-byte
+   * read block before its unchanged trailing ownership check. Per-word DSBs
+   * add no ownership observation; keep each volatile read/comparison and
+   * bracket the block, including the first-mismatch exit, with full DSBs. */
+  FES_PROBE_BARRIER();
   for(unsigned n=0;n<NANO_PROBE_MEMORY_WORDS;n++){
-   FES_PROBE_BARRIER();uint64_t actual=FES_PROBE_LOAD64(NANO_PROBE_BASE+at+n*8);FES_PROBE_BARRIER();
-   if(actual!=expected[n]){sdm_source_bad_offset=at+n*8;sdm_source_bad_value=(uint32_t)actual;return sdm_source_stop(30),-13;}
+   uint64_t actual=FES_PROBE_LOAD64(NANO_PROBE_BASE+at+n*8);
+   if(actual!=expected[n]){FES_PROBE_BARRIER();sdm_source_bad_offset=at+n*8;sdm_source_bad_value=(uint32_t)actual;return sdm_source_stop(30),-13;}
   }
+  FES_PROBE_BARRIER();
   if(sdm_source_owns(&sdm_arm_probe,&sdm_arm_probe.input)!=1)return -13;
  }
  return sdm_source_owns(&sdm_arm_probe,&sdm_arm_probe.input)==1 ? 0:-13;
