@@ -22,6 +22,12 @@ BUILD_ID *is* that identity, so two trees that agree on it produce the same
 artefact -- which is the thing condition 3 is about. Pass that comparison with
 --design-move. A row with neither anchor stays unverifiable, by name.
 
+The summaries this reads are vendored into the record (vendor_cond3.py), so a
+row names its summary relative to its own cond3.json and carries that file's
+`source_sha256`. Before the vendoring, every row pointed at a path inside a
+campaign scratch directory that no longer exists, which made the strongest of
+these checks unrunnable from a clone.
+
   python3 seals_at_head.py --cond3 reports-cond3/cond3.json --tree <checkout> \
       [--design-move seal-to-head-design.json] [--json out]
 """
@@ -148,9 +154,18 @@ def _usable_routes(paths, anchors: dict[str, str]) -> tuple[dict[str, dict], lis
     return usable, refused
 
 
-def verify(summary: Path, root: Path) -> tuple[str, str]:
+def verify(summary: Path, root: Path, expected: str | None = None) -> tuple[str, str]:
     if not summary.is_file():
         return "unverifiable", f"the seal's summary is gone from {summary.parent}"
+    # The summaries are vendored into the record now, so they are editable
+    # files in the tree being checked rather than read-only scratch. A kept
+    # `source_sha256` that nothing reads proves nothing, so read it: this says
+    # the summary being hashed against is byte-identical to the one the
+    # producer wrote. A mismatch is its own verdict, not an "unverifiable"
+    # row, because an edited seal must not be rescued by a design anchor.
+    if expected is not None and hashlib.sha256(summary.read_bytes()).hexdigest() != expected:
+        return "SUBSTITUTED", ("the summary is not the bytes source_sha256 names, so it is "
+                               "not the one the producer wrote")
     data = json.loads(summary.read_text())
     inputs = data.get("inputs")
     if not isinstance(inputs, dict) or not inputs:
@@ -214,7 +229,13 @@ def main() -> int:
     print(f'{"artefact":20} {"sealed at":14} {"verdict":13} detail')
     for key in sorted(rows):
         row = rows[key]
-        verdict, detail = verify(Path(row["source"]), root)
+        # A vendored row names its summary relative to this cond3.json, so that
+        # a fresh clone verifies wherever it was cloned to. A collection still
+        # pointing into its own build scratch carries an absolute path.
+        summary = Path(row["source"])
+        if not summary.is_absolute():
+            summary = arguments.cond3.resolve().parent / summary
+        verdict, detail = verify(summary, root, row.get("source_sha256"))
         if verdict == "unverifiable":
             fallback = _design_anchor(key, moves, row.get("taken_at_head"),
                                       anchors)
