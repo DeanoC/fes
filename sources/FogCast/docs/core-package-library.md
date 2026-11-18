@@ -804,9 +804,10 @@ Rules that hold for every change:
 - A disk in the drive is refused with `BUSY`. Its saved record is older than
   what the running computer holds. Stop the computer first. A library disk
   inserted into another game's session is in the drive too.
-- Discarding a saved record needs an idle kit. Revert, and delete or rename
-  of a disk with a `kept_revision`, are refused with `BUSY` while any core
-  runs, before anything is copied or removed.
+- Revert, delete and rename need an idle kit and are refused with `BUSY`
+  while any core runs, before anything is copied or removed. The kit will
+  not discard a saved record while a core runs, and the library does not
+  remove a title while a kit is active.
 - The list waits its turn behind a launch or stop for the request timeout;
   past that it answers as if the kit could not be asked.
 - `expected_revision` must match what the kit holds, or the answer is
