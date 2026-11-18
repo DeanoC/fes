@@ -4,10 +4,9 @@
   identity  the level-3 oracle's seal identity at two revisions, and whether
             any file pc386's build record hashes changed between them (rule 1)
   level3    the level-3 suites' reports from two checkouts, compared (rule 2)
-  suite     the level-4 runner's report: self-check, and RTL stops when present
+  suite     the level-4 runner's report: self-check and RTL stops (rules 3, 4)
   boot      the level-4 FreeDOS boot's report (rule 5)
   census    the level-4 census rows, and their comparison with the plan's
-  census-equivalence  source audit for a prior census after a tree change
   cachechk  CACHECHK at both levels, with the faulting step of each trace (rule 6)
   summary   summary.md from the files the others wrote
 
@@ -70,143 +69,6 @@ def inputs_changed(kind: str, commit: str, head: str = 'HEAD') -> list[str]:
     changed = git('diff', '--name-only', commit, head).splitlines()
     return [path for path in changed if path.startswith(SOURCES) and path not in NOT_READ[kind]
             and not path.endswith('README.md')]
-
-
-MACHINE_CONTROL_FILES = (
-    'sources/misteross/scripts/sim_fes_pc386.py',
-    'sources/misteross/scripts/fes_i486_oracle.py',
-    'sources/misteross/scripts/fes_i386_oracle.py',
-    'sources/misteross/cores/fes-pc386/sim/machine_tb.cpp',
-    'sources/misteross/cores/fes-pc386/sim/census.h',
-    'sources/misteross/cores/fes-common/sim/i386/bochs/flat-stack-limit.patch',
-    'sources/misteross/cores/fes-common/sim/i386/bochs/instrument.h',
-)
-MACHINE_FIRMWARE_LOCK = 'sources/misteross/cores/fes-pc386/firmware/firmware.lock'
-MACHINE_FIRMWARE_BUILDER = 'sources/misteross/scripts/build_pc386_firmware.py'
-MACHINE_BOCHS_ADAPTER = 'sources/misteross/cores/fes-common/sim/i386/bochs_oracle.cpp'
-MACHINE_ORACLE_API = 'sources/misteross/cores/fes-common/sim/i386/i386_oracle.h'
-MACHINE_LOCKSTEP_ONLY = {
-    'sources/misteross/cores/fes-common/sim/i386/divergences.toml',
-    'sources/misteross/scripts/probe_fes_i386_x87_trans.py',
-    'sources/misteross/scripts/test_fes_i386_lockstep.py',
-    'sources/misteross/scripts/test_fes_i386_x87_unit.py',
-    'sources/misteross/scripts/test_fes_x87_trans_engine.py',
-    'sources/misteross/scripts/x87_envelope_fit.py',
-    'sources/misteross/scripts/x87_trans_ucode.py',
-}
-
-
-def bytes_at(revision: str, path: str) -> bytes:
-    return subprocess.check_output(['git', '-C', str(REPO), 'show', f'{revision}:{path}'])
-
-
-def machine_equivalence(args) -> int:
-    """Audit a prior oracle census against a later source tree, without rerunning it."""
-    baseline = git('rev-parse', args.baseline)
-    current = git('rev-parse', args.current)
-    changed = inputs_changed('machine', baseline, current)
-    classes: dict[str, list[str]] = {
-        'rtl_or_synthesis_bypassed_by_oracle_mode': [],
-        'lockstep_or_test_only': [],
-        'oracle_api_additions_not_used_by_census': [],
-        'pinned_firmware_metadata': [],
-        'unclassified': [],
-    }
-    for path in changed:
-        if (path.startswith('sources/misteross/boards/')
-                or path.startswith('sources/misteross/cores/fes-common/rtl/')
-                or path == 'sources/misteross/scripts/yosys_netlist.py'):
-            category = 'rtl_or_synthesis_bypassed_by_oracle_mode'
-        elif path.startswith('sources/misteross/cores/fes-common/sim/i386/x87_') or path in MACHINE_LOCKSTEP_ONLY:
-            category = 'lockstep_or_test_only'
-        elif path in (MACHINE_BOCHS_ADAPTER, MACHINE_ORACLE_API):
-            category = 'oracle_api_additions_not_used_by_census'
-        elif path in (MACHINE_FIRMWARE_LOCK, MACHINE_FIRMWARE_BUILDER):
-            category = 'pinned_firmware_metadata'
-        else:
-            category = 'unclassified'
-        classes[category].append(path)
-
-    control_hashes = {}
-    for path in MACHINE_CONTROL_FILES:
-        before, after = bytes_at(baseline, path), bytes_at(current, path)
-        control_hashes[path] = {'baseline': sha256(before), 'current': sha256(after), 'equal': before == after}
-
-    before_oracle = bytes_at(baseline, 'sources/misteross/scripts/fes_i486_oracle.py')
-    after_oracle = bytes_at(current, 'sources/misteross/scripts/fes_i486_oracle.py')
-    before_parent_oracle = bytes_at(baseline, 'sources/misteross/scripts/fes_i386_oracle.py')
-    after_parent_oracle = bytes_at(current, 'sources/misteross/scripts/fes_i386_oracle.py')
-    pin = re.search(rb"BOCHS_REVISION = '([0-9a-f]{40})'", after_parent_oracle)
-    before_firmware = json.loads(bytes_at(baseline, MACHINE_FIRMWARE_LOCK))
-    after_firmware = json.loads(bytes_at(current, MACHINE_FIRMWARE_LOCK))
-    firmware = {'dev86_revision_equal': before_firmware['dev86']['revision'] == after_firmware['dev86']['revision'],
-                'dev86_revision': after_firmware['dev86']['revision']}
-    for image in ('bios', 'vgabios'):
-        before_image, after_image = before_firmware['images'][image], after_firmware['images'][image]
-        firmware[image + '_file_equal'] = before_image['file'] == after_image['file']
-        firmware[image + '_bytes_equal'] = before_image['bytes'] == after_image['bytes']
-        firmware[image + '_sha256_equal'] = before_image['sha256'] == after_image['sha256']
-        firmware[image + '_file'] = after_image['file']
-        firmware[image + '_bytes'] = after_image['bytes']
-        firmware[image + '_sha256'] = after_image['sha256']
-    machine_tb = bytes_at(current, 'sources/misteross/cores/fes-pc386/sim/machine_tb.cpp').decode()
-    census_header = bytes_at(current, 'sources/misteross/cores/fes-pc386/sim/census.h').decode()
-    adapter = bytes_at(current, MACHINE_BOCHS_ADAPTER).decode()
-    oracle_mode = ('if (options.cpu == "rtl")' in machine_tb and 'std::make_unique<RtlCpu>(machine)' in machine_tb
-                   and 'bool on_oracle = !rtl;' in machine_tb
-                   and 'if (on_oracle)' in machine_tb and 'oracle->step()' in machine_tb
-                   and 'auto stop = [&](const char *kind)' in machine_tb and 'oracle->set_state(s);' in machine_tb
-                   and 'if (event == RtlCpu::Event::Stopped) stop(' in machine_tb
-                   and machine_tb.count('oracle->set_state(') == 1
-                   and 'set_x87_register(' not in machine_tb and 'set_x87_status_bits(' not in machine_tb)
-    cr4_snapshot_only = ('state.cr4 = Bit32u(bx_cpu.cr4.get());' in adapter
-                         and 'bx_cpu.cr4.set(state.cr4);' in adapter
-                         and 'cr4' not in census_header)
-    census = read('census-compare.json') or {}
-    recorded_keys = census.get('compared_keys', [])
-    compared_keys_same = recorded_keys == list(COMPARED) and 'cr4' not in recorded_keys
-    census_rows = [json.loads(line) for line in (HERE / 'census.jsonl').read_text().splitlines() if line.strip()]
-    census_row_ids = [row.get('id') for row in census_rows]
-    compared_row_ids = [row.get('id') for row in census.get('rows', []) if row.get('run')]
-    census_record_matches = (census.get('commit') == baseline and census.get('pass') is True
-                             and census.get('rows_equal') == census.get('plan_rows')
-                             and len(census_rows) == census.get('rows_run') == census.get('plan_rows')
-                             and len(census_row_ids) == len(set(census_row_ids))
-                             and set(census_row_ids) == set(compared_row_ids) and not census.get('not_run')
-                             and all(row.get('oracle') == 'bochs-level4' and row.get('cpu_level') == 4
-                                     for row in census_rows))
-    model_input_hashes = {path: control_hashes[path] for path in MACHINE_CONTROL_FILES if '/bochs/' in path}
-    provisioner_same = before_oracle == after_oracle
-    bochs_revision = pin.group(1).decode() if pin else None
-    bochs_revision_same = (pin is not None and
-                           re.search(rb"BOCHS_REVISION = '([0-9a-f]{40})'", before_parent_oracle).group(1).decode()
-                           == bochs_revision)
-    controls_same = all(row['equal'] for row in control_hashes.values())
-    firmware_same = all(value for key, value in firmware.items() if key.endswith('_equal'))
-    passed = (controls_same and provisioner_same and bochs_revision_same and firmware_same and oracle_mode
-              and cr4_snapshot_only and compared_keys_same and census_record_matches and not classes['unclassified'])
-    write('census-equivalence.json', {
-        'baseline_commit': baseline,
-        'current_commit': current,
-        'kind': 'source-equivalence audit; no census rerun',
-        'machine_inputs_changed': changed,
-        'changed_input_classes': classes,
-        'control_hashes': control_hashes,
-        'level4_provisioner_sha256_equal': provisioner_same,
-        'bochs_revision': bochs_revision,
-        'bochs_revision_equal': bochs_revision_same,
-        'pinned_bochs_model_inputs': model_input_hashes,
-        'firmware': firmware,
-        'oracle_mode_has_no_rtl': oracle_mode,
-        'census_record_matches_oracle_mode': census_record_matches,
-        'cr4_is_snapshot_outside_compared_census_keys': cr4_snapshot_only,
-        'compared_keys': recorded_keys,
-        'compared_keys_equal_record': compared_keys_same,
-        'pass': passed,
-    })
-    print(f"source-equivalence audit: {'pass' if passed else 'FAIL'}; {len(changed)} changed machine inputs, "
-          f"{len(classes['unclassified'])} unclassified")
-    return 0 if passed else 1
 
 
 # ---- rule 1 ----------------------------------------------------------------
@@ -382,10 +244,9 @@ def level3(args) -> int:
 
 # ---- rules 3 and 4 ---------------------------------------------------------
 
-# method.md's prediction: these encodings are #UD on both the 386 RTL and
-# level-4 oracle, so every other case should stop at its 486-only probe.
-PREDICTED_AGREE = ('cmpxchg-a6', 'xadd-r8-lock', 'xadd-r16-lock', 'xadd-r32-lock',
-                   'cmpxchg-r8-lock', 'cmpxchg-r16-lock', 'cmpxchg-r32-lock', 'mov-tr6')
+# method.md's prediction, written before the RTL ran: these agree, every
+# other case stops at its probe.
+PREDICTED_AGREE = ('cmpxchg-a6', 'xadd-reg-lock', 'mov-tr6')
 
 
 def reset_inputs(commit: str) -> dict:
@@ -402,9 +263,6 @@ def suite(args) -> int:
         raise SystemExit('the checkout has tracked changes')
     write('oracle-selfcheck.json', {'commit': commit, 'oracle': report['oracle'], 'cases_sha256': report['cases_sha256'],
                                     **report['self_check']})
-    if 'lockstep' not in report:
-        print(f"{len(report['self_check']['cases'])} oracle-only cases; no RTL stop report was produced")
-        return 1 if report['failures'] else 0
     rows = report['lockstep']['cases']
     for row in rows:
         row['predicted'] = 'agree' if row['label'] in PREDICTED_AGREE else 'stop'
@@ -610,9 +468,6 @@ def main() -> int:
     sub.add_argument('--commit', required=True, help='the commit the sweep ran at')
     sub.add_argument('--host', required=True)
     sub.add_argument('--plan', default='origin/deano/i486-plan-50e04f')
-    sub = commands.add_parser('census-equivalence')
-    sub.add_argument('--baseline', required=True, help='the commit the census ran at')
-    sub.add_argument('--current', default='HEAD', help='the exact tree to audit')
     sub = commands.add_parser('cachechk')
     sub.add_argument('--directory', type=Path, required=True, help='report-l3.json, report-l4.json, de-l3.txt, de-l4.txt')
     sub.add_argument('--commit', required=True)
@@ -624,7 +479,6 @@ def main() -> int:
         (HERE / 'summary.md').write_text(render(read, inputs_changed, git('rev-parse', 'HEAD')))
         return 0
     return {'identity': identity, 'level3': level3, 'suite': suite, 'boot': boot, 'census': census,
-            'census-equivalence': machine_equivalence,
             'cachechk': cachechk}[args.command](args)
 
 
