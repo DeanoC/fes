@@ -145,4 +145,3 @@ Transcendentals: bound against the oracle 2097152 (the proposed value, not agree
 | FCOS | 113 | 0 | 94 | 8 | 6 | 1.84e+19 | 42 | 23 | 0: 66, 1: 8, 2: 5, 4: 1, 5: 8, 6: 2, 7: 3, 8: 1 |
 
 Recorded divergences taken (divergences.toml): `x87-denormal-flag-intermediate` 36, `x87-denormal-underflow` 16, `x87-fpatan-quotient-underflow` 29, `x87-fyl2xp1-below-minus-one` 20, `x87-fyl2xp1-minus-one` 5, `x87-trig-infinity-c2` 8.
-

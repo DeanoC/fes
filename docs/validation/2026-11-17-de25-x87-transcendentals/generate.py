@@ -434,6 +434,8 @@ def main() -> int:
     args = parser.parse_args()
     generated = {HERE / 'demand.md': demand(), HERE / 'references.md': references(),
                  HERE / 'results.md': results(), HERE / 'lockstep.md': lockstep(), HERE / 'fits.md': fits()}
+    # One newline at the end of each file: CI's `git diff --check` refuses a blank line at EOF.
+    generated = {path: text.rstrip('\n') + '\n' for path, text in generated.items()}
     stale = []
     for path, text in generated.items():
         if args.check:

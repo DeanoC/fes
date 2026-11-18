@@ -33,4 +33,3 @@ Netlist elaborated from `e2b8130b5`; A5EB013BB23BE4SCS, Quartus Pro 26.3.0 on ch
 **Controlled** (same seeds, harness and host; only this work differs): the difference of medians is **+1,994.5 ALMs**. The test fixed in method.md is the larger of the two arms' spreads, 67 ALMs: the difference is **measurable**.
 
 **Uncontrolled**, against PR #1907's four seeds (40,986, 41,055, 41,122, 41,054 ALMs, median 41,054.5, spread 136): **+1,916.5 ALMs** between medians. Those fits predate #1907's own merge of main and main has moved since, so the base varies as well as the 387; it is given because the brief asks for it and is not evidence of this work's cost.
-
