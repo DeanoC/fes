@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 24
+const schemaVersion = 25
 
 const schemaV8 = `
 CREATE TABLE core_media_chunks (
@@ -453,6 +453,19 @@ END;
 PRAGMA user_version = 24;
 `
 
+// Schema 25 marks the library disks a person made on the kit: a new blank
+// disk, or a copy. They belong on a family's disk shelf whether or not they
+// have been written to. Removing the entry removes the mark.
+const schemaV25 = `
+CREATE TABLE shelf_disks (
+  game_id TEXT PRIMARY KEY REFERENCES core_entries(game_id) ON DELETE CASCADE
+);
+CREATE TRIGGER shelf_disks_entry_removed AFTER DELETE ON core_entries BEGIN
+  DELETE FROM shelf_disks WHERE game_id = OLD.game_id;
+END;
+PRAGMA user_version = 25;
+`
+
 func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
 	if _, err := connection.ExecContext(ctx, schemaV7); err != nil {
 		return err
@@ -669,6 +682,12 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if version == 23 {
 		if _, err := connection.ExecContext(ctx, schemaV24); err != nil {
 			return fmt.Errorf("apply catalog schema version 24: %w", err)
+		}
+		version = 24
+	}
+	if version == 24 {
+		if _, err := connection.ExecContext(ctx, schemaV25); err != nil {
+			return fmt.Errorf("apply catalog schema version 25: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {
