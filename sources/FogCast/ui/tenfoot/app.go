@@ -169,6 +169,7 @@ type SessionSnapshot struct {
 	MediaSelector     bool // The kit session plane is available for direct media controls.
 	// KeypadSelect keeps Select with a keypad machine; Guide opens controls.
 	KeypadSelect bool
+	KeyboardHID  bool // The running core receives physical Escape and Backspace.
 	HardwareRoom bool
 }
 
@@ -3516,6 +3517,7 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		ControlsOpen:      a.roomDuringPlay,
 		MediaSelector:     a.needsSessionDisplayLocked() && (a.sessionLiveMediaOfferedLocked() || a.mediaControlsDirect),
 		KeypadSelect:      a.sessionKeypadLocked(),
+		KeyboardHID:       a.forwardsKeyboardHIDLocked(),
 		HardwareRoom:      a.playingHardwareRoomAvailableLocked(),
 	}
 }

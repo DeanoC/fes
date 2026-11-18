@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -308,5 +309,22 @@ func TestKeyboardHIDSessionForwardsEscBackspaceAsUsages(t *testing.T) {
 	}
 	if !app.HandlePlayHIDScancode("backspace", 0x2a, true, time.Now()) || !app.Snapshot().Session.Stopping {
 		t.Fatal("non-HID Backspace lost its stop chrome")
+	}
+}
+
+func TestSessionHintUsesTheKeyboardRoute(t *testing.T) {
+	app := pointerCatalog(4)
+	app.NoteInput(InputKeyboard, 1)
+	app.session = hostclient.SessionResult{State: "active", Input: &hostclient.SessionInput{State: "attached", Ready: true}}
+	if hint := app.Snapshot().HeaderHint(); !strings.Contains(hint, "Backspace stop") {
+		t.Fatalf("legacy keyboard hint = %q", hint)
+	}
+	app.session.CoreKeyboardHID = true
+	if hint := app.Snapshot().HeaderHint(); !strings.Contains(hint, "Select+Start stop") || strings.Contains(hint, "Backspace stop") {
+		t.Fatalf("HID keyboard hint = %q", hint)
+	}
+	app.retryStopLock = true
+	if hint := app.Snapshot().HeaderHint(); !strings.Contains(hint, "retry Stop") {
+		t.Fatalf("retry hint = %q", hint)
 	}
 }

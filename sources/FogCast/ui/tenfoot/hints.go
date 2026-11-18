@@ -77,12 +77,14 @@ func browseHint(kind InputKind) string {
 	}
 }
 
-func sessionChromeHint(kind InputKind, retry bool, loadTape bool) string {
+func sessionChromeHint(kind InputKind, retry bool, loadTape bool, keyboardHID bool) string {
 	stop := "B stop"
 	switch kind {
 	case InputKeyboard, InputMouse:
 		if retry {
 			stop = "Esc/S retry Stop"
+		} else if keyboardHID {
+			stop = "hold Select+Start stop"
 		} else {
 			stop = "Backspace stop"
 		}
@@ -228,7 +230,7 @@ func (s Snapshot) HeaderHint() string {
 			}
 			return tapePickerHint(kind)
 		}
-		hint := sessionChromeHint(kind, s.Session.RetryStop, s.Session.LoadTape)
+		hint := sessionChromeHint(kind, s.Session.RetryStop, s.Session.LoadTape, s.Session.KeyboardHID)
 		if s.Session.MediaSelector {
 			hint = strings.ReplaceAll(hint, "load tape", "change media")
 		}
