@@ -4187,6 +4187,16 @@ requirement to insert media. The library can also format a blank FAT12 `.st`
 Binding requires a format-3 `fes.atari-st` firmware package with `fes.computer`
 1.0 and required base and writable floppy interfaces. Store-only creation does
 not inspect or require a package.
+The Atari ST disk shelf (`/api/v1/library/atari-st-shelf`) lists the disks made
+on the kit and the game disks with saved changes, and makes, copies, reverts,
+renames and deletes them. A disk made here is a library entry with a
+`shelf_disks` row in the catalog (schema 25), removed with its entry. Its
+saved changes are the kit's record for that entry, read through the kit
+agent's saved-record routes; every shelf change takes lifecycle admission,
+asks the kit first, and refuses the disk in the drive. A new blank shelf disk
+has a random boot-sector serial, so each is its own content-addressed medium.
+See the [package library guide](core-package-library.md#the-atari-st-disk-shelf).
+
 The host stores the formatted bytes in the content-addressed media store; later
 GEMDOS writes stay on the existing durable drive-A record. When a disk is selected, the launch includes its
 exact admitted raw-ST source and explicit game/base-media binding in the closed ROM envelope. The

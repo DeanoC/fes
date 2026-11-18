@@ -764,6 +764,74 @@ the game is added. The browser binds immediately when a title is selected.
 GEMDOS writes then follow the durable drive-A path below; the stored base image
 is not overwritten.
 
+### The Atari ST disk shelf
+
+The shelf is the Atari ST disks a person made on the kit, plus the game disks
+that have saved changes. A game disk with no saved changes is not on it.
+Saved changes live on a kit, not in the host library, so the shelf is read
+for one kit: the session's target, or the selected one.
+
+`GET /api/v1/library/atari-st-shelf` returns `target`, `target_id`,
+`kept_known` and `disks`. Each disk has `game_id`, `title`, `package_id`,
+`media_id`, `size`, `made`, `kept`, `kept_revision` and `in_drive`.
+
+- `made` is true for a new blank disk or a copy.
+- `kept` is `none`, `changes`, `damaged` or `unknown`. `damaged` is a saved
+  record the kit cannot read.
+- `kept_revision` names the saved changes. Send it back as
+  `expected_revision` when changing that disk; send an empty string for a
+  disk with `kept` `none`.
+- `in_drive` is true for the disk the kit is running.
+
+When the kit cannot be asked (it is away, busy, or runs software older than
+these routes) `kept_known` is false, every disk has `kept` `unknown`, and
+only the disks made here are listed.
+
+| Request | Body | Does |
+| --- | --- | --- |
+| `POST /api/v1/library/atari-st-shelf` | `title`, `package_id`, optional `tracks`, `heads`, `sectors` | Makes a blank disk under that name. Answers 201. |
+| `POST .../atari-st-shelf/{game_id}/copy` | `title` | Makes a new disk from the disk as it stands: its saved changes when it has any, otherwise its image. Answers 201. |
+| `POST .../atari-st-shelf/{game_id}/revert` | `expected_revision` | Discards the saved changes, so the disk is again the image it was imported or made as. |
+| `POST .../atari-st-shelf/{game_id}/rename` | `expected_revision`, `title` | Renames a disk made here. |
+| `POST .../atari-st-shelf/{game_id}/delete` | `expected_revision` | Deletes a disk made here and its saved changes. Answers `{game_id}`. |
+
+Rules that hold for every change:
+
+- The kit is asked first. If it cannot answer, the request fails and nothing
+  changes; unknown is never treated as "no saved changes".
+- A disk in the drive is refused with `BUSY`. Its saved record is older than
+  what the running computer holds. Stop the computer first.
+- Discarding saved changes needs an idle kit, so revert, delete, and a rename
+  of a disk with saved changes are refused with `BUSY` while any core runs.
+- `expected_revision` must match what the kit holds, or the answer is
+  `STALE_REVISION`.
+- A name another Atari ST title already has is refused with `BAD_REQUEST`.
+- Rename and delete are for disks made here. For a game disk they answer
+  `UNSUPPORTED_OPERATION`: revert it, or remove the game from the library.
+
+The name is the library title. The GEMDOS volume label is taken from it: its
+letters, digits, spaces and hyphens in upper case, at most eleven, or `DISK`
+when none remain. Each new blank disk gets its own boot-sector serial number,
+so two blank disks are two library media and never share saved changes.
+
+A library title's identity follows its name, and the kit keeps saved changes
+under that identity. Rename therefore copies the disk under the new name and
+deletes the old one; the renamed disk has a new `game_id`, and what was
+saved changes becomes its image. If the delete fails, both disks remain.
+
+Delete and revert reach the saved changes on the kit asked. Changes the same
+disk saved on another kit stay there.
+
+```sh
+fogcast --api http://127.0.0.1:8787 --json st-shelf
+fogcast --api http://127.0.0.1:8787 --json st-shelf-new "Work disk 2" PACKAGE_ID
+fogcast --api http://127.0.0.1:8787 --json st-shelf-new "Side A" PACKAGE_ID 80 1 9
+fogcast --api http://127.0.0.1:8787 --json st-shelf-copy GAME_ID "Dungeon save"
+fogcast --api http://127.0.0.1:8787 --json st-shelf-revert GAME_ID KEPT_REVISION
+fogcast --api http://127.0.0.1:8787 --json st-shelf-rename GAME_ID none "Letters"
+fogcast --api http://127.0.0.1:8787 --json st-shelf-delete GAME_ID KEPT_REVISION
+```
+
 ```sh
 fogcast --api http://127.0.0.1:8787 --json insert-library-disk GAME_ID BASE_MEDIA_ID
 fogcast --api http://127.0.0.1:8787 --json save-disk
