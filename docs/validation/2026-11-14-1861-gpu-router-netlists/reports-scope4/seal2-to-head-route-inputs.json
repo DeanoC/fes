@@ -379,6 +379,7 @@
           "config/advisory-pnr-recipes.toml",
           "config/core-recipes.toml"
         ],
+        "producer_recipe": "fc4510a89e886c90d4fd821db966d313aad42e0a09bc0b6bd042145b3ba8fd9c",
         "qsf": "c863d725acab5dcd37169cf10db2aaf9977dffd370d959de38d74a8dfe836b1e",
         "qsf_path": "cores/fes-zx81/constraints.qsf",
         "recipe_digest": "9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340",
@@ -393,6 +394,7 @@
           "config/advisory-pnr-recipes.toml",
           "config/core-recipes.toml"
         ],
+        "producer_recipe": "fc4510a89e886c90d4fd821db966d313aad42e0a09bc0b6bd042145b3ba8fd9c",
         "qsf": "c863d725acab5dcd37169cf10db2aaf9977dffd370d959de38d74a8dfe836b1e",
         "qsf_path": "cores/fes-zx81/constraints.qsf",
         "recipe_digest": "9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340",
@@ -403,6 +405,7 @@
       },
       "verdict": {
         "design_recipe_digest": "same",
+        "producer_recipe": "same",
         "qsf": "same",
         "recipe_digest": "same",
         "sdc": "same",
@@ -416,6 +419,7 @@
           "config/advisory-pnr-recipes.toml",
           "config/core-recipes.toml"
         ],
+        "producer_recipe": "8f51eb02f22612de93906154b8bcda6e796a1d2d2036718107b7a9e6512ce744",
         "qsf": "c863d725acab5dcd37169cf10db2aaf9977dffd370d959de38d74a8dfe836b1e",
         "qsf_path": "cores/fes-zx81/constraints.qsf",
         "recipe_digest": "9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340",
@@ -430,6 +434,7 @@
           "config/advisory-pnr-recipes.toml",
           "config/core-recipes.toml"
         ],
+        "producer_recipe": "8f51eb02f22612de93906154b8bcda6e796a1d2d2036718107b7a9e6512ce744",
         "qsf": "c863d725acab5dcd37169cf10db2aaf9977dffd370d959de38d74a8dfe836b1e",
         "qsf_path": "cores/fes-zx81/constraints.qsf",
         "recipe_digest": "9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340",
@@ -440,6 +445,7 @@
       },
       "verdict": {
         "design_recipe_digest": "same",
+        "producer_recipe": "same",
         "qsf": "same",
         "recipe_digest": "same",
         "sdc": "same",
@@ -453,6 +459,7 @@
           "config/advisory-pnr-recipes.toml",
           "config/core-recipes.toml"
         ],
+        "producer_recipe": "271ea13769b993160b4b4749e548267eb888bee07a93d12604b00b6ce51ab1ed",
         "qsf": "c863d725acab5dcd37169cf10db2aaf9977dffd370d959de38d74a8dfe836b1e",
         "qsf_path": "cores/fes-zx81/constraints.qsf",
         "recipe_digest": "9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340",
@@ -467,6 +474,7 @@
           "config/advisory-pnr-recipes.toml",
           "config/core-recipes.toml"
         ],
+        "producer_recipe": "271ea13769b993160b4b4749e548267eb888bee07a93d12604b00b6ce51ab1ed",
         "qsf": "c863d725acab5dcd37169cf10db2aaf9977dffd370d959de38d74a8dfe836b1e",
         "qsf_path": "cores/fes-zx81/constraints.qsf",
         "recipe_digest": "9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340",
@@ -477,6 +485,7 @@
       },
       "verdict": {
         "design_recipe_digest": "same",
+        "producer_recipe": "same",
         "qsf": "same",
         "recipe_digest": "same",
         "sdc": "same",
@@ -490,6 +499,7 @@
           "config/advisory-pnr-recipes.toml",
           "config/core-recipes.toml"
         ],
+        "producer_recipe": "1e504dee3a133278aa01d07e82091a6b6323528054f96fd94e22045453d89723",
         "qsf": "c863d725acab5dcd37169cf10db2aaf9977dffd370d959de38d74a8dfe836b1e",
         "qsf_path": "cores/fes-zx81/constraints.qsf",
         "recipe_digest": "9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340",
@@ -504,6 +514,7 @@
           "config/advisory-pnr-recipes.toml",
           "config/core-recipes.toml"
         ],
+        "producer_recipe": "1e504dee3a133278aa01d07e82091a6b6323528054f96fd94e22045453d89723",
         "qsf": "c863d725acab5dcd37169cf10db2aaf9977dffd370d959de38d74a8dfe836b1e",
         "qsf_path": "cores/fes-zx81/constraints.qsf",
         "recipe_digest": "9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340",
@@ -514,6 +525,7 @@
       },
       "verdict": {
         "design_recipe_digest": "same",
+        "producer_recipe": "same",
         "qsf": "same",
         "recipe_digest": "same",
         "sdc": "same",
@@ -559,7 +571,7 @@
     "dirty": [],
     "measured_inputs": 23,
     "path": "/home/deano/fes/.claude/worktrees/gpu-router-default",
-    "revision": "2a30d66ccf38a43efd35a185b09a8caf63da5352",
+    "revision": "a56784005afb5add02c722be2bbd2c6f5ea2b490",
     "sources_tree": "ed4a1fdb88dc10018f4914014af9bc6935b732c3"
   },
   "unanswered": []

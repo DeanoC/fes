@@ -282,10 +282,12 @@ Reasoning about what a check would catch is not evidence that it catches it:
 | only the `df99f2dfb208` comparison given, while four rows seal at `541e3c548751` | those four refused | `no route-input comparison from this row's seal tree`, 7 of 11, exit 1 |
 | a route-input comparison that ends at another tree | ignored, and its rows refused | `IGNORED route comparison -- does not end at this head (sources_tree)`, 4 of 11, exit 1 |
 | `fes.zx81`'s `recipe_digest` doctored to MOVED | that seal refused | `MOVED: route-deciding inputs moved since the seal: recipe_digest`, 10 of 11, exit 1 |
+| `fes.zx81`'s committed `[recipes.quartus]` seeds changed to `[1, 2, 3, 999]` (Codex's case) | that row only | `shipped` MOVED for `fes.zx81`, `fes.zx80` quiet, exit 1 -- it passed with everything "same" before this fix |
+| `selected_recipe` renamed away in the producer on one side | unmeasured, not moved | all four ZX81 rows `?`, `UNANSWERED: fes.zx81.producer_recipe (tree_b)` ..., exit 1 -- and this is what exposed the one-sided check above |
 
-Eight defects in this record's own tooling were found that way and are
-recorded rather than quietly amended. Four came from Codex's two reviews of the
-fourth base move, all of them the same shape as the one below: a guard that
+Ten defects in this record's own tooling were found that way and are
+recorded rather than quietly amended. Five came from Codex's three reviews of
+the fourth base move, all of them the same shape as the one below: a guard that
 checks one part of a claim and leaves the rest to drift. `seals_at_head.py` validated the
 design comparison's tree A and not its tree B, so a comparison from an earlier
 run of this record -- the right seal tree, an older head -- would have been
@@ -324,6 +326,27 @@ because the Spectrum four were sealed at `541e3c548751` and the other seven at
 `reports-scope4/seal2-to-head-route-inputs.log`). A row with no such
 comparison reads `unverifiable`, not intact: absent it, nothing says those
 inputs held.
+
+The third review found the recipe comparison itself was measuring the wrong
+recipe for the four rows that lean on it hardest. `pnr_recipe._with_advisory`
+substitutes a core's advisory nextpnr row for its registered DE10 Quartus row,
+so for the ZX81 family `recipe_digest` and `design_recipe_digest` describe the
+advisory lane, and a change to the shipping `[recipes.quartus]` table -- seeds,
+fitter threads -- moves neither. Codex reproduced it and so did I: `fes.zx81`'s
+Quartus seeds changed and committed, and `route_inputs.py` reported every input
+unchanged, exit 0, which `seals_at_head.py` would have accepted. The comparison
+now also asks the producer for the row it selects, through
+`build_fes_zx81_quartus.selected_recipe`, and that `shipped` column moves for
+`fes.zx81` alone under that edit. Where a core is advisory-substituted and its
+producer exposes no such accessor, the shipping recipe is reported unmeasured
+and the run refuses, rather than passing on the advisory digests.
+
+Writing the counterexample for that fix found the tenth defect. With
+`selected_recipe` present on one side and absent on the other, the comparison
+reported `MOVED` -- an alarm, but with the wrong claim attached: "this input
+changed" rather than "this input could not be measured". The unmeasurable check
+had only ever looked at tree A. It looks at both sides now and names which, so
+the four rows read `?` and the run is unanswered rather than mis-labelled.
 
 The cleanliness check shipped broken and the counterexample is what caught it:
 the helper strips git's output, which eats the leading space of an unstaged

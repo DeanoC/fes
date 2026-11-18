@@ -1,19 +1,19 @@
-artefact               lock   qsf    sdc    recipe   design  
-fes.menu               same   same   same   same     same    
-splash                 same   same   same   -        -       
-fes.pong               same   same   same   same     same    
-fes.ramtest            same   same   same   same     same    
-fes.riscv              same   same   same   same     same    
-fes.coleco             same   same   same   same     same    
-fes.c64                same   same   same   same     same    
-fes.spectrum           same   same   same   same     same    
-fes.spectrum128        same   same   same   same     same    
-fes.spectrum-plus3     same   same   same   same     same    
-fes.pentagon           same   same   same   same     same    
-fes.zx81               same   same   same   same     same    
-fes.zx80               same   same   same   same     same    
-fes.ts1000             same   same   same   same     same    
-fes.ts1500             same   same   same   same     same    
+artefact               lock   qsf    sdc    recipe   design   shipped 
+fes.menu               same   same   same   same     same     -       
+splash                 same   same   same   -        -        -       
+fes.pong               same   same   same   same     same     -       
+fes.ramtest            same   same   same   same     same     -       
+fes.riscv              same   same   same   same     same     -       
+fes.coleco             same   same   same   same     same     -       
+fes.c64                same   same   same   same     same     -       
+fes.spectrum           same   same   same   same     same     -       
+fes.spectrum128        same   same   same   same     same     -       
+fes.spectrum-plus3     same   same   same   same     same     -       
+fes.pentagon           same   same   same   same     same     -       
+fes.zx81               same   same   same   same     same     same    
+fes.zx80               same   same   same   same     same     same    
+fes.ts1000             same   same   same   same     same     same    
+fes.ts1500             same   same   same   same     same     same    
 
 tree_a: 5e592f00389f  sources 377d39ee8f2c  config b4bb5aa71451  clean
 tree_b: 6ee9f11131fa  sources cc6b74cc0820  config b4bb5aa71451  clean

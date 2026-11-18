@@ -160,19 +160,59 @@ def measure(tree: Path, module: str, core_id: str | None) -> dict:
     # producer's own declaration and from pnr_recipe's own registry paths, not
     # from a list written here.
     parents = set(getattr(producer, "PARENT_CONFIG", ()))
+    advisory_row = False
     if core_id is not None:
         from scripts import pnr_recipe
         fes_root = pnr_recipe.FES_ROOT.resolve()
         parents.add(pnr_recipe.REGISTRY.resolve().relative_to(fes_root).as_posix())
-        parents.add(pnr_recipe.REGISTRY.with_name(pnr_recipe.ADVISORY_NAME)
-                    .resolve().relative_to(fes_root).as_posix())
+        # The advisory lane postdates the oldest tree this record measures, so
+        # ask rather than assume: without ADVISORY_NAME there is no
+        # substitution in that tree and no advisory file to read.
+        advisory_name = getattr(pnr_recipe, "ADVISORY_NAME", None)
+        if advisory_name is not None:
+            advisory_path = pnr_recipe.REGISTRY.with_name(advisory_name)
+            parents.add(advisory_path.resolve().relative_to(fes_root).as_posix())
+            advisory_row = core_id in _advisory_cores(advisory_path)
         for name in ("recipe_digest", "design_recipe_digest"):
             try:
                 out[name] = getattr(pnr_recipe, name)(core_id)
             except Exception as exc:
                 out[name] = f"unavailable:{type(exc).__name__}"
+    # The pnr_recipe digests above do not always describe the row that ships.
+    # pnr_recipe._with_advisory substitutes a core's advisory nextpnr row for
+    # its registered DE10 Quartus row, so for an advisory core those digests
+    # are the advisory lane's and a change to the shipping [recipes.quartus]
+    # table -- seeds, fitter threads -- moves neither of them. Codex raised
+    # this on #1862 and it reproduces: fes.zx81's Quartus seeds changed and
+    # committed, and this program reported every input unchanged, exit 0.
+    #
+    # So ask the producer for the row it selects, where it offers one. Where a
+    # core is advisory-substituted and its producer offers no such accessor,
+    # the Quartus recipe is UNMEASURED and says so, which makes the run a
+    # refusal: the alternative is the silent pass this comment describes.
+    if hasattr(producer, "selected_recipe"):
+        try:
+            row = producer.selected_recipe(root, core_id) if core_id is not None \
+                else producer.selected_recipe(root)
+            out["producer_recipe"] = hashlib.sha256(json.dumps(
+                row, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        except Exception as exc:
+            out["producer_recipe"] = f"unavailable:{type(exc).__name__}: {exc}"
+    elif advisory_row:
+        out["producer_recipe"] = (
+            "unavailable:advisory-substituted core whose producer exposes no "
+            "selected_recipe, so the shipping recipe is unmeasured")
     out["parent_inputs"] = sorted(parents)
     return out
+
+
+def _advisory_cores(path: Path) -> set[str]:
+    """Which cores pnr_recipe swaps an advisory nextpnr row in for."""
+    if not path.is_file():
+        return set()
+    import tomllib
+    document = tomllib.loads(path.read_bytes().decode("utf-8"))
+    return {row.get("core_id") for row in document.get("recipes", ())}
 
 
 def main() -> int:
@@ -194,7 +234,8 @@ def main() -> int:
         args.json = args.json.resolve()
     a, b = args.tree_a.resolve(), args.tree_b.resolve()
     result, moved, unanswered, measured = {}, [], [], set()
-    print(f'{"artefact":22} {"lock":6} {"qsf":6} {"sdc":6} {"recipe":8} {"design":8}')
+    print(f'{"artefact":22} {"lock":6} {"qsf":6} {"sdc":6} {"recipe":8} {"design":8} '
+          f'{"shipped":8}')
     for artefact, module, core_id in CASES:
         try:
             ma, mb = measure(a, module, core_id), measure(b, module, core_id)
@@ -211,8 +252,16 @@ def main() -> int:
             if key.endswith("_path") or key == "parent_inputs":
                 continue
             va, vb = ma.get(key), mb.get(key)
-            if isinstance(va, str) and va.startswith("unavailable:"):
-                unanswered.append(f"{artefact}.{key}")
+            # Either side. The check used to look at tree A alone, so an input
+            # that could not be measured on tree B was compared against tree
+            # A's digest and reported MOVED -- an alarm, but with the wrong
+            # claim attached: "this input changed" rather than "this input was
+            # not measured". The counterexample for the shipping-recipe fix
+            # landed on exactly that path.
+            unmeasured = [name for name, value in (("tree_a", va), ("tree_b", vb))
+                          if isinstance(value, str) and value.startswith("unavailable:")]
+            if unmeasured:
+                unanswered.append(f"{artefact}.{key} ({', '.join(unmeasured)})")
                 row[key] = "?"
                 continue
             row[key] = "same" if va == vb else "MOVED"
@@ -229,7 +278,7 @@ def main() -> int:
         result[artefact] = {"tree_a": ma, "tree_b": mb, "verdict": row}
         print(f'{artefact:22} {row.get("toolchain_lock","-"):6} {row.get("qsf","-"):6} '
               f'{row.get("sdc","-"):6} {row.get("recipe_digest","-"):8} '
-              f'{row.get("design_recipe_digest","-"):8}')
+              f'{row.get("design_recipe_digest","-"):8} {row.get("producer_recipe","-"):8}')
     print()
     if unanswered:
         print("UNANSWERED: " + ", ".join(unanswered))

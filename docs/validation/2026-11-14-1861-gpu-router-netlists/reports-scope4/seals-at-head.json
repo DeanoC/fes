@@ -1,6 +1,6 @@
 {
   "config_tree": "b4bb5aa7145110d9dabd482097080c608e240c99",
-  "head": "2a30d66ccf38a43efd35a185b09a8caf63da5352",
+  "head": "a56784005afb5add02c722be2bbd2c6f5ea2b490",
   "intact": true,
   "not_intact": [],
   "rows": {
@@ -55,28 +55,28 @@
     },
     "ts1000": {
       "build_id": "1a04c85fb4833db0b77cb8a2d6e8d1d1",
-      "detail": "design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 5 route-deciding inputs are unchanged too",
+      "detail": "design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 6 route-deciding inputs are unchanged too",
       "sealed_at": "df99f2dfb2084035b213614960b952f5e79ab781",
       "summary": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-ts1000-quartus/1a04c85fb4833db0b77cb8a2d6e8d1d1/attempt-gfwti7yn/build-summary.json",
       "verdict": "intact"
     },
     "ts1500": {
       "build_id": "05db7020951901efbefc2de78c5aa3d0",
-      "detail": "design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 5 route-deciding inputs are unchanged too",
+      "detail": "design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 6 route-deciding inputs are unchanged too",
       "sealed_at": "df99f2dfb2084035b213614960b952f5e79ab781",
       "summary": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-ts1500-quartus/05db7020951901efbefc2de78c5aa3d0/attempt-7h0eu_u2/build-summary.json",
       "verdict": "intact"
     },
     "zx80": {
       "build_id": "69bf0d59047eae30eb4e3060a78e60bd",
-      "detail": "design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 5 route-deciding inputs are unchanged too",
+      "detail": "design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 6 route-deciding inputs are unchanged too",
       "sealed_at": "df99f2dfb2084035b213614960b952f5e79ab781",
       "summary": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-zx80-quartus/69bf0d59047eae30eb4e3060a78e60bd/attempt-f0p546lv/build-summary.json",
       "verdict": "intact"
     },
     "zx81": {
       "build_id": "a33ca899fc7eb70814b3d4b73d3d0dd6",
-      "detail": "design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 5 route-deciding inputs are unchanged too",
+      "detail": "design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 6 route-deciding inputs are unchanged too",
       "sealed_at": "df99f2dfb2084035b213614960b952f5e79ab781",
       "summary": "/data/fes1861-netlist/identity/c3head/sources/misteross/build/fes-zx81-quartus/a33ca899fc7eb70814b3d4b73d3d0dd6/attempt-2vl0v85a/build-summary.json",
       "verdict": "intact"
