@@ -136,7 +136,7 @@ class SourceRetirementTests(unittest.TestCase):
                                  '#include "probe_setup.c"\n')
             sources += [setup, FW / "input_transfer.c", FW / "nano_smmu.c", FW / "nano_sdm_reader.c"]
             sources += [FW / (n + ".c") for n in ("nano_cold", "nano_hps_io", "nano_bridges", "nano_boot", "nano_sd", "nano_sd_platform", "nano_usb_platform", "nano_usb_board", "nano_mac", "nano_usb_service", "nano_usb_composition", "nano_configuration")]
-        if name in ('lifecycle_rpc', 'lifecycle_prepare_cost_test', 'final_proof_cost_test'):
+        if name in ('lifecycle_rpc', 'lifecycle_prepare_cost_test', 'final_proof_cost_test', 'final_usb_cost_test'):
             sources += [FW/(n+'.c') for n in ('nano_program','nano_identity','nano_bridge_sip','nano_fabric_stop','nano_probe_stop')]
         command = [shutil.which("cc") or "cc", "-std=c11", "-O1", "-g", "-Wall", "-Wextra", "-Werror",
                    "-Wno-misleading-indentation", "-Wno-unused-function", "-Wno-unused-variable", "-Wno-sign-compare",
@@ -252,6 +252,35 @@ class SourceRetirementTests(unittest.TestCase):
         for fault in range(1, 9):
             with self.subTest(fault=fault):
                 row = run(0, fault=fault)
+                self.assertEqual((row['result'], row['retired'], row['continued']), (2, 0, 0))
+
+    def test_final_validation_includes_actual_usb_containment_cost(self):
+        binary = self.build_model('final_usb_cost_test', joined=True)
+        wire = '\n'.join((
+            'configure 11 4 1 1708032 1048512 0 '+ 'ab'*48,
+            'release 11 10 0',
+            'configure 11 10 2 1654784 1048512 8192 '+ 'cd'*48,
+            'release 11 15 0',
+            'configure 11 15 1 1708032 1048512 0 '+ 'ab'*48))+'\n'
+        def run(ns=0, prior=0, fault=0):
+            p = subprocess.run([str(binary), str(ns), str(prior), str(fault)],
+                               input=wire, text=True, capture_output=True, timeout=60)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            return json.loads(p.stdout.splitlines()[-1])
+        normal, bounded = run(), run(2000, 16300000)
+        self.assertEqual((normal['result'], bounded['result']), (0, 0))
+        self.assertEqual((bounded['retired'], bounded['continued']), (1, 1))
+        for key in ('physical_reads', 'cold_reads', 'final_loads', 'probe_reads', 'probe_barriers'):
+            self.assertEqual(normal[key], bounded[key], key)
+        self.assertEqual(normal['final_loads'], 5120)
+        self.assertLess(normal['final_barriers'], 130000)
+        self.assertLess(bounded['source_elapsed_us'], 20000000)
+        for ns, prior in ((0, 20000000), (2000, 18000000)):
+            row = run(ns, prior)
+            self.assertEqual((row['result'], row['clock_reason'], row['retired']), (2, 7, 0))
+        for fault in range(1, 9):
+            with self.subTest(fault=fault):
+                row = run(fault=fault)
                 self.assertEqual((row['result'], row['retired'], row['continued']), (2, 0, 0))
 
     def test_terminal_cold_recovery_uses_live_revoked_scope(self):
