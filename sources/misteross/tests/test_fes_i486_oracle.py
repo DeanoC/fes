@@ -2,6 +2,7 @@
 """The level-4 oracle provisioner, the directed 486 cases and their runner's
 rules. No network access and no Bochs build."""
 import fnmatch
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -46,12 +47,14 @@ class ProvisionerTest(unittest.TestCase):
             (tree / 'instrument/fes').mkdir(parents=True)
             inputs = [(level4.SIM / name).read_bytes() for name in level4.ORACLE_SOURCES]
             (tree / 'instrument/fes/instrument.h').write_bytes(inputs[2])
+            (tree / 'fes-bochs.patch').write_bytes(level4.BOCHS_PATCH.read_bytes())
             linked = [root / f'bochs_oracle-{level4._adapter_key(tree, inputs)}.o', tree / 'fes-paramtree.o',
                       *(root / name for name in ('cpu.a', 'fpu.a', 'softfloat.a', 'cpudb.a'))]
             for path in linked:
                 path.write_bytes(path.name.encode())
             record = level4.build_record(linked)
             self.assertEqual(record['cpu_level'], 4)
+            self.assertEqual(record['patch_sha256'], hashlib.sha256(level4.BOCHS_PATCH.read_bytes()).hexdigest())
             self.assertEqual(record['provisioner_sha256'], level4.PROVISIONER_SHA256)
             self.assertEqual(record['level3_provisioner_sha256'], level3.PROVISIONER_SHA256)
             self.assertEqual(record['adapter_sha256'], level3.adapter_source_sha256(level3.SIM))
@@ -103,21 +106,28 @@ class CasesTest(unittest.TestCase):
         labels = {case.label for case in self.cases}
         self.assertTrue({f'mov-tr{number}' for number in range(3, 8)} <= labels)
 
-    def test_lockstep_selects_masks_probes_and_cr4_by_identity(self):
+    def test_the_i486_mode_compares_with_the_486_masks_and_runs_the_486_probes(self):
         testbench = (level4.SIM / 'lockstep_tb.cpp').read_text()
-        adapter = (level4.SIM / 'bochs_oracle.cpp').read_text()
-        oracle_state = (level4.SIM / 'i386_oracle.h').read_text()
-        self.assertIn('EFLAGS_486_MASK', testbench)
-        self.assertIn('CR0_486_MASK', testbench)
-        self.assertIn('if (i486 && id == "ud-invlpg") continue;', testbench)
-        self.assertIn('while (i486 && (opcode == 0x08', testbench)
-        self.assertIn('if (i486_identity)', testbench)
-        self.assertIn('defined.count(probe.first)', testbench)
-        for probe in ('wbinvd', 'cmpxchg8', 'xadd8', 'xadd16', 'xadd32'):
-            self.assertIn(f'"{probe}"', testbench)
-        self.assertIn('uint32_t cr0 = 0, cr2 = 0, cr3 = 0, cr4 = 0;', oracle_state)
-        self.assertIn('state.cr4 = Bit32u(bx_cpu.cr4.get());', adapter)
-        self.assertIn('bx_cpu.cr4.set(state.cr4);', adapter)
+        self.assertIn('return i486 ? EFLAGS_486_MASK : EFLAGS_MASK;', testbench)
+        self.assertIn('return i486 ? CR0_486_MASK : CR0_MASK;', testbench)
+        self.assertIn('constexpr uint32_t CR0_486_MASK = 0xe005003fu;', testbench)
+        self.assertIn('for (const auto &[name, bytes] : ud_probes16(true))', testbench)
+        # The level-3 modes keep the 386's probe list; a 486 leaves out what it defines, and keeps MOV CR4.
+        self.assertEqual(testbench.count('ud_probes16(false)'), 2)
+        self.assertIn('{"cpuid", "invd", "cmpxchg", "bswap", "mov-tr3"}', testbench)
+        self.assertEqual(f'0x{cases.START_CR0:08x}u', testbench.split('I486_START_CR0 = ')[1].split(';')[0])
+
+    def test_there_is_no_cr4(self):
+        # The 486 identity has no VME, PVI or PSE: no CR4 in the oracle's state, and MOV CR4 is #UD.
+        self.assertNotIn('cr4', (level4.SIM / 'i386_oracle.h').read_text())
+        patch = level4.BOCHS_PATCH.read_text()
+        for opcode in ('BX_IA_MOV_CR4Rd', 'BX_IA_MOV_RdCR4'):
+            self.assertIn(f'-bx_define_opcode({opcode}', patch)
+        self.assertEqual(patch.count('BX_ISA_486,'), 2)
+        self.assertEqual(patch.count('BX_ISA_VME,'), 2)
+        rows = {case.label: case for case in self.cases}
+        for label in ('mov-cr4-read', 'mov-cr4-write'):
+            self.assertEqual(rows[label].expect, {'end': 'exception:6'})
 
     def test_lines_place_code_at_1000h_and_the_probe_inside_it(self):
         for case in self.cases:
@@ -136,7 +146,9 @@ class CasesTest(unittest.TestCase):
     def test_reset_row_has_the_adapted_values(self):
         self.assertEqual(cases.RESET['edx'][0], 0x480)
         self.assertEqual(cases.RESET['dr6'][0], 0xffff0ff0)
-        self.assertEqual(cases.RESET['cr0'][0], cases.START_CR0)
+        self.assertEqual(cases.RESET['cr0'][0], 0x60000010)
+        # The cases start from reset's CR0 with AM, WP and NE set too: the bits a 386 reads as ones.
+        self.assertEqual(cases.START_CR0, cases.RESET['cr0'][0] | 0x00050020)
 
 
 class RunnerRulesTest(unittest.TestCase):
@@ -172,8 +184,16 @@ class RunnerRulesTest(unittest.TestCase):
                 with self.assertRaisesRegex(runner.I486Error, 'twice'):
                     runner.read_expected()
 
-    def test_committed_list_names_exactly_the_cases(self):
-        self.assertEqual(set(runner.read_expected()), {case.label for case in cases.cases()})
+    def test_committed_list_names_the_cases_and_only_486_probes_besides(self):
+        labels = {case.label for case in cases.cases()}
+        listed = set(runner.read_expected())
+        self.assertLessEqual(labels, listed)
+        extra = listed - labels
+        self.assertTrue(extra)
+        self.assertTrue(all(label.startswith('ud-') for label in extra))
+        # The probes a 486 defines are not #UD probes.
+        self.assertFalse({'ud-cpuid', 'ud-invd', 'ud-cmpxchg', 'ud-bswap', 'ud-mov-tr3'} & extra)
+        self.assertIn('ud-mov-cr4', extra)
 
     def test_ending_prefers_the_exception(self):
         self.assertEqual(runner.ending({'end': 'halt', 'exception': '17', 'int': '-'}), 'exception:17')

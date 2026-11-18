@@ -9,7 +9,7 @@
 //   RESET <field>=<hex>...   the state after Oracle::reset()
 //   CASE <label> end=<halt|shutdown|limit> exception=<vector|-> error=<hex|->
 //        int=<vector|-> <register>=<hex>...
-// Each case starts in real mode at 0000:1000 with SP 0F00h and CR0 60000010h
+// Each case starts in real mode at 0000:1000 with SP 0F00h and CR0 60050030h
 // and runs until the CPU halts or shuts down, at most LIMIT steps. The
 // exception reported is the first one delivered, with its error code; the
 // software interrupt is the last one taken.
@@ -83,7 +83,7 @@ int main() {
         for (auto &segment : state.seg) segment = fes_i386::real_mode_segment(0);
         state.eip = 0x1000;
         state.gpr[fes_i386::REG_ESP] = 0x0f00;
-        state.cr0 = 0x60000010;
+        state.cr0 = 0x60050030;  // fes_i486_cases.START_CR0
         oracle->reset();
         oracle->set_state(state);
         const char *end = "limit";

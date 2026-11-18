@@ -9,10 +9,10 @@ own configured tree (bochs-level4-*) and its own output directory
 
 Level 4 differs from level 3 in the build by: the configure flag; Bochs's
 CPU-model library (cpu/cpudb/libcpudb.a), which BX_CPU_C::initialize() calls
-for its 486 model; and no Bochs patch, because the level-3 stack-limit patch
-is written for `BX_CPU_LEVEL == 3` and compiles to nothing here. What the
-level-4 CPU is, and where it is not a 486, is in
-cores/fes-common/sim/i386/README.md.
+for its 486 model; and its own Bochs patch, bochs/level4-no-cr4.patch, in
+place of the level-3 stack-limit patch (written for `BX_CPU_LEVEL == 3`, it
+would compile to nothing here). What the level-4 CPU is, and where it is not
+a 486, is in cores/fes-common/sim/i386/README.md.
 """
 from __future__ import annotations
 
@@ -40,6 +40,8 @@ _compiler = level3._compiler
 PROVISIONER_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 LINKED_NAMES = ('adapter', 'paramtree', 'cpu', 'fpu', 'softfloat', 'cpudb')
 TREE_PREFIX = 'bochs-level4-'
+BOCHS_PATCH_RELATIVE = 'cores/fes-common/sim/i386/bochs/level4-no-cr4.patch'
+BOCHS_PATCH = ROOT / BOCHS_PATCH_RELATIVE
 
 if BOCHS_CONFIGURE == level3.BOCHS_CONFIGURE:
     raise ImportError('the level-3 configure line no longer names its CPU level')
@@ -60,17 +62,18 @@ def build_bochs(source: Path, jobs: int) -> Path:
     """Configure Bochs at CPU level 4 and build its CPU libraries once per input set."""
     require_provisioner_unchanged()
     instrument = (SIM / 'bochs/instrument.h').read_bytes()
-    key = level3._inputs_key(BOCHS_REVISION, BOCHS_CONFIGURE, instrument, _compiler(), _provisioners())
+    patch = BOCHS_PATCH.read_bytes()
+    key = level3._inputs_key(BOCHS_REVISION, BOCHS_CONFIGURE, instrument, patch, _compiler(), _provisioners())
     tree = BUILD / (TREE_PREFIX + key)
     stamp = tree / 'fes-oracle.stamp'
     if stamp.is_file():
         try:
-            valid = (stamp.read_text().strip() == key
+            valid = (stamp.read_text().strip() == key and (tree / 'fes-bochs.patch').read_bytes() == patch
                      and (tree / 'instrument/fes/instrument.h').read_bytes() == instrument)
         except OSError:
             valid = False
         if not valid:
-            raise OracleError(f'{tree} has an invalid cached stamp')
+            raise OracleError(f'{tree} has an invalid cached patch or stamp')
         return tree
     for stale in BUILD.glob(TREE_PREFIX + '*'):
         shutil.rmtree(stale)
@@ -79,6 +82,10 @@ def build_bochs(source: Path, jobs: int) -> Path:
     shutil.copy2(tree / 'instrument/stubs/Makefile.in', tree / 'instrument/fes/Makefile.in')
     (tree / 'instrument/fes/instrument.h').write_bytes(instrument)
     log = tree / 'fes-oracle-build.log'
+    patch_copy = tree / 'fes-bochs.patch'
+    patch_copy.write_bytes(patch)
+    print('Applying Bochs level-4 patch SHA-256 ' + hashlib.sha256(patch).hexdigest(), flush=True)
+    level3._run(['patch', '-p1', '--batch', '--forward', '--fuzz=0', '-i', str(patch_copy)], tree, log)
     print('Configuring Bochs CPU level 4', flush=True)
     level3._run(['./configure', *BOCHS_CONFIGURE, 'CXX=' + _compiler()], tree, log)
     for directory, library in (('cpu', 'libcpu.a'), ('cpu/fpu', 'libfpu.a'), ('cpu/cpudb', 'libcpudb.a'),
@@ -123,14 +130,16 @@ def link_inputs(jobs: int = 4, download: bool = False) -> list[Path]:
 
 
 def build_record(linked: list[Path]) -> dict:
-    """Identify the level, source pin, both provisioners, adapter inputs and linked objects."""
+    """Identify the level, source pin, its Bochs patch, both provisioners, adapter inputs and linked objects."""
     require_provisioner_unchanged()
     tree = linked[1].parent
     inputs = [(SIM / item).read_bytes() for item in ORACLE_SOURCES]
+    patch = (tree / 'fes-bochs.patch').read_bytes()
     if (not tree.name.startswith(TREE_PREFIX) or linked[0].name != f'bochs_oracle-{_adapter_key(tree, inputs)}.o'
-            or (tree / 'instrument/fes/instrument.h').read_bytes() != inputs[2]):
+            or patch != BOCHS_PATCH.read_bytes() or (tree / 'instrument/fes/instrument.h').read_bytes() != inputs[2]):
         raise OracleError('built Bochs level-4 tree or adapter inputs differ from the current source')
-    return {'cpu_level': LEVEL, 'revision': BOCHS_REVISION, 'provisioner_sha256': PROVISIONER_SHA256,
+    return {'cpu_level': LEVEL, 'revision': BOCHS_REVISION, 'patch_sha256': hashlib.sha256(patch).hexdigest(),
+            'provisioner_sha256': PROVISIONER_SHA256,
             'level3_provisioner_sha256': level3.PROVISIONER_SHA256,
             'adapter_sha256': level3.named_sources_sha256(ORACLE_SOURCES, inputs),
             'linked_sha256': {name: hashlib.sha256(path.read_bytes()).hexdigest()

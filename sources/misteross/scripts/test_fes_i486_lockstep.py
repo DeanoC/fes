@@ -127,9 +127,21 @@ def stops(testbench: Path, cases: list[fes_i486_cases.Case]) -> dict[str, str]:
             out[label] = verdict
         elif not line.startswith('{'):
             raise I486Error('unexpected testbench output: ' + line)
-    if result.returncode or set(out) != {case.label for case in cases}:
+    labels = {case.label for case in cases}
+    probes = set(out) - labels
+    if (result.returncode or not labels <= set(out) or not probes
+            or any(not label.startswith('ud-') or label[3:] in labels for label in probes)):
         raise I486Error(f'lockstep_tb i486 mode failed (status {result.returncode}): ' + result.stderr[-2000:])
     return out
+
+
+def probe_cases(measured: dict[str, str], cases: list[fes_i486_cases.Case]) -> list[fes_i486_cases.Case]:
+    """The #UD probes the testbench ran after the cases (ud_probes16(true)), as cases with no probe:
+    a 486's answer is the 386's, #UD, so each must agree."""
+    labels = {case.label for case in cases}
+    return [fes_i486_cases.Case(label, 'lockstep_tb.cpp ud_probes16(true)', {'end': 'exception:6'}, {}, None,
+                                what='the 386 #UD probe ' + label[3:] + ', which a 486 keeps')
+            for label in measured if label not in labels]
 
 
 EXPECTED_HEADER = '''\
@@ -210,10 +222,11 @@ def main() -> int:
             if first != second:
                 failures.append('two lockstep runs gave different stops: '
                                 + ', '.join(sorted(label for label in first if first[label] != second[label])))
+            run_cases = cases + probe_cases(first, cases)
             if args.write_expected:
-                write_expected(cases, first)
+                write_expected(run_cases, first)
             expected = read_expected() if EXPECTED.is_file() else None
-            rows = judge(cases, first, expected)
+            rows = judge(run_cases, first, expected)
             report['lockstep'] = {'cases': rows, 'agree': sum(row['rtl'] == 'agree' for row in rows),
                                   'stop': sum(row['rtl'] != 'agree' for row in rows), 'runs_equal': first == second}
             failures += [f"lockstep {row['label']}: {row['rtl']} is before the probe at {row['probe']}"

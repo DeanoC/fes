@@ -28,7 +28,12 @@ from dataclasses import dataclass, field
 CODE, HANDLER, DATA = 0x1000, 0x1800, 0x2800
 GDT, GDT_POINTER, IDT_POINTER, TSS, IDT = 0x2000, 0x2100, 0x2108, 0x2500, 0x3000
 PAGE_DIRECTORY, PAGE_TABLE, PAGE = 0x10000, 0x11000, 0x20000
-START_CR0 = 0x60000010
+# The CR0 every case starts from (lockstep_tb's I486_START_CR0): CD, NW, AM,
+# WP, NE and ET set. The RTL's 386 reads bits 30-5 as ones, so under the
+# 486's CR0 comparison mask the two sides agree at the start; a case that
+# needs AM or WP clear writes CR0 itself, and that write is its probe.
+START_CR0 = 0x60050030
+CR0_486_BITS = 0x60050020    # CD, NW, AM, WP, NE: a 386 reads them as ones
 RING0_ESP, RING3_ESP, TSS_ESP0 = 0x0f00, 0x0d00, 0x0e00
 
 
@@ -87,15 +92,17 @@ def _real(body: Asm) -> dict[int, bytes]:
             CODE: bytes(body.b) + b'\xf4', HANDLER: b'\xf4'}
 
 
-def _protected(body, cr0: int = 0x11, page: int | None = None, ring3_eflags: int | None = None,
+def _protected(body, cr0: int | None = None, page: int | None = None, ring3_eflags: int | None = None,
                ring3_esp: int = RING3_ESP) -> tuple[dict[int, bytes], Asm, int]:
     """A 32-bit protected-mode program; returns its image, code and the body's offset.
 
     The GDT: 08h code and 10h data, flat, DPL 0; 18h code and 20h data, flat,
     DPL 3; 28h a 386 TSS at 2500h with SS0:ESP0 10h:0E00h. The IDT: 32
     interrupt gates to 08h:1800h, a HLT; vector 3's has DPL 3, so a ring-3
-    body ends with INT3. PE is set with LMSW, so the prologue never reads CR0.
-    cr0 other than 11h is loaded with MOV to CR0; with page, paging is on
+    body ends with INT3. PE is set with LMSW, so the prologue never reads CR0
+    and CR0 keeps START_CR0's bits. A cr0 given is loaded with MOV to CR0; it
+    is the probe when it changes CR0's 486 bits, which a 386 cannot. With
+    page, paging is on
     over an identity map of the first megabyte whose entry for 20000h has
     those attribute bits. With ring3_eflags the body runs at CPL 3 on a stack
     at ring3_esp, with DS 23h, entered by IRETD with that EFLAGS image.
@@ -114,7 +121,7 @@ def _protected(body, cr0: int = 0x11, page: int | None = None, ring3_eflags: int
     control = None
     if page is not None:
         a.op(0xb8).d(PAGE_DIRECTORY).op(0x0f, 0x22, 0xd8)  # MOV EAX, directory; MOV CR3, EAX
-    if cr0 != 0x11:
+    if cr0 is not None:
         control = a.here()
         a.op(0xb8).d(cr0).op(0x0f, 0x22, 0xc0)        # MOV EAX, cr0; MOV CR0, EAX
         a.op(0xeb, 0x00)                              # JMP $+2
@@ -149,7 +156,8 @@ def _protected(body, cr0: int = 0x11, page: int | None = None, ring3_eflags: int
         image[PAGE_TABLE] = bytes(table)
     # The probe of a case that needs a 486 through CR0 or the ring-3 entry's
     # EFLAGS image is that instruction; the caller overrides it otherwise.
-    first = control if control is not None and cr0 & ~0x8000001f else entry if entry is not None and ring3_eflags & 0x240000 else None
+    first = (control if control is not None and (cr0 ^ START_CR0) & CR0_486_BITS else
+             entry if entry is not None and ring3_eflags & 0x240000 else None)
     return image, a, start if first is None else first
 
 
@@ -376,7 +384,8 @@ def cases() -> list[Case]:
                   lambda a, code=code: a.op(*code), ring3_eflags=0x2, what=label.split('-')[0].upper() + ' at CPL 3 is #GP(0)')
 
     # ---- CR0 ----
-    real('cr0-read', 'PRM Figure 10-2; DB Table 9-8', {'end': 'halt', 'eax': START_CR0}, lambda a: a.op(0x0f, 0x20, 0xc0) and 0, probe_at=0,
+    real('cr0-read', 'PRM 4.1 for the bits; Bochs for reserved bits reading 0', {'end': 'halt', 'eax': START_CR0},
+         lambda a: a.op(0x0f, 0x20, 0xc0) and 0, probe_at=0,
          what='CR0 after reset reads 60000010h: CD, NW and ET')
 
     def cr0_write(value):
@@ -410,18 +419,18 @@ def cases() -> list[Case]:
         a.op(0xc7, 0x05).d(PAGE).d(0x12345678)        # MOV dword [20000h], 12345678h
         a.op(0x8b, 0x0d).d(PAGE)                      # MOV ECX, [20000h]
     protected('wp-clear-user-readonly', 'PRM 6.8.2 (WP clear: write protection is ignored at supervisor level)',
-              {'end': 'halt', 'ecx': 0x12345678}, write_page, probe=None, cr0=0x80000011, page=0x05,
+              {'end': 'halt', 'ecx': 0x12345678}, write_page, cr0=0xe0040031, page=0x05,
               what='WP clear: a CPL-0 write to a read-only user page succeeds')
     protected('wp-set-user-readonly', 'PRM 4.1, 6.8.2', {'end': 'exception:14', 'error': 3, 'cr2': PAGE},
-              write_page, cr0=0x80010011, page=0x05, what='WP set: a CPL-0 write to a read-only user page is #PF, error 3')
+              write_page, cr0=0xe0050031, page=0x05, what='WP set: a CPL-0 write to a read-only user page is #PF, error 3')
     protected('wp-set-supervisor-readonly', 'Bochs (PRM 4.1 and 6.8.2 speak of user-level pages only)',
               {'end': 'exception:14', 'error': 3, 'cr2': PAGE},
-              write_page, cr0=0x80010011, page=0x01, what='WP set: a CPL-0 write to a read-only supervisor page is #PF')
+              write_page, cr0=0xe0050031, page=0x01, what='WP set: a CPL-0 write to a read-only supervisor page is #PF')
     def write_page_and_read_cr0(a):
         write_page(a)
         a.op(0x0f, 0x20, 0xc2)                        # MOV EDX, CR0
-    protected('wp-set-writable', 'PRM 4.1, 6.8.2', {'end': 'halt', 'ecx': 0x12345678, 'edx': 0x80010011},
-              write_page_and_read_cr0, cr0=0x80010011, page=0x07,
+    protected('wp-set-writable', 'PRM 4.1, 6.8.2', {'end': 'halt', 'ecx': 0x12345678, 'edx': 0xe0050031},
+              write_page_and_read_cr0, cr0=0xe0050031, page=0x07,
               what='WP set: a CPL-0 write to a writable page succeeds, and CR0 reads back with WP')
 
     # ---- EFLAGS.AC and ID ----
@@ -440,30 +449,30 @@ def cases() -> list[Case]:
          what='EFLAGS.ID can be set and cleared: the processor has CPUID')
 
     # ---- Exception 17 ----
-    AM, AC = 0x00040011, 0x00040002
+    AC = 0x00040002
     source17 = 'PRM 9.9.16, Table 9-8 (error code always zero)'
     protected('ac-fault-dword', source17, {'end': 'exception:17', 'error': 0}, lambda a: a.op(0xa1).d(PAGE + 1),
-              cr0=AM, ring3_eflags=AC, what='CPL 3, AM and AC set: a doubleword read at an odd address is #AC(0)')
+              ring3_eflags=AC, what='CPL 3, AM and AC set: a doubleword read at an odd address is #AC(0)')
     protected('ac-fault-word', source17, {'end': 'exception:17', 'error': 0}, lambda a: a.op(0x66, 0xa1).d(PAGE + 1),
-              cr0=AM, ring3_eflags=AC, what='the same for a word read at an odd address')
+              ring3_eflags=AC, what='the same for a word read at an odd address')
     protected('ac-fault-dword-at-2', source17, {'end': 'exception:17', 'error': 0}, lambda a: a.op(0xa1).d(PAGE + 2),
-              cr0=AM, ring3_eflags=AC, what='a doubleword read at an address that is 2 modulo 4 is #AC(0)')
+              ring3_eflags=AC, what='a doubleword read at an address that is 2 modulo 4 is #AC(0)')
     protected('ac-fault-push', source17, {'end': 'exception:17', 'error': 0}, lambda a: a.op(0x50),
-              cr0=AM, ring3_eflags=AC, ring3_esp=RING3_ESP + 1, what='a PUSH on a misaligned stack is #AC(0)')
+              ring3_eflags=AC, ring3_esp=RING3_ESP + 1, what='a PUSH on a misaligned stack is #AC(0)')
     protected('ac-aligned', source17, {'end': 'int:3'}, lambda a: a.op(0xa1).d(PAGE + 4),
-              cr0=AM, ring3_eflags=AC, what='an aligned doubleword read does not fault')
+              ring3_eflags=AC, what='an aligned doubleword read does not fault')
     protected('ac-byte', source17, {'end': 'int:3'}, lambda a: a.op(0xa0).d(PAGE + 1),
-              cr0=AM, ring3_eflags=AC, what='a byte read does not fault')
+              ring3_eflags=AC, what='a byte read does not fault')
     protected('ac-am-clear', source17, {'end': 'int:3'}, lambda a: a.op(0xa1).d(PAGE + 1),
-              ring3_eflags=AC, what='AM clear: no #AC')
+              cr0=START_CR0 & ~0x40000 | 1, ring3_eflags=AC, what='AM clear: no #AC')
     protected('ac-flag-clear', source17, {'end': 'int:3'}, lambda a: a.op(0xa1).d(PAGE + 1),
-              cr0=AM, ring3_eflags=0x2, what='AC clear: no #AC')
+              ring3_eflags=0x2, what='AC clear: no #AC')
 
     def ring0_unaligned(a):
         a.op(0x9c, 0x81, 0x0c, 0x24).d(0x40000).op(0x9d)  # PUSHFD; OR dword [ESP], AC; POPFD
         a.op(0xa1).d(PAGE + 1)                            # MOV EAX, [20001h]
         a.op(0x9c, 0x5b)                                  # PUSHFD; POP EBX
-    protected('ac-cpl0', source17, {'end': 'halt', 'ebx': 0x40002}, ring0_unaligned, cr0=AM,
+    protected('ac-cpl0', source17, {'end': 'halt', 'ebx': 0x40002}, ring0_unaligned,
               what='CPL 0 with AM and AC set: no #AC, and AC reads back set')
 
     # ---- CPUID ----
@@ -487,13 +496,12 @@ def cases() -> list[Case]:
         real(f'mov-tr{n}', 'Bochs', {'end': 'exception:6'}, test_register(n), divergence='mov-tr',
              i486=(f'TR{n} exists (PRM Appendix E, Table 10.1: MOV to and from TR3-TR7): no #UD'),
              what=f'MOV to and from TR{n}')
-    real('mov-cr4-read', 'Bochs', {'end': 'halt', 'eax': 0}, lambda a: a.op(0x0f, 0x20, 0xe0) and 0, probe_at=0,
-         divergence='mov-cr4', i486='CR4 is only on parts with VME, PVI or PSE (DB 4.2.3.1)',
-         what='MOV EAX, CR4 with VME excluded reads 0')
-    real('mov-cr4-write', 'Bochs', {'end': 'exception:13', 'error': 0},
-         lambda a: (a.op(0x66, 0xb8).d(1), a.here(), a.op(0x0f, 0x22, 0xe0))[1], divergence='mov-cr4',
-         i486='CR4 is only on parts with VME, PVI or PSE (DB 4.2.3.1)',
-         what='MOV CR4, EAX with a bit set and VME excluded is #GP(0)')
+    source_cr4 = 'DB 4.2.3.1 (CR4 only with VME, PVI or PSE; the 486 identity has none)'
+    real('mov-cr4-read', source_cr4, {'end': 'exception:6'}, lambda a: a.op(0x0f, 0x20, 0xe0) and None,
+         what='MOV EAX, CR4 is #UD: there is no CR4')
+    real('mov-cr4-write', source_cr4, {'end': 'exception:6'},
+         lambda a: a.op(0x66, 0xb8).d(1).op(0x0f, 0x22, 0xe0) and None,
+         what='MOV CR4, EAX is #UD: there is no CR4')
     return out
 
 
