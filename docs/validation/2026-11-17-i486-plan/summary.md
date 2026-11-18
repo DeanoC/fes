@@ -947,7 +947,13 @@ unchanged in behaviour.
    INVD, WBINVD and INVLPG; CR0's NE, WP, AM, CD and NW with WP enforced;
    EFLAGS.AC; #AC; TR3; ET hard-wired; the reset DX signature and DR6
    value; for option B, CPUID and ID. The BIOS clears CD and NW on a 486
-   identity. Governor rows for the new instructions. **Gate:** lockstep
+   identity. Governor rows for the new instructions. **Excluded from the
+   identity:** the cache and TLB test functions of TR3–TR7. TR3 is added
+   as storage and TR4–TR7 stay storage, because the core's cache and TLB
+   are not the 486's and Bochs raises #UD for MOV TRn at every level, so
+   there is no oracle for them. No census run attempted a MOV TRn (it
+   would be an exception 6 on the oracle, and none was counted outside
+   WfW's ARPL and `0F FF`). **Gate:** lockstep
    against the level-4 oracle with directed cases for each item and
    random programs; the AC and CPUID detection routines answer 386 with
    the identity off and 486 with it on; Duke Nukem 3D gets past
