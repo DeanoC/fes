@@ -6,7 +6,6 @@ import (
 
 	"github.com/DeanoC/FogCast/atarist"
 	"github.com/DeanoC/FogCast/catalog"
-	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -86,22 +85,5 @@ func (s *Service) admitBlankAtariStDisk(ctx context.Context, req BlankAtariStReq
 	if inspection.Descriptor.Core.ID != entry.CoreID {
 		return canonicalError(protocol.CodeInvalidArchive, nil)
 	}
-	if err := corepackage.ValidateWritableAtariStLibraryDiskPackage(inspection.Descriptor); err != nil {
-		return canonicalError(protocol.CodeUnsupportedOperation, nil)
-	}
-	var capability *protocol.CoreMediaCapability
-	for _, declared := range protocol.DeclaredCoreMediaCapabilities(inspection.Descriptor) {
-		if declared.Role == protocol.DiskRole && declared.Format == "atari-st-floppy" {
-			match := declared
-			capability = &match
-			break
-		}
-	}
-	if capability == nil {
-		return canonicalError(protocol.CodeUnsupportedOperation, nil)
-	}
-	if size < capability.MinBytes || size > capability.MaxBytes || !protocol.AdmitAtariStFloppySize(size) {
-		return &protocol.APIError{Code: protocol.CodeBadRequest, Message: "blank ST disk geometry is outside this package", Phase: "request"}
-	}
-	return nil
+	return atariStBlankSizeError(inspection.Descriptor, size)
 }
