@@ -125,9 +125,18 @@ class SourceRetirementTests(unittest.TestCase):
         if name == "retained_window_gate_test":
             sources += [FW / "nano_smmu.c", FW / "nano_sdm_reader.c"]
         if joined:
-            sources += [self.output / "probe_setup.c", FW / "input_transfer.c", FW / "nano_smmu.c", FW / "nano_sdm_reader.c"]
+            setup = self.output / "probe_setup.c"
+            if name == 'lifecycle_prepare_cost_test':
+                setup = self.output / 'private_compare_probe.c'
+                setup.write_text('#include <stddef.h>\n'
+                                 'int fixture_private_memcmp(const void *,const void *,size_t);\n'
+                                 'void *fixture_private_copy(void *,const void *,size_t);\n'
+                                 '#define memcmp fixture_private_memcmp\n'
+                                 '#define __builtin_memcpy fixture_private_copy\n'
+                                 '#include "probe_setup.c"\n')
+            sources += [setup, FW / "input_transfer.c", FW / "nano_smmu.c", FW / "nano_sdm_reader.c"]
             sources += [FW / (n + ".c") for n in ("nano_cold", "nano_hps_io", "nano_bridges", "nano_boot", "nano_sd", "nano_sd_platform", "nano_usb_platform", "nano_usb_board", "nano_mac", "nano_usb_service", "nano_usb_composition", "nano_configuration")]
-        if name == 'lifecycle_rpc':
+        if name in ('lifecycle_rpc', 'lifecycle_prepare_cost_test'):
             sources += [FW/(n+'.c') for n in ('nano_program','nano_identity','nano_bridge_sip','nano_fabric_stop','nano_probe_stop')]
         command = [shutil.which("cc") or "cc", "-std=c11", "-O1", "-g", "-Wall", "-Wextra", "-Werror",
                    "-Wno-misleading-indentation", "-Wno-unused-function", "-Wno-unused-variable", "-Wno-sign-compare",
@@ -183,6 +192,31 @@ class SourceRetirementTests(unittest.TestCase):
                                 capture_output=True, text=True, timeout=150)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         print(result.stdout, end="")
+
+    def test_second_warm_preparation_private_snapshot_cost(self):
+        binary = self.build_model('lifecycle_prepare_cost_test', joined=True)
+        wire = '\n'.join((
+            'configure 11 4 1 1708032 1048512 0 '+ 'ab'*48,
+            'release 11 10 0',
+            'configure 11 10 2 1654784 1048512 8192 '+ 'cd'*48,
+            'release 11 15 0',
+            'configure 11 15 1 1708032 1048512 0 '+ 'ab'*48))+'\n'
+        rows = []
+        # Model residual work plus comparison loads, not measured attribution.
+        # The retained byte-wise control expires after read155/offset0x90,
+        # matching the physical boundary with command completion already seen.
+        for cost, prior in ((0, 0), (80, 3263700), (80, 4000000)):
+            result = subprocess.run([str(binary), str(cost), '15', str(prior)],
+                                    input=wire, capture_output=True, text=True, timeout=120)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            row = json.loads(result.stdout.splitlines()[-1]); rows.append(row)
+            self.assertFalse(row['hardware_actions'])
+        self.assertEqual((rows[0]['result'], rows[1]['result']), (0, 0))
+        self.assertEqual(rows[0]['reads'], rows[1]['reads'])
+        self.assertGreater(rows[1]['wide_loads'], 0)
+        self.assertLess(rows[1]['preparation_us'], 4000000)
+        self.assertEqual((rows[2]['result'], rows[2]['error'], rows[2]['prepared']), (2, -110, 0))
+        self.private_comparison_cost = rows
 
     def test_terminal_cold_recovery_uses_live_revoked_scope(self):
         report=self.run_model('terminal_recovery_test',joined=True)

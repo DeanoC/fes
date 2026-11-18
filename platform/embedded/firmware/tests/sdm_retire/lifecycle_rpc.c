@@ -26,7 +26,10 @@ static int selected_bind(void *context,uint64_t owner,uint64_t generation,uint32
  memcpy(configuration_program.header+FES_NANO_PROGRAM_BUILD,selected_digest,16);
  *bytes=selected_bytes;return 0;
 }
-int main(void)
+#ifndef FES_TEST_LIFECYCLE_RPC_MAIN
+#define FES_TEST_LIFECYCLE_RPC_MAIN main
+#endif
+int FES_TEST_LIFECYCLE_RPC_MAIN(void)
 {
  char operation[16],digest[97];uint64_t owner,generation;unsigned fault;
  setvbuf(stdout,0,_IOLBF,0);
