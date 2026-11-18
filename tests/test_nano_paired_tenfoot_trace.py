@@ -139,8 +139,6 @@ class Model(AppModel):
 
     def usb(self, stage, state=None, generation=None):
         if stage == 'stop':
-            self.reports += 1
-            self.polls += 1
             return f'FES_NATIVE_SHARED_USB STOP owner={OWNER} generation=3 reports={self.reports} polls={self.polls}\n'.encode()
         return (f'FES_NATIVE_SHARED_USB INPUT phase={stage} state={state} native_generation={generation} '
                 f'owner={OWNER} generation=2 reports={self.reports} polls={self.polls}\n').encode()
@@ -219,6 +217,11 @@ class Model(AppModel):
                 marker = raw.rindex(paired.app.PREFIX)
             raw = raw[:marker]+self.usb('resume', 'running' if key == b'\r' else 'ready', before+1)+raw[marker:]
             if key == b'q':
+                self.reports += 1
+                self.polls += 1
+                pause_marker = raw.index(b'FES_NANO_WINDOW_SCOPE phase=close ')
+                pause_marker = raw.rfind(b'\n',0,pause_marker)+1
+                raw = raw[:pause_marker]+self.usb('pause','ready',before+1)+raw[pause_marker:]
                 marker = raw.index(b'FES_NATIVE_TENFOOT_EXIT ')
                 raw = raw[:marker]+self.usb('stop')+raw[marker:]
         if key not in (b'\x1b[C', b'\x1b[D'):
@@ -258,6 +261,16 @@ class Model(AppModel):
         if fault == 'early-usb-stop':
             stop = next(line for line in raw.splitlines(keepends=True) if b'SHARED_USB STOP ' in line)
             raw = stop+raw.replace(stop, b'')
+        if fault in ('missing-park-pause','late-park-pause','park-resume','park-polled','park-owner'):
+            pauses = [line for line in raw.splitlines(keepends=True) if b'SHARED_USB INPUT phase=pause ' in line]
+            pause = pauses[-1]
+            if fault == 'missing-park-pause': raw=raw.replace(pause,b'')
+            if fault == 'late-park-pause':
+                stop=next(line for line in raw.splitlines(keepends=True) if b'SHARED_USB STOP ' in line)
+                raw=raw.replace(pause,b'').replace(stop,pause+stop)
+            if fault == 'park-resume': raw=raw.replace(pause,pause.replace(b'phase=pause',b'phase=resume'))
+            if fault == 'park-polled': raw=raw.replace(pause,re.sub(rb'polls=[0-9]+',b'polls=999',pause))
+            if fault == 'park-owner': raw=raw.replace(pause,pause.replace(b'owner='+OWNER.encode(),b'owner=1'))
         if fault == 'missing-usb-resume': raw = re.sub(rb'FES_NATIVE_SHARED_USB INPUT phase=resume[^\n]*\n', b'', raw)
         if fault == 'bad-core-stop': raw = raw.replace(b'complete=1 data=held', b'complete=0 data=held')
         if fault == 'missing-core-stop': raw = re.sub(rb'[^\n]*FES_NANO_MASTER_STOP[^\n]*data=held\n', b'', raw)
@@ -329,7 +342,7 @@ class PairedTenfootTraceTests(unittest.TestCase):
                     self.assertTrue(client.retired)
 
     def test_shared_pause_resume_and_stop_are_joined_to_menu_ownership(self):
-        for fault in ('missing-usb-resume', 'early-usb-stop', 'late-usb-stop'):
+        for fault in ('missing-usb-resume', 'early-usb-stop', 'late-usb-stop', 'missing-park-pause', 'late-park-pause', 'park-resume', 'park-polled', 'park-owner'):
             with self.subTest(fault=fault):
                 model = Model(True); client = model.client(); client.key('launch', 0); model.fault = fault
                 with self.assertRaises(ValueError): client.key('quit')

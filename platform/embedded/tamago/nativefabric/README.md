@@ -1,3 +1,12 @@
+Final Tenfoot shutdown now enters `ProgramBackend.ParkMenu`: under the same
+backend operation lock it drains the retained USB input source before closing
+MENU and checkpointing preferences. Polling stays paused through final USB
+Close/firmware Stop; shutdown never resumes the source. A failed drain prevents
+MENU closure, and any attempted shutdown prevents later input/launch replay.
+The actual App launch/return/shutdown model and DWC2 retained-lease model cover
+this ordering. Packet, drain, firmware and ownership checks retain their bounds;
+a model pass is not physical final-Park acceptance.
+
 # Native contained-fabric endpoint
 
 The [25-second source budget](../../../../docs/validation/2026-11-18-de25-source-budget25/README.md) now passes all affected

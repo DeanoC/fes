@@ -40,11 +40,11 @@ class SharedInput:
         require(boot['records'][-1]['stage']=='hps_io_pass' and sum(r['stage'].startswith('hps_io_row_') for r in boot['records'])==328,'shared startup lacks complete sealed pin observation')
         self.started=True
 
-    def action(self,op,generation,rows,owner,raw,app_prefix):
+    def action(self,op,generation,rows,owner,raw,app_prefix,*,park_menu=False):
         require(self.started,'shared USB startup absent')
         require(op in ('focus','launch','stop','quit','install'),'unknown shared USB operation')
         if op=='focus':require(not rows,'focus changed shared USB ownership');return {'reports':self.reports,'polls':self.polls}
-        require([r['stage'] for r in rows]==(['input','input','stop'] if op=='quit' else ['input','input']),'shared USB transition/stop observations differ')
+        require([r['stage'] for r in rows]==(['input','input','input','stop'] if op=='quit' and park_menu else ['input','input','stop'] if op=='quit' else ['input','input']),'shared USB transition/stop observations differ')
         a,b=(r['values'] for r in rows[:2])
         require(a['phase']=='pause' and b['phase']=='resume','USB pause/resume order differs')
         initial='ready' if op in ('launch','install') else 'running';final='running' if op=='launch' else 'ready'
@@ -73,7 +73,12 @@ class SharedInput:
         self.polls=b['polls']
         result={'before':a,'after':b,'reports_observed_since_previous_boundary':delta,'successful_polls_since_previous_boundary':poll_delta}
         if op=='quit':
-            stop=rows[2]['values']
+            stop=rows[-1]['values']
+            if park_menu:
+                pause=rows[2]['values']
+                require(pause['phase']=='pause' and pause['state']=='ready' and pause['native_generation']==generation+1 and pause['owner']==owner and pause['generation']==2,'final MENU Park lacks same-owner input drain')
+                require(self.reports<=pause['reports']<=pause['polls'] and pause['polls']>=self.polls and stop['reports']==pause['reports'] and stop['polls']==pause['polls'],'USB polled or report counters changed after final drain')
+                result['park_pause']=pause
             require(stop['owner']==owner and stop['generation']==3 and self.reports<=stop['reports']<=stop['polls'] and stop['polls']>=self.polls,'shared USB stop receipt/counter differs')
             self.reports=stop['reports'];self.polls=stop['polls'];result['stop']=stop
         return result

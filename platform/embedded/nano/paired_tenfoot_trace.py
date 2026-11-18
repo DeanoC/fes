@@ -319,6 +319,7 @@ class PairedTenfootClient(app.TenfootClient):
         last_firmware = None
         resume_boundary = None
         final_menu_return = None
+        final_menu_mutation = None
         ready_line = None
         ready_presented = False
         navigation = []
@@ -332,6 +333,8 @@ class PairedTenfootClient(app.TenfootClient):
                     if first_mutation is None:
                         first_mutation = line
                     last_firmware = line
+                    if op == 'quit' and opened_menu and not returned_menu and final_menu_mutation is None:
+                        final_menu_mutation = line
             elif kind == 'begin':
                 require(op == 'startup' and begins == 0 and self.menu_source is not None and
                         not states and app.quiet(firmware), 'paired App began before initial menu')
@@ -499,13 +502,13 @@ class PairedTenfootClient(app.TenfootClient):
             result['installer_views'] = navigation
         if self.usb is not None and op != 'startup':
             result['shared_usb'] = self.usb.action(op, generation, usb_rows, self.owner,
-                self._raw, app.PREFIX)
+                self._raw, app.PREFIX, park_menu=True)
             if op != 'focus':
                 require(first_mutation is not None and usb_rows[0]['line'] < first_mutation and
                         resume_boundary is not None and usb_rows[1]['line'] > resume_boundary,
                         'shared USB pause/resume crossed paired firmware ownership')
             if op == 'quit':
-                require(usb_rows[-1]['line'] > final_menu_return, 'shared USB stopped before final menu drain')
+                require(final_menu_mutation is not None and usb_rows[1]['line'] < usb_rows[2]['line'] < final_menu_mutation < final_menu_return < usb_rows[-1]['line'], 'shared USB final drain/Stop crossed MENU Park ownership')
         if states:
             self.view = copy.deepcopy(states[-1])
         return result
