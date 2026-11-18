@@ -125,6 +125,11 @@ fit.
 The game suite boots a drive, types the title's launch command at the `C:\>`
 prompt, and sends its keys, timed from the launch:
 
+The launch command comes from the drive's build record. Rebuild the drive
+after changing its manifest entry to update that record. Star Control II's
+entry uses `lh starcon2` to put the eXoDOS loader in upper memory, leaving
+enough conventional memory for the game.
+
 ```sh
 python3 scripts/sim_fes_pc386.py --suite game --game wolf3d                 # the store's drive that holds wolf3d
 python3 scripts/sim_fes_pc386.py --suite game --game doom --drive pmode     # by name
