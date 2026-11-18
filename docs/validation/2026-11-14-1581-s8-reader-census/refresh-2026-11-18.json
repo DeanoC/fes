@@ -2,12 +2,12 @@
  "what": "Evidence for README.md, \"The 18 November refresh\". Lines are 1-based; text is stripped of surrounding whitespace.",
  "authored_tree": "0eb4bf31197471f755dec86cca8c7537b56ff3a0",
  "refreshed_16_november": "30688ae44fb3e33c553b63ba9d2c79bd8548b7b9",
- "carried_to": "2393a9f04d73179d51734aa189c7414303d1e792",
+ "carried_to": "1ec59267039b12b5879dd90af856ac232b9d014c",
  "endpoints": {
-  "total": 957,
-  "text_fingerprinted_in_authored_record": 929,
+  "total": 1156,
+  "text_fingerprinted_in_authored_record": 981,
   "text_first_pinned_16_november": 3,
-  "text_first_pinned_here": 25
+  "text_first_pinned_here": 172
  },
  "restored": [
   {
@@ -1313,10 +1313,59 @@
  "first_pinned_here": [
   {
    "record": "census-tables.md",
+   "row": 31,
+   "cited": "sources/misteross/scripts/build_fes_coleco.py",
+   "line": 52,
+   "text": "\"cores/fes-common/rtl/coleco_vdp.sv\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 31,
+   "cited": "sources/misteross/scripts/build_fes_coleco.py",
+   "line": 59,
+   "text": "\"cores/fes-coleco/rtl/top.v\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 34,
+   "cited": "sources/misteross/scripts/build_fes_coleco_megacart.py",
+   "line": 102,
+   "text": "route = list(socket.build_commands(root, root / socket.OUTPUT_RELATIVE, build_id, tools)[1])"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 35,
+   "cited": "sources/misteross/scripts/build_fes_coleco_megacart.py",
+   "line": 94,
+   "text": "\"read_verilog -sv -DTV80_REFRESH=1 -DFES_COLECO_OSS=1 \""
+  },
+  {
+   "record": "census-tables.md",
+   "row": 39,
+   "cited": "sources/misteross/scripts/build_fes_coleco_socket_dev.py",
+   "line": 105,
+   "text": "\"read_verilog -sv -DTV80_REFRESH=1 -DFES_COLECO_OSS=1 \""
+  },
+  {
+   "record": "census-tables.md",
+   "row": 41,
+   "cited": "sources/misteross/scripts/build_fes_coleco_socket_v2.py",
+   "line": 50,
+   "text": "RTL_SOURCES = (*factory.RTL_SOURCES,"
+  },
+  {
+   "record": "census-tables.md",
    "row": 43,
    "cited": "sources/misteross/scripts/build_fes_pc386_quartus.py",
    "line": 160,
    "text": "*INCLUDES, *SHELL_SOURCES,"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 45,
+   "cited": "sources/misteross/scripts/build_fes_pc386_quartus.py",
+   "line": 151,
+   "text": "MACHINE_NETLIST = \"pc386_system.v\""
   },
   {
    "record": "census-tables.md",
@@ -1341,6 +1390,13 @@
   },
   {
    "record": "census-tables.md",
+   "row": 50,
+   "cited": "sources/misteross/scripts/build_fes_pcxt.py",
+   "line": 32,
+   "text": "RTL = SYSTEM_SOURCES + ('cores/fes-common/rtl/fes_computer_mailbox.v',"
+  },
+  {
+   "record": "census-tables.md",
    "row": 53,
    "cited": "sources/misteross/scripts/build_fes_ramtest.py",
    "line": 107,
@@ -1348,10 +1404,584 @@
   },
   {
    "record": "census-tables.md",
+   "row": 74,
+   "cited": "sources/misteross/scripts/build_video_part.py",
+   "line": 167,
+   "text": "(str(tools[\"yosys\"].path), \"-p\", f\"read_verilog -sv {define}-I cores/fes-common/generated {' '.join(sources)}; synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}\"),"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 75,
+   "cited": "sources/misteross/scripts/build_zx81_bus_validation_cart.py",
+   "line": 34,
+   "text": "CART_SOURCES = {\"ram16k\": SOURCES, \"zonx\": (\"cores/fes-zx81/expansions/zonx.v\", \"cores/fes-zx81/expansions/zonx_ay.v\")}"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 76,
+   "cited": "sources/misteross/scripts/build_zx81_bus_validation_cart.py",
+   "line": 157,
+   "text": "[str(tools[\"yosys\"].path), \"-p\", f\"read_verilog -sv -DSYNTHESIS=1 -I cores/fes-zx81/rtl {' '.join(sources)}; synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}\"],"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 77,
+   "cited": "sources/misteross/scripts/closure_tools/manifest.py",
+   "line": 24,
+   "text": "module = importlib.import_module('scripts.' + name)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 77,
+   "cited": "sources/misteross/scripts/closure_tools/manifest.py",
+   "line": 30,
+   "text": "inputs = module.PINNED_INPUTS"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 77,
+   "cited": "sources/misteross/scripts/closure_tools/manifest.py",
+   "line": 32,
+   "text": "inputs = module.INPUTS"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 77,
+   "cited": "sources/misteross/scripts/closure_tools/manifest.py",
+   "line": 26,
+   "text": "inputs = module.inputs_for(100)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 77,
+   "cited": "sources/misteross/scripts/closure_tools/manifest.py",
+   "line": 28,
+   "text": "inputs = module.video_profile(native_video=True)[2]"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 79,
+   "cited": "sources/misteross/scripts/hip_zx81_bus_carts.py",
+   "line": 71,
+   "text": "f\"read_verilog -sv -DSYNTHESIS=1 -I cores/fes-zx81/rtl -I cores/fes-zx81/expansions {sources}; \""
+  },
+  {
+   "record": "census-tables.md",
+   "row": 85,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line": 146,
+   "text": "\"cores/fes-common/rtl/coleco_dpram.v\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 85,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line": 148,
+   "text": "\"cores/fes-common/rtl/coleco_vdp.sv\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 85,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line": 150,
+   "text": "\"cores/fes-common/rtl/coleco_video_dpram.v\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 85,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line": 141,
+   "text": "\"cores/fes-coleco/rtl\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 87,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line": 329,
+   "text": "\"cores/fes-common/rtl/coleco_dpram.v\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 87,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line": 330,
+   "text": "\"cores/fes-common/rtl/coleco_vdp.sv\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 87,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line": 332,
+   "text": "\"cores/fes-common/rtl/coleco_video_dpram.v\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 87,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line": 327,
+   "text": "\"cores/fes-coleco/rtl\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 87,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line": 348,
+   "text": "\"cores/fes-sg1000/rtl\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 88,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line": 379,
+   "text": "\"cores/fes-common/rtl/coleco_dpram.v\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 88,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line": 380,
+   "text": "\"cores/fes-common/rtl/coleco_vdp.sv\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 88,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line": 381,
+   "text": "\"cores/fes-common/rtl/coleco_video_dpram.v\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 88,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line": 378,
+   "text": "\"cores/fes-coleco/rtl\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 88,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line": 395,
+   "text": "\"cores/fes-sms/rtl\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 89,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line": 499,
+   "text": "\"cores/fes-zx81/rtl/top.v\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 89,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line": 501,
+   "text": "\"cores/fes-zx81/rtl/zx81_dpram.v\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 89,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line": 509,
+   "text": "\"cores/fes-zx81/rtl/zx81_tape_store.v\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 90,
+   "cited": "sources/misteross/scripts/synth_fes_pcxt.py",
+   "line": 49,
+   "text": "rtl = VIDEO_SOURCES[:-1]"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 91,
+   "cited": "sources/misteross/scripts/yosys_netlist.py",
+   "line": 115,
+   "text": "@dataclasses.dataclass(frozen=True)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 91,
+   "cited": "sources/misteross/scripts/yosys_netlist.py",
+   "line": 124,
+   "text": "deferred: bool = False"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 97,
+   "cited": "build_video_part.py",
+   "line": 167,
+   "text": "(str(tools[\"yosys\"].path), \"-p\", f\"read_verilog -sv {define}-I cores/fes-common/generated {' '.join(sources)}; synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}\"),"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 97,
+   "cited": "hip_zx81_bus_carts.py",
+   "line": 71,
+   "text": "f\"read_verilog -sv -DSYNTHESIS=1 -I cores/fes-zx81/rtl -I cores/fes-zx81/expansions {sources}; \""
+  },
+  {
+   "record": "census-tables.md",
+   "row": 97,
+   "cited": "build_zx81_bus_validation_cart.py",
+   "line": 157,
+   "text": "[str(tools[\"yosys\"].path), \"-p\", f\"read_verilog -sv -DSYNTHESIS=1 -I cores/fes-zx81/rtl {' '.join(sources)}; synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}\"],"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 97,
+   "cited": "hip_zx81_bus_socket.py",
+   "line": 138,
+   "text": "f\"read_verilog -sv -I cores/fes-zx81/rtl {sources}; \""
+  },
+  {
+   "record": "census-tables.md",
+   "row": 97,
+   "cited": "synth_fes_pcxt.py",
+   "line": 57,
+   "text": "sources = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in inputs}"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 100,
+   "cited": "build_fes_pc386_quartus.py",
+   "line": 119,
+   "text": "\"cores/fes-pc386/rtl/top.sv\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 100,
+   "cited": "build_fes_pc386_quartus.py",
+   "line": 335,
+   "text": "def project_qsf(root: Path, project: Path, build_id: str, seed: int) -> str:"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 100,
+   "cited": "build_fes_pc386_quartus.py",
+   "line": 351,
+   "text": "'set_global_assignment -name VERILOG_MACRO \"QUARTUS=1\"',"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 100,
+   "cited": "build_fes_pc386_quartus.py",
+   "line": 357,
+   "text": "for source in SHELL_SOURCES:"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 100,
+   "cited": "build_fes_pc386_quartus.py",
+   "line": 289,
+   "text": "return yosys_netlist.program(yosys_netlist.SEAL, top=MACHINE_TOP,"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 100,
+   "cited": "build_fes_pc386_quartus.py",
+   "line": 291,
+   "text": "includes=INCLUDE_DIRS, parameters=guest_rates(), netlist=netlist.as_posix())"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 101,
+   "cited": "build_fes_pc386_quartus.py",
+   "line": 289,
+   "text": "return yosys_netlist.program(yosys_netlist.SEAL, top=MACHINE_TOP,"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 101,
+   "cited": "build_fes_pc386_quartus.py",
+   "line": 291,
+   "text": "includes=INCLUDE_DIRS, parameters=guest_rates(), netlist=netlist.as_posix())"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 101,
+   "cited": "scripts/yosys_netlist.py",
+   "line": 164,
+   "text": "read += 'read_verilog -sv ' + ('-defer ' if recipe.deferred else '') + includes + sources + '; '"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 101,
+   "cited": "scripts/yosys_netlist.py",
+   "line": 166,
+   "text": "elaborate = f'chparam {parameters}{top}; hierarchy -check -top {top}; '"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 105,
+   "cited": "build_fes_pcxt.py",
+   "line": 70,
+   "text": "' '.join(str(ROOT / s) for s in RTL) + '; ' +"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 105,
+   "cited": "build_fes_pcxt.py",
+   "line": 139,
+   "text": "inputs = sorted(set(RTL) | {qsf, AUDIO_QSF, SDC, ROM_CLOCK_MAP, CPU_MUX_MAP, TOOLCHAIN_LOCK, 'scripts/build_fes_pcxt.py',"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 106,
+   "cited": "build_fes_ramtest.py",
+   "line": 67,
+   "text": "\"cores/fes-ramtest/rtl/top.v\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 106,
+   "cited": "build_fes_ramtest.py",
+   "line": 184,
+   "text": "\"read_verilog -sv \""
+  },
+  {
+   "record": "census-tables.md",
+   "row": 107,
+   "cited": "scripts/closure_tools/manifest.py",
+   "line": 30,
+   "text": "inputs = module.PINNED_INPUTS"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 109,
+   "cited": "scripts/yosys_netlist.py",
+   "line": 115,
+   "text": "@dataclasses.dataclass(frozen=True)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 109,
+   "cited": "scripts/yosys_netlist.py",
+   "line": 124,
+   "text": "deferred: bool = False"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 109,
+   "cited": "scripts/yosys_netlist.py",
+   "line": 162,
+   "text": "def _render(recipe: Recipe, top: str, sources: str, includes: str, parameters: str, netlist: str) -> str:"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 109,
+   "cited": "scripts/yosys_netlist.py",
+   "line": 163,
+   "text": "read = f'read_verilog -lib {_quote(recipe.library)}; ' if recipe.library is not None else ''"
+  },
+  {
+   "record": "census-tables.md",
    "row": 114,
    "cited": "build_fes_zx81_quartus.py",
    "line": 444,
    "text": "*(f'set_global_assignment -name SYSTEMVERILOG_FILE \"{rel}/{path}\"' for path in SYSTEMVERILOG_SOURCES),"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 115,
+   "cited": "build_coleco_sgm.py",
+   "line": 32,
+   "text": "SOURCES = (\"cores/fes-coleco/expansions/sgm.v\", \"cores/fes-coleco/expansions/sgm_control.v\", \"cores/fes-coleco/expansions/sgm_ay.v\")"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 115,
+   "cited": "build_coleco_bus_diagnostic.py",
+   "line": 34,
+   "text": "SOURCES = (\"cores/fes-coleco/expansions/diagnostic.v\",)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 115,
+   "cited": "build_coleco_sgm.py",
+   "line": 33,
+   "text": "INPUTS = SOURCES + (\"cores/fes-coleco/rtl/coleco_bus_v2_pack.vh\", \"scripts/build_coleco_sgm.py\", \"toolchain.lock\", \"scripts/coleco_expansion.py\", \"scripts/cyclonev_rbf.py\", \"scripts/core_package.py\", \"scripts/rom_map.py\", \"scripts/fes_build_common.py\", \"scripts/pnr_recipe.py\", \"scripts/build_fes_coleco_socket_v2.py\", factory.SDC)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 115,
+   "cited": "build_coleco_bus_diagnostic.py",
+   "line": 35,
+   "text": "INPUTS = SOURCES + (\"cores/fes-coleco/rtl/coleco_bus_pack.vh\", \"scripts/build_coleco_bus_diagnostic.py\", \"toolchain.lock\", \"scripts/coleco_expansion.py\", \"scripts/cyclonev_rbf.py\", \"scripts/core_package.py\", \"scripts/rom_map.py\", \"scripts/fes_build_common.py\", \"scripts/build_fes_coleco_socket_dev.py\", factory.SDC)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 118,
+   "cited": "benchmark_fes_z80.py",
+   "line": 105,
+   "text": "files = [RTL / 'fes_z80_alu.sv', RTL / 'fes_z80_engine.sv']"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 119,
+   "cited": "source_closures.json",
+   "line": 264,
+   "text": "\"cores/fes-ramtest/rtl\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 119,
+   "cited": "source_closures.json",
+   "line": 348,
+   "text": "\"cores/fes-sg1000/rtl\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 119,
+   "cited": "source_closures.json",
+   "line": 395,
+   "text": "\"cores/fes-sms/rtl\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 131,
+   "cited": "sources/misteross/scripts/sim_fes_coleco_native.py",
+   "line": 23,
+   "text": "native = [COMMON / \"rtl\" / name for name in [\"coleco_vdp.sv\", \"coleco_dpram.v\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 151,
+   "cited": "sources/misteross/scripts/sim_fes_coleco_quartus.py",
+   "line": 14,
+   "text": "from scripts.build_fes_coleco import RESET_ROM_MIF, SYSTEMVERILOG_SOURCES, VERILOG_SOURCES, QUARTUS_LOCK"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 201,
+   "cited": "sources/misteross/scripts/sim_fes_sg1000_quartus.py",
+   "line": 13,
+   "text": "from scripts.build_fes_sg1000 import SYSTEMVERILOG_SOURCES, VERILOG_SOURCES, QUARTUS_LOCK"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 216,
+   "cited": "sources/misteross/scripts/sim_fes_sms_quartus.py",
+   "line": 13,
+   "text": "from scripts.build_fes_sms import SYSTEMVERILOG_SOURCES, VERILOG_SOURCES, QUARTUS_LOCK"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 230,
+   "cited": "sources/misteross/scripts/synth_fes_pcxt.py",
+   "line": 49,
+   "text": "rtl = VIDEO_SOURCES[:-1]"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 260,
+   "cited": "sources/misteross/scripts/build_fes_coleco.py",
+   "line": 52,
+   "text": "\"cores/fes-common/rtl/coleco_vdp.sv\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 263,
+   "cited": "cores/fes-coleco/rtl/coleco_application_gp.v",
+   "line": 56,
+   "text": "coleco_dpram #(.ADDRWIDTH(15), .NUMWORDS(32768)) media_ram ("
+  },
+  {
+   "record": "census-tables.md",
+   "row": 280,
+   "cited": "sources/misteross/scripts/synth_fes_pcxt.py",
+   "line": 81,
+   "text": "if sources != {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in inputs}:"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 286,
+   "cited": "sim_fes_coleco_quartus.py",
+   "line": 32,
+   "text": "sources = [s for s in (*VERILOG_SOURCES, *SYSTEMVERILOG_SOURCES)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 286,
+   "cited": "sim_fes_coleco_quartus.py",
+   "line": 33,
+   "text": "if Path(s).name not in (\"sys_pll.v\", \"coleco_system_pll.v\", \"pixel_pll.v\", \"top.v\")]"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 293,
+   "cited": "sim_fes_pc386.py",
+   "line": 1366,
+   "text": "elif kind == 'TYPED':"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 293,
+   "cited": "synth_fes_pc386.py",
+   "line": 183,
+   "text": "includes = ' '.join(f'-I{path}' for path in (sim.COMMON / 'generated', sim.COMMON / 'vendor/kf8259',"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 293,
+   "cited": "synth_fes_pc386.py",
+   "line": 184,
+   "text": "sim.COMMON / 'vendor/kf8253'))"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 321,
+   "cited": "sources/misteross/cores/fes-sg1000/sim/machine_tb.cpp",
+   "line": 140,
+   "text": "#else"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 379,
+   "cited": "sources/misteross/cores/fes-sg1000/README.md",
+   "line": 183,
+   "text": "gated on `FES_COLECO_OSS`. Both defines are required."
+  },
+  {
+   "record": "census-tables.md",
+   "row": 381,
+   "cited": "sources/misteross/cores/fes-sms/README.md",
+   "line": 185,
+   "text": "`FES_SMS_OSS`; do not drop the Coleco define."
+  },
+  {
+   "record": "census-tables.md",
+   "row": 389,
+   "cited": "sources/misteross/docs/cores.md",
+   "line": 264,
+   "text": "`FES_SG1000_OSS` alone does not select the Coleco M10K and VDP wrappers."
+  },
+  {
+   "record": "census-tables.md",
+   "row": 391,
+   "cited": "sources/misteross/tests/test_build_fes_coleco.py",
+   "line": 316,
+   "text": "self.assertIn(\"cores/fes-coleco/rtl/top.v\", program)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 392,
+   "cited": "sources/misteross/tests/test_build_fes_coleco.py",
+   "line": 423,
+   "text": "self.assertIn('BEL = \"cyclonev_hps_interface_peripheral_i2c.52.60.0\"', top)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 392,
+   "cited": "sources/misteross/tests/test_build_fes_coleco.py",
+   "line": 424,
+   "text": "self.assertIn(\"`ifdef QUARTUS\", top)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 392,
+   "cited": "sources/misteross/tests/test_build_fes_coleco.py",
+   "line": 425,
+   "text": "self.assertIn(\"hdmi_scl_low ? 1'b0 : 1'bz\", top)"
   },
   {
    "record": "census-tables.md",
@@ -1366,6 +1996,356 @@
    "cited": "sources/misteross/tests/test_build_pc386_product.py",
    "line": 165,
    "text": "self.assertIn(\"cores/fes-pc386/rtl/top.sv\", text)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 409,
+   "cited": "sources/misteross/tests/test_build_fes_sg1000.py",
+   "line": 127,
+   "text": "self.assertIn('-CFLAGS \"-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1\"', result.stdout)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 409,
+   "cited": "sources/misteross/tests/test_build_fes_sg1000.py",
+   "line": 138,
+   "text": "self.assertNotIn(\"FES_SG1000_OSS\", default.stdout)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 409,
+   "cited": "sources/misteross/tests/test_build_fes_sg1000.py",
+   "line": 139,
+   "text": "self.assertNotIn(\"FES_COLECO_OSS\", default.stdout)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 410,
+   "cited": "sources/misteross/tests/test_build_fes_sg1000.py",
+   "line": 177,
+   "text": "self.assertIn(\"sg1000_machine.sv\", program)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 410,
+   "cited": "sources/misteross/tests/test_build_fes_sg1000.py",
+   "line": 178,
+   "text": "self.assertIn(\"cores/fes-sg1000/rtl/top.v\", program)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 410,
+   "cited": "sources/misteross/tests/test_build_fes_sg1000.py",
+   "line": 182,
+   "text": "self.assertIn(\"coleco_vdp.sv\", program)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 410,
+   "cited": "sources/misteross/tests/test_build_fes_sg1000.py",
+   "line": 183,
+   "text": "self.assertIn(\"coleco_dpram.v\", program)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 410,
+   "cited": "sources/misteross/tests/test_build_fes_sg1000.py",
+   "line": 190,
+   "text": "self.assertNotIn(\"coleco_machine.sv\", program)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 411,
+   "cited": "sources/misteross/tests/test_build_fes_sg1000.py",
+   "line": 334,
+   "text": "self.assertTrue(any(item.endswith(source) for item in OSS_RTL_SOURCES), source)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 411,
+   "cited": "sources/misteross/tests/test_build_fes_sg1000.py",
+   "line": 335,
+   "text": "self.assertTrue(any(item.endswith(source) for item in (*VERILOG_SOURCES, *SYSTEMVERILOG_SOURCES)), source)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 412,
+   "cited": "sources/misteross/tests/test_build_fes_sg1000.py",
+   "line": 381,
+   "text": "self.assertIn(\"cores/fes-sg1000/rtl/top.v\", qsf)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 412,
+   "cited": "sources/misteross/tests/test_build_fes_sg1000.py",
+   "line": 385,
+   "text": "self.assertIn(\"cores/fes-common/rtl/coleco_vdp.sv\", qsf)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 412,
+   "cited": "sources/misteross/tests/test_build_fes_sg1000.py",
+   "line": 391,
+   "text": "self.assertNotIn(\"coleco_machine.sv\", qsf)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 412,
+   "cited": "sources/misteross/tests/test_build_fes_sg1000.py",
+   "line": 392,
+   "text": "for relative in (*VERILOG_SOURCES, *SYSTEMVERILOG_SOURCES):"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 416,
+   "cited": "sources/misteross/tests/test_build_fes_sg1000.py",
+   "line": 580,
+   "text": "\"-I cores/fes-common/generated \""
+  },
+  {
+   "record": "census-tables.md",
+   "row": 417,
+   "cited": "sources/misteross/tests/test_build_fes_sms.py",
+   "line": 156,
+   "text": "self.assertIn('-CFLAGS \"-DFES_SMS_OSS=1 -DFES_SMS_ROM_LINK=1 -DFES_COLECO_OSS=1\"', result.stdout)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 417,
+   "cited": "sources/misteross/tests/test_build_fes_sms.py",
+   "line": 140,
+   "text": "self.assertNotIn(\"FES_SMS_OSS\", result.stdout)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 418,
+   "cited": "sources/misteross/tests/test_build_fes_sms.py",
+   "line": 187,
+   "text": "self.assertIn(\"sms_machine.sv\", program)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 418,
+   "cited": "sources/misteross/tests/test_build_fes_sms.py",
+   "line": 195,
+   "text": "self.assertIn(\"cores/fes-sms/rtl/top.v\", program)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 418,
+   "cited": "sources/misteross/tests/test_build_fes_sms.py",
+   "line": 197,
+   "text": "self.assertIn(\"coleco_vdp.sv\", program)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 418,
+   "cited": "sources/misteross/tests/test_build_fes_sms.py",
+   "line": 198,
+   "text": "self.assertIn(\"coleco_dpram.v\", program)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 418,
+   "cited": "sources/misteross/tests/test_build_fes_sms.py",
+   "line": 205,
+   "text": "self.assertNotIn(\"coleco_machine.sv\", program)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 418,
+   "cited": "sources/misteross/tests/test_build_fes_sms.py",
+   "line": 206,
+   "text": "self.assertNotIn(\"sg1000_machine.sv\", program)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 420,
+   "cited": "sources/misteross/tests/test_build_fes_sms.py",
+   "line": 281,
+   "text": "self.assertIn(\"cores/fes-common/rtl/coleco_vdp.sv\", qsf)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 420,
+   "cited": "sources/misteross/tests/test_build_fes_sms.py",
+   "line": 285,
+   "text": "self.assertNotIn(\"coleco_machine.sv\", qsf)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 420,
+   "cited": "sources/misteross/tests/test_build_fes_sms.py",
+   "line": 286,
+   "text": "self.assertNotIn(\"sg1000_machine.sv\", qsf)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 420,
+   "cited": "sources/misteross/tests/test_build_fes_sms.py",
+   "line": 288,
+   "text": "for relative in (*VERILOG_SOURCES, *SYSTEMVERILOG_SOURCES):"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 426,
+   "cited": "sources/misteross/tests/test_build_fes_sms.py",
+   "line": 639,
+   "text": "\"-I cores/fes-sms/generated \""
+  },
+  {
+   "record": "census-tables.md",
+   "row": 429,
+   "cited": "sources/misteross/tests/test_build_fes_zx81_oss.py",
+   "line": 447,
+   "text": "self.assertIn(\"hdmi_scl_low ? 1'b0 : 1'bz\", top)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 429,
+   "cited": "sources/misteross/tests/test_build_fes_zx81_oss.py",
+   "line": 446,
+   "text": "self.assertIn(\"`ifdef QUARTUS\", top)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 431,
+   "cited": "sources/misteross/tests/test_build_fes_zx81_oss.py",
+   "line": 450,
+   "text": "self.assertIn('ramstyle = \"M10K\"', dpram)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 433,
+   "cited": "sources/misteross/tests/test_build_fes_zx81_oss.py",
+   "line": 688,
+   "text": "\"-I cores/fes-zx81/generated -I cores/fes-common/generated -I cores/fes-zx81/rtl \""
+  },
+  {
+   "record": "census-tables.md",
+   "row": 434,
+   "cited": "sources/misteross/tests/test_coleco_megacart_build.py",
+   "line": 65,
+   "text": "\"-I cores/fes-common/generated -I cores/fes-coleco/rtl \""
+  },
+  {
+   "record": "census-tables.md",
+   "row": 437,
+   "cited": "sources/misteross/tests/test_computer_memory_backend.py",
+   "line": 21,
+   "text": "'cores/fes-zx81/rtl/zx81_dpram.v',"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 437,
+   "cited": "sources/misteross/tests/test_computer_memory_backend.py",
+   "line": 35,
+   "text": "'-I' + str(ROOT / 'cores/fes-common/generated'),"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 439,
+   "cited": "sources/misteross/tests/test_fes_ramtest.py",
+   "line": 151,
+   "text": "self.assertIn('.enable_bus_hold(\"OFF\")', top)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 439,
+   "cited": "sources/misteross/tests/test_fes_ramtest.py",
+   "line": 152,
+   "text": "self.assertIn('.enable_bus_hold(\"FALSE\")', top)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 442,
+   "cited": "sources/misteross/tests/test_zonx_firmware.py",
+   "line": 41,
+   "text": "f\"-I{CORE / 'rtl'}\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 453,
+   "cited": "test_build_fes_sms.py",
+   "line": 205,
+   "text": "self.assertNotIn(\"coleco_machine.sv\", program)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 453,
+   "cited": "test_build_fes_sms.py",
+   "line": 206,
+   "text": "self.assertNotIn(\"sg1000_machine.sv\", program)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 453,
+   "cited": "test_build_fes_sms.py",
+   "line": 285,
+   "text": "self.assertNotIn(\"coleco_machine.sv\", qsf)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 453,
+   "cited": "test_build_fes_sms.py",
+   "line": 286,
+   "text": "self.assertNotIn(\"sg1000_machine.sv\", qsf)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 453,
+   "cited": "test_build_fes_sg1000.py",
+   "line": 190,
+   "text": "self.assertNotIn(\"coleco_machine.sv\", program)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 453,
+   "cited": "test_build_fes_sg1000.py",
+   "line": 391,
+   "text": "self.assertNotIn(\"coleco_machine.sv\", qsf)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 455,
+   "cited": "test_build_fes_sms.py",
+   "line": 639,
+   "text": "\"-I cores/fes-sms/generated \""
+  },
+  {
+   "record": "census-tables.md",
+   "row": 455,
+   "cited": "test_build_fes_sg1000.py",
+   "line": 580,
+   "text": "\"-I cores/fes-common/generated \""
+  },
+  {
+   "record": "census-tables.md",
+   "row": 455,
+   "cited": "test_coleco_megacart_build.py",
+   "line": 65,
+   "text": "\"-I cores/fes-common/generated -I cores/fes-coleco/rtl \""
+  },
+  {
+   "record": "census-tables.md",
+   "row": 455,
+   "cited": "test_computer_memory_backend.py",
+   "line": 35,
+   "text": "'-I' + str(ROOT / 'cores/fes-common/generated'),"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 455,
+   "cited": "test_computer_memory_backend.py",
+   "line": 38,
+   "text": "'-I' + str(ROOT / 'cores/fes-common/rtl/z80'),"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 455,
+   "cited": "test_zonx_firmware.py",
+   "line": 41,
+   "text": "f\"-I{CORE / 'rtl'}\","
   },
   {
    "record": "census-tables.md",
@@ -1446,6 +2426,13 @@
   },
   {
    "record": "census-tables.md",
+   "row": 538,
+   "cited": "sources/misteross/scripts/build_fes_coleco_socket_v2.py",
+   "line": 78,
+   "text": "NATIVE_VIDEO_INPUTS = (*PINNED_INPUTS, *NATIVE_VIDEO_SOURCES,"
+  },
+  {
+   "record": "census-tables.md",
    "row": 540,
    "cited": "sources/misteross/scripts/export_core_package.py",
    "line": 257,
@@ -1468,6 +2455,13 @@
   {
    "record": "census-tables.md",
    "row": 561,
+   "cited": "build_fes_pcxt_quartus.py",
+   "line": 246,
+   "text": "roots = source_roots(root)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 561,
    "cited": "export_core_package.py",
    "line": 257,
    "text": "return functional_key(fields)[:32]"
@@ -1485,6 +2479,41 @@
    "cited": "input_identity.py",
    "line": 153,
    "text": "return digest('fes-functional-inputs-v2', functional)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 567,
+   "cited": "build_video_part.py",
+   "line": 35,
+   "text": "NATIVE_INPUTS = (*NATIVE_SOURCES, \"cores/fes-common/generated/fes_native_video.vh\","
+  },
+  {
+   "record": "census-tables.md",
+   "row": 567,
+   "cited": "build_video_part.py",
+   "line": 139,
+   "text": "roots = source_roots_for_inputs(inputs)"
+  },
+  {
+   "record": "README.md",
+   "row": 162,
+   "cited": "M/boards/de25nano/link-proof/zx81-standard/reviewed-inputs.json",
+   "line": 68,
+   "text": "\"boards/de25nano/zx81-hps/tape_store.v\": \"9109f6b70203fcaa363b04ef3743d89fe8d86d6953c871ef1dbfa09858096cf3\","
+  },
+  {
+   "record": "README.md",
+   "row": 162,
+   "cited": "M/boards/de25nano/link-proof/zx81-standard/reviewed-inputs.json",
+   "line": 103,
+   "text": "\"cores/fes-zx81/rtl/zx81_dpram.v\": \"a72d4bb2c2311813f07575c12ea96e51d1269882eed795753c3061b30c006038\","
+  },
+  {
+   "record": "README.md",
+   "row": 162,
+   "cited": "M/boards/de25nano/link-proof/zx81-standard/reviewed-inputs.json",
+   "line": 109,
+   "text": "\"cores/fes-zx81/rtl/zx81_tape_store.v\": \"3a144e4fb125475ec8e849112130600968065b895a264225193d43fdbe6e24a9\","
   }
  ]
 }

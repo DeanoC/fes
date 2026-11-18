@@ -47,15 +47,15 @@ record against the tree it is read in, and is the evidence for every count below
 It makes two claims. First, all **372** inventory rows hold, on their stated line, the `Matched`
 text recorded for them — the check that matters, because a line number can stay in range while
 pointing at the wrong line, and that is how two earlier revisions of this record went wrong. Second,
-all **724** `path:line` citations written in the prose and the `What` cells of these three files
-(**957** line endpoints, counting every number of a comma list and both ends of a range) resolve to a
+all **900** `path:line` citations written in the prose and the `What` cells of these three files
+(**1156** line endpoints, counting every number of a comma list and both ends of a range) resolve to a
 real file **and still hold the text they held when the record was written**.
 
 That second half is the part a reader should not take on trust, because until the #1829 review it was
 not true. A secondary citation was checked only for existing and being non-blank, so a base edit that
 shifted one onto another non-blank line passed — the exact defect two earlier revisions of this record
 shipped. The content check works from [`citation-fingerprints.json`](citation-fingerprints.json),
-711 entries holding the sha256 of each cited line's **whole** text, regenerated only
+856 entries holding the sha256 of each cited line's **whole** text, regenerated only
 deliberately:
 
     python3 docs/validation/2026-11-14-1581-s8-reader-census/verify_census.py --record-fingerprints
@@ -79,7 +79,7 @@ live tests until both pass.
 
 What the fingerprints prove is bounded, and worth stating: they pin what each cited line said when
 they were taken, so any later drift is reported against them. They are not a retroactive claim that
-every one of those 724 citations was apt on the day it was written. Without the file the checker says
+every one of those 900 citations was apt on the day it was written. Without the file the checker says
 so in its output rather than passing quietly.
 
 Both pass with no exceptions, which took eight corrections beyond re-pointing the base. The
@@ -157,9 +157,10 @@ of reader the `rg` could not see: **DE25 reads that file as bytes and requires b
   adaptation contract changed"*.
 - Three files are pinned by sha256 in
   `M/boards/de25nano/link-proof/zx81-standard/reviewed-inputs.json`, which pins
-  `boards/de25nano/zx81-hps/tape_store.v` at its line 68, `cores/fes-zx81/rtl/zx81_dpram.v` at
-  :103 and `cores/fes-zx81/rtl/zx81_tape_store.v` at :109 — those are lines of the JSON, not of
-  the Verilog. The gate is enforced, not decorative:
+  `boards/de25nano/zx81-hps/tape_store.v`, `cores/fes-zx81/rtl/zx81_dpram.v` and
+  `cores/fes-zx81/rtl/zx81_tape_store.v` at
+  `M/boards/de25nano/link-proof/zx81-standard/reviewed-inputs.json:68,103,109` — those are lines of
+  the JSON, not of the Verilog. The gate is enforced, not decorative:
   `link-proof/zx81-standard/static_reference.py:83-84` requires every bound hash to match, and that
   file's own sha256 is bound at `:27`. (The DE25 census reported this file one directory up; the
   path above is the verified one.)
@@ -324,7 +325,7 @@ Confirmed present, with the line verified where noted:
     `What` cell or in this record's prose, was checked for existing and being non-blank and nothing
     more. So a base edit that moved a cited construct onto another non-blank line passed — which is
     precisely the defect the first two revisions of this record shipped, and it means re-running the
-    checker after a base move did not protect the exact-site checklist it advertises. All 957 line
+    checker after a base move did not protect the exact-site checklist it advertises. All 1156 line
     endpoints are now content-checked against a committed fingerprint file. Second, `.tcl` was not
     in the extension list, so three live citations went unread: `fes_de25_computer_hw.tcl:15` and
     `:77`, and `fes_de25_zx81_standard_hw.tcl:39`, all in `de25.md`. All three are correct; they
@@ -437,10 +438,24 @@ producer compiles `M/cores/fes-zx81/quartus/zx81_rom_link.v` in place of
 S8's acceptance pattern nor this inventory sees it, but it is the same toolchain split S8 exists to
 put behind `fes_toolchain.svh`.
 
-**Where every cited line's text comes from now.** Of the 957 endpoints, 929 hold text the authored
+**Line numbers the checker had never read.** The inventory header says every citation in a `What`
+cell is spelled `path:line`, never a bare `:123`. It was not true: 182 numbers were written bare,
+as in "pinned at :75-76" after a file named earlier in the sentence. The checker extracts only
+`path:line`, so it never read them, no refresh moved them, and each still held the number it was
+authored with while the cited number beside it had been carried. Codex review of this refresh found
+one such passage (DeanoC/fes#1985); the other 181 were the same defect. Each is now carried from
+the authored tree by the same byte-identical rule and written with its path, so the checker reads
+it: 146 took the file last cited to their left, or the row's own file where none was, and the
+rest were set by hand where the sentence names its file some other way. What the byte comparison
+cannot prove is which file a bare number meant, so every one was read against the authored line's
+text. One named a line of the design record and is now prose. The few that remain are literals,
+not locations: examples of the notation in this README and a slice in a `Matched` cell. That
+pass added 145 fingerprint entries and changed or removed none.
+
+**Where every cited line's text comes from now.** Of the 1156 endpoints, 981 hold text the authored
 record fingerprinted for the same file, 3 hold text first pinned by the 16 November refresh (the
-ZX81 Quartus project test it added), and 25 hold text pinned for the first time here; those 25 are
-the hand-settled and added rows above, and each was read. The 3 and the 25 are listed in
+ZX81 Quartus project test it added), and 172 hold text pinned for the first time here: 25 from the
+hand-settled and added rows above and 147 from the bare numbers. The 3 and the 172 are listed in
 `refresh-2026-11-18.json` with their text. That file was generated by comparing the three trees it
 names; the comparison scripts are not part of this record, so its entries are there to be checked
 against those commits, not taken from this paragraph.
@@ -455,7 +470,8 @@ passes the first test and not the second.
 **What this refresh does not establish.** The `What` descriptions were re-read only where the cited
 text changed or the row was settled by hand; the rest are carried as written, on the limits stated
 under "Method and confidence". A number written without its path — "at :240" inside a sentence —
-is still not read by the checker, and this refresh qualified only the ones in passages it edited.
+is still not read by the checker. This refresh removed every one it found, but nothing stops a
+later edit writing another, and finding them took a script that is not part of this record.
 
 ## Method and confidence
 
@@ -475,7 +491,7 @@ whenever the area cut changes.
 
 Checked mechanically here, over the whole inventory: every primary line against its recorded matched
 text (372 of 372, one of them matched up to the ellipsis its cell uses), and every `path:line`
-citation in these three files against the tree (724 of 724, now by content and not merely by
+citation in these three files against the tree (900 of 900, now by content and not merely by
 existence). Both are re-runnable as
 `verify_census.py`. That check is what caught the wrong base,
 once Codex had pointed at two instances of it, and it is cheap enough to repeat whenever the base
