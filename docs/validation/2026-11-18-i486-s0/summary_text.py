@@ -60,7 +60,7 @@ def carried(kind: str, commit: str, head: str, inputs_changed) -> str:
     return f'at `{commit[:9]}`; none of its inputs differs at `{head[:9]}`'
 
 
-def render(read, inputs_changed, head: str) -> str:
+def render(read, inputs_changed, record: str) -> str:
     identity, level3, selfcheck = read('identity.json'), read('level3-compare.json'), read('oracle-selfcheck.json')
     stops, boot, census, cachechk = (read('expected-stops.json'), read('boot.json'), read('census-compare.json'),
                                      read('cachechk.json'))
@@ -100,9 +100,9 @@ def render(read, inputs_changed, head: str) -> str:
         reset = selfcheck['reset']
         add(f"- **Rule 3, the oracle's self-check: {sum(row['pass'] for row in cases)} of {len(cases)} cases and "
             f"{sum(row['pass'] for row in reset)} of {len(reset)} reset fields equal their rows.** "
-            f"{len(cases) - len(bochs)} rows are held to an Intel document; {len(bochs)} record what Bochs does where "
-            f"no document read says, {sum(1 for row in cases if row['divergence'])} of them (with rows of either "
-            f"kind) where Bochs is known not to be a 486.")
+            f"{len(cases) - len(bochs)} rows are held to an Intel document and {len(bochs)} record what Bochs does "
+            f"where no document read says. {sum(1 for row in cases if row['divergence'])} rows are where Bochs is "
+            f"known not to be a 486: they pin its behaviour and are not a 486's answer.")
     if stops:
         rows = stops['cases']
         agree = [row for row in rows if row['rtl'] == 'agree']
@@ -122,11 +122,11 @@ def render(read, inputs_changed, head: str) -> str:
             f"{census['plan_rows']} of the plan's rows were run again; {census['rows_equal']} equal the plan's counts"
             + (f"; {len(census['not_run'])} not run" if census['not_run'] else '') + '.')
     else:
-        add('- **Rule 5, the census: not run in time for this record.**')
+        add('- **Rule 5, the census: still running when this was generated; no row is reported.**')
     if cachechk:
         add(f"- **Rule 6, CACHECHK's \"Divide error\": {cachechk['result']}.** {cachechk['one_line']}")
     else:
-        add('- **Rule 6, CACHECHK: not examined in time for this record.**')
+        add('- **Rule 6, CACHECHK: its runs were still going when this was generated; nothing is reported.**')
     add('')
 
     # ---- rule 1 ----
@@ -160,8 +160,8 @@ def render(read, inputs_changed, head: str) -> str:
         runs = level3['runs']
         lockstep = runs['lockstep']
         add(f"Each suite ran in a clean checkout of the merge base (`{level3['commits']['base'][:9]}`) and of this "
-            f"branch, {carried('level3', level3['commits']['head'], head, inputs_changed)} (the boot: "
-            f"{carried('machine', level3['commits']['head'], head, inputs_changed)}). Same arguments on both sides. "
+            f"branch, {carried('level3', level3['commits']['head'], record, inputs_changed)} (the boot: "
+            f"{carried('machine', level3['commits']['head'], record, inputs_changed)}). Same arguments on both sides. "
             f"Exit statuses: base {level3['exit_status']['base']}, head {level3['exit_status']['head']}.\n")
         add(f"**Lockstep** (default suite: {yes(lockstep['default_suite'])}; tracked changes in either checkout: "
             f"{lockstep['tracked_changes']}). Reports equal but for the ignored keys: {yes(lockstep['equal'])}.\n")
@@ -197,7 +197,7 @@ def render(read, inputs_changed, head: str) -> str:
     if selfcheck:
         add('## Rule 3: what the level-4 oracle does\n')
         oracle = selfcheck['oracle']
-        add(f"Run {carried('suite', selfcheck['commit'], head, inputs_changed)}. "
+        add(f"Run {carried('suite', selfcheck['commit'], record, inputs_changed)}. "
             f"The oracle: Bochs `{oracle['revision'][:12]}` at CPU level {oracle['cpu_level']}; level-4 provisioner "
             f"`{oracle['provisioner_sha256'][:16]}`, adapter "
             f"sources `{oracle['adapter_sha256'][:16]}`; cases `{selfcheck['cases_sha256'][:16]}`.\n")
@@ -230,7 +230,7 @@ def render(read, inputs_changed, head: str) -> str:
     # ---- rule 4 ----
     if stops:
         add('## Rule 4: where the RTL stops today\n')
-        add(f"Run {carried('suite', stops['commit'], head, inputs_changed)}. "
+        add(f"Run {carried('suite', stops['commit'], record, inputs_changed)}. "
             'The RTL is a 386. Each case ran in lockstep with the level-4 oracle to its end or its first mismatch. '
             '"Probe" is the address of the first instruction that needs a 486; a stop is written as the testbench '
             'prints it, `@<eip>.<field> <oracle> <rtl>`.\n')
@@ -271,13 +271,13 @@ def render(read, inputs_changed, head: str) -> str:
     # ---- rule 5 ----
     add('## Rule 5: the machine on the level-4 oracle\n')
     if boot:
-        add(f"**Boot.** `sim_fes_pc386.py --suite boot --cpu-level 4`, {carried('machine', boot['commit'], head, inputs_changed)}: "
+        add(f"**Boot.** `sim_fes_pc386.py --suite boot --cpu-level 4`, {carried('machine', boot['commit'], record, inputs_changed)}: "
             f"end {boot['end']}, exit {boot['exit']}, "
             f"failures {boot['failures'] or 'none'}; VGA replay `{boot['replay_summary']}`.\n")
     else:
         add('**Boot.** Not run.\n')
     if census:
-        add(f"**Census.** Run on {census['host']}, {carried('machine', census['commit'], head, inputs_changed)}. "
+        add(f"**Census.** Run on {census['host']}, {carried('machine', census['commit'], record, inputs_changed)}. "
             f"The plan's `census.jsonl` at `{census['plan_revision'][:9]}` has {census['plan_rows']} rows. "
             f"{census['rows_run']} were run again on this slice's level-4 oracle; compared keys: "
             f"{', '.join('`' + key + '`' for key in census['compared_keys'])}.\n")
@@ -290,7 +290,7 @@ def render(read, inputs_changed, head: str) -> str:
         add(f"- Not run: {len(census['not_run'])}" + (': ' + ', '.join(f'`{name}`' for name in census['not_run']) if census['not_run'] else '') + '.')
         add('\nThe rows are in [`census.jsonl`](census.jsonl): counts only.\n')
     else:
-        add('**Census.** Not finished when this record was written: see the PR for its state.\n')
+        add('**Census.** Still running when this was generated.\n')
 
     # ---- rule 6 ----
     add('## Rule 6: CACHECHK\'s "Divide error"\n')
@@ -300,7 +300,7 @@ def render(read, inputs_changed, head: str) -> str:
             add(f'- {line}')
         add('')
     else:
-        add('Not examined in time for this record.\n')
+        add('Its runs were still going when this was generated.\n')
 
     add(NOTES)
     return '\n'.join(out)

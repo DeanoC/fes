@@ -2,7 +2,7 @@
   "base_checkout": "/home/deano/fes-scratch/i486s0/base",
   "commits": {
     "base": "5e592f00389fd2bb61194788c917c36f5c880dec",
-    "head": "f2027af823692c904c97168d79e73cad6c740e12"
+    "head": "75bd225a21cc17dd31564cbf6cab7b3ed260665f"
   },
   "exit_status": {
     "base": {
@@ -12,7 +12,10 @@
       "vectors": "vectors rc=0"
     },
     "head": {
+      "all": "done",
       "boot": "boot rc=0",
+      "boot-l4": "boot-l4 rc=0",
+      "i486": "i486 rc=0",
       "lockstep": "lockstep rc=0",
       "test386": "test386 rc=0",
       "vectors": "vectors rc=0"
@@ -87,7 +90,7 @@
       "report": "fes-i386-lockstep/report.json",
       "revisions": [
         "5e592f00389fd2bb61194788c917c36f5c880dec",
-        "f2027af823692c904c97168d79e73cad6c740e12"
+        "75bd225a21cc17dd31564cbf6cab7b3ed260665f"
       ],
       "suites": {
         "base": {

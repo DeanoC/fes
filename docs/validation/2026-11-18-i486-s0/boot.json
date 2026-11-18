@@ -1,0 +1,18 @@
+{
+  "commit": "75bd225a21cc17dd31564cbf6cab7b3ed260665f",
+  "cpu_level": 4,
+  "end": {
+    "cycles": 370000047,
+    "reason": "prompt",
+    "seconds": 3.7,
+    "steps": 89865920
+  },
+  "exit": 0,
+  "failures": [],
+  "frames_compared": 106,
+  "frames_matched": 106,
+  "pass": true,
+  "replay_failures": [],
+  "replay_mismatches": 0,
+  "replay_summary": "match events=84949 replay_mismatches=0 read_mismatches=0 vram_mismatches=0 frame_mismatches=0 end_vram_bytes_differing=0"
+}

@@ -1,0 +1,153 @@
+{
+  "base": "5e592f00389fd2bb61194788c917c36f5c880dec",
+  "fields": {
+    "adapter_sha256": {
+      "base": "467b86f1a5cec4ddd48d1ac7806eebadba0acf3aa5481e35555d5153180a63fa",
+      "equal": false,
+      "head": "c0b1ea00ced0a1205d77ba565ec4d8126116f28c1b22f2c6ed24b91d069ae19a"
+    },
+    "instrument_sha256": {
+      "base": "34c7149b98a97198015284ce93f94f5dfacc8c33e13c0208720843c33ce5a34b",
+      "equal": true,
+      "head": "34c7149b98a97198015284ce93f94f5dfacc8c33e13c0208720843c33ce5a34b"
+    },
+    "patch_sha256": {
+      "base": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377",
+      "equal": true,
+      "head": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377"
+    },
+    "provisioner_sha256": {
+      "base": "0d47ce9792ca29ae172335f6f11e6c5dcfa73fbf34b76c89e04d072528f454cd",
+      "equal": true,
+      "head": "0d47ce9792ca29ae172335f6f11e6c5dcfa73fbf34b76c89e04d072528f454cd"
+    },
+    "revision": {
+      "base": "30cfd566ecc8deb33e56e801e32b444a7041b6d2",
+      "equal": true,
+      "head": "30cfd566ecc8deb33e56e801e32b444a7041b6d2"
+    },
+    "suite_sha256": {
+      "base": "f54e05141d54c1c2e8d91287f84b85a107203c851e7eec49dda620152a186f94",
+      "equal": false,
+      "head": "aeeff86190e2b1984c7ab1a5bc445d61df27516934e15a52bfab9acfd647c482"
+    }
+  },
+  "files": {
+    "cores/fes-common/sim/i386/biu_dma_tb.cpp": {
+      "base": "67feec131e47f028c81792090a38ea51921cd97b8fe140dccac5a6fa887f1156",
+      "equal": true,
+      "head": "67feec131e47f028c81792090a38ea51921cd97b8fe140dccac5a6fa887f1156"
+    },
+    "cores/fes-common/sim/i386/bochs/flat-stack-limit.patch": {
+      "base": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377",
+      "equal": true,
+      "head": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377"
+    },
+    "cores/fes-common/sim/i386/bochs/instrument.h": {
+      "base": "34c7149b98a97198015284ce93f94f5dfacc8c33e13c0208720843c33ce5a34b",
+      "equal": true,
+      "head": "34c7149b98a97198015284ce93f94f5dfacc8c33e13c0208720843c33ce5a34b"
+    },
+    "cores/fes-common/sim/i386/bochs_oracle.cpp": {
+      "base": "3d5eaefe5983a342154a176d5a78b105813750df29e9ce493fe603bd7a221f56",
+      "equal": false,
+      "head": "3d3df84a05a0ca4bcde56616a0794b49b0dfacb55ab0405cae17019b16a8a52e"
+    },
+    "cores/fes-common/sim/i386/divergences.toml": {
+      "base": "5717ff5fcc93c40142400df97f130323eafcd41d410c90f76d4976066f8369f0",
+      "equal": true,
+      "head": "5717ff5fcc93c40142400df97f130323eafcd41d410c90f76d4976066f8369f0"
+    },
+    "cores/fes-common/sim/i386/i386_oracle.h": {
+      "base": "a6495941eca2f19994c20cc03e4d47d03bcf20d7e865029be21236a8a2b56524",
+      "equal": true,
+      "head": "a6495941eca2f19994c20cc03e4d47d03bcf20d7e865029be21236a8a2b56524"
+    },
+    "cores/fes-common/sim/i386/lockstep_tb.cpp": {
+      "base": "9e2cd34070489bee348d37d0ae352b141fda67ee2c1c6d519150395af5668044",
+      "equal": false,
+      "head": "ef3289d1f8d82f1ff5cca70c281977bbbfdec0a915eb0af97f36211bdc7686be"
+    },
+    "cores/fes-common/sim/i386/smc_stale.h": {
+      "base": "98c0586990cbf42b7516578bfb80fcf82b98863f6414c8418b89c4d5b4ad8358",
+      "equal": true,
+      "head": "98c0586990cbf42b7516578bfb80fcf82b98863f6414c8418b89c4d5b4ad8358"
+    },
+    "cores/fes-pc386/sim/pc386_ddr_model.h": {
+      "base": "c6fef18bc2a36206006b488cb020f5c6aab63077a7679c7d8521121521dcbc66",
+      "equal": true,
+      "head": "c6fef18bc2a36206006b488cb020f5c6aab63077a7679c7d8521121521dcbc66"
+    },
+    "scripts/fes_i386_oracle.py": {
+      "base": "0d47ce9792ca29ae172335f6f11e6c5dcfa73fbf34b76c89e04d072528f454cd",
+      "equal": true,
+      "head": "0d47ce9792ca29ae172335f6f11e6c5dcfa73fbf34b76c89e04d072528f454cd"
+    },
+    "scripts/i386_verilator.py": {
+      "base": "5a1c339073f46b6689ed9f9f12842a562809b408286ca6facab43f82ea0ed36e",
+      "equal": true,
+      "head": "5a1c339073f46b6689ed9f9f12842a562809b408286ca6facab43f82ea0ed36e"
+    },
+    "scripts/test_fes_i386_frontend.py": {
+      "base": "32379520ca4c3f8626e4c3b9da2a7ecef8ba54ba7e5628a4cddcfa084aa77da2",
+      "equal": true,
+      "head": "32379520ca4c3f8626e4c3b9da2a7ecef8ba54ba7e5628a4cddcfa084aa77da2"
+    },
+    "scripts/test_fes_i386_lockstep.py": {
+      "base": "017dddfe9efeebfdf3e4c0208b1de5620a8ceffa995dc519bb126987f7a51af9",
+      "equal": true,
+      "head": "017dddfe9efeebfdf3e4c0208b1de5620a8ceffa995dc519bb126987f7a51af9"
+    },
+    "scripts/test_fes_i386_vectors.py": {
+      "base": "dea8ebbd47145f073e7ccd3cc6db87bec407cb686bdec398f6fe3c18c30e044d",
+      "equal": true,
+      "head": "dea8ebbd47145f073e7ccd3cc6db87bec407cb686bdec398f6fe3c18c30e044d"
+    },
+    "scripts/yosys_netlist.py": {
+      "base": "1362a38add40b4d0bce1832ba4737ec939856170394508c0ef37c65066dda62d",
+      "equal": true,
+      "head": "1362a38add40b4d0bce1832ba4737ec939856170394508c0ef37c65066dda62d"
+    }
+  },
+  "files_changed": [
+    "docs/validation/2026-11-18-i486-s0/level3-compare.json",
+    "docs/validation/2026-11-18-i486-s0/method.md",
+    "docs/validation/2026-11-18-i486-s0/summarize.py",
+    "docs/validation/2026-11-18-i486-s0/summary_text.py",
+    "scripts/affected.py",
+    "sources/misteross/cores/fes-common/sim/i386/README.md",
+    "sources/misteross/cores/fes-common/sim/i386/bochs_oracle.cpp",
+    "sources/misteross/cores/fes-common/sim/i386/i486-expected-stops.txt",
+    "sources/misteross/cores/fes-common/sim/i386/i486_tb.cpp",
+    "sources/misteross/cores/fes-common/sim/i386/lockstep_tb.cpp",
+    "sources/misteross/cores/fes-pc386/sim/census.h",
+    "sources/misteross/cores/fes-pc386/sim/machine_tb.cpp",
+    "sources/misteross/scripts/fes_i486_cases.py",
+    "sources/misteross/scripts/fes_i486_oracle.py",
+    "sources/misteross/scripts/sim_fes_pc386.py",
+    "sources/misteross/scripts/test_fes_i486_lockstep.py",
+    "sources/misteross/tests/test_fes_i486_oracle.py",
+    "tests/test_affected.py"
+  ],
+  "head": "75bd225a21cc17dd31564cbf6cab7b3ed260665f",
+  "may_change": [
+    "cores/fes-common/sim/i386/bochs_oracle.cpp",
+    "cores/fes-common/sim/i386/lockstep_tb.cpp"
+  ],
+  "may_move": [
+    "adapter_sha256",
+    "suite_sha256"
+  ],
+  "must_be_equal": [
+    "revision",
+    "patch_sha256",
+    "provisioner_sha256",
+    "instrument_sha256"
+  ],
+  "pass": true,
+  "pc386_record_paths": 151,
+  "pc386_record_paths_changed": [
+    "cores/fes-common/sim/i386/bochs_oracle.cpp",
+    "cores/fes-common/sim/i386/lockstep_tb.cpp"
+  ]
+}
