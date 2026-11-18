@@ -56,7 +56,8 @@ class MachineProducerTests(unittest.TestCase):
         for root in shared.SOURCE_ROOTS:
             if not Path(root).suffix and not any(name.startswith(root + '/') for name in data):
                 data[root + '/fixture.v'] = b'// source closure fixture\n'
-        data['.gitignore'] = b'/build/\n'
+        # The repository ignores bytecode caches; a record loads its builders from this tree.
+        data['.gitignore'] = b'/build/\n__pycache__/\n'
         for name, value in data.items():
             path = cls.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
