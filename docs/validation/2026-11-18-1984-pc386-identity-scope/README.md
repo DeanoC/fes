@@ -118,7 +118,7 @@ Rule (b) is what makes this sound:
    - Measured: at the sealed head, the validator accepts the #1951 entry, and it still accepts it after the lockstep testbench is edited (`sealed_head_suite_edited: accepted`). Reuse never looks at the current suite.
    - Under v1 that is harmless, because the suite edit also moves the design ID and the lookup misses. Under v2 it would reuse a package whose lockstep ran the old suite.
    - That is the question for Deano (Q2). The options are in section 6.
-   - Whichever is chosen, S4 should make `_historical_sources` read the list of required files from the original record, not from today's constants, so that reuse is refused for the right reason.
+   - Whichever is chosen, S3 should make `_historical_sources` read the list of required files from the original record, not from today's constants, so that reuse is refused for the right reason.
 
 ## 4. The firmware recipe
 
@@ -134,7 +134,7 @@ The producer's ROM check, in `firmware_rom`, compares the written file's path wi
 | --- | --- | --- | --- | --- |
 | **F0** status quo | the recipe's text and the whole lock | everything, including every non-byte edit (R1, R2 move the ID) | nothing | none, and #1983-type PRs keep needing exemptions |
 | **F1** split the recipe | a small design module with the layout (`rom_hex`, sizes, path), imported by the seal. The builder (dev86 fetch, bcc, failure reporting, `--update-lock`) runs only as a subprocess and becomes a firmware generator. The lock stays design. | every byte change: layout edits move the ID, builder edits fail the image-digest check until the lock is updated | builder-only edits such as R1 | a refactor. Lock metadata edits such as #1978's mirror (R2) still move the ID. |
-| **F2** output binding (recommended) | `firmware.lock` gains `rom_hex.sha256`, which `--update-lock` writes. The record's `firmware` parameter, already in the design projection, carries the BIOS, VGA BIOS and ROM digests read from the lock. The seal checks the file at the path the RTL reads (`pc386_rom.sv`'s `ROM_HEX` default, which a test pins to the sealer's constant) against the pinned digest, before and after Yosys. That needs no RTL edit. Passing the path by `chparam` instead would mean forwarding a parameter through `pc386_system`, which is an RTL change. The recipe and the lock leave `design`. | every byte change: a layout edit without a new pin makes the seal refuse (R3, H2), a re-pinned one moves the ID (R3u), and a moved path is refused (R4) | recipe and lock edits that leave all three digests unchanged (R1, R2) | the S1/S3 work below. A selection-only record still needs no firmware build, because the pin is in the lock. |
+| **F2** output binding (recommended) | `firmware.lock` gains `rom_hex.sha256`, which `--update-lock` writes. The record's `firmware` parameter, already in the design projection, carries the BIOS, VGA BIOS and ROM digests read from the lock. The seal checks the file at the path the RTL reads (`pc386_rom.sv`'s `ROM_HEX` default, which a test pins to the sealer's constant) against the pinned digest, before and after Yosys. That needs no RTL edit. Passing the path by `chparam` instead would mean forwarding a parameter through `pc386_system`, which is an RTL change. The recipe and the lock leave `design`. | every byte change: a layout edit without a new pin makes the seal refuse (R3, H2), a re-pinned one moves the ID (R3u), and a moved path is refused (R4) | recipe and lock edits that leave all three digests unchanged (R1, R2) | the S1/S4 work below. A selection-only record still needs no firmware build, because the pin is in the lock. |
 
 **Reproducibility, for F2's pin.**
 
@@ -187,11 +187,12 @@ Reading the table:
 | B. Evidence role only (v2, E + F0) | the oracle and suite leave `BUILD_ID`; the firmware recipe stays design | S1 (oracle half), S2, S3, S4 | one migration reseal |
 | **C. Evidence role and firmware output binding (v2, E + F2)**, recommended | B, plus #1983/#1978-type firmware edits leave `BUILD_ID`, and the R4 gap closes | S1, S2, S3, S4 | **one** migration reseal |
 
-**Seals.** The registered producer is already off its seal at main (`6bf0bfd1…` against `bb736910…`), so a pc386 reseal is owed anyway. If S1–S3 land before that reseal, the migration costs no additional seal. The generated blast radius (`other_producers_recording_each_slice_file` in `classification.json`):
+**Seals.** The registered producer is already off its seal at main (`6bf0bfd1…` against `bb736910…`), so a pc386 reseal is owed anyway. If S1–S4 land before that reseal, the migration costs no additional seal. The generated blast radius (`other_producers_recording_each_slice_file` in `classification.json`):
 
 - **S2** edits only `input_identity.py`, its tests and docs. It moves no core's `BUILD_ID`: the file is v1 packaging (case P1), and no record changes policy in S2.
 - **S1** edits `build_fes_pc386_quartus.py`, `build_pc386_product.py`, `build_pc386_firmware.py`, `fes_i386_oracle.py` and `firmware.lock`. None of the other 14 recorded closures contains any of them, so S1 moves pc386's v1 ID only, with no RTL change. Under D12 that needs a reseal or D12 evidence, unless it is exempted like #1976 and #1983 while pc386 is in progress (Q5). S1 must not edit `yosys_netlist.py` (also in PC/XT's record) or `fes_build_common.py` (in all 14). That is why F2 checks the RTL's default path rather than passing it by `chparam`.
-- **S3** is the migration reseal.
+- **S3** edits the parent's `scripts/bundle.py`, which is in no core record, and `pc386_seal_evidence.py`, which is v1 packaging. It moves no ID.
+- **S4** is the migration reseal.
 
 **Slices, in order:**
 
@@ -207,11 +208,11 @@ Reading the table:
    - The counterexample matrix as unit tests over synthetic records.
    - Moves no `BUILD_ID` (P1).
    - The AGENTS.md wording for the evidence role, and the decisions folded into `rtl-frontend-lanes.md`.
-3. **S3: the pc386 producer writes design-v2 records,** with the `firmware` parameter carrying `rom_hex`. This is the one-time migration: a normal reseal (fresh full lockstep and the seed-1 Quartus seal) on the PR head. No kit (pc386 HIL is N/A).
-4. **S4: reuse under evidence drift,** per Q2. `_historical_sources` reads its required list from the original record.
+3. **S3: reuse under evidence drift,** per Q2. `_historical_sources` reads its required list from the original record. It must be on main before S4 enables design-v2. Otherwise, in the window between them, an evidence-only edit keeps the design ID, `functional_key` selects the cached package, and `validate` checks only the evidence from the package's original revision (the measured `sealed_head_suite_edited: accepted`). That would reuse packages without the fresh lockstep Q2(b) requires.
+4. **S4: the pc386 producer writes design-v2 records,** with the `firmware` parameter carrying `rom_hex`. This is the one-time migration: a normal reseal (fresh full lockstep and the seed-1 Quartus seal) on the PR head. No kit (pc386 HIL is N/A).
 5. **S5 (separate cleanup):** delete the manual format-1 sealer path (Q6).
 
-Each is one scope and one PR. S3 depends on S1 and S2, and S4 on S2.
+Each is one scope and one PR. S3 depends on S2. S4 depends on S1, S2 and S3: the reuse policy is in force before any design-v2 record exists.
 
 ## Questions for Deano
 
@@ -222,13 +223,13 @@ Each is one scope and one PR. S3 depends on S1 and S2, and S4 on S2.
    - **(c)** never: a rebuild?
 3. **Firmware.** F0 (no change), F1 (split the recipe), or F2 (pin the ROM digest in `firmware.lock` and bind the design to the three output digests)? F2 is recommended.
 4. **Migration evidence.** A normal reseal for the v1→v2 design-ID migration (recommended; about half the Quartus time D12 evidence would need), or D12 evidence?
-5. **S1's seal.** S2 moves no ID. S1 moves only pc386's v1 ID, with no RTL change. Should S1 merge under the in-progress pc386 exemption, so that S3's migration reseal is the only seal and also covers the x87 RTL drift since #1951? Or should S1 carry its own reseal or D12 evidence?
+5. **S1's seal.** S2 moves no ID. S1 moves only pc386's v1 ID, with no RTL change. Should S1 merge under the in-progress pc386 exemption, so that S4's migration reseal is the only seal and also covers the x87 RTL drift since #1951? Or should S1 carry its own reseal or D12 evidence?
 6. **The manual sealer.** May S5 delete the format-1 manual sealer path, whose ID moves on every commit, now that the registered producer replaces it?
 
 ## Found in passing (follow-ups, not fixed here)
 
 - **R4, the circular ROM path check.** `firmware_rom` checks the path it wrote against the same constant it wrote to, not the path `pc386_rom.sv` reads. A moved constant leaves Yosys reading a stale or missing ROM while the check passes. S1 closes it. As a stand-alone fix it would be one test pinning the two paths equal.
-- **`_historical_sources` uses today's lists.** Reuse validation of a sealed pc386 entry builds its list of required lockstep sources from today's `CPU_SOURCES` and `SUITE_SOURCES` constants and demands each in the original record. Any later addition to either list, even an evidence-only one, makes every older seal fail validation with "original record omits required lockstep source". The measured case is `fes_x87_core.sv` against #1951. The list should come from the original record. S4 includes this.
+- **`_historical_sources` uses today's lists.** Reuse validation of a sealed pc386 entry builds its list of required lockstep sources from today's `CPU_SOURCES` and `SUITE_SOURCES` constants and demands each in the original record. Any later addition to either list, even an evidence-only one, makes every older seal fail validation with "original record omits required lockstep source". The measured case is `fes_x87_core.sv` against #1951. The list should come from the original record. S3 includes this.
 
 ## Reproduce
 
