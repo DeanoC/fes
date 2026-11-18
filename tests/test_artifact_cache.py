@@ -101,6 +101,39 @@ class ArtifactCacheTests(unittest.TestCase):
         with patch.object(Path,'rename',rename):
             artifact_cache.publish(self.cache,self.record,self.package)
 
+    def test_evidence_is_validated_in_staging_and_published_atomically(self):
+        seen = []
+        def validate(package, record, evidence):
+            self.assertEqual((package / 'core.rbf').read_bytes(), b'original bitstream')
+            self.assertEqual(record.read_bytes(), self.record.read_bytes())
+            self.assertEqual((evidence / 'report.json').read_bytes(), b'full report')
+            seen.append(evidence)
+        result = artifact_cache.publish(self.cache, self.record, self.package,
+                                        evidence={'report.json': b'full report'}, validate=validate)
+        self.assertEqual(len(seen), 1)
+        self.assertEqual((result.parent / 'evidence' / 'report.json').read_bytes(), b'full report')
+        artifact_cache.publish(self.cache, self.record, self.package,
+                               evidence={'report.json': b'full report'}, validate=validate)
+        self.assertEqual(len(seen), 2)
+        with self.assertRaisesRegex(ValueError, 'differs'):
+            artifact_cache.publish(self.cache, self.record, self.package,
+                                   evidence={'report.json': b'changed'}, validate=validate)
+
+    def test_evidence_refusal_cannot_publish_partial_entry(self):
+        def reject(*_):
+            raise ValueError('invalid report')
+        with self.assertRaisesRegex(ValueError, 'invalid report'):
+            artifact_cache.publish(self.cache, self.record, self.package,
+                                   evidence={'report.json': b'incomplete'}, validate=reject)
+        store = artifact_cache.store_for(self.cache, self.record.read_bytes())
+        self.assertFalse((store / self.package.name).exists())
+        self.assertEqual([p.name for p in store.iterdir()], ['.publish.lock'])
+        with self.assertRaisesRegex(ValueError, 'validator'):
+            artifact_cache.publish(self.cache, self.record, self.package, evidence={'report.json': b'x'})
+        with self.assertRaisesRegex(ValueError, 'invalid artifact'):
+            artifact_cache.publish(self.cache, self.record, self.package,
+                                   evidence={'../report': b'x'}, validate=reject)
+
     def test_rejects_linked_root_and_source_payload(self):
         actual=self.root/'actual';actual.mkdir()
         self.cache.symlink_to(actual,target_is_directory=True)

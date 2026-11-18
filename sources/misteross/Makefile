@@ -47,8 +47,8 @@ help:
 		"  toolchain  Build or locate the pinned repository-local OSS tools" \
 		"  toolchain-fes  Build the repository-local HIP toolchain from toolchain.lock" \
 		"  toolchain-fes-pcxt  Provision the PC/XT diagnostic toolchain (PCXT_GPU_ROUTER=HIP or CUDA)" \
-		"  toolchain-fes-menu  Provision the FES menu HIP toolchain (per-core lock)" \
-		"  toolchain-fes-pong  Provision the FES Pong HIP toolchain (per-core lock)" \
+		"  toolchain-fes-menu  Provision the FES menu toolchain (per-core lock, GPU_ROUTER=HIP|CUDA)" \
+		"  toolchain-fes-pong  Provision the FES Pong toolchain (per-core lock, GPU_ROUTER=HIP|CUDA)" \
 		"  toolchain-fes-zx81  Build the repository-local HIP toolchain for the standard FES ZX81 socket" \
 		"  toolchain-fes-coleco  Build the Coleco v2 SGM toolchain" \
 		"  toolchain-fes-sms  Provision the FES SMS HIP toolchain (per-core lock)" \
@@ -56,7 +56,7 @@ help:
 		"  toolchain-fes-apple2  Provision the FES Apple II HIP toolchain (per-core lock)" \
 		"  toolchain-fes-c64  Provision the FES C64 HIP toolchain (per-core lock)" \
 		"  toolchain-fes-spectrum  Provision the FES Spectrum HIP toolchain (per-core lock)" \
-		"  toolchain-fes-riscv  Provision the FES RISC-V HIP toolchain (per-core lock)" \
+		"  toolchain-fes-riscv  Provision the FES RISC-V toolchain (per-core lock, GPU_ROUTER=HIP|CUDA)" \
 		"  toolchain-fes-pc386  Provision the pc386 toolchain (per-core lock, GPU_ROUTER=HIP|CUDA)" \
 		"  toolchain-fes-i386  Provision the i386 lock's shared slot, OFF lane, whose Verilator the i386 sims use (needs CACHE_ROOT)" \
 		"  doctor     Report host, toolchain, optional Quartus, and hardware readiness" \
@@ -68,8 +68,8 @@ help:
 		"  build-fes-coleco-video  Seal the separate Coleco video development shell" \
 		"  build-fes-video-part  Build VIDEO_VARIANT=direct|scanlines against VIDEO_SHELL and VIDEO_PACKAGE" \
 		"  sim-fes-ramtest  Test the RAM tester against SDRAM and HPS DDR models, holds and identity" \
-		"  build-fes-ramtest-100  Seal the OSS 100 MHz SDRAM and HPS DDR tester with HIP nextpnr" \
-		"  toolchain-fes-ramtest  Provision the FES RAM Tester HIP toolchain (per-core lock)" \
+		"  build-fes-ramtest-100  Seal the OSS 100 MHz SDRAM and HPS DDR tester (GPU_ROUTER=HIP|CUDA, default HIP)" \
+		"  toolchain-fes-ramtest  Provision the FES RAM Tester toolchain (per-core lock, GPU_ROUTER=HIP|CUDA)" \
 		"  toolchain-fes-atari-st  Provision the Atari ST OSS toolchain (per-core lock)" \
 		"  build-fes-ramtest-quartus  Quartus (cores/fes-ramtest/quartus.lock) SDRAM and HPS DDR tester at 130 MHz (RAMTEST_MHZ=100 for 100 MHz)" \
 		"  sim-fes-splash  Test HDMI splash logo, motion and ADV7513 I2C board path" \
@@ -95,7 +95,7 @@ help:
 		"  sim-fes-z80  Test original NMOS and documented fast Z80 RTL" \
 		"  sim-fes-de25-x87  Check the standalone DE25 x87 arithmetic pipeline against host x87" \
 		"  sim-fes-riscv  Test the original RV32I CPU, the fes.riscv system and its board shell" \
-		"  build-fes-riscv  Seal FES RISC-V with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
+		"  build-fes-riscv  Seal FES RISC-V (CACHE_ROOT= for shared cache, GPU_ROUTER=HIP|CUDA, default HIP)" \
 		"  sim-fes-tms9918-timing  Check the shared ~60 Hz NTSC raster enable across Coleco clock rates" \
 		"  sim-fes-coleco-oss  Test the OSS-conditional ColecoVision RAM and shell paths" \
 		"  sim-fes-coleco-sgm-integrated  Test the v2 SGM module and shell RAM through CPU/socket cycles" \
@@ -125,7 +125,7 @@ help:
 		"  sms-diagnostic  Generate the open Master System Mode 4 cartridge and reference image" \
 		"  build-fes-sms-quartus  Quartus oracle (quartus.lock) package for FES Master System (fes.sms)" \
 		"  build-fes-sms  Seal FES Master System with HIP nextpnr/Mistral (Coleco lock; CACHE_ROOT= for shared cache)" \
-		"  build-fes-pong  Seal FES Pong with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
+		"  build-fes-pong  Seal FES Pong (CACHE_ROOT= for shared cache, GPU_ROUTER=HIP|CUDA, default HIP)" \
 		"  apple2-diagnostic  Generate the open Apple II firmware, synthetic disk and reference frames" \
 		"  sim-fes-apple2  Test the fes.computer mailbox, Apple II machine/Disk II and board shell" \
 		"  sim-fes-apple2-mailbox  Replay the fes.computer golden exchanges against the shared endpoint" \
@@ -236,7 +236,7 @@ sim-fes-ramtest:
 	$(PYTHON) scripts/sim_fes_ramtest.py
 
 build-fes-ramtest-100:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
 
 build-fes-ramtest-quartus:
 	$(PYTHON) scripts/build_fes_ramtest_quartus.py
@@ -1945,7 +1945,7 @@ build-fes-sms:
 
 
 build-fes-pong:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pong.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pong.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
 
 toolchain:
 	@$(SHARED_MAKE_ENV)scripts/bootstrap.sh
@@ -1956,12 +1956,12 @@ toolchain-fes:
 
 toolchain-fes-menu:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-menu/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-menu") \
-	FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_GPU_ROUTER=$(if $(strip $(GPU_ROUTER)),$(GPU_ROUTER),HIP) \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 toolchain-fes-pong:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-pong/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-pong") \
-	FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_GPU_ROUTER=$(if $(strip $(GPU_ROUTER)),$(GPU_ROUTER),HIP) \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 .PHONY: toolchain-fes-atari-st
@@ -1973,7 +1973,7 @@ toolchain-fes-atari-st:
 .PHONY: toolchain-fes-ramtest
 toolchain-fes-ramtest:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-ramtest/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-ramtest") \
-	FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_GPU_ROUTER=$(if $(strip $(GPU_ROUTER)),$(GPU_ROUTER),HIP) \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 toolchain-fes-zx81: toolchain-zx81-expansion
@@ -2019,7 +2019,7 @@ toolchain-fes-sms:
 
 toolchain-fes-riscv:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-riscv/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-riscv") \
-	FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_GPU_ROUTER=$(if $(strip $(GPU_ROUTER)),$(GPU_ROUTER),HIP) \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 toolchain-fes-pc386:
@@ -2110,15 +2110,15 @@ sim-fes-menu:
 
 .PHONY: build-fes-menu-pattern
 build-fes-menu-pattern:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_menu.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_menu.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
 
 .PHONY: build-fes-menu-ddr
 build-fes-menu-ddr:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_menu.py --mode ddr $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_menu.py --mode ddr $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
 
 .PHONY: build-fes-menu-package
 build-fes-menu-package:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_menu_package.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_menu_package.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
 
 .PHONY: sim-fes-zx81-clock sim-fes-zx81-ay
 sim-fes-zx81-clock:
@@ -2157,7 +2157,7 @@ sim-fes-riscv:
 	$(PYTHON) scripts/sim_fes_riscv.py --verilator "$(VERILATOR)"
 
 build-fes-riscv:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_riscv.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_riscv.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
 
 # Atari 520ST motherboard, shared memory and optional stock-firmware boot.
 ST_CORE := cores/fes-atari-st

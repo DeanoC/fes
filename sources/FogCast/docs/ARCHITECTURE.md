@@ -1551,7 +1551,10 @@ draw. A clear recorded before the extend replaces the presented clear. The
 ZX81 workshop's first picture is spread over several draws: a short opening
 frame, cached text metrics, then the upper and lower halves. A change to
 focus, size, status or selection after the upper half paints that half again
-before the lower half is appended. Eight consecutive slow paints still retire
+before the lower half is appended. When artwork finishes decoding after that
+picture, its replacement is prepared over two draws while the last complete
+picture and its controls stay usable; a changed scene discards the staged
+replacement. Eight consecutive slow paints still retire
 the room. Slow input, pointer, lifecycle, and asynchronous result callbacks
 count in their own group, so successful frames do not hide repeated input
 overruns. Eight overruns in either group retire the
@@ -3534,11 +3537,20 @@ map; the core owns characters, shifted symbols, repeat and reset chords. The hos
 attaches input for these sessions even without controller ports and passes the
 events through `POST /api/v1/session/input/event` and the host stream unchanged.
 On the kit, the linuxfb evdev loop reads `EV_KEY` records, maps Linux key codes
-through `internal/hidkeys.FromLinuxKey`, and passes the resulting usage to
-`HandlePlayHIDScancode` and the ordered `SendPlayHID` path. If connected evdev
-keyboards hold the same usage, tenfoot clears the releasing device's local
-held/modifier state immediately but sends the core release only after the last
-keyboard releases it.
+through `internal/hidkeys.FromLinuxKey`, and passes the resulting usage through
+Tenfoot's source-aware play-key handling and ordered `SendPlayHID` path. SDL uses
+its keyboard instance ID and linuxfb uses its evdev fd as the physical source.
+Tenfoot tracks each physical keyboard's held and suppressed keys by source and
+HID usage in all sessions, including the name-mapped keyboard path. Suppression
+follows that keyboard until it releases the key. A contribution records an input
+admitted to the ordered queue, not proof that the guest consumed it. If multiple physical
+keys, on one keyboard or across keyboards, contribute the same core key, a
+release clears that key's hold and modifier state immediately; the core release
+is queued once no other unsuppressed admitted key contributes it. Disconnect
+discards the lost device's holds and suppression on both SDL and evdev, and
+releases only keys no surviving admitted physical key still holds.
+During a same-session surround transition that keeps machine focus, an
+already-admitted key can still send its neutral release; new presses stay fenced.
 The 1.1 ABI retains its 1.0 keyboard and relative-mouse capabilities; an active
 `fes.mouse.relative` 1.0 interface receives the same supported-generation
 binding.

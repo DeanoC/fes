@@ -1,0 +1,16 @@
+artefact                       producer                     verdict
+fes.menu                       build_fes_menu_package       identical  30fecfb0561b5277
+fes.menu/diagnostic-ddr        build_fes_menu               identical  723be9edc1cf44b9
+fes.menu/diagnostic-pattern    build_fes_menu               identical  fe0b6c58f6aa7621
+splash                         build_fes_splash             identical  fbdb383003484915
+fes.pong                       build_fes_pong               identical  d8f2463b70a09549
+fes.ramtest                    build_fes_ramtest            identical  d908475f55261dc7
+fes.riscv                      build_fes_riscv              identical  801ed692b4a320c6
+fes.coleco                     build_fes_coleco_socket_v2   identical  6cfe0ac782a74ff0
+fes.c64                        build_fes_c64_oss            identical  922e7dff2b262d97
+fes.spectrum                   build_fes_spectrum_oss       identical  7755d5ba91f5b4e5
+fes.spectrum128                build_fes_spectrum_oss       identical  bde17483f8dc986e
+fes.spectrum-plus3             build_fes_spectrum_oss       identical  d68b3b3680cba323
+fes.pentagon                   build_fes_spectrum_oss       identical  42d38ab997a75e87
+
+every front-end program and nextpnr command is byte-identical

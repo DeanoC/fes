@@ -1,0 +1,101 @@
+{
+  "moved": [
+    "ramtest"
+  ],
+  "pending": [
+    "spectrum-plus3",
+    "pentagon"
+  ],
+  "rows": {
+    "c64": {
+      "new_netlist_sha256": "1b7efc74cd4f637d0e0ecdafc52ac06c49664de7ded7974938f07e0a7567ef83",
+      "new_pinned": "a248d7151a1ff4d53004d1c2c404b111325cd9e3bef694b94846f2e2932b1c77",
+      "new_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "old_netlist_sha256": "1b7efc74cd4f637d0e0ecdafc52ac06c49664de7ded7974938f07e0a7567ef83",
+      "old_pinned": "e6f24fcd65f12efb710a5e40044f7edc0c40d02048d25d2eb64db2b77da8d9ea",
+      "old_revision": "72d2fc4da6df140a3a1ab7b791b0c83341959f71",
+      "pinned_moved": true,
+      "verdict": "identical"
+    },
+    "coleco": {
+      "new_netlist_sha256": "58e3e313595a9d481a3b43544766d145c56d92ff519f7955fd3c8699ffa52844",
+      "new_pinned": "7bf8e06f51a2818097a29b1f33731fd134cf1f32bbfc9a77f2e3921fd1672ffe",
+      "new_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "old_netlist_sha256": "58e3e313595a9d481a3b43544766d145c56d92ff519f7955fd3c8699ffa52844",
+      "old_pinned": "c676dc7db2e899ada08c527b04e7429739885e070482c1adc2f90f037d7c4e89",
+      "old_revision": "72d2fc4da6df140a3a1ab7b791b0c83341959f71",
+      "pinned_moved": true,
+      "verdict": "identical"
+    },
+    "menu": {
+      "new_netlist_sha256": "05ab4ada678920c408b045026fbd88073f05152867ba628ff253757bc23d0a31",
+      "new_pinned": "cf7ca94a1c9f502986cb02c1b21e719a8c53e4290f2790406afa2306161bb7aa",
+      "new_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "old_netlist_sha256": "05ab4ada678920c408b045026fbd88073f05152867ba628ff253757bc23d0a31",
+      "old_pinned": "9297886b34b3e1627b2cd14d26bb322a371b372ac6589c722243cfc04da2f12b",
+      "old_revision": "72d2fc4da6df140a3a1ab7b791b0c83341959f71",
+      "pinned_moved": true,
+      "verdict": "identical"
+    },
+    "pong": {
+      "new_netlist_sha256": "e7948651bcc0cc2ffbbd3c52c8643c642bc6964826e2a0ae65d18e3fd90cf12b",
+      "new_pinned": "20a53ceb924ae4b8b3b880fa1dbba8ff5378ca6800811db50b7736f434483818",
+      "new_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "old_netlist_sha256": "e7948651bcc0cc2ffbbd3c52c8643c642bc6964826e2a0ae65d18e3fd90cf12b",
+      "old_pinned": "63effddba9bac75d0ffa83b0a7aa6f29f625bc4a50601ef5ba3b9118bece585a",
+      "old_revision": "72d2fc4da6df140a3a1ab7b791b0c83341959f71",
+      "pinned_moved": true,
+      "verdict": "identical"
+    },
+    "ramtest": {
+      "new_netlist_sha256": "e797221d1711b4cdf6ea37d90919f158255152e147d407542275c908df0521d3",
+      "new_pinned": "881604bc21d084720e6402ef2d3f85a19e116e62f401995509e1a4c076561ced",
+      "new_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "old_netlist_sha256": "0d59db94f2352a40c9b0e57ab69c6626ff5a3f7b33f5843ae9507e9bf3bf6c7a",
+      "old_pinned": "6c544d79e13e2fef4e4733b5696d7d8084bf3e8e5942e87131b327219b038da3",
+      "old_revision": "72d2fc4da6df140a3a1ab7b791b0c83341959f71",
+      "pinned_moved": true,
+      "verdict": "MOVED -- recorded comparison does not carry"
+    },
+    "riscv": {
+      "new_netlist_sha256": "e8db4d58afb81e7766d7e21c9ce6d1d18736196badb9dbc23fb742d8c4549be8",
+      "new_pinned": "a5d59ce8b82bdbacf08c20c9d2bd3909d38875af2c78af137b24c9cd15982c56",
+      "new_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "old_netlist_sha256": "e8db4d58afb81e7766d7e21c9ce6d1d18736196badb9dbc23fb742d8c4549be8",
+      "old_pinned": "a5751dea92570d429b3873e9a01cae7c3fb474dd7b944ff1f327e43ac31506e5",
+      "old_revision": "72d2fc4da6df140a3a1ab7b791b0c83341959f71",
+      "pinned_moved": true,
+      "verdict": "identical"
+    },
+    "spectrum": {
+      "new_netlist_sha256": "3f2dfb764a86b215ad4878203392ebd5823c2218e00e10f8f321eddaa85eccc7",
+      "new_pinned": "1e3fb7c90f2c273443ef7d72fc9d9eff764243b9b556def48a6b210db1e51c42",
+      "new_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "old_netlist_sha256": "3f2dfb764a86b215ad4878203392ebd5823c2218e00e10f8f321eddaa85eccc7",
+      "old_pinned": "71f8592c9321dec7787acdf3296e112fe1ee90b5a847a55c1b280a5abdf3ad0a",
+      "old_revision": "72d2fc4da6df140a3a1ab7b791b0c83341959f71",
+      "pinned_moved": true,
+      "verdict": "identical"
+    },
+    "spectrum128": {
+      "new_netlist_sha256": "cd62753ae45dbfe930671831ed66ebec568ae4e0b1738fc3ee68ac5b2dda1957",
+      "new_pinned": "1e3fb7c90f2c273443ef7d72fc9d9eff764243b9b556def48a6b210db1e51c42",
+      "new_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "old_netlist_sha256": "cd62753ae45dbfe930671831ed66ebec568ae4e0b1738fc3ee68ac5b2dda1957",
+      "old_pinned": "71f8592c9321dec7787acdf3296e112fe1ee90b5a847a55c1b280a5abdf3ad0a",
+      "old_revision": "72d2fc4da6df140a3a1ab7b791b0c83341959f71",
+      "pinned_moved": true,
+      "verdict": "identical"
+    },
+    "splash": {
+      "new_netlist_sha256": "499ad79bfb332b7d07396c1336c584a1e4ac184d121a76742d60971950353c24",
+      "new_pinned": "9c9c9afc870a28420d2a250bbf8e043a7b478f46ebd84f132600bdcdca4792f7",
+      "new_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "old_netlist_sha256": "13a99a06f8574bcf8856f4eaaefaf93e9fc661abfb34e2e6b13101f49c0cf129",
+      "old_pinned": "04e018349040eaaea842ccaffd8e994228d6a4a9b3b8cd3f17127c9d53550d90",
+      "old_revision": "72d2fc4da6df140a3a1ab7b791b0c83341959f71",
+      "pinned_moved": true,
+      "verdict": "identical (src exempt)"
+    }
+  }
+}

@@ -287,6 +287,7 @@ class BuildFesSpectrumTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             (output / "routed.json").write_text('{"modules":{"top":{"cells":{}}}}')
+            (output / "synth.json").write_text('{"modules":{"top":{"cells":{}}}}')
             (output / "core.rbf").write_bytes(b"rbf")
             (output / "nextpnr.log").write_text(PLL_LOG)
             timing = {"fmax": {name: {"constraint": mhz, "achieved": mhz + 1} for name, mhz in
@@ -323,6 +324,7 @@ class BuildFesSpectrumTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             (output / "routed.json").write_text('{"modules":{"top":{"cells":{}}}}')
+            (output / "synth.json").write_text('{"modules":{"top":{"cells":{}}}}')
             (output / "core.rbf").write_bytes(b"rbf")
             (output / "timing.json").write_text(json.dumps({
                 "fmax": {name: {"constraint": mhz, "achieved": mhz + 1}

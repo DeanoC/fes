@@ -121,7 +121,7 @@ def elaboration(source: Path, work: Path, library: Path, *, package_profile=Fals
     if package_profile:
         if not isinstance(build_id, str) or not re.fullmatch('[0-9a-f]{32}', build_id):
             raise ValueError('package profile requires an explicit BUILD_ID')
-        parameters.update({'ENABLE_FES_COMPUTER': 1, 'ENABLE_PCXT_MEDIA': 1, 'PHASED_HDMI_CLOCK': 1,
+        parameters.update({'SDRAM_CAPTURE_PIPELINE': 1, 'ENABLE_FES_COMPUTER': 1, 'ENABLE_PCXT_MEDIA': 1, 'PHASED_HDMI_CLOCK': 1,
                            'BUILD_ID': "128'h" + build_id})
     selected_rtl = RTL if dos_profile else tuple(path for path in RTL if path not in DOS_RTL)
     try:
@@ -206,7 +206,9 @@ def prepare_elaboration_inputs(source: Path, work: Path, *, dos_profile=False) -
     }
 
 
-def validate_renaming(work: Path, *, package_profile=False, dos_profile=False) -> dict:
+def validate_renaming(work: Path, *, package_profile=False, dos_profile=False, capture_pipeline=None) -> dict:
+    if capture_pipeline is None:
+        capture_pipeline = package_profile
     before = json.loads((work / 'before-names.json').read_text())['modules']
     after = json.loads((work / 'elaborated.json').read_text())['modules']
     if before.keys() != after.keys():
@@ -223,7 +225,7 @@ def validate_renaming(work: Path, *, package_profile=False, dos_profile=False) -
     counts = dict(Counter(c['type'] for c in cells.values()))
     boundary = {'altera_pll': 3 if dos_profile else 2, 'altiobuf_bidir': 16, 'cyclonev_clkena': 1,
                 'cyclonev_hps_interface_peripheral_i2c': 1, 'altddio_out': 1}
-    if any(counts.get(kind) != count for kind, count in boundary.items()):
+    if any(counts.get(kind, 0) != count for kind, count in boundary.items()):
         raise ValueError('whole-board primitive boundary is incomplete')
     memory_settings = ({'number_of_clocks': 2, 'output_clock_frequency0': '100.0 MHz',
                         'output_clock_frequency1': '100.0 MHz', 'phase_shift0': '0 ps', 'phase_shift1': '5000 ps'}
@@ -232,6 +234,13 @@ def validate_renaming(work: Path, *, package_profile=False, dos_profile=False) -
                         'output_clock_frequency1': '50.0 MHz', 'output_clock_frequency2': '50.0 MHz',
                         'output_clock_frequency3': '50.0 MHz', 'phase_shift0': '0 ps',
                         'phase_shift1': '10000 ps', 'phase_shift2': '0 ps', 'phase_shift3': '18000 ps'})
+    if capture_pipeline:
+        if not package_profile:
+            raise ValueError('capture pipeline requires the 100 MHz package-shaped diagnostic')
+        memory_settings = {'number_of_clocks': 4, 'output_clock_frequency0': '100.0 MHz',
+                           'output_clock_frequency1': '100.0 MHz', 'output_clock_frequency2': '100.0 MHz',
+                           'output_clock_frequency3': '100.0 MHz', 'phase_shift0': '0 ps',
+                           'phase_shift1': '0 ps', 'phase_shift2': '1250 ps', 'phase_shift3': '9375 ps'}
     if package_profile and counts.get('cyclonev_hps_interface_mpu_general_purpose') != 1:
         raise ValueError('package profile lacks its runtime mailbox')
     pll_settings = {
@@ -283,6 +292,9 @@ def project_qsf(source: Path, seed: int, threads: int, *, package_profile=False,
         (source / (PACKAGE_PINS if package_profile else PINS)).read_text(),
         (source / AUDIO_PINS).read_text(),
     ]
+    if package_profile:
+        lines.extend(f'set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[{i}]'
+                     for i in range(16))
     if video_mailbox_contract:
         # The locked Quartus does not infer its fitter-protection policy from Yosys's
         # portable async_reg marker. Identify only the six proven mailbox
@@ -550,6 +562,7 @@ def main(argv=None) -> int:
                           'ENABLE_FES_COMPUTER': int(args.package_profile),
                           'ENABLE_PCXT_MEDIA': int(args.package_profile),
                           'ENABLE_PCXT_FLOPPY_WRITE': int(args.dos_profile),
+                          'SDRAM_CAPTURE_PIPELINE': int(args.package_profile),
                           'HARDWARE_DOS': int(args.dos_profile), 'BUILD_ID': args.build_id},
               'clock_targets_mhz': {'cpu': 100, 'board': 100 if args.package_profile else 50, 'pixel': 74.25},
               'operations': [], 'runs': [], 'hardware': False, 'status': 'preparing'}

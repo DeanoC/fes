@@ -1,0 +1,503 @@
+{
+  "rows": {
+    "fes.apple2": {
+      "check_level": "reduced",
+      "producer": "build_fes_apple2_oss",
+      "tree_a": {
+        "closure_files": 52,
+        "closure_sha256": "5cca83bec36dd12be1da16ea1d71eff06959de7e8f73053bc6d9222de59c1f73",
+        "design_files": 39,
+        "design_sha256": "f8656e4528057ea33414e88dc4110bc0702bde13113b17f1e1384a4ba9b9e520",
+        "non_design_sha256": "079cbe0d17ef4066c260e51b3aeb59c58b8dab51797c942829bfc89a87fc9511",
+        "role_split": true,
+        "roots": 34
+      },
+      "tree_b": {
+        "closure_files": 52,
+        "closure_sha256": "5cca83bec36dd12be1da16ea1d71eff06959de7e8f73053bc6d9222de59c1f73",
+        "design_files": 39,
+        "design_sha256": "f8656e4528057ea33414e88dc4110bc0702bde13113b17f1e1384a4ba9b9e520",
+        "non_design_sha256": "079cbe0d17ef4066c260e51b3aeb59c58b8dab51797c942829bfc89a87fc9511",
+        "role_split": true,
+        "roots": 34
+      },
+      "verdict": "design identity unchanged"
+    },
+    "fes.atari-st": {
+      "check_level": "full",
+      "producer": "build_fes_atari_st_oss",
+      "tree_a": {
+        "closure_files": 72,
+        "closure_sha256": "547182bc14fd00b67743e698c75561f3ce3f55eb842de19c8789536c3675ed32",
+        "design_files": 59,
+        "design_sha256": "e3cac02e968902744d4599f9100a137d4903bf7d7daee4cf09f9a28784c1193c",
+        "non_design_sha256": "7ebdc3bad76b4ff65934c0cc475700a970498758ff4f111a390cbfa6d93116f9",
+        "role_split": true,
+        "roots": 46
+      },
+      "tree_b": {
+        "closure_files": 72,
+        "closure_sha256": "547182bc14fd00b67743e698c75561f3ce3f55eb842de19c8789536c3675ed32",
+        "design_files": 59,
+        "design_sha256": "e3cac02e968902744d4599f9100a137d4903bf7d7daee4cf09f9a28784c1193c",
+        "non_design_sha256": "7ebdc3bad76b4ff65934c0cc475700a970498758ff4f111a390cbfa6d93116f9",
+        "role_split": true,
+        "roots": 46
+      },
+      "verdict": "design identity unchanged"
+    },
+    "fes.c64": {
+      "check_level": "full",
+      "producer": "build_fes_c64_oss",
+      "tree_a": {
+        "closure_files": 104,
+        "closure_sha256": "c2014b14876928c903673d79c2ab1d753fa49203df432b9d93874772e82d15d4",
+        "design_files": 90,
+        "design_sha256": "dea708ff83e57bbdec94c573ef22fa4e6c6e1f50fa8e30758e2c2faa46bc3b57",
+        "non_design_sha256": "c2f7e8c08de472758539a9c4a65ee8d870fa444d616669b865a29bea0e05e885",
+        "role_split": true,
+        "roots": 45
+      },
+      "tree_b": {
+        "closure_files": 104,
+        "closure_sha256": "fcefa81d56433f26de258fe8e661e79eba186dd5ee54c95fe3bb5fbf98537ba1",
+        "design_files": 90,
+        "design_sha256": "def2fd118c63e5ae63317af9bf9cdfbf62d683df0e152f306de92c832d8acc87",
+        "non_design_sha256": "c2f7e8c08de472758539a9c4a65ee8d870fa444d616669b865a29bea0e05e885",
+        "role_split": true,
+        "roots": 45
+      },
+      "verdict": "MOVED (design identity): scripts/fes_de10nano_evidence.py"
+    },
+    "fes.coleco": {
+      "check_level": "reduced",
+      "producer": "build_fes_coleco_socket_v2",
+      "tree_a": {
+        "closure_files": 82,
+        "closure_sha256": "97eca0e3682202782f3601b094c441163a36c841122e1685cbe9495859b09dba",
+        "design_files": 69,
+        "design_sha256": "e86baa784eacbddf0c902771c950831567133220b627bddf4b284cd610bfc722",
+        "non_design_sha256": "871f0a432b65876af21f7f50b3b147cf6e28f538f73cbdfc6b23a9c73f7378b8",
+        "role_split": true,
+        "roots": 57
+      },
+      "tree_b": {
+        "closure_files": 82,
+        "closure_sha256": "a8d2c860df86b6f3a055d104592a16f797b0f6972db313800fc4344926b34b2f",
+        "design_files": 69,
+        "design_sha256": "eeaf8e6646e98949740a7c590a91feb6299a62675d0d84ca058e62f96f19e333",
+        "non_design_sha256": "871f0a432b65876af21f7f50b3b147cf6e28f538f73cbdfc6b23a9c73f7378b8",
+        "role_split": true,
+        "roots": 57
+      },
+      "verdict": "MOVED (design identity): scripts/fes_de10nano_evidence.py"
+    },
+    "fes.menu": {
+      "check_level": "full",
+      "producer": "build_fes_menu_package",
+      "tree_a": {
+        "closure_files": 46,
+        "closure_sha256": "de46638758c9b9e32c5153a50fd3bf02e90621bb3e6c371a4856f91693ac4907",
+        "design_files": 33,
+        "design_sha256": "12b44e483654a4c41861c60976a2c95ce350a4b9860beb8430d7625b693d876a",
+        "non_design_sha256": "816cae8e820a56c02b4c16cf6bf984db3bc5827c5bb14d83036ca19f3c00f236",
+        "role_split": true,
+        "roots": 32
+      },
+      "tree_b": {
+        "closure_files": 46,
+        "closure_sha256": "6f1dd8b3f6e3d5830f117c88fda48cdf0e059bf9c6d0e4e79d3bdb9af283a02b",
+        "design_files": 33,
+        "design_sha256": "1b303cabe14e32f2b4e1bcf666dacdae8a185e47fdeb3a294de7098058fd1991",
+        "non_design_sha256": "816cae8e820a56c02b4c16cf6bf984db3bc5827c5bb14d83036ca19f3c00f236",
+        "role_split": true,
+        "roots": 32
+      },
+      "verdict": "MOVED (design identity): scripts/build_fes_menu.py, scripts/build_fes_menu_package.py, scripts/fes_de10nano_evidence.py"
+    },
+    "fes.pcxt-dos": {
+      "check_level": "full",
+      "producer": "build_fes_pcxt_quartus",
+      "tree_a": {
+        "closure_files": 179,
+        "closure_sha256": "4752abd32405a81024bbbb7446a968284936517a8e25fedb25395bedf402a725",
+        "design_files": 169,
+        "design_sha256": "9007ce704a454abf32eb9fdcf2f4ea7afa9ce21a009b9c8b90fd7b091eb644a3",
+        "non_design_sha256": "b11f3ad918f325add676c6fda609184ebd1de33280199c525f8f75ad51b1e642",
+        "role_split": true,
+        "roots": 38
+      },
+      "tree_b": {
+        "closure_files": 179,
+        "closure_sha256": "4752abd32405a81024bbbb7446a968284936517a8e25fedb25395bedf402a725",
+        "design_files": 169,
+        "design_sha256": "9007ce704a454abf32eb9fdcf2f4ea7afa9ce21a009b9c8b90fd7b091eb644a3",
+        "non_design_sha256": "b11f3ad918f325add676c6fda609184ebd1de33280199c525f8f75ad51b1e642",
+        "role_split": true,
+        "roots": 38
+      },
+      "verdict": "design identity unchanged"
+    },
+    "fes.pentagon": {
+      "check_level": "full",
+      "producer": "build_fes_spectrum_oss",
+      "tree_a": {
+        "closure_files": 65,
+        "closure_sha256": "1a480002e2270cb369292e4805f0660f1719998c7bbe8a4090ba04026ec52c29",
+        "design_files": 52,
+        "design_sha256": "c7a5305c17cc6b1858f28514e17685144fee155656db5c4cac4cec951acc030f",
+        "non_design_sha256": "b72ee5f4ebe8b7d721fc82d77e25bc4437b00f5ebd5624c9c77c61c03a7bd6ca",
+        "role_split": true,
+        "roots": 48
+      },
+      "tree_b": {
+        "closure_files": 65,
+        "closure_sha256": "a117875dd93269597b6015805a1089c3985954ea85028f8962a9a9f01854ed4b",
+        "design_files": 52,
+        "design_sha256": "562e7c7eed5066e64476d3a99c84551652ced380124fbee0401d31245400be5e",
+        "non_design_sha256": "b72ee5f4ebe8b7d721fc82d77e25bc4437b00f5ebd5624c9c77c61c03a7bd6ca",
+        "role_split": true,
+        "roots": 48
+      },
+      "verdict": "MOVED (design identity): scripts/fes_de10nano_evidence.py"
+    },
+    "fes.pong": {
+      "check_level": "reduced",
+      "producer": "build_fes_pong",
+      "tree_a": {
+        "closure_files": 29,
+        "closure_sha256": "4126f6fe6e52e8dc254329ef5fa02d33949aa6c1d0b4ba3a31df55e6f3d05702",
+        "design_files": 16,
+        "design_sha256": "fcadd04e99279d37ee7fbcf8403c5e711b9e8408e6fc8819702adb688372a4f1",
+        "non_design_sha256": "775447bf4c9abdabc159de6b2b9f52ac01fb30b38ea3bad1d66ec79bbc5b410f",
+        "role_split": true,
+        "roots": 25
+      },
+      "tree_b": {
+        "closure_files": 29,
+        "closure_sha256": "b35ca6b5e55164e10555a8eff5d819cff1290ab1feb66ecee93159f743d458f4",
+        "design_files": 16,
+        "design_sha256": "9be6da5b358c082ee62d250cb9d43a6594128e7a80d0df4488390314e4c9c24c",
+        "non_design_sha256": "775447bf4c9abdabc159de6b2b9f52ac01fb30b38ea3bad1d66ec79bbc5b410f",
+        "role_split": true,
+        "roots": 25
+      },
+      "verdict": "MOVED (design identity): scripts/build_fes_pong.py, scripts/fes_de10nano_evidence.py"
+    },
+    "fes.ramtest": {
+      "check_level": "reduced",
+      "producer": "build_fes_ramtest",
+      "tree_a": {
+        "closure_files": 45,
+        "closure_sha256": "bbe1f031e79cc09cd2bd23309f385f59077fe56c3ff5ab0bfd77f9e3519ade67",
+        "design_files": 32,
+        "design_sha256": "9a5f7869b3eab4caf67b7b2479edf433a4b27e10972cc50246d9a33d8796a752",
+        "non_design_sha256": "bc5c9c061ebbb366808553eda2ac308184505c67a399c3ee08189fcfeba168cc",
+        "role_split": true,
+        "roots": 30
+      },
+      "tree_b": {
+        "closure_files": 45,
+        "closure_sha256": "dc55a3af74891bccb951e786b0198e4d9b3289fd17b6f3016690ab7f3ca591c9",
+        "design_files": 32,
+        "design_sha256": "1f47a7e638bd56110a74c2f5a4382fb10b2ce02aeeb2a2ae2ea3311a73bffb4c",
+        "non_design_sha256": "bc5c9c061ebbb366808553eda2ac308184505c67a399c3ee08189fcfeba168cc",
+        "role_split": true,
+        "roots": 30
+      },
+      "verdict": "MOVED (design identity): scripts/build_fes_ramtest.py, scripts/fes_de10nano_evidence.py"
+    },
+    "fes.riscv": {
+      "check_level": "reduced",
+      "producer": "build_fes_riscv",
+      "tree_a": {
+        "closure_files": 44,
+        "closure_sha256": "a9b8e4fc263ba8ac2b65442dc4c4feeb015f23eeae63ba53bbb85a127a6b4b79",
+        "design_files": 30,
+        "design_sha256": "0c8f89ed6c57b1f6b87770bc8e1f18f9eedcabe50597cb75fe74d93249c54daa",
+        "non_design_sha256": "0e5fe829c50133f8c7577ba363238809e909e9ffeb6ff48db55924ee73bfaf30",
+        "role_split": true,
+        "roots": 32
+      },
+      "tree_b": {
+        "closure_files": 44,
+        "closure_sha256": "9e67fb8adb6ebc81e6f04765f9c919a9b0307f6183803db46185a7185b90ce55",
+        "design_files": 30,
+        "design_sha256": "8d93bf6d2d39921570a3f7c3b17b471993e8b5ffacfb176fb2aae173011e4671",
+        "non_design_sha256": "0e5fe829c50133f8c7577ba363238809e909e9ffeb6ff48db55924ee73bfaf30",
+        "role_split": true,
+        "roots": 32
+      },
+      "verdict": "MOVED (design identity): scripts/build_fes_riscv.py, scripts/fes_de10nano_evidence.py"
+    },
+    "fes.sg1000": {
+      "check_level": "reduced",
+      "producer": "build_fes_sg1000_oss",
+      "tree_a": {
+        "closure_files": 75,
+        "closure_sha256": "6c0e7dcd19df3430e9ecb01cf8c1382675b69f9e88689fcd287a910565f516e9",
+        "design_files": 62,
+        "design_sha256": "9ffb9731ef91e9aa30ffb6abed8c075b7b71bc8eae676519128a6056e32e4e61",
+        "non_design_sha256": "dc202c45ee4324df3eb014cadf11b2a07ffac7456b5baa9bf08855e4fdb935fb",
+        "role_split": true,
+        "roots": 49
+      },
+      "tree_b": {
+        "closure_files": 75,
+        "closure_sha256": "6c0e7dcd19df3430e9ecb01cf8c1382675b69f9e88689fcd287a910565f516e9",
+        "design_files": 62,
+        "design_sha256": "9ffb9731ef91e9aa30ffb6abed8c075b7b71bc8eae676519128a6056e32e4e61",
+        "non_design_sha256": "dc202c45ee4324df3eb014cadf11b2a07ffac7456b5baa9bf08855e4fdb935fb",
+        "role_split": true,
+        "roots": 49
+      },
+      "verdict": "design identity unchanged"
+    },
+    "fes.sms": {
+      "check_level": "reduced",
+      "producer": "build_fes_sms_oss",
+      "tree_a": {
+        "closure_files": 77,
+        "closure_sha256": "0ba98496b3db7dcac20167a07938d165920a965a893207991b9376d3bf68929b",
+        "design_files": 64,
+        "design_sha256": "016d4ff3a14ed51b7066f47f83c2c2d46770ebc0466ab777888de91e514fefe7",
+        "non_design_sha256": "01691bb6b14901e92d76198c1453b2340a4ecc39a5645c4998fa11ad46086b8e",
+        "role_split": true,
+        "roots": 45
+      },
+      "tree_b": {
+        "closure_files": 77,
+        "closure_sha256": "0ba98496b3db7dcac20167a07938d165920a965a893207991b9376d3bf68929b",
+        "design_files": 64,
+        "design_sha256": "016d4ff3a14ed51b7066f47f83c2c2d46770ebc0466ab777888de91e514fefe7",
+        "non_design_sha256": "01691bb6b14901e92d76198c1453b2340a4ecc39a5645c4998fa11ad46086b8e",
+        "role_split": true,
+        "roots": 45
+      },
+      "verdict": "design identity unchanged"
+    },
+    "fes.spectrum": {
+      "check_level": "full",
+      "producer": "build_fes_spectrum_oss",
+      "tree_a": {
+        "closure_files": 65,
+        "closure_sha256": "1a480002e2270cb369292e4805f0660f1719998c7bbe8a4090ba04026ec52c29",
+        "design_files": 52,
+        "design_sha256": "c7a5305c17cc6b1858f28514e17685144fee155656db5c4cac4cec951acc030f",
+        "non_design_sha256": "b72ee5f4ebe8b7d721fc82d77e25bc4437b00f5ebd5624c9c77c61c03a7bd6ca",
+        "role_split": true,
+        "roots": 48
+      },
+      "tree_b": {
+        "closure_files": 65,
+        "closure_sha256": "a117875dd93269597b6015805a1089c3985954ea85028f8962a9a9f01854ed4b",
+        "design_files": 52,
+        "design_sha256": "562e7c7eed5066e64476d3a99c84551652ced380124fbee0401d31245400be5e",
+        "non_design_sha256": "b72ee5f4ebe8b7d721fc82d77e25bc4437b00f5ebd5624c9c77c61c03a7bd6ca",
+        "role_split": true,
+        "roots": 48
+      },
+      "verdict": "MOVED (design identity): scripts/fes_de10nano_evidence.py"
+    },
+    "fes.spectrum-plus3": {
+      "check_level": "full",
+      "producer": "build_fes_spectrum_oss",
+      "tree_a": {
+        "closure_files": 65,
+        "closure_sha256": "1a480002e2270cb369292e4805f0660f1719998c7bbe8a4090ba04026ec52c29",
+        "design_files": 52,
+        "design_sha256": "c7a5305c17cc6b1858f28514e17685144fee155656db5c4cac4cec951acc030f",
+        "non_design_sha256": "b72ee5f4ebe8b7d721fc82d77e25bc4437b00f5ebd5624c9c77c61c03a7bd6ca",
+        "role_split": true,
+        "roots": 48
+      },
+      "tree_b": {
+        "closure_files": 65,
+        "closure_sha256": "a117875dd93269597b6015805a1089c3985954ea85028f8962a9a9f01854ed4b",
+        "design_files": 52,
+        "design_sha256": "562e7c7eed5066e64476d3a99c84551652ced380124fbee0401d31245400be5e",
+        "non_design_sha256": "b72ee5f4ebe8b7d721fc82d77e25bc4437b00f5ebd5624c9c77c61c03a7bd6ca",
+        "role_split": true,
+        "roots": 48
+      },
+      "verdict": "MOVED (design identity): scripts/fes_de10nano_evidence.py"
+    },
+    "fes.spectrum128": {
+      "check_level": "full",
+      "producer": "build_fes_spectrum_oss",
+      "tree_a": {
+        "closure_files": 65,
+        "closure_sha256": "1a480002e2270cb369292e4805f0660f1719998c7bbe8a4090ba04026ec52c29",
+        "design_files": 52,
+        "design_sha256": "c7a5305c17cc6b1858f28514e17685144fee155656db5c4cac4cec951acc030f",
+        "non_design_sha256": "b72ee5f4ebe8b7d721fc82d77e25bc4437b00f5ebd5624c9c77c61c03a7bd6ca",
+        "role_split": true,
+        "roots": 48
+      },
+      "tree_b": {
+        "closure_files": 65,
+        "closure_sha256": "a117875dd93269597b6015805a1089c3985954ea85028f8962a9a9f01854ed4b",
+        "design_files": 52,
+        "design_sha256": "562e7c7eed5066e64476d3a99c84551652ced380124fbee0401d31245400be5e",
+        "non_design_sha256": "b72ee5f4ebe8b7d721fc82d77e25bc4437b00f5ebd5624c9c77c61c03a7bd6ca",
+        "role_split": true,
+        "roots": 48
+      },
+      "verdict": "MOVED (design identity): scripts/fes_de10nano_evidence.py"
+    },
+    "fes.ts1000": {
+      "check_level": "full",
+      "producer": "build_fes_zx81_quartus",
+      "tree_a": {
+        "closure_files": 64,
+        "closure_sha256": "7a6e3d9c6f58e78a278b536f04cd38cde9f5ce9f74e4f818f503d312987f9acf",
+        "design_files": 52,
+        "design_sha256": "934bfc285df39388e40c9b2279ac1c791393707f410c634121d69ebbfdfdcbd3",
+        "non_design_sha256": "a53aaa2e52c38a4a02ad6a74c5a7c905b06412ad107d11430b68bb8aa6d53e05",
+        "role_split": true,
+        "roots": 50
+      },
+      "tree_b": {
+        "closure_files": 64,
+        "closure_sha256": "d24cb66ae6a55a1f3d16543807bd128fc8d2740baaf4540f77e43d9cb77555cc",
+        "design_files": 52,
+        "design_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+        "non_design_sha256": "a53aaa2e52c38a4a02ad6a74c5a7c905b06412ad107d11430b68bb8aa6d53e05",
+        "role_split": true,
+        "roots": 50
+      },
+      "verdict": "MOVED (design identity): scripts/fes_de10nano_evidence.py"
+    },
+    "fes.ts1500": {
+      "check_level": "full",
+      "producer": "build_fes_zx81_quartus",
+      "tree_a": {
+        "closure_files": 64,
+        "closure_sha256": "7a6e3d9c6f58e78a278b536f04cd38cde9f5ce9f74e4f818f503d312987f9acf",
+        "design_files": 52,
+        "design_sha256": "934bfc285df39388e40c9b2279ac1c791393707f410c634121d69ebbfdfdcbd3",
+        "non_design_sha256": "a53aaa2e52c38a4a02ad6a74c5a7c905b06412ad107d11430b68bb8aa6d53e05",
+        "role_split": true,
+        "roots": 50
+      },
+      "tree_b": {
+        "closure_files": 64,
+        "closure_sha256": "d24cb66ae6a55a1f3d16543807bd128fc8d2740baaf4540f77e43d9cb77555cc",
+        "design_files": 52,
+        "design_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+        "non_design_sha256": "a53aaa2e52c38a4a02ad6a74c5a7c905b06412ad107d11430b68bb8aa6d53e05",
+        "role_split": true,
+        "roots": 50
+      },
+      "verdict": "MOVED (design identity): scripts/fes_de10nano_evidence.py"
+    },
+    "fes.zx80": {
+      "check_level": "full",
+      "producer": "build_fes_zx81_quartus",
+      "tree_a": {
+        "closure_files": 64,
+        "closure_sha256": "7a6e3d9c6f58e78a278b536f04cd38cde9f5ce9f74e4f818f503d312987f9acf",
+        "design_files": 52,
+        "design_sha256": "934bfc285df39388e40c9b2279ac1c791393707f410c634121d69ebbfdfdcbd3",
+        "non_design_sha256": "a53aaa2e52c38a4a02ad6a74c5a7c905b06412ad107d11430b68bb8aa6d53e05",
+        "role_split": true,
+        "roots": 50
+      },
+      "tree_b": {
+        "closure_files": 64,
+        "closure_sha256": "d24cb66ae6a55a1f3d16543807bd128fc8d2740baaf4540f77e43d9cb77555cc",
+        "design_files": 52,
+        "design_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+        "non_design_sha256": "a53aaa2e52c38a4a02ad6a74c5a7c905b06412ad107d11430b68bb8aa6d53e05",
+        "role_split": true,
+        "roots": 50
+      },
+      "verdict": "MOVED (design identity): scripts/fes_de10nano_evidence.py"
+    },
+    "fes.zx81": {
+      "check_level": "full",
+      "producer": "build_fes_zx81_quartus",
+      "tree_a": {
+        "closure_files": 64,
+        "closure_sha256": "7a6e3d9c6f58e78a278b536f04cd38cde9f5ce9f74e4f818f503d312987f9acf",
+        "design_files": 52,
+        "design_sha256": "934bfc285df39388e40c9b2279ac1c791393707f410c634121d69ebbfdfdcbd3",
+        "non_design_sha256": "a53aaa2e52c38a4a02ad6a74c5a7c905b06412ad107d11430b68bb8aa6d53e05",
+        "role_split": true,
+        "roots": 50
+      },
+      "tree_b": {
+        "closure_files": 64,
+        "closure_sha256": "d24cb66ae6a55a1f3d16543807bd128fc8d2740baaf4540f77e43d9cb77555cc",
+        "design_files": 52,
+        "design_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+        "non_design_sha256": "a53aaa2e52c38a4a02ad6a74c5a7c905b06412ad107d11430b68bb8aa6d53e05",
+        "role_split": true,
+        "roots": 50
+      },
+      "verdict": "MOVED (design identity): scripts/fes_de10nano_evidence.py"
+    },
+    "splash": {
+      "check_level": "full",
+      "producer": "build_fes_splash",
+      "tree_a": {
+        "closure_files": 11,
+        "closure_sha256": "9c9c9afc870a28420d2a250bbf8e043a7b478f46ebd84f132600bdcdca4792f7",
+        "design_files": 11,
+        "design_sha256": "9c9c9afc870a28420d2a250bbf8e043a7b478f46ebd84f132600bdcdca4792f7",
+        "identity_covers": "whole record: pinned inputs, repository and revision",
+        "non_design_sha256": null,
+        "record_format": 1,
+        "role_split": true,
+        "roots": 0
+      },
+      "tree_b": {
+        "closure_files": 11,
+        "closure_sha256": "54a402f03583b60d34b5435b2e8413b6da4476bec3b3349bbadc828d97ccb7e3",
+        "design_files": 11,
+        "design_sha256": "54a402f03583b60d34b5435b2e8413b6da4476bec3b3349bbadc828d97ccb7e3",
+        "identity_covers": "whole record: pinned inputs, repository and revision",
+        "non_design_sha256": null,
+        "record_format": 1,
+        "role_split": true,
+        "roots": 0
+      },
+      "verdict": "MOVED (design identity): scripts/fes_de10nano_evidence.py"
+    }
+  },
+  "summary": {
+    "moved": [
+      "fes.c64",
+      "fes.coleco",
+      "fes.menu",
+      "fes.pentagon",
+      "fes.pong",
+      "fes.ramtest",
+      "fes.riscv",
+      "fes.spectrum",
+      "fes.spectrum-plus3",
+      "fes.spectrum128",
+      "fes.ts1000",
+      "fes.ts1500",
+      "fes.zx80",
+      "fes.zx81",
+      "splash"
+    ],
+    "unanswered": [],
+    "unchanged": [
+      "fes.apple2",
+      "fes.atari-st",
+      "fes.pcxt-dos",
+      "fes.sg1000",
+      "fes.sms"
+    ]
+  },
+  "tree_a": {
+    "path": "/data/fes1861-netlist/identity/idbase",
+    "revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07"
+  },
+  "tree_b": {
+    "path": "/data/fes1861-netlist/identity/idhead",
+    "revision": "b0f05545183f7d06e58a7dae7123eabe8770ea9a"
+  }
+}

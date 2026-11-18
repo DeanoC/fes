@@ -34,7 +34,7 @@ module memory_top (
     reg [15:0] dq_rise, dq_fall;
     always @(posedge clk) dq_rise <= dq_sample;
     always @(negedge clk) dq_fall <= dq_sample;
-    pcxt_memory memory (.clk_pin(clk), .*);
+    pcxt_memory memory (.clk_pin(clk), .clk_handoff(clk), .*);
 endmodule
 
 // Only the clock pin is needed; the stand-in retains high/low DDR values.

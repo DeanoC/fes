@@ -12,8 +12,15 @@
 // through `wb`, a store's value comes out of `sval` once `hold` drops, and
 // every state change lands at the instruction's commit (`wb_last`).
 //
-// Output: one "PASS <case>" or "FAIL <case> <what>" line per case, then
-// "SUMMARY <passed> <failed>". Exit status 1 on any failure.
+// The packed decimal forms, FBLD and FBSTP (#1958), are built on the DE25
+// backend only, and their cases (bcd-*) are at the end with a random
+// generator of their own; the runner says which backend this is with
+// -DFES_X87_BACKEND.
+//
+// Output: one "PASS <case>" or "FAIL <case> <what>" line per case, a
+// "BCDFORMS" line counting the packed decimal instructions issued and the
+// conversions the sequencer entered, then "SUMMARY <passed> <failed>". Exit
+// status 1 on any failure.
 // scripts/test_fes_i386_x87_unit.py builds and runs it.
 #include "Vfes_i386_x87.h"
 #include "verilated.h"
@@ -30,6 +37,7 @@
 #include <string>
 #include <fstream>
 #include <iomanip>
+#include <map>
 #include <sstream>
 #include <vector>
 
@@ -39,10 +47,22 @@ namespace {
 // cycles, but slice 3's arithmetic runs up to four multiplies of four
 // clocks apiece, so a 64-cycle wait ran out and let a uop issue while the
 // unit still held it, which wedged the case and every one after it.
-constexpr int X87_WAIT = 512;
+constexpr int X87_WAIT = 4096;   // above the longest transcendental, which is under 1,000 clocks
 
 constexpr unsigned FMT_F32 = 1, FMT_F64 = 2, FMT_F80 = 3;
 constexpr unsigned FMT_I16 = 4, FMT_I32 = 5, FMT_I64 = 6, FMT_ENV = 7;
+
+// Which arithmetic backend the unit under test was built with: the runner
+// passes -DFES_X87_BACKEND with the value it gives X87_BACKEND (0 the DE10's,
+// 1 the DE25's), on the RTL build and the netlist build alike. The cases
+// that existed before the packed decimal forms do not read it.
+#ifndef FES_X87_BACKEND
+#define FES_X87_BACKEND 0
+#endif
+// How often the sequencer entered each state, over the whole run, read from
+// the unit's trace_seq port (which a netlist keeps). The packed decimal
+// cases report from it how many FBLD and FBSTP conversions actually ran.
+unsigned long seq_entries[64] = {0};
 
 std::string hex(uint64_t v, int digits) {
     char buf[32];
@@ -178,12 +198,16 @@ struct Unit {
         top.reset = 0;
         tick();
     }
+    unsigned prev_seq = 0;
     void tick() {
         top.eval();
         top.clk = 1;
         top.eval();
         top.clk = 0;
         top.eval();
+        const unsigned now = unsigned(top.trace_seq) & 63u;
+        if (now != prev_seq) ++seq_entries[now];
+        prev_seq = now;
     }
     void idle(int n = 1) {
         for (int i = 0; i < n; ++i) tick();
@@ -290,6 +314,39 @@ struct Unit {
         top.eval();
         commit(0, 0, true);
         settle();
+    }
+    // One uop presented in the same cycle the previous instruction's last
+    // uop commits, as `overlap` does for two register forms, but for any
+    // uop of any form: the packed decimal pairs need memory forms in flight.
+    // Returns the value the CPU would store for it.
+    uint32_t present_over(unsigned op, unsigned fmt, bool first, bool last, unsigned part,
+                          unsigned commit_part, uint32_t commit_val) {
+        top.wb = 1;
+        top.wb_part = commit_part;
+        top.wb_val = commit_val;
+        top.wb_last = 1;
+        top.iss = 1;
+        top.iss_wait = 0;
+        top.iss_op = op;
+        top.iss_fmt = fmt;
+        top.iss_first = first;
+        top.iss_last = last;
+        top.iss_part = part;
+        top.iss_fire = 0;
+        tick();
+        top.wb = top.wb_last = 0;
+        top.eval();
+        int waited = 0;
+        for (; waited < X87_WAIT && top.hold; ++waited) tick();
+        if (waited >= X87_WAIT) ++held_for_ever;
+        const uint32_t v = top.sval;
+        top.iss_fire = 1;
+        top.eval();
+        tick();
+        top.iss = 0;
+        top.iss_fire = 0;
+        top.eval();
+        return v;
     }
     // Unmask the invalid-operation exception and raise one, which sets ES
     // and latches BUSY#.
@@ -635,6 +692,698 @@ void set_rc(Unit &u, unsigned rc) {
     u.settle();
 }
 
+// ---- Packed decimal: FBLD and FBSTP (#1958, DF /4 and DF /6). ----
+// Built on the DE25 backend only. Both are exact conversions (FBSTP rounds
+// to an integer under RC first), so every case here compares the unit with
+// the host's own instruction bit for bit: the bytes stored, the registers,
+// the six flags, SF, ES, B, C1, TOP and the tags, which is the whole FNSAVE
+// image and the memory the instructions touched.
+//
+// What the 387's manual says and what was measured are kept apart. From the
+// 387 PRM (231917-001): FBLD keeps the sign of a negative zero (section
+// 4.3.8), ignores bits 78 to 72 of the sign byte (Figure 2-10, note 3) and
+// does not check for digits A to F, whose result is undefined (4.3.8);
+// FBSTP rounds under RC (4.3.9) and is invalid for an empty register, a NaN,
+// an infinity or a value of more than 18 digits, storing the packed decimal
+// indefinite (Table 3-10), of which the manual fixes only the top two bytes
+// (Table 3-7). Measured on this host's x87 and on the Bochs oracle, which
+// agreed on every masked case: digits A to F load as acc * 10 + nibble; a
+// masked invalid FBSTP stores FFFF C000 0000 0000 0000 and pops; a non-zero
+// value that rounds to zero stores a zero with the source's sign; a denormal
+// or pseudo-denormal source raises no denormal exception; a masked FBLD stack
+// overflow leaves the real indefinite with C1 set. Measured on the host
+// alone (the oracle probe drives no IRQ 13): with invalid unmasked FBSTP
+// stores nothing and does not pop, and with precision unmasked it stores,
+// pops and sets ES.
+constexpr unsigned SEQ_T_BLD_IN = 54, SEQ_T_BST_IN = 56;   // fes_i386_x87's seq_e
+constexpr unsigned OP_FBLD = (7u << 8) | 0x25;             // DF /4
+constexpr unsigned OP_FBSTP = (7u << 8) | 0x35;            // DF /6
+// The status-word bits these forms define: everything but C0, C2 and C3.
+constexpr uint16_t BCD_SW = 0xbaff;
+constexpr unsigned BCD_MEM = 128;
+long bcd_issued[2] = {0, 0};   // FBLD and FBSTP instructions the unit was given
+
+// One instruction of a sequence: a register form, or a memory form whose
+// operand is at `disp` in the sequence's memory.
+struct BStep { uint8_t esc, modrm, disp; unsigned fmt; bool store; };
+BStep bmem(uint8_t esc, unsigned reg, unsigned fmt, bool store, uint8_t disp) {
+    return {esc, uint8_t(reg << 3 | 0x05), disp, fmt, store};
+}
+BStep breg(uint8_t esc, uint8_t modrm) { return {esc, modrm, 0, 0, false}; }
+bool is_fbld(const BStep &s) { return s.esc == 0xdf && s.modrm < 0xc0 && ((s.modrm >> 3) & 7) == 4; }
+bool is_fbstp(const BStep &s) { return s.esc == 0xdf && s.modrm < 0xc0 && ((s.modrm >> 3) & 7) == 6; }
+
+// The sequence on the host: each memory form addresses disp8(%rcx).
+bool host_seq(StubPage &page, uint16_t cw, const uint8_t (*stack)[10], unsigned pushes,
+              const std::vector<BStep> &steps, uint8_t *mem, Image &out) {
+    std::vector<uint8_t> code;
+    for (const BStep &s : steps) {
+        code.push_back(s.esc);
+        if (s.modrm < 0xc0) {
+            code.push_back(uint8_t((s.modrm & 0x38) | 0x41));
+            code.push_back(s.disp);
+        } else {
+            code.push_back(s.modrm);
+        }
+    }
+    return host_form(page, cw, stack, pushes, mem, code.data(), unsigned(code.size()), out);
+}
+
+// The same sequence on the unit. With `inflight` each instruction's first
+// uop is presented in the cycle the one before it commits, so it waits in D
+// while that one's work runs -- the CPU's own timing, and the only way to
+// reach a stale working register. A store's bytes reach `mem` only when the
+// unit says the access is made, as the CPU's are.
+void unit_seq(Unit &u, uint16_t cw, const uint8_t (*stack)[10], unsigned pushes,
+              const std::vector<BStep> &steps, uint8_t *mem, Image &out, bool inflight) {
+    u.clear_latch();
+    u.reg_form(OP_FNINIT);
+    u.present(OP_FLDCW, FMT_I16, true, true, 0);
+    u.commit(0, cw, true);
+    u.settle();
+    out.setup_ok = u.cw() == cw;
+    for (unsigned n = pushes; n-- > 0;) u.load(OP_FLD_M80, FMT_F80, stack[n]);
+    bool pending = false;       // the previous instruction's last uop has issued and not committed
+    unsigned pend_part = 0;
+    uint32_t pend_val = 0;
+    for (const BStep &s : steps) {
+        const unsigned op = ((s.esc & 7u) << 8) | s.modrm;
+        const bool memform = s.modrm < 0xc0;
+        const int parts = !memform ? 1 : s.fmt == FMT_F80 ? 3 : (s.fmt == FMT_F64 || s.fmt == FMT_I64) ? 2 : 1;
+        if (is_fbld(s)) ++bcd_issued[0];
+        if (is_fbstp(s)) ++bcd_issued[1];
+        for (int k = 0; k < parts; ++k) {
+            // A load's parts commit high first and a store's low first, as
+            // the CPU's microcode moves them -- except FBSTP's, which the
+            // CPU stores from the top word down (ucode.toml's fbst10), so
+            // that the uop at the operand's own offset is the last.
+            const int p = memform && (!s.store || is_fbstp(s)) ? parts - 1 - k : k;
+            const bool first = k == 0, last = k == parts - 1;
+            uint32_t v;
+            if (pending && inflight) {
+                v = u.present_over(op, memform ? s.fmt : 0, first, last, unsigned(p), pend_part, pend_val);
+            } else {
+                if (pending) {
+                    u.commit(pend_part, pend_val, true);
+                    u.settle();
+                }
+                v = u.present(op, memform ? s.fmt : 0, first, last, unsigned(p));
+            }
+            pending = false;
+            uint32_t load = 0;
+            const unsigned width = p == 2 ? 2 : (s.fmt == FMT_I16 ? 2 : 4);
+            if (memform && s.store) {
+                if (u.access_made()) std::memcpy(mem + s.disp + 4 * p, &v, width);
+            } else if (memform) {
+                std::memcpy(&load, mem + s.disp + 4 * p, width);
+            }
+            if (last) {
+                pending = true;
+                pend_part = unsigned(p);
+                pend_val = load;
+            } else {
+                u.commit(unsigned(p), load, false);
+            }
+        }
+    }
+    if (pending) u.commit(pend_part, pend_val, true);
+    u.settle();
+    out.cw = u.cw();
+    out.sw = u.sw();
+    out.tw = u.tw();
+    for (unsigned n = 0; n < 8; ++n) u.sti(n, out.reg[n]);
+}
+
+std::string hexmem(const uint8_t *m, unsigned at, unsigned n) {
+    std::string s;
+    for (unsigned i = n; i-- > 0;) s += hex(m[at + i], 2);
+    return s;
+}
+
+// Run one sequence both ways and say how they differ, or "" when they do not.
+std::string bcd_differ(StubPage &page, Unit &u, uint16_t cw, const uint8_t (*stack)[10], unsigned pushes,
+                       const std::vector<BStep> &steps, const uint8_t *mem0, bool inflight,
+                       uint8_t *unit_mem_out = nullptr) {
+    alignas(16) uint8_t hmem[BCD_MEM], umem[BCD_MEM];
+    std::memcpy(hmem, mem0, BCD_MEM);
+    std::memcpy(umem, mem0, BCD_MEM);
+    Image want{}, got{};
+    if (!host_seq(page, cw, stack, pushes, steps, hmem, want)) return "no stub page";
+    unit_seq(u, cw, stack, pushes, steps, umem, got, inflight);
+    if (unit_mem_out) std::memcpy(unit_mem_out, umem, BCD_MEM);
+    ++compared;
+    if (same_state(want, got, BCD_SW) && std::memcmp(hmem, umem, BCD_MEM) == 0) return "";
+    std::string what = "cw=" + hex(cw, 4) + " ops";
+    for (const BStep &s : steps) what += " " + hex(s.esc, 2) + hex(s.modrm, 2) + (s.modrm < 0xc0 ? "@" + std::to_string(s.disp) : "");
+    what += " st";
+    for (unsigned n = 0; n < pushes; ++n) what += " " + hex80(stack[n]);
+    what += " got " + state_str(got, BCD_SW) + " want " + state_str(want, BCD_SW);
+    for (unsigned at = 0; at < BCD_MEM; at += 16)
+        if (std::memcmp(hmem + at, umem + at, 16) != 0)
+            what += " mem@" + std::to_string(at) + " got " + hexmem(umem, at, 16) + " want " + hexmem(hmem, at, 16);
+    return what;
+}
+
+void ext_bytes(uint8_t out[10], uint16_t se, uint64_t sig) {
+    std::memcpy(out, &sig, 8);
+    out[8] = uint8_t(se);
+    out[9] = uint8_t(se >> 8);
+}
+// Ten packed decimal bytes from 20 hex digits, most significant first.
+void bcd_bytes(uint8_t out[10], const char *digits) {
+    for (int n = 0; n < 10; ++n) {
+        unsigned v = 0;
+        std::sscanf(digits + 2 * n, "%2x", &v);
+        out[9 - n] = uint8_t(v);
+    }
+}
+void bcd_random(uint8_t out[10], std::mt19937_64 &rng, bool valid, bool sign) {
+    for (int n = 0; n < 9; ++n) {
+        const unsigned lo = valid ? unsigned(rng() % 10) : unsigned(rng() & 15);
+        const unsigned hi = valid ? unsigned(rng() % 10) : unsigned(rng() & 15);
+        out[n] = uint8_t(hi << 4 | lo);
+    }
+    out[9] = sign ? 0x80 : 0x00;
+}
+
+// A sequence's verdict, gathered over many operands into one named case.
+struct BcdTally {
+    int ran = 0, diffs = 0;
+    std::string first;
+    void add(const std::string &what) {
+        ++ran;
+        if (!what.empty()) {
+            if (!diffs) first = what;
+            const char *vb = std::getenv("X87_TB_VERBOSE");
+            if (vb && (std::string(vb) == "all" || std::string(vb) == "bcd"))
+                std::fprintf(stderr, "DIFF bcd %s\n", what.c_str());
+            ++diffs;
+        }
+    }
+    void report(const std::string &name) const {
+        if (ran == 0) bad(name, "ran nothing");
+        else if (diffs) bad(name, std::to_string(diffs) + " of " + std::to_string(ran) + " " + first);
+        else ok(name);
+    }
+};
+
+// With the DE10 backend FBLD and FBSTP are not built: fes_i386_decode stops
+// the instruction, and the unit, given one all the same, must neither hold
+// it, nor take it, nor change anything. The unit's bench cannot see the
+// decode's stop (the lockstep does); what it can see is that the unit's
+// `unbuilt` kept the instruction out, which is what this checks. FILD m64,
+// DF /5, through the same steps is the control: it must make the unit busy
+// and push, so a check that could see nothing would fail on it.
+void run_bcd_unbuilt() {
+    struct Form { const char *name; unsigned op; bool store; };
+    const Form forms[] = {{"fbld", OP_FBLD, false}, {"fbstp", OP_FBSTP, true}, {"control-fild-m64", OP_FILD_M64, false}};
+    for (const Form &f : forms) {
+        Unit u;
+        u.reg_form(OP_FNINIT);
+        const uint8_t one[10] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0xff, 0x3f};
+        u.load(OP_FLD_M80, FMT_F80, one);
+        const uint16_t sw0 = u.sw(), tw0 = u.tw(), cw0 = u.cw();
+        uint8_t regs0[8][10], regs1[8][10];
+        for (unsigned n = 0; n < 8; ++n) u.reg(n, regs0[n]);
+        const bool control = f.op == OP_FILD_M64;
+        const unsigned fmt = control ? FMT_I64 : FMT_F80;
+        const int parts = control ? 2 : 3;
+        bool held = false, busy = false;
+        if (!control) ++bcd_issued[f.store ? 1 : 0];
+        for (int k = 0; k < parts; ++k) {
+            const int p = parts - 1 - k;   // FBLD's order, and FBSTP's (fbst10)
+            u.top.iss = 1;
+            u.top.iss_wait = 0;
+            u.top.iss_op = f.op;
+            u.top.iss_fmt = fmt;
+            u.top.iss_first = k == 0;
+            u.top.iss_last = k == parts - 1;
+            u.top.iss_part = unsigned(p);
+            u.top.iss_fire = 0;
+            u.top.eval();
+            for (int n = 0; n < 8; ++n) {
+                held = held || u.top.hold;
+                busy = busy || u.top.busy_o;
+                u.tick();
+            }
+            u.top.iss_fire = 1;
+            u.top.eval();
+            u.tick();
+            u.top.iss = 0;
+            u.top.iss_fire = 0;
+            u.top.eval();
+            u.commit(unsigned(p), p == 0 ? 0x00000042u : 0, k == parts - 1);
+            for (int n = 0; n < 8; ++n) {
+                busy = busy || u.top.busy_o;
+                u.tick();
+            }
+        }
+        for (int n = 0; n < 200; ++n) {
+            busy = busy || u.top.busy_o;
+            u.tick();
+        }
+        for (unsigned n = 0; n < 8; ++n) u.reg(n, regs1[n]);
+        const bool unchanged = u.sw() == sw0 && u.tw() == tw0 && u.cw() == cw0
+                            && std::memcmp(regs0, regs1, sizeof regs0) == 0;
+        const std::string name = std::string("bcd-de10-unbuilt-") + f.name;
+        const std::string seen = std::string("held=") + (held ? "1" : "0") + " busy=" + (busy ? "1" : "0")
+                               + " sw " + hex(sw0, 4) + "->" + hex(u.sw(), 4) + " tw " + hex(tw0, 4) + "->" + hex(u.tw(), 4);
+        if (control) {
+            // The control must be taken: busy, and a push (TOP moves).
+            if (busy && !unchanged) ok(name);
+            else bad(name, "the control form was not seen to run: " + seen);
+        } else if (held || busy || !unchanged) {
+            bad(name, "the unit acted on a form the DE10 backend does not build: " + seen);
+        } else {
+            ok(name);
+        }
+    }
+}
+
+void run_bcd_cases() {
+    if (FES_X87_BACKEND != 1) {
+        run_bcd_unbuilt();
+        std::printf("BCDFORMS fbld issued %ld converted %lu fbstp issued %ld converted %lu\n", bcd_issued[0],
+                    seq_entries[SEQ_T_BLD_IN], bcd_issued[1], seq_entries[SEQ_T_BST_IN]);
+        return;
+    }
+    StubPage page;
+    std::mt19937_64 rng(1958);
+    const uint8_t one[10] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0xff, 0x3f};
+    alignas(16) uint8_t mem0[BCD_MEM];
+    std::memset(mem0, 0xcc, BCD_MEM);
+
+    // ---- FBSTP: every rounding mode over the operand classes. ----
+    struct V { const char *name; uint16_t se; uint64_t sig; };
+    const V classes[] = {
+        {"+0", 0x0000, 0}, {"-0", 0x8000, 0},
+        // Values that round to zero in some mode or other, both signs.
+        {"+0.25", 0x3ffd, 1ull << 63}, {"-0.25", 0xbffd, 1ull << 63},
+        {"+0.5", 0x3ffe, 1ull << 63}, {"-0.5", 0xbffe, 1ull << 63},
+        {"+0.75", 0x3ffe, 3ull << 62}, {"-0.75", 0xbffe, 3ull << 62},
+        {"+tiny", 0x0001, 1ull << 63}, {"-tiny", 0x8001, 1ull << 63},
+        // Ties.
+        {"+1.5", 0x3fff, 3ull << 62}, {"-1.5", 0xbfff, 3ull << 62},
+        {"+2.5", 0x4000, 5ull << 61}, {"-2.5", 0xc000, 5ull << 61},
+        // The 18-digit extremes, and the first values past them.
+        {"+999999999999999999", 0x403a, 0xde0b6b3a763ffff0ull}, {"-999999999999999999", 0xc03a, 0xde0b6b3a763ffff0ull},
+        {"+999999999999999999.25", 0x403a, 0xde0b6b3a763ffff4ull}, {"-999999999999999999.25", 0xc03a, 0xde0b6b3a763ffff4ull},
+        {"+999999999999999999.5", 0x403a, 0xde0b6b3a763ffff8ull}, {"-999999999999999999.5", 0xc03a, 0xde0b6b3a763ffff8ull},
+        {"+999999999999999998.5", 0x403a, 0xde0b6b3a763fffe8ull}, {"-999999999999999998.5", 0xc03a, 0xde0b6b3a763fffe8ull},
+        {"+1e18", 0x403a, 0xde0b6b3a76400000ull}, {"-1e18", 0xc03a, 0xde0b6b3a76400000ull},
+        {"+1e18+1", 0x403a, 0xde0b6b3a76400010ull}, {"-1e18-1", 0xc03a, 0xde0b6b3a76400010ull},
+        {"+1e30", 0x4062, 0xc9f2c9cd04674edfull}, {"-1e30", 0xc062, 0xc9f2c9cd04674edfull},
+        {"+2^63-1", 0x403d, 0xfffffffffffffffeull}, {"+2^63", 0x403e, 1ull << 63}, {"-2^63", 0xc03e, 1ull << 63},
+        {"+2^64-1", 0x403e, 0xffffffffffffffffull}, {"+2^64", 0x403f, 1ull << 63}, {"+largest", 0x7ffe, 0xffffffffffffffffull},
+        {"+inf", 0x7fff, 1ull << 63}, {"-inf", 0xffff, 1ull << 63},
+        {"qnan", 0x7fff, 3ull << 62}, {"-qnan", 0xffff, (3ull << 62) | 5},
+        {"snan", 0x7fff, (1ull << 63) | 1}, {"-snan", 0xffff, (1ull << 63) | 0x1234},
+        {"pseudo-denormal", 0x0000, (1ull << 63) | 12345}, {"-pseudo-denormal", 0x8000, 1ull << 63},
+        {"denormal", 0x0000, 1}, {"-denormal", 0x8000, 0x7fffffffffffffffull},
+        {"unnormal", 0x4000, 1ull << 62}, {"unnormal-zero", 0x4000, 0}, {"-unnormal", 0xc03a, 0x5e0b6b3a763ffff0ull},
+        {"pseudo-nan", 0x7fff, 1}, {"pseudo-infinity", 0x7fff, 0}, {"-pseudo-infinity", 0xffff, 0},
+    };
+    std::vector<std::array<uint8_t, 10>> values;
+    for (const V &v : classes) {
+        std::array<uint8_t, 10> b{};
+        ext_bytes(b.data(), v.se, v.sig);
+        values.push_back(b);
+    }
+    // Random bits across the exponents an 18-digit integer spans and a
+    // margin either side, then integers with a quarter, a half or three
+    // quarters added, which is where the rounding modes part.
+    for (int n = 0; n < 400; ++n) {
+        std::array<uint8_t, 10> b{};
+        const uint16_t e = uint16_t(0x3fff - 8 + int(rng() % 76));
+        ext_bytes(b.data(), uint16_t(e | ((rng() & 1) << 15)), rng() | 1ull << 63);
+        values.push_back(b);
+    }
+    for (int n = 0; n < 16; ++n) {
+        std::array<uint8_t, 10> b{};
+        ext_bytes(b.data(), uint16_t((rng() % 0x7fff) | ((rng() & 1) << 15)), rng() | 1ull << 63);
+        values.push_back(b);
+    }
+    for (int n = 0; n < 400; ++n) {
+        const int bits = 1 + int(rng() % 60);
+        const uint64_t whole = rng() >> (64 - bits);
+        const long double v = (long double)whole + 0.25L * (long double)(rng() & 3);
+        const long double sv = (rng() & 1) ? -v : v;
+        std::array<uint8_t, 10> b{};
+        std::memcpy(b.data(), &sv, 10);
+        values.push_back(b);
+    }
+    struct Mask { const char *name; uint16_t cw; };
+    // All masked; invalid unmasked; precision unmasked.
+    const Mask masks[] = {{"masked", 0x037f}, {"unmasked-invalid", 0x037e}, {"unmasked-precision", 0x035f}};
+    const std::vector<BStep> fbstp = {bmem(0xdf, 6, FMT_F80, true, 32)};
+    for (const Mask &m : masks) {
+        for (unsigned rc = 0; rc < 4; ++rc) {
+            const uint16_t cw = uint16_t(m.cw | rc << 10);
+            Unit u;
+            BcdTally t;
+            for (const auto &v : values) {
+                // ST(1) is 1.0, so a pop that should not have happened, or
+                // one that did not, shows in TOP and in ST(0).
+                uint8_t stack[2][10];
+                std::memcpy(stack[0], v.data(), 10);
+                std::memcpy(stack[1], one, 10);
+                t.add(bcd_differ(page, u, cw, stack, 2, fbstp, mem0, false));
+            }
+            // An empty ST(0): the stack fault.
+            t.add(bcd_differ(page, u, cw, nullptr, 0, fbstp, mem0, false));
+            t.report(std::string("bcd-fbstp-") + m.name + "-rc" + std::to_string(rc));
+        }
+    }
+
+    // ---- FBSTP: the rules the manual states, against fixed bytes. ----
+    // Independent of the host, so a host that differed from the 387 here
+    // could not carry the unit with it: 18 nines store 18 nines, 10^18 is
+    // invalid and stores the indefinite with IE set and the register popped,
+    // and a negative zero stores the sign byte 80h.
+    {
+        struct Fixed { const char *name; uint16_t se; uint64_t sig; const char *bytes; uint16_t flags; };
+        const Fixed fixed[] = {
+            {"limit-inside", 0x403a, 0xde0b6b3a763ffff0ull, "00999999999999999999", 0x0000},
+            {"limit-inside-neg", 0xc03a, 0xde0b6b3a763ffff0ull, "80999999999999999999", 0x0000},
+            {"limit-outside", 0x403a, 0xde0b6b3a76400000ull, "ffffc000000000000000", 0x0001},
+            {"limit-outside-neg", 0xc03a, 0xde0b6b3a76400000ull, "ffffc000000000000000", 0x0001},
+            {"limit-rounds-out", 0x403a, 0xde0b6b3a763ffff8ull, "ffffc000000000000000", 0x0001},
+            {"zero-neg", 0x8000, 0, "80000000000000000000", 0x0000},
+            {"zero-pos", 0x0000, 0, "00000000000000000000", 0x0000},
+        };
+        Unit u;
+        for (const Fixed &f : fixed) {
+            uint8_t stack[2][10], want[10], umem[BCD_MEM];
+            ext_bytes(stack[0], f.se, f.sig);
+            std::memcpy(stack[1], one, 10);
+            bcd_bytes(want, f.bytes);
+            const std::string differ = bcd_differ(page, u, 0x037f, stack, 2, fbstp, mem0, false, umem);
+            const std::string name = std::string("bcd-fbstp-") + f.name;
+            if (!differ.empty()) bad(name, differ);
+            else if (std::memcmp(umem + 32, want, 10) != 0 || (u.sw() & 0x007f) != f.flags || u.top_of() != 7)
+                bad(name, "stored " + hexmem(umem, 32, 10) + " sw " + hex(u.sw(), 4) + ", want " + f.bytes
+                          + " flags " + hex(f.flags, 4) + " and the register popped");
+            else ok(name);
+        }
+    }
+
+    // ---- FBLD. ----
+    const std::vector<BStep> fbld = {bmem(0xdf, 4, FMT_F80, false, 0)};
+    auto fbld_case = [&](const std::string &name, const std::vector<std::array<uint8_t, 10>> &operands, uint16_t cwbase,
+                         unsigned pushes) {
+        for (unsigned rc = 0; rc < 4; ++rc) {
+            Unit u;
+            BcdTally t;
+            uint8_t stack[8][10];
+            for (unsigned n = 0; n < 8; ++n) std::memcpy(stack[n], one, 10);
+            for (const auto &o : operands) {
+                alignas(16) uint8_t m[BCD_MEM];
+                std::memcpy(m, mem0, BCD_MEM);
+                std::memcpy(m, o.data(), 10);
+                t.add(bcd_differ(page, u, uint16_t(cwbase | rc << 10), stack, pushes, fbld, m, false));
+            }
+            t.report(name + "-rc" + std::to_string(rc));
+        }
+    };
+    auto digits = [](const char *text) {
+        std::array<uint8_t, 10> b{};
+        bcd_bytes(b.data(), text);
+        return b;
+    };
+    std::vector<std::array<uint8_t, 10>> valid = {
+        digits("00000000000000000000"), digits("80000000000000000000"),
+        digits("00000000000000000001"), digits("80000000000000000001"),
+        digits("00999999999999999999"), digits("80999999999999999999"),
+        digits("00100000000000000000"), digits("80100000000000000000"),
+        digits("00000000001000000000"), digits("00000000000000000009"),
+        digits("00123456789012345678"), digits("80987654321098765432"),
+    };
+    for (int n = 0; n < 300; ++n) {
+        std::array<uint8_t, 10> b{};
+        bcd_random(b.data(), rng, true, rng() & 1);
+        // Leading zeros, so short magnitudes and their shifts are reached too.
+        const int keep = 1 + int(rng() % 9);
+        for (int k = keep; k < 9; ++k) b[k] = 0;
+        valid.push_back(b);
+    }
+    fbld_case("bcd-fbld-valid", valid, 0x037f, 1);
+    // Bits 78 to 72 of the sign byte are ignored: every junk value there,
+    // on zero and on non-zero digits, with each sign.
+    std::vector<std::array<uint8_t, 10>> junk;
+    for (unsigned j = 1; j < 128; ++j) {
+        std::array<uint8_t, 10> b = valid[2 + (j % (valid.size() - 2))];
+        b[9] = uint8_t((b[9] & 0x80) | j);
+        junk.push_back(b);
+        std::array<uint8_t, 10> z{};
+        z[9] = uint8_t(((j & 1) << 7) | j);
+        junk.push_back(z);
+    }
+    fbld_case("bcd-fbld-sign-byte-junk", junk, 0x037f, 1);
+    // Digits A to F. The manual calls the result undefined; the host and
+    // the oracle were both measured to compute acc * 10 + nibble, over 4,000
+    // random encodings, so the unit does that and is held to it here.
+    std::vector<std::array<uint8_t, 10>> invalid = {
+        digits("0000000000000000000a"), digits("0000000000000000000f"), digits("000000000000000000f0"),
+        digits("00a00000000000000000"), digits("00f00000000000000000"), digits("00ffffffffffffffffff"),
+        digits("80ffffffffffffffffff"), digits("ffffc000000000000000"), digits("00a1b2c3d4e5f6789abc"),
+    };
+    for (int n = 0; n < 300; ++n) {
+        std::array<uint8_t, 10> b{};
+        bcd_random(b.data(), rng, false, rng() & 1);
+        invalid.push_back(b);
+    }
+    fbld_case("bcd-fbld-invalid-digits", invalid, 0x037f, 1);
+    // ST(7) occupied: the stack overflow, masked and unmasked.
+    const std::vector<std::array<uint8_t, 10>> few = {valid[0], valid[1], valid[4], valid[11]};
+    fbld_case("bcd-fbld-overflow-masked", few, 0x037f, 8);
+    fbld_case("bcd-fbld-overflow-unmasked", few, 0x037e, 8);
+    // The manual's rule against fixed bytes: a negative zero loads as -0.
+    {
+        Unit u;
+        uint8_t umem[BCD_MEM];
+        alignas(16) uint8_t m[BCD_MEM];
+        std::memcpy(m, mem0, BCD_MEM);
+        bcd_bytes(m, "80000000000000000000");
+        const std::string differ = bcd_differ(page, u, 0x037f, nullptr, 0, fbld, m, false, umem);
+        uint8_t st0[10];
+        u.st0(st0);
+        const uint8_t minus_zero[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0x80};
+        if (!differ.empty()) bad("bcd-fbld-zero-sign", differ);
+        else if (std::memcmp(st0, minus_zero, 10) != 0 || u.top_of() != 7 || (u.sw() & 0x02ff) != 0)
+            bad("bcd-fbld-zero-sign", "loaded " + hex80(st0) + " sw " + hex(u.sw(), 4) + ", want -0 and no flag");
+        else ok("bcd-fbld-zero-sign");
+    }
+
+    // ---- Back-to-back, in flight. ----
+    // Each new form between a form that leaves working state behind and a
+    // form presented while the new one is still in flight: one that reads
+    // what it wrote and one that does not (method.md, pass rule 4). The
+    // packed decimal arms keep registers of their own -- FBLD's binary
+    // integer and FBSTP's digits -- so the pairs that reach a stale one are
+    // FBLD after FBLD and FBSTP after FBSTP, large then small, and those are
+    // here in both orders.
+    {
+        struct Named { const char *name; BStep step; };
+        const Named before[] = {
+            {"none", breg(0xd9, 0xd0)},                          // FNOP
+            {"fdiv", breg(0xd8, 0xf1)},                          // FDIV ST,ST(1)
+            {"fsqrt", breg(0xd9, 0xfa)},
+            {"fmul", breg(0xd8, 0xc9)},
+            {"fist16", bmem(0xdf, 2, FMT_I16, true, 96)},        // FIST m16
+            {"fistp64", bmem(0xdf, 7, FMT_I64, true, 72)},       // FISTP m64
+            {"fld80-denormal", bmem(0xdb, 5, FMT_F80, false, 80)},
+            {"fld64-denormal", bmem(0xdd, 0, FMT_F64, false, 64)},
+            {"fild64", bmem(0xdf, 5, FMT_I64, false, 104)},
+            {"fbstp", bmem(0xdf, 6, FMT_F80, true, 48)},
+            {"fbld", bmem(0xdf, 4, FMT_F80, false, 16)},
+        };
+        const Named middle[] = {
+            {"fbld", bmem(0xdf, 4, FMT_F80, false, 0)},
+            {"fbstp", bmem(0xdf, 6, FMT_F80, true, 32)},
+        };
+        const Named after[] = {
+            {"none", breg(0xd9, 0xd0)},
+            // Reading what the new form wrote: the register FBLD pushed or
+            // the one FBSTP's pop exposed, and the bytes FBSTP stored.
+            {"fbstp", bmem(0xdf, 6, FMT_F80, true, 48)},
+            {"fistp64", bmem(0xdf, 7, FMT_I64, true, 72)},
+            {"fstp80", bmem(0xdb, 7, FMT_F80, true, 48)},
+            {"fadd", breg(0xd8, 0xc1)},
+            {"fxam", breg(0xd9, 0xe5)},
+            {"fld-st0", breg(0xd9, 0xc0)},
+            {"fbld-stored", bmem(0xdf, 4, FMT_F80, false, 32)},
+            // Not reading it.
+            {"fbld-other", bmem(0xdf, 4, FMT_F80, false, 16)},
+            {"fld1", breg(0xd9, 0xe8)},
+            {"fild64", bmem(0xdf, 5, FMT_I64, false, 104)},
+        };
+        struct Set { const char *name; const char *a, *b, *stored; uint16_t se[3]; uint64_t sig[3]; };
+        const Set sets[] = {
+            // A large FBLD operand first and a zero second, over ordinary values.
+            {"large-then-zero", "00999999999999999999", "80000000000000000000", "00000000000000000042",
+             {0x4000, 0x4000, 0x4019}, {0xc000000000000000ull, 0x8000000000000000ull, 0xeb79a2a000000000ull}},
+            // ... and the other order, with FBSTP sources at the range limit.
+            {"zero-then-large", "80000000000000000000", "80987654321098765432", "80999999999999999999",
+             {0x403a, 0x3ffe, 0xc001}, {0xde0b6b3a763ffff8ull, 0x8000000000000000ull, 0xe800000000000000ull}},
+            // FBSTP sources that round to zero, are out of range, and are in range.
+            {"tiny-out-in", "00000000000000000007", "00100000000000000000", "ffffc000000000000000",
+             {0xbffd, 0x403b, 0x4037}, {0x8000000000000000ull, 0x8000000000000000ull, 0xb1a2bc2ec5000000ull}},
+            // Invalid sources: an infinity, a NaN and a negative zero.
+            {"inf-nan-zero", "80123456789012345678", "00000000000000000001", "00000000000000000000",
+             {0x7fff, 0xffff, 0x8000}, {0x8000000000000000ull, 0xc000000000000000ull, 0}},
+        };
+        for (const Set &set : sets) {
+            alignas(16) uint8_t m[BCD_MEM];
+            std::memcpy(m, mem0, BCD_MEM);
+            bcd_bytes(m + 0, set.a);
+            bcd_bytes(m + 16, set.b);
+            bcd_bytes(m + 32, set.stored);
+            const uint64_t tiny64 = 0x0000000000000123ull;          // a denormal 64-bit real
+            std::memcpy(m + 64, &tiny64, 8);
+            ext_bytes(m + 80, 0x0000, 0x0000000012345678ull);        // a denormal extended
+            const int64_t whole = -123456789012345ll;
+            std::memcpy(m + 104, &whole, 8);
+            uint8_t stack[3][10];
+            for (int n = 0; n < 3; ++n) ext_bytes(stack[n], set.se[n], set.sig[n]);
+            for (unsigned rc = 0; rc < 4; ++rc) {
+                Unit u;
+                BcdTally t;
+                for (const Named &b : before)
+                    for (const Named &mid : middle)
+                        for (const Named &a : after) {
+                            const std::vector<BStep> steps = {b.step, mid.step, a.step};
+                            std::string what = bcd_differ(page, u, uint16_t(0x037f | rc << 10), stack, 3, steps, m, true);
+                            if (!what.empty()) what = std::string(b.name) + "/" + mid.name + "/" + a.name + " " + what;
+                            t.add(what);
+                        }
+                t.report(std::string("bcd-b2b-") + set.name + "-rc" + std::to_string(rc));
+            }
+        }
+    }
+
+    // Every FBLD issued so far ran to its end, so each must have converted;
+    // the sweep below interrupts some before they start, so the exact count
+    // is taken here.
+    const long fbld_issued_whole = bcd_issued[0];
+    const unsigned long fbld_converted_whole = seq_entries[SEQ_T_BLD_IN];
+
+    // ---- A squash, and the F1h reset, while a conversion runs. ----
+    // FBSTP converts while its first uop waits in D, for some 65 clocks, so
+    // the pipeline can squash it part way; FBLD converts after it has
+    // retired, where a flush must not lose it. The arms keep counters and
+    // working registers of their own, so each is interrupted at every offset
+    // and the next instruction of the same kind, with a smaller value, is
+    // then compared with the host: anything left behind shows there. The
+    // sweep reports how many offsets landed inside the conversion arm, and a
+    // sweep that never did fails rather than passing on nothing.
+    {
+        const std::vector<BStep> small_store = {bmem(0xdf, 6, FMT_F80, true, 32)};
+        uint8_t big[10], seven[10];
+        ext_bytes(big, 0x403a, 0xde0b6b3a763ffff0ull);       // 999999999999999999
+        ext_bytes(seven, 0x4001, 0xe000000000000000ull);     // 7.0
+        alignas(16) uint8_t mb[BCD_MEM];
+        std::memcpy(mb, mem0, BCD_MEM);
+        bcd_bytes(mb, "80999999999999999999");
+        alignas(16) uint8_t ms[BCD_MEM];
+        std::memcpy(ms, mem0, BCD_MEM);
+        bcd_bytes(ms, "00000000000000000042");
+        for (int kind = 0; kind < 4; ++kind) {
+            // 0: FBSTP squashed; 1: FBSTP under F1h; 2: FBLD flushed after it retired; 3: FBLD under F1h.
+            const bool store = kind < 2, reset = kind == 1 || kind == 3;
+            const unsigned arm = store ? SEQ_T_BST_IN + 1 : SEQ_T_BLD_IN + 1;
+            Unit u;
+            int inside = 0, wrong = 0;
+            std::string first;
+            for (int at = 0; at < 80; ++at) {
+                u.clear_latch();
+                u.reg_form(OP_FNINIT);
+                u.load(OP_FLD_M80, FMT_F80, one);
+                const unsigned top_before = u.top_of();
+                uint8_t st_before[10];
+                ++bcd_issued[store ? 1 : 0];
+                if (store) {
+                    u.load(OP_FLD_M80, FMT_F80, big);
+                    // The first uop (the top word) waits in D and never issues.
+                    u.top.iss = 1;
+                    u.top.iss_wait = 0;
+                    u.top.iss_op = OP_FBSTP;
+                    u.top.iss_fmt = FMT_F80;
+                    u.top.iss_first = 1;
+                    u.top.iss_last = 0;
+                    u.top.iss_part = 2;
+                    u.top.iss_fire = 0;
+                    u.top.eval();
+                } else {
+                    for (int p = 2; p >= 0; --p) {
+                        u.present(OP_FBLD, FMT_F80, p == 2, p == 0, unsigned(p));
+                        uint32_t v = 0;
+                        std::memcpy(&v, mb + 4 * p, p == 2 ? 2 : 4);
+                        u.commit(unsigned(p), v, p == 0);
+                    }
+                }
+                u.st0(st_before);
+                for (int n = 0; n < at; ++n) u.tick();
+                if ((unsigned(u.top.trace_seq) & 63u) == arm) ++inside;
+                (reset ? u.top.f1 : u.top.flush) = 1;
+                u.top.iss = u.top.iss_first = 0;
+                u.tick();
+                u.top.f1 = u.top.flush = 0;
+                u.top.eval();
+                u.settle();
+                std::string what;
+                if (u.top.busy_o) what = "the unit stayed busy";
+                else if (reset) {
+                    if (u.tw() != 0xffff || u.cw() != 0x037e) what = "not the reset state: cw " + hex(u.cw(), 4) + " tw " + hex(u.tw(), 4);
+                } else if (store) {
+                    // Squashed: the source is still ST(0) and nothing popped.
+                    uint8_t st_after[10];
+                    u.st0(st_after);
+                    if (u.top_of() != ((top_before + 7) & 7) || std::memcmp(st_after, st_before, 10) != 0)
+                        what = "the squashed store changed the stack: top " + std::to_string(u.top_of());
+                } else {
+                    // Retired: the load lands whatever the flush.
+                    uint8_t st_after[10], want[10];
+                    u.st0(st_after);
+                    ext_bytes(want, 0xc03a, 0xde0b6b3a763ffff0ull);
+                    if (u.top_of() != ((top_before + 7) & 7) || std::memcmp(st_after, want, 10) != 0)
+                        what = "the retired load was lost or wrong: " + hex80(st_after);
+                }
+                // The next one, smaller, against the host.
+                if (what.empty()) {
+                    uint8_t stack[2][10];
+                    std::memcpy(stack[0], seven, 10);
+                    std::memcpy(stack[1], one, 10);
+                    what = store ? bcd_differ(page, u, 0x037f, stack, 2, small_store, mem0, false)
+                                 : bcd_differ(page, u, 0x037f, stack, 1, fbld, ms, false);
+                    if (!what.empty()) what = "the next instruction: " + what;
+                }
+                if (!what.empty() && !wrong++) first = "at " + std::to_string(at) + " clocks: " + what;
+            }
+            const std::string name = std::string("bcd-") + (store ? "fbstp" : "fbld") + (reset ? "-f1-reset" : "-flush")
+                                   + "-during-conversion";
+            if (wrong) bad(name, std::to_string(wrong) + " offsets, first " + first);
+            else if (inside < 10) bad(name, "only " + std::to_string(inside) + " of 80 offsets landed inside the conversion");
+            else ok(name);
+            std::printf("BCDSWEEP %s offsets 80 inside-conversion %d\n", name.c_str(), inside);
+        }
+    }
+
+    // ---- The counts (method.md, pass rule 3). ----
+    // How many of each form the unit was given, and how many conversions its
+    // sequencer was seen to enter: FBLD always converts, FBSTP only when its
+    // source rounds to an integer in range (a zero and the invalid cases
+    // store directly). A form claimed as built with a count of zero is a
+    // hole in the gate, so it fails here rather than being read off a line.
+    std::printf("BCDFORMS fbld issued %ld converted %lu fbstp issued %ld converted %lu\n", bcd_issued[0],
+                seq_entries[SEQ_T_BLD_IN], bcd_issued[1], seq_entries[SEQ_T_BST_IN]);
+    if (bcd_issued[0] == 0 || bcd_issued[1] == 0 || seq_entries[SEQ_T_BLD_IN] == 0 || seq_entries[SEQ_T_BST_IN] == 0)
+        bad("bcd-forms-reached", "a packed decimal form the DE25 backend builds was never converted");
+    else if (fbld_converted_whole != (unsigned long)fbld_issued_whole)
+        bad("bcd-forms-reached", "FBLD was issued " + std::to_string(fbld_issued_whole) + " times uninterrupted and converted "
+                                 + std::to_string(fbld_converted_whole));
+    else ok("bcd-forms-reached");
+}
+
 std::array<uint8_t, 10> parse_ext80(const std::string &text) {
     if (text.size() != 20) throw std::runtime_error("TestFloat extF80 value is not 20 hex digits: " + text);
     const uint16_t se = uint16_t(std::stoul(text.substr(0, 4), nullptr, 16));
@@ -657,6 +1406,599 @@ uint16_t testfloat_flags(unsigned flags) {
     return uint16_t(((flags & 0x01) ? 0x20 : 0) | ((flags & 0x02) ? 0x10 : 0) |
                     ((flags & 0x04) ? 0x08 : 0) | ((flags & 0x08) ? 0x04 : 0) |
                     ((flags & 0x10) ? 0x01 : 0));
+}
+
+// ---- The transcendentals (#1958, D9 F0-F3, F9, FB, FE, FF). ----
+// Built on the DE25 backend only. The host's x87 is neither a 387 nor the
+// unit's algorithm, so a result is compared within a bound and everything
+// else exactly (the record's method.md, "The eight transcendentals"):
+//   - the control word, the tag word, TOP, the six flags, SF, ES and C0, C2
+//     and C3: exactly;
+//   - a result that is not a finite non-zero value on both sides: exactly;
+//   - a finite non-zero result: by its distance from the host's in
+//     representable values, which must be within the bound. The bound is
+//     FES_X87_TRANS_ULP_HOST and has no default: with it unset every such
+//     compare fails, it does not pass and it does not skip;
+//   - C1: exactly on a stack fault and where the result was exact, and
+//     counted, not gated, elsewhere: it is the round-up bit of each
+//     implementation's own last rounding, and the two build hosts disagree
+//     on it for results that are identical to the bit.
+// Where the 387's manual and the host disagree the case follows the manual
+// and says so (rules.md): a trigonometric form of an infinity sets C2, and
+// FYL2XP1 of an operand at or below -1 is not the host's.
+// Beside the host, FES_X87_TRANS_VECTORS names the model's vectors
+// (scripts/x87_trans_ucode.py --unit-vectors): there the compare is exact,
+// bit for bit, with no bound. And FES_X87_TRANS_BRACKETS names QEMU's
+// bracket tables' rows, which the runner fetches at their pinned revision.
+struct TransForm { const char *name; uint8_t modrm; bool two, push, trig; };
+const TransForm TRANS_FORMS[8] = {
+    {"FSIN", 0xfe, false, false, true},   {"FCOS", 0xff, false, false, true},
+    {"FSINCOS", 0xfb, false, true, true}, {"FPTAN", 0xf2, false, true, true},
+    {"F2XM1", 0xf0, false, false, false}, {"FYL2X", 0xf1, true, false, false},
+    {"FYL2XP1", 0xf9, true, false, false}, {"FPATAN", 0xf3, true, false, false},
+};
+constexpr unsigned SEQ_T_RUN = 59;      // fes_i386_x87's T_RUN, where the engine's result is taken
+long trans_bound = -1;                  // FES_X87_TRANS_ULP_HOST
+struct TransTally {
+    uint64_t cases = 0, values = 0, identical = 0, c1_differs = 0, manual = 0;
+    std::map<uint64_t, uint64_t> distance;   // the whole histogram
+    uint64_t worst = 0;
+};
+TransTally trans_tally[8];
+uint64_t trans_engine_runs[8] = {0};
+
+// A finite, non-zero normal or denormal value, and the integer that orders
+// the format's magnitudes.
+bool trans_ordinary(const uint8_t *b, bool &sign, unsigned __int128 &ord) {
+    uint64_t sig;
+    std::memcpy(&sig, b, 8);
+    const unsigned se = unsigned(b[8]) | unsigned(b[9]) << 8, e = se & 0x7fff;
+    if (e == 0x7fff || sig == 0 || bool(sig >> 63) != bool(e)) return false;
+    sign = se >> 15;
+    ord = e == 0 ? (unsigned __int128)sig : ((unsigned __int128)(e - 1) << 63) + sig;
+    return true;
+}
+
+// The tolerant compare. Returns the reason for a failure, or empty.
+std::string trans_compare(unsigned form, const Image &host, const Image &unit) {
+    const TransForm &f = TRANS_FORMS[form];
+    TransTally &t = trans_tally[form];
+    if (!host.setup_ok || !unit.setup_ok) return "setup";
+    if (host.cw != unit.cw) return "cw";
+    if (host.tw != unit.tw) return "tw " + hex(host.tw, 4) + " against " + hex(unit.tw, 4);
+    if ((host.sw ^ unit.sw) & 0xfdff) return "sw " + hex(host.sw, 4) + " against " + hex(unit.sw, 4);
+    bool all_same = true;
+    for (unsigned n = 0; n < 8; ++n) {
+        if (!reg_live(host, n)) continue;
+        const bool result = n == 0 || (f.push && n == 1);
+        if (result) ++t.values;
+        if (std::memcmp(host.reg[n], unit.reg[n], 10) == 0) {
+            if (result) {
+                ++t.identical;
+                ++t.distance[0];
+            }
+            continue;
+        }
+        all_same = false;
+        bool hs, us;
+        unsigned __int128 ho, uo;
+        if (!result || !trans_ordinary(host.reg[n], hs, ho) || !trans_ordinary(unit.reg[n], us, uo) || hs != us)
+            return "ST(" + std::to_string(n) + ") " + hex80(host.reg[n]) + " against " + hex80(unit.reg[n]);
+        const unsigned __int128 d = ho > uo ? ho - uo : uo - ho;
+        const uint64_t d64 = d > ~0ull ? ~0ull : uint64_t(d);
+        ++t.distance[d64];
+        if (d64 > t.worst) t.worst = d64;
+        if (trans_bound < 0) return "FES_X87_TRANS_ULP_HOST is unset: no bound to compare ST(" + std::to_string(n) + ") within";
+        if (d64 > uint64_t(trans_bound))
+            return "ST(" + std::to_string(n) + ") " + hex80(host.reg[n]) + " against " + hex80(unit.reg[n]) + ", "
+                   + std::to_string(d64) + " apart";
+    }
+    if ((host.sw ^ unit.sw) & 0x0200) {
+        // Gated where it is defined without reference to the algorithm: on a
+        // stack fault, and where nothing was inexact.
+        if ((host.sw & 0x0040) || !(host.sw & 0x0020)) return "C1: sw " + hex(host.sw, 4) + " against " + hex(unit.sw, 4);
+        (void)all_same;
+        ++t.c1_differs;
+    }
+    return "";
+}
+
+void trans_unit(Unit &u, unsigned form, uint16_t cw, const uint8_t (*stack)[10], unsigned pushes, Image &out) {
+    const uint64_t before = seq_entries[SEQ_T_RUN];
+    unit_form(u, cw, stack, pushes, nullptr, (1u << 8) | TRANS_FORMS[form].modrm, 0, out);
+    trans_engine_runs[form] += seq_entries[SEQ_T_RUN] - before;
+}
+
+struct TransOperand { const char *name; uint16_t se; uint64_t sig; };
+const TransOperand TRANS_OPERANDS[] = {
+    {"+0", 0x0000, 0}, {"-0", 0x8000, 0}, {"+1", 0x3fff, 1ull << 63}, {"-1", 0xbfff, 1ull << 63},
+    {"+0.5", 0x3ffe, 1ull << 63}, {"-0.5", 0xbffe, 1ull << 63}, {"+2", 0x4000, 1ull << 63},
+    {"+4", 0x4001, 1ull << 63}, {"+3", 0x4000, 3ull << 62}, {"-3", 0xc000, 3ull << 62},
+    {"+0.25", 0x3ffd, 1ull << 63}, {"+0.3", 0x3ffd, 0x999999999999999aull},
+    {"-0.3", 0xbffd, 0x999999999999999aull}, {"-0.99", 0xbffe, 0xfd70a3d70a3d70a4ull},
+    {"-1.5", 0xbfff, 3ull << 62}, {"+1.5", 0x3fff, 3ull << 62},
+    {"+inf", 0x7fff, 1ull << 63}, {"-inf", 0xffff, 1ull << 63},
+    {"qnan", 0x7fff, 0xc000000000000001ull}, {"snan", 0x7fff, 0x8000000000000001ull},
+    {"+denormal", 0x0000, 1ull << 62}, {"-denormal", 0x8000, 1ull << 62}, {"+min-denormal", 0x0000, 1},
+    {"+pseudo-denormal", 0x0000, 1ull << 63}, {"+unnormal", 0x3fff, 1ull << 62}, {"+pseudo-zero", 0x3fff, 0},
+    {"+pseudo-nan", 0x7fff, 1}, {"+pseudo-inf", 0x7fff, 0},
+    {"+2^-70", 0x3fff - 70, 1ull << 63}, {"-2^-70", 0xbfff - 70, 1ull << 63},
+    {"+2^-16000", 0x3fff - 16000, 1ull << 63},
+    {"+2^63-ulp", 0x403d, ~0ull}, {"+2^63", 0x403e, 1ull << 63}, {"-2^63", 0xc03e, 1ull << 63},
+    {"+2^63+ulp", 0x403e, (1ull << 63) + 1}, {"+2^64", 0x403f, 1ull << 63},
+    {"+max", 0x7ffe, ~0ull}, {"-max", 0xfffe, ~0ull}, {"+2^16000", 0x3fff + 16000, 1ull << 63},
+};
+const char *const TRANS_PAIR[] = {"+0", "-0", "+1", "-1", "+2", "+0.5", "+0.3", "-0.3", "+inf", "-inf", "qnan",
+                                  "snan", "+denormal", "+unnormal", "+2^16000", "+2^-16000", "+max"};
+const TransOperand &trans_operand(const char *name) {
+    for (const TransOperand &o : TRANS_OPERANDS)
+        if (!std::strcmp(o.name, name)) return o;
+    std::abort();
+}
+
+// One case against the host, with the manual's two overrides.
+void trans_case(Unit &u, StubPage &page, unsigned form, uint16_t cw, const uint8_t (*stack)[10], unsigned pushes,
+                const std::string &name, bool full = false) {
+    const TransForm &f = TRANS_FORMS[form];
+    const uint8_t ops[2] = {0xd9, f.modrm};
+    Image host, unit;
+    ++trans_tally[form].cases;
+    if (!host_form(page, cw, stack, pushes, nullptr, ops, 2, host)) {
+        bad(name, "no host stub");
+        return;
+    }
+    trans_unit(u, form, cw, stack, pushes, unit);
+    // x is ST(0): the first of the stack.
+    const unsigned xse = pushes ? unsigned(stack[0][8]) | unsigned(stack[0][9]) << 8 : 0;
+    uint64_t xsig = 0;
+    if (pushes) std::memcpy(&xsig, stack[0], 8);
+    const bool x_inf = pushes && (xse & 0x7fff) == 0x7fff && xsig == 1ull << 63;
+    if (f.trig && x_inf && !full) {
+        // rules.md TRIG4: the manual sets C2 with the invalid; the host does not.
+        host.sw |= 0x0400;
+        ++trans_tally[form].manual;
+    }
+    if (form == 6 && pushes == 2 && (xse & 0x8000) && (xse & 0x7fff) >= 0x3fff && (xse & 0x7fff) != 0x7fff
+        && (xsig >> 63)) {
+        // rules.md LOG5: FYL2XP1 of an operand more negative than -1 is
+        // invalid in the manual, and at -1 undefined; the host returns a
+        // finite value for both. The unit's rule is asserted here instead:
+        // invalid below -1, and at -1 the logarithm of zero.
+        ++trans_tally[form].manual;
+        const bool below = (xse & 0x7fff) > 0x3fff || xsig != 1ull << 63;
+        const unsigned yse = unsigned(stack[1][8]) | unsigned(stack[1][9]) << 8;
+        uint64_t ysig;
+        std::memcpy(&ysig, stack[1], 8);
+        const bool y_plain = (yse & 0x7fff) != 0x7fff && ((yse & 0x7fff) == 0 || (ysig >> 63)) && ysig != 0;
+        if (below && y_plain && !(unit.sw & 0x0001)) bad(name, "FYL2XP1 below -1 did not raise invalid: sw " + hex(unit.sw, 4));
+        else ok(name);
+        return;
+    }
+    const std::string why = trans_compare(form, host, unit);
+    if (why.empty()) ok(name);
+    else bad(name, why + " | host " + state_str(host, 0xffff) + " | unit " + state_str(unit, 0xffff));
+}
+
+void trans_put(uint8_t out[10], uint16_t se, uint64_t sig) {
+    std::memcpy(out, &sig, 8);
+    out[8] = uint8_t(se);
+    out[9] = uint8_t(se >> 8);
+}
+
+// A random operand for the sweep: a normal value with a uniform exponent.
+void trans_random(uint8_t out[10], std::mt19937_64 &rng, int lo, int hi, int sign) {
+    const int e = lo + int(rng() % uint64_t(hi - lo + 1));
+    const bool neg = sign < 0 || (sign == 0 && (rng() & 1));
+    trans_put(out, uint16_t((neg ? 0x8000 : 0) | (e + 16383)), rng() | 1ull << 63);
+}
+
+void run_trans_unbuilt() {
+    // The DE10 backend: each form stops as not built, taken by neither the
+    // unit's sequencer nor its hold.
+    for (unsigned form = 0; form < 8; ++form) {
+        Unit u;
+        u.reg_form(OP_FNINIT);
+        const uint8_t one[10] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0xff, 0x3f};
+        u.load(OP_FLD_M80, FMT_F80, one);
+        u.load(OP_FLD_M80, FMT_F80, one);
+        const uint16_t sw0 = u.sw(), tw0 = u.tw();
+        u.top.iss = 1;
+        u.top.iss_wait = 0;
+        u.top.iss_op = (1u << 8) | TRANS_FORMS[form].modrm;
+        u.top.iss_fmt = 0;
+        u.top.iss_first = u.top.iss_last = 1;
+        u.top.iss_part = 0;
+        u.top.iss_fire = 0;
+        u.top.eval();
+        bool held = false, busy = false;
+        for (int n = 0; n < 8; ++n) {
+            held = held || u.top.hold;
+            busy = busy || u.top.busy_o;
+            u.tick();
+        }
+        u.top.iss = u.top.iss_first = u.top.iss_last = 0;
+        u.top.eval();
+        for (int n = 0; n < 64; ++n) {
+            busy = busy || u.top.busy_o;
+            u.tick();
+        }
+        const std::string name = std::string("trans-de10-unbuilt-") + TRANS_FORMS[form].name;
+        if (held || busy || u.sw() != sw0 || u.tw() != tw0)
+            bad(name, "held " + std::to_string(held) + " busy " + std::to_string(busy) + " sw " + hex(sw0, 4) + "->"
+                          + hex(u.sw(), 4));
+        else ok(name);
+    }
+}
+
+void run_trans_cases() {
+    if (FES_X87_BACKEND != 1) {
+        run_trans_unbuilt();
+        return;
+    }
+    if (const char *bound = std::getenv("FES_X87_TRANS_ULP_HOST")) trans_bound = std::strtol(bound, nullptr, 10);
+    StubPage page;
+    Unit u;
+    std::mt19937_64 rng(0x1958);
+
+    // ---- Every special operand, masked and unmasked, and the stack faults. ----
+    for (uint16_t cw : {uint16_t(0x037f), uint16_t(0x0340)}) {
+        for (unsigned form = 0; form < 8; ++form) {
+            const TransForm &f = TRANS_FORMS[form];
+            const std::string base = std::string("trans-") + f.name + "-cw" + hex(cw, 4) + "-";
+            uint8_t stack[8][10];
+            if (!f.two) {
+                for (const TransOperand &x : TRANS_OPERANDS) {
+                    trans_put(stack[0], x.se, x.sig);
+                    trans_case(u, page, form, cw, stack, 1, base + x.name);
+                }
+                trans_case(u, page, form, cw, stack, 0, base + "empty");
+                for (const char *x : {"+0.5", "+2^63", "+inf", "qnan"}) {
+                    // Eight registers in use: a push form overflows.
+                    trans_put(stack[0], trans_operand(x).se, trans_operand(x).sig);
+                    for (int n = 1; n < 8; ++n) trans_put(stack[n], 0x3fff, 1ull << 63);
+                    trans_case(u, page, form, cw, stack, 8, base + "full-" + x, f.push);
+                }
+            } else {
+                for (const TransOperand &x : TRANS_OPERANDS)
+                    for (const char *y : TRANS_PAIR) {
+                        trans_put(stack[0], x.se, x.sig);
+                        trans_put(stack[1], trans_operand(y).se, trans_operand(y).sig);
+                        trans_case(u, page, form, cw, stack, 2, base + "y" + y + "-x" + x.name);
+                    }
+                trans_case(u, page, form, cw, stack, 0, base + "empty");
+                trans_put(stack[0], 0x4000, 1ull << 63);
+                trans_case(u, page, form, cw, stack, 1, base + "st1-empty");
+            }
+        }
+    }
+
+    // ---- Random operands, every rounding mode. ----
+    for (unsigned form = 0; form < 8; ++form) {
+        const TransForm &f = TRANS_FORMS[form];
+        for (int n = 0; n < 1600; ++n) {
+            const uint16_t cw = host_cw(unsigned(n) & 3);
+            const int kind = (n >> 2) % 5;
+            uint8_t stack[2][10];
+            if (f.trig) {
+                if (kind == 0) trans_random(stack[0], rng, -8, -1, 0);
+                else if (kind == 1) trans_random(stack[0], rng, 0, 9, 0);
+                else if (kind == 2) trans_random(stack[0], rng, 10, 62, 0);
+                else if (kind == 3) {
+                    // Beside a multiple of pi/2: k pi/2 with the low 43 bits random.
+                    const unsigned k = 1 + unsigned(rng() % 64);
+                    unsigned __int128 m = (unsigned __int128)0xc90fdaa22168c235ull * k;
+                    int e = 0;
+                    while (m >> 64) {
+                        m >>= 1;
+                        ++e;
+                    }
+                    const uint64_t sig = (uint64_t(m) & ~((1ull << 43) - 1)) | (rng() & ((1ull << 43) - 1));
+                    trans_put(stack[0], uint16_t(((rng() & 1) ? 0x8000 : 0) | (e + 16383)), sig);
+                } else trans_random(stack[0], rng, -70, -9, 0);
+            } else if (form == 4) {
+                if (kind < 3) trans_random(stack[0], rng, -8, -1, 0);
+                else if (kind == 3) trans_random(stack[0], rng, -70, -9, 0);
+                else trans_random(stack[0], rng, -16440, -16300, 0);
+            } else if (form == 5) {
+                trans_random(stack[1], rng, kind == 4 ? -16000 : -4, kind == 4 ? 16000 : 3, 0);
+                if (kind == 0) trans_random(stack[0], rng, -4, 3, 1);
+                else if (kind == 1) {
+                    const uint64_t low = rng() & ((1ull << 43) - 1);
+                    if (rng() & 1) trans_put(stack[0], 0x3ffe, ~0ull - low);
+                    else trans_put(stack[0], 0x3fff, 1ull << 63 | low);
+                } else if (kind == 2) trans_random(stack[0], rng, -16440, 16383, 1);
+                else if (kind == 3) trans_put(stack[0], uint16_t(16383 + int(rng() % 200) - 100), 1ull << 63);
+                else trans_random(stack[0], rng, -1000, 1000, 1);
+            } else if (form == 6) {
+                trans_random(stack[1], rng, kind == 4 ? -16000 : -4, kind == 4 ? 16000 : 3, 0);
+                if (kind < 2) {
+                    trans_random(stack[0], rng, -8, -2, 0);
+                    uint64_t sig;
+                    std::memcpy(&sig, stack[0], 8);
+                    if (stack[0][8] == 0xfd && (stack[0][9] & 0x7f) == 0x3f && sig > 0x94c583ada5b52800ull) {
+                        sig = 0x94c583ada5b52800ull;
+                        std::memcpy(stack[0], &sig, 8);
+                    }
+                } else if (kind == 2) trans_random(stack[0], rng, -70, -9, 0);
+                else if (kind == 3) trans_random(stack[0], rng, -16440, -16300, 0);
+                else trans_random(stack[0], rng, -2, 40, 1);      // outside the 387's range, above -1
+            } else {
+                if (kind == 0) {
+                    trans_random(stack[1], rng, -4, 3, 0);
+                    trans_random(stack[0], rng, -4, 3, 0);
+                } else if (kind == 1) {
+                    trans_random(stack[1], rng, -70, -9, 0);
+                    trans_random(stack[0], rng, -4, 3, 0);
+                } else if (kind == 2) {
+                    trans_random(stack[1], rng, -16440, 16383, 0);
+                    trans_random(stack[0], rng, -16440, 16383, 0);
+                } else if (kind == 3) {
+                    trans_random(stack[1], rng, -4, 3, 0);
+                    std::memcpy(stack[0], stack[1], 10);       // |y| = |x|, or one step off
+                    stack[0][0] ^= uint8_t(rng() & 1);
+                    stack[0][9] ^= uint8_t((rng() & 1) << 7);
+                } else {
+                    trans_random(stack[1], rng, -100, 100, 0);
+                    trans_random(stack[0], rng, -100, 100, 0);
+                }
+            }
+            trans_case(u, page, form, cw, stack, f.two ? 2 : 1,
+                       std::string("trans-") + f.name + "-random-" + std::to_string(n));
+        }
+    }
+
+    // ---- The model's vectors: exact. ----
+    // "<instruction> <cw> <x> <y> <st0> <st1 or -> <flags>": the unit's
+    // result and PE, UE and OE must equal the model's, bit for bit.
+    uint64_t vectors = 0;
+    if (const char *path = std::getenv("FES_X87_TRANS_VECTORS")) {
+        std::ifstream file(path);
+        std::string line;
+        unsigned row = 0, wrong = 0;
+        std::string first;
+        while (std::getline(file, line)) {
+            ++row;
+            std::istringstream in(line);
+            unsigned form;
+            std::string cw_text, xt, yt, r0, r1, flags_text;
+            if (!(in >> form >> cw_text >> xt >> yt >> r0 >> r1 >> flags_text) || form >= 8) continue;
+            const TransForm &f = TRANS_FORMS[form];
+            auto bytes = [](const std::string &t, uint8_t out[10]) {
+                trans_put(out, uint16_t(std::strtoul(t.substr(0, 4).c_str(), nullptr, 16)),
+                          std::strtoull(t.substr(4).c_str(), nullptr, 16));
+            };
+            uint8_t stack[2][10], want0[10], want1[10];
+            bytes(xt, stack[0]);
+            bytes(yt, stack[1]);
+            bytes(r0, want0);
+            if (r1 != "-") bytes(r1, want1);
+            const uint16_t cw = uint16_t(std::strtoul(cw_text.c_str(), nullptr, 16));
+            const unsigned flags = unsigned(std::strtoul(flags_text.c_str(), nullptr, 16));
+            Image unit;
+            trans_unit(u, form, cw, stack, f.two ? 2 : 1, unit);
+            ++vectors;
+            const bool good = unit.setup_ok && std::memcmp(unit.reg[0], want0, 10) == 0
+                              && (r1 == "-" || std::memcmp(unit.reg[1], want1, 10) == 0)
+                              && (unit.sw & 0x0038) == flags;
+            if (!good && !wrong++)
+                first = "row " + std::to_string(row) + " " + f.name + ": unit " + hex80(unit.reg[0]) + " "
+                        + (r1 == "-" ? std::string("-") : hex80(unit.reg[1])) + " flags " + hex(unit.sw & 0x38, 2)
+                        + ", model " + r0 + " " + r1 + " flags " + flags_text;
+        }
+        if (wrong) bad("trans-model-vectors", std::to_string(wrong) + " of " + std::to_string(vectors) + " differ; first " + first);
+        else if (!vectors) bad("trans-model-vectors", "no vectors read");
+        else ok("trans-model-vectors");
+    }
+
+    // ---- QEMU's bracket tables (tests/tcg/i386, pinned and fetched by the runner). ----
+    // "<instruction> <first loaded> <second loaded> <down> <up>": the two
+    // extended values that bracket the mathematical result, equal where it
+    // is exact. A result that is one of the two is inside; any other is
+    // judged by how far outside it lies, under the same bound as the host
+    // compare, and a bracket that is not a finite non-zero value is exact.
+    if (const char *path = std::getenv("FES_X87_TRANS_BRACKETS")) {
+        std::ifstream file(path);
+        std::string name, at, bt, dt, ut;
+        struct Tally { uint64_t rows = 0, inside = 0, worst = 0; std::map<uint64_t, uint64_t> outside; };
+        std::map<std::string, Tally> tally;
+        unsigned wrong = 0, rows = 0;
+        std::string first;
+        while (file >> name >> at >> bt >> dt >> ut) {
+            unsigned form = 8;
+            for (unsigned n = 0; n < 8; ++n)
+                if (name == TRANS_FORMS[n].name) form = n;
+            if (form == 8) continue;
+            const TransForm &f = TRANS_FORMS[form];
+            auto bytes = [](const std::string &t, uint8_t out[10]) {
+                trans_put(out, uint16_t(std::strtoul(t.substr(0, 4).c_str(), nullptr, 16)),
+                          std::strtoull(t.substr(4).c_str(), nullptr, 16));
+            };
+            // The first loaded is ST(1) of a two-operand form and the second ST(0).
+            uint8_t stack[2][10], down[10], up[10];
+            bytes(f.two ? bt : at, stack[0]);
+            bytes(at, stack[1]);
+            bytes(dt, down);
+            bytes(ut, up);
+            Image unit;
+            trans_unit(u, form, 0x037f, stack, f.two ? 2 : 1, unit);
+            Tally &t = tally[name];
+            ++t.rows;
+            ++rows;
+            const uint8_t *got = unit.reg[f.push ? 1 : 0];
+            bool good = unit.setup_ok && reg_live(unit, f.push ? 1 : 0);
+            uint64_t outside = 0;
+            if (good && std::memcmp(got, down, 10) != 0 && std::memcmp(got, up, 10) != 0) {
+                bool gs, ds, us;
+                unsigned __int128 go, d_o, uo;
+                if (!trans_ordinary(got, gs, go) || !trans_ordinary(down, ds, d_o) || !trans_ordinary(up, us, uo)
+                    || gs != ds || gs != us)
+                    good = false;
+                else {
+                    const unsigned __int128 lo = d_o < uo ? d_o : uo, hi = d_o < uo ? uo : d_o;
+                    const unsigned __int128 d = go < lo ? lo - go : go > hi ? go - hi : 0;
+                    outside = d > ~0ull ? ~0ull : uint64_t(d);
+                    good = trans_bound >= 0 && outside <= uint64_t(trans_bound);
+                }
+            }
+            if (good && outside == 0) ++t.inside;
+            if (good || outside) {
+                ++t.outside[outside];
+                if (outside > t.worst) t.worst = outside;
+            }
+            if (!good && !wrong++)
+                first = name + " " + at + " " + bt + ": " + hex80(got) + " against " + dt + " and " + ut;
+        }
+        for (const auto &row : tally) {
+            std::printf("TRANS_QEMU %s rows %llu inside %llu worst %llu outside", row.first.c_str(),
+                        (unsigned long long)row.second.rows, (unsigned long long)row.second.inside,
+                        (unsigned long long)row.second.worst);
+            for (const auto &bin : row.second.outside) std::printf(" %llu:%llu", (unsigned long long)bin.first, (unsigned long long)bin.second);
+            std::printf("\n");
+        }
+        if (wrong) bad("trans-qemu-brackets", std::to_string(wrong) + " of " + std::to_string(rows) + " rows; first " + first);
+        else if (!rows) bad("trans-qemu-brackets", "no rows read");
+        else ok("trans-qemu-brackets");
+    }
+
+    // ---- In flight: a second instruction while the engine runs. ----
+    // Each form is followed, with no settling, by one that reads what it
+    // wrote (FLD ST(0), a copy, so the tolerance carries and nothing
+    // amplifies it) and by one that does not (FLD1), and is preceded by
+    // forms that leave each kind of working state behind.
+    {
+        const uint8_t before[][2] = {{0xd9, 0xe8} /* FLD1: nothing */, {0xd8, 0xf1} /* FDIV ST,ST(1) */,
+                                     {0xd9, 0xfa} /* FSQRT */, {0xd9, 0xfc} /* FRNDINT */,
+                                     {0xd8, 0xc9} /* FMUL ST,ST(1) */};
+        const uint8_t after[][2] = {{0xd9, 0xc0} /* FLD ST(0) */, {0xd9, 0xe8} /* FLD1 */, {0xd9, 0xe0} /* FCHS */};
+        for (unsigned form = 0; form < 8; ++form)
+            for (unsigned b = 0; b < 5; ++b)
+                for (unsigned a = 0; a < 3; ++a) {
+                    const TransForm &f = TRANS_FORMS[form];
+                    uint8_t stack[2][10];
+                    // 0.3 and 0.26: in every form's range, and nothing exact.
+                    trans_put(stack[0], 0x3ffd, 0x999999999999999aull);
+                    trans_put(stack[1], 0x3ffd, 0x851eb851eb851eb8ull);
+                    const bool pre = b != 0;
+                    uint8_t ops[6];
+                    unsigned nops = 0;
+                    if (pre) {
+                        ops[nops++] = before[b][0];
+                        ops[nops++] = before[b][1];
+                    }
+                    ops[nops++] = 0xd9;
+                    ops[nops++] = f.modrm;
+                    ops[nops++] = after[a][0];
+                    ops[nops++] = after[a][1];
+                    const std::string name = std::string("trans-b2b-") + f.name + "-" + std::to_string(b) + "-" + std::to_string(a);
+                    Image host, unit;
+                    ++trans_tally[form].cases;
+                    if (!host_form(page, 0x037f, stack, 2, nullptr, ops, nops, host)) {
+                        bad(name, "no host stub");
+                        continue;
+                    }
+                    u.clear_latch();
+                    u.reg_form(OP_FNINIT);
+                    u.load(OP_FLD_M80, FMT_F80, stack[1]);
+                    u.load(OP_FLD_M80, FMT_F80, stack[0]);
+                    const uint64_t runs = seq_entries[SEQ_T_RUN];
+                    for (unsigned n = 0; n < nops; n += 2) {
+                        // No settle between them: the next waits in D on the hold.
+                        u.present((unsigned(ops[n]) & 7u) << 8 | ops[n + 1], 0, true, true, 0);
+                        u.commit(0, 0, true);
+                    }
+                    u.settle();
+                    trans_engine_runs[form] += seq_entries[SEQ_T_RUN] - runs;
+                    unit.cw = u.cw();
+                    unit.sw = u.sw();
+                    unit.tw = u.tw();
+                    for (unsigned n = 0; n < 8; ++n) u.sti(n, unit.reg[n]);
+                    // After FLD ST(0) the result is in ST(0) and ST(1), and a
+                    // push form's other result below them: every live
+                    // register may carry the tolerance here.
+                    std::string why;
+                    if (host.cw != unit.cw || host.tw != unit.tw || ((host.sw ^ unit.sw) & 0xfdff)) why = "state";
+                    for (unsigned n = 0; n < 8 && why.empty(); ++n) {
+                        if (!reg_live(host, n) || std::memcmp(host.reg[n], unit.reg[n], 10) == 0) continue;
+                        bool hs, us;
+                        unsigned __int128 ho, uo;
+                        if (!trans_ordinary(host.reg[n], hs, ho) || !trans_ordinary(unit.reg[n], us, uo) || hs != us
+                            || trans_bound < 0 || (ho > uo ? ho - uo : uo - ho) > (unsigned __int128)trans_bound)
+                            why = "ST(" + std::to_string(n) + ")";
+                    }
+                    if (why.empty()) ok(name);
+                    else bad(name, why + " | host " + state_str(host, 0xffff) + " | unit " + state_str(unit, 0xffff));
+                }
+    }
+
+    // ---- The F1h reset and a squash, at every clock of the engine. ----
+    // A reset while the engine runs must leave the reset state and an idle
+    // unit, and the backend must not hand a later operation the abandoned
+    // one's result: 4 + 4 afterwards is 8. A squash after the instruction
+    // has retired changes nothing: the result still lands.
+    {
+        uint8_t x[10], four[10];
+        trans_put(x, 0x3ffd, 0x999999999999999aull);
+        trans_put(four, 0x4001, 1ull << 63);
+        unsigned inside = 0, first_bad = 0, bad_count = 0;
+        std::string what;
+        for (int reset = 0; reset < 2; ++reset)
+            for (unsigned at = 1; at < 900; at += 3) {
+                u.clear_latch();
+                u.reg_form(OP_FNINIT);
+                u.load(OP_FLD_M80, FMT_F80, x);
+                u.load(OP_FLD_M80, FMT_F80, x);
+                u.present((1u << 8) | 0xf3, 0, true, true, 0);      // FPATAN
+                u.commit(0, 0, true);
+                for (unsigned n = 0; n < at; ++n) u.tick();
+                if ((unsigned(u.top.trace_seq) & 63u) == SEQ_T_RUN) ++inside;
+                (reset ? u.top.f1 : u.top.flush) = 1;
+                u.tick();
+                u.top.f1 = u.top.flush = 0;
+                u.top.eval();
+                u.settle();
+                std::string why;
+                if (u.top.busy_o) why = "the unit stayed busy";
+                else if (reset) {
+                    if (u.tw() != 0xffff) why = "not the reset state: tw " + hex(u.tw(), 4);
+                } else if (u.tw() == 0xffff || (u.sw() & 0x3800) != 0x3800) why = "the retired FPATAN did not land: sw " + hex(u.sw(), 4);
+                if (why.empty()) {
+                    u.reg_form(OP_FNINIT);
+                    u.load(OP_FLD_M80, FMT_F80, four);
+                    u.load(OP_FLD_M80, FMT_F80, four);
+                    u.reg_form((6u << 8) | 0xc1);                   // FADDP ST(1),ST
+                    uint8_t got[10], eight[10];
+                    u.st0(got);
+                    trans_put(eight, 0x4002, 1ull << 63);
+                    if (std::memcmp(got, eight, 10) != 0) why = "4 + 4 afterwards is " + hex80(got);
+                }
+                if (!why.empty() && !bad_count++) {
+                    first_bad = at;
+                    what = std::string(reset ? "F1h" : "flush") + " at " + std::to_string(at) + ": " + why;
+                }
+            }
+        if (bad_count) bad("trans-reset-and-squash-sweep", std::to_string(bad_count) + " offsets, first " + what
+                                                              + " (" + std::to_string(first_bad) + ")");
+        else if (inside < 100) bad("trans-reset-and-squash-sweep", "only " + std::to_string(inside) + " offsets landed inside the engine");
+        else ok("trans-reset-and-squash-sweep");
+        std::printf("TRANS_SWEEP inside %u\n", inside);
+    }
+
+    // ---- What ran, and how far from the host. ----
+    bool reached = true;
+    for (unsigned form = 0; form < 8; ++form) {
+        const TransTally &t = trans_tally[form];
+        std::printf("TRANS %s cases %llu engine_runs %llu values %llu identical %llu worst %llu c1_differs %llu manual %llu distance",
+                    TRANS_FORMS[form].name, (unsigned long long)t.cases, (unsigned long long)trans_engine_runs[form],
+                    (unsigned long long)t.values, (unsigned long long)t.identical, (unsigned long long)t.worst,
+                    (unsigned long long)t.c1_differs, (unsigned long long)t.manual);
+        for (const auto &bin : t.distance) std::printf(" %llu:%llu", (unsigned long long)bin.first, (unsigned long long)bin.second);
+        std::printf("\n");
+        if (!trans_engine_runs[form]) reached = false;
+    }
+    std::printf("TRANS_VECTORS %llu\n", (unsigned long long)vectors);
+    std::printf("TRANS_BOUND %ld\n", trans_bound);
+    if (reached) ok("trans-forms-reached");
+    else bad("trans-forms-reached", "a form the build claims never entered the engine");
 }
 
 struct TestFloatManifest {
@@ -1327,6 +2669,124 @@ int main(int argc, char **argv) {
         if (got[9] == 0xbf) ok("flush-store-next");
         else bad("flush-store-next", hex80(got));
 
+        // A flush DURING a committed divide must not lose it either, and
+        // must not strand the unit. This is the case a straight-through
+        // flush mapping would have broken on the DE25 backend: arithmetic is
+        // entered after the instruction commits, the envelope deliberately
+        // lets a retired instruction run on through a later squash, and a
+        // backend cancelled mid-recurrence would never return a result. A
+        // load's flush case cannot reach it, because a load has no multi-
+        // cycle arithmetic to cancel.
+        {
+            uint8_t got2[10];
+            const uint8_t two[10]  = {0,0,0,0,0,0,0,0x80,0x00,0x40};  // 2.0
+            const uint8_t four[10] = {0,0,0,0,0,0,0,0x80,0x01,0x40};  // 4.0
+            u.clear_latch();
+            u.reg_form(OP_FNINIT);
+            u.load(OP_FLD_M80, FMT_F80, two);    // ST(1) <- 2.0
+            u.load(OP_FLD_M80, FMT_F80, four);   // ST(0) <- 4.0
+            // FDIV ST(0),ST(1): D8 F1. Commit it, then squash a younger
+            // instruction while its arithmetic is still running.
+            // The flush is SWEPT across the operation rather than pulsed at one
+            // offset. A divide takes tens of clocks and the offset at which the
+            // backend is actually running is not something the bench should
+            // assume: the first version of this case pulsed at 4 clocks, which
+            // is still in the envelope's dispatch, and a deliberately wrong
+            // `.flush(flush)` mapping passed it. Sweeping means at least one
+            // offset lands inside the recurrence, and that mapping now fails.
+            int flush_bad = 0;
+            std::string flush_first;
+            for (int at : {2, 4, 8, 12, 16, 24, 32, 40, 48, 56, 64, 72, 80}) {
+                u.clear_latch();
+                u.reg_form(OP_FNINIT);
+                u.load(OP_FLD_M80, FMT_F80, two);
+                u.load(OP_FLD_M80, FMT_F80, four);
+                u.present(0x0f1, 0, true, true, 0);
+                u.commit(0, 0, true);
+                for (int n = 0; n < at; ++n) u.tick();
+                u.top.flush = 1;
+                u.tick();
+                u.top.flush = 0;
+                u.settle();
+                u.st0(got2);
+                const bool wrong = u.top.busy_o || got2[9] != 0x40 || got2[8] != 0x00;
+                if (wrong && !flush_bad++)
+                    flush_first = "at " + std::to_string(at) + " clocks: " +
+                                  (u.top.busy_o ? std::string("the unit stayed busy")
+                                                : hex80(got2));
+            }
+            if (flush_bad) bad("flush-during-divide",
+                               std::to_string(flush_bad) + " offsets, first " + flush_first);
+            else ok("flush-during-divide");
+            u.clear_latch();
+            u.reg_form(OP_FNINIT);
+            u.load(OP_FLD_M80, FMT_F80, two);
+            u.load(OP_FLD_M80, FMT_F80, four);
+            u.reg_form(0x0f1);
+            // And the unit takes a fresh operation afterwards.
+            u.reg_form(OP_FCHS);
+            u.st0(got2);
+            if (got2[9] == 0xc0) ok("flush-during-divide-next");   // FCHS of 2.0
+            else bad("flush-during-divide-next", hex80(got2));
+        }
+
+        // The port F1h reset while a divide is in flight: the unit comes back
+        // in its RESET state and answers the next operation, rather than
+        // waiting for a result that was thrown away.
+        {
+            uint8_t got3[10];
+            const uint8_t two[10]  = {0,0,0,0,0,0,0,0x80,0x00,0x40};
+            const uint8_t four[10] = {0,0,0,0,0,0,0,0x80,0x01,0x40};
+            u.clear_latch();
+            u.reg_form(OP_FNINIT);
+            u.load(OP_FLD_M80, FMT_F80, two);
+            u.load(OP_FLD_M80, FMT_F80, four);
+            // Swept, with a FAST form chained immediately after, which is
+            // what a stale result corrupts. With `f1` removed from both the
+            // backend's reset and the cancel condition this fails at nine
+            // offsets, first at 36 clocks, returning the abandoned divide's
+            // quotient as the sum -- so the `f1` cancel is load-bearing, not
+            // belt-and-braces. An earlier version of this case chained a
+            // divide and could not fail; see the record.
+            int f1_bad = 0;
+            std::string f1_first;
+            // Every clock across the divide, not a sample: the offsets at
+            // which this can go wrong are a narrow window.
+            for (int at = 1; at < 85; ++at) {
+                u.clear_latch();
+                u.reg_form(OP_FNINIT);
+                u.load(OP_FLD_M80, FMT_F80, two);
+                u.load(OP_FLD_M80, FMT_F80, four);
+                u.present(0x0f1, 0, true, true, 0);   // FDIV ST,ST(1): 4.0/2.0
+                u.commit(0, 0, true);
+                for (int n = 0; n < at; ++n) u.tick();
+                u.top.f1 = 1;
+                u.tick();
+                u.top.f1 = 0;
+                u.top.eval();
+                // Straight into a second divide with a different answer.
+                u.clear_latch();
+                u.load(OP_FLD_M80, FMT_F80, four);
+                u.load(OP_FLD_M80, FMT_F80, four);
+                // An FADD, deliberately, NOT a second divide. A divide is
+                // held in B_ISSUE by the slow lane's own admission interlock
+                // (`slow_ready && !slow_reserved`) until the abandoned one
+                // drains, so chaining a divide cannot see a stale result and
+                // this case passed with the cancel broken. A fast form is
+                // accepted at once, and `raw = fast_valid ? fast_raw :
+                // slow_raw` hands B_WAIT the old quotient if the abandoned
+                // divide completes first. 4.0+4.0 is 8.0 and the abandoned
+                // quotient is 2.0, so a stale take is visible.
+                u.reg_form(0x0c1);                    // FADD ST,ST(1): 8.0
+                u.st0(got3);
+                if ((got3[9] != 0x40 || got3[8] != 0x02) && !f1_bad++)
+                    f1_first = "at " + std::to_string(at) + " clocks: " + hex80(got3);
+            }
+            if (f1_bad) bad("f1-during-divide",
+                            std::to_string(f1_bad) + " offsets, first " + f1_first);
+            else ok("f1-during-divide");
+        }
+
         // A flush after the load's commit must not lose it.
         u.reg_form(OP_FNINIT);
         u.present(OP_FLD_M80, FMT_F80, true, false, 2);
@@ -1618,6 +3078,106 @@ int main(int argc, char **argv) {
         }
     }
 
+
+    // ---- Back-to-back arithmetic pairs. ----
+    // The registered-read hazard is this unit's recurring defect: anything
+    // derived from a REGISTERED value is a cycle late relative to a
+    // sequencer that transitions in one edge, so work begun in the assigning
+    // state sees the PREVIOUS operation's value. It has appeared in every
+    // slice, and because the stale value is usually plausible the symptom is
+    // a wrong result rather than a crash. A single operation hides the class
+    // entirely: the working registers start from a settled unit, so a late
+    // read and a timely one give the same answer.
+    //
+    // So every pair below runs the second instruction through `overlap`,
+    // which presents it while the first is still in flight -- the CPU's own
+    // timing, and the only way the bench reaches the state a stale read
+    // would corrupt. The pairs deliberately cross the two arithmetic paths:
+    // FSCALE and FRNDINT stay on the sequencer in both configurations, and
+    // FADD, FSUB, FMUL, FDIV and FSQRT move to fes_x87_core when the DE25
+    // backend is selected, so an op-A/op-B pair tests a handover in each
+    // direction as well as each path against itself. The operands are chosen
+    // so that the FIRST operation leaves each kind of working state the
+    // second could inherit: an exact cancellation to zero, a tiny result, an
+    // overflow, a saturating scale and an exact normal.
+    {
+        StubPage page;
+        const uint16_t ARITH_SW = 0xfaff;   // everything but C0, C2 and C3
+        struct Op { const char *name; uint8_t esc, modrm; };
+        // The five forms the DE25 backend answers, then the two that stay on
+        // the sequencer whichever backend is selected.
+        const Op ops[] = {
+            {"fadd",  0xd8, 0xc1}, {"fsub",  0xd8, 0xe1}, {"fmul", 0xd8, 0xc9},
+            {"fdiv",  0xd8, 0xf1}, {"fsqrt", 0xd9, 0xfa},
+            {"fscale", 0xd9, 0xfd}, {"frndint", 0xd9, 0xfc},
+        };
+        struct Pair { const char *name; uint8_t a[10], b[10]; };
+        const Pair cases[] = {
+            // 1.0 and -1.0: FADD cancels exactly to zero, which is the one
+            // state the backend's raw result cannot pack by itself.
+            {"cancel", {0,0,0,0,0,0,0,0x80,0xff,0x3f}, {0,0,0,0,0,0,0,0x80,0xff,0xbf}},
+            // The smallest normal over a large value: a tiny result, so the
+            // first operation leaves wtiny set.
+            {"tiny",   {0,0,0,0,0,0,0,0x80,0x01,0x00}, {0,0,0,0,0,0,0,0x80,0xfe,0x7f}},
+            // Two values near the top of the range: a product overflows.
+            {"over",   {0,0,0,0,0,0,0,0x80,0xfe,0x7f}, {0,0,0,0,0,0,0,0x80,0xfe,0x7f}},
+            // A denormal operand, which raises DE on either path.
+            {"denorm", {1,0,0,0,0,0,0,0x00,0x00,0x00}, {0,0,0,0,0,0,0,0x80,0xff,0x3f}},
+            // Exact normals, where nothing rounds and nothing is flagged.
+            {"exact",  {0,0,0,0,0,0,0,0x80,0x00,0x40}, {0,0,0,0,0,0,0,0x80,0xff,0x3f}},
+        };
+        for (const Pair &c : cases) {
+            for (unsigned rc = 0; rc < 4; ++rc) {
+                const uint16_t cw = host_cw(rc);
+                int diffs = 0, ran = 0;
+                std::string first;
+                Unit u;
+                for (const Op &a : ops) {
+                    for (const Op &b : ops) {
+                        const uint8_t bytes[4] = {a.esc, a.modrm, b.esc, b.modrm};
+                        uint8_t stack[2][10];
+                        std::memcpy(stack[0], c.a, 10);
+                        std::memcpy(stack[1], c.b, 10);
+                        Image want{}, got{};
+                        if (!host_form(page, cw, stack, 2, nullptr, bytes, 4, want)) {
+                            bad(std::string("b2b-") + c.name, "no stub page");
+                            break;
+                        }
+                        // The unit side: the same two instructions, with the
+                        // second presented before the first commits.
+                        u.clear_latch();
+                        u.reg_form(OP_FNINIT);
+                        u.present(OP_FLDCW, FMT_I16, true, true, 0);
+                        u.commit(0, cw, true);
+                        u.settle();
+                        got.setup_ok = u.cw() == cw;
+                        for (unsigned n = 2; n-- > 0;) u.load(OP_FLD_M80, FMT_F80, stack[n]);
+                        u.overlap(((a.esc & 7) << 8) | a.modrm, ((b.esc & 7) << 8) | b.modrm);
+                        got.cw = u.cw();
+                        got.sw = u.sw();
+                        got.tw = u.tw();
+                        for (unsigned n = 0; n < 8; ++n) u.sti(n, got.reg[n]);
+                        ++ran;
+                        ++compared;
+                        if (!same_state(want, got, ARITH_SW)) {
+                            const std::string what = std::string(a.name) + "/" + b.name +
+                                                     " st0=" + hex80(c.a) + " st1=" + hex80(c.b) +
+                                                     " got " + state_str(got, ARITH_SW) +
+                                                     " want " + state_str(want, ARITH_SW);
+                            if (!diffs) first = what;
+                            const char *vb = std::getenv("X87_TB_VERBOSE");
+                            if (vb && (std::string(vb) == "all" || std::string(vb) == "b2b"))
+                                std::fprintf(stderr, "DIFF b2b-%s-rc%u %s\n", c.name, rc, what.c_str());
+                            ++diffs;
+                        }
+                    }
+                }
+                const std::string name = std::string("b2b-") + c.name + "-rc" + std::to_string(rc);
+                if (diffs) bad(name, std::to_string(diffs) + " of " + std::to_string(ran) + " " + first);
+                else ok(name);
+            }
+        }
+    }
 
     // ---- The remainders' partial steps, chained. ----
     // The plan names this gate: directed FPREM and FPREM1 cases over large
@@ -2282,6 +3842,14 @@ int main(int argc, char **argv) {
         }
     }
 
+    // ---- Packed decimal: FBLD and FBSTP (#1958). ----
+    // After every case that existed before them, and from a generator of
+    // their own, so nothing above sees a different random stream.
+    run_bcd_cases();
+
+    // ---- The transcendentals (#1958): after everything that existed before. ----
+    run_trans_cases();
+
     if (!testfloat_manifest.empty()) {
         const TestFloatManifest testfloat = run_testfloat_manifest(testfloat_manifest);
         std::printf("TESTFLOAT %u %u\n", testfloat.vectors, testfloat.configs);
@@ -2298,6 +3866,52 @@ int main(int argc, char **argv) {
     if (held_for_ever) bad("protocol.hold", std::to_string(held_for_ever) + " uops held past the bench's wait");
     else ok("protocol.hold");
     std::printf("COMPARED %ld\n", compared);
+    // ---- Per-form latency, in CPU clocks ----
+    // Measured, not inferred. The claim this checks is that the DE25
+    // backend's pipeline cannot be amortised by a consumer that holds one ESC
+    // instruction in flight, so its DEPENDENT latency is what matters and may
+    // be worse than the sequencer's. Which forms it is worse on, and by how
+    // much, is a measurement: the first guess -- that more ESCs in flight
+    // would be the remedy -- is only sound if the adds and multiplies
+    // dominate, and x87 code chains through ST(0), so it might instead be the
+    // divide and square root, where 76 clocks of digit recurrence meet
+    // Goldschmidt.
+    //
+    // The number is clocks from the instruction's commit to `busy_o` falling,
+    // which is what the next ESC waits for.
+    {
+        struct LForm { const char *name; unsigned op; };
+        const LForm forms[] = {
+            {"fadd",  0x0c1}, {"fsub",  0x0e1}, {"fmul", 0x0c9}, {"fdiv", 0x0f1},
+            {"fsqrt", 0x1fa}, {"fscale", 0x1fd}, {"frndint", 0x1fc}, {"fprem", 0x1f8},
+        };
+        const uint8_t two[10]  = {0,0,0,0,0,0,0,0x80,0x00,0x40};
+        const uint8_t three[10] = {0,0,0,0,0,0,0,0xc0,0x00,0x40};
+        Unit u;
+        // Over all three precisions, because the divide and the square root
+        // are precision-dependent on BOTH sides and in different ways: the
+        // backend's digit recurrence stops at 25, 54 or 65 clocks by
+        // precision, while the sequencer's Goldschmidt drops an iteration
+        // only at PC24. A PC64-only table would have made "the divide gap is
+        // algorithmic" look larger and more uniform than it is.
+        for (unsigned pc : {0u, 2u, 3u}) {
+            const unsigned bits = pc == 0 ? 24 : pc == 2 ? 53 : 64;
+            for (const LForm &f : forms) {
+                u.clear_latch();
+                u.reg_form(OP_FNINIT);
+                u.present(OP_FLDCW, FMT_I16, true, true, 0);
+                u.commit(0, cw_of(0, pc), true);
+                u.settle();
+                u.load(OP_FLD_M80, FMT_F80, two);
+                u.load(OP_FLD_M80, FMT_F80, three);
+                u.present(f.op, 0, true, true, 0);
+                u.commit(0, 0, true);
+                int clocks = 0;
+                while (u.top.busy_o && clocks < 4000) { u.tick(); ++clocks; }
+                std::printf("LATENCY %s pc%u %d\n", f.name, bits, clocks);
+            }
+        }
+    }
     std::printf("SUMMARY %d %d\n", passed, failed);
     return failed ? 1 : 0;
 }

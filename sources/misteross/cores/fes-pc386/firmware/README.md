@@ -13,7 +13,9 @@ Each tree's `source.json` records the upstream repository and commit, every
 file's upstream path and hash, and the dated local changes; a changed file
 keeps its upstream hash beside its own. The build fetches dev86 (`bcc`,
 `as86`; GPL-2.0) at tag `v1.0.1` into the ignored `build/` directory only with
-`--download`, preprocesses with the host gcc as the upstream makefiles do,
+`--download`, from dev86's repository or, when that cannot supply the commit,
+from the mirror archive `firmware.lock` pins by SHA-256 (a shallow repository
+of that one commit, so git still checks the commit itself), preprocesses with the host gcc as the upstream makefiles do,
 and checks both images against [`firmware.lock`](firmware.lock), which also
 fixes the build-date strings so the images are reproducible. `--update-lock`
 records new digests after a deliberate change.

@@ -1,0 +1,25 @@
+{
+  "command": [
+    "unshare",
+    "--user",
+    "--map-root-user",
+    "--mount",
+    "sh",
+    "-ec",
+    "mount --make-rprivate /; mount --bind \"$1\" \"$2\"; mount -o remount,bind,ro \"$2\"; mount --bind \"$3\" \"$4\"; cd \"$4\"; exec \"$5\" -s elaborate.ys",
+    "pcxt-final-netlist",
+    "/home/deano/.codex/worktrees/8ce6/fes/out/dev/pcxt-capture-path/sources/misteross",
+    "/home/deano/fes-hil/k835-capture-path/coordinated-fit-retained/source",
+    "/home/deano/fes-hil/k835-capture-path/final-elaboration-same-path",
+    "/home/deano/fes-hil/k835-capture-path/coordinated-fit-retained/elaboration",
+    "/home/deano/fes/out/cache/misteross-toolchains/tools/yosys/7e0278035610cf012e96b8aae1250f7b6abd90c2ef38e93fa84d3154316012b3/install/bin/yosys"
+  ],
+  "final_opt_in_netlist_sha256": "c178780411d6ad402c47521b56c2e66959644379e987dec51a08389a3997fed6",
+  "fitted_netlist_sha256": "c178780411d6ad402c47521b56c2e66959644379e987dec51a08389a3997fed6",
+  "identical": true,
+  "original_sources_modified": false,
+  "program_sha256": "748d6e58c90b0a3e6537ac104f0744e09d5ca14012f4542864abc3649d2f8031",
+  "same_checkout_and_work_paths": true,
+  "source_sha256": "0e74af3dd389e84c807c4d449b747c3a9c27f5efa4371690ed1ca0f0bb1e29b7",
+  "yosys_sha256": "a17b4c8aeac5373dba86faa67124456834c585924503457387631408f84549f8"
+}

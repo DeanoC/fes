@@ -1,0 +1,246 @@
+{
+  "clock_hz": 61440157,
+  "commands": [
+    [
+      "/data/altera_pro/26.3/quartus/bin/quartus_syn",
+      "fes_i386_x87_fit"
+    ],
+    [
+      "/data/altera_pro/26.3/quartus/bin/quartus_fit",
+      "fes_i386_x87_fit"
+    ],
+    [
+      "/data/altera_pro/26.3/quartus/bin/quartus_sta",
+      "--multicorner",
+      "fes_i386_x87_fit"
+    ],
+    [
+      "/data/altera_pro/26.3/quartus/bin/quartus_sta",
+      "-t",
+      "timing.tcl",
+      "/home/deano/fes/.claude/worktrees/determined-yalow-0b02f8/sources/misteross/build/diagnostic/x87-envelope/4e6e1053b/unit-de25-s1",
+      "16.276000"
+    ]
+  ],
+  "device": "A5EB013BB23BE4SCS",
+  "entities": [],
+  "evidence_scope": "internal virtual-pin fit of the x87 unit; no board I/O, no seal and no hardware acceptance",
+  "exclusion": {
+    "absent_expected": {
+      "qy_s": false,
+      "rcp_q": false,
+      "rsq_q": false,
+      "ua_add": false,
+      "ub_add": false
+    },
+    "positive_controls": {
+      "cw": true,
+      "pa": true,
+      "wm": true
+    },
+    "registers": 6801
+  },
+  "fit_kind": "unit",
+  "flow": "quartus-pro-systemverilog-direct",
+  "hardware_acceptance": "not-run",
+  "period_ns": 16.276,
+  "programming_artifact": null,
+  "quartus_version": "26.3.0 Pro Edition",
+  "ram_blocks": [
+    "rf_a",
+    "rf_b"
+  ],
+  "resources": {
+    "alms": {
+      "available": 46800.0,
+      "used": 6510.0
+    },
+    "block_memory_bits": {
+      "available": 7331840.0,
+      "used": 1280.0
+    },
+    "dsp_blocks": {
+      "available": 188.0,
+      "used": 18.0
+    },
+    "labs": {
+      "available": 4680.0,
+      "used": 780.0
+    },
+    "logic_labs": {
+      "used": 780.0
+    },
+    "m20k_blocks": {
+      "available": 358.0,
+      "used": 4.0
+    },
+    "memory_labs": {
+      "used": 0.0
+    },
+    "registers": {
+      "used": 5613.0
+    }
+  },
+  "seed": 1,
+  "status": "pass",
+  "timing": {
+    "clock_hz": 61440157,
+    "corners": [
+      {
+        "analyses": {
+          "hold": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.006
+          },
+          "internal_setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 7.828
+          },
+          "minimum_pulse_width": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 7.626
+          },
+          "recovery": {
+            "coverage": "not_applicable_synchronous_reset",
+            "paths": 0,
+            "worst_slack_ns": null
+          },
+          "removal": {
+            "coverage": "not_applicable_synchronous_reset",
+            "paths": 0,
+            "worst_slack_ns": null
+          },
+          "setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 7.62
+          }
+        },
+        "corner": "Slow fix4 100C Model",
+        "hold_only": false
+      },
+      {
+        "analyses": {
+          "hold": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.096
+          },
+          "internal_setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 6.82
+          },
+          "minimum_pulse_width": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 7.609
+          },
+          "recovery": {
+            "coverage": "not_applicable_synchronous_reset",
+            "paths": 0,
+            "worst_slack_ns": null
+          },
+          "removal": {
+            "coverage": "not_applicable_synchronous_reset",
+            "paths": 0,
+            "worst_slack_ns": null
+          },
+          "setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 6.82
+          }
+        },
+        "corner": "Slow fix4 0C Model",
+        "hold_only": false
+      },
+      {
+        "analyses": {
+          "hold": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.03
+          },
+          "internal_setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 6.81
+          },
+          "minimum_pulse_width": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 7.611
+          },
+          "recovery": {
+            "coverage": "not_applicable_synchronous_reset",
+            "paths": 0,
+            "worst_slack_ns": null
+          },
+          "removal": {
+            "coverage": "not_applicable_synchronous_reset",
+            "paths": 0,
+            "worst_slack_ns": null
+          },
+          "setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 6.81
+          }
+        },
+        "corner": "Slow fix4a 0C Model",
+        "hold_only": false
+      },
+      {
+        "analyses": {
+          "hold": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.013
+          },
+          "internal_setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 10.828
+          },
+          "minimum_pulse_width": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 7.737
+          },
+          "recovery": {
+            "coverage": "not_applicable_synchronous_reset",
+            "paths": 0,
+            "worst_slack_ns": null
+          },
+          "removal": {
+            "coverage": "not_applicable_synchronous_reset",
+            "paths": 0,
+            "worst_slack_ns": null
+          },
+          "setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 10.517
+          }
+        },
+        "corner": "Fast fix4 0C Model",
+        "hold_only": false
+      }
+    ],
+    "period_ns": 16.276,
+    "status": "pass"
+  },
+  "tool_sha256": {
+    "/data/altera_pro/26.3/quartus/bin/quartus_fit": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+    "/data/altera_pro/26.3/quartus/bin/quartus_sta": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+    "/data/altera_pro/26.3/quartus/bin/quartus_syn": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14"
+  },
+  "top": "fes_i386_x87",
+  "virtual_ports": 32,
+  "x87_backend": "de25",
+  "x87_present": null
+}

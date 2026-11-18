@@ -1,0 +1,30 @@
+{
+  "collected_at_revision": "6da498a897a0c1f9ffb6c87cb34554052924946b",
+  "comparison_note": "Cyclone V ALMs and Agilex 5 ALMs are different units, and M10K and M20K are different blocks. Figures are reported per device with that device's totals. No cross-device ratio is computed here.",
+  "evidence_scope": "internal virtual-pin characterisation fits; no board I/O, no seal, no programming artifact and no hardware acceptance",
+  "fes_revision": null,
+  "fit_revisions": [],
+  "fits_from_a_modified_checkout": [],
+  "fits_with_no_recorded_revision": [
+    "base-s1",
+    "base-s2",
+    "base-s3",
+    "base-s4",
+    "trans-s1",
+    "trans-s2",
+    "trans-s3",
+    "trans-s4"
+  ],
+  "hosts": [
+    "chip-30x0-ai-dev"
+  ],
+  "revision_note": "the fits were prepared from different revisions, or some predate the revision being recorded; see each fit's own fes_revision",
+  "uname": {
+    "machine": "x86_64",
+    "node": "powerboat",
+    "processor": "",
+    "release": "6.12.101-p2pdma-p2pdma",
+    "system": "Linux",
+    "version": "#2 SMP PREEMPT_DYNAMIC Sat Aug 15 13:46:54 EEST 2026"
+  }
+}

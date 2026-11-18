@@ -62,10 +62,27 @@ def inputs_for(mode):
         'cores/fes-menu/ddr-contract.toml', DDR_GENERATED, *DDR_SOURCES)
 
 
-def authenticate(root, cache_root, mode):
+def gpu_choice(gpu_router):
+    """Map a router selection to its sealed backend, architectures and lane.
+
+    CUDA records ``unused`` architectures because the gfx list is a HIP
+    compiler input; recording it under CUDA would attest a lane that did not
+    build the router. This mirrors the router-selectable producers.
+    """
+    backend = board.gpu_backend_for_router(gpu_router)
+    if gpu_router == 'HIP':
+        return backend, board.FES_GPU_ARCHITECTURES, board.FES_TOOLCHAIN_CONFIGURATION
+    return backend, 'unused', board.cuda_toolchain_configuration()
+
+
+def authenticate(root, cache_root, mode, gpu_router=board.FES_GPU_ROUTER):
     output_for(mode)
+    _backend, architectures, configuration = gpu_choice(gpu_router)
     return board._authenticate_tools(root, lock_path=root / TOOLCHAIN_LOCK,
-                                     toolchain_root=root / TOOLCHAIN_ROOT, cache_root=cache_root)
+                                     toolchain_root=root / TOOLCHAIN_ROOT,
+                                     expected_configuration={'nextpnr': configuration},
+                                     gpu_router=gpu_router, hip_architectures=architectures,
+                                     cache_root=cache_root)
 
 
 def seed_for(mode, seed):
@@ -107,7 +124,8 @@ def blitter_dsp_evidence(graph, filename):
                 raise board.BuildError(f'blitter product {name} must be unsigned ({sign}={text!r})')
 
 
-def validate_build_evidence(output, root, *, mode='test-pattern', menu_gp=False):
+def validate_build_evidence(output, root, *, mode='test-pattern', menu_gp=False,
+                            gpu_backend=board.FES_GPU_BACKEND):
     output_for(mode)
     if menu_gp and mode != 'ddr':
         raise board.BuildError('menu GP requires DDR package evidence')
@@ -131,7 +149,8 @@ def validate_build_evidence(output, root, *, mode='test-pattern', menu_gp=False)
         forbidden = forbidden - {'cyclonev_hps_interface_mpu_general_purpose', BLITTER_DSP}
     result = evidence.validate_build_evidence(output, root, ordinary_resources=ORDINARY,
         required_resources=required, forbidden_resources=forbidden,
-        required_zero_resources=frozenset({'cyclonev_oscillator'}))
+        required_zero_resources=frozenset({'cyclonev_oscillator'}),
+        gpu_backend=gpu_backend)
     if mode == 'ddr':
         for filename in ('synth.json','routed.json'):
             graph = board._read_json(Path(output)/filename,filename)
@@ -166,57 +185,66 @@ def validate_build_evidence(output, root, *, mode='test-pattern', menu_gp=False)
     return result
 
 
-def record(root, repository, revision, identities, execution, *, mode='test-pattern', seed=None):
+def record(root, repository, revision, identities, execution, *, mode='test-pattern', seed=None,
+           gpu_router=board.FES_GPU_ROUTER):
     with python_source_guard(root, source_roots_for_inputs(inputs_for(mode))):
-        return _record(root, repository, revision, identities, execution, mode=mode, seed=seed)
+        return _record(root, repository, revision, identities, execution, mode=mode, seed=seed,
+                       gpu_router=gpu_router)
 
 
-def _record(root, repository, revision, identities, execution, *, mode='test-pattern', seed=None):
+def _record(root, repository, revision, identities, execution, *, mode='test-pattern', seed=None,
+            gpu_router=board.FES_GPU_ROUTER):
     contract = CONTRACT if mode == 'test-pattern' else 'cores/fes-menu/ddr-contract.toml'
+    gpu_backend, gpu_architectures, _configuration = gpu_choice(gpu_router)
     fields = {'format':1, 'repository':repository, 'revision':revision,
               'recipe':RECIPE, 'recipe_sha256':board._sha256(board._regular_input(root, RECIPE)),
               'abi_definition':contract,
               'abi_definition_sha256':board._sha256(board._regular_input(root, contract)),
               'dependencies':{}, 'tools':identities,
               'parameters':{'device':board.TARGET, 'top':'top', 'mode':mode,
-                  'ddr':mode == 'ddr', 'format2_package':False, 'gpu_backend':'hip', 'router':'gpu',
-                  'gpu_architectures':board.FES_GPU_ARCHITECTURES, 'seed':seed_for(mode, seed),
+                  'ddr':mode == 'ddr', 'format2_package':False, 'gpu_backend':gpu_backend, 'router':'gpu',
+                  'gpu_architectures':gpu_architectures, 'seed':seed_for(mode, seed),
                   'pixel_clock_hz':74250000, 'reference_clock_hz':50000000,
                   'diagnostic_enable':True, 'ddr_slot':0}}
     return encode_build_record(functional_record_fields(root, fields,
         source_roots_for_inputs(inputs_for(mode)), execution, pinned_inputs=inputs_for(mode)))
 
 
-def build(root=ROOT, *, cache_root=None, mode='test-pattern', seed=None):
+def build(root=ROOT, *, cache_root=None, mode='test-pattern', seed=None,
+          gpu_router=board.FES_GPU_ROUTER):
     with python_source_guard(root, source_roots_for_inputs(inputs_for(mode))):
-        return _build(root, cache_root=cache_root, mode=mode, seed=seed)
+        return _build(root, cache_root=cache_root, mode=mode, seed=seed, gpu_router=gpu_router)
 
 
-def _build(root=ROOT, *, cache_root=None, mode='test-pattern', seed=None):
+def _build(root=ROOT, *, cache_root=None, mode='test-pattern', seed=None,
+           gpu_router=board.FES_GPU_ROUTER):
     seed = seed_for(mode, seed)
     selected_inputs = inputs_for(mode)
     output_relative = output_for(mode)
     root = Path(root).resolve()
     repository, revision = board._require_clean_source(root, pinned_inputs=selected_inputs)
-    authenticated = authenticate(root, cache_root, mode)
+    authenticated = authenticate(root, cache_root, mode, gpu_router)
     identities = {name:tool.identity for name,tool in authenticated.items()}
     invocation = FunctionalInvocation(authenticated, 0)
     output = board._prepare_output(root, relative=output_relative, build_outputs=OUTPUTS)
     try:
-        inputs = record(root, repository, revision, identities, invocation.inputs, mode=mode, seed=seed)
+        inputs = record(root, repository, revision, identities, invocation.inputs, mode=mode, seed=seed,
+                        gpu_router=gpu_router)
         board._write_atomic(output/'build-inputs.json', inputs)
         commands = build_commands({name:authenticated[name].path for name in ('yosys','nextpnr-mistral')}, mode=mode, seed=seed)
         for command,log in zip(commands,('yosys.log','nextpnr.log')):
             board._run_tool(command,root,output/log,output_relative=output_relative,
                             env=invocation.env,audit_source_root=root)
-        result = validate_build_evidence(output,root,mode=mode)
+        result = validate_build_evidence(output,root,mode=mode,
+                                         gpu_backend=gpu_choice(gpu_router)[0])
         invocation.verify()
-        final = authenticate(root, cache_root, mode)
+        final = authenticate(root, cache_root, mode, gpu_router)
         if {name:tool.identity for name,tool in final.items()} != identities:
             raise board.BuildError('tool identity changed during menu diagnostic build')
         if board._require_clean_source(root,pinned_inputs=selected_inputs) != (repository,revision):
             raise board.BuildError('source identity changed during menu diagnostic build')
-        if record(root,repository,revision,identities,invocation.inputs,mode=mode,seed=seed) != inputs:
+        if record(root,repository,revision,identities,invocation.inputs,mode=mode,seed=seed,
+                  gpu_router=gpu_router) != inputs:
             raise board.BuildError('menu diagnostic functional inputs changed during build')
         result.update({'build_id':build_identity(inputs), 'execution':invocation.inputs,
                        'mode':mode, 'seed':seed_for(mode,seed), 'ddr':mode == 'ddr', 'format2_package':False,
@@ -237,8 +265,10 @@ def main():
     parser.add_argument('--cache-root',type=Path)
     parser.add_argument('--seed',type=int,choices=range(1,9))
     parser.add_argument('--mode',choices=('test-pattern','ddr'),default='test-pattern')
+    parser.add_argument('--gpu-router',choices=('HIP','CUDA'),default=board.FES_GPU_ROUTER)
     args=parser.parse_args()
-    try:print(build(args.root,cache_root=args.cache_root,mode=args.mode,seed=args.seed))
+    try:print(build(args.root,cache_root=args.cache_root,mode=args.mode,seed=args.seed,
+                    gpu_router=args.gpu_router))
     except (board.BuildError,ValueError) as exc:
         print(f'FES menu diagnostic: {exc}',file=sys.stderr);return 1
     return 0

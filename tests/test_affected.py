@@ -208,8 +208,8 @@ class AffectedTests(unittest.TestCase):
         self.assertFalse(any(result['test_modes'].values()))
 
     def test_de25_x87_sources_and_regressions_select_only_their_simulation(self):
-        for path in ('boards/de25nano/x87/rtl/fes_x87_fast.sv',
-                     'boards/de25nano/x87/rtl/new_unit.sv',
+        for path in ('boards/de25nano/x87/build.py',
+                     'boards/de25nano/x87/timing.tcl',
                      'boards/de25nano/x87/sim/x87_pipe_tb.cpp',
                      'boards/de25nano/x87/run.py',
                      'tests/test_de25_x87.py', 'tests/test_de25_x87_build.py'):
@@ -218,7 +218,7 @@ class AffectedTests(unittest.TestCase):
                 self.assertEqual(result['cores'], ['de25-x87'])
                 self.assertEqual({lane for lane, selected in result['lanes'].items() if selected},
                                  {'parent', 'fpga'})
-        mixed = plan(['sources/misteross/boards/de25nano/x87/rtl/fes_x87_fast.sv',
+        mixed = plan(['sources/misteross/boards/de25nano/x87/sim/x87_pipe_tb.cpp',
                       'sources/misteross/cores/fes-zx81/new_unit.sv'])
         self.assertEqual(set(mixed['cores']), {'de25-x87', 'zx81'})
         for path in ('boards/de25nano/x87-other/rtl/unit.sv',
@@ -599,6 +599,11 @@ class AffectedTests(unittest.TestCase):
         mixed = plan(['sources/misteross/scripts/pc386_cpu_profile.py',
                       'sources/misteross/scripts/new_helper.py'])
         self.assertEqual(set(mixed['cores']), set(CORES))
+
+    def test_pc386_core_owned_product_selects_the_pc386_family(self):
+        result = plan(['sources/misteross/cores/fes-pc386/tools/build_pc386_product.py'])
+        self.assertEqual(result['cores'], ['pc386'])
+        self.assertTrue(result['lanes']['fpga'])
 
     def test_pc386_windows_checks_select_only_what_reads_them(self):
         result = plan(['sources/misteross/scripts/pc386_wfw.py'])

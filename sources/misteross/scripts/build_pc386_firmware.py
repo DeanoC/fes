@@ -8,7 +8,9 @@ manifests that record the upstream revision, every file's hash and the dated
 local changes. They are compiled with dev86 (bcc, as86; GPL-2.0) fetched at a
 pinned revision into the ignored build directory only when --download is given,
 and with the host gcc as the preprocessor, exactly as the upstream makefiles
-build them. The resulting images must match the digests in
+build them. The fetch asks dev86's own repository for that commit and, when it
+cannot supply it, a mirror archive of the same commit that firmware.lock pins
+by SHA-256; either way git must deliver the pinned commit itself. The resulting images must match the digests in
 cores/fes-pc386/firmware/firmware.lock; --update-lock rewrites them after a
 deliberate source or toolchain change.
 
@@ -24,12 +26,16 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
+from pathlib import PurePosixPath
 import shutil
 import subprocess
 import sys
+import tarfile
+import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 FIRMWARE = ROOT / 'cores/fes-pc386/firmware'
@@ -38,6 +44,14 @@ BUILD = ROOT / 'build/firmware/pc386'
 
 DEV86_REPOSITORY = 'https://codeberg.org/jbruchon/dev86'
 DEV86_REVISION = '0b72e907f7a282aaa777a768b8b688e41c77fc93'  # tag v1.0.1
+# A shallow bare repository holding only the pinned commit, for when the
+# repository above cannot be reached. It unpacks to dev86.git.
+DEV86_MIRROR = {
+    'url': 'https://github.com/DeanoC/dev86/releases/download/v1.0.1/'
+           'dev86-0b72e907f7a282aaa777a768b8b688e41c77fc93.git.tar.gz',
+    'sha256': 'f96e95431f47f14b3086f8e3e7fe3e844c8c130e45ab800bbc88a0a013a1f4c2',
+}
+DEV86_FETCH_SECONDS = 300  # a source that stalls is refused like one that fails
 DEV86_VERSION = '0.16.21'  # the VERSION its top-level Makefile passes down
 DEV86_TARGETS = ('bcc86', 'cpp', 'as86', 'ld86')
 
@@ -53,15 +67,47 @@ class FirmwareError(RuntimeError):
     pass
 
 
+FAILURE_TAIL = 30
+FAILURE_CONTEXT = 3
+FAILURE_MARKERS = ('***', 'Error', 'error:')
+
+
+def _failure_report(lines):
+    """The lines of a failed command's output worth printing.
+
+    A parallel make reports the failing compile wherever it lands, usually well
+    before the end, so the tail alone shows other jobs finishing.  This keeps
+    every line naming an error, with a little context, as well as the tail.
+    """
+    if len(lines) <= FAILURE_TAIL:
+        return lines
+    keep = set(range(len(lines) - FAILURE_TAIL, len(lines)))
+    for index, line in enumerate(lines):
+        if any(marker in line for marker in FAILURE_MARKERS):
+            keep.update(range(max(0, index - FAILURE_CONTEXT),
+                              min(len(lines), index + FAILURE_CONTEXT + 1)))
+    report, previous = [], -1
+    for index in sorted(keep):
+        if index != previous + 1:
+            report.append(f'[... {index - previous - 1} lines omitted ...]')
+        report.append(lines[index])
+        previous = index
+    return report
+
+
 def _run(command, cwd, log, env=None, stdout=None):
     with log.open('a') as destination:
         destination.write('$ ' + ' '.join(map(str, command)) + '\n')
         destination.flush()
+        start = destination.tell()
         result = subprocess.run(command, cwd=cwd, env=env, stdout=stdout or destination,
                                 stderr=destination)
     if result.returncode:
-        tail = log.read_text().splitlines()[-30:]
-        raise FirmwareError(f'{command[0]} failed in {cwd}; see {log}\n' + '\n'.join(tail))
+        with log.open(errors='replace') as source:
+            source.seek(start)
+            output = source.read().splitlines()
+        raise FirmwareError(f'{command[0]} failed in {cwd}; see {log}\n'
+                            + '\n'.join(_failure_report(output)))
 
 
 def _git(source, *args):
@@ -87,6 +133,83 @@ def verify_sources(name: str) -> Path:
     return tree
 
 
+def _unpack_mirror(mirror: dict, into: Path) -> str:
+    """Download the mirror archive, check its digest and return the repository it holds."""
+    with urllib.request.urlopen(mirror['url'], timeout=120) as response:
+        archive = response.read()
+    digest = hashlib.sha256(archive).hexdigest()
+    if digest != mirror['sha256']:
+        raise FirmwareError(f'archive is {digest}, not the pinned {mirror["sha256"]}')
+    if into.is_symlink():
+        into.unlink()
+    else:
+        shutil.rmtree(into, ignore_errors=True)
+    into.mkdir(parents=True)
+    with tarfile.open(fileobj=io.BytesIO(archive)) as contents:
+        if getattr(tarfile, 'data_filter', None) is not None:
+            contents.extractall(into, filter='data')
+        else:
+            members = contents.getmembers()
+            root = into.resolve()
+            for member in members:
+                name = PurePosixPath(member.name)
+                if name.is_absolute() or '..' in name.parts:
+                    raise FirmwareError(f'unsafe archive member path: {member.name!r}')
+                if not name.parts:
+                    raise FirmwareError(f'unsafe empty archive member path: {member.name!r}')
+                # The mirror needs only directories and regular files. Rejecting
+                # links and special files keeps legacy extractall from following
+                # an archive-created path outside the fresh destination.
+                if not (member.isdir() or member.isfile()):
+                    raise FirmwareError(f'unsupported archive member type: {member.name!r}')
+                target = (into / Path(*name.parts)).resolve()
+                try:
+                    target.relative_to(root)
+                except ValueError as error:
+                    raise FirmwareError(f'unsafe archive member path: {member.name!r}') from error
+            contents.extractall(into)
+    return (into / 'dev86.git').as_uri()
+
+
+def fetch_dev86(tree: Path, revision: str = DEV86_REVISION, repository: str = DEV86_REPOSITORY,
+                mirror: dict = DEV86_MIRROR) -> None:
+    """Check the pinned commit out into tree, from the repository or else its mirror.
+
+    Git is asked for the commit by its SHA, so a source that does not hold it is
+    refused however it answers.
+    """
+    partial = tree.with_name(tree.name + '.partial')
+    unpacked = tree.with_name(tree.name + '.mirror')
+    refused = []
+    try:
+        for source, locate in ((repository, lambda: repository),
+                               (mirror['url'], lambda: _unpack_mirror(mirror, unpacked))):
+            shutil.rmtree(partial, ignore_errors=True)
+            partial.mkdir(parents=True)
+            try:
+                url = locate()
+                for args in (('init', '-q'), ('fetch', '-q', '--depth', '1', url, revision),
+                             ('checkout', '-q', 'FETCH_HEAD')):
+                    subprocess.run(['git', '-C', str(partial), *args], check=True,
+                                   capture_output=True, text=True, timeout=DEV86_FETCH_SECONDS)
+                if _git(partial, 'rev-parse', 'HEAD') != revision:
+                    raise FirmwareError('the checkout is not the pinned revision')
+            except subprocess.CalledProcessError as error:
+                refused.append(f'{source}: {error.stderr.strip() or error}')
+            except (FirmwareError, OSError, tarfile.TarError, subprocess.TimeoutExpired) as error:
+                refused.append(f'{source}: {error}')
+            else:
+                for line in refused:
+                    print(f'dev86 source refused: {line}', flush=True)
+                print(f'dev86 {revision} fetched from {source}', flush=True)
+                partial.rename(tree)
+                return
+        shutil.rmtree(partial, ignore_errors=True)
+        raise FirmwareError(f'no source supplied dev86 {revision}:\n  ' + '\n  '.join(refused))
+    finally:
+        shutil.rmtree(unpacked, ignore_errors=True)
+
+
 def dev86(download: bool, jobs: int) -> Path:
     """Return the bin/ and lib/bcc directories of the pinned dev86, building it once."""
     tree = BUILD / ('dev86-' + DEV86_REVISION)
@@ -96,14 +219,8 @@ def dev86(download: bool, jobs: int) -> Path:
     if not (tree / '.git').is_dir():
         if not download:
             raise FirmwareError(f'dev86 {DEV86_REVISION} is not in {tree}; pass --download to fetch it')
-        partial = tree.with_name(tree.name + '.partial')
-        shutil.rmtree(partial, ignore_errors=True)
-        partial.mkdir(parents=True)
         print(f'Fetching dev86 {DEV86_REVISION} (GPL-2.0)', flush=True)
-        for args in (('init', '-q'), ('fetch', '-q', '--depth', '1', DEV86_REPOSITORY, DEV86_REVISION),
-                     ('checkout', '-q', 'FETCH_HEAD')):
-            subprocess.run(['git', '-C', str(partial), *args], check=True)
-        partial.rename(tree)
+        fetch_dev86(tree)
     if _git(tree, 'rev-parse', 'HEAD') != DEV86_REVISION:
         raise FirmwareError(f'{tree} is not at the pinned dev86 revision')
     log = tree / 'fes-firmware-build.log'
@@ -142,6 +259,8 @@ def build(download: bool = False, jobs: int = 4, update_lock: bool = False) -> d
     lock = read_lock()
     if lock['dev86']['revision'] != DEV86_REVISION:
         raise FirmwareError('firmware.lock names a different dev86 revision than this script')
+    if lock['dev86']['mirror'] != DEV86_MIRROR:
+        raise FirmwareError('firmware.lock names a different dev86 mirror than this script')
     tools = dev86(download, jobs)
     env = dict(os.environ, PATH=f'{tools / "bin"}:{tools / "lib/bcc"}:{os.environ["PATH"]}',
                LC_ALL='C')

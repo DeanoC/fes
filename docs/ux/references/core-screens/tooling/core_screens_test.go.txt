@@ -1,0 +1,233 @@
+// Throwaway capture harness for docs/ux/references/core-screens. render.sh supplies it
+// to the tenfoot package through a Go overlay. It renders the coreref Lua pack
+// through the production rooms engine, display-list replay and software renderer.
+package tenfoot
+
+import (
+	"context"
+	"fmt"
+	"image/png"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/rooms"
+)
+
+// coreScene is one reference picture, in the shape the v1 reference harness
+// uses. The Lua pack reads the scene name from room.initial_game_id. Hint is
+// the proposed footer hint. A dialog scene applies a native Settings dialog to
+// the snapshot after the room has drawn; FooterOverride then draws that
+// dialog's hint in the dimmed footer.
+type coreScene struct {
+	Name           string
+	Room           string
+	Hint           string
+	FooterOverride bool
+	Overlay        func(*Snapshot)
+}
+
+func dialogRows(rows ...string) []SettingsRow {
+	out := make([]SettingsRow, 0, len(rows)/2)
+	for i := 0; i+1 < len(rows); i += 2 {
+		out = append(out, SettingsRow{ID: fmt.Sprint(i / 2), Label: rows[i], Value: rows[i+1]})
+	}
+	return out
+}
+
+func dialog(title string, index int, status, hint string, rows ...string) func(*Snapshot) {
+	return func(s *Snapshot) {
+		s.Settings = SettingsSnapshot{Open: true, Title: title, Index: index, Rows: dialogRows(rows...), Status: status, Hint: hint}
+	}
+}
+
+const (
+	hintMachine = "D-pad move  ·  A choose  ·  Y details  ·  B back"
+	hintShelf   = "D-pad move  ·  A choose  ·  B back"
+	hintDialog  = "Up / Down move  ·  Left / Right change  ·  A choose  ·  B cancel"
+)
+
+func coreScenes() []coreScene {
+	return []coreScene{
+		{Name: "machine-zx81", Room: "zx81", Hint: hintMachine},
+		{Name: "machine-spectrum-48k", Room: "spectrum-48k", Hint: hintMachine},
+		{Name: "machine-spectrum-plus3", Room: "spectrum-plus3", Hint: hintMachine},
+		{Name: "machine-spectrum-plus3-running", Room: "spectrum-plus3-running", Hint: hintMachine},
+		{Name: "machine-c64", Room: "c64", Hint: hintMachine},
+		{Name: "machine-c64-needs-firmware", Room: "c64-needs-firmware", Hint: hintMachine},
+		{Name: "machine-atari-st", Room: "atari-st", Hint: hintMachine},
+		{Name: "machine-pcxt", Room: "pcxt", Hint: hintMachine},
+		{Name: "machine-pc386", Room: "pc386", Hint: hintMachine},
+		{Name: "disks-atari-st", Room: "st-disks", Hint: hintShelf},
+		{Name: "disks-pcxt", Room: "pcxt-disks", Hint: hintShelf},
+		{Name: "disks-pc386", Room: "pc386-disks", Hint: hintShelf},
+		{Name: "new-disk-atari-st", Room: "st-new-disk", FooterOverride: true, Overlay: dialog("New Atari ST disk", 4,
+			"The disk is made on this kit. Nothing in your games folder changes.", hintDialog,
+			"Size", "720K  ·  double sided",
+			"Contents", "Formatted and empty",
+			"Name", "Work disk 2",
+			"When it is made", "Put it in drive A for next start",
+			"Make the disk", "")},
+		{Name: "new-disk-atari-st-sizes", Room: "st-new-disk", FooterOverride: true, Overlay: dialog("Size", 1,
+			"Other sizes cover 80 to 82 tracks and 9 or 10 sectors.", "Up / Down move  ·  A choose  ·  B back",
+			"360K", "Single sided",
+			"720K", "Double sided  ·  the usual ST disk",
+			"800K", "Double sided, 10 sectors",
+			"Other sizes", "")},
+		{Name: "disk-undo-atari-st", Room: "st-disk-reset", FooterOverride: true, Overlay: dialog("Go back to the original Tern Island?", 1,
+			"Everything saved on this disk since you first played it is removed. This can't be undone.", "Up / Down move  ·  A choose  ·  B cancel",
+			"Keep my changes", "",
+			"Go back to the original", "",
+			"Copy to a new disk first", "")},
+		{Name: "new-disk-pcxt", Room: "pcxt-new-disk", FooterOverride: true, Overlay: dialog("New PC/XT disk", 1,
+			"The disk is made on this kit. Nothing in your games folder changes.", hintDialog,
+			"Size", "360K  ·  the size this PC reads",
+			"Contents", "Starts FreeDOS",
+			"Name", "FreeDOS boot disk 2",
+			"When it is made", "Put it in drive A for next start",
+			"Make the disk", "")},
+		{Name: "new-hard-disk-pc386", Room: "pc386-new-hard-disk", FooterOverride: true, Overlay: dialog("New 386 PC hard disk", 0,
+			"The largest hard disk this PC takes is 128 MB.", hintDialog,
+			"Size", "64 MB",
+			"Contents", "FreeDOS installed, ready to start",
+			"Name", "Hard disk 4",
+			"When it is made", "Use it as hard disk C for next start",
+			"Make the hard disk", "")},
+		{Name: "import-hard-disk-pc386", Room: "pc386-import", FooterOverride: true, Overlay: dialog("Bring in a hard disk file", 3,
+			"Your file is copied in and never changed. Changes you make later are kept beside it.", hintDialog,
+			"File", "USB drive / pc / dosgames.img  ·  64 MB",
+			"Disk shape", "Found in the file  ·  130 cylinders, 16 heads, 63 sectors",
+			"Name", "dosgames",
+			"Bring it in", "")},
+		{Name: "import-hard-disk-pc386-shape", Room: "pc386-import", FooterOverride: true, Overlay: dialog("Bring in a hard disk file", 1,
+			"This file doesn't say what shape the disk is. Pick the shape it was made with, or it won't start.", hintDialog,
+			"File", "USB drive / pc / old-hdd.img  ·  42 MB",
+			"Disk shape", "Needs a choice",
+			"Cylinders", "–",
+			"Heads", "16",
+			"Sectors per track", "63",
+			"Bring it in", "Choose the disk shape first")},
+		{Name: "settings-pc386", Room: "pc386-settings", FooterOverride: true, Overlay: dialog("386 PC speed and sound", 0,
+			"Saved for the next start of this hard disk. A running PC keeps the speed it started with.", hintDialog,
+			"Speed", "386DX-33",
+			"Speed when it starts", "As chosen above",
+			"Sound Blaster port", "220",
+			"Sound Blaster IRQ", "7",
+			"Sound Blaster DMA", "1  ·  fixed",
+			"Memory", "16 MB  ·  fixed",
+			"EMS memory", "2 MB  ·  fixed")},
+		{Name: "settings-pc386-speed", Room: "pc386-settings", FooterOverride: true, Overlay: dialog("Speed", 4,
+			"Pick the PC a game was written for. As fast as possible suits later games.", "Up / Down move  ·  A choose  ·  B back",
+			"As fast as possible", "",
+			"286 at 12 MHz", "",
+			"386SX at 16 MHz", "",
+			"386DX at 25 MHz", "",
+			"386DX at 33 MHz", "Chosen",
+			"386DX at 40 MHz", "",
+			"486DX at 33 MHz", "",
+			"486DX2 at 66 MHz", "")},
+	}
+}
+
+func sceneFooter(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, sc coreScene) {
+	layout, ok := rooms.HeroPanel(snap.Room.Width, snap.Room.Height)
+	if !ok {
+		return
+	}
+	f := layout.Footer
+	x, y := snap.Room.OffsetX+f.X, snap.Room.OffsetY+f.Y
+	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(f.W), H: float32(f.H)}, heroBackground)
+	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(f.W), H: 2}, heroDivider)
+	margin := layout.Card.X
+	textY := y + (f.H-gfx.TextHeight(heroFooterPx))/2
+	hintW := min(gfx.MeasureText(sc.Hint, heroFooterPx), f.W-2*margin)
+	heroLine(dev, labels, map[string]struct{}{}, x+f.W-margin-hintW, textY, hintW, heroFooterPx, false, heroSecondary, sc.Hint)
+}
+
+func dimFooter(dev gfx.Device, snap Snapshot) {
+	layout, ok := rooms.HeroPanel(snap.Room.Width, snap.Room.Height)
+	if !ok {
+		return
+	}
+	f := layout.Footer
+	dev.SetBlend(gfx.BlendAlpha)
+	dev.FillRect(gfx.Rect{X: float32(snap.Room.OffsetX + f.X), Y: float32(snap.Room.OffsetY + f.Y),
+		W: float32(f.W), H: float32(f.H)}, gfx.Color{R: 8, G: 8, B: 12, A: 180})
+	dev.SetBlend(gfx.BlendNone)
+}
+
+func TestCoreScreens(t *testing.T) {
+	out, packDir := os.Getenv("FES_CORE_SCREENS"), os.Getenv("FES_CORE_SCREENS_PACK")
+	if out == "" || packDir == "" {
+		t.Skip("docs/ux/references/core-screens capture harness")
+	}
+	if err := os.MkdirAll(out, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pack := rooms.LoadPackFS(os.DirFS(packDir), packDir)
+	if !pack.Valid() {
+		t.Fatal(pack.Err)
+	}
+	index := rooms.NewIndex([]rooms.Pack{pack})
+	for _, size := range [][2]int{{1280, 720}, {1024, 600}} {
+		for _, sc := range coreScenes() {
+			app := NewApp(nil, size[0], size[1], 100)
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			app.ctx, app.roomsIndex, app.attractDisabled = ctx, index, true
+			rw, rh := app.roomContentSizeLocked(pack.ID)
+			inst, err := rooms.New(pack, rooms.Options{Width: rw, Height: rh, Index: index,
+				Budget: hardwareRenderTestBudget(), InitialGameID: sc.Room, ReducedMotion: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			app.room = inst
+			if err := inst.Load(); err != nil {
+				t.Fatal(err)
+			}
+			for i := 0; i < 10; i++ {
+				app.Tick(time.Now())
+				time.Sleep(2 * time.Millisecond)
+			}
+			if err := inst.Err(); err != nil {
+				t.Fatalf("%s: %v", sc.Name, err)
+			}
+			snap := app.Snapshot()
+			if sc.Overlay != nil {
+				sc.Overlay(&snap)
+			}
+			dev, err := gfx.NewSoftware(size[0], size[1])
+			if err != nil {
+				t.Fatal(err)
+			}
+			labels := map[string]gpuTexture{}
+			presentFrame(dev, snap, map[string]gpuTexture{}, labels, false)
+			if sc.Hint == "" {
+				sc.Hint = snap.Settings.Hint
+			}
+			if sc.Overlay == nil || sc.FooterOverride {
+				sceneFooter(dev, snap, labels, sc)
+				if sc.FooterOverride {
+					dimFooter(dev, snap)
+				}
+			}
+			path := filepath.Join(out, fmt.Sprintf("%s-%dx%d.png", sc.Name, size[0], size[1]))
+			file, err := os.Create(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = png.Encode(file, dev.Snapshot())
+			if closeErr := file.Close(); err == nil {
+				err = closeErr
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			dev.Close()
+			inst.Close()
+			t.Logf("%s room %dx%d at %d,%d", path, snap.Room.Width, snap.Room.Height, snap.Room.OffsetX, snap.Room.OffsetY)
+		}
+	}
+}

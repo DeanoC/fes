@@ -317,6 +317,8 @@ def fpga_cores(path):
         return (), 'standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer'
     if relative.as_posix() == 'cores/fes-pong/rtl/pixel_pll.v':
         return ('pong', 'ramtest', 'riscv'), 'shared fixed-raster clock consumers'
+    if relative.as_posix() == 'cores/fes-ramtest/rtl/sdram_cas3_capture.v':
+        return ('ramtest', 'pcxt'), 'shared CAS-3 retained-word consumers'
     if relative.as_posix() == 'cores/fes-ramtest/rtl/sdram_addon_port.v':
         return ('ramtest', 'atari-st', 'pcxt'), 'shared SDRAM controller consumers'
     if relative.as_posix() == 'cores/fes-zx81/expansions/zonx_ay.v':
@@ -335,6 +337,17 @@ def fpga_cores(path):
                                 'tests/test_sim_fes_ramtest_hook.py'):
         return ('ramtest',), 'shared HPS DDR guard simulation'
     if len(parts) >= 3 and parts[0] == 'cores':
+        # The DE25 x87 arithmetic backend is i386 RTL -- fes_i386_x87
+        # instantiates fes_x87_core when X87_BACKEND selects it -- but the
+        # standalone fes_x87_pipe built from the same files is still checked
+        # by the de25-x87 family, so a change to them must run both.
+        if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
+                'rtl/i386/fes_x87_pkg.sv', 'rtl/i386/fes_x87_fast.sv',
+                'rtl/i386/fes_x87_slow.sv', 'rtl/i386/fes_x87_core.sv',
+                'rtl/i386/fes_x87_round.sv', 'rtl/i386/fes_x87_pipe.sv',
+                'rtl/i386/fes_x87_trans_pkg.sv', 'rtl/i386/fes_x87_trans_rom.sv',
+                'rtl/i386/fes_x87_trans.sv'):
+            return ('pc386', 'de25-x87'), 'the x87 arithmetic backend, shared by the i386 CPU and the standalone DE25 pipeline'
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
                 'sim/gp_tb.cpp', 'sim/audio_tb.cpp', 'generated/exchanges.json',
                 'generated/controller-exchanges.json'):

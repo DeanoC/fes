@@ -231,14 +231,17 @@ local function button(id,label,x,y,w,h,enabled,fn,accent)
   hit(id,x,y,w,h)
   controls[#controls+1] = {id=id,x=x+w/2,y=y+h/2,fn=fn,enabled=enabled}
 end
-local function scene_same()
+local function scene_same_except_art()
   if room.width ~= held_w or room.height ~= held_h or focus ~= held_focus or page ~= held_page then return false end
   if loading ~= held_loading or saving ~= held_saving or stale ~= held_stale then return false end
   if message ~= held_message or read_error ~= held_read_error or inspected ~= held_inspected or chosen ~= held_chosen then return false end
-  local ready = art and art.ready and true or false
-  if ready ~= held_art or data ~= held_data or machine ~= held_machine then return false end
+  if data ~= held_data or machine ~= held_machine then return false end
   if (room.overlay and true or false) ~= held_overlay then return false end
   return true
+end
+local function scene_same()
+  local ready = art and art.ready and true or false
+  return ready == held_art and scene_same_except_art()
 end
 local function remember_scene()
   held_w, held_h = room.width, room.height
@@ -403,6 +406,7 @@ end
 -- Focus, size, status or selection can change between those halves. The
 -- upper half is painted again before the lower half is appended.
 local boot = 0
+local staged_controls, staged_art
 local warm_px, warm_at, desc_warm
 local pool_rows = 160
 -- Keep prewarmed wrapping keyed to the actual rendered description size.
@@ -452,13 +456,13 @@ local function paint_opening()
   gfx.paint(cmds)
 end
 local function picture(part)
-  if part ~= "lower" then
+  if part ~= "lower" and part ~= "append" then
     controls = {}
     recycle()
     sink = nil
     appearance()
     clear_row(C.paper)
-  else
+  elseif part == "lower" then
     -- The upper half is already presented. Recycle its rows, then append.
     recycle()
     sink = {}
@@ -466,7 +470,7 @@ local function picture(part)
   local c=choice()
   local saved_id=machine and machine.draft_expansion_id or ""
   local previewing=machine and inspected ~= "" and inspected ~= saved_id
-  if part ~= "lower" then
+  if part ~= "lower" and part ~= "append" then
 
   -- Header: FES identity, this room, and the routes out.
   rect(24,18,18,5,C.accent) rect(24,26,18,5,C.accent) rect(24,34,10,5,C.accent)
@@ -688,6 +692,41 @@ function draw()
   -- After the first picture, rebuild only when its inputs change.
   scale=math.min(room.width/1120,room.height/630)
   ox=(room.width-1120*scale)/2 oy=(room.height-630*scale)/2
+  -- An image can finish decoding after the picture is on screen. Build its
+  -- replacement in two draws while keeping the complete old picture and its
+  -- controls live. This bounds cold-open work without showing half a UI.
+  local art_ready = art and art.ready and true or false
+  if boot == 4 and art_ready ~= held_art and room.presented and scene_same_except_art() then
+    local previous_controls = controls
+    picture("upper")
+    staged_controls = controls
+    controls = previous_controls
+    staged_art = art_ready
+    boot = 5
+    gfx.reuse()
+    return
+  end
+  if boot == 5 then
+    if not room.presented or not same_appearance() then
+      staged_controls, staged_art = nil, nil
+      boot = 0
+      paint_opening()
+      return
+    end
+    if not scene_same_except_art() or art_ready ~= staged_art then
+      staged_controls, staged_art = nil, nil
+      boot = 4
+      gfx.reuse()
+      return
+    end
+    controls = staged_controls
+    staged_controls, staged_art = nil, nil
+    picture("append")
+    gfx.paint(cmds)
+    boot = 4
+    remember_scene()
+    return
+  end
   if boot == 4 and scene_same() and room.presented and gfx.reuse() then return end
   if boot < 4 then
     boot_step()

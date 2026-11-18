@@ -1,0 +1,61 @@
+{
+  "branch": {
+    "build_id": "85c40d0fb4a6f1071b60fd40ed59ef8e",
+    "rbf_bytes": 1963321,
+    "rbf_sha256": "64f1f16daedba4ed19179bd5d7c6f3eb3058a688d15441c8c8d89e113060f182",
+    "status": "pass",
+    "timing": {
+      "pixel": {
+        "achieved_mhz": 236.5743865966797,
+        "clock": "pixel_clk",
+        "constraint_mhz": 74.25006866455078,
+        "requested_mhz": 74.25,
+        "status": "pass"
+      },
+      "reference": {
+        "clock": "FPGA_CLK1_50",
+        "constraint_mhz": 50.0,
+        "evidence": "boards/de10nano/clocks.sdc and routed PLL",
+        "requested_mhz": 50.0,
+        "status": "pass"
+      },
+      "status": "pass"
+    },
+    "tools": {
+      "mistral": "commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=61b24370324c9cd93ef431ac211b76aeeca719c0504f86adcca88522cf83b03c",
+      "nextpnr-mistral": "commit=9128800fa6e77c4138088a7107a95376ba47ff15; sha256=ed91eb3e30aa3ca117522a935559a45b4d32f71669c998f1a04539f3718618f2; gpu-router=OFF; hip-architectures=unused",
+      "yosys": "commit=3a5accbd78c526ab7bae32640044a2e062a3cfc9; sha256=d1d8c98fac8b1155f50ef029791a6c4312d108d4fc82850275aab73d05d1a035"
+    }
+  },
+  "build_ids_differ": true,
+  "main": {
+    "build_id": "b19d12426e4c1323c859199c1798fe07",
+    "rbf_bytes": 1963321,
+    "rbf_sha256": "64f1f16daedba4ed19179bd5d7c6f3eb3058a688d15441c8c8d89e113060f182",
+    "status": "pass",
+    "timing": {
+      "pixel": {
+        "achieved_mhz": 236.5743865966797,
+        "clock": "pixel_clk",
+        "constraint_mhz": 74.25006866455078,
+        "requested_mhz": 74.25,
+        "status": "pass"
+      },
+      "reference": {
+        "clock": "FPGA_CLK1_50",
+        "constraint_mhz": 50.0,
+        "evidence": "boards/de10nano/clocks.sdc and routed PLL",
+        "requested_mhz": 50.0,
+        "status": "pass"
+      },
+      "status": "pass"
+    },
+    "tools": {
+      "mistral": "commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=61b24370324c9cd93ef431ac211b76aeeca719c0504f86adcca88522cf83b03c",
+      "nextpnr-mistral": "commit=9128800fa6e77c4138088a7107a95376ba47ff15; sha256=ed91eb3e30aa3ca117522a935559a45b4d32f71669c998f1a04539f3718618f2; gpu-router=OFF; hip-architectures=unused",
+      "yosys": "commit=3a5accbd78c526ab7bae32640044a2e062a3cfc9; sha256=d1d8c98fac8b1155f50ef029791a6c4312d108d4fc82850275aab73d05d1a035"
+    }
+  },
+  "note": "splash's Yosys program sets no BUILD_ID, so the RBF does not depend on it: the two sides reproduce the same RBF even though their format-1 records, which hash the revision, give different BUILD_IDs. D12 condition 2 asks for reproduction under main's BUILD_ID; this is that result without needing to force the constant.",
+  "rbf_identical": true
+}

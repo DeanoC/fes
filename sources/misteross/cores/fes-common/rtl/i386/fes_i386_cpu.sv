@@ -122,6 +122,12 @@
 module fes_i386_cpu #(
     parameter logic [31:0] RAM_BASE = 32'h3400_0000, // the HPS address of guest physical 0
     parameter integer GOV_N = 1, GOV_D = 1000,        // 100 kHz as a fraction of clk (fes_i386_governor)
+    // Which arithmetic the x87 unit's rounding is fed from: 0 the unit's
+    // own sequenced datapath (the DE10's, and the verified reference),
+    // 1 the DE25's pipelined fes_x87_core. The envelope -- the stack,
+    // the words, the conversions, the commit and the AT error path --
+    // is the same code either way (fes_i386_x87).
+    parameter int X87_BACKEND = 0,
     parameter bit GOV_REFERENCE_DIAGNOSTIC = 1'b0    // simulation-only experimental 286 timing model
 ) (
     input  logic             clk,
@@ -676,7 +682,7 @@ module fes_i386_cpu #(
     logic [31:0] q_lea_disp;
     logic        q_b_sys;
     logic [3:0]  q_slot;
-    fes_i386_decode decode (
+    fes_i386_decode #(.X87_BACKEND(X87_BACKEND)) decode (
         .q, .code32, .stack(dc_stack), .wait_nm(cr0_mp && cr0_ts), .esc_nm(cr0_em || cr0_ts), .x87(x87_present),
         .x87_insn(dc_q.x87), .x87_wait(dc_q.x87_wait), .x87_fmt(dc_q.x87_fmt), .x87_op(dc_q.x87_op), .x87_part(dc_q.x87_part), .pe(cr0_pe), .vm(eflags[17]), .cpl, .iopl(eflags[13:12]), .nt(eflags[14]), .dr_gd(dr7[13]), .uop(q_uop), .opsize32(q_opsize32), .lea(q_lea), .lea_early(dc_q.lea_early),
         .lea_disp(q_lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
@@ -878,7 +884,7 @@ module fes_i386_cpu #(
                                                               : {12'd0, wb_s.result[15:12]};
     assign x87_ld_opcode = !cr0_pe ? wb_s.result[10:0]
                          : wb_s.uop.size == fes_i386_pkg::SIZE_32 ? wb_s.result[26:16] : 11'd0;
-    fes_i386_x87 x87 (
+    fes_i386_x87 #(.X87_BACKEND(X87_BACKEND)) x87 (
         .clk, .reset, .present(x87_present), .f0(x87_f0), .f1(x87_f1),
         .error(x87_irq13), .latched(trace_x87_latched),
         .iss(x87_iss), .iss_wait(dc.x87_wait), .iss_op(dc.x87_op), .iss_fmt(dc.x87_fmt),
@@ -3196,10 +3202,55 @@ module fes_i386_cpu #(
         !wb_s.gov.ref_stack32 && wb_s.gov.ref_enter_valid &&
         fes_i386_pkg::attr(wb_mp, attr_upper, ram_top) == fes_i386_pkg::ATTR_RAM &&
         13'(wb_s.maddr[11:0]) + 13'(wb_s.uop.mem.bytes) <= 13'd4096;
+
+    // The reference experiment only models ordinary 286 IMUL operands. Keep
+    // issue and retirement segment identities together through the pipeline:
+    // a real-mode selector can still carry an unreal-mode descriptor cache.
+    logic gov_imul_safe;
+    generate if (GOV_REFERENCE_DIAGNOSTIC) begin : gen_imul_guard
+        logic [32:0] ag_guard, m1_guard, m2_guard, ex_guard, wb_guard;
+        logic [2:0] wb_seg;
+        assign wb_seg = 3'(wb_s.uop.mem.seg);
+        function automatic logic canonical_data(input logic [2:0] n);
+            canonical_data = seg_base[n] == {12'd0, seg_sel[n], 4'd0} &&
+                seg_limit[n] == 32'h0000ffff && seg_ar[n] == 16'h0093 &&
+                seg_lim[n][1] == 32'h0000fffe && seg_low[n] == 32'h0000ffff &&
+                !seg_tiny[n][1] && !seg_expd[n] && !seg_rbad[n] && !seg_wbad[n];
+        endfunction
+        function automatic logic canonical_cs();
+            canonical_cs = seg_base[SEG_CS] == {12'd0, seg_sel[SEG_CS], 4'd0} &&
+                seg_limit[SEG_CS] == 32'h0000ffff && seg_ar[SEG_CS] == 16'h0093 &&
+                cs_fl == fetch_lim(32'h0000ffff);
+        endfunction
+        always_ff @(posedge clk) begin
+            if (reset || wb_flush) begin
+                ag_guard <= '0;
+                m1_guard <= '0;
+                m2_guard <= '0;
+                ex_guard <= '0;
+                wb_guard <= '0;
+            end else if (!freeze) begin
+                ag_guard <= {!cr0_pe && !cr0_pg && canonical_cs() &&
+                             (dc.gov.rm_reg || canonical_data(mseg)), seg_sel[SEG_CS], seg_sel[mseg]};
+                m1_guard <= ag_guard;
+                m2_guard <= m1_guard;
+                ex_guard <= m2_guard;
+                wb_guard <= ex_guard;
+            end
+        end
+        assign gov_imul_safe = wb_guard[32] && !cr0_pe && !cr0_pg && canonical_cs() &&
+            seg_sel[SEG_CS] == wb_guard[31:16] &&
+            (wb_s.gov.rm_reg || (canonical_data(wb_seg) && seg_sel[wb_seg] == wb_guard[15:0] &&
+             wb_s.uop.mem.kind == fes_i386_pkg::MEM_LOAD && wb_s.uop.mem.bytes == 4'd2 &&
+             !wb_s.uop.st2 && !wb_s.maddr[0] && !wb_cross));
+    end else begin : gen_no_imul_guard
+        assign gov_imul_safe = 1'b0;
+    end endgenerate
+
     fes_i386_governor #(.GOV_N(GOV_N), .GOV_D(GOV_D), .REFERENCE_DIAGNOSTIC(GOV_REFERENCE_DIAGNOSTIC)) governor (
         .clk, .reset, .preset(gov_preset), .frequency(gov_frequency), .turbo(gov_turbo),
         .boundary(at_boundary), .eoi(wb_eoi), .element(wb_s.uop.str_cx), .taken(wb_s.taken && !wb_s.uop.seg2),
-        .gov(wb_s.gov), .ilen(wb_s.ilen), .redirect(wb_s.taken && wb_s.uop.rep_stop == 2'd0),
+        .gov(wb_s.gov), .imul_safe(gov_imul_safe), .ilen(wb_s.ilen), .redirect(wb_s.taken && wb_s.uop.rep_stop == 2'd0),
         .abandon(exc_take || int_go || tsw_go),
         // exc_active excludes a fault during delivery; it does not track
         // whether execution is inside an earlier handler.

@@ -1,0 +1,59 @@
+{
+  "a": {
+    "dir": "/data/fes1861-netlist/cond1-p1",
+    "side": "idbase"
+  },
+  "b": {
+    "dir": "/data/fes1861-netlist/cond1b-p1",
+    "side": "nb2"
+  },
+  "moved": [],
+  "not_measured": [],
+  "rows": {
+    "pentagon": {
+      "both_trees_clean": true,
+      "idbase_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "idbase_sha256": "b7e23071f5bb22020bd14c58b03b1e6a2b65b9254b7cf10ce52a3ce81b7bf334",
+      "nb2_revision": "e2b8130b5a18b652095a8d5e23124fd0a994e9c0",
+      "nb2_sha256": "b7e23071f5bb22020bd14c58b03b1e6a2b65b9254b7cf10ce52a3ce81b7bf334",
+      "pinned_inputs_moved": true,
+      "verdict": "identical"
+    },
+    "ramtest": {
+      "both_trees_clean": true,
+      "idbase_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "idbase_sha256": "e797221d1711b4cdf6ea37d90919f158255152e147d407542275c908df0521d3",
+      "nb2_revision": "e2b8130b5a18b652095a8d5e23124fd0a994e9c0",
+      "nb2_sha256": "e797221d1711b4cdf6ea37d90919f158255152e147d407542275c908df0521d3",
+      "pinned_inputs_moved": true,
+      "verdict": "identical"
+    },
+    "spectrum": {
+      "both_trees_clean": true,
+      "idbase_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "idbase_sha256": "3f2dfb764a86b215ad4878203392ebd5823c2218e00e10f8f321eddaa85eccc7",
+      "nb2_revision": "e2b8130b5a18b652095a8d5e23124fd0a994e9c0",
+      "nb2_sha256": "3f2dfb764a86b215ad4878203392ebd5823c2218e00e10f8f321eddaa85eccc7",
+      "pinned_inputs_moved": true,
+      "verdict": "identical"
+    },
+    "spectrum-plus3": {
+      "both_trees_clean": true,
+      "idbase_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "idbase_sha256": "2646f83230b81acf14bf7ca62bafd1f77aa30602874e05d713ec4c5f4afa4fce",
+      "nb2_revision": "e2b8130b5a18b652095a8d5e23124fd0a994e9c0",
+      "nb2_sha256": "2646f83230b81acf14bf7ca62bafd1f77aa30602874e05d713ec4c5f4afa4fce",
+      "pinned_inputs_moved": true,
+      "verdict": "identical"
+    },
+    "spectrum128": {
+      "both_trees_clean": true,
+      "idbase_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "idbase_sha256": "cd62753ae45dbfe930671831ed66ebec568ae4e0b1738fc3ee68ac5b2dda1957",
+      "nb2_revision": "e2b8130b5a18b652095a8d5e23124fd0a994e9c0",
+      "nb2_sha256": "cd62753ae45dbfe930671831ed66ebec568ae4e0b1738fc3ee68ac5b2dda1957",
+      "pinned_inputs_moved": true,
+      "verdict": "identical"
+    }
+  }
+}
