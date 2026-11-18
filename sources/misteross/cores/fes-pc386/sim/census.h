@@ -135,6 +135,14 @@ public:
 
     std::map<std::string, uint64_t> counts;
     std::map<std::string, std::string> first;
+    // The oracle is the level-4 one (a 486): count what a 386 cannot do, by
+    // the instruction that did it. Off, the census is the 386's, unchanged.
+    //   ac:<stem>, id:<stem>          EFLAGS.AC or ID changed
+    //   cr0.486:<bits>:<stem>         CR0's NE, WP, AM, NW or CD changed
+    //   exc:<vector>:<stem>           exception 6, 16 or 17 raised: the
+    //                                 stem did not retire, so no other key
+    //                                 names an instruction the CPU rejected
+    bool i486 = false;
     // The plan's TLBs (i386-cpu-design.md, "Paging"): a 16-entry DTLB and an
     // 8-entry ITLB, flushed on every CR3 write, a task switch's included.
     Tlb dtlb{16}, itlb{8};
@@ -167,6 +175,15 @@ public:
     void end(const fes_i386::State &before, const fes_i386::State &after, const fes_i386::StepResult &result) {
         using fes_i386::EventKind;
         if (result.retired) ++counts[stem_];
+        if (i486) {
+            const uint32_t flags = after.eflags ^ before.eflags, control = (after.cr0 ^ before.cr0) & 0x60050020u;
+            if (flags & 0x40000) ++counts["ac:" + stem_];
+            if (flags & 0x200000) ++counts["id:" + stem_];
+            if (control) ++counts["cr0.486:" + hex(control, 8) + ':' + stem_];
+            for (const fes_i386::Event &event : result.events)
+                if (event.kind == EventKind::Exception && (event.vector == 6 || event.vector == 16 || event.vector == 17))
+                    ++counts["exc:" + std::to_string(event.vector) + ':' + stem_];
+        }
         // A step whose first event is an INTR or NMI ran no instruction: it
         // only delivered that event.
         const bool delivery = !result.events.empty() && (result.events[0].kind == EventKind::ExternalInterrupt ||

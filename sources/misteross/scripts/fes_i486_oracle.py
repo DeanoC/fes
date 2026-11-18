@@ -2,10 +2,16 @@
 
 A second configuration beside scripts/fes_i386_oracle.py, which stays the
 level-3 oracle and a sealed input of pc386: this module changes nothing that
-one reads or writes. It shares that module's pinned Bochs checkout, compiler
-and adapter sources, and keeps its own configured tree (bochs-level4-*) and
-its own output directory (bin-level4), which the level-3 provisioner's stale
-file sweeps do not match.
+one reads or writes. It shares that module's pinned Bochs checkout and
+compiler, and keeps its own configured tree (bochs-level4-*) and its own
+output directory (bin-level4), which the level-3 provisioner's stale file
+sweeps do not match.
+
+The level-3 adapter (bochs_oracle.cpp) and lockstep testbench
+(lockstep_tb.cpp) are sealed inputs of pc386 too, so neither is edited for
+level 4. Each level-4 source is a copy of the level-3 file with a patch from
+cores/fes-common/sim/i386/i486/ applied, with no fuzz: a change to the
+level-3 file that the patch no longer fits fails the level-4 build.
 
 Level 4 differs from level 3 in the build by: the configure flag; Bochs's
 CPU-model library (cpu/cpudb/libcpudb.a), which BX_CPU_C::initialize() calls
@@ -40,6 +46,8 @@ _compiler = level3._compiler
 PROVISIONER_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 LINKED_NAMES = ('adapter', 'paramtree', 'cpu', 'fpu', 'softfloat', 'cpudb')
 TREE_PREFIX = 'bochs-level4-'
+ADAPTER_PATCH = SIM / 'i486/bochs_oracle.patch'
+TESTBENCH_PATCH = SIM / 'i486/lockstep_tb.patch'
 
 if BOCHS_CONFIGURE == level3.BOCHS_CONFIGURE:
     raise ImportError('the level-3 configure line no longer names its CPU level')
@@ -54,6 +62,26 @@ def require_provisioner_unchanged() -> None:
 
 def _provisioners() -> str:
     return level3._inputs_key(PROVISIONER_SHA256, level3.PROVISIONER_SHA256)
+
+
+def apply_patch(patch: Path, directory: Path, log: Path) -> None:
+    """Apply a level-4 patch to the level-3 source copied into directory, with no fuzz."""
+    copy = directory / (patch.name + '.applied')
+    copy.write_bytes(patch.read_bytes())
+    level3._run(['patch', '-p1', '--batch', '--forward', '--fuzz=0', '--no-backup-if-mismatch', '-i', str(copy)],
+                directory, log)
+    copy.unlink()
+
+
+def lockstep_testbench(directory: Path) -> Path:
+    """The level-4 lockstep testbench in directory: lockstep_tb.cpp with its patch applied."""
+    directory.mkdir(parents=True, exist_ok=True)
+    target = directory / 'lockstep_tb.cpp'
+    target.write_bytes((SIM / 'lockstep_tb.cpp').read_bytes())
+    log = directory / 'lockstep_tb.patch.log'
+    log.write_text('')
+    apply_patch(TESTBENCH_PATCH, directory, log)
+    return target
 
 
 def build_bochs(source: Path, jobs: int) -> Path:
@@ -91,7 +119,7 @@ def build_bochs(source: Path, jobs: int) -> Path:
 
 
 def _adapter_key(tree: Path, inputs: list[bytes]) -> str:
-    return level3._inputs_key(tree.name, CXXFLAGS, _compiler(), _provisioners(), *inputs)
+    return level3._inputs_key(tree.name, CXXFLAGS, _compiler(), _provisioners(), ADAPTER_PATCH.read_bytes(), *inputs)
 
 
 def link_inputs(jobs: int = 4, download: bool = False) -> list[Path]:
@@ -111,6 +139,7 @@ def link_inputs(jobs: int = 4, download: bool = False) -> list[Path]:
                 path = snapshot / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(data)
+            apply_patch(ADAPTER_PATCH, snapshot, log)
             level3._run([_compiler(), *CXXFLAGS, f'-I{bochs}', f'-I{bochs}/instrument/fes', f'-I{snapshot}',
                          '-c', str(snapshot / 'bochs_oracle.cpp'), '-o', str(temporary)], OUTPUT, log)
         log.unlink()
@@ -123,7 +152,7 @@ def link_inputs(jobs: int = 4, download: bool = False) -> list[Path]:
 
 
 def build_record(linked: list[Path]) -> dict:
-    """Identify the level, source pin, both provisioners, adapter inputs and linked objects."""
+    """Identify the level, source pin, both provisioners, the level-3 adapter sources, their patch and linked objects."""
     require_provisioner_unchanged()
     tree = linked[1].parent
     inputs = [(SIM / item).read_bytes() for item in ORACLE_SOURCES]
@@ -133,6 +162,7 @@ def build_record(linked: list[Path]) -> dict:
     return {'cpu_level': LEVEL, 'revision': BOCHS_REVISION, 'provisioner_sha256': PROVISIONER_SHA256,
             'level3_provisioner_sha256': level3.PROVISIONER_SHA256,
             'adapter_sha256': level3.named_sources_sha256(ORACLE_SOURCES, inputs),
+            'adapter_patch_sha256': hashlib.sha256(ADAPTER_PATCH.read_bytes()).hexdigest(),
             'linked_sha256': {name: hashlib.sha256(path.read_bytes()).hexdigest()
                               for name, path in zip(LINKED_NAMES, linked, strict=True)}}
 

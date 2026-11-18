@@ -98,13 +98,14 @@ def self_check(testbench: Path, cases: list[fes_i486_cases.Case]) -> dict:
 
 
 def verilate(verilator: i386_verilator.LockedVerilator, linked: list[Path], jobs: int) -> Path:
-    """lockstep_tb with the RTL and the level-4 oracle, in its own directory."""
+    """The level-4 lockstep_tb (the level-3 one with its patch) with the RTL and the level-4 oracle."""
     output = OUTPUT / 'rtl'
     output.mkdir(parents=True, exist_ok=True)
     command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', level3.TOP,
                '-Wall', '-Wno-UNUSEDSIGNAL', '--Mdir', str(output),
                '-CFLAGS', f'-std=c++17 -O2 -I{SIM} -I{level3.DDR_MODEL}', '-LDFLAGS', '-pthread',
-               *(str(level3.RTL / path) for path in level3.CPU_RTL), str(SIM / 'lockstep_tb.cpp'), *map(str, linked)]
+               *(str(level3.RTL / path) for path in level3.CPU_RTL), str(oracle.lockstep_testbench(OUTPUT / 'source')),
+               *map(str, linked)]
     log = output / 'build.log'
     with log.open('w') as stream:
         result = subprocess.run(command, cwd=ROOT, env=verilator.environment(), stdout=stream, stderr=subprocess.STDOUT)
@@ -195,6 +196,7 @@ def main() -> int:
     try:
         linked = oracle.link_inputs(args.jobs, args.download)
         report['oracle'] = oracle.build_record(linked)
+        report['testbench_patch_sha256'] = hashlib.sha256(oracle.TESTBENCH_PATCH.read_bytes()).hexdigest()
         report['cases_sha256'] = hashlib.sha256(''.join(case.line() + '\n' for case in cases).encode()).hexdigest()
         checked = self_check(oracle.build_testbench('i486', SIM / 'i486_tb.cpp', args.jobs, args.download), cases)
         report['self_check'] = checked
