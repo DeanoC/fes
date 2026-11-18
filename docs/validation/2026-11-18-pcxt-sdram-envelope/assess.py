@@ -48,15 +48,16 @@ def assess(fit):
         for kind in ("setup", "hold"):
             selected = [r for r in group if r["kind"] == kind]
             if name == "read":
-                # Preserve #1954's selected-word relationship and raw failures.
-                delta = (10 - (envelope["tAC_max"] - 6) if kind == "setup"
-                         else -10 + envelope["tOH_min"] - 2.5)
+                # The inherited word binding is invalid. Retain raw STA only;
+                # no cycle adjustment can establish a selected-word margin.
+                delta = None
             else:
                 delta = (-(envelope["tIS_min"] - 1.5) if kind == "setup"
                          else -(envelope["tIH_min"] - 0.8))
             worst = min(selected, key=lambda r: float(r["slack_ns"]))
             margins[name][kind] = {
-                "reference_margin_ns": round(float(worst["slack_ns"]) + delta, 3),
+                "reference_margin_ns": (None if delta is None else
+                                        round(float(worst["slack_ns"]) + delta, 3)),
                 "raw_margin_ns": float(worst["slack_ns"]),
                 "corner": worst["corner"], "port": worst["port"],
                 "rows": len(selected),
@@ -64,6 +65,7 @@ def assess(fit):
     return {
         "classification": "conditional arithmetic on retained diagnostic; no new STA or fit",
         "selected_word_binding": "INVALID: inherited READ+CAS launch assumption; actual first launch is READ+(CAS-1). Reference numbers are withdrawn as margins for the selected physical word.",
+        "read_setup_allowance_ns": None,
         "envelope_ns": envelope,
         "reference_margins": margins,
         "nominal_cl2_cycle_headroom_ns": round(10 - envelope["tCK_CL2_min"], 3),

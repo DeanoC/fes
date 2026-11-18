@@ -12,8 +12,9 @@ fresh source-bound proof/fit; relabelling the old calculation cannot accept it.
 
 **Physical qualification is BLOCKED.** The common pin envelope below extends
 the Etron-only reference across multiple chip makers. The retained diagnostic
-still leaves only 0.340 ns for additional read setup costs and zero nominal
-CL2 cycle-time headroom at 100 MHz. Board electrical/clock bounds are absent.
+has no valid selected-word read margin or remaining read setup allowance;
+both are unknown. It also has zero nominal CL2 cycle-time headroom at 100 MHz.
+Board electrical/clock bounds are absent.
 The conditional production build, seal and exact-artifact HIL therefore do
 not start. No constraint is relaxed and the new path remains default-off.
 
@@ -66,13 +67,14 @@ alone cannot qualify a smaller memory's address map or refresh organization.
 
 [assess.py](assess.py) checks the diagnostic payload and all 568 raw channel
 rows against the hashes in #1954's retained result, then recalculates the
-cross-vendor limits. It uses the same proved selected-word relationship:
-algebraic +10 ns setup / -10 ns hold, preserving the raw periodic failures.
-It adds no TimeQuest exception and runs no new STA or fit.
+cross-vendor limits. The inherited selected-word relationship is invalid:
+the read reference margins and setup allowance are emitted as JSON null,
+while the raw periodic STA rows remain available for audit. It adds no
+TimeQuest exception and runs no new STA or fit.
 
 | Conditional minimum across four FPGA corners | Setup | Hold |
 | --- | ---: | ---: |
-| Selected first read word | +0.340 ns | +0.912 ns |
+| Selected first read word | Unknown (invalid word binding) | Unknown (invalid word binding) |
 | Direct command/address | +3.578 ns | +0.669 ns |
 | Conditional second-CS inverter | +0.131 ns | +1.676 ns |
 
@@ -83,15 +85,13 @@ increases to 6 ns, but no electrical OE/turnaround margin has been established.
 The existing trace is a logical selected-word contract, not a physical chip
 or board model. See [result.json](result.json) for worst ports/corners and hashes.
 
-At the retained FPGA clock/data paths and electrical assumptions, a sufficient
-read setup requirement is `Fc_max + Fr_max + additional adverse timing <=
-0.340 ns`, where Fc is FPGA clock-pad to memory clock flight and Fr is memory
-DQ to FPGA data-pad flight, including motherboard, connector and module. Clock
-and returning-data flight add; they do not cancel as output skew can. The
-additional term includes any adverse change in access, loading/slew or clock
-uncertainty relative to the reference. It is not a measured flight allowance.
-Electrical model changes can alter fitted clock/data paths and require fresh
-STA rather than this arithmetic alone.
+No sufficient read setup inequality can be derived from this retained fit:
+its selected-word binding is invalid. A corrected controller/capture path,
+source-bound proof and fresh fit must establish a valid read window before
+any board flight or additional adverse timing can be budgeted against it.
+Clock and returning-data flight add; they do not cancel as output skew can.
+Electrical model changes can also alter fitted clock/data paths and require
+fresh STA rather than arithmetic on this report.
 
 For outputs, the reference delay formulas remain
 `output_max = tIS + Fw_max - Fc_min` and
