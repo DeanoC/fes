@@ -220,10 +220,10 @@ func libraryActionRects(snap Snapshot) (primary, secondary rectI) {
 		return primary, secondary
 	}
 	_, hasSecondary := browseActionLabels(snap.DetailPlay)
-	pw := heroButtonWidth(selectWord(snap.Affinity), snap.BrowseActions.Primary)
+	pw := heroButtonWidth(snap, selectWord(snap.Affinity), snap.BrowseActions.Primary)
 	sw := 0
 	if hasSecondary {
-		sw = heroButtonWidth(libraryActionPrompt(snap, 1), "Details") + heroButtonGap
+		sw = heroButtonWidth(snap, libraryActionPrompt(snap, 1), "Details") + heroButtonGap
 	}
 	x := geom.Pane.X + geom.Pane.W - 24 - pw - sw
 	y := geom.Pane.Y + (geom.Pane.H-heroButtonH)/2
@@ -251,7 +251,7 @@ func drawLibraryActions(dev gfx.Device, snap Snapshot, labels map[string]gpuText
 		if index == 1 {
 			label = "Details"
 		}
-		heroButton(dev, labels, used, r.X, r.Y, r.H, libraryActionPrompt(snap, index), label, index == 0 && label == "Play")
+		heroButton(snap, dev, labels, used, r.X, r.Y, r.H, libraryActionPrompt(snap, index), label, index == 0 && label == "Play")
 		if snap.BrowseActions.Focused && snap.BrowseActions.Index == index {
 			heroOutline(dev, r.X-4, r.Y-4, r.W+8, r.H+8, 3, heroAccent)
 		}

@@ -1,0 +1,162 @@
+{
+  "base-s1": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 30,
+        "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "1c2b22adc0ff25415b09586bd732f08eceeb33ebe8faac894455187ea47aaef4",
+        "ram_attribute": "renamed 57 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 57,
+        "source": "/data/projects/x87trans1958/netlist-b.v",
+        "source_sha256": "817a3ca0a2682394903da16ec83b1a966fc5121e918de91b934739de759e2eaf"
+      },
+      "reused": "/data/projects/x87trans1958/netlist-b.v",
+      "source_revision": "e2b8130b5a18b652095a8d5e23124fd0a994e9c0",
+      "source_revision_note": "plus the two scratch edits (x87_present high, X87_BACKEND 1) to pc386_system.sv; elaborated on powerboat by the locked Yosys"
+    },
+    "period_ns": 16.276041666666668,
+    "quartus": "26.3.0",
+    "seed": 1
+  },
+  "base-s2": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 30,
+        "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "1c2b22adc0ff25415b09586bd732f08eceeb33ebe8faac894455187ea47aaef4",
+        "ram_attribute": "renamed 57 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 57,
+        "source": "/data/projects/x87trans1958/netlist-b.v",
+        "source_sha256": "817a3ca0a2682394903da16ec83b1a966fc5121e918de91b934739de759e2eaf"
+      },
+      "reused": "/data/projects/x87trans1958/netlist-b.v",
+      "source_revision": "e2b8130b5a18b652095a8d5e23124fd0a994e9c0",
+      "source_revision_note": "plus the two scratch edits (x87_present high, X87_BACKEND 1) to pc386_system.sv; elaborated on powerboat by the locked Yosys"
+    },
+    "period_ns": 16.276041666666668,
+    "quartus": "26.3.0",
+    "seed": 2
+  },
+  "base-s3": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 30,
+        "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "1c2b22adc0ff25415b09586bd732f08eceeb33ebe8faac894455187ea47aaef4",
+        "ram_attribute": "renamed 57 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 57,
+        "source": "/data/projects/x87trans1958/netlist-b.v",
+        "source_sha256": "817a3ca0a2682394903da16ec83b1a966fc5121e918de91b934739de759e2eaf"
+      },
+      "reused": "/data/projects/x87trans1958/netlist-b.v",
+      "source_revision": "e2b8130b5a18b652095a8d5e23124fd0a994e9c0",
+      "source_revision_note": "plus the two scratch edits (x87_present high, X87_BACKEND 1) to pc386_system.sv; elaborated on powerboat by the locked Yosys"
+    },
+    "period_ns": 16.276041666666668,
+    "quartus": "26.3.0",
+    "seed": 3
+  },
+  "base-s4": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 30,
+        "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "1c2b22adc0ff25415b09586bd732f08eceeb33ebe8faac894455187ea47aaef4",
+        "ram_attribute": "renamed 57 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 57,
+        "source": "/data/projects/x87trans1958/netlist-b.v",
+        "source_sha256": "817a3ca0a2682394903da16ec83b1a966fc5121e918de91b934739de759e2eaf"
+      },
+      "reused": "/data/projects/x87trans1958/netlist-b.v",
+      "source_revision": "e2b8130b5a18b652095a8d5e23124fd0a994e9c0",
+      "source_revision_note": "plus the two scratch edits (x87_present high, X87_BACKEND 1) to pc386_system.sv; elaborated on powerboat by the locked Yosys"
+    },
+    "period_ns": 16.276041666666668,
+    "quartus": "26.3.0",
+    "seed": 4
+  },
+  "trans-s1": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 30,
+        "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "464afe7f8b4e240b81981465232c35b353db85448d52c078ef873c3bcfcf7739",
+        "ram_attribute": "renamed 59 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 59,
+        "source": "/data/projects/x87trans1958/netlist-a.v",
+        "source_sha256": "6f51cb63751311a892703b358d7b5dd42ec4875e2a33e43ce15c921247862ca5"
+      },
+      "reused": "/data/projects/x87trans1958/netlist-a.v",
+      "source_revision": "39e66a3e8418407248d49e88f714b4965e0d027a",
+      "source_revision_note": "plus the two scratch edits (x87_present high, X87_BACKEND 1) to pc386_system.sv; elaborated on powerboat by the locked Yosys"
+    },
+    "period_ns": 16.276041666666668,
+    "quartus": "26.3.0",
+    "seed": 1
+  },
+  "trans-s2": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 30,
+        "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "464afe7f8b4e240b81981465232c35b353db85448d52c078ef873c3bcfcf7739",
+        "ram_attribute": "renamed 59 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 59,
+        "source": "/data/projects/x87trans1958/netlist-a.v",
+        "source_sha256": "6f51cb63751311a892703b358d7b5dd42ec4875e2a33e43ce15c921247862ca5"
+      },
+      "reused": "/data/projects/x87trans1958/netlist-a.v",
+      "source_revision": "39e66a3e8418407248d49e88f714b4965e0d027a",
+      "source_revision_note": "plus the two scratch edits (x87_present high, X87_BACKEND 1) to pc386_system.sv; elaborated on powerboat by the locked Yosys"
+    },
+    "period_ns": 16.276041666666668,
+    "quartus": "26.3.0",
+    "seed": 2
+  },
+  "trans-s3": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 30,
+        "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "464afe7f8b4e240b81981465232c35b353db85448d52c078ef873c3bcfcf7739",
+        "ram_attribute": "renamed 59 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 59,
+        "source": "/data/projects/x87trans1958/netlist-a.v",
+        "source_sha256": "6f51cb63751311a892703b358d7b5dd42ec4875e2a33e43ce15c921247862ca5"
+      },
+      "reused": "/data/projects/x87trans1958/netlist-a.v",
+      "source_revision": "39e66a3e8418407248d49e88f714b4965e0d027a",
+      "source_revision_note": "plus the two scratch edits (x87_present high, X87_BACKEND 1) to pc386_system.sv; elaborated on powerboat by the locked Yosys"
+    },
+    "period_ns": 16.276041666666668,
+    "quartus": "26.3.0",
+    "seed": 3
+  },
+  "trans-s4": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 30,
+        "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "464afe7f8b4e240b81981465232c35b353db85448d52c078ef873c3bcfcf7739",
+        "ram_attribute": "renamed 59 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 59,
+        "source": "/data/projects/x87trans1958/netlist-a.v",
+        "source_sha256": "6f51cb63751311a892703b358d7b5dd42ec4875e2a33e43ce15c921247862ca5"
+      },
+      "reused": "/data/projects/x87trans1958/netlist-a.v",
+      "source_revision": "39e66a3e8418407248d49e88f714b4965e0d027a",
+      "source_revision_note": "plus the two scratch edits (x87_present high, X87_BACKEND 1) to pc386_system.sv; elaborated on powerboat by the locked Yosys"
+    },
+    "period_ns": 16.276041666666668,
+    "quartus": "26.3.0",
+    "seed": 4
+  }
+}

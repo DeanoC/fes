@@ -26,6 +26,10 @@
 # [[lockstep]]  The whole-CPU lockstep's rules (lockstep_tb.cpp) where the FES
 #   CPU follows the 386 and the oracle does not: the rule that adopts or checks
 #   the difference, the directed cases that show it, and the 386 source.
+#   The x87-* entries are the transcendental rule's (trans_compare, the
+#   x87trans suite, #1958), where the unit follows the 387 ("387"): each is
+#   accepted as exactly the difference stated, the RTL's side is asserted,
+#   and the oracle then takes it.
 #
 # [[x87]]  Where the oracle's 387, fitted as on an AT board by its adapter
 #   (Oracle::set_at_coprocessor in bochs_oracle.cpp), follows the 386, 387 and
@@ -593,6 +597,66 @@ oracle = "Bochs at CPU level 3 raises #UD for 0F 24 and 0F 26 (MOV_RdTd and MOV_
 i386 = "The 386's decoder routes TR4-TR7 with a register or a memory ModRM to 391 (MOV TRn, r32) and 3B6 (MOV r32, TRn), which raise #GP(0) in protected mode at CPL above 0 and check no GD; TR0-TR3 to #UD. FES keeps what each is written (TR6's TLB test is not built, docs/i386-cpu-design.md). The testbench keeps the same four values for the oracle, and steps it on MOV r32, CR0 (#GP(0)) above CPL 0."
 source = "reenigne/x86_microcode 80386/decoder23.txt (MOV TRn rows), decode2.txt 49, 4B, 5D, 5F, microcode_notes.txt 391-397, 3B6-3BC; 80386 Programmer's Reference Manual 12.3 (TR6, TR7)."
 follow = "386"
+
+[[lockstep]]
+id = "x87-trig-infinity-c2"
+title = "FSIN, FCOS, FSINCOS and FPTAN of an infinity set C2"
+rule = "trans_compare"
+cases = ["fsin-special", "fcos-special", "fsincos-special", "fptan-special"]
+oracle = "Bochs raises invalid and returns the indefinite with C2 clear, as the build host's x87 does. Measured: 8 retirements (4 forms, both signs); FSIN from status 3000h gives 3001h on the oracle."
+i386 = "The 387 raises invalid, returns the QNaN indefinite and sets C2. The RTL does (3401h in that example); what FSINCOS and FPTAN push is the oracle's and compared exactly. The lockstep requires C2 set on the RTL and everything else equal, then sets C2 on the oracle."
+source = "80387 Programmer's Reference Manual 231917-001, Table 3-10 (p.3-21): 'FCOS, FPTAN, FSIN, FSINCOS: operand is infinity -- Return the QNaN indefinite; set C2'; docs/validation/2026-11-17-de25-x87-transcendentals/rules.md TRIG4."
+follow = "387"
+
+[[lockstep]]
+id = "x87-fyl2xp1-below-minus-one"
+title = "FYL2XP1 of an operand more negative than -1 is invalid"
+rule = "trans_compare"
+cases = ["fyl2xp1-below-minus-one"]
+oracle = "Bochs returns a finite value with PE (or, for a zero ST(1), a result with no flag at all) and no invalid, as the build host's x87 does: neither checks the operand's range. Measured: 20 retirements, ST(0) of -1.5, -2, -1e10 and -1 - 1 ulp against ST(1) of 1, -1, 2.5 and both zeros."
+i386 = "The 387 raises invalid and returns the indefinite. The RTL does, popping, with C1 clear; the lockstep requires IE, the indefinite in the new ST(0) and no other flag raised, then gives the oracle that register and those flags. Applied only where ST(0) is a normal value below -1 and ST(1) a normal value or a zero."
+source = "80387 Programmer's Reference Manual 231917-001, Table 3-10 (p.3-21): 'FYL2XP1: operand more negative than -1'; rules.md LOG5."
+follow = "387"
+
+[[lockstep]]
+id = "x87-fyl2xp1-minus-one"
+title = "FYL2XP1 of exactly -1 is the logarithm of zero"
+rule = "trans_compare"
+cases = ["fyl2xp1-minus-one"]
+oracle = "Bochs returns a finite value with PE, or for a zero ST(1) a result with no flag at all, and neither zero divide nor invalid. Measured: 5 retirements, ST(1) of 1, -1, 2.5 and both zeros."
+i386 = "The manual defines FYL2XP1 only for |ST| < 1 - sqrt(2)/2 and calls the rest undefined, apart from the invalid case below -1. The RTL takes ST + 1 = 0 as FYL2X takes a zero: zero divide and an infinity of the sign opposite to ST(1)'s, or invalid and the indefinite when ST(1) is a zero, with C1 clear. The lockstep requires exactly that on the RTL. This is the RTL's rule where the manual gives none, not a reading of the 387."
+source = "80387 Programmer's Reference Manual 231917-001, 4.6.8 (p.4-19), Table 3-3 (p.3-8) and 3.2.3 (FYL2X of a zero); rules.md LOG3, LOG5; method.md amendment 2, item 5."
+follow = "387"
+
+[[lockstep]]
+id = "x87-denormal-underflow"
+title = "FYL2X and FPATAN with a denormal ST(1) and a tiny result flag underflow"
+rule = "trans_compare"
+cases = ["fyl2x-special-denormal", "fyl2x-special-ndenormal", "fpatan-special-denormal", "fpatan-special-ndenormal", "fpatan-denormal-rc0", "fpatan-denormal-rc1", "fpatan-denormal-rc2", "fpatan-denormal-rc3"]
+oracle = "Bochs sets PE and DE and leaves UE clear where its own product or quotient is exact. Measured over the suite's denormal cases, one instruction a case (FES_I386_TRANS_SPLIT): 16 instances, FYL2X with ST(1) 0000:0000000012345678 or 8000:7FFFFFFFFFFFFFFF and ST(0) 2.0 or 0.5 (4), and FPATAN with ST(1) 0000:0000000012345678 and ST(0) 0.5, 1.0 or 2.0, or 1.5 or 3.0 under each of the four rounding modes, or ST(1) 8000:7FFFFFFFFFFFFFFF and ST(0) 1.0 (12): status 3022h on the oracle, 3032h on the RTL. FYL2XP1 and the one-operand forms were not seen to differ this way."
+i386 = "A transcendental is inexact by definition, and masked underflow is flagged when the result is tiny and inexact, so the 387 sets UE with PE. The RTL does, and so does the build host's x87 (Intel Core Ultra 7 270K Plus) on all 16 instances. The lockstep requires UE on the RTL and then sets it on the oracle. Applied only to FYL2X and FPATAN with a denormal ST(1), a normal ST(0) and a denormal result."
+source = "80387 Programmer's Reference Manual 231917-001, 3.2.5.2 (p.3-24) and 3.2.6 (p.3-25); rules.md G6, G12."
+follow = "387"
+
+[[lockstep]]
+id = "x87-fpatan-quotient-underflow"
+title = "FPATAN flags no underflow when its result is a normal value"
+rule = "trans_compare"
+cases = ["fpatan-special-ndenormal", "fpatan-denormal-rc0", "fpatan-denormal-rc1", "fpatan-denormal-rc2", "fpatan-denormal-rc3"]
+oracle = "Bochs sets UE when its own ST(1) / ST(0) is tiny and inexact, though the result is not: with a negative ST(0) the result is beside pi. Measured: 29 instances, ST(1) a denormal, a pseudo-denormal or the smallest normal value and ST(0) -2, -3 or -1e10, the last two under every rounding mode; for example ST(1) 8000:7FFFFFFFFFFFFFFF, ST(0) -2: result C000:C90FDAA22168C235 on both, status 3232h on the oracle, 3222h on the RTL."
+i386 = "Underflow is of the result: flagged when the result is tiny and inexact. A result beside pi is not tiny, so the 387 leaves UE as it was. The RTL does, and so does the build host's x87 on all 29 instances. The lockstep requires UE clear on the RTL and then clears it on the oracle. Applied only to FPATAN with a negative normal ST(0) and a normal result."
+source = "80387 Programmer's Reference Manual 231917-001, 3.2.5.2 (p.3-24); rules.md G12."
+follow = "387"
+
+[[lockstep]]
+id = "x87-denormal-flag-intermediate"
+title = "FYL2X, FPATAN and FYL2XP1 of normal operands raise no denormal exception"
+rule = "trans_compare"
+cases = ["fyl2x-denormal-rc0", "fpatan-denormal-rc0", "fyl2xp1-denormal-rc0", "fyl2x-denormal-rc1", "fpatan-denormal-rc1", "fyl2xp1-denormal-rc1", "fyl2x-denormal-rc2", "fpatan-denormal-rc2", "fyl2xp1-denormal-rc2", "fyl2x-denormal-rc3", "fpatan-denormal-rc3", "fyl2xp1-denormal-rc3"]
+oracle = "Bochs sets DE when a denormal arises in its own working, with neither operand a denormal. Measured: 36 instances, each with ST(1) the smallest normal value 0001:8000000000000000 and a normal ST(0), under every rounding mode (FYL2X 8, FPATAN 16, FYL2XP1 12); for example FYL2X with ST(0) 1.5: flags 32h on the oracle, 30h on the RTL."
+i386 = "The 387's denormal exception is raised for a denormal operand. With both operands normal values the RTL leaves DE as it was, and so does the build host's x87 on all 36 instances. The lockstep requires DE clear on the RTL and then clears it on the oracle. Applied to the three two-operand forms with both operands normal values, which is wider than what was measured (ST(1) the smallest normal value): with no denormal operand a DE the oracle raises is this difference whatever the operands."
+source = "80387 Programmer's Reference Manual 231917-001, 3.2.4 (p.3-22) and Appendix C.2; rules.md G9."
+follow = "387"
 
 [[x87]]
 id = "at-error-path"

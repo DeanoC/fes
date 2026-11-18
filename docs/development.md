@@ -121,6 +121,13 @@ mapping does not assert that cutover has been published or hardware-qualified.
 
 ## Validate at the right scope
 
+For an acceptance record with a results table, state each check's status in one
+row and link to that row from the record's prose, method and other guides.
+Describe local method failures alongside their evidence, but do not repeat the
+check's verdict there; a failed method can leave the check open. Give headings
+neutral descriptions so a later correction does not leave a stale verdict in a
+heading. Preserve the observations and their provenance when updating a status.
+
 | Command from FES root | Purpose |
 | --- | --- |
 | `make test` | Parent/platform/image-recipe regression suites; prepare their prerequisites |
