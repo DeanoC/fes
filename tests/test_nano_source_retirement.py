@@ -218,6 +218,10 @@ class SourceRetirementTests(unittest.TestCase):
         self.assertEqual((rows[2]['result'], rows[2]['error'], rows[2]['prepared']), (2, -110, 0))
         self.private_comparison_cost = rows
 
+    def test_private_snapshot_equality_checks_alignment_tails_and_every_byte(self):
+        report = self.run_model('snapshot_compare_test')
+        self.assertGreater(report['cases'], 100000)
+
     def test_terminal_cold_recovery_uses_live_revoked_scope(self):
         report=self.run_model('terminal_recovery_test',joined=True)
         self.assertEqual(report['cases'],33)

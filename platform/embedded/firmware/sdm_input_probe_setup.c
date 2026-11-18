@@ -15,6 +15,23 @@ static int io_same(const struct nano_probe_io *a,const struct nano_probe_io *b)
   a->store64==b->store64 && a->load64==b->load64 && a->store_block==b->store_block &&
   a->load_block==b->load_block && a->barrier==b->barrier;
 }
+/* Private CPU snapshots only: compare every byte at the same guard boundaries.
+ * TF-A's memcmp loads one byte at a time. Aligned snapshots permit normal
+ * 64-bit loads without changing freshness, callback ordering or authority.
+ * Builtin copies avoid aliasing violations; unaligned inputs and tails keep
+ * byte comparison. Never use this helper for MMIO or live device snapshots. */
+static int snapshot_same(const void *a,const void *b,size_t bytes)
+{
+ if(((uintptr_t)a|(uintptr_t)b)&7U)return !memcmp(a,b,bytes);
+ const unsigned char *x=__builtin_assume_aligned(a,8),*y=__builtin_assume_aligned(b,8);
+ while(bytes>=8){
+  uint64_t left,right;
+  __builtin_memcpy(&left,x,8);__builtin_memcpy(&right,y,8);
+  if(left!=right)return 0;
+  x+=8;y+=8;bytes-=8;
+ }
+ return !memcmp(x,y,bytes);
+}
 static int integrity(const struct nano_probe_setup *s)
 {
  if(!io_same(&s->io,&s->trusted_io) || s->binding.owner!=s->trusted_binding.owner ||
@@ -26,9 +43,9 @@ static int integrity(const struct nano_probe_setup *s)
     !s->queue_baseline && s->queue_target==6 && !s->abort;
  return s->warm==1 && s->input_selected==1 && s->previous && s->previous==s->pinned_previous &&
     s->warm_scope && s->warm_scope==s->trusted_warm_scope &&
-    !memcmp(s->previous,&s->previous_snapshot,sizeof(s->previous_snapshot)) &&
+    snapshot_same(s->previous,&s->previous_snapshot,sizeof(s->previous_snapshot)) &&
     s->previous->prepared_engine &&
-    !memcmp(s->previous->prepared_engine,&s->previous->prepared_snapshot,sizeof(s->previous->prepared_snapshot)) &&
+    snapshot_same(s->previous->prepared_engine,&s->previous->prepared_snapshot,sizeof(s->previous->prepared_snapshot)) &&
     s->queue_baseline==s->previous_snapshot.queue_target && s->queue_baseline<=15 &&
     s->queue_target==((s->queue_baseline+6)&15U) && s->abort==0x100000U;
 }
@@ -328,7 +345,7 @@ static int previous_valid(const struct nano_retire *r,const struct nano_sdm_inpu
   r->binding.owner==input->owner && r->binding.epoch==input->epoch &&
   r->binding.generation<input->generation && !nano_sdm_input_validate(&r->binding) &&
   r->prepared_engine && r->io.prepared==r->prepared_engine &&
-  !memcmp(r->prepared_engine,&r->prepared_snapshot,sizeof(r->prepared_snapshot)) &&
+  snapshot_same(r->prepared_engine,&r->prepared_snapshot,sizeof(r->prepared_snapshot)) &&
   r->commands.initialized==1 && r->commands.submitted==1 && !r->commands.failed &&
   !r->commands.first_error && r->commands.stage==CMDQ_COMPLETE && r->commands.completion_seen==1 &&
   r->commands.binding.owner==input->owner && r->commands.binding.epoch==input->epoch &&
