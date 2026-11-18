@@ -74,6 +74,7 @@ class Derivations(unittest.TestCase):
         self.assertEqual(result.count(b"config_bundle_pixel <= config_bundle_sys;"), 1)
         self.assertEqual(result.count(b" <= config_bundle_sys;"), 1)
         self.assertEqual(result.count(b"ALLOW_SYNCH_CTRL_USAGE OFF"), 3)
+        self.assertEqual(result.count(b"ALLOW_REGISTER_RETIMING OFF"), 3)
         self.assertNotIn(b"pending_config", result)
         for line in (b"job_start_sys[0] <= job_start[0][17:0];", b"job_start_ok_sys[0] <= job_start_ok[0];"):
             self.assertEqual(result.count(line), 1, line)

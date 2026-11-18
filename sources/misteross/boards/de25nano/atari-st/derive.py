@@ -147,12 +147,14 @@ ADAPTER_EDITS = (
     # the active configuration from the copy and the pending register goes.
     # The active registers keep their synchronous reset in logic: a bare
     # register behind a copy reads to signoff as a second synchronizer stage.
+    # They are not retimed either: the fitter otherwise moves the palette's
+    # registers through its colour multiplexer and leaves bare ones there.
     (b"    reg [23:0] active_base;\n"
      b"    reg [1:0] active_resolution;\n"
      b"    reg [143:0] active_palette;\n",
-     b'    (* altera_attribute = "-name ALLOW_SYNCH_CTRL_USAGE OFF" *) reg [23:0] active_base;\n'
-     b'    (* altera_attribute = "-name ALLOW_SYNCH_CTRL_USAGE OFF" *) reg [1:0] active_resolution;\n'
-     b'    (* altera_attribute = "-name ALLOW_SYNCH_CTRL_USAGE OFF" *) reg [143:0] active_palette;\n'),
+     b'    (* altera_attribute = "-name ALLOW_SYNCH_CTRL_USAGE OFF; -name ALLOW_REGISTER_RETIMING OFF" *) reg [23:0] active_base;\n'
+     b'    (* altera_attribute = "-name ALLOW_SYNCH_CTRL_USAGE OFF; -name ALLOW_REGISTER_RETIMING OFF" *) reg [1:0] active_resolution;\n'
+     b'    (* altera_attribute = "-name ALLOW_SYNCH_CTRL_USAGE OFF; -name ALLOW_REGISTER_RETIMING OFF" *) reg [143:0] active_palette;\n'),
     (b"    wire config_complete = config_waiting && config_ack_sync == config_request;\n",
      b"    wire config_arrived = config_waiting && config_ack_sync == config_request;\n"
      b"    reg config_complete;\n"
