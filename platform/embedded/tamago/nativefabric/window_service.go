@@ -289,26 +289,15 @@ func (s *WindowService) Launch(ctx context.Context, generation uint64, request p
 }
 
 func (p *windowService) configure(ctx context.Context) error {
-	start := p.limits.Now()
-	last := start
-	check := func() error {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		now := p.limits.Now()
-		if now.Before(last) || now.Sub(start) >= sourceOperationTimeout {
-			return errors.New("native window service: configuration deadline or backwards clock")
-		}
-		last = now
-		return nil
-	}
+	clock := newConfigurationClock(p.limits.Now, "native window service")
 	for {
-		if err := check(); err != nil {
-			return p.transfer.Cancel(err)
+		phase := p.transfer.phase
+		if err := clock.check(ctx, p.transfer, phase, false); err != nil {
+			return p.transfer.reject(err)
 		}
 		done, busy, err := p.transfer.Advance()
-		if late := check(); late != nil {
-			return p.transfer.Cancel(late)
+		if late := clock.check(ctx, p.transfer, phase, true); late != nil {
+			return p.transfer.reject(late)
 		}
 		if err != nil {
 			return err
