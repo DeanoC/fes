@@ -46,6 +46,15 @@ static int sdm_release_mismatch(uint64_t address,uint64_t value);
 static uint32_t sdm_source_bad_offset,sdm_source_bad_value;
 static unsigned sdm_source_clock_started;
 static uint64_t sdm_source_clock_start,sdm_source_clock_last;
+/* First rejected clock observation only. Never consulted for authority and
+ * never samples a counter, frequency, MMIO or ownership callback to report. */
+static struct {
+ uint64_t start,last,observed;
+ uint64_t frequency;
+ uint8_t reason,sampled;
+} sdm_source_clock_failure;
+enum { SDM_CLOCK_FAILED=1,SDM_CLOCK_NOT_STARTED,SDM_CLOCK_OUTPUT,
+ SDM_CLOCK_CONTEXT,SDM_CLOCK_FREQUENCY,SDM_CLOCK_BACKWARD,SDM_CLOCK_EXPIRED };
 static int sdm_source_time(void *,uint64_t *);
 #ifndef FES_PROBE_USB_BINDING_VALID
 #define FES_PROBE_USB_BINDING_VALID() fes_nano_usb_master_service_valid(&usb_master,&fes_nano_owned_bridges,&usb_platform)
@@ -335,13 +344,39 @@ static int sdm_source_stop(unsigned reason)
  if(!sdm_source_failed){sdm_source_failed=1;if(!sdm_probe_scope_reason)sdm_probe_reject(reason);}
  return 0;
 }
+static int sdm_source_clock_reject(unsigned reason,unsigned sampled,uint64_t now,uint64_t frequency)
+{
+ if(!sdm_source_clock_failure.reason){
+  sdm_source_clock_failure.start=sdm_source_clock_start;
+  sdm_source_clock_failure.last=sdm_source_clock_last;
+  sdm_source_clock_failure.observed=now;
+  sdm_source_clock_failure.frequency=frequency;
+  sdm_source_clock_failure.reason=(uint8_t)reason;
+  sdm_source_clock_failure.sampled=(uint8_t)sampled;
+ }
+ return sdm_source_stop(31),-13;
+}
 static int sdm_source_time(void *context,uint64_t *output)
 {
- uint64_t now=0;
- if(sdm_source_failed || !sdm_source_clock_started || !output ||
-    sdm_probe_time(context,&now) || now<sdm_source_clock_last ||
-    now-sdm_source_clock_start>=NANO_SDM_TRANSFER_US)return sdm_source_stop(31),-13;
+ if(sdm_source_failed)return sdm_source_clock_reject(SDM_CLOCK_FAILED,0,0,0);
+ if(!sdm_source_clock_started)return sdm_source_clock_reject(SDM_CLOCK_NOT_STARTED,0,0,0);
+ if(!output)return sdm_source_clock_reject(SDM_CLOCK_OUTPUT,0,0,0);
+ /* Same short-circuit order and one frequency/counter read as sdm_probe_time.
+  * Split its checks here so a rejection identifies its actual member. */
+ if(context!=&sdm_arm_probe)return sdm_source_clock_reject(SDM_CLOCK_CONTEXT,0,0,0);
+ uint64_t frequency=FES_PROBE_FREQUENCY();
+ if(frequency!=400000000U)return sdm_source_clock_reject(SDM_CLOCK_FREQUENCY,0,0,frequency);
+ uint64_t now=FES_PROBE_COUNTER()/400U;
+ if(now<sdm_source_clock_last)return sdm_source_clock_reject(SDM_CLOCK_BACKWARD,1,now,frequency);
+ if(now-sdm_source_clock_start>=NANO_SDM_TRANSFER_US)return sdm_source_clock_reject(SDM_CLOCK_EXPIRED,1,now,frequency);
  sdm_source_clock_last=now;*output=now;return 0;
+}
+static void sdm_source_clock_report(void)
+{
+ NOTICE("FES_NANO_SOURCE_CLOCK reason=%u sampled=%u frequency=%llu start_us=%llu last_us=%llu observed_us=%llu bound_us=%u retained=1 grant=0\n",
+  sdm_source_clock_failure.reason,sdm_source_clock_failure.sampled,(unsigned long long)sdm_source_clock_failure.frequency,
+  (unsigned long long)sdm_source_clock_failure.start,(unsigned long long)sdm_source_clock_failure.last,
+  (unsigned long long)sdm_source_clock_failure.observed,(unsigned)NANO_SDM_TRANSFER_US);
 }
 static int sdm_source_queues(void)
 {

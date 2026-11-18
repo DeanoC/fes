@@ -136,7 +136,7 @@ class SourceRetirementTests(unittest.TestCase):
                                  '#include "probe_setup.c"\n')
             sources += [setup, FW / "input_transfer.c", FW / "nano_smmu.c", FW / "nano_sdm_reader.c"]
             sources += [FW / (n + ".c") for n in ("nano_cold", "nano_hps_io", "nano_bridges", "nano_boot", "nano_sd", "nano_sd_platform", "nano_usb_platform", "nano_usb_board", "nano_mac", "nano_usb_service", "nano_usb_composition", "nano_configuration")]
-        if name in ('lifecycle_rpc', 'lifecycle_prepare_cost_test'):
+        if name in ('lifecycle_rpc', 'lifecycle_prepare_cost_test', 'final_proof_cost_test'):
             sources += [FW/(n+'.c') for n in ('nano_program','nano_identity','nano_bridge_sip','nano_fabric_stop','nano_probe_stop')]
         command = [shutil.which("cc") or "cc", "-std=c11", "-O1", "-g", "-Wall", "-Wextra", "-Werror",
                    "-Wno-misleading-indentation", "-Wno-unused-function", "-Wno-unused-variable", "-Wno-sign-compare",
@@ -221,6 +221,36 @@ class SourceRetirementTests(unittest.TestCase):
     def test_private_snapshot_equality_checks_alignment_tails_and_every_byte(self):
         report = self.run_model('snapshot_compare_test')
         self.assertGreater(report['cases'], 100000)
+
+    def test_source_clock_identifies_each_rejection_without_extra_observation(self):
+        self.assertEqual(self.run_model('source_clock_test', joined=True)['cases'], 10)
+
+    def test_final_input_proof_cost_and_late_ownership_failures(self):
+        binary = self.build_model('final_proof_cost_test', joined=True)
+        wire = '\n'.join((
+            'configure 11 4 1 1708032 1048512 0 '+ 'ab'*48,
+            'release 11 10 0',
+            'configure 11 10 2 1654784 1048512 8192 '+ 'cd'*48,
+            'release 11 15 0',
+            'configure 11 15 1 1708032 1048512 0 '+ 'ab'*48))+'\n'
+        def run(cost, initial=19626142, fault=0):
+            result = subprocess.run([str(binary), str(cost), str(initial), str(fault)],
+                                    input=wire, capture_output=True, text=True, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return json.loads(result.stdout.splitlines()[-1])
+        normal, calibrated = run(0), run(12)
+        self.assertEqual((normal['result'], calibrated['result']), (0, 0))
+        self.assertEqual((normal['loads'], normal['reads'], normal['counters']),
+                         (calibrated['loads'], calibrated['reads'], calibrated['counters']))
+        self.assertEqual(normal['loads'], 5120)
+        expired = run(0, 20000000)
+        self.assertEqual((expired['result'], expired['scope_reason'], expired['clock_reason'], expired['retired']),
+                         (2, 31, 7, 0))
+        self.assertGreaterEqual(expired['clock_observed']-expired['clock_start'], 20000000)
+        for fault in range(1, 9):
+            with self.subTest(fault=fault):
+                row = run(0, fault=fault)
+                self.assertEqual((row['result'], row['retired'], row['continued']), (2, 0, 0))
 
     def test_terminal_cold_recovery_uses_live_revoked_scope(self):
         report=self.run_model('terminal_recovery_test',joined=True)
