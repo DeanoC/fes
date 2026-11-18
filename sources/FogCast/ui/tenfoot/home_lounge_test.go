@@ -466,7 +466,7 @@ func TestHomeHeroFitsLongTitlesAboveTheButtons(t *testing.T) {
 			layout, _ := rooms.HeroPanel(size.w, size.h)
 			snap := Snapshot{Room: RoomSnapshot{Open: true, Hero: true, WaitAck: true, Destination: d}}
 			c := heroDestinationCopy(snap)
-			c.Ack = waitAckCopy(InputGamepad)
+			c.Ack = waitAckCopy(snap)
 			avail := layout.Text.H - heroButtonH - 8
 			plan := planHero(c, layout.Text.W, avail)
 			fixed := gfx.TextHeight(heroMetaPx) + 12 +
