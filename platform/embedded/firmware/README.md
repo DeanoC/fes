@@ -1,10 +1,20 @@
 # Contained firmware and FPGA control prototype
 
-The [25-second source budget](../../../docs/validation/2026-11-18-de25-source-budget25/README.md) now passes all affected
-software checks and matched file admission. All five configurations and both core launch/returns complete; final USB shutdown panics on a DWC2 packet timeout. Final Park/quiescence remains unverified. Exact original-FIT restoration passes without power cycling.
-All shorter phase limits, ownership checks and the original clock origin remain.
-Normal HIL and full failure/physical display/input coverage remain open. Earlier
-20-second figures below record historical profiles and failed procedures.
+The [USB pre-Park drain repair](../../../docs/validation/2026-11-18-de25-usb-pre-park-drain/README.md)
+passes the native/USB race suites, real App models, observer rejection tests and
+all eight affected software checks. The fresh hardware test runs ZX81, then
+stops during MENU return with `configuration already completed`, after successful
+firmware proof/retirement/continuation. Final USB shutdown remains unreached and
+unqualified. The original FIT is restored and independently verified without
+power cycling. Ownership checks and all existing limits remain unchanged.
+
+The preceding [25-second source-budget trial](../../../docs/validation/2026-11-18-de25-source-budget25/README.md)
+completed both core launch/returns, then failed at final USB close. The new
+repair drains input before synchronous MENU Park work. Current off-board
+reproduction shows how a post-completion clock rejection can be masked;
+the physical trace does not retain its original reason or measured duration.
+Normal HIL and full failure/display/input coverage remain open. Older figures
+below describe historical profiles and consumed procedures.
 
 The [fresh final-validation cost trial](../../../docs/validation/2026-11-18-de25-final-cost-physical/README.md) completes initial MENU,
 ZX81 with tape, both releases and full next-MENU configuration, then
