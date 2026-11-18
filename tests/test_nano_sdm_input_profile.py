@@ -26,8 +26,11 @@ class SourceOperationBudgetTests(unittest.TestCase):
         code = (native/'program_service.go').read_text()
         seconds = int(re.search(r'const sourceOperationTimeout = (\d+) \* time.Second', code)[1])
         self.assertEqual(seconds*1000000, bound)
-        self.assertIn('elapsed >= sourceOperationTimeout', code)
-        self.assertIn('now.Sub(start) >= sourceOperationTimeout', (native/'window_service.go').read_text())
+        self.assertIn('elapsed >= sourceOperationTimeout', (native/'configuration_clock.go').read_text())
+        for name in ('program_service.go', 'window_service.go'):
+            implementation = (native/name).read_text()
+            self.assertIn('newConfigurationClock(p.limits.Now,', implementation)
+            self.assertEqual(implementation.count('clock.check('), 2)
         for contract in (mode.CONTRACT, mode.REARM_CONTRACT, mode.RECOVERY_CONTRACT):
             self.assertEqual(contract['transfer_bound_us'], bound)
             self.assertEqual(contract['preparation_bound_us'], 4000000)
