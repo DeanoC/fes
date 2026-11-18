@@ -84,7 +84,7 @@ func sessionChromeHint(kind InputKind, retry bool, loadTape bool) string {
 		if retry {
 			stop = "Esc/S retry Stop"
 		} else {
-			stop = "Backspace/S stop"
+			stop = "Backspace stop"
 		}
 	default:
 		if retry {
