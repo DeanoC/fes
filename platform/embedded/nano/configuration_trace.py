@@ -8,6 +8,9 @@ _budget=importlib.util.module_from_spec(_budget_spec);_budget_spec.loader.exec_m
 SOURCE_OPERATION_US=_budget.CONTRACT["transfer_bound_us"]
 # The checked native counter frequency is fixed at 400 MHz.
 SOURCE_OPERATION_TICKS=SOURCE_OPERATION_US*400
+# Fixed fpgaload program() probes retain their independent 20-second owner.
+FIXED_PROGRAM_US=20000000
+FIXED_PROGRAM_TICKS=FIXED_PROGRAM_US*400
 from remap_trace import extract as extract_remap
 
 H=r'[0-9a-f]{1,16}'

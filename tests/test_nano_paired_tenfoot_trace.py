@@ -31,11 +31,14 @@ def wire(prefix, row):
 
 
 class ConfigurationBudgetTests(unittest.TestCase):
-    def test_all_configuration_observers_share_the_declared_budget(self):
+    def test_configuration_observers_keep_their_producer_budget(self):
         import configuration_trace, native_trace, service_trace, window_service_trace, window_reload_trace, paired_firmware_trace
         self.assertEqual(configuration_trace.SOURCE_OPERATION_US, 25000000)
-        for module in (native_trace, service_trace, window_service_trace, window_reload_trace, paired_firmware_trace):
+        for module in (service_trace, window_service_trace, paired_firmware_trace):
             self.assertEqual(module.SOURCE_OPERATION_TICKS, 25000000*400)
+        self.assertEqual(configuration_trace.FIXED_PROGRAM_US, 20000000)
+        for module in (native_trace, window_reload_trace, window_service_trace):
+            self.assertEqual(module.FIXED_PROGRAM_TICKS, 20000000*400)
 
     def test_actual_paired_configuration_accepts_former_boundary_and_rejects_expiry(self):
         model = Model()

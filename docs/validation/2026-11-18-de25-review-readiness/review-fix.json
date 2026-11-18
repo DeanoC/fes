@@ -1,0 +1,141 @@
+{
+  "reviewed_head": "ce975a4c2b366b247b32d3fe5b7ece601824713c",
+  "merge_base": "e2b8130b5a18b652095a8d5e23124fd0a994e9c0",
+  "independent_round1": {
+    "scope": "Full non-doc firmware/native/test diff",
+    "actionable_findings": [
+      {
+        "priority": "P2",
+        "condition": "Fixed program()20s probes inherited service25s observer limit",
+        "paths": [
+          "platform/embedded/nano/native_trace.py",
+          "platform/embedded/nano/window_reload_trace.py",
+          "platform/embedded/nano/window_service_trace.py"
+        ]
+      }
+    ],
+    "other_P0_P1_P2_findings": []
+  },
+  "external_Codex_review": {
+    "commit": "ce975a4c2b366b247b32d3fe5b7ece601824713c",
+    "comment_id": 6989864993,
+    "findings": false
+  },
+  "before": {
+    "status": "fixed-probe-deadline-reproduction",
+    "results": [
+      {
+        "elapsed_us": 19999999,
+        "complete": true,
+        "errors": []
+      },
+      {
+        "elapsed_us": 20000000,
+        "complete": true,
+        "errors": []
+      },
+      {
+        "elapsed_us": 21000000,
+        "complete": true,
+        "errors": []
+      },
+      {
+        "elapsed_us": 24000000,
+        "complete": true,
+        "errors": []
+      },
+      {
+        "elapsed_us": 25000000,
+        "complete": false,
+        "errors": [
+          "reload lacks bounded configuration timing",
+          "second reload lacks a fully verified preceding return"
+        ]
+      }
+    ]
+  },
+  "after": {
+    "status": "fixed-probe-deadline-reproduction",
+    "results": [
+      {
+        "elapsed_us": 19999999,
+        "complete": true,
+        "errors": []
+      },
+      {
+        "elapsed_us": 20000000,
+        "complete": false,
+        "errors": [
+          "reload lacks bounded configuration timing",
+          "second reload lacks a fully verified preceding return"
+        ]
+      },
+      {
+        "elapsed_us": 21000000,
+        "complete": false,
+        "errors": [
+          "reload lacks bounded configuration timing",
+          "second reload lacks a fully verified preceding return"
+        ]
+      },
+      {
+        "elapsed_us": 24000000,
+        "complete": false,
+        "errors": [
+          "reload lacks bounded configuration timing",
+          "second reload lacks a fully verified preceding return"
+        ]
+      },
+      {
+        "elapsed_us": 25000000,
+        "complete": false,
+        "errors": [
+          "reload lacks bounded configuration timing",
+          "second reload lacks a fully verified preceding return"
+        ]
+      }
+    ]
+  },
+  "focused": {
+    "argv": [
+      "python3",
+      "-m",
+      "unittest",
+      "test_nano_configuration_budgets",
+      "test_nano_paired_tenfoot_trace",
+      "test_nano_window_reload_trace",
+      "test_nano_window_service_trace",
+      "-v"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-secure-lifecycle",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 3.209069770993665,
+    "log_sha256": "aaaa72323f60326f429d270162839fb154e0d16992c379759c12afc7983be140"
+  },
+  "focused_test_count": 30,
+  "original_full_run": {
+    "argv": [
+      "python3",
+      "scripts/test_changed.py",
+      "--base",
+      "e2b8130b5a18b652095a8d5e23124fd0a994e9c0",
+      "--head",
+      "ce975a4c2b366b247b32d3fe5b7ece601824713c"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-secure-lifecycle",
+    "returncode": -15,
+    "timed_out": false,
+    "elapsed": 272.10512475902215,
+    "log_sha256": "e88ef0630f86b28c8cf5d4a0a2885f9fe38580518764ef224534d9b2e18db9e1"
+  },
+  "original_full_run_stop": {
+    "reason": "Round1 reproduced fixed-probe20s validation defect; stop only this owned older-head test group before batching fix, then rerun exact new head",
+    "pid": 2773733,
+    "start_ticks": "206309940",
+    "success_claimed": false
+  },
+  "runtime_firmware_changes_in_review_fix": false,
+  "hardware_actions": false,
+  "normal_HIL_acceptance": false
+}
