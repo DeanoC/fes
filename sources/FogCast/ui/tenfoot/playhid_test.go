@@ -42,7 +42,7 @@ func TestConsumePlayHIDDoesNotStealAffinity(t *testing.T) {
 	}
 }
 
-func TestConsumePlayHIDEscStopsWithoutStealingAffinity(t *testing.T) {
+func TestConsumePlayHIDEscKeepsSessionWithoutStealingAffinity(t *testing.T) {
 	t.Parallel()
 	var stops, hidHits atomic.Int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -72,8 +72,8 @@ func TestConsumePlayHIDEscStopsWithoutStealingAffinity(t *testing.T) {
 	if !app.HandlePlayHIDKey("escape", true, now) {
 		t.Fatal("Esc must stay on the play HID chrome path")
 	}
-	if !app.Snapshot().Session.Stopping {
-		t.Fatal("Esc did not stop the attached session")
+	if app.Snapshot().Session.Stopping {
+		t.Fatal("Esc stopped the attached session")
 	}
 	if hidHits.Load() != 0 {
 		t.Fatalf("Esc posted play HID %d times", hidHits.Load())
@@ -301,9 +301,12 @@ func TestKeyboardHIDSessionForwardsEscBackspaceAsUsages(t *testing.T) {
 	if stops.Load() != 0 || app.Snapshot().Session.Stopping {
 		t.Fatal("HID Esc/Backspace stopped the session")
 	}
-	// Without the HID interface the named-key chrome path is unchanged.
+	// Without HID, Esc stays in play; Backspace remains stop chrome.
 	app.session.CoreKeyboardHID = false
-	if !app.HandlePlayHIDScancode("escape", 0x29, true, time.Now()) || !app.Snapshot().Session.Stopping {
-		t.Fatal("non-HID Esc lost its stop chrome")
+	if !app.HandlePlayHIDScancode("escape", 0x29, true, time.Now()) || app.Snapshot().Session.Stopping {
+		t.Fatal("non-HID Esc stopped the session")
+	}
+	if !app.HandlePlayHIDScancode("backspace", 0x2a, true, time.Now()) || !app.Snapshot().Session.Stopping {
+		t.Fatal("non-HID Backspace lost its stop chrome")
 	}
 }

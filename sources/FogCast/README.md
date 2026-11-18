@@ -260,7 +260,7 @@ and content selection; the MiSTer is a small, directly controlled target.
   claims affinity without restart, and unplug returns to a remaining device;
   an attached play session forwards USB keyboard HID to the core/session path
   instead of the sofa graph (ZX81 still uses the matrix; native SNES/MD encode
-  as gamepad buttons; Esc/Backspace still stop, except in `fes.keyboard.hid`
+  as gamepad buttons; Backspace stops and Esc stays in play, except in `fes.keyboard.hid`
   sessions, which receive every key as a USB HID usage); pointer browse does
   not steal that session, and a foreign or recovery-required kit lease fails closed. Mac is the primary sofa target;
   Linux uses the same Makefile target with

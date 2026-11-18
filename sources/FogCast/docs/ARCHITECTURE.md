@@ -1748,7 +1748,7 @@ patterned stay (`/` or `f` search, `o` settings, `g` filters, `l` layout). While
 an attached play session is live (`ForwardsPlayHID`), USB keyboard events go to
 `POST /api/v1/session/input/event` instead of the sofa focus graph and do not
 steal browse or ZX81/session affinity; pointer browse stays off that session.
-Esc and Backspace remain session-stop chrome. Letter `s` stays a core key.
+Escape stays in play after returning from a room, while Backspace remains session-stop chrome. Letter `s` stays a core key.
 A `fes.computer` session with `fes.keyboard.hid` 1.0 (`CoreKeyboardHID`)
 is the exception: `HandlePlayHIDScancode` forwards every SDL scancode that is a
 HID Keyboard/Keypad usage, including Esc, Backspace and `/`, with no chrome
