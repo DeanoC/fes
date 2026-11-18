@@ -1,0 +1,53 @@
+# What fes_i386_cpu does with each directed 486 case against the level-4
+# oracle: "agree", or its first mismatch as lockstep_tb prints it,
+# "stop @<eip>.<field> <oracle> <rtl>". scripts/test_fes_i486_lockstep.py
+# fails when a run differs from this list; write it with --write-expected.
+# The CPU is a 386, so a stop here is a 486 feature not built yet.
+bswap stop @102a.unexpected-exception 0 6
+bswap-esp stop @1006.unexpected-exception 0 6
+xadd-r32 stop @100c.unexpected-exception 0 6
+xadd-r16 stop @1006.unexpected-exception 0 6
+xadd-r8 stop @1004.unexpected-exception 0 6
+xadd-m32 stop @100f.unexpected-exception 0 6
+xadd-m32-lock stop @100f.unexpected-exception 0 6
+xadd-reg-lock agree
+cmpxchg-r32-equal stop @1012.unexpected-exception 0 6
+cmpxchg-r32-unequal stop @1012.unexpected-exception 0 6
+cmpxchg-m8-equal stop @1009.unexpected-exception 0 6
+cmpxchg-m16-unequal stop @100c.unexpected-exception 0 6
+cmpxchg-m32-equal-lock stop @1015.unexpected-exception 0 6
+cmpxchg-m32-unequal stop @1015.unexpected-exception 0 6
+cmpxchg-a6 agree
+invd stop @1000.unexpected-exception 0 6
+wbinvd stop @1000.unexpected-exception 0 6
+invlpg stop @1000.unexpected-exception 0 6
+invlpg-reg agree
+invd-cpl3 stop @104d.vector d 6
+wbinvd-cpl3 stop @104d.vector d 6
+invlpg-cpl3 stop @104d.vector d 6
+cr0-read stop @1000.eax 60000010 7ffffff0
+cr0-write-ones stop @1009.ebx 6005003e 7ffffffe
+cr0-write-zero stop @1009.ebx 10 7fffffe0
+cr0-nw-without-cd stop @1006.exception d ff
+lmsw-keeps-ne stop @100e.ebx 30 7ffffff0
+wp-clear-user-readonly agree
+wp-set-user-readonly stop @103e.exception e ff
+wp-set-supervisor-readonly stop @103e.exception e ff
+wp-set-writable agree
+ac-toggle stop @1011.write.efe 4 0
+id-toggle stop @1011.write.efe 20 0
+ac-fault-dword stop @1057.exception 11 ff
+ac-fault-word stop @1057.exception 11 ff
+ac-fault-dword-at-2 stop @1057.exception 11 ff
+ac-fault-push stop @1057.exception 11 ff
+ac-aligned stop @105c.write.df6 4 0
+ac-byte stop @105c.write.df6 4 0
+ac-am-clear stop @1052.write.df6 4 0
+ac-flag-clear agree
+ac-cpl0 agree
+cpuid-0 stop @1003.unexpected-exception 0 6
+cpuid-1 stop @1006.unexpected-exception 0 6
+mov-tr3 stop @1006.unexpected-exception 0 6
+mov-tr6 agree
+mov-cr4-read stop @1000.unexpected-exception 0 6
+mov-cr4-write stop @1006.vector d 6
