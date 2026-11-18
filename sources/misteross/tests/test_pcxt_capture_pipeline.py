@@ -22,7 +22,10 @@ class CapturePipelineTests(unittest.TestCase):
             guard = 'if (read_window[3]) read_word <= dq_fall;'
             self.assertEqual(text.count(guard), 1)
             mutant.write_text(text.replace(guard, 'read_word <= dq_fall;'))
-            for name, selected, expected in [('positive', memory, 0), ('without-retention', mutant, 1)]:
+            late = work / 'late-handoff.sv'
+            late.write_text(text.replace(guard, 'if (read_window[2]) read_word <= dq_fall;'))
+            for name, selected, expected in [('positive', memory, 0), ('without-retention', mutant, 1),
+                                              ('wrong-cycle', late, 1)]:
                 with self.subTest(case=name):
                     obj = work / name
                     command = [VERILATOR, '--cc', '--exe', '--build', '--top-module', 'pipeline_top',
@@ -35,7 +38,8 @@ class CapturePipelineTests(unittest.TestCase):
                                             text=True, timeout=30)
                     self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
                     if expected:
-                        self.assertIn('frontend lane mismatch', result.stderr)
+                        self.assertIn('handoff selected wrong pin word' if name == 'wrong-cycle'
+                                      else 'frontend lane mismatch', result.stderr)
                     else:
                         self.assertIn('"status":"PASS"', result.stdout)
-                        self.assertIn('"frontend_deadline_ps":73750', result.stdout)
+                        self.assertIn('"frontend_deadline_ps":83750', result.stdout)

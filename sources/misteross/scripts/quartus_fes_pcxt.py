@@ -238,7 +238,7 @@ def validate_renaming(work: Path, *, package_profile=False, dos_profile=False, c
         memory_settings = {'number_of_clocks': 4, 'output_clock_frequency0': '100.0 MHz',
                            'output_clock_frequency1': '100.0 MHz', 'output_clock_frequency2': '100.0 MHz',
                            'output_clock_frequency3': '100.0 MHz', 'phase_shift0': '0 ps',
-                           'phase_shift1': '9375 ps', 'phase_shift2': '1250 ps', 'phase_shift3': '8750 ps'}
+                           'phase_shift1': '0 ps', 'phase_shift2': '1250 ps', 'phase_shift3': '9375 ps'}
     if package_profile and counts.get('cyclonev_hps_interface_mpu_general_purpose') != 1:
         raise ValueError('package profile lacks its runtime mailbox')
     pll_settings = {

@@ -1,0 +1,96 @@
+{
+  "audio_interstage_min_ns": 0.226,
+  "audio_payload_min_ns": 0.533,
+  "capture_and_enable_to_held_word_min_ns": {
+    "hold": 0.736,
+    "setup": 0.794
+  },
+  "cas_latency": 3,
+  "classification": "100 MHz source-frozen diagnostic; not physical acceptance",
+  "clock_phases": {
+    "0": {
+      "period_ns": 10,
+      "phase_ns": 0
+    },
+    "2": {
+      "period_ns": 10,
+      "phase_ns": 1.25
+    },
+    "3": {
+      "period_ns": 10,
+      "phase_ns": 9.375
+    },
+    "capture_alias": {
+      "logical_counter": 1,
+      "phase_ns": 0,
+      "physical_counter": 0
+    }
+  },
+  "common_device_cycle_headroom_ns": 2.5,
+  "conditional_second_cs_min_ns": {
+    "hold": 1.673,
+    "setup": 0.135
+  },
+  "default_off": true,
+  "direct_command_min_ns": {
+    "hold": 0.666,
+    "setup": 3.615
+  },
+  "generic_read_per_edge_min_ns": {
+    "hold": 10.488,
+    "setup": -9.548
+  },
+  "handoff_reported_source_counts": {
+    "captured_data": 63,
+    "read_enable": 65
+  },
+  "hardware_run": false,
+  "held_word_to_landing_min_ns": {
+    "hold": 4.484,
+    "setup": 1.763
+  },
+  "internal_checks_pass": true,
+  "internal_minima": {
+    "7_slow_1100mv_-40c/hold": 0.243,
+    "7_slow_1100mv_-40c/recovery": 5.509,
+    "7_slow_1100mv_-40c/removal": 0.887,
+    "7_slow_1100mv_-40c/setup": 0.856,
+    "7_slow_1100mv_100c/hold": 0.253,
+    "7_slow_1100mv_100c/recovery": 5.235,
+    "7_slow_1100mv_100c/removal": 0.957,
+    "7_slow_1100mv_100c/setup": 0.794,
+    "MIN_fast_1100mv_-40c/hold": 0.118,
+    "MIN_fast_1100mv_-40c/recovery": 7.619,
+    "MIN_fast_1100mv_-40c/removal": 0.414,
+    "MIN_fast_1100mv_-40c/setup": 3.673,
+    "MIN_fast_1100mv_100c/hold": 0.135,
+    "MIN_fast_1100mv_100c/recovery": 7.087,
+    "MIN_fast_1100mv_100c/removal": 0.504,
+    "MIN_fast_1100mv_100c/setup": 3.318
+  },
+  "mailbox_interstage_min_ns": 0.215,
+  "physical_timing": "BLOCKED: board bounds not established",
+  "production_seal": false,
+  "proof_sha256": "91a27aa4657bc33d6163f17d49aab35a1479383b324c0701d036229de664e9c5",
+  "pulse_width_pass": true,
+  "rbf_sha256": "a0769ea829272762cb6408283e178229859ba3ae9f36cf03abdeb37d654190fb",
+  "report_sha256": {
+    "audio.sdc": "e91adcaf068ff8e9f2044ebb262e15811a486db7015bf6b03a3d89a7ac929260",
+    "audit/clocks.tsv": "c156cd2a0389bb8071d94dd55ad7807e0bc767b87b600d91b520f0c0c44144ef",
+    "audit/endpoints.tsv": "ed20c0627f9bc4e2b8d4406fc8ac23af116c74aeb23c997a95944a1617769cc6",
+    "clocks.sdc": "467d51b57ab79ccaa00f62af705759a03220fbf66e7ec1371a36f4df22ed514d",
+    "conditional/channels.tsv": "3c9466c71a8b982585623b8e7577ed219924e5b2f54b27e00a39b3cd020e1402",
+    "mailbox.sdc": "8199fc2a4441b39f7935cf83cd6fef1b8db7da8b746e84e19c1b6bc18b02f78f",
+    "output_files/top.fit.rpt": "05fa1ee2b892a506baeba7304d5d608188eff7d91ac58b09b6b60219b6ce6aec",
+    "top.qsf": "3fd00079401719f9611de4ac2b457eebecc276591658162e684ab82a5f8688af"
+  },
+  "selected_path_gates_pass": true,
+  "used_read_word_window": {
+    "classification": "algebraic first-word transaction window; not a TimeQuest exception or seal",
+    "expected_launch_to_capture_ns": 13.75,
+    "hold_edge_debit_ns": 10,
+    "hold_min_ns": 0.488,
+    "setup_edge_credit_ns": 10,
+    "setup_min_ns": 0.452
+  }
+}
