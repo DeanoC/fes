@@ -146,10 +146,10 @@ foreach {label source sink toggle launches_expected captures_minimum} {
     gp_request request_payload machine_gpo 31 31 31
     gp_reply reply_payload gpi 23 31 17
 } {
-    set launches [remove_from_collection [get_registers "${base}|gp_crossing|${source}[*]"] \
-        [get_registers "${base}|gp_crossing|${source}[$toggle]"]]
-    set captures [remove_from_collection [get_registers "${base}|gp_crossing|${sink}[*]"] \
-        [get_registers "${base}|gp_crossing|${sink}[$toggle]"]]
+    set launches [remove_from_collection [get_registers "${base}|gp_crossing|${source}\[*\]"] \
+        [get_registers "${base}|gp_crossing|${source}\[$toggle\]"]]
+    set captures [remove_from_collection [get_registers "${base}|gp_crossing|${sink}\[*\]"] \
+        [get_registers "${base}|gp_crossing|${sink}\[$toggle\]"]]
     if {[get_collection_size $launches] != $launches_expected ||
         [get_collection_size $captures] < $captures_minimum || [get_collection_size $captures] > 31} {
         error "DE25 Atari ST held $label bundle endpoints changed"
@@ -164,7 +164,7 @@ foreach {label source sink toggle launches_expected captures_minimum} {
 # The peripheral reset asserts the machine-clock release chain at once. Its
 # two clear pins are asynchronous ingress; the chain's data path and the
 # SDRAM controller's recovery/removal from its output stay timed.
-set machine_release [get_pins -compatibility_mode -nocase -nowarn "${base}|machine_release[*]|aclr ${base}|machine_release[*]|clrn"]
+set machine_release [get_pins -compatibility_mode -nocase -nowarn "${base}|machine_release\[*\]|aclr ${base}|machine_release\[*\]|clrn"]
 if {[get_collection_size $machine_release] != 2} {error "DE25 Atari ST machine reset release endpoints changed"}
 set_false_path -to $machine_release
 
