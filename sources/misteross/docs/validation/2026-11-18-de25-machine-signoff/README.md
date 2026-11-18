@@ -3,7 +3,7 @@
 2026-11-18, Quartus Prime Pro 26.3.0 Build 114. Evidence class: host-only.
 Nothing was programmed; neither result is a hardware acceptance.
 
-Both runs are the package producer (`boards/de25nano/producers/build_*_package.py`),
+Every run is the package producer (`boards/de25nano/producers/build_*_package.py`),
 which compiles, runs the Design Assistant signoff and the fitted input,
 asynchronous-input and audio-clock reviews, and packages only when all 85
 signoff rules have no unreviewed failure, every reported timing check is
@@ -52,23 +52,34 @@ The same three reviewed rules fail and nothing else; every reported timing
 check passes.
 
 Both Spectrum packages were built before main was merged into the branch.
-The merge changes files the build record binds, so a build from the merged
-head has a different build ID and has not been run.
+The merge changes files the build record binds, so a Spectrum build from the
+merged head has a different build ID and has not been run. The Atari ST
+package below is from the merged branch.
 
-## Atari ST 520ST: not packaged
+## Atari ST 520ST: packaged
 
-Source `34c03780c`, Powerboat. Build ID `38238a040a06b8fac2d66abee83abafa`.
-15,451 ALMs (33%), 5,203,400 block memory bits (71%).
+Source `7a78a57dd`, Powerboat.
 
-Every reported timing check passes and the three reviews pass. Four rules
-fail; three are the shell's reviewed findings. The fourth is unreviewed and
-the producer refuses the package on it:
+| | |
+| --- | --- |
+| Build ID | `addd94763028f74756693bc34475dc57` |
+| Package | `ba37b83dc4ff55990be1a02ef6e2fa9469ce8125b1f108f7a4807e5581d04bf2` |
+| `.fcore` SHA-256 | `b4ef8f51fd69ea5672db5b77f70b4983719c2cb02e81e9abf6b838c7dace0582` |
+| `core.rbf` SHA-256 (first and repeat compile) | `8f1c982ceb0a0e3008242b25204175c1130e1e08b201975b7a32c8a6666f2e1e` |
+| Classification | `de25-atari-st-package-candidate`, `hardware_acceptance` false |
+| Logic (ALMs) | 15,423 / 46,800 (33%) |
+| Block memory bits | 5,203,400 / 7,331,840 (71%) |
 
-- TMC-20602 (Low), registers with high timing path endpoint tension, on
-  `core|machine_reset` and `core|system|machine|cpu|cpu|oReset`. Both are
-  resets with a wide fan-out across the machine.
+Signoff: the same three reviewed rules fail and nothing else. All 61 timing
+analyses pass: worst setup slack 2.092 ns on the machine clock and 2.127 ns
+on the pixel clock, worst hold 0.001 ns.
 
-There was no repeat compile and no export.
+The run before this one, at `34c03780c`, was refused on TMC-20602 (Low,
+registers with high timing path endpoint tension): `core|machine_reset`
+reached 7,741 registers and the 68000's `oReset` 5,745, across the whole
+machine. The processor and bus, the I/O chips and the memory and video
+raster now have a reset register each, loaded from the same logic on the
+same clock, and the rule reports no register.
 
 ## What changed to get here
 
@@ -80,3 +91,5 @@ There was no repeat compile and no export.
   the synchronized strobe; no clock group is cut. The Spectrum's frame banks
   cross as codes whose registers power up zero.
 - The audio hold takes the scanout clock fault through its own synchronizer.
+- The ST's processor, I/O chips and raster each read their own copy of the
+  machine reset and of the 68000's RESET output.

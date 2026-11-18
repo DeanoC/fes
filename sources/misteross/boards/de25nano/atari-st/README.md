@@ -65,10 +65,10 @@ memory master, PLLs, SDRAM pad timing and HDMI are not modeled.
 
 ## Open
 
-- The producer refuses the package on one unreviewed signoff finding,
-  TMC-20602 (Low) on the machine reset and the 68000's `oReset`
-  ([record](../../../docs/validation/2026-11-18-de25-machine-signoff/README.md)).
-  Timing and every other rule pass.
+- The 520ST [passes signoff and packages](../../../docs/validation/2026-11-18-de25-machine-signoff/README.md).
+  The package is a candidate with no hardware acceptance, and its
+  audio-clock review uses the new `de25-machine-pll-audio-clocks-v1` policy,
+  which is unreviewed.
 - ROM read timing against the DE10 machine. `st_rom` answered in five clocks;
   the SDRAM port answers in the CPU's slot. The diagnostic firmware runs, but
   no cycle-exact comparison or stock TOS boot has been made.
