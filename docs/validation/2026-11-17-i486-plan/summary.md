@@ -44,10 +44,13 @@ committed first: [`method.md`](method.md). Tracker:
   against it are CR0's read value and the #UD probes for the 486 opcodes.
   Bochs's only 486 is a DX4 with CPUID, and it cannot be a 486SX
   ([the oracle](#the-oracle-and-verification)).
-- **Demand measured so far is one title.** Duke Nukem 3D 1.3D is the only
-  title in any census recorded as stopping at a 486 instruction. The
-  level-4 census of the 53 titles in the drives is running at this
-  commit; its results are added to [demand](#demand) when it ends.
+- **Measured demand is one title, as its drive configures it.** Of the 53
+  titles in the drives, run on the level-4 oracle, only Duke Nukem 3D 1.3D
+  retires a 486 instruction other than CPUID: BSWAP, 32 times, first at
+  the address where the 386 takes exception 6. It then exits because the
+  machine has no VESA mode. 27 more titles and WfW 3.11 only test for a
+  486, and 25 titles do neither in their launch window. The drives were chosen for a 386, so
+  this is not the demand for a 486 ([demand](#demand)).
 - **No source says what a 486 does where the RTL follows the 386's
   microcode,** and Intel's documents contradict each other on a 486SX's
   ESC with EM clear. Those are questions for a real 486
@@ -107,10 +110,30 @@ classification rule:
   unconditionally and panics if a 486 model lacks it
   (`cpu/cpudb/intel/i486dx4.cc:39`; `cpu/cpuid.cc:1623-1624`). So it is
   not a 486SX either way.
-- **WfW 3.11 and the Linux drives are not in the sweep.** `wfw-386` on
-  the `win-msdos` drive is a game-suite title and runs after the 53; the
-  three Linux drives were not run at level 4, for time. Their level-3
-  records show which 486 tests they make ([demand](#demand)).
+- **The pilot was the sweep's own Duke Nukem 3D run.** The separate
+  24-second run started for the pilot was stopped once the sweep's
+  50-second run of the same title, launched the same way, had finished.
+  Nothing was read from the stopped run.
+- **The sweep was started twice.** The first start launched 15 titles at
+  once and they raced on the shared simulator build; it was stopped and
+  its outputs discarded. The second staggered the starts by 20 seconds.
+  All 53 titles then ended without a harness error. The bench ran about
+  eight wall minutes per simulated second with 15 running at once.
+- **CHKCPU's run reports `FAIL`.** It is a text program that prints and
+  exits, so the game check sees no screen progress. The level-3 census
+  recorded the same false fail
+  ([Phase 5 census](../2026-11-12-pc386-census-p5/summary.md)). Its
+  census is counted.
+- **`census.jsonl` names the instruction that changed a flag** (`popfd`,
+  `iret`, and so on), as well as the 486 stems `method.md` lists.
+- **WfW 3.11 ran; the Linux drives did not.** `wfw-386` on the
+  `win-msdos` drive ran after the 53, with its record's 14-second limit,
+  and is the 54th row. The three Linux drives were not run at level 4,
+  for time; their suite is not the game suite. Their level-3 records show
+  which 486 tests they make ([demand](#demand)).
+- **The exception key fired only in the WfW run.** The 53 titles have no
+  `exc:` line for vector 6, 16 or 17. WfW 3.11 has 613,313 for vector 6,
+  which shows the key counts.
 
 ## The delta, checked against the RTL
 
@@ -207,11 +230,16 @@ The documents describe two generations, and Bochs models a third thing.
 Era software tells a 486 from a 386 by toggling AC (PRM §3, Figure 3-23,
 and AP-485's detection sequence both do), and the 1992 PRM, written
 three years after the first 486, has no CPUID, so software written for a
-486 runs on A. B is needed only by software that wants CPUID on a 486, and
-[the census](#demand)'s CPUID count per title is the evidence for whether
-any does. A is the smaller target and is the
-one the 1992 PRM, the fullest source, describes; that lean is pending
-those counts. Neither target is an
+486 runs on A. B is needed only by software that wants CPUID on a 486.
+[The census](#demand) does not say whether any does. Bochs's 486 has
+CPUID, and 22
+of the 53 titles execute it, each after toggling ID, once to five times
+in a run: detection, not use. On A the ID test would fail and that
+software would take its no-CPUID path, as it does on a 386 today. So
+nothing in the census contradicts A, and nothing in it could show a title
+that needs CPUID on a 486, since no run was made without it. A is the
+smaller target and is the one the 1992 PRM, the fullest source,
+describes, and it is this record's lean. Neither target is an
 A-step (the 0F A6/A7 CMPXCHG): no document here covers it and no title is
 known to need it. The choice is Deano's:
 [open question 1](#open-questions-for-deano).
@@ -716,24 +744,106 @@ board, which is a conflict to settle before either uses it. FogCast's
 
 ### The level-4 census
 
-**Running at this commit.** The pilot and the 53-title sweep were started
-on 17 November 2026 on chip-30x0-ai-dev, as [`method.md`](method.md) sets
-out. The machine bench runs about five wall minutes per simulated second
-there, so the pilot's fault site (21.45 s) is about two hours in and the
-sweep several more. This section, `census.jsonl` and the result line
-above are filled in by a later commit on this PR, and nothing in the
-record depends on a result that has not come in: every statement about
-demand above this heading is from a committed record.
+53 titles, every title of the six drives, and then WfW 3.11 in 386
+enhanced mode ran on the level-4 oracle with the 387 fitted, as
+[`method.md`](method.md) sets out. All 54 ended without a harness error.
+The counts are in [`census.jsonl`](census.jsonl), one row per run.
+
+By `method.md`'s classification:
+
+| Class | Titles | Which |
+| --- | --- | --- |
+| Requires a 486 | 1 | Duke Nukem 3D 1.3D, as the `pmode` drive configures it |
+| Uses 486 instructions when it finds a 486 | 0 | |
+| Tests for a 486 only | 28 | 27 titles and WfW 3.11; see below |
+| Nothing | 25 | Includes Ultima VII and Serpent Isle, which write CR0 (below) |
+
+- **Duke Nukem 3D.** The instruction at 0180:00222BE2, where the 386
+  takes exception 6, is BSWAP of a 32-bit register (`0F C8`–`0F CF`).
+  The run retires 32 of them, all in ring 0 protected mode, and the first
+  is at that address. It retires no XADD, CMPXCHG, INVD, WBINVD or INVLPG.
+  The title goes on past the BSWAPs and at 21.85 s exits to the prompt
+  with "VESA driver for ( 1024 * 768 ) not found/supported". The drive's
+  `DUKE3D.CFG` selects `ScreenMode = 1` (VESA 2.0) at 1024 by 768, and the
+  machine's VGABIOS has no such mode.
+  - What this establishes: the 386 stop is a 486 instruction, and a CPU
+    with BSWAP gets the title 0.4 simulated seconds further.
+  - What it does not: that the title plays on a 486 identity. The next
+    stop is the machine's, not the CPU's. No run was made with the title
+    set to a VGA mode, on either level, so whether the 320 by 200 path
+    also executes BSWAP is not known.
+- **No other title retires a 486 instruction other than CPUID.** None of
+  the other 52 has a BSWAP, XADD, CMPXCHG, INVD, WBINVD or INVLPG count.
+- **Tests for a 486 only: 27 titles, and WfW 3.11.**
+  - 26 toggle EFLAGS.AC with POPFD or POPF, the test that tells a 486
+    from a 386 (the 27 that do, less Duke Nukem 3D). On a 386 the toggle
+    fails; here it took effect.
+  - 22 titles, Duke Nukem 3D among them, also toggle ID and execute
+    CPUID. CHKCPU toggles ID and not AC. Hot Speed toggles ID and executes no CPUID.
+  - CPUID runs one to five times a title, in real mode except for one
+    execution in Grand Prix 2 (ring 0) and three in Angband (ring 3).
+    Twelve titles execute it at one of two offsets, 662Bh or 664Bh, and
+    five more at one of three offsets (2D71h, 2DA5h, 2DF5h) in one
+    segment. That
+    pattern fits a detection routine in a shared DOS extender or DPMI
+    host rather than in each title, but which program owns each site was
+    not established.
+  - The AC and ID counts in `census.jsonl` are every change to the bit,
+    not every test. Angband's 2,104 ID changes are 2,067 far jumps and 34
+    IRETs, which are task and privilege switches carrying a set bit, and
+    three POPFDs or POPFs. Two titles (One Must Fall 2097, Norton SI 8) have one AC
+    change by INT. Only the POPF and POPFD counts are tests.
+- **Ultima VII and Serpent Isle write CR0's CD and NW.** Each has one MOV
+  to CR0 that changes both bits. Bochs resets with both set and the BIOS
+  never changes them (no other run has the key, and every run boots the
+  BIOS), so this is a clear: the titles' own memory manager loads CR0
+  without them. `method.md`'s classes do not cover a CR0 write, so by the
+  rule as written these two are "nothing"; the count is reported here
+  instead. On a 486 identity the write would turn the cache on, which is
+  what slice 2's BIOS change does anyway.
+- **Six titles ended at the prompt before their limit.** Five match their
+  level-3 records, so their short windows say nothing new: Star Control
+  II (not enough conventional memory, [#1539](https://github.com/DeanoC/fes/issues/1539)),
+  Master of Orion (its sound-setup exit), Grand Prix 2 and U.S. Navy
+  Fighters (their CD checks), and CHKCPU (prints and exits)
+  ([Phase 5 census](../2026-11-12-pc386-census-p5/summary.md)).
+  A title that stops at its setup is not evidence that it uses nothing.
+- **CACHECHK behaves differently at level 4.** The level-3 record has it
+  printing its memory timing table. Here it prints a 486 DX4 line with a
+  clock of 1044.0 MHz, then "Divide error", and exits at 9.5 s. The cause
+  was not looked for. It is a finding for slice 0: a 486 identity changes
+  what timing software does, and the oracle has no clock.
+- **WfW 3.11 in 386 enhanced mode tests for a 486 and uses nothing.** It
+  toggles AC four times by POPFD and retires no 486 instruction, no
+  CPUID and no ID toggle in its 14 seconds, and ran to its limit. Its
+  613,313 exception 6 events are 613,312 ARPLs in virtual-8086 mode,
+  which is how Windows leaves a DOS virtual machine, and one `0F FF`;
+  both are 386 behaviour (the `0F FF` is the one
+  [#1701](https://github.com/DeanoC/fes/issues/1701) recorded). So at
+  level 4, as at level 3, this WfW launch needs nothing a 386 lacks. It
+  is the 28th "tests only" row.
 
 ### Reading it
 
-The classification is [`method.md`](method.md)'s and does not move with
+The classification is [`method.md`](method.md)'s and did not move with
 the results: "requires a 486" needs a level-3 stop in a committed record
 as well as a level-4 run; a level-4 run alone shows "uses it when
 offered" or "tests for it". What the sweep cannot show is in `method.md`
-too: launch windows miss in-play use, the drives were chosen for a 386 so
-a count from them is not the demand, and behaviour on Bochs's DX4 is not
-behaviour on a 486.
+too:
+
+- Launch windows of 20 to 50 seconds miss in-play use. A title in
+  "nothing" or "tests only" may use a 486 instruction later.
+- The drives were chosen for a 386. One title in 53 is a count in a 386
+  corpus, not the demand for a 486: titles that ask for a 486 were mostly
+  never added.
+- Behaviour on Bochs's DX4 with CPUID is not behaviour on a 486 without
+  it. The 22 CPUID counts would be zero on option A.
+- The oracle has no speed. "Too slow on a 386" is not measured, and it is
+  the commoner reason a title of 1993–96 asks for a 486.
+
+So the census supports this much: 486 detection is common (29 of 54
+runs test for one), 486 instruction use in this corpus is one title,
+and that title needs a VESA mode as well before it shows anything.
 
 ## Area and fit
 
@@ -833,9 +943,10 @@ unchanged in behaviour.
    against the level-4 oracle with directed cases for each item and
    random programs; the AC and CPUID detection routines answer 386 with
    the identity off and 486 with it on; Duke Nukem 3D gets past
-   0180:00222BE2 on the RTL and on a kit (pending the pilot: this gate
-   assumes the instruction there is one of the six); the census rerun on
-   the RTL with the identity on.
+   0180:00222BE2 on the RTL and on a kit and reaches what the level-4
+   oracle reaches, its "VESA driver for (1024 * 768) not found/supported"
+   exit at 21.85 s (that it plays is not part of this gate: see
+   [demand](#demand)); the census rerun on the RTL with the identity on.
 3. **486 speed.** The reach measurement per preset on a kit after Phase
    4; reference scores for a 486 from the chosen source; the frequency
    override documented as the way to 25 and 50 MHz, or named presets if
