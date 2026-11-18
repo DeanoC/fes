@@ -58,3 +58,20 @@ applicable J8G native test is required before merging. Lane and readiness are
 controlled by the live PR, after the user-requested review cycle and remaining
 validation. Issue #1867 remains open for broader reset/DMA/failure qualification
 and source-matched standalone historical receipt replay.
+
+## CI prerequisite transport
+
+The later documentation head's first two CI attempts expire while downloading
+capture dependencies from the regional Ubuntu HTTP mirror, before the parent
+software test step starts. Both failures and the cancelled formal-tool
+installer are retained. The native/code head's CI had passed; these installer failures do
+not change its result or qualify the documentation head as green.
+
+CI now selects the official Ubuntu archive/security HTTPS mirror lists in its
+ephemeral software and producer runners. Existing signed suites, trusted keys,
+packages, apt commands, retries, timeout values, test selection and assertions
+are unchanged. Runners without those mirror-list files keep their existing
+source configuration. The change writes no host apt files or kit storage.
+Shell syntax and existing workflow tests check the additive transport change;
+final-head CI still must prove real dependency installation and test completion.
+It grants no native HIL acceptance or waiver.
