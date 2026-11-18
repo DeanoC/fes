@@ -13,52 +13,39 @@ The first compiles are recorded in
 [Spectrum](../2026-11-17-de25-spectrum-compile/README.md) and
 [Atari ST](../2026-11-17-de25-atari-st-compile/README.md).
 
-## ZX Spectrum 48K: packaged
+## ZX Spectrum: packaged
 
-Source `c93ff9543`, `fes-build-3090` (chip-30x0-ai-dev).
+Source `a5e864578`, the branch with main merged in. The 48K model was built
+on `fes-build-3090` (chip-30x0-ai-dev) and the 128K model on Powerboat.
 
-| | |
-| --- | --- |
-| Build ID | `8c6b60c30febf90f4680b4179e387abc` |
-| Package | `ce5d11bb9850e6086511148062234d62c71a0930f1d9192fa6d9be35ced8240d` |
-| `.fcore` SHA-256 | `6a091240b6e40c0b29345edb83f775acd225cf41d439d2955a08272364007bf1` |
-| `core.rbf` SHA-256 (first and repeat compile) | `4b9ee148ebe599c70a25443d07027852c45766da2b8987c027d18720afe13af6` |
-| Classification | `de25-spectrum-package-candidate`, `hardware_acceptance` false |
-| Logic (ALMs) | 10,272 / 46,800 (22%) |
-| Block memory bits | 3,484,672 / 7,331,840 (48%) |
+| | 48K | 128K |
+| --- | --- | --- |
+| Build ID | `332b901530a405a79e00a8e2c4e5b6c7` | `7f0f362b64bea70f76964e8e99c0cdc3` |
+| Package | `033642ab4950a3af9cdf34d0cc8db3c659b6904e992fd83c3889c6b6b3dd4846` | `766684af13230bc858ce81fbb620e21ae665bd29584cf46f6bc40b50f28a87ca` |
+| `.fcore` SHA-256 | `eff1c2380b84655a77e5df3f3a60e96a5e40b13a48012ea8c4c1dc3ba9b7e327` | `b1aed624b6a77071aa06696e66e6128f9f208cdfab716dd00aedc94c11ef100d` |
+| `core.rbf` SHA-256 (first and repeat compile) | `94eb274bb392e3b1610003712d7b8a44e0d78eceeab46f5261ff3a1d359c21f4` | `f77812be159bc440d6966fb7b1db77731be2afcbfa0b4097abc1808ee590d81e` |
+| Worst setup slack, machine clock | 2.169 ns | 2.132 ns |
+| Worst setup slack, pixel clock | 1.491 ns | 2.043 ns |
+| Worst hold slack | 0.001 ns | 0.000 ns |
 
-Signoff: three rules fail and all three are the shell's reviewed findings
-(RDC-50003 once, TMC-20011 twice, TMC-20012 five times). No unreviewed
-failure. All 63 timing analyses pass: worst setup slack 2.061 ns on the
-machine clock and 1.704 ns on the pixel clock, worst hold 0.001 ns.
+Both are `de25-spectrum-package-candidate` with `hardware_acceptance` false.
+
+Signoff, each model: three rules fail and all three are the shell's reviewed
+findings (RDC-50003 once, TMC-20011 twice, TMC-20012 five times). No
+unreviewed failure. All 63 timing analyses pass.
 
 The audio-clock review ran under the new policy
 `de25-machine-pll-audio-clocks-v1`, which takes the audio master from the
 machine PLL in place of the stock audio PLL. Nobody has reviewed that policy
 yet.
 
-## ZX Spectrum 128K: packaged
-
-Same source and host, `--model 128`.
-
-| | |
-| --- | --- |
-| Build ID | `d53a78489bd1a8eda327dcee51c75ac8` |
-| Package | `9e3e826ff67c6df7503748aeeb37f97c7e0adbe3ae7fd2d70b867c612e7a06e7` |
-| `.fcore` SHA-256 | `d4e4135db88d97f3b0903e3190d77d93dcf8cede4fded4f957053024c9a9cbda` |
-| `core.rbf` SHA-256 (first and repeat compile) | `d18e3a20b6ea3109b12e9e9ce28baf3922f2c3ea6dea9bd67c7a7341ef2d6f85` |
-
-The same three reviewed rules fail and nothing else; every reported timing
-check passes.
-
-Both Spectrum packages were built before main was merged into the branch.
-The merge changes files the build record binds, so a Spectrum build from the
-merged head has a different build ID and has not been run. The Atari ST
-package below is from the merged branch.
+Both models first packaged at `c93ff9543`, before main was merged in (48K
+package `ce5d11bb…8240d`, 128K `9e3e826f…06e7`); these builds replace them.
 
 ## Atari ST 520ST: packaged
 
-Source `7a78a57dd`, Powerboat.
+Source `7a78a57dd`, Powerboat. The commits after it change only this record,
+the READMEs and a test fixture.
 
 | | |
 | --- | --- |
