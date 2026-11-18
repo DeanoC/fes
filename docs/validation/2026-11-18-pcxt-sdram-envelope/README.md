@@ -1,5 +1,15 @@
 # PC/XT common SDRAM timing envelope, 18 November 2026
 
+**Read-window correction:** continuation work found that the inherited #1954
+calculation assumes first data launch at READ+CAS clocks. The actual first
+launch is READ+(CAS-1), as shown by Etron figure 20 and stated explicitly on
+ISSI's printed page 26. The #1954 selected sample is consequently one cycle
+later than the word used for its claimed +0.340/+0.912 ns reference. Those
+numbers remain reproducible arithmetic under the old assumption, but are
+withdrawn as margins for that selected physical word. The cross-vendor device
+limits below are unchanged. Correcting capture selection requires RTL and a
+fresh source-bound proof/fit; relabelling the old calculation cannot accept it.
+
 **Physical qualification is BLOCKED.** The common pin envelope below extends
 the Etron-only reference across multiple chip makers. The retained diagnostic
 still leaves only 0.340 ns for additional read setup costs and zero nominal

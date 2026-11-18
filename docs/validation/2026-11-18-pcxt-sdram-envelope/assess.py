@@ -63,6 +63,7 @@ def assess(fit):
             }
     return {
         "classification": "conditional arithmetic on retained diagnostic; no new STA or fit",
+        "selected_word_binding": "INVALID: inherited READ+CAS launch assumption; actual first launch is READ+(CAS-1). Reference numbers are withdrawn as margins for the selected physical word.",
         "envelope_ns": envelope,
         "reference_margins": margins,
         "nominal_cl2_cycle_headroom_ns": round(10 - envelope["tCK_CL2_min"], 3),

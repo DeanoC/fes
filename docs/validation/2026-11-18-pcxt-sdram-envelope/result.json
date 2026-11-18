@@ -84,5 +84,6 @@
         "rows": 4
       }
     }
-  }
+  },
+  "selected_word_binding": "INVALID: inherited READ+CAS launch assumption; actual first launch is READ+(CAS-1). Reference numbers are withdrawn as margins for the selected physical word."
 }
