@@ -4,10 +4,10 @@
  "refreshed_16_november": "30688ae44fb3e33c553b63ba9d2c79bd8548b7b9",
  "carried_to": "1ec59267039b12b5879dd90af856ac232b9d014c",
  "endpoints": {
-  "total": 1156,
-  "text_fingerprinted_in_authored_record": 977,
+  "total": 1245,
+  "text_fingerprinted_in_authored_record": 985,
   "text_first_pinned_16_november": 3,
-  "text_first_pinned_here": 176
+  "text_first_pinned_here": 257
  },
  "restored": [
   {
@@ -2391,6 +2391,76 @@
   },
   {
    "record": "census-tables.md",
+   "row": 469,
+   "cited": "test_build_fes_sms.py",
+   "line": 20,
+   "text": "OUTPUT_RELATIVE as QUARTUS_OUTPUT,"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 469,
+   "cited": "test_build_fes_sms.py",
+   "line": 21,
+   "text": "PINNED_INPUTS as QUARTUS_PINNED_INPUTS,"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 469,
+   "cited": "test_build_fes_sms.py",
+   "line": 65,
+   "text": "self.assertIn(producer.QUARTUS_LOCK, producer.PINNED_INPUTS)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 469,
+   "cited": "test_build_fes_sms.py",
+   "line": 67,
+   "text": "self.assertIn('\\nset_global_assignment -name LAST_QUARTUS_VERSION \"17.0.2 Lite Edition\"\\n', qsf)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 469,
+   "cited": "test_build_fes_sms.py",
+   "line": 69,
+   "text": "producer.project_qpf(lock), 'QUARTUS_VERSION = \"17.0\";\\nPROJECT_REVISION = \"top\";\\n'"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 469,
+   "cited": "test_build_fes_sg1000.py",
+   "line": 22,
+   "text": "OUTPUT_RELATIVE as QUARTUS_OUTPUT,"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 469,
+   "cited": "test_build_fes_sg1000.py",
+   "line": 23,
+   "text": "PINNED_INPUTS as QUARTUS_PINNED_INPUTS,"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 469,
+   "cited": "test_build_fes_sg1000.py",
+   "line": 67,
+   "text": "self.assertIn(producer.QUARTUS_LOCK, producer.PINNED_INPUTS)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 469,
+   "cited": "test_build_fes_sg1000.py",
+   "line": 69,
+   "text": "self.assertIn('\\nset_global_assignment -name LAST_QUARTUS_VERSION \"17.0.2 Lite Edition\"\\n', qsf)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 469,
+   "cited": "test_build_fes_sg1000.py",
+   "line": 71,
+   "text": "producer.project_qpf(lock), 'QUARTUS_VERSION = \"17.0\";\\nPROJECT_REVISION = \"top\";\\n'"
+  },
+  {
+   "record": "census-tables.md",
    "row": 499,
    "cited": "sources/misteross/scripts/build_fes_pc386_quartus.py",
    "line": 160,
@@ -2512,6 +2582,13 @@
    "record": "census-tables.md",
    "row": 567,
    "cited": "build_video_part.py",
+   "line": 167,
+   "text": "(str(tools[\"yosys\"].path), \"-p\", f\"read_verilog -sv {define}-I cores/fes-common/generated {' '.join(sources)}; synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}\"),"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 567,
+   "cited": "build_video_part.py",
    "line": 35,
    "text": "NATIVE_INPUTS = (*NATIVE_SOURCES, \"cores/fes-common/generated/fes_native_video.vh\","
   },
@@ -2521,6 +2598,209 @@
    "cited": "build_video_part.py",
    "line": 139,
    "text": "roots = source_roots_for_inputs(inputs)"
+  },
+  {
+   "record": "de25.md",
+   "row": 16,
+   "cited": "zx81-hps/tape_store.v",
+   "line": 83,
+   "text": "(* ram_style = \"m10k_tdp\" *)"
+  },
+  {
+   "record": "de25.md",
+   "row": 47,
+   "cited": "zx81/sim.py",
+   "line": 26,
+   "text": "captured = {name: (ROOT.parents[1] / name).read_bytes() for name in firmware.INPUTS}"
+  },
+  {
+   "record": "de25.md",
+   "row": 47,
+   "cited": "zx81/sim.py",
+   "line": 43,
+   "text": "\"-CFLAGS\", \"-O2 -I\" + str(output), \"--Mdir\", str(output),"
+  },
+  {
+   "record": "de25.md",
+   "row": 48,
+   "cited": "zx81-hps/sim.py",
+   "line": 72,
+   "text": "\"-Wno-CASEX\", \"-I\" + str(HERE), \"-I\" + str(HERE / \"generated\"),"
+  },
+  {
+   "record": "de25.md",
+   "row": 48,
+   "cited": "zx81-hps/sim.py",
+   "line": 73,
+   "text": "\"-I\" + str(COMMON / \"generated\"), \"-I\" + str(ZX81), \"-I\" + str(Z80),"
+  },
+  {
+   "record": "de25.md",
+   "row": 48,
+   "cited": "zx81-hps/sim.py",
+   "line": 118,
+   "text": "\"-I\" + str(HERE), \"-I\" + str(COMMON / \"generated\"), \"-I\" + str(ZX81),"
+  },
+  {
+   "record": "de25.md",
+   "row": 48,
+   "cited": "zx81-hps/sim.py",
+   "line": 119,
+   "text": "\"-I\" + str(Z80), \"-I\" + str(scanout),"
+  },
+  {
+   "record": "de25.md",
+   "row": 48,
+   "cited": "sim/zx81_session.py",
+   "line": 62,
+   "text": "'cores/fes-zx81/rtl/zx81_keyboard.v', 'cores/fes-zx81/rtl/zx81_tape_store.v')"
+  },
+  {
+   "record": "de25.md",
+   "row": 49,
+   "cited": "sim/zx81_session.py",
+   "line": 68,
+   "text": "'-I'+str(ROOT/'cores/fes-zx81/generated'), '-I'+str(ROOT/'cores/fes-common/generated'),"
+  },
+  {
+   "record": "de25.md",
+   "row": 49,
+   "cited": "sim/zx81_session.py",
+   "line": 70,
+   "text": "'-I'+str(ROOT/'cores/fes-common/rtl/z80'),"
+  },
+  {
+   "record": "de25.md",
+   "row": 50,
+   "cited": "link-proof/zx81-computer/proof.py",
+   "line": 83,
+   "text": "rtl += [mailbox / n for n in (\"fes_de25_computer.v\", \"fes_computer_mailbox.v\", \"zx81_machine.sv\", \"zx81_machine_clock.v\", \"zx81_keyboard.v\", \"zx81_dpram_de25.v\", \"zx81_tape_store_de25.v\", \"video.v\", \"fes_z80_alu.sv\", \"fes_z80_engine.sv\", \"fes_z80_bus.sv\", \"fes_z80_nmos.sv\")]"
+  },
+  {
+   "record": "de25.md",
+   "row": 72,
+   "cited": "cores/fes-zx81/rtl/zx81_tape_store.v",
+   "line": 25,
+   "text": "`endif"
+  },
+  {
+   "record": "de25.md",
+   "row": 77,
+   "cited": "zx81-hps/build.py",
+   "line": 64,
+   "text": "if (not boundary or prefix.count(b'`ifdef') != 1 or prefix.count(b'`endif') != 0 or"
+  },
+  {
+   "record": "de25.md",
+   "row": 77,
+   "cited": "zx81-hps/build.py",
+   "line": 66,
+   "text": "raise ValueError(\"ZX81 tape RAM adaptation contract changed\")"
+  },
+  {
+   "record": "de25.md",
+   "row": 88,
+   "cited": "link-proof/zx81-standard/reviewed-inputs.json",
+   "line": 68,
+   "text": "\"boards/de25nano/zx81-hps/tape_store.v\": \"9109f6b70203fcaa363b04ef3743d89fe8d86d6953c871ef1dbfa09858096cf3\","
+  },
+  {
+   "record": "de25.md",
+   "row": 88,
+   "cited": "link-proof/zx81-standard/reviewed-inputs.json",
+   "line": 103,
+   "text": "\"cores/fes-zx81/rtl/zx81_dpram.v\": \"a72d4bb2c2311813f07575c12ea96e51d1269882eed795753c3061b30c006038\","
+  },
+  {
+   "record": "de25.md",
+   "row": 89,
+   "cited": "link-proof/zx81-standard/reviewed-inputs.json",
+   "line": 109,
+   "text": "\"cores/fes-zx81/rtl/zx81_tape_store.v\": \"3a144e4fb125475ec8e849112130600968065b895a264225193d43fdbe6e24a9\","
+  },
+  {
+   "record": "de25.md",
+   "row": 91,
+   "cited": "link-proof/zx81-standard/static_reference.py",
+   "line": 27,
+   "text": "BOUND_FILES = {'reviewed-inputs.json': 'cd83ebf829dc82c57cecef25ec804799e149d27d60fd68fd5d2cd7eb86ca55d0',"
+  },
+  {
+   "record": "de25.md",
+   "row": 96,
+   "cited": "zx81_dpram.v",
+   "line": 68,
+   "text": "altsyncram_component.ram_block_type = \"M10K\","
+  },
+  {
+   "record": "de25.md",
+   "row": 97,
+   "cited": "zx81_dpram.v",
+   "line": 79,
+   "text": "(* ramstyle = \"M10K\" *) reg [DATAWIDTH-1:0] ram [0:NUMWORDS-1];"
+  },
+  {
+   "record": "de25.md",
+   "row": 100,
+   "cited": "zx81/test_build.py",
+   "line": 75,
+   "text": "self.assertEqual((project / \"zx81_dpram.v\").read_bytes(), B.SOURCE_PATHS[\"zx81_dpram.v\"].read_bytes())"
+  },
+  {
+   "record": "de25.md",
+   "row": 100,
+   "cited": "zx81/test_build.py",
+   "line": 106,
+   "text": "original = B.SOURCE_PATHS[\"zx81_dpram.v\"].read_bytes()"
+  },
+  {
+   "record": "de25.md",
+   "row": 118,
+   "cited": "zx81-hps/build.py",
+   "line": 151,
+   "text": "\"zx81_model.vh\", \"zx81_bus_pack.vh\")})"
+  },
+  {
+   "record": "de25.md",
+   "row": 135,
+   "cited": "zx81/build.py",
+   "line": 90,
+   "text": "def retarget_video(source):"
+  },
+  {
+   "record": "de25.md",
+   "row": 135,
+   "cited": "zx81/build.py",
+   "line": 92,
+   "text": "b'(* ramstyle = \"M20K\" *) reg fb [0:(270 * 512) - 1];', 1),), \"ZX81 video RAM\")"
+  },
+  {
+   "record": "de25.md",
+   "row": 136,
+   "cited": "zx81-hps/build.py",
+   "line": 64,
+   "text": "if (not boundary or prefix.count(b'`ifdef') != 1 or prefix.count(b'`endif') != 0 or"
+  },
+  {
+   "record": "de25.md",
+   "row": 136,
+   "cited": "zx81-hps/build.py",
+   "line": 66,
+   "text": "raise ValueError(\"ZX81 tape RAM adaptation contract changed\")"
+  },
+  {
+   "record": "README.md",
+   "row": 154,
+   "cited": "zx81-hps/build.py",
+   "line": 64,
+   "text": "if (not boundary or prefix.count(b'`ifdef') != 1 or prefix.count(b'`endif') != 0 or"
+  },
+  {
+   "record": "README.md",
+   "row": 154,
+   "cited": "zx81-hps/build.py",
+   "line": 66,
+   "text": "raise ValueError(\"ZX81 tape RAM adaptation contract changed\")"
   },
   {
    "record": "README.md",
@@ -2542,6 +2822,293 @@
    "cited": "M/boards/de25nano/link-proof/zx81-standard/reviewed-inputs.json",
    "line": 109,
    "text": "\"cores/fes-zx81/rtl/zx81_tape_store.v\": \"3a144e4fb125475ec8e849112130600968065b895a264225193d43fdbe6e24a9\","
+  },
+  {
+   "record": "README.md",
+   "row": 165,
+   "cited": "link-proof/zx81-standard/static_reference.py",
+   "line": 27,
+   "text": "BOUND_FILES = {'reviewed-inputs.json': 'cd83ebf829dc82c57cecef25ec804799e149d27d60fd68fd5d2cd7eb86ca55d0',"
+  },
+  {
+   "record": "README.md",
+   "row": 195,
+   "cited": "M/scripts/hip_zx81_bus_socket.py",
+   "line": 138,
+   "text": "f\"read_verilog -sv -I cores/fes-zx81/rtl {sources}; \""
+  },
+  {
+   "record": "README.md",
+   "row": 201,
+   "cited": "sim_fes_coleco_quartus.py",
+   "line": 32,
+   "text": "sources = [s for s in (*VERILOG_SOURCES, *SYSTEMVERILOG_SOURCES)"
+  },
+  {
+   "record": "README.md",
+   "row": 201,
+   "cited": "sim_fes_coleco_quartus.py",
+   "line": 33,
+   "text": "if Path(s).name not in (\"sys_pll.v\", \"coleco_system_pll.v\", \"pixel_pll.v\", \"top.v\")]"
+  },
+  {
+   "record": "README.md",
+   "row": 251,
+   "cited": "zx81/build.py",
+   "line": 90,
+   "text": "def retarget_video(source):"
+  },
+  {
+   "record": "README.md",
+   "row": 251,
+   "cited": "zx81/build.py",
+   "line": 92,
+   "text": "b'(* ramstyle = \"M20K\" *) reg fb [0:(270 * 512) - 1];', 1),), \"ZX81 video RAM\")"
+  },
+  {
+   "record": "README.md",
+   "row": 251,
+   "cited": "zx81-hps/build.py",
+   "line": 64,
+   "text": "if (not boundary or prefix.count(b'`ifdef') != 1 or prefix.count(b'`endif') != 0 or"
+  },
+  {
+   "record": "README.md",
+   "row": 251,
+   "cited": "zx81-hps/build.py",
+   "line": 66,
+   "text": "raise ValueError(\"ZX81 tape RAM adaptation contract changed\")"
+  },
+  {
+   "record": "README.md",
+   "row": 264,
+   "cited": "M/scripts/build_fes_pc386_quartus.py",
+   "line": 289,
+   "text": "return yosys_netlist.program(yosys_netlist.SEAL, top=MACHINE_TOP,"
+  },
+  {
+   "record": "README.md",
+   "row": 264,
+   "cited": "M/scripts/build_fes_pc386_quartus.py",
+   "line": 291,
+   "text": "includes=INCLUDE_DIRS, parameters=guest_rates(), netlist=netlist.as_posix())"
+  },
+  {
+   "record": "README.md",
+   "row": 264,
+   "cited": "M/scripts/build_fes_pc386_quartus.py",
+   "line": 119,
+   "text": "\"cores/fes-pc386/rtl/top.sv\","
+  },
+  {
+   "record": "README.md",
+   "row": 264,
+   "cited": "M/scripts/build_fes_pc386_quartus.py",
+   "line": 335,
+   "text": "def project_qsf(root: Path, project: Path, build_id: str, seed: int) -> str:"
+  },
+  {
+   "record": "README.md",
+   "row": 264,
+   "cited": "M/scripts/build_fes_pc386_quartus.py",
+   "line": 351,
+   "text": "'set_global_assignment -name VERILOG_MACRO \"QUARTUS=1\"',"
+  },
+  {
+   "record": "README.md",
+   "row": 264,
+   "cited": "M/scripts/build_fes_pc386_quartus.py",
+   "line": 357,
+   "text": "for source in SHELL_SOURCES:"
+  },
+  {
+   "record": "README.md",
+   "row": 265,
+   "cited": "M/scripts/build_fes_pc386_quartus.py",
+   "line": 244,
+   "text": "def _authenticate_tools(root: Path, *, cache_root: Path | None = None, gpu_router: str = \"HIP\") -> dict[str, str]:"
+  },
+  {
+   "record": "README.md",
+   "row": 267,
+   "cited": "M/scripts/build_fes_pc386_quartus.py",
+   "line": 289,
+   "text": "return yosys_netlist.program(yosys_netlist.SEAL, top=MACHINE_TOP,"
+  },
+  {
+   "record": "README.md",
+   "row": 267,
+   "cited": "M/scripts/build_fes_pc386_quartus.py",
+   "line": 291,
+   "text": "includes=INCLUDE_DIRS, parameters=guest_rates(), netlist=netlist.as_posix())"
+  },
+  {
+   "record": "README.md",
+   "row": 286,
+   "cited": "M/docs/architecture.md",
+   "line": 2188,
+   "text": "machine with `-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1` so registered media,"
+  },
+  {
+   "record": "README.md",
+   "row": 286,
+   "cited": "M/docs/architecture.md",
+   "line": 2190,
+   "text": "Yosys maps. `FES_SG1000_OSS` alone does not select those Coleco wrappers."
+  },
+  {
+   "record": "README.md",
+   "row": 286,
+   "cited": "M/docs/architecture.md",
+   "line": 2202,
+   "text": "Yosys defines `FES_SG1000_OSS=1`, `FES_SG1000_ROM_LINK=1`, and"
+  },
+  {
+   "record": "README.md",
+   "row": 286,
+   "cited": "M/docs/architecture.md",
+   "line": 2203,
+   "text": "`FES_COLECO_OSS=1`. The cartridge bank-mux output is registered in the system"
+  },
+  {
+   "record": "README.md",
+   "row": 286,
+   "cited": "M/docs/architecture.md",
+   "line": 2278,
+   "text": "(`-DFES_SMS_OSS=1 -DFES_SMS_ROM_LINK=1 -DFES_COLECO_OSS=1`). Both are host"
+  },
+  {
+   "record": "README.md",
+   "row": 286,
+   "cited": "M/docs/architecture.md",
+   "line": 2292,
+   "text": "`TV80_REFRESH=1`, `FES_SMS_OSS=1`, `FES_SMS_ROM_LINK=1`, and `FES_COLECO_OSS=1`. `--synth-only` runs"
+  },
+  {
+   "record": "README.md",
+   "row": 286,
+   "cited": "M/docs/architecture.md",
+   "line": 2496,
+   "text": "the same `cores/fes-zx81/rtl/top.v` (`QUARTUS=1`: HPS I2C at"
+  },
+  {
+   "record": "README.md",
+   "row": 286,
+   "cited": "M/docs/architecture.md",
+   "line": 2559,
+   "text": "(`QUARTUS` is not defined). Place-and-route uses `constraints-oss.qsf` and `clocks-oss.sdc`."
+  },
+  {
+   "record": "README.md",
+   "row": 288,
+   "cited": "M/cores/fes-sg1000/README.md",
+   "line": 181,
+   "text": "`-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1`. Registered media is gated on"
+  },
+  {
+   "record": "README.md",
+   "row": 288,
+   "cited": "M/cores/fes-sg1000/README.md",
+   "line": 183,
+   "text": "gated on `FES_COLECO_OSS`. Both defines are required."
+  },
+  {
+   "record": "README.md",
+   "row": 288,
+   "cited": "M/cores/fes-sg1000/README.md",
+   "line": 207,
+   "text": "`FES_SG1000_OSS=1`, `FES_SG1000_ROM_LINK=1`, and"
+  },
+  {
+   "record": "README.md",
+   "row": 288,
+   "cited": "M/cores/fes-sg1000/README.md",
+   "line": 208,
+   "text": "`FES_COLECO_OSS=1`. `--synth-only` runs Yosys on a dirty tree and does not"
+  },
+  {
+   "record": "README.md",
+   "row": 289,
+   "cited": "M/cores/fes-coleco/sim/vdp_machine_tb.cpp",
+   "line": 35,
+   "text": "#else"
+  },
+  {
+   "record": "README.md",
+   "row": 290,
+   "cited": "M/cores/fes-coleco/sim/vdp_machine_tb.cpp",
+   "line": 33,
+   "text": "#ifdef FES_COLECO_OSS"
+  },
+  {
+   "record": "README.md",
+   "row": 291,
+   "cited": "M/cores/fes-coleco/README.md",
+   "line": 678,
+   "text": "| Quartus VDP inference | After the framebuffer fix, a direct VDP VRAM array still produced 186,906 combinational nodes and could not fit. The registered four-copy VDP path is therefore selected for `QUARTUS` as well as `FES_COLECO_OSS`; this is a Quartus resource-inference workaround, not a mailbox-contract change. |"
+  },
+  {
+   "record": "README.md",
+   "row": 292,
+   "cited": "M/cores/fes-coleco/README.md",
+   "line": 639,
+   "text": "used for these probes because Verilator 5.051 rejects the vendor model's"
+  },
+  {
+   "record": "README.md",
+   "row": 292,
+   "cited": "M/cores/fes-coleco/README.md",
+   "line": 640,
+   "text": "`i_good_to_write_a2`/`i_good_to_write_b2` feedback constructs. The existing"
+  },
+  {
+   "record": "README.md",
+   "row": 292,
+   "cited": "M/cores/fes-coleco/README.md",
+   "line": 688,
+   "text": "| Relocated Quartus/Icarus probe | Use `iverilog -V` to confirm Icarus 12, derive `IVERILOG_BASE` from the installed `ivlpp` path as shown above, and pass the absolute Quartus 17.0.2 `QUARTUS_ROOTDIR`. The runner uses Icarus for the unmodified Intel `altera_mf.v` model because Verilator rejects the model's `i_good_to_write_a2`/`i_good_to_write_b2` feedback constructs. Quartus 17.0.2 also rejects `OLD_DATA` on the packed bidirectional sprite RAM's registered port A; `NEW_DATA_NO_NBE_READ` is legal because the renderer consumes q_a one phase later. |"
+  },
+  {
+   "record": "README.md",
+   "row": 318,
+   "cited": "M/cores/fes-coleco/rtl/coleco_machine.sv",
+   "line": 354,
+   "text": "coleco_dpram #("
+  },
+  {
+   "record": "README.md",
+   "row": 318,
+   "cited": "M/cores/fes-coleco/rtl/coleco_machine.sv",
+   "line": 370,
+   "text": "coleco_dpram #("
+  },
+  {
+   "record": "README.md",
+   "row": 318,
+   "cited": "M/cores/fes-coleco/rtl/coleco_machine.sv",
+   "line": 395,
+   "text": "coleco_dpram #("
+  },
+  {
+   "record": "README.md",
+   "row": 318,
+   "cited": "M/cores/fes-sg1000/rtl/sg1000_machine.sv",
+   "line": 254,
+   "text": "coleco_dpram #("
+  },
+  {
+   "record": "README.md",
+   "row": 318,
+   "cited": "M/cores/fes-sg1000/rtl/sg1000_machine.sv",
+   "line": 270,
+   "text": "coleco_dpram #("
+  },
+  {
+   "record": "README.md",
+   "row": 321,
+   "cited": "M/cores/fes-coleco/rtl/coleco_application_gp.v",
+   "line": 56,
+   "text": "coleco_dpram #(.ADDRWIDTH(15), .NUMWORDS(32768)) media_ram ("
   }
  ]
 }
