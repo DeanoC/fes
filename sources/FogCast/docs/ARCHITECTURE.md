@@ -1895,7 +1895,7 @@ The built-in room set contains Home, Systems, System setup and Sinclair setup.
 The last two are internal templates opened with an exact model/entry, excluded
 from room and default-home pickers. Release Home presents recent titles and
 computer-family tiles; opening a family enters its workbench, while Play on a
-recent title launches that title. Settings is its only header route in the v1
+recent title launches that title. Settings is its only header route in the default
 scope. Show all cores restores Library and Systems routes and the remaining
 families. Back at release Home's root keeps Home open; the room picker is the
 fallback when Home cannot open. The old Lobby, Amiga Workbench, Mario, SNES,
@@ -1906,7 +1906,7 @@ refreshes. Sinclair setup queues a refresh requested during a read and
 performs it after the current snapshot arrives.
 Missing saved-home IDs use the existing fallback without replacement aliases.
 
-`internal/corenames` supplies plain display names for 18 exact first-party
+`internal/corenames` supplies plain display names for registered first-party
 core IDs. Unknown systems retain their supplied name; this table does not admit
 packages or media. Installed-core protocol metadata stays verbatim. The room
 adapters project machine names and recognize only known model aliases followed
