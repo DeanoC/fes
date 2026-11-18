@@ -147,6 +147,9 @@ module fes_i386_exctl (
     assign c.r_y = (alu && (op == 5'd15 || op == 5'd9))
                 || cls == C_SEGMENT && (op == 5'(fes_i386_pkg::SEGOP_LOAD_REAL) || op == 5'(fes_i386_pkg::SEGOP_TSEL));
     assign c.r_zf = cls == C_SEGMENT && op == 5'(fes_i386_pkg::SEGOP_ZF);
+    assign c.r_csel = cls == C_SEGMENT && op == 5'(fes_i386_pkg::SEGOP_CSEL);
+    assign c.r_bswap = cls == C_SEGMENT && op == 5'(fes_i386_pkg::SEGOP_BSWAP);
+    assign c.r_cpuid = cls == C_SEGMENT && op == 5'(fes_i386_pkg::SEGOP_CPUID);
     assign c.r_movsx = alu && op == 5'd16;
     assign c.r_setcc = alu && op == 5'd17;
     assign c.r_sign = alu && op == 5'd31;

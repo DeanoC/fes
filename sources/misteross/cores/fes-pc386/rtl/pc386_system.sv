@@ -199,6 +199,9 @@ module pc386_system #(
     wire [9:0] gov_frequency = settings[25:16];
     wire gov_turbo = settings[48];
     wire queue16 = settings[32];
+    // The i486 identity (#1962 slice 1 fit spike, arm b): a build parameter,
+    // tied on. Arm c drives it from the record instead (a runtime strap).
+    wire cpu_i486 = 1'b1;
     wire [7:0] sb_base_high = settings[75:68];
     wire [7:0] sb_irq = settings[87:80];
     wire [7:0] sb_dma = settings[103:96];
@@ -497,7 +500,7 @@ module pc386_system #(
         .init_ldtr_sel(16'h0), .init_ldtr_base(32'h0), .init_ldtr_limit(32'hffff), .init_ldtr_ar(16'h0082),
         .init_ldtr_valid(1'b1), .init_tr_sel(16'h0), .init_tr_base(32'h0), .init_tr_limit(32'hffff),
         .init_tr_ar(16'h008b),
-        .a20m(a20m), .attr_upper(ATTR_UPPER), .ram_top(7'd16), .queue16(queue16),
+        .a20m(a20m), .attr_upper(ATTR_UPPER), .ram_top(7'd16), .queue16(queue16), .i486(cpu_i486),
         .gov_preset(gov_preset), .gov_frequency(gov_frequency), .gov_turbo(gov_turbo),
         .ddr_address(cpu_ddr_address), .ddr_burstcount(cpu_ddr_burstcount), .ddr_read(cpu_ddr_read),
         .ddr_write(cpu_ddr_write), .ddr_writedata(cpu_ddr_writedata), .ddr_byteenable(cpu_ddr_byteenable),

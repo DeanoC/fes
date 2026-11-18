@@ -103,6 +103,7 @@ module fes_i386_decode #(
     input  logic [1:0]             iopl,        // EFLAGS.IOPL
     input  logic                   nt,          // EFLAGS.NT as it stands (IRET's form; D checks it, ntchk)
     input  logic                   dr_gd,       // DR7.GD: a MOV to or from DRn raises #DB
+    input  logic                   i486,        // the i486 identity (#1962 slice 1 spike): its instructions decode
     output fes_i386_pkg::uop_t     uop,
     output logic                   x87_insn,    // the instruction goes to the x87 unit: an ESC, or WAIT
     output logic                   x87_wait,    // ... and it is WAIT (9Bh), which only waits for BUSY#
@@ -1776,6 +1777,15 @@ module fes_i386_decode #(
                             upc = fes_i386_ucode_pkg::UC_LMSW;
                             eoi = 1'b0;
                         end
+                        // INVLPG m (the i486 identity): both TLBs flushed at
+                        // WB, a jump to the next instruction (SYSOP_INVLPG).
+                        // The operand's address is not formed or checked.
+                        3'd7: begin
+                            undefined = reg_form || !i486;
+                            cls = C_SYSTEM;
+                            op = 5'(fes_i386_pkg::SYSOP_INVLPG);
+                            branch = 1'b1;
+                        end
                         default: undefined = 1'b1;
                     endcase
                 end
@@ -2026,7 +2036,8 @@ module fes_i386_decode #(
                     // (docs/i386-cpu-design.md, Architecture). A write puts
                     // the register in T1 and 8 + the number in imm for the
                     // ROM's write (SYSOP_DR).
-                    undefined = !reg_f[2];
+                    // The i486 identity adds TR3, storage only.
+                    undefined = !reg_f[2] && !(i486 && reg_f == 3'd3);
                     op = 5'd9;  // ALU_MOV
                     size = 2'd2;
                     if (!op2[1]) begin
@@ -2035,7 +2046,7 @@ module fes_i386_decode #(
                         d_valid = 1'b1;
                         d_idx = rm;
                         b_sys = 1'b1;
-                        sys_idx = 5'(5'(fes_i386_pkg::SYS_RD_TR4) + 5'(reg_f[1:0]));
+                        sys_idx = !reg_f[2] ? 5'(fes_i386_pkg::SYS_RD_TR3) : 5'(5'(fes_i386_pkg::SYS_RD_TR4) + 5'(reg_f[1:0]));
                     end else begin
                         s2_valid = 1'b1;
                         s2_idx = rm;
@@ -2047,6 +2058,120 @@ module fes_i386_decode #(
                         upc = fes_i386_ucode_pkg::UC_WDR;
                         eoi = 1'b0;
                     end
+                end
+                // ---- The i486 identity's instructions (#1962 slice 1 fit spike)
+                8'b11001???: begin
+                    // BSWAP r32 (C8h-CFh): EX's byte reversal of src1
+                    // (SEGOP_BSWAP). A 16-bit operand size is undefined on a
+                    // 486; this swaps and keeps the low word.
+                    undefined = !i486;
+                    cls = C_SEGMENT;
+                    op = 5'(fes_i386_pkg::SEGOP_BSWAP);
+                    s1_valid = 1'b1;
+                    s1_idx = op2[2:0];
+                    d_valid = 1'b1;
+                    d_idx = op2[2:0];
+                end
+                8'b1100000?: begin
+                    // XADD r/m, r (C0h, C1h). Registers: XCHG's three XORs,
+                    // then the ADD into r/m (SEQ_XADD), or the ADD alone when
+                    // they are one register. Memory: r/m into T1, the
+                    // read-modify-write ADD, then r from T1 (SEQ_XADDM),
+                    // which LOCK may prefix.
+                    undefined = !i486;
+                    size = op2[0] ? osz : 2'd0;
+                    if (reg_form) begin
+                        op = reg_f == rm ? 5'd0 : 5'd6;  // ALU_ADD, ALU_XOR
+                        wr_cf = reg_f == rm;
+                        wr_oszap = reg_f == rm;
+                        s1_valid = 1'b1;
+                        s1_idx = op2[0] ? rm : {1'b0, rm[1:0]};
+                        s1_hi8 = !op2[0] && rm[2];
+                        s2_valid = 1'b1;
+                        s2_idx = op2[0] ? reg_f : {1'b0, reg_f[1:0]};
+                        s2_hi8 = !op2[0] && reg_f[2];
+                        d_valid = 1'b1;
+                        d_idx = s1_idx;
+                        d_hi8 = s1_hi8;
+                        if (reg_f != rm) begin
+                            seq = fes_i386_pkg::SEQ_XADD;
+                            eoi = 1'b0;
+                        end
+                    end else begin
+                        op = 5'd9;
+                        size = 2'd2;  // T1's load, unmerged
+                        mbytes = op2[0] ? (osz32 ? 3'd4 : 3'd2) : 3'd1;
+                        mkind = 2'd1;
+                        s1_idx = op2[0] ? reg_f : {1'b0, reg_f[1:0]};  // carried, unread
+                        s1_hi8 = !op2[0] && reg_f[2];
+                        d_valid = 1'b1;
+                        d_temp = 1'b1;
+                        d_t1 = 1'b1;
+                        lock_any = 1'b1;
+                        seq = fes_i386_pkg::SEQ_XADDM;
+                        eoi = 1'b0;
+                    end
+                end
+                8'b1011000?: begin
+                    // CMPXCHG r/m, r (B0h, B1h). Registers: CMP eAX, r/m, then
+                    // r/m from r where ZF is set and eAX from r/m where it is
+                    // clear, each a select by the flags (SEQ_CMPX); the first
+                    // uop carries r in its (unwritten) destination.
+                    // Memory: r/m into T1, the CMP with T1, T1 from r where ZF
+                    // is set, T1 stored back (a 486 always writes), eAX from
+                    // T1 where ZF is clear (SEQ_CMPXM), which LOCK may prefix.
+                    undefined = !i486;
+                    size = op2[0] ? osz : 2'd0;
+                    if (reg_form) begin
+                        op = 5'd7;  // ALU_CMP
+                        wr_cf = 1'b1;
+                        wr_oszap = 1'b1;
+                        s1_valid = 1'b1;
+                        s1_idx = 3'd0;
+                        s2_valid = 1'b1;
+                        s2_idx = op2[0] ? rm : {1'b0, rm[1:0]};
+                        s2_hi8 = !op2[0] && rm[2];
+                        d_idx = op2[0] ? reg_f : {1'b0, reg_f[1:0]};  // carried, unwritten
+                        d_hi8 = !op2[0] && reg_f[2];
+                        seq = fes_i386_pkg::SEQ_CMPX;
+                        eoi = 1'b0;
+                    end else begin
+                        op = 5'd9;
+                        size = 2'd2;
+                        mbytes = op2[0] ? (osz32 ? 3'd4 : 3'd2) : 3'd1;
+                        mkind = 2'd1;
+                        s1_idx = op2[0] ? reg_f : {1'b0, reg_f[1:0]};  // carried, unread
+                        s1_hi8 = !op2[0] && reg_f[2];
+                        d_valid = 1'b1;
+                        d_temp = 1'b1;
+                        d_t1 = 1'b1;
+                        lock_any = 1'b1;
+                        seq = fes_i386_pkg::SEQ_CMPXM;
+                        eoi = 1'b0;
+                    end
+                end
+                8'h08, 8'h09: begin
+                    // INVD, WBINVD (the i486 identity): CPL 0 only; nothing
+                    // to do on caches that are coherent, so a NOP.
+                    undefined = !i486;
+                    cls = C_SPECIAL;
+                    op = 5'd0;  // SPECIAL_NOP
+                end
+                8'ha2: begin
+                    // CPUID (the i486 identity): EBX, ECX, EDX, then EAX, each
+                    // from EX's table by EAX's leaf (SEGOP_CPUID, SEQ_CPUID).
+                    undefined = !i486;
+                    cls = C_SEGMENT;
+                    op = 5'(fes_i386_pkg::SEGOP_CPUID);
+                    size = 2'd2;
+                    src_size = 2'd2;
+                    s1_valid = 1'b1;
+                    s1_idx = 3'd0;
+                    d_valid = 1'b1;
+                    d_idx = 3'd3;
+                    imm = 32'd3;
+                    seq = fes_i386_pkg::SEQ_CPUID;
+                    eoi = 1'b0;
                 end
                 // The 386 defines LOADALL (07h), which is not built: it
                 // stops as FAULT_UNIMPLEMENTED. Every other encoding here
@@ -2187,7 +2312,8 @@ module fes_i386_decode #(
     logic [4:0] fault;
     logic       lock_ok;
     assign priv_op = two ? op2 == 8'h06 || op2[7:2] == 6'b001000 || op2 == 8'h24 || op2 == 8'h26
-                         || op2 == 8'h00 && reg_f[2:1] == 2'b01 || op2 == 8'h01 && (reg_f[2:1] == 2'b01 || reg_f == 3'd6)
+                         || op2 == 8'h08 || op2 == 8'h09
+                         || op2 == 8'h00 && reg_f[2:1] == 2'b01 || op2 == 8'h01 && (reg_f[2:1] == 2'b01 || reg_f[2:1] == 2'b11)
                          : b0 == 8'hf4;
     assign v86_gp = vm && iopl != 2'd3 && (!two && (b0 == 8'h9c || b0 == 8'h9d || b0 == 8'hcd || b0 == 8'hcf) || q.prefixes.lock);
     assign cpl_gp = pe && (cpl != 2'd0 && priv_op || cpl > iopl && !two && b0[7:1] == 7'b1111101) || v86_gp;

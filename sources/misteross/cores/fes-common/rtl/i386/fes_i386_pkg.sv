@@ -212,7 +212,10 @@ package fes_i386_pkg;
     // task switch's selector alone, from src2 or its load, the segment's
     // cache kept and every access refused until the new task's descriptor
     // loads it (fes_i386_cpu, "Task switches").
-    typedef enum logic [4:0] { SEGOP_LOAD_REAL, SEGOP_ZF, SEGOP_TSEL } segment_op_e;
+    // i486 (the fit spike, #1962 slice 1): CSEL, src2 when ctl.cond holds by
+    // the flags, else src1 (CMPXCHG's selects); BSWAP, src1's bytes reversed;
+    // CPUID, the leaf in src1 (EAX) and the register in imm[1:0].
+    typedef enum logic [4:0] { SEGOP_LOAD_REAL, SEGOP_ZF, SEGOP_TSEL, SEGOP_CSEL, SEGOP_BSWAP, SEGOP_CPUID } segment_op_e;
 
     // UOP_SPECIAL.
     typedef enum logic [4:0] { SPECIAL_NOP, SPECIAL_HLT } special_op_e;
@@ -236,7 +239,7 @@ package fes_i386_pkg;
     typedef enum logic [4:0] {
         SYSOP_CLTS = 5'd0, SYSOP_CR0 = 5'd1, SYSOP_LMSW = 5'd2, SYSOP_CR2 = 5'd3, SYSOP_CR3 = 5'd4,
         SYSOP_GDTR = 5'd5, SYSOP_IDTR = 5'd6, SYSOP_LDTR = 5'd7, SYSOP_TR = 5'd8, SYSOP_GATE = 5'd9,
-        SYSOP_DR = 5'd10, SYSOP_TSTR = 5'd12, SYSOP_TSLDT = 5'd13, SYSOP_TSLDTD = 5'd14
+        SYSOP_DR = 5'd10, SYSOP_INVLPG = 5'd11, SYSOP_TSTR = 5'd12, SYSOP_TSLDT = 5'd13, SYSOP_TSLDTD = 5'd14
     } system_op_e;
     // The system uops that do not jump to the next instruction.
     function automatic logic sys_nojmp(input logic [4:0] op);
@@ -285,7 +288,7 @@ package fes_i386_pkg;
         SYS_RD_CR0, SYS_RD_CR2, SYS_RD_CR3, SYS_RD_GDTL, SYS_RD_GDTB, SYS_RD_IDTL, SYS_RD_IDTB, SYS_RD_LDTR,
         SYS_RD_TR, SYS_RD_ERR, SYS_RD_ONES, SYS_RD_FIP, SYS_RD_FCS, SYS_RD_FDP, SYS_RD_FDS, SYS_RD_ARPL,
         SYS_RD_LAR, SYS_RD_LSL, SYS_RD_VERR, SYS_RD_VERW, SYS_RD_DR0, SYS_RD_DR1, SYS_RD_DR2, SYS_RD_DR3,
-        SYS_RD_DR6, SYS_RD_DR7, SYS_RD_TR4, SYS_RD_TR5, SYS_RD_TR6, SYS_RD_TR7
+        SYS_RD_DR6, SYS_RD_DR7, SYS_RD_TR4, SYS_RD_TR5, SYS_RD_TR6, SYS_RD_TR7, SYS_RD_TR3
     } sys_rd_e;
 
     // The x87 pointers an ESC instruction's last uop writes as it retires
@@ -374,7 +377,8 @@ package fes_i386_pkg;
         FAULT_TS_TR         = 5'd15,
         FAULT_PF            = 5'd16,
         FAULT_DB            = 5'd17,
-        FAULT_DBI           = 5'd18
+        FAULT_DBI           = 5'd18,
+        FAULT_AC            = 5'd19   // i486: alignment check, vector 17, error code 0
     } fault_e;
 
     // Why an instruction stops as not built (FAULT_UNIMPLEMENTED), kept
@@ -823,7 +827,7 @@ package fes_i386_pkg;
     typedef enum logic [4:0] {
         SEQ_NONE, SEQ_CALL, SEQ_LPTR, SEQ_CALLF, SEQ_RETF, SEQ_JMPFM, SEQ_CALLFM, SEQ_UCODE,
         SEQ_XCHG, SEQ_XCHGM, SEQ_CALLI, SEQ_PUSHM, SEQ_POPM, SEQ_MUL, SEQ_DIV, SEQ_STRING, SEQ_ENTER,
-        SEQ_BTM
+        SEQ_BTM, SEQ_XADD, SEQ_XADDM, SEQ_CMPX, SEQ_CMPXM, SEQ_CPUID
     } seq_e;
     // The string instructions (SEQ_STRING's str_op).
     typedef enum logic [2:0] { STR_MOVS, STR_CMPS, STR_STOS, STR_LODS, STR_SCAS, STR_INS, STR_OUTS } str_e;
@@ -1028,6 +1032,7 @@ package fes_i386_pkg;
         logic       r_logic, r_lea, r_y, r_movsx, r_setcc, r_lahf, r_sign;  // the other results
         logic       r_flags;                   // FLAGS' image (PUSHF, INT's push), with RF from imm[4] (f_clrpm)
         logic       r_zf;                      // SEGOP_ZF: src2 when imm[0] is set, else src1, and ZF from imm[0]
+        logic       r_csel, r_bswap, r_cpuid;  // i486: SEGOP_CSEL, SEGOP_BSWAP, SEGOP_CPUID
         logic       l_or, l_xor;               // the logic unit; AND otherwise
         logic       f_add;                     // CF comes from the adder
         logic       f_arith;                   // OF, SF, ZF, AF and PF come from the adder
@@ -1112,7 +1117,7 @@ package fes_i386_pkg;
         exctl_t      exc;         // M2: EX's controls
         logic [31:0] x;           // M2: EX's adder, logic and shifter operands (fes_i386_exctl)
         logic [31:0] y;
-        logic [17:0] eflags;      // EX: EFLAGS after this uop
+        logic [21:0] eflags;      // EX: EFLAGS after this uop (AC 18 and ID 21 with the i486 identity)
         logic        taken;       // EX: a branch that redirects fetch
         logic        sh_out0;     // EX: a shift's bit out at the right, the one out at the left by size,
         logic        sh_outn;     // and its wide-count CF (fes_i386_shflags, applied at WB: def_co)

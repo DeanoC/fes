@@ -670,6 +670,145 @@ module fes_i386_seq (
                     n.uop.ctl.end_of_instruction = 1'b1;
                 end
             end
+            // ---- The i486 identity's sequences (#1962 slice 1 fit spike) ----
+            fes_i386_pkg::SEQ_XADD: begin
+                // The first uop is XCHG's first XOR (r/m ^= r); then r ^= r/m,
+                // r/m ^= r, and r/m += r with its flags.
+                n.uop.cls = fes_i386_pkg::UOP_ALU;
+                n.uop.flags = '0;
+                if (d.step == 3'd0) begin
+                    n.uop.op = 5'd6;  // ALU_XOR
+                    n.uop.src1 = d0.uop.src2;
+                    n.uop.src2 = d0.uop.src1;
+                    n.uop.dst = d0.uop.src2;
+                    n.more = 1'b1;
+                end else if (d.step == 3'd1) begin
+                    n.uop.op = 5'd6;
+                    n.uop.src1 = d0.uop.src1;
+                    n.uop.src2 = d0.uop.src2;
+                    n.uop.dst = d0.uop.src1;
+                    n.more = 1'b1;
+                end else begin
+                    n.uop.op = 5'd0;  // ALU_ADD
+                    n.uop.src1 = d0.uop.src1;
+                    n.uop.src2 = d0.uop.src2;
+                    n.uop.dst = d0.uop.src1;
+                    n.uop.flags.write = '{oszap: 1'b1, cf: 1'b1};
+                    n.uop.ctl.end_of_instruction = 1'b1;
+                end
+            end
+            fes_i386_pkg::SEQ_XADDM: begin
+                // After r/m into T1 (the first uop, which carries r in src1):
+                // the read-modify-write ADD of r into r/m, then r from T1.
+                n.uop.cls = fes_i386_pkg::UOP_ALU;
+                n.uop.size = by_bytes(d0.uop.mem.bytes);
+                n.uop.src_size = n.uop.size;
+                n.uop.mem.in_a = 1'b1;
+                if (d.step == 3'd0) begin
+                    n.uop.op = 5'd0;  // ALU_ADD
+                    n.uop.src1 = gpr(1'b0, 3'd0);
+                    n.uop.src2 = '{valid: 1'b1, space: fes_i386_pkg::RS_GPR, index: d0.uop.src1.index,
+                                   hi8: d0.uop.src1.hi8};
+                    n.uop.dst = gpr(1'b0, 3'd0);
+                    n.uop.mem.kind = fes_i386_pkg::MEM_RMW;
+                    n.uop.flags.write = '{oszap: 1'b1, cf: 1'b1};
+                    n.more = 1'b1;
+                end else begin
+                    n.uop.op = 5'd9;  // ALU_MOV
+                    n.uop.src1 = '{valid: 1'b1, space: fes_i386_pkg::RS_GPR, index: d0.uop.src1.index,
+                                   hi8: d0.uop.src1.hi8};
+                    n.uop.src2 = gpr(1'b0, 3'd0);
+                    n.uop.dst = n.uop.src1;
+                    n.uop.mem.kind = fes_i386_pkg::MEM_NONE;
+                    n.uop.flags = '0;
+                    n.b_t1 = 1'b1;
+                    n.uop.ctl.end_of_instruction = 1'b1;
+                end
+            end
+            fes_i386_pkg::SEQ_CMPX: begin
+                // After CMP eAX, r/m (the first uop: src1 eAX, src2 r/m, r in
+                // its unwritten dst): r/m from r where ZF is set, then eAX
+                // from r/m where it is clear (SEGOP_CSEL: src2 when ctl.cond
+                // holds, else src1).
+                n.uop.cls = fes_i386_pkg::UOP_SEGMENT;
+                n.uop.op = 5'(fes_i386_pkg::SEGOP_CSEL);
+                n.uop.src_size = d0.uop.size;
+                n.uop.flags.write = '0;
+                n.uop.flags.read = '{oszap: 1'b1, cf: 1'b0};
+                if (d.step == 3'd0) begin
+                    n.uop.src1 = d0.uop.src2;
+                    n.uop.src2 = '{valid: 1'b1, space: fes_i386_pkg::RS_GPR, index: d0.uop.dst.index,
+                                   hi8: d0.uop.dst.hi8};
+                    n.uop.dst = d0.uop.src2;
+                    n.uop.ctl.cond = 4'b0100;  // Z
+                    n.more = 1'b1;
+                end else begin
+                    n.uop.src1 = d0.uop.src1;
+                    n.uop.src2 = d0.uop.src2;
+                    n.uop.dst = d0.uop.src1;
+                    n.uop.ctl.cond = 4'b0101;  // NZ
+                    n.uop.ctl.end_of_instruction = 1'b1;
+                end
+            end
+            fes_i386_pkg::SEQ_CMPXM: begin
+                // After r/m into T1 (the first uop, r in src1): CMP eAX, T1;
+                // T1 from r where ZF is set; T1 stored to r/m; eAX from T1
+                // where ZF is clear.
+                n.uop.size = by_bytes(d0.uop.mem.bytes);
+                n.uop.src_size = n.uop.size;
+                n.uop.mem.in_a = 1'b1;
+                n.uop.mem.kind = fes_i386_pkg::MEM_NONE;
+                n.uop.flags = '0;
+                n.b_t1 = 1'b1;
+                case (d.step)
+                    3'd0: begin
+                        n.uop.cls = fes_i386_pkg::UOP_ALU;
+                        n.uop.op = 5'd7;  // ALU_CMP
+                        n.uop.src1 = gpr(1'b1, 3'd0);
+                        n.uop.src2 = gpr(1'b0, 3'd0);
+                        n.uop.dst = gpr(1'b0, 3'd0);
+                        n.uop.flags.write = '{oszap: 1'b1, cf: 1'b1};
+                        n.more = 1'b1;
+                    end
+                    3'd1: begin
+                        n.uop.cls = fes_i386_pkg::UOP_SEGMENT;
+                        n.uop.op = 5'(fes_i386_pkg::SEGOP_CSEL);
+                        n.uop.src1 = '{valid: 1'b1, space: fes_i386_pkg::RS_GPR, index: d0.uop.src1.index,
+                                       hi8: d0.uop.src1.hi8};
+                        n.uop.src2 = gpr(1'b0, 3'd0);
+                        n.uop.dst = '{valid: 1'b1, space: fes_i386_pkg::RS_TEMP, index: 4'd8, hi8: 1'b0};
+                        n.uop.flags.read = '{oszap: 1'b1, cf: 1'b0};
+                        n.uop.ctl.cond = 4'b0101;  // NZ: T1 stays, else r
+                        n.more = 1'b1;
+                    end
+                    3'd2: begin
+                        n.uop.cls = fes_i386_pkg::UOP_ALU;
+                        n.uop.op = 5'd9;  // ALU_MOV
+                        n.uop.src1 = gpr(1'b0, 3'd0);
+                        n.uop.src2 = gpr(1'b0, 3'd0);
+                        n.uop.dst = gpr(1'b0, 3'd0);
+                        n.uop.mem.kind = fes_i386_pkg::MEM_STORE;
+                        n.more = 1'b1;
+                    end
+                    default: begin
+                        n.uop.cls = fes_i386_pkg::UOP_SEGMENT;
+                        n.uop.op = 5'(fes_i386_pkg::SEGOP_CSEL);
+                        n.uop.src1 = gpr(1'b1, 3'd0);
+                        n.uop.src2 = gpr(1'b0, 3'd0);
+                        n.uop.dst = gpr(1'b1, 3'd0);
+                        n.uop.flags.read = '{oszap: 1'b1, cf: 1'b0};
+                        n.uop.ctl.cond = 4'b0101;  // NZ: eAX from T1
+                        n.uop.ctl.end_of_instruction = 1'b1;
+                    end
+                endcase
+            end
+            fes_i386_pkg::SEQ_CPUID: begin
+                // ECX, EDX, then EAX, after the first uop's EBX.
+                n.uop.dst = gpr(1'b1, d.step == 3'd0 ? 3'd1 : d.step == 3'd1 ? 3'd2 : 3'd0);
+                n.uop.imm = {30'd0, n.uop.dst.index[1:0]};
+                n.more = d.step != 3'd2;
+                n.uop.ctl.end_of_instruction = d.step == 3'd2;
+            end
             fes_i386_pkg::SEQ_CALLI: begin
                 // The push of the next EIP, then (its address and sizes
                 // kept) the jump to T1.

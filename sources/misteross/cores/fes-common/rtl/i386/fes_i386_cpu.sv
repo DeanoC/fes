@@ -167,6 +167,9 @@ module fes_i386_cpu #(
     // The self-modifying-code profile, sampled at reset: coherent (0) or
     // queue16 (1); see Self-modifying code.
     input  logic             queue16,
+    // The i486 identity (#1962, the slice 1 fit spike), sampled at reset:
+    // a 486SX with CPUID and no VME. 0 is the 386 this core has always been.
+    input  logic             i486,
     // The speed governor's settings, sampled at reset (fes_i386_governor):
     // the preset (fes.pc386.machine word 0: 0 max, 1 286-12 to 7 486DX2-66),
     // its frequency in 100 kHz units (0 the preset's own) and turbo (1 runs
@@ -346,7 +349,7 @@ module fes_i386_cpu #(
 
     // ---- Architectural state, written at WB -------------------------------------
     logic [7:0][31:0] gpr;
-    logic [17:0]      eflags;
+    logic [21:0]      eflags;  // AC (18) and ID (21) with the i486 identity, else 0
     logic [31:0]      eip;
     // The CPL: CS's RPL once a protected-mode load has written CS, 3 in V86
     // mode, and 0 in real mode and on protected-mode entry, whatever CS's
@@ -388,7 +391,13 @@ module fes_i386_cpu #(
     // address; CR3 the page directory (see Paging).
     logic             cr0_pe, cr0_mp, cr0_em, cr0_ts, cr0_et, cr0_pg;
     logic [31:0]      cr0_rd, cr2, cr3;
-    assign cr0_rd = {cr0_pg, 26'h3ff_ffff, cr0_et, cr0_ts, cr0_em, cr0_mp, cr0_pe};
+    // The i486 identity (id486, sampled at reset) adds NE, WP, AM, NW and
+    // CD, reads the reserved bits as 0 and ET as 1 (Intel486 PRM 4.1, 25.1).
+    logic             id486, cr0_ne, cr0_wp, cr0_am, cr0_nw, cr0_cd;
+    always_ff @(posedge clk) if (reset) id486 <= i486;
+    assign cr0_rd = id486 ? {cr0_pg, cr0_cd, cr0_nw, 10'd0, cr0_am, 1'b0, cr0_wp, 10'd0, cr0_ne, 1'b1, cr0_ts,
+                             cr0_em, cr0_mp, cr0_pe}
+                          : {cr0_pg, 26'h3ff_ffff, cr0_et, cr0_ts, cr0_em, cr0_mp, cr0_pe};
     // The debug registers (see "Debug registers"): DR0-DR3; DR6's bits 15-12
     // and 3-0, the only ones a 386 writes (the rest read as ones, as Bochs's
     // 386 keeps them); DR7, whose bit 10 is always set. DR7.GD (bit 13)
@@ -397,12 +406,14 @@ module fes_i386_cpu #(
     logic [3:0][31:0] dr;
     logic [3:0]       dr6_lo, dr6_hi;
     logic [31:0]      dr6_rd, dr7;
-    assign dr6_rd = {16'hffff, dr6_hi, 8'hff, dr6_lo};
+    // A 486's DR6 reads bit 12 as 0 (PRM Table 10-1).
+    assign dr6_rd = {16'hffff, dr6_hi[3:1], dr6_hi[0] && !id486, 8'hff, dr6_lo};
     // TR4-TR7 (#1730), which MOV TRn writes and reads: the 386's decoder
     // runs MOV to and from each (microcode_notes.txt 391, 3B6). They keep
     // what is written; TR6's TLB test command does nothing
     // (docs/i386-cpu-design.md, Architecture).
     logic [3:0][31:0] trn;
+    logic [31:0]      tr3;  // the i486 identity's TR3, storage only
     // ---- Breakpoints ----------------------------------------------------------------
     // DR7's fields for each of DR0-DR3: enabled (Ln or Gn: bp_en), R/W 00
     // (an instruction breakpoint: bp_x), 01 (data writes: bp_w) or 11 (data
@@ -513,7 +524,7 @@ module fes_i386_cpu #(
     logic             code32;
     assign code32 = seg_ar[SEG_CS][14];
     // EX's running EFLAGS (see EX), which D reads for a string's DF.
-    logic [17:0]      ex_flags;
+    logic [21:0]      ex_flags;
 
     // ---- Pipeline registers -------------------------------------------------------
     pipe_t ag_s, m1_s, m2_s, ex_s, wb_s;
@@ -684,7 +695,7 @@ module fes_i386_cpu #(
     logic [3:0]  q_slot;
     fes_i386_decode #(.X87_BACKEND(X87_BACKEND)) decode (
         .q, .code32, .stack(dc_stack), .wait_nm(cr0_mp && cr0_ts), .esc_nm(cr0_em || cr0_ts), .x87(x87_present),
-        .x87_insn(dc_q.x87), .x87_wait(dc_q.x87_wait), .x87_fmt(dc_q.x87_fmt), .x87_op(dc_q.x87_op), .x87_part(dc_q.x87_part), .pe(cr0_pe), .vm(eflags[17]), .cpl, .iopl(eflags[13:12]), .nt(eflags[14]), .dr_gd(dr7[13]), .uop(q_uop), .opsize32(q_opsize32), .lea(q_lea), .lea_early(dc_q.lea_early),
+        .x87_insn(dc_q.x87), .x87_wait(dc_q.x87_wait), .x87_fmt(dc_q.x87_fmt), .x87_op(dc_q.x87_op), .x87_part(dc_q.x87_part), .pe(cr0_pe), .vm(eflags[17]), .cpl, .iopl(eflags[13:12]), .nt(eflags[14]), .dr_gd(dr7[13]), .i486(id486), .uop(q_uop), .opsize32(q_opsize32), .lea(q_lea), .lea_early(dc_q.lea_early),
         .lea_disp(q_lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
         .seg_index(dc_q.seg_index), .stop(dc_q.stop), .stk(q_stk), .push_eip(dc_q.push_eip),
         .cs_base(dc_q.cs_base), .seq(q_seq), .sel_part(dc_q.sel_part), .far_jmp(dc_q.far_jmp), .far_chk(dc_q.far_chk),
@@ -1216,8 +1227,9 @@ module fes_i386_cpu #(
                     || dc.uop.desc == 4'(fes_i386_pkg::DESC_HACC) && hs_acc[0];
     // ARPL writes its destination, and sets ZF, only when it raises the RPL.
     assign arpl_adj = t1[1:0] < t2[1:0];
-    assign cr0_gp = dc.uop.cls == fes_i386_pkg::UOP_SYSTEM && dc.uop.op == 5'(fes_i386_pkg::SYSOP_CR0) && t1[31]
-                 && !t1[0];
+    // With the i486 identity, NW set with CD clear raises #GP(0) too.
+    assign cr0_gp = dc.uop.cls == fes_i386_pkg::UOP_SYSTEM && dc.uop.op == 5'(fes_i386_pkg::SYSOP_CR0)
+                 && (t1[31] && !t1[0] || id486 && t1[29] && !t1[30]);
     // An instruction fetched with a paging mark (fes_i386_l1i): a block
     // whose page the ITLB did not hold (tm), or a supervisor page at CPL 3
     // (ts), in its first byte's block or the one it runs into. Its first uop
@@ -1664,7 +1676,12 @@ module fes_i386_cpu #(
     // uop of either), so no sequence's uops are split, and the hold is a
     // cycle late (gov_block, one register).
     logic d_first, d_first_next, gov_hold, gov_block;
-    assign issue = cur_valid && !(addr_use && lea_stall) && !(reads_seg && seg_hazard) && !(mem && mseg_hazard)
+    // Alignment checks (the i486 identity) read the committed EFLAGS.AC at
+    // M1, so under CR0.AM at CPL 3 an access waits for an older EFLAGS load.
+    logic ac_arm, ac_wait;
+    assign ac_arm = id486 && cr0_am && cpl == 2'd3;
+    assign ac_wait = ac_arm && dc.uop.mem.kind != fes_i386_pkg::MEM_NONE && nt_busy;
+    assign issue = cur_valid && !ac_wait && !(addr_use && lea_stall) && !(reads_seg && seg_hazard) && !(mem && mseg_hazard)
                 && !store_hazard && !flag_hazard && !sp_hazard && !stack_wait && !t_wait && !uc_wait && !str_wait
                 && !str_hazard && !io_hazard && !(ser_wait && !dc.x_prev) && !(dc.uop.ntchk && nt_busy) && !freeze
                 && !halted && !gov_block && !x87_hold;
@@ -1838,6 +1855,7 @@ module fes_i386_cpu #(
             5'(fes_i386_pkg::SYS_RD_TR5): sys_val = trn[1];
             5'(fes_i386_pkg::SYS_RD_TR6): sys_val = trn[2];
             5'(fes_i386_pkg::SYS_RD_TR7): sys_val = trn[3];
+            5'(fes_i386_pkg::SYS_RD_TR3): sys_val = tr3;
             default: sys_val = 32'd0;
         endcase
     end
@@ -2203,6 +2221,12 @@ module fes_i386_cpu #(
     assign m1_bound_low = m1_s.uop.mem.addr32 ? m1_s.moff - 32'(m1_s.uop.mem.bytes)
                                                : {16'd0, m1_s.moff[15:0] - 16'(m1_s.uop.mem.bytes)};
     assign m1_bound_wrap = m1_bound_low > m1_s.mlimit || m1_s.mtiny || m1_s.mexpd && m1_bound_low <= m1_s.mlow;
+    // #AC (the i486 identity): a misaligned data access at CPL 3 with CR0.AM
+    // and EFLAGS.AC set, on its linear address; system accesses excepted.
+    logic m1_ac;
+    assign m1_ac = ac_arm && eflags[18] && m1_s.uop.mem.kind != fes_i386_pkg::MEM_NONE && !m1_s.uop.mem.system
+                && (m1_s.uop.mem.bytes == 4'd2 && m1_s.maddr[0] || m1_s.uop.mem.bytes == 4'd4 && |m1_s.maddr[1:0]
+                    || m1_s.uop.mem.bytes == 4'd6 && m1_s.maddr[0] || m1_s.uop.mem.bytes == 4'd8 && |m1_s.maddr[2:0]);
     assign m1_limit = m1_s.uop.mem.kind != fes_i386_pkg::MEM_NONE
                    && (m1_s.moff > m1_s.mlimit || m1_s.mtiny || m1_s.mexpd && m1_s.moff <= m1_s.mlow
                        || m1_s.uop.bound_pair && m1_bound_wrap);
@@ -2298,7 +2322,9 @@ module fes_i386_cpu #(
             m1_out.uop.ctl.fault = m1_segchk;
             m1_out.uop.ctl.why = m1_why;
         end else if (m1_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
-            m1_out.uop.ctl.fault = m1_s.cs_late ? fes_i386_pkg::FAULT_GP0 : m1_s.dfault;
+            m1_out.uop.ctl.fault = m1_s.cs_late ? fes_i386_pkg::FAULT_GP0
+                                 : m1_s.dfault == fes_i386_pkg::FAULT_NONE && m1_ac ? fes_i386_pkg::FAULT_AC
+                                 : m1_s.dfault;
             m1_out.dfl = !m1_s.cs_late && m1_s.dfault != fes_i386_pkg::FAULT_NONE;
         end
         // The data breakpoints the uop's accesses match (see Breakpoints): its
@@ -2371,9 +2397,13 @@ module fes_i386_cpu #(
         .clk, .flush(tlb_flush), .lk_lp(dt_lp), .hit(dt_hit), .match(dt_match), .q(dt_q), .pages(dt_pages),
         .fill(tf_valid && !tf_itlb), .fill_ent(tf_e)
     );
-    function automatic logic rights(input fes_i386_pkg::tlb_entry_t e, input logic w, input logic user);
-        rights = (!user || e.u && (!w || e.w)) && (!w || e.d);
+    // With CR0.WP (the i486 identity) a supervisor write needs R/W too.
+    function automatic logic rights(input fes_i386_pkg::tlb_entry_t e, input logic w, input logic user,
+                                    input logic wp);
+        rights = (!user || e.u) && (!w || e.w || !user && !wp) && (!w || e.d);
     endfunction
+    logic m1_wp;
+    assign m1_wp = id486 && cr0_wp;
     logic        m1_st2, m1_acc, m1_wr, m1_xa, m1_xt, m1_user, m1_okA, m1_okB, m1_alias, m1_tx;
     logic [12:0] m1_enda, m1_endt;
     logic [3:0][PA-12:0] m1_pg;
@@ -2389,8 +2419,8 @@ module fes_i386_cpu #(
     assign m1_user = cpl == 2'd3 && !m1_s.uop.mem.system && !m1_s.uop.nstk;
     assign dt_lp[0] = m1_s.maddr[31:12];
     assign dt_lp[1] = m1_st2 ? m1_s.target[31:12] : m1_s.maddr[31:12] + 20'd1;
-    assign m1_okA = dt_hit[0] && rights(dt_q[0], m1_wr, m1_user);
-    assign m1_okB = dt_hit[1] && rights(dt_q[1], m1_st2 || m1_wr, m1_user);
+    assign m1_okA = dt_hit[0] && rights(dt_q[0], m1_wr, m1_user, m1_wp);
+    assign m1_okB = dt_hit[1] && rights(dt_q[1], m1_st2 || m1_wr, m1_user, m1_wp);
     // A st2 uop whose store's segment check fails (dfl) still translates
     // its load's pages, whose #PF comes first, as Bochs reads first.
     assign m1_tx = pg && m1_s.valid && !m1_probe_bad
@@ -2426,10 +2456,15 @@ module fes_i386_cpu #(
     assign wb_sys_cr3 = wb_s.valid && (wb_s.uop.cls == fes_i386_pkg::UOP_SYSTEM && wb_s.uop.op == 5'(fes_i386_pkg::SYSOP_CR3)
                                        || tsw_cr3);
     assign wb_sys_cr0 = wb_s.valid && wb_s.uop.cls == fes_i386_pkg::UOP_SYSTEM && wb_s.uop.op == 5'(fes_i386_pkg::SYSOP_CR0);
-    assign tlb_flush = reset || wb_commit && (wb_sys_cr3 || wb_sys_cr0 && t1[31] != cr0_pg) || a20m != a20m_q
-                    || attr_upper != attr_q || ram_top != top_q;
+    // INVLPG (the i486 identity) flushes both TLBs whole, which the
+    // architecture permits for a one-page invalidate.
+    logic wb_sys_invlpg;
+    assign wb_sys_invlpg = wb_s.valid && wb_s.uop.cls == fes_i386_pkg::UOP_SYSTEM
+                        && wb_s.uop.op == 5'(fes_i386_pkg::SYSOP_INVLPG);
+    assign tlb_flush = reset || wb_commit && (wb_sys_cr3 || wb_sys_invlpg || wb_sys_cr0 && t1[31] != cr0_pg)
+                    || a20m != a20m_q || attr_upper != attr_q || ram_top != top_q;
     assign pg_ifl = wb_sys_cr0 ? t1[31] : cr0_pg;
-    assign wb_tlbx = wb_sys_cr3 || wb_sys_cr0 && t1[31] != cr0_pg;
+    assign wb_tlbx = wb_sys_cr3 || wb_sys_invlpg || wb_sys_cr0 && t1[31] != cr0_pg;
 
     assign dmem_addr = m1_s.maddr;
     assign dmem_read = m1_s.valid && reads_mem(m1_s) && !freeze && !halted && !wb_stop;
@@ -2630,7 +2665,7 @@ module fes_i386_cpu #(
     // cycle, which no flag reader sees (flag_hazard), and takes them at its
     // end. A normal faulting uop changes no flags in EX; a divide error is
     // raised after the multiply/divide unit's flags reach this running copy.
-    logic [17:0] ex_flags_ex, ex_flags_out, wb_flags, flags_keep;
+    logic [21:0] ex_flags_ex, ex_flags_out, wb_flags, flags_keep;
     logic [31:0] ex_result;
     logic [31:0] md_result, md_hi;
     logic [11:0] md_flags;
@@ -2690,7 +2725,7 @@ module fes_i386_cpu #(
     // LEA's offset is its whole result, which EX's LEA select passes.
     fes_i386_ex ex (
         .u(ex_s.uop), .exc(ex_s.exc), .a(ex_s.a), .xr(ex_s.x), .yr(ex_s.y), .wb(wb_s.result), .ld(ex_s.ld),
-        .ag_result(ex_s.result), .flags_in(ex_flags), .flags_keep, .md_flags, .cpl, .ts_krf, .result(ex_result),
+        .ag_result(ex_s.result), .flags_in(ex_flags), .flags_keep, .md_flags, .cpl, .ts_krf, .i486(id486), .result(ex_result),
         .flags_out(ex_flags_ex),
 .taken(ex_taken), .br(ex_br), .ind_target(ex_ind_target), .ind_eip(ex_ind_eip), .sh_out0(ex_sh_out0), .sh_outn(ex_sh_outn), .sh_cfw(ex_sh_cfw), .sh_wide(ex_sh_wide),
         .def_co(ex_def_co), .def_szap(ex_def_szap)
@@ -2775,7 +2810,7 @@ module fes_i386_cpu #(
     assign ex_fall = seg_base[SEG_CS] + ex_s.eip_next;
     always_ff @(posedge clk) begin
         if (reset) begin
-            ex_flags <= {init_eflags[17:2], 1'b1, init_eflags[0]};
+            ex_flags <= {init_eflags[21:2], 1'b1, init_eflags[0]};
         end else if (freeze) begin
             // EX's running copy waits with the uops.
         end else if (int_take || smc_go) begin
@@ -3291,6 +3326,7 @@ module fes_i386_cpu #(
             5'(fes_i386_pkg::FAULT_TS_SEL), 5'(fes_i386_pkg::FAULT_TS_TR): fault_vector = 8'd10;
             5'(fes_i386_pkg::FAULT_PF): fault_vector = 8'd14;
             5'(fes_i386_pkg::FAULT_DB), 5'(fes_i386_pkg::FAULT_DBI): fault_vector = 8'd1;
+            5'(fes_i386_pkg::FAULT_AC): fault_vector = 8'd17;
             default: fault_vector = 8'd12;  // FAULT_SS0, FAULT_SS_SEL
         endcase
     endfunction
@@ -3322,7 +3358,7 @@ module fes_i386_cpu #(
     end
     // The exceptions a protected-mode delivery pushes an error code for.
     function automatic logic pushes_error(input logic [7:0] v);
-        pushes_error = v == 8'd8 || v == 8'd10 || v == 8'd11 || v == 8'd12 || v == 8'd13 || v == 8'd14;
+        pushes_error = v == 8'd8 || v == 8'd10 || v == 8'd11 || v == 8'd12 || v == 8'd13 || v == 8'd14 || v == 8'd17;
     endfunction
     // SS can take INT's probe: a writable, expand-up 16-bit stack under the
     // real-mode limit FFFFh (the probe's wrap rule), or a limit past 10000h,
@@ -3359,7 +3395,9 @@ module fes_i386_cpu #(
         trace_exception <= 1'b0;
         if (reset) begin
             gpr <= init_gpr;
-            eflags <= {init_eflags[17:2], 1'b1, init_eflags[0]};
+            // A 486SX's reset signature in DX (data book Table 9-9).
+            if (i486) gpr[2] <= 32'h0000_0427;
+            eflags <= {init_eflags[21:2], 1'b1, init_eflags[0]};
             eip <= init_eip;
             cpl <= !init_cr0[0] ? 2'd0 : init_eflags[17] ? 2'd3 : init_sel[SEG_CS][1:0];
             cr0_pe <= init_cr0[0];
@@ -3368,10 +3406,13 @@ module fes_i386_cpu #(
             cr0_ts <= init_cr0[3];
             cr0_et <= init_cr0[4];
             cr0_pg <= init_cr0[31];
+            // A 486's CR0 resets to 60000010h: CD and NW set (data book Table 9-8).
+            {cr0_cd, cr0_nw, cr0_am, cr0_wp, cr0_ne} <= {i486, i486, 3'b000};
             cr2 <= init_cr2;
             cr3 <= init_cr3;
             dr <= init_dr;
             trn <= '0;
+            tr3 <= 32'd0;
             {dr6_hi, dr6_lo} <= {init_dr6[15:12], init_dr6[3:0]};
             dr7 <= init_dr7 | 32'h0000_0400;
             fpu_ip <= 32'd0;
@@ -3573,6 +3614,7 @@ module fes_i386_cpu #(
                     case (wb_s.uop.op)
                         5'(fes_i386_pkg::SYSOP_CR0): begin
                             {cr0_pg, cr0_et, cr0_ts, cr0_em, cr0_mp, cr0_pe} <= {t1[31], t1[4:0]};
+                            if (id486) {cr0_cd, cr0_nw, cr0_am, cr0_wp, cr0_ne} <= {t1[30:29], t1[18], t1[16], t1[5]};
                             // Back to real mode, CS becomes a writable data
                             // segment (P, S, type 3), its DPL, limit, G and
                             // D/B kept, as Bochs's handleCpuModeChange makes it.
@@ -3638,7 +3680,8 @@ module fes_i386_cpu #(
                         // keeps bit 10 set. MOV TRn, r32 (imm 8 + n, TR4-
                         // TR7): the whole register.
                         5'(fes_i386_pkg::SYSOP_DR): begin
-                            if (wb_s.uop.imm[3]) trn[wb_s.uop.imm[1:0]] <= t1;
+                            if (wb_s.uop.imm[3] && !wb_s.uop.imm[2]) tr3 <= t1;
+                            else if (wb_s.uop.imm[3]) trn[wb_s.uop.imm[1:0]] <= t1;
                             else
                                 case (wb_s.uop.imm[2:0])
                                     3'd0, 3'd1, 3'd2, 3'd3: dr[wb_s.uop.imm[1:0]] <= t1;
@@ -3669,6 +3712,7 @@ module fes_i386_cpu #(
                             ldt_lim7 <= ds_limit - 32'd7;
                             ldt_tiny7 <= ds_limit < 32'd7;
                         end
+                        5'(fes_i386_pkg::SYSOP_INVLPG): ;  // the TLB flush (tlb_flush)
                         default: cr0_ts <= 1'b0;  // SYSOP_CLTS
                     endcase
                 end
@@ -4141,7 +4185,7 @@ module fes_i386_cpu #(
         .st_line0(wb_p0[PA-1:5]), .st_line1(wb_p1[PA-1:5]), .st_attr0(wb_at0), .st_cross(wb_cross),
         .st_dword(wb_saddr[4:2]), .st_data(dmem_wdata), .st_mask(dmem_wmask),
         .inv_valid, .inv_line, .inv_all, .d_req, .d_mmio, .d_addr, .d_be, .d_beat, .bdata(bus_rdata),
-        .pg, .cr3_pd(cr3[31:12]), .m1_pg, .m1_at0, .m1_at1, .tlb_pages(dt_pages), .tlb_ma(dt_match[0]),
+        .pg, .wp(id486 && cr0_wp), .cr3_pd(cr3[31:12]), .m1_pg, .m1_at0, .m1_at1, .tlb_pages(dt_pages), .tlb_ma(dt_match[0]),
         .tx(m1_tx && !halted && !wb_stop), .tx_a(m1_s.ifw ? m1_s.pf_lin : m1_s.maddr), .tx_t(m1_s.target),
         .tx_need(m1_s.ifw ? 4'b0001 : m1_out.dfl ? {2'b00, m1_xa, 1'b1} : {m1_xt, m1_st2, m1_xa, 1'b1}),
         .tx_wr(m1_st2 ? {2'b11, 2'b00} : {4{m1_wr}}), .tx_user(m1_s.ifw ? cpl == 2'd3 : m1_user), .tx_ifw(m1_s.ifw),
@@ -4450,7 +4494,7 @@ module fes_i386_cpu #(
     end
 
     assign arch_gpr = gpr;
-    assign arch_eflags = {14'd0, eflags};
+    assign arch_eflags = {10'd0, eflags};
     assign arch_cr0 = cr0_rd;
     assign arch_cr2 = cr2;
     assign arch_cr3 = cr3;
