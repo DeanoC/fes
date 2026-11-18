@@ -1,9 +1,15 @@
-# The proposed bounds for the eight transcendentals
+# The bounds for the eight transcendentals
 
-**A proposal for Deano, not a pass rule.** Written 17 Nov 2026, before any
-RTL for the transcendentals existed and so before any RTL was run against a
-bound. Until he agrees it, RTL results are reported as distributions and no
-transcendental result gate is claimed as passed.
+**Agreed by Deano on 18 Nov 2026, both as proposed** ("Agree both";
+[agreement.json](agreement.json) has the question and the reply). The
+agreement came **after** the results had been run and seen, so it is not a
+prediction the design then met; neither figure nor the trigonometric window
+was changed for it. The gates are judged against them in
+[gates.md](gates.md).
+
+The rest of this file is the proposal as it was written on 17 Nov 2026,
+before any RTL for the transcendentals existed and so before any RTL was
+run against a bound. Read "proposed" below as of that date.
 
 ## What had been seen when this was written
 

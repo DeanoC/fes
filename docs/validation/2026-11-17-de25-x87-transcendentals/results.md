@@ -11,8 +11,8 @@ printed as not run, not left out.
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | DE10 sequencer, RTL | `e967bf4fa` | 774 | 774 | 0 | 3 | 0 | 0 | - |
 | DE10 sequencer, locked-Yosys netlist | `e967bf4fa` | 774 | 774 | 0 | 3 | 0 | 0 | - |
-| DE25 backend, RTL | `e967bf4fa` | 18,178 | 18,178 | 0 | 61 | 17,354 | 7,994 | 4 (proposed, not agreed) |
-| DE25 backend, locked-Yosys netlist | `e967bf4fa` | 18,178 | 18,178 | 0 | 61 | 17,354 | 7,994 | 4 (proposed, not agreed) |
+| DE25 backend, RTL | `e967bf4fa` | 18,178 | 18,178 | 0 | 61 | 17,354 | 7,994 | 4 (proposed when run; agreed 18 Nov 2026: gates.md) |
+| DE25 backend, locked-Yosys netlist | `e967bf4fa` | 18,178 | 18,178 | 0 | 61 | 17,354 | 7,994 | 4 (proposed when run; agreed 18 Nov 2026: gates.md) |
 
 ### The unit's results against the host's, DE25 backend, RTL
 

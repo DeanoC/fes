@@ -25,7 +25,7 @@ Built set, the bench's copy against the RTL's over 2,048 x87 opcodes: 1,564 buil
 
 Packed decimal: FBLD stepped 0 times, FBSTP 0, stopped as not built 2.
 
-Transcendentals: bound against the oracle None (unset: a value compare fails); 0 self-test checks of the compare rule; every exception masked. "Unchecked" results are those the oracle returned outside the trigonometric window (bound.md): everything but their value is still compared exactly.
+Transcendentals: bound against the oracle unset; the report's own words when it ran: "unset: a value compare fails"; 0 self-test checks of the compare rule; every exception masked. "Unchecked" results are those the oracle returned outside the trigonometric window (bound.md): everything but their value is still compared exactly.
 
 | Instruction | Executed | Stopped as not built | Results within the bound | Worst | Unchecked | Worst unchecked | Resynchronisations | C1 differs, ungated | Distance: count |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
@@ -61,7 +61,7 @@ Built set, the bench's copy against the RTL's over 2,048 x87 opcodes: 1,564 buil
 
 Packed decimal: FBLD stepped 112 times, FBSTP 127, stopped as not built 0.
 
-Transcendentals: bound against the oracle 2097152 (the proposed value, not agreed (docs/validation/2026-11-17-de25-x87-transcendentals/bound.md)); 213 self-test checks of the compare rule; every exception masked. "Unchecked" results are those the oracle returned outside the trigonometric window (bound.md): everything but their value is still compared exactly.
+Transcendentals: bound against the oracle 2097152 (proposed when run; agreed 18 Nov 2026: gates.md); the report's own words when it ran: "the proposed value, not agreed (docs/validation/2026-11-17-de25-x87-transcendentals/bound.md)"; 213 self-test checks of the compare rule; every exception masked. "Unchecked" results are those the oracle returned outside the trigonometric window (bound.md): everything but their value is still compared exactly.
 
 | Instruction | Executed | Stopped as not built | Results within the bound | Worst | Unchecked | Worst unchecked | Resynchronisations | C1 differs, ungated | Distance: count |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
@@ -97,7 +97,7 @@ Built set, the bench's copy against the RTL's over 2,048 x87 opcodes: 1,564 buil
 
 Packed decimal: FBLD stepped 0 times, FBSTP 0, stopped as not built 2.
 
-Transcendentals: bound against the oracle None (unset: a value compare fails); 0 self-test checks of the compare rule; every exception masked. "Unchecked" results are those the oracle returned outside the trigonometric window (bound.md): everything but their value is still compared exactly.
+Transcendentals: bound against the oracle unset; the report's own words when it ran: "unset: a value compare fails"; 0 self-test checks of the compare rule; every exception masked. "Unchecked" results are those the oracle returned outside the trigonometric window (bound.md): everything but their value is still compared exactly.
 
 | Instruction | Executed | Stopped as not built | Results within the bound | Worst | Unchecked | Worst unchecked | Resynchronisations | C1 differs, ungated | Distance: count |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
@@ -131,7 +131,7 @@ Built set, the bench's copy against the RTL's over 2,048 x87 opcodes: 1,564 buil
 
 Packed decimal: FBLD stepped 112 times, FBSTP 127, stopped as not built 0.
 
-Transcendentals: bound against the oracle 2097152 (the proposed value, not agreed (docs/validation/2026-11-17-de25-x87-transcendentals/bound.md)); 213 self-test checks of the compare rule; every exception masked. "Unchecked" results are those the oracle returned outside the trigonometric window (bound.md): everything but their value is still compared exactly.
+Transcendentals: bound against the oracle 2097152 (proposed when run; agreed 18 Nov 2026: gates.md); the report's own words when it ran: "the proposed value, not agreed (docs/validation/2026-11-17-de25-x87-transcendentals/bound.md)"; 213 self-test checks of the compare rule; every exception masked. "Unchecked" results are those the oracle returned outside the trigonometric window (bound.md): everything but their value is still compared exactly.
 
 | Instruction | Executed | Stopped as not built | Results within the bound | Worst | Unchecked | Worst unchecked | Resynchronisations | C1 differs, ungated | Distance: count |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |

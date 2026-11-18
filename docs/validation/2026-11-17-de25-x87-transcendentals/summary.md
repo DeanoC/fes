@@ -16,9 +16,10 @@ Where to read what:
 
 | File | What it is |
 | --- | --- |
-| [method.md](method.md) | The method and pass rules, committed before any run, with three dated amendments that say what had been seen |
+| [method.md](method.md) | The method and pass rules, committed before any run, with four dated amendments that say what had been seen |
 | [rules.md](rules.md) | Each instruction's rules as read from the 80387 manual, with the page, and what the manual leaves open, measured |
-| [bound.md](bound.md) | The two bounds **proposed** for Deano. Not agreed |
+| [bound.md](bound.md) | The two bounds, proposed on 17 Nov and agreed by Deano on 18 Nov 2026 |
+| [gates.md](gates.md) | Generated: the transcendental result gates against the agreed bounds |
 | [demand.md](demand.md) | Generated: what the census titles ask of this step |
 | [references.md](references.md) | Generated: the references against each other, and the model against them. No RTL |
 | [results.md](results.md) | Generated: the unit bench and the engine on the final head |
@@ -40,12 +41,16 @@ runner or a script; the commits after it change this directory only, which
 
 - **Settled by Deano (17 Nov 2026):** the transcendentals follow the 387's
   method, not Bochs bit for bit.
-- **Not settled: the numeric bounds.** [bound.md](bound.md) proposes 4
-  representable values against the host x87 and the brackets, and 2^21
-  against the oracle as a sanity check only. Every run here used those
-  values and its report says "proposed, not agreed". **No transcendental
-  result gate is claimed as passed**: the distributions are in
+- **Settled by Deano (18 Nov 2026): the two numeric bounds,** as proposed
+  in [bound.md](bound.md): 4 representable values against the host x87 and
+  the brackets, and 2^21 against the oracle as a sanity check only. He
+  agreed them after the results had been seen, and nothing was changed or
+  re-run for it. The transcendental result gates are judged against them in
+  [gates.md](gates.md), which prints the verdict; the distributions are in
   [results.md](results.md) and [lockstep.md](lockstep.md).
+- **Not settled: the C1 rule, the cases below where the unit follows the
+  manual against the references, and the oracle flag divergences.** They
+  are recorded here and in method.md and have not been agreed.
 - **Not settled: real-387 captures.** None exists here. "Follows the 387"
   means "follows the manual"; the build hosts are modern x87 units.
 
@@ -94,7 +99,7 @@ Three layers, the first two exact:
    (`scripts/test_fes_x87_trans_engine.py`).
 2. **The unit against the model's instruction-level vectors, bit for bit**,
    in all four rounding modes, inside the unit bench.
-3. **The unit against the references, within the proposed bounds** for a
+3. **The unit against the references, within the agreed bounds** for a
    finite result and exactly for everything else: the host x87 in the unit
    bench, the Bochs oracle in lockstep.
 
@@ -200,14 +205,14 @@ workaround is the kind of thing that gets edited by mistake.
 
 ## What is not done
 
-- **The bounds are proposed, not agreed**, so no transcendental result gate
-  is claimed.
+- **The C1 rule, the manual-over-reference cases and the oracle flag
+  divergences are not agreed.**
 - **QEMU's `test-i386-fbstp.c` was not run as such.** Its seventeen cases'
   operands and expectations are covered by the unit bench's own packed
   decimal cases against the host, written from the instruction's rules; the
   file itself was not fetched and compared, which method.md's amendment 1
   said would be done. QEMU's four transcendental tables **are** run on the
-  unit, in the unit bench, under the proposed bound
+  unit, in the unit bench, under the agreed bound
   ([results.md](results.md)); QEMU has no table for FSIN, FCOS, FSINCOS or
   FPTAN.
 - **The 2^63 range cases** are in the unit bench and the lockstep suite;

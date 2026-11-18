@@ -520,3 +520,26 @@ One baseline fit (seed 1) had finished; no fit of this work had.
    stopped before any of its fits finished, re-elaborated at the commit that
    holds the change, and requeued. No figure from the abandoned arm exists.
    The baseline arm, at the merge base, is unaffected.
+
+### 18 Nov 2026, amendment 4: the two bounds are agreed
+
+**What had been seen.** Everything: every report under `evidence/final`,
+the eight machine fits, and the distributions in results.md and
+lockstep.md. This agreement is not blind and is not presented as one.
+
+1. **Deano agreed both proposed bounds** on 18 Nov 2026: 4 representable
+   values against the host x87 and QEMU's brackets, and 2^21 against the
+   Bochs oracle with the trigonometric window of bound.md. The question and
+   his reply, verbatim, are in [agreement.json](agreement.json), as relayed
+   by the coordinating session.
+2. **Nothing was changed for it.** Neither figure, the window, nor any pass
+   rule; no RTL, bench, runner or script. No report was re-run: every run
+   had used the values now agreed.
+3. **The transcendental result gates are judged in
+   [gates.md](gates.md)**, generated from agreement.json and the committed
+   reports. A report that used any other bound than the agreed one is
+   printed there as not judged.
+4. **Still open, and not covered by the agreement:** the C1 rule of
+   amendment 2, the cases where the unit follows the manual against the
+   references, the two oracle flag divergences of amendment 3, and real-387
+   captures.
