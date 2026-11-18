@@ -30,6 +30,7 @@ import io
 import json
 import os
 from pathlib import Path
+from pathlib import PurePosixPath
 import shutil
 import subprocess
 import sys
@@ -107,8 +108,34 @@ def _unpack_mirror(mirror: dict, into: Path) -> str:
     digest = hashlib.sha256(archive).hexdigest()
     if digest != mirror['sha256']:
         raise FirmwareError(f'archive is {digest}, not the pinned {mirror["sha256"]}')
+    if into.is_symlink():
+        into.unlink()
+    else:
+        shutil.rmtree(into, ignore_errors=True)
+    into.mkdir(parents=True)
     with tarfile.open(fileobj=io.BytesIO(archive)) as contents:
-        contents.extractall(into, filter='data')
+        if getattr(tarfile, 'data_filter', None) is not None:
+            contents.extractall(into, filter='data')
+        else:
+            members = contents.getmembers()
+            root = into.resolve()
+            for member in members:
+                name = PurePosixPath(member.name)
+                if name.is_absolute() or '..' in name.parts:
+                    raise FirmwareError(f'unsafe archive member path: {member.name!r}')
+                if not name.parts:
+                    raise FirmwareError(f'unsafe empty archive member path: {member.name!r}')
+                # The mirror needs only directories and regular files. Rejecting
+                # links and special files keeps legacy extractall from following
+                # an archive-created path outside the fresh destination.
+                if not (member.isdir() or member.isfile()):
+                    raise FirmwareError(f'unsupported archive member type: {member.name!r}')
+                target = (into / Path(*name.parts)).resolve()
+                try:
+                    target.relative_to(root)
+                except ValueError as error:
+                    raise FirmwareError(f'unsafe archive member path: {member.name!r}') from error
+            contents.extractall(into)
     return (into / 'dev86.git').as_uri()
 
 

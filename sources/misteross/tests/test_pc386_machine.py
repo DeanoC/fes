@@ -132,6 +132,47 @@ class FirmwareTest(unittest.TestCase):
                                  {'url': unreachable, 'sha256': '0' * 64})
             self.assertEqual(firmware._git(tree, 'rev-parse', 'HEAD'), commit)
 
+    def test_dev86_mirror_fallback_extracts_without_tar_filter(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            commit, mirror = self._dev86_source(root, 'pinned', 'all:\n')
+            unreachable = (root / 'absent').as_uri()
+            extract_calls = []
+            extractall = firmware.tarfile.TarFile.extractall
+
+            def record_extractall(archive, *args, **kwargs):
+                extract_calls.append(kwargs)
+                return extractall(archive, *args, **kwargs)
+
+            tree = root / 'build/dev86'
+            with mock.patch.object(firmware.tarfile, 'data_filter', None, create=True), \
+                    mock.patch.object(firmware.tarfile.TarFile, 'extractall', new=record_extractall):
+                firmware.fetch_dev86(tree, commit, unreachable, mirror)
+
+            self.assertEqual(firmware._git(tree, 'rev-parse', 'HEAD'), commit)
+            self.assertTrue(extract_calls)
+            self.assertTrue(all('filter' not in kwargs for kwargs in extract_calls))
+
+    def test_dev86_mirror_fallback_rejects_traversal_member(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive_path = root / 'unsafe.tar.gz'
+            payload = b'outside'
+            with firmware.tarfile.open(archive_path, 'w:gz') as archive:
+                member = firmware.tarfile.TarInfo('dev86.git/../../escape')
+                member.size = len(payload)
+                archive.addfile(member, io.BytesIO(payload))
+            archive_bytes = archive_path.read_bytes()
+            mirror = {'url': archive_path.as_uri(),
+                      'sha256': hashlib.sha256(archive_bytes).hexdigest()}
+            destination = root / 'unpacked'
+
+            with mock.patch.object(firmware.tarfile, 'data_filter', None, create=True):
+                with self.assertRaisesRegex(firmware.FirmwareError, 'unsafe archive member path'):
+                    firmware._unpack_mirror(mirror, destination)
+
+            self.assertFalse((root / 'escape').exists())
+
     def test_dev86_fetch_refuses_a_source_without_the_pinned_commit(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
