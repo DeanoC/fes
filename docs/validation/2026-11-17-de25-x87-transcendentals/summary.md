@@ -156,6 +156,23 @@ and the oracle do. It first returned the mathematically directed result,
 which crossed the denormal boundary and changed a tag and the underflow
 flag in nine lockstep cases.
 
+## The machine fits
+
+Eight fits of `pc386_system` with `x87_present = 1` and `X87_BACKEND = 1` on
+the Agilex 5 part, four seeds of this work and four of the merge base with
+the same two scratch edits, are in [fits.md](fits.md) against the bands
+committed before the first of them. The verdict, the per-seed rows and both
+deltas are printed there by the generator and are not repeated here.
+
+- **Which revision was fitted.** This work's netlist was elaborated from
+  `39e66a3e8`. `git diff 39e66a3e8..e967bf4fa` touches the unit bench, its runner and
+  this directory only, so the fitted RTL is the final head's RTL.
+- **The fits are virtual-pin fits of the machine**, not a board build: no
+  DE25 shell, pin assignment, seal or package.
+- **Lint** (`verilator --lint-only -Wall -Wno-UNUSEDSIGNAL`, top
+  `fes_i386_cpu`) is clean at both `X87_BACKEND` values on the final head.
+  There is no committed report of it.
+
 ## The duplicate backend RTL
 
 `sources/misteross/boards/de25nano/x87/rtl/` holds five files that **nothing
