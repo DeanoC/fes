@@ -1258,6 +1258,17 @@ or the full-record SHA-256). A unit may also report `saveable:false` when it has
 a durable binding but does not support an explicit in-session checkpoint;
 callers must preserve the binding identity while refusing the Save operation.
 Writable Atari ST packages use persistent mode only while a disk binding exists.
+A saved record can also be reached when its package is not loaded. `POST
+/v1/library/media/record` takes `{core_id, game_id, base_media_id, unit}` and
+returns `{state, revision, bytes}` with state `absent`, `present` or
+`corrupt`. `POST /v1/library/media/records` takes up to 256 identities as
+`{records:[...]}` and answers them in order. `POST
+/v1/library/media/record/export` adds `expected_revision` and returns the
+saved disk image as an octet stream. `POST /v1/library/media/record/discard`
+takes the same body, needs the kit lease, and removes the record so the next
+launch reads the imported disk again; the runtime refuses it while a core is
+running. Inspect and export change nothing and need no lease.
+
 The `fes.computer` 1.1 pc386 `fes.media.ata-disk` unit is a fixed 1..128 MiB
 unit with 65,536-byte chunks and always reports `saveable:false`. Its package
 remains persistent when the unit is empty, and a loaded disk keeps its

@@ -72,6 +72,30 @@ restores reject saved/base length mismatch before hardware transfer. Saved BPB
 edits do not change physical geometry. `atari-st-geometry.json` independently
 fixes the 839680-byte patterned header, checksum, revision and namespace.
 
+## Inspecting, exporting and discarding a record
+
+A record can be named without loading a package: the caller gives core ID,
+game ID, unit and base-image SHA256, and the runtime derives the namespace.
+These three requests apply to whole-image records. They never create a
+namespace, so a query for a disk that was never written leaves no directory.
+
+- **Inspect** returns `state`, `revision` and `bytes`. `absent` has revision
+  `absent` and zero bytes. `present` means the envelope decodes for that
+  identity. `corrupt` covers a bad checksum and a valid envelope bound to a
+  different identity or layout; it still has a revision, so it can be
+  discarded.
+- **Export** writes the record's payload, the raw disk image, to a new file
+  the caller names. It refuses a record whose revision is not the expected
+  one, and a corrupt record. The record is unchanged.
+- **Discard** unlinks `record.bin` when its revision is the expected one,
+  syncs the directory, and removes the namespace directory when it is empty.
+  The next launch restores the immutable base image. The runtime refuses it
+  unless it is idle: a running core holds its disk in memory and would
+  publish it again at Stop.
+
+All three take the namespace lock. A revision that no longer matches is a
+stale-revision refusal and changes nothing.
+
 ## PC/XT floppy capture
 
 `fes.pcxt-floppy.image` 1.0 uses the same namespace, binding, publication,

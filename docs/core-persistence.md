@@ -122,6 +122,12 @@ power loss are atomic. The [shared layout](../sources/mister-packages/docs/media
 defines the exact envelope and revision contract. Hardware acceptance applies
 only to a subsequently named exact package/runtime record.
 
+The runtime can also report, export and discard one saved disk by its
+identity, without loading a package. Discard removes the record so the next
+launch reads the imported disk again, and is refused while a core runs. The
+kit agent exposes these as `/v1/library/media/record`, `.../records`,
+`.../record/export` and `.../record/discard`.
+
 For a bound disk, fault cleanup must save the verified image before loading
 idle. If capture or publication fails, it retains the disk RAM, generation and
 binding in recovery so cleanup cannot silently discard unsaved changes.
