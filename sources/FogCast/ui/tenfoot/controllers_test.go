@@ -124,6 +124,24 @@ func TestControllersRebindSavesAndRedrawsHints(t *testing.T) {
 	}
 }
 
+func TestControllersRebindSwapsTakenTarget(t *testing.T) {
+	app := controllersApp(t)
+	app.mu.Lock()
+	app.setPadTargetLocked(remoteinput.ButtonX, remoteinput.ButtonA)
+	app.mu.Unlock()
+
+	if row := controllerRow(t, app, "Left button"); row.Target != "A" {
+		t.Fatalf("left button = %+v, want A", row)
+	}
+	if row := controllerRow(t, app, "Bottom button"); row.Target != "X" {
+		t.Fatalf("bottom button = %+v, want X after A moved", row)
+	}
+	profile, ok := savedProfile(t, app)
+	if !ok || profile.Bindings["x"] != "a" || profile.Bindings["a"] != "x" {
+		t.Fatalf("saved profile = %+v", profile)
+	}
+}
+
 func TestControllersSwapAndReset(t *testing.T) {
 	app := controllersApp(t)
 	now := time.Now()

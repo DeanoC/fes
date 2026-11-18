@@ -504,6 +504,22 @@ func (a *App) setPadTargetLocked(source, target remoteinput.Code) {
 	if old == target {
 		return
 	}
+	// Keep the mapping one-to-one. Session input is represented by its
+	// remapped code, so two physical buttons sending the same code would make
+	// either button's release look like the logical control was released.
+	var swapped remoteinput.Code
+	for _, s := range padSources {
+		if s.code != source && sends[s.code] == target {
+			if swapped != 0 {
+				c.status = fmt.Sprintf("Not changed: more than one button already sends %s. Reset this pad's controls first.", padTargetLabel(target))
+				return
+			}
+			swapped = s.code
+		}
+	}
+	if swapped != 0 {
+		sends[swapped] = old
+	}
 	sends[source] = target
 	sent := func(code remoteinput.Code) bool {
 		for _, s := range padSources {
@@ -513,25 +529,13 @@ func (a *App) setPadTargetLocked(source, target remoteinput.Code) {
 		}
 		return false
 	}
-	swapped := remoteinput.Code(0)
 	for _, need := range padEssential {
 		if sent(need) {
 			continue
 		}
-		if need == old {
-			for _, s := range padSources {
-				if s.code != source && sends[s.code] == target {
-					sends[s.code] = old
-					swapped = s.code
-					break
-				}
-			}
-		}
-		if !sent(need) {
-			c.status = fmt.Sprintf("Not changed: no button would send %s, and FES menus need it. Give %s to another button first.",
-				padTargetLabel(need), padTargetLabel(need))
-			return
-		}
+		c.status = fmt.Sprintf("Not changed: no button would send %s, and FES menus need it. Give %s to another button first.",
+			padTargetLabel(need), padTargetLabel(need))
+		return
 	}
 	info := a.pads[c.pad]
 	profile := a.padProfilesLocked()[info.GUID]
