@@ -1,0 +1,16 @@
+{
+  "status": "preserved-before-private-comparison-repair",
+  "source_commit": "9962fc9e32b3f16e340231104e9fe52786a068ad",
+  "binary_sha256": "c74fd6a6d89f0a447aa76276508db2aa9ae49fa991dd22b24145e3ad886f4431",
+  "sources": {
+    "sdm_input_probe_setup.c": "7bd907984ce77f2724cb3367d85e3fb5721b6d15cdef9b25c80ec2a8c7c34b1e",
+    "sdm_input_probe_setup.h": "22f92dbc3d361f69753bbdf94b479f51be12cb0e24217a7ace48c548cc20c55f",
+    "nano_sdm_rearm_platform.inc": "a5b85634f56e469f421ae80b99473c6b4b174c461c3610b6b562fc40159d8d97",
+    "input_tables.c": "b842dc2ea784ec5c2aef846c7da22b971b2e9fa1f688f29e24bc14299fbec58f",
+    "tests/sdm_retire/lifecycle_prepare_cost_test.c": "59ee4efdab3a1a780924c4ec217b34f94362e6330c8a9d3b724d357a218f64fe",
+    "tests/sdm_retire/lifecycle_callbacks.inc": "62e60ba0a0c860345bdb846f4201d5131f70cfddc76c723532b5d9b587c08de0",
+    "tests/sdm_retire/lifecycle_rpc.c": "355f1157ca76e4c1eae4f53451f7318333e4d7541014f6874dedbeccd97b1e8f"
+  },
+  "cost_model": "80ns per modeled private load plus3263700us residual work; synthetic counterexample, no measured latency attribution",
+  "hardware_actions": false
+}

@@ -26,6 +26,14 @@ clears release 10→15 in 918,403 µs. The complete cycle then stops at the next
 MENU's four-second preparation guard; ZX80 and final Park are not reached.
 Fresh recovery restores the exact original FIT without power cycling.
 
+
+The [private comparison repair](../validation/2026-11-18-de25-warm-preparation-comparison/README.md) now reproduces the second warm
+preparation boundary through production callbacks under synthetic costs and
+reduces modeled snapshot loads by 84.885%, preserving all bytes, freshness
+checks and deadlines. Sanitized checks, target wide-load/layout proof and a
+fresh matched/file-admitted boot chain pass. The image is unprogrammed;
+physical preparation timing and the complete cycle/Park remain open.
+
 ## Trust and authority
 
 | Actor | Current responsibility | What it does not prove |
@@ -359,12 +367,12 @@ files and closed handles. The failed cycle stays failed and consumed.
 1. Review the model against vendor reset, NoC completion, SMMU and SDM
    guarantees, including what source DMA retirement proves and which resets
    clear outstanding transactions. The unanswered guarantees above remain.
-2. Reproduce the second warm preparation cost through the actual suppliers and
-   reduce its validation cost, keeping ownership and the finite bounds intact.
-   Command completion and source release already pass their separate bounds.
-   Independently recheck the new matched source/artifacts before use, including
-   OCRAM and every memory/source admission check. A later implementation edit
-   requires a fresh chain; file admission is not runtime authority.
+2. The second warm preparation now has a calibrated actual-supplier
+   counterexample and a private comparison repair with passing sanitized
+   checks, actual target wide loads, unchanged OCRAM usage and fresh matched
+   source/file admission. The synthetic cost result is not hardware latency
+   attribution or timing acceptance. Recheck source/artifact identities before
+   use; a later implementation edit requires a fresh chain.
 3. Use a new bounded procedure to qualify repeated
    `MENU → ZX81+tape → MENU → ZX80 → MENU → Park` on that exact artifact.
    Qualify the repaired preparation cost within its existing bound. Capture

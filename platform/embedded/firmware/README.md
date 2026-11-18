@@ -1,5 +1,12 @@
 # Contained firmware and FPGA control prototype
 
+The [private comparison repair](../../../docs/validation/2026-11-18-de25-warm-preparation-comparison/README.md) now reproduces the second warm
+preparation boundary through production callbacks under synthetic costs and
+reduces modeled snapshot loads by 84.885%, preserving all bytes, freshness
+checks and deadlines. Sanitized checks, target wide-load/layout proof and a
+fresh matched/file-admitted boot chain pass. The image is unprogrammed;
+physical preparation timing and the complete cycle/Park remain open.
+
 The historical [preservation checkpoint](../../../docs/validation/2026-11-15-de25-merge-readiness/README.md) records a matched boot chain and a physical ZX81 launch with initial tape. Return to MENU stops at secure source release; the complete cycle remains unqualified. [Issue #1867](https://github.com/DeanoC/fes/issues/1867) tracks the whole secure ownership, memory, lifecycle and recovery investigation. The later [reset-recovery](../../../docs/validation/2026-11-17-de25-reset-recovery/README.md) and [SD restoration](../../../docs/validation/2026-11-17-de25-sd-restoration/README.md) checkpoints qualify bounded recovery/readback without a physical cycle. Their original host-deadline failure remains failed. Current board state belongs to the kit ledger.
 
 The [secure lifecycle investigation](../../../docs/design/de25-native-secure-lifecycle.md)
