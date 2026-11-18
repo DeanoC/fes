@@ -1,0 +1,1490 @@
+{
+ "what": "Evidence for README.md, \"The 18 November refresh\". Lines are 1-based; text is stripped of surrounding whitespace.",
+ "authored_tree": "0eb4bf31197471f755dec86cca8c7537b56ff3a0",
+ "refreshed_16_november": "30688ae44fb3e33c553b63ba9d2c79bd8548b7b9",
+ "carried_to": "2393a9f04d73179d51734aa189c7414303d1e792",
+ "endpoints": {
+  "total": 957,
+  "text_fingerprinted_in_authored_record": 929,
+  "text_first_pinned_16_november": 3,
+  "text_first_pinned_here": 25
+ },
+ "restored": [
+  {
+   "record": "census-tables.md",
+   "row_16_november": 49,
+   "cited": "sources/misteross/scripts/build_fes_pcxt_quartus.py",
+   "line_16_november": 369,
+   "held_16_november": "repository, revision = _require_clean_source(root, identity_version=identity_version, dos_profile=dos_profile)",
+   "authored_line": 369,
+   "authored_text": "command = [sys.executable, str(root / 'scripts/quartus_fes_pcxt.py'),",
+   "line_now": 386,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 49,
+   "cited": "sources/misteross/scripts/build_fes_pcxt_quartus.py",
+   "line_16_november": 376,
+   "held_16_november": "record = create_build_record(root, repository, revision, identities, execution=execution,",
+   "authored_line": 376,
+   "authored_text": "command.extend(('--seed', str(seed)))",
+   "line_now": 392,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 84,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line_16_november": 130,
+   "held_16_november": "\"scripts/source_repository.py\",",
+   "authored_line": 130,
+   "authored_text": "\"build_fes_coleco_socket_v2\": [",
+   "line_now": 133,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 85,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line_16_november": 247,
+   "held_16_november": "\"scripts/search_placer_qor.py\",",
+   "authored_line": 247,
+   "authored_text": "\"build_fes_ramtest\": [",
+   "line_now": 253,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 86,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line_16_november": 311,
+   "held_16_november": "\"scripts/pnr_recipe.py\",",
+   "authored_line": 311,
+   "authored_text": "\"build_fes_sg1000_oss\": [",
+   "line_now": 319,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 87,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line_16_november": 361,
+   "held_16_november": "\"scripts/pnr_recipe.py\",",
+   "authored_line": 361,
+   "authored_text": "\"build_fes_sms_oss\": [",
+   "line_now": 370,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 88,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line_16_november": 456,
+   "held_16_november": "\"scripts/nextpnr_lease.py\",",
+   "authored_line": 456,
+   "authored_text": "\"build_fes_zx81_oss\": [",
+   "line_now": 467,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 244,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1759,
+   "held_16_november": "$(VERILATOR) --cc --exe --build --top-module sg1000_application_gp -Wall \\",
+   "authored_line": 1759,
+   "authored_text": "cores/fes-common/rtl/coleco_dpram.v \\",
+   "line_now": 1757,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 244,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1773,
+   "held_16_november": "$(VERILATOR) --cc --exe --build --top-module sg1000_application_gp -Wall \\",
+   "authored_line": 1773,
+   "authored_text": "cores/fes-common/rtl/coleco_dpram.v \\",
+   "line_now": 1771,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 248,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 586,
+   "held_16_november": "# The open ZX80 ROM on the ZX80 machine RTL (16 KiB): each script recorded",
+   "authored_line": 586,
+   "authored_text": "@VERILATOR=\"$(VERILATOR)\" cores/fes-zx81/openrom-zx80/dev/build_probe.sh \"$(CURDIR)/build/zx80-openrom/zx80-openrom.hex\" \\",
+   "line_now": 584,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 307,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 966,
+   "held_16_november": ".PHONY: sim-fes-coleco-sgm-probe",
+   "authored_line": 966,
+   "authored_text": "sim-fes-coleco-board-build:",
+   "line_now": 964,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 307,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 986,
+   "held_16_november": "cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/fes_z80_ce.sv \\",
+   "authored_line": 986,
+   "authored_text": "\"$(CURDIR)/cores/fes-coleco/sim/board_tb.cpp\"",
+   "line_now": 984,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 307,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1028,
+   "held_16_november": "cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \\",
+   "authored_line": 1028,
+   "authored_text": "sim-fes-coleco-board-build-oss:",
+   "line_now": 1026,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 307,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1034,
+   "held_16_november": "sim-fes-coleco-board-build-oss:",
+   "authored_line": 1034,
+   "authored_text": "-CFLAGS \"-DFES_COLECO_OSS=1\" \\",
+   "line_now": 1032,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 307,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1049,
+   "held_16_november": "cores/fes-common/rtl/fes_sn76489.sv cores/fes-common/rtl/fes_audio_i2s.v cores/fes-common/rtl/fes_audio_output.v \\",
+   "authored_line": 1049,
+   "authored_text": "\"$(CURDIR)/cores/fes-coleco/sim/board_tb.cpp\"",
+   "line_now": 1047,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 308,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 873,
+   "held_16_november": "--Mdir \"$(CURDIR)/build/sim/fes-coleco-video\" \\",
+   "authored_line": 873,
+   "authored_text": "sim-fes-coleco-expansion:",
+   "line_now": 871,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 308,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 878,
+   "held_16_november": ".PHONY: sim-fes-coleco-expansion",
+   "authored_line": 878,
+   "authored_text": "-CFLAGS \"-DFES_COLECO_OSS=1\" \\",
+   "line_now": 876,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 308,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 891,
+   "held_16_november": "cores/fes-common/rtl/fes_sn76489.sv cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/fes_z80_ce.sv \\",
+   "authored_line": 891,
+   "authored_text": "\"$(CURDIR)/cores/fes-coleco/sim/expansion_tb.cpp\"",
+   "line_now": 889,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 309,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 878,
+   "held_16_november": ".PHONY: sim-fes-coleco-expansion",
+   "authored_line": 878,
+   "authored_text": "-CFLAGS \"-DFES_COLECO_OSS=1\" \\",
+   "line_now": 876,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 310,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 994,
+   "held_16_november": "sim-fes-coleco-unit-oss: sim-fes-z80-timing sim-fes-coleco-graphics-oss sim-fes-coleco-stream-oss sim-fes-coleco-vdp-io-oss",
+   "authored_line": 993,
+   "authored_text": "-CFLAGS \"-DFES_COLECO_OSS=1\" \\",
+   "line_now": 991,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 310,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 997,
+   "held_16_november": "$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \\",
+   "authored_line": 997,
+   "authored_text": "\"$(CURDIR)/cores/fes-coleco/sim/gp_tb.cpp\"",
+   "line_now": 995,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 310,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 838,
+   "held_16_november": "@mkdir -p build/sim/fes-coleco-gp",
+   "authored_line": 838,
+   "authored_text": "\"$(CURDIR)/cores/fes-coleco/sim/gp_tb.cpp\"",
+   "line_now": 836,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 312,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 629,
+   "held_16_november": "--output build/diagnostics/fes-coleco/controller.rom \\",
+   "authored_line": 629,
+   "authored_text": "sim-fes-coleco-graphics sim-fes-coleco-graphics-oss:",
+   "line_now": 627,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 312,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 638,
+   "held_16_november": "$(VERILATOR) --cc --exe --build --top-module coleco_vdp -Wall \\",
+   "authored_line": 638,
+   "authored_text": "\"$(CURDIR)/cores/fes-coleco/sim/graphics_tb.cpp\"",
+   "line_now": 636,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 312,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 634,
+   "held_16_november": ".PHONY: coleco-vdp-diagnostic sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss sim-fes-coleco-graphics sim-fes-coleco-graphics-oss",
+   "authored_line": 633,
+   "authored_text": "$(if $(filter %-oss,$@),-DFES_COLECO_OSS=1,) \\",
+   "line_now": 631,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 313,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1012,
+   "held_16_november": "cores/fes-common/rtl/coleco_video_dpram.v \\",
+   "authored_line": 1012,
+   "authored_text": "-CFLAGS \"-DFES_COLECO_OSS=1\" \\",
+   "line_now": 1010,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 313,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1025,
+   "held_16_november": "cores/fes-common/rtl/fes_sn76489.sv cores/fes-common/rtl/fes_audio_i2s.v cores/fes-common/rtl/fes_audio_output.v \\",
+   "authored_line": 1025,
+   "authored_text": "\"$(CURDIR)/cores/fes-coleco/sim/machine_tb.cpp\"",
+   "line_now": 1023,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 313,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 830,
+   "held_16_november": "\"$(CURDIR)/cores/fes-coleco/sim/sgm_audio_tb.cpp\"",
+   "authored_line": 830,
+   "authored_text": "sim-fes-coleco-unit: sim-fes-z80-timing sim-fes-tms9918-timing sim-fes-coleco-audio sim-fes-coleco-graphics sim-fes-coleco-stream sim-fes-coleco-vdp-io",
+   "line_now": 828,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 313,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 862,
+   "held_16_november": "cores/fes-common/rtl/fes_sn76489.sv cores/fes-common/rtl/fes_audio_i2s.v cores/fes-common/rtl/fes_audio_output.v \\",
+   "authored_line": 862,
+   "authored_text": "\"$(CURDIR)/cores/fes-coleco/sim/machine_tb.cpp\"",
+   "line_now": 860,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 314,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1012,
+   "held_16_november": "cores/fes-common/rtl/coleco_video_dpram.v \\",
+   "authored_line": 1012,
+   "authored_text": "-CFLAGS \"-DFES_COLECO_OSS=1\" \\",
+   "line_now": 1010,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 317,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 2093,
+   "held_16_november": ".PHONY: kit-session",
+   "authored_line": 2092,
+   "authored_text": "sim-fes-coleco-stream sim-fes-coleco-stream-oss:",
+   "line_now": 2090,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 317,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 2097,
+   "held_16_november": ".PHONY: sim-fes-coleco-stream sim-fes-coleco-stream-oss",
+   "authored_line": 2096,
+   "authored_text": "$(if $(findstring -oss,$@),-DFES_COLECO_OSS=1,) \\",
+   "line_now": 2094,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 317,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 2100,
+   "held_16_november": "@mkdir -p build/sim/$@",
+   "authored_line": 2100,
+   "authored_text": "cores/fes-common/rtl/coleco_dpram.v \"$(CURDIR)/cores/fes-coleco/sim/stream_tb.cpp\"",
+   "line_now": 2098,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 318,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 667,
+   "held_16_november": "$(PYTHON) cores/fes-coleco/diagnostic/vdp_io.py --pad-to 16384 --output build/diagnostics/fes-coleco/vdp-io-16k.rom",
+   "authored_line": 667,
+   "authored_text": "-DTV80_REFRESH=1 $(if $(filter %-oss,$@),-DFES_COLECO_OSS=1 -CFLAGS \"-DFES_COLECO_OSS=1\") \\",
+   "line_now": 665,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 318,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 680,
+   "held_16_november": "cores/fes-common/rtl/fes_sn76489.sv cores/fes-common/rtl/fes_audio_i2s.v cores/fes-common/rtl/fes_audio_output.v \\",
+   "authored_line": 680,
+   "authored_text": "\"$(CURDIR)/cores/fes-coleco/sim/vdp_machine_tb.cpp\"",
+   "line_now": 678,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 319,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 845,
+   "held_16_november": "@build/sim/fes-coleco-gp/Vfes_computer_gp",
+   "authored_line": 845,
+   "authored_text": "\"$(CURDIR)/cores/fes-coleco/sim/vdp_tb.cpp\"",
+   "line_now": 843,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 319,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1002,
+   "held_16_november": "cores/fes-common/rtl/fes_computer_gp.v cores/fes-common/rtl/coleco_dpram.v \\",
+   "authored_line": 1002,
+   "authored_text": "-CFLAGS \"-DFES_COLECO_OSS=1\" \\",
+   "line_now": 1000,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 319,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1007,
+   "held_16_november": "-DFES_COLECO_OSS=1 -Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \\",
+   "authored_line": 1007,
+   "authored_text": "\"$(CURDIR)/cores/fes-coleco/sim/vdp_tb.cpp\"",
+   "line_now": 1005,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 321,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1760,
+   "held_16_november": "-DFES_SG1000_ROM_LINK=1 \\",
+   "authored_line": 1760,
+   "authored_text": "\"$(CURDIR)/cores/fes-sg1000/sim/gp_audio_tb.cpp\"",
+   "line_now": 1758,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 322,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1769,
+   "held_16_november": ".PHONY: sim-fes-sg1000-gp-media",
+   "authored_line": 1768,
+   "authored_text": "-DFES_COLECO_OSS=1 \\",
+   "line_now": 1766,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 322,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1774,
+   "held_16_november": "-DFES_COLECO_OSS=1 \\",
+   "authored_line": 1774,
+   "authored_text": "\"$(CURDIR)/cores/fes-sg1000/sim/gp_media_tb.cpp\"",
+   "line_now": 1772,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 323,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1713,
+   "held_16_november": "sim-fes-sg1000-oss: sim-fes-z80-timing sg1000-diagnostic",
+   "authored_line": 1712,
+   "authored_text": "-CFLAGS \"-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1\" \\",
+   "line_now": 1710,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 323,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1723,
+   "held_16_november": "-Icores/fes-coleco/generated \\",
+   "authored_line": 1723,
+   "authored_text": "\"$(CURDIR)/cores/fes-sg1000/sim/machine_tb.cpp\"",
+   "line_now": 1721,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 323,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1688,
+   "held_16_november": "--preview build/diagnostics/fes-sg1000/controller.ppm",
+   "authored_line": 1688,
+   "authored_text": "sim-fes-sg1000: sim-fes-z80-timing sg1000-diagnostic",
+   "line_now": 1686,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 323,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1702,
+   "held_16_november": "-Icores/fes-coleco/generated \\",
+   "authored_line": 1702,
+   "authored_text": "\"$(CURDIR)/cores/fes-sg1000/sim/machine_tb.cpp\"",
+   "line_now": 1700,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 324,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1728,
+   "held_16_november": "$(FES_Z80_NMOS_RTL) \\",
+   "authored_line": 1728,
+   "authored_text": "sim-fes-sg1000-rom-link: sim-fes-z80-timing sg1000-diagnostic",
+   "line_now": 1726,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 324,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1734,
+   "held_16_november": "sim-fes-sg1000-rom-link: sim-fes-z80-timing sg1000-diagnostic",
+   "authored_line": 1733,
+   "authored_text": "-CFLAGS \"-DFES_SG1000_ROM_LINK=1\" \\",
+   "line_now": 1731,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 324,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1745,
+   "held_16_november": "--Mdir \"$(CURDIR)/build/sim/fes-sg1000-rom-link\" \\",
+   "authored_line": 1745,
+   "authored_text": "\"$(CURDIR)/cores/fes-sg1000/sim/machine_tb.cpp\"",
+   "line_now": 1743,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 326,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1919,
+   "held_16_november": "cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \\",
+   "authored_line": 1919,
+   "authored_text": "-CFLAGS \"-DFES_SMS_OSS=1 -DFES_SMS_ROM_LINK=1 -DFES_COLECO_OSS=1\" \\",
+   "line_now": 1917,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 326,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1933,
+   "held_16_november": "cores/fes-sms/rtl/sms_psg.sv \\",
+   "authored_line": 1933,
+   "authored_text": "\"$(CURDIR)/cores/fes-sms/sim/machine_tb.cpp\"",
+   "line_now": 1931,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 326,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1824,
+   "held_16_november": "$(PYTHON) cores/fes-sms/diagnostic/generate.py --interactive \\",
+   "authored_line": 1824,
+   "authored_text": "sim-fes-sms: sim-fes-z80-timing sms-diagnostic sim-fes-audio-output",
+   "line_now": 1822,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 326,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1872,
+   "held_16_november": "cores/fes-sms/rtl/sms_psg.sv \\",
+   "authored_line": 1872,
+   "authored_text": "\"$(CURDIR)/cores/fes-sms/sim/machine_tb.cpp\"",
+   "line_now": 1870,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 327,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1919,
+   "held_16_november": "cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \\",
+   "authored_line": 1919,
+   "authored_text": "-CFLAGS \"-DFES_SMS_OSS=1 -DFES_SMS_ROM_LINK=1 -DFES_COLECO_OSS=1\" \\",
+   "line_now": 1917,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 329,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1880,
+   "held_16_november": "build/diagnostics/fes-sms/mode4.rom",
+   "authored_line": 1880,
+   "authored_text": "-DFES_COLECO_OSS=1 -CFLAGS \"-DFES_COLECO_OSS=1\" \\",
+   "line_now": 1878,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 329,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1887,
+   "held_16_november": "-Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL \\",
+   "authored_line": 1887,
+   "authored_text": "\"$(CURDIR)/cores/fes-sms/sim/no_media_tb.cpp\"",
+   "line_now": 1885,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 330,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1834,
+   "held_16_november": "-Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL \\",
+   "authored_line": 1834,
+   "authored_text": "\"$(CURDIR)/cores/fes-sms/sim/stream_tb.cpp\"",
+   "line_now": 1832,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 330,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1901,
+   "held_16_november": "-Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL \\",
+   "authored_line": 1901,
+   "authored_text": "\"$(CURDIR)/cores/fes-sms/sim/stream_tb.cpp\"",
+   "line_now": 1899,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 330,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1893,
+   "held_16_november": "\"$(CURDIR)/cores/fes-sms/sim/no_media_tb.cpp\"",
+   "authored_line": 1893,
+   "authored_text": "$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall --public \\",
+   "line_now": 1891,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 330,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1893,
+   "held_16_november": "\"$(CURDIR)/cores/fes-sms/sim/no_media_tb.cpp\"",
+   "authored_line": 1893,
+   "authored_text": "$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall --public \\",
+   "line_now": 1891,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 331,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1846,
+   "held_16_november": "-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \\",
+   "authored_line": 1846,
+   "authored_text": "\"$(CURDIR)/cores/fes-sms/sim/vdp_tb.cpp\"",
+   "line_now": 1844,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 331,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1914,
+   "held_16_november": "-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \\",
+   "authored_line": 1914,
+   "authored_text": "\"$(CURDIR)/cores/fes-sms/sim/vdp_tb.cpp\"",
+   "line_now": 1912,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 333,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 468,
+   "held_16_november": "-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \\",
+   "authored_line": 468,
+   "authored_text": "cores/fes-zx81/rtl/zx81_dpram.v \\",
+   "line_now": 466,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 333,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 469,
+   "held_16_november": "-Icores/fes-zx81/generated -Icores/fes-common/rtl/z80 -Icores/fes-zx81/rtl \\",
+   "authored_line": 469,
+   "authored_text": "\"$(CURDIR)/cores/fes-zx81/sim/diagnostic_tb.cpp\"",
+   "line_now": 467,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 334,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 412,
+   "held_16_november": "-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \\",
+   "authored_line": 412,
+   "authored_text": "cores/fes-zx81/rtl/zx81_dpram.v \\",
+   "line_now": 410,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 334,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 413,
+   "held_16_november": "-Icores/fes-zx81/generated -Icores/fes-common/rtl/z80 -Icores/fes-zx81/rtl \\",
+   "authored_line": 413,
+   "authored_text": "\"$(CURDIR)/cores/fes-zx81/sim/machine_tb.cpp\"",
+   "line_now": 411,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 335,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 563,
+   "held_16_november": "-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \\",
+   "authored_line": 563,
+   "authored_text": "cores/fes-zx81/rtl/zx81_dpram.v \\",
+   "line_now": 561,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 335,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 564,
+   "held_16_november": "-GEXTERNAL_RAM=$$ram '-GFIRMWARE_INIT=\"build/zx81-openrom/zx81-openrom.hex\"' $$define \\",
+   "authored_line": 564,
+   "authored_text": "\"$(CURDIR)/cores/fes-zx81/sim/openrom_tb.cpp\" || exit 1; \\",
+   "line_now": 562,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 336,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 395,
+   "held_16_november": "$(VERILATOR) --cc --exe --build --top-module rom_init_window -Wall \\",
+   "authored_line": 395,
+   "authored_text": "cores/fes-zx81/rtl/zx81_dpram.v \\",
+   "line_now": 393,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 336,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 396,
+   "held_16_november": "-GROM_INIT='\"$(ZX81_ROM_HEX)\"' \\",
+   "authored_line": 396,
+   "authored_text": "\"$(CURDIR)/cores/fes-zx81/sim/rom_init_tb.cpp\"",
+   "line_now": 394,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 351,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1728,
+   "held_16_november": "$(FES_Z80_NMOS_RTL) \\",
+   "authored_line": 1728,
+   "authored_text": "sim-fes-sg1000-rom-link: sim-fes-z80-timing sg1000-diagnostic",
+   "line_now": 1726,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 351,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1734,
+   "held_16_november": "sim-fes-sg1000-rom-link: sim-fes-z80-timing sg1000-diagnostic",
+   "authored_line": 1733,
+   "authored_text": "-CFLAGS \"-DFES_SG1000_ROM_LINK=1\" \\",
+   "line_now": 1731,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 352,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 634,
+   "held_16_november": ".PHONY: coleco-vdp-diagnostic sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss sim-fes-coleco-graphics sim-fes-coleco-graphics-oss",
+   "authored_line": 633,
+   "authored_text": "$(if $(filter %-oss,$@),-DFES_COLECO_OSS=1,) \\",
+   "line_now": 631,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 352,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 2097,
+   "held_16_november": ".PHONY: sim-fes-coleco-stream sim-fes-coleco-stream-oss",
+   "authored_line": 2096,
+   "authored_text": "$(if $(findstring -oss,$@),-DFES_COLECO_OSS=1,) \\",
+   "line_now": 2094,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 352,
+   "cited": "sources/misteross/Makefile",
+   "line_16_november": 1769,
+   "held_16_november": ".PHONY: sim-fes-sg1000-gp-media",
+   "authored_line": 1768,
+   "authored_text": "-DFES_COLECO_OSS=1 \\",
+   "line_now": 1766,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 385,
+   "cited": "sources/misteross/docs/architecture.md",
+   "line_16_november": 2082,
+   "held_16_november": "`altsyncram` mode `NEW_DATA_NO_NBE_READ`; OSS preserves the registered",
+   "authored_line": 2082,
+   "authored_text": "Yosys maps. `FES_SG1000_OSS` alone does not select those Coleco wrappers.",
+   "line_now": 2190,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 386,
+   "cited": "sources/misteross/docs/architecture.md",
+   "line_16_november": 2096,
+   "held_16_november": "These are the portability accommodations to hand to the Yosys/nextpnr/Mistral",
+   "authored_line": 2095,
+   "authored_text": "`FES_COLECO_OSS=1`. The cartridge bank-mux output is registered in the system",
+   "line_now": 2203,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 447,
+   "cited": "tests/test_affected.py",
+   "line_16_november": 385,
+   "held_16_november": "with self.subTest(path=path):",
+   "authored_line": 385,
+   "authored_text": "'cores/fes-coleco/rtl/coleco_machine.sv': {'coleco', 'sg1000', 'sms'},",
+   "line_now": 416,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 466,
+   "cited": "architecture.md",
+   "line_16_november": 2082,
+   "held_16_november": "`altsyncram` mode `NEW_DATA_NO_NBE_READ`; OSS preserves the registered",
+   "authored_line": 2080,
+   "authored_text": "machine with `-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1` so registered media,",
+   "line_now": 2188,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 466,
+   "cited": "architecture.md",
+   "line_16_november": 2094,
+   "held_16_november": "### OSS/Yosys/nextpnr workarounds",
+   "authored_line": 2082,
+   "authored_text": "Yosys maps. `FES_SG1000_OSS` alone does not select those Coleco wrappers.",
+   "line_now": 2190,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 466,
+   "cited": "architecture.md",
+   "line_16_november": 2096,
+   "held_16_november": "These are the portability accommodations to hand to the Yosys/nextpnr/Mistral",
+   "authored_line": 2094,
+   "authored_text": "Yosys defines `FES_SG1000_OSS=1`, `FES_SG1000_ROM_LINK=1`, and",
+   "line_now": 2202,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 466,
+   "cited": "architecture.md",
+   "line_16_november": 2097,
+   "held_16_november": "owner. The RTL scheduling choices are shared by both compiler lanes; entries",
+   "authored_line": 2095,
+   "authored_text": "`FES_COLECO_OSS=1`. The cartridge bank-mux output is registered in the system",
+   "line_now": 2203,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 466,
+   "cited": "architecture.md",
+   "line_16_november": 2170,
+   "held_16_november": "The VDP asserts the Z80's maskable INT input; NMI is inactive.",
+   "authored_line": 2170,
+   "authored_text": "(`-DFES_SMS_OSS=1 -DFES_SMS_ROM_LINK=1 -DFES_COLECO_OSS=1`). Both are host",
+   "line_now": 2278,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 466,
+   "cited": "architecture.md",
+   "line_16_november": 2184,
+   "held_16_november": "programs hardware. `--compile-only` writes `build/fes-sg1000-quartus/core.rbf`",
+   "authored_line": 2184,
+   "authored_text": "`TV80_REFRESH=1`, `FES_SMS_OSS=1`, `FES_SMS_ROM_LINK=1`, and `FES_COLECO_OSS=1`. `--synth-only` runs",
+   "line_now": 2292,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 466,
+   "cited": "architecture.md",
+   "line_16_november": 2456,
+   "held_16_november": "display file through the ULA (IM 1 line interrupt from R, 207 T lines,",
+   "authored_line": 2456,
+   "authored_text": "(`QUARTUS` is not defined). Place-and-route uses `constraints-oss.qsf` and `clocks-oss.sdc`.",
+   "line_now": 2559,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 468,
+   "cited": "architecture.md",
+   "line_16_november": 2456,
+   "held_16_november": "display file through the ULA (IM 1 line interrupt from R, 207 T lines,",
+   "authored_line": 2456,
+   "authored_text": "(`QUARTUS` is not defined). Place-and-route uses `constraints-oss.qsf` and `clocks-oss.sdc`.",
+   "line_now": 2559,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 468,
+   "cited": "test_functional_identity.py",
+   "line_16_november": 56,
+   "held_16_november": "for relative in (\"scripts/fes_build_common.py\", \"cores/fes-common/rtl/fes_application_gp.v\",",
+   "authored_line": 56,
+   "authored_text": "\"cores/fes-coleco/rtl/top.v\", \"cores/fes-coleco/clocks-oss.sdc\",",
+   "line_now": 57,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 468,
+   "cited": "tests/test_affected.py",
+   "line_16_november": 383,
+   "held_16_november": "'tests/unit-other/helper.cpp', 'tests/unreviewed/helper.cpp',",
+   "authored_line": 383,
+   "authored_text": "'cores/fes-common/rtl/coleco_vdp.sv': {'coleco', 'sg1000', 'sms'},",
+   "line_now": 414,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 468,
+   "cited": "tests/test_affected.py",
+   "line_16_november": 385,
+   "held_16_november": "with self.subTest(path=path):",
+   "authored_line": 385,
+   "authored_text": "'cores/fes-coleco/rtl/coleco_machine.sv': {'coleco', 'sg1000', 'sms'},",
+   "line_now": 416,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 472,
+   "cited": "sources/misteross/docs/architecture.md",
+   "line_16_november": 1328,
+   "held_16_november": "outer deadline, so queue time never counts toward the route timeout. Any other",
+   "authored_line": 1328,
+   "authored_text": "phases. The opt-in `QUARTUS_17_0_2_RAMTEST` profile supplies fitted pad",
+   "line_now": 1422,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 472,
+   "cited": "docs/support-matrix.py",
+   "line_16_november": 35,
+   "held_16_november": "POLICY_CITE = 'policy: Deano 2026-10-29'",
+   "authored_line": 35,
+   "authored_text": "QUARTUS_PRIMARY = 'Quartus (primary, policy)'",
+   "line_now": 39,
+   "neighbours_match_authored_tree": false
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 472,
+   "cited": "docs/support-matrix.py",
+   "line_16_november": 480,
+   "held_16_november": "'',",
+   "authored_line": 480,
+   "authored_text": "if claimed_primary != QUARTUS_PRIMARY_IDS:",
+   "line_now": 757,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 472,
+   "cited": "docs/support-matrix.py",
+   "line_16_november": 483,
+   "held_16_november": "'Atari ST is still the only optional recipe (`FES_SKIP_OPTIONAL_CORES`). That flag is not its tier.',",
+   "authored_line": 483,
+   "authored_text": "f'{sorted(claimed_primary)} != {sorted(QUARTUS_PRIMARY_IDS)}'",
+   "line_now": 760,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 472,
+   "cited": "docs/support-matrix.py",
+   "line_16_november": 485,
+   "held_16_november": "'## Cores',",
+   "authored_line": 485,
+   "authored_text": "for core_id in sorted(QUARTUS_PRIMARY_IDS & set(by_id)):",
+   "line_now": 762,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 472,
+   "cited": "docs/support-matrix.py",
+   "line_16_november": 623,
+   "held_16_november": "tier_ids = {tier['id'] for tier in data['tiers']}",
+   "authored_line": 623,
+   "authored_text": "if rendered.count(QUARTUS_PRIMARY) != 1:",
+   "line_now": 900,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 472,
+   "cited": "docs/support-matrix.py",
+   "line_16_november": 658,
+   "held_16_november": "for name, pin in pins.items():",
+   "authored_line": 658,
+   "authored_text": "if de10_cell(row) == 'Quartus' and row['id'] not in QUARTUS_PRIMARY_IDS:",
+   "line_now": 935,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 472,
+   "cited": "docs/support-matrix.py",
+   "line_16_november": 660,
+   "held_16_november": "errors.append(f'{core_id} {name} pin {recorded.get(name)} != lock {pin}')",
+   "authored_line": 660,
+   "authored_text": "if row['id'] in QUARTUS_PRIMARY_IDS and row['board'] == 'de10' and de10_cell(row) != 'Quartus':",
+   "line_now": 937,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 472,
+   "cited": "docs/support-matrix.py",
+   "line_16_november": 671,
+   "held_16_november": "if row['board'] not in BOARDS:",
+   "authored_line": 671,
+   "authored_text": "for phrase in (POLICY_CITE, QUARTUS_PRIMARY, DE25_CELL, 'empty-library status'):",
+   "line_now": 948,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 536,
+   "cited": "sources/misteross/scripts/build_fes_pcxt_quartus.py",
+   "line_16_november": 62,
+   "held_16_november": "\"\"\"Separate artifact choices from compiler and execution metadata.\"\"\"",
+   "authored_line": 62,
+   "authored_text": "roots = {'cores/fes-pcxt', 'cores/fes-common/vendor/kf8259',",
+   "line_now": 76,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 536,
+   "cited": "sources/misteross/scripts/build_fes_pcxt_quartus.py",
+   "line_16_november": 68,
+   "held_16_november": "'quartus_version': recipe['version'],",
+   "authored_line": 68,
+   "authored_text": "'scripts/source_repository.py', ABI]",
+   "line_now": 83,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 536,
+   "cited": "sources/misteross/scripts/build_fes_pcxt_quartus.py",
+   "line_16_november": 258,
+   "held_16_november": "'enable_fes_computer': True, 'enable_pcxt_media': True,",
+   "authored_line": 258,
+   "authored_text": "'source_path': root.relative_to(top).as_posix(), 'source_roots': roots,",
+   "line_now": 282,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 543,
+   "cited": "sources/misteross/scripts/export_core_package.py",
+   "line_16_november": 318,
+   "held_16_november": "_git(root, \"ls-files\", \"--error-unmatch\", \"--\", relative)",
+   "authored_line": 318,
+   "authored_text": "def source_input_closure(root: Path, roots: list[str], *, policy=None) -> dict[str, str]:",
+   "line_now": 376,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 543,
+   "cited": "sources/misteross/scripts/export_core_package.py",
+   "line_16_november": 196,
+   "held_16_november": "# Version 1 historically hashes arbitrary bytes; retain that exact API.",
+   "authored_line": 196,
+   "authored_text": "fields = _decode_build_record(record)",
+   "line_now": 256,
+   "neighbours_match_authored_tree": false
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 564,
+   "cited": "build_fes_pcxt_quartus.py",
+   "line_16_november": 62,
+   "held_16_november": "\"\"\"Separate artifact choices from compiler and execution metadata.\"\"\"",
+   "authored_line": 62,
+   "authored_text": "roots = {'cores/fes-pcxt', 'cores/fes-common/vendor/kf8259',",
+   "line_now": 76,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 564,
+   "cited": "build_fes_pcxt_quartus.py",
+   "line_16_november": 68,
+   "held_16_november": "'quartus_version': recipe['version'],",
+   "authored_line": 68,
+   "authored_text": "'scripts/source_repository.py', ABI]",
+   "line_now": 83,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 564,
+   "cited": "export_core_package.py",
+   "line_16_november": 196,
+   "held_16_november": "# Version 1 historically hashes arbitrary bytes; retain that exact API.",
+   "authored_line": 196,
+   "authored_text": "fields = _decode_build_record(record)",
+   "line_now": 256,
+   "neighbours_match_authored_tree": false
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 564,
+   "cited": "build_fes_pcxt_quartus.py",
+   "line_16_november": 78,
+   "held_16_november": "paths = [str(p) for p in board.input_paths(Path(root))]",
+   "authored_line": 78,
+   "authored_text": "return require_clean_source(Path(root), pinned_inputs=(RECIPE, LOCK, ABI))",
+   "line_now": 91,
+   "neighbours_match_authored_tree": false
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 566,
+   "cited": "export_core_package.py",
+   "line_16_november": 318,
+   "held_16_november": "_git(root, \"ls-files\", \"--error-unmatch\", \"--\", relative)",
+   "authored_line": 318,
+   "authored_text": "def source_input_closure(root: Path, roots: list[str], *, policy=None) -> dict[str, str]:",
+   "line_now": 376,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 566,
+   "cited": "source_closures.json",
+   "line_16_november": 319,
+   "held_16_november": "\"build_fes_sg1000_oss\": [",
+   "authored_line": 319,
+   "authored_text": "\"cores/fes-coleco/rtl\",",
+   "line_now": 327,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "census-tables.md",
+   "row_16_november": 570,
+   "cited": "sources/misteross/scripts/source_closures.json",
+   "line_16_november": 59,
+   "held_16_november": "\"cores/fes-common/rtl/fx68k/uaddrPla.sv\",",
+   "authored_line": 59,
+   "authored_text": "\"cores/fes-ramtest/rtl/sdram_addon_port.v\",",
+   "line_now": 60,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "de25.md",
+   "row_16_november": 50,
+   "cited": "producers/build_zx81_package.py",
+   "line_16_november": 36,
+   "held_16_november": "'fes_audio_output.v', 'fes_audio_i2s.v')]",
+   "authored_line": 36,
+   "authored_text": "'cores/fes-zx81/rtl/zx81_keyboard.v', 'cores/fes-zx81/rtl/zx81_tape_store.v',",
+   "line_now": 38,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "de25.md",
+   "row_16_november": 50,
+   "cited": "producers/build_zx81_package.py",
+   "line_16_november": 38,
+   "held_16_november": "'cores/fes-zx81/rtl/zx81_keyboard.v', 'cores/fes-zx81/rtl/zx81_tape_store.v',",
+   "authored_line": 38,
+   "authored_text": "'cores/fes-zx81/rtl/zx81_bus_pack.vh', 'cores/fes-zx81/rtl/zx81_video_720p.v',",
+   "line_now": 40,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "de25.md",
+   "row_16_november": 113,
+   "cited": "scripts/affected.py",
+   "line_16_november": 312,
+   "held_16_november": "return ('menu', 'zx81'), 'DE25 local display and menu consumers'",
+   "authored_line": 309,
+   "authored_text": "'zx81_top.v'):",
+   "line_now": 315,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "de25.md",
+   "row_16_november": 113,
+   "cited": "scripts/hil_plan.py",
+   "line_16_november": 250,
+   "held_16_november": "('core:de25-menu', ('core:de25-zx81',)),",
+   "authored_line": 250,
+   "authored_text": "'fes_zx81_core.v', 'zx81_top.v', 'zx81_machine.sv',",
+   "line_now": 260,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "de25.md",
+   "row_16_november": 113,
+   "cited": "tests/test_hil_plan.py",
+   "line_16_november": 709,
+   "held_16_november": "with self.subTest(producer=relative, path=path):",
+   "authored_line": 709,
+   "authored_text": "('boards/de25nano/shared-rtl/fes_zx81_core.v', 'core:de25-zx81'),",
+   "line_now": 742,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "de25.md",
+   "row_16_november": 119,
+   "cited": "producers/build_zx81_package.py",
+   "line_16_november": 37,
+   "held_16_november": "SOURCE_ROOTS = sorted([*common.SOURCE_ROOTS, 'cores/fes-common/generated', 'cores/fes-common/rtl/z80',",
+   "authored_line": 37,
+   "authored_text": "'cores/fes-zx81/rtl/zx81_dpram.v', 'cores/fes-zx81/rtl/zx81_model.vh',",
+   "line_now": 39,
+   "neighbours_match_authored_tree": true
+  },
+  {
+   "record": "README.md",
+   "row_16_november": 296,
+   "cited": "M/AGENTS.md",
+   "line_16_november": 82,
+   "held_16_november": "- `oss` uses the pinned Yosys/nextpnr-mistral/Mistral flow and must not depend",
+   "authored_line": 82,
+   "authored_text": "on Quartus.",
+   "line_now": 85,
+   "neighbours_match_authored_tree": true
+  }
+ ],
+ "first_pinned_16_november": [
+  {
+   "record": "census-tables.md",
+   "row": 457,
+   "cited": "test_build_fes_zx81_quartus.py",
+   "line": 197,
+   "text": "self.assertIn(producer.I2C_SITE, text)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 465,
+   "cited": "test_build_fes_zx81_quartus.py",
+   "line": 187,
+   "text": "def test_project_selects_the_quartus_rom_link_and_no_socket(self) -> None:"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 465,
+   "cited": "test_build_fes_zx81_quartus.py",
+   "line": 197,
+   "text": "self.assertIn(producer.I2C_SITE, text)"
+  }
+ ],
+ "first_pinned_here": [
+  {
+   "record": "census-tables.md",
+   "row": 43,
+   "cited": "sources/misteross/scripts/build_fes_pc386_quartus.py",
+   "line": 160,
+   "text": "*INCLUDES, *SHELL_SOURCES,"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 46,
+   "cited": "sources/misteross/scripts/build_fes_pc386_quartus.py",
+   "line": 160,
+   "text": "*INCLUDES, *SHELL_SOURCES,"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 47,
+   "cited": "sources/misteross/cores/fes-pc386/tools/build_pc386_product.py",
+   "line": 229,
+   "text": "def project_qsf(root: Path, project: Path, build_id: str, seed: int, *, threads: int = 2) -> str:"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 48,
+   "cited": "sources/misteross/cores/fes-pc386/tools/build_pc386_product.py",
+   "line": 46,
+   "text": "from scripts.build_fes_pc386_quartus import *"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 53,
+   "cited": "sources/misteross/scripts/build_fes_ramtest.py",
+   "line": 107,
+   "text": "def inputs_for(memory_mhz: int = MEMORY_MHZ) -> tuple[str, ...]:"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 114,
+   "cited": "build_fes_zx81_quartus.py",
+   "line": 444,
+   "text": "*(f'set_global_assignment -name SYSTEMVERILOG_FILE \"{rel}/{path}\"' for path in SYSTEMVERILOG_SOURCES),"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 407,
+   "cited": "sources/misteross/tests/test_build_pc386_product.py",
+   "line": 110,
+   "text": "self.assertRegex(top, rf\"\\b{name} = {value}\\b\")"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 408,
+   "cited": "sources/misteross/tests/test_build_pc386_product.py",
+   "line": 165,
+   "text": "self.assertIn(\"cores/fes-pc386/rtl/top.sv\", text)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 463,
+   "cited": "architecture.md",
+   "line": 2496,
+   "text": "the same `cores/fes-zx81/rtl/top.v` (`QUARTUS=1`: HPS I2C at"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 469,
+   "cited": "docs/support-matrix.py",
+   "line": 42,
+   "text": "QUARTUS_PRIMARY_IDS = frozenset({'i386', 'fes.pc386', 'fes.pcxt-dos',"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 469,
+   "cited": "docs/support-matrix.py",
+   "line": 764,
+   "text": "if QUARTUS_PRIMARY not in recorded or not any(cite in recorded for cite in (POLICY_CITE, ZX81_POLICY_CITE)):"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 499,
+   "cited": "sources/misteross/scripts/build_fes_pc386_quartus.py",
+   "line": 160,
+   "text": "*INCLUDES, *SHELL_SOURCES,"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 502,
+   "cited": "sources/misteross/scripts/build_fes_ramtest.py",
+   "line": 107,
+   "text": "def inputs_for(memory_mhz: int = MEMORY_MHZ) -> tuple[str, ...]:"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 524,
+   "cited": "sources/misteross/scripts/build_fes_zx81_quartus.py",
+   "line": 81,
+   "text": "VERILOG_SOURCES = ("
+  },
+  {
+   "record": "census-tables.md",
+   "row": 524,
+   "cited": "sources/misteross/scripts/build_fes_zx81_quartus.py",
+   "line": 82,
+   "text": "'cores/fes-zx81/rtl/sys_pll.v', 'cores/fes-zx81/rtl/pixel_pll.v',"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 524,
+   "cited": "sources/misteross/scripts/build_fes_zx81_quartus.py",
+   "line": 98,
+   "text": "SOURCE_ROOTS = tuple(sorted({"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 524,
+   "cited": "sources/misteross/scripts/build_fes_zx81_quartus.py",
+   "line": 99,
+   "text": "RECIPE, LOCK, SDC, QSF_PINS, *VERILOG_SOURCES, *SYSTEMVERILOG_SOURCES,"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 525,
+   "cited": "sources/misteross/scripts/build_fes_zx81_quartus.py",
+   "line": 99,
+   "text": "RECIPE, LOCK, SDC, QSF_PINS, *VERILOG_SOURCES, *SYSTEMVERILOG_SOURCES,"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 526,
+   "cited": "sources/misteross/scripts/build_fes_zx81_quartus.py",
+   "line": 99,
+   "text": "RECIPE, LOCK, SDC, QSF_PINS, *VERILOG_SOURCES, *SYSTEMVERILOG_SOURCES,"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 540,
+   "cited": "sources/misteross/scripts/export_core_package.py",
+   "line": 257,
+   "text": "return functional_key(fields)[:32]"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 540,
+   "cited": "sources/misteross/scripts/input_identity.py",
+   "line": 145,
+   "text": "def functional_key(fields):"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 540,
+   "cited": "sources/misteross/scripts/input_identity.py",
+   "line": 153,
+   "text": "return digest('fes-functional-inputs-v2', functional)"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 561,
+   "cited": "export_core_package.py",
+   "line": 257,
+   "text": "return functional_key(fields)[:32]"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 561,
+   "cited": "input_identity.py",
+   "line": 145,
+   "text": "def functional_key(fields):"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 561,
+   "cited": "input_identity.py",
+   "line": 153,
+   "text": "return digest('fes-functional-inputs-v2', functional)"
+  }
+ ]
+}

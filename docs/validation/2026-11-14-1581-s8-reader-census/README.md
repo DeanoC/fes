@@ -7,18 +7,18 @@ macros are deleted.
 
 Taken on 14 November. None of the files below is edited by this census.
 
-**402 sites in 8 areas** — 371 in the six swept areas, 3 in `*.sv` sim benches that no area
+**400 sites in 8 areas** — 369 in the six swept areas, 3 in `*.sv` sim benches that no area
 covered, and 28 in the DE25 board tree, which the design record does not cover at all and which is
 inventoried separately. The inventory is [`census-tables.md`](census-tables.md); DE25 is
 [`de25.md`](de25.md).
 
 | Area | Sites |
 | --- | --- |
-| Producers and tools (`M/scripts`, excluding sims) | 60 |
-| `M/Makefile` | 108 |
+| Producers and tools (`M/scripts`, excluding sims, and the pc386 product builder under `M/cores/fes-pc386/tools`) | 61 |
+| `M/Makefile` | 106 |
 | Sim and synth scripts | 24 |
 | C++ testbenches | 30 |
-| Tests, docs and READMEs | 73 |
+| Tests, docs and READMEs | 72 |
 | Closures and pinned inputs | 76 |
 | SystemVerilog sim benches | 3 |
 | `M/boards/de25nano` | 17 sites + 11 macro-invisible readers = 28 |
@@ -44,18 +44,18 @@ record against the tree it is read in, and is the evidence for every count below
 
     python3 docs/validation/2026-11-14-1581-s8-reader-census/verify_census.py
 
-It makes two claims. First, all **374** inventory rows hold, on their stated line, the `Matched`
+It makes two claims. First, all **372** inventory rows hold, on their stated line, the `Matched`
 text recorded for them — the check that matters, because a line number can stay in range while
 pointing at the wrong line, and that is how two earlier revisions of this record went wrong. Second,
-all **716** `path:line` citations written in the prose and the `What` cells of these three files
-(**947** line endpoints, counting every number of a comma list and both ends of a range) resolve to a
+all **724** `path:line` citations written in the prose and the `What` cells of these three files
+(**957** line endpoints, counting every number of a comma list and both ends of a range) resolve to a
 real file **and still hold the text they held when the record was written**.
 
 That second half is the part a reader should not take on trust, because until the #1829 review it was
 not true. A secondary citation was checked only for existing and being non-blank, so a base edit that
 shifted one onto another non-blank line passed — the exact defect two earlier revisions of this record
 shipped. The content check works from [`citation-fingerprints.json`](citation-fingerprints.json),
-716 entries holding the sha256 of each cited line's **whole** text, regenerated only
+711 entries holding the sha256 of each cited line's **whole** text, regenerated only
 deliberately:
 
     python3 docs/validation/2026-11-14-1581-s8-reader-census/verify_census.py --record-fingerprints
@@ -63,14 +63,23 @@ deliberately:
 The checker keeps parser, correction-shape, section-total and fixture tests in required CI.
 Live-tree checks (current counts, citation digests and full record verification) are opt-in with
 `FES_S8_CENSUS_LIVE=1`; when unset or empty, those checks skip. Run them locally with
-`FES_S8_CENSUS_LIVE=1 python3 -m unittest tests.test_s8_census_checker`. To refresh locations and
-fingerprints after a merge, update `census-tables.md`, `de25.md` and this README, run
-`python3 docs/validation/2026-11-14-1581-s8-reader-census/verify_census.py --record-fingerprints`,
-then run the verifier without flags until it exits 0.
+`FES_S8_CENSUS_LIVE=1 python3 -m unittest tests.test_s8_census_checker`.
+
+To carry the record forward after main has moved, do not edit numbers and re-record: that pins
+whatever now sits on each old line, and the verifier then exits 0 over citations that point at the
+wrong construct, which is what the 16 November refresh did (see "The 18 November refresh" below).
+Check out a commit at which the verifier exits 0, and from the tree being refreshed run
+
+    python3 docs/validation/2026-11-14-1581-s8-reader-census/carry_forward.py <that checkout> --apply
+
+[`carry_forward.py`](carry_forward.py) moves a number only when `git diff` leaves its line untouched
+and the line it lands on is byte-identical to the anchor's, and lists every line that fails that
+for reading. Settle those by hand, then re-record the fingerprints, then run the verifier and the
+live tests until both pass.
 
 What the fingerprints prove is bounded, and worth stating: they pin what each cited line said when
 they were taken, so any later drift is reported against them. They are not a retroactive claim that
-every one of those 716 citations was apt on the day it was written. Without the file the checker says
+every one of those 724 citations was apt on the day it was written. Without the file the checker says
 so in its output rather than passing quietly.
 
 Both pass with no exceptions, which took eight corrections beyond re-pointing the base. The
@@ -179,7 +188,7 @@ edited", or it will under-count by two cores.
 
 Confirmed present, with the line verified where noted:
 
-- `M/scripts/quartus_x87_spike.py:367` — its `machine()` mode calls the pc386 sealer's
+- `M/scripts/quartus_x87_spike.py:368` — its `machine()` mode calls the pc386 sealer's
   `write_project()`, so it emits the same `QUARTUS=1` QSF and the same read of
   `cores/fes-pc386/rtl/top.sv`. Verified. Its `spike()` mode reads no guarded file.
 - `M/scripts/hip_zx81_bus_socket.py:54`, `:138` — the sibling of the `hip_zx81_bus_carts.py` the doc
@@ -203,7 +212,7 @@ Confirmed present, with the line verified where noted:
 
 ## Two things to decide deliberately in S8b
 
-- **A lane asymmetry that is currently inherited by accident.** `M/Makefile:1738`
+- **A lane asymmetry that is currently inherited by accident.** `M/Makefile:1730`
   (`sim-fes-sg1000-rom-link`) passes `-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1` to Verilog but no
   matching `-CFLAGS`, so `sg1000/machine_tb.cpp` compiles its *non*-OSS arm against OSS
   (registered-media) RTL — its `-CFLAGS` carries only `-DFES_SG1000_ROM_LINK=1`, so both OSS macros
@@ -218,7 +227,7 @@ Confirmed present, with the line verified where noted:
 
   Only `machine_tb.cpp`, `gp_tb.cpp`, `expansion_tb.cpp` and `vdp_machine_tb.cpp` have such a
   conditional. Condition 1 alone matches eight recipes —
-  `sources/misteross/Makefile:639,739,779,918,942,1738,1774,2102`, the first and last with the
+  `sources/misteross/Makefile:631,731,771,910,934,1730,1766,2094`, the first and last with the
   define inside a `$(if …)` — but seven of
   them compile `graphics_tb.cpp`, `megacart_machine_tb.cpp`, `sgm_shell_ram_tb.cpp`,
   `diagnostic_machine_tb.cpp`, `gp_media_tb.cpp` or `stream_tb.cpp`, none of which has an arm to
@@ -250,12 +259,12 @@ Confirmed present, with the line verified where noted:
 7. Stale and wrong citations throughout, each corrected in this PR. Every line in the Quartus Lite
    QSF row was off by 9 to 17 lines. The Makefile hint list in the census bullet matched no single
    revision: its skew runs −16, −7, +8 and +9 across different blocks, and one hint, `:823`, has no
-   counterpart at all. `build_fes_pc386_quartus.py:333-337`, cited for the Yosys-and-Quartus split,
+   counterpart at all. `build_fes_pc386_quartus.py:338-342`, cited for the Yosys-and-Quartus split,
    is `_authenticate_tools`; the real sites are `:284-286`, `:117`, `:330`, `:346` and `:352`. The
    claim that the guest rates reach the netlist through `-chparam` at `:239` is wrong twice — `:239`
    is also `_authenticate_tools`, and the word `chparam` appears nowhere in that file; the rates are
    passed as `parameters=guest_rates()` at `:284-286` and the `chparam` text is emitted by
-   `M/scripts/yosys_netlist.py:160`. S11's producer-list ranges are each off by one to three lines.
+   `M/scripts/yosys_netlist.py:166`. S11's producer-list ranges are each off by one to three lines.
 8. Two macro-dependent contracts the record does not mention. `sim_fes_coleco_quartus.py:45`, the
    `--baseline` mode, git-shows pre-S8 copies of `coleco_machine.sv` and `coleco_video_dpram.v` that
    still contain `` `ifdef QUARTUS ``, and demands two fixed failure strings, so it works only while
@@ -293,14 +302,14 @@ Confirmed present, with the line verified where noted:
     so it read only the **first** number of a comma list: a citation written `foo.py` colon 12,34,40
     counted as one, not three, and `Makefile`, `.lock`, `.yml` and `.toml` were not in its extension list at all.
     Covering those raises the record's own checked citations from 532 to 704. Its resolver stripped a
-    leading `M/` and then tried the repository root first, so `M/AGENTS.md:82` resolved to the *root*
+    leading `M/` and then tried the repository root first, so `M/AGENTS.md:85` resolved to the *root*
     `AGENTS.md` and passed — the exact substitution the roots list exists to prevent, and the one the
     docstring promised against. `M/` now resolves under `sources/misteross` and nowhere else, and a
     bare basename that exists at both roots, `Makefile` being the one that matters, is reported as
     ambiguous rather than guessed: six such citations in the inventory are now spelled.
 
     What the wider pattern then caught in this record: the ZX81 Verilator block is
-    `M/Makefile:339-498`, not `:333-493`, whose last line is blank.
+    `M/Makefile:331-490`, not `:333-493`, whose last line is blank.
 
 12. Two stale citations in the design record that this record's own sweep could not see, because
     they hid behind the same comma: lines 358, 374 and 399 of `fes-coleco/rtl/coleco_machine.sv` and
@@ -315,7 +324,7 @@ Confirmed present, with the line verified where noted:
     `What` cell or in this record's prose, was checked for existing and being non-blank and nothing
     more. So a base edit that moved a cited construct onto another non-blank line passed — which is
     precisely the defect the first two revisions of this record shipped, and it means re-running the
-    checker after a base move did not protect the exact-site checklist it advertises. All 947 line
+    checker after a base move did not protect the exact-site checklist it advertises. All 957 line
     endpoints are now content-checked against a committed fingerprint file. Second, `.tcl` was not
     in the extension list, so three live citations went unread: `fes_de25_computer_hw.tcl:15` and
     `:77`, and `fes_de25_zx81_standard_hw.tcl:39`, all in `de25.md`. All three are correct; they
@@ -356,6 +365,98 @@ Confirmed present, with the line verified where noted:
     about an eighth, in the direction that always flatters: the uncounted endpoints were the
     unchecked ones.
 
+## The 18 November refresh
+
+Main moved 49 commits past the 16 November refresh (DeanoC/fes#1905), and the verifier on main
+reported 141 primary-line problems and 323 citation problems (DeanoC/fes#1897). This refresh carries
+the record to main at `2393a9f04`.
+
+**What was carried mechanically.** `carry_forward.py`, run against the 16 November tree
+`30688ae44` (where the verifier exits 0), found 889 asserted lines unmoved, 418 moved with the
+byte-identical proof, and 14 it could not carry.
+
+**What the 16 November refresh had left wrong.** It re-recorded fingerprints with some numbers
+still on their old lines, so the verifier passed while those citations named other text. To find
+them, every citation was also carried from the tree this record was authored in — the head of the
+DeanoC/fes#1829 branch, `0eb4bf311`, where the verifier also exits 0 — and the two carries were
+compared. They disagreed on 116 endpoints, and in each the authored target is the one restored
+here, proven byte-identical to the line the authored record fingerprinted.
+[`refresh-2026-11-18.json`](refresh-2026-11-18.json) lists all 116 under `restored`: the line the
+16 November record cited and what it held, the authored line and its text, and the line now. For
+112 the lines either side also match the authored tree; the other four sit next to an edit and
+were read. Three examples of what
+the 16 November record was pinning: line 130 of `source_closures.json`, cited as the
+`build_fes_coleco_socket_v2` key, held `"scripts/source_repository.py",`; line 1759 of
+`M/Makefile`, cited as a `coleco_dpram.v` source line, held a `$(VERILATOR)` command; and
+line 376 of `build_fes_pcxt_quartus.py`, cited as the end of the subprocess command, held the
+`create_build_record` call. 67 of the 116 were in `M/Makefile`. The hand-settled rows below held
+more of the same: line 43 of `build_fes_zx81_quartus.py`, cited as where `VERILOG_SOURCES` opens,
+held `import platform`.
+
+One paragraph went the other way. The "Verilog versus -CFLAGS" note in `census-tables.md` was
+reworded on 16 November to name nine lines where the authored text named eight, so pairing its
+numbers with the authored ones by position mis-assigned them; that paragraph follows the 16 November
+wording and numbers, and its three bare numbers are now path-qualified so the checker reads them.
+
+**What was settled by hand,** each by reading the source at the destination:
+
+- DeanoC/fes#1881 deleted `diagnose_fes_ramtest_timing.py`, the `build-fes-ramtest-130` and
+  `diagnose-fes-ramtest-timing` Makefile targets, and the 130 MHz sim variant. Five inventory rows
+  and one bullet that named them are removed, and the three remaining mentions of two rates are
+  reworded.
+- DeanoC/fes#1883 and #1891 replaced the ZX81 Quartus producer. Its three pinned-input rows now
+  describe `SOURCE_ROOTS`, which is what that producer has in place of `PINNED_INPUTS`, and a
+  correction clause that the 16 November refresh had re-labelled onto the new test file — where its
+  two destinations named unrelated lines — is written in prose, because the file it corrected is
+  gone.
+- DeanoC/fes#1882 moved the build identity into `input_identity.py`, so the two passages that cite
+  how `build_identity` hashes a record cite that function and say what a design-v1 record hashes.
+- The 16 November refresh had put five rows on `test_build_fes_zx81_quartus.py` in place of the
+  five sites of the deleted legacy test. That file has one site: its `QUARTUS=1` assertion. Three
+  of the five rows named that one line, one named a `FES_ZX81_ROM_LINK` assertion, which is not a
+  lane macro, and one named a call that reads no guarded file. One row is kept and four removed.
+  The primary-line check cannot see this: a `Matched` text that is on the line passes however
+  many rows repeat it.
+- The remaining endpoints whose line was edited in place, in `build_fes_pc386_quartus.py`,
+  `build_fes_ramtest.py`, `docs/support-matrix.py` and `architecture.md`, and one citation of a
+  deleted line in `sim_fes_ramtest.py`, which is dropped.
+
+**Readers added since the sweep.** A carry-forward cannot find a reader that did not exist on
+14 November, so the acceptance pattern and the 14 guarded file names were searched in the authored
+tree and in this one, over `M/` and the repository's `scripts`, `tests`, `docs` and `config`, and
+the two hit sets compared. Apart from the ZX81 Quartus producer and its test replacing the legacy
+pair, the only additions are DeanoC/fes#1951's pc386 product builder and its test: seven rows,
+marked "added after the sweep". That comparison is by those two patterns only. It would not find a
+new reader that names neither a macro nor a guarded file, such as one that reaches a guarded file
+through an import, and no sweep by the seven area agents was repeated.
+
+One thing it did turn up is outside this census's scope and worth S8 knowing. The ZX81 Quartus
+producer compiles `M/cores/fes-zx81/quartus/zx81_rom_link.v` in place of
+`M/cores/fes-zx81/rtl/zx81_rom_link.v`: a second copy of a module, selected by path, holding the
+`altsyncram` ROMs. It sets and tests no lane macro and is none of the 14 guarded files, so neither
+S8's acceptance pattern nor this inventory sees it, but it is the same toolchain split S8 exists to
+put behind `fes_toolchain.svh`.
+
+**Where every cited line's text comes from now.** Of the 957 endpoints, 929 hold text the authored
+record fingerprinted for the same file, 3 hold text first pinned by the 16 November refresh (the
+ZX81 Quartus project test it added), and 25 hold text pinned for the first time here; those 25 are
+the hand-settled and added rows above, and each was read. The 3 and the 25 are listed in
+`refresh-2026-11-18.json` with their text. That file was generated by comparing the three trees it
+names; the comparison scripts are not part of this record, so its entries are there to be checked
+against those commits, not taken from this paragraph.
+
+**The tree to carry forward from next.** This record verifies at the head of the branch that made
+this refresh, not necessarily at the commit main records for it: a squash merge lands the record on
+whatever main is by then, which is how the DeanoC/fes#1829 merge commit came to fail its own
+verifier while its branch head passed. Use a commit where `verify_census.py` exits 0 **and** whose
+record was carried by `carry_forward.py` or authored against that tree; the 16 November tree
+passes the first test and not the second.
+
+**What this refresh does not establish.** The `What` descriptions were re-read only where the cited
+text changed or the row was settled by hand; the rest are carried as written, on the limits stated
+under "Method and confidence". A number written without its path — "at :240" inside a sentence —
+is still not read by the checker, and this refresh qualified only the ones in passages it edited.
+
 ## Method and confidence
 
 Seven parallel agents, one per area, each told to open any file whose match it could not classify
@@ -373,15 +474,15 @@ file, compared against the inventory, is what closes that class of gap; it is wo
 whenever the area cut changes.
 
 Checked mechanically here, over the whole inventory: every primary line against its recorded matched
-text (374 of 374, one of them matched up to the ellipsis its cell uses), and every `path:line`
-citation in these three files against the tree (716 of 716, now by content and not merely by
+text (372 of 372, one of them matched up to the ellipsis its cell uses), and every `path:line`
+citation in these three files against the tree (724 of 724, now by content and not merely by
 existence). Both are re-runnable as
 `verify_census.py`. That check is what caught the wrong base,
 once Codex had pointed at two instances of it, and it is cheap enough to repeat whenever the base
 moves.
 
 Verified by hand: the four acceptance-pattern holes; the ramtest bare-`QUARTUS` spelling and the
-pattern's failure to match it; `quartus_x87_spike.py:367`; the three closure claims read straight
+pattern's failure to match it; `quartus_x87_spike.py:368`; the three closure claims read straight
 from `source_closures.json`; the DE25 byte-identity diff; the `test_tape_store.py` and
 `retarget_tape` contracts; the three `reviewed-inputs.json` pins and their enforcement in
 `static_reference.py:83-84` with its self-binding at `:27`; the dead guard at line 80 of
