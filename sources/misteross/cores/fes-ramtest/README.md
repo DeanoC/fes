@@ -11,6 +11,14 @@ the host and are not delivered to the core.
 
 ## SDRAM addon
 
+The opt-in native diagnostic `RAMTEST_MHZ=100 RAMTEST_CAS3_CAPTURE=1 python3
+scripts/build_fes_ramtest_quartus.py` tests the same `sdram_cas3_capture`
+retention circuit as PC/XT. It uses controller/capture phase 0, DDR forwarding
++1.250 ns, handoff +9.375 ns and the existing CAS-3 controller profile with
+a 700-clock refresh interval. The full-span scan and byte-mask preflight read
+the landed retained word. The normal catalog producer is unchanged until
+the two-kit trial passes. Diagnostic HIL is not physical timing signoff.
+
 Before the full-span scan, an independent bounded byte lane tests preservation
 at 64 distinct addresses: all four banks, rows 0/1/0800/1000, and columns 0–7.
 Low rows use columns 0–3 and high rows use columns 4–7. Every

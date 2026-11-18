@@ -263,6 +263,9 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
                   'audio_clock_hz': 12288000,
                   'diagnostic_completion_marker': False,
                   'video_mailbox_contract': True,
+                  'sdram_capture_pipeline': True, 'sdram_cas_latency': 3,
+                  'sdram_refresh_interval_cycles': 700,
+                  'sdram_forward_phase_ps': 1250, 'sdram_handoff_phase_ps': 9375,
                   'system_clock_hz': 100000000, 'pixel_clock_hz': 74250000,
                   'hdmi_phase_ps': 8979,
                   'execution_sha256': execution_digest(execution),
@@ -299,6 +302,7 @@ def require_timing(summary, seeds, *, identity=None):
             or not summary.get('video_mailbox_contract')
             or summary.get('profile', {}).get('HALF_RATE_BOARD') != 0
             or summary.get('profile', {}).get('ENABLE_FES_COMPUTER') != 1
+            or summary.get('profile', {}).get('SDRAM_CAPTURE_PIPELINE') != 1
             or summary.get('profile', {}).get('HARDWARE_DOS') != 1
             or summary.get('profile', {}).get('ENABLE_PCXT_MEDIA') != 1
             or summary.get('profile', {}).get('ENABLE_PCXT_FLOPPY_WRITE') != 1
