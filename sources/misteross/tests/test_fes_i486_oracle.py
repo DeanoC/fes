@@ -2,7 +2,6 @@
 """The level-4 oracle provisioner, the directed 486 cases and their runner's
 rules. No network access and no Bochs build."""
 import fnmatch
-import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -25,38 +24,13 @@ class ProvisionerTest(unittest.TestCase):
         self.assertEqual(level4.ORACLE_SOURCES, level3.ORACLE_SOURCES)
         self.assertEqual(level4.LINKED_NAMES, (*level3.LINKED_NAMES, 'cpudb'))
 
-    @unittest.skipUnless(shutil.which('patch'), 'needs patch')
-    def test_patches_fit_the_level_3_sources_without_fuzz(self):
-        # Each with a line of its patch's context, changed below.
-        for name, patch, context in (('bochs_oracle.cpp', level4.ADAPTER_PATCH, b'return "bochs-level3";'),
-                                     ('lockstep_tb.cpp', level4.TESTBENCH_PATCH, b'constexpr int UNBUILT_X87 = 387;')):
-            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
-                source = (level4.SIM / name).read_bytes()
-                (root / name).write_bytes(source)
-                log = root / 'patch.log'
-                log.write_text('')
-                level4.apply_patch(patch, root, log)
-                patched = (root / name).read_bytes()
-                self.assertIn(b'bochs-level4', patched)
-                self.assertNotIn(b'bochs-level4', source)
-                # Nothing is left beside the patched file, and the sealed file is untouched.
-                self.assertEqual(sorted(path.name for path in root.iterdir()), sorted([name, 'patch.log']))
-                self.assertEqual((level4.SIM / name).read_bytes(), source)
-                # A source the patch does not fit is refused, not fuzzed.
-                self.assertEqual(source.count(context), 1)
-                (root / name).write_bytes(source.replace(context, context + b' '))
-                with self.assertRaises(level4.OracleError):
-                    level4.apply_patch(patch, root, log)
-
-    def test_lockstep_testbench_is_the_patched_level_3_file(self):
-        if not shutil.which('patch'):
-            self.skipTest('needs patch')
-        with tempfile.TemporaryDirectory() as directory:
-            target = level4.lockstep_testbench(Path(directory) / 'source')
-            self.assertEqual(target.name, 'lockstep_tb.cpp')
-            self.assertIn(b'run_i486_cases', target.read_bytes())
-            self.assertNotIn(b'run_i486_cases', (level4.SIM / 'lockstep_tb.cpp').read_bytes())
+    def test_adapter_and_testbench_name_both_levels(self):
+        adapter = (level4.SIM / 'bochs_oracle.cpp').read_text()
+        self.assertIn('"bochs-level4"', adapter)
+        self.assertIn('"bochs-level3"', adapter)
+        testbench = (level4.SIM / 'lockstep_tb.cpp').read_text()
+        # Only the i486 mode runs against the level-4 oracle, and it against no other.
+        self.assertIn('if (i486 != (mode == "i486"))', testbench)
 
     def test_level_3_sweeps_cannot_delete_level_4_outputs(self):
         # fes_i386_oracle.py deletes bochs-level3-* trees under BUILD and, in
@@ -81,7 +55,6 @@ class ProvisionerTest(unittest.TestCase):
             self.assertEqual(record['provisioner_sha256'], level4.PROVISIONER_SHA256)
             self.assertEqual(record['level3_provisioner_sha256'], level3.PROVISIONER_SHA256)
             self.assertEqual(record['adapter_sha256'], level3.adapter_source_sha256(level3.SIM))
-            self.assertEqual(len(record['adapter_patch_sha256']), 64)
             self.assertEqual(set(record['linked_sha256']), set(level4.LINKED_NAMES))
             # A level-3 tree is not a level-4 build.
             other = root / 'bochs-level3-k'

@@ -8,10 +8,9 @@ from __future__ import annotations
 NOTES = '''\
 ## How the runs departed from the method
 
-- **`method.md` was amended once,** before any rule-1 or rule-2 result
-  existed, to make rule 1 stricter (all five identity fields equal). Its
-  own text says what changed. The rule-3 and rule-4 runs made before the
-  amendment were repeated at the commit this record reports.
+- **`method.md` was amended twice,** both times to rule 1 only; its own
+  text says what changed and quotes Deano's two answers. Every figure here
+  is from runs on the in-place tree, made after the second amendment.
 - **The case table changed after its first runs,** in three ways, none to
   make a row pass: every row's source was reread against the two Intel
   documents and its citation corrected, which moved one row
@@ -82,9 +81,11 @@ def render(read, inputs_changed, head: str) -> str:
         add(f"- **Rule 1, the level-3 oracle's identity: {'pass' if identity['pass'] else 'FAIL'}.** "
             f"{equal} of {len(identity['fields'])} identity fields and {sum(row['equal'] for row in files.values())} of "
             f"{len(files)} files they cover are byte for byte the merge base's "
-            f"(`{identity['base'][:9]}` against `{identity['head'][:9]}`), and "
-            f"{len(identity['pc386_record_paths_changed'])} of the {identity['pc386_record_paths']} files pc386's "
-            f"build record hashes changed.")
+            f"(`{identity['base'][:9]}` against `{identity['head'][:9]}`); the fields that moved are "
+            + ', '.join(f'`{name}`' for name, row in identity['fields'].items() if not row['equal'])
+            + f", which Deano approved on 18 November 2026. {len(identity['pc386_record_paths_changed'])} of the "
+            f"{identity['pc386_record_paths']} files pc386's build record hashes changed, so its `BUILD_ID` moves "
+            f"with no RTL change; no seal or D12 comparison was run, under his exemption for this PR.")
     else:
         add('- **Rule 1: not measured.**')
     if level3:
@@ -144,8 +145,11 @@ def render(read, inputs_changed, head: str) -> str:
         add(f"\npc386's build record hashes its producer's pinned inputs and that producer's import closure: "
             f"{identity['pc386_record_paths']} files. Of the {len(identity['files_changed'])} files this change "
             f"touches, {len(changed)} are among them" + (': ' + ', '.join(f'`{path}`' for path in changed) if changed else '')
-            + '. So the record, and the `BUILD_ID` made from it, is what it was.\n')
-        add('What this shows: no input the pc386 seal pins for its oracle and suite changed. '
+            + '. So the record, and the `BUILD_ID` made from it, move, with no RTL change. AGENTS.md\'s D12 rule '
+            'asks for a reseal or a netlist and RBF comparison in that case. **Neither was run:** Deano exempted '
+            'this PR on 18 November 2026, while pc386 is in progress (`method.md` quotes him).\n')
+        add('What this shows: the level-3 Bochs tree is built from the inputs it had, and only the two approved '
+            'files move the seal\'s oracle and suite identity. '
             'What it does not show: that the level-4 build cannot disturb a level-3 build on the same host. '
             'That is by construction (a separate tree prefix and output directory; '
             '`tests/test_fes_i486_oracle.py` checks the names against the level-3 sweeps) and was not measured.\n')
@@ -195,7 +199,7 @@ def render(read, inputs_changed, head: str) -> str:
         oracle = selfcheck['oracle']
         add(f"Run {carried('suite', selfcheck['commit'], head, inputs_changed)}. "
             f"The oracle: Bochs `{oracle['revision'][:12]}` at CPU level {oracle['cpu_level']}; level-4 provisioner "
-            f"`{oracle['provisioner_sha256'][:16]}`, adapter patch `{oracle['adapter_patch_sha256'][:16]}` over adapter "
+            f"`{oracle['provisioner_sha256'][:16]}`, adapter "
             f"sources `{oracle['adapter_sha256'][:16]}`; cases `{selfcheck['cases_sha256'][:16]}`.\n")
         add('**After reset:**\n')
         add('| Field | A 486 | The oracle | Source | Equal |\n| --- | --- | --- | --- | --- |')

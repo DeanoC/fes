@@ -52,16 +52,14 @@ def git(*arguments: str, cwd: Path = REPO) -> str:
 SOURCES = ('sources/misteross/cores/', 'sources/misteross/scripts/', 'sources/misteross/boards/', 'config/')
 SUITE_ONLY = ('sources/misteross/scripts/fes_i486_cases.py', 'sources/misteross/scripts/test_fes_i486_lockstep.py',
               'sources/misteross/cores/fes-common/sim/i386/i486_tb.cpp',
-              'sources/misteross/cores/fes-common/sim/i386/i486-expected-stops.txt',
-              'sources/misteross/cores/fes-common/sim/i386/i486/lockstep_tb.patch')
+              'sources/misteross/cores/fes-common/sim/i386/i486-expected-stops.txt')
 NOT_READ = {
     # The level-3 lockstep, test386 and vectors read nothing of level 4.
     'level3': (*SUITE_ONLY, 'sources/misteross/scripts/fes_i486_oracle.py',
-               'sources/misteross/cores/fes-common/sim/i386/i486/bochs_oracle.patch',
                'sources/misteross/cores/fes-pc386/sim/census.h', 'sources/misteross/cores/fes-pc386/sim/machine_tb.cpp',
                'sources/misteross/scripts/sim_fes_pc386.py'),
     # The machine bench at either level: everything but the directed suite.
-    'machine': SUITE_ONLY,
+    'machine': (*SUITE_ONLY, 'sources/misteross/cores/fes-common/sim/i386/lockstep_tb.cpp'),
     'suite': (),
 }
 
@@ -98,14 +96,16 @@ def identity_at(revision: str) -> dict:
     }
 
 
-MUST_BE_EQUAL = ('revision', 'patch_sha256', 'provisioner_sha256', 'instrument_sha256', 'adapter_sha256',
-                 'suite_sha256')
+MUST_BE_EQUAL = ('revision', 'patch_sha256', 'provisioner_sha256', 'instrument_sha256')
+# Deano, 18 November 2026: these two may move, through these two files only.
+MAY_MOVE = ('adapter_sha256', 'suite_sha256')
+MAY_CHANGE = ('cores/fes-common/sim/i386/bochs_oracle.cpp', 'cores/fes-common/sim/i386/lockstep_tb.cpp')
 
 
 def identity(args) -> int:
     base, head = identity_at(args.base), identity_at(args.head)
     fields = {name: {'base': base[name], 'head': head[name], 'equal': base[name] == head[name]}
-              for name in MUST_BE_EQUAL}
+              for name in (*MUST_BE_EQUAL, *MAY_MOVE)}
     files = {name: {'base': base['files'][name], 'head': head['files'][name],
                     'equal': base['files'][name] == head['files'][name]} for name in base['files']}
     # Every file pc386's build record hashes (build_pc386_product.create_build_record):
@@ -116,8 +116,11 @@ def identity(args) -> int:
                           | {'scripts/source_closure.py', 'scripts/bootstrap.sh', 'scripts/toolchain_cache.py'})
     changed = set(git('diff', '--name-only', base['commit'], head['commit']).splitlines())
     moved = sorted(path for path in record_paths if 'sources/misteross/' + path in changed)
-    passed = all(row['equal'] for row in (*fields.values(), *files.values())) and not moved
+    passed = (all(fields[name]['equal'] for name in MUST_BE_EQUAL)
+              and all(row['equal'] for name, row in files.items() if name not in MAY_CHANGE)
+              and set(moved) <= set(MAY_CHANGE))
     write('identity.json', {'base': base['commit'], 'head': head['commit'], 'fields': fields, 'files': files,
+                            'must_be_equal': list(MUST_BE_EQUAL), 'may_move': list(MAY_MOVE), 'may_change': list(MAY_CHANGE),
                             'pc386_record_paths': len(record_paths), 'pc386_record_paths_changed': moved,
                             'files_changed': sorted(changed), 'pass': passed})
     print(f'pc386 build record: {len(moved)} of {len(record_paths)} hashed files changed')
@@ -264,7 +267,7 @@ def suite(args) -> int:
         row['predicted'] = 'agree' if row['label'] in PREDICTED_AGREE else 'stop'
         row['as_predicted'] = (row['rtl'] == 'agree') == (row['predicted'] == 'agree')
     write('expected-stops.json', {'commit': commit, 'machine_reset_inputs': reset_inputs(commit),
-                                  'testbench_patch_sha256': report['testbench_patch_sha256'],
+                                  'testbench_sha256': report['testbench_sha256'],
                                   'oracle': report['oracle'], 'verilator': report['verilator'],
                                   'cases_sha256': report['cases_sha256'], 'runs_equal': report['lockstep']['runs_equal'],
                                   'cases': rows, 'failures': report['failures']})

@@ -137,21 +137,16 @@ configured tree (`bochs-level4-*`), Bochs's CPU-model library
 (`cpu/cpudb/libcpudb.a`), no Bochs patch (the stack-limit patch is written
 for `BX_CPU_LEVEL == 3`; whether a 486 keeps that #SS is not established),
 and its own output directory (`build/sim/fes-i386-oracle/bin-level4`).
-Nothing the level-3 oracle is built from, and nothing the pc386 seal pins,
-is edited for it: not `scripts/fes_i386_oracle.py`, and not
-`bochs_oracle.cpp` or `lockstep_tb.cpp`. The level-4 adapter and the level-4
-lockstep testbench are copies of those two files with the patches in
-[`i486/`](i486) applied by the provisioner, with no fuzz. A change to either
-file that its patch no longer fits fails the level-4 build, and the patch is
-then remade: edit a copy of the level-3 file and write
-`git diff --no-index` of the two over it, keeping its header. When a change
-to the CPU moves the seal's inputs anyway, the patches can be folded into
-the files and deleted.
+`scripts/fes_i386_oracle.py` and the Bochs patch are not edited for it, so
+the level-3 Bochs tree is built from the inputs it had. The adapter
+(`bochs_oracle.cpp`) and the lockstep testbench (`lockstep_tb.cpp`) are
+shared and compile for either level; what is level 4's in them is under
+`BX_CPU_LEVEL == 4` or the testbench's `i486` flag.
 
 The CPU is Bochs's one 486 model, `i486dx4`, with VME excluded: the six 486
 instructions and CPUID, CR0's NE, WP, AM, NW and CD with WP enforced,
 EFLAGS.AC and ID, and exception 17. That is a later-stepping 486 with CPUID.
-VME is excluded by one string in the adapter's patch: with it CR4 has no
+VME is excluded by one string in the adapter: with it CR4 has no
 writable bit, so the oracle's `State` needs no CR4. Which later stepping the
 486 identity is, and so whether it has VME and CR4, is not decided; a part
 with them adds CR4 to `State` and V86 extensions to the CPU.
@@ -163,7 +158,7 @@ It is not every 486, and in these places it is not a 486 at all:
 | Reset EDX | 0 (`cpu/init.cc`) | The identifier, family 04h in DH (Intel486 Programmer's Reference Manual 10.1 and Figure 10-1; data book 241731-002, Tables 9-8 and 9-9) | The adapter's `reset()` sets EDX to CPUID leaf 1's EAX, 0480h |
 | DR6 at reset | FFFF1FF0h (`cpu/init.cc`) | FFFF0FF0h (Intel486 Programmer's Reference Manual, Table 10-1) | The adapter's `reset()` sets it |
 | DR7 at reset | 00000400h | 00000000h in both documents (PRM Table 10-1, data book Table 9-8), which call undefined bits reserved | Nothing: bit 10 reads 1 on the RTL's 386 too. What a 486 reads there is a question for a real one |
-| MOV TRn | #UD at every level | TR3 to TR7 exist (PRM Appendix E, Table 10.1; data book 14.0 item 9) | The lockstep's MOV TRn rule steps a substitute on the oracle; the level-4 testbench takes in TR3. The registers' cache and TLB test functions have no oracle |
+| MOV TRn | #UD at every level | TR3 to TR7 exist (PRM Appendix E, Table 10.1; data book 14.0 item 9) | The lockstep's MOV TRn rule steps a substitute on the oracle; against the level-4 oracle it takes in TR3. The registers' cache and TLB test functions have no oracle |
 | MOV CR4 | Runs: CR4 reads 0 and a set bit is #GP(0) | CR4 is only on parts with VME, PVI or PSE (data book 4.2.3.1) | Not checked against the oracle: the suite's two cases pin what Bochs does |
 | A 486 without an FPU | None: the model enables the x87 and a 486 model without it is fatal (`cpu/cpudb/intel/i486dx4.cc`, `cpu/cpuid.cc`) | The 486SX | An SX is to be checked as the empty 387 socket is, by the no-387 rule. Not built yet |
 | CPUID leaf 1 | EAX 0480h, EDX bit 0 set | Per part (data book Table 9-9, AP-485) | The suite pins the DX4's values; another identity's are its build parameter's |
@@ -176,9 +171,8 @@ section that says so. `scripts/test_fes_i486_lockstep.py` runs them twice:
   and its ending and registers must equal the case's row, as must the state
   after reset. A row whose source is "Bochs" records what the oracle does
   where no document read says;
-- **the RTL in lockstep**: the level-4 `lockstep_tb.cpp` in
-  `FES_I386_MODE=i486`, which runs only against this oracle (every other
-  mode refuses it). The CPU is a
+- **the RTL in lockstep**: `lockstep_tb.cpp` in `FES_I386_MODE=i486`, which
+  runs only against this oracle (every other mode refuses it). The CPU is a
   386 until the 486 identity is built, so each case either keeps step to its
   end or stops at its first mismatch. A stop before the case's probe, the
   first instruction that needs a 486, fails; and the list of stops must equal
@@ -204,7 +198,7 @@ instruction the CPU rejected: it did not retire, so no other key has it).
 
 What the lockstep is for a 486 identity. Today only the directed cases run
 at level 4, because the RTL has no 486 identity to hold to the rest; the
-level-4 testbench refuses every other mode so that a 386 rule is never run
+testbench refuses every other mode against the level-4 oracle so that a 386 rule is never run
 against a 486 oracle by accident. Each row below is what the change that
 builds the identity (the 486 tracker's slice 2) does to that part. The
 counts are the plan record's (`docs/validation/2026-11-17-i486-plan/summary.md`
