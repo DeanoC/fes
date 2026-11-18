@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from scripts import fes_i386_oracle as oracle
@@ -63,6 +64,17 @@ class RunRecordTest(unittest.TestCase):
             self.assertIn(f"parser.add_argument('--{name.replace('_', '-')}'", text)
         self.assertNotIn('jobs', lockstep.SUITE_ARGUMENTS)
         self.assertNotIn('netlist', lockstep.SUITE_ARGUMENTS)
+
+
+class PagingCountTest(unittest.TestCase):
+    def test_all_paging_cases_are_required(self):
+        self.assertEqual(lockstep.PAGING_CASES, 158)
+        result = subprocess.CompletedProcess(['testbench'], 0, stdout=json.dumps({'runs': 158}) + '\n', stderr='')
+        with mock.patch.object(lockstep.subprocess, 'run', return_value=result):
+            self.assertEqual(lockstep.run_paging('testbench', {})['summary']['runs'], 158)
+            result.stdout = json.dumps({'runs': 157}) + '\n'
+            with self.assertRaisesRegex(lockstep.LockstepError, '157 of 158'):
+                lockstep.run_paging('testbench', {})
 
 
 class FullCorpusTest(unittest.TestCase):
@@ -224,6 +236,28 @@ class OutputTest(unittest.TestCase):
             with self.subTest(source=name):
                 self.assertTrue((lockstep.RTL / name).is_file())
         self.assertTrue((lockstep.SIM / 'lockstep_tb.cpp').is_file())
+
+
+class SourceRecordTest(unittest.TestCase):
+    """A report names the revision and sources it tested (#1907 review)."""
+
+    def test_record_names_the_revision_and_every_cpu_source(self):
+        record = lockstep.source_record()
+        self.assertRegex(record['fes_revision'], r'^[0-9a-f]{40}$')
+        self.assertIsInstance(record['tracked_changes'], list)
+        prefix = 'sources/misteross/cores/fes-common/rtl/i386/'
+        for name in lockstep.CPU_RTL:
+            self.assertRegex(record['files'][prefix + name], r'^[0-9a-f]{64}$')
+        self.assertIn('sources/misteross/cores/fes-common/sim/i386/lockstep_tb.cpp', record['files'])
+        self.assertIn('sources/misteross/scripts/test_fes_i386_lockstep.py', record['files'])
+
+    def test_a_changed_source_changes_the_record(self):
+        before = lockstep.source_record()
+        with mock.patch.object(lockstep, 'tested_sources',
+                               return_value=[lockstep.RTL / lockstep.CPU_RTL[0], lockstep.SIM / 'lockstep_tb.cpp']):
+            narrowed = lockstep.source_record()
+        self.assertNotEqual(before['files_sha256'], narrowed['files_sha256'])
+        self.assertEqual(before['fes_revision'], narrowed['fes_revision'])
 
 
 @unittest.skipUnless(VERILATOR and BOCHS and CORPUS,

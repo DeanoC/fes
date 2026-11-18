@@ -1,0 +1,25 @@
+{
+  "files": {
+    "manifest.json": "520753fbd248d7914274be3d07646b6eae20447e263c7fd082bd46f28338fa8e",
+    "instruction-identity.json": "b006354dedc83a5552a6d8349e8ad480f2de0cceb22ecda151c8a09a997c913c",
+    "commands-frozen.jsonl": "0b9208bf6fa5fda3fd2f9323f563e80a3024839718c854127061b2856d42a7f4",
+    "SURVEY.COM": "23f8f0392d651254737ec33ae80213e85f7a734d2239988fb973de3a0e8d2f6b",
+    "rtl.bin": "40b52093b0b372f84a038bd45109a985001c75961ee34c7dc22ad2e074167f9b",
+    "frozen-prediction.json": "27b78a80e500becffb2bc2d2df62e7292efc30acce0a0aadc288d3c0be48e791",
+    "prediction/Vfes_i386_cpu": "4414d541cb6d386ab7332e7d8f6b0b8a105686d3881945d6a4873bae6576556f",
+    "prediction/input.bin": "40b52093b0b372f84a038bd45109a985001c75961ee34c7dc22ad2e074167f9b",
+    "prediction/stdout": "15c7347712771bc87514e05b4b6012716bbc00c4097687ffa4e055f4f2452977",
+    "prediction/stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "prediction/before.sha256": "4c3a35673eb5ee68fb177b39ead40711eedd1a5d5e22e3d4fc993dc39f51cc00",
+    "run-prediction.sh": "ee6f0086810ac0ab47bf30e14a435f015180f907d2199d79db06f6fd56876140",
+    "prediction-run.log": "2034f3a0d1fd1679c5039baa3917f19a734e5f501d7a33230254d0a33c5b2a4d"
+  },
+  "settings": {
+    "mode": "governor",
+    "preset": 1,
+    "frequency": 0,
+    "turbo": 0,
+    "irq_period": 0,
+    "latency": 0
+  }
+}

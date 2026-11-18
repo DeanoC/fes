@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from scripts.core_package import encode_manifest, package_identity, read_package
+from scripts.input_identity import POLICY as IDENTITY_POLICY, with_identities
 from scripts import export_core_package
 from scripts.export_core_package import (
     PackageExportError,
@@ -85,6 +86,122 @@ class ExportCorePackageTests(unittest.TestCase):
         fields["build"]["toolchain"] = "Yosys 0.52; nextpnr-mistral 0ab322bd"
         self.fields = fields
         self.manifest = encode_manifest(fields)
+
+    def _quartus_fields(self, *, tools=None, toolchain="quartus", **parameters):
+        """A format-2 Quartus record, the shape S7 validates (#1581)."""
+        fields = dict(self.record_fields, format=2, toolchain="quartus", source_path=".",
+                      source_roots=["abi", "scripts"],
+                      source_inputs={"scripts/build.py": self.record_fields["recipe_sha256"],
+                                     "abi/fes-gp.json": self.record_fields["abi_definition_sha256"]},
+                      tools={"quartus": "pinned quartus", "yosys": "pinned yosys"})
+        # The front-end group is only in scope for a design-v1 record, so the
+        # fixture declares the policy the way a real producer does.
+        fields["parameters"] = dict(self.record_fields["parameters"],
+                                    identity_policy=IDENTITY_POLICY,
+                                    front_end="yosys", device_family="cyclonev",
+                                    front_end_program_sha256="a" * 64, quartus_qsf_sha256="b" * 64)
+        fields["parameters"].update(parameters)
+        for name, value in list(fields["parameters"].items()):
+            if value is None:
+                del fields["parameters"][name]
+        if tools is not None:
+            fields["tools"] = tools
+        if toolchain is None:
+            fields.pop("toolchain")
+        else:
+            fields["toolchain"] = toolchain
+        # Declaring the policy means the record must carry a matching
+        # `identities` block, so finalize the way a producer does -- and last,
+        # because anything changed afterwards leaves the identities stale and
+        # the record is then rejected for that instead of the reason under test.
+        return with_identities(fields)
+
+    def test_quartus_record_names_its_front_end_and_that_front_end_s_digests(self):
+        encode_build_record(self._quartus_fields())
+        encode_build_record(self._quartus_fields(
+            front_end="quartus-lite", front_end_program_sha256=None,
+            tools={"quartus": "pinned quartus"}))
+
+    def test_legacy_quartus_record_is_outside_the_s7_front_end_contract(self):
+        fields = dict(self.record_fields, format=2, toolchain="quartus", source_path=".",
+                      source_roots=["abi", "scripts"],
+                      source_inputs={"scripts/build.py": self.record_fields["recipe_sha256"],
+                                     "abi/fes-gp.json": self.record_fields["abi_definition_sha256"]},
+                      tools={"quartus": "pinned quartus", "yosys": "pinned yosys"})
+
+        record = encode_build_record(fields)
+        self.assertEqual("quartus", json.loads(record)["toolchain"])
+        self.assertNotIn("identity_policy", fields["parameters"])
+        self.assertTrue(set(export_core_package.FRONT_END_PARAMETERS).isdisjoint(fields["parameters"]))
+        self.assertEqual(32, len(build_identity(record)))
+
+    def test_a_record_that_misstates_its_front_end_is_rejected(self):
+        cases = [
+            # A Quartus record names a front end this build system knows.
+            ("known front end", self._quartus_fields(front_end="quartus-standard")),
+            ("known front end", self._quartus_fields(front_end=None)),
+            # Pro is the only front end on Agilex 5, and Lite the only one on Cyclone V.
+            ("device family", self._quartus_fields(device_family="agilex5")),
+            # Yosys is recorded exactly where it elaborates the logic.
+            ("exactly when Yosys", self._quartus_fields(front_end="quartus-lite")),
+            ("canonical QSF", self._quartus_fields(quartus_qsf_sha256=None)),
+            ("hexadecimal", self._quartus_fields(quartus_qsf_sha256="not a digest")),
+        ]
+        for index, (message, fields) in enumerate(cases):
+            with self.subTest(case=index, message=message):
+                with self.assertRaisesRegex(PackageExportError, message):
+                    encode_build_record(fields)
+        yosys_without_program = self._quartus_fields(front_end_program_sha256=None)
+        with self.assertRaisesRegex(PackageExportError, "exactly when Yosys"):
+            encode_build_record(yosys_without_program)
+        native_with_program = self._quartus_fields(front_end="quartus-lite")
+        native_with_program["tools"] = {"quartus": "pinned quartus"}
+        with self.assertRaisesRegex(PackageExportError, "exactly when Yosys"):
+            encode_build_record(native_with_program)
+
+    def test_only_a_quartus_record_carries_the_front_end_fields(self):
+        # Format 1 has no validated Quartus discriminator, so it carries none of
+        # them until its producer moves to format 2 (#1581 S9b-S9f, S10).
+        # Two layers, and the outer one fires first: a record that does not
+        # declare design-v1 is out of scope entirely, so a format-1 record is
+        # refused for the policy rather than for the toolchain (#1806 review).
+        for name in export_core_package.FRONT_END_PARAMETERS:
+            with self.subTest(parameter=name):
+                fields = dict(self.record_fields)
+                fields["parameters"] = dict(fields["parameters"], **{name: "yosys"})
+                with self.assertRaisesRegex(PackageExportError, "design-v1 record"):
+                    encode_build_record(fields)
+        # Inside the policy, the toolchain rule applies: a design-v1 record that
+        # is not a Quartus record may not carry the fields either.
+        with self.assertRaisesRegex(PackageExportError, "format-2 Quartus record"):
+            encode_build_record(self._quartus_fields(toolchain=None))
+
+    def test_the_front_end_separates_the_toolchain_identity_not_the_design(self):
+        """Two builds of one design, elaborated by different front ends.
+
+        An earlier revision of this test asserted the two had different
+        BUILD_IDs. Under DeanoC/fes#1882 that is wrong, and this records why:
+        `front_end` and `front_end_program_sha256` are toolchain parameters, so
+        the *design* is the same design and its identity must not move, while
+        the toolchain identity must. The artifacts still differ and are still
+        told apart by their package IDs and payload digests; what this asserts
+        is only that choosing a different compiler does not force a rebuild of
+        an already sealed design (DeanoC/fes#1806 review).
+        """
+        yosys = self._quartus_fields()
+        native = self._quartus_fields(front_end="quartus-lite", front_end_program_sha256=None,
+                                      tools={"quartus": "pinned quartus"})
+        self.assertEqual(build_identity(encode_build_record(yosys)),
+                         build_identity(encode_build_record(native)))
+        self.assertNotEqual(yosys["identities"]["toolchain"], native["identities"]["toolchain"])
+        self.assertEqual(yosys["identities"]["design"], native["identities"]["design"])
+
+    def test_an_oss_record_is_unchanged_by_the_front_end_rules(self):
+        # S7 adds no field to an OSS record, so identical inputs still encode to
+        # the same bytes and the same identity.
+        first = encode_build_record(dict(self.record_fields))
+        self.assertEqual(first, self.record)
+        self.assertEqual(build_identity(first), build_identity(self.record))
 
     def test_opt_in_rom_export_is_sealed_reusable_and_identity_bound(self):
         fixture_root = ROOT / "tests" / "fixtures" / "core-bundle-v3"

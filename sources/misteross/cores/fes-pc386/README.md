@@ -470,11 +470,11 @@ builds of pc386 are parked with [#1235](https://github.com/DeanoC/fes/issues/123
   resolves to, and that lock's nextpnr links a GPU runtime. For CUDA, pass
   `GPU_ROUTER=CUDA` to both `make toolchain-fes-pc386` and
   `make build-fes-pc386-quartus`, or pass `--gpu-router CUDA` directly to the
-  build script. This selects the CUDA nextpnr install, so a host with CUDA and
-  no ROCm can seal; HIP remains the default when `GPU_ROUTER` is unset or
-  empty. Nothing routes on a GPU. The record's `gpu_backend` and
-  `toolchain_configuration` name the lane, so HIP and CUDA seals of one commit
-  have distinct BUILD_IDs.
+  build script. When no slot is requested, the product path selects an available
+  authenticated HIP or CUDA slot. Nothing routes on a GPU. The product's
+  execution record names the selected slot; design-v1 keeps the same BUILD_ID
+  when only that toolchain choice changes. The manual legacy format-1 sealer
+  still defaults to HIP and gives the two slots distinct BUILD_IDs.
 - The seal needs a lockstep report of this tree's CPU
   (`LOCKSTEP_REPORT=`, `--lockstep-report`): `scripts/test_fes_i386_lockstep.py
   --netlist`, the default suite over every in-scope file of a full corpus
@@ -486,6 +486,20 @@ builds of pc386 are parked with [#1235](https://github.com/DeanoC/fes/issues/123
   is copied into the output, and `build-summary.json` records it under
   `lockstep` (#1581 S5). Lockstep needs the pinned Bochs and corpus, so it
   runs on the sealing host.
+- To run the full netlist suite and then seal it in one command, use
+  `python3 cores/fes-pc386/tools/build_pc386_with_lockstep.py` with the same
+  `--cache-root` and optional `--gpu-router` as the sealer. The wrapper uses
+  the stock suite and sealer, and requires an unused
+  `build/sim/fes-i386-lockstep` output directory for its manual mode, so an
+  older report cannot be mistaken for a new one. Preserve or move an existing
+  manual run before starting; that mode does not download Bochs or the corpus.
+  On a cache miss, the experimental product path selects a private run directory,
+  locks the checkout against concurrent product runs and downloads the pinned
+  Bochs source and complete corpus when needed, with process caps and heartbeat. It atomically retains the full report, Quartus
+  timing and fit reports, project, version, original input record and exact
+  package binding. Cache reuse rechecks those bytes against the original Git
+  source; missing or mismatched evidence is rejected. Registration alone does
+  not qualify a new artifact or satisfy pc386's pending tier-1 gates.
 
 **M4.** The diagnostic package `fes.pc386-diag`, the machine with a bus master
 running commands from a DDR ring in the CPU's place, passed every program on

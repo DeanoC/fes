@@ -1,5 +1,11 @@
 # DE25-Nano FPGA bring-up
 
+The standalone [pipelined x87 arithmetic backend](x87/README.md) targets a
+future DE25 386, with full 80-bit operands, precision/rounding control,
+DSP multiplication and buffered fast/slow execution. It has a host-x87
+simulation and a 200 MHz virtual-pin Quartus fit; CPU integration and
+physical acceptance are separate work.
+
 The [base-plus-persona composition proof](link-proof/README.md) explores a
 Quartus-built fixed shell with two interchangeable PR personas and a static
 AArch64 offline bundle composer. It is diagnostic-only; production expansion

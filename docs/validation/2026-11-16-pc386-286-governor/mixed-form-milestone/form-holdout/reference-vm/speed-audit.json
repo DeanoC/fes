@@ -1,0 +1,16 @@
+{
+  "frames": 1320,
+  "unique": 1,
+  "counts": [
+    1320
+  ],
+  "crop": [
+    705,
+    29,
+    45,
+    17
+  ],
+  "fps": 4,
+  "raw_sha256": "90d6df2d788745a62273ede342f5fdace1ebf62add7696d96ff984a65738ab04",
+  "strip_sha256": "b3ea1e7e136bdaacbeb25ace4a25d7439f9ef24963294a7c339e9103a156232d"
+}

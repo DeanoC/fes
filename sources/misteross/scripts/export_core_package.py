@@ -22,7 +22,8 @@ if __package__ in (None, ""):
 
 from scripts.compiler_read_audit import POLICY, excluded_markdown, read_execution_data
 from scripts.source_repository import canonical_repository
-from scripts.input_identity import functional_key, validate_identities, with_identities, manifest_toolchain
+from scripts.input_identity import (POLICY as IDENTITY_POLICY, functional_key, validate_identities,
+                                    with_identities, manifest_toolchain)
 from scripts.core_package import (
     MAX_MANIFEST_SIZE,
     MAX_ROM_MAP_SIZE,
@@ -43,6 +44,10 @@ MAX_BUILD_RECORD_SIZE = 65_536
 HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
 HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
 NAME_RE = re.compile(r"[a-z][a-z0-9_.-]{0,95}\Z")
+# The tool that elaborates a core's logic, and the device family it targets.
+# config/core-recipes.toml holds the same pairing for the recipe registry.
+FRONT_END_DEVICE_FAMILIES = {"yosys": "cyclonev", "quartus-lite": "cyclonev", "quartus-pro": "agilex5"}
+FRONT_END_PARAMETERS = ("front_end", "device_family", "front_end_program_sha256", "quartus_qsf_sha256")
 AT_FDCWD = -100
 RENAME_NOREPLACE = 1
 
@@ -171,11 +176,59 @@ def _validate_build_record(fields: object) -> dict:
             for key in ("recipe", "abi_definition"):
                 if fields[key] not in fields["source_inputs"]:
                     raise PackageExportError("recipe/ABI is excluded from source closure")
+    _validate_front_end(fields, parameters, tools)
     try:
         validate_identities(fields)
     except ValueError as exc:
         raise PackageExportError(str(exc)) from exc
     return fields
+
+
+def _validate_front_end(fields: dict, parameters: dict, tools: dict) -> None:
+    """Cross-check the identity of the tool that elaborated the logic.
+
+    An in-scope format-2 Quartus record names its front end, the device family
+    that front end targets, the digest of its canonical QSF and, where Yosys
+    elaborates the logic, the digest of its canonical Yosys program. A format-1
+    record has no validated Quartus discriminator, so it carries none of them;
+    its producer gains them when it moves to format 2 and adopts the identity
+    policy.
+
+    S7's contract covers `design-v1` records only. Legacy format-2 Quartus
+    records remain valid without these parameters; the current ZX81 Quartus
+    producer emits four such records. Its migration to this contract, followed
+    by reseal and exact-artifact HIL, is tracked with the #1893 follow-up. A
+    legacy producer gains these fields when it opts into the identity policy.
+    PC/XT and the OSS producers are `design-v1`, so every record that carries
+    separated identities is covered.
+    """
+    if parameters.get("identity_policy") != IDENTITY_POLICY:
+        for name in FRONT_END_PARAMETERS:
+            if name in parameters:
+                raise PackageExportError(f"{name} requires a {IDENTITY_POLICY} record")
+        return
+    if fields.get("toolchain") != "quartus":
+        for name in FRONT_END_PARAMETERS:
+            if name in parameters:
+                raise PackageExportError(f"{name} belongs to a format-2 Quartus record")
+        return
+    front_end = parameters.get("front_end")
+    if front_end not in FRONT_END_DEVICE_FAMILIES:
+        raise PackageExportError("a Quartus record must name a known front end")
+    if parameters.get("device_family") != FRONT_END_DEVICE_FAMILIES[front_end]:
+        raise PackageExportError("front end and device family disagree")
+    elaborates_with_yosys = front_end == "yosys"
+    if ("yosys" in tools) is not elaborates_with_yosys:
+        raise PackageExportError("tools.yosys is recorded exactly when Yosys elaborates the logic")
+    if ("front_end_program_sha256" in parameters) is not elaborates_with_yosys:
+        raise PackageExportError(
+            "front_end_program_sha256 is recorded exactly when Yosys elaborates the logic")
+    if "quartus_qsf_sha256" not in parameters:
+        raise PackageExportError("a Quartus record must record its canonical QSF digest")
+    for name in ("front_end_program_sha256", "quartus_qsf_sha256"):
+        digest = parameters.get(name)
+        if digest is not None and (not isinstance(digest, str) or HEX64_RE.fullmatch(digest) is None):
+            raise PackageExportError(f"{name} must be 64 lowercase hexadecimal characters")
 
 
 def encode_build_record(fields: dict) -> bytes:

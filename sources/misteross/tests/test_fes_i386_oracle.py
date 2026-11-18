@@ -2,6 +2,7 @@
 """i386 oracle corpus runners: MOO reading, failure classification, the
 divergence list and test386 listing handling. No network access; the oracle
 smoke test runs only when the pinned Bochs checkout is already in build/."""
+import hashlib
 import struct
 import subprocess
 import tempfile
@@ -351,6 +352,101 @@ class OracleFetchTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(oracle, 'BUILD', Path(directory)):
             with self.assertRaisesRegex(oracle.OracleError, '--download'):
                 oracle.bochs_source(download=False)
+
+
+class OraclePatchTest(unittest.TestCase):
+    def fixture(self, root):
+        source = root / 'source'
+        stub = source / 'bochs/instrument/stubs'
+        stub.mkdir(parents=True)
+        (stub / 'Makefile.in').write_text('stub')
+        (source / 'bochs/cpu').mkdir()
+        sim = root / 'sim'
+        (sim / 'bochs').mkdir(parents=True)
+        (sim / 'bochs/instrument.h').write_bytes(b'instrument')
+        build = root / 'build'
+        build.mkdir()
+        return source, sim, build
+
+    def test_patch_bytes_key_and_snapshotted_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, sim, build = self.fixture(root)
+            patch = root / 'patch'
+            patch.write_bytes(b'first')
+            recorded = []
+            def fake_run(command, cwd, log):
+                if command[0] == 'patch':
+                    recorded.append(Path(command[-1]).read_bytes())
+            with mock.patch.multiple(oracle, BUILD=build, SIM=sim, BOCHS_PATCH=patch), mock.patch.object(oracle, '_run', side_effect=fake_run):
+                first = oracle.build_bochs(source, 1)
+                self.assertEqual(oracle.build_bochs(source, 1), first)
+                self.assertEqual(recorded, [b'first'])
+                (first / 'fes-bochs.patch').write_bytes(b'tampered')
+                with self.assertRaisesRegex(oracle.OracleError, 'invalid cached patch'):
+                    oracle.build_bochs(source, 1)
+                (first / 'fes-bochs.patch').write_bytes(b'first')
+                patch.write_bytes(b'second')
+                second = oracle.build_bochs(source, 1)
+                self.assertNotEqual(first.name, second.name)
+                self.assertEqual(recorded, [b'first', b'second'])
+
+    def test_report_record_binds_compiled_sources_and_binary_digests(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            patch = root / 'source.patch'
+            patch.write_bytes(b'expected')
+            sim = root / 'sim'
+            for name in oracle.ORACLE_SOURCES:
+                path = sim / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(name.encode())
+            tree = root / 'tree'
+            (tree / 'instrument/fes').mkdir(parents=True)
+            (tree / 'instrument/fes/instrument.h').write_bytes((sim / 'bochs/instrument.h').read_bytes())
+            (tree / 'fes-bochs.patch').write_bytes(b'expected')
+            inputs = [(sim / name).read_bytes() for name in oracle.ORACLE_SOURCES]
+            key = oracle._inputs_key(tree.name, oracle.CXXFLAGS, oracle._compiler(), oracle.PROVISIONER_SHA256, *inputs)
+            linked = [root / f'bochs_oracle-{key}.o', tree / 'param.o', tree / 'cpu.a', tree / 'fpu.a', tree / 'soft.a']
+            for path in linked:
+                path.write_bytes(path.name.encode())
+            with mock.patch.multiple(oracle, BOCHS_PATCH=patch, SIM=sim):
+                adapter_digest = oracle.adapter_source_sha256(sim)
+                original_read = Path.read_bytes
+                adapter_reads = []
+                def changing_read(path):
+                    if path == sim / 'bochs_oracle.cpp':
+                        adapter_reads.append(path)
+                        if len(adapter_reads) > 1:
+                            return b'changed after the snapshot'
+                    return original_read(path)
+                with mock.patch.object(Path, 'read_bytes', changing_read):
+                    record = oracle.build_record(linked)
+                self.assertEqual(len(adapter_reads), 1)
+                self.assertEqual(record['adapter_sha256'], adapter_digest)
+                self.assertEqual(record['revision'], oracle.BOCHS_REVISION)
+                self.assertEqual(record['patch_sha256'], hashlib.sha256(b'expected').hexdigest())
+                self.assertEqual(record['adapter_sha256'], oracle.adapter_source_sha256(sim))
+                self.assertEqual(set(record['linked_sha256']), set(oracle.LINKED_NAMES))
+                (sim / 'bochs_oracle.cpp').write_bytes(b'changed')
+                with self.assertRaisesRegex(oracle.OracleError, 'differ'):
+                    oracle.build_record(linked)
+                (sim / 'bochs_oracle.cpp').write_bytes(b'bochs_oracle.cpp')
+                patch.write_bytes(b'changed')
+                with self.assertRaisesRegex(oracle.OracleError, 'differ'):
+                    oracle.build_record(linked)
+
+    def test_unapplicable_patch_fails_without_stamp(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, sim, build = self.fixture(root)
+            (source / 'bochs/cpu/target').write_text('different\n')
+            patch = root / 'patch'
+            patch.write_text('--- a/cpu/target\n+++ b/cpu/target\n@@ -1 +1 @@\n-old\n+new\n')
+            with mock.patch.multiple(oracle, BUILD=build, SIM=sim, BOCHS_PATCH=patch):
+                with self.assertRaises(oracle.OracleError):
+                    oracle.build_bochs(source, 1)
+            self.assertFalse(list(build.glob('*/fes-oracle.stamp')))
 
 
 if __name__ == '__main__':

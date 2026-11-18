@@ -11,8 +11,9 @@ remain part of the rollout in [Quartus-built cores](design/quartus-cores.md).
 
 `config/core-recipes.toml` maps board/core pairs to the selected misteross producer,
 authentication function and toolchain lock. It is versioned, strictly validated
-data, not a list of shell commands. DE10 playable recipes use HIP/nextpnr;
-the PC/XT diagnostic and DE25 recipes select their registered Quartus producers.
+data, not a list of shell commands. OSS recipes use their declared nextpnr
+lane; pc386, PC/XT DOS and DE25 select registered Quartus producers. The pc386
+sealer accepts either authenticated HIP or CUDA toolchain slot and routes no GPU.
 A failed producer remains failed. The existing image builder and the developer
 command consume the same board-scoped registry.
 Cached-package inspection and archive reconstruction use that independently

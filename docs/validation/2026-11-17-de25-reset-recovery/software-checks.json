@@ -1,0 +1,77 @@
+{
+  "format": 1,
+  "status": "passed",
+  "tested_source": "23113b14496b89d673efe0c29a196970317bf3a6",
+  "base": "7c174a0cdbd611039137c2b63077b89cf3633c7b",
+  "selected_checks": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "Go command inventory",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "native runtime firmware and FPGA launch integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded producer identity and native control integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded firmware and identity/drain RTL integration",
+      "lane": "fpga",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ],
+  "parent_tests": {
+    "run": 2887,
+    "skipped": 21
+  },
+  "fpga_tests": {
+    "run": 2380,
+    "skipped": 90
+  },
+  "focused_recovery_tests": 82,
+  "elapsed_seconds": 1578.824156024959,
+  "log_sha256": "563e36ae9eb97cae88cd20a0ccd9c14f6d555bf87c7dbe1e04085bdbb1c0a99e",
+  "target_cross_build": "passed",
+  "composed_SPL_identity": "independently decoded and passed",
+  "hardware_evidence": "separate diagnostic CBL boot/readback; no normal HIL acceptance"
+}

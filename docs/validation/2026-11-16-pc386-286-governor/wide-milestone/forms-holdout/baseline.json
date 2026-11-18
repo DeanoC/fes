@@ -1,0 +1,70 @@
+{
+  "ROL_B_REG": {
+    "charged": 23.028,
+    "cycles": 117750
+  },
+  "SHR_W_REG": {
+    "charged": 23.017,
+    "cycles": 117909
+  },
+  "SHL_B_ONE": {
+    "charged": 21.017,
+    "cycles": 107670
+  },
+  "SAR_W_CL": {
+    "charged": 26.023,
+    "cycles": 133300
+  },
+  "ROL_B_CL": {
+    "charged": 26.017,
+    "cycles": 133270
+  },
+  "SHL_W_IMM": {
+    "charged": 28.017,
+    "cycles": 143510
+  },
+  "SHL_W_ZERO": {
+    "charged": 28.02,
+    "cycles": 143525
+  },
+  "MUL_W_MEM": {
+    "charged": 38.017,
+    "cycles": 194710
+  },
+  "IMUL_B_MEM": {
+    "charged": 30.017,
+    "cycles": 153749
+  },
+  "DIV_W_MEM": {
+    "charged": 45.015,
+    "cycles": 230540
+  },
+  "IDIV_B_MEM": {
+    "charged": 38.018,
+    "cycles": 194715
+  },
+  "MUL_B_REG": {
+    "charged": 27.02,
+    "cycles": 138405
+  },
+  "PUSHA_ONLY": {
+    "charged": 35.015,
+    "cycles": 179339
+  },
+  "PUSHA_PAIR": {
+    "charged": 50.023,
+    "cycles": 256181
+  },
+  "LEA_BASE": {
+    "charged": 17.023,
+    "cycles": 87220
+  },
+  "LEA_PAIR": {
+    "charged": 17.023,
+    "cycles": 87221
+  },
+  "LEA_DISP": {
+    "charged": 20.023,
+    "cycles": 102580
+  }
+}

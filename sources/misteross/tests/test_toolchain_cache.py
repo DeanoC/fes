@@ -49,6 +49,80 @@ def _publish(request: toolchain_cache.ToolchainRequest, tool: str, *, content: s
 
 
 class ToolchainCacheContractTests(unittest.TestCase):
+    def test_binary_pin_selects_original_verified_install_after_recipe_drift(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request = self._request(base / "source", base / "cache")
+            original = _publish(request, "yosys", content="approved")
+            recipe = request.root / "scripts/bootstrap.sh"
+            recipe.write_text(recipe.read_text() + "\n# newer provisioning recipe\n")
+            current = _publish(request, "yosys", content="new build")
+            self.assertNotEqual(original.key, current.key)
+            self.assertEqual(toolchain_cache.resolve_install(request, "yosys").key, current.key)
+            selected = toolchain_cache.resolve_install(
+                request, "yosys", binary_sha256=original.record["sha256"])
+            self.assertEqual(selected.key, original.key)
+            self.assertIn(str(base / "cache/locks" / (original.key + ".lock")),
+                          toolchain_cache._READER_LOCKS)
+            with self.assertRaisesRegex(toolchain_cache.CacheError, "no ready"):
+                toolchain_cache.resolve_install(request, "yosys", binary_sha256="0" * 64)
+
+    def test_binary_pin_rejects_changed_source_pin_and_published_key(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request = self._request(base / "source", base / "cache")
+            original = _publish(request, "yosys")
+            digest = original.record["sha256"]
+            _set_pin(request.lock_path, "yosys", "commit", "e" * 40)
+            with self.assertRaisesRegex(toolchain_cache.CacheError, "source differs"):
+                toolchain_cache.resolve_install(request, "yosys", binary_sha256=digest)
+            _set_pin(request.lock_path, "yosys", "commit", original.record["commit"])
+            ready = original.directory / "ready.json"
+            data = json.loads(ready.read_text())
+            data["build"]["recipe"] = "0" * 64
+            ready.chmod(0o600)
+            ready.write_text(json.dumps(data))
+            with self.assertRaisesRegex(toolchain_cache.CacheError, "published key"):
+                toolchain_cache.resolve_install(request, "yosys", binary_sha256=digest)
+
+    def test_binary_pin_ignores_unrelated_install_pruned_during_discovery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request = self._request(base / "source", base / "cache")
+            first = _publish(request, "yosys", content="first")
+            recipe = request.root / "scripts/bootstrap.sh"
+            recipe.write_text(recipe.read_text() + "\n# another install\n")
+            second = _publish(request, "yosys", content="second")
+            unrelated, wanted = sorted((first, second), key=lambda item: item.key)
+            vanished = unrelated.directory / "ready.json"
+            read_manifest = toolchain_cache.read_manifest
+            def prune_before_read(path):
+                if path == vanished:
+                    path.unlink()
+                return read_manifest(path)
+            with mock.patch.object(toolchain_cache, "read_manifest", side_effect=prune_before_read):
+                selected = toolchain_cache.resolve_install(
+                    request, "yosys", binary_sha256=wanted.record["sha256"])
+            self.assertEqual(selected.key, wanted.key)
+            self.assertFalse(vanished.exists())
+            self.assertTrue(wanted.binary.is_file())
+
+    def test_binary_pin_verifies_full_install_closure_and_host(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request = self._request(base / "source", base / "cache")
+            original = _publish(request, "yosys")
+            digest = original.record["sha256"]
+            wrong_host = toolchain_cache.dataclasses.replace(
+                request, host_identity={**HOST, "machine": "other"})
+            with self.assertRaisesRegex(toolchain_cache.CacheError, "host architecture"):
+                toolchain_cache.resolve_install(wrong_host, "yosys", binary_sha256=digest)
+            evidence = original.evidence / "record"
+            evidence.chmod(0o600)
+            evidence.write_text("tampered\n")
+            with self.assertRaisesRegex(toolchain_cache.CacheError, "closure differs"):
+                toolchain_cache.resolve_install(request, "yosys", binary_sha256=digest)
+
     def _request(self, root: Path, cache: Path, *, lane: str = "OFF", **fields):
         """A request over a checkout holding the real lock parser, recipe and lock."""
 
@@ -941,6 +1015,39 @@ class ToolchainCachePruneTests(unittest.TestCase):
         with self.assertRaisesRegex(toolchain_cache.CacheError, "git"):
             toolchain_cache.prune(self.cache, self.root, keep_days=14, ref="no-such-ref",
                                   host=HOST, compiler=COMPILER, output=io.StringIO())
+
+    def test_prune_preserves_committed_binary_pin_across_recipe_drift(self):
+        older_recipe = self.base / "older-bootstrap.sh"
+        older_recipe.write_text("# older\n" + (self.root / "scripts/bootstrap.sh").read_text())
+        older = self.request(bootstrap_path=older_recipe)
+        install = _publish(older, "yosys", content="approved binary")
+        _publish(self.request(), "yosys", content="new provisioning binary")
+        old = time.time() - 30 * 86400
+        os.utime(toolchain_cache.lock_path(older, "yosys"), (old, old))
+        lock = self.root / "cores/fes-core/quartus.lock"
+        lock.write_text(
+            '[quartus]\nedition = "lite"\n'
+            'version = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"\n'
+            'device_family = "cyclonev"\nquartus_sh_sha256 = "' + 'a' * 64 + '"\n'
+            '[yosys]\ncommit = "' + install.record['commit'] + '"\n'
+            'sha256 = "' + install.record['sha256'] + '"\n')
+        git = ["git", "-C", str(self.repository), "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+        subprocess.run([*git, "add", "-A"], check=True)
+        subprocess.run([*git, "commit", "-q", "-m", "binary pin"], check=True)
+        # Uncommitted edits must not erase a committed binary reference.
+        lock.write_text(lock.read_text().replace(install.record['sha256'], '0' * 64))
+        report, output = self.prune(apply=True)
+        self.assertIn(f"tools/yosys/{install.key}", report['kept'])
+        self.assertIn('binary-pinned at HEAD', output)
+        selected = toolchain_cache.resolve_install(
+            self.request(), 'yosys', binary_sha256=install.record['sha256'], hold=False)
+        self.assertEqual(selected.key, install.key)
+        # Once the committed pin moves, the aged old recipe is collectible.
+        subprocess.run([*git, "add", "-A"], check=True)
+        subprocess.run([*git, "commit", "-q", "-m", "move binary pin"], check=True)
+        report, _ = self.prune(apply=True)
+        self.assertIn(f"tools/yosys/{install.key}", report['removed'])
+        self.assertFalse(install.directory.exists())
 
     def test_legacy_slots_are_pruned_only_on_request_and_by_last_use(self):
         slots = self.cache / "slots"

@@ -1,0 +1,584 @@
+     1                                  bits 16
+     2                                  cpu 286
+     3                                  org 0x1000
+     4                                  start:
+     5 00000000 FA                       cli
+     6 00000001 FC                       cld
+     7 00000002 31C0                     xor ax,ax
+     8 00000004 8ED8                     mov ds,ax
+     9 00000006 8EC0                     mov es,ax
+    10 00000008 8ED0                     mov ss,ax
+    11 0000000A BC0070                   mov sp,0x7000
+    12 0000000D E80B01                          call control_0
+    13 00000010 B000                            mov al,0
+    14 00000012 E680                            out 0x80,al
+    15 00000014 BD0060                          mov bp,0x6000
+    16 00000017 BEE803                          mov si,1000
+    17                                          align 2
+    18                                  .i0:
+    19 0000001A C8000000                        enter 0,0
+    20 0000001E C9                              leave
+    21 0000001F 4E                              dec si
+    22 00000020 75F8                            jnz .i0
+    23 00000022 B001                            mov al,1
+    24 00000024 E680                            out 0x80,al
+    25 00000026 E84D01                          call control_1
+    26 00000029 B002                            mov al,2
+    27 0000002B E680                            out 0x80,al
+    28 0000002D BD0060                          mov bp,0x6000
+    29 00000030 BEE803                          mov si,1000
+    30 00000033 90                              align 2
+    31                                  .i1:
+    32 00000034 C8000001                        enter 0,1
+    33 00000038 C9                              leave
+    34 00000039 4E                              dec si
+    35 0000003A 75F8                            jnz .i1
+    36 0000003C B003                            mov al,3
+    37 0000003E E680                            out 0x80,al
+    38 00000040 E8AC01                          call control_2
+    39 00000043 B004                            mov al,4
+    40 00000045 E680                            out 0x80,al
+    41 00000047 BD0060                          mov bp,0x6000
+    42 0000004A BEE803                          mov si,1000
+    43 0000004D 90                              align 2
+    44                                  .i2:
+    45 0000004E C8000002                        enter 0,2
+    46 00000052 C9                              leave
+    47 00000053 4E                              dec si
+    48 00000054 75F8                            jnz .i2
+    49 00000056 B005                            mov al,5
+    50 00000058 E680                            out 0x80,al
+    51 0000005A E81602                          call control_3
+    52 0000005D B006                            mov al,6
+    53 0000005F E680                            out 0x80,al
+    54 00000061 BD0060                          mov bp,0x6000
+    55 00000064 BEE803                          mov si,1000
+    56 00000067 90                              align 2
+    57                                  .i3:
+    58 00000068 C8000003                        enter 0,3
+    59 0000006C C9                              leave
+    60 0000006D 4E                              dec si
+    61 0000006E 75F8                            jnz .i3
+    62 00000070 B007                            mov al,7
+    63 00000072 E680                            out 0x80,al
+    64 00000074 E88B02                          call control_4
+    65 00000077 B008                            mov al,8
+    66 00000079 E680                            out 0x80,al
+    67 0000007B BD0060                          mov bp,0x6000
+    68 0000007E BEE803                          mov si,1000
+    69 00000081 90                              align 2
+    70                                  .i4:
+    71 00000082 C8000004                        enter 0,4
+    72 00000086 C9                              leave
+    73 00000087 4E                              dec si
+    74 00000088 75F8                            jnz .i4
+    75 0000008A B009                            mov al,9
+    76 0000008C E680                            out 0x80,al
+    77 0000008E E80B03                          call control_5
+    78 00000091 B00A                            mov al,10
+    79 00000093 E680                            out 0x80,al
+    80 00000095 BD0060                          mov bp,0x6000
+    81 00000098 BEE803                          mov si,1000
+    82 0000009B 90                              align 2
+    83                                  .i5:
+    84 0000009C C8060001                        enter 6,1
+    85 000000A0 C9                              leave
+    86 000000A1 4E                              dec si
+    87 000000A2 75F8                            jnz .i5
+    88 000000A4 B00B                            mov al,11
+    89 000000A6 E680                            out 0x80,al
+    90 000000A8 E86A03                          call control_6
+    91 000000AB B00C                            mov al,12
+    92 000000AD E680                            out 0x80,al
+    93 000000AF BD0060                          mov bp,0x6000
+    94 000000B2 BEE803                          mov si,1000
+    95 000000B5 90                              align 2
+    96                                  .i6:
+    97 000000B6 C80C0002                        enter 12,2
+    98 000000BA C9                              leave
+    99 000000BB 4E                              dec si
+   100 000000BC 75F8                            jnz .i6
+   101 000000BE B00D                            mov al,13
+   102 000000C0 E680                            out 0x80,al
+   103 000000C2 E8D403                          call control_7
+   104 000000C5 B00E                            mov al,14
+   105 000000C7 E680                            out 0x80,al
+   106 000000C9 BD0060                          mov bp,0x6000
+   107 000000CC BEE803                          mov si,1000
+   108 000000CF 90                              align 2
+   109                                  .i7:
+   110 000000D0 C8200003                        enter 32,3
+   111 000000D4 C9                              leave
+   112 000000D5 4E                              dec si
+   113 000000D6 75F8                            jnz .i7
+   114 000000D8 B00F                            mov al,15
+   115 000000DA E680                            out 0x80,al
+   116 000000DC E84904                          call control_8
+   117 000000DF B010                            mov al,16
+   118 000000E1 E680                            out 0x80,al
+   119 000000E3 BD0060                          mov bp,0x6000
+   120 000000E6 BEE803                          mov si,1000
+   121 000000E9 90                              align 2
+   122                                  .i8:
+   123 000000EA C8000104                        enter 256,4
+   124 000000EE C9                              leave
+   125 000000EF 4E                              dec si
+   126 000000F0 75F8                            jnz .i8
+   127 000000F2 B011                            mov al,17
+   128 000000F4 E680                            out 0x80,al
+   129 000000F6 E8C904                          call control_9
+   130 000000F9 B012                            mov al,18
+   131 000000FB E680                            out 0x80,al
+   132 000000FD BD0060                          mov bp,0x6000
+   133 00000100 B9E803                          mov cx,1000
+   134 00000103 90                              align 2
+   135                                  .i9:
+   136 00000104 C8000002                        enter 0,2
+   137 00000108 C9                              leave
+   138 00000109 E2F9                            loop .i9
+   139 0000010B B013                            mov al,19
+   140 0000010D E680                            out 0x80,al
+   141 0000010F FA                              cli
+   142 00000110 30C0                            xor al,al
+   143 00000112 E68F                            out 0x8f,al
+   144 00000114 F4                              hlt
+   145                                  invalid_memory:
+   146 00000115 FA                              cli
+   147 00000116 B0EE                            mov al,0xee
+   148 00000118 E68F                            out 0x8f,al
+   149 0000011A F4                              hlt
+   150                                  control_0:
+   151 0000011B BD0060                          mov bp,0x6000
+   152 0000011E C706FE5F2211                    mov word [0x5ffe],0x1122
+   153 00000124 C706FC5F4433                    mov word [0x5ffc],0x3344
+   154 0000012A C706FA5F6655                    mov word [0x5ffa],0x5566
+   155 00000130 8926[4606]                      mov [saved_test_sp],sp
+   156 00000134 FA                              cli
+   157 00000135 F9                              stc
+   158 00000136 9C                              pushf
+   159 00000137 5A                              pop dx
+   160 00000138 C8000000                        enter 0,0
+   161 0000013C 9C                              pushf
+   162 0000013D 58                              pop ax
+   163 0000013E 39D0                            cmp ax,dx
+   164 00000140 75D3                            jne invalid_memory
+   165 00000142 A1[4606]                        mov ax,[saved_test_sp]
+   166 00000145 83E802                          sub ax,2
+   167 00000148 39C4                            cmp sp,ax
+   168 0000014A 75C9                            jne invalid_memory
+   169 0000014C 8B1E[4606]                      mov bx,[saved_test_sp]
+   170 00000150 83EB02                          sub bx,2
+   171 00000153 39DD                            cmp bp,bx
+   172 00000155 75BE                            jne invalid_memory
+   173 00000157 36813F0060                      cmp word [ss:bx],0x6000
+   174 0000015C 75B7                            jne invalid_memory
+   175 0000015E F9                              stc
+   176 0000015F 9C                              pushf
+   177 00000160 5A                              pop dx
+   178 00000161 C9                              leave
+   179 00000162 9C                              pushf
+   180 00000163 58                              pop ax
+   181 00000164 39D0                            cmp ax,dx
+   182 00000166 75AD                            jne invalid_memory
+   183 00000168 3B26[4606]                      cmp sp,[saved_test_sp]
+   184 0000016C 75A7                            jne invalid_memory
+   185 0000016E 81FD0060                        cmp bp,0x6000
+   186 00000172 75A1                            jne invalid_memory
+   187 00000174 FB                              sti
+   188 00000175 C3                              ret
+   189                                  control_1:
+   190 00000176 BD0060                          mov bp,0x6000
+   191 00000179 C706FE5F2211                    mov word [0x5ffe],0x1122
+   192 0000017F C706FC5F4433                    mov word [0x5ffc],0x3344
+   193 00000185 C706FA5F6655                    mov word [0x5ffa],0x5566
+   194 0000018B 8926[4606]                      mov [saved_test_sp],sp
+   195 0000018F FA                              cli
+   196 00000190 F9                              stc
+   197 00000191 9C                              pushf
+   198 00000192 5A                              pop dx
+   199 00000193 C8000001                        enter 0,1
+   200 00000197 9C                              pushf
+   201 00000198 58                              pop ax
+   202 00000199 39D0                            cmp ax,dx
+   203 0000019B 7403E975FF                      jne invalid_memory
+   204 000001A0 A1[4606]                        mov ax,[saved_test_sp]
+   205 000001A3 83E804                          sub ax,4
+   206 000001A6 39C4                            cmp sp,ax
+   207 000001A8 7403E968FF                      jne invalid_memory
+   208 000001AD 8B1E[4606]                      mov bx,[saved_test_sp]
+   209 000001B1 83EB02                          sub bx,2
+   210 000001B4 39DD                            cmp bp,bx
+   211 000001B6 7403E95AFF                      jne invalid_memory
+   212 000001BB 36813F0060                      cmp word [ss:bx],0x6000
+   213 000001C0 7403E950FF                      jne invalid_memory
+   214 000001C5 36395FFE                        cmp word [ss:bx-2],bx
+   215 000001C9 7403E947FF                      jne invalid_memory
+   216 000001CE F9                              stc
+   217 000001CF 9C                              pushf
+   218 000001D0 5A                              pop dx
+   219 000001D1 C9                              leave
+   220 000001D2 9C                              pushf
+   221 000001D3 58                              pop ax
+   222 000001D4 39D0                            cmp ax,dx
+   223 000001D6 7403E93AFF                      jne invalid_memory
+   224 000001DB 3B26[4606]                      cmp sp,[saved_test_sp]
+   225 000001DF 7403E931FF                      jne invalid_memory
+   226 000001E4 81FD0060                        cmp bp,0x6000
+   227 000001E8 7403E928FF                      jne invalid_memory
+   228 000001ED FB                              sti
+   229 000001EE C3                              ret
+   230                                  control_2:
+   231 000001EF BD0060                          mov bp,0x6000
+   232 000001F2 C706FE5F2211                    mov word [0x5ffe],0x1122
+   233 000001F8 C706FC5F4433                    mov word [0x5ffc],0x3344
+   234 000001FE C706FA5F6655                    mov word [0x5ffa],0x5566
+   235 00000204 8926[4606]                      mov [saved_test_sp],sp
+   236 00000208 FA                              cli
+   237 00000209 F9                              stc
+   238 0000020A 9C                              pushf
+   239 0000020B 5A                              pop dx
+   240 0000020C C8000002                        enter 0,2
+   241 00000210 9C                              pushf
+   242 00000211 58                              pop ax
+   243 00000212 39D0                            cmp ax,dx
+   244 00000214 7403E9FCFE                      jne invalid_memory
+   245 00000219 A1[4606]                        mov ax,[saved_test_sp]
+   246 0000021C 83E806                          sub ax,6
+   247 0000021F 39C4                            cmp sp,ax
+   248 00000221 7403E9EFFE                      jne invalid_memory
+   249 00000226 8B1E[4606]                      mov bx,[saved_test_sp]
+   250 0000022A 83EB02                          sub bx,2
+   251 0000022D 39DD                            cmp bp,bx
+   252 0000022F 7403E9E1FE                      jne invalid_memory
+   253 00000234 36813F0060                      cmp word [ss:bx],0x6000
+   254 00000239 7403E9D7FE                      jne invalid_memory
+   255 0000023E 36817FFE2211                    cmp word [ss:bx-2],0x1122
+   256 00000244 7403E9CCFE                      jne invalid_memory
+   257 00000249 36395FFC                        cmp word [ss:bx-4],bx
+   258 0000024D 7403E9C3FE                      jne invalid_memory
+   259 00000252 F9                              stc
+   260 00000253 9C                              pushf
+   261 00000254 5A                              pop dx
+   262 00000255 C9                              leave
+   263 00000256 9C                              pushf
+   264 00000257 58                              pop ax
+   265 00000258 39D0                            cmp ax,dx
+   266 0000025A 7403E9B6FE                      jne invalid_memory
+   267 0000025F 3B26[4606]                      cmp sp,[saved_test_sp]
+   268 00000263 7403E9ADFE                      jne invalid_memory
+   269 00000268 81FD0060                        cmp bp,0x6000
+   270 0000026C 7403E9A4FE                      jne invalid_memory
+   271 00000271 FB                              sti
+   272 00000272 C3                              ret
+   273                                  control_3:
+   274 00000273 BD0060                          mov bp,0x6000
+   275 00000276 C706FE5F2211                    mov word [0x5ffe],0x1122
+   276 0000027C C706FC5F4433                    mov word [0x5ffc],0x3344
+   277 00000282 C706FA5F6655                    mov word [0x5ffa],0x5566
+   278 00000288 8926[4606]                      mov [saved_test_sp],sp
+   279 0000028C FA                              cli
+   280 0000028D F9                              stc
+   281 0000028E 9C                              pushf
+   282 0000028F 5A                              pop dx
+   283 00000290 C8000003                        enter 0,3
+   284 00000294 9C                              pushf
+   285 00000295 58                              pop ax
+   286 00000296 39D0                            cmp ax,dx
+   287 00000298 7403E978FE                      jne invalid_memory
+   288 0000029D A1[4606]                        mov ax,[saved_test_sp]
+   289 000002A0 83E808                          sub ax,8
+   290 000002A3 39C4                            cmp sp,ax
+   291 000002A5 7403E96BFE                      jne invalid_memory
+   292 000002AA 8B1E[4606]                      mov bx,[saved_test_sp]
+   293 000002AE 83EB02                          sub bx,2
+   294 000002B1 39DD                            cmp bp,bx
+   295 000002B3 7403E95DFE                      jne invalid_memory
+   296 000002B8 36813F0060                      cmp word [ss:bx],0x6000
+   297 000002BD 7403E953FE                      jne invalid_memory
+   298 000002C2 36817FFE2211                    cmp word [ss:bx-2],0x1122
+   299 000002C8 7403E948FE                      jne invalid_memory
+   300 000002CD 36817FFC4433                    cmp word [ss:bx-4],0x3344
+   301 000002D3 7403E93DFE                      jne invalid_memory
+   302 000002D8 36395FFA                        cmp word [ss:bx-6],bx
+   303 000002DC 7403E934FE                      jne invalid_memory
+   304 000002E1 F9                              stc
+   305 000002E2 9C                              pushf
+   306 000002E3 5A                              pop dx
+   307 000002E4 C9                              leave
+   308 000002E5 9C                              pushf
+   309 000002E6 58                              pop ax
+   310 000002E7 39D0                            cmp ax,dx
+   311 000002E9 7403E927FE                      jne invalid_memory
+   312 000002EE 3B26[4606]                      cmp sp,[saved_test_sp]
+   313 000002F2 7403E91EFE                      jne invalid_memory
+   314 000002F7 81FD0060                        cmp bp,0x6000
+   315 000002FB 7403E915FE                      jne invalid_memory
+   316 00000300 FB                              sti
+   317 00000301 C3                              ret
+   318                                  control_4:
+   319 00000302 BD0060                          mov bp,0x6000
+   320 00000305 C706FE5F2211                    mov word [0x5ffe],0x1122
+   321 0000030B C706FC5F4433                    mov word [0x5ffc],0x3344
+   322 00000311 C706FA5F6655                    mov word [0x5ffa],0x5566
+   323 00000317 8926[4606]                      mov [saved_test_sp],sp
+   324 0000031B FA                              cli
+   325 0000031C F9                              stc
+   326 0000031D 9C                              pushf
+   327 0000031E 5A                              pop dx
+   328 0000031F C8000004                        enter 0,4
+   329 00000323 9C                              pushf
+   330 00000324 58                              pop ax
+   331 00000325 39D0                            cmp ax,dx
+   332 00000327 7403E9E9FD                      jne invalid_memory
+   333 0000032C A1[4606]                        mov ax,[saved_test_sp]
+   334 0000032F 83E80A                          sub ax,10
+   335 00000332 39C4                            cmp sp,ax
+   336 00000334 7403E9DCFD                      jne invalid_memory
+   337 00000339 8B1E[4606]                      mov bx,[saved_test_sp]
+   338 0000033D 83EB02                          sub bx,2
+   339 00000340 39DD                            cmp bp,bx
+   340 00000342 7403E9CEFD                      jne invalid_memory
+   341 00000347 36813F0060                      cmp word [ss:bx],0x6000
+   342 0000034C 7403E9C4FD                      jne invalid_memory
+   343 00000351 36817FFE2211                    cmp word [ss:bx-2],0x1122
+   344 00000357 7403E9B9FD                      jne invalid_memory
+   345 0000035C 36817FFC4433                    cmp word [ss:bx-4],0x3344
+   346 00000362 7403E9AEFD                      jne invalid_memory
+   347 00000367 36817FFA6655                    cmp word [ss:bx-6],0x5566
+   348 0000036D 7403E9A3FD                      jne invalid_memory
+   349 00000372 36395FF8                        cmp word [ss:bx-8],bx
+   350 00000376 7403E99AFD                      jne invalid_memory
+   351 0000037B F9                              stc
+   352 0000037C 9C                              pushf
+   353 0000037D 5A                              pop dx
+   354 0000037E C9                              leave
+   355 0000037F 9C                              pushf
+   356 00000380 58                              pop ax
+   357 00000381 39D0                            cmp ax,dx
+   358 00000383 7403E98DFD                      jne invalid_memory
+   359 00000388 3B26[4606]                      cmp sp,[saved_test_sp]
+   360 0000038C 7403E984FD                      jne invalid_memory
+   361 00000391 81FD0060                        cmp bp,0x6000
+   362 00000395 7403E97BFD                      jne invalid_memory
+   363 0000039A FB                              sti
+   364 0000039B C3                              ret
+   365                                  control_5:
+   366 0000039C BD0060                          mov bp,0x6000
+   367 0000039F C706FE5F2211                    mov word [0x5ffe],0x1122
+   368 000003A5 C706FC5F4433                    mov word [0x5ffc],0x3344
+   369 000003AB C706FA5F6655                    mov word [0x5ffa],0x5566
+   370 000003B1 8926[4606]                      mov [saved_test_sp],sp
+   371 000003B5 FA                              cli
+   372 000003B6 F9                              stc
+   373 000003B7 9C                              pushf
+   374 000003B8 5A                              pop dx
+   375 000003B9 C8060001                        enter 6,1
+   376 000003BD 9C                              pushf
+   377 000003BE 58                              pop ax
+   378 000003BF 39D0                            cmp ax,dx
+   379 000003C1 7403E94FFD                      jne invalid_memory
+   380 000003C6 A1[4606]                        mov ax,[saved_test_sp]
+   381 000003C9 83E80A                          sub ax,10
+   382 000003CC 39C4                            cmp sp,ax
+   383 000003CE 7403E942FD                      jne invalid_memory
+   384 000003D3 8B1E[4606]                      mov bx,[saved_test_sp]
+   385 000003D7 83EB02                          sub bx,2
+   386 000003DA 39DD                            cmp bp,bx
+   387 000003DC 7403E934FD                      jne invalid_memory
+   388 000003E1 36813F0060                      cmp word [ss:bx],0x6000
+   389 000003E6 7403E92AFD                      jne invalid_memory
+   390 000003EB 36395FFE                        cmp word [ss:bx-2],bx
+   391 000003EF 7403E921FD                      jne invalid_memory
+   392 000003F4 F9                              stc
+   393 000003F5 9C                              pushf
+   394 000003F6 5A                              pop dx
+   395 000003F7 C9                              leave
+   396 000003F8 9C                              pushf
+   397 000003F9 58                              pop ax
+   398 000003FA 39D0                            cmp ax,dx
+   399 000003FC 7403E914FD                      jne invalid_memory
+   400 00000401 3B26[4606]                      cmp sp,[saved_test_sp]
+   401 00000405 7403E90BFD                      jne invalid_memory
+   402 0000040A 81FD0060                        cmp bp,0x6000
+   403 0000040E 7403E902FD                      jne invalid_memory
+   404 00000413 FB                              sti
+   405 00000414 C3                              ret
+   406                                  control_6:
+   407 00000415 BD0060                          mov bp,0x6000
+   408 00000418 C706FE5F2211                    mov word [0x5ffe],0x1122
+   409 0000041E C706FC5F4433                    mov word [0x5ffc],0x3344
+   410 00000424 C706FA5F6655                    mov word [0x5ffa],0x5566
+   411 0000042A 8926[4606]                      mov [saved_test_sp],sp
+   412 0000042E FA                              cli
+   413 0000042F F9                              stc
+   414 00000430 9C                              pushf
+   415 00000431 5A                              pop dx
+   416 00000432 C80C0002                        enter 12,2
+   417 00000436 9C                              pushf
+   418 00000437 58                              pop ax
+   419 00000438 39D0                            cmp ax,dx
+   420 0000043A 7403E9D6FC                      jne invalid_memory
+   421 0000043F A1[4606]                        mov ax,[saved_test_sp]
+   422 00000442 83E812                          sub ax,18
+   423 00000445 39C4                            cmp sp,ax
+   424 00000447 7403E9C9FC                      jne invalid_memory
+   425 0000044C 8B1E[4606]                      mov bx,[saved_test_sp]
+   426 00000450 83EB02                          sub bx,2
+   427 00000453 39DD                            cmp bp,bx
+   428 00000455 7403E9BBFC                      jne invalid_memory
+   429 0000045A 36813F0060                      cmp word [ss:bx],0x6000
+   430 0000045F 7403E9B1FC                      jne invalid_memory
+   431 00000464 36817FFE2211                    cmp word [ss:bx-2],0x1122
+   432 0000046A 7403E9A6FC                      jne invalid_memory
+   433 0000046F 36395FFC                        cmp word [ss:bx-4],bx
+   434 00000473 7403E99DFC                      jne invalid_memory
+   435 00000478 F9                              stc
+   436 00000479 9C                              pushf
+   437 0000047A 5A                              pop dx
+   438 0000047B C9                              leave
+   439 0000047C 9C                              pushf
+   440 0000047D 58                              pop ax
+   441 0000047E 39D0                            cmp ax,dx
+   442 00000480 7403E990FC                      jne invalid_memory
+   443 00000485 3B26[4606]                      cmp sp,[saved_test_sp]
+   444 00000489 7403E987FC                      jne invalid_memory
+   445 0000048E 81FD0060                        cmp bp,0x6000
+   446 00000492 7403E97EFC                      jne invalid_memory
+   447 00000497 FB                              sti
+   448 00000498 C3                              ret
+   449                                  control_7:
+   450 00000499 BD0060                          mov bp,0x6000
+   451 0000049C C706FE5F2211                    mov word [0x5ffe],0x1122
+   452 000004A2 C706FC5F4433                    mov word [0x5ffc],0x3344
+   453 000004A8 C706FA5F6655                    mov word [0x5ffa],0x5566
+   454 000004AE 8926[4606]                      mov [saved_test_sp],sp
+   455 000004B2 FA                              cli
+   456 000004B3 F9                              stc
+   457 000004B4 9C                              pushf
+   458 000004B5 5A                              pop dx
+   459 000004B6 C8200003                        enter 32,3
+   460 000004BA 9C                              pushf
+   461 000004BB 58                              pop ax
+   462 000004BC 39D0                            cmp ax,dx
+   463 000004BE 7403E952FC                      jne invalid_memory
+   464 000004C3 A1[4606]                        mov ax,[saved_test_sp]
+   465 000004C6 83E828                          sub ax,40
+   466 000004C9 39C4                            cmp sp,ax
+   467 000004CB 7403E945FC                      jne invalid_memory
+   468 000004D0 8B1E[4606]                      mov bx,[saved_test_sp]
+   469 000004D4 83EB02                          sub bx,2
+   470 000004D7 39DD                            cmp bp,bx
+   471 000004D9 7403E937FC                      jne invalid_memory
+   472 000004DE 36813F0060                      cmp word [ss:bx],0x6000
+   473 000004E3 7403E92DFC                      jne invalid_memory
+   474 000004E8 36817FFE2211                    cmp word [ss:bx-2],0x1122
+   475 000004EE 7403E922FC                      jne invalid_memory
+   476 000004F3 36817FFC4433                    cmp word [ss:bx-4],0x3344
+   477 000004F9 7403E917FC                      jne invalid_memory
+   478 000004FE 36395FFA                        cmp word [ss:bx-6],bx
+   479 00000502 7403E90EFC                      jne invalid_memory
+   480 00000507 F9                              stc
+   481 00000508 9C                              pushf
+   482 00000509 5A                              pop dx
+   483 0000050A C9                              leave
+   484 0000050B 9C                              pushf
+   485 0000050C 58                              pop ax
+   486 0000050D 39D0                            cmp ax,dx
+   487 0000050F 7403E901FC                      jne invalid_memory
+   488 00000514 3B26[4606]                      cmp sp,[saved_test_sp]
+   489 00000518 7403E9F8FB                      jne invalid_memory
+   490 0000051D 81FD0060                        cmp bp,0x6000
+   491 00000521 7403E9EFFB                      jne invalid_memory
+   492 00000526 FB                              sti
+   493 00000527 C3                              ret
+   494                                  control_8:
+   495 00000528 BD0060                          mov bp,0x6000
+   496 0000052B C706FE5F2211                    mov word [0x5ffe],0x1122
+   497 00000531 C706FC5F4433                    mov word [0x5ffc],0x3344
+   498 00000537 C706FA5F6655                    mov word [0x5ffa],0x5566
+   499 0000053D 8926[4606]                      mov [saved_test_sp],sp
+   500 00000541 FA                              cli
+   501 00000542 F9                              stc
+   502 00000543 9C                              pushf
+   503 00000544 5A                              pop dx
+   504 00000545 C8000104                        enter 256,4
+   505 00000549 9C                              pushf
+   506 0000054A 58                              pop ax
+   507 0000054B 39D0                            cmp ax,dx
+   508 0000054D 7403E9C3FB                      jne invalid_memory
+   509 00000552 A1[4606]                        mov ax,[saved_test_sp]
+   510 00000555 2D0A01                          sub ax,266
+   511 00000558 39C4                            cmp sp,ax
+   512 0000055A 7403E9B6FB                      jne invalid_memory
+   513 0000055F 8B1E[4606]                      mov bx,[saved_test_sp]
+   514 00000563 83EB02                          sub bx,2
+   515 00000566 39DD                            cmp bp,bx
+   516 00000568 7403E9A8FB                      jne invalid_memory
+   517 0000056D 36813F0060                      cmp word [ss:bx],0x6000
+   518 00000572 7403E99EFB                      jne invalid_memory
+   519 00000577 36817FFE2211                    cmp word [ss:bx-2],0x1122
+   520 0000057D 7403E993FB                      jne invalid_memory
+   521 00000582 36817FFC4433                    cmp word [ss:bx-4],0x3344
+   522 00000588 7403E988FB                      jne invalid_memory
+   523 0000058D 36817FFA6655                    cmp word [ss:bx-6],0x5566
+   524 00000593 7403E97DFB                      jne invalid_memory
+   525 00000598 36395FF8                        cmp word [ss:bx-8],bx
+   526 0000059C 7403E974FB                      jne invalid_memory
+   527 000005A1 F9                              stc
+   528 000005A2 9C                              pushf
+   529 000005A3 5A                              pop dx
+   530 000005A4 C9                              leave
+   531 000005A5 9C                              pushf
+   532 000005A6 58                              pop ax
+   533 000005A7 39D0                            cmp ax,dx
+   534 000005A9 7403E967FB                      jne invalid_memory
+   535 000005AE 3B26[4606]                      cmp sp,[saved_test_sp]
+   536 000005B2 7403E95EFB                      jne invalid_memory
+   537 000005B7 81FD0060                        cmp bp,0x6000
+   538 000005BB 7403E955FB                      jne invalid_memory
+   539 000005C0 FB                              sti
+   540 000005C1 C3                              ret
+   541                                  control_9:
+   542 000005C2 BD0060                          mov bp,0x6000
+   543 000005C5 C706FE5F2211                    mov word [0x5ffe],0x1122
+   544 000005CB C706FC5F4433                    mov word [0x5ffc],0x3344
+   545 000005D1 C706FA5F6655                    mov word [0x5ffa],0x5566
+   546 000005D7 8926[4606]                      mov [saved_test_sp],sp
+   547 000005DB FA                              cli
+   548 000005DC F9                              stc
+   549 000005DD 9C                              pushf
+   550 000005DE 5A                              pop dx
+   551 000005DF C8000002                        enter 0,2
+   552 000005E3 9C                              pushf
+   553 000005E4 58                              pop ax
+   554 000005E5 39D0                            cmp ax,dx
+   555 000005E7 7403E929FB                      jne invalid_memory
+   556 000005EC A1[4606]                        mov ax,[saved_test_sp]
+   557 000005EF 83E806                          sub ax,6
+   558 000005F2 39C4                            cmp sp,ax
+   559 000005F4 7403E91CFB                      jne invalid_memory
+   560 000005F9 8B1E[4606]                      mov bx,[saved_test_sp]
+   561 000005FD 83EB02                          sub bx,2
+   562 00000600 39DD                            cmp bp,bx
+   563 00000602 7403E90EFB                      jne invalid_memory
+   564 00000607 36813F0060                      cmp word [ss:bx],0x6000
+   565 0000060C 7403E904FB                      jne invalid_memory
+   566 00000611 36817FFE2211                    cmp word [ss:bx-2],0x1122
+   567 00000617 7403E9F9FA                      jne invalid_memory
+   568 0000061C 36395FFC                        cmp word [ss:bx-4],bx
+   569 00000620 7403E9F0FA                      jne invalid_memory
+   570 00000625 F9                              stc
+   571 00000626 9C                              pushf
+   572 00000627 5A                              pop dx
+   573 00000628 C9                              leave
+   574 00000629 9C                              pushf
+   575 0000062A 58                              pop ax
+   576 0000062B 39D0                            cmp ax,dx
+   577 0000062D 7403E9E3FA                      jne invalid_memory
+   578 00000632 3B26[4606]                      cmp sp,[saved_test_sp]
+   579 00000636 7403E9DAFA                      jne invalid_memory
+   580 0000063B 81FD0060                        cmp bp,0x6000
+   581 0000063F 7403E9D1FA                      jne invalid_memory
+   582 00000644 FB                              sti
+   583 00000645 C3                              ret
+   584 00000646 0000                    saved_test_sp: dw 0

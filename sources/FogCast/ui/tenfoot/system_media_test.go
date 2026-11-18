@@ -25,7 +25,7 @@ func TestSystemMediaImportSavesNextStartWithCapturedSelection(t *testing.T) {
 		{"c64 disk", "fes.c64", "disk", "", ".d64", 174848, false},
 		{"Apple II disk", "fes.apple2", "disk", "", ".do", 143360, false},
 		{"Atari ST disk", "fes.atari-st", "disk", "", ".st", 737280, false},
-		{"PC/XT disk", "fes.pcxt", "disk", "", ".img", 368640, false},
+		{"PC/XT disk", "fes.pcxt-dos", "disk", "", ".img", 368640, false},
 		{"Spectrum tape", "fes.spectrum128", "cassette", "", ".tap", 16, false},
 		{"ZX81 tape", "fes.zx81", "cassette", "zx81-p", ".p", 16, false},
 		{"ZX80 tape", "fes.zx80", "cassette", "zx80-o", ".o", 16, false},

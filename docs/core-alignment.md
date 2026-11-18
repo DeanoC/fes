@@ -37,9 +37,10 @@ of the current tree.
 
 1. FES allows both OSS (`oss`) and Quartus (`quartus`) as product toolchains
    (policy accepted in #1163; see
-   [Quartus-built cores](design/quartus-cores.md)). Current registered recipes
-   and package selection still build only the HIP/nextpnr OSS lane. A recipe
-   that later offers both lanes must select one explicitly, use a pinned host
+   [Quartus-built cores](design/quartus-cores.md)). The registered recipes
+   for the ZX81 family and PC/XT select Quartus Lite; every other registered
+   recipe builds the HIP/nextpnr OSS lane, and the ZX81 family's nextpnr build
+   is advisory. A recipe that offers both lanes must select one explicitly, use a pinned host
    authorized for the Quartus edition and device (with a license when required),
    and pass the same timing and seal checks. A failed HIP
    route never falls back to Quartus. Where a recipe still says oracle only,
@@ -54,7 +55,9 @@ of the current tree.
    boundary `$ROUTETHRU` map; their locks are byte-identical and share one
    cache slot. Seven registered locks select their own slot: Atari ST on
    nextpnr `5fe55f3d` (#910); Menu and ZX81 on nextpnr `1eecf877` (Menu moved
-   when its blitter took DSP multipliers); Pong on `552ba246` (fes#887);
+   when its blitter took DSP multipliers; the ZX81 family's nextpnr lane is
+   advisory, `config/advisory-pnr-recipes.toml`, and its registered recipes
+   select `cores/fes-zx81/quartus.lock`); Pong on `552ba246` (fes#887);
    RISC-V on `8f453ebc` (#945); Spectrum on nextpnr main `bd7a1c0d` (#1001;
    contains #276 as merged); and Coleco on Yosys `5391eeb1` with nextpnr
    `bec82e36` and the shared Mistral. The unregistered PC/XT diagnostic sits
@@ -119,13 +122,13 @@ nine-package image set; its evidence limits are unchanged.
 | --- | --- | --- | --- |
 | `fes.menu` | Idle scanout. Not a game. Splash is still the product idle fallback. | Current lock: `cores/fes-menu/toolchain.lock`. | No factory-image acceptance of this bitstream. |
 | `fes.pong` 1.1.0 | ROM-less game. Settings and best rally persist. The [10 Oct kit B load](validation/2026-10-10-optimizer-video-area.md) showed the field and Stop. | `cores/fes-pong/toolchain.lock`, single-PLL gate, optimizer scaler. | That note is a bounded video/Stop check, not gameplay or image acceptance. |
-| `fes.zx81` 1.7.0 | Most complete 8-bit machine in the library: live `.p` tape, BASIC SAVE to a library cassette, session display, bus 2.0. The [2 Oct image diagnostic](validation/2026-10-02-zx81-session-display.md) showed cassette swap with BASIC kept. | `fes.computer` 1.0, `fes_z80_nmos`, sync M10K, shared display plane, format 3. Current lock: `cores/fes-zx81/toolchain.lock`. | The 2 Oct note covers the earlier opaque plane and does not accept a shared-pin seal. The 1.6.0 display plane, physical keyboard, expansion and audio are not accepted. Completed SAVE images still need a stored library cassette. |
-| `fes.zx80` 0.1.0, `fes.ts1000` 0.1.0, `fes.ts1500` 0.1.0 | Experimental package-only shells of the ZX81 machine. Not in the factory image. | One shell, `fes_z80_nmos`, sync M10K, format 3. Lock `cores/fes-zx81/toolchain.lock`. | No sealed package and no hardware acceptance. ZX80 is PAL, 4 KiB ROM, 1 KiB RAM, no NMI. TS1000 is NTSC, 8 KiB ROM, 2 KiB RAM. TS1500 is NTSC, 8 KiB ROM, 16 KiB RAM. |
+| `fes.zx81` 1.7.0 | Most complete 8-bit machine in the library: live `.p` tape, BASIC SAVE to a library cassette, session display. The registered Quartus package has no expansion socket until #1875; the advisory nextpnr shell keeps bus 2.0. The [2 Oct image diagnostic](validation/2026-10-02-zx81-session-display.md) showed cassette swap with BASIC kept. | `fes.computer` 1.0, `fes_z80_nmos`, sync M10K, shared display plane, format 3. Registered lock: `cores/fes-zx81/quartus.lock` (Quartus Lite). `cores/fes-zx81/toolchain.lock` is the advisory nextpnr lane and the ROM-database pin. | The 2 Oct note covers the earlier opaque plane and does not accept a shared-pin seal. The 1.6.0 display plane, physical keyboard, expansion and audio are not accepted. Completed SAVE images still need a stored library cassette. |
+| `fes.zx80` 0.1.0, `fes.ts1000` 0.1.0, `fes.ts1500` 0.1.0 | Experimental package-only shells of the ZX81 machine. Not in the factory image. | One shell, `fes_z80_nmos`, sync M10K, format 3. Registered lock `cores/fes-zx81/quartus.lock`; `cores/fes-zx81/toolchain.lock` is advisory. | No sealed package and no hardware acceptance. ZX80 is PAL, 4 KiB ROM, 1 KiB RAM, no NMI. TS1000 is NTSC, 8 KiB ROM, 2 KiB RAM. TS1500 is NTSC, 8 KiB ROM, 16 KiB RAM. |
 | `fes.coleco` 1.5.0 | Reduced ColecoVision. Native video parts are mandatory. Optional SGM. An 8 KiB BIOS at `0x0000-0x1fff` plus one exact 16 KiB cartridge mirrored at `0x8000`, padded with `0xff`. Launcher overlay and surround through the session display. | `fes.application` 1.0, native video parts, shared display plane after the part, sync M10K, format 4. Current lock: `cores/fes-coleco/toolchain.lock`. | Still TV80. Not retail-complete. The 3 Oct note does not accept these bytes. The 1.4.0 display plane is not accepted on a kit. The [BIOS and cartridge address map of 1.5.0](https://github.com/DeanoC/fes/pull/1120) booted the BIOS title screen and the Donkey Kong cartridge screen on kit A, as an overlay with no gameplay keys. |
 | `fes.sms` 1.4.0 | 32 KiB Master System slice. No mapper. Do not use `fes.mastersystem`. | Sync M10K, format 3. Current lock: `cores/fes-sms/toolchain.lock`. | Still TV80. Named kit audio is artifact-scoped and does not accept a shared-pin seal. |
 | `fes.sg1000` 1.4.0 | 16 KiB slice. | `fes_z80_nmos`, sync M10K, format 3, `fes.application` with two gamepad ports. Current lock: `cores/fes-sg1000/toolchain.lock`. | The earlier 1.2.0 kit audio and 1.3.0 development diagnostics do not qualify 1.4.0. |
 | `fes.spectrum` 0.4.0, `fes.spectrum128` 0.2.0, `fes.spectrum-plus3` 0.2.0, `fes.pentagon` 0.2.0 | Experimental library packages; no longer in the image. Open diagnostic firmware only; no Sinclair or Amstrad ROM is shipped. | One shell, `fes_z80_nmos` with ULA clock stretching, session display plane, tape 2.0 played from HPS DDR port 1 (`fes_media_ddr`), sync M10K, format 3. Current lock: `cores/fes-spectrum/toolchain.lock`. | Timing matches Fuse in simulation, and the host's tape conversion matches Fuse on its fixtures. The [22 Oct Kit A diagnostic](validation/2026-10-22-spectrum-models-seal.md) booted each named ROM and ran a typed BASIC line. On kit A the superseded `7589e281` archives of these versions loaded a turbo-loader tape from DDR on the 48K, 128K and Pentagon; that +2A/+3 archive loaded it too and held HDMI once the runtime moved the ADV7513 input clock delay to −0.8 ns (#1011). Joysticks, AY music and expansion remain untested on kit. |
-| `fes.ramtest` 1.1.0 | SDRAM and HPS DDR tester. Supported library utility using the OSS 100 MHz variant; not in the bootstrap image. | Current lock: `cores/fes-ramtest/toolchain.lock`. | 130 MHz remains open. No exact-image hardware acceptance. |
+| `fes.ramtest` 1.1.0 | SDRAM and HPS DDR tester. Supported library utility using the OSS 100 MHz variant; not in the bootstrap image. | Current lock: `cores/fes-ramtest/toolchain.lock`. | The OSS 130 MHz package was removed; 100 MHz is the only sealed rate. No exact-image hardware acceptance. |
 | `fes.atari-st` 0.2.0 | Library standing experimental; no longer in the image. GEM, mouse, writable geometry-aware disks and video parts have passed on named artifacts. Not a compatible ST. | Video parts, sync M10K, format 3. Current lock: `cores/fes-atari-st/toolchain.lock`. | The October kit notes do not accept a shared-pin seal. Built-in Direct fallback remains. Borders, later demo sections, menu flash, audio fidelity and full current-image acceptance are open. |
 
 | Package | Usable as | Matches | Does not match |
@@ -178,7 +181,8 @@ Nine registered locks differ from the repository-level pin (Yosys
 `5fe55f3d` (#1007), Spectrum on nextpnr main `bd7a1c0d`, Atari ST on
 `5fe55f3d` (#910), and Coleco on Yosys `5391eeb1` with nextpnr `bec82e36`.
 The other four match it. The unregistered PC/XT diagnostic sits on nextpnr
-`2fa5ec4c`; registered PC/XT recipes select the Quartus lock. The following
+`2fa5ec4c`; registered PC/XT and ZX81-family recipes select their Quartus locks,
+and the ZX81 nextpnr pin is advisory. The following
 historical seal records remain tied to
 the artifacts they name; current recipe lock paths are shown in
 `config/core-recipes.toml`.
@@ -190,7 +194,7 @@ the artifacts they name; current recipe lock paths are shown in
 | 3 | `fes.coleco` | `cores/fes-coleco/toolchain.lock` (Yosys `5391eeb1`, nextpnr `bec82e36`: current main includes #296 and #299 and retains #289, #290 and #292, own cache slot) | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second selected lock. |
 | 4 | `fes.apple2`, `fes.spectrum` | `cores/fes-apple2/toolchain.lock`, `cores/fes-spectrum/toolchain.lock` (Apple II on nextpnr `5fe55f3d` since #1007; Spectrum on nextpnr main `bd7a1c0d`) | Same multi-region cart support. Both files started at the shared commits. |
 | 5 | `fes.sms`, `fes.sg1000` | `cores/fes-sms/toolchain.lock`, `cores/fes-sg1000/toolchain.lock` | Both files start at the shared commits. The old Coleco producer selects the repository-level lock. |
-| 6 | `fes.zx81` | `cores/fes-zx81/toolchain.lock` (nextpnr `1eecf877` since #936) | Bus 2.0 and session display. The 2 Oct note does not accept a shared-pin seal. |
+| 6 | `fes.zx81` | Registered: `cores/fes-zx81/quartus.lock` (Quartus Lite 17.0.2, no expansion socket until #1875). Advisory: `cores/fes-zx81/toolchain.lock` (nextpnr `1eecf877` since #936) | The advisory nextpnr shell keeps bus 2.0 and session display. The 2 Oct note does not accept a shared-pin seal. |
 
 The recipe `lock_path` selects each per-core file, and its producer
 authenticates that file. Pong, ZX81 and RISC-V have moved their nextpnr pins
@@ -200,9 +204,11 @@ followed (#910). Spectrum uses nextpnr main `bd7a1c0d`, which contains #276 as
 merged; Coleco uses `bec82e36` and keeps its own Yosys. The other four
 registered locks still share the repository-level slot.
 
-The 130 MHz timing diagnostic uses `cores/fes-ramtest/toolchain.lock`. OSS has not closed 130 MHz.
-The shared-pin seed-2 route reached 110.91 MHz on `ram_clock.clocks[0]`. That
-miss is known and is not a private pin.
+OSS never closed 130 MHz, and the 130 MHz OSS package and its timing
+diagnostic have been removed; `cores/fes-ramtest/toolchain.lock` now seals the
+100 MHz package only. The historical shared-pin seed-2 route reached
+110.91 MHz on `ram_clock.clocks[0]`. That miss was known and is not a private
+pin.
 
 ### 3. One Z80
 

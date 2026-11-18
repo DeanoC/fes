@@ -1,0 +1,6 @@
+40276780fc645806241d328a38247654f212710420dbd66ea7e3256932f41fa6  /data/fes1902-dataexpert-ami-score2-20261117/vm/86box.cfg
+4b684a11fce2c469ea8275d02a9ae5caa4d1a487a4907b2152f903d64249b912  /data/fes1902-dataexpert-ami-score2-20261117/vm/nvr/dataexpert386wb_050591.nvr
+802fccc74abf296ed4f96bbe7343bd4685bf5566246a9a481901b6b2ccd3f073  /data/fes1902-dataexpert-ami-score2-20261117/vm/disk.img
+c74e7e3a085c624260f0d144c02968d00fa9383f5d7fc46b32f1dc80d371d7ff  /data/fes1902-dataexpert-ami-score2-20261117/app/sq/AppRun
+ae3dc231824cf0c2facd1af4e2164814cbbb15bb1a9fa0603cdd8e9ee0ad2969  /data/fes1902-dataexpert-ami-score2-20261117/app/sq/usr/local/bin/86Box
+ec38293be553dabc711ef5dd62cb61b45167d2a00e04cc6c49fb8032aac09b94  /data/fes1902-dataexpert-ami-score2-20261117/roms.sha256

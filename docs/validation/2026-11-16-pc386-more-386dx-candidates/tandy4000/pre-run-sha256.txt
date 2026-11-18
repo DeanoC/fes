@@ -1,0 +1,6 @@
+8d9796c7fcf94e857e60c459f89f99004a5d6bb517431b2e4c067b710a1b12c3  /data/fes1902-tier-survey-4oxl7m1s/vm/tandy4000/86box.cfg
+b7afbf38ae91122e17ccd70f2dfa175b231f3f0cb4ff051ecbe4ec1ada4db7b0  /data/fes1902-tier-survey-4oxl7m1s/vm/tandy4000/nvr/tandy4000.nvr
+279ac36b8cbf0a77c99899e60be45e975fd33a828e725dd13568e451eee90027  /data/fes1902-tier-survey-4oxl7m1s/vm/tandy4000/disk.img
+c74e7e3a085c624260f0d144c02968d00fa9383f5d7fc46b32f1dc80d371d7ff  /data/fes1902-tier-survey-4oxl7m1s/app/sq/AppRun
+ae3dc231824cf0c2facd1af4e2164814cbbb15bb1a9fa0603cdd8e9ee0ad2969  /data/fes1902-tier-survey-4oxl7m1s/app/sq/usr/local/bin/86Box
+ec38293be553dabc711ef5dd62cb61b45167d2a00e04cc6c49fb8032aac09b94  /data/fes1902-tier-survey-4oxl7m1s/roms.sha256

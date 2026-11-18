@@ -1,0 +1,11 @@
+{"op": "sleep", "s": 45}
+{"op": "grab", "name": "boot"}
+{"op": "type", "text": "CHUNKS > C1.TXT\n"}
+{"op": "sleep", "s": 40}
+{"op": "grab", "name": "run1"}
+{"op": "type", "text": "CHUNKS > C2.TXT\n"}
+{"op": "sleep", "s": 40}
+{"op": "grab", "name": "run2"}
+{"op": "type", "text": "CHUNKS > C3.TXT\n"}
+{"op": "sleep", "s": 40}
+{"op": "grab", "name": "run3"}

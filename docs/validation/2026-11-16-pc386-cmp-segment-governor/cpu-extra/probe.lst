@@ -1,0 +1,132 @@
+     1                                  ; Private CPU-only diagnostic fallback controls; MMIO is read, never written.
+     2                                  bits 16
+     3                                  cpu 386
+     4                                  org 0x1000
+     5                                  start:
+     6 00000000 FA                       cli
+     7 00000001 FC                       cld
+     8 00000002 31C0                     xor ax,ax
+     9 00000004 8ED8                     mov ds,ax
+    10 00000006 8EC0                     mov es,ax
+    11 00000008 8ED0                     mov ss,ax
+    12 0000000A BC0070                   mov sp,0x7000
+    13                                   ; Cross 9ffffh RAM to a0000h emulated MMIO within DS:000f.
+    14 0000000D B000                     mov al,0
+    15 0000000F E680                     out 0x80,al
+    16 00000011 BD6400                   mov bp,100
+    17 00000014 B8FF9F                   mov ax,0x9fff
+    18 00000017 8ED8                     mov ds,ax
+    19 00000019 BE0F00                   mov si,0x000f
+    20 0000001C 31C0                     xor ax,ax
+    21                                  .inner_cross:
+    22 0000001E 3E                       db 0x3e
+    23 0000001F 3904                     cmp word [si],ax
+    24 00000021 9C                       pushf
+    25 00000022 5F                       pop di
+    26 00000023 4D                       dec bp
+    27 00000024 75F8                     jnz .inner_cross
+    28 00000026 81E7D508                 and di,0x8d5
+    29 0000002A 83FF44                   cmp di,0x44
+    30 0000002D 0F85EA00                 jne failed
+    31 00000031 83FD00                   cmp bp,0
+    32 00000034 0F85E300                 jne failed
+    33 00000038 83FE0F                   cmp si,0x000f
+    34 0000003B 0F85DC00                 jne failed
+    35 0000003F 36833E008000             cmp word [ss:0x8000],0
+    36 00000045 0F85D200                 jne failed
+    37 00000049 81FC0070                 cmp sp,0x7000
+    38 0000004D 0F85CA00                 jne failed
+    39 00000051 31C0                     xor ax,ax
+    40 00000053 8ED8                     mov ds,ax
+    41 00000055 B001                     mov al,1
+    42 00000057 E680                     out 0x80,al
+    43 00000059 0F0116[4801]             lgdt [gdtr]
+    44 0000005E 0F20C0                   mov eax,cr0
+    45 00000061 0C01                     or al,1
+    46 00000063 0F22C0                   mov cr0,eax
+    47 00000066 EA[6B00]0800             jmp 0x08:pm32
+    48                                  bits 32
+    49                                  pm32:
+    50 0000006B 66B81000                 mov ax,0x10
+    51 0000006F 8ED8                     mov ds,ax
+    52 00000071 8EC0                     mov es,ax
+    53 00000073 8ED0                     mov ss,ax
+    54 00000075 BC00700000               mov esp,0x7000
+    55 0000007A B002                     mov al,2
+    56 0000007C E680                     out 0x80,al
+    57 0000007E BD64000000               mov ebp,100
+    58 00000083 BB04800000               mov ebx,0x8004
+    59 00000088 B834120000               mov eax,0x1234
+    60 0000008D 66C705048000003412       mov word [0x8004],0x1234
+    61                                  .inner_32:
+    62                                   ; 66+67 => effective 16-bit operand/address, DS override; code default is 32.
+    63 00000096 66673E3907               db 0x66,0x67,0x3e,0x39,0x07
+    64 0000009B 9C                       pushfd
+    65 0000009C 5F                       pop edi
+    66 0000009D 4D                       dec ebp
+    67 0000009E 75F6                     jnz .inner_32
+    68 000000A0 81E7D5080000             and edi,0x8d5
+    69 000000A6 83FF44                   cmp edi,0x44
+    70 000000A9 7575                     jne failed32
+    71 000000AB 81FB04800000             cmp ebx,0x8004
+    72 000000B1 756D                     jne failed32
+    73 000000B3 3D34120000               cmp eax,0x1234
+    74 000000B8 7566                     jne failed32
+    75 000000BA 81FC00700000             cmp esp,0x7000
+    76 000000C0 755E                     jne failed32
+    77 000000C2 66813D048000003412       cmp word [0x8004],0x1234
+    78 000000CB 7553                     jne failed32
+    79 000000CD B003                     mov al,3
+    80 000000CF E680                     out 0x80,al
+    81 000000D1 EA[D8000000]1800         jmp 0x18:pm16
+    82                                  bits 16
+    83                                  pm16:
+    84 000000D8 B004                     mov al,4
+    85 000000DA E680                     out 0x80,al
+    86 000000DC BD6400                   mov bp,100
+    87 000000DF BB0480                   mov bx,0x8004
+    88 000000E2 B83412                   mov ax,0x1234
+    89                                  .inner_16:
+    90 000000E5 3E                       db 0x3e
+    91 000000E6 3907                     cmp [bx],ax
+    92 000000E8 9C                       pushf
+    93 000000E9 5F                       pop di
+    94 000000EA 4D                       dec bp
+    95 000000EB 75F8                     jnz .inner_16
+    96 000000ED 81E7D508                 and di,0x8d5
+    97 000000F1 83FF44                   cmp di,0x44
+    98 000000F4 7525                     jne failed
+    99 000000F6 81FB0480                 cmp bx,0x8004
+   100 000000FA 751F                     jne failed
+   101 000000FC 3D3412                   cmp ax,0x1234
+   102 000000FF 751A                     jne failed
+   103 00000101 6681FC00700000           cmp esp,0x7000
+   104 00000108 7511                     jne failed
+   105 0000010A 813E04803412             cmp word [0x8004],0x1234
+   106 00000110 7509                     jne failed
+   107 00000112 B005                     mov al,5
+   108 00000114 E680                     out 0x80,al
+   109 00000116 B000                     mov al,0
+   110 00000118 E68F                     out 0x8f,al
+   111 0000011A F4                       hlt
+   112                                  failed:
+   113 0000011B B0FF                     mov al,0xff
+   114 0000011D E68E                     out 0x8e,al
+   115 0000011F F4                       hlt
+   116                                  bits 32
+   117                                  failed32:
+   118 00000120 B0FF                     mov al,0xff
+   119 00000122 E68E                     out 0x8e,al
+   120 00000124 F4                       hlt
+   121 00000125 90<rep 3h>              align 8
+   122                                  gdt:
+   123 00000128 0000000000000000         dq 0
+   124 00000130 FFFF0000                 dw 0xffff,0
+   125 00000134 009A4000                 db 0,0x9a,0x40,0
+   126 00000138 FFFF0000                 dw 0xffff,0
+   127 0000013C 00924000                 db 0,0x92,0x40,0
+   128 00000140 FFFF0000                 dw 0xffff,0
+   129 00000144 009A0000                 db 0,0x9a,0x00,0
+   130                                  gdt_end:
+   131 00000148 1F00                    gdtr: dw gdt_end-gdt-1
+   132 0000014A [28010000]               dd gdt

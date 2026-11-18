@@ -7,11 +7,14 @@ Outside agent sessions have ignored these rules. Obey them.
 1. MUST claim the kit before you touch it, and log the result when you
    finish. There is no separate Powerboat host claim. Record owner, PR,
    and start time in that kit's Powerboat status file:
-   `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`. That
+   `~/kit-status/kitA-STATUS.md`, `kitB-STATUS.md`, or
+   `de25-TRWU8J8G-STATUS.md` for Kit D25. That
    log is the single source of truth. NEVER take a kit that is leased or
    claimed by someone else. NEVER use a Slack reservation, and NEVER
    require a person to be present.
 2. Kits A and B are both designated test kits. They are interchangeable.
+   DE25 changes use Kit D25 (`de25-j8g`, serial `TRWU8J8G`); never route
+   them to A/B or route DE10 work to D25.
 3. When a task installs a bundle, install that PR bundle on the kit's
    running image. A core-only run that does not change the bundle does not
    install one. Software goes before the image: before an image change,
@@ -103,6 +106,19 @@ keep a successful selection installed and do not restore a stock bundle
 automatically. This post-use bundle step is that explicit activation. It
 is not a file-swap restore, and it does not cancel another owner's pending
 activation. The stable supervisor owns the complete service group.
+
+DE25 follows the same claim, lock, exact-head HIL, restore and recovery rules
+as A/B, with its serial-bound ledger and independent restore baseline in
+[the DE25 kit HIL guide](de25-kit-hil.md). Claim both
+`~/kit-status/de25-TRWU8J8G-STATUS.lock` and
+`~/kit-status/de25-TRWU8J8G-STATUS.md.lock`, append the standard `KIT D25 IN USE`
+record, and hold the locks through restore verification. Capture only through
+`/dev/v4l/by-id/fes-ms2109-hil`; the raw MS2109 device is prohibited. Release
+the kit only after runtime idle, lease-free state, image and bundle identity,
+and the recorded restore diff all pass. On restore failure, use only J8G's
+serial-by-id console and the documented serial-checked reboot/reimage path;
+never touch TRWU8CBL or ttyUSB0/ttyUSB1. Keep the D25 promotion timer enabled
+only after the first MENU+ZX81 baseline promotion passes cleanly.
 
 Host, agent and runtime revisions may differ when their advertised contracts are
 supported. Diagnostics pin the active bundle and base-image digests; sealed
@@ -234,6 +250,109 @@ bypass agent enforcement. `make program` is explicitly a maintenance bypass.
 Use `kit.py` for ordinary native bring-up and coordinate direct maintenance
 with the current owner. A workstation file lock cannot enforce sharing across
 hosts; no second lock service or misteross ownership database is introduced.
+
+## Guards a session's own harness must use
+
+A session's kit run is driven by a shell wrapper plus a Python driver, and each
+session copies its predecessor's pair. Three habits in those copies cost more
+than a retry on 14 November 2026 — two of them left Kit B's lease `blocked`
+with "operator recovery required" — so the guards against them live in
+`sources/misteross/scripts/kit_hil.py`, beside `kit.py`, and are checked in
+`sources/misteross/tests/test_kit_hil.py` (issue #1849).
+
+- **End of run.** `kit_hil.drain(source, execute, mode=...)` runs a command
+  file and returns `(done, reasons)`. `mode='batch'`, for a command file that
+  is complete when the run starts, ends the run when the file is exhausted: a
+  missing final `{"op": "quit"}` then costs nothing. `mode='live'`, for a
+  console whose commands are appended while the run watches frames, waits for
+  the next one — bounded (five minutes by default, not thirty), and saying
+  every heartbeat which command it waits for, that the file has no `quit`, that
+  the driver is alive and holds the kit, and when it will end the run by
+  itself. A driver that uses neither must not idle silently: a silent wait is
+  what read as a dead wrapper.
+- **The post-run tail.** `kit_hil.py guard-idle --config PRIVATE.toml` reads
+  whether the kit is safe to touch, and the wrapper halts if it refuses
+  (exit 3). It is a **read-only observation**: it reports the state at the
+  moment it looked, and it claims nothing, so it cannot keep another session
+  from claiming the kit and loading a core afterwards. Anything that removes
+  files must hold the lease instead — see `clean` below.
+  Pass `--target dev` or `--target kit2` to name the kit rather than writing a
+  private copy of the host TOML with `selected_target` rewritten; the gate
+  prints which target answered and names it in every refusal. Exactly one
+  source says which kit it asks about — `--config` (with an optional
+  `--target`) or `--url`, or neither and then `FOGCAST_BASE_URL` — and any
+  combination is rejected rather than one being picked silently, because a
+  guard reporting success about a different kit is worse than no guard.
+  It fails closed: an unreachable agent, an agent that is not idle, a lease
+  that is not free and a loaded core each refuse, naming what is loaded and who
+  holds the lease. It waits out a `revoking` lease for 30 seconds, so a clean
+  close does not trip it. A removal under a loaded core preceded the stop/close
+  that returned HTTP 500 and blocked the lease; the #1368 record calls that the
+  likely cause without showing it, and the gate costs nothing either way.
+- **The removal itself.** `kit_hil.clean` removes exactly the trees the run
+  created, **inside the lease the run already holds**. It claims, renews and
+  releases nothing: the caller passes its own `kit.Session` and client, and
+  `clean` verifies that lease from both sides — the session's token, renewal
+  and deadline, and the agent's own view that the lease is held with that
+  session's generation — then refuses unless the kit is idle with nothing
+  loaded. It is a library call for the driver, before it closes its session,
+  not a CLI command: only a live renewing process holds a kit lease, so a
+  shell tail that runs after the driver has exited has no lease to clean
+  under. It reads the run's own `kit-new-tops.txt`/`kit-new-paths.txt` lists
+  (the caller passes them), and refuses a path the run did not create, a path
+  outside FogCast's three data directories, a data root itself, a path that
+  could not survive shell quoting, anything named by `keep` (a shared disk
+  image), an empty list, a tree already gone, any path that appears during the
+  removal, and a diff larger than the listed trees. A root whose existence
+  probe fails refuses too, where a root confirmed absent is simply empty.
+  `apply` must be set, or it reports the plan and removes nothing.
+  `require_lease` runs again before each `rm -r` and before the verification
+  listing, because a renewal can still fail mid-removal and `kit.Session`
+  only sets a flag.
+
+  A cleanup used to claim a lease of its own. Five review rounds on PR #1850
+  all asked one question — is the lease held for the whole interval, and does
+  the exit code say so — and two of their findings were introduced by earlier
+  fixes in the same series, so the claim/release cycle was removed rather than
+  guarded further. The invariant now: **the run owns its lease for its whole
+  life and the cleanup happens inside that, so there is no second interval for
+  a lease to lapse across.** The kit still does not enforce any of this — the
+  removal is `rm -r` over ssh the agent never sees, and holding the lease
+  stops another session claiming the kit, not the removal itself. Issue #1865
+  tracks the agent-side operation that would make the kit enforce it.
+
+- **The run's verdict.** Run `kit_hil.py verdict runs/RUN/result.json` and
+  carry its exit code into the wrapper's own. A command the kit refused — an
+  HTTP 422 `INVALID_ARCHIVE` at admission, say — is recorded in `result.json`
+  while the driver's exit code stays 0. The invariant is that no run reports
+  success with an error in its `result.json`, and `drain` stops the script at
+  the first refused command so nothing runs over a core that never loaded —
+  in live mode as well, so a mistyped op on a console ends that run. It stops
+  on what an op raises as well as what it returns, and on a `stop` that
+  answers `recovery: reboot_required`, which reports no error at all.
+- **Liveness.** `kit_hil.run_lock(runs/RUN/kit-hil-run.lock)` is held by the
+  driver for the whole run and records its pid and command line;
+  `kit_hil.py alive runs/RUN/kit-hil-run.lock` answers whether that driver is
+  still alive, through a non-blocking `flock` and `/proc/<pid>/cmdline`. Never
+  ask with `pgrep -f`: it matches the asking shell's own command line, which
+  is how a live wrapper was read as dead. `kit_hil.program_pids` is the
+  `pgrep -x` form for the cases a lock cannot cover.
+
+The drivers on Powerboat are per-session copies that import `kit.py` by path,
+so these guards reach a run only once its driver and wrapper call them. The
+split is: the **driver** calls `drain`, takes `run_lock`, and calls `clean`
+inside its own held session before closing it; the **wrapper's tail** keeps
+only what needs no lease:
+
+```sh
+python3 "$KH" verdict "$OUT/result.json" || rc=99
+```
+
+in place of the `grep '"error"'` each wrapper wrote for itself, and
+`guard-idle` where a tail wants a read-only look at the kit first. The
+`find`/`comm`/`ssh rm -rf` block in the tail goes away because the removal
+moves into the driver, where the lease is. Adoption per session is tracked in
+issue #1852.
 
 ## Validation
 

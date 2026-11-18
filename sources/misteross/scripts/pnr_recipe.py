@@ -18,6 +18,11 @@ from scripts.fes_build_common import nextpnr_gpu_command
 
 FES_ROOT = Path(__file__).resolve().parents[3]
 REGISTRY = FES_ROOT / "config/core-recipes.toml"
+# OSS P&R tables for DE10 cores whose registered producer is Quartus live beside
+# the registry in advisory-pnr-recipes.toml. They keep those cores' nextpnr
+# producers runnable as advisory lanes; only this module reads the file, so
+# package preparation never selects one.
+ADVISORY_NAME = "advisory-pnr-recipes.toml"
 
 # nextpnr's own defaults for the 96-option CLI set. The
 # Mistral/FES fork switches are fes_*, mistral_*, replicate_enables, remap_*
@@ -392,6 +397,38 @@ def _lock_nextpnr(core_id: str, relative: object) -> str:
     return commit
 
 
+def _with_advisory(entries: list) -> list:
+    """The registry's rows, with each advisory OSS row in place of its core's DE10 Quartus row.
+
+    An advisory row may name only a core whose DE10 row is Quartus, at most once.
+    """
+    path = REGISTRY.with_name(ADVISORY_NAME)
+    if not path.exists():
+        # A registry without the file has no advisory lanes; recipe_for() then
+        # reports their cores as unknown rather than guessing a table.
+        return list(entries)
+    try:
+        from scripts.functional_execution import read_execution_data
+        advisory = tomllib.loads(read_execution_data(path).decode("utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise RecipeError(f"cannot read the advisory P&R recipes: {exc}") from exc
+    if set(advisory) != {"version", "recipes"} or advisory["version"] != 1 or not isinstance(advisory["recipes"], list):
+        raise RecipeError("unsupported advisory P&R recipe file")
+    by_core = {}
+    for row in advisory["recipes"]:
+        core_id = row.get("core_id") if isinstance(row, dict) else None
+        if core_id in by_core or row.get("toolchain", "oss") != "oss" or "board" in row:
+            raise RecipeError(f"invalid advisory P&R recipe for {core_id!r}")
+        by_core[core_id] = row
+    quartus = {entry.get("core_id") for entry in entries
+               if entry.get("toolchain", "oss") == "quartus" and entry.get("board", "de10-nano") == "de10-nano"}
+    if set(by_core) - quartus:
+        raise RecipeError(f"advisory P&R recipes need a registered DE10 Quartus row: {sorted(set(by_core) - quartus)}")
+    return [by_core.get(entry.get("core_id"), entry)
+            if entry.get("toolchain", "oss") == "quartus" and entry.get("board", "de10-nano") == "de10-nano"
+            else entry for entry in entries]
+
+
 def _registry() -> tuple[dict, dict[str, dict], dict[str, str]]:
     try:
         # The selected table is sealed into every registered producer record
@@ -404,6 +441,7 @@ def _registry() -> tuple[dict, dict[str, dict], dict[str, str]]:
         raise RecipeError(f"cannot read P&R recipe registry: {exc}") from exc
     if set(document) != {"version", "recipes"} or document["version"] != 1:
         raise RecipeError("unsupported P&R recipe registry")
+    document = dict(document, recipes=_with_advisory(document["recipes"]))
     entries = document["recipes"]
     recipes = {}
     pins = {}

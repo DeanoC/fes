@@ -140,10 +140,10 @@ The default FES integration profile is `native-integration-dev`. It selects only
 run as part of this image. The clean, development, verification and media paths
 reuse the same closed package set. Install `fes.pong`, `fes.zx81`, `fes.coleco`
 and other systems independently through the [core catalog](core-packages.md).
-Individual packages currently use HIP/nextpnr; Quartus is an explicit oracle
-where specified. The accepted policy also permits labelled Quartus variants,
-but the current recipe and package resolver do not select them yet; see
-[Quartus-built cores](design/quartus-cores.md). Host builds and [kit software
+Individual packages use their core's registered producer: Quartus Lite for
+the ZX81 family and PC/XT, HIP/nextpnr otherwise; other Quartus recipes are
+explicit oracles. The resolver does not yet choose between OSS and Quartus
+variants of one core; see [Quartus-built cores](design/quartus-cores.md). Host builds and [kit software
 updates](kit-software-releases.md) do not build FPGA packages. Build and verify
 do not deploy.
 
@@ -421,6 +421,12 @@ an arbitrary reachable device is not authorized by a successful build.
 One lease holder owns the kit for the duration of a test. The lease is sufficient
 for ordinary diagnostics; coordinate disruptive deployment, service replacement
 or reboot separately.
+
+Route DE25 package, runtime, board and image changes to Kit D25 (`de25-j8g`,
+serial `TRWU8J8G`) using the [DE25 kit HIL guide](de25-kit-hil.md). Route DE10
+paths to Kit A or B. DE25 remains Quartus Pro 26.3 only; prefer
+`fes-build-3090`. The exact-head HIL gate includes visible DE25 capture, input,
+Stop to idle, and a verified restore diff.
 
 Report component work with this short handoff:
 

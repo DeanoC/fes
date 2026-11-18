@@ -361,7 +361,10 @@ Until the [x87](#x87) phase's last slice every package ships with the
 an AT board with an empty 387 socket; this section describes that socket.
 The 387 itself is `fes_i386_x87`, behind the identity: slice 2 builds its
 state, interface, AT error path, loads, stores, register forms, constants
-and the environment and save layouts, and the arithmetic is slices 3 to 5
+and the environment and save layouts, and slice 3 adds the arithmetic -- add,
+subtract, multiply, the compares, FRNDINT, FSCALE and FXTRACT, under
+precision as well as rounding control. Divide, square root and the
+remainders are slice 4's and the transcendentals and BCD slice 5's
 ([#1768](https://github.com/DeanoC/fes/issues/1768)). Intel's 386 hardware reference requires
 pull-up resistors on the data bus when no coprocessor is fitted, and a
 386DX-33 with an empty socket writes FFFFh for FNSTSW

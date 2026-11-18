@@ -435,6 +435,24 @@ def _require_clean_source(root: Path, *, pinned_inputs: Sequence[str], identity_
     return repository, revision
 
 
+def require_committed_parent_config(root: Path, *relatives: str) -> None:
+    """Parent-owned config a producer reads must be the committed file.
+
+    The module clean-tree gate covers only sources/misteross. A producer that
+    reads a recipe table from the parent repository records that repository's
+    revision, so an uncommitted edit there would build an artifact the
+    recorded revision cannot reproduce.
+    """
+    parent = Path(root).resolve().parents[1]
+    for relative in relatives:
+        try:
+            _git(parent, "ls-files", "--error-unmatch", "--", relative)
+        except BuildError as exc:
+            raise BuildError(f"pinned build input is not tracked: {relative}") from exc
+        if _git(parent, "status", "--porcelain", "--untracked-files=all", "--", relative):
+            raise BuildError(f"{relative} must be committed before build and export")
+
+
 def _read_evidence(path: Path, expected: str) -> str:
     if path.is_symlink() or not path.is_file():
         raise BuildError(f"missing tool authentication evidence: {path}")

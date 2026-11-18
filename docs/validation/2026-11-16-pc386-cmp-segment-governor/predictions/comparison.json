@@ -1,0 +1,86 @@
+{
+  "CS8_INDEX": {
+    "reference_clocks": 39.373047422383216,
+    "old_clocks": 41.38,
+    "candidate_clocks": 39.378,
+    "delta": 0.004952577616784026
+  },
+  "CS16_INDEX": {
+    "reference_clocks": 39.373047422383216,
+    "old_clocks": 41.38,
+    "candidate_clocks": 39.378,
+    "delta": 0.004952577616784026
+  },
+  "SS8_DISP": {
+    "reference_clocks": 39.373047422383216,
+    "old_clocks": 41.38,
+    "candidate_clocks": 39.378,
+    "delta": 0.004952577616784026
+  },
+  "SS16_DISP": {
+    "reference_clocks": 39.373047422383216,
+    "old_clocks": 41.379,
+    "candidate_clocks": 39.377,
+    "delta": 0.003952577616786357
+  },
+  "CSCS8_DIRECT": {
+    "reference_clocks": 45.39289351588809,
+    "old_clocks": 47.379,
+    "candidate_clocks": 45.377,
+    "delta": -0.01589351588808796
+  },
+  "CSCS16_DIRECT": {
+    "reference_clocks": 45.39289351588809,
+    "old_clocks": 47.379,
+    "candidate_clocks": 45.377,
+    "delta": -0.01589351588808796
+  },
+  "CSSS8_BX": {
+    "reference_clocks": 43.376427367600854,
+    "old_clocks": 45.379,
+    "candidate_clocks": 43.377,
+    "delta": 0.0005726323991481763
+  },
+  "CSSS16_BX": {
+    "reference_clocks": 43.376427367600854,
+    "old_clocks": 45.379,
+    "candidate_clocks": 43.377,
+    "delta": 0.0005726323991481763
+  },
+  "SSCS8_INDEX": {
+    "reference_clocks": 43.376427367600854,
+    "old_clocks": 45.379,
+    "candidate_clocks": 43.377,
+    "delta": 0.0005726323991481763
+  },
+  "SSCS16_INDEX": {
+    "reference_clocks": 43.376427367600854,
+    "old_clocks": 45.379,
+    "candidate_clocks": 43.377,
+    "delta": 0.0005726323991481763
+  },
+  "SSSS8_DISP": {
+    "reference_clocks": 45.39289351588809,
+    "old_clocks": 47.377,
+    "candidate_clocks": 45.375,
+    "delta": -0.017893515888090405
+  },
+  "SSSS16_DISP": {
+    "reference_clocks": 45.39289351588809,
+    "old_clocks": 47.38,
+    "candidate_clocks": 45.378,
+    "delta": -0.014893515888090292
+  },
+  "CS8_NE": {
+    "reference_clocks": 40.386324378106316,
+    "old_clocks": 42.38,
+    "candidate_clocks": 40.378,
+    "delta": -0.008324378106316033
+  },
+  "SS16_NE": {
+    "reference_clocks": 40.34923868078941,
+    "old_clocks": 42.349,
+    "candidate_clocks": 40.347,
+    "delta": -0.0022386807894108074
+  }
+}

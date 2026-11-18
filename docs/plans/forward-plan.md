@@ -409,6 +409,13 @@ and is scoped to the release after v1. pc386 joins when #1368 and #1494 close. C
 II are tier 2 once they meet the port; Pong, RAM Tester and RISC-V are
 utilities and demos, outside the ladder.
 
+Deano decided on 16 November 2026 that Ultima VI's measured speaker-pitch
+divergence at the pc386 286-12 preset blocks tier 1 on DE10. The
+[pitch investigation](../validation/2026-11-15-pc386-u6-lute-pitch-cause/summary.md)
+identifies a governor cost-model divergence but does not establish a fix. A fix
+and a passing comparison with the reference on the exact sealed artifact are
+still owed under [#1368](https://github.com/DeanoC/fes/issues/1368).
+
 A core may not be tier 1 on board B merely because it is on board A. But with
 the port and the shell model, promoting it should need a build and a kit run,
 not RTL work.
@@ -451,12 +458,12 @@ is right. Do not widen it. What stands between the tree and a release:
     `pic-direct-events/board-capture.tar.gz`, whose nested source snapshots
     hold the same ROM images. A multi-encoding sweep of every tracked file,
     including nested archives, found it, and it was removed on 13 November.
-  - The tip still holds 512 bytes of the ZX81 character set, copied from
+  - The tip also held 512 bytes of the ZX81 character set, copied from
     the ROM, in `sources/misteross/cores/fes-zx81/expansions/qs_chrs.hex`
-    and `qs_chrs_init.vh`. Their GPL label has no verified basis
-    ([v1 firmware licensing](v1-firmware-licensing.md)). Before the
-    snapshot is taken, replace them with a redrawn glyph set, load them
-    from the user's ROM, or get permission.
+    and `qs_chrs_init.vh`, under a GPL label with no verified basis
+    ([v1 firmware licensing](v1-firmware-licensing.md)). They were removed
+    on 13 November: the QS Character Board cart now starts empty and uses
+    the user's ROM glyphs until software loads its own.
   - The snapshot that seeds the new repository is taken only when the scan
     is clean on that exact tree, with the glyph bytes added to its
     signatures, and the #387 audit has no open ROM finding.

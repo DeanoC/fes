@@ -1,0 +1,14 @@
+{"op": "sleep", "s": 45}
+{"op": "grab", "name": "boot"}
+{"op": "video_start", "name": "speed-trace", "s": 285}
+{"op": "type", "text": "SURVEY > CM1.TXT\n"}
+{"op": "sleep", "s": 90}
+{"op": "grab", "name": "run1"}
+{"op": "type", "text": "SURVEY > CM2.TXT\n"}
+{"op": "sleep", "s": 90}
+{"op": "grab", "name": "run2"}
+{"op": "type", "text": "SURVEY > CM3.TXT\n"}
+{"op": "sleep", "s": 90}
+{"op": "grab", "name": "run3"}
+{"op": "video_stop"}
+{"op": "quit"}

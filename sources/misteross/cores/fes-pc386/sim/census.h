@@ -280,7 +280,7 @@ public:
     // 34h-3Eh) and I/O to the AT's coprocessor ports F0h-FFh. before and
     // after are the 387's state around the step.
     void x87(const fes_i386::State &before, const fes_i386::State &after, const fes_i386::StepResult &result,
-             const fes_i386::X87State &before87, const fes_i386::X87State &after87) {
+             const fes_i386::X87State &before87, const fes_i386::X87State &after87, double seconds = 0.0) {
         const uint16_t cw0 = before87.control, sw0 = before87.status, sw1 = after87.status;
         const bool delivery = !result.events.empty() && (result.events[0].kind == fes_i386::EventKind::ExternalInterrupt ||
                                                         result.events[0].kind == fes_i386::EventKind::Nmi);
@@ -291,6 +291,28 @@ public:
                 count("x87ev:" + std::to_string(event.vector) + ":cr0=" + hex(before.cr0 & 0x2e, 2) + ':' + stem_);
         if ((after.cr0 ^ before.cr0) & 0x2e)
             count("x87cr0:" + hex(before.cr0 & 0x2e, 2) + '>' + hex(after.cr0 & 0x2e, 2) + ':' + stem_);
+        // The AT's coprocessor interrupt, in every mode: the committed
+        // reliance rule is ES set *or* IRQ 13 delivered, and the generic
+        // event keys are recorded only in protected mode.
+        // Two keys, because neither alone is both sound and complete. The
+        // slave 8259's vector base is programmable (ICW2), so IRQ 13 arrives
+        // at base + 5 and is 75h only under the BIOS's own programming, and
+        // the census does not hold the PIC's state.
+        //   x87irq13: vector 75h exactly -- sound, and complete only while
+        //     the guest keeps the BIOS's base.
+        //   x87errintr: any external interrupt delivered while the 387 has an
+        //     error pending -- vector-independent, and a SUPERSET, since an
+        //     unrelated interrupt (a timer tick) also lands here once ES is
+        //     set. Reliance is read from the superset, which is the safe
+        //     direction: it cannot miss a delivery.
+        if (delivery && result.events[0].vector == 0x75)
+            count("x87irq13:75" + mode + ((sw0 & 0x80) ? ":es" : ""));
+        // An NMI is not IRQ 13 and cannot be: only a maskable external
+        // interrupt reaches the slave PIC's coprocessor line, so the
+        // superset is restricted to those. `delivery` stays broader, because
+        // an NMI still means no instruction ran.
+        if (delivery && result.events[0].kind == fes_i386::EventKind::ExternalInterrupt && (sw0 & 0x80))
+            count("x87errintr:" + hex(result.events[0].vector, 2) + mode);
         if (delivery) return;
         unsigned at = 0;
         while (at < 15 && (bytes_[at] == 0x66 || bytes_[at] == 0x67 || bytes_[at] == 0xf0 || bytes_[at] == 0xf2 ||
@@ -328,6 +350,70 @@ public:
             return;
         }
         count("x87op:" + form + mode);
+        // The game census (docs/validation/2026-11-15-i386-x87-game-census/method.md).
+        // The control word every retired form ran under, and by whole
+        // simulated second: precision and rounding control over time, and
+        // rounding on the integer stores, which the by-class key above does
+        // not separate.
+        const uint16_t cw = cw0 & 0x1f3f;
+        count("x87cwform:" + form + ':' + hex(cw, 4));
+        count("x87cwsec:" + std::to_string(uint64_t(seconds)) + ':' + hex(cw, 4));
+        // Control-word writes, from the state after the step, including a
+        // write that leaves the value unchanged: FLDCW, FNINIT, FLDENV and
+        // FRSTOR. "Does the title ever write the control word" is then a
+        // count, not an inference from the value.
+        // FLDCW, FNINIT, FLDENV, FRSTOR and FNSAVE (which reinitialises the
+        // control word to 037Fh on a 387), and any other step that changes
+        // the control word at all, so no writer can be missed by name.
+        if (form == "d9.m5" || form == "dbe3" || form == "d9.m4" || form == "dd.m4" || form == "dd.m6" ||
+            after87.control != before87.control)
+            count("x87cwset:" + form + ':' + hex(cw0 & 0x1f3f, 4) + '>' + hex(after87.control & 0x1f3f, 4));
+        // The significand width in use: 64 - ctz of ST(0) after the step.
+        // A value rounded to 24 bits of significand has at least 40 trailing
+        // zeros, so a bucket above le24 is a value a 24-bit significand
+        // cannot hold.
+        // A popping store (FSTP, FISTP, FBSTP) leaves ST(0) as the register
+        // underneath, or an empty slot whose contents are stale, so the value
+        // the title stored is in the state *before* the step. Loads and
+        // arithmetic are read after it.
+        const bool memory_form = (modrm >> 6) != 3;
+        const bool stored = (memory_form && ((op == 0xd9 && (reg == 2 || reg == 3)) ||
+                                             (op == 0xdd && (reg == 2 || reg == 3)) ||
+                                             (op == 0xdb && (reg == 2 || reg == 3 || reg == 7)) ||
+                                             (op == 0xdf && (reg == 2 || reg == 3 || reg == 6 || reg == 7)))) ||
+                            // DD /2 and /3 are FST and FSTP ST(i): register
+                            // stores, and /3 pops, so its value is also only
+                            // in the state before the step.
+                            (!memory_form && op == 0xdd && (reg == 2 || reg == 3));
+        const fes_i386::X87State &valued = stored ? before87 : after87;
+        const unsigned top = (valued.status >> 11) & 7;
+        const uint64_t sig = valued.r[top].significand;
+        const bool empty = ((valued.tag >> (2 * top)) & 3) == 3;
+        const char *bucket = empty ? "empty" : "zero";
+        if (sig && !empty) {
+            unsigned width = 64;
+            while (width > 1 && !(sig & (uint64_t(1) << (64 - width)))) --width;
+            bucket = width <= 24 ? "le24" : width <= 53 ? "le53" : "le64";
+        }
+        count(std::string("x87sig:") + form + ':' + bucket);
+        // The significand bucket alone does not say a store was exact: an m64
+        // destination can still overflow, underflow or round a value whose
+        // significand fits, if its exponent is outside binary64's normal
+        // range. m80 keeps the register format and so is always exact.
+        // Biased 80-bit exponent 16383 +/- 1022 is binary64's normal range.
+        // The key is JOINT -- form, significand bucket and exponent range
+        // together -- because the two marginals cannot answer the question
+        // that matters. "How many le53 values did this form store with an
+        // exponent in range" is not recoverable from separate per-form
+        // significand and exponent counts when a form stores a mixture.
+        if (stored && !empty) {
+            const unsigned exponent = valued.r[top].sign_exponent & 0x7fff;
+            const bool in_double_range = exponent >= 16383 - 1022 && exponent <= 16383 + 1023;
+            count(std::string("x87store:") + form + ':' + bucket + (in_double_range ? ":double" : ":outside"));
+        }
+        // Arithmetic by precision control and code page, so a title's
+        // non-PC=24 arithmetic can be attributed to its engine or to a
+        // library or DPMI host.
         // The control word by class: precision control sets an iterative
         // divider's and square root's latency.
         // The arithmetic forms: D8 and DC both ways, DE's register forms and
@@ -335,7 +421,7 @@ public:
         // the P6's FCMOVcc) and DE D9 (FCOMPP) are not. The plan record's
         // scratch patch counted DA's register forms as arithmetic and FPREM,
         // FPREM1 and FSCALE as transcendental.
-        const bool memory = (modrm >> 6) != 3;
+        const bool memory = memory_form;
         const bool arith = op == 0xd8 || op == 0xdc || op == 0xde || (op == 0xda && memory);
         std::string cls = "other";
         if (arith && reg >= 6) cls = "div";
@@ -346,6 +432,9 @@ public:
                                 modrm == 0xfb || modrm == 0xfe || modrm == 0xff))
             cls = "trans";
         count("x87cw:" + cls + ':' + hex(cw0 & 0x1f3f, 4));
+        if (cls == "add" || cls == "mul" || cls == "div" || cls == "sqrt")
+            count("x87pcsite:" + std::to_string((cw0 >> 8) & 3) + ':' + hex(before.seg[fes_i386::SEG_CS].selector, 4) +
+                  ':' + hex(((before.seg[fes_i386::SEG_CS].base + before.eip) >> 12), 5));
         const unsigned raised = sw1 & ~sw0 & 0x7f;
         if (raised) count("x87exc:" + form + ":raised=" + hex(raised, 2) + ":unmasked=" + hex(raised & ~cw0 & 0x3f, 2));
         // ne= is CR0 bit 5, a reserved bit on a 386, which Bochs at CPU level
@@ -356,6 +445,22 @@ public:
 
     void write(std::ostream &out) const {
         std::map<std::string, uint64_t> all = counts;
+        // The x87 key set's version, so a reader can tell what a census file
+        // was able to record rather than inferring it from which keys happen
+        // to be present -- a run in which IRQ 13 never fires looks exactly
+        // like a file written before the key existed.
+        //   1: no version key. x87irq13 absent; x87sig read FST/FSTP ST(i)
+        //      from the wrong side of the step.
+        //   2: x87irq13 recorded in every mode; the register popping stores
+        //      read from the state before the step.
+        //   3: x87errintr counts any maskable interrupt delivered with an
+        //      error pending, whatever the slave PIC's base; x87exp records a
+        //      stored value's exponent range as a separate marginal.
+        //   4: x87store replaces x87exp with a JOINT form/significand/
+        //      exponent key, because the two marginals cannot answer "how
+        //      many le53 values did this form store with an exponent in
+        //      range" when a form stores a mixture.
+        all["x87census:version"] = 4;
         all["paging:steps"] = paged_steps;
         all["paging:page-cross"] = page_cross;
         for (const Tlb *t : {&dtlb, &itlb}) {

@@ -27,7 +27,10 @@ class BundleTest(unittest.TestCase):
 
     def test_de25_cached_package_uses_its_source_closed_board_reader(self):
         module = self.module()
-        source = SCRIPT.parents[1] / 'sources/misteross'
+        from tests.committed_misteross_fixture import make_snapshot
+        source_temp = tempfile.TemporaryDirectory()
+        self.addCleanup(source_temp.cleanup)
+        source = make_snapshot(source_temp.name)
         # Parser fixture only: no synthesis, timing qualification or deployment.
         program = '''
 import json, subprocess, sys
@@ -154,15 +157,21 @@ if __name__ == '__main__':
         module = self.module()
         source = Path(__file__).resolve().parents[1] / "sources/misteross"
         recipes = [
-            (recipe.core_id, recipe.producer_module, dict(recipe.producer_options))
+            (recipe.core_id, recipe.producer_module, recipe.producer_script, dict(recipe.producer_options))
             for recipe in [*module.FORMAT2_RECIPES.values(),
                            module.recipe_for('fes.menu', board='de25-nano')]
         ]
         probe = '''
-import importlib, inspect, json, sys
+import importlib, importlib.util, inspect, json, sys
 from pathlib import Path
-for core_id, module_name, options in json.loads(sys.argv[1]):
-    producer = importlib.import_module(module_name)
+for core_id, module_name, script, options in json.loads(sys.argv[1]):
+    if module_name.startswith('cores.'):
+        spec = importlib.util.spec_from_file_location(module_name, Path.cwd() / script)
+        producer = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = producer
+        spec.loader.exec_module(producer)
+    else:
+        producer = importlib.import_module(module_name)
     source_check = getattr(producer, "_require_clean_source", None)
     assert callable(source_check), f"{core_id}: {module_name} lacks _require_clean_source"
     inspect.signature(source_check).bind(Path.cwd(), **options, identity_version=2)
@@ -175,7 +184,7 @@ for core_id, module_name, options in json.loads(sys.argv[1]):
         module = self.module()
         with tempfile.TemporaryDirectory(prefix="fes quote ' space ") as temporary:
             source = Path(temporary)
-            for core in ('fes.pong', 'fes.zx81', 'fes.coleco'):
+            for core in ('fes.pong', 'fes.sms', 'fes.coleco'):
                 recipe = replace(module.recipe_for(core), cache_root=source / "cache with ' quote")
                 with patch.object(module, 'authenticate_misteross_origin'), \
                         patch.object(module.subprocess, 'check_output', side_effect=subprocess.CalledProcessError(1, ['producer'])):
@@ -556,7 +565,14 @@ import inspect
 import sys
 from pathlib import Path
 from scripts import pnr_recipe, toolchain_cache
-producer = importlib.import_module(sys.argv[1])
+if sys.argv[1].startswith('cores.'):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(sys.argv[1], sys.argv[3])
+    producer = importlib.util.module_from_spec(spec)
+    sys.modules[sys.argv[1]] = producer
+    spec.loader.exec_module(producer)
+else:
+    producer = importlib.import_module(sys.argv[1])
 assert Path(producer.__file__).resolve() == Path(sys.argv[3]).resolve()
 authenticate = getattr(producer, sys.argv[2])
 inspect.signature(authenticate).bind(
@@ -603,8 +619,13 @@ assert lock == expected == pnr_recipe.lock_path(Path.cwd(), sys.argv[5]).resolve
 
         self.assertIn(
             'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  make -C "$work" toolchain-fes', docs)
+        # The ZX81 family is Quartus-built: its example provisions only the
+        # Mistral ROM database and names the pinned Quartus install.
         self.assertIn(
-            'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  FES_TOOLCHAIN_LOCKFILE=cores/fes-zx81/toolchain.lock \\\n  FES_TOOLCHAIN_GPU_ROUTER=HIP \\\n  FES_TOOLCHAIN_HIP_ARCHITECTURES=\'gfx1100;gfx1201\' \\\n  make -C "$work" doctor-strict', docs)
+            'install cores/fes-zx81/quartus.lock pins. Its ROM map reads the pinned\n'
+            '# Mistral database, which this target places in the shared cache:\n'
+            'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  make -C "$work" toolchain-fes-zx81', docs)
+        self.assertNotIn('FES_TOOLCHAIN_LOCKFILE=cores/fes-zx81/toolchain.lock', docs)
 
     def test_canonical_package_record_forwards_package_environment(self):
         module = self.module()

@@ -86,9 +86,9 @@ is retired for day-to-day.
 | Item | Today |
 | --- | --- |
 | Package | `fes.zx81` (`fes.simple-computer` 1.0), profile `fes-gp-v1` |
-| Interfaces | `fes.keyboard`, `fes.media.blob`, `fes.video.fixed-720p60`; optional `fes.expansion.zx81-bus` |
-| Vacant shell | 1 KiB mirrored internal RAM when the expansion edge is vacant |
-| Expansion | Independent bus carts linked at load (`link_static_rbf.py`); no synthesis at launch |
+| Interfaces | `fes.keyboard`, `fes.media.blob`, `fes.video.fixed-720p60`; no expansion interface on the registered Quartus Lite package |
+| Internal RAM | 1 KiB mirrored |
+| Expansion | None on the registered package until DeanoC/fes#1875; the advisory nextpnr shell keeps the bus and links its carts at load (`link_static_rbf.py`) |
 | Machine ROM | Sealed shell ROM M10Ks empty; launch splices the user-supplied 8 KiB BASIC ROM via `link_static_rbf.py init --machine` |
 | Persistence | None; library launches are volatile |
 | Tape contract (docs) | Runtime `load_media` of a `.p`; empty `LOAD ""` reports `0/0` ([`fes-zx81.md`](fes-zx81.md)) |

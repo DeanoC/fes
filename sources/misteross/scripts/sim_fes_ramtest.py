@@ -129,9 +129,6 @@ def main() -> None:
         (output.with_name(output.name + "-oss-100-no-capture-shift"),
          ("+define+RAM_RATE_SWEEP", "+define+RAM_100_ONLY", "+define+RAM_OSS_HIGH_SPEED"), True),
     )
-    if os.environ.get("FES_RAMTEST_130_DIAGNOSTIC") == "1":
-        variants += ((output.with_name(output.name + "-oss-130"),
-                      ("+define+RAM_RATE_SWEEP", "+define+RAM_130_ONLY", "+define+RAM_OSS_HIGH_SPEED"), False),)
     for build, defines, negative in variants:
         build.mkdir(parents=True, exist_ok=True)
         test_env = os.environ.copy()
@@ -168,15 +165,6 @@ def main() -> None:
             if result.returncode == 0 or "RAMTEST_BYTE_PREFLIGHT_READ_MISMATCH" not in result.stderr:
                 raise RuntimeError(f"capture-shift negative control did not fail as expected: {result.stderr}")
             print("PASS: 100 MHz OSS functional model rejects missing read-capture shift", flush=True)
-        elif "+define+RAM_130_ONLY" in defines:
-            result = subprocess.run([str(build / "sim")], capture_output=True, text=True, env=test_env)
-            print(result.stdout, end="", flush=True)
-            print(result.stderr, end="", flush=True)
-            raise SystemExit(
-                "AMBIGUOUS: the 130 MHz zero-delay SDRAM model does not establish "
-                f"the DQ valid window (simulation exit {result.returncode}); "
-                "this diagnostic cannot pass without a bounded timing model"
-            )
         elif "RAMTEST_DDR_FAULT_CASES" in test_env:
             result = subprocess.run([str(build / "sim")], capture_output=True, text=True, env=test_env)
             print(result.stdout, end="", flush=True)

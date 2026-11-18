@@ -1,0 +1,88 @@
+{
+  "classification": "Conditional Etron -6 CL2 pin-edge reference; not physical acceptance",
+  "kit_a": {
+    "memory_module": "Published Retro Remake Etron module",
+    "parts": "Two Etron EM63B165TS-6SG",
+    "identity_evidence": "Deano confirmed on 2026-11-17: Kit A matches the published Etron module",
+    "physical_inspection_performed_by_this_audit": false,
+    "measured_board_flight_skew_load_or_slew": false
+  },
+  "kit_b": {
+    "fitted_memory_identity": null
+  },
+  "memory_reference": {
+    "url": "https://etron.com/wp-content/uploads/2022/04/EM63B165TSBM_Rev-2.4.pdf",
+    "sha256": "1a9139629c17a1b280f3d88ef1a7b3c0355812cd9933b73230ba733f36dbc7d2",
+    "revision": "2.4, December 2023",
+    "table_pages": [
+      21,
+      22
+    ],
+    "vdd_V": [
+      3.0,
+      3.6
+    ],
+    "temperature_C": [
+      0,
+      70
+    ],
+    "reference_load_pF": 30,
+    "reference_input_transition_ns": 1,
+    "tCK_min_ns": 10,
+    "tAC_max_ns": 6,
+    "tOH_min_ns": 2.5,
+    "tIS_min_ns": 1.5,
+    "tIH_min_ns": 0.8,
+    "tCH_min_ns": 2,
+    "tCL_min_ns": 2,
+    "tLZ_min_ns": 0,
+    "tHZ_max_ns": 5.4,
+    "conditions": "LVTTL reference thresholds and AC test load apply. Datasheet notes 9/10 require edge-rate compensation where applicable. FPGA slow/fast corners do not extend the memory operating range."
+  },
+  "second_chip_select_reference": {
+    "url": "https://www.ti.com/lit/ds/symlink/sn74lvc1g04.pdf",
+    "revision": "SCES214AF, October 2025, section 5.7",
+    "part": "SN74LVC1G04",
+    "vcc_V": [
+      3.0,
+      3.6
+    ],
+    "temperature_C": [
+      -40,
+      85
+    ],
+    "load_pF": 50,
+    "propagation_min_ns": 1,
+    "propagation_max_ns": 4.2,
+    "actual_fitted_inverter_part_load_slew_confirmed": false,
+    "sha256": "5322c1ab3cd3bd3f7af9c9bfa1c6139dad799d0968d9eea3ee2d84648ffc2e9e"
+  },
+  "reference_sdc_ns": {
+    "input_max": 6,
+    "input_min": 2.5,
+    "output_max": 1.5,
+    "output_min": -0.8,
+    "second_chip_select_output_max": 5.7,
+    "second_chip_select_output_min": 0.2
+  },
+  "reference_assumptions": {
+    "pcb_clock_flight_ns": 0,
+    "pcb_data_flight_ns": 0,
+    "pcb_skew_ns": 0,
+    "extra_board_margin_ns": 0,
+    "multicycle_allowance": false,
+    "native_clock_uncertainty": "derived, retained",
+    "output_enable_rows": "Projection into the same pin window only; not turnaround acceptance"
+  },
+  "physical_budget_unknowns": [
+    "actual clock and data flight/skew intervals for Kit A",
+    "actual pad/module loading, edge rates and voltage/temperature envelope",
+    "fitted second-chip-select inverter and its conditions",
+    "pin-level high/low pulse-width and cycle-jitter bounds",
+    "electrical bus turnaround/non-overlap including tLZ and tHZ",
+    "Kit B fitted memory module/chip identity",
+    "physical correlation and fitted timing admission of the proved logical transaction windows"
+  ],
+  "whole_board_qualified": false,
+  "logical_window_evidence": "windows/windows.json"
+}

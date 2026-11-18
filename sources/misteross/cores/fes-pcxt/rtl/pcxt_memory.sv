@@ -7,8 +7,8 @@
 // SDRAM keeps its contents across an FPGA reconfiguration, so a cold reset is
 // a power-on: before firmware is accepted it zeroes the BIOS warm-boot word at
 // 0040:0072, and the BIOS then runs its full cold POST (#1534).
-module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTER = 0) (
-    input wire clk, clk_pin, cold_reset, reset,
+module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTER = 0, SDRAM_CAPTURE_PIPELINE = 0) (
+    input wire clk, clk_pin, clk_handoff, cold_reset, reset,
     output wire initialized,
     input wire memory_valid,
     output wire memory_ready,
@@ -71,12 +71,36 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
     // Match the controller's conservative 100 MHz capture count: one fabric
     // stage after the board's input capture registers (ramtest rate-3 path).
     reg [15:0] dq_rise_q, dq_fall_q;
-    always @(posedge controller_clk) begin
-        dq_rise_q <= dq_rise;
-        dq_fall_q <= dq_fall;
-    end
+    wire [15:0] controller_data, legacy_data;
+    generate if (SDRAM_CAPTURE_PIPELINE) begin: capture_handoff
+        // READ is sampled once in the controller domain. Its first word is
+        // captured by the board I/O registers three chip cycles later.
+        reg [3:0] read_window = 0;
+        reg [15:0] read_word, return_word;
+        always @(posedge controller_clk)
+            if (controller_reset) read_window <= 0;
+            else read_window <= {read_window[2:0],
+                sdram_cke && sdram_nras && !sdram_ncas && sdram_nwe};
+        // Latch the selected word once, then retain it through done/retirement.
+        // The unused legacy rdata cone is removed in this experimental mode.
+        always @(posedge clk_handoff)
+            if (read_window[3]) read_word <= dq_fall;
+        // Land the retained word in the controller clock domain before the
+        // existing done-driven frontend response. No narrow half-cycle bus
+        // crossing is imposed between the selected I/O sample and response.
+        always @(negedge controller_clk) return_word <= read_word;
+        assign controller_data = return_word;
+        assign dq_rise_q = 0;
+        assign dq_fall_q = 0;
+    end else begin: original_handoff
+        wire unused_handoff_clock = clk_handoff;
+        always @(posedge controller_clk) begin
+            dq_rise_q <= dq_rise;
+            dq_fall_q <= dq_fall;
+        end
+        assign controller_data = legacy_data;
+    end endgenerate
     wire controller_done;
-    wire [15:0] controller_data;
     wire waiting_media = (!reset || media_read_reset_safe) && media_read_valid && !media_seen;
     wire waiting_memory = !reset && memory_valid && !memory_seen;
     wire waiting_load = disk_load_valid && !disk_load_seen && disk_load_address < DISK_BYTES && !media_read_valid;
@@ -102,7 +126,7 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
         .refresh_window(1'b0), .refresh_pending(), .initialized(controller_initialized),
         .start(busy && physical), .write(held_write), .addr(held_address),
         .wdata(held_data), .write_byte_enable(held_lanes),
-        .done(controller_done), .rdata(controller_data),
+        .done(controller_done), .rdata(legacy_data),
         .sdram_clk(sdram_clk), .sdram_cke(sdram_cke), .sdram_ncs(sdram_ncs),
         .sdram_nras(sdram_nras), .sdram_ncas(sdram_ncas), .sdram_nwe(sdram_nwe),
         .sdram_ba(sdram_ba), .sdram_a(sdram_a),

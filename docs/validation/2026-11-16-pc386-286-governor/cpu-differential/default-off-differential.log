@@ -1,0 +1,9 @@
+candidate binary 6c175f30e041c49e3bb4f0121281aac171b0066d48155cb1a21ec554ae23ee23 main binary 15c2f51357be613fbc44d5444ee4c4cb347401edf8c8bc4e07c84458fd9fcc02 program 78b9be2b559cd3f1914aceac5b134f6655c9aa52613d4de90130dab498550e32
+running 0-0-0
+result 0-0-0 identical True
+running 1-0-0
+result 1-0-0 identical True
+running 3-0-0
+result 3-0-0 identical True
+running 1-0-1
+result 1-0-1 identical True

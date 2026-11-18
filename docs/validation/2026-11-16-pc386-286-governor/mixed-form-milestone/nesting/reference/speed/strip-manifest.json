@@ -1,0 +1,11 @@
+{
+  "frames": 1020,
+  "fps": 4,
+  "strip_width": 56,
+  "strip_height": 18,
+  "x": 690,
+  "y": 28,
+  "full_raw_sha256": "174acce210eaa50488d471f780e90d32d4be5be065b7fcc0ea75e5e512cec7f8",
+  "strip_raw_sha256": "f63afbf9283f1603dbd8bd5e426f174aad71cc0357bb17827b684f4be0b6ff39",
+  "gzip_sha256": "c9796d6c9e3a7b5562db2e5fc7c082100cdb89181e4c1b84763b2d8aa5ef5506"
+}

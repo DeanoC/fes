@@ -1,0 +1,82 @@
+{
+  "MEM8_BX": {
+    "charged_per_iteration": 26.256,
+    "elapsed_cycles": 134431
+  },
+  "MEM16_BX": {
+    "charged_per_iteration": 26.259,
+    "elapsed_cycles": 134499
+  },
+  "REG8_BX": {
+    "charged_per_iteration": 26.259,
+    "elapsed_cycles": 134500
+  },
+  "REG16_BX": {
+    "charged_per_iteration": 26.259,
+    "elapsed_cycles": 134499
+  },
+  "MEM8_DISP": {
+    "charged_per_iteration": 28.257,
+    "elapsed_cycles": 144730
+  },
+  "MEM16_INDEX": {
+    "charged_per_iteration": 26.256,
+    "elapsed_cycles": 134484
+  },
+  "REG8_DIRECT": {
+    "charged_per_iteration": 28.259,
+    "elapsed_cycles": 144739
+  },
+  "REG16_DISP": {
+    "charged_per_iteration": 28.257,
+    "elapsed_cycles": 144729
+  },
+  "MEM8_DS": {
+    "charged_per_iteration": 32.256,
+    "elapsed_cycles": 165205
+  },
+  "MEM16_ES": {
+    "charged_per_iteration": 32.256,
+    "elapsed_cycles": 165204
+  },
+  "REG8_DS": {
+    "charged_per_iteration": 32.256,
+    "elapsed_cycles": 165204
+  },
+  "REG16_ES": {
+    "charged_per_iteration": 34.257,
+    "elapsed_cycles": 175449
+  },
+  "MEM8_LOOP": {
+    "charged_per_iteration": 28.26,
+    "elapsed_cycles": 144745
+  },
+  "MEM16_LOOP": {
+    "charged_per_iteration": 28.26,
+    "elapsed_cycles": 144745
+  },
+  "REG8_LOOP": {
+    "charged_per_iteration": 28.26,
+    "elapsed_cycles": 144744
+  },
+  "REG16_LOOP": {
+    "charged_per_iteration": 28.26,
+    "elapsed_cycles": 144745
+  },
+  "MEM8_NE": {
+    "charged_per_iteration": 29.256,
+    "elapsed_cycles": 149844
+  },
+  "MEM16_NE": {
+    "charged_per_iteration": 29.256,
+    "elapsed_cycles": 149844
+  },
+  "REG8_NE": {
+    "charged_per_iteration": 29.256,
+    "elapsed_cycles": 149844
+  },
+  "REG16_NE": {
+    "charged_per_iteration": 29.175,
+    "elapsed_cycles": 149337
+  }
+}

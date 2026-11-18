@@ -130,7 +130,7 @@ module bios_top #(parameter bit WITH_FLOPPY = 0, WITH_RUNTIME_MEDIA = 0, WAIT_FO
         .media_frozen(media_frozen), .media_write_busy(media_write_busy), .media_changed(media_changed),
         .snapshot_read_valid(snapshot_read_valid), .snapshot_read_address(snapshot_read_address),
         .snapshot_read_ready(snapshot_read_ready), .snapshot_read_data(snapshot_read_data),
-        .clk_cpu(clk), .clk_pin(clk), .hold(hold | runtime_hold | boot_media_hold),
+        .clk_cpu(clk), .clk_pin(clk), .clk_handoff(clk), .hold(hold | runtime_hold | boot_media_hold),
         .media_present(active_media_present), .disk_restart(active_disk_restart),
         .disk_load_valid(active_disk_valid), .disk_load_ready(active_disk_ready), .disk_load_done(active_disk_done),
         .disk_load_address(active_disk_address), .disk_load_data(active_disk_data),

@@ -1,0 +1,316 @@
+     1                                  bits 16
+     2                                  cpu 286
+     3                                  org 0x1000
+     4                                  start:
+     5 00000000 FA                       cli
+     6 00000001 FC                       cld
+     7 00000002 31C0                     xor ax,ax
+     8 00000004 8ED8                     mov ds,ax
+     9 00000006 8EC0                     mov es,ax
+    10 00000008 8ED0                     mov ss,ax
+    11 0000000A BC0070                   mov sp,0x7000
+    12 0000000D C70600800100             mov word [0x8000],1
+    13 00000013 C70602800000             mov word [0x8002],0
+    14 00000019 C7060080A55A             mov word [0x8000],0x5aa5
+    15 0000001F C70600900000             mov word [0x9000],0
+    16 00000025 BE0080                   mov si,0x8000
+    17 00000028 BF0090                   mov di,0x9000
+    18 0000002B A5                       movsw
+    19 0000002C 813E0090A55A             cmp word [0x9000],0x5aa5
+    20 00000032 7403E98E02               jne fail
+    21 00000037 BDE803                   mov bp,1000
+    22 0000003A B000                     mov al,0
+    23 0000003C E680                     out 0x80,al
+    24 0000003E BB0080                   mov bx,0x8000
+    25 00000041 BA0100                   mov dx,1
+    26 00000044 B90300                   mov cx,3
+    27 00000047 C7070700                 mov word [bx],7
+    28 0000004B BE0080                   mov si,0x8000
+    29 0000004E BF0090                   mov di,0x9000
+    30 00000051 B8A55A                   mov ax,0x5aa5
+    31                                   align 2
+    32                                  .i0:
+    33 00000054 AC                        lodsb
+    34 00000055 4D                        dec bp
+    35 00000056 75FC                      jnz .i0
+    36 00000058 B001                     mov al,1
+    37 0000005A E680                     out 0x80,al
+    38 0000005C BDE803                   mov bp,1000
+    39 0000005F B002                     mov al,2
+    40 00000061 E680                     out 0x80,al
+    41 00000063 BB0080                   mov bx,0x8000
+    42 00000066 BA0100                   mov dx,1
+    43 00000069 B90300                   mov cx,3
+    44 0000006C C7070700                 mov word [bx],7
+    45 00000070 BE0080                   mov si,0x8000
+    46 00000073 BF0090                   mov di,0x9000
+    47 00000076 B8A55A                   mov ax,0x5aa5
+    48 00000079 90                       align 2
+    49                                  .i1:
+    50 0000007A AD                        lodsw
+    51 0000007B 4D                        dec bp
+    52 0000007C 75FC                      jnz .i1
+    53 0000007E B003                     mov al,3
+    54 00000080 E680                     out 0x80,al
+    55 00000082 BDE803                   mov bp,1000
+    56 00000085 B004                     mov al,4
+    57 00000087 E680                     out 0x80,al
+    58 00000089 BB0080                   mov bx,0x8000
+    59 0000008C BA0100                   mov dx,1
+    60 0000008F B90300                   mov cx,3
+    61 00000092 C7070700                 mov word [bx],7
+    62 00000096 BE0080                   mov si,0x8000
+    63 00000099 BF0090                   mov di,0x9000
+    64 0000009C B8A55A                   mov ax,0x5aa5
+    65 0000009F 90                       align 2
+    66                                  .i2:
+    67 000000A0 AA                        stosb
+    68 000000A1 4D                        dec bp
+    69 000000A2 75FC                      jnz .i2
+    70 000000A4 B005                     mov al,5
+    71 000000A6 E680                     out 0x80,al
+    72 000000A8 BDE803                   mov bp,1000
+    73 000000AB B006                     mov al,6
+    74 000000AD E680                     out 0x80,al
+    75 000000AF BB0080                   mov bx,0x8000
+    76 000000B2 BA0100                   mov dx,1
+    77 000000B5 B90300                   mov cx,3
+    78 000000B8 C7070700                 mov word [bx],7
+    79 000000BC BE0080                   mov si,0x8000
+    80 000000BF BF0090                   mov di,0x9000
+    81 000000C2 B8A55A                   mov ax,0x5aa5
+    82 000000C5 90                       align 2
+    83                                  .i3:
+    84 000000C6 AB                        stosw
+    85 000000C7 4D                        dec bp
+    86 000000C8 75FC                      jnz .i3
+    87 000000CA B007                     mov al,7
+    88 000000CC E680                     out 0x80,al
+    89 000000CE BDE803                   mov bp,1000
+    90 000000D1 B008                     mov al,8
+    91 000000D3 E680                     out 0x80,al
+    92 000000D5 BB0080                   mov bx,0x8000
+    93 000000D8 BA0100                   mov dx,1
+    94 000000DB B90300                   mov cx,3
+    95 000000DE C7070700                 mov word [bx],7
+    96 000000E2 BE0080                   mov si,0x8000
+    97 000000E5 BF0090                   mov di,0x9000
+    98 000000E8 B8A55A                   mov ax,0x5aa5
+    99 000000EB 90                       align 2
+   100                                  .i4:
+   101 000000EC AC                        lodsb
+   102 000000ED AA                       stosb
+   103 000000EE 4D                        dec bp
+   104 000000EF 75FB                      jnz .i4
+   105 000000F1 B009                     mov al,9
+   106 000000F3 E680                     out 0x80,al
+   107 000000F5 BDE803                   mov bp,1000
+   108 000000F8 B00A                     mov al,10
+   109 000000FA E680                     out 0x80,al
+   110 000000FC BB0080                   mov bx,0x8000
+   111 000000FF BA0100                   mov dx,1
+   112 00000102 B90300                   mov cx,3
+   113 00000105 C7070700                 mov word [bx],7
+   114 00000109 BE0080                   mov si,0x8000
+   115 0000010C BF0090                   mov di,0x9000
+   116 0000010F B8A55A                   mov ax,0x5aa5
+   117                                   align 2
+   118                                  .i5:
+   119 00000112 AC                        lodsb
+   120 00000113 3455                     xor al,0x55
+   121 00000115 AA                       stosb
+   122 00000116 4D                        dec bp
+   123 00000117 75F9                      jnz .i5
+   124 00000119 B00B                     mov al,11
+   125 0000011B E680                     out 0x80,al
+   126 0000011D BDE803                   mov bp,1000
+   127 00000120 B00C                     mov al,12
+   128 00000122 E680                     out 0x80,al
+   129 00000124 BB0080                   mov bx,0x8000
+   130 00000127 BA0100                   mov dx,1
+   131 0000012A B90300                   mov cx,3
+   132 0000012D C7070700                 mov word [bx],7
+   133 00000131 BE0080                   mov si,0x8000
+   134 00000134 BF0090                   mov di,0x9000
+   135 00000137 B8A55A                   mov ax,0x5aa5
+   136                                   align 2
+   137                                  .i6:
+   138 0000013A A90800                    test ax,8
+   139 0000013D 4D                        dec bp
+   140 0000013E 75FA                      jnz .i6
+   141 00000140 B00D                     mov al,13
+   142 00000142 E680                     out 0x80,al
+   143 00000144 BDE803                   mov bp,1000
+   144 00000147 B00E                     mov al,14
+   145 00000149 E680                     out 0x80,al
+   146 0000014B BB0080                   mov bx,0x8000
+   147 0000014E BA0100                   mov dx,1
+   148 00000151 B90300                   mov cx,3
+   149 00000154 C7070700                 mov word [bx],7
+   150 00000158 BE0080                   mov si,0x8000
+   151 0000015B BF0090                   mov di,0x9000
+   152 0000015E B8A55A                   mov ax,0x5aa5
+   153 00000161 90                       align 2
+   154                                  .i7:
+   155 00000162 A808                      test al,8
+   156 00000164 4D                        dec bp
+   157 00000165 75FB                      jnz .i7
+   158 00000167 B00F                     mov al,15
+   159 00000169 E680                     out 0x80,al
+   160 0000016B BDE803                   mov bp,1000
+   161 0000016E B010                     mov al,16
+   162 00000170 E680                     out 0x80,al
+   163 00000172 BB0080                   mov bx,0x8000
+   164 00000175 BA0100                   mov dx,1
+   165 00000178 B90300                   mov cx,3
+   166 0000017B C7070700                 mov word [bx],7
+   167 0000017F BE0080                   mov si,0x8000
+   168 00000182 BF0090                   mov di,0x9000
+   169 00000185 B8A55A                   mov ax,0x5aa5
+   170                                   align 2
+   171                                  .i8:
+   172 00000188 8B07                      mov ax,[bx]
+   173 0000018A BA0700                   mov dx,7
+   174 0000018D F7E2                     mul dx
+   175 0000018F A90800                   test ax,8
+   176 00000192 4D                        dec bp
+   177 00000193 75F3                      jnz .i8
+   178 00000195 B011                     mov al,17
+   179 00000197 E680                     out 0x80,al
+   180 00000199 BDE803                   mov bp,1000
+   181 0000019C B012                     mov al,18
+   182 0000019E E680                     out 0x80,al
+   183 000001A0 BB0080                   mov bx,0x8000
+   184 000001A3 BA0100                   mov dx,1
+   185 000001A6 B90300                   mov cx,3
+   186 000001A9 C7070700                 mov word [bx],7
+   187 000001AD BE0080                   mov si,0x8000
+   188 000001B0 BF0090                   mov di,0x9000
+   189 000001B3 B8A55A                   mov ax,0x5aa5
+   190                                   align 2
+   191                                  .i9:
+   192 000001B6 8B07                      mov ax,[bx]
+   193 000001B8 BA0700                   mov dx,7
+   194 000001BB F7E2                     mul dx
+   195 000001BD 4D                        dec bp
+   196 000001BE 75F6                      jnz .i9
+   197 000001C0 B013                     mov al,19
+   198 000001C2 E680                     out 0x80,al
+   199 000001C4 BDE803                   mov bp,1000
+   200 000001C7 B014                     mov al,20
+   201 000001C9 E680                     out 0x80,al
+   202 000001CB BB0080                   mov bx,0x8000
+   203 000001CE BA0100                   mov dx,1
+   204 000001D1 B90300                   mov cx,3
+   205 000001D4 C7070700                 mov word [bx],7
+   206 000001D8 BE0080                   mov si,0x8000
+   207 000001DB BF0090                   mov di,0x9000
+   208 000001DE B8A55A                   mov ax,0x5aa5
+   209 000001E1 90                       align 2
+   210                                  .i10:
+   211 000001E2 C8000000                  enter 0,0
+   212 000001E6 C9                       leave
+   213 000001E7 4D                        dec bp
+   214 000001E8 75F8                      jnz .i10
+   215 000001EA B015                     mov al,21
+   216 000001EC E680                     out 0x80,al
+   217 000001EE BDE803                   mov bp,1000
+   218 000001F1 B016                     mov al,22
+   219 000001F3 E680                     out 0x80,al
+   220 000001F5 BB0080                   mov bx,0x8000
+   221 000001F8 BA0100                   mov dx,1
+   222 000001FB B90300                   mov cx,3
+   223 000001FE C7070700                 mov word [bx],7
+   224 00000202 BE0080                   mov si,0x8000
+   225 00000205 BF0090                   mov di,0x9000
+   226 00000208 B8A55A                   mov ax,0x5aa5
+   227 0000020B 90                       align 2
+   228                                  .i11:
+   229 0000020C C8060000                  enter 6,0
+   230 00000210 C9                       leave
+   231 00000211 4D                        dec bp
+   232 00000212 75F8                      jnz .i11
+   233 00000214 B017                     mov al,23
+   234 00000216 E680                     out 0x80,al
+   235 00000218 BDE803                   mov bp,1000
+   236 0000021B B018                     mov al,24
+   237 0000021D E680                     out 0x80,al
+   238 0000021F BB0080                   mov bx,0x8000
+   239 00000222 BA0100                   mov dx,1
+   240 00000225 B90300                   mov cx,3
+   241 00000228 C7070700                 mov word [bx],7
+   242 0000022C BE0080                   mov si,0x8000
+   243 0000022F BF0090                   mov di,0x9000
+   244 00000232 B8A55A                   mov ax,0x5aa5
+   245 00000235 90                       align 2
+   246                                  .i12:
+   247 00000236 C8060000                  enter 6,0
+   248 0000023A 89EC                     mov sp,bp
+   249 0000023C 5D                       pop bp
+   250 0000023D 4D                        dec bp
+   251 0000023E 75F6                      jnz .i12
+   252 00000240 B019                     mov al,25
+   253 00000242 E680                     out 0x80,al
+   254 00000244 BDE803                   mov bp,1000
+   255 00000247 B01A                     mov al,26
+   256 00000249 E680                     out 0x80,al
+   257 0000024B BB0080                   mov bx,0x8000
+   258 0000024E BA0100                   mov dx,1
+   259 00000251 B90300                   mov cx,3
+   260 00000254 C7070700                 mov word [bx],7
+   261 00000258 BE0080                   mov si,0x8000
+   262 0000025B BF0090                   mov di,0x9000
+   263 0000025E B8A55A                   mov ax,0x5aa5
+   264 00000261 90                       align 2
+   265                                  .i13:
+   266 00000262 55                        push bp
+   267 00000263 89E5                     mov bp,sp
+   268 00000265 C9                       leave
+   269 00000266 4D                        dec bp
+   270 00000267 75F9                      jnz .i13
+   271 00000269 B01B                     mov al,27
+   272 0000026B E680                     out 0x80,al
+   273 0000026D BDE803                   mov bp,1000
+   274 00000270 B01C                     mov al,28
+   275 00000272 E680                     out 0x80,al
+   276 00000274 BB0080                   mov bx,0x8000
+   277 00000277 BA0100                   mov dx,1
+   278 0000027A B90300                   mov cx,3
+   279 0000027D C7070700                 mov word [bx],7
+   280 00000281 BE0080                   mov si,0x8000
+   281 00000284 BF0090                   mov di,0x9000
+   282 00000287 B8A55A                   mov ax,0x5aa5
+   283                                   align 2
+   284                                  .i14:
+   285 0000028A C8060001                  enter 6,1
+   286 0000028E C9                       leave
+   287 0000028F 4D                        dec bp
+   288 00000290 75F8                      jnz .i14
+   289 00000292 B01D                     mov al,29
+   290 00000294 E680                     out 0x80,al
+   291 00000296 BDE803                   mov bp,1000
+   292 00000299 B01E                     mov al,30
+   293 0000029B E680                     out 0x80,al
+   294 0000029D BB0080                   mov bx,0x8000
+   295 000002A0 BA0100                   mov dx,1
+   296 000002A3 B90300                   mov cx,3
+   297 000002A6 C7070700                 mov word [bx],7
+   298 000002AA BE0080                   mov si,0x8000
+   299 000002AD BF0090                   mov di,0x9000
+   300 000002B0 B8A55A                   mov ax,0x5aa5
+   301 000002B3 90                       align 2
+   302                                  .i15:
+   303 000002B4 B90200                    mov cx,2
+   304 000002B7 F3AA                     rep stosb
+   305 000002B9 4D                        dec bp
+   306 000002BA 75F8                      jnz .i15
+   307 000002BC B01F                     mov al,31
+   308 000002BE E680                     out 0x80,al
+   309 000002C0 B000                     mov al,0
+   310 000002C2 E68F                     out 0x8f,al
+   311 000002C4 F4                       hlt
+   312                                  
+   313                                  fail:
+   314 000002C5 B0EE                     mov al,0xee
+   315 000002C7 E68F                     out 0x8f,al
+   316 000002C9 F4                       hlt

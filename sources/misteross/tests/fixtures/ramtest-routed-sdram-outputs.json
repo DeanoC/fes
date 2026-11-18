@@ -1,0 +1,445 @@
+{
+  "modules": {
+    "top": {
+      "cells": {
+        "SDRAM_A_MISTRAL_OB_PAD": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              180040
+            ],
+            "PAD": [
+              3369
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        },
+        "SDRAM_A_MISTRAL_OB_PAD_1": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              180028
+            ],
+            "PAD": [
+              3372
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        },
+        "SDRAM_A_MISTRAL_OB_PAD_10": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              179920
+            ],
+            "PAD": [
+              3375
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        },
+        "SDRAM_A_MISTRAL_OB_PAD_11": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              179932
+            ],
+            "PAD": [
+              3378
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        },
+        "SDRAM_A_MISTRAL_OB_PAD_12": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              179992
+            ],
+            "PAD": [
+              3381
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        },
+        "SDRAM_A_MISTRAL_OB_PAD_2": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              180064
+            ],
+            "PAD": [
+              3384
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        },
+        "SDRAM_A_MISTRAL_OB_PAD_3": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              180004
+            ],
+            "PAD": [
+              3387
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        },
+        "SDRAM_A_MISTRAL_OB_PAD_4": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              179968
+            ],
+            "PAD": [
+              3390
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        },
+        "SDRAM_A_MISTRAL_OB_PAD_5": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              179944
+            ],
+            "PAD": [
+              3393
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        },
+        "SDRAM_A_MISTRAL_OB_PAD_6": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              179980
+            ],
+            "PAD": [
+              3396
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        },
+        "SDRAM_A_MISTRAL_OB_PAD_7": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              179956
+            ],
+            "PAD": [
+              3399
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        },
+        "SDRAM_A_MISTRAL_OB_PAD_8": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              180016
+            ],
+            "PAD": [
+              3402
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        },
+        "SDRAM_A_MISTRAL_OB_PAD_9": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              180052
+            ],
+            "PAD": [
+              3405
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        },
+        "SDRAM_BA_MISTRAL_OB_PAD": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              180076
+            ],
+            "PAD": [
+              3408
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        },
+        "SDRAM_BA_MISTRAL_OB_PAD_1": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              180088
+            ],
+            "PAD": [
+              3411
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        },
+        "SDRAM_CKE_MISTRAL_OB_PAD": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              180100
+            ],
+            "PAD": [
+              3263
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        },
+        "SDRAM_nCAS_MISTRAL_OB_PAD": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              180136
+            ],
+            "PAD": [
+              3268
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        },
+        "SDRAM_nCS_MISTRAL_OB_PAD": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              180148
+            ],
+            "PAD": [
+              3269
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        },
+        "SDRAM_nRAS_MISTRAL_OB_PAD": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              180160
+            ],
+            "PAD": [
+              3270
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        },
+        "SDRAM_nWE_MISTRAL_OB_PAD": {
+          "connections": {
+            "CLK": [
+              3690
+            ],
+            "I": [
+              180172
+            ],
+            "PAD": [
+              3271
+            ]
+          },
+          "port_directions": {
+            "CLK": "input",
+            "I": "input",
+            "PAD": "output"
+          },
+          "type": "MISTRAL_SDROUT"
+        }
+      },
+      "ports": {
+        "SDRAM_A": {
+          "bits": [
+            3369,
+            3372,
+            3384,
+            3387,
+            3390,
+            3393,
+            3396,
+            3399,
+            3402,
+            3405,
+            3375,
+            3378,
+            3381
+          ],
+          "direction": "output"
+        },
+        "SDRAM_BA": {
+          "bits": [
+            3408,
+            3411
+          ],
+          "direction": "output"
+        },
+        "SDRAM_CKE": {
+          "bits": [
+            3263
+          ],
+          "direction": "output"
+        },
+        "SDRAM_nCAS": {
+          "bits": [
+            3268
+          ],
+          "direction": "output"
+        },
+        "SDRAM_nCS": {
+          "bits": [
+            3269
+          ],
+          "direction": "output"
+        },
+        "SDRAM_nRAS": {
+          "bits": [
+            3270
+          ],
+          "direction": "output"
+        },
+        "SDRAM_nWE": {
+          "bits": [
+            3271
+          ],
+          "direction": "output"
+        }
+      }
+    }
+  }
+}
