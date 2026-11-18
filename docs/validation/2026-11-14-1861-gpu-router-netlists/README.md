@@ -67,6 +67,99 @@ and nothing was tuned or waived. But at one per cent the identity constant
 alone can decide the next build, so a future miss there is not evidence of
 whatever change is in flight at the time. See "A thin margin" below.
 
+## After the merge: the evidence this record opens, and the SHAs a squash leaves behind
+
+PR #1862 merged as `2393a9f04` on 2026-11-18 and the campaign's 72 GB of
+scratch was deleted. Two things in this record pointed at that scratch, and
+they are not the same kind of thing.
+
+**Most of the `/data/fes1861-netlist/...` paths in these reports are labels.**
+They say which tree a measurement was taken in, next to the revision and the
+pinned-input digest that actually pin it. They are provenance, they were never
+re-read, and deleting the tree does not weaken them.
+
+**One was not a label.** Each row of `reports-cond3/cond3.json` named its
+build summary by absolute path, and `seals_at_head.py` *opens* that file: the
+strongest check here re-hashes every path in the summary's `inputs` map against
+the tree under review. Those eleven summaries are also the one artefact of this
+campaign that a rerun need not reproduce, being sign-off output of hours of
+Quartus and nextpnr whose achieved frequencies move with identity alone --
+by 9.4% on identical RTL, as the thin-margin section measures. So they were
+copied out before the delete and are now vendored into the record at
+`reports-cond3/summaries/<artefact>/build-summary.json`, with `source` naming
+the copy relative to `cond3.json` and `source_sha256` pinning its bytes.
+`vendor_cond3.py` does that, and re-verifies with `--check`.
+
+What the vendoring is worth, measured rather than asserted, in
+`reports-preserve/counterexamples.log`:
+
+| Perturbation | Result |
+| --- | --- |
+| control | 11 of 11, rc=0 |
+| a vendored summary reformatted after the fact | `SUBSTITUTED`, rc=1 |
+| the same, on a row that also has a design anchor | `SUBSTITUTED`, rc=1 -- an edited seal is not rescued |
+| `source_sha256` dropped from every row | `unpinned` on all eleven, rc=1 |
+| every row pointed back into the deleted scratch | four rows `unverifiable`, rc=1 |
+| one `df99f2dfb`-sealed summary deleted | **11 of 11, rc=0** |
+
+The last two rows are the honest size of the problem. Without the vendored
+summaries the four `541e3c548`-sealed Spectrum-family rows cannot be verified
+at all, because the design anchor that carries the ZX81 rows is a comparison
+from `df99f2dfb` and is refused for a row sealed in a different tree. The other
+seven degrade instead to that second anchor, which is a weaker statement than
+their own input digests but still a statement about condition 3. So: four rows
+lost outright, seven demoted. Whether a *missing* summary on a row that has an
+inputs map should be allowed to fall back at all is a question about the
+record's rule, not about these paths, and is left alone here.
+
+### Re-verified at a head on main, not on the branch
+
+`reports-preserve/` re-runs the whole anchor set from both seal trees to a head
+that carries main's `1ec592670`, two merges past #1862:
+
+```
+11 of 11 seals still match this head
+sources/misteross e046d3c23156  config b4bb5aa71451
+route comparisons in use: 541e3c548751 -> this head, df99f2dfb208 -> this head
+```
+
+This is a stronger statement than the merged record's, which stopped at the PR
+branch: every one of the eleven seals is still a seal of main's sources, and
+every route-deciding input is still byte-identical, after `#1970` and `#1983`
+landed. The four ZX81 rows ride their design anchor as before; the rest match
+their own input digests.
+
+### The squash merge, measured
+
+`#1862` was squash-merged, so no commit of that branch is an ancestor of main.
+`check_shas.py` asks only whether a cited object resolves *now*, which it does
+only while some ref still holds it. `sha_exposure.py` asks the sharper question
+and `reports-preserve/sha-exposure.log` answers it:
+
+```
+33 distinct objects cited; base origin/main = 1ec59267039b
+15 cited commits are NOT ancestors of origin/main
+origin/deano/gpu-router-default (e3fc6c144fac) covers 14 of 15
+```
+
+Both condition-3 seal trees, `df99f2dfb` and `541e3c548`, are in that set.
+Deleting the merged branch -- routine housekeeping -- would make
+`check_shas.py` fail and strip the provenance from fourteen citations. One
+annotated tag at `e3fc6c144fac` covers all fourteen; it is not pushed here,
+because pushing a tag to the shared repository is Deano's call.
+
+The fifteenth is this PR's own commit, and that is the trap recurring: squash
+this PR too and the reports under `reports-preserve/` will cite a commit no ref
+holds. Merging this one with a merge commit covers it. What a *reader* needs in
+either case is narrower than what is cited: the anchors the checks compare are
+the `sources/misteross` and `config` tree objects, and those are main's.
+
+### For Deano
+
+- One annotated tag at `e3fc6c144fac` (`#1862`'s branch head) would hold both
+  seal trees and twelve other cited commits. Not pushed.
+- Merging this PR without squashing would keep its own citations resolvable.
+
 ## Which artefacts are affected, measured rather than argued
 
 `design_identity.py --tree-a <base> --tree-b <head>` answers it from the two
@@ -284,6 +377,11 @@ Reasoning about what a check would catch is not evidence that it catches it:
 | `fes.zx81`'s `recipe_digest` doctored to MOVED | that seal refused | `MOVED: route-deciding inputs moved since the seal: recipe_digest`, 10 of 11, exit 1 |
 | `fes.zx81`'s committed `[recipes.quartus]` seeds changed to `[1, 2, 3, 999]` (Codex's case) | that row only | `shipped` MOVED for `fes.zx81`, `fes.zx80` quiet, exit 1 -- it passed with everything "same" before this fix |
 | `selected_recipe` renamed away in the producer on one side | unmeasured, not moved | all four ZX81 rows `?`, `UNANSWERED: fes.zx81.producer_recipe (tree_b)` ..., exit 1 -- and this is what exposed the one-sided check above |
+| a vendored summary reformatted after being vendored | that seal refused | `SUBSTITUTED`, 10 of 11, exit 1 |
+| the same, on a row that also has a design anchor behind it | refused, not rescued | `zx81 SUBSTITUTED`, 10 of 11, exit 1 |
+| `source_sha256` dropped from every vendored row | all refused | `unpinned` on all eleven, 0 of 11, exit 1 |
+| every row pointed back into the deleted campaign scratch | the four Spectrum rows refused | 7 of 11, exit 1 -- the seven `df99f2dfb` rows demote to their design anchor |
+| one `df99f2dfb`-sealed summary deleted outright | its design anchor carries it | **11 of 11, exit 0** -- reported, not fixed: see "After the merge" |
 
 Ten defects in this record's own tooling were found that way and are
 recorded rather than quietly amended. Five came from Codex's three reviews of
@@ -650,7 +748,13 @@ python3 netlist_digest.py --tree <tree>/sources/misteross --core fes.pong \
 | main, third base | `/data/fes1861-netlist/identity/nb3` | `5e592f003` |
 | main, fourth base | `/data/fes1861-netlist/identity/nb4` | `6ee9f1113` |
 | seal tree | `/data/fes1861-netlist/identity/c3head` | `df99f2dfb`, where seven seals were taken |
+| seal tree, second | `/data/fes1861-netlist/identity/c3head2` | `541e3c548`, where the four Spectrum-family seals were taken |
+| seal trees, after the delete | `/data/fes1862-preserve/seal-df99f2df`, `seal-541e3c54` | re-cut from the branch ref to re-run the anchors at main |
 | branch | `/home/deano/fes/.claude/worktrees/gpu-router-default` | recorded per run |
+
+Every `/data/fes1861-netlist` tree above was deleted after #1862 merged. The
+summaries the condition-3 check opens were vendored into this record first --
+see "After the merge" above; nothing else here re-reads a path in that tree.
 
 A tree path is mutable and a branch advances, so the path above is not what
 pins a result. Each run records the tree's `HEAD`, that the tree was clean, and
@@ -741,8 +845,8 @@ unchanged at `541e3c548`, which `reports-scope2/cond3-head-move.log` measures.
 
 Every one of those 11 seals is still a seal of this branch's
 current sources -- `sources/misteross` at tree
-`ed4a1fdb88dc` -- each tied by a named anchor in
-`reports-scope4/seals-at-head.log`: an inputs-map match where the producer
+`e046d3c23156` -- each tied by a named anchor in
+`reports-preserve/seals-at-head.log`: an inputs-map match where the producer
 writes one, and a design-identity comparison against the seal's own tree
 for the four Quartus summaries that do not.
 

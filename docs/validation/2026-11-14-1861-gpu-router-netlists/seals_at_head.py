@@ -154,9 +154,16 @@ def _usable_routes(paths, anchors: dict[str, str]) -> tuple[dict[str, dict], lis
     return usable, refused
 
 
-def verify(summary: Path, root: Path, expected: str | None = None) -> tuple[str, str]:
+def verify(summary: Path, root: Path, expected: str | None = None,
+           pinned: bool = False) -> tuple[str, str]:
     if not summary.is_file():
         return "unverifiable", f"the seal's summary is gone from {summary.parent}"
+    # A vendored summary lives in the tree under review, so it is editable and
+    # must be pinned. Leaving source_sha256 off would otherwise turn the check
+    # below off silently, which is the quietest way to lose it.
+    if pinned and expected is None:
+        return "unpinned", ("a vendored summary with no source_sha256 is not tied to the "
+                            "bytes the producer wrote")
     # The summaries are vendored into the record now, so they are editable
     # files in the tree being checked rather than read-only scratch. A kept
     # `source_sha256` that nothing reads proves nothing, so read it: this says
@@ -233,9 +240,10 @@ def main() -> int:
         # a fresh clone verifies wherever it was cloned to. A collection still
         # pointing into its own build scratch carries an absolute path.
         summary = Path(row["source"])
-        if not summary.is_absolute():
+        vendored = not summary.is_absolute()
+        if vendored:
             summary = arguments.cond3.resolve().parent / summary
-        verdict, detail = verify(summary, root, row.get("source_sha256"))
+        verdict, detail = verify(summary, root, row.get("source_sha256"), vendored)
         if verdict == "unverifiable":
             fallback = _design_anchor(key, moves, row.get("taken_at_head"),
                                       anchors)

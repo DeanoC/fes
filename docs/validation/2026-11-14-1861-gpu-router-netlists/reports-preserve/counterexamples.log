@@ -1,0 +1,41 @@
+=== control ===
+11 of 11 seals still match this head
+seals_at_head.py rc=0
+
+=== edited-c64 ===
+c64                  df99f2dfb208   SUBSTITUTED   the summary is not the bytes source_sha256 names, so it is not the one the producer wrote
+10 of 11 seals still match this head; NOT INTACT: c64
+seals_at_head.py rc=1
+
+=== removed-c64 ===
+11 of 11 seals still match this head
+seals_at_head.py rc=0
+
+=== edited-zx81 ===
+zx81                 df99f2dfb208   SUBSTITUTED   the summary is not the bytes source_sha256 names, so it is not the one the producer wrote
+10 of 11 seals still match this head; NOT INTACT: zx81
+seals_at_head.py rc=1
+
+=== unpinned ===
+c64                  df99f2dfb208   unpinned      a vendored summary with no source_sha256 is not tied to the bytes the producer wrote
+menu                 df99f2dfb208   unpinned      a vendored summary with no source_sha256 is not tied to the bytes the producer wrote
+pentagon             541e3c548751   unpinned      a vendored summary with no source_sha256 is not tied to the bytes the producer wrote
+spectrum             541e3c548751   unpinned      a vendored summary with no source_sha256 is not tied to the bytes the producer wrote
+spectrum-plus3       541e3c548751   unpinned      a vendored summary with no source_sha256 is not tied to the bytes the producer wrote
+spectrum128          541e3c548751   unpinned      a vendored summary with no source_sha256 is not tied to the bytes the producer wrote
+splash               df99f2dfb208   unpinned      a vendored summary with no source_sha256 is not tied to the bytes the producer wrote
+ts1000               df99f2dfb208   unpinned      a vendored summary with no source_sha256 is not tied to the bytes the producer wrote
+ts1500               df99f2dfb208   unpinned      a vendored summary with no source_sha256 is not tied to the bytes the producer wrote
+zx80                 df99f2dfb208   unpinned      a vendored summary with no source_sha256 is not tied to the bytes the producer wrote
+zx81                 df99f2dfb208   unpinned      a vendored summary with no source_sha256 is not tied to the bytes the producer wrote
+0 of 11 seals still match this head; NOT INTACT: c64, menu, pentagon, spectrum, spectrum-plus3, spectrum128, splash, ts1000, ts1500, zx80, z
+seals_at_head.py rc=1
+
+=== unvendored ===
+pentagon             541e3c548751   unverifiable  the design comparison is from df99f2dfb208, not this row's seal tree 541e3c548751
+spectrum             541e3c548751   unverifiable  the design comparison is from df99f2dfb208, not this row's seal tree 541e3c548751
+spectrum-plus3       541e3c548751   unverifiable  the design comparison is from df99f2dfb208, not this row's seal tree 541e3c548751
+spectrum128          541e3c548751   unverifiable  the design comparison is from df99f2dfb208, not this row's seal tree 541e3c548751
+7 of 11 seals still match this head; NOT INTACT: pentagon, spectrum, spectrum-plus3, spectrum128
+seals_at_head.py rc=1
+
