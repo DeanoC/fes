@@ -94,6 +94,10 @@ func (k PointerKind) String() string {
 
 // HitTest reports the topmost sofa widget at logical pixel (x, y).
 func HitTest(snap Snapshot, x, y int) PointerHit {
+	// Settings › Controllers is driven from a pad or the keyboard.
+	if snap.Controllers.Open {
+		return PointerHit{}
+	}
 	// A failed return may retain the plane after its selector has closed.
 	// Only explicit return/stop commands may act on that view.
 	if snap.Session.MediaSelector && snap.Session.ControlsOpen && !snap.TapePicker.Open {
@@ -389,6 +393,7 @@ func (a *App) pointerSnapshotLocked() Snapshot {
 		Views:           a.viewChoicesLocked(),
 		PickerRows:      a.pickerRowsLocked(),
 		CollectionMenu:  a.collectionMenuSnapshotLocked(),
+		Controllers:     ControllersSnapshot{Open: a.controllers.open},
 		GPUParked:       a.gpuParked,
 		Session:         a.sessionSnapshotLocked(),
 		Launch:          a.launch,

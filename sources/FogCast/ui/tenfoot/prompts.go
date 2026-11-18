@@ -86,20 +86,6 @@ func (p PadPrompts) apply(hint string) string {
 	return strings.Join(words, " ")
 }
 
-// SetPadPrompts records how gamepad id's hints are drawn while it is
-// attached.
-func (a *App) SetPadPrompts(id int, p PadPrompts) {
-	if a == nil {
-		return
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.padPrompts == nil {
-		a.padPrompts = map[int]PadPrompts{}
-	}
-	a.padPrompts[id] = p
-}
-
 // affinityPromptsLocked is the glyph set of the pad that owns the hints.
 func (a *App) affinityPromptsLocked() PadPrompts {
 	if a.affinity.current.Kind != InputGamepad {

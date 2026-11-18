@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/inputmap"
 	"github.com/DeanoC/FogCast/ui/shared"
 	"image"
 	"os"
@@ -136,6 +137,14 @@ func (a *App) persistPrefsLocked(field string) {
 		existing.Surround = boolPtr(a.surround)
 	case "firmware-info":
 		existing.FirmwareInfoSeen = a.firmwareCardSeenListLocked()
+	case "controllers":
+		existing.Controllers = nil
+		if len(a.padProfiles) > 0 {
+			existing.Controllers = map[string]inputmap.Profile{}
+			for guid, profile := range a.padProfiles {
+				existing.Controllers[guid] = profile
+			}
+		}
 	case "all-cores":
 		existing.AllCores = a.allCores
 	case "setup":

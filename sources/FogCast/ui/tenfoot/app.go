@@ -257,6 +257,7 @@ type Snapshot struct {
 	Views              []LibraryView
 	PickerRows         []LibraryView
 	CollectionMenu     CollectionMenuSnapshot
+	Controllers        ControllersSnapshot
 	Session            SessionSnapshot
 	GPUParked          bool
 	Surround           SurroundSnapshot
@@ -329,12 +330,23 @@ type App struct {
 	affinity                affinityTracker
 	// padPrompts holds each attached pad's hint glyphs by input ID.
 	padPrompts map[int]PadPrompts
-	repeat     Repeater
-	theme      theme.Theme
-	jobs       chan workItem
-	results    chan workResult
-	maxGames   int
-	pageLimit  int
+	// pads is the kit's attached pads by input ID, and padDown the physical
+	// buttons each is holding.
+	pads    map[int]PadInfo
+	padDown map[int]map[remoteinput.Code]bool
+	// padProfiles is the saved profiles by GUID, read on first use.
+	// padProfilesUnread is a preferences file that could not be read, so a
+	// save would lose what it holds.
+	padProfiles       map[string]inputmap.Profile
+	padProfilesUnread bool
+	padProfileGen     uint64
+	controllers       controllersState
+	repeat            Repeater
+	theme             theme.Theme
+	jobs              chan workItem
+	results           chan workResult
+	maxGames          int
+	pageLimit         int
 
 	platforms              []hostclient.Platform
 	platformID             string
@@ -1875,6 +1887,7 @@ func (a *App) Snapshot() Snapshot {
 		Views:              a.viewChoicesLocked(),
 		PickerRows:         a.pickerRowsLocked(),
 		CollectionMenu:     a.collectionMenuSnapshotLocked(),
+		Controllers:        a.controllersSnapshotLocked(),
 		Session:            a.sessionSnapshotLocked(),
 		GPUParked:          a.gpuParked,
 		Surround:           SurroundSnapshot{Active: a.surroundShownLocked()},
@@ -1976,7 +1989,7 @@ func (a *App) DetachInput(kind InputKind, id int) {
 	defer a.mu.Unlock()
 	a.affinity.Detach(kind, id)
 	if kind == InputGamepad {
-		delete(a.padPrompts, id)
+		a.dropPadInfoLocked(id)
 	}
 	a.syncInputCountsLocked()
 }
