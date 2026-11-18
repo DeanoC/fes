@@ -699,7 +699,20 @@ module fes_i386_x87 #(
         // encodings they had, so `trace_seq` means the same thing in a
         // default build as it did before this change.
         B_ISSUE,    // offer the operation to fes_x87_core
-        B_WAIT      // ... and take its pre-rounding result into A_RND's registers
+        B_WAIT,     // ... and take its pre-rounding result into A_RND's registers
+        // ---- Packed decimal (X87_BACKEND = 1, #1958). ----
+        // Appended for the same reason. FBLD and FBSTP are built on the DE25
+        // backend only, and every register these four arms write is written
+        // nowhere else, so a DE10 build holds none of them: the start arms
+        // exist so that not even the loop counters need a write outside a
+        // guarded arm (x87_envelope_fit.py derives that list from this file).
+        T_BLD_IN,   // FBLD: take the 18 digits
+        T_BLD,      // ... acc = acc * 10 + digit, 18 times, then the normalising shift
+        T_BST_IN,   // FBSTP: take the rounded integer
+        T_BST,      // ... double-dabble it to 18 digits, a bit a clock, and pack
+        // ---- The transcendentals (X87_BACKEND = 1, #1958). ----
+        T_GO,       // start fes_x87_trans on the normalised operands
+        T_RUN       // ... and take its last result, unrounded, into A_RND's registers
     } seq_e;
     seq_e        seq;
     seq_e        sh_ret;      // the state S_MUL returns to when the multiply is done
@@ -727,6 +740,48 @@ module fes_i386_x87 #(
     assign busy_o = busy;
     assign trace_seq = 6'(seq);
 
+    // ---- Packed decimal: FBLD and FBSTP (DF /4 and /6, #1958). ----
+    // Built on the DE25 backend only. Their operand is ten bytes, moved in
+    // the chunks FLD and FSTP m80 use, so it arrives as X87F_F80 (all eight
+    // format values are taken); the opcode says which it is, since DF's only
+    // other memory forms are integers. Both `cur_fmt` and `cur_op_raw` are
+    // set when the instruction is taken, so this is settled from S_ARG on.
+    // At X87_BACKEND = 0 it is constant zero and every use of it folds away.
+    logic bcd;
+    assign bcd = X87_BACKEND == 1 && cur_fmt == X87F_F80 && cur_op_raw[10:8] == 3'b111;
+    // FBLD's working registers: the digits still to take, most significant
+    // first, the binary integer so far and the count left. Eighteen digits
+    // of at most 15 each stay below 2^61, so 64 bits hold any encoding.
+    logic [63:0] bl_acc;
+    logic [71:0] bl_dig;
+    logic [4:0]  bl_n;
+    // FBSTP's: the rounded integer still to shift out (at most 10^18 - 1,
+    // which is below 2^60), the digits so far and the count left.
+    logic [59:0] bs_bin;
+    logic [71:0] bs_bcd;
+    logic [5:0]  bs_n;
+    // Double-dabble's adjustment: a digit of five or more gains three
+    // before the shift, so the shift's doubling carries into the next digit
+    // (5..9 become 8..12, and twice 5..9 is 10..18).
+    // A function, as this file's other loops are: the locked Yosys loses the
+    // package's type names after a `for (int ...)` loop in an always block
+    // (the netlist bench found it on the first run of this code), and a
+    // loop in a function does not have that effect.
+    function automatic logic [71:0] bcd_adjust(input logic [71:0] d);
+        for (int n = 0; n < 18; n++)
+            bcd_adjust[4*n +: 4] = d[4*n +: 4] >= 4'd5 ? d[4*n +: 4] + 4'd3 : d[4*n +: 4];
+    endfunction
+    logic [71:0] bs_adj;
+    assign bs_adj = bcd_adjust(bs_bcd);
+    // The value a masked invalid FBSTP stores, "packed decimal indefinite".
+    // The 387 PRM (Table 3-7) fixes only its top two bytes, FFh FFh, and
+    // prints the low eight as undefined; C0h then zeros is what the host
+    // x87 and the oracle both store, so bytes 0 to 7 are theirs, measured,
+    // and not the manual's.
+    localparam logic [79:0] BCD_INDEFINITE = 80'hffff_c000_0000_0000_0000;
+    // The largest magnitude 18 digits hold, 10^18 - 1.
+    localparam logic [64:0] BCD_MAX = 65'h0_0de0_b6b3_a763_ffff;
+
     // ---- The board's BUSY# latch (387 PRM Appendix F.2). ----
     // ERROR# going active latches BUSY#, which holds the next waiting ESC or
     // WAIT until a write to port F0h clears it. A write to F1h resets the
@@ -741,7 +796,7 @@ module fes_i386_x87 #(
     // WAIT, holds on it. They do not pass the unit's own work (`hold`).
     x87_op_e iss_dec;
     logic iss_nowait;
-    assign iss_dec = x87_decode(iss_op, iss_fmt);
+    assign iss_dec = x87_decode(iss_op, iss_fmt, X87_BACKEND == 1);
     assign iss_nowait = !iss_wait && (iss_dec == X87_INIT || iss_dec == X87_CLEX);
     // The forms whose value the CPU needs before the instruction retires:
     // a real or integer store, whose conversion the unit runs as the
@@ -854,7 +909,26 @@ module fes_i386_x87 #(
         f64 = mval[51:0];
         e64 = mval[62:52];
         case (cur_fmt)
-            X87F_F80: ld_v = mval;
+            X87F_F80:
+                if (bcd) begin
+                    // FBLD: the 18 digits as the binary integer T_BLD left
+                    // in bl_acc, normalised as FILD's magnitude is. It is
+                    // exact and raises nothing. The sign is bit 79 and bits
+                    // 78 to 72 are ignored (387 PRM Figure 2-10, note 3),
+                    // and unlike FILD a zero keeps its sign: "the sign of
+                    // the source is preserved, including the case where the
+                    // value is negative zero" (387 PRM section 4.3.8).
+                    // **bl_acc is a register T_BLD writes**, so this is the
+                    // loaded value only once T_BLD's count has run out:
+                    // T_BLD's last step and S_APPLY read it, S_PRE must not.
+                    ld_sign = mval[79];
+                    if (bl_acc == 64'd0) ld_v = {mval[79], 79'd0};
+                    else begin
+                        ld_shift = 1'b1;
+                        ld_mag = bl_acc;
+                        ld_expb = 17'd16446;
+                    end
+                end else ld_v = mval;
             X87F_F32: begin
                 ld_sign = mval[31];
                 if (e32 == 8'd0 && f32 == 23'd0) ld_v = {mval[31], 79'd0};
@@ -943,7 +1017,7 @@ module fes_i386_x87 #(
     logic [1:0] f_iw;
     logic [14:0] f_bias;
     assign f_f64 = cur_fmt == X87F_F64;
-    assign f_int = cur_fmt == X87F_I16 || cur_fmt == X87F_I32 || cur_fmt == X87F_I64;
+    assign f_int = cur_fmt == X87F_I16 || cur_fmt == X87F_I32 || cur_fmt == X87F_I64 || bcd;
     assign f_iw = cur_fmt == X87F_I16 ? 2'd0 : cur_fmt == X87F_I32 ? 2'd1 : 2'd2;
     assign f_bias = f_f64 ? 15'd1023 : 15'd127;
     logic signed [17:0] st_te;
@@ -962,7 +1036,44 @@ module fes_i386_x87 #(
         st_v = 80'd0;
         st_fl = 6'd0;
         case (cur_fmt)
-            X87F_F80: begin
+            X87F_F80: if (bcd) begin
+                // FBSTP rounds ST(0) to an integer under RC exactly as the
+                // 64-bit integer store below does (f_iw is 2 for this
+                // format), and S_POST2 then range-checks the rounded
+                // magnitude against 18 digits and T_BST converts it. What
+                // differs here: a zero keeps its sign in the sign byte, and
+                // every invalid source -- empty, a NaN, an infinity, an
+                // unsupported format, or a magnitude of 2^64 or more, which
+                // cannot be 18 digits whatever it rounds to -- stores the
+                // packed decimal indefinite (387 PRM Table 3-10). A denormal
+                // or pseudo-denormal source raises no denormal exception:
+                // the PRM's Appendix B lists only IS, I and P for FBSTP, and
+                // the host x87 and the oracle were both measured to set PE
+                // alone.
+                case (st_cls)
+                    C_ZERO: st_v = {st_sign, 79'd0};
+                    C_EMPTY, C_QNAN, C_SNAN, C_INF, C_UNSUP: begin
+                        st_big = 1'b1;
+                        st_fl = 6'b000001;
+                        st_v = BCD_INDEFINITE;
+                    end
+                    default: begin
+                        st_direct = 1'b0;
+                        st_p = P_1;
+                        if (st_e > 18'sd63) begin
+                            st_big = 1'b1;
+                            st_direct = 1'b1;
+                            st_fl = 6'b000001;
+                            st_v = BCD_INDEFINITE;
+                        end else if (st_e == 18'sd63) begin
+                            st_p = P_0;
+                        end else begin
+                            st_k = (18'sd62 - st_e) > 18'sd64 ? 7'd64 : 7'((18'sd62 - st_e));
+                            st_shift = st_k != 7'd0;
+                        end
+                    end
+                endcase
+            end else begin
                 // FSTP m80 is a bit copy, so no operand raises anything but
                 // the stack fault of an empty ST(0).
                 st_v = st_cls == C_EMPTY ? INDEFINITE : ra_val;
@@ -1126,7 +1237,7 @@ module fes_i386_x87 #(
     logic       a_mem;      // ... and its second operand comes from memory
     assign a_form = cur == X87_ARITH || cur == X87_CMP || cur == X87_RNDINT
                  || cur == X87_SCALE || cur == X87_XTRACT || cur == X87_DIV
-                 || cur == X87_SQRT || cur == X87_PREM;
+                 || cur == X87_SQRT || cur == X87_PREM || cur == X87_TRANS;
     assign a_mem = (cur == X87_ARITH || cur == X87_CMP || cur == X87_DIV)
                 && cur_op_raw[7:6] != 2'b11;
     always_comb begin
@@ -1160,6 +1271,12 @@ module fes_i386_x87 #(
                 a_rev = a_dsti ? !cur_op_raw[3] : cur_op_raw[3];
                 a_pop1 = cur_op_raw[10:8] == 3'b110;
             end
+        end else if (cur == X87_TRANS) begin
+            // FYL2X, FYL2XP1 and FPATAN take ST(1) and ST(0), leave the
+            // result in ST(1) and pop: the destination and the pop are
+            // FADDP ST(1),ST's, so `pa` is ST(1) and `pb` is ST(0).
+            a_dsti = t_two;
+            a_pop1 = t_two;
         end else if (cur == X87_CMP) begin
             if (!a_reg) a_pop1 = a_rf == 3'd3;
             else begin
@@ -1172,6 +1289,32 @@ module fes_i386_x87 #(
         end
     end
     assign a_dst = a_dsti ? top + cur_i : top;
+
+    // ---- The transcendentals: which, and its shape. ----
+    // The engine's instruction number (fes_x87_trans_pkg TR_*) off the
+    // opcode's low byte. FSINCOS and FPTAN push; the three two-operand forms
+    // pop; the four trigonometric forms have the 2^63 range and C2.
+    logic [2:0] t_ins;
+    logic       t_two, t_push, t_trig;
+    always_comb begin
+        case (cur_op_raw[7:0])
+            8'hfe: t_ins = 3'd0;      // FSIN
+            8'hff: t_ins = 3'd1;      // FCOS
+            8'hfb: t_ins = 3'd2;      // FSINCOS
+            8'hf2: t_ins = 3'd3;      // FPTAN
+            8'hf0: t_ins = 3'd4;      // F2XM1
+            8'hf1: t_ins = 3'd5;      // FYL2X
+            8'hf9: t_ins = 3'd6;      // FYL2XP1
+            default: t_ins = 3'd7;    // FPATAN
+        endcase
+    end
+    assign t_two = t_ins >= 3'd5;
+    assign t_push = t_ins == 3'd2 || t_ins == 3'd3;
+    assign t_trig = t_ins <= 3'd3;
+    logic       tr_c2;       // a trigonometric form sets C2
+    logic       tr_nowr;     // ... and, out of range, writes and pushes nothing
+    logic       tr_eng;      // the result is the engine's: inexact by definition
+    logic       tr_under;    // a stack underflow, which a push form's overflow check must not override
 
     // ---- The arithmetic's operands. ----
     // `pa` and `pb` are the two values in the operation's own order, each
@@ -1478,19 +1621,56 @@ module fes_i386_x87 #(
     // flush would cancel a committed operation and leave the unit waiting for
     // a result that was thrown away.
     assign bk_cancel = reset || f1 || (flush && started && !committed);
+    // The transcendental engine drives the same backend while it runs, one
+    // operation at a time, rounded to nearest at extended precision.
+    logic                     tr_start, tr_busy, tr_done, tr_req_valid, tr_fin_zero, tr_fin_sign;
+    logic [2:0]               tr_req_op;
+    logic [79:0]              tr_req_a, tr_req_b, tr_second;
+    logic signed [17:0]       tr_fin_exp;
+    logic [66:0]              tr_fin_sig;
+    logic [1:0]               tr_second_mode;
+    assign tr_start = X87_BACKEND == 1 && seq == T_GO;
     generate
         if (X87_BACKEND == 1) begin : g_de25
             fes_x87_core core (
                 .clk, .reset(reset || f1), .flush(bk_cancel),
-                .req_valid(bk_req_valid), .ext_ready(1'b1), .req_ready(bk_req_ready),
-                .req_op(bk_op), .req_a(pa), .req_b(pb),
-                .req_pc(wprec), .req_rc(rc), .req_slot(4'd0),
+                .req_valid(tr_busy ? tr_req_valid : bk_req_valid), .ext_ready(1'b1),
+                .req_ready(bk_req_ready),
+                .req_op(tr_busy ? tr_req_op : bk_op), .req_a(tr_busy ? tr_req_a : pa),
+                .req_b(tr_busy ? tr_req_b : pb),
+                .req_pc(tr_busy ? 2'd3 : wprec), .req_rc(tr_busy ? 2'd0 : rc), .req_slot(4'd0),
                 .raw_valid(bk_raw_valid), .raw(bk_raw)
+            );
+            // x is ST(0) and y ST(1): a two-operand form has them in `pb`
+            // and `pa`, a one-operand form has x in `pa`.
+            fes_x87_trans trans (
+                .clk, .reset(reset || f1), .cancel(bk_cancel),
+                .start(tr_start), .instruction(t_ins),
+                .xs(t_two ? pb[79] : pa[79]), .xe((t_two ? ob_e : oa_e) - 18'sd16383),
+                .xm(t_two ? ob_m : oa_m),
+                .ys(pa[79]), .ye(oa_e - 18'sd16383), .ym(oa_m),
+                .req_valid(tr_req_valid), .req_ready(bk_req_ready), .req_op(tr_req_op),
+                .req_a(tr_req_a), .req_b(tr_req_b), .raw_valid(bk_raw_valid), .raw(bk_raw),
+                .busy(tr_busy), .done(tr_done), .fin_zero(tr_fin_zero), .fin_sign(tr_fin_sign),
+                .fin_exp(tr_fin_exp), .fin_sig(tr_fin_sig), .second_mode(tr_second_mode),
+                .second(tr_second)
             );
         end else begin : g_de10
             assign bk_req_ready = 1'b0;
             assign bk_raw_valid  = 1'b0;
             assign bk_raw        = '0;
+            assign tr_busy = 1'b0;
+            assign tr_done = 1'b0;
+            assign tr_req_valid = 1'b0;
+            assign tr_req_op = 3'd0;
+            assign tr_req_a = 80'd0;
+            assign tr_req_b = 80'd0;
+            assign tr_fin_zero = 1'b0;
+            assign tr_fin_sign = 1'b0;
+            assign tr_fin_exp = 18'sd0;
+            assign tr_fin_sig = 67'd0;
+            assign tr_second_mode = 2'd0;
+            assign tr_second = 80'd0;
         end
     endgenerate
     // The decoded operation, from the same form bits the sequencer's datapath
@@ -1687,7 +1867,7 @@ module fes_i386_x87 #(
                     cur_fmt <= iss_fmt;
                     // FSCALE's second operand is ST(1); its ModRM byte (D9 FDh)
                     // names no register, so the index comes from the form.
-                    cur_i <= (iss_dec == X87_SCALE || iss_dec == X87_PREM) ? 3'd1
+                    cur_i <= (iss_dec == X87_SCALE || iss_dec == X87_PREM || iss_dec == X87_TRANS) ? 3'd1
                            : iss_op[2:0];
                     cur_pop <= iss_dec == X87_STP_M || iss_dec == X87_STP_ST;
                     cur_op_raw <= iss_op;
@@ -1713,8 +1893,12 @@ module fes_i386_x87 #(
                 // target or an integer, then the rounding.
                 S_ARG: seq <= S_PRE;
                 S_PRE: if (cur == X87_LD_M) begin
+                    // FBLD's digits become a binary integer first, and the
+                    // conversion above is that integer's: nothing here may
+                    // read ld_shift or ld_mag for it yet.
+                    if (bcd) seq <= T_BLD_IN;
                     // A load's normalising left shift, a multiply by 2^lz.
-                    if (ld_shift) begin
+                    else if (ld_shift) begin
                         sh_in <= ld_mag;
                         sh_k <= 7'd0;
                         sh_src <= ld_mag;
@@ -1847,6 +2031,206 @@ module fes_i386_x87 #(
                         pcc <= cmp_cc;
                         pcc_wr <= 1'b1;
                         seq <= S_APPLY;
+                    end else if (X87_BACKEND == 1 && cur == X87_TRANS) begin
+                        // ---- The transcendentals' operand classes. ----
+                        // Everything the engine is not entered for: the stack
+                        // faults, the unsupported formats and the NaNs, which
+                        // are the arithmetic's rules, and each instruction's
+                        // zeros, infinities and range, which are the 387's
+                        // (docs/validation/2026-11-17-de25-x87-transcendentals
+                        // rules.md, by rule number). A finite non-zero operand
+                        // in range goes on to the engine through the same
+                        // pre-normalising shifts the arithmetic uses.
+                        logic        go, viapi;
+                        logic [5:0]  tf;         // a two-operand answer's flags
+                        logic [1:0]  pik;        // which multiple of pi/4: 0 pi/4, 1 pi/2, 2 3pi/4, 3 pi
+                        logic        sx, sy, x_one, x_lt1, x_neg1, x_ltneg1;
+                        go = 1'b0;
+                        viapi = 1'b0;
+                        tf = 6'd0;
+                        pik = 2'd0;
+                        sy = pa[79];
+                        sx = pb[79];
+                        x_one = pb == 80'h3fff_8000_0000_0000_0000;
+                        x_lt1 = pb[78:64] < 15'h3fff;
+                        x_neg1 = pb == 80'hbfff_8000_0000_0000_0000;
+                        x_ltneg1 = pb[79] && pb[78:0] > 79'h3fff_8000_0000_0000_0000;
+                        tr_c2 <= 1'b0;
+                        tr_nowr <= 1'b0;
+                        tr_eng <= 1'b0;
+                        tr_under <= 1'b0;
+                        pc1 <= 1'b0;
+                        ares2 <= 80'h3fff_8000_0000_0000_0000;      // FPTAN's 1.0, and the cosine of zero
+                        if (!t_two) begin
+                            // One operand, x in `pa`.
+                            if (ca == C_EMPTY) begin
+                                // G13: a stack underflow.
+                                pfl <= 6'b000001;
+                                psf <= 1'b1;
+                                tr_under <= 1'b1;
+                                ares <= INDEFINITE;
+                                ares2 <= INDEFINITE;
+                            end else if (t_push && !empty[push_i]) begin
+                                // G13, TAN2: a stack overflow, which the
+                                // apply finds again and marks with C1.
+                                pfl <= 6'b000001;
+                                psf <= 1'b1;
+                                ares <= INDEFINITE;
+                                ares2 <= INDEFINITE;
+                            end else if (ca == C_UNSUP) begin
+                                pfl <= 6'b000001;               // G7
+                                ares <= INDEFINITE;
+                                ares2 <= INDEFINITE;
+                            end else if (ca == C_QNAN || ca == C_SNAN) begin
+                                pfl <= ca == C_SNAN ? 6'b000001 : 6'd0;     // G8
+                                ares <= {pa[79:64], 2'b11, pa[61:0]};
+                                ares2 <= {pa[79:64], 2'b11, pa[61:0]};
+                            end else if (ca == C_INF) begin
+                                if (t_trig) begin
+                                    // TRIG4: invalid, the indefinite, and C2
+                                    // set, which the manual states and the
+                                    // modern references do not do.
+                                    pfl <= 6'b000001;
+                                    tr_c2 <= 1'b1;
+                                    ares <= INDEFINITE;
+                                    ares2 <= INDEFINITE;
+                                end else
+                                    // EXP2: 2^+inf - 1 is +inf, 2^-inf - 1 is -1.
+                                    ares <= pa[79] ? 80'hbfff_8000_0000_0000_0000 : pa;
+                            end else if (ca == C_ZERO) begin
+                                // SIN1, COS1, SC1, TAN1, EXP2: exact, no flag.
+                                ares <= t_ins == 3'd1 ? 80'h3fff_8000_0000_0000_0000 : pa;
+                            end else if (t_trig && ca != C_DEN && pa[78:64] >= 15'd16383 + 15'd63) begin
+                                // TRIG2: |x| >= 2^63. C2, and nothing else.
+                                tr_c2 <= 1'b1;
+                                tr_nowr <= 1'b1;
+                            end else
+                                go = 1'b1;
+                        end else if (sp_bad) begin
+                            // Two operands, y in `pa` and x in `pb`: an empty
+                            // register, an unsupported format or a NaN is the
+                            // arithmetic's rule (G7, G8, G13).
+                            pfl <= sp_fl;
+                            psf <= sp_sf;
+                            ares <= sp_v;
+                        end else if (t_ins == 3'd7) begin
+                            // FPATAN: no operand pair is invalid (ATAN3, ATAN4).
+                            if (ca == C_ZERO) begin
+                                if (!sx) ares <= {sy, 79'd0};       // over a positive x: the zero
+                                else begin viapi = 1'b1; pik = 2'd3; end
+                            end else if (ca == C_INF) begin
+                                viapi = 1'b1;
+                                pik = cb == C_INF ? (sx ? 2'd2 : 2'd0) : 2'd1;
+                            end else if (cb == C_ZERO) begin
+                                viapi = 1'b1;
+                                pik = 2'd1;
+                            end else if (cb == C_INF) begin
+                                if (!sx) ares <= {sy, 79'd0};
+                                else begin viapi = 1'b1; pik = 2'd3; end
+                            end else
+                                go = 1'b1;
+                        end else if (t_ins == 3'd5) begin
+                            // FYL2X (LOG1 to LOG4).
+                            if (cb == C_ZERO) begin
+                                if (ca == C_ZERO) begin
+                                    tf = 6'b000001;
+                                    ares <= INDEFINITE;
+                                end else begin
+                                    // log2 0 is minus infinity: a zero divide
+                                    // for a finite y.
+                                    if (ca != C_INF) tf = 6'b000100;
+                                    ares <= {!sy, 15'h7fff, 1'b1, 63'd0};
+                                end
+                            end else if (sx) begin
+                                tf = 6'b000001;               // LOG2: a negative x
+                                ares <= INDEFINITE;
+                            end else if (cb == C_INF) begin
+                                if (ca == C_ZERO) begin
+                                    tf = 6'b000001;
+                                    ares <= INDEFINITE;
+                                end else
+                                    ares <= {sy, 15'h7fff, 1'b1, 63'd0};
+                            end else if (x_one) begin
+                                if (ca == C_INF) begin
+                                    tf = 6'b000001;
+                                    ares <= INDEFINITE;
+                                end else
+                                    ares <= {sy, 79'd0};
+                            end else if (ca == C_ZERO)
+                                ares <= {sy ^ x_lt1, 79'd0};
+                            else if (ca == C_INF)
+                                ares <= {sy ^ x_lt1, 15'h7fff, 1'b1, 63'd0};
+                            else
+                                go = 1'b1;
+                        end else begin
+                            // FYL2XP1 (LOG5, LOG6).
+                            if (cb == C_ZERO) begin
+                                if (ca == C_INF) begin
+                                    tf = 6'b000001;
+                                    ares <= INDEFINITE;
+                                end else
+                                    ares <= {sy ^ sx, 79'd0};
+                            end else if (cb == C_INF) begin
+                                if (sx || ca == C_ZERO) begin
+                                    tf = 6'b000001;
+                                    ares <= INDEFINITE;
+                                end else
+                                    ares <= {sy, 15'h7fff, 1'b1, 63'd0};
+                            end else if (x_ltneg1) begin
+                                tf = 6'b000001;               // LOG5: more negative than -1
+                                ares <= INDEFINITE;
+                            end else if (x_neg1) begin
+                                // log2 0 again: the manual leaves it undefined.
+                                if (ca == C_ZERO) begin
+                                    tf = 6'b000001;
+                                    ares <= INDEFINITE;
+                                end else begin
+                                    if (ca != C_INF) tf = 6'b000100;
+                                    ares <= {!sy, 15'h7fff, 1'b1, 63'd0};
+                                end
+                            end else if (ca == C_ZERO)
+                                ares <= {sy ^ sx, 79'd0};
+                            else if (ca == C_INF)
+                                ares <= {sy ^ sx, 15'h7fff, 1'b1, 63'd0};
+                            else
+                                go = 1'b1;
+                        end
+                        // A denormal operand raises DE on these answers too, unless
+                        // an invalid or a zero divide is the only thing reported.
+                        if (t_two && !sp_bad && !go)
+                            pfl <= tf | (!tf[0] && !tf[2] && (ca == C_DEN || cb == C_DEN) ? 6'b000010 : 6'd0);
+                        if (viapi) begin
+                            // A multiple of pi/4, to 67 bits and a sticky, so
+                            // A_RND rounds it under the control word and the
+                            // inexact flag and C1 are its own.
+                            wsign <= sy;
+                            we <= pik == 2'd0 ? 18'sd16382 : pik == 2'd1 ? 18'sd16383 : 18'sd16384;
+                            wm <= pik == 2'd2 ? 64'h96cb_e3f9_990e_91a7 : 64'hc90f_daa2_2168_c234;
+                            wg <= 1'b1;
+                            wrd <= pik != 2'd2;
+                            ws <= 1'b1;
+                            seq <= A_RND;
+                        end else if (go) begin
+                            // G9: a denormal operand raises DE and is normalised.
+                            pfl <= pfl | (ca == C_DEN || (t_two && cb == C_DEN) ? 6'b000010 : 6'd0);
+                            if (ca == C_DEN) begin
+                                oa_e <= eff_e(pa) - 18'(lza);
+                                sh_src <= pa[63:0];
+                                sh_pow <= 6'(lza);
+                                sh_isprod <= 1'b0;
+                                sh_ret <= A_PNA;
+                                seq <= S_SHIFT;
+                            end else if (t_two && cb == C_DEN) begin
+                                ob_e <= eff_e(pb) - 18'(lzb);
+                                sh_src <= pb[63:0];
+                                sh_pow <= 6'(lzb);
+                                sh_isprod <= 1'b0;
+                                sh_ret <= A_PNB;
+                                seq <= S_SHIFT;
+                            end else
+                                seq <= A_OP;
+                        end else
+                            seq <= S_APPLY;
                     end else if (cur == X87_RNDINT || cur == X87_XTRACT
                                  || cur == X87_SQRT) begin
                         // The one-operand forms: only ST(0)'s class counts,
@@ -2091,6 +2475,8 @@ module fes_i386_x87 #(
                 // branches.
                 A_OP: if (bk_form) begin
                     seq <= B_ISSUE;
+                end else if (X87_BACKEND == 1 && cur == X87_TRANS) begin
+                    seq <= T_GO;
                 end else begin
                     if (cur == X87_ARITH && a_mul) begin
                         // The product, on the one multiplier. Both operands
@@ -3331,6 +3717,37 @@ module fes_i386_x87 #(
                     pcc_wr <= 1'b1;
                     seq <= A_RND;
                 end
+                // ---- The transcendental engine. ----
+                // `tr_start` is this state: the engine takes the operands the
+                // pre-normalising shifts have settled in oa_m, oa_e, ob_m and
+                // ob_e, which were assigned at least a clock ago.
+                T_GO: if (X87_BACKEND == 1) seq <= T_RUN;
+                // Its last operation's result, unrounded, into the registers
+                // A_RND reads, so the rounding under the control word,
+                // overflow, underflow and C1 are the arithmetic's. `tr_done`
+                // and the fin_* values are the engine's registers, written
+                // on the same edge. The instruction is inexact by definition
+                // (rules.md G6), so PE is set whatever the last operation was.
+                T_RUN: if (X87_BACKEND == 1 && tr_done) begin
+                    tr_eng <= 1'b1;
+                    pfl[5] <= 1'b1;
+                    wtiny <= 1'b0;
+                    wsat <= 1'b0;
+                    // FPTAN pushes 1.0; FSINCOS pushes the engine's cosine.
+                    if (t_ins == 3'd2) ares2 <= tr_second;
+                    if (tr_fin_zero) begin
+                        ares <= {tr_fin_sign, 79'd0};
+                        seq <= S_APPLY;
+                    end else begin
+                        wsign <= tr_fin_sign;
+                        we <= tr_fin_exp;
+                        wm <= tr_fin_sig[66:3];
+                        wg <= tr_fin_sig[2];
+                        wrd <= tr_fin_sig[1];
+                        ws <= tr_fin_sig[0];
+                        seq <= A_RND;
+                    end
+                end
                 S_POST: begin
                     rnd_q <= rnd_w[64:0];
                     rnd_inex_q <= rnd_w[65];
@@ -3344,7 +3761,20 @@ module fes_i386_x87 #(
                     logic       c1v;
                     f = pfl;
                     c1v = rnd_up_q;
-                    if (c_int) begin
+                    if (bcd) begin
+                        // FBSTP: the rounded magnitude has to fit 18 digits.
+                        // One that does not is invalid and stores the packed
+                        // decimal indefinite, with nothing rounded up; one
+                        // that does goes to T_BST with its flags, C1 and
+                        // the no-access decision already final, since the
+                        // CPU takes the value the moment the sequencer
+                        // reaches S_RDY.
+                        if (rnd_q > BCD_MAX) begin
+                            f[0] = 1'b1;
+                            c1v = 1'b0;
+                            sres <= BCD_INDEFINITE;
+                        end else if (rnd_inex_q) f[5] = 1'b1;
+                    end else if (c_int) begin
                         if (int_oor) begin
                             f[0] = 1'b1;
                             c1v = 1'b0;
@@ -3378,8 +3808,74 @@ module fes_i386_x87 #(
                     end
                     pfl <= f;
                     pc1 <= c1v;
-                    pnx <= unmasked(f, cw);
-                    seq <= S_RDY;
+                    // FBSTP with the precision exception unmasked stores its
+                    // digits and pops: precision is detected after the
+                    // result exists, and the host x87 was measured to store,
+                    // pop and raise ES. Only invalid holds the access back.
+                    // (The integer and real stores keep the gate they were
+                    // sealed with, which S_APPLY's comment names.)
+                    pnx <= unmasked(bcd ? f & 6'b000111 : f, cw);
+                    seq <= bcd && !f[0] ? T_BST_IN : S_RDY;
+                end
+                // ---- Packed decimal (#1958). ----
+                // FBLD: 18 steps of acc * 10 + digit, the most significant
+                // digit first, with the multiply as two shifts and an add.
+                // A digit of A to F is not checked for: the 387 "does not
+                // check for invalid digits" and calls the result undefined
+                // (387 PRM section 4.3.8), and this arithmetic is what the
+                // host x87 and the oracle were both measured to do with one.
+                T_BLD_IN: if (X87_BACKEND == 1) begin
+                    bl_acc <= 64'd0;
+                    bl_dig <= mval[71:0];
+                    bl_n <= 5'd18;
+                    seq <= T_BLD;
+                end
+                // The step that starts the normalising shift reads bl_acc
+                // through ld_shift and ld_mag, so it has to be a clock after
+                // the last digit went in: the count runs out first and the
+                // shift starts from the settled register, never in the
+                // clock that assigns it. bl_acc then stays as it is until
+                // S_APPLY, which reads the same conversion again.
+                T_BLD: if (X87_BACKEND == 1) begin
+                    if (bl_n != 5'd0) begin
+                        bl_acc <= {bl_acc[60:0], 3'd0} + {bl_acc[62:0], 1'b0} + {60'd0, bl_dig[71:68]};
+                        bl_dig <= {bl_dig[67:0], 4'd0};
+                        bl_n <= bl_n - 5'd1;
+                    end else if (ld_shift) begin
+                        sh_in <= ld_mag;
+                        sh_k <= 7'd0;
+                        sh_src <= ld_mag;
+                        sh_pow <= 6'(clz64(ld_mag));
+                        sh_exp <= 15'(ld_expb - 17'(clz64(ld_mag)));
+                        sh_isprod <= 1'b0;
+                        sh_ret <= S_APPLY;
+                        seq <= S_SHIFT;
+                    end else
+                        seq <= S_APPLY;
+                end
+                // FBSTP: the rounded integer to 18 digits by double-dabble,
+                // one bit a clock from the top: each digit of five or more
+                // gains three, then the digits shift left with the next bit
+                // coming in at the bottom. Sixty bits hold 10^18 - 1.
+                T_BST_IN: if (X87_BACKEND == 1) begin
+                    bs_bin <= rnd_q[59:0];
+                    bs_bcd <= 72'd0;
+                    bs_n <= 6'd60;
+                    seq <= T_BST;
+                end
+                // The packed value: the sign in bit 79, zeros in bits 78 to
+                // 72 (387 PRM Figure 2-10, note 3: "zeros when storing") and
+                // the digits. It is assigned from bs_bcd a clock after the
+                // last bit went in, for the same reason as above.
+                T_BST: if (X87_BACKEND == 1) begin
+                    if (bs_n != 6'd0) begin
+                        bs_bcd <= {bs_adj[70:0], bs_bin[59]};
+                        bs_bin <= {bs_bin[58:0], 1'b0};
+                        bs_n <= bs_n - 6'd1;
+                    end else begin
+                        sres <= {c_sign, 7'd0, bs_bcd};
+                        seq <= S_RDY;
+                    end
                 end
                 S_RDY: if (flush) seq <= S_IDLE;
                        else if (wb && wb_last) seq <= S_APPLY;
@@ -3543,6 +4039,38 @@ module fes_i386_x87 #(
                             wr = 1'b1;
                             pop = a_pop1;
                         end
+                        X87_TRANS: begin
+                            // The trigonometric forms write C2: clear where
+                            // the operand was reduced, set where it was out
+                            // of range, which leaves the stack as it was.
+                            if (t_trig) begin
+                                ccw = 1'b1;
+                                nc = {cc[3], tr_c2, 1'b0, cc[0]};
+                            end
+                            // A result the engine produced is inexact and, if
+                            // it is tiny, an underflow (rules.md G6, G12).
+                            if (tr_eng && ares[78:64] == 15'd0 && ares[63:0] != 64'd0) f[4] = 1'b1;
+                            if (tr_nowr) c1 = 1'b0;
+                            else if (t_push) begin
+                                // FSINCOS and FPTAN: the result replaces ST(0)
+                                // and the cosine or the 1.0 is pushed, as
+                                // FXTRACT's two results are.
+                                push = 1'b1;
+                                v = ares2;
+                                wr = 1'b1;
+                                if (!empty[push_i] && !tr_under) begin
+                                    f = 6'b000001;
+                                    stk = 1'b1;
+                                    c1 = 1'b1;
+                                    ovf = 1'b1;
+                                    v = INDEFINITE;
+                                end
+                            end else begin
+                                v = ares;
+                                wr = 1'b1;
+                                pop = a_pop1;
+                            end
+                        end
                         X87_CMP: pop = a_pop1 || a_pop2;
                         X87_XTRACT: begin
                             // FXTRACT replaces ST(0) with its exponent and
@@ -3627,7 +4155,9 @@ module fes_i386_x87 #(
                     // were sealed and lockstepped with; whether a store with
                     // PE unmasked should make its access is its own question
                     // and the record names it.
-                    um = a_form ? unmasked(f & 6'b000111, cw) : unmasked(f, cw);
+                    // FBSTP follows the same measurement: with PE unmasked it
+                    // has stored and it pops.
+                    um = a_form || bcd ? unmasked(f & 6'b000111, cw) : unmasked(f, cw);
                     // ... and because such an exception means the operation
                     // never produced a result, the exceptions the result
                     // would have raised are not reported with it: a real x87
@@ -3716,7 +4246,7 @@ module fes_i386_x87 #(
                         end
                         if (cur == X87_ARITH || cur == X87_RNDINT || cur == X87_SCALE
                             || cur == X87_DIV || cur == X87_SQRT
-                            || cur == X87_PREM) begin
+                            || cur == X87_PREM || (cur == X87_TRANS && !t_push && !tr_nowr)) begin
                             rw_idx <= a_dst;
                             rw_val <= v;
                             rw_en <= 1'b1;
@@ -3725,7 +4255,10 @@ module fes_i386_x87 #(
                             // it: the pop wins, so it reads empty.
                             if (!(pop && a_dst == top)) empty[a_dst] <= 1'b0;
                         end
-                        if (cur == X87_XTRACT) begin
+                        if (cur == X87_XTRACT || (cur == X87_TRANS && t_push && !tr_nowr)) begin
+                            // A push form's stack underflow leaves the indefinite
+                            // in the register ST(0) was too, so it stops being empty.
+                            if (cur == X87_TRANS) empty[top] <= 1'b0;
                             // The push above wrote the significand; the
                             // exponent goes to the register ST(0) was.
                             sres <= ovf ? INDEFINITE : ares;

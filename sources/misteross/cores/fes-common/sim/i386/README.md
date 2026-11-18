@@ -209,7 +209,7 @@ entry that no longer matches a failure.
 | `[[vectors]]` | 21 | all 325,091 failing SingleStepTests states |
 | `[[test386]]` | 9 | every failed test386 check (655 stepped over in one run) |
 | `[[corpora]]` | 0 | the corpora agree on all 8,695 overlapping states |
-| `[[lockstep]]` | 5 | whole-CPU rules where FES follows the 386 and Bochs does not: DR6, a #DB fault's RF image, two rejected encodings, and ARPL paging |
+| `[[lockstep]]` | 15 | whole-CPU rules where FES follows the 386 and Bochs does not: DR6, a #DB fault's RF image, two rejected encodings, ARPL paging and the 386's undocumented instructions; and the transcendental rule's recorded differences from the 387 (`x87-*`, #1958), one of them open |
 
 Most entries are i386 undefined flags (BT* OF, MUL/IMUL/DIV flags, BSF/BSR,
 BCD adjusts, shift AF/OF/CF), where Bochs follows later Intel CPUs. The rest are
@@ -322,6 +322,18 @@ differs. Directed tests in later phases decide these, not the oracle:
     on either side (the design's recorded deviation).
   LOADALL (0F 07) is the one encoding the 386 defines that the FES CPU does
   not build: it stops as not built, so no lockstep compares it.
+- The eight transcendentals (`[[lockstep]]` `x87-*`, #1958; the lockstep's
+  `x87trans` suite, DE25 backend). Bochs's results for F2XM1, FYL2X, FPTAN,
+  FPATAN, FYL2XP1, FSINCOS, FSIN and FCOS are not a 387's, so the lockstep
+  compares a finite non-zero result within `--transcendental-ulp-oracle`
+  representable values (no default; unset, the compare fails) and everything
+  else exactly, then sets the oracle's result and C1 to the RTL's
+  (`Oracle::set_x87_register`, `set_x87_status_bits`) so the difference goes
+  no further. Six differences in flags and special results are recorded and
+  accepted as exactly what each entry states: C2 after a trigonometric form
+  of an infinity, FYL2XP1 at and below -1, and three where Bochs's underflow
+  and denormal flags come from its own working rather than the operands and
+  the result.
 - Bochs's 386 reads CR0's bits 30-5 as ones and forces ET with its 387; the
   corpus's 386EX reads bit 16 as 0. The lockstep compares PE, MP, EM, TS and
   PG, and the random programs start from Bochs's reset CR0 and write ET set.

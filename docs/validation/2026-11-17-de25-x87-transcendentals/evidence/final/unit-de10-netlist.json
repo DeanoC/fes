@@ -1,0 +1,101 @@
+{
+  "top": "fes_i386_x87",
+  "netlist": true,
+  "backend": "de10",
+  "source": {
+    "fes_revision": "e967bf4fa1b11c3c637c5aa91582b38f28b65afb",
+    "tracked_changes": [],
+    "files": {
+      "sources/misteross/cores/fes-common/rtl/i386/fes_i386_pkg.sv": "16183393fd8aaa8d0e059032c045b7ae403ce3bf9e3c6851fb017dbc5b759d67",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87.sv": "20c3bfd236d5fd80d330bb85ba9a53f2450051a9cbc5bcd9dce57164d70e92d6",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87_mul.sv": "1c07ac7b90d76654495e21996d991647da67c144985ac61fdb332e37392190ce",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_pkg.sv": "86334f83339b10b47598044b74b510bac5829d52f7cbd4eb379570d2f90dd64d",
+      "sources/misteross/cores/fes-common/sim/i386/x87_unit_tb.cpp": "468b9b5cfa79d5df64d1fbf52c9a7ba744f80a27033a7e4ca59477840f2d98ec",
+      "sources/misteross/scripts/test_fes_i386_x87_unit.py": "d907e78fbdbeef01e507439ce3a899339bc1e4c658ea468d669417813f6fc404",
+      "sources/misteross/scripts/x87_envelope_fit.py": "d3e4c95a59fbb4fb748e48d953b06bfcb2fe7132c7b30e9c9b80a674510ea47c",
+      "sources/misteross/scripts/x87_trans_ucode.py": "b9be5b3c6738dd854b2907d08734c0015e0c21c039e73e45f97194e24554e53e",
+      "sources/misteross/scripts/yosys_netlist.py": "4e5e0efad547a7b64a3130bf16804142ce53d469185b0fe44baec28846c634f8"
+    },
+    "files_sha256": "c02f502422779800527804495613d9b56b93d2ba387a6758f0f82420cac0baeb"
+  },
+  "verilator": {
+    "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+    "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+    "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+    "version": "Verilator 5.054 2026-11-01 rev v5.054",
+    "install": "1cd6c9741d903760a2b1c4283b6830f63c0974f8478b06fb7f8dabd3c4304d8c"
+  },
+  "passed": 774,
+  "failed": 0,
+  "failures": [],
+  "cases": 774,
+  "bcd_cases": 3,
+  "bcd_forms": {
+    "fbld": {
+      "issued": 1,
+      "converted": 0
+    },
+    "fbstp": {
+      "issued": 1,
+      "converted": 0
+    }
+  },
+  "transcendentals": null,
+  "netlist_exclusion": {
+    "own_backend_only": {
+      "dv_c": true,
+      "dv_k": true,
+      "dv_pow": true,
+      "dv_sub": true,
+      "gs_d": true,
+      "gs_n": true,
+      "qt_e": true,
+      "qt_s": false,
+      "qy_e": true,
+      "qy_s": true,
+      "qz_e": true,
+      "qz_s": false,
+      "ua_add": true,
+      "ub_add": true,
+      "ub_g": true,
+      "ub_r": true,
+      "ub_s": true
+    },
+    "other_backend_only": {
+      "bl_acc": false,
+      "bl_dig": false,
+      "bl_n": false,
+      "bs_bcd": false,
+      "bs_bin": false,
+      "bs_n": false
+    },
+    "leaked": []
+  },
+  "latency_clocks": {
+    "fadd.pc24": 10,
+    "fsub.pc24": 17,
+    "fmul.pc24": 15,
+    "fdiv.pc24": 50,
+    "fsqrt.pc24": 54,
+    "fscale.pc24": 15,
+    "frndint.pc24": 22,
+    "fprem.pc24": 17,
+    "fadd.pc53": 10,
+    "fsub.pc53": 17,
+    "fmul.pc53": 15,
+    "fdiv.pc53": 60,
+    "fsqrt.pc53": 69,
+    "fscale.pc53": 15,
+    "frndint.pc53": 22,
+    "fprem.pc53": 17,
+    "fadd.pc64": 10,
+    "fsub.pc64": 17,
+    "fmul.pc64": 15,
+    "fdiv.pc64": 65,
+    "fsqrt.pc64": 73,
+    "fscale.pc64": 15,
+    "frndint.pc64": 22,
+    "fprem.pc64": 17
+  },
+  "testfloat": null
+}

@@ -126,6 +126,65 @@ class GuardedOnlyRegisters(unittest.TestCase):
         after = set(fit.guarded_only_registers(broken))
         self.assertEqual(before - after, {'dv_c', 'dv_sub'})
 
+    def test_the_default_direction_is_the_de10_arms(self):
+        rtl = (fit.RTL / 'fes_i386_x87.sv').read_text()
+        self.assertEqual(fit.guarded_only_registers(rtl), fit.guarded_only_registers(rtl, 0))
+
+
+class De25OnlyRegisters(unittest.TestCase):
+    """The mirror direction (#1958): registers written only inside arms
+    guarded by `X87_BACKEND == 1`, which a DE10 build must not hold."""
+
+    BCD = {'bl_acc', 'bl_dig', 'bl_n', 'bs_bin', 'bs_bcd', 'bs_n'}
+
+    def test_is_exactly_the_packed_decimal_registers(self):
+        regs = fit.guarded_only_registers((fit.RTL / 'fes_i386_x87.sv').read_text(), 1)
+        self.assertEqual(set(regs), self.BCD)
+
+    def test_the_two_directions_share_nothing(self):
+        rtl = (fit.RTL / 'fes_i386_x87.sv').read_text()
+        self.assertEqual(set(fit.guarded_only_registers(rtl, 0)) & set(fit.guarded_only_registers(rtl, 1)), set())
+
+    def test_an_unguarded_arm_drops_its_registers(self):
+        # The mirror of the Q_CHECK test: T_BST without its guard would be
+        # built into a DE10 unit, and exactly the registers it writes must
+        # leave the list, so a DE10 fit stops being required to lack them
+        # by an audit and starts failing on them.
+        rtl = (fit.RTL / 'fes_i386_x87.sv').read_text()
+        broken = rtl.replace('T_BST: if (X87_BACKEND == 1) begin', 'T_BST: begin', 1)
+        self.assertNotEqual(rtl, broken)
+        before = set(fit.guarded_only_registers(rtl, 1))
+        after = set(fit.guarded_only_registers(broken, 1))
+        self.assertEqual(before - after, {'bs_bin', 'bs_bcd', 'bs_n'})
+        self.assertEqual(after, {'bl_acc', 'bl_dig', 'bl_n'})
+
+    def test_refuses_another_backend_value(self):
+        with self.assertRaises(ValueError):
+            fit.guarded_only_registers((fit.RTL / 'fes_i386_x87.sv').read_text(), 2)
+
+
+
+class EnginePresence(unittest.TestCase):
+    """The transcendental engine is an entity, so it is found by name."""
+
+    def test_finds_the_entity_and_its_memories(self):
+        rows = [{'name': 'fes_i386_x87', 'alms': '5000'}, {'name': '|fes_x87_trans:trans|', 'alms': '1200'}]
+        found = fit.engine_presence(rows, ['rf_a', 'program_rom', 'constant_rom'])
+        self.assertEqual(found['entities'], ['|fes_x87_trans:trans|'])
+        self.assertEqual(found['memories'], ['constant_rom', 'program_rom'])
+
+    def test_a_fit_without_it_is_empty(self):
+        found = fit.engine_presence([{'name': 'fes_i386_x87'}, {'name': 'fes_x87_core:core'}], ['rf_a', 'rf_b'])
+        self.assertEqual(found, {'entities': [], 'memories': []})
+
+    def test_the_rtl_still_names_what_the_check_looks_for(self):
+        # If the engine or its memories are renamed, the check would find
+        # nothing and pass for the wrong reason.
+        rtl = fit.RTL
+        self.assertIn(f'module {fit.ENGINE_ENTITY} ', (rtl / 'fes_x87_trans.sv').read_text())
+        text = (rtl / 'fes_x87_trans.sv').read_text() + (rtl / 'fes_x87_trans_rom.sv').read_text()
+        for memory in fit.ENGINE_MEMORIES:
+            self.assertRegex(text, rf'\b{memory} \[0:')
 
 if __name__ == '__main__':
     unittest.main()
