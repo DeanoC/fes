@@ -22,12 +22,15 @@ CRC-checked tape delivery. Its computer/control runs at 100 MHz independently
 of the HDMI pixel clock. Production MMIO/runtime binding remains closed.
 
 The [standard ZX Spectrum](spectrum/README.md) reuses the DE10 machine sources
-unchanged behind a DE25 shell: launch-time firmware upload, the tape in board
-SDRAM and its own machine clock. It and the [Atari ST](atari-st/README.md)
+behind a DE25 shell, apart from the derivations its `derive.py` records:
+launch-time firmware upload, the tape in board SDRAM and its own machine
+clock. It and the [Atari ST](atari-st/README.md)
 have producers (`producers/build_spectrum_package.py`,
 `producers/build_atari_st_package.py`) that export a format-3 package whose
-ROM map names only the uploaded firmware size. Neither design passes the
-producer's signoff gate yet, so no package exists.
+ROM map names only the uploaded firmware size. Both pass the producer's
+signoff gate and package as candidates
+([record](../../docs/validation/2026-11-18-de25-machine-signoff/README.md));
+neither has run on hardware.
 
 DE25-only menu and ZX81 adaptations live under `shared-rtl/`; the DE10 core
 sources remain byte-identical to `origin/main`. The three HDMI board shells

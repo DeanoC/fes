@@ -184,6 +184,18 @@ class AffectedTests(unittest.TestCase):
                 self.assertEqual(result['cores'], [])
                 self.assertFalse(any(result['test_modes'].values()))
 
+    def test_de25_machine_paths_select_their_machines(self):
+        board = 'sources/misteross/boards/de25nano/'
+        for path, cores in (('spectrum/derive.py', ['spectrum']), ('spectrum/spectrum-clocks.sdc', ['spectrum']),
+                            ('atari-st/derive.py', ['atari-st']), ('atari-st/sim.py', ['atari-st']),
+                            ('machine/board.py', ['atari-st', 'spectrum']),
+                            ('shared-rtl/fes_spectrum_core.v', ['spectrum']),
+                            ('shared-rtl/fes_atari_st_core.v', ['atari-st']),
+                            ('shared-rtl/fes_firmware_upload.v', ['atari-st', 'spectrum']),
+                            ('shared-rtl/fes_gp_crossing.v', ['atari-st', 'spectrum'])):
+            with self.subTest(path=path):
+                self.assertEqual(sorted(plan([board + path])['cores']), cores)
+
     def test_de25_exception_does_not_narrow_other_boards_or_shared_changes(self):
         de25 = ['sources/mister-packages/packages/board/de25_nano.yaml',
                 'sources/misteross/boards/de25nano/blinky.sv']
