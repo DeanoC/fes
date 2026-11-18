@@ -92,3 +92,9 @@ failure recovery remain open. Exact-head review, ordinary Kit D25 HIL and its
 restore verification remain open, with no HIL waiver. Vendor SDM/NoC/TBU/DMA
 retirement and reset guarantees remain unanswered. See the
 [lifecycle audit](../../design/de25-native-secure-lifecycle.md).
+
+The subsequent [physical trial](../2026-11-18-de25-comparison-physical/README.md)
+passes generation-15 preparation/arm and full DATA, then stops at final input
+proof, source-clock guard 31, before retirement. Original-FIT restoration
+passes without power cycling. The earlier unprogrammed checkpoint above is
+historical; its synthetic timings remain model evidence.

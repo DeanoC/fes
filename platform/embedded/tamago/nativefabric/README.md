@@ -4,8 +4,10 @@ The [private comparison repair](../../../../docs/validation/2026-11-18-de25-warm
 preparation boundary through production callbacks under synthetic costs and
 reduces modeled snapshot loads by 84.885%, preserving all bytes, freshness
 checks and deadlines. Sanitized checks, target wide-load/layout proof and a
-fresh matched/file-admitted boot chain pass. The image is unprogrammed;
-physical preparation timing and the complete cycle/Park remain open.
+fresh matched/file-admitted boot chain pass. The [physical trial](../../../../docs/validation/2026-11-18-de25-comparison-physical/README.md)
+passes generation-15 preparation/arm and full DATA, then rejects final
+input proof at source-clock guard 31, before retirement. The original FIT
+is restored without power cycling; the full cycle/Park remains open.
 
 The independent initial-tape arena is now selected by the explicit Nano
 `--initial-tape` path. It owns `0x95800000..0x95a00000`, with a 16 KiB payload

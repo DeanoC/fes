@@ -1,0 +1,26 @@
+{
+  "status": "independently-verified-prepared-trial",
+  "procedure_sha256": "0c6e561983246cfd2630e260ae48ac1f623f9749df68a4b406f78a6be10c914b",
+  "sources": [
+    {
+      "name": "host-source.tar.gz",
+      "source_commit": "7119ffa96b153149499f67e797a7ae18fe2413db",
+      "sha256": "f5230cff5095af8a7c3c596fc7caa9b9fccae31600e052e19879e7cb01f40960",
+      "verified_git_blobs": 17273
+    },
+    {
+      "name": "native-source.tar.gz",
+      "source_commit": "251cce26a39b56ab759d19f054ed03436296b153",
+      "sha256": "d4dc7e69b8e6d991ed9430acf1651808984f415221d6818b043ed2d2fef659e3",
+      "verified_git_blobs": 17305
+    }
+  ],
+  "prepared_archive_sha256": "69446333d41be58b69851c1b8322ab7b4d5dd65543821f10020e5371171874dd",
+  "prepared_entries": 84524,
+  "complete_native_archive": {
+    "path": "/home/deano/fes-retained/de25-warm-private-20261118-r1/boot.tar.gz",
+    "sha256": "d3199a602cb5084a4da272e5138b0a41504432fceb52ce5619bc05faaadc2648"
+  },
+  "hardware_actions": false,
+  "hardware_acceptance": false
+}

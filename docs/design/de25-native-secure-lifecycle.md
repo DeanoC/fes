@@ -31,8 +31,10 @@ The [private comparison repair](../validation/2026-11-18-de25-warm-preparation-c
 preparation boundary through production callbacks under synthetic costs and
 reduces modeled snapshot loads by 84.885%, preserving all bytes, freshness
 checks and deadlines. Sanitized checks, target wide-load/layout proof and a
-fresh matched/file-admitted boot chain pass. The image is unprogrammed;
-physical preparation timing and the complete cycle/Park remain open.
+fresh matched/file-admitted boot chain pass. The [physical trial](../validation/2026-11-18-de25-comparison-physical/README.md)
+passes generation-15 preparation/arm and full DATA, then rejects final
+input proof at source-clock guard 31, before retirement. The original FIT
+is restored without power cycling; the full cycle/Park remains open.
 
 ## Trust and authority
 
@@ -375,7 +377,9 @@ files and closed handles. The failed cycle stays failed and consumed.
    use; a later implementation edit requires a fresh chain.
 3. Use a new bounded procedure to qualify repeated
    `MENU → ZX81+tape → MENU → ZX80 → MENU → Park` on that exact artifact.
-   Qualify the repaired preparation cost within its existing bound. Capture
+   Preparation/arm now passes physically; first distinguish the subsequent
+   final-input-proof source-clock guard 31 and reproduce its actual supplier
+   cost off-board without weakening ownership or bounds. Capture
    source reuse, final USB shutdown and declared failure
    recovery; retain any stopped state and do not retry its consumed procedure.
 4. Extend the combined regression for cancellation, mapping/acknowledgement and

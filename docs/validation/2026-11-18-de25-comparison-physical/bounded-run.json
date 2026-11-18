@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/operations/dispatch-comparison-trial.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-restoration-phase-cost",
+  "returncode": 1,
+  "timed_out": false,
+  "elapsed": 790.1080606258474,
+  "log_sha256": "e6008be160045b95377607edbfca3645a31eda668cf5af7fc3060ee3636b0f48"
+}
