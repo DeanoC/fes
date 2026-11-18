@@ -71,6 +71,13 @@ func Geometry(tracks, heads, sectors int) (corepackage.AtariStGeometry, bool) {
 // Format builds a non-bootable FAT12 disk. Zero tracks, heads and sectors
 // select the 720 KiB double-sided nine-sector layout.
 func Format(name string, tracks, heads, sectors int) (Disk, error) {
+	return FormatSerial(name, tracks, heads, sectors, [3]byte{'E', 'S', 'F'})
+}
+
+// FormatSerial is Format with the boot sector's 24-bit serial number chosen
+// by the caller. GEMDOS tells one disk from another by it, and two disks
+// with different serials are different library media.
+func FormatSerial(name string, tracks, heads, sectors int, serial [3]byte) (Disk, error) {
 	label, err := volumeName(name)
 	if err != nil {
 		return Disk{}, err
@@ -79,7 +86,7 @@ func Format(name string, tracks, heads, sectors int) (Disk, error) {
 	if !ok {
 		return Disk{}, ErrGeometry
 	}
-	image := blankImage(label, geometry)
+	image := blankImage(label, geometry, serial)
 	if !corepackage.ValidAtariStBase(image, true) {
 		return Disk{}, ErrGeometry
 	}
@@ -105,13 +112,13 @@ func volumeName(name string) (string, error) {
 // 720 KiB and 800 KiB disks (512-byte sectors, 2 per cluster, 1 reserved,
 // 2 FATs, 112 root entries, 5 sectors per FAT, media 0xF9). The other
 // admitted lengths use that same BPB with their own sector and head counts.
-func blankImage(label string, geometry corepackage.AtariStGeometry) []byte {
+func blankImage(label string, geometry corepackage.AtariStGeometry, serial [3]byte) []byte {
 	total := geometry.Tracks * geometry.Heads * geometry.Sectors
 	image := make([]byte, total*bytesPerSector)
 	boot := image[:bytesPerSector]
 	boot[0], boot[1] = 0xEB, 0x3C
 	copy(boot[2:8], "FES1.0")
-	boot[8], boot[9], boot[10] = 'E', 'S', 'F'
+	copy(boot[8:11], serial[:])
 	le := binary.LittleEndian
 	le.PutUint16(boot[11:13], bytesPerSector)
 	boot[13] = sectorsPerCluster

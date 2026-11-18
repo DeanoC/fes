@@ -25,6 +25,8 @@ std::string Controller::Handle(const std::string& line, Deferred& deferred)
 	CorePackageInspection inspection;
 	CoreData data;
 	const CoreData* core_data = nullptr;
+	MediaDataInspection media;
+	const MediaDataInspection* media_data = nullptr;
 	const CorePackageInspection* inspected = nullptr;
 	bool idle_display_health = false;
 	switch (request.operation) {
@@ -66,6 +68,22 @@ std::string Controller::Handle(const std::string& line, Deferred& deferred)
 		EmitFifoConsume("update_core_settings", result.ok());
 		if (result.ok())
 			core_data = &data;
+		break;
+	case Operation::inspect_media_data:
+		result = runtime_.InspectMediaData(request.media_query, &media);
+		if (result.ok())
+			media_data = &media;
+		break;
+	case Operation::discard_media_data:
+		result = runtime_.DiscardMediaData(request.media_query, request.expected_revision, &media);
+		if (result.ok())
+			media_data = &media;
+		break;
+	case Operation::export_media_data:
+		result = runtime_.ExportMediaData(request.media_query, request.expected_revision,
+			request.media_path, &media);
+		if (result.ok())
+			media_data = &media;
 		break;
 	case Operation::load_core:
 		result = runtime_.LoadCore(request.package_path, request.package_id,
@@ -196,7 +214,7 @@ std::string Controller::Handle(const std::string& line, Deferred& deferred)
 	// Composing the reply is not sending it: the health work is handed back
 	// to the server, which runs it after the bytes are on the socket.
 	if (idle_display_health) deferred = Deferred::idle_display_health;
-	return Respond(request.protocol, result, inspected, core_data);
+	return Respond(request.protocol, result, inspected, core_data, nullptr, media_data);
 }
 
 // Runs on the connection thread once the reply has been sent. The reads then
@@ -239,11 +257,12 @@ std::string Controller::InvalidRequest(const std::string& message)
 }
 
 std::string Controller::Respond(std::int64_t protocol, const Error& result,
-	const CorePackageInspection* inspection, const CoreData* data,const MenuFrameReply* frame)
+	const CorePackageInspection* inspection, const CoreData* data,const MenuFrameReply* frame,
+	const MediaDataInspection* media)
 {
 	Status observed = runtime_.status();
 	if (!result.ok()) observed.error = result;
-	return EncodeResponse(protocol, result.ok(), observed, version_, inspection, data,frame);
+	return EncodeResponse(protocol, result.ok(), observed, version_, inspection, data, frame, media);
 }
 
 } // namespace daemon

@@ -4,6 +4,8 @@ import (
 	"context"
 	"github.com/DeanoC/FogCast/protocol"
 	"io"
+	"os"
+	"path/filepath"
 )
 
 const MediaDataRoot = CoreDataRoot + "/media"
@@ -116,4 +118,142 @@ func computerMediaSaveStatus(response Protocol2Response, b protocol.MediaUnitBin
 		status.LastError = mapProtocol2Error(response.Error)
 	}
 	return status, b.MatchesForSave(status)
+}
+
+type protocol2MediaRecordControl interface {
+	InspectMediaData(context.Context, string, protocol.MediaRecordIdentity) (Protocol2Response, error)
+	DiscardMediaData(context.Context, string, protocol.MediaRecordDiscard) (Protocol2Response, error)
+	ExportMediaData(context.Context, string, protocol.MediaRecordDiscard, string) (Protocol2Response, error)
+}
+
+type mediaRecordRequest struct {
+	Protocol  int    `json:"protocol"`
+	Operation string `json:"operation"`
+	Root      string `json:"data_root"`
+	CoreID    string `json:"core_id"`
+	GameID    string `json:"game_id"`
+	BaseID    string `json:"base_media_id"`
+	Unit      uint8  `json:"unit"`
+	Revision  string `json:"expected_revision,omitempty"`
+	Path      string `json:"path,omitempty"`
+}
+
+func (c *Client) InspectMediaData(ctx context.Context, root string, id protocol.MediaRecordIdentity) (Protocol2Response, error) {
+	if !validRuntimePath(root) || !id.Valid() {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	return c.mediaRecord(ctx, mediaRecordRequest{2, "inspect_media_data", root, id.CoreID, id.GameID, id.BaseMediaID, id.Unit, "", ""})
+}
+
+func (c *Client) DiscardMediaData(ctx context.Context, root string, d protocol.MediaRecordDiscard) (Protocol2Response, error) {
+	if !validRuntimePath(root) || !d.Valid() {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	return c.mediaRecord(ctx, mediaRecordRequest{2, "discard_media_data", root, d.CoreID, d.GameID, d.BaseMediaID, d.Unit, d.ExpectedRevision, ""})
+}
+
+// ExportMediaData has the runtime write the saved image to a new file at path.
+func (c *Client) ExportMediaData(ctx context.Context, root string, d protocol.MediaRecordDiscard, path string) (Protocol2Response, error) {
+	if !validRuntimePath(root) || !validRuntimePath(path) || !d.Valid() {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	return c.mediaRecord(ctx, mediaRecordRequest{2, "export_media_data", root, d.CoreID, d.GameID, d.BaseMediaID, d.Unit, d.ExpectedRevision, path})
+}
+
+func (c *Client) mediaRecord(ctx context.Context, request mediaRecordRequest) (Protocol2Response, error) {
+	line, _, err := c.callRawTracked(ctx, request) // Never replay a possibly applied discard.
+	if err != nil {
+		return Protocol2Response{}, err
+	}
+	response, err := decodeProtocol2Response(line)
+	if err != nil {
+		return Protocol2Response{}, err
+	}
+	if response.OK && (response.MediaData == nil || !response.MediaData.Valid()) {
+		return Protocol2Response{}, errInvalidRuntimeResponse
+	}
+	return response, nil
+}
+
+// InspectMediaRecord reports what the kit has saved for one library disk.
+func (r *Runtime) InspectMediaRecord(ctx context.Context, id protocol.MediaRecordIdentity) (protocol.MediaRecord, *protocol.APIError) {
+	if !id.Valid() {
+		return protocol.MediaRecord{}, mediaRecordRequestError()
+	}
+	control, ok := r.control.(protocol2MediaRecordControl)
+	if !ok {
+		return protocol.MediaRecord{}, unsupportedOperationError()
+	}
+	response, err := control.InspectMediaData(ctx, MediaDataRoot, id)
+	r.noteDispatch("inspect_media_data", err == nil)
+	return mediaRecordResult(response, err)
+}
+
+// DiscardMediaRecord removes one library disk's saved record, so its next
+// start reads the immutable source again. The runtime refuses while a core
+// is loaded.
+func (r *Runtime) DiscardMediaRecord(ctx context.Context, d protocol.MediaRecordDiscard) (protocol.MediaRecord, *protocol.APIError) {
+	if !d.Valid() {
+		return protocol.MediaRecord{}, mediaRecordRequestError()
+	}
+	control, ok := r.control.(protocol2MediaRecordControl)
+	if !ok {
+		return protocol.MediaRecord{}, unsupportedOperationError()
+	}
+	response, err := control.DiscardMediaData(ctx, MediaDataRoot, d)
+	r.noteDispatch("discard_media_data", err == nil)
+	record, apiErr := mediaRecordResult(response, err)
+	if apiErr == nil && record.State != protocol.MediaRecordAbsent {
+		return protocol.MediaRecord{}, unavailableError()
+	}
+	return record, apiErr
+}
+
+// ExportMediaRecord returns the image held in one library disk's saved
+// record, when it still has the expected revision. The record is unchanged.
+func (r *Runtime) ExportMediaRecord(ctx context.Context, d protocol.MediaRecordDiscard) ([]byte, *protocol.APIError) {
+	if !d.Valid() {
+		return nil, mediaRecordRequestError()
+	}
+	control, ok := r.control.(protocol2MediaRecordControl)
+	if !ok {
+		return nil, unsupportedOperationError()
+	}
+	dir, err := os.MkdirTemp("", "fogcast-media-export-")
+	if err != nil {
+		return nil, unavailableError()
+	}
+	defer os.RemoveAll(dir)
+	path := filepath.Join(dir, "image")
+	response, err := control.ExportMediaData(ctx, MediaDataRoot, d, path)
+	r.noteDispatch("export_media_data", err == nil)
+	record, apiErr := mediaRecordResult(response, err)
+	if apiErr != nil {
+		return nil, apiErr
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || record.State != protocol.MediaRecordPresent || record.Revision != d.ExpectedRevision ||
+		int64(len(data)) != record.Bytes || !protocol.AdmitLibraryFloppySize(int64(len(data))) {
+		return nil, unavailableError()
+	}
+	return data, nil
+}
+
+func mediaRecordRequestError() *protocol.APIError {
+	return &protocol.APIError{Code: protocol.CodeBadRequest, Message: "saved media request is invalid", Phase: "request"}
+}
+
+func mediaRecordResult(response Protocol2Response, err error) (protocol.MediaRecord, *protocol.APIError) {
+	if err != nil {
+		return protocol.MediaRecord{}, unavailableError()
+	}
+	if !response.OK {
+		result := mapProtocol2Error(response.Error)
+		result.Expected, result.Observed = "", ""
+		return protocol.MediaRecord{}, result
+	}
+	if response.MediaData == nil {
+		return protocol.MediaRecord{}, unavailableError()
+	}
+	return *response.MediaData, nil
 }

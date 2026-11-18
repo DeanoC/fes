@@ -325,6 +325,28 @@ struct CoreData {
 	std::vector<std::uint16_t> words;
 };
 
+// One saved media record's identity for inspection or discard: the namespace
+// a library launch binds, named without loading a package.
+struct MediaDataQuery {
+	std::string data_root;
+	std::string core_id;
+	std::string game_id;
+	std::string base_media_id;
+	std::uint8_t unit = 0;
+};
+
+// What is saved for a MediaDataQuery. state is "absent", "present" or
+// "corrupt"; revision is the digest of the record file, or "absent".
+// changed is true for a present record whose image differs from the base
+// image it was saved over: a disk saved at Stop without a write is present
+// and unchanged.
+struct MediaDataInspection {
+	std::string state = "absent";
+	std::string revision = "absent";
+	std::uint64_t bytes = 0;
+	bool changed = false;
+};
+
 // A fes.media.ata-disk launch: the staged immutable base image, the geometry
 // its partition table was written with, and the media-data root that holds
 // its game's chunk delta.
@@ -666,6 +688,19 @@ public:
 	{
 		return {ErrorCode::unsupported_interface, "core data unavailable"};
 	}
+	virtual Error InspectMediaData(const MediaDataQuery&, MediaDataInspection*)
+	{
+		return {ErrorCode::unsupported_interface, "media data unavailable"};
+	}
+	virtual Error DiscardMediaData(const MediaDataQuery&, const std::string&, MediaDataInspection*)
+	{
+		return {ErrorCode::unsupported_interface, "media data unavailable"};
+	}
+	virtual Error ExportMediaData(const MediaDataQuery&, const std::string&, const std::string&,
+		MediaDataInspection*)
+	{
+		return {ErrorCode::unsupported_interface, "media data unavailable"};
+	}
 	virtual Capabilities capabilities() const { return {}; }
 	virtual HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage>,
 		std::uint64_t)
@@ -780,6 +815,14 @@ public:
 		const std::string& game_id, CoreData*);
 	Error UpdateCoreSettings(const std::string&, const std::string&, const std::string&,
 		const std::string& game_id, const std::string& revision, const CoreSettingsUpdate&, CoreData*);
+	// A saved media record without loading its package. Discard needs an
+	// idle runtime: a loaded core may hold the record bound.
+	Error InspectMediaData(const MediaDataQuery&, MediaDataInspection*);
+	Error DiscardMediaData(const MediaDataQuery&, const std::string& expected_revision,
+		MediaDataInspection*);
+	// Writes the saved image to a new file at path; the record is unchanged.
+	Error ExportMediaData(const MediaDataQuery&, const std::string& expected_revision,
+		const std::string& path, MediaDataInspection*);
 	Error InspectCore(const std::string& directory,
 		const std::string& expected_package_id, CorePackageInspection*);
 	Error LoadContainedDevelopmentRBF(const std::string&);

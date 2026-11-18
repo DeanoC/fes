@@ -597,7 +597,8 @@ void AppendError(BoundedOutput* output, const Error& error)
 }
 
 bool TryEncodeV2Response(bool ok, const Status& status, const std::string& version,
-	const CorePackageInspection* inspection, const CoreData* core_data, const MenuFrameReply* menu_frame,std::string* response)
+	const CorePackageInspection* inspection, const CoreData* core_data, const MenuFrameReply* menu_frame,
+	const MediaDataInspection* media_data, std::string* response)
 {
 	if (!status.active_package.composition.id.empty() && !status.active_package.static_composition.id.empty()) return false;
 	BoundedOutput output(kMaximumResponsePayloadBytes);
@@ -937,6 +938,14 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
 				",\"sb_dma\":" + std::to_string(m.sb_dma) + "}");
 		}
 		output.Append("}");
+	}
+	if (media_data != nullptr) {
+		output.Append(",\"media_data\":{\"state\":");
+		AppendQuoted(&output, media_data->state);
+		output.Append(",\"revision\":");
+		AppendQuoted(&output, media_data->revision);
+		output.Append(",\"bytes\":" + std::to_string(media_data->bytes));
+		output.Append(media_data->changed ? ",\"changed\":true}" : ",\"changed\":false}");
 	}
 	output.Append("}");
 	if (!output.ok()) return false;
@@ -1582,6 +1591,50 @@ Error ParseRequest(const std::string& line, Request* request)
             parsed.operation = library?Operation::insert_library_media:save?Operation::save_media:insert ? Operation::insert_media : Operation::eject_media;
 			parsed.expected_package_id = *package;
 			parsed.media_unit = static_cast<std::uint8_t>(unit->integer_value);
+		} else if (operation->string_value == "inspect_media_data" ||
+				   operation->string_value == "discard_media_data" ||
+				   operation->string_value == "export_media_data") {
+			// A saved media record named by its identity, with no package:
+			// the namespace a library launch of that game and disk binds.
+			// export_media_data also names the new file the image is written to.
+			const bool exporting = operation->string_value == "export_media_data";
+			const bool discard = operation->string_value == "discard_media_data" || exporting;
+			const char* const fields[] = {"protocol", "operation", "data_root", "core_id", "game_id",
+				"base_media_id", "unit", "expected_revision", "path"};
+			if (!HasOnly(root, fields, exporting ? 9 : discard ? 8 : 7, &error)) return error;
+			const std::string *root_path = nullptr, *core = nullptr, *game = nullptr, *base = nullptr;
+			if (!StringMember(root, "data_root", &root_path, &error) ||
+				!StringMember(root, "core_id", &core, &error) ||
+				!StringMember(root, "game_id", &game, &error) ||
+				!StringMember(root, "base_media_id", &base, &error)) return error;
+			// The store's own identity rules, kept here so parsing does not
+			// link the store.
+			bool core_ok = !core->empty() && core->size() <= 96 && core->front() >= 'a' && core->front() <= 'z';
+			for (char c : *core)
+				core_ok = core_ok && ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-');
+			if (!Path(*root_path) || !BoundedInteger(Find(root, "unit"), 0, 0) || !core_ok ||
+				!native::ValidLibraryGameID(*game) || !PackageID(*base))
+				return Invalid("invalid media-data identity");
+			if (discard) {
+				const std::string* revision = nullptr;
+				if (!StringMember(root, "expected_revision", &revision, &error)) return error;
+				if (!PackageID(*revision))
+					return Invalid("expected_revision must be exactly 64 lowercase hexadecimal characters");
+				parsed.expected_revision = *revision;
+			}
+			parsed.media_query.data_root = *root_path;
+			parsed.media_query.core_id = *core;
+			parsed.media_query.game_id = *game;
+			parsed.media_query.base_media_id = *base;
+			if (exporting) {
+				const std::string* path = nullptr;
+				if (!StringMember(root, "path", &path, &error)) return error;
+				if (!Path(*path))
+					return Invalid("path must be an absolute path of at most 4095 bytes");
+				parsed.media_path = *path;
+			}
+			parsed.operation = exporting ? Operation::export_media_data
+				: discard ? Operation::discard_media_data : Operation::inspect_media_data;
 		} else if (operation->string_value == "load_media") {
 			const char* const fields_path[] = {"protocol", "operation", "path"};
 			const char* const fields_bound[] = {"protocol", "operation", "path",
@@ -1680,10 +1733,10 @@ Error ParseRequest(const std::string& line, Request* request)
 
 std::string EncodeResponse(std::int64_t, bool ok, const Status& status,
 	const std::string& version, const CorePackageInspection* inspected_package,
-	const CoreData* core_data,const MenuFrameReply* menu_frame)
+	const CoreData* core_data,const MenuFrameReply* menu_frame, const MediaDataInspection* media_data)
 {
 	std::string response;
-	if (TryEncodeV2Response(ok, status, version, inspected_package, core_data, menu_frame,&response))
+	if (TryEncodeV2Response(ok, status, version, inspected_package, core_data, menu_frame, media_data, &response))
 		return response;
 	Status fallback = status;
 	fallback.system.clear();
@@ -1693,7 +1746,7 @@ std::string EncodeResponse(std::int64_t, bool ok, const Status& status,
 	fallback.generation = 0;
 	fallback.error = {ErrorCode::io_failed,
 		"response exceeds 65536 bytes", "lifecycle"};
-	if (TryEncodeV2Response(false, fallback, "-", nullptr, nullptr, nullptr,&response))
+	if (TryEncodeV2Response(false, fallback, "-", nullptr, nullptr, nullptr, nullptr, &response))
 		return response;
 	return "{\"protocol\":2,\"ok\":false,\"state\":\"idle\","
 		"\"execution\":\"none\",\"system\":null,\"core\":null,"
