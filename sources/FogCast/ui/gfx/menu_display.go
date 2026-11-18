@@ -97,6 +97,37 @@ func (d *MenuDisplay) QueuedSeq() uint64 {
 	return d.nextSeq
 }
 
+// PresentedSequence confirms the exact submitted frame, excluding a later
+// unrelated frame that may have replaced it in the worker queue.
+func (d *MenuDisplay) PresentedSequence(seq uint64) bool {
+	if d == nil || seq == 0 {
+		return false
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	status := d.lastStatus
+	if d.paused || d.closed || !d.hasPresented || d.lastErr != nil || !status.Available ||
+		status.Generation != d.presentedGen || status.Underflows > menudisplay.TransientUnderflowCap {
+		return false
+	}
+	for _, presented := range d.presentedHistory {
+		if presented == seq {
+			return true
+		}
+	}
+	return false
+}
+
+// ForceNextFrame requests a fresh submission for a snapshot-bound fence.
+func (d *MenuDisplay) ForceNextFrame() {
+	if d == nil {
+		return
+	}
+	d.mu.Lock()
+	d.forceNext = true
+	d.mu.Unlock()
+}
+
 // SetTraceSink receives one MenuPresentTrace per frame the worker handles.
 // It is called on the worker goroutine and must not block. nil disables it.
 func (d *MenuDisplay) SetTraceSink(sink func(MenuPresentTrace)) {
@@ -176,6 +207,7 @@ type MenuDisplay struct {
 	generation                  uint64
 	known                       bool
 	changeDriven                bool
+	forceNext                   bool
 	nextSeq                     uint64
 	submitted                   *submittedMenuFrame
 	freeBuffers                 []*menuPixels
@@ -192,7 +224,10 @@ type MenuDisplay struct {
 	presentedGen      uint64
 	// presentedSeq is the submission sequence last shown on this binding.
 	// Zero means none. A status probe may acknowledge only this sequence.
-	presentedSeq uint64
+	presentedSeq         uint64
+	presentedHistory     [32]uint64
+	presentedHistoryNext uint8
+	presentedHistoryGen  uint64
 	// presentedDisplayed is the runtime's displayed sequence that the last
 	// present returned, and presentedDisplayedKnown whether one has. A probe
 	// that sees the runtime showing anything else is not looking at the
@@ -314,6 +349,9 @@ func (d *MenuDisplay) setBindingLocked(binding menuSessionBinding) {
 	d.generation = 0
 	d.hasPresented = false
 	d.presentedSeq = 0
+	d.presentedHistory = [32]uint64{}
+	d.presentedHistoryNext = 0
+	d.presentedHistoryGen = 0
 	d.presentedDisplayed, d.presentedDisplayedKnown = 0, false
 	d.lastErr = nil
 	d.clearSettledLocked()
@@ -404,6 +442,10 @@ func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 			} else {
 				unchanged = bytes.Equal(pix, previous.pixels)
 			}
+		}
+		if d.forceNext {
+			unchanged = false
+			d.forceNext = false
 		}
 		if unchanged && !recover {
 			if d.probeQueued || !d.probeDueLocked(now) {
@@ -953,6 +995,7 @@ func (d *MenuDisplay) finishProbeLocked(frame queuedMenuFrame, status menudispla
 		d.hasPresented = true
 		d.presentedGen = status.Generation
 		d.presentedSeq = frame.seq
+		d.rememberPresentedLocked(frame.seq)
 		d.presentedDisplayed, d.presentedDisplayedKnown = displayed, true
 		d.lastProbe = d.clock()
 		d.resetBackoffLocked()
@@ -1033,12 +1076,26 @@ func (d *MenuDisplay) ReadinessDiagnostic() MenuReadinessDiagnostic {
 	}
 }
 
+func (d *MenuDisplay) rememberPresentedLocked(seq uint64) {
+	if seq == 0 {
+		return
+	}
+	if d.presentedHistoryGen != d.presentedGen {
+		d.presentedHistory = [32]uint64{}
+		d.presentedHistoryNext = 0
+		d.presentedHistoryGen = d.presentedGen
+	}
+	d.presentedHistory[d.presentedHistoryNext] = seq
+	d.presentedHistoryNext = (d.presentedHistoryNext + 1) % uint8(len(d.presentedHistory))
+}
+
 func (d *MenuDisplay) notePresentResultLocked(presented, genChanged bool, err error, status menudisplay.Status, seq, displayed uint64) {
 	defer func() { d.reportSoftwareReadyLocked(status) }()
 	if presented {
 		d.hasPresented = true
 		d.presentedGen = status.Generation
 		d.presentedSeq = seq
+		d.rememberPresentedLocked(seq)
 		d.presentedDisplayed, d.presentedDisplayedKnown = displayed, true
 		d.lastProbe = d.clock()
 		d.resetBackoffLocked()
