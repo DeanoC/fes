@@ -1,0 +1,80 @@
+{
+  "classification": "exact diagnostic artifact hardware test; not production seal or whole-board timing signoff",
+  "verdict": "PASS",
+  "source": "e7e73a0c0dd0dec7c57fa9f4fa76429a5ea59381",
+  "full_span_halfword_last": "03ffffff",
+  "full_span_bytes": 134217728,
+  "patterns": 6,
+  "sdram_errors": 0,
+  "byte_cases": 128,
+  "byte_reads": 512,
+  "hps_ports_pass": [
+    0,
+    1,
+    2
+  ],
+  "final_capture": "capture-005.png",
+  "final_capture_sha256": "d038edfc3ffe15e60531248c7f2f61e93b1a3c734ea5ca2394019b067c9bc250",
+  "evidence": "Frames 001..003 show changing pattern/address progress; 004 and 005 show all-green PASS and zero counts.",
+  "restore": {
+    "active_bundle": true,
+    "selected": true,
+    "pending_sw": true,
+    "image": true,
+    "image_state": true,
+    "agent_idle": true,
+    "session_idle": true,
+    "lease_free": true,
+    "usb_quirk": true
+  },
+  "restored": true,
+  "load": {
+    "state": "active",
+    "game_id": null,
+    "system": null,
+    "expected_core": null,
+    "observed_core": "fes.ramtest",
+    "last_error": null,
+    "development": true,
+    "core_package": {
+      "persistence_mode": "volatile",
+      "package_id": "51c4392c28dc0a58079ef823b4bf3ca988717cef7ad141d21d6795d7e5fdae7d",
+      "core_id": "fes.ramtest",
+      "generation": 1,
+      "abi": {
+        "id": "fes.application",
+        "major": 1,
+        "minor": 0
+      },
+      "build_id": "c61a5183ae5fb4e5e1bc786413286e95",
+      "active_interfaces": [
+        {
+          "id": "fes.gamepad",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.memory.hps-ddr",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "gamepad": true
+    }
+  },
+  "package_sha256": "01b4b6d310fdf479fb48e4c899864c77d6f21fde4b9eabe0bd014cc666fd5a44",
+  "protected_evidence": "/home/deano/fes-hil/k835-cas3-kits/ramtest-kitB-083639",
+  "captures": {
+    "capture-000.png": "61b235cf502d7d293085e4ebd617e17248be9e52cdf4fb89b0745ab35a6481b3",
+    "capture-001.png": "0332ddc7d58f2da6d06b6030445dece2bb862d002a2678d2ea7d55ed8a415799",
+    "capture-002.png": "0c904ca6bf1cb7dd6d6cd582902f39e839d0852013e799c135eb1e71e0bf88d4",
+    "capture-003.png": "3fd675de777e8caa922e14be0e4a1e829eb07af76f53037d6229302ee0b7ae0a",
+    "capture-004.png": "05de7ec30230873321340bb09578109c9d52c523e4ea2340a49fef90d175fb0d",
+    "capture-005.png": "d038edfc3ffe15e60531248c7f2f61e93b1a3c734ea5ca2394019b067c9bc250"
+  }
+}
