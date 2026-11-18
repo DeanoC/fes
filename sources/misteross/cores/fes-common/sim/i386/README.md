@@ -134,11 +134,12 @@ A second configuration of the same pinned Bochs, at `--enable-cpu-level=4`,
 for the 486 identities ([#1962](https://github.com/DeanoC/fes/issues/1962)).
 `scripts/fes_i486_oracle.py` builds it beside the level-3 oracle: its own
 configured tree (`bochs-level4-*`), Bochs's CPU-model library
-(`cpu/cpudb/libcpudb.a`), its own Bochs patch,
-[`bochs/level4-no-cr4.patch`](bochs/level4-no-cr4.patch) (LGPL-2.1-or-later,
-below), in place of the stack-limit patch (written for `BX_CPU_LEVEL == 3`;
-whether a 486 keeps that #SS is not established), and its own output
-directory (`build/sim/fes-i386-oracle/bin-level4`).
+(`cpu/cpudb/libcpudb.a`), one edit to the copied Bochs tree in place of the
+stack-limit patch (written for `BX_CPU_LEVEL == 3`; whether a 486 keeps that
+#SS is not established): `gate_cr4_on_vme()` gives the two MOV CR4 entries
+of Bochs's opcode table VME's feature in place of the 486's, and the build
+fails unless each matched once. It has its own output directory
+(`build/sim/fes-i386-oracle/bin-level4`).
 `scripts/fes_i386_oracle.py` and the level-3 Bochs patch are not edited for it, so
 the level-3 Bochs tree is built from the inputs it had. The adapter
 (`bochs_oracle.cpp`) and the lockstep testbench (`lockstep_tb.cpp`) are
@@ -150,8 +151,9 @@ instructions and CPUID, CR0's NE, WP, AM, NW and CD with WP enforced,
 EFLAGS.AC and ID, and exception 17. That is a later-stepping 486 with CPUID.
 The 486 identity has no VME (Deano, 18 November 2026; tracker #1962), so
 it has no CR4 (data book 4.2.3.1: CR4 is only on parts with VME, PVI or
-PSE). VME is excluded by one string in the adapter, and the level-4 Bochs
-patch gates MOV to and from CR4 on VME, so both are #UD; `State` has no CR4.
+PSE). VME is excluded by one string in the adapter, and the level-4
+provisioner gates MOV to and from CR4 on VME, so both are #UD; `State` has
+no CR4.
 
 It is not every 486, and in these places it is not a 486 at all:
 
@@ -161,7 +163,7 @@ It is not every 486, and in these places it is not a 486 at all:
 | DR6 at reset | FFFF1FF0h (`cpu/init.cc`) | FFFF0FF0h (Intel486 Programmer's Reference Manual, Table 10-1) | The adapter's `reset()` sets it |
 | DR7 at reset | 00000400h | 00000000h in both documents (PRM Table 10-1, data book Table 9-8), which call undefined bits reserved | Nothing: bit 10 reads 1 on the RTL's 386 too. What a 486 reads there is a question for a real one |
 | MOV TRn | #UD at every level | TR3 to TR7 exist (PRM Appendix E, Table 10.1; data book 14.0 item 9) | The lockstep's MOV TRn rule steps a substitute on the oracle; against the level-4 oracle it takes in TR3. The registers' cache and TLB test functions have no oracle |
-| MOV CR4 | Runs: CR4 reads 0 and a set bit is #GP(0) | CR4 is only on parts with VME, PVI or PSE (data book 4.2.3.1); the 486 identity has none | `bochs/level4-no-cr4.patch` makes it #UD, as a 486 without CR4 |
+| MOV CR4 | Runs: CR4 reads 0 and a set bit is #GP(0) | CR4 is only on parts with VME, PVI or PSE (data book 4.2.3.1); the 486 identity has none | The level-4 provisioner gates MOV CR4 on VME, so it is #UD, as on a 486 without CR4 |
 | A 486 without an FPU | None: the model enables the x87 and a 486 model without it is fatal (`cpu/cpudb/intel/i486dx4.cc`, `cpu/cpuid.cc`) | The 486SX | An SX is to be checked as the empty 387 socket is, by the no-387 rule. Not built yet |
 | CPUID leaf 1 | EAX 0480h, EDX bit 0 set | Per part (data book Table 9-9, AP-485) | The suite pins the DX4's values; another identity's are its build parameter's |
 

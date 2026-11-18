@@ -77,7 +77,8 @@ oracle beside level 3, the CR0 and EFLAGS masks of a 486 in the `i486`
 mode, the #UD probes a 486 keeps run in that mode, the census keys, and the
 machine's level option. For CR4, Deano decided after the plan that the 486
 identity has no VME, so it has no CR4: MOV CR4 is #UD on the level-4 oracle
-by its own Bochs patch, and the oracle's state has no CR4.
+by the level-4 provisioner's edit to Bochs's opcode table, and the oracle's
+state has no CR4.
 
 Added beyond the plan: the adapter sets a 486's reset EDX and DR6, which
 Bochs leaves as the 386's.

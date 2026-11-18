@@ -7707,7 +7707,7 @@ int run_test386(fes_i386::Oracle &oracle, Rtl &rtl) {
 // defines: CPUID, INVD, CMPXCHG, BSWAP and MOV TR3. MOV CR4 stays: the 486
 // identity has no VME, PVI or PSE and so no CR4 (Intel486 data book
 // 241731-002, 4.2.3.1), and the level-4 oracle is built to raise #UD for it
-// (bochs/level4-no-cr4.patch).
+// (scripts/fes_i486_oracle.py, gate_cr4_on_vme).
 std::vector<std::pair<std::string, std::vector<uint8_t>>> ud_probes16(bool i486_identity) {
     std::vector<std::pair<std::string, std::vector<uint8_t>>> probes = {
         {"xbts", {0x0f, 0xa6, 0xc0}}, {"ibts", {0x0f, 0xa7, 0xc8}}, {"xbts-mem", {0x0f, 0xa6, 0x07}},

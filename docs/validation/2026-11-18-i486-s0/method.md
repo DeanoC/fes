@@ -48,9 +48,9 @@ cover what this file promised. Changes, none of which loosens a pass rule:
 
 - **Deano decided the 486 identity has no VME** (tracker #1962). So there
   is no CR4 (data book 4.2.3.1): the oracle's state has none, and MOV to or
-  from CR4 must be #UD. Bochs runs it, so the level-4 provisioner applies
-  its own Bochs patch, `bochs/level4-no-cr4.patch`, which gates the two MOV
-  CR4 forms on VME. The known-divergence table's MOV CR4 row moves from
+  from CR4 must be #UD. Bochs runs it, so the level-4 provisioner edits its
+  copy of Bochs's opcode table to gate the two MOV CR4 entries on VME, and
+  fails unless each matched once. The known-divergence table's MOV CR4 row moves from
   "masked" to "adapted".
 - **The `i486` mode compares CR0 and EFLAGS under the 486's masks**
   (CR0 E005003Fh; EFLAGS 0027FFFFh, which adds AC and ID), not the 386's.
@@ -67,8 +67,8 @@ cover what this file promised. Changes, none of which loosens a pass rule:
   each width in register and memory form, equal and unequal, LOCK legal on
   memory and #UD on registers; and MOV TR3 to TR7 (Lander's commit
   `96a328525`, reviewed and taken).
-- **The census is rerun** on the code commit of this amendment, not carried
-  by an audit.
+- **The census is rerun** on the final code commit, not carried by an
+  audit.
 
 The RTL stop list for the new table was measured before this text was
 written, so it is reported as measured, not as predicted; rule 4's
@@ -170,7 +170,7 @@ Each is handled in one of two ways, fixed here.
 | Reset EDX | 0 (`cpu/init.cc:896`) | The identifier: family 04h in DH, model and stepping in DL (data book 241731-002 §9.5, Table 9-9) | **Adapted** in the adapter's `reset()`: EDX is CPUID leaf 1's EAX, 0480h, the DX4 Bochs models |
 | DR6 at reset | FFFF1FF0h (`cpu/init.cc:1038-1043`) | FFFF0FF0h (PRM Table 10-1) | **Adapted** in the adapter's `reset()` |
 | MOV TRn | #UD at every level | TR3 to TR7 exist (PRM §21.3.3; data book §14.0 item 9) | **Masked**: the lockstep's existing MOV TRn rule, extended to TR3 against the level-4 oracle. The test functions of the registers have no oracle |
-| MOV CR4 | Runs; with VME excluded CR4 reads 0 and any set bit is #GP(0) | CR4 exists only on parts with VME, PVI or PSE (data book §4.2.3.1); the 486 identity has none | **Adapted** (amendment 3): the level-4 Bochs patch makes MOV to and from CR4 #UD |
+| MOV CR4 | Runs; with VME excluded CR4 reads 0 and any set bit is #GP(0) | CR4 exists only on parts with VME, PVI or PSE (data book §4.2.3.1); the 486 identity has none | **Adapted** (amendment 3): the level-4 provisioner makes MOV to and from CR4 #UD |
 | No FPU-less model | The 486 model enables the x87 unconditionally and a 486 without it is fatal (`i486dx4.cc:39`, `cpuid.cc:1623-1624`) | The 486SX | **Masked**: an SX is checked as the 386's empty socket is, by the lockstep's no-387 rule. Not built in this slice |
 | CPUID leaf 1 | EAX 0480h, EDX bit 0 set: a DX4 with an FPU | Per part: SX 042xh with EDX bit 0 clear, DX 040xh or 041xh, DX2 043xh (data book Table 9-9, AP-485) | **Masked** for an identity other than the DX4: the identity's values are slice 2's, with the build parameter |
 | ET | Forced to 1 while the x87 is present | Hard-wired 1 (PRM §25.1 item 1) | None needed: equal for every 486 identity |

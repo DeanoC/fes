@@ -14,6 +14,15 @@ from scripts import fes_i486_oracle as level4
 from scripts import test_fes_i486_lockstep as runner
 
 
+# Lines in the shape of Bochs's opcode table (cpu/decoder/ia_opcodes.def at the pin), for the edit's tests.
+OPCODE_TABLE = (
+    'bx_define_opcode(BX_IA_MOV_CR3Rd, "mov", "movl", NULL, &BX_CPU_C::MOV_CR3Rd, 0, OP_Cd, OP_Ed, OP_NONE, OP_NONE, 0)\n'
+    'bx_define_opcode(BX_IA_MOV_CR4Rd, "mov", "movl", NULL, &BX_CPU_C::MOV_CR4Rd, BX_ISA_486, OP_Cd, OP_Ed, OP_NONE, OP_NONE, 0)\n'
+    'bx_define_opcode(BX_IA_MOV_RdCR4, "mov", "movl", NULL, &BX_CPU_C::MOV_RdCR4, BX_ISA_486, OP_Ed, OP_Cd, OP_NONE, OP_NONE, 0)\n'
+    'bx_define_opcode(BX_IA_BSWAP_ERX, "bswap", "bswapl", NULL, &BX_CPU_C::BSWAP_ERX, BX_ISA_486, OP_Ed, OP_NONE, OP_NONE, OP_NONE, 0)\n'
+)
+
+
 class ProvisionerTest(unittest.TestCase):
     def test_configure_differs_from_level_3_only_in_the_level(self):
         self.assertEqual(len(level4.BOCHS_CONFIGURE), len(level3.BOCHS_CONFIGURE))
@@ -47,14 +56,16 @@ class ProvisionerTest(unittest.TestCase):
             (tree / 'instrument/fes').mkdir(parents=True)
             inputs = [(level4.SIM / name).read_bytes() for name in level4.ORACLE_SOURCES]
             (tree / 'instrument/fes/instrument.h').write_bytes(inputs[2])
-            (tree / 'fes-bochs.patch').write_bytes(level4.BOCHS_PATCH.read_bytes())
+            (tree / 'cpu/decoder').mkdir(parents=True)
+            (tree / level4.OPCODE_TABLE).write_text(level4.gate_cr4_on_vme(OPCODE_TABLE))
             linked = [root / f'bochs_oracle-{level4._adapter_key(tree, inputs)}.o', tree / 'fes-paramtree.o',
                       *(root / name for name in ('cpu.a', 'fpu.a', 'softfloat.a', 'cpudb.a'))]
             for path in linked:
                 path.write_bytes(path.name.encode())
             record = level4.build_record(linked)
             self.assertEqual(record['cpu_level'], 4)
-            self.assertEqual(record['patch_sha256'], hashlib.sha256(level4.BOCHS_PATCH.read_bytes()).hexdigest())
+            self.assertEqual(record['opcode_table_sha256'],
+                             hashlib.sha256(level4.gate_cr4_on_vme(OPCODE_TABLE).encode()).hexdigest())
             self.assertEqual(record['provisioner_sha256'], level4.PROVISIONER_SHA256)
             self.assertEqual(record['level3_provisioner_sha256'], level3.PROVISIONER_SHA256)
             self.assertEqual(record['adapter_sha256'], level3.adapter_source_sha256(level3.SIM))
@@ -120,11 +131,14 @@ class CasesTest(unittest.TestCase):
     def test_there_is_no_cr4(self):
         # The 486 identity has no VME, PVI or PSE: no CR4 in the oracle's state, and MOV CR4 is #UD.
         self.assertNotIn('cr4', (level4.SIM / 'i386_oracle.h').read_text())
-        patch = level4.BOCHS_PATCH.read_text()
-        for opcode in ('BX_IA_MOV_CR4Rd', 'BX_IA_MOV_RdCR4'):
-            self.assertIn(f'-bx_define_opcode({opcode}', patch)
-        self.assertEqual(patch.count('BX_ISA_486,'), 2)
-        self.assertEqual(patch.count('BX_ISA_VME,'), 2)
+        # The two MOV CR4 entries move from the 486's feature to VME's, and nothing else changes.
+        edited = level4.gate_cr4_on_vme(OPCODE_TABLE)
+        self.assertTrue(level4.cr4_gated(edited))
+        self.assertFalse(level4.cr4_gated(OPCODE_TABLE))
+        self.assertEqual(edited.replace('BX_ISA_VME', 'BX_ISA_486'), OPCODE_TABLE)
+        self.assertEqual(edited.count('BX_ISA_VME'), 2)
+        with self.assertRaises(level4.OracleError):
+            level4.gate_cr4_on_vme(edited)
         rows = {case.label: case for case in self.cases}
         for label in ('mov-cr4-read', 'mov-cr4-write'):
             self.assertEqual(rows[label].expect, {'end': 'exception:6'})
