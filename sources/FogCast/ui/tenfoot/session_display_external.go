@@ -55,18 +55,49 @@ func (a *App) beginCoordinatedSessionDisplayLocked(target protocol.SessionDispla
 	}()
 }
 
+func (a *App) externalDisplayAdmittedLocked(ctx context.Context, request sessiondisplayipc.Transition) bool {
+	prior := a.session
+	return ctx.Err() == nil && !(a.displayShuttingDown && (!a.displayShutdownClose || request.Display != protocol.SessionDisplayClosed)) &&
+		a.menuDisplay != nil && a.localCores != nil && !a.sessionDisplayBusy && (!a.sessionDisplayUncertain || request.Display == protocol.SessionDisplayClosed) &&
+		a.stopPhase != "stopping" && !a.retryStopLock && !a.playHIDFailClosedLocked() && prior.State == "active" &&
+		prior.CorePackage != nil && prior.CorePackage.PackageID == request.PackageID && prior.CorePackage.Generation == request.Generation &&
+		prior.TargetID != "" && prior.TargetID == request.TargetID && (a.kitID == "" || a.kitID == request.TargetID) && request.Display.Valid()
+}
+
 // prepareExternalSessionDisplay lets a target-originated display request use
 // the same presentation and input fence as a Home/Back transition. The
 // target waits for this preparation before changing the physical plane.
 func (a *App) prepareExternalSessionDisplay(ctx context.Context, request sessiondisplayipc.Transition) (func(context.Context, sessiondisplayipc.Outcome) error, error) {
 	a.mu.Lock()
 	prior := a.session
-	if ctx.Err() != nil || (a.displayShuttingDown && (!a.displayShutdownClose || request.Display != protocol.SessionDisplayClosed)) || a.menuDisplay == nil || a.localCores == nil || a.sessionDisplayBusy || (a.sessionDisplayUncertain && request.Display != protocol.SessionDisplayClosed) ||
-		a.stopPhase == "stopping" || a.retryStopLock || a.playHIDFailClosedLocked() || prior.State != "active" ||
-		prior.CorePackage == nil || prior.CorePackage.PackageID != request.PackageID || prior.CorePackage.Generation != request.Generation ||
-		prior.TargetID == "" || prior.TargetID != request.TargetID || (a.kitID != "" && a.kitID != request.TargetID) || !request.Display.Valid() {
+	if !a.externalDisplayAdmittedLocked(ctx, request) {
 		a.mu.Unlock()
 		return nil, errors.New("launcher display binding is unavailable")
+	}
+	// Resolve an adopted machine's exact package before the target changes
+	// focus. The host's display request holds its session coordinator, but
+	// package inspection is an independent read-only route.
+	needsSetup := request.Display == protocol.SessionDisplayFocused && !a.colecoSessionLocked() &&
+		!(a.needsSessionDisplayLocked() && a.sessionLiveMediaOfferedLocked()) && a.playingSetupCoreLocked() == ""
+	if needsSetup {
+		client := a.client
+		a.mu.Unlock()
+		if client == nil {
+			return nil, errors.New("launcher package metadata is unavailable")
+		}
+		pkg, err := client.CorePackage(ctx, request.PackageID)
+		if err != nil {
+			return nil, err
+		}
+		a.mu.Lock()
+		if !a.externalDisplayAdmittedLocked(ctx, request) || !samePlayHIDSession(a.session, prior) {
+			a.mu.Unlock()
+			return nil, errors.New("running machine changed while resolving launcher controls")
+		}
+		if a.playingSetupCoreLocked() == "" {
+			a.rememberPlayingSetupLocked(pkg.Descriptor.Core.ID)
+			a.playingSetupRoom = nil
+		}
 	}
 	from := a.sessionDisplayLocked()
 	if request.Display == protocol.SessionDisplayFocused && from != request.Display && !a.playingHardwareRoomAvailableLocked() {
@@ -200,7 +231,8 @@ func (a *App) prepareExternalSessionDisplay(ctx context.Context, request session
 		}
 		a.mu.Lock()
 		defer a.mu.Unlock()
-		if !samePlayHIDSession(a.session, prior) || a.sessionDisplayEpoch != epoch || a.sessionDisplayLocked() != request.Display {
+		if !samePlayHIDSession(a.session, prior) || a.sessionDisplayEpoch != epoch || a.sessionDisplayLocked() != request.Display ||
+			(request.Display == protocol.SessionDisplayFocused && !a.roomDuringPlay) {
 			return errors.New("running machine changed before display acknowledgement")
 		}
 		if a.stopPhase == "stopping" || a.retryStopLock {
@@ -244,7 +276,7 @@ func (a *App) checkStartupFrame(dev gfx.Device, expired bool) (bool, error) {
 		return false, nil
 	}
 	display, ok := dev.(*gfx.MenuDisplay)
-	presented := ok && a.displayFrameSeq != 0 && display.PresentedSequence(a.displayFrameSeq)
+	presented := ok && a.displayFrameSeq != 0 && display.PresentedSince(a.displayFrameSeq)
 	if presented {
 		if a.startupFrameVerify == nil {
 			return true, errors.New("startup display identity verifier unavailable")
@@ -253,7 +285,7 @@ func (a *App) checkStartupFrame(dev gfx.Device, expired bool) (bool, error) {
 			select {
 			case err := <-a.startupFrameCheck:
 				a.startupFrameCheck = nil
-				if err == nil && samePlayHIDSession(a.session, a.sessionDisplayBinding) && display.PresentedSequence(a.displayFrameSeq) {
+				if err == nil && samePlayHIDSession(a.session, a.sessionDisplayBinding) && display.PresentedSince(a.displayFrameSeq) {
 					a.displayStartupFenced = false
 					a.sessionDisplayBusy = false
 					return false, nil
@@ -317,7 +349,7 @@ func (a *App) waitSubmittedDisplayFrame(ctx context.Context, display *gfx.MenuDi
 		if !valid {
 			return errors.New("display frame request was replaced")
 		}
-		if seq != 0 && display.PresentedSequence(seq) {
+		if seq != 0 && display.PresentedSince(seq) {
 			return nil
 		}
 		select {

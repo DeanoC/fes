@@ -5,6 +5,9 @@ package tenfoot
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -379,5 +382,68 @@ func TestStartupFrameVerifierRejectsChangedIncarnationAndIdentity(t *testing.T) 
 				t.Fatal("verifier prematurely released input fence")
 			}
 		})
+	}
+}
+
+func TestStartupFocusedNonColecoWaitsForDelayedPackage(t *testing.T) {
+	entered, release := make(chan struct{}), make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/api/v1/core-packages/") {
+			http.NotFound(w, r)
+			return
+		}
+		close(entered)
+		select {
+		case <-release:
+		case <-r.Context().Done():
+			return
+		}
+		_, _ = fmt.Fprintf(w, `{"package_id":"%s","descriptor":{"core":{"id":"fes.zx81"}}}`, strings.Repeat("a", 64))
+	}))
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	app.SetMenuDisplay(&gfx.MenuDisplay{})
+	session := kitDisplaySession()
+	session.CorePackage.ActiveInterfaces = []hostclient.SessionCoreInterface{{ID: "fes.keyboard", Major: 1}, {ID: "fes.memory.hps-ddr", Major: 1}, {ID: "fes.video.session-display", Major: 1}}
+	observed := startupObserved(session, true, "launcher")
+	reader := &startupReads{values: []menudisplay.StartupStatus{observed, observed}}
+	app.mu.Lock()
+	app.session = hostclient.SessionResult{}
+	app.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- app.reconcileDisplayStartupRetryWith(ctx, reader, func(context.Context) (hostclient.SessionResult, error) { return session, nil }, testStartupTarget)
+	}()
+	select {
+	case <-entered:
+	case <-ctx.Done():
+		t.Fatal("lookup did not start")
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("adopted before metadata: %v", err)
+	default:
+	}
+	app.mu.Lock()
+	busy := app.sessionDisplayBusy
+	app.mu.Unlock()
+	if !busy {
+		t.Fatal("startup fence was dropped during lookup")
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	app.mu.Lock()
+	opened, fenced := app.roomDuringPlay, app.displayStartupFenced
+	app.session = hostclient.SessionResult{}
+	app.sessionDisplayBusy = false
+	app.displayStartupFenced = false
+	app.menuDisplay = nil
+	app.mu.Unlock()
+	if !opened || !fenced {
+		t.Fatalf("opened=%v fenced=%v", opened, fenced)
 	}
 }

@@ -3,12 +3,15 @@ package tenfoot
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/sessiondisplayipc"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/ui/gfx"
@@ -106,7 +109,7 @@ func TestExternalDisplayRequiresFreshPresentedFrame(t *testing.T) {
 	}
 }
 
-func TestExternalDisplayWaitsForNewPresentedSequence(t *testing.T) {
+func TestExternalDisplayWaitsForNewPresentedSince(t *testing.T) {
 	presenter := &delayedDisplayPresenter{}
 	presenter.set(menudisplay.Status{Available: true, Session: true, PackageID: strings.Repeat("a", 64), CoreGeneration: 9, Generation: 4})
 	display, err := gfx.NewMenuDisplayWithPresenter(presenter)
@@ -118,7 +121,7 @@ func TestExternalDisplayWaitsForNewPresentedSequence(t *testing.T) {
 	display.BindSession(strings.Repeat("a", 64), 9)
 	display.Present()
 	deadline := time.Now().Add(time.Second)
-	for !display.PresentedSequence(display.QueuedSeq()) {
+	for !display.PresentedSince(display.QueuedSeq()) {
 		if time.Now().After(deadline) {
 			t.Fatal("first frame did not present")
 		}
@@ -366,7 +369,7 @@ func TestPresentedFrameFenceSurvivesLaterFrame(t *testing.T) {
 	display.Present()
 	first := display.QueuedSeq()
 	deadline := time.Now().Add(time.Second)
-	for !display.PresentedSequence(first) {
+	for !display.PresentedSince(first) {
 		if time.Now().After(deadline) {
 			t.Fatal("first frame not presented")
 		}
@@ -375,17 +378,17 @@ func TestPresentedFrameFenceSurvivesLaterFrame(t *testing.T) {
 	display.Framebuffer().Pix[0] ^= 1
 	display.Present()
 	second := display.QueuedSeq()
-	for !display.PresentedSequence(second) {
+	for !display.PresentedSince(second) {
 		if time.Now().After(deadline) {
 			t.Fatal("second frame not presented")
 		}
 		time.Sleep(time.Millisecond)
 	}
-	if !display.PresentedSequence(first) {
+	if !display.PresentedSince(first) {
 		t.Fatal("superseded successful frame was forgotten")
 	}
 	display.BindSession(strings.Repeat("a", 64), 10)
-	if display.PresentedSequence(first) {
+	if display.PresentedSince(first) {
 		t.Fatal("old binding frame survived rebind")
 	}
 }
@@ -484,5 +487,145 @@ func TestStartupDisplayIdentityFailureRequiresFreshReconciliation(t *testing.T) 
 	app.mu.Unlock()
 	if !uncertain {
 		t.Fatal("identity failure not marked uncertain")
+	}
+}
+
+func TestExternalFocusResolvesPackageBeforePreparation(t *testing.T) {
+	entered, release := make(chan struct{}), make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/api/v1/core-packages/") {
+			http.NotFound(w, r)
+			return
+		}
+		close(entered)
+		select {
+		case <-release:
+		case <-r.Context().Done():
+			return
+		}
+		_, _ = fmt.Fprintf(w, `{"package_id":"%s","descriptor":{"core":{"id":"fes.zx81"}}}`, strings.Repeat("a", 64))
+	}))
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	presenter := &countingSessionMenu{}
+	display, err := gfx.NewMenuDisplayWithPresenter(presenter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(display.Close)
+	display.SetChangeDriven(true)
+	app.SetMenuDisplay(display)
+	app.mu.Lock()
+	app.session.CorePackage.ActiveInterfaces = []hostclient.SessionCoreInterface{{ID: "fes.keyboard", Major: 1}, {ID: "fes.memory.hps-ddr", Major: 1}, {ID: "fes.video.session-display", Major: 1}}
+	prior := app.session
+	app.mu.Unlock()
+	request := sessiondisplayipc.Transition{PackageID: prior.CorePackage.PackageID, Generation: prior.CorePackage.Generation, TargetID: prior.TargetID, Display: protocol.SessionDisplayFocused}
+	result := make(chan error, 1)
+	finishResult := make(chan func(context.Context, sessiondisplayipc.Outcome) error, 1)
+	go func() {
+		finish, err := app.prepareExternalSessionDisplay(context.Background(), request)
+		finishResult <- finish
+		result <- err
+	}()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("package lookup did not start")
+	}
+	select {
+	case err := <-result:
+		t.Fatalf("prepared before metadata: %v", err)
+	default:
+	}
+	if display.ReadinessDiagnostic().Paused {
+		t.Fatal("presentation paused before package resolved")
+	}
+	close(release)
+	if err := <-result; err != nil {
+		t.Fatal(err)
+	}
+	finish := <-finishResult
+	presenter.set(menudisplay.Status{Available: true, Session: true, PackageID: request.PackageID, CoreGeneration: request.Generation, Generation: 4})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	finished := make(chan error, 1)
+	go func() { finished <- finish(ctx, sessiondisplayipc.Applied) }()
+	for app.Snapshot().displayFrameRequest == 0 {
+		select {
+		case <-ctx.Done():
+			t.Fatal("room did not request a frame")
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
+	snap := app.Snapshot()
+	display.ForceNextFrame()
+	display.Present()
+	app.submittedDisplayFrame(snap.displayFrameRequest, display.QueuedSeq())
+	if err := <-finished; err != nil {
+		t.Fatal(err)
+	}
+	app.mu.Lock()
+	core, opened, uncertain := app.playingSetupCoreLocked(), app.roomDuringPlay, app.sessionDisplayUncertain
+	app.sessionDisplay = protocol.SessionDisplayClosed
+	app.mu.Unlock()
+	if core != "fes.zx81" || !opened || uncertain {
+		t.Fatalf("core=%q opened=%v uncertain=%v", core, opened, uncertain)
+	}
+}
+
+func TestFrameFenceAcceptsNewerFrameWhenQueuedOneWasDropped(t *testing.T) {
+	presenter := &delayedDisplayPresenter{}
+	presenter.set(menudisplay.Status{Available: true, Session: true, PackageID: strings.Repeat("a", 64), CoreGeneration: 9, Generation: 4})
+	display, err := gfx.NewMenuDisplayWithPresenter(presenter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer display.Close()
+	display.SetChangeDriven(true)
+	display.BindSession(strings.Repeat("a", 64), 9)
+	display.Present()
+	first := display.QueuedSeq()
+	deadline := time.Now().Add(time.Second)
+	for !display.PresentedSince(first) {
+		if time.Now().After(deadline) {
+			t.Fatal("initial frame missing")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	presenter.mu2.Lock()
+	presenter.entered = make(chan struct{})
+	presenter.gate = make(chan struct{})
+	entered, gate := presenter.entered, presenter.gate
+	presenter.mu2.Unlock()
+	display.Framebuffer().Pix[0] ^= 1
+	display.Present()
+	<-entered
+	display.Framebuffer().Pix[1] ^= 1
+	display.ForceNextFrame()
+	display.Present()
+	fence := display.QueuedSeq()
+	display.Framebuffer().Pix[2] ^= 1
+	display.Present()
+	newer := display.QueuedSeq()
+	if newer <= fence {
+		t.Fatal("later snapshot did not queue")
+	}
+	if display.PresentedSince(fence) {
+		t.Fatal("pre-fence frame acknowledged")
+	}
+	presenter.mu2.Lock()
+	presenter.entered = nil
+	presenter.gate = nil
+	presenter.mu2.Unlock()
+	close(gate)
+	for !display.PresentedSince(fence) {
+		if time.Now().After(deadline) {
+			t.Fatal("superseding frame did not satisfy fence")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if !display.PresentedSince(newer) {
+		t.Fatal("wrong frame acknowledged")
 	}
 }
