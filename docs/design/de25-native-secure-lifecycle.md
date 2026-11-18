@@ -1,13 +1,16 @@
 # DE25 native secure lifecycle investigation
 
-The [final input proof repair](../validation/2026-11-18-de25-final-input-proof/README.md) now reproduces source-clock
-expiry through production finish/retirement callbacks under synthetic costs.
-It retains the original ownership checks and all table comparisons, with
-full barriers around each existing 256-byte read block. First-rejection
-clock diagnostics distinguish all seven guard-31 members without new
-observations. Software, target ordering/layout and matched file admission
-pass. The image is unprogrammed; the historical physical member and full
-repeated-cycle acceptance remain open.
+The [latest bounded hardware diagnostic](../validation/2026-11-18-de25-guard31-physical/README.md)
+identifies guard 31 as reason 7: the original 20-second source deadline expires
+at 20,576,301 us after full next-MENU configuration, before final proof and
+retirement succeed. The block-barrier optimization and synthetic model pass
+were insufficient on hardware. Initial MENU, ZX81 with tape and return release
+pass; ZX80 and final native Park are not reached. Independent exact original-FIT
+restoration and protected readback pass without power cycling. The programming
+rescan failure in the preceding attempt remains unexplained, although a later
+read-only chain probe and all three newly traced programming roles pass.
+Source clocks, ownership and integrity checks remain unchanged. Complete
+repeated-cycle qualification is still open.
 
 This is the Linux-free, opt-in experiment tracked by [#1867](https://github.com/DeanoC/fes/issues/1867).
 It describes the current implementation and the remaining qualification work.

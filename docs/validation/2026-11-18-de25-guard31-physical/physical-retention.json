@@ -1,0 +1,12 @@
+{
+  "status": "independently-verified-physical-archive",
+  "members": 341,
+  "archive_sha256": "2946054bc16af4bc96c0794fc284e9567e1b59f3b72a3700435114d2b81812fc",
+  "hardware_result": "diagnostic-failed-original-restored",
+  "full_repeated_cycle_passed": false,
+  "all_host_handles_closed": true,
+  "failed_verdict_preserved": true,
+  "power_cycle_performed": false,
+  "physical_display_verified": false,
+  "normal_HIL_acceptance": false
+}

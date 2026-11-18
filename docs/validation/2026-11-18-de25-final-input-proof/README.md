@@ -123,3 +123,10 @@ stopped during the initial recovery programmer rescan with a broken JTAG chain,
 before any card write or native programming. Its new reset witness and later
 recovery prompt do not override the failed gate. The guard-31 candidate remains
 uninstalled and unprogrammed; the original FIT was not modified by that attempt.
+
+A later [fresh server-traced physical trial](../2026-11-18-de25-guard31-physical/README.md)
+passes programming and identifies the new runtime rejection as guard 31 reason 7:
+the original source deadline expires at 20,576,301 us after full generation-15
+DATA. The full cycle remains failed, and the exact original FIT is restored
+without a power cycle. This later result does not change this checkpoint's
+historical verdict or retroactively identify an older unrecorded rejection.

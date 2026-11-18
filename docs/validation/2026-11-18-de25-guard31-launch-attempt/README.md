@@ -71,3 +71,10 @@ verdict and consumed attempt. Exact-artifact lifecycle qualification, physical
 display/input, complete failure coverage and ordinary Kit D25 HIL/restore remain
 open. [#1952](https://github.com/DeanoC/fes/pull/1952) stays draft and
 `lane:deano`; [#1867](https://github.com/DeanoC/fes/issues/1867) stays open.
+
+A later [fresh server-traced physical trial](../2026-11-18-de25-guard31-physical/README.md)
+passes programming and identifies the new runtime rejection as guard 31 reason 7:
+the original source deadline expires at 20,576,301 us after full generation-15
+DATA. The full cycle remains failed, and the exact original FIT is restored
+without a power cycle. This later result does not change this checkpoint's
+historical verdict or retroactively identify an older unrecorded rejection.
