@@ -1,0 +1,21 @@
+{
+  "status": "passed-independent-final-proof-work-audit",
+  "before": "34781f8af3530d6944e7647f99f71513a775337e",
+  "after": "379c6aa7d40d1283d80f353e36a7ddce43ae4f1c",
+  "word_reads": 5120,
+  "bytes_compared": 40960,
+  "MMIO_reads": 30556,
+  "counter_samples": 1,
+  "table_barriers_before": 10240,
+  "table_barriers_after": 320,
+  "unchanged_other_barriers": 24624,
+  "total_barriers_before": 34864,
+  "total_barriers_after": 24944,
+  "removed_barriers": 9920,
+  "synthetic_before_rejected_elapsed": 20042687,
+  "synthetic_after_last_accepted_elapsed": 19925685,
+  "bound_us": 20000000,
+  "hardware_latency_attribution": false,
+  "historical_hardware_rejecting_member_proven": false,
+  "hardware_actions": false
+}

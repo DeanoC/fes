@@ -1,5 +1,14 @@
 # Nano recovery uploads and cold serial boot
 
+The [final input proof repair](../../../docs/validation/2026-11-18-de25-final-input-proof/README.md) now reproduces source-clock
+expiry through production finish/retirement callbacks under synthetic costs.
+It retains the original ownership checks and all table comparisons, with
+full barriers around each existing 256-byte read block. First-rejection
+clock diagnostics distinguish all seven guard-31 members without new
+observations. Software, target ordering/layout and matched file admission
+pass. The image is unprogrammed; the historical physical member and full
+repeated-cycle acceptance remain open.
+
 The [private comparison repair](../../../docs/validation/2026-11-18-de25-warm-preparation-comparison/README.md) now reproduces the second warm
 preparation boundary through production callbacks under synthetic costs and
 reduces modeled snapshot loads by 84.885%, preserving all bytes, freshness

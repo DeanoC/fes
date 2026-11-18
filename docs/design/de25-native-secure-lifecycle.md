@@ -1,5 +1,14 @@
 # DE25 native secure lifecycle investigation
 
+The [final input proof repair](../validation/2026-11-18-de25-final-input-proof/README.md) now reproduces source-clock
+expiry through production finish/retirement callbacks under synthetic costs.
+It retains the original ownership checks and all table comparisons, with
+full barriers around each existing 256-byte read block. First-rejection
+clock diagnostics distinguish all seven guard-31 members without new
+observations. Software, target ordering/layout and matched file admission
+pass. The image is unprogrammed; the historical physical member and full
+repeated-cycle acceptance remain open.
+
 This is the Linux-free, opt-in experiment tracked by [#1867](https://github.com/DeanoC/fes/issues/1867).
 It describes the current implementation and the remaining qualification work.
 It is not authenticated secure boot, a completed security review or permission
@@ -377,9 +386,10 @@ files and closed handles. The failed cycle stays failed and consumed.
    use; a later implementation edit requires a fresh chain.
 3. Use a new bounded procedure to qualify repeated
    `MENU → ZX81+tape → MENU → ZX80 → MENU → Park` on that exact artifact.
-   Preparation/arm now passes physically; first distinguish the subsequent
-   final-input-proof source-clock guard 31 and reproduce its actual supplier
-   cost off-board without weakening ownership or bounds. Capture
+   Preparation/arm now passes physically. The actual final proof now has an
+   off-board expiry reproduction, bounded read-block barrier repair and
+   first-rejection clock diagnostics; the old physical member is unproven.
+   Qualify the new exact artifact and its first clock snapshot on failure. Capture
    source reuse, final USB shutdown and declared failure
    recovery; retain any stopped state and do not retry its consumed procedure.
 4. Extend the combined regression for cancellation, mapping/acknowledgement and
