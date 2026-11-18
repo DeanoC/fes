@@ -206,7 +206,7 @@ def prepare_elaboration_inputs(source: Path, work: Path, *, dos_profile=False) -
     }
 
 
-def validate_renaming(work: Path, *, package_profile=False, dos_profile=False) -> dict:
+def validate_renaming(work: Path, *, package_profile=False, dos_profile=False, capture_pipeline=False) -> dict:
     before = json.loads((work / 'before-names.json').read_text())['modules']
     after = json.loads((work / 'elaborated.json').read_text())['modules']
     if before.keys() != after.keys():
@@ -223,7 +223,7 @@ def validate_renaming(work: Path, *, package_profile=False, dos_profile=False) -
     counts = dict(Counter(c['type'] for c in cells.values()))
     boundary = {'altera_pll': 3 if dos_profile else 2, 'altiobuf_bidir': 16, 'cyclonev_clkena': 1,
                 'cyclonev_hps_interface_peripheral_i2c': 1, 'altddio_out': 1}
-    if any(counts.get(kind) != count for kind, count in boundary.items()):
+    if any(counts.get(kind, 0) != count for kind, count in boundary.items()):
         raise ValueError('whole-board primitive boundary is incomplete')
     memory_settings = ({'number_of_clocks': 2, 'output_clock_frequency0': '100.0 MHz',
                         'output_clock_frequency1': '100.0 MHz', 'phase_shift0': '0 ps', 'phase_shift1': '5000 ps'}
@@ -232,6 +232,13 @@ def validate_renaming(work: Path, *, package_profile=False, dos_profile=False) -
                         'output_clock_frequency1': '50.0 MHz', 'output_clock_frequency2': '50.0 MHz',
                         'output_clock_frequency3': '50.0 MHz', 'phase_shift0': '0 ps',
                         'phase_shift1': '10000 ps', 'phase_shift2': '0 ps', 'phase_shift3': '18000 ps'})
+    if capture_pipeline:
+        if not package_profile:
+            raise ValueError('capture pipeline requires the 100 MHz package-shaped diagnostic')
+        memory_settings = {'number_of_clocks': 4, 'output_clock_frequency0': '100.0 MHz',
+                           'output_clock_frequency1': '100.0 MHz', 'output_clock_frequency2': '100.0 MHz',
+                           'output_clock_frequency3': '100.0 MHz', 'phase_shift0': '0 ps',
+                           'phase_shift1': '9375 ps', 'phase_shift2': '1250 ps', 'phase_shift3': '8750 ps'}
     if package_profile and counts.get('cyclonev_hps_interface_mpu_general_purpose') != 1:
         raise ValueError('package profile lacks its runtime mailbox')
     pll_settings = {

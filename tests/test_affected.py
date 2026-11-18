@@ -600,6 +600,11 @@ class AffectedTests(unittest.TestCase):
                       'sources/misteross/scripts/new_helper.py'])
         self.assertEqual(set(mixed['cores']), set(CORES))
 
+    def test_pc386_core_owned_product_selects_the_pc386_family(self):
+        result = plan(['sources/misteross/cores/fes-pc386/tools/build_pc386_product.py'])
+        self.assertEqual(result['cores'], ['pc386'])
+        self.assertTrue(result['lanes']['fpga'])
+
     def test_pc386_windows_checks_select_only_what_reads_them(self):
         result = plan(['sources/misteross/scripts/pc386_wfw.py'])
         self.assertEqual(result['cores'], ['pc386'])

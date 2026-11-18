@@ -1,0 +1,78 @@
+{
+  "algebraic_held_write_setup_ns": {
+    "1": 24.418,
+    "2": 22.255,
+    "3": 23.479
+  },
+  "base_summary_sha256": "a8bb9dcdee7cfdb0f897cdb95e5b295a23cc810b50c098efa9ecd0463cadfa27",
+  "classification": "inductive RTL window proof and bounded tagged-pin trace; not physical signoff",
+  "fixture_sha256": {
+    "trace.cpp": "adecfdad60fa99fccf1d141b5080875f448ac33ab251839225091d5a8dbaf80b",
+    "trace_top.sv": "f70a66df52b843b46c5e5a508707f2f46717ac795c47fd37696f9fb5c11c3cbc",
+    "verify_windows.py": "3f787492d8add1fb5917a05d77b0d320fb7b879c75e3f9657f929ad83525d7d8",
+    "verilator-reference.json": "20f7d50d274b3d04f5acd995740f4ff95022456355d75105f5b6c86297dd03d4",
+    "window_contract.sv": "5eed66b4e2db32796949d35051b5a9f7650e3baddc34ae59ae3236aa9a922f0e"
+  },
+  "formal": "PASS: temporal induction",
+  "formal_read": "No reset in read window: five cycles after sampled READ pins, rdata equals the previous controller input sample",
+  "formal_write": "DQ/OE stable three prior cycles; A11/A12 masks stable two prior cycles",
+  "negative_read": "rejected after real initialization",
+  "negative_write": "rejected after real initialization",
+  "physical_budget_complete": false,
+  "producer_constraints_changed": false,
+  "read_setup_unchanged_ns": {
+    "1": -8.717,
+    "2": -9.558,
+    "3": -8.811
+  },
+  "record_sha256": "865ca6328217f7e6ce2ba97654127a2982cb7efa8de3e28a891fbaedc6e78c2d",
+  "recorded_source_inputs_equal": 185,
+  "source_sha256": {
+    "cores/fes-pcxt/rtl/pcxt_memory.sv": "8d85dc855da2531d46a8d849ffc1603b852e6b8b64ab3db414fc76b3e18ba69d",
+    "cores/fes-pcxt/sim/memory_top.sv": "7d84cd128228eaeae49923310fc7609e6a561b9b32471cce5af8d0500ef4a7d6",
+    "cores/fes-ramtest/rtl/sdram_addon_port.v": "e3ccc890531752d3fd8274ddbfac4401c79374cab80e7404f8825760da002a08"
+  },
+  "trace": {
+    "CONSUME/consume_delay_halfcycles": {
+      "count": 256,
+      "max": 9,
+      "min": 9
+    },
+    "CONSUME/sample_delay_halfcycles": {
+      "count": 256,
+      "max": 6,
+      "min": 6
+    },
+    "OE_ASSERT/after_read_halfcycles": {
+      "count": 255,
+      "max": 61,
+      "min": 23
+    },
+    "OE_RELEASE/after_write_halfcycles": {
+      "count": 257,
+      "max": 3,
+      "min": 3
+    },
+    "WRITE/data_stable_halfcycles": {
+      "count": 257,
+      "max": 26255,
+      "min": 7
+    },
+    "WRITE/oe_stable_halfcycles": {
+      "count": 257,
+      "max": 7,
+      "min": 7
+    }
+  },
+  "verilator": {
+    "engine": "/usr/bin/verilator_bin",
+    "engine_sha256": "619464a17a8c212219abceeeee23f529b72801ef594814ae32f4b9747fd38703",
+    "executable": "/usr/bin/verilator",
+    "reference_sha256": "20f7d50d274b3d04f5acd995740f4ff95022456355d75105f5b6c86297dd03d4",
+    "sdk_root": "/usr/share/verilator",
+    "version": "Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)",
+    "wrapper_sha256": "672a1ccf3468902f66387049f001b04f254bbcece7d5e816e3861715889bf252"
+  },
+  "write_earlier_launch_cycles": 3,
+  "yosys_sha256": "a17b4c8aeac5373dba86faa67124456834c585924503457387631408f84549f8"
+}
