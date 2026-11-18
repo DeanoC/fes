@@ -1,0 +1,71 @@
+{
+  "branch": {
+    "build_id": "cfb0d066b318bfcd8fb695867b865bd6",
+    "margins": {
+      "pixel": {
+        "achieved_mhz": 88.24567413330078,
+        "constraint_mhz": 74.25006866455078,
+        "ratio": 1.1884928286326546,
+        "status": "pass"
+      },
+      "worst_ratio": 1.1884928286326546
+    },
+    "placer_seed": 5,
+    "rbf_bytes": 2166676,
+    "rbf_sha256": "c5daed66919920e8d7c6f8d701fe3c25b080e0a9893070dee3e5fc5370ea8f46",
+    "source": "/data/fes1861-netlist/ref/menu-branch/build-summary.json",
+    "status": "pass",
+    "timing": {
+      "pixel": {
+        "achieved_mhz": 88.24567413330078,
+        "clock": "endpoint.blit_control.clk",
+        "constraint_mhz": 74.25006866455078,
+        "requested_mhz": 74.25,
+        "status": "pass"
+      },
+      "reference": {
+        "clock": "FPGA_CLK1_50",
+        "constraint_mhz": 50.0,
+        "evidence": "boards/de10nano/clocks.sdc and routed PLL",
+        "requested_mhz": 50.0,
+        "status": "pass"
+      },
+      "status": "pass"
+    }
+  },
+  "main": {
+    "build_id": "60bccd54ecb727e9a6c809388fa9c470",
+    "margins": {
+      "pixel": {
+        "achieved_mhz": 86.64759826660156,
+        "constraint_mhz": 74.25006866455078,
+        "ratio": 1.1669699412408723,
+        "status": "pass"
+      },
+      "worst_ratio": 1.1669699412408723
+    },
+    "placer_seed": 5,
+    "rbf_bytes": 2172530,
+    "rbf_sha256": "6107b13e0425af1be088b606a78c6e42e1f93ce506880bdbee934829701f9ec3",
+    "source": "/data/fes1861-netlist/ref/menu-main/build-summary.json",
+    "status": "pass",
+    "timing": {
+      "pixel": {
+        "achieved_mhz": 86.64759826660156,
+        "clock": "endpoint.blit_control.clk",
+        "constraint_mhz": 74.25006866455078,
+        "requested_mhz": 74.25,
+        "status": "pass"
+      },
+      "reference": {
+        "clock": "FPGA_CLK1_50",
+        "constraint_mhz": 50.0,
+        "evidence": "boards/de10nano/clocks.sdc and routed PLL",
+        "requested_mhz": 50.0,
+        "status": "pass"
+      },
+      "status": "pass"
+    }
+  },
+  "note": "Each side's own producer at its own BUILD_ID; the RBFs differ because the constant is in the netlist. Condition 2 is measured at an equal BUILD_ID in reports-cond2/. Condition 3 is the branch row's status, and the timing block is copied verbatim from that build's own build-summary.json."
+}
