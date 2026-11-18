@@ -1,0 +1,602 @@
+{
+  "arm": "a",
+  "board": "de10",
+  "build_id": "00000000000000000000000000000000",
+  "clocks": {
+    "FPGA_CLK1_50": {
+      "hold_ns": null,
+      "setup_ns": null
+    },
+    "system_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]": {
+      "hold_ns": null,
+      "setup_ns": null
+    },
+    "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk": {
+      "hold_ns": 0.118,
+      "setup_ns": 0.338
+    },
+    "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk": {
+      "hold_ns": 0.168,
+      "setup_ns": 10.724
+    },
+    "video_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]": {
+      "hold_ns": null,
+      "setup_ns": null
+    },
+    "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk": {
+      "hold_ns": 0.075,
+      "setup_ns": 0.912
+    },
+    "worst": {
+      "hold_ns": 0.075,
+      "setup_ns": 0.338
+    }
+  },
+  "closes": true,
+  "commit": "1ec59267039b12b5879dd90af856ac232b9d014c",
+  "compile_minutes": 12.4,
+  "corners": [
+    {
+      "analysis": "setup",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 0.808,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 1.035,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 10.724,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 0.262,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 0.271,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 0.453,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "recovery",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 7.132,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "recovery",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 79.358,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "removal",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 1.095,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "removal",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 4.892,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "video_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 1.122,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 1.162,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 5.288,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 6.704,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "FPGA_CLK1_50",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 9.73,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 39.942,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 0.338,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 0.912,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 10.953,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 0.11,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 0.252,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 0.453,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "recovery",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 7.193,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "recovery",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 79.483,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "removal",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 1.025,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "removal",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 4.851,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "video_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 1.122,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 1.162,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 5.27,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 6.68,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "FPGA_CLK1_50",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 9.754,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 39.862,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 7.511,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 7.592,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 12.977,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 0.142,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 0.168,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 0.181,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "recovery",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 11.533,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "recovery",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 80.2,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "removal",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 0.547,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "removal",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 2.605,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "video_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 1.122,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 1.162,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 5.608,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 7.02,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "FPGA_CLK1_50",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 9.347,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 40.236,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 8.21,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 9.067,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 13.495,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 0.075,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 0.118,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 0.168,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "recovery",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 11.953,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "recovery",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 80.38,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "removal",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 0.467,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "removal",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 2.32,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "video_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 1.122,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 1.162,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 5.614,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 7.026,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "FPGA_CLK1_50",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 9.274,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 40.23,
+      "tns_ns": 0.0
+    }
+  ],
+  "created_utc": "2026-11-18T19:18:34.961750+00:00",
+  "device": "5CSEBA6U23I7",
+  "entities": [],
+  "flow": "build_fes_pc386_quartus.write_project, quartus_sh --flow compile",
+  "hierarchy": false,
+  "host": "powerboat",
+  "netlist_sha256": "5d6e76b8fdf11597a783ab8d119c373a2bd228206732e47640d7ce2144ec24c6",
+  "paths": {
+    "worst": [
+      {
+        "cells": [
+          "system|cpu_dfwd_ready[0]~DUPLICATE|q",
+          "system|WideNor279|combout",
+          "system|_81947_[6]|combout",
+          "system|cpu_dfwd_base_value[6]~19|combout",
+          "system|cpu_dfwd_base_value[6]~21|combout",
+          "system|Add130~65|cout",
+          "system|Add130~69|cout",
+          "system|Add130~73|sumout",
+          "system|Add130~25|cout",
+          "system|Add130~29|cout",
+          "system|Add130~1|sumout",
+          "system|Add134~1|sumout",
+          "system|_06361_~3|combout",
+          "system|_05843_|combout",
+          "pc386_system:system|cpu_r_c1"
+        ],
+        "data_delay_ns": 14.799,
+        "from": "pc386_system:system|cpu_dfwd_ready[0]~DUPLICATE",
+        "logic_levels": 9,
+        "slack_ns": 0.808,
+        "to": "pc386_system:system|cpu_r_c1"
+      },
+      {
+        "cells": [
+          "system|cpu_dfwd_ready[0]~DUPLICATE|q",
+          "system|WideNor279|combout",
+          "system|_81947_[6]|combout",
+          "system|cpu_dfwd_base_value[6]~19|combout",
+          "system|cpu_dfwd_base_value[6]~21|combout",
+          "system|Add130~65|cout",
+          "system|Add130~69|cout",
+          "system|Add130~73|sumout",
+          "system|Add130~25|cout",
+          "system|Add130~29|cout",
+          "system|Add130~1|sumout",
+          "system|Add134~1|sumout",
+          "system|_06361_~3|combout",
+          "system|_05843_|combout",
+          "pc386_system:system|cpu_r_c0"
+        ],
+        "data_delay_ns": 14.789,
+        "from": "pc386_system:system|cpu_dfwd_ready[0]~DUPLICATE",
+        "logic_levels": 9,
+        "slack_ns": 0.817,
+        "to": "pc386_system:system|cpu_r_c0"
+      },
+      {
+        "cells": [
+          "system|cpu_dfwd_ready[18]|q",
+          "system|_81947_[135]~32|combout",
+          "system|_81947_[135]~530|combout",
+          "system|cpu_dfwd_base_value[7]~23|combout",
+          "system|cpu_dfwd_base_value[7]~24|combout",
+          "system|Add130~69|cout",
+          "system|Add130~73|sumout",
+          "system|Add130~25|cout",
+          "system|Add130~29|cout",
+          "system|Add130~1|sumout",
+          "system|Add134~1|sumout",
+          "system|_06361_~3|combout",
+          "system|_05843_|combout",
+          "pc386_system:system|cpu_r_c1"
+        ],
+        "data_delay_ns": 14.799,
+        "from": "pc386_system:system|cpu_dfwd_ready[18]",
+        "logic_levels": 9,
+        "slack_ns": 0.817,
+        "to": "pc386_system:system|cpu_r_c1"
+      }
+    ]
+  },
+  "quartus": "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition",
+  "resources": {
+    "alms": {
+      "available": 41910,
+      "percent": 86.98,
+      "used": 36455
+    },
+    "block_memory_bits": {
+      "available": 5662720,
+      "used": 1354796
+    },
+    "dsp_blocks": {
+      "available": 112,
+      "used": 40
+    },
+    "ram_blocks": {
+      "available": 553,
+      "used": 282
+    },
+    "registers": {
+      "used": 31861
+    }
+  },
+  "seed": 1,
+  "synthesis": {
+    "alm_estimate": 36162,
+    "aluts": 56540,
+    "block_memory_bits": 1354796,
+    "dsp_blocks": 40,
+    "registers": 29252
+  },
+  "timing_failure": null
+}

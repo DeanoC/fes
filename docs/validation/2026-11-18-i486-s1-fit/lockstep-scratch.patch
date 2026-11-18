@@ -1,0 +1,14 @@
+diff --git a/sources/misteross/cores/fes-common/sim/i386/lockstep_tb.cpp b/sources/misteross/cores/fes-common/sim/i386/lockstep_tb.cpp
+index 778e67013..602b8fd12 100644
+--- a/sources/misteross/cores/fes-common/sim/i386/lockstep_tb.cpp
++++ b/sources/misteross/cores/fes-common/sim/i386/lockstep_tb.cpp
+@@ -12783,6 +12783,9 @@ int run_unreal_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
+ // CR0's 486 bits and EFLAGS.AC and ID are not in the state comparison, whose
+ // masks are the 386's: the cases read them into registers.
+ int run_i486_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, Summary &summary) {
++    // The fit spike's identity input (#1962 slice 1, scratch): FES_I486_IDENTITY=on.
++    const char *identity = std::getenv("FES_I486_IDENTITY");
++    rtl.top.i486 = identity && std::string(identity) == "on";
+     std::string line;
+     while (std::getline(std::cin, line)) {
+         std::istringstream words(line);
