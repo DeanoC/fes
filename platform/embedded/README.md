@@ -1,14 +1,12 @@
 # Embedded FES base
 
-The [final-validation cost repair](../../docs/validation/2026-11-18-de25-final-validation-cost/README.md) profiles actual cold/USB
-containment through production final-proof callbacks. Sharing each reset
-read's completion barrier with its controller observation removes 31,104
-modeled final-path barriers while preserving every ownership check and
-device read. All 11 affected scopes, target ordering/layout and fresh
-matched file admission pass. Deadlines and clock origins are unchanged.
-The [previous physical trial](../../docs/validation/2026-11-18-de25-guard31-physical/README.md) identifies reason-7 source
-expiry at 20,576,301 us. That failure remains failed; the new image is
-unprogrammed and complete repeated-cycle qualification remains open.
+The [fresh final-validation cost trial](../../docs/validation/2026-11-18-de25-final-cost-physical/README.md) completes initial MENU,
+ZX81 with tape, both releases and full next-MENU configuration, then
+rejects guard 31 / reason 7 at source elapsed 20,142,473 us under the
+unchanged 20-second bound. The barrier repair is insufficient physically;
+ZX80 and final native Park are not reached. Exact original-FIT restoration
+and protected readback pass without power cycling. The failed procedure
+is consumed; complete repeated-cycle qualification remains open.
 
 The [private comparison repair](../../docs/validation/2026-11-18-de25-warm-preparation-comparison/README.md) now reproduces the second warm
 preparation boundary through production callbacks under synthetic costs and

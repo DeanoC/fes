@@ -140,3 +140,10 @@ first clock rejection if it stops. Historical failed procedures remain consumed.
 Exact-head review, complete hardware/failure coverage, vendor reset/DMA guarantees
 and ordinary Kit D25 HIL/restore remain open, with no waiver. Linux defaults and
 both FPGA core payloads are unchanged. This issue remains open.
+
+A later [fresh bounded hardware test](../2026-11-18-de25-final-cost-physical/README.md)
+still rejects reason-7 source expiry at 20,142,473 us after complete generation-15
+configuration. The barrier-work reduction is insufficient physically. The
+failed procedure is consumed; the exact original FIT is independently restored
+without power cycling. This later result supersedes this checkpoint's
+unprogrammed state without changing its off-board evidence class.

@@ -1,25 +1,14 @@
 # DE25 native secure lifecycle investigation
 
-The [final-validation cost repair](../validation/2026-11-18-de25-final-validation-cost/README.md)
-profiles production cold/USB ownership callbacks and removes 31,104 duplicate
-final-path ordering barriers by sharing a reset-read completion boundary.
-Every device read, ownership/integrity predicate and clock origin/deadline
-remains. All affected checks, target ordering/layout and a fresh matched
-file-admitted chain pass. The new image is unprogrammed; these work counts
-are not hardware latency measurements. The following physical failure
-remains the latest kit result.
-
-The [latest bounded hardware diagnostic](../validation/2026-11-18-de25-guard31-physical/README.md)
-identifies guard 31 as reason 7: the original 20-second source deadline expires
-at 20,576,301 us after full next-MENU configuration, before final proof and
-retirement succeed. The block-barrier optimization and synthetic model pass
-were insufficient on hardware. Initial MENU, ZX81 with tape and return release
-pass; ZX80 and final native Park are not reached. Independent exact original-FIT
-restoration and protected readback pass without power cycling. The programming
-rescan failure in the preceding attempt remains unexplained, although a later
-read-only chain probe and all three newly traced programming roles pass.
-Source clocks, ownership and integrity checks remain unchanged. Complete
-repeated-cycle qualification is still open.
+The [latest bounded hardware test](../validation/2026-11-18-de25-final-cost-physical/README.md)
+still rejects guard 31 / reason 7 at source elapsed 20,142,473 us under the
+unchanged 20-second bound. The USB barrier repair preserves ownership and
+reduces modeled work, but is insufficient physically. Initial MENU, ZX81 with
+tape, both releases and full next-MENU DATA/configuration pass. ZX80 and final
+native Park are not reached. Independent exact original-FIT restoration and
+protected readback pass without power cycling. The failed procedure is consumed;
+complete repeated-cycle qualification remains open. The preceding physical
+failure remains separately retained; neither run isolates function latency.
 
 This is the Linux-free, opt-in experiment tracked by [#1867](https://github.com/DeanoC/fes/issues/1867).
 It describes the current implementation and the remaining qualification work.
