@@ -13,20 +13,25 @@ The first compiles are recorded in
 [Spectrum](../2026-11-17-de25-spectrum-compile/README.md) and
 [Atari ST](../2026-11-17-de25-atari-st-compile/README.md).
 
+All three runs below are on Powerboat with `--license-file` naming the local
+Quartus license. Without it the fitter stopped on error 119013 after warning
+24850, "Failed to acquire license for Quartus Agilex 5"; the morning's runs
+needed no license file.
+
 ## ZX Spectrum: packaged
 
-Source `a5e864578`, the branch with main merged in. The 48K model was built
-on `fes-build-3090` (chip-30x0-ai-dev) and the 128K model on Powerboat.
+Source `4b2b45da6`. The later commits on the branch change only the Atari ST,
+which the Spectrum build record does not bind.
 
 | | 48K | 128K |
 | --- | --- | --- |
-| Build ID | `332b901530a405a79e00a8e2c4e5b6c7` | `7f0f362b64bea70f76964e8e99c0cdc3` |
-| Package | `033642ab4950a3af9cdf34d0cc8db3c659b6904e992fd83c3889c6b6b3dd4846` | `766684af13230bc858ce81fbb620e21ae665bd29584cf46f6bc40b50f28a87ca` |
-| `.fcore` SHA-256 | `eff1c2380b84655a77e5df3f3a60e96a5e40b13a48012ea8c4c1dc3ba9b7e327` | `b1aed624b6a77071aa06696e66e6128f9f208cdfab716dd00aedc94c11ef100d` |
-| `core.rbf` SHA-256 (first and repeat compile) | `94eb274bb392e3b1610003712d7b8a44e0d78eceeab46f5261ff3a1d359c21f4` | `f77812be159bc440d6966fb7b1db77731be2afcbfa0b4097abc1808ee590d81e` |
-| Worst setup slack, machine clock | 2.169 ns | 2.132 ns |
-| Worst setup slack, pixel clock | 1.491 ns | 2.043 ns |
-| Worst hold slack | 0.001 ns | 0.000 ns |
+| Build ID | `13e81c55a02fc8791e1d15055149a3e9` | `122a22ce6d2d6654982d994c7bcdb674` |
+| Package | `a3ac387c2002d4bcd38bf31267a10125c18c50c9ae0b2300e2688dfc6f55d224` | `0f4b147626f4740773f797608a7e1a9e0b4d6d9fcd0c120f274b2f3c1841ee5d` |
+| `.fcore` SHA-256 | `302666dad7e835d8b79188f8ac6bef5914a3dae8986374b158599dd0bade4684` | `26e4ad9f2db5801bb7d20194630aa94ca44deb42605af29a599cecc46549dcd2` |
+| `core.rbf` SHA-256 (first and repeat compile) | `89319f79d7e7564c628301e0c62ce4ffd3d23528dd6a0cc70286dff661e2b7e2` | `5c3734eb302412a336e882301298e72ab11c3785437d1e64d52b8da462e68ed2` |
+| Worst setup slack, machine clock | 2.048 ns | 2.054 ns |
+| Worst setup slack, pixel clock | 1.669 ns | 1.958 ns |
+| Worst hold slack | 0.000 ns | 0.000 ns |
 
 Both are `de25-spectrum-package-candidate` with `hardware_acceptance` false.
 
@@ -39,34 +44,48 @@ The audio-clock review ran under the new policy
 machine PLL in place of the stock audio PLL. Nobody has reviewed that policy
 yet.
 
-Both models first packaged at `c93ff9543`, before main was merged in (48K
-package `ce5d11bb…8240d`, 128K `9e3e826f…06e7`); these builds replace them.
-
 ## Atari ST 520ST: packaged
 
-Source `7a78a57dd`, Powerboat. The commits after it change only this record,
-the READMEs and a test fixture.
+Source `c17ed46e1`.
 
 | | |
 | --- | --- |
-| Build ID | `addd94763028f74756693bc34475dc57` |
-| Package | `ba37b83dc4ff55990be1a02ef6e2fa9469ce8125b1f108f7a4807e5581d04bf2` |
-| `.fcore` SHA-256 | `b4ef8f51fd69ea5672db5b77f70b4983719c2cb02e81e9abf6b838c7dace0582` |
-| `core.rbf` SHA-256 (first and repeat compile) | `8f1c982ceb0a0e3008242b25204175c1130e1e08b201975b7a32c8a6666f2e1e` |
+| Build ID | `34d30f9e958ae0b95e3d43a1b38d2be0` |
+| Package | `8d0676f8329c65520ddf47901767157335d62df09a30372a4818f61e5b9f36c2` |
+| `.fcore` SHA-256 | `e7bc81e241213180f57dd64dbf3fa7fe2daca25d3a5c4a203d343ff48c08f146` |
+| `core.rbf` SHA-256 (first and repeat compile) | `386a6baa14c03f138e26eabc55daf02ebbb21d452df59ae68f9bf59b957d5f58` |
 | Classification | `de25-atari-st-package-candidate`, `hardware_acceptance` false |
-| Logic (ALMs) | 15,423 / 46,800 (33%) |
+| Logic (ALMs) | 15,446 / 46,800 (33%) |
 | Block memory bits | 5,203,400 / 7,331,840 (71%) |
 
 Signoff: the same three reviewed rules fail and nothing else. All 61 timing
-analyses pass: worst setup slack 2.092 ns on the machine clock and 2.127 ns
-on the pixel clock, worst hold 0.001 ns.
+analyses pass: worst setup slack 2.164 ns on the machine clock and 1.949 ns
+on the pixel clock, worst hold 0.000 ns.
 
-The run before this one, at `34c03780c`, was refused on TMC-20602 (Low,
-registers with high timing path endpoint tension): `core|machine_reset`
-reached 7,741 registers and the 68000's `oReset` 5,745, across the whole
-machine. The processor and bus, the I/O chips and the memory and video
-raster now have a reset register each, loaded from the same logic on the
-same clock, and the rule reports no register.
+### The reset finding (TMC-20602)
+
+The rule reports a register whose timing path endpoints total more than
+100,000 in distance from their centroid.
+
+| Source | Resets | Result |
+| --- | --- | --- |
+| `34c03780c` | One machine reset (7,741 endpoints) and the 68000's `oReset` (5,745) | Refused: tension 166,885 and 114,819 |
+| `7a78a57dd` | Three groups: processor and bus, I/O, raster | Packaged |
+| `4b2b45da6` | The same three groups; only the SDC quoting changed | Refused: the I/O group's two registers, 5,761 endpoints each, tension 105,196 |
+| `c17ed46e1` | Six groups | Packaged |
+
+The three-group split passed on one placement and failed on the next, so the
+`7a78a57dd` package was not a stable result. The I/O group reached the video
+capture through the raster timing in `st_io` and the mailbox through the
+keyboard. With six groups the largest register reaches 3,366 endpoints (the
+processor's) and the others between 1,136 and 1,874.
+
+## Earlier results on this branch
+
+Each was a full producer run that packaged, on a source this record's
+packages replace: Spectrum 48K and 128K at `c93ff9543` and at `a5e864578`,
+and the Atari ST at `7a78a57dd`. The SDC bracket quoting was fixed after
+them (`5e5827c56`): the quoted `get_registers` patterns left `[*]` unescaped.
 
 ## What changed to get here
 
@@ -78,5 +97,6 @@ same clock, and the rule reports no register.
   the synchronized strobe; no clock group is cut. The Spectrum's frame banks
   cross as codes whose registers power up zero.
 - The audio hold takes the scanout clock fault through its own synchronizer.
-- The ST's processor, I/O chips and raster each read their own copy of the
-  machine reset and of the 68000's RESET output.
+- The ST's bus, processor, I/O decode, keyboard and serial chips, sound chip
+  and raster each read their own register of the machine reset, and the
+  peripheral groups their own register of the 68000's RESET output.
