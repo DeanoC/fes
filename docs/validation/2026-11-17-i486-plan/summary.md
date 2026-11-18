@@ -806,8 +806,9 @@ By `method.md`'s classification:
   rule as written these two are "nothing"; the count is reported here
   instead. On a 486 identity the write would turn the cache on, which is
   what slice 2's BIOS change does anyway.
-- **Six titles ended at the prompt before their limit.** Five match their
-  committed 386 records, so their short windows say nothing new: Star Control
+- **Seven titles ended at the prompt before their limit.** Duke Nukem
+  3D is above and CACHECHK below. The other five match their committed
+  386 records, so their short windows say nothing new: Star Control
   II (not enough conventional memory, [#1539](https://github.com/DeanoC/fes/issues/1539)),
   Master of Orion (its sound-setup exit), Grand Prix 2 and U.S. Navy
   Fighters (their CD checks), and CHKCPU (prints and exits)
