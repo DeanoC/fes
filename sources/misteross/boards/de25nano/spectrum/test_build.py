@@ -52,7 +52,7 @@ class Derivations(unittest.TestCase):
                 self.assertEqual(result.count(b"shown_code_sys <= shown_code;"), 1)
                 # Every register on a bank crossing powers up zero.
                 for register in (b"ready_code", b"shown_code", b"shown_code_sys"):
-                    self.assertIn(b"reg [1:0] " + register + b" = 2'd0;", result)
+                    self.assertIn(b"(* preserve, dont_merge *) reg [1:0] " + register + b" = 2'd0;", result)
                 self.assertNotIn(b"{ready_toggle, ready_bank}", result)
                 with self.assertRaises(ValueError):
                     derive.retarget_ram(name, source.replace(b"shown_sync <= shown_meta;", b"shown_sync <= 0;"))

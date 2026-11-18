@@ -59,18 +59,20 @@ def retarget_machine(source):
 # banks 1 and 2, and a register that powers up high is built inverted, which
 # puts an inverter on a register-to-register crossing. The ready code is the
 # bank with its low bit flipped; each side reads bank 2 until its first load.
+# The code registers are kept apart from the bank registers they resemble, so
+# each crossing has its own launch and landing.
 VIDEO_CROSSING = (
     (b"    reg [1:0] shown_bank = 2'd2;\n"
      b'    (* async_reg = "true" *) reg [1:0] shown_meta = 2\'d2;\n'
      b'    (* async_reg = "true" *) reg [1:0] shown_sync = 2\'d2;\n',
-     b"    reg [1:0] ready_code = 2'd0;\n"
-     b"    reg [1:0] shown_code = 2'd0;\n"
+     b"    (* preserve, dont_merge *) reg [1:0] ready_code = 2'd0;\n"
+     b"    (* preserve, dont_merge *) reg [1:0] shown_code = 2'd0;\n"
      b"    reg shown_loaded = 1'b0;\n"
      b"    wire [1:0] shown_bank = shown_code ^ {~shown_loaded, shown_loaded};\n"
      b'    (* async_reg = "true" *) reg shown_meta = 1\'b0;\n'
      b'    (* async_reg = "true" *) reg shown_arrived = 1\'b0;\n'
      b"    reg shown_taken = 1'b0;\n"
-     b"    reg [1:0] shown_code_sys = 2'd0;\n"
+     b"    (* preserve, dont_merge *) reg [1:0] shown_code_sys = 2'd0;\n"
      b"    reg shown_loaded_sys = 1'b0;\n"
      b"    wire [1:0] shown_sync = shown_code_sys ^ {~shown_loaded_sys, shown_loaded_sys};\n", 1),
     (b"        shown_meta <= shown_bank;\n"
