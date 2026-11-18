@@ -21,6 +21,7 @@ including `st_memory` with its phase slots and posted CPU writes.
 | MiSTer addon SDRAM, masks shared with A11/A12, Cyclone V DDR clock cell | Board SDRAM rank 0 with its own mask pins; `derive.py` swaps the forwarded-clock cell for the inverted clock |
 | Native video frame store: 234 hand-chunked 1024x9 memories written from one `case` | `derive.py` makes each bank one memory for Quartus to shape; as written Quartus builds 2.2 million registers, and one M20K per chunk does not fit |
 | 720p word straight to HDMI through the video socket | The direct video part's word into the session display, so the launcher plane works in a session |
+| One machine reset register, and the 68000's RESET output, each reaching the whole machine | A reset register each for the processor, the I/O chips and the memory and video raster, loaded from the same logic on the same clock; `derive.py` adds the RESET register's second copy to `fx68k` and the I/O reset port to `st_system` |
 | `fes_computer_mailbox_direct` | The mailbox with the session display, as on the Spectrum and ZX81 |
 
 The device has 358 M20K blocks and the GHRD's on-chip memory alone takes 128,

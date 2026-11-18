@@ -401,3 +401,38 @@ def transport(source):
               source[source.index(TRANSPORT_MARKER):])
     return result, {"source_sha256": sha(source), "derived_sha256": sha(result),
                     "selection": "fes_de25_computer_transport and its two includes"}
+
+
+# One reset register reaching the whole machine through logic is a signoff
+# finding (TMC-20602: its endpoints are too far apart to place well). The
+# DE25 core gives the 68000, the I/O chips and the memory and video raster a
+# reset register each, loaded from the same logic on the same clock. The
+# RESET instruction's output needs the same split, so the processor keeps a
+# second copy of that register for the raster, and the system takes the I/O
+# reset as a port instead of the one net the machine combines for the
+# expansion bus. No reset moves by a clock.
+CPU_RESET_EDITS = (
+    (b"\tlogic oReset, oHalted;\r\n",
+     b"\tlogic oReset, oHalted;\r\n\t(* preserve, dont_merge *) logic oResetRaster;\r\n"),
+    (b"\t\t\toReset <= 1'b0;\r\n",
+     b"\t\t\toReset <= 1'b0;\r\n\t\t\toResetRaster <= 1'b0;\r\n"),
+    (b"\t\t\toReset <= (uFc == 2'b01) & !Nanod.permStart;\r\n",
+     b"\t\t\toReset <= (uFc == 2'b01) & !Nanod.permStart;\r\n"
+     b"\t\t\toResetRaster <= (uFc == 2'b01) & !Nanod.permStart;\r\n"),
+)
+SYSTEM_RESET_EDITS = (
+    (b"    output wire exp_reset, exp_phi1, exp_phi2,\n",
+     b"    input wire io_reset,\n    output wire exp_reset, exp_phi1, exp_phi2,\n"),
+    (b"        .clk(clk_sys), .reset(exp_reset), .cold_reset(cold_reset), .cpu_cycle_ce(exp_phi2),\n",
+     b"        .clk(clk_sys), .reset(io_reset), .cold_reset(cold_reset), .cpu_cycle_ce(exp_phi2),\n"),
+)
+
+
+def retarget_cpu(source):
+    """Keep a second RESET output register for the raster's reset."""
+    return _edits(source, CPU_RESET_EDITS, "fx68k reset")
+
+
+def retarget_system(source):
+    """Reset the I/O chips from a port of their own."""
+    return _edits(source, SYSTEM_RESET_EDITS, "ST system reset")

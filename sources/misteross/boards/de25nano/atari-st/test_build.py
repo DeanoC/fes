@@ -93,6 +93,25 @@ class Derivations(unittest.TestCase):
             derive.retarget_video_adapter(source.replace(b"reg [169:0] pending_config;", b"reg [170:0] pending_config;")
                                           .replace(b"pending_config <= config_bundle_sys;", b"pending_config <= 0;"))
 
+    def test_each_reset_group_has_a_register_of_its_own(self):
+        cpu = (ROOT / "cores/fes-common/rtl/fx68k/fx68k.sv").read_bytes()
+        result, record = derive.retarget_cpu(cpu)
+        self.assertEqual(len(record["changes"]), len(derive.CPU_RESET_EDITS))
+        # The copy loads exactly what the RESET output register loads.
+        self.assertEqual(result.count(b"oResetRaster <= (uFc == 2'b01) & !Nanod.permStart;"), 1)
+        self.assertEqual(result.count(b"oResetRaster <= 1'b0;"), 1)
+        with self.assertRaises(ValueError):
+            derive.retarget_cpu(cpu.replace(b"!Nanod.permStart;", b"!Nanod.permStop;", 1))
+        system = (ROOT / "cores/fes-atari-st/rtl/st_system.sv").read_bytes()
+        result, record = derive.retarget_system(system)
+        self.assertEqual(result.count(b".reset(io_reset)"), 1)
+        self.assertEqual(result.count(b".reset(exp_reset)"), 0)
+        core = (ROOT / "boards/de25nano/shared-rtl/fes_atari_st_core.v").read_text()
+        for name in ("machine_reset", "machine_reset_io", "machine_reset_raster"):
+            self.assertEqual(core.count(name + " <= machine_reset_next;"), 1, name)
+        self.assertIn("machine_reset_io || system.machine.cpu.cpu.oReset;", core)
+        self.assertIn("machine_reset_raster || system.machine.cpu.cpu.oResetRaster;", core)
+
     def test_memory_gains_only_the_rom_region(self):
         source = (ROOT / "cores/fes-atari-st/rtl/st_memory.sv").read_bytes()
         result, _ = derive.retarget_memory(source)

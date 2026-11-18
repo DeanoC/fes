@@ -97,9 +97,19 @@ module fes_atari_st_core #(
     );
 
     wire initialized;
+    // Three registers of one reset: the processor and bus, the I/O chips, and
+    // the memory and video raster. One register reaching all of them is too
+    // spread to place (TMC-20602). Each is combined with the 68000's RESET
+    // output register for its own group, as st_machine combines exp_reset.
     reg machine_reset = 1'b1;
-    always @(posedge clk_sys)
-        machine_reset <= exec_reset || cold_reset || reset_hold || !initialized;
+    (* preserve, dont_merge *) reg machine_reset_io = 1'b1;
+    (* preserve, dont_merge *) reg machine_reset_raster = 1'b1;
+    wire machine_reset_next = exec_reset || cold_reset || reset_hold || !initialized;
+    always @(posedge clk_sys) begin
+        machine_reset <= machine_reset_next;
+        machine_reset_io <= machine_reset_next;
+        machine_reset_raster <= machine_reset_next;
+    end
     assign machine_held = machine_reset;
     // The video's hold crosses into the pixel clock from a register of its own.
     (* preserve, dont_merge *) reg video_hold = 1'b1;
@@ -109,7 +119,9 @@ module fes_atari_st_core #(
     wire [18:1] ram_addr;
     wire [15:0] rom_rdata, ram_rdata, ram_wdata;
     wire [1:0] ram_byte_enable;
-    wire exp_reset, exp_phi2;
+    wire exp_phi2;
+    wire io_reset = machine_reset_io || system.machine.cpu.cpu.oReset;
+    wire raster_reset = machine_reset_raster || system.machine.cpu.cpu.oResetRaster;
     wire audio_valid, media_req, media_valid;
     wire [19:0] media_addr;
     wire [7:0] media_data;
@@ -151,7 +163,7 @@ module fes_atari_st_core #(
         .ram_req(ram_req), .ram_addr(ram_addr), .ram_wdata(ram_wdata),
         .ram_byte_enable(ram_byte_enable), .ram_write(ram_write), .ram_rdata(ram_rdata), .ram_ready(ram_ready),
         .exp_req(), .exp_addr(), .exp_wdata(), .exp_byte_enable(),
-        .exp_write(), .exp_fc(), .exp_reset(exp_reset), .exp_phi1(), .exp_phi2(exp_phi2),
+        .exp_write(), .exp_fc(), .io_reset(io_reset), .exp_reset(), .exp_phi1(), .exp_phi2(exp_phi2),
         .exp_present(1'b0), .exp_ack(1'b0), .exp_berr(1'b0), .exp_rdata(16'd0), .exp_irq(3'd0),
         .irq_ack(), .irq_level(), .keyboard(keyboard), .controller_buttons(controller_buttons),
         .monochrome(1'b0), .mouse_valid(mouse_valid), .mouse_dx(mouse_dx), .mouse_dy(mouse_dy),
@@ -248,7 +260,7 @@ module fes_atari_st_core #(
     // machine or video request is in flight across the change.
     reg [1:0] hold_phase = 2'd0;
     always @(posedge clk_sys) hold_phase <= hold_phase + 2'd1;
-    wire [1:0] memory_phase = machine_reset ? hold_phase : native_cycle[1:0];
+    wire [1:0] memory_phase = machine_reset_raster ? hold_phase : native_cycle[1:0];
     // Rate 0 consumes one sample a machine clock. The SDRAM clock pin is the
     // inverted machine clock, and this board's SDRAM answers up to 8 ns after
     // it: too late for the rising fabric edge half a period on. The sample is
@@ -262,7 +274,7 @@ module fes_atari_st_core #(
         .ram_write_committed(ram_write_committed), .ram_write_addr(ram_write_addr),
         .ram_write_data(ram_write_data), .ram_write_lanes(ram_write_lanes),
         .clk(clk_sys), .clk_pin(clk_sys), .memory_phase(memory_phase),
-        .raster_reset(exp_reset), .cold_reset(cold_reset), .reset(1'b0), .initialized(initialized),
+        .raster_reset(raster_reset), .cold_reset(cold_reset), .reset(1'b0), .initialized(initialized),
         .cpu_req(cpu_req), .cpu_rom(cpu_rom), .cpu_addr(cpu_addr), .cpu_write(cpu_write),
         .cpu_wdata(cpu_wdata), .cpu_byte_enable(cpu_byte_enable), .cpu_ready(cpu_ready),
         .cpu_rdata(cpu_rdata),

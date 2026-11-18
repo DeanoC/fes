@@ -20,7 +20,7 @@ WAIVERS = ("WIDTH", "TIMESCALEMOD", "MULTIDRIVEN", "INITIALDLY", "ALWCOMBORDER",
            "BLKANDNBLK", "CASEINCOMPLETE", "CASEOVERLAP", "PINCONNECTEMPTY", "DECLFILENAME",
            "UNUSEDSIGNAL", "UNUSEDPARAM", "SYNCASYNCNET", "IMPLICITSTATIC", "VARHIDDEN", "CASEX",
            "BLKSEQ", "MULTITOP", "PINMISSING", "UNDRIVEN", "GENUNNAMED")
-MACHINE = ("st_system.sv", "st_cpu.sv", "st_machine.sv", "st_io.sv", "st_mfp.sv", "st_acia.sv",
+MACHINE = ("st_cpu.sv", "st_machine.sv", "st_io.sv", "st_mfp.sv", "st_acia.sv",
            "st_ikbd.sv", "st_ym2149.sv", "st_ym_filter.sv", "st_ym_mixer.sv", "st_ym_mix_rom.sv",
            "st_floppy.sv", "st_floppy_writer.sv", "st_native_border.sv",
            "st_video.sv", "st_media_writer.sv", "st_media_port.sv")
@@ -45,18 +45,22 @@ def sources(output):
     adapter.write_bytes(derive.retarget_video_adapter((ST / "st_video_adapter.sv").read_bytes())[0])
     memory = output / "st_memory_de25.sv"
     memory.write_bytes(derive.retarget_memory((ST / "st_memory.sv").read_bytes())[0])
+    system = output / "st_system_de25.sv"
+    system.write_bytes(derive.retarget_system((ST / "st_system.sv").read_bytes())[0])
+    cpu = output / "fx68k_de25.sv"
+    cpu.write_bytes(derive.retarget_cpu((CPU / "fx68k.sv").read_bytes())[0])
     reader = output / "fes_menu_reader_de25.v"
     reader.write_bytes(display.retarget_menu_ram((SHARED / "fes_menu_reader.v").read_bytes())[0])
     transport = output / "fes_de25_computer_transport.v"
     transport.write_bytes(derive.transport((BOARD / "zx81-hps/fes_de25_computer.v").read_bytes())[0])
-    return [HERE / "fes_de25_atari_st_standard.v", transport, sdram, native, adapter, memory,
+    return [HERE / "fes_de25_atari_st_standard.v", transport, sdram, native, adapter, memory, system, cpu,
             SHARED / "fes_atari_st_core.v", SHARED / "fes_gp_crossing.v", SHARED / "fes_firmware_upload.v",
             SHARED / "fes_st_rom_sdram.v", SHARED / "fes_computer_mailbox.v",
             SHARED / "fes_display_plane.v", SHARED / "fes_menu_control.v", SHARED / "fes_menu_video.v",
             reader, BOARD / "scanout/fes_de25_session_display.v", BOARD / "scanout/fes_de25_scanout.v",
             COMMON / "rtl/fes_display_cdc.v", COMMON / "rtl/fes_video_part_direct.v",
             *(ST / name for name in MACHINE), ROOT / "cores/fes-zx81/expansions/zonx_ay.v",
-            *(CPU / name for name in ("fx68k.sv", "fx68kAlu.sv", "uaddrPla.sv"))]
+            *(CPU / name for name in ("fx68kAlu.sv", "uaddrPla.sv"))]
 
 
 def includes():
