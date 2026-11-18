@@ -54,6 +54,15 @@ contains its logical proof, raw-fit references and qualification boundary. A
 passing reference budget would still require board electrical bounds, normal
 production identity/seal checks and exact-artifact HIL before adoption.
 
+SDRAM qualification targets common timing and electrical requirements across
+MiSTer-compatible chip makers, with Kit A as one test target. The
+[cross-vendor envelope](../../../../docs/validation/2026-11-18-pcxt-sdram-envelope/README.md)
+compares Etron, Alliance, ISSI and Winbond specifications. Physical qualification
+is blocked: the retained read reference has only 0.340 ns of setup allowance
+before board effects, and the common CL2 cycle requirement leaves no nominal
+headroom at 100 MHz. Module branding or a passing boot does not clear those
+gates; the production producer keeps this path disabled.
+
 ### FreeDOS DOS-profile package
 
 The `fes.pcxt-dos` package producer always selects `HARDWARE_DOS`. Raw diagnostic

@@ -1,0 +1,88 @@
+{
+  "cl3_note": "device cycle limit only; CL3 is not implemented or qualified here",
+  "classification": "conditional arithmetic on retained diagnostic; no new STA or fit",
+  "default_off": true,
+  "envelope_ns": {
+    "tAC_max": 6,
+    "tCH_min": 2.5,
+    "tCK_CL2_min": 10,
+    "tCK_CL3_min": 7.5,
+    "tCL_min": 2.5,
+    "tHZ_max": 6,
+    "tIH_min": 1,
+    "tIS_min": 1.5,
+    "tOH_min": 2.5
+  },
+  "hil": "NOT STARTED",
+  "inputs_sha256": {
+    "conditional/channels.tsv": "a0cf1d2d9a929a5a444a7bdc477b3e1c17bad3b79ae6d3d89e299ed19c8aeffa",
+    "devices.json": "e8118cfb7f812511faf216f185c73e17ccf3485b8a92481a7ed73ae035db4402",
+    "diagnostic.rbf": "8a8d5b40ecb24ea2bcd6737e5280ef2cff3eddb1e62b16c3fad2ac3be54409ed",
+    "native_sta_report": "83d7d3691fcd96addc4f9940ad8e7bcd5447791c0ff5984aba282d6eeb5441ca",
+    "prior_result.json": "18a2a5efe617abb925c333d86f1bcf6028001f7ab9f00800bfe7a62b0d34b5fa"
+  },
+  "missing_bounds": [
+    "Motherboard plus connector plus module clock/data flight intervals, per net and rank",
+    "Fitted loading and rise/fall bounds at FPGA and memory pins, including slew compensation and receiver thresholds",
+    "Worst-case physical CLK period, high/low pulse widths and jitter, including reference tolerance and PLL/output distortion",
+    "Module CS inversion topology and bounded delay/skew under fitted loading and voltage/temperature",
+    "Electrical DQ output-enable/disable non-overlap in both directions and across ranks, using 0 ns tLZ and 6 ns tHZ",
+    "Voltage/temperature envelope and initialization/refresh/command spacing against supported device requirements",
+    "Production STA admission of the proved consumed-word window without waiving raw failures"
+  ],
+  "nominal_cl2_cycle_headroom_ns": 0,
+  "nominal_cl3_cycle_headroom_ns": 2.5,
+  "physical_timing": "BLOCKED",
+  "production_build_authorized_by_timing": false,
+  "production_seal": "NOT ATTEMPTED",
+  "reference_margins": {
+    "command": {
+      "hold": {
+        "corner": "7_slow_1100mv_100c",
+        "port": "SDRAM_BA[0]",
+        "raw_margin_ns": 0.869,
+        "reference_margin_ns": 0.669,
+        "rows": 76
+      },
+      "setup": {
+        "corner": "7_slow_1100mv_100c",
+        "port": "SDRAM_A[9]",
+        "raw_margin_ns": 3.578,
+        "reference_margin_ns": 3.578,
+        "rows": 76
+      }
+    },
+    "read": {
+      "hold": {
+        "corner": "MIN_fast_1100mv_-40c",
+        "port": "SDRAM_DQ[2]",
+        "raw_margin_ns": 10.912,
+        "reference_margin_ns": 0.912,
+        "rows": 64
+      },
+      "setup": {
+        "corner": "7_slow_1100mv_100c",
+        "port": "SDRAM_DQ[9]",
+        "raw_margin_ns": -9.66,
+        "reference_margin_ns": 0.34,
+        "rows": 64
+      }
+    },
+    "second_cs": {
+      "hold": {
+        "corner": "7_slow_1100mv_100c",
+        "port": "SDRAM_nCS",
+        "raw_margin_ns": 1.876,
+        "reference_margin_ns": 1.676,
+        "rows": 4
+      },
+      "setup": {
+        "corner": "7_slow_1100mv_100c",
+        "port": "SDRAM_nCS",
+        "raw_margin_ns": 0.131,
+        "reference_margin_ns": 0.131,
+        "rows": 4
+      }
+    }
+  }
+}
