@@ -8,9 +8,19 @@ from __future__ import annotations
 NOTES = '''\
 ## How the runs departed from the method
 
-- **`method.md` was amended twice,** both times to rule 1 only; its own
-  text says what changed and quotes Deano's two answers. Every figure here
-  is from runs on the in-place tree, made after the second amendment.
+- **`method.md` was amended three times;** its own text says what changed,
+  and quotes Deano's answers. The third amendment followed Lander's review
+  of `da4aee953`, and every figure for rules 1 to 5 here is from runs made
+  after it. Its RTL stop list for the new table was measured just before the
+  amendment's text was written, to produce the committed list; rule 4's
+  pass rules did not change.
+- **Lander's two fix commits were reviewed and partly taken.** Kept: the
+  case table's full XADD, CMPXCHG and TR3-TR7 matrix, and the 486 CR0 and
+  EFLAGS masks. Replaced: CR4 in the oracle's state (Deano then decided
+  there is no CR4), probe and generator changes that ran only in modes the
+  level-4 oracle refuses, new probes added to the level-3 list (which would
+  have changed the level-3 case counts), and the census equivalence audit
+  (the census was rerun instead).
 - **The case table changed after its first runs,** in three ways, none to
   make a row pass: every row's source was reread against the two Intel
   documents and its citation corrected, which moved one row
@@ -22,10 +32,10 @@ NOTES = '''\
 - **Main was merged in after the first full set of runs** (the x87
   transcendentals, #1959, and the dev86 mirror, #1978; no conflicts). Rules
   1 to 4 and the boot were then run again, against the new merge base and
-  at the merge commit, and those are the figures here. The census and the
-  CACHECHK runs were not: each says above which commit it ran at. The
-  pre-merge comparison (merge base `5e592f003`, head `75bd225a2`) also
-  passed; it is in this file's history.
+  at the merge commit; after the review they were run again (above). The
+  CACHECHK runs were not repeated after the merge: its section says which
+  commit it ran at. The pre-merge comparison (merge base `5e592f003`, head
+  `75bd225a2`) also passed; it is in this file's history.
 - **The level-3 lockstep at the first merge base was run twice.** The first had
   `--corpus` naming the corpus; the head run found the same corpus at its
   default path. The base was rerun the head's way so the arguments are the
@@ -40,17 +50,18 @@ NOTES = '''\
   which it refuses, and with the corpus linked at its default path rather
   than by `--corpus`, which `test_fes_i386_test386.py`'s cross-check needs.
 - **The census and the CACHECHK runs were made on chip-30x0-ai-dev,** from
-  a `git archive` of the code commit, because Powerboat was at a load of
-  about 80 when they started. The seven drives were copied there for the
-  runs and deleted there, with the trees, when the census ended.
-- **Three starts of the sweep were discarded before the one reported,** and
-  nothing was read from any of them: one from an uncommitted tree and one
-  from the patch-route commit `f2027af82`, both stopped while still
-  building; and one from `75bd225a2` whose first runs exited at once
-  because codeberg.org, which hosts the BIOS toolchain's source (dev86), did
-  not resolve. For the start that is reported, the pinned dev86 source was
-  copied from Powerboat's checkout of the same revision and built on the
-  host, instead of being fetched.
+  a `git archive` of the code commit, because Powerboat was loaded. The
+  seven drives were copied there for the runs and deleted there, with the
+  trees, when each census ended.
+- **The census was run twice to the end.** The first, at `75bd225a2`
+  before the main merge and the review, also gave 54 of 54 equal; it is in
+  this file's history. Before it, three starts were discarded with nothing
+  read: one from an uncommitted tree and one from the patch-route commit
+  `f2027af82`, both stopped while building, and one from `75bd225a2` whose
+  first runs exited at once because codeberg.org (dev86's source) did not
+  resolve; for that run the pinned dev86 source was copied from Powerboat's
+  checkout of the same revision. The census reported here is the second,
+  run after the review with dev86 fetched as main now does.
 - **The CACHECHK trace used a scratch change to `machine_tb.cpp`** in a
   second copy of the tree, which keeps the last 3,000 oracle steps and
   prints them at the first exception 0. It is not committed. The census
@@ -59,27 +70,17 @@ NOTES = '''\
 
 
 DEPARTURES = '''\
-## Where this departs from the plan's slice 0
+## The plan's slice 0, and what was added
 
-The plan record's slice 0 definition is the scope. Three things it names
-are defined here but not built, each because the RTL has no 486 identity
-to hold them to yet:
+Every item of the plan record's slice 0 definition is built: the level-4
+oracle beside level 3, the CR0 and EFLAGS masks of a 486 in the `i486`
+mode, the #UD probes a 486 keeps run in that mode, the census keys, and the
+machine's level option. For CR4, Deano decided after the plan that the 486
+identity has no VME, so it has no CR4: MOV CR4 is #UD on the level-4 oracle
+by its own Bochs patch, and the oracle's state has no CR4.
 
-- **"The wider EFLAGS and CR0 masks."** The state comparison's masks are
-  still the 386's. The 486's are written down in the oracle README's scope
-  table, and the directed cases read CR0's 486 bits and EFLAGS.AC and ID
-  into registers, which is how every one of those stops was found.
-- **"Its #UD probes and the `ud-invlpg` entry become per-identity."** They
-  are per-identity in the scope table, not in code: the level-4 oracle runs
-  only the `i486` mode, so the 386's probes and divergence list are never
-  run against it.
-- **"CR4 only for option B."** B is the chosen target, and `State` still has
-  no CR4, because the oracle excludes VME, as the plan's own runs did; CR4
-  then has no writable bit. Which later stepping B is was not decided. A
-  part with VME adds CR4 to `State` and V86 extensions to the CPU work.
-
-One thing was added that the plan's definition does not ask for: the
-adapter sets a 486's reset EDX and DR6, which Bochs leaves as the 386's.
+Added beyond the plan: the adapter sets a 486's reset EDX and DR6, which
+Bochs leaves as the 386's.
 '''
 
 NOT_RUN = '''\
@@ -87,11 +88,15 @@ NOT_RUN = '''\
 
 - No seal, no D12 netlist and RBF comparison, and no kit.
 - No netlist lockstep for the `i486` mode: it runs the RTL only.
-- The census and the CACHECHK runs were not repeated after main was merged.
+- The CACHECHK trace was not repeated after main was merged or after the
+  review; the census's own CACHECHK run at the reviewed commit is reported
+  in its section.
 - `wfw-msdos` and the three Linux drives were not run at level 4; the plan
   did not run them either.
 - CACHECHK's timing loop was not traced, only the divide and its operands.
 - Nothing ran with VME included, or on a 486 without CPUID.
+- The other modes (corpus, random, protected-mode and paging programs) do
+  not run against the level-4 oracle: the RTL has no 486 identity for them.
 '''
 
 
@@ -157,10 +162,13 @@ def render(read, inputs_changed, record: str) -> str:
     if stops:
         rows = stops['cases']
         agree = [row for row in rows if row['rtl'] == 'agree']
-        add(f"- **Rule 4, the RTL's stops: {len(rows) - len(agree)} of {len(rows)} cases stop and {len(agree)} agree; "
-            f"{sum(row['isolated'] for row in rows)} of {len(rows)} are isolated** (agree, or first mismatch at or "
-            f"after the probe). Two runs gave the same list: {yes(stops['runs_equal'])}. "
-            f"{sum(not row['as_predicted'] for row in rows)} cases differ from `method.md`'s prediction.")
+        probes = [row for row in rows if row['label'].startswith('ud-')]
+        add(f"- **Rule 4, the RTL's stops: {len(rows) - len(probes)} cases and {len(probes)} #UD probes; "
+            f"{len(rows) - len(agree)} stop and {len(agree)} agree; {sum(row['isolated'] for row in rows)} of "
+            f"{len(rows)} are isolated** (agree, or first mismatch at or after the probe). The #UD probes that agree: "
+            f"{sum(row['rtl'] == 'agree' for row in probes)} of {len(probes)}. Two runs gave the same list: "
+            f"{yes(stops['runs_equal'])}. {sum(row['as_predicted'] is False for row in rows)} cases differ from "
+            f"`method.md`'s prediction.")
     if boot:
         end = boot['end'] or {}
         add(f"- **Rule 5, the level-4 boot: {'pass' if boot['pass'] else 'FAIL'}.** FreeDOS ends at "
@@ -288,7 +296,8 @@ def render(read, inputs_changed, record: str) -> str:
         add('| Case | Probe | RTL | Isolated | Predicted | As predicted |\n| --- | --- | --- | --- | --- | --- |')
         for row in stops['cases']:
             add(f"| `{row['label']}` | {row['probe'] or 'none'} | `{row['rtl']}` | {yes(row['isolated'])} | "
-                f"{row['predicted']} | {yes(row['as_predicted'])} |")
+                f"{row['predicted'] or 'not predicted'} | "
+                f"{'n/a' if row['as_predicted'] is None else yes(row['as_predicted'])} |")
         add('')
         kinds: dict[str, int] = {}
         for row in stops['cases']:
@@ -296,7 +305,7 @@ def render(read, inputs_changed, record: str) -> str:
                 field = row['rtl'].split(' ')[1].split('.', 1)[1].split('.')[0]
                 kinds[field] = kinds.get(field, 0) + 1
         add('Stops by the first mismatching field: ' + ', '.join(f'{name} {count}' for name, count in sorted(kinds.items())) + '.\n')
-        wrong = [row for row in stops['cases'] if not row['as_predicted']]
+        wrong = [row for row in stops['cases'] if row['as_predicted'] is False]
         if wrong:
             no_probe = [row['label'] for row in wrong if row['probe'] is None]
             with_probe = [row['label'] for row in wrong if row['probe'] is not None]

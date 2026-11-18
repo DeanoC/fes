@@ -244,9 +244,15 @@ def level3(args) -> int:
 
 # ---- rules 3 and 4 ---------------------------------------------------------
 
-# method.md's prediction, written before the RTL ran: these agree, every
-# other case stops at its probe.
-PREDICTED_AGREE = ('cmpxchg-a6', 'xadd-reg-lock', 'mov-tr6')
+def predicted(label: str) -> str | None:
+    """method.md rule 4's prediction, written by class before the RTL first ran: the 0F A6 encoding, LOCK with
+    a register destination and MOV TR4 to TR7 agree; every other case stops at its probe. The ud-<name> probe
+    rows came after it (amendment 3) and were not predicted."""
+    if label.startswith('ud-'):
+        return None
+    if label == 'cmpxchg-a6' or re.fullmatch(r'(xadd|cmpxchg)-r(8|16|32)-lock', label) or re.fullmatch(r'mov-tr[4-7]', label):
+        return 'agree'
+    return 'stop'
 
 
 def reset_inputs(commit: str) -> dict:
@@ -265,8 +271,8 @@ def suite(args) -> int:
                                     **report['self_check']})
     rows = report['lockstep']['cases']
     for row in rows:
-        row['predicted'] = 'agree' if row['label'] in PREDICTED_AGREE else 'stop'
-        row['as_predicted'] = (row['rtl'] == 'agree') == (row['predicted'] == 'agree')
+        row['predicted'] = predicted(row['label'])
+        row['as_predicted'] = None if row['predicted'] is None else (row['rtl'] == 'agree') == (row['predicted'] == 'agree')
     write('expected-stops.json', {'commit': commit, 'machine_reset_inputs': reset_inputs(commit),
                                   'testbench_sha256': report['testbench_sha256'],
                                   'oracle': report['oracle'], 'verilator': report['verilator'],
@@ -444,6 +450,20 @@ def cachechk(args) -> int:
                     'then divides by zero. The committed kit runs of CACHECHK on the RTL, which has a speed, print '
                     'its table. What was not measured: which timing loop, and why the two levels print different '
                     'clocks.')
+    if args.current_report:
+        # The census's own level-4 run of CACHECHK at a later commit: is the error still there?
+        report = json.loads(args.current_report.read_text())
+        screen = report.get('screen', [])
+        clock = next((re.search(r'([0-9.]+) MHz', row).group(1) for row in screen if 'MHz' in row), None)
+        out['current'] = {'commit': git('rev-parse', args.current_commit), 'cpu_level': report.get('cpu_level'),
+                          'end': report.get('end'), 'divide_error_printed': any('Divide error' in row for row in screen),
+                          'clock_mhz_printed': clock}
+        current = out['current']
+        findings.append(f"At `{current['commit'][:9]}`, the census's own level-{current['cpu_level']} run of CACHECHK "
+                        f"ends at `{(current['end'] or {}).get('reason')}` after {(current['end'] or {}).get('seconds')} "
+                        f"simulated seconds; \"Divide error\" on the screen: "
+                        f"{'yes' if current['divide_error_printed'] else 'no'}; the clock it prints: "
+                        f"{current['clock_mhz_printed']} MHz. No trace was taken at that commit.")
     out['findings'] = findings
     write('cachechk.json', out)
     print(out['result'], same_site)
@@ -470,6 +490,8 @@ def main() -> int:
     sub.add_argument('--plan', default='origin/deano/i486-plan-50e04f')
     sub = commands.add_parser('cachechk')
     sub.add_argument('--directory', type=Path, required=True, help='report-l3.json, report-l4.json, de-l3.txt, de-l4.txt')
+    sub.add_argument('--current-report', type=Path, help="the census's level-4 CACHECHK report at a later commit")
+    sub.add_argument('--current-commit', help='the commit that report is from')
     sub.add_argument('--commit', required=True)
     sub.add_argument('--host', required=True)
     commands.add_parser('summary')
