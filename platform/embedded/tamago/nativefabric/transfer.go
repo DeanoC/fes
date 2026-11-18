@@ -125,7 +125,7 @@ func (t *ConfigurationTransfer) reject(reason error) error {
 }
 
 func (t *ConfigurationTransfer) stable() bool {
-	return t.region != nil && t.arenaHash.sum(t.region.Bytes) == t.digest && sha256.Sum256(t.source) == t.digest
+	return t.region != nil && t.arenaHash.sum(t.region.Bytes) == t.digest && t.arenaHash.sum(t.source) == t.digest
 }
 
 func (t *ConfigurationTransfer) stableChunk(b configurationBuffer) bool {
@@ -134,7 +134,7 @@ func (t *ConfigurationTransfer) stableChunk(b configurationBuffer) bool {
 	}
 	index := b.offset / t.chunk
 	return index < len(t.chunks) && t.arenaHash.sum(t.region.Bytes[b.offset:b.offset+b.amount]) == t.chunks[index] &&
-		sha256.Sum256(t.source[b.offset:b.offset+b.amount]) == t.chunks[index]
+		t.arenaHash.sum(t.source[b.offset:b.offset+b.amount]) == t.chunks[index]
 }
 
 func (t *ConfigurationTransfer) stablePending() bool {
