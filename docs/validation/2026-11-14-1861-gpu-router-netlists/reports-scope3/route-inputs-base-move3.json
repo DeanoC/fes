@@ -1,4 +1,5 @@
 {
+  "dirty": [],
   "moved": [],
   "rows": {
     "fes.c64": {
@@ -431,7 +432,19 @@
       }
     }
   },
-  "tree_a": "/data/fes1861-netlist/identity/nb2",
-  "tree_b": "/data/fes1861-netlist/identity/nb3",
+  "tree_a": {
+    "dirty": [],
+    "measured_inputs": 21,
+    "path": "/data/fes1861-netlist/identity/nb2",
+    "revision": "e2b8130b5a18b652095a8d5e23124fd0a994e9c0",
+    "sources_tree": "5805f31113ccced29af972acdf8b3b04d295e79c"
+  },
+  "tree_b": {
+    "dirty": [],
+    "measured_inputs": 21,
+    "path": "/data/fes1861-netlist/identity/nb3",
+    "revision": "5e592f00389fd2bb61194788c917c36f5c880dec",
+    "sources_tree": "377d39ee8f2cc8a2598d2ee6a300301e119a1806"
+  },
   "unanswered": []
 }

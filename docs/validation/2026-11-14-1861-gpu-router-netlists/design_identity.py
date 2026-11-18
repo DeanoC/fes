@@ -193,9 +193,23 @@ def _measure_format1(producer) -> dict:
     }
 
 
-def _revision(tree: Path) -> str:
-    return subprocess.run(("git", "-C", str(tree), "rev-parse", "HEAD"),
+def _revision(tree: Path, spec: str = "HEAD") -> str:
+    return subprocess.run(("git", "-C", str(tree), "rev-parse", spec),
                           capture_output=True, text=True, check=True).stdout.strip()
+
+
+def _tree_identity(tree: Path) -> dict:
+    """What this comparison was taken over, in the two forms a reader needs.
+
+    `revision` says which commit was checked out; `sources_tree` is the git
+    tree object of sources/misteross, which changes exactly when those sources
+    change. A consumer that must check "is this comparison still about the
+    tree I am asking about" has to compare the latter, because a
+    documentation-only commit -- this record's own, for one -- moves the
+    revision and nothing a producer reads.
+    """
+    return {"path": str(tree), "revision": _revision(tree),
+            "sources_tree": _revision(tree, "HEAD:" + MISTEROSS)}
 
 
 def main() -> int:
@@ -218,8 +232,7 @@ def main() -> int:
     a, b = args.tree_a.resolve(), args.tree_b.resolve()
     rows_a, rows_b = _rows(a), _rows(b)
     ids_a = {row[0]: row for row in rows_a}
-    result = {"tree_a": {"path": str(a), "revision": _revision(a)},
-              "tree_b": {"path": str(b), "revision": _revision(b)},
+    result = {"tree_a": _tree_identity(a), "tree_b": _tree_identity(b),
               "rows": {}}
     print(f'{"artefact":22} {"producer":40} {"chk":8} {"design":7} {"verdict"}')
     for core_id, module, check_level, _tier, _board in rows_b:

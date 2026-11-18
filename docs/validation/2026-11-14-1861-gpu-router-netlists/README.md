@@ -236,7 +236,10 @@ Both halves are measured:
   diagnostic generators. Everything else that moved is a shared script.
 - `reports-scope/route-inputs-base-move.log` (`route_inputs.py`): no
   artefact's toolchain lock, QSF, SDC or `pnr_recipe.recipe_digest` moved
-  across that span. `git diff` over the same span confirms no `toolchain.lock`
+  across that span. Each route-input report names the two revisions it
+  measured, their `sources/misteross` tree objects and whether the measured
+  inputs matched their commit, so the attribution in this page is checkable
+  against the report rather than asserted beside it. `git diff` over the same span confirms no `toolchain.lock`
   changed. `design_recipe_digest` is unanswerable at the old base because the
   function postdates it, and is reported as unanswered rather than as a pass.
 
@@ -269,9 +272,34 @@ Reasoning about what a check would catch is not evidence that it catches it:
 | a design-role closure entry, through the real identity path | identity moves | `packaging_role_proof.py` reports it moves, so its packaging-role result is not vacuous |
 | `fes.zx81`'s design verdict doctored to MOVED in the seal check's input | that seal refused | `seals_at_head.py` reports zx81 NOT INTACT, 10 of 11 |
 | the seal check handed a comparison whose tree A is not the seal tree | the four rows that rely on it refused | the ZX81 four read `unverifiable`, 7 of 11, exit 1 |
+| the seal check handed the right seal tree but a tree B at an older head | same | `unverifiable`: "ends at sources tree 85200fc21385, not this head's ed4a1fdb88dc", 7 of 11, exit 1 |
+| the seal check handed an older report that carries no `tree_b.sources_tree` | same | `unverifiable`: cannot be shown to end at this head, 7 of 11, exit 1 |
+| one measured `.sdc` edited in a throwaway worktree at the same commit | the route-input run refused | `DIRTY: cores/fes-c64/clocks-oss.sdc`, `REFUSED`, exit 1 -- and this is what exposed the broken parse above |
 
-Four defects in this record's own tooling were found that way and are recorded
-rather than quietly amended. `seals_at_head.py` would attach its design anchor's
+Six defects in this record's own tooling were found that way and are recorded
+rather than quietly amended. Two came from Codex's review of the fourth base
+move, and both are the same shape as the one below: a guard that checks one end
+of a comparison and lets the other drift. `seals_at_head.py` validated the
+design comparison's tree A and not its tree B, so a comparison from an earlier
+run of this record -- the right seal tree, an older head -- would have been
+accepted and its "unchanged" verdict described as applying to this head; tree
+B's `sources_tree` must now be the requested checkout's. And `route_inputs.py`
+recorded only the two local worktree *paths*, which are mutable, so two
+checkouts at different revisions, or matching uncommitted edits in both, would
+have produced the same passing verdict while this page attributed it to a
+particular pair of commits. Every route-input report now carries both
+revisions, both `sources/misteross` tree objects, and the measured inputs'
+cleanliness, and a measured input that differs from its commit is a refusal
+rather than a footnote. All five earlier reports were regenerated so none of
+them is unpinned.
+
+The cleanliness check shipped broken and the counterexample is what caught it:
+the helper strips git's output, which eats the leading space of an unstaged
+` M path` line, and a fixed `line[3:]` then cut one character off every such
+path, so nothing matched a measured input and every tree reported clean. It
+parses by the first whitespace run now. Had the check only ever been pointed at
+trees that were in fact clean, it would have passed for years while measuring
+nothing. `seals_at_head.py` would attach its design anchor's
 detail line -- which names the comparison's tree A as *the seal tree* -- to
 whatever comparison it was handed, and at the fourth base move it was handed the
 base-move measurement, whose tree A is the old merge base. Every number in it

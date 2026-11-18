@@ -34,8 +34,8 @@ import subprocess
 from pathlib import Path
 
 
-def _design_anchor(key: str, moves: dict | None,
-                   sealed_at: str | None) -> tuple[str, str] | None:
+def _design_anchor(key: str, moves: dict | None, sealed_at: str | None,
+                   sources_tree: str) -> tuple[str, str] | None:
     """The seal tree and this head agree on what this artefact's design is.
 
     The detail line this returns names the comparison's tree A as *the seal
@@ -45,6 +45,16 @@ def _design_anchor(key: str, moves: dict | None,
     the one failure prose cannot catch. So the row's own `taken_at_head` has
     to be the revision the comparison was taken from, or this anchor is
     refused by name rather than relabelled.
+
+    Both ends have to be checked, and the first version of this guard checked
+    only tree A. Codex raised the other end on #1862: handed a comparison from
+    an earlier run of this record -- the right seal tree, but a tree B that is
+    some older head -- the guard would pass it, and the detail line would say
+    "this head" of a comparison that ended somewhere else. So tree B's
+    `sources_tree` must be the requested checkout's. The tree object and not
+    the revision, because this record's own documentation commits move the
+    revision while leaving every byte a producer reads alone, and a guard that
+    rejected those would be retired the first time it cried wolf.
     """
     if not moves:
         return None
@@ -56,6 +66,15 @@ def _design_anchor(key: str, moves: dict | None,
         return "unverifiable", (
             f"the design comparison is from {tree_a[:12] or '?'}, not this row's "
             f"seal tree {str(sealed_at)[:12]}")
+    ended_at = moves.get("tree_b", {}).get("sources_tree")
+    if ended_at is None:
+        return "unverifiable", (
+            "the design comparison records no tree_b sources_tree, so it cannot be "
+            "shown to end at this head; re-run design_identity.py")
+    if ended_at != sources_tree:
+        return "unverifiable", (
+            f"the design comparison ends at sources tree {ended_at[:12]}, not this "
+            f"head's {sources_tree[:12]}")
     verdict = row.get("verdict", "")
     if verdict.endswith("unchanged"):
         return "intact", (f"design identity unchanged between the seal tree "
@@ -118,7 +137,8 @@ def main() -> int:
         row = rows[key]
         verdict, detail = verify(Path(row["source"]), root)
         if verdict == "unverifiable":
-            fallback = _design_anchor(key, moves, row.get("taken_at_head"))
+            fallback = _design_anchor(key, moves, row.get("taken_at_head"),
+                                      sources)
             if fallback is not None:
                 verdict, detail = fallback
         if verdict != "intact":

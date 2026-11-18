@@ -1,4 +1,5 @@
 {
+  "dirty": [],
   "moved": [],
   "rows": {
     "fes.c64": {
@@ -431,7 +432,19 @@
       }
     }
   },
-  "tree_a": "/data/fes1861-netlist/identity/c3head",
-  "tree_b": "/home/deano/fes/.claude/worktrees/gpu-router-default",
+  "tree_a": {
+    "dirty": [],
+    "measured_inputs": 21,
+    "path": "/data/fes1861-netlist/identity/c3head",
+    "revision": "df99f2dfb2084035b213614960b952f5e79ab781",
+    "sources_tree": "888f63a2b104d4d960fe24031f79a3024b9f7e95"
+  },
+  "tree_b": {
+    "dirty": [],
+    "measured_inputs": 21,
+    "path": "/home/deano/fes/.claude/worktrees/gpu-router-default",
+    "revision": "4ca015bc142708b0f4315d4b22f124f8122f1d51",
+    "sources_tree": "ed4a1fdb88dc10018f4914014af9bc6935b732c3"
+  },
   "unanswered": []
 }

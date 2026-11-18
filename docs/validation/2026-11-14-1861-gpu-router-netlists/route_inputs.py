@@ -18,10 +18,53 @@ import hashlib
 import importlib
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
 MISTEROSS = "sources/misteross"
+
+
+def _git(tree: Path, *args: str) -> str:
+    return subprocess.run(("git", "-C", str(tree), *args),
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+
+def _tree_identity(tree: Path, measured: set[str]) -> dict:
+    """What was measured, pinned: the revision, the sources tree, cleanliness.
+
+    Codex raised this on #1862 as a P1, and it was right: this report named
+    only `tree_a` and `tree_b` as local paths, which are mutable. Two
+    checkouts at different revisions, or matching uncommitted edits in both,
+    would produce the same passing verdict while the README attributed it to a
+    particular pair of commits. The adjacent design report already recorded
+    its revisions; this one did not, and it is half of what carries conditions
+    1 and 2 across a base move.
+
+    `dirty` lists the measured input paths that differ from the commit, under
+    `sources/misteross` and relative to it, so it names the files whose bytes
+    decide the comparison rather than any stray file in the tree. A non-empty
+    list makes the run a refusal, not a pass: the digests would be real and
+    would belong to no commit.
+    """
+    # Parse each line by its first whitespace run, not by a fixed column.
+    # `_git` strips the output, which eats the leading space of an unstaged
+    # " M path" line, and a fixed `line[3:]` then cut one character off every
+    # such path -- so nothing ever matched a measured input and every tree
+    # reported clean. The counterexample caught it; reasoning about the format
+    # had not. A rename reads "R  old -> new", so the new name is what counts.
+    status = _git(tree, "status", "--porcelain", "--", MISTEROSS)
+    changed = set()
+    for line in status.splitlines():
+        fields = line.strip().split(None, 1)
+        if len(fields) < 2:
+            continue
+        name = fields[1].split(" -> ")[-1].strip().strip('"')
+        changed.add(name.removeprefix(MISTEROSS + "/"))
+    return {"path": str(tree), "revision": _git(tree, "rev-parse", "HEAD"),
+            "sources_tree": _git(tree, "rev-parse", "HEAD:" + MISTEROSS),
+            "measured_inputs": len(measured),
+            "dirty": sorted(changed & measured)}
 
 # artefact -> (producer module, core_id or None, attribute names for lock/qsf/sdc)
 CASES = (
@@ -135,7 +178,7 @@ def main() -> int:
     if args.json is not None:
         args.json = args.json.resolve()
     a, b = args.tree_a.resolve(), args.tree_b.resolve()
-    result, moved, unanswered = {}, [], []
+    result, moved, unanswered, measured = {}, [], [], set()
     print(f'{"artefact":22} {"lock":6} {"qsf":6} {"sdc":6} {"recipe":8} {"design":8}')
     for artefact, module, core_id in CASES:
         try:
@@ -162,6 +205,11 @@ def main() -> int:
                 bad.append(key)
         if bad:
             moved.append(f"{artefact}: {', '.join(bad)}")
+        for side in (ma, mb):
+            for key, value in side.items():
+                if key.endswith("_path") and isinstance(value, str) \
+                        and not value.startswith("unavailable:"):
+                    measured.add(value)
         result[artefact] = {"tree_a": ma, "tree_b": mb, "verdict": row}
         print(f'{artefact:22} {row.get("toolchain_lock","-"):6} {row.get("qsf","-"):6} '
               f'{row.get("sdc","-"):6} {row.get("recipe_digest","-"):8} '
@@ -169,14 +217,27 @@ def main() -> int:
     print()
     if unanswered:
         print("UNANSWERED: " + ", ".join(unanswered))
+    identity = {"tree_a": _tree_identity(a, measured),
+                "tree_b": _tree_identity(b, measured)}
+    for name, side in identity.items():
+        print(f'{name}: {side["revision"][:12]}  sources {side["sources_tree"][:12]}'
+              + (f'  DIRTY: {", ".join(side["dirty"])}' if side["dirty"] else "  clean"))
+    dirty = sorted({f'{name}:{path}' for name, side in identity.items()
+                    for path in side["dirty"]})
+    if dirty:
+        # A measured input that differs from its commit makes the digests
+        # belong to no revision, so the comparison cannot be attributed to the
+        # pair of commits above. That is a refusal, not a footnote.
+        print("REFUSED: measured inputs differ from their commit -- " + ", ".join(dirty))
     print("every route-deciding input is byte-identical" if not moved
           else "MOVED -- " + "; ".join(moved))
     if args.json:
         args.json.write_text(json.dumps(
-            {"tree_a": str(a), "tree_b": str(b), "rows": result,
-             "moved": moved, "unanswered": unanswered}, indent=2, sort_keys=True) + "\n")
+            {**identity, "rows": result, "moved": moved,
+             "unanswered": unanswered, "dirty": dirty},
+            indent=2, sort_keys=True) + "\n")
         print(f"wrote {args.json}")
-    return 1 if (moved or unanswered) else 0
+    return 1 if (moved or unanswered or dirty) else 0
 
 
 if __name__ == "__main__":

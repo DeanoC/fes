@@ -16,5 +16,7 @@ fes.ts1000             PRODUCER ABSENT ON ONE SIDE: scripts.build_fes_zx81_quart
 fes.ts1500             PRODUCER ABSENT ON ONE SIDE: scripts.build_fes_zx81_quartus
 
 UNANSWERED: fes.menu.design_recipe_digest, fes.pong.design_recipe_digest, fes.ramtest.design_recipe_digest, fes.riscv.design_recipe_digest, fes.coleco.design_recipe_digest, fes.c64.design_recipe_digest, fes.spectrum.design_recipe_digest, fes.spectrum128.design_recipe_digest, fes.spectrum-plus3.design_recipe_digest, fes.pentagon.design_recipe_digest, fes.zx81: producer absent on one side, fes.zx80: producer absent on one side, fes.ts1000: producer absent on one side, fes.ts1500: producer absent on one side
+tree_a: 72d2fc4da6df  sources e014f9894084  clean
+tree_b: a482f14c0f22  sources 30f772d57b66  clean
 every route-deciding input is byte-identical
-wrote /data/fes1861-netlist/identity/route-inputs-main.json
+wrote /home/deano/fes/.claude/worktrees/gpu-router-default/docs/validation/2026-11-14-1861-gpu-router-netlists/reports-scope/route-inputs-base-move.json

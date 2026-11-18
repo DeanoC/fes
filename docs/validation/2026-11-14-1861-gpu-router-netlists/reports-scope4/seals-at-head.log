@@ -1,4 +1,4 @@
-head             a37a6b49f99386dfc716e3440d0849ea500c441b
+head             4ca015bc142708b0f4315d4b22f124f8122f1d51
 sources/misteross ed4a1fdb88dc10018f4914014af9bc6935b732c3  <- the anchor; a docs commit does not move it
 artefact             sealed at      verdict       detail
 c64                  df99f2dfb208   intact        all 73 input digests match this head
