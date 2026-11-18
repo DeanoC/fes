@@ -34,6 +34,14 @@ Its normal production build, repeat check and exact-artifact PC/XT hardware
 acceptance must be recorded separately from these RAM Tester passes. The RAM
 Tester native diagnostic selects the path with `RAMTEST_CAS3_CAPTURE=1`; its
 existing OSS catalog producer is a separate compiler path and is unchanged.
+A source-frozen probe with its authenticated locked compiler failed before
+placement/routing: `SDR output SDRAM_nWE_MISTRAL_OB_PAD: require a directly
+connected MISTRAL_FF or exclusive inverter with no other Q consumers.` The
+READ detector adds internal consumers of the registered command outputs.
+Quartus supports this circuit, but the OSS packer rejects it. All six declared
+seed attempts stopped at that same structural guard; no GPU route or timing
+result was produced. No constraint, packer guard or seal was weakened. See
+protected `ramtest-oss-probe.json` and the per-attempt route logs.
 
 Physical flight/load/slew, clock waveform and electrical turnaround limits
 remain separate from bounded hardware operation.
