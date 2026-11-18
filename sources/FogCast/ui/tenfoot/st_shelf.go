@@ -68,6 +68,10 @@ func stShelfError(err error) error {
 		return errors.New("Stop the computer first, then retry.")
 	case status.StatusCode == http.StatusServiceUnavailable:
 		return errors.New("Can't check the kit right now. Please retry.")
+	case status.StatusCode == http.StatusNotFound && strings.Contains(text, "ROM_NOT_FOUND"):
+		return errors.New("That disk is no longer in the library.")
+	case status.StatusCode == http.StatusNotFound:
+		return errors.New("This library doesn't have the disk shelf yet. Update FogCast on the host.")
 	case strings.Contains(text, "UNSUPPORTED_OPERATION"):
 		return errors.New("That can't be done with this disk.")
 	case status.StatusCode == http.StatusBadRequest:
@@ -286,13 +290,15 @@ func (a *App) handleStShelfLocked(row FirmwarePickerRow) {
 		if st.Disk == nil {
 			return
 		}
-		game, pkg := st.Disk.GameID, st.Disk.PackageID
+		if a.room == nil {
+			return
+		}
+		game := st.Disk.GameID
 		s.Open = false
 		s.Gen++
-		if a.room != nil {
-			a.room.Resume()
-		}
-		a.launchFromRoomWithPackageLocked(game, pkg, pkg)
+		a.room.Resume()
+		// As the core screen starts a game: the entry's own package, unchanged.
+		a.launchFromRoomWithPackageLocked(game, "", "")
 	case "shelf-copy":
 		if st.Disk != nil {
 			a.askStShelfNameLocked("copy", st.Disk.Title+" copy")
@@ -381,6 +387,7 @@ func (a *App) submitStShelfNameLocked() {
 	if purpose == "rename" && name == disk.Title {
 		return
 	}
+	var failed error
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		var err error
 		switch purpose {
@@ -390,14 +397,21 @@ func (a *App) submitStShelfNameLocked() {
 			_, err = a.client.CopyAtariStShelfDisk(ctx, disk.GameID, name)
 		case "copy-revert":
 			if _, err = a.client.CopyAtariStShelfDisk(ctx, disk.GameID, name); err == nil {
-				_, err = a.client.RevertAtariStShelfDisk(ctx, disk.GameID, disk.KeptRevision)
+				if _, err = a.client.RevertAtariStShelfDisk(ctx, disk.GameID, disk.KeptRevision); err != nil {
+					failed = errors.New("Copied to " + name + ", but " + disk.Title + " still has its changes. " + stShelfError(err).Error())
+					return nil
+				}
 			}
 		}
 		if err != nil {
-			return stShelfError(err)
+			failed = stShelfError(err)
 		}
 		return nil
 	}, func() {
+		if failed != nil {
+			a.stShelfChangedLocked(failed.Error())
+			return
+		}
 		switch purpose {
 		case "rename":
 			a.stShelfChangedLocked("Renamed to " + name + ".")
@@ -415,6 +429,7 @@ func (a *App) confirmStShelfLocked() {
 		return
 	}
 	disk, action := *st.Disk, st.Confirm
+	var failed error
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		var err error
 		if action == "delete" {
@@ -423,10 +438,14 @@ func (a *App) confirmStShelfLocked() {
 			_, err = a.client.RevertAtariStShelfDisk(ctx, disk.GameID, disk.KeptRevision)
 		}
 		if err != nil {
-			return stShelfError(err)
+			failed = stShelfError(err)
 		}
 		return nil
 	}, func() {
+		if failed != nil {
+			a.stShelfChangedLocked(failed.Error())
+			return
+		}
 		if action == "delete" {
 			a.stShelfChangedLocked("Deleted " + disk.Title + ".")
 		} else {
@@ -436,7 +455,9 @@ func (a *App) confirmStShelfLocked() {
 }
 
 // stShelfChangedLocked shows the shelf again after a change, and lets the
-// core screen behind it read the library the change touched.
+// core screen behind it read the library the change touched. A refused or
+// half-done change comes here too, so the list is never older than the
+// refusal that asked the person to look again.
 func (a *App) stShelfChangedLocked(done string) {
 	if a.room != nil {
 		a.room.Resume()

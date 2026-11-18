@@ -831,7 +831,9 @@ disk saved on another kit stay there.
 
 Tenfoot opens the shelf from "Your disks" on the Atari ST core screen. The
 kit's launcher listener admits exactly these routes and runs them against
-the paired kit.
+the paired kit. It still admits `POST /api/v1/library/atari-st-disks` for
+kits on an older bundle, whose Add game makes its blank disk there. Against
+a host from before the shelf, tenfoot says the host needs updating.
 
 ```sh
 fogcast --api http://127.0.0.1:8787 --json st-shelf

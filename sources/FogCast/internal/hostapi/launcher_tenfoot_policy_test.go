@@ -75,7 +75,10 @@ func TestTenfootKitRequestPathsMatchLauncherPolicy(t *testing.T) {
 		{"GET", "/api/v1/core-catalog/Nope/setup", false},
 		{"POST", "/api/v1/core-catalog/install/extra", false},
 		{"POST", "/api/v1/core-catalog/entries/extra", false},
-		{"POST", "/api/v1/library/atari-st-disks", false},
+		// Tenfoot makes disks on the shelf now; a kit on an older bundle
+		// still makes its Add game blank disk here.
+		{"POST", "/api/v1/library/atari-st-disks", true},
+		{"POST", "/api/v1/library/atari-st-disks/extra", false},
 		{"GET", "/api/v1/library/hardware", true},
 		{"GET", "/api/v1/core-expansions", true},
 		{"POST", "/api/v1/core-expansions", true},

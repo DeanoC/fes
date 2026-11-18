@@ -22,6 +22,8 @@ type shelfHost struct {
 	keptKnown bool
 	refuse    int // status for the next change, then cleared
 	code      string
+	refuseOn  string // when set, only a change whose path ends with this is refused
+	oldHost   bool   // a host from before the shelf routes
 	calls     []string
 	sizes     [2]int64
 }
@@ -55,6 +57,14 @@ func (h *shelfHost) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(protocol.CoreMediaCapabilities{PackageID: h.pkg, Media: []protocol.CoreMediaCapability{
 			{Role: "disk", Format: "atari-st-floppy", MinBytes: h.sizes[0], MaxBytes: h.sizes[1], Extensions: []string{".st"}}}})
 		return
+	case strings.HasPrefix(r.URL.Path, base) && h.oldHost:
+		http.NotFound(w, r)
+		return
+	case strings.HasPrefix(r.URL.Path, "/api/v1/games/"):
+		// The launch resolves the title; this host has no detail for it.
+		h.calls = append(h.calls, "game "+strings.TrimPrefix(r.URL.Path, "/api/v1/games/"))
+		http.NotFound(w, r)
+		return
 	case r.URL.Path == base && r.Method == http.MethodGet:
 		h.calls = append(h.calls, "list")
 		disks := h.disks
@@ -79,10 +89,10 @@ func (h *shelfHost) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.calls = append(h.calls, strings.TrimPrefix(r.URL.Path, base)+" "+string(raw))
-	if h.refuse != 0 {
+	if h.refuse != 0 && (h.refuseOn == "" || strings.HasSuffix(r.URL.Path, h.refuseOn)) {
 		w.WriteHeader(h.refuse)
 		io.WriteString(w, `{"error":{"code":"`+h.code+`","message":"refused"}}`)
-		h.refuse = 0
+		h.refuse, h.refuseOn = 0, ""
 		return
 	}
 	if r.URL.Path == base {
@@ -360,10 +370,12 @@ func TestStShelfRenameDeleteAndRefusals(t *testing.T) {
 		h.refuse, h.code = tc.status, tc.code
 		shelfPick(t, a, "shelf-rename")
 		shelfType(t, a, "Letters")
+		// The shelf is read again, so a retry starts from what the kit holds.
 		snap := shelfSnap(a)
-		if !strings.Contains(snap.Status, tc.want) || snap.Title != "Work" || len(h.disks) != 1 {
-			t.Fatalf("%s: status %q title %q", tc.code, snap.Status, snap.Title)
+		if !strings.Contains(snap.Status, tc.want) || snap.Title != "Your disks" || len(h.disks) != 1 || h.calls[len(h.calls)-1] != "list" {
+			t.Fatalf("%s: status %q title %q calls %v", tc.code, snap.Status, snap.Title, h.calls)
 		}
+		shelfPick(t, a, "shelf-disk:fpga-work")
 	}
 	shelfPick(t, a, "shelf-rename")
 	shelfType(t, a, "Letters")
@@ -401,5 +413,66 @@ func TestStShelfWaitsForAChangeInFlight(t *testing.T) {
 	}
 	if cancelled || !a.coreLibrary.Open || !a.coreLibrary.Busy {
 		t.Fatalf("a shelf change was abandoned: cancelled=%v open=%v", cancelled, a.coreLibrary.Open)
+	}
+}
+
+// A copy that worked and a go-back that was refused leave two facts to show:
+// the new disk exists, and the old one still has its changes.
+func TestStShelfHalfDoneCopyThenGoBackShowsBoth(t *testing.T) {
+	a, h := newShelfApp(t)
+	rev := strings.Repeat("e", 64)
+	h.disks = []hostclient.AtariStShelfDisk{{GameID: "fpga-dungeon", Title: "Dungeon", PackageID: h.pkg, MediaID: strings.Repeat("4", 64), Size: 737280, Kept: hostclient.ShelfKeptChanges, KeptRevision: rev}}
+	a.mu.Lock()
+	a.loadStShelfLocked("", "")
+	a.mu.Unlock()
+	waitCoreLibrary(t, a)
+	shelfPick(t, a, "shelf-disk:fpga-dungeon")
+	shelfPick(t, a, "shelf-revert")
+	shelfPick(t, a, "shelf-copy-revert")
+	h.refuse, h.code, h.refuseOn = http.StatusConflict, "BUSY", "/revert"
+	shelfType(t, a, "Dungeon save")
+	snap := shelfSnap(a)
+	if snap.Title != "Your disks" || len(snap.Rows) != 3 || !strings.Contains(snap.Status, "Copied to Dungeon save, but Dungeon still has its changes. Stop the computer first") {
+		t.Fatalf("half-done copy and go back: %+v", snap)
+	}
+}
+
+func TestStShelfStartsTheComputerWithTheDiskAsItIs(t *testing.T) {
+	a, h := newShelfApp(t)
+	h.disks = []hostclient.AtariStShelfDisk{{GameID: "fpga-work", Title: "Work", PackageID: h.pkg, MediaID: strings.Repeat("5", 64), Size: 737280, Made: true, Kept: hostclient.ShelfKeptNone}}
+	a.mu.Lock()
+	a.room = &rooms.Instance{}
+	a.loadStShelfLocked("", "")
+	a.mu.Unlock()
+	waitCoreLibrary(t, a)
+	shelfPick(t, a, "shelf-disk:fpga-work")
+	shelfPick(t, a, "shelf-start")
+	a.mu.Lock()
+	open, game, pkg, expected := a.coreLibrary.Open, a.launch.GameID, a.launchPackageID, a.launchExpectedPackageID
+	a.mu.Unlock()
+	if open || game != "fpga-work" || pkg != "" || expected != "" {
+		t.Fatalf("start: picker open=%v launch %q package %q/%q", open, game, pkg, expected)
+	}
+	// The entry's package is left as it is: no package change rides along.
+	for _, c := range h.calls {
+		if strings.Contains(c, "core-entries") {
+			t.Fatalf("starting a shelf disk changed its entry: %v", h.calls)
+		}
+	}
+}
+
+func TestStShelfOnAnOlderHostSaysSo(t *testing.T) {
+	pkg := strings.Repeat("a", 64)
+	h := &shelfHost{t: t, pkg: pkg, keptKnown: true, oldHost: true, sizes: [2]int64{368640, 839680}}
+	server := httptest.NewServer(h)
+	t.Cleanup(server.Close)
+	a := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	a.ctx = context.Background()
+	a.mu.Lock()
+	a.openStShelfLocked(rooms.Action{Kind: rooms.ActionHardwareDisks, CoreID: "fes.atari-st", PackageID: pkg})
+	a.mu.Unlock()
+	waitCoreLibrary(t, a)
+	if snap := shelfSnap(a); len(snap.Rows) != 0 || !strings.Contains(snap.Status, "doesn't have the disk shelf yet") {
+		t.Fatalf("older host: %+v", snap)
 	}
 }
