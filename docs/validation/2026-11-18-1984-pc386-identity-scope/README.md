@@ -234,7 +234,11 @@ The six questions above, each with its recommended answer, went to Deano through
 2. **Reuse after an evidence-only change: (b).** When only the suite or oracle changed, a sealed package is reused only after a fresh full lockstep on the current suite passes against the regenerated CPU netlist. No Quartus run is needed.
 3. **Firmware: F2, binding the design to the firmware output digests.** Condition: the slice that pins `rom_hex` must also confirm the ROM hex digest on a GitHub runner, not only the image digests, because this record measured the ROM digest only on Powerboat.
 4. **Migration evidence: a normal reseal** for the one-time v1→v2 design-ID migration, not D12 evidence.
-5. **S1's seal: yes.** The producer slice (S1) may merge under the in-progress pc386 exemption. The S4 migration reseal is then the only seal, and it also covers the x87 RTL drift since #1951.
+5. **S1's seal: yes.** The producer slice (S1) may merge under the in-progress pc386 exemption. The S4 migration reseal is then the only seal, and it also covers the x87 RTL drift since #1951. Scope of this exemption:
+   - **What it waives.** It is Deano's explicit exemption, the kind he gave #1335, #1976 and #1983 while pc386 is in progress. It waives only the step that requires a seal at S1's exact head. It does not relax any timing or seal check.
+   - **What is unsealed meanwhile.** Main's pc386 tree is already unsealed (`6bf0bfd1…` against the sealed `bb736910…`), so S1 leaves no sealed main revision unqualified.
+   - **Producing a package in the gap.** The registered producer builds a package only through a fresh full lockstep and a fresh seal, with every gate, so any package made between S1 and S4 is sealed by its own build.
+   - **Recording it.** S1's PR body must cite this decision.
 6. **The manual sealer: yes.** A separate PR (S5) may delete the format-1 manual sealer path.
 
 The accepted plan is option C. The slices run in order, one scope and one PR each, and none is implemented in this PR:
