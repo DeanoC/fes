@@ -51,10 +51,11 @@ def retarget_machine(source):
 # it. The machine side copies the shown bank once its toggle has arrived. The
 # pixel side takes the ready bank at its own frame end, as the DE10 source
 # does: a ready bank stands for a whole machine frame, about 20 ms, and a
-# pixel frame end comes within 16.7 ms of the toggle's arrival. That load is
-# decided one pixel clock ahead and registered, so the bank register's only
-# input logic is its enable. ready_seen flips with every such load, so it is
-# also the toggle that carries the shown bank back.
+# pixel frame end comes within 16.7 ms of the toggle's arrival. The frame end
+# is a registered flag, so the load's enable is that flag and the toggle
+# comparison, and the bank register's only input logic is its enable.
+# ready_seen flips with every such load, so it is also the toggle that carries
+# the shown bank back.
 VIDEO_CROSSING = (
     (b'    (* async_reg = "true" *) reg [1:0] shown_meta = 2\'d2;\n'
      b'    (* async_reg = "true" *) reg [1:0] shown_sync = 2\'d2;\n',
@@ -72,16 +73,14 @@ VIDEO_CROSSING = (
      b'    (* async_reg = "true" *) reg [2:0] ready_sync = 3\'b001;\n',
      b'    (* async_reg = "true" *) reg ready_meta = 1\'b0;\n'
      b'    (* async_reg = "true" *) reg ready_sync = 1\'b0;\n'
-     b"    reg ready_taken = 1'b0;\n"
-     b"    reg frame_take = 1'b0;\n", 1),
+     b"    reg frame_last = 1'b0;\n", 1),
     (b"        ready_meta <= {ready_toggle, ready_bank};\n"
      b"        ready_sync <= ready_meta;\n",
      b"        ready_meta <= ready_toggle;\n"
      b"        ready_sync <= ready_meta;\n"
-     b"        ready_taken <= ready_sync;\n"
-     b"        frame_take <= h == H_TOTAL - 2'd2 && v == V_TOTAL - 1'b1 && ready_taken != ready_seen;\n"
-     b"        if (frame_take) begin\n"
-     b"            ready_seen <= ~ready_seen;\n"
+     b"        frame_last <= h == H_TOTAL - 2'd2 && v == V_TOTAL - 1'b1;\n"
+     b"        if (ready_sync != ready_seen && frame_last) begin\n"
+     b"            ready_seen <= ready_sync;\n"
      b"            shown_bank <= ready_bank;\n"
      b"        end\n", 1),
     (b"                if (ready_sync[2] != ready_seen) begin\n"

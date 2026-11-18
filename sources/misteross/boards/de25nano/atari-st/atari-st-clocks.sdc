@@ -87,7 +87,7 @@ foreach {label source head} $st_crossings {
 # One pixel period bounds the first two and eleven nanoseconds the job. The
 # bound counts the skew between the two PLL networks.
 foreach {label bound source sink launches_minimum captures_minimum} {
-    config 13.400 {core|video|config_bundle_sys[*]} {core|video|config_copy0[*] core|video|config_copy1[*]} 100 200
+    config 13.400 {core|video|config_bundle_sys[*]} {core|video|config_bundle_pixel[*]} 100 100
     publication 13.400
         {core|video|native_capture.capture|publication_number[*][*] core|video|native_capture.capture|height[*][*]
          core|video|native_capture.capture|border[*][*] core|video|native_capture.capture|pal_banks[*]}
