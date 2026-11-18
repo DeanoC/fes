@@ -502,11 +502,13 @@
     ]
   },
   "tree_a": {
+    "config_tree": "b4bb5aa7145110d9dabd482097080c608e240c99",
     "path": "/data/fes1861-netlist/identity/nb3",
     "revision": "5e592f00389fd2bb61194788c917c36f5c880dec",
     "sources_tree": "377d39ee8f2cc8a2598d2ee6a300301e119a1806"
   },
   "tree_b": {
+    "config_tree": "b4bb5aa7145110d9dabd482097080c608e240c99",
     "path": "/data/fes1861-netlist/identity/nb4",
     "revision": "6ee9f11131fa49311cf5f18c0b7e0a301f8f70e4",
     "sources_tree": "cc6b74cc0820432ab6130e066a6f82f7c8153617"

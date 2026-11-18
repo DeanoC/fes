@@ -15,7 +15,7 @@ fes.zx80               same   same   same   same     same
 fes.ts1000             same   same   same   same     same    
 fes.ts1500             same   same   same   same     same    
 
-tree_a: a482f14c0f22  sources 30f772d57b66  clean
-tree_b: b0f05545183f  sources 888f63a2b104  clean
+tree_a: a482f14c0f22  sources 30f772d57b66  config fc8055eb26c3  clean
+tree_b: b0f05545183f  sources 888f63a2b104  config fc8055eb26c3  clean
 every route-deciding input is byte-identical
 wrote /home/deano/fes/.claude/worktrees/gpu-router-default/docs/validation/2026-11-14-1861-gpu-router-netlists/reports-scope/route-inputs.json

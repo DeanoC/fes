@@ -502,13 +502,15 @@
     ]
   },
   "tree_a": {
+    "config_tree": "fc8055eb26c38337ab9b1b3c366e6ca84b216e5a",
     "path": "/data/fes1861-netlist/identity/c3head",
     "revision": "df99f2dfb2084035b213614960b952f5e79ab781",
     "sources_tree": "888f63a2b104d4d960fe24031f79a3024b9f7e95"
   },
   "tree_b": {
+    "config_tree": "b4bb5aa7145110d9dabd482097080c608e240c99",
     "path": "/home/deano/fes/.claude/worktrees/gpu-router-default",
-    "revision": "4ca015bc142708b0f4315d4b22f124f8122f1d51",
+    "revision": "2a30d66ccf38a43efd35a185b09a8caf63da5352",
     "sources_tree": "ed4a1fdb88dc10018f4914014af9bc6935b732c3"
   }
 }

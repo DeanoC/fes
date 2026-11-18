@@ -41,9 +41,11 @@ def _tree_identity(tree: Path, measured: set[str]) -> dict:
     its revisions; this one did not, and it is half of what carries conditions
     1 and 2 across a base move.
 
-    `dirty` lists the measured input paths that differ from the commit, under
-    `sources/misteross` and relative to it, so it names the files whose bytes
-    decide the comparison rather than any stray file in the tree. A non-empty
+    `dirty` lists the measured input paths that differ from the commit, as
+    repository-relative paths, so it names the files whose bytes decide the
+    comparison rather than any stray file in the tree. The set spans both
+    `sources/misteross` and the parent-owned inputs -- `config/core-recipes.toml`
+    above all, which is where the recipe digests come from. A non-empty
     list makes the run a refusal, not a pass: the digests would be real and
     would belong to no commit.
     """
@@ -53,16 +55,16 @@ def _tree_identity(tree: Path, measured: set[str]) -> dict:
     # such path -- so nothing ever matched a measured input and every tree
     # reported clean. The counterexample caught it; reasoning about the format
     # had not. A rename reads "R  old -> new", so the new name is what counts.
-    status = _git(tree, "status", "--porcelain", "--", MISTEROSS)
+    status = _git(tree, "status", "--porcelain")
     changed = set()
     for line in status.splitlines():
         fields = line.strip().split(None, 1)
         if len(fields) < 2:
             continue
-        name = fields[1].split(" -> ")[-1].strip().strip('"')
-        changed.add(name.removeprefix(MISTEROSS + "/"))
+        changed.add(fields[1].split(" -> ")[-1].strip().strip('"'))
     return {"path": str(tree), "revision": _git(tree, "rev-parse", "HEAD"),
             "sources_tree": _git(tree, "rev-parse", "HEAD:" + MISTEROSS),
+            "config_tree": _git(tree, "rev-parse", "HEAD:config"),
             "measured_inputs": len(measured),
             "dirty": sorted(changed & measured)}
 
@@ -150,13 +152,26 @@ def measure(tree: Path, module: str, core_id: str | None) -> dict:
         "sdc_path": sdc or "unavailable:not-uniquely-declared",
         "sdc": _file(root, sdc) if sdc else "unavailable:not-uniquely-declared",
     }
+    # Inputs the producer reads from the parent repository, outside
+    # sources/misteross. Codex raised this on #1862: the recipe digests are
+    # computed from config/core-recipes.toml, which the ZX81 Quartus producer
+    # declares as PARENT_CONFIG, and a cleanliness check scoped to
+    # sources/misteross cannot see an uncommitted edit to it. Taken from the
+    # producer's own declaration and from pnr_recipe's own registry paths, not
+    # from a list written here.
+    parents = set(getattr(producer, "PARENT_CONFIG", ()))
     if core_id is not None:
         from scripts import pnr_recipe
+        fes_root = pnr_recipe.FES_ROOT.resolve()
+        parents.add(pnr_recipe.REGISTRY.resolve().relative_to(fes_root).as_posix())
+        parents.add(pnr_recipe.REGISTRY.with_name(pnr_recipe.ADVISORY_NAME)
+                    .resolve().relative_to(fes_root).as_posix())
         for name in ("recipe_digest", "design_recipe_digest"):
             try:
                 out[name] = getattr(pnr_recipe, name)(core_id)
             except Exception as exc:
                 out[name] = f"unavailable:{type(exc).__name__}"
+    out["parent_inputs"] = sorted(parents)
     return out
 
 
@@ -193,7 +208,7 @@ def main() -> int:
             continue
         row, bad = {}, []
         for key in sorted(set(ma) | set(mb)):
-            if key.endswith("_path"):
+            if key.endswith("_path") or key == "parent_inputs":
                 continue
             va, vb = ma.get(key), mb.get(key)
             if isinstance(va, str) and va.startswith("unavailable:"):
@@ -209,7 +224,8 @@ def main() -> int:
             for key, value in side.items():
                 if key.endswith("_path") and isinstance(value, str) \
                         and not value.startswith("unavailable:"):
-                    measured.add(value)
+                    measured.add(f"{MISTEROSS}/{value}")
+            measured.update(side.get("parent_inputs", ()))
         result[artefact] = {"tree_a": ma, "tree_b": mb, "verdict": row}
         print(f'{artefact:22} {row.get("toolchain_lock","-"):6} {row.get("qsf","-"):6} '
               f'{row.get("sdc","-"):6} {row.get("recipe_digest","-"):8} '
@@ -221,6 +237,7 @@ def main() -> int:
                 "tree_b": _tree_identity(b, measured)}
     for name, side in identity.items():
         print(f'{name}: {side["revision"][:12]}  sources {side["sources_tree"][:12]}'
+              f'  config {side["config_tree"][:12]}'
               + (f'  DIRTY: {", ".join(side["dirty"])}' if side["dirty"] else "  clean"))
     dirty = sorted({f'{name}:{path}' for name, side in identity.items()
                     for path in side["dirty"]})

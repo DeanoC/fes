@@ -35,7 +35,7 @@ from pathlib import Path
 
 
 def _design_anchor(key: str, moves: dict | None, sealed_at: str | None,
-                   sources_tree: str) -> tuple[str, str] | None:
+                   anchors: dict[str, str]) -> tuple[str, str] | None:
     """The seal tree and this head agree on what this artefact's design is.
 
     The detail line this returns names the comparison's tree A as *the seal
@@ -55,6 +55,16 @@ def _design_anchor(key: str, moves: dict | None, sealed_at: str | None,
     the revision, because this record's own documentation commits move the
     revision while leaving every byte a producer reads alone, and a guard that
     rejected those would be retired the first time it cried wolf.
+
+    This comparison covers the producer's source closure and nothing else, so
+    it cannot speak for the inputs the producer reads from the parent
+    repository -- config/core-recipes.toml above all, which the ZX81 Quartus
+    producer declares as PARENT_CONFIG and which the placement digests are
+    read from. Codex raised that next. Requiring the whole config/ tree to
+    match would be both too strict and beside the point: main's third base
+    move added 22 lines to that registry for a different core, so the tree
+    moved while nothing any sealed artefact reads did. `_route_anchor` below
+    checks the thing that is actually claimed, per artefact.
     """
     if not moves:
         return None
@@ -66,21 +76,76 @@ def _design_anchor(key: str, moves: dict | None, sealed_at: str | None,
         return "unverifiable", (
             f"the design comparison is from {tree_a[:12] or '?'}, not this row's "
             f"seal tree {str(sealed_at)[:12]}")
-    ended_at = moves.get("tree_b", {}).get("sources_tree")
-    if ended_at is None:
+    there = moves.get("tree_b", {}).get("sources_tree")
+    if there is None:
         return "unverifiable", (
             "the design comparison records no tree_b sources_tree, so it cannot be "
             "shown to end at this head; re-run design_identity.py")
-    if ended_at != sources_tree:
+    if there != anchors["sources_tree"]:
         return "unverifiable", (
-            f"the design comparison ends at sources tree {ended_at[:12]}, not this "
-            f"head's {sources_tree[:12]}")
+            f"the design comparison ends at sources tree {there[:12]}, not this "
+            f"head's {anchors['sources_tree'][:12]}")
     verdict = row.get("verdict", "")
     if verdict.endswith("unchanged"):
         return "intact", (f"design identity unchanged between the seal tree "
                           f"{tree_a[:12]} and this head "
                           f"({row['tree_b']['design_files']} design inputs)")
     return "MOVED", f"design identity comparison says: {verdict[:120]}"
+
+
+def _route_anchor(key: str, routes: dict[str, dict],
+                  sealed_at: str | None) -> tuple[str, str]:
+    """This artefact's route-deciding inputs are the same at the seal and here.
+
+    The seals' own anchors do not reach the parent repository: a design
+    comparison covers the source closure, and a producer's inputs map covers
+    the files it declares under sources/misteross. Neither covers
+    config/core-recipes.toml, where the placement recipe comes from. So every
+    row also needs a route_inputs.py comparison from its own seal tree to this
+    head, whose per-artefact row includes `recipe_digest` and
+    `design_recipe_digest` -- read through the producer's own pnr_recipe rather
+    than restated here -- plus the lock, QSF and SDC.
+
+    A row with no such comparison is unverifiable, not intact: this is the
+    check that the parent-owned inputs did not move, and absent, nothing says
+    they did not.
+    """
+    report = routes.get(sealed_at or "")
+    if report is None:
+        return "unverifiable", (
+            f"no route-input comparison from this row's seal tree "
+            f"{str(sealed_at)[:12]} to this head")
+    row = report["rows"].get(key if key == "splash" else f"fes.{key}")
+    if row is None:
+        return "unverifiable", "that comparison has no row for this artefact"
+    verdict = row.get("verdict") or {}
+    if not verdict:
+        return "unverifiable", "that comparison recorded no input digests for it"
+    moved = sorted(name for name, value in verdict.items() if value == "MOVED")
+    if moved:
+        return "MOVED", "route-deciding inputs moved since the seal: " + ", ".join(moved)
+    unanswered = sorted(name for name, value in verdict.items() if value == "?")
+    if unanswered:
+        return "unverifiable", ("route-deciding inputs unanswered since the seal: "
+                               + ", ".join(unanswered))
+    return "intact", f"and its {len(verdict)} route-deciding inputs are unchanged too"
+
+
+def _usable_routes(paths, anchors: dict[str, str]) -> tuple[dict[str, dict], list[str]]:
+    """Index the route comparisons that end at this head, by the tree they start from."""
+    usable, refused = {}, []
+    for path in paths or ():
+        report = json.loads(Path(path).read_text())
+        ends = report.get("tree_b", {})
+        wrong = [name for name, here in anchors.items() if ends.get(name) != here]
+        if wrong:
+            refused.append(f"{Path(path).name}: does not end at this head ({', '.join(wrong)})")
+            continue
+        if report.get("dirty"):
+            refused.append(f"{Path(path).name}: measured inputs were dirty")
+            continue
+        usable[report.get("tree_a", {}).get("revision", "")] = report
+    return usable, refused
 
 
 def verify(summary: Path, root: Path) -> tuple[str, str]:
@@ -110,6 +175,9 @@ def main() -> int:
                         help="the checkout whose head the seals must still match")
     parser.add_argument("--design-move", type=Path,
                         help="design_identity.py json comparing the seal tree to this head")
+    parser.add_argument("--route-inputs", type=Path, nargs="+",
+                        help="route_inputs.py json(s) comparing a seal tree to this head; "
+                             "one per distinct seal tree in --cond3")
     parser.add_argument("--json", type=Path)
     arguments = parser.parse_args()
     moves = (json.loads(arguments.design_move.read_text())
@@ -128,19 +196,38 @@ def main() -> int:
     # sources/misteross changes exactly when those sources change, which is the
     # thing the seals are claims about.
     sources = rev("HEAD:sources/misteross")
+    # Every tree the design comparison must still be about: the sources, and
+    # the parent repository's config/, which holds the recipe registry the
+    # placement digests come from.
+    anchors = {"sources_tree": sources, "config_tree": rev("HEAD:config")}
+    routes, refused = _usable_routes(arguments.route_inputs, anchors)
     rows = json.loads(arguments.cond3.read_text())
     result, bad = {}, []
     print(f"head             {head}")
     print(f"sources/misteross {sources}  <- the anchor; a docs commit does not move it")
+    print(f"config            {anchors['config_tree']}  <- the parent-owned inputs, "
+          "core-recipes.toml among them")
+    for line in refused:
+        print(f"IGNORED route comparison -- {line}")
+    print("route comparisons in use: "
+          + (", ".join(f"{rev_[:12]} -> this head" for rev_ in sorted(routes)) or "none"))
     print(f'{"artefact":20} {"sealed at":14} {"verdict":13} detail')
     for key in sorted(rows):
         row = rows[key]
         verdict, detail = verify(Path(row["source"]), root)
         if verdict == "unverifiable":
             fallback = _design_anchor(key, moves, row.get("taken_at_head"),
-                                      sources)
+                                      anchors)
             if fallback is not None:
                 verdict, detail = fallback
+        if verdict == "intact":
+            # Neither anchor reaches the parent repository's inputs, so an
+            # intact row is not finished until those are measured too.
+            route, route_detail = _route_anchor(key, routes, row.get("taken_at_head"))
+            if route != "intact":
+                verdict, detail = route, f"{route_detail} (its own anchor held: {detail})"
+            else:
+                detail = f"{detail}, {route_detail}"
         if verdict != "intact":
             bad.append(key)
         result[key] = {"sealed_at": row.get("taken_at_head"), "build_id": row.get("build_id"),
@@ -151,7 +238,8 @@ def main() -> int:
           + ("" if not bad else "; NOT INTACT: " + ", ".join(bad)))
     if arguments.json:
         arguments.json.resolve().write_text(json.dumps(
-            {"head": head, "sources_tree": sources, "tree": str(root), "rows": result,
+            {"head": head, "sources_tree": sources,
+             "config_tree": anchors["config_tree"], "tree": str(root), "rows": result,
              "intact": not bad, "not_intact": bad}, indent=2, sort_keys=True) + "\n")
         print(f"wrote {arguments.json.resolve()}")
     return 1 if bad else 0

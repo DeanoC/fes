@@ -201,15 +201,20 @@ def _revision(tree: Path, spec: str = "HEAD") -> str:
 def _tree_identity(tree: Path) -> dict:
     """What this comparison was taken over, in the two forms a reader needs.
 
-    `revision` says which commit was checked out; `sources_tree` is the git
-    tree object of sources/misteross, which changes exactly when those sources
-    change. A consumer that must check "is this comparison still about the
+    `revision` says which commit was checked out; `sources_tree` and
+    `config_tree` are the git tree objects of sources/misteross and of the
+    parent repository's config/, which change exactly when those inputs do.
+    Both are needed: config/core-recipes.toml is the recipe registry the
+    placement digests are read from, and the ZX81 Quartus producer declares it
+    as PARENT_CONFIG, so an anchor on the sources subtree alone would accept a
+    comparison taken before a recipe change (Codex raised this on #1862). A consumer that must check "is this comparison still about the
     tree I am asking about" has to compare the latter, because a
     documentation-only commit -- this record's own, for one -- moves the
     revision and nothing a producer reads.
     """
     return {"path": str(tree), "revision": _revision(tree),
-            "sources_tree": _revision(tree, "HEAD:" + MISTEROSS)}
+            "sources_tree": _revision(tree, "HEAD:" + MISTEROSS),
+            "config_tree": _revision(tree, "HEAD:config")}
 
 
 def main() -> int:

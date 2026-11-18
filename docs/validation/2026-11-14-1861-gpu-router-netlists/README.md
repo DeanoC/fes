@@ -238,8 +238,10 @@ Both halves are measured:
   artefact's toolchain lock, QSF, SDC or `pnr_recipe.recipe_digest` moved
   across that span. Each route-input report names the two revisions it
   measured, their `sources/misteross` tree objects and whether the measured
-  inputs matched their commit, so the attribution in this page is checkable
-  against the report rather than asserted beside it. `git diff` over the same span confirms no `toolchain.lock`
+  inputs matched their commit -- across the whole repository, not just
+  `sources/misteross`, because the recipe registry is a parent-owned input --
+  so the attribution in this page is checkable against the report rather than
+  asserted beside it. `git diff` over the same span confirms no `toolchain.lock`
   changed. `design_recipe_digest` is unanswerable at the old base because the
   function postdates it, and is reported as unanswered rather than as a pass.
 
@@ -275,11 +277,16 @@ Reasoning about what a check would catch is not evidence that it catches it:
 | the seal check handed the right seal tree but a tree B at an older head | same | `unverifiable`: "ends at sources tree 85200fc21385, not this head's ed4a1fdb88dc", 7 of 11, exit 1 |
 | the seal check handed an older report that carries no `tree_b.sources_tree` | same | `unverifiable`: cannot be shown to end at this head, 7 of 11, exit 1 |
 | one measured `.sdc` edited in a throwaway worktree at the same commit | the route-input run refused | `DIRTY: cores/fes-c64/clocks-oss.sdc`, `REFUSED`, exit 1 -- and this is what exposed the broken parse above |
+| `timeout_s` edited in `config/core-recipes.toml`, a tree compared with itself (Codex's case) | the route-input run refused | `DIRTY: config/core-recipes.toml` on both sides, `REFUSED`, exit 1 |
+| the seal check run with no route-input comparison | every row refused | 0 of 11, exit 1 |
+| only the `df99f2dfb208` comparison given, while four rows seal at `541e3c548751` | those four refused | `no route-input comparison from this row's seal tree`, 7 of 11, exit 1 |
+| a route-input comparison that ends at another tree | ignored, and its rows refused | `IGNORED route comparison -- does not end at this head (sources_tree)`, 4 of 11, exit 1 |
+| `fes.zx81`'s `recipe_digest` doctored to MOVED | that seal refused | `MOVED: route-deciding inputs moved since the seal: recipe_digest`, 10 of 11, exit 1 |
 
-Six defects in this record's own tooling were found that way and are recorded
-rather than quietly amended. Two came from Codex's review of the fourth base
-move, and both are the same shape as the one below: a guard that checks one end
-of a comparison and lets the other drift. `seals_at_head.py` validated the
+Eight defects in this record's own tooling were found that way and are
+recorded rather than quietly amended. Four came from Codex's two reviews of the
+fourth base move, all of them the same shape as the one below: a guard that
+checks one part of a claim and leaves the rest to drift. `seals_at_head.py` validated the
 design comparison's tree A and not its tree B, so a comparison from an earlier
 run of this record -- the right seal tree, an older head -- would have been
 accepted and its "unchanged" verdict described as applying to this head; tree
@@ -292,6 +299,31 @@ revisions, both `sources/misteross` tree objects, and the measured inputs'
 cleanliness, and a measured input that differs from its commit is a refusal
 rather than a footnote. All five earlier reports were regenerated so none of
 them is unpinned.
+
+The second review found both of those fixes short in the same direction: they
+were scoped to `sources/misteross`, and a producer also reads from the parent
+repository. `config/core-recipes.toml` is where `pnr_recipe.recipe_digest` and
+`design_recipe_digest` come from, and `build_fes_zx81_quartus` declares it as
+`PARENT_CONFIG`. So the cleanliness set now spans the whole repository and
+takes the parent-owned paths from each producer's own declaration and from
+`pnr_recipe`'s own registry paths: Codex's case -- `timeout_s` edited in that
+registry, a tree compared with itself -- passed with both sides "clean" before,
+and is refused by name now.
+
+The seal check needed the other half of that. A design comparison covers the
+source closure and a producer's inputs map covers what it declares under
+`sources/misteross`; neither reaches the recipe registry. Requiring the whole
+`config/` tree to match would be both too strict and beside the point, because
+main's third base move added 22 lines to that registry for a different core --
+the tree moved while nothing any sealed artefact reads did. So every row now
+also needs a `route_inputs.py` comparison from *its own* seal tree to this
+head, and the per-artefact row that carries `recipe_digest` and
+`design_recipe_digest` is what must be unchanged. That takes two comparisons,
+because the Spectrum four were sealed at `541e3c548751` and the other seven at
+`df99f2dfb208` (`reports-scope4/seal-to-head-route-inputs.log`,
+`reports-scope4/seal2-to-head-route-inputs.log`). A row with no such
+comparison reads `unverifiable`, not intact: absent it, nothing says those
+inputs held.
 
 The cleanliness check shipped broken and the counterexample is what caught it:
 the helper strips git's output, which eats the leading space of an unstaged
