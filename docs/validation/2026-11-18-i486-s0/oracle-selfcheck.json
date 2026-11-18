@@ -618,13 +618,13 @@
       "differences": [],
       "divergence": null,
       "expected": {
-        "eax": "60000010",
+        "eax": "60050030",
         "end": "halt"
       },
       "i486": null,
       "label": "cr0-read",
       "pass": true,
-      "source": "PRM Figure 10-2; DB Table 9-8",
+      "source": "PRM 4.1 for the bits; Bochs for reserved bits reading 0",
       "what": "CR0 after reset reads 60000010h: CD, NW and ET"
     },
     {
@@ -725,7 +725,7 @@
       "divergence": null,
       "expected": {
         "ecx": "12345678",
-        "edx": "80010011",
+        "edx": "e0050031",
         "end": "halt"
       },
       "i486": null,
@@ -971,46 +971,45 @@
     },
     {
       "differences": [],
-      "divergence": "mov-cr4",
+      "divergence": null,
       "expected": {
-        "eax": "0",
-        "end": "halt"
+        "end": "exception:6"
       },
-      "i486": "CR4 is only on parts with VME, PVI or PSE (DB 4.2.3.1)",
+      "i486": null,
       "label": "mov-cr4-read",
       "pass": true,
-      "source": "Bochs",
-      "what": "MOV EAX, CR4 with VME excluded reads 0"
+      "source": "DB 4.2.3.1 (CR4 only with VME, PVI or PSE; the 486 identity has none)",
+      "what": "MOV EAX, CR4 is #UD: there is no CR4"
     },
     {
       "differences": [],
-      "divergence": "mov-cr4",
+      "divergence": null,
       "expected": {
-        "end": "exception:13",
-        "error": "0"
+        "end": "exception:6"
       },
-      "i486": "CR4 is only on parts with VME, PVI or PSE (DB 4.2.3.1)",
+      "i486": null,
       "label": "mov-cr4-write",
       "pass": true,
-      "source": "Bochs",
-      "what": "MOV CR4, EAX with a bit set and VME excluded is #GP(0)"
+      "source": "DB 4.2.3.1 (CR4 only with VME, PVI or PSE; the 486 identity has none)",
+      "what": "MOV CR4, EAX is #UD: there is no CR4"
     }
   ],
-  "cases_sha256": "60f7224696c15107cf3b05527e4d71fd908fa085c02d63849a54aa480c4bf92d",
-  "commit": "aa50383486eb0001f92bb510b9dbd649f64d0ffc",
+  "cases_sha256": "563043ee5f32e6ead19c813d47e1bdaf985479b9d8b3041aed2911dd721ea8b6",
+  "commit": "e9d9d8a2ff0984d6a16a6fd392ff539ee6317308",
   "oracle": {
-    "adapter_sha256": "1dec8dde8f21a24428e37aefc16fd9f00fbad13f07f1628db3c265046205386c",
+    "adapter_sha256": "8476a65df29382fdfdb5b8ce342495f3491fd2c7e5c5df40018d3a3d68bb21e3",
     "cpu_level": 4,
     "level3_provisioner_sha256": "0d47ce9792ca29ae172335f6f11e6c5dcfa73fbf34b76c89e04d072528f454cd",
     "linked_sha256": {
-      "adapter": "c5d8322b812e5c38f52712a80d867608a5bffd5f29d887ae96a85be6e3400306",
-      "cpu": "011433554ea8477d92cfd50b86dbd863c222eacb38cd126318dd204682df488e",
-      "cpudb": "2bfb10f3497f62a623186b065d2160421d81a60c2e38d00fd9fa161ad5d44639",
-      "fpu": "2077a6219e74aacba219c592e69a34ab5d89bbefd3dd426274640e4a7ff9e76f",
+      "adapter": "0331d57ed896ba6b74dc21e91a9f2ab80880266c0cae1c12a403c9a2abcd28b2",
+      "cpu": "1d1b4e784dc4857fb5c741bd994a438e86bbe0000140c4de295deae1b16bbba0",
+      "cpudb": "125b607feb40b485667c37ef3ed045907d4cb3ad193aea843eb2f2707a40b6d0",
+      "fpu": "5e98788105b4bfb95eb38ecca0d6886376dc6f2c58b87fe98e88054fc4210d70",
       "paramtree": "6b8ba5842ba2bfe611cc7268c331fff50214859a164c95895d966de277893e44",
-      "softfloat": "605753068247b21352c8a65e662f3e489b8e7dcb45fe0844e782a1884b41fd9b"
+      "softfloat": "aeecafdd2eb044ad93f0cb1832ea7251886f1cc2a2caa27751e5cad3cb23ee7c"
     },
-    "provisioner_sha256": "8bc3418c3accd8026507fb4b2a9aa077170261ed12799039c82af8546e13e842",
+    "patch_sha256": "555888f73318761fa3f6ab333d7d7326c7a5eb723927cfbe81c3ff8db51c5922",
+    "provisioner_sha256": "77d98a335ba7a239c109f26129df8492965f135a7c7cefc76196070a5f4c7b4c",
     "revision": "30cfd566ecc8deb33e56e801e32b444a7041b6d2"
   },
   "reset": [

@@ -55,6 +55,66 @@
       "as_predicted": true,
       "divergence": null,
       "isolated": true,
+      "label": "xadd-m8",
+      "predicted": "stop",
+      "probe": "1007",
+      "rtl": "stop @1007.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "xadd-m8-lock",
+      "predicted": "stop",
+      "probe": "1007",
+      "rtl": "stop @1007.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "xadd-r8-lock",
+      "predicted": "agree",
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "xadd-m16",
+      "predicted": "stop",
+      "probe": "1009",
+      "rtl": "stop @1009.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "xadd-m16-lock",
+      "predicted": "stop",
+      "probe": "1009",
+      "rtl": "stop @1009.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "xadd-r16-lock",
+      "predicted": "agree",
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
       "label": "xadd-m32",
       "predicted": "stop",
       "probe": "100f",
@@ -75,7 +135,7 @@
       "as_predicted": true,
       "divergence": null,
       "isolated": true,
-      "label": "xadd-reg-lock",
+      "label": "xadd-r32-lock",
       "predicted": "agree",
       "probe": null,
       "rtl": "agree"
@@ -85,20 +145,20 @@
       "as_predicted": true,
       "divergence": null,
       "isolated": true,
-      "label": "cmpxchg-r32-equal",
-      "predicted": "stop",
-      "probe": "1012",
-      "rtl": "stop @1012.unexpected-exception 0 6"
+      "label": "cmpxchg-r8-lock",
+      "predicted": "agree",
+      "probe": null,
+      "rtl": "agree"
     },
     {
       "as_expected": true,
       "as_predicted": true,
       "divergence": null,
       "isolated": true,
-      "label": "cmpxchg-r32-unequal",
+      "label": "cmpxchg-r8-equal",
       "predicted": "stop",
-      "probe": "1012",
-      "rtl": "stop @1012.unexpected-exception 0 6"
+      "probe": "1006",
+      "rtl": "stop @1006.unexpected-exception 0 6"
     },
     {
       "as_expected": true,
@@ -106,6 +166,96 @@
       "divergence": null,
       "isolated": true,
       "label": "cmpxchg-m8-equal",
+      "predicted": "stop",
+      "probe": "1009",
+      "rtl": "stop @1009.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-m8-equal-lock",
+      "predicted": "stop",
+      "probe": "1009",
+      "rtl": "stop @1009.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-r8-unequal",
+      "predicted": "stop",
+      "probe": "1006",
+      "rtl": "stop @1006.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-m8-unequal",
+      "predicted": "stop",
+      "probe": "1009",
+      "rtl": "stop @1009.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-m8-unequal-lock",
+      "predicted": "stop",
+      "probe": "1009",
+      "rtl": "stop @1009.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-r16-lock",
+      "predicted": "agree",
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-r16-equal",
+      "predicted": "stop",
+      "probe": "1009",
+      "rtl": "stop @1009.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-m16-equal",
+      "predicted": "stop",
+      "probe": "100c",
+      "rtl": "stop @100c.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-m16-equal-lock",
+      "predicted": "stop",
+      "probe": "100c",
+      "rtl": "stop @100c.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-r16-unequal",
       "predicted": "stop",
       "probe": "1009",
       "rtl": "stop @1009.unexpected-exception 0 6"
@@ -125,6 +275,46 @@
       "as_predicted": true,
       "divergence": null,
       "isolated": true,
+      "label": "cmpxchg-m16-unequal-lock",
+      "predicted": "stop",
+      "probe": "100c",
+      "rtl": "stop @100c.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-r32-lock",
+      "predicted": "agree",
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-r32-equal",
+      "predicted": "stop",
+      "probe": "1012",
+      "rtl": "stop @1012.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-m32-equal",
+      "predicted": "stop",
+      "probe": "1015",
+      "rtl": "stop @1015.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
       "label": "cmpxchg-m32-equal-lock",
       "predicted": "stop",
       "probe": "1015",
@@ -135,7 +325,27 @@
       "as_predicted": true,
       "divergence": null,
       "isolated": true,
+      "label": "cmpxchg-r32-unequal",
+      "predicted": "stop",
+      "probe": "1012",
+      "rtl": "stop @1012.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
       "label": "cmpxchg-m32-unequal",
+      "predicted": "stop",
+      "probe": "1015",
+      "rtl": "stop @1015.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-m32-unequal-lock",
       "predicted": "stop",
       "probe": "1015",
       "rtl": "stop @1015.unexpected-exception 0 6"
@@ -228,7 +438,7 @@
       "label": "cr0-read",
       "predicted": "stop",
       "probe": "1000",
-      "rtl": "stop @1000.eax 60000010 7ffffff0"
+      "rtl": "stop @1000.eax 60050030 7ffffff0"
     },
     {
       "as_expected": true,
@@ -248,7 +458,7 @@
       "label": "cr0-write-zero",
       "predicted": "stop",
       "probe": "1006",
-      "rtl": "stop @1009.ebx 10 7fffffe0"
+      "rtl": "stop @1006.cr0 10 60050020"
     },
     {
       "as_expected": true,
@@ -268,17 +478,17 @@
       "label": "lmsw-keeps-ne",
       "predicted": "stop",
       "probe": "1006",
-      "rtl": "stop @100e.ebx 30 7ffffff0"
+      "rtl": "stop @1006.cr0 30 60050030"
     },
     {
       "as_expected": true,
-      "as_predicted": false,
+      "as_predicted": true,
       "divergence": null,
       "isolated": true,
       "label": "wp-clear-user-readonly",
       "predicted": "stop",
-      "probe": null,
-      "rtl": "agree"
+      "probe": "1034",
+      "rtl": "stop @1039.cr0 e0040031 e0050031"
     },
     {
       "as_expected": true,
@@ -287,7 +497,7 @@
       "isolated": true,
       "label": "wp-set-user-readonly",
       "predicted": "stop",
-      "probe": "1034",
+      "probe": "103e",
       "rtl": "stop @103e.exception e ff"
     },
     {
@@ -297,7 +507,7 @@
       "isolated": true,
       "label": "wp-set-supervisor-readonly",
       "predicted": "stop",
-      "probe": "1034",
+      "probe": "103e",
       "rtl": "stop @103e.exception e ff"
     },
     {
@@ -307,8 +517,8 @@
       "isolated": true,
       "label": "wp-set-writable",
       "predicted": "stop",
-      "probe": "1034",
-      "rtl": "stop @104e.edx 80010011 fffffff1"
+      "probe": "103e",
+      "rtl": "stop @104e.edx e0050031 fffffff1"
     },
     {
       "as_expected": true,
@@ -318,7 +528,7 @@
       "label": "ac-toggle",
       "predicted": "stop",
       "probe": "100f",
-      "rtl": "stop @1011.write.efe 4 0"
+      "rtl": "stop @100f.eflags 40002 2"
     },
     {
       "as_expected": true,
@@ -328,7 +538,7 @@
       "label": "id-toggle",
       "predicted": "stop",
       "probe": "100f",
-      "rtl": "stop @1011.write.efe 20 0"
+      "rtl": "stop @100f.eflags 200002 2"
     },
     {
       "as_expected": true,
@@ -337,8 +547,8 @@
       "isolated": true,
       "label": "ac-fault-dword",
       "predicted": "stop",
-      "probe": "102c",
-      "rtl": "stop @1057.exception 11 ff"
+      "probe": "1046",
+      "rtl": "stop @1046.eflags 40002 2"
     },
     {
       "as_expected": true,
@@ -347,8 +557,8 @@
       "isolated": true,
       "label": "ac-fault-word",
       "predicted": "stop",
-      "probe": "102c",
-      "rtl": "stop @1057.exception 11 ff"
+      "probe": "1046",
+      "rtl": "stop @1046.eflags 40002 2"
     },
     {
       "as_expected": true,
@@ -357,8 +567,8 @@
       "isolated": true,
       "label": "ac-fault-dword-at-2",
       "predicted": "stop",
-      "probe": "102c",
-      "rtl": "stop @1057.exception 11 ff"
+      "probe": "1046",
+      "rtl": "stop @1046.eflags 40002 2"
     },
     {
       "as_expected": true,
@@ -367,8 +577,8 @@
       "isolated": true,
       "label": "ac-fault-push",
       "predicted": "stop",
-      "probe": "102c",
-      "rtl": "stop @1057.exception 11 ff"
+      "probe": "1046",
+      "rtl": "stop @1046.eflags 40002 2"
     },
     {
       "as_expected": true,
@@ -377,8 +587,8 @@
       "isolated": true,
       "label": "ac-aligned",
       "predicted": "stop",
-      "probe": "102c",
-      "rtl": "stop @105c.write.df6 4 0"
+      "probe": "1046",
+      "rtl": "stop @1046.eflags 40002 2"
     },
     {
       "as_expected": true,
@@ -387,8 +597,8 @@
       "isolated": true,
       "label": "ac-byte",
       "predicted": "stop",
-      "probe": "102c",
-      "rtl": "stop @105c.write.df6 4 0"
+      "probe": "1046",
+      "rtl": "stop @1046.eflags 40002 2"
     },
     {
       "as_expected": true,
@@ -397,8 +607,8 @@
       "isolated": true,
       "label": "ac-am-clear",
       "predicted": "stop",
-      "probe": "1046",
-      "rtl": "stop @1052.write.df6 4 0"
+      "probe": "102c",
+      "rtl": "stop @1031.cr0 60010031 60050031"
     },
     {
       "as_expected": true,
@@ -407,7 +617,7 @@
       "isolated": true,
       "label": "ac-flag-clear",
       "predicted": "stop",
-      "probe": "102c",
+      "probe": "104d",
       "rtl": "agree"
     },
     {
@@ -418,7 +628,7 @@
       "label": "ac-cpl0",
       "predicted": "stop",
       "probe": "102c",
-      "rtl": "stop @1044.write.efe 4 0"
+      "rtl": "stop @1034.eflags 40002 2"
     },
     {
       "as_expected": true,
@@ -455,6 +665,26 @@
       "as_predicted": true,
       "divergence": "mov-tr",
       "isolated": true,
+      "label": "mov-tr4",
+      "predicted": "agree",
+      "probe": "1006",
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": "mov-tr",
+      "isolated": true,
+      "label": "mov-tr5",
+      "predicted": "agree",
+      "probe": "1006",
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": "mov-tr",
+      "isolated": true,
       "label": "mov-tr6",
       "predicted": "agree",
       "probe": "1006",
@@ -463,26 +693,436 @@
     {
       "as_expected": true,
       "as_predicted": true,
-      "divergence": "mov-cr4",
+      "divergence": "mov-tr",
       "isolated": true,
-      "label": "mov-cr4-read",
-      "predicted": "stop",
-      "probe": "1000",
-      "rtl": "stop @1000.unexpected-exception 0 6"
+      "label": "mov-tr7",
+      "predicted": "agree",
+      "probe": "1006",
+      "rtl": "agree"
     },
     {
       "as_expected": true,
-      "as_predicted": true,
-      "divergence": "mov-cr4",
+      "as_predicted": false,
+      "divergence": null,
+      "isolated": true,
+      "label": "mov-cr4-read",
+      "predicted": "stop",
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": false,
+      "divergence": null,
       "isolated": true,
       "label": "mov-cr4-write",
       "predicted": "stop",
-      "probe": "1006",
-      "rtl": "stop @1006.vector d 6"
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-xbts",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-ibts",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-xbts-mem",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-0fff",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-ud2",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-0f05",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-rdtsc",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-0fc7",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-fe2",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-fe7-mem",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-ff7",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-ff3-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-ff5-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-les-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lds-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lea-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-bound-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lss-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lfs-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-grp7-5",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-grp7-7-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-sgdt-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lidt-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-grp6-6",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-bt0",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-bt3-mem",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-mov-cr1",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-mov-cr4",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-mov-tr0",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-pop-8f1",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-mov-c6-1",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-mov-c7-7-mem",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-mov-sreg6",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lock-0fff",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lock-fe2-mem",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-prefixed-xbts",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-rep-0f0b",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lock-icebp",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lock-umov-mem",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lock-tr6",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
     }
   ],
-  "cases_sha256": "166a82f148958e079a935b6161ca60a4275b78eb4a5392e7684df07d6e530ed3",
-  "commit": "ed62672ff9f547ef10419be127ffc6a5a93e2b7c",
+  "cases_sha256": "563043ee5f32e6ead19c813d47e1bdaf985479b9d8b3041aed2911dd721ea8b6",
+  "commit": "e9d9d8a2ff0984d6a16a6fd392ff539ee6317308",
   "failures": [],
   "machine_reset_inputs": {
     "init_cr0": "x87_present ? 32'h10 : 32'h0",
@@ -495,17 +1135,18 @@
     "level3_provisioner_sha256": "0d47ce9792ca29ae172335f6f11e6c5dcfa73fbf34b76c89e04d072528f454cd",
     "linked_sha256": {
       "adapter": "0331d57ed896ba6b74dc21e91a9f2ab80880266c0cae1c12a403c9a2abcd28b2",
-      "cpu": "b7ef682c31cf43e29e61239de336b2db9b8c661ac50f9d745d1fee376d3d7b53",
-      "cpudb": "d46944f35fec6ebe9781bc78554e31adc758712f025b49b76fcf718989ce1bbf",
-      "fpu": "f267567c271ef36c371cebf9877721f9e8fdc1a575f6de46ded93b05d1d16c96",
+      "cpu": "1d1b4e784dc4857fb5c741bd994a438e86bbe0000140c4de295deae1b16bbba0",
+      "cpudb": "125b607feb40b485667c37ef3ed045907d4cb3ad193aea843eb2f2707a40b6d0",
+      "fpu": "5e98788105b4bfb95eb38ecca0d6886376dc6f2c58b87fe98e88054fc4210d70",
       "paramtree": "6b8ba5842ba2bfe611cc7268c331fff50214859a164c95895d966de277893e44",
-      "softfloat": "d0d8801ba1b0ea6a3b9e0d24aee1969d40ef1e9612f359b4fdbfaa979c7b570f"
+      "softfloat": "aeecafdd2eb044ad93f0cb1832ea7251886f1cc2a2caa27751e5cad3cb23ee7c"
     },
-    "provisioner_sha256": "8bc3418c3accd8026507fb4b2a9aa077170261ed12799039c82af8546e13e842",
+    "patch_sha256": "555888f73318761fa3f6ab333d7d7326c7a5eb723927cfbe81c3ff8db51c5922",
+    "provisioner_sha256": "77d98a335ba7a239c109f26129df8492965f135a7c7cefc76196070a5f4c7b4c",
     "revision": "30cfd566ecc8deb33e56e801e32b444a7041b6d2"
   },
   "runs_equal": true,
-  "testbench_sha256": "b6aa9cc2d010d6b93c7dd612efe52b0171e138b29f3057a06f0163df8805afe6",
+  "testbench_sha256": "6a9bf03704a609975902a2a92ecb2979538001b17f76ffc3f7cb049691109fdf",
   "verilator": {
     "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
     "install": "1cd6c9741d903760a2b1c4283b6830f63c0974f8478b06fb7f8dabd3c4304d8c",

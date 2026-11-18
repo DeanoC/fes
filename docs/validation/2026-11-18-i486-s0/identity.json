@@ -29,7 +29,7 @@
     "suite_sha256": {
       "base": "af6ff14d6db01fe34991d3c5cf63685e96589677552ba9387188b7975ab61f16",
       "equal": false,
-      "head": "51f042355470dc23d610260bad1e5a199b003cc54169ef0afb36bdd67aaef4e4"
+      "head": "ba8aaa8f27deb14d817f1af1d3392173f74c7a74feed986d223c498e94d26ae7"
     }
   },
   "files": {
@@ -66,7 +66,7 @@
     "cores/fes-common/sim/i386/lockstep_tb.cpp": {
       "base": "b604d34e37919d1e8a62ec4cacd6b4fbea64627ff6afea8998a6c810bfbb0576",
       "equal": false,
-      "head": "b6aa9cc2d010d6b93c7dd612efe52b0171e138b29f3057a06f0163df8805afe6"
+      "head": "6a9bf03704a609975902a2a92ecb2979538001b17f76ffc3f7cb049691109fdf"
     },
     "cores/fes-common/sim/i386/smc_stale.h": {
       "base": "98c0586990cbf42b7516578bfb80fcf82b98863f6414c8418b89c4d5b4ad8358",
@@ -112,6 +112,9 @@
   "files_changed": [
     "docs/validation/2026-11-18-i486-s0/boot.json",
     "docs/validation/2026-11-18-i486-s0/cachechk.json",
+    "docs/validation/2026-11-18-i486-s0/census-compare.json",
+    "docs/validation/2026-11-18-i486-s0/census-equivalence.json",
+    "docs/validation/2026-11-18-i486-s0/census.jsonl",
     "docs/validation/2026-11-18-i486-s0/expected-stops.json",
     "docs/validation/2026-11-18-i486-s0/identity.json",
     "docs/validation/2026-11-18-i486-s0/level3-compare.json",
@@ -122,12 +125,14 @@
     "docs/validation/2026-11-18-i486-s0/summary_text.py",
     "scripts/affected.py",
     "sources/misteross/cores/fes-common/sim/i386/README.md",
+    "sources/misteross/cores/fes-common/sim/i386/bochs/level4-no-cr4.patch",
     "sources/misteross/cores/fes-common/sim/i386/bochs_oracle.cpp",
     "sources/misteross/cores/fes-common/sim/i386/i486-expected-stops.txt",
     "sources/misteross/cores/fes-common/sim/i386/i486_tb.cpp",
     "sources/misteross/cores/fes-common/sim/i386/lockstep_tb.cpp",
     "sources/misteross/cores/fes-pc386/sim/census.h",
     "sources/misteross/cores/fes-pc386/sim/machine_tb.cpp",
+    "sources/misteross/docs/pc386-game-drives.md",
     "sources/misteross/scripts/fes_i486_cases.py",
     "sources/misteross/scripts/fes_i486_oracle.py",
     "sources/misteross/scripts/sim_fes_pc386.py",
@@ -135,7 +140,7 @@
     "sources/misteross/tests/test_fes_i486_oracle.py",
     "tests/test_affected.py"
   ],
-  "head": "7ceb35e6d041bb7864dd8e9fa6b79d6fe8292c37",
+  "head": "e9d9d8a2ff0984d6a16a6fd392ff539ee6317308",
   "may_change": [
     "cores/fes-common/sim/i386/bochs_oracle.cpp",
     "cores/fes-common/sim/i386/lockstep_tb.cpp"
