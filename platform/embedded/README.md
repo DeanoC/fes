@@ -1,19 +1,23 @@
 # Embedded FES base
 
-The [USB pre-Park drain repair](../../docs/validation/2026-11-18-de25-usb-pre-park-drain/README.md)
-passes the native/USB race suites, real App models, observer rejection tests and
-all eight affected software checks. The fresh hardware test runs ZX81, then
-stops during MENU return with `configuration already completed`, after successful
-firmware proof/retirement/continuation. Final USB shutdown remains unreached and
-unqualified. The original FIT is restored and independently verified without
-power cycling. Ownership checks and all existing limits remain unchanged.
+The [completion-cause and fresh-read hashing repair](../../docs/validation/2026-11-18-de25-completion-cost/README.md) reproduces
+the masked `configuration already completed` failure in a fresh diagnostic:
+a native 25-second deadline expires at 25.018012418 seconds after firmware
+completion.
+Both configuration owners now preserve and latch the original rejection. Fresh
+private-scratch SHA256/SHA384 checks retain every whole-image/chunk read and
+ownership check while reducing work against uncached source memory. No time
+limit or firmware/driver ownership policy changes.
 
-The preceding [25-second source-budget trial](../../docs/validation/2026-11-18-de25-source-budget25/README.md)
-completed both core launch/returns, then failed at final USB close. The new
-repair drains input before synchronous MENU Park work. Current off-board
-reproduction shows how a post-completion clock rejection can be masked;
-the physical trace does not retain its original reason or measured duration.
-Normal HIL and full failure/display/input coverage remain open. Older figures
+The fresh `838ac5b48` TRWU8CBL serial test completes five configurations, both
+ZX81/ZX80 launch-returns and final USB inactive Stop/Park. Input stays paused
+through final MENU closure. Exact original-FIT restoration and independent
+raw-trace/cleanup replay pass without power cycling. The earlier diagnostic
+remains failed and retained; current artifacts use `838ac5b48`, with later
+docs-only delivery. All eight affected software checks, the native race suite,
+matched boot chain and source-bound file admission pass. Ordinary J8G HIL,
+physical display/input and full repeated/failure/reset/DMA qualification remain
+open. PR #1952 stays draft/`lane:deano`; issue #1867 stays open. Older figures
 below describe historical profiles and consumed procedures.
 
 The [fresh final-validation cost trial](../../docs/validation/2026-11-18-de25-final-cost-physical/README.md) completes initial MENU,
