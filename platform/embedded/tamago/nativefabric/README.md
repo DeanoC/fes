@@ -1,11 +1,10 @@
 # Native contained-fabric endpoint
 
-The [25-second source budget](../../../../docs/validation/2026-11-18-de25-source-budget25/README.md) deliberately replaces the
-enclosing 20-second policy for the native experiment. Firmware, native
-computer/MENU services, sealed manifests and trace validation agree; all
-shorter phase limits, ownership checks and the original clock origin remain.
-Validation and a fresh bounded hardware cycle are pending. The historical
-20-second trial below remains failed and consumed.
+The [25-second source budget](../../../../docs/validation/2026-11-18-de25-source-budget25/README.md) now passes all affected
+software checks and matched file admission. All five configurations and both core launch/returns complete; final USB shutdown panics on a DWC2 packet timeout. Final Park/quiescence remains unverified. Exact original-FIT restoration passes without power cycling.
+All shorter phase limits, ownership checks and the original clock origin remain.
+Normal HIL and full failure/physical display/input coverage remain open. Earlier
+20-second figures below record historical profiles and failed procedures.
 
 The [fresh final-validation cost trial](../../../../docs/validation/2026-11-18-de25-final-cost-physical/README.md) completes initial MENU,
 ZX81 with tape, both releases and full next-MENU configuration, then
