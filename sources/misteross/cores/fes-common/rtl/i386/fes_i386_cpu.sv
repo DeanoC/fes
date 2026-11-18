@@ -135,7 +135,7 @@ module fes_i386_cpu #(
     input  logic             reset,
     input  logic [7:0][31:0] init_gpr,
     input  logic [31:0]      init_eflags,
-    input  logic [31:0]      init_cr0,     // of which this build holds PE, MP, EM, TS, ET and PG
+    input  logic [31:0]      init_cr0,     // of which this build holds PE, MP, EM, TS, ET and PG; with i486 CD, NW, AM, WP, NE
     input  logic [31:0]      init_cr2,
     input  logic [31:0]      init_cr3,
     input  logic [3:0][31:0] init_dr,      // DR0-DR3
@@ -3395,8 +3395,6 @@ module fes_i386_cpu #(
         trace_exception <= 1'b0;
         if (reset) begin
             gpr <= init_gpr;
-            // A 486SX's reset signature in DX (data book Table 9-9).
-            if (i486) gpr[2] <= 32'h0000_0427;
             eflags <= {init_eflags[21:2], 1'b1, init_eflags[0]};
             eip <= init_eip;
             cpl <= !init_cr0[0] ? 2'd0 : init_eflags[17] ? 2'd3 : init_sel[SEG_CS][1:0];
@@ -3406,8 +3404,9 @@ module fes_i386_cpu #(
             cr0_ts <= init_cr0[3];
             cr0_et <= init_cr0[4];
             cr0_pg <= init_cr0[31];
-            // A 486's CR0 resets to 60000010h: CD and NW set (data book Table 9-8).
-            {cr0_cd, cr0_nw, cr0_am, cr0_wp, cr0_ne} <= {i486, i486, 3'b000};
+            // The i486 identity's bits; a 486 resets to 60000010h, CD and NW
+            // set (data book Table 9-8), which the machine passes in init_cr0.
+            {cr0_cd, cr0_nw, cr0_am, cr0_wp, cr0_ne} <= {5{i486}} & {init_cr0[30:29], init_cr0[18], init_cr0[16], init_cr0[5]};
             cr2 <= init_cr2;
             cr3 <= init_cr3;
             dr <= init_dr;

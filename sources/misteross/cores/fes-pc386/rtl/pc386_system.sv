@@ -489,9 +489,12 @@ module pc386_system #(
         // FFFFh. The GPRs' zero is sized: an unsized '0 on a
         // parameterised cell's port asserts in the lock's Yosys under
         // hierarchy -chparam (DeanoC/yosys#71).
-        .init_gpr(256'd0), .init_eflags(32'h2), .init_cr0(x87_present ? 32'h10 : 32'h0),
+        // The i486 identity's reset: DX a 486SX's signature (data book Table
+        // 9-9), CR0 60000010h (Table 9-8), DR6 bit 12 clear (PRM Table 10-1).
+        .init_gpr(cpu_i486 ? {160'd0, 32'h0000_0427, 64'd0} : 256'd0), .init_eflags(32'h2),
+        .init_cr0(cpu_i486 ? 32'h6000_0010 : x87_present ? 32'h10 : 32'h0),
         .init_cr2(32'h0), .init_cr3(32'h0),
-        .init_dr(128'd0), .init_dr6(32'hffff1ff0), .init_dr7(32'h400),
+        .init_dr(128'd0), .init_dr6(cpu_i486 ? 32'hffff0ff0 : 32'hffff1ff0), .init_dr7(32'h400),
         .init_gdtr_base(32'h0), .init_gdtr_limit(16'hffff), .init_idtr_base(32'h0), .init_idtr_limit(16'hffff),
         .init_eip(32'hfff0),
         .init_sel({16'h0, 16'h0, 16'h0, 16'h0, 16'hf000, 16'h0}),
