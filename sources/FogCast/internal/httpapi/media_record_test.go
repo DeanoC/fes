@@ -142,3 +142,53 @@ func TestSavedMediaRecordValidity(t *testing.T) {
 		}
 	}
 }
+
+func TestSavedMediaRecordBatch(t *testing.T) {
+	c := &mediaRecordHTTPController{}
+	handler := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithDevelopment(c))
+	send := func(body string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodPost, "/v1/library/media/records", strings.NewReader(body))
+		r.Header.Set("Authorization", "Bearer bearer")
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		return w
+	}
+	ids := []protocol.MediaRecordIdentity{
+		{CoreID: "fes.atari-st", GameID: "one", BaseMediaID: strings.Repeat("a", 64)},
+		{CoreID: "fes.atari-st", GameID: "two", BaseMediaID: strings.Repeat("a", 64)},
+	}
+	body, _ := json.Marshal(map[string]any{"records": ids})
+	w := send(string(body))
+	var got struct {
+		Records []protocol.MediaRecord `json:"records"`
+	}
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &got) != nil || len(got.Records) != 2 ||
+		len(c.inspected) != 2 || c.inspected[0] != ids[0] || c.inspected[1] != ids[1] {
+		t.Fatalf("batch %d %s %+v", w.Code, w.Body, c.inspected)
+	}
+	many := make([]protocol.MediaRecordIdentity, protocol.MaxMediaRecordBatch+1)
+	for i := range many {
+		many[i] = ids[0]
+	}
+	tooMany, _ := json.Marshal(map[string]any{"records": many})
+	bad := ids[1]
+	bad.Unit = 1
+	oneBad, _ := json.Marshal(map[string]any{"records": []protocol.MediaRecordIdentity{ids[0], bad}})
+	for name, body := range map[string]string{
+		"empty": `{"records":[]}`, "none": `{}`, "too many": string(tooMany), "one bad": string(oneBad),
+		"unknown field": `{"records":[],"extra":1}`,
+	} {
+		if w = send(body); w.Code != 400 {
+			t.Fatalf("%s admitted: %d", name, w.Code)
+		}
+	}
+	if len(c.inspected) != 2 {
+		t.Fatalf("invalid batch dispatched: %d", len(c.inspected))
+	}
+	// One refused inspection fails the whole answer rather than shortening it.
+	c.err = &protocol.APIError{Code: protocol.CodeBusy, Message: "runtime is busy"}
+	if w = send(string(body)); w.Code == 200 || !strings.Contains(w.Body.String(), "BUSY") {
+		t.Fatalf("busy batch %d %s", w.Code, w.Body)
+	}
+}

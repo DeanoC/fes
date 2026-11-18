@@ -21,6 +21,53 @@ func (c *Client) InspectMediaRecord(ctx context.Context, id protocol.MediaRecord
 	return c.mediaRecord(ctx, "/v1/library/media/record", id)
 }
 
+// InspectMediaRecords reports what the kit has saved for each identity, in
+// the order asked. It changes nothing, so it needs no kit lease.
+func (c *Client) InspectMediaRecords(ctx context.Context, ids []protocol.MediaRecordIdentity) ([]protocol.MediaRecord, error) {
+	if len(ids) == 0 || len(ids) > protocol.MaxMediaRecordBatch {
+		return nil, errMediaRecordRequest
+	}
+	for _, id := range ids {
+		if !id.Valid() {
+			return nil, errMediaRecordRequest
+		}
+	}
+	body, err := json.Marshal(struct {
+		Records []protocol.MediaRecordIdentity `json:"records"`
+	}{ids})
+	if err != nil {
+		return nil, err
+	}
+	r, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint("/v1/library/media/records", nil).String(), bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	r.Header.Set("Authorization", "Bearer "+c.token)
+	r.Header.Set("Content-Type", "application/json")
+	response, err := c.httpClient.Do(r)
+	if err != nil {
+		if response != nil && response.Body != nil {
+			response.Body.Close()
+		}
+		return nil, newTransferError(err)
+	}
+	defer response.Body.Close()
+	var result struct {
+		Records []protocol.MediaRecord `json:"records"`
+	}
+	if err = decodeResponse(response, &result); err != nil {
+		return nil, err
+	}
+	invalid := len(result.Records) != len(ids)
+	for i := 0; !invalid && i < len(result.Records); i++ {
+		invalid = !result.Records[i].Valid()
+	}
+	if invalid {
+		return nil, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "saved media response is invalid", Phase: "recovery"}
+	}
+	return result.Records, nil
+}
+
 // DiscardMediaRecord removes one library disk's saved record. The record
 // must still have d.ExpectedRevision. Like a settings change it takes the
 // kit lease for the request when this client does not already hold it, and

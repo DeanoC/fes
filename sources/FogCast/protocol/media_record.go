@@ -28,6 +28,9 @@ func (d MediaRecordDiscard) Valid() bool {
 	return d.MediaRecordIdentity.Valid() && ValidateDigest(d.ExpectedRevision) == nil
 }
 
+// MaxMediaRecordBatch bounds one batched inspection.
+const MaxMediaRecordBatch = 256
+
 const (
 	MediaRecordAbsent  = "absent"
 	MediaRecordPresent = "present"

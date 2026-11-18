@@ -120,6 +120,44 @@ func registerMediaDataRoutes(mux *http.ServeMux, token string, controller Develo
 			writeJSON(w, 200, record)
 		}))))
 	}
+	// Several identities in one request, answered in the same order, so a
+	// disk shelf costs one round trip. It changes nothing.
+	mux.Handle("/v1/library/media/records", authenticate(token, exactMethod(http.MethodPost, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 128<<10)
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+		var request struct {
+			Records []protocol.MediaRecordIdentity `json:"records"`
+		}
+		valid := exactContentType(r, "application/json") && len(r.TransferEncoding) == 0 &&
+			decoder.Decode(&request) == nil && decoder.Decode(&struct{}{}) == io.EOF &&
+			len(request.Records) > 0 && len(request.Records) <= protocol.MaxMediaRecordBatch
+		for i := 0; valid && i < len(request.Records); i++ {
+			valid = request.Records[i].Valid()
+		}
+		if !valid {
+			writeBadRequest(w, r, "saved media request is invalid")
+			return
+		}
+		c, ok := controller.(mediaRecordController)
+		if !ok {
+			writeAPIError(w, 400, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"})
+			return
+		}
+		records := make([]protocol.MediaRecord, 0, len(request.Records))
+		for _, id := range request.Records {
+			record, e := c.InspectMediaRecord(r.Context(), id)
+			if e != nil {
+				setRequestError(r, e.Code)
+				writeAPIError(w, statusForError(e.Code), e)
+				return
+			}
+			records = append(records, record)
+		}
+		writeJSON(w, 200, struct {
+			Records []protocol.MediaRecord `json:"records"`
+		}{records})
+	}))))
 	mux.Handle("/v1/zx81-tape/capture", authenticate(token, exactMethod(http.MethodPost, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		binding, valid := protocol.MediaUnitHeaders(r.Header)
 		r.Body = http.MaxBytesReader(w, r.Body, 1)
