@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/DeanoC/FogCast/atarist"
 	"github.com/DeanoC/FogCast/catalog"
@@ -25,7 +26,9 @@ const (
 
 // AtariStShelfDisk is one library disk on the Atari ST shelf. Made is true
 // for a disk a person made here, a new blank disk or a copy. KeptRevision
-// names the saved changes a later discard or delete must still find.
+// names what the kit has saved for the disk, which a later change must
+// still find. A kit saves a disk at Stop whether or not it was written to,
+// so a disk can have a KeptRevision and Kept "none".
 type AtariStShelfDisk struct {
 	GameID       string `json:"game_id"`
 	Title        string `json:"title"`
@@ -78,13 +81,14 @@ type shelfKit struct {
 }
 
 var (
-	errShelfDisk      = &protocol.APIError{Code: protocol.CodeBadRequest, Message: "that is not an Atari ST shelf disk", Phase: "request"}
-	errShelfName      = &protocol.APIError{Code: protocol.CodeBadRequest, Message: "a game or disk already has that name", Phase: "request"}
-	errShelfInDrive   = &protocol.APIError{Code: protocol.CodeBusy, Message: "the disk is in the drive; stop the computer first", Phase: "admission"}
-	errShelfDamaged   = &protocol.APIError{Code: protocol.CodeIncompatibleData, Message: "the disk's saved changes are damaged and cannot be copied", Phase: "core_data"}
-	errShelfChanged   = &protocol.APIError{Code: protocol.CodeStaleRevision, Message: "the disk's saved changes are not the ones shown; refresh and retry", Phase: "core_data"}
-	errShelfNotMade   = &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "only a disk made here can be renamed or deleted", Phase: "request"}
-	errShelfNoChanges = &protocol.APIError{Code: protocol.CodeStaleRevision, Message: "the disk has no saved changes", Phase: "core_data"}
+	errShelfDisk       = &protocol.APIError{Code: protocol.CodeBadRequest, Message: "that is not an Atari ST shelf disk", Phase: "request"}
+	errShelfName       = &protocol.APIError{Code: protocol.CodeBadRequest, Message: "a game or disk already has that name", Phase: "request"}
+	errShelfKitRunning = &protocol.APIError{Code: protocol.CodeBusy, Message: "stop the running computer before discarding saved changes", Phase: "admission"}
+	errShelfInDrive    = &protocol.APIError{Code: protocol.CodeBusy, Message: "the disk is in the drive; stop the computer first", Phase: "admission"}
+	errShelfDamaged    = &protocol.APIError{Code: protocol.CodeIncompatibleData, Message: "the disk's saved changes are damaged and cannot be copied", Phase: "core_data"}
+	errShelfChanged    = &protocol.APIError{Code: protocol.CodeStaleRevision, Message: "the disk's saved changes are not the ones shown; refresh and retry", Phase: "core_data"}
+	errShelfNotMade    = &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "only a disk made here can be renamed or deleted", Phase: "request"}
+	errShelfNoChanges  = &protocol.APIError{Code: protocol.CodeStaleRevision, Message: "the disk has no saved changes", Phase: "core_data"}
 )
 
 // shelfKit resolves the kit whose saved changes this request is about: the
@@ -123,7 +127,11 @@ func shelfIdentity(entry catalog.CoreEntry) protocol.MediaRecordIdentity {
 func shelfKept(record protocol.MediaRecord) (string, string) {
 	switch record.State {
 	case protocol.MediaRecordPresent:
-		return ShelfKeptChanges, record.Revision
+		if record.Changed {
+			return ShelfKeptChanges, record.Revision
+		}
+		// Saved at Stop without a write: the image is still the original.
+		return ShelfKeptNone, record.Revision
 	case protocol.MediaRecordCorrupt:
 		return ShelfKeptDamaged, record.Revision
 	}
@@ -149,15 +157,37 @@ func (s *Service) hostPlaysGame(gameID string) bool {
 	return false
 }
 
-func statusPlaysGame(status protocol.Status, gameID string) bool {
-	return status.GameID != nil && *status.GameID == gameID
+// statusHoldsDisk reports a disk the kit has in a drive: the game it
+// launched, or a library disk inserted into a running session, which binds
+// the drive to that disk's game whatever the session's game is.
+func statusHoldsDisk(status protocol.Status, gameID string) bool {
+	if status.GameID != nil && *status.GameID == gameID {
+		return true
+	}
+	if status.CorePackage == nil {
+		return false
+	}
+	for _, unit := range status.CorePackage.MediaUnits {
+		if unit.Persistence != nil && unit.Persistence.GameID == gameID {
+			return true
+		}
+	}
+	return false
 }
 
 // AtariStShelf lists the disks made here and the game disks with saved
-// changes. It changes nothing and does not wait for a launch to finish.
+// changes. It changes nothing. The kit is asked under lifecycle admission,
+// like every other target read; when a launch or stop holds admission
+// beyond the request timeout, the shelf answers with saved changes unknown.
 func (s *Service) AtariStShelf(parent context.Context) (AtariStShelf, error) {
 	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
 	defer cancel()
+	wait, stopWaiting := serviceTimeout(ctx, max(s.requestTimeout, time.Second))
+	release, admitErr := s.acquireLifecycle(wait)
+	stopWaiting()
+	if admitErr == nil {
+		defer release()
+	}
 	marks, ok := s.catalog.(shelfDiskCatalog)
 	if !ok {
 		return AtariStShelf{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
@@ -179,7 +209,7 @@ func (s *Service) AtariStShelf(parent context.Context) (AtariStShelf, error) {
 	shelf := AtariStShelf{Disks: []AtariStShelfDisk{}}
 	records := map[string]protocol.MediaRecord{}
 	var running protocol.Status
-	if kit, err := s.shelfKit(ctx); err == nil {
+	if kit, err := s.shelfKit(ctx); admitErr == nil && err == nil {
 		shelf.Target, shelf.TargetID, shelf.KeptKnown = kit.target, kit.targetID, true
 		var ids []protocol.MediaRecordIdentity
 		for _, entry := range entries {
@@ -206,7 +236,7 @@ func (s *Service) AtariStShelf(parent context.Context) (AtariStShelf, error) {
 		disk := AtariStShelfDisk{
 			GameID: entry.GameID, Title: entry.Title, PackageID: entry.PackageID, MediaID: entry.MediaID,
 			Made: isMade, Kept: ShelfKeptUnknown,
-			InDrive: s.hostPlaysGame(entry.GameID) || statusPlaysGame(running, entry.GameID),
+			InDrive: s.hostPlaysGame(entry.GameID) || statusHoldsDisk(running, entry.GameID),
 		}
 		if shelf.KeptKnown {
 			disk.Kept, disk.KeptRevision = shelfKept(records[entry.GameID])
@@ -351,6 +381,7 @@ type shelfDisk struct {
 	entry  catalog.CoreEntry
 	made   bool
 	kit    shelfKit
+	status protocol.Status
 	record protocol.MediaRecord
 }
 
@@ -381,7 +412,7 @@ func (s *Service) shelfDiskLocked(ctx context.Context, gameID string) (shelfDisk
 	if err != nil {
 		return shelfDisk{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
-	if s.hostPlaysGame(gameID) || statusPlaysGame(status, gameID) {
+	if s.hostPlaysGame(gameID) || statusHoldsDisk(status, gameID) {
 		return shelfDisk{}, errShelfInDrive
 	}
 	record, err := kit.records.InspectMediaRecord(ctx, id)
@@ -389,7 +420,7 @@ func (s *Service) shelfDiskLocked(ctx context.Context, gameID string) (shelfDisk
 		return shelfDisk{}, canonicalCoreDataError(err)
 	}
 	_, isMade := made[gameID]
-	return shelfDisk{entry: entry, made: isMade, kit: kit, record: record}, nil
+	return shelfDisk{entry: entry, made: isMade, kit: kit, status: status, record: record}, nil
 }
 
 func (d shelfDisk) view(size int64) AtariStShelfDisk {
@@ -400,8 +431,8 @@ func (d shelfDisk) view(size int64) AtariStShelfDisk {
 	}
 }
 
-// revisionMatches holds a caller to the saved changes it was shown. An
-// empty expectation means "no saved changes".
+// revisionMatches holds a caller to the saved record it was shown. An
+// empty expectation means the kit had saved nothing.
 func (d shelfDisk) revisionMatches(expected string) bool {
 	if d.record.State == protocol.MediaRecordAbsent {
 		return expected == ""
@@ -417,10 +448,10 @@ func (s *Service) copyShelfDiskLocked(ctx context.Context, source shelfDisk, tit
 		return AtariStShelfDisk{}, err
 	}
 	mediaID := source.entry.MediaID
-	switch source.record.State {
-	case protocol.MediaRecordCorrupt:
+	switch {
+	case source.record.State == protocol.MediaRecordCorrupt:
 		return AtariStShelfDisk{}, errShelfDamaged
-	case protocol.MediaRecordPresent:
+	case source.record.State == protocol.MediaRecordPresent && source.record.Changed:
 		image, err := source.kit.records.ExportMediaRecord(ctx, protocol.MediaRecordDiscard{
 			MediaRecordIdentity: shelfIdentity(source.entry), ExpectedRevision: source.record.Revision,
 		})
@@ -467,17 +498,29 @@ func (s *Service) copyShelfDiskLocked(ctx context.Context, source shelfDisk, tit
 	}, nil
 }
 
-// Caller holds lifecycle admission. The kit's saved changes go first: an
-// entry removed while they remain would leave them where nothing reaches.
-func (s *Service) deleteShelfDiskLocked(ctx context.Context, disk shelfDisk) error {
-	store, ok := s.catalog.(removableCoreEntryCatalog)
-	if !ok || s.users == nil {
+// deletableShelfDisk asks, before anything changes, what deleting the disk
+// will need: an entry the library can remove, and an idle kit when there is
+// a saved record to discard.
+func (s *Service) deletableShelfDisk(ctx context.Context, disk shelfDisk) error {
+	if _, ok := s.catalog.(removableCoreEntryCatalog); !ok || s.users == nil {
 		return canonicalError(protocol.CodeUnsupportedOperation, nil)
 	}
-	// Ask what entry removal will ask before anything is discarded.
 	if err := s.checkRemovalTargets(ctx, disk.entry.GameID); err != nil {
 		return err
 	}
+	if disk.record.State != protocol.MediaRecordAbsent && disk.status.State != protocol.StateIdle {
+		return errShelfKitRunning
+	}
+	return nil
+}
+
+// Caller holds lifecycle admission. The kit's saved changes go first: an
+// entry removed while they remain would leave them where nothing reaches.
+func (s *Service) deleteShelfDiskLocked(ctx context.Context, disk shelfDisk) error {
+	if err := s.deletableShelfDisk(ctx, disk); err != nil {
+		return err
+	}
+	store := s.catalog.(removableCoreEntryCatalog)
 	if disk.record.State != protocol.MediaRecordAbsent {
 		if _, err := disk.kit.records.DiscardMediaRecord(ctx, protocol.MediaRecordDiscard{
 			MediaRecordIdentity: shelfIdentity(disk.entry), ExpectedRevision: disk.record.Revision,
@@ -525,6 +568,9 @@ func (s *Service) RevertAtariStShelfDisk(parent context.Context, gameID, expecte
 		if !disk.revisionMatches(expectedRevision) {
 			return AtariStShelfDisk{}, errShelfChanged
 		}
+		if disk.status.State != protocol.StateIdle {
+			return AtariStShelfDisk{}, errShelfKitRunning
+		}
 		record, err := disk.kit.records.DiscardMediaRecord(ctx, protocol.MediaRecordDiscard{
 			MediaRecordIdentity: shelfIdentity(disk.entry), ExpectedRevision: expectedRevision,
 		})
@@ -558,6 +604,10 @@ func (s *Service) RenameAtariStShelfDisk(parent context.Context, gameID, expecte
 				return AtariStShelfDisk{}, err
 			}
 			return disk.view(media.Size), nil
+		}
+		// Nothing is copied unless the old disk can then be deleted.
+		if err := s.deletableShelfDisk(ctx, disk); err != nil {
+			return AtariStShelfDisk{}, err
 		}
 		renamed, err := s.copyShelfDiskLocked(ctx, disk, title)
 		if err != nil {

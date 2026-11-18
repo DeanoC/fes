@@ -38,11 +38,15 @@ func (c *shelfKitClient) record(id protocol.MediaRecordIdentity) protocol.MediaR
 	if !ok {
 		return protocol.MediaRecord{State: protocol.MediaRecordAbsent, Revision: "absent"}
 	}
-	state := protocol.MediaRecordPresent
 	if c.corrupt[id] {
-		state = protocol.MediaRecordCorrupt
+		return protocol.MediaRecord{State: protocol.MediaRecordCorrupt, Revision: savedRevision(image), Bytes: int64(len(image)) + 173}
 	}
-	return protocol.MediaRecord{State: state, Revision: savedRevision(image), Bytes: int64(len(image)) + 173}
+	// As on a kit: changed means the saved image is not the base image.
+	sum := sha256.Sum256(image)
+	return protocol.MediaRecord{
+		State: protocol.MediaRecordPresent, Revision: savedRevision(image), Bytes: int64(len(image)) + 173,
+		Changed: hex.EncodeToString(sum[:]) != id.BaseMediaID,
+	}
 }
 
 func (c *shelfKitClient) InspectMediaRecord(_ context.Context, id protocol.MediaRecordIdentity) (protocol.MediaRecord, error) {
@@ -77,6 +81,10 @@ func (c *shelfKitClient) ExportMediaRecord(_ context.Context, d protocol.MediaRe
 func (c *shelfKitClient) DiscardMediaRecord(_ context.Context, d protocol.MediaRecordDiscard) (protocol.MediaRecord, error) {
 	if c.fail != nil {
 		return protocol.MediaRecord{}, c.fail
+	}
+	// As on a kit: nothing is discarded while a core runs.
+	if c.statusResult.State != protocol.StateIdle {
+		return protocol.MediaRecord{}, &protocol.APIError{Code: protocol.CodeBusy, Message: "stop the running core before discarding saved media"}
 	}
 	if c.record(d.MediaRecordIdentity).Revision != d.ExpectedRevision {
 		return protocol.MediaRecord{}, &protocol.APIError{Code: protocol.CodeStaleRevision, Message: "saved media changed"}
@@ -233,7 +241,18 @@ func TestAtariStShelfListsMadeDisksAndGameDisksWithChanges(t *testing.T) {
 	if _, err := f.s.NewAtariStShelfDisk(ctx, AtariStShelfNew{Title: "Odd", PackageID: f.pkg, Tracks: 40, Heads: 1, Sectors: 9}); apiCode(err) != protocol.CodeBadRequest {
 		t.Fatalf("bad geometry: %v", err)
 	}
-	revision := f.write(f.game, append([]byte(nil), f.gameRaw...))
+	// A game that was only played is saved at Stop with its image unchanged.
+	// It has a saved record and is still not on the shelf.
+	unwritten := f.write(f.game, append([]byte(nil), f.gameRaw...))
+	if shelf := f.list(t); len(shelf.Disks) != 3 {
+		t.Fatalf("a played, unwritten game disk is on the shelf: %+v", shelf)
+	}
+	if _, err := f.s.RevertAtariStShelfDisk(ctx, f.game.GameID, unwritten); err != nil {
+		t.Fatalf("discarding an unchanged record: %v", err)
+	}
+	played := append([]byte(nil), f.gameRaw...)
+	played[9000] = 0x17
+	revision := f.write(f.game, played)
 	shelf := f.list(t)
 	if len(shelf.Disks) != 4 || f.kit.batches < 2 {
 		t.Fatalf("shelf %+v", shelf)
@@ -263,7 +282,31 @@ func TestAtariStShelfListsMadeDisksAndGameDisksWithChanges(t *testing.T) {
 			t.Fatalf("in drive %+v", disk)
 		}
 	}
+	// So is a disk inserted into another game's session: the drive is bound
+	// to the disk, not to the game that was launched.
+	f.kit.statusResult = protocol.Status{State: protocol.StateActive, GameID: &f.game.GameID, CorePackage: &protocol.CorePackageStatus{
+		MediaUnits: []protocol.MediaUnitStatus{{Persistence: &protocol.MediaDataStatus{Mode: "persistent", GameID: other.GameID, BaseMediaID: other.MediaID, Revision: "absent"}}},
+	}}
+	inDrive := map[string]bool{}
+	for _, disk := range f.list(t).Disks {
+		inDrive[disk.GameID] = disk.InDrive
+	}
+	if !inDrive[other.GameID] || !inDrive[f.game.GameID] || inDrive[work.GameID] {
+		t.Fatalf("in drive with a swapped disk: %v", inDrive)
+	}
+	if _, err := f.s.CopyAtariStShelfDisk(ctx, other.GameID, "Mid session"); apiCode(err) != protocol.CodeBusy {
+		t.Fatalf("copy of the inserted disk: %v", err)
+	}
 	f.kit.statusResult = protocol.Status{State: protocol.StateIdle}
+	// A launch or stop that holds admission leaves the kit unasked.
+	release, err := f.s.acquireLifecycle(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if held := f.list(t); held.KeptKnown || len(held.Disks) != 3 {
+		t.Fatalf("shelf during a launch: %+v", held)
+	}
+	release()
 	// A kit that cannot be asked leaves saved changes unknown, never "none":
 	// only the disks made here are listed.
 	f.kit.fail = &protocol.APIError{Code: protocol.CodeBusy, Message: "runtime is busy"}
@@ -402,6 +445,20 @@ func TestAtariStShelfRenameKeepsTheDisk(t *testing.T) {
 	if _, err := f.s.CoreEntry(ctx, work.GameID); err != nil || len(f.kit.saved) != 1 {
 		t.Fatalf("a refused rename changed the disk: %v", err)
 	}
+	// Saved changes cannot be discarded while a core runs, so a rename then
+	// is refused before anything is copied.
+	elsewhere := f.game.GameID
+	f.kit.statusResult = protocol.Status{State: protocol.StateActive, GameID: &elsewhere}
+	if _, err := f.s.RenameAtariStShelfDisk(ctx, work.GameID, revision, "Letters"); apiCode(err) != protocol.CodeBusy {
+		t.Fatalf("rename while a core runs: %v", err)
+	}
+	if err := f.s.DeleteAtariStShelfDisk(ctx, work.GameID, revision); apiCode(err) != protocol.CodeBusy {
+		t.Fatalf("delete while a core runs: %v", err)
+	}
+	if shelf := f.list(t); len(shelf.Disks) != 1 || shelf.Disks[0].GameID != work.GameID || len(f.kit.saved) != 1 {
+		t.Fatalf("a refused rename left a second disk: %+v", shelf)
+	}
+	f.kit.statusResult = protocol.Status{State: protocol.StateIdle}
 	renamed, err := f.s.RenameAtariStShelfDisk(ctx, work.GameID, revision, "Letters")
 	if err != nil {
 		t.Fatal(err)

@@ -767,7 +767,7 @@ is not overwritten.
 ### The Atari ST disk shelf
 
 The shelf is the Atari ST disks a person made on the kit, plus the game disks
-that have saved changes. A game disk with no saved changes is not on it.
+that have saved changes. A game disk that was only played is not on it.
 Saved changes live on a kit, not in the host library, so the shelf is read
 for one kit: the session's target, or the selected one.
 
@@ -778,9 +778,11 @@ for one kit: the session's target, or the selected one.
 - `made` is true for a new blank disk or a copy.
 - `kept` is `none`, `changes`, `damaged` or `unknown`. `damaged` is a saved
   record the kit cannot read.
-- `kept_revision` names the saved changes. Send it back as
-  `expected_revision` when changing that disk; send an empty string for a
-  disk with `kept` `none`.
+- `kept_revision` names what the kit has saved for the disk. Send it back
+  as `expected_revision` when changing that disk, or an empty string when
+  the disk has none. The kit saves a disk at Stop whether or not it was
+  written to, so a disk can have a `kept_revision` while `kept` is `none`:
+  its saved image is still its original.
 - `in_drive` is true for the disk the kit is running.
 
 When the kit cannot be asked (it is away, busy, or runs software older than
@@ -800,9 +802,13 @@ Rules that hold for every change:
 - The kit is asked first. If it cannot answer, the request fails and nothing
   changes; unknown is never treated as "no saved changes".
 - A disk in the drive is refused with `BUSY`. Its saved record is older than
-  what the running computer holds. Stop the computer first.
-- Discarding saved changes needs an idle kit, so revert, delete, and a rename
-  of a disk with saved changes are refused with `BUSY` while any core runs.
+  what the running computer holds. Stop the computer first. A library disk
+  inserted into another game's session is in the drive too.
+- Discarding a saved record needs an idle kit. Revert, and delete or rename
+  of a disk with a `kept_revision`, are refused with `BUSY` while any core
+  runs, before anything is copied or removed.
+- The list waits its turn behind a launch or stop for the request timeout;
+  past that it answers as if the kit could not be asked.
 - `expected_revision` must match what the kit holds, or the answer is
   `STALE_REVISION`.
 - A name another Atari ST title already has is refused with `BAD_REQUEST`.

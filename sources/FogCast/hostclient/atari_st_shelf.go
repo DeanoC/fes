@@ -20,8 +20,9 @@ const (
 )
 
 // AtariStShelfDisk is one library disk on the Atari ST shelf. Made is true
-// for a disk made here, a new blank disk or a copy. KeptRevision names its
-// saved changes; pass it back to revert, rename or delete the disk.
+// for a disk made here, a new blank disk or a copy. KeptRevision names what
+// the kit has saved for it, and may be set while Kept is "none"; pass it
+// back as it is to revert, rename or delete the disk.
 type AtariStShelfDisk struct {
 	GameID       string `json:"game_id"`
 	Title        string `json:"title"`
@@ -50,8 +51,11 @@ func validShelfDisk(disk AtariStShelfDisk) bool {
 		return false
 	}
 	switch disk.Kept {
-	case ShelfKeptNone, ShelfKeptUnknown:
+	case ShelfKeptUnknown:
 		return disk.KeptRevision == ""
+	case ShelfKeptNone:
+		// A kit saves a disk at Stop even when nothing was written.
+		return disk.KeptRevision == "" || protocol.ValidateDigest(disk.KeptRevision) == nil
 	case ShelfKeptChanges, ShelfKeptDamaged:
 		return protocol.ValidateDigest(disk.KeptRevision) == nil
 	}
