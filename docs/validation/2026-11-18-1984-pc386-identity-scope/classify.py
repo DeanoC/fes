@@ -16,8 +16,10 @@ what the seal does with it, each column measured rather than asserted:
   generator_code  Python code in it ran while the producer generated the bytes
                   the compilers read: the Yosys machine program, top.qsf, the
                   guest-rate parameters and the ROM hex (sys.settrace)
-  seal_process    it is a Python module loaded in the seal process (sys.modules
-                  after the producer is imported), so its code runs there
+  seal_process    it is a Python module the seal process loads: either in sys.modules
+                  after the producer is imported (loaded_at_import), or reachable by a
+                  static walk of every import in the producer's modules, function
+                  bodies included (static_import_closure), so lazy imports count
   hashed_by_seal  the seal reads it only to hash it for the lockstep check
                   (build_fes_pc386_quartus.oracle_identity)
 
@@ -66,6 +68,37 @@ qsf = product.project_qsf(root, root / product.OUTPUT / 'project', '0' * 32, 1,
 rates = legacy.guest_rates()
 rom = product.firmware.rom_hex(images)
 sys.settrace(None)
+
+def static_closure(entries):
+    """Every first-party module the seal process can import: a walk of the AST of each
+    module (function bodies included, so lazy imports count) from the entry files.
+    Bare names resolve against cores/fes-pc386/tools, which the producer puts on sys.path."""
+    import ast
+    tools = 'cores/fes-pc386/tools'
+    pending, seen = list(entries), set()
+    while pending:
+        relative = pending.pop()
+        if relative in seen or not (root / relative).is_file():
+            continue
+        seen.add(relative)
+        for node in ast.walk(ast.parse((root / relative).read_text(), filename=relative)):
+            names = []
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                names = [node.module] + ([f'{node.module}.{a.name}' for a in node.names]
+                                         if node.module == 'scripts' else [])
+            for name in names:
+                parts = name.split('.')
+                if parts[0] == 'scripts' and len(parts) > 1:
+                    pending.append(f'scripts/{parts[1]}.py')
+                elif len(parts) == 1:
+                    pending.append(f'{tools}/{parts[0]}.py')
+    return seen
+
+
+SEAL_ENTRIES = ('cores/fes-pc386/tools/build_pc386_product.py',)
+static_seal = static_closure(SEAL_ENTRIES)
 
 seal_process = set()
 for module in list(sys.modules.values()):
@@ -141,12 +174,34 @@ for path in paths:
     row = {'path': path, 'in_record_because': reason(path), 'v1_role': input_role(path),
            'yosys_read': path in yosys_read, 'quartus_read': path in quartus_read,
            'inlined_in_qsf': path in inlined, 'generator_code': path in generator,
-           'seal_process': path in seal_process, 'hashed_by_seal': path in hashed,
+           'seal_process': path in seal_process or path in static_seal,
+           'loaded_at_import': path in seal_process, 'static_import_closure': path in static_seal,
+           'hashed_by_seal': path in hashed,
            'proposed_role': proposal.role_v2(path, input_role)}
     row['kind'] = kind(row)
     rows.append(row)
 
 missing = sorted((yosys_read | quartus_read) - set(paths) - {'build/firmware/pc386/pc386-rom.hex'})
+def other_closures():
+    """Each other registered producer's recorded roots: the audited OSS manifest, PC/XT and ZX81 Quartus."""
+    closures = {name: list(roots) for name, roots in source_closure.load_manifest().items()}
+    from scripts import build_fes_pcxt_quartus, build_fes_zx81_quartus
+    closures['build_fes_pcxt_quartus'] = build_fes_pcxt_quartus.source_roots(root)
+    closures['build_fes_zx81_quartus'] = list(build_fes_zx81_quartus.SOURCE_ROOTS)
+    return closures
+
+
+closures = other_closures()
+# Files the slices would edit, and two shared helpers for contrast.
+SLICE_FILES = ('scripts/build_fes_pc386_quartus.py', 'cores/fes-pc386/tools/build_pc386_product.py',
+               'scripts/build_pc386_firmware.py', 'cores/fes-pc386/firmware/firmware.lock',
+               'scripts/fes_i386_oracle.py', 'scripts/input_identity.py',
+               'scripts/yosys_netlist.py', 'scripts/fes_build_common.py')
+blast = {path: sorted(name for name, roots in closures.items() if source_closure.covered(path, roots))
+         for path in SLICE_FILES}
+sim_roots = {name: [r for r in roots if source_closure.EXCLUDED_PARTS & set(r.split('/'))]
+             for name, roots in closures.items()}
+
 summary = {
     'revision': reads['revision'], 'record_files': len(rows),
     'by_kind': {k: sum(r['kind'] == k for r in rows) for k in sorted({r['kind'] for r in rows})},
@@ -156,6 +211,12 @@ summary = {
     'evidence_candidates_in_seal_process': sorted(r['path'] for r in rows
                                                   if r['proposed_role'] in ('evidence', 'firmware-generator')
                                                   and r['seal_process']),
+    'evidence_candidates_in_static_import_closure': sorted(r['path'] for r in rows
+                                                           if r['proposed_role'] in ('evidence', 'firmware-generator')
+                                                           and r['static_import_closure']),
+    'other_producers_recording_each_slice_file': blast,
+    'other_producer_closures_with_sim_or_test_roots': {k: v for k, v in sim_roots.items() if v},
+    'other_producer_closures_checked': sorted(closures),
     'evidence_candidates_read_by_a_compiler': sorted(r['path'] for r in rows if r['proposed_role'] == 'evidence'
                                                      and (r['yosys_read'] or r['quartus_read'])),
 }
@@ -165,12 +226,12 @@ mark = {True: 'yes', False: ''}
 lines = ['# pc386 build-record classification (generated by classify.py; do not edit)', '',
          f"Revision `{reads['revision']}`: {len(rows)} files.", '',
          '| File | In the record through | v1 role | Yosys reads | Quartus reads (QSF) | Inlined in QSF '
-         '| Generator code | Runs in seal process | Hashed for lockstep | Kind | Proposed v2 role |',
-         '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |']
+         '| Generator code | Loaded at import | In static import closure | Hashed for lockstep | Kind | Proposed v2 role |',
+         '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |']
 for r in rows:
     lines.append(f"| `{r['path']}` | {r['in_record_because']} | {r['v1_role']} | {mark[r['yosys_read']]} | "
                  f"{mark[r['quartus_read']]} | {mark[r['inlined_in_qsf']]} | {mark[r['generator_code']]} | "
-                 f"{mark[r['seal_process']]} | {mark[r['hashed_by_seal']]} | {r['kind']} | {r['proposed_role']} |")
+                 f"{mark[r['loaded_at_import']]} | {mark[r['static_import_closure']]} | {mark[r['hashed_by_seal']]} | {r['kind']} | {r['proposed_role']} |")
 lines += ['', '```json', json.dumps(summary, indent=1), '```', '']
 (HERE / 'classification.md').write_text('\n'.join(lines))
 print(json.dumps(summary, indent=1))

@@ -1,8 +1,9 @@
 {
- "revision": "1ec59267039b12b5879dd90af856ac232b9d014c",
+ "revision": "76d5fb432f6394b0388e246e8e0ff6cae4f11512",
  "immutability": {
   "sealed_record_design": "bb7369101d3a5a15d832f58af59c7123",
-  "evidence_paths_in_sealed_record": 16,
+  "evidence_paths_in_sealed_record": "16 of 16",
+  "firmware_generator_paths_in_sealed_record": "2 of 2",
   "after_editing_v1_sets": "rejected: build record identities do not match canonical inputs"
  },
  "calibration": {
@@ -17,12 +18,14 @@
   "head": "rejected: ValueError: original record omits required lockstep source: cores/fes-common/rtl/i386/fes_x87_core.sv"
  },
  "baseline": {
+  "current_rom_check": "pass",
   "evidence_sha256": "c2d558353bbd94d04c26617d86d390b7234aea677f08d9d430325826a09d4bb7",
   "producer_rom_path": "build/firmware/pc386/pc386-rom.hex",
   "program_sha256": "b55bf25ea328a6c1b02f528234ef83d59b9d04202e7b8b845f4f97ec8eabbed5",
   "qsf_record_parameter": "72b027a623fb252342b2fde10754913e45fc8ce586ad356506b2baaf10cbdb96",
   "qsf_sha256": "72b027a623fb252342b2fde10754913e45fc8ce586ad356506b2baaf10cbdb96",
   "rom_hex_sha256": "815620361ef28a2bbdd97b1964700a4678a26c0ffc9582bb95544473fe099d18",
+  "rtl_rom_file_written_by_seal_step": true,
   "rtl_rom_path": "build/firmware/pc386/pc386-rom.hex",
   "v1_build_id": "6bf0bfd18ec81d54512ea2b7ce251fc1",
   "v2_build_id": "0c74631dbca3f3339ecf552016b8f292",
@@ -43,8 +46,10 @@
     "rom_hex": false,
     "rom_path_read_by_yosys": false
    },
-   "f3_rom_gate": "pass",
-   "f3_path_gate": "pass"
+   "f2_rom_gate": "pass",
+   "f2_path_gate": "pass",
+   "todays_rom_check": "pass",
+   "todays_check_wrote_the_file_yosys_reads": true
   },
   {
    "case": "E2",
@@ -60,8 +65,10 @@
     "rom_hex": false,
     "rom_path_read_by_yosys": false
    },
-   "f3_rom_gate": "pass",
-   "f3_path_gate": "pass"
+   "f2_rom_gate": "pass",
+   "f2_path_gate": "pass",
+   "todays_rom_check": "pass",
+   "todays_check_wrote_the_file_yosys_reads": true
   },
   {
    "case": "E3",
@@ -77,8 +84,10 @@
     "rom_hex": false,
     "rom_path_read_by_yosys": false
    },
-   "f3_rom_gate": "pass",
-   "f3_path_gate": "pass"
+   "f2_rom_gate": "pass",
+   "f2_path_gate": "pass",
+   "todays_rom_check": "pass",
+   "todays_check_wrote_the_file_yosys_reads": true
   },
   {
    "case": "D1",
@@ -94,8 +103,10 @@
     "rom_hex": false,
     "rom_path_read_by_yosys": false
    },
-   "f3_rom_gate": "pass",
-   "f3_path_gate": "pass"
+   "f2_rom_gate": "pass",
+   "f2_path_gate": "pass",
+   "todays_rom_check": "pass",
+   "todays_check_wrote_the_file_yosys_reads": true
   },
   {
    "case": "D2",
@@ -111,8 +122,10 @@
     "rom_hex": false,
     "rom_path_read_by_yosys": false
    },
-   "f3_rom_gate": "pass",
-   "f3_path_gate": "pass"
+   "f2_rom_gate": "pass",
+   "f2_path_gate": "pass",
+   "todays_rom_check": "pass",
+   "todays_check_wrote_the_file_yosys_reads": true
   },
   {
    "case": "D3",
@@ -128,8 +141,10 @@
     "rom_hex": false,
     "rom_path_read_by_yosys": false
    },
-   "f3_rom_gate": "pass",
-   "f3_path_gate": "pass"
+   "f2_rom_gate": "pass",
+   "f2_path_gate": "pass",
+   "todays_rom_check": "pass",
+   "todays_check_wrote_the_file_yosys_reads": true
   },
   {
    "case": "H1",
@@ -145,8 +160,10 @@
     "rom_hex": false,
     "rom_path_read_by_yosys": false
    },
-   "f3_rom_gate": "pass",
-   "f3_path_gate": "pass"
+   "f2_rom_gate": "pass",
+   "f2_path_gate": "pass",
+   "todays_rom_check": "pass",
+   "todays_check_wrote_the_file_yosys_reads": true
   },
   {
    "case": "H2",
@@ -162,8 +179,29 @@
     "rom_hex": true,
     "rom_path_read_by_yosys": false
    },
-   "f3_rom_gate": "refuse",
-   "f3_path_gate": "pass"
+   "f2_rom_gate": "refuse",
+   "f2_path_gate": "pass",
+   "todays_rom_check": "pass",
+   "todays_check_wrote_the_file_yosys_reads": true
+  },
+  {
+   "case": "P1",
+   "models": "an input_identity.py edit (what slice S2 edits; v1 packaging)",
+   "should_move": false,
+   "v1_moves": false,
+   "v2_moves": false,
+   "v2_evidence_only_moves": false,
+   "evidence_digest_moves": false,
+   "compiler_bytes_change": {
+    "yosys_program": false,
+    "qsf": false,
+    "rom_hex": false,
+    "rom_path_read_by_yosys": false
+   },
+   "f2_rom_gate": "pass",
+   "f2_path_gate": "pass",
+   "todays_rom_check": "pass",
+   "todays_check_wrote_the_file_yosys_reads": true
   },
   {
    "case": "R1",
@@ -179,8 +217,10 @@
     "rom_hex": false,
     "rom_path_read_by_yosys": false
    },
-   "f3_rom_gate": "pass",
-   "f3_path_gate": "pass"
+   "f2_rom_gate": "pass",
+   "f2_path_gate": "pass",
+   "todays_rom_check": "pass",
+   "todays_check_wrote_the_file_yosys_reads": true
   },
   {
    "case": "R2",
@@ -196,8 +236,10 @@
     "rom_hex": false,
     "rom_path_read_by_yosys": false
    },
-   "f3_rom_gate": "pass",
-   "f3_path_gate": "pass"
+   "f2_rom_gate": "pass",
+   "f2_path_gate": "pass",
+   "todays_rom_check": "pass",
+   "todays_check_wrote_the_file_yosys_reads": true
   },
   {
    "case": "R3",
@@ -213,8 +255,10 @@
     "rom_hex": true,
     "rom_path_read_by_yosys": false
    },
-   "f3_rom_gate": "refuse",
-   "f3_path_gate": "pass"
+   "f2_rom_gate": "refuse",
+   "f2_path_gate": "pass",
+   "todays_rom_check": "pass",
+   "todays_check_wrote_the_file_yosys_reads": true
   },
   {
    "case": "R3u",
@@ -230,8 +274,10 @@
     "rom_hex": true,
     "rom_path_read_by_yosys": false
    },
-   "f3_rom_gate": "pass",
-   "f3_path_gate": "pass"
+   "f2_rom_gate": "pass",
+   "f2_path_gate": "pass",
+   "todays_rom_check": "pass",
+   "todays_check_wrote_the_file_yosys_reads": true
   },
   {
    "case": "R4",
@@ -247,8 +293,10 @@
     "rom_hex": false,
     "rom_path_read_by_yosys": true
    },
-   "f3_rom_gate": "pass",
-   "f3_path_gate": "refuse"
+   "f2_rom_gate": "pass",
+   "f2_path_gate": "refuse",
+   "todays_rom_check": "pass",
+   "todays_check_wrote_the_file_yosys_reads": false
   }
  ]
 }
