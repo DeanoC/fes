@@ -23,6 +23,17 @@ process may be displaced. Default adoption is conditional on both kit passes;
 fresh normal producer/seal checks and applicable exact-artifact acceptance
 remain required for the adopted bytes.
 
-HIL is **NOT STARTED** until a kit is claimed and the test artifact loaded.
+Both RAM Tester hardware trials PASS at source `e7e73a0c0`. Each completed
+the six-pattern 128 MiB scan through halfword address `03ffffff`, all 128 byte
+cases / 512 reads, and the three HPS DDR scans with zero errors. See the
+per-kit JSON receipts and final captures. Both baseline image/bundle identities,
+idle agent/session and ownerless leases were verified after Stop.
+
+The installable PC/XT producer now selects the same CAS-3 path explicitly.
+Its normal production build, repeat check and exact-artifact PC/XT hardware
+acceptance must be recorded separately from these RAM Tester passes. The RAM
+Tester native diagnostic selects the path with `RAMTEST_CAS3_CAPTURE=1`; its
+existing OSS catalog producer is a separate compiler path and is unchanged.
+
 Physical flight/load/slew, clock waveform and electrical turnaround limits
 remain separate from bounded hardware operation.

@@ -34,7 +34,8 @@ try:
  library=a.yosys.resolve().parent.parent/'share/yosys/intel_alm/common/megafunction_bb.v'
  program=q.elaboration(source,elab,library,package_profile=True,build_id=record['experimental_id'],dos_profile=True)
  assert program.count('chparam -set MDA')==1
- program=program.replace('chparam -set MDA','chparam -set SDRAM_CAPTURE_PIPELINE 1 -set MDA')
+ if '-set SDRAM_CAPTURE_PIPELINE 1' not in program:
+  program=program.replace('chparam -set MDA','chparam -set SDRAM_CAPTURE_PIPELINE 1 -set MDA')
  (elab/'elaborate.ys').write_text(program)
  record['yosys_sha256']=q.sha(a.yosys);record['program_sha256']=q.sha(elab/'elaborate.ys')
  run('elaborate',['timeout','--kill-after=10','600',a.yosys.resolve(),'-s','elaborate.ys'],elab)
@@ -47,7 +48,8 @@ try:
  (fit/'audio-audit.enabled').write_text('audio interstage checks enabled\n')
  lock=q.load_quartus_lock(root,str(q.QUARTUS_LOCK));(fit/'top.qpf').write_text(q.project_qpf(lock))
  qsf=q.project_qsf(source,1,2,package_profile=True,video_mailbox_contract=True,audio_contract=True)
- qsf+='\n'+''.join(f'set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[{n}]\n' for n in range(16))
+ if 'FAST_INPUT_REGISTER ON' not in qsf:
+  qsf+='\n'+''.join(f'set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[{n}]\n' for n in range(16))
  (fit/'top.qsf').write_text(qsf);(fit/'clocks.sdc').write_text(q.SDC+'\nsource audio.sdc\nsource mailbox.sdc\n')
  # Only the generated-clock source changes to the separate forwarded counter.
  original=a.collector.read_text();assert original.count('memory_clock|general[0]')==1

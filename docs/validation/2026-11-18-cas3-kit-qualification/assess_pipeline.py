@@ -36,7 +36,7 @@ assert len(word_regs)==1 and word_regs[0]['connections']['CLK']==outputs[3:4]
 assert int(word_regs[0]['parameters']['CLK_POLARITY'],2)==1 and int(word_regs[0]['parameters']['EN_POLARITY'],2)==1
 assert word_regs[0]['connections']['D']==capture_bits
 assert word_regs[0]['connections']['EN']==model['netnames']['system_storage_capture_handoff_pipeline_read_window']['bits'][3:4]
-landing_bits=model['netnames']['system_storage_capture_handoff_pipeline_return_word']['bits']
+landing_bits=model['netnames']['system_storage_capture_handoff_pipeline_rdata']['bits']
 land_regs=[c for c in model['cells'].values() if c['type']=='$dff' and c['connections']['Q']==landing_bits]
 assert len(land_regs)==1 and land_regs[0]['connections']['CLK']==outputs[0:1]
 assert int(land_regs[0]['parameters']['CLK_POLARITY'],2)==0 and land_regs[0]['connections']['D']==word_bits
@@ -62,7 +62,7 @@ endpoints=list(csv.DictReader((fit/'audit/endpoints.tsv').open(),delimiter='\t')
 handoff=[r for r in endpoints if r['from_clock']=='memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk' and r['to'].startswith('system_storage_capture_handoff_pipeline_read_word[')]
 assert len(handoff)==128 and all(r['to_inverted']=='0' and (r['from'] in captures or r['from']=='system_storage_capture_handoff_pipeline_read_window[3]') for r in handoff)
 assert len({(r['corner'],r['kind'],r['to']) for r in handoff})==128
-landing=[r for r in endpoints if r['from'].startswith('system_storage_capture_handoff_pipeline_read_word[') and r['to'].startswith('system_storage_capture_handoff_pipeline_return_word[')]
+landing=[r for r in endpoints if r['from'].startswith('system_storage_capture_handoff_pipeline_read_word[') and r['to'].startswith('system_storage_capture_handoff_pipeline_rdata[')]
 assert len(landing)==128 and all(r['to_inverted']=='1' for r in landing)
 enable=[r for r in endpoints if r['from']=='system_storage_capture_handoff_pipeline_read_window[3]' and r['to'].startswith('system_storage_capture_handoff_pipeline_read_word[')]
 assert len(enable)+sum(r['from'] in captures for r in handoff)==128

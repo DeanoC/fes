@@ -5,7 +5,8 @@ module top #(
     parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0,
     parameter bit HARDWARE_DOS = 0,
     parameter bit PHASED_HDMI_CLOCK = 0,
-    // Experimental 100 MHz capture/forwarded-clock pipeline; not production-qualified.
+    // The installable 100 MHz producer selects CAS-3 retention explicitly.
+    // Raw controller/board experiments may still select their own profile.
     parameter bit SDRAM_CAPTURE_PIPELINE = 0,
     parameter bit ENABLE_FES_COMPUTER = 0,
     parameter bit ENABLE_PCXT_MEDIA = 0,
