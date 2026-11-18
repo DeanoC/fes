@@ -1653,12 +1653,13 @@ void TestMediaDataRecordProtocol()
 		assert(!Parse("{\"protocol\":2,\"operation\":\"inspect_media_data\"," + bad + "}", &request).ok());
 	mister::MediaDataInspection state;
 	const std::string absent = mister::daemon::EncodeResponse(2, true, Status{}, "fixture", nullptr, nullptr, nullptr, &state);
-	assert(absent.find(",\"media_data\":{\"state\":\"absent\",\"revision\":\"absent\",\"bytes\":0}}") != std::string::npos);
+	assert(absent.find(",\"media_data\":{\"state\":\"absent\",\"revision\":\"absent\",\"bytes\":0,\"changed\":false}}") != std::string::npos);
 	state.state = "present";
 	state.revision = revision;
 	state.bytes = 737453;
+	state.changed = true;
 	const std::string present = mister::daemon::EncodeResponse(2, true, Status{}, "fixture", nullptr, nullptr, nullptr, &state);
-	assert(present.find(",\"media_data\":{\"state\":\"present\",\"revision\":\"" + revision + "\",\"bytes\":737453}}") != std::string::npos);
+	assert(present.find(",\"media_data\":{\"state\":\"present\",\"revision\":\"" + revision + "\",\"bytes\":737453,\"changed\":true}}") != std::string::npos);
 	assert(mister::daemon::EncodeResponse(2, true, Status{}, "fixture").find("media_data") == std::string::npos);
 }
 

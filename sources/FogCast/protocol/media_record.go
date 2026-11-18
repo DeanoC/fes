@@ -39,19 +39,25 @@ const (
 
 // MediaRecord is what a kit holds for a MediaRecordIdentity. Revision is the
 // digest of the record file as it stands, or "absent". A corrupt record
-// still has a revision, so it can be named and discarded.
+// still has a revision, so it can be named and discarded. Changed is true
+// for a present record whose image differs from the base image: a kit saves
+// a disk at Stop whether or not it was written to, so present alone does
+// not mean the disk has changes.
 type MediaRecord struct {
 	State    string `json:"state"`
 	Revision string `json:"revision"`
 	Bytes    int64  `json:"bytes"`
+	Changed  bool   `json:"changed"`
 }
 
 func (r MediaRecord) Valid() bool {
 	switch r.State {
 	case MediaRecordAbsent:
-		return r.Revision == "absent" && r.Bytes == 0
-	case MediaRecordPresent, MediaRecordCorrupt:
+		return r.Revision == "absent" && r.Bytes == 0 && !r.Changed
+	case MediaRecordPresent:
 		return ValidateDigest(r.Revision) == nil && r.Bytes > 0
+	case MediaRecordCorrupt:
+		return ValidateDigest(r.Revision) == nil && r.Bytes > 0 && !r.Changed
 	}
 	return false
 }

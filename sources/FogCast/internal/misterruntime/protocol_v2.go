@@ -515,11 +515,11 @@ func validateProtocol2Shape(line []byte) error {
 		}
 	}
 	if media, ok := object["media_data"]; ok {
-		record, err := exactRawObject(media, []string{"state", "revision", "bytes"}, nil)
+		record, err := exactRawObject(media, []string{"state", "revision", "bytes", "changed"}, nil)
 		if err != nil {
 			return err
 		}
-		if err := requireRawKinds(record, map[string]rawKind{"state": rawString, "revision": rawString, "bytes": rawUnsigned}); err != nil {
+		if err := requireRawKinds(record, map[string]rawKind{"state": rawString, "revision": rawString, "bytes": rawUnsigned, "changed": rawBoolean}); err != nil {
 			return err
 		}
 	}

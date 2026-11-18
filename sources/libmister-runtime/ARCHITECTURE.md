@@ -937,7 +937,8 @@ to a shell lacking the write contract.
 
 `inspect_media_data`, `discard_media_data` and `export_media_data` name one
 whole-image record by `core_id`, `game_id`, `base_media_id` and `unit`, with
-no package loaded. Inspect answers `media_data:{state,revision,bytes}`.
+no package loaded. Inspect answers `media_data:{state,revision,bytes,changed}`; `changed` is
+true when a present record's image differs from its base image.
 Export writes the saved image to a new file at `path` when the record has
 `expected_revision`. Discard removes a record with `expected_revision` and
 is refused unless the runtime is idle. See

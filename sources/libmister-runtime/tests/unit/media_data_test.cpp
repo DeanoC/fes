@@ -235,6 +235,19 @@ int main()
         std::unique_ptr<MediaDataFile> file;MediaDiskRecord saved;
         assert(MediaDataFile::Open(discard_root,id,&file).ok() && file->Persist(record,"absent",&saved).ok());
         assert(InspectMediaData(discard_root,id,&state).ok() && state.state=="present" && state.revision==saved.revision && state.bytes==encoded.size());
+        // This record's image is not its base image, so it holds changes.
+        assert(state.changed);
+        // A disk saved at Stop without a write is present and unchanged.
+        {
+            auto same=id;same.game_id="atari-st-unwritten";same.base_media_id=digest(record.bytes);
+            auto untouched=record;untouched.identity=same;
+            std::unique_ptr<MediaDataFile> same_file;MediaDiskRecord same_saved;
+            assert(MediaDataFile::Open(discard_root,same,&same_file).ok() && same_file->Persist(untouched,"absent",&same_saved).ok());
+            same_file.reset();
+            MediaDataInspection unwritten;
+            assert(InspectMediaData(discard_root,same,&unwritten).ok() && unwritten.state=="present" && !unwritten.changed);
+            assert(DiscardMediaData(discard_root,same,same_saved.revision,&unwritten).ok() && unwritten.state=="absent" && !unwritten.changed);
+        }
         // Another game's copy of the same disk is its own record.
         auto other=id;other.game_id="atari-st-other";
         assert(InspectMediaData(discard_root,other,&state).ok() && state.state=="absent");
@@ -245,7 +258,7 @@ int main()
         assert(stat(out.c_str(),&seen)!=0 && errno==ENOENT);
         assert(ExportMediaData(discard_root,other,saved.revision,out,&state).code==ErrorCode::stale_revision);
         assert(ExportMediaData(discard_root,id,saved.revision,"export.st",&state).code==ErrorCode::invalid_request);
-        assert(ExportMediaData(discard_root,id,saved.revision,out,&state).ok() && state.state=="present" && state.revision==saved.revision && state.bytes==record.bytes.size());
+        assert(ExportMediaData(discard_root,id,saved.revision,out,&state).ok() && state.state=="present" && state.revision==saved.revision && state.bytes==record.bytes.size() && state.changed);
         { std::ifstream exported(out,std::ios::binary); const std::vector<unsigned char> got((std::istreambuf_iterator<char>(exported)),std::istreambuf_iterator<char>()); assert(got==record.bytes); }
         assert(stat(out.c_str(),&seen)==0 && (seen.st_mode&0777)==0600);
         // An export never replaces a file that is already there.
@@ -263,7 +276,7 @@ int main()
         // A record that fails its checks is named by its file and can go.
         { std::ofstream corrupt(ns+"/record.bin",std::ios::binary|std::ios::trunc); corrupt << "bad"; }
         assert(file->Read(&saved).code==ErrorCode::corrupt_data);
-        assert(InspectMediaData(discard_root,id,&state).ok() && state.state=="corrupt" && state.revision.size()==64 && state.bytes==3);
+        assert(InspectMediaData(discard_root,id,&state).ok() && state.state=="corrupt" && state.revision.size()==64 && state.bytes==3 && !state.changed);
         const std::string corrupt_revision=state.revision;
         assert(ExportMediaData(discard_root,id,corrupt_revision,out,&state).code==ErrorCode::corrupt_data);
         assert(stat(out.c_str(),&seen)!=0 && errno==ENOENT);

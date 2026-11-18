@@ -320,6 +320,8 @@ Error InspectLocked(int directory, const MediaDataIdentity& id, MediaDataInspect
 	result.revision = Sha256Hex(Hash(bytes.data(), bytes.size()));
 	MediaDiskRecord record;
 	result.state = error.ok() && DecodeMediaData(bytes, id, &record).ok() ? "present" : "corrupt";
+	result.changed = result.state == "present" &&
+		Sha256Hex(Hash(record.bytes.data(), record.bytes.size())) != id.base_media_id;
 	*output = result;
 	return {};
 }
@@ -448,6 +450,7 @@ Error ExportMediaData(const std::string& root, const MediaDataIdentity& id,
 	result.state = "present";
 	result.revision = expected_revision;
 	result.bytes = record.bytes.size();
+	result.changed = Sha256Hex(Hash(record.bytes.data(), record.bytes.size())) != id.base_media_id;
 	*output = result;
 	return {};
 }

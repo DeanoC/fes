@@ -18,9 +18,9 @@ func mediaRecordResponse(t *testing.T, record string) string {
 func TestSavedMediaRecordProtocolShape(t *testing.T) {
 	revision := strings.Repeat("b", 64)
 	for _, record := range []string{
-		`{"state":"absent","revision":"absent","bytes":0}`,
-		`{"state":"present","revision":"` + revision + `","bytes":737453}`,
-		`{"state":"corrupt","revision":"` + revision + `","bytes":3}`,
+		`{"state":"absent","revision":"absent","bytes":0,"changed":false}`,
+		`{"state":"present","revision":"` + revision + `","bytes":737453,"changed":true}`,
+		`{"state":"corrupt","revision":"` + revision + `","bytes":3,"changed":false}`,
 	} {
 		if _, err := decodeProtocol2Response([]byte(mediaRecordResponse(t, record))); err != nil {
 			t.Fatalf("%s: %v", record, err)
@@ -28,8 +28,10 @@ func TestSavedMediaRecordProtocolShape(t *testing.T) {
 	}
 	for _, record := range []string{
 		`{"state":"absent","revision":"absent"}`,
-		`{"state":"absent","revision":"absent","bytes":0,"extra":1}`,
-		`{"state":"present","revision":"` + revision + `","bytes":"737453"}`,
+		`{"state":"absent","revision":"absent","bytes":0,"changed":false,"extra":1}`,
+		`{"state":"absent","revision":"absent","bytes":0}`,
+		`{"state":"absent","revision":"absent","bytes":0,"changed":0}`,
+		`{"state":"present","revision":"` + revision + `","bytes":"737453","changed":true}`,
 		`null`,
 	} {
 		if _, err := decodeProtocol2Response([]byte(mediaRecordResponse(t, record))); err == nil {
@@ -42,8 +44,8 @@ func TestSavedMediaRecordRPCNamesOneRecordUnderTheTrustedRoot(t *testing.T) {
 	id := protocol.MediaRecordIdentity{CoreID: "fes.atari-st", GameID: "atari-st-desktop", BaseMediaID: strings.Repeat("a", 64)}
 	revision := strings.Repeat("b", 64)
 	fixture := newSequenceSocketFixture(t, []string{
-		mediaRecordResponse(t, `{"state":"present","revision":"`+revision+`","bytes":737453}`) + "\n",
-		mediaRecordResponse(t, `{"state":"absent","revision":"absent","bytes":0}`) + "\n",
+		mediaRecordResponse(t, `{"state":"present","revision":"`+revision+`","bytes":737453,"changed":true}`) + "\n",
+		mediaRecordResponse(t, `{"state":"absent","revision":"absent","bytes":0,"changed":false}`) + "\n",
 	})
 	client := NewClient(fixture.path)
 	inspected, err := client.InspectMediaData(context.Background(), MediaDataRoot, id)

@@ -337,10 +337,14 @@ struct MediaDataQuery {
 
 // What is saved for a MediaDataQuery. state is "absent", "present" or
 // "corrupt"; revision is the digest of the record file, or "absent".
+// changed is true for a present record whose image differs from the base
+// image it was saved over: a disk saved at Stop without a write is present
+// and unchanged.
 struct MediaDataInspection {
 	std::string state = "absent";
 	std::string revision = "absent";
 	std::uint64_t bytes = 0;
+	bool changed = false;
 };
 
 // A fes.media.ata-disk launch: the staged immutable base image, the geometry
