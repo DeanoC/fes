@@ -611,6 +611,7 @@ func (a *App) savePadProfileLocked(guid string, profile inputmap.Profile) bool {
 		a.controllers.status = "Not saved: FES could not read its settings file."
 		return false
 	}
+	previous, hadPrevious := profiles[guid]
 	if len(profile.Bindings) == 0 {
 		profile.Bindings = nil
 	}
@@ -619,7 +620,15 @@ func (a *App) savePadProfileLocked(guid string, profile inputmap.Profile) bool {
 	} else {
 		profiles[guid] = profile
 	}
-	a.persistPrefsLocked("controllers")
+	if err := a.persistPrefsLocked("controllers"); err != nil && !errors.Is(err, ErrPreferencesPending) {
+		if hadPrevious {
+			profiles[guid] = previous
+		} else {
+			delete(profiles, guid)
+		}
+		a.controllers.status = "Not saved: controller settings could not be written."
+		return false
+	}
 	a.padProfileGen++
 	for id, info := range a.pads {
 		if info.GUID == guid {

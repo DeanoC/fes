@@ -1,6 +1,7 @@
 package tenfoot
 
 import (
+	"errors"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -21,6 +22,11 @@ func controllersApp(t *testing.T) *App {
 	t.Helper()
 	app := NewApp(nil, 1280, 720, 100)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	return openControllersApp(t, app)
+}
+
+func openControllersApp(t *testing.T, app *App) *App {
+	t.Helper()
 	app.SetPadInfo(7, PadInfo{Name: "Xbox 360 Controller", GUID: testPadGUID, Vendor: 0x045e, Product: 0x028e,
 		Family: gfx.PromptXbox, Recognised: true, Player: 1})
 	app.AttachInput(InputGamepad, 7)
@@ -121,6 +127,54 @@ func TestControllersRebindSavesAndRedrawsHints(t *testing.T) {
 	app.HandleCommand(CmdSortCycle, now)
 	if _, ok := savedProfile(t, app); ok {
 		t.Fatal("a pad back on its own layout still has a saved profile")
+	}
+}
+
+func TestControllersFailedPreferenceWriteDoesNotApplyProfile(t *testing.T) {
+	initial := tenfootPrefs{Controllers: map[string]inputmap.Profile{
+		testPadGUID: {Bindings: map[string]string{"x": "a"}},
+	}}
+	data, err := encodeTenfootPrefs(initial)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &testPreferenceStore{data: data, writeErr: errors.New("flush failed")}
+	app := NewApp(nil, 1280, 720, 100)
+	if err := app.SetPreferenceStore(store); err != nil {
+		t.Fatal(err)
+	}
+	app = openControllersApp(t, app)
+	beforeGen := app.PadProfileGeneration()
+	beforeHint := app.Snapshot().padHint("A select")
+	app.mu.Lock()
+	beforeSends := app.padRemapLocked(testPadGUID)
+	app.mu.Unlock()
+	if beforeSends == nil {
+		t.Fatal("saved profile did not load")
+	}
+	beforeTarget := beforeSends.Target(remoteinput.ButtonX)
+
+	app.mu.Lock()
+	app.setPadTargetLocked(remoteinput.ButtonX, remoteinput.ButtonY)
+	app.mu.Unlock()
+
+	if got := app.PadProfileGeneration(); got != beforeGen {
+		t.Fatalf("profile generation advanced after failed save: got %d, want %d", got, beforeGen)
+	}
+	if got := app.Snapshot().padHint("A select"); got != beforeHint {
+		t.Fatalf("hint changed after failed save: got %q, want %q", got, beforeHint)
+	}
+	app.mu.Lock()
+	afterSends := app.padRemapLocked(testPadGUID)
+	app.mu.Unlock()
+	if got := afterSends.Target(remoteinput.ButtonX); got != beforeTarget {
+		t.Fatalf("cached profile changed after failed save: X now sends %v, want %v", got, beforeTarget)
+	}
+	if got, err := decodeTenfootPrefs(store.data); err != nil || got.Controllers[testPadGUID].Bindings["x"] != "a" {
+		t.Fatalf("failed save changed stored profile: %#v, %v", got.Controllers, err)
+	}
+	if status := app.Snapshot().Controllers.Status; !strings.Contains(status, "Not saved") {
+		t.Fatalf("controller status = %q, want a save failure", status)
 	}
 }
 
