@@ -715,7 +715,7 @@ func (a *App) padRemap(guid string) (*inputmap.Remapper, error) {
 	if !ok {
 		return nil, nil
 	}
-	return inputmap.NewRemapper(profile)
+	return newPadRemapper(profile)
 }
 
 // NewApp builds a launcher model bound to the host API client.

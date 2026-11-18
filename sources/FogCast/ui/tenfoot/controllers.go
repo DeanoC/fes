@@ -268,11 +268,32 @@ func (a *App) padRemapLocked(guid string) *inputmap.Remapper {
 	if !ok {
 		return nil
 	}
-	remap, err := inputmap.NewRemapper(profile)
+	remap, err := newPadRemapper(profile)
 	if err != nil {
 		return nil
 	}
 	return remap
+}
+
+// newPadRemapper rejects profiles that make two rebindable buttons send the
+// same control. Session input tracks holds by remapped control, so applying
+// such a profile would let one physical release release the other button's
+// hold too.
+func newPadRemapper(profile inputmap.Profile) (*inputmap.Remapper, error) {
+	remap, err := inputmap.NewRemapper(profile)
+	if err != nil {
+		return nil, err
+	}
+	targets := make(map[remoteinput.Code]remoteinput.Code, len(padSources))
+	for _, source := range padSources {
+		target := remap.Target(source.code)
+		if previous, ok := targets[target]; ok {
+			return nil, fmt.Errorf("inputmap: buttons %q and %q both send %q",
+				inputmap.Name(previous), inputmap.Name(source.code), inputmap.Name(target))
+		}
+		targets[target] = source.code
+	}
+	return remap, nil
 }
 
 func (a *App) refreshPadPromptsLocked(id int) {
