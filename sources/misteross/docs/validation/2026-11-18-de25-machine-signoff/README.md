@@ -37,7 +37,23 @@ The audio-clock review ran under the new policy
 machine PLL in place of the stock audio PLL. Nobody has reviewed that policy
 yet.
 
-The 128K model has not been through the producer.
+## ZX Spectrum 128K: packaged
+
+Same source and host, `--model 128`.
+
+| | |
+| --- | --- |
+| Build ID | `d53a78489bd1a8eda327dcee51c75ac8` |
+| Package | `9e3e826ff67c6df7503748aeeb37f97c7e0adbe3ae7fd2d70b867c612e7a06e7` |
+| `.fcore` SHA-256 | `d4e4135db88d97f3b0903e3190d77d93dcf8cede4fded4f957053024c9a9cbda` |
+| `core.rbf` SHA-256 (first and repeat compile) | `d18e3a20b6ea3109b12e9e9ce28baf3922f2c3ea6dea9bd67c7a7341ef2d6f85` |
+
+The same three reviewed rules fail and nothing else; every reported timing
+check passes.
+
+Both Spectrum packages were built before main was merged into the branch.
+The merge changes files the build record binds, so a build from the merged
+head has a different build ID and has not been run.
 
 ## Atari ST 520ST: not packaged
 

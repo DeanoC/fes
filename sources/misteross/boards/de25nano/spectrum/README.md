@@ -74,9 +74,9 @@ timing review, no reviewed input/output reference and no package identity.
 
 ## Open
 
-- The 48K model [passes signoff and packages](../../../docs/validation/2026-11-18-de25-machine-signoff/README.md);
-  the 128K model has not been through the producer. The package is a
-  candidate with no hardware acceptance, and its audio-clock review uses the
+- Both models [pass signoff and package](../../../docs/validation/2026-11-18-de25-machine-signoff/README.md).
+  Each package is a
+  candidate with no hardware acceptance, and the audio-clock review uses the
   new `de25-machine-pll-audio-clocks-v1` policy, which is unreviewed.
 - The frame-bank load at frame end assumes a machine frame (about 20 ms) is
   longer than a pixel frame (16.7 ms).
