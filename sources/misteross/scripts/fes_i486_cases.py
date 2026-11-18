@@ -386,9 +386,9 @@ def cases() -> list[Case]:
               what='CPL 0 with AM and AC set: no #AC, and AC reads back set')
 
     # ---- CPUID ----
-    real('cpuid-0', 'AP-485 3.1, Table 1', {'end': 'halt', 'eax': 1, 'ebx': 0x756e6547, 'edx': 0x49656e69, 'ecx': 0x6c65746e},
+    real('cpuid-0', 'AP-485 3.1, Table 1 (the vendor string); Bochs for the highest leaf, 1', {'end': 'halt', 'eax': 1, 'ebx': 0x756e6547, 'edx': 0x49656e69, 'ecx': 0x6c65746e},
          lambda a: (a.op(0x66, 0x31, 0xc0), a.here(), a.op(0x0f, 0xa2))[1], what='CPUID leaf 0: one leaf, GenuineIntel')
-    real('cpuid-1', 'AP-485 Tables 3 and 5 (a DX4 is family 4, model 8; bit 0 an FPU)', {'end': 'halt', 'eax': 0x480, 'ebx': 0, 'ecx': 0, 'edx': 1},
+    real('cpuid-1', 'AP-485 Tables 3 and 5 (a DX4 is family 4, model 8; bit 0 an FPU); Bochs for EBX and ECX', {'end': 'halt', 'eax': 0x480, 'ebx': 0, 'ecx': 0, 'edx': 1},
          lambda a: (a.op(0x66, 0xb8).d(1), a.here(), a.op(0x0f, 0xa2))[1], divergence='cpuid-leaf-1',
          i486='per part: an SX is 042xh with EDX bit 0 clear, a DX 040xh or 041xh, a DX2 043xh',
          what='CPUID leaf 1 is the DX4 Bochs models, with an FPU and no VME')

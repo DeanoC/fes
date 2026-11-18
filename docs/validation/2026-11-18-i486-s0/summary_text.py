@@ -42,13 +42,56 @@ NOTES = '''\
 - **The census and the CACHECHK runs were made on chip-30x0-ai-dev,** from
   a `git archive` of the code commit, because Powerboat was at a load of
   about 80 when they started. The seven drives were copied there for the
-  runs and deleted there, with the trees, when the census ended. The first start of the sweep
-  was from an uncommitted tree and was stopped while still building; nothing
-  was read from it.
+  runs and deleted there, with the trees, when the census ended.
+- **Three starts of the sweep were discarded before the one reported,** and
+  nothing was read from any of them: one from an uncommitted tree and one
+  from the patch-route commit `f2027af82`, both stopped while still
+  building; and one from `75bd225a2` whose first runs exited at once
+  because codeberg.org, which hosts the BIOS toolchain's source (dev86), did
+  not resolve. For the start that is reported, the pinned dev86 source was
+  copied from Powerboat's checkout of the same revision and built on the
+  host, instead of being fetched.
 - **The CACHECHK trace used a scratch change to `machine_tb.cpp`** in a
   second copy of the tree, which keeps the last 3,000 oracle steps and
   prints them at the first exception 0. It is not committed. The census
   tree does not have it.
+'''
+
+
+DEPARTURES = '''\
+## Where this departs from the plan's slice 0
+
+The plan record's slice 0 definition is the scope. Three things it names
+are defined here but not built, each because the RTL has no 486 identity
+to hold them to yet:
+
+- **"The wider EFLAGS and CR0 masks."** The state comparison's masks are
+  still the 386's. The 486's are written down in the oracle README's scope
+  table, and the directed cases read CR0's 486 bits and EFLAGS.AC and ID
+  into registers, which is how every one of those stops was found.
+- **"Its #UD probes and the `ud-invlpg` entry become per-identity."** They
+  are per-identity in the scope table, not in code: the level-4 oracle runs
+  only the `i486` mode, so the 386's probes and divergence list are never
+  run against it.
+- **"CR4 only for option B."** B is the chosen target, and `State` still has
+  no CR4, because the oracle excludes VME, as the plan's own runs did; CR4
+  then has no writable bit. Which later stepping B is was not decided. A
+  part with VME adds CR4 to `State` and V86 extensions to the CPU work.
+
+One thing was added that the plan's definition does not ask for: the
+adapter sets a 486's reset EDX and DR6, which Bochs leaves as the 386's.
+'''
+
+NOT_RUN = '''\
+## What was not run
+
+- No seal, no D12 netlist and RBF comparison, and no kit.
+- No netlist lockstep for the `i486` mode: it runs the RTL only.
+- The census and the CACHECHK runs were not repeated after main was merged.
+- `wfw-msdos` and the three Linux drives were not run at level 4; the plan
+  did not run them either.
+- CACHECHK's timing loop was not traced, only the divide and its operands.
+- Nothing ran with VME included, or on a 486 without CPUID.
 '''
 
 
@@ -315,5 +358,7 @@ def render(read, inputs_changed, record: str) -> str:
     else:
         add('Its runs were still going when this was generated.\n')
 
+    add(DEPARTURES)
+    add(NOT_RUN)
     add(NOTES)
     return '\n'.join(out)
