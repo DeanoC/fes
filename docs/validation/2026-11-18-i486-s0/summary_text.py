@@ -42,7 +42,7 @@ NOTES = '''\
 - **The census and the CACHECHK runs were made on chip-30x0-ai-dev,** from
   a `git archive` of the code commit, because Powerboat was at a load of
   about 80 when they started. The seven drives were copied there for the
-  runs and are to be deleted there after them. The first start of the sweep
+  runs and deleted there, with the trees, when the census ended. The first start of the sweep
   was from an uncommitted tree and was stopped while still building; nothing
   was read from it.
 - **The CACHECHK trace used a scratch change to `machine_tb.cpp`** in a
@@ -296,6 +296,10 @@ def render(read, inputs_changed, record: str) -> str:
             add(f"  - `{row['id']}`: " + '; '.join(f"{key}: plan {value['plan']}, this slice {value['slice0']}"
                                                    for key, value in row['differences'].items()))
         add(f"- Not run: {len(census['not_run'])}" + (': ' + ', '.join(f'`{name}`' for name in census['not_run']) if census['not_run'] else '') + '.')
+        nonzero = sorted(name for name, status in census['exit_status'].items() if not status.endswith('rc=0'))
+        add(f"- Runs whose bench exited non-zero: {len(nonzero)}" + (': ' + ', '.join(f'`{name}`' for name in nonzero)
+            + '. Their rows are counted. The plan record has the same for `chkcpu`: it prints and exits, so the '
+              'game check sees no screen progress' if nonzero else '') + '.')
         add('\nThe rows are in [`census.jsonl`](census.jsonl): counts only.\n')
     else:
         add('**Census.** Still running when this was generated.\n')

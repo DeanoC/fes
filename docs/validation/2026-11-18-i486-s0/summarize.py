@@ -377,7 +377,8 @@ def census(args) -> int:
     (HERE / 'census.jsonl').write_text(''.join(json.dumps(row, sort_keys=True) + '\n' for row in rows))
     not_run = sorted(set(plan) - {row['id'] for row in rows})
     out = {'commit': git('rev-parse', args.commit), 'host': args.host,
-           'exit_status': {path.name[:-len('-l4.done')]: path.read_text().strip() for path in sorted(args.logs.glob('*-l4.done'))},
+           'exit_status': {path.name[:-len('-l4.done')]: path.read_text().strip() for path in sorted(args.logs.glob('*-l4.done'))
+                           if path.name[:-len('-l4.done')] in {title[0] for title in titles}},
            'plan_revision': subprocess.check_output(['git', '-C', str(REPO), 'rev-parse', args.plan], text=True).strip(),
            'plan_rows': len(plan), 'rows_run': len(rows), 'rows_equal': sum(1 for row in compared if row.get('equal')),
            'compared_keys': list(COMPARED), 'not_run': not_run, 'rows': compared,
