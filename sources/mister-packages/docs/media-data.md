@@ -79,11 +79,14 @@ game ID, unit and base-image SHA256, and the runtime derives the namespace.
 These three requests apply to whole-image records. They never create a
 namespace, so a query for a disk that was never written leaves no directory.
 
-- **Inspect** returns `state`, `revision` and `bytes`. `absent` has revision
-  `absent` and zero bytes. `present` means the envelope decodes for that
-  identity. `corrupt` covers a bad checksum and a valid envelope bound to a
-  different identity or layout; it still has a revision, so it can be
-  discarded.
+- **Inspect** returns `state`, `revision`, `bytes` and `changed`. `absent`
+  has revision `absent` and zero bytes. `present` means the envelope decodes
+  for that identity. `corrupt` covers a bad checksum and a valid envelope
+  bound to a different identity or layout; it still has a revision, so it
+  can be discarded. `changed` is true for a present record whose payload
+  SHA256 is not the base-image SHA256. Stop saves a bound disk whether or
+  not it was written to, so a disk that was only played is `present` and
+  not `changed`.
 - **Export** writes the record's payload, the raw disk image, to a new file
   the caller names. It refuses a record whose revision is not the expected
   one, and a corrupt record. The record is unchanged.

@@ -1260,8 +1260,9 @@ callers must preserve the binding identity while refusing the Save operation.
 Writable Atari ST packages use persistent mode only while a disk binding exists.
 A saved record can also be reached when its package is not loaded. `POST
 /v1/library/media/record` takes `{core_id, game_id, base_media_id, unit}` and
-returns `{state, revision, bytes}` with state `absent`, `present` or
-`corrupt`. `POST /v1/library/media/records` takes up to 256 identities as
+returns `{state, revision, bytes, changed}` with state `absent`, `present` or
+`corrupt`. `changed` is true when a present record's image differs from the
+imported disk; a disk saved at Stop without a write is present and unchanged. `POST /v1/library/media/records` takes up to 256 identities as
 `{records:[...]}` and answers them in order. `POST
 /v1/library/media/record/export` adds `expected_revision` and returns the
 saved disk image as an octet stream. `POST /v1/library/media/record/discard`

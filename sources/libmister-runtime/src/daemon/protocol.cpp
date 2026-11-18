@@ -944,7 +944,8 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
 		AppendQuoted(&output, media_data->state);
 		output.Append(",\"revision\":");
 		AppendQuoted(&output, media_data->revision);
-		output.Append(",\"bytes\":" + std::to_string(media_data->bytes) + "}");
+		output.Append(",\"bytes\":" + std::to_string(media_data->bytes));
+		output.Append(media_data->changed ? ",\"changed\":true}" : ",\"changed\":false}");
 	}
 	output.Append("}");
 	if (!output.ok()) return false;

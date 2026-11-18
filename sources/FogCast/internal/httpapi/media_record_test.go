@@ -24,7 +24,7 @@ type mediaRecordHTTPController struct {
 
 func (c *mediaRecordHTTPController) InspectMediaRecord(_ context.Context, id protocol.MediaRecordIdentity) (protocol.MediaRecord, *protocol.APIError) {
 	c.inspected = append(c.inspected, id)
-	return protocol.MediaRecord{State: protocol.MediaRecordPresent, Revision: strings.Repeat("b", 64), Bytes: 737453}, c.err
+	return protocol.MediaRecord{State: protocol.MediaRecordPresent, Revision: strings.Repeat("b", 64), Bytes: 737453, Changed: true}, c.err
 }
 
 func (c *mediaRecordHTTPController) DiscardMediaRecord(_ context.Context, d protocol.MediaRecordDiscard) (protocol.MediaRecord, *protocol.APIError) {
@@ -63,7 +63,7 @@ func TestSavedMediaRecordRoutes(t *testing.T) {
 	// Inspect changes nothing, so it needs no lease.
 	w := send("/v1/library/media/record", string(identity), func(r *http.Request) { r.Header.Del(httpapi.KitLeaseHeader) })
 	var record protocol.MediaRecord
-	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &record) != nil || record.State != protocol.MediaRecordPresent || record.Revision != revision ||
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &record) != nil || record.State != protocol.MediaRecordPresent || record.Revision != revision || !record.Changed ||
 		len(c.inspected) != 1 || c.inspected[0] != id {
 		t.Fatalf("inspect %d %s %+v", w.Code, w.Body, c.inspected)
 	}
@@ -131,6 +131,9 @@ func TestSavedMediaRecordValidity(t *testing.T) {
 		{protocol.MediaRecord{State: "absent", Revision: "absent"}, true},
 		{protocol.MediaRecord{State: "present", Revision: digest, Bytes: 737453}, true},
 		{protocol.MediaRecord{State: "corrupt", Revision: digest, Bytes: 3}, true},
+		{protocol.MediaRecord{State: "present", Revision: digest, Bytes: 737453, Changed: true}, true},
+		{protocol.MediaRecord{State: "absent", Revision: "absent", Changed: true}, false},
+		{protocol.MediaRecord{State: "corrupt", Revision: digest, Bytes: 3, Changed: true}, false},
 		{protocol.MediaRecord{State: "absent", Revision: digest}, false},
 		{protocol.MediaRecord{State: "absent", Revision: "absent", Bytes: 1}, false},
 		{protocol.MediaRecord{State: "present", Revision: "absent", Bytes: 1}, false},
