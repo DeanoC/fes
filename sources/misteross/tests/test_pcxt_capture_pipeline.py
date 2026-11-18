@@ -14,22 +14,23 @@ class CapturePipelineTests(unittest.TestCase):
     def test_first_word_and_frontend_deadline_require_retention(self):
         controller = ROOT / 'cores/fes-ramtest/rtl/sdram_addon_port.v'
         memory = ROOT / 'cores/fes-pcxt/rtl/pcxt_memory.sv'
+        capture = ROOT / 'cores/fes-ramtest/rtl/sdram_cas3_capture.v'
         sim = ROOT / 'cores/fes-pcxt/sim'
         with tempfile.TemporaryDirectory(prefix='pcxt-capture-pipeline-') as directory:
             work = Path(directory)
             mutant = work / 'without-retention.sv'
-            text = memory.read_text()
-            guard = 'if (read_window[3]) read_word <= dq_fall;'
+            text = capture.read_text()
+            guard = 'if (read_window[3]) read_word <= captured;'
             self.assertEqual(text.count(guard), 1)
-            mutant.write_text(text.replace(guard, 'read_word <= dq_fall;'))
+            mutant.write_text(text.replace(guard, 'read_word <= captured;'))
             late = work / 'late-handoff.sv'
-            late.write_text(text.replace(guard, 'if (read_window[2]) read_word <= dq_fall;'))
-            for name, selected, expected in [('positive', memory, 0), ('without-retention', mutant, 1),
+            late.write_text(text.replace(guard, 'if (read_window[2]) read_word <= captured;'))
+            for name, selected, expected in [('positive', capture, 0), ('without-retention', mutant, 1),
                                               ('wrong-cycle', late, 1)]:
                 with self.subTest(case=name):
                     obj = work / name
                     command = [VERILATOR, '--cc', '--exe', '--build', '--top-module', 'pipeline_top',
-                               '-Wno-fatal', '-j', '2', '--Mdir', str(obj), str(controller), str(selected),
+                               '-Wno-fatal', '-j', '2', '--Mdir', str(obj), str(controller), str(memory), str(selected),
                                str(sim/'memory_top.sv'), str(sim/'capture_pipeline_top.sv'),
                                str(sim/'capture_pipeline_tb.cpp')]
                     build = subprocess.run(command, capture_output=True, text=True, timeout=120)

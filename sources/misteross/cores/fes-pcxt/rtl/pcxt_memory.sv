@@ -73,23 +73,10 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
     reg [15:0] dq_rise_q, dq_fall_q;
     wire [15:0] controller_data, legacy_data;
     generate if (SDRAM_CAPTURE_PIPELINE) begin: capture_handoff
-        // READ is sampled once in the controller domain. Its first word is
-        // captured by the board I/O registers in the selected CAS-3 window.
-        reg [3:0] read_window = 0;
-        reg [15:0] read_word, return_word;
-        always @(posedge controller_clk)
-            if (controller_reset) read_window <= 0;
-            else read_window <= {read_window[2:0],
-                sdram_cke && sdram_nras && !sdram_ncas && sdram_nwe};
-        // Latch the selected word once, then retain it through done/retirement.
-        // The unused legacy rdata cone is removed in this experimental mode.
-        always @(posedge clk_handoff)
-            if (read_window[3]) read_word <= dq_fall;
-        // Land the retained word in the controller clock domain before the
-        // existing done-driven frontend response. No narrow half-cycle bus
-        // crossing is imposed between the selected I/O sample and response.
-        always @(negedge controller_clk) return_word <= read_word;
-        assign controller_data = return_word;
+        sdram_cas3_capture pipeline (
+            .clk(controller_clk), .clk_handoff(clk_handoff), .reset(controller_reset),
+            .read_strobe(sdram_cke && sdram_nras && !sdram_ncas && sdram_nwe),
+            .captured(dq_fall), .rdata(controller_data));
         assign dq_rise_q = 0;
         assign dq_fall_q = 0;
     end else begin: original_handoff

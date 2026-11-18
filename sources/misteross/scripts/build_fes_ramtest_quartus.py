@@ -11,6 +11,7 @@ from that lock.
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import os
 import re
@@ -33,7 +34,10 @@ TOP = "top"
 MHZ = os.environ.get("RAMTEST_MHZ", "130")
 if MHZ not in ("100", "130"):
     raise ValueError("RAMTEST_MHZ must be 100 or 130")
-OUTPUT_RELATIVE = Path("build/fes-ramtest-quartus" + ("-100" if MHZ == "100" else ""))
+CAS3_CAPTURE = os.environ.get("RAMTEST_CAS3_CAPTURE", "0") == "1"
+if CAS3_CAPTURE and MHZ != "100":
+    raise ValueError("CAS-3 capture requires RAMTEST_MHZ=100")
+OUTPUT_RELATIVE = Path("build/fes-ramtest-quartus" + ("-100-cas3" if CAS3_CAPTURE else "-100" if MHZ == "100" else ""))
 QSF_PINS = "cores/fes-ramtest/constraints.qsf"
 QUARTUS_LOCK = "cores/fes-ramtest/quartus.lock"
 I2C_SITE = "HPSINTERFACEPERIPHERALI2C_X52_Y60_N111"
@@ -53,6 +57,7 @@ VERILOG_SOURCES = (
     "cores/fes-ramtest/rtl/ram_display.v",
     "cores/fes-ramtest/rtl/ram_pll.v",
     "cores/fes-ramtest/rtl/sdram_addon_port.v",
+    "cores/fes-ramtest/rtl/sdram_cas3_capture.v",
     "cores/fes-ramtest/rtl/ddr_rates.v",
     "cores/fes-ramtest/rtl/ddr_channel.v",
     "cores/fes-ramtest/rtl/lat_stats.v",
@@ -71,6 +76,19 @@ PROJECT_SDC = (
     "    -group [get_clocks {ram_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk}] \\\n"
     "    -group [get_clocks {ram_clock|pll|general[2].gpll~PLL_OUTPUT_COUNTER|divclk}]\n"
 )
+if CAS3_CAPTURE:
+    # Forwarding and handoff remain related to the controller/capture clock.
+    PROJECT_SDC = (
+        'create_clock -name FPGA_CLK1_50 -period 20.000 [get_ports {FPGA_CLK1_50}]\n'
+        'derive_pll_clocks\nderive_clock_uncertainty\n'
+        'set_clock_groups -asynchronous -group [get_clocks FPGA_CLK1_50] '
+        '-group [get_clocks {video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk}] '
+        '-group [get_clocks {ram_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk ram_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk ram_clock|pll|general[2].gpll~PLL_OUTPUT_COUNTER|divclk}]\n')
+    record = {'sources': {n: hashlib.sha256((ROOT/n).read_bytes()).hexdigest()
+                          for n in (*VERILOG_SOURCES, QSF_PINS, QUARTUS_LOCK,
+                                    'scripts/build_fes_ramtest_quartus.py')},
+              'mode': '100MHz-CAS3-retained-word', 'sdc': PROJECT_SDC}
+    BUILD_ID = hashlib.sha256(json.dumps(record, sort_keys=True).encode()).hexdigest()[:32]
 # Registers on a clock TimeQuest cannot analyse are in no slack row.
 UNANALYSED_CLOCKS = ("Illegal Clocks", "Unconstrained Clocks")
 UNANALYSED_ROW_RE = re.compile(r"^; (Illegal Clocks|Unconstrained Clocks)\s*; (\d+)\s*; (\d+)\s*;", re.M)
@@ -108,6 +126,10 @@ def project_qsf(root: Path, project: Path, lock: QuartusLock) -> str:
             f"{I2C_SITE} -entity {TOP} -to hdmi_i2c"
         ),
     ]
+    if CAS3_CAPTURE:
+        lines.append('set_global_assignment -name VERILOG_MACRO "RAM_CAS3_CAPTURE"')
+        lines.extend(f'set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[{i}]'
+                     for i in range(16))
     lines.extend(
         f"set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to {pin}"
         for pin in ("SDRAM_CKE", "SDRAM_nCS", "SDRAM_nRAS", "SDRAM_nCAS",
