@@ -1,0 +1,11 @@
+{
+  "agreed_on": "18 Nov 2026",
+  "agreed_by": "Deano",
+  "question": "Do you agree the two proposed transcendental bounds (4 against the host, 2^21 against Bochs)?",
+  "reply": "Agree both",
+  "relayed_by": "the coordinating session, which asked the question and passed on the reply verbatim",
+  "when": "after every result under evidence/final had been produced and seen: the agreement is not a prediction the results then met",
+  "transcendental_ulp_host": 4,
+  "transcendental_ulp_oracle": 2097152,
+  "unchanged": "neither figure, nor the trigonometric window, nor any pass rule was changed for or after the agreement"
+}

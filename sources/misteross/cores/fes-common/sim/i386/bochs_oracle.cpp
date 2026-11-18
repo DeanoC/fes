@@ -559,6 +559,24 @@ public:
         return state;
     }
 
+    void set_x87_register(unsigned physical, const X87Register &value) override {
+        if (physical > 7) throw std::invalid_argument("set_x87_register: physical register 0-7");
+        i387_t &x87 = bx_cpu.the_i387;
+        floatx80 &reg = x87.st_space[physical];
+        reg.signif = value.significand;
+        reg.signExp = value.sign_exponent;
+        // The stored tag, which FNSTENV-era code reads for empty or not and
+        // x87_state() recomputes: the value's own.
+        x87.twd = Bit16u((x87.twd & ~(3u << (2 * physical))) | (unsigned(FPU_tagof(reg)) & 3u) << (2 * physical));
+    }
+
+    void set_x87_status_bits(uint16_t mask, uint16_t value) override {
+        if (mask & ~X87_STATUS_SETTABLE)
+            throw std::invalid_argument("set_x87_status_bits: only C0-C3, SF and the six flags");
+        i387_t &x87 = bx_cpu.the_i387;
+        x87.swd = Bit16u((x87.swd & ~mask) | (value & mask));
+    }
+
     void set_at_coprocessor(bool fitted) override {
         at387 = AtCoprocessor{fitted, false, x87_error()};
         update_ignne();

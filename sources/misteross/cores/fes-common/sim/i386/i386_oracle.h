@@ -10,6 +10,7 @@
 #include <functional>
 #include <memory>
 #include <new>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -162,6 +163,10 @@ struct X87State {
     X87Register r[8];
 };
 
+// The status word's bits Oracle::set_x87_status_bits may write: C3, C2, C1,
+// C0, SF and the six exception flags.
+constexpr uint16_t X87_STATUS_SETTABLE = 0x477f;
+
 // The fields in which two X87States differ: control, status, tag, opcode,
 // fip, fcs, fdp, fds and r0-r7 (physical registers).
 inline std::vector<std::string> x87_differences(const X87State &a, const X87State &b) {
@@ -239,6 +244,20 @@ public:
     virtual bool x87_irq13() const = 0;
     // Whether the AT board's BUSY# latch is set.
     virtual bool x87_busy_latched() const = 0;
+    // Overwrite one physical 387 register's 80 bits (r[physical] of
+    // X87State; ST(i) is physical (TOP + i) & 7) and make its tag the
+    // value's: valid, zero or special, never empty, so a register that was
+    // empty is in use afterwards. Nothing else changes. For the lockstep's
+    // transcendental rule (#1958), which sets the oracle's result to the
+    // RTL's after a compare within the bound has passed.
+    virtual void set_x87_register(unsigned physical, const X87Register &value) = 0;
+    // Overwrite the status word's bits under mask with value's. mask may
+    // name only the condition codes C0-C3 and the six exception flags with
+    // SF (X87_STATUS_SETTABLE); TOP, ES and B are refused with
+    // std::invalid_argument, because ES and B follow the flags and the
+    // masks and TOP is the stack's. For the same rule: C1 after a result
+    // within the bound, and the flags and C2 of a recorded divergence.
+    virtual void set_x87_status_bits(uint16_t mask, uint16_t value) = 0;
 };
 
 // One oracle may exist per process (the backend keeps global CPU state).

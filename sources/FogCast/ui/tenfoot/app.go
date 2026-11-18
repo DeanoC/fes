@@ -220,18 +220,21 @@ func layoutDetailMeta(d shared.FocusDetail, x, maxWidth, sizePx int) (facts stri
 
 // Snapshot is a frame-loop readable copy of launcher state.
 type Snapshot struct {
-	Games       []hostclient.Game
-	Grid        Grid
-	Status      string
-	LoadErr     string
-	Loading     bool
-	Covers      map[string]*image.RGBA
-	Launch      LaunchSnapshot
-	Gamepads    int
-	Keyboards   int
-	Mice        int
-	Affinity    InputKind
-	AffinityID  int
+	Games      []hostclient.Game
+	Grid       Grid
+	Status     string
+	LoadErr    string
+	Loading    bool
+	Covers     map[string]*image.RGBA
+	Launch     LaunchSnapshot
+	Gamepads   int
+	Keyboards  int
+	Mice       int
+	Affinity   InputKind
+	AffinityID int
+	// Prompts draws gamepad hints with the affinity pad's glyphs. Nil
+	// keeps button words.
+	Prompts     PadPrompts
 	CoverHits   int
 	Platforms   []hostclient.Platform
 	PlatformID  string
@@ -324,12 +327,14 @@ type App struct {
 	keyboards               int
 	mice                    int
 	affinity                affinityTracker
-	repeat                  Repeater
-	theme                   theme.Theme
-	jobs                    chan workItem
-	results                 chan workResult
-	maxGames                int
-	pageLimit               int
+	// padPrompts holds each attached pad's hint glyphs by input ID.
+	padPrompts map[int]PadPrompts
+	repeat     Repeater
+	theme      theme.Theme
+	jobs       chan workItem
+	results    chan workResult
+	maxGames   int
+	pageLimit  int
 
 	platforms              []hostclient.Platform
 	platformID             string
@@ -1861,6 +1866,7 @@ func (a *App) Snapshot() Snapshot {
 		Mice:               a.mice,
 		Affinity:           a.affinity.current.Kind,
 		AffinityID:         a.affinity.current.ID,
+		Prompts:            a.affinityPromptsLocked(),
 		CoverHits:          hits,
 		Platforms:          a.platforms,
 		PlatformID:         a.platformID,
@@ -1978,6 +1984,9 @@ func (a *App) DetachInput(kind InputKind, id int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.affinity.Detach(kind, id)
+	if kind == InputGamepad {
+		delete(a.padPrompts, id)
+	}
 	a.syncInputCountsLocked()
 }
 
