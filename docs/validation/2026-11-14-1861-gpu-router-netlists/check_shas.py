@@ -40,22 +40,29 @@ def main() -> int:
                 continue
             for sha in SHA40.findall(line):
                 found.setdefault(sha, set()).add(str(path.relative_to(arguments.root)))
-    bad = {}
+    bad, kinds = {}, {}
     for sha in sorted(found):
         out = subprocess.run(("git", "-C", str(arguments.repo), "cat-file", "-t", sha),
                              capture_output=True, text=True)
-        if out.returncode != 0 or out.stdout.strip() != "commit":
+        kind = out.stdout.strip()
+        # Not only commits. The seal check anchors on the `sources/misteross`
+        # tree object, deliberately, because a commit SHA moves whenever this
+        # record's own documents are committed. So accept any object this
+        # repository holds and print which kind it is; the thing being audited
+        # is that no 40-hex value here was typed rather than read.
+        if out.returncode != 0 or kind not in ("commit", "tree", "blob", "tag"):
             bad[sha] = found[sha]
+        kinds[sha] = kind or "unresolved"
     print(f"{len(found)} distinct 40-hex value(s) referenced in {arguments.root.name}")
     for sha in sorted(found):
-        mark = "DOES NOT RESOLVE" if sha in bad else "commit"
-        print(f"  {sha} {mark}")
+        print(f"  {sha} {'DOES NOT RESOLVE' if sha in bad else kinds[sha]}")
         if sha in bad:
             for where in sorted(found[sha]):
                 print(f"      named in {where}")
     print()
-    print("every referenced revision resolves" if not bad
-          else f"{len(bad)} referenced revision(s) do not resolve")
+    print(f"every referenced object resolves ({sum(1 for k in kinds.values() if k == 'commit')} "
+          f"commit, {sum(1 for k in kinds.values() if k == 'tree')} tree)" if not bad
+          else f"{len(bad)} referenced object(s) do not resolve")
     return 1 if bad else 0
 
 

@@ -46,6 +46,9 @@ def main() -> int:
     parser.add_argument("--write", action="store_true")
     parser.add_argument("--scope", type=Path, default=HERE / "reports-scope")
     parser.add_argument("--cond3", type=Path, default=HERE / "reports-cond3" / "cond3.json")
+    parser.add_argument("--seals", type=Path,
+                        default=HERE / "reports-scope3" / "seals-at-head.json",
+                        help="seals_at_head.py json for the current head")
     arguments = parser.parse_args()
     wanted = {"condition 1": arguments.scope / "cond1-summary.json",
               "condition 2": arguments.scope / "cond2-summary.json",
@@ -138,7 +141,23 @@ def main() -> int:
               "were resealed at `541e3c548` because the second main move touched their",
               "producer; the other seven were taken at `df99f2dfb` and their identities are",
               "unchanged at `541e3c548`, which `reports-scope2/cond3-head-move.log` measures.",
-              "", END]
+              ""]
+    seals = load(arguments.seals)
+    if seals is None:
+        print(f"WARNING: no seal check at {arguments.seals}; the table cannot say whether "
+              "the seals still match the head", file=sys.stderr)
+        lines.append("Whether those seals still match the current head is **not measured** here.")
+    elif seals["intact"]:
+        lines += [f"Every one of those {len(seals['rows'])} seals is still a seal of this branch's",
+                  "current sources -- `sources/misteross` at tree",
+                  f"`{seals['sources_tree'][:12]}` -- each tied by a named anchor in",
+                  "`reports-scope3/seals-at-head.log`: an inputs-map match where the producer",
+                  "writes one, and a design-identity comparison against the seal's own tree",
+                  "for the four Quartus summaries that do not."]
+    else:
+        lines.append("**NOT INTACT at this head**: " + ", ".join(seals["not_intact"])
+                     + " -- those rows owe a reseal.")
+    lines += ["", END]
     table = "\n".join(lines)
     print(table)
     if arguments.write:

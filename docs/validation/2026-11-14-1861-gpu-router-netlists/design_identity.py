@@ -20,11 +20,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import importlib
+import importlib.util
 import json
 import os
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 MISTEROSS = "sources/misteross"
 
@@ -36,30 +37,55 @@ def _rows(tree: Path):
         script = row.get("producer_script")
         if not script:
             continue
-        out.append((row["id"], Path(script).stem, row.get("check_level"),
+        out.append((row["id"], PurePosixPath(script).as_posix(), row.get("check_level"),
                     row.get("tier"), row.get("board")))
     # The splash firmware has no producer_script cell but is a registered
     # artefact with its own producer, so name it here rather than miss it.
     splash = next((row for row in data["cores"] if row["id"] == "splash"), None)
     if splash is not None and not splash.get("producer_script"):
-        out.append(("splash", "build_fes_splash", splash.get("check_level"),
+        out.append(("splash", "scripts/build_fes_splash.py", splash.get("check_level"),
                     splash.get("tier"), splash.get("board")))
     return out
 
 
-def _load(tree: Path, module: str):
-    for stale in [n for n in sys.modules if n == "scripts" or n.startswith("scripts.")]:
+def _module_name(script: str) -> str:
+    """The dotted name for a producer at this path inside sources/misteross.
+
+    Producers used to live only in scripts/, so this program derived the module
+    from the file's stem. DeanoC/fes#1951 registered `fes.pc386`, whose producer
+    is cores/fes-pc386/tools/build_pc386_product.py, and the stem assumption
+    turned that new row into a ModuleNotFoundError traceback -- which also hid
+    every row printed after it, `splash` among them. Derive the name from the
+    whole path so a producer anywhere in the tree loads.
+    """
+    parts = PurePosixPath(script).with_suffix("").parts
+    return ".".join(part.replace("-", "_") for part in parts)
+
+
+def _load(tree: Path, script: str):
+    for stale in [n for n in sys.modules
+                  if n == "scripts" or n.startswith("scripts.") or "build_" in n]:
         del sys.modules[stale]
     root = tree / MISTEROSS
     sys.path.insert(0, str(root))
     os.chdir(root)
     try:
-        return importlib.import_module(f"scripts.{module}")
+        name = _module_name(script)
+        # There are no package __init__.py files under cores/, so a producer
+        # outside scripts/ cannot be reached by import_module. Load it from its
+        # file instead, under the name it would have had.
+        spec = importlib.util.spec_from_file_location(name, root / script)
+        if spec is None or spec.loader is None:
+            raise SystemExit(f"{script}: no importable producer at this path")
+        producer = importlib.util.module_from_spec(spec)
+        sys.modules[name] = producer
+        spec.loader.exec_module(producer)
+        return producer
     finally:
         sys.path.remove(str(root))
 
 
-def _emits_source_closure(producer) -> bool:
+def _emits_source_closure(producer, script: str) -> bool:
     """Does this producer's record hash a source closure at all?
 
     A format-1 producer (build_fes_splash) hashes its whole record instead:
@@ -69,17 +95,27 @@ def _emits_source_closure(producer) -> bool:
     as its closure would attribute an invented 600-file design set and an
     invented list of moved files to a record that hashes neither.
     """
-    text = (producer.ROOT / "scripts" / f"{producer.__name__.split('.')[-1]}.py").read_text()
+    text = (producer.ROOT / script).read_text()
     return "functional_record_fields" in text or "source_input_closure" in text
 
 
-def _roots(producer):
+def _roots(producer, script: str):
     """The producer's own declared closure roots, however it declares them."""
     value = getattr(producer, "SOURCE_ROOTS", None)
     if value:
         return sorted(set(value))
     if callable(getattr(producer, "source_roots", None)):
         return sorted(set(producer.source_roots(producer.ROOT)))
+    # The audited manifest is keyed by scripts.<name>. A producer outside
+    # scripts/ is not in it, so asking anyway returns the broad fallback -- the
+    # whole of scripts/ -- and this program would then report an invented
+    # closure and an invented list of moved files for it. That is the splash
+    # mis-attribution again, so refuse by name instead and let the row stand
+    # unanswered until something measures what it really hashes.
+    if not script.startswith("scripts/"):
+        raise _Unanswered(
+            f"{script}: closure is an explicit path set built in its own "
+            "create_build_record, not roots in scripts/source_closures.json")
     # nextpnr producers resolve roots at record time from the audited manifest.
     from scripts.functional_execution import source_roots_for_producer
     pinned = getattr(producer, "PINNED_INPUTS", None) or getattr(producer, "INPUTS", None)
@@ -91,8 +127,12 @@ def _roots(producer):
                                                 tuple(pinned), producer.ROOT)))
 
 
-def measure(tree: Path, module: str) -> dict:
-    producer = _load(tree, module)
+class _Unanswered(Exception):
+    """This program cannot say what that producer hashes. Say so by name."""
+
+
+def measure(tree: Path, script: str) -> dict:
+    producer = _load(tree, script)
     from scripts.export_core_package import source_input_closure
     from scripts.compiler_read_audit import POLICY
     try:
@@ -103,9 +143,9 @@ def measure(tree: Path, module: str) -> dict:
         # before it has no role split. Compare the whole closure there and say
         # so, rather than refusing to answer or pretending to a split.
         input_role, split = (lambda path: "design"), False
-    if not _emits_source_closure(producer):
+    if not _emits_source_closure(producer, script):
         return _measure_format1(producer)
-    roots = _roots(producer)
+    roots = _roots(producer, script)
     closure = source_input_closure(producer.ROOT, roots, policy=POLICY)
     design = {p: d for p, d in closure.items() if input_role(p) == "design"}
     other = {p: d for p, d in closure.items() if input_role(p) != "design"}
@@ -181,10 +221,20 @@ def main() -> int:
     result = {"tree_a": {"path": str(a), "revision": _revision(a)},
               "tree_b": {"path": str(b), "revision": _revision(b)},
               "rows": {}}
-    print(f'{"artefact":22} {"producer":28} {"chk":8} {"design":7} {"verdict"}')
+    print(f'{"artefact":22} {"producer":40} {"chk":8} {"design":7} {"verdict"}')
     for core_id, module, check_level, _tier, _board in rows_b:
-        ma = measure(a, module) if core_id in ids_a and ids_a[core_id][1] == module else None
-        mb = measure(b, module)
+        try:
+            ma = (measure(a, module)
+                  if core_id in ids_a and ids_a[core_id][1] == module else None)
+            mb = measure(b, module)
+        except _Unanswered as refusal:
+            result["rows"][core_id] = {
+                "producer": module, "check_level": check_level,
+                "tree_a": None, "tree_b": None,
+                "verdict": f"UNANSWERED: {refusal}"}
+            print(f"{core_id:22} {module:40} {str(check_level):8} {'-':<7} "
+                  f"UNANSWERED: {refusal}")
+            continue
         if ma is None:
             verdict = "NEW ROW OR PRODUCER CHANGED -- no tree-a counterpart"
         else:
@@ -210,7 +260,8 @@ def main() -> int:
             "tree_b": {k: v for k, v in mb.items() if k not in ("design", "closure")},
             "verdict": verdict,
         }
-        print(f"{core_id:22} {module:28} {str(check_level):8} {mb['design_files']:<7} {verdict}")
+        print(f"{core_id:22} {module:40} {str(check_level):8} "
+              f"{mb['design_files']:<7} {verdict}")
     moved = [c for c, row in result["rows"].items() if row["verdict"].startswith("MOVED")]
     unchanged = [c for c, row in result["rows"].items()
                  if row["verdict"].endswith("unchanged")]
