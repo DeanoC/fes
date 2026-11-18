@@ -117,12 +117,12 @@ its own acceptance with readers still setting and testing the deleted macros**:
 
 | Spelling | Site | Why the pattern misses it |
 | --- | --- | --- |
-| bare `VERILOG_MACRO "QUARTUS"` | `M/scripts/build_fes_ramtest_quartus.py:101` | not `QUARTUS=1`, not an `ifdef` |
+| bare `VERILOG_MACRO "QUARTUS"` | `M/scripts/build_fes_ramtest_quartus.py:121` | not `QUARTUS=1`, not an `ifdef` |
 | `` `ifdef\s+QUARTUS `` as a regex | the removed ZX81 producer test | that historical regex fixture was removed with the legacy producer |
 | `` `define QUARTUS `` / `` `undef QUARTUS `` | `M/boards/de25nano/zx81-hps/test_tape_store.py:62` | neither form is in the pattern |
 | `VERILOG_MACRO\s+.*QUARTUS` guard regex | `M/boards/de25nano/zx81-hps/build.py:341` | matches on its own regex text, not on `QUARTUS=1` |
 
-Verified by hand: `build_fes_ramtest_quartus.py:101` is
+Verified by hand: `build_fes_ramtest_quartus.py:121` is
 `'set_global_assignment -name VERILOG_MACRO "QUARTUS"',` and the acceptance pattern returns no match
 against that line.
 
@@ -133,7 +133,7 @@ alongside the file-name sweep.
 
 Separately, a large class of readers **names no macro at all** and no macro grep of any shape will
 find them. They take the `` `else `` arms today and they each need the new include directory:
-path-joined reads (`test_fes_ramtest.py:121`, `:145`, `:151`, `:152`, `:173`), wrapper sims that
+path-joined reads (`test_fes_ramtest.py:129`, `:145`, `:151`, `:152`, `:173`), wrapper sims that
 reach a guarded file only through `sim.SYSTEM_SOURCES` (`sim_fes_pcxt_dos.py:188`,
 `sim_fes_pcxt_media.py:39`, `sim_fes_pcxt_media_diag.py:17`), bare Verilator compiles
 (`test_computer_memory_backend.py:33`, `test_zonx_firmware.py:38`), and eleven DE25 readers. The
@@ -370,7 +370,11 @@ Confirmed present, with the line verified where noted:
 
 Main moved 49 commits past the 16 November refresh (DeanoC/fes#1905), and the verifier on main
 reported 141 primary-line problems and 323 citation problems (DeanoC/fes#1897). This refresh carries
-the record to main at `2393a9f04`.
+the record to main at `2393a9f04`, and then, when main moved two commits during review, to
+`1ec592670`. That second step is the tool used as intended: against this refresh's own previous
+commit it moved 48 lines and listed one, a line of `sim_fes_pcxt.py` that DeanoC/fes#1970 edited
+and this record cites four times. Those four were read and re-pointed, and the fingerprint file
+then differed from the previous commit's by that one line's digest and nothing else.
 
 **What was carried mechanically.** `carry_forward.py`, run against the 16 November tree
 `30688ae44` (where the verifier exits 0), found 889 asserted lines unmoved, 418 moved with the

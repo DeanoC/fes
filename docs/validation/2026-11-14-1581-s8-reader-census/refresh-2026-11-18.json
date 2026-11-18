@@ -5,9 +5,9 @@
  "carried_to": "1ec59267039b12b5879dd90af856ac232b9d014c",
  "endpoints": {
   "total": 1156,
-  "text_fingerprinted_in_authored_record": 981,
+  "text_fingerprinted_in_authored_record": 977,
   "text_first_pinned_16_november": 3,
-  "text_first_pinned_here": 172
+  "text_first_pinned_here": 176
  },
  "restored": [
   {
@@ -18,7 +18,7 @@
    "held_16_november": "repository, revision = _require_clean_source(root, identity_version=identity_version, dos_profile=dos_profile)",
    "authored_line": 369,
    "authored_text": "command = [sys.executable, str(root / 'scripts/quartus_fes_pcxt.py'),",
-   "line_now": 386,
+   "line_now": 390,
    "neighbours_match_authored_tree": true
   },
   {
@@ -29,7 +29,7 @@
    "held_16_november": "record = create_build_record(root, repository, revision, identities, execution=execution,",
    "authored_line": 376,
    "authored_text": "command.extend(('--seed', str(seed)))",
-   "line_now": 392,
+   "line_now": 396,
    "neighbours_match_authored_tree": true
   },
   {
@@ -1107,7 +1107,7 @@
    "held_16_november": "'enable_fes_computer': True, 'enable_pcxt_media': True,",
    "authored_line": 258,
    "authored_text": "'source_path': root.relative_to(top).as_posix(), 'source_roots': roots,",
-   "line_now": 282,
+   "line_now": 285,
    "neighbours_match_authored_tree": true
   },
   {
@@ -1464,6 +1464,13 @@
    "cited": "sources/misteross/scripts/hip_zx81_bus_carts.py",
    "line": 71,
    "text": "f\"read_verilog -sv -DSYNTHESIS=1 -I cores/fes-zx81/rtl -I cores/fes-zx81/expansions {sources}; \""
+  },
+  {
+   "record": "census-tables.md",
+   "row": 82,
+   "cited": "sources/misteross/scripts/sim_fes_pcxt.py",
+   "line": 91,
+   "text": "MEMORY_SOURCES[:-1] + VIDEO_SOURCES[:-1] +"
   },
   {
    "record": "census-tables.md",
@@ -1866,6 +1873,13 @@
   },
   {
    "record": "census-tables.md",
+   "row": 221,
+   "cited": "sources/misteross/scripts/sim_fes_pcxt.py",
+   "line": 91,
+   "text": "MEMORY_SOURCES[:-1] + VIDEO_SOURCES[:-1] +"
+  },
+  {
+   "record": "census-tables.md",
    "row": 230,
    "cited": "sources/misteross/scripts/synth_fes_pcxt.py",
    "line": 49,
@@ -1884,6 +1898,13 @@
    "cited": "cores/fes-coleco/rtl/coleco_application_gp.v",
    "line": 56,
    "text": "coleco_dpram #(.ADDRWIDTH(15), .NUMWORDS(32768)) media_ram ("
+  },
+  {
+   "record": "census-tables.md",
+   "row": 266,
+   "cited": "sources/misteross/scripts/sim_fes_pcxt.py",
+   "line": 91,
+   "text": "MEMORY_SOURCES[:-1] + VIDEO_SOURCES[:-1] +"
   },
   {
    "record": "census-tables.md",
@@ -2246,14 +2267,14 @@
    "record": "census-tables.md",
    "row": 439,
    "cited": "sources/misteross/tests/test_fes_ramtest.py",
-   "line": 151,
+   "line": 159,
    "text": "self.assertIn('.enable_bus_hold(\"OFF\")', top)"
   },
   {
    "record": "census-tables.md",
    "row": 439,
    "cited": "sources/misteross/tests/test_fes_ramtest.py",
-   "line": 152,
+   "line": 160,
    "text": "self.assertIn('.enable_bus_hold(\"FALSE\")', top)"
   },
   {
@@ -2423,6 +2444,13 @@
    "cited": "sources/misteross/scripts/build_fes_zx81_quartus.py",
    "line": 99,
    "text": "RECIPE, LOCK, SDC, QSF_PINS, *VERILOG_SOURCES, *SYSTEMVERILOG_SOURCES,"
+  },
+  {
+   "record": "census-tables.md",
+   "row": 534,
+   "cited": "sources/misteross/scripts/sim_fes_pcxt.py",
+   "line": 91,
+   "text": "MEMORY_SOURCES[:-1] + VIDEO_SOURCES[:-1] +"
   },
   {
    "record": "census-tables.md",
