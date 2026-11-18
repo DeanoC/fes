@@ -1,0 +1,16 @@
+producer            cores/fes-pc386/tools/build_pc386_product.py
+paths it hashes     161
+this PR changes     10 under sources/misteross/
+  not hashed       Makefile
+  not hashed       scripts/build_fes_menu.py
+  not hashed       scripts/build_fes_menu_package.py
+  not hashed       scripts/build_fes_pong.py
+  not hashed       scripts/build_fes_ramtest.py
+  not hashed       scripts/build_fes_riscv.py
+  not hashed       scripts/fes_de10nano_evidence.py
+  not hashed       tests/test_build_fes_riscv.py
+  not hashed       tests/test_fes_ramtest.py
+  not hashed       tests/test_gpu_router_selection.py
+
+fes.pc386 is NOT affected: it hashes none of the files this PR changes
+wrote /home/deano/fes/.claude/worktrees/gpu-router-default/docs/validation/2026-11-14-1861-gpu-router-netlists/reports-scope4/pc386-scope.json

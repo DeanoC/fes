@@ -47,7 +47,7 @@ def main() -> int:
     parser.add_argument("--scope", type=Path, default=HERE / "reports-scope")
     parser.add_argument("--cond3", type=Path, default=HERE / "reports-cond3" / "cond3.json")
     parser.add_argument("--seals", type=Path,
-                        default=HERE / "reports-scope3" / "seals-at-head.json",
+                        default=HERE / "reports-scope4" / "seals-at-head.json",
                         help="seals_at_head.py json for the current head")
     arguments = parser.parse_args()
     wanted = {"condition 1": arguments.scope / "cond1-summary.json",
@@ -151,7 +151,9 @@ def main() -> int:
         lines += [f"Every one of those {len(seals['rows'])} seals is still a seal of this branch's",
                   "current sources -- `sources/misteross` at tree",
                   f"`{seals['sources_tree'][:12]}` -- each tied by a named anchor in",
-                  "`reports-scope3/seals-at-head.log`: an inputs-map match where the producer",
+                  # The log beside whichever measurement was passed in, so the
+                  # citation cannot name an older run than the table's numbers.
+                  f"`{arguments.seals.resolve().relative_to(HERE).with_suffix('.log')}`: an inputs-map match where the producer",
                   "writes one, and a design-identity comparison against the seal's own tree",
                   "for the four Quartus summaries that do not."]
     else:

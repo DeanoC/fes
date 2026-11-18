@@ -7,7 +7,12 @@ changed file therefore moves through its source inputs, and with it `BUILD_ID`,
 so [D12](../../../AGENTS.md) applies.
 
 **This record was re-derived at the merge base `a482f14c0` after three things
-moved underneath it.** The earlier version of this page claimed a five-artefact
+moved underneath it, and main has moved under it three more times since.** This
+page numbers the base moves one to four, counting the move onto `a482f14c0`
+itself as the first, and the `reports-scope`, `-scope2`, `-scope3` and
+`-scope4` directories hold them in that order: `72d2fc4da` (the PR's first
+merge base) -> `a482f14c0` -> `e2b8130b5` -> `5e592f003` -> `6ee9f1113`, which
+is the sequence in the Trees table. The earlier version of this page claimed a five-artefact
 scope agreed verbally on 2026-11-15; that claim is withdrawn below, with what
 replaced it and why.
 
@@ -33,7 +38,7 @@ drift from the evidence; these are the same facts in prose.
   (`fes.c64`, 73 files; the Spectrum family, 52 each). No row is unverified.
   Each Quartus model's repeat run reproduced its sign-off RBF.
 
-Condition 3 spans two heads because main moved three times under this record.
+Condition 3 spans two heads because of the first two of those moves.
 The four Spectrum machines were resealed at `541e3c548751`, since #1948 edited
 their producer and condition 3 never carries across an identity move. The other
 seven were taken at `df99f2dfb208`, and their identities are *unchanged* at
@@ -41,13 +46,15 @@ seven were taken at `df99f2dfb208`, and their identities are *unchanged* at
 only `fes.ramtest`, the Spectrum four and the out-of-scope `fes.pcxt-dos` as
 moved.
 
-The third move merged main again, so neither of those two heads is this
-branch's tip any more. Rather than argue from the commit graph that the seals
+The third and fourth moves merged main again, so neither of those two heads is
+this branch's tip any more. Rather than argue from the commit graph that the seals
 survived it, `seals_at_head.py` re-checks each one against the files on disk
 now: every digest in the seal's own inputs map against the file at that path,
 and, for the four Quartus summaries that carry no inputs map, a design-identity
 comparison between the tree the seal was taken in and this one. All eleven are
-intact (`reports-scope3/seals-at-head.log`). That check is anchored on the
+intact at the current tip (`reports-scope4/seals-at-head.log`; the run at the
+third base is kept at `reports-scope3/seals-at-head.log`). That check is
+anchored on the
 `sources/misteross` tree object, not on a commit SHA: a commit SHA moves every
 time this record's own documents are committed -- the commit storing the result
 included -- so citing one would leave the statement stale on arrival for a
@@ -120,6 +127,29 @@ and route-deciding inputs both unchanged -- with no netlist run and no GPU time.
 The one row that did move, `fes.pcxt-dos`, is main's own RTL change and is not
 in this PR's scope.
 
+**The fourth move (#1978, #1959, #1977, #1971, #1946, #1965, #1963, #1969)
+moved nothing of this PR's either,** and was merged because #1978 is what
+clears the CI failure described under "CI" below. The same two programs between
+`5e592f003` and `6ee9f1113` report all fifteen affected artefacts' design
+identities and every route-deciding input byte-identical
+(`reports-scope4/base-move4-design.log`,
+`reports-scope4/route-inputs-base-move4.log`), so the merge-forward clause
+carries conditions 1 and 2 across this move on its first limb as well, again
+with no netlist run and no GPU time.
+
+Unlike the third move, no *whole-closure* digest moved either, which is read
+from the measurement rather than inferred from which files the diff touches:
+`closure_sha256` is identical across the move for 19 of the 20 rows that have
+one in `reports-scope4/base-move4-design.json`, the exception being
+`fes.pcxt-dos` (`fes.pc386` has none, for the reason given above).
+
+`fes.pcxt-dos` is again the single moved row, this time through
+`scripts/yosys_netlist.py`, which #1959 edited. That file is in no other
+affected artefact's closure, and the closure digests are what say so: a shared
+script inside another row's closure could not have moved while that row's
+`closure_sha256` stayed identical. So the row is out of scope for the same
+reason as before, and not merely by the support matrix's say-so.
+
 One thing in that result looks alarming and is not: *every* row's whole-closure
 digest moved, including the fourteen whose design identity did not. #1951 edited
 `scripts/input_identity.py`, which sits in every producer's closure but is
@@ -144,10 +174,35 @@ inside its own `create_build_record`, not from roots in
 return the broad fallback -- the whole of `scripts/` -- and report an invented
 closure for it. That is the `splash` mis-attribution this record already made
 once. `pc386_scope.py` answers the row the one way that needs no build: it takes
-the exact 158 paths that record hashes and intersects them with the ten files
+the exact path set that record hashes and intersects it with the ten files
 this PR changes under `sources/misteross/`. The intersection is empty, so
 `fes.pc386` is not an affected artefact and owes nothing here
-(`reports-scope3/pc386-scope.log`).
+(`reports-scope3/pc386-scope.log` at the third base, 158 paths;
+`reports-scope4/pc386-scope.log` at the fourth, 161).
+
+That count is the program's own drift signal, and it moved, so it was
+rechecked rather than noted: the three added paths are
+`cores/fes-common/rtl/i386/fes_x87_trans{,_pkg,_rom}.sv`, which #1959 added to
+`yosys_netlist.py`'s `CPU_SOURCES`, and `build_pc386_product.py` itself is
+byte-identical across the move, so the four-term expression the program copies
+is still the producer's. The intersection is empty at both bases.
+
+## CI
+
+`fpga-simulation (pc386, sim-fes-pc386-scroll)` failed on this branch from
+18 Nov 2026 with `Could not resolve host: codeberg.org`, raised in
+`scripts/build_pc386_firmware.py` while fetching pc386's pinned `dev86`
+commit. That is DeanoC/fes#1975, which Deano filed against three branches at
+once, this one among them, and it is not this PR's: the failing target's recipe
+is byte-identical to main's
+(`5c704af5721b539501781945df700c9a7b6c8fc0141328c2cc067367e6a43d98` on both
+sides) and nothing here touches the firmware build. #1978 added a mirror
+fallback and is the first commit of the fourth base move, so the merge above is
+also what takes the fix.
+
+Three reruns were spent on that failure before the existing issue was looked
+for, and it had already been filed by then. A failure that repeats identically
+is the signal to go and read it, not to run it again.
 
 ## Withdrawn: the five-artefact scope
 
@@ -213,9 +268,16 @@ Reasoning about what a check would catch is not evidence that it catches it:
 | one seed changed in `fes.pentagon`'s recipe table | that core only | `fes.pentagon` recipe + design digests MOVED |
 | a design-role closure entry, through the real identity path | identity moves | `packaging_role_proof.py` reports it moves, so its packaging-role result is not vacuous |
 | `fes.zx81`'s design verdict doctored to MOVED in the seal check's input | that seal refused | `seals_at_head.py` reports zx81 NOT INTACT, 10 of 11 |
+| the seal check handed a comparison whose tree A is not the seal tree | the four rows that rely on it refused | the ZX81 four read `unverifiable`, 7 of 11, exit 1 |
 
-Three defects in this record's own tooling were found that way and are recorded
-rather than quietly amended. `design_identity.py` derived a producer's module
+Four defects in this record's own tooling were found that way and are recorded
+rather than quietly amended. `seals_at_head.py` would attach its design anchor's
+detail line -- which names the comparison's tree A as *the seal tree* -- to
+whatever comparison it was handed, and at the fourth base move it was handed the
+base-move measurement, whose tree A is the old merge base. Every number in it
+was real and the claim about them was false, which is the one failure prose
+cannot catch. The row's own `taken_at_head` must now equal the comparison's
+tree A or the anchor is refused by name. `design_identity.py` derived a producer's module
 from its filename's stem, which worked only while every producer lived in
 `scripts/`; the first one that did not turned the row into a traceback and hid
 every row after it. The other two: `build_fes_splash` emits a **format-1** record and
@@ -503,6 +565,7 @@ python3 netlist_digest.py --tree <tree>/sources/misteross --core fes.pong \
 | main | `/data/fes1861-netlist/mainref` | `72d2fc4da`, the PR's first merge base |
 | main, second base | `/data/fes1861-netlist/identity/nb2` | `e2b8130b5` |
 | main, third base | `/data/fes1861-netlist/identity/nb3` | `5e592f003` |
+| main, fourth base | `/data/fes1861-netlist/identity/nb4` | `6ee9f1113` |
 | seal tree | `/data/fes1861-netlist/identity/c3head` | `df99f2dfb`, where seven seals were taken |
 | branch | `/home/deano/fes/.claude/worktrees/gpu-router-default` | recorded per run |
 
@@ -595,8 +658,8 @@ unchanged at `541e3c548`, which `reports-scope2/cond3-head-move.log` measures.
 
 Every one of those 11 seals is still a seal of this branch's
 current sources -- `sources/misteross` at tree
-`85200fc21385` -- each tied by a named anchor in
-`reports-scope3/seals-at-head.log`: an inputs-map match where the producer
+`ed4a1fdb88dc` -- each tied by a named anchor in
+`reports-scope4/seals-at-head.log`: an inputs-map match where the producer
 writes one, and a design-identity comparison against the seal's own tree
 for the four Quartus summaries that do not.
 

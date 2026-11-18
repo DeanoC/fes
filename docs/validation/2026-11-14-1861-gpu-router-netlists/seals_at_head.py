@@ -34,17 +34,32 @@ import subprocess
 from pathlib import Path
 
 
-def _design_anchor(key: str, moves: dict | None) -> tuple[str, str] | None:
-    """The seal tree and this head agree on what this artefact's design is."""
+def _design_anchor(key: str, moves: dict | None,
+                   sealed_at: str | None) -> tuple[str, str] | None:
+    """The seal tree and this head agree on what this artefact's design is.
+
+    The detail line this returns names the comparison's tree A as *the seal
+    tree*, so that had better be what it is. Handed the wrong comparison --
+    say a base-move measurement, whose tree A is the old merge base -- the
+    numbers would all be real and the claim attached to them false, which is
+    the one failure prose cannot catch. So the row's own `taken_at_head` has
+    to be the revision the comparison was taken from, or this anchor is
+    refused by name rather than relabelled.
+    """
     if not moves:
         return None
     row = moves.get("rows", {}).get(key if key == "splash" else f"fes.{key}")
     if row is None:
         return None
+    tree_a = moves.get("tree_a", {}).get("revision") or ""
+    if not sealed_at or tree_a != sealed_at:
+        return "unverifiable", (
+            f"the design comparison is from {tree_a[:12] or '?'}, not this row's "
+            f"seal tree {str(sealed_at)[:12]}")
     verdict = row.get("verdict", "")
     if verdict.endswith("unchanged"):
         return "intact", (f"design identity unchanged between the seal tree "
-                          f"{moves['tree_a']['revision'][:12]} and this head "
+                          f"{tree_a[:12]} and this head "
                           f"({row['tree_b']['design_files']} design inputs)")
     return "MOVED", f"design identity comparison says: {verdict[:120]}"
 
@@ -103,7 +118,7 @@ def main() -> int:
         row = rows[key]
         verdict, detail = verify(Path(row["source"]), root)
         if verdict == "unverifiable":
-            fallback = _design_anchor(key, moves)
+            fallback = _design_anchor(key, moves, row.get("taken_at_head"))
             if fallback is not None:
                 verdict, detail = fallback
         if verdict != "intact":
