@@ -48,27 +48,43 @@ def retarget_machine(source):
 # the shown bank back, each bit through its own two-stage synchronizer: a
 # receiving edge between two bits' arrivals can see a mixed word. Here only a
 # toggle crosses a synchronizer in each direction, and the bank is held behind
-# it. The machine side copies the shown bank once its toggle has arrived. The
-# pixel side takes the ready bank at its own frame end, as the DE10 source
-# does: a ready bank stands for a whole machine frame, about 20 ms, and a
-# pixel frame end comes within 16.7 ms of the toggle's arrival. The frame end
+# it. The pixel side takes the ready bank at its own frame end, as the DE10
+# source does: a ready bank stands for a whole machine frame, about 20 ms, and
+# a pixel frame end comes within 16.7 ms of the toggle's arrival. The frame end
 # is a registered flag, so the load's enable is that flag and the toggle
-# comparison, and the bank register's only input logic is its enable.
-# ready_seen flips with every such load, so it is also the toggle that carries
-# the shown bank back.
+# comparison. ready_seen flips with every such load, so it is also the toggle
+# that carries the shown bank back, which the machine side copies once it
+# arrives.
+# The banks cross as codes that power up zero. The DE10 registers power up as
+# banks 1 and 2, and a register that powers up high is built inverted, which
+# puts an inverter on a register-to-register crossing. The ready code is the
+# bank with its low bit flipped; each side reads bank 2 until its first load.
 VIDEO_CROSSING = (
-    (b'    (* async_reg = "true" *) reg [1:0] shown_meta = 2\'d2;\n'
+    (b"    reg [1:0] shown_bank = 2'd2;\n"
+     b'    (* async_reg = "true" *) reg [1:0] shown_meta = 2\'d2;\n'
      b'    (* async_reg = "true" *) reg [1:0] shown_sync = 2\'d2;\n',
+     b"    reg [1:0] ready_code = 2'd0;\n"
+     b"    reg [1:0] shown_code = 2'd0;\n"
+     b"    reg shown_loaded = 1'b0;\n"
+     b"    wire [1:0] shown_bank = shown_code ^ {~shown_loaded, shown_loaded};\n"
      b'    (* async_reg = "true" *) reg shown_meta = 1\'b0;\n'
      b'    (* async_reg = "true" *) reg shown_arrived = 1\'b0;\n'
      b"    reg shown_taken = 1'b0;\n"
-     b"    reg [1:0] shown_sync = 2'd2;\n", 1),
+     b"    reg [1:0] shown_code_sys = 2'd0;\n"
+     b"    reg shown_loaded_sys = 1'b0;\n"
+     b"    wire [1:0] shown_sync = shown_code_sys ^ {~shown_loaded_sys, shown_loaded_sys};\n", 1),
     (b"        shown_meta <= shown_bank;\n"
      b"        shown_sync <= shown_meta;\n",
      b"        shown_meta <= ready_seen;\n"
      b"        shown_arrived <= shown_meta;\n"
      b"        shown_taken <= shown_arrived;\n"
-     b"        if (shown_arrived != shown_taken) shown_sync <= shown_bank;\n", 1),
+     b"        if (shown_arrived != shown_taken) begin\n"
+     b"            shown_code_sys <= shown_code;\n"
+     b"            shown_loaded_sys <= 1'b1;\n"
+     b"        end\n", 1),
+    (b"            ready_bank <= target_bank;\n",
+     b"            ready_bank <= target_bank;\n"
+     b"            ready_code <= target_bank ^ 2'd1;\n", 1),
     (b'    (* async_reg = "true" *) reg [2:0] ready_meta = 3\'b001;\n'
      b'    (* async_reg = "true" *) reg [2:0] ready_sync = 3\'b001;\n',
      b'    (* async_reg = "true" *) reg ready_meta = 1\'b0;\n'
@@ -81,14 +97,14 @@ VIDEO_CROSSING = (
      b"        frame_last <= h == H_TOTAL - 2'd2 && v == V_TOTAL - 1'b1;\n"
      b"        if (ready_sync != ready_seen && frame_last) begin\n"
      b"            ready_seen <= ready_sync;\n"
-     b"            shown_bank <= ready_bank;\n"
+     b"            shown_code <= ready_code;\n"
+     b"            shown_loaded <= 1'b1;\n"
      b"        end\n", 1),
     (b"                if (ready_sync[2] != ready_seen) begin\n"
      b"                    ready_seen <= ready_sync[2];\n"
      b"                    shown_bank <= ready_sync[1:0];\n"
      b"                end\n", b"", 1),
 )
-
 
 def retarget_ram(name, source):
     """Block RAM hints for this family and, for the video, the frame-bank crossing."""
