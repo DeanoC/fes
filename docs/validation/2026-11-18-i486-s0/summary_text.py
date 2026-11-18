@@ -19,7 +19,14 @@ NOTES = '''\
   `ac-cpl0`) gained a read-back of the bit they set, because without it the
   RTL agreed with nothing to tell the bit was missing. The first runs' 48 of
   48 was on the earlier table; the figures here are the final table's.
-- **The level-3 lockstep at the merge base was run twice.** The first had
+- **Main was merged in after the first full set of runs** (the x87
+  transcendentals, #1959, and the dev86 mirror, #1978; no conflicts). Rules
+  1 to 4 and the boot were then run again, against the new merge base and
+  at the merge commit, and those are the figures here. The census and the
+  CACHECHK runs were not: each says above which commit it ran at. The
+  pre-merge comparison (merge base `5e592f003`, head `75bd225a2`) also
+  passed; it is in this file's history.
+- **The level-3 lockstep at the first merge base was run twice.** The first had
   `--corpus` naming the corpus; the head run found the same corpus at its
   default path. The base was rerun the head's way so the arguments are the
   same, and that run is the one compared.
@@ -55,8 +62,9 @@ def carried(kind: str, commit: str, head: str, inputs_changed) -> str:
         return f'at the record\'s commit `{head[:9]}`'
     changed = inputs_changed(kind, commit, head)
     if changed:
-        return (f'at `{commit[:9]}`; **{len(changed)} of its inputs changed by `{head[:9]}`**: '
-                + ', '.join(f'`{path}`' for path in changed))
+        return (f'at `{commit[:9]}`, **before main was merged in: {len(changed)} files it reads differ at '
+                f'`{head[:9]}`**, so it is a result of that commit and not of this one (the first of them: '
+                + ', '.join(f'`{path.rsplit("/", 1)[-1]}`' for path in changed[:6]) + ')')
     return f'at `{commit[:9]}`; none of its inputs differs at `{head[:9]}`'
 
 
@@ -295,7 +303,8 @@ def render(read, inputs_changed, record: str) -> str:
     # ---- rule 6 ----
     add('## Rule 6: CACHECHK\'s "Divide error"\n')
     if cachechk:
-        add(f"**{cachechk['result'].capitalize()}.**\n")
+        add(f"**{cachechk['result'].capitalize()}.** Run on {cachechk['host']}, "
+            f"{carried('machine', cachechk['commit'], record, inputs_changed)}.\n")
         for line in cachechk['findings']:
             add(f'- {line}')
         add('')

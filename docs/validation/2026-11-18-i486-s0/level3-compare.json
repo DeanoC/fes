@@ -1,11 +1,12 @@
 {
   "base_checkout": "/home/deano/fes-scratch/i486s0/base",
   "commits": {
-    "base": "5e592f00389fd2bb61194788c917c36f5c880dec",
-    "head": "75bd225a21cc17dd31564cbf6cab7b3ed260665f"
+    "base": "6ee9f11131fa49311cf5f18c0b7e0a301f8f70e4",
+    "head": "7ceb35e6d041bb7864dd8e9fa6b79d6fe8292c37"
   },
   "exit_status": {
     "base": {
+      "all": "done",
       "boot": "boot rc=0",
       "lockstep": "lockstep rc=0",
       "test386": "test386 rc=0",
@@ -75,6 +76,7 @@
         "same_as": "None",
         "seed": "1",
         "task_programs": "250",
+        "transcendental_ulp_oracle": "None",
         "undefined_programs": "250"
       },
       "default_suite": true,
@@ -89,8 +91,8 @@
       ],
       "report": "fes-i386-lockstep/report.json",
       "revisions": [
-        "5e592f00389fd2bb61194788c917c36f5c880dec",
-        "75bd225a21cc17dd31564cbf6cab7b3ed260665f"
+        "6ee9f11131fa49311cf5f18c0b7e0a301f8f70e4",
+        "7ceb35e6d041bb7864dd8e9fa6b79d6fe8292c37"
       ],
       "suites": {
         "base": {
@@ -182,11 +184,23 @@
             "runs": 7,
             "trace_hash": "286cb5646eac4124"
           },
+          "x87_bcd_cases": {
+            "failed": 0,
+            "passed": 3,
+            "runs": 3,
+            "trace_hash": "14650fb0739d0383"
+          },
           "x87_cases": {
             "failed": 0,
             "passed": 120,
             "runs": 120,
             "trace_hash": "583e1508fb9c4027"
+          },
+          "x87_trans_cases": {
+            "failed": 0,
+            "passed": 10,
+            "runs": 10,
+            "trace_hash": "14650fb0739d0383"
           }
         },
         "head": {
@@ -278,11 +292,23 @@
             "runs": 7,
             "trace_hash": "286cb5646eac4124"
           },
+          "x87_bcd_cases": {
+            "failed": 0,
+            "passed": 3,
+            "runs": 3,
+            "trace_hash": "14650fb0739d0383"
+          },
           "x87_cases": {
             "failed": 0,
             "passed": 120,
             "runs": 120,
             "trace_hash": "583e1508fb9c4027"
+          },
+          "x87_trans_cases": {
+            "failed": 0,
+            "passed": 10,
+            "runs": 10,
+            "trace_hash": "14650fb0739d0383"
           }
         }
       },

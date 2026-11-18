@@ -482,7 +482,7 @@
     }
   ],
   "cases_sha256": "166a82f148958e079a935b6161ca60a4275b78eb4a5392e7684df07d6e530ed3",
-  "commit": "75bd225a21cc17dd31564cbf6cab7b3ed260665f",
+  "commit": "7ceb35e6d041bb7864dd8e9fa6b79d6fe8292c37",
   "failures": [],
   "machine_reset_inputs": {
     "init_cr0": "x87_present ? 32'h10 : 32'h0",
@@ -490,11 +490,11 @@
     "init_gpr": "256'd0"
   },
   "oracle": {
-    "adapter_sha256": "c0b1ea00ced0a1205d77ba565ec4d8126116f28c1b22f2c6ed24b91d069ae19a",
+    "adapter_sha256": "8476a65df29382fdfdb5b8ce342495f3491fd2c7e5c5df40018d3a3d68bb21e3",
     "cpu_level": 4,
     "level3_provisioner_sha256": "0d47ce9792ca29ae172335f6f11e6c5dcfa73fbf34b76c89e04d072528f454cd",
     "linked_sha256": {
-      "adapter": "9dd903c695e1bff2ee24d621738375db3d6948b7fc4508bb83a6393c670df3b1",
+      "adapter": "0331d57ed896ba6b74dc21e91a9f2ab80880266c0cae1c12a403c9a2abcd28b2",
       "cpu": "b7ef682c31cf43e29e61239de336b2db9b8c661ac50f9d745d1fee376d3d7b53",
       "cpudb": "d46944f35fec6ebe9781bc78554e31adc758712f025b49b76fcf718989ce1bbf",
       "fpu": "f267567c271ef36c371cebf9877721f9e8fdc1a575f6de46ded93b05d1d16c96",
@@ -505,7 +505,7 @@
     "revision": "30cfd566ecc8deb33e56e801e32b444a7041b6d2"
   },
   "runs_equal": true,
-  "testbench_sha256": "ef3289d1f8d82f1ff5cca70c281977bbbfdec0a915eb0af97f36211bdc7686be",
+  "testbench_sha256": "b6aa9cc2d010d6b93c7dd612efe52b0171e138b29f3057a06f0163df8805afe6",
   "verilator": {
     "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
     "install": "1cd6c9741d903760a2b1c4283b6830f63c0974f8478b06fb7f8dabd3c4304d8c",
