@@ -117,3 +117,9 @@ first clock snapshot on any failure. Historical procedures remain consumed.
 Exact-head review, complete hardware/failure coverage, vendor retirement/reset
 guarantees and ordinary Kit D25 HIL/restore remain open. No HIL waiver is
 recorded; #1867 remains open. Linux defaults and both core payloads are unchanged.
+
+A subsequent [fresh launch attempt](../2026-11-18-de25-guard31-launch-attempt/README.md)
+stopped during the initial recovery programmer rescan with a broken JTAG chain,
+before any card write or native programming. Its new reset witness and later
+recovery prompt do not override the failed gate. The guard-31 candidate remains
+uninstalled and unprogrammed; the original FIT was not modified by that attempt.
