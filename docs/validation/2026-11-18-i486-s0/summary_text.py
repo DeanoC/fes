@@ -178,7 +178,8 @@ def render(read, inputs_changed, record: str) -> str:
         add('- **Rule 5, the level-4 boot: not run.**')
     if census:
         add(f"- **Rule 5, the census: {'pass' if census['pass'] else 'not passed'}.** {census['rows_run']} of "
-            f"{census['plan_rows']} of the plan's rows were run again; {census['rows_equal']} equal the plan's counts"
+            f"{census['plan_rows']} of the plan's rows were run again, "
+            f"{carried('machine', census['commit'], record, inputs_changed)}; {census['rows_equal']} equal the plan's counts"
             + (f"; {len(census['not_run'])} not run" if census['not_run'] else '') + '.')
     else:
         add('- **Rule 5, the census: still running when this was generated; no row is reported.**')
