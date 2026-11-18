@@ -1,0 +1,317 @@
+{
+  "boards": {
+    "de10": {
+      "arms": {
+        "a": {
+          "alms": [
+            36455,
+            36463,
+            36433,
+            36488
+          ],
+          "closing": 4,
+          "median": 36459.0,
+          "seeds": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "setup_median": 0.48200000000000004,
+          "setup_min": 0.338,
+          "spread": 55
+        },
+        "b": {
+          "alms": [
+            36389,
+            36428,
+            36422,
+            36378
+          ],
+          "closing": 4,
+          "median": 36405.5,
+          "seeds": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "setup_median": 0.559,
+          "setup_min": 0.118,
+          "spread": 50
+        },
+        "c": {
+          "alms": [
+            36430,
+            36489,
+            36454,
+            36432
+          ],
+          "closing": 4,
+          "median": 36443.0,
+          "seeds": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "setup_median": 0.5815,
+          "setup_min": 0.474,
+          "spread": 59
+        }
+      },
+      "hier": {
+        "a": {
+          "cpu": 24926.4,
+          "rest": 11471.900000000001,
+          "total": 36398.3
+        },
+        "b": {
+          "cpu": 25235.7,
+          "rest": 11461.600000000002,
+          "total": 36697.3
+        },
+        "c": {
+          "cpu": 25075.2,
+          "rest": 11493.499999999996,
+          "total": 36568.7
+        }
+      },
+      "strap": {
+        "cpu_delta_hier": -160.5,
+        "delta": 37.5,
+        "netlist_floor": 31.89999999999418,
+        "reading": "not resolved, timing equal within a seed: the strap costs under 59 ALMs",
+        "seed_spread": 59,
+        "uncertainty": 59
+      },
+      "sx": {
+        "cpu_delta_hier": 309.2999999999993,
+        "delta": -53.5,
+        "netlist_floor": 10.299999999999272,
+        "reading": "not resolved: under 55 ALMs",
+        "seed_spread": 55,
+        "total_reading": "at or under 36,880 (88%): inside the range the machine has closed at before",
+        "uncertainty": 55
+      },
+      "timing_reading": "no timing cost the spike can resolve"
+    },
+    "de25": {
+      "arms": {
+        "a": {
+          "alms": [
+            35594,
+            35537,
+            35581,
+            35512
+          ],
+          "closing": 4,
+          "median": 35559.0,
+          "seeds": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "setup_median": 8.142,
+          "setup_min": 7.973,
+          "spread": 82
+        },
+        "b": {
+          "alms": [
+            35746,
+            35822,
+            35714,
+            35781
+          ],
+          "closing": 4,
+          "median": 35763.5,
+          "seeds": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "setup_median": 7.7375,
+          "setup_min": 7.619,
+          "spread": 108
+        },
+        "c": {
+          "alms": [
+            35703,
+            35698,
+            35643,
+            35640
+          ],
+          "closing": 4,
+          "median": 35670.5,
+          "seeds": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "setup_median": 8.061499999999999,
+          "setup_min": 7.836,
+          "spread": 63
+        }
+      },
+      "fmax_median": {
+        "a": 122.94,
+        "b": 117.12,
+        "c": 121.735
+      },
+      "hier": {},
+      "strap": {
+        "cpu_delta_hier": null,
+        "delta": -93.0,
+        "netlist_floor": null,
+        "reading": "not resolved, timing equal within a seed: the strap costs under 108 ALMs",
+        "seed_spread": 108,
+        "uncertainty": 108
+      },
+      "sx": {
+        "cpu_delta_hier": null,
+        "delta": 204.5,
+        "netlist_floor": null,
+        "reading": null,
+        "seed_spread": 108,
+        "total_reading": "at or under 41,184 (88%)",
+        "uncertainty": 108
+      }
+    }
+  },
+  "de25_coverage": 12,
+  "de25_fits": 12,
+  "extension": "did not fire; four seeds an arm on both boards",
+  "lockstep": {
+    "identity-off": {
+      "agree": 6,
+      "cases": 48,
+      "matches_expected": true,
+      "stops": {
+        "ac-aligned": "stop @105c.write.df6 4 0",
+        "ac-am-clear": "stop @1052.write.df6 4 0",
+        "ac-byte": "stop @105c.write.df6 4 0",
+        "ac-cpl0": "stop @1044.write.efe 4 0",
+        "ac-fault-dword": "stop @1057.exception 11 ff",
+        "ac-fault-dword-at-2": "stop @1057.exception 11 ff",
+        "ac-fault-push": "stop @1057.exception 11 ff",
+        "ac-fault-word": "stop @1057.exception 11 ff",
+        "ac-toggle": "stop @1011.write.efe 4 0",
+        "bswap": "stop @102a.unexpected-exception 0 6",
+        "bswap-esp": "stop @1006.unexpected-exception 0 6",
+        "cmpxchg-m16-unequal": "stop @100c.unexpected-exception 0 6",
+        "cmpxchg-m32-equal-lock": "stop @1015.unexpected-exception 0 6",
+        "cmpxchg-m32-unequal": "stop @1015.unexpected-exception 0 6",
+        "cmpxchg-m8-equal": "stop @1009.unexpected-exception 0 6",
+        "cmpxchg-r32-equal": "stop @1012.unexpected-exception 0 6",
+        "cmpxchg-r32-unequal": "stop @1012.unexpected-exception 0 6",
+        "cpuid-0": "stop @1003.unexpected-exception 0 6",
+        "cpuid-1": "stop @1006.unexpected-exception 0 6",
+        "cr0-nw-without-cd": "stop @1006.exception d ff",
+        "cr0-read": "stop @1000.eax 60000010 7ffffff0",
+        "cr0-write-ones": "stop @1009.ebx 6005003e 7ffffffe",
+        "cr0-write-zero": "stop @1009.ebx 10 7fffffe0",
+        "id-toggle": "stop @1011.write.efe 20 0",
+        "invd": "stop @1000.unexpected-exception 0 6",
+        "invd-cpl3": "stop @104d.vector d 6",
+        "invlpg": "stop @1000.unexpected-exception 0 6",
+        "invlpg-cpl3": "stop @104d.vector d 6",
+        "lmsw-keeps-ne": "stop @100e.ebx 30 7ffffff0",
+        "mov-cr4-read": "stop @1000.unexpected-exception 0 6",
+        "mov-cr4-write": "stop @1006.vector d 6",
+        "mov-tr3": "stop @1006.unexpected-exception 0 6",
+        "wbinvd": "stop @1000.unexpected-exception 0 6",
+        "wbinvd-cpl3": "stop @104d.vector d 6",
+        "wp-set-supervisor-readonly": "stop @103e.exception e ff",
+        "wp-set-user-readonly": "stop @103e.exception e ff",
+        "wp-set-writable": "stop @104e.edx 80010011 fffffff1",
+        "xadd-m32": "stop @100f.unexpected-exception 0 6",
+        "xadd-m32-lock": "stop @100f.unexpected-exception 0 6",
+        "xadd-r16": "stop @1006.unexpected-exception 0 6",
+        "xadd-r32": "stop @100c.unexpected-exception 0 6",
+        "xadd-r8": "stop @1004.unexpected-exception 0 6"
+      }
+    },
+    "identity-on": {
+      "agree": 45,
+      "cases": 48,
+      "matches_expected": false,
+      "stops": {
+        "cpuid-1": "stop @1006.eax 480 427",
+        "mov-cr4-read": "stop @1000.unexpected-exception 0 6",
+        "mov-cr4-write": "stop @1006.vector d 6"
+      }
+    }
+  },
+  "netlists": {
+    "a": {
+      "changed_from_base": [],
+      "commit": "1ec59267039b12b5879dd90af856ac232b9d014c",
+      "commits_agree": true,
+      "elaborated": "5d6e76b8fdf11597a783ab8d119c373a2bd228206732e47640d7ce2144ec24c6",
+      "fitted": [
+        "5d6e76b8fdf11597a783ab8d119c373a2bd228206732e47640d7ce2144ec24c6"
+      ],
+      "one_netlist": true
+    },
+    "b": {
+      "changed_from_base": [
+        "sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_i386_decode.sv",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_i386_ex.sv",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_i386_exctl.sv",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1d.sv",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_i386_pkg.sv",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_i386_seq.sv",
+        "sources/misteross/cores/fes-pc386/rtl/pc386_system.sv"
+      ],
+      "commit": "15d53ac4101633003cd6ed711525a19a558cc3ba",
+      "commits_agree": true,
+      "elaborated": "597b13cac310ff6750fbd87b5bbf1c4745d16e2b98188e3058388517c3c80a4e",
+      "fitted": [
+        "597b13cac310ff6750fbd87b5bbf1c4745d16e2b98188e3058388517c3c80a4e"
+      ],
+      "one_netlist": true
+    },
+    "c": {
+      "changed_from_base": [
+        "sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_i386_decode.sv",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_i386_ex.sv",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_i386_exctl.sv",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1d.sv",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_i386_pkg.sv",
+        "sources/misteross/cores/fes-common/rtl/i386/fes_i386_seq.sv",
+        "sources/misteross/cores/fes-pc386/rtl/pc386_system.sv"
+      ],
+      "commit": "c4d5cb71b0e403131a5315dbb33a41c064e74039",
+      "commits_agree": true,
+      "elaborated": "07ed0737e31d744c33311323bbd253454f86c380534d0a6e4b7d1014dc17fcf5",
+      "fitted": [
+        "07ed0737e31d744c33311323bbd253454f86c380534d0a6e4b7d1014dc17fcf5"
+      ],
+      "one_netlist": true
+    }
+  },
+  "synthesis_delta": {
+    "de10": {
+      "alm_estimate": -37.0,
+      "aluts": 195.0,
+      "registers": 44.0
+    }
+  },
+  "synthesis_delta_strap": {
+    "alm_estimate": -10.0,
+    "aluts": 38.0,
+    "registers": 1.0
+  },
+  "test386": {
+    "commit": "c4d5cb71b0e403131a5315dbb33a41c064e74039",
+    "errors": 0,
+    "last_post": 255,
+    "retirements": 79640765,
+    "stop": null
+  }
+}

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import statistics
 import sys
 from pathlib import Path
@@ -91,9 +92,31 @@ def arm_stats(records: dict) -> dict:
 def entity_totals(rec: dict) -> dict:
     """ALMs of the CPU subtree and of everything else, from a per-module fit."""
     top = next(e for e in rec['entities'] if e['level'] == 0)
-    cpu = [e for e in rec['entities'] if e['entity'].startswith(CPU_ENTITY) and e['level'] <= 2]
-    cpu_alms = cpu[0]['alms'] if cpu else None
+    cpu = [e for e in rec['entities'] if module_name(e['entity']) == CPU_ENTITY]
+    cpu_alms = cpu[0]['alms'] if len(cpu) == 1 else None
     return {'total': top['alms'], 'cpu': cpu_alms, 'rest': top['alms'] - cpu_alms if cpu_alms is not None else None}
+
+
+def module_name(entity: str) -> str:
+    """'|fes_i386_cpu_8fd8ee64:cpu|' -> 'fes_i386_cpu': the module, without the per-netlist hash
+    quartus_x87_spike.plain_module_names appends to a parameterised one."""
+    name = entity.strip('|').split(':')[0]
+    return re.sub(r'_[0-9a-f]{8}$', '', name)
+
+
+def cpu_modules(rec: dict) -> dict:
+    """ALMs of each module directly under fes_i386_cpu, and the CPU's own logic, from a per-module fit."""
+    rows = rec['entities']
+    i = next(k for k, e in enumerate(rows) if module_name(e['entity']) == CPU_ENTITY)
+    level = rows[i]['level']
+    out = {'(own logic)': rows[i]['own_alms']}
+    for e in rows[i + 1:]:
+        if e['level'] <= level:
+            break
+        if e['level'] == level + 1:
+            name = module_name(e['entity'])
+            out[name] = out.get(name, 0) + e['alms']
+    return out
 
 
 def reading_sx(delta, unc):
@@ -239,6 +262,14 @@ def render(data: dict, res: dict, lockstep: dict) -> str:
                       '| --- | ---: | ---: | ---: |']
             for arm, h in r['hier'].items():
                 lines.append(f"| {arm} | {fmt(h['total'])} | {fmt(h['cpu'])} | {fmt(h['rest'])} |")
+            mods = {arm: cpu_modules(data['hier'][(board, arm)]) for arm in ARMS if (board, arm) in data['hier']}
+            if set(mods) == set(ARMS):
+                lines += ['', 'Inside `fes_i386_cpu` (one level down; ALMs needed):', '',
+                          '| Module | a | b | c | b - a | c - b |', '| --- | ---: | ---: | ---: | ---: | ---: |']
+                names = sorted(set().union(*mods.values()), key=lambda n: (-abs(mods['b'].get(n, 0) - mods['a'].get(n, 0)), n))
+                for name in names:
+                    a, b, c = (mods[k].get(name, 0) for k in ARMS)
+                    lines.append(f'| `{name}` | {a:,.1f} | {b:,.1f} | {c:,.1f} | {b - a:+,.1f} | {c - b:+,.1f} |')
         for key, label in (('sx', 'The SX delta, arm b minus arm a'), ('strap', 'The strap, arm c minus arm b')):
             if key in r:
                 d = r[key]
@@ -282,8 +313,12 @@ def result_block(res: dict) -> str:
            f"- **The 486SX delta on the DE10 (arm b minus arm a): {fmt(sx10['delta'])} ALMs between medians**, "
            f"against an uncertainty of {fmt(sx10['uncertainty'])} (seed spread {sx10['seed_spread']}, netlist floor "
            f"{fmt(sx10['netlist_floor'])}). Reading against the plan's 350 to 850: **{sx10['reading']}**. "
-           f"Synthesis, which no seed moves, adds {b10_syn(res, 'aluts'):+,} ALUTs and {b10_syn(res, 'registers'):+,} registers; "
-           f"the per-module fits put {fmt(sx10['cpu_delta_hier'])} ALMs of change in `fes_i386_cpu`.",
+           f"It is {fmt(sx10['uncertainty'] - abs(sx10['delta']))} ALMs short of resolving; resolved or not it reads "
+           f"below 350, so neither band edge is near. Synthesis, which no seed moves, adds "
+           f"{int(b10_syn(res, 'aluts')):+,} ALUTs and {int(b10_syn(res, 'registers')):+,} registers; the per-module "
+           f"fits (one seed) put {fmt(sx10['cpu_delta_hier'])} ALMs of change in `fes_i386_cpu` "
+           f"({fmt(res['boards']['de10']['hier']['b']['total'] - res['boards']['de10']['hier']['a']['total'])} in the "
+           f"whole machine); the modules are in `results.md`.",
            f"- **The 486SX machine on the DE10: {fmt(b10['median'])} ALMs median ({pct(b10['median'], DE10_ALMS)})**, "
            f"against arm a's {fmt(a10['median'])}: {sx10['total_reading']}.",
            f"- **DE10 timing at 61.44 MHz:** arm a closes on {a10['closing']} of {n} seeds, arm b on {b10['closing']}, "
@@ -294,14 +329,20 @@ def result_block(res: dict) -> str:
            f"medians (uncertainty {fmt(sx25['uncertainty'])}); arm b at {fmt(b25['median'])} "
            f"({pct(b25['median'], DE25_ALMS)}), {sx25['total_reading']}. Every DE25 fit closes at 61.44 MHz; the "
            f"worst-corner `clk` Fmax medians are {fmax_median(res, 'a'):.1f}, {fmax_median(res, 'b'):.1f} and "
-           f"{fmax_median(res, 'c'):.1f} MHz for arms a, b and c.",
+           f"{fmax_median(res, 'c'):.1f} MHz for arms a, b and c; both clock domains were analysed at every "
+           f"corner in {res['de25_coverage']} of {res['de25_fits']} DE25 fits.",
            f"- **The strap over the build parameter (arm c minus arm b): {fmt(st10['delta'])} ALMs on the DE10** "
            f"(uncertainty {fmt(st10['uncertainty'])}) **and {fmt(st25['delta'])} on the DE25** (uncertainty "
-           f"{fmt(st25['uncertainty'])}). DE10 reading: **{st10['reading']}**. DE25 reading: {st25['reading']}.",
+           f"{fmt(st25['uncertainty'])}). DE10 reading: **{st10['reading']}**. DE25 reading: {st25['reading']}. "
+           f"On the DE10, arm c's synthesis has {int(res['synthesis_delta_strap']['registers']):+,} register and "
+           f"{int(res['synthesis_delta_strap']['aluts']):+,} ALUTs over arm b: the strap's latch and its gating.",
            f"- **Lockstep:** with the identity on, {on['agree']} of {on['cases']} directed cases agree with the level-4 "
            f"oracle (the 386 agrees on {off['agree']}); the {len(on['stops'])} that stop are the ones `method.md` "
            f"names as stops by design. With the identity off, the stops "
            f"{'equal' if off['matches_expected'] else 'do not equal'} slice 0's committed list.",
+           f"- **test386 with the identity off** (the spike RTL, CPU alone): POST codes end at "
+           f"{res['test386']['last_post']:02X}h with {res['test386']['errors']} errors and no stop, "
+           f"{res['test386']['retirements']:,} retirements to its halt.",
            f"- **Extension rule:** {res['extension']}.",
            '', '**Recommendation on the strap, for Deano to decide.** ' + recommendation(res)]
     return '\n'.join(out)
@@ -355,9 +396,17 @@ def main() -> int:
     res['synthesis_delta'] = {'de10': {key: median([r['synthesis'][key] for r in data['fits']['de10']['b'].values()])
                                             - median([r['synthesis'][key] for r in data['fits']['de10']['a'].values()])
                                             for key in ('aluts', 'registers', 'alm_estimate')}}
+    res['synthesis_delta_strap'] = {key: median([r['synthesis'][key] for r in data['fits']['de10']['c'].values()])
+                                     - median([r['synthesis'][key] for r in data['fits']['de10']['b'].values()])
+                                     for key in ('aluts', 'registers', 'alm_estimate')}
     res['boards']['de25']['fmax_median'] = {arm: median([r['clk_fmax_worst'] for r in data['fits']['de25'][arm].values()])
                                              for arm in ARMS}
     res['extension'] = extension(res)
+    res['de25_fits'] = sum(len(data['fits']['de25'][arm]) for arm in ARMS)
+    res['de25_coverage'] = sum(r['both_clocks_every_corner'] for arm in ARMS for r in data['fits']['de25'][arm].values())
+    t386 = json.loads((HERE / 'test386' / 'identity-off-rtl.json').read_text())
+    res['test386'] = {'last_post': t386['posts'][-1], 'errors': len(t386['errors']), 'stop': t386['stop'],
+                      'retirements': t386['end']['retirements'], 'commit': t386['rtl_commit']}
     md = render(data, res, lockstep)
     summary_path = HERE / 'summary.md'
     text = summary_path.read_text()
