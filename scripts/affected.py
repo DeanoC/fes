@@ -348,7 +348,9 @@ def fpga_cores(path):
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
                 'rtl/i386/fes_x87_pkg.sv', 'rtl/i386/fes_x87_fast.sv',
                 'rtl/i386/fes_x87_slow.sv', 'rtl/i386/fes_x87_core.sv',
-                'rtl/i386/fes_x87_round.sv', 'rtl/i386/fes_x87_pipe.sv'):
+                'rtl/i386/fes_x87_round.sv', 'rtl/i386/fes_x87_pipe.sv',
+                'rtl/i386/fes_x87_trans_pkg.sv', 'rtl/i386/fes_x87_trans_rom.sv',
+                'rtl/i386/fes_x87_trans.sv'):
             return ('pc386', 'de25-x87'), 'the x87 arithmetic backend, shared by the i386 CPU and the standalone DE25 pipeline'
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
                 'sim/gp_tb.cpp', 'sim/audio_tb.cpp', 'generated/exchanges.json',

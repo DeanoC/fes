@@ -1551,7 +1551,10 @@ draw. A clear recorded before the extend replaces the presented clear. The
 ZX81 workshop's first picture is spread over several draws: a short opening
 frame, cached text metrics, then the upper and lower halves. A change to
 focus, size, status or selection after the upper half paints that half again
-before the lower half is appended. Eight consecutive slow paints still retire
+before the lower half is appended. When artwork finishes decoding after that
+picture, its replacement is prepared over two draws while the last complete
+picture and its controls stay usable; a changed scene discards the staged
+replacement. Eight consecutive slow paints still retire
 the room. Slow input, pointer, lifecycle, and asynchronous result callbacks
 count in their own group, so successful frames do not hide repeated input
 overruns. Eight overruns in either group retire the
