@@ -283,7 +283,7 @@ func drawRoomDestination(dev gfx.Device, snap Snapshot, labels map[string]gpuTex
 	}
 	action := strings.TrimSpace(d.Action)
 	if snap.Room.WaitAck {
-		action = waitAckCopy(snap.Affinity)
+		action = waitAckCopy(snap)
 	}
 	if action != "" {
 		drawLabel(dev, labels, used, "rd-action", x+pad, y+88, w-2*pad, 16, action)
@@ -338,6 +338,7 @@ func drawRoomChoice(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	if hint == "" {
 		hint = roomChoiceHint(snap.Affinity)
 	}
+	hint = snap.padHint(hint)
 	drawLabel(dev, labels, used, "rchoice-hint", x+16, y+panelH-24, panelW-32, 14, hint)
 }
 
@@ -390,6 +391,7 @@ func drawFilePicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	if hint == "" {
 		hint = firmwarePickerHint(snap.Affinity)
 	}
+	hint = snap.padHint(hint)
 	drawFESLabel(dev, labels, used, "fw-hint", x+16, y+panelH-29, panelW-32, 18, hint)
 }
 
@@ -436,6 +438,7 @@ func drawTapePicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	if hint == "" {
 		hint = tapePickerHint(snap.Affinity)
 	}
+	hint = snap.padHint(hint)
 	drawFESLabel(dev, labels, used, "tape-hint", x+16, y+panelH-29, panelW-32, 18, hint)
 }
 
@@ -572,6 +575,7 @@ func drawLaunchOverlay(dev gfx.Device, snap Snapshot, labels map[string]gpuTextu
 			hint = launchOverlayBusyHint(snap.Affinity)
 		}
 	}
+	hint = snap.padHint(hint)
 	drawLabel(dev, labels, used, "launch-ov-hint", x+20, y+panelH-28, panelW-40, 14, hint)
 }
 
@@ -592,7 +596,7 @@ func drawRoomError(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, 
 	for i, line := range lines {
 		drawLabel(dev, labels, used, fmt.Sprintf("room-err-%d", i), x+20, y+52+i*22, panelW-40, 16, line)
 	}
-	drawLabel(dev, labels, used, "room-err-hint", x+20, y+panelH-26, panelW-40, 14, roomErrorHint(snap.Room, snap.Affinity))
+	drawLabel(dev, labels, used, "room-err-hint", x+20, y+panelH-26, panelW-40, 14, snap.padHint(roomErrorHint(snap.Room, snap.Affinity)))
 }
 
 // roomErrorHint says what Back does on the failed-room panel.
@@ -644,7 +648,8 @@ func drawRoomPicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 			drawFESLabel(dev, labels, used, fmt.Sprintf("rooms-%d-detail", idx), x+24, rowY+34, panelW-48, 18, detail)
 		}
 	}
-	for i, line := range gfx.WrapText(roomPickerHint(snap.Affinity), 18, panelW-40, 2) {
+	hint := snap.padHint(roomPickerHint(snap.Affinity))
+	for i, line := range gfx.WrapText(hint, 18, panelW-40, 2) {
 		drawFESLabel(dev, labels, used, fmt.Sprintf("rooms-hint-%d", i), x+20, y+panelH-panel.FooterH+6+i*22, panelW-40, 18, line)
 	}
 }

@@ -1,0 +1,180 @@
+{
+  "what": "the references on the special operands the 387 manual leaves open; no RTL",
+  "files": {
+    "host": {
+      "file": "special-host.txt.gz",
+      "sha256_of_text": "c0b82169a760d0697cb84b1b8044bb99c976656101348bf494c2a41694665d98",
+      "cases": 4460
+    },
+    "oracle": {
+      "file": "special-oracle.txt.gz",
+      "sha256_of_text": "58f1dd35a62f8695a49306bfcaea2bcd1f8bb585954db218ff5748e5de8ac61d",
+      "cases": 4460
+    },
+    "other host": {
+      "file": "special-other-host.txt.gz",
+      "sha256_of_text": "b068da6bd3bfee56525404ed7076d1554e647aa2f643690d732949d1ebe2092d",
+      "cases": 4460
+    }
+  },
+  "host_cpu": "Intel(R) Core(TM) Ultra 7 270K Plus",
+  "probe_sha256": "e7e3ee068383377a73e582cc6f43caabec4161bf03343d12bb89480419ebcb84",
+  "host_against_oracle": {
+    "kinds": {
+      "F2XM1: a value, by more than one": 2,
+      "F2XM1: agree (a value within one; C1 apart)": 89,
+      "FCOS: a value, by more than one": 4,
+      "FCOS: agree (a value within one; C1 apart)": 87,
+      "FPATAN: a value, by more than one": 56,
+      "FPATAN: agree (a value within one; C1 apart)": 1224,
+      "FPATAN: flags": 40,
+      "FPATAN: flags, TOP, tags, a value, by more than one": 12,
+      "FPATAN: tags, a value, by more than one": 3,
+      "FPTAN: a value, by more than one": 10,
+      "FPTAN: agree (a value within one; C1 apart)": 81,
+      "FSIN: a value, by more than one": 6,
+      "FSIN: agree (a value within one; C1 apart)": 85,
+      "FSINCOS: a value, by more than one": 8,
+      "FSINCOS: agree (a value within one; C1 apart)": 83,
+      "FYL2X: a value, by more than one": 36,
+      "FYL2X: agree (a value within one; C1 apart)": 1285,
+      "FYL2X: flags": 2,
+      "FYL2X: tags, a value, by more than one": 12,
+      "FYL2XP1: a value, by more than one": 114,
+      "FYL2XP1: agree (a value within one; C1 apart)": 1208,
+      "FYL2XP1: flags": 2,
+      "FYL2XP1: tags, a value, by more than one": 11
+    },
+    "first_cases": {
+      "F2XM1: a value, by more than one": [
+        "F2XM1 037f -0.99",
+        "F2XM1 0340 -0.99"
+      ],
+      "FCOS: a value, by more than one": [
+        "FCOS 037f +2",
+        "FCOS 037f +2^63-ulp",
+        "FCOS 0340 +2",
+        "FCOS 0340 +2^63-ulp"
+      ],
+      "FPATAN: a value, by more than one": [
+        "FPATAN 037f st1=+0.3 st0=+1",
+        "FPATAN 037f st1=-0.3 st0=+1",
+        "FPATAN 037f st1=+0.3 st0=-1",
+        "FPATAN 037f st1=-0.3 st0=-1",
+        "FPATAN 037f st1=+2 st0=+0.5",
+        "FPATAN 037f st1=+2 st0=-0.5"
+      ],
+      "FPATAN: flags": [
+        "FPATAN 037f st1=+denormal st0=+1",
+        "FPATAN 037f st1=+denormal st0=+2",
+        "FPATAN 037f st1=+denormal st0=+4",
+        "FPATAN 037f st1=+denormal st0=-3",
+        "FPATAN 037f st1=+denormal st0=-0.99",
+        "FPATAN 037f st1=+denormal st0=-1.5"
+      ],
+      "FPATAN: flags, TOP, tags, a value, by more than one": [
+        "FPATAN 0340 st1=+1 st0=+max",
+        "FPATAN 0340 st1=-1 st0=+max",
+        "FPATAN 0340 st1=+2 st0=+max",
+        "FPATAN 0340 st1=+0.5 st0=+max",
+        "FPATAN 0340 st1=+0.3 st0=+max",
+        "FPATAN 0340 st1=-0.3 st0=+max"
+      ],
+      "FPATAN: tags, a value, by more than one": [
+        "FPATAN 037f st1=+denormal st0=+2^63-ulp",
+        "FPATAN 0340 st1=+2^-16000 st0=+max",
+        "FPATAN 0340 st1=+2^-16000 st0=+2^16000"
+      ],
+      "FPTAN: a value, by more than one": [
+        "FPTAN 037f +2",
+        "FPTAN 037f +4",
+        "FPTAN 037f +3",
+        "FPTAN 037f -3",
+        "FPTAN 037f +2^63-ulp",
+        "FPTAN 0340 +2"
+      ],
+      "FSIN: a value, by more than one": [
+        "FSIN 037f +3",
+        "FSIN 037f -3",
+        "FSIN 037f +2^63-ulp",
+        "FSIN 0340 +3",
+        "FSIN 0340 -3",
+        "FSIN 0340 +2^63-ulp"
+      ],
+      "FSINCOS: a value, by more than one": [
+        "FSINCOS 037f +2",
+        "FSINCOS 037f +3",
+        "FSINCOS 037f -3",
+        "FSINCOS 037f +2^63-ulp",
+        "FSINCOS 0340 +2",
+        "FSINCOS 0340 +3"
+      ],
+      "FYL2X: a value, by more than one": [
+        "FYL2X 037f st1=+1 st0=+3",
+        "FYL2X 037f st1=-1 st0=+3",
+        "FYL2X 037f st1=+2 st0=+3",
+        "FYL2X 037f st1=+0.5 st0=+3",
+        "FYL2X 037f st1=+0.3 st0=+3",
+        "FYL2X 037f st1=-0.3 st0=+3"
+      ],
+      "FYL2X: flags": [
+        "FYL2X 037f st1=+denormal st0=+0.5",
+        "FYL2X 037f st1=+denormal st0=+2"
+      ],
+      "FYL2X: tags, a value, by more than one": [
+        "FYL2X 0340 st1=+max st0=+4",
+        "FYL2X 0340 st1=+max st0=+3",
+        "FYL2X 0340 st1=+max st0=+0.25",
+        "FYL2X 0340 st1=+max st0=+0.3",
+        "FYL2X 0340 st1=+max st0=+2^-70",
+        "FYL2X 0340 st1=+max st0=+2^-16000"
+      ],
+      "FYL2XP1: a value, by more than one": [
+        "FYL2XP1 037f st1=+1 st0=+0.5",
+        "FYL2XP1 037f st1=-1 st0=+0.5",
+        "FYL2XP1 037f st1=+2 st0=+0.5",
+        "FYL2XP1 037f st1=+0.5 st0=+0.5",
+        "FYL2XP1 037f st1=+0.3 st0=+0.5",
+        "FYL2XP1 037f st1=-0.3 st0=+0.5"
+      ],
+      "FYL2XP1: flags": [
+        "FYL2XP1 037f st1=+denormal st0=+1",
+        "FYL2XP1 037f st1=+denormal st0=-0.5"
+      ],
+      "FYL2XP1: tags, a value, by more than one": [
+        "FYL2XP1 0340 st1=+max st0=+2",
+        "FYL2XP1 0340 st1=+max st0=+4",
+        "FYL2XP1 0340 st1=+max st0=+3",
+        "FYL2XP1 0340 st1=+max st0=-0.99",
+        "FYL2XP1 0340 st1=+max st0=+1.5",
+        "FYL2XP1 0340 st1=+max st0=+2^63-ulp"
+      ]
+    },
+    "c1_differs": 375
+  },
+  "host_against_other_host": {
+    "kinds": {
+      "F2XM1: agree (a value within one; C1 apart)": 91,
+      "FCOS: agree (a value within one; C1 apart)": 91,
+      "FPATAN: agree (a value within one; C1 apart)": 1335,
+      "FPTAN: agree (a value within one; C1 apart)": 91,
+      "FSIN: agree (a value within one; C1 apart)": 91,
+      "FSINCOS: agree (a value within one; C1 apart)": 91,
+      "FYL2X: agree (a value within one; C1 apart)": 1335,
+      "FYL2XP1: agree (a value within one; C1 apart)": 1335
+    },
+    "first_cases": {},
+    "c1_differs": 322
+  },
+  "source": {
+    "fes_revision": "e967bf4fa1b11c3c637c5aa91582b38f28b65afb",
+    "tracked_changes": [],
+    "files": {
+      "sources/misteross/cores/fes-common/sim/i386/x87_trans_probe.cpp": "6dbe6026109ddebd999626a8e1265de820e27a3885336d0428f9d4f9476f5a05",
+      "sources/misteross/cores/fes-common/sim/i386/i386_oracle.h": "504480031562b903770fc94eae278c232c17428a07ba243545f9a16038841795",
+      "sources/misteross/cores/fes-common/sim/i386/bochs_oracle.cpp": "a29f94665bdf6ecf81d453c74dad114e0f626a745230142f6cd5528a3c54bbe5",
+      "sources/misteross/scripts/probe_fes_i386_x87_trans.py": "5dd908b2654581d006f0a94e23be2a450218c04a35ad8173a2590f382923a405",
+      "sources/misteross/scripts/fes_i386_oracle.py": "0d47ce9792ca29ae172335f6f11e6c5dcfa73fbf34b76c89e04d072528f454cd"
+    }
+  }
+}

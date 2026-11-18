@@ -40,6 +40,16 @@ what SCOPE names, cannot pass over an unbuilt instruction. Programs from
 seeds of their own put encodings the 386 rejects in real mode, protected mode
 at CPL 0 and 3, and V86 mode (--undefined-programs).
 
+The x87trans suite (#1958) runs the eight transcendentals the DE25 backend
+builds (--backend de25) against the oracle's 387, whose results for them are
+not a 387's: everything is compared exactly but a finite non-zero result,
+which must be within --transcendental-ulp-oracle representable values of the
+oracle's. That argument has no default, and a value compare reached without
+it fails. The report gives, per form, the retirements compared, the
+resynchronisations of the oracle to the RTL, the results left unchecked, the
+worst distance and every distance's count. With --backend de10 the RTL must
+stop at each form as not built.
+
 With --netlist the CPU is first run through the seal's Yosys program
 (scripts/yosys_netlist.py, top fes_i386_cpu) by the pc386 lock's Yosys from
 its --cache-root slot, and that netlist is simulated instead of the RTL. The
@@ -104,6 +114,10 @@ SUITE_ARGUMENTS = ('opcode', 'limit_per_file', 'random_programs', 'random_seeds'
                    # satisfy --lockstep-report. Its default is 'de10', so the
                    # default suite is unchanged.
                    'backend',
+                   # The transcendental bound has no default (None), which is
+                   # what the default suite passes: the DE10 build runs no
+                   # transcendental, so nothing is compared within it there.
+                   'transcendental_ulp_oracle',
                    'same_as')
 
 # What the CPU executes, by MOO stem without 66h/67h prefixes: every form of
@@ -544,6 +558,7 @@ def label_fields(entries: list[dict], stem: str, test: vectors.MooTest) -> tuple
 # headers' directories, and this runner.
 def tested_sources() -> list[Path]:
     return sorted({*(RTL / path for path in CPU_RTL), *SIM.glob('*.cpp'), *SIM.glob('*.h'), *SIM.glob('*.toml'),
+                   SIM / 'x87_built_tb_top.sv',
                    *DDR_MODEL.glob('*.h'), Path(__file__).resolve(), Path(yosys_netlist.__file__).resolve()})
 
 
@@ -588,7 +603,11 @@ def verilate(verilator: i386_verilator.LockedVerilator, linked: list[Path], jobs
                *(f'-G{name}={value}' for name, value in sorted((parameters or {}).items()) if not yosys),
                # -D, not +define+: the guard is in the C++ testbench, not the RTL. A
                # flattened netlist has no hierarchy for the x87's backend counters.
+               # FES_X87_BACKEND tells the bench which x87 forms this build
+               # runs (x87_built_form.h); a netlist takes no -G, so it is a -D
+               # on both builds.
                '-CFLAGS', f'-std=c++17 -O2 -I{SIM} -I{DDR_MODEL}'
+                         + f" -DFES_X87_BACKEND={(parameters or {}).get('X87_BACKEND', 0)}"
                          + (' -DFES_I386_NETLIST' if yosys else ''), '-LDFLAGS', '-pthread',
                *map(str, design), str(SIM / 'lockstep_tb.cpp'), *map(str, linked)]
     log = output / 'build.log'
@@ -617,6 +636,146 @@ def run_biu_dma_test(verilator: i386_verilator.LockedVerilator, jobs: int) -> di
     result = subprocess.run([str(output / 'Vfes_i386_biu')], cwd=ROOT, capture_output=True, text=True)
     (output / 'run.log').write_text(result.stdout + result.stderr)
     return {'exit': result.returncode, 'output': result.stdout.strip(), 'error': result.stderr.strip()}
+
+
+def run_x87_built_forms(verilator: i386_verilator.LockedVerilator, jobs: int) -> dict:
+    """Compare the bench's copy of the x87 built set (sim/i386/x87_built_form.h)
+    with the RTL's x87_decode and x87_format over all 2^11 x87 opcodes at both
+    X87_BACKEND values, and report the count of built forms per backend."""
+    output = OUTPUT / 'x87-built'
+    output.mkdir(parents=True, exist_ok=True)
+    top = 'x87_built_tb_top'
+    command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', top,
+               '-Wall', '-Wno-UNUSEDSIGNAL', '--Mdir', str(output), '-CFLAGS', f'-std=c++17 -O2 -I{SIM}',
+               str(RTL / 'fes_i386_pkg.sv'), str(SIM / f'{top}.sv'), str(SIM / 'x87_built_tb.cpp')]
+    log = output / 'build.log'
+    with log.open('w') as stream:
+        result = subprocess.run(command, cwd=ROOT, env=verilator.environment(), stdout=stream,
+                                stderr=subprocess.STDOUT)
+    if result.returncode:
+        raise LockstepError(f'x87 built-form comparison build failed; see {log}\n'
+                            + '\n'.join(log.read_text().splitlines()[-30:]))
+    result = subprocess.run([str(output / f'V{top}')], cwd=ROOT, capture_output=True, text=True)
+    lines = result.stdout.splitlines()
+    summary = next((line.split() for line in lines if line.startswith('BUILT ')), None)
+    if summary is None or result.returncode not in (0, 1):
+        raise LockstepError(f'x87 built-form comparison exited {result.returncode} with no summary\n{result.stderr[-2000:]}')
+    return {'opcodes': 2048, 'built': {'de10': int(summary[2]), 'de25': int(summary[4])},
+            'mismatches': [line for line in lines if line.startswith('MISMATCH ')], 'output': lines[-1]}
+
+
+# The packed decimal suite's cases by backend: with the DE25's, eight directed
+# programs, one a rounding mode and sixteen seeded; with the DE10's, the two
+# forms stopping as not built and the control that retires.
+X87_BCD_CASES = {'de10': 3, 'de25': 8 + 4 + 16}
+
+
+def run_x87_bcd(testbench: str, env: dict, backend: str) -> dict:
+    """The packed decimal cases, FBLD and FBSTP (#1958; lockstep_tb.cpp's
+    run_x87_bcd_cases), the i386dx+387 identity on. They are a suite of their
+    own so that the x87 suite's programs, and so its trace hash, are what
+    they were. With the DE25 backend, which builds the two forms, they run
+    through the CPU against the oracle's 387 with memory operands a wrong
+    access shape would misread; with the DE10's, which does not, the RTL
+    alone must stop at each as not built. The bench knows the backend from
+    -DFES_X87_BACKEND."""
+    env = dict(env, FES_I386_MODE='x87bcd', FES_I386_LATENCY='1')
+    result = subprocess.run([testbench], env=env, capture_output=True, text=True)
+    if result.returncode not in (0, 1):
+        raise LockstepError(f'x87 BCD cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
+    summary, failures = parse_output(result.stdout)
+    if summary['runs'] != X87_BCD_CASES[backend]:
+        raise LockstepError(f'x87 BCD cases: testbench ran {summary["runs"]} of {X87_BCD_CASES[backend]} cases')
+    # The DE10 backend's check is that the RTL stopped at both forms: a run
+    # that reports no failure without having seen the two stops checked nothing.
+    stops = summary['x87_bcd_forms']['not_built']
+    if stops != (2 if backend == 'de10' else 0):
+        failures.append(f'FAIL x87bcd: {stops} forms stopped as not built with the {backend} backend')
+    return {'summary': summary, 'failures': failures}
+
+
+# The transcendental suite's cases by backend. With the DE25's: per form an
+# ordinary program, four rounding modes, two precisions, the stack cases
+# (empty for all eight, full for FPTAN and FSINCOS), the range cases for the
+# four trigonometric forms, four denormal programs, and the special operands
+# (one program for a one-operand form, twelve for a two-operand one); four
+# more directed, 24 seeded, nine self-tests and the oracle's setter. With the
+# DE10's: the setter, the eight forms stopping as not built and the control
+# that retires.
+X87_TRANS_FORMS = ('f2xm1', 'fyl2x', 'fptan', 'fpatan', 'fyl2xp1', 'fsincos', 'fsin', 'fcos')
+X87_TRANS_CASES = {'de10': 1 + 8 + 1,
+                   'de25': 8 * (1 + 4 + 2 + 1 + 4) + 2 + 4 + 5 * 1 + 3 * 12 + 4 + 24 + 9 + 1}
+# The recorded differences from the oracle (divergences.toml's x87-* entries
+# that the rule accepts): each must still be taken by its directed cases.
+X87_TRANS_RULES = ('x87-trig-infinity-c2', 'x87-fyl2xp1-below-minus-one', 'x87-fyl2xp1-minus-one',
+                   'x87-denormal-underflow', 'x87-fpatan-quotient-underflow', 'x87-denormal-flag-intermediate')
+# bound.md's proposal for the lockstep, which nothing here applies by itself.
+X87_TRANS_PROPOSED_BOUND = 2097152
+
+
+def run_x87_trans(testbench: str, env: dict, backend: str, bound: int | None) -> dict:
+    """The eight transcendentals (#1958; lockstep_tb.cpp's run_x87_trans_cases),
+    the i386dx+387 identity on, a suite of their own. With the DE25 backend,
+    which builds them, they run through the CPU against the oracle's 387 under
+    the transcendental rule: every flag, C0, C2, C3, TOP, the tags, the
+    control word, the opcode, the pointers and every register the instruction
+    did not write compared exactly, C1 exactly where SF is set or PE clear, and
+    a finite non-zero result within `bound` representable values of the
+    oracle's, which is --transcendental-ulp-oracle and has no default: unset,
+    a value compare fails. The oracle is resynchronised to the RTL after each
+    compare that passed. With the DE10 backend the RTL alone must stop at
+    each form as not built. Every exception is masked: the bench drives no
+    IRQ 13."""
+    env = dict(env, FES_I386_MODE='x87trans', FES_I386_LATENCY='1')
+    env.pop('FES_I386_TRANS_ULP_ORACLE', None)
+    for name in ('FES_I386_TRANS_CASE', 'FES_I386_TRANS_SPLIT', 'FES_I386_TRANS_OPEN', 'FES_I386_TRANS_SHOW'):
+        env.pop(name, None)
+    if bound is not None:
+        env['FES_I386_TRANS_ULP_ORACLE'] = str(bound)
+    result = subprocess.run([testbench], env=env, capture_output=True, text=True)
+    if result.returncode not in (0, 1):
+        raise LockstepError(f'x87 transcendental cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
+    summary, failures = parse_output(result.stdout)
+    if summary['runs'] != X87_TRANS_CASES[backend]:
+        raise LockstepError(f'x87 transcendental cases: testbench ran {summary["runs"]} of {X87_TRANS_CASES[backend]} cases')
+    trans = summary['x87_trans']
+    if set(trans['forms']) != set(X87_TRANS_FORMS):
+        raise LockstepError(f'x87 transcendental cases: the testbench reports forms {sorted(trans["forms"])}')
+    if trans['bound'] != bound:
+        raise LockstepError(f'x87 transcendental cases: the testbench ran with bound {trans["bound"]}, not {bound}')
+    for name in X87_TRANS_FORMS:
+        form = trans['forms'][name]
+        if backend == 'de25':
+            # A form claimed as built whose count is zero is a hole in the
+            # gate (#1958's method, pass rule 3).
+            if not form['executed']:
+                failures.append(f'FAIL x87trans: no {name} was compared at its retirement')
+            if form['not_built']:
+                failures.append(f'FAIL x87trans: {name} stopped as not built with the de25 backend')
+        else:
+            # The DE10 backend's check is that the RTL stopped at the form.
+            if form['not_built'] != 1:
+                failures.append(f'FAIL x87trans: {name} stopped as not built {form["not_built"]} times with the de10 backend')
+            if form['executed']:
+                failures.append(f'FAIL x87trans: {name} was executed with the de10 backend')
+    taken = summary['divergence_retirements']
+    if backend == 'de25':
+        failures += [f'FAIL x87trans rule {rule}: no directed case took it' for rule in X87_TRANS_RULES if not taken.get(rule)]
+        if not trans['selftests']:
+            failures.append('FAIL x87trans: the rule\'s self-tests did not run')
+    unknown = sorted(set(taken) - set(X87_TRANS_RULES))
+    if unknown:
+        failures.append(f'FAIL x87trans: divergences outside the recorded rules: {unknown}')
+    return {'summary': summary, 'failures': failures,
+            'bound': {'transcendental_ulp_oracle': bound,
+                      'status': ('the proposed value, not agreed (docs/validation/2026-11-17-de25-x87-transcendentals/bound.md)'
+                                 if bound == X87_TRANS_PROPOSED_BOUND else 'not the proposed value' if bound is not None
+                                 else 'unset: a value compare fails'),
+                      'trigonometric_window': 'FSIN, FCOS, FSINCOS and FPTAN results are gated by the bound only where the '
+                                              'oracle\'s result has a magnitude in [2^-10, 2^10]; the rest are "unchecked"'},
+            'exceptions': 'masked only: the bench drives no IRQ 13',
+            'open_cases': {'count': trans['open_cases'], 'run': trans['open_run'],
+                           'divergence': 'none: every case is gated'}}
 
 
 # What a governed run must share with max's (--same-as): every count but
@@ -662,6 +821,11 @@ def same_as(report: dict, other: dict) -> list[str]:
                  'reset_store'):
         for key in SAME_MODE:
             compare(f'{mode} {key}', report[mode]['summary'].get(key), other[mode]['summary'].get(key))
+    # The transcendental suite (#1958), which a report from before it does
+    # not have.
+    for key in SAME_MODE:
+        compare(f'x87_trans_cases {key}', report.get('x87_trans_cases', {}).get('summary', {}).get(key),
+                other.get('x87_trans_cases', {}).get('summary', {}).get(key))
     compare('unbuilt encodings', report['unbuilt']['encodings'], other['unbuilt']['encodings'])
     mine, theirs = report.get('undefined', {}), other.get('undefined', {})
     for key in SAME_RANDOM:
@@ -772,6 +936,10 @@ def main() -> int:
     parser.add_argument('--backend', choices=('de10', 'de25'), default='de10',
                         help="which arithmetic the x87 unit uses: 'de10' its own sequenced "
                              "datapath (the default and the verified reference), 'de25' fes_x87_core")
+    parser.add_argument('--transcendental-ulp-oracle', type=int,
+                        help='the bound on a transcendental result\'s distance from the oracle\'s, in representable '
+                             'extended values, for the x87trans suite (#1958). No default: a DE25 run without it '
+                             'fails at its first value compare')
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
     if not 1 <= args.jobs <= 64:
@@ -780,6 +948,8 @@ def main() -> int:
         parser.error('--corpus must be absolute')
     if args.same_as is not None and not args.same_as.is_absolute():
         parser.error('--same-as must be absolute')
+    if args.transcendental_ulp_oracle is not None and args.transcendental_ulp_oracle < 0:
+        parser.error('--transcendental-ulp-oracle must be nonnegative')
     if (args.random_programs < 0 or args.pm_programs < 0 or args.task_programs < 0 or args.debug_programs < 0
             or args.undefined_programs < 0 or args.random_seeds < 1 or args.seed < 0):
         parser.error('--random-programs must be nonnegative, --random-seeds positive, --seed nonnegative')
@@ -812,6 +982,7 @@ def main() -> int:
             report['netlist'] = yosys_netlist.report_record(
                 ROOT, yosys, args.gpu_router, Path(testbench).parent / f'{TOP}.netlist.v')
         biu_dma = run_biu_dma_test(verilator, args.jobs)
+        x87_built = run_x87_built_forms(verilator, args.jobs)
         env = dict(os.environ, FES_I386_DIVERGENCES=str(table), FES_I386_LATENCY='0' if args.no_latency else '1',
                    FES_I386_PRESET=str(args.preset))
         reset_store = run_reset_store(testbench, env)
@@ -821,6 +992,8 @@ def main() -> int:
         paging_cases = run_paging(testbench, env)
         no387 = run_no387(testbench, env)
         x87 = run_x87(testbench, env)
+        x87_bcd = run_x87_bcd(testbench, env, args.backend)
+        x87_trans = run_x87_trans(testbench, env, args.backend, args.transcendental_ulp_oracle)
         memory = run_memory(testbench, env)
 
         corpus = args.corpus or vectors.OUTPUT / 'corpus' / vectors.REVISION
@@ -948,7 +1121,14 @@ def main() -> int:
     random_failures += held
     reset_store_failures = reset_store['failures']
     directed_failures = (directed['failures'] + unreal['failures'] + pmode_cases['failures'] + paging_cases['failures']
-                         + no387['failures'] + x87['failures'])
+                         + no387['failures'] + x87['failures'] + x87_bcd['failures'] + x87_trans['failures'])
+    directed_failures += [f'FAIL x87 built forms: {line}' for line in x87_built['mismatches']]
+    # A form claimed as built whose count is zero is a hole in the gate
+    # (#1958's method, pass rule 3): the DE25 run must reach both.
+    bcd_forms = x87_bcd['summary'].get('x87_bcd_forms', {})
+    if args.backend == 'de25':
+        directed_failures += [f'FAIL x87 BCD cases: no {name} was stepped' for name in ('fbld', 'fbstp')
+                              if not bcd_forms.get(name)]
     # #1730's [[lockstep]] rules (divergences.toml umov, mov-tr, icebp-gd):
     # each must still be taken by its directed cases, or its entry no longer
     # matches.
@@ -969,6 +1149,9 @@ def main() -> int:
         'paging_cases': paging_cases,
         'no387_cases': no387,
         'x87_cases': x87,
+        'x87_bcd_cases': x87_bcd,
+        'x87_trans_cases': x87_trans,
+        'x87_built_forms': x87_built,
         'memory_cases': memory,
         'governor': {'preset': args.preset},
         'corpus': {'revision': vectors.REVISION, 'files': len(corpus_results), 'totals': dict(totals),
@@ -1102,6 +1285,24 @@ def main() -> int:
           f"({paging_cases['summary']['nested']} faults in a delivery delivered)")
     print(f"x87 cases (the identity on): {x87['summary']['passed']} pass, {x87['summary']['failed']} fail, "
           f"{x87['summary'].get('x87_compared', 0)} retirements with the 387's state compared")
+    print(f"x87 BCD cases ({args.backend}): {x87_bcd['summary']['passed']} pass, {x87_bcd['summary']['failed']} fail "
+          f"(FBLD stepped {bcd_forms.get('fbld', 0)}, FBSTP stepped {bcd_forms.get('fbstp', 0)}, "
+          f"stopped as not built {bcd_forms.get('not_built', 0)}, "
+          f"{x87_bcd['summary'].get('x87_compared', 0)} retirements with the 387's state compared)")
+    trans = x87_trans['summary']['x87_trans']
+    print(f"x87 transcendental cases ({args.backend}): {x87_trans['summary']['passed']} pass, "
+          f"{x87_trans['summary']['failed']} fail; bound {x87_trans['bound']['transcendental_ulp_oracle']} "
+          f"({x87_trans['bound']['status']}); {x87_trans['exceptions']}; "
+          f"{trans['open_cases']} open cases {'run' if trans['open_run'] else 'not run'}; "
+          f"recorded differences taken {x87_trans['summary']['divergence_retirements']}")
+    for name in X87_TRANS_FORMS:
+        form = trans['forms'][name]
+        print(f"  {name}: compared {form['executed']}, stopped as not built {form['not_built']}, results within the bound "
+              f"{form['values']} (worst {form['worst']}), unchecked {form['unchecked']} (worst {form['worst_unchecked']}), "
+              f"resynchronised {form['resyncs']} ({form['resync_values']} registers), C1 differed ungated {form['c1_differs']}")
+    print(f"x87 built forms, the bench's copy against the RTL's over {x87_built['opcodes']} opcodes: "
+          f"{x87_built['built']['de10']} built with the DE10 backend, {x87_built['built']['de25']} with the DE25's, "
+          f"{len(x87_built['mismatches'])} mismatches")
     print(f"no-387 cases: {no387['summary']['passed']} pass, {no387['summary']['failed']} fail "
           f"({no387['summary']['no387_rule']} ESC instructions under the no-387 rule, "
           f"{no387['summary']['no387_skips']} of them not stepped on the oracle)")
