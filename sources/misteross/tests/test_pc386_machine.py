@@ -147,6 +147,11 @@ class FirmwareTest(unittest.TestCase):
                 'no mirror': (unreachable, {'url': unreachable, 'sha256': '0' * 64},
                               'no source supplied'),
             }
+            stalled = subprocess.TimeoutExpired(['git'], firmware.DEV86_FETCH_SECONDS)
+            with mock.patch.object(firmware.subprocess, 'run', side_effect=stalled):
+                with self.assertRaisesRegex(firmware.FirmwareError, 'timed out'):
+                    firmware.fetch_dev86(root / 'stalled/dev86', commit, unreachable, mirror)
+            self.assertEqual(list((root / 'stalled').iterdir()), [])
             for name, (repository, archive, message) in cases.items():
                 with self.subTest(name):
                     tree = root / name / 'dev86'

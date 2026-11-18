@@ -50,6 +50,7 @@ DEV86_MIRROR = {
            'dev86-0b72e907f7a282aaa777a768b8b688e41c77fc93.git.tar.gz',
     'sha256': 'f96e95431f47f14b3086f8e3e7fe3e844c8c130e45ab800bbc88a0a013a1f4c2',
 }
+DEV86_FETCH_SECONDS = 300  # a source that stalls is refused like one that fails
 DEV86_VERSION = '0.16.21'  # the VERSION its top-level Makefile passes down
 DEV86_TARGETS = ('bcc86', 'cpp', 'as86', 'ld86')
 
@@ -131,14 +132,17 @@ def fetch_dev86(tree: Path, revision: str = DEV86_REVISION, repository: str = DE
                 for args in (('init', '-q'), ('fetch', '-q', '--depth', '1', url, revision),
                              ('checkout', '-q', 'FETCH_HEAD')):
                     subprocess.run(['git', '-C', str(partial), *args], check=True,
-                                   capture_output=True, text=True)
+                                   capture_output=True, text=True, timeout=DEV86_FETCH_SECONDS)
                 if _git(partial, 'rev-parse', 'HEAD') != revision:
                     raise FirmwareError('the checkout is not the pinned revision')
             except subprocess.CalledProcessError as error:
                 refused.append(f'{source}: {error.stderr.strip() or error}')
-            except (FirmwareError, OSError, tarfile.TarError) as error:
+            except (FirmwareError, OSError, tarfile.TarError, subprocess.TimeoutExpired) as error:
                 refused.append(f'{source}: {error}')
             else:
+                for line in refused:
+                    print(f'dev86 source refused: {line}', flush=True)
+                print(f'dev86 {revision} fetched from {source}', flush=True)
                 partial.rename(tree)
                 return
         shutil.rmtree(partial, ignore_errors=True)
