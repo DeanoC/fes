@@ -20,7 +20,7 @@ WAIVERS = ("WIDTH", "TIMESCALEMOD", "MULTIDRIVEN", "INITIALDLY", "ALWCOMBORDER",
            "BLKANDNBLK", "CASEINCOMPLETE", "CASEOVERLAP", "PINCONNECTEMPTY", "DECLFILENAME",
            "UNUSEDSIGNAL", "UNUSEDPARAM", "SYNCASYNCNET", "IMPLICITSTATIC", "VARHIDDEN", "CASEX",
            "BLKSEQ", "MULTITOP", "PINMISSING", "UNDRIVEN", "GENUNNAMED")
-MACHINE = ("st_cpu.sv", "st_machine.sv", "st_io.sv", "st_mfp.sv", "st_acia.sv",
+MACHINE = ("st_cpu.sv", "st_mfp.sv", "st_acia.sv",
            "st_ikbd.sv", "st_ym2149.sv", "st_ym_filter.sv", "st_ym_mixer.sv", "st_ym_mix_rom.sv",
            "st_floppy.sv", "st_floppy_writer.sv", "st_native_border.sv",
            "st_video.sv", "st_media_writer.sv", "st_media_port.sv")
@@ -47,13 +47,17 @@ def sources(output):
     memory.write_bytes(derive.retarget_memory((ST / "st_memory.sv").read_bytes())[0])
     system = output / "st_system_de25.sv"
     system.write_bytes(derive.retarget_system((ST / "st_system.sv").read_bytes())[0])
+    machine = output / "st_machine_de25.sv"
+    machine.write_bytes(derive.retarget_machine((ST / "st_machine.sv").read_bytes())[0])
+    io = output / "st_io_de25.sv"
+    io.write_bytes(derive.retarget_io((ST / "st_io.sv").read_bytes())[0])
     cpu = output / "fx68k_de25.sv"
     cpu.write_bytes(derive.retarget_cpu((CPU / "fx68k.sv").read_bytes())[0])
     reader = output / "fes_menu_reader_de25.v"
     reader.write_bytes(display.retarget_menu_ram((SHARED / "fes_menu_reader.v").read_bytes())[0])
     transport = output / "fes_de25_computer_transport.v"
     transport.write_bytes(derive.transport((BOARD / "zx81-hps/fes_de25_computer.v").read_bytes())[0])
-    return [HERE / "fes_de25_atari_st_standard.v", transport, sdram, native, adapter, memory, system, cpu,
+    return [HERE / "fes_de25_atari_st_standard.v", transport, sdram, native, adapter, memory, system, machine, io, cpu,
             SHARED / "fes_atari_st_core.v", SHARED / "fes_gp_crossing.v", SHARED / "fes_firmware_upload.v",
             SHARED / "fes_st_rom_sdram.v", SHARED / "fes_computer_mailbox.v",
             SHARED / "fes_display_plane.v", SHARED / "fes_menu_control.v", SHARED / "fes_menu_video.v",

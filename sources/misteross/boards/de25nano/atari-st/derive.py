@@ -405,34 +405,71 @@ def transport(source):
 
 # One reset register reaching the whole machine through logic is a signoff
 # finding (TMC-20602: its endpoints are too far apart to place well). The
-# DE25 core gives the 68000, the I/O chips and the memory and video raster a
-# reset register each, loaded from the same logic on the same clock. The
-# RESET instruction's output needs the same split, so the processor keeps a
-# second copy of that register for the raster, and the system takes the I/O
-# reset as a port instead of the one net the machine combines for the
+# DE25 core gives the 68000, the bus, the I/O decode, the keyboard and serial
+# chips, the sound chip, and the memory and video raster a reset register
+# each, loaded from the same logic on the same clock. The RESET instruction's
+# output needs the same split, so the processor keeps a copy of that register
+# for each peripheral group, and the system, machine and I/O block take the
+# group resets as ports instead of the one net the machine combines for the
 # expansion bus. No reset moves by a clock.
+CPU_RESET_COPIES = ("oResetRaster", "oResetInput", "oResetSound")
 CPU_RESET_EDITS = (
     (b"\tlogic oReset, oHalted;\r\n",
-     b"\tlogic oReset, oHalted;\r\n\t(* preserve, dont_merge *) logic oResetRaster;\r\n"),
+     b"\tlogic oReset, oHalted;\r\n" + b"".join(
+         b"\t(* preserve, dont_merge *) logic " + name.encode() + b";\r\n" for name in CPU_RESET_COPIES)),
     (b"\t\t\toReset <= 1'b0;\r\n",
-     b"\t\t\toReset <= 1'b0;\r\n\t\t\toResetRaster <= 1'b0;\r\n"),
+     b"\t\t\toReset <= 1'b0;\r\n" + b"".join(
+         b"\t\t\t" + name.encode() + b" <= 1'b0;\r\n" for name in CPU_RESET_COPIES)),
     (b"\t\t\toReset <= (uFc == 2'b01) & !Nanod.permStart;\r\n",
-     b"\t\t\toReset <= (uFc == 2'b01) & !Nanod.permStart;\r\n"
-     b"\t\t\toResetRaster <= (uFc == 2'b01) & !Nanod.permStart;\r\n"),
+     b"\t\t\toReset <= (uFc == 2'b01) & !Nanod.permStart;\r\n" + b"".join(
+         b"\t\t\t" + name.encode() + b" <= (uFc == 2'b01) & !Nanod.permStart;\r\n" for name in CPU_RESET_COPIES)),
 )
+GROUP_PORTS = b"io_reset, input_reset, sound_reset, video_reset"
+GROUP_PINS = (b".reset(io_reset), .input_reset(input_reset), .sound_reset(sound_reset), "
+              b".video_reset(video_reset)")
 SYSTEM_RESET_EDITS = (
     (b"    output wire exp_reset, exp_phi1, exp_phi2,\n",
-     b"    input wire io_reset,\n    output wire exp_reset, exp_phi1, exp_phi2,\n"),
+     b"    input wire cpu_reset, " + GROUP_PORTS + b",\n    output wire exp_reset, exp_phi1, exp_phi2,\n"),
+    (b"        .clk_sys(clk_sys), .reset(reset),\n        .rom_req(rom_req),",
+     b"        .clk_sys(clk_sys), .reset(reset), .cpu_reset(cpu_reset),\n        .rom_req(rom_req),"),
     (b"        .clk(clk_sys), .reset(exp_reset), .cold_reset(cold_reset), .cpu_cycle_ce(exp_phi2),\n",
-     b"        .clk(clk_sys), .reset(io_reset), .cold_reset(cold_reset), .cpu_cycle_ce(exp_phi2),\n"),
+     b"        .clk(clk_sys), " + GROUP_PINS + b",\n"
+     b"        .cold_reset(cold_reset), .cpu_cycle_ce(exp_phi2),\n"),
+)
+MACHINE_RESET_EDITS = (
+    (b"    input  wire reset,\n", b"    input  wire reset,\n    input  wire cpu_reset,\n"),
+    (b"        .clk(clk_sys), .reset(reset), .addr(cpu_addr), .wdata(cpu_wdata),\n",
+     b"        .clk(clk_sys), .reset(cpu_reset), .addr(cpu_addr), .wdata(cpu_wdata),\n"),
+)
+IO_RESET_EDITS = (
+    (b"    input wire clk, reset, cold_reset,\n",
+     b"    input wire clk, reset, input_reset, sound_reset, video_reset, cold_reset,\n"),
+    (b"horizontal_cycle == line_last && !reset;\n", b"horizontal_cycle == line_last && !video_reset;\n"),
+    (b"horizontal_cycle == hbl_irq_last && !reset;\n", b"horizontal_cycle == hbl_irq_last && !video_reset;\n"),
+    (b"    assign native_display = !reset && active_line && active_cycle;\n",
+     b"    assign native_display = !video_reset && active_line && active_cycle;\n"),
+    (b".reset(reset), .bus_req(req && kbd_select", b".reset(input_reset), .bus_req(req && kbd_select"),
+    (b".reset(reset), .bus_req(req && midi_select", b".reset(input_reset), .bus_req(req && midi_select"),
+    (b".reset(reset), .command_valid(kbd_tx_valid)", b".reset(input_reset), .command_valid(kbd_tx_valid)"),
+    (b".reset(reset), .bus_req(psg_bus_req", b".reset(sound_reset), .bus_req(psg_bus_req"),
 )
 
 
 def retarget_cpu(source):
-    """Keep a second RESET output register for the raster's reset."""
+    """Keep a RESET output register for each peripheral group."""
     return _edits(source, CPU_RESET_EDITS, "fx68k reset")
 
 
 def retarget_system(source):
-    """Reset the I/O chips from a port of their own."""
+    """Pass each group's reset through as a port of its own."""
     return _edits(source, SYSTEM_RESET_EDITS, "ST system reset")
+
+
+def retarget_machine(source):
+    """Reset the processor from a port of its own."""
+    return _edits(source, MACHINE_RESET_EDITS, "ST machine reset")
+
+
+def retarget_io(source):
+    """Reset the raster timing, the keyboard and serial chips and the sound chip from ports of their own."""
+    return _edits(source, IO_RESET_EDITS, "ST I/O reset")

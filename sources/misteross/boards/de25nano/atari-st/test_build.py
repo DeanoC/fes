@@ -98,19 +98,28 @@ class Derivations(unittest.TestCase):
         result, record = derive.retarget_cpu(cpu)
         self.assertEqual(len(record["changes"]), len(derive.CPU_RESET_EDITS))
         # The copy loads exactly what the RESET output register loads.
-        self.assertEqual(result.count(b"oResetRaster <= (uFc == 2'b01) & !Nanod.permStart;"), 1)
-        self.assertEqual(result.count(b"oResetRaster <= 1'b0;"), 1)
         with self.assertRaises(ValueError):
             derive.retarget_cpu(cpu.replace(b"!Nanod.permStart;", b"!Nanod.permStop;", 1))
-        system = (ROOT / "cores/fes-atari-st/rtl/st_system.sv").read_bytes()
-        result, record = derive.retarget_system(system)
-        self.assertEqual(result.count(b".reset(io_reset)"), 1)
-        self.assertEqual(result.count(b".reset(exp_reset)"), 0)
+        for name in derive.CPU_RESET_COPIES:
+            self.assertEqual(result.count(name.encode() + b" <= (uFc == 2'b01) & !Nanod.permStart;"), 1, name)
+        rtl = ROOT / "cores/fes-atari-st/rtl"
+        system, _ = derive.retarget_system((rtl / "st_system.sv").read_bytes())
+        self.assertEqual(system.count(b".reset(exp_reset)"), 0)
+        self.assertEqual(system.count(derive.GROUP_PINS), 1)
+        self.assertEqual(system.count(b".cpu_reset(cpu_reset)"), 1)
+        machine, _ = derive.retarget_machine((rtl / "st_machine.sv").read_bytes())
+        self.assertEqual(machine.count(b".reset(cpu_reset)"), 1)
+        io, record = derive.retarget_io((rtl / "st_io.sv").read_bytes())
+        self.assertEqual(len(record["changes"]), len(derive.IO_RESET_EDITS))
+        self.assertEqual(io.count(b".reset(input_reset)"), 3)
+        self.assertEqual(io.count(b".reset(sound_reset)"), 1)
+        self.assertEqual(io.count(b"!video_reset"), 3)
         core = (ROOT / "boards/de25nano/shared-rtl/fes_atari_st_core.v").read_text()
-        for name in ("machine_reset", "machine_reset_io", "machine_reset_raster"):
-            self.assertEqual(core.count(name + " <= machine_reset_next;"), 1, name)
-        self.assertIn("machine_reset_io || system.machine.cpu.cpu.oReset;", core)
-        self.assertIn("machine_reset_raster || system.machine.cpu.cpu.oResetRaster;", core)
+        for name in ("", "_cpu", "_io", "_input", "_sound", "_raster"):
+            self.assertEqual(core.count("machine_reset" + name + " <= machine_reset_next;"), 1, name)
+        for group, copy in (("io", "oReset"), ("input", "oResetInput"), ("sound", "oResetSound"),
+                            ("raster", "oResetRaster")):
+            self.assertIn("machine_reset_%s || system.machine.cpu.cpu.%s;" % (group, copy), core)
 
     def test_memory_gains_only_the_rom_region(self):
         source = (ROOT / "cores/fes-atari-st/rtl/st_memory.sv").read_bytes()

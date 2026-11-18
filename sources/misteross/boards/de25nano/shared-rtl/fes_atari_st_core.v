@@ -97,17 +97,24 @@ module fes_atari_st_core #(
     );
 
     wire initialized;
-    // Three registers of one reset: the processor and bus, the I/O chips, and
-    // the memory and video raster. One register reaching all of them is too
-    // spread to place (TMC-20602). Each is combined with the 68000's RESET
-    // output register for its own group, as st_machine combines exp_reset.
+    // One reset in six registers: the bus, the processor, the I/O decode,
+    // the keyboard and serial chips, the sound chip, and the memory and video
+    // raster. One register reaching all of them is too spread to place
+    // (TMC-20602). Each peripheral group combines its register with a
+    // register of the 68000's RESET output, as st_machine combines exp_reset.
     reg machine_reset = 1'b1;
+    (* preserve, dont_merge *) reg machine_reset_cpu = 1'b1;
     (* preserve, dont_merge *) reg machine_reset_io = 1'b1;
+    (* preserve, dont_merge *) reg machine_reset_input = 1'b1;
+    (* preserve, dont_merge *) reg machine_reset_sound = 1'b1;
     (* preserve, dont_merge *) reg machine_reset_raster = 1'b1;
     wire machine_reset_next = exec_reset || cold_reset || reset_hold || !initialized;
     always @(posedge clk_sys) begin
         machine_reset <= machine_reset_next;
+        machine_reset_cpu <= machine_reset_next;
         machine_reset_io <= machine_reset_next;
+        machine_reset_input <= machine_reset_next;
+        machine_reset_sound <= machine_reset_next;
         machine_reset_raster <= machine_reset_next;
     end
     assign machine_held = machine_reset;
@@ -121,6 +128,8 @@ module fes_atari_st_core #(
     wire [1:0] ram_byte_enable;
     wire exp_phi2;
     wire io_reset = machine_reset_io || system.machine.cpu.cpu.oReset;
+    wire input_reset = machine_reset_input || system.machine.cpu.cpu.oResetInput;
+    wire sound_reset = machine_reset_sound || system.machine.cpu.cpu.oResetSound;
     wire raster_reset = machine_reset_raster || system.machine.cpu.cpu.oResetRaster;
     wire audio_valid, media_req, media_valid;
     wire [19:0] media_addr;
@@ -163,7 +172,8 @@ module fes_atari_st_core #(
         .ram_req(ram_req), .ram_addr(ram_addr), .ram_wdata(ram_wdata),
         .ram_byte_enable(ram_byte_enable), .ram_write(ram_write), .ram_rdata(ram_rdata), .ram_ready(ram_ready),
         .exp_req(), .exp_addr(), .exp_wdata(), .exp_byte_enable(),
-        .exp_write(), .exp_fc(), .io_reset(io_reset), .exp_reset(), .exp_phi1(), .exp_phi2(exp_phi2),
+        .exp_write(), .exp_fc(), .cpu_reset(machine_reset_cpu), .io_reset(io_reset), .input_reset(input_reset),
+        .sound_reset(sound_reset), .video_reset(raster_reset), .exp_reset(), .exp_phi1(), .exp_phi2(exp_phi2),
         .exp_present(1'b0), .exp_ack(1'b0), .exp_berr(1'b0), .exp_rdata(16'd0), .exp_irq(3'd0),
         .irq_ack(), .irq_level(), .keyboard(keyboard), .controller_buttons(controller_buttons),
         .monochrome(1'b0), .mouse_valid(mouse_valid), .mouse_dx(mouse_dx), .mouse_dy(mouse_dy),
