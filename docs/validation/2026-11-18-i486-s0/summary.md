@@ -50,7 +50,7 @@ What this shows: the level-3 Bochs tree is built from the inputs it had, and onl
 
 ## Rule 2: level-3 behaviour
 
-Each suite ran in a clean checkout of the merge base (`6ee9f1113`) and of this branch, at `7ceb35e6d`; none of its inputs differs at `40c8ce58d` (the boot: at `7ceb35e6d`; none of its inputs differs at `40c8ce58d`). Same arguments on both sides. Exit statuses: base {'all': 'done', 'boot': 'boot rc=0', 'lockstep': 'lockstep rc=0', 'test386': 'test386 rc=0', 'vectors': 'vectors rc=0'}, head {'all': 'done', 'boot': 'boot rc=0', 'boot-l4': 'boot-l4 rc=0', 'i486': 'i486 rc=0', 'lockstep': 'lockstep rc=0', 'test386': 'test386 rc=0', 'vectors': 'vectors rc=0'}.
+Each suite ran in a clean checkout of the merge base (`6ee9f1113`) and of this branch, at `7ceb35e6d`; none of its inputs differs at `ed62672ff` (the boot: at `7ceb35e6d`; none of its inputs differs at `ed62672ff`). Same arguments on both sides. Exit statuses: base {'all': 'done', 'boot': 'boot rc=0', 'lockstep': 'lockstep rc=0', 'test386': 'test386 rc=0', 'vectors': 'vectors rc=0'}, head {'all': 'done', 'boot': 'boot rc=0', 'boot-l4': 'boot-l4 rc=0', 'i486': 'i486 rc=0', 'lockstep': 'lockstep rc=0', 'test386': 'test386 rc=0', 'vectors': 'vectors rc=0'}.
 
 **Lockstep** (default suite: yes; tracked changes in either checkout: [[], []]). Reports equal but for the ignored keys: yes.
 
@@ -84,7 +84,7 @@ The comparison ignores these keys wherever they occur: `source`, `adapter_sha256
 
 ## Rule 3: what the level-4 oracle does
 
-Run at `7ceb35e6d`; none of its inputs differs at `40c8ce58d`. The oracle: Bochs `30cfd566ecc8` at CPU level 4; level-4 provisioner `8bc3418c3accd802`, adapter sources `8476a65df29382fd`; cases `166a82f148958e07`.
+Run at the record's commit `ed62672ff`. The oracle: Bochs `30cfd566ecc8` at CPU level 4; level-4 provisioner `8bc3418c3accd802`, adapter sources `8476a65df29382fd`; cases `166a82f148958e07`.
 
 **After reset:**
 
@@ -144,8 +144,8 @@ Run at `7ceb35e6d`; none of its inputs differs at `40c8ce58d`. The oracle: Bochs
 | `ac-am-clear` | AM clear: no #AC | end int:3 | PRM 9.9.16, Table 9-8 (error code always zero) | yes |
 | `ac-flag-clear` | AC clear: no #AC | end int:3 | PRM 9.9.16, Table 9-8 (error code always zero) | yes |
 | `ac-cpl0` | CPL 0 with AM and AC set: no #AC, and AC reads back set | ebx 40002, end halt | PRM 9.9.16, Table 9-8 (error code always zero) | yes |
-| `cpuid-0` | CPUID leaf 0: one leaf, GenuineIntel | eax 1, ebx 756e6547, ecx 6c65746e, edx 49656e69, end halt | AP-485 3.1, Table 1 | yes |
-| `cpuid-1` | CPUID leaf 1 is the DX4 Bochs models, with an FPU and no VME | eax 480, ebx 0, ecx 0, edx 1, end halt | AP-485 Tables 3 and 5 (a DX4 is family 4, model 8; bit 0 an FPU) | yes |
+| `cpuid-0` | CPUID leaf 0: one leaf, GenuineIntel | eax 1, ebx 756e6547, ecx 6c65746e, edx 49656e69, end halt | AP-485 3.1, Table 1 (the vendor string); Bochs for the highest leaf, 1 | yes |
+| `cpuid-1` | CPUID leaf 1 is the DX4 Bochs models, with an FPU and no VME | eax 480, ebx 0, ecx 0, edx 1, end halt | AP-485 Tables 3 and 5 (a DX4 is family 4, model 8; bit 0 an FPU); Bochs for EBX and ECX | yes |
 | `mov-tr3` | MOV to and from TR3 | end exception:6 | Bochs | yes |
 | `mov-tr6` | MOV to and from TR6 | end exception:6 | Bochs | yes |
 | `mov-cr4-read` | MOV EAX, CR4 with VME excluded reads 0 | eax 0, end halt | Bochs | yes |
@@ -167,7 +167,7 @@ What this shows: on these programs the oracle gives the documented result. What 
 
 ## Rule 4: where the RTL stops today
 
-Run at `7ceb35e6d`; none of its inputs differs at `40c8ce58d`. The RTL is a 386. Each case ran in lockstep with the level-4 oracle to its end or its first mismatch. "Probe" is the address of the first instruction that needs a 486; a stop is written as the testbench prints it, `@<eip>.<field> <oracle> <rtl>`.
+Run at the record's commit `ed62672ff`. The RTL is a 386. Each case ran in lockstep with the level-4 oracle to its end or its first mismatch. "Probe" is the address of the first instruction that needs a 486; a stop is written as the testbench prints it, `@<eip>.<field> <oracle> <rtl>`.
 
 | Case | Probe | RTL | Isolated | Predicted | As predicted |
 | --- | --- | --- | --- | --- | --- |
@@ -232,9 +232,9 @@ What this does not show: the reset values. The CPU takes its reset state from in
 
 ## Rule 5: the machine on the level-4 oracle
 
-**Boot.** `sim_fes_pc386.py --suite boot --cpu-level 4`, at `7ceb35e6d`; none of its inputs differs at `40c8ce58d`: end {'cycles': 370000047, 'reason': 'prompt', 'seconds': 3.7, 'steps': 89865920}, exit 0, failures none; VGA replay `match events=84949 replay_mismatches=0 read_mismatches=0 vram_mismatches=0 frame_mismatches=0 end_vram_bytes_differing=0`.
+**Boot.** `sim_fes_pc386.py --suite boot --cpu-level 4`, at `7ceb35e6d`; none of its inputs differs at `ed62672ff`: end {'cycles': 370000047, 'reason': 'prompt', 'seconds': 3.7, 'steps': 89865920}, exit 0, failures none; VGA replay `match events=84949 replay_mismatches=0 read_mismatches=0 vram_mismatches=0 frame_mismatches=0 end_vram_bytes_differing=0`.
 
-**Census.** Run on chip-30x0-ai-dev, at `75bd225a2`, **before main was merged in: 35 files it reads differ at `40c8ce58d`**, so it is a result of that commit and not of this one (the first of them: `fes_x87_fast.sv`, `fes_x87_pipe.sv`, `fes_x87_pkg.sv`, `fes_x87_round.sv`, `fes_x87_slow.sv`, `fes_i386_cpu.sv`). The plan's `census.jsonl` at `b4ea55e9c` has 54 rows. 54 were run again on this slice's level-4 oracle; compared keys: `steps`, `end`, `i486`, `eflags`, `cr0_486_bits`, `exceptions`.
+**Census.** Run on chip-30x0-ai-dev, at `75bd225a2`, **before main was merged in: 35 files it reads differ at `ed62672ff`**, so it is a result of that commit and not of this one (the first of them: `fes_x87_fast.sv`, `fes_x87_pipe.sv`, `fes_x87_pkg.sv`, `fes_x87_round.sv`, `fes_x87_slow.sv`, `fes_i386_cpu.sv`). The plan's `census.jsonl` at `b4ea55e9c` has 54 rows. 54 were run again on this slice's level-4 oracle; compared keys: `steps`, `end`, `i486`, `eflags`, `cr0_486_bits`, `exceptions`.
 
 - Equal to the plan's row: 54.
 - Different: 0.
@@ -245,13 +245,45 @@ The rows are in [`census.jsonl`](census.jsonl): counts only.
 
 ## Rule 6: CACHECHK's "Divide error"
 
-**Explained.** Run on chip-30x0-ai-dev, at `75bd225a2`, **before main was merged in: 35 files it reads differ at `40c8ce58d`**, so it is a result of that commit and not of this one (the first of them: `fes_x87_fast.sv`, `fes_x87_pipe.sv`, `fes_x87_pkg.sv`, `fes_x87_round.sv`, `fes_x87_slow.sv`, `fes_i386_cpu.sv`).
+**Explained.** Run on chip-30x0-ai-dev, at `75bd225a2`, **before main was merged in: 35 files it reads differ at `ed62672ff`**, so it is a result of that commit and not of this one (the first of them: `fes_x87_fast.sv`, `fes_x87_pipe.sv`, `fes_x87_pkg.sv`, `fes_x87_round.sv`, `fes_x87_slow.sv`, `fes_i386_cpu.sv`).
 
 - Level 3: the run ends at `prompt` after 9.5 simulated seconds and 234,296,038 steps; "Divide error" on the screen: yes; the clock it prints: 2560.4 MHz. Exception 0 is raised at `0eba:000057f0` at 8.993733 s by `DIV BX` with DX:AX 8000:0000 and divisor 0000: a division by zero.
 - Level 4: the run ends at `prompt` after 9.5 simulated seconds and 234,296,948 steps; "Divide error" on the screen: yes; the clock it prints: 1044.0 MHz. Exception 0 is raised at `0eba:000057f0` at 8.994143 s by `DIV BX` with DX:AX 0000:0000 and divisor 0000: a division by zero.
 - The fault site is the same at both levels: yes.
 - What was measured: the control, the faulting instruction and its operands at each level, from a scratch trace of the last 3,000 oracle steps before the first exception 0. The divisor is the low word of a 32-bit value the program's own scaling routine had just shifted left; the trace window (about 0.1 ms) does not reach back to the timing loop that produced the value.
 - What that supports: the oracle has no CPU speed (every instruction takes the same machine time), so the program's timing gives a clock no CPU has, at either level, and its arithmetic then divides by zero. The committed kit runs of CACHECHK on the RTL, which has a speed, print its table. What was not measured: which timing loop, and why the two levels print different clocks.
+
+## Where this departs from the plan's slice 0
+
+The plan record's slice 0 definition is the scope. Three things it names
+are defined here but not built, each because the RTL has no 486 identity
+to hold them to yet:
+
+- **"The wider EFLAGS and CR0 masks."** The state comparison's masks are
+  still the 386's. The 486's are written down in the oracle README's scope
+  table, and the directed cases read CR0's 486 bits and EFLAGS.AC and ID
+  into registers, which is how every one of those stops was found.
+- **"Its #UD probes and the `ud-invlpg` entry become per-identity."** They
+  are per-identity in the scope table, not in code: the level-4 oracle runs
+  only the `i486` mode, so the 386's probes and divergence list are never
+  run against it.
+- **"CR4 only for option B."** B is the chosen target, and `State` still has
+  no CR4, because the oracle excludes VME, as the plan's own runs did; CR4
+  then has no writable bit. Which later stepping B is was not decided. A
+  part with VME adds CR4 to `State` and V86 extensions to the CPU work.
+
+One thing was added that the plan's definition does not ask for: the
+adapter sets a 486's reset EDX and DR6, which Bochs leaves as the 386's.
+
+## What was not run
+
+- No seal, no D12 netlist and RBF comparison, and no kit.
+- No netlist lockstep for the `i486` mode: it runs the RTL only.
+- The census and the CACHECHK runs were not repeated after main was merged.
+- `wfw-msdos` and the three Linux drives were not run at level 4; the plan
+  did not run them either.
+- CACHECHK's timing loop was not traced, only the divide and its operands.
+- Nothing ran with VME included, or on a 486 without CPUID.
 
 ## How the runs departed from the method
 
@@ -289,9 +321,15 @@ The rows are in [`census.jsonl`](census.jsonl): counts only.
 - **The census and the CACHECHK runs were made on chip-30x0-ai-dev,** from
   a `git archive` of the code commit, because Powerboat was at a load of
   about 80 when they started. The seven drives were copied there for the
-  runs and deleted there, with the trees, when the census ended. The first start of the sweep
-  was from an uncommitted tree and was stopped while still building; nothing
-  was read from it.
+  runs and deleted there, with the trees, when the census ended.
+- **Three starts of the sweep were discarded before the one reported,** and
+  nothing was read from any of them: one from an uncommitted tree and one
+  from the patch-route commit `f2027af82`, both stopped while still
+  building; and one from `75bd225a2` whose first runs exited at once
+  because codeberg.org, which hosts the BIOS toolchain's source (dev86), did
+  not resolve. For the start that is reported, the pinned dev86 source was
+  copied from Powerboat's checkout of the same revision and built on the
+  host, instead of being fetched.
 - **The CACHECHK trace used a scratch change to `machine_tb.cpp`** in a
   second copy of the tree, which keeps the last 3,000 oracle steps and
   prints them at the first exception 0. It is not committed. The census

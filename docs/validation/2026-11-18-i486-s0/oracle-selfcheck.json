@@ -586,7 +586,7 @@
       "i486": null,
       "label": "cpuid-0",
       "pass": true,
-      "source": "AP-485 3.1, Table 1",
+      "source": "AP-485 3.1, Table 1 (the vendor string); Bochs for the highest leaf, 1",
       "what": "CPUID leaf 0: one leaf, GenuineIntel"
     },
     {
@@ -602,7 +602,7 @@
       "i486": "per part: an SX is 042xh with EDX bit 0 clear, a DX 040xh or 041xh, a DX2 043xh",
       "label": "cpuid-1",
       "pass": true,
-      "source": "AP-485 Tables 3 and 5 (a DX4 is family 4, model 8; bit 0 an FPU)",
+      "source": "AP-485 Tables 3 and 5 (a DX4 is family 4, model 8; bit 0 an FPU); Bochs for EBX and ECX",
       "what": "CPUID leaf 1 is the DX4 Bochs models, with an FPU and no VME"
     },
     {
@@ -657,7 +657,7 @@
     }
   ],
   "cases_sha256": "166a82f148958e079a935b6161ca60a4275b78eb4a5392e7684df07d6e530ed3",
-  "commit": "7ceb35e6d041bb7864dd8e9fa6b79d6fe8292c37",
+  "commit": "ed62672ff9f547ef10419be127ffc6a5a93e2b7c",
   "oracle": {
     "adapter_sha256": "8476a65df29382fdfdb5b8ce342495f3491fd2c7e5c5df40018d3a3d68bb21e3",
     "cpu_level": 4,
