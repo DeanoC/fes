@@ -81,6 +81,90 @@
       "differences": [],
       "divergence": null,
       "expected": {
+        "ebx": "ff",
+        "ecx": "0",
+        "eflags": "57",
+        "end": "halt"
+      },
+      "i486": null,
+      "label": "xadd-m8",
+      "pass": true,
+      "source": "PRM ch. 26, XADD",
+      "what": "XADD 8-bit memory form; carry, auxiliary carry or overflow result"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "ebx": "ff",
+        "ecx": "0",
+        "eflags": "57",
+        "end": "halt"
+      },
+      "i486": null,
+      "label": "xadd-m8-lock",
+      "pass": true,
+      "source": "PRM ch. 26, XADD; LOCK",
+      "what": "LOCK XADD 8-bit memory form; carry, auxiliary carry or overflow result"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "end": "exception:6"
+      },
+      "i486": null,
+      "label": "xadd-r8-lock",
+      "pass": true,
+      "source": "PRM ch. 26, LOCK (only with a memory destination; else #UD)",
+      "what": "LOCK XADD 8-bit register form is #UD"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "ebx": "7fff",
+        "ecx": "8000",
+        "eflags": "896",
+        "end": "halt"
+      },
+      "i486": null,
+      "label": "xadd-m16",
+      "pass": true,
+      "source": "PRM ch. 26, XADD",
+      "what": "XADD 16-bit memory form; carry, auxiliary carry or overflow result"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "ebx": "7fff",
+        "ecx": "8000",
+        "eflags": "896",
+        "end": "halt"
+      },
+      "i486": null,
+      "label": "xadd-m16-lock",
+      "pass": true,
+      "source": "PRM ch. 26, XADD; LOCK",
+      "what": "LOCK XADD 16-bit memory form; carry, auxiliary carry or overflow result"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "end": "exception:6"
+      },
+      "i486": null,
+      "label": "xadd-r16-lock",
+      "pass": true,
+      "source": "PRM ch. 26, LOCK (only with a memory destination; else #UD)",
+      "what": "LOCK XADD 16-bit register form is #UD"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
         "ebx": "5",
         "ecx": "c",
         "eflags": "6",
@@ -90,7 +174,7 @@
       "label": "xadd-m32",
       "pass": true,
       "source": "PRM ch. 26, XADD",
-      "what": "XADD to memory"
+      "what": "XADD 32-bit memory form; carry, auxiliary carry or overflow result"
     },
     {
       "differences": [],
@@ -105,7 +189,7 @@
       "label": "xadd-m32-lock",
       "pass": true,
       "source": "PRM ch. 26, XADD; LOCK",
-      "what": "LOCK XADD to memory"
+      "what": "LOCK XADD 32-bit memory form; carry, auxiliary carry or overflow result"
     },
     {
       "differences": [],
@@ -114,10 +198,22 @@
         "end": "exception:6"
       },
       "i486": null,
-      "label": "xadd-reg-lock",
+      "label": "xadd-r32-lock",
       "pass": true,
       "source": "PRM ch. 26, LOCK (only with a memory destination; else #UD)",
-      "what": "LOCK XADD with a register destination is #UD"
+      "what": "LOCK XADD 32-bit register form is #UD"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "end": "exception:6"
+      },
+      "i486": null,
+      "label": "cmpxchg-r8-lock",
+      "pass": true,
+      "source": "PRM ch. 26, LOCK (only with a memory destination; else #UD)",
+      "what": "LOCK CMPXCHG 8-bit register form is #UD"
     },
     {
       "differences": [],
@@ -130,26 +226,10 @@
         "end": "halt"
       },
       "i486": null,
-      "label": "cmpxchg-r32-equal",
+      "label": "cmpxchg-r8-equal",
       "pass": true,
       "source": "PRM ch. 26, CMPXCHG",
-      "what": "CMPXCHG, accumulator equal: the destination takes the source, ZF set"
-    },
-    {
-      "differences": [],
-      "divergence": null,
-      "expected": {
-        "eax": "7",
-        "ebx": "7",
-        "ecx": "9",
-        "eflags": "93",
-        "end": "halt"
-      },
-      "i486": null,
-      "label": "cmpxchg-r32-unequal",
-      "pass": true,
-      "source": "PRM ch. 26, CMPXCHG",
-      "what": "CMPXCHG, accumulator unequal: the accumulator takes the destination, flags are CMP's"
+      "what": "8-bit register CMPXCHG, accumulator equal"
     },
     {
       "differences": [],
@@ -164,7 +244,142 @@
       "label": "cmpxchg-m8-equal",
       "pass": true,
       "source": "PRM ch. 26, CMPXCHG",
-      "what": "CMPXCHG to a byte in memory, equal"
+      "what": "8-bit memory CMPXCHG, accumulator equal"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "eax": "33",
+        "edx": "44",
+        "eflags": "46",
+        "end": "halt"
+      },
+      "i486": null,
+      "label": "cmpxchg-m8-equal-lock",
+      "pass": true,
+      "source": "PRM ch. 26, CMPXCHG; LOCK",
+      "what": "LOCK 8-bit memory CMPXCHG, accumulator equal"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "eax": "7",
+        "ebx": "7",
+        "ecx": "9",
+        "eflags": "93",
+        "end": "halt"
+      },
+      "i486": null,
+      "label": "cmpxchg-r8-unequal",
+      "pass": true,
+      "source": "PRM ch. 26, CMPXCHG",
+      "what": "8-bit register CMPXCHG, accumulator unequal"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "eax": "33",
+        "edx": "33",
+        "eflags": "93",
+        "end": "halt"
+      },
+      "i486": null,
+      "label": "cmpxchg-m8-unequal",
+      "pass": true,
+      "source": "PRM ch. 26, CMPXCHG",
+      "what": "8-bit memory CMPXCHG, accumulator unequal"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "eax": "33",
+        "edx": "33",
+        "eflags": "93",
+        "end": "halt"
+      },
+      "i486": null,
+      "label": "cmpxchg-m8-unequal-lock",
+      "pass": true,
+      "source": "PRM ch. 26, CMPXCHG; LOCK",
+      "what": "LOCK 8-bit memory CMPXCHG, accumulator unequal"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "end": "exception:6"
+      },
+      "i486": null,
+      "label": "cmpxchg-r16-lock",
+      "pass": true,
+      "source": "PRM ch. 26, LOCK (only with a memory destination; else #UD)",
+      "what": "LOCK CMPXCHG 16-bit register form is #UD"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "eax": "5",
+        "ebx": "9",
+        "ecx": "9",
+        "eflags": "46",
+        "end": "halt"
+      },
+      "i486": null,
+      "label": "cmpxchg-r16-equal",
+      "pass": true,
+      "source": "PRM ch. 26, CMPXCHG",
+      "what": "16-bit register CMPXCHG, accumulator equal"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "eax": "1234",
+        "edx": "5678",
+        "eflags": "46",
+        "end": "halt"
+      },
+      "i486": null,
+      "label": "cmpxchg-m16-equal",
+      "pass": true,
+      "source": "PRM ch. 26, CMPXCHG",
+      "what": "16-bit memory CMPXCHG, accumulator equal"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "eax": "1234",
+        "edx": "5678",
+        "eflags": "46",
+        "end": "halt"
+      },
+      "i486": null,
+      "label": "cmpxchg-m16-equal-lock",
+      "pass": true,
+      "source": "PRM ch. 26, CMPXCHG; LOCK",
+      "what": "LOCK 16-bit memory CMPXCHG, accumulator equal"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "eax": "7",
+        "ebx": "7",
+        "ecx": "9",
+        "eflags": "93",
+        "end": "halt"
+      },
+      "i486": null,
+      "label": "cmpxchg-r16-unequal",
+      "pass": true,
+      "source": "PRM ch. 26, CMPXCHG",
+      "what": "16-bit register CMPXCHG, accumulator unequal"
     },
     {
       "differences": [],
@@ -179,7 +394,65 @@
       "label": "cmpxchg-m16-unequal",
       "pass": true,
       "source": "PRM ch. 26, CMPXCHG",
-      "what": "CMPXCHG to a word in memory, unequal"
+      "what": "16-bit memory CMPXCHG, accumulator unequal"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "eax": "1234",
+        "edx": "1234",
+        "eflags": "97",
+        "end": "halt"
+      },
+      "i486": null,
+      "label": "cmpxchg-m16-unequal-lock",
+      "pass": true,
+      "source": "PRM ch. 26, CMPXCHG; LOCK",
+      "what": "LOCK 16-bit memory CMPXCHG, accumulator unequal"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "end": "exception:6"
+      },
+      "i486": null,
+      "label": "cmpxchg-r32-lock",
+      "pass": true,
+      "source": "PRM ch. 26, LOCK (only with a memory destination; else #UD)",
+      "what": "LOCK CMPXCHG 32-bit register form is #UD"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "eax": "12345678",
+        "ebx": "deadbeef",
+        "ecx": "deadbeef",
+        "eflags": "46",
+        "end": "halt"
+      },
+      "i486": null,
+      "label": "cmpxchg-r32-equal",
+      "pass": true,
+      "source": "PRM ch. 26, CMPXCHG",
+      "what": "32-bit register CMPXCHG, accumulator equal"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "eax": "12345678",
+        "edx": "deadbeef",
+        "eflags": "46",
+        "end": "halt"
+      },
+      "i486": null,
+      "label": "cmpxchg-m32-equal",
+      "pass": true,
+      "source": "PRM ch. 26, CMPXCHG",
+      "what": "32-bit memory CMPXCHG, accumulator equal"
     },
     {
       "differences": [],
@@ -194,7 +467,23 @@
       "label": "cmpxchg-m32-equal-lock",
       "pass": true,
       "source": "PRM ch. 26, CMPXCHG; LOCK",
-      "what": "LOCK CMPXCHG to a doubleword in memory, equal"
+      "what": "LOCK 32-bit memory CMPXCHG, accumulator equal"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "eax": "12345678",
+        "ebx": "12345678",
+        "ecx": "deadbeef",
+        "eflags": "93",
+        "end": "halt"
+      },
+      "i486": null,
+      "label": "cmpxchg-r32-unequal",
+      "pass": true,
+      "source": "PRM ch. 26, CMPXCHG",
+      "what": "32-bit register CMPXCHG, accumulator unequal"
     },
     {
       "differences": [],
@@ -209,7 +498,22 @@
       "label": "cmpxchg-m32-unequal",
       "pass": true,
       "source": "PRM ch. 26, CMPXCHG",
-      "what": "CMPXCHG to a doubleword in memory, unequal"
+      "what": "32-bit memory CMPXCHG, accumulator unequal"
+    },
+    {
+      "differences": [],
+      "divergence": null,
+      "expected": {
+        "eax": "12345678",
+        "edx": "12345678",
+        "eflags": "93",
+        "end": "halt"
+      },
+      "i486": null,
+      "label": "cmpxchg-m32-unequal-lock",
+      "pass": true,
+      "source": "PRM ch. 26, CMPXCHG; LOCK",
+      "what": "LOCK 32-bit memory CMPXCHG, accumulator unequal"
     },
     {
       "differences": [],
@@ -611,7 +915,7 @@
       "expected": {
         "end": "exception:6"
       },
-      "i486": "TR3 exists (PRM Appendix E, Table 10.1: MOV to and from TR3): no #UD",
+      "i486": "TR3 exists (PRM Appendix E, Table 10.1: MOV to and from TR3-TR7): no #UD",
       "label": "mov-tr3",
       "pass": true,
       "source": "Bochs",
@@ -623,11 +927,47 @@
       "expected": {
         "end": "exception:6"
       },
-      "i486": "TR6 exists, as on the 386: no #UD",
+      "i486": "TR4 exists (PRM Appendix E, Table 10.1: MOV to and from TR3-TR7): no #UD",
+      "label": "mov-tr4",
+      "pass": true,
+      "source": "Bochs",
+      "what": "MOV to and from TR4"
+    },
+    {
+      "differences": [],
+      "divergence": "mov-tr",
+      "expected": {
+        "end": "exception:6"
+      },
+      "i486": "TR5 exists (PRM Appendix E, Table 10.1: MOV to and from TR3-TR7): no #UD",
+      "label": "mov-tr5",
+      "pass": true,
+      "source": "Bochs",
+      "what": "MOV to and from TR5"
+    },
+    {
+      "differences": [],
+      "divergence": "mov-tr",
+      "expected": {
+        "end": "exception:6"
+      },
+      "i486": "TR6 exists (PRM Appendix E, Table 10.1: MOV to and from TR3-TR7): no #UD",
       "label": "mov-tr6",
       "pass": true,
       "source": "Bochs",
       "what": "MOV to and from TR6"
+    },
+    {
+      "differences": [],
+      "divergence": "mov-tr",
+      "expected": {
+        "end": "exception:6"
+      },
+      "i486": "TR7 exists (PRM Appendix E, Table 10.1: MOV to and from TR3-TR7): no #UD",
+      "label": "mov-tr7",
+      "pass": true,
+      "source": "Bochs",
+      "what": "MOV to and from TR7"
     },
     {
       "differences": [],
@@ -656,19 +996,19 @@
       "what": "MOV CR4, EAX with a bit set and VME excluded is #GP(0)"
     }
   ],
-  "cases_sha256": "166a82f148958e079a935b6161ca60a4275b78eb4a5392e7684df07d6e530ed3",
-  "commit": "ed62672ff9f547ef10419be127ffc6a5a93e2b7c",
+  "cases_sha256": "60f7224696c15107cf3b05527e4d71fd908fa085c02d63849a54aa480c4bf92d",
+  "commit": "aa50383486eb0001f92bb510b9dbd649f64d0ffc",
   "oracle": {
-    "adapter_sha256": "8476a65df29382fdfdb5b8ce342495f3491fd2c7e5c5df40018d3a3d68bb21e3",
+    "adapter_sha256": "1dec8dde8f21a24428e37aefc16fd9f00fbad13f07f1628db3c265046205386c",
     "cpu_level": 4,
     "level3_provisioner_sha256": "0d47ce9792ca29ae172335f6f11e6c5dcfa73fbf34b76c89e04d072528f454cd",
     "linked_sha256": {
-      "adapter": "0331d57ed896ba6b74dc21e91a9f2ab80880266c0cae1c12a403c9a2abcd28b2",
-      "cpu": "b7ef682c31cf43e29e61239de336b2db9b8c661ac50f9d745d1fee376d3d7b53",
-      "cpudb": "d46944f35fec6ebe9781bc78554e31adc758712f025b49b76fcf718989ce1bbf",
-      "fpu": "f267567c271ef36c371cebf9877721f9e8fdc1a575f6de46ded93b05d1d16c96",
+      "adapter": "c5d8322b812e5c38f52712a80d867608a5bffd5f29d887ae96a85be6e3400306",
+      "cpu": "011433554ea8477d92cfd50b86dbd863c222eacb38cd126318dd204682df488e",
+      "cpudb": "2bfb10f3497f62a623186b065d2160421d81a60c2e38d00fd9fa161ad5d44639",
+      "fpu": "2077a6219e74aacba219c592e69a34ab5d89bbefd3dd426274640e4a7ff9e76f",
       "paramtree": "6b8ba5842ba2bfe611cc7268c331fff50214859a164c95895d966de277893e44",
-      "softfloat": "d0d8801ba1b0ea6a3b9e0d24aee1969d40ef1e9612f359b4fdbfaa979c7b570f"
+      "softfloat": "605753068247b21352c8a65e662f3e489b8e7dcb45fe0844e782a1884b41fd9b"
     },
     "provisioner_sha256": "8bc3418c3accd8026507fb4b2a9aa077170261ed12799039c82af8546e13e842",
     "revision": "30cfd566ecc8deb33e56e801e32b444a7041b6d2"

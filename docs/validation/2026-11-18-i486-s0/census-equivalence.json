@@ -1,0 +1,169 @@
+{
+  "baseline_commit": "75bd225a21cc17dd31564cbf6cab7b3ed260665f",
+  "bochs_revision": "30cfd566ecc8deb33e56e801e32b444a7041b6d2",
+  "bochs_revision_equal": true,
+  "census_record_matches_oracle_mode": true,
+  "changed_input_classes": {
+    "lockstep_or_test_only": [
+      "sources/misteross/cores/fes-common/sim/i386/divergences.toml",
+      "sources/misteross/cores/fes-common/sim/i386/x87_built_form.h",
+      "sources/misteross/cores/fes-common/sim/i386/x87_built_tb.cpp",
+      "sources/misteross/cores/fes-common/sim/i386/x87_built_tb_top.sv",
+      "sources/misteross/cores/fes-common/sim/i386/x87_trans_probe.cpp",
+      "sources/misteross/cores/fes-common/sim/i386/x87_trans_special.cpp",
+      "sources/misteross/cores/fes-common/sim/i386/x87_trans_tb.cpp",
+      "sources/misteross/cores/fes-common/sim/i386/x87_trans_tb_top.sv",
+      "sources/misteross/cores/fes-common/sim/i386/x87_unit_tb.cpp",
+      "sources/misteross/scripts/probe_fes_i386_x87_trans.py",
+      "sources/misteross/scripts/test_fes_i386_lockstep.py",
+      "sources/misteross/scripts/test_fes_i386_x87_unit.py",
+      "sources/misteross/scripts/test_fes_x87_trans_engine.py",
+      "sources/misteross/scripts/x87_envelope_fit.py",
+      "sources/misteross/scripts/x87_trans_ucode.py"
+    ],
+    "oracle_api_additions_not_used_by_census": [
+      "sources/misteross/cores/fes-common/sim/i386/bochs_oracle.cpp",
+      "sources/misteross/cores/fes-common/sim/i386/i386_oracle.h"
+    ],
+    "pinned_firmware_metadata": [
+      "sources/misteross/cores/fes-pc386/firmware/firmware.lock",
+      "sources/misteross/scripts/build_pc386_firmware.py"
+    ],
+    "rtl_or_synthesis_bypassed_by_oracle_mode": [
+      "sources/misteross/boards/de25nano/x87/rtl/fes_x87_fast.sv",
+      "sources/misteross/boards/de25nano/x87/rtl/fes_x87_pipe.sv",
+      "sources/misteross/boards/de25nano/x87/rtl/fes_x87_pkg.sv",
+      "sources/misteross/boards/de25nano/x87/rtl/fes_x87_round.sv",
+      "sources/misteross/boards/de25nano/x87/rtl/fes_x87_slow.sv",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_i386_decode.sv",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_i386_pkg.sv",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_i386_ucode_pkg.sv",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_i386_ucode_rom.sv",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87.sv",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_trans.sv",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_trans_pkg.sv",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_trans_rom.sv",
+      "sources/misteross/cores/fes-common/rtl/i386/ucode.toml",
+      "sources/misteross/scripts/yosys_netlist.py"
+    ],
+    "unclassified": []
+  },
+  "compared_keys": [
+    "steps",
+    "end",
+    "i486",
+    "eflags",
+    "cr0_486_bits",
+    "exceptions"
+  ],
+  "compared_keys_equal_record": true,
+  "control_hashes": {
+    "sources/misteross/cores/fes-common/sim/i386/bochs/flat-stack-limit.patch": {
+      "baseline": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377",
+      "current": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377",
+      "equal": true
+    },
+    "sources/misteross/cores/fes-common/sim/i386/bochs/instrument.h": {
+      "baseline": "34c7149b98a97198015284ce93f94f5dfacc8c33e13c0208720843c33ce5a34b",
+      "current": "34c7149b98a97198015284ce93f94f5dfacc8c33e13c0208720843c33ce5a34b",
+      "equal": true
+    },
+    "sources/misteross/cores/fes-pc386/sim/census.h": {
+      "baseline": "73353f03dbe3e7dcacf780cde58bc1417f116fd178242afabe2bd4b3d2fb0cf1",
+      "current": "73353f03dbe3e7dcacf780cde58bc1417f116fd178242afabe2bd4b3d2fb0cf1",
+      "equal": true
+    },
+    "sources/misteross/cores/fes-pc386/sim/machine_tb.cpp": {
+      "baseline": "c1c2c831cb49b6691cf5c5a59a6d6e05cf6825b7e9b5b814f929bdcf05041457",
+      "current": "c1c2c831cb49b6691cf5c5a59a6d6e05cf6825b7e9b5b814f929bdcf05041457",
+      "equal": true
+    },
+    "sources/misteross/scripts/fes_i386_oracle.py": {
+      "baseline": "0d47ce9792ca29ae172335f6f11e6c5dcfa73fbf34b76c89e04d072528f454cd",
+      "current": "0d47ce9792ca29ae172335f6f11e6c5dcfa73fbf34b76c89e04d072528f454cd",
+      "equal": true
+    },
+    "sources/misteross/scripts/fes_i486_oracle.py": {
+      "baseline": "8bc3418c3accd8026507fb4b2a9aa077170261ed12799039c82af8546e13e842",
+      "current": "8bc3418c3accd8026507fb4b2a9aa077170261ed12799039c82af8546e13e842",
+      "equal": true
+    },
+    "sources/misteross/scripts/sim_fes_pc386.py": {
+      "baseline": "0f19e1faef4f7797c29f59876b539024a798d8b432e66d528fb78493fc78201d",
+      "current": "0f19e1faef4f7797c29f59876b539024a798d8b432e66d528fb78493fc78201d",
+      "equal": true
+    }
+  },
+  "cr4_is_snapshot_outside_compared_census_keys": true,
+  "current_commit": "aa50383486eb0001f92bb510b9dbd649f64d0ffc",
+  "firmware": {
+    "bios_bytes": 65536,
+    "bios_bytes_equal": true,
+    "bios_file": "pc386-bios.bin",
+    "bios_file_equal": true,
+    "bios_sha256": "23b9df9134e4f5c1aa32665219de71ddeb425d5764c30ee721d26893fc9780c7",
+    "bios_sha256_equal": true,
+    "dev86_revision": "0b72e907f7a282aaa777a768b8b688e41c77fc93",
+    "dev86_revision_equal": true,
+    "vgabios_bytes": 32768,
+    "vgabios_bytes_equal": true,
+    "vgabios_file": "pc386-vgabios.bin",
+    "vgabios_file_equal": true,
+    "vgabios_sha256": "8522568e32a33b2f5649109260fec70b0b2cd0d80a6216ac7af6a1041c102e02",
+    "vgabios_sha256_equal": true
+  },
+  "kind": "source-equivalence audit; no census rerun",
+  "level4_provisioner_sha256_equal": true,
+  "machine_inputs_changed": [
+    "sources/misteross/boards/de25nano/x87/rtl/fes_x87_fast.sv",
+    "sources/misteross/boards/de25nano/x87/rtl/fes_x87_pipe.sv",
+    "sources/misteross/boards/de25nano/x87/rtl/fes_x87_pkg.sv",
+    "sources/misteross/boards/de25nano/x87/rtl/fes_x87_round.sv",
+    "sources/misteross/boards/de25nano/x87/rtl/fes_x87_slow.sv",
+    "sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv",
+    "sources/misteross/cores/fes-common/rtl/i386/fes_i386_decode.sv",
+    "sources/misteross/cores/fes-common/rtl/i386/fes_i386_pkg.sv",
+    "sources/misteross/cores/fes-common/rtl/i386/fes_i386_ucode_pkg.sv",
+    "sources/misteross/cores/fes-common/rtl/i386/fes_i386_ucode_rom.sv",
+    "sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87.sv",
+    "sources/misteross/cores/fes-common/rtl/i386/fes_x87_trans.sv",
+    "sources/misteross/cores/fes-common/rtl/i386/fes_x87_trans_pkg.sv",
+    "sources/misteross/cores/fes-common/rtl/i386/fes_x87_trans_rom.sv",
+    "sources/misteross/cores/fes-common/rtl/i386/ucode.toml",
+    "sources/misteross/cores/fes-common/sim/i386/bochs_oracle.cpp",
+    "sources/misteross/cores/fes-common/sim/i386/divergences.toml",
+    "sources/misteross/cores/fes-common/sim/i386/i386_oracle.h",
+    "sources/misteross/cores/fes-common/sim/i386/x87_built_form.h",
+    "sources/misteross/cores/fes-common/sim/i386/x87_built_tb.cpp",
+    "sources/misteross/cores/fes-common/sim/i386/x87_built_tb_top.sv",
+    "sources/misteross/cores/fes-common/sim/i386/x87_trans_probe.cpp",
+    "sources/misteross/cores/fes-common/sim/i386/x87_trans_special.cpp",
+    "sources/misteross/cores/fes-common/sim/i386/x87_trans_tb.cpp",
+    "sources/misteross/cores/fes-common/sim/i386/x87_trans_tb_top.sv",
+    "sources/misteross/cores/fes-common/sim/i386/x87_unit_tb.cpp",
+    "sources/misteross/cores/fes-pc386/firmware/firmware.lock",
+    "sources/misteross/scripts/build_pc386_firmware.py",
+    "sources/misteross/scripts/probe_fes_i386_x87_trans.py",
+    "sources/misteross/scripts/test_fes_i386_lockstep.py",
+    "sources/misteross/scripts/test_fes_i386_x87_unit.py",
+    "sources/misteross/scripts/test_fes_x87_trans_engine.py",
+    "sources/misteross/scripts/x87_envelope_fit.py",
+    "sources/misteross/scripts/x87_trans_ucode.py",
+    "sources/misteross/scripts/yosys_netlist.py"
+  ],
+  "oracle_mode_has_no_rtl": true,
+  "pass": true,
+  "pinned_bochs_model_inputs": {
+    "sources/misteross/cores/fes-common/sim/i386/bochs/flat-stack-limit.patch": {
+      "baseline": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377",
+      "current": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377",
+      "equal": true
+    },
+    "sources/misteross/cores/fes-common/sim/i386/bochs/instrument.h": {
+      "baseline": "34c7149b98a97198015284ce93f94f5dfacc8c33e13c0208720843c33ce5a34b",
+      "current": "34c7149b98a97198015284ce93f94f5dfacc8c33e13c0208720843c33ce5a34b",
+      "equal": true
+    }
+  }
+}

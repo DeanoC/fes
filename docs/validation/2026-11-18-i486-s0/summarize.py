@@ -108,7 +108,7 @@ def machine_equivalence(args) -> int:
     classes: dict[str, list[str]] = {
         'rtl_or_synthesis_bypassed_by_oracle_mode': [],
         'lockstep_or_test_only': [],
-        'oracle_state_snapshot_only': [],
+        'oracle_api_additions_not_used_by_census': [],
         'pinned_firmware_metadata': [],
         'unclassified': [],
     }
@@ -120,7 +120,7 @@ def machine_equivalence(args) -> int:
         elif path.startswith('sources/misteross/cores/fes-common/sim/i386/x87_') or path in MACHINE_LOCKSTEP_ONLY:
             category = 'lockstep_or_test_only'
         elif path in (MACHINE_BOCHS_ADAPTER, MACHINE_ORACLE_API):
-            category = 'oracle_state_snapshot_only'
+            category = 'oracle_api_additions_not_used_by_census'
         elif path in (MACHINE_FIRMWARE_LOCK, MACHINE_FIRMWARE_BUILDER):
             category = 'pinned_firmware_metadata'
         else:
@@ -135,6 +135,7 @@ def machine_equivalence(args) -> int:
     before_oracle = bytes_at(baseline, 'sources/misteross/scripts/fes_i486_oracle.py')
     after_oracle = bytes_at(current, 'sources/misteross/scripts/fes_i486_oracle.py')
     before_parent_oracle = bytes_at(baseline, 'sources/misteross/scripts/fes_i386_oracle.py')
+    after_parent_oracle = bytes_at(current, 'sources/misteross/scripts/fes_i386_oracle.py')
     pin = re.search(rb"BOCHS_REVISION = '([0-9a-f]{40})'", after_parent_oracle)
     before_firmware = json.loads(bytes_at(baseline, MACHINE_FIRMWARE_LOCK))
     after_firmware = json.loads(bytes_at(current, MACHINE_FIRMWARE_LOCK))
@@ -151,10 +152,12 @@ def machine_equivalence(args) -> int:
     machine_tb = bytes_at(current, 'sources/misteross/cores/fes-pc386/sim/machine_tb.cpp').decode()
     census_header = bytes_at(current, 'sources/misteross/cores/fes-pc386/sim/census.h').decode()
     adapter = bytes_at(current, MACHINE_BOCHS_ADAPTER).decode()
-    oracle_mode = ('if (options.cpu == "rtl")' in machine_tb and 'bool on_oracle = !rtl;' in machine_tb
+    oracle_mode = ('if (options.cpu == "rtl")' in machine_tb and 'std::make_unique<RtlCpu>(machine)' in machine_tb
+                   and 'bool on_oracle = !rtl;' in machine_tb
                    and 'if (on_oracle)' in machine_tb and 'oracle->step()' in machine_tb
                    and 'auto stop = [&](const char *kind)' in machine_tb and 'oracle->set_state(s);' in machine_tb
                    and 'if (event == RtlCpu::Event::Stopped) stop(' in machine_tb
+                   and machine_tb.count('oracle->set_state(') == 1
                    and 'set_x87_register(' not in machine_tb and 'set_x87_status_bits(' not in machine_tb)
     cr4_snapshot_only = ('state.cr4 = Bit32u(bx_cpu.cr4.get());' in adapter
                          and 'bx_cpu.cr4.set(state.cr4);' in adapter
