@@ -94,7 +94,10 @@ classification rule:
   [the oracle](#what-it-took-to-build), which `method.md` did not foresee.
 - **The census ran on chip-30x0-ai-dev,** not Powerboat, which was at a
   load of about 45 from other work. The tree is the same commit with the
-  same patches; the six drives were copied there and are removed after.
+  same patches; the six drives, and `win-msdos` for the WfW run, were
+  copied there and deleted after the runs, with the tree. The scratch
+  patches and each run's `census.txt` and `report.json` are kept on
+  Powerboat in `~/fes-scratch/i486plan-logs`, uncommitted.
 - **Three more census keys** than the two `method.md` names:
   `cr0.486:<bits>:<stem>` for a change to CR0's NE, WP, AM, NW or CD, and
   `exc:<vector>:<stem>` for exceptions 6, 16 and 17 by the instruction
@@ -117,8 +120,8 @@ classification rule:
 - **The sweep was started twice.** The first start launched 15 titles at
   once and they raced on the shared simulator build; it was stopped and
   its outputs discarded. The second staggered the starts by 20 seconds.
-  All 53 titles then ended without a harness error. The bench ran about
-  eight wall minutes per simulated second with 15 running at once.
+  All 53 titles then ended without a harness error, about eight and a
+  half hours after that start.
 - **CHKCPU's run reports `FAIL`.** It is a text program that prints and
   exits, so the game check sees no screen progress. The level-3 census
   recorded the same false fail
@@ -126,14 +129,16 @@ classification rule:
   census is counted.
 - **`census.jsonl` names the instruction that changed a flag** (`popfd`,
   `iret`, and so on), as well as the 486 stems `method.md` lists.
-- **WfW 3.11 ran; the Linux drives did not.** `wfw-386` on the
-  `win-msdos` drive ran after the 53, with its record's 14-second limit,
-  and is the 54th row. The three Linux drives were not run at level 4,
+- **WfW 3.11 ran; the Linux drives did not.** `method.md` names the
+  `wfw-msdos` drive; what ran is `wfw-386` on the `win-msdos` drive, the
+  Windows plan's enhanced-mode launch, after the 53, with its record's
+  14-second limit. It is the 54th row. `wfw-msdos` was not run. The three Linux drives were not run at level 4,
   for time; their suite is not the game suite. Their level-3 records show
   which 486 tests they make ([demand](#demand)).
 - **The exception key fired only in the WfW run.** The 53 titles have no
   `exc:` line for vector 6, 16 or 17. WfW 3.11 has 613,313 for vector 6,
-  which shows the key counts.
+  which shows the key counts vector 6. No run raised 16 or 17, so those
+  two are untested.
 
 ## The delta, checked against the RTL
 
@@ -233,8 +238,8 @@ three years after the first 486, has no CPUID, so software written for a
 486 runs on A. B is needed only by software that wants CPUID on a 486.
 [The census](#demand) does not say whether any does. Bochs's 486 has
 CPUID, and 22
-of the 53 titles execute it, each after toggling ID, once to five times
-in a run: detection, not use. On A the ID test would fail and that
+of the 53 titles execute it, one to five times in a run, and each of
+them also toggles ID: detection, not use. On A the ID test would fail and that
 software would take its no-CPUID path, as it does on a 386 today. So
 nothing in the census contradicts A, and nothing in it could show a title
 that needs CPUID on a 486, since no run was made without it. A is the
@@ -759,13 +764,13 @@ By `method.md`'s classification:
 | Nothing | 25 | Includes Ultima VII and Serpent Isle, which write CR0 (below) |
 
 - **Duke Nukem 3D.** The instruction at 0180:00222BE2, where the 386
-  takes exception 6, is BSWAP of a 32-bit register (`0F C8`–`0F CF`).
-  The run retires 32 of them, all in ring 0 protected mode, and the first
-  is at that address. It retires no XADD, CMPXCHG, INVD, WBINVD or INVLPG.
+  takes exception 6, is BSWAP EAX (`0F C8`). The run retires 32 of them, all in ring 0
+  protected mode, and the census's first-seen site for it is that
+  address. It retires no XADD, CMPXCHG, INVD, WBINVD or INVLPG.
   The title goes on past the BSWAPs and at 21.85 s exits to the prompt
   with "VESA driver for ( 1024 * 768 ) not found/supported". The drive's
-  `DUKE3D.CFG` selects `ScreenMode = 1` (VESA 2.0) at 1024 by 768, and the
-  machine's VGABIOS has no such mode.
+  `DUKE3D.CFG` selects `ScreenMode = 1` (VESA 2.0) at 1024 by 768, which
+  the title did not find on this machine.
   - What this establishes: the 386 stop is a 486 instruction, and a CPU
     with BSWAP gets the title 0.4 simulated seconds further.
   - What it does not: that the title plays on a 486 identity. The next
@@ -802,23 +807,25 @@ By `method.md`'s classification:
   instead. On a 486 identity the write would turn the cache on, which is
   what slice 2's BIOS change does anyway.
 - **Six titles ended at the prompt before their limit.** Five match their
-  level-3 records, so their short windows say nothing new: Star Control
+  committed 386 records, so their short windows say nothing new: Star Control
   II (not enough conventional memory, [#1539](https://github.com/DeanoC/fes/issues/1539)),
   Master of Orion (its sound-setup exit), Grand Prix 2 and U.S. Navy
   Fighters (their CD checks), and CHKCPU (prints and exits)
   ([Phase 5 census](../2026-11-12-pc386-census-p5/summary.md)).
   A title that stops at its setup is not evidence that it uses nothing.
-- **CACHECHK behaves differently at level 4.** The level-3 record has it
-  printing its memory timing table. Here it prints a 486 DX4 line with a
-  clock of 1044.0 MHz, then "Divide error", and exits at 9.5 s. The cause
-  was not looked for. It is a finding for slice 0: a 486 identity changes
-  what timing software does, and the oracle has no clock.
+- **CACHECHK ends in "Divide error" at level 4.** It prints a 486 DX4
+  line with a clock of 1044.0 MHz, then "Divide error", and is back at
+  the prompt at 9.5 s. The committed records of it are kit runs on the
+  386, which print its memory timing table
+  ([Phase 5 census](../2026-11-12-pc386-census-p5/summary.md)); no
+  level-3 oracle run of it is committed to compare against, and the cause
+  was not looked for. It is a case for slice 0 to explain.
 - **WfW 3.11 in 386 enhanced mode tests for a 486 and uses nothing.** It
   toggles AC four times by POPFD and retires no 486 instruction, no
   CPUID and no ID toggle in its 14 seconds, and ran to its limit. Its
   613,313 exception 6 events are 613,312 ARPLs in virtual-8086 mode,
-  which is how Windows leaves a DOS virtual machine, and one `0F FF`;
-  both are 386 behaviour (the `0F FF` is the one
+  where ARPL is an invalid opcode on a 386 too, and one `0F FF`; both
+  are 386 behaviour (the `0F FF` is the one
   [#1701](https://github.com/DeanoC/fes/issues/1701) recorded). So at
   level 4, as at level 3, this WfW launch needs nothing a 386 lacks. It
   is the 28th "tests only" row.
