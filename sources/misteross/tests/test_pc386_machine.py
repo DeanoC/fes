@@ -96,6 +96,63 @@ class FirmwareTest(unittest.TestCase):
         for name, spec in firmware.IMAGES.items():
             self.assertEqual(lock['images'][name]['bytes'], spec['bytes'])
             self.assertRegex(lock['images'][name]['sha256'], r'^[0-9a-f]{64}$')
+        self.assertEqual(lock['dev86']['mirror'], firmware.DEV86_MIRROR)
+
+    @staticmethod
+    def _dev86_source(root, name, content):
+        """A one-commit repository and a mirror archive of it; return (commit, mirror)."""
+        work = root / name
+        (work / 'dev86.git').mkdir(parents=True)
+        git = ['git', '-C', str(work / 'dev86.git'), '-c', 'user.name=t', '-c', 'user.email=t@example.invalid']
+        subprocess.run([*git, 'init', '-q'], check=True)
+        (work / 'dev86.git/Makefile').write_text(content)
+        subprocess.run([*git, 'add', 'Makefile'], check=True)
+        subprocess.run([*git, 'commit', '-q', '-m', name], check=True)
+        commit = subprocess.check_output([*git, 'rev-parse', 'HEAD'], text=True).strip()
+        archive = root / f'{name}.tar.gz'
+        subprocess.run(['tar', '-C', str(work), '-czf', str(archive), 'dev86.git'], check=True)
+        return commit, {'url': archive.as_uri(),
+                        'sha256': hashlib.sha256(archive.read_bytes()).hexdigest()}
+
+    def test_dev86_fetch_falls_back_to_the_pinned_mirror(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            commit, mirror = self._dev86_source(root, 'pinned', 'all:\n')
+            unreachable = (root / 'absent').as_uri()
+
+            tree = root / 'build/dev86'
+            firmware.fetch_dev86(tree, commit, unreachable, mirror)
+            self.assertEqual(firmware._git(tree, 'rev-parse', 'HEAD'), commit)
+            self.assertEqual((tree / 'Makefile').read_text(), 'all:\n')
+            self.assertEqual([path.name for path in tree.parent.iterdir()], ['dev86'])
+
+            # The repository is used when it answers; the mirror is not consulted.
+            tree = root / 'direct/dev86'
+            firmware.fetch_dev86(tree, commit, (root / 'pinned/dev86.git').as_uri(),
+                                 {'url': unreachable, 'sha256': '0' * 64})
+            self.assertEqual(firmware._git(tree, 'rev-parse', 'HEAD'), commit)
+
+    def test_dev86_fetch_refuses_a_source_without_the_pinned_commit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            commit, mirror = self._dev86_source(root, 'pinned', 'all:\n')
+            _other, wrong = self._dev86_source(root, 'other', 'all: changed\n')
+            unreachable = (root / 'absent').as_uri()
+            cases = {
+                # A mirror at another commit, and a repository at another commit.
+                'wrong mirror': (unreachable, wrong, 'no source supplied'),
+                'wrong repository': ((root / 'other/dev86.git').as_uri(), wrong, 'no source supplied'),
+                # The right repository in an archive whose digest is not the pinned one.
+                'wrong digest': (unreachable, dict(mirror, sha256='0' * 64), 'not the pinned'),
+                'no mirror': (unreachable, {'url': unreachable, 'sha256': '0' * 64},
+                              'no source supplied'),
+            }
+            for name, (repository, archive, message) in cases.items():
+                with self.subTest(name):
+                    tree = root / name / 'dev86'
+                    with self.assertRaisesRegex(firmware.FirmwareError, message):
+                        firmware.fetch_dev86(tree, commit, repository, archive)
+                    self.assertEqual(list(tree.parent.iterdir()), [])
 
 
 class FreedosImageTest(unittest.TestCase):
