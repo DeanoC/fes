@@ -155,8 +155,16 @@ def _usable_routes(paths, anchors: dict[str, str]) -> tuple[dict[str, dict], lis
 
 
 def verify(summary: Path, root: Path, expected: str | None = None,
-           pinned: bool = False) -> tuple[str, str]:
+           pinned: bool = False, build_id: str | None = None) -> tuple[str, str]:
     if not summary.is_file():
+        if pinned:
+            # A vendored summary is part of the tree under review, so its
+            # absence is a defect in that tree, not a gap in the evidence.
+            # Letting it read "unverifiable" would hand it to the design
+            # anchor, and "11 of 11" would then survive the vendored files
+            # being deleted again -- which is the whole failure this guards.
+            return "ABSENT", (f"the record's own copy of this seal's summary is missing from "
+                              f"{summary.parent.name}/")
         return "unverifiable", f"the seal's summary is gone from {summary.parent}"
     # A vendored summary lives in the tree under review, so it is editable and
     # must be pinned. Leaving source_sha256 off would otherwise turn the check
@@ -174,6 +182,12 @@ def verify(summary: Path, root: Path, expected: str | None = None,
         return "SUBSTITUTED", ("the summary is not the bytes source_sha256 names, so it is "
                                "not the one the producer wrote")
     data = json.loads(summary.read_text())
+    # Nothing else ties the four ZX81 summaries to the rows that cite them:
+    # they carry no inputs map, so without this a row could name another
+    # artefact's summary and still read intact on its design anchor.
+    if build_id is not None and data.get("build_id") not in (None, build_id):
+        return "WRONG SEAL", (f"the summary's BUILD_ID is {data['build_id']}, not the "
+                              f"{build_id} this row claims")
     inputs = data.get("inputs")
     if not isinstance(inputs, dict) or not inputs:
         return "unverifiable", "the summary carries no inputs map"
@@ -243,7 +257,8 @@ def main() -> int:
         vendored = not summary.is_absolute()
         if vendored:
             summary = arguments.cond3.resolve().parent / summary
-        verdict, detail = verify(summary, root, row.get("source_sha256"), vendored)
+        verdict, detail = verify(summary, root, row.get("source_sha256"), vendored,
+                                 row.get("build_id"))
         if verdict == "unverifiable":
             fallback = _design_anchor(key, moves, row.get("taken_at_head"),
                                       anchors)

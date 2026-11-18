@@ -62,6 +62,7 @@ def main() -> int:
         # nothing here and invite a .gitignore rule to eat the file silently.
         relative = f"{SUBDIR}/{key}/build-summary.json"
         target = into / relative
+        before = len(bad)
         source = Path(row["source"])
         if not source.is_absolute():
             source = (arguments.cond3.resolve().parent / source).resolve()
@@ -76,7 +77,11 @@ def main() -> int:
                 bad.append(f"{key}: {relative} is not the bytes source_sha256 names")
             if row.get("source") != relative:
                 bad.append(f"{key}: source is {row.get('source')!r}, not {relative!r}")
-            print(f"{key:18} {relative}  ok")
+            # Only call it ok if this row added nothing to `bad` -- printing ok
+            # beside a row that just failed is how a failing check reads as a
+            # passing one.
+            if len(bad) == before:
+                print(f"{key:18} {relative}  ok")
             continue
         if not source.is_file():
             bad.append(f"{key}: {source} is gone, so this row cannot be vendored")
@@ -87,7 +92,11 @@ def main() -> int:
             bad.append(f"{key}: {source} is not the bytes source_sha256 already names")
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, target)
+        # Re-running this on an already-vendored collection resolves source and
+        # target to the same file, and shutil would raise. The copy is a no-op
+        # there; the digest recorded below is the check that matters.
+        if source.resolve() != target.resolve():
+            shutil.copy2(source, target)
         row["source_sha256"] = taken
         # Keep where it came from, and keep the tree it was measured in under a
         # name that does not read as a path something still opens.

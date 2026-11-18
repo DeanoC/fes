@@ -100,17 +100,26 @@ What the vendoring is worth, measured rather than asserted, in
 | the same, on a row that also has a design anchor | `SUBSTITUTED`, rc=1 -- an edited seal is not rescued |
 | `source_sha256` dropped from every row | `unpinned` on all eleven, rc=1 |
 | every row pointed back into the deleted scratch | four rows `unverifiable`, rc=1 |
-| one `df99f2dfb`-sealed summary deleted | **11 of 11, rc=0** |
+| one vendored summary deleted | `ABSENT`, rc=1 |
+| one artefact's summary filed under another's row, pin updated to match | `WRONG SEAL` on BUILD_ID, rc=1 |
+| `vendor_cond3.py --check` on the edited copy | names the row, rc=1 |
+| `vendor_cond3.py` re-run on an already-vendored collection | 11 of 11, rc=0, `cond3.json` unchanged |
 
-The last two rows are the honest size of the problem. Without the vendored
-summaries the four `541e3c548`-sealed Spectrum-family rows cannot be verified
-at all, because the design anchor that carries the ZX81 rows is a comparison
-from `df99f2dfb` and is refused for a row sealed in a different tree. The other
-seven degrade instead to that second anchor, which is a weaker statement than
-their own input digests but still a statement about condition 3. So: four rows
-lost outright, seven demoted. Whether a *missing* summary on a row that has an
-inputs map should be allowed to fall back at all is a question about the
-record's rule, not about these paths, and is left alone here.
+The `unvendored` row is the honest size of the problem this change fixes.
+Without the vendored summaries the four `541e3c548`-sealed Spectrum-family rows
+cannot be verified at all, because the design anchor that carries the ZX81 rows
+is a comparison from `df99f2dfb` and is refused for a row sealed in a different
+tree. The other seven degrade instead to that second anchor, which is a weaker
+statement than their own input digests but still a statement about condition 3.
+So: four rows lost outright, seven demoted.
+
+The `ABSENT` row reads that way only because this change made it so. Deleting a
+vendored summary used to leave the row "unverifiable", which handed it to the
+design anchor and reported 11 of 11 with the file gone -- so "verifies from a
+clone" would have survived the vendored files being deleted again, which is the
+one failure this is here to prevent. A row whose `source` is still an absolute
+path into a build tree keeps the old fallback, which is why the `unvendored`
+case above still reads 7 of 11 rather than 0.
 
 ### Re-verified at a head on main, not on the branch
 
@@ -147,26 +156,24 @@ their own input digests.
 
 `#1862` was squash-merged, so no commit of that branch is an ancestor of main.
 `check_shas.py` asks only whether a cited object resolves *now*, which it does
-only while some ref still holds it. `sha_exposure.py` asks the sharper question
-and `reports-preserve/sha-exposure.log` answers it:
+only while some ref still holds it. `sha_exposure.py` asks the sharper
+question, and `reports-preserve/sha-exposure.log` has the counts; the shape of
+the answer is two groups rather than one number:
 
-```
-33 distinct objects cited; base origin/main = 1ec59267039b
-15 cited commits are NOT ancestors of origin/main
-origin/deano/gpu-router-default (e3fc6c144fac) covers 14 of 15
-```
+- **Fourteen commits from `#1862`'s branch**, both condition-3 seal trees
+  (`df99f2dfb`, `541e3c548`) among them. Deleting the merged branch -- routine
+  housekeeping -- would make `check_shas.py` fail and strip the provenance from
+  all fourteen. One annotated tag at `e3fc6c144fac` covers every one of them.
+  It is not pushed here: pushing a tag to the shared repository is Deano's call.
+- **This PR's own commits**, which the reports under `reports-preserve/` cite
+  as the head they were measured at. Merging this PR with a merge commit makes
+  them ancestors of main; squashing it repeats the trap one more time.
 
-Both condition-3 seal trees, `df99f2dfb` and `541e3c548`, are in that set.
-Deleting the merged branch -- routine housekeeping -- would make
-`check_shas.py` fail and strip the provenance from fourteen citations. One
-annotated tag at `e3fc6c144fac` covers all fourteen; it is not pushed here,
-because pushing a tag to the shared repository is Deano's call.
-
-The fifteenth is this PR's own commit, and that is the trap recurring: squash
-this PR too and the reports under `reports-preserve/` will cite a commit no ref
-holds. Merging this one with a merge commit covers it. What a *reader* needs in
-either case is narrower than what is cited: the anchors the checks compare are
-the `sources/misteross` and `config` tree objects, and those are main's.
+The count is a lower bound in one respect: `sha_exposure.py` judges
+reachability on commits and skips trees, because a tree is held by whatever
+commit holds it. And what a *reader* needs is narrower than what is cited --
+the anchors these checks compare are the `sources/misteross` and `config` tree
+objects, and those are main's.
 
 ### For Deano
 
@@ -395,10 +402,19 @@ Reasoning about what a check would catch is not evidence that it catches it:
 | the same, on a row that also has a design anchor behind it | refused, not rescued | `zx81 SUBSTITUTED`, 10 of 11, exit 1 |
 | `source_sha256` dropped from every vendored row | all refused | `unpinned` on all eleven, 0 of 11, exit 1 |
 | every row pointed back into the deleted campaign scratch | the four Spectrum rows refused | 7 of 11, exit 1 -- the seven `df99f2dfb` rows demote to their design anchor |
-| one `df99f2dfb`-sealed summary deleted outright | its design anchor carries it | **11 of 11, exit 0** -- reported, not fixed: see "After the merge" |
+| one vendored summary deleted outright | that row refused, not handed to its design anchor | `ABSENT`, 10 of 11, exit 1 -- it read 11 of 11 before this fix |
+| `fes.zx80`'s summary filed under the `zx81` row, `source_sha256` updated to match | BUILD_ID catches what the pin cannot | `WRONG SEAL`, 10 of 11, exit 1 |
+| `vendor_cond3.py --check` on a collection with one summary edited | that row named, nonzero | `c64: ... is not the bytes source_sha256 names`, exit 1 -- it printed `ok` beside the failing row before this fix |
+| `vendor_cond3.py` re-run on its own output | a no-op, not a crash | 11 of 11, exit 0, `cond3.json` byte-identical -- it raised `SameFileError` before this fix |
 
-Ten defects in this record's own tooling were found that way and are
-recorded rather than quietly amended. Five came from Codex's three reviews of
+Fourteen defects in this record's own tooling were found that way and are
+recorded rather than quietly amended. Four are from this change: a deleted
+vendored summary fell through to the design anchor and reported eleven of
+eleven; `vendor_cond3.py --check` printed `ok` on the same row it had just
+failed; `vendor_cond3.py` could not be re-run on its own output; and the
+perturbation step of `counterexamples_cond3.sh` died silently on a truncated
+read, leaving four cases unperturbed and reading as four clean passes, which
+is why it now exits 2 rather than continuing. Five came from Codex's three reviews of
 the fourth base move, all of them the same shape as the one below: a guard that
 checks one part of a claim and leaves the rest to drift. `seals_at_head.py` validated the
 design comparison's tree A and not its tree B, so a comparison from an earlier
