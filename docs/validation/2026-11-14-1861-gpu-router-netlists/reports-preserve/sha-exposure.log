@@ -1,9 +1,10 @@
-3352 lines naming a toolchain repository's commit were not checked
-33 distinct objects cited; base origin/main = 1ec59267039b
+3374 lines naming a toolchain repository's commit were not checked
+35 distinct objects cited; base origin/main = 1ec59267039b
 
-15 cited commits are NOT ancestors of origin/main:
+17 cited commits are NOT ancestors of origin/main:
   2a30d66ccf38a43efd35a185b09a8caf63da5352  Check both ends of a comparison, and pin what the route-input report m
                                             cited in reports-preserve/check-shas.log
+                                            cited in reports-preserve/fresh-clone.log
                                             cited in reports-scope4/seal-to-head-design.json
   3ed4f2867f9b2da1aa814ebb50eef56531ebf167  Vendor the seal summaries the record reads, which its scratch no longe
                                             cited in reports-preserve/check-shas.log
@@ -11,16 +12,20 @@
                                             cited in reports-preserve/seal-to-head-route-inputs.json
   480c924f8bfcdc39521356d7a2e774268486b616  Record c64 and coleco netlists, and the revisions each side was measur
                                             cited in reports-preserve/check-shas.log
+                                            cited in reports-preserve/fresh-clone.log
                                             cited in reports-scope2/check-shas.log
-                                            cited in reports-scope3/check-shas.log
   541e3c5487518496fd8fe66457313b528daeec09  Merge main, and keep #1949's SDRAM output-register check beside the ro
                                             cited in reports-cond3/cond3.json
                                             cited in reports-newbase2-p1/pentagon-nh2/netlist.json
                                             cited in reports-newbase2-p1/ramtest-nh2/netlist.json
+  7282458335f8a72345817800630cca4c13942eda  Prove the record verifies from a clone and nothing else
+                                            cited in reports-preserve/check-shas.log
+                                            cited in reports-preserve/seals-at-head.json
+                                            cited in reports-preserve/seals-at-head.log
   760d8a8f05310c6cb8f1ec2179ee1ccbfa723ed3  Bring fes.splash into the D12 scope
                                             cited in reports-pass2/splash-branch/netlist.json
                                             cited in reports-preserve/check-shas.log
-                                            cited in reports-scope2/check-shas.log
+                                            cited in reports-preserve/fresh-clone.log
   7aae9b96c30df4de98b5f5a52fc34accfcb47bb4  Guard the forced-RBF runs the way the netlist runs are guarded
                                             cited in reports-cond2/c64-branch-forced.json
                                             cited in reports-cond2/menu-branch-forced.json
@@ -35,24 +40,27 @@
                                             cited in reports-pass2/menu-branch/netlist.json
   a56784005afb5add02c722be2bbd2c6f5ea2b490  Reach the parent-owned inputs, which both guards stopped short of
                                             cited in reports-preserve/check-shas.log
+                                            cited in reports-preserve/fresh-clone.log
                                             cited in reports-scope4/seal-to-head-route-inputs.json
-                                            cited in reports-scope4/seal2-to-head-route-inputs.json
   a892a9888dddf7f45a4dfed3806e490c55273683  Merge remote-tracking branch 'origin/main' into deano/gpu-router-defau
                                             cited in reports-preserve/check-shas.log
+                                            cited in reports-preserve/fresh-clone.log
                                             cited in reports-scope3/check-shas.log
-                                            cited in reports-scope3/seal-to-head-design.json
   b0f05545183f7d06e58a7dae7123eabe8770ea9a  Merge main, and take #1881's rewritten RAM Tester producer
                                             cited in reports-cond2-newbase/spectrum128/branch-forced.json
                                             cited in reports-newbase-p1/c64-idhead/netlist.json
                                             cited in reports-newbase-p1/coleco-idhead/netlist.json
   b5d3ae2323fac52e54fd3ac584f449686a9a946d  Pin the source bytes each netlist run was produced from
                                             cited in reports-preserve/check-shas.log
+                                            cited in reports-preserve/fresh-clone.log
                                             cited in reports-scope2/check-shas.log
-                                            cited in reports-scope3/check-shas.log
+  bc3cacb3d78c908bc05df9782937090f856b5275  Make the clone proof a harness, not a one-off shell session
+                                            cited in reports-preserve/check-shas.log
+                                            cited in reports-preserve/fresh-clone.log
   cf8ec7bec6182edd861f377868407fd0a346ddc0  Add the Coleco and c64 netlist adapters
                                             cited in reports-preserve/check-shas.log
+                                            cited in reports-preserve/fresh-clone.log
                                             cited in reports-scope2/check-shas.log
-                                            cited in reports-scope3/check-shas.log
   d83212c98ef581862002ade3a0e76755e018c4a9  Re-measure this PR's D12 scope at the new merge base
                                             cited in reports-cond2-newbase/pentagon/branch-forced.json
                                             cited in reports-cond2-newbase/spectrum-plus3/branch-forced.json
@@ -62,7 +70,9 @@
                                             cited in reports-cond3/summaries/menu/build-summary.json
                                             cited in reports-cond3/summaries/ts1000/build-summary.json
 
-origin/deano/gpu-router-default (e3fc6c144fac) covers 14 of 15
+origin/deano/gpu-router-default (e3fc6c144fac) covers 14 of 17
   NOT covered: 3ed4f2867f9b2da1aa814ebb50eef56531ebf167
+  NOT covered: 7282458335f8a72345817800630cca4c13942eda
+  NOT covered: bc3cacb3d78c908bc05df9782937090f856b5275
 
 these refs do not hold every exposed object

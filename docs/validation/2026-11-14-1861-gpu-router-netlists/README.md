@@ -132,19 +132,31 @@ sources/misteross e046d3c23156  config b4bb5aa71451
 route comparisons in use: 541e3c548751 -> this head, df99f2dfb208 -> this head
 ```
 
-And it verifies from nothing but a clone. `reports-preserve/fresh-clone.log`
-is a run inside `git clone --branch <this branch> https://github.com/DeanoC/fes`,
-from a working directory of `/` so that nothing resolves by accident against
-this checkout, with no `/data/fes1861` path in its output at all:
+And it verifies from nothing but a clone. `clone_proof.sh` produced
+`reports-preserve/fresh-clone.log`: a `git clone --single-branch` of this
+branch from the remote, so that #1862's merged branch is *absent* -- the state
+after someone deletes it -- with every check run from a working directory of
+`/`, so no relative path can resolve against the checkout they were prepared
+in. It counts what it claims rather than describing it:
 
 ```
-== vendor_cond3.py --check ==   11 of 11 rows verified        rc=0
-== seals_at_head.py ==          11 of 11 seals still match    rc=0
-== check_shas.py ==             every referenced object resolves (21 commit, 13 tree)
+vendor_cond3.py                                        rc=0   11 of 11 rows verified
+seals_at_head.py                                       rc=0   11 of 11 seals still match
+rows matching their own input digests: 7
+rows carried by the design anchor:     4
+lines of this run naming the deleted scratch: 0
+check_shas.py, with #1862's branch absent               rc=1
+check_shas.py, after fetching that branch               rc=0
 ```
 
-That last line resolves because a clone fetches the merged branch too. It is
-the exposure below, not a contradiction of it.
+The two `check_shas.py` lines are the exposure below, demonstrated rather than
+asserted. With the merged branch gone, **seventeen** objects this record cites
+stop resolving: the fourteen commits `sha_exposure.py` counts, plus three tree
+objects it does not -- `888f63a2b104` and `6b2d792a3432`, the
+`sources/misteross` trees the two seals were taken in, and `85200fc21385`.
+That is what makes the commit count under "The squash merge" a lower bound.
+Each log names the head it was measured at, which is the commit before the one
+that stores it.
 
 This is a stronger statement than the merged record's, which stopped at the PR
 branch: every one of the eleven seals is still a seal of main's sources, and
@@ -160,8 +172,8 @@ only while some ref still holds it. `sha_exposure.py` asks the sharper
 question, and `reports-preserve/sha-exposure.log` has the counts; the shape of
 the answer is two groups rather than one number:
 
-- **Fourteen commits from `#1862`'s branch**, both condition-3 seal trees
-  (`df99f2dfb`, `541e3c548`) among them. Deleting the merged branch -- routine
+- **Fourteen commits from `#1862`'s branch**, both condition-3 seal commits
+  (`df99f2dfb`, `541e3c548`) among them, and with them three tree objects. Deleting the merged branch -- routine
   housekeeping -- would make `check_shas.py` fail and strip the provenance from
   all fourteen. One annotated tag at `e3fc6c144fac` covers every one of them.
   It is not pushed here: pushing a tag to the shared repository is Deano's call.
@@ -169,16 +181,24 @@ the answer is two groups rather than one number:
   as the head they were measured at. Merging this PR with a merge commit makes
   them ancestors of main; squashing it repeats the trap one more time.
 
-The count is a lower bound in one respect: `sha_exposure.py` judges
-reachability on commits and skips trees, because a tree is held by whatever
-commit holds it. And what a *reader* needs is narrower than what is cited --
+`sha_exposure.py` prints "17 cited commits are NOT ancestors of origin/main"
+at this checkout, and the clone proof above prints "17 objects ... do not
+resolve". **Those are two different seventeens, and neither is the other.** The
+clone's seventeen is #1862's branch alone -- fourteen commits plus three trees
+-- because a clone of *this* branch holds this PR's commits. The checkout's
+seventeen is those same fourteen commits plus three of this PR's own, and it
+skips trees entirely, because a tree is held by whatever commit holds it. The
+figure to act on is the clone's: seventeen objects lost if #1862's branch is
+deleted. And what a *reader* needs is narrower than what is cited --
 the anchors these checks compare are the `sources/misteross` and `config` tree
 objects, and those are main's.
 
 ### For Deano
 
-- One annotated tag at `e3fc6c144fac` (`#1862`'s branch head) would hold both
-  seal trees and twelve other cited commits. Not pushed.
+- One annotated tag at `e3fc6c144fac` (`#1862`'s branch head) would hold all
+  seventeen exposed objects, both seal commits and both seals' source trees
+  among them. Not pushed: `reports-preserve/fresh-clone.log` shows the damage
+  without it, `check_shas.py` exit 1.
 - Merging this PR without squashing would keep its own citations resolvable.
 
 ## Which artefacts are affected, measured rather than argued
