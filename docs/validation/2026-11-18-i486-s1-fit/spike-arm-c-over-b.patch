@@ -1,0 +1,17 @@
+diff --git a/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv b/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv
+index d101c166b..c3e698cd8 100644
+--- a/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv
++++ b/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv
+@@ -199,9 +199,9 @@ module pc386_system #(
+     wire [9:0] gov_frequency = settings[25:16];
+     wire gov_turbo = settings[48];
+     wire queue16 = settings[32];
+-    // The i486 identity (#1962 slice 1 fit spike, arm b): a build parameter,
+-    // tied on. Arm c drives it from the record instead (a runtime strap).
+-    wire cpu_i486 = 1'b1;
++    // The i486 identity (#1962 slice 1 fit spike, arm c): a runtime strap,
++    // bit 1 of the record's word 2, sampled at each CPU reset as queue16 is.
++    wire cpu_i486 = settings[33];
+     wire [7:0] sb_base_high = settings[75:68];
+     wire [7:0] sb_irq = settings[87:80];
+     wire [7:0] sb_dma = settings[103:96];
