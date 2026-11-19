@@ -161,9 +161,10 @@ measures are reported beside it, because on the DE10 they do not agree:
 So the honest statement is the one the method fixes: in the flow a DE10
 seal uses, the delta is under the uncertainty the generated block gives;
 the logic itself is real, and its size in the per-module fit is stated
-beside it. The plan's 350 to 850 was an estimate item by item, and nothing
-here measures it item by item; but every measure in the generated block,
-the DE25's included, is below its low end.
+beside it. The plan's 350 to 850 was a DE10 estimate item by item, and nothing
+here measures it item by item. The fitted DE10 delta reads below its low end;
+the DE25 result is reported separately and is not compared with that band,
+because Agilex 5 ALMs are a different unit.
 
 **The "under N ALMs" figures are not bounds on the cost.** The bands and
 readings stand as `method.md` committed them. But two deltas in the
