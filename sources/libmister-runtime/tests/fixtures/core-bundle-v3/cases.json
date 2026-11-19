@@ -193,6 +193,136 @@
     "reason": "invalid Nano ROM declaration missing-interface"
   },
   {
+    "name": "valid-nano-upload-1024",
+    "manifest": "manifests/valid-nano-upload-1024.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-nano-upload-1024.json",
+    "valid": true,
+    "package_id": "699ae3381777924ad592c39ff48fe16b1497786324b5a12b71e0a3453cd838aa"
+  },
+  {
+    "name": "valid-nano-upload-16384",
+    "manifest": "manifests/valid-nano-upload-16384.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-nano-upload-16384.json",
+    "valid": true,
+    "package_id": "608566598d6b1c7a2958a784a018a9bf790c5369aa4230cce47ecc582771a720"
+  },
+  {
+    "name": "valid-nano-upload-32768",
+    "manifest": "manifests/valid-nano-upload-32768.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-nano-upload-32768.json",
+    "valid": true,
+    "package_id": "73e344ef2f53974ffc992d4764531dd6e50b95c25f55f13b886b56de7101140c"
+  },
+  {
+    "name": "valid-nano-upload-196608",
+    "manifest": "manifests/valid-nano-upload-196608.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-nano-upload-196608.json",
+    "valid": true,
+    "package_id": "74fcc42bac9e9ae92d5baff3a2a5ede35ba44a8ade3e50f1da69e637c9ceb6ad"
+  },
+  {
+    "name": "valid-nano-upload-262144",
+    "manifest": "manifests/valid-nano-upload-262144.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-nano-upload-262144.json",
+    "valid": true,
+    "package_id": "4caf8041bbe8c99b88bad916b114925fe5e90e4962cc6244730037a914f28cfa"
+  },
+  {
+    "name": "invalid-map-nano-upload-encoding",
+    "manifest": "manifests/invalid-map-nano-upload-encoding.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-nano-upload-encoding.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid firmware-upload map encoding"
+  },
+  {
+    "name": "invalid-map-nano-upload-size",
+    "manifest": "manifests/invalid-map-nano-upload-size.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-nano-upload-size.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid firmware-upload map size"
+  },
+  {
+    "name": "invalid-map-nano-upload-address",
+    "manifest": "manifests/invalid-map-nano-upload-address.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-nano-upload-address.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid firmware-upload map address"
+  },
+  {
+    "name": "invalid-map-nano-upload-device",
+    "manifest": "manifests/invalid-map-nano-upload-device.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-nano-upload-device.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid firmware-upload map device"
+  },
+  {
+    "name": "invalid-map-nano-held-encoding",
+    "manifest": "manifests/invalid-map-nano-held-encoding.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-nano-held-encoding.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid held-ROM map upload encoding"
+  },
+  {
+    "name": "invalid-nano-upload-role",
+    "manifest": "manifests/invalid-nano-upload-role.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-nano-upload-role.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "invalid Nano firmware-upload declaration role"
+  },
+  {
+    "name": "invalid-nano-upload-optional-interface",
+    "manifest": "manifests/invalid-nano-upload-optional-interface.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-nano-upload-optional-interface.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "invalid Nano firmware-upload declaration optional-interface"
+  },
+  {
+    "name": "invalid-nano-upload-minor",
+    "manifest": "manifests/invalid-nano-upload-minor.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-nano-upload-minor.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "invalid Nano firmware-upload declaration minor"
+  },
+  {
+    "name": "invalid-nano-upload-both-interfaces",
+    "manifest": "manifests/invalid-nano-upload-both-interfaces.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-nano-upload-both-interfaces.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "invalid Nano firmware-upload declaration both-interfaces"
+  },
+  {
+    "name": "invalid-nano-upload-held-size",
+    "manifest": "manifests/invalid-nano-upload-held-size.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-nano-upload-held-size.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "invalid Nano firmware-upload declaration held-size"
+  },
+  {
     "name": "invalid-missing-rom",
     "manifest": "manifests/invalid-missing-rom.toml",
     "payload": "payloads/fes-fixture.rbf",

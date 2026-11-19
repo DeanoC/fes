@@ -12,6 +12,11 @@ import (
 
 func nanoROMFixture(t *testing.T, size int) (*Archive, []byte, []byte) {
 	t.Helper()
+	return nanoFixture(t, fmt.Sprintf("valid-nano-%d", size))
+}
+
+func nanoFixture(t *testing.T, name string) (*Archive, []byte, []byte) {
+	t.Helper()
 	root := filepath.Join("testdata", "core-bundle-v3")
 	read := func(name string) []byte {
 		t.Helper()
@@ -21,9 +26,9 @@ func nanoROMFixture(t *testing.T, size int) (*Archive, []byte, []byte) {
 		}
 		return raw
 	}
-	manifest := read(fmt.Sprintf("manifests/valid-nano-%d.toml", size))
+	manifest := read("manifests/" + name + ".toml")
 	payload := read("payloads/fes-fixture.rbf")
-	mapping := read(fmt.Sprintf("maps/valid-nano-%d.json", size))
+	mapping := read("maps/" + name + ".json")
 	body := canonicalArchiveWithROMMap(manifest, payload, mapping)
 	dir := writeDirectory(t, manifest, payload)
 	if err := os.WriteFile(filepath.Join(dir, "rom-map.json"), mapping, 0600); err != nil {
@@ -122,6 +127,28 @@ func TestNanoHeldROMRejectsWrongSourcesAndBitstreamStaging(t *testing.T) {
 		mutate(&r)
 		if r.ValidFor(d) {
 			t.Fatal("Nano receipt allowed role or programmed-byte substitution")
+		}
+	}
+}
+
+// A mailbox-upload package retains its source the same way: the receipt binds
+// the source digest to the unchanged payload, at any size the format allows.
+func TestNanoFirmwareUploadRetainsSourceAndUnchangedFPGA(t *testing.T) {
+	for _, size := range []int{16384, 32768, 196608} {
+		a, _, payload := nanoFixture(t, fmt.Sprintf("valid-nano-upload-%d", size))
+		d := a.Inspection().Descriptor
+		image := bytes.Repeat([]byte{0x5a}, size)
+		linked, err := a.LinkROMs(context.Background(), []ROMSource{{d.ROM.ID, "firmware", image}})
+		if err != nil {
+			t.Fatal(size, err)
+		}
+		link := linked.Receipt().ROMLink
+		if link == nil || !link.ValidFor(d) || link.SourceSHA256 != romDigest(image) || link.SourceSize != int64(size) ||
+			link.ProgrammedSHA256 != romDigest(payload) || link.ProgrammedSize != int64(len(payload)) {
+			t.Fatal("upload receipt does not bind the source to the unchanged payload", size, link)
+		}
+		if result, err := a.LinkROMs(context.Background(), []ROMSource{{d.ROM.ID, "firmware", image[:size-1024]}}); err == nil || result != nil {
+			t.Fatal("short firmware accepted", size)
 		}
 	}
 }

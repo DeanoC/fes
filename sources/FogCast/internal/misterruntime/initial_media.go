@@ -82,6 +82,10 @@ func (r *Runtime) supportsInitialROMCore(staged corepackage.Staged) bool {
 		_, ok := r.control.(protocol2InitialROMSlotControl)
 		return ok
 	}
+	if staged.FirmwarePath != "" {
+		_, ok := r.control.(protocol2FirmwareControl)
+		return ok
+	}
 	_, ok := r.control.(protocol2InitialROMControl)
 	return ok
 }
@@ -98,6 +102,8 @@ func (r *Runtime) loadInitialROMCore(ctx context.Context, staged corepackage.Sta
 	case staged.SlotComposition != nil:
 		operation = "load_rom_composed_core"
 		response, err = r.control.(protocol2InitialROMSlotControl).LoadROMSlotComposedCoreWithInitialMedia(ctx, staged.Directory, staged.PackageID, slotExpansionPaths(staged), staged.PayloadPath, *staged.SlotComposition, staged.ProgrammedPath, *staged.ROMLink, initial)
+	case staged.FirmwarePath != "":
+		response, err = r.control.(protocol2FirmwareControl).LoadFirmwareCore(ctx, staged.Directory, staged.PackageID, CoreDataRoot, staged.FirmwarePath, *staged.ROMLink, initial)
 	default:
 		dataRoot := ""
 		if staged.Composition == nil {

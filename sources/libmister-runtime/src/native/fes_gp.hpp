@@ -121,9 +121,19 @@ public:
 	Error CaptureZx81Tape(Clock&, std::uint64_t deadline, std::vector<unsigned char>*);
 	Error AcknowledgeZx81Tape(std::uint64_t deadline);
 	Error EnsureZx81TapeSaved(std::uint64_t deadline);
-	// Verify a lost ZX81 image before abandonment, without fresh-media
+	// Verify a lost standard machine before abandonment, without fresh-media
 	// discovery, adopting its session or acknowledging an unsaved snapshot.
-	Error EnsureRetainedZx81TapeSaved(const CoreDescriptor&, std::uint64_t deadline);
+	// A machine with a writable unit-0 medium (the ZX81 cassette, the ST
+	// floppy) must have nothing unsaved; one without proves its identity only.
+	Error EnsureRetainedComputerSaved(const CoreDescriptor&, std::uint64_t deadline);
+	// fes.fabric.firmware-upload 1.0: the machine's firmware, sent while
+	// execution is held. The endpoint names one exact image size and refuses
+	// release until a CRC-matching image is committed. FirmwareInfo is read
+	// first: a ready image is left alone and `uploaded` stays false. A failed
+	// transfer is never replayed; the image stays loading and Start refuses.
+	bool FirmwareUploadDeclared() const { return firmware_upload_; }
+	Error UploadFirmware(const ComputerMediaSnapshot&, Clock&, std::uint64_t deadline,
+		bool* uploaded = nullptr);
 	Error ResumeMedia(std::uint8_t unit, std::uint64_t deadline);
 	Error RefreshMediaState(std::uint8_t unit, std::uint64_t deadline);
 	Error MarkMediaSaved(std::uint8_t unit, std::uint64_t deadline);
@@ -197,6 +207,13 @@ private:
 	Error ReadMediaState(std::uint8_t unit, std::uint64_t deadline, std::uint16_t* state);
 	Error RecoverComputerMailbox(std::uint64_t deadline);
 	Error CheckZx81SnapshotSaved(std::uint64_t deadline);
+	// The unit-0 snapshot of a writable floppy: frozen and not dirty, or absent.
+	Error CheckFloppySnapshotSaved(std::uint64_t deadline);
+	struct FirmwareInfo {
+		std::uint32_t bytes = 0, received = 0;
+		std::uint16_t state = 0;
+	};
+	Error ReadFirmwareInfo(std::uint64_t deadline, FirmwareInfo*);
 	Error TransferMediaUnit(MediaUnitCapability&, const ComputerMediaSnapshot&, Clock&,
 		std::uint64_t deadline, bool* mutation_started);
 	Error AbandonMediaUnit(MediaUnitCapability&, std::uint64_t deadline);
@@ -225,6 +242,9 @@ private:
 	bool wall_clock_ = false;
 	bool pc386_machine_ = false;
 	bool ata_disk_ = false;
+	bool firmware_upload_ = false;
+	// This session saw the endpoint report a ready image.
+	bool firmware_ready_ = false;
 	KeyboardHidRows hid_rows_{};
 	bool hid_rows_known_ = false;
 	std::vector<MediaUnitCapability> media_units_;

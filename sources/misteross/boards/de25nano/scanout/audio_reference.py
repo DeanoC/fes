@@ -55,6 +55,20 @@ SOURCES = {
 }
 
 
+# A machine with its own PLL (Spectrum, Atari ST): the same serializer and
+# PCM crossing behind fes_de25_machine_audio, clocked by the machine PLL's
+# second output in place of the stock audio PLL. This is a separate policy
+# with its own frozen sources; it borrows no fitted evidence from the ZX81.
+MACHINE_POLICY = fitted.MACHINE_POLICY
+MACHINE_CORES = {'fes.spectrum', 'fes.spectrum128', 'fes.atari-st'}
+MACHINE_SOURCES = {
+    'boards/de25nano/shared-rtl/fes_de25_machine_audio.v': 'e6e1335a12acc3160bf188fdb3b6019d434a5ab727527768477dbe5d93ed8310',
+    'cores/fes-common/rtl/fes_audio_output.v': 'e686a035484907d1690d7e0cd8e91d6ace86146b38bf4d85d4f500690ddfb0dd',
+    'cores/fes-common/rtl/fes_audio_i2s.v': '14c24da8c166a623c41bc0ae57fc26c345ed6c419f825f2ba1f4f5057c4435f4',
+    'boards/de25nano/machine/machine_pll.ip': '52890ca22dea5743d009dc5a10035918b54565cd9886c0c201a8022019a8d4b4',
+}
+
+
 def require(condition, message):
     if not condition:
         raise BuildError('DE25 approved audio-clock reference: ' + message)
@@ -64,6 +78,8 @@ def eligible(directory):
     directory = Path(directory)
     record = json.loads((directory.parent / 'build-inputs.json').read_text())
     params = record['parameters']
+    if fitted.machine(record):
+        return eligible_machine(directory, record)
     expected = {'core_id': 'fes.zx81', 'programming_profile': 'de25-linux-computer-v1',
                 'standard_core': True, 'expansion_socket': False, 'internal_ram_kib': 16,
                 'audio_clock_reference_policy': POLICY}
@@ -97,6 +113,36 @@ def eligible(directory):
     return {p.relative_to(project).as_posix(): async_inputs.sha(p) for p in files}
 
 
+def eligible_machine(directory, record):
+    params = record['parameters']
+    expected = {'programming_profile': 'de25-linux-computer-v1', 'standard_core': True,
+                'expansion_socket': False, 'audio_clock_reference_policy': MACHINE_POLICY}
+    require(params.get('core_id') in MACHINE_CORES and
+            all(type(params.get(k)) is type(v) and params[k] == v for k, v in expected.items()),
+            'requires a standard machine-PLL profile')
+    require(all(record['source_inputs'].get(name) == sha for name, sha in MACHINE_SOURCES.items()),
+            'reviewed machine audio implementation/source changed')
+    project = directory / 'combined/hps/project'
+    files = {project / 'fes_mailbox' / Path(name).name: digest for name, digest in MACHINE_SOURCES.items()}
+    require(all(not p.is_symlink() and async_inputs.sha(p) == digest for p, digest in files.items()),
+            'compiled machine audio implementation differs from the reviewed source')
+    top = project / 'golden_top.v'
+    require(not top.is_symlink(), 'linked compiled audio wrapper')
+    text = ' '.join(top.read_text().split())
+    wiring = '''machine_pll fes_machine_pll (
+      .refclk(CLOCK1_50), .rst(!top_reset_n), .outclk_0(machine_clk), .outclk_1(machine_audio_clk),
+      .locked(machine_pll_locked) );
+      fes_de25_machine_audio fes_audio_inst (
+      .source_clk(machine_clk), .audio_clk(machine_audio_clk), .locked(machine_pll_locked),
+      .hold(standard_exec_reset), .fault(scanout_clock_fault),
+      .left_sample(standard_audio_sample), .right_sample(standard_audio_sample),
+      .HDMI_MCLK(HDMI_MCLK), .HDMI_SCLK(HDMI_SCLK),
+      .HDMI_LRCLK(HDMI_LRCLK), .HDMI_I2S(HDMI_I2S) );'''
+    require(text.count(' '.join(wiring.split())) == 1, 'compiled machine audio wrapper wiring changed')
+    files[top] = async_inputs.sha(top)
+    return {p.relative_to(project).as_posix(): async_inputs.sha(p) for p in files}
+
+
 def output_findings(drc, *, timed_video=False):
     sections = [s for s in re.split(r'(?m)^Status:\s*', drc)[1:]
                 if re.search(r'^; TMC-20012 - [^;]+;', s, re.M)]
@@ -115,13 +161,18 @@ def output_findings(drc, *, timed_video=False):
     return sorted(expected)
 
 
+def policy(directory):
+    record = json.loads((Path(directory).parent / 'build-inputs.json').read_text())
+    return MACHINE_POLICY if fitted.machine(record) else POLICY
+
+
 def collect(directory, quartus_sta, archive):
     directory = Path(directory).resolve()
     before = eligible(directory)
     output = directory.with_name(directory.name + '-audio-clock-review')
     fitted.collect_selected(directory, output, quartus_sta, archive)
     require(eligible(directory) == before, 'compiled audio sources changed during collection')
-    selected = {'policy': POLICY, 'compiled_files_sha256': before,
+    selected = {'policy': policy(directory), 'compiled_files_sha256': before,
                 'archive': str(Path(archive).resolve())}
     (output / 'approved-reference.json').write_text(json.dumps(selected, indent=2, sort_keys=True) + '\n')
     verify(directory, output)
@@ -131,17 +182,19 @@ def collect(directory, quartus_sta, archive):
 def verify(directory, review):
     directory, review = Path(directory), Path(review)
     selected = json.loads((review / 'approved-reference.json').read_text())
-    require(selected['policy'] == POLICY and selected['compiled_files_sha256'] == eligible(directory),
+    selected_policy = policy(directory)
+    machine_pll = selected_policy == MACHINE_POLICY
+    require(selected['policy'] == selected_policy and selected['compiled_files_sha256'] == eligible(directory),
             'selected policy or compiled audio sources changed')
     receipt = json.loads((review / 'receipt.json').read_text())
     require(receipt['bindings'] == async_inputs.bindings(directory), 'fit/RBF/database binding changed')
     require(receipt['source_revision'] == json.loads((directory.parent / 'build-inputs.json').read_text())['revision'],
             'source revision changed')
     command = receipt['command']
-    require(len(command) == 5 and Path(command[0]).name == 'quartus_sta' and command[1:] == [
+    require(len(command) == (6 if machine_pll else 5) and Path(command[0]).name == 'quartus_sta' and command[1:] == [
                 '-t', str(fitted.TCL.resolve()),
                 str(review.resolve() / 'project-inputs/combined/hps/project'),
-                str(review.resolve() / 'reports')] and set(receipt['tools_sha256']) == {
+                str(review.resolve() / 'reports'), *([fitted.MACHINE_MASTER] if machine_pll else [])] and set(receipt['tools_sha256']) == {
                     command[0], str(fitted.TCL.resolve()), str(Path(fitted.__file__).resolve())},
             'missing or changed fitted-observation invocation/tool inventory')
     require(all(async_inputs.sha(p) == digest for p, digest in receipt['tools_sha256'].items()),
@@ -151,14 +204,16 @@ def verify(directory, review):
             'missing or unexpected fitted report')
     require(receipt['reports_sha256'] == {p.name: async_inputs.sha(p) for p in sorted(reports.iterdir())},
             'fitted clock/path reports changed')
-    observations = fitted.observations(reports)
+    observations = fitted.observations(reports, machine_pll=machine_pll)
     require(all(receipt[k] == value for k, value in observations.items()), 'clock/path observations changed')
     require(all(fitted.number(row[k]) > 0 for row in observations['conditional_pin_budgets']
                 for k in ('setup_budget_before_unmodeled_skew_and_jitter_ns',
                           'hold_budget_before_unmodeled_skew_and_jitter_ns')),
             'nonpositive conditional receiver budget')
     project = directory / 'combined/hps/project'
-    require(receipt['stock_audio'] == fitted.stock_audio(project, selected['archive']),
+    staged_pll = json.loads((directory / 'combined/hps/inputs.json').read_text())[
+        'standard_zx81']['machine_pll']['sha256'] if machine_pll else None
+    require(receipt['stock_audio'] == fitted.stock_audio(project, selected['archive'], machine_pll=staged_pll),
             'stock pins, voltage or complete PLL changed')
     require(receipt['vendor_hdmi_reference'] == vendor_reference.verify(directory, review / 'vendor-reference'),
             'receiver mode or stock reference changed')
@@ -167,7 +222,7 @@ def verify(directory, review):
     if timed_video:
         video_outputs.verify(directory, directory.with_name(directory.name + '-async-input-review') / 'video-outputs')
     ports = output_findings((project / 'output_files/golden_top.tq.drc.signoff.rpt').read_text(), timed_video=timed_video)
-    return {'policy': POLICY, 'ports': ports, 'receipt_sha256': async_inputs.sha(review / 'receipt.json'),
+    return {'policy': selected_policy, 'ports': ports, 'receipt_sha256': async_inputs.sha(review / 'receipt.json'),
             'approved_reference_sha256': async_inputs.sha(review / 'approved-reference.json'),
             'conditional_pin_budgets': observations['conditional_pin_budgets'],
             'fitted_corner_count': observations['fitted_corner_count'],

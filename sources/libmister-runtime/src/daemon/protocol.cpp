@@ -1105,8 +1105,14 @@ Error ParseRequest(const std::string& line, Request* request)
 			const bool two_sources = Find(root, "rom_links") != nullptr;
 			const bool slots = Find(root, "expansions") != nullptr;
 			const bool parts = Find(root, "parts") != nullptr;
-			const char* plain[] = {"protocol","operation","package_path","package_id","programmed_path",two_sources ? "rom_links" : "rom_link", "initial_media"};
-			const char* with_root[] = {"protocol","operation","package_path","package_id","data_root","programmed_path",two_sources ? "rom_links" : "rom_link", "initial_media"};
+			// A launch-time upload names the ROM source in place of a linked
+			// bitstream: one source, no composition.
+			const bool upload = Find(root, "firmware_path") != nullptr;
+			if (upload && (two_sources || composed))
+				return Invalid("firmware_path requires a single-ROM plain or library load");
+			const char* const programmed_key = upload ? "firmware_path" : "programmed_path";
+			const char* plain[] = {"protocol","operation","package_path","package_id",programmed_key,two_sources ? "rom_links" : "rom_link", "initial_media"};
+			const char* with_root[] = {"protocol","operation","package_path","package_id","data_root",programmed_key,two_sources ? "rom_links" : "rom_link", "initial_media"};
 			const char* with_cart[] = {"protocol","operation","package_path","package_id",parts ? "parts" : slots ? "expansions" : "expansion_path","payload_path","composition","programmed_path",two_sources ? "rom_links" : "rom_link", "initial_media"};
 			const char* const* fields = plain;
 			unsigned count = 7;
@@ -1144,9 +1150,10 @@ Error ParseRequest(const std::string& line, Request* request)
 			}
 			const std::string *path=nullptr,*id=nullptr,*programmed=nullptr;
 			if (!StringMember(root,"package_path",&path,&error) || !StringMember(root,"package_id",&id,&error) ||
-				!StringMember(root,"programmed_path",&programmed,&error)) return error;
+				!StringMember(root,programmed_key,&programmed,&error)) return error;
 			if (!Path(*path) || !Path(*programmed) || !PackageID(*id)) return Invalid("invalid ROM load paths or identity");
-			parsed.package_path=*path; parsed.package_id=*id; parsed.programmed_path=*programmed;
+			parsed.package_path=*path; parsed.package_id=*id;
+			(upload ? parsed.firmware_path : parsed.programmed_path)=*programmed;
 			const auto* link=Find(root,two_sources ? "rom_links" : "rom_link");
 			if (two_sources) {
 				error = ReadROMLinks(*link, &parsed.rom_links);

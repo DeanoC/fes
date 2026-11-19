@@ -445,7 +445,8 @@ public:
 		const std::string& data_root = "", const CoreCompositionRequest* composition = nullptr,
 		const std::string& programmed_path = "", const std::string& programmed_sha256 = "", const CoreROMLink* rom_link = nullptr,
 		const CoreROMLinks* rom_links = nullptr, const InitialComputerMedia* initial_media = nullptr,
-		const std::string& game_id = "", const AtaDiskImage* disk = nullptr)
+		const std::string& game_id = "", const AtaDiskImage* disk = nullptr,
+		const std::string& firmware_path = "")
 	{
 		if (composition && composition->has_static_selection &&
 			(!programmed_path.empty() || rom_link || rom_links || initial_media || !game_id.empty() || disk ||
@@ -539,8 +540,16 @@ public:
 		const CorePackageInfo info = package->info();
 		const CoreComposition admitted_composition = package->composition();
 		const CoreStaticComposition admitted_static_composition = package->static_composition();
+		if (!firmware_path.empty() && (!rom_link || !programmed_path.empty() || composition)) {
+			std::lock_guard<std::mutex> lock(mutex_);
+			busy_ = false;
+			condition_.notify_all();
+			return Invalid("firmware upload takes one ROM source and no linked bitstream");
+		}
 		if (!programmed_path.empty() || rom_link || rom_links) {
-			const Error attached = rom_links ? hardware_.AttachROMsBitstream(package.get(), programmed_path, *rom_links) :
+			const Error attached = !firmware_path.empty() ?
+				hardware_.AttachFirmwareSource(package.get(), firmware_path, *rom_link) :
+				rom_links ? hardware_.AttachROMsBitstream(package.get(), programmed_path, *rom_links) :
 				rom_link ? hardware_.AttachROMBitstream(package.get(), programmed_path, *rom_link) :
 				hardware_.AttachProgrammedBitstream(package.get(), programmed_path, programmed_sha256);
 			if (!attached.ok()) {
@@ -1672,6 +1681,14 @@ Error Runtime::LoadROMComposedCore(const std::string& directory, const std::stri
 	const CoreCompositionRequest& request, const std::string& path, const CoreROMLink& link, const InitialComputerMedia* initial_media)
 { return impl_->LoadCore(directory, id, "", &request, path, "", &link, nullptr, initial_media); }
 
+Error Runtime::LoadFirmwareCore(const std::string& directory, const std::string& id,
+	const std::string& root, const std::string& path, const CoreROMLink& link,
+	const InitialComputerMedia* initial_media)
+{
+	if (!ValidAbsolutePath(path) || (!root.empty() && !ValidAbsolutePath(root)))
+		return Invalid("firmware upload requires a firmware source path");
+	return impl_->LoadCore(directory, id, root, nullptr, "", "", &link, nullptr, initial_media, "", nullptr, path);
+}
 Error Runtime::LoadROMsCore(const std::string& directory, const std::string& id,
 	const std::string& path, const CoreROMLinks& links)
 { return impl_->LoadCore(directory, id, "", nullptr, path, "", nullptr, &links); }

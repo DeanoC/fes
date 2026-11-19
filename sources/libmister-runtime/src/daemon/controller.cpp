@@ -90,14 +90,20 @@ std::string Controller::Handle(const std::string& line, Deferred& deferred)
 		EmitFifoConsume("load_parts_library_core", result.ok());
 		break;
 	case Operation::load_rom_core:
-		result = request.rom_links.sources.empty() ?
+		result = !request.firmware_path.empty() ?
+			runtime_.LoadFirmwareCore(request.package_path, request.package_id, "",
+				request.firmware_path, request.rom_link, request.has_initial_media ? &request.initial_media : nullptr) :
+			request.rom_links.sources.empty() ?
 			runtime_.LoadROMCore(request.package_path, request.package_id,
 				request.programmed_path, request.rom_link, request.has_initial_media ? &request.initial_media : nullptr) :
 			runtime_.LoadROMsCore(request.package_path, request.package_id,
 				request.programmed_path, request.rom_links);
 		break;
 	case Operation::load_rom_library_core:
-		result = request.rom_links.sources.empty() ?
+		result = !request.firmware_path.empty() ?
+			runtime_.LoadFirmwareCore(request.package_path, request.package_id, request.data_root,
+				request.firmware_path, request.rom_link, request.has_initial_media ? &request.initial_media : nullptr) :
+			request.rom_links.sources.empty() ?
 			runtime_.LoadROMLibraryCore(request.package_path, request.package_id,
 				request.data_root, request.programmed_path, request.rom_link, request.has_initial_media ? &request.initial_media : nullptr) :
 			runtime_.LoadROMsLibraryCore(request.package_path, request.package_id,

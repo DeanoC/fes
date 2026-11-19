@@ -139,7 +139,13 @@ func romTargetInput(t *testing.T) corepackage.ROMInput {
 	text = strings.ReplaceAll(text, fmt.Sprintf("%x", sha256.Sum256(old)), fmt.Sprintf("%x", sha256.Sum256(base)))
 	text = strings.ReplaceAll(text, fmt.Sprintf("size = %d", len(old)), fmt.Sprintf("size = %d", len(base)))
 	text += fmt.Sprintf("\n[rom]\nid = \"machine\"\nrole = \"firmware\"\nsource_size = %d\nfile = \"rom-map.json\"\nsize = %d\nsha256 = \"%x\"\n", len(rom), len(mapping), sha256.Sum256(mapping))
-	archive := tarCoreArchive(t, []byte(text), base)
+	archive := appendROMMap(t, tarCoreArchive(t, []byte(text), base), mapping)
+	return corepackage.ROMInput{Package: archive, ROM: rom}
+}
+
+// appendROMMap adds the sealed map as a canonical archive's third member.
+func appendROMMap(t *testing.T, archive, mapping []byte) []byte {
+	t.Helper()
 	archive = archive[:len(archive)-1024]
 	// Reuse the shared restricted-ustar writer, changing its first member's
 	// name and checksum to append the sealed map in canonical order.
@@ -158,7 +164,7 @@ func romTargetInput(t *testing.T) corepackage.ROMInput {
 	archive = append(archive, header...)
 	archive = append(archive, mapping...)
 	archive = append(archive, make([]byte, (512-len(mapping)%512)%512+1024)...)
-	return corepackage.ROMInput{Package: archive, ROM: rom}
+	return archive
 }
 
 type romTargetControl struct {

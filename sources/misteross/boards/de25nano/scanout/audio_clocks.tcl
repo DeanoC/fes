@@ -2,17 +2,18 @@
 # add no clocks, delays, exceptions or reviewed-finding substitutions.
 cd [lindex $quartus(args) 0]
 set output [lindex $quartus(args) 1]
+# The stock audio PLL unless the caller names a machine PLL's audio output.
+set master_name {fes_audio_inst|clock|iopll_0_outclk0}
+if {[llength $quartus(args)] > 2} {set master_name [lindex $quartus(args) 2]}
 project_open golden_top
 create_timing_netlist
 read_sdc
 update_timing_netlist
 set stream [open [file join $output clocks.tsv] w]
 puts $stream "clock\tperiod_ns\twaveform\tedges\tmaster"
-foreach name {
-    fes_audio_inst|clock|iopll_0_outclk0
-    de25_i2s_bit_clock de25_i2s_bit_clock_output
-    de25_i2s_word_clock de25_i2s_word_clock_output
-} {
+foreach name [list $master_name \
+    de25_i2s_bit_clock de25_i2s_bit_clock_output \
+    de25_i2s_word_clock de25_i2s_word_clock_output] {
     set clock [get_clocks $name]
     if {[get_collection_size $clock] != 1} {error "missing unique audio clock $name"}
     puts $stream [join [list $name [get_clock_info -period $clock] \
@@ -20,7 +21,7 @@ foreach name {
         [get_clock_info -master_clock $clock]] "\t"]
 }
 close $stream
-set master [get_clock_info -targets [get_clocks {fes_audio_inst|clock|iopll_0_outclk0}]]
+set master [get_clock_info -targets [get_clocks $master_name]]
 if {[get_collection_size $master] != 1} {error "missing unique audio PLL output"}
 set stream [open [file join $output paths.tsv] w]
 puts $stream "corner\tclock\tpath\tbound\tcount\tdelay_ns"

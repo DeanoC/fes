@@ -19,6 +19,7 @@
 #include "native/generated/de10_nano.hpp"
 #include "native/generated/fes_de25_computer.hpp"
 #include "native/generated/fes_application.hpp"
+#include "native/generated/fes_firmware_upload.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/hardware.hpp"
 #include "native/menu_admission.hpp"
@@ -6131,6 +6132,126 @@ void TestDe25AllocatedMenuLaunchStopAndPinnedPeer(bool clean_shutdown = false)
 }
 
 
+// A DE25 firmware machine end to end: package admission, the bound ROM
+// source, programming of the unpatched payload, upload while held, release.
+enum class FirmwareTrial { launch, short_file, wrong_digest, wrong_link_size, patched_identity, no_source,
+ linked_bitstream, held_rom_map, endpoint_without_upload, endpoint_other_size };
+void TestDe25FirmwareMachineUploadsBeforeRelease(bool atari_st,FirmwareTrial trial=FirmwareTrial::launch) {
+ using namespace mister;using namespace mister::native;using namespace mister::native::generated;
+ namespace dm=mister_test::de25_menu;
+ Fixture base;dm::Operations operations;dm::SessionControl control(operations);
+ const auto d=atari_st?mister_test::De25AtariStDescriptor():mister_test::De25SpectrumDescriptor(32768);
+ const std::uint32_t bytes=static_cast<std::uint32_t>(d.rom.source_size);
+ mister_test::AtomicComputerBridge bridge(atari_st?0x278fu:0x202fu,d.build.id,atari_st?
+  std::make_pair(FesComputerAtariStFloppyGeometryMinBytes,FesComputerAtariStFloppyGeometryMaxBytes):
+  std::make_pair(FesComputerSpectrumTapeMinBytes,FesComputerSpectrumTapeMaxBytes));
+ bridge.endpoint.firmware_bytes=trial==FirmwareTrial::endpoint_without_upload?0:
+  trial==FirmwareTrial::endpoint_other_size?bytes+1024:bytes;
+ De25ComputerMmio registers(bridge);
+ FesGp gp(registers,operations.clock,FesGpTransport::de25_computer);FesGpCoreDriver driver(gp);
+ bridge.display=[&](unsigned op,unsigned index,unsigned argument){return control.Command(op,index,argument);};
+ MenuDisplayDriver display(gp,operations.clock);
+ LinuxDe25Menu presenter(operations.clock,operations,display,5);De25MenuCoreDriver menu_driver(presenter);
+ De25VideoBringup video;
+ NativeHardware hardware(base.opener,base.fpga,video,video,base.input,base.input_identity,
+  operations.clock,base.log,base.idle,{},&driver,{"/tmp"},SplashIdle(),&presenter,&presenter,nullptr,
+  NativePlatform::de25_nano,nullptr,&menu_driver);
+ const auto hash=[](const std::string& value){Sha256 h;h.Update(value.data(),value.size());return Sha256Hex(h.Final());};
+ TempDirectory menu,game,source;
+ auto manifest=ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+ ReplaceAll(&manifest,"de10_nano","de25_nano");ReplaceAll(&manifest,"5CSEBA6U23I7","A5EB013BB23BE4SCS");
+ ReplaceAll(&manifest,"0123456789abcdef0123456789abcdef",d.build.id);
+ auto menu_manifest=manifest;
+ ReplaceAll(&menu_manifest,"fes.pong","fes.menu");ReplaceAll(&menu_manifest,"fes-gp-v1","de25-linux-menu-v1");
+ ReplaceAll(&menu_manifest,"fes.simple-game","fes.application");ReplaceAll(&menu_manifest,"fes.gamepad","fes.video.menu-display");
+ menu_manifest+="\n[[interfaces]]\nid=\"fes.fabric.de25-scanout\"\nmajor=1\nminor=3\nrequired=true\n";
+ ReplaceAll(&manifest,"fes.pong",d.core.id);ReplaceAll(&manifest,"fes-gp-v1","de25-linux-computer-v1");
+ ReplaceAll(&manifest,"fes.simple-game","fes.computer");ReplaceAll(&manifest,"format = 2","format = 3");
+ manifest.erase(manifest.find("[[interfaces]]"),manifest.find("[build]")-manifest.find("[[interfaces]]"));
+ for(const auto& interface:d.interfaces)
+  manifest+="\n[[interfaces]]\nid=\""+interface.id+"\"\nmajor="+std::to_string(interface.major)+
+   "\nminor="+std::to_string(interface.minor)+"\nrequired=true\n";
+ const auto payload=ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf");
+ const std::string map="{\"format\":1,\"device\":\"A5EB013BB23BE4SCS\",\"encoding\":\""+
+  std::string(trial==FirmwareTrial::held_rom_map?"cpu-csr-v1":"gp-firmware-upload-v1")+
+  "\",\"base_sha256\":\""+hash(payload)+"\",\"source_size\":"+std::to_string(bytes)+"}\n";
+ manifest+="\n[rom]\nid=\"machine-rom\"\nrole=\"firmware\"\nsource_size="+std::to_string(bytes)+
+  "\nfile=\"rom-map.json\"\nsize="+std::to_string(map.size())+"\nsha256=\""+hash(map)+"\"\n";
+ menu.File("manifest.toml",menu_manifest);menu.File("core.rbf",payload);
+ game.File("manifest.toml",manifest);game.File("core.rbf",payload);game.File("rom-map.json",map);
+ std::string image(bytes,'\0');
+ for(std::size_t i=0;i<image.size();++i)image[i]=static_cast<char>((i*13+5)^(i>>9));
+ source.File("machine.rom",trial==FirmwareTrial::short_file?image.substr(0,bytes-1024):image);
+ const std::string rom=source.path+"/machine.rom";
+ OpenedCorePackage menu_package,game_package;
+ assert(OpenCorePackage(menu.path,"",&menu_package).ok()&&OpenCorePackage(game.path,"",&game_package).ok());
+ assert(game_package.descriptor.format==3);
+ Runtime runtime(hardware,base.log);assert(runtime.Start(menu.path,menu_package.package_id).ok());
+ // The runtime tells a host that it delivers this package's firmware.
+ bool advertised=false;
+ for(const auto& abi:hardware.capabilities().abis)for(const auto& interface:abi.interfaces)
+  if(abi.id=="fes.computer"&&interface.id=="fes.fabric.firmware-upload"&&interface.major==1&&interface.minor==0)advertised=true;
+ assert(advertised&&hardware.capabilities().rom_linking==0);
+ CoreROMLink link;
+ link.rom_id="machine-rom";link.map_sha256=hash(map);link.source_sha256=hash(image);link.source_size=bytes;
+ link.programmed_sha256=hash(payload);link.programmed_size=payload.size();
+ if(trial==FirmwareTrial::wrong_digest)link.source_sha256=hash(image+"x");
+ if(trial==FirmwareTrial::wrong_link_size)link.source_size=bytes-1024;
+ if(trial==FirmwareTrial::patched_identity)link.programmed_sha256=hash(payload+"x");
+ const int programs=base.fpga.calls;
+ const auto requests=bridge.endpoint.requests.size();
+ const Error loaded=trial==FirmwareTrial::no_source?runtime.LoadCore(game.path,game_package.package_id):
+  trial==FirmwareTrial::linked_bitstream?runtime.LoadROMCore(game.path,game_package.package_id,game.path+"/core.rbf",link):
+  runtime.LoadFirmwareCore(game.path,game_package.package_id,"",rom,link);
+ const bool endpoint_failure=trial==FirmwareTrial::endpoint_without_upload||trial==FirmwareTrial::endpoint_other_size;
+ if(trial!=FirmwareTrial::launch) {
+  if(loaded.ok())fprintf(stderr,"firmware trial %d admitted\n",static_cast<int>(trial));
+  assert(!loaded.ok()&&bridge.endpoint.held&&bridge.endpoint.firmware_state!=FesFirmwareUploadStateReady);
+  // Everything the sealed package or the link decides is refused before the
+  // FPGA is touched. Only the live endpoint can refuse after programming.
+  if(!endpoint_failure)assert(base.fpga.calls==programs&&bridge.endpoint.requests.size()==requests);
+  else {
+   assert(base.fpga.calls>programs&&loaded.phase=="firmware");
+   for(const auto& request:bridge.endpoint.requests)
+    assert(request.opcode!=FesFirmwareUploadOpcodeBegin&&request.opcode!=FesFirmwareUploadOpcodeData&&
+     !(request.opcode==FesComputerOpcodeExecution&&request.argument==FesComputerExecutionRelease));
+  }
+  return;
+ }
+ if(!loaded.ok())fprintf(stderr,"DE25 firmware launch: %s (%s)\n",loaded.message.c_str(),loaded.phase.c_str());
+ assert(loaded.ok()&&!bridge.endpoint.held&&driver.OwnsAudio());
+ assert(base.fpga.profiles.back()==ProgrammingProfile::de25_linux_computer_v1&&base.fpga.hps_ddr_calls==0);
+ assert(bridge.endpoint.firmware_state==FesFirmwareUploadStateReady&&
+  std::string(bridge.endpoint.firmware.begin(),bridge.endpoint.firmware.end())==image);
+ // Identity, then the whole image, then the one release.
+ std::size_t last_identity=0,first_firmware=0,commit=0,release=0,releases=0;
+ for(std::size_t i=requests;i<bridge.endpoint.requests.size();++i) {
+  const auto& request=bridge.endpoint.requests[i];
+  if(request.opcode==FesComputerOpcodeIdentity)last_identity=i;
+  if(request.opcode==FesFirmwareUploadOpcodeInfo&&!first_firmware)first_firmware=i;
+  if(request.opcode==FesFirmwareUploadOpcodeCommit)commit=i;
+  if(request.opcode==FesComputerOpcodeExecution&&request.argument==FesComputerExecutionRelease){release=i;++releases;}
+ }
+ assert(last_identity&&last_identity<first_firmware&&first_firmware<commit&&commit<release&&releases==1);
+ const auto state=runtime.status();
+ assert(state.state==State::running_development&&state.active_package.rom_link.source_sha256==link.source_sha256&&
+  state.active_package.rom_link.programmed_sha256==game_package.descriptor.payload.sha256);
+ bool active=false;
+ for(const auto& interface:state.capabilities.active_interfaces)active=active||interface.id=="fes.fabric.firmware-upload";
+ assert(active&&state.capabilities.media_units.size()==1&&state.menu_display.session);
+ assert(runtime.Stop().ok()&&runtime.status().state==State::idle);
+}
+
+void TestDe25FirmwareMachines() {
+ for(const bool atari_st:{false,true}) {
+  TestDe25FirmwareMachineUploadsBeforeRelease(atari_st);
+  for(const auto trial:{FirmwareTrial::short_file,FirmwareTrial::wrong_digest,FirmwareTrial::wrong_link_size,
+   FirmwareTrial::patched_identity,FirmwareTrial::no_source,FirmwareTrial::linked_bitstream,
+   FirmwareTrial::held_rom_map,FirmwareTrial::endpoint_without_upload,FirmwareTrial::endpoint_other_size})
+   TestDe25FirmwareMachineUploadsBeforeRelease(atari_st,trial);
+ }
+}
+
 void TestStaticDispatch() {
  for(auto trial:{StaticTrial::empty,StaticTrial::ram16k,StaticTrial::missing_backend,
   StaticTrial::changed_empty,StaticTrial::changed_ram,StaticTrial::program_failure})
@@ -6146,6 +6267,10 @@ int main(int argc,char** argv)
  }
  if(argc==2&&std::strcmp(argv[1],"--configuration-timeout")==0) {
   TestDe25StandardComputerUsesSharedDriverAndAllocatedSession(StaticTrial::ordinary,true);return 0;
+ }
+ if(argc==2&&std::strcmp(argv[1],"--firmware-upload")==0) {
+  TestDe25FirmwareMachines();
+  puts("native_hardware_test: DE25 Spectrum and Atari ST firmware upload cases passed");return 0;
  }
  if(argc==2&&std::strcmp(argv[1],"--static-dispatch")==0) {
   TestStaticDispatch();
@@ -6165,6 +6290,7 @@ int main(int argc,char** argv)
  }
  assert(argc==1);
  TestStaticDispatch();
+ TestDe25FirmwareMachines();
  TestDe25StandardComputerUsesSharedDriverAndAllocatedSession();
  TestDe25AllocatedMenuLaunchStopAndPinnedPeer();
  TestDe25AllocatedMenuLaunchStopAndPinnedPeer(true);

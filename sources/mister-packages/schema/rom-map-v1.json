@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "FES ROM map format 1",
-  "description": "Cyclone V maps encode CRAM destinations. Nano held-ROM maps bind separate CPU-fed firmware delivery and contain no physical addresses or patch locations. Readers additionally enforce exact scalar types, manifest bindings and encoding-specific bounds.",
+  "description": "Cyclone V maps encode CRAM destinations. Nano maps bind separate firmware delivery (the held-ROM endpoint, or launch-time upload over the fes.computer mailbox) and contain no physical addresses or patch locations. Readers additionally enforce exact scalar types, manifest bindings and encoding-specific bounds.",
   "oneOf": [
     {
       "type": "object",
@@ -112,6 +112,39 @@
             4096,
             8192
           ]
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "device",
+        "encoding",
+        "base_sha256",
+        "source_size"
+      ],
+      "properties": {
+        "format": {
+          "type": "integer",
+          "const": 1
+        },
+        "device": {
+          "const": "A5EB013BB23BE4SCS"
+        },
+        "encoding": {
+          "const": "gp-firmware-upload-v1"
+        },
+        "base_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}(?![\\s\\S])"
+        },
+        "source_size": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 262144,
+          "multipleOf": 1024
         }
       }
     }

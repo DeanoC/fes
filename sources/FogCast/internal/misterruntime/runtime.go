@@ -125,6 +125,10 @@ type protocol2ROMLinkControl interface {
 	LoadROMLinkedCore(context.Context, string, string, string, string, string, *expansion.Composition, string, corepackage.ROMLinkIdentity) (Protocol2Response, error)
 }
 
+type protocol2FirmwareControl interface {
+	LoadFirmwareCore(context.Context, string, string, string, string, corepackage.ROMLinkIdentity, *InitialMediaRequest) (Protocol2Response, error)
+}
+
 type protocol2ROMLinksControl interface {
 	LoadROMLinksLinkedCore(context.Context, string, string, string, string, string, *expansion.Composition, string, corepackage.ROMLinksIdentity) (Protocol2Response, error)
 }
@@ -332,13 +336,21 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		if statusErr != nil {
 			return CoreActivation{}, false, unavailableError()
 		}
-		if status.Capabilities.ROMLinking != 1 {
+		// A firmware-upload package needs no linker; which kind this input
+		// is, is known only once it is staged.
+		if status.Capabilities.ROMLinking != 1 && (romLinkedV2 || !firmwareUploadSupported(status.Capabilities)) {
 			return CoreActivation{}, false, unsupportedOperationError()
 		}
 		if romLinkedV2 {
 			staged, err = corepackage.StageROMInputV2Spooled(admission, r.corePackageRoot, spool)
 		} else {
 			staged, err = corepackage.StageROMInputSpooled(admission, r.corePackageRoot, spool)
+			if err == nil && !romDeliverySupported(status.Capabilities, staged.Descriptor) {
+				if cleanupErr := staged.Cleanup(); cleanupErr != nil {
+					r.retainRetired(staged)
+				}
+				return CoreActivation{}, false, unsupportedOperationError()
+			}
 		}
 		composed = staged.Composition != nil || staged.SlotComposition != nil || staged.PartsComposition != nil
 	} else if composed && corepackage.IsStaticCompositionBundle(body) {
@@ -419,6 +431,11 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 	}
 	if staged.SlotComposition != nil && staged.ROMLink != nil {
 		if _, ok := r.control.(protocol2ROMSlotControl); !ok {
+			return CoreActivation{}, false, unsupportedOperationError()
+		}
+	}
+	if staged.FirmwarePath != "" {
+		if _, ok := r.control.(protocol2FirmwareControl); !ok {
 			return CoreActivation{}, false, unsupportedOperationError()
 		}
 	}
@@ -574,6 +591,13 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 	} else if staged.ROMLink != nil && staged.SlotComposition != nil {
 		response, callErr = r.control.(protocol2ROMSlotControl).LoadROMSlotComposedCore(operationOwner, staged.Directory, staged.PackageID, slotExpansionPaths(staged), staged.PayloadPath, *staged.SlotComposition, staged.ProgrammedPath, *staged.ROMLink)
 		r.noteDispatch("load_rom_composed_core", callErr == nil)
+	} else if staged.FirmwarePath != "" {
+		dataRoot := ""
+		if libraryID != "" {
+			dataRoot = CoreDataRoot
+		}
+		response, callErr = r.control.(protocol2FirmwareControl).LoadFirmwareCore(operationOwner, staged.Directory, staged.PackageID, dataRoot, staged.FirmwarePath, *staged.ROMLink, nil)
+		r.noteDispatch("load_rom_core", callErr == nil)
 	} else if staged.ROMLink != nil {
 		dataRoot := ""
 		if libraryID != "" && !composed {
