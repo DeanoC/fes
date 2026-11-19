@@ -59,9 +59,9 @@ def make_receipt(package, record, files):
 
 
 def _historical_sources(root, fields, destination):
-    paths = {seal.TOOLCHAIN_LOCK, seal.I386_LOCK, 'scripts/fes_i386_oracle.py',
-             seal.i386_oracle.BOCHS_PATCH_RELATIVE, *seal.i386_oracle.SUITE_SOURCES,
-             *(f'cores/fes-common/sim/i386/{name}' for name in seal.i386_oracle.ORACLE_SOURCES),
+    paths = {seal.TOOLCHAIN_LOCK, seal.I386_LOCK, seal.ORACLE_PROVISIONER,
+             seal.BOCHS_PATCH, *seal.SUITE_SOURCES,
+             *(f'{seal.ORACLE_SIM}/{name}' for name in seal.ORACLE_SOURCES),
              *seal.yosys_netlist.CPU_SOURCES}
     source_prefix = fields['source_path'] + '/'
     for path in sorted(paths):

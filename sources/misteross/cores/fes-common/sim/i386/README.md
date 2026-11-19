@@ -23,6 +23,12 @@ LGPL-2.1-or-later), configured as a 386DX:
 | `--enable-fpu` | WAIT and ESC take the architected EM, MP and TS exceptions. Without the FPU Bochs raises #UD for WAIT and never faults on ESC. Its 387 is made to read as an empty socket for each ESC step (the lockstep's no-387 rule, [Known limits](#known-limits)) |
 | `--enable-x86-debugger` | DR0-DR3, DR6 and DR7 breakpoints |
 
+The revision, the patch and the lists of oracle and suite sources live in
+[`oracle_sources.toml`](oracle_sources.toml). `scripts/fes_i386_oracle.py`
+reads them from there, and the pc386 seal hashes the files they name as data
+without importing the provisioner (#1984). A file added to either list goes
+into that data file.
+
 `scripts/fes_i386_oracle.py` fetches that revision only when a runner is given
 `--download`, refuses a checkout that is not the clean pinned commit, configures
 it with the options above and builds the CPU, FPU and softfloat libraries plus
