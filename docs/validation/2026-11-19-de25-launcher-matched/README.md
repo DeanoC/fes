@@ -64,3 +64,41 @@ Working receipts are below
 The next hardware action is a separately frozen, read-only recovery/card and
 preferences inspection, followed by a fresh bounded native trial when its
 physical input and restoration prerequisites are ready.
+
+## Read-only TRWU8CBL inspection
+
+The separate inspection now passes at host/source head
+`c34f11d7849cded60381d226fec18c6d7adb61a9`. Procedure SHA-256:
+`1620906f5d78e4e2d95f1ef8e596c8223ad3ab99638c421272cfa8d97a3d4624`.
+It uses the existing source-pinned host restoration-cost repair at `7119ffa96`
+for its programming/serial ownership boundaries. Its first file-only runner
+was named `operator.py`, shadowing Python's standard module; that preflight
+failure is retained. The corrected, separately frozen runner passes admission
+before the single hardware execution. No consumed procedure is retried.
+
+Fresh volatile JTAG recovery, nonce-bound UART/reset witness and the read-only
+NS SMMU gate pass without a power cycle. The original experimental FIT remains
+`d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1`.
+All 17 independently expected files are read back, including the three installed
+records. The complete FES directory listing confirms that `PREFS.JSON` is absent.
+The next persistence trial therefore needs an explicitly prepared 64 KiB seed;
+this inspection does not create it or alter the library.
+
+The operation completes in 261.422 seconds under its original 1,200-second role
+bound. An independent replay verifies the reset witness, every expected file
+digest, settings absence, zero SD/flash writes, source pins and detached private
+programmer. Host cleanup and the independent open-handle scan pass; USB
+permissions and JTAG settings are restored. The top kit is parked at the recovery
+prompt with the continuing claim held. No native launch, physical keyboard action,
+HDMI observation, reboot persistence, physical CID proof or general reset/DMA
+qualification is claimed.
+
+The fresh native file admission is also regenerated successfully on `c34f11d78`;
+its SHA-256 is
+`f041119de961ca8c6a907af7c9984e118018217f8de48ac4dcbb15b3bef835dc`.
+The runtime artifacts above remain unchanged. A verified source archive with
+18,000 Git blobs and a separately verified 91,045-entry evidence archive are
+retained at
+`/home/deano/fes-retained/de25-launcher-matched-20261119-r1`.
+The full launcher trial remains pending its fresh write/restoration roles and
+human keyboard/monitor availability; issue #1867 stays open.
