@@ -28,7 +28,7 @@ type setupState struct {
 	firstRun, loaded, done bool
 	skipped                []string
 	step                   int
-	deferredLibraryStatus  string
+	deferredNotice         string
 }
 
 // SetFirstRun turns the first-run gate on: with no marker in tenfoot.json,
@@ -117,16 +117,11 @@ func (a *App) setupSessionBusyLocked() bool {
 		a.developmentLoadingLocked() || a.gpuParked
 }
 
-// setLibraryStatusLocked records the library's own status line. The setup
-// action's explanation stays visible until the blocking session ends, then
-// gives way to the line it deferred. Any other open room keeps its own status
-// line; the library shows its line again when it next loads.
+// setLibraryStatusLocked records the library's own status line. An open room,
+// setup's included, keeps its own line; the library shows its line again when
+// it next loads.
 func (a *App) setLibraryStatusLocked(status string) {
 	a.libraryStatus = status
-	if a.setupRoomOpenLocked() && a.status == setupBlockedStatus && a.setupSessionBusyLocked() {
-		a.setup.deferredLibraryStatus = status
-		return
-	}
 	if a.room != nil {
 		return
 	}
@@ -134,10 +129,11 @@ func (a *App) setLibraryStatusLocked(status string) {
 }
 
 // showRoomStatusLocked puts the room's own line back when a room regains the
-// screen while the footer still shows the library's line. Other messages,
-// such as a launch error or an action's notice, stay.
-func (a *App) showRoomStatusLocked() {
-	if a.room != nil && a.status == a.libraryStatus {
+// screen while the footer still shows the library's line or the line of the
+// room it replaced (left, or ""). Other messages, such as a launch error or an
+// action's notice, stay.
+func (a *App) showRoomStatusLocked(left string) {
+	if a.room != nil && (a.status == a.libraryStatus || (left != "" && a.status == left)) {
 		a.status = a.room.Title()
 	}
 }
@@ -146,25 +142,16 @@ func (a *App) showRoomStatusLocked() {
 // The setup action's explanation defers it until the blocking session ends.
 func (a *App) setLibraryNoticeLocked(notice string) {
 	if a.setupRoomOpenLocked() && a.status == setupBlockedStatus && a.setupSessionBusyLocked() {
-		a.setup.deferredLibraryStatus = notice
+		a.setup.deferredNotice = notice
 		return
 	}
 	a.status = notice
 }
 
-// A refresh notice must inspect the underlying library result even while
-// the setup explanation or a room owns the visible status.
-func (a *App) libraryStatusForNoticeLocked() string {
-	if a.setupRoomOpenLocked() && a.status == setupBlockedStatus {
-		return a.setup.deferredLibraryStatus
-	}
-	return a.libraryStatus
-}
-
 func (a *App) setupBlockedLocked() bool {
 	if a.setupSessionBusyLocked() {
 		if a.status != setupBlockedStatus {
-			a.setup.deferredLibraryStatus = ""
+			a.setup.deferredNotice = ""
 		}
 		a.status = setupBlockedStatus
 		return true

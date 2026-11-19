@@ -1697,8 +1697,7 @@ func (a *App) reloadCatalogWithNoticeLocked(notice string) {
 // setLibraryRefreshNoticeLocked keeps a failed refresh visible alongside the
 // outcome that requested it, including while setup defers library status.
 func (a *App) setLibraryRefreshNoticeLocked(notice string) {
-	status := a.libraryStatusForNoticeLocked()
-	if a.loadErr != "" || status == savedListOfflineCopy || status == "Can't reach the library right now." {
+	if a.loadErr != "" || a.libraryStatus == savedListOfflineCopy || a.libraryStatus == "Can't reach the library right now." {
 		a.setLibraryNoticeLocked(notice + " Couldn't refresh the library.")
 		return
 	}
@@ -1806,9 +1805,13 @@ func (a *App) Snapshot() Snapshot {
 	}
 	status := a.status
 	if a.setupRoomOpenLocked() && status == setupBlockedStatus && !a.setupSessionBusyLocked() {
-		status = a.setup.deferredLibraryStatus
+		// The block is over: a notice it deferred, else the room's own line.
+		status = a.setup.deferredNotice
+		if status == "" {
+			status = a.room.Title()
+		}
 		a.status = status
-		a.setup.deferredLibraryStatus = ""
+		a.setup.deferredNotice = ""
 	}
 	if a.setupRoomOpenLocked() && status == setupBlockedStatus && a.setupSessionBusyLocked() {
 		// Preserve the setup action's reason while a launch status is present.

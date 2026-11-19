@@ -215,7 +215,7 @@ func TestSetupBlockedStatusSurvivesLibraryResponse(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		httpStatus int
-		want       string
+		library    string
 	}{
 		{"success", 0, "2 titles · All · All · Title"},
 		{"failure", http.StatusInternalServerError, "Can't reach the library right now."},
@@ -257,8 +257,16 @@ func TestSetupBlockedStatusSurvivesLibraryResponse(t *testing.T) {
 			default:
 			}
 			snap = waitFor(t, app, "idle host session", func(s Snapshot) bool { return s.Session.State == "idle" })
-			if snap.Status != tc.want {
-				t.Fatalf("status after idle = %q, want %q", snap.Status, tc.want)
+			// The block is over: setup shows its own line, as any room does
+			// after a library load. The library keeps the line it loaded.
+			app.mu.Lock()
+			title, library := app.room.Title(), app.libraryStatus
+			app.mu.Unlock()
+			if snap.Status != title {
+				t.Fatalf("status after idle = %q, want the room's %q", snap.Status, title)
+			}
+			if library != tc.library {
+				t.Fatalf("library status = %q, want %q", library, tc.library)
 			}
 			if got := renderRoomLabelSource(t, snap, "nopanel-status"); got == setupBlockedStatus {
 				t.Fatalf("footer remains blocked after idle: %q", got)
@@ -291,7 +299,7 @@ func TestSetupDeferredOfflineShelfRetainsRefreshFailureNotice(t *testing.T) {
 	waitFor(t, app, "deferred offline refresh notice", func(s Snapshot) bool {
 		app.mu.Lock()
 		defer app.mu.Unlock()
-		return !s.Loading && app.setup.deferredLibraryStatus == want
+		return !s.Loading && app.setup.deferredNotice == want
 	})
 	host.mu.Lock()
 	host.state = "idle"
@@ -362,7 +370,7 @@ func TestSetupBlockedStatusClearsWhenSessionStops(t *testing.T) {
 	}
 }
 
-func TestSetupWaitsForRunningOrStartingSessionPreservesLibraryStatus(t *testing.T) {
+func TestSetupWaitsForRunningOrStartingSessionThenShowsItsOwnLine(t *testing.T) {
 	app := NewApp(nil, 1280, 720, 50)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
 	app.SetRooms(rooms.NewIndex(rooms.Examples()), t.TempDir())
@@ -381,9 +389,13 @@ func TestSetupWaitsForRunningOrStartingSessionPreservesLibraryStatus(t *testing.
 	}
 	app.mu.Lock()
 	app.session.State = "idle"
+	title, library := app.room.Title(), app.libraryStatus
 	app.mu.Unlock()
-	if got := app.Snapshot().Status; got != "Can't reach the library right now." {
-		t.Fatalf("library status after session stops = %q", got)
+	if got := app.Snapshot().Status; got != title {
+		t.Fatalf("status after session stops = %q, want the room's %q", got, title)
+	}
+	if library != "Can't reach the library right now." {
+		t.Fatalf("library status = %q", library)
 	}
 }
 
@@ -568,7 +580,7 @@ func TestSkippingRunSetupAgainKeepsTheFinishedSetup(t *testing.T) {
 func TestLibraryStatusOutsideSetupRemainsImmediate(t *testing.T) {
 	app := &App{status: "previous"}
 	app.setLibraryStatusLocked("library updated")
-	if app.status != "library updated" || app.setup.deferredLibraryStatus != "" {
-		t.Fatalf("status = %q, deferred = %q", app.status, app.setup.deferredLibraryStatus)
+	if app.status != "library updated" || app.setup.deferredNotice != "" {
+		t.Fatalf("status = %q, deferred = %q", app.status, app.setup.deferredNotice)
 	}
 }
