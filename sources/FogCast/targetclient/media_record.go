@@ -81,7 +81,8 @@ func (c *Client) DiscardMediaRecord(ctx context.Context, d protocol.MediaRecordD
 	if err == nil && record.State != protocol.MediaRecordAbsent {
 		err = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "saved media was not discarded", Phase: "recovery"}
 	}
-	if err = c.finishSettingsLease(ctx, !hadLease, err); err != nil {
+	// A busy kit refuses before it removes anything.
+	if err = c.finishSettingsLease(ctx, !hadLease, err, protocol.CodeBusy); err != nil {
 		return protocol.MediaRecord{}, err
 	}
 	return record, nil

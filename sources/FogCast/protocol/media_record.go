@@ -57,7 +57,9 @@ func (r MediaRecord) Valid() bool {
 	case MediaRecordPresent:
 		return ValidateDigest(r.Revision) == nil && r.Bytes > 0
 	case MediaRecordCorrupt:
-		return ValidateDigest(r.Revision) == nil && r.Bytes > 0 && !r.Changed
+		// An empty, oversized or non-regular record file is reported with
+		// no bytes read; it must still be nameable so it can be discarded.
+		return ValidateDigest(r.Revision) == nil && r.Bytes >= 0 && !r.Changed
 	}
 	return false
 }
