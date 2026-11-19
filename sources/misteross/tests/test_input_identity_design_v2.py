@@ -10,10 +10,12 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
+import sys
 import tomllib
 import unittest
 from unittest import mock
 
+from scripts import build_fes_pc386_quartus as quartus
 from scripts import input_identity as ii
 from tests.test_pc386_seal_process import SEAL_EXCLUDED
 
@@ -27,6 +29,30 @@ ROM_HEX = '815620361ef28a2bbdd97b1964700a4678a26c0ffc9582bb95544473fe099d18'
 # the record (README section 3) names as an evidence member.
 ADDED_SINCE_RECORD = frozenset({'cores/fes-common/sim/i386/oracle_sources.toml'})
 ORACLE_SOURCES = 'cores/fes-common/sim/i386/oracle_sources.toml'
+
+
+def compiler_reads_now(path: str) -> list[str]:
+    """Live rule (a) for a member the record never measured: how pc386's compilers reach it today."""
+    reasons = []
+    named = {*quartus.MACHINE_SOURCES, *quartus.SHELL_SOURCES, *quartus.INCLUDES, quartus.QSF, quartus.SDC,
+             quartus.ROM_HEX}
+    if path in named:
+        reasons.append('named in the seal\'s source lists')
+    name = Path(path).name
+    for source in sorted({*quartus.MACHINE_SOURCES, *quartus.SHELL_SOURCES, *quartus.INCLUDES, quartus.QSF}):
+        if name in (ROOT / source).read_text(errors='replace'):
+            reasons.append(f'named in {source}')
+    if str(ROOT / 'cores/fes-pc386/tools') not in sys.path:
+        sys.path.insert(0, str(ROOT / 'cores/fes-pc386/tools'))
+    import build_pc386_product as product
+    qsf = product.project_qsf(ROOT, ROOT / product.OUTPUT / 'project', '0' * 32, 1)
+    if name in qsf:
+        reasons.append('named in the generated QSF')
+    return reasons
+
+
+def cleared_now(added: frozenset) -> frozenset:
+    return frozenset(path for path in added if not compiler_reads_now(path))
 
 
 def sealed_record() -> dict:
@@ -104,7 +130,8 @@ class ClassificationTest(unittest.TestCase):
         self.assertFalse(ADDED_SINCE_RECORD & {row['path'] for row in rows})
 
     def test_no_member_is_read_by_a_compiler(self):
-        ii.refuse_compiler_read(classification())
+        self.assertEqual(cleared_now(ADDED_SINCE_RECORD), ADDED_SINCE_RECORD)
+        ii.refuse_compiler_read(classification(), cleared=cleared_now(ADDED_SINCE_RECORD))
         reads = set(json.loads((RECORD / 'yosys-reads.json').read_text())['opened_under_root'])
         self.assertFalse((ii.EVIDENCE_INPUTS | ii.FIRMWARE_GENERATOR_INPUTS) & reads)
 
@@ -118,21 +145,35 @@ class ClassificationTest(unittest.TestCase):
             for evidence, firmware in ((ii.EVIDENCE_INPUTS | {path}, ii.FIRMWARE_GENERATOR_INPUTS),
                                        (ii.EVIDENCE_INPUTS, ii.FIRMWARE_GENERATOR_INPUTS | {path})):
                 with self.subTest(path=path), self.assertRaisesRegex(ValueError, path + ': read by a compiler'):
-                    ii.refuse_compiler_read(rows, evidence, firmware)
+                    ii.refuse_compiler_read(rows, evidence, firmware, cleared=ADDED_SINCE_RECORD)
+
+    def test_a_member_the_record_never_measured_is_refused_unless_cleared_live(self):
+        with self.assertRaisesRegex(ValueError, 'oracle_sources.toml: not in the classification'):
+            ii.refuse_compiler_read(classification())
+        # An RTL file the record predates, added to both the set and the added list: the live check
+        # finds the compiler reading it, so it is never cleared.
+        # The record is made to predate it by dropping its row.
+        rtl = 'cores/fes-common/rtl/i386/fes_x87_core.sv'
+        rows = [row for row in classification() if row['path'] != rtl]
+        added = ADDED_SINCE_RECORD | {rtl}
+        self.assertTrue(compiler_reads_now(rtl))
+        self.assertEqual(cleared_now(added), ADDED_SINCE_RECORD)
+        with self.assertRaisesRegex(ValueError, 'fes_x87_core.sv: not in the classification'):
+            ii.refuse_compiler_read(rows, ii.EVIDENCE_INPUTS | added, cleared=cleared_now(added))
 
     def test_an_evidence_file_that_starts_being_read_is_refused(self):
         rows = copy.deepcopy(classification())
         row = next(row for row in rows if row['path'] == 'cores/fes-common/sim/i386/smc_stale.h')
         row['yosys_read'] = True
         with self.assertRaisesRegex(ValueError, 'smc_stale.h: read by a compiler'):
-            ii.refuse_compiler_read(rows)
+            ii.refuse_compiler_read(rows, cleared=ADDED_SINCE_RECORD)
 
     def test_the_seal_program_stays_design_though_the_suite_lists_it(self):
         # Case D2: yosys_netlist.py is a suite source and the seal's Yosys program.
         rows = classification()
         self.assertTrue(next(row for row in rows if row['path'] == 'scripts/yosys_netlist.py')['generator_code'])
         with self.assertRaisesRegex(ValueError, 'yosys_netlist.py: generates compiler input'):
-            ii.refuse_compiler_read(rows, ii.EVIDENCE_INPUTS | {'scripts/yosys_netlist.py'})
+            ii.refuse_compiler_read(rows, ii.EVIDENCE_INPUTS | {'scripts/yosys_netlist.py'}, cleared=ADDED_SINCE_RECORD)
         self.assertEqual(ii.input_role('scripts/yosys_netlist.py', ii.DESIGN_V2), 'design')
 
     def test_python_members_never_run_in_the_seal_process(self):

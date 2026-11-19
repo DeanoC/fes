@@ -114,7 +114,8 @@ FIRMWARE_GENERATOR_INPUTS = frozenset({
 _HEX64 = frozenset('0123456789abcdef')
 
 
-def refuse_compiler_read(rows, evidence=EVIDENCE_INPUTS, firmware_generator=FIRMWARE_GENERATOR_INPUTS):
+def refuse_compiler_read(rows, evidence=EVIDENCE_INPUTS, firmware_generator=FIRMWARE_GENERATOR_INPUTS,
+                         cleared=frozenset()):
     """Check the design-v2 sets against a measured classification of a build record.
 
     `rows` are the rows of a classification such as #1984's classification.json:
@@ -123,9 +124,11 @@ def refuse_compiler_read(rows, evidence=EVIDENCE_INPUTS, firmware_generator=FIRM
     QSF (`inlined_in_qsf`). A file a compiler reads supplies design bytes, so it
     may take neither role. Evidence must also not run while the compiler input
     is generated (`generator_code`); the firmware recipe does, and is bound by
-    its pinned output instead.
+    its pinned output instead. A member with no row was never measured and is
+    refused unless the caller has `cleared` it by a live check of its own.
     """
-    refused = []
+    refused = [f'{path}: not in the classification'
+               for path in sorted((evidence | firmware_generator) - {row['path'] for row in rows} - set(cleared))]
     for row in rows:
         path = row['path']
         if path not in evidence and path not in firmware_generator:
