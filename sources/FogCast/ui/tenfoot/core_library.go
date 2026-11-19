@@ -198,7 +198,18 @@ func (a *App) coreLibraryAsyncLocked(work func(context.Context) error, done func
 	if parent == nil {
 		parent = context.Background()
 	}
-	ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
+	budget := 2 * time.Minute
+	if s.PickID == "media:"+protocol.HardDiskRole && s.Setup != nil {
+		for _, cap := range s.Setup.Capabilities.Media {
+			if cap.Role == protocol.HardDiskRole {
+				// A host drive streams into the launcher before the upload
+				// completes. Cover both bounded transfers and selection.
+				budget = 2 * hostclient.HardDiskImportBudget(protocol.AtaDiskMaxBytes)
+				break
+			}
+		}
+	}
+	ctx, cancel := context.WithTimeout(parent, budget)
 	s.Cancel = cancel
 	go func() {
 		defer cancel()
@@ -552,14 +563,19 @@ func (a *App) importCoreLibraryFileLocked(path string) {
 			max = m.MaxBytes
 		}
 	}
-	if max < 1 || max > 32<<20 {
+	role := strings.TrimPrefix(pick, "media:")
+	limit := storage.MaxFileBytes
+	if pick == "media:"+protocol.HardDiskRole {
+		limit = protocol.AtaDiskMaxBytes
+	}
+	if max < 1 || max > limit {
 		s.Status = "Unsupported media requirement"
 		return
 	}
 	manager := a.driveManagerLocked()
 	var media hostclient.CoreMedia
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
-		f, size, name, err := openPickerFile(ctx, manager, a.client, path, storage.MaxFileBytes)
+		f, size, name, err := a.openSetupMediaFile(ctx, manager, path, role)
 		if err != nil {
 			return err
 		}
@@ -574,7 +590,7 @@ func (a *App) importCoreLibraryFileLocked(path string) {
 				}
 			}
 		}
-		media, err = a.client.ImportCoreMedia(ctx, size, f)
+		media, err = a.importSetupMedia(ctx, role, size, f)
 		return err
 	}, func() {
 		if strings.HasPrefix(pick, "rom:") {

@@ -48,6 +48,25 @@ func TestWelcomeOutsideSetupHasNoTracker(t *testing.T) {
 	}
 }
 
+func TestWelcomeDrawsAllSixFamiliesWithoutTileKeyboards(t *testing.T) {
+	r := newRoom(t, examplePack(t, "example.welcome"), Options{Setup: Setup{Step: 1, Steps: 2}})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(r.Close)
+	f := stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Welcome to FES") })
+	text := frameText(f)
+	for _, want := range []string{"Sinclair ZX81\n", "ZX Spectrum\n", "Atari ST\n", "Commodore 64\n", "PC/XT\n", "PC 386\n", "In development\n"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("Welcome is missing %q:\n%s", want, text)
+		}
+	}
+	if got := len(f.Ops); got > 64 {
+		t.Fatalf("six-family Welcome draw has %d ops; simplified intro marks should stay under 64", got)
+	}
+	t.Logf("six-family Welcome draw: %d ops", len(f.Ops))
+}
+
 func TestReadyListsFamiliesAndPublishesFinishAndBack(t *testing.T) {
 	svc := &homeServices{fakeServices: fakeServices{games: []hostclient.Game{
 		machineEntry("zx81", "fes.zx81", ""), titleEntry("zx81-a", "fes.zx81"),

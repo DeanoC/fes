@@ -13,6 +13,8 @@ local rows = {
   {id="fes.pentagon", label="Pentagon 128", mark="128", model="Pentagon", media="Tape, snapshot or disk", disk="Disk .trd", cassette="Tape or snapshot", hint="Disk .trd; tape .tzx / .tap / .pzx / .csw"},
   {id="fes.apple2", label="Apple II", mark="APPLE II", media="Disk .dsk / .do", hint="Drive  ·  Disk II  ·  unit 0"},
   {id="fes.atari-st", label="Atari ST", mark="ST", model="520ST", media="Disk .st", hint="Drive A  ·  writable raw .st disk"},
+  {id="fes.pcxt-dos", label="PC/XT", mark="XT", model="8088", media="Disk .img", hint="Drive A  ·  360 KiB floppy image"},
+  {id="fes.pc386", label="PC 386", mark="386", model="386", media="Hard disk .img", hint="In development  ·  choose a machine setup and hard disk image"},
   {id="fes.coleco", label="ColecoVision", mark="COLECO", media="Linked cartridge", hint="Select the cartridge ROM in system setup."},
   {id="fes.sms", label="Sega Master System", mark="SMS", media="Linked cartridge", hint="Select the cartridge ROM in system setup."},
   {id="fes.sg1000", label="Sega SG-1000", mark="SG-1000", media="Linked cartridge", hint="Select the cartridge ROM in system setup."},
@@ -32,7 +34,7 @@ local groups = {
   ["fes.spectrum-plus3"] = {id="spectrum", label="ZX Spectrum"},
   ["fes.pentagon"] = {id="spectrum", label="ZX Spectrum"},
 }
--- Cores outside the v1 release are left out unless the launcher shows all
+-- Held-back cores are left out unless the launcher shows all
 -- cores (room.core_shown).
 local shown, by_id, ids, families, family_by_core, by_family = {}, {}, {}, {}, {}, {}
 for _, row in ipairs(rows) do

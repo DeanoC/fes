@@ -237,7 +237,7 @@ func (a *App) openFirmwareCardLocked(action rooms.Action) {
 		content, ok := firmwareCardCopy(label, action.CoreID, models, bundled, action.FirstUse)
 		if !ok {
 			if !action.FirstUse {
-				a.status = label + " needs no firmware."
+				a.status = label + " has no separate firmware to add."
 			}
 			return
 		}
