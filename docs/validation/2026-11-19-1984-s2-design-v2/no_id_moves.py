@@ -5,11 +5,13 @@ Two trees, A (the base) and B (the S2 head). Each tree is measured in its own
 interpreter, so each side runs its own scripts/input_identity.py and its own
 producers:
 
-  every support-matrix producer  design_identity.py (the #1861 record's tool)
-        closes the producer's own source roots and keeps the design-role files.
-        Then this tree's own input_identity.with_identities computes a design-v1
-        design identity over that closure. Identical closures computed by an
-        identical identity function give identical IDs for any parameters.
+  every support-matrix row  design_identity.py (the #1861 record's tool)
+        closes the row's producer's own source roots, and this tree's own
+        input_identity.with_identities computes a design-v1 identity over that
+        closure with empty parameters. This is a closure-level stand-in, not
+        the row's BUILD_ID: it shows the design-role closure and the identity
+        function are unchanged. The parameters a producer records are computed
+        by its own code, which is in that closure.
   pc386 (fes.pc386)  the registered producer's own create_build_record, run
         selection-only with no tool, and its record's design identity: the
         BUILD_ID a seal of that tree would carry.
@@ -98,7 +100,7 @@ def main() -> int:
     args = parser.parse_args()
     a, b = probe(args.tree_a.resolve()), probe(args.tree_b.resolve())
     print(f"tree A {a['revision']}\ntree B {b['revision']}\n")
-    print(f"{'core':22} {'files':>5}  {'v1 design id, A':34} {'v1 design id, B':34} verdict")
+    print(f"{'row':22} {'files':>5}  {'closure v1 id, A':34} {'closure v1 id, B':34} verdict")
     bad = []
     for core in sorted(set(a['cores']) | set(b['cores'])):
         ra, rb = a['cores'].get(core), b['cores'].get(core)
@@ -132,7 +134,8 @@ def main() -> int:
           f"{'validates on both, same' if same else 'MOVED or fails validation'}")
     if not same:
         bad.append('sealed #1951 record')
-    print(f"\n{'NO BUILD_ID MOVED' if not bad else 'MOVED OR UNANSWERED: ' + ', '.join(bad)}")
+    print('\n' + ('NOTHING MOVED: every closure-level row, the pc386 BUILD_ID and the sealed record'
+                  if not bad else 'MOVED OR UNANSWERED: ' + ', '.join(bad)))
     if args.json:
         args.json.write_text(json.dumps({'tree_a': a, 'tree_b': b, 'moved_or_unanswered': bad},
                                         indent=1, sort_keys=True) + '\n')

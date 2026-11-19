@@ -1,7 +1,7 @@
 tree A a14663bd9f6bfdd4d9024d7c6a0b8f0f843e937a
-tree B df3f26ccca346fb6c05935577a8de58280576e7b
+tree B 6651d800aeb588cc2e0da00ae8fe21683b8cd911
 
-core                   files  v1 design id, A                    v1 design id, B                    verdict
+row                    files  closure v1 id, A                   closure v1 id, B                   verdict
 fes.apple2                39  bc5979f38e6339c46873f2b3cfdc4445   bc5979f38e6339c46873f2b3cfdc4445   same
 fes.atari-st              59  95cf73c32fd592b0d2f962ad946ba9b1   95cf73c32fd592b0d2f962ad946ba9b1   same
 fes.c64                   90  38844aa924b748eee08be30ac4de442b   38844aa924b748eee08be30ac4de442b   same
@@ -27,4 +27,4 @@ splash                    11  54a402f03583b60d34b5435b2e8413b6   54a402f03583b60
 fes.pc386 producer     design-v1  611961f7042912d5a33492174ac624a8   611961f7042912d5a33492174ac624a8   same (create_build_record, selection-only)
 sealed #1951 record           bb7369101d3a5a15d832f58af59c7123   bb7369101d3a5a15d832f58af59c7123   validates on both, same
 
-NO BUILD_ID MOVED
+NOTHING MOVED: every closure-level row, the pc386 BUILD_ID and the sealed record
