@@ -214,6 +214,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import functools
+import hashlib
 import json
 import math
 import os
@@ -1228,6 +1229,11 @@ def run_scroll(args, linked: list[Path]) -> dict:
     """SCROLLT.COM at the FreeDOS prompt: INT 10h AH=00h keeps the caller's registers, and AH=07h
     from row 0 returns in each graphics memory model."""
     images = firmware.images(args.download, args.jobs)
+    # The pc386 seal reads the ROM hex these images make and checks it against
+    # firmware.lock's pin (#1984 S1); writing it here confirms that pin on every
+    # host that runs this suite, CI's runners included.
+    rom = firmware.write_rom_hex(images)
+    print(f'ROM hex {rom.name} {hashlib.sha256(rom.read_bytes()).hexdigest()} matches firmware.lock', flush=True)
     testbench = machine_testbench(args, linked)
     suite = 'scroll' + ('-rtl' if args.cpu == 'rtl' else '')
     disk = fixture_with(args, suite, 'scroll_test.asm', 'SCROLLT.COM')

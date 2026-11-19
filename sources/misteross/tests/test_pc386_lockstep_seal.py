@@ -60,7 +60,10 @@ with (root/'events').open('a') as f: f.write('seal\\n')
                                         package_output=Path('/packages')), 0)
         suite = json.loads((self.root/'suite-args.json').read_text())
         seal = json.loads((self.root/'seal-args.json').read_text())
-        self.assertFalse((self.root/'firmware-args.json').exists())
+        # The seal checks the ROM hex but never writes it, so the manual lane
+        # runs the firmware recipe first too (#1984 S1).
+        self.assertEqual(json.loads((self.root/'firmware-args.json').read_text()), ['--jobs', '2'])
+        self.assertEqual((self.root/'events').read_text().splitlines(), ['firmware', 'suite', 'seal'])
         self.assertEqual(suite, ['--netlist', '--cache-root', '/cache', '--gpu-router', 'CUDA'])
         self.assertEqual(seal, ['--root', str(self.root), '--lockstep-report',
             str(self.root/'build/sim/fes-i386-lockstep/report.json'), '--cache-root', '/cache',
@@ -193,6 +196,7 @@ def main():
                 (self.root/'scripts').mkdir()
                 (self.root/'scripts/test_fes_i386_lockstep.py').write_bytes(self.runner.read_bytes())
                 (self.root/'scripts/build_fes_pc386_quartus.py').write_bytes(self.sealer.read_bytes())
+                (self.root/'scripts/build_pc386_firmware.py').write_bytes(self.firmware.read_bytes())
                 (self.root/'mode').write_text(mode)
                 if mode == 'fail': self.assertEqual(self.run_build(), 7)
                 else:

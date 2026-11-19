@@ -56,6 +56,7 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import build_fes_pc386_quartus as sealer
+from scripts import build_pc386_firmware as firmware
 from scripts import yosys_netlist
 from scripts.quartus_tools import load_quartus_lock, locate_quartus
 
@@ -366,7 +367,8 @@ def overlay_identity(text: str) -> str:
 
 def machine(args, tools: dict, output: Path) -> tuple[Path, str]:
     project = sealer.write_project(ROOT, output, '0' * 32, args.seed)
-    sealer.firmware_rom(ROOT)
+    firmware.write_rom_hex(firmware.images())
+    sealer.check_rom(ROOT)
     sources = list(sealer.MACHINE_SOURCES)
     if args.identity_on:
         overlay = output / 'overlay' / SYSTEM.name

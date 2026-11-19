@@ -17,8 +17,13 @@ keeps its upstream hash beside its own. The build fetches dev86 (`bcc`,
 from the mirror archive `firmware.lock` pins by SHA-256 (a shallow repository
 of that one commit, so git still checks the commit itself), preprocesses with the host gcc as the upstream makefiles do,
 and checks both images against [`firmware.lock`](firmware.lock), which also
-fixes the build-date strings so the images are reproducible. `--update-lock`
-records new digests after a deliberate change.
+fixes the build-date strings so the images are reproducible. The lock pins the
+SHA-256 of `pc386-rom.hex` too (`rom_hex`), and the script never writes a ROM
+hex that differs from it. The pc386 seal does not run this script's code: it
+checks the ROM hex the script wrote, at the path `pc386_system.sv` reads,
+against that pin before and after Yosys elaborates the machine (#1984).
+`--update-lock` records new digests, the ROM hex's included, after a
+deliberate change.
 
 ```sh
 python3 scripts/build_pc386_firmware.py --download
