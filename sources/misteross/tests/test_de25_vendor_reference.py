@@ -68,11 +68,13 @@ class VendorReferenceTests(unittest.TestCase):
             self.assertFalse(result['hardware_acceptance'])
 
     def test_standard_computer_selects_the_same_checked_board_clock_shell(self):
-        result=reference.validate_project(self.project,self.expected,'fes.zx81',standard_core=True)
-        self.assertEqual(len(result['pins']),37)
-        self.assertFalse(result['hardware_acceptance'])
-        with self.assertRaises(reference.BuildError):
-            reference.validate_project(self.project,self.expected,'fes.menu',standard_core=True)
+        for core in ('fes.zx81', 'fes.spectrum128'):
+            result=reference.validate_project(self.project,self.expected,core,standard_core=True)
+            self.assertEqual(len(result['pins']),37)
+            self.assertFalse(result['hardware_acceptance'])
+        for core in ('fes.menu', 'fes.spectrum128-other'):
+            with self.assertRaises(reference.BuildError):
+                reference.validate_project(self.project,self.expected,core,standard_core=True)
 
     def test_the_selected_core_must_compile_the_checked_pll(self):
         qsf = self.project / 'golden_top.qsf'
