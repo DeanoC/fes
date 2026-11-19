@@ -47,8 +47,11 @@ sha = common.sha
 class Machine:
     """One machine: its board spec, its package identity and its own interfaces."""
 
-    def __init__(self, *, recipe, directory, core_id, name, version, descriptions, interfaces):
-        self.recipe, self.directory, self.core_id = recipe, directory, core_id
+    def __init__(self, *, recipe, directory, core_id, rom_id, name, version, descriptions, interfaces,
+                 model_core_ids=None, model_rom_ids=None):
+        self.recipe, self.directory, self.core_id, self.rom_id = recipe, directory, core_id, rom_id
+        self.model_core_ids = dict(model_core_ids or {})
+        self.model_rom_ids = dict(model_rom_ids or {})
         self.name, self.version, self.descriptions = name, version, descriptions
         self.interfaces = interfaces
         self.label = 'DE25 ' + name
@@ -67,6 +70,12 @@ class Machine:
         if model not in spec.MODELS or model not in self.descriptions:
             raise BuildError(self.label + ' has no model ' + str(model))
         return model
+
+    def core_id_for(self, model):
+        return self.model_core_ids.get(model, self.core_id)
+
+    def rom_id_for(self, model):
+        return self.model_rom_ids.get(model, self.rom_id)
 
     def require_clean_source(self, root):
         return require_clean_source(Path(root), identity_version=2, pinned_inputs=(self.recipe, ABI))
@@ -92,7 +101,8 @@ class Machine:
             'source_path': root.relative_to(top).as_posix(), 'source_roots': roots, 'source_inputs': closure,
             'recipe': self.recipe, 'recipe_sha256': sha(root / self.recipe), 'abi_definition': ABI,
             'abi_definition_sha256': sha(root / ABI), 'dependencies': {}, 'tools': dict(identities),
-            'parameters': {'core_id': self.core_id, 'model': model, 'device': DEVICE,
+            'parameters': {'core_id': self.core_id_for(model), 'rom_id': self.rom_id_for(model),
+                'model': model, 'device': DEVICE,
                 'hps_initialization': 'HPS FIRST', 'source_closure_policy': common.SOURCE_POLICY,
                 'f2sdram_master_profile': 'scanout-only', 'fabric_initiator_policy': common.MANAGED_FABRIC,
                 'programming_profile': 'de25-linux-computer-v1', 'standard_core': True, 'linux_dma': True,
@@ -117,7 +127,7 @@ class Machine:
         """The format-2 manifest; the exporter adds the ROM requirement and makes it format 3."""
         fields = json.loads(record)
         return encode_manifest({'format': 2,
-            'core': {'id': self.core_id, 'name': self.name, 'version': self.version,
+            'core': {'id': fields['parameters']['core_id'], 'name': self.name, 'version': self.version,
                      'description': self.descriptions[fields['parameters']['model']]},
             'target': {'platform': 'de25_nano', 'device': DEVICE, 'programming_profile': 'de25-linux-computer-v1'},
             'payload': {'file': 'core.rbf', 'size': payload.stat().st_size, 'sha256': sha(payload)},
@@ -212,7 +222,8 @@ class Machine:
             (output / 'manifest.toml').write_bytes(encoded)
             (output / 'rom-map.json').write_bytes(self.rom_map(record, output / 'core.rbf'))
             return export_package(encoded, output / 'core.rbf', Path(package_output or root / 'build/packages'),
-                                  rom_map=output / 'rom-map.json', rom_id='machine-rom', rom_role='firmware')
+                                  rom_map=output / 'rom-map.json',
+                                  rom_id=json.loads(record)['parameters']['rom_id'], rom_role='firmware')
 
     def main(self, description, argv=None):
         parser = argparse.ArgumentParser(description=description)

@@ -16,7 +16,8 @@ from boards.de25nano.producers.build_menu_package import execution_environment, 
 
 RECIPE = 'boards/de25nano/producers/build_atari_st_package.py'
 MACHINE = Machine(
-    recipe=RECIPE, directory='atari-st', core_id='fes.atari-st', name='Atari 520ST', version='1.0.0',
+    recipe=RECIPE, directory='atari-st', core_id='fes.atari-st', rom_id='atari-st-firmware',
+    name='Atari 520ST', version='1.0.0',
     descriptions={
         '520st': 'Standard DE25 Atari 520ST with uploaded 192 KiB firmware, board SDRAM, '
                  'a writable variable-geometry floppy and a relative mouse'},

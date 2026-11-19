@@ -27,9 +27,9 @@ SHELL = {'fes.video.fixed-720p60', 'fes.keyboard.hid', 'fes.gamepad.ports', 'fes
          'fes.video.session-display', 'fes.fabric.video.display-plane', 'fes.fabric.de25-scanout',
          'fes.fabric.firmware-upload'}
 CASES = (
-    (spectrum, '48', 16384, {'fes.media.spectrum-tape'}),
-    (spectrum, '128', 32768, {'fes.media.spectrum-tape'}),
-    (atari_st, '520st', 196608, {'fes.mouse.relative', 'fes.media.atari-st-floppy',
+    (spectrum, '48', 16384, 'fes.spectrum', 'spectrum-firmware', {'fes.media.spectrum-tape'}),
+    (spectrum, '128', 32768, 'fes.spectrum128', 'spectrum128-firmware', {'fes.media.spectrum-tape'}),
+    (atari_st, '520st', 196608, 'fes.atari-st', 'atari-st-firmware', {'fes.mouse.relative', 'fes.media.atari-st-floppy',
                                  'fes.media.atari-st-floppy-write', 'fes.media.atari-st-floppy-geometry'}),
 )
 
@@ -77,11 +77,12 @@ class MachineProducerTests(unittest.TestCase):
 
     def test_record_binds_machine_model_memory_and_firmware_delivery(self):
         identities = set()
-        for producer, model, size, _ in CASES:
+        for producer, model, size, core_id, rom_id, _ in CASES:
             with self.subTest(core=producer.MACHINE.core_id, model=model):
                 record = self.record(producer, model)
                 parameters = verify_record_source_at_revision(self.root, record)['parameters']
-                self.assertEqual(parameters['core_id'], producer.MACHINE.core_id)
+                self.assertEqual(parameters['core_id'], core_id)
+                self.assertEqual(parameters['rom_id'], rom_id)
                 self.assertEqual((parameters['model'], parameters['firmware_bytes']), (model, size))
                 self.assertEqual(parameters['firmware_delivery'], 'gp-firmware-upload-v1')
                 self.assertEqual(parameters['guest_memory'], 'board-sdram')
@@ -105,12 +106,12 @@ class MachineProducerTests(unittest.TestCase):
         payload = self.root / 'core.rbf'
         payload.write_bytes(b'unqualified payload fixture')
         self.addCleanup(payload.unlink)
-        for producer, model, size, media in CASES:
+        for producer, model, size, core_id, rom_id, media in CASES:
             with self.subTest(core=producer.MACHINE.core_id, model=model):
                 record = self.record(producer, model)
                 manifest = tomllib.loads(producer.manifest(record, payload).decode())
                 self.assertEqual(manifest['format'], 2)
-                self.assertEqual(manifest['core']['id'], producer.MACHINE.core_id)
+                self.assertEqual(manifest['core']['id'], core_id)
                 self.assertEqual(manifest['target'], {'platform': 'de25_nano', 'device': shared.DEVICE,
                                                       'programming_profile': 'de25-linux-computer-v1'})
                 self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 0})
@@ -122,6 +123,7 @@ class MachineProducerTests(unittest.TestCase):
                 if producer is spectrum:
                     self.assertEqual(versions['fes.media.spectrum-tape'], (2, 0))
                 self.assertEqual(manifest['build']['id'], build_identity(record))
+                self.assertEqual(producer.MACHINE.rom_id_for(model), rom_id)
                 mapping = json.loads(producer.MACHINE.rom_map(record, payload))
                 self.assertEqual(mapping, {'format': 1, 'device': shared.DEVICE,
                                            'encoding': 'gp-firmware-upload-v1',
@@ -154,10 +156,10 @@ class MachineProducerTests(unittest.TestCase):
         mapping = work / 'rom-map.json'
         mapping.write_bytes(atari_st.MACHINE.rom_map(record, payload))
         directory = export_package(manifest, payload, store, rom_map=mapping,
-                                   rom_id='machine-rom', rom_role='firmware')
+                                   rom_id=atari_st.MACHINE.rom_id, rom_role='firmware')
         package = read_package(directory)
         self.assertEqual(package.fields['format'], 3)
-        self.assertEqual(package.fields['rom'], {'id': 'machine-rom', 'role': 'firmware', 'source_size': 196608,
+        self.assertEqual(package.fields['rom'], {'id': 'atari-st-firmware', 'role': 'firmware', 'source_size': 196608,
             'file': 'rom-map.json', 'size': len(mapping.read_bytes()),
             'sha256': package.fields['rom']['sha256']})
         self.assertEqual(package.rom_map_bytes, mapping.read_bytes())

@@ -16,11 +16,13 @@ from boards.de25nano.producers.build_menu_package import execution_environment, 
 
 RECIPE = 'boards/de25nano/producers/build_spectrum_package.py'
 MACHINE = Machine(
-    recipe=RECIPE, directory='spectrum', core_id='fes.spectrum', name='ZX Spectrum', version='1.0.0',
+    recipe=RECIPE, directory='spectrum', core_id='fes.spectrum', rom_id='spectrum-firmware',
+    name='ZX Spectrum', version='1.0.0',
     descriptions={
         '48': 'Standard DE25 ZX Spectrum 48K with uploaded firmware, board SDRAM and a PZX cassette',
         '128': 'Standard DE25 ZX Spectrum 128K with uploaded firmware, board SDRAM and a PZX cassette'},
-    interfaces=(('fes.media.spectrum-tape', 2, 0),))
+    interfaces=(('fes.media.spectrum-tape', 2, 0),),
+    model_core_ids={'128': 'fes.spectrum128'}, model_rom_ids={'128': 'spectrum128-firmware'})
 
 
 def _require_clean_source(root, *, identity_version=2, pinned_inputs=(RECIPE, ABI)):
