@@ -73,6 +73,7 @@ local observed_session = session.state()
 local library_generation = 0
 local library_error = ""
 local library_loaded = false
+local library_more = false
 -- The picture is kept in three parts, each a list of paint rows with its
 -- controls: the header and model row, the computer panel, and the drive and
 -- games. A part is rebuilt only when what it shows changed, and one draw
@@ -537,6 +538,8 @@ local function left_buttons()
   if running_game() then
     out[#out + 1] = {id = "stop", label = "Stop the " .. name, enabled = true, fn = function() if live then session.stop(live) end end}
     out[#out + 1] = {id = "start", label = "Return to play", enabled = true, filled = true, fn = function() session.resume() end}
+  elseif library_more and #games == 0 then
+    out[#out + 1] = {id = "start", label = "List incomplete", enabled = false}
   elseif #games == 0 then
     out[#out + 1] = {id = "start", label = "Set up the " .. name, enabled = idle and library_loaded, filled = true, fn = function()
       hardware.setup({core_id = selected_core})
@@ -649,6 +652,9 @@ local function right_column()
   elseif message ~= "" then
     y = note(message, x, y, w) + 10
   end
+  if library_more then
+    y = note("More than 2,000 family entries; some games may be hidden.", x, y, w) + 10
+  end
   text(live_here and "In the drive now" or "Drives", x, y, 19, C.ink, w, true)
   text(spec().media, x, y + 2, 16, C.muted, w, false, "right")
   y = y + text_height(19, true) + 6
@@ -674,6 +680,9 @@ local function right_column()
 
   local titles = title_count()
   local count = titles == 1 and "1 in your library" or (titles .. " in your library")
+  if library_more then
+    count = titles == 0 and "Count incomplete" or ("At least " .. titles .. " in your library")
+  end
   text("Games for the " .. model_name(spec()), x, y, 19, C.ink, w, true)
   text(library_loaded and count or "Reading your library…", x, y + 2, 16, C.muted, w, false, "right")
   y = y + text_height(19, true) + 6
@@ -682,7 +691,8 @@ local function right_column()
   keep_visible()
   if #games == 0 then
     local line = library_error ~= "" and library_error or
-      (library_loaded and ("No " .. model_name(spec()) .. " games yet. Set it up to add one.") or "")
+      (library_loaded and (library_more and "The library list is incomplete; this model may have more games." or
+        ("No " .. model_name(spec()) .. " games yet. Set it up to add one.")) or "")
     text(line, x, y + 8, 17, C.muted, w)
     return
   end
@@ -823,15 +833,17 @@ function load()
   for _, variant in ipairs(family().variants) do ids[#ids + 1] = variant.id end
   -- home_family asks for machine entries and titles separately, so each row
   -- carries core_entry_kind; an ordinary query leaves it empty.
-  library.query({platform = "fpga", core_ids = ids, sort = "title", limit = 2000, home_family = true}, function(found, err)
+  library.query({platform = "fpga", core_ids = ids, sort = "title", limit = 2000, home_family = true}, function(found, err, _, more)
     if generation ~= library_generation then return end
     library_loaded = true
     if err then
+      library_more = false
       library_error = err
       message = err
       place({})
       return
     end
+    library_more = more == true
     library_error, message = "", ""
     local prepared = {}
     for _, g in ipairs(found or {}) do
