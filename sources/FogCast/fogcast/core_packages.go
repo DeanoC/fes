@@ -357,6 +357,11 @@ func (s *Service) RemoveCoreEntry(ctx context.Context, gameID string) error {
 		return err
 	}
 	defer release()
+	return s.removeCoreEntryLocked(ctx, store, gameID)
+}
+
+// Caller holds lifecycle admission.
+func (s *Service) removeCoreEntryLocked(ctx context.Context, store removableCoreEntryCatalog, gameID string) error {
 	if _, err := store.CoreEntry(ctx, gameID); err != nil {
 		if !errors.Is(err, catalog.ErrCoreEntryNotFound) {
 			return mapCoreEntryError(err)
@@ -384,7 +389,7 @@ func (s *Service) RemoveCoreEntry(ctx context.Context, gameID string) error {
 	if err := s.checkRemovalTargets(ctx, gameID); err != nil {
 		return err
 	}
-	err = s.users.MutateGame(ctx, func(m *libraryuser.GameMutation) error {
+	err := s.users.MutateGame(ctx, func(m *libraryuser.GameMutation) error {
 		if err := store.RemoveCoreEntry(ctx, gameID); err != nil {
 			return mapCoreEntryError(err)
 		}
@@ -462,6 +467,11 @@ func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected
 		return catalog.CoreEntry{}, err
 	}
 	defer release()
+	return s.writeCoreEntryLocked(ctx, gameID, title, expected, id, role, mediaID, firmwareRequired, kit)
+}
+
+// Caller holds lifecycle admission.
+func (s *Service) writeCoreEntryLocked(ctx context.Context, gameID, title, expected, id, role, mediaID string, firmwareRequired bool, kit *catalog.KitHostEntryIdentity) (catalog.CoreEntry, error) {
 	store, ok := s.catalog.(coreEntryCatalog)
 	if !ok {
 		return catalog.CoreEntry{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
