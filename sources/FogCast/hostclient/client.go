@@ -27,8 +27,9 @@ const (
 	launchHTTPTimeout  = 60 * time.Second
 	stopHTTPTimeout    = 60 * time.Second
 	videoHTTPTimeout   = 120 * time.Second
-	// libraryOperationTimeout bounds a library change the host writes on a
-	// kit's own storage. A new ST shelf disk took 27 s on Kit B.
+	// libraryOperationTimeout bounds a library change, which can take far
+	// longer than an ordinary request: a new ST shelf disk took 27 s on
+	// Kit B's own host.
 	libraryOperationTimeout = 120 * time.Second
 )
 
