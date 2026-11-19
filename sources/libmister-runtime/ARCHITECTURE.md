@@ -559,10 +559,12 @@ no standard DE25 hardware acceptance.
 The standard contract is a per-core table. Every machine declares the shell
 (video, HID, controller ports, PCM, session display, the display plane and
 scanout1.3) and exactly its own media: the ZX81 cassette and SAVE; the
-Spectrum's `fes.media.spectrum-tape` 2.0; the Atari ST's relative mouse and
-floppy with write and geometry. The Spectrum and Atari ST also require
-`fes.fabric.firmware-upload` 1.0 and are format 3 with a sealed firmware
-requirement of their endpoint's image size. `NativeHardware::capabilities()`
+Spectrum 48K and 128K `fes.media.spectrum-tape` 2.0; the Atari ST's relative
+mouse and floppy with write and geometry. Both Spectrum IDs and Atari ST also
+require `fes.fabric.firmware-upload` 1.0 and are format 3 with a sealed
+firmware requirement of their endpoint's image size (`fes.spectrum` accepts
+16384 or 32768 bytes, `fes.spectrum128` 32768, and Atari ST 196608).
+`NativeHardware::capabilities()`
 lists the union. Lost-process recovery asks the same table which guard a
 retained machine needs: the ZX81 SAVE check, the same unit-0 snapshot check
 for the Atari ST floppy (a dirty disk blocks retirement, as a dirty SAVE

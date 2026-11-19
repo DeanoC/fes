@@ -90,7 +90,7 @@ func TestFirmwareUploadStagesTheSourceBesideTheUnchangedPackage(t *testing.T) {
 	for _, machine := range []struct {
 		core string
 		size int
-	}{{"fes.spectrum", 16384}, {"fes.spectrum", 32768}, {"fes.atari-st", 196608}} {
+	}{{"fes.spectrum", 16384}, {"fes.spectrum", 32768}, {"fes.spectrum128", 32768}, {"fes.atari-st", 196608}} {
 		t.Run(fmt.Sprint(machine.core, "-", machine.size), func(t *testing.T) {
 			pkg, rom := de25UploadPackage(t, machine.core, machine.size), firmwareImage(machine.size)
 			in := ROMInput{Package: pkg, ROM: rom}
@@ -189,20 +189,21 @@ func TestFirmwareUploadRefusesOtherMachinesSizesAndCycloneVInputs(t *testing.T) 
 	}
 	spectrum := de25UploadPackage(t, "fes.spectrum", 16384)
 	for name, in := range map[string]ROMInput{
-		"short ROM":                {Package: spectrum, ROM: firmwareImage(16384 - 1024)},
-		"long ROM":                 {Package: spectrum, ROM: firmwareImage(32768)},
-		"ST image on a Spectrum":   {Package: de25UploadPackage(t, "fes.spectrum", 196608), ROM: firmwareImage(196608)},
-		"Spectrum image on an ST":  {Package: de25UploadPackage(t, "fes.atari-st", 16384), ROM: firmwareImage(16384)},
-		"smallest format size":     {Package: de25UploadPackage(t, "fes.spectrum", 1024), ROM: firmwareImage(1024)},
-		"another machine":          {Package: de25UploadPackage(t, "fes.zx81", 16384), ROM: firmwareImage(16384)},
-		"another profile":          {Package: de25UploadPackage(t, "fes.spectrum", 16384, replace(`"de25-linux-computer-v1"`, `"de25-hps-first-v1"`)), ROM: firmwareImage(16384)},
-		"another ABI":              {Package: de25UploadPackage(t, "fes.spectrum", 16384, replace(`id = "fes.computer"`, `id = "fes.application"`)), ROM: firmwareImage(16384)},
-		"expansion":                {Package: spectrum, ROM: firmwareImage(16384), Expansion: &expansion.Asset{}},
-		"slot card":                {Package: spectrum, ROM: firmwareImage(16384), SlotExpansions: []expansion.Asset{{}}},
-		"video part":               {Package: spectrum, ROM: firmwareImage(16384), Parts: []expansion.Asset{{}}},
-		"ST disk on a Spectrum":    {Package: spectrum, ROM: firmwareImage(16384), InitialMedia: &InitialMedia{GameID: "desk", BaseMediaID: romDigest(bytes.Repeat([]byte{0xa5}, InitialMediaBytes)), Bytes: bytes.Repeat([]byte{0xa5}, InitialMediaBytes)}},
-		"missing upload interface": {Package: de25UploadPackage(t, "fes.spectrum", 16384, replace("[[interfaces]]\nid = \"fes.fabric.firmware-upload\"\nmajor = 1\nminor = 0\nrequired = true\n", "")), ROM: firmwareImage(16384)},
-		"held ROM interface":       {Package: de25UploadPackage(t, "fes.spectrum", 16384, replace(`"fes.fabric.firmware-upload"`, `"fes.embedded.rom"`)), ROM: firmwareImage(16384)},
+		"short ROM":                  {Package: spectrum, ROM: firmwareImage(16384 - 1024)},
+		"long ROM":                   {Package: spectrum, ROM: firmwareImage(32768)},
+		"ST image on a Spectrum":     {Package: de25UploadPackage(t, "fes.spectrum", 196608), ROM: firmwareImage(196608)},
+		"48K image on Spectrum 128K": {Package: de25UploadPackage(t, "fes.spectrum128", 16384), ROM: firmwareImage(16384)},
+		"Spectrum image on an ST":    {Package: de25UploadPackage(t, "fes.atari-st", 16384), ROM: firmwareImage(16384)},
+		"smallest format size":       {Package: de25UploadPackage(t, "fes.spectrum", 1024), ROM: firmwareImage(1024)},
+		"another machine":            {Package: de25UploadPackage(t, "fes.zx81", 16384), ROM: firmwareImage(16384)},
+		"another profile":            {Package: de25UploadPackage(t, "fes.spectrum", 16384, replace(`"de25-linux-computer-v1"`, `"de25-hps-first-v1"`)), ROM: firmwareImage(16384)},
+		"another ABI":                {Package: de25UploadPackage(t, "fes.spectrum", 16384, replace(`id = "fes.computer"`, `id = "fes.application"`)), ROM: firmwareImage(16384)},
+		"expansion":                  {Package: spectrum, ROM: firmwareImage(16384), Expansion: &expansion.Asset{}},
+		"slot card":                  {Package: spectrum, ROM: firmwareImage(16384), SlotExpansions: []expansion.Asset{{}}},
+		"video part":                 {Package: spectrum, ROM: firmwareImage(16384), Parts: []expansion.Asset{{}}},
+		"ST disk on a Spectrum":      {Package: spectrum, ROM: firmwareImage(16384), InitialMedia: &InitialMedia{GameID: "desk", BaseMediaID: romDigest(bytes.Repeat([]byte{0xa5}, InitialMediaBytes)), Bytes: bytes.Repeat([]byte{0xa5}, InitialMediaBytes)}},
+		"missing upload interface":   {Package: de25UploadPackage(t, "fes.spectrum", 16384, replace("[[interfaces]]\nid = \"fes.fabric.firmware-upload\"\nmajor = 1\nminor = 0\nrequired = true\n", "")), ROM: firmwareImage(16384)},
+		"held ROM interface":         {Package: de25UploadPackage(t, "fes.spectrum", 16384, replace(`"fes.fabric.firmware-upload"`, `"fes.embedded.rom"`)), ROM: firmwareImage(16384)},
 	} {
 		if _, err := PrepareROMInput(ctx, in); err == nil {
 			t.Error("accepted:", name)

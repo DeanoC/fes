@@ -84,7 +84,7 @@ constexpr std::array<De25StandardInterface, 7> kDe25StandardShell = {{
 	{"fes.fabric.video.display-plane", 1, 0},
 	{"fes.fabric.de25-scanout", 1, 3},
 }};
-constexpr std::array<De25StandardCore, 3> kDe25StandardCores = {{
+constexpr std::array<De25StandardCore, 4> kDe25StandardCores = {{
 	{"fes.zx81",
 		{{{generated::FesComputerInterfaceMediaZx81TapeID, 1, 0},
 		  {generated::FesComputerInterfaceMediaZx81TapeWriteID, 1, 0}}},
@@ -95,6 +95,12 @@ constexpr std::array<De25StandardCore, 3> kDe25StandardCores = {{
 			generated::FesComputerInterfaceMediaSpectrumTapeMinor},
 		  {kFirmwareUploadInterfaceID, 1, 0}}},
 		{{16384, 32768}}, nullptr},
+	{"fes.spectrum128",
+		{{{generated::FesComputerInterfaceMediaSpectrumTapeID,
+			generated::FesComputerInterfaceMediaSpectrumTapeMajor,
+			generated::FesComputerInterfaceMediaSpectrumTapeMinor},
+		  {kFirmwareUploadInterfaceID, 1, 0}}},
+		{{32768, 0}}, nullptr},
 	{"fes.atari-st",
 		{{{generated::FesComputerInterfaceMouseRelativeID, 1, 0},
 		  {generated::FesComputerInterfaceMediaAtariStFloppyID, 1, 0},

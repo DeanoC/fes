@@ -55,10 +55,14 @@ func FirmwareUpload(d Descriptor) bool {
 // way, each with its endpoint's exact image sizes. The package format allows
 // any 1 KiB multiple; a launch does not.
 func firmwareUploadMachine(d Descriptor) error {
-	sizes := map[string][]int64{"fes.spectrum": {16384, 32768}, "fes.atari-st": {196608}}[d.Core.ID]
+	sizes := map[string][]int64{
+		"fes.spectrum":    {16384, 32768},
+		"fes.spectrum128": {32768},
+		"fes.atari-st":    {196608},
+	}[d.Core.ID]
 	if !FirmwareUpload(d) || d.Target.ProgrammingProfile != "de25-linux-computer-v1" ||
 		d.ABI != (Contract{ID: "fes.computer", Major: 1}) || !slices.Contains(sizes, d.ROM.SourceSize) {
-		return errors.New("firmware upload requires a DE25 Spectrum or Atari ST computer package and its exact image size")
+		return errors.New("firmware upload requires a DE25 Spectrum-family or Atari ST computer package and its exact image size")
 	}
 	return nil
 }
