@@ -95,7 +95,9 @@ func TestIsLibraryChange(t *testing.T) {
 		{http.MethodPost, "/api/v1/core-media", true},
 		{http.MethodGet, "/api/v1/library/hardware", false},
 		{http.MethodPost, "/api/v1/session/stop", false},
-		{http.MethodPost, "/api/v1/launcher/ui-events", false},
+		{http.MethodPost, "/api/v1/debug/ui-events", false},
+		{http.MethodPost, "/api/v1/session/input/event", false},
+		{http.MethodPost, "/api/v1/session/launch", false},
 	} {
 		req := httptest.NewRequest(c.method, c.path, http.NoBody)
 		if got := isLibraryChange(req); got != c.want {
