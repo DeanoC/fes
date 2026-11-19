@@ -320,6 +320,42 @@
       "one_netlist": true
     }
   },
+  "retention": {
+    "de10": {
+      "arm_b_latch": 0,
+      "arm_c_counts": {
+        "cr0_am": 1,
+        "cr0_cd": 1,
+        "cr0_ne": 1,
+        "cr0_nw": 1,
+        "cr0_wp": 2,
+        "eflags_ac": 1,
+        "eflags_id": 1,
+        "latch": 2,
+        "tr3": 32
+      },
+      "refit_alms": 36430,
+      "reported_seed1_alms": 36430,
+      "two_identity_fit": true
+    },
+    "de25": {
+      "arm_b_latch": 0,
+      "arm_c_counts": {
+        "cr0_am": 1,
+        "cr0_cd": 1,
+        "cr0_ne": 1,
+        "cr0_nw": 1,
+        "cr0_wp": 1,
+        "eflags_ac": 2,
+        "eflags_id": 2,
+        "latch": 2,
+        "tr3": 32
+      },
+      "refit_alms": 35703,
+      "reported_seed1_alms": 35703,
+      "two_identity_fit": true
+    }
+  },
   "synthesis_delta": {
     "de10": {
       "alm_estimate": -37.0,

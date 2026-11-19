@@ -23,6 +23,7 @@ fails when either is stale.
 - **DE10 timing at 61.44 MHz:** arm a closes on 4 of 4 seeds, arm b on 4, arm c on 4; median CPU-clock setup slack +0.482, +0.559 and +0.582 ns, worst +0.338, +0.118 and +0.474 ns. Reading: no timing cost the spike can resolve.
 - **The DE25 (Agilex 5 ALMs, a different unit, not held to the band): 204.5 ALMs** between medians (uncertainty 108); arm b at 35,763.5 (76.42%), at or under 41,184 (88%). Its uncertainty is the seed spread alone (no per-module DE25 fit). Quartus Pro's synthesis, which no seed moves, adds +46 estimated ALMs and +46 registers. Every DE25 fit closes at 61.44 MHz; the worst-corner `clk` Fmax medians are 122.9, 117.1 and 121.7 MHz for arms a, b and c; both clock domains were analysed at every corner in 12 of 12 DE25 fits. Every arm b seed's Fmax is below every arm a seed's, but arm c, the same logic plus the strap, is back near arm a's (121.7 against 122.9 MHz): a placement effect, not the delta's logic depth, by this record's reading.
 - **Arm c, the shipped package if the strap is chosen:** 36,443 ALMs median on the DE10 (86.96%), 16 under arm a; 35,670.5 on the DE25 (76.22%), 111.5 over arm a.
+- **Arm c is a two-identity fit** (method.md's retention check, registers counted in the fitted design): DE10 arm c seed-1 refit (36,430 ALMs, the reported fit's 36,430): cr0_am 1, cr0_cd 1, cr0_ne 1, cr0_nw 1, cr0_wp 2, eflags_ac 1, eflags_id 1, latch 2, tr3 32; arm b's latch count 0; DE25 arm c seed-1 refit (35,703 ALMs, the reported fit's 35,703): cr0_am 1, cr0_cd 1, cr0_ne 1, cr0_nw 1, cr0_wp 1, eflags_ac 2, eflags_id 2, latch 2, tr3 32; arm b's latch count 0.
 - **The strap over the build parameter (arm c minus arm b): 37.5 ALMs on the DE10** (uncertainty 59) **and -93 on the DE25** (uncertainty 108). DE10 reading: **not resolved, timing equal within a seed: the strap costs under 59 ALMs**. DE25 reading: not resolved, timing equal within a seed: the strap costs under 108 ALMs. On the DE10, arm c's synthesis has +1 register and +38 ALUTs over arm b: the strap's latch and its gating; on the DE25, +3 registers and -46 estimated ALMs.
 - **The 486 state is in the fits.** Arm b's netlist has +53 flip-flop bits over arm a's (TR3's 32, CR0's five new bits, and AC and ID in each EFLAGS copy) and arm c's +3 over arm b's; Quartus's synthesis keeps +44 registers of arm b's on the DE10 and +46 on the DE25. Which individual bits it kept was not checked.
 - **Lockstep:** with the identity on, 45 of 48 directed cases agree with the level-4 oracle (the 386 agrees on 6); the 3 that stop are the ones `method.md` names as stops by design. With the identity off, the stops equal slice 0's committed list.
@@ -70,9 +71,15 @@ fails when either is stale.
   the latch and Quartus's removed-registers table does not
   (`fits/de25-c-*/strap.json`). On the DE10 the synthesis report names
   no line with the latch in any arm c fit (`strap_map_lines` in each
-  `summary.json` is empty), so Quartus's removed-registers table does not
-  list it, though whether that table was complete was not recorded; the
-  positive evidence there is arm c's synthesis counts over arm b's, in the
+  `summary.json` is empty), which is an absence, not evidence.
+- **The method's retention check is made in the fitted design.** For arms
+  c and b, seed 1 was fitted again on each board with the same netlist,
+  keeping the databases, and TimeQuest listed every register under the
+  latch's, CR0's, TR3's and EFLAGS's names (`retention/`). The refit's ALMs
+  needed must equal the reported seed-1 fit's, so the evidence is that
+  fit's; arm b, where the strap is folded away, is the control and must
+  have no latch. `generate.py` prints arm c's results only when both boards
+  pass, and withdraws them otherwise. The verdict and counts are in the
   generated block.
 
 ## The spike RTL
@@ -188,6 +195,11 @@ them cost the DE10 a closing seed.
   DE10 fits were running and before any arm c fit; arm a's seeds 1 and 2
   and arm b's seed 1 do not carry it. It reads the synthesis report and changes
   nothing fitted.
+- **The retention check ran late.** The method put it after the first
+  arm c fit; it was made only after review (Codex, on this PR) pointed out
+  that the DE10 evidence was an absence. It ran on seed-1 refits that must
+  reproduce the reported fits' ALMs, and arm c's results are printed only if
+  it passes.
 - **Read after the fits, from retained files:** the DE25 strap check
   (`strap.json`) and synthesis counts (`synthesis.json`), from each fit's
   synthesis report and fitted netlist; and each arm's flip-flop bits

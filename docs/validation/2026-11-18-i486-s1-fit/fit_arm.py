@@ -41,6 +41,38 @@ from pathlib import Path
 ALLOWED = ('sources/misteross/cores/fes-common/rtl/i386/', 'sources/misteross/cores/fes-pc386/rtl/pc386_system.sv')
 LITE_LOCK = Path('/tmp/lander-quartus-lite.lock')
 ENTITY_DEPTH = 8
+# The registers that make arm c a two-identity fit (method.md, "The three arms"): the
+# identity latch and the 486-only state. The fitted design's register names under these
+# globs are listed, and the exact names counted in Python (TimeQuest globs treat [ ] as a
+# class, so a bit select cannot be matched by a glob reliably).
+RETAIN_GLOBS = ('*cpu_decode_i486*', '*cpu_cr0_*', '*cpu_tr3*', '*cpu_eflags*', '*cpu_ex_flags*')
+RETAINED = {'latch': 'cpu_decode_i486', 'cr0_ne': 'cpu_cr0_ne', 'cr0_wp': 'cpu_cr0_wp', 'cr0_am': 'cpu_cr0_am',
+            'cr0_nw': 'cpu_cr0_nw', 'cr0_cd': 'cpu_cr0_cd', 'tr3': 'cpu_tr3[', 'eflags_ac': 'cpu_ex_flags_in[18]',
+            'eflags_id': 'cpu_ex_flags_in[21]'}
+# EX's EFLAGS copy (Yosys names it after EX's flags_in port) is where AC and ID are counted:
+# the committed copy does not keep its own name through Quartus's synthesis.
+RETAIN_TCL = '''project_open {top} -revision {top}
+create_timing_netlist
+set out [open "{out}" w]
+foreach pattern {{{patterns}}} {{
+    foreach_in_collection r [get_registers -nowarn $pattern] {{ puts $out [get_node_info -name $r] }}
+}}
+close $out
+delete_timing_netlist
+project_close
+'''
+
+
+def retention_tcl(top: str, out: str) -> str:
+    return RETAIN_TCL.format(top=top, out=out, patterns=' '.join('{' + p + '}' for p in RETAIN_GLOBS))
+
+
+def read_retention(text: str) -> dict:
+    names = sorted(set(text.split()))
+    counts = {key: sum(1 for n in names if (sub in n if sub.endswith('[') else
+                                             any(n.endswith(sub + tail) or (sub + tail) in n for tail in ('', '~', '|'))))
+              for key, sub in RETAINED.items()}
+    return {'counts': counts, 'names': names}
 
 
 def sha(path: Path) -> str:
@@ -168,6 +200,9 @@ def de10(args) -> int:
             top=top, out='paths.tsv', clock=spike.SYSTEM_CLOCK, x87_paths=''))
         spike.run([str(Path(tools['quartus_root']) / 'bin' / 'quartus_sta'), '-t', 'paths.tcl'], project,
                   args.out / 'paths.log', env)
+        (project / 'retain.tcl').write_text(retention_tcl(top, 'retained.tsv'))
+        spike.run([str(Path(tools['quartus_root']) / 'bin' / 'quartus_sta'), '-t', 'retain.tcl'], project,
+                  args.out / 'retain.log', env)
     finally:
         fcntl.flock(lease, fcntl.LOCK_UN)
         lease.close()
@@ -195,7 +230,8 @@ def de10(args) -> int:
         'compile_minutes': round(minutes, 1), 'closes': closes, 'timing_failure': reason,
         'clocks': spike.multicorner(sta_text), 'corners': corners((built / f'{top}.sta.summary').read_text()),
         'resources': spike.resources(fit_text), 'synthesis': map_resources(map_text),
-        'entities': entities, 'strap_map_lines': strap_lines, 'paths': spike.paths((project / 'paths.tsv').read_text()),
+        'entities': entities, 'strap_map_lines': strap_lines,
+        'retained_registers': read_retention((project / 'retained.tsv').read_text()), 'paths': spike.paths((project / 'paths.tsv').read_text()),
         'created_utc': datetime.now(timezone.utc).isoformat(),
     }
     (args.out / 'summary.json').write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n')
@@ -203,7 +239,8 @@ def de10(args) -> int:
         start = fit_text.find(spike.ENTITY_HEADER)
         end = fit_text.find('\n+', fit_text.find('\n;', start) + 1)
         (args.out / 'entities.rpt').write_text(fit_text[start:end] + '\n')
-    shutil.rmtree(project)
+    if not args.keep:
+        shutil.rmtree(project)
     print(f'de10 arm {summary["arm"]} seed {args.seed}: {summary["resources"]["alms"]["used"]} ALMs, '
           f'closes={closes}, {minutes:.0f} min', flush=True)
     return 0
@@ -219,6 +256,7 @@ def main() -> int:
     two = sub.add_parser('de10')
     two.add_argument('--netlist', type=Path, required=True)
     two.add_argument('--seed', type=int, required=True)
+    two.add_argument('--keep', action='store_true', help="keep the Quartus project and its databases")
     for each in (one, two):
         each.add_argument('--root', type=Path, required=True)
         each.add_argument('--cache-root', type=Path, required=True)

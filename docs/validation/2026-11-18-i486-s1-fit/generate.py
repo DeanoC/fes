@@ -33,6 +33,31 @@ STRAP_SMALL = 150
 CPU_ENTITY = 'fes_i386_cpu'
 
 
+def retention() -> dict:
+    """method.md: arm c is a two-identity fit only if the identity latch and the 486-only registers are in the
+    fitted design. retention/<board>-<arm>.json holds a seed-1 refit's post-fit register counts (TimeQuest
+    get_registers on the fitted design), arm b's as the control, and that refit's ALMs needed, which must equal
+    the reported seed-1 fit's for the evidence to belong to it."""
+    out = {}
+    for path in sorted((HERE / 'retention').glob('*.json')):
+        out[path.stem] = json.loads(path.read_text())
+    return out
+
+
+def retention_verdict(data: dict, ret: dict) -> dict:
+    verdict = {}
+    for board in BOARDS:
+        c, b = ret.get(f'{board}-c'), ret.get(f'{board}-b')
+        seed1 = data['fits'][board]['c'].get(1)
+        ok = (c is not None and b is not None and seed1 is not None
+              and c['alms'] == seed1['alms'] and all(n >= 1 for n in c['registers'].values())
+              and b['registers'].get('latch', 1) == 0)
+        verdict[board] = {'two_identity_fit': ok, 'arm_c_counts': c and c['registers'],
+                          'arm_b_latch': b and b['registers'].get('latch'),
+                          'refit_alms': c and c['alms'], 'reported_seed1_alms': seed1 and seed1['alms']}
+    return verdict
+
+
 def load_fits() -> dict:
     """{board: {arm: {seed: record}}} for the flattened fits; per-module fits apart."""
     fits = {board: {arm: {} for arm in ARMS} for board in BOARDS}
@@ -398,13 +423,15 @@ def result_block(res: dict) -> str:
            f"({pct(c10['median'], DE10_ALMS)}), {against(c10['median'] - a10['median'])} arm a; "
            f"{fmt(c25['median'])} on the DE25 ({pct(c25['median'], DE25_ALMS)}), "
            f"{against(c25['median'] - a25['median'])} arm a.",
+           strap_retention_line(res),
+           *([] if not all(res['retention'][b]['two_identity_fit'] for b in BOARDS) else [
            f"- **The strap over the build parameter (arm c minus arm b): {fmt(st10['delta'])} ALMs on the DE10** "
            f"(uncertainty {fmt(st10['uncertainty'])}) **and {fmt(st25['delta'])} on the DE25** (uncertainty "
            f"{fmt(st25['uncertainty'])}). DE10 reading: **{st10['reading']}**. DE25 reading: {st25['reading']}. "
            f"On the DE10, arm c's synthesis has {int(res['synthesis_delta_strap']['registers']):+,} register and "
            f"{int(res['synthesis_delta_strap']['aluts']):+,} ALUTs over arm b: the strap's latch and its gating; on "
            f"the DE25, {int(res['synthesis_delta_strap_de25']['registers']):+,} registers and "
-           f"{int(res['synthesis_delta_strap_de25']['alm_estimate']):+,} estimated ALMs.",
+           f"{int(res['synthesis_delta_strap_de25']['alm_estimate']):+,} estimated ALMs.",]),
            f"- **The 486 state is in the fits.** Arm b's netlist has {res['netlist_flops']['b'] - res['netlist_flops']['a']:+,} "
            f"flip-flop bits over arm a's (TR3's 32, CR0's five new bits, and AC and ID in each EFLAGS copy) and arm "
            f"c's {res['netlist_flops']['c'] - res['netlist_flops']['b']:+,} over arm b's; Quartus's synthesis keeps "
@@ -439,7 +466,27 @@ def fmax_median(res: dict, arm: str) -> float:
     return res['boards']['de25']['fmax_median'][arm]
 
 
+def strap_retention_line(res: dict) -> str:
+    v = res['retention']
+    parts = []
+    for board in BOARDS:
+        r = v[board]
+        if r['arm_c_counts'] is None:
+            parts.append(f'{board.upper()}: no post-fit query')
+            continue
+        counts = ', '.join(f"{k} {n}" for k, n in r['arm_c_counts'].items())
+        parts.append(f"{board.upper()} arm c seed-1 refit ({fmt(r['refit_alms'])} ALMs, the reported fit's "
+                     f"{fmt(r['reported_seed1_alms'])}): {counts}; arm b's latch count {r['arm_b_latch']}")
+    ok = all(v[b]['two_identity_fit'] for b in BOARDS)
+    return ('- **Arm c is a two-identity fit** (method.md\'s retention check, registers counted in the fitted '
+            'design): ' if ok else '- **Arm c is NOT shown to be a two-identity fit; its results are withdrawn** '
+            '(method.md\'s retention check): ') + '; '.join(parts) + '.'
+
+
 def recommendation(res: dict) -> str:
+    if not all(res['retention'][b]['two_identity_fit'] for b in BOARDS):
+        return ('Withdrawn: arm c is not shown to hold both identities in the fitted design, so the strap\'s cost '
+                'is not measured and no recommendation is made.')
     st10 = res['boards']['de10']['strap']
     c10, b10 = res['boards']['de10']['arms']['c'], res['boards']['de10']['arms']['b']
     reading = st10['reading']
@@ -495,6 +542,7 @@ def main() -> int:
     res['boards']['de25']['fmax_median'] = {arm: median([r['clk_fmax_worst'] for r in data['fits']['de25'][arm].values()])
                                              for arm in ARMS}
     res['extension'] = extension(res)
+    res['retention'] = retention_verdict(data, retention())
     res['netlist_flops'] = {arm: netlist_flops(arm) for arm in ARMS}
     res['de25_fits'] = sum(len(data['fits']['de25'][arm]) for arm in ARMS)
     res['de25_coverage'] = sum(r['both_clocks_every_corner'] for arm in ARMS for r in data['fits']['de25'][arm].values())
