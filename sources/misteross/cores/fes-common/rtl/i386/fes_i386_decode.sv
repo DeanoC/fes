@@ -1219,13 +1219,10 @@ module fes_i386_decode #(
                             end else if (X87_BACKEND == 1 && {b0[2:0], reg_f} == 6'o76) begin
                                 // FBSTP (DF /6): ten bytes stored from the
                                 // top down, the word at 8, then the ROM's
-                                // dwords at 4 and 0, so the uop that writes
-                                // the x87 pointers is the one at the
-                                // operand's own offset. FSTP m80 below
-                                // stores upwards and leaves the data pointer
-                                // at the operand's offset plus 8, which the
-                                // lockstep's BCD suite found; that routine
-                                // is not this change's to alter.
+                                // dwords at 4 and 0. The x87 data pointer
+                                // is the operand's whichever chunk is last:
+                                // fes_i386_cpu takes it back from the last
+                                // uop's chunk (#1877).
                                 size = 2'd1;
                                 mbytes = 3'd2;
                                 moff = 7'd8;

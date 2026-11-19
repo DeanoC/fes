@@ -45,16 +45,19 @@ local DEFAULTS = {
   { id = "fes.pc386", mark = "386", short = "PC 386", ground = "#6E8F80" },
 }
 
--- Workbenches by core: the ZX81 family has its own; Coleco opens its
--- arcade room; everything else uses the shared system setup.
+-- Rooms by core: the families with a core screen open it; Coleco opens its
+-- arcade room; everything else, PC/XT and PC 386 included, uses the shared
+-- system setup until its core screen is built.
+local SYSTEM_SETUP = "example.system"
+local CORE_SCREEN = { zx81 = true, spectrum = true, ["fes.atari-st"] = true, ["fes.c64"] = true }
 local WORKBENCH = {
-  ["fes.zx81"] = "example.hardware",
-  ["fes.zx80"] = "example.hardware",
-  ["fes.ts1000"] = "example.hardware",
-  ["fes.ts1500"] = "example.hardware",
   ["fes.coleco"] = "example.coleco-arcade",
 }
-local SYSTEM_SETUP = "example.system"
+local function room_for(core_id)
+  local family = systems.family_by_core[core_id]
+  if family and CORE_SCREEN[family.id] then return "example.core" end
+  return WORKBENCH[core_id] or SYSTEM_SETUP
+end
 
 function M.hash(s)
   local h = 7
@@ -243,7 +246,7 @@ function M.publish(f)
   destination.set{
     kind = "family",
     label = f.label,
-    room_id = WORKBENCH[core_id] or SYSTEM_SETUP,
+    room_id = room_for(core_id),
     core_id = core_id,
     game_id = machine and machine.game_id or "",
     availability = availability,
