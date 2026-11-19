@@ -519,13 +519,13 @@ class PairedTenfootClient(app.TenfootClient):
         return result
 
     def key(self, op, selection=None, *, input_source='uart'):
-        # A physical Stop is observed, never synthesized over UART. The caller
+        # Physical launch/Stop is observed, never synthesized over UART. The caller
         # starts this exchange when the selected USB action first appears; its
         # original close/menu deadlines still apply from that observation.
-        require(input_source == 'uart' or op == 'stop' and
+        require(input_source == 'uart' or op in ('launch', 'stop') and
                 input_source in ('usb-boot-keyboard', 'usb-gamepad') and
                 self.input_mode == 'uart+shared-'+input_source,
-                'physical stop source differs from the selected USB input')
+                'physical action source differs from the selected USB input')
         require(not self.retired, 'paired App client retired')
         generation = self.view['native']['Generation']
         selected = None

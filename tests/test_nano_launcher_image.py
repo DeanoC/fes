@@ -110,6 +110,23 @@ class LauncherImageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'fresh private'):
             self.prepare()
 
+    def test_return_trace_profile_is_explicit_and_rechecked_without_fallback(self):
+        base = image.load_kit(self.recovery)
+        with patch.object(image, 'checked_native', return_value=(self.native_fit,None,None,self.boot,self.loaded,None)), \
+                patch.object(image, 'load_return_trace_kit', return_value=base) as traced, \
+                patch.object(image, 'load_kit', side_effect=AssertionError('no standard fallback')):
+            result = image.prepare(self.uboot,self.entry,self.sdk,self.recovery,self.staged,self.output,
+                                   recovery_profile='return-trace', recovery_source_root=self.root)
+            self.assertEqual(result['recovery_profile'], 'return-trace')
+            self.assertEqual(traced.call_count, 2)
+            traced.assert_called_with(self.recovery, source_root=self.root)
+
+    def test_unselected_recovery_roots_and_profiles_refuse(self):
+        for options in (dict(recovery_profile='automatic'), dict(recovery_source_root=self.root)):
+            with self.subTest(options=options), self.assertRaisesRegex(ValueError, 'explicit supported'):
+                image.prepare(self.uboot,self.entry,self.sdk,self.recovery,self.staged,self.output,**options)
+            self.assertFalse(self.output.exists())
+
     def test_changed_native_binding_and_boot_policy_refuse_before_output(self):
         for fault in ('sdk-binding', 'manual', 'gamepad', 'menu-assets', 'protected-plan', 'no-write-plan'):
             with self.subTest(fault=fault):

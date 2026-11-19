@@ -124,6 +124,33 @@ class ReturnPackageTests(unittest.TestCase):
                 self.assertEqual(set(record['tools']),{'mformat','mmd','mcopy'})
                 with self.assertRaises(ValueError):package.load_base_kit(output)
                 original=(output/'result.json').read_text();manifest=(output/'RECOVERY.JSON').read_text()
+                # A retained package names its original producer explicitly.
+                # Its changed producer identity still needs complete input pins;
+                # no source code from that root is imported or executed.
+                retained=root/'retained';retained_build=retained/'out/build'
+                shutil.copytree(build,retained_build)
+                producer_names=['platform/embedded/nano/'+name for name in
+                    ('recovery_return_trace.py','recovery.py','recovery_package.py','upload.py','recovery_return_package.py')]
+                producer_names.append('platform/embedded/firmware/build_terasic_uboot.py')
+                for name in producer_names:
+                    target=retained/name;target.parent.mkdir(parents=True,exist_ok=True)
+                    target.write_bytes((ROOT/name).read_bytes())
+                builder=retained/producer_names[-1]
+                builder.write_bytes(builder.read_bytes()+b'\n# retained producer fixture\n')
+                retained_receipt=json.loads((retained_build/'result.json').read_text())
+                retained_receipt['producer_sha256']=package.sha(builder)
+                (retained_build/'result.json').write_text(json.dumps(retained_receipt))
+                value=json.loads(original);value['uboot_build']='out/build'
+                value['build_receipt_sha256']=package.sha(retained_build/'result.json')
+                for path in [retained/name for name in producer_names]+[retained_build/'result.json']:
+                    value['inputs'][str(path)]=package.sha(path)
+                (output/'result.json').write_text(json.dumps(value))
+                self.assertEqual(package.load_kit(output,source_root=retained)['fit_sha256'],loaded['fit_sha256'])
+                with self.assertRaises((ValueError,OSError)):package.load_kit(output)
+                builder.write_bytes(builder.read_bytes()+b'# changed after retention\n')
+                with self.assertRaisesRegex(ValueError,'source changed'):
+                    package.load_kit(output,source_root=retained)
+                (output/'result.json').write_text(original)
                 for case in ('generic-status','missing-source','outside-build','wrong-trace','wrong-tool','missing-manifest-field','manifest-native','wrong-image','wrong-SOF'):
                     value=json.loads(original);(output/'RECOVERY.JSON').write_text(manifest)
                     if case=='generic-status':value['status']='prepared'

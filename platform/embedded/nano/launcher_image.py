@@ -13,6 +13,7 @@ import subprocess
 from package import checked_native, sha
 from cold_profile import EXPERIMENTAL_FILE, MAX_FIT_SIZE
 from upload import load_kit, PREFIX_SIZE
+from recovery_return_package import load_kit as load_return_trace_kit
 
 ROOT = Path(__file__).resolve().parents[3]
 CONTROL = {'FES/CORESEL.JSN', 'FES/UI.JSON', 'FES/INSTALL.JSN',
@@ -105,7 +106,12 @@ def staging(directory):
     return payload
 
 
-def prepare(uboot, entry, sdk, recovery, files, output):
+def prepare(uboot, entry, sdk, recovery, files, output, *, recovery_profile='standard', recovery_source_root=None):
+    if recovery_profile not in ('standard', 'return-trace') or (recovery_profile == 'standard' and recovery_source_root is not None):
+        raise ValueError('explicit supported recovery profile and producer root required')
+    def checked_recovery():
+        return (load_kit(recovery) if recovery_profile == 'standard' else
+                load_return_trace_kit(recovery, source_root=recovery_source_root))
     if ('..' in output.parts or output.exists() or not output.is_relative_to(ROOT/'out') or
             any(p.is_symlink() for p in (output, *output.parents))):
         raise ValueError('output must be a fresh private directory below out/')
@@ -120,7 +126,11 @@ def prepare(uboot, entry, sdk, recovery, files, output):
         (recovery/'RECOVERY.JSON', 16384), (recovery/'u-boot.itb', 8 << 20))}
     receipt_inputs.update({str(p): sha(p) for p in (Path(__file__), Path(__file__).with_name('package.py'),
                           Path(__file__).with_name('upload.py'), Path(__file__).with_name('cold_profile.py'))})
-    base = load_kit(recovery)
+    base = checked_recovery()
+    if recovery_profile == 'return-trace':
+        for name in ('recovery_return_package.py', 'recovery_return_trace.py', 'recovery_package.py', 'recovery.py'):
+            path = Path(__file__).with_name(name)
+            receipt_inputs[str(path)] = sha(path)
     image = recovery/'nano-recovery-sd.img'
     receipt_inputs[str(image)] = base['image_sha256']
     fit, _, _, boot, loaded = checked_native(uboot, entry)[:5]
@@ -208,7 +218,11 @@ def prepare(uboot, entry, sdk, recovery, files, output):
     if any(sha(Path(name)) != expected for name, expected in inputs.items()):
         raise ValueError('launcher inputs changed during assembly')
     checked_native(uboot, entry)
+    if checked_recovery() != base:
+        raise ValueError('recovery package changed during image assembly')
     result = dict(format=1, status='prepared', classification='regular-file native launcher SD image; hardware unqualified',
+                  recovery_profile=recovery_profile,
+                  recovery_source_root=None if recovery_source_root is None else str(recovery_source_root),
                   native_boot_id=native['build_id'], startup=native['startup'], preferences='sd-checkpoint',
                   image_sha256=sha(disk), image_bytes=disk.stat().st_size, inputs=inputs, commands=commands,
                   files={name: dict(bytes=len(data), sha256=hashlib.sha256(data).hexdigest()) for name, data in payload.items()},
@@ -223,9 +237,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('uboot-build', 'entry-build', 'native-build', 'recovery-kit', 'launcher-staging', 'output'):
         parser.add_argument('--'+name, required=True, type=Path)
+    parser.add_argument('--recovery-profile', choices=('standard', 'return-trace'), default='standard')
+    parser.add_argument('--recovery-source-root', type=Path)
     args = parser.parse_args()
     result = prepare(*(getattr(args, name).absolute() for name in
-                       ('uboot_build', 'entry_build', 'native_build', 'recovery_kit', 'launcher_staging', 'output')))
+                       ('uboot_build', 'entry_build', 'native_build', 'recovery_kit', 'launcher_staging', 'output')),
+                     recovery_profile=args.recovery_profile, recovery_source_root=args.recovery_source_root)
     print('Prepared regular SD image:', args.output, result['image_sha256'])
 
 

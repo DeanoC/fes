@@ -105,6 +105,24 @@ It never writes a block device or supplies a QSPI bootstrap. The image still
 requires separately admitted card provisioning, matched SPL delivery and native
 boot/reboot qualification.
 
+For the separately verified Ethernet return-trace recovery package, select
+`--recovery-profile return-trace`. If it was produced in a retained worktree,
+also name that worktree with `--recovery-source-root /absolute/producer-root`.
+The verifier reads its pinned original producer files and build receipt; it
+executes no code from that root. The current binary, PHY, trace, console, FIT,
+SPL, protected-prefix and image checks still apply, and the package is checked
+again before a result is published. Standard recovery remains the default;
+neither profile falls back to the other.
+
+When preparing an existing test card, `preferences_recovery.snapshot_preferences`
+can read the fixed `FES/PREFS.JSON` through a freshly admitted recovery session.
+It reports absence explicitly and otherwise retains bounded bytes with a fresh
+memory hash and protected-file checks. It never writes or seeds settings.
+The uploader has a separate fixed `preferences` purpose bounded to 64 KiB;
+the operator must independently preserve existing settings and authorize any
+seed or replacement. Fresh staging defaults must never overwrite an existing
+library's preferences implicitly.
+
 ## Use and clean-reboot persistence
 
 With the keyboard released at startup, select a title using arrows and Enter.
