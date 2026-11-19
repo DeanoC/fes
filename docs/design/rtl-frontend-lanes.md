@@ -13,6 +13,7 @@ As of 13 November 2026:
 - S6a's per-core Quartus Lite locks landed in [#1652](https://github.com/DeanoC/fes/pull/1652). D2's i386 Yosys lock change landed in [#1664](https://github.com/DeanoC/fes/pull/1664).
 - S4's shared Yosys netlist helper landed in [#1758](https://github.com/DeanoC/fes/pull/1758), and S5's pc386 lockstep producer gate in [#1782](https://github.com/DeanoC/fes/pull/1782). S6b's DE25 Pro lock is on main.
 - D12's closure-only BUILD_ID rule landed in [#1649](https://github.com/DeanoC/fes/pull/1649). The binding rule and required evidence are in [AGENTS.md](../../AGENTS.md#hard-rules).
+- [#1984](https://github.com/DeanoC/fes/issues/1984)'s pc386 identity scope was decided on 18 November 2026 (**D14**, [Design identity policies](#design-identity-policies)). S1, the seal process that no longer imports evidence or firmware-recipe code, landed in [#1997](https://github.com/DeanoC/fes/pull/1997). S2, the `design-v2` policy in `M/scripts/input_identity.py`, is in its own PR. S3 to S5 are not started, and no producer writes a design-v2 record yet.
 
 ## Summary
 
@@ -167,6 +168,30 @@ This follows `sim_fes_coleco_quartus.py:34`, which already records the `altera_m
 
 - **If a reseal is needed**, the reseal list is generated from `source_closures.json` plus the producer source lists, not written by hand. It cannot be derived from which cores compile the edited file: closure entries name directory roots, and `source_input_closure` hashes every tracked file under a root, so `build_fes_sms_oss` and `build_fes_sg1000_oss` — which both list `cores/fes-coleco/rtl` — move when Coleco's `top.v` or `coleco_machine.sv` changes, although neither core compiles those two files. The relation is not symmetric: Coleco's own key does not list `cores/fes-sms/rtl`. `build_fes_atari_st_oss` names `cores/fes-ramtest/rtl/sdram_addon_port.v` as a file rather than the directory, so it does not cover `fes-ramtest/rtl/top.v` and Atari ST is unaffected (#1828). That reseal is its own slice (S7r) and is not folded into the header slice. `AGENTS.md:199` requires a pin bump to build every core it touches before merging, and S7r follows the same rule.
 - **If no reseal is needed**, S7 says so and merges alone.
+
+
+### Design identity policies
+
+A format-2 record with separated identities declares its policy in `parameters.identity_policy`. `M/scripts/input_identity.py` holds both policies. Each is immutable once a sealed record uses it, so every sealed record stays independently verifiable.
+
+- **`design-v1`** is frozen. Its sets cannot be extended: the [#1984 record](../validation/2026-11-18-1984-pc386-identity-scope/README.md) measured that adding the oracle and suite to v1's packaging set makes the sealed #1951 pc386 record fail `validate_identities`. Every producer writes v1 today.
+- **`design-v2`** (D14) keeps every v1 role, parameter rule and the record identity, and adds two roles that leave the design projection:
+  - **`evidence`**: the i386 Bochs oracle (adapter, Bochs patch, provisioner and `oracle_sources.toml`), the lockstep suite less `M/scripts/yosys_netlist.py`, and the two pc386 lockstep runners (`EVIDENCE_INPUTS`). They stay in `source_inputs`, so the record identity binds them, and get a third digest, `identities.evidence`. `yosys_netlist.py` is in the suite list but is also the seal's Yosys program, so it stays `design`.
+  - **`firmware-generator`**: `M/scripts/build_pc386_firmware.py` and `firmware.lock` (`FIRMWARE_GENERATOR_INPUTS`). The design is bound to their output instead: a v2 record that holds either must carry the BIOS, VGA BIOS and `rom_hex` digests in its `firmware` parameter, and `input_identity` refuses one that does not. The seal checks the file Yosys reads against the `rom_hex` pin (#1984 S1).
+  - v2 has its own domains (`fes-design-v2`, `fes-toolchain-v2`, `fes-evidence-v2`), so a v2 ID never equals a v1 ID. Moving a producer to v2 is a one-time design-ID migration.
+- **Membership rules for both v2 sets**, each a test (`M/tests/test_input_identity_design_v2.py`):
+  - (a) no compiler reads the file. The sets are checked against the record's generated `classification.json` (the Yosys trace, the QSF declaration and the QSF inline). A compiler-read file given either role is refused, and so is an evidence file whose code generates compiler input.
+  - (b) no member runs in the seal process: every Python member is in the seal-process exclusions that S1's tests check (`M/tests/test_pc386_seal_process.py`).
+  - (c) members are listed explicitly. Unknown files stay `design`.
+- **How the sets grow.** The sets are literals, not derived from the oracle's lists, so an edit to a list (itself evidence) can never move a file out of `design`. They are append-only, and only for paths that no sealed v2 record contains. The PR that adds a file to `oracle_sources.toml` adds it to `EVIDENCE_INPUTS` in the same commit, and the growth test refuses it otherwise.
+- **The accepted decisions** (D14, 18 November 2026, Deano: "Accept all six"):
+  1. The oracle, the lockstep suite and the pc386 lockstep runners leave the design ID under `design-v2`, with their own evidence digest.
+  2. Reuse after an evidence-only change: a sealed package is reused only after a fresh full lockstep on the current suite passes against the regenerated CPU netlist, with no Quartus run (S3).
+  3. Firmware option F2: the design is bound to the firmware output digests, and the ROM hex digest is confirmed on a GitHub runner as well as Powerboat (done in S1).
+  4. The v1-to-v2 migration takes a normal reseal (S4), not D12 evidence.
+  5. S1 merged under the in-progress pc386 exemption. That waives only the seal at S1's exact head and relaxes no timing or seal check, and S4's reseal is the only seal.
+  6. The format-1 manual pc386 sealer is deleted in its own PR (S5).
+- **Slices:** S1 (seal process, [#1997](https://github.com/DeanoC/fes/pull/1997)), S2 (this policy; moves no `BUILD_ID`, [measured](../validation/2026-11-19-1984-s2-design-v2/README.md)), S3 (reuse under evidence drift, which must merge before S4), S4 (the pc386 producer writes design-v2 records, by a normal migration reseal) and S5 (delete the manual sealer).
 
 Package-ID churn may also move the designated baseline bundles named in the kit status files (D13).
 
@@ -928,3 +953,4 @@ Each half carries its own byte-identity and sim-diff acceptance from the list ab
 11. **D11. Header location.** Recommendation: `M/cores/fes-common/include/`, a directory for hand-written files only, rather than `generated/`.
 12. **D12. Does a BUILD_ID change caused only by a closure edit require a reseal and HIL on main?** Decided in [#1649](https://github.com/DeanoC/fes/pull/1649): the exception and all required evidence are stated in [AGENTS.md](../../AGENTS.md#hard-rules). S7 must meet that rule for each affected core or use the normal reseal and HIL path.
 13. **D13. Kit baselines.** If S7r, S8 or S11 changes the package IDs of cores in the designated baseline bundles named in `~/kit-status/kit{A,B}-STATUS.md`, do the baselines move, and who updates them and when? Recommendation: the PR that changes a baseline core's package ID names the candidate package, and nobody moves a status file by hand. PR-head HIL restores the kit to the baseline its status file names. After the merge, `baseline-auto.py` promotes from main and publishes the new baseline (`AGENTS.md:60`, `:63-66`).
+14. **D14. pc386's identity scope ([#1984](https://github.com/DeanoC/fes/issues/1984)).** Decided on 18 November 2026: a new `design-v2` policy with an `evidence` role for the oracle, suite and lockstep runners, firmware bound by its output digests, reuse after evidence drift only through a fresh lockstep, a normal migration reseal, and deletion of the manual sealer. See [Design identity policies](#design-identity-policies) and the [measured proposal](../validation/2026-11-18-1984-pc386-identity-scope/README.md).
