@@ -255,10 +255,51 @@ func (client *Client) LoadROMLinkedCore(ctx context.Context, path, packageID, ro
 	return client.LoadROMLinkedCoreWithInitialMedia(ctx, path, packageID, root, expansionPath, payloadPath, composition, programmedPath, identity, nil)
 }
 func (client *Client) LoadROMLinkedCoreWithInitialMedia(ctx context.Context, path, packageID, root, expansionPath, payloadPath string, composition *expansion.Composition, programmedPath string, identity corepackage.ROMLinkIdentity, initial *InitialMediaRequest) (Protocol2Response, error) {
+	return client.loadROMCore(ctx, path, packageID, root, expansionPath, payloadPath, composition, programmedPath, "", identity, initial)
+}
+
+// LoadFirmwareCore launches a package whose firmware the runtime uploads over
+// the fes.computer mailbox. firmwarePath is the ROM source itself; the receipt
+// binds it to the package's unchanged payload. The runtime's computer ABI must
+// list fes.fabric.firmware-upload 1.0; rom_linking is not required.
+func (client *Client) LoadFirmwareCore(ctx context.Context, path, packageID, root, firmwarePath string, identity corepackage.ROMLinkIdentity, initial *InitialMediaRequest) (Protocol2Response, error) {
+	if !validRuntimePath(firmwarePath) || identity.Role != protocol.FirmwareRole {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	return client.loadROMCore(ctx, path, packageID, root, "", "", nil, "", firmwarePath, identity, initial)
+}
+
+// firmwareUploadSupported reports a runtime that uploads a ROM source itself.
+func firmwareUploadSupported(capabilities Protocol2Capabilities) bool {
+	for _, abi := range capabilities.ABIs {
+		if abi.ID != protocol.ComputerABIID {
+			continue
+		}
+		for _, i := range abi.Interfaces {
+			if i == (Protocol2Interface{ID: "fes.fabric.firmware-upload", Major: 1}) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// romDeliverySupported is the capability a single-ROM package needs: an
+// upload-capable computer for a firmware-upload package, a linker otherwise.
+func romDeliverySupported(capabilities Protocol2Capabilities, descriptor corepackage.Descriptor) bool {
+	if corepackage.FirmwareUpload(descriptor) {
+		return firmwareUploadSupported(capabilities)
+	}
+	return capabilities.ROMLinking == 1
+}
+
+// loadROMCore sends one single-ROM load: a linked bitstream at programmedPath,
+// or a ROM source at firmwarePath, never both.
+func (client *Client) loadROMCore(ctx context.Context, path, packageID, root, expansionPath, payloadPath string, composition *expansion.Composition, programmedPath, firmwarePath string, identity corepackage.ROMLinkIdentity, initial *InitialMediaRequest) (Protocol2Response, error) {
 	if !validInitialMediaRequest(initial) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
-	if !validRuntimePath(path) || !validRuntimePath(programmedPath) || !protocol2Hex64.MatchString(packageID) || !protocol2Identifier.MatchString(identity.ROMID) || !identity.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: identity.ROMID, Role: identity.Role, SHA256: identity.MapSHA256, SourceSize: identity.SourceSize}}) {
+	if !validRuntimePath(path) || (firmwarePath == "") == (programmedPath == "") || (firmwarePath == "" && !validRuntimePath(programmedPath)) || !protocol2Hex64.MatchString(packageID) || !protocol2Identifier.MatchString(identity.ROMID) || !identity.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: identity.ROMID, Role: identity.Role, SHA256: identity.MapSHA256, SourceSize: identity.SourceSize}}) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
 	if root != "" && !validRuntimePath(root) {
@@ -274,7 +315,7 @@ func (client *Client) LoadROMLinkedCoreWithInitialMedia(ctx context.Context, pat
 	if err != nil {
 		return Protocol2Response{}, protocol2MutationError{error: err, attempted: false}
 	}
-	if before.Capabilities.ROMLinking != 1 {
+	if (firmwarePath == "" && before.Capabilities.ROMLinking != 1) || (firmwarePath != "" && !firmwareUploadSupported(before.Capabilities)) {
 		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: false}
 	}
 	operation := "load_rom_core"
@@ -294,9 +335,10 @@ func (client *Client) LoadROMLinkedCoreWithInitialMedia(ctx context.Context, pat
 		ExpansionPath  string                 `json:"expansion_path,omitempty"`
 		PayloadPath    string                 `json:"payload_path,omitempty"`
 		Composition    *expansion.Composition `json:"composition,omitempty"`
-		ProgrammedPath string                 `json:"programmed_path"`
+		ProgrammedPath string                 `json:"programmed_path,omitempty"`
+		FirmwarePath   string                 `json:"firmware_path,omitempty"`
 		ROMLink        protocol2ROMLink       `json:"rom_link"`
-	}{InitialMedia: initial, Protocol: 2, Operation: operation, PackagePath: path, PackageID: packageID, DataRoot: root, ExpansionPath: expansionPath, PayloadPath: payloadPath, Composition: composition, ProgrammedPath: programmedPath, ROMLink: protocol2ROMLinkFromIdentity(identity)})
+	}{InitialMedia: initial, Protocol: 2, Operation: operation, PackagePath: path, PackageID: packageID, DataRoot: root, ExpansionPath: expansionPath, PayloadPath: payloadPath, Composition: composition, ProgrammedPath: programmedPath, FirmwarePath: firmwarePath, ROMLink: protocol2ROMLinkFromIdentity(identity)})
 	if err != nil {
 		return Protocol2Response{}, protocol2MutationError{error: err, attempted: attempted}
 	}
@@ -1447,7 +1489,7 @@ func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Cap
 		return false
 	}
 	if active.Descriptor.ROM != nil {
-		if capabilities.ROMLinking != 1 || active.ROMLink == nil || !active.ROMLink.ValidFor(active.Descriptor) {
+		if !romDeliverySupported(capabilities, active.Descriptor) || active.ROMLink == nil || !active.ROMLink.ValidFor(active.Descriptor) {
 			return false
 		}
 	} else if active.ROMLink != nil {
@@ -1547,7 +1589,8 @@ func validInspection(inspection Protocol2Inspection, capabilities Protocol2Capab
 		return false
 	}
 	if inspection.Compatible {
-		if (inspection.Descriptor.ROM != nil || inspection.Descriptor.Format == 4) && capabilities.ROMLinking != 1 {
+		if (inspection.Descriptor.Format == 4 && capabilities.ROMLinking != 1) ||
+			(inspection.Descriptor.ROM != nil && !romDeliverySupported(capabilities, inspection.Descriptor)) {
 			return false
 		}
 		abi := matchingABI(capabilities, inspection.Descriptor)

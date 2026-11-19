@@ -1,0 +1,30 @@
+schema: mister-packages.v1
+kind: fabric
+id: fes.fabric.firmware-upload
+description: >-
+  Launch-time machine firmware sent over the fes.computer mailbox framing to a
+  core whose bitstream cannot take linked ROM lanes. The endpoint names one
+  exact image size; the host sends that many bytes while execution is held,
+  and the endpoint refuses to release execution until a complete image with a
+  matching CRC-32 is committed. A loaded image survives later holds. This is
+  not a GP capability bit: a package declares this ID as a required interface
+  at this version, and a host sends these opcodes only to such a package.
+  Opcodes 29..32 are taken from the fes.computer opcode space.
+major: 1
+minor: 0
+constants:
+  - {name: FesFirmwareUploadMajor, value: 1}
+  - {name: FesFirmwareUploadMinor, value: 0}
+  - {name: FesFirmwareUploadOpcodeInfo, value: 29}
+  - {name: FesFirmwareUploadOpcodeBegin, value: 30}
+  - {name: FesFirmwareUploadOpcodeData, value: 31}
+  - {name: FesFirmwareUploadOpcodeCommit, value: 32}
+  - {name: FesFirmwareUploadInfoBytesLow, value: 0}
+  - {name: FesFirmwareUploadInfoBytesHigh, value: 1}
+  - {name: FesFirmwareUploadInfoState, value: 2}
+  - {name: FesFirmwareUploadInfoReceivedLow, value: 3}
+  - {name: FesFirmwareUploadInfoReceivedHigh, value: 4}
+  - {name: FesFirmwareUploadStateEmpty, value: 0}
+  - {name: FesFirmwareUploadStateLoading, value: 1}
+  - {name: FesFirmwareUploadStateReady, value: 2}
+  - {name: FesFirmwareUploadMaxBytes, value: 0x100000}

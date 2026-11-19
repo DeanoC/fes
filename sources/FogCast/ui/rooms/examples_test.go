@@ -74,6 +74,7 @@ func TestEmbeddedExamplesLoadAndDraw(t *testing.T) {
 		"example.fes-cores":     true,
 		"example.computers":     true,
 		"example.system":        true,
+		"example.core":          true,
 		"example.hardware":      true,
 		"example.coleco-arcade": true,
 		"example.welcome":       true,

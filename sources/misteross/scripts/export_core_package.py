@@ -22,7 +22,7 @@ if __package__ in (None, ""):
 
 from scripts.compiler_read_audit import POLICY, excluded_markdown, read_execution_data
 from scripts.source_repository import canonical_repository
-from scripts.input_identity import (POLICY as IDENTITY_POLICY, functional_key, validate_identities,
+from scripts.input_identity import (POLICIES as IDENTITY_POLICIES, functional_key, validate_identities,
                                     with_identities, manifest_toolchain)
 from scripts.core_package import (
     MAX_MANIFEST_SIZE,
@@ -194,7 +194,8 @@ def _validate_front_end(fields: dict, parameters: dict, tools: dict) -> None:
     its producer gains them when it moves to format 2 and adopts the identity
     policy.
 
-    S7's contract covers `design-v1` records only. Legacy format-2 Quartus
+    S7's contract covers records with separated identities (`design-v1` and
+    `design-v2`) only. Legacy format-2 Quartus
     records remain valid without these parameters; the current ZX81 Quartus
     producer emits four such records. Its migration to this contract, followed
     by reseal and exact-artifact HIL, is tracked with the #1893 follow-up. A
@@ -202,10 +203,10 @@ def _validate_front_end(fields: dict, parameters: dict, tools: dict) -> None:
     PC/XT and the OSS producers are `design-v1`, so every record that carries
     separated identities is covered.
     """
-    if parameters.get("identity_policy") != IDENTITY_POLICY:
+    if parameters.get("identity_policy") not in IDENTITY_POLICIES:
         for name in FRONT_END_PARAMETERS:
             if name in parameters:
-                raise PackageExportError(f"{name} requires a {IDENTITY_POLICY} record")
+                raise PackageExportError(f"{name} requires a design-v1 or design-v2 record")
         return
     if fields.get("toolchain") != "quartus":
         for name in FRONT_END_PARAMETERS:

@@ -78,7 +78,7 @@ func TestPadPromptsLeaveProseAlone(t *testing.T) {
 func TestHeaderHintUsesTheAffinityPadsGlyphs(t *testing.T) {
 	t.Parallel()
 	app := NewApp(nil, 1280, 720, 100)
-	app.SetPadPrompts(7, NewPadPrompts(gfx.PromptPlayStation, nil))
+	app.SetPadInfo(7, PadInfo{Family: gfx.PromptPlayStation})
 	app.AttachInput(InputGamepad, 7)
 	words := app.Snapshot()
 	words.Prompts = nil

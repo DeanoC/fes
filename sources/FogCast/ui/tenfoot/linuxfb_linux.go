@@ -172,12 +172,19 @@ type nativeInput struct {
 	controls map[uint16]Command
 	hatHeld  map[uint16]Button
 	padHeld  map[padKey]remoteinput.Event
+	// padSent is what each held button pressed on the port. Several buttons
+	// can send one control: it goes down with the first of them and up with
+	// the last.
+	padSent  map[Button]padKey
 	keysHeld map[uint16]string
 	mapper   *controller.Mapper
 	// remap is the profile saved for this pad, applied after mapper.
 	remap *inputmap.Remapper
-	// prompts is the pad's hint glyphs, nil for anything but a real pad.
-	prompts PadPrompts
+	// info is what Settings › Controllers shows for a real pad; its GUID is
+	// empty for anything else.
+	info PadInfo
+	// profileGen is the App profile generation remap was read at.
+	profileGen uint64
 }
 type nativeInputs struct {
 	devices   []*nativeInput
@@ -193,6 +200,8 @@ type nativeInputs struct {
 	// padRemap compiles the profile saved for a pad's GUID. Nil reads every
 	// pad as its mapping does.
 	padRemap func(guid string) (*inputmap.Remapper, error)
+	// profileGen is the App profile generation every pad's remap is at.
+	profileGen uint64
 	// kindOf and openFile are nil in production. Tests substitute them
 	// because a fixture node cannot answer EVIOCGBIT.
 	kindOf   func(fd int) InputKind
@@ -275,10 +284,13 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 	if kind == InputGamepad {
 		var vendor, product uint16
 		if ins.kindOf == nil {
-			var family controller.Family
-			in.mapper, in.remap, vendor, product, family = nativeGamepadMapper(fd, ins.padRemap)
+			var device controller.Device
+			in.mapper, in.remap, device = nativeGamepadMapper(fd, ins.padRemap)
+			vendor, product = device.Vendor, device.Product
 			if in.mapper != nil {
-				in.prompts = NewPadPrompts(promptFamily(family), in.remap)
+				in.info = PadInfo{Name: strings.TrimSpace(device.Name), GUID: device.GUID(), Vendor: vendor, Product: product,
+					Family: promptFamily(device.Family()), Recognised: in.mapper.Mapping() != ""}
+				in.profileGen = app.PadProfileGeneration()
 			}
 		} else if ins.padID != nil {
 			vendor, product = ins.padID(fd)
@@ -320,12 +332,53 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 		ins.devices = append(ins.devices, in)
 	}
 	if app != nil {
-		if in.prompts != nil {
-			app.SetPadPrompts(fd, in.prompts)
-		}
+		ins.publishPads(app)
 		app.AttachInput(kind, fd)
 	}
 	return nil
+}
+
+// publishPads tells the app each real pad's identity and controller port.
+// A port can change hands when a pad attaches or leaves.
+func (ins *nativeInputs) publishPads(app *App) {
+	for _, in := range ins.devices {
+		if in.info.GUID == "" {
+			continue
+		}
+		in.info.Player = 0
+		if in.player != noLocalPlayer {
+			in.info.Player = int(in.player) + 1
+		}
+		app.SetPadInfo(in.fd, in.info)
+	}
+}
+
+// syncProfiles reloads the pads' saved profiles after Settings › Controllers
+// changes one. A pad with a button down waits until it is released, so the
+// button comes up as the control it went down as.
+func (ins *nativeInputs) syncProfiles(app *App) {
+	gen := app.PadProfileGeneration()
+	if gen == ins.profileGen || ins.padRemap == nil {
+		return
+	}
+	waiting := false
+	for _, in := range ins.devices {
+		if in.info.GUID == "" || in.profileGen == gen {
+			continue
+		}
+		if len(in.padHeld) > 0 || len(in.controls) > 0 {
+			waiting = true
+			continue
+		}
+		remap, err := ins.padRemap(in.info.GUID)
+		if err != nil {
+			remap = nil
+		}
+		in.remap, in.profileGen = remap, gen
+	}
+	if !waiting {
+		ins.profileGen = gen
+	}
 }
 
 func (ins *nativeInputs) deviceKind(fd int) InputKind {
@@ -484,6 +537,7 @@ func (ins *nativeInputs) close() {
 }
 func (ins *nativeInputs) poll(app *App, now time.Time) (bool, error) {
 	ins.maybeRescan(app, now)
+	ins.syncProfiles(app)
 devices:
 	for _, in := range append([]*nativeInput(nil), ins.devices...) {
 		// Bound draining so a noisy device cannot starve rendering or cancellation.
@@ -690,6 +744,7 @@ func (in *nativeInput) button(app *App, button Button, value int32, now time.Tim
 	if value == 2 || button == ButtonNone {
 		return
 	}
+	app.NotePadButton(in.fd, LogicalFromButton(button), value != 0)
 	e := remoteinput.Event{
 		Device: remoteinput.DeviceGamepad,
 		Kind:   remoteinput.KindButton,
@@ -717,6 +772,24 @@ func (in *nativeInput) button(app *App, button Button, value int32, now time.Tim
 	}
 	e.Player = uint8(in.player)
 	key := padKey{e.Player, e.Code}
+	if value != 0 {
+		shared := in.holding(key)
+		if in.padSent == nil {
+			in.padSent = make(map[Button]padKey)
+		}
+		in.padSent[button] = key
+		if shared {
+			return
+		}
+	} else if sent, ok := in.padSent[button]; ok {
+		// Release what this button pressed, even if the profile changed.
+		key = sent
+		e.Code = sent.code
+		delete(in.padSent, button)
+		if in.holding(key) {
+			return
+		}
+	}
 	if in.padHeld == nil {
 		in.padHeld = make(map[padKey]remoteinput.Event)
 	}
@@ -736,6 +809,17 @@ func (in *nativeInput) button(app *App, button Button, value int32, now time.Tim
 		app.NoteInput(InputGamepad, in.fd)
 	}
 }
+
+// holding reports whether a held button already holds key on the port.
+func (in *nativeInput) holding(key padKey) bool {
+	for _, sent := range in.padSent {
+		if sent == key {
+			return true
+		}
+	}
+	return false
+}
+
 func (in *nativeInput) localHat(app *App, code uint16, value int32, now time.Time) {
 	button := ButtonNone
 	if code == 16 {
@@ -1090,13 +1174,13 @@ func nativeDeviceName(fd int) string {
 
 // nativeGamepadMapper gives the controller mapper the pad's identity, its
 // EVIOCGBIT key/axis capabilities and the range of every reported axis. It
-// also returns the pad's vendor, product and family.
-func nativeGamepadMapper(fd int, padRemap func(guid string) (*inputmap.Remapper, error)) (*controller.Mapper, *inputmap.Remapper, uint16, uint16, controller.Family) {
+// also returns the pad's identity.
+func nativeGamepadMapper(fd int, padRemap func(guid string) (*inputmap.Remapper, error)) (*controller.Mapper, *inputmap.Remapper, controller.Device) {
 	var id [8]byte
 	const idRequest = uintptr(0x80000000 | (8 << 16) | ('E' << 8) | 0x02)
 	_, _, err := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), idRequest, uintptr(unsafe.Pointer(&id[0])))
 	if err != 0 {
-		return nil, nil, 0, 0, controller.FamilyGeneric
+		return nil, nil, controller.Device{}
 	}
 	device := controller.Device{
 		Name:    nativeDeviceName(fd),
@@ -1123,7 +1207,7 @@ func nativeGamepadMapper(fd int, padRemap func(guid string) (*inputmap.Remapper,
 		}
 	}
 	mapper, remap := padMapper(device, padRemap)
-	return mapper, remap, device.Vendor, device.Product, device.Family()
+	return mapper, remap, device
 }
 
 // padMapper reads a pad through its mapping and the profile saved for its
@@ -1174,10 +1258,8 @@ func nativeKindFromKeys(keys []byte) InputKind {
 	return InputNone
 }
 func (ins *nativeInputs) seed(app *App) {
+	ins.publishPads(app)
 	for _, in := range ins.devices {
-		if in.prompts != nil {
-			app.SetPadPrompts(in.fd, in.prompts)
-		}
 		app.SeedInput(in.kind, in.fd)
 	}
 	app.FinishInputSeed()
@@ -1213,6 +1295,7 @@ func (ins *nativeInputs) drop(app *App, lost *nativeInput) {
 	ins.releaseLostPlayInput(app, lost)
 	app.DetachInput(InputKeyboard, lost.fd)
 	app.DetachInput(InputGamepad, lost.fd)
+	ins.publishPads(app)
 }
 
 func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
@@ -1274,6 +1357,7 @@ func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
 func (ins *nativeInputs) releasePort(app *App, in *nativeInput) {
 	if app == nil {
 		in.padHeld = nil
+		in.padSent = nil
 		return
 	}
 	app.mu.Lock()
@@ -1302,6 +1386,7 @@ func releasePortLocked(app *App, in *nativeInput) []remoteinput.Event {
 			padEvents = append(padEvents, event)
 		}
 		in.padHeld = nil
+		in.padSent = nil
 		app.forgetPadLocked(player, time.Now())
 		// After its releases, the pad gives its port back. mister-agent
 		// drops that player's claim and leaves the other pad alone.

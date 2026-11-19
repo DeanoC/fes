@@ -98,6 +98,7 @@ class ConsistencyTest(unittest.TestCase):
             'packages/fabric/fes_fabric_embedded_sd.yaml',
             'packages/fabric/fes_fabric_embedded_tape.yaml',
             'packages/fabric/fes_fabric_embedded_rom.yaml',
+            'packages/fabric/fes_fabric_firmware_upload.yaml',
             'packages/fabric/fes_fabric_embedded_usb.yaml',
             'packages/fabric/fes_fabric_embedded_control.yaml',
             'packages/fabric/fes_fabric_embedded_computer.yaml',

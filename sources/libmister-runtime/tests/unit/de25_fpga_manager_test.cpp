@@ -5,6 +5,7 @@
 #include "native/sha256.hpp"
 #include "native/core_package.hpp"
 #include "de25_menu_operations.hpp"
+#include "de25_standard_descriptor.hpp"
 #include "de25_pr_endpoint.hpp"
 #include <cassert>
 #include <algorithm>
@@ -140,13 +141,13 @@ struct Fixture {
     NativeResult Program(LinuxDe25FpgaManager& m, ProgrammingProfile p = ProgrammingProfile::de25_hps_first_v1) {return m.Program(artifact,p,100);}
     void Preserved() {assert(Exists(ops.Dir()) && Exists(paths.firmware+"/fes-runtime-core.rbf"));}
 };
-std::string RecoveryPackage(Fixture& f,bool menu,const std::string& suffix="") {
+std::string RecoveryPackage(Fixture& f,bool menu,const std::string& suffix="",const std::string& machine="fes.zx81") {
     const auto packages=f.root+"/packages",tmp=packages+"/incoming";
     assert(!mkdir(packages.c_str(),0700)&&!mkdir(tmp.c_str(),0700));
     const auto payload=Get(f.root+"/input.rbf");Sha256 hash;hash.Update(payload.data(),payload.size());
     auto manifest=Get("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
     auto replace=[&](const std::string& a,const std::string& b){const auto p=manifest.find(a);assert(p!=std::string::npos);manifest.replace(p,a.size(),b);};
-    replace("fes.pong",menu?"fes.menu":"fes.zx81");replace("de10_nano","de25_nano");replace("5CSEBA6U23I7","A5EB013BB23BE4SCS");
+    replace("fes.pong",menu?"fes.menu":machine);replace("de10_nano","de25_nano");replace("5CSEBA6U23I7","A5EB013BB23BE4SCS");
     replace("fes-gp-v1",menu?"de25-linux-menu-v1":"de25-linux-computer-v1");replace("size = 12","size = "+std::to_string(payload.size()));
     replace("e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",Sha256Hex(hash.Final()));
     replace("fes.simple-game",menu?"fes.application":"fes.computer");replace("0123456789abcdef0123456789abcdef","0123456789abcdeffedcba9876543210");
@@ -157,7 +158,24 @@ std::string RecoveryPackage(Fixture& f,bool menu,const std::string& suffix="") {
     ids.push_back("fes.fabric.de25-scanout");std::string interfaces;
     for(const auto& id:ids)interfaces+="[[interfaces]]\nid = \""+id+"\"\nmajor = 1\nminor = "+
         (id=="fes.fabric.de25-scanout"?"3":"0")+"\nrequired = true\n\n";
-    manifest.replace(first,last-first,interfaces);Put(tmp+"/manifest.toml",manifest);Put(tmp+"/core.rbf",payload);
+    if(!menu&&machine!="fes.zx81") {
+        // A firmware machine: format 3, its own interface set, and the sealed
+        // map of an unpatched payload beside it.
+        const auto d=machine=="fes.atari-st"?mister_test::De25AtariStDescriptor():mister_test::De25SpectrumDescriptor();
+        interfaces.clear();
+        for(const auto& i:d.interfaces)interfaces+="[[interfaces]]\nid = \""+i.id+"\"\nmajor = "+std::to_string(i.major)+
+            "\nminor = "+std::to_string(i.minor)+"\nrequired = true\n\n";
+        Sha256 base;base.Update(payload.data(),payload.size());
+        const std::string map="{\"format\":1,\"device\":\"A5EB013BB23BE4SCS\",\"encoding\":\"gp-firmware-upload-v1\",\"base_sha256\":\""+
+            Sha256Hex(base.Final())+"\",\"source_size\":"+std::to_string(d.rom.source_size)+"}\n";
+        Sha256 sealed;sealed.Update(map.data(),map.size());
+        replace("format = 2","format = 3");
+        manifest+="\n[rom]\nid = \"machine-rom\"\nrole = \"firmware\"\nsource_size = "+std::to_string(d.rom.source_size)+
+            "\nfile = \"rom-map.json\"\nsize = "+std::to_string(map.size())+"\nsha256 = \""+Sha256Hex(sealed.Final())+"\"\n";
+        Put(tmp+"/rom-map.json",map);
+    }
+    const auto first_interface=manifest.find("[[interfaces]]"),build=manifest.find("[build]");
+    manifest.replace(first_interface,build-first_interface,interfaces);Put(tmp+"/manifest.toml",manifest);Put(tmp+"/core.rbf",payload);
     OpenedCorePackage opened;const auto e=OpenCorePackage(tmp,"",&opened);if(!e.ok())std::cerr<<e.message<<std::endl;assert(e.ok());
     const auto path=packages+"/"+opened.package_id+suffix;assert(!rename(tmp.c_str(),path.c_str()));f.paths.package_roots={packages};return path;
 }
@@ -175,6 +193,21 @@ void RecoverVerifiedAllocatedConfigurationOnlyAfterKernelRetirement() {
         assert(r.error.ok()&&r.mutation_attempted&&!fresh.Poisoned());
         assert(owner.owner_infos==1&&owner.reaps==1&&owner.allocations==0&&owner.published.empty());
         assert(guarded==(menu?0u:1u));assert(f.ops.removed==1&&f.ops.written==2&&f.ops.created==2);f.Preserved();assert(fresh.ReleaseConfiguration(100).error.ok());
+    }
+    // A lost Spectrum or Atari ST is retired the same way: its format-3 package
+    // is found by the retained payload, and its own guard runs first.
+    for(const std::string machine:{"fes.spectrum","fes.atari-st"}) {
+        Fixture f;RecoveryPackage(f,false,"",machine);auto old=f.Manager();
+        assert(f.Program(*old,ProgrammingProfile::de25_linux_computer_v1).error.ok());old.reset();
+        mister_test::de25_menu::Operations owner;owner.retained=owner.allocated=true;owner.state.state=1;LinuxDe25Menu memory(f.clock,owner);
+        unsigned guarded=0;
+        LinuxDe25FpgaManager fresh(f.clock,f.lease,f.paths,f.ops,&memory,
+            [&](const CoreDescriptor& d,std::uint64_t){++guarded;assert(d.core.id==machine&&d.format==3&&f.ops.removed==0&&owner.reaps==0);return Error{};});
+        Put(f.root+"/next.rbf","different admitted incoming image");PosixArtifactOpener opener;
+        assert(OpenRBFArtifact(f.root+"/next.rbf",opener,&f.artifact).ok());f.ops.expected_payload="different admitted incoming image";
+        const auto r=fresh.Program(f.artifact,ProgrammingProfile::de25_linux_menu_v1,100);if(!r.error.ok())std::cerr<<r.error.message<<std::endl;
+        assert(r.error.ok()&&r.mutation_attempted&&!fresh.Poisoned()&&guarded==1&&owner.reaps==1);
+        assert(f.ops.removed==1&&f.ops.written==2);f.Preserved();assert(fresh.ReleaseConfiguration(100).error.ok());
     }
     for(int malformed=0;malformed<7;++malformed) {
         Fixture f;const auto package=RecoveryPackage(f,true);auto old=f.Manager();

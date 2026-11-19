@@ -92,7 +92,13 @@ func TestReleaseHomeLibraryRemovesOnlyDisplayedCoreEntry(t *testing.T) {
 		return homeFamilySettled(s) && s.Room.Destination.Label == "Sinclair ZX81"
 	})
 	app.HandleCommand(CmdSelect, time.Now())
-	s := waitFor(t, app, "Sinclair setup", func(s Snapshot) bool {
+	// The family tile opens the core screen; Expansions opens the workshop.
+	s := waitFor(t, app, "Sinclair core screen", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.ID == coreRoomID && !s.FirmwareCard.Open && roomHit(s, "expansions").ID != ""
+	})
+	at := roomHitCenter(s, "expansions")
+	app.PointerClick(at[0], at[1], time.Now())
+	s = waitFor(t, app, "Sinclair setup", func(s Snapshot) bool {
 		return s.Room.Open && s.Room.ID == hardwareRoomID && roomHit(s, "library").ID != ""
 	})
 	s = waitFor(t, app, "setup Library control", func(s Snapshot) bool { return !s.FirmwareCard.Open && roomHit(s, "library").ID != "" })

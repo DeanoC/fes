@@ -2,7 +2,7 @@ package tenfoot
 
 // Keyboard browse/nav mapping for USB HID on the SDL tenfoot path.
 // Play-session HID uses HandlePlayHIDKey / internal/playhid while
-// ForwardsPlayHID is active (Esc/Backspace remain session-stop chrome).
+// ForwardsPlayHID is active (Backspace remains session-stop chrome).
 
 // CommandFromKey maps USB keyboard keys onto the sofa focus graph.
 // Names are SDL-style identifiers (see commandFromSDLKey).

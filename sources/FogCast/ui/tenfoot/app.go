@@ -169,6 +169,7 @@ type SessionSnapshot struct {
 	MediaSelector     bool // The kit session plane is available for direct media controls.
 	// KeypadSelect keeps Select with a keypad machine; Guide opens controls.
 	KeypadSelect bool
+	KeyboardHID  bool // The running core receives physical Escape and Backspace.
 	HardwareRoom bool
 }
 
@@ -257,6 +258,7 @@ type Snapshot struct {
 	Views              []LibraryView
 	PickerRows         []LibraryView
 	CollectionMenu     CollectionMenuSnapshot
+	Controllers        ControllersSnapshot
 	Session            SessionSnapshot
 	GPUParked          bool
 	Surround           SurroundSnapshot
@@ -315,6 +317,7 @@ type App struct {
 	covers                  map[string]*coverSlot
 	inflight                map[string]workKind
 	status                  string
+	libraryStatus           string // the library's own line; an open room keeps status
 	statusLeaseRefusal      bool
 	launchLeaseRefusal      bool
 	loadErr                 string
@@ -329,12 +332,23 @@ type App struct {
 	affinity                affinityTracker
 	// padPrompts holds each attached pad's hint glyphs by input ID.
 	padPrompts map[int]PadPrompts
-	repeat     Repeater
-	theme      theme.Theme
-	jobs       chan workItem
-	results    chan workResult
-	maxGames   int
-	pageLimit  int
+	// pads is the kit's attached pads by input ID, and padDown the physical
+	// buttons each is holding.
+	pads    map[int]PadInfo
+	padDown map[int]map[remoteinput.Code]bool
+	// padProfiles is the saved profiles by GUID, read on first use.
+	// padProfilesUnread is a preferences file that could not be read, so a
+	// save would lose what it holds.
+	padProfiles       map[string]inputmap.Profile
+	padProfilesUnread bool
+	padProfileGen     uint64
+	controllers       controllersState
+	repeat            Repeater
+	theme             theme.Theme
+	jobs              chan workItem
+	results           chan workResult
+	maxGames          int
+	pageLimit         int
 
 	platforms              []hostclient.Platform
 	platformID             string
@@ -1632,7 +1646,7 @@ func (a *App) doFavorite(ctx context.Context, gameID string, want bool) {
 		a.reloadLocked()
 		return
 	}
-	a.status = a.libraryStatusLocked()
+	a.setLibraryStatusLocked(a.libraryStatusLocked())
 }
 
 func (a *App) platformChoicesLocked() []string {
@@ -1677,7 +1691,7 @@ func (a *App) reloadCatalogWithNoticeLocked(notice string) {
 	ctx := a.replaceLoadContextLocked()
 	lastInput := a.lastInput
 	if notice != "" {
-		a.setLibraryStatusLocked(notice)
+		a.setLibraryNoticeLocked(notice)
 	}
 	go func() {
 		a.loadLibrary(ctx, gen)
@@ -1696,12 +1710,11 @@ func (a *App) reloadCatalogWithNoticeLocked(notice string) {
 // setLibraryRefreshNoticeLocked keeps a failed refresh visible alongside the
 // outcome that requested it, including while setup defers library status.
 func (a *App) setLibraryRefreshNoticeLocked(notice string) {
-	status := a.libraryStatusForNoticeLocked()
-	if a.loadErr != "" || status == savedListOfflineCopy || status == "Can't reach the library right now." {
-		a.setLibraryStatusLocked(notice + " Couldn't refresh the library.")
+	if a.loadErr != "" || a.libraryStatus == savedListOfflineCopy || a.libraryStatus == "Can't reach the library right now." {
+		a.setLibraryNoticeLocked(notice + " Couldn't refresh the library.")
 		return
 	}
-	a.setLibraryStatusLocked(notice)
+	a.setLibraryNoticeLocked(notice)
 }
 
 func (a *App) replaceLoadContextLocked() context.Context {
@@ -1805,9 +1818,13 @@ func (a *App) Snapshot() Snapshot {
 	}
 	status := a.status
 	if a.setupRoomOpenLocked() && status == setupBlockedStatus && !a.setupSessionBusyLocked() {
-		status = a.setup.deferredLibraryStatus
+		// The block is over: a notice it deferred, else the room's own line.
+		status = a.setup.deferredNotice
+		if status == "" {
+			status = a.room.Title()
+		}
 		a.status = status
-		a.setup.deferredLibraryStatus = ""
+		a.setup.deferredNotice = ""
 	}
 	if a.setupRoomOpenLocked() && status == setupBlockedStatus && a.setupSessionBusyLocked() {
 		// Preserve the setup action's reason while a launch status is present.
@@ -1884,6 +1901,7 @@ func (a *App) Snapshot() Snapshot {
 		Views:              a.viewChoicesLocked(),
 		PickerRows:         a.pickerRowsLocked(),
 		CollectionMenu:     a.collectionMenuSnapshotLocked(),
+		Controllers:        a.controllersSnapshotLocked(),
 		Session:            a.sessionSnapshotLocked(),
 		GPUParked:          a.gpuParked,
 		Surround:           SurroundSnapshot{Active: a.surroundShownLocked()},
@@ -1985,7 +2003,7 @@ func (a *App) DetachInput(kind InputKind, id int) {
 	defer a.mu.Unlock()
 	a.affinity.Detach(kind, id)
 	if kind == InputGamepad {
-		delete(a.padPrompts, id)
+		a.dropPadInfoLocked(id)
 	}
 	a.syncInputCountsLocked()
 }
@@ -2483,6 +2501,9 @@ func (a *App) handlePlayHIDScancode(source int, name string, usage uint8, down b
 	if suppressed {
 		return true
 	}
+	if a.consumePlayEscape(name) {
+		return true
+	}
 	if mediaSelectorKey(name, usage) {
 		// F12 is the running selector. The session consumes the key, including an empty tape and
 		// a folder that has no .p files, so it is never forwarded. With no
@@ -2565,8 +2586,8 @@ func (a *App) ConsumePlayHID() bool {
 	return true
 }
 
-// HandlePlayHIDKey consumes one USB key while play HID is attached. Esc and
-// Backspace stop the session without NoteInput; "/" opens Load-tape when the
+// HandlePlayHIDKey consumes one USB key while play HID is attached. Backspace
+// stops the session without NoteInput; "/" opens Load-tape when the
 // active package can arm a mailbox. Other keys encode for the attached core.
 // Letter s is a ZX81/core key, not chrome stop.
 func (a *App) HandlePlayHIDKey(name string, down bool, now time.Time) bool {
@@ -2580,7 +2601,25 @@ func (a *App) HandlePlayHIDKey(name string, down bool, now time.Time) bool {
 	if suppressed {
 		return true
 	}
+	if a.consumePlayEscape(name) {
+		return true
+	}
 	return a.handlePlayHIDKey(-1, name, 0, down, now)
+}
+
+// A second Escape after returning from a room must not stop the machine.
+// HID keyboards still receive Escape; while a room or recovery owns focus,
+// leave it to the ordinary Back and retry paths.
+func (a *App) consumePlayEscape(name string) bool {
+	if !strings.EqualFold(strings.TrimSpace(name), "escape") {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.session.State == "active" && !(a.session.CoreKeyboardHID && a.forwardsKeyboardHIDLocked()) &&
+		!a.roomDuringPlay && !a.sessionDisplayBusy && !a.sessionDisplayUncertain &&
+		!a.launcherDisplayFocusedLocked() && !a.tapePickerOpen && !a.firmwarePickerOpen &&
+		!a.retryStopLock && a.stopPhase != "stopping"
 }
 
 // Physical key-up must reach the same active route even when Stop suppresses
@@ -3504,6 +3543,7 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		ControlsOpen:      a.roomDuringPlay,
 		MediaSelector:     a.needsSessionDisplayLocked() && (a.sessionLiveMediaOfferedLocked() || a.mediaControlsDirect),
 		KeypadSelect:      a.sessionKeypadLocked(),
+		KeyboardHID:       a.forwardsKeyboardHIDLocked(),
 		HardwareRoom:      a.playingHardwareRoomAvailableLocked(),
 	}
 }
