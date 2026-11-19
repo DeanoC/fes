@@ -50,6 +50,12 @@ REQUIRED = {'latch': 1, 'cr0_ne': 1, 'cr0_wp': 1, 'cr0_am': 1, 'cr0_nw': 1, 'cr0
             'eflags_ac': 1, 'eflags_id': 1, 'tr3': 32}
 
 
+def tr3_bits(record: dict) -> set:
+    """The TR3 bit indices the fitted design holds, from the listed names; a ~DUPLICATE copy of one bit
+    is the same index, so it cannot stand in for another."""
+    return {int(m.group(1)) for name in record.get('names', []) for m in [re.search(r'cpu_tr3\[(\d+)\]', name)] if m}
+
+
 def retention_verdict(data: dict, ret: dict) -> dict:
     verdict = {}
     for board in BOARDS:
@@ -58,6 +64,7 @@ def retention_verdict(data: dict, ret: dict) -> dict:
         ok = (c is not None and b is not None and c1 is not None and b1 is not None
               and c['alms'] == c1['alms'] and b['alms'] == b1['alms']
               and all(c['registers'].get(key, 0) >= least for key, least in REQUIRED.items())
+              and tr3_bits(c) == set(range(32)) and tr3_bits(b) == set(range(32))
               and 'latch' in b['registers'] and b['registers']['latch'] == 0
               and all(b['registers'].get(key, 0) >= least for key, least in REQUIRED.items() if key != 'latch'))
         verdict[board] = {'two_identity_fit': ok, 'arm_c_counts': c and c['registers'],
