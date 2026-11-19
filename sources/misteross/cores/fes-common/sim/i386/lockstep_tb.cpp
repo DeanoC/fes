@@ -535,6 +535,7 @@ public:
         window = on;
     }
     bool window = false;
+    bool ems_frame = false;  // E0000h-EFFFFh is MMIO too (the governor bench only)
     // TR4-TR7 as the RTL keeps them (#1730), which Bochs at CPU level 3 has
     // not: what MOV TRn writes, read back by MOV r32, TRn (lockstep's
     // tr_rule). Reset clears them, as it clears the RTL's.
@@ -915,7 +916,9 @@ private:
     uint32_t mmio_value = 0;
 
     uint8_t &mmio_byte(uint32_t address) {
-        if (!window || !in_window(address)) throw std::runtime_error("MMIO access outside the window: " + hex(address));
+        const bool frame = ems_frame && address >= 0xe0000u && address < 0xf0000u;
+        if (!frame && (!window || !in_window(address)))
+            throw std::runtime_error("MMIO access outside the window: " + hex(address));
         return ddr[address];
     }
 
@@ -13437,6 +13440,7 @@ void run_governor(Rtl &rtl, Summary &summary) {
     // is fitted: MMIO that is not VGA memory, which local-bus video leaves on
     // the ISA charge.
     for (int slot = 16; slot < 20; ++slot) rtl.top.attr_upper |= uint64_t(2) << (2 * slot);
+    rtl.ems_frame = true;
     constexpr uint32_t ORIGIN = 0x1000;
     for (uint32_t i = 0; i < program.size(); ++i) rtl.poke(ORIGIN + i, program[i]);
     State state;
