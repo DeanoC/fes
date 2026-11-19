@@ -117,11 +117,15 @@ func (a *App) setupSessionBusyLocked() bool {
 		a.developmentLoadingLocked() || a.gpuParked
 }
 
-// setLibraryStatusLocked records the library's own status line. An open room,
-// setup's included, keeps its own line; the library shows its line again when
-// it next loads.
+// setLibraryStatusLocked records the library's own status line. A setup room
+// keeps the blocking explanation visible while a session is busy, then shows
+// the library result that arrived during the block.
 func (a *App) setLibraryStatusLocked(status string) {
 	a.libraryStatus = status
+	if a.setupRoomOpenLocked() && a.status == setupBlockedStatus && a.setupSessionBusyLocked() {
+		a.setup.deferredNotice = status
+		return
+	}
 	if a.room != nil {
 		return
 	}

@@ -257,13 +257,13 @@ func TestSetupBlockedStatusSurvivesLibraryResponse(t *testing.T) {
 			default:
 			}
 			snap = waitFor(t, app, "idle host session", func(s Snapshot) bool { return s.Session.State == "idle" })
-			// The block is over: setup shows its own line, as any room does
-			// after a library load. The library keeps the line it loaded.
+			// The block is over: setup shows the library result deferred while
+			// the session was busy.
 			app.mu.Lock()
-			title, library := app.room.Title(), app.libraryStatus
+			library := app.libraryStatus
 			app.mu.Unlock()
-			if snap.Status != title {
-				t.Fatalf("status after idle = %q, want the room's %q", snap.Status, title)
+			if snap.Status != tc.library {
+				t.Fatalf("status after idle = %q, want the library's %q", snap.Status, tc.library)
 			}
 			if library != tc.library {
 				t.Fatalf("library status = %q, want %q", library, tc.library)
@@ -370,7 +370,7 @@ func TestSetupBlockedStatusClearsWhenSessionStops(t *testing.T) {
 	}
 }
 
-func TestSetupWaitsForRunningOrStartingSessionThenShowsItsOwnLine(t *testing.T) {
+func TestSetupWaitsForRunningOrStartingSessionPreservesLibraryStatus(t *testing.T) {
 	app := NewApp(nil, 1280, 720, 50)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
 	app.SetRooms(rooms.NewIndex(rooms.Examples()), t.TempDir())
@@ -389,10 +389,10 @@ func TestSetupWaitsForRunningOrStartingSessionThenShowsItsOwnLine(t *testing.T) 
 	}
 	app.mu.Lock()
 	app.session.State = "idle"
-	title, library := app.room.Title(), app.libraryStatus
+	library := app.libraryStatus
 	app.mu.Unlock()
-	if got := app.Snapshot().Status; got != title {
-		t.Fatalf("status after session stops = %q, want the room's %q", got, title)
+	if got := app.Snapshot().Status; got != library {
+		t.Fatalf("status after session stops = %q, want the library's %q", got, library)
 	}
 	if library != "Can't reach the library right now." {
 		t.Fatalf("library status = %q", library)
