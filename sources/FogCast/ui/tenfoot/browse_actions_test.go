@@ -188,9 +188,9 @@ func TestHomeHeroActionsFollowSpatialDirectionsWithoutMovingSelection(t *testing
 			if snap := app.Snapshot(); snap.Room.Destination.Label != before.Room.Destination.Label {
 				t.Fatal("header Down changed the family")
 			}
-			// Ordinary Confirm on a family opens its workbench.
+			// Ordinary Confirm on a family opens its core screen.
 			app.HandleCommand(CmdSelect, time.Now())
-			waitFor(t, app, "workbench", func(s Snapshot) bool { return s.Room.ID == hardwareRoomID })
+			waitFor(t, app, "core screen", func(s Snapshot) bool { return s.Room.ID == coreRoomID })
 			if app.Snapshot().Launch.Phase == "launching" {
 				t.Fatalf("Open started a launch: %s", app.Snapshot().Launch.Phase)
 			}

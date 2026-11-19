@@ -525,6 +525,12 @@ library session. Format-2 ZX81 initialization retains its existing prototype
 path. This software support does not change the production package producers
 or establish hardware acceptance.
 
+A DE25 Spectrum or Atari ST package uses the same selection, readiness and
+envelope, but nothing is linked: it requires `fes.fabric.firmware-upload` 1.0,
+the kit stages the selected ROM itself, and the runtime uploads it while the
+machine is held. The returned receipt names the package's unchanged payload as
+the programmed image.
+
 Format-3 selection is not tied to one machine. A `fes.computer` 1.0 package
 such as `fes.apple2` declares one `firmware` ROM (`apple2-firmware`, 16 KiB)
 and uses the same `PUT /api/v1/library/core-entries/GAME_ID/rom` binding. The

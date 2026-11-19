@@ -230,7 +230,7 @@ func TestHomeShowsReleaseAndPCFamiliesWithLibraryState(t *testing.T) {
 
 	d := r.Destination()
 	if d.Kind != KindFamily || d.Label != "Sinclair ZX81" || d.Availability != AvailReady || d.Status != "2 games" ||
-		d.Models != "4 models: ZX81, ZX80, TS1000, TS1500" || d.RoomID != "example.hardware" || d.CoreID != "fes.zx81" || d.GameID != "zx81" ||
+		d.Models != "4 models: ZX81, ZX80, TS1000, TS1500" || d.RoomID != "example.core" || d.CoreID != "fes.zx81" || d.GameID != "zx81" ||
 		d.Confirm() != ConfirmEnterRoom {
 		t.Fatalf("opening family %+v confirm %v", d, d.Confirm())
 	}
@@ -239,7 +239,7 @@ func TestHomeShowsReleaseAndPCFamiliesWithLibraryState(t *testing.T) {
 	}
 
 	r.Input("right")
-	if d := r.Destination(); d.Label != "ZX Spectrum" || d.Status != "No games yet" || d.RoomID != "example.system" || d.CoreID != "fes.spectrum" {
+	if d := r.Destination(); d.Label != "ZX Spectrum" || d.Status != "No games yet" || d.RoomID != "example.core" || d.CoreID != "fes.spectrum" {
 		t.Fatalf("Spectrum %+v", d)
 	}
 	r.Input("right")

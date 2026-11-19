@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"github.com/DeanoC/FogCast/internal/testwait"
 	"io"
 	"net/http"
@@ -24,6 +25,7 @@ import (
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/controller"
 	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/rooms"
 	"golang.org/x/sys/unix"
 )
 
@@ -1091,3 +1093,34 @@ func TestMappedGuideFollowsTheDB(t *testing.T) {
 
 // PowerA's 0x200f entry binds guide and start both to its BTN_START. Start
 // reaches a kit-local core and does not stop it.
+
+func TestEscapeAfterRoomReturnKeepsLegacySession(t *testing.T) {
+	for _, tc := range []struct{ inputReady, hid bool }{{true, false}, {false, false}, {false, true}} {
+		t.Run(fmt.Sprintf("input-ready-%t-hid-%t", tc.inputReady, tc.hid), func(t *testing.T) {
+			var rec stopRecorder
+			app := NewApp(NewClient(rec.server(t).URL, nil), 1280, 720, 20)
+			t.Cleanup(app.Stop)
+			app.SetRooms(rooms.NewIndex([]rooms.Pack{testRoomPack(t, "esc-test", "function load() end\nfunction draw() end")}), "")
+			app.mu.Lock()
+			app.session = hostclient.SessionResult{ID: "esc-session", State: "active", CoreKeyboardHID: tc.hid}
+			if tc.inputReady {
+				app.session.Input = &hostclient.SessionInput{State: "attached", Ready: true}
+			}
+			app.openRoomLocked("esc-test")
+			app.roomDuringPlay = true
+			app.mu.Unlock()
+			in := &nativeInput{kind: InputKeyboard, fd: 41}
+			now := time.Now()
+			in.key(app, 1, 1, now)
+			in.key(app, 1, 0, now)
+			if snap := app.Snapshot(); snap.Room.DuringPlay || snap.Session.State != "active" || snap.Session.Stopping {
+				t.Fatalf("first Escape did not return to active play: %+v", snap.Session)
+			}
+			in.key(app, 1, 1, now.Add(time.Second))
+			in.key(app, 1, 0, now.Add(time.Second))
+			if snap := app.Snapshot(); snap.Session.State != "active" || snap.Session.Stopping || len(rec.stops()) != 0 {
+				t.Fatalf("second Escape stopped play: session=%+v stops=%v", snap.Session, rec.stops())
+			}
+		})
+	}
+}

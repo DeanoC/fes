@@ -10812,7 +10812,73 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.esc(0xdf, 7, 0x320);                                 // FISTP m64
             a.esc(0xd9, 0, 0x104);                                 // FLD m32
             a.esc(0xd9, 3, 0x328);                                 // FSTP m32
+            // #1877's reproduction: FSTP m80 stores upwards, so its last
+            // chunk is the word at 348h, and the data pointer must still be
+            // the operand's 340h.
+            a.esc(0xd9, 0, 0x104);                                 // FLD m32
+            a.esc(0xdb, 7, 0x340);                                 // FSTP m80
         }},
+        // ---- The data pointer of every multi-chunk form (#1877) ----
+        // Each form is the last ESC before an FNSTENV, so the lockstep's x87
+        // state comparison checks the data pointer the form left, and the
+        // FNSTENV stores it to memory as well. The stores move upwards (the
+        // last chunk at 4 or 8 past the operand) and the loads downwards
+        // (the last at the operand), and both must leave the operand's
+        // offset. Then the same under a 32-bit address size, whose offset is
+        // not truncated to 16 bits.
+        {"fdp-chunks", [=](Asm &a) {
+            a.op({0xdb, 0xe3});
+            const auto env = [&a] { a.esc(0xd9, 6, 0x3c0); };     // FNSTENV
+            a.esc(0xdd, 0, 0x108);                                 // FLD m64
+            env();
+            a.esc(0xdd, 2, 0x350);                                 // FST m64
+            env();
+            a.esc(0xdd, 3, 0x358);                                 // FSTP m64
+            env();
+            a.esc(0xdb, 5, 0x110);                                 // FLD m80
+            env();
+            a.esc(0xdb, 7, 0x360);                                 // FSTP m80
+            env();
+            a.esc(0xdf, 5, 0x128);                                 // FILD m64
+            env();
+            a.esc(0xdf, 7, 0x370);                                 // FISTP m64
+            env();
+            a.esc(0xd9, 0, 0x100);                                 // FLD m32
+            a.esc(0xdc, 0, 0x108);                                 // FADD m64
+            env();
+            a.esc(0xd9, 6, 0x380);                                 // FNSTENV: leaves it
+            a.esc(0xd9, 4, 0x380);                                 // FLDENV: loads it
+            a.esc(0xdd, 6, 0x3e0);                                 // FNSAVE: clears it
+            a.esc(0xdd, 4, 0x3e0);                                 // FRSTOR: loads it
+            env();
+            // 32-bit addressing: 67h, ModRM mod 00 r/m 101, disp32.
+            const auto esc32 = [&a](uint8_t opcode, unsigned reg, uint32_t off) {
+                a.op({0x67, opcode, uint8_t(reg << 3 | 5)});
+                a.w(uint16_t(off)); a.w(uint16_t(off >> 16));
+            };
+            esc32(0xdb, 5, 0x110);                                 // FLD m80
+            esc32(0xdb, 7, 0x450);                                 // FSTP m80
+            env();
+            esc32(0xdd, 0, 0x108);                                 // FLD m64
+            esc32(0xdd, 3, 0x448);                                 // FSTP m64
+            env();
+            // Unreal mode, so an offset above 64 KiB is legal and a data
+            // pointer cut to 16 bits would show: DS takes a 4 GiB data
+            // descriptor in protected mode and keeps it back in real mode,
+            // with base 0, so every offset below is linear.
+            a.op({0xfa});                                          // CLI
+            a.op({0x0f, 0x01, 0x16}); a.w(0x1f0);                  // LGDT [1F0h]
+            a.op({0x0f, 0x20, 0xc0, 0x0c, 0x01, 0x0f, 0x22, 0xc0});  // MOV EAX, CR0; OR AL, 1; MOV CR0, EAX
+            a.op({0xbb, 0x08, 0x00, 0x8e, 0xdb});                  // MOV BX, 8; MOV DS, BX
+            a.op({0x24, 0xfe, 0x0f, 0x22, 0xc0});                  // AND AL, FEh; MOV CR0, EAX
+            esc32(0xdb, 5, DS + 0x110);                            // FLD m80
+            esc32(0xdb, 7, 0x17350);                               // FSTP m80 above 64 KiB
+            esc32(0xd9, 6, DS + 0x3c0);                            // FNSTENV
+            esc32(0xdd, 0, DS + 0x108);                            // FLD m64
+            esc32(0xdd, 3, 0x17360);                               // FSTP m64 above 64 KiB
+            esc32(0xd9, 6, DS + 0x3c0);
+        }, {{0x1f0, {0x0f, 0x00, 0x00, 0x72, 0x00, 0x00}},         // GDTR: limit 0Fh, base 7200h
+            {0x200, {0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0x00, 0x00, 0x00, 0x93, 0xcf, 0x00}}}},  // null; 4 GiB data
         // ---- Slice 4's forms, through the CPU ----
         // These are what the unit's own bench cannot reach: the bench supplies
         // the operand format itself, so a memory divide that x87_decode
@@ -11066,14 +11132,11 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.esc(0xd9, 6, 0x340);                                 // FNSTENV: the pointers and opcode
         }},
         {"compare", [](Asm &a) {
-            // The result stores below are m32, not m80: a multi-part store
-            // leaves the x87 data pointer at its last chunk rather than at
-            // the operand, which is a defect in slice 2's pointer path
-            // (#1877) and not this slice's to carry. The registers are
-            // compared in full by the x87 state comparison anyway; the store
-            // is here so a result also goes through a memory write, which
-            // the lockstep compares at every retirement whether or not the
-            // unit is still busy.
+            // The result stores below are m32. The registers are compared
+            // in full by the x87 state comparison anyway; the store is here
+            // so a result also goes through a memory write, which the
+            // lockstep compares at every retirement whether or not the unit
+            // is still busy.
             // FNSTSW AX after each compare puts the status word in a GPR,
             // which the lockstep compares at every retirement whether or not
             // the unit is still busy, so the condition codes are checked
@@ -11858,9 +11921,7 @@ int run_x87_bcd_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const 
 //   oracle-setter       Oracle::set_x87_register and set_x87_status_bits on
 //                       the oracle alone (both backends).
 // Every exception is masked: this bench drives no IRQ 13, as the x87 and
-// x87bcd suites do not, so the unmasked cases are the unit bench's. No case
-// stores with FSTP m64 or m80 (the RTL's data pointer after those is a known
-// open defect, not this suite's). F2XM1 and FYL2XP1 operands are kept inside
+// x87bcd suites do not, so the unmasked cases are the unit bench's. F2XM1 and FYL2XP1 operands are kept inside
 // the ranges the manual defines (EXP1, LOG5) but for the recorded FYL2XP1
 // cases: outside them the manual says undefined and the references disagree
 // (rules.md M10).

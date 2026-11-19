@@ -3002,10 +3002,21 @@ module fes_i386_cpu #(
     logic       int_cbp_ok, int_cbp_hit;
     logic       iret_start;
     assign wb_commit = wb_s.valid && !halted && !freeze && !int_take && wb_fault == fes_i386_pkg::FAULT_NONE;
-    // An ESC memory form's offset, the x87 data pointer's: 16 bits under a
-    // 16-bit address size, zero-extended.
-    logic [31:0] wb_fdp;
-    assign wb_fdp = wb_s.uop.mem.addr32 ? wb_s.moff : {16'd0, wb_s.moff[15:0]};
+    // An ESC memory form's operand offset, the x87 data pointer's: 16 bits
+    // under a 16-bit address size, zero-extended. The uop that writes the
+    // pointers is the form's last, so a fault in any part leaves them alone,
+    // and for a form moved in several chunks the last is not always the one
+    // at the operand's own offset: FST and FSTP m64 and FISTP m64 store
+    // upwards and end with the dword at 4, FSTP m80 with the word at 8
+    // (#1877). Its chunk, x87_part (the ROM's dword index fpj, or moff[3:2]
+    // for the decode's own uop), says how far past the operand that is, so
+    // the operand's offset is the access's less that, wrapped by address
+    // size as the access was. Only operand chunks write the pointers: the
+    // environment and save forms, whose x87_part counts fields instead, are
+    // X87P_NONE.
+    logic [31:0] wb_fdp, wb_fdp_raw;
+    assign wb_fdp_raw = wb_s.moff - {27'd0, wb_s.x87_part[1:0], 2'b00};
+    assign wb_fdp = wb_s.uop.mem.addr32 ? wb_fdp_raw : {16'd0, wb_fdp_raw[15:0]};
     assign at_boundary = wb_commit && (wb_eoi || wb_s.uop.str_cx);
     assign in_hlt = hlt && !int_take;
     assign wb_ss_load = wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_SEG

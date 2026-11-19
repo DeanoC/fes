@@ -305,12 +305,31 @@ def fpga_cores(path):
             if name in ('build_zx81_package.py', 'build_zx81_static_package.py',
                         'export_static_persona.py', 'review_audio_clocks.py'):
                 return ('zx81',), 'DE25 ZX81 package producer and qualified review'
+            if name == 'build_machine_package.py':
+                return ('spectrum', 'atari-st'), 'DE25 uploaded-firmware machine package producer'
+            if name == 'build_spectrum_package.py':
+                return ('spectrum',), 'DE25 Spectrum package producer'
+            if name == 'build_atari_st_package.py':
+                return ('atari-st',), 'DE25 Atari ST package producer'
         if len(parts) >= 4 and parts[2] == 'package':
             return ('menu', 'zx81'), 'DE25 package format implementation'
+        if parts[2] == 'spectrum':
+            return ('spectrum',), 'DE25 Spectrum integration and its derivations'
+        if parts[2] == 'atari-st':
+            return ('atari-st',), 'DE25 Atari ST integration and its derivations'
+        if parts[2] == 'machine':
+            return ('spectrum', 'atari-st'), 'DE25 uploaded-firmware machine builder'
         if len(parts) >= 4 and parts[2] == 'shared-rtl':
             name = parts[3]
             if name in ('fes_menu_reader.v', 'fes_menu_video.v', 'fes_menu_control.v'):
                 return ('menu', 'zx81'), 'DE25 local display and menu consumers'
+            if name in ('fes_spectrum_core.v', 'fes_spectrum_firmware_rom.v'):
+                return ('spectrum',), 'DE25 Spectrum machine shell'
+            if name in ('fes_atari_st_core.v', 'fes_st_rom_sdram.v'):
+                return ('atari-st',), 'DE25 Atari ST machine shell'
+            if name in ('fes_firmware_upload.v', 'fes_gp_crossing.v', 'fes_media_sdram.v',
+                        'fes_de25_machine_audio.v'):
+                return ('spectrum', 'atari-st'), 'DE25 uploaded-firmware machine shell'
             if name in ('fes_computer_mailbox.v', 'fes_display_plane.v',
                         'fes_zx81_core.v', 'zx81_machine.sv', 'zx81_machine_clock.v',
                         'zx81_top.v'):

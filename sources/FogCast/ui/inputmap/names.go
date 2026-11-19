@@ -44,3 +44,14 @@ func parseLogical(name string) (remoteinput.Code, error) {
 	}
 	return code, nil
 }
+
+// Name is the name a profile binds code by, or "" for a control a profile
+// cannot bind.
+func Name(code remoteinput.Code) string {
+	for name, c := range logicalNames {
+		if c == code {
+			return name
+		}
+	}
+	return ""
+}

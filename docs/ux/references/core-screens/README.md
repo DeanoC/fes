@@ -7,6 +7,12 @@ set and for pc386, which is tier 1 pending. Read with the
 [hardware rooms](../../../hardware-rooms.md) and the
 [v1 references](../v1/README.md), whose method this folder reuses.
 
+The first slice is built: Home opens `example.core`
+(`widgets.core_screen`) for the ZX81, Spectrum, Atari ST and Commodore 64
+families, with the model row, the computer panel, one drive row and the games
+list on the actions that exist today. The disk shelf, new disks, disk sets,
+the saves tag on a drive, and the PC/XT and 386 PC screens are not built.
+
 These pictures are **proposals, not captures of product code**. They are host
 software-renderer fixtures. They establish no hardware, controller, scanout or
 readability acceptance, and no kit was used. Every game, disk, count and folder
@@ -306,22 +312,25 @@ was asked for, the safe choice is first, and a copy is offered.
 
 [1024×600](settings-pc386-speed-1024x600.png)
 
-## Decisions for Deano
+## Decisions
 
-1. **Names.** "386 PC" and "PC/XT" as family names; "Lock against changes"
-   for write protect; "Disk shape" for geometry; "Bring in a disk file" for
-   import; "Go back to the original" for discarding kept changes.
+Deano settled these on 17 November 2026. Each one is the choice the screens
+above already show.
+
+1. **Names.** "386 PC" and "PC/XT" are the family names. Write protect is
+   "Lock against changes", geometry is "Disk shape", import is "Bring in a
+   disk file", and discarding kept changes is "Go back to the original".
 2. **ZX81.** It takes the shared screen and keeps its workshop behind
-   Expansions. The alternative is to leave the ZX81 on the workshop alone.
+   Expansions. It does not stay on the workshop alone.
 3. **One shelf per family.** An ST disk and a PC/XT disk are never offered to
-   the other computer, so each family has its own shelf and no shared one.
+   the other computer, so each family has its own shelf and there is no shared
+   one.
 4. **Game disks on the shelf.** A game disk appears on the shelf only once it
-   has saved changes. The alternative is to list every disk in the games
-   folder there.
+   has saved changes. The shelf does not list every disk in the games folder.
 5. **Unavailable New disk.** On the +3, Pentagon and C64 the button is shown
-   with its reason. The alternative is to hide it until the core writes disks.
+   with its reason. It is not hidden until the core writes disks.
 6. **FreeDOS on a new disk.** The PC/XT and 386 PC defaults make a disk that
-   starts FreeDOS, which means the kit carries a FreeDOS disk builder.
+   starts FreeDOS, so the kit carries a FreeDOS disk builder.
 
 ## How they were made
 

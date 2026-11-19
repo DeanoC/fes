@@ -654,19 +654,30 @@ class CudaLaneConfigurationTests(unittest.TestCase):
                     )
 
         def record(tool_identity: str) -> bytes:
-            return create_build_record(
-                ROOT,
-                "https://example.invalid/m.git",
-                "a" * 40,
-                {
-                    "yosys": "commit=y; sha256=" + "b" * 64,
-                    "mistral": "commit=m; sha256=" + "c" * 64,
-                    "nextpnr-mistral": tool_identity,
-                },
-                execution=EXECUTION,
-                gpu_backend="cuda",
-                gpu_architectures="unused",
-            )
+            # clean_module gives this test an isolated Git fixture. Keep the
+            # producer's audited closure when recording its identity instead
+            # of falling back to every file under scripts/ and the core roots.
+            from scripts.functional_execution import AuditedRoots
+            from scripts.source_closure import load_manifest
+
+            with patch.object(
+                spectrum,
+                "source_roots_for_producer",
+                return_value=AuditedRoots(load_manifest()["build_fes_spectrum_oss"]),
+            ):
+                return create_build_record(
+                    ROOT,
+                    "https://example.invalid/m.git",
+                    "a" * 40,
+                    {
+                        "yosys": "commit=y; sha256=" + "b" * 64,
+                        "mistral": "commit=m; sha256=" + "c" * 64,
+                        "nextpnr-mistral": tool_identity,
+                    },
+                    execution=EXECUTION,
+                    gpu_backend="cuda",
+                    gpu_architectures="unused",
+                )
 
         default_identity = "commit=n; sha256=" + "d" * 64 + "; " + fes_build_common.FES_CUDA_TOOLCHAIN_CONFIGURATION
         custom_identity = "commit=n; sha256=" + "d" * 64 + "; " + configuration

@@ -5,6 +5,7 @@
 
 #include "native/generated/de10_nano.hpp"
 #include "native/generated/fes_computer.hpp"
+#include "native/generated/fes_firmware_upload.hpp"
 #include "native/linux/mmio.hpp"
 
 #include <cstdint>
@@ -73,6 +74,11 @@ public:
 				static_cast<std::uint16_t>(capabilities_)};
 			return {0, index < 8 ? words[index] : build_words_[index - 8]};
 		}
+		if (firmware_bytes && op >= FesFirmwareUploadOpcodeInfo && op <= FesFirmwareUploadOpcodeCommit)
+			return Firmware(op, index, arg);
+		// The upload front end answers a release itself until an image is ready.
+		if (op == FesComputerOpcodeExecution && firmware_bytes && index == 0 && arg == 1 &&
+			firmware_state != FesFirmwareUploadStateReady) return {state_error, 0};
 		if (op == FesComputerOpcodeExecution) {
 			if (index) return {index_error, 0};
 			if (arg > 1) return {argument_error, 0};
@@ -389,6 +395,9 @@ public:
 		}
 		zx81_snapshot_.clear();
 		ClearTransfer();
+		// Reconfiguring the FPGA empties the image.
+		firmware_state = 0; firmware_armed = false; firmware_next = 0; firmware_received = 0;
+		firmware.clear();
 		toggle_ = false;
 		error_ = false;
 		response_ = 0;
@@ -418,6 +427,75 @@ public:
 				crc = (crc >> 1) ^ ((crc & 1u) ? 0xedb88320u : 0u);
 		}
 		return crc ^ 0xffffffffu;
+	}
+
+	// fes.fabric.firmware-upload 1.0, a port of misteross
+	// boards/de25nano/shared-rtl/fes_firmware_upload.v. Zero image bytes is an
+	// endpoint without it: the four opcodes are invalid and release is free.
+	std::uint32_t firmware_bytes = 0;
+	unsigned firmware_state = 0, firmware_next = 0;
+	bool firmware_armed = false;
+	std::uint32_t firmware_received = 0, firmware_expected_crc = 0, firmware_crc = 0xffffffffu;
+	std::vector<std::uint8_t> firmware;
+	std::pair<unsigned, std::uint16_t> Firmware(unsigned op, unsigned index, unsigned arg)
+	{
+		using namespace mister::native::generated;
+		enum { index_error = 2, argument_error = 3, state_error = 4 };
+		const auto crc_byte = [](std::uint32_t crc, std::uint8_t byte) {
+			crc ^= byte;
+			for (unsigned bit = 0; bit < 8; ++bit) crc = (crc >> 1) ^ ((crc & 1u) ? 0xedb88320u : 0u);
+			return crc;
+		};
+		const std::uint32_t remaining = firmware_bytes - firmware_received;
+		if (op == FesFirmwareUploadOpcodeInfo) {
+			if (index > FesFirmwareUploadInfoReceivedHigh) return {index_error, 0};
+			if (arg) return {argument_error, 0};
+			const std::uint16_t fields[5] = {static_cast<std::uint16_t>(firmware_bytes),
+				static_cast<std::uint16_t>(firmware_bytes >> 16), static_cast<std::uint16_t>(firmware_state),
+				static_cast<std::uint16_t>(firmware_received), static_cast<std::uint16_t>(firmware_received >> 16)};
+			return {0, fields[index]};
+		}
+		if (op == FesFirmwareUploadOpcodeBegin) {
+			if (index > 3) return {index_error, 0};
+			if (!held) return {state_error, 0};
+			if (index != firmware_next) return {index_error, 0};
+			if (index == 3) {
+				firmware_next = 0;
+				if ((firmware_header_[0] | (firmware_header_[1] << 16)) != firmware_bytes)
+					return {argument_error, 0};
+				firmware_armed = true;
+				firmware_expected_crc = firmware_header_[2] | (arg << 16);
+				firmware_received = 0;
+				firmware_crc = 0xffffffffu;
+				firmware.clear();
+				return {0, 0};
+			}
+			++firmware_next;
+			firmware_header_[index] = arg;
+			if (index == 0) { firmware_state = FesFirmwareUploadStateLoading; firmware_armed = false; }
+			return {0, 0};
+		}
+		if (op == FesFirmwareUploadOpcodeData) {
+			if (!firmware_armed || !held || remaining == 0) return {state_error, 0};
+			if (index != ((firmware_received >> 1) & 255)) return {index_error, 0};
+			if (remaining == 1 && (arg >> 8) != 0) return {argument_error, 0};
+			firmware.push_back(static_cast<std::uint8_t>(arg));
+			firmware_crc = crc_byte(firmware_crc, static_cast<std::uint8_t>(arg));
+			++firmware_received;
+			if (remaining != 1) {
+				firmware.push_back(static_cast<std::uint8_t>(arg >> 8));
+				firmware_crc = crc_byte(firmware_crc, static_cast<std::uint8_t>(arg >> 8));
+				++firmware_received;
+			}
+			return {0, 0};
+		}
+		if (index) return {index_error, 0};
+		if (arg) return {argument_error, 0};
+		if (!firmware_armed || remaining != 0) return {state_error, 0};
+		firmware_armed = false;
+		if ((firmware_crc ^ 0xffffffffu) != firmware_expected_crc) return {argument_error, 0};
+		firmware_state = FesFirmwareUploadStateReady;
+		return {0, 0};
 	}
 
 	std::int32_t mouse_x = 0, mouse_y = 0;
@@ -469,6 +547,7 @@ public:
 	}
 
 private:
+	unsigned firmware_header_[3] = {0, 0, 0};
 	static bool MachineValid(const std::vector<std::uint16_t>& w)
 	{
 		// Word 7: bits 3:2 the video bus (0..2); bits 1:0 (EMS, #1555) and 15:4 zero.

@@ -796,6 +796,50 @@ void TestROMLoadProtocol()
 	}
 }
 
+// A launch-time upload load names the ROM source where a linked load names
+// its programmed bitstream: the same closed link, exactly one of the paths.
+void TestFirmwareUploadLoadProtocol()
+{
+	const std::string digest(64, 'a');
+	const std::string tuple = "{\"rom_id\":\"machine-rom\",\"map_sha256\":\"" + digest +
+		"\",\"source_sha256\":\"" + digest + "\",\"source_size\":196608,\"programmed_sha256\":\"" + digest +
+		"\",\"programmed_size\":40408}";
+	for (const auto& op : {"load_rom_core", "load_rom_library_core"}) {
+		const bool library = std::string(op) == "load_rom_library_core";
+		const std::string input = "{\"protocol\":2,\"operation\":\"" + std::string(op) +
+			"\",\"package_path\":\"/package\",\"package_id\":\"" + digest +
+			"\",\"firmware_path\":\"/roms/tos.img\",\"rom_link\":" + tuple +
+			(library ? ",\"data_root\":\"/data\"}" : "}");
+		Request request;
+		assert(Parse(input, &request).ok());
+		assert(request.operation == (library ? Operation::load_rom_library_core : Operation::load_rom_core));
+		assert(request.firmware_path == "/roms/tos.img" && request.programmed_path.empty());
+		assert(request.rom_link.rom_id == "machine-rom" && request.rom_link.source_size == 196608);
+		assert(request.data_root == (library ? "/data" : ""));
+		const std::string initial = "{\"path\":\"/disk.st\",\"size\":737280,\"unit\":0,\"data_root\":\"/media-data\","
+			"\"game_id\":\"st-game\",\"base_media_id\":\"" + digest + "\"}";
+		assert(Parse(input.substr(0, input.size() - 1) + ",\"initial_media\":" + initial + "}", &request).ok() &&
+			request.has_initial_media && request.firmware_path == "/roms/tos.img");
+		// Both paths, a relative source, or no path at all.
+		assert(!Parse(input.substr(0, input.size() - 1) + ",\"programmed_path\":\"/programmed.rbf\"}", &request).ok());
+		for (const auto& replacement : std::vector<std::pair<std::string, std::string>>{
+			{"/roms/tos.img", "roms/tos.img"}, {"/roms/tos.img", ""}, {"\"firmware_path\":\"/roms/tos.img\",", ""},
+			{"196608", "0"}, {"machine-rom", ""}}) {
+			auto bad = input;
+			bad.replace(bad.find(replacement.first), replacement.first.size(), replacement.second);
+			assert(!Parse(bad, &request).ok());
+		}
+	}
+	// One source only, and no composition: neither has an upload endpoint.
+	Request request;
+	const std::string prefix = "{\"protocol\":2,\"operation\":\"";
+	assert(!Parse(prefix + "load_rom_core\",\"package_path\":\"/package\",\"package_id\":\"" + digest +
+		"\",\"firmware_path\":\"/roms/tos.img\",\"rom_links\":{}}", &request).ok());
+	assert(!Parse(prefix + "load_rom_composed_core\",\"package_path\":\"/package\",\"package_id\":\"" + digest +
+		"\",\"expansion_path\":\"/cart\",\"payload_path\":\"/cart.rbf\",\"composition\":{},\"firmware_path\":\"/roms/tos.img\",\"rom_link\":" +
+		tuple + "}", &request).ok());
+}
+
 void TestPcxtInitialLoadProtocol()
 {
 	const std::string digest(64, 'a');
@@ -1656,6 +1700,7 @@ int main(int argc, char** argv)
 	TestStaticCompositionProtocol();
 	TestStaticPackageInspectionSerialization();
 	TestROMLoadProtocol();
+	TestFirmwareUploadLoadProtocol();
 	TestPcxtInitialLoadProtocol();
 	TestTwoSourceROMLoadProtocol();
 	TestCompositionProtocol();
