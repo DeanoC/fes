@@ -8,12 +8,14 @@
 
 #include "native/pc386_machine.hpp"
 #include "native/core_package.hpp"
+#include "native/de25_core_contract.hpp"
 #include "native/generated/de10_nano.hpp"
 #include "native/generated/fes_de25_computer.hpp"
 #include "native/generated/fes_gp.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_computer.hpp"
+#include "native/generated/fes_firmware_upload.hpp"
 #include "native/hardware.hpp"
 #include "native/linux/mmio.hpp"
 
@@ -802,6 +804,8 @@ void FesGpCoreDriver::BeginSession()
 	floppy_write_ = false;
 	pcxt_floppy_write_ = false;
 	tape_write_ = false;
+	firmware_upload_ = false;
+	firmware_ready_ = false;
 	hid_rows_ = {};
 	hid_rows_known_ = false;
 	media_units_.clear();
@@ -903,6 +907,8 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 	floppy_write_ = false;
 	pcxt_floppy_write_ = false;
 	tape_write_ = false;
+	firmware_upload_ = false;
+	firmware_ready_ = false;
 	hid_rows_ = {};
 	hid_rows_known_ = false;
 	media_units_.clear();
@@ -920,6 +926,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			if (interface.id == FesComputerInterfaceRtcWallClockID) wall_clock_ = true;
 			if (interface.id == FesComputerInterfacePc386MachineID) pc386_machine_ = true;
 			if (interface.id == FesComputerInterfaceMediaAtaDiskID) ata_disk_ = true;
+			if (interface.id == kFirmwareUploadInterfaceID) firmware_upload_ = true;
 			if (interface.id == FesComputerInterfaceMediaApple2FloppyID ||
 				interface.id == FesComputerInterfaceMediaSpectrumTapeID ||
 				interface.id == FesComputerInterfaceMediaSpectrumDiskID ||
@@ -1006,6 +1013,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			wall_clock_ = false;
 			pc386_machine_ = false;
 			ata_disk_ = false;
+			firmware_upload_ = false;
 			media_units_.clear();
 		}
 	}
@@ -1714,23 +1722,138 @@ Error FesGpCoreDriver::EnsureZx81TapeSaved(std::uint64_t deadline)
 	return CheckZx81SnapshotSaved(deadline);
 }
 
-Error FesGpCoreDriver::EnsureRetainedZx81TapeSaved(const CoreDescriptor& descriptor,
+Error FesGpCoreDriver::EnsureRetainedComputerSaved(const CoreDescriptor& descriptor,
 	std::uint64_t deadline)
 {
-	bool cassette = false, writable = false;
-	for (const auto& interface : descriptor.interfaces) {
-		if (!interface.required || !ComputerInterfaceCurrent(interface)) continue;
-		if (interface.id == FesComputerInterfaceMediaZx81TapeID) cassette = true;
-		if (interface.id == FesComputerInterfaceMediaZx81TapeWriteID) writable = true;
+	// The retained image must be one of the standard shell's machines with its
+	// whole media contract declared; the shell's own interfaces are checked by
+	// package admission before this guard runs.
+	const De25StandardCore* const core = FindDe25StandardCore(descriptor.core.id);
+	bool complete = core != nullptr && descriptor.abi.id == FesComputerABIID &&
+		descriptor.abi.major == 1 && descriptor.abi.minor == 0;
+	bool tape = false, floppy = false;
+	for (std::size_t i = 0; complete && i < core->interfaces.size(); ++i) {
+		const auto& registered = core->interfaces[i];
+		if (!registered.id) continue;
+		bool declared = false;
+		for (const auto& interface : descriptor.interfaces)
+			declared = declared || (interface.id == registered.id && interface.required &&
+				interface.major == registered.major && interface.minor == registered.minor);
+		complete = declared;
+		if (std::string(registered.id) == FesComputerInterfaceMediaZx81TapeWriteID) tape = true;
+		if (std::string(registered.id) == FesComputerInterfaceMediaAtariStFloppyWriteID) floppy = true;
 	}
-	if (descriptor.core.id != "fes.zx81" || descriptor.abi.id != FesComputerABIID ||
-		descriptor.abi.major != 1 || descriptor.abi.minor != 0 || !cassette || !writable)
-		return {ErrorCode::unsupported_interface, "retained ZX81 requires its cassette and SAVE contract", "save"};
-	// Normal Identify discovers a newly programmed empty cassette. A lost
-	// image can have media loaded: verify its live identity/capabilities only,
-	// then use the same SAVE check, without publishing active driver state.
+	if (!complete)
+		return {ErrorCode::unsupported_interface, "retained computer requires its registered media contract", "save"};
+	// Normal Identify discovers a newly programmed empty unit. A lost image
+	// can have media loaded: verify its live identity/capabilities only, then
+	// use the same SAVE check, without publishing active driver state.
 	const Error identity = gp_.Identify(descriptor, deadline);
-	return identity.ok() ? CheckZx81SnapshotSaved(deadline) : identity;
+	if (!identity.ok()) return identity;
+	if (tape) return CheckZx81SnapshotSaved(deadline);
+	// A read-only machine (the Spectrum's cassette) holds nothing to save.
+	return floppy ? CheckFloppySnapshotSaved(deadline) : Error{};
+}
+
+Error FesGpCoreDriver::CheckFloppySnapshotSaved(std::uint64_t deadline)
+{
+	Error error = RecoverComputerMailbox(deadline);
+	if (!error.ok()) return error;
+	const std::uint16_t known = FesComputerMediaSnapshotReadyMask | FesComputerMediaSnapshotDirtyMask |
+		FesComputerMediaSnapshotFrozenMask | FesComputerMediaSnapshotBusyMask;
+	std::uint16_t flags = 0;
+	error = gp_.Exchange(FesComputerOpcodeMediaSnapshotInfo, 0, 0, deadline, &flags);
+	if (!error.ok()) return WithPhase(error, "save");
+	if ((flags & ~known) != 0) return Io("invalid floppy snapshot state");
+	// An empty drive has no snapshot and nothing to save.
+	if (flags == 0) return {};
+	// Freeze waits out a sector in flight, so the dirty bit read after it is
+	// final. Nothing is acknowledged: an unsaved disk stays unsaved.
+	error = ComputerCommand(FesComputerOpcodeMediaSnapshotControl, 0,
+		FesComputerMediaSnapshotFreeze, deadline, nullptr, "save");
+	if (!error.ok()) return error;
+	error = gp_.Exchange(FesComputerOpcodeMediaSnapshotInfo, 0, 0, deadline, &flags);
+	if (!error.ok()) return WithPhase(error, "save");
+	const std::uint16_t required = FesComputerMediaSnapshotReadyMask | FesComputerMediaSnapshotFrozenMask;
+	if ((flags & ~known) != 0 ||
+		(flags & (required | FesComputerMediaSnapshotBusyMask)) != required)
+		return {ErrorCode::io_failed, "invalid frozen floppy state", "save"};
+	if ((flags & FesComputerMediaSnapshotDirtyMask) != 0)
+		return {ErrorCode::save_failed, "floppy changes must be stored before stopping", "save"};
+	return {};
+}
+
+Error FesGpCoreDriver::ReadFirmwareInfo(std::uint64_t deadline, FirmwareInfo* info)
+{
+	std::uint16_t words[FesFirmwareUploadInfoReceivedHigh + 1] = {};
+	for (std::uint8_t field = 0; field <= FesFirmwareUploadInfoReceivedHigh; ++field) {
+		const Error error = gp_.Exchange(FesFirmwareUploadOpcodeInfo, field, 0, deadline, &words[field]);
+		if (!error.ok()) return WithPhase(error, "firmware");
+	}
+	info->bytes = words[FesFirmwareUploadInfoBytesLow] |
+		(static_cast<std::uint32_t>(words[FesFirmwareUploadInfoBytesHigh]) << 16);
+	info->state = words[FesFirmwareUploadInfoState];
+	info->received = words[FesFirmwareUploadInfoReceivedLow] |
+		(static_cast<std::uint32_t>(words[FesFirmwareUploadInfoReceivedHigh]) << 16);
+	if (info->bytes == 0 || info->bytes > FesFirmwareUploadMaxBytes ||
+		info->state > FesFirmwareUploadStateReady || info->received > info->bytes)
+		return WithPhase(Io("invalid live firmware upload endpoint"), "firmware");
+	return {};
+}
+
+Error FesGpCoreDriver::UploadFirmware(const ComputerMediaSnapshot& image, Clock& clock,
+	std::uint64_t deadline, bool* uploaded)
+{
+	if (uploaded != nullptr) *uploaded = false;
+	firmware_ready_ = false;
+	if (!home_computer_ || !firmware_upload_)
+		return {ErrorCode::unsupported_interface,
+			"firmware upload is not declared by the active computer", "firmware"};
+	// Begin is valid only while execution is held.
+	if (!reset_held_)
+		return {ErrorCode::busy, "firmware upload requires held execution", "firmware"};
+	Error error = RecoverComputerMailbox(deadline);
+	if (!error.ok()) return WithPhase(error, "firmware");
+	FirmwareInfo info;
+	error = ReadFirmwareInfo(deadline, &info);
+	if (!error.ok()) return error;
+	if (info.bytes != image.size())
+		return {ErrorCode::core_mismatch, "firmware size differs from the core's upload endpoint",
+			"firmware", std::to_string(info.bytes) + " bytes", std::to_string(image.size()) + " bytes"};
+	if (info.state == FesFirmwareUploadStateReady) {
+		firmware_ready_ = true;
+		return {};
+	}
+	const std::uint16_t header[] = {static_cast<std::uint16_t>(image.size()),
+		static_cast<std::uint16_t>(image.size() >> 16),
+		static_cast<std::uint16_t>(image.crc32()),
+		static_cast<std::uint16_t>(image.crc32() >> 16)};
+	for (std::uint8_t word = 0; word < 4 && error.ok(); ++word)
+		error = ComputerCommand(FesFirmwareUploadOpcodeBegin, word, header[word], deadline,
+			nullptr, "firmware");
+	std::array<std::uint8_t, 512> bytes = {};
+	for (std::uint32_t offset = 0; offset < image.size() && error.ok();) {
+		const auto length = std::min<std::uint32_t>(bytes.size(), image.size() - offset);
+		error = WithPhase(image.Read(offset, bytes.data(), length, clock, deadline), "firmware");
+		// The index is the word ordinal modulo 256; the low byte is stored
+		// first, and the last word of an odd image carries one byte.
+		for (std::uint32_t byte = 0; byte < length && error.ok(); byte += 2) {
+			const std::uint16_t word = static_cast<std::uint16_t>(bytes[byte] |
+				(byte + 1 < length ? static_cast<std::uint16_t>(bytes[byte + 1]) << 8 : 0));
+			error = ComputerCommand(FesFirmwareUploadOpcodeData,
+				static_cast<std::uint8_t>((offset + byte) / 2), word, deadline, nullptr, "firmware");
+		}
+		offset += length;
+	}
+	if (error.ok())
+		error = ComputerCommand(FesFirmwareUploadOpcodeCommit, 0, 0, deadline, nullptr, "firmware");
+	if (error.ok()) error = ReadFirmwareInfo(deadline, &info);
+	if (error.ok() && (info.state != FesFirmwareUploadStateReady || info.received != image.size()))
+		error = WithPhase(Io("firmware image is not ready after commit"), "firmware");
+	if (!error.ok()) return error;
+	firmware_ready_ = true;
+	if (uploaded != nullptr) *uploaded = true;
+	return {};
 }
 
 Error FesGpCoreDriver::CheckZx81SnapshotSaved(std::uint64_t deadline)
@@ -2050,6 +2173,11 @@ CoreDriverResult FesGpCoreDriver::Start(const CoreDriverContext&,
 		// Native activation may insert an initial library disk before Start.
 		// Release preserves that disk; the first HID snapshot writes every row.
 		hid_rows_known_ = false;
+		// The endpoint refuses this release itself. Refusing here keeps the
+		// mailbox untouched and names the missing step.
+		if (firmware_upload_ && !firmware_ready_)
+			return {{ErrorCode::invalid_request,
+				"machine firmware must be uploaded before execution is released", "firmware"}, false, ""};
 		CoreDriverResult result = Gameplay(
 			static_cast<std::uint16_t>(FesComputerExecutionRelease), deadline);
 		if (result.error.ok()) reset_held_ = false;

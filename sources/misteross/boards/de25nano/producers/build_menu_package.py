@@ -359,7 +359,7 @@ def timing_evidence(directory, *, async_review=None, audio_review=None, revision
                 reviewed.append({'id': 'TMC-20012', 'violations': count,
                     'ports': audio_reference.output_findings(drc, timed_video=timed_video) if audio_proof is not None else
                              async_inputs.vendor_reference.output_findings(drc, timed_video=timed_video),
-                    'basis': audio_reference.POLICY if audio_proof is not None else
+                    'basis': audio_proof['policy'] if audio_proof is not None else
                              async_inputs.vendor_reference.POLICY})
     unreviewed = failed - len(reviewed)
     return {'signoff_rules': total, 'failed_rules': failed,

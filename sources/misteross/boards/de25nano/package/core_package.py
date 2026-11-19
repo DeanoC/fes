@@ -27,6 +27,8 @@ MAX_PAYLOAD_SIZE = 33_554_432
 MAX_ARCHIVE_SIZE = 33 * 1024 * 1024
 MAX_ARCHIVE_SIZE_V3 = 65 * 1024 * 1024
 MAX_ROM_MAP_SIZE = 33_554_432
+FIRMWARE_UPLOAD = "fes.fabric.firmware-upload"
+UPLOAD_ENCODING = "gp-firmware-upload-v1"
 PACKAGE_DOMAIN = b"FES-CORE-PACKAGE-2\n"
 ID_RE = re.compile(r"[a-z][a-z0-9_.-]{0,95}\Z")
 HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
@@ -171,8 +173,8 @@ def _validate_fields(fields: object, payload: bytes | None) -> dict:
     devices = {"de10_nano": "5CSEBA6U23I7", "de25_nano": "A5EB013BB23BE4SCS"}
     if devices.get(target["platform"]) != target["device"]:
         raise PackageError("target must match a supported board and its exact device")
-    if target["platform"] == "de25_nano" and format_version not in (2, 5):
-        raise PackageError("DE25 packages require format 2 or 5; Cyclone V ROM maps are unsupported")
+    if target["platform"] == "de25_nano" and format_version not in (2, 3, 5):
+        raise PackageError("DE25 packages require format 2, 3 or 5; Cyclone V ROM maps are unsupported")
     if format_version == 5:
         if target["platform"] != "de25_nano" or target["programming_profile"] != "de25-linux-static-computer-v1":
             raise PackageError("format 5 requires the exact DE25 static profile")
@@ -261,6 +263,12 @@ def _validate_fields(fields: object, payload: bytes | None) -> dict:
         if identifier in seen:
             raise PackageError(f"duplicate interface id: {identifier}")
         seen.add(identifier)
+    if target["platform"] == "de25_nano" and format_version == 3:
+        # The one DE25 ROM delivery: the user's firmware sent at launch.
+        if root["rom"]["role"] != "firmware" or root["rom"]["size"] > 1024:
+            raise PackageError("DE25 format 3 requires a bounded firmware ROM map")
+        if {"id": FIRMWARE_UPLOAD, "major": 1, "minor": 0, "required": True} not in interfaces:
+            raise PackageError("DE25 format 3 requires fes.fabric.firmware-upload 1.0")
 
     build = _exact_dict(root["build"], {"id", "repository", "revision", "recipe_sha256", "toolchain"}, set(), "build")
     build_id = _string(build["id"], "build.id")
@@ -315,15 +323,22 @@ def validate_rom_map(data: bytes, fields: dict) -> dict:
                              parse_float=reject_number, parse_constant=reject_number)
     except (UnicodeDecodeError, ValueError, RecursionError) as exc:
         raise PackageError("ROM map must be valid UTF-8 JSON with unique keys") from exc
-    _exact_dict(mapping, {"format", "device", "encoding", "base_sha256", "source_size", "blocks"}, set(), "ROM map")
+    upload = fields["target"]["platform"] == "de25_nano"
+    _exact_dict(mapping, {"format", "device", "encoding", "base_sha256", "source_size"} |
+                (set() if upload else {"blocks"}), set(), "ROM map")
     if type(mapping["format"]) is not int or mapping["format"] != 1:
         raise PackageError("unsupported ROM map format")
-    if mapping["device"] != fields["target"]["device"] or mapping["encoding"] != "m10k-1024x10-v1":
+    if mapping["device"] != fields["target"]["device"] or mapping["encoding"] != (
+            UPLOAD_ENCODING if upload else "m10k-1024x10-v1"):
         raise PackageError("unsupported ROM map device or encoding")
     if mapping["base_sha256"] != fields["payload"]["sha256"]:
         raise PackageError("ROM map base digest mismatch")
     if type(mapping["source_size"]) is not int or mapping["source_size"] != source_size:
         raise PackageError("ROM map source size mismatch")
+    if upload:
+        # Nothing in the bitstream is patched: the map only binds the base
+        # image and the size of the image the core accepts.
+        return mapping
     blocks = mapping["blocks"]
     if not isinstance(blocks, list) or len(blocks) != source_size // 1024:
         raise PackageError("ROM map block count differs from source size")

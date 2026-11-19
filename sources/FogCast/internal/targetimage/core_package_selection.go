@@ -39,6 +39,8 @@ func packageCoreName(coreID string) (string, error) {
 		return "ramtest", nil
 	case "fes.spectrum":
 		return "spectrum", nil
+	case "fes.spectrum128":
+		return "spectrum128", nil
 	case "fes.atari-st":
 		return "atari-st", nil
 	default:

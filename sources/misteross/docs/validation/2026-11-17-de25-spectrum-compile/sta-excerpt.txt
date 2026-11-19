@@ -1,0 +1,24 @@
+; Fmax Summary                                                                                                                                                   ;
++------------+-----------------+--------------------------------------------+--------------------------------------------------+---------------------------------+
+; Fmax       ; Restricted Fmax ; Clock Name                                 ; Note                                             ; Worst-Case Operating Conditions ;
++------------+-----------------+--------------------------------------------+--------------------------------------------------+---------------------------------+
+; 139.0 MHz  ; 139.0 MHz       ; fes_machine_pll|machine_pll_outclk0        ;                                                  ; Slow fix4 0C Model              ;
+; 147.6 MHz  ; 147.6 MHz       ; fes_video_inst|video_clock|iopll_0_outclk0 ;                                                  ; Slow fix4 0C Model              ;
+; 173.58 MHz ; 173.58 MHz      ; pll_inst|iopll_0_outclk0                   ;                                                  ; Slow fix4 0C Model              ;
+; 315.66 MHz ; 315.66 MHz      ; adv7513_config                             ;                                                  ; Slow fix4 0C Model              ;
+; 523.29 MHz ; 418.41 MHz      ; fes_machine_pll|machine_pll_outclk1        ; limit due to low minimum pulse width restriction ; Slow fix4 0C Model              ;
+; 619.96 MHz ; 619.96 MHz      ; fes_video_inst|video_clock|iopll_0_refclk  ;                                                  ; Slow fix4 0C Model              ;
++------------+-----------------+--------------------------------------------+--------------------------------------------------+---------------------------------+
+This panel reports FMAX for every clock in the design, regardless of the user-specified clock periods.  FMAX is only computed for paths where the source and destination registers or ports are driven by the same clock.  Paths of different clocks, including generated clocks, are ignored.  For paths between a clock and its inversion, FMAX is computed as if the rising and falling edges are scaled along with FMAX, such that the duty cycle (in terms of a percentage) is maintained. Altera recommends that you always use clock constraints and other slack reports for sign-off analysis.
+; Unconstrained Paths Summary                                      ;
++---------------------------------------------------+-------+------+
+; Property                                          ; Setup ; Hold ;
++---------------------------------------------------+-------+------+
+; Illegal Clocks                                    ; 0     ; 0    ;
+; Unconstrained Clocks                              ; 0     ; 0    ;
+; Unconstrained Input Ports                         ; 16    ; 16   ;
+; Paths from Unconstrained Input Ports (Pairs-Only) ; 16    ; 16   ;
+; Unconstrained Output Ports                        ; 43    ; 43   ;
+; Paths to Unconstrained Output Ports (Pairs-Only)  ; 69    ; 69   ;
++---------------------------------------------------+-------+------+
+

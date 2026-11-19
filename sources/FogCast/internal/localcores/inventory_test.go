@@ -804,3 +804,29 @@ func TestDescriptorInputsNamesRequiredKeyboardAndMouse(t *testing.T) {
 		}
 	}
 }
+
+// A DE25 Spectrum or Atari ST uploads its firmware at launch. The local
+// launcher sends the package archive alone, so the core needs its firmware
+// here exactly as the linked DE10 packages do; it is never listed as ready.
+func TestDE25FirmwareUploadCoreNeedsFirmware(t *testing.T) {
+	for core, media := range map[string][]corepackage.Interface{
+		"fes.spectrum": {{ID: "fes.media.spectrum-tape", Major: 2, Required: true}},
+		"fes.atari-st": {{ID: "fes.mouse.relative", Major: 1, Required: true}, {ID: "fes.media.atari-st-floppy", Major: 1, Required: true},
+			{ID: "fes.media.atari-st-floppy-write", Major: 1, Required: true}, {ID: "fes.media.atari-st-floppy-geometry", Major: 1, Required: true}},
+	} {
+		d := corepackage.Descriptor{Format: 3, ABI: corepackage.Contract{ID: "fes.computer", Major: 1},
+			ROM: &corepackage.ROM{ID: "machine-rom", Role: "firmware", SourceSize: 16384}}
+		d.Core.ID = core
+		d.Target.Platform, d.Target.Device, d.Target.ProgrammingProfile = "de25_nano", "A5EB013BB23BE4SCS", "de25-linux-computer-v1"
+		d.Interfaces = append([]corepackage.Interface{{ID: "fes.keyboard.hid", Major: 1, Required: true},
+			{ID: "fes.video.session-display", Major: 1, Required: true}, {ID: "fes.fabric.de25-scanout", Major: 1, Minor: 3, Required: true}}, media...)
+		d.Interfaces = append(d.Interfaces, corepackage.Interface{ID: "fes.fabric.firmware-upload", Major: 1, Required: true})
+		if !corepackage.FirmwareUpload(d) {
+			t.Fatal("descriptor is not a firmware-upload package:", core)
+		}
+		got := FromInspection(corepackage.Inspection{PackageID: strings.Repeat("a", 64), Descriptor: d}, "/installed/package")
+		if got.Launchable || got.Needs != "firmware" || got.Block != "Needs firmware" {
+			t.Fatalf("%s listed as %+v", core, got)
+		}
+	}
+}

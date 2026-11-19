@@ -152,6 +152,19 @@ part composition, cartridge roles and format 4 are unavailable for this Nano
 delivery path. The Linux runtime's target checks and model/native admission
 policies remain independent; inspection or retention grants no hardware access.
 
+A Nano package that instead requires `fes.fabric.firmware-upload` 1.0 seals the
+`gp-firmware-upload-v1` map, and its ROM source travels to the kit. The ROM
+input envelope admits it for a `de25-linux-computer-v1` `fes.computer` package
+of `fes.spectrum` (16384 or 32768 bytes) or `fes.atari-st` (196608 bytes), with
+no expansion, slot card or part; an ST launch may carry its library disk. The
+kit stages the source as `firmware.rom` in place of `programmed.rbf`, with a
+receipt whose programmed digest and size are the package payload's, and sends
+`load_rom_core` or `load_rom_library_core` with `firmware_path`. The runtime
+needs no `rom_linking` for it: its `fes.computer` ABI must list the upload
+interface. A linker without that interface, a linked bitstream for such a
+package, and a restart publication holding both files are refused. Host
+software coverage only; no DE25 Spectrum or Atari ST package is produced yet.
+
 `Archive.LinkROMs` derives format-3 single-source and format-4 BIOS/cartridge
 programming bytes using the existing target linker and the retained package's
 sealed map. It validates source IDs, roles, order and sizes before copying them.
