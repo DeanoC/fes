@@ -1,0 +1,400 @@
+{
+ "6:250": {
+  "class": "486-25",
+  "label": "486SX/DX-25 (preset 6, word 1 = 250)",
+  "benchmarks": {
+   "pcpbench": {
+    "kit": 4.5,
+    "phil": {
+     "local bus": {
+      "n": 3,
+      "min": 4.4,
+      "max": 4.9,
+      "median": 4.6,
+      "kit_over_median": 0.978
+     }
+    }
+   },
+   "doom_max_realtics": {
+    "kit": 8533,
+    "phil_fullscreen": {
+     "local bus": {
+      "n": 3,
+      "min": 6225.0,
+      "max": 6518.0,
+      "median": 6332.0,
+      "kit_over_median": 0.742
+     }
+    },
+    "ertl_two_steps_below_max_not_same_setting": {}
+   },
+   "topbench_score": {
+    "kit": 88,
+    "database": {
+     "n": 3,
+     "scores": [
+      71,
+      76,
+      98
+     ],
+     "median": 76,
+     "kit_over_median": 1.158
+    }
+   },
+   "3dbench2": {
+    "kit_raw": 168,
+    "settled": false,
+    "phil": {
+     "local bus": {
+      "n": 3,
+      "min": 18.7,
+      "max": 20.9,
+      "median": 19.9
+     }
+    },
+    "kit_raw_over_median": {
+     "local bus": 8.442
+    },
+    "kit_raw_div10_over_median": {
+     "local bus": 0.844
+    }
+   },
+   "3dbench_1.0": {
+    "kit": 16.9,
+    "reference": "none published in these sources"
+   },
+   "doom_min_realtics": {
+    "kit": 1939,
+    "reference": "none published in these sources"
+   }
+  }
+ },
+ "6:0": {
+  "class": "486-33",
+  "label": "486DX-33 (preset 6)",
+  "benchmarks": {
+   "pcpbench": {
+    "kit": 5.7,
+    "phil": {
+     "ISA": {
+      "n": 5,
+      "min": 4.6,
+      "max": 8.9,
+      "median": 5.5,
+      "kit_over_median": 1.036
+     },
+     "local bus": {
+      "n": 5,
+      "min": 5.0,
+      "max": 6.6,
+      "median": 5.9,
+      "kit_over_median": 0.966
+     }
+    }
+   },
+   "doom_max_realtics": {
+    "kit": 7290,
+    "phil_fullscreen": {
+     "ISA": {
+      "n": 5,
+      "min": 4280.0,
+      "max": 11001.0,
+      "median": 7226.0,
+      "kit_over_median": 0.991
+     },
+     "local bus": {
+      "n": 5,
+      "min": 4667.0,
+      "max": 5402.0,
+      "median": 5041.0,
+      "kit_over_median": 0.691
+     }
+    },
+    "ertl_two_steps_below_max_not_same_setting": {}
+   },
+   "topbench_score": {
+    "kit": 102,
+    "database": {
+     "n": 2,
+     "scores": [
+      114,
+      130
+     ],
+     "median": 122.0,
+     "kit_over_median": 0.836
+    }
+   },
+   "3dbench2": {
+    "kit_raw": 204,
+    "settled": false,
+    "phil": {
+     "ISA": {
+      "n": 5,
+      "min": 12.5,
+      "max": 31.4,
+      "median": 17.4
+     },
+     "local bus": {
+      "n": 5,
+      "min": 24.4,
+      "max": 28.0,
+      "median": 24.8
+     }
+    },
+    "kit_raw_over_median": {
+     "ISA": 11.724,
+     "local bus": 8.226
+    },
+    "kit_raw_div10_over_median": {
+     "ISA": 1.172,
+     "local bus": 0.823
+    }
+   },
+   "3dbench_1.0": {
+    "kit": 20.8,
+    "reference": "none published in these sources"
+   },
+   "doom_min_realtics": {
+    "kit": 1599,
+    "reference": "none published in these sources"
+   }
+  }
+ },
+ "6:500": {
+  "class": "486-50",
+  "label": "486DX-50 / DX2-50 (preset 6, word 1 = 500)",
+  "benchmarks": {
+   "pcpbench": {
+    "kit": 7.4,
+    "phil": {
+     "ISA": {
+      "n": 1,
+      "min": 8.4,
+      "max": 8.4,
+      "median": 8.4,
+      "kit_over_median": 0.881
+     },
+     "local bus": {
+      "n": 2,
+      "min": 8.1,
+      "max": 8.8,
+      "median": 8.45,
+      "kit_over_median": 0.876
+     }
+    }
+   },
+   "doom_max_realtics": {
+    "kit": 6074,
+    "phil_fullscreen": {
+     "ISA": {
+      "n": 1,
+      "min": 4054.0,
+      "max": 4054.0,
+      "median": 4054.0,
+      "kit_over_median": 0.667
+     },
+     "local bus": {
+      "n": 2,
+      "min": 3534.0,
+      "max": 4069.0,
+      "median": 3801.5,
+      "kit_over_median": 0.626
+     }
+    },
+    "ertl_two_steps_below_max_not_same_setting": {
+     "ISA": {
+      "n": 2,
+      "min": 4768,
+      "max": 4891,
+      "median": 4829.5,
+      "kit_over_median": 0.795
+     }
+    }
+   },
+   "topbench_score": {
+    "kit": 122,
+    "database": {
+     "n": 4,
+     "scores": [
+      103,
+      121,
+      135,
+      141
+     ],
+     "median": 128.0,
+     "kit_over_median": 0.953
+    }
+   },
+   "3dbench2": {
+    "kit_raw": 258,
+    "settled": false,
+    "phil": {
+     "ISA": {
+      "n": 1,
+      "min": 31.5,
+      "max": 31.5,
+      "median": 31.5
+     },
+     "local bus": {
+      "n": 2,
+      "min": 31.1,
+      "max": 34.8,
+      "median": 32.95
+     }
+    },
+    "kit_raw_over_median": {
+     "ISA": 8.19,
+     "local bus": 7.83
+    },
+    "kit_raw_div10_over_median": {
+     "ISA": 0.819,
+     "local bus": 0.783
+    }
+   },
+   "3dbench_1.0": {
+    "kit": 26.3,
+    "reference": "none published in these sources"
+   },
+   "doom_min_realtics": {
+    "kit": 1287,
+    "reference": "none published in these sources"
+   }
+  }
+ },
+ "7:0": {
+  "class": "486-66",
+  "label": "486DX2-66 (preset 7)",
+  "benchmarks": {
+   "pcpbench": {
+    "kit": 8.5,
+    "phil": {
+     "ISA": {
+      "n": 2,
+      "min": 9.3,
+      "max": 9.6,
+      "median": 9.45,
+      "kit_over_median": 0.899
+     },
+     "local bus": {
+      "n": 24,
+      "min": 4.1,
+      "max": 12.2,
+      "median": 11.1,
+      "kit_over_median": 0.766
+     },
+     "unknown": {
+      "n": 2,
+      "min": 7.4,
+      "max": 10.7,
+      "median": 9.05,
+      "kit_over_median": 0.939
+     }
+    }
+   },
+   "doom_max_realtics": {
+    "kit": 5510,
+    "phil_fullscreen": {
+     "ISA": {
+      "n": 2,
+      "min": 3100.0,
+      "max": 5840.0,
+      "median": 4470.0,
+      "kit_over_median": 0.811
+     },
+     "local bus": {
+      "n": 25,
+      "min": 2549.0,
+      "max": 9561.0,
+      "median": 3022.0,
+      "kit_over_median": 0.548
+     },
+     "unknown": {
+      "n": 2,
+      "min": 2790.0,
+      "max": 3743.0,
+      "median": 3266.5,
+      "kit_over_median": 0.593
+     }
+    },
+    "ertl_two_steps_below_max_not_same_setting": {
+     "ISA": {
+      "n": 3,
+      "min": 2303,
+      "max": 4668,
+      "median": 3023,
+      "kit_over_median": 0.549
+     },
+     "local bus": {
+      "n": 10,
+      "min": 2159,
+      "max": 3585,
+      "median": 2615.0,
+      "kit_over_median": 0.475
+     }
+    }
+   },
+   "topbench_score": {
+    "kit": 134,
+    "database": {
+     "n": 10,
+     "scores": [
+      109,
+      170,
+      172,
+      177,
+      177,
+      185,
+      187,
+      189,
+      190,
+      218
+     ],
+     "median": 181.0,
+     "kit_over_median": 0.74
+    }
+   },
+   "3dbench2": {
+    "kit_raw": 295,
+    "settled": false,
+    "phil": {
+     "ISA": {
+      "n": 2,
+      "min": 25.8,
+      "max": 38.9,
+      "median": 32.35
+     },
+     "local bus": {
+      "n": 25,
+      "min": 20.9,
+      "max": 51.7,
+      "median": 44.4
+     },
+     "unknown": {
+      "n": 2,
+      "min": 33.8,
+      "max": 43.4,
+      "median": 38.6
+     }
+    },
+    "kit_raw_over_median": {
+     "ISA": 9.119,
+     "local bus": 6.644,
+     "unknown": 7.642
+    },
+    "kit_raw_div10_over_median": {
+     "ISA": 0.912,
+     "local bus": 0.664,
+     "unknown": 0.764
+    }
+   },
+   "3dbench_1.0": {
+    "kit": 30.3,
+    "reference": "none published in these sources"
+   },
+   "doom_min_realtics": {
+    "kit": 1165,
+    "reference": "none published in these sources"
+   }
+  }
+ }
+}
