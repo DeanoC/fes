@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -141,7 +142,9 @@ func decodeCoreDataInspection(raw json.RawMessage, result *protocol.CoreDataInsp
 
 // The service lifecycle serializes this call with launches using the shared lease.
 // Definite admission/CAS rejection is safe to release; uncertainty retains it.
-func (c *Client) finishSettingsLease(ctx context.Context, acquired bool, operationErr error) error {
+// refused lists further codes that mean the target changed nothing, so a
+// borrowed lease can be given back.
+func (c *Client) finishSettingsLease(ctx context.Context, acquired bool, operationErr error, refused ...protocol.ErrorCode) error {
 	if !acquired || c.kitLease == nil {
 		return operationErr
 	}
@@ -153,7 +156,9 @@ func (c *Client) finishSettingsLease(ctx context.Context, acquired bool, operati
 		switch apiErr.Code {
 		case protocol.CodeStaleRevision, protocol.CodeCorruptData, protocol.CodeIncompatibleData, protocol.CodeBadRequest, protocol.CodeInvalidArchive, protocol.CodeUnsupportedOperation:
 		default:
-			return operationErr
+			if !slices.Contains(refused, apiErr.Code) {
+				return operationErr
+			}
 		}
 	}
 	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)

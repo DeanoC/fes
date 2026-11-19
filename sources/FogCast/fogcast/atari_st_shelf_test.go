@@ -25,7 +25,9 @@ type shelfKitClient struct {
 	corrupt   map[protocol.MediaRecordIdentity]bool
 	discarded []protocol.MediaRecordIdentity
 	fail      error
-	batches   int
+	// failDiscard refuses only discards, after any copy has been made.
+	failDiscard error
+	batches     int
 }
 
 func savedRevision(image []byte) string {
@@ -81,6 +83,9 @@ func (c *shelfKitClient) ExportMediaRecord(_ context.Context, d protocol.MediaRe
 func (c *shelfKitClient) DiscardMediaRecord(_ context.Context, d protocol.MediaRecordDiscard) (protocol.MediaRecord, error) {
 	if c.fail != nil {
 		return protocol.MediaRecord{}, c.fail
+	}
+	if c.failDiscard != nil {
+		return protocol.MediaRecord{}, c.failDiscard
 	}
 	// As on a kit: nothing is discarded while a core runs.
 	if c.statusResult.State != protocol.StateIdle {
@@ -485,5 +490,36 @@ func TestAtariStShelfRenameKeepsTheDisk(t *testing.T) {
 	}
 	if again.GameID != renamed.GameID || len(f.kit.saved) != 0 || len(f.kit.discarded) == 0 {
 		t.Fatalf("copy inherited saved changes: %+v %v", again, f.kit.saved)
+	}
+}
+
+// A rename is a copy and a delete. When the delete is refused after the copy
+// is made, the copy is taken back: the shelf keeps one disk under its old
+// name, and the new name is free for a retry.
+func TestAtariStShelfRenameTakesBackItsCopyWhenTheDeleteFails(t *testing.T) {
+	ctx := context.Background()
+	f := newShelf(t)
+	work, err := f.s.NewAtariStShelfDisk(ctx, AtariStShelfNew{Title: "Work", PackageID: f.pkg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry, err := f.s.CoreEntry(ctx, work.GameID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	written := append([]byte(nil), f.media(t, work.MediaID)...)
+	written[6000] = 7
+	revision := f.write(entry, written)
+	f.kit.failDiscard = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "kit is away"}
+	if _, err := f.s.RenameAtariStShelfDisk(ctx, work.GameID, revision, "Letters"); err == nil {
+		t.Fatal("rename succeeded although the old disk could not be deleted")
+	}
+	shelf := f.list(t)
+	if len(shelf.Disks) != 1 || shelf.Disks[0].GameID != work.GameID || shelf.Disks[0].Title != "Work" {
+		t.Fatalf("a failed rename left %+v", shelf.Disks)
+	}
+	f.kit.failDiscard = nil
+	if renamed, err := f.s.RenameAtariStShelfDisk(ctx, work.GameID, revision, "Letters"); err != nil || renamed.Title != "Letters" {
+		t.Fatalf("retried rename: %+v %v", renamed, err)
 	}
 }
