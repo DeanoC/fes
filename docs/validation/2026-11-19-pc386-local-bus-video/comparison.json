@@ -16,7 +16,7 @@
     }
    },
    "doom_max_realtics": {
-    "kit": 5971,
+    "kit": 5972,
     "phil_fullscreen": {
      "local bus": {
       "n": 3,
@@ -64,7 +64,7 @@
     "reference": "none published in these sources"
    },
    "doom_min_realtics": {
-    "kit": 1630,
+    "kit": 1629,
     "reference": "none published in these sources"
    }
   }
@@ -93,14 +93,14 @@
     }
    },
    "doom_max_realtics": {
-    "kit": 4681,
+    "kit": 4682,
     "phil_fullscreen": {
      "ISA": {
       "n": 5,
       "min": 4280.0,
       "max": 11001.0,
       "median": 7226.0,
-      "kit_over_median": 1.544
+      "kit_over_median": 1.543
      },
      "local bus": {
       "n": 5,
@@ -155,7 +155,7 @@
     "reference": "none published in these sources"
    },
    "doom_min_realtics": {
-    "kit": 1284,
+    "kit": 1285,
     "reference": "none published in these sources"
    }
   }
@@ -212,7 +212,7 @@
     }
    },
    "topbench_score": {
-    "kit": 179,
+    "kit": 180,
     "database": {
      "n": 4,
      "scores": [
@@ -222,7 +222,7 @@
       141
      ],
      "median": 128.0,
-     "kit_over_median": 1.398
+     "kit_over_median": 1.406
     }
    },
    "3dbench2": {
@@ -292,14 +292,14 @@
     }
    },
    "doom_max_realtics": {
-    "kit": 2911,
+    "kit": 2912,
     "phil_fullscreen": {
      "ISA": {
       "n": 2,
       "min": 3100.0,
       "max": 5840.0,
       "median": 4470.0,
-      "kit_over_median": 1.536
+      "kit_over_median": 1.535
      },
      "local bus": {
       "n": 25,
@@ -322,14 +322,14 @@
       "min": 4668,
       "max": 4668,
       "median": 4668,
-      "kit_over_median": 1.604
+      "kit_over_median": 1.603
      },
      "local bus": {
       "n": 11,
       "min": 2159,
       "max": 3585,
       "median": 2590,
-      "kit_over_median": 0.89
+      "kit_over_median": 0.889
      },
      "other or unknown": {
       "n": 1,
@@ -341,7 +341,7 @@
     }
    },
    "topbench_score": {
-    "kit": 209,
+    "kit": 210,
     "database": {
      "n": 10,
      "scores": [
@@ -357,7 +357,7 @@
       218
      ],
      "median": 181.0,
-     "kit_over_median": 1.155
+     "kit_over_median": 1.16
     }
    },
    "3dbench2": {

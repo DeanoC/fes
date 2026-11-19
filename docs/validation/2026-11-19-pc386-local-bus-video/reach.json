@@ -127,82 +127,81 @@
   "topbench": {
    "field": "topbench_total_us",
    "T": {
-    "6:200": 518.0,
-    "6:250": 438.0,
-    "6:0": 341.0,
-    "6:500": 273.0,
-    "7:0": 253.0,
-    "6:667": 253.0
+    "6:200": 516.0,
+    "6:250": 442.0,
+    "6:0": 358.0,
+    "6:500": 290.0,
+    "7:0": 252.0,
+    "6:667": 254.0
    },
-   "A": 9729.216867469882,
-   "B": 48.831325301204686,
+   "A": 8425.30120481928,
+   "B": 104.9879518072288,
    "holdout": {
-    "measured": 518.0,
-    "predicted": 535.2921686746988,
-    "tol": 12.70885542168675,
-    "pass": false
-   },
-   "repeat": {
-    "7": 253.0,
-    "6:667": 253.0,
+    "measured": 516.0,
+    "predicted": 526.2530120481928,
+    "tol": 12.528072289156627,
     "pass": true
    },
-   "measurable": false,
-   "why": "hold-out failed",
+   "repeat": {
+    "7": 252.0,
+    "6:667": 254.0,
+    "pass": true
+   },
+   "measurable": true,
    "verdicts": {
     "6:500": {
-     "measured": 273.0,
-     "predicted": 243.41566265060234,
-     "excess_pct": 12.15383473160594,
-     "tol_pct": 2.8241146336031013,
-     "verdict": "not measurable"
+     "measured": 290.0,
+     "predicted": 273.4939759036144,
+     "excess_pct": 6.035242290748922,
+     "tol_pct": 2.7334801762114758,
+     "verdict": "not reached"
     },
     "7:0": {
-     "measured": 253.0,
-     "predicted": 194.69664565307698,
-     "excess_pct": 29.945741567017894,
-     "tol_pct": 3.288302628513686,
-     "verdict": "not measurable"
+     "measured": 252.0,
+     "predicted": 231.30431169957183,
+     "excess_pct": 8.94738543711569,
+     "tol_pct": 3.084407802494592,
+     "verdict": "not reached"
     }
    }
   },
   "doom_max": {
    "field": "doom_max_realtics",
    "T": {
-    "6:200": 7194.0,
-    "6:250": 5971.0,
-    "6:0": 4681.0,
+    "6:200": 7195.0,
+    "6:250": 5972.0,
+    "6:0": 4682.0,
     "6:500": 3516.0,
-    "7:0": 2911.0,
-    "6:667": 2912.0
+    "7:0": 2912.0,
+    "6:667": 2913.0
    },
    "A": 129388.5542168675,
-   "B": 795.4578313252996,
+   "B": 796.4578313252996,
    "holdout": {
-    "measured": 7194.0,
-    "predicted": 7264.885542168675,
-    "tol": 147.30072289156683,
+    "measured": 7195.0,
+    "predicted": 7265.885542168675,
+    "tol": 147.32072289156685,
     "pass": true
    },
    "repeat": {
-    "7": 2911.0,
-    "6:667": 2912.0,
+    "7": 2912.0,
+    "6:667": 2913.0,
     "pass": true
    },
    "measurable": true,
    "verdicts": {
     "6:500": {
      "measured": 3516.0,
-     "predicted": 3383.22891566265,
-     "excess_pct": 3.9243896185294114,
-     "tol_pct": 2.0592931825304195,
+     "predicted": 3384.22891566265,
+     "excess_pct": 3.893681178820279,
+     "tol_pct": 2.059275662089572,
      "verdict": "not reached"
     },
     "7:0": {
-     "measured": 2911.0,
-     "predicted": 2735.3162153862813,
-     "excess_pct": 6.422796151519491,
-     "tol_pct": 2.0916998915689557,
+     "measured": 2912.0,
+     "predicted": 2736.3162153862813,
+     "excess_pct": 6.420448909590578,
+     "tol_pct": 2.091666379399911,
      "verdict": "not reached"
     }
    }
@@ -211,39 +210,39 @@
    "field": "doom_min_realtics",
    "T": {
     "6:200": 1980.0,
-    "6:250": 1630.0,
-    "6:0": 1284.0,
+    "6:250": 1629.0,
+    "6:0": 1285.0,
     "6:500": 981.0,
     "7:0": 858.0,
-    "6:667": 857.0
+    "6:667": 859.0
    },
-   "A": 34704.216867469884,
-   "B": 241.83132530120474,
+   "A": 34503.61445783133,
+   "B": 248.8554216867467,
    "holdout": {
     "measured": 1980.0,
-    "predicted": 1977.042168674699,
-    "tol": 41.5438554216871,
+    "predicted": 1974.0361445783133,
+    "tol": 41.483734939758925,
     "pass": true
    },
    "repeat": {
     "7": 858.0,
-    "6:667": 857.0,
+    "6:667": 859.0,
     "pass": true
    },
    "measurable": true,
    "verdicts": {
     "6:500": {
      "measured": 981.0,
-     "predicted": 935.9156626506024,
-     "excess_pct": 4.817136751586621,
-     "tol_pct": 2.2143381264402096,
+     "predicted": 938.9277108433733,
+     "excess_pct": 4.480886938445564,
+     "tol_pct": 2.213650537013512,
      "verdict": "not reached"
     },
     "7:0": {
      "measured": 858.0,
-     "predicted": 762.1344267625224,
-     "excess_pct": 12.578564866135999,
-     "tol_pct": 2.3291128068091465,
+     "predicted": 766.1509907696752,
+     "excess_pct": 11.988369177471567,
+     "tol_pct": 2.327387425428606,
      "verdict": "not reached"
     }
    }
@@ -256,7 +255,7 @@
     "3dbench": "not reached",
     "3dbench2": "reached",
     "pcpbench": "reached",
-    "topbench": "not measurable",
+    "topbench": "not reached",
     "doom_max": "not reached",
     "doom_min": "not reached"
    }
@@ -267,7 +266,7 @@
     "3dbench": "not reached",
     "3dbench2": "reached",
     "pcpbench": "not reached",
-    "topbench": "not measurable",
+    "topbench": "not reached",
     "doom_max": "not reached",
     "doom_min": "not reached"
    }

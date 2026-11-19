@@ -2,8 +2,14 @@
 
 Issue [#2005](https://github.com/DeanoC/fes/issues/2005), part of the i486
 plan (tracker [#1962](https://github.com/DeanoC/fes/issues/1962)), following
-slice 3 (#1999, PR #2000). The pass rules are in [method.md](method.md),
-committed with the code (`58b782b9a`) before any kit run.
+slice 3 (#1999, PR #2000).
+- **Pass rules.** In [method.md](method.md), committed with the code
+  (`58b782b9a`) before any kit run.
+- **Amendment 1.** A Codex P1 found that the EMS board's frame is also MMIO,
+  and it must stay on ISA timing. After the fix, every gate, the seal and
+  the kit run were made again on `ea0b87f0d`. This record reports those.
+- **The superseded run.** The first package's run, `l1`, is kept in
+  [kit-scores-l1.json](kit-scores-l1.json).
 
 ## Result
 
@@ -18,11 +24,13 @@ charge:
 | 1 | ISA |
 | 2 | Local bus |
 
-- **The local-bus charge** is 150 ns for each 32-bit dword an access touches,
-  instead of 720 ns for each 16-bit half. The source is
-  [derive_cycle.py](derive_cycle.py): the median of the Video Card FAQ's
-  486DX2-66 VL-Bus Vidspeed rows. Method.md section 1 says why this is an
-  option and what it costs.
+- **The local-bus charge** is 150 ns for each 32-bit dword an access to
+  A0000h–BFFFFh touches, instead of 720 ns for each 16-bit half. The source
+  is [derive_cycle.py](derive_cycle.py): the median of the Video Card FAQ's
+  486DX2-66 VL-Bus Vidspeed rows.
+- **What keeps the ISA charge:** I/O, and other MMIO such as the EMS board's
+  frame.
+- **Why an option:** method.md section 1 says why, and what it costs.
 
 **On Kit A, the 486 presets now match local-bus 486s.** Against the
 local-bus median, before (ISA) and after (local bus):
@@ -44,9 +52,9 @@ fall short:
 | Preset | Benchmarks not reached, before | After |
 | --- | --- | --- |
 | 486-50 | 1 of 6 | 4 of 6 |
-| 486DX2-66 | 3 of 6 | 4 of 6 |
+| 486DX2-66 | 3 of 6 | 5 of 6 |
 
-TopBench is "not measurable" now, because its 20 MHz hold-out failed.
+All six benchmarks are measurable.
 
 **Why the reach got worse.** With the large fixed ISA time gone, the time
 that scales with the clock (A) dominates every benchmark, so the core's own
@@ -67,14 +75,18 @@ those references.
 
 ## Host gates (method.md section 4)
 
+All gates are on `ea0b87f0d`, after amendment 1.
+
 1. **Generated files and unit tests: pass.**
    - `fes_i386_governor.py --check`.
-   - `tests/test_fes_i386_governor.py` (new local-bus cases) and
+   - `tests/test_fes_i386_governor.py` (local-bus cases) and
      `test_fes_i386_reference_diagnostic.py`.
    - The runtime's `make test`.
    - FogCast `protocol`, `misterruntime`, `targetclient`, `httpapi` and
      `hostapi`.
    - mister-packages `go test` and `check-fixtures`.
+   - The DE25 combined proof, re-run because its receipt captures two
+     runtime headers this PR edits (14 cases).
 2. **The governor bench, RTL and netlist: PASS**
    ([governor-bench.json](governor-bench.json)).
    - Every loop is charged exactly the table's clocks.
@@ -82,11 +94,13 @@ those references.
    - 486DX-33 and 486DX2-66 run on the local bus by default.
    - 386DX-25 on the local bus (word 7 = 2) and 486DX-33 on ISA (word 7 = 1)
      are each charged exactly.
+   - The `vram` loop's store into the EMS frame is charged the ISA cycle
+     under every video bus.
 3. **Presets 1–5 match main: PASS** ([compare-main.json](compare-main.json),
    against `origin/main` `a14663bd9`).
    - Every loop's charge is equal under `max` and presets 1–5, except `vram`.
-   - `vram`'s added store accounts for exactly the difference: 3,800,
-     4,800, 7,200, 9,600 and 11,600 clocks for presets 1–5.
+   - `vram`'s two added stores account for exactly the difference: 5,800,
+     7,200, 10,800, 14,400 and 17,400 clocks for presets 1–5.
 4. **Lockstep: PASS** ([lockstep.json](lockstep.json)).
    - On the RTL: `max`, then preset 6, preset 6 on ISA and preset 3 on the
      local bus, each `--same-as` max.
@@ -97,17 +111,18 @@ those references.
    scenario, including word 7 accepted at 8 and refused at 0Ch and 10h.
 7. **Seal: pass** ([seal-summary.json](seal-summary.json)).
    - **Build.** Quartus 17.0.2, seed 1, the CUDA toolchain slot, of
-     `58b782b9a`, on chip-30x0-ai-dev from a clean detached worktree.
-   - **Timing.** System clock 61.44 MHz. Setup +0.544 ns, hold +0.102 ns,
-     recovery +5.915 ns, removal +0.548 ns, minimum pulse width +1.122 ns.
-   - **Area.** 36,381 of 41,910 ALMs.
-   - **Package.** `2f8e53c3…`, build `d268d876…`.
-   - **Inputs.** All 143 pinned inputs hash identically at `ed6860219`.
-     The later commits touch no pinned input.
+     `ea0b87f0d`, on chip-30x0-ai-dev from a clean detached worktree.
+   - **Timing.** System clock 61.44 MHz. Setup +0.570 ns, hold +0.099 ns,
+     recovery +4.919 ns, removal +0.271 ns, minimum pulse width +1.122 ns.
+   - **Area.** 36,391 of 41,910 ALMs.
+   - **Package.** `17a424bb…`, build `0086f40a…`.
+   - **Inputs.** All 143 pinned inputs hash identically at the PR head.
+   - **Earlier seal.** The seal of `58b782b9a`, made before the amendment,
+     passed too (setup +0.544 ns, package `2f8e53c3…`) and is superseded.
 
 ## Kit run (method.md section 5)
 
-Run `l1` used Kit A, core-only, from 15:24 to 16:35 EET
+Run `l4` used Kit A, core-only, from 18:29 to 19:40 EET
 ([kit-scores.json](kit-scores.json)).
 
 - **Software.** Baseline image `179affbb` and bundle `c9ae79e2`, with no
@@ -124,30 +139,41 @@ Run `l1` used Kit A, core-only, from 15:24 to 16:35 EET
 
 | Preset | 3DBench 1.0 | 3DBench 1.0c (shown) | PCPBench | TopBench (Total µs) | DOOM `MAX.CFG` realtics | DOOM `MIN.CFG` realtics |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `max` | 76.9 | 757 | 13.3 | 304 (182) | 2,062 | 748 |
-| 486-20 (6, 200) | 18.1 | 179 | 4.0 | 97 (518) | 7,194 | 1,980 |
-| 486SX/DX-25 (6, 250) | 22.2 | 220 | 5.0 | 114 (438) | 5,971 | 1,630 |
-| 486DX-33 (6) | 29.4 | 286 | 6.5 | 140 (341) | 4,681 | 1,284 |
-| 486DX-50 / DX2-50 (6, 500) | 41.6 | 402 | 8.8 | 179 (273) | 3,516 | 981 |
-| 486DX2-66 (7) | 52.6 | 504 | 10.3 | 209 (253) | 2,911 | 858 |
-| 486DX2-66 by override (6, 667) | 52.6 | 504 | 10.3 | 210 (253) | 2,912 | 857 |
+| `max` | 76.9 | 757 | 13.3 | 301 (179) | 2,062 | 748 |
+| 486-20 (6, 200) | 18.1 | 179 | 4.0 | 96 (516) | 7,195 | 1,980 |
+| 486SX/DX-25 (6, 250) | 22.2 | 220 | 5.0 | 114 (442) | 5,972 | 1,629 |
+| 486DX-33 (6) | 29.4 | 286 | 6.5 | 140 (358) | 4,682 | 1,285 |
+| 486DX-50 / DX2-50 (6, 500) | 41.6 | 402 | 8.8 | 180 (290) | 3,516 | 981 |
+| 486DX2-66 (7) | 52.6 | 504 | 10.3 | 210 (252) | 2,912 | 858 |
+| 486DX2-66 by override (6, 667) | 52.6 | 504 | 10.3 | 209 (254) | 2,913 | 859 |
 
 **Control.** The `max` row has no governor, so it shows whether the package
 is otherwise faster or slower. Against slice 3's `k2` on the same kit:
 - 3DBench, 3DBench 1.0c, PCPBench and DOOM `MAX.CFG` are identical.
-- TopBench is 304 here against 307; its Total is 182 µs against 181.
+- TopBench is 301 against 307; its Total is 179 µs against 181.
 - DOOM `MIN.CFG` is 748 realtics against 747.
 
 The package is otherwise the same speed. Each before/after difference on
 the 486 rows is the video charge.
 
-**Clean-up.** Run `l1`'s after-run listing failed: ssh timed out during the
-banner exchange. So its status line's "0 new FogCast data paths" was wrong,
-and a note in the status file corrects it. Two claimed runs followed:
-- **`l2`** listed the kit: 64 new paths, the 7 launches' game records and
-  media deltas, and the staged disk.
-- **`l3`** removed exactly those 64 paths through `kit_hil.clean` inside its
-  lease.
+**Repeat.** `l1` ran on the package sealed before the EMS fix, and no
+benchmark loads an EMS driver.
+- 3DBench, 3DBench 1.0c and PCPBench are identical.
+- DOOM is within one realtic.
+- TopBench's score is within one, but its Total moved by up to 6% (341
+  against 358 µs at 33.3 MHz). That benchmark's Total is the noisiest
+  reading on the kit, and it is the one verdict that differs between the
+  two runs (below).
+
+**Clean-up.**
+- **`l4`.** Its listing found 64 new paths: the 7 launches' game records and
+  media deltas, and the staged disk. Claimed run `l5` removed exactly those
+  through `kit_hil.clean` inside its lease. The kit's FogCast tree then
+  matched its pre-`l4` listing.
+- **`l1`.** Its after-run listing failed: ssh timed out during the banner
+  exchange. So its status line's "0 new paths" was wrong, and a note in the
+  status file corrects it. Claimed run `l2` listed the paths, and `l3`
+  removed them, the same way.
 
 ## Reach and references (method.md section 6)
 
@@ -163,12 +189,16 @@ and a note in the status file corrects it. Two claimed runs followed:
 | 3DBench 1.0 | 31% → 2% | +4.90% (3.08%): not reached | +9.42% (3.82%): not reached |
 | 3DBench 1.0c | 36% → 10% | +1.90% (3.05%): reached | +3.64% (3.72%): reached |
 | PCPBench | 20% → 10% | +5.79% (6.68%): reached | +15.26% (9.66%): not reached |
-| TopBench Total | 55% → 14% | not measurable: 20 MHz hold-out 518 against 535 ± 13 | not measurable |
-| DOOM `MAX.CFG` | 49% → 17% | +3.92% (2.06%): not reached | +6.42% (2.09%): not reached |
-| DOOM `MIN.CFG` | 36% → 19% | +4.82% (2.21%): not reached | +12.58% (2.33%): not reached |
+| TopBench Total | 55% → 29% | +6.04% (2.73%): not reached | +8.95% (3.08%): not reached |
+| DOOM `MAX.CFG` | 49% → 17% | +3.89% (2.06%): not reached | +6.42% (2.09%): not reached |
+| DOOM `MIN.CFG` | 36% → 19% | +4.48% (2.21%): not reached | +11.99% (2.33%): not reached |
 
-The hold-out passes on the other five benchmarks. Preset 7 and preset 6 at
+The 20 MHz hold-out passes on all six benchmarks. Preset 7 and preset 6 at
 66.7 MHz agree on every benchmark.
+
+**`l1` came out differently on TopBench only.** There its 20 MHz hold-out
+failed, so TopBench was "not measurable", and 486DX2-66 was 4 of 6. Every
+other verdict is the same in both runs, and so is each preset's mark.
 
 **Reference ratios.** Each is the kit over the median of real machines; DOOM
 uses the median over the kit. n is the number of rows.
@@ -177,7 +207,7 @@ uses the median over the kit. n is the number of rows.
 | --- | --- | --- | --- |
 | 486-25 | —; 0.74 → 1.06 (3) | —; 0.98 → 1.09 (3) | 1.16 → 1.50 (3) |
 | 486DX-33 | 0.99 → 1.54 (5); 0.69 → 1.08 (5) | 1.04 → 1.18 (5); 0.97 → 1.10 (5) | 0.84 → 1.15 (2) |
-| 486-50 | 0.67 → 1.15 (1); 0.63 → 1.08 (2) | 0.88 → 1.05 (1); 0.88 → 1.04 (2) | 0.95 → 1.40 (4) |
+| 486-50 | 0.67 → 1.15 (1); 0.63 → 1.08 (2) | 0.88 → 1.05 (1); 0.88 → 1.04 (2) | 0.95 → 1.41 (4) |
 | 486DX2-66 | 0.81 → 1.54 (2); 0.55 → 1.04 (25) | 0.90 → 1.09 (2); 0.77 → 0.93 (24) | 0.74 → 1.16 (10) |
 
 ## What this record does not cover
@@ -191,4 +221,9 @@ uses the median over the kit. n is the number of rows.
   33.3 MHz bus time.
 - **Cache misses.** The 486 table charges every access as a hit, which the
   gain over real local-bus 486s reflects.
+- **An EMS workload on the kit.** The EMS frame's ISA charge is checked on
+  the governor bench only.
 - **The DE25.**
+- **CI's `test_fes_hip_lane` CUDA-slot test.** It fails with "build record
+  exceeds 65536 bytes" (Spectrum, #1995) on `origin/main` as well, so it is
+  not this change.

@@ -1,18 +1,18 @@
 {
- "sealed_commit": "58b782b9a2be4129716e54bff8050c6dcbe51fa1",
+ "sealed_commit": "ea0b87f0d82681530f1657cb20998e06203a15b8",
  "host": "chip-30x0-ai-dev",
  "quartus": "17.0.2",
  "seed": 1,
  "gpu_router_slot": "cuda",
- "build_id": "d268d8764993dc9118344f6e9dd52b95",
- "package": "2f8e53c32de1a8b4efebfdf3293d8606ba75924ecd3535ab790d8dd7df9e817c",
- "fcore_sha256": "77f04d391fd3642289dedb88d04487008c6855a76c70eb37591429cb928436fa",
+ "build_id": "0086f40a115969b447b1c8872d3421cb",
+ "package": "17a424bb5d2589e2c8573b373f8f5c019d622b16792c839e9acb439d45377d23",
+ "fcore_sha256": "06b539f32d7facb20e3b5072fb34ec1e56fa3d0f219cc185439ac37e32aedc90",
  "status": "pass",
  "timing": {
   "analyses": {
    "hold": {
     "tns_ns": 0.0,
-    "worst_slack_ns": 0.102
+    "worst_slack_ns": 0.099
    },
    "minimum_pulse_width": {
     "tns_ns": 0.0,
@@ -20,15 +20,15 @@
    },
    "recovery": {
     "tns_ns": 0.0,
-    "worst_slack_ns": 5.915
+    "worst_slack_ns": 4.919
    },
    "removal": {
     "tns_ns": 0.0,
-    "worst_slack_ns": 0.548
+    "worst_slack_ns": 0.271
    },
    "setup": {
     "tns_ns": 0.0,
-    "worst_slack_ns": 0.544
+    "worst_slack_ns": 0.57
    }
   },
   "clocks": {
@@ -50,7 +50,7 @@
  "resources": {
   "alms": {
    "available": 41910,
-   "used": 36381
+   "used": 36391
   },
   "block_memory_bits": {
    "available": 5662720,
@@ -65,29 +65,29 @@
    "used": 282
   },
   "registers": {
-   "used": 31771
+   "used": 31862
   }
  },
  "lockstep": {
-  "cpu_source_closure_sha256": "d8fd6c424c6954269961e81836637e06027532504bebe28813d5b2efeb6042de",
+  "cpu_source_closure_sha256": "23617229869d59e488888481c2a86c60d738b923ccda2a5ea9c030d6525bde45",
   "netlist_program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
-  "netlist_sha256": "c212e91480a559bdc614feeb8874d9381a3858a2e64eae1da347afe3142296a4",
+  "netlist_sha256": "814531abcb27dad77e475f1b8380f0c2187c1b67739f6ef000adf5ffb24d08c9",
   "oracle": {
    "adapter_sha256": "8476a65df29382fdfdb5b8ce342495f3491fd2c7e5c5df40018d3a3d68bb21e3",
    "linked_sha256": {
     "adapter": "5857aee4bcced159b79def18b33364fc137436a2f507bcf8d35ee32e081bb0b4",
-    "cpu": "5a2a111339d17f652dd363827601394f46e05032413e5e616356335acc62d213",
-    "fpu": "c2d7184132bb12d5cb2bb1df5fb656c966047cad0b135c3ec54f6654b94aed77",
+    "cpu": "e9d78ac324376967b99d09f7e7f705f2698661ef77f9a228e2b85f47db196070",
+    "fpu": "1f7128c4014d22249d606c317f15fab793f0b6b2f7ed8e7fc7d3c1bec4a25ed2",
     "paramtree": "7a1c5ac6028382277a6447c8644a27ffbe05cad58616cd2208709da302f1067c",
-    "softfloat": "2bdd4e54f69f193e133020fc9d9a71267ffb42ca01ba49a551255e7b13fa6f74"
+    "softfloat": "a2658c1cc5065d60ce122bb3a8d59c2726ddf5aee7f750e5c0545d24ee4d572a"
    },
    "patch_sha256": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377",
    "provisioner_sha256": "0c4552c2290a0f50681090a65cf25deeb1916568c910bcfcc88a91097f8089b2",
    "revision": "30cfd566ecc8deb33e56e801e32b444a7041b6d2",
-   "suite_sha256": "54af24eeef10aecf3cc607383d824530836aa31332b9ef9447a82a523bfcd9b0",
-   "testbench_sha256": "11b2dfe4b3d1ac5bf1d25bbae9fb9463c2af60e5bad7a95b6d3587761dee631c"
+   "suite_sha256": "8a54c3004c77b604dfa5348acb19c982b29e67e7c72f45811d350c751a1c285f",
+   "testbench_sha256": "0bce6849db1ff53a2435011c2fb0cf330f2db77de497c9104f609671f980952a"
   },
-  "report_sha256": "b6c959d1c0d97923983a5477d856b71e7ab21a72995391c67a6c863801ebc9e0",
+  "report_sha256": "5407c1cc6ddcc44e0bfd52bb6a1b353c3dcdff8349b0f903a0fd482a13fbaf7e",
   "simulator": {
    "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
    "install": "b37d73c9d2a0bd9e9847784c8e1bc4171ae79ff713d11e2735a10174bf2ad557",
@@ -99,5 +99,71 @@
  },
  "pinned_inputs": 143,
  "pinned_inputs_differing_at_head": [],
- "head_checked": "ed6860219ec9f78530c5403e340875136874ef43"
+ "head_checked": "ea0b87f0d and the PR head; every later commit changes only docs/validation/2026-11-19-pc386-local-bus-video",
+ "earlier_seal": {
+  "sealed_commit": "58b782b9a2be4129716e54bff8050c6dcbe51fa1",
+  "build_id": "d268d8764993dc9118344f6e9dd52b95",
+  "package": "2f8e53c32de1a8b4efebfdf3293d8606ba75924ecd3535ab790d8dd7df9e817c",
+  "timing": {
+   "analyses": {
+    "hold": {
+     "tns_ns": 0.0,
+     "worst_slack_ns": 0.102
+    },
+    "minimum_pulse_width": {
+     "tns_ns": 0.0,
+     "worst_slack_ns": 1.122
+    },
+    "recovery": {
+     "tns_ns": 0.0,
+     "worst_slack_ns": 5.915
+    },
+    "removal": {
+     "tns_ns": 0.0,
+     "worst_slack_ns": 0.548
+    },
+    "setup": {
+     "tns_ns": 0.0,
+     "worst_slack_ns": 0.544
+    }
+   },
+   "clocks": {
+    "audio": {
+     "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+     "mhz": 12.29
+    },
+    "pixel": {
+     "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+     "mhz": 74.27
+    },
+    "system": {
+     "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+     "mhz": 61.44
+    }
+   },
+   "status": "pass"
+  },
+  "resources": {
+   "alms": {
+    "available": 41910,
+    "used": 36381
+   },
+   "block_memory_bits": {
+    "available": 5662720,
+    "used": 1354796
+   },
+   "dsp_blocks": {
+    "available": 112,
+    "used": 41
+   },
+   "ram_blocks": {
+    "available": 553,
+    "used": 282
+   },
+   "registers": {
+    "used": 31771
+   }
+  },
+  "note": "before method amendment 1; superseded"
+ }
 }

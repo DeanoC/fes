@@ -1,6 +1,6 @@
 {
  "main": "out-lbv/gov-main-report.json",
- "branch": "out-lbv/gov-rtl-report.json",
+ "branch": "out-lbv/gov-rtl2-report.json",
  "presets": {
   "max": {
    "loops": 19,
@@ -10,32 +10,32 @@
   },
   "286-12": {
    "loops": 19,
-   "vram_delta": 3800,
-   "vram_delta_expected": 3800,
+   "vram_delta": 5800,
+   "vram_delta_expected": 5800,
    "equal_elsewhere": true
   },
   "386SX-16": {
-   "loops": 19,
-   "vram_delta": 4800,
-   "vram_delta_expected": 4800,
-   "equal_elsewhere": true
-  },
-  "386DX-25": {
    "loops": 19,
    "vram_delta": 7200,
    "vram_delta_expected": 7200,
    "equal_elsewhere": true
   },
+  "386DX-25": {
+   "loops": 19,
+   "vram_delta": 10800,
+   "vram_delta_expected": 10800,
+   "equal_elsewhere": true
+  },
   "386DX-33": {
    "loops": 19,
-   "vram_delta": 9600,
-   "vram_delta_expected": 9600,
+   "vram_delta": 14400,
+   "vram_delta_expected": 14400,
    "equal_elsewhere": true
   },
   "386DX-40": {
    "loops": 19,
-   "vram_delta": 11600,
-   "vram_delta_expected": 11600,
+   "vram_delta": 17400,
+   "vram_delta_expected": 17400,
    "equal_elsewhere": true
   }
  },

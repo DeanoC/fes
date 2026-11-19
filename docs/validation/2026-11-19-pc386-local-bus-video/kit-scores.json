@@ -1,12 +1,12 @@
 {
  "kit": "A",
- "run": "l1",
- "date": "2026-11-19, 15:24-16:35 EET",
- "package": "2f8e53c32de1a8b4efebfdf3293d8606ba75924ecd3535ab790d8dd7df9e817c (Quartus 17.0.2 seal of 58b782b9a, seal-summary.json)",
+ "run": "l4",
+ "date": "2026-11-19, 18:29-19:40 EET",
+ "package": "17a424bb5d2589e2c8573b373f8f5c019d622b16792c839e9acb439d45377d23 (Quartus 17.0.2 seal of ea0b87f0d, seal-summary.json)",
  "kit_software": "baseline image 179affbb, bundle c9ae79e2, core-only (no install, no image change, no reboot)",
  "disk": "f82cc8badd90805b045e1055c917e21a4b69760955b9cc3a3e03a39015b0f554",
  "settings": "fes.pc386.machine words: preset, word 1, 0, 0, 0x220, IRQ 7, DMA 1, word 7 = 0 (the preset's own video bus: local bus for presets 6 and 7)",
- "reading": "every score read from the named HDMI grab (Kit A ShadowCast, 1920x1080), kept in ~/fes-scratch/lbv/kit/runs/l1/fr; PCPBench pcp and pcp_pair crops are byte-identical, 32 s apart; TopBench from the -tb-final grab",
+ "reading": "every score read from the named HDMI grab (Kit A ShadowCast, 1920x1080), kept in ~/fes-scratch/lbv/kit/runs/l4/fr; PCPBench pcp and pcp_pair crops are byte-identical, 32 s apart; TopBench from the -tb-final grab",
  "reruns": "none",
  "3dbench2_display": "3DBench 1.0c shows three digits with no decimal point (757 at max, 144 at 486-20 where 3DBench 1.0 shows 14.4). 3dbench2_raw is the displayed value; 3dbench2_fps = raw/10 is used only by reach.py, whose verdict is the same either way.",
  "presets": {
@@ -14,8 +14,8 @@
    "3dbench_fps": 76.9,
    "3dbench2_raw": 757,
    "pcpbench": 13.3,
-   "topbench_score": 304,
-   "topbench_total_us": 182,
+   "topbench_score": 301,
+   "topbench_total_us": 179,
    "doom_max_realtics": 2062,
    "doom_min_realtics": 748,
    "grabs": {
@@ -35,9 +35,9 @@
    "3dbench_fps": 18.1,
    "3dbench2_raw": 179,
    "pcpbench": 4.0,
-   "topbench_score": 97,
-   "topbench_total_us": 518,
-   "doom_max_realtics": 7194,
+   "topbench_score": 96,
+   "topbench_total_us": 516,
+   "doom_max_realtics": 7195,
    "doom_min_realtics": 1980,
    "grabs": {
     "3d": "p6f200-3d-1",
@@ -45,7 +45,7 @@
     "pcp": "p6f200-pcp-1",
     "pcp_pair": "p6f200-pcp-0",
     "tb": "p6f200-tb-final",
-    "dmax": "p6f200-dmax-8",
+    "dmax": "p6f200-dmax-7",
     "dmin": "p6f200-dmin-1"
    },
    "label": "486-20 (preset 6, word 1 = 200)",
@@ -57,9 +57,9 @@
    "3dbench2_raw": 220,
    "pcpbench": 5.0,
    "topbench_score": 114,
-   "topbench_total_us": 438,
-   "doom_max_realtics": 5971,
-   "doom_min_realtics": 1630,
+   "topbench_total_us": 442,
+   "doom_max_realtics": 5972,
+   "doom_min_realtics": 1629,
    "grabs": {
     "3d": "p6f250-3d-1",
     "3d2": "p6f250-3d2-1",
@@ -78,9 +78,9 @@
    "3dbench2_raw": 286,
    "pcpbench": 6.5,
    "topbench_score": 140,
-   "topbench_total_us": 341,
-   "doom_max_realtics": 4681,
-   "doom_min_realtics": 1284,
+   "topbench_total_us": 358,
+   "doom_max_realtics": 4682,
+   "doom_min_realtics": 1285,
    "grabs": {
     "3d": "p6-3d-1",
     "3d2": "p6-3d2-1",
@@ -98,8 +98,8 @@
    "3dbench_fps": 41.6,
    "3dbench2_raw": 402,
    "pcpbench": 8.8,
-   "topbench_score": 179,
-   "topbench_total_us": 273,
+   "topbench_score": 180,
+   "topbench_total_us": 290,
    "doom_max_realtics": 3516,
    "doom_min_realtics": 981,
    "grabs": {
@@ -119,9 +119,9 @@
    "3dbench_fps": 52.6,
    "3dbench2_raw": 504,
    "pcpbench": 10.3,
-   "topbench_score": 209,
-   "topbench_total_us": 253,
-   "doom_max_realtics": 2911,
+   "topbench_score": 210,
+   "topbench_total_us": 252,
+   "doom_max_realtics": 2912,
    "doom_min_realtics": 858,
    "grabs": {
     "3d": "p7-3d-1",
@@ -140,10 +140,10 @@
    "3dbench_fps": 52.6,
    "3dbench2_raw": 504,
    "pcpbench": 10.3,
-   "topbench_score": 210,
-   "topbench_total_us": 253,
-   "doom_max_realtics": 2912,
-   "doom_min_realtics": 857,
+   "topbench_score": 209,
+   "topbench_total_us": 254,
+   "doom_max_realtics": 2913,
+   "doom_min_realtics": 859,
    "grabs": {
     "3d": "p6f667-3d-1",
     "3d2": "p6f667-3d2-1",
@@ -157,5 +157,6 @@
    "3dbench2_fps": 50.4,
    "video_bus": "local"
   }
- }
+ },
+ "earlier_run": "l1 (kit-scores-l1.json) on package 2f8e53c3, sealed before method amendment 1 (EMS frame fix); not this PR's evidence"
 }

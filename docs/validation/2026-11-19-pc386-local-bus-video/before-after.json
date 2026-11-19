@@ -1,6 +1,6 @@
 {
  "before": "slice 3 run k2 (ISA video, seal of 0c7af0728)",
- "after": "run l1 (local-bus video, 2f8e53c32de1a8b4efebfdf3293d8606ba75924ecd3535ab790d8dd7df9e817c (Quartus 17.0.2 seal of 58b782b9a, seal-summary.json))",
+ "after": "run l4 (local-bus video, 17a424bb5d2589e2c8573b373f8f5c019d622b16792c839e9acb439d45377d23 (Quartus 17.0.2 seal of ea0b87f0d, seal-summary.json))",
  "presets": {
   "0:0": {
    "label": "max",
@@ -19,11 +19,11 @@
     },
     "topbench_score": {
      "before": 307,
-     "after": 304
+     "after": 301
     },
     "topbench_total_us": {
      "before": 181,
-     "after": 182
+     "after": 179
     },
     "doom_max_realtics": {
      "before": 2062,
@@ -52,15 +52,15 @@
     },
     "topbench_score": {
      "before": 78,
-     "after": 97
+     "after": 96
     },
     "topbench_total_us": {
      "before": 645,
-     "after": 518
+     "after": 516
     },
     "doom_max_realtics": {
      "before": 9713,
-     "after": 7194
+     "after": 7195
     },
     "doom_min_realtics": {
      "before": 2285,
@@ -101,15 +101,15 @@
     },
     "topbench_total_us": {
      "before": 563,
-     "after": 438
+     "after": 442
     },
     "doom_max_realtics": {
      "before": 8533,
-     "after": 5971
+     "after": 5972
     },
     "doom_min_realtics": {
      "before": 1939,
-     "after": 1630
+     "after": 1629
     }
    },
    "reference_ratios": {
@@ -172,15 +172,15 @@
     },
     "topbench_total_us": {
      "before": 490,
-     "after": 341
+     "after": 358
     },
     "doom_max_realtics": {
      "before": 7290,
-     "after": 4681
+     "after": 4682
     },
     "doom_min_realtics": {
      "before": 1599,
-     "after": 1284
+     "after": 1285
     }
    },
    "reference_ratios": {
@@ -223,7 +223,7 @@
      },
      "doom_max_realtics": {
       "ISA": {
-       "kit_over_median": 1.544,
+       "kit_over_median": 1.543,
        "n": 5
       },
       "local bus": {
@@ -255,11 +255,11 @@
     },
     "topbench_score": {
      "before": 122,
-     "after": 179
+     "after": 180
     },
     "topbench_total_us": {
      "before": 403,
-     "after": 273
+     "after": 290
     },
     "doom_max_realtics": {
      "before": 6074,
@@ -319,7 +319,7 @@
       }
      },
      "topbench_score": {
-      "all": 1.398,
+      "all": 1.406,
       "n": 4
      }
     }
@@ -342,15 +342,15 @@
     },
     "topbench_score": {
      "before": 134,
-     "after": 209
+     "after": 210
     },
     "topbench_total_us": {
      "before": 380,
-     "after": 253
+     "after": 252
     },
     "doom_max_realtics": {
      "before": 5510,
-     "after": 2911
+     "after": 2912
     },
     "doom_min_realtics": {
      "before": 1165,
@@ -409,7 +409,7 @@
      },
      "doom_max_realtics": {
       "ISA": {
-       "kit_over_median": 1.536,
+       "kit_over_median": 1.535,
        "n": 2
       },
       "local bus": {
@@ -422,7 +422,7 @@
       }
      },
      "topbench_score": {
-      "all": 1.155,
+      "all": 1.16,
       "n": 10
      }
     }
@@ -445,19 +445,19 @@
     },
     "topbench_score": {
      "before": 134,
-     "after": 210
+     "after": 209
     },
     "topbench_total_us": {
      "before": 387,
-     "after": 253
+     "after": 254
     },
     "doom_max_realtics": {
      "before": 5509,
-     "after": 2912
+     "after": 2913
     },
     "doom_min_realtics": {
      "before": 1167,
-     "after": 857
+     "after": 859
     }
    },
    "reference_ratios": {
@@ -493,7 +493,7 @@
      "3dbench": "not reached",
      "3dbench2": "reached",
      "pcpbench": "reached",
-     "topbench": "not measurable",
+     "topbench": "not reached",
      "doom_max": "not reached",
      "doom_min": "not reached"
     }
@@ -517,7 +517,7 @@
      "3dbench": "not reached",
      "3dbench2": "reached",
      "pcpbench": "not reached",
-     "topbench": "not measurable",
+     "topbench": "not reached",
      "doom_max": "not reached",
      "doom_min": "not reached"
     }
@@ -539,11 +539,11 @@
   },
   "topbench_score": {
    "before": 307,
-   "after": 304
+   "after": 301
   },
   "topbench_total_us": {
    "before": 181,
-   "after": 182
+   "after": 179
   },
   "doom_max_realtics": {
    "before": 2062,
@@ -569,7 +569,7 @@
   },
   "topbench": {
    "before": 0.551,
-   "after": 0.143
+   "after": 0.293
   },
   "doom_max": {
    "before": 0.486,
@@ -577,7 +577,7 @@
   },
   "doom_min": {
    "before": 0.36,
-   "after": 0.188
+   "after": 0.194
   }
  }
 }

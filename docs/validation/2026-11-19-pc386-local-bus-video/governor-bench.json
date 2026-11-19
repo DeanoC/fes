@@ -1,4 +1,5 @@
 {
+ "commit": "ea0b87f0d",
  "rtl": {
   "failures": [],
   "clock_hz": 61440000,
@@ -8,54 +9,54 @@
     "beyond_cpu": [],
     "worst_error_reached": 0.00038,
     "vram": {
-     "charged": 141009,
-     "cycles": 722038,
-     "table_clocks": 141009
+     "charged": 143009,
+     "cycles": 732197,
+     "table_clocks": 143009
     }
    },
    "386SX-16": {
     "beyond_cpu": [],
     "worst_error_reached": 0.00063,
     "vram": {
-     "charged": 191619,
-     "cycles": 735936,
-     "table_clocks": 191619
+     "charged": 194019,
+     "cycles": 745055,
+     "table_clocks": 194019
     }
    },
    "386DX-25": {
     "beyond_cpu": [],
     "worst_error_reached": 0.00098,
     "vram": {
-     "charged": 266025,
-     "cycles": 653868,
-     "table_clocks": 266025
+     "charged": 269625,
+     "cycles": 662643,
+     "table_clocks": 269625
     }
    },
    "386DX-33": {
     "beyond_cpu": [],
-    "worst_error_reached": 0.00116,
+    "worst_error_reached": 0.00114,
     "vram": {
-     "charged": 342831,
-     "cycles": 632599,
-     "table_clocks": 342831
+     "charged": 347631,
+     "cycles": 641393,
+     "table_clocks": 347631
     }
    },
    "386DX-40": {
     "beyond_cpu": [],
     "worst_error_reached": 0.00129,
     "vram": {
-     "charged": 406836,
-     "cycles": 624952,
-     "table_clocks": 406836
+     "charged": 412636,
+     "cycles": 633802,
+     "table_clocks": 412636
     }
    },
    "486DX-33": {
     "beyond_cpu": [],
     "worst_error_reached": 0.00285,
     "vram": {
-     "charged": 83038,
-     "cycles": 153278,
-     "table_clocks": 83038
+     "charged": 87638,
+     "cycles": 161700,
+     "table_clocks": 87638
     }
    },
    "486DX2-66": {
@@ -66,9 +67,9 @@
     ],
     "worst_error_reached": 0.00315,
     "vram": {
-     "charged": 142062,
-     "cycles": 130907,
-     "table_clocks": 142062
+     "charged": 151462,
+     "cycles": 139529,
+     "table_clocks": 151462
     }
    }
   },
@@ -78,10 +79,10 @@
     "video_bus": 2,
     "vram": {
      "name": "vram",
-     "cycles": 203624,
-     "charged": 82825,
-     "table_clocks": 82825,
-     "error": 0.00036,
+     "cycles": 212400,
+     "charged": 86425,
+     "table_clocks": 86425,
+     "error": 1e-05,
      "beyond_cpu": false
     },
     "worst_error_reached": 0.00098
@@ -91,10 +92,10 @@
     "video_bus": 1,
     "vram": {
      "name": "vram",
-     "cycles": 611218,
-     "charged": 331238,
-     "table_clocks": 331238,
-     "error": 0.00011,
+     "cycles": 619635,
+     "charged": 335838,
+     "table_clocks": 335838,
+     "error": -0.0,
      "beyond_cpu": false
     },
     "worst_error_reached": 0.00285
@@ -113,60 +114,60 @@
  "netlist": {
   "failures": [],
   "clock_hz": 61440000,
-  "netlist": "e44d41099e99a71d5c3683d1ca3d484095912067aaf890e6dd6bac1135815d13",
+  "netlist": "92c690e82039557c5b38a69b306cb817fc7215dbd1527a827f97f91542dd7f8a",
   "presets": {
    "286-12": {
     "beyond_cpu": [],
     "worst_error_reached": 0.00038,
     "vram": {
-     "charged": 141009,
-     "cycles": 722038,
-     "table_clocks": 141009
+     "charged": 143009,
+     "cycles": 732197,
+     "table_clocks": 143009
     }
    },
    "386SX-16": {
     "beyond_cpu": [],
     "worst_error_reached": 0.00063,
     "vram": {
-     "charged": 191619,
-     "cycles": 735936,
-     "table_clocks": 191619
+     "charged": 194019,
+     "cycles": 745055,
+     "table_clocks": 194019
     }
    },
    "386DX-25": {
     "beyond_cpu": [],
     "worst_error_reached": 0.00098,
     "vram": {
-     "charged": 266025,
-     "cycles": 653868,
-     "table_clocks": 266025
+     "charged": 269625,
+     "cycles": 662643,
+     "table_clocks": 269625
     }
    },
    "386DX-33": {
     "beyond_cpu": [],
-    "worst_error_reached": 0.00116,
+    "worst_error_reached": 0.00114,
     "vram": {
-     "charged": 342831,
-     "cycles": 632599,
-     "table_clocks": 342831
+     "charged": 347631,
+     "cycles": 641393,
+     "table_clocks": 347631
     }
    },
    "386DX-40": {
     "beyond_cpu": [],
     "worst_error_reached": 0.00129,
     "vram": {
-     "charged": 406836,
-     "cycles": 624952,
-     "table_clocks": 406836
+     "charged": 412636,
+     "cycles": 633802,
+     "table_clocks": 412636
     }
    },
    "486DX-33": {
     "beyond_cpu": [],
     "worst_error_reached": 0.00285,
     "vram": {
-     "charged": 83038,
-     "cycles": 153278,
-     "table_clocks": 83038
+     "charged": 87638,
+     "cycles": 161700,
+     "table_clocks": 87638
     }
    },
    "486DX2-66": {
@@ -177,9 +178,9 @@
     ],
     "worst_error_reached": 0.00315,
     "vram": {
-     "charged": 142062,
-     "cycles": 130907,
-     "table_clocks": 142062
+     "charged": 151462,
+     "cycles": 139529,
+     "table_clocks": 151462
     }
    }
   },
@@ -189,10 +190,10 @@
     "video_bus": 2,
     "vram": {
      "name": "vram",
-     "cycles": 203624,
-     "charged": 82825,
-     "table_clocks": 82825,
-     "error": 0.00036,
+     "cycles": 212400,
+     "charged": 86425,
+     "table_clocks": 86425,
+     "error": 1e-05,
      "beyond_cpu": false
     },
     "worst_error_reached": 0.00098
@@ -202,10 +203,10 @@
     "video_bus": 1,
     "vram": {
      "name": "vram",
-     "cycles": 611218,
-     "charged": 331238,
-     "table_clocks": 331238,
-     "error": 0.00011,
+     "cycles": 619635,
+     "charged": 335838,
+     "table_clocks": 335838,
+     "error": -0.0,
      "beyond_cpu": false
     },
     "worst_error_reached": 0.00285
@@ -225,5 +226,5 @@
   "commit": "a14663bd9",
   "failures": []
  },
- "rule": "method.md section 4, gates 2 and 3; every loop charged exactly the table (the bench fails otherwise), failures empty"
+ "rule": "method.md section 4, gates 2 and 3 (amendment 1); every loop charged exactly the table (the bench fails otherwise), failures empty"
 }
