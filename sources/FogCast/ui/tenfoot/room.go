@@ -447,7 +447,11 @@ func (a *App) reclaimHomeRoomLocked(id, revision string) bool {
 		return false
 	}
 	switched := a.room != home
+	left := ""
 	if switched {
+		if a.room != nil {
+			left = a.room.Title()
+		}
 		a.closeRoomLocked()
 	}
 	for _, parent := range a.roomStack {
@@ -458,6 +462,7 @@ func (a *App) reclaimHomeRoomLocked(id, revision string) bool {
 	a.roomStack = nil
 	a.room = home
 	a.roomPickerOpen = false
+	a.showRoomStatusLocked(left)
 	a.roomWasParked = a.gpuParked
 	a.resizeRoomsLocked()
 	if switched {
@@ -514,9 +519,14 @@ func (a *App) leaveRoomLocked() {
 	if n := len(a.roomStack); n > 0 {
 		parent := a.roomStack[n-1]
 		a.roomStack = a.roomStack[:n-1]
+		left := ""
+		if a.room != nil {
+			left = a.room.Title()
+		}
 		a.closeRoomLocked()
 		a.room = parent
 		a.roomWasParked = a.gpuParked
+		a.showRoomStatusLocked(left)
 		a.resizeRoomsLocked()
 		a.postUIEventLocked("ui.nav", map[string]string{"reason": "room-resume", "view": "room:" + parent.ID()})
 		parent.Resume()

@@ -44,13 +44,15 @@ func launcherHTTPClient(token, targetID string) *http.Client {
 		return nil
 	}
 	return &http.Client{
-		Timeout:       15 * time.Second,
+		Timeout:       hostDefaultTimeout,
 		Transport:     launcherAuthTransport{base: http.DefaultTransport, token: token, targetID: targetID},
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}
 }
 
 const (
+	// hostDefaultTimeout matches hostclient's default request timeout.
+	hostDefaultTimeout        = 15 * time.Second
 	defaultPageLimit          = 200
 	defaultMaxGames           = 10000
 	maxAPIResponse            = 16 << 20
@@ -78,7 +80,8 @@ type KitLeaseStatus struct {
 // Client calls the FogCast public host API.
 type Client struct {
 	*hostclient.Client
-	paired bool
+	paired  bool
+	changes *hostChanges
 }
 
 // NewClient builds the sofa adapter around a host API client. baseURL defaults
@@ -90,7 +93,8 @@ func NewClient(baseURL string, httpClient *http.Client) *Client {
 			paired = auth.targetID != ""
 		}
 	}
-	return &Client{Client: hostclient.NewClient(baseURL, httpClient), paired: paired}
+	changes := &hostChanges{}
+	return &Client{Client: hostclient.NewClient(baseURL, trackHostChanges(httpClient, changes)), paired: paired, changes: changes}
 }
 
 func (c *Client) PairedKitLease(ctx context.Context) (KitLeaseStatus, error) {

@@ -316,6 +316,7 @@ type App struct {
 	covers                  map[string]*coverSlot
 	inflight                map[string]workKind
 	status                  string
+	libraryStatus           string // the library's own line; an open room keeps status
 	statusLeaseRefusal      bool
 	launchLeaseRefusal      bool
 	loadErr                 string
@@ -1633,7 +1634,7 @@ func (a *App) doFavorite(ctx context.Context, gameID string, want bool) {
 		a.reloadLocked()
 		return
 	}
-	a.status = a.libraryStatusLocked()
+	a.setLibraryStatusLocked(a.libraryStatusLocked())
 }
 
 func (a *App) platformChoicesLocked() []string {
@@ -1678,7 +1679,7 @@ func (a *App) reloadCatalogWithNoticeLocked(notice string) {
 	ctx := a.replaceLoadContextLocked()
 	lastInput := a.lastInput
 	if notice != "" {
-		a.setLibraryStatusLocked(notice)
+		a.setLibraryNoticeLocked(notice)
 	}
 	go func() {
 		a.loadLibrary(ctx, gen)
@@ -1697,12 +1698,11 @@ func (a *App) reloadCatalogWithNoticeLocked(notice string) {
 // setLibraryRefreshNoticeLocked keeps a failed refresh visible alongside the
 // outcome that requested it, including while setup defers library status.
 func (a *App) setLibraryRefreshNoticeLocked(notice string) {
-	status := a.libraryStatusForNoticeLocked()
-	if a.loadErr != "" || status == savedListOfflineCopy || status == "Can't reach the library right now." {
-		a.setLibraryStatusLocked(notice + " Couldn't refresh the library.")
+	if a.loadErr != "" || a.libraryStatus == savedListOfflineCopy || a.libraryStatus == "Can't reach the library right now." {
+		a.setLibraryNoticeLocked(notice + " Couldn't refresh the library.")
 		return
 	}
-	a.setLibraryStatusLocked(notice)
+	a.setLibraryNoticeLocked(notice)
 }
 
 func (a *App) replaceLoadContextLocked() context.Context {
@@ -1806,9 +1806,13 @@ func (a *App) Snapshot() Snapshot {
 	}
 	status := a.status
 	if a.setupRoomOpenLocked() && status == setupBlockedStatus && !a.setupSessionBusyLocked() {
-		status = a.setup.deferredLibraryStatus
+		// The block is over: a notice it deferred, else the room's own line.
+		status = a.setup.deferredNotice
+		if status == "" {
+			status = a.room.Title()
+		}
 		a.status = status
-		a.setup.deferredLibraryStatus = ""
+		a.setup.deferredNotice = ""
 	}
 	if a.setupRoomOpenLocked() && status == setupBlockedStatus && a.setupSessionBusyLocked() {
 		// Preserve the setup action's reason while a launch status is present.
