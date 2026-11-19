@@ -67,3 +67,36 @@ func TestShelfDiskMarkFollowsItsEntry(t *testing.T) {
 	}
 	_ = game
 }
+
+// A disk made on a shelf is listed there, not among the family's games, so
+// the title rows that Home and the core screen read leave it out. A game
+// disk stays a title whether or not it has saved changes.
+func TestShelfDisksAreNotFamilyTitles(t *testing.T) {
+	ctx := context.Background()
+	s, _ := mediaTestStore(t)
+	defer s.Close()
+	pkg := strings.Repeat("a", 64)
+	media, _, err := s.ImportCoreMedia(ctx, []byte("a disk image"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	made, err := s.CreateCoreMediaEntry(ctx, "Work disk", "fes.atari-st", pkg, "disk", media.MediaID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	game, err := s.CreateCoreMediaEntry(ctx, "A game", "fes.atari-st", pkg, "disk", media.MediaID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MarkShelfDisk(ctx, made.GameID); err != nil {
+		t.Fatal(err)
+	}
+	titles, err := s.QueryGames(ctx, Query{Platform: CorePlatform, CoreIDs: []string{"fes.atari-st"}, CoreEntryKind: "title", Limit: 10})
+	if err != nil || len(titles.Games) != 1 || titles.Games[0].ID != game.GameID {
+		t.Fatalf("family titles = %+v, %v", titles.Games, err)
+	}
+	all, err := s.QueryGames(ctx, Query{Platform: CorePlatform, CoreIDs: []string{"fes.atari-st"}, Limit: 10})
+	if err != nil || len(all.Games) != 2 {
+		t.Fatalf("unfiltered library = %+v, %v", all.Games, err)
+	}
+}
