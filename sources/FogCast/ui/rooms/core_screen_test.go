@@ -78,6 +78,38 @@ func TestCoreScreenShowsTheComputerItsDrivesAndItsGames(t *testing.T) {
 	}
 }
 
+func TestCoreScreenReportsTruncatedFamilyLibrary(t *testing.T) {
+	games := make([]hostclient.Game, 2001)
+	for i := range games {
+		game := preparedComputer(fmt.Sprintf("large-%04d", i), fmt.Sprintf("Large Library %04d", i), "fes.spectrum-plus3")
+		game.CoreEntryKind = "title"
+		games[i] = game
+	}
+	services := &fakeServices{games: games}
+	r := loadCoreScreen(t, services, "", "fes.spectrum", Options{})
+	text := frameText(stepUntil(t, r, func(f Frame) bool {
+		return coreScreenSettled(f) && frameHas(f, "Count incomplete") && frameHas(f, "List incomplete") &&
+			frameHas(f, "More than 2,000 family entries; some games may be hidden.")
+	}))
+	if strings.Contains(text, "No 48K games yet") || strings.Contains(text, "Set up the 48K") {
+		t.Fatalf("truncated family query was treated as an empty 48K library:\n%s", text)
+	}
+	if limits := services.recordedQueryLimits(); len(limits) != 1 || limits[0] != 2000 {
+		t.Fatalf("core screen query limits %v, want one 2000-row query", limits)
+	}
+
+	// The page contains no 48K entries, but it does contain the +3 entries.
+	// Switching models must show a lower-bound count for the truncated result.
+	r.Activate("model:fes.spectrum-plus3")
+	text = frameText(stepUntil(t, r, func(f Frame) bool {
+		return coreScreenSettled(f) && frameHas(f, "Games for the +2A/+3") &&
+			frameHas(f, "At least 2000 in your library") && frameHas(f, "Large Library 0000")
+	}))
+	if !strings.Contains(text, "More than 2,000 family entries; some games may be hidden.") {
+		t.Fatalf("truncation notice disappeared after changing models:\n%s", text)
+	}
+}
+
 func TestCoreScreenGameRowStartsItsExactEntry(t *testing.T) {
 	games := spectrumGames()
 	r := loadCoreScreen(t, &fakeServices{games: games}, "", "fes.spectrum", Options{})
