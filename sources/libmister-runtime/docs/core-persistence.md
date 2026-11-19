@@ -75,7 +75,9 @@ at `<data_root>/games/<namespace>/record.bin`. The three operations take a
 ```
 
 A pc386 update replaces words 0..7 with the machine settings and keeps the
-record's CMOS words; values outside the layout's sets are refused. Its
+record's CMOS words; values outside the layout's sets are refused. `machine`
+may also carry `video_bus` (0 the preset's own, 1 ISA, 2 local bus), which goes
+to word 7 bits 3:2; it is optional on input and reported only when it is not 0. Its
 `core_data` reports `game_id` and the `machine` settings instead of Pong's
 paddle speed and best rally (the
 [response fixture](../tests/fixtures/protocol-v2-pc386-responses.jsonl)).

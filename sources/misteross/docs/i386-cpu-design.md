@@ -1483,6 +1483,17 @@ slows the CPU without changing any result.
   - an access to VGA memory (MMIO in the attribute map) takes a 720 ns cycle
     per 16-bit half of the bus it touches, in place of the local bus cycle
     its count and the wait-state charge give it.
+- **Local-bus video:** a VL-Bus or PCI VGA sat on the CPU's 32-bit bus, so
+  with local-bus video ([#2005](https://github.com/DeanoC/fes/issues/2005),
+  `governor.toml`'s `[local_bus]`) a VGA memory access takes one 150 ns
+  cycle (five 30 ns clocks of a 33.3 MHz bus) per 32-bit dword it touches
+  instead, less the same local bus cycle. The figure is the median of the
+  486DX2-66 VL-Bus rows of a 1995 Vidspeed table
+  ([record](../../../docs/validation/2026-11-19-pc386-local-bus-video/method.md)).
+  Reads are charged as writes, and I/O, the VGA ports included, keeps the
+  ISA charge. The `fes.pc386.machine` record's word 7 (bits 3:2) chooses:
+  0 the preset's own, which is ISA for the 286 and 386 presets and local
+  bus for the 486 ones, 1 ISA, 2 local bus.
 
   The cycles are 120 ns ISA clocks (8.33 MHz, the machine's), in reference
   clocks at the frequency the governor runs at, rounded: an 8-bit cycle is
@@ -1508,7 +1519,8 @@ slows the CPU without changing any result.
 - **Setting:** a core setting persisted per library game through the
   [core persistence](../../../docs/core-persistence.md) path: the
   `fes.pc386.machine` record's words 0 (preset), 1 (frequency override, in
-  100 kHz units) and 3 (turbo at launch), which the CPU samples at its reset.
+  100 kHz units), 3 (turbo at launch) and 7 bits 3:2 (video bus), which the
+  CPU samples at its reset.
   The default is `max`; Ultima VI and The Black Gate carry presets
   ([first acceptance games](#first-acceptance-games)).
 - **Reach:** the governor only slows the CPU. At 61.44 MHz the RTL is slower

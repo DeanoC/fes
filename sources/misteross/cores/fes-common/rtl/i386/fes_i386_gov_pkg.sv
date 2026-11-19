@@ -10,7 +10,10 @@
 // cycle and a 16-bit bus. cost_rom_index() is the ROM's address. The ISA
 // bus: an ISA clock is frequency * ISA_STEP / 2**ISA_FRAC reference clocks;
 // an 8-bit I/O cycle ISA_IO8 of them, a 16-bit one ISA_IO16, and an MMIO
-// access ISA_VGA per 16-bit half. word16() is whether an I/O access of size
+// access ISA_VGA per 16-bit half. Local-bus video: a local-bus clock is
+// frequency * LB_STEP / 2**LB_FRAC reference clocks, and an MMIO access
+// takes LB_VGA of them per 32-bit dword (preset_t local_video is the
+// preset's own choice). word16() is whether an I/O access of size
 // (0 byte, 1 word, 2 dword) at port has a 16-bit cycle, as pc386_io splits it:
 // a 16-bit port among its bytes with another byte after it.
 package fes_i386_gov_pkg;
@@ -20,6 +23,9 @@ package fes_i386_gov_pkg;
     localparam int ISA_FRAC = 20;
     localparam logic [13:0] ISA_STEP = 14'd12583;  // 120 ns
     localparam logic [3:0] ISA_IO8 = 4'd6, ISA_IO16 = 4'd3, ISA_VGA = 4'd6;
+    localparam int LB_FRAC = 19;
+    localparam logic [10:0] LB_STEP = 11'd1573;  // 30 ns
+    localparam logic [3:0] LB_VGA = 4'd5;
     typedef struct packed {
         logic                  elem;
         logic                  branch;
@@ -31,6 +37,7 @@ package fes_i386_gov_pkg;
         logic [9:0] frequency;
         logic [1:0] wait_states;
         logic       bus16;
+        logic       local_video;
     } preset_t;
 
     function automatic class_t classify(input fes_i386_pkg::gov_t g);
@@ -533,13 +540,13 @@ package fes_i386_gov_pkg;
     function automatic preset_t preset(input logic [2:0] id);
         preset = '0;
         case (id)
-            3'd1: preset = '{tbl: 2'd0, frequency: 10'd120, wait_states: 2'd1, bus16: 1'b1};  // 286-12
-            3'd2: preset = '{tbl: 2'd1, frequency: 10'd160, wait_states: 2'd1, bus16: 1'b1};  // 386SX-16
-            3'd3: preset = '{tbl: 2'd1, frequency: 10'd250, wait_states: 2'd0, bus16: 1'b0};  // 386DX-25
-            3'd4: preset = '{tbl: 2'd1, frequency: 10'd333, wait_states: 2'd0, bus16: 1'b0};  // 386DX-33
-            3'd5: preset = '{tbl: 2'd1, frequency: 10'd400, wait_states: 2'd0, bus16: 1'b0};  // 386DX-40
-            3'd6: preset = '{tbl: 2'd2, frequency: 10'd333, wait_states: 2'd0, bus16: 1'b0};  // 486DX-33
-            3'd7: preset = '{tbl: 2'd2, frequency: 10'd667, wait_states: 2'd0, bus16: 1'b0};  // 486DX2-66
+            3'd1: preset = '{tbl: 2'd0, frequency: 10'd120, wait_states: 2'd1, bus16: 1'b1, local_video: 1'b0};  // 286-12
+            3'd2: preset = '{tbl: 2'd1, frequency: 10'd160, wait_states: 2'd1, bus16: 1'b1, local_video: 1'b0};  // 386SX-16
+            3'd3: preset = '{tbl: 2'd1, frequency: 10'd250, wait_states: 2'd0, bus16: 1'b0, local_video: 1'b0};  // 386DX-25
+            3'd4: preset = '{tbl: 2'd1, frequency: 10'd333, wait_states: 2'd0, bus16: 1'b0, local_video: 1'b0};  // 386DX-33
+            3'd5: preset = '{tbl: 2'd1, frequency: 10'd400, wait_states: 2'd0, bus16: 1'b0, local_video: 1'b0};  // 386DX-40
+            3'd6: preset = '{tbl: 2'd2, frequency: 10'd333, wait_states: 2'd0, bus16: 1'b0, local_video: 1'b1};  // 486DX-33
+            3'd7: preset = '{tbl: 2'd2, frequency: 10'd667, wait_states: 2'd0, bus16: 1'b0, local_video: 1'b1};  // 486DX2-66
             default: ;
         endcase
     endfunction

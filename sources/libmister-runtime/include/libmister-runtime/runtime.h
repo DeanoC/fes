@@ -300,7 +300,8 @@ struct ActiveCorePackage {
 	CoreStaticComposition static_composition;
 };
 
-// fes.pc386.machine 1.0 settings, words 0..6 of its record.
+// fes.pc386.machine 1.0 settings, words 0..6 of its record and word 7's
+// video bus (bits 3:2: 0 the preset's own, 1 ISA, 2 local bus).
 struct Pc386MachineSettings {
 	std::uint16_t preset = 0;
 	std::uint16_t frequency = 0;
@@ -309,6 +310,7 @@ struct Pc386MachineSettings {
 	std::uint16_t sb_base = 0x220;
 	std::uint16_t sb_irq = 7;
 	std::uint16_t sb_dma = 1;
+	std::uint16_t video_bus = 0;
 };
 
 struct CoreData {

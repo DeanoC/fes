@@ -798,8 +798,10 @@ Error NativeHardware::UpdateCoreSettings(const std::string& path, const std::str
 	if (update.pc386) {
 		// Settings for the next launch; the machine's CMOS words stay.
 		const Pc386MachineSettings& m = update.machine;
+		if (m.video_bus > kPc386VideoBusMax)
+			return {ErrorCode::invalid_request, "invalid pc386 machine settings", "request"};
 		const std::uint16_t settings[] = {m.preset, m.frequency, m.code_profile, m.turbo,
-			m.sb_base, m.sb_irq, m.sb_dma, 0};
+			m.sb_base, m.sb_irq, m.sb_dma, static_cast<std::uint16_t>(m.video_bus << kPc386VideoBusShift)};
 		std::copy(std::begin(settings), std::end(settings), data.words.begin());
 		if (!ValidPc386Machine(data.words))
 			return {ErrorCode::invalid_request, "invalid pc386 machine settings", "request"};

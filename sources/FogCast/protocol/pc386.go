@@ -34,7 +34,8 @@ const (
 	DiskGeometryHeader = "X-FogCast-Disk-Geometry"
 	// LibraryGameHeader names the library game that keys per-game core data.
 	LibraryGameHeader = "X-FogCast-Library-Game"
-	// MachineSettingsHeader carries a pc386 settings update as seven decimals.
+	// MachineSettingsHeader carries a pc386 settings update as seven decimals,
+	// or eight when the video bus is set (a kit that predates it refuses eight).
 	MachineSettingsHeader = "X-FogCast-Machine-Settings"
 )
 
@@ -223,7 +224,10 @@ func InferDiskGeometry(mbr []byte, size int64) (DiskGeometry, error) {
 }
 
 // MachineSettings are the settings words 0..6 of the fes.pc386.machine
-// record that FogCast writes for the next launch.
+// record that FogCast writes for the next launch, and word 7's video bus
+// (bits 3:2: 0 the preset's own, 1 ISA, 2 local bus). VideoBus is omitted
+// when 0, so a peer that predates it, which refuses unknown fields, still
+// takes every setting it knows.
 type MachineSettings struct {
 	Preset      uint16 `json:"preset"`
 	Frequency   uint16 `json:"frequency"`
@@ -232,7 +236,13 @@ type MachineSettings struct {
 	SBBase      uint16 `json:"sb_base"`
 	SBIRQ       uint16 `json:"sb_irq"`
 	SBDMA       uint16 `json:"sb_dma"`
+	VideoBus    uint16 `json:"video_bus,omitempty"`
 }
+
+// MachineVideoBusMax is the largest video bus: 0 the preset's own, 1 ISA,
+// 2 local bus. The values are not ABI constants (fes_computer.yaml): adding
+// them would regenerate every core's fes_computer.vh.
+const MachineVideoBusMax = 2
 
 // DefaultMachineSettings is a missing record: max, coherent, 220h, IRQ 7, DMA 1.
 func DefaultMachineSettings() MachineSettings {
@@ -242,7 +252,8 @@ func DefaultMachineSettings() MachineSettings {
 
 // Valid applies the layout's commit rules (mister-packages computer-io.md).
 func (m MachineSettings) Valid() bool {
-	if uint32(m.Preset) >= generated.FesComputerPc386PresetCount || m.CodeProfile > 1 || m.Turbo > 1 {
+	if uint32(m.Preset) >= generated.FesComputerPc386PresetCount || m.CodeProfile > 1 || m.Turbo > 1 ||
+		m.VideoBus > MachineVideoBusMax {
 		return false
 	}
 	if m.Frequency != 0 && (uint32(m.Preset) == generated.FesComputerPc386PresetMaxPerformance ||
@@ -254,18 +265,23 @@ func (m MachineSettings) Valid() bool {
 		m.SBIRQ < 16 && generated.FesComputerPc386SbIrqMask&(1<<m.SBIRQ) != 0 && uint32(m.SBDMA) == generated.FesComputerPc386SbDma
 }
 
-// String is the MachineSettingsHeader form.
+// String is the MachineSettingsHeader form: seven values, and the video bus
+// as an eighth only when it is set.
 func (m MachineSettings) String() string {
-	return fmt.Sprintf("%d,%d,%d,%d,%d,%d,%d", m.Preset, m.Frequency, m.CodeProfile, m.Turbo, m.SBBase, m.SBIRQ, m.SBDMA)
+	s := fmt.Sprintf("%d,%d,%d,%d,%d,%d,%d", m.Preset, m.Frequency, m.CodeProfile, m.Turbo, m.SBBase, m.SBIRQ, m.SBDMA)
+	if m.VideoBus != 0 {
+		s += fmt.Sprintf(",%d", m.VideoBus)
+	}
+	return s
 }
 
 // ParseMachineSettings reads the MachineSettingsHeader form; Valid still applies.
 func ParseMachineSettings(value string) (MachineSettings, bool) {
 	parts := strings.Split(value, ",")
-	if len(parts) != 7 {
+	if len(parts) != 7 && len(parts) != 8 {
 		return MachineSettings{}, false
 	}
-	var fields [7]uint16
+	var fields [8]uint16
 	for i, part := range parts {
 		if part == "" || len(part) > 5 || (len(part) > 1 && part[0] == '0') {
 			return MachineSettings{}, false
@@ -276,8 +292,12 @@ func ParseMachineSettings(value string) (MachineSettings, bool) {
 		}
 		fields[i] = uint16(n)
 	}
+	// The eighth value is sent only when it is set.
+	if len(parts) == 8 && fields[7] == 0 {
+		return MachineSettings{}, false
+	}
 	return MachineSettings{Preset: fields[0], Frequency: fields[1], CodeProfile: fields[2], Turbo: fields[3],
-		SBBase: fields[4], SBIRQ: fields[5], SBDMA: fields[6]}, true
+		SBBase: fields[4], SBIRQ: fields[5], SBDMA: fields[6], VideoBus: fields[7]}, true
 }
 
 // StagedDisk names a hard-disk image the kit holds by digest, with the

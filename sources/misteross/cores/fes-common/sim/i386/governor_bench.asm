@@ -281,6 +281,7 @@ start:
     rep stosd
     mov [es:di], ax
     mov [es:di + 5], ax
+    mov [es:di + 3], ax
     mov ax, [es:di]
     add [es:di + 2], al
     mov si, DATA

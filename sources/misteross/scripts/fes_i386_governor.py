@@ -69,6 +69,11 @@ class Preset:
     frequency: int  # 100 kHz units
     wait: int
     bus16: bool
+    local_video: bool  # word 7 at 0 gives local-bus video, else ISA
+
+
+# fes.pc386.machine word 7, the video bus: 0 the preset's own, 1 ISA, 2 local bus.
+VIDEO_BUS = ('preset', 'isa', 'local')
 
 
 @dataclass(frozen=True)
@@ -106,6 +111,19 @@ class Isa:
 
 
 @dataclass(frozen=True)
+class LocalBus:
+    clock_ns: int  # a local-bus clock
+    vga: int       # local-bus clocks in an MMIO cycle, one per 32-bit dword the access touches
+    frac: int      # the RTL's fixed point, as Isa's
+    step: int
+
+    def clocks(self, frequency: int, cycle: int) -> int:
+        """A cycle of this many local-bus clocks, in reference clocks at
+        frequency (100 kHz units), rounded as the RTL rounds it."""
+        return (cycle * frequency * self.step + (1 << (self.frac - 1))) >> self.frac
+
+
+@dataclass(frozen=True)
 class CostClass:
     index: int  # the ROM's: classes that cost the same share one
     name: str
@@ -121,6 +139,7 @@ class CostClass:
 class Table:
     presets: tuple[Preset, ...]
     isa: Isa
+    local_bus: LocalBus
     classes: tuple[CostClass, ...]
     default: CostClass
     keys: dict[int, int]  # every gov_t key a stem names, to its class's place in classes
@@ -181,7 +200,7 @@ def parse(source: dict) -> Table:
     presets = []
     for n, entry in enumerate(source.get('preset', [])):
         where = f'preset {n}'
-        unknown = set(entry) - {'id', 'name', 'table', 'frequency', 'wait', 'bus'}
+        unknown = set(entry) - {'id', 'name', 'table', 'frequency', 'wait', 'bus', 'video'}
         if unknown:
             raise GovernorError(f'{where}: unknown fields {sorted(unknown)}')
         if entry.get('table') not in TABLES:
@@ -193,11 +212,14 @@ def parse(source: dict) -> Table:
             raise GovernorError(f'{where}: wait is 0 to {WAIT_MAX}')
         if bus not in (16, 32):
             raise GovernorError(f'{where}: bus is 16 or 32')
+        if entry.get('video') not in ('isa', 'local'):
+            raise GovernorError(f'{where}: video is isa or local')
         presets.append(Preset(entry.get('id'), str(entry.get('name')), TABLES.index(entry['table']), frequency,
-                              wait, bus == 16))
+                              wait, bus == 16, entry['video'] == 'local'))
     if sorted(p.id for p in presets) != list(PRESET_IDS):
         raise GovernorError(f'presets must be IDs {PRESET_IDS.start} to {PRESET_IDS.stop - 1}, once each')
     isa = _isa(source.get('isa'))
+    local_bus = _local_bus(source.get('local_bus'))
 
     classes = []
     keys: dict[int, int] = {}
@@ -241,7 +263,7 @@ def parse(source: dict) -> Table:
     for name in ('int',):
         if name not in names:
             raise GovernorError(f'class {name} is needed: a delivery charges it')
-    return Table(tuple(sorted(presets, key=lambda p: p.id)), isa, tuple(classes), default_class, keys)
+    return Table(tuple(sorted(presets, key=lambda p: p.id)), isa, local_bus, tuple(classes), default_class, keys)
 
 
 def _isa(entry) -> Isa:
@@ -264,20 +286,42 @@ def _isa(entry) -> Isa:
     # one is among its bytes with another after it.
     if any(not 2 <= p <= 0xFFFE for p in ports16) or any(b - a < 4 for a, b in zip(ports16, ports16[1:])):
         raise GovernorError('isa: ports16 ports are 2h to FFFEh, at least 4 apart')
-    # The smallest fixed point at which every cycle, at every frequency the
-    # RTL can hold, rounds as the exact figure does (halves up).
+    frac, step = _fixed_point('isa', clock_ns, set(cycles.values()))
+    return Isa(clock_ns, cycles['io8'], cycles['io16'], cycles['vga'], ports16, frac, step)
+
+
+def _local_bus(entry) -> LocalBus:
+    if not isinstance(entry, dict) or set(entry) != {'clock_ns', 'vga'}:
+        raise GovernorError('local_bus has clock_ns and vga')
+    clock_ns, vga = entry['clock_ns'], entry['vga']
+    if not isinstance(clock_ns, int) or isinstance(clock_ns, bool) or not 1 <= clock_ns <= 1000:
+        raise GovernorError('local_bus: clock_ns is 1 to 1000')
+    if not isinstance(vga, int) or isinstance(vga, bool) or not 1 <= vga <= ISA_CYCLE_MAX:
+        raise GovernorError(f'local_bus: vga is 1 to {ISA_CYCLE_MAX} clocks')
+    frac, step = _fixed_point('local_bus', clock_ns, {vga})
+    return LocalBus(clock_ns, vga, frac, step)
+
+
+def _fixed_point(where: str, clock_ns: int, cycles: set[int]) -> tuple[int, int]:
+    """The smallest fixed point (frac, step) at which every cycle of a bus
+    clock of clock_ns, at every frequency the RTL can hold, rounds as the
+    exact figure does (halves up); a clock is frequency * step / 2**frac
+    reference clocks."""
     top = 1 << FREQUENCY_BITS
+
+    def clocks(frac: int, step: int, f: int, n: int) -> int:
+        return (n * f * step + (1 << (frac - 1))) >> frac
+
     for frac in range(8, 33):
         step = ((clock_ns << frac) + 5000) // 10000
-        isa = Isa(clock_ns, cycles['io8'], cycles['io16'], cycles['vga'], ports16, frac, step)
-        if all(isa.clocks(f, n) == (2 * n * f * clock_ns + 10000) // 20000
-               for n in set(cycles.values()) for f in range(1, top)):
+        if all(clocks(frac, step, f, n) == (2 * n * f * clock_ns + 10000) // 20000
+               for n in cycles for f in range(1, top)):
             break
     else:
-        raise GovernorError('isa: no fixed point up to 32 bits rounds every cycle exactly')
-    if any(isa.clocks(top - 1, n) >= 1 << ISA_CLOCKS_BITS for n in cycles.values()):
-        raise GovernorError(f'isa: a cycle at {(top - 1) / 10:g} MHz is over {(1 << ISA_CLOCKS_BITS) - 1} clocks')
-    return isa
+        raise GovernorError(f'{where}: no fixed point up to 32 bits rounds every cycle exactly')
+    if any(clocks(frac, step, top - 1, n) >= 1 << ISA_CLOCKS_BITS for n in cycles):
+        raise GovernorError(f'{where}: a cycle at {(top - 1) / 10:g} MHz is over {(1 << ISA_CLOCKS_BITS) - 1} clocks')
+    return frac, step
 
 
 def load() -> Table:
@@ -312,10 +356,25 @@ def per_access(preset: Preset, dword: bool) -> int:
     return preset.wait + (preset.wait + BUS_CLOCKS if preset.bus16 and dword else 0)
 
 
-def mmio_charge(table: Table, preset: Preset, frequency: int, cycles: int, dword: bool) -> int:
-    """An MMIO access's ISA charge: its VGA cycles (one per 16-bit half) less
-    what the table and per_access() give it."""
-    clocks = cycles * table.isa.clocks(frequency, table.isa.vga)
+def dwords(address: int, length: int) -> int:
+    """The 32-bit dwords of the bus an access of length bytes at address touches."""
+    return (address % 4 + length + 3) // 4
+
+
+def local_video(preset: Preset, video_bus: int) -> bool:
+    """Whether word 7 (0 the preset's own, 1 ISA, 2 local bus) gives local-bus video."""
+    return video_bus == 2 or (video_bus == 0 and preset.local_video)
+
+
+def mmio_charge(table: Table, preset: Preset, frequency: int, cycles: int, dword: bool, local: bool = False) -> int:
+    """An MMIO access's bus charge: its VGA cycles less what the table and
+    per_access() give it. On ISA, cycles is the 16-bit halves it touches
+    (halves()) and a cycle is [isa] vga; on the local bus, the 32-bit dwords
+    (dwords()) and a cycle is [local_bus] vga."""
+    if local:
+        clocks = cycles * table.local_bus.clocks(frequency, table.local_bus.vga)
+    else:
+        clocks = cycles * table.isa.clocks(frequency, table.isa.vga)
     return max(0, clocks - BUS_CLOCKS - per_access(preset, dword))
 
 
@@ -362,7 +421,10 @@ def render(table: Table) -> dict[Path, str]:
         '// cycle and a 16-bit bus. cost_rom_index() is the ROM\'s address. The ISA',
         '// bus: an ISA clock is frequency * ISA_STEP / 2**ISA_FRAC reference clocks;',
         '// an 8-bit I/O cycle ISA_IO8 of them, a 16-bit one ISA_IO16, and an MMIO',
-        '// access ISA_VGA per 16-bit half. word16() is whether an I/O access of size',
+        '// access ISA_VGA per 16-bit half. Local-bus video: a local-bus clock is',
+        '// frequency * LB_STEP / 2**LB_FRAC reference clocks, and an MMIO access',
+        '// takes LB_VGA of them per 32-bit dword (preset_t local_video is the',
+        "// preset's own choice). word16() is whether an I/O access of size",
         '// (0 byte, 1 word, 2 dword) at port has a 16-bit cycle, as pc386_io splits it:',
         '// a 16-bit port among its bytes with another byte after it.',
         'package fes_i386_gov_pkg;',
@@ -374,6 +436,10 @@ def render(table: Table) -> dict[Path, str]:
         f'{table.isa.step};  // {table.isa.clock_ns} ns',
         f"    localparam logic [3:0] ISA_IO8 = 4'd{table.isa.io8}, ISA_IO16 = 4'd{table.isa.io16}, "
         f"ISA_VGA = 4'd{table.isa.vga};",
+        f'    localparam int LB_FRAC = {table.local_bus.frac};',
+        f"    localparam logic [{table.local_bus.step.bit_length() - 1}:0] LB_STEP = "
+        f"{table.local_bus.step.bit_length()}'d{table.local_bus.step};  // {table.local_bus.clock_ns} ns",
+        f"    localparam logic [3:0] LB_VGA = 4'd{table.local_bus.vga};",
         '    typedef struct packed {',
         '        logic                  elem;',
         '        logic                  branch;',
@@ -385,6 +451,7 @@ def render(table: Table) -> dict[Path, str]:
         '        logic [9:0] frequency;',
         '        logic [1:0] wait_states;',
         '        logic       bus16;',
+        '        logic       local_video;',
         '    } preset_t;',
         '',
         '    function automatic class_t classify(input fes_i386_pkg::gov_t g);',
@@ -416,7 +483,8 @@ def render(table: Table) -> dict[Path, str]:
     ]
     for p in table.presets:
         package.append(f"            3'd{p.id}: preset = '{{tbl: 2'd{p.table}, frequency: 10'd{p.frequency}, "
-                       f"wait_states: 2'd{p.wait}, bus16: 1'b{int(p.bus16)}}};  // {p.name}")
+                       f"wait_states: 2'd{p.wait}, bus16: 1'b{int(p.bus16)}, "
+                       f"local_video: 1'b{int(p.local_video)}}};  // {p.name}")
     words = ' || '.join(f"port == 16'h{p:04x}" for p in table.isa.ports16) or "1'b0"
     dwords = ' || '.join(f"port >= 16'h{p - 2:04x} && port <= 16'h{p:04x}" for p in table.isa.ports16) or "1'b0"
     package += [

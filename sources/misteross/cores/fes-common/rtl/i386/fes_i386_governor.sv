@@ -24,7 +24,10 @@
 // MMIO access takes a VGA cycle per 16-bit half it touches, less what its
 // table count and wait-state charge already give it. Neither goes below
 // zero. A cycle's reference clocks follow the frequency the governor runs
-// at, worked out at reset as the step is.
+// at, worked out at reset as the step is. With local-bus video (word 7: 2,
+// or 0 under a preset whose own choice it is), an MMIO access instead takes
+// a local-bus VGA cycle ([local_bus]) per 32-bit dword it touches; I/O stays
+// on the ISA charge.
 //
 // Each step is a register: WB's retirement, the ROM address and the memory
 // and ISA charges, the ROM's word, the charge, the debt, hold. So the classes and the
@@ -38,7 +41,8 @@
 //
 // The settings are sampled while reset is high, as the self-modifying-code
 // profile is: preset (fes.pc386.machine word 0), frequency (word 1, in
-// 100 kHz units; 0 the preset's own) and turbo (word 3: 1 runs at max).
+// 100 kHz units; 0 the preset's own), turbo (word 3: 1 runs at max) and the
+// video bus (word 7: 0 the preset's own, 1 ISA, 2 local bus).
 // GOV_N/GOV_D is 100 kHz as a fraction of clk, which the producer sets from
 // the sealed clock with the guest rates.
 module fes_i386_governor #(
@@ -50,6 +54,7 @@ module fes_i386_governor #(
     input  logic [2:0]         preset,
     input  logic [9:0]         frequency,
     input  logic               turbo,
+    input  logic [1:0]         video_bus,
     // What WB does on this edge (fes_i386_cpu): an instruction or a REP
     // element ends (boundary, with eoi or element), WB took a branch other
     // than a far jump (taken), the instruction's fields; and the memory bus
@@ -79,8 +84,10 @@ module fes_i386_governor #(
     input  logic [1:0]         io_size,
     input  logic [1:0]         mmio,
     input  logic [2:0]         mmio_halves,
+    input  logic [1:0]         mmio_dwords,
     input  logic               mmio_st2,
     input  logic [2:0]         mmio_st2_halves,
+    input  logic [1:0]         mmio_st2_dwords,
     output logic               hold,
     output logic [11:0]        debt_clocks,  // the debt's whole reference clocks
     output logic [12:0]        charge        // what this clock adds to the debt, in reference clocks
@@ -93,7 +100,8 @@ module fes_i386_governor #(
 
     logic [2:0]  p_id;
     logic [9:0]  p_frequency;
-    logic        on;
+    logic [1:0]  p_video_bus;
+    logic        on, local_video;
     fes_i386_gov_pkg::preset_t p;
     assign p = fes_i386_gov_pkg::preset(p_id);
     logic [9:0]  freq;
@@ -103,8 +111,10 @@ module fes_i386_governor #(
         if (reset) begin
             p_id <= preset;
             p_frequency <= frequency;
+            p_video_bus <= video_bus;
             on <= preset != 3'd0 && !turbo;
         end
+        local_video <= p_video_bus == 2'd2 || (p_video_bus == 2'd0 && p.local_video);
         warm <= reset ? 2'd2 : warm == 2'd0 ? 2'd0 : warm - 2'd1;
         freq <= p_frequency != 10'd0 ? p_frequency : p.frequency;
         product <= 28'(freq) * 28'(K);
@@ -112,17 +122,25 @@ module fes_i386_governor #(
 
     // The ISA cycles in reference clocks at freq, rounded, halves up. They
     // settle two clocks after freq, long before WB first retires.
+    // The local bus's VGA cycle likewise, at its own fixed point; vga_cycle
+    // is the one the video bus gives.
     localparam int SW = $bits(fes_i386_gov_pkg::ISA_STEP) + 10, PW = SW + 4;
+    localparam int LW = $bits(fes_i386_gov_pkg::LB_STEP) + 10, LPW = LW + 4;
     logic [SW-1:0] isa_clock;  // an ISA clock, in 1/2**ISA_FRAC reference clock
-    logic [7:0]    isa8, isa16, isa_vga;
+    logic [LW-1:0] lb_clock;   // a local-bus clock, in 1/2**LB_FRAC reference clock
+    logic [7:0]    isa8, isa16, vga_cycle;
     function automatic logic [7:0] cycle(input logic [3:0] clocks, input logic [SW-1:0] one);
         cycle = 8'((PW'(clocks) * PW'(one) + (PW'(1) << (fes_i386_gov_pkg::ISA_FRAC - 1))) >> fes_i386_gov_pkg::ISA_FRAC);
     endfunction
+    function automatic logic [7:0] lb_cycle(input logic [3:0] clocks, input logic [LW-1:0] one);
+        lb_cycle = 8'((LPW'(clocks) * LPW'(one) + (LPW'(1) << (fes_i386_gov_pkg::LB_FRAC - 1))) >> fes_i386_gov_pkg::LB_FRAC);
+    endfunction
     always_ff @(posedge clk) begin
         isa_clock <= SW'(freq) * SW'(fes_i386_gov_pkg::ISA_STEP);
+        lb_clock <= LW'(freq) * LW'(fes_i386_gov_pkg::LB_STEP);
         isa8 <= cycle(fes_i386_gov_pkg::ISA_IO8, isa_clock);
         isa16 <= cycle(fes_i386_gov_pkg::ISA_IO16, isa_clock);
-        isa_vga <= cycle(fes_i386_gov_pkg::ISA_VGA, isa_clock);
+        vga_cycle <= local_video ? lb_cycle(fes_i386_gov_pkg::LB_VGA, lb_clock) : cycle(fes_i386_gov_pkg::ISA_VGA, isa_clock);
     end
 
     // WB's retirement, as it happens.
@@ -134,7 +152,7 @@ module fes_i386_governor #(
     logic                  s1_io, s1_mmio_st2;
     logic [15:0]           s1_io_port;
     logic [1:0]            s1_io_size, s1_mmio;
-    logic [2:0]            s1_mmio_halves, s1_mmio_st2_halves;
+    logic [2:0]            s1_mmio_cycles, s1_mmio_st2_cycles;  // VGA cycles: halves on ISA, dwords on the local bus
     always_ff @(posedge clk) begin
         s1_boundary <= on && boundary;
         s1_eoi <= eoi;
@@ -155,9 +173,9 @@ module fes_i386_governor #(
         s1_io_port <= io_port;
         s1_io_size <= io_size;
         s1_mmio <= on ? mmio : 2'd0;
-        s1_mmio_halves <= mmio_halves;
+        s1_mmio_cycles <= local_video ? {1'b0, mmio_dwords} : mmio_halves;
         s1_mmio_st2 <= on && mmio_st2;
-        s1_mmio_st2_halves <= mmio_st2_halves;
+        s1_mmio_st2_cycles <= local_video ? {1'b0, mmio_st2_dwords} : mmio_st2_halves;
     end
 
     // The class addresses the ROM; the memory charge: each bus cycle's wait
@@ -168,7 +186,7 @@ module fes_i386_governor #(
     assign per_access = {2'd0, p.wait_states} + (p.bus16 && s1_dword ? {2'd0, p.wait_states} + 4'd2 : 4'd0);
     logic [15:0] word;
     fes_i386_gov_rom costs (.clk, .addr(fes_i386_gov_pkg::cost_rom_index(p.tbl, s1_class.cls)), .q(word));
-    // The ISA charges: the I/O access's cycles less the data sheet's bus
+    // The bus charges: the I/O access's ISA cycles less the data sheet's bus
     // cycle; an MMIO access's VGA cycles less its bus cycle and per_access.
     logic [9:0]  io_clocks, io_extra;
     assign io_clocks = fes_i386_gov_pkg::word16(s1_io_port, s1_io_size)
@@ -187,8 +205,8 @@ module fes_i386_governor #(
     // legacy behavior or reference validation for those instructions.
     assign local_bus = 4'd2 + (REFERENCE_DIAGNOSTIC && p_id == 3'd1 && s1_ordinary_ram ? 4'd0 : per_access);
     logic [12:0] isa;
-    assign isa = (s1_io ? {3'd0, io_extra} : 13'd0) + 13'(s1_mmio) * {2'd0, mmio_extra(s1_mmio_halves, isa_vga, local_bus)}
-               + (s1_mmio_st2 ? {2'd0, mmio_extra(s1_mmio_st2_halves, isa_vga, local_bus)} : 13'd0);
+    assign isa = (s1_io ? {3'd0, io_extra} : 13'd0) + 13'(s1_mmio) * {2'd0, mmio_extra(s1_mmio_cycles, vga_cycle, local_bus)}
+               + (s1_mmio_st2 ? {2'd0, mmio_extra(s1_mmio_st2_cycles, vga_cycle, local_bus)} : 13'd0);
 
     logic        s2_ends, s2_column1, s2_element, s2_ea;
     logic        s2_boundary, s2_redirect, s2_abandon, s2_preserve_de, s2_ordinary_ram, s2_imul_safe;

@@ -140,10 +140,19 @@ func TestMachineSettings(t *testing.T) {
 		{SBBase: 0x220, SBIRQ: 9, SBDMA: 1},
 		{SBBase: 0x220, SBIRQ: 4, SBDMA: 1},
 		{SBBase: 0x220, SBIRQ: 7, SBDMA: 3},
+		{SBBase: 0x220, SBIRQ: 7, SBDMA: 1, VideoBus: 3},
 	}
 	for _, m := range bad {
 		if m.Valid() {
 			t.Errorf("%+v accepted", m)
+		}
+	}
+	// The video bus is an eighth value only when it is set.
+	for bus, header := range map[uint16]string{1: "3,250,1,1,576,5,1,1", 2: "3,250,1,1,576,5,1,2"} {
+		local := good
+		local.VideoBus = bus
+		if parsed, ok := ParseMachineSettings(header); !ok || parsed != local || local.String() != header || !local.Valid() {
+			t.Errorf("video bus %d: %+v %v %q", bus, parsed, ok, local.String())
 		}
 	}
 	for _, irq := range []uint16{2, 3, 5, 7} {
@@ -151,7 +160,7 @@ func TestMachineSettings(t *testing.T) {
 			t.Errorf("IRQ %d refused", irq)
 		}
 	}
-	for _, header := range []string{"0,0,0,0,544,7", "0,0,0,0,544,7,1,0", "0,0,0,0,0544,7,1", "0,0,0,0,544,7,-1", "0,0,0,0,544,7,70000"} {
+	for _, header := range []string{"0,0,0,0,544,7", "0,0,0,0,544,7,1,0", "0,0,0,0,544,7,1,2,0", "0,0,0,0,0544,7,1", "0,0,0,0,544,7,-1", "0,0,0,0,544,7,70000"} {
 		if _, ok := ParseMachineSettings(header); ok {
 			t.Errorf("%q parsed", header)
 		}

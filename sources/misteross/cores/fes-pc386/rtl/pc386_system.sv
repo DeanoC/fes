@@ -193,18 +193,20 @@ module pc386_system #(
     wire disk_present = disk_state == 3'(`FES_COMPUTER_MEDIA_STATE_READY);
     // The settings words: 0 the governor's preset, 1 its frequency override
     // (100 kHz units), 2 the code profile, 3 turbo at launch, 4-6 the Sound
-    // Blaster's port, IRQ and DMA channel. Commit has checked each field's
-    // range (fes_computer_storage).
+    // Blaster's port, IRQ and DMA channel, 7 bits 3:2 the governor's video
+    // bus (0 the preset's own, 1 ISA, 2 local bus). Commit has checked each
+    // field's range (fes_computer_storage).
     wire [2:0] gov_preset = settings[2:0];
     wire [9:0] gov_frequency = settings[25:16];
     wire gov_turbo = settings[48];
+    wire [1:0] gov_video_bus = settings[115:114];
     wire queue16 = settings[32];
     wire [7:0] sb_base_high = settings[75:68];
     wire [7:0] sb_irq = settings[87:80];
     wire [7:0] sb_dma = settings[103:96];
-    // The EMS board: fitted with 2 MiB. Word 7 is to choose its size
-    // (docs/pc386-machine-design.md, "Size and setting"); until the record
-    // accepts that, it is reserved and zero.
+    // The EMS board: fitted with 2 MiB. Word 7 bits 1:0 are to choose its
+    // size (docs/pc386-machine-design.md, "Size and setting"); until the
+    // record accepts that, they are reserved and zero.
     localparam [7:0] EMS_PAGES = 8'd128;
     // The floppy drives (docs/design/pc386-removable-media.md, slice F1): the
     // controller is fitted but no drive is, and CMOS reports none, until the
@@ -498,7 +500,7 @@ module pc386_system #(
         .init_ldtr_valid(1'b1), .init_tr_sel(16'h0), .init_tr_base(32'h0), .init_tr_limit(32'hffff),
         .init_tr_ar(16'h008b),
         .a20m(a20m), .attr_upper(ATTR_UPPER), .ram_top(7'd16), .queue16(queue16),
-        .gov_preset(gov_preset), .gov_frequency(gov_frequency), .gov_turbo(gov_turbo),
+        .gov_preset(gov_preset), .gov_frequency(gov_frequency), .gov_turbo(gov_turbo), .gov_video_bus(gov_video_bus),
         .ddr_address(cpu_ddr_address), .ddr_burstcount(cpu_ddr_burstcount), .ddr_read(cpu_ddr_read),
         .ddr_write(cpu_ddr_write), .ddr_writedata(cpu_ddr_writedata), .ddr_byteenable(cpu_ddr_byteenable),
         .ddr_waitrequest(cpu_ddr_waitrequest), .ddr_readdata(cpu_ddr_readdata),
@@ -593,6 +595,6 @@ module pc386_system #(
     wire unused = ^{fdc_fenced, dma_ack_tc, mouse_dx[15:8], mouse_dy[15:8], start_latched, frame_start, frame_done, presenter_video, debug_port, opl2_sample,
                     dsp_dac, frame_count, frame_buffer, frame_width, frame_height,
                     nmi_mask, cpu_mmio_address[fes_i386_pkg::PA-3:15], cpu_sel[5:2], cpu_sel[0],
-                    settings[15:3], settings[31:26], settings[63:49], settings[127:104], settings[47:33], settings[79:76],
+                    settings[15:3], settings[31:26], settings[63:49], settings[127:116], settings[113:104], settings[47:33], settings[79:76],
                     settings[67:64], settings[95:88]};
 endmodule

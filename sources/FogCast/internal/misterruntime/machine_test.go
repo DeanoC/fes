@@ -38,7 +38,14 @@ func TestMachineCoreDataDecodes(t *testing.T) {
 	if d == nil || d.GameID != "ultima-vi" || d.Machine == nil || *d.Machine != (protocol.MachineSettings{Preset: 3, CodeProfile: 1, SBBase: 0x240, SBIRQ: 5, SBDMA: 1}) {
 		t.Fatalf("decoded %+v", d)
 	}
+	// video_bus is optional: present only when set, and checked.
+	local, err := decodeProtocol2Response([]byte(strings.Replace(machineDataResponse(t), `"sb_dma":1`, `"sb_dma":1,"video_bus":2`, 1)))
+	if err != nil || local.CoreData == nil || local.CoreData.Machine == nil || local.CoreData.Machine.VideoBus != 2 {
+		t.Fatalf("video bus: %+v %v", local, err)
+	}
 	for _, pair := range [][2]string{
+		{`"sb_dma":1`, `"sb_dma":1,"video_bus":3`},
+		{`"sb_dma":1`, `"sb_dma":1,"video_bus":-1`},
 		{`"sb_irq":5`, `"sb_irq":9`},
 		{`"preset":3`, `"preset":8`},
 		{`"frequency":0`, `"frequency":250,"extra":1`},

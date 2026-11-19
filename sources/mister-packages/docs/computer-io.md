@@ -566,11 +566,15 @@ are settings FogCast writes for the next launch; words 8..71 are CMOS bytes
 | 4 | Sound Blaster base port | 0x220 or 0x240 | 0x220 |
 | 5 | Sound Blaster IRQ | 2, 3, 5 or 7 | 7 |
 | 6 | Sound Blaster DMA channel | 1 | 1 |
-| 7 | Reserved | 0 | 0 |
+| 7 | Bits 3:2: the governor's video bus. Bits 1:0 are reserved for the EMS board's size (#1555); bits 15:4 are reserved | Bits 3:2: 0 the preset's own (ISA for presets 1..5, local bus for 6 and 7), 1 ISA, 2 local bus. Other bits 0 | 0 |
 | 8..71 | CMOS 00h..7Fh | any | 0 |
 
 Commit rejects a value outside its set. Settings are read at the next release,
-so the governor, CPU profile and Sound Blaster are set at reset. The clock
+so the governor, CPU profile and Sound Blaster are set at reset.
+Word 7's video bus chooses how the governor charges VGA memory: ISA cycles per
+16-bit half, or local-bus (VL-Bus or PCI) cycles per 32-bit dword. A machine,
+runtime or host that predates it rejects a non-zero word 7, so it is sent only
+when it is set; 0 keeps the preset's own. The clock
 bytes are captured with the rest but the [wall clock](#wall-clock) overwrites
 them at the next launch.
 

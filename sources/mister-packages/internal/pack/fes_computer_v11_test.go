@@ -83,7 +83,8 @@ func (m *v11Model) reset(state uint16) {
 func machineValid(w []uint16) bool {
 	preset, freq := w[0], w[1]
 	switch {
-	case preset > 7 || w[2] > 1 || w[3] > 1 || w[7] != 0 || w[6] != 1:
+	// Word 7: bits 3:2 the video bus (0..2); bits 1:0 (the EMS size, #1555) and 15:4 zero.
+	case preset > 7 || w[2] > 1 || w[3] > 1 || w[7]&^0xc != 0 || w[7]>>2 > 2 || w[6] != 1:
 		return false
 	case freq != 0 && (preset == 0 || freq < 10 || freq > 1000):
 		return false

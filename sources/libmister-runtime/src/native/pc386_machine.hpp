@@ -7,6 +7,12 @@
 #include <vector>
 namespace mister {
 namespace native {
+// Word 7 (FesComputerPc386ReservedIndex): bits 1:0 are reserved for the EMS
+// board's size (#1555) and must be zero; bits 3:2 are the governor's video bus,
+// 0 the preset's own, 1 ISA, 2 local bus; bits 15:4 are zero
+// (mister-packages docs/computer-io.md). The field's values are not ABI
+// constants: adding them would regenerate fes_computer.vh for every core.
+constexpr std::uint16_t kPc386VideoBusShift = 2, kPc386VideoBusMax = 2;
 // fes.pc386.machine 1.0: settings words 0..7 in their sets, then CMOS.
 inline bool ValidPc386Machine(const std::vector<std::uint16_t>& w)
 {
@@ -18,7 +24,9 @@ inline bool ValidPc386Machine(const std::vector<std::uint16_t>& w)
 	if (preset >= FesComputerPc386PresetCount ||
 		w[FesComputerPc386CodeProfileIndex] > FesComputerPc386CodeProfileQueue16 ||
 		w[FesComputerPc386TurboIndex] > FesComputerPc386TurboMax ||
-		w[FesComputerPc386ReservedIndex] != 0 || w[FesComputerPc386SbDmaIndex] != FesComputerPc386SbDma)
+		(w[FesComputerPc386ReservedIndex] & ~(3u << kPc386VideoBusShift)) != 0 ||
+		(w[FesComputerPc386ReservedIndex] >> kPc386VideoBusShift) > kPc386VideoBusMax ||
+		w[FesComputerPc386SbDmaIndex] != FesComputerPc386SbDma)
 		return false;
 	if (frequency != 0 && (preset == FesComputerPc386PresetMaxPerformance ||
 		frequency < FesComputerPc386FrequencyMin || frequency > FesComputerPc386FrequencyMax))
@@ -47,6 +55,7 @@ inline Pc386MachineSettings Pc386Settings(const std::vector<std::uint16_t>& w)
 	s.sb_base = w[generated::FesComputerPc386SbBaseIndex];
 	s.sb_irq = w[generated::FesComputerPc386SbIrqIndex];
 	s.sb_dma = w[generated::FesComputerPc386SbDmaIndex];
+	s.video_bus = (w[generated::FesComputerPc386ReservedIndex] >> kPc386VideoBusShift) & 3u;
 	return s;
 }
 // The clock the record's CMOS bytes held at its last Stop, in the form its
