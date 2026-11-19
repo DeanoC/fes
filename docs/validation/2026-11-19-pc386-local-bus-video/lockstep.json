@@ -1,0 +1,76 @@
+{
+ "rule": "method.md section 4, gate 4: each governed run --same-as max; gate 5 test386",
+ "commit": "58b782b9a (RTL unchanged at ed6860219)",
+ "runs": {
+  "rtl:max": {
+   "settings": "preset 0",
+   "queue": "max rc=0 start=2026-11-19T15:37:58+02:00 end=2026-11-19T15:47:27+02:00",
+   "passed": true,
+   "same_as_max": null,
+   "failures": null,
+   "netlist_sha256": null
+  },
+  "rtl:p6": {
+   "settings": "--preset 6, word 7 = 0 (local bus)",
+   "queue": "p6 rc=0 start=2026-11-19T15:47:27+02:00 end=2026-11-19T15:56:55+02:00",
+   "passed": true,
+   "same_as_max": true,
+   "failures": null,
+   "netlist_sha256": null
+  },
+  "rtl:p6-isa": {
+   "settings": "--preset 6, FES_I386_VIDEO_BUS=1 (ISA)",
+   "queue": "p6-isa rc=0 start=2026-11-19T15:56:55+02:00 end=2026-11-19T16:07:47+02:00",
+   "passed": true,
+   "same_as_max": true,
+   "failures": null,
+   "netlist_sha256": null
+  },
+  "rtl:p3-local": {
+   "settings": "--preset 3, FES_I386_VIDEO_BUS=2 (local bus)",
+   "queue": "p3-local rc=0 start=2026-11-19T16:07:47+02:00 end=2026-11-19T16:21:20+02:00",
+   "passed": true,
+   "same_as_max": true,
+   "failures": null,
+   "netlist_sha256": null
+  },
+  "netlist:max": {
+   "settings": "preset 0",
+   "queue": "max rc=0 start=2026-11-19T16:21:20+02:00 end=2026-11-19T16:33:34+02:00",
+   "passed": true,
+   "same_as_max": null,
+   "failures": null,
+   "netlist_sha256": "c6d77d6c0541e695bc58ad3835b08449693d48cc9d2d32f227e8b9f75f3fba6d"
+  },
+  "netlist:p6": {
+   "settings": "--preset 6, word 7 = 0 (local bus)",
+   "queue": "p6 rc=0 start=2026-11-19T16:33:34+02:00 end=2026-11-19T16:50:50+02:00",
+   "passed": true,
+   "same_as_max": true,
+   "failures": null,
+   "netlist_sha256": "c6d77d6c0541e695bc58ad3835b08449693d48cc9d2d32f227e8b9f75f3fba6d"
+  },
+  "netlist:p6-isa": {
+   "settings": "--preset 6, FES_I386_VIDEO_BUS=1 (ISA)",
+   "queue": "p6-isa rc=0 start=2026-11-19T16:50:50+02:00 end=2026-11-19T17:08:52+02:00",
+   "passed": true,
+   "same_as_max": true,
+   "failures": null,
+   "netlist_sha256": "c6d77d6c0541e695bc58ad3835b08449693d48cc9d2d32f227e8b9f75f3fba6d"
+  },
+  "netlist:p3-local": {
+   "settings": "--preset 3, FES_I386_VIDEO_BUS=2 (local bus)",
+   "queue": "p3-local rc=0 start=2026-11-19T17:08:52+02:00 end=2026-11-19T17:30:44+02:00",
+   "passed": true,
+   "same_as_max": true,
+   "failures": null,
+   "netlist_sha256": "c6d77d6c0541e695bc58ad3835b08449693d48cc9d2d32f227e8b9f75f3fba6d"
+  }
+ },
+ "test386_rtl": {
+  "queue": "test386 rc=0 start=2026-11-19T14:58:47+02:00 end=2026-11-19T15:37:58+02:00",
+  "post": "ff",
+  "errors": "[]"
+ },
+ "seal_netlist_lockstep": "passed on chip-30x0-ai-dev before the seal (seal-summary.json, lockstep)"
+}

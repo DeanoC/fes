@@ -1,0 +1,103 @@
+{
+ "sealed_commit": "58b782b9a2be4129716e54bff8050c6dcbe51fa1",
+ "host": "chip-30x0-ai-dev",
+ "quartus": "17.0.2",
+ "seed": 1,
+ "gpu_router_slot": "cuda",
+ "build_id": "d268d8764993dc9118344f6e9dd52b95",
+ "package": "2f8e53c32de1a8b4efebfdf3293d8606ba75924ecd3535ab790d8dd7df9e817c",
+ "fcore_sha256": "77f04d391fd3642289dedb88d04487008c6855a76c70eb37591429cb928436fa",
+ "status": "pass",
+ "timing": {
+  "analyses": {
+   "hold": {
+    "tns_ns": 0.0,
+    "worst_slack_ns": 0.102
+   },
+   "minimum_pulse_width": {
+    "tns_ns": 0.0,
+    "worst_slack_ns": 1.122
+   },
+   "recovery": {
+    "tns_ns": 0.0,
+    "worst_slack_ns": 5.915
+   },
+   "removal": {
+    "tns_ns": 0.0,
+    "worst_slack_ns": 0.548
+   },
+   "setup": {
+    "tns_ns": 0.0,
+    "worst_slack_ns": 0.544
+   }
+  },
+  "clocks": {
+   "audio": {
+    "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+    "mhz": 12.29
+   },
+   "pixel": {
+    "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+    "mhz": 74.27
+   },
+   "system": {
+    "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+    "mhz": 61.44
+   }
+  },
+  "status": "pass"
+ },
+ "resources": {
+  "alms": {
+   "available": 41910,
+   "used": 36381
+  },
+  "block_memory_bits": {
+   "available": 5662720,
+   "used": 1354796
+  },
+  "dsp_blocks": {
+   "available": 112,
+   "used": 41
+  },
+  "ram_blocks": {
+   "available": 553,
+   "used": 282
+  },
+  "registers": {
+   "used": 31771
+  }
+ },
+ "lockstep": {
+  "cpu_source_closure_sha256": "d8fd6c424c6954269961e81836637e06027532504bebe28813d5b2efeb6042de",
+  "netlist_program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
+  "netlist_sha256": "c212e91480a559bdc614feeb8874d9381a3858a2e64eae1da347afe3142296a4",
+  "oracle": {
+   "adapter_sha256": "8476a65df29382fdfdb5b8ce342495f3491fd2c7e5c5df40018d3a3d68bb21e3",
+   "linked_sha256": {
+    "adapter": "5857aee4bcced159b79def18b33364fc137436a2f507bcf8d35ee32e081bb0b4",
+    "cpu": "5a2a111339d17f652dd363827601394f46e05032413e5e616356335acc62d213",
+    "fpu": "c2d7184132bb12d5cb2bb1df5fb656c966047cad0b135c3ec54f6654b94aed77",
+    "paramtree": "7a1c5ac6028382277a6447c8644a27ffbe05cad58616cd2208709da302f1067c",
+    "softfloat": "2bdd4e54f69f193e133020fc9d9a71267ffb42ca01ba49a551255e7b13fa6f74"
+   },
+   "patch_sha256": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377",
+   "provisioner_sha256": "0c4552c2290a0f50681090a65cf25deeb1916568c910bcfcc88a91097f8089b2",
+   "revision": "30cfd566ecc8deb33e56e801e32b444a7041b6d2",
+   "suite_sha256": "54af24eeef10aecf3cc607383d824530836aa31332b9ef9447a82a523bfcd9b0",
+   "testbench_sha256": "11b2dfe4b3d1ac5bf1d25bbae9fb9463c2af60e5bad7a95b6d3587761dee631c"
+  },
+  "report_sha256": "b6c959d1c0d97923983a5477d856b71e7ab21a72995391c67a6c863801ebc9e0",
+  "simulator": {
+   "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+   "install": "b37d73c9d2a0bd9e9847784c8e1bc4171ae79ff713d11e2735a10174bf2ad557",
+   "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+   "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+   "version": "Verilator 5.054 2026-11-01 rev v5.054"
+  },
+  "yosys_tool": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=8a9a88fb7471aa6bfa566470cc5770998600f5ec07ef749249396ef5ad633a3f"
+ },
+ "pinned_inputs": 143,
+ "pinned_inputs_differing_at_head": [],
+ "head_checked": "ed6860219ec9f78530c5403e340875136874ef43"
+}

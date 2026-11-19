@@ -1,0 +1,44 @@
+{
+ "main": "out-lbv/gov-main-report.json",
+ "branch": "out-lbv/gov-rtl-report.json",
+ "presets": {
+  "max": {
+   "loops": 19,
+   "vram_delta": 0,
+   "vram_delta_expected": 0,
+   "equal_elsewhere": true
+  },
+  "286-12": {
+   "loops": 19,
+   "vram_delta": 3800,
+   "vram_delta_expected": 3800,
+   "equal_elsewhere": true
+  },
+  "386SX-16": {
+   "loops": 19,
+   "vram_delta": 4800,
+   "vram_delta_expected": 4800,
+   "equal_elsewhere": true
+  },
+  "386DX-25": {
+   "loops": 19,
+   "vram_delta": 7200,
+   "vram_delta_expected": 7200,
+   "equal_elsewhere": true
+  },
+  "386DX-33": {
+   "loops": 19,
+   "vram_delta": 9600,
+   "vram_delta_expected": 9600,
+   "equal_elsewhere": true
+  },
+  "386DX-40": {
+   "loops": 19,
+   "vram_delta": 11600,
+   "vram_delta_expected": 11600,
+   "equal_elsewhere": true
+  }
+ },
+ "failures": [],
+ "verdict": "PASS"
+}

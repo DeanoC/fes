@@ -1,0 +1,583 @@
+{
+ "before": "slice 3 run k2 (ISA video, seal of 0c7af0728)",
+ "after": "run l1 (local-bus video, 2f8e53c32de1a8b4efebfdf3293d8606ba75924ecd3535ab790d8dd7df9e817c (Quartus 17.0.2 seal of 58b782b9a, seal-summary.json))",
+ "presets": {
+  "0:0": {
+   "label": "max",
+   "scores": {
+    "3dbench_fps": {
+     "before": 76.9,
+     "after": 76.9
+    },
+    "3dbench2_raw": {
+     "before": 757,
+     "after": 757
+    },
+    "pcpbench": {
+     "before": 13.3,
+     "after": 13.3
+    },
+    "topbench_score": {
+     "before": 307,
+     "after": 304
+    },
+    "topbench_total_us": {
+     "before": 181,
+     "after": 182
+    },
+    "doom_max_realtics": {
+     "before": 2062,
+     "after": 2062
+    },
+    "doom_min_realtics": {
+     "before": 747,
+     "after": 748
+    }
+   }
+  },
+  "6:200": {
+   "label": "486-20 (preset 6, word 1 = 200)",
+   "scores": {
+    "3dbench_fps": {
+     "before": 14.4,
+     "after": 18.1
+    },
+    "3dbench2_raw": {
+     "before": 144,
+     "after": 179
+    },
+    "pcpbench": {
+     "before": 3.7,
+     "after": 4.0
+    },
+    "topbench_score": {
+     "before": 78,
+     "after": 97
+    },
+    "topbench_total_us": {
+     "before": 645,
+     "after": 518
+    },
+    "doom_max_realtics": {
+     "before": 9713,
+     "after": 7194
+    },
+    "doom_min_realtics": {
+     "before": 2285,
+     "after": 1980
+    }
+   },
+   "reference_ratios": {
+    "before": {
+     "pcpbench": {},
+     "doom_max_realtics": {},
+     "topbench_score": {}
+    },
+    "after": {
+     "pcpbench": {},
+     "doom_max_realtics": {},
+     "topbench_score": {}
+    }
+   }
+  },
+  "6:250": {
+   "label": "486SX/DX-25 (preset 6, word 1 = 250)",
+   "scores": {
+    "3dbench_fps": {
+     "before": 16.9,
+     "after": 22.2
+    },
+    "3dbench2_raw": {
+     "before": 168,
+     "after": 220
+    },
+    "pcpbench": {
+     "before": 4.5,
+     "after": 5.0
+    },
+    "topbench_score": {
+     "before": 88,
+     "after": 114
+    },
+    "topbench_total_us": {
+     "before": 563,
+     "after": 438
+    },
+    "doom_max_realtics": {
+     "before": 8533,
+     "after": 5971
+    },
+    "doom_min_realtics": {
+     "before": 1939,
+     "after": 1630
+    }
+   },
+   "reference_ratios": {
+    "before": {
+     "pcpbench": {
+      "local bus": {
+       "kit_over_median": 0.978,
+       "n": 3
+      }
+     },
+     "doom_max_realtics": {
+      "local bus": {
+       "kit_over_median": 0.742,
+       "n": 3
+      }
+     },
+     "topbench_score": {
+      "all": 1.158,
+      "n": 3
+     }
+    },
+    "after": {
+     "pcpbench": {
+      "local bus": {
+       "kit_over_median": 1.087,
+       "n": 3
+      }
+     },
+     "doom_max_realtics": {
+      "local bus": {
+       "kit_over_median": 1.06,
+       "n": 3
+      }
+     },
+     "topbench_score": {
+      "all": 1.5,
+      "n": 3
+     }
+    }
+   }
+  },
+  "6:0": {
+   "label": "486DX-33 (preset 6)",
+   "scores": {
+    "3dbench_fps": {
+     "before": 20.8,
+     "after": 29.4
+    },
+    "3dbench2_raw": {
+     "before": 204,
+     "after": 286
+    },
+    "pcpbench": {
+     "before": 5.7,
+     "after": 6.5
+    },
+    "topbench_score": {
+     "before": 102,
+     "after": 140
+    },
+    "topbench_total_us": {
+     "before": 490,
+     "after": 341
+    },
+    "doom_max_realtics": {
+     "before": 7290,
+     "after": 4681
+    },
+    "doom_min_realtics": {
+     "before": 1599,
+     "after": 1284
+    }
+   },
+   "reference_ratios": {
+    "before": {
+     "pcpbench": {
+      "ISA": {
+       "kit_over_median": 1.036,
+       "n": 5
+      },
+      "local bus": {
+       "kit_over_median": 0.966,
+       "n": 5
+      }
+     },
+     "doom_max_realtics": {
+      "ISA": {
+       "kit_over_median": 0.991,
+       "n": 5
+      },
+      "local bus": {
+       "kit_over_median": 0.691,
+       "n": 5
+      }
+     },
+     "topbench_score": {
+      "all": 0.836,
+      "n": 2
+     }
+    },
+    "after": {
+     "pcpbench": {
+      "ISA": {
+       "kit_over_median": 1.182,
+       "n": 5
+      },
+      "local bus": {
+       "kit_over_median": 1.102,
+       "n": 5
+      }
+     },
+     "doom_max_realtics": {
+      "ISA": {
+       "kit_over_median": 1.544,
+       "n": 5
+      },
+      "local bus": {
+       "kit_over_median": 1.077,
+       "n": 5
+      }
+     },
+     "topbench_score": {
+      "all": 1.148,
+      "n": 2
+     }
+    }
+   }
+  },
+  "6:500": {
+   "label": "486DX-50 / DX2-50 (preset 6, word 1 = 500)",
+   "scores": {
+    "3dbench_fps": {
+     "before": 26.3,
+     "after": 41.6
+    },
+    "3dbench2_raw": {
+     "before": 258,
+     "after": 402
+    },
+    "pcpbench": {
+     "before": 7.4,
+     "after": 8.8
+    },
+    "topbench_score": {
+     "before": 122,
+     "after": 179
+    },
+    "topbench_total_us": {
+     "before": 403,
+     "after": 273
+    },
+    "doom_max_realtics": {
+     "before": 6074,
+     "after": 3516
+    },
+    "doom_min_realtics": {
+     "before": 1287,
+     "after": 981
+    }
+   },
+   "reference_ratios": {
+    "before": {
+     "pcpbench": {
+      "ISA": {
+       "kit_over_median": 0.881,
+       "n": 1
+      },
+      "local bus": {
+       "kit_over_median": 0.876,
+       "n": 2
+      }
+     },
+     "doom_max_realtics": {
+      "ISA": {
+       "kit_over_median": 0.667,
+       "n": 1
+      },
+      "local bus": {
+       "kit_over_median": 0.626,
+       "n": 2
+      }
+     },
+     "topbench_score": {
+      "all": 0.953,
+      "n": 4
+     }
+    },
+    "after": {
+     "pcpbench": {
+      "ISA": {
+       "kit_over_median": 1.048,
+       "n": 1
+      },
+      "local bus": {
+       "kit_over_median": 1.041,
+       "n": 2
+      }
+     },
+     "doom_max_realtics": {
+      "ISA": {
+       "kit_over_median": 1.153,
+       "n": 1
+      },
+      "local bus": {
+       "kit_over_median": 1.081,
+       "n": 2
+      }
+     },
+     "topbench_score": {
+      "all": 1.398,
+      "n": 4
+     }
+    }
+   }
+  },
+  "7:0": {
+   "label": "486DX2-66 (preset 7)",
+   "scores": {
+    "3dbench_fps": {
+     "before": 30.3,
+     "after": 52.6
+    },
+    "3dbench2_raw": {
+     "before": 295,
+     "after": 504
+    },
+    "pcpbench": {
+     "before": 8.5,
+     "after": 10.3
+    },
+    "topbench_score": {
+     "before": 134,
+     "after": 209
+    },
+    "topbench_total_us": {
+     "before": 380,
+     "after": 253
+    },
+    "doom_max_realtics": {
+     "before": 5510,
+     "after": 2911
+    },
+    "doom_min_realtics": {
+     "before": 1165,
+     "after": 858
+    }
+   },
+   "reference_ratios": {
+    "before": {
+     "pcpbench": {
+      "ISA": {
+       "kit_over_median": 0.899,
+       "n": 2
+      },
+      "local bus": {
+       "kit_over_median": 0.766,
+       "n": 24
+      },
+      "other or unknown": {
+       "kit_over_median": 0.939,
+       "n": 2
+      }
+     },
+     "doom_max_realtics": {
+      "ISA": {
+       "kit_over_median": 0.811,
+       "n": 2
+      },
+      "local bus": {
+       "kit_over_median": 0.548,
+       "n": 25
+      },
+      "other or unknown": {
+       "kit_over_median": 0.593,
+       "n": 2
+      }
+     },
+     "topbench_score": {
+      "all": 0.74,
+      "n": 10
+     }
+    },
+    "after": {
+     "pcpbench": {
+      "ISA": {
+       "kit_over_median": 1.09,
+       "n": 2
+      },
+      "local bus": {
+       "kit_over_median": 0.928,
+       "n": 24
+      },
+      "other or unknown": {
+       "kit_over_median": 1.138,
+       "n": 2
+      }
+     },
+     "doom_max_realtics": {
+      "ISA": {
+       "kit_over_median": 1.536,
+       "n": 2
+      },
+      "local bus": {
+       "kit_over_median": 1.038,
+       "n": 25
+      },
+      "other or unknown": {
+       "kit_over_median": 1.122,
+       "n": 2
+      }
+     },
+     "topbench_score": {
+      "all": 1.155,
+      "n": 10
+     }
+    }
+   }
+  },
+  "6:667": {
+   "label": "486DX2-66 by override (preset 6, word 1 = 667)",
+   "scores": {
+    "3dbench_fps": {
+     "before": 30.3,
+     "after": 52.6
+    },
+    "3dbench2_raw": {
+     "before": 295,
+     "after": 504
+    },
+    "pcpbench": {
+     "before": 8.5,
+     "after": 10.3
+    },
+    "topbench_score": {
+     "before": 134,
+     "after": 210
+    },
+    "topbench_total_us": {
+     "before": 387,
+     "after": 253
+    },
+    "doom_max_realtics": {
+     "before": 5509,
+     "after": 2912
+    },
+    "doom_min_realtics": {
+     "before": 1167,
+     "after": 857
+    }
+   },
+   "reference_ratios": {
+    "before": {
+     "pcpbench": {},
+     "doom_max_realtics": {},
+     "topbench_score": {}
+    },
+    "after": {
+     "pcpbench": {},
+     "doom_max_realtics": {},
+     "topbench_score": {}
+    }
+   }
+  }
+ },
+ "reach": {
+  "6:500": {
+   "before": {
+    "verdict": "not reached",
+    "by_benchmark": {
+     "3dbench": "reached",
+     "3dbench2": "reached",
+     "pcpbench": "reached",
+     "topbench": "reached",
+     "doom_max": "reached",
+     "doom_min": "not reached"
+    }
+   },
+   "after": {
+    "verdict": "not reached",
+    "by_benchmark": {
+     "3dbench": "not reached",
+     "3dbench2": "reached",
+     "pcpbench": "reached",
+     "topbench": "not measurable",
+     "doom_max": "not reached",
+     "doom_min": "not reached"
+    }
+   }
+  },
+  "7:0": {
+   "before": {
+    "verdict": "not reached",
+    "by_benchmark": {
+     "3dbench": "not reached",
+     "3dbench2": "reached",
+     "pcpbench": "not reached",
+     "topbench": "reached",
+     "doom_max": "reached",
+     "doom_min": "not reached"
+    }
+   },
+   "after": {
+    "verdict": "not reached",
+    "by_benchmark": {
+     "3dbench": "not reached",
+     "3dbench2": "reached",
+     "pcpbench": "not reached",
+     "topbench": "not measurable",
+     "doom_max": "not reached",
+     "doom_min": "not reached"
+    }
+   }
+  }
+ },
+ "control_max": {
+  "3dbench_fps": {
+   "before": 76.9,
+   "after": 76.9
+  },
+  "3dbench2_raw": {
+   "before": 757,
+   "after": 757
+  },
+  "pcpbench": {
+   "before": 13.3,
+   "after": 13.3
+  },
+  "topbench_score": {
+   "before": 307,
+   "after": 304
+  },
+  "topbench_total_us": {
+   "before": 181,
+   "after": 182
+  },
+  "doom_max_realtics": {
+   "before": 2062,
+   "after": 2062
+  },
+  "doom_min_realtics": {
+   "before": 747,
+   "after": 748
+  }
+ },
+ "b_share_at_33": {
+  "3dbench": {
+   "before": 0.305,
+   "after": 0.023
+  },
+  "3dbench2": {
+   "before": 0.355,
+   "after": 0.096
+  },
+  "pcpbench": {
+   "before": 0.197,
+   "after": 0.096
+  },
+  "topbench": {
+   "before": 0.551,
+   "after": 0.143
+  },
+  "doom_max": {
+   "before": 0.486,
+   "after": 0.17
+  },
+  "doom_min": {
+   "before": 0.36,
+   "after": 0.188
+  }
+ }
+}
