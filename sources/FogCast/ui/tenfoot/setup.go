@@ -133,6 +133,15 @@ func (a *App) setLibraryStatusLocked(status string) {
 	a.status = status
 }
 
+// showRoomStatusLocked puts the room's own line back when a room regains the
+// screen while the footer still shows the library's line. Other messages,
+// such as a launch error or an action's notice, stay.
+func (a *App) showRoomStatusLocked() {
+	if a.room != nil && a.status == a.libraryStatus {
+		a.status = a.room.Title()
+	}
+}
+
 // setLibraryNoticeLocked shows the outcome of a user action, in a room too.
 // The setup action's explanation defers it until the blocking session ends.
 func (a *App) setLibraryNoticeLocked(notice string) {

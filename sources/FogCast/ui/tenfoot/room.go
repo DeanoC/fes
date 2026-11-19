@@ -458,6 +458,7 @@ func (a *App) reclaimHomeRoomLocked(id, revision string) bool {
 	a.roomStack = nil
 	a.room = home
 	a.roomPickerOpen = false
+	a.showRoomStatusLocked()
 	a.roomWasParked = a.gpuParked
 	a.resizeRoomsLocked()
 	if switched {
@@ -517,6 +518,7 @@ func (a *App) leaveRoomLocked() {
 		a.closeRoomLocked()
 		a.room = parent
 		a.roomWasParked = a.gpuParked
+		a.showRoomStatusLocked()
 		a.resizeRoomsLocked()
 		a.postUIEventLocked("ui.nav", map[string]string{"reason": "room-resume", "view": "room:" + parent.ID()})
 		parent.Resume()
