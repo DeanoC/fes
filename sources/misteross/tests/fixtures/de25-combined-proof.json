@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "f1d4fc839b3a40e5f13fb6148e9eab3295d73a1a",
+  "source_revision": "c03ba1bd19dba22fb017ff94a070086b6af56d5b",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -112,7 +112,7 @@
     "sources/libmister-runtime/src/native/fes_gp.hpp": "b65a88ec81441e11b69195a2e5c2112c8d67d28301dfdf9c2d88c1bf41f12a00",
     "sources/libmister-runtime/src/native/de25_pr_control.hpp": "c084cfe3acd464072b29e3997ffb71accf4addf9d1f30a2db71600a8b6d136dc",
     "sources/libmister-runtime/src/native/menu_admission.hpp": "1110199f2bb0fd8cbb2c4140a44f63c8458d9e5e1531d4ec3e5ad91fd2fdea46",
-    "sources/libmister-runtime/src/native/pc386_machine.hpp": "542eff5497c02c961525697b5c415d24a04036875fa8cb487d4d6a67f500d4b1",
+    "sources/libmister-runtime/src/native/pc386_machine.hpp": "b5f2fabfbd1e2bdd264715dcb7d58959d5a2ece204fed2ffd9ffe598e7d0a802",
     "sources/libmister-runtime/src/native/de25_computer.hpp": "b4d9232a6848bf705c9789e32ac56d2863e637ddfe4db8bb82b4394682330c52",
     "sources/libmister-runtime/src/native/de25_core_driver.hpp": "292affd9621606a5446532864a915bb52e68b3ee64eceefe1200471f88f53139",
     "sources/libmister-runtime/src/native/input.hpp": "b89b3a19150a5044cef8e74a346f88fe4cba737b2a2253c5fcdab657fe80bc37",
@@ -342,7 +342,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "a3c8d49d179e6a13dedc740fd2e181c2ba884ef9111d35d8e955820960bd35ea",
-    "Vfes_de25_combined_sim": "bd6a1d1a93eafff14f0e5c0a653d70ba9c75077df7fa41a71cacbaa0cc2d25a7",
+    "Vfes_de25_combined_sim": "ad2e1800ec9077a9eef0993fd5ce837c677b19accb4582abef93efda5565919e",
     "client-aarch64": "cf763f001d257e257c8f2fcf56e74e76e296728abfdc624888a2a087236e34d4"
   },
   "physical_PR": "selection-mux-model-only",
