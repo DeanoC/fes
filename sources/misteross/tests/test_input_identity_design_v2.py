@@ -240,7 +240,11 @@ class CounterexampleMatrixTest(unittest.TestCase):
         fields = {key: value for key, value in sealed_record().items() if key != 'identities'}
         with self.assertRaisesRegex(ValueError, 'rom_hex'):
             ii.with_identities(fields, policy=ii.DESIGN_V2)
-        for firmware in ('not json', '[]', json.dumps({'bios': '0' * 64, 'rom_hex': 'nothex'})):
+        pinned = {'bios': '0' * 64, 'vgabios': '1' * 64, 'rom_hex': '2' * 64}
+        for firmware in ('not json', '[]', json.dumps(dict(pinned, rom_hex='nothex')),
+                         json.dumps({'rom_hex': '2' * 64}),
+                         *(json.dumps({k: v for k, v in pinned.items() if k != name}) for name in pinned),
+                         json.dumps(dict(pinned, extra='3' * 64))):
             broken = copy.deepcopy(fields)
             broken['parameters']['firmware'] = firmware
             with self.subTest(firmware=firmware), self.assertRaisesRegex(ValueError, 'rom_hex'):

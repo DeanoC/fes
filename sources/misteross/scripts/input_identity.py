@@ -111,6 +111,9 @@ FIRMWARE_GENERATOR_INPUTS = frozenset({
     'scripts/build_pc386_firmware.py',
     'cores/fes-pc386/firmware/firmware.lock',
 })
+# The digests that parameter must carry: the two images firmware.lock pins and
+# the ROM hex Yosys reads.
+FIRMWARE_OUTPUTS = frozenset({'bios', 'vgabios', 'rom_hex'})
 _HEX64 = frozenset('0123456789abcdef')
 
 
@@ -182,10 +185,10 @@ def _require_firmware_output(fields):
         firmware = json.loads(fields['parameters']['firmware'])
     except (KeyError, TypeError, ValueError):
         firmware = None
-    if (not isinstance(firmware, dict) or not _is_hex64(firmware.get('rom_hex'))
+    if (not isinstance(firmware, dict) or set(firmware) != FIRMWARE_OUTPUTS
             or not all(_is_hex64(value) for value in firmware.values())):
         raise ValueError('a design-v2 record with firmware-generator inputs must pin '
-                         'the firmware output digests, rom_hex included, in its firmware parameter')
+                         'the firmware output digests (bios, vgabios, rom_hex) in its firmware parameter')
 
 
 def projections(fields):
