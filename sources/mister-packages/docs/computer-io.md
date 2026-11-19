@@ -578,7 +578,11 @@ so the governor, CPU profile and Sound Blaster are set at reset.
 Word 7's video bus chooses how the governor charges VGA memory: ISA cycles per
 16-bit half, or local-bus (VL-Bus or PCI) cycles per 32-bit dword. A machine,
 runtime or host that predates it rejects a non-zero word 7, so it is sent only
-when it is set; 0 keeps the preset's own. The clock
+when it is set; 0 keeps the preset's own. A package whose core takes it
+declares the manifest-only optional interface `fes.pc386.video-bus` 1.0, which
+has no capability bit and which a runtime that predates it ignores; a runtime
+writes a non-zero video bus only for a package that declares it, and refuses
+the update otherwise. The clock
 bytes are captured with the rest but the [wall clock](#wall-clock) overwrites
 them at the next launch.
 

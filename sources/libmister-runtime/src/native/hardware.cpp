@@ -803,6 +803,14 @@ Error NativeHardware::UpdateCoreSettings(const std::string& path, const std::str
 		const Pc386MachineSettings& m = update.machine;
 		if (m.video_bus > kPc386VideoBusMax)
 			return {ErrorCode::invalid_request, "invalid pc386 machine settings", "request"};
+		if (m.video_bus != 0) {
+			bool declared = false;
+			for (const CoreInterface& interface : package->info().descriptor.interfaces)
+				declared = declared || (interface.id == kPc386VideoBusInterfaceID && interface.major == 1);
+			if (!declared)
+				return {ErrorCode::unsupported_interface,
+					"the package's core takes no video bus: video_bus must be 0", "core_data"};
+		}
 		const std::uint16_t settings[] = {m.preset, m.frequency, m.code_profile, m.turbo,
 			m.sb_base, m.sb_irq, m.sb_dma, static_cast<std::uint16_t>(m.video_bus << kPc386VideoBusShift)};
 		std::copy(std::begin(settings), std::end(settings), data.words.begin());
@@ -1028,6 +1036,7 @@ Capabilities NativeHardware::capabilities() const
 		computer_11.minor = generated::FesComputerABIMinor;
 		computer_11.interfaces.push_back({generated::FesComputerInterfacePersistenceWordsID, 1, 0});
 		computer_11.interfaces.push_back({generated::FesComputerInterfacePc386MachineID, 1, 0});
+		computer_11.interfaces.push_back({kPc386VideoBusInterfaceID, 1, 0});
 		computer_11.interfaces.push_back({generated::FesComputerInterfaceRtcWallClockID, 1, 0});
 		computer_11.interfaces.push_back({generated::FesComputerInterfaceMediaPcxtFloppyID,
 			generated::FesComputerInterfaceMediaPcxtFloppyMajor,

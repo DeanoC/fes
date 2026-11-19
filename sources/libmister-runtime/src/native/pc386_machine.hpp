@@ -13,6 +13,11 @@ namespace native {
 // (mister-packages docs/computer-io.md). The field's values are not ABI
 // constants: adding them would regenerate fes_computer.vh for every core.
 constexpr std::uint16_t kPc386VideoBusShift = 2, kPc386VideoBusMax = 2;
+// A package whose core takes word 7's video bus declares this manifest-only
+// optional interface (no capability bit); a runtime that predates it ignores
+// it, and this runtime writes a non-zero video bus only for a package that
+// declares it, since an older core refuses word 7 != 0 at Commit.
+constexpr const char* kPc386VideoBusInterfaceID = "fes.pc386.video-bus";
 // fes.pc386.machine 1.0: settings words 0..7 in their sets, then CMOS.
 inline bool ValidPc386Machine(const std::vector<std::uint16_t>& w)
 {

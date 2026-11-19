@@ -1515,7 +1515,7 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	std::vector<std::string> computer_11_interfaces;
 	for (const auto& interface : computer_11.interfaces) computer_11_interfaces.push_back(interface.id);
 	std::vector<std::string> expected_11 = computer_interfaces;
-	expected_11.insert(expected_11.end(), {"fes.media.ata-disk", "fes.media.pcxt-floppy", "fes.media.pcxt-floppy-write", "fes.pc386.machine", "fes.persistence.words",
+	expected_11.insert(expected_11.end(), {"fes.media.ata-disk", "fes.media.pcxt-floppy", "fes.media.pcxt-floppy-write", "fes.pc386.machine", "fes.pc386.video-bus", "fes.persistence.words",
 		"fes.rtc.wall-clock"});
 	std::sort(expected_11.begin(), expected_11.end());
 	assert(computer_11_interfaces == expected_11);
@@ -3682,7 +3682,7 @@ void TestProductionFactoryForwardsProgrammedBitstreamWithoutHardwareMutation()
 	assert(rejected && attached);
 }
 
-std::string Pc386Manifest()
+std::string Pc386Manifest(bool video_bus = false)
 {
 	std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
 	ReplaceAll(&manifest, "fes.pong", "fes.pc386");
@@ -3693,6 +3693,8 @@ std::string Pc386Manifest()
 		"fes.persistence.words", "fes.pc386.machine", "fes.rtc.wall-clock"})
 		manifest += std::string("\n[[interfaces]]\nid = \"") + id +
 			"\"\nmajor = 1\nminor = 0\nrequired = true\n";
+	if (video_bus)
+		manifest += "\n[[interfaces]]\nid = \"fes.pc386.video-bus\"\nmajor = 1\nminor = 0\nrequired = false\n";
 	return manifest;
 }
 
@@ -3746,9 +3748,32 @@ void TestPc386LibraryRecordAndWallClock()
 	invalid.machine.sb_irq = 9;
 	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "ultima-vi", "absent",
 		invalid, &inspected).code == mister::ErrorCode::invalid_request);
+	// A package that does not declare fes.pc386.video-bus takes no video bus:
+	// its core would refuse word 7 != 0 at Commit.
+	auto local_bus = settings;
+	local_bus.machine.video_bus = 2;
+	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "ultima-vi", "absent",
+		local_bus, &inspected).code == mister::ErrorCode::unsupported_interface);
 	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "ultima-vi", "absent",
 		settings, &inspected).ok());
-	assert(inspected.words[0] == 1 && inspected.words[4] == 0x240 && inspected.words[5] == 5);
+	assert(inspected.words[0] == 1 && inspected.words[4] == 0x240 && inspected.words[5] == 5 &&
+		inspected.words[7] == 0);
+	{
+		// One that declares it writes the video bus into word 7 bits 3:2.
+		TempDirectory declaring, declaring_data;
+		declaring.File("manifest.toml", Pc386Manifest(true));
+		declaring.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+		OpenedCorePackage declared;
+		assert(OpenCorePackage(declaring.path, "", &declared).ok());
+		mister::CoreData written;
+		assert(fixture.runtime.UpdateCoreSettings(declaring.path, declared.package_id, declaring_data.path,
+			"ultima-vi", "absent", local_bus, &written).ok());
+		assert(written.words[7] == 2 << 2);
+		const std::string games = declaring_data.path + "/games/";
+		const std::string record = games + GameDataNamespace("fes.pc386", "ultima-vi");
+		assert(unlink((record + "/record.bin").c_str()) == 0 && rmdir(record.c_str()) == 0 &&
+			rmdir(games.c_str()) == 0);
+	}
 
 	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path, "ultima-vi").ok());
 	assert(!endpoint.held && fixture.runtime.status().core_data.mode == "persistent");

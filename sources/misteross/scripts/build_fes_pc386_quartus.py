@@ -231,6 +231,10 @@ CORE = {"id": "fes.pc386", "name": "FES pc386", "version": "0.1.0",
 INTERFACES = ("fes.video.fixed-720p60", "fes.keyboard.hid", "fes.audio.pcm-s16-stereo-48k", "fes.mouse.relative",
               "fes.memory.hps-ddr", "fes.video.session-display", "fes.fabric.video.display-plane",
               "fes.media.ata-disk", "fes.persistence.words", "fes.rtc.wall-clock", "fes.pc386.machine")
+# Manifest-only optional interfaces, with no capability bit: fes.pc386.video-bus
+# 1.0 says the core takes fes.pc386.machine word 7's video bus (bits 3:2), so a
+# runtime writes a non-zero one only for it (mister-packages computer-io.md).
+OPTIONAL_INTERFACES = ("fes.pc386.video-bus",)
 # Every guest time base as a rational enable of the system clock
 # (docs/pc386-machine-design.md, "Clocks and timing"): N/D = rate / clock.
 GUEST_RATES = {
@@ -572,7 +576,8 @@ def manifest(root: Path, record: bytes, evidence: dict, repository: str, revisio
         "target": {"platform": "de10_nano", "device": board.TARGET, "programming_profile": "fes-gp-v1"},
         "payload": {"file": "core.rbf", **evidence["rbf"]},
         "abi": {"id": "fes.computer", "major": 1, "minor": 1},
-        "interfaces": [{"id": name, "major": 1, "minor": 0, "required": True} for name in INTERFACES],
+        "interfaces": [{"id": name, "major": 1, "minor": 0, "required": True} for name in INTERFACES] +
+                      [{"id": name, "major": 1, "minor": 0, "required": False} for name in OPTIONAL_INTERFACES],
         "build": {"id": build_identity(record), "repository": repository, "revision": revision,
                   "recipe_sha256": json.loads(record)["recipe_sha256"],
                   "toolchain": toolchain_label(root, identities)},
