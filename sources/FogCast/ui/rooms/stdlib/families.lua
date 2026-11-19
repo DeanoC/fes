@@ -577,6 +577,18 @@ function M.mark(f, x, y, w, h)
   M.keyboard(x + (w - kw) / 2, ky, kw, kh, C.surface, art.ground)
 end
 
+-- Welcome's six-family overview is an introduction, not a full family tile.
+-- Keep the identifying mark but skip the keyboard made of many tiny rects;
+-- drawing all six keyboards makes the first uncached setup frame expensive
+-- on the kit's Cortex-A9.
+function M.welcome_mark(f, x, y, w, h)
+  local art = f.art
+  gfx.rect(x, y, w, h, art.ground)
+  local size = math.max(20, math.min(math.floor(h * 0.55), math.floor(w / (#art.mark * 0.62 + 0.5))))
+  local tw, th = M.measure(art.mark, size, true)
+  M.text(art.mark, x + (w - tw) / 2, y + (h - th) / 2, size, true, C.on_accent)
+end
+
 -- The shared state chip: Ready filled, Unavailable a raised plate with a
 -- leading bar, Checking outlined.
 function M.chip(label, x, y, size)
