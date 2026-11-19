@@ -55,6 +55,10 @@ func stShelfSizeLabel(size int64) string {
 
 // stShelfError turns a host refusal into what to do about it. The host
 // tells shelf refusals apart by code, not by message.
+// stShelfSlow follows the working line of a change that writes a whole
+// disk image on the kit: 25 to 35 s on Kit B.
+const stShelfSlow = " This can take half a minute."
+
 func stShelfError(err error) error {
 	var status *hostclient.HTTPStatusError
 	if !errors.As(err, &status) {
@@ -352,6 +356,7 @@ func (a *App) makeStShelfDiskLocked() {
 		size = st.Sizes[st.NewSize]
 	}
 	pkg := st.PackageID
+	s.Status = "Making " + name + "…" + stShelfSlow
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		_, err := a.client.NewAtariStShelfDisk(ctx, name, pkg, size.Tracks, size.Heads, size.Sectors)
 		if err != nil {
@@ -388,6 +393,14 @@ func (a *App) submitStShelfNameLocked() {
 		return
 	}
 	var failed error
+	switch purpose {
+	case "rename":
+		s.Status = "Renaming to " + name + "…" + stShelfSlow
+	case "copy-revert":
+		s.Status = "Copying to " + name + ", then going back to the original…" + stShelfSlow
+	default:
+		s.Status = "Copying to " + name + "…" + stShelfSlow
+	}
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		var err error
 		switch purpose {
@@ -430,6 +443,11 @@ func (a *App) confirmStShelfLocked() {
 	}
 	disk, action := *st.Disk, st.Confirm
 	var failed error
+	if action == "delete" {
+		a.coreLibrary.Status = "Deleting " + disk.Title + "…"
+	} else {
+		a.coreLibrary.Status = "Going back to the original…"
+	}
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		var err error
 		if action == "delete" {

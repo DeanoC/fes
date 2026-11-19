@@ -22,8 +22,9 @@ type shelfHost struct {
 	keptKnown bool
 	refuse    int // status for the next change, then cleared
 	code      string
-	refuseOn  string // when set, only a change whose path ends with this is refused
-	oldHost   bool   // a host from before the shelf routes
+	refuseOn  string        // when set, only a change whose path ends with this is refused
+	oldHost   bool          // a host from before the shelf routes
+	hold      chan struct{} // when set, a change waits for it to close
 	calls     []string
 	sizes     [2]int64
 }
@@ -87,6 +88,9 @@ func (h *shelfHost) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
 		http.Error(w, "unexpected", 500)
 		return
+	}
+	if h.hold != nil {
+		<-h.hold
 	}
 	h.calls = append(h.calls, strings.TrimPrefix(r.URL.Path, base)+" "+string(raw))
 	if h.refuse != 0 && (h.refuseOn == "" || strings.HasSuffix(r.URL.Path, h.refuseOn)) {
@@ -401,6 +405,32 @@ func TestStShelfRenameDeleteAndRefusals(t *testing.T) {
 
 // A change in flight is not cancelled by leaving: the host does it in
 // several steps, and a rename cut short would leave two disks.
+// A new disk takes about half a minute on a kit, so the shelf says what it
+// is doing until the host answers.
+func TestStShelfSaysWhatItIsDoingWhileAChangeRuns(t *testing.T) {
+	a, h := newShelfApp(t)
+	shelfPick(t, a, "shelf-new")
+	shelfPick(t, a, "shelf-name")
+	shelfType(t, a, "Work")
+	h.hold = make(chan struct{})
+	a.mu.Lock()
+	for i, row := range a.coreLibraryRowsLocked() {
+		if row.Kind == "shelf-make" {
+			a.coreLibrary.Index = i
+		}
+	}
+	a.handleCoreLibraryLocked(CmdSelect)
+	a.mu.Unlock()
+	if got := shelfSnap(a).Status; got != "Making Work… This can take half a minute." {
+		t.Errorf("status while making: %q", got)
+	}
+	close(h.hold)
+	waitCoreLibrary(t, a)
+	if got := shelfSnap(a).Status; got != "Made Work." {
+		t.Fatalf("status after making: %q", got)
+	}
+}
+
 func TestStShelfWaitsForAChangeInFlight(t *testing.T) {
 	a, _ := newShelfApp(t)
 	a.mu.Lock()
