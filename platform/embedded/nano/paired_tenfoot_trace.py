@@ -63,14 +63,16 @@ def menu_policy(record, owner):
     return copy.deepcopy(companion), contract
 
 
-def observations(data, input_mode, *, startup=False, installer=False, generation_origin=0, installing=False):
+def observations(data, input_mode, *, startup=False, installer=False, generation_origin=0, installing=False,
+                 preferences_mode='ram'):
     """Framing only: safe to call repeatedly on a growing transport buffer."""
     require(type(data) is bytes and 0 < len(data) <= app.MAX_BYTES and data.endswith(b'\n'),
             'bounded complete paired App capture required')
     require(type(installer) is type(installing) is bool and number(generation_origin,(1<<64)-1),
             'explicit paired observation context required')
+    require(preferences_mode in ('ram', 'sd-checkpoint'), 'explicit preferences mode required')
     rows = []
-    begin = BEGIN+input_mode.encode()+b' preferences=ram'
+    begin = BEGIN+input_mode.encode()+b' preferences='+preferences_mode.encode()
     for index, line in enumerate(data.splitlines(keepends=True), 1):
         raw = line.rstrip(b'\r\n')
         if raw.startswith(app.PREFIX):
@@ -191,6 +193,9 @@ class PairedTenfootClient(app.TenfootClient):
             app.program_tape(p)
         self.usb = SharedInput(shared_usb) if shared_usb is not None else None
         self.input_mode = 'uart' if self.usb is None else self.usb.input_mode
+        writable = build_record.get('writable_storage_plan')
+        require(writable is None or type(writable) is dict, 'compiled writable storage selection differs')
+        self.preferences_mode = 'ram' if writable is None else 'sd-checkpoint'
         rows = self._observations(initial, startup=True)
         # Decode only the actual boot prefix. The first menu transfer follows
         # FAT mount, before BEGIN; it is runtime evidence, not boot evidence.
@@ -265,7 +270,7 @@ class PairedTenfootClient(app.TenfootClient):
             require(not any(marker in data for marker in REMAP_MARKERS),
                     'remap diagnostic repeated after initial configuration')
         return observations(data, self.input_mode, startup=startup, installer=self.installer,
-                            generation_origin=self.generation_origin)
+                            generation_origin=self.generation_origin, preferences_mode=self.preferences_mode)
 
     def _ready(self, value):
         return (value['native']['State'] == 'ready' and value['session'] == 'idle' and

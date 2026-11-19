@@ -618,7 +618,9 @@ Tenfoot keys: arrows, Enter, `s` to stop, `q` to quit. Quit during a load waits
 for its outcome; during a running core it requests the owned Stop and waits for
 Ready or terminal containment. State replies explicitly identify
 `display=serial-state-only`; the software renderer runs, without HDMI output.
-Preferences are copied into RAM and do not persist across reboot. Recovery
+Read-only and unpaired selections keep RAM preferences. A paired menu with the
+trusted writable-card plan selects owned SD checkpoints and reloads settings
+on a fresh boot; see [native SD launcher setup](../nano/launcher.md). Recovery
 uploads accept the fixed `--purpose ui-catalog` destination `FES/UI.JSON`, with
 an 8 KiB bound and the same write/readback ownership checks as other files.
 

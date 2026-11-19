@@ -124,6 +124,7 @@ func newProgramMenuFixtureContext(t *testing.T, ctx context.Context, startupFaul
 	for _, setup := range beforeMenu {
 		setup(fixture)
 	}
+	opts.Request = fixture.request
 	fixture.s, err = NewProgramServiceWithMenu(ctx, l, r.f.store, reserve, computerLimits(), opts)
 	if startupFault == "" && err != nil {
 		t.Fatal(err)

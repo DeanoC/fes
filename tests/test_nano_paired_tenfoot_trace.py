@@ -287,6 +287,23 @@ class Model(AppModel):
 
 
 class PairedTenfootTraceTests(unittest.TestCase):
+    def test_persistent_preferences_begin_is_bound_to_compiled_storage_selection(self):
+        model = Model(shared=True, protocol='boot-keyboard')
+        initial = model.initial.replace(b' preferences=ram\n', b' preferences=sd-checkpoint\n')
+        profile = copy.deepcopy(model.profile)
+        # Source admission owns validation of the exact card plan; this pure
+        # observer only checks that the selected mode matches the build.
+        profile['writable_storage_plan'] = {'scope': 'nano-owned-fat-storage-v1'}
+        client = model.client(initial=initial, profile=profile)
+        self.assertEqual(client.preferences_mode, 'sd-checkpoint')
+        self.assertEqual(client.view['native']['State'], 'ready')
+        for raw, selected in ((model.initial, profile), (initial, model.profile)):
+            with self.subTest(raw=raw[-80:]), self.assertRaises(ValueError):
+                model.client(initial=raw, profile=selected)
+        with self.assertRaises(ValueError):
+            model.client(initial=initial, profile=dict(profile, writable_storage_plan=True))
+
+
     def test_staged_faults_retire_uart_and_shared_keyboard_before_acceptance(self):
         for shared in (False,True):
             for fault in STAGING_FAULTS:
