@@ -479,11 +479,6 @@ constants:
     value: 5
   - name: FesComputerPc386SbDmaIndex
     value: 6
-  # Word 7 (still named Reserved here): bits 1:0 are reserved for the EMS
-  # board's size (#1555) and must be zero; bits 3:2 are the governor's video
-  # bus, 0 the preset's own, 1 ISA, 2 local bus; bits 15:4 are zero. The
-  # field's values are not constants here, because new constants regenerate
-  # every core's fes_computer.vh (docs/computer-io.md).
   - name: FesComputerPc386ReservedIndex
     value: 7
   - name: FesComputerPc386CmosStartIndex

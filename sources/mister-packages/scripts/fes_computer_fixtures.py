@@ -488,10 +488,8 @@ def mouse_session() -> Session:
 
 def pc386_machine_valid(words: list[int]) -> bool:
     """Commit-time check of fes.pc386.machine 1.0 (docs/computer-io.md)."""
-    preset, frequency, profile, turbo, base, irq, dma, word7 = words[:8]
-    # Word 7: bits 3:2 the video bus (0 the preset's own, 1 ISA, 2 local
-    # bus); bits 1:0 (the EMS board's size, #1555) and 15:4 are zero.
-    if preset >= 8 or profile > 1 or turbo > 1 or word7 & ~0xC or word7 >> 2 > 2:
+    preset, frequency, profile, turbo, base, irq, dma, reserved = words[:8]
+    if preset >= 8 or profile > 1 or turbo > 1 or reserved:
         return False
     if frequency and (preset == 0 or not 10 <= frequency <= 1000):
         return False
@@ -902,7 +900,6 @@ def persistence_session() -> Session11:
     # Words are opaque to the transfer; the layout is checked at commit.
     for name, index, bad in (("sb-base", 4, 0x230), ("sb-irq", 5, 9), ("sb-dma", 6, 3),
                              ("preset", 0, 8), ("profile", 2, 2), ("turbo", 3, 2), ("reserved", 7, 1),
-                             ("video-bus", 7, 0xC), ("word7-high", 7, 0x10),
                              ("frequency-low", 1, 9), ("frequency-high", 1, 1001)):
         s.send(f"stage-invalid-{name}", OP_DATA_WRITE, index, bad)
         s.send(f"commit-invalid-{name}", OP_DATA_CONTROL, 0, DATA_COMMIT)
@@ -911,9 +908,6 @@ def persistence_session() -> Session11:
     s.send("stage-frequency-override", OP_DATA_WRITE, 1, 250)
     s.send("commit-override-under-max", OP_DATA_CONTROL, 0, DATA_COMMIT)
     s.send("restore-preset", OP_DATA_WRITE, 0, record[0])
-    s.send("stage-video-bus-local", OP_DATA_WRITE, 7, 0x8)
-    s.send("commit-video-bus-local", OP_DATA_CONTROL, 0, DATA_COMMIT)
-    s.send("restore-video-bus", OP_DATA_WRITE, 7, record[7])
     s.send("data-commit", OP_DATA_CONTROL, 0, DATA_COMMIT)
     s.send("data-write-after-commit", OP_DATA_WRITE, 0, 0)
     s.send("data-commit-again", OP_DATA_CONTROL, 0, DATA_COMMIT)

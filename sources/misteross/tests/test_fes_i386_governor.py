@@ -127,9 +127,7 @@ class TableTest(unittest.TestCase):
         presets = {p.name: p for p in table.presets}
         self.assertEqual([p.local_video for p in table.presets], [False] * 5 + [True] * 2)
         p25, p33 = presets['386DX-25'], presets['486DX-33']
-        # Word 7: 0 the preset's own, 1 ISA, 2 local bus.
-        self.assertEqual([governor.local_video(p25, bus) for bus in (0, 1, 2)], [False, False, True])
-        self.assertEqual([governor.local_video(p33, bus) for bus in (0, 1, 2)], [True, False, True])
+        self.assertEqual((p25.local_video, p33.local_video), (False, True))
         # An access's dwords; its local-bus charge less the bus cycle.
         self.assertEqual([governor.dwords(a, n) for a, n in ((0, 1), (3, 1), (0, 2), (3, 2), (0, 4), (2, 4), (1, 4))],
                          [1, 1, 1, 2, 1, 2, 2])

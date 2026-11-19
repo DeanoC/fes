@@ -69,11 +69,7 @@ class Preset:
     frequency: int  # 100 kHz units
     wait: int
     bus16: bool
-    local_video: bool  # word 7 at 0 gives local-bus video, else ISA
-
-
-# fes.pc386.machine word 7, the video bus: 0 the preset's own, 1 ISA, 2 local bus.
-VIDEO_BUS = ('preset', 'isa', 'local')
+    local_video: bool  # VGA memory on the local bus ([local_bus]), else ISA
 
 
 @dataclass(frozen=True)
@@ -361,11 +357,6 @@ def dwords(address: int, length: int) -> int:
     return (address % 4 + length + 3) // 4
 
 
-def local_video(preset: Preset, video_bus: int) -> bool:
-    """Whether word 7 (0 the preset's own, 1 ISA, 2 local bus) gives local-bus video."""
-    return video_bus == 2 or (video_bus == 0 and preset.local_video)
-
-
 def mmio_charge(table: Table, preset: Preset, frequency: int, cycles: int, dword: bool, local: bool = False) -> int:
     """An MMIO access's bus charge: its VGA cycles less what the table and
     per_access() give it. On ISA, cycles is the 16-bit halves it touches
@@ -423,8 +414,8 @@ def render(table: Table) -> dict[Path, str]:
         '// an 8-bit I/O cycle ISA_IO8 of them, a 16-bit one ISA_IO16, and an MMIO',
         '// access ISA_VGA per 16-bit half. Local-bus video: a local-bus clock is',
         '// frequency * LB_STEP / 2**LB_FRAC reference clocks, and an MMIO access',
-        '// takes LB_VGA of them per 32-bit dword (preset_t local_video is the',
-        "// preset's own choice). word16() is whether an I/O access of size",
+        '// takes LB_VGA of them per 32-bit dword under a preset whose local_video is',
+        "// set. word16() is whether an I/O access of size",
         '// (0 byte, 1 word, 2 dword) at port has a 16-bit cycle, as pc386_io splits it:',
         '// a 16-bit port among its bytes with another byte after it.',
         'package fes_i386_gov_pkg;',

@@ -13702,12 +13702,10 @@ int main(int argc, char **argv) {
     VerilatedContext context;
     Rtl rtl(context);
     // The governor's settings, which every reset samples: the preset, its
-    // frequency (100 kHz units, 0 the preset's), turbo and the video bus (0
-    // the preset's own, 1 ISA, 2 local bus); max (0) when unset.
+    // frequency (100 kHz units, 0 the preset's) and turbo; max (0) when unset.
     rtl.top.gov_preset = uint8_t(env("FES_I386_PRESET", 0));
     rtl.top.gov_frequency = uint16_t(env("FES_I386_FREQUENCY", 0));
     rtl.top.gov_turbo = uint8_t(env("FES_I386_TURBO", 0));
-    rtl.top.gov_video_bus = uint8_t(env("FES_I386_VIDEO_BUS", 0));
     if (rtl.top.gov_preset) rtl.event_cycles = GOVERNED_EVENT_CYCLES;
     rtl.length = [&](uint32_t linear) {
         uint8_t bytes[15];

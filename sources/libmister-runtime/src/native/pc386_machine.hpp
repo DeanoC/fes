@@ -7,29 +7,6 @@
 #include <vector>
 namespace mister {
 namespace native {
-// Word 7 (FesComputerPc386ReservedIndex): bits 1:0 are reserved for the EMS
-// board's size (#1555) and must be zero; bits 3:2 are the governor's video bus,
-// 0 the preset's own, 1 ISA, 2 local bus; bits 15:4 are zero
-// (mister-packages docs/computer-io.md). The field's values are not ABI
-// constants: adding them would regenerate fes_computer.vh for every core.
-constexpr std::uint16_t kPc386VideoBusShift = 2, kPc386VideoBusMax = 2;
-// A package whose core takes word 7's video bus declares this manifest-only
-// optional interface (no capability bit); a runtime that predates it ignores
-// it, and this runtime writes a non-zero video bus only for a package that
-// declares it, since an older core refuses word 7 != 0 at Commit.
-constexpr const char* kPc386VideoBusInterfaceID = "fes.pc386.video-bus";
-inline bool Pc386VideoBusDeclared(const std::vector<CoreInterface>& interfaces)
-{
-	for (const CoreInterface& interface : interfaces)
-		if (interface.id == kPc386VideoBusInterfaceID && interface.major == 1) return true;
-	return false;
-}
-// The video bus a fes.pc386.machine record's word 7 sets (0 when it has none).
-inline unsigned Pc386RecordVideoBus(const std::vector<std::uint16_t>& w)
-{
-	if (w.size() <= generated::FesComputerPc386ReservedIndex) return 0;
-	return (w[generated::FesComputerPc386ReservedIndex] >> kPc386VideoBusShift) & 3u;
-}
 // fes.pc386.machine 1.0: settings words 0..7 in their sets, then CMOS.
 inline bool ValidPc386Machine(const std::vector<std::uint16_t>& w)
 {
@@ -41,9 +18,7 @@ inline bool ValidPc386Machine(const std::vector<std::uint16_t>& w)
 	if (preset >= FesComputerPc386PresetCount ||
 		w[FesComputerPc386CodeProfileIndex] > FesComputerPc386CodeProfileQueue16 ||
 		w[FesComputerPc386TurboIndex] > FesComputerPc386TurboMax ||
-		(w[FesComputerPc386ReservedIndex] & ~(3u << kPc386VideoBusShift)) != 0 ||
-		(w[FesComputerPc386ReservedIndex] >> kPc386VideoBusShift) > kPc386VideoBusMax ||
-		w[FesComputerPc386SbDmaIndex] != FesComputerPc386SbDma)
+		w[FesComputerPc386ReservedIndex] != 0 || w[FesComputerPc386SbDmaIndex] != FesComputerPc386SbDma)
 		return false;
 	if (frequency != 0 && (preset == FesComputerPc386PresetMaxPerformance ||
 		frequency < FesComputerPc386FrequencyMin || frequency > FesComputerPc386FrequencyMax))
@@ -72,7 +47,6 @@ inline Pc386MachineSettings Pc386Settings(const std::vector<std::uint16_t>& w)
 	s.sb_base = w[generated::FesComputerPc386SbBaseIndex];
 	s.sb_irq = w[generated::FesComputerPc386SbIrqIndex];
 	s.sb_dma = w[generated::FesComputerPc386SbDmaIndex];
-	s.video_bus = (w[generated::FesComputerPc386ReservedIndex] >> kPc386VideoBusShift) & 3u;
 	return s;
 }
 // The clock the record's CMOS bytes held at its last Stop, in the form its

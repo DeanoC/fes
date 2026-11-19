@@ -169,12 +169,11 @@ module fes_i386_cpu #(
     input  logic             queue16,
     // The speed governor's settings, sampled at reset (fes_i386_governor):
     // the preset (fes.pc386.machine word 0: 0 max, 1 286-12 to 7 486DX2-66),
-    // its frequency in 100 kHz units (0 the preset's own), turbo (1 runs at
-    // max) and the video bus (word 7: 0 the preset's own, 1 ISA, 2 local bus).
+    // its frequency in 100 kHz units (0 the preset's own) and turbo (1 runs
+    // at max).
     input  logic [2:0]       gov_preset,
     input  logic [9:0]       gov_frequency,
     input  logic             gov_turbo,
-    input  logic [1:0]       gov_video_bus,
     // HPS DDR port 0 (fes.memory.hps-ddr), guest physical 0 at RAM_BASE.
     output logic [27:0]      ddr_address,
     output logic [7:0]       ddr_burstcount,
@@ -3295,7 +3294,7 @@ module fes_i386_cpu #(
     end endgenerate
 
     fes_i386_governor #(.GOV_N(GOV_N), .GOV_D(GOV_D), .REFERENCE_DIAGNOSTIC(GOV_REFERENCE_DIAGNOSTIC)) governor (
-        .clk, .reset, .preset(gov_preset), .frequency(gov_frequency), .turbo(gov_turbo), .video_bus(gov_video_bus),
+        .clk, .reset, .preset(gov_preset), .frequency(gov_frequency), .turbo(gov_turbo),
         .boundary(at_boundary), .eoi(wb_eoi), .element(wb_s.uop.str_cx), .taken(wb_s.taken && !wb_s.uop.seg2),
         .gov(wb_s.gov), .imul_safe(gov_imul_safe), .rep_io_safe(gov_rep_io_safe), .ilen(wb_s.ilen), .redirect(wb_s.taken && wb_s.uop.rep_stop == 2'd0),
         .abandon(exc_take || int_go || tsw_go),

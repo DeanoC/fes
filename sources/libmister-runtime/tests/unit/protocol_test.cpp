@@ -387,11 +387,6 @@ void TestPc386CoreDataProtocol()
 	assert(!Parse(update + "{\"preset\":65536,\"frequency\":0,\"code_profile\":0,\"turbo\":0,"
 		"\"sb_base\":544,\"sb_irq\":7,\"sb_dma\":1}}", &request).ok());
 	assert(!Parse(update + machine + ",\"paddle_speed\":1}", &request).ok());
-	// video_bus (word 7 bits 3:2) is optional: absent is 0, the preset's own.
-	assert(request.settings.machine.video_bus == 0);
-	assert(Parse(update + machine.substr(0, machine.size() - 1) + ",\"video_bus\":2}}", &request).ok());
-	assert(request.settings.machine.video_bus == 2);
-	assert(!Parse(update + machine.substr(0, machine.size() - 1) + ",\"video_bus\":65536}}", &request).ok());
 
 	// load_library_core binds an ATA disk to its game.
 	const std::string disk = ",\"game_id\":\"ultima-vi\",\"ata_disk\":{\"path\":\"/media/fat/fogcast/disk-images/a.img\","

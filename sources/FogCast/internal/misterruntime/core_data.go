@@ -17,16 +17,12 @@ func validateCoreDataShape(raw json.RawMessage) error {
 		if err := requireRawKinds(machine, map[string]rawKind{"package_id": rawString, "core_id": rawString, "layout": rawObject, "mode": rawString, "revision": rawString, "game_id": rawString, "machine": rawObject}); err != nil {
 			return err
 		}
-		settings, err := exactRawObject(machine["machine"], []string{"preset", "frequency", "code_profile", "turbo", "sb_base", "sb_irq", "sb_dma"}, []string{"video_bus"})
+		settings, err := exactRawObject(machine["machine"], []string{"preset", "frequency", "code_profile", "turbo", "sb_base", "sb_irq", "sb_dma"}, nil)
 		if err != nil {
 			return err
 		}
 		if err := requireRawKinds(settings, map[string]rawKind{"preset": rawUnsigned, "frequency": rawUnsigned, "code_profile": rawUnsigned, "turbo": rawUnsigned, "sb_base": rawUnsigned, "sb_irq": rawUnsigned, "sb_dma": rawUnsigned}); err != nil {
 			return err
-		}
-		// video_bus is sent only when it is set (word 7 bits 3:2).
-		if value, ok := settings["video_bus"]; ok && requireRawKind(value, rawUnsigned) != nil {
-			return errInvalidRuntimeResponse
 		}
 		return validateSupportedInterfaceShape(machine["layout"])
 	}

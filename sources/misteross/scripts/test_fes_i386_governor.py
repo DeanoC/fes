@@ -24,12 +24,10 @@ benchmark loop, between its two marks:
 
 More runs check the record's other words: 286-12 with its frequency
 overridden to 6 MHz (word 1) must pace every loop at 6 MHz, its ISA cycles
-in 6 MHz clocks; 286-12 with turbo at launch (word 3) must run each loop in
-exactly max's cycles and charge nothing; and 386DX-25 on the local bus and
-486DX-33 on ISA (word 7's video bus, against each preset's own) must charge
-every loop the table's clocks, VGA memory a local-bus cycle per 32-bit dword
-or an ISA one per 16-bit half, and pace each loop the CPU reaches within the
-budget.
+in 6 MHz clocks; and 286-12 with turbo at launch (word 3) must run each loop
+in exactly max's cycles and charge nothing. The 486 presets have local-bus
+video, so their VGA memory accesses are charged a local-bus cycle per 32-bit
+dword; the 286 and 386 presets' an ISA cycle per 16-bit half.
 
 The interrupt latency run raises INTR (the handler's OUT is its first
 instruction) while a loop of REP MOVSB, DIV, PUSH and POP runs. Under a
@@ -80,9 +78,6 @@ BUDGET = 0.05
 # the RTL on some loops, which the report lists.
 ACCEPTED = (1, 2, 3, 4, 5)
 OVERRIDE = (1, 60)  # 286-12 at 6 MHz
-# Word 7 against the preset's own video bus: a 386 preset on the local bus,
-# a 486 one on ISA (governor.VIDEO_BUS: 1 ISA, 2 local bus).
-VIDEO_BUS_RUNS = ((3, 2), (6, 1))
 
 
 @dataclass(frozen=True)
@@ -200,11 +195,10 @@ class GovernorBenchError(RuntimeError):
     pass
 
 
-def charge(table: governor.Table, preset: governor.Preset, op: Op, frequency: int = 0, video_bus: int = 0) -> int:
-    """op's reference clocks under preset, at frequency (100 kHz units; 0 the
-    preset's) and video bus (word 7 bits 3:2; 0 the preset's own)."""
+def charge(table: governor.Table, preset: governor.Preset, op: Op, frequency: int = 0) -> int:
+    """op's reference clocks under preset, at frequency (100 kHz units; 0 the preset's)."""
     frequency = frequency or preset.frequency
-    local = governor.local_video(preset, video_bus)
+    local = preset.local_video
     cls = table.by_name(op.cls)
     t = preset.table
     clocks = (cls.cost if op.column == 0 else cls.column1)[t]
@@ -220,15 +214,14 @@ def charge(table: governor.Table, preset: governor.Preset, op: Op, frequency: in
 
 
 def expected(table: governor.Table, preset: governor.Preset, parts: list[tuple[int, list[Op]]],
-             frequency: int = 0, video_bus: int = 0) -> int:
-    return sum(times * sum(charge(table, preset, op, frequency, video_bus) for op in ops) for times, ops in parts)
+             frequency: int = 0) -> int:
+    return sum(times * sum(charge(table, preset, op, frequency) for op in ops) for times, ops in parts)
 
 
-def run(testbench: Path, program: Path, preset: int, period: int, frequency: int = 0, turbo: int = 0,
-        video_bus: int = 0) -> dict:
+def run(testbench: Path, program: Path, preset: int, period: int, frequency: int = 0, turbo: int = 0) -> dict:
     env = dict(os.environ, FES_I386_MODE='governor', FES_I386_LATENCY='0', FES_I386_PROGRAM=str(program),
                FES_I386_PRESET=str(preset), FES_I386_FREQUENCY=str(frequency), FES_I386_TURBO=str(turbo),
-               FES_I386_VIDEO_BUS=str(video_bus), FES_I386_IRQ_PERIOD=str(period))
+               FES_I386_IRQ_PERIOD=str(period))
     result = subprocess.run([str(testbench)], env=env, capture_output=True, text=True, timeout=3600)
     if result.returncode not in (0, 1):
         raise GovernorBenchError(f'preset {preset}: testbench exited {result.returncode}\n{result.stderr[-2000:]}')
@@ -315,11 +308,8 @@ def main() -> int:
                        for preset in [0, *chosen]}
             override = executor.submit(run, testbench, program, OVERRIDE[0], args.irq_period, OVERRIDE[1])
             turbo = executor.submit(run, testbench, program, OVERRIDE[0], args.irq_period, 0, 1)
-            buses = {pair: executor.submit(run, testbench, program, pair[0], args.irq_period, 0, 0, pair[1])
-                     for pair in VIDEO_BUS_RUNS}
             results = {preset: future.result() for preset, future in futures.items()}
             override, turbo = override.result(), turbo.result()
-            buses = {pair: future.result() for pair, future in buses.items()}
     except (OSError, oracle.OracleError, test386.Test386Error, lockstep.LockstepError, yosys_netlist.NetlistError, GovernorBenchError,
             subprocess.TimeoutExpired) as error:
         print('i386 governor bench error:', error, file=sys.stderr)
@@ -403,32 +393,6 @@ def main() -> int:
     if not all(same) or turbo['state'] != results[0]['state']:
         failures.append(f'{preset.name} with turbo: {sum(same)} of {len(same)} loops ran as at max')
     print(f'{preset.name} with turbo (word 3): {sum(same)} of {len(same)} loops in max\'s cycles, nothing charged')
-    # Word 7: the video bus chosen against the preset's own. Every loop is
-    # charged exactly the table's, and the loops that reach the CPU pace
-    # within the budget.
-    report['video_bus'] = []
-    for (preset_id, bus), result in buses.items():
-        preset = presets[preset_id]
-        hz = preset.frequency * 100_000
-        entry = {'preset': preset.name, 'video_bus': bus, 'loops': []}
-        if result['state'] != results[0]['state']:
-            failures.append(f'{preset.name}, video bus {bus}: halted with {result["state"]}')
-        for span, at_max, (name, parts) in zip(spans(result), base, BENCHES):
-            want = expected(table, preset, parts, 0, bus)
-            table_cycles = want * clock_hz / hz
-            error = span['cycles'] / table_cycles - 1
-            beyond = at_max['cycles'] > table_cycles * (1 - BUDGET)
-            entry['loops'].append({'name': name, 'cycles': span['cycles'], 'charged': span['charged'],
-                                   'table_clocks': want, 'error': round(error, 5), 'beyond_cpu': beyond})
-            if span['charged'] != want:
-                failures.append(f'{preset.name}, video bus {bus}, {name}: charged {span["charged"]}, the table {want}')
-            if not beyond and abs(error) > BUDGET:
-                failures.append(f'{preset.name}, video bus {bus}, {name}: {span["cycles"]} cycles, {error:+.2%} '
-                                f'from the table ({table_cycles:.0f})')
-        report['video_bus'].append(entry)
-        vram = next(loop for loop in entry['loops'] if loop['name'] == 'vram')
-        print(f'{preset.name}, video bus {bus} (word 7): every loop charged as the table; vram {vram["charged"]} '
-              f'clocks, {vram["error"]:+.2%}')
     report['failures'] = failures
     (OUTPUT / ('report-netlist.json' if yosys else 'report.json')).write_text(json.dumps(report, indent=2) + '\n')
     for failure in failures:

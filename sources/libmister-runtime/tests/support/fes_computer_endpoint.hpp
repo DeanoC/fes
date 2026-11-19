@@ -550,8 +550,7 @@ private:
 	unsigned firmware_header_[3] = {0, 0, 0};
 	static bool MachineValid(const std::vector<std::uint16_t>& w)
 	{
-		// Word 7: bits 3:2 the video bus (0..2); bits 1:0 (EMS, #1555) and 15:4 zero.
-		if (w[0] > 7 || w[2] > 1 || w[3] > 1 || (w[7] & ~0xcu) != 0 || (w[7] >> 2) > 2 || w[6] != 1) return false;
+		if (w[0] > 7 || w[2] > 1 || w[3] > 1 || w[7] != 0 || w[6] != 1) return false;
 		if (w[1] != 0 && (w[0] == 0 || w[1] < 10 || w[1] > 1000)) return false;
 		return (w[4] == 0x220 || w[4] == 0x240) && (w[5] == 2 || w[5] == 3 || w[5] == 5 || w[5] == 7);
 	}

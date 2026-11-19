@@ -38,14 +38,12 @@ module spike_cpu (
     logic             a20m, queue16, gov_turbo, x87_f0, x87_f1;
     logic [2:0]       gov_preset;
     logic [9:0]       gov_frequency;
-    logic [1:0]       gov_video_bus;
     always_ff @(posedge clk) begin
         a20m <= &noise[7:6];
         queue16 <= noise[8];
         gov_preset <= noise[11:9];
         gov_frequency <= noise[21:12];
         gov_turbo <= &noise[23:22];
-        gov_video_bus <= noise[27:26];
         x87_f0 <= noise[24];
         x87_f1 <= noise[25];
         if (reset) begin
@@ -165,7 +163,7 @@ module spike_cpu (
         .clk, .cold_reset(reset), .reset, .init_gpr, .init_eflags, .init_eip, .init_cr0, .init_cr2, .init_cr3, .init_dr, .init_dr6, .init_dr7,
         .init_gdtr_base, .init_gdtr_limit, .init_idtr_base, .init_idtr_limit, .init_sel, .init_base, .init_limit,
         .init_ar, .init_ldtr_sel, .init_ldtr_base, .init_ldtr_limit, .init_ldtr_ar, .init_ldtr_valid, .init_tr_sel,
-        .init_tr_base, .init_tr_limit, .init_tr_ar, .a20m, .attr_upper(ATTR_UPPER), .ram_top(7'd16), .queue16, .gov_preset, .gov_frequency, .gov_turbo, .gov_video_bus,
+        .init_tr_base, .init_tr_limit, .init_tr_ar, .a20m, .attr_upper(ATTR_UPPER), .ram_top(7'd16), .queue16, .gov_preset, .gov_frequency, .gov_turbo,
         .x87_present(1'b1), .x87_f0, .x87_f1,
         .ddr_address, .ddr_burstcount, .ddr_read, .ddr_write, .ddr_writedata, .ddr_byteenable, .ddr_waitrequest,
         .ddr_readdata, .ddr_readdatavalid,

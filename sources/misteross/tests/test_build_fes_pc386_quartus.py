@@ -230,12 +230,7 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(fields["core"]["id"], "fes.pc386")
         self.assertEqual(fields["core"]["name"], "FES pc386 (Quartus)")
         self.assertEqual(fields["abi"], {"id": "fes.computer", "major": 1, "minor": 1})
-        self.assertEqual([item["id"] for item in fields["interfaces"] if item["required"]], list(quartus.INTERFACES))
-        # The video bus is a manifest-only optional interface: a runtime that
-        # predates it ignores it, and one that knows it writes word 7's video
-        # bus only for a package that declares it.
-        self.assertEqual([(item["id"], item["major"], item["minor"]) for item in fields["interfaces"]
-                          if not item["required"]], [("fes.pc386.video-bus", 1, 0)])
+        self.assertEqual([item["id"] for item in fields["interfaces"]], list(quartus.INTERFACES))
         self.assertEqual(fields["build"]["id"], build_identity(record))
         self.assertIn("Quartus Prime Lite 17.0.2", fields["build"]["toolchain"])
         self.assertIn("Yosys", fields["build"]["toolchain"])

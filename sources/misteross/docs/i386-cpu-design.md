@@ -1484,16 +1484,18 @@ slows the CPU without changing any result.
     per 16-bit half of the bus it touches, in place of the local bus cycle
     its count and the wait-state charge give it.
 - **Local-bus video:** a VL-Bus or PCI VGA sat on the CPU's 32-bit bus, so
-  with local-bus video ([#2005](https://github.com/DeanoC/fes/issues/2005),
-  `governor.toml`'s `[local_bus]`) a VGA memory access takes one 150 ns
+  under the 486 presets ([#2005](https://github.com/DeanoC/fes/issues/2005),
+  `governor.toml`'s `[local_bus]` and each preset's `video`) a VGA memory
+  access takes one 150 ns
   cycle (five 30 ns clocks of a 33.3 MHz bus) per 32-bit dword it touches
   instead, less the same local bus cycle. The figure is the median of the
   486DX2-66 VL-Bus rows of a 1995 Vidspeed table
   ([record](../../../docs/validation/2026-11-19-pc386-local-bus-video/method.md)).
   Reads are charged as writes. Other MMIO (the EMS board's frame, an ISA
-  card) and I/O, the VGA ports included, keep the ISA charge. The `fes.pc386.machine` record's word 7 (bits 3:2) chooses:
-  0 the preset's own, which is ISA for the 286 and 386 presets and local
-  bus for the 486 ones, 1 ISA, 2 local bus.
+  card) and I/O, the VGA ports included, keep the ISA charge. The 286 and
+  386 presets keep ISA video. A per-game choice is not offered: it would
+  need a new `fes.pc386.machine` layout version
+  ([record](../../../docs/validation/2026-11-19-pc386-local-bus-video/summary.md)).
 
   The cycles are 120 ns ISA clocks (8.33 MHz, the machine's), in reference
   clocks at the frequency the governor runs at, rounded: an 8-bit cycle is
@@ -1519,8 +1521,7 @@ slows the CPU without changing any result.
 - **Setting:** a core setting persisted per library game through the
   [core persistence](../../../docs/core-persistence.md) path: the
   `fes.pc386.machine` record's words 0 (preset), 1 (frequency override, in
-  100 kHz units), 3 (turbo at launch) and 7 bits 3:2 (video bus), which the
-  CPU samples at its reset.
+  100 kHz units) and 3 (turbo at launch), which the CPU samples at its reset.
   The default is `max`; Ultima VI and The Black Gate carry presets
   ([first acceptance games](#first-acceptance-games)).
 - **Reach:** the governor only slows the CPU. At 61.44 MHz the RTL is slower

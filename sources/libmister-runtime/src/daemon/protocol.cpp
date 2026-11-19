@@ -935,9 +935,7 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
 				",\"turbo\":" + std::to_string(m.turbo) +
 				",\"sb_base\":" + std::to_string(m.sb_base) +
 				",\"sb_irq\":" + std::to_string(m.sb_irq) +
-				",\"sb_dma\":" + std::to_string(m.sb_dma) +
-				// Only when set: a host that predates it refuses unknown fields.
-				(m.video_bus != 0 ? ",\"video_bus\":" + std::to_string(m.video_bus) : std::string()) + "}");
+				",\"sb_dma\":" + std::to_string(m.sb_dma) + "}");
 		}
 		output.Append("}");
 	}
@@ -1402,10 +1400,9 @@ Error ParseRequest(const std::string& line, Request* request)
 					return Invalid("invalid settings revision");
 				if (machine) {
 					const auto* settings = Find(root, "machine");
-					// video_bus is optional, 0 when absent; the others are required.
 					const char* const keys[] = {"preset", "frequency", "code_profile", "turbo",
-						"sb_base", "sb_irq", "sb_dma", "video_bus"};
-					if (settings->type != json::Type::object || !HasOnly(*settings, keys, 8, &error))
+						"sb_base", "sb_irq", "sb_dma"};
+					if (settings->type != json::Type::object || !HasOnly(*settings, keys, 7, &error))
 						return Invalid("invalid pc386 machine settings");
 					std::uint16_t* destinations[] = {&parsed.settings.machine.preset,
 						&parsed.settings.machine.frequency, &parsed.settings.machine.code_profile,
@@ -1416,11 +1413,6 @@ Error ParseRequest(const std::string& line, Request* request)
 						if (!BoundedInteger(value, 0, 0xffff))
 							return Invalid("invalid pc386 machine settings");
 						*destinations[i] = static_cast<std::uint16_t>(value->integer_value);
-					}
-					if (const auto* video_bus = Find(*settings, "video_bus")) {
-						if (!BoundedInteger(video_bus, 0, 0xffff))
-							return Invalid("invalid pc386 machine settings");
-						parsed.settings.machine.video_bus = static_cast<std::uint16_t>(video_bus->integer_value);
 					}
 					parsed.settings.pc386 = true;
 				} else {

@@ -12,8 +12,8 @@
 // an 8-bit I/O cycle ISA_IO8 of them, a 16-bit one ISA_IO16, and an MMIO
 // access ISA_VGA per 16-bit half. Local-bus video: a local-bus clock is
 // frequency * LB_STEP / 2**LB_FRAC reference clocks, and an MMIO access
-// takes LB_VGA of them per 32-bit dword (preset_t local_video is the
-// preset's own choice). word16() is whether an I/O access of size
+// takes LB_VGA of them per 32-bit dword under a preset whose local_video is
+// set. word16() is whether an I/O access of size
 // (0 byte, 1 word, 2 dword) at port has a 16-bit cycle, as pc386_io splits it:
 // a 16-bit port among its bytes with another byte after it.
 package fes_i386_gov_pkg;

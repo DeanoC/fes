@@ -405,15 +405,10 @@ A pc386 package (`fes.computer` 1.1 with `fes.persistence.words` and
 6 486DX-33 or 7 486DX2-66; `frequency` is 0 or 10..1000 in 100 kHz units, and 0
 under `max`; `code_profile` 0 `coherent` or 1 `queue16`; `turbo` 0 (the preset)
 or 1 (`max`); `sb_base` 544 (220h) or 576 (240h); `sb_irq` 2, 3, 5 or 7;
-`sb_dma` 1; and the optional `video_bus` (record word 7 bits 3:2), which
-chooses how the governor charges VGA memory: 0 or absent the preset's own (ISA
-for presets 1-5, local bus for 6 and 7), 1 ISA, 2 local bus (VL-Bus or PCI).
-Reads include `video_bus` only when it is not 0. The host refuses any other
-value. The entry's game names the
+`sb_dma` 1. The host refuses any other value. The entry's game names the
 record; the request cannot choose another. To the kit the settings travel as
 `X-FogCast-Library-Game` and `X-FogCast-Machine-Settings` (the seven values,
-comma-separated, in that order, and the video bus as an eighth only when it is
-not 0, which a kit that predates it refuses) instead of `X-FogCast-Paddle-Speed`; inspect
+comma-separated, in that order) instead of `X-FogCast-Paddle-Speed`; inspect
 adds `X-FogCast-Library-Game` for a pc386 package. Records live under the
 runtime's per-game namespace (`core-data/games/`).
 

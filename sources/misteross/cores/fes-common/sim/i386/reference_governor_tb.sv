@@ -12,16 +12,16 @@ module governor_integration_tb;
   logic hold0,hold1; logic [11:0] debt0,debt1; logic [12:0] charge0,charge1;
   logic tally=0; int sum0=0,sum1=0;
   always @(posedge clk) if(tally) begin sum0 += int'(charge0); sum1 += int'(charge1); end
-  // Both on ISA video (word 7: 1), as every reference case is; the dword
-  // counts are what the local bus would take and go unused on ISA.
+  // Both at preset 1 (286-12, ISA video), as every reference case is; the
+  // dword counts are what the local bus would take and go unused on ISA.
   fes_i386_governor #(.GOV_N(1),.GOV_D(1000)) baseline (
-    .clk,.reset,.preset,.frequency(10'd0),.turbo,.video_bus(2'd1),
+    .clk,.reset,.preset,.frequency(10'd0),.turbo,
     .boundary,.eoi,.element,.taken,.gov,.imul_safe,.rep_io_safe,.ilen,.redirect(redir),.abandon,.preserve_de,.replay,
     .accesses,.dword(1'b0),.ordinary_ram,.io(1'b0),.io_port(16'd0),.io_size(2'd0),.mmio,
     .mmio_halves,.mmio_dwords(2'd1),.mmio_vga(1'b1),.mmio_st2(st2),.mmio_st2_halves(st2_halves),.mmio_st2_dwords(2'd1),.mmio_st2_vga(1'b1),.hold(hold0),.debt_clocks(debt0),.charge(charge0)
   );
   fes_i386_governor #(.GOV_N(1),.GOV_D(1000),.REFERENCE_DIAGNOSTIC(1)) candidate (
-    .clk,.reset,.preset,.frequency(10'd0),.turbo,.video_bus(2'd1),
+    .clk,.reset,.preset,.frequency(10'd0),.turbo,
     .boundary,.eoi,.element,.taken,.gov,.imul_safe,.rep_io_safe,.ilen,.redirect(redir),.abandon,.preserve_de,.replay,
     .accesses,.dword(1'b0),.ordinary_ram,.io(1'b0),.io_port(16'd0),.io_size(2'd0),.mmio,
     .mmio_halves,.mmio_dwords(2'd1),.mmio_vga(1'b1),.mmio_st2(st2),.mmio_st2_halves(st2_halves),.mmio_st2_dwords(2'd1),.mmio_st2_vga(1'b1),.hold(hold1),.debt_clocks(debt1),.charge(charge1)

@@ -411,9 +411,8 @@ VGA ports get local-bus behaviour, matching VGA memory: Wolfenstein 3D writes
 the map mask for every wall post it draws (`ScalePost` in `WL_DRAW.C`), and
 VLB-era VGA I/O was not ISA-timed either. That is device time only: under a
 preset the governor charges a VGA port access the 8-bit ISA cycle an ISA VGA
-took, and a VGA memory access its ISA cycles, or, with local-bus video
-(record word 7, the default for the 486 presets), a local-bus VGA cycle per
-32-bit dword ([speed control](i386-cpu-design.md#speed-control)). Ordering is the reason VGA writes
+took, and a VGA memory access its ISA cycles, or under the 486 presets a
+local-bus VGA cycle per 32-bit dword ([speed control](i386-cpu-design.md#speed-control)). Ordering is the reason VGA writes
 go through the FIFO. A posted VRAM write followed by `OUT 3C5h` must be
 planar-processed with the old map mask.
 The CPU posts MMIO stores at commit and runs OUT after them, so pushing VGA
@@ -1387,9 +1386,8 @@ titles need at most 1,024K. The games image's static `FDCONFIG.SYS` reserves
 E000h–EFFFh whatever the setting, so a default without the board would only
 waste 64 KiB of upper memory.
 
-- **Setting.** Bits 1:0 of word 7 of `fes.pc386.machine` (reserved and zero
-  today; bits 3:2 are the governor's video bus, #2005) hold it: 0 fitted with
-  2 MiB, 1 not fitted, 2 fitted with 4,080 KiB (255 pages).
+- **Setting.** Word 7 of `fes.pc386.machine` (reserved and zero today) holds
+  it: 0 fitted with 2 MiB, 1 not fitted, 2 fitted with 4,080 KiB (255 pages).
   Zero is the default, so existing records keep the board. This PR builds the
   machine's `ems_pages` input and ties it to 128; accepting 1 and 2 at commit
   (`fes_computer_storage`), the ABI's range and FogCast's setting are the

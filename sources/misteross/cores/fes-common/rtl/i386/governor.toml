@@ -83,9 +83,9 @@ io16 = 3
 ports16 = ["1F0"]
 vga = 6
 
-# Local-bus video (fes.pc386.machine word 7, bits 3:2: 0 the preset's own
-# video, 1 ISA, 2 local bus). A VL-Bus or PCI VGA sits on the CPU's 32-bit
-# bus, so an access to VGA memory (A0000h-BFFFFh) takes one local-bus VGA
+# Local-bus video: under a preset whose video is "local" (the 486 presets;
+# the 286 and 386 ones are "isa"), the VGA is a VL-Bus or PCI card on the
+# CPU's 32-bit bus, so an access to VGA memory (A0000h-BFFFFh) takes one local-bus VGA
 # cycle per 32-bit dword it touches, in place of the ISA cycles per 16-bit
 # half; less, as on ISA, the 2 clocks, wait states and 16-bit dword cycle
 # already charged. Other MMIO (an ISA EMS board's frame) and I/O, including

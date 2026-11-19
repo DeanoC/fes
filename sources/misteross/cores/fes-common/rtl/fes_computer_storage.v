@@ -183,8 +183,7 @@ module fes_computer_storage #(
                 w3 = staged_settings[63:48], w4 = staged_settings[79:64], w5 = staged_settings[95:80],
                 w6 = staged_settings[111:96], w7 = staged_settings[127:112];
     wire settings_valid =
-        w0 < 16'(`FES_COMPUTER_PC386_PRESET_COUNT) && w2 <= 16'd1 && w3 <= 16'd1 &&
-        (w7 & ~16'h000c) == 16'd0 && w7[3:2] <= 2'd2 &&
+        w0 < 16'(`FES_COMPUTER_PC386_PRESET_COUNT) && w2 <= 16'd1 && w3 <= 16'd1 && w7 == 16'd0 &&
         (w1 == 16'd0 || (w0 != 16'd0 && w1 >= 16'(`FES_COMPUTER_PC386_FREQUENCY_MIN) &&
                          w1 <= 16'(`FES_COMPUTER_PC386_FREQUENCY_MAX))) &&
         (w4 == 16'(`FES_COMPUTER_PC386_SB_BASE220) || w4 == 16'(`FES_COMPUTER_PC386_SB_BASE240)) &&

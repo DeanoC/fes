@@ -301,3 +301,41 @@ the same clock.
 
 **What is kept as records only.** The seal of `ea0b87f0d` and run `l4`. No
 rule changes, and no check is relaxed.
+
+## Amendment 3 (20 November 2026, before any rerun): the fallback
+
+Codex review of `45c80b29b` (P2, thread 4636004930): a game record saved
+with a non-zero video bus is refused before launch by any older runtime
+after a software rollback, and that runtime cannot clear it. Kit HIL rolls
+back to the baseline bundle every run.
+- A new `fes.pc386.machine` layout version would make older runtimes call
+  such a record incompatible rather than corrupt, but the game would still
+  not launch on them.
+- The coordinator, for Deano's brief ("an option if possible, if not charge
+  local-bus video"), chose the fallback.
+
+**What the fallback is.**
+- The persisted setting is removed: no word 7, and no runtime, FogCast,
+  ABI, storage or manifest changes. Its code, tests and docs are deleted,
+  not shimmed. That covers the `fes.pc386.video-bus` manifest interface, the
+  launch and update guards, the word-7 commit check and the regenerated
+  exchanges.
+- The governor takes each preset's own video bus from `governor.toml`: local
+  bus for presets 6 and 7, ISA for 1 to 5.
+- The local-bus cycle, the EMS-frame rule and amendment 2's timing fix
+  stand unchanged.
+
+**How the gates change.**
+- Section 1's option, and the parts of sections 4 and 5 that set word 7,
+  fall away.
+- The governor bench's word-7 runs (386DX-25 on the local bus, 486DX-33 on
+  ISA) go with the setting. Its preset runs already charge 486DX-33 and
+  486DX2-66 the local bus, and every preset the EMS store at the ISA cycle.
+- The lockstep runs become `max`, preset 6 (local) and preset 3 (ISA), each
+  `--same-as` max, on the RTL and the netlist.
+- Every other rule stands: every host gate, the seal and the kit run (as
+  `l8`) are made again on the new head.
+
+**A possible follow-up.** A per-game choice. It needs a `fes.pc386.machine`
+layout minor version, so that older runtimes refuse its records as
+incompatible.

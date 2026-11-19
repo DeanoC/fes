@@ -24,8 +24,8 @@
 // MMIO access takes a VGA cycle per 16-bit half it touches, less what its
 // table count and wait-state charge already give it. Neither goes below
 // zero. A cycle's reference clocks follow the frequency the governor runs
-// at, worked out at reset as the step is. With local-bus video (word 7: 2,
-// or 0 under a preset whose own choice it is), an MMIO access in the VGA
+// at, worked out at reset as the step is. Under a preset with local-bus
+// video (the 486 presets; governor.toml video), an MMIO access in the VGA
 // window (A0000h-BFFFFh, mmio_vga) instead takes a local-bus VGA cycle
 // ([local_bus]) per 32-bit dword it touches; other MMIO (an ISA EMS board's
 // frame) and I/O stay on the ISA charge.
@@ -42,8 +42,7 @@
 //
 // The settings are sampled while reset is high, as the self-modifying-code
 // profile is: preset (fes.pc386.machine word 0), frequency (word 1, in
-// 100 kHz units; 0 the preset's own), turbo (word 3: 1 runs at max) and the
-// video bus (word 7: 0 the preset's own, 1 ISA, 2 local bus).
+// 100 kHz units; 0 the preset's own) and turbo (word 3: 1 runs at max).
 // GOV_N/GOV_D is 100 kHz as a fraction of clk, which the producer sets from
 // the sealed clock with the guest rates.
 module fes_i386_governor #(
@@ -55,7 +54,6 @@ module fes_i386_governor #(
     input  logic [2:0]         preset,
     input  logic [9:0]         frequency,
     input  logic               turbo,
-    input  logic [1:0]         video_bus,
     // What WB does on this edge (fes_i386_cpu): an instruction or a REP
     // element ends (boundary, with eoi or element), WB took a branch other
     // than a far jump (taken), the instruction's fields; and the memory bus
@@ -103,7 +101,6 @@ module fes_i386_governor #(
 
     logic [2:0]  p_id;
     logic [9:0]  p_frequency;
-    logic [1:0]  p_video_bus;
     logic        on, local_video;
     fes_i386_gov_pkg::preset_t p;
     assign p = fes_i386_gov_pkg::preset(p_id);
@@ -114,10 +111,9 @@ module fes_i386_governor #(
         if (reset) begin
             p_id <= preset;
             p_frequency <= frequency;
-            p_video_bus <= video_bus;
             on <= preset != 3'd0 && !turbo;
         end
-        local_video <= p_video_bus == 2'd2 || (p_video_bus == 2'd0 && p.local_video);
+        local_video <= p.local_video;
         warm <= reset ? 2'd2 : warm == 2'd0 ? 2'd0 : warm - 2'd1;
         freq <= p_frequency != 10'd0 ? p_frequency : p.frequency;
         product <= 28'(freq) * 28'(K);

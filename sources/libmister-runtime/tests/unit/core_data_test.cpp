@@ -1,7 +1,6 @@
 // Copyright 2026 FogCast contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "native/core_data.hpp"
-#include "native/pc386_machine.hpp"
 #include <regex>
 #include <cassert>
 #include <fstream>
@@ -147,25 +146,11 @@ void MachineNamespace()
 	assert(rmdir(first.c_str()) == 0 && rmdir(second.c_str()) == 0 && rmdir(games.c_str()) == 0);
 	assert(rmdir(tmp) == 0);
 }
-// Word 7: bits 3:2 the video bus (0..2), bits 1:0 (the EMS size, #1555)
-// and 15:4 zero.
-void MachineVideoBus()
-{
-	auto words = Pc386MachineDefaults();
-	assert(ValidPc386Machine(words) && Pc386Settings(words).video_bus == 0);
-	for (const std::uint16_t video : {1, 2}) {
-		words[7] = static_cast<std::uint16_t>(video << 2);
-		assert(ValidPc386Machine(words) && Pc386Settings(words).video_bus == video);
-	}
-	for (const std::uint16_t bad : {0x1, 0x2, 0xc, 0x10, 0x8000})
-		words[7] = bad, assert(!ValidPc386Machine(words));
-}
 int main()
 {
 	SharedRecords();
 	SharedMachineRecords();
 	MachineNamespace();
-	MachineVideoBus();
 	const std::string id = "org.fes.pong";
 	CoreData data;
 	data.core_id = id;
