@@ -53,7 +53,7 @@ module system_top #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
         .keyboard_clock_low(), .keyboard_data_low(), .keyboard_clear(),
         .cga_font_address(), .mda_font_address(),
         .cga_font_data(8'h81), .mda_font_data(8'h81),
-        .clk(board_clock), .clk_cpu(clk), .clk_pin(board_clock), .sdram_ncs(controller_ncs),
+        .clk(board_clock), .clk_cpu(clk), .clk_pin(board_clock), .clk_handoff(board_clock), .sdram_ncs(controller_ncs),
         .audio_valid(), .audio_sample(), .*);
     /* verilator lint_on PINCONNECTEMPTY */
 endmodule

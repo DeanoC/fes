@@ -1,0 +1,7 @@
+{
+  "status": "reproduced-guard-34-before-production-fix",
+  "hardware_actions": false,
+  "source_commit": "95c8e9aef93d6a5c1e8890051ac37731bb3a167e",
+  "source_release_sha256": "8c6069c3846c40472ea09cf02adc0a6bbc024e48876ccb8b1cde597daf2478ec",
+  "binary_sha256": "1ecb71de2541026de511d1b0b83c7855ae78ac738516e68bae454a08c2e79111"
+}

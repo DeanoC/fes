@@ -1,0 +1,80 @@
+{
+  "status": "retained-native-diagnostic-failed",
+  "native_source": "c45a8d27efa2904f1c0000ef99e415cfa4d77fd1",
+  "tested_implementation": "379c6aa7d40d1283d80f353e36a7ddce43ae4f1c",
+  "native_boot_id": "1a8c1e6016feca1c",
+  "wire_sha256": "3a696d49cdb9305b51d727d234c78192a8a57192b4aa74d5a55ff12e3c023ddf",
+  "native_seconds": 193.37801291281357,
+  "records": {
+    "FES_NANO_SOURCE_RELEASE": [
+      {
+        "status": "0",
+        "owner": "b852e20fb987905b",
+        "source_generation": "4",
+        "generation": "10",
+        "reuse_authorized": "1",
+        "elapsed_us": "929241"
+      },
+      {
+        "status": "0",
+        "owner": "b852e20fb987905b",
+        "source_generation": "10",
+        "generation": "15",
+        "reuse_authorized": "1",
+        "elapsed_us": "916510"
+      }
+    ],
+    "FES_NANO_SOURCE_RELEASE_FAIL": [],
+    "FES_NANO_SOURCE_SETUP": [],
+    "FES_NANO_SOURCE_SETUP_QUEUE": [],
+    "FES_NANO_SOURCE_CLOCK": [
+      {
+        "reason": "7",
+        "sampled": "1",
+        "frequency": "400000000",
+        "start_us": "155247680",
+        "last_us": "174742007",
+        "observed_us": "175823981",
+        "bound_us": "20000000",
+        "retained": "1",
+        "grant": "0"
+      }
+    ]
+  },
+  "core_fetch": [
+    {
+      "scope": "nano-computer-fetch-tape-v1",
+      "owner": 13281926808234070107,
+      "generation": 1,
+      "package_id": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+      "build_id": "0792e51a2e51512bfb8fe44e93a69ddd",
+      "before": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "held": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "running": {
+        "Cycles": 12014,
+        "Address": 975
+      },
+      "delta": 12014,
+      "polls": 1,
+      "elapsed_ns": 1878578983,
+      "limit_ns": 7000000000,
+      "tape_bytes": 917,
+      "tape_elapsed_ns": 1785682762,
+      "tape_limit_ns": 6000000000,
+      "control_elapsed_ns": 92896221
+    }
+  ],
+  "error": "bounded native diagnostic stopped: native failure marker",
+  "native_transport_cleanup_verified": true,
+  "one_use_consumed": true,
+  "retry_performed": false,
+  "restoration_status": "independently gated; see complete trial record",
+  "hardware_acceptance": false,
+  "physical_display_verified": false
+}

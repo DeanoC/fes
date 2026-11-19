@@ -1,0 +1,247 @@
+# i486 slice 0: method, 18 November 2026
+
+This file was committed before any run it judges had a result, and amended
+three times since; each amendment says what changed and when. Slice 0 of the
+486 tracker ([#1962](https://github.com/DeanoC/fes/issues/1962), issue
+[#1968](https://github.com/DeanoC/fes/issues/1968)) makes the Bochs oracle
+and the lockstep able to run at CPU level 4. It changes no CPU RTL, seals
+nothing and uses no kit. The plan is
+`docs/validation/2026-11-17-i486-plan/summary.md` on PR #1963; its slice 0
+definition is the scope, and where the session brief and that definition
+differ the definition wins and the summary says where.
+
+The target is the plan's option B, a later-stepping 486 with CPUID, which is
+what Bochs's level 4 models (Deano, 18 November 2026).
+
+Every figure in `summary.md` is written by [`summarize.py`](summarize.py)
+from the report files committed beside it. Nothing in the summary is typed
+from a terminal.
+
+**Amendments 1 and 2** changed rule 1 and "What is built" only.
+
+1. The first version let `adapter_sha256` and `suite_sha256` move if the
+   coordinating session agreed. Before an answer came, a way to move
+   neither was found (the level-4 adapter and testbench built from copies
+   of the level-3 files with patch files), and rule 1 was tightened to all
+   five fields equal. The script names were corrected then too.
+2. **Deano then decided the other way, on 18 November 2026.** Asked "May
+   486 slice 0 move the oracle's adapter and suite identity hashes?" he
+   answered "Yes, move both". Shown that the in-place edit also moves
+   pc386's `BUILD_ID` through its build record with no RTL change (two of
+   the files the record hashes change), that AGENTS.md's D12 rule then asks
+   for a reseal or the netlist and RBF comparison, and the patch route that
+   avoids it, he answered "Exempt, edit in place". Both answers reached
+   this session through the coordinating session, which quoted them. So the
+   patch files are deleted, `bochs_oracle.cpp` and `lockstep_tb.cpp` are
+   edited in place, and rule 1 is as below. **No seal and no D12 comparison
+   was run for this change,** under that exemption, which he gave for this
+   PR while pc386 is in progress.
+
+A rule-2 comparison had been made on the patch route before the second
+amendment, and passed. It is not the one reported: the head side was run
+again on the in-place tree.
+
+**Amendment 3, 18 November 2026 evening, after Lander's review of
+`da4aee953`.** The review found that three items of the plan's slice 0
+were defined but not built, and that the case table and the census did not
+cover what this file promised. Changes, none of which loosens a pass rule:
+
+- **Deano decided the 486 identity has no VME** (tracker #1962). So there
+  is no CR4 (data book 4.2.3.1): the oracle's state has none, and MOV to or
+  from CR4 must be #UD. Bochs runs it, so the level-4 provisioner edits its
+  copy of Bochs's opcode table to gate the two MOV CR4 entries on VME, and
+  fails unless each matched once. The known-divergence table's MOV CR4 row moves from
+  "masked" to "adapted".
+- **The `i486` mode compares CR0 and EFLAGS under the 486's masks**
+  (CR0 E005003Fh; EFLAGS 0027FFFFh, which adds AC and ID), not the 386's.
+- **Its cases start from CR0 60050030h,** not reset's 60000010h. The RTL's
+  386 reads CR0 bits 30-5 as ones, so under the 486 mask the two sides
+  would differ at every case's first instruction, before any probe. With
+  CD, NW, AM, WP and NE set from the start they agree until a case changes
+  one of them, and a case that needs AM or WP clear writes CR0 itself,
+  which is then its probe. Reset's CR0 stays checked, in the reset row.
+- **The `i486` mode runs the 386's #UD probes a 486 keeps** (the list less
+  CPUID, INVD, CMPXCHG, BSWAP and MOV TR3; MOV CR4 stays), each alone in
+  real mode as a row `ud-<name>` with no probe: both sides must raise #UD.
+- **The case table covers the matrix below in full**: XADD and CMPXCHG at
+  each width in register and memory form, equal and unequal, LOCK legal on
+  memory and #UD on registers; and MOV TR3 to TR7 (Lander's commit
+  `96a328525`, reviewed and taken).
+- **The census is rerun** on the final code commit, not carried by an
+  audit.
+
+The RTL stop list for the new table was measured before this text was
+written, so it is reported as measured, not as predicted; rule 4's
+prediction applies to the new rows by the classes it names.
+
+## What is built
+
+- `scripts/fes_i486_oracle.py`: a level-4 provisioner beside
+  `scripts/fes_i386_oracle.py`, which is not edited. It configures the same
+  pinned Bochs (`30cfd566ecc8`) with `--enable-cpu-level=4` in its own tree
+  (`bochs-level4-*`), builds the CPU-model library, applies no Bochs patch,
+  and keeps its outputs in `bin-level4`.
+- The adapter (`bochs_oracle.cpp`) accepts level 3 or level 4. At level 4
+  it selects Bochs's `i486dx4` model with VME excluded and sets two reset
+  values.
+- The lockstep testbench (`lockstep_tb.cpp`) gains a mode, `i486`, which
+  runs only against the level-4 oracle; every other mode refuses it.
+- A directed suite for the 486 delta, as programs generated by
+  `scripts/fes_i486_cases.py`, run two ways: on the oracle alone
+  (`i486_tb.cpp`), and on the RTL in lockstep with it.
+- In the `i486` mode the lockstep compares CR0 and EFLAGS under the 486's
+  masks and runs the #UD probes a 486 keeps. The level-3 modes are as they
+  were.
+- `machine_tb` and the instruction census take the level as an option.
+
+## Rule 1: the level-3 oracle's identity
+
+`build_fes_pc386_quartus.py`'s `oracle_identity()` has five fields. Measured
+at the merge base and at the PR head by `summarize.py identity`:
+
+- `revision`, `patch_sha256`, `provisioner_sha256` and the SHA-256 of
+  `bochs/instrument.h` **must be equal.** These are every input of the
+  level-3 Bochs tree's key but the compiler. Any difference fails the slice.
+- `adapter_sha256` and `suite_sha256` move, as approved, and only through
+  `bochs_oracle.cpp` and `lockstep_tb.cpp`: every other file the five
+  digests cover must have the same SHA-256 at both revisions. The report
+  lists each.
+- Of the files pc386's build record hashes (its producer's pinned inputs
+  and import closure), only those two may differ. The report counts them.
+
+## Rule 2: level-3 behaviour is unchanged
+
+Each of these runs twice with the same arguments on the same host: once in a
+checkout of the merge base, once at the PR head. `summarize.py level3`
+compares the two reports.
+
+| Run | Arguments | Must be equal |
+| --- | --- | --- |
+| `test_fes_i386_lockstep.py` | the runner's defaults, on the host's SingleStepTests copy | for every suite in `report.json`: its counts of runs, passes and failures, its divergence counts, and every trace hash |
+| `test_fes_i386_test386.py` | defaults | POST codes and their steps, the divergence groups' counts, the final-RAM SHA-256 |
+| `test_fes_i386_vectors.py` | defaults | states passed and failed, and each divergence entry's count |
+| `sim_fes_pc386.py --suite boot` | defaults | steps to the prompt, the VGA replay's mismatch count |
+
+- The comparison ignores only wall time, paths, host names, the source
+  revision, and the oracle and suite identity digests that rule 1 reports.
+  The script lists the keys it ignored.
+- If the default lockstep run has not finished in four hours on either side,
+  both sides are rerun with `--limit-per-file 200 --random-programs 500
+  --random-seeds 8 --pm-programs 125 --task-programs 60 --debug-programs 60
+  --undefined-programs 60`, and the summary says so.
+- If main moves under the PR (the x87 transcendentals, #1959, edit the same
+  files), both sides are taken again against the new merge base.
+- Any inequality fails the slice. It is reported, not explained away.
+
+## Rule 3: the oracle's 486 behaviour (the self-check)
+
+`scripts/fes_i486_cases.py` holds one row per case: a program, the result a
+486 gives, and the document section that says so. `i486_tb` runs each
+program on the level-4 oracle alone and prints the ending and final state;
+the runner compares it with the row.
+
+- A row's expectation is written from the document before the oracle runs
+  it. A row whose source is not an Intel document says "Bochs's model" in
+  its source column, and the summary counts those separately: they show what
+  the oracle does, not that it is right.
+- The cases: BSWAP; XADD in register and memory forms at 8, 16 and 32 bits,
+  with legal LOCK on each memory width and #UD from LOCK on each register
+  width; CMPXCHG in register and memory forms at all three widths, both equal
+  and unequal, with unlocked and locked memory forms and #UD from LOCK on
+  each register width; the 0F A6 encoding; INVD,
+  WBINVD and INVLPG at CPL 0 and CPL 3; CR0's NE, WP, AM, NW and CD as
+  storage, ET fixed, NW without CD, LMSW; supervisor writes to read-only
+  pages with WP clear and set; EFLAGS.AC and ID toggles; exception 17 with
+  each of its conditions present and absent; CPUID leaves 0 and 1; MOV to
+  and from TR3 to TR7 and CR4; and the reset state.
+- **Pass:** every row's oracle result equals its expectation, or the row is
+  in the known-divergence table below.
+- A row that fails is one of two things, and the summary says which with
+  the citation: Bochs is not a 486 there (it joins the divergence table), or
+  the expectation was misread (the row is corrected). The count of each is
+  reported. A row is never dropped.
+
+### Known divergences of Bochs's level 4 from a 486
+
+Each is handled in one of two ways, fixed here.
+
+| Item | Bochs level 4 | A 486 | Handling |
+| --- | --- | --- | --- |
+| Reset EDX | 0 (`cpu/init.cc:896`) | The identifier: family 04h in DH, model and stepping in DL (data book 241731-002 §9.5, Table 9-9) | **Adapted** in the adapter's `reset()`: EDX is CPUID leaf 1's EAX, 0480h, the DX4 Bochs models |
+| DR6 at reset | FFFF1FF0h (`cpu/init.cc:1038-1043`) | FFFF0FF0h (PRM Table 10-1) | **Adapted** in the adapter's `reset()` |
+| MOV TRn | #UD at every level | TR3 to TR7 exist (PRM §21.3.3; data book §14.0 item 9) | **Masked**: the lockstep's existing MOV TRn rule, extended to TR3 against the level-4 oracle. The test functions of the registers have no oracle |
+| MOV CR4 | Runs; with VME excluded CR4 reads 0 and any set bit is #GP(0) | CR4 exists only on parts with VME, PVI or PSE (data book §4.2.3.1); the 486 identity has none | **Adapted** (amendment 3): the level-4 provisioner makes MOV to and from CR4 #UD |
+| No FPU-less model | The 486 model enables the x87 unconditionally and a 486 without it is fatal (`i486dx4.cc:39`, `cpuid.cc:1623-1624`) | The 486SX | **Masked**: an SX is checked as the 386's empty socket is, by the lockstep's no-387 rule. Not built in this slice |
+| CPUID leaf 1 | EAX 0480h, EDX bit 0 set: a DX4 with an FPU | Per part: SX 042xh with EDX bit 0 clear, DX 040xh or 041xh, DX2 043xh (data book Table 9-9, AP-485) | **Masked** for an identity other than the DX4: the identity's values are slice 2's, with the build parameter |
+| ET | Forced to 1 while the x87 is present | Hard-wired 1 (PRM §25.1 item 1) | None needed: equal for every 486 identity |
+
+If the oracle's own runs show a difference not in this table, it is added to
+the summary's table with its citation, and counted as found by the suite.
+
+## Rule 4: the RTL's stops
+
+The RTL is a 386, so today it cannot pass the suite. Each case names its
+probe: the address of the first instruction that needs a 486.
+
+- **Pass, per case:** the lockstep either agrees with the oracle to the end
+  of the case, or its first mismatch is at or after the probe. A mismatch
+  before the probe means the case does not isolate what it names, and fails.
+- **Predicted to agree,** written here before the RTL runs: the cases whose
+  486 answer is the 386's, namely the 0F A6 encoding (#UD on both), LOCK
+  with a register destination (#UD on both), MOV TR4 to TR7 at CPL 0, and
+  the reset row's fields other than EDX, DR6 and CR0. Every other case is
+  predicted to stop at its probe. Where a run differs from this prediction
+  the summary lists the case, the prediction and the result. That is a
+  finding about the prediction and does not fail the rule above.
+- The measured list (case, agree or stop, the first mismatching field) is
+  committed as `cores/fes-common/sim/i386/i486-expected-stops.txt`, which
+  the runner reads; `expected-stops.json` here is the generated report of
+  the run. From then on the level-4 runner fails
+  if a run's list differs from it, so slice 2 moves a case to `agree` by
+  editing the list in the same change that builds the feature.
+- Two consecutive runs at the PR head must give the same list.
+- The committed stop list must name every case and probe the run made, and
+  is written only from a pinned-RTL lockstep run, never from the oracle
+  alone.
+- Reset values are not in the lockstep: the CPU takes its reset state from
+  inputs that `pc386_system.sv` drives. The summary script reads those
+  values from that file and reports them beside the oracle's.
+
+## Rule 5: the level-4 machine
+
+- `sim_fes_pc386.py --suite boot --cpu-level 4`: **pass** is FreeDOS at its
+  prompt and a VGA replay with 0 mismatches.
+- **The census.** The plan's `census.jsonl` (PR #1963 at `b4ea55e9c`) has 54
+  rows. The same 54 runs are made with this slice's level-4 oracle and
+  census keys, each with its row's drive, boot entry and limit.
+  **Pass:** for every row, `steps`, `end`, and the `i486`, `eflags`,
+  `cr0_486_bits` and `exceptions` counts are equal. A row that differs is
+  listed with both values. The adapter's two reset values are new since the
+  plan's runs, so a difference is possible; it is still reported as a
+  difference.
+- If the sweep cannot finish in this session it is reported as not run,
+  with the rows that did finish compared.
+
+## Rule 6: CACHECHK's "Divide error"
+
+Time-boxed. The steps, in order:
+
+1. A control: CACHECHK on the level-3 oracle, same drive and limit.
+2. At level 4, the instruction that raises exception 0, its operands, and
+   where the operands came from.
+
+The result is one of: **explained** (the instruction, the operands and why
+they differ between levels), or **still open** (what was measured and what
+was not). The plan's observation that it prints a clock of 1044.0 MHz is
+context, not a result of this slice.
+
+## What is committed
+
+- `identity.json`, `level3-compare.json`: rules 1 and 2.
+- `oracle-selfcheck.json`, `expected-stops.json`: rules 3 and 4.
+- `boot.json`, `census.jsonl`, `census-compare.json`: rule 5.
+- `cachechk.json`: rule 6.
+- `summary.md`, generated.
+
+No game bytes, frames, screen text or instruction bytes from a title are
+committed. Drives, logs and build trees stay on the host.

@@ -275,7 +275,8 @@ ATARI_ST_SCRIPTS = frozenset({'atari_st_slot.py', 'build_atari_st_slot_card.py',
 I386_SCRIPTS = frozenset({'audit_fes_i386_case.py', 'fes_i386_oracle.py', 'test_fes_i386_vectors.py', 'test_fes_i386_test386.py',
                           'test_fes_i386_frontend.py', 'test_fes_i386_lockstep.py', 'test_fes_i386_governor.py',
                           'test_fes_i386_latency.py', 'benchmark_fes_i386.py', 'quartus_fes_i386.py', 'quartus_x87_spike.py',
-                          'fes_i386_ucode.py', 'i386_verilator.py'})
+                          'fes_i386_ucode.py', 'i386_verilator.py',
+                          'fes_i486_oracle.py', 'fes_i486_cases.py', 'test_fes_i486_lockstep.py'})
 
 
 def fpga_cores(path):
@@ -317,6 +318,8 @@ def fpga_cores(path):
         return (), 'standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer'
     if relative.as_posix() == 'cores/fes-pong/rtl/pixel_pll.v':
         return ('pong', 'ramtest', 'riscv'), 'shared fixed-raster clock consumers'
+    if relative.as_posix() == 'cores/fes-ramtest/rtl/sdram_cas3_capture.v':
+        return ('ramtest', 'pcxt'), 'shared CAS-3 retained-word consumers'
     if relative.as_posix() == 'cores/fes-ramtest/rtl/sdram_addon_port.v':
         return ('ramtest', 'atari-st', 'pcxt'), 'shared SDRAM controller consumers'
     if relative.as_posix() == 'cores/fes-zx81/expansions/zonx_ay.v':
@@ -342,7 +345,9 @@ def fpga_cores(path):
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
                 'rtl/i386/fes_x87_pkg.sv', 'rtl/i386/fes_x87_fast.sv',
                 'rtl/i386/fes_x87_slow.sv', 'rtl/i386/fes_x87_core.sv',
-                'rtl/i386/fes_x87_round.sv', 'rtl/i386/fes_x87_pipe.sv'):
+                'rtl/i386/fes_x87_round.sv', 'rtl/i386/fes_x87_pipe.sv',
+                'rtl/i386/fes_x87_trans_pkg.sv', 'rtl/i386/fes_x87_trans_rom.sv',
+                'rtl/i386/fes_x87_trans.sv'):
             return ('pc386', 'de25-x87'), 'the x87 arithmetic backend, shared by the i386 CPU and the standalone DE25 pipeline'
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
                 'sim/gp_tb.cpp', 'sim/audio_tb.cpp', 'generated/exchanges.json',

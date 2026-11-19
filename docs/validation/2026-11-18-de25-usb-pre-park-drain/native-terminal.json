@@ -1,0 +1,69 @@
+{
+  "status": "retained-native-diagnostic-failed",
+  "native_source": "64684abda2f4cbf9c81365514f8bf13ed1b987e3",
+  "tested_implementation": "64684abda2f4cbf9c81365514f8bf13ed1b987e3",
+  "host_decoder_source": "64684abda2f4cbf9c81365514f8bf13ed1b987e3",
+  "native_boot_id": "476b5370ab8565bd",
+  "wire_sha256": "537e68ce59ee1f54c37a960f7a69b23323663acca815abf0a0b8aedb910adc5c",
+  "native_seconds": 194.29378942307085,
+  "records": {
+    "FES_NANO_SOURCE_RELEASE": [
+      {
+        "status": "0",
+        "owner": "592746acd11c5791",
+        "source_generation": "4",
+        "generation": "10",
+        "reuse_authorized": "1",
+        "elapsed_us": "899192"
+      },
+      {
+        "status": "0",
+        "owner": "592746acd11c5791",
+        "source_generation": "10",
+        "generation": "15",
+        "reuse_authorized": "1",
+        "elapsed_us": "886279"
+      }
+    ],
+    "FES_NANO_SOURCE_RELEASE_FAIL": [],
+    "FES_NANO_SOURCE_SETUP": [],
+    "FES_NANO_SOURCE_SETUP_QUEUE": [],
+    "FES_NANO_SOURCE_CLOCK": []
+  },
+  "core_fetch": [
+    {
+      "scope": "nano-computer-fetch-tape-v1",
+      "owner": 6424181101523916689,
+      "generation": 1,
+      "package_id": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+      "build_id": "0792e51a2e51512bfb8fe44e93a69ddd",
+      "before": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "held": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "running": {
+        "Cycles": 11694,
+        "Address": 975
+      },
+      "delta": 11694,
+      "polls": 1,
+      "elapsed_ns": 1885271895,
+      "limit_ns": 7000000000,
+      "tape_bytes": 917,
+      "tape_elapsed_ns": 1794840273,
+      "tape_limit_ns": 6000000000,
+      "control_elapsed_ns": 90431622
+    }
+  ],
+  "error": "bounded native diagnostic stopped: native failure marker",
+  "native_transport_cleanup_verified": true,
+  "one_use_consumed": true,
+  "retry_performed": false,
+  "restoration_status": "independently gated; see complete trial record",
+  "hardware_acceptance": false,
+  "physical_display_verified": false
+}

@@ -1,0 +1,578 @@
+{
+  "source": "84eb6814027f0d71e50c7f637ca67eeade908eba",
+  "instrumentation": "host function events and wrapped memcmp; no-inlining profile build; timing not target latency",
+  "functions": [
+    {
+      "name": "boot_read",
+      "calls": 163296,
+      "inclusive_ns": 8384373,
+      "exclusive_ns": 4668125
+    },
+    {
+      "name": "usb_read",
+      "calls": 163296,
+      "inclusive_ns": 13044746,
+      "exclusive_ns": 4660373
+    },
+    {
+      "name": "read_reg",
+      "calls": 62208,
+      "inclusive_ns": 14787591,
+      "exclusive_ns": 3942037
+    },
+    {
+      "name": "usb_barrier",
+      "calls": 139968,
+      "inclusive_ns": 5330764,
+      "exclusive_ns": 3738266
+    },
+    {
+      "name": "sample",
+      "calls": 15552,
+      "inclusive_ns": 5710496,
+      "exclusive_ns": 3428992
+    },
+    {
+      "name": "board_read",
+      "calls": 163296,
+      "inclusive_ns": 3716248,
+      "exclusive_ns": 3005655
+    },
+    {
+      "name": "cold_read",
+      "calls": 202176,
+      "inclusive_ns": 2281504,
+      "exclusive_ns": 2281504
+    },
+    {
+      "name": "clocks",
+      "calls": 7776,
+      "inclusive_ns": 9789436,
+      "exclusive_ns": 2259480
+    },
+    {
+      "name": "barrier",
+      "calls": 160704,
+      "inclusive_ns": 1827894,
+      "exclusive_ns": 1827894
+    },
+    {
+      "name": "contained_read",
+      "calls": 31104,
+      "inclusive_ns": 16277195,
+      "exclusive_ns": 1489604
+    },
+    {
+      "name": "release_meter",
+      "calls": 44969,
+      "inclusive_ns": 1547460,
+      "exclusive_ns": 1020314
+    },
+    {
+      "name": "read32",
+      "calls": 73224,
+      "inclusive_ns": 838538,
+      "exclusive_ns": 838538
+    },
+    {
+      "name": "owned_sample",
+      "calls": 15552,
+      "inclusive_ns": 6695932,
+      "exclusive_ns": 750040
+    },
+    {
+      "name": "stable",
+      "calls": 15552,
+      "inclusive_ns": 1057353,
+      "exclusive_ns": 686935
+    },
+    {
+      "name": "device_scope",
+      "calls": 5184,
+      "inclusive_ns": 44346901,
+      "exclusive_ns": 680471
+    },
+    {
+      "name": "contained_body",
+      "calls": 3888,
+      "inclusive_ns": 27119933,
+      "exclusive_ns": 535651
+    },
+    {
+      "name": "final_meter",
+      "calls": 44969,
+      "inclusive_ns": 527146,
+      "exclusive_ns": 527146
+    },
+    {
+      "name": "contained_pio",
+      "calls": 7776,
+      "inclusive_ns": 12721366,
+      "exclusive_ns": 517651
+    },
+    {
+      "name": "released_devices",
+      "calls": 15552,
+      "inclusive_ns": 574426,
+      "exclusive_ns": 386891
+    },
+    {
+      "name": "owned",
+      "calls": 2592,
+      "inclusive_ns": 25048993,
+      "exclusive_ns": 372797
+    },
+    {
+      "name": "parked",
+      "calls": 31104,
+      "inclusive_ns": 370418,
+      "exclusive_ns": 370418
+    },
+    {
+      "name": "sdm_source_queues",
+      "calls": 324,
+      "inclusive_ns": 1456415,
+      "exclusive_ns": 368542
+    },
+    {
+      "name": "read_reg",
+      "calls": 11016,
+      "inclusive_ns": 455965,
+      "exclusive_ns": 328020
+    },
+    {
+      "name": "probe_read",
+      "calls": 14904,
+      "inclusive_ns": 468372,
+      "exclusive_ns": 316817
+    },
+    {
+      "name": "snapshot",
+      "calls": 22680,
+      "inclusive_ns": 274386,
+      "exclusive_ns": 274386
+    },
+    {
+      "name": "fes_nano_usb_platform_idle",
+      "calls": 3888,
+      "inclusive_ns": 32505031,
+      "exclusive_ns": 257703
+    },
+    {
+      "name": "word",
+      "calls": 5120,
+      "inclusive_ns": 337197,
+      "exclusive_ns": 256807
+    },
+    {
+      "name": "fes_nano_sdm_source_validate",
+      "calls": 1,
+      "inclusive_ns": 43086811,
+      "exclusive_ns": 223927
+    },
+    {
+      "name": "clocks",
+      "calls": 648,
+      "inclusive_ns": 584911,
+      "exclusive_ns": 209105
+    },
+    {
+      "name": "sdm_probe_owns_mode",
+      "calls": 648,
+      "inclusive_ns": 40707881,
+      "exclusive_ns": 200976
+    },
+    {
+      "name": "sdm_source_secure_scope",
+      "calls": 648,
+      "inclusive_ns": 738039,
+      "exclusive_ns": 188243
+    },
+    {
+      "name": "observe_usb_contained",
+      "calls": 3888,
+      "inclusive_ns": 32723457,
+      "exclusive_ns": 171567
+    },
+    {
+      "name": "smmu_index",
+      "calls": 11664,
+      "inclusive_ns": 151555,
+      "exclusive_ns": 151555
+    },
+    {
+      "name": "nano_sdm_input_words",
+      "calls": 160,
+      "inclusive_ns": 489316,
+      "exclusive_ns": 146794
+    },
+    {
+      "name": "usb_contained",
+      "calls": 3888,
+      "inclusive_ns": 32844166,
+      "exclusive_ns": 120709
+    },
+    {
+      "name": "fes_nano_cold_usb_check",
+      "calls": 3888,
+      "inclusive_ns": 32039539,
+      "exclusive_ns": 119144
+    },
+    {
+      "name": "prepared_contained",
+      "calls": 3888,
+      "inclusive_ns": 32158669,
+      "exclusive_ns": 119130
+    },
+    {
+      "name": "master_snapshot",
+      "calls": 1296,
+      "inclusive_ns": 12899928,
+      "exclusive_ns": 115600
+    },
+    {
+      "name": "sdm_probe_geometry",
+      "calls": 648,
+      "inclusive_ns": 229421,
+      "exclusive_ns": 111369
+    },
+    {
+      "name": "scope",
+      "calls": 648,
+      "inclusive_ns": 13326165,
+      "exclusive_ns": 91249
+    },
+    {
+      "name": "admit",
+      "calls": 7776,
+      "inclusive_ns": 88659,
+      "exclusive_ns": 88659
+    },
+    {
+      "name": "retained_state",
+      "calls": 1296,
+      "inclusive_ns": 13013503,
+      "exclusive_ns": 84213
+    },
+    {
+      "name": "leaf_table",
+      "calls": 7165,
+      "inclusive_ns": 80390,
+      "exclusive_ns": 80390
+    },
+    {
+      "name": "scope",
+      "calls": 648,
+      "inclusive_ns": 26579917,
+      "exclusive_ns": 68886
+    },
+    {
+      "name": "address_of",
+      "calls": 4536,
+      "inclusive_ns": 67263,
+      "exclusive_ns": 67263
+    },
+    {
+      "name": "check",
+      "calls": 1944,
+      "inclusive_ns": 144149,
+      "exclusive_ns": 63990
+    },
+    {
+      "name": "load_word",
+      "calls": 5120,
+      "inclusive_ns": 59599,
+      "exclusive_ns": 59599
+    },
+    {
+      "name": "sdm_source_owns",
+      "calls": 324,
+      "inclusive_ns": 42384421,
+      "exclusive_ns": 57546
+    },
+    {
+      "name": "fes_nano_bridges_observe",
+      "calls": 1296,
+      "inclusive_ns": 13109961,
+      "exclusive_ns": 51961
+    },
+    {
+      "name": "table_word",
+      "calls": 3888,
+      "inclusive_ns": 50789,
+      "exclusive_ns": 50789
+    },
+    {
+      "name": "fes_nano_bridges_held_return",
+      "calls": 1944,
+      "inclusive_ns": 72654,
+      "exclusive_ns": 49558
+    },
+    {
+      "name": "read_state",
+      "calls": 1296,
+      "inclusive_ns": 13058000,
+      "exclusive_ns": 44497
+    },
+    {
+      "name": "fes_nano_cold_owns",
+      "calls": 1296,
+      "inclusive_ns": 12457316,
+      "exclusive_ns": 43973
+    },
+    {
+      "name": "cold_master_snapshot",
+      "calls": 1296,
+      "inclusive_ns": 12722423,
+      "exclusive_ns": 43757
+    },
+    {
+      "name": "fes_nano_cold_sd_scope",
+      "calls": 1296,
+      "inclusive_ns": 12469542,
+      "exclusive_ns": 43036
+    },
+    {
+      "name": "fes_nano_cold_snapshot",
+      "calls": 1296,
+      "inclusive_ns": 12678666,
+      "exclusive_ns": 43016
+    },
+    {
+      "name": "sdm_input_owns",
+      "calls": 648,
+      "inclusive_ns": 40788347,
+      "exclusive_ns": 40250
+    },
+    {
+      "name": "producer_policy",
+      "calls": 3240,
+      "inclusive_ns": 37123,
+      "exclusive_ns": 37123
+    },
+    {
+      "name": "route",
+      "calls": 648,
+      "inclusive_ns": 132573,
+      "exclusive_ns": 36314
+    },
+    {
+      "name": "cold_producer_sample",
+      "calls": 1296,
+      "inclusive_ns": 50816,
+      "exclusive_ns": 36182
+    },
+    {
+      "name": "returned",
+      "calls": 1296,
+      "inclusive_ns": 115597,
+      "exclusive_ns": 33828
+    },
+    {
+      "name": "configuration_return_generation",
+      "calls": 648,
+      "inclusive_ns": 26729081,
+      "exclusive_ns": 33731
+    },
+    {
+      "name": "fes_nano_sd_returned",
+      "calls": 648,
+      "inclusive_ns": 26671268,
+      "exclusive_ns": 33551
+    },
+    {
+      "name": "shared_valid_mode",
+      "calls": 648,
+      "inclusive_ns": 87897,
+      "exclusive_ns": 33342
+    },
+    {
+      "name": "window_sd_return",
+      "calls": 1296,
+      "inclusive_ns": 81769,
+      "exclusive_ns": 33197
+    },
+    {
+      "name": "sdm_input_callbacks",
+      "calls": 2592,
+      "inclusive_ns": 32396,
+      "exclusive_ns": 32396
+    },
+    {
+      "name": "sdm_input_source",
+      "calls": 648,
+      "inclusive_ns": 51126,
+      "exclusive_ns": 30122
+    },
+    {
+      "name": "retained_policy",
+      "calls": 2592,
+      "inclusive_ns": 29362,
+      "exclusive_ns": 29362
+    },
+    {
+      "name": "nano_sdm_input_validate",
+      "calls": 1464,
+      "inclusive_ns": 28916,
+      "exclusive_ns": 28916
+    },
+    {
+      "name": "sdm_source_rearm_returned",
+      "calls": 648,
+      "inclusive_ns": 26753324,
+      "exclusive_ns": 24243
+    },
+    {
+      "name": "sdm_probe_owns",
+      "calls": 648,
+      "inclusive_ns": 40731919,
+      "exclusive_ns": 24038
+    },
+    {
+      "name": "returned",
+      "calls": 1944,
+      "inclusive_ns": 23096,
+      "exclusive_ns": 23096
+    },
+    {
+      "name": "healthy",
+      "calls": 648,
+      "inclusive_ns": 74905,
+      "exclusive_ns": 17108
+    },
+    {
+      "name": "fes_nano_usb_master_service_valid",
+      "calls": 648,
+      "inclusive_ns": 119977,
+      "exclusive_ns": 16094
+    },
+    {
+      "name": "shared_valid",
+      "calls": 648,
+      "inclusive_ns": 103883,
+      "exclusive_ns": 15986
+    },
+    {
+      "name": "fes_nano_usb_master_binding_matches",
+      "calls": 648,
+      "inclusive_ns": 39345,
+      "exclusive_ns": 15940
+    },
+    {
+      "name": "fes_nano_boot_usb_pio_matches",
+      "calls": 648,
+      "inclusive_ns": 23405,
+      "exclusive_ns": 15845
+    },
+    {
+      "name": "fes_nano_mmu_platform_scope",
+      "calls": 1296,
+      "inclusive_ns": 15305,
+      "exclusive_ns": 15305
+    },
+    {
+      "name": "nano_sdm_input_same",
+      "calls": 327,
+      "inclusive_ns": 27209,
+      "exclusive_ns": 14747
+    },
+    {
+      "name": "production_producer_sample",
+      "calls": 1296,
+      "inclusive_ns": 14634,
+      "exclusive_ns": 14634
+    },
+    {
+      "name": "usb_pio_policy_matches",
+      "calls": 648,
+      "inclusive_ns": 7560,
+      "exclusive_ns": 7560
+    },
+    {
+      "name": "nano_sdm_input_table_range",
+      "calls": 192,
+      "inclusive_ns": 2228,
+      "exclusive_ns": 2228
+    },
+    {
+      "name": "overlap",
+      "calls": 160,
+      "inclusive_ns": 1815,
+      "exclusive_ns": 1815
+    },
+    {
+      "name": "terminal_notice",
+      "calls": 1,
+      "inclusive_ns": 1554,
+      "exclusive_ns": 1554
+    },
+    {
+      "name": "fes_nano_sdm_source_finish",
+      "calls": 1,
+      "inclusive_ns": 83021584,
+      "exclusive_ns": 491
+    },
+    {
+      "name": "nano_source_retire",
+      "calls": 1,
+      "inclusive_ns": 35567784,
+      "exclusive_ns": 349
+    },
+    {
+      "name": "fes_nano_sdm_retire_source",
+      "calls": 1,
+      "inclusive_ns": 35698844,
+      "exclusive_ns": 136
+    },
+    {
+      "name": "retire_completed",
+      "calls": 1,
+      "inclusive_ns": 271,
+      "exclusive_ns": 68
+    },
+    {
+      "name": "counter",
+      "calls": 1,
+      "inclusive_ns": 115,
+      "exclusive_ns": 57
+    },
+    {
+      "name": "sdm_source_time",
+      "calls": 1,
+      "inclusive_ns": 164,
+      "exclusive_ns": 49
+    },
+    {
+      "name": "sdm_input_final_scope",
+      "calls": 1,
+      "inclusive_ns": 130719,
+      "exclusive_ns": 48
+    },
+    {
+      "name": "fes_contained_isdone_detail",
+      "calls": 1,
+      "inclusive_ns": 26,
+      "exclusive_ns": 26
+    },
+    {
+      "name": "fes_nano_sdm_transfer_result",
+      "calls": 2,
+      "inclusive_ns": 25,
+      "exclusive_ns": 25
+    },
+    {
+      "name": "mutate_live",
+      "calls": 1,
+      "inclusive_ns": 11,
+      "exclusive_ns": 11
+    }
+  ],
+  "comparisons": [
+    {
+      "caller": "sdm_input_source",
+      "calls": 648,
+      "loaded_bytes": 62208
+    }
+  ],
+  "hardware_actions": false
+}

@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+"""Assess the used CAS-3 word window, retaining generic per-edge failures unchanged."""
+import argparse,csv,hashlib,importlib.util,json,sys
+from pathlib import Path
+p=argparse.ArgumentParser(description=__doc__)
+p.add_argument('--fit',type=Path,required=True);p.add_argument('--proof',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
+a=p.parse_args();fit=a.fit.resolve();here=Path(__file__).resolve().parent;root=here.parents[2]
+spec=importlib.util.spec_from_file_location('q',root/'sources/misteross/scripts/quartus_fes_pcxt.py');q=importlib.util.module_from_spec(spec);spec.loader.exec_module(q)
+proof=json.loads(a.proof.read_text());native=q.timing_summary(fit,mailbox_contract=True,audio_profile=True)
+rows=list(csv.DictReader((fit/'conditional/channels.tsv').open(),delimiter='\t'))
+assert len(rows)==568
+clocks={r['name']:r for r in native['clocks']}
+phases={}
+for n,phase in ((0,0),(2,1.25),(3,9.375)):
+ name=f'memory_clock|general[{n}].gpll~PLL_OUTPUT_COUNTER|divclk';r=clocks[name]
+ assert float(r['period_ns'])==10 and abs(float(r['waveform_ns'].split()[0])-phase)<0.001
+ phases[str(n)]={'period_ns':10,'phase_ns':phase}
+fit_text=(fit/'output_files/top.fit.rpt').read_text(encoding='latin1')
+# Quartus merges only the identical 0 ps controller/capture output counters.
+merged=fit_text.split('; PLL Output Counters',1)[1].split('; Clock enable blocks',1)[0]
+assert 'altera_pll:memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER' in merged
+assert 'altera_pll:memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER' in merged
+phases['capture_alias']={'logical_counter':1,'physical_counter':0,'phase_ns':0}
+model=json.loads((fit.parent/'elaboration/elaborated.json').read_text())['modules']['top']
+outputs=model['cells']['memory_clock']['connections']['outclk']
+forward=[c for c in model['cells'].values() if c['type']=='altddio_out']
+assert len(forward)==1 and forward[0]['connections']['outclock']==outputs[2:3]
+capture_bits=[]
+for bit in range(16):
+ bits=model['netnames'][f'sdram_pads_{bit}__captured']['bits'];capture_bits+=bits
+ regs=[c for c in model['cells'].values() if c['type']=='$dff' and c['connections']['Q']==bits]
+ assert len(regs)==1 and regs[0]['connections']['CLK']==outputs[1:2] and int(regs[0]['parameters']['CLK_POLARITY'],2)==1
+word_bits=model['netnames']['system_storage_capture_handoff_pipeline_read_word']['bits']
+word_regs=[c for c in model['cells'].values() if c['type']=='$dffe' and c['connections']['Q']==word_bits]
+assert len(word_regs)==1 and word_regs[0]['connections']['CLK']==outputs[3:4]
+assert int(word_regs[0]['parameters']['CLK_POLARITY'],2)==1 and int(word_regs[0]['parameters']['EN_POLARITY'],2)==1
+assert word_regs[0]['connections']['D']==capture_bits
+assert word_regs[0]['connections']['EN']==model['netnames']['system_storage_capture_handoff_pipeline_read_window']['bits'][3:4]
+landing_bits=model['netnames']['system_storage_capture_handoff_pipeline_rdata']['bits']
+land_regs=[c for c in model['cells'].values() if c['type']=='$dff' and c['connections']['Q']==landing_bits]
+assert len(land_regs)==1 and land_regs[0]['connections']['CLK']==outputs[0:1]
+assert int(land_regs[0]['parameters']['CLK_POLARITY'],2)==0 and land_regs[0]['connections']['D']==word_bits
+read=[r for r in rows if r['role']=='read'];assert len(read)==128
+assert proof['trace']['cas_latency']==3 and proof['trace']['first_word_launch_ps']==20000
+expected_relation=(proof['trace']['selected_capture_ps']-proof['trace']['first_word_launch_ps'])/1000
+setup=[r for r in read if r['kind']=='setup'];hold=[r for r in read if r['kind']=='hold']
+assert len(setup)==len(hold)==64
+# CAS-3 BL1 first word launches at READ+(CAS-1)=2 chip clocks. The next edge
+# bounds its release (tOH), not a new word consumed by this transaction.
+credits={round(expected_relation-float(r['relationship_ns']),3) for r in setup}
+assert credits=={10.0},credits
+window={'classification':'algebraic first-word transaction window; not a TimeQuest exception or seal',
+ 'setup_edge_credit_ns':10,'hold_edge_debit_ns':10,
+ 'expected_launch_to_capture_ns':expected_relation,
+ 'setup_min_ns':round(min(float(r['slack_ns'])+10 for r in setup),3),
+ 'hold_min_ns':round(min(float(r['slack_ns'])-10 for r in hold),3)}
+captures={r['to'] for r in setup};assert len(captures)==16
+endpoints=list(csv.DictReader((fit/'audit/endpoints.tsv').open(),delimiter='\t'))
+# Capture and READ enable now share the same physical launch clock. The
+# native auditor reports the worst path per target/clock pair, so it may
+# select either source; this bounds both without inventing missing rows.
+handoff=[r for r in endpoints if r['from_clock']=='memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk' and r['to'].startswith('system_storage_capture_handoff_pipeline_read_word[')]
+assert len(handoff)==128 and all(r['to_inverted']=='0' and (r['from'] in captures or r['from']=='system_storage_capture_handoff_pipeline_read_window[3]') for r in handoff)
+assert len({(r['corner'],r['kind'],r['to']) for r in handoff})==128
+landing=[r for r in endpoints if r['from'].startswith('system_storage_capture_handoff_pipeline_read_word[') and r['to'].startswith('system_storage_capture_handoff_pipeline_rdata[')]
+assert len(landing)==128 and all(r['to_inverted']=='1' for r in landing)
+enable=[r for r in endpoints if r['from']=='system_storage_capture_handoff_pipeline_read_window[3]' and r['to'].startswith('system_storage_capture_handoff_pipeline_read_word[')]
+assert len(enable)+sum(r['from'] in captures for r in handoff)==128
+second_cs=[r for r in rows if r['role']=='second_chip_select'];assert len(second_cs)==8
+commands=[r for r in rows if r['role']=='write' and r['port'].startswith(('SDRAM_A[','SDRAM_BA[','SDRAM_n'))]
+mins=lambda xs:{kind:min(float(r['slack_ns']) for r in xs if r['kind']==kind) for kind in ('setup','hold')}
+section=(fit/'output_files/top.fit.rpt').read_text(encoding='latin1').split('; Bidir Pins',1)[1].split('; I/O Bank Usage',1)[0]
+lines=[[s.strip() for s in line.split(';')[1:-1]] for line in section.splitlines()];header=next(x for x in lines if x and x[0]=='Name')
+pins=[dict(zip(header,x)) for x in lines if x and x[0].startswith('SDRAM_DQ[')];assert len(pins)==16 and all(r['Input Register']=='yes' for r in pins)
+result={'classification':'100 MHz source-frozen diagnostic; not physical acceptance','clock_phases':phases,'proof_sha256':q.sha(a.proof),
+ 'generic_read_per_edge_min_ns':mins(read),'used_read_word_window':window,'capture_and_enable_to_held_word_min_ns':mins(handoff),'handoff_reported_source_counts':{'captured_data':sum(r['from'] in captures for r in handoff),'read_enable':len(enable)},'held_word_to_landing_min_ns':mins(landing),
+ 'direct_command_min_ns':mins(commands),'conditional_second_cs_min_ns':mins(second_cs),'internal_checks_pass':native['reported_endpoint_checks_pass'],
+ 'pulse_width_pass':all(not r['failures'] for r in native['minimum_pulse_width'].values()),
+ 'internal_minima':{k:float(v['worst']['slack_ns']) if v['endpoints'] else None for k,v in native['by_corner_and_check'].items()},
+ 'audio_payload_min_ns':min(float(r['slack_ns']) for r in native['audio_payload']),
+ 'audio_interstage_min_ns':min(float(r['slack_ns']) for r in native['audio_interstage']),
+ 'mailbox_interstage_min_ns':min(float(r['slack_ns']) for r in native['mailbox_interstage']),
+ 'cas_latency':3,'physical_timing':'BLOCKED: board bounds not established','production_seal':False,'hardware_run':False,
+ 'rbf_sha256':q.sha(fit/'output_files/top.rbf'), 'report_sha256':{str(f.relative_to(fit)):q.sha(f) for f in [fit/'conditional/channels.tsv',fit/'audit/endpoints.tsv',fit/'audit/clocks.tsv',fit/'output_files/top.fit.rpt',fit/'top.qsf',fit/'clocks.sdc',fit/'audio.sdc',fit/'mailbox.sdc']}}
+result['common_device_cycle_headroom_ns']=2.5
+result['default_off']=True
+result['selected_path_gates_pass']=result['internal_checks_pass'] and result['pulse_width_pass'] and window['setup_min_ns']>=0 and window['hold_min_ns']>=0 and all(v>=0 for v in result['direct_command_min_ns'].values())
+a.output.write_text(json.dumps(result,indent=2,sort_keys=True)+'\n');print(json.dumps(result,indent=2))

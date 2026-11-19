@@ -1,0 +1,18 @@
+{
+  "status": "independently-verified-source-archives",
+  "sources": [
+    {
+      "name": "before-fix",
+      "commit": "95c8e9aef93d6a5c1e8890051ac37731bb3a167e",
+      "archive_sha256": "ef7928e6cc6e037273cfa8289352762ab7b9f49cac7095141e9a20b149c9df9d",
+      "verified_git_blobs": 17129
+    },
+    {
+      "name": "tested-source",
+      "commit": "d3aefb4b95c7678eaa49e31a523810fa226903b2",
+      "archive_sha256": "c087491aa170e95afecdff6758ce2359dbbc60592a12589afad06eb5894b3290",
+      "verified_git_blobs": 17274
+    }
+  ],
+  "hardware_actions": false
+}

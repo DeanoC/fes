@@ -1,0 +1,43 @@
+{
+  "arm": "a",
+  "base": "1ec59267039b12b5879dd90af856ac232b9d014c",
+  "changed_from_base": [],
+  "commit": "1ec59267039b12b5879dd90af856ac232b9d014c",
+  "created_utc": "2026-11-18T19:05:54.976208+00:00",
+  "guest_rates": {
+    "ATA_RESET_CLOCKS": 615,
+    "AUDIO_D": 1280,
+    "AUDIO_N": 1,
+    "DMA_D": 9216,
+    "DMA_N": 625,
+    "DOT0_D": 12288,
+    "DOT0_N": 5035,
+    "DOT1_D": 30720,
+    "DOT1_N": 14161,
+    "GOV_D": 3072,
+    "GOV_N": 5,
+    "ISA_D": 4608,
+    "ISA_N": 625,
+    "OPL2_D": 1081344,
+    "OPL2_N": 875,
+    "PIT_D": 22528,
+    "PIT_N": 875,
+    "RTC_D": 1875,
+    "RTC_N": 1,
+    "US_D": 1536,
+    "US_N": 25
+  },
+  "hierarchy": true,
+  "host": "powerboat",
+  "netlist_bytes": 5124087,
+  "netlist_sha256": "c92d8c20ff00a0e23bdce3f35669f0da2cf9080672f55d75b7542125ce21dc3f",
+  "netlist_sha256_as_elaborated": "d9a1682b91f50fb315e7723a6316ffb6c5b47e4129c3e83861da049678bec1df",
+  "program_sha256": "36cd9f2f6b194b800a2fcdbdc04fcf8757396a54815fc6051ec0e70ade17e5a2",
+  "rom_hex_sha256": "815620361ef28a2bbdd97b1964700a4678a26c0ffc9582bb95544473fe099d18",
+  "yosys": {
+    "gpu_router": "HIP",
+    "lock": "cores/fes-pc386/toolchain.lock",
+    "lock_sha256": "294c89450c6c719f649cd4f248d0d844dd431df1138d44d6a26e4a1219ac579c",
+    "tool": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=32decd607d6acf54199400224725f8c1c13eff9bbe1ada61eb51abe5a59e35ba"
+  }
+}

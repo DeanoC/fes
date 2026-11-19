@@ -237,7 +237,7 @@ func (a *App) openFirmwareCardLocked(action rooms.Action) {
 		content, ok := firmwareCardCopy(label, action.CoreID, models, bundled, action.FirstUse)
 		if !ok {
 			if !action.FirstUse {
-				a.status = label + " needs no firmware."
+				a.status = label + " has no separate firmware to add."
 			}
 			return
 		}
@@ -459,7 +459,7 @@ func drawFirmwareCard(dev gfx.Device, snap Snapshot, labels map[string]gpuTextur
 			drawFESLabel(dev, labels, used, fmt.Sprintf("fwc-lic-%d", i), cx, cy, inner, firmwareCardNotePx, line)
 			cy += step
 		}
-		heroLine(dev, labels, used, cx, y+h-firmwareCardPad-step, inner, firmwareCardNotePx, false, heroSecondary, firmwareCardHint(snap.Affinity, card))
+		heroLine(dev, labels, used, cx, y+h-firmwareCardPad-step, inner, firmwareCardNotePx, false, heroSecondary, snap.padHint(firmwareCardHint(snap.Affinity, card)))
 		return
 	}
 	p := planFirmwareCard(c, inner)
@@ -497,9 +497,9 @@ func drawFirmwareCard(dev gfx.Device, snap Snapshot, labels map[string]gpuTextur
 		paragraph(lines, firmwareCardNotePx, heroSecondary)
 	}
 	bx, by := cx, y+h-firmwareCardPad-heroButtonH
-	primaryW := heroButton(dev, labels, used, bx, by, heroButtonH, selectWord(snap.Affinity), c.Primary, true)
+	primaryW := heroButton(snap, dev, labels, used, bx, by, heroButtonH, selectWord(snap.Affinity), c.Primary, true)
 	heroOutline(dev, bx-4, by-4, primaryW+8, heroButtonH+8, 2, heroAccent)
 	if c.Secondary != "" {
-		heroButton(dev, labels, used, bx+primaryW+heroButtonGap, by, heroButtonH, detailsWord(snap.Affinity), c.Secondary, false)
+		heroButton(snap, dev, labels, used, bx+primaryW+heroButtonGap, by, heroButtonH, detailsWord(snap.Affinity), c.Secondary, false)
 	}
 }

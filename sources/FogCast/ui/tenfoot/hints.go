@@ -77,14 +77,16 @@ func browseHint(kind InputKind) string {
 	}
 }
 
-func sessionChromeHint(kind InputKind, retry bool, loadTape bool) string {
+func sessionChromeHint(kind InputKind, retry bool, loadTape bool, keyboardHID bool) string {
 	stop := "B stop"
 	switch kind {
 	case InputKeyboard, InputMouse:
 		if retry {
 			stop = "Esc/S retry Stop"
+		} else if keyboardHID {
+			stop = "hold Select+Start stop"
 		} else {
-			stop = "Esc/S stop"
+			stop = "Backspace stop"
 		}
 	default:
 		if retry {
@@ -195,8 +197,21 @@ func (s Snapshot) AffinityBadge() string {
 	}
 }
 
-// HeaderHint is the on-screen footer/header hint for the affinity device.
+// HeaderHint is the on-screen footer/header hint for the affinity device,
+// with a pad's buttons drawn as its glyphs.
 func (s Snapshot) HeaderHint() string {
+	return s.padHint(s.headerHintWords())
+}
+
+// padHint draws a hint's button words as the affinity pad's glyphs.
+func (s Snapshot) padHint(hint string) string {
+	if s.Affinity != InputGamepad {
+		return hint
+	}
+	return s.Prompts.apply(hint)
+}
+
+func (s Snapshot) headerHintWords() string {
 	kind := s.Affinity
 	if s.OSK.Open {
 		if h := strings.TrimSpace(s.OSK.Hint); h != "" {
@@ -228,7 +243,7 @@ func (s Snapshot) HeaderHint() string {
 			}
 			return tapePickerHint(kind)
 		}
-		hint := sessionChromeHint(kind, s.Session.RetryStop, s.Session.LoadTape)
+		hint := sessionChromeHint(kind, s.Session.RetryStop, s.Session.LoadTape, s.Session.KeyboardHID)
 		if s.Session.MediaSelector {
 			hint = strings.ReplaceAll(hint, "load tape", "change media")
 		}

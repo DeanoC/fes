@@ -1,0 +1,14 @@
+artefact           pass 1                 pass 2                 verdict
+menu               identical              identical              identical
+splash             identical (src exempt) identical (src exempt) identical (src exempt)
+pong               identical              identical              identical
+ramtest            identical              identical              identical
+riscv              identical              identical              identical
+coleco             identical              identical              identical
+c64                identical              identical              identical
+spectrum           identical              identical              identical
+spectrum128        identical              identical              identical
+spectrum-plus3     identical              identical              identical
+pentagon           identical              identical              identical
+
+11 of 11 artefacts claimed on two agreeing passes

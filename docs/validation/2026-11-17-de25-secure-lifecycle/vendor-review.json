@@ -1,0 +1,30 @@
+{
+  "accessed_utc": "2026-11-17T17:06:34.904753+00:00",
+  "sources": [
+    {
+      "title": "Altera Agilex 3/5 Booting User Guide 26.3, Reset",
+      "url": "https://docs.altera.com/r/docs/813762/26.3/hard-processor-system-booting-user-guide-agilex-3-and-agilex-5-socs/reset",
+      "finding": "CPU software reset does not affect SDM; HPS cold/warm resets do not reconfigure FPGA; reset scope is not whole-device transaction retirement."
+    },
+    {
+      "title": "Agilex 5 configuration guide 26.1, reset response table",
+      "url": "https://docs.altera.com/r/docs/813773/26.1/device-configuration-user-guide-agilextm-5-fpgas-and-socs/device-response-to-configuration-and-reset-events",
+      "finding": "SDM reset and boot ROM restart are marked for power cycle, not nCONFIG or HPS_COLD_nRESET."
+    },
+    {
+      "title": "Agilex 5 ES errata applicability, 2026-10-02",
+      "url": "https://docs.altera.com/r/docs/825514/current/agilex-5-es-device-errata-and-user-guidelines/altera-specific-errata-for-the-agilex-5-es-devices",
+      "finding": "F2H/SMMU/reconfiguration erratum lists ES A5Ex065B/A parts ending R0; sealed target A5EB013BB23BE4SCS is not listed as affected. This is not a fresh physical silicon identification."
+    },
+    {
+      "title": "Agilex 5 ES erratum 2.1.21",
+      "url": "https://docs.altera.com/r/docs/825514/current/agilex-5-es-device-errata-and-user-guidelines/fpga-to-hps-f2h-bridge-hps-warm/cold-reset-and-fpga-reconfiguration-issues-with-smmu-enabled",
+      "finding": "Describes repeated F2H configuration/reset failures with SMMU and no workaround for its listed affected devices; symptom similarity is insufficient attribution."
+    }
+  ],
+  "open_questions": [
+    "Vendor source-DATA acknowledgment and end-to-end NoC retirement guarantees for this exact nonsecure stream path.",
+    "Whether any supported JTAG sequence restarts SDM itself; fresh SPL/HPS/fabric observations alone do not prove this.",
+    "Exact silicon revision and applicability of other SMMU/CPU cache-maintenance errata on the physical kit."
+  ]
+}

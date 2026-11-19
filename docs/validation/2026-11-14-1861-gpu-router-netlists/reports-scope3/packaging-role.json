@@ -1,0 +1,28 @@
+{
+  "/data/fes1861-netlist/identity/nb2": {
+    "identity": "f7cb625ee0828cbb00b44c0072e10897971c3e87845a260e380490877087a62a",
+    "moves_identity": {
+      "cores/fes-menu/rtl/fes_menu_top.sv": true,
+      "scripts/input_identity.py": false
+    },
+    "revision": "e2b8130b5a18b652095a8d5e23124fd0a994e9c0",
+    "roles": {
+      "cores/fes-menu/rtl/fes_menu_top.sv": "design",
+      "scripts/bootstrap.sh": "toolchain",
+      "scripts/input_identity.py": "packaging"
+    }
+  },
+  "/data/fes1861-netlist/identity/nb3": {
+    "identity": "f7cb625ee0828cbb00b44c0072e10897971c3e87845a260e380490877087a62a",
+    "moves_identity": {
+      "cores/fes-menu/rtl/fes_menu_top.sv": true,
+      "scripts/input_identity.py": false
+    },
+    "revision": "5e592f00389fd2bb61194788c917c36f5c880dec",
+    "roles": {
+      "cores/fes-menu/rtl/fes_menu_top.sv": "design",
+      "scripts/bootstrap.sh": "toolchain",
+      "scripts/input_identity.py": "packaging"
+    }
+  }
+}

@@ -1,0 +1,561 @@
+{
+  "artifact_revision": "85dbb42815a26ef51c490c79a790f861101b96ff",
+  "build_id": "1d1e4a52fced512afe3c96dc88cc0783",
+  "classification": "conditional single-edge postfit SDRAM reference",
+  "collector_sha256": "711e5600221b47af9d841b21294e4bc6e6ec77155b5c095c74c911631da04ad4",
+  "conditional_setup_misses": true,
+  "hardware_run": false,
+  "new_fit_or_package": false,
+  "nominal_tCK_margin_ns": 0,
+  "package_id": "4e7c0c7ea83702b83987c7ca35c15e00269237a446d8646b51363bf75c9695ec",
+  "payload_sha256": "d10aec8b6295b341e688ab12d358f2864cfeca6bffc4417df7bbfdab1e6ae56c",
+  "physical_budget_complete": false,
+  "record_sha256": "865ca6328217f7e6ce2ba97654127a2982cb7efa8de3e28a891fbaedc6e78c2d",
+  "recorded_inputs_equal_source": 185,
+  "reference_sha256": "3c4bde5eaf886acc73a05402fde86034b371e041f70ce78d85c23222febc42f9",
+  "runs": [
+    {
+      "corners": [
+        "7_slow_1100mv_-40c",
+        "7_slow_1100mv_100c",
+        "MIN_fast_1100mv_-40c",
+        "MIN_fast_1100mv_100c"
+      ],
+      "database_input_sha256": "a6df18604364af7eebd5a6ee6ad3932c5adde5b673987fc96fa1bffdacd21613",
+      "database_output_sha256": "7f4be54965706943f3af1dc93860b7c23a2b9b2db4ef870e91708aa9326cb8da",
+      "database_receipt_sha256": "6bda173c01f9b9379a6e749a90ff552496696205431aca1359f41da561b523d5",
+      "fitted_rbf_sha256": "d10aec8b6295b341e688ab12d358f2864cfeca6bffc4417df7bbfdab1e6ae56c",
+      "minima": {
+        "output_enable_pin_window_only": {
+          "hold": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "from": "dq_oe",
+            "negative_rows": 0,
+            "port": "SDRAM_DQ[2]",
+            "row_count": 64,
+            "slack_ns": 5.085,
+            "to": "SDRAM_DQ[2]"
+          },
+          "setup": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "dq_oe",
+            "negative_rows": 53,
+            "port": "SDRAM_DQ[11]",
+            "row_count": 64,
+            "slack_ns": -5.4,
+            "to": "SDRAM_DQ[11]"
+          }
+        },
+        "read": {
+          "hold": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "from": "SDRAM_DQ[7]",
+            "negative_rows": 0,
+            "port": "SDRAM_DQ[7]",
+            "row_count": 64,
+            "slack_ns": 5.071,
+            "to": "sdram_pads_7__captured"
+          },
+          "setup": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "SDRAM_DQ[4]",
+            "negative_rows": 64,
+            "port": "SDRAM_DQ[4]",
+            "row_count": 64,
+            "slack_ns": -8.717,
+            "to": "sdram_pads_4__captured"
+          }
+        },
+        "second_chip_select_reference": {
+          "hold": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "SDRAM_nCS~reg0",
+            "negative_rows": 0,
+            "port": "SDRAM_nCS",
+            "row_count": 4,
+            "slack_ns": 4.418,
+            "to": "SDRAM_nCS"
+          },
+          "setup": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "from": "SDRAM_nCS~reg0",
+            "negative_rows": 4,
+            "port": "SDRAM_nCS",
+            "row_count": 4,
+            "slack_ns": -0.937,
+            "to": "SDRAM_nCS"
+          }
+        },
+        "shell_diagnostic_mirrors": {
+          "hold": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "SDRAM_CKE~reg0",
+            "negative_rows": 0,
+            "port": "SDRAM_CKE",
+            "row_count": 12,
+            "slack_ns": 3.699,
+            "to": "SDRAM_CKE"
+          },
+          "setup": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "SDRAM_DQML~reg0",
+            "negative_rows": 4,
+            "port": "SDRAM_DQML",
+            "row_count": 12,
+            "slack_ns": -2.077,
+            "to": "SDRAM_DQML"
+          }
+        },
+        "write_command_address_connector": {
+          "hold": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "SDRAM_A[1]~reg0",
+            "negative_rows": 0,
+            "port": "SDRAM_A[1]",
+            "row_count": 76,
+            "slack_ns": 3.138,
+            "to": "SDRAM_A[1]"
+          },
+          "setup": {
+            "corner": "7_slow_1100mv_-40c",
+            "from": "SDRAM_A[9]~reg0",
+            "negative_rows": 0,
+            "port": "SDRAM_A[9]",
+            "row_count": 76,
+            "slack_ns": 2.238,
+            "to": "SDRAM_A[9]"
+          }
+        },
+        "write_dq": {
+          "hold": {
+            "corner": "7_slow_1100mv_-40c",
+            "from": "dq_out[11]",
+            "negative_rows": 0,
+            "port": "SDRAM_DQ[3]",
+            "row_count": 64,
+            "slack_ns": 3.86,
+            "to": "SDRAM_DQ[3]"
+          },
+          "setup": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "dq_out[1]",
+            "negative_rows": 30,
+            "port": "SDRAM_DQ[9]",
+            "row_count": 64,
+            "slack_ns": -5.582,
+            "to": "SDRAM_DQ[9]"
+          }
+        }
+      },
+      "native_capture_to_controller_ns": {
+        "hold": 4.343,
+        "setup": 0.908
+      },
+      "native_endpoint_receipt_verified": true,
+      "native_endpoint_sha256": "1eb9ce700ed4e7b0178baa5a8906a8a86014c024c675334f70d7dd2975413ad2",
+      "report_sha256": {
+        "conditional/7_slow_1100mv_-40c/internal-pulse.rpt": "53b02f73627219bbc0beea9e260c0336ada9dd080d4e74079bec48ca729e43fa",
+        "conditional/7_slow_1100mv_-40c/read-hold.rpt": "7b81f68ab24d8b174eb099b0b35998834f5dc96d901a584ae134b15497442ac4",
+        "conditional/7_slow_1100mv_-40c/read-setup.rpt": "9c82f1c18004389b1b10f9c392cf1305ea689057dc6498a0c743d24148e5ae92",
+        "conditional/7_slow_1100mv_-40c/second-chip-select-hold.rpt": "2afc34b8234b3a4a441b83e1f341796370367003672ddcd6279b2e78fba1b9bf",
+        "conditional/7_slow_1100mv_-40c/second-chip-select-setup.rpt": "5b8ba00c1cb471abcf788ab84d7ad67d8bd64fdf6c6f87b3b1d1e0301baf0656",
+        "conditional/7_slow_1100mv_-40c/write-hold.rpt": "d742f498fbbed0cb315c2525f602d04afb64ad8656bb13fa99eb57ae3aec58c7",
+        "conditional/7_slow_1100mv_-40c/write-setup.rpt": "5d631abdde1b5e64cdb60b42ef7aeb2a25c609956430f08feb4d017b4c79558a",
+        "conditional/7_slow_1100mv_100c/internal-pulse.rpt": "fe10b1306eef88e0d58cf4112d10c6c0eeb9a86175de116a4c3e81accdf32d96",
+        "conditional/7_slow_1100mv_100c/read-hold.rpt": "9adb5791709ce38407c531cb16c0fe484119dd7dfcf71beabbc50528ad65687e",
+        "conditional/7_slow_1100mv_100c/read-setup.rpt": "6afca8f8f31b3ad5caf01c35b32d6fede1ac0a8fbb31a8b63d5b8533cfefaa3d",
+        "conditional/7_slow_1100mv_100c/second-chip-select-hold.rpt": "1bce5a621367b1b220e3d338f8c05b72323442d96c2c35e631465dae5cb91918",
+        "conditional/7_slow_1100mv_100c/second-chip-select-setup.rpt": "863d91bbafaf2b691a38bdd4a39da91babc8c029317bad04e3e73ecca372d93c",
+        "conditional/7_slow_1100mv_100c/write-hold.rpt": "3843670902475bd6bb557614e381b18de178f2e97c98bb44d42fcbebe9146a3d",
+        "conditional/7_slow_1100mv_100c/write-setup.rpt": "8dfe9fc5364b43700dacbf074489c1ec5e5d795a9296adcebab971bb8d8a1380",
+        "conditional/MIN_fast_1100mv_-40c/internal-pulse.rpt": "1cc9b6451499141d2d96b3f75d20cceca38f593154581bb9f76c44cea4406d7c",
+        "conditional/MIN_fast_1100mv_-40c/read-hold.rpt": "f77d74edc7abf9f8639270399945eeffc26899a4b2e3679ec647f728c1948e18",
+        "conditional/MIN_fast_1100mv_-40c/read-setup.rpt": "fb9784476720ea03edf1d2d54a190b34b7521f236370115e102402357930a078",
+        "conditional/MIN_fast_1100mv_-40c/second-chip-select-hold.rpt": "aba42a0a4cfa1be92f9b0c4bd7ee28f5f97c8367db35fbfbfb94372c75958073",
+        "conditional/MIN_fast_1100mv_-40c/second-chip-select-setup.rpt": "44c44b0d52fd7a5455da70c4d6ec817a7504f6b881b38413585c8a7001e9a738",
+        "conditional/MIN_fast_1100mv_-40c/write-hold.rpt": "72fd17b535680946d2071d1777f2fab786f3ee0246116a7a8d21c1f5a1eade07",
+        "conditional/MIN_fast_1100mv_-40c/write-setup.rpt": "544905dee0d75306af517e5a703aabd22391780cbe030981110f06b8f320eea6",
+        "conditional/MIN_fast_1100mv_100c/internal-pulse.rpt": "8b31ec00324ff4bbda3fdc252c5ea7684f978f8fc04deff5ad00419b02bdcdcf",
+        "conditional/MIN_fast_1100mv_100c/read-hold.rpt": "7ee392759cbdafa551a720820e7eddaf2c4f9ef45cb145f25ed437bfe7711b07",
+        "conditional/MIN_fast_1100mv_100c/read-setup.rpt": "b96e709bb6e125c82426d817eba036278526711c7a1df6d6212f4a4755694a61",
+        "conditional/MIN_fast_1100mv_100c/second-chip-select-hold.rpt": "7bfd2bad9f2341ca264d0f463718be8a8246c31d98c66725c2ab4cc1d94dc7d9",
+        "conditional/MIN_fast_1100mv_100c/second-chip-select-setup.rpt": "b1fbb8592bb83f3dfe95f9e0701969ee121ee31ae6e2e0a7707deaa7f74fafdc",
+        "conditional/MIN_fast_1100mv_100c/write-hold.rpt": "a2f4a3fbfdcdca8eb2c07992298e3d06968ea6033e19f37905d765ed38b644f7",
+        "conditional/MIN_fast_1100mv_100c/write-setup.rpt": "6a18d9e2b847754a95f3e1d9c3cab46c741755d4e154b6ee1f25f18c12ed4575",
+        "conditional/channels.tsv": "ad5f1ffe1df7ca4e9539c643deb02ba509dd24966fe39987c3cfdceaf3ca857d",
+        "conditional/clocks.rpt": "e00d8399353f1c0772f8621f409d62deb73279b5ddcdc0956607cada20995861",
+        "conditional/constraints.rpt": "8efe49ab9b79c7b235d10ea5b03c433467faa3ac5f6e877fd75818a02af9671e",
+        "conditional/ignored.rpt": "7cbebc48feac4d783f64a2711627d07509f232af5abfae44479518ffe2923f6c"
+      },
+      "rows": 568,
+      "sealed_payload_seed": true,
+      "seed": 1
+    },
+    {
+      "corners": [
+        "7_slow_1100mv_-40c",
+        "7_slow_1100mv_100c",
+        "MIN_fast_1100mv_-40c",
+        "MIN_fast_1100mv_100c"
+      ],
+      "database_input_sha256": "36be7774970a5aa79400fcbd0d71d6d9404e8cbbd727f9384f82fba640a19df3",
+      "database_output_sha256": "f9cd3708f0a3fcb3b52be3aa0097c28804ba3023ad4322be975c7e9743ea26f4",
+      "database_receipt_sha256": "134d3fce7a02a443d89bf23824875bda92d108dc4b9c78cd4ed899d172601b11",
+      "fitted_rbf_sha256": "dfe08513c648d00b283ded5a2bde2489b6cfaa9808a8056e9e2d41082c1de241",
+      "minima": {
+        "output_enable_pin_window_only": {
+          "hold": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "from": "dq_oe",
+            "negative_rows": 0,
+            "port": "SDRAM_DQ[2]",
+            "row_count": 64,
+            "slack_ns": 5.23,
+            "to": "SDRAM_DQ[2]"
+          },
+          "setup": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "dq_oe",
+            "negative_rows": 52,
+            "port": "SDRAM_DQ[11]",
+            "row_count": 64,
+            "slack_ns": -5.129,
+            "to": "SDRAM_DQ[11]"
+          }
+        },
+        "read": {
+          "hold": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "from": "SDRAM_DQ[1]",
+            "negative_rows": 0,
+            "port": "SDRAM_DQ[1]",
+            "row_count": 64,
+            "slack_ns": 5.098,
+            "to": "sdram_pads_1__captured"
+          },
+          "setup": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "SDRAM_DQ[8]",
+            "negative_rows": 64,
+            "port": "SDRAM_DQ[8]",
+            "row_count": 64,
+            "slack_ns": -9.558,
+            "to": "sdram_pads_8__captured"
+          }
+        },
+        "second_chip_select_reference": {
+          "hold": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "SDRAM_nCS~reg0",
+            "negative_rows": 0,
+            "port": "SDRAM_nCS",
+            "row_count": 4,
+            "slack_ns": 4.418,
+            "to": "SDRAM_nCS"
+          },
+          "setup": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "from": "SDRAM_nCS~reg0",
+            "negative_rows": 4,
+            "port": "SDRAM_nCS",
+            "row_count": 4,
+            "slack_ns": -0.936,
+            "to": "SDRAM_nCS"
+          }
+        },
+        "shell_diagnostic_mirrors": {
+          "hold": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "SDRAM_CKE~reg0",
+            "negative_rows": 0,
+            "port": "SDRAM_CKE",
+            "row_count": 12,
+            "slack_ns": 3.699,
+            "to": "SDRAM_CKE"
+          },
+          "setup": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "SDRAM_DQMH~reg0",
+            "negative_rows": 3,
+            "port": "SDRAM_DQMH",
+            "row_count": 12,
+            "slack_ns": -1.669,
+            "to": "SDRAM_DQMH"
+          }
+        },
+        "write_command_address_connector": {
+          "hold": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "SDRAM_A[1]~reg0",
+            "negative_rows": 0,
+            "port": "SDRAM_A[1]",
+            "row_count": 76,
+            "slack_ns": 3.151,
+            "to": "SDRAM_A[1]"
+          },
+          "setup": {
+            "corner": "7_slow_1100mv_-40c",
+            "from": "SDRAM_A[9]~reg0",
+            "negative_rows": 0,
+            "port": "SDRAM_A[9]",
+            "row_count": 76,
+            "slack_ns": 2.201,
+            "to": "SDRAM_A[9]"
+          }
+        },
+        "write_dq": {
+          "hold": {
+            "corner": "7_slow_1100mv_-40c",
+            "from": "dq_out[11]",
+            "negative_rows": 0,
+            "port": "SDRAM_DQ[3]",
+            "row_count": 64,
+            "slack_ns": 3.951,
+            "to": "SDRAM_DQ[3]"
+          },
+          "setup": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "dq_out[1]",
+            "negative_rows": 44,
+            "port": "SDRAM_DQ[9]",
+            "row_count": 64,
+            "slack_ns": -7.745,
+            "to": "SDRAM_DQ[9]"
+          }
+        }
+      },
+      "native_capture_to_controller_ns": {
+        "hold": 4.319,
+        "setup": 1.522
+      },
+      "native_endpoint_receipt_verified": true,
+      "native_endpoint_sha256": "9bdcb6ae8972997875ccfa07bb62e92a869ce702fa0a8e5b39dd1b5f1c932ec0",
+      "report_sha256": {
+        "conditional/7_slow_1100mv_-40c/internal-pulse.rpt": "1c15b9e35d32e778d0b350b8247f5243277672fd6eee619521efd563e97ee15f",
+        "conditional/7_slow_1100mv_-40c/read-hold.rpt": "fdb1132ed545c76465dd4cd0ab920d06384be4ea45971549edf85ff90d7fbde7",
+        "conditional/7_slow_1100mv_-40c/read-setup.rpt": "4aed5d2fcc0ed499435934466448a02cb4698143c3049fa4dacd281c0bfc377b",
+        "conditional/7_slow_1100mv_-40c/second-chip-select-hold.rpt": "6b13655ab75fdc2fdc730806e624404089ec177fbd1cc43ca285dbdc03467d5c",
+        "conditional/7_slow_1100mv_-40c/second-chip-select-setup.rpt": "32cc14e1a7c15131257fb69c87fa85dbf9eec7a87ed607a46686f6558f1b082a",
+        "conditional/7_slow_1100mv_-40c/write-hold.rpt": "3e2b8c84b2e5fc3da5598d323d8aaad04a7867b719cdbf2b9f731b36c1e0ea25",
+        "conditional/7_slow_1100mv_-40c/write-setup.rpt": "3d5eff998733d5ea175c662fe4c3ec0ffa620309de92fbd500396ba7d0efa01a",
+        "conditional/7_slow_1100mv_100c/internal-pulse.rpt": "d1bafed54e5c92c31c16ceee30157784822f298113cadd2d0170cfe2876d78c3",
+        "conditional/7_slow_1100mv_100c/read-hold.rpt": "9bf502818db1912aba0c6c188c8c55dfd840be04cba236063cfca123f5432635",
+        "conditional/7_slow_1100mv_100c/read-setup.rpt": "31cf0a1944a0ac0bcaa6c1fcea8cfecc3afade9768835a459dca64980f6f7078",
+        "conditional/7_slow_1100mv_100c/second-chip-select-hold.rpt": "9bc376e704d71bdde08c702f1ce35d3979a9f7fa5471112565b069e6aeac57c2",
+        "conditional/7_slow_1100mv_100c/second-chip-select-setup.rpt": "23b99547e6c434908f70d3919c2f315b32992378c4ce10be1bb8298f125db244",
+        "conditional/7_slow_1100mv_100c/write-hold.rpt": "a9005fbb9c2fd0959a09f22bc4b37520ac3fdf90239fc4d026816ab21b2d87c0",
+        "conditional/7_slow_1100mv_100c/write-setup.rpt": "395a068bf440da31b44deb4b339e9371e5d2850eeb84ca3873c762356b472fb6",
+        "conditional/MIN_fast_1100mv_-40c/internal-pulse.rpt": "1be863298723e8897744bb9117932accfbb998105d16833b375e99207d1c084f",
+        "conditional/MIN_fast_1100mv_-40c/read-hold.rpt": "93a0663da81286579c27e16f68427de648bd5c22ba99298322e5492e9c09bb0d",
+        "conditional/MIN_fast_1100mv_-40c/read-setup.rpt": "0da527721deb87fbb9c55c7a4fdc59215f92c4bc063b97847008e6606091ee0b",
+        "conditional/MIN_fast_1100mv_-40c/second-chip-select-hold.rpt": "e5261a2e21bc755b72f649040f09bfa04d13adf91dbb8717f20d205cebd76b6b",
+        "conditional/MIN_fast_1100mv_-40c/second-chip-select-setup.rpt": "71e4d1050790bc415a5923d66ffa8f6f6e4ef82b5e2f53b03d1a80df6cd2e264",
+        "conditional/MIN_fast_1100mv_-40c/write-hold.rpt": "f6802b26d38ed100af34d15c8cf4257cb8b39205122692ec60976ea658ac9449",
+        "conditional/MIN_fast_1100mv_-40c/write-setup.rpt": "1f72578b384d713008a634a064f60e14233f6e59610aee712346e6fd9facf24b",
+        "conditional/MIN_fast_1100mv_100c/internal-pulse.rpt": "6f76f14f357ae5e40bbec2a4e2b80cb2e0276465d2d2a4b86fdf3cb51a562178",
+        "conditional/MIN_fast_1100mv_100c/read-hold.rpt": "c14f615cb06fca7f3d5bd46e1e2244d8b82c836ab75c424ea38d8682d3a08ff7",
+        "conditional/MIN_fast_1100mv_100c/read-setup.rpt": "ed315df5afb1144fbad0bbca55325bf40020488d0f5be38f19599bef20d4976d",
+        "conditional/MIN_fast_1100mv_100c/second-chip-select-hold.rpt": "4aa5dc85e4d336808e8057b4b05861f329dda708a98ba4ffc0b1291e40bb2aa5",
+        "conditional/MIN_fast_1100mv_100c/second-chip-select-setup.rpt": "63ae92aad4545909aa7f7b5a65b4ad81859c9b03af8e0ec302fb8bc76f3fa2c9",
+        "conditional/MIN_fast_1100mv_100c/write-hold.rpt": "4bd7924383cec1f91bcb854ac296c7d28e7e97f94827de781694113cdeedbf96",
+        "conditional/MIN_fast_1100mv_100c/write-setup.rpt": "f2ca352caa7c3a9539afed38332c4b7858aaacc25ee583bffe833b3efb4c451a",
+        "conditional/channels.tsv": "1725566159de315ca1778143330abc5629ad6bda0727c1c7eb67417766efed28",
+        "conditional/clocks.rpt": "e00d8399353f1c0772f8621f409d62deb73279b5ddcdc0956607cada20995861",
+        "conditional/constraints.rpt": "8efe49ab9b79c7b235d10ea5b03c433467faa3ac5f6e877fd75818a02af9671e",
+        "conditional/ignored.rpt": "7cbebc48feac4d783f64a2711627d07509f232af5abfae44479518ffe2923f6c"
+      },
+      "rows": 568,
+      "sealed_payload_seed": false,
+      "seed": 2
+    },
+    {
+      "corners": [
+        "7_slow_1100mv_-40c",
+        "7_slow_1100mv_100c",
+        "MIN_fast_1100mv_-40c",
+        "MIN_fast_1100mv_100c"
+      ],
+      "database_input_sha256": "50288a9920eb352d5f4659f4677c0c53e459ce9cc4dfc8e3036e5fe57891e22e",
+      "database_output_sha256": "9e115ef9f72cde12c530793e59b77680d6891937ed2b68d10cce42751fade7d4",
+      "database_receipt_sha256": "4d06ab7535a14c9b3d96afbbcd39bc6cd74ed167e1032b5f2ee1e144314ab8e4",
+      "fitted_rbf_sha256": "2f697466c9d94469a25e5cd93a1e97b745ffb71ee49a37e1b1e7c2cac0de6d38",
+      "minima": {
+        "output_enable_pin_window_only": {
+          "hold": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "from": "dq_oe",
+            "negative_rows": 0,
+            "port": "SDRAM_DQ[1]",
+            "row_count": 64,
+            "slack_ns": 5.171,
+            "to": "SDRAM_DQ[1]"
+          },
+          "setup": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "dq_oe",
+            "negative_rows": 58,
+            "port": "SDRAM_DQ[9]",
+            "row_count": 64,
+            "slack_ns": -6.831,
+            "to": "SDRAM_DQ[9]"
+          }
+        },
+        "read": {
+          "hold": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "from": "SDRAM_DQ[14]",
+            "negative_rows": 0,
+            "port": "SDRAM_DQ[14]",
+            "row_count": 64,
+            "slack_ns": 5.149,
+            "to": "sdram_pads_14__captured"
+          },
+          "setup": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "SDRAM_DQ[8]",
+            "negative_rows": 64,
+            "port": "SDRAM_DQ[8]",
+            "row_count": 64,
+            "slack_ns": -8.811,
+            "to": "sdram_pads_8__captured"
+          }
+        },
+        "second_chip_select_reference": {
+          "hold": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "SDRAM_nCS~reg0",
+            "negative_rows": 0,
+            "port": "SDRAM_nCS",
+            "row_count": 4,
+            "slack_ns": 4.413,
+            "to": "SDRAM_nCS"
+          },
+          "setup": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "from": "SDRAM_nCS~reg0",
+            "negative_rows": 4,
+            "port": "SDRAM_nCS",
+            "row_count": 4,
+            "slack_ns": -0.936,
+            "to": "SDRAM_nCS"
+          }
+        },
+        "shell_diagnostic_mirrors": {
+          "hold": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "SDRAM_CKE~reg0",
+            "negative_rows": 0,
+            "port": "SDRAM_CKE",
+            "row_count": 12,
+            "slack_ns": 3.714,
+            "to": "SDRAM_CKE"
+          },
+          "setup": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "SDRAM_DQML~reg0",
+            "negative_rows": 2,
+            "port": "SDRAM_DQML",
+            "row_count": 12,
+            "slack_ns": -1.473,
+            "to": "SDRAM_DQML"
+          }
+        },
+        "write_command_address_connector": {
+          "hold": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "SDRAM_A[1]~reg0",
+            "negative_rows": 0,
+            "port": "SDRAM_A[1]",
+            "row_count": 76,
+            "slack_ns": 3.136,
+            "to": "SDRAM_A[1]"
+          },
+          "setup": {
+            "corner": "7_slow_1100mv_-40c",
+            "from": "SDRAM_A[9]~reg0",
+            "negative_rows": 0,
+            "port": "SDRAM_A[9]",
+            "row_count": 76,
+            "slack_ns": 2.243,
+            "to": "SDRAM_A[9]"
+          }
+        },
+        "write_dq": {
+          "hold": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "from": "dq_out[11]",
+            "negative_rows": 0,
+            "port": "SDRAM_DQ[3]",
+            "row_count": 64,
+            "slack_ns": 4.136,
+            "to": "SDRAM_DQ[3]"
+          },
+          "setup": {
+            "corner": "7_slow_1100mv_100c",
+            "from": "dq_out[1]",
+            "negative_rows": 31,
+            "port": "SDRAM_DQ[9]",
+            "row_count": 64,
+            "slack_ns": -6.521,
+            "to": "SDRAM_DQ[9]"
+          }
+        }
+      },
+      "native_capture_to_controller_ns": {
+        "hold": 4.321,
+        "setup": 0.827
+      },
+      "native_endpoint_receipt_verified": true,
+      "native_endpoint_sha256": "a1c9b413392fe671aa036b362f64efec9d9d94cb513bc9c2a36718447caa3125",
+      "report_sha256": {
+        "conditional/7_slow_1100mv_-40c/internal-pulse.rpt": "d4f795f5bb467f2e00cf64b312845343fef03d97758e92ebeb463b60044e882e",
+        "conditional/7_slow_1100mv_-40c/read-hold.rpt": "7e8d42749782907b68c3a0fe9e8c1dc3f9fa834befbc79e37303b01c9b0ae10e",
+        "conditional/7_slow_1100mv_-40c/read-setup.rpt": "c9b74d814ab232eb6547ea52f9176e2cc819ffe7440ca05e2b05c3ebdba14436",
+        "conditional/7_slow_1100mv_-40c/second-chip-select-hold.rpt": "29674e8b74a37275480af1ee5751a80e250660d14dc91ab1cf207ec60a5bd043",
+        "conditional/7_slow_1100mv_-40c/second-chip-select-setup.rpt": "1e513cd1abf4f84ca3eecf56449cd563cebc0e5ede0f38e0be920a48db376e93",
+        "conditional/7_slow_1100mv_-40c/write-hold.rpt": "75d5c6ab6f52387fb1d5cf560e95c009f8253af7b6a2fd35104a9787f0305856",
+        "conditional/7_slow_1100mv_-40c/write-setup.rpt": "6e8af3f886700cab9b701572b6ef4459c46a01efae2996cf2580b08cd5df0b4c",
+        "conditional/7_slow_1100mv_100c/internal-pulse.rpt": "db80b00ab749afebb63a0e82fb2693cab11f7808460b5ca13b154295a64283f2",
+        "conditional/7_slow_1100mv_100c/read-hold.rpt": "ec7fe3dd746a9184abc21ae2b80c643f5b42d407dcaf50571b27b679dd9c1816",
+        "conditional/7_slow_1100mv_100c/read-setup.rpt": "d34046ec36237e0ec1b231025787dcf7d3c37e702580d81256c074021c76e964",
+        "conditional/7_slow_1100mv_100c/second-chip-select-hold.rpt": "d24120f579a4ff4e81dab77548db4baf74ad47abc12eace31e9cb61e766fb5c0",
+        "conditional/7_slow_1100mv_100c/second-chip-select-setup.rpt": "2e4f0b723682c3fc63da263e67035d6e0c78b20c6de688d8fd0a9c50a8a7398f",
+        "conditional/7_slow_1100mv_100c/write-hold.rpt": "009168a37fc2d1b27961fbe2f84545082d269005b7a3910963aa9efb83b8bf8a",
+        "conditional/7_slow_1100mv_100c/write-setup.rpt": "cf8fbceee86b6c717835fcc77a8c776559c0701d9742fc316e664116251adfba",
+        "conditional/MIN_fast_1100mv_-40c/internal-pulse.rpt": "82842ae5119fe9aeb7acb4ccc779f5b9bfe9141814dc78e3176a4bbd0bce76cc",
+        "conditional/MIN_fast_1100mv_-40c/read-hold.rpt": "2c12626d0fc35b2942afdbe99ae6595c66242d75a2cb66331d9146ad6a15a69f",
+        "conditional/MIN_fast_1100mv_-40c/read-setup.rpt": "89c52534d3a4cd3fbd25642c563f6d791afda7d607b139bc7cd782cba85b096c",
+        "conditional/MIN_fast_1100mv_-40c/second-chip-select-hold.rpt": "033763b8006edc136fb1e356ab78afc09ed587aa2f9d615ddb96d7626a8bd38a",
+        "conditional/MIN_fast_1100mv_-40c/second-chip-select-setup.rpt": "7c0a184d6b294a38dfa6a7cbec704438c1e8f323cf04b0738db1859d38e22997",
+        "conditional/MIN_fast_1100mv_-40c/write-hold.rpt": "12d2759d1038edd10d06aef31ba819fdbd1ed44bb463948fb80863cfbcd13fb0",
+        "conditional/MIN_fast_1100mv_-40c/write-setup.rpt": "c8ba0e0c150a9b57ebffe8ee71738a0e78fb266bf7c2342a2202d103a127998f",
+        "conditional/MIN_fast_1100mv_100c/internal-pulse.rpt": "b52fa1ec029a4014886546ae1747aca689c5ef4e69b165dff6e5c3e4bb4612b2",
+        "conditional/MIN_fast_1100mv_100c/read-hold.rpt": "4c045e31e1e53ad65cadb1ac3c16113dc548f4febf0d07e28ee8315c9f34c792",
+        "conditional/MIN_fast_1100mv_100c/read-setup.rpt": "0b97cb50b6955381d6b2be4ba360aa3c63502c1be793df2632a416235b7f5193",
+        "conditional/MIN_fast_1100mv_100c/second-chip-select-hold.rpt": "d50d3737c5047ca3580527f0e2b04d0a6326e444d33f63e220e5dcec40daec35",
+        "conditional/MIN_fast_1100mv_100c/second-chip-select-setup.rpt": "1bdf9485173a0d000f1cbfb81f9b84a123f0d4cee1aa8e6977384b676acdb16e",
+        "conditional/MIN_fast_1100mv_100c/write-hold.rpt": "49fda39394b3aae7da5b5d42c217e23218a0b436ebe60a812c205199ed0a1b7a",
+        "conditional/MIN_fast_1100mv_100c/write-setup.rpt": "7e29d37744215e8e6acced69b79c143a2dc9383673139dc80d12e384c1777e7e",
+        "conditional/channels.tsv": "935fc1a53bd99fc6b239173a7fedb4e0a4cb997b5726d20bb44115f85af6aa8d",
+        "conditional/clocks.rpt": "e00d8399353f1c0772f8621f409d62deb73279b5ddcdc0956607cada20995861",
+        "conditional/constraints.rpt": "8efe49ab9b79c7b235d10ea5b03c433467faa3ac5f6e877fd75818a02af9671e",
+        "conditional/ignored.rpt": "7cbebc48feac4d783f64a2711627d07509f232af5abfae44479518ffe2923f6c"
+      },
+      "rows": 568,
+      "sealed_payload_seed": false,
+      "seed": 3
+    }
+  ],
+  "source_base": "cdb863f848f253d22749a3e11f350dc174fda808",
+  "sta_binary_sha256": "71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93",
+  "unresolved": [
+    "actual clock and data flight/skew intervals for Kit A",
+    "actual pad/module loading, edge rates and voltage/temperature envelope",
+    "fitted second-chip-select inverter and its conditions",
+    "pin-level high/low pulse-width and cycle-jitter bounds",
+    "electrical bus turnaround/non-overlap including tLZ and tHZ",
+    "Kit B fitted memory module/chip identity",
+    "physical correlation and fitted timing admission of the proved logical transaction windows"
+  ],
+  "whole_board_qualified": false
+}

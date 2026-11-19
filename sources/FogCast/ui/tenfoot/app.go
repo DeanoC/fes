@@ -169,6 +169,7 @@ type SessionSnapshot struct {
 	MediaSelector     bool // The kit session plane is available for direct media controls.
 	// KeypadSelect keeps Select with a keypad machine; Guide opens controls.
 	KeypadSelect bool
+	KeyboardHID  bool // The running core receives physical Escape and Backspace.
 	HardwareRoom bool
 }
 
@@ -220,18 +221,21 @@ func layoutDetailMeta(d shared.FocusDetail, x, maxWidth, sizePx int) (facts stri
 
 // Snapshot is a frame-loop readable copy of launcher state.
 type Snapshot struct {
-	Games       []hostclient.Game
-	Grid        Grid
-	Status      string
-	LoadErr     string
-	Loading     bool
-	Covers      map[string]*image.RGBA
-	Launch      LaunchSnapshot
-	Gamepads    int
-	Keyboards   int
-	Mice        int
-	Affinity    InputKind
-	AffinityID  int
+	Games      []hostclient.Game
+	Grid       Grid
+	Status     string
+	LoadErr    string
+	Loading    bool
+	Covers     map[string]*image.RGBA
+	Launch     LaunchSnapshot
+	Gamepads   int
+	Keyboards  int
+	Mice       int
+	Affinity   InputKind
+	AffinityID int
+	// Prompts draws gamepad hints with the affinity pad's glyphs. Nil
+	// keeps button words.
+	Prompts     PadPrompts
 	CoverHits   int
 	Platforms   []hostclient.Platform
 	PlatformID  string
@@ -312,6 +316,7 @@ type App struct {
 	covers                  map[string]*coverSlot
 	inflight                map[string]workKind
 	status                  string
+	libraryStatus           string // the library's own line; an open room keeps status
 	statusLeaseRefusal      bool
 	launchLeaseRefusal      bool
 	loadErr                 string
@@ -324,12 +329,14 @@ type App struct {
 	keyboards               int
 	mice                    int
 	affinity                affinityTracker
-	repeat                  Repeater
-	theme                   theme.Theme
-	jobs                    chan workItem
-	results                 chan workResult
-	maxGames                int
-	pageLimit               int
+	// padPrompts holds each attached pad's hint glyphs by input ID.
+	padPrompts map[int]PadPrompts
+	repeat     Repeater
+	theme      theme.Theme
+	jobs       chan workItem
+	results    chan workResult
+	maxGames   int
+	pageLimit  int
 
 	platforms              []hostclient.Platform
 	platformID             string
@@ -529,14 +536,17 @@ type App struct {
 	firmwarePickerFromDetail bool
 	menuDisplay              *gfx.MenuDisplay
 	sessionDisplayBusy       bool
+	sessionDisplayNonHandoff bool
 	sessionDisplay           protocol.SessionDisplay
 	sessionDisplayUncertain  bool
 	surround, surroundFailed bool
 	sessionDisplayEpoch      uint64
 	sessionDisplayBinding    hostclient.SessionResult
 	sessionDisplayWait       chan struct{}
-	playKeyHeld              map[string]bool
-	playKeySuppressed        map[string]bool
+	playKeyHeld              map[physicalPlayKey]bool
+	playKeySuppressed        map[physicalPlayKey]bool
+	playKeyAdmitted          map[physicalPlayKey]playHIDKey
+	playKeyPendingRelease    map[physicalPlayKey]playHIDKey
 	playPadHeld              map[padKey]remoteinput.Event
 	playPadSuppressed        map[padKey]bool
 	playPadPair              chordPairs
@@ -579,6 +589,11 @@ type App struct {
 	tapePickerRows           []TapePickerRow
 	tapePickerSession        hostclient.SessionResult
 	tapePickerStarters       []hostclient.HardwareTape
+
+	// A bounded, root-requested test observation may defer the surround for
+	// this exact play session. It never changes the saved user preference.
+	diagnosticSurroundSession hostclient.SessionResult
+	diagnosticSurroundUntil   time.Time
 
 	safeAreaPct        float64
 	prefsPath          string
@@ -1619,7 +1634,7 @@ func (a *App) doFavorite(ctx context.Context, gameID string, want bool) {
 		a.reloadLocked()
 		return
 	}
-	a.status = a.libraryStatusLocked()
+	a.setLibraryStatusLocked(a.libraryStatusLocked())
 }
 
 func (a *App) platformChoicesLocked() []string {
@@ -1664,7 +1679,7 @@ func (a *App) reloadCatalogWithNoticeLocked(notice string) {
 	ctx := a.replaceLoadContextLocked()
 	lastInput := a.lastInput
 	if notice != "" {
-		a.setLibraryStatusLocked(notice)
+		a.setLibraryNoticeLocked(notice)
 	}
 	go func() {
 		a.loadLibrary(ctx, gen)
@@ -1683,12 +1698,11 @@ func (a *App) reloadCatalogWithNoticeLocked(notice string) {
 // setLibraryRefreshNoticeLocked keeps a failed refresh visible alongside the
 // outcome that requested it, including while setup defers library status.
 func (a *App) setLibraryRefreshNoticeLocked(notice string) {
-	status := a.libraryStatusForNoticeLocked()
-	if a.loadErr != "" || status == savedListOfflineCopy || status == "Can't reach the library right now." {
-		a.setLibraryStatusLocked(notice + " Couldn't refresh the library.")
+	if a.loadErr != "" || a.libraryStatus == savedListOfflineCopy || a.libraryStatus == "Can't reach the library right now." {
+		a.setLibraryNoticeLocked(notice + " Couldn't refresh the library.")
 		return
 	}
-	a.setLibraryStatusLocked(notice)
+	a.setLibraryNoticeLocked(notice)
 }
 
 func (a *App) replaceLoadContextLocked() context.Context {
@@ -1739,6 +1753,7 @@ func (a *App) Tick(now time.Time) Command {
 	a.drainResults()
 	a.drainAttractResults()
 	a.mu.Lock()
+	a.flushPendingPlayKeyReleasesLocked()
 	a.frameLua = rooms.StepTiming{}
 	a.flushSearchLocked(now)
 	a.tickAttractLocked(now)
@@ -1791,9 +1806,13 @@ func (a *App) Snapshot() Snapshot {
 	}
 	status := a.status
 	if a.setupRoomOpenLocked() && status == setupBlockedStatus && !a.setupSessionBusyLocked() {
-		status = a.setup.deferredLibraryStatus
+		// The block is over: a notice it deferred, else the room's own line.
+		status = a.setup.deferredNotice
+		if status == "" {
+			status = a.room.Title()
+		}
 		a.status = status
-		a.setup.deferredLibraryStatus = ""
+		a.setup.deferredNotice = ""
 	}
 	if a.setupRoomOpenLocked() && status == setupBlockedStatus && a.setupSessionBusyLocked() {
 		// Preserve the setup action's reason while a launch status is present.
@@ -1852,6 +1871,7 @@ func (a *App) Snapshot() Snapshot {
 		Mice:               a.mice,
 		Affinity:           a.affinity.current.Kind,
 		AffinityID:         a.affinity.current.ID,
+		Prompts:            a.affinityPromptsLocked(),
 		CoverHits:          hits,
 		Platforms:          a.platforms,
 		PlatformID:         a.platformID,
@@ -1969,6 +1989,9 @@ func (a *App) DetachInput(kind InputKind, id int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.affinity.Detach(kind, id)
+	if kind == InputGamepad {
+		delete(a.padPrompts, id)
+	}
 	a.syncInputCountsLocked()
 }
 
@@ -2440,6 +2463,12 @@ func (a *App) openRunningMediaSelector(down bool, now time.Time) bool {
 }
 
 func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now time.Time) bool {
+	return a.handlePlayHIDScancode(-1, name, usage, down, now)
+}
+
+// source identifies a physical keyboard: SDL instance ID or native evdev fd.
+// Legacy callers without a device identity use -1.
+func (a *App) handlePlayHIDScancode(source int, name string, usage uint8, down bool, now time.Time) bool {
 	if a == nil {
 		return false
 	}
@@ -2449,11 +2478,17 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 	if waitingForHost {
 		return true
 	}
-	suppressed := a.consumeSuppressedPlayKey(name, usage, down)
+	suppressed := a.consumeSuppressedPlayKeyFrom(source, name, usage, down)
 	if !down {
-		a.releaseStoppedPlayKey(name, usage)
+		if a.releaseTransitionPlayKey(source, name, usage) {
+			return true
+		}
+		a.releaseStoppedPlayKey(source, name, usage)
 	}
 	if suppressed {
+		return true
+	}
+	if a.consumePlayEscape(name) {
 		return true
 	}
 	if mediaSelectorKey(name, usage) {
@@ -2474,13 +2509,13 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 	hid := a.forwardsKeyboardHIDLocked()
 	a.mu.Unlock()
 	if !hid {
-		return a.handlePlayHIDKey(name, down, now)
+		return a.handlePlayHIDKey(source, name, usage, down, now)
 	}
 	if !a.ConsumePlayHID() {
 		return false
 	}
 	if event, ok := hidkeys.Event(usage, down); ok {
-		a.SendPlayHID(event)
+		a.sendPhysicalPlayKey(source, name, usage, event)
 	}
 	return true
 }
@@ -2538,25 +2573,46 @@ func (a *App) ConsumePlayHID() bool {
 	return true
 }
 
-// HandlePlayHIDKey consumes one USB key while play HID is attached. Esc and
-// Backspace stop the session without NoteInput; "/" opens Load-tape when the
+// HandlePlayHIDKey consumes one USB key while play HID is attached. Backspace
+// stops the session without NoteInput; "/" opens Load-tape when the
 // active package can arm a mailbox. Other keys encode for the attached core.
 // Letter s is a ZX81/core key, not chrome stop.
 func (a *App) HandlePlayHIDKey(name string, down bool, now time.Time) bool {
 	suppressed := a.consumeSuppressedPlayKey(name, 0, down)
 	if !down {
-		a.releaseStoppedPlayKey(name, 0)
+		if a.releaseTransitionPlayKey(-1, name, 0) {
+			return true
+		}
+		a.releaseStoppedPlayKey(-1, name, 0)
 	}
 	if suppressed {
 		return true
 	}
-	return a.handlePlayHIDKey(name, down, now)
+	if a.consumePlayEscape(name) {
+		return true
+	}
+	return a.handlePlayHIDKey(-1, name, 0, down, now)
+}
+
+// A second Escape after returning from a room must not stop the machine.
+// HID keyboards still receive Escape; while a room or recovery owns focus,
+// leave it to the ordinary Back and retry paths.
+func (a *App) consumePlayEscape(name string) bool {
+	if !strings.EqualFold(strings.TrimSpace(name), "escape") {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.session.State == "active" && !(a.session.CoreKeyboardHID && a.forwardsKeyboardHIDLocked()) &&
+		!a.roomDuringPlay && !a.sessionDisplayBusy && !a.sessionDisplayUncertain &&
+		!a.launcherDisplayFocusedLocked() && !a.tapePickerOpen && !a.firmwarePickerOpen &&
+		!a.retryStopLock && a.stopPhase != "stopping"
 }
 
 // Physical key-up must reach the same active route even when Stop suppresses
 // held keys or gives launcher navigation control. Key-down keeps that normal
 // navigation path, including Escape and Backspace for retry/recovery.
-func (a *App) releaseStoppedPlayKey(name string, usage uint8) {
+func (a *App) releaseStoppedPlayKey(source int, name string, usage uint8) {
 	a.mu.Lock()
 	blocked := a.playHIDInputBlockedLocked()
 	hid := a.session.CoreKeyboardHID
@@ -2573,11 +2629,11 @@ func (a *App) releaseStoppedPlayKey(name string, usage uint8) {
 		event, ok = playhid.Event(name, false, keyboard)
 	}
 	if ok {
-		a.SendPlayHID(event)
+		a.sendPhysicalPlayKey(source, name, usage, event)
 	}
 }
 
-func (a *App) handlePlayHIDKey(name string, down bool, now time.Time) bool {
+func (a *App) handlePlayHIDKey(source int, name string, usage uint8, down bool, now time.Time) bool {
 	if a.handlePlayingRoomKey(name, down, now) {
 		return true
 	}
@@ -2603,7 +2659,7 @@ func (a *App) handlePlayHIDKey(name string, down bool, now time.Time) bool {
 		return true
 	}
 	if event, ok := playhid.Event(name, down, a.ForwardsCoreKeyboard()); ok {
-		a.SendPlayHID(event)
+		a.sendPhysicalPlayKey(source, name, usage, event)
 	}
 	return true
 }
@@ -2672,6 +2728,141 @@ func (a *App) SendPlayHID(event remoteinput.Event) bool {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	return a.sendPlayHIDLocked(event)
+}
+
+// releaseTransitionPlayKey sends only a previously admitted neutral key-up
+// while a same-session surround transition keeps input with the machine. It
+// never opens a route for new presses or crosses an actual focus handoff.
+func (a *App) releaseTransitionPlayKey(source int, name string, usage uint8) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	physical := physicalPlayKey{source: source, key: playHeldKey(name, usage)}
+	key, admitted := a.playKeyAdmitted[physical]
+	if !admitted || !a.sessionDisplayBusy || !a.sessionDisplayNonHandoff {
+		return false
+	}
+	if !samePlayHIDSession(a.session, a.sessionDisplayBinding) {
+		delete(a.playKeyAdmitted, physical)
+		return true
+	}
+	if a.hasOtherPlayKeyContributorLocked(physical, key) {
+		delete(a.playKeyAdmitted, physical)
+		a.traceKeyRouteLocked("coalesced-release", source)
+		return true
+	}
+	delete(a.playKeyAdmitted, physical)
+	if !a.playHIDRouteReadyLocked() || a.playHIDFailClosedLocked() || a.client == nil {
+		if a.playKeyPendingRelease == nil {
+			a.playKeyPendingRelease = make(map[physicalPlayKey]playHIDKey)
+		}
+		a.playKeyPendingRelease[physical] = key
+		a.traceKeyRouteLocked("transition-release-deferred", source)
+		return true
+	}
+	event := remoteinput.Event{Player: key.player, Device: key.device, Kind: key.kind, Code: key.code, Action: remoteinput.ActionRelease}
+	a.rememberPlayHIDLocked(event)
+	a.queuePlayHIDLocked([]remoteinput.Event{event})
+	a.traceKeyRouteLocked("transition-release", source)
+	return true
+}
+
+// Retry neutral releases only on the original active, machine-focused route.
+// Session replacement and explicit handoff clear these along with the holds.
+func (a *App) flushPendingPlayKeyReleasesLocked() {
+	if len(a.playKeyPendingRelease) == 0 || !a.forwardsPlayHIDLocked() || a.playHIDInputBlockedLocked() || a.playHIDFailClosedLocked() || a.client == nil {
+		return
+	}
+	for physical, key := range a.playKeyPendingRelease {
+		event := remoteinput.Event{Player: key.player, Device: key.device, Kind: key.kind, Code: key.code, Action: remoteinput.ActionRelease}
+		a.rememberPlayHIDLocked(event)
+		a.queuePlayHIDLocked([]remoteinput.Event{event})
+		delete(a.playKeyPendingRelease, physical)
+	}
+}
+
+func (a *App) sendPhysicalPlayKey(source int, name string, usage uint8, event remoteinput.Event) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	physical := physicalPlayKey{source: source, key: playHeldKey(name, usage)}
+	if event.Action == remoteinput.ActionRelease {
+		if admitted, ok := a.playKeyAdmitted[physical]; ok {
+			if a.hasOtherPlayKeyContributorLocked(physical, admitted) {
+				delete(a.playKeyAdmitted, physical)
+				a.traceKeyRouteLocked("coalesced-release", source)
+				return true
+			}
+			event = remoteinput.Event{Player: admitted.player, Device: admitted.device, Kind: admitted.kind, Code: admitted.code, Action: remoteinput.ActionRelease}
+		}
+	}
+	if event.Action == remoteinput.ActionPress {
+		// A repeat of an already-held physical key keeps its first admitted
+		// mapping. If the keyboard mode changed while it was held, the repeat
+		// would arrive under a different mapping; forwarding it would press a
+		// second core key and replace the admission its key-up must release.
+		if admitted, ok := a.playKeyAdmitted[physical]; ok && admitted != (playHIDKey{event.Player, event.Device, event.Kind, event.Code}) {
+			return false
+		}
+		// Distinct physical keys may contribute the same core key. Keep the
+		// second contribution for its eventual release, but don't send the core
+		// a second press while the first contribution is still held. Repeats
+		// from an already admitted physical key retain their existing behavior.
+		if _, alreadyAdmitted := a.playKeyAdmitted[physical]; !alreadyAdmitted {
+			key := playHIDKey{event.Player, event.Device, event.Kind, event.Code}
+			if a.hasOtherPlayKeyContributorLocked(physical, key) {
+				// Apply the same admission gates as an ordinary press. Flush
+				// deferred releases first so an old neutral cannot follow a new
+				// contribution on the same route.
+				if !a.forwardsPlayHIDLocked() || a.playHIDInputBlockedLocked() || a.playHIDFailClosedLocked() || a.client == nil || a.playHIDPending >= maxPendingPlayHID {
+					return false
+				}
+				a.flushPendingPlayKeyReleasesLocked()
+				if _, stillHeld := a.playHIDHeld[key]; stillHeld {
+					a.playKeyAdmitted[physical] = key
+					a.traceKeyRouteLocked("coalesced", source)
+					return true
+				}
+			}
+		}
+	}
+	if !a.sendPlayHIDLocked(event) {
+		if event.Action == remoteinput.ActionRelease {
+			if key, ok := a.playKeyAdmitted[physical]; ok {
+				delete(a.playKeyAdmitted, physical)
+				if a.playKeyPendingRelease == nil {
+					a.playKeyPendingRelease = make(map[physicalPlayKey]playHIDKey)
+				}
+				a.playKeyPendingRelease[physical] = key
+			}
+		}
+		return false
+	}
+	if event.Action == remoteinput.ActionRelease {
+		delete(a.playKeyAdmitted, physical)
+		a.traceKeyRouteLocked("released", source)
+	}
+	if event.Action == remoteinput.ActionPress {
+		if a.playKeyAdmitted == nil {
+			a.playKeyAdmitted = make(map[physicalPlayKey]playHIDKey)
+		}
+		a.playKeyAdmitted[physical] = playHIDKey{event.Player, event.Device, event.Kind, event.Code}
+		a.traceKeyRouteLocked("admitted", source)
+	}
+	return true
+}
+
+// hasOtherPlayKeyContributorLocked reports whether another unsuppressed
+// physical hold already contributes this admitted core key.
+func (a *App) hasOtherPlayKeyContributorLocked(physical physicalPlayKey, key playHIDKey) bool {
+	for other, heldKey := range a.playKeyAdmitted {
+		if other != physical && heldKey == key && a.playKeyHeld[other] && !a.playKeySuppressed[other] {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) sendPlayHIDLocked(event remoteinput.Event) bool {
 	ready := a.forwardsPlayHIDLocked()
 	blocked := a.playHIDInputBlockedLocked()
 	if blocked {
@@ -2687,6 +2878,7 @@ func (a *App) SendPlayHID(event remoteinput.Event) bool {
 	if a.playHIDPending >= maxPendingPlayHID && !a.neutralPlayHIDEventLocked(event) {
 		return false
 	}
+	a.flushPendingPlayKeyReleasesLocked()
 	a.rememberPlayHIDLocked(event)
 	a.queuePlayHIDLocked([]remoteinput.Event{event})
 	return true
@@ -3338,6 +3530,7 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		ControlsOpen:      a.roomDuringPlay,
 		MediaSelector:     a.needsSessionDisplayLocked() && (a.sessionLiveMediaOfferedLocked() || a.mediaControlsDirect),
 		KeypadSelect:      a.sessionKeypadLocked(),
+		KeyboardHID:       a.forwardsKeyboardHIDLocked(),
 		HardwareRoom:      a.playingHardwareRoomAvailableLocked(),
 	}
 }

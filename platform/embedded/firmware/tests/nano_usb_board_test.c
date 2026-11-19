@@ -348,6 +348,48 @@ static void policy_sampling(void)
     }
     printf("PASS fresh grouped policy sampling reads=%u barriers=%u complete-clock-pin-groups=2 and all read faults\n",reads,barriers);
 }
+static void containment_read_ordering(void)
+{
+    struct board_test t;prepared(&t);host_started(&t);
+    assert(!fes_nano_usb_platform_confirm(&t.base.usb,17,1));
+    trace_policy(&t);
+    assert(!fes_nano_usb_platform_idle(&t.base.usb,17,2));
+    unsigned reads=0,fences=0,pairs=0,between=0;
+    uintptr_t previous=0;
+    for(unsigned n=0;n<policy_event_count;n++) {
+        struct policy_event e=policy_events[n];
+        assert(e.kind!=POLICY_WRITE);
+        if(e.kind==POLICY_BARRIER){fences++;between++;continue;}
+        if(e.kind!=POLICY_READ)continue;
+        reads++;
+        if(e.address>=FES_NANO_USB_BASE && e.address<FES_NANO_USB_BASE+0x800) {
+            /* Every controller observation has its own fresh reset sample,
+             * completed before it, and a completion fence before later I/O. */
+            assert(previous==FES_NANO_COLD_RSTMGR+0x24 && between);
+            assert(n+1<policy_event_count && policy_events[n+1].kind==POLICY_BARRIER);
+            pairs++;
+        }
+        if(e.address==FES_NANO_COLD_RSTMGR+0x24)
+            assert(n && policy_events[n-1].kind==POLICY_BARRIER);
+        previous=e.address;between=0;
+    }
+    assert(reads==42 && pairs==8 && fences<=28);
+    /* Every reset/controller/policy read failure closes its ordering boundary
+     * and keeps the exact failing address; no recovery read is permitted. */
+    for(unsigned fail_read=1;fail_read<=reads;fail_read++) {
+        prepared(&t);host_started(&t);assert(!fes_nano_usb_platform_confirm(&t.base.usb,17,1));
+        trace_policy(&t);t.fail_at=t.accesses+fail_read;
+        assert(fes_nano_usb_platform_idle(&t.base.usb,17,2));
+        assert(policy_events[policy_event_count-1].kind==POLICY_BARRIER);
+        struct policy_event last={0};
+        for(unsigned n=0;n<policy_event_count;n++)
+            if(policy_events[n].kind==POLICY_READ)last=policy_events[n];
+        assert(last.error==-99 && t.board.last_address==last.address && t.board.first_error==-99);
+        unsigned accesses=t.accesses;
+        assert(fes_nano_usb_platform_idle(&t.base.usb,17,2) && accesses==t.accesses);
+    }
+    printf("PASS containment reset/controller ordering: reads=%u pairs=%u barriers=%u and all read faults\n",reads,pairs,fences);
+}
 static void master_preparation_contract(void)
 {
     struct board_test t;prepared(&t);host_started(&t);
@@ -473,6 +515,6 @@ static void copied_policy_and_admission(void)
 #endif
 int FES_NANO_USB_BOARD_ENTRY(void)
 {
-    coherent_containment();master_preparation_contract();policy_sampling();master_containment();completed();live_failures();changed_policy();interruptions();copied_policy_and_admission();operation_boundaries();prepared_observation_admission();
+    coherent_containment();containment_read_ordering();master_preparation_contract();policy_sampling();master_containment();completed();live_failures();changed_policy();interruptions();copied_policy_and_admission();operation_boundaries();prepared_observation_admission();
     puts("PASS actual USB board clocks/pins, two-phase host confirmation and USB3320 ULPI/VBUS failures; model only");return 0;
 }

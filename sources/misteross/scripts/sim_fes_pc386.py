@@ -214,6 +214,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import functools
+import hashlib
 import json
 import math
 import os
@@ -232,6 +233,7 @@ from scripts import build_pc386_firmware as firmware
 from scripts import build_pc386_freedos_image as freedos
 from scripts import build_pc386_game_drive as drives
 from scripts import fes_i386_oracle as oracle
+from scripts import fes_i486_oracle
 from scripts import pc386_wfw as wfw
 from scripts import test_fes_i386_lockstep as lockstep
 from scripts import test_fes_i386_test386 as test386
@@ -1228,6 +1230,11 @@ def run_scroll(args, linked: list[Path]) -> dict:
     """SCROLLT.COM at the FreeDOS prompt: INT 10h AH=00h keeps the caller's registers, and AH=07h
     from row 0 returns in each graphics memory model."""
     images = firmware.images(args.download, args.jobs)
+    # The pc386 seal reads the ROM hex these images make and checks it against
+    # firmware.lock's pin (#1984 S1); writing it here confirms that pin on every
+    # host that runs this suite, CI's runners included.
+    rom = firmware.write_rom_hex(images)
+    print(f'ROM hex {rom.name} {hashlib.sha256(rom.read_bytes()).hexdigest()} matches firmware.lock', flush=True)
     testbench = machine_testbench(args, linked)
     suite = 'scroll' + ('-rtl' if args.cpu == 'rtl' else '')
     disk = fixture_with(args, suite, 'scroll_test.asm', 'SCROLLT.COM')
@@ -2156,6 +2163,7 @@ def wfw_checks(report: dict) -> list[str]:
 
 
 def main() -> int:
+    global oracle, OUTPUT
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--suite', choices=('devices', 'fdc', 'floppy', 'floppy-boot', 'storage', 'audio', 'opl2',
                                             'benches', 'boot', 'rtl-stops',
@@ -2197,6 +2205,9 @@ def main() -> int:
     parser.add_argument('--cpu', choices=('oracle', 'rtl'), default='oracle',
                         help='boot and game: the CPU, the Bochs oracle or fes_i386_cpu (which the oracle backs on '
                              'its stops)')
+    parser.add_argument('--cpu-level', type=int, default=3, choices=(3, 4),
+                        help='boot, game and wfw with --cpu oracle: the oracle\'s Bochs CPU level. 4 is the 486 '
+                             'oracle (scripts/fes_i486_oracle.py), built and run under build/sim/fes-pc386-level4')
     parser.add_argument('--preset', type=int, default=0, choices=range(8),
                         help="system, boot and game --cpu rtl: the governor's preset (fes.pc386.machine word 0); "
                              'governor: the one preset beside max')
@@ -2224,6 +2235,12 @@ def main() -> int:
         parser.error('--frequency and --turbo set a preset: give --preset too')
     if args.frequency and not 10 <= args.frequency <= 1000:
         parser.error('--frequency is 10 to 1000 (100 kHz units), as the record allows')
+    if args.cpu_level == 4:
+        # The RTL is a 386: only the oracle runs as a 486. Its objects and
+        # outputs stay apart from the level-3 ones.
+        if args.cpu != 'oracle' or args.suite not in ('boot', 'game', 'wfw'):
+            parser.error('--cpu-level 4 is for boot, game and wfw with --cpu oracle')
+        oracle, OUTPUT = fes_i486_oracle, ROOT / 'build/sim/fes-pc386-level4'
     limit_seconds, typed, expect = args.limit_seconds, args.type, args.expect
     args.limit_seconds_given = limit_seconds
     if shutil.which(args.verilator) is None:
@@ -2291,6 +2308,8 @@ def main() -> int:
                 report = run(args, oracle.link_inputs(args.jobs, args.download))
             name = (game_suite(args) if suite == 'game' else wfw_suite(args) if suite == 'wfw' else
                     boot_suite(args) if suite == 'boot' else suite + ('-rtl' if args.cpu == 'rtl' else '') + suffix(args))
+            if args.cpu_level != 3:
+                report['cpu_level'] = args.cpu_level
             (OUTPUT / name).mkdir(parents=True, exist_ok=True)
             (OUTPUT / name / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
             if suite == 'system':

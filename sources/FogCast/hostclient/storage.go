@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/storage"
 )
 
@@ -82,12 +83,28 @@ func (c *Client) OpenStorageFileWithLimit(ctx context.Context, id, path string, 
 	if limit != storage.MaxFileBytes {
 		query.Set("max_bytes", strconv.FormatInt(limit, 10))
 	}
+	return c.openStorageFile(ctx, id, query, limit, c.launchHTTP)
+}
+
+// OpenStorageHardDisk opts in to the host's bounded raw ATA image read.
+func (c *Client) OpenStorageHardDisk(ctx context.Context, id, path string) (io.ReadCloser, int64, error) {
+	client := *c.launchHTTP
+	client.Timeout = HardDiskImportBudget(protocol.AtaDiskMaxBytes)
+	file, size, err := c.openStorageFile(ctx, id, url.Values{"path": []string{path}, "purpose": []string{"hard-disk"}}, protocol.AtaDiskMaxBytes, &client)
+	if err == nil && !protocol.AdmitAtaDiskSize(size) {
+		file.Close()
+		return nil, 0, fmt.Errorf("hard-disk image must be 1 to 128 MiB in whole 512-byte sectors")
+	}
+	return file, size, err
+}
+
+func (c *Client) openStorageFile(ctx context.Context, id string, query url.Values, limit int64, client *http.Client) (io.ReadCloser, int64, error) {
 	endpoint := c.baseURL + "/api/v1/storage/drives/" + url.PathEscape(id) + "/file?" + query.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
 	if err != nil {
 		return nil, 0, err
 	}
-	resp, err := c.launchHTTP.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, 0, err
 	}

@@ -58,4 +58,5 @@ package fes_i386_ucode_pkg;
     localparam logic [8:0] UC_FST10 = 9'd442;
     localparam logic [8:0] UC_FRD8 = 9'd444;
     localparam logic [8:0] UC_FRD10 = 9'd445;
+    localparam logic [8:0] UC_FBST10 = 9'd447;
 endpackage

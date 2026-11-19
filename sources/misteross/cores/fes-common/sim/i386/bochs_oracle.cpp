@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Thin adapter from fes_i386::Oracle to the Bochs CPU (LGPL-2.1) configured at
-// CPU level 3. scripts/fes_i386_oracle.py fetches Bochs at a pinned revision
-// into the ignored build directory and links this file with Bochs' CPU
-// libraries. Nothing here or in Bochs enters a package or an RTL source list.
+// CPU level 3, or at level 4 for the 486 identities. scripts/fes_i386_oracle.py
+// fetches Bochs at a pinned revision into the ignored build directory and
+// links this file with Bochs' CPU libraries; scripts/fes_i486_oracle.py builds
+// the level-4 configuration from the same checkout. Nothing here or in Bochs
+// enters a package or an RTL source list.
 //
 // Only the CPU is used. This file supplies the platform objects the CPU calls
 // (memory, I/O, PIC acknowledge, A20, logging and the few parameters it reads)
@@ -17,6 +19,15 @@
 #include "iodev/iodev.h"
 #include "memory/memory-bochs.h"
 #include "pc_system.h"
+#if BX_CPU_LEVEL == 4
+#include "cpu/cpuid.h"
+// The CPU models' numbers, as cpu/init.cc counts them from cpudb.h.
+#define bx_define_cpudb(model) bx_cpudb_##model,
+enum {
+#include "cpudb.h"
+};
+#undef bx_define_cpudb
+#endif
 
 #include <cstdarg>
 #include <cstdio>
@@ -27,8 +38,8 @@
 #include <string>
 #include <utility>
 
-#if BX_CPU_LEVEL != 3 || !BX_SUPPORT_FPU || BX_SUPPORT_SMP || BX_SUPPORT_X86_64 || !BX_X86_DEBUGGER
-#error "the FES i386 oracle requires Bochs configured by scripts/fes_i386_oracle.py"
+#if (BX_CPU_LEVEL != 3 && BX_CPU_LEVEL != 4) || !BX_SUPPORT_FPU || BX_SUPPORT_SMP || BX_SUPPORT_X86_64 || !BX_X86_DEBUGGER
+#error "the FES i386 oracle requires Bochs configured by scripts/fes_i386_oracle.py or scripts/fes_i486_oracle.py"
 #endif
 
 // Bochs' decoder (cpu/decoder/fetchdecode32.cc). Opcodes the configured CPU
@@ -131,6 +142,22 @@ public:
         static bx_param_bool_c value(nullptr, "fes_false", "", "", 0);
         return &value;
     }
+#if BX_CPU_LEVEL == 4
+    // Level 4 builds its CPU from a model and two feature lists. Bochs has
+    // one 486 model, an i486DX4 (cpu/cpudb/intel/i486dx4.cc), which enables
+    // VME: it is excluded, so CR4 has no writable bit and reads zero, as on
+    // a 486 without VME, PVI or PSE.
+    bx_param_enum_c *get_param_enum(const char *, bx_param_c *) override {
+        static const char *models[] = {"i486dx4", nullptr};
+        static bx_param_enum_c value(nullptr, "fes_model", "", "", models, bx_cpudb_i486dx4, bx_cpudb_i486dx4);
+        return &value;
+    }
+    bx_param_string_c *get_param_string(const char *name, bx_param_c *) override {
+        static bx_param_string_c exclude(nullptr, "fes_exclude", "", "", "vme");
+        static bx_param_string_c none(nullptr, "fes_none", "", "", "");
+        return std::strcmp(name, BXPN_CPU_EXCLUDE_FEATURES) ? &none : &exclude;
+    }
+#endif
 };
 FalseParameters parameters;
 
@@ -393,7 +420,7 @@ public:
         bus = nullptr;
     }
 
-    std::string name() const override { return "bochs-level3"; }
+    std::string name() const override { return BX_CPU_LEVEL == 4 ? "bochs-level4" : "bochs-level3"; }
 
     Decoded decode(const uint8_t *bytes, unsigned available, bool code32) const override {
         Decoded result;
@@ -418,6 +445,18 @@ public:
 
     void reset() override {
         bx_cpu.reset(BX_RESET_HARDWARE);
+#if BX_CPU_LEVEL == 4
+        // Two reset values Bochs has as the 386's at level 4 (cpu/init.cc):
+        // it clears EDX, where a 486 holds its identifier, family in DH and
+        // model and stepping in DL (Intel486 data book 241731-002, 9.5 and
+        // Table 9-9), here the one Bochs's CPUID leaf 1 returns in EAX; and
+        // DR6's bit 12 is set, where a 486's resets clear (Intel486
+        // Programmer's Reference Manual, Table 10-1: FFFF0FF0h).
+        cpuid_function_t identifier;
+        bx_cpu.cpuid->get_cpuid_leaf(1, 0, &identifier);
+        BX_WRITE_32BIT_REGZ(BX_32BIT_REG_EDX, identifier.eax);
+        bx_cpu.dr6.set32(0xffff0ff0);
+#endif
         context = StepContext{};
         at387.busy = false;
         at387.error = x87_error();
@@ -557,6 +596,24 @@ public:
             state.tag |= uint16_t((tag == FPU_Tag_Empty ? tag : unsigned(FPU_tagof(reg)) & 3) << (2 * n));
         }
         return state;
+    }
+
+    void set_x87_register(unsigned physical, const X87Register &value) override {
+        if (physical > 7) throw std::invalid_argument("set_x87_register: physical register 0-7");
+        i387_t &x87 = bx_cpu.the_i387;
+        floatx80 &reg = x87.st_space[physical];
+        reg.signif = value.significand;
+        reg.signExp = value.sign_exponent;
+        // The stored tag, which FNSTENV-era code reads for empty or not and
+        // x87_state() recomputes: the value's own.
+        x87.twd = Bit16u((x87.twd & ~(3u << (2 * physical))) | (unsigned(FPU_tagof(reg)) & 3u) << (2 * physical));
+    }
+
+    void set_x87_status_bits(uint16_t mask, uint16_t value) override {
+        if (mask & ~X87_STATUS_SETTABLE)
+            throw std::invalid_argument("set_x87_status_bits: only C0-C3, SF and the six flags");
+        i387_t &x87 = bx_cpu.the_i387;
+        x87.swd = Bit16u((x87.swd & ~mask) | (value & mask));
     }
 
     void set_at_coprocessor(bool fitted) override {

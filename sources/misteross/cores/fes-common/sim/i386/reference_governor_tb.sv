@@ -6,7 +6,7 @@ module governor_integration_tb;
   logic clk=0; always #1 clk=~clk;
   logic reset=1, boundary=0,eoi=0,element=0,taken=0,redir=0,abandon=0,preserve_de=0,replay=0;
   gov_t gov='0;
-  logic [3:0] ilen=0; logic [1:0] accesses=0; logic ordinary_ram=1; int saved_queue; logic [1:0] mmio=0;
+  logic [3:0] ilen=0; logic [1:0] accesses=0; logic ordinary_ram=1, imul_safe=0, rep_io_safe=1; int saved_queue; logic [1:0] mmio=0;
   logic st2=0; logic [2:0] mmio_halves=1, st2_halves=0;
   logic [2:0] preset=1; logic turbo=0;
   logic hold0,hold1; logic [11:0] debt0,debt1; logic [12:0] charge0,charge1;
@@ -14,13 +14,13 @@ module governor_integration_tb;
   always @(posedge clk) if(tally) begin sum0 += int'(charge0); sum1 += int'(charge1); end
   fes_i386_governor #(.GOV_N(1),.GOV_D(1000)) baseline (
     .clk,.reset,.preset,.frequency(10'd0),.turbo,
-    .boundary,.eoi,.element,.taken,.gov,.ilen,.redirect(redir),.abandon,.preserve_de,.replay,
+    .boundary,.eoi,.element,.taken,.gov,.imul_safe,.rep_io_safe,.ilen,.redirect(redir),.abandon,.preserve_de,.replay,
     .accesses,.dword(1'b0),.ordinary_ram,.io(1'b0),.io_port(16'd0),.io_size(2'd0),.mmio,
     .mmio_halves,.mmio_st2(st2),.mmio_st2_halves(st2_halves),.hold(hold0),.debt_clocks(debt0),.charge(charge0)
   );
   fes_i386_governor #(.GOV_N(1),.GOV_D(1000),.REFERENCE_DIAGNOSTIC(1)) candidate (
     .clk,.reset,.preset,.frequency(10'd0),.turbo,
-    .boundary,.eoi,.element,.taken,.gov,.ilen,.redirect(redir),.abandon,.preserve_de,.replay,
+    .boundary,.eoi,.element,.taken,.gov,.imul_safe,.rep_io_safe,.ilen,.redirect(redir),.abandon,.preserve_de,.replay,
     .accesses,.dword(1'b0),.ordinary_ram,.io(1'b0),.io_port(16'd0),.io_size(2'd0),.mmio,
     .mmio_halves,.mmio_st2(st2),.mmio_st2_halves(st2_halves),.hold(hold1),.debt_clocks(debt1),.charge(charge1)
   );
@@ -29,7 +29,7 @@ module governor_integration_tb;
     boundary=1; eoi=1; taken=branch_taken; redir=branch_taken;
   endtask
   task automatic restart;
-    @(negedge clk); tally=0; reset=1; boundary=0; eoi=0; accesses=0; mmio=0; st2=0; mmio_halves=1; st2_halves=0; abandon=0; preserve_de=0; replay=0; redir=0; taken=0; ordinary_ram=1; gov='0;
+    @(negedge clk); tally=0; reset=1; boundary=0; eoi=0; accesses=0; mmio=0; st2=0; mmio_halves=1; st2_halves=0; abandon=0; preserve_de=0; replay=0; redir=0; taken=0; ordinary_ram=1; imul_safe=0; rep_io_safe=1; gov='0;
     repeat(5) @(negedge clk); reset=0; repeat(8) @(negedge clk); sum0=0; sum1=0; tally=1;
   endtask
   task automatic finish_trial(input int expected0,expected1, input string label);
@@ -49,7 +49,35 @@ module governor_integration_tb;
       $fatal(1,"mixed queue length op=%h actual=%0d expected=%0d",op,candidate.gen_reference_queue.length,expected_length);
   endtask
   initial begin
-    repeat(5) @(negedge clk); reset=0; repeat(8) @(negedge clk); tally=1;
+    // A safe unprefixed 16-bit IMUL has separate execution and fetch-refill
+    // budgets; unsupported forms keep the original table in the diagnostic.
+    for (int opcode=0; opcode<2; opcode++) for (int regform=0; regform<2; regform++) begin
+      restart;
+      instruction(opcode == 0 ? 8'h69 : 8'h6b,0,regform != 0 ? 3 : 4,regform != 0 ? 0 : 1,0);
+      gov.rm_reg=1'(regform); imul_safe=1;
+      @(negedge clk); boundary=0; eoi=0; accesses=0;
+      @(negedge clk);
+      if (candidate.execution_clocks != (regform != 0 ? 14 : 17) ||
+          candidate.refill_execution != (regform != 0 ? 12 : 17) ||
+          baseline.execution_clocks != (regform != 0 ? 21 : 24))
+        $fatal(1,"IMUL budgets opcode=%0d reg=%0d",opcode,regform);
+    end
+    for (int test=0; test<6; test++) begin
+      restart; instruction(8'h6b,0,4,1,0); imul_safe=1;
+      case (test)
+        0: imul_safe=0;
+        1: ordinary_ram=0;
+        2: gov.ref_test_excluded=1;
+        3: gov.ea3=1;
+        4: gov.o32=1;
+        5: gov.two=1;
+      endcase
+      @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
+      @(negedge clk);
+      if (candidate.execution_clocks != baseline.execution_clocks)
+        $fatal(1,"IMUL fallback test=%0d",test);
+    end
+    restart;
     instruction(8'hff,0,4,2,0);
     instruction(8'h83,7,5,1,0);
     instruction(8'h75,0,2,0,1);
@@ -695,6 +723,83 @@ module governor_integration_tb;
     instruction(8'h90,0,1,0,0);
     @(negedge clk); boundary=0; eoi=0; repeat(4) @(negedge clk);
     if(candidate.reference_pending != 0) $fatal(1,"inner handler did not consume pending bytes");
+    // The REP I/O surrogate is confined to the measured F3 real-mode RAM
+    // form; unsupported prefixes/modes leave the existing timing path in place.
+    for (int op=0; op<4; op++) begin
+      for (int gate=0; gate<9; gate++) begin
+        restart;
+        @(negedge clk);
+        gov='0; gov.op=8'(8'h6c+op); gov.rep=1; gov.ref_rep_f3=1;
+        gov.ref_real_mode=1; gov.ref_prefix_count=1; gov.prefix286=2;
+        ilen=2; accesses=1; ordinary_ram=1; boundary=1; eoi=0; element=1;
+        case (gate)
+          1: gov.ref_rep_f3=0;
+          2: gov.ref_real_mode=0;
+          3: gov.ref_prefix_count=2;
+          4: gov.o32=1;
+          5: ordinary_ram=0;
+          6: gov.two=1;
+          7: gov.prefix286=4;
+          8: rep_io_safe=0;
+        endcase
+        @(negedge clk); boundary=0; element=0; accesses=0; ordinary_ram=1;
+        @(negedge clk);
+        if (candidate.reference_rep_io != (gate==0))
+          $fatal(1,"REP I/O guard op=%h gate=%0d",8'(8'h6c+op),gate);
+        if (gate==0 && (candidate.execution_clocks != (op<2 ? 15 : 14) ||
+                        candidate.reference_prefix != 2 || !candidate.reference_first))
+          $fatal(1,"REP I/O first element op=%h",8'(8'h6c+op));
+        if (baseline.reference_rep_io) $fatal(1,"default-off REP I/O enabled");
+      end
+      restart;
+      @(negedge clk);
+      gov='0; gov.op=8'(8'h6c+op); gov.rep=1; gov.ref_rep_f3=1;
+      gov.ref_real_mode=1; gov.ref_prefix_count=1; gov.prefix286=2;
+      ilen=2; accesses=1; boundary=1; eoi=0; element=1;
+      @(negedge clk); boundary=0; element=0; accesses=0;
+      repeat(2) @(negedge clk);
+      // An interior element recharges both instruction and prefix.
+      accesses=1; boundary=1; eoi=0; element=1;
+      @(negedge clk); boundary=0; element=0; accesses=0;
+      @(negedge clk);
+      if (!candidate.rep_active || !candidate.reference_first ||
+          candidate.execution_clocks != (op<2 ? 15 : 14) || candidate.reference_prefix != 2)
+        $fatal(1,"REP I/O interior element op=%h",8'(8'h6c+op));
+      repeat(2) @(negedge clk);
+      accesses=1; boundary=1; eoi=1; element=1;
+      @(negedge clk); boundary=0; eoi=0; element=0; accesses=0;
+      @(negedge clk);
+      if (candidate.execution_clocks != (op<2 ? 15 : 14))
+        $fatal(1,"REP I/O final element op=%h",8'(8'h6c+op));
+      restart;
+      @(negedge clk);
+      gov='0; gov.op=8'(8'h6c+op); gov.rep=1; gov.ref_rep_f3=1;
+      gov.ref_real_mode=1; gov.ref_prefix_count=1; gov.prefix286=2;
+      ilen=2; accesses=0; boundary=1; eoi=1; element=0;
+      @(negedge clk); boundary=0; eoi=0;
+      @(negedge clk);
+      if (candidate.execution_clocks != 0 || candidate.reference_prefix != 2)
+        $fatal(1,"REP I/O zero count op=%h",8'(8'h6c+op));
+    end
+    // A REP element with more than one committed memory uop must not lose
+    // a noncanonical or unaligned indication from an earlier uop. Replay and
+    // abandon discard that partial indication.
+    for (int clear=0; clear<3; clear++) begin
+      restart;
+      @(negedge clk);
+      gov='0; gov.op=8'h6d; gov.rep=1; gov.ref_rep_f3=1;
+      gov.ref_real_mode=1; gov.ref_prefix_count=1; gov.prefix286=2;
+      ilen=2; accesses=1; rep_io_safe=0; boundary=0; element=0;
+      @(negedge clk); accesses=0; rep_io_safe=1;
+      if (clear==1) replay=1;
+      if (clear==2) abandon=1;
+      @(negedge clk); replay=0; abandon=0;
+      accesses=1; boundary=1; eoi=1; element=1;
+      @(negedge clk); boundary=0; eoi=0; element=0; accesses=0;
+      @(negedge clk);
+      if (candidate.reference_rep_io != (clear!=0))
+        $fatal(1,"REP I/O safety accumulation clear=%0d",clear);
+    end
     preset=3; restart;
     instruction(8'hff,0,4,2,0); instruction(8'h83,7,5,1,0); instruction(8'h75,0,2,0,1);
     finish_trial(19,19,"non-286");

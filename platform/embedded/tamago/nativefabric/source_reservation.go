@@ -3,6 +3,7 @@ package nativefabric
 
 import (
 	"errors"
+	"fmt"
 
 	g "github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol/generated"
 )
@@ -36,7 +37,8 @@ func (v *HPSContextVerifier) reserveStoredSource(payload []byte, source HPSBootO
 			return err
 		}
 		if r != ([4]uint64{0, uint64(g.FesEmbeddedBridgeSourceReleaseTag) << 32, source.Bridges.Owner, source.Bridges.Generation}) {
-			return errors.New("native fabric: secure source release rejected or incomplete")
+			return fmt.Errorf("native fabric: secure source release rejected or incomplete: status=%d tag_flags=%016x owner=%016x generation=%d (expected owner=%016x generation=%d)",
+				r[0], r[1], r[2], r[3], source.Bridges.Owner, source.Bridges.Generation)
 		}
 		after, err := v.Verify(v.Identity())
 		if err != nil || after != before {

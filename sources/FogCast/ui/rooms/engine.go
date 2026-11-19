@@ -112,7 +112,7 @@ type Options struct {
 	// Setup is the first-run setup position the room is opened at, shown to
 	// scripts as room.setup.
 	Setup Setup
-	// ReleaseOnly leaves out cores outside the v1 release (release.Shown).
+	// ReleaseOnly leaves out held-back cores (release.Shown).
 	// The launcher sets it unless its Show all cores preference is on; a
 	// change applies to rooms opened after it.
 	ReleaseOnly bool
@@ -780,13 +780,13 @@ func (r *Instance) SetOverlay(on bool) {
 }
 
 // coreShown reports whether the room lists a core: every core unless
-// ReleaseOnly, then a v1 core or the core the room was opened for, such as a
+// ReleaseOnly, then a planned release core or the core the room was opened for, such as a
 // running held-back machine's setup room.
 func (r *Instance) coreShown(coreID string) bool {
 	return !r.opts.ReleaseOnly || release.Shown(coreID, false) || coreID != "" && coreID == r.opts.InitialCoreID
 }
 
-// ReleaseOnly reports whether the room was opened listing only v1 cores.
+// ReleaseOnly reports whether the room was opened hiding held-back cores.
 func (r *Instance) ReleaseOnly() bool { return r.opts.ReleaseOnly }
 
 // SetReducedMotion updates room.reduced_motion on a live instance (settings).

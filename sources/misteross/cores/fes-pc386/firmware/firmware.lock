@@ -3,6 +3,10 @@
     "repository": "https://codeberg.org/jbruchon/dev86",
     "revision": "0b72e907f7a282aaa777a768b8b688e41c77fc93",
     "tag": "v1.0.1",
+    "mirror": {
+      "url": "https://github.com/DeanoC/dev86/releases/download/v1.0.1/dev86-0b72e907f7a282aaa777a768b8b688e41c77fc93.git.tar.gz",
+      "sha256": "f96e95431f47f14b3086f8e3e7fe3e844c8c130e45ab800bbc88a0a013a1f4c2"
+    },
     "license": "GPL-2.0"
   },
   "rombios": {
@@ -29,5 +33,9 @@
       "bytes": 32768,
       "sha256": "8522568e32a33b2f5649109260fec70b0b2cd0d80a6216ac7af6a1041c102e02"
     }
+  },
+  "rom_hex": {
+    "file": "pc386-rom.hex",
+    "sha256": "815620361ef28a2bbdd97b1964700a4678a26c0ffc9582bb95544473fe099d18"
   }
 }

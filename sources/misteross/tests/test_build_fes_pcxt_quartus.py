@@ -23,7 +23,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                 'elaboration': {'hps_primitive_instances': {
                     'hdmi_i2c': 'cyclonev_hps_interface_peripheral_i2c',
                     'fes_computer_runtime_hps_gp': 'cyclonev_hps_interface_mpu_general_purpose'}},
-                'profile': {'HALF_RATE_BOARD': 0, 'ENABLE_FES_COMPUTER': 1,
+                'profile': {'SDRAM_CAPTURE_PIPELINE': 1, 'HALF_RATE_BOARD': 0, 'ENABLE_FES_COMPUTER': 1,
                             'ENABLE_PCXT_MEDIA': 1, 'ENABLE_PCXT_FLOPPY_WRITE': 1, 'HARDWARE_DOS': 1},
                 'audio_binding': {'chains': [{}, {}, {}, {}]},
                 'audio_proof_log_sha256': 'a' * 64, 'runs': [{
@@ -44,6 +44,8 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                      lambda s: s['runs'][0]['mailbox_interstage'][0].update(slack_ns='-0.000'),
                      lambda s: s['runs'][0]['timing_coverage_issues'].update(generated_clock=1),
                      lambda s: s['profile'].update(HALF_RATE_BOARD=1),
+                     lambda s: s['profile'].update(SDRAM_CAPTURE_PIPELINE=0),
+                     lambda s: s['profile'].pop('SDRAM_CAPTURE_PIPELINE'),
                      lambda s: s['profile'].update(ENABLE_PCXT_MEDIA=0),
                      lambda s: s['profile'].pop('ENABLE_PCXT_MEDIA'),
                      lambda s: s['profile'].update(ENABLE_PCXT_FLOPPY_WRITE=0),
@@ -413,9 +415,9 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                 with self.assertRaisesRegex(producer.BuildError, 'differs from the build record'):
                     producer.require_timing(summary, [1], identity=identity)
 
-    def test_package_uses_common_clock_pad_constraints_not_board50_packing(self):
+    def test_package_packs_all_cas3_capture_inputs(self):
         qsf = producer.board.project_qsf(producer.ROOT, 1, 2, package_profile=True)
-        self.assertNotIn('FAST_INPUT_REGISTER ON -to SDRAM_DQ', qsf)
+        self.assertEqual(qsf.count('FAST_INPUT_REGISTER ON -to SDRAM_DQ['), 16)
         self.assertIn('set_location_assignment', qsf)
         experimental = producer.board.project_qsf(producer.ROOT, 1, 2)
         self.assertIn('FAST_INPUT_REGISTER ON -to SDRAM_DQ', experimental)

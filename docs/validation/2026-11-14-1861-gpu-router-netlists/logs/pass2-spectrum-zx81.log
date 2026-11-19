@@ -1,0 +1,14 @@
+fes.spectrum         main    3f2dfb764a86b215ad4878203392ebd5823c2218e00e10f8f321eddaa85eccc7
+fes.spectrum         branch  3f2dfb764a86b215ad4878203392ebd5823c2218e00e10f8f321eddaa85eccc7
+fes.zx81             main    b5c296e5c76810f5655e70a945518dd511654e8b450fb7bbbb616e442f15604b
+fes.zx81             branch  b5c296e5c76810f5655e70a945518dd511654e8b450fb7bbbb616e442f15604b
+fes.zx80             main    b7effcba3f7a30349ae55aef0eac6a857d00f04dc4fe1b959a0c482534df6f82
+fes.zx80             branch  b7effcba3f7a30349ae55aef0eac6a857d00f04dc4fe1b959a0c482534df6f82
+fes.ts1000           main    96bcf1f6411ab04324e86a58fd525bd5c722f3afbf02c7db67365be074cc6dca
+fes.ts1000           branch  96bcf1f6411ab04324e86a58fd525bd5c722f3afbf02c7db67365be074cc6dca
+fes.ts1500           main    d29bb54e119907959fb104890f8d2d038fff625cf84b2cdea09cc7525bbf37a7
+fes.ts1500           branch  d29bb54e119907959fb104890f8d2d038fff625cf84b2cdea09cc7525bbf37a7
+/data/fes1861-netlist/rerun-fes1861.sh: line 23: ne: command not found
+/data/fes1861-netlist/rerun-fes1861.sh: line 24: syntax error near unexpected token `done'
+/data/fes1861-netlist/rerun-fes1861.sh: line 24: `done'
+EXIT=2

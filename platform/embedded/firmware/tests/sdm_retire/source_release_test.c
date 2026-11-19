@@ -12,7 +12,7 @@ struct fes_nano_bridges;
 static int window_sd_return(void *,const struct fes_nano_bridges *,uint64_t *);
 static void release_meter(unsigned);
 static unsigned release_cpu=1;
-static uint32_t release_frequency=400000000U;
+static uint64_t release_frequency=400000000U;
 static struct fes_nano_sd_io expected_sd_io;
 static int release_sd_io_valid(void);
 #define FES_PROBE_SD_IO_BINDING_VALID() release_sd_io_valid()

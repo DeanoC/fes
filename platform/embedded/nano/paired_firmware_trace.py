@@ -1,5 +1,5 @@
 """Ordered paired-service firmware observations; grants no device authority."""
-from configuration_trace import extract
+from configuration_trace import extract, SOURCE_OPERATION_TICKS
 from native_trace import RULES, DECIMAL
 from service_trace import require
 from window_trace import PATTERNS, HEX, TEXT, check_route
@@ -45,8 +45,8 @@ def configuration(data, descriptor, owner, source, previous):
                      require_activation=True, require_programmed=False, expected_owner=owner)
     require(not parsed['errors'] and parsed['complete'], 'incomplete or invalid paired configuration')
     timing = parsed['timing']
-    require(timing is not None and 0 < timing['interval_ticks'] < 20*400000000,
-            'paired configuration exceeded original 20s bound')
+    require(timing is not None and 0 < timing['interval_ticks'] < SOURCE_OPERATION_TICKS,
+            'paired configuration exceeded declared source budget')
     rows = parsed['records']
     engines = [r['values'] for r in rows if r['stage'] == 'configuration_engine']
     phases = {r['values']['phase'] for r in rows if r['stage'] == 'configuration_mailbox'}
