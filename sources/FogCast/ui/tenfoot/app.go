@@ -169,6 +169,7 @@ type SessionSnapshot struct {
 	MediaSelector     bool // The kit session plane is available for direct media controls.
 	// KeypadSelect keeps Select with a keypad machine; Guide opens controls.
 	KeypadSelect bool
+	KeyboardHID  bool // The running core receives physical Escape and Backspace.
 	HardwareRoom bool
 }
 
@@ -2483,6 +2484,9 @@ func (a *App) handlePlayHIDScancode(source int, name string, usage uint8, down b
 	if suppressed {
 		return true
 	}
+	if a.consumePlayEscape(name) {
+		return true
+	}
 	if mediaSelectorKey(name, usage) {
 		// F12 is the running selector. The session consumes the key, including an empty tape and
 		// a folder that has no .p files, so it is never forwarded. With no
@@ -2565,8 +2569,8 @@ func (a *App) ConsumePlayHID() bool {
 	return true
 }
 
-// HandlePlayHIDKey consumes one USB key while play HID is attached. Esc and
-// Backspace stop the session without NoteInput; "/" opens Load-tape when the
+// HandlePlayHIDKey consumes one USB key while play HID is attached. Backspace
+// stops the session without NoteInput; "/" opens Load-tape when the
 // active package can arm a mailbox. Other keys encode for the attached core.
 // Letter s is a ZX81/core key, not chrome stop.
 func (a *App) HandlePlayHIDKey(name string, down bool, now time.Time) bool {
@@ -2580,7 +2584,25 @@ func (a *App) HandlePlayHIDKey(name string, down bool, now time.Time) bool {
 	if suppressed {
 		return true
 	}
+	if a.consumePlayEscape(name) {
+		return true
+	}
 	return a.handlePlayHIDKey(-1, name, 0, down, now)
+}
+
+// A second Escape after returning from a room must not stop the machine.
+// HID keyboards still receive Escape; while a room or recovery owns focus,
+// leave it to the ordinary Back and retry paths.
+func (a *App) consumePlayEscape(name string) bool {
+	if !strings.EqualFold(strings.TrimSpace(name), "escape") {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.session.State == "active" && !(a.session.CoreKeyboardHID && a.forwardsKeyboardHIDLocked()) &&
+		!a.roomDuringPlay && !a.sessionDisplayBusy && !a.sessionDisplayUncertain &&
+		!a.launcherDisplayFocusedLocked() && !a.tapePickerOpen && !a.firmwarePickerOpen &&
+		!a.retryStopLock && a.stopPhase != "stopping"
 }
 
 // Physical key-up must reach the same active route even when Stop suppresses
@@ -3504,6 +3526,7 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		ControlsOpen:      a.roomDuringPlay,
 		MediaSelector:     a.needsSessionDisplayLocked() && (a.sessionLiveMediaOfferedLocked() || a.mediaControlsDirect),
 		KeypadSelect:      a.sessionKeypadLocked(),
+		KeyboardHID:       a.forwardsKeyboardHIDLocked(),
 		HardwareRoom:      a.playingHardwareRoomAvailableLocked(),
 	}
 }
