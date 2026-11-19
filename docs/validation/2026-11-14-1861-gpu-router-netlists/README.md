@@ -206,8 +206,8 @@ the answer is two groups rather than one number:
 - **Fourteen commits from `#1862`'s branch**, both condition-3 seal commits
   (`df99f2dfb`, `541e3c548`) among them, and with them three tree objects. Deleting the merged branch -- routine
   housekeeping -- would make `check_shas.py` fail and strip the provenance from
-  all fourteen. One annotated tag at `e3fc6c144fac` covers every one of them.
-  It is not pushed here: pushing a tag to the shared repository is Deano's call.
+  all fourteen. The annotated tag `evidence/1862-seals`, at `e3fc6c144fac`,
+  covers every one of them; Deano approved pushing it on 19 November.
 - **This PR's own commits**, which the reports under `reports-preserve/` cite
   as the head they were measured at. Merging this PR with a merge commit makes
   them ancestors of main; squashing it repeats the trap one more time.
@@ -226,10 +226,10 @@ objects, and those are main's.
 
 ### For Deano
 
-- One annotated tag at `e3fc6c144fac` (`#1862`'s branch head) would hold all
-  seventeen exposed objects, both seal commits and both seals' source trees
-  among them. Not pushed: `reports-preserve/fresh-clone.log` shows the damage
-  without it, `check_shas.py` exit 1.
+- Done: the annotated tag `evidence/1862-seals` at `e3fc6c144fac` (`#1862`'s
+  branch head) holds all seventeen exposed objects, both seal commits and both
+  seals' source trees among them. `reports-preserve/fresh-clone.log` predates
+  the tag and shows the damage without it, `check_shas.py` exit 1.
 - A second tag at this PR's own merged head would do the same for its reports.
   Merging this PR without squashing would too, but main's history is all squash
   commits and `lane:lander` auto-merges, so the tag is the robust one.
