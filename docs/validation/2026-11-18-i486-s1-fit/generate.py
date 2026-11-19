@@ -44,17 +44,25 @@ def retention() -> dict:
     return out
 
 
+# Every register method.md names, with the least count that shows it is in the fitted design:
+# the latch, CR0's five new bits, AC and ID, and every bit of TR3.
+REQUIRED = {'latch': 1, 'cr0_ne': 1, 'cr0_wp': 1, 'cr0_am': 1, 'cr0_nw': 1, 'cr0_cd': 1,
+            'eflags_ac': 1, 'eflags_id': 1, 'tr3': 32}
+
+
 def retention_verdict(data: dict, ret: dict) -> dict:
     verdict = {}
     for board in BOARDS:
         c, b = ret.get(f'{board}-c'), ret.get(f'{board}-b')
-        seed1 = data['fits'][board]['c'].get(1)
-        ok = (c is not None and b is not None and seed1 is not None
-              and c['alms'] == seed1['alms'] and all(n >= 1 for n in c['registers'].values())
-              and b['registers'].get('latch', 1) == 0)
+        c1, b1 = data['fits'][board]['c'].get(1), data['fits'][board]['b'].get(1)
+        ok = (c is not None and b is not None and c1 is not None and b1 is not None
+              and c['alms'] == c1['alms'] and b['alms'] == b1['alms']
+              and all(c['registers'].get(key, 0) >= least for key, least in REQUIRED.items())
+              and 'latch' in b['registers'] and b['registers']['latch'] == 0
+              and all(b['registers'].get(key, 0) >= least for key, least in REQUIRED.items() if key != 'latch'))
         verdict[board] = {'two_identity_fit': ok, 'arm_c_counts': c and c['registers'],
                           'arm_b_latch': b and b['registers'].get('latch'),
-                          'refit_alms': c and c['alms'], 'reported_seed1_alms': seed1 and seed1['alms']}
+                          'refit_alms': c and c['alms'], 'reported_seed1_alms': c1 and c1['alms']}
     return verdict
 
 
