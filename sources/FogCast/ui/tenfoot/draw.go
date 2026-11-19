@@ -204,6 +204,7 @@ func drawFrame(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTex
 	drawFirmwarePicker(dev, snap, labels, used)
 	drawTapePicker(dev, snap, labels, used)
 	drawSettings(dev, snap, labels, used)
+	drawControllers(dev, snap, labels, used)
 	// Settings › Firmware opens a family's card over Settings.
 	drawFirmwareCard(dev, snap, labels, used)
 	if snap.CoreLibrary.Open {
