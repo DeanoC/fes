@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/DeanoC/FogCast/atarist"
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/libraryuser"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -323,10 +325,36 @@ func (s *Service) addShelfDiskLocked(ctx context.Context, title, packageID, medi
 	if err != nil {
 		return catalog.CoreEntry{}, err
 	}
-	if err := marks.MarkShelfDisk(ctx, entry.GameID); err != nil {
+	// The entry is written, so finish the pair even if the caller has gone;
+	// an unmarked disk would show as a game and could not be managed here.
+	markCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+	if err := marks.MarkShelfDisk(markCtx, entry.GameID); err != nil {
+		if dropErr := s.dropNewShelfDiskLocked(markCtx, entry.GameID); dropErr != nil {
+			return catalog.CoreEntry{}, dropErr
+		}
 		return catalog.CoreEntry{}, mapCoreEntryError(err)
 	}
 	return entry, nil
+}
+
+// dropNewShelfDiskLocked takes back a disk this operation has just added.
+// The caller holds lifecycle admission, so no kit can have started it;
+// the usual removal checks would refuse while any kit runs.
+func (s *Service) dropNewShelfDiskLocked(ctx context.Context, gameID string) error {
+	store, ok := s.catalog.(removableCoreEntryCatalog)
+	if !ok {
+		return canonicalError(protocol.CodeUnsupportedOperation, nil)
+	}
+	return s.users.MutateGame(ctx, func(m *libraryuser.GameMutation) error {
+		if err := store.RemoveCoreEntry(ctx, gameID); err != nil {
+			return mapCoreEntryError(err)
+		}
+		if err := m.RemoveGameReferences(ctx, gameID); err != nil {
+			return canonicalError(protocol.CodeInternal, safeContextError(err))
+		}
+		return nil
+	})
 }
 
 // NewAtariStShelfDisk formats a blank disk and puts it on the shelf under
@@ -614,6 +642,12 @@ func (s *Service) RenameAtariStShelfDisk(parent context.Context, gameID, expecte
 			return AtariStShelfDisk{}, err
 		}
 		if err := s.deleteShelfDiskLocked(ctx, disk); err != nil {
+			// Take the copy back, so a retry finds the name free again.
+			dropCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+			defer cancel()
+			if dropErr := s.dropNewShelfDiskLocked(dropCtx, renamed.GameID); dropErr != nil {
+				return AtariStShelfDisk{}, errors.Join(err, dropErr)
+			}
 			return AtariStShelfDisk{}, err
 		}
 		return renamed, nil
