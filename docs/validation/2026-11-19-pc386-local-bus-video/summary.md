@@ -6,10 +6,19 @@ slice 3 (#1999, PR #2000).
 - **Pass rules.** In [method.md](method.md), committed with the code
   (`58b782b9a`) before any kit run.
 - **Amendment 1.** A Codex P1 found that the EMS board's frame is also MMIO,
-  and it must stay on ISA timing. After the fix, every gate, the seal and
-  the kit run were made again on `ea0b87f0d`. This record reports those.
-- **The superseded run.** The first package's run, `l1`, is kept in
-  [kit-scores-l1.json](kit-scores-l1.json).
+  and it must stay on ISA timing.
+- **Amendment 2.** After the main merge, the merged head's seal failed setup
+  by 0.198 ns on this PR's own governor path. The fix registers the chosen
+  VGA cycle one stage earlier, with the same charges.
+- **Two runtime review fixes.** A pc386 package now declares the optional
+  manifest interface `fes.pc386.video-bus`, and the runtime writes or
+  restores a non-zero video bus only for a package that declares it. Neither
+  fix touches the core's RTL.
+- **The evidence.** Every gate, the seal (`dbcd70666`) and the kit run
+  (`l6`) were made after all of these. This record reports those.
+- **Kept as records only.** Runs `l1` and `l4`, on earlier packages, are in
+  [kit-scores-l1.json](kit-scores-l1.json) and
+  [kit-scores-l4.json](kit-scores-l4.json).
 
 ## Result
 
@@ -30,6 +39,11 @@ charge:
   486DX2-66 VL-Bus Vidspeed rows.
 - **What keeps the ISA charge:** I/O, and other MMIO such as the EMS board's
   frame.
+- **How a package opts in.** It declares `fes.pc386.video-bus` 1.0, an
+  optional, manifest-only interface with no capability bit. A runtime that
+  predates it ignores it. The new runtime refuses a non-zero video bus,
+  whether in an update or in a restored game record, for a package that does
+  not declare it.
 - **Why an option:** method.md section 1 says why, and what it costs.
 
 **On Kit A, the 486 presets now match local-bus 486s.** Against the
@@ -75,18 +89,22 @@ those references.
 
 ## Host gates (method.md section 4)
 
-All gates are on `ea0b87f0d`, after amendment 1.
+All gates are on the RTL of `822e67245`, which is also the RTL of `dbcd70666`
+and of the PR head. That is after amendments 1 and 2 and the main merge.
 
 1. **Generated files and unit tests: pass.**
    - `fes_i386_governor.py --check`.
    - `tests/test_fes_i386_governor.py` (local-bus cases) and
      `test_fes_i386_reference_diagnostic.py`.
-   - The runtime's `make test`.
+   - The runtime's `make test`, including the video-bus update and restore
+     cases.
    - FogCast `protocol`, `misterruntime`, `targetclient`, `httpapi` and
      `hostapi`.
    - mister-packages `go test` and `check-fixtures`.
-   - The DE25 combined proof, re-run because its receipt captures two
-     runtime headers this PR edits (14 cases).
+   - The DE25 combined proof, re-run for each change to the runtime headers
+     its receipt captures (14 cases).
+   - The pc386 producer's tests: the manifest declares `fes.pc386.video-bus`
+     1.0 as optional.
 2. **The governor bench, RTL and netlist: PASS**
    ([governor-bench.json](governor-bench.json)).
    - Every loop is charged exactly the table's clocks.
@@ -111,19 +129,21 @@ All gates are on `ea0b87f0d`, after amendment 1.
    scenario, including word 7 accepted at 8 and refused at 0Ch and 10h.
 7. **Seal: pass** ([seal-summary.json](seal-summary.json)).
    - **Build.** Quartus 17.0.2, seed 1, the CUDA toolchain slot, of
-     `ea0b87f0d`, on chip-30x0-ai-dev from a clean detached worktree.
-   - **Timing.** System clock 61.44 MHz. Setup +0.570 ns, hold +0.099 ns,
-     recovery +4.919 ns, removal +0.271 ns, minimum pulse width +1.122 ns.
-   - **Area.** 36,391 of 41,910 ALMs.
-   - **Package.** `17a424bb…`, build `0086f40a…`.
+     `dbcd70666`, on chip-30x0-ai-dev from a clean detached worktree.
+   - **Timing.** System clock 61.44 MHz. Setup +0.688 ns, hold +0.073 ns,
+     recovery +7.49 ns, removal +0.375 ns, minimum pulse width +1.122 ns.
+   - **Area.** 36,464 of 41,910 ALMs.
+   - **Package.** `99849fc9…`, build `3020b82a…`.
    - **Inputs.** All 143 pinned inputs hash identically at the PR head.
-   - **Earlier seal.** The seal of `58b782b9a`, made before the amendment,
-     passed too (setup +0.544 ns, package `2f8e53c3…`) and is superseded.
+   - **Earlier seals.** The seal-summary lists the earlier seals. `58b782b9a`
+     and `ea0b87f0d` passed and are superseded. The main merge, `410391c57`,
+     failed setup (−0.198 ns), which amendment 2 answers. `822e67245`, the
+     timing fix alone, passed at +0.630 ns.
 
 ## Kit run (method.md section 5)
 
-Run `l4` used Kit A, core-only, from 18:29 to 19:40 EET
-([kit-scores.json](kit-scores.json)).
+Run `l6` used Kit A, core-only, from 23:11 on 19 November to 00:21 on
+20 November EET ([kit-scores.json](kit-scores.json)).
 
 - **Software.** Baseline image `179affbb` and bundle `c9ae79e2`, with no
   install, no image change and no reboot. The run was claimed and released
@@ -139,37 +159,39 @@ Run `l4` used Kit A, core-only, from 18:29 to 19:40 EET
 
 | Preset | 3DBench 1.0 | 3DBench 1.0c (shown) | PCPBench | TopBench (Total µs) | DOOM `MAX.CFG` realtics | DOOM `MIN.CFG` realtics |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `max` | 76.9 | 757 | 13.3 | 301 (179) | 2,062 | 748 |
-| 486-20 (6, 200) | 18.1 | 179 | 4.0 | 96 (516) | 7,195 | 1,980 |
-| 486SX/DX-25 (6, 250) | 22.2 | 220 | 5.0 | 114 (442) | 5,972 | 1,629 |
-| 486DX-33 (6) | 29.4 | 286 | 6.5 | 140 (358) | 4,682 | 1,285 |
-| 486DX-50 / DX2-50 (6, 500) | 41.6 | 402 | 8.8 | 180 (290) | 3,516 | 981 |
-| 486DX2-66 (7) | 52.6 | 504 | 10.3 | 210 (252) | 2,912 | 858 |
-| 486DX2-66 by override (6, 667) | 52.6 | 504 | 10.3 | 209 (254) | 2,913 | 859 |
+| `max` | 76.9 | 757 | 13.3 | 305 (171) | 2,062 | 746 |
+| 486-20 (6, 200) | 18.1 | 179 | 4.0 | 97 (521) | 7,194 | 1,980 |
+| 486SX/DX-25 (6, 250) | 22.2 | 220 | 5.0 | 114 (438) | 5,971 | 1,630 |
+| 486DX-33 (6) | 29.4 | 286 | 6.5 | 140 (354) | 4,681 | 1,285 |
+| 486DX-50 / DX2-50 (6, 500) | 41.6 | 402 | 8.8 | 180 (289) | 3,516 | 982 |
+| 486DX2-66 (7) | 52.6 | 504 | 10.3 | 209 (252) | 2,912 | 858 |
+| 486DX2-66 by override (6, 667) | 52.6 | 504 | 10.3 | 210 (251) | 2,912 | 858 |
 
 **Control.** The `max` row has no governor, so it shows whether the package
 is otherwise faster or slower. Against slice 3's `k2` on the same kit:
 - 3DBench, 3DBench 1.0c, PCPBench and DOOM `MAX.CFG` are identical.
-- TopBench is 301 against 307; its Total is 179 µs against 181.
-- DOOM `MIN.CFG` is 748 realtics against 747.
+- TopBench is 305 against 307; its Total is 171 µs against 181.
+- DOOM `MIN.CFG` is 746 realtics against 747.
 
 The package is otherwise the same speed. Each before/after difference on
 the 486 rows is the video charge.
 
-**Repeat.** `l1` ran on the package sealed before the EMS fix, and no
-benchmark loads an EMS driver.
+**Repeats.** `l1` and `l4` ran on earlier packages of this change. The
+charges are the same, and no benchmark loads an EMS driver. Across the
+three runs:
 - 3DBench, 3DBench 1.0c and PCPBench are identical.
 - DOOM is within one realtic.
-- TopBench's score is within one, but its Total moved by up to 6% (341
-  against 358 µs at 33.3 MHz). That benchmark's Total is the noisiest
-  reading on the kit, and it is the one verdict that differs between the
-  two runs (below).
+- TopBench's score is within one.
+- TopBench's Total moved by up to 6% (341, 358 and 354 µs at 33.3 MHz).
+  That is the noisiest reading on the kit, and the one place the verdicts
+  differ (below).
 
 **Clean-up.**
-- **`l4`.** Its listing found 64 new paths: the 7 launches' game records and
-  media deltas, and the staged disk. Claimed run `l5` removed exactly those
+- **`l6`.** Its listing found 64 new paths: the 7 launches' game records and
+  media deltas, and the staged disk. Claimed run `l7` removed exactly those
   through `kit_hil.clean` inside its lease. The kit's FogCast tree then
-  matched its pre-`l4` listing.
+  matched its pre-`l6` listing.
+- **`l4`.** Removed the same way, by claimed run `l5`.
 - **`l1`.** Its after-run listing failed: ssh timed out during the banner
   exchange. So its status line's "0 new paths" was wrong, and a note in the
   status file corrects it. Claimed run `l2` listed the paths, and `l3`
@@ -189,16 +211,16 @@ benchmark loads an EMS driver.
 | 3DBench 1.0 | 31% → 2% | +4.90% (3.08%): not reached | +9.42% (3.82%): not reached |
 | 3DBench 1.0c | 36% → 10% | +1.90% (3.05%): reached | +3.64% (3.72%): reached |
 | PCPBench | 20% → 10% | +5.79% (6.68%): reached | +15.26% (9.66%): not reached |
-| TopBench Total | 55% → 29% | +6.04% (2.73%): not reached | +8.95% (3.08%): not reached |
-| DOOM `MAX.CFG` | 49% → 17% | +3.89% (2.06%): not reached | +6.42% (2.09%): not reached |
-| DOOM `MIN.CFG` | 36% → 19% | +4.48% (2.21%): not reached | +11.99% (2.33%): not reached |
+| TopBench Total | 55% → 29% | +7.24% (2.74%): not reached | +10.86% (3.10%): not reached |
+| DOOM `MAX.CFG` | 49% → 17% | +3.92% (2.06%): not reached | +6.46% (2.09%): not reached |
+| DOOM `MIN.CFG` | 36% → 19% | +4.70% (2.21%): not reached | +12.21% (2.33%): not reached |
 
 The 20 MHz hold-out passes on all six benchmarks. Preset 7 and preset 6 at
 66.7 MHz agree on every benchmark.
 
-**`l1` came out differently on TopBench only.** There its 20 MHz hold-out
-failed, so TopBench was "not measurable", and 486DX2-66 was 4 of 6. Every
-other verdict is the same in both runs, and so is each preset's mark.
+**`l4` gave every one of these verdicts too. `l1` differed on TopBench
+only.** There its 20 MHz hold-out failed, so TopBench was "not measurable",
+and 486DX2-66 was 4 of 6. Each preset's mark is the same in all three runs.
 
 **Reference ratios.** Each is the kit over the median of real machines; DOOM
 uses the median over the kit. n is the number of rows.

@@ -16,7 +16,7 @@
     }
    },
    "doom_max_realtics": {
-    "kit": 5972,
+    "kit": 5971,
     "phil_fullscreen": {
      "local bus": {
       "n": 3,
@@ -64,7 +64,7 @@
     "reference": "none published in these sources"
    },
    "doom_min_realtics": {
-    "kit": 1629,
+    "kit": 1630,
     "reference": "none published in these sources"
    }
   }
@@ -93,14 +93,14 @@
     }
    },
    "doom_max_realtics": {
-    "kit": 4682,
+    "kit": 4681,
     "phil_fullscreen": {
      "ISA": {
       "n": 5,
       "min": 4280.0,
       "max": 11001.0,
       "median": 7226.0,
-      "kit_over_median": 1.543
+      "kit_over_median": 1.544
      },
      "local bus": {
       "n": 5,
@@ -256,7 +256,7 @@
     "reference": "none published in these sources"
    },
    "doom_min_realtics": {
-    "kit": 981,
+    "kit": 982,
     "reference": "none published in these sources"
    }
   }
@@ -341,7 +341,7 @@
     }
    },
    "topbench_score": {
-    "kit": 210,
+    "kit": 209,
     "database": {
      "n": 10,
      "scores": [
@@ -357,7 +357,7 @@
       218
      ],
      "median": 181.0,
-     "kit_over_median": 1.16
+     "kit_over_median": 1.155
     }
    },
    "3dbench2": {

@@ -1,5 +1,5 @@
 {
- "commit": "ea0b87f0d",
+ "commit": "822e67245 (the RTL of dbcd70666 and e8e6f4d43 is the same)",
  "rtl": {
   "failures": [],
   "clock_hz": 61440000,
@@ -114,7 +114,7 @@
  "netlist": {
   "failures": [],
   "clock_hz": 61440000,
-  "netlist": "92c690e82039557c5b38a69b306cb817fc7215dbd1527a827f97f91542dd7f8a",
+  "netlist": "9da73c6848713c682ff0b68633ea55b3396507a5c710333e63342becd32755ba",
   "presets": {
    "286-12": {
     "beyond_cpu": [],
@@ -226,5 +226,5 @@
   "commit": "a14663bd9",
   "failures": []
  },
- "rule": "method.md section 4, gates 2 and 3 (amendment 1); every loop charged exactly the table (the bench fails otherwise), failures empty"
+ "rule": "method.md section 4, gates 2 and 3 (amendments 1 and 2); every loop charged exactly the table (the bench fails otherwise), failures empty"
 }

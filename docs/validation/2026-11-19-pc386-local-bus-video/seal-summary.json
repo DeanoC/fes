@@ -1,18 +1,18 @@
 {
- "sealed_commit": "ea0b87f0d82681530f1657cb20998e06203a15b8",
+ "sealed_commit": "dbcd70666b433084cfeaf23f70dbaceee0d98266",
  "host": "chip-30x0-ai-dev",
  "quartus": "17.0.2",
  "seed": 1,
  "gpu_router_slot": "cuda",
- "build_id": "0086f40a115969b447b1c8872d3421cb",
- "package": "17a424bb5d2589e2c8573b373f8f5c019d622b16792c839e9acb439d45377d23",
- "fcore_sha256": "06b539f32d7facb20e3b5072fb34ec1e56fa3d0f219cc185439ac37e32aedc90",
+ "build_id": "3020b82a4ccf65b6d3e181faee622a29",
+ "package": "99849fc9194a8dd26f531f635a4bb7b2aa523d6b2fe4befc10794796766de467",
+ "fcore_sha256": "357d4cacd1c8fd04305c879eeb3afdbfc254f6f4ccddaec09220ff54ae327260",
  "status": "pass",
  "timing": {
   "analyses": {
    "hold": {
     "tns_ns": 0.0,
-    "worst_slack_ns": 0.099
+    "worst_slack_ns": 0.073
    },
    "minimum_pulse_width": {
     "tns_ns": 0.0,
@@ -20,15 +20,15 @@
    },
    "recovery": {
     "tns_ns": 0.0,
-    "worst_slack_ns": 4.919
+    "worst_slack_ns": 7.49
    },
    "removal": {
     "tns_ns": 0.0,
-    "worst_slack_ns": 0.271
+    "worst_slack_ns": 0.375
    },
    "setup": {
     "tns_ns": 0.0,
-    "worst_slack_ns": 0.57
+    "worst_slack_ns": 0.688
    }
   },
   "clocks": {
@@ -50,11 +50,11 @@
  "resources": {
   "alms": {
    "available": 41910,
-   "used": 36391
+   "used": 36464
   },
   "block_memory_bits": {
    "available": 5662720,
-   "used": 1354796
+   "used": 1354806
   },
   "dsp_blocks": {
    "available": 112,
@@ -65,29 +65,29 @@
    "used": 282
   },
   "registers": {
-   "used": 31862
+   "used": 31900
   }
  },
  "lockstep": {
-  "cpu_source_closure_sha256": "23617229869d59e488888481c2a86c60d738b923ccda2a5ea9c030d6525bde45",
+  "cpu_source_closure_sha256": "fcf5f765d7927a8e0ab91d72f2764145f1b4d9d2b17f74ebaa61084f75b787a3",
   "netlist_program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
-  "netlist_sha256": "814531abcb27dad77e475f1b8380f0c2187c1b67739f6ef000adf5ffb24d08c9",
+  "netlist_sha256": "ba9594c6dbe5d76112ca284e2c02672643249d2ea465285a8ba65443ba2a7c05",
   "oracle": {
    "adapter_sha256": "8476a65df29382fdfdb5b8ce342495f3491fd2c7e5c5df40018d3a3d68bb21e3",
    "linked_sha256": {
     "adapter": "5857aee4bcced159b79def18b33364fc137436a2f507bcf8d35ee32e081bb0b4",
-    "cpu": "e9d78ac324376967b99d09f7e7f705f2698661ef77f9a228e2b85f47db196070",
-    "fpu": "1f7128c4014d22249d606c317f15fab793f0b6b2f7ed8e7fc7d3c1bec4a25ed2",
+    "cpu": "8de7d24e8e79c18a3fa389d8b0875021302b81d236e24f227589e6751051b0ae",
+    "fpu": "68287174776ffef920178facc64e8f2f47ba6e2f6c1cf0fb72c5a8647d1391c6",
     "paramtree": "7a1c5ac6028382277a6447c8644a27ffbe05cad58616cd2208709da302f1067c",
-    "softfloat": "a2658c1cc5065d60ce122bb3a8d59c2726ddf5aee7f750e5c0545d24ee4d572a"
+    "softfloat": "b2e448ec57e0872d61faba4b708878c83a32f3ddd29b528074e4448a433312a0"
    },
    "patch_sha256": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377",
    "provisioner_sha256": "0c4552c2290a0f50681090a65cf25deeb1916568c910bcfcc88a91097f8089b2",
    "revision": "30cfd566ecc8deb33e56e801e32b444a7041b6d2",
-   "suite_sha256": "8a54c3004c77b604dfa5348acb19c982b29e67e7c72f45811d350c751a1c285f",
-   "testbench_sha256": "0bce6849db1ff53a2435011c2fb0cf330f2db77de497c9104f609671f980952a"
+   "suite_sha256": "efbfdca78ef3d135d313c4d05fe0d8cc24e0c91689899360d211f3985dca9f83",
+   "testbench_sha256": "0a2f0254bbdd058137e7e8a0d9abb072966a213b822c145172f0cfbf6a985a65"
   },
-  "report_sha256": "5407c1cc6ddcc44e0bfd52bb6a1b353c3dcdff8349b0f903a0fd482a13fbaf7e",
+  "report_sha256": "a8507c16f65ec5df62cb1f1575efc9a0f5ba8273505b7c6f02a248a8b6e13ce4",
   "simulator": {
    "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
    "install": "b37d73c9d2a0bd9e9847784c8e1bc4171ae79ff713d11e2735a10174bf2ad557",
@@ -99,71 +99,31 @@
  },
  "pinned_inputs": 143,
  "pinned_inputs_differing_at_head": [],
- "head_checked": "ea0b87f0d and the PR head; every later commit changes only docs/validation/2026-11-19-pc386-local-bus-video",
- "earlier_seal": {
-  "sealed_commit": "58b782b9a2be4129716e54bff8050c6dcbe51fa1",
-  "build_id": "d268d8764993dc9118344f6e9dd52b95",
-  "package": "2f8e53c32de1a8b4efebfdf3293d8606ba75924ecd3535ab790d8dd7df9e817c",
-  "timing": {
-   "analyses": {
-    "hold": {
-     "tns_ns": 0.0,
-     "worst_slack_ns": 0.102
-    },
-    "minimum_pulse_width": {
-     "tns_ns": 0.0,
-     "worst_slack_ns": 1.122
-    },
-    "recovery": {
-     "tns_ns": 0.0,
-     "worst_slack_ns": 5.915
-    },
-    "removal": {
-     "tns_ns": 0.0,
-     "worst_slack_ns": 0.548
-    },
-    "setup": {
-     "tns_ns": 0.0,
-     "worst_slack_ns": 0.544
-    }
-   },
-   "clocks": {
-    "audio": {
-     "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
-     "mhz": 12.29
-    },
-    "pixel": {
-     "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
-     "mhz": 74.27
-    },
-    "system": {
-     "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
-     "mhz": 61.44
-    }
-   },
-   "status": "pass"
+ "head_checked": "dbcd70666 and the PR head; later commits change only libmister-runtime sources and tests, the DE25 receipt and docs/validation/2026-11-19-pc386-local-bus-video",
+ "earlier_seals": [
+  {
+   "sealed_commit": "58b782b9a",
+   "package": "2f8e53c3",
+   "setup_ns": 0.544,
+   "note": "before method amendment 1; superseded"
   },
-  "resources": {
-   "alms": {
-    "available": 41910,
-    "used": 36381
-   },
-   "block_memory_bits": {
-    "available": 5662720,
-    "used": 1354796
-   },
-   "dsp_blocks": {
-    "available": 112,
-    "used": 41
-   },
-   "ram_blocks": {
-    "available": 553,
-    "used": 282
-   },
-   "registers": {
-    "used": 31771
-   }
+  {
+   "sealed_commit": "ea0b87f0d",
+   "package": "17a424bb",
+   "setup_ns": 0.57,
+   "note": "before the main merge and amendment 2; superseded"
   },
-  "note": "before method amendment 1; superseded"
- }
+  {
+   "sealed_commit": "410391c57",
+   "package": null,
+   "setup_ns": -0.198,
+   "note": "the main merge: setup failed at the slow 1100 mV -40C corner on s1_mmio_local -> s2_isa; no package; amendment 2"
+  },
+  {
+   "sealed_commit": "822e67245",
+   "package": "(not used)",
+   "setup_ns": 0.63,
+   "note": "amendment 2 timing fix, before the fes.pc386.video-bus manifest interface; superseded"
+  }
+ ]
 }
