@@ -78,7 +78,7 @@ func shelfDiskPath(gameID, action string) string {
 // changes.
 func (c *Client) AtariStShelf(ctx context.Context) (AtariStShelf, error) {
 	var shelf AtariStShelf
-	if err := c.getJSON(ctx, "/api/v1/library/atari-st-shelf", &shelf); err != nil {
+	if err := c.libraryOperation().getJSON(ctx, "/api/v1/library/atari-st-shelf", &shelf); err != nil {
 		return AtariStShelf{}, err
 	}
 	for _, disk := range shelf.Disks {
@@ -99,7 +99,7 @@ func (c *Client) NewAtariStShelfDisk(ctx context.Context, title, packageID strin
 	}
 	var disk AtariStShelfDisk
 	payload := map[string]any{"title": title, "package_id": packageID, "tracks": geometry.Tracks, "heads": geometry.Heads, "sectors": geometry.Sectors}
-	if err := c.doJSONStatuses(ctx, http.MethodPost, "/api/v1/library/atari-st-shelf", payload, &disk, http.StatusCreated); err != nil {
+	if err := c.libraryOperation().doJSONStatuses(ctx, http.MethodPost, "/api/v1/library/atari-st-shelf", payload, &disk, http.StatusCreated); err != nil {
 		return AtariStShelfDisk{}, err
 	}
 	want := int64(geometry.Tracks) * int64(geometry.Heads) * int64(geometry.Sectors) * 512
@@ -116,7 +116,7 @@ func (c *Client) CopyAtariStShelfDisk(ctx context.Context, gameID, title string)
 		return AtariStShelfDisk{}, fmt.Errorf("ST shelf disk request is invalid")
 	}
 	var disk AtariStShelfDisk
-	if err := c.doJSONStatuses(ctx, http.MethodPost, shelfDiskPath(gameID, "copy"), map[string]string{"title": title}, &disk, http.StatusCreated); err != nil {
+	if err := c.libraryOperation().doJSONStatuses(ctx, http.MethodPost, shelfDiskPath(gameID, "copy"), map[string]string{"title": title}, &disk, http.StatusCreated); err != nil {
 		return AtariStShelfDisk{}, err
 	}
 	if !validShelfDisk(disk) || !disk.Made || disk.Kept != ShelfKeptNone || disk.GameID == gameID || disk.Title != strings.TrimSpace(title) {
@@ -132,7 +132,7 @@ func (c *Client) RevertAtariStShelfDisk(ctx context.Context, gameID, keptRevisio
 		return AtariStShelfDisk{}, fmt.Errorf("ST shelf disk request is invalid")
 	}
 	var disk AtariStShelfDisk
-	if err := c.doJSON(ctx, http.MethodPost, shelfDiskPath(gameID, "revert"), map[string]string{"expected_revision": keptRevision}, &disk); err != nil {
+	if err := c.libraryOperation().doJSON(ctx, http.MethodPost, shelfDiskPath(gameID, "revert"), map[string]string{"expected_revision": keptRevision}, &disk); err != nil {
 		return AtariStShelfDisk{}, err
 	}
 	if !validShelfDisk(disk) || disk.GameID != gameID || disk.Kept != ShelfKeptNone {
@@ -149,7 +149,7 @@ func (c *Client) RenameAtariStShelfDisk(ctx context.Context, gameID, keptRevisio
 	}
 	var disk AtariStShelfDisk
 	payload := map[string]string{"expected_revision": keptRevision, "title": title}
-	if err := c.doJSON(ctx, http.MethodPost, shelfDiskPath(gameID, "rename"), payload, &disk); err != nil {
+	if err := c.libraryOperation().doJSON(ctx, http.MethodPost, shelfDiskPath(gameID, "rename"), payload, &disk); err != nil {
 		return AtariStShelfDisk{}, err
 	}
 	if !validShelfDisk(disk) || !disk.Made || disk.Title != strings.TrimSpace(title) {
@@ -167,7 +167,7 @@ func (c *Client) DeleteAtariStShelfDisk(ctx context.Context, gameID, keptRevisio
 	var removed struct {
 		GameID string `json:"game_id"`
 	}
-	if err := c.doJSON(ctx, http.MethodPost, shelfDiskPath(gameID, "delete"), map[string]string{"expected_revision": keptRevision}, &removed); err != nil {
+	if err := c.libraryOperation().doJSON(ctx, http.MethodPost, shelfDiskPath(gameID, "delete"), map[string]string{"expected_revision": keptRevision}, &removed); err != nil {
 		return err
 	}
 	if removed.GameID != gameID {

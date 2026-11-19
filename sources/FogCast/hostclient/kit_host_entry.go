@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/protocol"
@@ -20,13 +19,7 @@ func (c *Client) PrepareLocalCoreEntry(ctx context.Context, packageID, gameID st
 		PackageID string `json:"package_id"`
 		GameID    string `json:"game_id"`
 	}{packageID, gameID}
-	operationHTTP := *c.launchHTTP
-	if operationHTTP.Timeout != 0 && operationHTTP.Timeout < 120*time.Second {
-		operationHTTP.Timeout = 120 * time.Second
-	}
-	operationClient := *c
-	operationClient.httpClient = &operationHTTP
-	if err := operationClient.doJSONStatuses(ctx, http.MethodPost, "/api/v1/library/local-core-entry", request, &entry, http.StatusOK); err != nil {
+	if err := c.libraryOperation().doJSONStatuses(ctx, http.MethodPost, "/api/v1/library/local-core-entry", request, &entry, http.StatusOK); err != nil {
 		return CoreEntry{}, err
 	}
 	if protocol.ValidateGameID(entry.GameID) != nil || protocol.ValidateDigest(entry.PackageID) != nil || (packageID != "" && entry.PackageID != packageID) || entry.CoreID == "" || (packageID == "" && entry.CoreID != "fes.sms") {
