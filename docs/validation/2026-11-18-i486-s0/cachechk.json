@@ -1,11 +1,24 @@
 {
   "commit": "75bd225a21cc17dd31564cbf6cab7b3ed260665f",
+  "current": {
+    "clock_mhz_printed": "1044.0",
+    "commit": "7e813da4656adbf048d079bd9aa110f53fc52ebd",
+    "cpu_level": 4,
+    "divide_error_printed": true,
+    "end": {
+      "cycles": 950021120,
+      "reason": "prompt",
+      "seconds": 9.5,
+      "steps": 234296948
+    }
+  },
   "findings": [
     "Level 3: the run ends at `prompt` after 9.5 simulated seconds and 234,296,038 steps; \"Divide error\" on the screen: yes; the clock it prints: 2560.4 MHz. Exception 0 is raised at `0eba:000057f0` at 8.993733 s by `DIV BX` with DX:AX 8000:0000 and divisor 0000: a division by zero.",
     "Level 4: the run ends at `prompt` after 9.5 simulated seconds and 234,296,948 steps; \"Divide error\" on the screen: yes; the clock it prints: 1044.0 MHz. Exception 0 is raised at `0eba:000057f0` at 8.994143 s by `DIV BX` with DX:AX 0000:0000 and divisor 0000: a division by zero.",
     "The fault site is the same at both levels: yes.",
     "What was measured: the control, the faulting instruction and its operands at each level, from a scratch trace of the last 3,000 oracle steps before the first exception 0. The divisor is the low word of a 32-bit value the program's own scaling routine had just shifted left; the trace window (about 0.1 ms) does not reach back to the timing loop that produced the value.",
-    "What that supports: the oracle has no CPU speed (every instruction takes the same machine time), so the program's timing gives a clock no CPU has, at either level, and its arithmetic then divides by zero. The committed kit runs of CACHECHK on the RTL, which has a speed, print its table. What was not measured: which timing loop, and why the two levels print different clocks."
+    "What that supports: the oracle has no CPU speed (every instruction takes the same machine time), so the program's timing gives a clock no CPU has, at either level, and its arithmetic then divides by zero. The committed kit runs of CACHECHK on the RTL, which has a speed, print its table. What was not measured: which timing loop, and why the two levels print different clocks.",
+    "At `7e813da46`, the census's own level-4 run of CACHECHK ends at `prompt` after 9.5 simulated seconds; \"Divide error\" on the screen: yes; the clock it prints: 1044.0 MHz. No trace was taken at that commit."
   ],
   "host": "chip-30x0-ai-dev",
   "levels": {

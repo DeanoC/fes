@@ -61,7 +61,9 @@ NOTES = '''\
   first runs exited at once because codeberg.org (dev86's source) did not
   resolve; for that run the pinned dev86 source was copied from Powerboat's
   checkout of the same revision. The census reported here is the second,
-  run after the review with dev86 fetched as main now does.
+  run after the review at `7e813da46` with dev86 fetched as main now does;
+  a start at `e9d9d8a2f` was stopped with nothing read when the CR4 gate
+  moved from a patch file into the provisioner.
 - **The CACHECHK trace used a scratch change to `machine_tb.cpp`** in a
   second copy of the tree, which keeps the last 3,000 oracle steps and
   prints them at the first exception 0. It is not committed. The census
