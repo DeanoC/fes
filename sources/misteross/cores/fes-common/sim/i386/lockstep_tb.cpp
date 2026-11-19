@@ -10782,6 +10782,94 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.esc(0xd9, 0, 0x104);                                 // FLD m32
             a.esc(0xd9, 3, 0x328);                                 // FSTP m32
         }},
+        // ---- A store with one exception unmasked (#1872) ----
+        // The only programs here that unmask anything. Each unmasked store
+        // sets ES and the board's BUSY# latch, which this bench never answers
+        // with IRQ 13, so each is followed by what a handler would do: OUT
+        // F0h, which clears the latch, and FNCLEX, which clears ES -- without
+        // them the next waiting ESC would be held for ever. An unmasked
+        // precision exception stores and pops; an unmasked overflow or
+        // underflow stores nothing, leaves the operand on the stack and
+        // reports neither PE nor C1 (387 PRM 3.2.5.1, 3.2.5.2 and 3.2.6).
+        {"store-unmasked-pm", [](Asm &a) {
+            const auto clear = [&a] { a.op({0xe6, 0xf0}); a.op({0xdb, 0xe2}); };  // OUT F0h, AL; FNCLEX
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 5, 0x240);                                 // FLDCW 035Fh: PM clear
+            a.esc(0xdd, 0, 0x248);                                 // FLD m64 0.1
+            a.esc(0xd9, 2, 0x300);                                 // FST m32: inexact
+            a.op({0xdf, 0xe0});                                    // FNSTSW AX
+            clear();
+            a.esc(0xd9, 3, 0x304);                                 // FSTP m32: stores and pops
+            clear();
+            a.esc(0xdd, 0, 0x248);
+            a.esc(0xdf, 2, 0x308);                                 // FIST m16: 0.1 to 0
+            clear();
+            a.esc(0xdb, 3, 0x30c);                                 // FISTP m32
+            clear();
+            a.esc(0xdd, 0, 0x248);
+            a.esc(0xdf, 7, 0x310);                                 // FISTP m64
+            clear();
+            a.esc(0xdb, 5, 0x150);                                 // FLD m80 pi
+            a.esc(0xdd, 3, 0x318);                                 // FSTP m64: inexact
+            a.op({0xdf, 0xe0});
+            clear();
+        }, {{0x240, {0x5f, 0x03}}, {0x248, {0x9a, 0x99, 0x99, 0x99, 0x99, 0x99, 0xb9, 0x3f}}}},
+        {"store-unmasked-um", [](Asm &a) {
+            const auto clear = [&a] { a.op({0xe6, 0xf0}); a.op({0xdb, 0xe2}); };
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 5, 0x242);                                 // FLDCW 036Fh: UM clear
+            a.esc(0xdd, 0, 0x250);                                 // FLD m64 1e-40
+            a.esc(0xd9, 2, 0x320);                                 // FST m32: tiny and inexact
+            a.op({0xdf, 0xe0});
+            clear();
+            a.esc(0xd9, 3, 0x324);                                 // FSTP m32: no store, no pop
+            clear();
+            a.esc(0xdb, 5, 0x260);                                 // FLD m80 2^-140
+            a.esc(0xd9, 3, 0x328);                                 // FSTP m32: tiny and exact
+            a.op({0xdf, 0xe0});
+            clear();
+            a.esc(0xdb, 5, 0x190);                                 // FLD m80 2^-8300
+            a.esc(0xdd, 3, 0x32c);                                 // FSTP m64: past the denormals
+            a.op({0xdf, 0xe0});
+            clear();
+        }, {{0x242, {0x6f, 0x03}}, {0x250, {0x9c, 0x57, 0x77, 0x27, 0x26, 0x6c, 0xa1, 0x37}},
+            {0x260, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x73, 0x3f}}}},
+        {"store-unmasked-om", [](Asm &a) {
+            const auto clear = [&a] { a.op({0xe6, 0xf0}); a.op({0xdb, 0xe2}); };
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 5, 0x244);                                 // FLDCW 0377h: OM clear
+            a.esc(0xdd, 0, 0x258);                                 // FLD m64 1e300
+            a.esc(0xd9, 2, 0x330);                                 // FST m32: overflows
+            a.op({0xdf, 0xe0});
+            clear();
+            a.esc(0xd9, 3, 0x334);                                 // FSTP m32: no store, no pop
+            clear();
+            a.esc(0xdb, 5, 0x180);                                 // FLD m80 2^9000
+            a.esc(0xdd, 3, 0x338);                                 // FSTP m64
+            a.op({0xdf, 0xe0});
+            clear();
+            a.esc(0xdf, 7, 0x340);                                 // FISTP m64: invalid, masked
+        }, {{0x244, {0x77, 0x03}}, {0x258, {0x9c, 0x75, 0x00, 0x88, 0x3c, 0xe4, 0x37, 0x7e}}}},
+        // Tininess after rounding, every exception masked: one binade under
+        // f32's and f64's smallest normal, a value whose significand rounds
+        // up to that normal at the target's precision is not tiny and
+        // reports PE alone, and one that is exact at that precision is tiny
+        // and reports UE as well, though the denormalised rounding of both
+        // carries to the same normal.
+        {"store-tiny-boundary", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            const uint16_t at[] = {0x270, 0x27a, 0x284, 0x28e};
+            for (unsigned n = 0; n < 4; ++n) {
+                a.esc(0xdb, 5, at[n]);                             // FLD m80
+                if (n < 2) a.esc(0xd9, 3, uint16_t(0x350 + 4 * n)); // FSTP m32
+                else a.esc(0xdd, 3, uint16_t(0x360 + 8 * n));      // FSTP m64
+                a.op({0xdf, 0xe0});                                // FNSTSW AX
+                a.op({0xdb, 0xe2});                                // FNCLEX
+            }
+        }, {{0x270, {0x00, 0x00, 0x00, 0x00, 0x80, 0xff, 0xff, 0xff, 0x80, 0x3f}},   // 25 ones: not tiny
+            {0x27a, {0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0x80, 0x3f}},   // 24 ones: tiny
+            {0x284, {0x00, 0xfc, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x3c}},   // 54 ones: not tiny
+            {0x28e, {0x00, 0xf8, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x3c}}}}, // 53 ones: tiny
         // ---- Slice 4's forms, through the CPU ----
         // These are what the unit's own bench cannot reach: the bench supplies
         // the operand format itself, so a memory divide that x87_decode
