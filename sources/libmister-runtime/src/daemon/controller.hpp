@@ -36,7 +36,8 @@ public:
 
 private:
 	std::string Respond(std::int64_t protocol, const Error& result,
-		const CorePackageInspection* inspection = nullptr, const CoreData* data = nullptr,const MenuFrameReply* frame=nullptr);
+		const CorePackageInspection* inspection = nullptr, const CoreData* data = nullptr,const MenuFrameReply* frame=nullptr,
+		const MediaDataInspection* media = nullptr);
 
 	Runtime& runtime_;
 	const std::string version_;

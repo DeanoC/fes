@@ -104,3 +104,55 @@ type composedCoreRuntime interface {
 func (c *Coordinator) LoadComposedCore(ctx context.Context, size int64, body io.Reader, id string) (protocol.Status, *protocol.APIError) {
 	return c.loadCore(ctx, size, body, id, true)
 }
+
+type mediaRecordRuntime interface {
+	InspectMediaRecord(context.Context, protocol.MediaRecordIdentity) (protocol.MediaRecord, *protocol.APIError)
+	DiscardMediaRecord(context.Context, protocol.MediaRecordDiscard) (protocol.MediaRecord, *protocol.APIError)
+	ExportMediaRecord(context.Context, protocol.MediaRecordDiscard) ([]byte, *protocol.APIError)
+}
+
+// ExportMediaRecord returns one library disk's saved image without changing
+// it. A running core's last saved image can be read.
+func (c *Coordinator) ExportMediaRecord(ctx context.Context, d protocol.MediaRecordDiscard) ([]byte, *protocol.APIError) {
+	if !c.begin() {
+		return nil, &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running"}
+	}
+	defer c.end()
+	runtime, ok := c.runtime.(mediaRecordRuntime)
+	if !ok {
+		return nil, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
+	}
+	return runtime.ExportMediaRecord(ctx, d)
+}
+
+// InspectMediaRecord reports what is saved for one library disk. It runs as
+// a target transition so it never reads across a launch or a save.
+func (c *Coordinator) InspectMediaRecord(ctx context.Context, id protocol.MediaRecordIdentity) (protocol.MediaRecord, *protocol.APIError) {
+	if !c.begin() {
+		return protocol.MediaRecord{}, &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running"}
+	}
+	defer c.end()
+	runtime, ok := c.runtime.(mediaRecordRuntime)
+	if !ok {
+		return protocol.MediaRecord{}, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
+	}
+	return runtime.InspectMediaRecord(ctx, id)
+}
+
+// DiscardMediaRecord removes one library disk's saved record. A transition
+// keeps a launch from binding the record while it is removed.
+func (c *Coordinator) DiscardMediaRecord(ctx context.Context, d protocol.MediaRecordDiscard) (protocol.MediaRecord, *protocol.APIError) {
+	if !c.begin() {
+		return protocol.MediaRecord{}, &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running"}
+	}
+	defer c.end()
+	runtime, ok := c.runtime.(mediaRecordRuntime)
+	if !ok {
+		return protocol.MediaRecord{}, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
+	}
+	status := c.Status()
+	if status.State == protocol.StateFailed || status.Recovery != "" {
+		return protocol.MediaRecord{}, &protocol.APIError{Code: protocol.CodeBusy, Message: "target recovery must finish before discarding saved media"}
+	}
+	return runtime.DiscardMediaRecord(ctx, d)
+}

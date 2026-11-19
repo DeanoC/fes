@@ -949,6 +949,15 @@ reports `persistence:{mode,game_id,base_media_id,revision}` on the live unit.
 Raw `insert_media` remains volatile. A saved record cannot silently downgrade
 to a shell lacking the write contract.
 
+`inspect_media_data`, `discard_media_data` and `export_media_data` name one
+whole-image record by `core_id`, `game_id`, `base_media_id` and `unit`, with
+no package loaded. Inspect answers `media_data:{state,revision,bytes,changed}`; `changed` is
+true when a present record's image differs from its base image.
+Export writes the saved image to a new file at `path` when the record has
+`expected_revision`. Discard removes a record with `expected_revision` and
+is refused unless the runtime is idle. See
+[media data](../mister-packages/docs/media-data.md).
+
 ROM operations accept an optional closed `initial_media` object with `path`,
 `size`, `unit`, `data_root`, `game_id` and `base_media_id`. It requires a format-3
 firmware package for `fes.atari-st`, the writable ST floppy contract, unit 0

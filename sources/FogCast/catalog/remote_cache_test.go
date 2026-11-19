@@ -11,7 +11,8 @@ import (
 	"time"
 )
 
-const dropRemoteCacheSchemaForTest = `DROP TRIGGER core_media_import_protect; DROP TRIGGER local_entry_cache_adopt_insert; DROP TRIGGER local_entry_cache_adopt_update; DROP TRIGGER core_entry_roms_cache_adopt_insert; DROP TRIGGER core_entry_roms_cache_adopt_update; DROP TRIGGER core_expansions_cache_adopt_insert; DROP TRIGGER core_expansions_cache_adopt_update; DROP TRIGGER core_video_parts_cache_adopt_insert; DROP TRIGGER core_video_parts_cache_adopt_update; DROP TRIGGER zx81_saves_cache_adopt_insert; DROP TRIGGER zx81_saves_cache_adopt_update; DROP TABLE remote_cached_media; `
+// Rewinding a test catalog below schema 24 drops every later object first.
+const dropRemoteCacheSchemaForTest = `DROP TRIGGER shelf_disks_entry_removed; DROP TABLE shelf_disks; DROP TRIGGER core_media_import_protect; DROP TRIGGER local_entry_cache_adopt_insert; DROP TRIGGER local_entry_cache_adopt_update; DROP TRIGGER core_entry_roms_cache_adopt_insert; DROP TRIGGER core_entry_roms_cache_adopt_update; DROP TRIGGER core_expansions_cache_adopt_insert; DROP TRIGGER core_expansions_cache_adopt_update; DROP TRIGGER core_video_parts_cache_adopt_insert; DROP TRIGGER core_video_parts_cache_adopt_update; DROP TRIGGER zx81_saves_cache_adopt_insert; DROP TRIGGER zx81_saves_cache_adopt_update; DROP TABLE remote_cached_media; `
 
 func remoteCacheImport(t *testing.T, s *Store, value string) CoreMedia {
 	t.Helper()

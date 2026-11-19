@@ -723,6 +723,40 @@ public:
 		return error;
 	}
 
+	// Inspect reads a saved record at any time the runtime is not mid
+	// transition. Discard also needs no core loaded: a running core may hold
+	// that record bound and would save it straight back at Stop.
+	Error AccessMediaData(const MediaDataQuery& query, const std::string* expected_revision,
+		const std::string* export_path, MediaDataInspection* output)
+	{
+		if (!output || !ValidAbsolutePath(query.data_root) ||
+			(expected_revision && !ValidPackageId(*expected_revision)) ||
+			(export_path && (!expected_revision || !ValidAbsolutePath(*export_path))))
+			return Invalid("invalid media-data request");
+		{
+			std::unique_lock<std::mutex> lock(mutex_);
+			WaitForMenuFrame(lock);
+			if (busy_ || !started_ || pending_fault_generation_ != 0 ||
+				status_.state == State::starting || status_.state == State::reboot_required)
+				return Busy("runtime media-data access is busy");
+			if (expected_revision && !export_path && status_.state != State::idle)
+				return Busy("stop the running core before discarding saved media");
+			busy_ = true;
+		}
+		MediaDataInspection data;
+		Error error = export_path ? hardware_.ExportMediaData(query, *expected_revision, *export_path, &data)
+			: expected_revision ? hardware_.DiscardMediaData(query, *expected_revision, &data)
+								: hardware_.InspectMediaData(query, &data);
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			busy_ = false;
+		}
+		condition_.notify_all();
+		if (error.ok())
+			*output = std::move(data);
+		return error;
+	}
+
 	Error LoadDevelopmentRBF(const std::string& rbf)
 	{
 		LogRecord rejection;
@@ -1730,6 +1764,20 @@ Error Runtime::UpdateCoreSettings(const std::string& directory, const std::strin
 	const CoreSettingsUpdate& update, CoreData* output)
 {
 	return impl_->AccessCoreData(directory, id, root, game_id, revision, &update, output);
+}
+Error Runtime::InspectMediaData(const MediaDataQuery& query, MediaDataInspection* output)
+{
+	return impl_->AccessMediaData(query, nullptr, nullptr, output);
+}
+Error Runtime::DiscardMediaData(const MediaDataQuery& query, const std::string& expected_revision,
+	MediaDataInspection* output)
+{
+	return impl_->AccessMediaData(query, &expected_revision, nullptr, output);
+}
+Error Runtime::ExportMediaData(const MediaDataQuery& query, const std::string& expected_revision,
+	const std::string& path, MediaDataInspection* output)
+{
+	return impl_->AccessMediaData(query, &expected_revision, &path, output);
 }
 
 Error Runtime::InspectCore(const std::string& directory,

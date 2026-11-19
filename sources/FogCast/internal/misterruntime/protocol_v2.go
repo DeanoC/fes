@@ -106,6 +106,7 @@ type Protocol2MenuDisplay struct {
 
 type Protocol2Response struct {
 	CoreData         *protocol.CoreData      `json:"core_data,omitempty"`
+	MediaData        *protocol.MediaRecord   `json:"media_data,omitempty"`
 	Protocol         int                     `json:"protocol"`
 	OK               bool                    `json:"ok"`
 	State            string                  `json:"state"`
@@ -536,7 +537,7 @@ func decodeProtocol2Response(line []byte) (Protocol2Response, error) {
 
 func validateProtocol2Shape(line []byte) error {
 	var root json.RawMessage = line
-	object, err := exactRawObject(root, []string{"protocol", "ok", "state", "execution", "system", "core", "error", "version", "capabilities", "active_package", "generation", "inspected_package"}, []string{"core_data", "menu_display"})
+	object, err := exactRawObject(root, []string{"protocol", "ok", "state", "execution", "system", "core", "error", "version", "capabilities", "active_package", "generation", "inspected_package"}, []string{"core_data", "menu_display", "media_data"})
 	if err != nil {
 		return err
 	}
@@ -552,6 +553,15 @@ func validateProtocol2Shape(line []byte) error {
 	}
 	if data, ok := object["core_data"]; ok && !isNull(data) {
 		if err := validateCoreDataShape(data); err != nil {
+			return err
+		}
+	}
+	if media, ok := object["media_data"]; ok {
+		record, err := exactRawObject(media, []string{"state", "revision", "bytes", "changed"}, nil)
+		if err != nil {
+			return err
+		}
+		if err := requireRawKinds(record, map[string]rawKind{"state": rawString, "revision": rawString, "bytes": rawUnsigned, "changed": rawBoolean}); err != nil {
 			return err
 		}
 	}

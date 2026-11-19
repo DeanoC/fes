@@ -28,7 +28,7 @@ func (e *coreRemoveAdmissionError) Error() string { return "core entry removal b
 
 func coreLibraryCommand(name string) bool {
 	switch name {
-	case "video-parts", "video-part-install", "video-profile", "core-video", "core-media-capabilities", "core-media-install", "core-hard-disk-install", "core-disk-geometry", "core-media-select", "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select", "core-remove", "create-blank-st-disk":
+	case "video-parts", "video-part-install", "video-profile", "core-video", "core-media-capabilities", "core-media-install", "core-hard-disk-install", "core-disk-geometry", "core-media-select", "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select", "core-remove", "create-blank-st-disk", "st-shelf", "st-shelf-new", "st-shelf-copy", "st-shelf-revert", "st-shelf-rename", "st-shelf-delete":
 		return true
 	}
 	return false
@@ -185,6 +185,42 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 		blankDisk = &parsed
 		method, path = http.MethodPost, "/api/v1/library/atari-st-disks"
 		data = parsed.payload()
+	case "st-shelf":
+		method, path = http.MethodGet, "/api/v1/library/atari-st-shelf"
+	case "st-shelf-new":
+		disk := map[string]any{"title": args[1], "package_id": args[2]}
+		if len(args) == 6 {
+			for i, field := range []string{"tracks", "heads", "sectors"} {
+				count, err := strconv.Atoi(args[3+i])
+				if err != nil || count < 1 {
+					return commandResult{err: &protocol.APIError{Code: protocol.CodeBadRequest, Message: "new shelf disk is title, package ID, optional tracks heads sectors"}, exit: 1}
+				}
+				disk[field] = count
+			}
+		}
+		method, path = http.MethodPost, "/api/v1/library/atari-st-shelf"
+		data, _ = json.Marshal(disk)
+	case "st-shelf-copy", "st-shelf-revert", "st-shelf-rename", "st-shelf-delete":
+		// A revision is the kept_revision st-shelf lists; "none" is a disk
+		// with no saved changes.
+		if protocol.ValidateGameID(args[1]) != nil {
+			return commandResult{err: &protocol.APIError{Code: protocol.CodeBadRequest, Message: "game ID is invalid"}, exit: 1}
+		}
+		action := strings.TrimPrefix(args[0], "st-shelf-")
+		request := map[string]string{}
+		rest := args[2:]
+		if action != "copy" {
+			request["expected_revision"] = rest[0]
+			if rest[0] == "none" {
+				request["expected_revision"] = ""
+			}
+			rest = rest[1:]
+		}
+		if action == "copy" || action == "rename" {
+			request["title"] = rest[0]
+		}
+		method, path = http.MethodPost, "/api/v1/library/atari-st-shelf/"+url.PathEscape(args[1])+"/"+action
+		data, _ = json.Marshal(request)
 	}
 	var requestBody io.Reader = bytes.NewReader(data)
 	if mediaSnapshot != nil {
