@@ -4,7 +4,7 @@
 usage: python3 -I compare.py kit-scores.json references.json comparison.json
 
 Reported, not gated. For each preset and benchmark: the reference rows of the preset's class, grouped by the
-VGA bus (ISA; local bus = VLB or PCI; unknown), each group's count, range and median, and the kit's score
+VGA bus (ISA; local bus = VLB or PCI; other or unknown: EISA, MCA, onboard or not given), each group's count, range and median, and the kit's score
 over that median (above 1: the kit is faster). DOOM compares realtics (lower is faster), so its ratio is
 median realtics over kit realtics. 3DBench 1.0c's display has no decimal point and the reference column is
 written with one; the record does not settle how the two relate (kit-scores.json, "3dbench2_display"), so
@@ -21,7 +21,7 @@ def groups(rows, value):
     out = {}
     for name, test in (('ISA', lambda r: r['vga_bus'] == 'ISA'),
                        ('local bus', lambda r: r['vga_bus'] in ('VLB', 'PCI')),
-                       ('unknown', lambda r: r['vga_bus'] not in ('ISA', 'VLB', 'PCI'))):
+                       ('other or unknown', lambda r: r['vga_bus'] not in ('ISA', 'VLB', 'PCI'))):
         vals = sorted(v for v in (value(r) for r in rows if test(r)) if v)
         if vals:
             out[name] = {'n': len(vals), 'min': vals[0], 'max': vals[-1], 'median': round(statistics.median(vals), 2)}

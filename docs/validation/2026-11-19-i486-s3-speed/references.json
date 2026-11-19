@@ -858,7 +858,7 @@
    "realtics": 2303,
    "fps": 32.4,
    "cpu": "INTEL486-66",
-   "vga_bus": "ISA",
+   "vga_bus": "VLB",
    "line": "2303    32.4    INTEL486-66     8KWT    NICE-Super EISA SiS411  33      1024KWB ?       ?       ?       Her.DynamitePro W32     VLB     2M DRAM EMM386  SBPRO           No sound = 35 FPS"
   },
   {
@@ -914,7 +914,7 @@
    "realtics": 3023,
    "fps": 24.7,
    "cpu": "Intel486-66",
-   "vga_bus": "ISA",
+   "vga_bus": "EISA",
    "line": "3023    24.7    Intel486-66     8KWT    Compaq          i420EX  33      -       -       -       70nsFPM Compaq Qvision1024 128084 EISA  1M DRAM none    default         clean boot, CF Card, BIOS not accessable"
   },
   {

@@ -37,15 +37,16 @@ def mhz(text):
     return int(m.group(1)) if m else None
 
 
+BUS = {'isa': 'ISA', 'eisa': 'EISA', 'vlb': 'VLB', 'vl': 'VLB', 'vesa': 'VLB', 'pci': 'PCI', 'agp': 'AGP',
+       'mca': 'MCA'}
+
+
 def bus(text):
-    t = text.lower()
-    if 'isa' in t:
-        return 'ISA'
-    if 'vlb' in t or 'vesa' in t:
-        return 'VLB'
-    if 'pci' in t:
-        return 'PCI'
-    return 'onboard/unknown'
+    """The graphics bus: the last bus word in the text. A whole Phil "Graphics Interface" cell is one word or
+    two ("onboard VLB"); in an Ertl row the graphics card's bus follows the card and chip, after any board
+    name that may itself contain a bus word (for example a "NICE-Super EISA" board with a VLB card)."""
+    words = [BUS[w] for w in re.findall(r'[a-z]+', text.lower()) if w in BUS]
+    return words[-1] if words else 'onboard/unknown'
 
 
 def num(text):

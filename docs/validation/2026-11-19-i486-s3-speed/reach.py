@@ -36,7 +36,9 @@ BENCH = {  # key: (kit-scores field, kind, display quantum)
     'doom_max': ('doom_max_realtics', 'time', 1),
     'doom_min': ('doom_min_realtics', 'time', 1),
 }
-MHZ = {'6:200': 20.0, '6:250': 25.0, '6:0': 100 / 3, '6:500': 50.0, '7:0': 200 / 3, '6:667': 66.7}
+# The frequencies the governor runs, from the record's 100 kHz units: preset 6 is 333 (33.3 MHz) and preset 7
+# is 667 (66.7 MHz), as method.md states them.
+MHZ = {'6:200': 20.0, '6:250': 25.0, '6:0': 33.3, '6:500': 50.0, '7:0': 66.7, '6:667': 66.7}
 SLACK = 0.02
 
 
@@ -77,7 +79,7 @@ def main() -> int:
         if missing:
             b['measurable'], b['why'] = False, f'missing {missing}'
         else:
-            pts = ((t['6:250'][0], t['6:250'][1], 25.0), (t['6:0'][0], t['6:0'][1], 100 / 3))
+            pts = ((t['6:250'][0], t['6:250'][1], MHZ['6:250']), (t['6:0'][0], t['6:0'][1], MHZ['6:0']))
             p20, w20, a, bb = predict(pts, 20.0)
             tol20 = SLACK * p20 + w20 + t['6:200'][1]
             r7, r667 = t['7:0'], t['6:667']

@@ -16,12 +16,12 @@ Slice 3 of the [i486 plan](../2026-11-17-i486-plan/summary.md)
   - **486SX/DX-25 and 486DX-33:** these are the calibration points. The
     20 MHz hold-out passes on all six benchmarks, so the model they fit holds.
   - **486DX-50 / DX2-50:** marked **not reached**, on one benchmark of six:
-    DOOM at `MIN.CFG` is 2.22% late against a 2.16% tolerance. The other five
+    DOOM at `MIN.CFG` is 2.39% late against a 2.16% tolerance. The other five
     are reached.
   - **486DX2-66:** marked **not reached**, on three of six:
-    - 3DBench 1.0: +4.99%, against a 3.93% tolerance;
-    - PCPBench: +11.76%, against 9.83%;
-    - DOOM at `MIN.CFG`: +6.98%, against 2.23%.
+    - 3DBench 1.0: +5.30%, against a 3.94% tolerance;
+    - PCPBench: +12.18%, against 9.89%;
+    - DOOM at `MIN.CFG`: +7.26%, against 2.23%.
 - **Against real 486s:**
   - **486DX-33 against ISA-VGA DX-33s:** PCPBench and full-screen DOOM are
     within 4%.
@@ -108,23 +108,26 @@ row (Kit A, 5 November, an older seal before Phase 4's branch prediction):
 ## Reach
 
 [reach.json](reach.json), produced by [`reach.py`](reach.py) exactly as
-method.md fixed it. T is 1/fps, TopBench's Total µs, or realtics. A and B are
+method.md fixed it. Codex review found the first version modelling presets 6
+and 7 at 100/3 and 200/3 MHz, where the governor runs them at 33.3 and 66.7 MHz
+(record units 333 and 667, as method.md states). The fix aligns the code with
+method.md, and it changes no verdict. T is 1/fps, TopBench's Total µs, or realtics. A and B are
 fitted from 25 and 33.3 MHz, with T(f) = A/f + B:
 
 | Benchmark | B's share of T at 33.3 MHz | 20 MHz hold-out (measured, predicted, tolerance) | 7 against 6, 667 | 50 MHz: excess (tolerance) | 66.7 MHz: excess (tolerance) |
 | --- | ---: | --- | --- | --- | --- |
-| 3DBench 1.0 | 31% | 0.0694, 0.0703, ±0.0021: pass | pass | +2.81% (3.29%): reached | **+4.99% (3.93%): not reached** |
-| 3DBench 1.0c | 36% | 0.0694, 0.0700, ±0.0021: pass | pass | +0.63% (3.28%): reached | +1.91% (3.87%): reached |
-| PCPBench | 20% | 0.270, 0.269, ±0.016: pass | pass | +5.04% (7.02%): reached | **+11.76% (9.83%): not reached** |
-| TopBench Total | 55% | 645, 636, ±15: pass | pass | −3.36% (2.48%): reached | −0.13% (2.66%): reached |
-| DOOM `MAX.CFG` | 49% | 9,713, 9,776, ±198: pass | pass | +0.45% (2.03%): reached | +1.56% (2.05%): reached |
-| DOOM `MIN.CFG` | 36% | 2,285, 2,279, ±48: pass | pass | **+2.22% (2.16%): not reached** | **+6.98% (2.23%): not reached** |
+| 3DBench 1.0 | 31% | 0.0694, 0.0703, ±0.0021: pass | pass | +3.00% (3.30%): reached | **+5.30% (3.94%): not reached** |
+| 3DBench 1.0c | 36% | 0.0694, 0.0701, ±0.0021: pass | pass | +0.80% (3.29%): reached | +2.18% (3.89%): reached |
+| PCPBench | 20% | 0.270, 0.269, ±0.016: pass | pass | +5.27% (7.05%): reached | **+12.18% (9.89%): not reached** |
+| TopBench Total | 55% | 645, 636, ±15: pass | pass | −3.26% (2.48%): reached | +0.03% (2.66%): reached |
+| DOOM `MAX.CFG` | 49% | 9,713, 9,780, ±198: pass | pass | +0.57% (2.03%): reached | +1.75% (2.05%): reached |
+| DOOM `MIN.CFG` | 36% | 2,285, 2,280, ±48: pass | pass | **+2.39% (2.16%): not reached** | **+7.26% (2.23%): not reached** |
 
 How to read the table:
 - **Excess** is how much longer the preset took than a core that keeps up
   everywhere would. A positive excess beyond the tolerance means the core fell
   behind the 486 table somewhere in that benchmark.
-- **The rule bounds only lateness.** TopBench at 50 MHz ran 3.36% *faster*
+- **The rule bounds only lateness.** TopBench at 50 MHz ran 3.26% *faster*
   than the model. The rule counts that as reached, and nothing here explains
   it.
 - **B is the time that does not scale with the clock,** mostly the ISA bus
@@ -138,12 +141,12 @@ How to read the table:
 | --- | --- | --- |
 | 486SX/DX-25 | calibration point; hold-out passes | — |
 | 486DX-33 | calibration point; hold-out passes | — |
-| 486DX-50 / DX2-50 | **not reached** | DOOM `MIN.CFG` 2.22% late against 2.16%; five of six reached |
+| 486DX-50 / DX2-50 | **not reached** | DOOM `MIN.CFG` 2.39% late against 2.16%; five of six reached |
 | 486DX2-66 | **not reached** | 3DBench 1.0, PCPBench and DOOM `MIN.CFG` late; three of six reached |
 
 **What the marks agree with:**
-- The 486-50 miss is the smallest the rule can call: 0.06 percentage points
-  over the tolerance, on one benchmark.
+- The 486-50 miss is narrow: 0.23 percentage points over the tolerance, on
+  one benchmark.
 - The governor bench's loops agree with both marks: at 50 MHz `branch` and
   `pusha` are beyond the CPU, and at 66.7 MHz `int` is as well.
 - DOOM at `MIN.CFG` has the least screen to draw and the most CPU-bound
@@ -174,8 +177,9 @@ Notes on the sources:
 - **Ertl's DOOM list** is run with the screen two steps below maximum, which
   is not `MAX.CFG`. Its 486 rows are kept separate in the JSON:
   - 486-50 ISA: median 4,830 realtics, n 2, kit ratio 0.80;
-  - 486-66 ISA: 3,023, n 3, kit ratio 0.55;
-  - 486-66 local bus: 2,615, n 10, kit ratio 0.48.
+  - 486-66 ISA: 4,668, n 1, kit ratio 0.85;
+  - 486-66 local bus: 2,590, n 11, kit ratio 0.47;
+  - 486-66 EISA: 3,023, n 1, kit ratio 0.55.
 - **3DBench 1.0c** is reported both ways in the JSON and not judged. For
   example, at 486DX-33 the kit shows 204, and the reference medians are 17.4
   (ISA, n 5) and 24.8 (local bus, n 5).

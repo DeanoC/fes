@@ -282,7 +282,7 @@
       "median": 11.1,
       "kit_over_median": 0.766
      },
-     "unknown": {
+     "other or unknown": {
       "n": 2,
       "min": 7.4,
       "max": 10.7,
@@ -308,7 +308,7 @@
       "median": 3022.0,
       "kit_over_median": 0.548
      },
-     "unknown": {
+     "other or unknown": {
       "n": 2,
       "min": 2790.0,
       "max": 3743.0,
@@ -318,18 +318,25 @@
     },
     "ertl_two_steps_below_max_not_same_setting": {
      "ISA": {
-      "n": 3,
-      "min": 2303,
+      "n": 1,
+      "min": 4668,
       "max": 4668,
-      "median": 3023,
-      "kit_over_median": 0.549
+      "median": 4668,
+      "kit_over_median": 0.847
      },
      "local bus": {
-      "n": 10,
+      "n": 11,
       "min": 2159,
       "max": 3585,
-      "median": 2615.0,
-      "kit_over_median": 0.475
+      "median": 2590,
+      "kit_over_median": 0.47
+     },
+     "other or unknown": {
+      "n": 1,
+      "min": 3023,
+      "max": 3023,
+      "median": 3023,
+      "kit_over_median": 0.549
      }
     }
    },
@@ -369,7 +376,7 @@
       "max": 51.7,
       "median": 44.4
      },
-     "unknown": {
+     "other or unknown": {
       "n": 2,
       "min": 33.8,
       "max": 43.4,
@@ -379,12 +386,12 @@
     "kit_raw_over_median": {
      "ISA": 9.119,
      "local bus": 6.644,
-     "unknown": 7.642
+     "other or unknown": 7.642
     },
     "kit_raw_div10_over_median": {
      "ISA": 0.912,
      "local bus": 0.664,
-     "unknown": 0.764
+     "other or unknown": 0.764
     }
    },
    "3dbench_1.0": {
