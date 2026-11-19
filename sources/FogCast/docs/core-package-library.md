@@ -824,8 +824,10 @@ so two blank disks are two library media and never share saved changes.
 A library title's identity follows its name, and the kit keeps saved changes
 under that identity. Rename therefore copies the disk under the new name and
 deletes the old one; the renamed disk has a new `game_id`, and what was
-saved changes becomes its image. If the delete fails, the copy is taken
-back, so the old disk remains alone under its old name.
+saved changes becomes its image. If deletion fails before saved changes are
+cleared, the copy is taken back, so the old disk remains alone under its old
+name. If changes were cleared but the final removal check fails, both entries
+remain and the renamed copy keeps the saved image.
 
 Delete and revert reach the saved changes on the kit asked. Changes the same
 disk saved on another kit stay there.

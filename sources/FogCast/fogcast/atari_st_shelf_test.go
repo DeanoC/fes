@@ -27,7 +27,10 @@ type shelfKitClient struct {
 	fail      error
 	// failDiscard refuses only discards, after any copy has been made.
 	failDiscard error
-	batches     int
+	// startAfterDiscard simulates another host starting the source between
+	// the record discard and the library's final target check.
+	startAfterDiscard string
+	batches           int
 }
 
 func savedRevision(image []byte) string {
@@ -96,6 +99,10 @@ func (c *shelfKitClient) DiscardMediaRecord(_ context.Context, d protocol.MediaR
 	}
 	delete(c.saved, d.MediaRecordIdentity)
 	c.discarded = append(c.discarded, d.MediaRecordIdentity)
+	if c.startAfterDiscard != "" {
+		gameID := c.startAfterDiscard
+		c.statusResult = protocol.Status{State: protocol.StateActive, GameID: &gameID}
+	}
 	return protocol.MediaRecord{State: protocol.MediaRecordAbsent, Revision: "absent"}, nil
 }
 
@@ -521,5 +528,46 @@ func TestAtariStShelfRenameTakesBackItsCopyWhenTheDeleteFails(t *testing.T) {
 	f.kit.failDiscard = nil
 	if renamed, err := f.s.RenameAtariStShelfDisk(ctx, work.GameID, revision, "Letters"); err != nil || renamed.Title != "Letters" {
 		t.Fatalf("retried rename: %+v %v", renamed, err)
+	}
+}
+
+func TestAtariStShelfRenameKeepsSavedImageWhenTargetStartsAfterDiscard(t *testing.T) {
+	ctx := context.Background()
+	f := newShelf(t)
+	work, err := f.s.NewAtariStShelfDisk(ctx, AtariStShelfNew{Title: "Work", PackageID: f.pkg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry, err := f.s.CoreEntry(ctx, work.GameID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	written := append([]byte(nil), f.media(t, work.MediaID)...)
+	written[6000] = 7
+	revision := f.write(entry, written)
+	f.s.targets = []TargetConfig{{Name: f.s.selectedTarget, Enabled: true}}
+	f.kit.startAfterDiscard = work.GameID
+
+	if _, err := f.s.RenameAtariStShelfDisk(ctx, work.GameID, revision, "Letters"); apiCode(err) != protocol.CodeBusy {
+		t.Fatalf("rename after the target started: %v", err)
+	}
+	shelf := f.list(t)
+	if len(shelf.Disks) != 2 {
+		t.Fatalf("rename discarded the only copy of saved changes: %+v", shelf.Disks)
+	}
+	var renamed *AtariStShelfDisk
+	for i := range shelf.Disks {
+		if shelf.Disks[i].Title == "Letters" {
+			renamed = &shelf.Disks[i]
+		}
+	}
+	if renamed == nil || !bytes.Equal(f.media(t, renamed.MediaID), written) {
+		t.Fatalf("saved image was not retained in the copied disk: %+v", shelf.Disks)
+	}
+	if _, err := f.s.CoreEntry(ctx, work.GameID); err != nil {
+		t.Fatalf("source entry should remain when its removal is refused: %v", err)
+	}
+	if len(f.kit.saved) != 0 {
+		t.Fatalf("source saved record was expected to have been discarded: %v", f.kit.saved)
 	}
 }
