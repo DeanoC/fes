@@ -92,7 +92,8 @@ class Op:
     its address is base, index and displacement; its I/O access (port, and
     size 0, 1 or 2 for a byte, word or dword), and for each of its memory
     accesses that is MMIO, the 16-bit halves and the 32-bit dwords it
-    touches."""
+    touches, and, as a third field that is True when left out, whether it is
+    in the VGA window (local-bus video times only that)."""
     cls: str
     column: int = 0
     accesses: int = 0
@@ -100,7 +101,7 @@ class Op:
     ea3: bool = False
     port: int | None = None
     size: int = 0
-    vga: tuple[tuple[int, int], ...] = ()
+    vga: tuple[tuple, ...] = ()
 
 
 def r(cls: str) -> Op:
@@ -111,11 +112,11 @@ def taken(cls: str) -> Op:
     return Op(cls, 1)
 
 
-def m(cls: str, accesses: int, dword: bool = False, ea3: bool = False, vga: tuple[tuple[int, int], ...] = ()) -> Op:
+def m(cls: str, accesses: int, dword: bool = False, ea3: bool = False, vga: tuple[tuple, ...] = ()) -> Op:
     return Op(cls, 0, accesses, dword, ea3, vga=vga)
 
 
-def element(cls: str, accesses: int, dword: bool = False, vga: tuple[tuple[int, int], ...] = (), port: int | None = None,
+def element(cls: str, accesses: int, dword: bool = False, vga: tuple[tuple, ...] = (), port: int | None = None,
             size: int = 0) -> Op:
     return Op(cls, 1, accesses, dword, port=port, size=size, vga=vga)
 
@@ -171,12 +172,13 @@ BENCHES: list[tuple[str, list[tuple[int, list[Op]]]]] = [
                         r('esc_r')])),
     # VGA memory: each MMIO access's 16-bit halves and 32-bit dwords (DI is
     # 48 after the stores: a word at 53 is two halves in one dword, at 51 two
-    # of each).
+    # of each); a word into the EMS frame (FS = E000h), MMIO that is not VGA.
     ('vram', loop(200, [r('alu_rr'), r('mov_r'), m('rep_stos', 0), *[element('rep_stos', 1, vga=((1, 1),))] * 16,
                         r('mov_r'), m('rep_stos', 0), *[element('rep_stos', 1, vga=((1, 1),))] * 8,
                         r('mov_r'), m('rep_stos', 0), *[element('rep_stos', 1, dword=True, vga=((2, 1),))] * 4,
                         m('mov_store', 1, vga=((1, 1),)), m('mov_store', 1, vga=((2, 1),)),
-                        m('mov_store', 1, vga=((2, 2),)), m('mov_load', 1, vga=((1, 1),)),
+                        m('mov_store', 1, vga=((2, 2),)), m('mov_store', 1, vga=((1, 1, False),)),
+                        m('mov_load', 1, vga=((1, 1),)),
                         m('alu_rmw', 2, vga=((1, 1), (1, 1))),
                         r('mov_r'), r('mov_r'), m('rep_movs', 0), *[element('rep_movs', 2, vga=((1, 1),))] * 8,
                         m('push_sreg', 1), m('push_sreg', 1), m('pop_sreg', 1), r('mov_r'), r('mov_r'),
@@ -210,8 +212,11 @@ def charge(table: governor.Table, preset: governor.Preset, op: Op, frequency: in
     clocks += op.accesses * governor.per_access(preset, op.dword)
     if op.port is not None:
         clocks += governor.io_charge(table, frequency, op.port, op.size)
-    return clocks + sum(governor.mmio_charge(table, preset, frequency, dwords if local else halves, op.dword, local)
-                        for halves, dwords in op.vga)
+    for access in op.vga:
+        halves, dwords, in_window = (*access, True)[:3]
+        bus = local and in_window
+        clocks += governor.mmio_charge(table, preset, frequency, dwords if bus else halves, op.dword, bus)
+    return clocks
 
 
 def expected(table: governor.Table, preset: governor.Preset, parts: list[tuple[int, list[Op]]],

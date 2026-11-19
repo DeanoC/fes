@@ -248,3 +248,32 @@ output:
   20 MHz hold-out, its repeat check and its tolerance.
 - The before and after ratios are slice 3's `comparison.json` and this one,
   side by side, at each preset.
+
+## Amendment 1 (19 November 2026, before any rerun of its gates)
+
+Codex review of `42730d63b` (P1) found that pc386 also maps the EMS board's
+frame, E0000h–EFFFFh, as MMIO. So under local-bus video an EMS access was
+charged as local-bus VGA memory, although the board is an ISA card.
+
+**The fix.** The CPU now tells the governor whether each MMIO access is in
+the VGA window, A0000h–BFFFFh (`mmio_vga`, `mmio_st2_vga`). Only those
+accesses take the local-bus cycle. The EMS frame and all I/O stay on ISA.
+
+**Its test.**
+- The governor bench's testbench maps the EMS frame as MMIO in governor
+  mode, as pc386 does when the board is fitted.
+- Its `vram` loop gains a second store, `mov [fs:0], ax`, into that frame.
+  The bench charges that store the ISA cycle under every video bus.
+
+**Rule changes.**
+- Gate 3's `vram` difference is now 200 times the ISA charge of both added
+  stores. `compare_main.py` is changed to match.
+- Every other rule stands.
+
+**What is rerun.** This is an RTL change, so every host gate in section 4
+runs again on the new head, and so does the seal.
+
+**The kit run.** It is made again on the new package, under section 5
+unchanged, as run `l4`. The benchmarks load no EMS driver, so their scores
+should not move. Run `l1`, on the package sealed before the fix, is kept as
+a record of that package; it is not the PR's evidence.

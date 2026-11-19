@@ -18,13 +18,13 @@ module governor_integration_tb;
     .clk,.reset,.preset,.frequency(10'd0),.turbo,.video_bus(2'd1),
     .boundary,.eoi,.element,.taken,.gov,.imul_safe,.rep_io_safe,.ilen,.redirect(redir),.abandon,.preserve_de,.replay,
     .accesses,.dword(1'b0),.ordinary_ram,.io(1'b0),.io_port(16'd0),.io_size(2'd0),.mmio,
-    .mmio_halves,.mmio_dwords(2'd1),.mmio_st2(st2),.mmio_st2_halves(st2_halves),.mmio_st2_dwords(2'd1),.hold(hold0),.debt_clocks(debt0),.charge(charge0)
+    .mmio_halves,.mmio_dwords(2'd1),.mmio_vga(1'b1),.mmio_st2(st2),.mmio_st2_halves(st2_halves),.mmio_st2_dwords(2'd1),.mmio_st2_vga(1'b1),.hold(hold0),.debt_clocks(debt0),.charge(charge0)
   );
   fes_i386_governor #(.GOV_N(1),.GOV_D(1000),.REFERENCE_DIAGNOSTIC(1)) candidate (
     .clk,.reset,.preset,.frequency(10'd0),.turbo,.video_bus(2'd1),
     .boundary,.eoi,.element,.taken,.gov,.imul_safe,.rep_io_safe,.ilen,.redirect(redir),.abandon,.preserve_de,.replay,
     .accesses,.dword(1'b0),.ordinary_ram,.io(1'b0),.io_port(16'd0),.io_size(2'd0),.mmio,
-    .mmio_halves,.mmio_dwords(2'd1),.mmio_st2(st2),.mmio_st2_halves(st2_halves),.mmio_st2_dwords(2'd1),.hold(hold1),.debt_clocks(debt1),.charge(charge1)
+    .mmio_halves,.mmio_dwords(2'd1),.mmio_vga(1'b1),.mmio_st2(st2),.mmio_st2_halves(st2_halves),.mmio_st2_dwords(2'd1),.mmio_st2_vga(1'b1),.hold(hold1),.debt_clocks(debt1),.charge(charge1)
   );
   task automatic instruction(input byte op, input int regfield, nbytes, naccess, input bit branch_taken);
     @(negedge clk); gov='0; gov.op=op; gov.mreg=3'(regfield); ilen=4'(nbytes); accesses=2'(naccess);

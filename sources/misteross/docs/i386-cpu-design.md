@@ -1490,8 +1490,8 @@ slows the CPU without changing any result.
   instead, less the same local bus cycle. The figure is the median of the
   486DX2-66 VL-Bus rows of a 1995 Vidspeed table
   ([record](../../../docs/validation/2026-11-19-pc386-local-bus-video/method.md)).
-  Reads are charged as writes, and I/O, the VGA ports included, keeps the
-  ISA charge. The `fes.pc386.machine` record's word 7 (bits 3:2) chooses:
+  Reads are charged as writes. Other MMIO (the EMS board's frame, an ISA
+  card) and I/O, the VGA ports included, keep the ISA charge. The `fes.pc386.machine` record's word 7 (bits 3:2) chooses:
   0 the preset's own, which is ISA for the 286 and 386 presets and local
   bus for the 486 ones, 1 ISA, 2 local bus.
 

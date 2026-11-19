@@ -85,11 +85,12 @@ vga = 6
 
 # Local-bus video (fes.pc386.machine word 7, bits 3:2: 0 the preset's own
 # video, 1 ISA, 2 local bus). A VL-Bus or PCI VGA sits on the CPU's 32-bit
-# bus, so an MMIO access takes one local-bus VGA cycle per 32-bit dword it
-# touches, in place of the ISA cycles per 16-bit half; less, as on ISA, the
-# 2 clocks, wait states and 16-bit dword cycle already charged. I/O,
-# including the VGA's ports, keeps the ISA charge: no source here times a
-# local-bus VGA's port cycles.
+# bus, so an access to VGA memory (A0000h-BFFFFh) takes one local-bus VGA
+# cycle per 32-bit dword it touches, in place of the ISA cycles per 16-bit
+# half; less, as on ISA, the 2 clocks, wait states and 16-bit dword cycle
+# already charged. Other MMIO (an ISA EMS board's frame) and I/O, including
+# the VGA's ports, keep the ISA charge: no source here times a local-bus
+# VGA's port cycles.
 #
 # A cycle is vga clocks of clock_ns each, at a 33.3 MHz bus (30 ns): the bus
 # clock of a 486DX-33 and of a 486DX2-66. It is fixed time, converted at the
