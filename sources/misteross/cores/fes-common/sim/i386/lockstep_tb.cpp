@@ -10795,7 +10795,7 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
         // (the last at the operand), and both must leave the operand's
         // offset. Then the same under a 32-bit address size, whose offset is
         // not truncated to 16 bits.
-        {"fdp-chunks", [](Asm &a) {
+        {"fdp-chunks", [=](Asm &a) {
             a.op({0xdb, 0xe3});
             const auto env = [&a] { a.esc(0xd9, 6, 0x3c0); };     // FNSTENV
             a.esc(0xdd, 0, 0x108);                                 // FLD m64
@@ -10831,7 +10831,23 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             esc32(0xdd, 0, 0x108);                                 // FLD m64
             esc32(0xdd, 3, 0x448);                                 // FSTP m64
             env();
-        }},
+            // Unreal mode, so an offset above 64 KiB is legal and a data
+            // pointer cut to 16 bits would show: DS takes a 4 GiB data
+            // descriptor in protected mode and keeps it back in real mode,
+            // with base 0, so every offset below is linear.
+            a.op({0xfa});                                          // CLI
+            a.op({0x0f, 0x01, 0x16}); a.w(0x1f0);                  // LGDT [1F0h]
+            a.op({0x0f, 0x20, 0xc0, 0x0c, 0x01, 0x0f, 0x22, 0xc0});  // MOV EAX, CR0; OR AL, 1; MOV CR0, EAX
+            a.op({0xbb, 0x08, 0x00, 0x8e, 0xdb});                  // MOV BX, 8; MOV DS, BX
+            a.op({0x24, 0xfe, 0x0f, 0x22, 0xc0});                  // AND AL, FEh; MOV CR0, EAX
+            esc32(0xdb, 5, DS + 0x110);                            // FLD m80
+            esc32(0xdb, 7, 0x17350);                               // FSTP m80 above 64 KiB
+            esc32(0xd9, 6, DS + 0x3c0);                            // FNSTENV
+            esc32(0xdd, 0, DS + 0x108);                            // FLD m64
+            esc32(0xdd, 3, 0x17360);                               // FSTP m64 above 64 KiB
+            esc32(0xd9, 6, DS + 0x3c0);
+        }, {{0x1f0, {0x0f, 0x00, 0x00, 0x72, 0x00, 0x00}},         // GDTR: limit 0Fh, base 7200h
+            {0x200, {0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0x00, 0x00, 0x00, 0x93, 0xcf, 0x00}}}},  // null; 4 GiB data
         // ---- Slice 4's forms, through the CPU ----
         // These are what the unit's own bench cannot reach: the bench supplies
         // the operand format itself, so a memory divide that x87_decode
