@@ -1268,7 +1268,9 @@ imported disk; a disk saved at Stop without a write is present and unchanged. `P
 saved disk image as an octet stream. `POST /v1/library/media/record/discard`
 takes the same body, needs the kit lease, and removes the record so the next
 launch reads the imported disk again; the runtime refuses it while a core is
-running. Inspect and export change nothing and need no lease.
+running. A discard may borrow the caller's kit lease, but retains it after a
+`BUSY` response because another concurrent discard may still be using that
+shared grant. Inspect and export change nothing and need no lease.
 
 The `fes.computer` 1.1 pc386 `fes.media.ata-disk` unit is a fixed 1..128 MiB
 unit with 65,536-byte chunks and always reports `saveable:false`. Its package

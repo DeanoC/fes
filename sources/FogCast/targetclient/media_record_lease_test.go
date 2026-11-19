@@ -16,10 +16,11 @@ import (
 	"github.com/DeanoC/FogCast/targetclient"
 )
 
-// A discard borrows the kit lease when the caller holds none. Every answer
-// that changed nothing gives it back, a busy kit included; a lost reply may
-// have removed the record, so it keeps the lease for recovery.
-func TestDiscardMediaRecordGivesBackABorrowedLease(t *testing.T) {
+// A discard borrows the kit lease when the caller holds none. Successful and
+// CAS refusal answers give it back. A busy answer may overlap another discard
+// using the shared grant, and a lost reply may have removed the record, so
+// both keep the lease for recovery.
+func TestDiscardMediaRecordReleasesBorrowedLeaseOnlyAfterSafeAnswer(t *testing.T) {
 	d := protocol.MediaRecordDiscard{
 		MediaRecordIdentity: protocol.MediaRecordIdentity{CoreID: "fes.atari-st", GameID: "work-disk", BaseMediaID: strings.Repeat("b", 64)},
 		ExpectedRevision:    strings.Repeat("c", 64),
@@ -30,7 +31,7 @@ func TestDiscardMediaRecordGivesBackABorrowedLease(t *testing.T) {
 		wantErr     bool
 	}{
 		{"discarded", 1, false},
-		{"busy", 1, true},
+		{"busy", 0, true},
 		{"stale revision", 1, true},
 		{"lost reply", 0, true},
 	} {

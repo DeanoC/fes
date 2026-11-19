@@ -71,7 +71,7 @@ func (c *Client) InspectMediaRecords(ctx context.Context, ids []protocol.MediaRe
 // DiscardMediaRecord removes one library disk's saved record. The record
 // must still have d.ExpectedRevision. Like a settings change it takes the
 // kit lease for the request when this client does not already hold it, and
-// gives it back once the kit has answered.
+// gives it back after a successful response or a definite non-BUSY refusal.
 func (c *Client) DiscardMediaRecord(ctx context.Context, d protocol.MediaRecordDiscard) (protocol.MediaRecord, error) {
 	if !d.Valid() {
 		return protocol.MediaRecord{}, errMediaRecordRequest
@@ -81,8 +81,9 @@ func (c *Client) DiscardMediaRecord(ctx context.Context, d protocol.MediaRecordD
 	if err == nil && record.State != protocol.MediaRecordAbsent {
 		err = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "saved media was not discarded", Phase: "recovery"}
 	}
-	// A busy kit refuses before it removes anything.
-	if err = c.finishSettingsLease(ctx, !hadLease, err, protocol.CodeBusy); err != nil {
+	// A busy kit refuses before it removes anything, but another concurrent
+	// discard may still be using the shared grant borrowed for this request.
+	if err = c.finishSettingsLease(ctx, !hadLease, err); err != nil {
 		return protocol.MediaRecord{}, err
 	}
 	return record, nil
