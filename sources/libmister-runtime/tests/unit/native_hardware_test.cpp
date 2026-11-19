@@ -3769,6 +3769,14 @@ void TestPc386LibraryRecordAndWallClock()
 		assert(fixture.runtime.UpdateCoreSettings(declaring.path, declared.package_id, declaring_data.path,
 			"ultima-vi", "absent", local_bus, &written).ok());
 		assert(written.words[7] == 2 << 2);
+		// The record is the game's, whichever package wrote it: a package
+		// that does not declare the interface refuses to launch it, and an
+		// update through that package can clear it.
+		assert(fixture.runtime.LoadLibraryCore(package.path, id, declaring_data.path, "ultima-vi").code ==
+			mister::ErrorCode::unsupported_interface);
+		assert(fixture.runtime.UpdateCoreSettings(package.path, id, declaring_data.path, "ultima-vi",
+			written.revision, settings, &written).ok());
+		assert(written.words[7] == 0);
 		const std::string games = declaring_data.path + "/games/";
 		const std::string record = games + GameDataNamespace("fes.pc386", "ultima-vi");
 		assert(unlink((record + "/record.bin").c_str()) == 0 && rmdir(record.c_str()) == 0 &&

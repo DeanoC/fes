@@ -18,6 +18,18 @@ constexpr std::uint16_t kPc386VideoBusShift = 2, kPc386VideoBusMax = 2;
 // it, and this runtime writes a non-zero video bus only for a package that
 // declares it, since an older core refuses word 7 != 0 at Commit.
 constexpr const char* kPc386VideoBusInterfaceID = "fes.pc386.video-bus";
+inline bool Pc386VideoBusDeclared(const std::vector<CoreInterface>& interfaces)
+{
+	for (const CoreInterface& interface : interfaces)
+		if (interface.id == kPc386VideoBusInterfaceID && interface.major == 1) return true;
+	return false;
+}
+// The video bus a fes.pc386.machine record's word 7 sets (0 when it has none).
+inline unsigned Pc386RecordVideoBus(const std::vector<std::uint16_t>& w)
+{
+	if (w.size() <= generated::FesComputerPc386ReservedIndex) return 0;
+	return (w[generated::FesComputerPc386ReservedIndex] >> kPc386VideoBusShift) & 3u;
+}
 // fes.pc386.machine 1.0: settings words 0..7 in their sets, then CMOS.
 inline bool ValidPc386Machine(const std::vector<std::uint16_t>& w)
 {

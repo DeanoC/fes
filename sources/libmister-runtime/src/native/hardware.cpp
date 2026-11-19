@@ -687,10 +687,29 @@ Error NativeHardware::InspectCorePackage(const std::string& directory,
 	return {};
 }
 
+namespace {
+// A game's record is keyed by core and game, not by package, so a record a
+// newer package wrote can hold a video bus that this package's core does not
+// take (it would refuse word 7 != 0 at Commit). A launch refuses it before
+// anything is loaded; a settings update through this package can still
+// clear it.
+Error Pc386VideoBusAdmissible(const CoreDescriptor& descriptor, const CoreData& data)
+{
+	if (data.game_id.empty() || data.layout.id != generated::FesComputerInterfacePc386MachineID ||
+		Pc386RecordVideoBus(data.words) == 0 || Pc386VideoBusDeclared(descriptor.interfaces))
+		return {};
+	return {ErrorCode::unsupported_interface,
+		"the game's record sets a video bus, which this package's core does not take: set video_bus to 0",
+		"core_data"};
+}
+} // namespace
+
 Error NativeHardware::PrepareCoreData(AdmittedCorePackage* package, const std::string& root,
 	const std::string& game_id, CoreData* output)
 {
-	return PrepareCoreDataInternal(package, root, game_id, output, true);
+	Error error = PrepareCoreDataInternal(package, root, game_id, output, true);
+	if (error.ok()) error = Pc386VideoBusAdmissible(package->info().descriptor, *output);
+	return error;
 }
 
 Error NativeHardware::PrepareCoreDataInternal(AdmittedCorePackage* package,
@@ -752,6 +771,9 @@ Error NativeHardware::RefreshCoreData(AdmittedCorePackage* package, CoreData* ou
 	if (!error.ok())
 		return error;
 	data.package_id = admitted->info().package_id;
+	error = Pc386VideoBusAdmissible(admitted->info().descriptor, data);
+	if (!error.ok())
+		return error;
 	admitted->data_ = data;
 	*output = std::move(data);
 	return {};
@@ -789,7 +811,9 @@ Error NativeHardware::UpdateCoreSettings(const std::string& path, const std::str
 		(game_id.empty() || durable_data_.game_id == game_id))
 		return {ErrorCode::busy, "core-data namespace is active", "core_data"};
 	CoreData data;
-	error = PrepareCoreData(package.get(), root, game_id, &data);
+	// Not PrepareCoreData: an update must be able to clear a video bus that
+	// this package's core does not take.
+	error = PrepareCoreDataInternal(package.get(), root, game_id, &data, true);
 	if (!error.ok())
 		return error;
 	auto admitted = dynamic_cast<NativeAdmittedCore*>(package.get());
@@ -803,14 +827,9 @@ Error NativeHardware::UpdateCoreSettings(const std::string& path, const std::str
 		const Pc386MachineSettings& m = update.machine;
 		if (m.video_bus > kPc386VideoBusMax)
 			return {ErrorCode::invalid_request, "invalid pc386 machine settings", "request"};
-		if (m.video_bus != 0) {
-			bool declared = false;
-			for (const CoreInterface& interface : package->info().descriptor.interfaces)
-				declared = declared || (interface.id == kPc386VideoBusInterfaceID && interface.major == 1);
-			if (!declared)
-				return {ErrorCode::unsupported_interface,
-					"the package's core takes no video bus: video_bus must be 0", "core_data"};
-		}
+		if (m.video_bus != 0 && !Pc386VideoBusDeclared(package->info().descriptor.interfaces))
+			return {ErrorCode::unsupported_interface,
+				"the package's core takes no video bus: video_bus must be 0", "core_data"};
 		const std::uint16_t settings[] = {m.preset, m.frequency, m.code_profile, m.turbo,
 			m.sb_base, m.sb_irq, m.sb_dma, static_cast<std::uint16_t>(m.video_bus << kPc386VideoBusShift)};
 		std::copy(std::begin(settings), std::end(settings), data.words.begin());
