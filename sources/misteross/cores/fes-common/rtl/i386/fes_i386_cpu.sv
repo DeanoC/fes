@@ -1991,6 +1991,15 @@ module fes_i386_cpu #(
         d_out.ipp1 = dc.pp1;
         d_out.nx = d_out.nodata && !dc.str_fin && dc.stk != fes_i386_pkg::STK_PROBE
                 || dc.x87 && x87_nx;
+        // An x87 store the unit holds back (nx: an unmasked exception other
+        // than precision) makes no access at all, as the 387 stores nothing
+        // and Bochs returns before its write: no write, and so no limit
+        // check, translation or data breakpoint either, and nothing for a
+        // younger load to forward. Without this only the translation was
+        // skipped and WB still wrote the unit's value (#1872, found by the
+        // lockstep's unmasked-store programs, the first to reach it).
+        if (dc.x87 && x87_nx && u.mem.kind == fes_i386_pkg::MEM_STORE)
+            d_out.uop.mem.kind = fes_i386_pkg::MEM_NONE;
         d_out.wx = dc.str_fin || dc.stk == fes_i386_pkg::STK_PROBE || xchg_ld;
         d_out.ones = tsf_any && !tsf_32 && u.dst.valid && u.dst.space == fes_i386_pkg::RS_GPR;
         d_out.iret0 = d_first && dc.fetched && !d_ifw && !cs_gp

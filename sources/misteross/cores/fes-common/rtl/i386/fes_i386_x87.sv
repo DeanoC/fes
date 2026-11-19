@@ -97,7 +97,7 @@
 //     built through the same x87_decode.
 //   - a store uop takes its value from `sval` in EX, which the unit holds
 //     stable until the instruction commits; `nx` says an unmasked exception
-//     means the access must not be made.
+//     other than precision means the access must not be made (mem_held).
 //   - `wb` is a uop's commit, with `wb_val` a load's value and `wb_part` its
 //     part; `wb_last` commits the instruction, which is when every
 //     architectural change this unit makes happens.
@@ -1022,6 +1022,32 @@ module fes_i386_x87 #(
     assign f_bias = f_f64 ? 15'd1023 : 15'd127;
     logic signed [17:0] st_te;
     assign st_te = st_e + $signed({3'b0, f_bias});
+    // Whether a real store's value, rounded to the target's precision as
+    // though its exponent range were unbounded, carries up to the next
+    // power of two. A store decides tininess after rounding, as the
+    // arithmetic does (A_RND): a value just under the target's smallest
+    // normal whose rounding carries it there is not tiny. Only a value one
+    // binade under that normal (st_te == 0) can carry far enough, and it
+    // carries only when every bit the target keeps is a one and the
+    // rounding goes up -- in which case the denormalised rounding S_POST
+    // does carries to that normal too, so the stored bits are unchanged and
+    // only the underflow decision reads this.
+    logic st_tcarry;
+    always_comb begin
+        logic ones, rbit, sticky, up;
+        ones = f_f64 ? &st_sig[63:11] : &st_sig[63:40];
+        rbit = f_f64 ? st_sig[10] : st_sig[39];
+        sticky = f_f64 ? |st_sig[9:0] : |st_sig[38:0];
+        // Nearest, down, up, toward zero. With every kept bit a one a tie
+        // rounds up to even, so nearest goes up on the round bit alone.
+        case (rc)
+            2'd0: up = rbit;
+            2'd1: up = st_sign && (rbit || sticky);
+            2'd2: up = !st_sign && (rbit || sticky);
+            default: up = 1'b0;
+        endcase
+        st_tcarry = ones && up;
+    end
     // The value a masked invalid operation stores at an integer destination,
     // "integer indefinite" (387 PRM Table 3.4).
     function automatic logic [63:0] int_indefinite(input logic [1:0] iw);
@@ -1168,6 +1194,7 @@ module fes_i386_x87 #(
     logic               c_sign, c_f64, c_int;
     logic [1:0]         c_p, c_iw;
     logic signed [17:0] c_te;
+    logic               c_tcarry;   // st_tcarry, registered with c_te
     logic [66:0]        rnd_w;
     logic [64:0]        rnd_q;
     logic               rnd_inex_q, rnd_up_q;
@@ -1186,7 +1213,10 @@ module fes_i386_x87 #(
         real_carry = c_f64 ? rnd_q[53] : rnd_q[24];
         real_te = c_te + 18'(real_carry);
         real_ovf = c_te > 18'sd0 && real_te > (c_f64 ? 18'sd2046 : 18'sd254);
-        real_unf = c_te <= 18'sd0 && rnd_inex_q;
+        // Underflow is raised on a tiny result: masked, only when it is
+        // inexact as well; unmasked, "when the result is tiny, regardless of
+        // inexactness" (387 PRM 3.2.5.2 p.3-24).
+        real_unf = (c_te < 18'sd0 || (c_te == 18'sd0 && !c_tcarry)) && (rnd_inex_q || !cw[4]);
         // The exponent field sits below the rounded significand's leading
         // one, so the rounding's carry into that one raises the exponent by
         // itself: the base takes the exponent before the carry and the sum
@@ -1728,6 +1758,20 @@ module fes_i386_x87 #(
     function automatic logic pre_um(input logic [5:0] f, input logic [15:0] c);
         pre_um = |(f[2:0] & ~c[2:0]);
     endfunction
+    // Whether an unmasked exception holds back a result whose destination is
+    // memory, which is what makes a store make no access and not pop (#1872).
+    // The pre-operation exceptions do, as they do everywhere. Overflow and
+    // underflow do too, where a register destination would take the biased
+    // result instead: "No result is stored in memory. Instead, the operand is
+    // left intact in the stack" (387 PRM 3.2.5.1 p.3-24, 3.2.5.2 p.3-25).
+    // Precision never does: "The 80387 delivers the rounded or
+    // over/underflowed result to the destination, regardless of whether a
+    // trap occurs" (3.2.6 p.3-26). The forms that are neither arithmetic nor
+    // a store -- the loads, the constants, the register moves -- raise none
+    // of overflow, underflow and precision, so they take this rule too.
+    function automatic logic mem_held(input logic [5:0] f, input logic [15:0] c);
+        mem_held = |(f[4:0] & ~c[4:0]);
+    endfunction
 
     always_ff @(posedge clk) begin
         mul_start <= 1'b0;
@@ -1948,9 +1992,10 @@ module fes_i386_x87 #(
                     c_f64 <= f_f64;
                     c_int <= f_int;
                     c_iw <= f_iw;
+                    c_tcarry <= st_tcarry;
                     if (st_direct) begin
                         sres <= st_v;
-                        pnx <= unmasked(st_fl, cw);
+                        pnx <= mem_held(st_fl, cw);
                         seq <= S_RDY;
                     end else if (st_shift && st_k < 7'd64) begin
                         sh_src <= st_sig;
@@ -3806,15 +3851,23 @@ module fes_i386_x87 #(
                                           : {48'd0, c_sign, real_bits[30:0]};
                         end
                     end
+                    // An unmasked overflow or underflow stores nothing, so
+                    // there is no rounded result for the precision exception
+                    // or C1 to describe: the operand is left on the stack
+                    // for the handler, which reads OE or UE alone. The 387
+                    // PRM does not say this in as many words; the host x87
+                    // (FST m32 and m64, each of OM and UM clear) and the
+                    // oracle (Bochs's FPU_exception for a store) both do it.
+                    if (unmasked(f & 6'b011000, cw)) begin
+                        f[5] = 1'b0;
+                        c1v = 1'b0;
+                    end
                     pfl <= f;
                     pc1 <= c1v;
-                    // FBSTP with the precision exception unmasked stores its
-                    // digits and pops: precision is detected after the
-                    // result exists, and the host x87 was measured to store,
-                    // pop and raise ES. Only invalid holds the access back.
-                    // (The integer and real stores keep the gate they were
-                    // sealed with, which S_APPLY's comment names.)
-                    pnx <= unmasked(bcd ? f & 6'b000111 : f, cw);
+                    // Whether the CPU makes the access, which S_APPLY's pop
+                    // follows: an unmasked precision exception stores and
+                    // pops, every other unmasked one stores nothing.
+                    pnx <= mem_held(f, cw);
                     seq <= bcd && !f[0] ? T_BST_IN : S_RDY;
                 end
                 // ---- Packed decimal (#1958). ----
@@ -4151,13 +4204,12 @@ module fes_i386_x87 #(
                     // where both halves come from (the host probe: 0 times
                     // infinity with IM clear leaves both operands on the
                     // stack, while an inexact add with PM clear writes its
-                    // result and pops). Slice 2's forms keep the gate they
-                    // were sealed and lockstepped with; whether a store with
-                    // PE unmasked should make its access is its own question
-                    // and the record names it.
-                    // FBSTP follows the same measurement: with PE unmasked it
-                    // has stored and it pops.
-                    um = a_form || bcd ? unmasked(f & 6'b000111, cw) : unmasked(f, cw);
+                    // result and pops). Every other form's destination is
+                    // memory or raises none of the three, and there overflow
+                    // and underflow hold the result back as well while
+                    // precision still does not (mem_held, #1872): a store
+                    // whose access S_POST2 let through pops here.
+                    um = a_form ? pre_um(f, cw) : mem_held(f, cw);
                     // ... and because such an exception means the operation
                     // never produced a result, the exceptions the result
                     // would have raised are not reported with it: a real x87
