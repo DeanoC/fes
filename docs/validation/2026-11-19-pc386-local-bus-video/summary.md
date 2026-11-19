@@ -224,6 +224,9 @@ uses the median over the kit. n is the number of rows.
 - **An EMS workload on the kit.** The EMS frame's ISA charge is checked on
   the governor bench only.
 - **The DE25.**
-- **CI's `test_fes_hip_lane` CUDA-slot test.** It fails with "build record
-  exceeds 65536 bytes" (Spectrum, #1995) on `origin/main` as well, so it is
-  not this change.
+
+**CI.** On this PR's earlier heads, `test_fes_hip_lane`'s CUDA-slot test
+failed with "build record exceeds 65536 bytes", the Spectrum record's
+closure (#1995). Main fixed the test in #2011, and CI, which tests the merge
+with main, passes it from `90a9ff06` on. Run locally on this branch or on
+`a14663bd9` without #2011, it fails the same way.
