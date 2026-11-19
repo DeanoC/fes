@@ -55,8 +55,8 @@ func stShelfSizeLabel(size int64) string {
 
 // stShelfError turns a host refusal into what to do about it. The host
 // tells shelf refusals apart by code, not by message.
-// stShelfSlow follows the working line of a change that writes a whole
-// disk image on the kit: 25 to 35 s on Kit B.
+// stShelfSlow follows the working line of a change that adds a library
+// entry: a new disk, copy or rename took 25 to 35 s on Kit B.
 const stShelfSlow = " This can take half a minute."
 
 func stShelfError(err error) error {
