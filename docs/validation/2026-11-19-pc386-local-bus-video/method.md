@@ -277,3 +277,27 @@ runs again on the new head, and so does the seal.
 unchanged, as run `l4`. The benchmarks load no EMS driver, so their scores
 should not move. Run `l1`, on the package sealed before the fix, is kept as
 a record of that package; it is not the PR's evidence.
+
+## Amendment 2 (19 November 2026, after the main merge's seal failed, before any rerun)
+
+Main was merged in at `ed7da1b71` to resolve a conflict in the DE25 proof
+receipt. The seal of the merged head, `410391c57`, failed timing at seed 1.
+
+**The failure.** Setup slack was −0.198 ns, TNS −0.349 ns, at the slow
+1100 mV −40 °C corner. Every worst path started at the governor's
+`s1_mmio_local` and ended at `s2_isa`: amendment 1's per-access choice
+between the local-bus and ISA cycle sat in front of the charge's multiply.
+The seal of `ea0b87f0d` had passed with this logic (+0.570 ns), so the
+margin was there only through placement.
+
+**The fix.** The choice moves ahead of the s1 register: `s1_mmio_vga` and
+`s1_mmio_st2_vga` register the chosen cycle. The charge is the same, on
+the same clock.
+
+**What is rerun on the new head.**
+- Every host gate in section 4.
+- The seal.
+- The kit run, as run `l6` under section 5 unchanged.
+
+**What is kept as records only.** The seal of `ea0b87f0d` and run `l4`. No
+rule changes, and no check is relaxed.

@@ -156,7 +156,7 @@ module fes_i386_governor #(
     logic [15:0]           s1_io_port;
     logic [1:0]            s1_io_size, s1_mmio;
     logic [2:0]            s1_mmio_cycles, s1_mmio_st2_cycles;  // VGA cycles: halves on ISA, dwords on the local bus
-    logic                  s1_mmio_local, s1_mmio_st2_local;   // the access takes local-bus cycles
+    logic [7:0]            s1_mmio_vga, s1_mmio_st2_vga;       // the VGA cycle each access takes, chosen here
     always_ff @(posedge clk) begin
         s1_boundary <= on && boundary;
         s1_eoi <= eoi;
@@ -177,10 +177,12 @@ module fes_i386_governor #(
         s1_io_port <= io_port;
         s1_io_size <= io_size;
         s1_mmio <= on ? mmio : 2'd0;
-        s1_mmio_local <= local_video && mmio_vga;
+        // The cycle (local-bus or ISA) is chosen as WB's access is
+        // registered, so the charge's multiply starts from a register.
+        s1_mmio_vga <= local_video && mmio_vga ? lb_vga : isa_vga;
         s1_mmio_cycles <= local_video && mmio_vga ? {1'b0, mmio_dwords} : mmio_halves;
         s1_mmio_st2 <= on && mmio_st2;
-        s1_mmio_st2_local <= local_video && mmio_st2_vga;
+        s1_mmio_st2_vga <= local_video && mmio_st2_vga ? lb_vga : isa_vga;
         s1_mmio_st2_cycles <= local_video && mmio_st2_vga ? {1'b0, mmio_st2_dwords} : mmio_st2_halves;
     end
 
@@ -211,8 +213,8 @@ module fes_i386_governor #(
     // legacy behavior or reference validation for those instructions.
     assign local_bus = 4'd2 + (REFERENCE_DIAGNOSTIC && p_id == 3'd1 && s1_ordinary_ram ? 4'd0 : per_access);
     logic [12:0] isa;
-    assign isa = (s1_io ? {3'd0, io_extra} : 13'd0) + 13'(s1_mmio) * {2'd0, mmio_extra(s1_mmio_cycles, s1_mmio_local ? lb_vga : isa_vga, local_bus)}
-               + (s1_mmio_st2 ? {2'd0, mmio_extra(s1_mmio_st2_cycles, s1_mmio_st2_local ? lb_vga : isa_vga, local_bus)} : 13'd0);
+    assign isa = (s1_io ? {3'd0, io_extra} : 13'd0) + 13'(s1_mmio) * {2'd0, mmio_extra(s1_mmio_cycles, s1_mmio_vga, local_bus)}
+               + (s1_mmio_st2 ? {2'd0, mmio_extra(s1_mmio_st2_cycles, s1_mmio_st2_vga, local_bus)} : 13'd0);
 
     logic        s2_ends, s2_column1, s2_element, s2_ea;
     logic        s2_boundary, s2_redirect, s2_abandon, s2_preserve_de, s2_ordinary_ram, s2_imul_safe;
