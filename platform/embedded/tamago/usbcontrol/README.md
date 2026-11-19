@@ -95,3 +95,10 @@ An attempted driver transition failure retires local polling while retaining
 the active reservation for the existing checked `Close` path. No resume can
 repair a failed, closed or replaced source. The native backend uses this to
 drain pending DWC2 transactions before long core loads and returns.
+
+Final paired Tenfoot Quit drains through the owning backend before synchronous
+MENU firmware closure, then uses this same checked Close/Stop path. A pending
+packet cannot be left to age across that closure. The regression retains the
+former ordering as a failure case: an unserviced packet still times out on its
+first poll, invalidates the client and retains resources. Neither the packet
+clock nor failed-source ownership has been relaxed.

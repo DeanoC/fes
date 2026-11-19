@@ -9,7 +9,10 @@ on DDR port 0, behind fes.computer 1.1: the session-display plane, HPS DDR,
 48 kHz audio, the ATA disk the runtime writes into the DDR window, the
 fes.pc386.machine record and the wall clock. The Bochs BIOS and the LGPL
 VGABios are M10K contents of the RBF (pc386_rom.sv), from the images
-scripts/build_pc386_firmware.py builds and firmware.lock pins.
+scripts/build_pc386_firmware.py builds and firmware.lock pins. That recipe
+writes the ROM hex as its own process before the seal; the seal never runs
+its code. It checks the file pc386_system.sv's ROM_HEX names against the ROM
+digest firmware.lock pins, before and after Yosys reads it (#1984 S1).
 The system clock is sealed at SYSTEM_CLOCK_HZ and every guest time base is a
 rational enable of it, set here from that frequency. It is a development
 package, labelled a Quartus build (docs/design/quartus-cores.md) and not
@@ -47,8 +50,12 @@ maintained patch match this source tree, and the CPU netlist this build's
 Yosys writes through the seal's passes has the report's digest. The
 report is copied into the output, and build-summary.json records it under
 "lockstep". Lockstep needs the pinned Bochs and corpus, so it runs on the
-sealing host.
+sealing host. The seal hashes the oracle and suite from the lists in
+cores/fes-common/sim/i386/oracle_sources.toml and does not import the oracle
+provisioner, scripts/fes_i386_oracle.py, so an edit there cannot change what
+the compilers read (#1984 S1, case H1).
 
+  python3 scripts/build_pc386_firmware.py --download
   QUARTUS_ROOTDIR=/abs/<the Quartus install quartus.lock names>/quartus \\
     python3 scripts/build_fes_pc386_quartus.py --cache-root /abs/out/cache/misteross-toolchains \\
     --lockstep-report /abs/build/sim/fes-i386-lockstep/report.json [--gpu-router CUDA]
@@ -67,13 +74,12 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tomllib
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import build_pc386_firmware as firmware
 from scripts import fes_build_common as board
-from scripts import fes_i386_oracle as i386_oracle
 from scripts import lockfile
 from scripts import source_provenance
 from scripts import yosys_netlist
@@ -94,6 +100,37 @@ SDC = "cores/fes-pc386/clocks.sdc"
 ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"
 FIRMWARE_LOCK = "cores/fes-pc386/firmware/firmware.lock"
 FIRMWARE_RECIPE = "scripts/build_pc386_firmware.py"
+FIRMWARE_IMAGES = ("bios", "vgabios")
+# The lockstep oracle and suite, as data: the seal hashes these files and
+# never imports their provisioner, scripts/fes_i386_oracle.py, which reads the
+# same data file.
+ORACLE_PROVISIONER = "scripts/fes_i386_oracle.py"
+ORACLE_SOURCES_FILE = "cores/fes-common/sim/i386/oracle_sources.toml"
+ORACLE_SIM = "cores/fes-common/sim/i386"
+
+
+def _oracle_sources(root: Path) -> dict:
+    try:
+        data = tomllib.loads(board._regular_input(root, ORACLE_SOURCES_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise board.BuildError(f"cannot read {ORACLE_SOURCES_FILE}: {exc}") from exc
+    lists = ("oracle_sources", "suite_sources", "linked_names")
+    if (not isinstance(data, dict) or set(data) != {"bochs_revision", "bochs_patch", *lists}
+            or not isinstance(data["bochs_revision"], str) or re.fullmatch(r"[0-9a-f]{40}", data["bochs_revision"]) is None
+            or not isinstance(data["bochs_patch"], str)
+            or any(not isinstance(data[key], list) or not data[key] or len(set(data[key])) != len(data[key])
+                   or not all(isinstance(name, str) and name for name in data[key]) for key in lists)):
+        raise board.BuildError(f"{ORACLE_SOURCES_FILE} is not a valid oracle source list")
+    return data
+
+
+_ORACLE = _oracle_sources(ROOT)
+BOCHS_REVISION = _ORACLE["bochs_revision"]
+BOCHS_PATCH = _ORACLE["bochs_patch"]
+# Relative to ORACLE_SIM, as the oracle's adapter digest names them.
+ORACLE_SOURCES = tuple(_ORACLE["oracle_sources"])
+SUITE_SOURCES = tuple(_ORACLE["suite_sources"])
+LINKED_NAMES = tuple(_ORACLE["linked_names"])
 SYSTEM_CLOCK_HZ = 61_440_000
 SYSTEM_CLOCK = "61.44 MHz"
 PIXEL_CLOCK_MHZ = 74.25
@@ -149,14 +186,16 @@ MACHINE_SOURCES = (
 )
 MACHINE_TOP = "pc386_system"
 MACHINE_NETLIST = "pc386_system.v"
-# pc386_rom.sv's ROM_HEX, read by Yosys from the repository root.
-ROM_HEX = firmware.ROM_HEX.relative_to(ROOT).as_posix()
+# pc386_system.sv's ROM_HEX default, which it passes to pc386_rom; Yosys reads
+# it from the repository root. scripts/build_pc386_firmware.py writes it.
+ROM_HEX = "build/firmware/pc386/pc386-rom.hex"
+ROM_HEX_READERS = ("cores/fes-pc386/rtl/pc386_system.sv", "cores/fes-pc386/rtl/pc386_rom.sv")
 PINNED_INPUTS = (
     RECIPE, FIRMWARE_RECIPE, FIRMWARE_LOCK, "scripts/quartus_tools.py", "scripts/fes_build_common.py",
     "scripts/source_provenance.py", "scripts/yosys_netlist.py", "scripts/lockfile.py", ABI_DEFINITION, LOCK,
-    I386_LOCK, QUARTUS_LOCK, QSF, SDC, "scripts/fes_i386_oracle.py", i386_oracle.BOCHS_PATCH_RELATIVE,
-    *(f"cores/fes-common/sim/i386/{name}" for name in i386_oracle.ORACLE_SOURCES),
-    *(name for name in i386_oracle.SUITE_SOURCES if name != "scripts/yosys_netlist.py"),
+    I386_LOCK, QUARTUS_LOCK, QSF, SDC, ORACLE_PROVISIONER, ORACLE_SOURCES_FILE, BOCHS_PATCH,
+    *(f"{ORACLE_SIM}/{name}" for name in ORACLE_SOURCES),
+    *(name for name in SUITE_SOURCES if name != "scripts/yosys_netlist.py"),
     *INCLUDES, *SHELL_SOURCES,
     *MACHINE_SOURCES,
 )
@@ -291,10 +330,34 @@ def machine_program(netlist: Path, sources: str | None = None) -> str:
                                  includes=INCLUDE_DIRS, parameters=guest_rates(), netlist=netlist.as_posix())
 
 
+def _firmware_lock(root: Path) -> dict:
+    try:
+        lock = json.loads(board._regular_input(root, FIRMWARE_LOCK).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise board.BuildError(f"cannot read {FIRMWARE_LOCK}: {exc}") from exc
+    if not isinstance(lock, dict):
+        raise board.BuildError(f"{FIRMWARE_LOCK} is not a JSON object")
+    return lock
+
+
+def _pinned_sha256(lock: dict, *keys: str) -> str:
+    value = lock
+    for key in keys:
+        value = value.get(key) if isinstance(value, dict) else None
+    if not isinstance(value, str) or board.HEX64_RE.fullmatch(value) is None:
+        raise board.BuildError(f"{FIRMWARE_LOCK} does not pin {'.'.join(keys)}")
+    return value
+
+
 def firmware_digests(root: Path) -> dict[str, str]:
     """The BIOS and VGA BIOS digests firmware.lock pins: the ROM's contents."""
-    lock = json.loads(board._regular_input(root, FIRMWARE_LOCK).read_text(encoding="utf-8"))
-    return {name: lock["images"][name]["sha256"] for name in firmware.IMAGES}
+    lock = _firmware_lock(root)
+    return {name: _pinned_sha256(lock, "images", name, "sha256") for name in FIRMWARE_IMAGES}
+
+
+def pinned_rom_digest(root: Path) -> str:
+    """The digest firmware.lock pins for the ROM hex Yosys reads."""
+    return _pinned_sha256(_firmware_lock(root), "rom_hex", "sha256")
 
 
 def record_fields(root: Path, repository: str, revision: str, identities: dict[str, str], seed: int,
@@ -374,18 +437,26 @@ def write_project(root: Path, output: Path, build_id: str, seed: int) -> Path:
     return project
 
 
-def firmware_rom(root: Path) -> Path:
-    """The locked images as pc386_rom's contents, where Yosys reads them."""
-    try:
-        paths = firmware.images()
-        if any(board._sha256(path) != digest for path, digest in
-               ((paths[name], firmware_digests(root)[name]) for name in firmware.IMAGES)):
-            raise board.BuildError("firmware images do not match firmware.lock")
-        rom = firmware.write_rom_hex(paths)
-    except firmware.FirmwareError as exc:
-        raise board.BuildError(f"firmware: {exc}") from exc
-    if rom.resolve() != (root / ROM_HEX).resolve():
-        raise board.BuildError(f"the ROM contents must be at {ROM_HEX}")
+ROM_HEX_PARAMETER_RE = re.compile(r'\bparameter\s+ROM_HEX\s*=\s*"([^"]*)"')
+
+
+def check_rom(root: Path) -> Path:
+    """The ROM hex at the path the RTL reads, checked against firmware.lock's
+    pinned digest. scripts/build_pc386_firmware.py writes it; the seal only
+    reads it, so a recipe edit that writes other bytes or another path is
+    refused here rather than elaborated (#1984 S1, cases R3, R4 and H2)."""
+    for reader in ROM_HEX_READERS:
+        defaults = ROM_HEX_PARAMETER_RE.findall(board._regular_input(root, reader).read_text(encoding="utf-8"))
+        if defaults != [ROM_HEX]:
+            raise board.BuildError(f"{reader} reads the ROM from {defaults}, but the seal checks {ROM_HEX}")
+    expected = pinned_rom_digest(root)
+    rom = root / ROM_HEX
+    if board._contains_symlink(root, ROM_HEX) or not rom.is_file():
+        raise board.BuildError(f"{ROM_HEX} is missing; run scripts/build_pc386_firmware.py before the seal")
+    actual = board._sha256(rom)
+    if actual != expected:
+        raise board.BuildError(f"{ROM_HEX} is {actual}, not the {expected} firmware.lock pins; "
+                               "run scripts/build_pc386_firmware.py")
     return rom
 
 
@@ -508,24 +579,32 @@ def manifest(root: Path, record: bytes, evidence: dict, repository: str, revisio
     })
 
 
+def named_sources_sha256(named: list[tuple[str, bytes]]) -> str:
+    """Named source bytes in order with length framing: the digest
+    scripts/fes_i386_oracle.py's named_sources_sha256 gives the lockstep report."""
+    digest = hashlib.sha256()
+    for name, data in named:
+        digest.update(name.encode() + b"\0")
+        digest.update(len(data).to_bytes(8, "big"))
+        digest.update(data)
+    return digest.hexdigest()
+
+
 def oracle_identity(root: Path) -> dict[str, str]:
-    """The source identity of this tree's declared lockstep oracle and suite."""
+    """The source identity of this tree's declared lockstep oracle and suite,
+    hashed as data. The lists are this checkout's, and root's provisioner must
+    be this checkout's, as a report from another provisioner cannot be judged."""
     try:
-        i386_oracle.require_provisioner_unchanged()
-        target = board._regular_input(root, "scripts/fes_i386_oracle.py")
-        running = Path(i386_oracle.__file__).resolve()
-        if target.read_bytes() != running.read_bytes():
+        target = board._regular_input(root, ORACLE_PROVISIONER).read_bytes()
+        if target != board._regular_input(ROOT, ORACLE_PROVISIONER).read_bytes():
             raise board.BuildError("target oracle provisioning script differs from the running one")
-        patch = board._regular_input(root, i386_oracle.BOCHS_PATCH_RELATIVE)
-        sim = root / "cores/fes-common/sim/i386"
-        for name in i386_oracle.ORACLE_SOURCES:
-            board._regular_input(root, f"cores/fes-common/sim/i386/{name}")
-        for name in i386_oracle.SUITE_SOURCES:
-            board._regular_input(root, name)
-        return {"revision": i386_oracle.BOCHS_REVISION, "patch_sha256": board._sha256(patch),
-                "provisioner_sha256": board._sha256(target), "adapter_sha256": i386_oracle.adapter_source_sha256(sim),
-                "suite_sha256": i386_oracle.suite_source_sha256(root)}
-    except (OSError, i386_oracle.OracleError) as exc:
+        patch = board._regular_input(root, BOCHS_PATCH)
+        adapter = [(name, board._regular_input(root, f"{ORACLE_SIM}/{name}").read_bytes()) for name in ORACLE_SOURCES]
+        suite = [(name, board._regular_input(root, name).read_bytes()) for name in SUITE_SOURCES]
+        return {"revision": BOCHS_REVISION, "patch_sha256": board._sha256(patch),
+                "provisioner_sha256": hashlib.sha256(target).hexdigest(),
+                "adapter_sha256": named_sources_sha256(adapter), "suite_sha256": named_sources_sha256(suite)}
+    except OSError as exc:
         raise board.BuildError(f"cannot read the Bochs oracle or suite source: {exc}") from exc
 
 
@@ -578,7 +657,7 @@ def check_lockstep_report(root: Path, data: bytes, yosys: board.AuthenticatedToo
             or any(measured_oracle.get(key) != value for key, value in expected_oracle.items())):
         raise board.BuildError(f"lockstep report's oracle identity {measured_oracle!r} is not {expected_oracle!r}")
     linked = measured_oracle["linked_sha256"]
-    if (not isinstance(linked, dict) or set(linked) != set(i386_oracle.LINKED_NAMES)
+    if (not isinstance(linked, dict) or set(linked) != set(LINKED_NAMES)
             or not all(valid_sha256(value) for value in linked.values())
             or not valid_sha256(measured_oracle["testbench_sha256"])):
         raise board.BuildError("lockstep report's oracle binary digests are missing or invalid")
@@ -622,8 +701,9 @@ def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = No
         lockstep = check_lockstep_report(root, lockstep_data, tools["yosys"], gpu_router, output)
         board._write_atomic(output / LOCKSTEP_REPORT, lockstep_data)
         project = write_project(root, output, build_id, seed)
-        rom = firmware_rom(root)
+        rom = check_rom(root)
         elaborate_machine(root, output, project, tools["yosys"].path)
+        check_rom(root)
         run_quartus(tools["quartus_sh"], tools["quartus_root"], project, output / "quartus.log")
         board._write_atomic(output / "quartus-version.log", (tools["quartus_version"] + "\n").encode())
         evidence = validate_build_evidence(output, project)

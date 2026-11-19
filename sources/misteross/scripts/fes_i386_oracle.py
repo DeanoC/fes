@@ -15,13 +15,19 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 SIM = ROOT / 'cores/fes-common/sim/i386'
 BUILD = ROOT / 'build/sim/fes-i386-oracle'
+# The pins and file lists a pc386 seal hashes into the lockstep's oracle
+# identity. The sealer reads this data file and never imports this module
+# (#1984 S1), so code here cannot reach the compiler inputs.
+SOURCES_RELATIVE = 'cores/fes-common/sim/i386/oracle_sources.toml'
+_SOURCES = tomllib.loads((ROOT / SOURCES_RELATIVE).read_text())
 
 BOCHS_REPOSITORY = 'https://github.com/bochs-emu/Bochs'
-BOCHS_REVISION = '30cfd566ecc8deb33e56e801e32b444a7041b6d2'  # REL_3_1_FINAL
+BOCHS_REVISION = _SOURCES['bochs_revision']  # REL_3_1_FINAL
 BOCHS_LICENSE = 'LGPL-2.1-or-later'
 # A 386DX with debug registers. Bochs needs its FPU for WAIT and ESC to take the
 # architected EM, MP and TS exceptions (without it WAIT raises #UD and ESC never
@@ -35,19 +41,13 @@ BOCHS_CONFIGURE = (
     '--disable-monitor-mwait', '--disable-gameport', '--disable-busmouse',
     '--disable-usb', '--disable-plugins',
 )
-BOCHS_PATCH_RELATIVE = 'cores/fes-common/sim/i386/bochs/flat-stack-limit.patch'
+BOCHS_PATCH_RELATIVE = _SOURCES['bochs_patch']
 BOCHS_PATCH = ROOT / BOCHS_PATCH_RELATIVE
-ORACLE_SOURCES = ('i386_oracle.h', 'bochs_oracle.cpp', 'bochs/instrument.h')
+ORACLE_SOURCES = tuple(_SOURCES['oracle_sources'])
 CXXFLAGS = ('-std=c++17', '-O2', '-Wall')
 PROVISIONER_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
-LINKED_NAMES = ('adapter', 'paramtree', 'cpu', 'fpu', 'softfloat')
-SUITE_SOURCES = (
-    'scripts/test_fes_i386_lockstep.py', 'scripts/test_fes_i386_vectors.py',
-    'scripts/test_fes_i386_frontend.py', 'scripts/i386_verilator.py', 'scripts/yosys_netlist.py',
-    'cores/fes-common/sim/i386/lockstep_tb.cpp', 'cores/fes-common/sim/i386/biu_dma_tb.cpp',
-    'cores/fes-common/sim/i386/divergences.toml', 'cores/fes-common/sim/i386/smc_stale.h',
-    'cores/fes-pc386/sim/pc386_ddr_model.h',
-)
+LINKED_NAMES = tuple(_SOURCES['linked_names'])
+SUITE_SOURCES = tuple(_SOURCES['suite_sources'])
 
 
 class OracleError(RuntimeError):

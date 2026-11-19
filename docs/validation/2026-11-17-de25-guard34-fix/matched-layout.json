@@ -1,0 +1,16 @@
+{
+  "status": "passed-independent-final-ELF-symbol-check",
+  "elf_sha256": "6443579ee17b5beff4d5c89ee80c99053c1579834da1f1edb8d90ea8ec40fb64",
+  "symbols": {
+    "__STACKS_END__": "0x58000",
+    "__BSS_END__": "0x5ff80",
+    "__BSS_START__": "0x58000",
+    "__RO_START__": "0x80000000",
+    "__STACKS_START__": "0x50000"
+  },
+  "ocram_limit": "0x60000",
+  "ocram_margin_bytes": 128,
+  "source_commit": "d3aefb4b95c7678eaa49e31a523810fa226903b2",
+  "hardware_actions": false,
+  "hardware_accepted": false
+}

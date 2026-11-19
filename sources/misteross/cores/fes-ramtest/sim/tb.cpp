@@ -17,6 +17,14 @@ static void require(bool ok, const char* message) {
 }
 
 static void tick(Vbench& top) {
+#ifdef RAM_CAS3_CAPTURE
+    for (unsigned phase = 0; phase < 80; ++phase) {
+        top.FPGA_CLK1_50 = phase < 40;
+        top.CAS3_FORWARD = ((phase + 70) % 80) < 40;
+        top.CAS3_HANDOFF = ((phase + 5) % 80) < 40;
+        top.eval();
+    }
+#else
     top.FPGA_CLK1_50 = 1;
     top.eval();
     top.CAP_CLK = 0;
@@ -27,6 +35,7 @@ static void tick(Vbench& top) {
     // retiming register must see the old sample on that falling edge.
     top.CAP_CLK = 1;
     top.eval();
+#endif
     require(!top.ddr_violation, "HPS DDR model saw a protocol or address violation");
 }
 

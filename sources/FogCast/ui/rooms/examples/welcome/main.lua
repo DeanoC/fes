@@ -1,4 +1,4 @@
--- First-run setup, step 1 (#1345): what FES is, the four computers, and
+-- First-run setup, step 1 (#1345): what FES is, the computers, and
 -- what is built in. Continue goes to the next step and Skip setup goes
 -- straight to Home, which then shows what is still to do. FES moves
 -- between the steps on the setup_* launcher actions this room publishes.
@@ -60,7 +60,7 @@ function draw()
   local body = compact and 17 or (room.height >= 648 and 24 or 21)
   gfx.text("Welcome to FES", m, y, { size = big, bold = true, color = C.text })
   y = y + math.floor(big * 1.5)
-  local intro = compact and "FES turns this kit into classic home computers." or "FES turns this kit into classic home computers, rebuilt in its chip. Four are ready to set up."
+  local intro = compact and "Classic home and personal computers, rebuilt in this kit." or "FES turns this kit into classic home and personal computers, rebuilt in its chip."
   y = S.text(intro, m, y, left_w, body, C.text)
   y = y + (compact and 8 or 12)
   local note = compact and "Some computers include firmware. Others and your games need your own files. No network or computer is needed to start." or "Some computers have their built-in software (firmware) included. For the others, and for your games, you use your own files. You don't need a network or a computer to start."
@@ -78,20 +78,27 @@ function draw()
   end
   S.text(hint, m, y, left_w, note_size, C.secondary)
 
-  -- The four computers, two by two, each name outside its mark.
+  -- The six default families, two columns, each name outside its mark.
+  -- Other experimental cores do not become part of the introduction when
+  -- Show all cores is enabled.
   local gx = m * 2 + left_w
   local gw = room.width - m - gx
-  local gap = 16
-  local name = room.height >= 648 and 20 or 18
+  local shown = math.min(6, #F.list)
+  local rows = math.ceil(shown / 2)
+  local gap = compact and 10 or 16
+  local name = compact and 16 or (room.height >= 648 and 20 or 18)
   local cell_w = (gw - gap) / 2
-  local cell_h = (lay.bottom - 24 - lay.top - gap) / 2
-  local mark_h = cell_h - name - 14
-  for i = 1, math.min(4, #F.list) do
+  local cell_h = (lay.bottom - 24 - lay.top - gap * (rows - 1)) / rows
+  local mark_h = cell_h - name - 28
+  for i = 1, shown do
     local f = F.list[i]
     local cx = gx + ((i - 1) % 2) * (cell_w + gap)
     local cy = lay.top + math.floor((i - 1) / 2) * (cell_h + gap)
-    F.mark(f, cx, cy, cell_w, mark_h)
+    F.welcome_mark(f, cx, cy, cell_w, mark_h)
     gfx.text(f.label, cx, cy + mark_h + 6, { size = name, bold = true, color = C.text, max_w = cell_w })
+    if f.id == "fes.pc386" then
+      gfx.text("In development", cx, cy + mark_h + name + 8, { size = compact and 12 or 14, color = C.secondary, max_w = cell_w })
+    end
   end
 
   S.buttons(m, lay.bottom - 24 - 48, BUTTONS, focus)

@@ -1,0 +1,108 @@
+{
+  "status": "retained-native-diagnostic-failed",
+  "native_source": "a0d2c7aead849a8e0287774b9cd18d662770a33b",
+  "tested_implementation": "a0d2c7aead849a8e0287774b9cd18d662770a33b",
+  "host_decoder_source": "505ee1c60e9caa50462c17553c608e632391d9ae",
+  "native_boot_id": "ef11c39154352b0c",
+  "wire_sha256": "5b476649187f25a5b7100af8d81c62e65caa74e41a6f8f3aa560ff06afcf329a",
+  "native_seconds": 264.23489508312196,
+  "records": {
+    "FES_NANO_SOURCE_RELEASE": [
+      {
+        "status": "0",
+        "owner": "86c69687b62b833",
+        "source_generation": "4",
+        "generation": "10",
+        "reuse_authorized": "1",
+        "elapsed_us": "894825"
+      },
+      {
+        "status": "0",
+        "owner": "86c69687b62b833",
+        "source_generation": "10",
+        "generation": "15",
+        "reuse_authorized": "1",
+        "elapsed_us": "882002"
+      },
+      {
+        "status": "0",
+        "owner": "86c69687b62b833",
+        "source_generation": "15",
+        "generation": "21",
+        "reuse_authorized": "1",
+        "elapsed_us": "896574"
+      },
+      {
+        "status": "0",
+        "owner": "86c69687b62b833",
+        "source_generation": "21",
+        "generation": "26",
+        "reuse_authorized": "1",
+        "elapsed_us": "882016"
+      }
+    ],
+    "FES_NANO_SOURCE_RELEASE_FAIL": [],
+    "FES_NANO_SOURCE_SETUP": [],
+    "FES_NANO_SOURCE_SETUP_QUEUE": [],
+    "FES_NANO_SOURCE_CLOCK": []
+  },
+  "core_fetch": [
+    {
+      "scope": "nano-computer-fetch-tape-v1",
+      "owner": 606975947255756851,
+      "generation": 1,
+      "package_id": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+      "build_id": "0792e51a2e51512bfb8fe44e93a69ddd",
+      "before": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "held": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "running": {
+        "Cycles": 11658,
+        "Address": 978
+      },
+      "delta": 11658,
+      "polls": 1,
+      "elapsed_ns": 1874541428,
+      "limit_ns": 7000000000,
+      "tape_bytes": 917,
+      "tape_elapsed_ns": 1784432457,
+      "tape_limit_ns": 6000000000,
+      "control_elapsed_ns": 90108971
+    },
+    {
+      "scope": "nano-computer-fetch-v1",
+      "owner": 606975947255756851,
+      "generation": 3,
+      "package_id": "b32ce70af93f2ae4ff665490246e5c52fbb4d76eadb5445949e5c2b4434fba86",
+      "build_id": "ea02ee8a9026deb05317a3e7d024adde",
+      "before": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "held": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "running": {
+        "Cycles": 11646,
+        "Address": 613
+      },
+      "delta": 11646,
+      "polls": 1,
+      "elapsed_ns": 74917020,
+      "limit_ns": 1000000000
+    }
+  ],
+  "error": "bounded native diagnostic stopped: native failure marker",
+  "native_transport_cleanup_verified": true,
+  "one_use_consumed": true,
+  "retry_performed": false,
+  "restoration_status": "independently gated; see complete trial record",
+  "hardware_acceptance": false,
+  "physical_display_verified": false
+}

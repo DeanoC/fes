@@ -22,8 +22,9 @@ const (
 	HIDKeys
 )
 
-// ChromeStop reports session-stop keys that sofa chrome must keep while play
-// HID is attached. Esc/Backspace stop; letter s stays a core key (ZX81 S).
+// ChromeStop reports keys reserved for session chrome rather than legacy core
+// encoding. Tenfoot decides whether Escape returns, stays in play, or retries
+// Stop; Backspace stops. Letter s stays a core key (ZX81 S).
 func ChromeStop(name string) bool {
 	switch normalize(name) {
 	case "escape", "backspace":

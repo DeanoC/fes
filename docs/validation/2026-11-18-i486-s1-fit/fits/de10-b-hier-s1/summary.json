@@ -1,0 +1,4408 @@
+{
+  "arm": "b",
+  "board": "de10",
+  "build_id": "00000000000000000000000000000000",
+  "clocks": {
+    "FPGA_CLK1_50": {
+      "hold_ns": null,
+      "setup_ns": null
+    },
+    "system_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]": {
+      "hold_ns": null,
+      "setup_ns": null
+    },
+    "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk": {
+      "hold_ns": 0.097,
+      "setup_ns": 0.88
+    },
+    "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk": {
+      "hold_ns": 0.168,
+      "setup_ns": 9.936
+    },
+    "video_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]": {
+      "hold_ns": null,
+      "setup_ns": null
+    },
+    "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk": {
+      "hold_ns": 0.095,
+      "setup_ns": 1.312
+    },
+    "worst": {
+      "hold_ns": 0.095,
+      "setup_ns": 0.88
+    }
+  },
+  "closes": true,
+  "commit": "15d53ac4101633003cd6ed711525a19a558cc3ba",
+  "compile_minutes": 10.9,
+  "corners": [
+    {
+      "analysis": "setup",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 0.888,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 1.475,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 9.936,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 0.253,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 0.255,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 0.374,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "recovery",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 6.23,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "recovery",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 79.755,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "removal",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 0.711,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "removal",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 5.482,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "video_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 1.122,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 1.162,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 5.289,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 6.706,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "FPGA_CLK1_50",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 9.73,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV 100C",
+      "slack_ns": 39.966,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 0.88,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 1.312,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 10.278,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 0.095,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 0.223,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 0.358,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "recovery",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 6.417,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "recovery",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 79.809,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "removal",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 0.662,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "removal",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 5.446,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "video_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 1.122,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 1.162,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 5.271,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 6.681,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "FPGA_CLK1_50",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 9.754,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Slow 1100mV -40C",
+      "slack_ns": 39.886,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 7.667,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 7.961,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 12.339,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 0.14,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 0.14,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 0.184,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "recovery",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 10.884,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "recovery",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 80.568,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "removal",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 0.314,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "removal",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 2.99,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "video_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 1.122,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 1.162,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 5.608,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 7.02,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "FPGA_CLK1_50",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 9.347,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV 100C",
+      "slack_ns": 40.244,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 8.32,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 9.308,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "setup",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 13.002,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 0.095,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 0.097,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "hold",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 0.168,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "recovery",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 11.444,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "recovery",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 80.646,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "removal",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 0.273,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "removal",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 2.621,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "video_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 1.122,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 1.162,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 5.614,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 7.026,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "FPGA_CLK1_50",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 9.274,
+      "tns_ns": 0.0
+    },
+    {
+      "analysis": "minimum_pulse_width",
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "corner": "Fast 1100mV -40C",
+      "slack_ns": 40.238,
+      "tns_ns": 0.0
+    }
+  ],
+  "created_utc": "2026-11-18T21:17:11.577169+00:00",
+  "device": "5CSEBA6U23I7",
+  "entities": [
+    {
+      "alms": 36697.3,
+      "dsp": 40.0,
+      "entity": "|top",
+      "level": 0,
+      "m10k": 282.0,
+      "own_alms": 4.8,
+      "registers": 31983.0
+    },
+    {
+      "alms": 13.4,
+      "dsp": 0.0,
+      "entity": "|fes_audio_output:audio|",
+      "level": 1,
+      "m10k": 0.0,
+      "own_alms": 2.8,
+      "registers": 68.0
+    },
+    {
+      "alms": 10.7,
+      "dsp": 0.0,
+      "entity": "|fes_audio_i2s:serializer|",
+      "level": 2,
+      "m10k": 0.0,
+      "own_alms": 10.7,
+      "registers": 26.0
+    },
+    {
+      "alms": 635.9,
+      "dsp": 0.0,
+      "entity": "|fes_hps_ddr:memory|",
+      "level": 1,
+      "m10k": 8.0,
+      "own_alms": 2.6,
+      "registers": 1175.0
+    },
+    {
+      "alms": 232.5,
+      "dsp": 0.0,
+      "entity": "|fes_hps_ddr_guard:port0|",
+      "level": 2,
+      "m10k": 4.0,
+      "own_alms": 232.5,
+      "registers": 525.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:command_writedata_rtl_0|",
+      "level": 3,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_b2k1:auto_generated|",
+      "level": 4,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 175.7,
+      "dsp": 0.0,
+      "entity": "|fes_hps_ddr_guard:port1|",
+      "level": 2,
+      "m10k": 2.0,
+      "own_alms": 175.7,
+      "registers": 323.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:command_writedata_rtl_0|",
+      "level": 3,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_9vj1:auto_generated|",
+      "level": 4,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 225.1,
+      "dsp": 0.0,
+      "entity": "|fes_hps_ddr_guard:port2|",
+      "level": 2,
+      "m10k": 2.0,
+      "own_alms": 225.1,
+      "registers": 325.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:command_writedata_rtl_0|",
+      "level": 3,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_9vj1:auto_generated|",
+      "level": 4,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 36043.2,
+      "dsp": 40.0,
+      "entity": "|pc386_system:system|",
+      "level": 1,
+      "m10k": 274.0,
+      "own_alms": 87.2,
+      "registers": 30740.0
+    },
+    {
+      "alms": 133.5,
+      "dsp": 0.0,
+      "entity": "|fes_computer_mailbox_core_5d3abbdd:gp_mailbox|",
+      "level": 2,
+      "m10k": 0.0,
+      "own_alms": 133.5,
+      "registers": 224.0
+    },
+    {
+      "alms": 489.9,
+      "dsp": 2.0,
+      "entity": "|fes_computer_storage_1e1eaf0b:storage|",
+      "level": 2,
+      "m10k": 3.0,
+      "own_alms": 489.9,
+      "registers": 724.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:buffer_rtl_0|",
+      "level": 3,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_n3p1:auto_generated|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:cmos_words[0][15]__44|",
+      "level": 3,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_g0n1:auto_generated|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:cmos_words[0][7]__45|",
+      "level": 3,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_g0n1:auto_generated|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 25235.7,
+      "dsp": 14.0,
+      "entity": "|fes_i386_cpu_8fd8ee64:cpu|",
+      "level": 2,
+      "m10k": 85.0,
+      "own_alms": 9354.5,
+      "registers": 18777.0
+    },
+    {
+      "alms": 3.8,
+      "dsp": 0.0,
+      "entity": "|altshift_taps:_05374__rtl_0|",
+      "level": 3,
+      "m10k": 5.0,
+      "own_alms": 0.0,
+      "registers": 4.0
+    },
+    {
+      "alms": 3.8,
+      "dsp": 0.0,
+      "entity": "|shift_taps_6iv:auto_generated|",
+      "level": 4,
+      "m10k": 5.0,
+      "own_alms": 1.3,
+      "registers": 4.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_bv91:altsyncram4|",
+      "level": 5,
+      "m10k": 5.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 2.5,
+      "dsp": 0.0,
+      "entity": "|cntr_ohf:cntr1|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 2.5,
+      "registers": 2.0
+    },
+    {
+      "alms": 3.1,
+      "dsp": 0.0,
+      "entity": "|altshift_taps:_05384__rtl_0|",
+      "level": 3,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 5.0
+    },
+    {
+      "alms": 3.1,
+      "dsp": 0.0,
+      "entity": "|shift_taps_fgv:auto_generated|",
+      "level": 4,
+      "m10k": 2.0,
+      "own_alms": 1.8,
+      "registers": 5.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_tr91:altsyncram4|",
+      "level": 5,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 1.3,
+      "dsp": 0.0,
+      "entity": "|cntr_phf:cntr1|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 1.3,
+      "registers": 3.0
+    },
+    {
+      "alms": 7.0,
+      "dsp": 0.0,
+      "entity": "|altshift_taps:ag_out_reg_rtl_0|",
+      "level": 3,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 8.0
+    },
+    {
+      "alms": 7.0,
+      "dsp": 0.0,
+      "entity": "|shift_taps_dgv:auto_generated|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 3.2,
+      "registers": 8.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_rr91:altsyncram5|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 3.8,
+      "dsp": 0.0,
+      "entity": "|cntr_rhf:cntr1|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 3.8,
+      "registers": 5.0
+    },
+    {
+      "alms": 147.0,
+      "dsp": 0.0,
+      "entity": "|fes_i386_agu:agu|",
+      "level": 3,
+      "m10k": 0.0,
+      "own_alms": 147.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 7.3,
+      "dsp": 0.0,
+      "entity": "|fes_i386_amode:amode|",
+      "level": 3,
+      "m10k": 0.0,
+      "own_alms": 7.3,
+      "registers": 0.0
+    },
+    {
+      "alms": 1318.5,
+      "dsp": 1.0,
+      "entity": "|fes_i386_biu_a52f8b94:biu|",
+      "level": 3,
+      "m10k": 0.0,
+      "own_alms": 1318.5,
+      "registers": 1847.0
+    },
+    {
+      "alms": 748.4,
+      "dsp": 0.0,
+      "entity": "|fes_i386_decode_fead731f:decode|",
+      "level": 3,
+      "m10k": 0.0,
+      "own_alms": 748.4,
+      "registers": 0.0
+    },
+    {
+      "alms": 821.2,
+      "dsp": 0.0,
+      "entity": "|fes_i386_dfwd:dfwd|",
+      "level": 3,
+      "m10k": 0.0,
+      "own_alms": 821.2,
+      "registers": 93.0
+    },
+    {
+      "alms": 415.9,
+      "dsp": 0.0,
+      "entity": "|fes_i386_dops:dops|",
+      "level": 3,
+      "m10k": 0.0,
+      "own_alms": 415.9,
+      "registers": 86.0
+    },
+    {
+      "alms": 850.6,
+      "dsp": 0.0,
+      "entity": "|fes_i386_ex:ex|",
+      "level": 3,
+      "m10k": 0.0,
+      "own_alms": 582.5,
+      "registers": 0.0
+    },
+    {
+      "alms": 267.9,
+      "dsp": 0.0,
+      "entity": "|fes_i386_shift:shifter|",
+      "level": 4,
+      "m10k": 0.0,
+      "own_alms": 267.9,
+      "registers": 0.0
+    },
+    {
+      "alms": 82.4,
+      "dsp": 0.0,
+      "entity": "|fes_i386_exctl:exctl|",
+      "level": 3,
+      "m10k": 0.0,
+      "own_alms": 82.4,
+      "registers": 0.0
+    },
+    {
+      "alms": 5282.0,
+      "dsp": 3.0,
+      "entity": "|fes_i386_frontend:frontend|",
+      "level": 3,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 3687.0
+    },
+    {
+      "alms": 37.1,
+      "dsp": 0.0,
+      "entity": "|fes_i386_btb:btb|",
+      "level": 4,
+      "m10k": 4.0,
+      "own_alms": 37.1,
+      "registers": 29.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:ways0_rtl_0|",
+      "level": 5,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_v3p1:auto_generated|",
+      "level": 6,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:ways1_rtl_0|",
+      "level": 5,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_v3p1:auto_generated|",
+      "level": 6,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 3133.1,
+      "dsp": 1.0,
+      "entity": "|fes_i386_fetchbuf:fetch|",
+      "level": 4,
+      "m10k": 0.0,
+      "own_alms": 2049.5,
+      "registers": 3380.0
+    },
+    {
+      "alms": 621.3,
+      "dsp": 0.0,
+      "entity": "|fes_i386_lendec:decoders|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 125.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 20.9,
+      "dsp": 0.0,
+      "entity": "|fes_i386_oplen:g_oplen_0__oplen|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 20.9,
+      "registers": 0.0
+    },
+    {
+      "alms": 29.3,
+      "dsp": 0.0,
+      "entity": "|fes_i386_oplen:g_oplen_10__oplen|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 29.3,
+      "registers": 0.0
+    },
+    {
+      "alms": 28.2,
+      "dsp": 0.0,
+      "entity": "|fes_i386_oplen:g_oplen_11__oplen|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 28.2,
+      "registers": 0.0
+    },
+    {
+      "alms": 32.2,
+      "dsp": 0.0,
+      "entity": "|fes_i386_oplen:g_oplen_12__oplen|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 32.2,
+      "registers": 0.0
+    },
+    {
+      "alms": 30.8,
+      "dsp": 0.0,
+      "entity": "|fes_i386_oplen:g_oplen_13__oplen|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 30.8,
+      "registers": 0.0
+    },
+    {
+      "alms": 29.6,
+      "dsp": 0.0,
+      "entity": "|fes_i386_oplen:g_oplen_14__oplen|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 29.6,
+      "registers": 0.0
+    },
+    {
+      "alms": 30.6,
+      "dsp": 0.0,
+      "entity": "|fes_i386_oplen:g_oplen_15__oplen|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 30.6,
+      "registers": 0.0
+    },
+    {
+      "alms": 23.8,
+      "dsp": 0.0,
+      "entity": "|fes_i386_oplen:g_oplen_16__oplen|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 23.8,
+      "registers": 0.0
+    },
+    {
+      "alms": 27.6,
+      "dsp": 0.0,
+      "entity": "|fes_i386_oplen:g_oplen_1__oplen|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 27.6,
+      "registers": 0.0
+    },
+    {
+      "alms": 27.6,
+      "dsp": 0.0,
+      "entity": "|fes_i386_oplen:g_oplen_2__oplen|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 27.6,
+      "registers": 0.0
+    },
+    {
+      "alms": 26.3,
+      "dsp": 0.0,
+      "entity": "|fes_i386_oplen:g_oplen_3__oplen|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 26.3,
+      "registers": 0.0
+    },
+    {
+      "alms": 34.3,
+      "dsp": 0.0,
+      "entity": "|fes_i386_oplen:g_oplen_4__oplen|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 34.3,
+      "registers": 0.0
+    },
+    {
+      "alms": 26.5,
+      "dsp": 0.0,
+      "entity": "|fes_i386_oplen:g_oplen_5__oplen|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 26.5,
+      "registers": 0.0
+    },
+    {
+      "alms": 34.5,
+      "dsp": 0.0,
+      "entity": "|fes_i386_oplen:g_oplen_6__oplen|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 34.5,
+      "registers": 0.0
+    },
+    {
+      "alms": 30.1,
+      "dsp": 0.0,
+      "entity": "|fes_i386_oplen:g_oplen_7__oplen|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 30.1,
+      "registers": 0.0
+    },
+    {
+      "alms": 25.2,
+      "dsp": 0.0,
+      "entity": "|fes_i386_oplen:g_oplen_8__oplen|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 25.2,
+      "registers": 0.0
+    },
+    {
+      "alms": 34.2,
+      "dsp": 0.0,
+      "entity": "|fes_i386_oplen:g_oplen_9__oplen|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 34.2,
+      "registers": 0.0
+    },
+    {
+      "alms": 459.4,
+      "dsp": 0.0,
+      "entity": "|fes_i386_lstage:sums|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 459.4,
+      "registers": 0.0
+    },
+    {
+      "alms": 2041.8,
+      "dsp": 2.0,
+      "entity": "|fes_i386_qalign:align|",
+      "level": 4,
+      "m10k": 0.0,
+      "own_alms": 2041.8,
+      "registers": 269.0
+    },
+    {
+      "alms": 43.6,
+      "dsp": 0.0,
+      "entity": "|fes_i386_ras:ras|",
+      "level": 4,
+      "m10k": 0.0,
+      "own_alms": 22.4,
+      "registers": 9.0
+    },
+    {
+      "alms": 21.2,
+      "dsp": 0.0,
+      "entity": "|altdpram:stack_rtl_0|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 4.0
+    },
+    {
+      "alms": 21.2,
+      "dsp": 0.0,
+      "entity": "|dpram_8no1:auto_generated|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 21.2,
+      "registers": 4.0
+    },
+    {
+      "alms": 329.3,
+      "dsp": 6.0,
+      "entity": "|fes_i386_governor_60d697b4:governor|",
+      "level": 3,
+      "m10k": 2.0,
+      "own_alms": 329.3,
+      "registers": 145.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|fes_i386_gov_rom:costs|",
+      "level": 4,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:rom_rtl_0|",
+      "level": 5,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_hkd1:auto_generated|",
+      "level": 6,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 2172.6,
+      "dsp": 0.0,
+      "entity": "|fes_i386_l1d:l1d|",
+      "level": 3,
+      "m10k": 40.0,
+      "own_alms": 2172.6,
+      "registers": 1516.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:ev0[0][15]__3|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:ev0[0][23]__2|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:ev0[0][31]__1|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:ev0[0][7]__4|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:ev1[0][15]__7|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:ev1[0][23]__6|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:ev1[0][31]__5|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:ev1[0][7]__8|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:ev2[0][15]__11|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:ev2[0][23]__10|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:ev2[0][31]__9|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:ev2[0][7]__12|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:ev3[0][15]__15|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:ev3[0][23]__14|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:ev3[0][31]__13|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:ev3[0][7]__16|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:od0[0][15]__19|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:od0[0][23]__18|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:od0[0][31]__17|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:od0[0][7]__20|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:od1[0][15]__23|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:od1[0][23]__22|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:od1[0][31]__21|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:od1[0][7]__24|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:od2[0][15]__27|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:od2[0][23]__26|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:od2[0][31]__25|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:od2[0][7]__28|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:od3[0][15]__31|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:od3[0][23]__30|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:od3[0][31]__29|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:od3[0][7]__32|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_e0q1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:probe0_rtl_0|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_f0s1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:probe1_rtl_0|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_f0s1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:probe2_rtl_0|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_f0s1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:probe3_rtl_0|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_f0s1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:tag0_rtl_0|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_f0s1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:tag1_rtl_0|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_f0s1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:tag2_rtl_0|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_f0s1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:tag3_rtl_0|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_f0s1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 1762.1,
+      "dsp": 0.0,
+      "entity": "|fes_i386_l1i:l1i|",
+      "level": 3,
+      "m10k": 24.0,
+      "own_alms": 1571.1,
+      "registers": 1235.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:data0_rtl_0|",
+      "level": 4,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_57p1:auto_generated|",
+      "level": 5,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:data1_rtl_0|",
+      "level": 4,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_57p1:auto_generated|",
+      "level": 5,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:data2_rtl_0|",
+      "level": 4,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_57p1:auto_generated|",
+      "level": 5,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:data3_rtl_0|",
+      "level": 4,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_57p1:auto_generated|",
+      "level": 5,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:snoop0_rtl_0|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_f0s1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:snoop1_rtl_0|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_f0s1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:snoop2_rtl_0|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_f0s1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:snoop3_rtl_0|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_f0s1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:tag0_rtl_0|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_j3p1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:tag1_rtl_0|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_j3p1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:tag2_rtl_0|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_j3p1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:tag3_rtl_0|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_j3p1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 191.0,
+      "dsp": 0.0,
+      "entity": "|fes_i386_tlb_80fc5e86:itlb|",
+      "level": 4,
+      "m10k": 0.0,
+      "own_alms": 191.0,
+      "registers": 308.0
+    },
+    {
+      "alms": 936.9,
+      "dsp": 4.0,
+      "entity": "|fes_i386_muldiv:muldiv|",
+      "level": 3,
+      "m10k": 0.0,
+      "own_alms": 936.9,
+      "registers": 608.0
+    },
+    {
+      "alms": 202.9,
+      "dsp": 0.0,
+      "entity": "|fes_i386_seq:seq|",
+      "level": 3,
+      "m10k": 0.0,
+      "own_alms": 202.9,
+      "registers": 0.0
+    },
+    {
+      "alms": 2.7,
+      "dsp": 0.0,
+      "entity": "|fes_i386_shflags:shflags|",
+      "level": 3,
+      "m10k": 0.0,
+      "own_alms": 2.7,
+      "registers": 0.0
+    },
+    {
+      "alms": 787.3,
+      "dsp": 0.0,
+      "entity": "|fes_i386_tlb_53ca608a:dtlb|",
+      "level": 3,
+      "m10k": 0.0,
+      "own_alms": 787.3,
+      "registers": 920.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|fes_i386_ucode_rom:ucode|",
+      "level": 3,
+      "m10k": 7.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:rom_rtl_0|",
+      "level": 4,
+      "m10k": 7.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_jmd1:auto_generated|",
+      "level": 5,
+      "m10k": 7.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 1310.9,
+      "dsp": 1.0,
+      "entity": "|pc386_audio_20d72f0e:audio|",
+      "level": 2,
+      "m10k": 9.0,
+      "own_alms": 6.0,
+      "registers": 1136.0
+    },
+    {
+      "alms": 144.8,
+      "dsp": 0.0,
+      "entity": "|pc386_mixer:mixer|",
+      "level": 3,
+      "m10k": 0.0,
+      "own_alms": 144.8,
+      "registers": 211.0
+    },
+    {
+      "alms": 863.6,
+      "dsp": 1.0,
+      "entity": "|pc386_opl2_b4ffe380:opl2|",
+      "level": 3,
+      "m10k": 9.0,
+      "own_alms": 45.5,
+      "registers": 652.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:queue_rtl_0|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_2gi1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 803.1,
+      "dsp": 1.0,
+      "entity": "|channels:opl2|",
+      "level": 4,
+      "m10k": 8.0,
+      "own_alms": 96.6,
+      "registers": 548.0
+    },
+    {
+      "alms": 700.3,
+      "dsp": 1.0,
+      "entity": "|control_operators:control_operators|",
+      "level": 5,
+      "m10k": 7.0,
+      "own_alms": 37.8,
+      "registers": 413.0
+    },
+    {
+      "alms": 10.0,
+      "dsp": 0.0,
+      "entity": "|mem_single_bank_11e5f008:am_vib_egt_ksr_mult_mem|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 10.0,
+      "dsp": 0.0,
+      "entity": "|mem_simple_dual_port_async_read_6718248f:genblk1_mem_bank|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 10.0,
+      "dsp": 0.0,
+      "entity": "|mem_single_bank_11e5f008:ar_dr_mem|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 10.0,
+      "dsp": 0.0,
+      "entity": "|mem_simple_dual_port_async_read_6718248f:genblk1_mem_bank|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 10.0,
+      "dsp": 0.0,
+      "entity": "|mem_single_bank_11e5f008:sl_rr_mem|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 10.0,
+      "dsp": 0.0,
+      "entity": "|mem_simple_dual_port_async_read_6718248f:genblk1_mem_bank|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 10.0,
+      "dsp": 0.0,
+      "entity": "|mem_single_bank_47e47f05:block_fnum_high_mem|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 10.0,
+      "dsp": 0.0,
+      "entity": "|mem_simple_dual_port_async_read_2c72291e:genblk1_mem_bank|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|mem_single_bank_547b2a0d:fb_cnt_mem|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|mem_simple_dual_port_72e21094:genblk1_mem_bank|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|mem_single_bank_88e5e565:ksl_tl_mem|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|mem_simple_dual_port_async_read_3426f956:genblk1_mem_bank|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 10.0,
+      "dsp": 0.0,
+      "entity": "|mem_single_bank_a537f86f:fnum_low_mem|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 10.0,
+      "dsp": 0.0,
+      "entity": "|mem_simple_dual_port_async_read_52608c27:genblk1_mem_bank|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|mem_single_bank_c53e9fc3:ws_mem|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|mem_simple_dual_port_async_read_3ae0559b:genblk1_mem_bank|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 9.9,
+      "dsp": 0.0,
+      "entity": "|mem_single_bank_reset_638dee50:kon_mem|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 3.6,
+      "registers": 17.0
+    },
+    {
+      "alms": 6.3,
+      "dsp": 0.0,
+      "entity": "|mem_single_bank_825654e6:mem_single_bank|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 9.0
+    },
+    {
+      "alms": 601.0,
+      "dsp": 1.0,
+      "entity": "|operator:operator|",
+      "level": 6,
+      "m10k": 4.0,
+      "own_alms": 25.4,
+      "registers": 345.0
+    },
+    {
+      "alms": 40.2,
+      "dsp": 1.0,
+      "entity": "|calc_phase_inc:calc_phase_inc|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 29.2,
+      "registers": 13.0
+    },
+    {
+      "alms": 125.3,
+      "dsp": 0.0,
+      "entity": "|envelope_generator:envelope_generator|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 42.0,
+      "registers": 142.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|mem_single_bank_8cb157ec:feedback_mem|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 398.4,
+      "dsp": 0.0,
+      "entity": "|phase_generator:phase_generator|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 49.3,
+      "registers": 167.0
+    },
+    {
+      "alms": 6.7,
+      "dsp": 0.0,
+      "entity": "|pipeline_sr_0792281d:feedback_sr|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 8.0
+    },
+    {
+      "alms": 5.0,
+      "dsp": 0.0,
+      "entity": "|pipeline_sr_18d6c79e:op_num_sr|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 5.0,
+      "registers": 15.0
+    },
+    {
+      "alms": 1.6,
+      "dsp": 0.0,
+      "entity": "|pipeline_sr_aada311d:sample_clk_en_sr|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 1.6,
+      "registers": 6.0
+    },
+    {
+      "alms": null,
+      "dsp": 0.0,
+      "entity": "|dac_prep:dac_prep|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": null,
+      "registers": 17.0
+    },
+    {
+      "alms": 6.8,
+      "dsp": 0.0,
+      "entity": "|mem_single_bank_825654e6:cnt_mem|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 9.0
+    },
+    {
+      "alms": 6.8,
+      "dsp": 0.0,
+      "entity": "|mem_simple_dual_port_async_read_5921cc08:genblk1_mem_bank|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 6.8,
+      "registers": 9.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|mem_single_bank_e875a63b:operator_out_mem|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|mem_simple_dual_port_292b151a:genblk1_mem_bank|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:ram_rtl_0|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 15.0,
+      "dsp": 0.0,
+      "entity": "|pc386_rate_ba715ee5:sample_rate|",
+      "level": 4,
+      "m10k": 0.0,
+      "own_alms": 15.0,
+      "registers": 22.0
+    },
+    {
+      "alms": 7.0,
+      "dsp": 0.0,
+      "entity": "|pc386_rate_a845f499:us_rate|",
+      "level": 3,
+      "m10k": 0.0,
+      "own_alms": 7.0,
+      "registers": 12.0
+    },
+    {
+      "alms": 289.5,
+      "dsp": 0.0,
+      "entity": "|pc386_sb_b1059b86:dsp|",
+      "level": 3,
+      "m10k": 0.0,
+      "own_alms": 289.5,
+      "registers": 244.0
+    },
+    {
+      "alms": 191.2,
+      "dsp": 0.0,
+      "entity": "|pc386_disk:disk|",
+      "level": 2,
+      "m10k": 0.0,
+      "own_alms": 191.2,
+      "registers": 102.0
+    },
+    {
+      "alms": 8412.7,
+      "dsp": 23.0,
+      "entity": "|pc386_machine_3c3a9503:machine|",
+      "level": 2,
+      "m10k": 49.0,
+      "own_alms": 5.0,
+      "registers": 8695.0
+    },
+    {
+      "alms": 520.8,
+      "dsp": 3.0,
+      "entity": "|fes_display_plane_719059ad:display|",
+      "level": 3,
+      "m10k": 4.0,
+      "own_alms": 130.9,
+      "registers": 1051.0
+    },
+    {
+      "alms": 11.0,
+      "dsp": 0.0,
+      "entity": "|fes_display_cdc:crossing|",
+      "level": 4,
+      "m10k": 0.0,
+      "own_alms": 11.0,
+      "registers": 105.0
+    },
+    {
+      "alms": 118.7,
+      "dsp": 0.0,
+      "entity": "|fes_menu_control_ad97a4cb:control|",
+      "level": 4,
+      "m10k": 0.0,
+      "own_alms": 118.7,
+      "registers": 174.0
+    },
+    {
+      "alms": 260.2,
+      "dsp": 0.0,
+      "entity": "|fes_menu_video_547ed3fa:scanout|",
+      "level": 4,
+      "m10k": 4.0,
+      "own_alms": 115.9,
+      "registers": 573.0
+    },
+    {
+      "alms": 144.3,
+      "dsp": 0.0,
+      "entity": "|fes_menu_reader_a5075596:reader|",
+      "level": 5,
+      "m10k": 4.0,
+      "own_alms": 144.3,
+      "registers": 382.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:fifo_rtl_0|",
+      "level": 6,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_57p1:auto_generated|",
+      "level": 7,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 5040.6,
+      "dsp": 9.0,
+      "entity": "|pc386_at_core_8941e9a8:at|",
+      "level": 3,
+      "m10k": 11.0,
+      "own_alms": 190.5,
+      "registers": 4377.0
+    },
+    {
+      "alms": 411.3,
+      "dsp": 0.0,
+      "entity": "|KF8253_4f613213:pit|",
+      "level": 4,
+      "m10k": 0.0,
+      "own_alms": 14.7,
+      "registers": 492.0
+    },
+    {
+      "alms": 7.1,
+      "dsp": 0.0,
+      "entity": "|KF8253_Control_Logic:u_KF8253_Control_Logic|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 7.1,
+      "registers": 19.0
+    },
+    {
+      "alms": 125.4,
+      "dsp": 0.0,
+      "entity": "|KF8253_Counter_f08f5d8d:u_KF8253_Counter_0|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 125.4,
+      "registers": 157.0
+    },
+    {
+      "alms": 125.5,
+      "dsp": 0.0,
+      "entity": "|KF8253_Counter_f08f5d8d:u_KF8253_Counter_1|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 125.5,
+      "registers": 158.0
+    },
+    {
+      "alms": 138.7,
+      "dsp": 0.0,
+      "entity": "|KF8253_Counter_f08f5d8d:u_KF8253_Counter_2|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 138.7,
+      "registers": 158.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:pages_rtl_0|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_egi1:auto_generated|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 389.2,
+      "dsp": 0.0,
+      "entity": "|fes_dma8237_4f87cbb7:dma1|",
+      "level": 4,
+      "m10k": 0.0,
+      "own_alms": 389.2,
+      "registers": 396.0
+    },
+    {
+      "alms": 366.7,
+      "dsp": 0.0,
+      "entity": "|fes_dma8237_d3a03515:dma2|",
+      "level": 4,
+      "m10k": 0.0,
+      "own_alms": 366.7,
+      "registers": 325.0
+    },
+    {
+      "alms": 644.1,
+      "dsp": 6.0,
+      "entity": "|pc386_ata_64194de9:ata|",
+      "level": 4,
+      "m10k": 3.0,
+      "own_alms": 644.1,
+      "registers": 527.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pc386_ram_02b88973:buffer|",
+      "level": 5,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory_rtl_0|",
+      "level": 6,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_t3p1:auto_generated|",
+      "level": 7,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pc386_ram_16269cba:dirty|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory_rtl_0|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_n3p1:auto_generated|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 703.3,
+      "dsp": 2.0,
+      "entity": "|pc386_fdc_a963729d:fdc|",
+      "level": 4,
+      "m10k": 2.0,
+      "own_alms": 703.3,
+      "registers": 523.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pc386_ram_68da4e88:buffer|",
+      "level": 5,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory_rtl_0|",
+      "level": 6,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_p0p1:auto_generated|",
+      "level": 7,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 194.8,
+      "dsp": 0.0,
+      "entity": "|pc386_io_916df493:decoder|",
+      "level": 4,
+      "m10k": 0.0,
+      "own_alms": 194.8,
+      "registers": 203.0
+    },
+    {
+      "alms": 1326.6,
+      "dsp": 1.0,
+      "entity": "|pc386_kbc_79875198:kbc|",
+      "level": 4,
+      "m10k": 3.0,
+      "own_alms": 309.5,
+      "registers": 1298.0
+    },
+    {
+      "alms": 406.7,
+      "dsp": 1.0,
+      "entity": "|pc386_hid_keyboard:host_keyboard|",
+      "level": 5,
+      "m10k": 3.0,
+      "own_alms": 406.7,
+      "registers": 308.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:flight_table_rtl_0|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_dto1:auto_generated|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:queued_table_rtl_0|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_h0p1:auto_generated|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:stable_table_rtl_0|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_h0p1:auto_generated|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 205.0,
+      "dsp": 0.0,
+      "entity": "|pc386_ps2_keyboard_ca10390f:keyboard|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 72.5,
+      "registers": 374.0
+    },
+    {
+      "alms": 132.5,
+      "dsp": 0.0,
+      "entity": "|pc386_ps2_fifo:fifo|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 132.5,
+      "registers": 322.0
+    },
+    {
+      "alms": 405.4,
+      "dsp": 0.0,
+      "entity": "|pc386_ps2_mouse_17e66641:mouse|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 335.4,
+      "registers": 292.0
+    },
+    {
+      "alms": 70.0,
+      "dsp": 0.0,
+      "entity": "|pc386_ps2_fifo:fifo|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 70.0,
+      "registers": 144.0
+    },
+    {
+      "alms": 270.2,
+      "dsp": 0.0,
+      "entity": "|pc386_pic:pic|",
+      "level": 4,
+      "m10k": 0.0,
+      "own_alms": 30.9,
+      "registers": 231.0
+    },
+    {
+      "alms": 146.7,
+      "dsp": 0.0,
+      "entity": "|KF8259:master|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 5.6,
+      "registers": 130.0
+    },
+    {
+      "alms": 5.3,
+      "dsp": 0.0,
+      "entity": "|KF8259_Bus_Control_Logic:u_Bus_Control_Logic|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 5.3,
+      "registers": 12.0
+    },
+    {
+      "alms": 51.4,
+      "dsp": 0.0,
+      "entity": "|KF8259_Control_Logic:u_Control_Logic|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 51.4,
+      "registers": 82.0
+    },
+    {
+      "alms": 33.1,
+      "dsp": 0.0,
+      "entity": "|KF8259_In_Service:u_In_Service|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 33.1,
+      "registers": 19.0
+    },
+    {
+      "alms": 10.6,
+      "dsp": 0.0,
+      "entity": "|KF8259_Interrupt_Request:u_Interrupt_Request|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 10.6,
+      "registers": 17.0
+    },
+    {
+      "alms": 40.2,
+      "dsp": 0.0,
+      "entity": "|KF8259_Priority_Resolver:u_Priority_Resolver|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 40.2,
+      "registers": 0.0
+    },
+    {
+      "alms": 92.6,
+      "dsp": 0.0,
+      "entity": "|KF8259:slave|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 101.0
+    },
+    {
+      "alms": 5.7,
+      "dsp": 0.0,
+      "entity": "|KF8259_Bus_Control_Logic:u_Bus_Control_Logic|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 5.7,
+      "registers": 11.0
+    },
+    {
+      "alms": 46.6,
+      "dsp": 0.0,
+      "entity": "|KF8259_Control_Logic:u_Control_Logic|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 46.6,
+      "registers": 74.0
+    },
+    {
+      "alms": 16.0,
+      "dsp": 0.0,
+      "entity": "|KF8259_In_Service:u_In_Service|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 16.0,
+      "registers": 8.0
+    },
+    {
+      "alms": 6.6,
+      "dsp": 0.0,
+      "entity": "|KF8259_Interrupt_Request:u_Interrupt_Request|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 6.6,
+      "registers": 8.0
+    },
+    {
+      "alms": 17.7,
+      "dsp": 0.0,
+      "entity": "|KF8259_Priority_Resolver:u_Priority_Resolver|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 17.7,
+      "registers": 0.0
+    },
+    {
+      "alms": 10.0,
+      "dsp": 0.0,
+      "entity": "|pc386_rate_4ef29cd0:pit_rate|",
+      "level": 4,
+      "m10k": 0.0,
+      "own_alms": 10.0,
+      "registers": 16.0
+    },
+    {
+      "alms": 9.5,
+      "dsp": 0.0,
+      "entity": "|pc386_rate_5c14f812:dma_rate|",
+      "level": 4,
+      "m10k": 0.0,
+      "own_alms": 9.5,
+      "registers": 15.0
+    },
+    {
+      "alms": 516.1,
+      "dsp": 0.0,
+      "entity": "|pc386_rtc_592d8ebd:rtc|",
+      "level": 4,
+      "m10k": 2.0,
+      "own_alms": 365.1,
+      "registers": 237.0
+    },
+    {
+      "alms": 19.2,
+      "dsp": 0.0,
+      "entity": "|lpm_divide:Mod0|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 19.2,
+      "dsp": 0.0,
+      "entity": "|lpm_divide_72m:auto_generated|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 19.2,
+      "dsp": 0.0,
+      "entity": "|sign_div_unsign_akh:divider|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 12.0,
+      "dsp": 0.0,
+      "entity": "|lpm_divide:Mod1|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 12.0,
+      "dsp": 0.0,
+      "entity": "|lpm_divide_62m:auto_generated|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 12.0,
+      "dsp": 0.0,
+      "entity": "|sign_div_unsign_9kh:divider|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 6.7,
+      "dsp": 0.0,
+      "entity": "|lpm_divide:Mod10|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 6.7,
+      "dsp": 0.0,
+      "entity": "|lpm_divide_52m:auto_generated|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 6.7,
+      "dsp": 0.0,
+      "entity": "|sign_div_unsign_8kh:divider|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 2.5,
+      "dsp": 0.0,
+      "entity": "|lpm_divide:Mod11|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 2.5,
+      "dsp": 0.0,
+      "entity": "|lpm_divide_42m:auto_generated|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 2.5,
+      "dsp": 0.0,
+      "entity": "|sign_div_unsign_7kh:divider|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 16.3,
+      "dsp": 0.0,
+      "entity": "|lpm_divide:Mod12|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 16.3,
+      "dsp": 0.0,
+      "entity": "|lpm_divide_72m:auto_generated|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 16.3,
+      "dsp": 0.0,
+      "entity": "|sign_div_unsign_akh:divider|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 13.0,
+      "dsp": 0.0,
+      "entity": "|lpm_divide:Mod2|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 13.0,
+      "dsp": 0.0,
+      "entity": "|lpm_divide_62m:auto_generated|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 13.0,
+      "dsp": 0.0,
+      "entity": "|sign_div_unsign_9kh:divider|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 7.5,
+      "dsp": 0.0,
+      "entity": "|lpm_divide:Mod3|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 7.5,
+      "dsp": 0.0,
+      "entity": "|lpm_divide_52m:auto_generated|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 7.5,
+      "dsp": 0.0,
+      "entity": "|sign_div_unsign_8kh:divider|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 7.3,
+      "dsp": 0.0,
+      "entity": "|lpm_divide:Mod4|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 7.3,
+      "dsp": 0.0,
+      "entity": "|lpm_divide_52m:auto_generated|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 7.3,
+      "dsp": 0.0,
+      "entity": "|sign_div_unsign_8kh:divider|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 12.5,
+      "dsp": 0.0,
+      "entity": "|lpm_divide:Mod5|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 12.5,
+      "dsp": 0.0,
+      "entity": "|lpm_divide_62m:auto_generated|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 12.5,
+      "dsp": 0.0,
+      "entity": "|sign_div_unsign_9kh:divider|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 13.2,
+      "dsp": 0.0,
+      "entity": "|lpm_divide:Mod6|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 13.2,
+      "dsp": 0.0,
+      "entity": "|lpm_divide_62m:auto_generated|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 13.2,
+      "dsp": 0.0,
+      "entity": "|sign_div_unsign_9kh:divider|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 8.5,
+      "dsp": 0.0,
+      "entity": "|lpm_divide:Mod7|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 8.5,
+      "dsp": 0.0,
+      "entity": "|lpm_divide_52m:auto_generated|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 8.5,
+      "dsp": 0.0,
+      "entity": "|sign_div_unsign_8kh:divider|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 8.5,
+      "dsp": 0.0,
+      "entity": "|lpm_divide:Mod8|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 8.5,
+      "dsp": 0.0,
+      "entity": "|lpm_divide_52m:auto_generated|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 8.5,
+      "dsp": 0.0,
+      "entity": "|sign_div_unsign_8kh:divider|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 2.2,
+      "dsp": 0.0,
+      "entity": "|lpm_divide:Mod9|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 2.2,
+      "dsp": 0.0,
+      "entity": "|lpm_divide_32m:auto_generated|",
+      "level": 6,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 2.2,
+      "dsp": 0.0,
+      "entity": "|sign_div_unsign_7kh:divider|",
+      "level": 7,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.8,
+      "dsp": 0.0,
+      "entity": "|pc386_ram_3abc11da:ram|",
+      "level": 5,
+      "m10k": 2.0,
+      "own_alms": 0.8,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory[0][15]__34|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_ctp1:auto_generated|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory[0][7]__35|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_ctp1:auto_generated|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 13.5,
+      "dsp": 0.0,
+      "entity": "|pc386_rate_2072acad:rtc_rate|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 13.5,
+      "registers": 12.0
+    },
+    {
+      "alms": 8.2,
+      "dsp": 0.0,
+      "entity": "|pc386_sysctl:sysctl|",
+      "level": 4,
+      "m10k": 0.0,
+      "own_alms": 8.2,
+      "registers": 18.0
+    },
+    {
+      "alms": 113.5,
+      "dsp": 0.0,
+      "entity": "|pc386_ems:ems|",
+      "level": 3,
+      "m10k": 0.0,
+      "own_alms": 113.5,
+      "registers": 145.0
+    },
+    {
+      "alms": 84.8,
+      "dsp": 0.0,
+      "entity": "|pc386_plane_bridge:bridge|",
+      "level": 3,
+      "m10k": 5.0,
+      "own_alms": 57.9,
+      "registers": 343.0
+    },
+    {
+      "alms": 14.8,
+      "dsp": 0.0,
+      "entity": "|pc386_async_fifo_ba8d1b4f:responses|",
+      "level": 4,
+      "m10k": 4.0,
+      "own_alms": 14.8,
+      "registers": 27.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pc386_dcram_e91325b7:storage|",
+      "level": 5,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory_rtl_0|",
+      "level": 6,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_n6l1:auto_generated|",
+      "level": 7,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 12.1,
+      "dsp": 0.0,
+      "entity": "|pc386_async_fifo_e19cd090:commands|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 12.1,
+      "registers": 25.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pc386_dcram_c55cd9d8:storage|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory_rtl_0|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_d0l1:auto_generated|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 237.6,
+      "dsp": 0.0,
+      "entity": "|pc386_port2:port2|",
+      "level": 3,
+      "m10k": 1.0,
+      "own_alms": 227.9,
+      "registers": 43.0
+    },
+    {
+      "alms": 9.0,
+      "dsp": 0.0,
+      "entity": "|pc386_fifo_04f2e584:owners|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 9.0,
+      "registers": 17.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pc386_ram_b0aa064f:storage|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory_rtl_0|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_rsr1:auto_generated|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 548.9,
+      "dsp": 11.0,
+      "entity": "|pc386_presenter:presenter|",
+      "level": 3,
+      "m10k": 8.0,
+      "own_alms": 548.9,
+      "registers": 866.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pc386_dcram_f1d76380:even_rows|",
+      "level": 4,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory_rtl_0|",
+      "level": 5,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_dcl1:auto_generated|",
+      "level": 6,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pc386_dcram_f1d76380:odd_rows|",
+      "level": 4,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory_rtl_0|",
+      "level": 5,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_dcl1:auto_generated|",
+      "level": 6,
+      "m10k": 4.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 1860.7,
+      "dsp": 0.0,
+      "entity": "|pc386_vga_e53db49a:vga|",
+      "level": 3,
+      "m10k": 20.0,
+      "own_alms": 1221.8,
+      "registers": 1866.0
+    },
+    {
+      "alms": 12.0,
+      "dsp": 0.0,
+      "entity": "|pc386_fifo_8ae6e7e0:fifo|",
+      "level": 4,
+      "m10k": 2.0,
+      "own_alms": 12.0,
+      "registers": 19.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pc386_ram_5a4d85f7:storage|",
+      "level": 5,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory_rtl_0|",
+      "level": 6,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_5tr1:auto_generated|",
+      "level": 7,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 9.7,
+      "dsp": 0.0,
+      "entity": "|pc386_fifo_e7635b76:owners|",
+      "level": 4,
+      "m10k": 1.0,
+      "own_alms": 9.7,
+      "registers": 17.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pc386_ram_26d856a6:storage|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory_rtl_0|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_vpr1:auto_generated|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 2.7,
+      "dsp": 0.0,
+      "entity": "|pc386_ram_46bb83b3:line_data|",
+      "level": 4,
+      "m10k": 8.0,
+      "own_alms": 2.7,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory[0][15]__42|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_2tp1:auto_generated|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory[0][23]__41|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_2tp1:auto_generated|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory[0][31]__40|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_2tp1:auto_generated|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory[0][39]__39|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_2tp1:auto_generated|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory[0][47]__38|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_2tp1:auto_generated|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory[0][55]__37|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_2tp1:auto_generated|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory[0][63]__36|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_2tp1:auto_generated|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory[0][7]__43|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_2tp1:auto_generated|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 612.8,
+      "dsp": 0.0,
+      "entity": "|pc386_vga_scanout_8671dee4:scanout|",
+      "level": 4,
+      "m10k": 9.0,
+      "own_alms": 543.2,
+      "registers": 734.0
+    },
+    {
+      "alms": 9.5,
+      "dsp": 0.0,
+      "entity": "|pc386_fifo_07b44b26:font_queue|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 9.5,
+      "registers": 16.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pc386_ram_9f3daeed:storage|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory_rtl_0|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 18.9,
+      "dsp": 0.0,
+      "entity": "|pc386_fifo_43562a2b:beats|",
+      "level": 5,
+      "m10k": 2.0,
+      "own_alms": 18.9,
+      "registers": 25.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pc386_ram_02b88973:storage|",
+      "level": 6,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory_rtl_0|",
+      "level": 7,
+      "m10k": 2.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 11.2,
+      "dsp": 0.0,
+      "entity": "|pc386_fifo_a61d22bf:tags|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 11.2,
+      "registers": 18.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pc386_ram_00457b83:storage|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory_rtl_0|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 8.9,
+      "dsp": 0.0,
+      "entity": "|pc386_fifo_daa41f59:descriptors|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 8.9,
+      "registers": 16.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pc386_ram_fd05b700:storage|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory_rtl_0|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pc386_ram_399ebd35:words|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory_rtl_0|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_p3p1:auto_generated|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pc386_ram_4e50215d:fonts|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory_rtl_0|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_v0p1:auto_generated|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pc386_ram_66e69115:dac_copy|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory_rtl_0|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_14p1:auto_generated|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pc386_ram_66e69115:dac_scan|",
+      "level": 5,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:memory_rtl_0|",
+      "level": 6,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_14p1:auto_generated|",
+      "level": 7,
+      "m10k": 1.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 9.5,
+      "dsp": 0.0,
+      "entity": "|pc386_rate_00b784b1:rate0|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 9.5,
+      "registers": 16.0
+    },
+    {
+      "alms": 10.7,
+      "dsp": 0.0,
+      "entity": "|pc386_rate_a14e6870:rate1|",
+      "level": 5,
+      "m10k": 0.0,
+      "own_alms": 10.7,
+      "registers": 17.0
+    },
+    {
+      "alms": 7.5,
+      "dsp": 0.0,
+      "entity": "|pc386_rate_9777e97a:audio_rate|",
+      "level": 2,
+      "m10k": 0.0,
+      "own_alms": 7.5,
+      "registers": 12.0
+    },
+    {
+      "alms": 67.2,
+      "dsp": 0.0,
+      "entity": "|pc386_rom_d92004f8:rom|",
+      "level": 2,
+      "m10k": 128.0,
+      "own_alms": 67.2,
+      "registers": 34.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram:contents_rtl_0|",
+      "level": 3,
+      "m10k": 128.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altsyncram_kbf1:auto_generated|",
+      "level": 4,
+      "m10k": 128.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 2.9,
+      "dsp": 0.0,
+      "entity": "|pc386_snapshot_f78f4d5b:pixel_counts|",
+      "level": 2,
+      "m10k": 0.0,
+      "own_alms": 2.9,
+      "registers": 198.0
+    },
+    {
+      "alms": 104.5,
+      "dsp": 0.0,
+      "entity": "|pc386_status:status_ring|",
+      "level": 2,
+      "m10k": 0.0,
+      "own_alms": 104.5,
+      "registers": 564.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pc386_system_pll:system_clock|",
+      "level": 1,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altera_pll:pll|",
+      "level": 2,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|pixel_pll:video_clock|",
+      "level": 1,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    },
+    {
+      "alms": 0.0,
+      "dsp": 0.0,
+      "entity": "|altera_pll:pll|",
+      "level": 2,
+      "m10k": 0.0,
+      "own_alms": 0.0,
+      "registers": 0.0
+    }
+  ],
+  "flow": "build_fes_pc386_quartus.write_project, quartus_sh --flow compile",
+  "hierarchy": true,
+  "host": "powerboat",
+  "netlist_sha256": "ede936e034395d6c89e744eafd17707ea860f91fc376cabef0419ddd1ee2536a",
+  "paths": {
+    "worst": [
+      {
+        "cells": [
+          "system|cpu|frontend|align|acc[7]|q",
+          "system|cpu|frontend|align|Mux8~0|combout",
+          "system|cpu|frontend|align|Mux8~4|combout",
+          "system|cpu|frontend|align|Mux8~20|combout",
+          "system|cpu|frontend|align|Mux8~42|combout",
+          "system|cpu|frontend|align|Mult1~mac|resulta[3]",
+          "system|cpu|frontend|align|Add11~1|combout",
+          "system|cpu|frontend|align|Mux76~10|combout",
+          "system|cpu|frontend|align|Mux76~11|combout",
+          "pc386_system:system|fes_i386_cpu_8fd8ee64:cpu|fes_i386_frontend:frontend|fes_i386_qalign:align|q[134]"
+        ],
+        "data_delay_ns": 14.704,
+        "from": "pc386_system:system|fes_i386_cpu_8fd8ee64:cpu|fes_i386_frontend:frontend|fes_i386_qalign:align|acc[7]",
+        "logic_levels": 8,
+        "slack_ns": 0.888,
+        "to": "pc386_system:system|fes_i386_cpu_8fd8ee64:cpu|fes_i386_frontend:frontend|fes_i386_qalign:align|q[134]"
+      },
+      {
+        "cells": [
+          "system|cpu|frontend|align|acc[7]|q",
+          "system|cpu|frontend|align|Mux8~0|combout",
+          "system|cpu|frontend|align|Mux8~4|combout",
+          "system|cpu|frontend|align|Mux8~20|combout",
+          "system|cpu|frontend|align|Mux8~42|combout",
+          "system|cpu|frontend|align|Mult1~mac|resulta[0]",
+          "system|cpu|frontend|align|Mux73~24|combout",
+          "system|cpu|frontend|align|Mux73~26|combout",
+          "system|cpu|frontend|align|Mux73~42|combout",
+          "system|cpu|frontend|align|start~1|combout",
+          "pc386_system:system|fes_i386_cpu_8fd8ee64:cpu|fes_i386_frontend:frontend|fes_i386_qalign:align|start[3]~_Duplicate_1DUPLICATE"
+        ],
+        "data_delay_ns": 14.674,
+        "from": "pc386_system:system|fes_i386_cpu_8fd8ee64:cpu|fes_i386_frontend:frontend|fes_i386_qalign:align|acc[7]",
+        "logic_levels": 9,
+        "slack_ns": 0.922,
+        "to": "pc386_system:system|fes_i386_cpu_8fd8ee64:cpu|fes_i386_frontend:frontend|fes_i386_qalign:align|start[3]~_Duplicate_1DUPLICATE"
+      },
+      {
+        "cells": [
+          "system|cpu|frontend|align|acc[7]|q",
+          "system|cpu|frontend|align|Mux8~0|combout",
+          "system|cpu|frontend|align|Mux8~4|combout",
+          "system|cpu|frontend|align|Mux8~20|combout",
+          "system|cpu|frontend|align|Mux8~42|combout",
+          "system|cpu|frontend|align|Mult1~mac|resulta[0]",
+          "system|cpu|frontend|align|Mux73~24|combout",
+          "system|cpu|frontend|align|Mux73~26|combout",
+          "system|cpu|frontend|align|Mux73~42|combout",
+          "system|cpu|frontend|align|start~1|combout",
+          "pc386_system:system|fes_i386_cpu_8fd8ee64:cpu|fes_i386_frontend:frontend|fes_i386_qalign:align|start[3]~_Duplicate_1"
+        ],
+        "data_delay_ns": 14.676,
+        "from": "pc386_system:system|fes_i386_cpu_8fd8ee64:cpu|fes_i386_frontend:frontend|fes_i386_qalign:align|acc[7]",
+        "logic_levels": 9,
+        "slack_ns": 0.927,
+        "to": "pc386_system:system|fes_i386_cpu_8fd8ee64:cpu|fes_i386_frontend:frontend|fes_i386_qalign:align|start[3]~_Duplicate_1"
+      }
+    ]
+  },
+  "quartus": "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition",
+  "resources": {
+    "alms": {
+      "available": 41910,
+      "percent": 87.56,
+      "used": 36697
+    },
+    "block_memory_bits": {
+      "available": 5662720,
+      "used": 1354811
+    },
+    "dsp_blocks": {
+      "available": 112,
+      "used": 40
+    },
+    "ram_blocks": {
+      "available": 553,
+      "used": 282
+    },
+    "registers": {
+      "used": 31983
+    }
+  },
+  "seed": 1,
+  "strap_map_lines": [],
+  "synthesis": {
+    "alm_estimate": 36212,
+    "aluts": 56521,
+    "block_memory_bits": 1354811,
+    "dsp_blocks": 40,
+    "registers": 29317
+  },
+  "timing_failure": null
+}

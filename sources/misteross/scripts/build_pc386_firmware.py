@@ -20,7 +20,10 @@ Example:
 Outputs build/firmware/pc386/pc386-bios.bin (64 KiB, mapped at F0000) and
 pc386-vgabios.bin (32 KiB, mapped at C0000), and pc386-rom.hex, the two as
 the M10K contents pc386_rom.sv reads: 6144 lines of 128 bits, the VGA BIOS
-(padded with FFh) then the system BIOS, byte 0 in bits 7:0.
+(padded with FFh) then the system BIOS, byte 0 in bits 7:0. firmware.lock
+pins the ROM hex's SHA-256 too ("rom_hex"), and nothing writes a ROM hex
+that differs from it. The pc386 seal runs this script as its own process and
+checks the file it wrote against that pin (#1984 S1).
 """
 from __future__ import annotations
 
@@ -60,6 +63,7 @@ IMAGES = {
     'vgabios': {'file': 'pc386-vgabios.bin', 'bytes': 0x8000},
 }
 ROM_HEX = BUILD / 'pc386-rom.hex'
+ROM_HEX_FILE = ROM_HEX.name
 ROM_BEAT = 16
 
 
@@ -67,15 +71,47 @@ class FirmwareError(RuntimeError):
     pass
 
 
+FAILURE_TAIL = 30
+FAILURE_CONTEXT = 3
+FAILURE_MARKERS = ('***', 'Error', 'error:')
+
+
+def _failure_report(lines):
+    """The lines of a failed command's output worth printing.
+
+    A parallel make reports the failing compile wherever it lands, usually well
+    before the end, so the tail alone shows other jobs finishing.  This keeps
+    every line naming an error, with a little context, as well as the tail.
+    """
+    if len(lines) <= FAILURE_TAIL:
+        return lines
+    keep = set(range(len(lines) - FAILURE_TAIL, len(lines)))
+    for index, line in enumerate(lines):
+        if any(marker in line for marker in FAILURE_MARKERS):
+            keep.update(range(max(0, index - FAILURE_CONTEXT),
+                              min(len(lines), index + FAILURE_CONTEXT + 1)))
+    report, previous = [], -1
+    for index in sorted(keep):
+        if index != previous + 1:
+            report.append(f'[... {index - previous - 1} lines omitted ...]')
+        report.append(lines[index])
+        previous = index
+    return report
+
+
 def _run(command, cwd, log, env=None, stdout=None):
     with log.open('a') as destination:
         destination.write('$ ' + ' '.join(map(str, command)) + '\n')
         destination.flush()
+        start = destination.tell()
         result = subprocess.run(command, cwd=cwd, env=env, stdout=stdout or destination,
                                 stderr=destination)
     if result.returncode:
-        tail = log.read_text().splitlines()[-30:]
-        raise FirmwareError(f'{command[0]} failed in {cwd}; see {log}\n' + '\n'.join(tail))
+        with log.open(errors='replace') as source:
+            source.seek(start)
+            output = source.read().splitlines()
+        raise FirmwareError(f'{command[0]} failed in {cwd}; see {log}\n'
+                            + '\n'.join(_failure_report(output)))
 
 
 def _git(source, *args):
@@ -274,6 +310,8 @@ def build(download: bool = False, jobs: int = 4, update_lock: bool = False) -> d
     shutil.copy2(bios / 'rombios.txt', BUILD / 'pc386-bios.txt')
     shutil.copy2(vga / 'vgabios.txt', BUILD / 'pc386-vgabios.txt')
     if update_lock:
+        lock['rom_hex'] = {'file': ROM_HEX_FILE,
+                           'sha256': hashlib.sha256(rom_hex(outputs).encode()).hexdigest()}
         LOCK.write_text(json.dumps(lock, indent=2) + '\n')
     return outputs
 
@@ -303,8 +341,14 @@ def rom_hex(paths: dict[str, Path]) -> str:
 
 
 def write_rom_hex(paths: dict[str, Path]) -> Path:
-    """Write ROM_HEX from the locked images and return it."""
+    """Write ROM_HEX from the locked images and return it. Its digest must be the
+    one firmware.lock pins: a layout change needs --update-lock."""
     text = rom_hex(paths)
+    pinned = read_lock().get('rom_hex', {})
+    digest = hashlib.sha256(text.encode()).hexdigest()
+    if pinned.get('file') != ROM_HEX_FILE or pinned.get('sha256') != digest:
+        raise FirmwareError(f'ROM hex {digest} does not match firmware.lock; '
+                            'rerun with --update-lock after a deliberate change')
     if not ROM_HEX.is_file() or ROM_HEX.read_text() != text:
         ROM_HEX.write_text(text)
     return ROM_HEX
@@ -319,10 +363,10 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     try:
         outputs = build(args.download, args.jobs, args.update_lock)
+        outputs['rom'] = write_rom_hex(outputs)
     except FirmwareError as error:
         print(f'build_pc386_firmware: {error}', file=sys.stderr)
         return 1
-    outputs['rom'] = write_rom_hex(outputs)
     for name, path in outputs.items():
         print(f'{name}: {path} {hashlib.sha256(path.read_bytes()).hexdigest()}')
     return 0

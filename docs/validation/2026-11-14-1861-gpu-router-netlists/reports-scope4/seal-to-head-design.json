@@ -1,0 +1,516 @@
+{
+  "rows": {
+    "fes.apple2": {
+      "check_level": "reduced",
+      "producer": "scripts/build_fes_apple2_oss.py",
+      "tree_a": {
+        "closure_files": 52,
+        "closure_sha256": "5cca83bec36dd12be1da16ea1d71eff06959de7e8f73053bc6d9222de59c1f73",
+        "design_files": 39,
+        "design_sha256": "f8656e4528057ea33414e88dc4110bc0702bde13113b17f1e1384a4ba9b9e520",
+        "non_design_sha256": "079cbe0d17ef4066c260e51b3aeb59c58b8dab51797c942829bfc89a87fc9511",
+        "role_split": true,
+        "roots": 34
+      },
+      "tree_b": {
+        "closure_files": 52,
+        "closure_sha256": "2a4a7e4ddcb033f6af6449e47dbb0e6cbdb71349ab4083db936fb84903989ff5",
+        "design_files": 39,
+        "design_sha256": "f8656e4528057ea33414e88dc4110bc0702bde13113b17f1e1384a4ba9b9e520",
+        "non_design_sha256": "12361c33cc91b8234b48e3bb376b548b8038ee07affa1af322d9343deaa9f20f",
+        "role_split": true,
+        "roots": 34
+      },
+      "verdict": "design identity unchanged"
+    },
+    "fes.atari-st": {
+      "check_level": "full",
+      "producer": "scripts/build_fes_atari_st_oss.py",
+      "tree_a": {
+        "closure_files": 72,
+        "closure_sha256": "547182bc14fd00b67743e698c75561f3ce3f55eb842de19c8789536c3675ed32",
+        "design_files": 59,
+        "design_sha256": "e3cac02e968902744d4599f9100a137d4903bf7d7daee4cf09f9a28784c1193c",
+        "non_design_sha256": "7ebdc3bad76b4ff65934c0cc475700a970498758ff4f111a390cbfa6d93116f9",
+        "role_split": true,
+        "roots": 46
+      },
+      "tree_b": {
+        "closure_files": 72,
+        "closure_sha256": "2a39ddd6bd68af113fddd025786958ac828e56697296eb2350887d4ed839f31a",
+        "design_files": 59,
+        "design_sha256": "e3cac02e968902744d4599f9100a137d4903bf7d7daee4cf09f9a28784c1193c",
+        "non_design_sha256": "29f4a98a749ab0dc5f9bc5be5ebbf3e9adc30e31deffe6d0014348792b017223",
+        "role_split": true,
+        "roots": 46
+      },
+      "verdict": "design identity unchanged"
+    },
+    "fes.c64": {
+      "check_level": "full",
+      "producer": "scripts/build_fes_c64_oss.py",
+      "tree_a": {
+        "closure_files": 104,
+        "closure_sha256": "fcefa81d56433f26de258fe8e661e79eba186dd5ee54c95fe3bb5fbf98537ba1",
+        "design_files": 90,
+        "design_sha256": "def2fd118c63e5ae63317af9bf9cdfbf62d683df0e152f306de92c832d8acc87",
+        "non_design_sha256": "c2f7e8c08de472758539a9c4a65ee8d870fa444d616669b865a29bea0e05e885",
+        "role_split": true,
+        "roots": 45
+      },
+      "tree_b": {
+        "closure_files": 104,
+        "closure_sha256": "c00423ca54a4778fbee9620c7dfb1e5f70eb964a8970545846a6ab45628e2bb5",
+        "design_files": 90,
+        "design_sha256": "def2fd118c63e5ae63317af9bf9cdfbf62d683df0e152f306de92c832d8acc87",
+        "non_design_sha256": "86a00842463740b65bc1316223007a5cc434eb21e94360104537038cf6092a17",
+        "role_split": true,
+        "roots": 45
+      },
+      "verdict": "design identity unchanged"
+    },
+    "fes.coleco": {
+      "check_level": "reduced",
+      "producer": "scripts/build_fes_coleco_socket_v2.py",
+      "tree_a": {
+        "closure_files": 82,
+        "closure_sha256": "a8d2c860df86b6f3a055d104592a16f797b0f6972db313800fc4344926b34b2f",
+        "design_files": 69,
+        "design_sha256": "eeaf8e6646e98949740a7c590a91feb6299a62675d0d84ca058e62f96f19e333",
+        "non_design_sha256": "871f0a432b65876af21f7f50b3b147cf6e28f538f73cbdfc6b23a9c73f7378b8",
+        "role_split": true,
+        "roots": 57
+      },
+      "tree_b": {
+        "closure_files": 82,
+        "closure_sha256": "86d01567930647ee9b4b1e84b72249219bd7d72304074b703e7c32d9b239214b",
+        "design_files": 69,
+        "design_sha256": "eeaf8e6646e98949740a7c590a91feb6299a62675d0d84ca058e62f96f19e333",
+        "non_design_sha256": "363422d96d4f72329325c56528215281ebe596b7ca006533c428d4ed12b254d0",
+        "role_split": true,
+        "roots": 57
+      },
+      "verdict": "design identity unchanged"
+    },
+    "fes.menu": {
+      "check_level": "full",
+      "producer": "scripts/build_fes_menu_package.py",
+      "tree_a": {
+        "closure_files": 46,
+        "closure_sha256": "6f1dd8b3f6e3d5830f117c88fda48cdf0e059bf9c6d0e4e79d3bdb9af283a02b",
+        "design_files": 33,
+        "design_sha256": "1b303cabe14e32f2b4e1bcf666dacdae8a185e47fdeb3a294de7098058fd1991",
+        "non_design_sha256": "816cae8e820a56c02b4c16cf6bf984db3bc5827c5bb14d83036ca19f3c00f236",
+        "role_split": true,
+        "roots": 32
+      },
+      "tree_b": {
+        "closure_files": 46,
+        "closure_sha256": "02496b47e169a596d7bf66ad102f0706134ff054d47e4d976cb58ae140f4a762",
+        "design_files": 33,
+        "design_sha256": "1b303cabe14e32f2b4e1bcf666dacdae8a185e47fdeb3a294de7098058fd1991",
+        "non_design_sha256": "b5e928a06cd293056f67b8dbe6e17dedbac34dc065629fa0eb117e5399e34803",
+        "role_split": true,
+        "roots": 32
+      },
+      "verdict": "design identity unchanged"
+    },
+    "fes.pc386": {
+      "check_level": "full",
+      "producer": "cores/fes-pc386/tools/build_pc386_product.py",
+      "tree_a": null,
+      "tree_b": null,
+      "verdict": "UNANSWERED: cores/fes-pc386/tools/build_pc386_product.py: closure is an explicit path set built in its own create_build_record, not roots in scripts/source_closures.json"
+    },
+    "fes.pcxt-dos": {
+      "check_level": "full",
+      "producer": "scripts/build_fes_pcxt_quartus.py",
+      "tree_a": {
+        "closure_files": 179,
+        "closure_sha256": "4752abd32405a81024bbbb7446a968284936517a8e25fedb25395bedf402a725",
+        "design_files": 169,
+        "design_sha256": "9007ce704a454abf32eb9fdcf2f4ea7afa9ce21a009b9c8b90fd7b091eb644a3",
+        "non_design_sha256": "b11f3ad918f325add676c6fda609184ebd1de33280199c525f8f75ad51b1e642",
+        "role_split": true,
+        "roots": 38
+      },
+      "tree_b": {
+        "closure_files": 181,
+        "closure_sha256": "67c38f3c04485948b805e62ce4b761c0a30e755b4bd71e391bfd154dcfd565bb",
+        "design_files": 171,
+        "design_sha256": "b6dd2958da132e4a307557cba59637f255d866066e964c9d0123880292a8697c",
+        "non_design_sha256": "d555c39a369e66f3f2ddcebd913b75d4e89e3a8da89e85b6c43705dd44c25eaa",
+        "role_split": true,
+        "roots": 38
+      },
+      "verdict": "MOVED (design identity): cores/fes-pcxt/rtl/fes_pcxt_top.sv, cores/fes-pcxt/rtl/pcxt_memory.sv, cores/fes-pcxt/rtl/pcxt_system.sv, cores/fes-pcxt/sim/bios_top.sv, cores/fes-pcxt/sim/capture_pipeline_tb.cpp, cores/fes-pcxt/sim/capture_pipeline_top.sv, cores/fes-pcxt/sim/media_diag_top.sv, cores/fes-pcxt/sim/media_runtime_top.sv, cores/fes-pcxt/sim/memory_top.sv, cores/fes-pcxt/sim/system_top.sv, scripts/quartus_fes_pcxt.py, scripts/yosys_netlist.py"
+    },
+    "fes.pentagon": {
+      "check_level": "full",
+      "producer": "scripts/build_fes_spectrum_oss.py",
+      "tree_a": {
+        "closure_files": 65,
+        "closure_sha256": "a117875dd93269597b6015805a1089c3985954ea85028f8962a9a9f01854ed4b",
+        "design_files": 52,
+        "design_sha256": "562e7c7eed5066e64476d3a99c84551652ced380124fbee0401d31245400be5e",
+        "non_design_sha256": "b72ee5f4ebe8b7d721fc82d77e25bc4437b00f5ebd5624c9c77c61c03a7bd6ca",
+        "role_split": true,
+        "roots": 48
+      },
+      "tree_b": {
+        "closure_files": 65,
+        "closure_sha256": "5de73c5facaa6251f58450f6b2dc3a127057939fba729cabb0c55c9d38eadaaa",
+        "design_files": 52,
+        "design_sha256": "4a15009a1c14f647b1b72743558566b75c42d59f55144659b5724aade32ace40",
+        "non_design_sha256": "428b38ef60c94ce72827947886c53f1e7669c458dbee05e9705d5ec04db28702",
+        "role_split": true,
+        "roots": 48
+      },
+      "verdict": "MOVED (design identity): scripts/build_fes_spectrum_oss.py"
+    },
+    "fes.pong": {
+      "check_level": "reduced",
+      "producer": "scripts/build_fes_pong.py",
+      "tree_a": {
+        "closure_files": 29,
+        "closure_sha256": "b35ca6b5e55164e10555a8eff5d819cff1290ab1feb66ecee93159f743d458f4",
+        "design_files": 16,
+        "design_sha256": "9be6da5b358c082ee62d250cb9d43a6594128e7a80d0df4488390314e4c9c24c",
+        "non_design_sha256": "775447bf4c9abdabc159de6b2b9f52ac01fb30b38ea3bad1d66ec79bbc5b410f",
+        "role_split": true,
+        "roots": 25
+      },
+      "tree_b": {
+        "closure_files": 29,
+        "closure_sha256": "3b57bd1ddb1cba8c66e157e2e2a7851c7315edbdc9b105fc986ab74004c19306",
+        "design_files": 16,
+        "design_sha256": "9be6da5b358c082ee62d250cb9d43a6594128e7a80d0df4488390314e4c9c24c",
+        "non_design_sha256": "9220977a33a33c20f959777b7b7dd28e85da4c41dedf2d8cc3f6966c949986cf",
+        "role_split": true,
+        "roots": 25
+      },
+      "verdict": "design identity unchanged"
+    },
+    "fes.ramtest": {
+      "check_level": "reduced",
+      "producer": "scripts/build_fes_ramtest.py",
+      "tree_a": {
+        "closure_files": 45,
+        "closure_sha256": "dc55a3af74891bccb951e786b0198e4d9b3289fd17b6f3016690ab7f3ca591c9",
+        "design_files": 32,
+        "design_sha256": "1f47a7e638bd56110a74c2f5a4382fb10b2ce02aeeb2a2ae2ea3311a73bffb4c",
+        "non_design_sha256": "bc5c9c061ebbb366808553eda2ac308184505c67a399c3ee08189fcfeba168cc",
+        "role_split": true,
+        "roots": 30
+      },
+      "tree_b": {
+        "closure_files": 45,
+        "closure_sha256": "1cfe925f328cffec5c6104b7f0febf982147447050d0b6f94fccee27b25a207f",
+        "design_files": 32,
+        "design_sha256": "2bc86004fed5ce7eedf71fe6c080073f9f8e690b99e0c48726ff295585cd99e2",
+        "non_design_sha256": "7a7f0378a333b9b89dee6bf982f95cc9ad2fe0706315dcf6bc65450e7ab2c97b",
+        "role_split": true,
+        "roots": 30
+      },
+      "verdict": "MOVED (design identity): scripts/build_fes_ramtest.py"
+    },
+    "fes.riscv": {
+      "check_level": "reduced",
+      "producer": "scripts/build_fes_riscv.py",
+      "tree_a": {
+        "closure_files": 44,
+        "closure_sha256": "9e67fb8adb6ebc81e6f04765f9c919a9b0307f6183803db46185a7185b90ce55",
+        "design_files": 30,
+        "design_sha256": "8d93bf6d2d39921570a3f7c3b17b471993e8b5ffacfb176fb2aae173011e4671",
+        "non_design_sha256": "0e5fe829c50133f8c7577ba363238809e909e9ffeb6ff48db55924ee73bfaf30",
+        "role_split": true,
+        "roots": 32
+      },
+      "tree_b": {
+        "closure_files": 44,
+        "closure_sha256": "1d3f41d4d9e1ff4cfdb11061bdbb489566453de1e94e50f2bdf4ba8ca8605aa3",
+        "design_files": 30,
+        "design_sha256": "8d93bf6d2d39921570a3f7c3b17b471993e8b5ffacfb176fb2aae173011e4671",
+        "non_design_sha256": "9523dd09790576222f003f318fbbf7eb03d0026d4250d8ea022c242c3ff14314",
+        "role_split": true,
+        "roots": 32
+      },
+      "verdict": "design identity unchanged"
+    },
+    "fes.sg1000": {
+      "check_level": "reduced",
+      "producer": "scripts/build_fes_sg1000_oss.py",
+      "tree_a": {
+        "closure_files": 75,
+        "closure_sha256": "6c0e7dcd19df3430e9ecb01cf8c1382675b69f9e88689fcd287a910565f516e9",
+        "design_files": 62,
+        "design_sha256": "9ffb9731ef91e9aa30ffb6abed8c075b7b71bc8eae676519128a6056e32e4e61",
+        "non_design_sha256": "dc202c45ee4324df3eb014cadf11b2a07ffac7456b5baa9bf08855e4fdb935fb",
+        "role_split": true,
+        "roots": 49
+      },
+      "tree_b": {
+        "closure_files": 75,
+        "closure_sha256": "f28bacc3c60a0ba3b9d37de6f60aea6bbfc54891242cc389c6fc2233d1a53743",
+        "design_files": 62,
+        "design_sha256": "9ffb9731ef91e9aa30ffb6abed8c075b7b71bc8eae676519128a6056e32e4e61",
+        "non_design_sha256": "e1271a4a73b742384b8af964dc5ae7515358bca7b6c9638cdc433ccf63dcd4a5",
+        "role_split": true,
+        "roots": 49
+      },
+      "verdict": "design identity unchanged"
+    },
+    "fes.sms": {
+      "check_level": "reduced",
+      "producer": "scripts/build_fes_sms_oss.py",
+      "tree_a": {
+        "closure_files": 77,
+        "closure_sha256": "0ba98496b3db7dcac20167a07938d165920a965a893207991b9376d3bf68929b",
+        "design_files": 64,
+        "design_sha256": "016d4ff3a14ed51b7066f47f83c2c2d46770ebc0466ab777888de91e514fefe7",
+        "non_design_sha256": "01691bb6b14901e92d76198c1453b2340a4ecc39a5645c4998fa11ad46086b8e",
+        "role_split": true,
+        "roots": 45
+      },
+      "tree_b": {
+        "closure_files": 77,
+        "closure_sha256": "28565578fdbcff0284fad627a7f373dae0c6cf5febf80aa99773cef7b7b7064b",
+        "design_files": 64,
+        "design_sha256": "016d4ff3a14ed51b7066f47f83c2c2d46770ebc0466ab777888de91e514fefe7",
+        "non_design_sha256": "c73320197bd569c8e107c0e824d53f3a2993d56329106fc1ff01022a2da5fe2a",
+        "role_split": true,
+        "roots": 45
+      },
+      "verdict": "design identity unchanged"
+    },
+    "fes.spectrum": {
+      "check_level": "full",
+      "producer": "scripts/build_fes_spectrum_oss.py",
+      "tree_a": {
+        "closure_files": 65,
+        "closure_sha256": "a117875dd93269597b6015805a1089c3985954ea85028f8962a9a9f01854ed4b",
+        "design_files": 52,
+        "design_sha256": "562e7c7eed5066e64476d3a99c84551652ced380124fbee0401d31245400be5e",
+        "non_design_sha256": "b72ee5f4ebe8b7d721fc82d77e25bc4437b00f5ebd5624c9c77c61c03a7bd6ca",
+        "role_split": true,
+        "roots": 48
+      },
+      "tree_b": {
+        "closure_files": 65,
+        "closure_sha256": "5de73c5facaa6251f58450f6b2dc3a127057939fba729cabb0c55c9d38eadaaa",
+        "design_files": 52,
+        "design_sha256": "4a15009a1c14f647b1b72743558566b75c42d59f55144659b5724aade32ace40",
+        "non_design_sha256": "428b38ef60c94ce72827947886c53f1e7669c458dbee05e9705d5ec04db28702",
+        "role_split": true,
+        "roots": 48
+      },
+      "verdict": "MOVED (design identity): scripts/build_fes_spectrum_oss.py"
+    },
+    "fes.spectrum-plus3": {
+      "check_level": "full",
+      "producer": "scripts/build_fes_spectrum_oss.py",
+      "tree_a": {
+        "closure_files": 65,
+        "closure_sha256": "a117875dd93269597b6015805a1089c3985954ea85028f8962a9a9f01854ed4b",
+        "design_files": 52,
+        "design_sha256": "562e7c7eed5066e64476d3a99c84551652ced380124fbee0401d31245400be5e",
+        "non_design_sha256": "b72ee5f4ebe8b7d721fc82d77e25bc4437b00f5ebd5624c9c77c61c03a7bd6ca",
+        "role_split": true,
+        "roots": 48
+      },
+      "tree_b": {
+        "closure_files": 65,
+        "closure_sha256": "5de73c5facaa6251f58450f6b2dc3a127057939fba729cabb0c55c9d38eadaaa",
+        "design_files": 52,
+        "design_sha256": "4a15009a1c14f647b1b72743558566b75c42d59f55144659b5724aade32ace40",
+        "non_design_sha256": "428b38ef60c94ce72827947886c53f1e7669c458dbee05e9705d5ec04db28702",
+        "role_split": true,
+        "roots": 48
+      },
+      "verdict": "MOVED (design identity): scripts/build_fes_spectrum_oss.py"
+    },
+    "fes.spectrum128": {
+      "check_level": "full",
+      "producer": "scripts/build_fes_spectrum_oss.py",
+      "tree_a": {
+        "closure_files": 65,
+        "closure_sha256": "a117875dd93269597b6015805a1089c3985954ea85028f8962a9a9f01854ed4b",
+        "design_files": 52,
+        "design_sha256": "562e7c7eed5066e64476d3a99c84551652ced380124fbee0401d31245400be5e",
+        "non_design_sha256": "b72ee5f4ebe8b7d721fc82d77e25bc4437b00f5ebd5624c9c77c61c03a7bd6ca",
+        "role_split": true,
+        "roots": 48
+      },
+      "tree_b": {
+        "closure_files": 65,
+        "closure_sha256": "5de73c5facaa6251f58450f6b2dc3a127057939fba729cabb0c55c9d38eadaaa",
+        "design_files": 52,
+        "design_sha256": "4a15009a1c14f647b1b72743558566b75c42d59f55144659b5724aade32ace40",
+        "non_design_sha256": "428b38ef60c94ce72827947886c53f1e7669c458dbee05e9705d5ec04db28702",
+        "role_split": true,
+        "roots": 48
+      },
+      "verdict": "MOVED (design identity): scripts/build_fes_spectrum_oss.py"
+    },
+    "fes.ts1000": {
+      "check_level": "full",
+      "producer": "scripts/build_fes_zx81_quartus.py",
+      "tree_a": {
+        "closure_files": 64,
+        "closure_sha256": "d24cb66ae6a55a1f3d16543807bd128fc8d2740baaf4540f77e43d9cb77555cc",
+        "design_files": 52,
+        "design_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+        "non_design_sha256": "a53aaa2e52c38a4a02ad6a74c5a7c905b06412ad107d11430b68bb8aa6d53e05",
+        "role_split": true,
+        "roots": 50
+      },
+      "tree_b": {
+        "closure_files": 64,
+        "closure_sha256": "bd793fe47dc90b2e98fc1dd27c1f7dfaf0f262b96eb15cf4c0ffdd90d1958480",
+        "design_files": 52,
+        "design_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+        "non_design_sha256": "98c98582f42646defa00878549b0560443e1adcb54c2920b6689e68f4cf28c9f",
+        "role_split": true,
+        "roots": 50
+      },
+      "verdict": "design identity unchanged"
+    },
+    "fes.ts1500": {
+      "check_level": "full",
+      "producer": "scripts/build_fes_zx81_quartus.py",
+      "tree_a": {
+        "closure_files": 64,
+        "closure_sha256": "d24cb66ae6a55a1f3d16543807bd128fc8d2740baaf4540f77e43d9cb77555cc",
+        "design_files": 52,
+        "design_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+        "non_design_sha256": "a53aaa2e52c38a4a02ad6a74c5a7c905b06412ad107d11430b68bb8aa6d53e05",
+        "role_split": true,
+        "roots": 50
+      },
+      "tree_b": {
+        "closure_files": 64,
+        "closure_sha256": "bd793fe47dc90b2e98fc1dd27c1f7dfaf0f262b96eb15cf4c0ffdd90d1958480",
+        "design_files": 52,
+        "design_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+        "non_design_sha256": "98c98582f42646defa00878549b0560443e1adcb54c2920b6689e68f4cf28c9f",
+        "role_split": true,
+        "roots": 50
+      },
+      "verdict": "design identity unchanged"
+    },
+    "fes.zx80": {
+      "check_level": "full",
+      "producer": "scripts/build_fes_zx81_quartus.py",
+      "tree_a": {
+        "closure_files": 64,
+        "closure_sha256": "d24cb66ae6a55a1f3d16543807bd128fc8d2740baaf4540f77e43d9cb77555cc",
+        "design_files": 52,
+        "design_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+        "non_design_sha256": "a53aaa2e52c38a4a02ad6a74c5a7c905b06412ad107d11430b68bb8aa6d53e05",
+        "role_split": true,
+        "roots": 50
+      },
+      "tree_b": {
+        "closure_files": 64,
+        "closure_sha256": "bd793fe47dc90b2e98fc1dd27c1f7dfaf0f262b96eb15cf4c0ffdd90d1958480",
+        "design_files": 52,
+        "design_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+        "non_design_sha256": "98c98582f42646defa00878549b0560443e1adcb54c2920b6689e68f4cf28c9f",
+        "role_split": true,
+        "roots": 50
+      },
+      "verdict": "design identity unchanged"
+    },
+    "fes.zx81": {
+      "check_level": "full",
+      "producer": "scripts/build_fes_zx81_quartus.py",
+      "tree_a": {
+        "closure_files": 64,
+        "closure_sha256": "d24cb66ae6a55a1f3d16543807bd128fc8d2740baaf4540f77e43d9cb77555cc",
+        "design_files": 52,
+        "design_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+        "non_design_sha256": "a53aaa2e52c38a4a02ad6a74c5a7c905b06412ad107d11430b68bb8aa6d53e05",
+        "role_split": true,
+        "roots": 50
+      },
+      "tree_b": {
+        "closure_files": 64,
+        "closure_sha256": "bd793fe47dc90b2e98fc1dd27c1f7dfaf0f262b96eb15cf4c0ffdd90d1958480",
+        "design_files": 52,
+        "design_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+        "non_design_sha256": "98c98582f42646defa00878549b0560443e1adcb54c2920b6689e68f4cf28c9f",
+        "role_split": true,
+        "roots": 50
+      },
+      "verdict": "design identity unchanged"
+    },
+    "splash": {
+      "check_level": "full",
+      "producer": "scripts/build_fes_splash.py",
+      "tree_a": {
+        "closure_files": 11,
+        "closure_sha256": "54a402f03583b60d34b5435b2e8413b6da4476bec3b3349bbadc828d97ccb7e3",
+        "design_files": 11,
+        "design_sha256": "54a402f03583b60d34b5435b2e8413b6da4476bec3b3349bbadc828d97ccb7e3",
+        "identity_covers": "whole record: pinned inputs, repository and revision",
+        "non_design_sha256": null,
+        "record_format": 1,
+        "role_split": true,
+        "roots": 0
+      },
+      "tree_b": {
+        "closure_files": 11,
+        "closure_sha256": "54a402f03583b60d34b5435b2e8413b6da4476bec3b3349bbadc828d97ccb7e3",
+        "design_files": 11,
+        "design_sha256": "54a402f03583b60d34b5435b2e8413b6da4476bec3b3349bbadc828d97ccb7e3",
+        "identity_covers": "whole record: pinned inputs, repository and revision",
+        "non_design_sha256": null,
+        "record_format": 1,
+        "role_split": true,
+        "roots": 0
+      },
+      "verdict": "design identity unchanged"
+    }
+  },
+  "summary": {
+    "moved": [
+      "fes.pcxt-dos",
+      "fes.pentagon",
+      "fes.ramtest",
+      "fes.spectrum",
+      "fes.spectrum-plus3",
+      "fes.spectrum128"
+    ],
+    "unanswered": [
+      "fes.pc386"
+    ],
+    "unchanged": [
+      "fes.apple2",
+      "fes.atari-st",
+      "fes.c64",
+      "fes.coleco",
+      "fes.menu",
+      "fes.pong",
+      "fes.riscv",
+      "fes.sg1000",
+      "fes.sms",
+      "fes.ts1000",
+      "fes.ts1500",
+      "fes.zx80",
+      "fes.zx81",
+      "splash"
+    ]
+  },
+  "tree_a": {
+    "config_tree": "fc8055eb26c38337ab9b1b3c366e6ca84b216e5a",
+    "path": "/data/fes1861-netlist/identity/c3head",
+    "revision": "df99f2dfb2084035b213614960b952f5e79ab781",
+    "sources_tree": "888f63a2b104d4d960fe24031f79a3024b9f7e95"
+  },
+  "tree_b": {
+    "config_tree": "b4bb5aa7145110d9dabd482097080c608e240c99",
+    "path": "/home/deano/fes/.claude/worktrees/gpu-router-default",
+    "revision": "2a30d66ccf38a43efd35a185b09a8caf63da5352",
+    "sources_tree": "ed4a1fdb88dc10018f4914014af9bc6935b732c3"
+  }
+}

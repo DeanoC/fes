@@ -19,7 +19,7 @@ module pipeline_top(input wire clk,clk_forward,clk_capture,clk_handoff,cold_rese
  .sdram_ncas(sdram_ncas),.sdram_nwe(sdram_nwe),.sdram_a(sdram_a),.dq_out(dq_out),.dq_oe(dq_oe));
  assign state=memory.controller.state;
  assign captured=pin_capture;
- assign staged=memory.capture_handoff.read_word;
- assign sample_enable=memory.capture_handoff.read_window[3];
+ assign staged=memory.capture_handoff.pipeline.read_word;
+ assign sample_enable=memory.capture_handoff.pipeline.read_window[3];
  assign consumed=memory.controller_data;
 endmodule

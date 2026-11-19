@@ -1,0 +1,23 @@
+{
+  "classification": "source-trace-derived-preparation-cost-boundary",
+  "generation": 15,
+  "role": "next MENU",
+  "stage": 2,
+  "first_error": -110,
+  "last_successful_preparation_sample_delta_us": 3997499,
+  "exact_rejected_sample_recorded": false,
+  "queue_completion_us": 83076,
+  "command_failure_recorded": false,
+  "last_IO_callback_status": 0,
+  "last_return_scope_reason": 0,
+  "last_read_offset": "0x90",
+  "last_read_value": "0x94008003",
+  "prepared": false,
+  "armed": false,
+  "source_interpretation": "Post-command layout revalidation under the original four-second preparation guard. The supplier rejects backwards/global-transfer time before the probe guard; command completion itself passed. The exact rejected counter and which repeated layout pass were not captured.",
+  "source_sha256": {
+    "sdm_input_probe_setup.c": "7bd907984ce77f2724cb3367d85e3fb5721b6d15cdef9b25c80ec2a8c7c34b1e",
+    "nano_sdm_source_platform.inc": "fed47683ac6f5cbb9487531b9f68aa0cd84792fe3e333025a7a637550275ec10"
+  },
+  "remaining_work": "Reproduce and reduce the measured second warm preparation cost while retaining the ownership and finite-bound checks; fresh procedure/artifact admission before any later trial."
+}

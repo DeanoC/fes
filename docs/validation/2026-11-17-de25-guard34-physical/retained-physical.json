@@ -1,0 +1,13 @@
+{
+  "status": "independently-verified-physical-archive",
+  "members": 261,
+  "archive_sha256": "95278c6791c703ffe9031e8013d38330a25bc3036ff1aa8a953288c66c99b7d4",
+  "hardware_result": "diagnostic-failed-original-restored",
+  "guard34_release_passed": true,
+  "full_repeated_cycle_passed": false,
+  "all_host_handles_closed": true,
+  "failed_verdict_preserved": true,
+  "power_cycle_performed": false,
+  "physical_display_verified": false,
+  "normal_HIL_acceptance": false
+}

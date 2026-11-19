@@ -1,0 +1,30 @@
+{
+  "procedure_sha256": "b16f8ba8005d2442ddd10d75b98ef8e6d555690a4a5306d9bec7ff1d44c86d9f",
+  "status": "diagnostic-failed-original-restored",
+  "diagnostic_passed": false,
+  "elapsed_seconds": 818.3612172410358,
+  "roles": {
+    "forward": {
+      "status": "verified",
+      "elapsed_seconds": 307.67491567204706,
+      "error": null,
+      "transport_cleanup_verified": true
+    },
+    "native": {
+      "status": "failed",
+      "elapsed_seconds": 194.29378942307085,
+      "error": "bounded native diagnostic stopped: native failure marker",
+      "transport_cleanup_verified": true
+    },
+    "rollback": {
+      "status": "verified",
+      "elapsed_seconds": 315.2976409581024,
+      "error": null,
+      "transport_cleanup_verified": true
+    }
+  },
+  "native_quiescence_verified": false,
+  "USB_shutdown_reached": false,
+  "hardware_acceptance": false,
+  "ordinary_D25_HIL": false
+}

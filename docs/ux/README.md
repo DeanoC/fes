@@ -384,7 +384,7 @@ as a blanket pass for the combined build.
   once it has finished.") and not queued, so a press can never start an item
   the player has not seen. This is the reviewed policy for #764's warm-up
   window.
-- **Routes.** In the v1 release scope, Settings is Home's only header route.
+- **Routes.** In the default scope, Settings is Home's only header route.
   Up from the family tiles reaches Recently played when it is present, then
   the hero actions and Settings. On a content box under 480×360, Settings is
   above the compact family list and Recently played is hidden. Show all cores

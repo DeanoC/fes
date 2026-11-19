@@ -1,0 +1,25 @@
+artefact               producer                                 chk      design  verdict
+fes.menu               scripts/build_fes_menu_package.py        full     33      design identity unchanged
+fes.pong               scripts/build_fes_pong.py                reduced  16      design identity unchanged
+fes.ramtest            scripts/build_fes_ramtest.py             reduced  32      design identity unchanged
+fes.zx81               scripts/build_fes_zx81_quartus.py        full     52      design identity unchanged
+fes.zx80               scripts/build_fes_zx81_quartus.py        full     52      design identity unchanged
+fes.ts1000             scripts/build_fes_zx81_quartus.py        full     52      design identity unchanged
+fes.ts1500             scripts/build_fes_zx81_quartus.py        full     52      design identity unchanged
+fes.coleco             scripts/build_fes_coleco_socket_v2.py    reduced  69      design identity unchanged
+fes.sms                scripts/build_fes_sms_oss.py             reduced  64      design identity unchanged
+fes.sg1000             scripts/build_fes_sg1000_oss.py          reduced  62      design identity unchanged
+fes.apple2             scripts/build_fes_apple2_oss.py          reduced  39      design identity unchanged
+fes.c64                scripts/build_fes_c64_oss.py             full     90      design identity unchanged
+fes.spectrum           scripts/build_fes_spectrum_oss.py        full     52      design identity unchanged
+fes.spectrum128        scripts/build_fes_spectrum_oss.py        full     52      design identity unchanged
+fes.spectrum-plus3     scripts/build_fes_spectrum_oss.py        full     52      design identity unchanged
+fes.pentagon           scripts/build_fes_spectrum_oss.py        full     52      design identity unchanged
+fes.atari-st           scripts/build_fes_atari_st_oss.py        full     59      design identity unchanged
+fes.riscv              scripts/build_fes_riscv.py               reduced  30      design identity unchanged
+fes.pcxt-dos           scripts/build_fes_pcxt_quartus.py        full     171     MOVED (design identity): scripts/yosys_netlist.py
+fes.pc386              cores/fes-pc386/tools/build_pc386_product.py full     -       UNANSWERED: cores/fes-pc386/tools/build_pc386_product.py: closure is an explicit path set built in its own create_build_record, not roots in scripts/source_closures.json
+splash                 scripts/build_fes_splash.py              full     11      design identity unchanged
+
+1 affected, 19 unchanged, 1 unanswered
+wrote /home/deano/fes/.claude/worktrees/gpu-router-default/docs/validation/2026-11-14-1861-gpu-router-netlists/reports-scope4/base-move4-design.json

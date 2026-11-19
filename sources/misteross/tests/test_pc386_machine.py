@@ -680,9 +680,26 @@ class ScrollTestTest(unittest.TestCase):
                             'stops': [], 'gaps': []}}
         args = mock.Mock(cpu=cpu, download=False, jobs=1, limit_seconds=8)
         with mock.patch.object(sim.firmware, 'images', return_value={}), \
+                mock.patch.object(sim.firmware, 'write_rom_hex', return_value=Path(__file__)), \
                 mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
                 mock.patch.object(sim, 'run_machine', run_machine), mock.patch('builtins.print'):
             return sim.run_scroll(args, [])['failures']
+
+    def test_the_suite_confirms_the_pinned_rom_hex(self):
+        # #1984 S1: CI's pc386 smoke tier runs this suite, so every runner
+        # writes the ROM hex through the recipe's pin check and prints it.
+        images = {'bios': Path('bios.bin'), 'vgabios': Path('vgabios.bin')}
+        args = mock.Mock(cpu='oracle', download=True, jobs=1, limit_seconds=8)
+        run = {'debug': [], 'failures': []}
+        with mock.patch.object(sim.firmware, 'images', return_value=images), \
+                mock.patch.object(sim.firmware, 'write_rom_hex', return_value=Path(__file__)) as write, \
+                mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
+                mock.patch.object(sim, 'run_machine', return_value=run), mock.patch('builtins.print') as printed:
+            sim.run_scroll(args, [])
+        write.assert_called_once_with(images)
+        digest = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+        self.assertIn(mock.call(f'ROM hex {Path(__file__).name} {digest} matches firmware.lock', flush=True),
+                      printed.call_args_list)
 
     PASSING = ['SCR modeset 27/27 ok', 'SCR mode13 2/2 ok', 'SCR mode12 2/2 ok', 'SCR mode04 2/2 ok', 'SCR DONE ok']
 

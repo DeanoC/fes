@@ -37,22 +37,46 @@ A scoped reset exception would additionally require validation of the complete
 chain, its synchronous consumers and timed interstage paths; the attribute alone
 is not a timing waiver.
 
-### Experimental 100 MHz capture pipeline
+### 100 MHz CAS-3 capture pipeline
 
-`SDRAM_CAPTURE_PIPELINE=1` is an unfinished, default-off board parameter for
-[#1954](https://github.com/DeanoC/fes/pull/1954). It requests four 100 MHz PLL
-outputs: controller phase 0, input capture +9.375 ns, DDR forwarding +1.250 ns
-and read-word handoff +8.750 ns. The handoff latches the selected word once per
+The installable `fes.pcxt-dos` producer explicitly selects
+`SDRAM_CAPTURE_PIPELINE=1`. Raw board and controller experiments retain their
+separate profile selection. The CAS-3 path requests four 100 MHz PLL
+outputs: controller and input capture phase 0, DDR forwarding +1.250 ns
+and read-word handoff +9.375 ns. Quartus may merge the identical controller
+and capture counters; the physical clock identity is checked explicitly. The handoff latches the
+selected word once per
 READ and retains it through the existing frontend response. A falling-edge
 controller-domain register lands that retained word before response; the old
 shared-controller rdata cone is unused in this mode. The controller's state/done
-sequence and the frontend response cycle are unchanged.
-The private diagnostic requests input I/O packing explicitly. The registered DOS
-producer does not enable this parameter or adopt the diagnostic QSF assignments.
-The [capture-path record](../../../../docs/validation/2026-11-17-pcxt-capture-path/README.md)
-contains its logical proof, raw-fit references and qualification boundary. A
-passing reference budget would still require board electrical bounds, normal
-production identity/seal checks and exact-artifact HIL before adoption.
+sequence uses the existing CAS-3 controller profile at 100 MHz, with a
+700-clock refresh interval. The first word launches at READ+(CAS-1); the
+selected sample is +33.750 ns, handoff +43.125 ns and landing +48.750 ns.
+The new frontend response deadline is +83.750 ns, one controller cycle later
+than the earlier experimental CL2 path. The registered DOS producer selects
+this path in its canonical elaboration and packs all 16 DQ input registers.
+The native RAM Tester diagnostic uses the same retained-word module; both kits
+passed its full 128 MiB six-pattern scan, 512 byte reads and three HPS DDR
+scans with zero errors. The [two-kit record](../../../../docs/validation/2026-11-18-cas3-kit-qualification/README.md)
+retains the exact diagnostic identities, captures and verified restores. These
+RAM Tester passes do not substitute for production PC/XT seal or acceptance.
+The [CAS-3 record](../../../../docs/validation/2026-11-18-pcxt-cas3-capture/README.md)
+contains its proof, fit evidence and qualification boundary. The earlier
+CL2 selected-word margin was based on an incorrect READ+CAS launch edge;
+that margin is withdrawn for the selected physical word. The common-device
+selected-word calculation remains conditional on board electrical bounds.
+Production identity/seal checks and exact-artifact HIL are recorded separately.
+
+SDRAM qualification targets common timing and electrical requirements across
+MiSTer-compatible chip makers, with Kit A as one test target. The
+[cross-vendor envelope](../../../../docs/validation/2026-11-18-pcxt-sdram-envelope/README.md)
+compares Etron, Alliance, ISSI and Winbond specifications. Physical qualification
+is blocked pending actual board electrical/flight/clock bounds. The common
+CL2 cycle requirement leaves no nominal headroom at 100 MHz; CAS-3 supplies
+cycle-time headroom, but requires its own selected-word and physical timing
+checks. Module branding or a passing boot does not clear those
+gates. Default selection follows the bounded two-kit qualification, while
+whole-board physical timing remains open under #835.
 
 ### FreeDOS DOS-profile package
 

@@ -182,7 +182,7 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	}
 	if status.State == nativefabric.ProgramReady {
 		if paired {
-			if err := programService.ParkMenu(context.Background()); err != nil {
+			if err := nativeProgramBackend.ParkMenu(context.Background()); err != nil {
 				panic(err)
 			}
 			status = programService.Status()

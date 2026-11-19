@@ -522,8 +522,8 @@ def run_x87(testbench: str, env: dict) -> dict:
 # Slices 2 and 3 contribute 14 directed streams; slice 4 adds div-reg,
 # div-mem, div-zero, sqrt, prem, prem1 and div-prec; and #1903 adds
 # arith-forms-reg, arith-forms-mem and sqrt-chain, which deepen the arithmetic
-# the DE25 backend gate reaches.
-X87_DIRECTED_CASES = 14 + 7 + 3
+# the DE25 backend gate reaches. #1877 adds fdp-chunks.
+X87_DIRECTED_CASES = 14 + 7 + 3 + 1
 X87_RANDOM_CASES = 8 * 3 * 4
 X87_CASES = X87_DIRECTED_CASES + X87_RANDOM_CASES
 

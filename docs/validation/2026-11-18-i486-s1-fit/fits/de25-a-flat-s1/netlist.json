@@ -1,0 +1,14 @@
+{
+  "fitted_netlist": {
+    "duplicate_attribute_count": 30,
+    "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+    "fitted_sha256": "1a28f15e589016a70e3c5121f8672d41af09ab716f728939df5d2553e106b4df",
+    "ram_attribute": "renamed 57 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+    "ram_attribute_count": 57,
+    "source": "/data/scratch/i486s1/net/a-flat/pc386_system.v",
+    "source_sha256": "5d6e76b8fdf11597a783ab8d119c373a2bd228206732e47640d7ce2144ec24c6"
+  },
+  "reused": "/data/scratch/i486s1/net/a-flat/pc386_system.v",
+  "source_revision": "1ec59267039b12b5879dd90af856ac232b9d014c",
+  "source_revision_note": "i486 slice 1 fit spike, arm a, elaborated once on Powerboat (HIP Yosys slot) by fit_arm.py"
+}

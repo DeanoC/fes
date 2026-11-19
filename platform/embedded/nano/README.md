@@ -1,7 +1,55 @@
 # Nano recovery uploads and cold serial boot
 
+The [completion-cause and fresh-read hashing repair](../../../docs/validation/2026-11-18-de25-completion-cost/README.md) reproduces
+the masked `configuration already completed` failure in a fresh diagnostic:
+a native 25-second deadline expires at 25.018012418 seconds after firmware
+completion.
+Both configuration owners now preserve and latch the original rejection. Fresh
+private-scratch SHA256/SHA384 checks retain every whole-image/chunk read and
+ownership check while reducing work against uncached source memory. No time
+limit or firmware/driver ownership policy changes.
+
+The fresh `838ac5b48` TRWU8CBL serial test completes five configurations, both
+ZX81/ZX80 launch-returns and final USB inactive Stop/Park. Input stays paused
+through final MENU closure. Exact original-FIT restoration and independent
+raw-trace/cleanup replay pass without power cycling. The earlier diagnostic
+remains failed and retained; current artifacts use `838ac5b48`, with later
+docs-only delivery. All eight affected software checks, the native race suite,
+matched boot chain and source-bound file admission pass. Ordinary J8G HIL,
+physical display/input and full repeated/failure/reset/DMA qualification remain
+open. PR #1952 stays draft/`lane:deano`; issue #1867 stays open. Older figures
+below describe historical profiles and consumed procedures.
+
+The [fresh final-validation cost trial](../../../docs/validation/2026-11-18-de25-final-cost-physical/README.md) completes initial MENU,
+ZX81 with tape, both releases and full next-MENU configuration, then
+rejects guard 31 / reason 7 at source elapsed 20,142,473 us under the
+unchanged 20-second bound. The barrier repair is insufficient physically;
+ZX80 and final native Park are not reached. Exact original-FIT restoration
+and protected readback pass without power cycling. The failed procedure
+is consumed; complete repeated-cycle qualification remains open.
+
+The [private comparison repair](../../../docs/validation/2026-11-18-de25-warm-preparation-comparison/README.md) now reproduces the second warm
+preparation boundary through production callbacks under synthetic costs and
+reduces modeled snapshot loads by 84.885%, preserving all bytes, freshness
+checks and deadlines. Sanitized checks, target wide-load/layout proof and a
+fresh matched/file-admitted boot chain pass. The [physical trial](../../../docs/validation/2026-11-18-de25-comparison-physical/README.md)
+passes generation-15 preparation/arm and full DATA, then rejects final
+input proof at source-clock guard 31, before retirement. The original FIT
+is restored without power cycling; the full cycle/Park remains open.
+
 The latest [preservation checkpoint](../../../docs/validation/2026-11-15-de25-merge-readiness/README.md) records a matched boot chain and a physical ZX81 launch with initial tape. Return to MENU stops at secure source release; the complete cycle remains unqualified. [Issue #1867](https://github.com/DeanoC/fes/issues/1867) tracks the whole secure ownership, memory, lifecycle and recovery investigation. The subsequent [bounded reset-recovery test](../../../docs/validation/2026-11-17-de25-reset-recovery/README.md) reached a fresh recovery loader through volatile JTAG reload without a power cycle and verified the unchanged card files. The later [SD restoration test](../../../docs/validation/2026-11-17-de25-sd-restoration/README.md) restored the original experimental boot FIT with one file write and verified it after another software recovery boot. Its first transaction retains a host-deadline failure at the final redundant check; all 16 preserved files passed, and separate read-only verification confirmed the original FIT. The top kit is parked at the recovery prompt with the original FIT restored; native activation remains unqualified.
 
+
+The later host-cost repair in [#1953](https://github.com/DeanoC/fes/pull/1953)
+passes complete candidate/original FIT transactions within the unchanged
+bound. Its native diagnostic captures guard 34 on computer return. The
+[guard 34 repair](../../../docs/validation/2026-11-17-de25-guard34-fix/README.md)
+now reproduces and fixes the never-enabled reader mismatch through production
+callbacks off-board. The [new physical trial](../../../docs/validation/2026-11-17-de25-guard34-physical/README.md)
+passes the formerly rejected release, then stops during next-MENU preparation.
+Exact original-FIT restoration passes without power cycling. Complete
+launch/return/Park and declared failure recovery remain open. #1938 is merged.
+Current board state belongs to its kit ledger.
 
 The explicit reset-recovery diagnostic adds a nonce-bound SPL witness before
 DDR/SD initialization. Build with `--network-recovery --recovery-reset-nonce`

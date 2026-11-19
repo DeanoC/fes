@@ -1,0 +1,38 @@
+{
+  "source": {
+    "status": "independently-verified-source-archives",
+    "sources": [
+      {
+        "name": "before-fix",
+        "commit": "9962fc9e32b3f16e340231104e9fe52786a068ad",
+        "sha256": "63e6b8ba59a670d6b69ff3867d17e255fb4fc65a5fe3112ca6dcba300ff6da2c",
+        "verified_git_blobs": 17294
+      },
+      {
+        "name": "tested-source",
+        "commit": "d422c32b30e9cf560e81caa07273d8e47942d44e",
+        "sha256": "1b9472ae07e95d3cacdc45c4f7272acfa6852a4b220c6c4f7e5e37b4bb62be68",
+        "verified_git_blobs": 17295
+      }
+    ],
+    "hardware_actions": false
+  },
+  "boot": {
+    "status": "independently-verified-evidence-archive",
+    "name": "boot.tar.gz",
+    "sha256": "d3199a602cb5084a4da272e5138b0a41504432fceb52ce5619bc05faaadc2648",
+    "verified_entries": 46673,
+    "source": "d422c32b30e9cf560e81caa07273d8e47942d44e",
+    "hardware_actions": false,
+    "hardware_acceptance": false
+  },
+  "software": {
+    "status": "independently-verified-evidence-archive",
+    "name": "software.tar.gz",
+    "sha256": "e42ca44cf072ce96ff7dd2dba70090074e445a3757819aaf9d4253ff8eeaafd7",
+    "verified_entries": 782,
+    "source": "d422c32b30e9cf560e81caa07273d8e47942d44e",
+    "hardware_actions": false,
+    "hardware_acceptance": false
+  }
+}

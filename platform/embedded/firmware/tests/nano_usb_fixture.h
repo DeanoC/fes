@@ -101,7 +101,12 @@ static inline int write32(void *context, uintptr_t a, uint32_t v)
     }
     h->srs[off/4]=v;return 0;
 }
-static inline void barrier(void *p) {(void)p;}
+static inline void barrier(void *p) {
+    (void)p;
+#ifdef FES_TEST_USB_BARRIER
+    FES_TEST_USB_BARRIER();
+#endif
+}
 static inline void wait_poll(void *p) {((struct hardware *)p)->waits++;}
 static inline int cold_read(void *p, unsigned reg, uint32_t *v)
 {
