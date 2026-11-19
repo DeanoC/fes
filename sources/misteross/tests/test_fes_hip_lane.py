@@ -653,7 +653,25 @@ class CudaLaneConfigurationTests(unittest.TestCase):
                         ROOT, cache_root=base / "shared-cache", gpu_router="CUDA"
                     )
 
+        # The fixture tree is a copy, so the producer would fall back to the
+        # broad closure, which sits at the record size limit (#1995). Use the
+        # audited closure the real producer records; this test is about
+        # toolchain identity, not closure selection.
+        from scripts import functional_execution
+
+        def audited_roots(module_name, pinned_inputs, root=None):
+            with patch.dict(os.environ):
+                os.environ.pop("FES_SOURCE_CLOSURE_BROAD", None)
+                os.environ.pop("FES_SOURCE_CLOSURE_RECORD_ONLY", None)
+                roots = functional_execution.source_roots_for_producer(module_name, pinned_inputs)
+            self.assertIsInstance(roots, functional_execution.AuditedRoots)
+            return roots
+
         def record(tool_identity: str) -> bytes:
+            with patch.object(spectrum, "source_roots_for_producer", audited_roots):
+                return _record(tool_identity)
+
+        def _record(tool_identity: str) -> bytes:
             return create_build_record(
                 ROOT,
                 "https://example.invalid/m.git",
