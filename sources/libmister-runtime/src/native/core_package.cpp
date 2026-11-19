@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "native/core_package.hpp"
+#include "daemon/json.hpp"
 #include "native/de25_core_contract.hpp"
 #include "native/generated/de25_nano_programming.hpp"
 
@@ -838,6 +839,37 @@ Error RecheckCorePackage(const OpenedCorePackage& package)
 	}
 	if (Sha256Hex(package_hash.Final()) != package.package_id)
 		return changed();
+	return {};
+}
+
+Error CheckFirmwareUploadMap(const OpenedCorePackage& package)
+{
+	const auto differs = [] {
+		return Error{ErrorCode::invalid_package,
+			"firmware-upload map differs from the sealed package", "admission"};
+	};
+	const CoreDescriptor& descriptor = package.descriptor;
+	if (descriptor.format != 3 || package.rom_map.size() < 1 || package.rom_map.size() > 1024)
+		return differs();
+	std::string bytes;
+	daemon::json::Value map;
+	if (!ReadArtifact(package.rom_map, &bytes).ok() ||
+		!daemon::json::Parse(bytes, &map, nullptr) ||
+		map.type != daemon::json::Type::object || map.object.size() != 5) return differs();
+	// The reader rejects a repeated key, so five members that each match one
+	// of the five names are exactly those names.
+	for (const auto& member : map.object) {
+		const daemon::json::Value& value = member.second;
+		const bool text = value.type == daemon::json::Type::string;
+		const bool integer = value.type == daemon::json::Type::integer;
+		if (member.first == "format" ? !integer || value.integer_value != 1 :
+			member.first == "device" ? !text || value.string_value != descriptor.target.device :
+			member.first == "encoding" ? !text || value.string_value != kFirmwareUploadMapEncoding :
+			member.first == "base_sha256" ? !text || value.string_value != descriptor.payload.sha256 :
+			member.first == "source_size" ? !integer || value.integer_value < 0 ||
+				static_cast<std::uint64_t>(value.integer_value) != descriptor.rom.source_size :
+			true) return differs();
+	}
 	return {};
 }
 

@@ -75,6 +75,19 @@ existing BRAM profile remains separate; there is no automatic fallback.
 Software admission does not establish a sealed standard package or hardware
 acceptance.
 
+The same profile admits two firmware machines from a per-core contract table
+(`src/native/de25_core_contract.hpp`): `fes.spectrum` (the shell plus
+`fes.media.spectrum-tape` 2.0) and `fes.atari-st` (the shell plus relative
+mouse and the floppy with its write and geometry interfaces). Both add
+`fes.fabric.firmware-upload` 1.0 and are format 3: an Agilex bitstream is not
+patched, so the payload is programmed unchanged and the sealed ROM requirement
+names the image the core's upload endpoint takes (Spectrum 16384 or 32768
+bytes, Atari ST 196608). Any other interface set, size, format or version is
+refused before programming. `misteross/boards/de25nano/machine/driver_proof.py`
+runs this driver and its DE25 transport against the Verilated RTL of both
+machines. Host software coverage only; DE25 hardware acceptance of either
+machine does not exist.
+
 The static format5 variant additionally requires the optional
 `fes.expansion.zx81-bus` 2.0 declaration. It retains all nine required standard
 interfaces; a missing, duplicated, required or differently versioned socket is
@@ -145,7 +158,9 @@ OWNER_IDLE must prove the end of peer references. The outgoing package
 may come from either the factory package directory or the normal agent's sealed
 ID-plus-token staging publication; content identity is verified in either case.
 A retained computer must also pass live identity and the existing SAVE guard, so
-dirty snapshots or uncertain mailboxes remain blocked. This guard verifies live
+dirty snapshots or uncertain mailboxes remain blocked. The guard is per machine:
+a ZX81 must hold no unstored SAVE, an Atari ST no unstored floppy writes, and a
+Spectrum, whose cassette is read-only, proves its identity alone. This guard verifies live
 identity without fresh-start empty-cassette discovery; a loaded tape remains
 untouched and no active driver session is adopted. The existing verified release
 then precedes a normal MENU load. Unknown packages, firmware-only overlays and
@@ -390,6 +405,23 @@ ROM operations reject format 2. Native capabilities advertise `rom_linking: 1`.
 Active status retains the receipt until retirement; library ROM loads preserve
 core-scoped persistence. This path has host software coverage only and adds no
 hardware acceptance claim.
+
+A DE25 firmware-upload package is format 3 without a linker: `load_rom_core`
+and `load_rom_library_core` take `firmware_path`, the ROM source file, in place
+of `programmed_path`, with the same closed `rom_link`. Its programmed digest
+and size must be the package payload's, because nothing is patched. The runtime
+checks the sealed five-key `gp-firmware-upload-v1` map, snapshots the file,
+requires the sealed source size and the receipt's source SHA-256, and programs
+the package's own payload. After identity and while execution is still held it
+reads FirmwareInfo, requires the endpoint's image size to equal the source,
+and sends Begin, every byte pair once and Commit; an image already ready is
+left alone. Only then are an initial disk and the release sent. The driver
+refuses to release a machine whose firmware it has not seen ready, and a failed
+transfer is never replayed. `fes.fabric.firmware-upload` 1.0 in the DE25
+`fes.computer` capability list tells a host the runtime does this;
+`rom_linking` stays 0 there. A linked bitstream for such a package, a source
+for a package that does not declare the interface, a composition and a
+two-source link are refused. Host software coverage only.
 
 Atari ST may additionally require `fes.mouse.relative` and
 `fes.media.atari-st-floppy-write` 1.0. Mouse packets split signed host movement

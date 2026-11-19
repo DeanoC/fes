@@ -15,8 +15,9 @@ public:
 	ComputerEndpoint endpoint;
  explicit AtomicComputerBridge(std::uint32_t capabilities=FesComputerCapabilityVideoFixed720p60 |
   FesComputerCapabilityKeyboardHid | FesComputerCapabilityMediaZx81Tape | FesComputerCapabilityMediaZx81TapeWrite,
-  const std::string& build="00112233445566778899aabbccddeeff"):
-  endpoint(capabilities,{{0,{1,FesComputerZx81TapeMaxBytes}}},build) {}
+  const std::string& build="00112233445566778899aabbccddeeff",
+  std::pair<std::uint32_t,std::uint32_t> unit0={1,FesComputerZx81TapeMaxBytes}):
+  endpoint(capabilities,{{0,unit0}},build) {}
 	std::uint32_t id = FesDe25ComputerIdentity, version = FesDe25ComputerVersion;
 	std::uint32_t status = FesDe25ComputerStatusReady, fault = 0, held = 0, video=FesDe25ComputerVideoReady;
 	bool changed_word = false, write_error = false, post_fault = false, post_busy = false;

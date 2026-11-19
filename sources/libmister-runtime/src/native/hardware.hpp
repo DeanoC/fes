@@ -130,6 +130,7 @@ public:
 	Error UpdateCoreSettings(const std::string&, const std::string&, const std::string&,
 		const std::string&, const std::string&, const CoreSettingsUpdate&, CoreData*) override;
 	Error AttachROMBitstream(AdmittedCorePackage*, const std::string&, const CoreROMLink&) override;
+	Error AttachFirmwareSource(AdmittedCorePackage*, const std::string&, const CoreROMLink&) override;
 	Error AttachROMsBitstream(AdmittedCorePackage*, const std::string&, const CoreROMLinks&) override;
 	Error RecheckProgrammedBitstream(AdmittedCorePackage*) override;
 	Capabilities capabilities() const override;

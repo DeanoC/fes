@@ -120,7 +120,17 @@ func prepareROMInput(ctx context.Context, in ROMInput) (preparedROMInput, error)
 		return preparedROMInput{}, errors.New("ROM input requires format 3 and exact source size")
 	}
 	if nanoROM(d) {
-		return preparedROMInput{}, errors.New("Nano held-ROM delivery requires retained sources, not bitstream ROM staging")
+		// A held ROM has no launch transport here. An uploaded one travels as
+		// its source: nothing is linked and no Cyclone V part can join it.
+		if !FirmwareUpload(d) {
+			return preparedROMInput{}, errors.New("Nano held-ROM delivery requires retained sources, not bitstream ROM staging")
+		}
+		if err := firmwareUploadMachine(d); err != nil {
+			return preparedROMInput{}, err
+		}
+		if in.Expansion != nil || len(in.SlotExpansions) != 0 || len(in.Parts) != 0 {
+			return preparedROMInput{}, errors.New("firmware upload cannot compose Cyclone V expansions or parts")
+		}
 	}
 	inspection := Inspection{PackageID: packageIdentity(manifest, payload, mapping), Descriptor: d}
 	receipt := romInputReceipt{Format: 1, PackageID: inspection.PackageID, ROMID: d.ROM.ID, MapSHA256: d.ROM.SHA256, SourceSHA256: romDigest(in.ROM), SourceSize: int64(len(in.ROM))}
@@ -444,10 +454,13 @@ type romLinkResult struct {
 	inspection Inspection
 	identity   ROMLinkIdentity
 	programmed []byte
-	bundle     *CompositionBundle
-	slots      *SlotCompositionBundle
-	parts      *PartsBundle
-	receipt    romInputReceipt
+	// firmware is the source of a Nano upload package, which has no
+	// programmed bytes of its own: the runtime programs the package payload.
+	firmware []byte
+	bundle   *CompositionBundle
+	slots    *SlotCompositionBundle
+	parts    *PartsBundle
+	receipt  romInputReceipt
 }
 
 // linkROMInput derives every programmed byte from the sealed map. A
@@ -470,6 +483,15 @@ func linkPreparedROMInput(ctx context.Context, prepared preparedROMInput, sent r
 	// Derive link evidence independently before comparing the sender's receipt.
 	receipt.Composition, receipt.PartsComposition = nil, nil
 	receipt.ProgrammedSHA256, receipt.ProgrammedSize = "", 0
+	if d := inspection.Descriptor; FirmwareUpload(d) {
+		if sent.Composition != nil || sent.PartsComposition != nil || sent.ProgrammedSHA256 != "" || sent.ProgrammedSize != 0 {
+			return romLinkResult{}, errors.New("firmware upload carries no link evidence")
+		}
+		return romLinkResult{inspection: inspection, firmware: in.ROM, receipt: receipt,
+			identity: ROMLinkIdentity{ROMID: receipt.ROMID, Role: d.ROM.Role, MapSHA256: receipt.MapSHA256,
+				SourceSHA256: receipt.SourceSHA256, SourceSize: receipt.SourceSize,
+				ProgrammedSHA256: d.Payload.SHA256, ProgrammedSize: d.Payload.Size}}, nil
+	}
 	m := *prepared.romMap
 	var err error
 	if err := validateROMPartsDestinations(ctx, inspection, base, m); err != nil {
@@ -621,7 +643,11 @@ func stageROMInput(ctx context.Context, root string, data []byte, spool *Spooled
 	if err = writeInput(handle, filepath.Join(name, "input.tar"), data, spool); err != nil {
 		return Staged{}, err
 	}
-	files := map[string][]byte{"programmed.rbf": programmed, "identity.json": encoded}
+	delivered, content := "programmed.rbf", programmed
+	if linked.firmware != nil {
+		delivered, content = "firmware.rom", linked.firmware
+	}
+	files := map[string][]byte{delivered: content, "identity.json": encoded}
 	if in.InitialMedia != nil {
 		files["initial-media.st"] = in.InitialMedia.Bytes
 	}
@@ -641,7 +667,11 @@ func stageROMInput(ctx context.Context, root string, data []byte, spool *Spooled
 	}
 	staged.InitialMedia = stagedInitialMedia(in.InitialMedia, filepath.Join(root, name, "initial-media.st"))
 	staged.ROMLink = &identity
-	staged.ProgrammedPath = filepath.Join(root, name, "programmed.rbf")
+	if linked.firmware != nil {
+		staged.FirmwarePath = filepath.Join(root, name, delivered)
+	} else {
+		staged.ProgrammedPath = filepath.Join(root, name, delivered)
+	}
 	success = true
 	return staged, nil
 }
@@ -676,7 +706,7 @@ func adoptROMInput(handle *os.Root, staged *Staged) error {
 	if err != nil || (len(entries) != 3 && len(entries) != 4) {
 		return errors.New("invalid ROM publication members")
 	}
-	expected := map[string]int64{"input.tar": MaxROMInputSize, "identity.json": 4096, "programmed.rbf": MaxPayloadSize, "initial-media.st": AtariStGeometryMaxBytes}
+	expected := map[string]int64{"input.tar": MaxROMInputSize, "identity.json": 4096, "programmed.rbf": MaxPayloadSize, "firmware.rom": 256 << 10, "initial-media.st": AtariStGeometryMaxBytes}
 	files := map[string][]byte{}
 	for _, entry := range entries {
 		limit, ok := expected[entry.Name()]
@@ -693,7 +723,7 @@ func adoptROMInput(handle *os.Root, staged *Staged) error {
 		}
 	}
 	var inspection Inspection
-	var programmed []byte
+	var programmed, firmware []byte
 	var bundle *CompositionBundle
 	var slots *SlotCompositionBundle
 	var parts *PartsBundle
@@ -723,6 +753,7 @@ func adoptROMInput(handle *os.Root, staged *Staged) error {
 			return linkErr
 		}
 		inspection, programmed, bundle, slots, parts = linked.inspection, linked.programmed, linked.bundle, linked.slots, linked.parts
+		firmware = linked.firmware
 		link := linked.identity
 		identity = link
 		staged.ROMLink = &link
@@ -741,8 +772,15 @@ func adoptROMInput(handle *os.Root, staged *Staged) error {
 	if err != nil {
 		return err
 	}
-	if !bytes.Equal(encoded, files["identity.json"]) || !bytes.Equal(programmed, files["programmed.rbf"]) {
-		return errors.New("retained ROM identity or programmed bytes differ from independently linked input")
+	// One delivered file: the linked bitstream, or an upload package's source.
+	delivered, content := "programmed.rbf", programmed
+	if firmware != nil {
+		delivered, content = "firmware.rom", firmware
+	}
+	_, linkedPresent := files["programmed.rbf"]
+	_, sourcePresent := files["firmware.rom"]
+	if !bytes.Equal(encoded, files["identity.json"]) || linkedPresent == sourcePresent || !bytes.Equal(content, files[delivered]) {
+		return errors.New("retained ROM identity or delivered bytes differ from independently linked input")
 	}
 	if (bundle == nil) != (staged.Composition == nil) {
 		return errors.New("retained ROM expansion differs from publication")
@@ -764,6 +802,10 @@ func adoptROMInput(handle *os.Root, staged *Staged) error {
 	}
 	staged.companions = append(staged.companions, Staged{root: staged.root, rootInfo: staged.rootInfo, publication: name, publicationInfo: info})
 	staged.InitialMedia = stagedInitialMedia(initial, filepath.Join(staged.root, name, "initial-media.st"))
-	staged.ProgrammedPath = filepath.Join(staged.root, name, "programmed.rbf")
+	if firmware != nil {
+		staged.FirmwarePath = filepath.Join(staged.root, name, delivered)
+	} else {
+		staged.ProgrammedPath = filepath.Join(staged.root, name, delivered)
+	}
 	return nil
 }

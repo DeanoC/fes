@@ -16,6 +16,7 @@ GENERATED = (
     ('emit-go', 'packages/fabric/fes_fabric_de25_computer.yaml', 'FogCast', 'protocol/internal/generated/fes_de25_computer.go'),
     ('emit-verilog', 'packages/abi/fes_computer.yaml', 'misteross', 'boards/de25nano/zx81-hps/generated/fes_computer.vh'),
     ('emit-verilog', 'packages/fabric/fes_fabric_firmware_upload.yaml', 'misteross', 'boards/de25nano/shared-rtl/generated/fes_firmware_upload.vh'),
+    ('emit-cpp', 'packages/fabric/fes_fabric_firmware_upload.yaml', 'libmister-runtime', 'src/native/generated/fes_firmware_upload.hpp'),
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.vh'),
     ('emit-c', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.h'),
     ('emit-c', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'FES', 'image/kernel/de25-dma/generated/fes_de25_scanout.h'),

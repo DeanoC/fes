@@ -91,6 +91,31 @@ def generated_files():
                  b'id = "fes.embedded.rom"\nmajor = 1\nminor = 0\nrequired = false')),
             ('missing-interface',man.replace(b'id = "fes.embedded.rom"',b'id = "fes.other.rom"'))]:
         add('invalid-nano-'+name,bad,data,'invalid Nano ROM declaration '+name)
+    # Launch-time upload over the fes.computer mailbox: same five-key map, its
+    # own encoding and required interface, any source the format allows.
+    held=b'id = "fes.embedded.rom"\nmajor = 1\nminor = 0\nrequired = true'
+    upload=held.replace(b'fes.embedded.rom',b'fes.fabric.firmware-upload')
+    def upload_map(size,**change):
+        return encode_map(dict(dict(format=1,device='A5EB013BB23BE4SCS',encoding='gp-firmware-upload-v1',
+                                    base_sha256=v2.PAYLOAD_SHA256,source_size=size),**change))
+    for size in (1024,16384,32768,196608,262144):
+        data=upload_map(size)
+        add(f'valid-nano-upload-{size}',nano_manifest(data,size).replace(held,upload),data)
+    data=upload_map(16384);man=nano_manifest(data,16384).replace(held,upload)
+    for name,raw in [('encoding',upload_map(4096,encoding='cpu-csr-v1')),
+            ('size',upload_map(32768)),('address',upload_map(16384,cpu_base=0)),
+            ('device',upload_map(16384,device='5CSEBA6U23I7'))]:
+        size=4096 if name=='encoding' else 16384
+        add('invalid-map-nano-upload-'+name,nano_manifest(raw,size).replace(held,upload),raw,
+            'invalid firmware-upload map '+name)
+    raw=upload_map(4096)
+    add('invalid-map-nano-held-encoding',nano_manifest(raw),raw,'invalid held-ROM map upload encoding')
+    for name,bad in [('role',man.replace(b'role = "firmware"',b'role = "cartridge"')),
+            ('optional-interface',man.replace(upload,upload.replace(b'required = true',b'required = false'))),
+            ('minor',man.replace(upload,upload.replace(b'minor = 0',b'minor = 1'))),
+            ('both-interfaces',man.replace(upload,upload+b'\n\n[[interfaces]]\n'+held)),
+            ('held-size',man.replace(upload,held))]:
+        add('invalid-nano-upload-'+name,bad,data,'invalid Nano firmware-upload declaration '+name)
     add('invalid-missing-rom', base.split(b'\n[rom]')[0], reason='required ROM declaration absent')
     add('invalid-rom-role', base.replace(b'role = "firmware"', b'role = "uploaded"'), reason='invalid role')
     add('invalid-rom-id', base.replace(b'id = "machine-rom"', b'id = "../rom"'), reason='invalid identifier')

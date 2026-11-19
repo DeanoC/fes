@@ -55,6 +55,11 @@ Error OpenCorePackage(const std::vector<std::string>& trusted_roots,
 // Hash a retained regular artifact after checking its current size.
 Error HashOpenedArtifact(const Artifact&, std::string* digest);
 Error RecheckCorePackage(const OpenedCorePackage& package);
+// A DE25 format-3 package whose firmware is uploaded at launch seals a
+// five-key `gp-firmware-upload-v1` map: no destinations, only the device, the
+// unmodified payload's digest and the source size its manifest declares.
+constexpr const char* kFirmwareUploadMapEncoding = "gp-firmware-upload-v1";
+Error CheckFirmwareUploadMap(const OpenedCorePackage& package);
 Error CheckCoreCompatibility(const CoreDescriptor& descriptor,
 	NativePlatform platform = NativePlatform::de10_nano);
 // Whether a fes.computer interface declaration is at the version this runtime

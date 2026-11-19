@@ -276,42 +276,104 @@
               "role": {
                 "const": "firmware"
               },
-              "source_size": {
-                "enum": [
-                  4096,
-                  8192
-                ]
-              },
               "size": {
                 "maximum": 1024
               }
             }
-          },
-          "interfaces": {
-            "contains": {
-              "properties": {
-                "id": {
-                  "const": "fes.embedded.rom"
-                },
-                "major": {
-                  "const": 1
-                },
-                "minor": {
-                  "const": 0
-                },
-                "required": {
-                  "const": true
+          }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "rom": {
+                "properties": {
+                  "source_size": {
+                    "enum": [
+                      4096,
+                      8192
+                    ]
+                  }
                 }
               },
-              "required": [
-                "id",
-                "major",
-                "minor",
-                "required"
-              ]
+              "interfaces": {
+                "contains": {
+                  "properties": {
+                    "id": {
+                      "const": "fes.embedded.rom"
+                    },
+                    "major": {
+                      "const": 1
+                    },
+                    "minor": {
+                      "const": 0
+                    },
+                    "required": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "major",
+                    "minor",
+                    "required"
+                  ]
+                },
+                "not": {
+                  "contains": {
+                    "properties": {
+                      "id": {
+                        "const": "fes.fabric.firmware-upload"
+                      }
+                    },
+                    "required": [
+                      "id"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "interfaces": {
+                "contains": {
+                  "properties": {
+                    "id": {
+                      "const": "fes.fabric.firmware-upload"
+                    },
+                    "major": {
+                      "const": 1
+                    },
+                    "minor": {
+                      "const": 0
+                    },
+                    "required": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "major",
+                    "minor",
+                    "required"
+                  ]
+                },
+                "not": {
+                  "contains": {
+                    "properties": {
+                      "id": {
+                        "const": "fes.embedded.rom"
+                      }
+                    },
+                    "required": [
+                      "id"
+                    ]
+                  }
+                }
+              }
             }
           }
-        }
+        ]
       }
     }
   ]
