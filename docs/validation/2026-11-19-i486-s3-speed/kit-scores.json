@@ -1,0 +1,147 @@
+{
+ "kit": "A",
+ "run": "k2",
+ "date": "2026-11-19, 09:56-11:14 EET",
+ "package": "63fd394cd4ac099ae16197cf38cfecc8c3513a1a3e6c8161aec89e01bebcdb7a (Quartus 17.0.2 seal of main 0c7af0728, seal-summary.json)",
+ "kit_software": "baseline image 179affbb, bundle c9ae79e2, core-only (no install, no image change, no reboot)",
+ "disk": "f82cc8badd90805b045e1055c917e21a4b69760955b9cc3a3e03a39015b0f554",
+ "settings": "fes.pc386.machine words: preset, word 1, 0, 0, 0x220, IRQ 7, DMA 1",
+ "reading": "every score read from the named HDMI grab (Kit A ShadowCast, 1920x1080), kept in ~/fes-scratch/i486s3/kit/runs/k2/fr",
+ "aborted_run": "k1 (09:53-09:56) was stopped during its first 3DBench by the operator: the finish detector threshold (0.02) never matched a finished screen (0.029); no score from k1 is used. k2 is a full rerun with the detector fixed before any reading.",
+ "3dbench2_display": "3DBench 1.0c shows three digits with no decimal point (757 at max, 144 at 486-20 where 3DBench 1.0 shows 14.4). 3dbench2_raw is the displayed value; 3dbench2_fps = raw/10 is used only by reach.py, whose verdict is the same either way.",
+ "presets": {
+  "0:0": {
+   "3dbench_fps": 76.9,
+   "3dbench2_raw": 757,
+   "pcpbench": 13.3,
+   "topbench_score": 307,
+   "topbench_total_us": 181,
+   "doom_max_realtics": 2062,
+   "doom_min_realtics": 747,
+   "grabs": {
+    "3d": "p0-3d-1",
+    "3d2": "p0-3d2-1",
+    "pcp": "p0-pcp-1",
+    "tb": "p0-tb-final",
+    "dmax": "p0-dmax-1",
+    "dmin": "p0-dmin-0"
+   },
+   "label": "max",
+   "3dbench2_fps": 75.7
+  },
+  "6:200": {
+   "3dbench_fps": 14.4,
+   "3dbench2_raw": 144,
+   "pcpbench": 3.7,
+   "topbench_score": 78,
+   "topbench_total_us": 645,
+   "doom_max_realtics": 9713,
+   "doom_min_realtics": 2285,
+   "grabs": {
+    "3d": "p6f200-3d-1",
+    "3d2": "p6f200-3d2-1",
+    "pcp": "p6f200-pcp-1",
+    "tb": "p6f200-tb-final",
+    "dmax": "p6f200-dmax-11",
+    "dmin": "p6f200-dmin-1"
+   },
+   "label": "486-20 (preset 6, word 1 = 200)",
+   "3dbench2_fps": 14.4
+  },
+  "6:250": {
+   "3dbench_fps": 16.9,
+   "3dbench2_raw": 168,
+   "pcpbench": 4.5,
+   "topbench_score": 88,
+   "topbench_total_us": 563,
+   "doom_max_realtics": 8533,
+   "doom_min_realtics": 1939,
+   "grabs": {
+    "3d": "p6f250-3d-1",
+    "3d2": "p6f250-3d2-1",
+    "pcp": "p6f250-pcp-1",
+    "tb": "p6f250-tb-final",
+    "dmax": "p6f250-dmax-9",
+    "dmin": "p6f250-dmin-1"
+   },
+   "label": "486SX/DX-25 (preset 6, word 1 = 250)",
+   "3dbench2_fps": 16.8
+  },
+  "6:0": {
+   "3dbench_fps": 20.8,
+   "3dbench2_raw": 204,
+   "pcpbench": 5.7,
+   "topbench_score": 102,
+   "topbench_total_us": 490,
+   "doom_max_realtics": 7290,
+   "doom_min_realtics": 1599,
+   "grabs": {
+    "3d": "p6-3d-1",
+    "3d2": "p6-3d2-1",
+    "pcp": "p6-pcp-1",
+    "tb": "p6-tb-final",
+    "dmax": "p6-dmax-7",
+    "dmin": "p6-dmin-0"
+   },
+   "label": "486DX-33 (preset 6)",
+   "3dbench2_fps": 20.4
+  },
+  "6:500": {
+   "3dbench_fps": 26.3,
+   "3dbench2_raw": 258,
+   "pcpbench": 7.4,
+   "topbench_score": 122,
+   "topbench_total_us": 403,
+   "doom_max_realtics": 6074,
+   "doom_min_realtics": 1287,
+   "grabs": {
+    "3d": "p6f500-3d-1",
+    "3d2": "p6f500-3d2-1",
+    "pcp": "p6f500-pcp-1",
+    "tb": "p6f500-tb-final",
+    "dmax": "p6f500-dmax-6",
+    "dmin": "p6f500-dmin-0"
+   },
+   "label": "486DX-50 / DX2-50 (preset 6, word 1 = 500)",
+   "3dbench2_fps": 25.8
+  },
+  "7:0": {
+   "3dbench_fps": 30.3,
+   "3dbench2_raw": 295,
+   "pcpbench": 8.5,
+   "topbench_score": 134,
+   "topbench_total_us": 380,
+   "doom_max_realtics": 5510,
+   "doom_min_realtics": 1165,
+   "grabs": {
+    "3d": "p7-3d-1",
+    "3d2": "p7-3d2-1",
+    "pcp": "p7-pcp-1",
+    "tb": "p7-tb-final",
+    "dmax": "p7-dmax-5",
+    "dmin": "p7-dmin-0"
+   },
+   "label": "486DX2-66 (preset 7)",
+   "3dbench2_fps": 29.5
+  },
+  "6:667": {
+   "3dbench_fps": 30.3,
+   "3dbench2_raw": 295,
+   "pcpbench": 8.5,
+   "topbench_score": 134,
+   "topbench_total_us": 387,
+   "doom_max_realtics": 5509,
+   "doom_min_realtics": 1167,
+   "grabs": {
+    "3d": "p6f667-3d-1",
+    "3d2": "p6f667-3d2-1",
+    "pcp": "p6f667-pcp-1",
+    "tb": "p6f667-tb-final",
+    "dmax": "p6f667-dmax-5",
+    "dmin": "p6f667-dmin-0"
+   },
+   "label": "486DX2-66 by override (preset 6, word 1 = 667)",
+   "3dbench2_fps": 29.5
+  }
+ }
+}
