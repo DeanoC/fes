@@ -12,6 +12,35 @@ import (
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
+func TestKeyRoutingTraceIsOptInBoundedAndDoesNotRecordKeys(t *testing.T) {
+	trace := newFrameTrace()
+	now := time.Now()
+	trace.keyRouting(now, "admitted", 17, 2, false)
+	if len(trace.records()) != 0 {
+		t.Fatal("routing trace recorded before it was armed")
+	}
+	trace.armKeyRouting(now)
+	trace.keyRouting(now.Add(time.Second), "suppressed", 17, 2, true)
+	trace.keyRouting(now.Add(time.Minute), "released", 17, 2, false)
+	got := trace.records()
+	if len(got) != 2 || got[0].Kind != "key-route-arm" || got[1].Route != "suppressed" || !got[1].NonHandoff {
+		t.Fatalf("bounded routing trace = %+v", got)
+	}
+	encoded, err := json.Marshal(got[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(encoded, &fields); err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{"key", "code", "usage", "name", "text", "value"} {
+		if _, ok := fields[forbidden]; ok {
+			t.Fatalf("trace records %s", forbidden)
+		}
+	}
+}
+
 func TestFrameTraceRingWrapsAndDumpsJSONLines(t *testing.T) {
 	f := newFrameTrace()
 	start := time.Unix(100, 0)
@@ -28,6 +57,9 @@ func TestFrameTraceRingWrapsAndDumpsJSONLines(t *testing.T) {
 	path, err := f.dump(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
+	}
+	if info, err := os.Stat(path); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("trace permissions = %v, err %v", info, err)
 	}
 	file, err := os.Open(path)
 	if err != nil {

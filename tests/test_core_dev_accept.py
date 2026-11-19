@@ -91,6 +91,27 @@ class PreparedAcceptanceTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 accept.candidate_arguments(self.receipt)
 
+    def test_design_v1_and_pc386_receipt_digest_are_strict(self):
+        original = self.make_v2()
+        design = {'identity_policy': 'design-v1', 'design_id': '3' * 32,
+                  'built_toolchain_id': '4' * 64, 'built_record_id': '5' * 64,
+                  'built_with': {'yosys': 'synthetic'}, 'built_pins': {}, 'selected_pins': {},
+                  'built_toolchain_inputs': {}, 'selected_toolchain_inputs': {},
+                  'toolchain_update_available': False, 'pc386_evidence_sha256': '6' * 64}
+        self.write_v2_sidecar({**original, **design})
+        self.assertIn('--expected-package-id', accept.candidate_arguments(self.receipt))
+        for change in ({'pc386_evidence_sha256': 'bad'}, {'built_record_id': 'bad'},
+                       {'identity_policy': 'unknown'}, {'toolchain_update_available': 1}):
+            with self.subTest(change=change):
+                self.write_v2_sidecar({**original, **design, **change})
+                with self.assertRaises(ValueError):
+                    accept.candidate_arguments(self.receipt)
+        incomplete = dict(design)
+        incomplete.pop('built_pins')
+        self.write_v2_sidecar({**original, **incomplete})
+        with self.assertRaises(ValueError):
+            accept.candidate_arguments(self.receipt)
+
     def test_v2_changed_sidecar_fails_before_runner(self):
         self.make_v2()
         path = self.root / self.data["source_selection"]["path"]

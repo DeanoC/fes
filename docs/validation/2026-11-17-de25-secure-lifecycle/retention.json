@@ -1,0 +1,29 @@
+{
+  "root": "/home/deano/fes-retained/de25-secure-lifecycle-20261117-r1",
+  "receipts": {
+    "source": {
+      "commit": "b700d743c7e0799cf2a78ed2fce710b23a59f5ae",
+      "archive_sha256": "ba98612d0bcf2a400b9bc8e4ef97721370590407c710c04bdd4192dde5be5d5d",
+      "verified_git_blobs": 17120,
+      "status": "verified"
+    },
+    "software": {
+      "archive": "software-outputs.tar.gz",
+      "archive_sha256": "444b2312b7f072a88f11cd63f591c120934268bf78beec4253d92e4cca68d264",
+      "entries": 11442,
+      "classification": "off-board software outputs; no hardware actions; matched boot build retained separately",
+      "excluded": [
+        "active matched boot outputs/logs",
+        "Go cache",
+        "this archival job"
+      ]
+    },
+    "matched": {
+      "archive": "matched-boot.tar.gz",
+      "archive_sha256": "2a3d6716a999e1a39732e72eeb614b7fbf2a04b5d6d3df0e5275c3c3f31f4963",
+      "entries": 46685,
+      "classification": "complete matched diagnostic boot chain; file admission only; not programmed",
+      "hardware_actions": false
+    }
+  }
+}

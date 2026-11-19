@@ -1,8 +1,8 @@
 # Frame trace: where kit UI frame time goes
 
 `fogcast-tenfoot` on the kit display loop (`-gfx menu-display`, and linuxfb)
-keeps an always-on ring of recent frame timings. Nothing is written until the
-process receives `SIGUSR1`, so a managed kit needs no configuration change.
+keeps an always-on ring of recent frame timings. Nothing is written until a
+dump is requested, so a managed kit needs no configuration change.
 Recording costs a few clock reads per tick, and no budget or behaviour depends
 on it.
 
@@ -39,13 +39,46 @@ ordinary error, timing and presented fields continue to describe the final
 attempt; the retry detail does not acknowledge the failed attempt.
 
 The ring holds 16,384 records, which is several minutes at the 30 Hz loop. Each
-`SIGUSR1` writes a new `fogcast-frame-trace-<pid>-<n>-<utc>.jsonl` to
+dump writes a new `fogcast-frame-trace-<pid>-<n>-<utc>.jsonl` to
 `$FOGCAST_FRAME_TRACE_DIR` (default the temp directory, `/tmp` on a kit) and
 prints that path on stderr. Earlier dumps stay on disk. The ring is kept, so
 consecutive files overlap in time.
 
-**Send `SIGUSR1` only to a tenfoot that includes this trace.** Older binaries
-have no handler, and the signal ends the process.
+On an unsupervised development launcher, `SIGUSR1` requests a dump. Send it
+only to a tenfoot that includes the handler; older binaries may terminate.
+Managed kits use the one-shot dump request below, not a direct process signal.
+
+For a keyboard-routing diagnostic on a managed kit, create the root-owned,
+mode-0600 one-shot file `/run/fogcast/tenfoot-key-trace-arm` containing the
+verified tenfoot PID, a space, its `/proc/<pid>/stat` start-time field, and a
+newline. Tenfoot consumes a fresh request for its own process identity and
+arms routing records for one minute. Request the dump in
+the same way using `/run/fogcast/tenfoot-key-trace-dump`; its path is logged by
+the supervisor. Requests must be less than ten seconds old. Stale files and
+symlinks are not consumed. The optional `key-route` records contain only a
+source file descriptor, a routing outcome and the display-transition epoch and
+non-handoff state. They never contain key names, usage codes, characters or
+values. Routing records are off until armed and stop after the bounded window.
+An admitted or released record describes launcher queue admission; it does
+not prove the guest consumed the input.
+
+This control path requires a kit lease and a verified tenfoot binary containing
+the control handler. It does not signal or restart the managed service.
+
+To diagnose a keyboard hold across a later non-handoff transition, a root-only
+test may temporarily hide the surround with
+`/run/fogcast/tenfoot-key-trace-surround-hold`, then restore it with
+`/run/fogcast/tenfoot-key-trace-surround-release`. Create each as a fresh,
+root-owned, mode-0600 one-shot file while routing tracing is armed. Its content
+is `<pid> <process-start> <session-token>\n`. The token is lowercase SHA-256
+of the session ID, game ID, literal `kit`, target ID, flight ID, core package
+ID and decimal generation, each followed by a newline. It must identify the
+currently active play. The hold only takes effect on a shown machine-focused
+surround and uses the normal Tenfoot display transitions. It expires after 15
+seconds or a session change, and does not persist a preference. Confirm the
+`diagnostic-surround-held` and `diagnostic-surround-released` routing records
+before relying on a controlled test. This intervention is diagnostic evidence
+and does not establish that the ordinary settings UI exposes this transition.
 
 ## Summarise
 
@@ -99,8 +132,8 @@ image or boot file.
 1. Build a software bundle from this source with `make kit-software` against
    the kit's verified base image. Install and activate it at a free lease
    boundary, and record the previous bundle ID.
-2. Wait until Home is settled, then dump once to discard startup:
-   `kill -USR1 $(pidof fogcast-tenfoot)`.
+2. Wait until Home is settled, then use the managed-kit one-shot dump request
+   above to discard startup.
 3. Drive each interaction for about 20 seconds with the usual uinput pad,
    about two presses a second:
    - Home shelf Left/Right
@@ -110,7 +143,7 @@ image or boot file.
    - Settings open/close
    - the ZX81 Workshop shelf
 
-   Send `SIGUSR1` after each. Every signal writes a new file, and the
+   Request a managed-kit dump after each. Every dump writes a new file, and the
    process prints its path; the name includes the dump time.
 
    Each dump is about 2.5 MB, and `/tmp` on the kit is tmpfs, so dumps use

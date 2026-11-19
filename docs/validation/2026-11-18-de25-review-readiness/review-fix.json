@@ -1,0 +1,303 @@
+{
+  "reviewed_head": "ce975a4c2b366b247b32d3fe5b7ece601824713c",
+  "merge_base": "e2b8130b5a18b652095a8d5e23124fd0a994e9c0",
+  "independent_round1": {
+    "scope": "Full non-doc firmware/native/test diff",
+    "actionable_findings": [
+      {
+        "priority": "P2",
+        "condition": "Fixed program()20s probes inherited service25s observer limit",
+        "paths": [
+          "platform/embedded/nano/native_trace.py",
+          "platform/embedded/nano/window_reload_trace.py",
+          "platform/embedded/nano/window_service_trace.py"
+        ]
+      }
+    ],
+    "other_P0_P1_P2_findings": []
+  },
+  "external_Codex_review": {
+    "commit": "ce975a4c2b366b247b32d3fe5b7ece601824713c",
+    "comment_id": 6989864993,
+    "findings": false
+  },
+  "before": {
+    "status": "fixed-probe-deadline-reproduction",
+    "results": [
+      {
+        "elapsed_us": 19999999,
+        "complete": true,
+        "errors": []
+      },
+      {
+        "elapsed_us": 20000000,
+        "complete": true,
+        "errors": []
+      },
+      {
+        "elapsed_us": 21000000,
+        "complete": true,
+        "errors": []
+      },
+      {
+        "elapsed_us": 24000000,
+        "complete": true,
+        "errors": []
+      },
+      {
+        "elapsed_us": 25000000,
+        "complete": false,
+        "errors": [
+          "reload lacks bounded configuration timing",
+          "second reload lacks a fully verified preceding return"
+        ]
+      }
+    ]
+  },
+  "after": {
+    "status": "fixed-probe-deadline-reproduction",
+    "results": [
+      {
+        "elapsed_us": 19999999,
+        "complete": true,
+        "errors": []
+      },
+      {
+        "elapsed_us": 20000000,
+        "complete": false,
+        "errors": [
+          "reload lacks bounded configuration timing",
+          "second reload lacks a fully verified preceding return"
+        ]
+      },
+      {
+        "elapsed_us": 21000000,
+        "complete": false,
+        "errors": [
+          "reload lacks bounded configuration timing",
+          "second reload lacks a fully verified preceding return"
+        ]
+      },
+      {
+        "elapsed_us": 24000000,
+        "complete": false,
+        "errors": [
+          "reload lacks bounded configuration timing",
+          "second reload lacks a fully verified preceding return"
+        ]
+      },
+      {
+        "elapsed_us": 25000000,
+        "complete": false,
+        "errors": [
+          "reload lacks bounded configuration timing",
+          "second reload lacks a fully verified preceding return"
+        ]
+      }
+    ]
+  },
+  "focused": {
+    "argv": [
+      "python3",
+      "-m",
+      "unittest",
+      "test_nano_configuration_budgets",
+      "test_nano_paired_tenfoot_trace",
+      "test_nano_window_reload_trace",
+      "test_nano_window_service_trace",
+      "-v"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-secure-lifecycle",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 3.209069770993665,
+    "log_sha256": "aaaa72323f60326f429d270162839fb154e0d16992c379759c12afc7983be140",
+    "environment": {
+      "PYTHONPATH": "/home/deano/fes/out/dev/de25-secure-lifecycle/tests:/home/deano/fes/out/dev/de25-secure-lifecycle/out/nano-bridge-diag-test-python"
+    }
+  },
+  "focused_test_count": 30,
+  "original_full_run": {
+    "argv": [
+      "python3",
+      "scripts/test_changed.py",
+      "--base",
+      "e2b8130b5a18b652095a8d5e23124fd0a994e9c0",
+      "--head",
+      "ce975a4c2b366b247b32d3fe5b7ece601824713c"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-secure-lifecycle",
+    "returncode": -15,
+    "timed_out": false,
+    "elapsed": 272.10512475902215,
+    "log_sha256": "e88ef0630f86b28c8cf5d4a0a2885f9fe38580518764ef224534d9b2e18db9e1"
+  },
+  "original_full_run_stop": {
+    "reason": "Round1 reproduced fixed-probe20s validation defect; stop only this owned older-head test group before batching fix, then rerun exact new head",
+    "pid": 2773733,
+    "start_ticks": "206309940",
+    "success_claimed": false
+  },
+  "runtime_firmware_changes_in_review_fix": false,
+  "hardware_actions": false,
+  "normal_HIL_acceptance": false,
+  "portable_focused": {
+    "argv": [
+      "env",
+      "PYTHONPATH=tests",
+      "python3",
+      "-m",
+      "unittest",
+      "test_nano_configuration_budgets",
+      "test_nano_paired_tenfoot_trace",
+      "test_nano_window_reload_trace",
+      "test_nano_window_service_trace",
+      "-v"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-secure-lifecycle",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 1.2015691979322582,
+    "log_sha256": "1d527ca24c2318d54e8f37d81192e5e09f7ef02ee978d1df6d9d2c08f0d7c106",
+    "portable_cwd": "checkout root"
+  },
+  "complete_PR_validation": {
+    "status": "verified-complete-11-command-report",
+    "head": "2a35a1b909cc0771d5ad81c33b4475c5e61b638e",
+    "original_pid": 2834582,
+    "original_start_ticks": "206358481",
+    "original_cap_seconds": 3600,
+    "absolute_cap_reached": false,
+    "observed_elapsed_seconds": 2451.262391171884,
+    "original_wrapper_terminal_rc": 143,
+    "wrapper_success_claimed": false,
+    "log_sha256": "52c69a941edf1f3fe1f1565457b1e62423875429886a42072d4f7254cea8d3af",
+    "hardware_actions": false,
+    "tested_head": "2a35a1b909cc0771d5ad81c33b4475c5e61b638e",
+    "command_count": 11,
+    "command_results": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "Go command inventory",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "native runtime firmware and FPGA launch integration",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "embedded producer identity and native control integration",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "embedded firmware and identity/drain RTL integration",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "test_*.py",
+        "lane": "fpga",
+        "returncode": 0
+      }
+    ],
+    "merge_base": "e2b8130b5a18b652095a8d5e23124fd0a994e9c0",
+    "actor_argv": [
+      "python3",
+      "scripts/test_changed.py",
+      "--base",
+      "e2b8130b5a18b652095a8d5e23124fd0a994e9c0",
+      "--head",
+      "HEAD"
+    ],
+    "observed_receipt_sha256": "659903a6f85fb4a7b915e0c37e6b63d2fdfb29e3a93b6d86c8a478e3c3c400b1"
+  },
+  "current_decoder_saved_wire_replay": {
+    "status": "passed-saved-physical-wire-on-current-host-decoders",
+    "decoder_head": "2a35a1b909cc0771d5ad81c33b4475c5e61b638e",
+    "native_artifact_source": "838ac5b48c307315eb98bb9f819be22647553f35",
+    "native_code_unchanged": true,
+    "original_capture_inputs_sha256": "4cd96fb9aa2884ab7ba11b4e574460e53743a3f8559836db920aa9831f4e08c9",
+    "original_wire_sha256": "723151e664120cbb521e45807a1dc8bd2e3c3636fe81ddd697e8eaffa7933800",
+    "new_decoder_pins": [
+      {
+        "path": "/home/deano/fes/out/dev/de25-secure-lifecycle/platform/embedded/nano/window_service_trace.py",
+        "original": "22ab3d99ebe7def9c4184728ca61fd5fda69996596a6d41577b419514ac5b636",
+        "current": "9a97fcc4d44e618ff1d2681e80485cc86ecde1fd3ce88c876c5e925b6e78292b"
+      },
+      {
+        "path": "/home/deano/fes/out/dev/de25-secure-lifecycle/platform/embedded/nano/native_trace.py",
+        "original": "cc2dba9e680d73446fd4f8485b7a5ce7dc3beeb9e01601136a0f3113ec691d13",
+        "current": "2b6e72ad6757ad7548ca9d755689570557a3a4127729a4942e014119c29480e4"
+      },
+      {
+        "path": "/home/deano/fes/out/dev/de25-secure-lifecycle/platform/embedded/nano/configuration_trace.py",
+        "original": "541b794b2873961d90565cb3a6dfbcbfe1da687825bd7bcff9e66bfc989dfee1",
+        "current": "2911a3c453851f7843c72a81a843ca62d84f320d0e7b36439bfa57e50232255d"
+      },
+      {
+        "path": "/home/deano/fes/out/dev/de25-secure-lifecycle/platform/embedded/nano/window_reload_trace.py",
+        "original": "a0eea4fa6f33230e1eb74fdfcf17ffff5b8c52e6f6c3f02628900f800ff28fb4",
+        "current": "2a8bee746235770e4efbe8855d04fb9c4092da2e3d12c241c3e659de19662cfa"
+      }
+    ],
+    "replay": {
+      "status": "passed-saved-installer-wire-and-poll-times",
+      "discovered": true,
+      "commands": 27,
+      "polling_offers": 341,
+      "hardware_actions": false,
+      "live_authority": false,
+      "persistence_verified": false
+    },
+    "original_inputs_or_physical_records_modified": false,
+    "hardware_actions": false,
+    "new_hardware_acceptance": false,
+    "ordinary_HIL_acceptance": false
+  },
+  "independent_fix_review": {
+    "head": "2a35a1b909cc0771d5ad81c33b4475c5e61b638e",
+    "scope": "fix-only delta from ce975",
+    "P0_P1_P2": [],
+    "independent_focused_tests": 30,
+    "whitespace": "passed"
+  },
+  "evidence_environment_correction": {
+    "finding_comment": 4620047396,
+    "original_result_and_argv_preserved": true,
+    "missing_environment_now_explicit": true,
+    "portable_invocation_independently_run": true,
+    "behavior_changed": false
+  }
+}

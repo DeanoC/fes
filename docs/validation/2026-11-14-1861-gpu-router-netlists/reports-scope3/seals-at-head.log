@@ -1,0 +1,17 @@
+head             a892a9888dddf7f45a4dfed3806e490c55273683
+sources/misteross 85200fc21385f79a660c020a6912823f930ae0a5  <- the anchor; a docs commit does not move it
+artefact             sealed at      verdict       detail
+c64                  df99f2dfb208   intact        all 73 input digests match this head
+menu                 df99f2dfb208   intact        all 31 input digests match this head
+pentagon             541e3c548751   intact        all 52 input digests match this head
+spectrum             541e3c548751   intact        all 52 input digests match this head
+spectrum-plus3       541e3c548751   intact        all 52 input digests match this head
+spectrum128          541e3c548751   intact        all 52 input digests match this head
+splash               df99f2dfb208   intact        all 11 input digests match this head
+ts1000               df99f2dfb208   intact        design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs)
+ts1500               df99f2dfb208   intact        design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs)
+zx80                 df99f2dfb208   intact        design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs)
+zx81                 df99f2dfb208   intact        design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs)
+
+11 of 11 seals still match this head
+wrote /home/deano/fes/.claude/worktrees/gpu-router-default/docs/validation/2026-11-14-1861-gpu-router-netlists/reports-scope3/seals-at-head.json

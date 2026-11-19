@@ -1,0 +1,17 @@
+14 distinct 40-hex value(s) referenced in 2026-11-14-1861-gpu-router-netlists
+  480c924f8bfcdc39521356d7a2e774268486b616 commit
+  541e3c5487518496fd8fe66457313b528daeec09 commit
+  72d2fc4da6df140a3a1ab7b791b0c83341959f71 commit
+  760d8a8f05310c6cb8f1ec2179ee1ccbfa723ed3 commit
+  7aae9b96c30df4de98b5f5a52fc34accfcb47bb4 commit
+  89263b0c361e36fd3f0268f88b071df1c2fdc896 commit
+  947ca2a83a821712f635d05d94b144a7330763dc commit
+  a482f14c0f22cf67375e8eebce9211f80e64bd07 commit
+  b0f05545183f7d06e58a7dae7123eabe8770ea9a commit
+  b5d3ae2323fac52e54fd3ac584f449686a9a946d commit
+  cf8ec7bec6182edd861f377868407fd0a346ddc0 commit
+  d83212c98ef581862002ade3a0e76755e018c4a9 commit
+  df99f2dfb2084035b213614960b952f5e79ab781 commit
+  e2b8130b5a18b652095a8d5e23124fd0a994e9c0 commit
+
+every referenced revision resolves

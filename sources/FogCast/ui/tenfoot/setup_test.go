@@ -428,13 +428,13 @@ func TestFirstRunMaximumSafeAreaRender(t *testing.T) {
 			continue
 		}
 		switch op.Text {
-		case "Sinclair ZX81", "ZX Spectrum", "Atari ST", "Commodore 64":
+		case "Sinclair ZX81", "ZX Spectrum", "Atari ST", "Commodore 64", "PC/XT", "PC 386":
 			names = append(names, op)
 		case "No games yet", "No games yet  ·  needs your firmware files", "Not on this kit":
 			details = append(details, op)
 		}
 	}
-	if len(names) != 4 || len(details) != 4 {
+	if len(names) != 6 || len(details) != 6 {
 		t.Fatalf("Ready rows: %d names, %d details", len(names), len(details))
 	}
 	for i := 0; i < len(names)-1; i++ {

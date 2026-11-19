@@ -1,0 +1,68 @@
+[
+  {
+    "attempt": "coordinated-fit-v2",
+    "config": {
+      "capture_phase_ps": 6875,
+      "capture_pipeline": 1,
+      "forward_phase_ps": 1250,
+      "input_registers": 16,
+      "seed": 1,
+      "system_mhz": 100
+    },
+    "handoff_hold_ns": 2.652,
+    "handoff_setup_ns": 0.549,
+    "ignored_regional_request": false,
+    "internal_checks_pass": true,
+    "postprocess_status": "failed",
+    "raw_read_hold_ns": 13.386,
+    "raw_read_setup_ns": -12.093,
+    "rbf_sha256": null,
+    "used_word_hold_ns": 3.386,
+    "used_word_setup_ns": -2.093
+  },
+  {
+    "attempt": "coordinated-fit-v3",
+    "config": {
+      "capture_phase_ps": 8125,
+      "capture_pipeline": 1,
+      "forward_clock_routing": "REGIONAL CLOCK",
+      "forward_phase_ps": 1250,
+      "input_registers": 16,
+      "seed": 1,
+      "system_mhz": 100
+    },
+    "handoff_hold_ns": 3.701,
+    "handoff_setup_ns": -0.971,
+    "ignored_regional_request": true,
+    "internal_checks_pass": false,
+    "postprocess_status": "failed",
+    "raw_read_hold_ns": 12.136,
+    "raw_read_setup_ns": -10.843,
+    "rbf_sha256": "b1804a26440e79fee3b85ad70bbb30bbe613eca98a6ab5d34c80ac337e7690cf",
+    "used_word_hold_ns": 2.136,
+    "used_word_setup_ns": -0.843
+  },
+  {
+    "attempt": "coordinated-fit-v4",
+    "config": {
+      "capture_phase_ps": 8125,
+      "capture_pipeline": 1,
+      "forward_clock_net": "clocks[2]",
+      "forward_clock_routing": "REGIONAL CLOCK",
+      "forward_phase_ps": 1250,
+      "input_registers": 16,
+      "seed": 1,
+      "system_mhz": 100
+    },
+    "handoff_hold_ns": 3.567,
+    "handoff_setup_ns": -0.27,
+    "ignored_regional_request": true,
+    "internal_checks_pass": false,
+    "postprocess_status": "failed",
+    "raw_read_hold_ns": 12.136,
+    "raw_read_setup_ns": -10.843,
+    "rbf_sha256": "082fa11655274a14e1bb2f46b91135c34b398028f1d95d555ffd4d813d450bf8",
+    "used_word_hold_ns": 2.136,
+    "used_word_setup_ns": -0.843
+  }
+]

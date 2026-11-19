@@ -47,6 +47,25 @@ class InputIdentityTests(unittest.TestCase):
             self.assertEqual(before['identities']['design'], after['identities']['design'], key)
             self.assertNotEqual(before['identities']['toolchain'], after['identities']['toolchain'], key)
 
+    def test_pc386_evidence_and_capture_roles_do_not_hide_design_inputs(self):
+        before = self.record()
+        for path, toolchain_changes in (("cores/fes-pc386/tools/pc386_seal_evidence.py", False),
+                                        ("cores/fes-pc386/tools/pc386_execution.py", True),
+                                        ("cores/fes-pc386/tools/pc386_owned_job.py", True)):
+            current = copy.deepcopy(before)
+            current['source_inputs'][path] = '0' * 64
+            current = with_identities(current)
+            changed = copy.deepcopy(current)
+            changed['source_inputs'][path] = '1' * 64
+            changed = with_identities(changed)
+            self.assertEqual(current['identities']['design'], changed['identities']['design'])
+            self.assertEqual(current['identities']['toolchain'] != changed['identities']['toolchain'],
+                             toolchain_changes)
+            self.assertNotEqual(current['identities']['record'], changed['identities']['record'])
+        changed = copy.deepcopy(before)
+        changed['source_inputs']['scripts/build_fes_pc386_quartus.py'] = '1' * 64
+        self.assertNotEqual(identities(changed)['design'], before['identities']['design'])
+
     def test_quartus_recipe_version_drift_is_toolchain_only(self):
         recipe = {'version': 'Quartus Lite 17.0', 'seeds': [1, 2, 3], 'threads': 2}
         before = self.record()

@@ -21,6 +21,7 @@ func TestCoreLibraryListsOnlyReleaseCoresUnlessAllShown(t *testing.T) {
 	app.coreLibrary = coreLibraryState{Open: true, Online: true, Cores: []hostclient.AvailableCore{
 		{CoreReference: hostclient.CoreReference{CoreID: "fes.c64"}, Label: "C64"},
 		{CoreReference: hostclient.CoreReference{CoreID: "fes.coleco"}, Label: "ColecoVision"},
+		{CoreReference: hostclient.CoreReference{CoreID: "fes.pcxt-dos"}, Label: "PC/XT"},
 		{CoreReference: hostclient.CoreReference{CoreID: "fes.pc386"}, Label: "PC 386"},
 	}}
 	listed := func() []string {
@@ -34,11 +35,11 @@ func TestCoreLibraryListsOnlyReleaseCoresUnlessAllShown(t *testing.T) {
 		}
 		return ids
 	}
-	if got := listed(); len(got) != 1 || got[0] != "fes.c64" {
-		t.Fatalf("v1 catalog = %v", got)
+	if got := listed(); len(got) != 3 || got[0] != "fes.c64" || got[1] != "fes.pcxt-dos" || got[2] != "fes.pc386" {
+		t.Fatalf("default catalog = %v", got)
 	}
 	app.SetAllCores(true)
-	if got := listed(); len(got) != 3 {
+	if got := listed(); len(got) != 4 {
 		t.Fatalf("all-cores catalog = %v", got)
 	}
 }
@@ -52,6 +53,8 @@ func TestHomeRecentsHideGamesForCoresOutsideTheRelease(t *testing.T) {
 		{ID: "zx", Title: "3D Monster Maze", CoreID: "fes.zx81"},
 		{ID: "pong", Title: "Pong", CoreID: "fes.pong"},
 		{ID: "rom", Title: "Scanned ROM"},
+		{ID: "xt", Title: "Digger", CoreID: "fes.pcxt-dos"},
+		{ID: "386", Title: "DOOM", CoreID: "fes.pc386"},
 	}
 	ids := func() []string {
 		var out []string
@@ -60,8 +63,8 @@ func TestHomeRecentsHideGamesForCoresOutsideTheRelease(t *testing.T) {
 		}
 		return out
 	}
-	if got := ids(); len(got) != 2 || got[0] != "zx" || got[1] != "rom" {
-		t.Fatalf("v1 recents = %v", got)
+	if got := ids(); len(got) != 4 || got[0] != "zx" || got[1] != "rom" || got[2] != "xt" || got[3] != "386" {
+		t.Fatalf("default recents = %v", got)
 	}
 	if _, ok := app.homeRecentByIDLocked("pong"); ok {
 		t.Fatal("a hidden recent can still be chosen")
@@ -70,7 +73,7 @@ func TestHomeRecentsHideGamesForCoresOutsideTheRelease(t *testing.T) {
 	app.SetAllCores(true)
 	app.mu.Lock()
 	defer app.mu.Unlock()
-	if got := ids(); len(got) != 3 {
+	if got := ids(); len(got) != 5 {
 		t.Fatalf("all-cores recents = %v", got)
 	}
 }

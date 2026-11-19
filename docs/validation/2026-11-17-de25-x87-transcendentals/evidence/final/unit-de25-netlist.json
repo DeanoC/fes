@@ -1,0 +1,267 @@
+{
+  "top": "fes_i386_x87",
+  "netlist": true,
+  "backend": "de25",
+  "source": {
+    "fes_revision": "e967bf4fa1b11c3c637c5aa91582b38f28b65afb",
+    "tracked_changes": [],
+    "files": {
+      "sources/misteross/cores/fes-common/rtl/i386/fes_i386_pkg.sv": "16183393fd8aaa8d0e059032c045b7ae403ce3bf9e3c6851fb017dbc5b759d67",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87.sv": "20c3bfd236d5fd80d330bb85ba9a53f2450051a9cbc5bcd9dce57164d70e92d6",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87_mul.sv": "1c07ac7b90d76654495e21996d991647da67c144985ac61fdb332e37392190ce",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_core.sv": "0409811e168e54691abf5196e5a9f3586a43475207b8d9ad5592ad7b1378c4a6",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_fast.sv": "4cc6c1a05e3211473895c9acf1864b246af2d5f3e700fbfc038e053d37a9441c",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_pkg.sv": "86334f83339b10b47598044b74b510bac5829d52f7cbd4eb379570d2f90dd64d",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_slow.sv": "45f43d52b5a92c24e99c47a613b1a8c588bd449391d2df9461441aa02ea4e369",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_trans.sv": "b68d7aefb4b84dcd7f0fe8aa045a699a34948a8925816a789781d41c3cce9e78",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_trans_pkg.sv": "c9055d57c62a0e3e81db35c8001aa71da746cd6e5f3078aef4d65cbff36e82c5",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_trans_rom.sv": "0944aea871c85be01f3db9b5035fb9d97583836b41afbba5931c66a40641ce19",
+      "sources/misteross/cores/fes-common/sim/i386/x87_unit_tb.cpp": "468b9b5cfa79d5df64d1fbf52c9a7ba744f80a27033a7e4ca59477840f2d98ec",
+      "sources/misteross/scripts/test_fes_i386_x87_unit.py": "d907e78fbdbeef01e507439ce3a899339bc1e4c658ea468d669417813f6fc404",
+      "sources/misteross/scripts/x87_envelope_fit.py": "d3e4c95a59fbb4fb748e48d953b06bfcb2fe7132c7b30e9c9b80a674510ea47c",
+      "sources/misteross/scripts/x87_trans_ucode.py": "b9be5b3c6738dd854b2907d08734c0015e0c21c039e73e45f97194e24554e53e",
+      "sources/misteross/scripts/yosys_netlist.py": "4e5e0efad547a7b64a3130bf16804142ce53d469185b0fe44baec28846c634f8"
+    },
+    "files_sha256": "e45999c16241b251b8af5fe931086dfad5af9537159845eca63d4675ce701f65"
+  },
+  "verilator": {
+    "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+    "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+    "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+    "version": "Verilator 5.054 2026-11-01 rev v5.054",
+    "install": "1cd6c9741d903760a2b1c4283b6830f63c0974f8478b06fb7f8dabd3c4304d8c"
+  },
+  "passed": 18178,
+  "failed": 0,
+  "failures": [],
+  "cases": 18178,
+  "bcd_cases": 61,
+  "bcd_forms": {
+    "fbld": {
+      "issued": 6845,
+      "converted": 6843
+    },
+    "fbstp": {
+      "issued": 13371,
+      "converted": 11618
+    }
+  },
+  "transcendentals": {
+    "bound_host": 4,
+    "qemu_brackets": {
+      "revision": "005c61c0ef6f6ae615283440b4bb7be51b2c6ddd",
+      "license": "GPL-2.0-or-later",
+      "files_sha256": {
+        "test-i386-f2xm1.c": "f88f87576a477fcb9d89073983aeedb44e7a68efedba250a7495afbf1ae9be0b",
+        "test-i386-fpatan.c": "5a511b4c74ca2001ad74eda869e3c9e06169e5469b2d0b42084da3c738fc1cef",
+        "test-i386-fyl2x.c": "080ffac186bb996f8bbffaad5940ebfbb85844bd1ffd74eb2854c0d84d0c014a",
+        "test-i386-fyl2xp1.c": "bb0cf7cba34e41fa76f805fe62e4b18bd880dd70fb4f653ed12b7c5a7e745758"
+      },
+      "instructions": {
+        "F2XM1": {
+          "rows": 1103,
+          "inside": 1102,
+          "worst_outside": 1,
+          "outside": {
+            "0": 1102,
+            "1": 1
+          }
+        },
+        "FPATAN": {
+          "rows": 1032,
+          "inside": 1030,
+          "worst_outside": 1,
+          "outside": {
+            "0": 1030,
+            "1": 2
+          }
+        },
+        "FYL2X": {
+          "rows": 1122,
+          "inside": 1122,
+          "worst_outside": 0,
+          "outside": {
+            "0": 1122
+          }
+        },
+        "FYL2XP1": {
+          "rows": 1117,
+          "inside": 1115,
+          "worst_outside": 1,
+          "outside": {
+            "0": 1115,
+            "1": 2
+          }
+        }
+      }
+    },
+    "bound_is": "proposed, not agreed: see the record's bound.md",
+    "model_vectors_compared_exactly": 7994,
+    "reset_and_squash_offsets_inside_engine": 244,
+    "cases": 17354,
+    "instructions": {
+      "FSIN": {
+        "cases": 1703,
+        "engine_runs": 2658,
+        "values": 1687,
+        "identical": 1663,
+        "worst": 1,
+        "c1_differs": 18,
+        "manual": 6,
+        "distance": {
+          "0": 1663,
+          "1": 24
+        }
+      },
+      "FCOS": {
+        "cases": 1703,
+        "engine_runs": 2658,
+        "values": 1687,
+        "identical": 1664,
+        "worst": 1,
+        "c1_differs": 13,
+        "manual": 6,
+        "distance": {
+          "0": 1664,
+          "1": 23
+        }
+      },
+      "FSINCOS": {
+        "cases": 1703,
+        "engine_runs": 2656,
+        "values": 3349,
+        "identical": 2660,
+        "worst": 1,
+        "c1_differs": 590,
+        "manual": 4,
+        "distance": {
+          "0": 2660,
+          "1": 689
+        }
+      },
+      "FPTAN": {
+        "cases": 1703,
+        "engine_runs": 2656,
+        "values": 3349,
+        "identical": 2755,
+        "worst": 2,
+        "c1_differs": 221,
+        "manual": 4,
+        "distance": {
+          "0": 2755,
+          "1": 593,
+          "2": 1
+        }
+      },
+      "F2XM1": {
+        "cases": 1703,
+        "engine_runs": 3774,
+        "values": 1687,
+        "identical": 1363,
+        "worst": 1,
+        "c1_differs": 156,
+        "manual": 0,
+        "distance": {
+          "0": 1363,
+          "1": 324
+        }
+      },
+      "FYL2X": {
+        "cases": 2945,
+        "engine_runs": 4066,
+        "values": 2929,
+        "identical": 2593,
+        "worst": 1,
+        "c1_differs": 251,
+        "manual": 0,
+        "distance": {
+          "0": 2593,
+          "1": 336
+        }
+      },
+      "FYL2XP1": {
+        "cases": 2945,
+        "engine_runs": 4066,
+        "values": 2634,
+        "identical": 2341,
+        "worst": 1,
+        "c1_differs": 198,
+        "manual": 295,
+        "distance": {
+          "0": 2341,
+          "1": 293
+        }
+      },
+      "FPATAN": {
+        "cases": 2945,
+        "engine_runs": 4192,
+        "values": 2929,
+        "identical": 2621,
+        "worst": 1,
+        "c1_differs": 257,
+        "manual": 0,
+        "distance": {
+          "0": 2621,
+          "1": 308
+        }
+      }
+    }
+  },
+  "netlist_exclusion": {
+    "own_backend_only": {
+      "bl_acc": true,
+      "bl_dig": true,
+      "bl_n": true,
+      "bs_bcd": true,
+      "bs_bin": true,
+      "bs_n": true
+    },
+    "other_backend_only": {
+      "dv_c": false,
+      "dv_k": false,
+      "dv_pow": false,
+      "dv_sub": false,
+      "gs_d": false,
+      "gs_n": false,
+      "qt_e": false,
+      "qt_s": false,
+      "qy_e": false,
+      "qy_s": false,
+      "qz_e": false,
+      "qz_s": false,
+      "ua_add": false,
+      "ub_add": false,
+      "ub_g": false,
+      "ub_r": false,
+      "ub_s": false
+    },
+    "leaked": []
+  },
+  "latency_clocks": {
+    "fadd.pc24": 19,
+    "fsub.pc24": 19,
+    "fmul.pc24": 19,
+    "fdiv.pc24": 39,
+    "fsqrt.pc24": 39,
+    "fscale.pc24": 15,
+    "frndint.pc24": 22,
+    "fprem.pc24": 17,
+    "fadd.pc53": 19,
+    "fsub.pc53": 19,
+    "fmul.pc53": 19,
+    "fdiv.pc53": 68,
+    "fsqrt.pc53": 68,
+    "fscale.pc53": 15,
+    "frndint.pc53": 22,
+    "fprem.pc53": 17,
+    "fadd.pc64": 19,
+    "fsub.pc64": 19,
+    "fmul.pc64": 19,
+    "fdiv.pc64": 79,
+    "fsqrt.pc64": 79,
+    "fscale.pc64": 15,
+    "frndint.pc64": 22,
+    "fprem.pc64": 17
+  },
+  "testfloat": null
+}

@@ -112,8 +112,20 @@ func (t *ConfigurationTransfer) Cancel(reason error) error {
 	return reason
 }
 
+// reject is the lifecycle owner's rejection of an unaccepted result. Unlike
+// public Cancel, it also invalidates a synchronous completion that returned
+// after the owner's deadline. Done records the historical hardware result;
+// err prevents activation, rearm, source reuse and further Advance calls.
+func (t *ConfigurationTransfer) reject(reason error) error {
+	if t.err != nil {
+		return errors.Join(reason, t.err)
+	}
+	t.err = reason
+	return reason
+}
+
 func (t *ConfigurationTransfer) stable() bool {
-	return t.region != nil && t.arenaHash.sum(t.region.Bytes) == t.digest && sha256.Sum256(t.source) == t.digest
+	return t.region != nil && t.arenaHash.sum(t.region.Bytes) == t.digest && t.arenaHash.sum(t.source) == t.digest
 }
 
 func (t *ConfigurationTransfer) stableChunk(b configurationBuffer) bool {
@@ -122,7 +134,7 @@ func (t *ConfigurationTransfer) stableChunk(b configurationBuffer) bool {
 	}
 	index := b.offset / t.chunk
 	return index < len(t.chunks) && t.arenaHash.sum(t.region.Bytes[b.offset:b.offset+b.amount]) == t.chunks[index] &&
-		sha256.Sum256(t.source[b.offset:b.offset+b.amount]) == t.chunks[index]
+		t.arenaHash.sum(t.source[b.offset:b.offset+b.amount]) == t.chunks[index]
 }
 
 func (t *ConfigurationTransfer) stablePending() bool {

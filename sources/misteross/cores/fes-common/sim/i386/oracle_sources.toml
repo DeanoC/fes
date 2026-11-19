@@ -1,0 +1,25 @@
+# The i386 lockstep oracle's pins and source lists (#1984 S1). The provisioner,
+# scripts/fes_i386_oracle.py, reads this file, and the pc386 seal hashes the
+# files it names as data without importing the provisioner, so code in the
+# provisioner never runs in the seal process.
+
+# Bochs REL_3_1_FINAL.
+bochs_revision = "30cfd566ecc8deb33e56e801e32b444a7041b6d2"
+bochs_patch = "cores/fes-common/sim/i386/bochs/flat-stack-limit.patch"
+# The adapter, relative to cores/fes-common/sim/i386, in digest order.
+oracle_sources = ["i386_oracle.h", "bochs_oracle.cpp", "bochs/instrument.h"]
+# The lockstep suite, in digest order.
+suite_sources = [
+    "scripts/test_fes_i386_lockstep.py",
+    "scripts/test_fes_i386_vectors.py",
+    "scripts/test_fes_i386_frontend.py",
+    "scripts/i386_verilator.py",
+    "scripts/yosys_netlist.py",
+    "cores/fes-common/sim/i386/lockstep_tb.cpp",
+    "cores/fes-common/sim/i386/biu_dma_tb.cpp",
+    "cores/fes-common/sim/i386/divergences.toml",
+    "cores/fes-common/sim/i386/smc_stale.h",
+    "cores/fes-pc386/sim/pc386_ddr_model.h",
+]
+# The objects a report names in its linked_sha256, in link order.
+linked_names = ["adapter", "paramtree", "cpu", "fpu", "softfloat"]

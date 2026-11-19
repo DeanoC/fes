@@ -7,7 +7,7 @@ import (
 )
 
 // docs/support-matrix.json records each package's release scope. It must
-// agree with the table tenfoot filters by.
+// agree with the release plan independently of launcher visibility.
 func TestScopesMatchTheSupportMatrix(t *testing.T) {
 	data, err := os.ReadFile("../../../../docs/support-matrix.json")
 	if err != nil {
@@ -46,7 +46,8 @@ func TestShown(t *testing.T) {
 		want bool
 	}{
 		{"fes.atari-st", false, true},
-		{"fes.pc386", false, false},
+		{"fes.pcxt-dos", false, true},
+		{"fes.pc386", false, true},
 		{"fes.pong", false, false},
 		{"fes.unknown", false, false},
 		{"fes.pong", true, true},

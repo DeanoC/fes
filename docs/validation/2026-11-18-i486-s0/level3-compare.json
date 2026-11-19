@@ -1,0 +1,412 @@
+{
+  "base_checkout": "/home/deano/fes-scratch/i486s0/base",
+  "commits": {
+    "base": "6ee9f11131fa49311cf5f18c0b7e0a301f8f70e4",
+    "head": "7e813da4656adbf048d079bd9aa110f53fc52ebd"
+  },
+  "exit_status": {
+    "base": {
+      "all": "done",
+      "boot": "boot rc=0",
+      "lockstep": "lockstep rc=0",
+      "test386": "test386 rc=0",
+      "vectors": "vectors rc=0"
+    },
+    "head": {
+      "all": "done",
+      "boot": "boot rc=0",
+      "boot-l4": "boot-l4 rc=0",
+      "i486": "i486 rc=0",
+      "lockstep": "lockstep rc=0",
+      "test386": "test386 rc=0",
+      "vectors": "vectors rc=0"
+    }
+  },
+  "head_checkout": "/home/deano/fes-scratch/i486s0/head",
+  "ignored_keys": [
+    "source",
+    "adapter_sha256",
+    "suite_sha256",
+    "testbench_sha256",
+    "linked_sha256",
+    "report",
+    "path",
+    "directory",
+    "seconds_wall",
+    "wall_seconds",
+    "elapsed"
+  ],
+  "pass": true,
+  "runs": {
+    "boot": {
+      "differences": [],
+      "end": {
+        "base": {
+          "cycles": 370000047,
+          "reason": "prompt",
+          "seconds": 3.7,
+          "steps": 89865920
+        },
+        "head": {
+          "cycles": 370000047,
+          "reason": "prompt",
+          "seconds": 3.7,
+          "steps": 89865920
+        }
+      },
+      "equal": true,
+      "ignored": [],
+      "replay": {
+        "base": "match events=84949 replay_mismatches=0 read_mismatches=0 vram_mismatches=0 frame_mismatches=0 end_vram_bytes_differing=0",
+        "head": "match events=84949 replay_mismatches=0 read_mismatches=0 vram_mismatches=0 frame_mismatches=0 end_vram_bytes_differing=0"
+      },
+      "report": "fes-pc386/boot/report.json"
+    },
+    "lockstep": {
+      "arguments": {
+        "backend": "de10",
+        "debug_programs": "250",
+        "limit_per_file": "None",
+        "no_latency": "False",
+        "opcode": "None",
+        "pm_programs": "500",
+        "preset": "0",
+        "random_programs": "2000",
+        "random_seeds": "16",
+        "same_as": "None",
+        "seed": "1",
+        "task_programs": "250",
+        "transcendental_ulp_oracle": "None",
+        "undefined_programs": "250"
+      },
+      "default_suite": true,
+      "differences": [],
+      "equal": true,
+      "ignored": [
+        "oracle.adapter_sha256",
+        "oracle.linked_sha256",
+        "oracle.suite_sha256",
+        "oracle.testbench_sha256",
+        "source"
+      ],
+      "report": "fes-i386-lockstep/report.json",
+      "revisions": [
+        "6ee9f11131fa49311cf5f18c0b7e0a301f8f70e4",
+        "7e813da4656adbf048d079bd9aa110f53fc52ebd"
+      ],
+      "suites": {
+        "base": {
+          "corpus": {
+            "failed": 0,
+            "passed": 1758699,
+            "runs": 1758699,
+            "trace_hashes": 941,
+            "trace_hashes_sha256": "c10c2fd63ff07b3ec98fd21e41a33ccaeac56925d8d2963ebfe801d1772bd616"
+          },
+          "debug": {
+            "failed": 0,
+            "passed": 4000,
+            "runs": 4000,
+            "trace_hashes": 16,
+            "trace_hashes_sha256": "8a08a803e774eb29adb9ea912f83b3101561a97ee16ff963a277326bff225de1"
+          },
+          "directed_cases": {
+            "failed": 0,
+            "passed": 84,
+            "runs": 84,
+            "trace_hash": "b314a2470d824fd7"
+          },
+          "memory_cases": {
+            "failed": 0,
+            "passed": 27,
+            "runs": 27,
+            "trace_hash": "14650fb0739d0383"
+          },
+          "no387_cases": {
+            "failed": 0,
+            "passed": 1933,
+            "runs": 1933,
+            "trace_hash": "ce05ef6f406cea6b"
+          },
+          "paging_cases": {
+            "failed": 0,
+            "passed": 158,
+            "runs": 158,
+            "trace_hash": "5390711c0e204d5f"
+          },
+          "pmode": {
+            "failed": 0,
+            "passed": 8000,
+            "runs": 8000,
+            "trace_hashes": 16,
+            "trace_hashes_sha256": "74a476c8361124bd05340246f396f80b7e108ac6f1ee49ba3cb0c0c5f578509a"
+          },
+          "pmode_cases": {
+            "failed": 0,
+            "passed": 726,
+            "runs": 726,
+            "trace_hash": "71891e83b5b2bec1"
+          },
+          "random": {
+            "failed": 0,
+            "passed": 32000,
+            "runs": 32000,
+            "trace_hashes": 16,
+            "trace_hashes_sha256": "54fb6437ffa694c86abebb3e18a8f3167054457b086721e7b5bbafbe286330a9"
+          },
+          "reset_store": {
+            "failed": 0,
+            "passed": 1,
+            "runs": 1,
+            "trace_hash": "14650fb0739d0383"
+          },
+          "tasks": {
+            "failed": 0,
+            "passed": 4000,
+            "runs": 4000,
+            "trace_hashes": 16,
+            "trace_hashes_sha256": "3df93356f93c9d355de91f25dc42773e1ed164a5b8d259e67655685b7cee3fd5"
+          },
+          "unbuilt": {
+            "failed": 0,
+            "runs": 53008
+          },
+          "undefined": {
+            "failed": 0,
+            "passed": 4000,
+            "runs": 4000,
+            "trace_hashes": 16,
+            "trace_hashes_sha256": "6025c21e81472033fa282a611eee6a5e067ae09e556393121146fb581d428a0b"
+          },
+          "unreal_cases": {
+            "failed": 0,
+            "passed": 7,
+            "runs": 7,
+            "trace_hash": "286cb5646eac4124"
+          },
+          "x87_bcd_cases": {
+            "failed": 0,
+            "passed": 3,
+            "runs": 3,
+            "trace_hash": "14650fb0739d0383"
+          },
+          "x87_cases": {
+            "failed": 0,
+            "passed": 120,
+            "runs": 120,
+            "trace_hash": "583e1508fb9c4027"
+          },
+          "x87_trans_cases": {
+            "failed": 0,
+            "passed": 10,
+            "runs": 10,
+            "trace_hash": "14650fb0739d0383"
+          }
+        },
+        "head": {
+          "corpus": {
+            "failed": 0,
+            "passed": 1758699,
+            "runs": 1758699,
+            "trace_hashes": 941,
+            "trace_hashes_sha256": "c10c2fd63ff07b3ec98fd21e41a33ccaeac56925d8d2963ebfe801d1772bd616"
+          },
+          "debug": {
+            "failed": 0,
+            "passed": 4000,
+            "runs": 4000,
+            "trace_hashes": 16,
+            "trace_hashes_sha256": "8a08a803e774eb29adb9ea912f83b3101561a97ee16ff963a277326bff225de1"
+          },
+          "directed_cases": {
+            "failed": 0,
+            "passed": 84,
+            "runs": 84,
+            "trace_hash": "b314a2470d824fd7"
+          },
+          "memory_cases": {
+            "failed": 0,
+            "passed": 27,
+            "runs": 27,
+            "trace_hash": "14650fb0739d0383"
+          },
+          "no387_cases": {
+            "failed": 0,
+            "passed": 1933,
+            "runs": 1933,
+            "trace_hash": "ce05ef6f406cea6b"
+          },
+          "paging_cases": {
+            "failed": 0,
+            "passed": 158,
+            "runs": 158,
+            "trace_hash": "5390711c0e204d5f"
+          },
+          "pmode": {
+            "failed": 0,
+            "passed": 8000,
+            "runs": 8000,
+            "trace_hashes": 16,
+            "trace_hashes_sha256": "74a476c8361124bd05340246f396f80b7e108ac6f1ee49ba3cb0c0c5f578509a"
+          },
+          "pmode_cases": {
+            "failed": 0,
+            "passed": 726,
+            "runs": 726,
+            "trace_hash": "71891e83b5b2bec1"
+          },
+          "random": {
+            "failed": 0,
+            "passed": 32000,
+            "runs": 32000,
+            "trace_hashes": 16,
+            "trace_hashes_sha256": "54fb6437ffa694c86abebb3e18a8f3167054457b086721e7b5bbafbe286330a9"
+          },
+          "reset_store": {
+            "failed": 0,
+            "passed": 1,
+            "runs": 1,
+            "trace_hash": "14650fb0739d0383"
+          },
+          "tasks": {
+            "failed": 0,
+            "passed": 4000,
+            "runs": 4000,
+            "trace_hashes": 16,
+            "trace_hashes_sha256": "3df93356f93c9d355de91f25dc42773e1ed164a5b8d259e67655685b7cee3fd5"
+          },
+          "unbuilt": {
+            "failed": 0,
+            "runs": 53008
+          },
+          "undefined": {
+            "failed": 0,
+            "passed": 4000,
+            "runs": 4000,
+            "trace_hashes": 16,
+            "trace_hashes_sha256": "6025c21e81472033fa282a611eee6a5e067ae09e556393121146fb581d428a0b"
+          },
+          "unreal_cases": {
+            "failed": 0,
+            "passed": 7,
+            "runs": 7,
+            "trace_hash": "286cb5646eac4124"
+          },
+          "x87_bcd_cases": {
+            "failed": 0,
+            "passed": 3,
+            "runs": 3,
+            "trace_hash": "14650fb0739d0383"
+          },
+          "x87_cases": {
+            "failed": 0,
+            "passed": 120,
+            "runs": 120,
+            "trace_hash": "583e1508fb9c4027"
+          },
+          "x87_trans_cases": {
+            "failed": 0,
+            "passed": 10,
+            "runs": 10,
+            "trace_hash": "14650fb0739d0383"
+          }
+        }
+      },
+      "tracked_changes": [
+        [],
+        []
+      ]
+    },
+    "test386": {
+      "base": {
+        "dump_sha256": "44597188b62c37ce578abe220dbb605cfb426711b2f31a9b50314d476589a4c0",
+        "lines": [
+          "test386.asm cfd052d1e64d: POST 00 01 02 03 04 05 06 08 09 20 21 22 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 18 19 1A 1B 1C E0 EE FF; end {'reason': 'halt', 'steps': 79641629, 'cs': '00d0', 'eip': '0000ffb9'}",
+          "divergence popad-esp-high-word: 1 checks stepped over",
+          "divergence invalid-sib-scales-base: 552 checks stepped over",
+          "divergence arpl-no-write-no-fault: 1 checks stepped over",
+          "divergence aaa-aas-flags: 4 checks stepped over",
+          "divergence aad-flags: 3 checks stepped over",
+          "divergence daa-das-of: 2 checks stepped over",
+          "divergence shl-shr-flags: 20 checks stepped over",
+          "divergence bit-test-of: 64 checks stepped over",
+          "divergence rcl-rcr-count-9-17: 8 checks stepped over",
+          "EE lines: 44926, differing from the reference: 0",
+          "final RAM (640 KiB) SHA-256 44597188b62c37ce578abe220dbb605cfb426711b2f31a9b50314d476589a4c0",
+          "cross-check LEA with SIB index 100b scales the base: 1/1 cases with matching states, 56 agree, 0 disagree",
+          "cross-check POPAD with a 16-bit stack loads the high word of ESP: 1/1 cases with matching states, 2318 agree, 0 disagree",
+          "cross-check PUSH Sreg with a 32-bit operand writes 16 bits: 1/1 cases with matching states, 5819 agree, 0 disagree",
+          "cross-check bcd aaa: 4/4 cases with matching states, 168 agree, 0 disagree",
+          "cross-check bcd aad: 0/4 cases with matching states, 0 agree, 0 disagree",
+          "cross-check bcd aam: 0/2 cases with matching states, 0 agree, 0 disagree",
+          "cross-check bcd aas: 4/4 cases with matching states, 285 agree, 0 disagree",
+          "cross-check bcd daa: 1/2 cases with matching states, 1 agree, 0 disagree",
+          "cross-check bcd das: 2/2 cases with matching states, 8 agree, 0 disagree",
+          "cross-check bittest bt: 6/16 cases with matching states, 6 agree, 0 disagree",
+          "cross-check bittest btc: 6/16 cases with matching states, 6 agree, 0 disagree",
+          "cross-check bittest btr: 6/16 cases with matching states, 6 agree, 0 disagree",
+          "cross-check bittest bts: 6/16 cases with matching states, 6 agree, 0 disagree",
+          "cross-check shift rcl: 2/8 cases with matching states, 3 agree, 0 disagree",
+          "cross-check shift rcr: 2/8 cases with matching states, 3 agree, 0 disagree",
+          "cross-check shift shl: 5/12 cases with matching states, 6 agree, 0 disagree",
+          "cross-check shift shr: 3/12 cases with matching states, 4 agree, 0 disagree"
+        ],
+        "output_sha256": "2adb13adf0931c7c2f4e71e620d1390f1f333ff12adc1dc000e4903060c2867c"
+      },
+      "equal": true,
+      "head": {
+        "dump_sha256": "44597188b62c37ce578abe220dbb605cfb426711b2f31a9b50314d476589a4c0",
+        "lines": [
+          "test386.asm cfd052d1e64d: POST 00 01 02 03 04 05 06 08 09 20 21 22 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 18 19 1A 1B 1C E0 EE FF; end {'reason': 'halt', 'steps': 79641629, 'cs': '00d0', 'eip': '0000ffb9'}",
+          "divergence popad-esp-high-word: 1 checks stepped over",
+          "divergence invalid-sib-scales-base: 552 checks stepped over",
+          "divergence arpl-no-write-no-fault: 1 checks stepped over",
+          "divergence aaa-aas-flags: 4 checks stepped over",
+          "divergence aad-flags: 3 checks stepped over",
+          "divergence daa-das-of: 2 checks stepped over",
+          "divergence shl-shr-flags: 20 checks stepped over",
+          "divergence bit-test-of: 64 checks stepped over",
+          "divergence rcl-rcr-count-9-17: 8 checks stepped over",
+          "EE lines: 44926, differing from the reference: 0",
+          "final RAM (640 KiB) SHA-256 44597188b62c37ce578abe220dbb605cfb426711b2f31a9b50314d476589a4c0",
+          "cross-check LEA with SIB index 100b scales the base: 1/1 cases with matching states, 56 agree, 0 disagree",
+          "cross-check POPAD with a 16-bit stack loads the high word of ESP: 1/1 cases with matching states, 2318 agree, 0 disagree",
+          "cross-check PUSH Sreg with a 32-bit operand writes 16 bits: 1/1 cases with matching states, 5819 agree, 0 disagree",
+          "cross-check bcd aaa: 4/4 cases with matching states, 168 agree, 0 disagree",
+          "cross-check bcd aad: 0/4 cases with matching states, 0 agree, 0 disagree",
+          "cross-check bcd aam: 0/2 cases with matching states, 0 agree, 0 disagree",
+          "cross-check bcd aas: 4/4 cases with matching states, 285 agree, 0 disagree",
+          "cross-check bcd daa: 1/2 cases with matching states, 1 agree, 0 disagree",
+          "cross-check bcd das: 2/2 cases with matching states, 8 agree, 0 disagree",
+          "cross-check bittest bt: 6/16 cases with matching states, 6 agree, 0 disagree",
+          "cross-check bittest btc: 6/16 cases with matching states, 6 agree, 0 disagree",
+          "cross-check bittest btr: 6/16 cases with matching states, 6 agree, 0 disagree",
+          "cross-check bittest bts: 6/16 cases with matching states, 6 agree, 0 disagree",
+          "cross-check shift rcl: 2/8 cases with matching states, 3 agree, 0 disagree",
+          "cross-check shift rcr: 2/8 cases with matching states, 3 agree, 0 disagree",
+          "cross-check shift shl: 5/12 cases with matching states, 6 agree, 0 disagree",
+          "cross-check shift shr: 3/12 cases with matching states, 4 agree, 0 disagree"
+        ],
+        "output_sha256": "2adb13adf0931c7c2f4e71e620d1390f1f333ff12adc1dc000e4903060c2867c"
+      }
+    },
+    "vectors": {
+      "differences": [],
+      "equal": true,
+      "ignored": [],
+      "report": "fes-i386-vectors/report.json",
+      "totals": {
+        "base": {
+          "failed": null,
+          "passed": null,
+          "tests": null
+        },
+        "head": {
+          "failed": null,
+          "passed": null,
+          "tests": null
+        }
+      }
+    }
+  }
+}

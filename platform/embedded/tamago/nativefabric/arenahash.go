@@ -3,6 +3,7 @@ package nativefabric
 
 import (
 	"crypto/sha256"
+	"crypto/sha512"
 	"hash"
 )
 
@@ -26,6 +27,14 @@ func (h *arenaHash) write(digest hash.Hash, source []byte) {
 
 func (h *arenaHash) sum(source []byte) (result [32]byte) {
 	digest := sha256.New()
+	h.write(digest, source)
+	digest.Sum(result[:0])
+	return result
+}
+
+// sum384 reads all source bytes afresh for each whole-image or chunk digest.
+func (h *arenaHash) sum384(source []byte) (result [48]byte) {
+	digest := sha512.New384()
 	h.write(digest, source)
 	digest.Sum(result[:0])
 	return result

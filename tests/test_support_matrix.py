@@ -57,8 +57,11 @@ class SupportMatrixTests(unittest.TestCase):
     def test_pc386_records_the_sealed_development_package_on_a_kit(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
         row = next(row for row in data['cores'] if row['id'] == 'fes.pc386')
-        # Not a recipe and not a catalog package, but no longer simulation only.
-        self.assertFalse(row['recipe'])
+        # Registration does not promote the existing artifact evidence.
+        self.assertTrue(row['recipe'])
+        self.assertEqual('experimental', row['library_standing'])
+        self.assertEqual('experimental', row['signals']['catalog_standing'])
+        self.assertEqual('1-pending', row['quality_tier'])
         self.assertEqual('bring-up', row['tier'])
         self.assertEqual('de10', row['board'])
         self.assertEqual('quartus', row['primary_toolchain'])
@@ -71,7 +74,8 @@ class SupportMatrixTests(unittest.TestCase):
             self.assertIn(issue, ('#1368', '#1494', '#1235'))
         self.assertIn('Windows for Workgroups 3.11', row['notes'])
         self.assertIn('Linux 0.99.15, 1.2.13 and 2.0.0', row['notes'])
-        self.assertIn('not a catalog package', row['notes'])
+        self.assertIn('requires a new exact-source lockstep and Quartus seal', row['notes'])
+        self.assertIn('earlier artifact results do not qualify', row['notes'])
         # The 387 is built as far as slice 2; its arithmetic is not.
         self.assertIn('slice 2 (#1768)', row['features'])
         self.assertIn('arithmetic is slices 3 to 5 and is not built', row['features'])

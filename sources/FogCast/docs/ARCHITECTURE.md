@@ -1474,8 +1474,8 @@ navigation stays unavailable while the shelf or its editions are loading. ZX81-f
 entries use `example.hardware`; Commodore 64 and other families use
 `example.system` with the selected core and game IDs. The shared
 `widgets.system_workbench` implementation covers every registered playable
-system and model, including the Spectrum models, Apple II, Atari ST, consoles,
-ROM-less games and utilities.
+system and model, including the Spectrum models, PC/XT, PC 386, Apple II,
+Atari ST, consoles, ROM-less games and utilities.
 Resume refreshes retain the selected game ID when title order changes and keep
 the prior row position, clamped to the new list, if that game disappears. A
 failed refresh clears both the shelf rows and list widget so Set up cannot open
@@ -1520,6 +1520,10 @@ capabilities and saves the selected role with package/media compare-and-swap.
 Saved media labels name the selected role; package guidance still describes the
 model's full media support. Adding a setup confirms only the library entry;
 expansion fitting is a separate operation.
+The `hard-disk` role uses the existing ATA import and purpose-specific storage
+read APIs for 1–128 MiB sector-aligned images, including launcher files and
+saved local/host drives. Its transfer budget covers reading and uploading the
+disk; ordinary media retain their 32 MiB limit and existing timeout.
 **Expansion sockets** reads the package's declared physical topology and saved
 slot choices. Exact-package/socket archive import and fitting are separate;
 selection checks the previous card. Library metadata shows selected cards
@@ -1586,7 +1590,10 @@ draw. A clear recorded before the extend replaces the presented clear. The
 ZX81 workshop's first picture is spread over several draws: a short opening
 frame, cached text metrics, then the upper and lower halves. A change to
 focus, size, status or selection after the upper half paints that half again
-before the lower half is appended. Eight consecutive slow paints still retire
+before the lower half is appended. When artwork finishes decoding after that
+picture, its replacement is prepared over two draws while the last complete
+picture and its controls stay usable; a changed scene discards the staged
+replacement. Eight consecutive slow paints still retire
 the room. Slow input, pointer, lifecycle, and asynchronous result callbacks
 count in their own group, so successful frames do not hide repeated input
 overruns. Eight overruns in either group retire the
@@ -1708,7 +1715,7 @@ selected by flag, saved preferences or `FOGCAST_HOME_ROOM` defaults to kit Home
 readiness, explanation and action in a large FES-owned panel
 (`ui/tenfoot/room_hero.go`, geometry `rooms.HeroPanel`), while the room draws
 the family tiles, artwork motifs and Home routes. Family Open enters the
-family's core screen or workbench; Play on a recent title starts that title. In the v1 release scope,
+family's core screen or workbench; Play on a recent title starts that title. In the default scope,
 Settings is the only header route and Back at Home's root keeps Home open.
 Show all cores restores Library and Systems routes and the remaining families.
 Home retries each failed family read at most three times, after 1, 2 and 4
@@ -1925,8 +1932,9 @@ browse-only. This option does not install or select menu firmware in an image.
 The built-in room set contains Home, Systems, System setup and Sinclair setup.
 The last two are internal templates opened with an exact model/entry, excluded
 from room and default-home pickers. Release Home presents recent titles and
-computer-family tiles; opening a family enters its core screen, while Play on a
-recent title launches that title. Settings is its only header route in the v1
+computer-family tiles; opening a family enters its core screen (PC/XT and PC 386:
+its workbench), while Play on a recent title launches that title. Settings is its
+only header route in the default
 scope. Show all cores restores Library and Systems routes and the remaining
 families. Back at release Home's root keeps Home open; the room picker is the
 fallback when Home cannot open. The old Lobby, Amiga Workbench, Mario, SNES,
@@ -1937,7 +1945,7 @@ refreshes. Sinclair setup queues a refresh requested during a read and
 performs it after the current snapshot arrives.
 Missing saved-home IDs use the existing fallback without replacement aliases.
 
-`internal/corenames` supplies plain display names for 18 exact first-party
+`internal/corenames` supplies plain display names for registered first-party
 core IDs. Unknown systems retain their supplied name; this table does not admit
 packages or media. Installed-core protocol metadata stays verbatim. The room
 adapters project machine names and recognize only known model aliases followed
@@ -3398,7 +3406,11 @@ queries count titles without changing the machine or its selected media. The
 hardware refreshes requested while a previous read is pending coalesce into
 one fresh read after its callback. Home discards the superseded response and
 clears old host admission if the fresh read fails. The
-v1 release scope shows its fixed families;
+default scope shows the ZX81 and Spectrum families, Atari ST, C64, PC/XT and
+PC 386. The PC families use `example.system`, retaining each package's disk
+and launch checks. Welcome and the setup-completion summary include all six;
+PC 386 is identified as in development. Their release-plan scopes and PC 386's
+pending quality tier are independent of this visibility.
 **Show all cores**, available through Settings, `tenfoot.json` `all_cores`, or
 `FOGCAST_TENFOOT_ALL_CORES=1`, adds the remaining families in `systems.lua`
 order and restores the Library and Systems routes. The host Library remains
@@ -3570,11 +3582,20 @@ map; the core owns characters, shifted symbols, repeat and reset chords. The hos
 attaches input for these sessions even without controller ports and passes the
 events through `POST /api/v1/session/input/event` and the host stream unchanged.
 On the kit, the linuxfb evdev loop reads `EV_KEY` records, maps Linux key codes
-through `internal/hidkeys.FromLinuxKey`, and passes the resulting usage to
-`HandlePlayHIDScancode` and the ordered `SendPlayHID` path. If connected evdev
-keyboards hold the same usage, tenfoot clears the releasing device's local
-held/modifier state immediately but sends the core release only after the last
-keyboard releases it.
+through `internal/hidkeys.FromLinuxKey`, and passes the resulting usage through
+Tenfoot's source-aware play-key handling and ordered `SendPlayHID` path. SDL uses
+its keyboard instance ID and linuxfb uses its evdev fd as the physical source.
+Tenfoot tracks each physical keyboard's held and suppressed keys by source and
+HID usage in all sessions, including the name-mapped keyboard path. Suppression
+follows that keyboard until it releases the key. A contribution records an input
+admitted to the ordered queue, not proof that the guest consumed it. If multiple physical
+keys, on one keyboard or across keyboards, contribute the same core key, a
+release clears that key's hold and modifier state immediately; the core release
+is queued once no other unsuppressed admitted key contributes it. Disconnect
+discards the lost device's holds and suppression on both SDL and evdev, and
+releases only keys no surviving admitted physical key still holds.
+During a same-session surround transition that keeps machine focus, an
+already-admitted key can still send its neutral release; new presses stay fenced.
 The 1.1 ABI retains its 1.0 keyboard and relative-mouse capabilities; an active
 `fes.mouse.relative` 1.0 interface receives the same supported-generation
 binding.

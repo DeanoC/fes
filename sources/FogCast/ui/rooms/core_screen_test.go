@@ -231,6 +231,29 @@ func TestCoreScreenRunningGameOffersReturnStopAndLiveMedia(t *testing.T) {
 	}
 }
 
+// When a game ends, the Stop button can stay drawn for one more step after
+// the session is gone; pressing it then must do nothing, not stop the room.
+func TestCoreScreenStopAfterTheGameEndedDoesNothing(t *testing.T) {
+	game := preparedComputer("c64-game", "Copper Canyon", "fes.c64")
+	game.CoreEntryKind, game.PackageID, game.MediaID, game.MediaRole = "title", strings.Repeat("ab", 32), strings.Repeat("c", 64), "disk"
+	host := &c64Host{fakeServices: fakeServices{games: []hostclient.Game{game}}}
+	host.snap.Session = c64DiskSession(game.ID)
+	r := loadCoreScreen(t, host, game.ID, game.CoreID, Options{})
+	r.SetSessionState("active")
+	r.SetOverlay(true)
+	stepUntil(t, r, func(f Frame) bool { return coreScreenSettled(f) && frameHas(f, "Return to play") })
+	r.SetSessionState("idle")
+	r.SetOverlay(false)
+	r.Step(time.Now())
+	r.Activate("stop")
+	if err := r.Err(); err != nil {
+		t.Fatalf("stale Stop stopped the room: %v", err)
+	}
+	if acts := r.TakeActions(); len(acts) != 0 {
+		t.Fatalf("stale Stop sent %+v", acts)
+	}
+}
+
 func TestCoreScreenDoesNotStartOverARunningGame(t *testing.T) {
 	running := preparedComputer("c64-running", "Copper Canyon", "fes.c64")
 	other := preparedComputer("c64-other", "Amber Vale", "fes.c64")

@@ -290,7 +290,7 @@ def _reference_clock_evidence(source_root: Path, route_text: str, *, audio: bool
     }
 
 
-def validate_build_evidence(output: Path, source_root: Path, *, ordinary_resources, required_resources, forbidden_resources, required_zero_resources, audio: bool = False, memory_clock_mhz: float | None = None, capture_clock_mhz: float | None = None, memory_pll_parameters: dict[str, str] | None = None, raw_fractional_video: bool = False) -> dict:
+def validate_build_evidence(output: Path, source_root: Path, *, ordinary_resources, required_resources, forbidden_resources, required_zero_resources, audio: bool = False, memory_clock_mhz: float | None = None, capture_clock_mhz: float | None = None, memory_pll_parameters: dict[str, str] | None = None, raw_fractional_video: bool = False, gpu_backend: str = FES_GPU_BACKEND) -> dict:
     output = Path(output)
     source_root = Path(source_root)
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
@@ -321,7 +321,7 @@ def validate_build_evidence(output: Path, source_root: Path, *, ordinary_resourc
     route_text = route_log.read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
-    gpu_backend = _require_gpu_backend(route_text, FES_GPU_BACKEND)
+    gpu_backend = _require_gpu_backend(route_text, gpu_backend)
     reference = _reference_clock_evidence(source_root, route_text, audio=audio,
                                           memory_pll=memory_pll_parameters is not None, raw_fractional_video=raw_fractional_video)
     if memory_pll_parameters is not None:

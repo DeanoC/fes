@@ -316,12 +316,27 @@ class ParentWorkflowTests(unittest.TestCase):
         step = workflow.split('      - name: Install capture test dependencies\n', 1)[1].split(
             '\n      - name:', 1)[0]
         script = textwrap.dedent(step.split('        run: |\n', 1)[1])
-        for installed, apt_exit, timeout_exit, expected in (
-            (True, 0, 0, 0), (False, 0, 0, 0), (False, 9, 0, 9), (False, 0, 124, 124)
+        for installed, apt_exit, timeout_exit, mirror_present, referenced, expected in (
+            (True, 0, 0, True, True, 0), (False, 0, 0, True, True, 0),
+            (False, 9, 0, True, True, 9), (False, 0, 124, True, True, 124),
+            (False, 0, 0, False, True, 1), (False, 0, 0, True, False, 1)
         ):
-            with self.subTest(installed=installed, apt_exit=apt_exit, timeout_exit=timeout_exit), \
+            with self.subTest(installed=installed, apt_exit=apt_exit, timeout_exit=timeout_exit,
+                              mirror_present=mirror_present, referenced=referenced), \
                     tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary); binary = root / 'bin'; binary.mkdir()
+                mirrors = root / 'apt-mirrors.txt'
+                original_mirror = 'http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\n'
+                if mirror_present: mirrors.write_text(original_mirror)
+                sources = root / 'ubuntu.sources'
+                original_sources = ('URIs: mirror+file:' + str(mirrors) + '\n'
+                                    if referenced else 'URIs: https://archive.ubuntu.com/ubuntu/\n')
+                sources.write_text(original_sources)
+                other_repo = root / 'third-party.list'
+                original_repo = 'deb https://packages.microsoft.com/ubuntu/24.04/prod noble main\n'
+                other_repo.write_text(original_repo)
+                private_script = script.replace('/etc/apt/apt-mirrors.txt', str(mirrors))
+                private_script = private_script.replace('/etc/apt/sources.list.d/ubuntu.sources', str(sources))
                 fixture = root / 'ffmpeg-fixture'
                 fixture.write_text('#!/bin/sh\nprintf checked > "$VERSION_LOG"\n')
                 fixture.chmod(0o755)
@@ -337,14 +352,21 @@ class ParentWorkflowTests(unittest.TestCase):
                 for name, body in scripts.items():
                     path = binary / name; path.write_text('#!/bin/sh\n' + body); path.chmod(0o755)
                 (binary / 'bash').symlink_to(shutil.which('bash'))
+                (binary / 'grep').symlink_to(shutil.which('grep'))
                 if installed: shutil.copy2(fixture, binary / 'ffmpeg')
                 env = {**os.environ, 'PATH': str(binary), 'APT_EXIT': str(apt_exit),
                        'TIMEOUT_EXIT': str(timeout_exit), 'FAKE_BIN': str(binary),
                        'FFMPEG_FIXTURE': str(fixture), 'VERSION_LOG': str(root / 'version'),
                        'TIMEOUT_LOG': str(root / 'timeout'), 'COMMAND_LOG': str(root / 'commands')}
-                result = subprocess.run([shutil.which('bash'), '-e', '-c', script], env=env,
+                result = subprocess.run([shutil.which('bash'), '-e', '-c', private_script], env=env,
                                         capture_output=True, text=True)
                 self.assertEqual(result.returncode, expected, result.stderr)
+                expected_mirror = ('https://archive.ubuntu.com/ubuntu/\n'
+                                   if not installed and timeout_exit == 0 and referenced else original_mirror)
+                self.assertEqual(mirrors.exists(), mirror_present)
+                if mirror_present: self.assertEqual(mirrors.read_text(), expected_mirror)
+                self.assertEqual(sources.read_text(), original_sources)
+                self.assertEqual(other_repo.read_text(), original_repo)
                 self.assertEqual((root / 'version').exists(), expected == 0)
                 self.assertEqual((root / 'timeout').exists(), not installed)
                 if not installed:

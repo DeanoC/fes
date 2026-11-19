@@ -9,7 +9,7 @@ CONTRACT=dict(format=22,scope='nano-retained-source-command-publication-v22',mod
  source_base=0x94800000,wire_base=0x14800000,payload_max=0x7ff000,page_bytes=4096,metadata_page=0x94fff000,
  arena_base=0x94000000,arena_bytes=0x10000,root_offset=0x4000,command_offset=0x8000,event_offset=0x9000,
  prepared_control=12,armed_control=13,source_stream=10,source_access='read-only-XN',other_streams='abort',
- transfer_bound_us=20000000,preparation_bound_us=4000000,command_bound_us=100000,
+ transfer_bound_us=25000000,preparation_bound_us=4000000,command_bound_us=100000,
  preparation_command_policy=4,preparation_command_staging_bound_us=4000000,
  preparation_command_completion_origin='accepted-prepublication-counter-through-owned-valid-consumption',
  preparation_command_completion_bound_us=100000,preparation_command_final_origin='original-command-and-enclosing-preparation',

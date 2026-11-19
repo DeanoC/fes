@@ -264,8 +264,8 @@ the game's rate**, and no band can be applied to it. Ultima VI takes a step or
 a turn only when it next looks at the keyboard and drops what is queued
 meanwhile, so what is being measured is partly the key timing.
 
-The conclusion stands — the walk is not decided and the kit windows were not
-run — but the reason is this, not the spread.
+The kit windows were not run; see the [walking-speed result](summary.md#walk-result)
+for the check's status.
 
 ## Correction to the correction
 
@@ -274,8 +274,8 @@ is true of the pass windows only. The three walk windows all ran the same loop
 at a nominal ten keys a second and gave 2.66, 1.96 and 1.89 steps a second, so
 the walk has an outlier at the same key rate that nothing here explains, while
 the passes follow the key rate (1.55 at about seventeen a second, 1.14 and 1.11
-at ten). Both faults have to be fixed before the band can be applied; neither
-changes the conclusion that the walk is not decided here.
+at ten). Both faults have to be addressed before the band can be applied; the
+[walking-speed result](summary.md#walk-result) records the check's status.
 
 ## Correction to the walk figures
 
@@ -469,8 +469,8 @@ inside it passes only if its own windows are as consistent.
 > error rule, *after* seeing repeats that fail the original: 1.765 to 2.308 at
 > one key rate. Relaxing a gate to fit the numbers it just failed is exactly
 > what this record is not allowed to do. The original gate stands, `sq1`'s
-> repeats fail it, and the walk is reported below as not measurable *by the
-> methods tried* rather than rescued by a looser rule. No future kit result may be judged against 2.07.
+> repeats fail it. See the [walking-speed result](summary.md#walk-result) for
+> the check's status. No future kit result may be judged against 2.07.
 
 
 ## Correction to the seventh amendment: the over-keyed rate is suppressed, not a plateau
@@ -521,6 +521,5 @@ a suppressed rate.
 run on both sides, or a measurement that does not go through the keyboard at
 all: a count the game itself keeps — its own turn counter in memory, read from
 the machine on each side — or an instrumented build. The second is the surer
-one and neither is available here. This record therefore reports the walk as
-**not measured**, with the three methods that failed and why, rather than
-quoting a number from any of them.
+one and neither is available here. The [walking-speed result](summary.md#walk-result)
+records the check's status rather than quoting a number from these methods.

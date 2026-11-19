@@ -92,8 +92,12 @@ function draw()
 
   local buttons_y = lay.bottom - 24 - 48
   local gap = 10
-  local shown = math.min(4, #F.list)
+  local shown = math.min(6, #F.list)
   local row_h = math.min(90, math.floor((buttons_y - 16 - y - gap * (shown - 1)) / shown))
+  if row_h < 38 then
+    gap = 4
+    row_h = math.floor((buttons_y - 16 - y - gap * (shown - 1)) / shown)
+  end
   local w = room.width - m * 2
   local compact = row_h < 55
   local name = compact and 16 or (row_h >= 80 and 22 or 20)
@@ -102,16 +106,21 @@ function draw()
     local ry = y + (i - 1) * (row_h + gap)
     gfx.rect(m, ry, w, row_h, C.surface)
     F.outline(m, ry, w, row_h, 1, C.divider)
+    local single_line = row_h < 38
     local pad = compact and 4 or 7
-    local mw = math.floor((row_h - pad * 2) * 1.4)
-    F.mark(f, m + pad, ry + pad, mw, row_h - pad * 2)
-    local tx = m + pad + mw + 18
-    local text_y = ry + (compact and 1 or row_h * 0.18)
-    gfx.text(f.label, tx, text_y, { size = name, bold = true, color = C.text, max_w = w - (tx - m) - 160 })
-    gfx.text(detail(f), tx, text_y + name + (compact and 0 or 8), { size = compact and 13 or name - 2, color = C.secondary, max_w = w - (tx - m) - 160 })
+    local mw = single_line and 0 or math.floor((row_h - pad * 2) * 1.4)
+    if not single_line then F.mark(f, m + pad, ry + pad, mw, row_h - pad * 2) end
+    local tx = single_line and m + 12 or m + pad + mw + 18
+    local text_y = single_line and ry + (row_h - name) / 2 or ry + (compact and 1 or row_h * 0.18)
+    local name_w = single_line and math.floor(w * 0.29) or w - (tx - m) - 160
+    gfx.text(f.label, tx, text_y, { size = name, bold = true, color = C.text, max_w = name_w })
+    local detail_x = single_line and tx + name_w + 12 or tx
+    local detail_y = single_line and text_y + 1 or text_y + name + (compact and 0 or 8)
+    gfx.text(detail(f), detail_x, detail_y, { size = compact and 13 or name - 2, color = C.secondary, max_w = w - (detail_x - m) - (single_line and 130 or 160) })
     local chip = F.tile(f)
-    local cw = gfx.measure(chip, 18, true) + 24
-    F.chip(chip, m + w - cw - 16, ry + (row_h - 30) / 2, 18)
+    local chip_size = single_line and 14 or 18
+    local cw = gfx.measure(chip, chip_size, true) + 24
+    F.chip(chip, m + w - cw - 16, ry + (row_h - (single_line and 21 or 30)) / 2, chip_size)
   end
 
   S.buttons(m, buttons_y, BUTTONS, focus)

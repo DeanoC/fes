@@ -1,0 +1,454 @@
+{
+  "commit": "7e813da4656adbf048d079bd9aa110f53fc52ebd",
+  "compared_keys": [
+    "steps",
+    "end",
+    "i486",
+    "eflags",
+    "cr0_486_bits",
+    "exceptions"
+  ],
+  "exit_status": {
+    "3dbench": "3dbench rc=0",
+    "angband": "angband rc=0",
+    "cachechk": "cachechk rc=0",
+    "chkcpu": "chkcpu rc=1",
+    "chrisb": "chrisb rc=0",
+    "civ": "civ rc=0",
+    "cyberdogs": "cyberdogs rc=0",
+    "darklands": "darklands rc=0",
+    "descent": "descent rc=0",
+    "doom": "doom rc=0",
+    "duke3d": "duke3d rc=0",
+    "falcon3": "falcon3 rc=0",
+    "frontier": "frontier rc=0",
+    "gp2": "gp2 rc=0",
+    "heretic": "heretic rc=0",
+    "hocus": "hocus rc=0",
+    "hotspeed": "hotspeed rc=0",
+    "jazz": "jazz rc=0",
+    "jill": "jill rc=0",
+    "jumpbump": "jumpbump rc=0",
+    "keen4": "keen4 rc=0",
+    "machines": "machines rc=0",
+    "monkey2": "monkey2 rc=0",
+    "moo": "moo rc=0",
+    "nethack": "nethack rc=0",
+    "omf": "omf rc=0",
+    "pcpbench": "pcpbench rc=0",
+    "pinfan": "pinfan rc=0",
+    "prince": "prince rc=0",
+    "quakes": "quakes rc=0",
+    "raptor": "raptor rc=0",
+    "rott": "rott rc=0",
+    "screamer": "screamer rc=0",
+    "si8": "si8 rc=0",
+    "speedsys": "speedsys rc=0",
+    "starcon2": "starcon2 rc=0",
+    "strike": "strike rc=0",
+    "stunts": "stunts rc=0",
+    "tcircle": "tcircle rc=0",
+    "tnt": "tnt rc=0",
+    "topbench": "topbench rc=0",
+    "tv": "tv rc=0",
+    "tyrian": "tyrian rc=0",
+    "u7si": "u7si rc=0",
+    "ultima6": "ultima6 rc=0",
+    "ultima7": "ultima7 rc=0",
+    "usnf": "usnf rc=0",
+    "uw1": "uw1 rc=0",
+    "vikings": "vikings rc=0",
+    "wacky": "wacky rc=0",
+    "wc1": "wc1 rc=0",
+    "wfw-386": "wfw-386 rc=0",
+    "wolf3d": "wolf3d rc=0",
+    "xwing": "xwing rc=0"
+  },
+  "host": "chip-30x0-ai-dev",
+  "not_run": [],
+  "pass": true,
+  "plan_revision": "b4ea55e9c665c4b88a38492dfe6bc11bb722af07",
+  "plan_rows": 54,
+  "rows": [
+    {
+      "differences": {},
+      "equal": true,
+      "id": "keen4",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "prince",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "civ",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "jill",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "stunts",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "vikings",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "starcon2",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "wolf3d",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "ultima6",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "jazz",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "pinfan",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "wacky",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "hocus",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "monkey2",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "wc1",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "falcon3",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "xwing",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "ultima7",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "strike",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "uw1",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "frontier",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "moo",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "darklands",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "tnt",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "doom",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "heretic",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "duke3d",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "descent",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "raptor",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "omf",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "rott",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "machines",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "hotspeed",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "jumpbump",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "angband",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "nethack",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "tyrian",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "cyberdogs",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "tcircle",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "screamer",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "tv",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "gp2",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "usnf",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "u7si",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "3dbench",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "pcpbench",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "topbench",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "speedsys",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "chkcpu",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "cachechk",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "si8",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "chrisb",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "quakes",
+      "in_plan": true,
+      "run": true
+    },
+    {
+      "differences": {},
+      "equal": true,
+      "id": "wfw-386",
+      "in_plan": true,
+      "run": true
+    }
+  ],
+  "rows_equal": 54,
+  "rows_run": 54
+}

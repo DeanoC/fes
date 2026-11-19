@@ -20,6 +20,9 @@ PACKAGING_INPUTS = frozenset({
     'scripts/source_provenance.py',
     'scripts/source_closure.py',
     'scripts/source_closures.json',
+    # pc386 evidence reads and validates a completed seal; it does not feed
+    # compiler inputs or generate the payload.
+    'cores/fes-pc386/tools/pc386_seal_evidence.py',
     'boards/de25nano/package/export_core_package.py',
     'boards/de25nano/package/core_package.py',
     # Audited at the module boundary like the rest of this set (DeanoC/fes#1806
@@ -35,6 +38,9 @@ TOOLCHAIN_INPUTS = frozenset({
     'scripts/bootstrap.sh', 'scripts/lockfile.py', 'scripts/toolchain_cache.py',
     'scripts/functional_execution.py', 'scripts/compiler_read_audit.py',
     'scripts/quartus_tools.py',
+    # Captures execution identity only; the sealer constructs the environment.
+    'cores/fes-pc386/tools/pc386_execution.py',
+    'cores/fes-pc386/tools/pc386_owned_job.py',
 })
 TOOLCHAIN_PARAMETERS = frozenset({
     'execution_sha256', 'gpu_device', 'gpu_backend', 'gpu_architectures',

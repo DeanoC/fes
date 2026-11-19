@@ -1,0 +1,33 @@
+{
+  "candidate_1": {
+    "cas_latency": 3,
+    "clock_phases_ps": [
+      0,
+      1250,
+      1250,
+      625
+    ],
+    "collector_result": "Rejected missing counter 2. Quartus fit report explicitly merges identical counter 2 into counter 1; no external margins claimed for this attempt.",
+    "database_inventory_sha256": "3a3a0b539cbf9965576c010ce503d6a8b380943598101051dbef126023ee18ec",
+    "id": "ee7d3b6cb5d448770d8e700330d9dbe8",
+    "native_minima_ns": {
+      "hold": 0.124,
+      "recovery": 5.488,
+      "removal": 0.204,
+      "setup": -1.481
+    },
+    "rbf_sha256": "ca4a8905f005fad7cd8e56e0c0880e7a21f3e7f33ad564bcba690b4f16994c68",
+    "receipt_sha256": "7370f9d37aea510edf249f5b0b37e4c09dfafeb875813a71e672cc0482e522aa",
+    "result": "REJECT: read-window to retained-word enable setup; no constraint relaxation"
+  },
+  "proof_attempt_1": {
+    "repair": "Extend reset-free history from 6 to 7 observations for the extra CAS-3 return cycle; reset-aborted reads stay outside returned-data property.",
+    "result": "induction did not close"
+  },
+  "proof_attempt_4": {
+    "result": "PASS for candidate 2; used by fit 2"
+  },
+  "proof_attempts_2_3": {
+    "result": "PASS for candidate 1; retained"
+  }
+}

@@ -1,5 +1,51 @@
 # Native contained-fabric endpoint
 
+Final Tenfoot shutdown now enters `ProgramBackend.ParkMenu`: under the same
+backend operation lock it drains the retained USB input source before closing
+MENU and checkpointing preferences. Polling stays paused through final USB
+Close/firmware Stop; shutdown never resumes the source. A failed drain prevents
+MENU closure, and any attempted shutdown prevents later input/launch replay.
+The actual App launch/return/shutdown model and DWC2 retained-lease model cover
+this ordering. Packet, drain, firmware and ownership checks retain their bounds;
+a model pass is not physical final-Park acceptance.
+
+The [completion-cause and fresh-read hashing repair](../../../../docs/validation/2026-11-18-de25-completion-cost/README.md) reproduces
+the masked `configuration already completed` failure in a fresh diagnostic:
+a native 25-second deadline expires at 25.018012418 seconds after firmware
+completion.
+Both configuration owners now preserve and latch the original rejection. Fresh
+private-scratch SHA256/SHA384 checks retain every whole-image/chunk read and
+ownership check while reducing work against uncached source memory. No time
+limit or firmware/driver ownership policy changes.
+
+The fresh `838ac5b48` TRWU8CBL serial test completes five configurations, both
+ZX81/ZX80 launch-returns and final USB inactive Stop/Park. Input stays paused
+through final MENU closure. Exact original-FIT restoration and independent
+raw-trace/cleanup replay pass without power cycling. The earlier diagnostic
+remains failed and retained; current artifacts use `838ac5b48`, with later
+docs-only delivery. All eight affected software checks, the native race suite,
+matched boot chain and source-bound file admission pass. Ordinary J8G HIL,
+physical display/input and full repeated/failure/reset/DMA qualification remain
+open. PR #1952 stays draft/`lane:deano`; issue #1867 stays open. Older figures
+below describe historical profiles and consumed procedures.
+
+The [fresh final-validation cost trial](../../../../docs/validation/2026-11-18-de25-final-cost-physical/README.md) completes initial MENU,
+ZX81 with tape, both releases and full next-MENU configuration, then
+rejects guard 31 / reason 7 at source elapsed 20,142,473 us under the
+unchanged 20-second bound. The barrier repair is insufficient physically;
+ZX80 and final native Park are not reached. Exact original-FIT restoration
+and protected readback pass without power cycling. The failed procedure
+is consumed; complete repeated-cycle qualification remains open.
+
+The [private comparison repair](../../../../docs/validation/2026-11-18-de25-warm-preparation-comparison/README.md) now reproduces the second warm
+preparation boundary through production callbacks under synthetic costs and
+reduces modeled snapshot loads by 84.885%, preserving all bytes, freshness
+checks and deadlines. Sanitized checks, target wide-load/layout proof and a
+fresh matched/file-admitted boot chain pass. The [physical trial](../../../../docs/validation/2026-11-18-de25-comparison-physical/README.md)
+passes generation-15 preparation/arm and full DATA, then rejects final
+input proof at source-clock guard 31, before retirement. The original FIT
+is restored without power cycling; the full cycle/Park remains open.
+
 The independent initial-tape arena is now selected by the explicit Nano
 `--initial-tape` path. It owns `0x95800000..0x95a00000`, with a 16 KiB payload
 and its own final metadata page, preserving the full configuration reservation
@@ -17,12 +63,23 @@ held-ROM, digest, frame and deadline checks remain. SDK, entry and cold producer
 bind the same typed memory contract and reject the former borrowed-storage
 selection. The borrowed configuration publisher has been removed.
 
-The matched source now passes boot-chain/file admission and physical ZX81
-launch with a 917-byte tape. Return to MENU stops at secure source release;
-repeated loading and final Park remain unqualified. The full secure-system
-investigation is tracked in [#1867](https://github.com/DeanoC/fes/issues/1867).
-[Current evidence and preservation scope](../../../../docs/validation/2026-11-15-de25-merge-readiness/README.md)
-separate that historical artifact from the newly integrated tree.
+The earlier matched source physically launches ZX81 with a 917-byte tape, then
+rejects return at secure source release. The later instrumented diagnostic
+identifies guard 34 with no clock error. The
+[guard 34 repair](../../../../docs/validation/2026-11-17-de25-guard34-fix/README.md)
+reproduces the failure through production activation, control, master-stop and
+return callbacks: the stop engine accepts a never-enabled computer reader,
+while source release required a nonzero drained receipt. The repair accepts
+the exact zero tuple with the full activation, stop/probe, held-return and SD
+ownership proof. Four valid scenarios and 27 rejected returns pass off-board.
+The [physical trial](../../../../docs/validation/2026-11-17-de25-guard34-physical/README.md)
+passes source release 10→15 in 918,403 µs, then stops at the next MENU's
+four-second preparation guard. ZX80 and final Park remain unreached; the
+original FIT is restored through fresh recovery without power cycling. The
+[lifecycle audit](../../../../docs/design/de25-native-secure-lifecycle.md) records
+the injected boundaries and remaining physical cost, repeated-cycle, final
+Park and recovery gates. [#1867](https://github.com/DeanoC/fes/issues/1867)
+remains open; earlier hardware evidence does not qualify the new artifact.
 
 The selected native Tenfoot image now accepts an explicit
 `--writable-storage-plan FILE --sd-transfer-clock 25000000`. That compiled

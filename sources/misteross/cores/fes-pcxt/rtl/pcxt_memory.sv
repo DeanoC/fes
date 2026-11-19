@@ -7,8 +7,8 @@
 // SDRAM keeps its contents across an FPGA reconfiguration, so a cold reset is
 // a power-on: before firmware is accepted it zeroes the BIOS warm-boot word at
 // 0040:0072, and the BIOS then runs its full cold POST (#1534).
-module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTER = 0) (
-    input wire clk, clk_pin, cold_reset, reset,
+module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTER = 0, SDRAM_CAPTURE_PIPELINE = 0) (
+    input wire clk, clk_pin, clk_handoff, cold_reset, reset,
     output wire initialized,
     input wire memory_valid,
     output wire memory_ready,
@@ -71,12 +71,23 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
     // Match the controller's conservative 100 MHz capture count: one fabric
     // stage after the board's input capture registers (ramtest rate-3 path).
     reg [15:0] dq_rise_q, dq_fall_q;
-    always @(posedge controller_clk) begin
-        dq_rise_q <= dq_rise;
-        dq_fall_q <= dq_fall;
-    end
+    wire [15:0] controller_data, legacy_data;
+    generate if (SDRAM_CAPTURE_PIPELINE) begin: capture_handoff
+        sdram_cas3_capture pipeline (
+            .clk(controller_clk), .clk_handoff(clk_handoff), .reset(controller_reset),
+            .read_strobe(sdram_cke && sdram_nras && !sdram_ncas && sdram_nwe),
+            .captured(dq_fall), .rdata(controller_data));
+        assign dq_rise_q = 0;
+        assign dq_fall_q = 0;
+    end else begin: original_handoff
+        wire unused_handoff_clock = clk_handoff;
+        always @(posedge controller_clk) begin
+            dq_rise_q <= dq_rise;
+            dq_fall_q <= dq_fall;
+        end
+        assign controller_data = legacy_data;
+    end endgenerate
     wire controller_done;
-    wire [15:0] controller_data;
     wire waiting_media = (!reset || media_read_reset_safe) && media_read_valid && !media_seen;
     wire waiting_memory = !reset && memory_valid && !memory_seen;
     wire waiting_load = disk_load_valid && !disk_load_seen && disk_load_address < DISK_BYTES && !media_read_valid;
@@ -95,14 +106,18 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
     // Separate the controller state/enable muxes from the physical pad FFs.
     // The existing controller mode delays command, address, data and OE
     // together and compensates its read-capture count for the extra cycle.
+    // Profile 1 selects the existing CAS-3 mode and extra read cycle; the
+    // PLL stays at 100 MHz. Override its 130 MHz refresh count to 700 clocks
+    // (7 us) here so selecting CAS-3 cannot lengthen the refresh interval.
     sdram_addon_port #(.BYTE_MASK_ENABLED(1), .SINGLE_RANK_REFRESH(1),
                        .IO_OUTPUT_REGISTERS(1), .EXTERNAL_CS_REGISTER(EXTERNAL_CS_REGISTER),
-                       .REFRESH_INTERVAL_CYCLES(HALF_RATE_CONTROLLER ? 12'd349 : 12'd0)) controller (
-        .clk(controller_clk), .clk_pin(clk_pin), .reset(controller_reset), .rate(2'd3),
+                       .REFRESH_INTERVAL_CYCLES(SDRAM_CAPTURE_PIPELINE ? 12'd699 :
+                           HALF_RATE_CONTROLLER ? 12'd349 : 12'd0)) controller (
+        .clk(controller_clk), .clk_pin(clk_pin), .reset(controller_reset), .rate(SDRAM_CAPTURE_PIPELINE ? 2'd1 : 2'd3),
         .refresh_window(1'b0), .refresh_pending(), .initialized(controller_initialized),
         .start(busy && physical), .write(held_write), .addr(held_address),
         .wdata(held_data), .write_byte_enable(held_lanes),
-        .done(controller_done), .rdata(controller_data),
+        .done(controller_done), .rdata(legacy_data),
         .sdram_clk(sdram_clk), .sdram_cke(sdram_cke), .sdram_ncs(sdram_ncs),
         .sdram_nras(sdram_nras), .sdram_ncas(sdram_ncas), .sdram_nwe(sdram_nwe),
         .sdram_ba(sdram_ba), .sdram_a(sdram_a),

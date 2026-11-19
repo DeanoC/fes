@@ -1,0 +1,24 @@
+{
+  "status": "passed-linked-target-layout-and-barrier-check",
+  "source_commit": "379c6aa7d40d1283d80f353e36a7ddce43ae4f1c",
+  "elf_sha256": "04dbdacf515e592dd66d2f72973bfa87e9687ac40b97f503daec316e1a0bfddb",
+  "assembly_sha256": "8805d93740b52b9dec8e4622b22b3ee8ba1adb7d67d3f4649b2d062a71c7a26f",
+  "symbols": {
+    "__STACKS_START__": "0x50000",
+    "__STACKS_END__": "0x58000",
+    "__BSS_END__": "0x5ff80",
+    "__RO_START__": "0x80000000"
+  },
+  "ocram_margin_bytes": 128,
+  "clock_failure_bytes": 40,
+  "hardware_actions": false,
+  "hardware_acceptance": false,
+  "before_frame_bytes": 352,
+  "after_frame_bytes": 352,
+  "word_loop_no_per_word_DSB": true,
+  "word_loop_range": [
+    "0x8001bc1c",
+    "0x8001bc34"
+  ],
+  "clock_failure_address_is_private_OCRAM": true
+}

@@ -1,0 +1,109 @@
+{
+  "branch": {
+    "build_id": "6d67e86526ed2ea3e2abac66bd3ed722",
+    "margins": {
+      "audio": {
+        "achieved_mhz": 186.35855102539062,
+        "constraint_mhz": 12.288031578063965,
+        "ratio": 15.165858733474403,
+        "status": "pass"
+      },
+      "pixel": {
+        "achieved_mhz": 86.30361938476562,
+        "constraint_mhz": 74.25006866455078,
+        "ratio": 1.1623372333118067,
+        "status": "pass"
+      },
+      "system": {
+        "achieved_mhz": 53.28218460083008,
+        "constraint_mhz": 52.22477340698242,
+        "ratio": 1.0202473103254532,
+        "status": "pass"
+      },
+      "worst_ratio": 1.0202473103254532
+    },
+    "placer_seed": 1,
+    "rbf_bytes": 2728742,
+    "rbf_sha256": "2808cee7d9af5cabbb23f5a73d0bc5a9502f5e2907bc44d5271fef31014212c1",
+    "source": "/data/fes1861-netlist/ref/zx81-branch/build-summary.json",
+    "status": "pass",
+    "timing": {
+      "audio": {
+        "achieved_mhz": 186.35855102539062,
+        "clock": "audio_clk",
+        "constraint_mhz": 12.288031578063965,
+        "requested_mhz": 12.288,
+        "status": "pass"
+      },
+      "pixel": {
+        "achieved_mhz": 86.30361938476562,
+        "clock": "display.control.clk",
+        "constraint_mhz": 74.25006866455078,
+        "requested_mhz": 74.25,
+        "status": "pass"
+      },
+      "status": "pass",
+      "system": {
+        "achieved_mhz": 53.28218460083008,
+        "clock": "clk_sys",
+        "constraint_mhz": 52.22477340698242,
+        "requested_mhz": 52.224,
+        "status": "pass"
+      }
+    }
+  },
+  "main": {
+    "build_id": "a8e2be82df8833ce666de50662cc4d06",
+    "margins": {
+      "audio": {
+        "achieved_mhz": 193.7984619140625,
+        "constraint_mhz": 12.288031578063965,
+        "ratio": 15.77131867564718,
+        "status": "pass"
+      },
+      "pixel": {
+        "achieved_mhz": 78.86434936523438,
+        "constraint_mhz": 74.25006866455078,
+        "ratio": 1.062145137151726,
+        "status": "pass"
+      },
+      "system": {
+        "achieved_mhz": 52.898860931396484,
+        "constraint_mhz": 52.22477340698242,
+        "ratio": 1.0129074284183288,
+        "status": "pass"
+      },
+      "worst_ratio": 1.0129074284183288
+    },
+    "placer_seed": 1,
+    "rbf_bytes": 2741554,
+    "rbf_sha256": "e711c805d15f66f0053930a87ea3ed215e502b4bda0ae147c12ba82887ef5948",
+    "source": "/data/fes1861-netlist/ref/zx81-main/build-summary.json",
+    "status": "pass",
+    "timing": {
+      "audio": {
+        "achieved_mhz": 193.7984619140625,
+        "clock": "audio_clk",
+        "constraint_mhz": 12.288031578063965,
+        "requested_mhz": 12.288,
+        "status": "pass"
+      },
+      "pixel": {
+        "achieved_mhz": 78.86434936523438,
+        "clock": "display.control.clk",
+        "constraint_mhz": 74.25006866455078,
+        "requested_mhz": 74.25,
+        "status": "pass"
+      },
+      "status": "pass",
+      "system": {
+        "achieved_mhz": 52.898860931396484,
+        "clock": "clk_sys",
+        "constraint_mhz": 52.22477340698242,
+        "requested_mhz": 52.224,
+        "status": "pass"
+      }
+    }
+  },
+  "note": "Each side's own producer at its own BUILD_ID; the RBFs differ because the constant is in the netlist. Condition 2 is measured at an equal BUILD_ID in reports-cond2/. Condition 3 is the branch row's status, and the timing block is copied verbatim from that build's own build-summary.json."
+}

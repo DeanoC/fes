@@ -11,6 +11,7 @@ from that lock.
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import os
 import re
@@ -33,7 +34,10 @@ TOP = "top"
 MHZ = os.environ.get("RAMTEST_MHZ", "130")
 if MHZ not in ("100", "130"):
     raise ValueError("RAMTEST_MHZ must be 100 or 130")
-OUTPUT_RELATIVE = Path("build/fes-ramtest-quartus" + ("-100" if MHZ == "100" else ""))
+CAS3_CAPTURE = os.environ.get("RAMTEST_CAS3_CAPTURE", "0") == "1"
+if CAS3_CAPTURE and MHZ != "100":
+    raise ValueError("CAS-3 capture requires RAMTEST_MHZ=100")
+OUTPUT_RELATIVE = Path("build/fes-ramtest-quartus" + ("-100-cas3" if CAS3_CAPTURE else "-100" if MHZ == "100" else ""))
 QSF_PINS = "cores/fes-ramtest/constraints.qsf"
 QUARTUS_LOCK = "cores/fes-ramtest/quartus.lock"
 I2C_SITE = "HPSINTERFACEPERIPHERALI2C_X52_Y60_N111"
@@ -53,6 +57,7 @@ VERILOG_SOURCES = (
     "cores/fes-ramtest/rtl/ram_display.v",
     "cores/fes-ramtest/rtl/ram_pll.v",
     "cores/fes-ramtest/rtl/sdram_addon_port.v",
+    "cores/fes-ramtest/rtl/sdram_cas3_capture.v",
     "cores/fes-ramtest/rtl/ddr_rates.v",
     "cores/fes-ramtest/rtl/ddr_channel.v",
     "cores/fes-ramtest/rtl/lat_stats.v",
@@ -71,9 +76,24 @@ PROJECT_SDC = (
     "    -group [get_clocks {ram_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk}] \\\n"
     "    -group [get_clocks {ram_clock|pll|general[2].gpll~PLL_OUTPUT_COUNTER|divclk}]\n"
 )
+if CAS3_CAPTURE:
+    # Forwarding and handoff remain related to the controller/capture clock.
+    PROJECT_SDC = (
+        'create_clock -name FPGA_CLK1_50 -period 20.000 [get_ports {FPGA_CLK1_50}]\n'
+        'derive_pll_clocks\nderive_clock_uncertainty\n'
+        'set_clock_groups -asynchronous -group [get_clocks FPGA_CLK1_50] '
+        '-group [get_clocks {video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk}] '
+        '-group [get_clocks {ram_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk ram_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk ram_clock|pll|general[2].gpll~PLL_OUTPUT_COUNTER|divclk}]\n')
+    record = {'sources': {n: hashlib.sha256((ROOT/n).read_bytes()).hexdigest()
+                          for n in (*VERILOG_SOURCES, QSF_PINS, QUARTUS_LOCK,
+                                    'scripts/build_fes_ramtest_quartus.py')},
+              'mode': '100MHz-CAS3-retained-word', 'sdc': PROJECT_SDC}
+    BUILD_ID = hashlib.sha256(json.dumps(record, sort_keys=True).encode()).hexdigest()[:32]
 # Registers on a clock TimeQuest cannot analyse are in no slack row.
 UNANALYSED_CLOCKS = ("Illegal Clocks", "Unconstrained Clocks")
 UNANALYSED_ROW_RE = re.compile(r"^; (Illegal Clocks|Unconstrained Clocks)\s*; (\d+)\s*; (\d+)\s*;", re.M)
+TIMING_CORNERS = ("Slow 1100mV 100C", "Slow 1100mV -40C",
+                  "Fast 1100mV 100C", "Fast 1100mV -40C")
 
 
 class BuildError(ValueError):
@@ -108,6 +128,10 @@ def project_qsf(root: Path, project: Path, lock: QuartusLock) -> str:
             f"{I2C_SITE} -entity {TOP} -to hdmi_i2c"
         ),
     ]
+    if CAS3_CAPTURE:
+        lines.append('set_global_assignment -name VERILOG_MACRO "RAM_CAS3_CAPTURE"')
+        lines.extend(f'set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[{i}]'
+                     for i in range(16))
     lines.extend(
         f"set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to {pin}"
         for pin in ("SDRAM_CKE", "SDRAM_nCS", "SDRAM_nRAS", "SDRAM_nCAS",
@@ -132,17 +156,17 @@ def write_project(root: Path, output: Path, lock: QuartusLock) -> Path:
     return project
 
 
-def check_setup_slack(domain: str, line: str) -> None:
+def check_slack(domain: str, kind: str, line: str) -> None:
     text = line.split(";")[2].strip()
     try:
         slack = float(text)
     except ValueError:
-        raise BuildError(f"{domain} setup slack {text} is not a number: {line.strip()}") from None
-    print(f"{domain} setup slack {slack:.3f} ns")
+        raise BuildError(f"{domain} {kind} slack {text} is not a number: {line.strip()}") from None
+    print(f"{domain} {kind} slack {slack:.3f} ns")
     # TimeQuest prints a sub-picosecond miss as -0.000, which float() reads
     # as zero, so the printed sign also fails the gate.
     if not math.isfinite(slack) or slack < 0 or text.startswith("-"):
-        raise BuildError(f"{domain} setup slack is {text} ns: {line.strip()}")
+        raise BuildError(f"{domain} {kind} slack is {text} ns: {line.strip()}")
 
 
 def validate_timing(sta_text: str) -> None:
@@ -151,33 +175,36 @@ def validate_timing(sta_text: str) -> None:
             raise BuildError(f"timing report does not mention {needle}")
     if re.search(rf"\b{MHZ}(?:\.\d+)? MHz", sta_text) is None:
         raise BuildError(f"timing report does not mention {MHZ} MHz")
-    # Same-clock memory slack is the rate result, and it covers the SDRAM
-    # controller, the DDR engines and their fpga2sdram ports. The pixel path
-    # is reported separately; a miss there does not hide a memory miss.
-    setup = re.search(
-        r"Slow 1100mV 100C Model Setup Summary.*?Clock\s+; Slack(.*?)\n\n",
-        sta_text,
-        re.S,
-    )
-    if setup is None:
-        raise BuildError("timing report lacks the slow-corner setup summary")
-    # The capture clock only feeds IO registers, so its paths are reported
-    # under the memory clock they cross into.
-    memory_rows = [
-        line for line in setup.group(1).splitlines()
-        if "ram_clock" in line and "divclk" in line
-    ]
-    if not memory_rows:
-        raise BuildError(f"timing report lacks the {MHZ} MHz memory setup row")
-    for line in memory_rows:
-        check_setup_slack("memory", line)
-    pixel_rows = [
-        line for line in setup.group(1).splitlines()
-        if "video_clock" in line and "divclk" in line
-    ]
-    if len(pixel_rows) != 1:
-        raise BuildError("timing report lacks the pixel setup row")
-    check_setup_slack("pixel", pixel_rows[0])
+    # A constrained crossing can fail hold while every setup path passes.
+    # Require setup and hold inventories at every reported device corner;
+    # the forwarding-only clock need not have an endpoint slack row.
+    expected_clocks = None
+    for corner in TIMING_CORNERS:
+        for kind in ("setup", "hold"):
+            summaries = re.findall(
+                rf"^; {re.escape(corner)} Model {kind.title()} Summary\s*;[^\n]*\n(.*?)(?=\n\n|\Z)",
+                sta_text, re.M | re.S,
+            )
+            if len(summaries) != 1:
+                raise BuildError(f"timing report lacks a unique {corner} {kind} summary")
+            rows = [line for line in summaries[0].splitlines()
+                    if "divclk" in line and ("ram_clock" in line or "video_clock" in line)]
+            names = [line.split(";")[1].strip() for line in rows]
+            memory = [name for name in names if name.startswith("ram_clock|")]
+            pixel = [name for name in names if name.startswith("video_clock|")]
+            if not memory or len(pixel) != 1 or len(names) != len(set(names)):
+                raise BuildError(f"timing report has incomplete or duplicate {corner} {kind} clock rows")
+            if expected_clocks is None:
+                expected_clocks = set(names)
+                required = {"ram_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk"}
+                if CAS3_CAPTURE:
+                    required.add("ram_clock|pll|general[2].gpll~PLL_OUTPUT_COUNTER|divclk")
+                if not required <= expected_clocks:
+                    raise BuildError("timing report lacks required memory endpoint clocks")
+            if set(names) != expected_clocks:
+                raise BuildError(f"timing report has incomplete {corner} {kind} clock inventory")
+            for line in rows:
+                check_slack("memory" if "ram_clock" in line else "pixel", kind, line)
     unanalysed = UNANALYSED_ROW_RE.findall(sta_text)
     if sorted(row[0] for row in unanalysed) != sorted(UNANALYSED_CLOCKS):
         raise BuildError("timing report lacks the unconstrained paths summary")

@@ -20,8 +20,9 @@ YOSYS = shutil.which(os.environ.get('FES_YOSYS', '')) if os.environ.get('FES_YOS
 
 
 class ProgramTest(unittest.TestCase):
-    def test_pcxt_programs_are_byte_identical_to_before_the_helper(self):
-        # The programs the board fitter wrote before S4, with roots /S, /W and /L.
+    def test_pcxt_programs_match_the_reviewed_profile_snapshots(self):
+        # Reviewed programs with roots /S, /W and /L. CAS-3 adds the shared
+        # retention module and explicitly selects it in both package profiles.
         golden = json.loads(FIXTURE.read_text())
         library = Path('/L/megafunction_bb.v')
         rendered = {

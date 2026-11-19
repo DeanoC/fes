@@ -298,7 +298,7 @@ func TestProgramServiceClockDeadlineAndLateFirmwareReturnRetainConfiguration(t *
 			f.s.state.limits.Yield = func() {
 				switch fault {
 				case "deadline":
-					now = now.Add(20 * time.Second)
+					now = now.Add(sourceOperationTimeout)
 				case "backwards":
 					now = now.Add(-time.Second)
 				case "cancel":
@@ -310,7 +310,7 @@ func TestProgramServiceClockDeadlineAndLateFirmwareReturnRetainConfiguration(t *
 				f.s.state.limits.Now = func() time.Time {
 					calls++
 					if calls == 3 {
-						now = now.Add(20 * time.Second)
+						now = now.Add(sourceOperationTimeout)
 					}
 					return now
 				}
@@ -321,11 +321,11 @@ func TestProgramServiceClockDeadlineAndLateFirmwareReturnRetainConfiguration(t *
 			}
 			switch fault {
 			case "deadline", "late":
-				if !strings.Contains(err.Error(), "configuration deadline: elapsed=20s step=20s limit=20s") {
+				if !strings.Contains(err.Error(), "configuration deadline: elapsed=25s step=25s limit=25s") {
 					t.Fatal("deadline lost its measured reason", err)
 				}
 			case "backwards":
-				if !strings.Contains(err.Error(), "configuration backwards clock: elapsed=-1s step=-1s limit=20s") {
+				if !strings.Contains(err.Error(), "configuration backwards clock: elapsed=-1s step=-1s limit=25s") {
 					t.Fatal("clock regression lost its measured reason", err)
 				}
 			case "cancel":
@@ -337,19 +337,35 @@ func TestProgramServiceClockDeadlineAndLateFirmwareReturnRetainConfiguration(t *
 	}
 }
 
+func TestProgramServiceAcceptsFormerTwentySecondBoundary(t *testing.T) {
+	f := serviceTest(t)
+	req, _, _ := addProgram(t, f.loader, f.files, 0)
+	start := time.Unix(100, 0)
+	now := start
+	f.s.state.limits.Now = func() time.Time {
+		if f.s.state.transfer != nil && f.s.state.transfer.Status().Phase == "retire" {
+			now = start.Add(20*time.Second + 142473*time.Microsecond)
+		}
+		return now
+	}
+	if _, err := f.s.Launch(context.Background(), 0, req); err != nil || f.cpu.opens != 1 {
+		t.Fatal("valid completion under the new enclosing budget rejected", err, f.s.Status())
+	}
+}
+
 func TestProgramServiceLateHardwareCompletionCannotOpenComputerOrReleaseStaging(t *testing.T) {
 	f := serviceTest(t)
 	req, _, data := addProgram(t, f.loader, f.files, 0)
 	start := time.Unix(100, 0)
 	f.s.state.limits.Now = func() time.Time {
 		if f.s.state.transfer != nil && f.s.state.transfer.Status().Phase == "retire" {
-			return start.Add(20*time.Second + 170364147*time.Nanosecond)
+			return start.Add(sourceOperationTimeout + 170364147*time.Nanosecond)
 		}
 		return start
 	}
 	_, err := f.s.Launch(context.Background(), 0, req)
 	status := f.s.state.transfer.Status()
-	if !errors.Is(err, ErrProgramRetired) || !strings.Contains(err.Error(), "configuration deadline: elapsed=20.170364147s") ||
+	if !errors.Is(err, ErrProgramRetired) || !strings.Contains(err.Error(), "configuration deadline: elapsed=25.170364147s") ||
 		status.Phase != "retire" || !status.Failed || status.Done || status.CompletedBytes != len(data) || status.RetainedBytes != len(data) ||
 		f.cpu.opens != 0 || f.lease.r.Active || f.s.Status().State != ProgramRebootRequired {
 		t.Fatal("late successful firmware result became a computer session or released staging", err, status, f.s.Status())

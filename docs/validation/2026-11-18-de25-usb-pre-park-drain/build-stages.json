@@ -1,0 +1,38 @@
+[
+  {
+    "stage": "sdk",
+    "returncode": 0,
+    "elapsed_seconds": 95.41104414197616,
+    "log_sha256": "49c7a68022d74e014525ac91b214a6067770a8dd8e38bc015ca63c416acc592f"
+  },
+  {
+    "stage": "entry",
+    "returncode": 0,
+    "elapsed_seconds": 84.96342374384403,
+    "log_sha256": "ecd7d66ab46606b6453a335354b14b5cbc68ae16383c280a51b7eafb83dd19f8"
+  },
+  {
+    "stage": "bl31",
+    "returncode": 0,
+    "elapsed_seconds": 52.37158347503282,
+    "log_sha256": "c536581293800682d97cbe03b58211d380ef575cb7888ee857ac93b6810e8671"
+  },
+  {
+    "stage": "uboot",
+    "returncode": 0,
+    "elapsed_seconds": 135.9251119471155,
+    "log_sha256": "9e0eb3182707ae6a6e0d90fa8588b0f60375fb10220c65d900426c4d32a45cb0"
+  },
+  {
+    "stage": "composition",
+    "returncode": 0,
+    "elapsed_seconds": 351.6797736149747,
+    "log_sha256": "b40c716ab482c9bed399bbb231508ae477fc458802573e559f6b421fd183b425"
+  },
+  {
+    "stage": "file-admission",
+    "returncode": 0,
+    "elapsed_seconds": 55.27656709798612,
+    "log_sha256": "72554faf58cb2e49b72b70232603009317be5102eab9dccde016e0035191cf82"
+  }
+]
