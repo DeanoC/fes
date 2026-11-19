@@ -371,9 +371,11 @@ func (a *App) playingRoomKeyLocked(down bool, now time.Time, stopWithoutRoom boo
 // playCtrlHeldLocked reports a physical Ctrl key held on the play keyboard,
 // by HID usage (left 0xE0, right 0xE4) or by its play-keyboard name.
 func (a *App) playCtrlHeldLocked() bool {
-	for _, key := range []string{playHeldKey("", 0xe0), playHeldKey("", 0xe4), playHeldKey("ctrl", 0)} {
-		if a.playKeyHeld[key] {
-			return true
+	for held := range a.playKeyHeld {
+		for _, key := range []string{playHeldKey("", 0xe0), playHeldKey("", 0xe4), playHeldKey("ctrl", 0)} {
+			if held.key == key {
+				return true
+			}
 		}
 	}
 	return false
@@ -502,6 +504,8 @@ func samePlayHIDSession(a, b hostclient.SessionResult) bool {
 }
 
 func (a *App) cancelPlayHIDLocked() {
+	a.playKeyAdmitted = nil
+	a.playKeyPendingRelease = nil
 	a.playMice = nil
 	if a.playHIDCancel != nil {
 		a.playHIDCancel()
@@ -513,6 +517,8 @@ func (a *App) cancelPlayHIDLocked() {
 }
 
 func (a *App) releasePlayHIDLocked() {
+	a.playKeyAdmitted = nil
+	a.playKeyPendingRelease = nil
 	a.playMice = nil
 	if a.playHIDFailClosedLocked() {
 		a.playHIDHeld = nil
@@ -559,5 +565,5 @@ func drawHardwareRoomButton(dev gfx.Device, snap Snapshot, labels map[string]gpu
 		return
 	}
 	fillRect(dev, float32(button.X), float32(button.Y), float32(button.W), float32(button.H), 48, 84, 103, 255)
-	drawLabel(dev, labels, used, "np-hardware", button.X+14, button.Y+11, button.W-28, 18, playingRoomLabel(snap.Session)+" · "+hardwareRoomWord(snap.Affinity))
+	drawLabel(dev, labels, used, "np-hardware", button.X+14, button.Y+11, button.W-28, 18, snap.padHint(playingRoomLabel(snap.Session)+" · "+hardwareRoomWord(snap.Affinity)))
 }

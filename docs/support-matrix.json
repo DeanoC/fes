@@ -54,8 +54,8 @@
     }
   ],
   "policy": [
-    "Labels follow the accepted Quartus policy in [Quartus-built cores](design/quartus-cores.md) (issue #1163). `oss` is the Debian-style main set: Yosys + nextpnr-mistral. `quartus` is the non-free set: a proprietary toolchain. A core build is supposed to say which one made it, so an all-OSS selection can exclude every Quartus build. `FES_OSS_ONLY` is not implemented. Current registered recipes and package selection build the OSS lane only. A failed OSS route never falls back to Quartus.",
-    "Both labelled builds ship only when the published rule is met, on the same RTL and the same target clocks. Either every Quartus sign-off seed closes a required clock that an OSS sign-off seed misses, or the best complete-seed Fmax is at least 15% higher on any required clock: `100 \u00d7 (Quartus best \u2212 OSS best) / OSS best`. Otherwise the core ships OSS only. No registered recipe declares a `toolchains` list yet, so no core ships both builds today. The i386 far-transfer numbers (about 40%) remain the worked example of a gap large enough for that rule. i386, pc386 and PC/XT are separately Quartus-primary; their nextpnr builds are advisory.",
+    "Labels follow the accepted Quartus policy in [Quartus-built cores](design/quartus-cores.md) (issue #1163). `oss` is the Debian-style main set: Yosys + nextpnr-mistral. `quartus` is the non-free set: a proprietary toolchain. A core build is supposed to say which one made it, so an all-OSS selection can exclude every Quartus build. `FES_OSS_ONLY` is not implemented. Registered recipes select either their declared OSS lane or an explicit Quartus lane. A failed OSS route never falls back to Quartus.",
+    "Both labelled builds ship only when the published rule is met, on the same RTL and the same target clocks. Either every Quartus sign-off seed closes a required clock that an OSS sign-off seed misses, or the best complete-seed Fmax is at least 15% higher on any required clock: `100 × (Quartus best − OSS best) / OSS best`. Otherwise the core ships OSS only. No registered recipe declares a `toolchains` list yet, so no core ships both builds today. The i386 far-transfer numbers (about 40%) remain the worked example of a gap large enough for that rule. i386, pc386 and PC/XT are separately Quartus-primary; their nextpnr builds are advisory.",
     "DE25-Nano (Agilex 5) is Quartus-only (policy); shell pending. policy: Deano 2026-10-29. Rows with a DE10 board bitstream show Quartus; rows without a board bitstream show no DE25 toolchain cell. Agilex 5 has no OSS reverse-engineering, so there is no OSS toolchain for that device. nextpnr-mistral targets Cyclone V (`5CSEBA6U23I7` in [the DE10-Nano board note](../sources/misteross/boards/de10nano/README.md)). Quartus Pro 24.1 or later is the first release that supports Agilex 5 ([Quartus-built cores](design/quartus-cores.md)). `sources/misteross/boards/de25nano` may be absent or present; the checker treats that landing as expected. Per-core DE25 cells stay on the policy line until the shell is on this branch and those cells are re-verified.",
     "i386, pc386 and PC/XT use Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss there is filed as a nextpnr issue, not a blocker. PC/XT has a sole registered Quartus DOS package producer and an advisory nextpnr diagnostic. pc386 retains pack-only nextpnr synthesis, and i386 retains the Quartus 17.0.2 fit of its Yosys netlist ([i386 CPU design](../sources/misteross/docs/i386-cpu-design.md), DeanoC/nextpnr#300). Those tree facts do not change the primary label.",
     "ColecoVision still uses the old media handling. Its example arcade room has an empty-library status when no matching titles are available. Updating that handling is low priority and is folded into the wider Coleco work (for example Adam support). policy: Deano 2026-10-29. The checked-in factory recipe is the format-4 ROM map, and it strips the blob and blob-stream mailboxes that the older Coleco producers still declare."
@@ -83,7 +83,7 @@
         "nextpnr": "1eecf877"
       },
       "board": "de10",
-      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-device` only; the authenticated toolchain sets the backend (misteross AGENTS.md).",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA`, defaulting to HIP (`scripts/build_fes_menu_package.py`); `make` forwards `GPU_ROUTER=`.",
       "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
       "features": "Media: none. Input: none in the package interfaces. HDMI: fixed 720p60 menu display and blitter over HPS DDR (`fes.video.menu-display`, `fes.video.menu-blitter`). Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Bootstrap image display firmware, not a playable core. The only `fpga_packages` row in `profiles/native-integration-dev.toml`. Lock nextpnr `1eecf877`.",
@@ -204,7 +204,7 @@
         "nextpnr": "552ba246"
       },
       "board": "de10",
-      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-device` only; the authenticated toolchain sets the backend (misteross AGENTS.md).",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA`, defaulting to HIP (`scripts/build_fes_pong.py`); `make` forwards `GPU_ROUTER=`.",
       "quartus": "Recipe `quartus_role` is `check only when a twin exists`. No `build-fes-pong-quartus` target was found. Not a shipped variant.",
       "features": "Media: ROM-less. Persists settings and best rally (`fes.persistence.words`, `fes.pong.progress`). Input: `fes.gamepad`. HDMI: shared `fes_video_720p`, fixed 720p60. Display plane is Planned in `docs/display-pipeline.md`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Library standing `supported`. Not in the bootstrap image. Named kit notes do not accept a later bitstream.",
@@ -270,7 +270,7 @@
         "nextpnr": "bec82e36"
       },
       "board": "de10",
-      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-device` only; the authenticated toolchain sets the backend (misteross AGENTS.md).",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA`, defaulting to HIP (`scripts/build_fes_ramtest.py`); `make` forwards `GPU_ROUTER=`.",
       "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-ramtest-quartus` is Quartus 17.0.2 at 130 MHz (`RAMTEST_MHZ=100` selects 100 MHz). The catalog utility is the one OSS 100 MHz package; the separately sealed OSS 130 MHz package was removed. The OSS-versus-Quartus 130 MHz gap is #264.",
       "features": "Media: ROM-less utility. Input: `fes.gamepad`. HDMI: fixed 720p60. Memory: SDRAM addon and `fes.memory.hps-ddr`. Display plane is Planned in `docs/display-pipeline.md`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Library standing `supported`. Not in the bootstrap image. No exact-image hardware acceptance is claimed in core status.",
@@ -1464,7 +1464,7 @@
         "nextpnr": "8f453ebc"
       },
       "board": "de10",
-      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-device` only; the authenticated toolchain sets the backend (misteross AGENTS.md).",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA`, defaulting to HIP (`scripts/build_fes_riscv.py`); `make` forwards `GPU_ROUTER=`.",
       "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
       "features": "Media: none. The package runs hand-assembled demonstration firmware. Input: `fes.gamepad`. No audio interface on the producer. HDMI: 160x120 framebuffer in the shared 720p raster. Display plane is Planned in `docs/display-pipeline.md`. CPU: `fes_rv32_cpu` in `cores/fes-common/rtl/riscv`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Library standing `experimental`. Not in the bootstrap image. Kit loads cited in core status accept only the packages they name.",
@@ -1640,8 +1640,8 @@
         "fes-pc386"
       ],
       "paths": [],
-      "recipe": false,
-      "library_standing": null,
+      "recipe": true,
+      "library_standing": "experimental",
       "in_bootstrap_image": false,
       "oss_lock": {
         "path": "sources/misteross/cores/fes-pc386/toolchain.lock",
@@ -1651,10 +1651,10 @@
       },
       "board": "de10",
       "primary_toolchain": "quartus",
-      "router": "No nextpnr route of the machine with its CPU; nextpnr builds of pc386 are parked (#1235). `scripts/synth_fes_pc386.py` packs the machine without the CPU and does not route. Not a recipe row.",
-      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss is filed as a nextpnr issue, not a blocker. `scripts/build_fes_pc386_quartus.py` seals the development package `fes.pc386`, the machine with `fes_i386_cpu`, with Quartus 17.0.2 from the pc386 lock's Yosys netlist.",
+      "router": "No nextpnr route of the machine with its CPU; nextpnr builds of pc386 are parked (#1235). `scripts/synth_fes_pc386.py` packs the machine without the CPU and does not route.",
+      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss is filed as a nextpnr issue, not a blocker. `scripts/build_fes_pc386_quartus.py` seals the experimental package `fes.pc386`, the machine with `fes_i386_cpu`, with Quartus 17.0.2 from the pc386 lock's Yosys netlist.",
       "features": "Media: the runtime writes an ATA disk image into the DDR window through the fes.computer 1.1 mailbox and `fes_computer_storage` while execution is held, with a commit CRC pass (`pc386_disk`); the floppy controller (`pc386_fdc`) serves drives A: and B: on IRQ 6 and DMA channel 2. Input: fes.keyboard.hid through the HID row model (`pc386_hid_keyboard` inside the 8042) to the PS/2 keyboard (set 2 with XLAT, typematic), and fes.mouse.relative to the PS/2 aux mouse. HDMI: 720p presenter and display plane. Audio: PC speaker, OPL2 and Sound Blaster. CPU: `fes_i386_cpu` with a speed governor that takes its preset, frequency and turbo from the `fes.pc386.machine` record. x87: since slice 2 (#1768) the 387's state, its interface to the CPU, the AT board's error path and the loads, stores and conversions are built inside `fes_i386_cpu`; its arithmetic is slices 3 to 5 and is not built. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Phases M1-M5 are done. M5's development package `fes.pc386` (`make build-fes-pc386-quartus`, not a registered recipe and not a catalog package) puts `fes_i386_cpu` in the machine. Each kit result names its own artifact. On seal 254b2bf5 of merge 317310c81 (6 November, Kit B, `max`): a DOOM level played to its exit switch and on into E1M2, a Wolfenstein 3D level played through to floor 2, and Ultima VII Black Gate and Serpent Isle saves loaded after a relaunch. On seal 650bc477 of main 65ec1f22a (10 November, Kit B): FreeDOS with the kit's date and time, Wolfenstein 3D above 30 fps, Ultima VI's speaker pitch at 286-12 and the Black Gate save and load at 386DX-25 pass again; the Wolfenstein 3D playthrough was not rerun, and Serpent Isle's save and load passed in seven launches of eight, the eighth black throughout (#1494). That pitch pass is a regression comparison against the earlier kit run, not a reference: against the named 86Box 286-12 reference the effects play about 2.4 semitones flat, which fails (#1837). Windows for Workgroups 3.11 reaches Program Manager in 386 enhanced mode on build 6ef05309, and Linux 0.99.15, 1.2.13 and 2.0.0 reach a login and a root shell on build 9d784de2, each its own 12 November seal of main; Windows 3.11 is a standing check on each change's seal. Also owed on #1368: Ultima VI's walking speed at 286-12, which is not measurable by any method tried so far and is qualified by how well that preset is calibrated (#1840), and Ultima VII's NPC pace, which is not established and is carried forward as #1853. Serpent Isle's black capture is #1494. The forward plan puts pc386 at tier 1 when #1368 and #1494 close.",
+      "notes": "Phases M1-M5 are done. M5's experimental package `fes.pc386` (`make build-fes-pc386-quartus`) puts `fes_i386_cpu` in the machine. Each kit result names its own artifact. On seal 254b2bf5 of merge 317310c81 (6 November, Kit B, `max`): a DOOM level played to its exit switch and on into E1M2, a Wolfenstein 3D level played through to floor 2, and Ultima VII Black Gate and Serpent Isle saves loaded after a relaunch. On seal 650bc477 of main 65ec1f22a (10 November, Kit B): FreeDOS with the kit's date and time, Wolfenstein 3D above 30 fps, Ultima VI's speaker pitch at 286-12 and the Black Gate save and load at 386DX-25 pass again; the Wolfenstein 3D playthrough was not rerun, and Serpent Isle's save and load passed in seven launches of eight, the eighth black throughout (#1494). That pitch pass is a regression comparison against the earlier kit run, not a reference: against the named 86Box 286-12 reference the effects play about 2.4 semitones flat, which fails (#1837). Windows for Workgroups 3.11 reaches Program Manager in 386 enhanced mode on build 6ef05309, and Linux 0.99.15, 1.2.13 and 2.0.0 reach a login and a root shell on build 9d784de2, each its own 12 November seal of main; Windows 3.11 is a standing check on each change's seal. Also owed on #1368: Ultima VI's walking speed at 286-12, which is not measurable by any method tried so far and is qualified by how well that preset is calibrated (#1840), and Ultima VII's NPC pace, which is not established and is carried forward as #1853. Serpent Isle's black capture is #1494. The forward plan puts pc386 at tier 1 when #1368 and #1494 close. The product recipe registration requires a new exact-source lockstep and Quartus seal; the earlier artifact results do not qualify that new package.",
       "evidence": [
         "sources/misteross/cores/fes-pc386/README.md",
         "sources/misteross/scripts/build_fes_pc386_quartus.py",
@@ -1696,10 +1696,16 @@
         ],
         "media_gen": "live",
         "image_role": "none",
-        "catalog_standing": null
+        "catalog_standing": "experimental"
       },
       "quality_tier": "1-pending",
-      "check_level": "full"
+      "check_level": "full",
+      "quartus_role": "pc386 machine package producer",
+      "producer_script": "cores/fes-pc386/tools/build_pc386_product.py",
+      "quartus_lock": {
+        "path": "sources/misteross/cores/fes-pc386/quartus.lock",
+        "version": "17.0.2 Build 602"
+      }
     },
     {
       "id": "i386",
@@ -1998,7 +2004,7 @@
     "Should the per-family representative scoping be a rule as well? On PR #1862 the sibling variants (zx80, ts1000, ts1500, spectrum128, spectrum-plus3, pentagon) were dropped from the route conditions along with the held-back cores; check_level keeps them at full because they are tier 1.",
     "fes.riscv's snapshot last_rtl_change (2026-10-05) reads its core directory only. `dcfa92c98` (2026-10-21) changed `fes_rv32_cpu.sv` in the shared riscv directory that this row holds under `paths`, and the subject names riscv, so whether that commit should move the row to Current inside the same snapshot is open. The owned-RTL check runs on shared rows only, so nothing catches it either way.",
     "A pending quality_tier has to be re-read by hand when its condition closes. The checker reads the forward plan's Tiers section and fails if a cited sentence moves, goes or is restated, and if the plan stops naming #1368, #1494 or the port condition; it cannot see a superseding decision written in new words. So when #1368 and #1494 close, pc386's 1-pending becomes tier 1 and its check level does not change, but the row still needs editing.",
-    "fes.pc386 keeps tier_role bring-up, so its tier stays Bring-up although its package runs games, Windows and Linux on a kit. The alternative is tier_role play, which would derive Current from its RTL dates; it is not a registered recipe or a catalog package, so this page kept bring-up and reworded that tier's meaning instead."
+    "fes.pc386 keeps tier_role bring-up and experimental catalog standing. Registration does not promote its quality tier; the exact registered package still needs a fresh seal and the pending game and hardware gates."
   ],
   "display_groups": [
     {

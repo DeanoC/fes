@@ -1,0 +1,111 @@
+{
+  "build_id": "d7fadc3a87a7b3fe12a164d2dd62e126",
+  "canonical_qsf_sha256": "f6a3d0924446994d2c31f4c3f42b615de0c293923e47525e1c89ebb5eeaddd47",
+  "canonical_rbf_sha256": "83ba14a80a2e8cf39db43cc5242d1566dcff9a5ceaf05fbe6b078f21ac7255da",
+  "clocks": {
+    "audio": {
+      "analysed_period_ns": 81.364,
+      "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "generated_mhz": 12.288,
+      "requested_mhz": 12.288
+    },
+    "pixel": {
+      "analysed_period_ns": 13.464,
+      "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "generated_mhz": 74.249999,
+      "requested_mhz": 74.25
+    },
+    "system": {
+      "analysed_period_ns": 19.144,
+      "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+      "generated_mhz": 52.224,
+      "requested_mhz": 52.224
+    }
+  },
+  "core": "fes.zx81",
+  "declared_input_count": 64,
+  "declared_inputs_sha256": "7a6e3d9c6f58e78a278b536f04cd38cde9f5ce9f74e4f818f503d312987f9acf",
+  "dirty_declared_inputs": [],
+  "fit": {
+    "audio_pins": {
+      "HDMI_I2S0": "T13",
+      "HDMI_LRCLK": "T11",
+      "HDMI_MCLK": "U11",
+      "HDMI_SCLK": "T12"
+    },
+    "dsp_blocks": 3,
+    "mlab_bits": 0,
+    "rom_lanes": [
+      {
+        "lane": 0,
+        "location": "M10K_X5_Y73_N0"
+      },
+      {
+        "lane": 1,
+        "location": "M10K_X5_Y74_N0"
+      },
+      {
+        "lane": 2,
+        "location": "M10K_X5_Y75_N0"
+      },
+      {
+        "lane": 3,
+        "location": "M10K_X5_Y76_N0"
+      },
+      {
+        "lane": 4,
+        "location": "M10K_X5_Y77_N0"
+      },
+      {
+        "lane": 5,
+        "location": "M10K_X5_Y78_N0"
+      },
+      {
+        "lane": 6,
+        "location": "M10K_X5_Y79_N0"
+      },
+      {
+        "lane": 7,
+        "location": "M10K_X5_Y80_N0"
+      }
+    ]
+  },
+  "front_end": "quartus-lite",
+  "model": "zx81",
+  "rbf_bytes": 2403052,
+  "rbf_sha256": "756ccc23d7ad2243635f42378086f127d76501d4b83cae54de638f443809d221",
+  "revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+  "seed": 1,
+  "timing": [
+    {
+      "slack_ns": 3.227,
+      "tns_ns": 0.0,
+      "type": "Setup"
+    },
+    {
+      "slack_ns": 0.115,
+      "tns_ns": 0.0,
+      "type": "Hold"
+    },
+    {
+      "slack_ns": 77.968,
+      "tns_ns": 0.0,
+      "type": "Recovery"
+    },
+    {
+      "slack_ns": 0.698,
+      "tns_ns": 0.0,
+      "type": "Removal"
+    },
+    {
+      "slack_ns": 1.122,
+      "tns_ns": 0.0,
+      "type": "Minimum Pulse Width"
+    }
+  ],
+  "tools": {
+    "quartus": "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition sha256:71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93"
+  },
+  "tree": "/data/fes1861-netlist/identity/c2base/sources/misteross",
+  "tree_clean": true
+}

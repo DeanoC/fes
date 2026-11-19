@@ -125,6 +125,11 @@ fit.
 The game suite boots a drive, types the title's launch command at the `C:\>`
 prompt, and sends its keys, timed from the launch:
 
+The launch command comes from the drive's build record. Rebuild the drive
+after changing its manifest entry to update that record. Star Control II's
+entry uses `lh starcon2` to put the eXoDOS loader in upper memory, leaving
+enough conventional memory for the game.
+
 ```sh
 python3 scripts/sim_fes_pc386.py --suite game --game wolf3d                 # the store's drive that holds wolf3d
 python3 scripts/sim_fes_pc386.py --suite game --game doom --drive pmode     # by name
@@ -173,6 +178,7 @@ titles each one unlocks.
 | `v86:enter:<iret\|task>:<stem>:iopl=<n>` | Entries to V86, by IRETD or by a task switch into a V86 task. |
 | `v86:sens:<stem>:iopl=<n>:<outcome>` | CLI, STI, PUSHF, POPF, INT n and IRET in V86. |
 | `io-bitmap:<v86\|pm<CPL>>:<outcome>` | IN, OUT, INS and OUTS that read the TSS I/O bitmap: in V86, or at CPL above IOPL. |
+| `ac:<stem>`, `id:<stem>`, `cr0.486:<bits>:<stem>`, `exc:<vector>:<stem>` | Only with `--cpu-level 4`, the 486 oracle ([oracle README](../cores/fes-common/sim/i386/README.md#the-level-4-oracle)): stems that changed EFLAGS.AC or ID; stems that changed CR0's NE, WP, AM, NW or CD, with the changed bits; and stems that raised exception 6, 16 or 17, which did not retire and so have no stem count. A level-3 census has none of these keys. |
 | `paging:steps`, `paging:page-cross` | Steps with paging on; data accesses that cross a page. |
 | `tlb:dtlb16:accesses`, `tlb:dtlb16:walks`, `tlb:itlb8:accesses`, `tlb:itlb8:walks` | The Phase 5 TLBs as fully associative LRU models: a 16-entry DTLB and an 8-entry ITLB. A miss is a walk. |
 | `x87op:<form>:<mode>` | Retired ESC instructions by form ([x87 keys](#x87-keys)). |

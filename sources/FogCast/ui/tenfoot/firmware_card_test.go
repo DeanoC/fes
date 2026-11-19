@@ -290,6 +290,27 @@ func TestFirmwareCardFailsClosed(t *testing.T) {
 	}
 }
 
+func TestPCFirmwareNeedsNoSeparateROMSelection(t *testing.T) {
+	for _, tc := range []struct{ coreID, label string }{{"fes.pcxt-dos", "PC/XT"}, {"fes.pc386", "PC 386"}} {
+		t.Run(tc.coreID, func(t *testing.T) {
+			server, _ := firmwareCardHost(t, http.StatusOK, nil)
+			a := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+			t.Cleanup(a.Stop)
+			a.ctx = context.Background()
+			a.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+			a.mu.Lock()
+			a.openFirmwareCardLocked(rooms.Action{Kind: rooms.ActionFirmwareInfo, CoreID: tc.coreID, FamilyID: tc.coreID, FamilyLabel: tc.label})
+			a.mu.Unlock()
+			waitFirmwareCard(t, a)
+			a.mu.Lock()
+			defer a.mu.Unlock()
+			if a.firmwareCard.Open || a.status != tc.label+" has no separate firmware to add." {
+				t.Fatalf("PC firmware selection: card=%+v status=%q", a.firmwareCard, a.status)
+			}
+		})
+	}
+}
+
 func TestFirmwareCardRequestIsDroppedAfterRoomChanges(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})

@@ -1,0 +1,52 @@
+{
+  "arm": "c",
+  "base": "1ec59267039b12b5879dd90af856ac232b9d014c",
+  "changed_from_base": [
+    "sources/misteross/cores/fes-common/rtl/i386/fes_i386_cpu.sv",
+    "sources/misteross/cores/fes-common/rtl/i386/fes_i386_decode.sv",
+    "sources/misteross/cores/fes-common/rtl/i386/fes_i386_ex.sv",
+    "sources/misteross/cores/fes-common/rtl/i386/fes_i386_exctl.sv",
+    "sources/misteross/cores/fes-common/rtl/i386/fes_i386_l1d.sv",
+    "sources/misteross/cores/fes-common/rtl/i386/fes_i386_pkg.sv",
+    "sources/misteross/cores/fes-common/rtl/i386/fes_i386_seq.sv",
+    "sources/misteross/cores/fes-pc386/rtl/pc386_system.sv"
+  ],
+  "commit": "c4d5cb71b0e403131a5315dbb33a41c064e74039",
+  "created_utc": "2026-11-18T19:27:51.698791+00:00",
+  "guest_rates": {
+    "ATA_RESET_CLOCKS": 615,
+    "AUDIO_D": 1280,
+    "AUDIO_N": 1,
+    "DMA_D": 9216,
+    "DMA_N": 625,
+    "DOT0_D": 12288,
+    "DOT0_N": 5035,
+    "DOT1_D": 30720,
+    "DOT1_N": 14161,
+    "GOV_D": 3072,
+    "GOV_N": 5,
+    "ISA_D": 4608,
+    "ISA_N": 625,
+    "OPL2_D": 1081344,
+    "OPL2_N": 875,
+    "PIT_D": 22528,
+    "PIT_N": 875,
+    "RTC_D": 1875,
+    "RTC_N": 1,
+    "US_D": 1536,
+    "US_N": 25
+  },
+  "hierarchy": false,
+  "host": "powerboat",
+  "netlist_bytes": 5920846,
+  "netlist_sha256": "07ed0737e31d744c33311323bbd253454f86c380534d0a6e4b7d1014dc17fcf5",
+  "netlist_sha256_as_elaborated": "07ed0737e31d744c33311323bbd253454f86c380534d0a6e4b7d1014dc17fcf5",
+  "program_sha256": "744c07371d7fcce43e0c830bc4957fbcf494f002adc9ff7490f788c32491b5f1",
+  "rom_hex_sha256": "815620361ef28a2bbdd97b1964700a4678a26c0ffc9582bb95544473fe099d18",
+  "yosys": {
+    "gpu_router": "HIP",
+    "lock": "cores/fes-pc386/toolchain.lock",
+    "lock_sha256": "294c89450c6c719f649cd4f248d0d844dd431df1138d44d6a26e4a1219ac579c",
+    "tool": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=32decd607d6acf54199400224725f8c1c13eff9bbe1ada61eb51abe5a59e35ba"
+  }
+}

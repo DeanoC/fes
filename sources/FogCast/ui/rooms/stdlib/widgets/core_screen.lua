@@ -525,7 +525,7 @@ local function left_buttons()
   out[#out + 1] = {id = "firmware", label = "Firmware", enabled = known, fn = function() firmware_info(false) end}
   local name = model_name(spec())
   if running_game() then
-    out[#out + 1] = {id = "stop", label = "Stop the " .. name, enabled = true, fn = function() session.stop(live) end}
+    out[#out + 1] = {id = "stop", label = "Stop the " .. name, enabled = true, fn = function() if live then session.stop(live) end end}
     out[#out + 1] = {id = "start", label = "Return to play", enabled = true, filled = true, fn = function() session.resume() end}
   elseif #games == 0 then
     out[#out + 1] = {id = "start", label = "Set up the " .. name, enabled = idle and library_loaded, filled = true, fn = function()

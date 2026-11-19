@@ -1745,6 +1745,7 @@ int main(int argc, char **argv) {
             uint8_t *page = machine.page(at, false);
             return page ? page[at & 0xfff] : uint8_t(0xff);
         });
+        census.i486 = oracle->name() == "bochs-level4";
         // An RTL stop: count it under its stem and hand the instruction at
         // CS:EIP, with the RTL's state, to the oracle.
         auto stop = [&](const char *kind) {

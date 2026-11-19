@@ -3,8 +3,9 @@
 #define NANO_SDM_INPUT_TRANSFER_H
 #include "input_tables.h"
 #define NANO_SDM_TRANSFER_JOBS 14U
-/* Same20s transfer limit as nativefabric/program_service.go. */
-#define NANO_SDM_TRANSFER_US UINT64_C(20000000)
+/* Enclosing pre-hash source-operation budget, including retirement.
+ * Matches nativefabric sourceOperationTimeout and the sealed input profile. */
+#define NANO_SDM_TRANSFER_US UINT64_C(25000000)
 #define NANO_SDM_TRANSFER_EMPTY_POLLS 20000U
 #define NANO_SDM_TRANSFER_WIRE UINT32_C(0x14800000)
 struct nano_sdm_transfer_io {

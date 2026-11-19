@@ -55,11 +55,18 @@ module ram_pll (
     output wire outclk_0,
     output wire outclk_1,
     output wire outclk_2,
+`ifdef RAM_CAS3_CAPTURE
+    output wire outclk_forward, outclk_handoff,
+`endif
     output wire locked
 );
     assign outclk_0 = refclk;
     assign outclk_1 = refclk;
-`ifdef RAM_100_ONLY
+`ifdef RAM_CAS3_CAPTURE
+    assign outclk_2 = refclk;
+    assign outclk_forward = bench.CAS3_FORWARD;
+    assign outclk_handoff = bench.CAS3_HANDOFF;
+`elsif RAM_100_ONLY
     assign outclk_2 = ~refclk;
 `else
     assign outclk_2 = bench.CAP_CLK;

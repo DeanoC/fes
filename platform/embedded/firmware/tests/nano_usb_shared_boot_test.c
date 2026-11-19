@@ -17,10 +17,25 @@ struct fes_nano_usb_service fes_nano_owned_usb;
 #define FES_NANO_READER_CPU_BASE 0x95000000ULL
 static int cold_master_owns(void *p,uint64_t owner,uint64_t epoch)
 {return p==&provider && fes_nano_cold_owns(p,owner,epoch)==1;}
+#ifdef FES_TEST_LIFECYCLE_CALLBACKS
+static unsigned lifecycle_callbacks_active;
+static int production_master_quiesce(void *,uint32_t);
+static int production_producer_sample(void *,uint32_t *);
+#endif
 static int cold_master_quiesce(void *p,uint32_t bits)
-{assert(p==&provider && bits==FES_NANO_PRODUCERS_ALL);model.base.h.producer_bits=bits;return 0;}
+{
+#ifdef FES_TEST_LIFECYCLE_CALLBACKS
+ if(lifecycle_callbacks_active)return production_master_quiesce(p,bits);
+#endif
+ assert(p==&provider && bits==FES_NANO_PRODUCERS_ALL);model.base.h.producer_bits=bits;return 0;
+}
 static int cold_producer_sample(void *p,uint32_t *bits)
-{assert(p==&provider);*bits=model.base.h.producer_bits;return 0;}
+{
+#ifdef FES_TEST_LIFECYCLE_CALLBACKS
+ if(lifecycle_callbacks_active)return production_producer_sample(p,bits);
+#endif
+ assert(p==&provider);*bits=model.base.h.producer_bits;return 0;
+}
 static int (*producer_hook)(void *,uint32_t *);
 static int cold_master_quiescent(void *p,uint32_t *bits)
 {return cold_master_owns(p,17,provider.record.boot.epoch)==1 ? cold_producer_sample(p,bits) : -1;}

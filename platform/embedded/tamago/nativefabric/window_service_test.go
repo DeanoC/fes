@@ -313,8 +313,26 @@ func TestWindowServiceConcurrentPresentationDoesNotPermitReturn(t *testing.T) {
 	}
 }
 
+func TestWindowServiceAcceptsFormerTwentySecondBoundary(t *testing.T) {
+	r := windowServiceTest(t)
+	if _, err := r.s.Return(context.Background(), r.h); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Unix(100, 0)
+	now := start
+	r.s.state.limits.Now = func() time.Time {
+		if r.s.state.transfer != nil && r.s.state.transfer.Status().Phase == "retire" {
+			now = start.Add(20*time.Second + 142473*time.Microsecond)
+		}
+		return now
+	}
+	if _, err := r.s.Launch(context.Background(), r.s.Status().Generation, r.request, r.f.frame); err != nil || r.s.Status().State != ProgramRunning {
+		t.Fatal("valid MENU completion under new enclosing budget rejected", err, r.s.Status())
+	}
+}
+
 func TestWindowServiceConfigurationDeadlineAndBackwardsClockRetire(t *testing.T) {
-	for _, step := range []time.Duration{20 * time.Second, -time.Second} {
+	for _, step := range []time.Duration{sourceOperationTimeout, -time.Second} {
 		t.Run(step.String(), func(t *testing.T) {
 			r := windowServiceTest(t)
 			if _, err := r.s.Return(context.Background(), r.h); err != nil {

@@ -721,7 +721,7 @@ func drawViewPicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		}
 		drawFESLabel(dev, labels, used, fmt.Sprintf("view-%d", idx), x+20, rowY+7, panelW-40, 20, label)
 	}
-	drawFESLabel(dev, labels, used, "view-hint", x+16, y+panelH-22, panelW-32, 18, viewPickerFooterHint(snap.Affinity))
+	drawFESLabel(dev, labels, used, "view-hint", x+16, y+panelH-22, panelW-32, 18, snap.padHint(viewPickerFooterHint(snap.Affinity)))
 }
 
 func drawCollectionMenu(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {
@@ -750,6 +750,7 @@ func drawCollectionMenu(dev gfx.Device, snap Snapshot, labels map[string]gpuText
 	if hint == "" {
 		hint = collectionHintFor(snap.Affinity, menu.Confirm)
 	}
+	hint = snap.padHint(hint)
 	drawFESLabel(dev, labels, used, "cmenu-hint", x+16, y+panelH-24, panelW-32, 18, hint)
 }
 
@@ -795,6 +796,7 @@ func drawSettings(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, u
 	if snap.Settings.Loading {
 		status = "loading host settings"
 	}
+	status = snap.padHint(status)
 	for i, line := range gfx.WrapText(status, 18, panelW-32, 2) {
 		drawFESLabel(dev, labels, used, fmt.Sprintf("set-status-%d", i), x+16, y+panelH-panel.FooterH+6+i*22, panelW-32, 18, line)
 	}
@@ -870,6 +872,7 @@ func drawFilters(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, us
 	if status == "" {
 		status = filterHintFor(snap.Affinity, false)
 	}
+	status = snap.padHint(status)
 	for i, line := range gfx.WrapText(status, 18, panelW-32, 2) {
 		drawFESLabel(dev, labels, used, fmt.Sprintf("flt-status-%d", i), x+16, y+panelH-panel.FooterH+6+i*22, panelW-32, 18, line)
 	}
@@ -912,6 +915,7 @@ func drawOSK(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used m
 	if hint == "" {
 		hint = oskHintFor(snap.Affinity, snap.OSK.Page)
 	}
+	hint = snap.padHint(hint)
 	drawFESLabel(dev, labels, used, "osk-hint", x+16, y+panelH-24, panelW-32, 18, hint)
 }
 

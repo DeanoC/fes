@@ -1,0 +1,9 @@
+{
+  "status": "passed",
+  "paths": [
+    "/dev/ttyUSB0",
+    "/dev/bus/usb/003/088"
+  ],
+  "open_handles": [],
+  "errors": []
+}

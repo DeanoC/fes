@@ -227,9 +227,12 @@ class RealProducerEvidenceTests(unittest.TestCase):
     lane = "raster"
     @classmethod
     def setUpClass(cls):
+        from tests.committed_misteross_fixture import make_snapshot
         cls.temp = tempfile.TemporaryDirectory()
         cls.root = Path(cls.temp.name)
-        cls.source = Path(__file__).resolve().parents[1] / "sources/misteross"
+        # The inspected record must name the commit containing the selected
+        # source bytes even while contributor changes are uncommitted.
+        cls.source = make_snapshot(cls.root / 'source-fixture')
         subprocess.run([sys.executable, "-I", "-B", "-c", _FIXTURE, str(cls.source), str(cls.root), cls.lane], check=True)
         cls.cases = json.loads((cls.root / "cases.json").read_bytes())
         cls.recipe = video.recipes.recipe_for("fes.atari-st" if cls.lane == "st" else "fes.coleco")

@@ -23,6 +23,10 @@ def trace():
 WIRE=trace()
 class InputObservationTests(unittest.TestCase):
  def decode(self,raw):return decode(raw,boot=BOOT,build=BUILD,configuration=CONFIG)
+ def test_source_budget_accepts_before_and_rejects_at_or_after_boundary(self):
+  for elapsed in (20000000,20142473,24999999,25000000,25000001):
+   raw=WIRE.replace(b'elapsed_us=1000000 ',f'elapsed_us={elapsed} '.encode())
+   with self.subTest(elapsed=elapsed):self.assertEqual(self.decode(raw)['passed'],elapsed<25000000)
  def test_full_bytes_digest_and_no_activation(self):
   r=self.decode(WIRE);self.assertTrue(r['passed']);self.assertEqual(r['recorded_DATA_bytes'],CONFIG['core_size']);self.assertEqual(r['recorded_DATA_requests'],2);self.assertFalse(r['ordinary_runtime_activation']);self.assertFalse(r['buffer_reuse_authority'])
  def test_every_numeric_or_digest_result_mutation_rejects(self):
@@ -30,7 +34,7 @@ class InputObservationTests(unittest.TestCase):
   for field in FIELDS:
    if field=='build':value='f'*16
    elif field=='sha384':value='0'*96
-   elif field=='elapsed_us':value='20000000'
+   elif field=='elapsed_us':value='25000000'
    else:
     old=next(v.split('=',1)[1] for v in line.decode().split()[1:] if v.startswith(field+'='));value=str(int(old,16 if field in ('owner','epoch','bad_offset','bad_value') else 10)+1)
    new=b' '.join((v.split(b'=',1)[0]+b'='+value.encode()) if v.startswith(field.encode()+b'=') else v for v in line.split(b' '))

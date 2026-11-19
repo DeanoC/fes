@@ -41,7 +41,7 @@ func startHomeLounge(t *testing.T, cores rooms.LocalCores, w, h int, pairedLease
 
 // startHomeLoungeIn is startHomeLounge with its prefs and room store in dir.
 func startHomeLoungeIn(t *testing.T, dir string, cores rooms.LocalCores, w, h int, pairedLease ...string) *App {
-	// Home follows the shipping v1-only default unless a fixture opts in below.
+	// Home hides held-back cores unless a fixture opts in below.
 	return startHomeLoungeInWithAllCores(t, dir, cores, w, h, false, pairedLease...)
 }
 
@@ -259,7 +259,7 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 	t.Run("coleco-arcade", func(t *testing.T) {
 		app := startHomeLoungeAllCores(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
 		waitFor(t, app, "first family", homeFamilySettled)
-		for i := 0; i < 5; i++ {
+		for i := 0; i < 7; i++ {
 			app.HandleCommand(CmdRight, time.Now())
 		}
 		waitFor(t, app, "coleco", func(s Snapshot) bool { return s.Room.Destination.Label == "ColecoVision" })
@@ -274,20 +274,39 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 }
 
 func TestHomeWorkbenchReturnsToTheSameFamily(t *testing.T) {
-	fake := &fakeLocalCores{cores: homeFixtureCores()}
-	app := startHomeLounge(t, fake, 1280, 720)
-	waitFor(t, app, "first family", homeFamilySettled)
-	app.HandleCommand(CmdRight, time.Now())
-	waitFor(t, app, "Spectrum", func(s Snapshot) bool { return s.Room.Destination.Label == "ZX Spectrum" })
-	app.HandleCommand(CmdSelect, time.Now())
-	snap := waitFor(t, app, "core screen", func(s Snapshot) bool { return s.Room.Open && s.Room.ID == coreRoomID })
-	if app.Snapshot().Launch.Phase == "launching" {
-		t.Fatalf("Open started a launch: %s", app.Snapshot().Launch.Phase)
-	}
-	app.HandleCommand(CmdBack, time.Now())
-	snap = waitFor(t, app, "home", func(s Snapshot) bool { return s.Room.Open && s.Room.ID == installedCoresHomeID })
-	if snap.Room.Destination.Label != "ZX Spectrum" {
-		t.Fatalf("return lost the family: %+v", snap.Room.Destination)
+	for _, tc := range []struct {
+		label, coreID string
+		moves         int
+		room          string // the core screen, or the workbench for a family without one yet
+	}{
+		{"ZX Spectrum", "fes.spectrum", 1, coreRoomID},
+		{"PC/XT", "fes.pcxt-dos", 4, systemRoomID},
+		{"PC 386", "fes.pc386", 5, systemRoomID},
+	} {
+		t.Run(tc.coreID, func(t *testing.T) {
+			cores := append(homeFixtureCores(), localcores.Core{PackageID: strings.Repeat("9", 64), CoreID: tc.coreID, Name: tc.label, Needs: "none", Launchable: true})
+			app := startHomeLounge(t, &fakeLocalCores{cores: cores}, 1280, 720)
+			waitFor(t, app, "first family", homeFamilySettled)
+			for i := 0; i < tc.moves; i++ {
+				app.HandleCommand(CmdRight, time.Now())
+			}
+			home := waitFor(t, app, tc.label, func(s Snapshot) bool {
+				return s.Room.Destination.Label == tc.label && roomHit(s, "family:"+fmt.Sprint(tc.moves+1)).ID != ""
+			})
+			writeHomeScreenshot(t, home, "family-"+strings.TrimPrefix(tc.coreID, "fes."))
+			app.HandleCommand(CmdSelect, time.Now())
+			snap := waitFor(t, app, tc.room, func(s Snapshot) bool {
+				return s.Room.Open && s.Room.ID == tc.room && (tc.room == coreRoomID || roomTextHas(s, tc.label))
+			})
+			if snap.Launch.Phase == "launching" {
+				t.Fatalf("Open started a launch: %s", snap.Launch.Phase)
+			}
+			app.HandleCommand(CmdBack, time.Now())
+			snap = waitFor(t, app, "home", func(s Snapshot) bool { return s.Room.Open && s.Room.ID == installedCoresHomeID })
+			if snap.Room.Destination.Label != tc.label {
+				t.Fatalf("return lost the family: %+v", snap.Room.Destination)
+			}
+		})
 	}
 }
 
@@ -344,7 +363,7 @@ func TestHomeColecoTileOpensArcadeLibraryRoom(t *testing.T) {
 		{PackageID: strings.Repeat("c", 64), CoreID: colecoCoreID, Name: "FES ColecoVision", Needs: "parts", Block: "Needs a video part"},
 	}}, 1280, 720)
 	waitFor(t, app, "first family", homeFamilySettled)
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 7; i++ {
 		app.HandleCommand(CmdRight, time.Now())
 	}
 	snap := waitFor(t, app, "Coleco family", func(s Snapshot) bool {
@@ -466,7 +485,7 @@ func TestHomeHeroFitsLongTitlesAboveTheButtons(t *testing.T) {
 			layout, _ := rooms.HeroPanel(size.w, size.h)
 			snap := Snapshot{Room: RoomSnapshot{Open: true, Hero: true, WaitAck: true, Destination: d}}
 			c := heroDestinationCopy(snap)
-			c.Ack = waitAckCopy(InputGamepad)
+			c.Ack = waitAckCopy(snap)
 			avail := layout.Text.H - heroButtonH - 8
 			plan := planHero(c, layout.Text.W, avail)
 			fixed := gfx.TextHeight(heroMetaPx) + 12 +

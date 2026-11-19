@@ -1088,3 +1088,17 @@ uops = [
     { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpj = 1 },
     { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, x87p = "ipdp" },
 ]
+
+[[routine]]
+# FBSTP m80 with a 387 fitted, on the DE25 backend that builds it (#1958):
+# DC decodes the store of the unit's top word, at 8, and the ROM stores its
+# dwords at 4 and at 0 -- the order frd10 reads a 10-byte operand in. The
+# last uop writes the x87 pointers as it retires, and fes_i386_cpu takes the
+# data pointer back to the operand's own offset from that uop's chunk, so
+# fst8 and fst10, which store upwards, leave it right too (#1877). A fault
+# in any part still leaves the pointers unchanged.
+name = "fbst10"
+uops = [
+    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpj = 1, b = "sys", sys = "ones" },
+    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, b = "sys", sys = "ones", x87p = "ipdp" },
+]

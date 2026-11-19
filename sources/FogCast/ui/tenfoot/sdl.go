@@ -228,6 +228,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
 )
 
@@ -845,6 +846,17 @@ func dispatchSyntheticSDL(app *App, kind, which int) bool {
 	return handleSDLEvent(app, map[C.SDL_JoystickID]*C.SDL_Gamepad{}, &ev, time.Now(), nil)
 }
 
+func dispatchSyntheticSDLKey(app *App, keyboardID, keycode, scancode int, down bool, now time.Time) bool {
+	ev := C.FogcastEvent{
+		kind: C.int(evKey), code: C.int(keycode), value: C.int(scancode),
+		which: C.int(keyboardID), down: 0,
+	}
+	if down {
+		ev.down = 1
+	}
+	return handleSDLEvent(app, map[C.SDL_JoystickID]*C.SDL_Gamepad{}, &ev, now, nil)
+}
+
 func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.FogcastEvent, now time.Time, stick *stickTracker) bool {
 	switch ev.kind {
 	case evQuit:
@@ -855,7 +867,7 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 			app.TypeText(text, now)
 		}
 	case evKey:
-		if app.HandlePlayHIDScancode(sdlPlayKeyName(ev.code), sdlHIDUsage(ev.value), ev.down != 0, now) {
+		if app.handlePlayHIDScancode(int(ev.which), sdlPlayKeyName(ev.code), sdlHIDUsage(ev.value), ev.down != 0, now) {
 			return false
 		}
 		if ev.down != 0 {
@@ -926,6 +938,7 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 	case evKeyAdded:
 		app.AttachInput(InputKeyboard, int(ev.which))
 	case evKeyRemoved:
+		app.releaseSDLKeyboard(int(ev.which))
 		app.DetachInput(InputKeyboard, int(ev.which))
 	case evMouseAdded:
 		app.AttachInput(InputMouse, int(ev.which))
@@ -936,6 +949,57 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 		app.DetachInput(InputMouse, int(ev.which))
 	}
 	return false
+}
+
+// releaseSDLKeyboard retires this keyboard's physical holds even when SDL
+// cannot deliver their key-up events. The admitted mapping is the one that
+// must be neutralized; a surviving keyboard can still hold the same core key.
+func (a *App) releaseSDLKeyboard(source int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for physical, key := range a.playKeyAdmitted {
+		if physical.source != source {
+			continue
+		}
+		delete(a.playKeyHeld, physical)
+		delete(a.playKeySuppressed, physical)
+		delete(a.playKeyAdmitted, physical)
+		if a.hasOtherPlayKeyContributorLocked(physical, key) {
+			continue
+		}
+		if _, held := a.playHIDHeld[key]; !held {
+			continue
+		}
+		// An in-flight transition is bound to its original session. Never
+		// send or defer an old neutral against a replacement session.
+		if a.sessionDisplayBusy && a.sessionDisplayNonHandoff && !samePlayHIDSession(a.session, a.sessionDisplayBinding) {
+			continue
+		}
+		event := remoteinput.Event{Player: key.player, Device: key.device, Kind: key.kind, Code: key.code, Action: remoteinput.ActionRelease}
+		sent := false
+		if a.sessionDisplayBusy && a.sessionDisplayNonHandoff {
+			if a.playHIDRouteReadyLocked() && !a.playHIDFailClosedLocked() && a.client != nil {
+				a.rememberPlayHIDLocked(event)
+				a.queuePlayHIDLocked([]remoteinput.Event{event})
+				sent = true
+			}
+		} else {
+			sent = a.sendPlayHIDLocked(event)
+		}
+		if !sent && a.session.State == "active" {
+			if a.playKeyPendingRelease == nil {
+				a.playKeyPendingRelease = make(map[physicalPlayKey]playHIDKey)
+			}
+			a.playKeyPendingRelease[physical] = key
+		}
+	}
+	// Suppressed or otherwise unadmitted keys have no core neutral to send.
+	for physical := range a.playKeyHeld {
+		if physical.source == source {
+			delete(a.playKeyHeld, physical)
+			delete(a.playKeySuppressed, physical)
+		}
+	}
 }
 
 func openExistingGamepads(pads map[C.SDL_JoystickID]*C.SDL_Gamepad, app *App) {

@@ -1,0 +1,15 @@
+{
+  "status": "passed-target-wide-load-and-unchanged-layout-check",
+  "source_commit": "d422c32b30e9cf560e81caa07273d8e47942d44e",
+  "elf_sha256": "74b076e53430a8b1aa8122c3924940ffb2fec3d6a83578da0d3f7226abe5fa4b",
+  "symbols": {
+    "__STACKS_END__": "0x58000",
+    "__BSS_END__": "0x5ff80",
+    "__RO_START__": "0x80000000",
+    "__STACKS_START__": "0x50000"
+  },
+  "ocram_margin_bytes": 128,
+  "assembly_sha256": "414965ae1a187c551783bf6bd0ef7879c62bb8d5c499d64bea280a80fb56026c",
+  "hardware_actions": false,
+  "hardware_acceptance": false
+}

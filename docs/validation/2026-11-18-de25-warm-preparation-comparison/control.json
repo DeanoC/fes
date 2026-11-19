@@ -1,0 +1,17 @@
+{
+  "result": 2,
+  "generation": 15,
+  "cost_ns": 80,
+  "prior_work_us": 3263700,
+  "byte_loads": 9207040,
+  "wide_loads": 0,
+  "compares": 9354,
+  "preparation_us": 3999119,
+  "prepared": 0,
+  "failed": 1,
+  "error": -110,
+  "reads": 155,
+  "last_offset": 144,
+  "command_complete": 1,
+  "hardware_actions": false
+}

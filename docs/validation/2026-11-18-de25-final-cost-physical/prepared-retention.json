@@ -1,0 +1,26 @@
+{
+  "status": "independently-verified-prepared-trial",
+  "procedure_sha256": "9f3b9c95f7b8b80dff4e9aea1590ebd885d3262199911830033f1e1c012ce0da",
+  "sources": [
+    {
+      "name": "host-source.tar.gz",
+      "source_commit": "7119ffa96b153149499f67e797a7ae18fe2413db",
+      "sha256": "f5230cff5095af8a7c3c596fc7caa9b9fccae31600e052e19879e7cb01f40960",
+      "verified_git_blobs": 17273
+    },
+    {
+      "name": "native-source.tar.gz",
+      "source_commit": "e5eef81ec96fc8523c8490994837ec3fe4bca124",
+      "sha256": "72f89a8e914f51080a0819a18d908043807d321f021200369eebb7b368920683",
+      "verified_git_blobs": 17350
+    }
+  ],
+  "prepared_archive_sha256": "6becb01e81cf89b66ce5ae144bf5a91cea85f71b20bc90552523d3bad1885ecc",
+  "prepared_entries": 84569,
+  "complete_native_archive": {
+    "path": "/home/deano/fes-retained/de25-final-validation-20261118-r1/boot.tar.gz",
+    "sha256": "2ea2b10df84a845726ae32b76fe310b39950ba4e31f049e4769c2eb4649e5f84"
+  },
+  "hardware_actions": false,
+  "hardware_acceptance": false
+}

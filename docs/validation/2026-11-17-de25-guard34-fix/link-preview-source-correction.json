@@ -1,0 +1,21 @@
+{
+  "classification": "supplemental-preview-source-correction",
+  "original_report_sha256": "9f6317736464b59f7b8febbbfb4fb4daded7f7a94bd5ab23ad0fd2b917e54591",
+  "base_build": "/home/deano/fes/out/dev/de25-secure-lifecycle/out/release-diagnostic-boot/native-bl31",
+  "base_bl31_bin_sha256": "f02e4b4fe97c1a2ac50e6e58d6f794d2fbf54b3f762d61ad313a4e91e483a893",
+  "base_native_boot_profile_sha256": "772c99386c6754e18d60e6bdd71a0c889d3213f1825532fd4d9adc3604d12431",
+  "legacy_label": "historical_source in the copied preview script is stale; it is not the base of this preview",
+  "selected_current_sources": {
+    "input_transfer_service.c": "bae2a6a7b8cb40c8e9aa0df6403f862ab528576e32716d02e2545345374438e0",
+    "input_transfer_service.h": "c6ef988d19216786420ffd2aeb89402b7668a7d68aa260f39cfaa1f00d415340",
+    "nano_sdm_source_platform.inc": "fed47683ac6f5cbb9487531b9f68aa0cd84792fe3e333025a7a637550275ec10",
+    "nano_sdm_control_platform.inc": "b624ab89ac265bd5d161aef33930e13b5bf57de952fbc7d1e5a55fb2dd6b3e3b",
+    "nano_sdm_release_platform.inc": "6d8616b7e724fcbb2f8551707f98309eadbfc4fa6eb46fbf50df8fb9a7cc3bf8"
+  },
+  "actual_new_supplier_sha256": "fed47683ac6f5cbb9487531b9f68aa0cd84792fe3e333025a7a637550275ec10",
+  "BSS_END": "0x5ff80",
+  "unchanged_ocram_margin_bytes": 128,
+  "hardware_actions": false,
+  "admitted": false,
+  "programming_forbidden": true
+}

@@ -87,6 +87,7 @@ func uiFaceLocked(sizePx int, w Weight) font.Face {
 	if err != nil {
 		return nil
 	}
+	face = PromptFace(face, sizePx)
 	uiFaces[key] = face
 	return face
 }

@@ -117,11 +117,25 @@ jobs:
           cache-dependency-path: |
             sources/FogCast/go.sum
             platform/go.sum
+      - name: Use official Ubuntu HTTPS mirrors
+        if: matrix.partition == 'software'
+        run: |
+          # Avoid a stalled regional mirror without changing signed suites or caps.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          fi
+          if [ -f /etc/apt/apt-mirrors-security.txt ]; then
+            printf '%s\n' 'https://security.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors-security.txt >/dev/null
+          fi
       - name: Install capture test dependencies
         if: matrix.partition == 'software'
         run: |
           if ! command -v ffmpeg >/dev/null; then
             sudo timeout --signal=TERM --kill-after=30s 600s bash -e -c '
+              # Regional archives on hosted runners can trickle past this cap.
+              test -f /etc/apt/apt-mirrors.txt
+              grep -Fq "mirror+file:/etc/apt/apt-mirrors.txt" /etc/apt/sources.list.d/ubuntu.sources
+              printf "%s\n" "https://archive.ubuntu.com/ubuntu/" > /etc/apt/apt-mirrors.txt
               apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3 update
               apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3 install --no-install-recommends -y ffmpeg
             '
@@ -262,6 +276,15 @@ jobs:
           # The misteross suite includes pinned-commit comparisons (git show).
           fetch-depth: 0
           persist-credentials: false
+      - name: Use official Ubuntu HTTPS mirrors
+        run: |
+          # Avoid a stalled regional mirror without changing signed suites or caps.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          fi
+          if [ -f /etc/apt/apt-mirrors-security.txt ]; then
+            printf '%s\n' 'https://security.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors-security.txt >/dev/null
+          fi
       - name: Compiler read-audit dependency
         run: sudo apt-get update && sudo apt-get install -y strace
       - name: PC/XT acceptance image dependencies

@@ -366,6 +366,23 @@ class RecipeDataTest(unittest.TestCase):
         import tomllib
         return tomllib.loads(recipes.REGISTRY_PATH.read_text())
 
+    def test_core_owned_producer_must_match_its_core_and_safe_script_path(self):
+        document = self.document()
+        row = next(r for r in document['recipes'] if r['core_id'] == 'fes.pc386')
+        self.assertEqual(self.load_document(document)['fes.pc386'].producer_module,
+                         'cores.fes_pc386.tools.build_pc386_product')
+        for module, script in (
+                ('cores.fes_pcxt.tools.build_pc386_product', row['producer_script']),
+                ('cores.fes_pc386.tools.build_pc386_product', 'cores/fes-pcxt/tools/build_pc386_product.py'),
+                ('cores.fes_pc386.tools.build_pc386_product', 'cores/fes-pc386/tools/../build_pc386_product.py'),
+                ('cores.fes_pc386.other.build_pc386_product', row['producer_script']),
+                ('cores.fes_pc386.tools.build_pc386_product', '/cores/fes-pc386/tools/build_pc386_product.py')):
+            bad = self.document()
+            selected = next(r for r in bad['recipes'] if r['core_id'] == 'fes.pc386')
+            selected['producer_module'], selected['producer_script'] = module, script
+            with self.subTest(module=module, script=script), self.assertRaises(ValueError):
+                self.load_document(bad)
+
     def test_a_quartus_row_names_a_front_end_that_fits_its_edition_and_device(self):
         # The front end selects the Quartus edition and device family, and the
         # core's quartus.lock holds the same pair (#1581 S7).

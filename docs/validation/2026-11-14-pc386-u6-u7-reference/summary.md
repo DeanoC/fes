@@ -28,20 +28,13 @@ kit was measured. The reference machines are in
 
 | Check | Result |
 | --- | --- |
-| **Ultima VI, PC speaker pitch at the 286-12 preset** | **Fail**, on three kit captures and five reference ones. The kit's notes are 12.7–12.9% below the reference's, 2.35 and 2.38 semitones flat. The band is ±5.9%, one semitone. Scaling the reference from its 12.5 MHz to the preset's nominal 12.0 leaves 9.0–9.3% and about 1.7 semitones, if the game keeps the same delay unit across that step. |
-| **Ultima VI, walking speed at the 286-12 preset** | **Not measurable by any method tried here**, and the methods are why, not the kit. Three were tried and all failed on one cause: the game steps when it next polls the keyboard and drops what is queued, so the rate follows how the keys arrive. Keying harder makes it walk *slower* — 2.94 steps a second at 10 keys a second, 2.06 and 2.07 at 12.3 and 25 — so the steady over-keyed figure is a suppressed rate, not a plateau. Two routes stay open: the game's own step count rather than motion in frames, the surer one, and a sweep of the unsampled key rates below 12.3 a second on both machines. |
-| **Ultima VII: The Black Gate, NPC pace at 386DX-25** | **Not established**, and **not** for want of a method: no pace was ever measured, because the game does not start on the reference. It stops at its own memory check, which is a configuration problem with a named cause and routes left to try. Carried forward as [#1853](https://github.com/DeanoC/fes/issues/1853). |
+| <a id="pitch-result"></a>**Ultima VI, PC speaker pitch at the 286-12 preset** | **Fail**, on three kit captures and five reference ones. The kit's notes are 12.7–12.9% below the reference's, 2.35 and 2.38 semitones flat. The band is ±5.9%, one semitone. Scaling the reference from its 12.5 MHz to the preset's nominal 12.0 leaves 9.0–9.3% and about 1.7 semitones, if the game keeps the same delay unit across that step. |
+| <a id="walk-result"></a>**Ultima VI, walking speed at the 286-12 preset** | **Open: not measurable by any method tried here**, and the methods are why, not the kit. Three were tried and all failed on one cause: the game steps when it next polls the keyboard and drops what is queued, so the rate follows how the keys arrive. Keying harder makes it walk *slower* — 2.94 steps a second at 10 keys a second, 2.06 and 2.07 at 12.3 and 25 — so the steady over-keyed figure is a suppressed rate, not a plateau. Two routes stay open: the game's own step count rather than motion in frames, the surer one, and a sweep of the unsampled key rates below 12.3 a second on both machines. |
+| <a id="npc-result"></a>**Ultima VII: The Black Gate, NPC pace at 386DX-25** | **Not established**, and **not** for want of a method: no pace was ever measured, because the game does not start on the reference. It stops at its own memory check, which is a configuration problem with a named cause and routes left to try. Carried forward as [#1853](https://github.com/DeanoC/fes/issues/1853). |
 
-**These three are different outcomes and should not be read as one.** The pitch
-is a measured verdict. The walk is a dead end for all three methods tried, each
-shown to measure the harness rather than the machine — the check itself stays
-open, with two routes named below. Ultima VII
-is neither — nothing about it was measured, and what blocks it is a memory map,
-not a measurement limit.
-
-So **#1368's last box is not ticked and the issue stays open**, and pc386 does
-not reach tier 1 on this work. This record does not clear the Ultima VI half of
-that box either: the pitch check inside it **fails**, and has its own issue.
+The table is the status for each check; the sections below keep the evidence
+and method limits behind it. #1368's last box is not ticked on this work, so
+pc386 does not reach tier 1 here.
 
 ## The reference, and that it is credible
 
@@ -156,12 +149,10 @@ and the reference's memory.
 | key `1` | **499.78 Hz** (three captures, 499.77–499.79) | **573.56 Hz** (five captures, 573.26–574.28) | 550.62 Hz |
 | kit below the reference | | **12.70% and 12.86%** (2.35 and 2.38 semitones) | **9.06% and 9.23%** (1.64 and 1.68 semitones) |
 
-**Verdict: fail.** The band is ±5.9%, one semitone, and the kit is outside it
-on both notes against the reference as measured, at 12.5 MHz. It is still
-outside it against the reference scaled to the preset's nominal 12.0 MHz,
-which holds while the game's delay unit does not change across that step (see
-below). The
-measurement is far finer than the band: the kit's three captures agree to
+The [pitch result](#pitch-result) uses the ±5.9% band, one semitone, against
+the reference measured at 12.5 MHz. Scaling it to the preset's nominal 12.0 MHz
+holds while the game's delay unit does not change across that step (see below).
+The measurement is far finer than the band: the kit's three captures agree to
 0.006% and the reference's five to 0.18%, and the kit's figures are the same as
 the 10 November run's on a different seal, through this record's own analyser —
 840.70 against 840.69 Hz and 499.78 against 499.78 — so this is the machine and
@@ -327,7 +318,7 @@ merging fast steps; the counts do not support that — `scroll_events.py` finds 
 events on the window where `walk_rate.py` found 6, a strict threshold rather
 than a merge.
 
-### What over-keying showed, and why the walk is not measurable this way
+### What over-keying showed
 
 Two things changed before a saturated walk could be read, both in `method.md`'s
 seventh amendment. The route went back to the one-tile square the earlier
@@ -425,15 +416,13 @@ different input, and a fight in progress — and they are not treated as a
 verdict. The kit's preset was read back from the machine record as preset 1,
 frequency override 0, turbo 0, before the game was loaded.
 
-**This check therefore stays open**, with the figures that show why the first
-method did not work and a repaired one that has not yet produced a window
-passing its own gates.
+See the [walking-speed result](#walk-result) for the check's status and the
+routes left to try.
 
 ## Ultima VII: The Black Gate, NPC pace
 
-**Not established — and the distinction from the walk above matters.** Nothing
-about NPC pace was measured here, and nothing here says it cannot be. What
-stops it is that The Black Gate does not start on the reference at all: it
+The [NPC-pace result](#npc-result) gives this check's status. The Black Gate
+does not start on the reference: it
 prints "Ultima VII requires 561144 bytes of DOS memory!" and exits. The free figure itself was not read there,
 but the cause is plain from the boot: the games image's UMB provider reports
 "no RAM found at C800. Aborted!", because a real 386 board has nothing behind
@@ -506,11 +495,9 @@ would be the first step towards being able to.
 
 ## What this does not cover
 
-- **The cause of the pitch failure** (above).
-- **Walking speed**, for want of a measurement that is of the game rather than
-  of the key timing, and with one window unexplained at the same key rate
-  (above).
-- **NPC pace** (above).
+- The cause behind the [pitch result](#pitch-result).
+- The [walking-speed result](#walk-result), with the method observations above.
+- The [NPC-pace result](#npc-result), with the reference setup above.
 - The reference runs Ultima VI with a different DOS kernel build and 548 KiB
   free against the kit's 573 KiB (`method.md`). Neither is in the game's
   timing path, but neither was varied to prove it.

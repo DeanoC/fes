@@ -1,0 +1,73 @@
+{
+  "moved": [],
+  "tree_a": {
+    "models": {
+      "ts1000": {
+        "canonical_qsf_bytes": 6707,
+        "canonical_qsf_sha256": "1f95667c824625bc2b1e9ae4114d2d0b321e0c2c6b8c1c1794eb5caaa771ec0a",
+        "core_id": "fes.ts1000",
+        "front_end": "quartus-lite",
+        "recipe_sha256": "fc4510a89e886c90d4fd821db966d313aad42e0a09bc0b6bd042145b3ba8fd9c"
+      },
+      "ts1500": {
+        "canonical_qsf_bytes": 6707,
+        "canonical_qsf_sha256": "e645baca2d370a38009d76253184afe8678e848a15c5006c36dcde1cb8d54a60",
+        "core_id": "fes.ts1500",
+        "front_end": "quartus-lite",
+        "recipe_sha256": "8f51eb02f22612de93906154b8bcda6e796a1d2d2036718107b7a9e6512ce744"
+      },
+      "zx80": {
+        "canonical_qsf_bytes": 6325,
+        "canonical_qsf_sha256": "1b6fbd3540794511a330df0048fa32f41381e4b76c472ef57a6f428de4a0c4f5",
+        "core_id": "fes.zx80",
+        "front_end": "quartus-lite",
+        "recipe_sha256": "271ea13769b993160b4b4749e548267eb888bee07a93d12604b00b6ce51ab1ed"
+      },
+      "zx81": {
+        "canonical_qsf_bytes": 6643,
+        "canonical_qsf_sha256": "f6a3d0924446994d2c31f4c3f42b615de0c293923e47525e1c89ebb5eeaddd47",
+        "core_id": "fes.zx81",
+        "front_end": "quartus-lite",
+        "recipe_sha256": "1e504dee3a133278aa01d07e82091a6b6323528054f96fd94e22045453d89723"
+      }
+    },
+    "path": "/data/fes1861-netlist/identity/idbase",
+    "revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+    "tree_clean": true
+  },
+  "tree_b": {
+    "models": {
+      "ts1000": {
+        "canonical_qsf_bytes": 6707,
+        "canonical_qsf_sha256": "1f95667c824625bc2b1e9ae4114d2d0b321e0c2c6b8c1c1794eb5caaa771ec0a",
+        "core_id": "fes.ts1000",
+        "front_end": "quartus-lite",
+        "recipe_sha256": "fc4510a89e886c90d4fd821db966d313aad42e0a09bc0b6bd042145b3ba8fd9c"
+      },
+      "ts1500": {
+        "canonical_qsf_bytes": 6707,
+        "canonical_qsf_sha256": "e645baca2d370a38009d76253184afe8678e848a15c5006c36dcde1cb8d54a60",
+        "core_id": "fes.ts1500",
+        "front_end": "quartus-lite",
+        "recipe_sha256": "8f51eb02f22612de93906154b8bcda6e796a1d2d2036718107b7a9e6512ce744"
+      },
+      "zx80": {
+        "canonical_qsf_bytes": 6325,
+        "canonical_qsf_sha256": "1b6fbd3540794511a330df0048fa32f41381e4b76c472ef57a6f428de4a0c4f5",
+        "core_id": "fes.zx80",
+        "front_end": "quartus-lite",
+        "recipe_sha256": "271ea13769b993160b4b4749e548267eb888bee07a93d12604b00b6ce51ab1ed"
+      },
+      "zx81": {
+        "canonical_qsf_bytes": 6643,
+        "canonical_qsf_sha256": "f6a3d0924446994d2c31f4c3f42b615de0c293923e47525e1c89ebb5eeaddd47",
+        "core_id": "fes.zx81",
+        "front_end": "quartus-lite",
+        "recipe_sha256": "1e504dee3a133278aa01d07e82091a6b6323528054f96fd94e22045453d89723"
+      }
+    },
+    "path": "/data/fes1861-netlist/identity/idhead",
+    "revision": "b0f05545183f7d06e58a7dae7123eabe8770ea9a",
+    "tree_clean": true
+  }
+}

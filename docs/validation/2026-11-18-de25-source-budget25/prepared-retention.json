@@ -1,0 +1,26 @@
+{
+  "status": "independently-verified-prepared-trial",
+  "procedure_sha256": "9558bfc119612fd736f27cb91402d0420033d4b478a2d42b9ef8f7771fadd46b",
+  "sources": [
+    {
+      "name": "host-source.tar.gz",
+      "source_commit": "7119ffa96b153149499f67e797a7ae18fe2413db",
+      "sha256": "f5230cff5095af8a7c3c596fc7caa9b9fccae31600e052e19879e7cb01f40960",
+      "verified_git_blobs": 17273
+    },
+    {
+      "name": "native-source.tar.gz",
+      "source_commit": "505ee1c60e9caa50462c17553c608e632391d9ae",
+      "sha256": "76ac01f2bf22269a6e1355cbc6c69ce0fdc6b9db517241ddde45561ca954ecd0",
+      "verified_git_blobs": 17357
+    }
+  ],
+  "prepared_archive_sha256": "1ea21a190c93bca65b0e959adbddb5afe4d75c18e532e37622457a2fdc8d2438",
+  "prepared_entries": 84687,
+  "complete_native_archive": {
+    "path": "/home/deano/fes-retained/de25-source-budget25-20261118-r1/boot.tar.gz",
+    "sha256": "e5adf7251b1e27380c1efd675f19119de022876dd7e426d59b0568605963b821"
+  },
+  "hardware_actions": false,
+  "hardware_acceptance": false
+}

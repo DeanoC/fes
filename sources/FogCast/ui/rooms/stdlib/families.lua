@@ -1,7 +1,7 @@
 -- Computer families, readiness and shared presentation for Home and setup.
 --
--- The families are systems.families: the four v1 families in a fixed order
--- (ZX81, Spectrum, Atari ST, C64), then, when the launcher shows all cores,
+-- The families are systems.families: the v1 and PC families in a fixed order
+-- (ZX81, Spectrum, Atari ST, C64, PC/XT, PC 386), then, when the launcher shows all cores,
 -- every other registered family. A family's state comes from the host's
 -- admitted hardware.computers projection for its models, and its game
 -- count from the library's titles with media. A selected cassette does not
@@ -34,28 +34,30 @@ local C = M.colors
 local GROUNDS = { "#7097A8", "#9690B5", "#E08A63", "#8DB07A", "#D9B45A", "#6E8F80" }
 M.grounds = GROUNDS
 
--- The v1 families, in order, with their placeholder marks (#1351 replaces
+-- The default families, in order, with their placeholder marks (#1351 replaces
 -- them with icons). Family ids are systems.lua's.
-local V1 = {
+local DEFAULTS = {
   { id = "zx81", mark = "ZX81", short = "ZX81", ground = "#7097A8" },
   { id = "spectrum", mark = "ZX", short = "Spectrum", ground = "#9690B5" },
   { id = "fes.atari-st", mark = "ST", short = "Atari ST", ground = "#8DB07A" },
   { id = "fes.c64", mark = "64", short = "C64", ground = "#E08A63" },
+  { id = "fes.pcxt-dos", mark = "XT", short = "PC/XT", ground = "#D9B45A" },
+  { id = "fes.pc386", mark = "386", short = "PC 386", ground = "#6E8F80" },
 }
 
--- Rooms by core: the v1 computers open the core screen; Coleco opens its
--- arcade room; everything else uses the shared system setup.
+-- Rooms by core: the families with a core screen open it; Coleco opens its
+-- arcade room; everything else, PC/XT and PC 386 included, uses the shared
+-- system setup until its core screen is built.
+local SYSTEM_SETUP = "example.system"
+local CORE_SCREEN = { zx81 = true, spectrum = true, ["fes.atari-st"] = true, ["fes.c64"] = true }
 local WORKBENCH = {
   ["fes.coleco"] = "example.coleco-arcade",
 }
-for _, art in ipairs(V1) do
-  for _, family in ipairs(systems.families) do
-    if family.id == art.id then
-      for _, v in ipairs(family.variants) do WORKBENCH[v.id] = "example.core" end
-    end
-  end
+local function room_for(core_id)
+  local family = systems.family_by_core[core_id]
+  if family and CORE_SCREEN[family.id] then return "example.core" end
+  return WORKBENCH[core_id] or SYSTEM_SETUP
 end
-local SYSTEM_SETUP = "example.system"
 
 function M.hash(s)
   local h = 7
@@ -69,7 +71,7 @@ end
 local list = {}
 do
   local placed = {}
-  for _, art in ipairs(V1) do
+  for _, art in ipairs(DEFAULTS) do
     for _, family in ipairs(systems.families) do
       if family.id == art.id then
         list[#list + 1] = { id = family.id, label = family.label, variants = family.variants, art = art }
@@ -244,7 +246,7 @@ function M.publish(f)
   destination.set{
     kind = "family",
     label = f.label,
-    room_id = WORKBENCH[core_id] or SYSTEM_SETUP,
+    room_id = room_for(core_id),
     core_id = core_id,
     game_id = machine and machine.game_id or "",
     availability = availability,
@@ -576,6 +578,18 @@ function M.mark(f, x, y, w, h)
   if kh < 8 then return end
   local kw = math.min(w * 0.74, kh * 3.2)
   M.keyboard(x + (w - kw) / 2, ky, kw, kh, C.surface, art.ground)
+end
+
+-- Welcome's six-family overview is an introduction, not a full family tile.
+-- Keep the identifying mark but skip the keyboard made of many tiny rects;
+-- drawing all six keyboards makes the first uncached setup frame expensive
+-- on the kit's Cortex-A9.
+function M.welcome_mark(f, x, y, w, h)
+  local art = f.art
+  gfx.rect(x, y, w, h, art.ground)
+  local size = math.max(20, math.min(math.floor(h * 0.55), math.floor(w / (#art.mark * 0.62 + 0.5))))
+  local tw, th = M.measure(art.mark, size, true)
+  M.text(art.mark, x + (w - tw) / 2, y + (h - th) / 2, size, true, C.on_accent)
 end
 
 -- The shared state chip: Ready filled, Unavailable a raised plate with a

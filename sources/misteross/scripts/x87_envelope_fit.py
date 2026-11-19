@@ -39,7 +39,8 @@ BACKENDS = {'de10': 0, 'de25': 1}
 # what changes is the parameter, and the fitter's entity table is what shows
 # which arithmetic was actually built.
 SOURCES = ('fes_i386_pkg.sv', 'fes_x87_pkg.sv', 'fes_i386_x87_mul.sv',
-           'fes_x87_fast.sv', 'fes_x87_slow.sv', 'fes_x87_core.sv', 'fes_i386_x87.sv')
+           'fes_x87_fast.sv', 'fes_x87_slow.sv', 'fes_x87_core.sv',
+           'fes_x87_trans_pkg.sv', 'fes_x87_trans_rom.sv', 'fes_x87_trans.sv', 'fes_i386_x87.sv')
 # --top cpu fits fes_i386_cpu with `x87_present` TIED, so that the pair
 # present=0 and present=1 gives what the 387 costs inside the CPU. The unit
 # fit above cannot answer that: it keeps regs_o (640 register bits) and the
@@ -349,26 +350,53 @@ def prepare(output: Path | None, backend: str, period_ns: float, seed: int,
     return output
 
 
-def guarded_only_registers(rtl: str) -> list[str]:
+def guarded_only_registers(rtl: str, backend: int = 0) -> list[str]:
     """Registers of fes_i386_x87 written ONLY inside sequencer arms guarded by
-    `X87_BACKEND == 0`, derived from the RTL rather than listed by hand.
+    `X87_BACKEND == <backend>`, derived from the RTL rather than listed by hand.
+
+    With `backend` 0 these are the DE10's sequenced arithmetic, which a DE25
+    build must not hold. With 1 they are the mirror (#1958): what only the
+    DE25 backend builds -- the packed decimal arms' registers -- which a DE10
+    build must not hold.
 
     A hand list went stale twice: once when the square root's Q_* arms were
     never guarded, and once when a merge brought in D_CHECK, D_EXACT and
     Q_CHECK unguarded. Deriving the list means a new sequenced arm that is
     left unguarded stops its registers being "guarded-only", and a new guarded
-    arm's registers join the list, with nobody having to remember either."""
+    arm's registers join the list, with nobody having to remember either.
+
+    A write anywhere outside a guarded arm takes a register off the list,
+    the reset and F1h branches before `case (seq)` included, so an arm's
+    registers stay on it only if the arm (or a guarded start arm) is where
+    they are initialised."""
+    if backend not in (0, 1):
+        raise ValueError(f'X87_BACKEND is 0 or 1, not {backend!r}')
     body = rtl[rtl.index('case (seq)'):]
-    arms = list(re.finditer(r'^\s{16}([ADQPBS]_[A-Z0-9_]+):\s*(if \([^\n]*?\))?\s*begin', body, re.M))
+    arms = list(re.finditer(r'^\s{16}([ADQPBST]_[A-Z0-9_]+):\s*(if \([^\n]*?\))?\s*begin', body, re.M))
     writers: dict[str, list[bool]] = {}
     for k, arm in enumerate(arms):
         end = arms[k + 1].start() if k + 1 < len(arms) else len(body)
-        guarded = 'X87_BACKEND == 0' in (arm.group(2) or '')
+        guarded = f'X87_BACKEND == {backend}' in (arm.group(2) or '')
         for reg in set(re.findall(r'^\s+([a-z_0-9]+)\s*<=', body[arm.end():end], re.M)):
             writers.setdefault(reg, []).append(guarded)
     head = rtl[:rtl.index('case (seq)')]
     return sorted(reg for reg, flags in writers.items()
                   if all(flags) and not re.search(rf'^\s+{reg}\s*<=', head, re.M))
+
+
+# The transcendental engine (#1958) is an entity with memories of its own, not
+# sequencer arms, so the register derivation above cannot see it. It is built
+# only for the DE25 backend, as fes_x87_core is.
+ENGINE_ENTITY = 'fes_x87_trans'
+ENGINE_MEMORIES = ('program_rom', 'constant_rom', 'temps')
+
+
+def engine_presence(entity_rows: list[dict], memories: list[str]) -> dict:
+    """What a fit holds of the transcendental engine: the entity rows that name
+    it and the memories that are its."""
+    return {'entities': sorted({str(value) for row in entity_rows for value in row.values()
+                                if ENGINE_ENTITY in str(value)}),
+            'memories': sorted(name for name in memories if name in ENGINE_MEMORIES)}
 
 
 def ram_blocks(text: str) -> list[str]:
@@ -488,10 +516,15 @@ def compile_project(output: Path, tool: Path, version: str) -> dict:
         # A register may be bit-blasted to name[3] or split by the fitter.
         def held(name: str) -> bool:
             return any(leaf == name or leaf.startswith(name + '[') for leaf in leaves)
-        expected_absent = guarded_only_registers((RTL / 'fes_i386_x87.sv').read_text())
+        rtl_text = (RTL / 'fes_i386_x87.sv').read_text()
+        expected_absent = guarded_only_registers(rtl_text)
         absent = {n: held(n) for n in [*expected_absent, 'rcp_q', 'rsq_q']}
+        # The mirror (#1958): what only the DE25 backend builds, the packed
+        # decimal arms' registers, which a DE10 fit must not hold.
+        de25_only = {n: held(n) for n in guarded_only_registers(rtl_text, 1)}
         present = {n: held(n) for n in ('wm', 'pa', 'cw')}
-        record['exclusion'] = {'absent_expected': absent, 'positive_controls': present,
+        record['exclusion'] = {'absent_expected': absent, 'de25_only': de25_only,
+                               'positive_controls': present,
                                'registers': len(leaves),
                                'applicable': not skip,
                                'not_applicable_because':
@@ -517,6 +550,18 @@ def compile_project(output: Path, tool: Path, version: str) -> dict:
             if tables:
                 raise SystemExit('the DE25 fit still contains the sequenced arithmetic\'s '
                                  f'seed tables: {tables}')
+        engine = engine_presence(record.get('entities', []), record.get('ram_blocks', []))
+        record['exclusion']['transcendental_engine'] = engine
+        if inputs['x87_backend'] == 'de10' and not skip and (engine['entities'] or engine['memories']):
+            raise SystemExit(f'the DE10 fit contains the transcendental engine: {engine}')
+        if inputs['x87_backend'] == 'de25' and not skip and inputs.get('flow') != 'yosys-seal-netlist' \
+                and not engine['entities']:
+            raise SystemExit('the DE25 fit holds no transcendental engine, so its absence elsewhere means nothing')
+        if inputs['x87_backend'] == 'de10' and not skip:
+            leaked = {n: v for n, v in de25_only.items() if v}
+            if leaked:
+                raise SystemExit('the DE10 fit contains registers only the DE25 backend builds: '
+                                 f'{sorted(leaked)}')
     except BaseException as error:
         record.update(status='fail', error=str(error))
         if fitted.is_file():
