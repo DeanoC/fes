@@ -1,0 +1,354 @@
+{
+  "status": "passed",
+  "source_commit": "379c6aa7d40d1283d80f353e36a7ddce43ae4f1c",
+  "focused_supplier_tests": 42,
+  "parent_tests": 2899,
+  "parent_skips": 21,
+  "fpga_tests": 2512,
+  "fpga_skips": 90,
+  "counts_overlap": true,
+  "affected_scopes": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "Go command inventory",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "native runtime firmware and FPGA launch integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded producer identity and native control integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded firmware and identity/drain RTL integration",
+      "lane": "fpga",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ],
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "e2b8130b5a18b652095a8d5e23124fd0a994e9c0",
+        "--head",
+        "379c6aa7d40d1283d80f353e36a7ddce43ae4f1c"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"docs/design/de25-native-secure-lifecycle.md\", \"docs/validation/2026-11-17-de25-guard34-fix/README.md\", \"docs/validation/2026-11-17-de25-guard34-fix/before-fix.json\", \"docs/validation/2026-11-17-de25-guard34-fix/callback-log-audit.json\", \"docs/validation/2026-11-17-de25-guard34-fix/link-preview-source-correction.json\", \"docs/validation/2026-11-17-de25-guard34-fix/link-preview.json\", \"docs/validation/2026-11-17-de25-guard34-fix/matched-boot-chain.json\", \"docs/validation/2026-11-17-de25-guard34-fix/matched-layout.json\", \"docs/validation/2026-11-17-de25-guard34-fix/retained-evidence.json\", \"docs/validation/2026-11-17-de25-guard34-fix/retained-source.json\", \"docs/validation/2026-11-17-de25-guard34-fix/software.json\", \"docs/validation/2026-11-17-de25-guard34-physical/README.md\", \"docs/validation/2026-11-17-de25-guard34-physical/bounded-run.json\", \"docs/validation/2026-11-17-de25-guard34-physical/final-handles.json\", \"docs/validation/2026-11-17-de25-guard34-physical/independent-audit.json\", \"docs/validation/2026-11-17-de25-guard34-physical/native-failure.json\", \"docs/validation/2026-11-17-de25-guard34-physical/retained-physical.json\", \"docs/validation/2026-11-17-de25-guard34-physical/retained-prepared.json\", \"docs/validation/2026-11-17-de25-guard34-physical/timing-analysis.json\", \"docs/validation/2026-11-17-de25-guard34-physical/trial.json\", \"docs/validation/2026-11-17-de25-secure-lifecycle/README.md\", \"docs/validation/2026-11-17-de25-secure-lifecycle/historical-release-analysis.json\", \"docs/validation/2026-11-17-de25-secure-lifecycle/matched-boot-chain.json\", \"docs/validation/2026-11-17-de25-secure-lifecycle/release-cost-counts.json\", \"docs/validation/2026-11-17-de25-secure-lifecycle/retention.json\", \"docs/validation/2026-11-17-de25-secure-lifecycle/software-results.json\", \"docs/validation/2026-11-17-de25-secure-lifecycle/unadmitted-bl31-preview.json\", \"docs/validation/2026-11-17-de25-secure-lifecycle/vendor-review.json\", \"docs/validation/2026-11-18-de25-comparison-physical/README.md\", \"docs/validation/2026-11-18-de25-comparison-physical/bounded-run.json\", \"docs/validation/2026-11-18-de25-comparison-physical/final-handles.json\", \"docs/validation/2026-11-18-de25-comparison-physical/independent-audit.json\", \"docs/validation/2026-11-18-de25-comparison-physical/native-failure.json\", \"docs/validation/2026-11-18-de25-comparison-physical/retained-native.json\", \"docs/validation/2026-11-18-de25-comparison-physical/retained-physical.json\", \"docs/validation/2026-11-18-de25-comparison-physical/retained-prepared.json\", \"docs/validation/2026-11-18-de25-comparison-physical/timing-analysis.json\", \"docs/validation/2026-11-18-de25-comparison-physical/trial.json\", \"docs/validation/2026-11-18-de25-warm-preparation-comparison/README.md\", \"docs/validation/2026-11-18-de25-warm-preparation-comparison/build-stages.json\", \"docs/validation/2026-11-18-de25-warm-preparation-comparison/comparison-work.json\", \"docs/validation/2026-11-18-de25-warm-preparation-comparison/control-source.json\", \"docs/validation/2026-11-18-de25-warm-preparation-comparison/control.json\", \"docs/validation/2026-11-18-de25-warm-preparation-comparison/fixed.json\", \"docs/validation/2026-11-18-de25-warm-preparation-comparison/matched-boot-chain.json\", \"docs/validation/2026-11-18-de25-warm-preparation-comparison/retention.json\", \"docs/validation/2026-11-18-de25-warm-preparation-comparison/software-results.json\", \"docs/validation/2026-11-18-de25-warm-preparation-comparison/target-proof.json\", \"platform/embedded/README.md\", \"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/input_transfer_service.c\", \"platform/embedded/firmware/input_transfer_service.h\", \"platform/embedded/firmware/nano_sdm_control_platform.inc\", \"platform/embedded/firmware/nano_sdm_input_finish.inc\", \"platform/embedded/firmware/nano_sdm_release_platform.inc\", \"platform/embedded/firmware/nano_sdm_source_platform.inc\", \"platform/embedded/firmware/sdm_input_probe_setup.c\", \"platform/embedded/firmware/tests/nano_usb_shared_boot_test.c\", \"platform/embedded/firmware/tests/sdm_retire/final_proof_cost_test.c\", \"platform/embedded/firmware/tests/sdm_retire/joined_test.c\", \"platform/embedded/firmware/tests/sdm_retire/lifecycle_callbacks.inc\", \"platform/embedded/firmware/tests/sdm_retire/lifecycle_prepare_cost_test.c\", \"platform/embedded/firmware/tests/sdm_retire/lifecycle_rpc.c\", \"platform/embedded/firmware/tests/sdm_retire/snapshot_compare_test.c\", \"platform/embedded/firmware/tests/sdm_retire/source_clock_test.c\", \"platform/embedded/firmware/tests/sdm_retire/source_release_test.c\", \"platform/embedded/firmware/tests/sdm_retire/warm_service_test.c\", \"platform/embedded/nano/README.md\", \"platform/embedded/tamago/nativefabric/README.md\", \"platform/embedded/tamago/nativefabric/secure_lifecycle_test.go\", \"platform/embedded/tamago/nativefabric/source_reservation.go\", \"tests/test_nano_source_retirement.py\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "Go command inventory",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/hil_go_inventory.py",
+        "--check"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/hil_go_inventory.py",
+        "config/hil-go-consumers.json"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "native runtime firmware and FPGA launch integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "go",
+        "verilator"
+      ],
+      "files": [
+        "platform/embedded/tamago/nativefabric/verify.py",
+        "platform/embedded/firmware/tests/native_rpc.cpp"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "embedded producer identity and native control integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "g++",
+        "git",
+        "go",
+        "make",
+        "verilator",
+        "verilator_bin"
+      ],
+      "files": [
+        "sources/misteross/prototypes/embedded_control/producer.py",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "embedded firmware and identity/drain RTL integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/firmware/verify.py"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "verilator"
+      ],
+      "files": [
+        "platform/embedded/firmware/verify.py",
+        "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "test_*.py",
+      "cwd": "sources/misteross",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "strace"
+      ],
+      "files": [
+        "tests/test_*.py"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "runs": {
+    "guard31-affected-r1": {
+      "argv": [
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "e2b8130b5a18b652095a8d5e23124fd0a994e9c0"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-secure-lifecycle",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1568.543844467029,
+      "log_sha256": "58efa1b9e78e03a03852350dd66c9b6621f3c00b87167f3f0f45f3835625d461"
+    },
+    "guard31-final-measure-r1": {
+      "argv": [
+        "python3",
+        "out/operations/guard31-measure.py",
+        "out/guard31-final-r1"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-secure-lifecycle",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.404048037016764,
+      "log_sha256": "84e12b9d07735b1c59cac25d757f226ebb61d9fb504e84200c19263548adc29a"
+    },
+    "guard31-target-loop-audit-r1": {
+      "argv": [
+        "python3",
+        "out/operations/guard31-target-loop-audit.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-secure-lifecycle",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20064304815605283,
+      "log_sha256": "81875f66bbdc65baed111bbc85282608d390b6e0be421536c3ce49b031d57016"
+    }
+  },
+  "expected_before_failure": {
+    "argv": [
+      "env",
+      "PYTHONPATH=tests:platform/embedded/firmware",
+      "python3",
+      "-m",
+      "unittest",
+      "tests.test_nano_source_retirement.SourceRetirementTests.test_final_input_proof_cost_and_late_ownership_failures",
+      "-v"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-secure-lifecycle",
+    "returncode": 1,
+    "timed_out": false,
+    "elapsed": 4.803758341819048,
+    "log_sha256": "46cdb87d96ea4df501c059246bf0eb15d932193967f36b7fa5ede08e0b7e25d5"
+  },
+  "hardware_actions": false,
+  "hardware_acceptance": false
+}

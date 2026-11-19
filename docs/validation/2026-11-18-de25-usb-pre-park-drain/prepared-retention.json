@@ -1,0 +1,26 @@
+{
+  "status": "independently-verified-prepared-trial",
+  "procedure_sha256": "b16f8ba8005d2442ddd10d75b98ef8e6d555690a4a5306d9bec7ff1d44c86d9f",
+  "sources": [
+    {
+      "name": "host-source.tar.gz",
+      "source_commit": "7119ffa96b153149499f67e797a7ae18fe2413db",
+      "sha256": "f5230cff5095af8a7c3c596fc7caa9b9fccae31600e052e19879e7cb01f40960",
+      "verified_git_blobs": 17273
+    },
+    {
+      "name": "native-source.tar.gz",
+      "source_commit": "64684abda2f4cbf9c81365514f8bf13ed1b987e3",
+      "sha256": "70391ea9bb76e89d566dcb7cb5d79ee6655b261fb270669f1d4c5319b0bee8a1",
+      "verified_git_blobs": 17370
+    }
+  ],
+  "prepared_archive_sha256": "573f1005b83edb68f1ce404829e01751f73d309b627c171ca7e5f9e7f9a6cec1",
+  "prepared_entries": 84625,
+  "complete_native_archive": {
+    "path": "/home/deano/fes-retained/de25-usb-shutdown-source-20261118-r1/boot.tar.gz",
+    "sha256": "6eeb2481400d88926ade2be8da03953f51f041a66eccd8b64da4862c0e543d13"
+  },
+  "hardware_actions": false,
+  "hardware_acceptance": false
+}

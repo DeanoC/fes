@@ -64,6 +64,42 @@ func waitProgramInput(parent context.Context, call func(context.Context) error) 
 		}
 	}
 }
+
+// ParkMenu drains input before the final firmware/menu closure. Unlike a core
+// launch or return, shutdown never resumes polling: the caller must next close
+// the same retained USB source and verify its firmware Stop receipt.
+func (b *ProgramBackend) ParkMenu(ctx context.Context) error {
+	if b == nil || b.service == nil || ctx == nil {
+		return ErrProgramSession
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if !b.operation.TryLock() {
+		return ErrProgramBusy
+	}
+	defer b.operation.Unlock()
+	if b.inputFault != nil || b.service.Status().State != ProgramReady {
+		return errors.Join(ErrProgramRetired, b.inputFault)
+	}
+	if b.inputBoundary == ^uint64(0) {
+		return ErrProgramSession
+	}
+	b.inputBoundary++
+	if b.inputPolling != nil {
+		if err := waitProgramInput(ctx, b.inputPolling.PausePolling); err != nil {
+			b.inputFault = err
+			return err
+		}
+	}
+	// Even a failed or cancelled Park cannot authorize input to restart.
+	b.inputFault = ErrProgramRetired
+	err := b.service.ParkMenu(ctx)
+	b.inputFault = errors.Join(b.inputFault, err)
+	b.publish()
+	return err
+}
+
 func (b *ProgramBackend) parkInputFault() error {
 	if b.service.Status().State != ProgramRunning {
 		return nil

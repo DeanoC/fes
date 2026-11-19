@@ -4,7 +4,9 @@
  * stopped fabric state are injected; this is not a hardware or boot proof. */
 #define FES_TEST_WARM_QUEUES 1
 static void warm_meter(unsigned);
+#ifndef FES_TEST_WARM_METER
 #define FES_TEST_WARM_METER(kind) warm_meter(kind)
+#endif
 #define FES_TEST_SOURCE_RELEASE_MAIN release_fixture_main
 #include "source_release_test.c"
 #include "window_rearm_test.inc"

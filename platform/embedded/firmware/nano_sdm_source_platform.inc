@@ -42,9 +42,19 @@ static unsigned sdm_arm_entered,sdm_probe_scope_reason,sdm_input_phase;
 static unsigned sdm_source_failed;
 static unsigned sdm_source_released;
 static int sdm_release_clock(void);
+static int sdm_release_mismatch(uint64_t address,uint64_t value);
 static uint32_t sdm_source_bad_offset,sdm_source_bad_value;
 static unsigned sdm_source_clock_started;
 static uint64_t sdm_source_clock_start,sdm_source_clock_last;
+/* First rejected clock observation only. Never consulted for authority and
+ * never samples a counter, frequency, MMIO or ownership callback to report. */
+static struct {
+ uint64_t start,last,observed;
+ uint64_t frequency;
+ uint8_t reason,sampled;
+} sdm_source_clock_failure;
+enum { SDM_CLOCK_FAILED=1,SDM_CLOCK_NOT_STARTED,SDM_CLOCK_OUTPUT,
+ SDM_CLOCK_CONTEXT,SDM_CLOCK_FREQUENCY,SDM_CLOCK_BACKWARD,SDM_CLOCK_EXPIRED };
 static int sdm_source_time(void *,uint64_t *);
 #ifndef FES_PROBE_USB_BINDING_VALID
 #define FES_PROBE_USB_BINDING_VALID() fes_nano_usb_master_service_valid(&usb_master,&fes_nano_owned_bridges,&usb_platform)
@@ -89,9 +99,15 @@ static int sdm_release_returned(const struct nano_probe_binding *binding)
   !identity_probe.reader && identity_probe.abi==FES_NANO_PROGRAM_COMPUTER_ABI &&
   identity_probe.bridges==&fes_nano_owned_bridges && identity_probe.io.context==&provider && fabric_stop.qualified==1 &&
   fabric_stop.attempted==1 && fabric_stop.done==1 && !fabric_stop.failed && !fabric_stop.first_error &&
-  fabric_stop.probe.done==1 && !fabric_stop.probe.failed && last->generation &&
+  fabric_stop.probe.done==1 && !fabric_stop.probe.failed &&
   last->generation==last->request_generation && last->generation==last->ack_generation &&
-  last->cookie && last->cookie==last->ack_cookie && last->status==FES_EMBEDDED_STATUS_DRAINED && !last->pending &&
+  last->cookie==last->ack_cookie && !last->pending &&
+  /* The completed stop engine accepts either a drained reader or its exact
+   * never-enabled zero state. A held computer never enables the DDR reader.
+   * Retain the complete stop/probe, activation and held-return proofs around
+   * this cached observation; zero status or reset alone grants nothing. */
+  ((last->generation && last->cookie && last->status==FES_EMBEDDED_STATUS_DRAINED) ||
+   (!last->generation && !last->cookie && !last->status && !fabric_stop.disable_issued)) &&
   fes_nano_bridges_held_return(&fes_nano_owned_bridges,&returned)==1;
  return binding && !sdm_source_released && FES_PROBE_SD_IO_BINDING_VALID() && configuration.source_release_attempted==1 &&
   !configuration.source_released && configuration.source_release_source==binding->generation &&
@@ -328,13 +344,39 @@ static int sdm_source_stop(unsigned reason)
  if(!sdm_source_failed){sdm_source_failed=1;if(!sdm_probe_scope_reason)sdm_probe_reject(reason);}
  return 0;
 }
+static int sdm_source_clock_reject(unsigned reason,unsigned sampled,uint64_t now,uint64_t frequency)
+{
+ if(!sdm_source_clock_failure.reason){
+  sdm_source_clock_failure.start=sdm_source_clock_start;
+  sdm_source_clock_failure.last=sdm_source_clock_last;
+  sdm_source_clock_failure.observed=now;
+  sdm_source_clock_failure.frequency=frequency;
+  sdm_source_clock_failure.reason=(uint8_t)reason;
+  sdm_source_clock_failure.sampled=(uint8_t)sampled;
+ }
+ return sdm_source_stop(31),-13;
+}
 static int sdm_source_time(void *context,uint64_t *output)
 {
- uint64_t now=0;
- if(sdm_source_failed || !sdm_source_clock_started || !output ||
-    sdm_probe_time(context,&now) || now<sdm_source_clock_last ||
-    now-sdm_source_clock_start>=NANO_SDM_TRANSFER_US)return sdm_source_stop(31),-13;
+ if(sdm_source_failed)return sdm_source_clock_reject(SDM_CLOCK_FAILED,0,0,0);
+ if(!sdm_source_clock_started)return sdm_source_clock_reject(SDM_CLOCK_NOT_STARTED,0,0,0);
+ if(!output)return sdm_source_clock_reject(SDM_CLOCK_OUTPUT,0,0,0);
+ /* Same short-circuit order and one frequency/counter read as sdm_probe_time.
+  * Split its checks here so a rejection identifies its actual member. */
+ if(context!=&sdm_arm_probe)return sdm_source_clock_reject(SDM_CLOCK_CONTEXT,0,0,0);
+ uint64_t frequency=FES_PROBE_FREQUENCY();
+ if(frequency!=400000000U)return sdm_source_clock_reject(SDM_CLOCK_FREQUENCY,0,0,frequency);
+ uint64_t now=FES_PROBE_COUNTER()/400U;
+ if(now<sdm_source_clock_last)return sdm_source_clock_reject(SDM_CLOCK_BACKWARD,1,now,frequency);
+ if(now-sdm_source_clock_start>=NANO_SDM_TRANSFER_US)return sdm_source_clock_reject(SDM_CLOCK_EXPIRED,1,now,frequency);
  sdm_source_clock_last=now;*output=now;return 0;
+}
+static void sdm_source_clock_report(void)
+{
+ NOTICE("FES_NANO_SOURCE_CLOCK reason=%u sampled=%u frequency=%llu start_us=%llu last_us=%llu observed_us=%llu bound_us=%u retained=1 grant=0\n",
+  sdm_source_clock_failure.reason,sdm_source_clock_failure.sampled,(unsigned long long)sdm_source_clock_failure.frequency,
+  (unsigned long long)sdm_source_clock_failure.start,(unsigned long long)sdm_source_clock_failure.last,
+  (unsigned long long)sdm_source_clock_failure.observed,(unsigned)NANO_SDM_TRANSFER_US);
 }
 static int sdm_source_queues(void)
 {
@@ -380,10 +422,16 @@ int fes_nano_sdm_source_validate(void)
   if(!nano_sdm_input_table_range(at,NANO_PROBE_MEMORY_WORDS*8))continue;
   if(sdm_source_owns(&sdm_arm_probe,&sdm_arm_probe.input)!=1 ||
      nano_sdm_input_words(&sdm_arm_probe.input,at,expected,NANO_PROBE_MEMORY_WORDS))return sdm_source_stop(29),-13;
+  /* Normal-NC table memory, not MMIO. Complete the same bounded 256-byte
+   * read block before its unchanged trailing ownership check. Per-word DSBs
+   * add no ownership observation; keep each volatile read/comparison and
+   * bracket the block, including the first-mismatch exit, with full DSBs. */
+  FES_PROBE_BARRIER();
   for(unsigned n=0;n<NANO_PROBE_MEMORY_WORDS;n++){
-   FES_PROBE_BARRIER();uint64_t actual=FES_PROBE_LOAD64(NANO_PROBE_BASE+at+n*8);FES_PROBE_BARRIER();
-   if(actual!=expected[n]){sdm_source_bad_offset=at+n*8;sdm_source_bad_value=(uint32_t)actual;return sdm_source_stop(30),-13;}
+   uint64_t actual=FES_PROBE_LOAD64(NANO_PROBE_BASE+at+n*8);
+   if(actual!=expected[n]){FES_PROBE_BARRIER();sdm_source_bad_offset=at+n*8;sdm_source_bad_value=(uint32_t)actual;return sdm_source_stop(30),-13;}
   }
+  FES_PROBE_BARRIER();
   if(sdm_source_owns(&sdm_arm_probe,&sdm_arm_probe.input)!=1)return -13;
  }
  return sdm_source_owns(&sdm_arm_probe,&sdm_arm_probe.input)==1 ? 0:-13;

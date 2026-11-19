@@ -3,8 +3,6 @@ package nativefabric
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"crypto/sha512"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -81,12 +79,13 @@ func checkConfigurationBytes(m coldConfigurationMap, data []byte) error {
 	if len(data) != m.CoreSize {
 		return errors.New("native fabric: core size differs from compiled package")
 	}
-	sha256sum, sha384sum := sha256.Sum256(data), sha512.Sum384(data)
+	var reader arenaHash
+	sha256sum, sha384sum := reader.sum(data), reader.sum384(data)
 	if hex.EncodeToString(sha256sum[:]) != m.CoreSHA256 || hex.EncodeToString(sha384sum[:]) != m.CoreSHA384 {
 		return errors.New("native fabric: staged core differs from compiled package")
 	}
 	for offset, index := 0, 0; offset < len(data); offset, index = offset+m.ChunkBytes, index+1 {
-		digest := sha512.Sum384(data[offset:min(offset+m.ChunkBytes, len(data))])
+		digest := reader.sum384(data[offset:min(offset+m.ChunkBytes, len(data))])
 		if hex.EncodeToString(digest[:]) != m.ChunkSHA384[index] {
 			return errors.New("native fabric: staged chunk differs from compiled package")
 		}

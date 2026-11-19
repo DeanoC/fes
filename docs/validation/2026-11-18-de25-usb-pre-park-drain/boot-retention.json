@@ -1,0 +1,9 @@
+{
+  "status": "independently-verified-evidence-archive",
+  "name": "boot.tar.gz",
+  "sha256": "6eeb2481400d88926ade2be8da03953f51f041a66eccd8b64da4862c0e543d13",
+  "verified_entries": 46669,
+  "source": "64684abda2f4cbf9c81365514f8bf13ed1b987e3",
+  "hardware_actions": false,
+  "hardware_acceptance": false
+}

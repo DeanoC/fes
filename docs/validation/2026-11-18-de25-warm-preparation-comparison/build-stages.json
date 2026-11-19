@@ -1,0 +1,51 @@
+{
+  "status": "passed-all-matched-build-and-file-stages",
+  "compilation": [
+    {
+      "stage": "sdk",
+      "returncode": 0,
+      "elapsed_seconds": 108.1643104441464,
+      "log_sha256": "f9d273d323ec13c6c42c86cfa8eaedbc1feb5d0cd91a3577afc3cad2f5273c1d"
+    },
+    {
+      "stage": "entry",
+      "returncode": 0,
+      "elapsed_seconds": 95.83390779490583,
+      "log_sha256": "5bacb8d243ddce24880977bffb027b2f07bb95b819d6d0a29dae25fab106631b"
+    },
+    {
+      "stage": "bl31",
+      "returncode": 0,
+      "elapsed_seconds": 59.85564518789761,
+      "log_sha256": "5de7401dbb0b0924ce41137ddeb777242bf43966883aefa70f6f76a4a48a44e7"
+    },
+    {
+      "stage": "uboot",
+      "returncode": 0,
+      "elapsed_seconds": 166.21870481409132,
+      "log_sha256": "0fbed0f1b02a9cab6bd1bf69d446828c0786d8d1892c084de6f88536647ef60d"
+    }
+  ],
+  "initial_lock_wait_failure": {
+    "stage": "composition",
+    "returncode": 1,
+    "elapsed_seconds": 60.08109083888121,
+    "log_sha256": "26aaf9ad47cad1aadb977cf5baace4eaa502ef58ccc025c094ca38bbcbff7415"
+  },
+  "remaining": [
+    {
+      "stage": "composition-r2",
+      "returncode": 0,
+      "elapsed_seconds": 667.9598151699174,
+      "log_sha256": "63d513c42054c466b4503a05cb2ea9c1083814bf3cbcb9ad628f10cc6031a930"
+    },
+    {
+      "stage": "file-admission-r1",
+      "returncode": 0,
+      "elapsed_seconds": 141.68636840209365,
+      "log_sha256": "72554faf58cb2e49b72b70232603009317be5102eab9dccde016e0035191cf82"
+    }
+  ],
+  "firmware_deadlines_changed": false,
+  "hardware_actions": false
+}

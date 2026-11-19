@@ -1,0 +1,83 @@
+{
+  "status": "independently-verified-restoration-and-retained-native-failure",
+  "source_commit": "7119ffa96b153149499f67e797a7ae18fe2413db",
+  "procedure_sha256": "0c6e561983246cfd2630e260ae48ac1f623f9749df68a4b406f78a6be10c914b",
+  "native_diagnostic": "failed",
+  "elapsed_seconds": 789.7237215701025,
+  "roles": {
+    "forward": {
+      "elapsed_seconds": 297.7948960440699,
+      "file_readbacks_before": 17,
+      "file_readbacks_after": 17,
+      "preserved_files": 16,
+      "upload_session": "b1656a70d8fbc1df644bc18de3a4be6d",
+      "reset_nonce": "73b3099d8e42f027db125ae41c131f96",
+      "capture_id": "b3bc5c1d94a888fc0660728f038ed744",
+      "NS_SMMU_registers_verified": 19,
+      "command_receipts_verified": 824,
+      "reset_commands_verified": 7,
+      "wire_sha256": "ebd7fa2472805c5c269e1efc0c89c57d0d3c9e60a30a6296d80b2a69473d7933",
+      "file_write_sha256": "d28f64df7fa900e1696688968e140c74879346c2985eeb0c1134cf74e036f25b",
+      "phase_cost": {
+        "file_audits": 12,
+        "live_file_checks": 5407,
+        "JTAG_parameter_commands": 33,
+        "serial_observations": 1651
+      },
+      "cleanup_verified": true
+    },
+    "rollback": {
+      "elapsed_seconds": 298.7893532079179,
+      "file_readbacks_before": 17,
+      "file_readbacks_after": 17,
+      "preserved_files": 16,
+      "upload_session": "ed8957e4e79b68c63f8f77b87f9d6085",
+      "reset_nonce": "cb90a9af9efe4ee84b4222d2ee53b707",
+      "capture_id": "f73fb1ae91ed5ab764bf631d1ef444a9",
+      "NS_SMMU_registers_verified": 19,
+      "command_receipts_verified": 825,
+      "reset_commands_verified": 7,
+      "wire_sha256": "d9d1b50e176093a86c810c246689bded67e1c3ecea78629047c234be1e552c0b",
+      "file_write_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+      "phase_cost": {
+        "file_audits": 12,
+        "live_file_checks": 5397,
+        "JTAG_parameter_commands": 33,
+        "serial_observations": 1653
+      },
+      "cleanup_verified": true
+    }
+  },
+  "physical_reset_requested": false,
+  "flash_writes": false,
+  "raw_SD_writes": false,
+  "power_loss_durability_verified": false,
+  "ordinary_runtime_resume": false,
+  "normal_HIL_acceptance": false,
+  "native": {
+    "status": "failed",
+    "elapsed_seconds": 192.22727262997068,
+    "cleanup_independently_verified": true,
+    "clock_auto_restored": true,
+    "UART_closed": true,
+    "secure_releases": [
+      {
+        "source": 4,
+        "target": 10,
+        "elapsed_us": 936413
+      },
+      {
+        "source": 10,
+        "target": 15,
+        "elapsed_us": 923244
+      }
+    ],
+    "failure_snapshots": []
+  },
+  "exact_file_writes": 2,
+  "original_FIT_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+  "candidate_FIT_sha256": "d28f64df7fa900e1696688968e140c74879346c2985eeb0c1134cf74e036f25b",
+  "original_FIT_restored": true,
+  "kit_state": "verified recovery prompt parked; claim held",
+  "diagnostic_retry_performed": false
+}

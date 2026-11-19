@@ -1,0 +1,26 @@
+{
+  "status": "independently-verified-prepared-trial",
+  "procedure_sha256": "cce0db6fcccc37e5a6b6bfc4e9b2f2dc2510a72cfe2e4ae904dedde00832434d",
+  "sources": [
+    {
+      "name": "host-source.tar.gz",
+      "source_commit": "7119ffa96b153149499f67e797a7ae18fe2413db",
+      "sha256": "f5230cff5095af8a7c3c596fc7caa9b9fccae31600e052e19879e7cb01f40960",
+      "verified_git_blobs": 17273
+    },
+    {
+      "name": "native-source.tar.gz",
+      "source_commit": "1f0b34b8afed977142f987c15240e07189e7df5e",
+      "sha256": "134858c76db4cb0ad89782d6f6f18026490c392c03601516354c6fad40a33912",
+      "verified_git_blobs": 17284
+    }
+  ],
+  "prepared_archive_sha256": "170a83871d5c1d46642d9218212cf08a12dd65aea59330be48db0f8fb15d53c9",
+  "prepared_entries": 84516,
+  "complete_native_archive": {
+    "path": "/home/deano/fes-retained/de25-guard34-fix-20261117-r1/matched-boot-chain.tar.gz",
+    "sha256": "98afd54efd27911cdfc7f2d759576107524396fd9ef6c345c3520de3ee784cbd"
+  },
+  "hardware_actions": false,
+  "hardware_acceptance": false
+}

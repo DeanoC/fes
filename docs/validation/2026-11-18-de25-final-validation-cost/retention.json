@@ -1,0 +1,39 @@
+{
+  "root": "/home/deano/fes-retained/de25-final-validation-20261118-r1",
+  "source": {
+    "status": "independently-verified-source-archives",
+    "sources": [
+      {
+        "name": "before-fix",
+        "commit": "a32309ed1b019472de791b26ffef4486091cdef9",
+        "sha256": "777f7c8b3e1323b58e0a1c7eb2363748c046ff9314b27f82afb3bf35748b05fc",
+        "verified_git_blobs": 17339
+      },
+      {
+        "name": "tested-source",
+        "commit": "b219e3920b32de39a5421dc7a3b2d479ac5c27c4",
+        "sha256": "767a02a2ce0e9387454998e0a4e5d5f9105cc64a104f51f70e335b4fcdaf7b71",
+        "verified_git_blobs": 17339
+      }
+    ],
+    "hardware_actions": false
+  },
+  "software": {
+    "status": "independently-verified-evidence-archive",
+    "name": "software.tar.gz",
+    "sha256": "353c784b6acea1e668286980d7a6fa7d1227a704a1c0f04fd6a7baa66f0b518a",
+    "verified_entries": 831,
+    "source": "b219e3920b32de39a5421dc7a3b2d479ac5c27c4",
+    "hardware_actions": false,
+    "hardware_acceptance": false
+  },
+  "boot": {
+    "status": "independently-verified-evidence-archive",
+    "name": "boot.tar.gz",
+    "sha256": "2ea2b10df84a845726ae32b76fe310b39950ba4e31f049e4769c2eb4649e5f84",
+    "verified_entries": 46669,
+    "source": "b219e3920b32de39a5421dc7a3b2d479ac5c27c4",
+    "hardware_actions": false,
+    "hardware_acceptance": false
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "status": "passed-fresh-file-admission-with-host-only-source-split",
+  "artifact_source": "a0d2c7aead849a8e0287774b9cd18d662770a33b",
+  "host_decoder_source": "505ee1c60e9caa50462c17553c608e632391d9ae",
+  "changed_paths": [
+    "platform/embedded/nano/configuration_trace.py",
+    "platform/embedded/nano/native_trace.py",
+    "platform/embedded/nano/paired_firmware_trace.py",
+    "platform/embedded/nano/service_trace.py",
+    "platform/embedded/nano/window_reload_trace.py",
+    "platform/embedded/nano/window_service_trace.py",
+    "tests/test_nano_paired_tenfoot_trace.py"
+  ],
+  "native_payload_rebuilt": false,
+  "producer_inputs_unchanged": true,
+  "hardware_actions": false,
+  "fresh_admission": {
+    "status": "passed-fresh-current-source-native-admission",
+    "path": "/home/deano/fes/out/dev/de25-secure-lifecycle/out/budget25-aligned-current-admission.json",
+    "sha256": "5606f3ac8dc566f2006c9d04b7bfe4fea6720ad7e7482918cc8ec9d9a287ee59",
+    "extra_inputs": [
+      "/home/deano/fes/out/dev/de25-restoration-phase-cost/out/budget25-aligned-trial/procedure.json",
+      "/home/deano/fes/out/dev/de25-restoration-phase-cost/out/budget25-aligned-trial/plan.json",
+      "/home/deano/fes/out/dev/de25-restoration-phase-cost/out/budget25-aligned-trial/binding.json",
+      "/home/deano/fes/out/dev/de25-restoration-phase-cost/out/budget25-aligned-trial/capture-inputs.json",
+      "/home/deano/fes/out/dev/de25-restoration-phase-cost/out/budget25-aligned-trial/native-image-selection.json",
+      "/home/deano/fes/out/dev/de25-restoration-phase-cost/out/budget25-aligned-trial/diagnostic_operator.py",
+      "/home/deano/fes/out/dev/de25-restoration-phase-cost/out/budget25-aligned-trial/check-current-admission.py",
+      "/home/deano/fes/out/dev/de25-restoration-phase-cost/out/budget25-aligned-trial/observed_programmer.py"
+    ],
+    "hardware_actions": false,
+    "hardware_acceptance": false
+  },
+  "host_tests": {
+    "argv": [
+      "python3",
+      "-m",
+      "unittest",
+      "test_nano_paired_tenfoot_trace",
+      "test_nano_native_trace",
+      "test_nano_window_service_trace",
+      "test_nano_window_reload_trace",
+      "test_nano_program_client",
+      "test_nano_paired_source_rearm",
+      "test_nano_paired_retained_reader",
+      "test_nano_paired_captured_launch",
+      "test_nano_shared_tenfoot_trace",
+      "test_nano_window_service",
+      "test_nano_window_client",
+      "test_nano_window_storage_trace",
+      "-v"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-secure-lifecycle",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 9.006403722800314,
+    "log_sha256": "0937929f063daea76617a5503a251a3ad774399fbdefa9ed3ab61a4b7feb55bb"
+  },
+  "host_test_count": 134
+}

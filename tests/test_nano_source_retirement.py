@@ -1,10 +1,12 @@
 """Sanitized retirement models use active controllers and injected hardware."""
 import json
 import hashlib
+import os
 from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import re
 import unittest
 import sys
 
@@ -72,12 +74,45 @@ class SourceRetirementTests(unittest.TestCase):
             end += 1
         (cls.output / "vendor_source_idle_test.inc").write_text(source[start:end])
 
+        # The combined lifecycle uses the production activation, master-stop,
+        # window and bridge-target callbacks, with only device I/O injected.
+        source = (FW / "nano_cold_platform.c").read_text()
+        functions = (
+            ('static int fabric_owns(', None), ('static int fabric_read(', None),
+            ('static int fabric_write(', None), ('static int probe_read(', None),
+            ('static int probe_write(', None), ('static void fabric_wait(', None),
+            ('static int master_failure(', None),
+            ('static int cold_master_quiesce(', 'production_master_quiesce'),
+            ('static int cold_producer_sample(', 'production_producer_sample'),
+            ('static struct fes_nano_fabric_stop new_fabric_stop(', None),
+            ('int fes_nano_platform_window_prepare(', None),
+            ('int fes_nano_platform_ddr_target(', None),
+            ('int fes_nano_platform_control_target(', None),
+            ('int fes_nano_platform_configuration_diagnostic_ready(', None),
+            ('static int configuration_complete(', 'production_configuration_complete'))
+        parts = []
+        for signature, rename in functions:
+            name = signature.split()[-1].split('(')[0]
+            match = re.search(re.escape(signature)+r'[^;{}]*\{', source)
+            if match is None:
+                raise ValueError('missing platform callback '+signature)
+            start, at = match.start(), match.end()-1
+            depth, end = 1, at+1
+            while depth:
+                depth += (source[end] == '{') - (source[end] == '}')
+                end += 1
+            text = source[start:end]
+            if rename:
+                text = text.replace(name+'(', rename+'(', 1)
+            parts.append(text)
+        (cls.output/'lifecycle_platform_test.inc').write_text('\n'.join(parts))
+
 
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def run_model(self, name, joined=False, arguments=()):
+    def build_model(self, name, joined=False):
         binary = self.output / name
         sources = [FIXTURE / (name + ".c"), FW / "source_retire.c", FW / "command_queue.c", FW / "input_tables.c"]
         if name in ("warm_probe_test", "setup_validation_test", "setup_batch_cost_test", "setup_preparation_budget_test", "setup_publication_test"):
@@ -90,8 +125,19 @@ class SourceRetirementTests(unittest.TestCase):
         if name == "retained_window_gate_test":
             sources += [FW / "nano_smmu.c", FW / "nano_sdm_reader.c"]
         if joined:
-            sources += [self.output / "probe_setup.c", FW / "input_transfer.c", FW / "nano_smmu.c", FW / "nano_sdm_reader.c"]
+            setup = self.output / "probe_setup.c"
+            if name == 'lifecycle_prepare_cost_test':
+                setup = self.output / 'private_compare_probe.c'
+                setup.write_text('#include <stddef.h>\n'
+                                 'int fixture_private_memcmp(const void *,const void *,size_t);\n'
+                                 'void *fixture_private_copy(void *,const void *,size_t);\n'
+                                 '#define memcmp fixture_private_memcmp\n'
+                                 '#define __builtin_memcpy fixture_private_copy\n'
+                                 '#include "probe_setup.c"\n')
+            sources += [setup, FW / "input_transfer.c", FW / "nano_smmu.c", FW / "nano_sdm_reader.c"]
             sources += [FW / (n + ".c") for n in ("nano_cold", "nano_hps_io", "nano_bridges", "nano_boot", "nano_sd", "nano_sd_platform", "nano_usb_platform", "nano_usb_board", "nano_mac", "nano_usb_service", "nano_usb_composition", "nano_configuration")]
+        if name in ('lifecycle_rpc', 'lifecycle_prepare_cost_test', 'final_proof_cost_test', 'final_usb_cost_test'):
+            sources += [FW/(n+'.c') for n in ('nano_program','nano_identity','nano_bridge_sip','nano_fabric_stop','nano_probe_stop')]
         command = [shutil.which("cc") or "cc", "-std=c11", "-O1", "-g", "-Wall", "-Wextra", "-Werror",
                    "-Wno-misleading-indentation", "-Wno-unused-function", "-Wno-unused-variable", "-Wno-sign-compare",
                    "-fsanitize=address,undefined", "-fno-sanitize-recover=all", "-DFES_NANO_RETIRE_BATCHED_OBSERVE=1"]
@@ -101,6 +147,10 @@ class SourceRetirementTests(unittest.TestCase):
         if not binary.exists():
             compiled = subprocess.run(command + [str(p) for p in sources] + ["-o", str(binary)], timeout=90, capture_output=True, text=True)
             self.assertEqual(compiled.returncode, 0, compiled.stderr)
+        return binary
+
+    def run_model(self, name, joined=False, arguments=()):
+        binary = self.build_model(name, joined)
         result = subprocess.run([str(binary), *map(str, arguments)], timeout=180, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         report = json.loads(result.stdout.splitlines()[-1])
@@ -133,6 +183,110 @@ class SourceRetirementTests(unittest.TestCase):
         report = self.run_model("source_release_test", joined=True)
         self.assertEqual(report["cases"], 66)
         self.assertTrue(report["actual_source_release_supplier"])
+
+    def test_native_retained_menu_and_computer_call_actual_source_supplier(self):
+        binary = self.build_model("lifecycle_rpc", joined=True)
+        env = dict(os.environ, GOWORK="off", FES_NANO_LIFECYCLE_RPC=str(binary))
+        result = subprocess.run(["go", "test", "./nativefabric", "-run", "^TestSecureLifecycle", "-count=1", "-timeout=120s", "-v"],
+                                cwd=ROOT / "platform/embedded/tamago", env=env,
+                                capture_output=True, text=True, timeout=150)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        print(result.stdout, end="")
+
+    def test_second_warm_preparation_private_snapshot_cost(self):
+        binary = self.build_model('lifecycle_prepare_cost_test', joined=True)
+        wire = '\n'.join((
+            'configure 11 4 1 1708032 1048512 0 '+ 'ab'*48,
+            'release 11 10 0',
+            'configure 11 10 2 1654784 1048512 8192 '+ 'cd'*48,
+            'release 11 15 0',
+            'configure 11 15 1 1708032 1048512 0 '+ 'ab'*48))+'\n'
+        rows = []
+        # Model residual work plus comparison loads, not measured attribution.
+        # The retained byte-wise control expires after read155/offset0x90,
+        # matching the physical boundary with command completion already seen.
+        for cost, prior in ((0, 0), (80, 3263700), (80, 4000000)):
+            result = subprocess.run([str(binary), str(cost), '15', str(prior)],
+                                    input=wire, capture_output=True, text=True, timeout=120)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            row = json.loads(result.stdout.splitlines()[-1]); rows.append(row)
+            self.assertFalse(row['hardware_actions'])
+        self.assertEqual((rows[0]['result'], rows[1]['result']), (0, 0))
+        self.assertEqual(rows[0]['reads'], rows[1]['reads'])
+        self.assertGreater(rows[1]['wide_loads'], 0)
+        self.assertLess(rows[1]['preparation_us'], 4000000)
+        self.assertEqual((rows[2]['result'], rows[2]['error'], rows[2]['prepared']), (2, -110, 0))
+        self.private_comparison_cost = rows
+
+    def test_private_snapshot_equality_checks_alignment_tails_and_every_byte(self):
+        report = self.run_model('snapshot_compare_test')
+        self.assertGreater(report['cases'], 100000)
+
+    def test_source_clock_identifies_each_rejection_without_extra_observation(self):
+        self.assertEqual(self.run_model('source_clock_test', joined=True)['cases'], 13)
+
+    def test_final_input_proof_cost_and_late_ownership_failures(self):
+        binary = self.build_model('final_proof_cost_test', joined=True)
+        wire = '\n'.join((
+            'configure 11 4 1 1708032 1048512 0 '+ 'ab'*48,
+            'release 11 10 0',
+            'configure 11 10 2 1654784 1048512 8192 '+ 'cd'*48,
+            'release 11 15 0',
+            'configure 11 15 1 1708032 1048512 0 '+ 'ab'*48))+'\n'
+        def run(cost, initial=19626142, fault=0):
+            result = subprocess.run([str(binary), str(cost), str(initial), str(fault)],
+                                    input=wire, capture_output=True, text=True, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return json.loads(result.stdout.splitlines()[-1])
+        normal, calibrated = run(0), run(12)
+        self.assertEqual((normal['result'], calibrated['result']), (0, 0))
+        self.assertEqual((normal['loads'], normal['reads'], normal['counters']),
+                         (calibrated['loads'], calibrated['reads'], calibrated['counters']))
+        self.assertEqual(normal['loads'], 5120)
+        expired = run(0, 25000000)
+        self.assertEqual((expired['result'], expired['scope_reason'], expired['clock_reason'], expired['retired']),
+                         (2, 31, 7, 0))
+        self.assertGreaterEqual(expired['clock_observed']-expired['clock_start'], 25000000)
+        over = run(16, 24626142)
+        self.assertEqual((over['result'], over['clock_reason'], over['retired']), (2, 7, 0))
+        for fault in range(1, 9):
+            with self.subTest(fault=fault):
+                row = run(0, fault=fault)
+                self.assertEqual((row['result'], row['retired'], row['continued']), (2, 0, 0))
+
+    def test_final_validation_includes_actual_usb_containment_cost(self):
+        binary = self.build_model('final_usb_cost_test', joined=True)
+        wire = '\n'.join((
+            'configure 11 4 1 1708032 1048512 0 '+ 'ab'*48,
+            'release 11 10 0',
+            'configure 11 10 2 1654784 1048512 8192 '+ 'cd'*48,
+            'release 11 15 0',
+            'configure 11 15 1 1708032 1048512 0 '+ 'ab'*48))+'\n'
+        def run(ns=0, prior=0, fault=0):
+            p = subprocess.run([str(binary), str(ns), str(prior), str(fault)],
+                               input=wire, text=True, capture_output=True, timeout=60)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            return json.loads(p.stdout.splitlines()[-1])
+        normal, bounded = run(), run(2000, 16300000)
+        self.assertEqual((normal['result'], bounded['result']), (0, 0))
+        self.assertEqual((bounded['retired'], bounded['continued']), (1, 1))
+        for key in ('physical_reads', 'cold_reads', 'final_loads', 'probe_reads', 'probe_barriers'):
+            self.assertEqual(normal[key], bounded[key], key)
+        self.assertEqual(normal['final_loads'], 5120)
+        self.assertLess(normal['final_barriers'], 130000)
+        self.assertLess(bounded['source_elapsed_us'], 25000000)
+        # The former 20-second rejection is now within the declared policy.
+        former = run(2000, 18000000)
+        self.assertEqual((former['result'], former['retired'], former['continued']), (0, 1, 1))
+        self.assertGreater(former['source_elapsed_us'], 20000000)
+        self.assertLess(former['source_elapsed_us'], 25000000)
+        for ns, prior in ((0, 25000000), (2000, 23000000)):
+            row = run(ns, prior)
+            self.assertEqual((row['result'], row['clock_reason'], row['retired']), (2, 7, 0))
+        for fault in range(1, 9):
+            with self.subTest(fault=fault):
+                row = run(fault=fault)
+                self.assertEqual((row['result'], row['retired'], row['continued']), (2, 0, 0))
 
     def test_terminal_cold_recovery_uses_live_revoked_scope(self):
         report=self.run_model('terminal_recovery_test',joined=True)

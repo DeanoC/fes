@@ -1,0 +1,14 @@
+{
+  "status": "independently-verified-physical-stop-archive",
+  "members": 136,
+  "archive_sha256": "5d223b73555aa3b0e6c2e369c22a519e0f178e6a8372d4e999b4d2e1f84fcf8d",
+  "hardware_result": "failed-first-recovery-programming-before-SD-write",
+  "launch_test_run": false,
+  "candidate_installed": false,
+  "SD_writes": 0,
+  "all_owned_handles_closed": true,
+  "failed_verdict_preserved": true,
+  "power_cycle_performed": false,
+  "recovery_prompt_observed": true,
+  "normal_HIL_acceptance": false
+}
