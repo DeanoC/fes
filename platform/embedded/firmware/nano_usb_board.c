@@ -244,7 +244,17 @@ static int contained_read(struct fes_nano_usb_board *b,unsigned offset,uint32_t 
     /* Paired full cold samples enclose the observation. Independently guard
      * each controller access against reset being asserted inside the body. */
     if (read_reg(b,PER0,&per0) || (per0&FES_NANO_USB_RESET)) return fail(b,-5);
-    return read_reg(b,FES_NANO_USB_BASE+offset,value);
+    /* The reset read's closing full barrier also orders the next controller
+     * read. Only private diagnostic bookkeeping intervenes; no device access,
+     * callback, command or ownership grant needs a second opening barrier.
+     * Keep the failed-state check and the controller's closing barrier. */
+    if (b->failed) return -1;
+    b->last_address=FES_NANO_USB_BASE+offset;
+    int error=b->physical.read(b->physical.context,FES_NANO_USB_BASE+offset,value);
+    b->physical.barrier(b->physical.context);
+    if (error) return fail(b,error);
+    b->last_value=*value;
+    return 0;
 }
 static int contained_pio(struct fes_nano_usb_board *b)
 {

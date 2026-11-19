@@ -28,6 +28,8 @@ var models = map[string]model{
 	"fes.pentagon":       {"Pentagon 128", []string{"Pentagon"}},
 	"fes.apple2":         {"Apple II", nil},
 	"fes.atari-st":       {"Atari ST", []string{"Atari 520ST"}},
+	"fes.pcxt-dos":       {"PC/XT", []string{"PC/XT FreeDOS"}},
+	"fes.pc386":          {"PC 386", []string{"pc386", "pc386 (Quartus)"}},
 	"fes.coleco":         {"ColecoVision", []string{"Coleco"}},
 	"fes.sms":            {"Sega Master System", []string{"Master System", "SMS"}},
 	"fes.sg1000":         {"Sega SG-1000", []string{"SG-1000"}},

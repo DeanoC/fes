@@ -303,16 +303,13 @@ it, so it is a design input and a Cyclone V build and an Agilex 5 build of one
 source set do not share a design identity. Exact artifacts are
 identified by package/payload hashes, and hardware acceptance follows those
 exact bytes even though timing and route evidence is interchangeable. Historical combined identities are unchanged. Among current core
-package producers, Apple II, Atari ST, C64, Coleco socket-v2, SG-1000, SMS
-and Spectrum accept `--gpu-router {HIP,CUDA}`. The ZX81 family's registered
-producer is Quartus Lite and takes neither option; its advisory nextpnr
-producer still accepts `--gpu-router`. The pc386 Quartus sealer
-accepts it too, but only to select which toolchain slot it authenticates; it
-routes nothing on a GPU. Menu, Pong, RAM Tester
-and RISC-V accept only `--gpu-device`; their authenticated toolchain determines
-the backend. On a CUDA host, select CUDA and its matching toolchain for a
-router-selectable producer; a device-only producer can use CUDA only with an
-authenticated CUDA-built toolchain. `gpu-run` leases a device, not a backend;
+package producers, Apple II, Atari ST, C64, Coleco socket-v2, Menu, Pong,
+RAM Tester, RISC-V, SG-1000, SMS and Spectrum accept `--gpu-router {HIP,CUDA}`.
+The ZX81 family's registered producer is Quartus Lite and takes no GPU option;
+its advisory nextpnr producer still accepts `--gpu-router`. The pc386 Quartus
+sealer accepts it too, but only to select which toolchain slot it
+authenticates; it routes nothing on a GPU. On a CUDA host, select CUDA and its
+matching toolchain. `gpu-run` leases a device, not a backend;
 record the backend in the build record. Never require a separate HIP run or
 discount CUDA or Metal evidence. Never set `GPU_LEASE_IDS` per job (it is a box
 inventory override).

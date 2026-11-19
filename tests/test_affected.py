@@ -563,7 +563,9 @@ class AffectedTests(unittest.TestCase):
                      'scripts/test_fes_i386_lockstep.py', 'scripts/test_fes_i386_latency.py',
                      'scripts/quartus_fes_i386.py', 'scripts/quartus_x87_spike.py',
                      'cores/fes-common/sim/i386/spike/spike_x87.sv',
-                     'scripts/benchmark_fes_i386.py', 'scripts/fes_i386_ucode.py', 'scripts/i386_verilator.py'):
+                     'scripts/benchmark_fes_i386.py', 'scripts/fes_i386_ucode.py', 'scripts/i386_verilator.py',
+                     'scripts/fes_i486_oracle.py', 'scripts/fes_i486_cases.py', 'scripts/test_fes_i486_lockstep.py',
+                     'cores/fes-common/sim/i386/i486_tb.cpp', 'cores/fes-common/sim/i386/i486-expected-stops.txt'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])
                 self.assertEqual(result['cores'], [])

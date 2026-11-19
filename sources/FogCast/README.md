@@ -73,6 +73,13 @@ and content selection; the MiSTer is a small, directly controlled target.
   configured entries. It refreshes the library and preserves ordinary launch
   checks.
 
+  Home and first-run setup include the ZX81 and Spectrum families, Atari ST,
+  Commodore 64, PC/XT and PC 386. Both PCs use the shared system workbench
+  for installed packages and saved disk selections. PC 386 remains in
+  development; showing it does not change its pending quality tier. **Show
+  all cores** adds the held-back families. Release-plan classifications stay
+  separate from launcher visibility.
+
 - The tenfoot **Systems** room lists prepared playable systems, models and
   editions. **Set up** opens the selected workbench; **Add system** remains
   available with an empty library. The shared **System setup** groups related

@@ -595,6 +595,7 @@ package fes_i386_pkg;
         logic       rm_reg;
         logic       o32;
         logic       rep;
+        logic       ref_rep_f3;  // diagnostic: REP prefix is F3
         logic       ea3;
         logic       ref_test_excluded;  // unmeasured TEST encoding: 32-bit code or any prefix
         logic       ref_real_mode;      // diagnostic: real mode sampled at issue

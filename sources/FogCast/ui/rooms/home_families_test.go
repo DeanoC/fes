@@ -204,7 +204,7 @@ func loadHome(t *testing.T, opts Options) *Instance {
 	return r
 }
 
-func TestHomeShowsTheFourReleaseFamiliesWithLibraryState(t *testing.T) {
+func TestHomeShowsReleaseAndPCFamiliesWithLibraryState(t *testing.T) {
 	svc := &homeServices{computers: []hostclient.ShelfComputer{computerEntry("zx81", "fes.zx81", ""), computerEntry("spectrum", "fes.spectrum", ""), computerEntry("st", "fes.atari-st", "")}, fakeServices: fakeServices{games: []hostclient.Game{
 		machineEntry("zx81", "fes.zx81", ""),
 		titleEntry("zx81-a", "fes.zx81"),
@@ -249,10 +249,17 @@ func TestHomeShowsTheFourReleaseFamiliesWithLibraryState(t *testing.T) {
 		d.Status != "Add your Commodore 64 ROM files to play" || d.Confirm() != ConfirmEnterRoom || d.CoreID != "fes.c64" || d.GameID != "" {
 		t.Fatalf("C64 %+v confirm %v", d, d.Confirm())
 	}
+	for _, pc := range []struct{ id, label string }{{"fes.pcxt-dos", "PC/XT"}, {"fes.pc386", "PC 386"}} {
+		r.Input("right")
+		f = stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), pc.label+"\n") })
+		if d := r.Destination(); d.Label != pc.label || d.CoreID != pc.id || d.RoomID != "example.system" || d.Availability != AvailUnavailable || d.Status != "Not installed on this kit" {
+			t.Fatalf("PC family %+v", d)
+		}
+	}
 	if r.Input("right") {
 		t.Log("right past the last family is consumed")
 	}
-	if got := r.Destination().Label; got != "Commodore 64" {
+	if got := r.Destination().Label; got != "PC 386" {
 		t.Fatalf("right moved past the last family to %q", got)
 	}
 	// Up from the top row is left to the launcher, which focuses the hero
@@ -269,7 +276,7 @@ func TestHomeShowsTheFourReleaseFamiliesWithLibraryState(t *testing.T) {
 	if !r.Input("down") {
 		t.Fatal("down from the header")
 	}
-	if d := r.Destination(); d.Label != "Commodore 64" {
+	if d := r.Destination(); d.Label != "PC 386" {
 		t.Fatalf("down from the header went to %+v", d)
 	}
 	if err := r.Err(); err != nil {
@@ -465,14 +472,14 @@ func TestHomeShowingAllCoresKeepsRoutesAndOtherFamilies(t *testing.T) {
 			t.Fatalf("all-cores Home is missing %q", want)
 		}
 	}
-	// After the v1 families come the others in systems order: Apple II,
+	// After the default families come the others in systems order: Apple II,
 	// then ColecoVision.
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 7; i++ {
 		r.Input("right")
 	}
 	d := r.Destination()
 	if d.Label != "ColecoVision" || d.RoomID != "example.coleco-arcade" || d.Status != "Its library is offline" {
-		t.Fatalf("sixth family %+v", d)
+		t.Fatalf("eighth family %+v", d)
 	}
 	r.Input("header")
 	if d := r.Destination(); d.Kind != KindLibrary {
@@ -722,10 +729,10 @@ func TestHomeFamilyBatchesDiscardUnfinishedReadOnReload(t *testing.T) {
 		}
 		queued := len(r.pending)
 		r.pendingMu.Unlock()
-		// Four family queries and recents are queued. With
+		// Six family queries and recents are queued. With
 		// every input present, Checking after one Step can only be the large
 		// answer still being processed, not a missing asynchronous reply.
-		if ready && queued >= 5 {
+		if ready && queued >= 7 {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -773,7 +780,7 @@ func TestHomeFamilyBatchesIncludeLateMachineEditions(t *testing.T) {
 		r.pendingMu.Lock()
 		queued := len(r.pending)
 		r.pendingMu.Unlock()
-		if queued >= 5 {
+		if queued >= 7 {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -782,7 +789,9 @@ func TestHomeFamilyBatchesIncludeLateMachineEditions(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 	var converted int
-	for step := 0; step < 5 && converted == 0; step++ {
+	// Only one family batch converts per Step; the large response may be
+	// last among the six families even when every answer has arrived.
+	for step := 0; step < 6 && converted == 0; step++ {
 		r.Step(time.Now())
 		r.pendingMu.Lock()
 		for _, result := range r.pending {
@@ -838,7 +847,7 @@ func TestHomeFamilyBatchesPreserveNewerCacheRefresh(t *testing.T) {
 				r.pendingMu.Lock()
 				queued := len(r.pending)
 				r.pendingMu.Unlock()
-				if queued >= 5 {
+				if queued >= 7 {
 					break
 				}
 				if time.Now().After(deadline) {
@@ -874,7 +883,7 @@ func TestHomeFamilyBatchesPreserveNewerCacheRefresh(t *testing.T) {
 }
 
 func TestHomeFamilyFullPagesSettleAcrossBoundedFrames(t *testing.T) {
-	cores := []string{"fes.zx81", "fes.spectrum", "fes.atari-st", "fes.c64"}
+	cores := []string{"fes.zx81", "fes.spectrum", "fes.atari-st", "fes.c64", "fes.pcxt-dos", "fes.pc386"}
 	games := make([]hostclient.Game, 0, len(cores)*2000)
 	for _, core := range cores {
 		games = append(games, machineEntry(core+"-machine", core, ""))
@@ -937,7 +946,7 @@ func TestHomeFamilyFullPagesSettleAcrossBoundedFrames(t *testing.T) {
 	if steps <= 1 || !homeSettled(r) {
 		t.Fatalf("full pages settled after %d frames, destination %+v", steps, r.Destination())
 	}
-	t.Logf("four full family pages settled in %d update frames (first async %s, update %s; max async %s, update %s, total %s)",
+	t.Logf("six full family pages settled in %d update frames (first async %s, update %s; max async %s, update %s, total %s)",
 		steps, first.Async, first.Update, maxAsync, maxUpdate, maxTotal)
 	for i, core := range cores {
 		if i > 0 {

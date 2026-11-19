@@ -1,0 +1,14 @@
+{
+  "status": "passed-independent-target-loop-order-audit",
+  "word_loop": [
+    "0x8001bc1c",
+    "0x8001bc34"
+  ],
+  "entry_DSB": "0x8001bc10",
+  "mismatch_exit_DSB": "0x8001bc38",
+  "normal_exit_DSB": "0x8001bcc0",
+  "unchanged_static_ownership_call_sites": 4,
+  "unchanged_frame_bytes": 352,
+  "assembly_sha256": "8805d93740b52b9dec8e4622b22b3ee8ba1adb7d67d3f4649b2d062a71c7a26f",
+  "hardware_actions": false
+}

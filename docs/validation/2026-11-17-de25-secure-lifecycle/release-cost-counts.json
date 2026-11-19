@@ -1,0 +1,14 @@
+{
+  "scope": "synthetic-source-release-operation-count-v1",
+  "source_sha256": "f91cb62741859cb42b79ce86bb00d91ff084776f23a08a17d7d4f0fb35f73d76",
+  "counts": [
+    "MODEL source=4 target=10 reads=296 loads=10240",
+    "MODEL source=10 target=15 reads=3176 loads=10240"
+  ],
+  "hardware_actions": false,
+  "physical_latency_attribution": false,
+  "limitations": [
+    "Only SMMU READ32 and table LOAD64 callback counts, not all CPU/USB/SD checks.",
+    "Synthetic 128-byte payload and injected hardware/hash state."
+  ]
+}

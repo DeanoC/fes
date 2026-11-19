@@ -6,9 +6,15 @@
 #define NANO_SOURCE_RELEASE_US 1000000U
 static struct {
  struct nano_sdm_input_binding binding;
- uint64_t target,start,last;
+ uint64_t target,start,last,observed,bad_address,bad_value;
+ int clock_error;
  unsigned attempted,active,failed,released;
 } sdm_release;
+static int sdm_release_mismatch(uint64_t address,uint64_t value)
+{
+ if(!sdm_release.bad_address){sdm_release.bad_address=address;sdm_release.bad_value=value;}
+ return 0;
+}
 static int sdm_release_clock(void)
 {
  if(!sdm_release.attempted || !sdm_release.active || sdm_release.failed ||
@@ -19,9 +25,16 @@ static int sdm_release_clock(void)
     configuration.generation!=sdm_release.binding.generation ||
     configuration.source_release_attempted!=1 || configuration.source_released ||
     configuration.source_release_source!=sdm_release.binding.generation ||
-    configuration.source_release_generation!=sdm_release.target)return -13;
+    configuration.source_release_generation!=sdm_release.target){
+  if(!sdm_release.clock_error)sdm_release.clock_error=-13;
+  return -13;
+ }
  uint64_t now=FES_PROBE_COUNTER()/400U;
- if(now<sdm_release.last || now-sdm_release.start>=NANO_SOURCE_RELEASE_US)return -110;
+ sdm_release.observed=now;
+ if(now<sdm_release.last || now-sdm_release.start>=NANO_SOURCE_RELEASE_US){
+  if(!sdm_release.clock_error)sdm_release.clock_error=now<sdm_release.last ? -34:-110;
+  return -110;
+ }
  sdm_release.last=now;return 0;
 }
 static int release_observer_owns(void *context)
@@ -45,6 +58,14 @@ int fes_nano_sdm_source_release_ready(const struct nano_sdm_input_binding *bindi
 }
 static int source_release_stop(void)
 {
+ /* Snapshot only: no new counter, MMIO, table or ownership callbacks after
+  * failure. In particular, logging cannot extend the release deadline. */
+ NOTICE("FES_NANO_SOURCE_RELEASE_FAIL owner=%llx source_generation=%llu generation=%llu stage=%u clock_error=%d scope_reason=%u start_us=%llu last_us=%llu observed_us=%llu bad_address=%llx bad_value=%llx retained=1 reuse_authorized=0\n",
+  (unsigned long long)sdm_release.binding.owner,(unsigned long long)sdm_release.binding.generation,
+  (unsigned long long)sdm_release.target,fes_nano_sdm_transfer_release_stage(),sdm_release.clock_error,
+  sdm_probe_scope_reason,(unsigned long long)sdm_release.start,(unsigned long long)sdm_release.last,
+  (unsigned long long)sdm_release.observed,(unsigned long long)sdm_release.bad_address,
+  (unsigned long long)sdm_release.bad_value);
  sdm_release.failed=1;sdm_release.active=0;sdm_source_stop(35);return -13;
 }
 int fes_nano_platform_release_source(struct fes_nano_configuration *c,uint64_t owner,uint64_t generation)
@@ -67,6 +88,7 @@ int fes_nano_platform_release_source(struct fes_nano_configuration *c,uint64_t o
  return 1;
 }
 #else
+static int sdm_release_mismatch(uint64_t address,uint64_t value){(void)address;(void)value;return 0;}
 static int sdm_release_clock(void){return -13;}
 int fes_nano_sdm_source_release_ready(const struct nano_sdm_input_binding *binding,unsigned tables)
 {(void)binding;(void)tables;return 0;}

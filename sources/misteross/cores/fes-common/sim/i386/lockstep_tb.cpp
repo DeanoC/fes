@@ -132,6 +132,9 @@
 //             (run_no387_cases): every form in real and protected mode,
 //             their faults, #NM, FNSTENV's and FNSAVE's layouts and FPU
 //             detection routines, under the no-387 rule (EscStep).
+//   i486      the directed 486 cases, read from stdin, against the level-4
+//             oracle (run_i486_cases). Every other mode needs the level-3
+//             oracle and refuses the level-4 one.
 // FES_I386_X87=387 fits the oracle's 387 as on an AT (x87_fitted): the no-387
 // rule is off and a run stops as not built (unbuilt 387) at its first ESC or
 // WAIT. Unset or "none", the CPU has an empty socket. The testbench reads it
@@ -203,6 +206,10 @@ bool debug_programs = false;
 // joins the rule with the RTL's 387. Without it the lockstep is as before.
 bool x87_fitted = false;
 constexpr int UNBUILT_X87 = 387;
+// The level-4 oracle (scripts/fes_i486_oracle.py; README, "The level-4
+// oracle"). Only the i486 mode runs against it, and that mode against no
+// other: every other mode's rules are a 386's against Bochs's level 3.
+bool i486 = false;
 // The 387's state is compared from this EIP on. A directed program's
 // prologue writes all eight registers and empties them, so that both sides
 // start its body with the same register contents; before that they differ,
@@ -221,6 +228,8 @@ bool in_rom(uint32_t paddr) { return mixed && paddr >= ROM_LO && paddr < HOLE_LO
 bool in_hole(uint32_t paddr) { return mixed && paddr >= HOLE_LO && paddr < HOLE_HI; }
 uint32_t window_top() { return mixed ? HOLE_HI : MMIO_HI; }  // code stays clear of the window below this
 constexpr uint32_t EFLAGS_MASK = 0x0003ffff;
+constexpr uint32_t EFLAGS_486_MASK = EFLAGS_MASK | (1u << 18) | (1u << 21);
+uint32_t eflags_comparison_mask() { return i486 ? EFLAGS_486_MASK : EFLAGS_MASK; }
 constexpr int EVENT_CYCLES = 20000;  // an RTL retirement or fault must come within this many cycles
                                      // (a REP string of 63 elements, each missing in both caches)
 constexpr int GOVERNED_EVENT_CYCLES = 80000;  // ... under a preset, whose ISA bus time holds a REP string of
@@ -529,7 +538,7 @@ public:
     // TR4-TR7 as the RTL keeps them (#1730), which Bochs at CPU level 3 has
     // not: what MOV TRn writes, read back by MOV r32, TRn (lockstep's
     // tr_rule). Reset clears them, as it clears the RTL's.
-    std::array<uint32_t, 4> trn{};
+    std::array<uint32_t, 5> trn{};  // TR4-TR7; with the level-4 oracle TR3-TR7
 
     // Reset with this architectural state.
     void start(const State &s) {
@@ -871,7 +880,7 @@ public:
     State state() const {
         State s;
         for (int n = 0; n < 8; ++n) s.gpr[n] = top.arch_gpr[n];
-        s.eflags = top.arch_eflags & EFLAGS_MASK;
+        s.eflags = top.arch_eflags & eflags_comparison_mask();
         s.cr0 = top.arch_cr0;
         s.cr2 = top.arch_cr2;
         s.cr3 = top.arch_cr3;
@@ -1281,12 +1290,15 @@ bool clear_of_window(uint32_t a) { return a + 16 <= MMIO_LO || a >= window_top()
 // Bochs's 387 forces ET (a known limit), and the bits Bochs's 386 reads as
 // ones are left as a state loads them (the corpus's 386EX reads bit 16 as 0).
 constexpr uint32_t CR0_MASK = 0x8000000fu;
+constexpr uint32_t CR0_486_MASK = 0xe005003fu;
+uint32_t cr0_comparison_mask() { return i486 ? CR0_486_MASK : CR0_MASK; }
 
 // RTL against the oracle, leaving out skip's fields.
 void compare(const State &want, const State &got, const Fields &skip, const std::string &at, Mismatches &out) {
     if (skip.all) return;
     if (!skip.has("eip") && want.eip != got.eip) out.add(at + "eip", want.eip, got.eip);
-    if ((want.cr0 ^ got.cr0) & CR0_MASK) out.add(at + "cr0", want.cr0 & CR0_MASK, got.cr0 & CR0_MASK);
+    const uint32_t cr0_mask = cr0_comparison_mask();
+    if ((want.cr0 ^ got.cr0) & cr0_mask) out.add(at + "cr0", want.cr0 & cr0_mask, got.cr0 & cr0_mask);
     // The CPL, in protected mode (real mode's is 0 on both sides).
     if ((want.cr0 & 1) && want.cpl != got.cpl) out.add(at + "cpl", want.cpl, got.cpl);
     // LDTR and TR, with their caches; LDTR's valid bit (a null LLDT clears
@@ -1311,7 +1323,7 @@ void compare(const State &want, const State &got, const Fields &skip, const std:
         out.add(at + "idtr", uint64_t(want.idtr.base) << 16 | want.idtr.limit, uint64_t(got.idtr.base) << 16 | got.idtr.limit);
     for (int n = 0; n < 8; ++n)
         if (!skip.has(GPR_NAMES[n]) && want.gpr[n] != got.gpr[n]) out.add(at + GPR_NAMES[n], want.gpr[n], got.gpr[n]);
-    const uint32_t mask = EFLAGS_MASK & ~skip.eflags;
+    const uint32_t mask = eflags_comparison_mask() & ~skip.eflags;
     if ((want.eflags & mask) != (got.eflags & mask)) out.add(at + "eflags", want.eflags & mask, got.eflags & mask);
     for (int n = 0; n < 6; ++n) {
         if (skip.has(SEG_NAMES[n])) continue;
@@ -1328,7 +1340,8 @@ void compare(const State &want, const State &got, const Fields &skip, const std:
 void adopt(State &oracle_state, const State &rtl, const Fields &fields) {
     if (fields.all) {
         for (int n = 0; n < 8; ++n) oracle_state.gpr[n] = rtl.gpr[n];
-        oracle_state.eflags = (oracle_state.eflags & ~EFLAGS_MASK) | (rtl.eflags & EFLAGS_MASK);
+        const uint32_t mask = eflags_comparison_mask();
+        oracle_state.eflags = (oracle_state.eflags & ~mask) | (rtl.eflags & mask);
         oracle_state.eip = rtl.eip;
         // A segment whose cache agrees keeps the oracle's valid bit: the
         // RTL's state gives valid from P, which a data segment an outer
@@ -2571,6 +2584,9 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // (rtl.trn) give a read's result, set on the oracle after the step,
         // or take a write's value. A LOCK is #UD on both sides as written.
         std::vector<std::pair<unsigned, uint8_t>> undoc;
+        // A 486 has TR3 too (PRM 21.3.3), and Bochs's level 4 still rejects
+        // every MOV TRn.
+        const unsigned tr_first = i486 ? 3 : 4;
         int tr_read = -1, tr_write = -1;  // the TR4-TR7 index a CPL-0 MOV TRn reads or writes
         unsigned tr_rm = 0;
         {
@@ -2581,13 +2597,13 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             if (!lock && !v86_gp && code[k] == 0x0f && (code[k + 1] & 0xfc) == 0x10) {
                 undoc = {{k, 0xf3}, {k + 1, uint8_t(0x88 | (code[k + 1] & 3))}};
                 ++summary.divergences["umov"];
-            } else if (!lock && !v86_gp && code[k] == 0x0f && (code[k + 1] == 0x24 || code[k + 1] == 0x26) && reg >= 4) {
+            } else if (!lock && !v86_gp && code[k] == 0x0f && (code[k + 1] == 0x24 || code[k + 1] == 0x26) && reg >= tr_first) {
                 tr_rm = code[k + 2] & 7;
                 if ((before.cr0 & 1) && (before.cpl != 0 || (before.eflags & 0x20000))) {
                     undoc = {{k + 1, 0x20}, {k + 2, uint8_t(0xc0 | tr_rm)}};
                 } else {
                     undoc = {{k, 0xf3}, {k + 1, 0x89}, {k + 2, uint8_t(0xc0 | tr_rm << 3 | tr_rm)}};
-                    (code[k + 1] == 0x24 ? tr_read : tr_write) = int(reg - 4);
+                    (code[k + 1] == 0x24 ? tr_read : tr_write) = int(reg - tr_first);
                 }
                 ++summary.divergences["mov-tr"];
             }
@@ -7687,8 +7703,13 @@ int run_test386(fes_i386::Oracle &oracle, Rtl &rtl) {
 // operands, which must not be read. 0F 0D and INVLPG are not here: Bochs
 // runs them (divergences.toml ud-0f0d, ud-invlpg), and the unbuilt sweep
 // checks the RTL's #UD alone.
-std::vector<std::pair<std::string, std::vector<uint8_t>>> ud_probes16() {
-    return {
+// For a 486 (i486_identity, the i486 mode) the list leaves out what a 486
+// defines: CPUID, INVD, CMPXCHG, BSWAP and MOV TR3. MOV CR4 stays: the 486
+// identity has no VME, PVI or PSE and so no CR4 (Intel486 data book
+// 241731-002, 4.2.3.1), and the level-4 oracle is built to raise #UD for it
+// (scripts/fes_i486_oracle.py, gate_cr4_on_vme).
+std::vector<std::pair<std::string, std::vector<uint8_t>>> ud_probes16(bool i486_identity) {
+    std::vector<std::pair<std::string, std::vector<uint8_t>>> probes = {
         {"xbts", {0x0f, 0xa6, 0xc0}}, {"ibts", {0x0f, 0xa7, 0xc8}}, {"xbts-mem", {0x0f, 0xa6, 0x07}},
         {"0fff", {0x0f, 0xff, 0x00}}, {"ud2", {0x0f, 0x0b}}, {"0f05", {0x0f, 0x05}}, {"cpuid", {0x0f, 0xa2}},
         {"invd", {0x0f, 0x08}}, {"rdtsc", {0x0f, 0x31}}, {"cmpxchg", {0x0f, 0xb1, 0xc8}}, {"bswap", {0x0f, 0xc8}},
@@ -7705,6 +7726,13 @@ std::vector<std::pair<std::string, std::vector<uint8_t>>> ud_probes16() {
         // #1730: LOCK on ICEBP, UMOV and MOV TRn.
         {"lock-icebp", {0xf0, 0xf1}}, {"lock-umov-mem", {0xf0, 0x0f, 0x11, 0x07}}, {"lock-tr6", {0xf0, 0x0f, 0x24, 0xf0}},
     };
+    if (i486_identity) {
+        static const std::set<std::string> defined = {"cpuid", "invd", "cmpxchg", "bswap", "mov-tr3"};
+        probes.erase(std::remove_if(probes.begin(), probes.end(),
+                                    [](const auto &probe) { return defined.count(probe.first) != 0; }),
+                     probes.end());
+    }
+    return probes;
 }
 
 int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
@@ -8469,7 +8497,7 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     // of each kind, with prefixes, LOCK and memory operands.
     {
         static std::deque<std::string> labels;
-        for (const auto &[name, bytes] : ud_probes16()) {
+        for (const auto &[name, bytes] : ud_probes16(false)) {
             auto body = [bytes = bytes](Asm &a) { a.b.insert(a.b.end(), bytes.begin(), bytes.end()); };
             cases.push_back(Case{labels.emplace_back("ud-real-" + name).c_str(), body, 6, -1, {}, true});
             cases.push_back(Case{labels.emplace_back("ud-pm-" + name).c_str(), body, 6, -1, {}, false});
@@ -9838,7 +9866,7 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
                                          if (name == "bt0") a.op({0x01});
                                      }, 6, -1, -1, {{0x10, 0x20000 | W | U}}, {}, {}, r3});
             }
-        for (const auto &[name, bytes] : ud_probes16())
+        for (const auto &[name, bytes] : ud_probes16(false))
             cases.push_back(Case{labels.emplace_back("pg-ud-v86-" + name).c_str(), [=, bytes = bytes](Asm &a, uint32_t) {
                                      to_v86(a);
                                      a.b.insert(a.b.end(), bytes.begin(), bytes.end());
@@ -12760,6 +12788,108 @@ int run_unreal_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
     return 0;
 }
 
+// The CR0 the directed 486 cases start from: CD, NW, AM, WP, NE and ET set,
+// so that the 486 comparison mask (CR0_486_MASK) sees the same bits as the
+// RTL's 386, which reads bits 30-5 as ones (arch_cr0). AM matters only at
+// CPL 3 with AC set and WP only with paging on, so a case that needs either
+// clear writes CR0 itself, and that write is its probe.
+constexpr uint32_t I486_START_CR0 = 0x60050030u;
+
+// One directed 486 case, from 0000:1000 in real mode with SP 0F00h and
+// I486_START_CR0, to its HLT or its first delivered exception. image is
+// placed first and cleared after. expect_vector, when not -1, is the
+// exception the run must end at on both sides. Prints the case's line.
+void run_i486_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, Summary &summary, const std::string &label,
+                   const std::vector<std::pair<uint32_t, uint8_t>> &image, uint32_t code_end, int expect_vector) {
+    for (auto [address, value] : image) {
+        bus.ram[address] = rtl.poke(address, value);
+        oracle.invalidate(address, 1);
+    }
+    State state;
+    for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0);
+    state.eip = 0x1000;
+    state.gpr[fes_i386::REG_ESP] = 0x0f00;
+    state.cr0 = I486_START_CR0;
+    oracle.reset();
+    oracle.set_state(state);
+    rtl.start(state);
+    Mismatches out;
+    Outcome outcome;
+    try {
+        const std::vector<Entry> no_divergences;
+        outcome = lockstep(oracle, bus, rtl, no_divergences, Fields{}, 4096, true, summary, out, code_end);
+    } catch (const std::exception &error) {
+        out.add(std::string("oracle-error:") + error.what(), 0, 1);
+        oracle.reset();
+    }
+    if (out.items.empty() && outcome.limit) out.add("limit", 0, 1);
+    if (out.items.empty() && outcome.unbuilt >= 0) out.add("unbuilt", 0, uint32_t(outcome.unbuilt));
+    if (out.items.empty() && expect_vector >= 0 && outcome.exception != expect_vector)
+        out.add("ending", uint32_t(expect_vector), outcome.exception < 0 ? 0xffu : uint32_t(outcome.exception));
+    if (out.items.empty()) end_run(bus, rtl, outcome.halted, out);
+    summary.cycles += rtl.cycles;
+    rtl.cycles = 0;
+    for (auto [address, value] : image) {
+        (void)value;
+        bus.ram[address] = rtl.poke(address, 0);
+        oracle.invalidate(address, 1);
+    }
+    for (uint32_t address : rtl.written) {
+        if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
+        oracle.invalidate(address, 1);
+    }
+    rtl.written.clear();
+    ++summary.runs;
+    ++summary.passed;
+    if (out.items.empty()) std::cout << "I486 " << label << " agree\n";
+    else std::cout << "I486 " << label << " stop " << out.items.front() << '\n';
+}
+
+// The i486 mode, against the level-4 oracle. First the directed 486 cases
+// (scripts/fes_i486_cases.py), from stdin, one a line: a label, the address
+// of the case's probe (the first instruction that needs a 486; 0 for none)
+// and the bytes to place, as address:hex runs. Then the #UD probes a 486
+// keeps (ud_probes16(true)), each alone in real mode, labelled ud-<name>,
+// which must end at exception 6 on both sides. The RTL is a 386 until the
+// 486 identity is built, so a case is not a pass or a fail here: this
+// prints, for the runner to hold against its list of expected stops,
+//   I486 <label> agree                       the RTL kept step to the end
+//   I486 <label> stop @<eip>.<field> <oracle> <rtl>   the first mismatch
+// The state comparison uses the 486's CR0 and EFLAGS masks (CR0_486_MASK,
+// EFLAGS_486_MASK). The 486 identity has no CR4.
+int run_i486_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, Summary &summary) {
+    std::string line;
+    while (std::getline(std::cin, line)) {
+        std::istringstream words(line);
+        std::string label, probe, runs;
+        if (!(words >> label >> probe >> runs)) continue;
+        std::vector<std::pair<uint32_t, uint8_t>> image;
+        uint32_t code_end = 0;
+        for (const std::string &run : split(runs, ';')) {
+            const size_t colon = run.find(':');
+            if (colon == std::string::npos || (run.size() - colon - 1) % 2) throw std::runtime_error("bad image: " + label);
+            const uint32_t address = uint32_t(std::stoul(run.substr(0, colon), nullptr, 16));
+            const uint32_t length = uint32_t((run.size() - colon - 1) / 2);
+            if (address + length > RAM_BYTES) throw std::runtime_error("image outside RAM: " + label);
+            for (uint32_t n = 0; n < length; ++n)
+                image.emplace_back(address + n, uint8_t(std::stoul(run.substr(colon + 1 + 2 * n, 2), nullptr, 16)));
+            if (address == 0x1000) code_end = address + length;
+        }
+        run_i486_case(oracle, bus, rtl, summary, label, image, code_end, -1);
+    }
+    // Each probe at 1000h with a HLT after it; vectors 0-31 lead to the HLT at 1800h.
+    for (const auto &[name, bytes] : ud_probes16(true)) {
+        std::vector<std::pair<uint32_t, uint8_t>> image;
+        for (uint32_t vector = 0; vector < 32; ++vector)
+            for (uint32_t n = 0; n < 4; ++n) image.emplace_back(vector * 4 + n, n == 0 ? 0x00 : n == 1 ? 0x18 : 0x00);
+        image.emplace_back(0x1800, 0xf4);
+        for (size_t n = 0; n < bytes.size(); ++n) image.emplace_back(0x1000 + uint32_t(n), bytes[n]);
+        image.emplace_back(0x1000 + uint32_t(bytes.size()), 0xf4);
+        run_i486_case(oracle, bus, rtl, summary, "ud-" + name, image, 0x1001 + uint32_t(bytes.size()), 6);
+    }
+    return 0;
+}
+
 // The memory system's ports the lockstep does not drive: DMA and FLUSH. Each
 // case runs a program from 0000:1000 in real mode with the RTL alone, makes
 // its request part way, and checks what the CPU or DDR shows after it.
@@ -13407,6 +13537,9 @@ int main(int argc, char **argv) {
 
     OracleBus bus;
     std::unique_ptr<fes_i386::Oracle> oracle = fes_i386::make_oracle(bus);
+    i486 = oracle->name() == "bochs-level4";
+    if (i486 != (mode == "i486"))
+        throw std::runtime_error(i486 ? "the level-4 oracle runs only FES_I386_MODE=i486" : "FES_I386_MODE=i486 needs the level-4 oracle");
     if (const char *x87 = std::getenv("FES_I386_X87")) {
         if (std::string(x87) != "387" && std::string(x87) != "none")
             throw std::runtime_error("FES_I386_X87 is 387 or none");
@@ -13482,6 +13615,8 @@ int main(int argc, char **argv) {
         return run_test386(*oracle, rtl);
     } else if (mode == "unbuilt") {
         run_unbuilt(*oracle, bus, rtl, entries, summary);
+    } else if (mode == "i486") {
+        run_i486_cases(*oracle, bus, rtl, summary);
     } else if (mode == "memory") {
         run_memory_cases(rtl, summary);
     } else if (mode == "governor") {

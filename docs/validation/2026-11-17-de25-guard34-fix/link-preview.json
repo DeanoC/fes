@@ -1,0 +1,38 @@
+{
+  "classification": "unadmitted-off-board-link-preview",
+  "historical_source": "e04af2f8a55263644422a412bd02ba69dea58b1c",
+  "selected_current_sources": {
+    "input_transfer_service.c": "bae2a6a7b8cb40c8e9aa0df6403f862ab528576e32716d02e2545345374438e0",
+    "input_transfer_service.h": "c6ef988d19216786420ffd2aeb89402b7668a7d68aa260f39cfaa1f00d415340",
+    "nano_sdm_source_platform.inc": "fed47683ac6f5cbb9487531b9f68aa0cd84792fe3e333025a7a637550275ec10",
+    "nano_sdm_control_platform.inc": "b624ab89ac265bd5d161aef33930e13b5bf57de952fbc7d1e5a55fb2dd6b3e3b",
+    "nano_sdm_release_platform.inc": "6d8616b7e724fcbb2f8551707f98309eadbfc4fa6eb46fbf50df8fb9a7cc3bf8"
+  },
+  "argv": [
+    "/usr/bin/make",
+    "-j",
+    "2",
+    "PLAT=agilex5",
+    "BUILD_STRING=fes-guard34-fixed-preview",
+    "CROSS_COMPILE=/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+    "bl31",
+    "SEPARATE_NOBITS_REGION=1"
+  ],
+  "returncode": 0,
+  "hardware_actions": false,
+  "limitations": [
+    "Old generated profile/source hashes are intentionally not admitted for this private preview.",
+    "Not a matched SDK/boot artifact; never program this ELF."
+  ],
+  "elf_sha256": "7fa0e4b7bc7b1b805fa092f39840a3a0590c65e69fabf9015b4cf3f55d6e6a72",
+  "symbols": [
+    "0000000000050000 B __STACKS_START__",
+    "0000000000058000 B __BSS_START__",
+    "0000000000058000 B __STACKS_END__",
+    "0000000000058880 b sdm_release",
+    "000000000005ff4e b release_stage",
+    "000000000005ff80 B __BSS_END__",
+    "0000000080013520 t sdm_release_clock",
+    "0000000080028bf8 T fes_nano_sdm_transfer_release_stage"
+  ]
+}

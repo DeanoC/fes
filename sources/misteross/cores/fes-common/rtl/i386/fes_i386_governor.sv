@@ -61,6 +61,7 @@ module fes_i386_governor #(
     input  logic               taken,
     input  fes_i386_pkg::gov_t gov,
     input  logic               imul_safe,  // issue and retirement satisfy the diagnostic's 286 guard
+    input  logic               rep_io_safe, // canonical segment caches and aligned word RAM
     input  logic [3:0]         ilen,
     input  logic               redirect,
     input  logic               abandon,
@@ -126,7 +127,7 @@ module fes_i386_governor #(
 
     // WB's retirement, as it happens.
     logic                  s1_boundary, s1_eoi, s1_element, s1_taken, s1_dword;
-    logic                  s1_redirect, s1_abandon, s1_preserve_de, s1_replay, s1_ordinary_ram, s1_imul_safe;
+    logic                  s1_redirect, s1_abandon, s1_preserve_de, s1_replay, s1_ordinary_ram, s1_imul_safe, s1_rep_io_safe;
     logic [3:0]            s1_ilen;
     fes_i386_pkg::gov_t    s1_gov;
     logic [1:0]            s1_accesses;
@@ -149,6 +150,7 @@ module fes_i386_governor #(
         s1_dword <= dword;
         s1_ordinary_ram <= ordinary_ram;
         s1_imul_safe <= imul_safe;
+        s1_rep_io_safe <= rep_io_safe;
         s1_io <= on && io;
         s1_io_port <= io_port;
         s1_io_size <= io_size;
@@ -193,7 +195,7 @@ module fes_i386_governor #(
     logic [3:0]  s2_ilen;
     fes_i386_pkg::gov_t s2_gov;
     logic [7:0] data_bus_acc, s2_data_bus;
-    logic ordinary_ram_acc;
+    logic ordinary_ram_acc, rep_io_safe_acc, s2_rep_io_safe;
     logic [9:0] data_bus_sum;
     assign data_bus_sum = 10'(data_bus_acc) + (10'(s1_accesses) << (s1_dword ? 2 : 1));
     logic [4:0]  s2_memory;
@@ -211,15 +213,20 @@ module fes_i386_governor #(
         s2_preserve_de <= s1_preserve_de;
         s2_ilen <= s1_ilen;
         s2_ordinary_ram <= ordinary_ram_acc && (s1_accesses == 0 || s1_ordinary_ram);
+        s2_rep_io_safe <= rep_io_safe_acc && s1_rep_io_safe;
         s2_imul_safe <= s1_imul_safe;
         s2_gov <= s1_gov;
         s2_data_bus <= data_bus_sum > 10'd255 ? 8'hff : data_bus_sum[7:0];
         if (reset || s1_abandon || s1_replay || !on || s1_boundary) begin
             data_bus_acc <= 8'd0;
             ordinary_ram_acc <= 1'b1;
+            rep_io_safe_acc <= 1'b1;
         end else begin
             data_bus_acc <= data_bus_sum > 10'd255 ? 8'hff : data_bus_sum[7:0];
-            if (s1_accesses != 0) ordinary_ram_acc <= ordinary_ram_acc && s1_ordinary_ram;
+            if (s1_accesses != 0) begin
+                ordinary_ram_acc <= ordinary_ram_acc && s1_ordinary_ram;
+                rep_io_safe_acc <= rep_io_safe_acc && s1_rep_io_safe;
+            end
         end
     end
 
@@ -232,7 +239,7 @@ module fes_i386_governor #(
     logic [7:0] refill_execution;
     logic [12:0] reference_fetch;
     logic [5:0] reference_prefix;
-    logic       rep_active, reference_on, reference_first, reference_chunkable, reference_chunk_restart;
+    logic       rep_active, reference_on, reference_first, reference_chunkable, reference_chunk_restart, reference_rep_io;
     logic [7:0] reference_element;
     logic [7:0] reference_chunk_clocks;
     assign reference_on = REFERENCE_DIAGNOSTIC && on && p_id == 3'd1;
@@ -271,11 +278,19 @@ module fes_i386_governor #(
          s2_gov.op == 8'haa || s2_gov.op == 8'hab ||
          s2_gov.op == 8'hac || s2_gov.op == 8'had ||
          s2_gov.op == 8'hae || s2_gov.op == 8'haf);
+    // The 286 reference re-decodes each REP I/O element. The measured
+    // diagnostic covers a single F3 in 16-bit real mode and ordinary RAM.
+    // Its unhandled-port model is different; keep the existing ISA charge.
+    assign reference_rep_io = reference_on && s2_gov.rep && !s2_gov.two && !s2_gov.o32 &&
+                              s2_gov.ref_real_mode && s2_gov.ref_rep_f3 && s2_gov.ref_prefix_count == 4'd1 &&
+                              s2_gov.prefix286 == 6'd2 && s2_ordinary_ram && s2_rep_io_safe &&
+                              s2_gov.op >= 8'h6c && s2_gov.op <= 8'h6f;
     assign reference_chunk_restart = rep_active && reference_chunkable && reference_chunk_clocks > 8'd100;
-    assign reference_first = !rep_active || reference_chunk_restart || s2_gov.rep && !s2_gov.two &&
+    assign reference_first = !rep_active || reference_chunk_restart || reference_rep_io || s2_gov.rep && !s2_gov.two &&
                              (s2_gov.op == 8'ha6 || s2_gov.op == 8'ha7);
     always_comb begin
         reference_element = word[15:8];
+        if (reference_rep_io) reference_element = s2_gov.op[1] ? 8'd14 : 8'd15;
         if (reference_on && s2_gov.rep && !s2_gov.two &&
             (s2_gov.op == 8'haa || s2_gov.op == 8'hab || s2_gov.op == 8'hac || s2_gov.op == 8'had))
             reference_element = 8'd5;
@@ -377,6 +392,7 @@ module fes_i386_governor #(
         if (reference_on && s2_ends && !s2_gov.two && !s2_gov.o32 && !s2_gov.ref_test_excluded &&
             !s2_gov.ea3 && s2_imul_safe && s2_ordinary_ram && (s2_gov.op == 8'h69 || s2_gov.op == 8'h6b))
             execution_clocks = s2_gov.rm_reg ? 9'd14 : 9'd17;
+        if (reference_rep_io && s2_ends) execution_clocks = 9'd0;
         if (reference_zero_shift) execution_clocks = 9'd0;
         if (s2_element) execution_clocks = execution_clocks + {1'b0, reference_element};
     end

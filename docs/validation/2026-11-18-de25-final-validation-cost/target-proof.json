@@ -1,0 +1,78 @@
+{
+  "status": "passed-target-reset-controller-order-and-layout-audit",
+  "source": "b219e3920b32de39a5421dc7a3b2d479ac5c27c4",
+  "artifacts": {
+    "before": {
+      "elf_sha256": "04dbdacf515e592dd66d2f72973bfa87e9687ac40b97f503daec316e1a0bfddb",
+      "symbols": {
+        "__STACKS_START__": "0x50000",
+        "__STACKS_END__": "0x58000",
+        "__BSS_END__": "0x5ff80",
+        "__RO_START__": "0x80000000"
+      },
+      "ocram_margin_bytes": 128,
+      "assembly": {
+        "contained_read": {
+          "symbol": "contained_read",
+          "path": "/home/deano/fes/out/dev/de25-secure-lifecycle/out/operations/final-usb-target-before-contained_read.s",
+          "sha256": "e1a4eeff44fe85f63db044bf98d8e313724901b7c43c020eea41ca0d143ae9ff"
+        },
+        "read_reg": {
+          "symbol": "read_reg",
+          "path": "/home/deano/fes/out/dev/de25-secure-lifecycle/out/operations/final-usb-target-before-read_reg.s",
+          "sha256": "e9d52404eb7b4822a53237b1eab391948c789d35d1674dc10b40a1c3acc7d7c4"
+        },
+        "usb_barrier": {
+          "symbol": "usb_barrier",
+          "path": "/home/deano/fes/out/dev/de25-secure-lifecycle/out/operations/final-usb-target-before-usb_barrier.s",
+          "sha256": "b313b047c602e5f47d994599c3aab138103201b142a5b5630d35df43c32389db"
+        },
+        "fes_nano_sdm_source_validate": {
+          "symbol": "fes_nano_sdm_source_validate",
+          "path": "/home/deano/fes/out/dev/de25-secure-lifecycle/out/operations/final-usb-target-before-fes_nano_sdm_source_validate.s",
+          "sha256": "8805d93740b52b9dec8e4622b22b3ee8ba1adb7d67d3f4649b2d062a71c7a26f"
+        }
+      }
+    },
+    "after": {
+      "elf_sha256": "a77604426252db752e445c3c017381615cf1e44fd46016db3f1ee35ab704125d",
+      "symbols": {
+        "__STACKS_START__": "0x50000",
+        "__STACKS_END__": "0x58000",
+        "__BSS_END__": "0x5ff80",
+        "__RO_START__": "0x80000000"
+      },
+      "ocram_margin_bytes": 128,
+      "assembly": {
+        "contained_read": {
+          "symbol": "contained_read",
+          "path": "/home/deano/fes/out/dev/de25-secure-lifecycle/out/operations/final-usb-target-after-contained_read.s",
+          "sha256": "9ad3aa75433566e788ebe87f30222841634f89f35af2629ffabe55a3d9f6aefa"
+        },
+        "read_reg": {
+          "symbol": "read_reg",
+          "path": "/home/deano/fes/out/dev/de25-secure-lifecycle/out/operations/final-usb-target-after-read_reg.s",
+          "sha256": "d69707c5150ceca48d535247244dabb4e1413e40c3ef57288cb430081e7a50fd"
+        },
+        "usb_barrier": {
+          "symbol": "usb_barrier",
+          "path": "/home/deano/fes/out/dev/de25-secure-lifecycle/out/operations/final-usb-target-after-usb_barrier.s",
+          "sha256": "1dc93219009c74849e4c34b4700a586d17ff4ef60a97609d41192791eeaf968f"
+        },
+        "fes_nano_sdm_source_validate": {
+          "symbol": "fes_nano_sdm_source_validate",
+          "path": "/home/deano/fes/out/dev/de25-secure-lifecycle/out/operations/final-usb-target-after-fes_nano_sdm_source_validate.s",
+          "sha256": "4790cc52f482c4f7e0356eb740d530adc3e6ffff46b9cd5d1e3553e8418c33ba"
+        }
+      }
+    }
+  },
+  "hardware_actions": false,
+  "contained_read_frame_bytes": 64,
+  "unchanged_reset_read_helper": true,
+  "reset_helper_barrier_calls": 2,
+  "controller_closing_barrier_calls": 1,
+  "before_total_barrier_calls_per_pair": 4,
+  "after_total_barrier_calls_per_pair": 3,
+  "all_table_ownership_call_sites_retained": true
+}

@@ -37,6 +37,15 @@ int fes_nano_sdm_source_release_ready(const struct nano_sdm_input_binding *,unsi
 int fes_nano_sdm_transfer_release_source(const struct nano_sdm_input_binding *);
 /* Read the actual consumed source ledger; no copied release receipt is used. */
 int fes_nano_sdm_transfer_source_released(const struct nano_sdm_input_binding *);
+/* Diagnostic progress only; never a release/rearm capability. Values identify
+ * the last boundary entered, including on a sticky failure. */
+enum nano_sdm_release_stage {
+ NANO_RELEASE_FRESH, NANO_RELEASE_LEDGER,
+ NANO_RELEASE_TABLES_1, NANO_RELEASE_MAILBOX_1, NANO_RELEASE_VIEW_1,
+ NANO_RELEASE_TABLES_2, NANO_RELEASE_MAILBOX_2, NANO_RELEASE_VIEW_2,
+ NANO_RELEASE_FINAL_MAILBOX, NANO_RELEASE_COMMITTED
+};
+unsigned fes_nano_sdm_transfer_release_stage(void);
 int fes_nano_sdm_transfer_read(unsigned int *,uint32_t *,uint32_t *,unsigned int *);
 int fes_nano_sdm_transfer_response(int,uint32_t,uint32_t,uint32_t);
 int fes_nano_sdm_transfer_buffer(uint32_t,uint32_t);

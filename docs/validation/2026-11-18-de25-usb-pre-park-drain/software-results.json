@@ -1,0 +1,112 @@
+{
+  "usb-shutdown-native-r1": {
+    "argv": [
+      "go",
+      "-C",
+      "platform/embedded/tamago",
+      "test",
+      "-race",
+      "-count=1",
+      "-timeout",
+      "240s",
+      "./nativefabric",
+      "./usbcontrol",
+      "./dwc2"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-secure-lifecycle",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 174.89470578706823,
+    "log_sha256": "872cf71ecc2d0e0af1cc529f7360e0ebe123c7c3426684626d1c51c2346fa01d"
+  },
+  "usb-shutdown-app-r1": {
+    "argv": [
+      "go",
+      "-C",
+      "platform/embedded/tamago",
+      "test",
+      "-count=1",
+      "-run",
+      "TestMenuProgramFullTenfoot|TestBackendFinalPark|TestOwnedFinalClose",
+      "./nativefabric",
+      "./dwc2"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-secure-lifecycle",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 6.807102262042463,
+    "log_sha256": "c1002796da440f59239c7f6e10e2b5bbbc6b12cff35f5471643c8d89bdbb9844"
+  },
+  "usb-shutdown-observers-r2": {
+    "argv": [
+      "python3",
+      "-m",
+      "unittest",
+      "test_nano_paired_tenfoot_trace",
+      "test_nano_shared_tenfoot_trace",
+      "test_nano_installer_client",
+      "test_nano_installer_cycle",
+      "-v"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-secure-lifecycle",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 1.6014161380007863,
+    "log_sha256": "09e152c64e483cc134a20ddb43760a4ae32e85f7f409a3dc6ac162fe9c24ed2c"
+  },
+  "usb-shutdown-policy-r1": {
+    "argv": [
+      "python3",
+      "out/operations/audit-usb-shutdown-policy.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-secure-lifecycle",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 1.0009868210181594,
+    "log_sha256": "370af821d117f29f03275e165c1f570451acc0451bffe4ad74584ec26f547871"
+  },
+  "usb-shutdown-chain-r1": {
+    "argv": [
+      "python3",
+      "out/operations/build-usb-shutdown-chain.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-secure-lifecycle",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 777.036566935014,
+    "log_sha256": "26725c128fe81485dac107992267b4f493ea369d14060f65cd38e4116d500b79"
+  },
+  "usb-shutdown-affected-r1": {
+    "argv": [
+      "python3",
+      "scripts/test_changed.py",
+      "--base",
+      "b1da19d215b98dec314aa881f87d4c2d95dada1a"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-secure-lifecycle",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 806.8485389631242,
+    "log_sha256": "4a320ed4e0583d4874c5188002b5204141e8b684f94d95fa45a0b9d1ded5ad71"
+  },
+  "usb-shutdown-post-completion-repro-r2": {
+    "argv": [
+      "go",
+      "-C",
+      "platform/embedded/tamago",
+      "test",
+      "-overlay",
+      "/home/deano/fes/out/dev/de25-secure-lifecycle/out/operations/usb-shutdown-post-completion-overlay.json",
+      "-count=1",
+      "-run",
+      "TestObservedPostCompletionFailureReproduction",
+      "-v",
+      "./nativefabric"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-secure-lifecycle",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 1.6061572490725666,
+    "log_sha256": "5ebbafd699ec45b25fae268afcc9a6cee2ecb0a4e385a503288c6a95472cfb6a"
+  }
+}

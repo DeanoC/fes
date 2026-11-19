@@ -340,7 +340,7 @@ def check_lockstep_metadata(root: Path, data: bytes, yosys: board.AuthenticatedT
             or any(measured_oracle.get(key) != value for key, value in expected_oracle.items())):
         raise board.BuildError(f"lockstep report's oracle identity {measured_oracle!r} is not {expected_oracle!r}")
     linked = measured_oracle["linked_sha256"]
-    if (not isinstance(linked, dict) or set(linked) != set(i386_oracle.LINKED_NAMES)
+    if (not isinstance(linked, dict) or set(linked) != set(LINKED_NAMES)
             or not all(valid_sha256(value) for value in linked.values())
             or not valid_sha256(measured_oracle["testbench_sha256"])):
         raise board.BuildError("lockstep report's oracle binary digests are missing or invalid")
@@ -394,8 +394,11 @@ def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = No
             actual_qsf = (project / "top.qsf").read_text(encoding="utf-8").replace(build_id, "0" * 32)
             if hashlib.sha256(actual_qsf.encode()).hexdigest() != json.loads(record)["parameters"]["quartus_qsf_sha256"]:
                 raise board.BuildError("Quartus project differs from the canonical record")
-            rom = firmware_rom(root)
+            # build_pc386_with_lockstep runs the firmware recipe first, as its
+            # own process; the seal checks its output against the pin.
+            rom = check_rom(root)
             elaborate_machine(root, output, project, tools["yosys"].path)
+            check_rom(root)
             run_quartus(paths["quartus"], paths["quartus"].parent.parent, project, output / "quartus.log")
             board._write_atomic(output / "quartus-version.log", (quartus_lock(root).version + "\n").encode())
             evidence = validate_build_evidence(output, project)

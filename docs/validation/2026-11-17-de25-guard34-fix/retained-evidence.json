@@ -1,0 +1,22 @@
+{
+  "status": "independently-verified-evidence-archives",
+  "archives": [
+    {
+      "name": "software.tar.gz",
+      "sha256": "f84c0808ea5f2b5e1c3b950984c93d1d8812f2216308670bc0876ffd623e107a",
+      "bytes": 30913710,
+      "verified_entries": 742,
+      "manifest_sha256": "793accc30b9a3b1388cd8dae467e57eba7df7f8155c84e378e4dc6c724382e19"
+    },
+    {
+      "name": "matched-boot-chain.tar.gz",
+      "sha256": "98afd54efd27911cdfc7f2d759576107524396fd9ef6c345c3520de3ee784cbd",
+      "bytes": 596547766,
+      "verified_entries": 46670,
+      "manifest_sha256": "6cf1cfe9c303490edf56ef2e242ebc655eeb517bca3e43aea744fd135f163335"
+    }
+  ],
+  "source_commit": "d3aefb4b95c7678eaa49e31a523810fa226903b2",
+  "hardware_actions": false,
+  "hardware_acceptance": false
+}

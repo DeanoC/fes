@@ -33,5 +33,9 @@
       "bytes": 32768,
       "sha256": "8522568e32a33b2f5649109260fec70b0b2cd0d80a6216ac7af6a1041c102e02"
     }
+  },
+  "rom_hex": {
+    "file": "pc386-rom.hex",
+    "sha256": "815620361ef28a2bbdd97b1964700a4678a26c0ffc9582bb95544473fe099d18"
   }
 }
