@@ -270,7 +270,7 @@
    "design": "611961f7042912d5a33492174ac624a8dd749d5a4800d9e14bee0ec640ec6d80",
    "policy": "design-v1"
   },
-  "revision": "6651d800aeb588cc2e0da00ae8fe21683b8cd911",
+  "revision": "b37c6eb0db8d500fd60fbb02294afd6488cf3874",
   "sealed_1951": {
    "design": "bb7369101d3a5a15d832f58af59c7123d918ae9510c914266b13909267eea38d",
    "validates": true
