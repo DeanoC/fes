@@ -117,23 +117,39 @@ func (a *App) setupSessionBusyLocked() bool {
 		a.developmentLoadingLocked() || a.gpuParked
 }
 
-// setLibraryStatusLocked keeps the setup action's explanation visible until
-// the blocking session ends, even when a background library refresh completes.
+// setLibraryStatusLocked records the library's own status line. The setup
+// action's explanation stays visible until the blocking session ends, then
+// gives way to the line it deferred. Any other open room keeps its own status
+// line; the library shows its line again when it next loads.
 func (a *App) setLibraryStatusLocked(status string) {
+	a.libraryStatus = status
 	if a.setupRoomOpenLocked() && a.status == setupBlockedStatus && a.setupSessionBusyLocked() {
 		a.setup.deferredLibraryStatus = status
+		return
+	}
+	if a.room != nil {
 		return
 	}
 	a.status = status
 }
 
+// setLibraryNoticeLocked shows the outcome of a user action, in a room too.
+// The setup action's explanation defers it until the blocking session ends.
+func (a *App) setLibraryNoticeLocked(notice string) {
+	if a.setupRoomOpenLocked() && a.status == setupBlockedStatus && a.setupSessionBusyLocked() {
+		a.setup.deferredLibraryStatus = notice
+		return
+	}
+	a.status = notice
+}
+
 // A refresh notice must inspect the underlying library result even while
-// the setup explanation temporarily owns the visible status.
+// the setup explanation or a room owns the visible status.
 func (a *App) libraryStatusForNoticeLocked() string {
 	if a.setupRoomOpenLocked() && a.status == setupBlockedStatus {
 		return a.setup.deferredLibraryStatus
 	}
-	return a.status
+	return a.libraryStatus
 }
 
 func (a *App) setupBlockedLocked() bool {

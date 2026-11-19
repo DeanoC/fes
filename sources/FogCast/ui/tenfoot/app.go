@@ -315,6 +315,7 @@ type App struct {
 	covers                  map[string]*coverSlot
 	inflight                map[string]workKind
 	status                  string
+	libraryStatus           string // the library's own line; an open room keeps status
 	statusLeaseRefusal      bool
 	launchLeaseRefusal      bool
 	loadErr                 string
@@ -1632,7 +1633,7 @@ func (a *App) doFavorite(ctx context.Context, gameID string, want bool) {
 		a.reloadLocked()
 		return
 	}
-	a.status = a.libraryStatusLocked()
+	a.setLibraryStatusLocked(a.libraryStatusLocked())
 }
 
 func (a *App) platformChoicesLocked() []string {
@@ -1677,7 +1678,7 @@ func (a *App) reloadCatalogWithNoticeLocked(notice string) {
 	ctx := a.replaceLoadContextLocked()
 	lastInput := a.lastInput
 	if notice != "" {
-		a.setLibraryStatusLocked(notice)
+		a.setLibraryNoticeLocked(notice)
 	}
 	go func() {
 		a.loadLibrary(ctx, gen)
@@ -1698,10 +1699,10 @@ func (a *App) reloadCatalogWithNoticeLocked(notice string) {
 func (a *App) setLibraryRefreshNoticeLocked(notice string) {
 	status := a.libraryStatusForNoticeLocked()
 	if a.loadErr != "" || status == savedListOfflineCopy || status == "Can't reach the library right now." {
-		a.setLibraryStatusLocked(notice + " Couldn't refresh the library.")
+		a.setLibraryNoticeLocked(notice + " Couldn't refresh the library.")
 		return
 	}
-	a.setLibraryStatusLocked(notice)
+	a.setLibraryNoticeLocked(notice)
 }
 
 func (a *App) replaceLoadContextLocked() context.Context {
