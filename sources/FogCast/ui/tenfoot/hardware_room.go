@@ -16,6 +16,9 @@ import (
 
 const hardwareRoomID = "example.hardware"
 const systemRoomID = "example.system"
+
+// coreRoomID is the core screen a v1 family tile on Home opens.
+const coreRoomID = "example.core"
 const colecoArcadeRoomID = "example.coleco-arcade"
 const colecoCoreID = "fes.coleco"
 const hardwareRoomFooterHeight = 52

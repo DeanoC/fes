@@ -1469,6 +1469,29 @@ the prior row position, clamped to the new list, if that game disappears. A
 failed refresh clears both the shelf rows and list widget so Set up cannot open
 a stale entry.
 
+The **core screen** (`example.core`, `widgets.core_screen`) is what Home opens
+for the ZX81, Spectrum, Atari ST and Commodore 64 families. It shows one
+family: a Model row for its variants, the computer with its readiness and
+fixed facts on the left, and its drive and games on the right. It reads the
+family with the `home_family` library query, the only one that marks a row as
+a machine entry or a title: the machine entry is listed first as the computer
+on its own, and the count is of titles. Home opens the screen with that
+machine entry's `game_id`, which is not a request for a game, so the screen
+returns to the model and game last browsed and otherwise starts on the first
+title. Each edition of
+a title is its own row and Confirm on a row launches that exact entry, or
+returns to it when it is the running game; it does not start over another
+running game. The drive row and its button use `hardware.open_media` for next
+start with the entry's package and media identity, and `session.open_tape`
+with the observed session for a running machine. An empty model offers
+`hardware.setup`. The ZX81 family adds **Expansions**, which opens
+`example.hardware` for the chosen entry. The screen keeps the workbench's
+standing first-use firmware request, its stale-query generations and its
+staged paint, and stores the last model per family and the last game per model.
+`example.system` still serves Systems, the other families and the in-session
+route. The disk shelf, new disks and the PC screens of the
+[design](../../../docs/ux/references/core-screens/README.md) are not built yet.
+
 The shared workbench chooses a system family, a hardware variant, a saved entry
 and a grouped title edition. `systems.families` and `systems.family_by_core`
 keep the ZX81 and Spectrum models in their respective families while retaining
@@ -1680,7 +1703,7 @@ selected by flag, saved preferences or `FOGCAST_HOME_ROOM` defaults to kit Home
 readiness, explanation and action in a large FES-owned panel
 (`ui/tenfoot/room_hero.go`, geometry `rooms.HeroPanel`), while the room draws
 the family tiles, artwork motifs and Home routes. Family Open enters the
-workbench; Play on a recent title starts that title. In the default scope,
+family's core screen or workbench; Play on a recent title starts that title. In the default scope,
 Settings is the only header route and Back at Home's root keeps Home open.
 Show all cores restores Library and Systems routes and the remaining families.
 Home retries each failed family read at most three times, after 1, 2 and 4
@@ -1897,8 +1920,9 @@ browse-only. This option does not install or select menu firmware in an image.
 The built-in room set contains Home, Systems, System setup and Sinclair setup.
 The last two are internal templates opened with an exact model/entry, excluded
 from room and default-home pickers. Release Home presents recent titles and
-computer-family tiles; opening a family enters its workbench, while Play on a
-recent title launches that title. Settings is its only header route in the default
+computer-family tiles; opening a family enters its core screen (PC/XT and PC 386:
+its workbench), while Play on a recent title launches that title. Settings is its
+only header route in the default
 scope. Show all cores restores Library and Systems routes and the remaining
 families. Back at release Home's root keeps Home open; the room picker is the
 fallback when Home cannot open. The old Lobby, Amiga Workbench, Mario, SNES,
@@ -3381,7 +3405,8 @@ order and restores the Library and Systems routes. The host Library remains
 complete in either scope.
 
 A family tile summarizes its models and readiness. Its Open action enters the
-matching workbench with a machine entry's `game_id` and `core_id`; it never
+family's core screen (`example.core`), or the matching workbench for a family
+outside v1, with a machine entry's `game_id` and `core_id`; it never
 launches a core directly. Add firmware enters the same workbench when a family
 has no ready model. Details groups the models by state and shows the library
 count. Recently played launches its selected title directly. On compact Home,

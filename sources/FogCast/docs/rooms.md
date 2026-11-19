@@ -359,14 +359,14 @@ copy and reports the id as `launcher_action`. There is no `rooms.action`
 call.
 
 `kind = "family"` is a computer family on Home. Confirm opens `room_id`,
-the family's workbench, on `core_id` and `game_id` (both optional; a
+the family's core screen or workbench, on `core_id` and `game_id` (both optional; a
 present `core_id` must be a safe token), where the model is chosen:
 
 ```lua
 destination.set{
   kind = "family",
   label = "Sinclair ZX81",
-  room_id = "example.hardware",
+  room_id = "example.core",
   core_id = "fes.zx81",
   game_id = machine.game_id,
   availability = "ready",   -- "checking", "ready" or "unavailable"
@@ -381,7 +381,7 @@ destination.set{
 The hero shows kicker "Computer", the models line, the state chip with the
 headline, the explanation, and Open (or Add firmware) and Details. Details
 shows the `details` lines inside the hero. Checking waits on Confirm; every
-other state opens the workbench, where a missing firmware is added.
+other state opens that room, where a missing firmware is added.
 
 `kind = "core"` is an installed package on this kit, not a library row:
 
@@ -587,6 +587,7 @@ directory separators inside the pack (`require "lib.paths"` →
 | `systems` | Registered model labels and family navigation (`families`, `family_by_core`); package manifests determine admission |
 | `families` | Home and first-run setup's shared computer order and readiness (`list`, `load(on_change)`, `reload`, `settled`, `state`, `tile`, `games`, `details`, `publish`, `on_kit`) plus shared art, colours and header (`grounds`, `hash`, `ground`, `mark`, `chip`, `outline`) |
 | `setup` | First-run setup chrome: `layout`, the header with its step tracker, `buttons`, `footer`, `wrap`, `text` |
+| `widgets.core_screen` | The core screen for one computer family: model, drives and games. Call the returned function; the family comes from `room.initial_core_id` |
 | `widgets.system_workbench` | Shared system workbench; call the returned function with an optional fixed `core_id` |
 | `widgets.list` | focusable scrolling rows: `new{x,y,w,h,row_h,items,id}`, `input(cmd)`, `selected()`, `set_items`, `on_hover/on_activate(id)`, `draw{label=, background=, focus_color=}` |
 | `widgets.grid` | cover/icon grid with the library's focus rules: `new{x,y,w,h,cell_w,cell_h,gap,items,id}`, same methods, `draw{cover=fn(item), label=fn(item), plate=, hide_labels=}` |
@@ -601,15 +602,16 @@ is not a gate unless the room script adds that mechanic itself. See
 
 ## Built-in rooms (`ui/rooms/examples`)
 
-The launcher ships two navigation screens, two internal setup templates, and
-an internal Coleco title browser opened from the Coleco tile on Home. Old demo
+The launcher ships two navigation screens, the core screen, two internal setup
+templates, and an internal Coleco title browser opened from the Coleco tile on Home. Old demo
 rooms and the separate C64 wrapper are removed. Independently installed room
 packs still use the same authoring, install, rollback and nested-room APIs.
 
 | id | purpose |
 | --- | --- |
-| `example.fes-cores` | **Home** (#1347): a Recently played row (the library's recents, hidden until something has been played) above one tile per computer family: Sinclair ZX81, ZX Spectrum, Atari ST, Commodore 64, PC/XT and PC 386, then every other family when Show all cores is on. Family readiness comes from admitted host computers and the independent kit shelf; library titles supply game counts. Open goes to the family's workbench. The header has Settings; Show all cores adds Library and Systems. Up from the tiles reaches Recently played, then the hero's actions, then the header. Focus persists by family or title. After Skip setup a Get started banner with Finish setup (`setup_resume`) takes the Recently played slot until setup is finished. |
+| `example.fes-cores` | **Home** (#1347): a Recently played row (the library's recents, hidden until something has been played) above one tile per computer family: Sinclair ZX81, ZX Spectrum, Atari ST, Commodore 64, PC/XT and PC 386, then every other family when Show all cores is on. Family readiness comes from admitted host computers and the independent kit shelf; library titles supply game counts. Open goes to its core screen (`example.core`) for the ZX81, Spectrum, Atari ST and Commodore 64 families and to its workbench for the others, PC/XT and PC 386 included. The header has Settings; Show all cores adds Library and Systems. Up from the tiles reaches Recently played, then the hero's actions, then the header. Focus persists by family or title. After Skip setup a Get started banner with Finish setup (`setup_resume`) takes the Recently played slot until setup is finished. |
 | `example.computers` | **Systems**: prepared systems, models and editions. Confirm launches; Set up opens the selected model's setup. Add system stays available with an empty library. |
+| `example.core` | Internal **core screen** for one computer family ([design](../../../docs/ux/references/core-screens/README.md)): the computer and its fixed facts on the left, its drive and its games on the right. Model chooses the variant; a game row starts that exact entry; the drive row and its button choose media for next start, or change it in a running machine. The ZX81 family adds Expansions, which opens `example.hardware`. Opened from Home for the ZX81, Spectrum, Atari ST and Commodore 64 families. |
 | `example.system` | Internal **System setup** template for registered families and their hardware variants, including PC/XT and PC 386. Next system changes family; Variant chooses the model. Entry, edition, media and expansion selections keep exact core/package identities. |
 | `example.welcome` | **First-run setup, step 1** (#1345): what FES is, the six default computer families and what is built in. PC 386 is marked In development. Continue (`setup_continue`) or Skip setup (`setup_skip`). `destination_panel = "none"`. |
 | `example.setup-ready` | **First-run setup, last step**: each family's chip, games and firmware need; Finish (`setup_finish`) or Back (`setup_back`, also B). |

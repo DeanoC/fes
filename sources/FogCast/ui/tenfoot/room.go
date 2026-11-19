@@ -555,7 +555,7 @@ func (a *App) resizeRoomsLocked() {
 // status and hints in the reserved footer instead of over those controls.
 func roomHasWorkbenchFooter(id string) bool {
 	switch id {
-	case hardwareRoomID, systemRoomID:
+	case hardwareRoomID, systemRoomID, coreRoomID:
 		return true
 	default:
 		return false

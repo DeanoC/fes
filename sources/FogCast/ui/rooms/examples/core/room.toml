@@ -1,0 +1,10 @@
+id = "example.core"
+title = "Computer"
+author = "FES"
+description = "One computer family: choose its model, see what is in its drives, and start a game."
+version = 1
+main = "main.lua"
+
+[theme]
+background = "#eee8dc"
+accent = "#235A46"

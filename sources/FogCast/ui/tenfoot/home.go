@@ -50,7 +50,7 @@ func userFacingRoom(id string) bool {
 	if slices.ContainsFunc(setupSteps, func(s setupStep) bool { return s.room == id }) {
 		return false
 	}
-	return id != systemRoomID && id != hardwareRoomID && id != colecoArcadeRoomID
+	return id != systemRoomID && id != hardwareRoomID && id != coreRoomID && id != colecoArcadeRoomID
 }
 
 func (a *App) hasColecoRoomOpenLocked() bool {

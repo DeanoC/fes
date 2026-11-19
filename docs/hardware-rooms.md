@@ -9,6 +9,12 @@ kit-local installed packages.
 
 ## System workbench
 
+Home opens the [core screen](ux/references/core-screens/README.md)
+(`example.core`) for the ZX81, Spectrum, Atari ST and Commodore 64 families.
+The workbench below remains for Systems, the other families and a running
+machine's setup route. On the ZX81 core screen, **Expansions** opens the
+Sinclair workbench.
+
 `example.system` covers the ZX81 family, Commodore 64, the Spectrum 48K/128K/+3
 and Pentagon models, Apple II, Atari ST, ColecoVision, Sega Master System,
 SG-1000, Pong, RAM Tester and RISC-V. **Next system** chooses one of
