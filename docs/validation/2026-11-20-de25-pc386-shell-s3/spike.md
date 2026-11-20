@@ -137,3 +137,36 @@ stock shell. The netlist, seed and everything else are as in spike 1.
 That is −2,105 ALMs. B1's window is still about 4,200 ALMs over the ~5,800
 base shell. The next arm packs the 64-bit ports in RTL and presents one
 128-bit master with bounded pending.
+
+## Arbitration A/B: all arms (one seed each)
+
+Every arm compiles the same derived machine netlist bytes, the same project
+and the same seed. Only the window fabric differs:
+
+- **B1b** is B1 with 8 pending reads and no bridge pipelining.
+- **B2** is the RTL arbiter, `fes_de25_window_arbiter`, committed with its
+  bench. It packs the 64-bit ports, presents one 128-bit master, and
+  connects through one `mm_ccb` to F2SDRAM, with no Platform Designer
+  bridge.
+
+The whole-design figure is the primary comparison. The machine's own
+entity total moves by up to about 800 ALMs between fits of identical bytes
+(33,098 to 33,897), so "shell = whole − machine" carries that noise.
+
+| | Spike 1 (3 masters) | B1 (bridge) | B1b (bridge, 8 pending) | **B2 (RTL arbiter)** |
+| --- | ---: | ---: | ---: | ---: |
+| ALMs needed, whole design | 45,231 | 43,218 | 42,971 | **42,274** |
+| Δ against spike 1 | — | −2,013 | −2,260 | **−2,957** |
+| Machine entity (`system`) | 33,098 | 33,194 | 33,897 | 33,873 |
+| Shell, whole − machine | 12,133 | 10,025 | 9,074 | 8,401 |
+| F2SDRAM interconnect | 6,273 | 2,112 | 2,083 | 2,091 |
+| Window adapter + arbiter | 642 | 601 | 637 | 625 + 565 |
+| RAM blocks (of 358) | 302 | 344 | 305 | 300 |
+| Machine clock, worst setup within the clock | +4.702 | +5.258 | +5.277 | +4.902 ns |
+| 100 MHz clock, worst setup within the clock | +2.531 | +3.327 | +3.491 | +2.822 ns |
+
+**B2 is the smallest window:** 2,957 ALMs below the three-master spike. The
+stock Spectrum project is 10,167 ALMs and uses 216 RAM blocks. So the shell's
+~5,800 base, and M20K occupancy, are both much higher on the real board
+than in the virtual-pin fits: 300 of 358 blocks here, against the fits' 40%.
+M20K is not a slack resource on the board build.
