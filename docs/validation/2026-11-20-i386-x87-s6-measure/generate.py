@@ -148,6 +148,15 @@ def part_c(lines):
     seeds = [r for r in (load(f'd-{m}-s{s}') for _, m in RUNGS[1:] for s in (2, 3, 4)) if r]
     if seeds:
         lines += ['### Closure seeds', ''] + table(seeds) + ['']
+    if passing:
+        top = passing[-1]
+        at_top = [r for r in (load(f'd-{top}-s{s}') for s in (2, 3, 4)) if r]
+        if len(at_top) == 3 and all(r['fit'] == 'pass' and r['timing'] == 'pass' for r in at_top):
+            lines += [f'**The machine closes at {top:g} MHz on four seeds** (seed 1 on the ladder, seeds 2 to 4 above). '
+                      f'{top:g} MHz is the ladder\'s top rung, so this is a floor on the ceiling, not the ceiling: '
+                      'method.md adds no rung above it.', '']
+        elif len(at_top) == 3:
+            lines += [f'Seeds 2 to 4 at {top:g} MHz did not all pass, so no closure is claimed there (method.md).', '']
 
 
 def main() -> int:

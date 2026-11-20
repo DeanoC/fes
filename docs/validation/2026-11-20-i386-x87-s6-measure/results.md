@@ -104,3 +104,13 @@ Each rung's worst `clk` setup path, endpoints as the fitter names them:
 | 120.00 | `_43225_[208]` | `_41270_[83]~DUPLICATE` | Slow fix4 0C Model |
 
 The highest rung at which seed 1 passes, with every lower rung also passing, is **120 MHz**. A closure is claimed only after seeds 2 to 4 pass at that rung (method.md).
+
+### Closure seeds
+
+| Fit | Seed | MHz | Fit | Timing, all corners | ALMs needed | of device | LABs touched | DSP | M20K | Registers | Worst setup | Worst hold |
+| --- | ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| d-120-s2 | 2 | 120.00 | pass | pass | 43,140 | 92.18% | 4,667 | 42 | 145 | 41,093 | +0.431 ns | +0.025 ns |
+| d-120-s3 | 3 | 120.00 | pass | pass | 43,025 | 91.93% | 4,651 | 42 | 145 | 41,122 | +0.738 ns | +0.018 ns |
+| d-120-s4 | 4 | 120.00 | pass | pass | 43,133 | 92.16% | 4,672 | 42 | 145 | 41,213 | +0.691 ns | +0.023 ns |
+
+**The machine closes at 120 MHz on four seeds** (seed 1 on the ladder, seeds 2 to 4 above). 120 MHz is the ladder's top rung, so this is a floor on the ceiling, not the ceiling: method.md adds no rung above it.
