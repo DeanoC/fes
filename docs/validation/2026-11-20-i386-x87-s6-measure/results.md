@@ -114,3 +114,23 @@ The highest rung at which seed 1 passes, with every lower rung also passing, is 
 | d-120-s4 | 4 | 120.00 | pass | pass | 43,133 | 92.16% | 4,672 | 42 | 145 | 41,213 | +0.691 ns | +0.023 ns |
 
 **The machine closes at 120 MHz on four seeds** (seed 1 on the ladder, seeds 2 to 4 above). 120 MHz is the ladder's top rung, so this is a floor on the ceiling, not the ceiling: method.md adds no rung above it.
+
+## Provenance
+
+Each fit's netlist, as handed to the fitter, against the committed elaboration record and the Yosys program that wrote it ([elaboration/](elaboration/)).
+
+| Fit | Netlist | Elaboration | Executed program |
+| --- | --- | --- | --- |
+| a-s1 | `70a958193b82` | flat | `a367f98d0ee0` |
+| a-s2 | `70a958193b82` | flat | `a367f98d0ee0` |
+| a-s3 | `70a958193b82` | flat | `a367f98d0ee0` |
+| a-s4 | `70a958193b82` | flat | `a367f98d0ee0` |
+| b-hier | `e70cbaf9094f` | hier | `5d4bd5f1d1e1` |
+| c-100 | `70a958193b82` | flat | `a367f98d0ee0` |
+| c-110 | `70a958193b82` | flat | `a367f98d0ee0` |
+| c-120 | `70a958193b82` | flat | `a367f98d0ee0` |
+| c-75 | `70a958193b82` | flat | `a367f98d0ee0` |
+| c-90 | `70a958193b82` | flat | `a367f98d0ee0` |
+| d-120-s2 | `70a958193b82` | flat | `a367f98d0ee0` |
+| d-120-s3 | `70a958193b82` | flat | `a367f98d0ee0` |
+| d-120-s4 | `70a958193b82` | flat | `a367f98d0ee0` |

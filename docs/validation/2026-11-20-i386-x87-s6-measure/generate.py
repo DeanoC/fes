@@ -10,6 +10,7 @@ mechanically.
 """
 import argparse
 import csv
+import hashlib
 import json
 import statistics
 import sys
@@ -148,15 +149,54 @@ def part_c(lines):
     seeds = [r for r in (load(f'd-{m}-s{s}') for _, m in RUNGS[1:] for s in (2, 3, 4)) if r]
     if seeds:
         lines += ['### Closure seeds', ''] + table(seeds) + ['']
-    if passing:
-        top = passing[-1]
-        at_top = [r for r in (load(f'd-{top}-s{s}') for s in (2, 3, 4)) if r]
-        if len(at_top) == 3 and all(r['fit'] == 'pass' and r['timing'] == 'pass' for r in at_top):
-            lines += [f'**The machine closes at {top:g} MHz on four seeds** (seed 1 on the ladder, seeds 2 to 4 above). '
-                      f'{top:g} MHz is the ladder\'s top rung, so this is a floor on the ceiling, not the ceiling: '
-                      'method.md adds no rung above it.', '']
-        elif len(at_top) == 3:
-            lines += [f'Seeds 2 to 4 at {top:g} MHz did not all pass, so no closure is claimed there (method.md).', '']
+    # method.md's closure rule: seeds 2-4 at the highest passing rung R; if any misses, seeds 2-4
+    # once at the next lower passing rung, and the claim is that rung if all three pass there.
+    def all_pass(mhz):
+        got = [r for r in (load(f'd-{mhz}-s{s}') for s in (2, 3, 4)) if r]
+        if len(got) < 3:
+            return None
+        return all(r['fit'] == 'pass' and r['timing'] == 'pass' for r in got)
+    top_rung = RUNGS[-1][1]
+    for i, mhz in enumerate(reversed(passing[-2:] if len(passing) >= 2 else passing)):
+        if i == 0 and mhz == 61.44:
+            break      # 6.0a's four seeds already cover the lowest rung
+        verdict = all_pass(mhz)
+        if verdict is None:
+            lines += [f'Seeds 2 to 4 at {mhz:g} MHz are not recorded, so no closure is claimed there yet.', '']
+            break
+        if verdict:
+            ceiling = (f' {mhz:g} MHz is the ladder\'s top rung, so this is a floor on the ceiling, not the '
+                       'ceiling: method.md adds no rung above it.') if mhz == top_rung else ''
+            lines += [f'**The machine closes at {mhz:g} MHz on four seeds** (seed 1 on the ladder, seeds 2 to 4 '
+                      f'above).{ceiling}', '']
+            break
+        lines += [f'Seeds 2 to 4 at {mhz:g} MHz did not all pass, so no closure is claimed there (method.md).', '']
+        if i == 1:
+            lines += ['The fallback rung did not close either. The ladder stops here and no closure is claimed '
+                      '(method.md).', '']
+
+
+def provenance(lines):
+    """Each fit's netlist tied to the committed elaboration record that wrote it (method.md amendment 1)."""
+    elab = {}
+    for kind in ('flat', 'hier'):
+        e = json.loads((HERE / 'elaboration' / kind / 'elaboration.json').read_text())
+        digest = e.get('netlist_sha256_after_plain_names', e['netlist_sha256'])
+        program = hashlib.sha256((HERE / 'elaboration' / kind / 'machine.ys').read_bytes()).hexdigest()
+        if program != e['executed_program_sha256']:
+            raise SystemExit(f'elaboration/{kind}: machine.ys does not match executed_program_sha256')
+        elab[digest] = (kind, e['executed_program_sha256'])
+    lines += ['## Provenance', '',
+              'Each fit\'s netlist, as handed to the fitter, against the committed elaboration record and the '
+              'Yosys program that wrote it ([elaboration/](elaboration/)).', '',
+              '| Fit | Netlist | Elaboration | Executed program |', '| --- | --- | --- | --- |']
+    for d in sorted(p.name for p in FITS.iterdir() if (p / 'netlist.json').is_file()):
+        source = json.loads((FITS / d / 'netlist.json').read_text())['fitted_netlist']['source_sha256']
+        if source not in elab:
+            raise SystemExit(f'{d}: netlist {source} matches no committed elaboration record')
+        kind, program = elab[source]
+        lines.append(f'| {d} | `{source[:12]}` | {kind} | `{program[:12]}` |')
+    lines.append('')
 
 
 def main() -> int:
@@ -170,6 +210,7 @@ def main() -> int:
     a = part_a(lines)
     part_b(lines, next((r for r in a if r['seed'] == 1), None))
     part_c(lines)
+    provenance(lines)
     text = '\n'.join(lines).rstrip() + '\n'
     out = HERE / 'results.md'
     if args.check:

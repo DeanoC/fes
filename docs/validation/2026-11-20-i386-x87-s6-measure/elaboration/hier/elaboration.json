@@ -1,0 +1,42 @@
+{
+  "executed_program_note": "added on 20 Nov 2026 from the kept machine.ys (method.md amendment 1); the netlist was not re-elaborated",
+  "executed_program_sha256": "5d4bd5f1d1e145a9e7191d4ca5789b09c3b109520cb518e9b656b75b879cf4bc",
+  "gpu_router": "CUDA",
+  "guest_rates": {
+    "ATA_RESET_CLOCKS": 615,
+    "AUDIO_D": 1280,
+    "AUDIO_N": 1,
+    "DMA_D": 9216,
+    "DMA_N": 625,
+    "DOT0_D": 12288,
+    "DOT0_N": 5035,
+    "DOT1_D": 30720,
+    "DOT1_N": 14161,
+    "GOV_D": 3072,
+    "GOV_N": 5,
+    "ISA_D": 4608,
+    "ISA_N": 625,
+    "OPL2_D": 1081344,
+    "OPL2_N": 875,
+    "PIT_D": 22528,
+    "PIT_N": 875,
+    "RTC_D": 1875,
+    "RTC_N": 1,
+    "US_D": 1536,
+    "US_N": 25
+  },
+  "hierarchy": true,
+  "module_count": 168,
+  "netlist": "/data/projects/x87s6m/elab-hier/netlist/pc386_system.v",
+  "netlist_lines": 142424,
+  "netlist_sha256": "05405b8e4ce7aef73d96cd8e946d91a0dccee719b3f1f5f8b3e1964552bd2477",
+  "netlist_sha256_after_plain_names": "e70cbaf9094f0c5552dbf63261a9b270c768b9639f7aa13bf9f7f68c65d728fb",
+  "rom_hex_sha256": "815620361ef28a2bbdd97b1964700a4678a26c0ffc9582bb95544473fe099d18",
+  "seal_recipe_program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
+  "yosys": {
+    "gpu_router": "CUDA",
+    "lock": "cores/fes-pc386/toolchain.lock",
+    "lock_sha256": "294c89450c6c719f649cd4f248d0d844dd431df1138d44d6a26e4a1219ac579c",
+    "tool": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=8a9a88fb7471aa6bfa566470cc5770998600f5ec07ef749249396ef5ad633a3f"
+  }
+}
