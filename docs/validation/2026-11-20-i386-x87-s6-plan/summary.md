@@ -24,9 +24,12 @@ at the end.
 - **17–18 Nov.** The transcendentals and BCD are built once, on the DE25
   backend (#1959). They follow the 387's method, within the agreed bounds.
 - **16 Nov, census.** No reduced-precision unit: every computing title leaves
-  significands wider than 53 bits in the register file. 71 of 162 x87 forms
-  are executed by no title in the census. They must be correct but need not
-  be fast.
+  significands wider than 53 bits in the register file. Forms that no census
+  title executes must be correct but need not be fast. The census's generated
+  inventory, ["Every form that executed"](../2026-11-15-i386-x87-game-census/tables.md#every-form-that-executed),
+  is the authoritative list. The "71 of 162 forms" fraction the brief quoted
+  was withdrawn by the census itself (its summary, "Which 387 operations no
+  title executed"), and this plan does not use it.
 - **20 Nov.** Defects #1998 and #2003 and the operand probe #2022 have
   merged (`1c7623e2a`).
 
@@ -136,7 +139,7 @@ is the wrong one.
 | C | **Fewer pipeline stages in the backend** | Registers and latency. #1892 is built for 200 MHz at one operation per clock, but the envelope keeps one ESC in flight. The controlled A/B put the backend at +1,746 registers and −462 ALMs against the sequencer. The fast forms lose a fixed 2–9 clocks to its ~15-clock response. | Only valid if the DE25 clock target stays well under the backend's 200 MHz (decision D3) | **Unmeasured.** |
 | D | **Logic into memory**: wide tables and arrays that the fit builds as logic, such as decode tables and constant tables. The register file `rf_a`/`rf_b` is not one of them: the DE25 unit fits already keep it as memory ([envelope record](../2026-11-16-de25-x87-envelope/summary.md), "What the selection left out"). | ALMs and registers moved into M20K or MLAB, of which 59.5% of M20K is free | Each move needs a registered read. A registered read is the x87's recurring defect: a value assigned in one state and read in the next. | **Unmeasured.** Needs the per-entity fit to find the large tables. |
 | E | **Whole-machine reduction**: the 14 Nov deferred "system reduction phase" | Whatever the largest entities hold. The CPU is about 68% of the machine's ALMs (29,300 of 42,971, uncontrolled). | The #1584 area audit's identified wins are already banked (#1802, #1795, #1638). New wins need a fresh per-entity reading on Agilex. | **Unmeasured.** Needs 6.0b. |
-| F | **Rare forms through shared paths**: the 71 forms no title executes | Dedicated logic for forms that can be slow | It overlaps B and D. Which of the 71 own dedicated logic is not known. | **Unmeasured.** |
+| F | **Rare forms through shared paths**: the forms outside the census's generated inventory | Dedicated logic for forms that can be slow | It overlaps B and D. Which unexecuted forms own dedicated logic is not known. | **Unmeasured.** |
 | G | Divide algorithm chosen by precision; more than one ESC in flight | Cycles only (the envelope record's two remedies) | Both add ALMs on the board where ALMs bind. Divide is at most 1.8% of x87 work. Independent x87 pairs in the corpus are unmeasured. | **Not proposed** for slice 6 |
 | H | Hard FP DSP blocks | — | Ruled out on 16 Nov: FP32 lacks x87 precision and range, and needs exact rounding tails | **Not proposed** |
 
