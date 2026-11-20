@@ -99,7 +99,7 @@ func TestPreferenceStoreRestoresAndPersists(t *testing.T) {
 	if app.attractPrefEnabled {
 		t.Fatal("forced attract configuration ignored stored preference")
 	}
-	if remap, err := app.padRemap(guid); err != nil || remap == nil {
+	if remap, err := savedRemap(app, guid); err != nil || remap == nil {
 		t.Fatalf("controller profile did not read store: %v %v", remap, err)
 	}
 	app.HandleCommand(CmdLayoutCycle, app.lastInput)

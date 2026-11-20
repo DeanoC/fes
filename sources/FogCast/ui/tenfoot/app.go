@@ -697,27 +697,23 @@ func (a *App) SetTheme(th theme.Theme) {
 	a.theme = th.Complete()
 }
 
-// padRemap compiles the profile tenfoot.json saves for a pad's GUID, or
-// returns nil when there is none. It is read as the pad attaches, so an
-// edit applies when the pad is next plugged in.
-func (a *App) padRemap(guid string) (*inputmap.Remapper, error) {
+// padProfile reads the profile tenfoot.json saves for a pad's GUID: the
+// zero Profile when there is none. The input layer reads it as the pad
+// attaches, and again when Settings › Controllers changes a profile.
+func (a *App) padProfile(guid string) (inputmap.Profile, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.preferenceStore == nil && a.prefsPath == "" {
-		return nil, nil
+		return inputmap.Profile{}, nil
 	}
 	prefs, err := a.readPreferencesLocked()
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
+		return inputmap.Profile{}, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", a.preferenceSourceLocked(), err)
+		return inputmap.Profile{}, fmt.Errorf("%s: %w", a.preferenceSourceLocked(), err)
 	}
-	profile, ok := prefs.Controllers[guid]
-	if !ok {
-		return nil, nil
-	}
-	return inputmap.NewRemapper(profile)
+	return prefs.Controllers[guid], nil
 }
 
 // NewApp builds a launcher model bound to the host API client.
@@ -1771,6 +1767,7 @@ func (a *App) Tick(now time.Time) Command {
 	a.tickAttractLocked(now)
 	a.syncPreviewLocked()
 	a.tickSessionPadLocked(now)
+	a.tickLearnLocked(now)
 	a.syncSurroundLocked()
 	// Stop drains a shown plane, so its frames fail without a display fault.
 	if a.sessionDisplay.Visible && !a.sessionDisplayBusy && a.stopPhase != "stopping" && a.menuDisplay != nil {

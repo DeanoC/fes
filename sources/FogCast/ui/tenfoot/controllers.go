@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"sort"
+	"time"
 
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
@@ -46,6 +47,7 @@ var padSources = []padSource{
 // Focus slots after the rows.
 const (
 	controllersFocusSwap = iota + 8
+	controllersFocusLearn
 	controllersFocusReset
 	controllersFocusCount
 )
@@ -108,6 +110,7 @@ type controllersState struct {
 		open  bool
 		index int
 	}
+	learn  padLearn
 	status string
 }
 
@@ -147,9 +150,12 @@ type ControllersSnapshot struct {
 	Identity string
 	Rows     []ControllerRow
 	SwapAB   bool
-	Focus    int
-	Status   string
-	Picker   struct {
+	// Mapped is a pad read through a mapping its player made step by step.
+	Mapped bool
+	Focus  int
+	Status string
+	Learn  LearnSnapshot
+	Picker struct {
 		Open    bool
 		Index   int
 		Targets []ControllerTarget
@@ -264,15 +270,21 @@ func (a *App) padProfilesLocked() map[string]inputmap.Profile {
 // padRemapLocked compiles a pad's saved profile. A profile that does not
 // compile reads as none, as it does when the pad attaches.
 func (a *App) padRemapLocked(guid string) *inputmap.Remapper {
-	profile, ok := a.padProfilesLocked()[guid]
-	if !ok {
-		return nil
+	remap, _ := profileRemap(a.padProfilesLocked()[guid])
+	return remap
+}
+
+// profileRemap compiles a profile's preset and bindings, or returns nil
+// when it has neither or they do not compile.
+func profileRemap(profile inputmap.Profile) (*inputmap.Remapper, error) {
+	if profile.Preset == "" && len(profile.Bindings) == 0 {
+		return nil, nil
 	}
 	remap, err := inputmap.NewRemapper(profile)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	return remap
+	return remap, nil
 }
 
 func (a *App) refreshPadPromptsLocked(id int) {
@@ -310,6 +322,7 @@ func (a *App) closeControllersLocked() {
 func (a *App) showControllerPadLocked(id int) {
 	a.controllers.pad = id
 	a.controllers.picker.open = false
+	a.controllers.learn = padLearn{}
 	a.controllers.status = ""
 }
 
@@ -334,14 +347,19 @@ var controllersNav = [controllersFocusCount][4]int{
 	5:                     {4, 6, 1, 5},
 	6:                     {5, 7, 1, 6},
 	7:                     {6, controllersFocusReset, 1, 7},
-	controllersFocusSwap:  {1, controllersFocusSwap, controllersFocusSwap, controllersFocusReset},
-	controllersFocusReset: {7, controllersFocusReset, controllersFocusSwap, controllersFocusReset},
+	controllersFocusSwap:  {1, controllersFocusSwap, controllersFocusSwap, controllersFocusLearn},
+	controllersFocusLearn: {1, controllersFocusLearn, controllersFocusSwap, controllersFocusReset},
+	controllersFocusReset: {7, controllersFocusReset, controllersFocusLearn, controllersFocusReset},
 }
 
 func (a *App) handleControllersLocked(cmd Command) {
 	c := &a.controllers
 	if _, ok := a.pads[c.pad]; !ok {
 		a.closeControllersLocked()
+		return
+	}
+	if c.learn.active {
+		a.handleLearnLocked(cmd, time.Now())
 		return
 	}
 	if c.picker.open {
@@ -380,6 +398,8 @@ func (a *App) handleControllersLocked(cmd Command) {
 		switch c.focus {
 		case controllersFocusSwap:
 			a.togglePadSwapLocked()
+		case controllersFocusLearn:
+			a.startLearnLocked(time.Now())
 		case controllersFocusReset:
 			a.resetPadLocked()
 		default:
@@ -615,7 +635,7 @@ func (a *App) savePadProfileLocked(guid string, profile inputmap.Profile) bool {
 	if len(profile.Bindings) == 0 {
 		profile.Bindings = nil
 	}
-	if profile.Preset == "" && profile.Bindings == nil {
+	if profile.Mapping == "" && profile.Preset == "" && profile.Bindings == nil {
 		delete(profiles, guid)
 	} else {
 		profiles[guid] = profile
@@ -657,7 +677,10 @@ func (a *App) controllersSnapshotLocked() ControllersSnapshot {
 		}
 	}
 	snap.Identity = fmt.Sprintf("%04x:%04x", info.Vendor, info.Product)
-	if info.Recognised {
+	snap.Mapped = a.padProfilesLocked()[info.GUID].Mapping != ""
+	if snap.Mapped {
+		snap.Identity = "Mapped step by step  ·  " + snap.Identity
+	} else if info.Recognised {
 		snap.Identity = "Recognised  ·  " + snap.Identity
 	} else {
 		snap.Identity = "Not in the pad list, using a standard layout  ·  " + snap.Identity
@@ -679,6 +702,7 @@ func (a *App) controllersSnapshotLocked() ControllersSnapshot {
 		})
 	}
 	snap.SwapAB = a.padProfilesLocked()[info.GUID].Preset == inputmap.PresetSwapAB
+	snap.Learn = a.learnSnapshotLocked(time.Now())
 	if c.picker.open {
 		snap.Picker.Open = true
 		snap.Picker.Index = c.picker.index
