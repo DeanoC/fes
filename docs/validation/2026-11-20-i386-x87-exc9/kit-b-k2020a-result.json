@@ -1,0 +1,49 @@
+{
+ "kit": "B",
+ "package": "b1427783cb687f501e28aa1131bcef8b53e10ca2fc3c7f055f5140ab26510f44.fcore",
+ "drive": "real",
+ "drive_sha256": "a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c",
+ "library_game": "x87-dos-9kwxysssc3gm",
+ "nonce": "9KWXYSSSC3GM",
+ "goals": {
+  "freedos": {
+   "pass": true,
+   "seconds_to_detect": 0.6,
+   "frame": "frames/freedos-prompt.png"
+  },
+  "wolf3d": {
+   "pass": true,
+   "graphics": true,
+   "lit": 0.938,
+   "changed_after_walk": 0.562,
+   "frames": [
+    "frames/wolf3d-floor1.png",
+    "frames/wolf3d-walked.png"
+   ]
+  }
+ },
+ "events": [],
+ "claim": "## 2026-11-20T10:29:12+02:00 KIT B IN USE: Claude (x87 session for Deano, fes#1768) \u2014 fes#2020 exception 9 / x87 operand probes, seal b1427783 of 9ac34ef67, run k2020a: core-only on baseline image 179",
+ "kit_created": [
+  "/media/fat/fogcast/core-data/games/cfd0ca81bb07cd926f1372ae98092d949a297e22085c5c57d56a6d4f67d2f09f",
+  "/media/fat/fogcast/core-data/media/f4b093f34b4b33eb97c3a0b092ecc676fc92320415d464c690a2cc1aab3159a0",
+  "/media/fat/fogcast/disk-images/a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c.img"
+ ],
+ "readback": {
+  "dos": true,
+  "notepad": true,
+  "files": {
+   "WFWDOS.TXT": null,
+   "WFWNOTE.TXT": null
+  }
+ },
+ "after": {
+  "agent": "idle",
+  "lease": "free",
+  "rebooted": false,
+  "left": [],
+  "recovery_required": false
+ },
+ "failure": null,
+ "pass": true
+}
