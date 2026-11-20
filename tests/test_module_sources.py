@@ -223,6 +223,16 @@ class ModuleSourcesTest(unittest.TestCase):
         self.destination.rename(moved)
         self.assertEqual(git(moved / "sources/FogCast", "rev-parse", "HEAD"), self.initial)
 
+    def test_snapshot_hardlinks_source_objects_on_the_same_filesystem(self):
+        self.materialize()
+        commit = self.initial
+        relative = Path("objects") / commit[:2] / commit[2:]
+        source, snapshot = self.root / ".git" / relative, self.destination / ".git" / relative
+        self.assertTrue(snapshot.is_file())
+        self.assertEqual(snapshot.stat().st_ino, source.stat().st_ino)
+        self.assertGreater(source.stat().st_nlink, 1)
+        self.assertFalse((self.destination / ".git/objects/info/alternates").exists())
+
     def test_ssh_origin_is_normalized_once_and_repeated_fpga_staging_is_read_only(self):
         bundle_spec = importlib.util.spec_from_file_location("origin_test_bundle", SCRIPT.with_name("bundle.py"))
         bundle = importlib.util.module_from_spec(bundle_spec)

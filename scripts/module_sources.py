@@ -143,8 +143,11 @@ def materialize(root, name, revision, destination):
 
     The caller serializes builds. Existing snapshots must match identity and be
     clean; generated overlays must be explicitly handled by their owning build
-    code before reuse. Local clone objects are independent of the source object
-    directory; moving a snapshot does not leave .git pointers into the source.
+    code before reuse. The clone owns its object directory (no alternates), so
+    moving a snapshot does not leave .git pointers into the source. On the same
+    filesystem Git hardlinks the immutable object and pack files instead of
+    copying them; across filesystems it copies. Git never rewrites object files
+    in place, so sharing inodes cannot change the source repository.
     """
     root = _root(root)
     identity = describe(root, name, revision)
@@ -167,7 +170,7 @@ def materialize(root, name, revision, destination):
         destination.parent.mkdir(parents=True, exist_ok=True)
         temporary = Path(tempfile.mkdtemp(prefix=".source-", dir=destination.parent))
         try:
-            _git(root, "clone", "--no-hardlinks", "--no-checkout", "--local", str(source), str(temporary))
+            _git(root, "clone", "--no-checkout", "--local", str(source), str(temporary))
             if identity["repository"] is None:
                 _git(temporary, "remote", "remove", "origin")
             else:
