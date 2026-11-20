@@ -218,9 +218,17 @@ Each slice is one PR. Slices 2 to 4 wait on decision P1.
    `docs/de25-kit-hil.md`.
 
 Kit D25 (`de25-j8g`, `TRWU8J8G`) exists and runs the HILQ MENU and ZX81
-baselines. A pc386 kit run cannot happen before slice 4. Until then each
-slice is host-only evidence, and its merge gate's HIL line should read N/A:
-no admitted runtime path exists to run the package on.
+baselines. A pc386 kit run cannot happen before slice 4. That does not make
+the earlier slices HIL N/A:
+
+- **Slice 2** changes the DE10 package, so it merges only with a DE10 kit
+  run (Kit A or B) on its exact head.
+- **Slice 3** makes a DE25 bitstream, and the merge gate wants an exact-head
+  Kit D25 PASS for that (AGENTS.md, "Merge gate"). Its fit and seal are
+  host-only evidence, which can be reviewed but not merged on its own. Slice 3
+  stays a draft until slice 4 gives it a run path, and the two land together,
+  as a stack at most two deep. The only other way is a waiver from Deano
+  himself.
 
 ## The shell's cost: method, committed before any fit
 
