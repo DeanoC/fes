@@ -15,7 +15,8 @@ import math
 import os
 import subprocess
 import sys
-import tempfile
+import fcntl
+import shutil
 
 HERE = Path(__file__).resolve().parent
 BOARD = "sources/misteross/boards/de25nano/"
@@ -105,8 +106,16 @@ def machine_netlist(sources, derived_files):
         raise ValueError("FES_TOOLCHAIN_CACHE_ROOT must name the pc386 lock's toolchain cache")
     yosys = yosys_netlist.authenticate(root, cache_root=Path(cache), gpu_router=os.environ.get("FES_GPU_ROUTER", "HIP"),
                                        lock=sealer.LOCK)
-    with tempfile.TemporaryDirectory(prefix="de25-pc386-") as work:
-        work = Path(work)
+    # Yosys's auto-generated names follow every path it is given (the derived
+    # sources, the program, the log, the netlist; DeanoC/yosys#80), so it runs
+    # at one fixed path, held under a lock: a revision always elaborates to the
+    # same bytes, which an RBF reproduction and the envelope fits need.
+    work = root / "build/de25-pc386/elaboration"
+    work.parent.mkdir(parents=True, exist_ok=True)
+    with open(work.parent / "elaboration.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        shutil.rmtree(work, ignore_errors=True)
+        work.mkdir()
         swap = {}
         for name, data in derived_files.items():
             (work / name).write_bytes(data)
