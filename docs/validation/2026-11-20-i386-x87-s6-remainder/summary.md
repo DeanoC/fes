@@ -84,6 +84,7 @@ quotes them and adds no figure of its own.
 | ... on the locked-Yosys netlist | pass, `default_suite` true ([evidence/lockstep-netlist.json](evidence/lockstep-netlist.json)) |
 | test386 | POST FFh, halt ([evidence/test386.txt](evidence/test386.txt)) |
 | Quartus 17.0.2 seal, DE10, identity off (registered producer, `--with-lockstep`, seed 1, CUDA slot) | passes every analysis: setup +0.393 ns, hold +0.085 ns; 36,446 of 41,910 ALMs, 41 DSP, 282 RAM blocks; BUILD_ID `1f328c9d`, package `06db2433…` ([seal/](seal/)) |
+| The head still builds the sealed design | [head_matches_seal.py](head_matches_seal.py), copied from #1984 S4, against [seal-build-inputs.json](seal-build-inputs.json): SAME DESIGN, BUILD_ID `1f328c9d` |
 | Kit B, from that seal | pass: the FreeDOS prompt, then Wolfenstein 3D drawn and walked; the kit restored to its baseline, idle and lease-free ([kit-b-k2037b-result.json](kit-b-k2037b-result.json)) |
 
 **Three deliberate faults were caught.** Before trusting the unit bench on

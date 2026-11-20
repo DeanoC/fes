@@ -207,9 +207,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     i386_verilator.add_argument(parser)
     parser.add_argument('--netlist', action='store_true', help="simulate the seal's Yosys netlist of the unit")
-    parser.add_argument('--transcendental-ulp-host', type=int,
+    parser.add_argument('--transcendental-ulp-host', type=int, default=4,
                         help="the bound, in representable values, on a transcendental result's distance from "
-                             "the host's. No default: unset, every such compare fails")
+                             "the host's; the default is the agreed 4 (bound.md in "
+                             "docs/validation/2026-11-17-de25-x87-transcendentals)")
     parser.add_argument('--qemu-brackets', action='store_true',
                         help="also run QEMU's pinned bracket tables for F2XM1, FYL2X, FYL2XP1 and FPATAN on the unit")
     parser.add_argument('--download', action='store_true',
@@ -235,8 +236,8 @@ def main(argv: list[str] | None = None) -> int:
             raise X87UnitError(f"--netlist needs the lock's Yosys: {error}") from error
     bench = verilate(verilator, args.jobs, yosys)
     command = [str(bench)]
-    # The transcendentals (#1958). The bound against the host has
-    # no default: unset, every transcendental result compare fails. The
+    # The transcendentals (#1958), within the bound against the host
+    # Deano agreed on 18 November 2026 unless another is given. The
     # model's instruction-level vectors are generated here, so the exact
     # compare is against the model this revision holds.
     environment = {name: value for name, value in os.environ.items() if not name.startswith('FES_X87_TRANS_')}
