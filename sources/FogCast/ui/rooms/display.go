@@ -107,6 +107,9 @@ const (
 	ActionHardwareTapes
 	ActionHardwareImportExpansion
 	ActionHardwareMedia
+	// ActionHardwareDisks opens a family's disk shelf: the disks made here
+	// and the game disks with saved changes.
+	ActionHardwareDisks
 	ActionHardwareExpansions
 	ActionFirmwareInfo
 )

@@ -75,6 +75,7 @@ const (
 	settingsOSKTapePath
 	settingsOSKCorePath
 	settingsOSKCoreTitle
+	settingsOSKShelfName
 	settingsOSKDriveField
 )
 
@@ -1466,6 +1467,8 @@ func (a *App) submitSettingsOSKLocked() {
 		a.submitDriveFieldLocked()
 	case settingsOSKCorePath, settingsOSKCoreTitle:
 		a.submitCoreLibraryOSKLocked()
+	case settingsOSKShelfName:
+		a.submitStShelfNameLocked()
 	case settingsOSKLibraryPath:
 		a.submitLibraryPathOSKLocked()
 	case settingsOSKTargetName:

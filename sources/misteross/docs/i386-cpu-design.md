@@ -1551,7 +1551,9 @@ and orders the work into slices. From it:
   through a latch that holds BUSY until a write to port F0h; F1h resets the
   unit; every ESC but FNINIT and FNCLEX waits for BUSY, and the no-wait
   forms (FNSTSW, FNSTCW, FNSTENV, FNSAVE) skip only the pending-error check;
-  exception 9 for an operand's middle part; ET and CMOS 14h bit 1 follow the identity. Exception 16 is not used,
+  an operand across a page or a limit faults before any of it moves, as the
+  386's probes of its ends make it (no exception 9, which the 386's
+  microcode never delivers; #2020); ET and CMOS 14h bit 1 follow the identity. Exception 16 is not used,
   as on an AT.
 - Eight 80-bit registers, and the tag, status and control words. A fast path
   for loads, stores, FXCH, add and multiply (the multiplier on DSP blocks);

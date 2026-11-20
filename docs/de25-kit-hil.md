@@ -42,6 +42,21 @@ a full image or boot-path change, build the exact DE25 image and run the
 corresponding boot checks as well; a package run does not qualify an image
 change.
 
+`scripts/de25_boot_screen.py` is a standalone capture-analysis utility; the
+Powerboat D25 smoke runner does not currently call it or write a
+`boot_screen` result. To check an Atari ST capture manually, pass both saved
+core-frame paths (`10-core` and `11-core`) to the utility and retain its JSON
+stdout as evidence:
+
+```sh
+python3 scripts/de25_boot_screen.py --core fes.atari-st \
+  /path/to/10-core.png /path/to/11-core.png > /path/to/boot-screen.json
+```
+
+The check recognises a GEM desktop from its layout, so EmuTOS and TOS both
+pass and OCR is not needed. The existing automated smoke continues to use its
+changed-frame `core_video` check.
+
 The approved HDMI node is `/dev/v4l/by-id/fes-ms2109-hil`. Save before, active,
 input-response and restored frames. Review the frames to verify the screen
 belongs to the claimed board and shows the expected UI or core. Do not open the

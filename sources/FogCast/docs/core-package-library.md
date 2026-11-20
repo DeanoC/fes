@@ -764,9 +764,9 @@ curl -X POST -H 'Content-Type: application/json' \
 ```
 
 `GET /api/v1/library/atari-st-disks` lists those layouts and their byte sizes.
-The browser FPGA library and the tenfoot Systems setup expose the same action.
-Tenfoot setup creates the default 720 KiB disk named WORK and holds it until
-the game is added. The browser binds immediately when a title is selected.
+The browser FPGA library exposes the same action and binds immediately when a
+title is selected. Tenfoot makes blank disks on the Atari ST disk shelf
+instead, below.
 GEMDOS writes then follow the durable drive-A path below; the stored base image
 is not overwritten.
 
@@ -837,6 +837,12 @@ remain and the renamed copy keeps the saved image.
 
 Delete and revert reach the saved changes on the kit asked. Changes the same
 disk saved on another kit stay there.
+
+Tenfoot opens the shelf from "Your disks" on the Atari ST core screen. The
+kit's launcher listener admits exactly these routes and runs them against
+the paired kit. It still admits `POST /api/v1/library/atari-st-disks` for
+kits on an older bundle, whose Add game makes its blank disk there. Against
+a host from before the shelf, tenfoot says the host needs updating.
 
 ```sh
 fogcast --api http://127.0.0.1:8787 --json st-shelf

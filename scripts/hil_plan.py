@@ -29,6 +29,8 @@ RULES = [
         'scripts/consistency.py', 'scripts/generate.py',
         'scripts/host_affected.py', 'scripts/runtime_tests.py', 'scripts/input_diagnostic.py',
     )],
+    # This offline capture classifier reads saved frames and does not access a kit.
+    ('scripts/de25_boot_screen.py', 'none', None),
     # The native permanent-owner kernel now compiles this same DMA driver.
     # Only its disabled KUnit translation unit remains software-test-only.
     ('image/kernel/de25-dma/de25_dma_test.c', 'none', None),

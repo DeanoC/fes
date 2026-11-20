@@ -19,7 +19,7 @@ type pairedSystemSetupService struct {
 	catalogReads, setupReads    int
 	installTarget, createTarget string
 	created                     fogcast.CoreSetupRequest
-	blank                       fogcast.BlankAtariStRequest
+	shelfTargets                []string
 }
 
 func (s *pairedSystemSetupService) AvailableCores(context.Context) ([]fogcast.AvailableCore, error) {
@@ -39,12 +39,36 @@ func (s *pairedSystemSetupService) CreateCoreSetupEntry(ctx context.Context, req
 	s.created = req
 	return catalog.CoreEntry{GameID: "my-st", Title: req.Title, CoreID: req.CoreID, PackageID: req.PackageID, MediaRole: req.MediaRole, MediaID: req.MediaID}, nil
 }
-func (s *pairedSystemSetupService) CreateBlankAtariStDisk(_ context.Context, req fogcast.BlankAtariStRequest) (fogcast.BlankAtariStDisk, error) {
-	s.blank = req
-	return fogcast.BlankAtariStDisk{MediaID: strings.Repeat("d", 64), Name: req.Name, Tracks: req.Tracks, Heads: req.Heads, Sectors: req.Sectors, Size: int64(req.Tracks * req.Heads * req.Sectors * 512), Created: true}, nil
+
+// The shelf answers for the kit the launcher is paired with.
+func (s *pairedSystemSetupService) shelfDisk(ctx context.Context, title string) fogcast.AtariStShelfDisk {
+	s.shelfTargets = append(s.shelfTargets, fogcast.SessionTargetFromContext(ctx))
+	return fogcast.AtariStShelfDisk{GameID: "new-disk", Title: title, PackageID: s.packageID, MediaID: strings.Repeat("d", 64), Size: 737280, Made: true, Kept: fogcast.ShelfKeptNone}
+}
+func (s *pairedSystemSetupService) AtariStShelf(ctx context.Context) (fogcast.AtariStShelf, error) {
+	s.shelfDisk(ctx, "")
+	return fogcast.AtariStShelf{Target: "kit-b", KeptKnown: true, Disks: []fogcast.AtariStShelfDisk{}}, nil
+}
+func (s *pairedSystemSetupService) NewAtariStShelfDisk(ctx context.Context, req fogcast.AtariStShelfNew) (fogcast.AtariStShelfDisk, error) {
+	return s.shelfDisk(ctx, req.Title), nil
+}
+func (s *pairedSystemSetupService) CopyAtariStShelfDisk(ctx context.Context, _, title string) (fogcast.AtariStShelfDisk, error) {
+	return s.shelfDisk(ctx, title), nil
+}
+func (s *pairedSystemSetupService) RevertAtariStShelfDisk(ctx context.Context, game, _ string) (fogcast.AtariStShelfDisk, error) {
+	disk := s.shelfDisk(ctx, "Work")
+	disk.GameID = game
+	return disk, nil
+}
+func (s *pairedSystemSetupService) RenameAtariStShelfDisk(ctx context.Context, _, _, title string) (fogcast.AtariStShelfDisk, error) {
+	return s.shelfDisk(ctx, title), nil
+}
+func (s *pairedSystemSetupService) DeleteAtariStShelfDisk(ctx context.Context, _, _ string) error {
+	s.shelfDisk(ctx, "")
+	return nil
 }
 
-func TestPairedLauncherPublishedSetupAndBlankDiskUseCapturedKit(t *testing.T) {
+func TestPairedLauncherPublishedSetupAndDiskShelfUseCapturedKit(t *testing.T) {
 	service := &pairedSystemSetupService{settingsFake: settingsFake{settings: twoKitSettings("kit-a")}, packageID: strings.Repeat("a", 64)}
 	handler, err := hostapi.NewLauncherHandler(hostapi.New(service), distinctKitConfig())
 	if err != nil {
@@ -64,9 +88,27 @@ func TestPairedLauncherPublishedSetupAndBlankDiskUseCapturedKit(t *testing.T) {
 	if _, err := client.CoreSetup(ctx, ref.SourceID, ref.CoreID, ref.PackageID); err != nil {
 		t.Fatal(err)
 	}
-	disk, err := client.CreateBlankAtariStDisk(ctx, hostclient.BlankAtariStRequest{Name: "WORK"})
+	if _, err := client.AtariStShelf(ctx); err != nil {
+		t.Fatal(err)
+	}
+	disk, err := client.NewAtariStShelfDisk(ctx, "Work", ref.PackageID, 0, 0, 0)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if _, err := client.CopyAtariStShelfDisk(ctx, "work", "Spare"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.RevertAtariStShelfDisk(ctx, "work", strings.Repeat("e", 64)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.RenameAtariStShelfDisk(ctx, "work", "", "Letters"); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.DeleteAtariStShelfDisk(ctx, "work", ""); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(service.shelfTargets, ",") != "kit-b,kit-b,kit-b,kit-b,kit-b,kit-b" {
+		t.Fatalf("shelf targets %v", service.shelfTargets)
 	}
 	result, err := client.CreateCoreSetupEntry(ctx, hostclient.CoreSetupRequest{CoreReference: ref, Title: "My ST", MediaRole: "disk", MediaID: disk.MediaID})
 	if err != nil || result.Entry.MediaID != disk.MediaID {
@@ -75,7 +117,7 @@ func TestPairedLauncherPublishedSetupAndBlankDiskUseCapturedKit(t *testing.T) {
 	if service.catalogReads != 1 || service.setupReads != 1 || service.installTarget != "kit-b" || service.createTarget != "kit-b" || service.settings.SelectedTarget != "kit-a" {
 		t.Fatalf("catalog reads=%d setup reads=%d install=%s create=%s foreground=%s", service.catalogReads, service.setupReads, service.installTarget, service.createTarget, service.settings.SelectedTarget)
 	}
-	if service.blank.Name != "WORK" || service.blank.Tracks != 80 || service.blank.Heads != 2 || service.blank.Sectors != 9 || service.created.PackageID != ref.PackageID || service.created.MediaID != disk.MediaID {
-		t.Fatalf("blank=%+v created=%+v", service.blank, service.created)
+	if service.created.PackageID != ref.PackageID || service.created.MediaID != disk.MediaID {
+		t.Fatalf("created=%+v", service.created)
 	}
 }

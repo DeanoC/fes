@@ -581,6 +581,8 @@ public:
         x87.fds = pointers.ds;
     }
 
+    void set_x87_opcode(uint16_t opcode) override { bx_cpu.the_i387.foo = opcode & 0x7ff; }
+
     X87State x87_state() const override {
         const i387_t &x87 = bx_cpu.the_i387;
         X87State state;

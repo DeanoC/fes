@@ -84,12 +84,12 @@ func TestSavedProfileRemapsThatPad(t *testing.T) {
 			a.localFeed = feed
 			a.mu.Unlock()
 			a.SetPrefsPath(path)
-			if _, err := a.padRemap(guid); (err != nil) != tc.wantErr {
-				t.Fatalf("padRemap error %v", err)
+			if _, err := savedRemap(a, guid); (err != nil) != tc.wantErr {
+				t.Fatalf("saved profile error %v", err)
 			}
 			// 290 is the DB's a (South), 292 its left shoulder.
 			inputs, poll := pollNative(t, nativeTestEvent(1, 290, 1), nativeTestEvent(1, 292, 1))
-			inputs.devices[0].mapper, inputs.devices[0].remap = padMapper(pad, a.padRemap)
+			inputs.devices[0].mapper, inputs.devices[0].remap, _ = padMapper(pad, a.padProfile)
 			poll(a)
 			if len(feed.events) != 2 || feed.events[0].Code != tc.want[0] || feed.events[1].Code != tc.want[1] {
 				t.Fatalf("local events: %+v", feed.events)

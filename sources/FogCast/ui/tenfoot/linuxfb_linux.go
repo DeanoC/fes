@@ -62,7 +62,7 @@ func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay, labe
 	if opts.Smoke {
 		inputSpec = "none"
 	}
-	inputs, err := openNativeInputs(inputSpec, label, app.padRemap)
+	inputs, err := openNativeInputs(inputSpec, label, app.padProfile)
 	if err != nil {
 		app.Stop()
 		return err
@@ -180,6 +180,13 @@ type nativeInput struct {
 	mapper   *controller.Mapper
 	// remap is the profile saved for this pad, applied after mapper.
 	remap *inputmap.Remapper
+	// device is the pad's evdev identity, and mapping the step-by-step
+	// mapping its mapper reads, if any.
+	device  controller.Device
+	mapping string
+	// learner reads the pad's raw controls while Settings › Controllers
+	// maps it step by step. Nothing it reads reaches menus or a core.
+	learner *controller.Learner
 	// info is what Settings › Controllers shows for a real pad; its GUID is
 	// empty for anything else.
 	info PadInfo
@@ -197,9 +204,9 @@ type nativeInputs struct {
 	// menuSuppressed drops held menu edges once while a local core owns
 	// the pad, and once more when that core returns the menu.
 	menuSuppressed bool
-	// padRemap compiles the profile saved for a pad's GUID. Nil reads every
+	// padProfile reads the profile saved for a pad's GUID. Nil reads every
 	// pad as its mapping does.
-	padRemap func(guid string) (*inputmap.Remapper, error)
+	padProfile padProfileFunc
 	// profileGen is the App profile generation every pad's remap is at.
 	profileGen uint64
 	// kindOf and openFile are nil in production. Tests substitute them
@@ -211,11 +218,15 @@ type nativeInputs struct {
 	padID func(fd int) (vendor, product uint16)
 }
 
-func openNativeInputs(spec, label string, padRemap func(guid string) (*inputmap.Remapper, error)) (*nativeInputs, error) {
-	return openNativeInputsDir(spec, label, "/dev/input", padRemap)
+// padProfileFunc reads the profile saved for a pad's GUID: the zero
+// Profile when there is none.
+type padProfileFunc func(guid string) (inputmap.Profile, error)
+
+func openNativeInputs(spec, label string, padProfile padProfileFunc) (*nativeInputs, error) {
+	return openNativeInputsDir(spec, label, "/dev/input", padProfile)
 }
 
-func openNativeInputsDir(spec, label, dir string, padRemap func(guid string) (*inputmap.Remapper, error)) (*nativeInputs, error) {
+func openNativeInputsDir(spec, label, dir string, padProfile padProfileFunc) (*nativeInputs, error) {
 	var paths []string
 	spec = strings.TrimSpace(spec)
 	automatic := spec == "" || spec == "auto"
@@ -232,12 +243,12 @@ func openNativeInputsDir(spec, label, dir string, padRemap func(guid string) (*i
 		paths = strings.Split(spec, ",")
 	}
 	result := &nativeInputs{
-		automatic: automatic,
-		label:     label,
-		dir:       dir,
-		scanEvery: time.Second,
-		lastScan:  time.Now(),
-		padRemap:  padRemap,
+		automatic:  automatic,
+		label:      label,
+		dir:        dir,
+		scanEvery:  time.Second,
+		lastScan:   time.Now(),
+		padProfile: padProfile,
 	}
 	for _, path := range paths {
 		if err := result.openPath(nil, strings.TrimSpace(path)); err != nil {
@@ -285,11 +296,12 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 		var vendor, product uint16
 		if ins.kindOf == nil {
 			var device controller.Device
-			in.mapper, in.remap, device = nativeGamepadMapper(fd, ins.padRemap)
+			in.mapper, in.remap, in.mapping, device = nativeGamepadMapper(fd, ins.padProfile)
 			vendor, product = device.Vendor, device.Product
 			if in.mapper != nil {
+				in.device = device
 				in.info = PadInfo{Name: strings.TrimSpace(device.Name), GUID: device.GUID(), Vendor: vendor, Product: product,
-					Family: promptFamily(device.Family()), Recognised: in.mapper.Mapping() != ""}
+					Family: promptFamily(device.Family()), Recognised: device.Recognised()}
 				in.profileGen = app.PadProfileGeneration()
 			}
 		} else if ins.padID != nil {
@@ -358,7 +370,7 @@ func (ins *nativeInputs) publishPads(app *App) {
 // button comes up as the control it went down as.
 func (ins *nativeInputs) syncProfiles(app *App) {
 	gen := app.PadProfileGeneration()
-	if gen == ins.profileGen || ins.padRemap == nil {
+	if gen == ins.profileGen || ins.padProfile == nil {
 		return
 	}
 	waiting := false
@@ -370,11 +382,15 @@ func (ins *nativeInputs) syncProfiles(app *App) {
 			waiting = true
 			continue
 		}
-		remap, err := ins.padRemap(in.info.GUID)
+		profile, err := ins.padProfile(in.info.GUID)
 		if err != nil {
-			remap = nil
+			profile = inputmap.Profile{}
 		}
-		in.remap, in.profileGen = remap, gen
+		if profile.Mapping != in.mapping {
+			in.mapper, in.mapping, _ = compilePadMapping(in.device, profile.Mapping)
+		}
+		in.remap, _ = profileRemap(profile)
+		in.profileGen = gen
 	}
 	if !waiting {
 		ins.profileGen = gen
@@ -540,6 +556,9 @@ func (ins *nativeInputs) poll(app *App, now time.Time) (bool, error) {
 	ins.syncProfiles(app)
 devices:
 	for _, in := range append([]*nativeInput(nil), ins.devices...) {
+		if in.info.GUID != "" {
+			ins.syncLearner(app, in)
+		}
 		// Bound draining so a noisy device cannot starve rendering or cancellation.
 		for batch := 0; batch < 8; batch++ {
 			var b [nativeEventSize * 32]byte
@@ -572,6 +591,16 @@ devices:
 					}
 					return false, fmt.Errorf("%s input: evdev dropped events; restart to resynchronise", ins.label)
 				}
+				if in.info.GUID != "" {
+					ins.syncLearner(app, in)
+				}
+				if in.learner != nil {
+					if source, ok := in.learner.Feed(typ, code, value); ok {
+						app.NoteInput(InputGamepad, in.fd)
+						app.LearnPadSource(in.fd, source, now)
+					}
+					continue
+				}
 				if in.kind == InputMouse && in.mapper != nil {
 					if event, ok := in.mapper.Map(typ, code, value); ok {
 						x, y, buttons, _ := remoteinput.MouseVector(event)
@@ -592,13 +621,8 @@ devices:
 						guide = in.mapper.Guide(code)
 					}
 					if in.mapper != nil && !guide {
-						if e, ok := in.mapper.Map(typ, code, value); ok {
-							if e.Kind == remoteinput.KindButton {
-								in.button(app, ButtonFromLogical(e.Code), value, now)
-								if ins.applyButtons(app, now) {
-									return true, nil
-								}
-							}
+						if ins.padEvents(app, in, in.mapper.Events(typ, code, value), now) {
+							return true, nil
 						}
 						continue
 					}
@@ -630,11 +654,8 @@ devices:
 					}
 				} else if typ == 3 {
 					if in.mapper != nil {
-						if e, ok := in.mapper.Map(typ, code, value); ok && e.Kind == remoteinput.KindAxis {
-							in.axis(app, e.Code, e.Value, now)
-							if ins.applyButtons(app, now) {
-								return true, nil
-							}
+						if ins.padEvents(app, in, in.mapper.Events(typ, code, value), now) {
+							return true, nil
 						}
 					} else if code == 16 || code == 17 {
 						in.hat(app, code, value, now)
@@ -661,6 +682,32 @@ devices:
 		ins.menuSuppressed = false
 	}
 	return ins.applyButtons(app, now), nil
+}
+
+// syncLearner starts reading a pad's raw controls once Settings ›
+// Controllers maps it step by step and the pad has nothing held, so the
+// press that started mapping comes up through the menus. When mapping ends
+// it stops, and keys still down then come up unseen.
+func (ins *nativeInputs) syncLearner(app *App, in *nativeInput) {
+	learning := app.PadLearning(in.fd)
+	switch {
+	case learning && in.learner == nil:
+		if len(in.padHeld) > 0 || len(in.controls) > 0 || len(in.hatHeld) > 0 || len(in.axes) > 0 {
+			return
+		}
+		var rest map[uint16]int32
+		if ins.kindOf == nil {
+			rest = nativeAxisRest(in.fd, in.device)
+		}
+		in.learner = controller.NewLearner(in.device, rest)
+	case !learning && in.learner != nil:
+		if in.mapper != nil {
+			for _, code := range in.learner.HeldKeys() {
+				in.mapper.Suppress(code)
+			}
+		}
+		in.learner = nil
+	}
 }
 
 func sessionGuideCommand(session SessionSnapshot) Command {
@@ -740,6 +787,26 @@ func (ins *nativeInputs) applyButtons(app *App, now time.Time) bool {
 	}
 	return applyPressed(app, pressed, ins.held, now)
 }
+
+// padEvents takes what a pad's mapping reads from one evdev event: the
+// stick or hat it moves and the buttons it presses or releases, including
+// buttons a mapping puts on an axis or a hat direction.
+func (ins *nativeInputs) padEvents(app *App, in *nativeInput, events []remoteinput.Event, now time.Time) bool {
+	for _, e := range events {
+		switch e.Kind {
+		case remoteinput.KindButton:
+			value := int32(0)
+			if e.Action == remoteinput.ActionPress {
+				value = 1
+			}
+			in.button(app, ButtonFromLogical(e.Code), value, now)
+		case remoteinput.KindAxis:
+			in.axis(app, e.Code, e.Value, now)
+		}
+	}
+	return len(events) > 0 && ins.applyButtons(app, now)
+}
+
 func (in *nativeInput) button(app *App, button Button, value int32, now time.Time) {
 	if value == 2 || button == ButtonNone {
 		return
@@ -884,10 +951,14 @@ func (in *nativeInput) axis(app *App, code remoteinput.Code, value int32, now ti
 	cmd := CommandFromStickHeld(axisX, axisY, old)
 	if cmd != old {
 		in.button(app, nativeDirectionButton(old), 0, now)
-		in.axes[uint16(code)] = cmd
+		if cmd == CmdNone {
+			// A stick at rest holds nothing.
+			delete(in.axes, uint16(code))
+		} else {
+			in.axes[uint16(code)] = cmd
+		}
 		in.button(app, nativeDirectionButton(cmd), 1, now)
 	}
-	_ = now
 }
 
 func nativeDirectionButton(cmd Command) Button {
@@ -1175,12 +1246,12 @@ func nativeDeviceName(fd int) string {
 // nativeGamepadMapper gives the controller mapper the pad's identity, its
 // EVIOCGBIT key/axis capabilities and the range of every reported axis. It
 // also returns the pad's identity.
-func nativeGamepadMapper(fd int, padRemap func(guid string) (*inputmap.Remapper, error)) (*controller.Mapper, *inputmap.Remapper, controller.Device) {
+func nativeGamepadMapper(fd int, padProfile padProfileFunc) (*controller.Mapper, *inputmap.Remapper, string, controller.Device) {
 	var id [8]byte
 	const idRequest = uintptr(0x80000000 | (8 << 16) | ('E' << 8) | 0x02)
 	_, _, err := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), idRequest, uintptr(unsafe.Pointer(&id[0])))
 	if err != 0 {
-		return nil, nil, controller.Device{}
+		return nil, nil, "", controller.Device{}
 	}
 	device := controller.Device{
 		Name:    nativeDeviceName(fd),
@@ -1206,31 +1277,73 @@ func nativeGamepadMapper(fd int, padRemap func(guid string) (*inputmap.Remapper,
 			device.Axes[code] = controller.Range{Min: int32(binary.LittleEndian.Uint32(info[4:])), Max: int32(binary.LittleEndian.Uint32(info[8:]))}
 		}
 	}
-	mapper, remap := padMapper(device, padRemap)
-	return mapper, remap, device
+	mapper, remap, mapping := padMapper(device, padProfile)
+	return mapper, remap, mapping, device
+}
+
+// nativeAxisRest reads where each of a pad's axes is now, from EVIOCGABS.
+func nativeAxisRest(fd int, device controller.Device) map[uint16]int32 {
+	rest := map[uint16]int32{}
+	for code := range device.Axes {
+		var info [24]byte
+		request := uintptr(0x80000000|(24<<16)|('E'<<8)) | uintptr(0x40+code)
+		if _, _, e := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), request, uintptr(unsafe.Pointer(&info[0]))); e == 0 {
+			rest[code] = int32(binary.LittleEndian.Uint32(info[0:]))
+		}
+	}
+	return rest
 }
 
 // padMapper reads a pad through its mapping and the profile saved for its
-// GUID, and logs the GUID a profile is saved under.
-func padMapper(device controller.Device, padRemap func(guid string) (*inputmap.Remapper, error)) (*controller.Mapper, *inputmap.Remapper) {
+// GUID, and logs the GUID a profile is saved under. It returns the
+// step-by-step mapping the mapper reads, if any.
+func padMapper(device controller.Device, padProfile padProfileFunc) (*controller.Mapper, *inputmap.Remapper, string) {
 	guid := device.GUID()
-	mapper := controller.NewMapper(device)
-	mapping := mapper.Mapping()
-	if mapping == "" {
-		mapping = "fallback layout"
-	}
-	var remap *inputmap.Remapper
-	if padRemap != nil {
+	var (
+		profile inputmap.Profile
+		notes   []string
+	)
+	if padProfile != nil {
 		var err error
-		if remap, err = padRemap(guid); err != nil {
-			mapping += "; saved profile ignored: " + err.Error()
-		} else if remap != nil {
-			mapping += ", saved profile"
+		if profile, err = padProfile(guid); err != nil {
+			notes = append(notes, "saved profile ignored: "+err.Error())
+			profile = inputmap.Profile{}
 		}
 	}
+	mapper, mapping, err := compilePadMapping(device, profile.Mapping)
+	if err != nil {
+		notes = append(notes, "saved mapping ignored: "+err.Error())
+	}
+	remap, err := profileRemap(profile)
+	if err != nil {
+		notes = append(notes, "saved profile ignored: "+err.Error())
+	} else if remap != nil {
+		notes = append(notes, "saved profile")
+	}
+	name := mapper.Mapping()
+	if name == "" {
+		name = "fallback layout"
+	}
+	for _, note := range notes {
+		name += "; " + note
+	}
 	fmt.Fprintf(os.Stderr, "tenfoot: gamepad %q %04x:%04x v%04x bus %d guid %s: %s; %s glyphs\n",
-		device.Name, device.Vendor, device.Product, device.Version, device.Bus, guid, mapping, device.Family())
-	return mapper, remap
+		device.Name, device.Vendor, device.Product, device.Version, device.Bus, guid, name, device.Family())
+	return mapper, remap, mapping
+}
+
+// compilePadMapping reads a pad through the mapping its player made step
+// by step, or through its own mapping when there is none or it does not
+// compile. It returns the step-by-step mapping in use.
+func compilePadMapping(device controller.Device, mapping string) (*controller.Mapper, string, error) {
+	if mapping == "" {
+		return controller.NewMapper(device), "", nil
+	}
+	mapper, err := controller.NewLearnedMapper(device, mapping)
+	if err != nil {
+		return controller.NewMapper(device), "", err
+	}
+	return mapper, mapping, nil
 }
 
 // promptFamily is the glyph set for a pad's family.

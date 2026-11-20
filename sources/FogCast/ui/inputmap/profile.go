@@ -9,7 +9,12 @@ const PresetSwapAB = "swap-ab"
 // Profile is a pad's saved remap, applied after the pad's mapping. A preset
 // applies first and Bindings override it control by control. Bindings are a
 // single lookup, not a chain: "a"→"b" and "b"→"a" swaps the two buttons.
+//
+// Mapping replaces the pad's GameControllerDB mapping with one its player
+// made step by step, in GameControllerDB's binding form
+// ("a:b0,b:b1,dpup:h0.1,..."). Preset and Bindings then apply on top of it.
 type Profile struct {
+	Mapping  string            `json:"mapping,omitempty"`
 	Preset   string            `json:"preset,omitempty"`
 	Bindings map[string]string `json:"bindings,omitempty"`
 }

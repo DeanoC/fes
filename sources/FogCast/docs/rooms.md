@@ -559,6 +559,10 @@ system. With no argument it opens the Sinclair family selector.
 expected_media_id=...})` opens the next-start picker for the exact displayed
 entry. An empty expected media ID is explicit. The native picker reads the
 package's media capabilities and saves with compare-and-swap.
+`hardware.open_disks({core_id=..., package_id=...})` opens the family's disk
+shelf: the disks made here and the game disks with saved changes. The package
+is the installed one a new disk is made for. It may be opened during play;
+the host refuses changes that need the computer stopped.
 `hardware.open_expansions({game_id=..., core_id=..., package_id=...})` opens
 manifest-derived sockets and exact-package cards. Importing and fitting are
 separate actions. These setup actions require an idle machine; live media uses

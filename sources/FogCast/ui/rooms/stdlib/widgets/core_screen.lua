@@ -451,6 +451,16 @@ local function launch(game)
   end
   rev = rev + 1
 end
+-- The shelf is per family; any of its entries names the installed package.
+local function shelf_package()
+  local game = focused() or games[1]
+  return game and game.package_id or ""
+end
+local function open_disks()
+  local pkg = shelf_package()
+  if pkg == "" then return end
+  hardware.open_disks({core_id=selected_core, package_id=pkg})
+end
 local function open_media()
   local game = focused()
   if not game then return end
@@ -660,7 +670,12 @@ local function right_column()
   y = y + ROW_H + 8
   local word = string.lower(media_word(game or {}) ~= "" and media_word(game) or (spec().media:match("^%a+") or "media"))
   local label = (live_here and "Change the " or "Choose a ") .. word
-  button("media", label, x, y, text_width(label, 17, true) + 40, 36, can_change, open_media)
+  local media_w = text_width(label, 17, true) + 40
+  button("media", label, x, y, media_w, 36, can_change, open_media)
+  if spec().shelf then
+    button("disks", "Your disks", x + media_w + 12, y, text_width("Your disks", 17, true) + 40, 36,
+      shelf_package() ~= "" and not hardware_unavailable, open_disks)
+  end
   y = y + 36 + 14
 
   local titles = title_count()
@@ -705,7 +720,7 @@ local function upper_sig()
   local game = focused()
   local c = computers[selected_core]
   local run = find_running()
-  local at = (focus == "drive" or focus == "media" or focus == "game" or focus == "back" or focus == "home" or focus == "model") and "" or focus
+  local at = (focus == "drive" or focus == "media" or focus == "disks" or focus == "game" or focus == "back" or focus == "home" or focus == "model") and "" or focus
   return table.concat({
     selected_core, at, play_state(), run and run.id or "", tostring(this_machine()),
     tostring(game and game.launchable), tostring(game and game.firmware_required and not game.firmware_ready),
@@ -886,7 +901,7 @@ function unload() remember() end
 local function set_focus(id)
   if id == focus then return end
   focus = id
-  if id == "drive" or id == "media" or id == "game" then right_focus = id end
+  if id == "drive" or id == "media" or id == "disks" or id == "game" then right_focus = id end
   rev = rev + 1
   remember()
 end
@@ -955,6 +970,7 @@ function on_input(cmd)
     for _, id in ipairs(left) do order[#order + 1] = id end
     order[#order + 1] = "drive"
     order[#order + 1] = "media"
+    if has_control("disks") then order[#order + 1] = "disks" end
     if #games > 0 then order[#order + 1] = "game" end
     local i = index_of(order, focus) or 1
     set_focus(order[(i - 1 + (cmd == "tab" and 1 or -1)) % #order + 1])
@@ -985,7 +1001,12 @@ function on_input(cmd)
   elseif focus == "media" then
     if cmd == "up" then set_focus("drive")
     elseif cmd == "down" then if #games > 0 then set_focus("game") end
+    elseif cmd == "right" then if has_control("disks") then set_focus("disks") end
     elseif cmd == "left" then set_focus("start") end
+  elseif focus == "disks" then
+    if cmd == "up" then set_focus("drive")
+    elseif cmd == "down" then if #games > 0 then set_focus("game") end
+    elseif cmd == "left" then set_focus("media") end
   elseif focus == "game" then
     if cmd == "left" then set_focus("start")
     elseif cmd == "up" then

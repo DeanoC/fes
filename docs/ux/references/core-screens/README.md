@@ -10,8 +10,15 @@ set and for pc386, which is tier 1 pending. Read with the
 The first slice is built: Home opens `example.core`
 (`widgets.core_screen`) for the ZX81, Spectrum, Atari ST and Commodore 64
 families, with the model row, the computer panel, one drive row and the games
-list on the actions that exist today. The disk shelf, new disks, disk sets,
-the saves tag on a drive, and the PC/XT and 386 PC screens are not built.
+list on the actions that exist today.
+
+The Atari ST disk shelf is built as a first version: "Your disks" on the ST
+screen opens a list of the disks made here and the game disks with saved
+changes, with new disk (name and size), copy, rename, go back to the original
+and delete. It uses the launcher's plain list picker, not the shelf screen
+drawn below; Deano accepted the plain list on 19 November 2026. Lock against changes is left out until the ST core has a
+write-protect input (#1960). Disk sets, the saves tag on a drive, and the
+PC/XT and 386 PC screens are not built.
 
 These pictures are **proposals, not captures of product code**. They are host
 software-renderer fixtures. They establish no hardware, controller, scanout or
