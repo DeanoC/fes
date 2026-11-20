@@ -67,6 +67,8 @@ SPIKE_SOURCES = (SPIKE / 'spike_stimulus.sv', SPIKE / 'spike_x87.sv')
 # before the CPU side exists: --variant unit or unit-noregs.
 RTL = Path('cores/fes-common/rtl/i386')
 UNIT_SOURCES = (RTL / 'fes_i386_pkg.sv', RTL / 'fes_x87_pkg.sv', RTL / 'fes_i386_x87_mul.sv',
+                RTL / 'fes_x87_fast.sv', RTL / 'fes_x87_slow.sv', RTL / 'fes_x87_core.sv',
+                RTL / 'fes_x87_trans_pkg.sv', RTL / 'fes_x87_trans_rom.sv', RTL / 'fes_x87_trans.sv',
                 RTL / 'fes_i386_x87.sv',
                 SPIKE / 'spike_stimulus.sv', SPIKE / 'spike_x87_unit.sv')
 UNIT_TOP = 'spike_x87_unit'
