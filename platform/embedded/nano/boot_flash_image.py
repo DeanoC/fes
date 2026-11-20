@@ -19,6 +19,28 @@ from upload import PREFIX_SIZE
 
 JTAG_ID = '0x4362C0DD'
 ROOT = Path(__file__).resolve().parents[3]
+HERE = Path(__file__).resolve().parent
+SOURCE_FILES = (Path(__file__).resolve(), HERE.parent/'experiment.py',
+                *(HERE/name for name in ('cold_profile.py', 'flash_trial.py', 'jtag_programming.py',
+                                          'launcher_image.py', 'package.py', 'sof_hps.py', 'upload.py')))
+
+
+def clean_head(root):
+    if subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=all'], cwd=root):
+        raise ValueError('a clean committed checkout is required to publish flash images')
+    return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
+
+
+def committed_sources(root, head, paths):
+    result = {}
+    for path in paths:
+        name = path.relative_to(root).as_posix()
+        committed = subprocess.check_output(['git', 'show', head+':'+name], cwd=root)
+        digest = hashlib.sha256(committed).hexdigest()
+        if sha(path) != digest:
+            raise ValueError('flash producer source differs from its commit: '+name)
+        result[path] = digest
+    return result
 
 
 def loader_identity(parts):
@@ -52,6 +74,8 @@ def factory_settings(raw, output):
 
 def prepare(composition, launcher, factory, expected_factory_sha, pfg, lock, output):
     require_experiment()
+    source_head = clean_head(ROOT)
+    sources = committed_sources(ROOT, source_head, SOURCE_FILES)
     native_result = composition/'result.json'
     sd_result = launcher/'result.json'
     native = record(regular(native_result, 1 << 20))
@@ -68,7 +92,6 @@ def prepare(composition, launcher, factory, expected_factory_sha, pfg, lock, out
             any(p.is_symlink() for p in (disk, *disk.parents)) or sd.get('image_sha256') != sha(disk)):
         raise ValueError('matched autoboot launcher SD image required')
     reference, = [Path(path) for path in native['inputs'] if Path(path).name == 'golden_top.sof']
-    source_head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     binary = pfg.parent.parent/'linux64/quartus_pfg'
     parts = binary.with_name('pgm_parts.txt')
     inputs = {path: sha(path) for path in (reference, pfg, binary, parts, spl, fit, disk, native_result, sd_result)}
@@ -135,10 +158,13 @@ def prepare(composition, launcher, factory, expected_factory_sha, pfg, lock, out
         raise ValueError('packaging inputs changed')
     plan = dict(format=1, serial='TRWU8CBL', source_commit=source_head, backup_sha256=expected_factory_sha, images=images)
     plan_sha = validate_plan(plan)
+    if clean_head(ROOT) != source_head or any(sha(path) != digest for path, digest in sources.items()):
+        raise ValueError('flash producer source changed before publication')
     (output/'plan.json').write_text(json.dumps(plan, indent=2)+'\n')
     result = dict(status='prepared-file-only-r1-boot-flash', plan_sha256=plan_sha,
                   part=PART, jtag_id=JTAG_ID, fit_sha256=fit_sha, native_boot_id=native['native_boot_id'],
                   sd_image=dict(path=str(disk), sha256=inputs[disk]), commands=commands,
+                  producer_sources={str(path.relative_to(ROOT)): value for path, value in sources.items()},
                   inputs={str(path): value for path, value in inputs.items()}, hardware_actions=False)
     (output/'result.json').write_text(json.dumps(result, indent=2)+'\n')
     return result
