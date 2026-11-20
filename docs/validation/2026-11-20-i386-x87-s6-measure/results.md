@@ -86,5 +86,10 @@ The table lists every entity at depth 1 to 3 with at least 100 ALMs, counting it
 | Fit | Seed | MHz | Fit | Timing, all corners | ALMs needed | of device | LABs touched | DSP | M20K | Registers | Worst setup | Worst hold |
 | --- | ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | a-s1 | 1 | 61.44 | pass | pass | 43,059 | 92.01% | 4,672 | 42 | 145 | 41,040 | +7.660 ns | +0.029 ns |
+| c-75 | 1 | 75.00 | pass | pass | 43,040 | 91.97% | 4,658 | 42 | 145 | 41,108 | +5.234 ns | +0.029 ns |
+| c-90 | 1 | 90.00 | pass | pass | 43,042 | 91.97% | 4,672 | 42 | 145 | 41,016 | +2.877 ns | +0.027 ns |
+| c-100 | 1 | 100.00 | pass | pass | 43,020 | 91.92% | 4,666 | 42 | 145 | 41,068 | +2.019 ns | +0.016 ns |
+| c-110 | 1 | 110.00 | pass | pass | 43,067 | 92.02% | 4,671 | 42 | 145 | 41,030 | +1.155 ns | +0.018 ns |
+| c-120 | 1 | 120.00 | pass | pass | 43,131 | 92.16% | 4,668 | 42 | 145 | 41,220 | +0.906 ns | +0.022 ns |
 
-The highest rung at which seed 1 passes, with every lower rung also passing, is **61.44 MHz**. A closure is claimed only after seeds 2 to 4 pass at that rung (method.md).
+The highest rung at which seed 1 passes, with every lower rung also passing, is **120 MHz**. A closure is claimed only after seeds 2 to 4 pass at that rung (method.md).

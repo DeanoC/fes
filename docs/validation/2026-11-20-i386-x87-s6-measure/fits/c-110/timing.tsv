@@ -1,0 +1,41 @@
+corner	hold_only	check	coverage	paths	worst_slack_ns	from	to
+Slow fix4 100C Model	0	setup	analyzed	1	2.088	cpu_dfwd_sp_wb_reg[4]	cpu_dc0[317]~DUPLICATE
+Slow fix4 100C Model	0	hold	analyzed	1	0.084	machine_presenter_width[0]~DUPLICATE	add_1160~126_ERTM2
+Slow fix4 100C Model	0	recovery	analyzed	1	6.811	reset	machine_at_pic_master_highest_level_in_service[0]
+Slow fix4 100C Model	0	removal	analyzed	1	0.748	reset	machine_at_pit_u_KF8253_Counter_0_prev_read_counter
+Slow fix4 100C Model	0	clk_clock_setup	analyzed	1	2.088	cpu_dfwd_sp_wb_reg[4]	cpu_dc0[317]~DUPLICATE
+Slow fix4 100C Model	0	clk_clock_hold	analyzed	1	0.085	audio_opl2_index[4]~DUPLICATE	audio_opl2_queue_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a12~FITTER_CREATED_MLAB_CELL0~reg0
+Slow fix4 100C Model	0	pixel_clk_clock_setup	analyzed	1	8.315	machine_presenter_h_a[19]~ERTM	machine_presenter_picture[23]~ERTM
+Slow fix4 100C Model	0	pixel_clk_clock_hold	analyzed	1	0.084	machine_presenter_width[0]~DUPLICATE	add_1160~126_ERTM2
+Slow fix4 100C Model	0	internal_setup	analyzed	1	2.088	cpu_dfwd_sp_wb_reg[4]	cpu_dc0[317]~DUPLICATE
+Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	3.929		
+Slow fix4 0C Model	0	setup	analyzed	1	1.159	cpu_dfwd_sp_wb_reg[4]	cpu_dc0[317]~DUPLICATE
+Slow fix4 0C Model	0	hold	analyzed	1	0.108	machine_presenter_width[0]~DUPLICATE	add_1160~126_ERTM2
+Slow fix4 0C Model	0	recovery	analyzed	1	6.515	reset	machine_at_pic_master_highest_level_in_service[0]
+Slow fix4 0C Model	0	removal	analyzed	1	0.864	reset	machine_at_pit_u_KF8253_Counter_0_prev_read_counter
+Slow fix4 0C Model	0	clk_clock_setup	analyzed	1	1.159	cpu_dfwd_sp_wb_reg[4]	cpu_dc0[317]~DUPLICATE
+Slow fix4 0C Model	0	clk_clock_hold	analyzed	1	0.113	audio_opl2_index[4]~DUPLICATE	audio_opl2_queue_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a12~FITTER_CREATED_MLAB_CELL0~reg0
+Slow fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	7.375	machine_presenter_h_a[19]~ERTM	machine_presenter_picture[23]~ERTM
+Slow fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.108	machine_presenter_width[0]~DUPLICATE	add_1160~126_ERTM2
+Slow fix4 0C Model	0	internal_setup	analyzed	1	1.159	cpu_dfwd_sp_wb_reg[4]	cpu_dc0[317]~DUPLICATE
+Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	3.903		
+Slow fix4a 0C Model	0	setup	analyzed	1	1.155	cpu_dfwd_sp_wb_reg[4]	cpu_dc0[317]~DUPLICATE
+Slow fix4a 0C Model	0	hold	analyzed	1	0.105	machine_presenter_width[0]~DUPLICATE	add_1160~126_ERTM2
+Slow fix4a 0C Model	0	recovery	analyzed	1	6.526	reset	machine_at_pic_master_highest_level_in_service[0]
+Slow fix4a 0C Model	0	removal	analyzed	1	0.857	reset	machine_at_pit_u_KF8253_Counter_0_prev_read_counter
+Slow fix4a 0C Model	0	clk_clock_setup	analyzed	1	1.155	cpu_dfwd_sp_wb_reg[4]	cpu_dc0[317]~DUPLICATE
+Slow fix4a 0C Model	0	clk_clock_hold	analyzed	1	0.113	audio_opl2_index[4]~DUPLICATE	audio_opl2_queue_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a12~FITTER_CREATED_MLAB_CELL0~reg0
+Slow fix4a 0C Model	0	pixel_clk_clock_setup	analyzed	1	7.468	machine_presenter_h_a[19]~ERTM	machine_presenter_picture[23]~ERTM
+Slow fix4a 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.105	machine_presenter_width[0]~DUPLICATE	add_1160~126_ERTM2
+Slow fix4a 0C Model	0	internal_setup	analyzed	1	1.155	cpu_dfwd_sp_wb_reg[4]	cpu_dc0[317]~DUPLICATE
+Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	3.903		
+Fast fix4 0C Model	0	setup	analyzed	1	4.678	cpu_dfwd_ready[18]	cpu_dc0[317]~DUPLICATE
+Fast fix4 0C Model	0	hold	analyzed	1	0.018	cpu_x87_g_de25_core_fast_s4_low[40]	cpu_x87_g_de25_core_fast_s5_low[40]
+Fast fix4 0C Model	0	recovery	analyzed	1	7.665	reset	machine_at_pit_u_KF8253_Counter_1_select_read_write[0]
+Fast fix4 0C Model	0	removal	analyzed	1	0.442	reset	machine_at_pit_u_KF8253_Counter_0_prev_read_counter
+Fast fix4 0C Model	0	clk_clock_setup	analyzed	1	4.678	cpu_dfwd_ready[18]	cpu_dc0[317]~DUPLICATE
+Fast fix4 0C Model	0	clk_clock_hold	analyzed	1	0.018	cpu_x87_g_de25_core_fast_s4_low[40]	cpu_x87_g_de25_core_fast_s5_low[40]
+Fast fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	10.328	machine_display_scanout_reader_count[3]	machine_display_control_response_data[2]
+Fast fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.020	machine_presenter_width[0]~DUPLICATE	add_1160~126_ERTM2
+Fast fix4 0C Model	0	internal_setup	analyzed	1	4.678	cpu_dfwd_ready[18]	cpu_dc0[317]~DUPLICATE
+Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	4.142		
