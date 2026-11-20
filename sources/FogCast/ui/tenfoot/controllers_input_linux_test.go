@@ -185,6 +185,57 @@ func TestLearningPadIsReadRaw(t *testing.T) {
 	}
 }
 
+// Mapping can start while this poll is draining the pad's events. The raw
+// learner must take over as soon as the button that started mapping is up.
+func TestLearnerRouteRefreshesDuringPoll(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { reader.Close(); writer.Close() })
+	fd := int(reader.Fd())
+	if err := unix.SetNonblock(fd, true); err != nil {
+		t.Fatal(err)
+	}
+
+	app := NewApp(nil, 1280, 720, 100)
+	app.SetPadInfo(fd, PadInfo{Name: "USB Gamepad", GUID: testPadGUID, Player: 1})
+	app.mu.Lock()
+	app.settingsOpen = true
+	app.controllers = controllersState{open: true, pad: fd, focus: controllersFocusLearn}
+	app.mu.Unlock()
+	if got := app.Snapshot().Controllers.Focus; got != controllersFocusLearn {
+		t.Fatalf("controller focus = %d, want mapping button %d", got, controllersFocusLearn)
+	}
+
+	device := controller.Device{Keys: make([]byte, 96)}
+	for _, code := range []uint16{304, 305} {
+		device.Keys[code/8] |= 1 << uint(code%8)
+	}
+	in := &nativeInput{fd: fd, kind: InputGamepad, player: 0, device: device,
+		mapper: controller.NewMapper(device), info: PadInfo{GUID: testPadGUID}}
+	ins := &nativeInputs{devices: []*nativeInput{in}, kindOf: func(int) InputKind { return InputGamepad }}
+	now := time.Now()
+	for _, event := range [][]byte{
+		nativeTestEvent(1, 304, 1), // A selects Map step by step.
+		nativeTestEvent(1, 304, 0), // Its release lets the learner take over.
+		nativeTestEvent(1, 305, 1), // B is a raw mapping source, not menu Back.
+	} {
+		if _, err := writer.Write(event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := ins.poll(app, now); err != nil {
+		t.Fatal(err)
+	}
+
+	controllers := app.Snapshot().Controllers
+	learn := controllers.Learn
+	if !learn.Open || learn.Step != 1 {
+		t.Fatalf("queued B escaped the learner route: open=%v step=%d", learn.Open, learn.Step)
+	}
+}
+
 // A saved step-by-step mapping replaces the pad's own once it is idle.
 func TestSavedMappingReachesAnAttachedPad(t *testing.T) {
 	app := controllersApp(t)

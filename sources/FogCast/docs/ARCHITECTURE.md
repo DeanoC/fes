@@ -1902,7 +1902,9 @@ Benchmark recipes and measurement limits are in
 The framebuffer shell reads native-width evdev records for US keyboard text
 and gamepad buttons plus range-normalized stick/hat axes, merges held commands across devices,
 and applies each pad's saved profile and the shared hold gate. `nativeInputs.poll` takes those
-axes from `ui/controller.Mapper`. A held D-pad hat owns each shared
+axes from `ui/controller.Mapper`. Before dispatching each event, `nativeInputs.poll` refreshes
+whether the selected pad is in step-by-step learning. A mapping started while draining therefore
+changes the route for that pad's next queued event. A held D-pad hat owns each shared
 left axis: stick reports on that axis are dropped until the hat returns to
 centre, which restores the stick's latest position. Automatic discovery filters keyboard
 capabilities and physical gamepad identity, excluding virtual-bus devices and

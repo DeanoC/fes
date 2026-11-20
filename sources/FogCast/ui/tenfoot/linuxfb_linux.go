@@ -591,6 +591,9 @@ devices:
 					}
 					return false, fmt.Errorf("%s input: evdev dropped events; restart to resynchronise", ins.label)
 				}
+				if in.info.GUID != "" {
+					ins.syncLearner(app, in)
+				}
 				if in.learner != nil {
 					if source, ok := in.learner.Feed(typ, code, value); ok {
 						app.NoteInput(InputGamepad, in.fd)
