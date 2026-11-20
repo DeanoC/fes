@@ -4,7 +4,8 @@ module x87_trans_tb_top (
     input  logic        clk,
     input  logic        reset,
     input  logic        start,
-    input  logic [2:0]  instruction,
+    input  logic [3:0]  instruction,
+    input  logic [1:0]  rc,
     input  logic        xs,
     input  logic [17:0] xe,
     input  logic [63:0] xm,
@@ -18,16 +19,21 @@ module x87_trans_tb_top (
     output logic [17:0] fin_exp,
     output logic [66:0] fin_sig,
     output logic [1:0]  second_mode,
-    output logic [79:0] second
+    output logic [79:0] second,
+    output logic [2:0]  prem_q,
+    output logic        prem_part,
+    output logic        rnd_pe,
+    output logic        rnd_c1
 );
     logic              req_valid, req_ready, raw_valid;
     logic [2:0]        req_op;
     logic [79:0]       req_a, req_b;
     fes_x87_pkg::raw_t raw;
     fes_x87_trans engine (
-        .clk, .reset, .cancel(1'b0), .start, .instruction, .xs, .xe, .xm, .ys, .ye, .ym,
+        .clk, .reset, .cancel(1'b0), .start, .instruction, .rc, .xs, .xe, .xm, .ys, .ye, .ym,
         .req_valid, .req_ready, .req_op, .req_a, .req_b, .raw_valid, .raw,
-        .busy, .done, .fin_zero, .fin_sign, .fin_exp, .fin_sig, .second_mode, .second
+        .busy, .done, .fin_zero, .fin_sign, .fin_exp, .fin_sig, .second_mode, .second,
+        .prem_q, .prem_part, .rnd_pe, .rnd_c1
     );
     // Round to nearest and extended precision: an intermediate's rounding is
     // the engine's own, and a zero's sign follows the nearest rule.

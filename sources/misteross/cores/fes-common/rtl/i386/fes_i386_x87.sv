@@ -1324,23 +1324,34 @@ module fes_i386_x87 #(
     // The engine's instruction number (fes_x87_trans_pkg TR_*) off the
     // opcode's low byte. FSINCOS and FPTAN push; the three two-operand forms
     // pop; the four trigonometric forms have the 2^63 range and C2.
-    logic [2:0] t_ins;
-    logic       t_two, t_push, t_trig;
+    // FPREM, FPREM1, FRNDINT, FSCALE and FXTRACT run on the engine too
+    // (#2027 slice 6); their numbers follow the transcendentals'.
+    logic [3:0] t_ins;
+    logic       t_two, t_push, t_trig, t_exact;
     always_comb begin
         case (cur_op_raw[7:0])
-            8'hfe: t_ins = 3'd0;      // FSIN
-            8'hff: t_ins = 3'd1;      // FCOS
-            8'hfb: t_ins = 3'd2;      // FSINCOS
-            8'hf2: t_ins = 3'd3;      // FPTAN
-            8'hf0: t_ins = 3'd4;      // F2XM1
-            8'hf1: t_ins = 3'd5;      // FYL2X
-            8'hf9: t_ins = 3'd6;      // FYL2XP1
-            default: t_ins = 3'd7;    // FPATAN
+            8'hfe: t_ins = 4'd0;      // FSIN
+            8'hff: t_ins = 4'd1;      // FCOS
+            8'hfb: t_ins = 4'd2;      // FSINCOS
+            8'hf2: t_ins = 4'd3;      // FPTAN
+            8'hf0: t_ins = 4'd4;      // F2XM1
+            8'hf1: t_ins = 4'd5;      // FYL2X
+            8'hf9: t_ins = 4'd6;      // FYL2XP1
+            8'hf8: t_ins = 4'd8;      // FPREM
+            8'hf5: t_ins = 4'd9;      // FPREM1
+            8'hfc: t_ins = 4'd10;     // FRNDINT
+            8'hfd: t_ins = 4'd11;     // FSCALE
+            8'hf4: t_ins = 4'd12;     // FXTRACT
+            default: t_ins = 4'd7;    // FPATAN
         endcase
     end
-    assign t_two = t_ins >= 3'd5;
-    assign t_push = t_ins == 3'd2 || t_ins == 3'd3;
-    assign t_trig = t_ins <= 3'd3;
+    // The exact forms take x from ST(0) and y from ST(1), as `pa` and `pb`
+    // hold them; the transcendentals' two-operand forms have them the other
+    // way round.
+    assign t_exact = cur == X87_PREM || cur == X87_RNDINT || cur == X87_SCALE || cur == X87_XTRACT;
+    assign t_two = !t_exact && t_ins >= 4'd5;
+    assign t_push = t_ins == 4'd2 || t_ins == 4'd3;
+    assign t_trig = t_ins <= 4'd3;
     logic       tr_c2;       // a trigonometric form sets C2
     logic       tr_nowr;     // ... and, out of range, writes and pushes nothing
     logic       tr_eng;      // the result is the engine's: inexact by definition
@@ -1659,6 +1670,8 @@ module fes_i386_x87 #(
     logic signed [17:0]       tr_fin_exp;
     logic [66:0]              tr_fin_sig;
     logic [1:0]               tr_second_mode;
+    logic [2:0]               tr_prem_q;
+    logic                     tr_prem_part, tr_rnd_pe, tr_rnd_c1;
     assign tr_start = X87_BACKEND == 1 && seq == T_GO;
     generate
         if (X87_BACKEND == 1) begin : g_de25
@@ -1675,15 +1688,17 @@ module fes_i386_x87 #(
             // and `pa`, a one-operand form has x in `pa`.
             fes_x87_trans trans (
                 .clk, .reset(reset || f1), .cancel(bk_cancel),
-                .start(tr_start), .instruction(t_ins),
+                .start(tr_start), .instruction(t_ins), .rc(rc),
                 .xs(t_two ? pb[79] : pa[79]), .xe((t_two ? ob_e : oa_e) - 18'sd16383),
                 .xm(t_two ? ob_m : oa_m),
-                .ys(pa[79]), .ye(oa_e - 18'sd16383), .ym(oa_m),
+                .ys(t_exact ? pb[79] : pa[79]), .ye((t_exact ? ob_e : oa_e) - 18'sd16383),
+                .ym(t_exact ? ob_m : oa_m),
                 .req_valid(tr_req_valid), .req_ready(bk_req_ready), .req_op(tr_req_op),
                 .req_a(tr_req_a), .req_b(tr_req_b), .raw_valid(bk_raw_valid), .raw(bk_raw),
                 .busy(tr_busy), .done(tr_done), .fin_zero(tr_fin_zero), .fin_sign(tr_fin_sign),
                 .fin_exp(tr_fin_exp), .fin_sig(tr_fin_sig), .second_mode(tr_second_mode),
-                .second(tr_second)
+                .second(tr_second), .prem_q(tr_prem_q), .prem_part(tr_prem_part),
+                .rnd_pe(tr_rnd_pe), .rnd_c1(tr_rnd_c1)
             );
         end else begin : g_de10
             assign bk_req_ready = 1'b0;
@@ -1701,6 +1716,10 @@ module fes_i386_x87 #(
             assign tr_fin_sig = 67'd0;
             assign tr_second_mode = 2'd0;
             assign tr_second = 80'd0;
+            assign tr_prem_q = 3'd0;
+            assign tr_prem_part = 1'b0;
+            assign tr_rnd_pe = 1'b0;
+            assign tr_rnd_c1 = 1'b0;
         end
     endgenerate
     // The decoded operation, from the same form bits the sequencer's datapath
@@ -1714,10 +1733,9 @@ module fes_i386_x87 #(
         else if (a_sub)           bk_op = 3'(fes_x87_pkg::OP_SUB);
         else                      bk_op = 3'(fes_x87_pkg::OP_ADD);
     end
-    // The forms the backend answers. Everything else -- FRNDINT, FSCALE,
-    // FXTRACT, FPREM and FPREM1 -- stays on the sequencer, because each needs
-    // the shifter the conversions need anyway and none needs the adder or the
-    // divider. The transcendentals are built on neither and stop in decode.
+    // The forms the backend answers directly. FRNDINT, FSCALE, FXTRACT, FPREM
+    // and FPREM1 run on the transcendental engine, which drives the backend
+    // itself (#2027 slice 6).
     assign bk_req_valid = seq == B_ISSUE;
     // How many operations of each kind the backend has been offered and has
     // taken. Nothing reads these in hardware, so synthesis removes them; the
@@ -2144,7 +2162,7 @@ module fes_i386_x87 #(
                                     ares <= pa[79] ? 80'hbfff_8000_0000_0000_0000 : pa;
                             end else if (ca == C_ZERO) begin
                                 // SIN1, COS1, SC1, TAN1, EXP2: exact, no flag.
-                                ares <= t_ins == 3'd1 ? 80'h3fff_8000_0000_0000_0000 : pa;
+                                ares <= t_ins == 4'd1 ? 80'h3fff_8000_0000_0000_0000 : pa;
                             end else if (t_trig && ca != C_DEN && pa[78:64] >= 15'd16383 + 15'd63) begin
                                 // TRIG2: |x| >= 2^63. C2, and nothing else.
                                 tr_c2 <= 1'b1;
@@ -2158,7 +2176,7 @@ module fes_i386_x87 #(
                             pfl <= sp_fl;
                             psf <= sp_sf;
                             ares <= sp_v;
-                        end else if (t_ins == 3'd7) begin
+                        end else if (t_ins == 4'd7) begin
                             // FPATAN: no operand pair is invalid (ATAN3, ATAN4).
                             if (ca == C_ZERO) begin
                                 if (!sx) ares <= {sy, 79'd0};       // over a positive x: the zero
@@ -2174,7 +2192,7 @@ module fes_i386_x87 #(
                                 else begin viapi = 1'b1; pik = 2'd3; end
                             end else
                                 go = 1'b1;
-                        end else if (t_ins == 3'd5) begin
+                        end else if (t_ins == 4'd5) begin
                             // FYL2X (LOG1 to LOG4).
                             if (cb == C_ZERO) begin
                                 if (ca == C_ZERO) begin
@@ -2520,7 +2538,7 @@ module fes_i386_x87 #(
                 // branches.
                 A_OP: if (bk_form) begin
                     seq <= B_ISSUE;
-                end else if (X87_BACKEND == 1 && cur == X87_TRANS) begin
+                end else if (X87_BACKEND == 1 && (cur == X87_TRANS || t_exact)) begin
                     seq <= T_GO;
                 end else begin
                     if (cur == X87_ARITH && a_mul) begin
@@ -2534,7 +2552,7 @@ module fes_i386_x87 #(
                         sh_isprod <= 1'b1;
                         sh_ret <= A_PROD;
                         seq <= S_SHIFT;
-                    end else if (cur == X87_PREM) begin
+                    end else if (X87_BACKEND == 0 && cur == X87_PREM) begin
                         // The step reduces n = (expDiff & 31) | 32 quotient
                         // bits where the difference is 64 or more, and the
                         // whole difference where it is less -- measured on the
@@ -2712,7 +2730,7 @@ module fes_i386_x87 #(
                             end else
                                 seq <= A_LOAD;
                         end
-                    end else if (cur == X87_RNDINT) begin
+                    end else if (X87_BACKEND == 0 && cur == X87_RNDINT) begin
                         // FRNDINT: the fraction is the low bits, so a shift
                         // right by 63 minus the unbiased exponent leaves the
                         // integer in the significand and the fraction in the
@@ -2746,7 +2764,7 @@ module fes_i386_x87 #(
                             ws <= 1'b1;
                             seq <= A_INT2;
                         end
-                    end else if (cur == X87_SCALE) begin
+                    end else if (X87_BACKEND == 0 && cur == X87_SCALE) begin
                         // FSCALE: ST(0) scaled by ST(1) truncated toward
                         // zero. The scale's magnitude only matters up to the
                         // exponent range, so an exponent of 16 or more
@@ -2787,7 +2805,7 @@ module fes_i386_x87 #(
                             sh_ret <= A_SC;
                             seq <= S_SHIFT;
                         end
-                    end else begin
+                    end else if (X87_BACKEND == 0) begin
                         // FXTRACT: the significand with the exponent of one,
                         // and the unbiased exponent as an integer, which the
                         // conversion below normalises.
@@ -2809,7 +2827,7 @@ module fes_i386_x87 #(
                     end
                 end
                 // FSCALE's scale, once the truncating shift has run.
-                A_SC: begin
+                A_SC: if (X87_BACKEND == 0) begin
                     // The truncated scale is below 2^16, because an exponent
                     // of 16 or more saturated above, so its low word is it.
                     we <= pb[79] ? oa_e - $signed({2'b0, mul_p[79:64]})
@@ -2817,7 +2835,7 @@ module fes_i386_x87 #(
                     seq <= A_RND;
                 end
                 // FXTRACT's exponent, once its magnitude has normalised.
-                A_XT: begin
+                A_XT: if (X87_BACKEND == 0) begin
                     ares <= {xt_e < 18'sd0, 15'(18'sd16383 + 18'sd63 - 18'(al_k)), mul_p[63:0]};
                     seq <= S_APPLY;
                 end
@@ -2952,7 +2970,7 @@ module fes_i386_x87 #(
                 end
                 // FRNDINT's integer, once the shift has put the fraction
                 // below bit 0.
-                A_INT: begin
+                A_INT: if (X87_BACKEND == 0) begin
                     wm <= mul_p[127:64];
                     wg <= mul_p[63];
                     wrd <= mul_p[62];
@@ -2961,7 +2979,7 @@ module fes_i386_x87 #(
                 end
                 // FRNDINT rounds at bit 0 whatever PC says, then normalises
                 // the integer it rounded to.
-                A_INT2: begin
+                A_INT2: if (X87_BACKEND == 0) begin
                     logic [66:0] rp;
                     logic [63:0] mag;
                     rp = round_pc(wm, wg, wrd, ws, wsign, rc, PC_EXT);
@@ -2988,7 +3006,7 @@ module fes_i386_x87 #(
                         seq <= S_SHIFT;
                     end
                 end
-                A_PACK: begin
+                A_PACK: if (X87_BACKEND == 0) begin
                     ares <= {wsign, 15'(we - 18'(al_k)), mul_p[63:0]};
                     seq <= S_APPLY;
                 end
@@ -3096,10 +3114,12 @@ module fes_i386_x87 #(
                     rp = round_pc(wm, wg, wrd, ws, wsign, rc, wprec);
                     mag = rp[66] ? 64'h8000_0000_0000_0000 : rp[63:0];
                     e2 = we + 18'(rp[66]);
-                    // A remainder's C1 is the quotient's bit 0, set in P_PACK
-                    // and P_ZERO, not the rounding's direction -- and FPREM
-                    // and FPREM1 never round, so there is nothing to record.
-                    if (cur != X87_PREM) pc1 <= rp[64];
+                    // A remainder's C1 is the quotient's bit 0, not the
+                    // rounding's direction -- and FPREM and FPREM1 never
+                    // round, so there is nothing to record. On the engine
+                    // FRNDINT's C1 is its rounding's, set in T_RUN; what
+                    // reaches A_RND is already exact.
+                    if (cur != X87_PREM && !(X87_BACKEND == 1 && cur == X87_RNDINT)) pc1 <= rp[64];
                     if (wtiny) begin
                         // The denormalised value, rounded here for the first
                         // and only time: the exponent field is 0, or 1 where
@@ -3648,7 +3668,7 @@ module fes_i386_x87 #(
                 // the remainder below it; from there 2*rem is below twice the
                 // divisor at every step, so one compare-subtract keeps it in
                 // range. The quotient shifts in beside it.
-                P_SH: begin
+                P_SH: if (X87_BACKEND == 0) begin
                     logic [95:0] r2, t;
                     r2 = {dv_rem[94:0], 1'b0};
                     t = r2 - {32'd0, ob_m};
@@ -3663,7 +3683,7 @@ module fes_i386_x87 #(
                         $error("x87 remainder loop: rem=%h not below B=%h", dv_rem, ob_m);
 `endif
                 end
-                P_FIN: begin
+                P_FIN: if (X87_BACKEND == 0) begin
                     logic [63:0] r0;
                     logic [64:0] twice, bb;
                     logic        up, flip;
@@ -3731,7 +3751,7 @@ module fes_i386_x87 #(
                 // q = C0*4 + C3*2 + C1, measured on the host over q = 0 to 9
                 // for both instructions. The PRM's q2/q1/q0 map to C0/C3/C1 in
                 // that order, which is easy to get backwards from the manual.
-                P_ZERO: begin
+                P_ZERO: if (X87_BACKEND == 0) begin
                     // An unmasked PRE-operation exception reports nothing
                     // else -- slice 3's rule 5 -- and that includes C2 and
                     // the quotient bits. A denormal divisor with DM clear
@@ -3750,7 +3770,7 @@ module fes_i386_x87 #(
                     pcc_wr <= 1'b1;
                     seq <= S_APPLY;
                 end
-                P_PACK: begin
+                P_PACK: if (X87_BACKEND == 0) begin
                     wm <= mul_p[63:0];
                     wg <= 1'b0;
                     wrd <= 1'b0;
@@ -3774,14 +3794,31 @@ module fes_i386_x87 #(
                 // on the same edge. The instruction is inexact by definition
                 // (rules.md G6), so PE is set whatever the last operation was.
                 T_RUN: if (X87_BACKEND == 1 && tr_done) begin
-                    tr_eng <= 1'b1;
-                    pfl[5] <= 1'b1;
+                    // The exact forms are not inexact by definition: FRNDINT
+                    // reports its rounding's PE and C1, FPREM its quotient,
+                    // and the rest round in A_RND like any exact value.
+                    tr_eng <= cur == X87_TRANS;
+                    if (cur == X87_TRANS || (cur == X87_RNDINT && tr_rnd_pe)) pfl[5] <= 1'b1;
+                    if (cur == X87_RNDINT) pc1 <= tr_rnd_c1;
+                    if (cur == X87_PREM) begin
+                        // C2 alone for a partial step; otherwise the quotient's
+                        // low three bits as C0, C3 and C1. An unmasked
+                        // pre-operation exception reports none of them.
+                        pcc <= pre_um(pfl, cw) ? 4'd0
+                             : tr_prem_part ? 4'b0100
+                             : {tr_prem_q[1], 1'b0, tr_prem_q[0], tr_prem_q[2]};
+                        pc1 <= !pre_um(pfl, cw) && !tr_prem_part && tr_prem_q[0];
+                    end
                     wtiny <= 1'b0;
-                    wsat <= 1'b0;
-                    // FPTAN pushes 1.0; FSINCOS pushes the engine's cosine.
-                    if (t_ins == 3'd2) ares2 <= tr_second;
+                    // A scale of 2^16 or more stands in for the true one, so the
+                    // bias adjust of an unmasked overflow or underflow cannot.
+                    wsat <= cur == X87_SCALE && cb != C_ZERO && ob_e >= 18'sd16399;
+                    // FPTAN pushes 1.0; FSINCOS pushes the engine's cosine and
+                    // FXTRACT the significand.
+                    if (t_ins == 4'd2 || cur == X87_XTRACT) ares2 <= tr_second;
                     if (tr_fin_zero) begin
-                        ares <= {tr_fin_sign, 79'd0};
+                        // FRNDINT's zero keeps the operand's sign (387 PRM).
+                        ares <= {cur == X87_RNDINT ? pa[79] : tr_fin_sign, 79'd0};
                         seq <= S_APPLY;
                     end else begin
                         wsign <= tr_fin_sign;
