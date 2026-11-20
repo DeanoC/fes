@@ -32,11 +32,11 @@ Each verifier prints `inputs.bound 119 files` and `SEAL_OK`.
 
 `scripts/build_fes_pc386_quartus.py` was a design-role input of pc386's design-v2 record. So deleting it moves pc386's ID, as does renaming its library or editing it. The move was first measured with the smallest possible deletion, the manual `main()` alone. The result went to Deano. On 20 Nov 2026 he chose to land S5 with the move under the pc386 reseal exemption, without a reseal (relayed by the coordinating session, verbatim "Yes, option (a)"). The next planned pc386 reseal covers it. That reseal is already owed: main's pc386 has been unsealed since #2022, because its design-v2 ID `e5890933…` is not S4's sealed `f023cb1e…`.
 
-[`no_id_moves.txt`](no_id_moves.txt) is S2's per-tree probe, [`../2026-11-19-1984-s2-design-v2/no_id_moves.py`](../2026-11-19-1984-s2-design-v2/no_id_moves.py), run with main `8a162c536` as tree A and this slice's code commit `6fa8e4dcb` as tree B. [`no_id_moves.json`](no_id_moves.json) has the full output. The rule fixed before the first measurement was S2's: every row the same, pc386's design-v2 ID included. **It fails**, on the pc386 producer row. That failure is the move Deano accepted, and no pass is claimed. Every other row is the same, and #1951's record validates on both trees with the same identity.
+[`no_id_moves.txt`](no_id_moves.txt) is S2's per-tree probe, [`../2026-11-19-1984-s2-design-v2/no_id_moves.py`](../2026-11-19-1984-s2-design-v2/no_id_moves.py), run with main `8a162c536` as tree A and this slice's last code commit `ce3d05263` as tree B (later commits change only docs). [`no_id_moves.json`](no_id_moves.json) has the full output. The rule fixed before the first measurement was S2's: every row the same, pc386's design-v2 ID included. **It fails**, on the pc386 producer row. That failure is the move Deano accepted, and no pass is claimed. Every other row is the same, and #1951's record validates on both trees with the same identity.
 
-| Row | main `8a162c536` | S5 `6fa8e4dcb` | Verdict |
+| Row | main `8a162c536` | S5 `ce3d05263` | Verdict |
 | --- | --- | --- | --- |
-| fes.pc386 producer (design-v2) | `e58909332cf79624c8c6398889ffa4ba` | `bb30395d55b0ccf9f5eb940d4c940b63` | moved, as decided |
+| fes.pc386 producer (design-v2) | `e58909332cf79624c8c6398889ffa4ba` | `8668fd73c9d3176b80c6a52c8de042b9` | moved, as decided |
 | the 20 other support-matrix rows | — | — | all the same |
 | sealed #1951 record (design-v1) | `bb7369101d3a5a15d832f58af59c7123` | `bb7369101d3a5a15d832f58af59c7123` | validates on both, same |
 

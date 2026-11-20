@@ -1,5 +1,5 @@
 tree A 8a162c536e8ecef245aeabbe837a856050c294a5
-tree B 6fa8e4dcbd1ae2f1d7316b05d5e2c3809ae74f96
+tree B ce3d052630e07604dd42467f81ad365d752a8de9
 
 row                    files  closure v1 id, A                   closure v1 id, B                   verdict
 fes.apple2                39  bc5979f38e6339c46873f2b3cfdc4445   bc5979f38e6339c46873f2b3cfdc4445   same
@@ -24,7 +24,7 @@ fes.zx80                  52  8bf47ac9e4a636773d3c7550d20fa243   8bf47ac9e4a6367
 fes.zx81                  52  8bf47ac9e4a636773d3c7550d20fa243   8bf47ac9e4a636773d3c7550d20fa243   same
 splash                    11  54a402f03583b60d34b5435b2e8413b6   54a402f03583b60d34b5435b2e8413b6   same (format 1: pinned inputs)
 
-fes.pc386 producer     design-v2  e58909332cf79624c8c6398889ffa4ba   bb30395d55b0ccf9f5eb940d4c940b63   MOVED (create_build_record, selection-only)
+fes.pc386 producer     design-v2  e58909332cf79624c8c6398889ffa4ba   8668fd73c9d3176b80c6a52c8de042b9   MOVED (create_build_record, selection-only)
 sealed #1951 record           bb7369101d3a5a15d832f58af59c7123   bb7369101d3a5a15d832f58af59c7123   validates on both, same
 
 MOVED OR UNANSWERED: fes.pc386 producer

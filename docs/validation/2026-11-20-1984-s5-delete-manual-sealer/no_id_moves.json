@@ -268,11 +268,11 @@
             }
         },
         "pc386_record": {
-            "build_id": "bb30395d55b0ccf9f5eb940d4c940b63",
-            "design": "bb30395d55b0ccf9f5eb940d4c940b636b306f2dac41779dacf048c626c73027",
+            "build_id": "8668fd73c9d3176b80c6a52c8de042b9",
+            "design": "8668fd73c9d3176b80c6a52c8de042b9b17f76fc6ca5b689d97b9a610ddbd2b5",
             "policy": "design-v2"
         },
-        "revision": "6fa8e4dcbd1ae2f1d7316b05d5e2c3809ae74f96",
+        "revision": "ce3d052630e07604dd42467f81ad365d752a8de9",
         "sealed_1951": {
             "design": "bb7369101d3a5a15d832f58af59c7123d918ae9510c914266b13909267eea38d",
             "validates": true
