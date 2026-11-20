@@ -64,25 +64,41 @@ def source_selection(root, record, sources, selected, package, payload):
         "package_id", "core_rbf_sha256"}, {
         "identity_policy", "design_id", "built_toolchain_id", "built_record_id", "built_with",
         "built_pins", "selected_pins", "built_toolchain_inputs", "selected_toolchain_inputs",
-        "toolchain_update_available", "pc386_evidence_sha256"})
+        "toolchain_update_available", "pc386_evidence_sha256",
+        "pc386_evidence_drift", "pc386_fresh_lockstep_sha256"})
     design_fields = {"identity_policy", "design_id", "built_toolchain_id", "built_record_id", "built_with",
                      "built_pins", "selected_pins", "built_toolchain_inputs", "selected_toolchain_inputs",
                      "toolchain_update_available"}
     present = design_fields & value.keys()
     if present:
-        if present != design_fields or value["identity_policy"] != "design-v1":
-            raise ValueError("invalid design-v1 source selection")
+        if present != design_fields or value["identity_policy"] not in ("design-v1", "design-v2"):
+            raise ValueError("invalid design-identity source selection")
         if (not isinstance(value["design_id"], str) or not re.fullmatch(r"[0-9a-f]{32}", value["design_id"])
                 or any(not isinstance(value[k], str) or not re.fullmatch(r"[0-9a-f]{64}", value[k])
                        for k in ("built_toolchain_id", "built_record_id"))
                 or type(value["toolchain_update_available"]) is not bool
                 or any(not isinstance(value[k], dict) for k in
                        ("built_with", "built_pins", "selected_pins", "built_toolchain_inputs", "selected_toolchain_inputs"))):
-            raise ValueError("invalid design-v1 source selection fields")
+            raise ValueError("invalid design-identity source selection fields")
     if "pc386_evidence_sha256" in value:
         if not present or not isinstance(value["pc386_evidence_sha256"], str) or not re.fullmatch(
                 r"[0-9a-f]{64}", value["pc386_evidence_sha256"]):
             raise ValueError("invalid pc386 evidence digest")
+    # A pc386 package reused after an evidence-only change names the changed
+    # evidence and its fresh lockstep record (#1984 S3). Only a design-v2
+    # record can keep its design ID across an evidence change.
+    fresh = {"pc386_evidence_drift", "pc386_fresh_lockstep_sha256"} & value.keys()
+    if fresh:
+        drift = value.get("pc386_evidence_drift")
+        if (len(fresh) != 2 or "pc386_evidence_sha256" not in value
+                or value["identity_policy"] != "design-v2"
+                or not isinstance(value["pc386_fresh_lockstep_sha256"], str)
+                or not re.fullmatch(r"[0-9a-f]{64}", value["pc386_fresh_lockstep_sha256"])
+                or not isinstance(drift, list) or not drift or drift != sorted(set(drift))
+                or any(not isinstance(path, str) or not path or PurePosixPath(path).is_absolute()
+                       or PurePosixPath(path).as_posix() != path
+                       or any(part in ("", ".", "..") for part in path.split("/")) for path in drift)):
+            raise ValueError("invalid pc386 fresh lockstep reuse")
     if type(value["format"]) is not int or value["format"] != 1:
         raise ValueError("unsupported source selection format")
     for prefix in ("selected", "original"):

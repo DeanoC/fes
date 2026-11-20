@@ -13,7 +13,7 @@ As of 13 November 2026:
 - S6a's per-core Quartus Lite locks landed in [#1652](https://github.com/DeanoC/fes/pull/1652). D2's i386 Yosys lock change landed in [#1664](https://github.com/DeanoC/fes/pull/1664).
 - S4's shared Yosys netlist helper landed in [#1758](https://github.com/DeanoC/fes/pull/1758), and S5's pc386 lockstep producer gate in [#1782](https://github.com/DeanoC/fes/pull/1782). S6b's DE25 Pro lock is on main.
 - D12's closure-only BUILD_ID rule landed in [#1649](https://github.com/DeanoC/fes/pull/1649). The binding rule and required evidence are in [AGENTS.md](../../AGENTS.md#hard-rules).
-- [#1984](https://github.com/DeanoC/fes/issues/1984)'s pc386 identity scope was decided on 18 November 2026 (**D14**, [Design identity policies](#design-identity-policies)). S1, the seal process that no longer imports evidence or firmware-recipe code, landed in [#1997](https://github.com/DeanoC/fes/pull/1997). S2, the `design-v2` policy in `M/scripts/input_identity.py`, is in its own PR. S3 to S5 are not started, and no producer writes a design-v2 record yet.
+- [#1984](https://github.com/DeanoC/fes/issues/1984)'s pc386 identity scope was decided on 18 November 2026 (**D14**, [Design identity policies](#design-identity-policies)). S1, the seal process that no longer imports evidence or firmware-recipe code, landed in [#1997](https://github.com/DeanoC/fes/pull/1997). S2, the `design-v2` policy in `M/scripts/input_identity.py`, landed in [#2004](https://github.com/DeanoC/fes/pull/2004). S3, reuse after an evidence-only change only through a recorded fresh full lockstep, is in its own PR ([record](../validation/2026-11-20-1984-s3-evidence-reuse/README.md)). S4 and S5 are not started, and no producer writes a design-v2 record yet.
 
 ## Summary
 
@@ -192,7 +192,7 @@ A format-2 record with separated identities declares its policy in `parameters.i
   4. The v1-to-v2 migration takes a normal reseal (S4), not D12 evidence.
   5. S1 merged under the in-progress pc386 exemption. That waives only the seal at S1's exact head and relaxes no timing or seal check, and S4's reseal is the only seal.
   6. The format-1 manual pc386 sealer is deleted in its own PR (S5).
-- **Slices:** S1 (seal process, [#1997](https://github.com/DeanoC/fes/pull/1997)), S2 (this policy; moves no `BUILD_ID`, [measured](../validation/2026-11-19-1984-s2-design-v2/README.md)), S3 (reuse under evidence drift, which must merge before S4), S4 (the pc386 producer writes design-v2 records, by a normal migration reseal) and S5 (delete the manual sealer).
+- **Slices:** S1 (seal process, [#1997](https://github.com/DeanoC/fes/pull/1997)), S2 (this policy; moves no `BUILD_ID`, [measured](../validation/2026-11-19-1984-s2-design-v2/README.md)), S3 (reuse under evidence drift, which must merge before S4; [record](../validation/2026-11-20-1984-s3-evidence-reuse/README.md)), S4 (the pc386 producer writes design-v2 records, by a normal migration reseal) and S5 (delete the manual sealer).
 
 Package-ID churn may also move the designated baseline bundles named in the kit status files (D13).
 

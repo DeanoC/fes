@@ -300,7 +300,8 @@ def manifest(root: Path, record: bytes, evidence: dict, repository: str, revisio
 
 
 def check_lockstep_metadata(root: Path, data: bytes, yosys: board.AuthenticatedTool,
-                            gpu_router: str) -> dict:
+                            gpu_router: str, *, expected_oracle: dict | None = None,
+                            linked_names: tuple[str, ...] | None = None) -> dict:
     """Validate source and tool binding in a full default lockstep report.
 
     Fresh seals additionally regenerate the CPU netlist in
@@ -333,14 +334,15 @@ def check_lockstep_metadata(root: Path, data: bytes, yosys: board.AuthenticatedT
         raise board.BuildError(f"cannot read {I386_LOCK}: {exc}") from exc
     if not isinstance(verilator, dict) or verilator.get("lock") != I386_LOCK or verilator.get("commit") != pinned:
         raise board.BuildError(f"lockstep report's Verilator is not {I386_LOCK}'s {pinned}: {verilator!r}")
-    expected_oracle = oracle_identity(root)
+    if expected_oracle is None:
+        expected_oracle = oracle_identity(root)
     measured_oracle = report.get("oracle")
     if (not isinstance(measured_oracle, dict)
             or set(measured_oracle) != set(expected_oracle) | {"linked_sha256", "testbench_sha256"}
             or any(measured_oracle.get(key) != value for key, value in expected_oracle.items())):
         raise board.BuildError(f"lockstep report's oracle identity {measured_oracle!r} is not {expected_oracle!r}")
     linked = measured_oracle["linked_sha256"]
-    if (not isinstance(linked, dict) or set(linked) != set(LINKED_NAMES)
+    if (not isinstance(linked, dict) or set(linked) != set(linked_names or LINKED_NAMES)
             or not all(valid_sha256(value) for value in linked.values())
             or not valid_sha256(measured_oracle["testbench_sha256"])):
         raise board.BuildError("lockstep report's oracle binary digests are missing or invalid")
