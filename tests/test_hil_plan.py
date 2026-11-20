@@ -40,6 +40,15 @@ class HilPlanTest(unittest.TestCase):
         self.assertEqual(planner.plan(['sources/misteross/tools/unknown.py'], texts={})['decision'],
                          'FULL_IMAGE')
 
+    def test_de25_boot_screen_classifier_is_offline_validation_tooling(self):
+        planner = hil_module()
+        path = 'scripts/de25_boot_screen.py'
+        result = planner.plan([path], texts={})
+        self.assertEqual(result['decision'], 'NO_DEPLOY_CHANGE')
+        self.assertEqual(result['rows'][0]['class'], 'none')
+        mixed = planner.plan([path, 'image/buildroot/config'], texts={})
+        self.assertEqual(mixed['decision'], 'FULL_IMAGE')
+
     def test_catalog_metadata_does_not_require_deployment(self):
         planner = hil_module()
         catalog = 'config/core-library.toml'
