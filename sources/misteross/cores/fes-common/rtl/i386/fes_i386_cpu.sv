@@ -3213,6 +3213,15 @@ module fes_i386_cpu #(
     function automatic logic [2:0] halves(input logic a0, input logic [3:0] bytes);
         halves = 3'((4'(a0) + bytes + 4'd1) >> 1);
     endfunction
+    // The 32-bit dwords it touches, for local-bus video, which times only the
+    // VGA window (A0000h-BFFFFh); other MMIO, such as an EMS board's frame,
+    // keeps the ISA cycle.
+    function automatic logic [1:0] dwords(input logic [1:0] a, input logic [3:0] bytes);
+        dwords = 2'((4'(a) + bytes + 4'd3) >> 2);
+    endfunction
+    function automatic logic vga_window(input logic [PA:0] p);
+        vga_window = !p[PA] && p[PA-1:17] == (PA-17)'(5);
+    endfunction
     // Restrict the reference ENTER experiment to two fully classified RAM
     // operands. The primary's translated next page is not carried to WB, so
     // any primary page crossing retains the previous conservative path.
@@ -3300,7 +3309,9 @@ module fes_i386_cpu #(
                       wb_at0 == fes_i386_pkg::ATTR_RAM && (!wb_cross || wb_at1 == fes_i386_pkg::ATTR_RAM)),
         .io(wb_commit && wb_s.uop.io != 2'd0), .io_port, .io_size,
         .mmio(gov_mmio), .mmio_halves(halves(wb_s.maddr[0], wb_s.uop.mem.bytes)),
+        .mmio_dwords(dwords(wb_s.maddr[1:0], wb_s.uop.mem.bytes)), .mmio_vga(vga_window(wb_mp)),
         .mmio_st2(gov_mmio_st2), .mmio_st2_halves(halves(wb_s.target[0], wb_s.uop.mem.bytes)),
+        .mmio_st2_dwords(dwords(wb_s.target[1:0], wb_s.uop.mem.bytes)), .mmio_st2_vga(vga_window(wb_p0)),
         .hold(gov_hold), .debt_clocks(trace_gov_debt), .charge(trace_gov_charge)
     );
 

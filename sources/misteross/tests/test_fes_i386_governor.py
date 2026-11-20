@@ -115,6 +115,42 @@ class TableTest(unittest.TestCase):
         self.assertEqual([governor.halves(a, n) for a, n in ((0, 1), (1, 1), (0, 2), (1, 2), (0, 4), (2, 4), (1, 4))],
                          [1, 1, 1, 2, 2, 2, 3])
 
+    def test_local_bus_video(self):
+        # Local-bus video: five 30 ns clocks per 32-bit dword (150 ns), 5
+        # reference clocks at 33.3 MHz, 10 at 66.7; rounded as exactly as ISA.
+        table = governor.load()
+        lb = table.local_bus
+        self.assertEqual((lb.clock_ns, lb.vga), (30, 5))
+        self.assertEqual([lb.clocks(f, 5) for f in (200, 250, 333, 500, 667)], [3, 4, 5, 8, 10])
+        for frequency in range(1, 1 << governor.FREQUENCY_BITS):
+            self.assertLessEqual(abs(lb.clocks(frequency, lb.vga) - frequency * lb.vga * lb.clock_ns / 10000), 0.5)
+        presets = {p.name: p for p in table.presets}
+        self.assertEqual([p.local_video for p in table.presets], [False] * 5 + [True] * 2)
+        p25, p33 = presets['386DX-25'], presets['486DX-33']
+        self.assertEqual((p25.local_video, p33.local_video), (False, True))
+        # An access's dwords; its local-bus charge less the bus cycle.
+        self.assertEqual([governor.dwords(a, n) for a, n in ((0, 1), (3, 1), (0, 2), (3, 2), (0, 4), (2, 4), (1, 4))],
+                         [1, 1, 1, 2, 1, 2, 2])
+        self.assertEqual(governor.mmio_charge(table, p33, 333, 1, True, local=True), 3)
+        self.assertEqual(governor.mmio_charge(table, p33, 667, 2, False, local=True), 18)
+        self.assertEqual(governor.mmio_charge(table, p33, 333, 2, True), 46)       # ISA: two halves of 24
+        self.assertEqual(governor.mmio_charge(table, p33, 100, 1, False, local=True), 0)
+        package = governor.PACKAGE.read_text()
+        self.assertIn(f"LB_STEP = {lb.step.bit_length()}'d{lb.step};", package)
+        self.assertIn("local_video: 1'b1};  // 486DX2-66", package)
+
+    def test_bad_local_bus_is_refused(self):
+        for change, message in (
+                (lambda s: s.pop('local_bus'), 'local_bus has'),
+                (lambda s: s['local_bus'].update(vga=0), 'vga is 1 to'),
+                (lambda s: s['local_bus'].update(clock_ns=0), 'clock_ns is 1 to'),
+                (lambda s: s['preset'][0].pop('video'), 'video is isa or local'),
+                (lambda s: s['preset'][0].update(video='vlb'), 'video is isa or local')):
+            bad = source()
+            change(bad)
+            with self.subTest(message=message), self.assertRaisesRegex(governor.GovernorError, message):
+                governor.parse(bad)
+
     def test_word16_is_pc386_io_split(self):
         # The RTL's word16(): a 16-bit port among an access's bytes with
         # another byte after it. It has a 16-bit cycle exactly when the

@@ -1,0 +1,141 @@
+{
+ "sealed_commit": "1ff32d6ddd2059f2ebf8b609a0d407ebdd579267",
+ "host": "chip-30x0-ai-dev",
+ "quartus": "17.0.2",
+ "seed": 1,
+ "gpu_router_slot": "cuda",
+ "build_id": "828c86b038e003d98dd2a501e52c490d",
+ "package": "ebe13bb8a91310135b2ee04261ff6433db77c6681afff5dff79df238fda1efa7",
+ "fcore_sha256": "1e140bba873ef61672a07758f859b75647bf0c627e4d0bcf35c5e64148ba19fc",
+ "status": "pass",
+ "timing": {
+  "analyses": {
+   "hold": {
+    "tns_ns": 0.0,
+    "worst_slack_ns": 0.069
+   },
+   "minimum_pulse_width": {
+    "tns_ns": 0.0,
+    "worst_slack_ns": 1.122
+   },
+   "recovery": {
+    "tns_ns": 0.0,
+    "worst_slack_ns": 7.044
+   },
+   "removal": {
+    "tns_ns": 0.0,
+    "worst_slack_ns": 0.267
+   },
+   "setup": {
+    "tns_ns": 0.0,
+    "worst_slack_ns": 0.345
+   }
+  },
+  "clocks": {
+   "audio": {
+    "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+    "mhz": 12.29
+   },
+   "pixel": {
+    "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+    "mhz": 74.27
+   },
+   "system": {
+    "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+    "mhz": 61.44
+   }
+  },
+  "status": "pass"
+ },
+ "resources": {
+  "alms": {
+   "available": 41910,
+   "used": 36395
+  },
+  "block_memory_bits": {
+   "available": 5662720,
+   "used": 1354806
+  },
+  "dsp_blocks": {
+   "available": 112,
+   "used": 41
+  },
+  "ram_blocks": {
+   "available": 553,
+   "used": 282
+  },
+  "registers": {
+   "used": 31908
+  }
+ },
+ "lockstep": {
+  "cpu_source_closure_sha256": "bc221040bfc4499ad64c23a7796c4d6aac7221364dc9df7d659aabde52cc9379",
+  "netlist_program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
+  "netlist_sha256": "e39e7b091fd18a992c1cab3f3227fb2c9ea7799cd55a908028ea1965d15c6498",
+  "oracle": {
+   "adapter_sha256": "8476a65df29382fdfdb5b8ce342495f3491fd2c7e5c5df40018d3a3d68bb21e3",
+   "linked_sha256": {
+    "adapter": "5857aee4bcced159b79def18b33364fc137436a2f507bcf8d35ee32e081bb0b4",
+    "cpu": "b0e4a6983031828052b0f529d9b472b39aaa4c788acd2f2feffb2915e00685f1",
+    "fpu": "0737ee04f7263fed18fc745205c8b7e3241816d61689fc45444b7676371b2542",
+    "paramtree": "7a1c5ac6028382277a6447c8644a27ffbe05cad58616cd2208709da302f1067c",
+    "softfloat": "755af53c543dede7fec25630fd5368198ac167458c0ff7c3ca27b89e924f9715"
+   },
+   "patch_sha256": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377",
+   "provisioner_sha256": "0c4552c2290a0f50681090a65cf25deeb1916568c910bcfcc88a91097f8089b2",
+   "revision": "30cfd566ecc8deb33e56e801e32b444a7041b6d2",
+   "suite_sha256": "7838dbdc5927a0f8d2ad0a7ed3fc34004ddd845dd30d5ee7574b5407511c5f4e",
+   "testbench_sha256": "ae4cdb581a47c970ee993dccab045365178c5d29341b90d1652a480ffeaed27e"
+  },
+  "report_sha256": "8d8fae69a2e33db22423c2a0b89209b214933dce868faaa8d52ef6181a1c7cf4",
+  "simulator": {
+   "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+   "install": "b37d73c9d2a0bd9e9847784c8e1bc4171ae79ff713d11e2735a10174bf2ad557",
+   "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+   "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+   "version": "Verilator 5.054 2026-11-01 rev v5.054"
+  },
+  "yosys_tool": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=8a9a88fb7471aa6bfa566470cc5770998600f5ec07ef749249396ef5ad633a3f"
+ },
+ "pinned_inputs": 143,
+ "pinned_inputs_differing_at_head": [],
+ "head_checked": "1ff32d6dd and the PR head; later commits change only docs/validation/2026-11-19-pc386-local-bus-video",
+ "earlier_seals": [
+  {
+   "sealed_commit": "58b782b9a",
+   "package": "2f8e53c3",
+   "setup_ns": 0.544,
+   "note": "persisted option, before method amendment 1"
+  },
+  {
+   "sealed_commit": "ea0b87f0d",
+   "package": "17a424bb",
+   "setup_ns": 0.57,
+   "note": "persisted option, before the main merge and amendment 2"
+  },
+  {
+   "sealed_commit": "410391c57",
+   "package": null,
+   "setup_ns": -0.198,
+   "note": "the main merge: setup failed at the slow 1100 mV -40C corner on s1_mmio_local -> s2_isa; no package; amendment 2"
+  },
+  {
+   "sealed_commit": "822e67245",
+   "package": null,
+   "setup_ns": 0.63,
+   "note": "amendment 2 timing fix"
+  },
+  {
+   "sealed_commit": "dbcd70666",
+   "package": "99849fc9",
+   "setup_ns": 0.688,
+   "note": "persisted option with the fes.pc386.video-bus manifest interface; superseded by amendment 3"
+  },
+  {
+   "sealed_commit": "45c80b29b",
+   "package": "7c8a56a1",
+   "setup_ns": 0.509,
+   "note": "the second main merge, persisted option; superseded by amendment 3"
+  }
+ ]
+}

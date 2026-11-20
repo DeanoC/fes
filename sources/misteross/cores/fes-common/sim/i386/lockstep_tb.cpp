@@ -535,6 +535,7 @@ public:
         window = on;
     }
     bool window = false;
+    bool ems_frame = false;  // E0000h-EFFFFh is MMIO too (the governor bench only)
     // TR4-TR7 as the RTL keeps them (#1730), which Bochs at CPU level 3 has
     // not: what MOV TRn writes, read back by MOV r32, TRn (lockstep's
     // tr_rule). Reset clears them, as it clears the RTL's.
@@ -915,7 +916,9 @@ private:
     uint32_t mmio_value = 0;
 
     uint8_t &mmio_byte(uint32_t address) {
-        if (!window || !in_window(address)) throw std::runtime_error("MMIO access outside the window: " + hex(address));
+        const bool frame = ems_frame && address >= 0xe0000u && address < 0xf0000u;
+        if (!frame && (!window || !in_window(address)))
+            throw std::runtime_error("MMIO access outside the window: " + hex(address));
         return ddr[address];
     }
 
@@ -13552,7 +13555,8 @@ uint64_t env(const char *name, uint64_t fallback) {
 // The governor bench (scripts/test_fes_i386_governor.py): the RTL alone runs
 // the flat program FES_I386_PROGRAM at 0000:1000h in real mode, under the
 // governor settings main set, with A0000h-BFFFFh uncached MMIO as the
-// machine's VGA memory is, until it halts with IF clear. Every OUT to
+// machine's VGA memory is and E0000h-EFFFFh as its EMS frame is, until it
+// halts with IF clear. Every OUT to
 // ports 80h-8Fh prints, with the cycle the access completed and the reference
 // clocks the governor had charged before that OUT (trace_gov_charge, summed
 // two cycles later, so it holds every instruction before the OUT and not
@@ -13573,6 +13577,11 @@ void run_governor(Rtl &rtl, Summary &summary) {
     const std::vector<uint8_t> program{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
     if (program.empty() || program.size() > 0x6000) throw std::runtime_error("governor: no program, or too long");
     rtl.set_window(true);
+    // And the EMS frame (E0000h-EFFFFh) MMIO, as pc386 maps it when the board
+    // is fitted: MMIO that is not VGA memory, which local-bus video leaves on
+    // the ISA charge.
+    for (int slot = 16; slot < 20; ++slot) rtl.top.attr_upper |= uint64_t(2) << (2 * slot);
+    rtl.ems_frame = true;
     constexpr uint32_t ORIGIN = 0x1000;
     for (uint32_t i = 0; i < program.size(); ++i) rtl.poke(ORIGIN + i, program[i]);
     State state;

@@ -1,0 +1,57 @@
+{
+ "source": "Video Card FAQ, 1995-01-31, \"DOS Performance\", Low Res Modes, 320x200 32-bit",
+ "faq_sha256": "8d0d6f33bc236e494ef75245e855dd4dbf1019bc33ee53f12bb068a18df78440",
+ "bus_mhz": 33.3333,
+ "rows": [
+  {
+   "row": "Hercules Dynamite Power 2MB VLB DX2/66",
+   "kb_per_s": 44401,
+   "bus_clocks_per_dword": 3.003
+  },
+  {
+   "row": "Genoa Phantom 64 2M (S3-864) VLB DX2/66",
+   "kb_per_s": 33032,
+   "bus_clocks_per_dword": 4.036
+  },
+  {
+   "row": "ET4000/W32p (2Mb) VLB DX2/66",
+   "kb_per_s": 33300,
+   "bus_clocks_per_dword": 4.004
+  },
+  {
+   "row": "Diamond Stealth 32 2MB VLB DX2/66",
+   "kb_per_s": 33368,
+   "bus_clocks_per_dword": 3.996
+  },
+  {
+   "row": "Diamond Stealth 64 VRAM 2Mb VLB DX2/66",
+   "kb_per_s": 22629,
+   "bus_clocks_per_dword": 5.892
+  },
+  {
+   "row": "ATI Mach32 2Mb VLB DX2/66",
+   "kb_per_s": 26597,
+   "bus_clocks_per_dword": 5.013
+  },
+  {
+   "row": "S3-805 VLB DX2/66",
+   "kb_per_s": 12064,
+   "bus_clocks_per_dword": 11.052
+  },
+  {
+   "row": "Cirrus Logic 5428 VLB DX2/66",
+   "kb_per_s": 9508,
+   "bus_clocks_per_dword": 14.023
+  },
+  {
+   "row": "Orchid Fahrenheit 1280+ 1Mb VLB DX2/66",
+   "kb_per_s": 9002,
+   "bus_clocks_per_dword": 14.812
+  }
+ ],
+ "checked_against_faq": true,
+ "median_bus_clocks": 5.013,
+ "vga": 5,
+ "clock_ns": 30,
+ "cycle_ns": 150
+}

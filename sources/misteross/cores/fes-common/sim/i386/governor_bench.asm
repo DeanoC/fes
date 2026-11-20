@@ -265,8 +265,11 @@ start:
 
     ; 17: VGA memory (MMIO, the window at A0000h), as a fill and a blit
     ; touch it: REP STOSB, STOSW and STOSD; a word store, one at an odd
-    ; address (two 16-bit halves), a load and a read-modify-write; REP MOVSW
-    ; from RAM; REP MOVSB within VGA memory, as a latch copy does.
+    ; address (two 16-bit halves), a load and a read-modify-write; a word
+    ; store into the EMS frame at E000:0, MMIO that is not VGA memory; REP
+    ; MOVSW from RAM; REP MOVSB within VGA memory, as a latch copy does.
+    mov ax, 0xe000                  ; FS: an EMS board's frame, MMIO that is not VGA memory
+    mov fs, ax
     mov ax, 0xa000
     mov es, ax
     mark 34
@@ -281,6 +284,8 @@ start:
     rep stosd
     mov [es:di], ax
     mov [es:di + 5], ax
+    mov [es:di + 3], ax
+    mov [fs:0], ax
     mov ax, [es:di]
     add [es:di + 2], al
     mov si, DATA

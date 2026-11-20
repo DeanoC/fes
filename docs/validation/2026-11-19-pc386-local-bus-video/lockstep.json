@@ -1,0 +1,65 @@
+{
+ "rule": "method.md section 4, gate 4 (amendment 3): each governed run --same-as max (the netlist runs against the netlist max); gate 5 test386",
+ "runs": {
+  "rtl:max": {
+   "settings": "preset 0",
+   "queue": "max rc=0 start=2026-11-20T01:23:03+02:00 end=2026-11-20T01:28:39+02:00",
+   "passed": true,
+   "same_as_max": null,
+   "revision": "1ff32d6ddd2059f2ebf8b609a0d407ebdd579267",
+   "tracked_changes": [],
+   "tested_sources_sha256": "cc1c03129042fb411a4a01eac2438b35e72b00127deba0daf46994a2b376a8d7"
+  },
+  "rtl:p6": {
+   "settings": "--preset 6 (local-bus video)",
+   "queue": "p6 rc=0 start=2026-11-20T01:28:39+02:00 end=2026-11-20T01:37:23+02:00",
+   "passed": true,
+   "same_as_max": true,
+   "revision": "1ff32d6ddd2059f2ebf8b609a0d407ebdd579267",
+   "tracked_changes": [],
+   "tested_sources_sha256": "cc1c03129042fb411a4a01eac2438b35e72b00127deba0daf46994a2b376a8d7"
+  },
+  "rtl:p3": {
+   "settings": "--preset 3 (ISA video)",
+   "queue": "p3 rc=0 start=2026-11-20T01:37:23+02:00 end=2026-11-20T01:51:07+02:00",
+   "passed": true,
+   "same_as_max": true,
+   "revision": "1ff32d6ddd2059f2ebf8b609a0d407ebdd579267",
+   "tracked_changes": [],
+   "tested_sources_sha256": "cc1c03129042fb411a4a01eac2438b35e72b00127deba0daf46994a2b376a8d7"
+  },
+  "netlist:max": {
+   "settings": "preset 0",
+   "queue": "max rc=0 start=2026-11-20T01:51:07+02:00 end=2026-11-20T02:02:05+02:00",
+   "passed": true,
+   "same_as_max": null,
+   "revision": "1ff32d6ddd2059f2ebf8b609a0d407ebdd579267",
+   "tracked_changes": [],
+   "tested_sources_sha256": "cc1c03129042fb411a4a01eac2438b35e72b00127deba0daf46994a2b376a8d7"
+  },
+  "netlist:p6": {
+   "settings": "--preset 6 (local-bus video)",
+   "queue": "p6 rc=0 start=2026-11-20T02:02:05+02:00 end=2026-11-20T02:16:25+02:00",
+   "passed": true,
+   "same_as_max": true,
+   "revision": "1ff32d6ddd2059f2ebf8b609a0d407ebdd579267",
+   "tracked_changes": [],
+   "tested_sources_sha256": "cc1c03129042fb411a4a01eac2438b35e72b00127deba0daf46994a2b376a8d7"
+  },
+  "netlist:p3": {
+   "settings": "--preset 3 (ISA video)",
+   "queue": "p3 rc=0 start=2026-11-20T02:16:25+02:00 end=2026-11-20T02:38:01+02:00",
+   "passed": true,
+   "same_as_max": true,
+   "revision": "1ff32d6ddd2059f2ebf8b609a0d407ebdd579267",
+   "tracked_changes": [],
+   "tested_sources_sha256": "cc1c03129042fb411a4a01eac2438b35e72b00127deba0daf46994a2b376a8d7"
+  }
+ },
+ "test386_rtl": {
+  "queue": "test386 rc=0 start=2026-11-20T00:45:39+02:00 end=2026-11-20T01:23:03+02:00",
+  "post": "ff",
+  "errors": "[]"
+ },
+ "seal_netlist_lockstep": "passed on chip-30x0-ai-dev before the seal of 1ff32d6dd (seal-summary.json, lockstep)"
+}
