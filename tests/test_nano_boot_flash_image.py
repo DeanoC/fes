@@ -16,10 +16,13 @@ class FlashProducerSourceTests(unittest.TestCase):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name)
-        self.path = self.root/'producer.py'
+        self.path = self.root/'platform/embedded/nano/producer.py'
+        self.dependency = self.path.with_name('fit_layout.py')
         self.git('init', '-q')
+        self.path.parent.mkdir(parents=True)
         self.path.write_bytes(b'# pinned producer\n')
-        self.git('add', self.path.name)
+        self.dependency.write_bytes(b'# indirect dependency\n')
+        self.git('add', 'platform/embedded')
         self.git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
                  'commit', '-qm', 'fixture')
 
@@ -28,20 +31,20 @@ class FlashProducerSourceTests(unittest.TestCase):
 
     def test_pins_committed_bytes_and_rejects_dirty_sources(self):
         head = clean_head(self.root)
-        expected = hashlib.sha256(self.path.read_bytes()).hexdigest()
-        self.assertEqual(committed_sources(self.root, head, (self.path,)), {self.path: expected})
+        expected = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in (self.path, self.dependency)}
+        self.assertEqual(committed_sources(self.root, head), expected)
 
         self.path.write_bytes(b'# edited producer\n')
         with self.assertRaisesRegex(ValueError, 'clean committed checkout'):
             clean_head(self.root)
 
-    def test_git_status_alone_cannot_hide_changed_producer_bytes(self):
+    def test_git_status_alone_cannot_hide_changed_indirect_dependency(self):
         head = clean_head(self.root)
-        self.git('update-index', '--assume-unchanged', self.path.name)
-        self.path.write_bytes(b'# hidden edit\n')
+        self.git('update-index', '--assume-unchanged', str(self.dependency.relative_to(self.root)))
+        self.dependency.write_bytes(b'# hidden edit\n')
         self.assertEqual(clean_head(self.root), head)
-        with self.assertRaisesRegex(ValueError, 'source differs from its commit'):
-            committed_sources(self.root, head, (self.path,))
+        with self.assertRaisesRegex(ValueError, 'source differs from its commit: .*fit_layout.py'):
+            committed_sources(self.root, head)
 
 
 if __name__ == '__main__':

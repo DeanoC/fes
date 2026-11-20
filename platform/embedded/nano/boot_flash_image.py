@@ -8,21 +8,9 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from experiment import require_experiment
-from cold_profile import EXPERIMENTAL_FILE, MAX_FIT_SIZE
-from flash_trial import ARRAY_BYTES, FLASH, PART, validate_plan
-from launcher_image import record, regular
-from package import sha
-from sof_hps import inspect
-from upload import PREFIX_SIZE
-
 JTAG_ID = '0x4362C0DD'
 ROOT = Path(__file__).resolve().parents[3]
-HERE = Path(__file__).resolve().parent
-SOURCE_FILES = (Path(__file__).resolve(), HERE.parent/'experiment.py',
-                *(HERE/name for name in ('cold_profile.py', 'flash_trial.py', 'jtag_programming.py',
-                                          'launcher_image.py', 'package.py', 'sof_hps.py', 'upload.py')))
+SOURCE_SCOPE = Path('platform/embedded')
 
 
 def clean_head(root):
@@ -31,26 +19,33 @@ def clean_head(root):
     return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
 
 
-def committed_sources(root, head, paths):
+def committed_sources(root, head):
+    # The cold helpers also load modules by path. Pin the whole embedded Python
+    # tree so a new transitive import cannot escape a hand-maintained list.
+    tracked = subprocess.check_output(['git', 'ls-tree', '-r', '-z', '--name-only', head, '--', str(SOURCE_SCOPE)], cwd=root)
     result = {}
-    for path in paths:
-        name = path.relative_to(root).as_posix()
+    for name in tracked.decode('utf-8').split('\0'):
+        if not name.endswith('.py'):
+            continue
+        path = root/name
         committed = subprocess.check_output(['git', 'show', head+':'+name], cwd=root)
         digest = hashlib.sha256(committed).hexdigest()
-        if sha(path) != digest:
+        if path.is_symlink() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
             raise ValueError('flash producer source differs from its commit: '+name)
         result[path] = digest
+    if not result:
+        raise ValueError('committed embedded Python source tree required')
     return result
 
 
-def loader_identity(parts):
-    rows = [line.split() for line in parts.splitlines() if line.startswith(PART+' ')]
+def loader_identity(parts, part):
+    rows = [line.split() for line in parts.splitlines() if line.startswith(part+' ')]
     if len(rows) != 1 or [item for item in rows[0] if item.startswith('0x')][:2] != [JTAG_ID, '0xFFFFFFFF']:
         raise ValueError('Quartus flash-loader part must match the exact R1 JTAG ID')
     return rows[0]
 
 
-def factory_settings(raw, output):
+def factory_settings(raw, output, part, flash_type):
     root = ET.Element('pfg', version='1')
     ET.SubElement(root, 'settings', mode='ASX4')
     files = ET.SubElement(root, 'raw_files')
@@ -62,10 +57,10 @@ def factory_settings(raw, output):
     rpd = ET.SubElement(jic, 'secondary_file', type='SEC_RPD', name='factory-main-array')
     ET.SubElement(rpd, 'file_options', bitswap='1')
     devices = ET.SubElement(root, 'flash_devices')
-    flash = ET.SubElement(devices, 'flash_device', id='Flash_Device_1', type=FLASH)
+    flash = ET.SubElement(devices, 'flash_device', id='Flash_Device_1', type=flash_type)
     ET.SubElement(flash, 'partition', id='ALL_MAIN_ARRAY', reserved='0', fixed_s_addr='1',
                   s_addr='0x00000000', e_addr='0x00FFFFFF', fixed_e_addr='1', size='0')
-    ET.SubElement(devices, 'flash_loader').text = PART
+    ET.SubElement(devices, 'flash_loader').text = part
     assigns = ET.SubElement(root, 'assignments')
     assignment = ET.SubElement(assigns, 'assignment', page='0', partition_id='ALL_MAIN_ARRAY')
     ET.SubElement(assignment, 'raw_file_id').text = 'factory'
@@ -73,9 +68,18 @@ def factory_settings(raw, output):
 
 
 def prepare(composition, launcher, factory, expected_factory_sha, pfg, lock, output):
-    require_experiment()
     source_head = clean_head(ROOT)
-    sources = committed_sources(ROOT, source_head, SOURCE_FILES)
+    sources = committed_sources(ROOT, source_head)
+    sys.path.insert(0, str(ROOT/SOURCE_SCOPE))
+    from experiment import require_experiment
+    from cold_profile import EXPERIMENTAL_FILE, MAX_FIT_SIZE
+    from flash_trial import ARRAY_BYTES, FLASH, PART, validate_plan
+    from launcher_image import record, regular
+    from package import sha
+    from sof_hps import inspect
+    from upload import PREFIX_SIZE
+
+    require_experiment()
     native_result = composition/'result.json'
     sd_result = launcher/'result.json'
     native = record(regular(native_result, 1 << 20))
@@ -98,7 +102,7 @@ def prepare(composition, launcher, factory, expected_factory_sha, pfg, lock, out
     if (any(inputs[path] != native['inputs'].get(str(path)) for path in (reference, pfg, binary)) or
             inputs[spl] != native.get('spl_sha256')):
         raise ValueError('native composition input or matched PFG differs')
-    loader_identity(regular(parts, 8 << 20).decode('ascii'))
+    loader_identity(regular(parts, 8 << 20).decode('ascii'), PART)
     factory_bytes = regular(factory, ARRAY_BYTES)
     if len(factory_bytes) != ARRAY_BYTES or hashlib.sha256(factory_bytes).hexdigest() != expected_factory_sha:
         raise ValueError('exact 16 MiB factory backup and SHA-256 required')
@@ -134,7 +138,7 @@ def prepare(composition, launcher, factory, expected_factory_sha, pfg, lock, out
     local_factory = output/'factory-main-array.bin'
     local_factory.write_bytes(factory_bytes)
     settings = output/'factory.pfg'
-    settings.write_text(factory_settings(local_factory, output))
+    settings.write_text(factory_settings(local_factory, output, PART, FLASH))
     convert('factory', '-c', settings)
     if regular(output/'factory-main-array.rpd', ARRAY_BYTES) != factory_bytes:
         raise ValueError('factory RPD differs from the full backup')

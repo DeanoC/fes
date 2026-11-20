@@ -126,8 +126,8 @@ FES_EXPERIMENTAL_DE25_EMBEDDED=1 python3 platform/embedded/nano/boot_flash_image
 
 The file-only producer checks the installed Quartus part table, reads the FIT
 back from the assembled FAT32 image and checks the complete decoded arrays.
-Run it from a clean checkout. It checks the producer and validator sources
-against the commit before packaging, then rechecks them before publication.
+Run it from a clean checkout. It checks the committed embedded Python source
+tree before loading the packager helpers, then rechecks it before publication.
 The output plan pins both JICs. The result pins the matching SD image. The
 physical operator uses a fresh claim-bound scan and separate approval and
 cleanup records for each write. Initialize and verify the factory JIC against
