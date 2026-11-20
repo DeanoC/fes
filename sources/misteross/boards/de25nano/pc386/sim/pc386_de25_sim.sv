@@ -68,8 +68,13 @@ module pc386_de25_sim #(
     output reg [7:0] dbg_p2_owed = 8'd0,
     // For the bench's failure report: the window's fault record, the arbiter's
     // idle, and each machine port's command and waitrequest.
-    output wire [31:0] dbg_window
+    output wire [31:0] dbg_window,
+    // For the bench's status-ring report: the writer's busy and own, the
+    // disk's aux read and write, and the CRC pass.
+    output wire [4:0] dbg_status
 );
+    assign dbg_status = {system.verifying, system.disk_aux_write, system.disk_aux_read,
+                         system.status_ring.own, system.status_ring.busy};
     wire q0_reset, q1_reset, q2_reset, q0_drained, q1_drained, q2_drained;
     wire q0_read, q0_write, q0_waitrequest, q0_readdatavalid;
     wire [27:0] q0_address;

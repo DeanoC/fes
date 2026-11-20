@@ -247,6 +247,10 @@ private:
     uint8_t heads = 0, spt = 0;
     uint8_t hold_sync[2] = {1, 1};  // fes_hps_ddr's synchroniser from ddr_hold
     bool port_held = true, hold_rose = false;
+#ifdef FES_PC386_DE25
+    bool st_busy = false, st_own = false, st_verify = false;
+    uint64_t st_latch = 0, st_verify_start = 0, st_gaps = 0;
+#endif
     unsigned hold_owed = 0;          // port 2's write beats owed at the last hold
     double sys_ps = 0, now_ps = 0, pixel_ps = 0;
     uint64_t cycles = 0, limit = 0, progress_at = 0, retired = 0, last_screen = 0;
@@ -322,6 +326,23 @@ private:
         }
 #endif
         for (unsigned n = 0; n < 6; ++n) history[cycles % HISTORY][n] = status(n);
+#ifdef FES_PC386_DE25
+        {
+            // The status writer against the disk's CRC pass on the aux port.
+            unsigned s = top.dbg_status;
+            bool busy = s & 1, own = s & 2, aux = s & 12, verify = s & 16;
+            if (verify && !st_verify) { st_verify_start = cycles; st_gaps = 0; }
+            if (verify && !aux) ++st_gaps;
+            if (!verify && st_verify)
+                std::printf("STATUS-VERIFY %llu..%llu idle_clocks=%llu\n", (unsigned long long)st_verify_start,
+                            (unsigned long long)cycles, (unsigned long long)st_gaps);
+            if (busy && !st_busy) st_latch = cycles;
+            if (own && !st_own && cycles - st_latch > 1000)
+                std::printf("STATUS-WAIT latched=%llu own=%llu verify=%d\n", (unsigned long long)st_latch,
+                            (unsigned long long)cycles, int(verify));
+            st_busy = busy; st_own = own; st_verify = verify;
+        }
+#endif
         top.clk = 1;
         top.eval();
         hold_sync[1] = hold_sync[0];
