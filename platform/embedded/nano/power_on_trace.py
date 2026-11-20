@@ -33,20 +33,21 @@ def observe(raw, *, cycle_confirmed, native_boot):
             not isinstance(native_boot.get('errors'), list)):
         raise ValueError('bounded trace, cycle confirmation and complete decoder report required')
     result = dict(format=1, phase='native-power-on', trace_sha256=hashlib.sha256(raw).hexdigest(),
-                  boot_started=bool(raw.strip()) and cycle_confirmed, failed=False, power_on_boot_qualified=False,
+                  boot_started=False, failed=False, power_on_boot_qualified=False,
                   status='pending-power-cycle', errors=[])
     if not cycle_confirmed:
         return result
     matches = list(_BEGIN.finditer(raw))
+    positive_por = len(matches) == 1 and matches[0].groups()[1:] == (b'0', b'1')
     if len(matches) != 1:
         result['errors'].append('exactly one complete SPL beginning required')
-    elif matches[0].groups()[1:] != (b'0', b'1'):
+    elif not positive_por:
         result['errors'].append('positive POR boot kind required; JTAG/reset boot is not power-on proof')
     # native_trace checks register containment, paired ownership, secure handoff,
     # selected build/package and device context. Never substitute a ready string.
     if not native_boot['loader_ready'] or native_boot['errors'] or len(_HANDOFF.findall(raw)) != 1:
         result['errors'].append('complete matched native loader proof required')
-    result.update(boot_started=True, failed=bool(result['errors']),
+    result.update(boot_started=positive_por, failed=bool(result['errors']),
                   status='failed' if result['errors'] else 'passed',
                   power_on_boot_qualified=not result['errors'])
     return result

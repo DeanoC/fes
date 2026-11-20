@@ -34,6 +34,7 @@ class PowerOnTests(unittest.TestCase):
         for kind in range(1, 8):
             result = observe(BEGIN.replace(b'kind=0', ('kind='+str(kind)).encode()), cycle_confirmed=True, native_boot=READY)
             self.assertFalse(result['power_on_boot_qualified'])
+            self.assertFalse(result['boot_started'])
             self.assertTrue(result['failed'])
 
     def test_missing_cycle_confirmation_remains_pending_even_with_old_good_trace(self):
@@ -41,6 +42,13 @@ class PowerOnTests(unittest.TestCase):
             result = observe(raw, cycle_confirmed=False, native_boot=READY)
             self.assertEqual(result['status'], 'pending-power-cycle')
             self.assertFalse(result['failed'])
+            self.assertFalse(result['boot_started'])
+            self.assertFalse(result['power_on_boot_qualified'])
+
+    def test_confirmed_cycle_without_an_spl_begin_does_not_prove_boot_started(self):
+        for raw in (b'', b'old uart bytes\r\n'):
+            result = observe(raw, cycle_confirmed=True, native_boot=READY)
+            self.assertTrue(result['failed'])
             self.assertFalse(result['boot_started'])
             self.assertFalse(result['power_on_boot_qualified'])
 
