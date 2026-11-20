@@ -6,11 +6,10 @@ package main
 import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
-	"io/fs"
 )
 
 const tenfootSerialLinked = false
 
-func serveProgramTenfoot(*nativefabric.ProgramLoader, *packagestore.Store, fs.FS) {
+func serveProgramTenfoot(*nativefabric.ProgramLoader, *packagestore.Store) {
 	panic("serial Tenfoot was not selected at build time")
 }

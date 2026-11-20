@@ -1,5 +1,11 @@
 # Embedded FES base
 
+For the current opt-in SD launcher, keyboard and clean-reboot settings path,
+see [native SD launcher setup](nano/launcher.md). The native App now selects
+owned SD preference checkpoints for paired, explicitly writable boots; its
+joined FAT32/keyboard/fresh-boot regression is software evidence. Autonomous
+power-on and new-artifact hardware qualification remain separate.
+
 The [completion-cause and fresh-read hashing repair](../../docs/validation/2026-11-18-de25-completion-cost/README.md) reproduces
 the masked `configuration already completed` failure in a fresh diagnostic:
 a native 25-second deadline expires at 25.018012418 seconds after firmware

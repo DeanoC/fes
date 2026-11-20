@@ -1,5 +1,10 @@
 # Nano recovery uploads and cold serial boot
 
+See [native SD launcher setup](launcher.md) for the current fresh staging,
+shared keyboard and clean-reboot preferences path. It reuses the existing
+native autoboot policy; preparing launcher files does not provision QSPI or
+qualify autonomous power-on.
+
 The [completion-cause and fresh-read hashing repair](../../../docs/validation/2026-11-18-de25-completion-cost/README.md) reproduces
 the masked `configuration already completed` failure in a fresh diagnostic:
 a native 25-second deadline expires at 25.018012418 seconds after firmware
