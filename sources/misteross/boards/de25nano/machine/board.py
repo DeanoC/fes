@@ -372,7 +372,9 @@ def verify_window(project, modules, endpoint, connections, hps, scanout):
                        ("subsys_periph_fes_scanout_system_reset.out_reset", "subsys_periph_fes_win_cdc.m0_reset")):
         if ("reset", start, end) not in connections:
             raise ValueError("generated window bridge reset differs: " + end)
-    return {"master_ports": master, "bridge": {"parameters": checked, "logical_view": source}}
+    # As generation.json keeps it, so the check before compiling compares like with like.
+    return {"master_ports": {role: list(port) for role, port in master.items()},
+            "bridge": {"parameters": checked, "logical_view": source}}
 
 
 def verify(spec, output, scanout, hps, display):
