@@ -66,7 +66,12 @@ class PinnedFilesTests(unittest.TestCase):
                     displaced = root / 'displaced'
                     component.rename(displaced)
                     displaced.rename(component)
-                    with self.assertRaisesRegex(ValueError, 'mutation observed'):
+                    # A renamed symlink can also change ctime. A directory's
+                    # timestamp is deliberately ignored, so that case must
+                    # demonstrate the inotify rejection.
+                    reason = ('mutation observed' if fault == 'parent' else
+                              'mutation observed|incarnation changed')
+                    with self.assertRaisesRegex(ValueError, reason):
                         pins.check()
                     self.assertTrue(pins.retired)
 
