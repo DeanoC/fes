@@ -120,15 +120,18 @@ question is how much of pc386 rides on it.
 | **B** | **Split**: fabric-only regions in FPGA LPDDR4 B | LPDDR4 B, through the vendor B EMIF | HPS DDR, through F2SDRAM | A smaller HPS window only if the shared regions are packed into new offsets; with today's offsets the disk still ends at `0x0fffffff` and two memory systems. The EMIF B's fabric cost is unmeasured outside the RAM tester, and it takes an I/O bank. Port 0 alone (the CPU) could move first. | Ports split by region: port 0 and VRAM move, port 2 splits |
 | **C** | **No HPS DDR for the machine**: media through the mailbox into board memory, as the Spectrum and ST do | LPDDR4 B or board SDRAM | LPDDR4 B or board SDRAM; the HPS delivers and saves through GP | A new storage protocol: 128 MiB through the GP mailbox at load, and dirty sectors back through it. Board SDRAM is 16-bit SDR, slow for the CPU's 128-bit refills. | Disk, floppy and status paths rewritten |
 
-**Recommendation: A.** It is the DE10's design, so `pc386_system` stays
-unchanged apart from the display derivation, and the lockstep, seal and
-census evidence carries over. It follows Deano's media-in-HPS-DDR direction.
-Its platform cost (a writable F2SDRAM profile, a large kernel allocation,
-runtime delivery) is needed by options A and B alike. A is the shortest path
-to a running package. B is a later optimisation, for if HPS DDR latency or
-bandwidth proves to hold the CPU back on the kit, and it can be measured
-then. C contradicts the 22 October direction, and its board SDRAM variant
-would starve the CPU.
+**Recommendation: A.** It is the DE10's memory design, so `pc386_system` stays
+unchanged apart from the display derivation. The DE10 evidence does not qualify
+the DE25 build: its rational clock changes the parameterized CPU netlist, so
+run the full lockstep suite against the CPU netlist regenerated with the DE25
+guest rates. Agilex 5 also gives the package a distinct `design-v2` identity
+through `device_family`, so the DE25 artifact needs fresh seal evidence. This
+option follows Deano's media-in-HPS-DDR direction. Its platform cost (a
+writable F2SDRAM profile, a large kernel allocation, runtime delivery) is
+needed by options A and B alike. A is the shortest path to a running package.
+B is a later optimisation, for if HPS DDR latency or bandwidth proves to hold
+the CPU back on the kit, and it can be measured then. C contradicts the 22
+October direction, and its board SDRAM variant would starve the CPU.
 
 What A leaves open, and this record does not settle:
 
@@ -204,8 +207,10 @@ Each slice is one PR. Slices 2 to 4 wait on decision P1.
      the PLL above;
    - the writable F2SDRAM masters for the option P1 picks;
    - a Verilator boot of FreeDOS on the derived machine;
+   - the full lockstep suite against the CPU netlist regenerated with the
+     rational DE25 clock and guest-rate parameters;
    - a producer that writes a design-v2 record with `device_family`
-     Agilex 5;
+     Agilex 5, followed by fresh seal evidence for the DE25 artifact;
    - a Quartus Pro 26.3 signoff on chip-30x0-ai-dev.
 
    The fit is the controlled pair below. This slice also generalises
