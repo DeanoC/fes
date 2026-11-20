@@ -68,7 +68,7 @@ module pc386_de25_sim #(
     output reg [7:0] dbg_p2_owed = 8'd0,
     // For the bench's failure report: the window's fault record, the arbiter's
     // idle, and each machine port's command and waitrequest.
-    output wire [15:0] dbg_window
+    output wire [31:0] dbg_window
 );
     wire q0_reset, q1_reset, q2_reset, q0_drained, q1_drained, q2_drained;
     wire q0_read, q0_write, q0_waitrequest, q0_readdatavalid;
@@ -189,7 +189,9 @@ module pc386_de25_sim #(
             dbg_p2_owed <= dbg_p2_owed == 8'd0 ? q2_burstcount - 8'd1 : dbg_p2_owed - 8'd1;
         end
     end
-    assign dbg_window = {2'b00, fault_port, fault_no_grant, fault_outside, idle, q0_read, q0_write, q0_waitrequest,
+    // [31:16]: the arbiter's write lock, stall latch, order count and owed credit.
+    assign dbg_window = {arbiter.busy, arbiter.stalled, arbiter.order_count, arbiter.owed1 != 10'd0,
+                         arbiter.owed2 != 10'd0, arbiter.writes_owed != 8'd0, arbiter.sel, 3'b000, 2'b00, fault_port, fault_no_grant, fault_outside, idle, q0_read, q0_write, q0_waitrequest,
                          q1_read || q1_write, q1_waitrequest, q2_read || q2_write, q2_waitrequest, q0_drained && q1_drained && q2_drained};
     wire unused = ^{p0_reset, p1_reset, p2_reset, p1_waitrequest, p1_readdata, p1_readdatavalid, p2_waitrequest,
                     p2_readdata, p2_readdatavalid, m_address[3:0]};

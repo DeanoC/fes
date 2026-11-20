@@ -660,8 +660,9 @@ private:
             for (unsigned n = 0; !hold_rose; ++n) {
                 if (n == 100000) {
 #ifdef FES_PC386_DE25
-                    std::printf("WINDOW trial=%u dbg=%04x status0=%016llx\n", trials, unsigned(top.dbg_window),
+                    std::printf("WINDOW trial=%u dbg=%08x status0=%016llx\n", trials, unsigned(top.dbg_window),
                                 (unsigned long long)status(0));
+                    std::fflush(stdout);
 #endif
                     throw MailboxError("Execution hold did not hold the DDR ports");
                 }
