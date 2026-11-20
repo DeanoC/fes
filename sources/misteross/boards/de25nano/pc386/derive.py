@@ -58,8 +58,20 @@ SYSTEM_MACHINE_AFTER = (b"        .display_request(1'b0), .display_opcode(7'd0),
                         b"        .display_quiesced(),\n"
                         b"        /* verilator lint_on PINCONNECTEMPTY */\n"
                         b"        .video(video),\n")
+# With no plane its underflow count is zero, so the counter snapshot takes only
+# the two live counts: a constant field would split its copy and snapshot
+# registers into auto-named parts, and the board's constraints name them.
+SYSTEM_SNAPSHOT_BEFORE = (b"    pc386_snapshot #(.W(96)) pixel_counts (\n"
+                          b"        .source_clk(pixel_clk), .value({frames_shown, plane_underflows, present_underflows}),\n"
+                          b"        .clk(clk), .snapshot({frames_shown_sys, plane_underflows_sys, present_underflows_sys})\n"
+                          b"    );\n")
+SYSTEM_SNAPSHOT_AFTER = (b"    pc386_snapshot #(.W(64)) pixel_counts (\n"
+                         b"        .source_clk(pixel_clk), .value({frames_shown, present_underflows}),\n"
+                         b"        .clk(clk), .snapshot({frames_shown_sys, present_underflows_sys})\n"
+                         b"    );\n"
+                         b"    assign plane_underflows_sys = 32'd0;\n")
 SYSTEM = ((SYSTEM_WIRES_BEFORE, b"", 1), (SYSTEM_PORTS_BEFORE, SYSTEM_PORTS_AFTER, 1),
-          (SYSTEM_MACHINE_BEFORE, SYSTEM_MACHINE_AFTER, 1))
+          (SYSTEM_MACHINE_BEFORE, SYSTEM_MACHINE_AFTER, 1), (SYSTEM_SNAPSHOT_BEFORE, SYSTEM_SNAPSHOT_AFTER, 1))
 
 
 def sha(data):
