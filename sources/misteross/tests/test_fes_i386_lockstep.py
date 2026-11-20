@@ -71,12 +71,12 @@ class PagingCountTest(unittest.TestCase):
         return json.dumps({'runs': runs, **lockstep.X87_PAGING_RULES, **rules}) + '\n'
 
     def test_all_paging_cases_are_required(self):
-        self.assertEqual(lockstep.PAGING_CASES, 169)
-        result = subprocess.CompletedProcess(['testbench'], 0, stdout=self.summary(169), stderr='')
+        self.assertEqual(lockstep.PAGING_CASES, 170)
+        result = subprocess.CompletedProcess(['testbench'], 0, stdout=self.summary(170), stderr='')
         with mock.patch.object(lockstep.subprocess, 'run', return_value=result):
-            self.assertEqual(lockstep.run_paging('testbench', {})['summary']['runs'], 169)
-            result.stdout = self.summary(168)
-            with self.assertRaisesRegex(lockstep.LockstepError, '168 of 169'):
+            self.assertEqual(lockstep.run_paging('testbench', {})['summary']['runs'], 170)
+            result.stdout = self.summary(169)
+            with self.assertRaisesRegex(lockstep.LockstepError, '169 of 170'):
                 lockstep.run_paging('testbench', {})
 
     def test_x87_rule_counts_are_required(self):
@@ -84,10 +84,10 @@ class PagingCountTest(unittest.TestCase):
         # it take, so a rule that stops applying, or applies more widely,
         # fails the run rather than passing it quietly.
         self.assertEqual(lockstep.X87_PAGING_RULES,
-                         {'x87_probe_rule': 15, 'x87_fault_rule': 34, 'x87_partial_rule': 2, 'x87_ad_rule': 7})
+                         {'x87_probe_rule': 15, 'x87_fault_rule': 35, 'x87_partial_rule': 2, 'x87_ad_rule': 7})
         for rule, count in lockstep.X87_PAGING_RULES.items():
             for wrong in (0, count + 1):
-                result = subprocess.CompletedProcess(['testbench'], 0, stdout=self.summary(169, **{rule: wrong}),
+                result = subprocess.CompletedProcess(['testbench'], 0, stdout=self.summary(170, **{rule: wrong}),
                                                      stderr='')
                 with mock.patch.object(lockstep.subprocess, 'run', return_value=result):
                     with self.assertRaisesRegex(lockstep.LockstepError, f'{rule} applied {wrong} times'):

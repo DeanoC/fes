@@ -10284,13 +10284,17 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
         // size it wraps the word's offset to 0000h, so its m80 load and
         // store there complete: those two run on the RTL alone
         // (divergences.toml x87-operand-wrap).
-        struct Limit { const char *label; std::vector<uint8_t> insn; bool alone; };
+        struct Limit { const char *label; std::vector<uint8_t> insn; bool alone; uint8_t ds = 0x10; };
         const std::vector<Limit> limits = {
             {"pg-x87-limit16-fstp64", {0x67, 0xdd, 0x1e, 0xfa, 0xff}, false},       // FSTP m64 [FFFAh], a16
             {"pg-x87-limit16-fld80", {0x67, 0xdb, 0x2e, 0xf8, 0xff}, true},         // FLD m80 [FFF8h], a16
             {"pg-x87-limit16-fstp80", {0x67, 0xdb, 0x3e, 0xf8, 0xff}, true},        // FSTP m80 [FFF8h], a16
             {"pg-x87-limit32-fstp80", {0xdb, 0x3d, 0xf8, 0xff, 0x00, 0x00}, false}, // FSTP m80 [0000FFF8h]
             {"pg-x87-limit32-fst64", {0xdd, 0x15, 0xfc, 0xff, 0x00, 0x00}, false},  // FST m64 [0000FFFCh]
+            // Through DS 58h, read-only, across a page not present: the
+            // store's probe checks the segment as a write first, so #GP(0)
+            // before the page is walked, as Bochs's write check is too.
+            {"pg-x87-ro-fstp64", {0xdd, 0x1d, 0xfc, 0x0f, 0x01, 0x00}, false, 0x58},  // FSTP m64 [10FFCh]
         };
         // The same wrap under DS 20h's 4 GiB limit: the probe's unwrapped
         // offset (10001h) is in the limit, so nothing faults, and the parts
@@ -10329,9 +10333,10 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
             Case c{l.label, [=](Asm &a, uint32_t base) {
                 prologue(a, base);
                 esc(a, 0xd9, 0, 0x4f00);                           // FLD m32: something to store
-                a.op({0x66, 0xb8, 0x10, 0x00, 0x8e, 0xd8});         // MOV AX, 10h; MOV DS, AX
+                a.op({0x66, 0xb8, l.ds, 0x00, 0x8e, 0xd8});         // MOV AX, DS's; MOV DS, AX
                 a.b.insert(a.b.end(), l.insn.begin(), l.insn.end());
-            }, 13, 0, -1, {}, {}, {{0x4f00, {0x00, 0x00, 0xc0, 0x3f}}, {0xfff8, std::vector<uint8_t>(8, 0xa5)}}};
+            }, 13, 0, -1, {{0x10, 0x10000 | P | W | U}, {0x11, 0}}, {},
+               {{0x4f00, {0x00, 0x00, 0xc0, 0x3f}}, {0xfff8, std::vector<uint8_t>(8, 0xa5)}}};
             c.x87 = true;
             c.rtl_alone = l.alone;
             cases.push_back(c);

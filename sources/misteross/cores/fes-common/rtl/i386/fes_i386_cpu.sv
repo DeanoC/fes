@@ -1252,7 +1252,10 @@ module fes_i386_cpu #(
     // access it stands for, a write's for a store (wx: their reg fields
     // are /2, /3, /6 and /7, the loads' /4 and /5); the parts then move
     // upwards from the operand, the first checking the first byte before it
-    // writes. Only these forms are byte-sized x87 accesses. A store the unit
+    // writes; a store's probe takes the segment's write check too, so a
+    // read-only segment is #GP before any page is walked, as CW B checks the
+    // segment as a write before paging. Only these forms are byte-sized x87
+    // accesses. A store the unit
     // holds back (x87_nx) makes no access, its probe included (#1872).
     logic d_x87_probe;
     assign d_x87_probe = dc.x87 && dc.uop.mem.kind == fes_i386_pkg::MEM_LOAD && dc.uop.mem.bytes == 4'd1;
@@ -1925,7 +1928,8 @@ module fes_i386_cpu #(
                     : dc.tss == 3'(fes_i386_pkg::TSS_BITMAP) ? tss_tiny_bm
                     : dc.uop.mem.system && dc.uop.desc == 4'd0 && !dc.sel_part && dc.tss == 3'd0
                       ? idt_tiny3 : !dc.uop.mem.system && !dc.nochk
-                        && (seg_tiny[mseg][msize] || mem_reads && seg_rbad[mseg] || (mem_writes || xchg_ld) && seg_wbad[mseg]);
+                        && (seg_tiny[mseg][msize] || mem_reads && seg_rbad[mseg]
+                            || (mem_writes || xchg_ld || d_x87_probe && dc.x87_op[4]) && seg_wbad[mseg]);
         d_out.mlow = d_nstk ? ds_chk.low : seg_low[mseg];
         d_out.mexpd = d_nstk ? ds_chk.expd : !dc.uop.mem.system && !dc.nochk && seg_expd[mseg];
         // Loads whose data nothing uses: probes, ENTER's last check, POP m's

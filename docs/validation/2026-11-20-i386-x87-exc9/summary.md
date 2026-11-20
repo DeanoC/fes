@@ -169,6 +169,12 @@ whole state included.
   in #GP(0) with nothing moved: FSTP m64 at FFFAh and FLD m80 and FSTP m80 at
   FFF8h under a 16-bit address size, FSTP m80 at 0000FFF8h and FST m64 at
   0000FFFCh under a 32-bit one.
+- **`pg-x87-ro-fstp64`**: FSTP m64 through DS 58h, a read-only data
+  segment, across a page not present: #GP(0) before the page is walked.
+  Codex found that the store's probe, a load-kind uop, took only the
+  segment's read check and so raised #PF there; the probe now takes the
+  write check as well, as the 386's `CW B` checks the segment as a write
+  before paging. Before the fix this case took #PF with CR2 11003h.
 - **`pg-x87-wrap-biglimit`**: FST m64 at FFFAh and FSTP and FLD m80 at FFF8h
   under a 16-bit address size with DS's 4 GiB limit, which complete, the
   m80's word at 0000h, in lockstep with Bochs.
@@ -193,13 +199,13 @@ a narrow rule whose count the runner fixes (`X87_PAGING_RULES`), so a rule
 that stops applying, or starts applying more widely, fails the run. Two of
 the counts were predicted before the first run, the probe rule's 15 and the
 partial rule's 2; the other two were measured and then fixed, and that is
-all they are: the pointer rule's 34 (every one a store's) and the A/D
+all they are: the pointer rule's 35 (every one a store's) and the A/D
 rule's 7.
 
 | Entry | Bochs | The RTL, as the 386 | Rule, count |
 | --- | --- | --- | --- |
 | `x87-operand-probe` | a #PF on the second page names its first byte, or the operand's when both fault; an m80 store writes a qword, then faults on its word; with the first page absent, nothing of the second is touched | names the last byte; stores nothing; sets the second page's A and D | `x87_probe_rule` 15, `x87_partial_rule` 2, `x87_ad_rule` 7 |
-| `x87-pointers-on-fault` | writes the x87 pointers and the opcode before a store's access (a load's after it, as the 386) | leaves them | `x87_fault_rule` 34 |
+| `x87-pointers-on-fault` | writes the x87 pointers and the opcode before a store's access (a load's after it, as the 386) | leaves them | `x87_fault_rule` 35 |
 | `x87-operand-wrap` (`follow = "open"`) | an m80 at FFF8h under a 16-bit address size, limit FFFFh, wraps its word to 0000h and completes | #GP(0) | the RTL alone, 2 cases |
 
 `x87_probe_rule` takes the RTL's CR2 only where it is the operand's last
