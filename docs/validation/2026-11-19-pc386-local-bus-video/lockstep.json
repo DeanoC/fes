@@ -1,84 +1,65 @@
 {
- "rule": "method.md section 4, gate 4: each governed run --same-as max (the netlist runs against the netlist max); gate 5 test386",
+ "rule": "method.md section 4, gate 4 (amendment 3): each governed run --same-as max (the netlist runs against the netlist max); gate 5 test386",
  "runs": {
   "rtl:max": {
    "settings": "preset 0",
-   "queue": "max rc=0 start=2026-11-19T22:46:55+02:00 end=2026-11-19T22:52:34+02:00",
+   "queue": "max rc=0 start=2026-11-20T01:23:03+02:00 end=2026-11-20T01:28:39+02:00",
    "passed": true,
    "same_as_max": null,
-   "revision": "822e672456dda895fd416f23b84cc133422f1169",
+   "revision": "1ff32d6ddd2059f2ebf8b609a0d407ebdd579267",
    "tracked_changes": [],
-   "tested_sources_sha256": "fa2a6311db200a0abbf900b86ccae33390b29b2e8b8df57c5ee0486d53600566"
+   "tested_sources_sha256": "cc1c03129042fb411a4a01eac2438b35e72b00127deba0daf46994a2b376a8d7"
   },
   "rtl:p6": {
-   "settings": "--preset 6, word 7 = 0 (local bus)",
-   "queue": "p6 rc=0 start=2026-11-19T22:52:34+02:00 end=2026-11-19T23:01:03+02:00",
+   "settings": "--preset 6 (local-bus video)",
+   "queue": "p6 rc=0 start=2026-11-20T01:28:39+02:00 end=2026-11-20T01:37:23+02:00",
    "passed": true,
    "same_as_max": true,
-   "revision": "822e672456dda895fd416f23b84cc133422f1169",
+   "revision": "1ff32d6ddd2059f2ebf8b609a0d407ebdd579267",
    "tracked_changes": [],
-   "tested_sources_sha256": "fa2a6311db200a0abbf900b86ccae33390b29b2e8b8df57c5ee0486d53600566"
+   "tested_sources_sha256": "cc1c03129042fb411a4a01eac2438b35e72b00127deba0daf46994a2b376a8d7"
   },
-  "rtl:p6-isa": {
-   "settings": "--preset 6, FES_I386_VIDEO_BUS=1 (ISA)",
-   "queue": "p6-isa rc=0 start=2026-11-19T23:01:03+02:00 end=2026-11-19T23:10:55+02:00",
+  "rtl:p3": {
+   "settings": "--preset 3 (ISA video)",
+   "queue": "p3 rc=0 start=2026-11-20T01:37:23+02:00 end=2026-11-20T01:51:07+02:00",
    "passed": true,
    "same_as_max": true,
-   "revision": "822e672456dda895fd416f23b84cc133422f1169",
+   "revision": "1ff32d6ddd2059f2ebf8b609a0d407ebdd579267",
    "tracked_changes": [],
-   "tested_sources_sha256": "fa2a6311db200a0abbf900b86ccae33390b29b2e8b8df57c5ee0486d53600566"
-  },
-  "rtl:p3-local": {
-   "settings": "--preset 3, FES_I386_VIDEO_BUS=2 (local bus)",
-   "queue": "p3-local rc=0 start=2026-11-19T23:10:55+02:00 end=2026-11-19T23:23:22+02:00",
-   "passed": true,
-   "same_as_max": true,
-   "revision": "822e672456dda895fd416f23b84cc133422f1169",
-   "tracked_changes": [],
-   "tested_sources_sha256": "fa2a6311db200a0abbf900b86ccae33390b29b2e8b8df57c5ee0486d53600566"
+   "tested_sources_sha256": "cc1c03129042fb411a4a01eac2438b35e72b00127deba0daf46994a2b376a8d7"
   },
   "netlist:max": {
    "settings": "preset 0",
-   "queue": "max rc=0 start=2026-11-19T23:23:22+02:00 end=2026-11-19T23:34:24+02:00",
+   "queue": "max rc=0 start=2026-11-20T01:51:07+02:00 end=2026-11-20T02:02:05+02:00",
    "passed": true,
    "same_as_max": null,
-   "revision": "822e672456dda895fd416f23b84cc133422f1169",
+   "revision": "1ff32d6ddd2059f2ebf8b609a0d407ebdd579267",
    "tracked_changes": [],
-   "tested_sources_sha256": "fa2a6311db200a0abbf900b86ccae33390b29b2e8b8df57c5ee0486d53600566"
+   "tested_sources_sha256": "cc1c03129042fb411a4a01eac2438b35e72b00127deba0daf46994a2b376a8d7"
   },
   "netlist:p6": {
-   "settings": "--preset 6, word 7 = 0 (local bus)",
-   "queue": "p6 rc=0 start=2026-11-19T23:34:24+02:00 end=2026-11-19T23:49:03+02:00",
+   "settings": "--preset 6 (local-bus video)",
+   "queue": "p6 rc=0 start=2026-11-20T02:02:05+02:00 end=2026-11-20T02:16:25+02:00",
    "passed": true,
    "same_as_max": true,
-   "revision": "822e672456dda895fd416f23b84cc133422f1169",
+   "revision": "1ff32d6ddd2059f2ebf8b609a0d407ebdd579267",
    "tracked_changes": [],
-   "tested_sources_sha256": "fa2a6311db200a0abbf900b86ccae33390b29b2e8b8df57c5ee0486d53600566"
+   "tested_sources_sha256": "cc1c03129042fb411a4a01eac2438b35e72b00127deba0daf46994a2b376a8d7"
   },
-  "netlist:p6-isa": {
-   "settings": "--preset 6, FES_I386_VIDEO_BUS=1 (ISA)",
-   "queue": "p6-isa rc=0 start=2026-11-19T23:49:03+02:00 end=2026-11-20T00:05:26+02:00",
+  "netlist:p3": {
+   "settings": "--preset 3 (ISA video)",
+   "queue": "p3 rc=0 start=2026-11-20T02:16:25+02:00 end=2026-11-20T02:38:01+02:00",
    "passed": true,
    "same_as_max": true,
-   "revision": "822e672456dda895fd416f23b84cc133422f1169",
+   "revision": "1ff32d6ddd2059f2ebf8b609a0d407ebdd579267",
    "tracked_changes": [],
-   "tested_sources_sha256": "fa2a6311db200a0abbf900b86ccae33390b29b2e8b8df57c5ee0486d53600566"
-  },
-  "netlist:p3-local": {
-   "settings": "--preset 3, FES_I386_VIDEO_BUS=2 (local bus)",
-   "queue": "p3-local rc=0 start=2026-11-20T00:05:26+02:00 end=2026-11-20T00:25:07+02:00",
-   "passed": true,
-   "same_as_max": true,
-   "revision": "822e672456dda895fd416f23b84cc133422f1169",
-   "tracked_changes": [],
-   "tested_sources_sha256": "fa2a6311db200a0abbf900b86ccae33390b29b2e8b8df57c5ee0486d53600566"
+   "tested_sources_sha256": "cc1c03129042fb411a4a01eac2438b35e72b00127deba0daf46994a2b376a8d7"
   }
  },
  "test386_rtl": {
-  "queue": "test386 rc=0 start=2026-11-19T22:07:24+02:00 end=2026-11-19T22:46:55+02:00",
+  "queue": "test386 rc=0 start=2026-11-20T00:45:39+02:00 end=2026-11-20T01:23:03+02:00",
   "post": "ff",
   "errors": "[]"
  },
- "seal_netlist_lockstep": "passed on chip-30x0-ai-dev before the seal of dbcd70666 (seal-summary.json, lockstep)",
- "note": "run on 822e67245, whose RTL and tested sources are those of dbcd70666 and the PR head (later commits touch only the runtime, the pc386 producer's manifest, tests and docs)"
+ "seal_netlist_lockstep": "passed on chip-30x0-ai-dev before the seal of 1ff32d6dd (seal-summary.json, lockstep)"
 }

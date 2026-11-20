@@ -128,40 +128,41 @@
    "field": "topbench_total_us",
    "T": {
     "6:200": 521.0,
-    "6:250": 438.0,
-    "6:0": 354.0,
-    "6:500": 289.0,
-    "7:0": 252.0,
-    "6:667": 251.0
+    "6:250": 443.0,
+    "6:0": 353.0,
+    "6:500": 288.0,
+    "7:0": 248.0,
+    "6:667": 257.0
    },
-   "A": 8425.30120481928,
-   "B": 100.9879518072288,
+   "A": 9027.108433734942,
+   "B": 81.91566265060231,
    "holdout": {
     "measured": 521.0,
-    "predicted": 522.2530120481928,
-    "tol": 12.448072289156627,
+    "predicted": 533.2710843373494,
+    "tol": 12.66843373493976,
     "pass": true
    },
    "repeat": {
-    "7": 252.0,
-    "6:667": 251.0,
-    "pass": true
+    "7": 248.0,
+    "6:667": 257.0,
+    "pass": false
    },
-   "measurable": true,
+   "measurable": false,
+   "why": "repeat failed",
    "verdicts": {
     "6:500": {
-     "measured": 289.0,
-     "predicted": 269.4939759036144,
-     "excess_pct": 7.238018597997162,
-     "tol_pct": 2.7443669527897216,
-     "verdict": "not reached"
+     "measured": 288.0,
+     "predicted": 262.4578313253012,
+     "excess_pct": 9.731913330885062,
+     "tol_pct": 2.764322438486964,
+     "verdict": "not measurable"
     },
     "7:0": {
-     "measured": 252.0,
-     "predicted": 227.30431169957183,
-     "excess_pct": 10.86459298364233,
-     "tol_pct": 3.103490727836155,
-     "verdict": "not reached"
+     "measured": 248.0,
+     "predicted": 217.25461967811268,
+     "excess_pct": 14.151772867909592,
+     "tol_pct": 3.1545356353263476,
+     "verdict": "not measurable"
     }
    }
   },
@@ -169,18 +170,18 @@
    "field": "doom_max_realtics",
    "T": {
     "6:200": 7194.0,
-    "6:250": 5971.0,
-    "6:0": 4681.0,
-    "6:500": 3516.0,
+    "6:250": 5972.0,
+    "6:0": 4682.0,
+    "6:500": 3517.0,
     "7:0": 2912.0,
     "6:667": 2912.0
    },
    "A": 129388.5542168675,
-   "B": 795.4578313252996,
+   "B": 796.4578313252996,
    "holdout": {
     "measured": 7194.0,
-    "predicted": 7264.885542168675,
-    "tol": 147.30072289156683,
+    "predicted": 7265.885542168675,
+    "tol": 147.32072289156685,
     "pass": true
    },
    "repeat": {
@@ -191,17 +192,17 @@
    "measurable": true,
    "verdicts": {
     "6:500": {
-     "measured": 3516.0,
-     "predicted": 3383.22891566265,
-     "excess_pct": 3.9243896185294114,
-     "tol_pct": 2.0592931825304195,
+     "measured": 3517.0,
+     "predicted": 3384.22891566265,
+     "excess_pct": 3.9232300073694315,
+     "tol_pct": 2.059275662089572,
      "verdict": "not reached"
     },
     "7:0": {
      "measured": 2912.0,
-     "predicted": 2735.3162153862813,
-     "excess_pct": 6.459354995954915,
-     "tol_pct": 2.0916998915689557,
+     "predicted": 2736.3162153862813,
+     "excess_pct": 6.420448909590578,
+     "tol_pct": 2.091666379399911,
      "verdict": "not reached"
     }
    }
@@ -213,8 +214,8 @@
     "6:250": 1630.0,
     "6:0": 1285.0,
     "6:500": 982.0,
-    "7:0": 858.0,
-    "6:667": 858.0
+    "7:0": 859.0,
+    "6:667": 859.0
    },
    "A": 34603.91566265061,
    "B": 245.8433734939756,
@@ -225,8 +226,8 @@
     "pass": true
    },
    "repeat": {
-    "7": 858.0,
-    "6:667": 858.0,
+    "7": 859.0,
+    "6:667": 859.0,
     "pass": true
    },
    "measurable": true,
@@ -239,9 +240,9 @@
      "verdict": "not reached"
     },
     "7:0": {
-     "measured": 858.0,
+     "measured": 859.0,
      "predicted": 764.6427087660986,
-     "excess_pct": 12.20926978883402,
+     "excess_pct": 12.34004982355294,
      "tol_pct": 2.328033207512591,
      "verdict": "not reached"
     }
@@ -255,7 +256,7 @@
     "3dbench": "not reached",
     "3dbench2": "reached",
     "pcpbench": "reached",
-    "topbench": "not reached",
+    "topbench": "not measurable",
     "doom_max": "not reached",
     "doom_min": "not reached"
    }
@@ -266,7 +267,7 @@
     "3dbench": "not reached",
     "3dbench2": "reached",
     "pcpbench": "not reached",
-    "topbench": "not reached",
+    "topbench": "not measurable",
     "doom_max": "not reached",
     "doom_min": "not reached"
    }

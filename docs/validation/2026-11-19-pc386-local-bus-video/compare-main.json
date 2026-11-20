@@ -1,6 +1,6 @@
 {
- "main": "/home/deano/fes/.claude/worktrees/elegant-poitras-301c5b/out-lbv/gov-main-report.json",
- "branch": "/home/deano/fes/.claude/worktrees/elegant-poitras-301c5b/out-lbv/gov-rtl4-report.json",
+ "main": "out-lbv/gov-main-report.json",
+ "branch": "out-lbv/gov-rtl6-report.json",
  "presets": {
   "max": {
    "loops": 19,

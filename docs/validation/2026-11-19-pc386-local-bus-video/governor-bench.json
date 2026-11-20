@@ -1,5 +1,5 @@
 {
- "commit": "822e67245 (the RTL of dbcd70666 and e8e6f4d43 is the same)",
+ "commit": "1ff32d6dd",
  "rtl": {
   "failures": [],
   "clock_hz": 61440000,
@@ -73,34 +73,6 @@
     }
    }
   },
-  "video_bus": [
-   {
-    "preset": "386DX-25",
-    "video_bus": 2,
-    "vram": {
-     "name": "vram",
-     "cycles": 212400,
-     "charged": 86425,
-     "table_clocks": 86425,
-     "error": 1e-05,
-     "beyond_cpu": false
-    },
-    "worst_error_reached": 0.00098
-   },
-   {
-    "preset": "486DX-33",
-    "video_bus": 1,
-    "vram": {
-     "name": "vram",
-     "cycles": 619635,
-     "charged": 335838,
-     "table_clocks": 335838,
-     "error": -0.0,
-     "beyond_cpu": false
-    },
-    "worst_error_reached": 0.00285
-   }
-  ],
   "override": {
    "preset": "286-12",
    "frequency": 60
@@ -114,7 +86,7 @@
  "netlist": {
   "failures": [],
   "clock_hz": 61440000,
-  "netlist": "9da73c6848713c682ff0b68633ea55b3396507a5c710333e63342becd32755ba",
+  "netlist": "f03919d5b53c8a3676d3cee66bac99b1f5faa306565990a2c06a46914944f390",
   "presets": {
    "286-12": {
     "beyond_cpu": [],
@@ -184,34 +156,6 @@
     }
    }
   },
-  "video_bus": [
-   {
-    "preset": "386DX-25",
-    "video_bus": 2,
-    "vram": {
-     "name": "vram",
-     "cycles": 212400,
-     "charged": 86425,
-     "table_clocks": 86425,
-     "error": 1e-05,
-     "beyond_cpu": false
-    },
-    "worst_error_reached": 0.00098
-   },
-   {
-    "preset": "486DX-33",
-    "video_bus": 1,
-    "vram": {
-     "name": "vram",
-     "cycles": 619635,
-     "charged": 335838,
-     "table_clocks": 335838,
-     "error": -0.0,
-     "beyond_cpu": false
-    },
-    "worst_error_reached": 0.00285
-   }
-  ],
   "override": {
    "preset": "286-12",
    "frequency": 60
@@ -226,5 +170,5 @@
   "commit": "a14663bd9",
   "failures": []
  },
- "rule": "method.md section 4, gates 2 and 3 (amendments 1 and 2); every loop charged exactly the table (the bench fails otherwise), failures empty"
+ "rule": "method.md section 4, gates 2 and 3 (amendments 1-3); every loop charged exactly the table (the bench fails otherwise), failures empty; 486DX-33 and 486DX2-66 charge VGA memory the local-bus cycle, every preset the EMS store the ISA cycle"
 }

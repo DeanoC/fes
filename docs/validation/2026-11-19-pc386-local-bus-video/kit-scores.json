@@ -1,12 +1,12 @@
 {
  "kit": "A",
- "run": "l6",
- "date": "2026-11-19/20, 23:11-00:21 EET",
- "package": "99849fc9194a8dd26f531f635a4bb7b2aa523d6b2fe4befc10794796766de467 (Quartus 17.0.2 seal of dbcd70666, seal-summary.json)",
+ "run": "l8",
+ "date": "2026-11-20, 01:07-02:18 EET",
+ "package": "ebe13bb8a91310135b2ee04261ff6433db77c6681afff5dff79df238fda1efa7 (Quartus 17.0.2 seal of 1ff32d6dd, seal-summary.json)",
  "kit_software": "baseline image 179affbb, bundle c9ae79e2, core-only (no install, no image change, no reboot)",
  "disk": "f82cc8badd90805b045e1055c917e21a4b69760955b9cc3a3e03a39015b0f554",
- "settings": "fes.pc386.machine words: preset, word 1, 0, 0, 0x220, IRQ 7, DMA 1, word 7 = 0 (the preset's own video bus: local bus for presets 6 and 7)",
- "reading": "every score read from the named HDMI grab (Kit A ShadowCast, 1920x1080), kept in ~/fes-scratch/lbv/kit/runs/l6/fr; PCPBench pcp and pcp_pair crops are byte-identical, 32 s apart; TopBench from the -tb-final grab",
+ "settings": "fes.pc386.machine words: preset, word 1, 0, 0, 0x220, IRQ 7, DMA 1, word 7 reserved (0); the 486 presets charge local-bus video by preset",
+ "reading": "every score read from the named HDMI grab (Kit A ShadowCast, 1920x1080), kept in ~/fes-scratch/lbv/kit/runs/l8/fr; PCPBench pcp and pcp_pair crops are byte-identical, 32 s apart; TopBench from the -tb-final grab",
  "reruns": "none",
  "3dbench2_display": "3DBench 1.0c shows three digits with no decimal point (757 at max, 144 at 486-20 where 3DBench 1.0 shows 14.4). 3dbench2_raw is the displayed value; 3dbench2_fps = raw/10 is used only by reach.py, whose verdict is the same either way.",
  "presets": {
@@ -14,10 +14,10 @@
    "3dbench_fps": 76.9,
    "3dbench2_raw": 757,
    "pcpbench": 13.3,
-   "topbench_score": 305,
-   "topbench_total_us": 171,
+   "topbench_score": 307,
+   "topbench_total_us": 187,
    "doom_max_realtics": 2062,
-   "doom_min_realtics": 746,
+   "doom_min_realtics": 747,
    "grabs": {
     "3d": "p0-3d-1",
     "3d2": "p0-3d2-1",
@@ -50,15 +50,15 @@
    },
    "label": "486-20 (preset 6, word 1 = 200)",
    "3dbench2_fps": 17.9,
-   "video_bus": "local"
+   "video_bus": "local (preset)"
   },
   "6:250": {
    "3dbench_fps": 22.2,
    "3dbench2_raw": 220,
    "pcpbench": 5.0,
    "topbench_score": 114,
-   "topbench_total_us": 438,
-   "doom_max_realtics": 5971,
+   "topbench_total_us": 443,
+   "doom_max_realtics": 5972,
    "doom_min_realtics": 1630,
    "grabs": {
     "3d": "p6f250-3d-1",
@@ -71,15 +71,15 @@
    },
    "label": "486SX/DX-25 (preset 6, word 1 = 250)",
    "3dbench2_fps": 22.0,
-   "video_bus": "local"
+   "video_bus": "local (preset)"
   },
   "6:0": {
    "3dbench_fps": 29.4,
    "3dbench2_raw": 286,
    "pcpbench": 6.5,
    "topbench_score": 140,
-   "topbench_total_us": 354,
-   "doom_max_realtics": 4681,
+   "topbench_total_us": 353,
+   "doom_max_realtics": 4682,
    "doom_min_realtics": 1285,
    "grabs": {
     "3d": "p6-3d-1",
@@ -92,15 +92,15 @@
    },
    "label": "486DX-33 (preset 6)",
    "3dbench2_fps": 28.6,
-   "video_bus": "local"
+   "video_bus": "local (preset)"
   },
   "6:500": {
    "3dbench_fps": 41.6,
    "3dbench2_raw": 402,
    "pcpbench": 8.8,
    "topbench_score": 180,
-   "topbench_total_us": 289,
-   "doom_max_realtics": 3516,
+   "topbench_total_us": 288,
+   "doom_max_realtics": 3517,
    "doom_min_realtics": 982,
    "grabs": {
     "3d": "p6f500-3d-1",
@@ -113,16 +113,16 @@
    },
    "label": "486DX-50 / DX2-50 (preset 6, word 1 = 500)",
    "3dbench2_fps": 40.2,
-   "video_bus": "local"
+   "video_bus": "local (preset)"
   },
   "7:0": {
    "3dbench_fps": 52.6,
    "3dbench2_raw": 504,
    "pcpbench": 10.3,
-   "topbench_score": 209,
-   "topbench_total_us": 252,
+   "topbench_score": 210,
+   "topbench_total_us": 248,
    "doom_max_realtics": 2912,
-   "doom_min_realtics": 858,
+   "doom_min_realtics": 859,
    "grabs": {
     "3d": "p7-3d-1",
     "3d2": "p7-3d2-1",
@@ -134,16 +134,16 @@
    },
    "label": "486DX2-66 (preset 7)",
    "3dbench2_fps": 50.4,
-   "video_bus": "local"
+   "video_bus": "local (preset)"
   },
   "6:667": {
    "3dbench_fps": 52.6,
    "3dbench2_raw": 504,
    "pcpbench": 10.3,
-   "topbench_score": 210,
-   "topbench_total_us": 251,
+   "topbench_score": 209,
+   "topbench_total_us": 257,
    "doom_max_realtics": 2912,
-   "doom_min_realtics": 858,
+   "doom_min_realtics": 859,
    "grabs": {
     "3d": "p6f667-3d-1",
     "3d2": "p6f667-3d2-1",
@@ -155,8 +155,8 @@
    },
    "label": "486DX2-66 by override (preset 6, word 1 = 667)",
    "3dbench2_fps": 50.4,
-   "video_bus": "local"
+   "video_bus": "local (preset)"
   }
  },
- "earlier_runs": "l1 (kit-scores-l1.json, package 2f8e53c3, before method amendment 1) and l4 (kit-scores-l4.json, package 17a424bb, before amendment 2); records of those packages, not this PR's evidence"
+ "earlier_runs": "l1, l4 and l6 (kit-scores-l1.json, -l4.json, -l6.json) on earlier packages of this change, with the same charges at word 7 = 0; records of those packages, not this PR's evidence"
 }
