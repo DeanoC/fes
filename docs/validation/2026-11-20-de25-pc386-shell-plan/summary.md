@@ -257,7 +257,7 @@ This is the measurement D2 is waiting for.
 
 ## Sources
 
-- [x87 slice 6 plan, #2027](../2026-11-20-i386-x87-s6-plan/summary.md),
+- [x87 slice 6 plan, #2027](https://github.com/DeanoC/fes/blob/deano/i386-x87-s6-plan/docs/validation/2026-11-20-i386-x87-s6-plan/summary.md),
   sections 2 and 4 and decisions D2–D4 (on PR #2027's branch until merged)
 - [Agilex 5 fit, #1899](../2026-11-16-i386-agilex5-fit/summary.md): the
   virtual-pin envelope, the 651 ALMs of virtual pins, and the capacity row
