@@ -15,7 +15,7 @@ import tomllib
 import unittest
 from unittest import mock
 
-from scripts import build_fes_pc386_quartus as quartus
+from scripts import pc386_quartus as quartus
 from scripts import input_identity as ii
 from tests.test_pc386_seal_process import SEAL_EXCLUDED
 

@@ -9,7 +9,7 @@ import shutil
 import tempfile
 import unittest
 
-from scripts import build_fes_pc386_quartus as pc386
+from scripts import pc386_quartus as pc386
 from scripts import quartus_fes_pcxt as pcxt
 from scripts import test_fes_i386_lockstep as lockstep
 from scripts import yosys_netlist

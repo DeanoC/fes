@@ -20,7 +20,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from scripts import build_fes_pc386_quartus as quartus
+from scripts import pc386_quartus as quartus
 from scripts import fes_build_common as board
 from scripts import source_closure
 
@@ -72,7 +72,7 @@ print(json.dumps(sorted(getattr(module, '__file__', None) or '' for module in li
         loaded = {Path(path).resolve() for path in loaded if path}
         for relative in SEAL_EXCLUDED:
             self.assertNotIn((ROOT / relative).resolve(), loaded, relative)
-        self.assertIn((ROOT / "scripts/build_fes_pc386_quartus.py").resolve(), loaded)
+        self.assertIn((ROOT / "scripts/pc386_quartus.py").resolve(), loaded)
 
     def test_no_evidence_or_firmware_code_is_in_the_static_import_closure(self):
         # Every import in the producer's modules, function bodies included,
@@ -98,7 +98,7 @@ print(json.dumps(sorted(getattr(module, '__file__', None) or '' for module in li
                         closure |= source_closure.imports(imported.split(".")[1], ROOT)
                     elif (TOOLS / f"{imported}.py").is_file():
                         pending.append(imported)
-        self.assertIn("scripts/build_fes_pc386_quartus.py", closure)
+        self.assertIn("scripts/pc386_quartus.py", closure)
         self.assertIn("cores/fes-pc386/tools/pc386_seal_evidence.py", closure)
         self.assertFalse(closure & set(SEAL_EXCLUDED), sorted(closure & set(SEAL_EXCLUDED)))
 

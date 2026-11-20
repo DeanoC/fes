@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Build the pc386 firmware, run the full i386 netlist suite, then seal pc386 with its report.
 
-Use a task-private checkout with an unused build/sim/fes-i386-lockstep path.
-The stock runner and sealer are unchanged; their normal validation remains
-responsible for accepting or rejecting the report and output.
+The registered producer (build_pc386_product.py --with-lockstep) runs this.
+Each run's lockstep output goes to a fresh directory under
+build/sim/fes-i386-lockstep-runs. The stock runner and producer validate the
+report and output.
 """
 from __future__ import annotations
 
@@ -18,38 +19,28 @@ import sys
 
 
 def _build(root: Path, *, cache_root: Path | None, gpu_router: str | None,
-           seed: int | None, package_output: Path | None, download: bool = False,
-           product: bool = False) -> int:
+           seed: int | None, package_output: Path | None, download: bool = False) -> int:
     root = Path(root).absolute()
     if root.resolve() != root:
         raise ValueError('root must not traverse a symlink')
     if seed is not None and (type(seed) is not int or not 1 <= seed <= 0x7fffffff):
         raise ValueError('Quartus seed must be an integer from 1 to 2147483647')
     runner = root / 'scripts/test_fes_i386_lockstep.py'
-    sealer = root / ('cores/fes-pc386/tools/build_pc386_product.py' if product else 'scripts/build_fes_pc386_quartus.py')
+    sealer = root / 'cores/fes-pc386/tools/build_pc386_product.py'
     launcher = root / 'cores/fes-pc386/tools/pc386_run_lockstep.py'
     firmware = root / 'scripts/build_pc386_firmware.py'
-    for source in (runner, sealer, firmware, *([launcher] if product else [])):
+    for source in (runner, sealer, firmware, launcher):
         current = root
         parts = source.relative_to(root).parts
         for index, part in enumerate(parts):
             current = current / part
             if current.is_symlink() or (not current.is_file() if index == len(parts) - 1 else not current.is_dir()):
                 raise ValueError('runner and sealer must be regular, non-symlinked source files')
-    if product:
-        runs = root / 'build/sim/fes-i386-lockstep-runs'
-        runs.mkdir(exist_ok=True)
-        if runs.is_symlink() or not runs.is_dir():
-            raise ValueError('pc386 run store must be a real directory')
-        report_dir = Path(tempfile.mkdtemp(prefix='run-', dir=runs))
-    else:
-        report_dir = root / 'build/sim/fes-i386-lockstep'
-        report_dir.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            # The manual lane preserves its original fixed-path reservation.
-            report_dir.mkdir()
-        except FileExistsError as exc:
-            raise ValueError(f'lockstep output already exists; preserve or move it before running: {report_dir}') from exc
+    runs = root / 'build/sim/fes-i386-lockstep-runs'
+    runs.mkdir(exist_ok=True)
+    if runs.is_symlink() or not runs.is_dir():
+        raise ValueError('pc386 run store must be a real directory')
+    report_dir = Path(tempfile.mkdtemp(prefix='run-', dir=runs))
     # Each stage owns its process group; a timeout or termination cleans only
     # that group, while the sealer propagates termination to its Quartus group.
     helper = Path(__file__).absolute().parent / 'pc386_owned_job.py'
@@ -79,7 +70,7 @@ def _build(root: Path, *, cache_root: Path | None, gpu_router: str | None,
     if status:
         print(f'pc386 firmware preparation failed (exit {status})', file=sys.stderr)
         return status
-    suite = ([sys.executable, str(launcher), '--output', str(report_dir)] if product else [sys.executable, str(runner)])
+    suite = [sys.executable, str(launcher), '--output', str(report_dir)]
     suite += ['--netlist', *(['--download'] if download else []), *common]
     try:
         status = run(suite, cwd=root, timeout=6 * 60 * 60, label='pc386 full lockstep')
@@ -105,11 +96,7 @@ def _build(root: Path, *, cache_root: Path | None, gpu_router: str | None,
 
 
 def build(root: Path, *, cache_root: Path | None, gpu_router: str | None,
-          seed: int | None, package_output: Path | None, download: bool = False,
-          product: bool = False) -> int:
-    if not product:
-        return _build(root, cache_root=cache_root, gpu_router=gpu_router, seed=seed,
-                      package_output=package_output, download=download, product=False)
+          seed: int | None, package_output: Path | None, download: bool = False) -> int:
     root = Path(root).absolute()
     if root.resolve() != root or not root.is_dir():
         raise ValueError('root must be a real, non-symlinked directory')
@@ -127,7 +114,7 @@ def build(root: Path, *, cache_root: Path | None, gpu_router: str | None,
         except BlockingIOError as exc:
             raise ValueError('another pc386 product build owns this checkout') from exc
         return _build(root, cache_root=cache_root, gpu_router=gpu_router, seed=seed,
-                      package_output=package_output, download=download, product=True)
+                      package_output=package_output, download=download)
 
 
 def main(argv=None) -> int:
@@ -138,11 +125,10 @@ def main(argv=None) -> int:
     parser.add_argument('--seed', type=int)
     parser.add_argument('--package-output', type=Path)
     parser.add_argument('--download', action='store_true', help='fetch the pinned Bochs source and complete corpus')
-    parser.add_argument('--product', action='store_true', help='invoke the source-bound registered product sealer')
     args = parser.parse_args(argv)
     try:
         return build(args.root, cache_root=args.cache_root, gpu_router=args.gpu_router,
-                     seed=args.seed, package_output=args.package_output, download=args.download, product=args.product)
+                     seed=args.seed, package_output=args.package_output, download=args.download)
     except (OSError, ValueError) as exc:
         print(f'pc386 lockstep and seal: {exc}', file=sys.stderr)
         return 1

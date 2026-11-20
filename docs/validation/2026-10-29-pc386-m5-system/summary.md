@@ -176,7 +176,7 @@ the VGA trace replay matches Bochs.
 - **[`system_tb`](../../../sources/misteross/cores/fes-pc386/sim/system_tb.cpp)
   and [`pc386-host`](https://github.com/DeanoC/fes/blob/c97eee0b6f/sources/misteross/cores/fes-pc386/host/main.go):**
   the same host in simulation and on a kit.
-- **Sealer.** [`build_fes_pc386_quartus.py`](../../../sources/misteross/scripts/build_fes_pc386_quartus.py)
+- **Sealer.** [`build_fes_pc386_quartus.py`](https://github.com/DeanoC/fes/blob/c97eee0b6f/sources/misteross/scripts/build_fes_pc386_quartus.py)
   seals `pc386_system`, its ROM read from the locked images. The summary
   records the fit's resources.
 
