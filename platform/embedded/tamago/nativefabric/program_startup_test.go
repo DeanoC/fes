@@ -174,3 +174,28 @@ func TestProgramLauncherStagingRejectsInvalidMenuAndReservedPreferenceSources(t 
 		})
 	}
 }
+
+func TestProgramLauncherStagingBoundsAllExportedFilesTogether(t *testing.T) {
+	ctx := context.Background()
+	fixture := newProgramMenuFixture(t, "")
+	export := stagingCatalogExport(t, fixture)
+	menu := fstest.MapFS{}
+	for name, data := range programExport(t, "menu", fixture.request, programUpload(fixture.r.f.files, fixture.request)) {
+		menu[name] = &fstest.MapFile{Data: data}
+	}
+	ids := []string{"first", "second"}
+	staged, err := BuildLauncherStaging(ctx, export, menu, ids)
+	if err != nil {
+		t.Fatal(err)
+	}
+	total := 0
+	for _, data := range staged {
+		total += len(data)
+	}
+	if _, err := buildLauncherStaging(ctx, export, menu, ids, total); err != nil {
+		t.Fatal("exact aggregate allowance rejected", err)
+	}
+	if files, err := buildLauncherStaging(ctx, export, menu, ids, total-1); err == nil || files != nil {
+		t.Fatal("oversized complete staging published", err)
+	}
+}

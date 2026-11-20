@@ -170,11 +170,18 @@ func BuildStagedCatalog(ctx context.Context, files fs.FS, ids []string) (map[str
 	return result, nil
 }
 
+// Keep this in sync with the launcher_image.py staging limit.
+const maxLauncherStagingBytes = 80 << 20
+
 // BuildLauncherStaging extends the existing installer staging with one menu
 // export and a fresh, preallocated preferences file. Use only on new media:
 // these bootstrap files must never replace an installed library or settings.
 // Boot FIT/SPL, compiled maps and trusted card plan remain separate inputs.
 func BuildLauncherStaging(ctx context.Context, files, menu fs.FS, ids []string) (map[string][]byte, error) {
+	return buildLauncherStaging(ctx, files, menu, ids, maxLauncherStagingBytes)
+}
+
+func buildLauncherStaging(ctx context.Context, files, menu fs.FS, ids []string, limit int) (map[string][]byte, error) {
 	if ctx == nil || menu == nil {
 		return nil, ErrProgramSession
 	}
@@ -193,11 +200,24 @@ func BuildLauncherStaging(ctx context.Context, files, menu fs.FS, ids []string) 
 	if len(r.Sources) != 0 || len(r.Parts) != 0 || r.Tape != (packagestore.TapeRequest{}) {
 		return nil, errors.New("native launcher: menu cannot select ROM, parts or tape")
 	}
-	payload, err := readStagedExport(ctx, menu, r.Path, packagestore.MaxInstallBytes)
+	selection, err := canonicalProgramRecord(programChoices{1, "nano-program-selection-v1", []programChoice{{
+		Path: "FES/MENU.FCP", PackageID: r.PackageID, MetadataPath: "FES/MENU.JSN", MetadataSHA256: r.MetadataSHA256,
+	}}})
 	if err != nil {
 		return nil, err
 	}
-	metadata, err := readStagedExport(ctx, menu, r.MetadataPath, 16384)
+	remaining := limit - packagestore.MaxPreferencesBytes - len(selection)
+	for _, data := range result {
+		remaining -= len(data)
+	}
+	if remaining < 2 {
+		return nil, errors.New("native launcher: staged files exceed the aggregate limit")
+	}
+	metadata, err := readStagedExport(ctx, menu, r.MetadataPath, min(16384, remaining-1))
+	if err != nil {
+		return nil, err
+	}
+	payload, err := readStagedExport(ctx, menu, r.Path, min(packagestore.MaxInstallBytes, remaining-len(metadata)))
 	if err != nil {
 		return nil, err
 	}
@@ -216,12 +236,7 @@ func BuildLauncherStaging(ctx context.Context, files, menu fs.FS, ids []string) 
 		return nil, errors.New("native launcher: menu export metadata and package differ")
 	}
 	result["FES/MENU.FCP"], result["FES/MENU.JSN"] = payload, metadata
-	result["FES/MENUSEL.JSN"], err = canonicalProgramRecord(programChoices{1, "nano-program-selection-v1", []programChoice{{
-		Path: "FES/MENU.FCP", PackageID: r.PackageID, MetadataPath: "FES/MENU.JSN", MetadataSHA256: r.MetadataSHA256,
-	}}})
-	if err != nil {
-		return nil, err
-	}
+	result["FES/MENUSEL.JSN"] = selection
 	// FAT WriteFile preserves the allocated chain as the JSON size changes.
 	// Reserve the entire existing preferences allowance before first boot.
 	prefs := bytes.Repeat([]byte{' '}, packagestore.MaxPreferencesBytes)
