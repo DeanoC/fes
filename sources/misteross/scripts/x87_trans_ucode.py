@@ -1510,7 +1510,7 @@ def unit_vectors(program: Program, per_class: int, seed: int, engine: bool = Fal
                 lines.append(f'{INSTRUCTIONS.index(name)} {x[0]} {x[1] & 0x3ffff:05x} {x[2]:016x} '
                              f'{y[0]} {y[1] & 0x3ffff:05x} {y[2]:016x} '
                              f'{zero} {sign} {exponent:05x} {raw:017x} {int(second is not None)} '
-                             f'{held[0]:04x}{held[1]:016x}')
+                             f'{held[0]:04x}{held[1]:016x} 0 0 0 0 0')
                 continue
             sign_exponent, significand, flags = final_round(result.exact, rc)
             flags |= 0x20 | (0x10 if not sign_exponent & 0x7fff and significand else 0)
@@ -1523,6 +1523,53 @@ def unit_vectors(program: Program, per_class: int, seed: int, engine: bool = Fal
                 st0, st1 = final, '-'
             lines.append(f'{INSTRUCTIONS.index(name)} {0x037f | rc << 10:04x} {bits(x)} {bits(y)} {st0} {st1} '
                          f'{flags:02x}')
+    return lines
+
+
+def exact_vectors(program: Program, per_class: int, seed: int) -> list[str]:
+    """Engine vectors for the exact forms (#2027 slice 6): FPREM, FPREM1,
+    FRNDINT, FSCALE and FXTRACT, in unit_vectors' engine format with its five
+    trailing fields filled -- the rounding mode the engine is given, FPREM's
+    quotient bits and partial flag, and FRNDINT's PE and C1 -- and the sign
+    field holding an exact zero's sign, which FPREM's result depends on."""
+    import random
+    rng = random.Random(seed)
+
+    def operand(low: int, high: int):
+        return (rng.getrandbits(1), rng.randint(low, high), rng.getrandbits(64) | 1 << 63)
+
+    cases = []
+    for _ in range(per_class):
+        for one, name in ((0, 'FPREM'), (1, 'FPREM1')):
+            for low, high in ((-3, -1), (0, 0), (1, 10), (11, 63), (64, 200)):
+                y = operand(-60, 60)
+                d = rng.randint(low, high)
+                x = operand(y[1] + d, y[1] + d)
+                if rng.random() < 0.25:
+                    x = (x[0], x[1], y[2])                    # equal significands: exact multiples
+                cases.append((name, x, y, 0))
+            cases.append((name, operand(16380, 16383), (0, 16384, 1 << 63), 0))   # a divisor of infinity
+        for rc in range(4):
+            for low, high in ((-80, -69), (-68, -1), (0, 62), (63, 70)):
+                cases.append(('FRNDINT', operand(low, high), (0, 0, 1 << 63), rc))
+        for low, high in ((-3, -1), (0, 15), (16, 20)):
+            cases.append(('FSCALE', operand(-16440, 16383), operand(low, high), 0))
+        cases.append(('FSCALE', operand(-100, 100), (0, -16383, 0), 0))           # a zero scale
+        for low, high in ((-16440, -16383), (-16382, -1), (0, 16383)):
+            cases.append(('FXTRACT', operand(low, high), (0, 0, 1 << 63), 0))
+    lines = []
+    for name, x, y, rc in cases:
+        result = run(program, name, x, y, rc=rc)
+        zero, sign, exponent, raw = raw_of(result.exact)
+        if zero:
+            sign = result.zero_sign
+        second = result.second
+        held = to_bits(second) if second is not None else (0, 0)
+        lines.append(f'{ENTRIES.index(name)} {x[0]} {x[1] & 0x3ffff:05x} {x[2]:016x} '
+                     f'{y[0]} {y[1] & 0x3ffff:05x} {y[2]:016x} '
+                     f'{zero} {sign} {exponent:05x} {raw:017x} {int(second is not None)} '
+                     f'{held[0]:04x}{held[1]:016x} {rc} {result.quotient} {result.partial} '
+                     f'{result.inexact} {result.away}')
     return lines
 
 
