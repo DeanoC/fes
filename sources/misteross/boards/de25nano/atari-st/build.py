@@ -23,6 +23,13 @@ FIRMWARE_BYTES = {"520st": 196608}
 # 68000's ALU rows take one instruction bit as a synchronous clear on both
 # polarities; and one SDRAM address register takes the reset as a clock enable
 # where every other register takes it as a synchronous clear.
+# The board: the shared machine PLL (52.222222 MHz, audio 12.287582 MHz), board
+# SDRAM, and no window in HPS DDR.
+MACHINE_HZ = 52222222
+PLL_IP = BOARD + "machine/machine_pll.ip"
+PLL_OUTPUTS = ("52.222222", "12.287582")
+BOARD_SDRAM = True
+WINDOW = False
 ASSIGNMENTS = (
     ("MAX_FANOUT", "256", "core|machine_reset"),
     ("ALLOW_SYNCH_CTRL_USAGE", "OFF", "core|system|machine|cpu|cpu|excUnit|alu|row[*]"),
