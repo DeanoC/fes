@@ -97,13 +97,14 @@ All of the following is on main.
 
 ## The memory question
 
-pc386 needs **a fabric path that writes HPS DDR**, over a shared allocation of
-at least 8 + 8 + 128 MiB (plane, floppies, disk), plus the status ring. That
+pc386 needs **a fabric path that writes HPS DDR**. The shared regions hold
+8 + 8 + 128 MiB (plane, floppies, disk), plus the status ring. At today's
+offsets, though, they span the whole 256 MiB window. That
 path does not exist on the DE25. Whatever happens to the fabric-only regions,
 it is platform work across three layers:
 
 - the F2SDRAM profile and SMMU stream (write credits, several masters);
-- the kernel owner (an allocation in the hundreds of MiB, where CMA today
+- the kernel owner (a contiguous 256 MiB allocation at today's offsets, where CMA today
   serves 8 MiB);
 - the runtime (writing the disk and floppy images into the allocation, and
   reading back dirty sectors).
@@ -115,8 +116,8 @@ question is how much of pc386 rides on it.
 
 | | Option | Fabric-only regions (RAM, VRAM, EMS, capture) | Shared regions (plane, disk, floppies, status) | What it costs | `pc386_system` change |
 | --- | --- | --- | --- | --- | --- |
-| **A** | **Everything in HPS DDR**: the DE10's design | HPS DDR, through F2SDRAM | HPS DDR, through F2SDRAM | One window of about 160 MiB minimum (16 MiB RAM, 128 MiB disk) and up to 256 MiB. Three fabric masters with writes on the F2SDRAM adapter. The CPU's L1 refills and the presenter share HPS DDR with Linux, as they do on the DE10. No EMIF. | None beyond the display derivation |
-| **B** | **Split**: fabric-only regions in FPGA LPDDR4 B | LPDDR4 B, through the vendor B EMIF | HPS DDR, through F2SDRAM | A smaller HPS window (about 150 MiB, mostly the disk) and two memory systems. The EMIF B's fabric cost is unmeasured outside the RAM tester, and it takes an I/O bank. Port 0 alone (the CPU) could move first. | Ports split by region: port 0 and VRAM move, port 2 splits |
+| **A** | **Everything in HPS DDR**: the DE10's design | HPS DDR, through F2SDRAM | HPS DDR, through F2SDRAM | One contiguous 256 MiB window. The disk region starts at the fixed offset `0x08000000` and may run 128 MiB, to `0x0fffffff`, and J8G's owner allocates one contiguous span (`DMA_ATTR_FORCE_CONTIGUOUS`). So anything smaller fails a full-size disk unless slice 4 adds sparse mappings or address translation. Three fabric masters with writes on the F2SDRAM adapter. The CPU's L1 refills and the presenter share HPS DDR with Linux, as they do on the DE10. No EMIF. | None beyond the display derivation |
+| **B** | **Split**: fabric-only regions in FPGA LPDDR4 B | LPDDR4 B, through the vendor B EMIF | HPS DDR, through F2SDRAM | A smaller HPS window only if the shared regions are packed into new offsets; with today's offsets the disk still ends at `0x0fffffff` and two memory systems. The EMIF B's fabric cost is unmeasured outside the RAM tester, and it takes an I/O bank. Port 0 alone (the CPU) could move first. | Ports split by region: port 0 and VRAM move, port 2 splits |
 | **C** | **No HPS DDR for the machine**: media through the mailbox into board memory, as the Spectrum and ST do | LPDDR4 B or board SDRAM | LPDDR4 B or board SDRAM; the HPS delivers and saves through GP | A new storage protocol: 128 MiB through the GP mailbox at load, and dirty sectors back through it. Board SDRAM is 16-bit SDR, slow for the CPU's 128-bit refills. | Disk, floppy and status paths rewritten |
 
 **Recommendation: A.** It is the DE10's design, so `pc386_system` stays
