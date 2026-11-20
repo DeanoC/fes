@@ -523,7 +523,10 @@ them. The acceptance record holds the individual results for
 ([#1837](https://github.com/DeanoC/fes/issues/1837)),
 [Ultima VI walking speed](validation/2026-11-14-pc386-u6-u7-reference/summary.md#walk-result),
 and [Ultima VII NPC pace](validation/2026-11-14-pc386-u6-u7-reference/summary.md#npc-result)
-([#1853](https://github.com/DeanoC/fes/issues/1853)).
+([#1853](https://github.com/DeanoC/fes/issues/1853)). On 20 November 2026,
+Deano waived the measured speaker-pitch divergence as a DE10 tier-1 blocker;
+the unresolved pitch fix is tracked in [#2013](https://github.com/DeanoC/fes/issues/2013).
+The waiver does not mark pitch as passed or waive the walking check.
 
 The walk also waits on [#1840](https://github.com/DeanoC/fes/issues/1840): the
 286-12 preset scores TopBench 33 where AT-class real 286 boards of its clock
