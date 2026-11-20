@@ -156,6 +156,19 @@ def factory_settings(raw, output, part, flash_type):
     return ET.tostring(root, encoding='unicode')
 
 
+def publish_receipts(output, plan, result, inputs, sources, *, sha, validate_plan):
+    result['plan_sha256'] = validate_plan(plan)
+    plan_text = json.dumps(plan, indent=2)+'\n'
+    result_text = json.dumps(result, indent=2)+'\n'
+    if clean_head(ROOT) != plan['source_commit'] or any(sha(path) != digest for path, digest in sources.items()):
+        raise ValueError('flash producer source changed before publication')
+    if any(not path.is_file() or path.resolve() != path or sha(path) != digest for path, digest in inputs.items()):
+        raise ValueError('packaging inputs changed before publication')
+    for name, data in (('plan.json', plan_text), ('result.json', result_text)):
+        with (output/name).open('x') as stream:
+            stream.write(data)
+
+
 def prepare(composition, launcher, factory, expected_factory_sha, pfg, lock, output):
     source_head = clean_head(ROOT)
     sources = committed_sources(ROOT, source_head)
@@ -163,10 +176,9 @@ def prepare(composition, launcher, factory, expected_factory_sha, pfg, lock, out
     from experiment import require_experiment
     from cold_profile import EXPERIMENTAL_FILE, MAX_FIT_SIZE
     from flash_trial import ARRAY_BYTES, FLASH, PART, validate_plan
-    from launcher_image import record, regular
+    from launcher_image import record, regular, verify_prepared_image
     from package import sha
     from sof_hps import inspect
-    from upload import PREFIX_SIZE
 
     require_experiment()
     native_result = composition/'result.json'
@@ -177,8 +189,10 @@ def prepare(composition, launcher, factory, expected_factory_sha, pfg, lock, out
     sd = record(sd_bytes)
     spl = composition/'u-boot-spl-dtb.hex'
     fit = composition/'u-boot.itb'
+    combined_sof = composition/'native-hps-first.sof'
     disk = launcher/'native-launcher-sd.img'
-    fit_sha = hashlib.sha256(regular(fit, MAX_FIT_SIZE)).hexdigest()
+    fit_data = regular(fit, MAX_FIT_SIZE)
+    fit_sha = hashlib.sha256(fit_data).hexdigest()
     if (native.get('fit_sha256') != fit_sha or sd.get('native_boot_id') != native.get('native_boot_id') or
             sd.get('startup', {}).get('mode') != 'autoboot' or sd.get('status') != 'prepared' or
             sd.get('files', {}).get(EXPERIMENTAL_FILE, {}).get('sha256') != fit_sha or
@@ -193,17 +207,15 @@ def prepare(composition, launcher, factory, expected_factory_sha, pfg, lock, out
     reference, = [path for path in inputs if path.name == 'golden_top.sof']
     selected = launcher_inputs(ROOT, source_head, sd.get('inputs'), sha)
     for path, digest in (*selected.items(), (parts, sha(parts)), (spl, native['spl_sha256']),
-                         (fit, fit_sha), (disk, sd['image_sha256']),
+                         (fit, fit_sha), (combined_sof, native['sof_sha256']), (disk, sd['image_sha256']),
                          (native_result, hashlib.sha256(native_bytes).hexdigest()),
                          (sd_result, hashlib.sha256(sd_bytes).hexdigest())):
         add_input(inputs, path, digest, sha)
-    if sha(spl) != inputs[spl]:
-        raise ValueError('matched SPL differs from the native composition')
     loader_identity(regular(parts, 8 << 20).decode('ascii'), PART)
     factory_bytes = regular(factory, ARRAY_BYTES)
     if len(factory_bytes) != ARRAY_BYTES or hashlib.sha256(factory_bytes).hexdigest() != expected_factory_sha:
         raise ValueError('exact 16 MiB factory backup and SHA-256 required')
-    inputs[factory] = expected_factory_sha
+    add_input(inputs, factory, expected_factory_sha, sha)
     if not lock.is_file() or any(p.is_symlink() for p in (output, *output.parents)):
         raise ValueError('existing Quartus lock and private output path required')
     output.mkdir(mode=0o700)
@@ -211,24 +223,24 @@ def prepare(composition, launcher, factory, expected_factory_sha, pfg, lock, out
 
     def run(label, argv):
         commands.append([str(arg) for arg in argv])
-        with (output/(label+'.log')).open('xb') as log:
-            subprocess.run(argv, cwd=output, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=240)
+        transcript = output/(label+'.log')
+        with transcript.open('xb') as log:
+            subprocess.run(argv, cwd=output, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+                           check=True, timeout=240)
+        return transcript
 
     def convert(label, *args):
         run(label, ['flock', '-w', '60', lock, pfg, *args])
 
-    run('read-sd-fit', ['mcopy', '-i', str(disk)+'@@'+str(PREFIX_SIZE), '::'+EXPERIMENTAL_FILE, 'sd-fit.itb'])
-    if sha(output/'sd-fit.itb') != fit_sha:
-        raise ValueError('SD FIT readback differs from the native composition')
+    verify_prepared_image(disk, sd, selected, fit_data, output, run)
     (output/'input.sof').write_bytes(regular(reference, 8 << 20))
     (output/'input-spl.hex').write_bytes(regular(spl, 1 << 20))
     convert('native', '-c', 'input.sof', 'native.jic', 'native.rpd', 'native.map',
             '-o', 'hps_path=input-spl.hex', '-o', 'device='+FLASH, '-o', 'flash_loader='+PART,
             '-o', 'mode=ASX4', '-o', 'hps=on', '-o', 'bitswap=on')
     inspect(regular(output/'input_hps_auto.sof', 8 << 20), regular(spl, 1 << 20),
-            regular(composition/'native-hps-first.sof', 8 << 20))
-    if (sha(output/'native.core.rbf') != native['core_sha256'] or
-            sha(composition/'native-hps-first.sof') != native.get('sof_sha256')):
+            regular(combined_sof, 8 << 20))
+    if sha(output/'native.core.rbf') != native['core_sha256']:
         raise ValueError('phase-two core differs from the native composition')
     native_prefix = regular(output/'native.rpd', ARRAY_BYTES)
     native_array = native_prefix.ljust(ARRAY_BYTES, b'\xff')
@@ -255,19 +267,13 @@ def prepare(composition, launcher, factory, expected_factory_sha, pfg, lock, out
             raise ValueError('PFG reported an unexpected loader, device or flash')
         images[role] = dict(path=str(path), sha256=hashlib.sha256(jic).hexdigest(),
                             array_sha256=hashlib.sha256(array).hexdigest())
-    if any(sha(path) != digest for path, digest in inputs.items()):
-        raise ValueError('packaging inputs changed')
     plan = dict(format=1, serial='TRWU8CBL', source_commit=source_head, backup_sha256=expected_factory_sha, images=images)
-    plan_sha = validate_plan(plan)
-    if clean_head(ROOT) != source_head or any(sha(path) != digest for path, digest in sources.items()):
-        raise ValueError('flash producer source changed before publication')
-    (output/'plan.json').write_text(json.dumps(plan, indent=2)+'\n')
-    result = dict(status='prepared-file-only-r1-boot-flash', plan_sha256=plan_sha,
+    result = dict(status='prepared-file-only-r1-boot-flash',
                   part=PART, jtag_id=JTAG_ID, fit_sha256=fit_sha, native_boot_id=native['native_boot_id'],
                   sd_image=dict(path=str(disk), sha256=inputs[disk]), commands=commands,
                   producer_sources={str(path.relative_to(ROOT)): value for path, value in sources.items()},
                   inputs={str(path): value for path, value in inputs.items()}, hardware_actions=False)
-    (output/'result.json').write_text(json.dumps(result, indent=2)+'\n')
+    publish_receipts(output, plan, result, inputs, sources, sha=sha, validate_plan=validate_plan)
     return result
 
 

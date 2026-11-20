@@ -124,14 +124,17 @@ FES_EXPERIMENTAL_DE25_EMBEDDED=1 python3 platform/embedded/nano/boot_flash_image
   --output "$fresh_output_directory"
 ```
 
-The file-only producer checks the installed Quartus part table, reads the FIT
-back from the assembled FAT32 image and checks the complete decoded arrays.
+The file-only producer checks the installed Quartus part table, reads every
+FAT32 payload back against the pinned staging, FIT, and recovery bytes, and
+checks the complete decoded flash arrays. It verifies the protected SD prefix
+and boot sectors and rejects extra or aliased entries.
 Run it from a clean checkout. It checks the committed embedded Python source
 tree before loading the packager helpers, then rechecks it before publication.
 It also rehashes the recorded composition and launcher inputs and checks
 their source inventories against the selected commit. FPGA build-record paths
 are relative to the recorded module root. Regenerate artifacts when their
-recorded sources differ.
+recorded sources differ. The full file closure is rehashed after JIC validation,
+immediately before the plan and result are published.
 The output plan pins both JICs. The result pins the matching SD image. The
 physical operator uses a fresh claim-bound scan and separate approval and
 cleanup records for each write. Initialize and verify the factory JIC against

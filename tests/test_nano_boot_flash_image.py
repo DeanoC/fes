@@ -6,10 +6,11 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'platform/embedded/nano'))
-from boot_flash_image import clean_head, committed_sources, composition_inputs, launcher_inputs
+from boot_flash_image import clean_head, committed_sources, composition_inputs, launcher_inputs, publish_receipts
 
 
 class FlashProducerSourceTests(unittest.TestCase):
@@ -46,6 +47,24 @@ class FlashProducerSourceTests(unittest.TestCase):
         self.assertEqual(clean_head(self.root), head)
         with self.assertRaisesRegex(ValueError, 'source differs from its commit: .*fit_layout.py'):
             committed_sources(self.root, head)
+
+    def test_input_changed_during_jic_validation_blocks_both_receipts(self):
+        artifact = self.root/'retained.img'
+        artifact.write_bytes(b'original retained bytes')
+
+        def sha(path):
+            return hashlib.sha256(path.read_bytes()).hexdigest()
+
+        def validate(_):
+            artifact.write_bytes(b'modified during JIC validation')
+            return 'a'*64
+
+        with patch('boot_flash_image.clean_head', return_value='selected-head'):
+            with self.assertRaisesRegex(ValueError, 'inputs changed before publication'):
+                publish_receipts(self.root, {'source_commit': 'selected-head'}, {},
+                                 {artifact: sha(artifact)}, {}, sha=sha, validate_plan=validate)
+        self.assertFalse((self.root/'plan.json').exists())
+        self.assertFalse((self.root/'result.json').exists())
 
     def composition_fixture(self, module='.'):
         origin = self.root/'origin'
