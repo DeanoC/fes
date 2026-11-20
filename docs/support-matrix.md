@@ -85,7 +85,7 @@ The levels never lower a gate on work being done to a core: a netlist that is no
 | Quality tier | Meaning |
 | --- | --- |
 | Tier 1 | Release quality and supported. Decided set: ZX81 family, Spectrum family, C64, Atari ST, PC/XT. |
-| Tier 1 pending | The plan puts pc386 at tier 1 once #1368 and #1494 close, and names no tier before that. |
+| Tier 1 pending | The plan puts pc386 at tier 1 once #1368 closes, and names no tier before that. The remaining #1494 pin-timing uncertainty is non-blocking. |
 | Tier 2 pending | The plan puts Coleco, SMS, SG-1000 and Apple II at tier 2 once they meet the port, and names no tier before that. |
 | Outside the ladder | Utilities and demos: Pong, RAM Tester and RISC-V. |
 
@@ -129,5 +129,5 @@ These cells are still open. The wording is in [`support-matrix.json`](support-ma
 - Should the 2-pending rows (Coleco, SMS, SG-1000, Apple II) carry full evidence on a closure sweep anyway? They are reduced here because the forward plan names no tier for them until they meet the port.
 - Should the per-family representative scoping be a rule as well? On PR #1862 the sibling variants (zx80, ts1000, ts1500, spectrum128, spectrum-plus3, pentagon) were dropped from the route conditions along with the held-back cores; check_level keeps them at full because they are tier 1.
 - fes.riscv's snapshot last_rtl_change (2026-10-05) reads its core directory only. `dcfa92c98` (2026-10-21) changed `fes_rv32_cpu.sv` in the shared riscv directory that this row holds under `paths`, and the subject names riscv, so whether that commit should move the row to Current inside the same snapshot is open. The owned-RTL check runs on shared rows only, so nothing catches it either way.
-- A pending quality_tier has to be re-read by hand when its condition closes. The checker reads the forward plan's Tiers section and fails if a cited sentence moves, goes or is restated, and if the plan stops naming #1368, #1494 or the port condition; it cannot see a superseding decision written in new words. So when #1368 and #1494 close, pc386's 1-pending becomes tier 1 and its check level does not change, but the row still needs editing.
+- A pending quality_tier has to be re-read by hand when its condition closes. The checker reads the forward plan's Tiers section and fails if a cited sentence moves, goes or is restated, or if the plan stops naming #1368 or the port condition; it cannot see a superseding decision written in new words. When #1368 closes, pc386's 1-pending placement must be re-read and the row edited; its check level does not change. #1494 remains open with its pin-timing uncertainty judged non-blocking.
 - fes.pc386 keeps tier_role bring-up and experimental catalog standing. Registration does not promote its quality tier; the exact registered package still needs a fresh seal and the pending game and hardware gates.

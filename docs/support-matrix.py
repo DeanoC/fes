@@ -111,7 +111,8 @@ FORWARD_PLAN = Path('docs/plans/forward-plan.md')
 # These sets mirror that decision; the wording check below fails if it moves.
 LADDER_QUOTES = (
     'Tier 1 set on DE10 (decided): ZX81 family, Spectrum family, C64, Atari ST, PC/XT.',
-    'pc386 joins when #1368 and #1494 close.',
+    'pc386 joins when #1368 closes.',
+    'non-blocking for DE10 pc386 tier 1. #1494 stays open;',
     'Coleco, SMS, SG-1000 and Apple II are tier 2 once they meet the port',
     'Pong, RAM Tester and RISC-V are utilities and demos, outside the ladder',
 )
@@ -120,7 +121,7 @@ LADDER_QUOTES = (
 LADDER_HEADING = '## Tiers'
 # The conditions the pending placements hang on. If the plan stops naming one,
 # that placement may have been decided and the rows need re-reading.
-LADDER_CONDITIONS = ('#1368', '#1494', 'once they meet the port')
+LADDER_CONDITIONS = ('#1368', 'once they meet the port')
 QUALITY_TIER_IDS = {
     '1': frozenset({
         'fes.zx81', 'fes.zx80', 'fes.ts1000', 'fes.ts1500',

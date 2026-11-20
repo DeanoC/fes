@@ -405,9 +405,13 @@ a named subset of the tier 1 cells, and nothing below tier 1.
 
 Tier 1 set on DE10 (decided): ZX81 family, Spectrum family, C64, Atari ST,
 PC/XT. v1 ships the first four, as its plan says; PC/XT is tier 1 by quality
-and is scoped to the release after v1. pc386 joins when #1368 and #1494 close. Coleco, SMS, SG-1000 and Apple
-II are tier 2 once they meet the port; Pong, RAM Tester and RISC-V are
-utilities and demos, outside the ladder.
+and is scoped to the release after v1. pc386 joins when #1368 closes. Coleco,
+SMS, SG-1000 and Apple II are tier 2 once they meet the port; Pong, RAM Tester
+and RISC-V are utilities and demos, outside the ladder.
+
+On 20 November 2026, Deano judged the remaining #1494 pin-timing uncertainty
+non-blocking for DE10 pc386 tier 1. #1494 stays open; this disposition is not a
+pin-timing pass or board-level timing signoff.
 
 On 20 November 2026, Deano waived Ultima VI's measured speaker-pitch
 divergence at the pc386 286-12 preset as a tier-1 blocker on DE10, superseding
@@ -415,7 +419,7 @@ the 16 November decision. The
 [pitch investigation](../validation/2026-11-15-pc386-u6-lute-pitch-cause/summary.md)
 identifies a governor cost-model divergence but does not establish a fix. The
 pitch discrepancy and its fix remain open in [#2013](https://github.com/DeanoC/fes/issues/2013);
-the waiver is not a pitch pass. The remaining game checks and #1494 still apply.
+the waiver is not a pitch pass. The remaining #1368 game checks still apply.
 
 A core may not be tier 1 on board B merely because it is on board A. But with
 the port and the shell model, promoting it should need a build and a kit run,

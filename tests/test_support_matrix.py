@@ -400,7 +400,10 @@ class SupportMatrixTests(unittest.TestCase):
             # A second statement of the same placement may supersede it.
             plan + '\n' + quote + '\n': 'may supersede',
             # The plan stops naming a pending placement's condition.
-            plan.replace('#1368 and #1494 close', 'its blockers close'): 'no longer names',
+            plan.replace('#1368', 'the game acceptance issue'): 'no longer names',
+            # Removing the non-blocking #1494 disposition changes the policy.
+            plan.replace('non-blocking for DE10 pc386 tier 1. #1494 stays open;',
+                         'pending pin-timing disposition;'): 'no longer says',
         }
         for text, expected in cases.items():
             with self.subTest(expected=expected), tempfile.TemporaryDirectory() as tmp:
