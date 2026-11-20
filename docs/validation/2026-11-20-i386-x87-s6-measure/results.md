@@ -92,4 +92,15 @@ The table lists every entity at depth 1 to 3 with at least 100 ALMs, counting it
 | c-110 | 1 | 110.00 | pass | pass | 43,067 | 92.02% | 4,671 | 42 | 145 | 41,030 | +1.155 ns | +0.018 ns |
 | c-120 | 1 | 120.00 | pass | pass | 43,131 | 92.16% | 4,668 | 42 | 145 | 41,220 | +0.906 ns | +0.022 ns |
 
+Each rung's worst `clk` setup path, endpoints as the fitter names them:
+
+| Rung | From | To | Corner |
+| ---: | --- | --- | --- |
+| 61.44 | `_43225_[376]` | `cpu_l1d_q_tx` | Slow fix4a 0C Model |
+| 75.00 | `cpu_dfwd_ready[6]~DUPLICATE` | `_41270_[71]` | Slow fix4 0C Model |
+| 90.00 | `cpu_ex_ag_result[0]~DUPLICATE` | `_41270_[82]~DUPLICATE` | Slow fix4 0C Model |
+| 100.00 | `cpu_x87_wm[6]` | `cpu_x87_sh_src[28]` | Slow fix4 0C Model |
+| 110.00 | `cpu_dfwd_sp_wb_reg[4]` | `cpu_dc0[317]~DUPLICATE` | Slow fix4a 0C Model |
+| 120.00 | `_43225_[208]` | `_41270_[83]~DUPLICATE` | Slow fix4 0C Model |
+
 The highest rung at which seed 1 passes, with every lower rung also passing, is **120 MHz**. A closure is claimed only after seeds 2 to 4 pass at that rung (method.md).

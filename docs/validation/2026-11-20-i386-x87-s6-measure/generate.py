@@ -37,7 +37,10 @@ def load(name: str) -> dict | None:
         return min(values) if values else None
     timing = fit['timing']
     r = fit['resources']
+    setup_rows = [r for r in rows if r['check'] == 'clk_clock_setup' and r['worst_slack_ns'] not in ('', 'None')]
+    path = min(setup_rows, key=lambda r: float(r['worst_slack_ns'])) if setup_rows else None
     return {'name': name, 'fit': fit['status'],
+            'clk_path': (path['from'], path['to'], path['corner']) if path else None,
             'timing': timing['status'] if isinstance(timing, dict) else timing,
             'alms': r['alms']['used'], 'pct': r['alms']['percent_of_device'],
             'labs': r['labs']['used'], 'dsp': r['dsp_blocks']['used'], 'm20k': r['ram_blocks']['used'],
@@ -121,6 +124,13 @@ def part_c(lines):
     lines += ['## 6.0c: the clock ladder, seed 1', '']
     rows = [r for r in (load(n) for n, _ in RUNGS) if r]
     lines += table(rows) + ['']
+    lines += ["Each rung's worst `clk` setup path, endpoints as the fitter names them:", '',
+              '| Rung | From | To | Corner |', '| ---: | --- | --- | --- |']
+    for r in rows:
+        if r['clk_path']:
+            f, to, corner = r['clk_path']
+            lines.append(f"| {1000 / r['period']:.2f} | `{f}` | `{to}` | {corner} |")
+    lines.append('')
     passing = []
     for name, mhz in RUNGS:
         r = load(name)
