@@ -271,4 +271,3 @@ set_false_path -hold -from $i2s_launch -to $i2s_data
 set i2s_lock [get_registers {fes_machine_pll|machine_pll|tennm_ph2_iopll~pll_ctrl_reg}]
 if {[get_collection_size $i2s_lock] != 1} {error "DE25 pc386 I2S lock gate changed"}
 set_false_path -from $i2s_lock -to $i2s_data
-
