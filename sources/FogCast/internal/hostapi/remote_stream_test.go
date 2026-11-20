@@ -458,7 +458,7 @@ func TestSessionInputTapChordCarriesModifierMask(t *testing.T) {
 		mask string
 		code int
 		want int
-	}{{"2", 0x1004, http.StatusOK}, {"256", 0x1004, http.StatusBadRequest}, {"2", 0x10e1, http.StatusBadRequest}} {
+	}{{"2", 0x1004, http.StatusOK}, {"256", 0x1004, http.StatusBadRequest}, {"null", 0x1004, http.StatusBadRequest}, {"true", 0x1004, http.StatusBadRequest}, {"2", 0x10e1, http.StatusBadRequest}} {
 		body := fmt.Sprintf(`{"session_id":%q,"event":{"Device":0,"Kind":0,"Action":1,"Code":%d,"Value":0},"modifiers":%s}`, session, tc.code, tc.mask)
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/session/input/tap", strings.NewReader(body))
 		req.Host = "127.0.0.1"
