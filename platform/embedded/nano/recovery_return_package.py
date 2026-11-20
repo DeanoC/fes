@@ -36,7 +36,7 @@ def regular(p, maximum):
     return p
 
 
-def checked_build(directory):
+def checked_build(directory, *, source_root=None):
     """Validate the added layer, then delegate the unchanged base build gates."""
     directory = Path(directory)
     receipt = json.loads(regular(directory/'result.json', 1 << 20).read_text())
@@ -76,7 +76,10 @@ def checked_build(directory):
         for name in set(recovery.PINNED_PHY_SOURCES) | {'cmd/fes_nano_phy.c'}:
             p = view/'source'/name; p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(original[name] if name in original else (directory/'source'/name).read_text())
-        base.checked_build(view)
+        if source_root is None:
+            base.checked_build(view)
+        else:
+            base.checked_build(view, source_root=source_root)
     trace.check_linked(subprocess.check_output(
         ['readelf', '-Ws', directory/'build/u-boot'], text=True, timeout=30))
     return receipt, directory/'build/u-boot.itb', directory/'build/spl/u-boot-spl-dtb.hex', directory/'build/.config'
@@ -148,9 +151,13 @@ def prepare(directory, baseline, output):
     return result
 
 
-def load_kit(directory):
+def load_kit(directory, *, source_root=None):
     """Accept only this trace-aware package; no generic-status normalization."""
     directory = Path(directory)
+    source_root = ROOT if source_root is None else Path(source_root)
+    if (not source_root.is_absolute() or '..' in source_root.parts or
+            any(p.is_symlink() for p in (source_root, *source_root.parents))):
+        raise ValueError('explicit regular recovery producer root required')
     record = json.loads(regular(directory/'result.json', 1 << 20).read_text())
     manifest = regular(directory/'RECOVERY.JSON', 16384).read_bytes()
     description = json.loads(manifest)
@@ -183,15 +190,16 @@ def load_kit(directory):
     if (relative.is_absolute() or '..' in relative.parts or relative.as_posix()!=name or
             not relative.parts or relative.parts[0]!='out'):
         raise ValueError('trace build reference is outside the worktree')
-    build = ROOT/relative
-    required={str(HERE/'recovery_return_trace.py'),str(HERE/'recovery.py'),
-              str(HERE/'recovery_package.py'),str(HERE/'upload.py'),str(Path(__file__)),
-              str(HERE.parent/'firmware/build_terasic_uboot.py'),str(build/'result.json')}
+    build = source_root/relative
+    producer = source_root/'platform/embedded/nano'
+    required={str(producer/'recovery_return_trace.py'),str(producer/'recovery.py'),
+              str(producer/'recovery_package.py'),str(producer/'upload.py'),str(producer/'recovery_return_package.py'),
+              str(producer.parent/'firmware/build_terasic_uboot.py'),str(build/'result.json')}
     if not required.issubset(record['inputs']):
         raise ValueError('trace package omitted producer bindings')
     if sha(build/'result.json') != record['build_receipt_sha256']:
         raise ValueError('trace package build receipt changed')
-    checked_build(build)
+    checked_build(build, source_root=source_root)
     fit = regular(directory/'u-boot.itb', 2 << 20).read_bytes()
     disk = regular(directory/'nano-recovery-sd.img', 150994944)
     if (disk.stat().st_size != record['sd_image_size'] or disk.stat().st_size != 150994944 or

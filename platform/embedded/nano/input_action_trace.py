@@ -26,12 +26,12 @@ def record(raw, line, input_mode):
 def validate(rows, op, owner, generation, *, expected_source='uart'):
     # These diagnostics grant no permission and replace no existing receipt.
     # Require the complete ordered command sequence, including Quit's Stop.
-    # A planned physical Stop must name its source; captures cannot select it.
+    # A planned physical launch/Stop names its source; captures cannot select it.
     # Historical UART captures are not upgraded to physical input evidence.
     require(op in ('startup', 'focus', 'launch', 'stop', 'quit'), 'unknown input-action operation')
-    require(expected_source == 'uart' or op == 'stop' and
+    require(expected_source == 'uart' or op in ('launch', 'stop') and
             expected_source in ('usb-boot-keyboard', 'usb-gamepad'),
-            'physical input selection requires an explicit supported stop')
+            'physical input selection requires an explicit supported launch or stop')
     expected = {'launch': [('select', 'ready', generation)],
                 'stop': [('stop', 'running', generation)],
                 'quit': [('stop', 'running', generation), ('quit', 'ready', generation+1)],

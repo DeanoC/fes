@@ -209,7 +209,7 @@ func main() {
 		if loader == nil {
 			panic("serial Tenfoot requires the owned program loader")
 		}
-		serveProgramTenfoot(loader, store, volume)
+		serveProgramTenfoot(loader, store)
 		return
 	}
 	if loader != nil {

@@ -109,13 +109,42 @@ class InputActionTraceTests(unittest.TestCase):
                 (False, 'boot-keyboard', 'usb-boot-keyboard', 'stop'),
                 (True, 'boot-keyboard', 'usb-gamepad', 'stop'),
                 (True, 'gamepad', 'usb-boot-keyboard', 'stop'),
-                (True, 'boot-keyboard', 'usb-boot-keyboard', 'launch'),
+                (True, 'boot-keyboard', 'usb-boot-keyboard', 'quit'),
                 (True, 'boot-keyboard', 'unknown', 'stop')):
             model = PairedModel(shared, protocol)
             client = model.client()
-            with self.subTest(shared=shared, source=source, op=op), self.assertRaisesRegex(ValueError, 'physical stop source'):
+            with self.subTest(shared=shared, source=source, op=op), self.assertRaisesRegex(ValueError, 'physical action source'):
                 client.key(op, input_source=source)
             self.assertEqual(model.keys, [])
+
+    def test_explicit_physical_launch_requires_source_and_complete_activation(self):
+        for protocol in ('boot-keyboard', 'gamepad'):
+            for fault in ('', 'uart-source', 'missing-mailbox'):
+                with self.subTest(protocol=protocol, fault=fault):
+                    model = PairedModel(True, protocol)
+                    client = model.client()
+                    original, exchange = model.corrupt, client.exchange
+                    sent = []
+                    def physical(raw, key):
+                        raw = original(raw, key)
+                        return raw if fault == 'uart-source' else raw.replace(
+                            b'source=uart action=select',
+                            ('source=usb-'+protocol+' action=select').encode())
+                    def observe(payload, bound, done):
+                        sent.append(payload)
+                        return exchange(b'\r', bound, done)
+                    model.corrupt, client.exchange = physical, observe
+                    model.fault = '' if fault == 'uart-source' else fault
+                    if fault:
+                        with self.assertRaises(ValueError):
+                            client.key('launch', 0, input_source='usb-'+protocol)
+                        self.assertTrue(client.retired)
+                    else:
+                        result = client.key('launch', 0, input_source='usb-'+protocol)
+                        self.assertEqual(result['status'], 'verified')
+                        self.assertEqual(client.view['native']['State'], 'running')
+                        self.assertEqual(result['input_actions'][0]['source'], 'usb-'+protocol)
+                    self.assertEqual(sent, [b''])
 
     def test_physical_stop_cannot_be_satisfied_by_uart_or_missing_closure(self):
         for fault in ('uart-source', 'missing-core-stop', 'bad-core-stop', 'missing-usb-resume'):
