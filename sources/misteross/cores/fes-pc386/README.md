@@ -472,8 +472,8 @@ builds of pc386 are parked with [#1235](https://github.com/DeanoC/fes/issues/123
   `make build-fes-pc386-quartus`, or pass `--gpu-router CUDA` directly to the
   build script. When no slot is requested, the product path selects an available
   authenticated HIP or CUDA slot. Nothing routes on a GPU. The product's
-  execution record names the selected slot; design-v1 keeps the same BUILD_ID
-  when only that toolchain choice changes. The manual legacy format-1 sealer
+  execution record names the selected slot; its design-v2 record keeps the
+  same BUILD_ID when only that toolchain choice changes. The manual legacy format-1 sealer
   still defaults to HIP and gives the two slots distinct BUILD_IDs.
 - The seal needs a lockstep report of this tree's CPU
   (`LOCKSTEP_REPORT=`, `--lockstep-report`): `scripts/test_fes_i386_lockstep.py

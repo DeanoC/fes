@@ -1081,7 +1081,8 @@ compares two captured records. A source-only report explicitly marks execution
 comparison unavailable: it does not pretend to authenticate installed tools.
 
 Historical format-1 and format-2 records retain their original identities and
-validation. Design-v1 cache entries use a separate `design-v1/` namespace;
+validation. Cache entries with separated identities use a namespace named
+for their policy (`design-v1/`, `design-v2/`);
 legacy entries are never relabelled or used as migrated builds. Each newly
 built design therefore needs one migration build with its new embedded ID,
 normal timing/seal checks and applicable hardware acceptance (or the existing

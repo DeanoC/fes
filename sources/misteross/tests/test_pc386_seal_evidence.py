@@ -1,7 +1,9 @@
 """Synthetic pc386 receipt exercises the real historic-source and seal gates.
 
-EvidenceReuseTests (#1984 S3) seals a design-v2 entry, the window S4 opens,
-and builds each counterexample to evidence-only reuse against it.
+The producer writes design-v2 records (#1984 S4). EvidenceReuseTests (#1984
+S3) builds each counterexample to evidence-only reuse against such an entry.
+HistoricalDesignV1Tests keeps a design-v1 entry, the kind every pc386 seal
+before S4 holds, readable and validated.
 """
 import contextlib
 import copy
@@ -29,29 +31,28 @@ REPOSITORY = 'https://github.com/DeanoC/fes.git'
 # The CPU netlist the synthetic seal was built from. A test regenerates it by
 # writing these bytes where the seal's Yosys would.
 NETLIST = b'// synthetic fes_i386_cpu netlist\n'
-PRODUCER = 'cores/fes-pc386/tools/build_pc386_product.py'
 
 
 def sha(data): return hashlib.sha256(data).hexdigest()
 
 
-def to_design_v2(record, root):
-    """The record S4's producer would write for the same tree: design-v2, with
-    the ROM hex digest firmware.lock pins in its firmware parameter."""
+def to_historical_design_v1(record, root):
+    """The design-v1 record the producer wrote for the same tree before #1984
+    S4: no ROM hex digest in its firmware parameter."""
     fields = json.loads(record)
     fields.pop('identities')
     parameters = fields['parameters']
     for key in ('identity_policy', 'toolchain_pins'):
         parameters.pop(key)
-    parameters['firmware'] = json.dumps({**json.loads(parameters['firmware']),
-                                         'rom_hex': seal.pinned_rom_digest(root)},
-                                        sort_keys=True, separators=(',', ':'))
-    return seal.encode_build_record(input_identity.with_identities(fields, root=root, policy=input_identity.DESIGN_V2))
+    firmware = json.loads(parameters['firmware'])
+    firmware.pop('rom_hex')
+    parameters['firmware'] = json.dumps(firmware, sort_keys=True, separators=(',', ':'))
+    return seal.encode_build_record(input_identity.with_identities(fields, root=root, policy=input_identity.DESIGN_V1))
 
 
 class SealedEntryFixture(unittest.TestCase):
     """A synthetic Git checkout holding a sealed pc386 entry under POLICY."""
-    POLICY = input_identity.DESIGN_V1
+    POLICY = input_identity.DESIGN_V2
 
     @classmethod
     def setUpClass(cls):
@@ -65,19 +66,6 @@ class SealedEntryFixture(unittest.TestCase):
             target = cls.root / path
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / path, target)
-        if cls.POLICY == input_identity.DESIGN_V2:
-            # Stand-in for S4: this checkout's producer writes design-v2, so the
-            # real resolver selects with a v2 record too.
-            producer = cls.root / PRODUCER
-            text = producer.read_text()
-            for old, new in (('with_identities(fields, root=root)',
-                              'with_identities(fields, root=root, policy="design-v2")'),
-                             ('json.dumps(firmware_digests(root), sort_keys',
-                              'json.dumps({**firmware_digests(root), "rom_hex": pinned_rom_digest(root)}, sort_keys')):
-                if text.count(old) != 1:
-                    raise AssertionError('producer fixture patch no longer applies: ' + old)
-                text = text.replace(old, new)
-            producer.write_text(text)
         (cls.repo / 'config').mkdir()
         shutil.copy2(ROOT.parents[1] / 'config/core-recipes.toml', cls.repo / 'config/core-recipes.toml')
         def git(*args):
@@ -142,12 +130,12 @@ class SealedEntryFixture(unittest.TestCase):
     @classmethod
     def record_at(cls, revision):
         """The producer's record of the synthetic checkout at revision, under POLICY."""
-        # The synthetic checkout's product source matches this one's, apart
-        # from the v2 stand-in. This fixture executes no compiler from it.
+        # The synthetic checkout's product source matches this one's. This
+        # fixture executes no compiler from it.
         with mock.patch.object(seal, 'ROOT', cls.root):
             record = seal.create_build_record(cls.root, REPOSITORY, revision, cls.tools,
                                               execution={'toolchain': 'quartus', 'gpu_device': 'lease'})
-        return to_design_v2(record, cls.root) if cls.POLICY == input_identity.DESIGN_V2 else record
+        return to_historical_design_v1(record, cls.root) if cls.POLICY == input_identity.DESIGN_V1 else record
 
     @classmethod
     def tearDownClass(cls):
@@ -283,7 +271,7 @@ print(json.dumps({'package': result['directory'].name, 'source': result['inputs'
         reused = json.loads(second.stdout)['source']
         self.assertNotEqual(reused['selected_revision'], reused['original_revision'])
         self.assertTrue(reused['toolchain_update_available'])
-        cached = next(cache.glob('design-v1/*/*/evidence/receipt.json'))
+        cached = next(cache.glob('design-v2/*/*/evidence/receipt.json'))
         cached.chmod(0o644)
         cached.write_bytes(b'{}')
         cached.chmod(0o444)
@@ -393,8 +381,29 @@ print(json.dumps({'package': result['directory'].name, 'source': result['inputs'
 '''
 
 
-class DesignV1ReuseTests(SealedEntryFixture):
-    """Under design-v1 every evidence file is a design input: S3 changes nothing there."""
+class HistoricalDesignV1Tests(SealedEntryFixture):
+    """A pc386 seal from before #1984 S4 holds a design-v1 record. It stays
+    readable and validated, and S3's reuse changes nothing for it."""
+    POLICY = input_identity.DESIGN_V1
+
+    def test_a_historical_design_v1_entry_still_validates(self):
+        self.assertEqual(self.fields['parameters']['identity_policy'], input_identity.DESIGN_V1,
+                         'the fixture must hold a design-v1 record')
+        self.assertNotIn('rom_hex', json.loads(self.fields['parameters']['firmware']),
+                         'a pre-S4 record carries no ROM hex digest')
+        self.assertEqual(evidence.validate(self.root, self.package, self.record_path, self.ev),
+                         sha((self.ev / 'receipt.json').read_bytes()),
+                         'a design-v1 pc386 seal must stay valid after the producer moves to design-v2')
+
+    def test_the_producer_never_selects_a_historical_design_v1_entry(self):
+        with mock.patch.object(seal, 'ROOT', self.root):
+            current = json.loads(seal.create_build_record(
+                self.root, REPOSITORY, self.revision, self.tools,
+                execution={'toolchain': 'quartus', 'gpu_device': 'lease'}))
+        self.assertNotEqual(input_identity.functional_key(current), input_identity.functional_key(self.fields),
+                            'the v1-to-v2 migration must move the design ID, so no v1 package is reused')
+        with self.assertRaisesRegex(ValueError, 'design identity differs'):
+            evidence.evidence_drift(self.fields, current)
 
     def test_design_v1_evidence_change_moves_the_design_id_so_reuse_is_refused(self):
         tb = 'cores/fes-common/sim/i386/lockstep_tb.cpp'

@@ -240,7 +240,8 @@ class ManifestTest(unittest.TestCase):
         parameters = json.loads(record)["parameters"]
         self.assertEqual(parameters["compiler"], "quartus-17.0.2")
         self.assertEqual(json.loads(parameters["guest_rates"]), quartus.guest_rates())
-        self.assertEqual(json.loads(parameters["firmware"]), quartus.firmware_digests(ROOT))
+        self.assertEqual(json.loads(parameters["firmware"]),
+                         {**quartus.firmware_digests(ROOT), "rom_hex": quartus.pinned_rom_digest(ROOT)})
         self.assertEqual(parameters["front_end"], "yosys")
         self.assertEqual(len(parameters["front_end_program_sha256"]), 64)
         self.assertEqual(len(parameters["machine_sources_sha256"]), 64)
@@ -711,7 +712,7 @@ class QuartusLockGoldenTest(unittest.TestCase):
         fields = json.loads(quartus.create_build_record(ROOT, "https://github.com/DeanoC/fes", "a" * 40,
                                                         IDENTITIES, 1, execution=EXECUTION))
         self.assertEqual(fields["format"], 2)
-        self.assertEqual(fields["parameters"]["identity_policy"], "design-v1")
+        self.assertEqual(fields["parameters"]["identity_policy"], "design-v2")
         self.assertIn(quartus.TOOLCHAIN_LOCK, fields["source_inputs"])
         self.assertIn(quartus.QUARTUS_LOCK, fields["source_inputs"])
         self.assertEqual(fields["parameters"]["compiler"], "quartus-17.0.2")

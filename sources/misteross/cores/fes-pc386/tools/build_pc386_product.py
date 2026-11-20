@@ -45,7 +45,7 @@ for directory in (str(ROOT), str(TOOLS)):
 from scripts import build_fes_pc386_quartus as legacy
 from scripts.build_fes_pc386_quartus import *
 from scripts import source_closure
-from scripts.input_identity import with_identities, manifest_toolchain
+from scripts.input_identity import DESIGN_V2, with_identities, manifest_toolchain
 from scripts.functional_execution import execution_digest, execution_environment as _base_execution_environment
 from scripts.export_core_package import source_input_closure
 import pc386_execution
@@ -213,7 +213,10 @@ def create_build_record(root: Path, repository: str, revision: str, identities: 
         "system_clock_hz": SYSTEM_CLOCK_HZ, "pixel_clock_hz": 74_250_000, "audio_clock_hz": 12_288_000,
         "reference_clock_hz": 50_000_000, "audio_sample_hz": 48_000,
         "guest_rates": json.dumps(guest_rates(), sort_keys=True, separators=(",", ":")),
-        "firmware": json.dumps(firmware_digests(root), sort_keys=True, separators=(",", ":")),
+        # design-v2 binds the firmware by its output: the images and the ROM hex
+        # Yosys reads, as firmware.lock pins them (#1984 F2).
+        "firmware": json.dumps({**firmware_digests(root), "rom_hex": pinned_rom_digest(root)},
+                               sort_keys=True, separators=(",", ":")),
         "machine_sources_sha256": hashlib.sha256("\n".join(MACHINE_SOURCES).encode()).hexdigest(),
     }
     if execution.get("selection_only"):
@@ -223,7 +226,7 @@ def create_build_record(root: Path, repository: str, revision: str, identities: 
               "recipe": RECIPE, "recipe_sha256": inputs[RECIPE], "abi_definition": ABI_DEFINITION,
               "abi_definition_sha256": inputs[ABI_DEFINITION], "dependencies": {}, "tools": dict(identities),
               "parameters": params}
-    return encode_build_record(with_identities(fields, root=root))
+    return encode_build_record(with_identities(fields, root=root, policy=DESIGN_V2))
 
 
 def project_qsf(root: Path, project: Path, build_id: str, seed: int, *, threads: int = 2) -> str:

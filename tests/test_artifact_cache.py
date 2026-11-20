@@ -49,6 +49,19 @@ class ArtifactCacheTests(unittest.TestCase):
         self.assertIsNone(artifact_cache.functional_key(b'{"format":1}'))
         self.assertIsNone(artifact_cache.functional_key(b'{"format":2,"source_inputs":{}}'))
 
+    def test_each_identity_policy_has_its_own_namespace(self):
+        fields={**self.fields,'parameters':{}}
+        fields.pop('execution')
+        legacy=artifact_cache.store_for(self.cache,self.record.read_bytes())
+        self.assertEqual(legacy.parent,self.cache.absolute(),
+                         'a historical combined-key entry stays where it always was')
+        for policy in ('design-v1','design-v2'):
+            record=self.encode(artifact_cache.identity.with_identities(fields,policy=policy))
+            store=artifact_cache.store_for(self.cache,record)
+            self.assertEqual(store.parent,self.cache.absolute()/policy,
+                             f'a {policy} record is stored under its own policy, never relabelled')
+            self.assertEqual(store.name,artifact_cache.functional_key(record))
+
     def test_publication_is_sealed_complete_and_idempotent(self):
         result=artifact_cache.publish(self.cache,self.record,self.package)
         entry=result.parent
