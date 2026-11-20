@@ -95,6 +95,62 @@ def part2(lines):
                   'The rule as committed is left as it was written (method.md, amendment 1).', '']
 
 
+def part3(lines):
+    lines += ['## Part 3: the move\'s DE25 A/B against 6.0a', '']
+    rows = [r for r in (load(f'move-s{s}') for s in (1, 2, 3, 4)) if r]
+    lines += table(rows) + ['']
+    if len(rows) < 4:
+        lines += [f'{len(rows)} of 4 seeds recorded; no verdict on fewer.', '']
+        return
+    move = [r['alms'] for r in rows]
+    base = list(BASELINE.values())
+    m_move, m_base = statistics.median(move), statistics.median(base)
+    s_move, s_base = max(move) - min(move), max(base) - min(base)
+    floor = max(s_move, s_base)
+    saving = m_base - m_move
+    grew = m_move - m_base > floor
+    lines += [f'The move (`e7f017259`, on main `9951d04f0`): median {m_move:,.1f}, spread {s_move:,.0f}. '
+              f'6.0a (main `8a162c536`): median {m_base:,.1f}, spread {s_base}. The two bases differ by #2034 alone, '
+              'which changes build scripts and no design input.', '',
+              f'**The move saves {saving:,.1f} ALMs** (difference of medians) against the larger spread, {floor:,.0f}. '
+              'Judged one-sided (method.md, amendment 1): ' + ('**fails, the move grew the design.**' if grew else
+              '**passes**: the move did not grow the design.'), '']
+    ram = {r['ram'] for r in rows}
+    dsp = {r['dsp'] for r in rows}
+    lines += [f'RAM blocks {", ".join(f"{v:.0f}" for v in sorted(ram))} and DSP {", ".join(f"{v:.0f}" for v in sorted(dsp))} '
+              'on every seed, as in 6.0a (145 and 42): the move costs no RAM block against the '
+              f'{RAM_FREE_REAL} the real DE25 board has left with the shell (#2036), and no DSP.', '']
+    machine = m_move - VIRTUAL_PIN_ALMS
+    lines += ['**The gap to the 92% line (43,056) with a real shell**, from the move\'s median less the '
+              f'{VIRTUAL_PIN_ALMS} ALMs of virtual pins that stand in for one ({machine:,.1f}):', '',
+              '| Shell | Machine + shell | Over the 92% line | Before the move |', '| ---: | ---: | ---: | ---: |']
+    for shell in SHELLS:
+        before = m_base - VIRTUAL_PIN_ALMS + shell - LINE_92
+        lines.append(f'| {shell:,} | {machine + shell:,.1f} | {machine + shell - LINE_92:+,.1f} | {before:+,.1f} |')
+    lines += ['', f'{SHELLS[0]:,} is #2036\'s RTL-arbiter shell, one seed; {SHELLS[1]:,} and {SHELLS[2]:,} the earlier '
+              'bounds. Every row is one subtraction of figures stated here; none is a fit of a machine with a shell.', '']
+
+
+def part4(lines):
+    """The cycle cost: the unit bench's commit-to-idle clocks per form, before (#1959's final DE25
+    report, the last revision these arms changed in) and after (this head)."""
+    before = json.loads((HERE / 'evidence/before-unit-de25-rtl-1959.json').read_text())
+    after = json.loads((HERE / 'evidence/unit-rtl.json').read_text())
+    b, a = before['latency_clocks'], after['latency_clocks']
+    lines += ['## The forms\' clocks', '',
+              f"The unit bench's own latency cases, from the instruction's commit to the unit's idle: before is "
+              f"#1959's final DE25 report (`{before['source']['fes_revision'][:9]}`, the last revision in which these "
+              f"arms changed), after is this head (`{after['source']['fes_revision'][:9]}`). Both are one case a form "
+              'and precision, so they say what the path costs, not what a title pays.', '',
+              '| Form | PC | Before | After | Change |', '| --- | --- | ---: | ---: | ---: |']
+    for key in sorted(k for k in a if k.split('.')[0] in ('fscale', 'frndint', 'fprem')):
+        lines.append(f"| {key.split('.')[0].upper()} | {key.split('.')[1]} | {b[key]} | {a[key]} | {a[key] - b[key]:+d} |")
+    lines += ['', 'The census (PR #1887) has FRNDINT at 3.15% of Screamer\'s x87 work (39,902 in 30 s) and 7.56% of '
+              'Terminal Velocity\'s (518), FSCALE at 4,908 executions over all nine titles, and FPREM, FPREM1 and '
+              'FXTRACT executed by none. At 35 clocks more a FRNDINT, Screamer\'s rate costs about 46,500 clocks a '
+              'second, under 0.1% of a 61.44 MHz machine.', '']
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('--check', action='store_true')
@@ -104,6 +160,8 @@ def main() -> int:
              'Rules: [method.md](method.md). Every fit is seed-by-seed as the fitter reported it.', '']
     part1(lines)
     part2(lines)
+    part3(lines)
+    part4(lines)
     text = '\n'.join(lines).rstrip() + '\n'
     out = HERE / 'results.md'
     if args.check:

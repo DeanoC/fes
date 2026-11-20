@@ -34,3 +34,46 @@ Rules: [method.md](method.md). Every fit is seed-by-seed as the fitter reported 
 **The deletion proceeds on Deano's acceptance, not on this rule.** On 20 November 2026 he accepted it on these numbers ("Yes, accept (a)", relayed by the coordinating session): D1 is 236 ALMs smaller than D0, with equal DSP (41), equal RAM blocks (274) and timing passing on both.
 
 Deano has since made every area, fold and resource band one-sided (20 November 2026: "we should update the rule to be one way, smaller is almost always better and a good thing"), so that only growth over the reference fails. Under the one-sided form this shrink is a pass. The rule as committed is left as it was written (method.md, amendment 1).
+
+## Part 3: the move's DE25 A/B against 6.0a
+
+| Fit | Device | Seed | Fit | Timing, all corners | ALMs needed | of device | DSP | RAM blocks | Registers |
+| --- | --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| move-s1 | A5EB013BB23BE4SCS | 1 | pass | pass | 42,639 | 91.11% | 42 | 145 | 40,980 |
+| move-s2 | A5EB013BB23BE4SCS | 2 | pass | pass | 42,648 | 91.13% | 42 | 145 | 41,209 |
+| move-s3 | A5EB013BB23BE4SCS | 3 | pass | pass | 42,677 | 91.19% | 42 | 145 | 40,947 |
+| move-s4 | A5EB013BB23BE4SCS | 4 | pass | pass | 42,674 | 91.18% | 42 | 145 | 41,086 |
+
+The move (`e7f017259`, on main `9951d04f0`): median 42,661.0, spread 38. 6.0a (main `8a162c536`): median 43,048.5, spread 72. The two bases differ by #2034 alone, which changes build scripts and no design input.
+
+**The move saves 387.5 ALMs** (difference of medians) against the larger spread, 72. Judged one-sided (method.md, amendment 1): **passes**: the move did not grow the design.
+
+RAM blocks 145 and DSP 42 on every seed, as in 6.0a (145 and 42): the move costs no RAM block against the 58 the real DE25 board has left with the shell (#2036), and no DSP.
+
+**The gap to the 92% line (43,056) with a real shell**, from the move's median less the 651 ALMs of virtual pins that stand in for one (42,010.0):
+
+| Shell | Machine + shell | Over the 92% line | Before the move |
+| ---: | ---: | ---: | ---: |
+| 8,400 | 50,410.0 | +7,354.0 | +7,741.5 |
+| 6,600 | 48,610.0 | +5,554.0 | +5,941.5 |
+| 12,100 | 54,110.0 | +11,054.0 | +11,441.5 |
+
+8,400 is #2036's RTL-arbiter shell, one seed; 6,600 and 12,100 the earlier bounds. Every row is one subtraction of figures stated here; none is a fit of a machine with a shell.
+
+## The forms' clocks
+
+The unit bench's own latency cases, from the instruction's commit to the unit's idle: before is #1959's final DE25 report (`e967bf4fa`, the last revision in which these arms changed), after is this head (`4f1546783`). Both are one case a form and precision, so they say what the path costs, not what a title pays.
+
+| Form | PC | Before | After | Change |
+| --- | --- | ---: | ---: | ---: |
+| FPREM | pc24 | 17 | 86 | +69 |
+| FPREM | pc53 | 17 | 86 | +69 |
+| FPREM | pc64 | 17 | 86 | +69 |
+| FRNDINT | pc24 | 22 | 57 | +35 |
+| FRNDINT | pc53 | 22 | 57 | +35 |
+| FRNDINT | pc64 | 22 | 57 | +35 |
+| FSCALE | pc24 | 15 | 23 | +8 |
+| FSCALE | pc53 | 15 | 23 | +8 |
+| FSCALE | pc64 | 15 | 23 | +8 |
+
+The census (PR #1887) has FRNDINT at 3.15% of Screamer's x87 work (39,902 in 30 s) and 7.56% of Terminal Velocity's (518), FSCALE at 4,908 executions over all nine titles, and FPREM, FPREM1 and FXTRACT executed by none. At 35 clocks more a FRNDINT, Screamer's rate costs about 46,500 clocks a second, under 0.1% of a 61.44 MHz machine.
