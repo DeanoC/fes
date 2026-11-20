@@ -98,6 +98,34 @@ some of it, so a bound is the most that cut can save, not a forecast.
 
 Fixed in a dated amendment below, after the RTL audit and before any AT fit.
 
+### Amendment, 20 November 2026 (before any AT fit)
+
+**Own AT baseline.** My unpatched elaboration of the #2037 tree hashes to
+`cc9b0a89…`. #2037's `elab-head` hashes to `1fb3e286…`, because the netlist
+depends on the source path. The AT arm therefore fits its own baseline,
+`base`, at seeds 1–4, and #2037's fits are not used as the baseline.
+
+**AT ablations.** Each is a patch in `patches/`, applied to a copy of the
+baseline tree.
+
+1. **A-dma2** (`dma2.patch`): controller 2 removed. Reads return `FFh`, and
+   there is no hold. Upper bound for a "registers only" controller 2.
+   - Positive control: no `dma2` cells in the netlist.
+2. **A-fifo** (`fifo.patch`): the PS/2 FIFO (keyboard and mouse) gets one
+   write port and `ramstyle = "MLAB"`.
+   - Behaviour is kept: the clear path's push is folded into the same port.
+   - Positive control: MLAB use in the fit, and the FIFO registers gone from
+     the netlist.
+3. **A-kbcram** (`kbcram.patch`): 8042 RAM bytes 1–31 dropped. Reads return 0
+   and writes are ignored. Byte 0, the command byte, is kept.
+4. **A-pitbcd** (`pitbcd.patch`): KF8253 BCD counting dropped. Only the binary
+   decrement feeds the counter.
+   - Positive control: no `dec_bcd_q` registers in the netlist.
+
+Each ablation's netlist must differ from `base`'s only through its patch.
+That is checked by the patch's positive control. Byte-identity outside the
+patch is not reachable, because Yosys autonames shift.
+
 ## Screening
 
 There is no seed-1 screening. Every candidate gets four seeds.
