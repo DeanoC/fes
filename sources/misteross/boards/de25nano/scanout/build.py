@@ -736,7 +736,9 @@ def managed_fabric_helper(directory):
 
 
 def verify_managed_fabric(directory, hps):
-    return managed_fabric_helper(directory).verify_managed_fabric(directory / "project", hps)
+    selected = json.loads((directory / "inputs.json").read_text())["scanout"].get("linux_dma") or {}
+    window = selected.get("master_ownership") == "scanout+window"
+    return managed_fabric_helper(directory).verify_managed_fabric(directory / "project", hps, window=window)
 
 
 def shared_reset_helper(directory):

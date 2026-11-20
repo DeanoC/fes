@@ -237,7 +237,7 @@ def verify_managed_debug_constraints(project):
     return receipt
 
 
-def _managed_fabric_graph(project, hps):
+def _managed_fabric_graph(project, hps, window):
     import xml.etree.ElementTree as ET
     sopc = project / 'qsys_top/qsys_top.sopcinfo'
     tree = ET.parse(sopc)
@@ -250,8 +250,6 @@ def _managed_fabric_graph(project, hps):
             raise ValueError('managed fabric retains a maintenance initiator/translator: ' + name)
     routes = [c for c in tree.findall('connection') if c.get('kind') == 'avalon']
     masters = {c.get('start') for c in routes}
-    inputs = json.loads((project.parent / 'inputs.json').read_text())
-    window = inputs.get('scanout', {}).get('linux_dma', {}).get('master_ownership') == 'scanout+window'
     if masters != set(MANAGED_MASTERS) | (set(WINDOW_MASTERS) if window else set()):
         raise ValueError('managed fabric initiator inventory differs')
     ingress = [(c.get('start'), c.get('end')) for c in routes
@@ -310,9 +308,12 @@ def _managed_parent(data):
     return {name: value for name, value in ports.items() if name.startswith('fpga2hps_') or name == 'fpga2hps'}
 
 
-def verify_managed_fabric(project, hps):
-    """Check the complete graph and actual absence of the disabled interface."""
-    graph = _managed_fabric_graph(project, hps)
+def verify_managed_fabric(project, hps, *, window=False):
+    """Check the complete graph and actual absence of the disabled interface.
+
+    window: the build selected fes.fabric.de25-hps-window, whose master and
+    bridge join the initiator inventory and the control routes."""
+    graph = _managed_fabric_graph(project, hps, window)
     top = project / 'qsys_top/synth/qsys_top.v'
     if _managed_parent(top.read_bytes()):
         raise ValueError('managed fabric generated parent retains unused F2H ports')

@@ -115,6 +115,17 @@ class ManagedFabricTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'initiator inventory'):
             D.verify_managed_fabric(self.project, H)
 
+    def test_window_masters_belong_only_to_the_window_profile(self):
+        self.project_removals()
+        # The window profile names its masters: a graph without them is refused.
+        with self.assertRaisesRegex(ValueError, 'initiator inventory'):
+            D.verify_managed_fabric(self.project, H, window=True)
+        # And a build without the window refuses the window's masters.
+        self.mutate_routes(lambda root: [ET.SubElement(root, 'connection',
+            {'kind': 'avalon', 'start': master, 'end': 'ocm.axi_s1'}) for master in D.WINDOW_MASTERS])
+        with self.assertRaisesRegex(ValueError, 'initiator inventory'):
+            D.verify_managed_fabric(self.project, H)
+
     def test_known_initiator_cannot_add_an_f2h_or_control_bypass(self):
         for target, error in (('subsys_hps_agilex_hps.fpga2hps', 'path into HPS'),
                               ('subsys_periph_fes_scanout_guard.avs', 'control/OCM')):
