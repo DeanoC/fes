@@ -1,4 +1,4 @@
-# x87 slice 6: the plan, for Deano to decide on
+# x87 slice 6: plan and decision record
 
 Slice 6 of the x87 phase ([#1768](https://github.com/DeanoC/fes/issues/1768))
 was named on 15 November 2026 as "full design optimisation, and acceptance".
@@ -9,8 +9,10 @@ fit.** Every figure is cited from a committed record, and each one names that
 record.
 
 The plan has four parts: what is settled, what binds today, the candidates
-with their costs, and an order. The decisions Deano must make are collected
-at the end.
+with their costs, and an order. It was first published for Deano to decide;
+on 20 November 2026, he accepted all eight recommendations. The PR title and
+body describe that earlier proposal state. The decision record at the end
+links the preserved confirmation.
 
 ## What is settled
 
@@ -206,7 +208,7 @@ saving is attributed.
 - **6.3, the governor's 387 classes.**
 - **6.4, acceptance**, which moves to slice 7 under D7.
 
-## Decisions for Deano
+## Recommendations (D1–D8)
 
 | | Decision | Options | Recommendation |
 | --- | --- | --- | --- |
@@ -219,11 +221,13 @@ saving is attributed.
 | **D7** | Where acceptance (kit titles) sits | Slice 6 / slice 7 | **Slice 7.** It needs the identity-on DE25 package, which D4 builds. |
 | **D8** | The multiplier-sharing headline | Pursue first / measure in 6.0b and rank it there | **Rank it in 6.0b.** On this board, DSP is the slack resource and ALMs are binding. |
 
-## Decisions (20 Nov 2026)
+## Decision record (20 Nov 2026)
 
-Deano accepted all eight recommendations as written: "Accept all eight",
-20 November 2026, relayed by the coordinating session. The table above is
-the proposal and stays as it was. What was decided:
+Deano accepted all eight recommendations as written: "Accept all eight".
+His [handoff comment on PR #2027](https://github.com/DeanoC/fes/pull/2027#issuecomment-7041245637)
+records that acceptance and identifies these D1–D8 decisions. The originating
+session relay is not archived as a separate artifact; this linked comment is
+the preserved decision record. The recommendations above remain unchanged.
 
 - **D1, board:** slice 6 targets the DE25 only. The DE10 stays
   identity-off and takes only the reseal that shared-RTL edits force.
