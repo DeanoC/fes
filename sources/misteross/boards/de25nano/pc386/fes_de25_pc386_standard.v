@@ -35,35 +35,25 @@ module fes_de25_pc386_standard #(
     input wire [127:0] avm_readdata,
     input wire avm_readdatavalid,
     input wire [1:0] avm_response,
-    // The window's grant, set by the runtime while the machine is held.
-    input wire window_grant_valid,
-    input wire [31:0] window_grant_base,
-    output wire window_fault,
-    // The window masters, in machine_clk, byte addressed.
-    output wire [31:0] w0_address,
-    output wire [7:0] w0_burstcount,
-    output wire w0_read, w0_write,
-    output wire [127:0] w0_writedata,
-    output wire [15:0] w0_byteenable,
-    input wire w0_waitrequest,
-    input wire [127:0] w0_readdata,
-    input wire w0_readdatavalid,
-    output wire [31:0] w1_address,
-    output wire [7:0] w1_burstcount,
-    output wire w1_read, w1_write,
-    output wire [63:0] w1_writedata,
-    output wire [7:0] w1_byteenable,
-    input wire w1_waitrequest,
-    input wire [63:0] w1_readdata,
-    input wire w1_readdatavalid,
-    output wire [31:0] w2_address,
-    output wire [7:0] w2_burstcount,
-    output wire w2_read, w2_write,
-    output wire [63:0] w2_writedata,
-    output wire [7:0] w2_byteenable,
-    input wire w2_waitrequest,
-    input wire [63:0] w2_readdata,
-    input wire w2_readdatavalid,
+    // fes.fabric.de25-hps-window's control block, in clk_sys.
+    input wire [5:0] window_address,
+    input wire window_read, window_write,
+    input wire [3:0] window_byteenable,
+    input wire [31:0] window_writedata,
+    output wire [31:0] window_readdata,
+    output wire window_readdatavalid, window_writeresponsevalid, window_waitrequest,
+    output wire [1:0] window_response,
+    // The window master, in machine_clk, byte addressed: the three ports arbitrated.
+    output wire [31:0] win_address,
+    output wire [7:0] win_burstcount,
+    output wire win_read, win_write,
+    output wire [127:0] win_writedata,
+    output wire [15:0] win_byteenable,
+    input wire win_waitrequest,
+    input wire [127:0] win_readdata,
+    input wire win_readdatavalid,
+    input wire win_writeresponsevalid,
+    input wire [1:0] win_response,
     output wire [27:0] video,
     output wire [23:0] video_rgb,
     output wire video_de, video_hs, video_vs,
@@ -104,7 +94,17 @@ module fes_de25_pc386_standard #(
     // A lost transport holds the machine: its GP words read as idle.
     wire [31:0] held_gpo = transport_ready_sync[1] ? machine_gpo : 32'd0;
 
-    wire ddr_hold;
+    wire ddr_hold, grant_valid, fault_clear, fault_no_grant, fault_outside, window_idle;
+    wire [31:0] grant_base;
+    wire [2:0] fault_port;
+    wire [31:0] w0_address, w1_address, w2_address;
+    wire [7:0] w0_burstcount, w1_burstcount, w2_burstcount;
+    wire w0_read, w0_write, w1_read, w1_write, w2_read, w2_write;
+    wire [127:0] w0_writedata, w0_readdata;
+    wire [15:0] w0_byteenable;
+    wire [63:0] w1_writedata, w1_readdata, w2_writedata, w2_readdata;
+    wire [7:0] w1_byteenable, w2_byteenable;
+    wire w0_waitrequest, w0_readdatavalid, w1_waitrequest, w1_readdatavalid, w2_waitrequest, w2_readdatavalid;
     wire p0_reset, p0_drained, p0_read, p0_write, p0_waitrequest, p0_readdatavalid;
     wire [27:0] p0_address;
     wire [7:0] p0_burstcount;
@@ -146,8 +146,9 @@ module fes_de25_pc386_standard #(
     );
     /* verilator lint_on PINCONNECTEMPTY */
     fes_de25_hps_window window (
-        .hold(ddr_hold || !machine_reset_n), .grant_valid(window_grant_valid), .grant_base(window_grant_base),
-        .fault(window_fault),
+        .hold(ddr_hold || !machine_reset_n), .grant_valid(grant_valid), .grant_base(grant_base),
+        .fault_clear(fault_clear), .fault_port(fault_port), .fault_no_grant(fault_no_grant),
+        .fault_outside(fault_outside),
         .p0_clk(machine_clk), .p0_reset(p0_reset), .p0_drained(p0_drained),
         .p0_address(p0_address), .p0_burstcount(p0_burstcount), .p0_waitrequest(p0_waitrequest),
         .p0_readdata(p0_readdata), .p0_readdatavalid(p0_readdatavalid), .p0_read(p0_read),
@@ -170,7 +171,33 @@ module fes_de25_pc386_standard #(
         .m2_writedata(w2_writedata), .m2_byteenable(w2_byteenable), .m2_waitrequest(w2_waitrequest),
         .m2_readdata(w2_readdata), .m2_readdatavalid(w2_readdatavalid)
     );
-    wire unused = ^{p0_drained, p1_drained, p2_drained};
+    wire unused = ^{win_response};
+    fes_de25_window_arbiter arbiter (
+        .clk(machine_clk), .reset(!machine_reset_n),
+        .s0_address(w0_address), .s0_burstcount(w0_burstcount), .s0_read(w0_read), .s0_write(w0_write),
+        .s0_writedata(w0_writedata), .s0_byteenable(w0_byteenable), .s0_waitrequest(w0_waitrequest),
+        .s0_readdata(w0_readdata), .s0_readdatavalid(w0_readdatavalid),
+        .s1_address(w1_address), .s1_burstcount(w1_burstcount), .s1_read(w1_read), .s1_write(w1_write),
+        .s1_writedata(w1_writedata), .s1_byteenable(w1_byteenable), .s1_waitrequest(w1_waitrequest),
+        .s1_readdata(w1_readdata), .s1_readdatavalid(w1_readdatavalid),
+        .s2_address(w2_address), .s2_burstcount(w2_burstcount), .s2_read(w2_read), .s2_write(w2_write),
+        .s2_writedata(w2_writedata), .s2_byteenable(w2_byteenable), .s2_waitrequest(w2_waitrequest),
+        .s2_readdata(w2_readdata), .s2_readdatavalid(w2_readdatavalid),
+        .m_address(win_address), .m_burstcount(win_burstcount), .m_read(win_read), .m_write(win_write),
+        .m_writedata(win_writedata), .m_byteenable(win_byteenable), .m_waitrequest(win_waitrequest),
+        .m_readdata(win_readdata), .m_readdatavalid(win_readdatavalid),
+        .m_writeresponsevalid(win_writeresponsevalid), .idle(window_idle)
+    );
+    fes_de25_hps_window_control window_control (
+        .clk_sys(clk_sys), .reset_n(reset_n), .address(window_address), .read(window_read),
+        .write(window_write), .byteenable(window_byteenable), .writedata(window_writedata),
+        .readdata(window_readdata), .readdatavalid(window_readdatavalid),
+        .writeresponsevalid(window_writeresponsevalid), .response(window_response),
+        .waitrequest(window_waitrequest), .machine_clk(machine_clk), .grant_valid(grant_valid),
+        .grant_base(grant_base), .fault_clear(fault_clear),
+        .machine_drained(window_idle && p0_drained && p1_drained && p2_drained), .machine_held(ddr_hold),
+        .fault_port(fault_port), .fault_no_grant(fault_no_grant), .fault_outside(fault_outside)
+    );
     // The pc386 picture is 960x720 at the left 160, as on the DE10.
     fes_de25_session_display #(.BUILD_ID(BUILD_ID),
         .PICTURE_LEFT(16'd160), .PICTURE_TOP(16'd0),

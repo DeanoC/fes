@@ -15,14 +15,15 @@ set_fileset_property QUARTUS_SYNTH TOP_LEVEL fes_de25_pc386_standard
 add_fileset_file fes_de25_pc386_standard.v VERILOG PATH fes_de25_pc386_standard.v TOP_LEVEL_FILE
 # pc386_system is the Yosys SEAL netlist of the derived machine, as the DE10
 # seal compiles it; the rest is the board's own RTL.
-foreach file {pc386_system.v fes_de25_hps_window.v fes_hps_ddr_guard.v fes_de25_computer_transport.v
+foreach file {pc386_system.v fes_de25_hps_window.v fes_de25_hps_window_control.v fes_de25_window_arbiter.v
+    fes_de25_window_unpack.v fes_hps_ddr_guard.v fes_de25_computer_transport.v
     fes_gp_crossing.v fes_de25_scanout.v fes_display_cdc.v fes_menu_video.v fes_menu_reader_de25.v} {
     add_fileset_file $file VERILOG PATH $file
 }
 foreach file {fes_computer_mailbox.v fes_de25_session_display.v fes_display_plane.v fes_menu_control.v} {
     add_fileset_file $file SYSTEM_VERILOG PATH $file
 }
-foreach file {fes_de25_computer.vh fes_de25_scanout.vh} {
+foreach file {fes_de25_computer.vh fes_de25_scanout.vh fes_de25_hps_window.vh} {
     add_fileset_file generated/$file VERILOG_INCLUDE PATH generated/$file
 }
 foreach file {fes_computer.vh fes_application.vh fes_display_plane.vh} {
@@ -39,6 +40,7 @@ foreach {clock port reset reset_port} {clk_sys clk_sys system_reset reset_n clk 
 }
 foreach {name prefix clock reset bits span} {
     computer computer_ clk_sys system_reset 5 32
+    window window_ clk_sys system_reset 6 64
     avs scanout_ clk reset 7 128
 } {
     add_interface $name avalon end
@@ -70,27 +72,23 @@ foreach {signal direction width} {address Output 32 burstcount Output 7 read Out
     add_interface_port avm avm_$signal $signal $direction $width
 }
 # The pc386 window: fes.memory.hps-ddr's three ports, rebased onto the
-# runtime's grant, read/write, in the machine clock.
-foreach {name width} {w0 128 w1 64 w2 64} {
+# runtime's grant and arbitrated into one read/write master in the machine
+# clock. A write burst completes with its write response.
+foreach {name width} {win 128} {
     add_interface $name avalon start
     set_interface_property $name associatedClock machine_clk
     set_interface_property $name associatedReset machine_reset
     foreach {key value} {addressUnits SYMBOLS bitsPerSymbol 8 burstcountUnits WORDS
-        maximumPendingReadTransactions 32 waitrequestAllowance 0 linewrapBursts false
+        maximumPendingReadTransactions 32 maximumPendingWriteTransactions 255 waitrequestAllowance 0 linewrapBursts false
         burstOnBurstBoundariesOnly false doStreamReads false doStreamWrites false} {
         set_interface_property $name $key $value
     }
     foreach {signal direction bits} [list address Output 32 burstcount Output 8 read Output 1 write Output 1 \
             writedata Output $width byteenable Output [expr {$width / 8}] waitrequest Input 1 \
-            readdata Input $width readdatavalid Input 1] {
+            readdata Input $width readdatavalid Input 1 writeresponsevalid Input 1 response Input 2] {
         add_interface_port $name ${name}_$signal $signal $direction $bits
     }
 }
-add_interface window conduit end
-set_interface_property window associatedClock machine_clk
-add_interface_port window window_grant_valid grant_valid Input 1
-add_interface_port window window_grant_base grant_base Input 32
-add_interface_port window window_fault fault Output 1
 add_interface video conduit end
 foreach {port role width} {video_rgb rgb 24 video_de de 1 video_hs hs 1 video_vs vs 1} {
     add_interface_port video $port $role Output $width

@@ -21,7 +21,11 @@ module fes_de25_hps_window #(
     input  wire         hold,
     input  wire         grant_valid,
     input  wire [31:0]  grant_base,
-    output wire         fault,
+    // Sticky until fault_clear (machine clock, level): the ports that
+    // faulted, and why -- no valid grant, or outside the span.
+    input  wire         fault_clear,
+    output wire [2:0]   fault_port,
+    output wire         fault_no_grant, fault_outside,
 
     input  wire         p0_clk,
     output wire         p0_reset,
@@ -159,10 +163,22 @@ module fes_de25_hps_window #(
     assign m2_read = g2_read && g2_ok;
     assign m2_write = g2_write && g2_ok;
 
-    // Sticky, per port clock; the board reads the OR as one level.
-    reg f0 = 1'b0, f1 = 1'b0, f2 = 1'b0;
-    always @(posedge p0_clk) if ((g0_read || g0_write) && !g0_ok) f0 <= 1'b1;
-    always @(posedge p1_clk) if ((g1_read || g1_write) && !g1_ok) f1 <= 1'b1;
-    always @(posedge p2_clk) if ((g2_read || g2_write) && !g2_ok) f2 <= 1'b1;
-    assign fault = f0 || f1 || f2;
+    // Sticky. The three ports share one clock on the DE25 board, so the
+    // record is kept in p0_clk; the shell ties p1_clk and p2_clk to it.
+    wire bad0 = (g0_read || g0_write) && !g0_ok;
+    wire bad1 = (g1_read || g1_write) && !g1_ok;
+    wire bad2 = (g2_read || g2_write) && !g2_ok;
+    reg [2:0] port_fault = 3'b000;
+    reg no_grant = 1'b0, outside = 1'b0;
+    always @(posedge p0_clk)
+        if (fault_clear) begin
+            port_fault <= 3'b000; no_grant <= 1'b0; outside <= 1'b0;
+        end else begin
+            port_fault <= port_fault | {bad2, bad1, bad0};
+            if ((bad0 || bad1 || bad2) && !grant_valid) no_grant <= 1'b1;
+            if ((bad0 || bad1 || bad2) && grant_valid) outside <= 1'b1;
+        end
+    assign fault_port = port_fault;
+    assign fault_no_grant = no_grant;
+    assign fault_outside = outside;
 endmodule

@@ -13,6 +13,11 @@
 // read only while its FIFO has room for every beat it still owes: the FIFO
 // depth bounds that port's outstanding reads.
 //
+// A write burst is complete when its write response returns (Avalon
+// writeresponsevalid, one per burst). idle proves nothing is owed: no write
+// burst open or unanswered, no read beat outstanding or buffered. Only then
+// may the window's grant change.
+//
 // Commands are granted round robin, one burst at a time; a write burst holds
 // the grant until its last beat. Responses return in issue order on the one
 // master, so an order FIFO of {port, beats} routes them. All addresses are
@@ -53,7 +58,9 @@ module fes_de25_window_arbiter #(
     output wire [15:0]  m_byteenable,
     input  wire         m_waitrequest,
     input  wire [127:0] m_readdata,
-    input  wire         m_readdatavalid
+    input  wire         m_readdatavalid,
+    input  wire         m_writeresponsevalid,
+    output wire         idle
 );
     localparam integer DEPTH = 1 << FIFO_BITS;
 
@@ -193,5 +200,12 @@ module fes_de25_window_arbiter #(
             owed2 <= owed2 + ((push_order && sel == 2'd2) ? {2'd0, beats2} : 10'd0) - {9'd0, pop2};
         end
     end
+    // Write bursts accepted in full and not yet answered.
+    reg [7:0] writes_owed = 8'd0;
+    wire write_done = take && sel_write && beat_last;
+    always @(posedge clk)
+        if (reset) writes_owed <= 8'd0;
+        else writes_owed <= writes_owed + {7'd0, write_done} - {7'd0, m_writeresponsevalid};
+    assign idle = !busy && order_count == 0 && owed1 == 10'd0 && owed2 == 10'd0 && writes_owed == 8'd0;
     wire unused = ^{up_address[2:0], up_rburst[7:1]};
 endmodule

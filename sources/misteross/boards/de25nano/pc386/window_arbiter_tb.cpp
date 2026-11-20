@@ -51,6 +51,7 @@ int main(int argc, char **argv) {
     // memory side
     struct Resp { int due; std::vector<uint8_t> data; };
     std::deque<Resp> responses;
+    std::deque<int> write_responses;   // due cycles
     bool mw_active = false; uint32_t mw_addr = 0; int mw_burst = 0, mw_got = 0;
     long cycle = 0;
     auto set_port = [&](Port &p) {
@@ -92,6 +93,8 @@ int main(int argc, char **argv) {
         t->m_waitrequest = rnd(4) == 0;
         // response delivery
         t->m_readdatavalid = 0;
+        t->m_writeresponsevalid = 0;
+        if (!write_responses.empty() && write_responses.front() <= cycle && rnd(2)) { t->m_writeresponsevalid = 1; write_responses.pop_front(); }
         if (!responses.empty() && responses.front().due <= cycle && rnd(3) != 0) {
             t->m_readdatavalid = 1;
             for (int w = 0; w < 4; ++w) {
@@ -131,7 +134,7 @@ int main(int argc, char **argv) {
                               if (mw_addr % 16) { std::printf("bad write address %08x\n", mw_addr); ++failures; } }
             for (int i = 0; i < 16; ++i)
                 if (t->m_byteenable >> i & 1) mem[mw_addr + mw_got * 16 + i] = uint8_t(t->m_writedata[i / 4] >> (8 * (i % 4)));
-            if (++mw_got == mw_burst) mw_active = false;
+            if (++mw_got == mw_burst) { mw_active = false; write_responses.push_back(int(cycle + 2 + rnd(8))); }
         }
         bool wait[3] = {bool(t->s0_waitrequest), bool(t->s1_waitrequest), bool(t->s2_waitrequest)};
         for (auto &p : ports) {
@@ -158,9 +161,15 @@ int main(int argc, char **argv) {
         check(ports[2], t->s2_readdatavalid, b2);
         done = true;
         for (auto &p : ports) if (p.active || p.reads_left || p.writes_left || !p.expect.empty()) done = false;
-        if (!responses.empty() || mw_active) done = false;
+        if (!responses.empty() || mw_active || !write_responses.empty()) done = false;
+        // idle must never claim drained while anything is owed
+        if (t->idle && (!responses.empty() || mw_active || !write_responses.empty())) { std::printf("idle while owed at %ld\n", cycle); ++failures; }
         if (failures > 20) break;
     }
+    t->m_readdatavalid = 0; t->m_writeresponsevalid = 0;
+    t->s0_read = t->s0_write = t->s1_read = t->s1_write = t->s2_read = t->s2_write = 0;
+    for (int i = 0; i < 4 && done; ++i) { t->clk = 1; t->eval(); t->clk = 0; t->eval(); }
+    if (done && !t->idle) { std::printf("not idle at the end\n"); ++failures; }
     // final memory equals reference
     for (size_t i = 0; i < mem.size(); ++i)
         if (mem[i] != ref[i]) { std::printf("memory mismatch at %zx\n", i); ++failures; break; }
