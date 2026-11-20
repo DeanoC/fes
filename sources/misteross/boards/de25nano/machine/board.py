@@ -401,8 +401,10 @@ def verify(spec, output, scanout, hps, display):
         expected["dq_i"] = ("Input", 16)
         if sdram != expected:
             raise ValueError("generated machine SDRAM pin geometry differs")
-    elif hps.component_ports(endpoint, "sdram"):
-        raise ValueError("generated machine has SDRAM pins it does not declare")
+    else:
+        definition = ET.fromstring(endpoint.findtext("parameter[@name='componentDefinition']/value") or "<x/>")
+        if any(item.findtext("name") == "sdram" for item in definition.findall("boundary/interfaces/interface")):
+            raise ValueError("generated machine has SDRAM pins it does not declare")
     connections = {(c.get("kind"), c.get("start"), c.get("end")): c for c in tree.findall("connection")}
     for kind, start, end, value in (
         ("clock", "subsys_periph_periph_clk.out_clk", "subsys_periph_fes_scanout.clk_sys", 100000000),
