@@ -50,16 +50,6 @@ The move (`e7f017259`, on main `9951d04f0`): median 42,661.0, spread 38. 6.0a (m
 
 RAM blocks 145 and DSP 42 on every seed, as in 6.0a (145 and 42): the move costs no RAM block against the 58 the real DE25 board has left with the shell (#2036), and no DSP.
 
-**The gap to the 92% line (43,056) with a real shell**, from the move's median less the 651 ALMs of virtual pins that stand in for one (42,010.0):
-
-| Shell | Machine + shell | Over the 92% line | Before the move |
-| ---: | ---: | ---: | ---: |
-| 8,400 | 50,410.0 | +7,354.0 | +7,741.5 |
-| 6,600 | 48,610.0 | +5,554.0 | +5,941.5 |
-| 12,100 | 54,110.0 | +11,054.0 | +11,441.5 |
-
-8,400 is #2036's RTL-arbiter shell, one seed; 6,600 and 12,100 the earlier bounds. Every row is one subtraction of figures stated here; none is a fit of a machine with a shell.
-
 ## The forms' clocks
 
 The unit bench's own latency cases, from the instruction's commit to the unit's idle: before is #1959's final DE25 report (`e967bf4fa`, the last revision in which these arms changed), after is this head (`4f1546783`). Both are one case a form and precision, so they say what the path costs, not what a title pays.
@@ -77,3 +67,26 @@ The unit bench's own latency cases, from the instruction's commit to the unit's 
 | FSCALE | pc64 | 15 | 23 | +8 |
 
 The census (PR #1887) has FRNDINT at 3.15% of Screamer's x87 work (39,902 in 30 s) and 7.56% of Terminal Velocity's (518), FSCALE at 4,908 executions over all nine titles, and FPREM, FPREM1 and FXTRACT executed by none. At 35 clocks more a FRNDINT, Screamer's rate costs about 46,500 clocks a second, under 0.1% of a 61.44 MHz machine.
+
+## Part 5: the head as it ships (the move and the deletion) against 6.0a
+
+| Fit | Device | Seed | Fit | Timing, all corners | ALMs needed | of device | DSP | RAM blocks | Registers |
+| --- | --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| head-s1 | A5EB013BB23BE4SCS | 1 | pass | pass | 42,565 | 90.95% | 42 | 145 | 41,045 |
+| head-s2 | A5EB013BB23BE4SCS | 2 | pass | pass | 42,599 | 91.02% | 42 | 145 | 40,984 |
+| head-s3 | A5EB013BB23BE4SCS | 3 | pass | pass | 42,583 | 90.99% | 42 | 145 | 40,957 |
+| head-s4 | A5EB013BB23BE4SCS | 4 | pass | pass | 42,570 | 90.96% | 42 | 145 | 40,900 |
+
+The head (`4f1546783`, with `identity-on.patch` as its only scratch edit, since `X87_BACKEND` no longer exists): median 42,576.5, spread 34. **472.0 ALMs below 6.0a** against the larger spread, 72: **passes one-sided.** Against the move alone (part 3, median 42,661.0) the deletion is -84.5 ALMs. The arms it removes were already guarded out of a DE25 build; what else it changes there is the shifter's operand mux (`sh_b2`, the sequenced multiply's second operand), and no fit separates the two.
+
+**The gap to the 92% line (43,056) with a real shell**, from the head's median less the 651 ALMs of virtual pins that stand in for one (41,925.5):
+
+| Shell | Machine + shell | Over the 92% line | Before (6.0a) |
+| ---: | ---: | ---: | ---: |
+| 8,400 | 50,325.5 | +7,269.5 | +7,741.5 |
+| 6,600 | 48,525.5 | +5,469.5 | +5,941.5 |
+| 12,100 | 54,025.5 | +10,969.5 | +11,441.5 |
+
+8,400 is #2036's RTL-arbiter shell, one seed; 6,600 and 12,100 the earlier bounds. Every row is one subtraction of figures stated here; none is a fit of a machine with a shell.
+
+RAM blocks 145, DSP 42 on every seed.

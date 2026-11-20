@@ -120,15 +120,6 @@ def part3(lines):
     lines += [f'RAM blocks {", ".join(f"{v:.0f}" for v in sorted(ram))} and DSP {", ".join(f"{v:.0f}" for v in sorted(dsp))} '
               'on every seed, as in 6.0a (145 and 42): the move costs no RAM block against the '
               f'{RAM_FREE_REAL} the real DE25 board has left with the shell (#2036), and no DSP.', '']
-    machine = m_move - VIRTUAL_PIN_ALMS
-    lines += ['**The gap to the 92% line (43,056) with a real shell**, from the move\'s median less the '
-              f'{VIRTUAL_PIN_ALMS} ALMs of virtual pins that stand in for one ({machine:,.1f}):', '',
-              '| Shell | Machine + shell | Over the 92% line | Before the move |', '| ---: | ---: | ---: | ---: |']
-    for shell in SHELLS:
-        before = m_base - VIRTUAL_PIN_ALMS + shell - LINE_92
-        lines.append(f'| {shell:,} | {machine + shell:,.1f} | {machine + shell - LINE_92:+,.1f} | {before:+,.1f} |')
-    lines += ['', f'{SHELLS[0]:,} is #2036\'s RTL-arbiter shell, one seed; {SHELLS[1]:,} and {SHELLS[2]:,} the earlier '
-              'bounds. Every row is one subtraction of figures stated here; none is a fit of a machine with a shell.', '']
 
 
 def part4(lines):
@@ -151,6 +142,40 @@ def part4(lines):
               'second, under 0.1% of a 61.44 MHz machine.', '']
 
 
+def part5(lines):
+    """The PR's head (the move and the deletion together), as it ships, by the same rule as part 3."""
+    lines += ['## Part 5: the head as it ships (the move and the deletion) against 6.0a', '']
+    rows = [r for r in (load(f'head-s{s}') for s in (1, 2, 3, 4)) if r]
+    lines += table(rows) + ['']
+    if len(rows) < 4:
+        lines += [f'{len(rows)} of 4 seeds recorded; no verdict on fewer.', '']
+        return
+    head = [r['alms'] for r in rows]
+    move = [r['alms'] for r in (load(f'move-s{s}') for s in (1, 2, 3, 4))]
+    base = list(BASELINE.values())
+    m_head, m_move, m_base = statistics.median(head), statistics.median(move), statistics.median(base)
+    floor = max(max(head) - min(head), max(base) - min(base))
+    lines += [f'The head (`4f1546783`, with `identity-on.patch` as its only scratch edit, since `X87_BACKEND` no '
+              f'longer exists): median {m_head:,.1f}, spread {max(head) - min(head):,.0f}. '
+              f'**{m_base - m_head:,.1f} ALMs below 6.0a** against the larger spread, {floor:,.0f}: '
+              + ('**fails one-sided.**' if m_head - m_base > floor else '**passes one-sided.**')
+              + f' Against the move alone (part 3, median {m_move:,.1f}) the deletion is {m_head - m_move:+,.1f} ALMs. '
+              'The arms it removes were already guarded out of a DE25 build; what else it changes there is the '
+              'shifter\'s operand mux (`sh_b2`, the sequenced multiply\'s second operand), and no fit separates '
+              'the two.', '']
+    machine = m_head - VIRTUAL_PIN_ALMS
+    lines += ['**The gap to the 92% line (43,056) with a real shell**, from the head\'s median less the '
+              f'{VIRTUAL_PIN_ALMS} ALMs of virtual pins that stand in for one ({machine:,.1f}):', '',
+              '| Shell | Machine + shell | Over the 92% line | Before (6.0a) |', '| ---: | ---: | ---: | ---: |']
+    for shell in SHELLS:
+        before = m_base - VIRTUAL_PIN_ALMS + shell - LINE_92
+        lines.append(f'| {shell:,} | {machine + shell:,.1f} | {machine + shell - LINE_92:+,.1f} | {before:+,.1f} |')
+    lines += ['', f'{SHELLS[0]:,} is #2036\'s RTL-arbiter shell, one seed; {SHELLS[1]:,} and {SHELLS[2]:,} the earlier '
+              'bounds. Every row is one subtraction of figures stated here; none is a fit of a machine with a shell.', '']
+    lines += [f'RAM blocks {", ".join(sorted({f"{r["ram"]:.0f}" for r in rows}))}, DSP '
+              f'{", ".join(sorted({f"{r["dsp"]:.0f}" for r in rows}))} on every seed.', '']
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('--check', action='store_true')
@@ -162,6 +187,7 @@ def main() -> int:
     part2(lines)
     part3(lines)
     part4(lines)
+    part5(lines)
     text = '\n'.join(lines).rstrip() + '\n'
     out = HERE / 'results.md'
     if args.check:
