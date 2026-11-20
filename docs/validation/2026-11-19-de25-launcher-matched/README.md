@@ -58,6 +58,20 @@ wrapper is retained and the corrected command passes. The fresh nonce-bound
 inspection loader and its current-source package build pass. None of these
 results grants hardware acceptance or proves a reset/drain guarantee.
 
+On exact FES PR head `e436442abbf6596612cd1f1bda3e458ef473e57d`, the focused
+`TestProgramLauncherStagingBoundsAllExportedFilesTogether` regression passes
+with race detection (1.499 s). It accepts the exact aggregate allowance and
+rejects the complete staging set when the allowance is one byte smaller. The
+passing command was:
+
+```sh
+GOWORK=off GOCACHE=/tmp/fes-pr2009-gocache go -C platform/embedded/tamago test -race -count=1 -timeout=90s -run '^TestProgramLauncherStagingBoundsAllExportedFilesTogether$' ./nativefabric
+```
+
+The first attempt without a cache override stopped before test setup because
+the default Go build cache was read-only. This is host Go test evidence; no kit
+or hardware was used.
+
 Working receipts are below
 `out/launcher-matched-boot-20261119-r1`,
 `out/launcher-recovery-gates-20261119-r1` and `out/operations` in the PR worktree.
