@@ -419,7 +419,7 @@ the 16 November decision. The
 [pitch investigation](../validation/2026-11-15-pc386-u6-lute-pitch-cause/summary.md)
 identifies a governor cost-model divergence but does not establish a fix. The
 pitch discrepancy and its fix remain open in [#2013](https://github.com/DeanoC/fes/issues/2013);
-the waiver is not a pitch pass. The remaining game checks and #1494 still apply.
+the waiver is not a pitch pass. The remaining #1368 game checks still apply.
 
 A core may not be tier 1 on board B merely because it is on board A. But with
 the port and the shell model, promoting it should need a build and a kit run,
