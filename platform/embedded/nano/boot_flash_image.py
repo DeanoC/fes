@@ -38,21 +38,49 @@ def committed_sources(root, head):
     return result
 
 
+def add_input(paths, path, digest, sha):
+    if (not path.is_absolute() or '..' in path.parts or path in paths and paths[path] != digest or
+            not isinstance(digest, str) or not re.fullmatch('[0-9a-f]{64}', digest) or
+            not path.is_file() or path.resolve() != path or sha(path) != digest):
+        raise ValueError('input differs from its recorded digest: '+str(path))
+    paths[path] = digest
+
+
+def recorded_inputs(inventory, sha):
+    if not isinstance(inventory, dict) or not inventory:
+        raise ValueError('complete recorded input inventory required')
+    paths = {}
+    for name, digest in inventory.items():
+        add_input(paths, Path(name), digest, sha)
+    return paths
+
+
+def check_commit_input(root, head, relative, digest):
+    blob = subprocess.run(['git', 'show', head+':'+relative.as_posix()], cwd=root, capture_output=True)
+    if blob.returncode or hashlib.sha256(blob.stdout).hexdigest() != digest:
+        raise ValueError('source differs from selected commit: '+relative.as_posix())
+
+
+def launcher_inputs(root, head, inventory, sha):
+    paths = recorded_inputs(inventory, sha)
+    producer = Path('platform/embedded/nano/launcher_image.py')
+    if sum(path.parts[-len(producer.parts):] == producer.parts for path in paths) != 1:
+        raise ValueError('one recorded launcher image producer required')
+    for path, digest in paths.items():
+        prefix = subprocess.run(['git', '-C', str(path.parent), 'rev-parse', '--show-prefix'],
+                                capture_output=True, text=True)
+        if prefix.returncode == 0:
+            relative = Path(prefix.stdout.rstrip('\n'))/path.name
+            if not relative.is_relative_to('out'):
+                check_commit_input(root, head, relative, digest)
+        elif path.parts[-len(producer.parts):] == producer.parts:
+            raise ValueError('launcher producer must belong to a Git worktree')
+    return paths
+
+
 def composition_inputs(root, head, inventory, tools, *, sha, read_record):
     """Check the recorded files and the source inventories in their pinned receipts."""
-    if not isinstance(inventory, dict) or not inventory:
-        raise ValueError('complete native composition input inventory required')
-    paths = {}
-
-    def add(path, digest):
-        if (not path.is_absolute() or '..' in path.parts or path in paths and paths[path] != digest or
-                not isinstance(digest, str) or not re.fullmatch('[0-9a-f]{64}', digest) or
-                not path.is_file() or path.resolve() != path or sha(path) != digest):
-            raise ValueError('composition input differs from its recorded digest: '+str(path))
-        paths[path] = digest
-
-    for name, digest in inventory.items():
-        add(Path(name), digest)
+    paths = recorded_inputs(inventory, sha)
     producer = Path('platform/embedded/nano/hps_boot.py')
     origins = [path.parents[len(producer.parts)-1] for path in paths
                if path.parts[-len(producer.parts):] == producer.parts]
@@ -74,16 +102,20 @@ def composition_inputs(root, head, inventory, tools, *, sha, read_record):
     entry = recorded_receipt('entry.img', lambda p: p.with_name('result.json'))
     uboot = recorded_receipt('u-boot-spl-dtb.hex', lambda p: p.parents[2]/'result.json')
     fpga = recorded_receipt('golden_top.sof', lambda p: p.parents[2]/'build-inputs.json')
-    for sources in (entry.get('sources'), entry.get('native_build_sources'),
-                    uboot.get('native_handoff', {}).get('producer_sources'), fpga.get('source_inputs')):
+    module = Path(fpga['source_path'])
+    if module.is_absolute() or '..' in module.parts or module.is_relative_to('out'):
+        raise ValueError('FPGA source_path must name a repository module')
+    for prefix, sources in ((Path('.'), entry.get('sources')), (Path('.'), entry.get('native_build_sources')),
+                            (Path('.'), uboot.get('native_handoff', {}).get('producer_sources')),
+                            (module, fpga.get('source_inputs'))):
         if not isinstance(sources, dict) or not sources:
             raise ValueError('missing composition producer source inventory')
         for name, digest in sources.items():
             relative = Path(name)
             if relative.is_absolute() or '..' in relative.parts:
                 raise ValueError('composition source must be repository-relative: '+name)
-            add(origin/relative, digest)
-    add(origin/'platform/embedded/firmware/build_terasic_uboot.py', uboot.get('producer_sha256'))
+            add_input(paths, origin/prefix/relative, digest, sha)
+    add_input(paths, origin/'platform/embedded/firmware/build_terasic_uboot.py', uboot.get('producer_sha256'), sha)
 
     for path, digest in paths.items():
         if path in tools:
@@ -91,9 +123,7 @@ def composition_inputs(root, head, inventory, tools, *, sha, read_record):
         relative = path.relative_to(origin)
         if relative.is_relative_to('out'):
             continue
-        blob = subprocess.run(['git', 'show', head+':'+relative.as_posix()], cwd=root, capture_output=True)
-        if blob.returncode or hashlib.sha256(blob.stdout).hexdigest() != digest:
-            raise ValueError('composition source differs from selected commit: '+relative.as_posix())
+        check_commit_input(root, head, relative, digest)
     return paths
 
 
@@ -161,11 +191,12 @@ def prepare(composition, launcher, factory, expected_factory_sha, pfg, lock, out
     inputs = composition_inputs(ROOT, source_head, native.get('inputs'), (pfg, binary), sha=sha,
                                 read_record=lambda path: record(regular(path, 1 << 20)))
     reference, = [path for path in inputs if path.name == 'golden_top.sof']
-    selected = {parts: sha(parts), spl: native['spl_sha256'], fit: fit_sha, disk: sd['image_sha256'],
-                native_result: hashlib.sha256(native_bytes).hexdigest(), sd_result: hashlib.sha256(sd_bytes).hexdigest()}
-    if any(path in inputs and inputs[path] != digest for path, digest in selected.items()):
-        raise ValueError('conflicting composition and packaging input digests')
-    inputs.update(selected)
+    selected = launcher_inputs(ROOT, source_head, sd.get('inputs'), sha)
+    for path, digest in (*selected.items(), (parts, sha(parts)), (spl, native['spl_sha256']),
+                         (fit, fit_sha), (disk, sd['image_sha256']),
+                         (native_result, hashlib.sha256(native_bytes).hexdigest()),
+                         (sd_result, hashlib.sha256(sd_bytes).hexdigest())):
+        add_input(inputs, path, digest, sha)
     if sha(spl) != inputs[spl]:
         raise ValueError('matched SPL differs from the native composition')
     loader_identity(regular(parts, 8 << 20).decode('ascii'), PART)
