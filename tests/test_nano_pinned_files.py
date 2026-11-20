@@ -45,6 +45,31 @@ class PinnedFilesTests(unittest.TestCase):
             with self.assertRaises(ValueError):pins.audit()
             with self.assertRaises(ValueError):pins.check()
 
+    def test_transient_parent_and_intermediate_symlink_replacement_retires(self):
+        for fault in ('parent', 'intermediate-symlink'):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as name:
+                root = Path(name)
+                inputs = root / 'inputs'
+                inputs.mkdir()
+                (inputs / 'file').write_bytes(b'expected')
+                alias = root / 'alias'
+                alias.symlink_to('inputs')
+                entry = root / 'entry'
+                entry.symlink_to('alias/file')
+                with self.subTest(path=entry):
+                    pins = PinnedFiles({str(entry): hashlib.sha256(b'expected').hexdigest()})
+                    self.addCleanup(pins.close)
+                    pins.audit()
+                    (inputs / 'unrelated-output').touch()
+                    self.assertTrue(pins.check())
+                    component = inputs if fault == 'parent' else alias
+                    displaced = root / 'displaced'
+                    component.rename(displaced)
+                    displaced.rename(component)
+                    with self.assertRaisesRegex(ValueError, 'mutation observed'):
+                        pins.check()
+                    self.assertTrue(pins.retired)
+
     def test_edit_and_restore_during_hash_is_rejected(self):
         with tempfile.TemporaryDirectory() as name:
             p=Path(name)/'file';p.write_bytes(b'expected')

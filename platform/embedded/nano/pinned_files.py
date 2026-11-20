@@ -6,9 +6,48 @@ Full digest audits belong at phase boundaries; every live guard checks stamps.
 """
 import hashlib
 import ctypes
+from collections import deque
 import os
 from pathlib import Path
 import stat
+
+
+def _observe_path(path, stamps, targets):
+    """Include intermediate links and directories used during resolution."""
+    current = Path(path.anchor)
+    pending = deque(path.parts[1:])
+    def observe(node):
+        if node not in stamps:
+            s = node.lstat()
+            base = (s.st_dev, s.st_ino, s.st_mode, s.st_uid, s.st_gid)
+            # Directory contents may grow; replacing a parent may not.
+            stamps[node] = base if stat.S_ISDIR(s.st_mode) else base + (
+                s.st_size, s.st_mtime_ns, s.st_ctime_ns)
+        return stamps[node][2]
+
+    observe(current)
+    links = 0
+    while pending:
+        name = pending.popleft()
+        if name == '..':
+            current = current.parent
+            continue
+        node = current / name
+        if not stat.S_ISLNK(observe(node)):
+            current = node
+            continue
+        links += 1
+        if links > 40:
+            raise ValueError('too many symlinks in pinned path')
+        if node not in targets:
+            targets[node] = node.readlink()
+        target = targets[node]
+        parts = target.parts
+        if target.is_absolute():
+            current = Path(target.anchor)
+            parts = parts[1:]
+        pending.extendleft(reversed(parts))
+    return observe(current)
 
 
 class PinnedFiles:
@@ -28,10 +67,19 @@ class PinnedFiles:
             self.fd = None
             raise OSError(ctypes.get_errno(), 'inotify_init1')
         try:
-            for name in self.expected:
-                if libc.inotify_add_watch(self.fd, os.fsencode(Path(name).resolve(strict=True)),
-                                          0x2 | 0x4 | 0x400 | 0x800) < 0:
+            before = self._stamp()
+            for name, stamp in before.items():
+                # Watch self-move/delete without subscribing to child changes.
+                # In particular, sibling outputs may grow during a phase.
+                mask = 0x400 | 0x800 | 0x02000000  # DELETE_SELF, MOVE_SELF, DONT_FOLLOW
+                if not stat.S_ISDIR(stamp[2]):
+                    mask |= 0x2 | 0x4  # MODIFY, ATTRIB
+                if libc.inotify_add_watch(self.fd, os.fsencode(name), mask) < 0:
                     raise OSError(ctypes.get_errno(), 'inotify_add_watch')
+            if self._stamp() != before:
+                raise ValueError('pinned file incarnation changed while adding watches')
+            self._unchanged()
+            self.watch_stamps = before
         except BaseException:
             self.close()
             raise
@@ -52,19 +100,12 @@ class PinnedFiles:
         raise ValueError('file mutation watch closed')
 
     def _stamp(self):
-        values = {}
+        values, targets = {}, {}
         for name in self.expected:
             path = Path(name)
             if not path.is_absolute() or '..' in path.parts:
                 raise ValueError('absolute pinned path required')
-            resolved = path.resolve(strict=True)
-            for p in (path, *path.parents, resolved, *resolved.parents):
-                s = p.lstat()
-                # Directory contents may grow; replacing a parent may not.
-                base = (s.st_dev, s.st_ino, s.st_mode, s.st_uid, s.st_gid)
-                values[str(p)] = base if stat.S_ISDIR(s.st_mode) else base + (
-                    s.st_size, s.st_mtime_ns, s.st_ctime_ns)
-            if not resolved.is_file():
+            if not stat.S_ISREG(_observe_path(path, values, targets)):
                 raise ValueError('pinned regular file required')
         return values
 
@@ -85,7 +126,7 @@ class PinnedFiles:
                 raise ValueError('file admission is retired')
             self._unchanged()
             before = self._stamp()
-            if self.stamps is not None and before != self.stamps:
+            if before != self.watch_stamps:
                 raise ValueError('pinned file incarnation changed')
             for name, digest in self.expected.items():
                 with Path(name).open('rb') as stream:
