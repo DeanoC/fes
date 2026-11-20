@@ -128,6 +128,9 @@ The file-only producer checks the installed Quartus part table, reads the FIT
 back from the assembled FAT32 image and checks the complete decoded arrays.
 Run it from a clean checkout. It checks the committed embedded Python source
 tree before loading the packager helpers, then rechecks it before publication.
+It also rehashes the composition's recorded inputs and checks the source
+inventories from the pinned entry, U-Boot, and FPGA receipts against the
+selected commit. Regenerate the composition when its selected sources differ.
 The output plan pins both JICs. The result pins the matching SD image. The
 physical operator uses a fresh claim-bound scan and separate approval and
 cleanup records for each write. Initialize and verify the factory JIC against
