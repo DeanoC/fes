@@ -214,6 +214,30 @@ saving is attributed.
 | **D7** | Where acceptance (kit titles) sits | Slice 6 / slice 7 | **Slice 7.** It needs the identity-on DE25 package, which D4 builds. |
 | **D8** | The multiplier-sharing headline | Pursue first / measure in 6.0b and rank it there | **Rank it in 6.0b.** On this board, DSP is the slack resource and ALMs are binding. |
 
+## Decisions (20 Nov 2026)
+
+Deano accepted all eight recommendations as written: "Accept all eight",
+20 November 2026, relayed by the coordinating session. The table above is
+the proposal and stays as it was. What was decided:
+
+- **D1, board:** slice 6 targets the DE25 only. The DE10 stays
+  identity-off and takes only the reseal that shared-RTL edits force.
+- **D2, ALM target:** 92% (43,056 ALMs) stays the working line until 6.0a
+  and 6.1 have measured the drift and the shell. The target is then set
+  from those measurements.
+- **D3, clock:** decided before de-pipelining (C) is considered. 6.0
+  includes the 6.0c machine clock ladder, so the decision has data. At
+  61.44 MHz, timing is not binding.
+- **D4, DE25 pc386 shell and package:** a separate lane, started on 20
+  November by the coordinating session. Step 6.1, the shell's cost, belongs
+  to that lane, not to slice 6.
+- **D5, remainder step:** folded into slice 6 as candidate B, and judged on
+  area.
+- **D6, `X87_BACKEND = 0`:** deleted once B lands.
+- **D7, acceptance:** moves to slice 7.
+- **D8, multiplier sharing:** ranked by the 6.0b per-entity fit, not
+  pursued first.
+
 ## Sources
 
 - [Slice 2](../2026-11-14-i386-x87-s2/summary.md),
