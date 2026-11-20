@@ -52,14 +52,9 @@ func (c *Coordinator) SetSessionDisplay(parent context.Context, display protocol
 				return c.Status(), protocol.SessionDisplayIdentityError()
 			}
 		} else {
-			var present bool
-			prepared, present, err = sessiondisplayipc.Prepare(parent, c.launcherDisplaySocket, transition)
+			prepared, _, err = sessiondisplayipc.Prepare(parent, c.launcherDisplaySocket, transition)
 			if err != nil {
 				return c.Status(), &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "launcher could not prepare the display", Phase: "admission", Cause: err}
-			}
-			if present {
-				_ = guard.Release()
-				guard = nil
 			}
 		}
 	}

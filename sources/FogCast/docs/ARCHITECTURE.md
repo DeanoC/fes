@@ -4473,6 +4473,9 @@ fence holds delivery during each transition, but only a launcher-focus request
 retires held keys and neutralizes the mouse. Controller-port releases received
 while the launcher has focus clear their retained source snapshot without
 being sent to the core, so released buttons cannot replay when focus returns.
+The agent holds the launcher publication guard through the runtime display
+transition and its prepare/finish exchange, so a replacement launcher cannot
+adopt the previous plane while that transition is still in flight.
 The runtime also neutralizes the single `fes.gamepad` interface and gates its
 worker's nonzero snapshots during launcher focus. The fence ends focused when
 the runtime confirms launcher focus. After a refusal it follows the focus that

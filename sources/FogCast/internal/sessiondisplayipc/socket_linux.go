@@ -132,7 +132,7 @@ func checkParent(path string) error {
 }
 
 // DisplayGuard serializes launcher socket publication against an agent's
-// absent-listener check and its subsequent direct mutation.
+// display transition, including its prepare and finish exchange.
 type DisplayGuard struct {
 	fd   int
 	once sync.Once
