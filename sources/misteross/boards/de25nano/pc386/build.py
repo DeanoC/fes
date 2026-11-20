@@ -36,8 +36,15 @@ PLL_OUTPUTS = ("61.437908", "12.287582")
 BOARD_SDRAM = False
 WINDOW = True
 ASSIGNMENTS = ()
-# Pinned once the component's generated peripheral subsystem is reviewed.
-PARENT_SHA256 = None
+# Qsys writes this peripheral subsystem for the component. Reviewed against the
+# Spectrum's (a08edf0b...): no SDRAM conduit; the window's master, control
+# slave and bridge (fes_win_cdc) added; one more reset controller, which
+# synchronizes the system reset into the machine clock for the component's
+# machine_reset and the bridge's machine side (rst_controller_001), so the
+# others are renumbered by one; the window's machine-clock interconnect has its
+# own (rst_controller_005). The shared FIFO reset derivation checks its bridge
+# clock and reset wiring before rewriting it.
+PARENT_SHA256 = "10defc9a021d7119aac2bbc793ac0d6913e902b99f85cb29977c452996eeb249"
 LOCAL_FILES = ("build.py", "derive.py", "machine_pll.ip", "pc386-clocks.sdc", "fes_de25_pc386_standard.v",
                "fes_de25_pc386_standard_hw.tcl", "fes_de25_hps_window.v", "fes_de25_hps_window_control.v",
                "fes_de25_window_arbiter.v", "fes_de25_window_unpack.v", "generated/fes_de25_hps_window.vh")
