@@ -12,7 +12,7 @@ fitted SHA-256 as `5b80c0cd…`. So both arms fitted identical machine bytes.
 An earlier run of this pair, around build `i`, was discarded before it
 finished. Its envelope arm could not take the board's bytes, because the
 board's elaboration ran in a random temporary directory and Yosys's names
-follow it (DeanoC/yosys#79/#80 path dependence). Re-elaborating gave
+follow it (DeanoC/yosys#80, path dependence). Re-elaborating gave
 different bytes. The machine now elaborates at one fixed path, and a revision
 gives the same bytes every time (`bc0a124ba`). The discarded board seeds are
 not used here.
