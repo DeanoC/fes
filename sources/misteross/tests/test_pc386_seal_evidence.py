@@ -1,4 +1,9 @@
-"""Synthetic pc386 receipt exercises the real historic-source and seal gates."""
+"""Synthetic pc386 receipt exercises the real historic-source and seal gates.
+
+EvidenceReuseTests (#1984 S3) seals a design-v2 entry, the window S4 opens,
+and builds each counterexample to evidence-only reuse against it.
+"""
+import contextlib
 import copy
 import hashlib
 import json
@@ -14,19 +19,40 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'cores/fes-pc386/tools'))
 import build_pc386_product as seal
 import pc386_seal_evidence as evidence
-from scripts import source_closure
+from scripts import input_identity, source_closure
 from scripts.core_package import package_identity
 from scripts.export_core_package import build_identity
 from tests.test_build_fes_pc386_quartus import CLOCK_TABLE, MET, UNCONSTRAINED, FIT_SUMMARY
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = 'https://github.com/DeanoC/fes.git'
+# The CPU netlist the synthetic seal was built from. A test regenerates it by
+# writing these bytes where the seal's Yosys would.
+NETLIST = b'// synthetic fes_i386_cpu netlist\n'
+PRODUCER = 'cores/fes-pc386/tools/build_pc386_product.py'
 
 
 def sha(data): return hashlib.sha256(data).hexdigest()
 
 
-class EvidenceTests(unittest.TestCase):
+def to_design_v2(record, root):
+    """The record S4's producer would write for the same tree: design-v2, with
+    the ROM hex digest firmware.lock pins in its firmware parameter."""
+    fields = json.loads(record)
+    fields.pop('identities')
+    parameters = fields['parameters']
+    for key in ('identity_policy', 'toolchain_pins'):
+        parameters.pop(key)
+    parameters['firmware'] = json.dumps({**json.loads(parameters['firmware']),
+                                         'rom_hex': seal.pinned_rom_digest(root)},
+                                        sort_keys=True, separators=(',', ':'))
+    return seal.encode_build_record(input_identity.with_identities(fields, root=root, policy=input_identity.DESIGN_V2))
+
+
+class SealedEntryFixture(unittest.TestCase):
+    """A synthetic Git checkout holding a sealed pc386 entry under POLICY."""
+    POLICY = input_identity.DESIGN_V1
+
     @classmethod
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory()
@@ -39,6 +65,19 @@ class EvidenceTests(unittest.TestCase):
             target = cls.root / path
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / path, target)
+        if cls.POLICY == input_identity.DESIGN_V2:
+            # Stand-in for S4: this checkout's producer writes design-v2, so the
+            # real resolver selects with a v2 record too.
+            producer = cls.root / PRODUCER
+            text = producer.read_text()
+            for old, new in (('with_identities(fields, root=root)',
+                              'with_identities(fields, root=root, policy="design-v2")'),
+                             ('json.dumps(firmware_digests(root), sort_keys',
+                              'json.dumps({**firmware_digests(root), "rom_hex": pinned_rom_digest(root)}, sort_keys')):
+                if text.count(old) != 1:
+                    raise AssertionError('producer fixture patch no longer applies: ' + old)
+                text = text.replace(old, new)
+            producer.write_text(text)
         (cls.repo / 'config').mkdir()
         shutil.copy2(ROOT.parents[1] / 'config/core-recipes.toml', cls.repo / 'config/core-recipes.toml')
         def git(*args):
@@ -52,11 +91,7 @@ class EvidenceTests(unittest.TestCase):
         git('commit', '-qm', 'synthetic source snapshot')
         cls.revision = git('rev-parse', 'HEAD')
         cls.tools = {'yosys': 'synthetic-yosys', 'quartus': 'synthetic-quartus'}
-        # The synthetic checkout contains byte-identical product source. This
-        # unit fixture does not execute a compiler from that checkout.
-        with mock.patch.object(seal, 'ROOT', cls.root):
-            cls.record = seal.create_build_record(cls.root, REPOSITORY, cls.revision, cls.tools,
-                        execution={'toolchain': 'quartus', 'gpu_device': 'lease'})
+        cls.record = cls.record_at(cls.revision)
         cls.fields = json.loads(cls.record)
         cls.build_id = build_identity(cls.record)
         tool = seal.board.AuthenticatedTool(Path('/unused'), cls.tools['yosys'])
@@ -69,7 +104,7 @@ class EvidenceTests(unittest.TestCase):
             'verilator': {'lock': seal.I386_LOCK, 'commit': verilator, 'sha256': '3' * 64},
             'netlist': {'program_sha256': seal.yosys_netlist.program_sha256(seal.yosys_netlist.SEAL),
                         'cpu_source_sha256': seal.yosys_netlist.cpu_source_sha256(cls.root),
-                        'netlist_sha256': '4' * 64,
+                        'netlist_sha256': sha(NETLIST),
                         'yosys': seal.yosys_netlist.lock_record(cls.root, tool, 'HIP', seal.TOOLCHAIN_LOCK)}}
         cls.report_bytes = json.dumps(cls.report).encode()
         cls.lockstep = seal.check_lockstep_metadata(cls.root, cls.report_bytes, tool, 'HIP')
@@ -82,7 +117,7 @@ class EvidenceTests(unittest.TestCase):
             'seed': 1, 'gpu_backend': 'hip', 'guest_rates': seal.guest_rates(),
             'rbf': {'sha256': sha(cls.payload), 'size': len(cls.payload)},
             'timing': seal.validate_timing_report(cls.sta.decode()), 'resources': seal.fit_resources(cls.fit.decode()),
-            'firmware': {**seal.firmware_digests(cls.root), 'rom_hex': '6' * 64},
+            'firmware': {**seal.firmware_digests(cls.root), 'rom_hex': seal.pinned_rom_digest(cls.root)},
             'inputs': {p: cls.fields['source_inputs'][p] for p in sorted(seal.PINNED_INPUTS)},
             'tools': cls.tools, 'toolchain': seal.manifest_toolchain(cls.record), 'lockstep': cls.lockstep,
             'netlist': {'program_sha256': cls.report['netlist']['program_sha256'],
@@ -103,6 +138,16 @@ class EvidenceTests(unittest.TestCase):
         cls.record_path = cls.repo / 'build-inputs.json'
         cls.record_path.write_bytes(cls.record)
         cls.record_path.chmod(0o444)
+
+    @classmethod
+    def record_at(cls, revision):
+        """The producer's record of the synthetic checkout at revision, under POLICY."""
+        # The synthetic checkout's product source matches this one's, apart
+        # from the v2 stand-in. This fixture executes no compiler from it.
+        with mock.patch.object(seal, 'ROOT', cls.root):
+            record = seal.create_build_record(cls.root, REPOSITORY, revision, cls.tools,
+                                              execution={'toolchain': 'quartus', 'gpu_device': 'lease'})
+        return to_design_v2(record, cls.root) if cls.POLICY == input_identity.DESIGN_V2 else record
 
     @classmethod
     def tearDownClass(cls):
@@ -127,6 +172,8 @@ class EvidenceTests(unittest.TestCase):
             (self.ev / name).chmod(0o444)
         self.ev.chmod(0o555)
 
+
+class EvidenceTests(SealedEntryFixture):
     def test_matching_receipt_rechecks_original_source_and_reports(self):
         self.assertEqual(evidence.validate(self.root, self.package, self.record_path, self.ev),
                          sha((self.ev / 'receipt.json').read_bytes()))
@@ -297,3 +344,267 @@ print(json.dumps({'package': result['directory'].name, 'source': result['inputs'
         result = evidence.publish_local(self.root, store, self.package, self.record_path, self.ev)
         self.assertEqual(result.name, self.package_id)
         self.assertEqual(evidence.publish_local(self.root, store, self.package, self.record_path, self.ev), result)
+
+
+def _remove(path):
+    """Remove a tree of sealed (read-only) entries."""
+    path = Path(path)
+    if not path.exists():
+        return
+    for directory, _subdirectories, _files in os.walk(path):
+        os.chmod(directory, 0o755)
+    shutil.rmtree(path)
+
+
+RESOLVE = r'''
+import json, sys
+from pathlib import Path
+from scripts import bundle
+from scripts.recipes import recipe_for
+def refuse_build(*args, **kwargs):
+    raise RuntimeError('fixture must never launch a compiler')
+bundle._build_package = refuse_build
+selection = bundle.canonical_package_record
+def cache_miss(*args, selection_only=False, **kwargs):
+    # A miss authenticates the producer and then builds: stop at the first step.
+    if not selection_only:
+        raise RuntimeError('cache miss: the resolver would rebuild')
+    return selection(*args, selection_only=True, **kwargs)
+bundle.canonical_package_record = cache_miss
+if sys.argv[3] == 'lockstep-fails':
+    checked = bundle._pc386_reuse
+    def lockstep_fails(*args, run_lockstep=False, **kwargs):
+        if run_lockstep:
+            raise ValueError('pc386 evidence-only reuse refused: fresh full lockstep failed: fixture lockstep exit 1')
+        return checked(*args, **kwargs)
+    bundle._pc386_reuse = lockstep_fails
+result = bundle.resolve_core_package(Path(sys.argv[1]), 'f' * 40, Path(sys.argv[2]),
+                                     recipe=recipe_for('fes.pc386'))
+print(json.dumps({'package': result['directory'].name, 'source': result['inputs']['source_selection']}))
+'''
+
+
+class DesignV1ReuseTests(SealedEntryFixture):
+    """Under design-v1 every evidence file is a design input: S3 changes nothing there."""
+
+    def test_design_v1_evidence_change_moves_the_design_id_so_reuse_is_refused(self):
+        tb = 'cores/fes-common/sim/i386/lockstep_tb.cpp'
+        selected = json.loads(self.record)
+        selected['source_inputs'] = dict(selected['source_inputs'], **{tb: '0' * 64})
+        selected = input_identity.with_identities(
+            {k: v for k, v in selected.items() if k != 'identities'}, policy=input_identity.DESIGN_V1)
+        self.assertNotEqual(input_identity.functional_key(selected), input_identity.functional_key(self.fields))
+        with self.assertRaisesRegex(ValueError, 'design identity differs'):
+            evidence.evidence_drift(self.fields, selected)
+
+
+class EvidenceReuseTests(SealedEntryFixture):
+    """#1984 S3: an evidence-only change reuses a sealed package only after a
+    fresh full lockstep of the selected tree passes. Each test builds one
+    counterexample against a sealed design-v2 entry."""
+    POLICY = input_identity.DESIGN_V2
+    TESTBENCH = 'cores/fes-common/sim/i386/lockstep_tb.cpp'
+    SUITE = 'scripts/test_fes_i386_lockstep.py'
+
+    def setUp(self):
+        super().setUp()
+        self.base = self.git('rev-parse', 'HEAD')
+        self.store = self.root / 'build/packages'
+        self.addCleanup(self.reset)
+        self.tool = seal.board.AuthenticatedTool(Path('/unused'), self.tools['yosys'])
+
+    def git(self, *args):
+        return subprocess.check_output(['git', '-C', str(self.repo), *args], text=True).strip()
+
+    def reset(self):
+        self.git('reset', '-q', '--hard', self.base)
+        _remove(self.root / 'build')
+
+    def change(self, *paths):
+        """Commit a comment appended to each path; return the selected record there."""
+        for path in paths:
+            comment = b'\n// synthetic edit\n' if path.endswith(('.cpp', '.h', '.sv')) else b'\n# synthetic edit\n'
+            with (self.root / path).open('ab') as stream:
+                stream.write(comment)
+        self.git('add', '--', *('sources/misteross/' + path for path in paths))
+        self.git('commit', '-qm', 'synthetic edit: ' + ', '.join(paths))
+        return self.record_at(self.git('rev-parse', 'HEAD'))
+
+    def fresh_report(self, **run):
+        """A full default lockstep report of the checkout as it is now."""
+        report = copy.deepcopy(self.report)
+        report['oracle'] = {**seal.oracle_identity(self.root),
+                            'linked_sha256': {n: '1' * 64 for n in seal.LINKED_NAMES}, 'testbench_sha256': '5' * 64}
+        report['run'].update(run)
+        return json.dumps(report).encode()
+
+    def regenerate(self, netlist=NETLIST):
+        def seal_netlist(yosys, output, root=None, **kwargs):
+            output.mkdir(parents=True, exist_ok=True)
+            (output / 'fes_i386_cpu.netlist.v').write_bytes(netlist)
+            return output / 'fes_i386_cpu.netlist.v'
+        return mock.patch.object(seal.yosys_netlist, 'seal_netlist', seal_netlist)
+
+    def no_quartus(self):
+        """Every path that would compile the design raises."""
+        stack = contextlib.ExitStack()
+        for name in ('run_quartus', 'elaborate_machine', 'write_project'):
+            stack.enter_context(mock.patch.object(seal, name, side_effect=AssertionError('Quartus path reached: ' + name)))
+        return stack
+
+    def gate(self, selected):
+        return evidence.reuse_gate(self.root, self.package, self.record_path, self.ev, selected, self.store)
+
+    def attest(self, selected, report):
+        with self.regenerate(), self.no_quartus():
+            return evidence.attest_fresh_lockstep(self.root, self.package, self.record_path, self.ev,
+                                                  selected, report, self.tool, self.store)
+
+    def resolve(self, mode='real'):
+        cache = Path(self.temp_case.name) / 'cache'
+        selection = Path(self.temp_case.name) / 'selection.toml'
+        env = dict(os.environ, FES_ARTIFACT_CACHE_ROOT=str(cache), PYTHONDONTWRITEBYTECODE='1')
+        return subprocess.run([os.sys.executable, '-c', RESOLVE, str(self.root), str(selection), mode],
+                              cwd=ROOT.parents[1], env=env, text=True, capture_output=True)
+
+    def assertNoFreshLockstepRecorded(self):
+        self.assertFalse(any((self.store / evidence.FRESH_LOCKSTEP_STORE).glob('*')),
+                         'a refused fresh lockstep must leave no record')
+
+    def test_an_evidence_only_change_keeps_the_design_id_and_moves_only_the_evidence_id(self):
+        selected = json.loads(self.change(self.TESTBENCH))
+        self.assertEqual(selected['identities']['design'], self.fields['identities']['design'])
+        self.assertNotEqual(selected['identities']['evidence'], self.fields['identities']['evidence'])
+        self.assertEqual(evidence.evidence_drift(self.fields, selected), [self.TESTBENCH])
+
+    def test_a_design_input_change_refuses_reuse_and_the_resolver_rebuilds(self):
+        evidence.publish_local(self.root, self.store, self.package, self.record_path, self.ev)
+        selected = self.change(self.TESTBENCH, 'cores/fes-common/rtl/i386/fes_i386_cpu.sv')
+        status = self.gate(selected)
+        self.assertEqual(status['reuse'], 'refused')
+        self.assertIn('design identity differs', status['reason'])
+        result = self.resolve()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('cache miss: the resolver would rebuild', result.stderr,
+                      'a design change is a cache miss: the resolver builds instead of reusing')
+
+    def test_a_firmware_generator_change_refuses_reuse_and_the_resolver_rebuilds(self):
+        evidence.publish_local(self.root, self.store, self.package, self.record_path, self.ev)
+        selected = self.change(self.TESTBENCH, 'scripts/build_pc386_firmware.py')
+        self.assertEqual(json.loads(selected)['identities']['design'], self.fields['identities']['design'])
+        status = self.gate(selected)
+        self.assertEqual(status['reuse'], 'refused')
+        self.assertIn('scripts/build_pc386_firmware.py (firmware-generator)', status['reason'])
+        result = self.resolve()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('not reused', result.stderr)
+        self.assertIn('cache miss: the resolver would rebuild', result.stderr)
+
+    def test_an_evidence_only_change_without_a_fresh_lockstep_refuses_reuse(self):
+        evidence.publish_local(self.root, self.store, self.package, self.record_path, self.ev)
+        selected = self.change(self.TESTBENCH)
+        self.assertEqual(self.gate(selected), {'reuse': 'needs-fresh-lockstep', 'evidence_drift': [self.TESTBENCH]})
+        result = self.resolve('lockstep-fails')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('fresh full lockstep failed', result.stderr)
+        self.assertNotIn('cache miss: the resolver would rebuild', result.stderr,
+                         'a failed lockstep refuses outright: no fallback to the old package or a rebuild')
+        self.assertNoFreshLockstepRecorded()
+
+    def test_a_failed_or_partial_fresh_lockstep_refuses_reuse(self):
+        selected = self.change(self.TESTBENCH)
+        report = self.fresh_report()
+        stale = copy.deepcopy(json.loads(report))
+        stale['oracle']['suite_sha256'] = self.report['oracle']['suite_sha256']
+        for case, data, refusal in (
+                ('failed run', self.fresh_report(passed=False), 'did not pass'),
+                ('incomplete corpus', self.fresh_report(complete_corpus=False), 'complete corpus'),
+                ('not the default suite', self.fresh_report(default_suite=False), 'not the default suite'),
+                ('the sealed suite, not the current one', json.dumps(stale).encode(), 'oracle identity')):
+            with self.subTest(case=case):
+                with self.assertRaisesRegex(ValueError, refusal):
+                    self.attest(selected, data)
+                self.assertNoFreshLockstepRecorded()
+                self.assertEqual(self.gate(selected)['reuse'], 'needs-fresh-lockstep')
+
+    def test_a_lockstep_runner_that_fails_records_nothing(self):
+        selected = self.change(self.TESTBENCH)
+        with mock.patch.object(seal, 'authenticate_product_tools', return_value={'yosys': self.tool}), \
+                mock.patch.object(seal.pc386_owned_job, 'run', return_value=1) as run, self.no_quartus():
+            with self.assertRaisesRegex(ValueError, r'fresh full lockstep failed \(exit 1\)'):
+                evidence.run_fresh_lockstep(self.root, self.package, self.record_path, self.ev, selected,
+                                            self.store, cache_root=None)
+        command = run.call_args.args[0]
+        self.assertEqual(command[1], str(self.root / evidence.LOCKSTEP_RUNNER))
+        self.assertIn('--netlist', command)
+        self.assertNoFreshLockstepRecorded()
+
+    def test_a_fresh_lockstep_of_another_netlist_refuses_reuse(self):
+        selected = self.change(self.TESTBENCH)
+        other = b'// another netlist\n'
+        report = json.loads(self.fresh_report())
+        report['netlist']['netlist_sha256'] = sha(other)
+        with self.regenerate(other), self.assertRaisesRegex(ValueError, 'did not test the sealed CPU netlist'):
+            evidence.attest_fresh_lockstep(self.root, self.package, self.record_path, self.ev, selected,
+                                           json.dumps(report).encode(), self.tool, self.store)
+        self.assertNoFreshLockstepRecorded()
+
+    def test_an_evidence_only_change_with_a_passing_fresh_lockstep_reuses_without_quartus(self):
+        evidence.publish_local(self.root, self.store, self.package, self.record_path, self.ev)
+        selected = self.change(self.TESTBENCH)
+        status = self.attest(selected, self.fresh_report())
+        self.assertEqual(status['reuse'], 'fresh-lockstep')
+        self.assertEqual(self.gate(selected), status)
+        result = self.resolve()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        chosen = json.loads(result.stdout)
+        self.assertEqual(chosen['package'], self.package_id, 'the sealed package bytes are reused unchanged')
+        self.assertEqual(chosen['source']['identity_policy'], input_identity.DESIGN_V2)
+        self.assertEqual(chosen['source']['pc386_evidence_drift'], [self.TESTBENCH])
+        self.assertEqual(chosen['source']['pc386_fresh_lockstep_sha256'], status['fresh_lockstep_sha256'])
+        self.assertNotEqual(chosen['source']['selected_revision'], chosen['source']['original_revision'])
+
+    def test_a_fresh_lockstep_from_an_earlier_evidence_state_does_not_carry_over(self):
+        evidence.publish_local(self.root, self.store, self.package, self.record_path, self.ev)
+        first = self.change(self.TESTBENCH)
+        recorded = self.store / evidence.FRESH_LOCKSTEP_STORE / evidence._fresh_key(self.fields, json.loads(first))
+        self.attest(first, self.fresh_report())
+        later = self.change(self.SUITE)
+        self.assertEqual(self.gate(later)['reuse'], 'needs-fresh-lockstep')
+        # The earlier record moved under the later evidence state's name.
+        moved = self.store / evidence.FRESH_LOCKSTEP_STORE / evidence._fresh_key(self.fields, json.loads(later))
+        shutil.copytree(recorded, moved)
+        with self.assertRaisesRegex(ValueError, 'not valid for the selected tree|does not bind'):
+            self.gate(later)
+        result = self.resolve('lockstep-fails')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('pc386 evidence-only reuse refused', result.stderr)
+        self.assertNotIn('cache miss: the resolver would rebuild', result.stderr)
+
+    def test_a_fresh_lockstep_record_for_another_package_refuses(self):
+        selected = self.change(self.TESTBENCH)
+        self.attest(selected, self.fresh_report())
+        recorded = self.store / evidence.FRESH_LOCKSTEP_STORE / evidence._fresh_key(self.fields, json.loads(selected))
+        receipt = json.loads((recorded / 'receipt.json').read_bytes())
+        receipt['package_id'] = 'f' * 64
+        recorded.chmod(0o755)
+        (recorded / 'receipt.json').chmod(0o644)
+        (recorded / 'receipt.json').write_bytes(json.dumps(receipt, sort_keys=True, separators=(',', ':')).encode() + b'\n')
+        (recorded / 'receipt.json').chmod(0o444)
+        recorded.chmod(0o555)
+        with self.assertRaisesRegex(ValueError, 'does not bind this package'):
+            self.gate(selected)
+
+    def test_historical_sources_follow_the_original_records_list_not_todays(self):
+        added = ('scripts/added_after_the_seal.py',)
+        with mock.patch.object(seal, 'SUITE_SOURCES', seal.SUITE_SOURCES + added), \
+                mock.patch.object(seal.yosys_netlist, 'CPU_SOURCES', seal.yosys_netlist.CPU_SOURCES + added), \
+                tempfile.TemporaryDirectory() as written:
+            evidence._historical_sources(self.root, self.fields, Path(written))
+            files = {p.relative_to(written).as_posix() for p in Path(written).rglob('*') if p.is_file()}
+        self.assertEqual(files, set(self.fields['source_inputs']))
+        fields = copy.deepcopy(self.fields)
+        fields['source_inputs'][self.TESTBENCH] = '0' * 64
+        with tempfile.TemporaryDirectory() as written, \
+                self.assertRaisesRegex(ValueError, 'unavailable or changed: ' + self.TESTBENCH):
+            evidence._historical_sources(self.root, fields, Path(written))
