@@ -71,7 +71,7 @@ class FlashTrialTests(unittest.TestCase):
             request = json.loads((self.directory/(role+'.write-started.json')).read_text())
             self.assertEqual(request['state'], 'consumed-before-nonvolatile-write')
             self.assertEqual(arguments, ['-c', CABLE, '-m', 'jtag', '-o',
-                                        'IPV;'+self.plan['images'][role]['path']+'@1'])
+                                        'IPV;'+self.plan['images'][role]['path']+';A5EB013BB23B@1'])
             self.assertEqual(cable, CABLE)
             return copy.deepcopy(OK)
         return flash.FlashTrial(self.directory, self.plan, self.approval if approval is None else approval,

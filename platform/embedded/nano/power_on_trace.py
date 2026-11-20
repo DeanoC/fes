@@ -26,26 +26,35 @@ def split_capture(raw, build_id):
     return raw[:offset], raw[offset:]
 
 
-def observe(raw, *, cycle_confirmed, native_boot):
-    """Pending is not failure; POR scope alone is not a complete loader pass."""
+def observe(raw, *, build_id, cycle_confirmed, native_boot):
+    """Decode the exact matching SPL segment; pending is not a boot failure."""
     if (not isinstance(raw, bytes) or len(raw) > MAX_BYTES or type(cycle_confirmed) is not bool or
-            not isinstance(native_boot, dict) or type(native_boot.get('loader_ready')) is not bool or
-            not isinstance(native_boot.get('errors'), list)):
-        raise ValueError('bounded trace, cycle confirmation and complete decoder report required')
+            not isinstance(build_id, str) or not re.fullmatch('[0-9a-f]{16}', build_id) or
+            not callable(native_boot)):
+        raise ValueError('bounded trace, exact SPL build ID, cycle confirmation and native decoder required')
     result = dict(format=1, phase='native-power-on', trace_sha256=hashlib.sha256(raw).hexdigest(),
                   boot_started=False, failed=False, power_on_boot_qualified=False,
                   status='pending-power-cycle', errors=[])
     if not cycle_confirmed:
         return result
-    matches = list(_BEGIN.finditer(raw))
+
+    # Split and decode one source segment here. Accepting a caller-supplied
+    # decoder result would let a stale good report accompany unrelated bytes.
+    _, boot_segment = split_capture(raw, build_id)
+    native_report = native_boot(boot_segment)
+    if (not isinstance(native_report, dict) or type(native_report.get('loader_ready')) is not bool or
+            not isinstance(native_report.get('errors'), list)):
+        raise ValueError('native decoder returned an incomplete report')
+
+    matches = list(_BEGIN.finditer(boot_segment))
     positive_por = len(matches) == 1 and matches[0].groups()[1:] == (b'0', b'1')
     if len(matches) != 1:
         result['errors'].append('exactly one complete SPL beginning required')
     elif not positive_por:
         result['errors'].append('positive POR boot kind required; JTAG/reset boot is not power-on proof')
     # native_trace checks register containment, paired ownership, secure handoff,
-    # selected build/package and device context. Never substitute a ready string.
-    if not native_boot['loader_ready'] or native_boot['errors'] or len(_HANDOFF.findall(raw)) != 1:
+    # selected build/package and device context. It receives these same bytes.
+    if not native_report['loader_ready'] or native_report['errors'] or len(_HANDOFF.findall(boot_segment)) != 1:
         result['errors'].append('complete matched native loader proof required')
     result.update(boot_started=positive_por, failed=bool(result['errors']),
                   status='failed' if result['errors'] else 'passed',

@@ -107,7 +107,7 @@ def command(cable, image):
     if not _cable(cable):
         raise ValueError('exact private top cable required')
     # The validated JIC supplies the revision-specific flash-loader part.
-    return ['-c', cable, '-m', 'jtag', '-o', 'IPV;'+image['path']+'@1']
+    return ['-c', cable, '-m', 'jtag', '-o', 'IPV;'+image['path']+';A5EB013BB23B@1']
 
 
 def programmer_success(result):
