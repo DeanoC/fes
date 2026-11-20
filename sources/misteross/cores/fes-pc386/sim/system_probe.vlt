@@ -1,0 +1,8 @@
+`verilator_config
+// system_tb's status-ring report (#2038): the ring writer's state, the disk's
+// requests on the aux port it shares, and the CRC pass, read-only.
+public_flat_rd -module "pc386_status" -var "busy"
+public_flat_rd -module "pc386_status" -var "own"
+public_flat_rd -module "pc386_system" -var "disk_aux_read"
+public_flat_rd -module "pc386_system" -var "disk_aux_write"
+public_flat_rd -module "pc386_system" -var "verifying"
