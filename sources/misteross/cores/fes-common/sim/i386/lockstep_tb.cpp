@@ -114,12 +114,10 @@
 //             together, and paging toggled around a far jump.
 //   x87bcd    the packed decimal cases, FBLD and FBSTP (run_x87_bcd_cases,
 //             #1958), the identity on: through the CPU against the oracle's
-//             387 on a build with the DE25 backend, and the RTL alone
-//             stopping at each as not built on one with the DE10's
-//             (-DFES_X87_BACKEND says which this build is).
+//             387.
 //   x87trans  the eight transcendentals, F2XM1, FYL2X, FPTAN, FPATAN,
 //             FYL2XP1, FSINCOS, FSIN and FCOS (run_x87_trans_cases, #1958),
-//             the identity on: with the DE25 backend through the CPU against
+//             the identity on: through the CPU against
 //             the oracle's 387 under the transcendental rule (trans_compare:
 //             everything exact but a finite, non-zero result, which is
 //             within FES_I386_TRANS_ULP_ORACLE representable values of the
@@ -406,11 +404,9 @@ struct GuestRam {
     }
 };
 
-// How many arithmetic operations the DE25 backend was offered and took,
-// per req_op, over the whole run. With X87_BACKEND at its default these stay
-// zero, because the unit's own sequenced datapath answers and the backend is
-// not instantiated. With the DE25 backend selected a zero for an operation
-// the suite reaches is a HOLE in the gate, not a pass: a lockstep that issued
+// How many arithmetic operations the backend was offered and took, per
+// req_op, over the whole run. A zero for an operation the suite reaches is a
+// HOLE in the gate, not a pass: a lockstep that issued
 // no arithmetic proves nothing about the arithmetic. The counters are
 // sim-only registers inside fes_i386_x87 with no hardware reader, so
 // synthesis removes them; `verilator public_flat_rd` is what makes them
@@ -1492,7 +1488,7 @@ struct Summary {
     uint64_t x87_compared = 0;
     // The packed decimal forms (#1958): FBLD and FBSTP instructions stepped
     // on both sides with the identity on, and the forms the RTL alone was
-    // seen to stop at as not built (the DE10 backend's cases).
+    // seen to stop at as not built, which must stay zero.
     uint64_t x87_fbld = 0, x87_fbstp = 0, x87_bcd_not_built = 0;
 };
 
@@ -1963,7 +1959,7 @@ struct TransTally {
     uint64_t resyncs = 0;         // retirements after which the oracle took something from the RTL
     uint64_t resync_values = 0;   // ... registers it took
     uint64_t c1_differs = 0;      // retirements whose ungated C1 differed
-    uint64_t not_built = 0;       // the DE10 backend: the RTL alone stopped at the form as not built
+    uint64_t not_built = 0;       // the RTL stopped at the form as not built: must stay zero
     u128 worst = 0, worst_unchecked = 0;
     std::map<u128, uint64_t> histogram, histogram_unchecked;   // every distance, each value once
 };
@@ -2188,13 +2184,7 @@ bool rep_writes_own_instruction(const Code *own, const uint8_t *code, bool code3
     return !rep_self_store_writes(own, code, code32, before, result, oracle).empty();
 }
 
-// The ESC forms the RTL's x87 unit builds are x87_built_form.h's, which takes
-// the backend: the runner passes -DFES_X87_BACKEND with the value it gives
-// the CPU's X87_BACKEND (0 the DE10's, 1 the DE25's), on the RTL build and
-// the netlist build alike.
-#ifndef FES_X87_BACKEND
-#define FES_X87_BACKEND 0
-#endif
+// The ESC forms the RTL's x87 unit builds are x87_built_form.h's.
 
 // An ESC instruction's memory operand: its offset, wrapped by address size,
 // and its segment (fes_i386::SEG_*), from the bytes at code and the state.
@@ -2431,7 +2421,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 trans_finish(oracle, rtl, summary, out, true);
                 if (!out.items.empty()) return outcome;
             }
-            if (k < 15 && (code[k] & 0xf8) == 0xd8 && !x87_built_form(code[k], code[k + 1], FES_X87_BACKEND == 1)) {
+            if (k < 15 && (code[k] & 0xf8) == 0xd8 && !x87_built_form(code[k], code[k + 1])) {
                 ++summary.unbuilt[UNBUILT_X87];
                 outcome.unbuilt = UNBUILT_X87;
                 return outcome;
@@ -11887,8 +11877,7 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
 // The x87 suite above keeps the programs it had, so its trace hash does not
 // move; everything for DF /4 and DF /6 is here (FES_I386_MODE=x87bcd).
 //
-// With the DE25 backend (FES_X87_BACKEND == 1), which builds the two forms,
-// the programs run through the CPU against the oracle's 387 with the 387's
+// The programs run through the CPU against the oracle's 387 with the 387's
 // state compared at every retirement. This is the only place the third
 // decode table is checked: the access shape in fes_i386_decode fails unsafe
 // -- a form missing from it runs and reads or writes the wrong bytes -- so
@@ -11896,14 +11885,7 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
 // compared. The forms are reached through 16-bit and 32-bit addressing.
 // Every exception is masked: this bench drives no IRQ 13, as the x87 suite
 // does not, so the unmasked cases are the unit bench's.
-//
-// With the DE10 backend (FES_X87_BACKEND == 0) neither form is built, and
-// the check is that the RTL itself stops at each as not built. lockstep()
-// cannot make that check: it reads x87_built_form and returns before
-// stepping the RTL, so it would pass whatever the RTL did. Each form is
-// therefore run on the RTL alone and must end in FAULT_UNIMPLEMENTED with
-// nothing retired, beside a control (FILD m64, DF /5, the same ESC byte)
-// that must retire -- so a stop is the form's, not the 387 being absent.
+
 int run_x87_bcd_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                       Summary &summary) {
     struct Asm {
@@ -12155,46 +12137,6 @@ int run_x87_bcd_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const 
     base.gpr[fes_i386::REG_ESP] = 0x0f00;
     base.cr0 = 0x7ffffff0 | 0x10;   // ET, as with a 387 fitted (run_x87_cases)
 
-    if (FES_X87_BACKEND != 1) {
-        // The DE10 backend: the RTL alone, which must stop at each form.
-        struct Stop { const char *label; uint8_t reg; bool built; };
-        const Stop stops[] = {{"de10-fbld-not-built", 4, false}, {"de10-fbstp-not-built", 6, false},
-                              {"de10-control-fild-m64-retires", 5, true}};
-        for (const Stop &stop : stops) {
-            const uint8_t code[] = {0xdf, uint8_t(stop.reg << 3 | 6), 0x00, 0x01, 0xf4};   // DF /r [0100h]; HLT
-            std::vector<uint32_t> poked;
-            for (size_t i = 0; i < sizeof code; ++i) { rtl.poke(CODE + uint32_t(i), code[i]); poked.push_back(CODE + uint32_t(i)); }
-            for (const Operand &o : common)
-                for (unsigned i = 0; i < o.bytes.size(); ++i) { rtl.poke(DS + o.at + i, o.bytes[i]); poked.push_back(DS + o.at + i); }
-            rtl.start(base);
-            const Rtl::Event event = rtl.next();
-            const bool nothing_retired = rtl.state().eip == CODE;
-            ++summary.runs;
-            summary.cycles += rtl.cycles;
-            rtl.cycles = 0;
-            const bool stopped = event == Rtl::Event::Unimplemented && nothing_retired;
-            const bool retired = event == Rtl::Event::Retired && !rtl.top.trace_exception && !nothing_retired;
-            if (stop.built ? retired : stopped) {
-                ++summary.passed;
-                if (!stop.built) ++summary.x87_bcd_not_built;
-            } else {
-                ++summary.failed;
-                std::cout << "FAIL x87bcd:" << stop.label << ' '
-                          << (event == Rtl::Event::Unimplemented ? "stopped-as-not-built"
-                              : event == Rtl::Event::Retired ? (rtl.top.trace_exception ? "exception" : "retired")
-                              : event == Rtl::Event::Shutdown ? "shutdown" : "timeout")
-                          << " 1 0\n";
-            }
-            for (uint32_t address : poked) rtl.poke(address, 0);
-            for (uint32_t address : rtl.written)
-                if (address < RAM_BYTES) rtl.poke(address, 0);
-            rtl.written.clear();
-        }
-        x87_fitted = was_fitted;
-        oracle.set_at_coprocessor(was_fitted);
-        return 0;
-    }
-
     for (const Case &c : cases) {
         Asm a;
         // run_x87_cases' prologue: every register written and emptied, so
@@ -12288,8 +12230,7 @@ int run_x87_bcd_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const 
 // F9, FB, FE and FF (FES_I386_MODE=x87trans). The x87 and x87bcd suites keep
 // the programs they had, so their trace hashes do not move.
 //
-// With the DE25 backend (FES_X87_BACKEND == 1), which builds them, the
-// programs run through the CPU against the oracle's 387 under the
+// The programs run through the CPU against the oracle's 387 under the
 // transcendental rule above (trans_compare, trans_finish): everything exact
 // but a finite, non-zero result, which is within FES_I386_TRANS_ULP_ORACLE
 // of the oracle's, and the oracle resynchronised to the RTL after each
@@ -12354,11 +12295,7 @@ int run_x87_bcd_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const 
 // the ranges the manual defines (EXP1, LOG5) but for the recorded FYL2XP1
 // cases: outside them the manual says undefined and the references disagree
 // (rules.md M10).
-//
-// With the DE10 backend (FES_X87_BACKEND == 0) none of the eight is built:
-// each is run on the RTL alone and must end in FAULT_UNIMPLEMENTED with
-// nothing retired, beside a control (FNOP, D9 D0, the same ESC byte) that
-// must retire, as run_x87_bcd_cases does and for its reason.
+
 int run_x87_trans_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                         Summary &summary) {
     using R = fes_i386::X87Register;
@@ -12837,39 +12774,6 @@ int run_x87_trans_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, cons
         }
         oracle.reset();
         verdict("oracle-setter", out);
-    }
-
-    if (FES_X87_BACKEND != 1) {
-        // The DE10 backend: the RTL alone, which must stop at each form.
-        for (unsigned form = 0; form <= TRANS_FORMS; ++form) {
-            const bool control = form == TRANS_FORMS;
-            const uint8_t code[] = {0xd9, control ? uint8_t(0xd0) : TRANS_MODRM[form], 0xf4};   // the form (or FNOP); HLT
-            for (size_t i = 0; i < sizeof code; ++i) rtl.poke(CODE + uint32_t(i), code[i]);
-            rtl.start(base);
-            const Rtl::Event event = rtl.next();
-            const bool nothing_retired = rtl.state().eip == CODE;
-            summary.cycles += rtl.cycles;
-            rtl.cycles = 0;
-            const bool stopped = event == Rtl::Event::Unimplemented && nothing_retired;
-            const bool retired = event == Rtl::Event::Retired && !rtl.top.trace_exception && !nothing_retired;
-            Mismatches out;
-            if (control ? retired : stopped) {
-                if (!control) ++trans_rule.tally[form].not_built;
-            } else {
-                out.add(event == Rtl::Event::Unimplemented ? "stopped-as-not-built"
-                        : event == Rtl::Event::Retired ? (rtl.top.trace_exception ? "exception" : "retired")
-                        : event == Rtl::Event::Shutdown ? "shutdown" : "timeout", 1, 0);
-            }
-            verdict(control ? std::string("de10-control-fnop-retires") : std::string("de10-") + TRANS_NAME[form] + "-not-built",
-                    out);
-            for (size_t i = 0; i < sizeof code; ++i) rtl.poke(CODE + uint32_t(i), 0);
-            for (uint32_t address : rtl.written)
-                if (address < RAM_BYTES) rtl.poke(address, 0);
-            rtl.written.clear();
-        }
-        x87_fitted = was_fitted;
-        oracle.set_at_coprocessor(was_fitted);
-        return 0;
     }
 
     trans_rule.on = true;

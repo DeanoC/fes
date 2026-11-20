@@ -357,8 +357,8 @@ def fpga_cores(path):
                                 'tests/test_sim_fes_ramtest_hook.py'):
         return ('ramtest',), 'shared HPS DDR guard simulation'
     if len(parts) >= 3 and parts[0] == 'cores':
-        # The DE25 x87 arithmetic backend is i386 RTL -- fes_i386_x87
-        # instantiates fes_x87_core when X87_BACKEND selects it -- but the
+        # The x87 arithmetic backend is i386 RTL -- fes_i386_x87
+        # instantiates fes_x87_core -- but the
         # standalone fes_x87_pipe built from the same files is still checked
         # by the de25-x87 family, so a change to them must run both.
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (

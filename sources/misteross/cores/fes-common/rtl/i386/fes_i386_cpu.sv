@@ -122,12 +122,6 @@
 module fes_i386_cpu #(
     parameter logic [31:0] RAM_BASE = 32'h3400_0000, // the HPS address of guest physical 0
     parameter integer GOV_N = 1, GOV_D = 1000,        // 100 kHz as a fraction of clk (fes_i386_governor)
-    // Which arithmetic the x87 unit's rounding is fed from: 0 the unit's
-    // own sequenced datapath (the DE10's, and the verified reference),
-    // 1 the DE25's pipelined fes_x87_core. The envelope -- the stack,
-    // the words, the conversions, the commit and the AT error path --
-    // is the same code either way (fes_i386_x87).
-    parameter int X87_BACKEND = 0,
     parameter bit GOV_REFERENCE_DIAGNOSTIC = 1'b0    // simulation-only experimental 286 timing model
 ) (
     input  logic             clk,
@@ -682,7 +676,7 @@ module fes_i386_cpu #(
     logic [31:0] q_lea_disp;
     logic        q_b_sys;
     logic [3:0]  q_slot;
-    fes_i386_decode #(.X87_BACKEND(X87_BACKEND)) decode (
+    fes_i386_decode decode (
         .q, .code32, .stack(dc_stack), .wait_nm(cr0_mp && cr0_ts), .esc_nm(cr0_em || cr0_ts), .x87(x87_present),
         .x87_insn(dc_q.x87), .x87_wait(dc_q.x87_wait), .x87_fmt(dc_q.x87_fmt), .x87_op(dc_q.x87_op), .x87_part(dc_q.x87_part), .pe(cr0_pe), .vm(eflags[17]), .cpl, .iopl(eflags[13:12]), .nt(eflags[14]), .dr_gd(dr7[13]), .uop(q_uop), .opsize32(q_opsize32), .lea(q_lea), .lea_early(dc_q.lea_early),
         .lea_disp(q_lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
@@ -885,7 +879,7 @@ module fes_i386_cpu #(
                                                               : {12'd0, wb_s.result[15:12]};
     assign x87_ld_opcode = !cr0_pe ? wb_s.result[10:0]
                          : wb_s.uop.size == fes_i386_pkg::SIZE_32 ? wb_s.result[26:16] : 11'd0;
-    fes_i386_x87 #(.X87_BACKEND(X87_BACKEND)) x87 (
+    fes_i386_x87 x87 (
         .clk, .reset, .present(x87_present), .f0(x87_f0), .f1(x87_f1),
         .error(x87_irq13), .latched(trace_x87_latched),
         .iss(x87_iss), .iss_wait(dc.x87_wait), .iss_op(dc.x87_op), .iss_fmt(dc.x87_fmt),
