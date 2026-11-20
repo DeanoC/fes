@@ -1,0 +1,14 @@
+{
+  "fitted_netlist": {
+    "duplicate_attribute_count": 30,
+    "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+    "fitted_sha256": "e36856176ea7290edfb7bdcd5000abd940ae023fb953bd203336fe57845d615c",
+    "ram_attribute": "renamed 59 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+    "ram_attribute_count": 59,
+    "source": "/data/projects/x87s6m/elab-abl/netlist/pc386_system.v",
+    "source_sha256": "f7d86a9a1ebed543d31960412c088006b3a3f07f2176b7fa856a193dc3e0d5d0"
+  },
+  "reused": "/data/projects/x87s6m/elab-abl/netlist/pc386_system.v",
+  "source_revision": "8a162c536e8ecef245aeabbe837a856050c294a5",
+  "source_revision_note": "plus scratch-edits.patch and the 6.2 ablation.patch; elaborated on chip-30x0-ai-dev by the pc386 lock's CUDA-slot Yosys"
+}

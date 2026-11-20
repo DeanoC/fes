@@ -144,3 +144,21 @@ workspace. The tree is a copy, `tree-abl`, with `ablation.patch` applied,
 and the outputs are `abl-s1`..`abl-s4`. The DE10 fits come from two more
 copies of the tree, `tree-d0` and `tree-d1`. All are sequential behind the
 runner's host-wide Quartus lease.
+
+## Amendments
+
+1. **20 November 2026, after part 2's two fits had finished.** D1 came out
+   **236 ALMs smaller** than D0, with equal DSP (41) and RAM blocks (274) and
+   timing passing on both. That is outside the ±200 band committed above, so
+   the rule as written says "does not fold", and that is recorded as the
+   result. Deano accepted the deletion on these numbers ("Yes, accept (a)",
+   relayed by the coordinating session). His acceptance is why the deletion
+   proceeds, not this rule. He has since made every area, fold and resource
+   band one-sided ("we should update the rule to be one way, smaller is
+   almost always better and a good thing"): only growth over the reference
+   fails. Part 2's rule is left as it was written. Under the one-sided form
+   the shrink is a pass. **From this amendment on, the move's DE25 A/B
+   (part 3) is judged one-sided**: it fails only if the move's median ALMs
+   needed exceeds 6.0a's by more than the larger of the two arms' spreads.
+   That is the only band part 3 had not yet fixed, and no fit of the move
+   had finished when this was written.
