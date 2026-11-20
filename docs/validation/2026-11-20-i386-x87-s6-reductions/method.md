@@ -108,3 +108,23 @@ and kit run. Its cycle change per form is reported at the census rates, as
 **The engine bench's vectors** cover the five exact forms #2037 moved, which
 they did not yet. This closes the gap #2037's record left in its "RTL
 against its model" row.
+
+## Amendments
+
+1. **20 November 2026, after one seed of the FBLD/FBSTP ablation had
+   finished and before any step's verdict.** The shell figure changes to
+   **7,728 ALMs**. That is DE25 slice 3's controlled four-seed pair (#2036,
+   `docs/validation/2026-11-20-de25-pc386-shell-s3/pair.md`): a median board
+   of 42,574.0 against a virtual-pin envelope of 34,845.5, over identical
+   machine bytes.
+   - **Added as it stands.** The pair measured the board less the envelope,
+     and the envelope's 677 virtual-pin ALMs are inside it. So 7,728 is added
+     to a virtual-pin fit as it is, with **no** 651-ALM subtraction: the
+     board estimate is the fit's median plus 7,728.
+   - **The 8,720 seed-1 split is withdrawn.** The 8,400 estimate is quoted
+     beside 7,728 only for continuity.
+   - **RAM blocks.** The same pair adds 170 RAM blocks for the shell (295
+     against 125). The 387-on fits use 145, so a board would hold about 315
+     of 358, about 43 free. Every RAM-block change is stated against that
+     figure, not the 58 relayed earlier.
+   - **No rule changes.** Nothing in a band or a rule changes.
