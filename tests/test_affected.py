@@ -510,7 +510,7 @@ class AffectedTests(unittest.TestCase):
             'scripts/sim_fes_pc386.py': {'pc386'},
             'scripts/build_pc386_firmware.py': {'pc386'},
             'scripts/build_pc386_freedos_image.py': {'pc386'},
-            'scripts/build_fes_pc386_quartus.py': {'pc386'},
+            'scripts/pc386_quartus.py': {'pc386'},
             'scripts/yosys_netlist.py': {'pc386'},
             # The pc386 sealer's lockstep gate pins it (#1581 S5).
             'cores/fes-common/rtl/i386/toolchain.lock': {'pc386'},

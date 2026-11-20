@@ -55,7 +55,7 @@ import time
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import build_fes_pc386_quartus as sealer
+from scripts import pc386_quartus as sealer
 from scripts import build_pc386_firmware as firmware
 from scripts import yosys_netlist
 from scripts.quartus_tools import load_quartus_lock, locate_quartus
@@ -335,7 +335,7 @@ def standalone(args, yosys, bin_dir: Path, env: dict, output: Path) -> tuple[Pat
         plain_module_names(project / f'{top}.v')
     pins = (ROOT / SPIKE / 'spike.qsf').read_text()
     (project / f'{top}.qpf').write_text(f'PROJECT_REVISION = "{top}"\n')
-    # The seal's settings (build_fes_pc386_quartus.project_qsf) with this top.
+    # The seal's settings (pc386_quartus.project_qsf) with this top.
     (project / f'{top}.qsf').write_text(
         'set_global_assignment -name FAMILY "Cyclone V"\n'
         f'set_global_assignment -name DEVICE {sealer.board.TARGET}\n'
@@ -355,7 +355,7 @@ def standalone(args, yosys, bin_dir: Path, env: dict, output: Path) -> tuple[Pat
 
 
 def machine(args, tools: dict, output: Path) -> tuple[Path, str]:
-    project = sealer.write_project(ROOT, output, '0' * 32, args.seed)
+    project = sealer.write_project(ROOT, output, '0' * 32, args.seed, threads='ALL')
     firmware.write_rom_hex(firmware.images())
     sealer.check_rom(ROOT)
     sources = list(sealer.MACHINE_SOURCES)

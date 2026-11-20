@@ -22,6 +22,12 @@ BUILD_ID *is* that identity, so two trees that agree on it produce the same
 artefact -- which is the thing condition 3 is about. Pass that comparison with
 --design-move. A row with neither anchor stays unverifiable, by name.
 
+The summaries this reads are vendored into the record (vendor_cond3.py), so a
+row names its summary relative to its own cond3.json and carries that file's
+`source_sha256`. Before the vendoring, every row pointed at a path inside a
+campaign scratch directory that no longer exists, which made the strongest of
+these checks unrunnable from a clone.
+
   python3 seals_at_head.py --cond3 reports-cond3/cond3.json --tree <checkout> \
       [--design-move seal-to-head-design.json] [--json out]
 """
@@ -148,10 +154,40 @@ def _usable_routes(paths, anchors: dict[str, str]) -> tuple[dict[str, dict], lis
     return usable, refused
 
 
-def verify(summary: Path, root: Path) -> tuple[str, str]:
+def verify(summary: Path, root: Path, expected: str | None = None,
+           pinned: bool = False, build_id: str | None = None) -> tuple[str, str]:
     if not summary.is_file():
+        if pinned:
+            # A vendored summary is part of the tree under review, so its
+            # absence is a defect in that tree, not a gap in the evidence.
+            # Letting it read "unverifiable" would hand it to the design
+            # anchor, and "11 of 11" would then survive the vendored files
+            # being deleted again -- which is the whole failure this guards.
+            return "ABSENT", (f"the record's own copy of this seal's summary is missing from "
+                              f"{summary.parent.name}/")
         return "unverifiable", f"the seal's summary is gone from {summary.parent}"
+    # A vendored summary lives in the tree under review, so it is editable and
+    # must be pinned. Leaving source_sha256 off would otherwise turn the check
+    # below off silently, which is the quietest way to lose it.
+    if pinned and expected is None:
+        return "unpinned", ("a vendored summary with no source_sha256 is not tied to the "
+                            "bytes the producer wrote")
+    # The summaries are vendored into the record now, so they are editable
+    # files in the tree being checked rather than read-only scratch. A kept
+    # `source_sha256` that nothing reads proves nothing, so read it: this says
+    # the summary being hashed against is byte-identical to the one the
+    # producer wrote. A mismatch is its own verdict, not an "unverifiable"
+    # row, because an edited seal must not be rescued by a design anchor.
+    if expected is not None and hashlib.sha256(summary.read_bytes()).hexdigest() != expected:
+        return "SUBSTITUTED", ("the summary is not the bytes source_sha256 names, so it is "
+                               "not the one the producer wrote")
     data = json.loads(summary.read_text())
+    # Nothing else ties the four ZX81 summaries to the rows that cite them:
+    # they carry no inputs map, so without this a row could name another
+    # artefact's summary and still read intact on its design anchor.
+    if build_id is not None and data.get("build_id") not in (None, build_id):
+        return "WRONG SEAL", (f"the summary's BUILD_ID is {data['build_id']}, not the "
+                              f"{build_id} this row claims")
     inputs = data.get("inputs")
     if not isinstance(inputs, dict) or not inputs:
         return "unverifiable", "the summary carries no inputs map"
@@ -214,7 +250,15 @@ def main() -> int:
     print(f'{"artefact":20} {"sealed at":14} {"verdict":13} detail')
     for key in sorted(rows):
         row = rows[key]
-        verdict, detail = verify(Path(row["source"]), root)
+        # A vendored row names its summary relative to this cond3.json, so that
+        # a fresh clone verifies wherever it was cloned to. A collection still
+        # pointing into its own build scratch carries an absolute path.
+        summary = Path(row["source"])
+        vendored = not summary.is_absolute()
+        if vendored:
+            summary = arguments.cond3.resolve().parent / summary
+        verdict, detail = verify(summary, root, row.get("source_sha256"), vendored,
+                                 row.get("build_id"))
         if verdict == "unverifiable":
             fallback = _design_anchor(key, moves, row.get("taken_at_head"),
                                       anchors)

@@ -1122,7 +1122,7 @@ def cpu_netlist(output: Path, cache_root: Path, gpu_router: str) -> tuple[Path, 
 
 def machine_netlist(output: Path, cache_root: Path, gpu_router: str,
                     x87: dict[str, int] | None = None) -> tuple[Path, dict]:
-    from scripts import build_fes_pc386_quartus as sealer
+    from scripts import pc386_quartus as sealer
     rom = REPO / "sources/misteross" / sealer.ROM_HEX
     if not rom.is_file():
         raise FitError(f"build the pinned firmware first: {rom} is missing, and a fit without the ROM "

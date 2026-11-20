@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
-"""Build and seal fes.pc386 with the Quartus cores/fes-pc386/quartus.lock pins,
-the pc386 bring-up lane.
+"""The fes.pc386 Quartus seal's shared definitions: the machine, its sources,
+guest rates, firmware pins, Quartus project, timing gate and lockstep gate.
+
+The registered producer, cores/fes-pc386/tools/build_pc386_product.py, seals
+with these (docs/design/quartus-cores.md); this module writes no record and
+builds no package. The simulators, the i386 fit tools and the x87 spike read
+the same machine definition from here.
 
 docs/pc386-machine-design.md, phase M5 (= CPU Phase 3): pc386_system, the
 machine (AT core, VGA, capture, presenter, the display plane on DDR port 2,
@@ -11,12 +16,10 @@ fes.pc386.machine record and the wall clock. The Bochs BIOS and the LGPL
 VGABios are M10K contents of the RBF (pc386_rom.sv), from the images
 scripts/build_pc386_firmware.py builds and firmware.lock pins. That recipe
 writes the ROM hex as its own process before the seal; the seal never runs
-its code. It checks the file pc386_system.sv's ROM_HEX names against the ROM
-digest firmware.lock pins, before and after Yosys reads it (#1984 S1).
+its code. check_rom checks the file pc386_system.sv's ROM_HEX names against
+the ROM digest firmware.lock pins, before and after Yosys reads it (#1984 S1).
 The system clock is sealed at SYSTEM_CLOCK_HZ and every guest time base is a
-rational enable of it, set here from that frequency. It is a development
-package, labelled a Quartus build (docs/design/quartus-cores.md) and not
-registered in the FES recipe table; this recipe never programs hardware.
+rational enable of it, set here from that frequency.
 
 The locked Quartus's SystemVerilog front end rejects some of the RTL (the OPL2
 import's casts, the CPU's generate loops), so the pc386 lock's Yosys
@@ -30,39 +33,23 @@ synthesis stops with an internal error on them. scripts/yosys_netlist.py holds
 that program (its SEAL recipe), and the i386 lockstep reads the CPU through
 the same passes with the same Yosys. Quartus reads that netlist and the shell's own files, top.sv with
 QUARTUS defined among them, and does all synthesis, placement and routing.
-Every timing analysis must pass on every clock at the slow and fast corners,
-or the build publishes nothing. quartus.lock authenticates quartus_sh by
-digest and its version line, and every Quartus version string the build
-writes derives from it; the toolchain lock's Yosys elaborates the machine.
+validate_build_evidence requires every timing analysis to pass on every clock
+at the slow and fast corners. quartus.lock authenticates quartus_sh by digest
+and its version line; the toolchain lock's Yosys elaborates the machine. The
+toolchain lock's whole slot is authenticated, whose nextpnr is linked against
+a GPU runtime: HIP or CUDA selects that slot. Nothing routes on a GPU here.
 
-The build authenticates the toolchain lock's whole slot, whose nextpnr is
-linked against a GPU runtime: --gpu-router HIP (the default) or CUDA selects
-that slot, so a CUDA host with no ROCm can seal. Nothing routes on a GPU here.
-The record names the selection, so HIP and CUDA builds have distinct BUILD_IDs.
-
-The seal needs a lockstep report (#1581 S5): scripts/test_fes_i386_lockstep.py
---netlist, run on this tree with the same --cache-root and router. The build
-refuses to seal unless the report passed the default suite (default suite
-arguments over every in-scope file of a full corpus download) and names this
-build's Yosys program, CPU sources and Yosys (lock, lock digest, router and
-slot binary), its Verilator is the i386 lock's, its Bochs revision and
-maintained patch match this source tree, and the CPU netlist this build's
-Yosys writes through the seal's passes has the report's digest. The
-report is copied into the output, and build-summary.json records it under
-"lockstep". Lockstep needs the pinned Bochs and corpus, so it runs on the
-sealing host. The seal hashes the oracle and suite from the lists in
-cores/fes-common/sim/i386/oracle_sources.toml and does not import the oracle
-provisioner, scripts/fes_i386_oracle.py, so an edit there cannot change what
-the compilers read (#1984 S1, case H1).
-
-  python3 scripts/build_pc386_firmware.py --download
-  QUARTUS_ROOTDIR=/abs/<the Quartus install quartus.lock names>/quartus \\
-    python3 scripts/build_fes_pc386_quartus.py --cache-root /abs/out/cache/misteross-toolchains \\
-    --lockstep-report /abs/build/sim/fes-i386-lockstep/report.json [--gpu-router CUDA]
+check_lockstep_report is the lockstep gate (#1581 S5): a report of
+scripts/test_fes_i386_lockstep.py --netlist must have passed the default suite
+over a full corpus and name this build's Yosys program, CPU sources and Yosys,
+the i386 lock's Verilator and this tree's Bochs revision and patch, and the CPU
+netlist this build's Yosys writes must have the report's digest. The oracle and
+suite are hashed from the lists in cores/fes-common/sim/i386/oracle_sources.toml
+without importing the oracle provisioner, scripts/fes_i386_oracle.py, so an edit
+there cannot change what the compilers read (#1984 S1, case H1).
 """
 from __future__ import annotations
 
-import argparse
 from fractions import Fraction
 import hashlib
 import json
@@ -72,23 +59,15 @@ from pathlib import Path
 import re
 import shlex
 import shutil
-import subprocess
-import sys
 import tomllib
-
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import fes_build_common as board
 from scripts import lockfile
-from scripts import source_provenance
 from scripts import yosys_netlist
-from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
-from scripts.export_core_package import build_identity, encode_build_record, export_package
+from scripts.core_package import MAX_PAYLOAD_SIZE
 from scripts.quartus_tools import QuartusLock, RebuildError, load_quartus_lock, locate_quartus
 
 ROOT = Path(__file__).resolve().parents[1]
-RECIPE = "scripts/build_fes_pc386_quartus.py"
 OUTPUT = Path("build/fes-pc386-quartus")
 LOCK = "cores/fes-pc386/toolchain.lock"
 # The lockstep's Verilator comes from the i386 lock (scripts/i386_verilator.py).
@@ -191,7 +170,7 @@ MACHINE_NETLIST = "pc386_system.v"
 ROM_HEX = "build/firmware/pc386/pc386-rom.hex"
 ROM_HEX_READERS = ("cores/fes-pc386/rtl/pc386_system.sv", "cores/fes-pc386/rtl/pc386_rom.sv")
 PINNED_INPUTS = (
-    RECIPE, FIRMWARE_RECIPE, FIRMWARE_LOCK, "scripts/quartus_tools.py", "scripts/fes_build_common.py",
+    "scripts/pc386_quartus.py", FIRMWARE_RECIPE, FIRMWARE_LOCK, "scripts/quartus_tools.py", "scripts/fes_build_common.py",
     "scripts/source_provenance.py", "scripts/yosys_netlist.py", "scripts/lockfile.py", ABI_DEFINITION, LOCK,
     I386_LOCK, QUARTUS_LOCK, QSF, SDC, ORACLE_PROVISIONER, ORACLE_SOURCES_FILE, BOCHS_PATCH,
     *(f"{ORACLE_SIM}/{name}" for name in ORACLE_SOURCES),
@@ -312,10 +291,6 @@ def _authenticate_tools(root: Path, *, cache_root: Path | None = None, gpu_route
     }
 
 
-def require_clean_source(root: Path) -> tuple[str, str]:
-    return board._require_clean_source(root, pinned_inputs=PINNED_INPUTS)
-
-
 def _check_seed(seed: int) -> int:
     if type(seed) is not int or not 1 <= seed <= SEED_LIMIT:
         raise board.BuildError(f"Quartus seed must be an integer from 1 to {SEED_LIMIT}")
@@ -367,42 +342,7 @@ def pinned_rom_digest(root: Path) -> str:
     return _pinned_sha256(_firmware_lock(root), "rom_hex", "sha256")
 
 
-def record_fields(root: Path, repository: str, revision: str, identities: dict[str, str], seed: int,
-                  gpu_router: str = "HIP") -> dict:
-    # A format-1 record names its files from the repository root.
-    qualify = source_provenance.context(root).qualify
-    backend, _architectures, configuration = gpu_choice(gpu_router)
-    return {
-        "format": 1, "repository": repository, "revision": revision,
-        "recipe": qualify(RECIPE), "recipe_sha256": board._sha256(board._regular_input(root, RECIPE)),
-        "abi_definition": qualify(ABI_DEFINITION),
-        "abi_definition_sha256": board._sha256(board._regular_input(root, ABI_DEFINITION)),
-        "dependencies": {}, "tools": dict(identities),
-        "parameters": {
-            "compiler": quartus_lock(root).compiler, "device": board.TARGET, "top": board.TOP,
-            "seed": _check_seed(seed),
-            "toolchain_lock": LOCK, "toolchain_lock_sha256": board._sha256(board._regular_input(root, LOCK)),
-            # The authenticated slot of that lock. Nothing routes on the GPU.
-            "gpu_backend": backend, "toolchain_configuration": configuration,
-            "system_clock_hz": SYSTEM_CLOCK_HZ, "pixel_clock_hz": 74_250_000, "audio_clock_hz": 12_288_000,
-            "reference_clock_hz": 50_000_000, "audio_sample_hz": 48_000,
-            "guest_rates": json.dumps(guest_rates(), sort_keys=True, separators=(",", ":")),
-            "cpu": "fes_i386_cpu, its L1I, L1D and bus interface on DDR port 0 at window offset 0x04000000",
-            "firmware": json.dumps(firmware_digests(root), sort_keys=True, separators=(",", ":")),
-            "ata_disk": "the image at window offset 0x08000000 on DDR port 2 (pc386_disk)",
-            # The script with its source list named, which is too long for a parameter.
-            "machine_netlist": machine_program(Path(MACHINE_NETLIST), "$MACHINE_SOURCES"),
-            "machine_sources_sha256": hashlib.sha256("\n".join(MACHINE_SOURCES).encode()).hexdigest(),
-        },
-    }
-
-
-def create_build_record(root: Path, repository: str, revision: str, identities: dict[str, str], seed: int,
-                        gpu_router: str = "HIP") -> bytes:
-    return encode_build_record(record_fields(root, repository, revision, identities, seed, gpu_router))
-
-
-def project_qsf(root: Path, project: Path, build_id: str, seed: int) -> str:
+def project_qsf(root: Path, project: Path, build_id: str, seed: int, *, threads: int | str) -> str:
     if board.HEX32_RE.fullmatch(build_id) is None:
         raise board.BuildError("build ID must be 32 lowercase hexadecimal characters")
     rel = Path(os.path.relpath(root, project)).as_posix()
@@ -413,7 +353,7 @@ def project_qsf(root: Path, project: Path, build_id: str, seed: int) -> str:
         'set_global_assignment -name PROJECT_OUTPUT_DIRECTORY "output_files"',
         "set_global_assignment -name GENERATE_RBF_FILE ON",
         "set_global_assignment -name IGNORE_PARTITIONS ON",
-        "set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL",
+        f"set_global_assignment -name NUM_PARALLEL_PROCESSORS {threads}",
         f"set_global_assignment -name SEED {_check_seed(seed)}",
         "set_global_assignment -name VERILOG_INPUT_VERSION SYSTEMVERILOG_2005",
         f'set_global_assignment -name LAST_QUARTUS_VERSION "{quartus_lock(root).qsf_version}"',
@@ -431,7 +371,7 @@ def project_qsf(root: Path, project: Path, build_id: str, seed: int) -> str:
     return "\n".join(lines) + "\n\n" + pins
 
 
-def write_project(root: Path, output: Path, build_id: str, seed: int) -> Path:
+def write_project(root: Path, output: Path, build_id: str, seed: int, *, threads: int | str) -> Path:
     project = output / "project"
     if project.is_symlink():
         raise board.BuildError(f"Quartus project must not be a symlink: {project}")
@@ -440,7 +380,7 @@ def write_project(root: Path, output: Path, build_id: str, seed: int) -> Path:
     project.mkdir()
     series = quartus_lock(root).series
     (project / "top.qpf").write_text(f'QUARTUS_VERSION = "{series}";\nPROJECT_REVISION = "top";\n', encoding="utf-8")
-    (project / "top.qsf").write_text(project_qsf(root, project, build_id, seed), encoding="utf-8")
+    (project / "top.qsf").write_text(project_qsf(root, project, build_id, seed, threads=threads), encoding="utf-8")
     return project
 
 
@@ -478,17 +418,6 @@ def elaborate_machine(root: Path, output: Path, project: Path, yosys: Path) -> N
         raise board.BuildError(f"Yosys could not elaborate {MACHINE_TOP}: {exc}") from exc
     if f"module {MACHINE_TOP}(" not in netlist.read_text(encoding="utf-8"):
         raise board.BuildError(f"elaborated netlist does not define {MACHINE_TOP}")
-
-
-def run_quartus(quartus_sh: Path, quartus_root: Path, project: Path, log: Path) -> None:
-    env = os.environ.copy()
-    env["QUARTUS_ROOTDIR"] = str(quartus_root)
-    result = subprocess.run(
-        [str(ROOT / "scripts" / "run_logged.sh"), str(log), str(quartus_sh), "--flow", "compile", board.TOP],
-        cwd=project, env=env, check=False,
-    )
-    if result.returncode != 0:
-        raise board.BuildError(f"Quartus compile failed (exit {result.returncode}); log: {log}")
 
 
 def validate_timing_report(sta_text: str) -> dict:
@@ -561,29 +490,6 @@ def validate_build_evidence(output: Path, project: Path) -> dict:
         "guest_rates": guest_rates(),
         "rbf": {"sha256": board._sha256(payload), "size": payload.stat().st_size},
     }
-
-
-def toolchain_label(root: Path, identities: dict[str, str]) -> str:
-    return (f"{quartus_lock(root).product} ({identities['quartus_sh']}); "
-            f"machine elaborated by Yosys ({identities['yosys']})")
-
-
-def manifest(root: Path, record: bytes, evidence: dict, repository: str, revision: str,
-             identities: dict[str, str]) -> bytes:
-    core = dict(CORE)
-    core["name"] = f"{CORE['name']} (Quartus)"
-    core["description"] = f"Quartus bring-up build. {CORE['description']}"
-    return encode_manifest({
-        "format": 2,
-        "core": core,
-        "target": {"platform": "de10_nano", "device": board.TARGET, "programming_profile": "fes-gp-v1"},
-        "payload": {"file": "core.rbf", **evidence["rbf"]},
-        "abi": {"id": "fes.computer", "major": 1, "minor": 1},
-        "interfaces": [{"id": name, "major": 1, "minor": 0, "required": True} for name in INTERFACES],
-        "build": {"id": build_identity(record), "repository": repository, "revision": revision,
-                  "recipe_sha256": json.loads(record)["recipe_sha256"],
-                  "toolchain": toolchain_label(root, identities)},
-    })
 
 
 def named_sources_sha256(named: list[tuple[str, bytes]]) -> str:
@@ -680,88 +586,3 @@ def check_lockstep_report(root: Path, data: bytes, yosys: board.AuthenticatedToo
             "netlist_program_sha256": expected["program_sha256"], "yosys_tool": yosys.identity,
             "cpu_source_closure_sha256": expected["cpu_source_sha256"], "simulator": verilator,
             "oracle": measured_oracle}
-
-
-def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = None, seed: int = 1,
-          gpu_router: str = "HIP", lockstep_report: Path | None = None) -> Path:
-    _check_seed(seed)
-    if lockstep_report is None:
-        raise board.BuildError("fes.pc386 needs --lockstep-report (scripts/test_fes_i386_lockstep.py --netlist)")
-    try:
-        lockstep_data = Path(lockstep_report).read_bytes()
-    except OSError as exc:
-        raise board.BuildError(f"cannot read the lockstep report: {exc}") from exc
-    backend = gpu_choice(gpu_router)[0]
-    root = Path(root).resolve()
-    package_store = root / "build/packages" if package_store is None else Path(package_store).resolve()
-    if package_store != root / "build/packages":
-        raise board.BuildError("fes.pc386 package store must be build/packages")
-    repository, revision = require_clean_source(root)
-    tools = _authenticate_tools(root, cache_root=cache_root, gpu_router=gpu_router)
-    identities = tools["identities"]
-    output = None
-    try:
-        record = create_build_record(root, repository, revision, identities, seed, gpu_router)
-        build_id = build_identity(record)
-        output = board._prepare_output(root, relative=OUTPUT, build_outputs=BUILD_OUTPUTS)
-        board._write_atomic(output / "build-inputs.json", record)
-        lockstep = check_lockstep_report(root, lockstep_data, tools["yosys"], gpu_router, output)
-        board._write_atomic(output / LOCKSTEP_REPORT, lockstep_data)
-        project = write_project(root, output, build_id, seed)
-        rom = check_rom(root)
-        elaborate_machine(root, output, project, tools["yosys"].path)
-        check_rom(root)
-        run_quartus(tools["quartus_sh"], tools["quartus_root"], project, output / "quartus.log")
-        board._write_atomic(output / "quartus-version.log", (tools["quartus_version"] + "\n").encode())
-        evidence = validate_build_evidence(output, project)
-        evidence.update({"build_id": build_id, "device": board.TARGET, "top": board.TOP, "seed": seed,
-                         "gpu_backend": backend,
-                         "firmware": {**firmware_digests(root), "rom_hex": board._sha256(rom)},
-                         "inputs": {p: board._sha256(root / p) for p in sorted(PINNED_INPUTS)},
-                         "tools": identities, "toolchain": toolchain_label(root, identities),
-                         # What a lockstep report must match: the same Yosys, program and CPU (#1581 S4).
-                         "netlist": {"program_sha256": yosys_netlist.program_sha256(yosys_netlist.SEAL),
-                                     "cpu_source_sha256": yosys_netlist.cpu_source_sha256(root),
-                                     "machine_netlist_sha256": board._sha256(project / MACHINE_NETLIST),
-                                     "yosys": yosys_netlist.lock_record(root, tools["yosys"], gpu_router, LOCK)},
-                         "lockstep": lockstep})
-        board._write_atomic(output / "build-summary.json",
-                            (json.dumps(evidence, indent=2, sort_keys=True) + "\n").encode())
-        encoded = manifest(root, record, evidence, repository, revision, identities)
-        board._write_atomic(output / "manifest.toml", encoded)
-        if _authenticate_tools(root, cache_root=cache_root, gpu_router=gpu_router)["identities"] != identities:
-            raise board.BuildError("authenticated tool identity changed during build")
-        if require_clean_source(root) != (repository, revision):
-            raise board.BuildError("source identity changed during build")
-        require_same_oracle(root, lockstep["oracle"])
-        if create_build_record(root, repository, revision, identities, seed, gpu_router) != record:
-            raise board.BuildError("source inputs changed during build")
-        return export_package(encoded, output / "core.rbf", package_store)
-    except Exception:
-        if output is not None:
-            board._invalidate_failed_artifact(output)
-        raise
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--root", type=Path, default=ROOT)
-    parser.add_argument("--cache-root", type=Path)
-    parser.add_argument("--package-output", type=Path)
-    parser.add_argument("--seed", type=int, default=1, help="Quartus fitter seed; a timing miss fails")
-    parser.add_argument("--gpu-router", choices=("HIP", "CUDA"), default="HIP",
-                        help="the toolchain lock's slot to authenticate: HIP or CUDA (no GPU routing)")
-    parser.add_argument("--lockstep-report", type=Path, required=True,
-                        help="report.json of scripts/test_fes_i386_lockstep.py --netlist on this tree")
-    args = parser.parse_args()
-    try:
-        print(build(args.root, args.package_output, cache_root=args.cache_root, seed=args.seed,
-                    gpu_router=args.gpu_router, lockstep_report=args.lockstep_report))
-    except (board.BuildError, OSError, ValueError) as exc:
-        print(f"FES pc386 (Quartus): {exc}", file=sys.stderr)
-        return 1
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

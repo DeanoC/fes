@@ -53,7 +53,7 @@ nothing by itself.
 | `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `cores/fes-ramtest/toolchain.lock` (100 MHz) | `make build-fes-ramtest-100` | supported; 100 MHz catalog utility, not in the bootstrap image |
 | `fes.atari-st` | `cores/fes-atari-st` | `fes.computer` | `cores/fes-atari-st/toolchain.lock` | `make build-fes-atari-st` | experimental; Atari 520ST firmware shell and Direct/Scanlines parts |
 | `fes.riscv` | `cores/fes-riscv` | `fes.application` with `fes.gamepad` | `cores/fes-riscv/toolchain.lock` | `make build-fes-riscv` | experimental; original RV32I CPU from `cores/fes-common/rtl/riscv` |
-| `fes.pc386` | `cores/fes-pc386` | `fes.computer` with session display and HPS DDR; `fes_i386_cpu`; the HPS stages the disk and settings in the DDR window until M0 | `cores/fes-pc386/toolchain.lock` (Yosys only; Quartus 17.0.2 fits) | `make build-fes-pc386-quartus` | no; not registered; pc386 M5 bring-up |
+| `fes.pc386` | `cores/fes-pc386` | `fes.computer` with session display and HPS DDR; `fes_i386_cpu`; the HPS stages the disk and settings in the DDR window until M0 | `cores/fes-pc386/toolchain.lock` (Yosys only; Quartus 17.0.2 fits) | `python3 cores/fes-pc386/tools/build_pc386_product.py --with-lockstep` (Quartus, registered producer) | experimental; pc386 M5 bring-up |
 | splash / idle | `cores/fes-splash` | none | generic `toolchain.lock`, GPU router off | `make build-fes-splash` | not a play package; pinned as `sealed/fes-splash.rbf` |
 
 The Pong producer returns a package only after reading both the content-addressed

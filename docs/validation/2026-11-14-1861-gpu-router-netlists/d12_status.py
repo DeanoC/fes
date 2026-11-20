@@ -47,7 +47,7 @@ def main() -> int:
     parser.add_argument("--scope", type=Path, default=HERE / "reports-scope")
     parser.add_argument("--cond3", type=Path, default=HERE / "reports-cond3" / "cond3.json")
     parser.add_argument("--seals", type=Path,
-                        default=HERE / "reports-scope4" / "seals-at-head.json",
+                        default=HERE / "reports-preserve" / "seals-at-head.json",
                         help="seals_at_head.py json for the current head")
     arguments = parser.parse_args()
     wanted = {"condition 1": arguments.scope / "cond1-summary.json",

@@ -15,7 +15,7 @@ Turning the identity on is x87 slice 7 (#1768).
 
 The fit harnesses take the settings in place of editing the RTL:
 
-- `build_fes_pc386_quartus.machine_program(..., x87=...)` adds the
+- `pc386_quartus.machine_program(..., x87=...)` adds the
   parameters to the Yosys program. It refuses any key other than the two,
   and any value other than 0 or 1. The seal passes none.
 - `fit_i386_device.py --x87-present/--x87-backend` sets them for
@@ -64,7 +64,7 @@ rerun. The fresh lockstep below ran because the producer requires one.
 
 | Gate | Where | Result |
 | --- | --- | --- |
-| Repo tests (`test_fit_i386_device`, `test_quartus_x87_spike`, `test_build_fes_pc386_quartus`, `test_build_pc386_product`, `test_pc386_seal_process`) | Powerboat | 172 pass |
+| Repo tests (`test_fit_i386_device`, `test_quartus_x87_spike`, `test_pc386_quartus`, `test_build_pc386_product`, `test_pc386_seal_process`) | Powerboat | 172 pass |
 | The non-default settings elaborate: `fit_i386_device.py --design machine --project-only` at `--x87-present 1 --x87-backend 1`, and at 0/0 | Powerboat | Both elaborate with the pc386 lock's Yosys. The program carries `-chparam X87_PRESENT 1` and `X87_BACKEND 1`. The 1/1 netlist is 6,584,369 bytes, against 5,883,250 at 0/0. It holds the DE25 backend, the generate block `g_de25`, with 807 `cpu_x87_g_de25_core` and 2,010 `cpu_x87_g_de25_trans` names, and nothing from `g_de10`. At 0/0 neither block appears: the unit is trimmed. This shows the parameters reach the elaboration. It is not a fit of the 1/1 machine |
 | `sim_fes_pc386.py --suite system` (`pc386_system` with `fes_i386_cpu`, FreeDOS, at the parameters' defaults) | Powerboat | PASS: prompt at 191,533,231 cycles; disk save, CMOS, record, port-2 hold and status-ring checks all pass |
 | Netlist lockstep, DE10 backend, through the producer's `--with-lockstep` | chip-30x0-ai-dev, CUDA toolchain slot | pass: corpus 1,758,699 tests of 941 files, random 32,000, undefined 4,000, directed 84, paging 170, x87 125, BCD 3, transcendental 10, no-387 1,933, memory 27. CPU netlist `7d3534c1`, report `9174a7d0` |

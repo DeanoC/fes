@@ -24,7 +24,7 @@ import pc386_seal_evidence as evidence
 from scripts import input_identity, source_closure
 from scripts.core_package import package_identity
 from scripts.export_core_package import build_identity
-from tests.test_build_fes_pc386_quartus import CLOCK_TABLE, MET, UNCONSTRAINED, FIT_SUMMARY
+from tests.test_pc386_quartus import CLOCK_TABLE, MET, UNCONSTRAINED, FIT_SUMMARY
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = 'https://github.com/DeanoC/fes.git'
@@ -60,7 +60,7 @@ class SealedEntryFixture(unittest.TestCase):
         cls.repo = Path(cls.temp.name) / 'repo'
         cls.root = cls.repo / 'sources/misteross'
         cls.root.mkdir(parents=True)
-        paths = set(seal.PINNED_INPUTS) | source_closure.imports('build_fes_pc386_quartus', ROOT)
+        paths = set(seal.PINNED_INPUTS) | source_closure.imports("pc386_quartus", ROOT)
         paths |= {'scripts/source_closure.py', 'scripts/bootstrap.sh', 'scripts/toolchain_cache.py'}
         for path in sorted(paths):
             target = cls.root / path

@@ -1,0 +1,41 @@
+corner	hold_only	check	coverage	paths	worst_slack_ns	from	to
+Slow fix4 100C Model	0	setup	analyzed	1	8.608	machine_presenter_h_a[0]~ERTM	machine_presenter_picture[7]~ERTM
+Slow fix4 100C Model	0	hold	analyzed	1	0.097	cpu_x87_g_de25_core_fast_s5_low[21]	cpu_x87_g_de25_core_fast_s6_product[21]
+Slow fix4 100C Model	0	recovery	analyzed	1	13.812	reset	machine_at_pit_u_KF8253_Counter_1_dec_bcd_q[10]
+Slow fix4 100C Model	0	removal	analyzed	1	0.968	reset	machine_at_pic_master_priority_rotate[2]~DUPLICATE
+Slow fix4 100C Model	0	clk_clock_setup	analyzed	1	8.661	_43225_[376]	cpu_l1d_q_tx
+Slow fix4 100C Model	0	clk_clock_hold	analyzed	1	0.097	cpu_x87_g_de25_core_fast_s5_low[21]	cpu_x87_g_de25_core_fast_s6_product[21]
+Slow fix4 100C Model	0	pixel_clk_clock_setup	analyzed	1	8.608	machine_presenter_h_a[0]~ERTM	machine_presenter_picture[7]~ERTM
+Slow fix4 100C Model	0	pixel_clk_clock_hold	analyzed	1	0.109	machine_presenter_width[0]	add_1160~126_ERTM2
+Slow fix4 100C Model	0	internal_setup	analyzed	1	8.608	machine_presenter_h_a[0]~ERTM	machine_presenter_picture[7]~ERTM
+Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	6.205		
+Slow fix4 0C Model	0	setup	analyzed	1	7.667	_43225_[376]	cpu_l1d_q_tx
+Slow fix4 0C Model	0	hold	analyzed	1	0.123	cpu_x87_g_de25_core_fast_s5_low[21]	cpu_x87_g_de25_core_fast_s6_product[21]
+Slow fix4 0C Model	0	recovery	analyzed	1	13.495	reset	machine_at_pit_u_KF8253_Counter_1_dec_bcd_q[10]
+Slow fix4 0C Model	0	removal	analyzed	1	1.094	reset	machine_at_pic_master_priority_rotate[2]~DUPLICATE
+Slow fix4 0C Model	0	clk_clock_setup	analyzed	1	7.667	_43225_[376]	cpu_l1d_q_tx
+Slow fix4 0C Model	0	clk_clock_hold	analyzed	1	0.123	cpu_x87_g_de25_core_fast_s5_low[21]	cpu_x87_g_de25_core_fast_s6_product[21]
+Slow fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	7.738	machine_presenter_h_a[0]~ERTM	machine_presenter_picture[7]~ERTM
+Slow fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.144	machine_presenter_width[0]	add_1160~126_ERTM2
+Slow fix4 0C Model	0	internal_setup	analyzed	1	7.667	_43225_[376]	cpu_l1d_q_tx
+Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.163		
+Slow fix4a 0C Model	0	setup	analyzed	1	7.660	_43225_[376]	cpu_l1d_q_tx
+Slow fix4a 0C Model	0	hold	analyzed	1	0.120	cpu_x87_g_de25_core_fast_s5_low[21]	cpu_x87_g_de25_core_fast_s6_product[21]
+Slow fix4a 0C Model	0	recovery	analyzed	1	13.505	reset	machine_at_pit_u_KF8253_Counter_1_dec_bcd_q[10]
+Slow fix4a 0C Model	0	removal	analyzed	1	1.085	reset	machine_at_pic_master_priority_rotate[2]~DUPLICATE
+Slow fix4a 0C Model	0	clk_clock_setup	analyzed	1	7.660	_43225_[376]	cpu_l1d_q_tx
+Slow fix4a 0C Model	0	clk_clock_hold	analyzed	1	0.120	cpu_x87_g_de25_core_fast_s5_low[21]	cpu_x87_g_de25_core_fast_s6_product[21]
+Slow fix4a 0C Model	0	pixel_clk_clock_setup	analyzed	1	7.824	machine_presenter_h_a[0]~ERTM	machine_presenter_picture[7]~ERTM
+Slow fix4a 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.140	machine_presenter_width[0]	add_1160~126_ERTM2
+Slow fix4a 0C Model	0	internal_setup	analyzed	1	7.660	_43225_[376]	cpu_l1d_q_tx
+Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	6.175		
+Fast fix4 0C Model	0	setup	analyzed	1	10.564	machine_presenter_h_a[0]~ERTM	machine_presenter_picture[7]~ERTM
+Fast fix4 0C Model	0	hold	analyzed	1	0.029	cpu_x87_g_de25_core_fast_s5_low[21]	cpu_x87_g_de25_core_fast_s6_product[21]
+Fast fix4 0C Model	0	recovery	analyzed	1	14.681	reset	machine_at_pit_u_KF8253_Counter_1_dec_bcd_q[10]
+Fast fix4 0C Model	0	removal	analyzed	1	0.595	reset	machine_at_pic_master_priority_rotate[2]~DUPLICATE
+Fast fix4 0C Model	0	clk_clock_setup	analyzed	1	11.514	cpu_wb_fault[3]	cpu_l1i_page[1]
+Fast fix4 0C Model	0	clk_clock_hold	analyzed	1	0.029	cpu_x87_g_de25_core_fast_s5_low[21]	cpu_x87_g_de25_core_fast_s6_product[21]
+Fast fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	10.564	machine_presenter_h_a[0]~ERTM	machine_presenter_picture[7]~ERTM
+Fast fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.038	machine_presenter_width[0]	add_1160~126_ERTM2
+Fast fix4 0C Model	0	internal_setup	analyzed	1	10.564	machine_presenter_h_a[0]~ERTM	machine_presenter_picture[7]~ERTM
+Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.325		

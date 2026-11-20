@@ -31,7 +31,7 @@ command for command ([run q4](../2026-10-28-pc386-m4-diagnostic/summary.md#kit-r
 
 ## How the lane builds the shell
 
-[`scripts/build_fes_pc386_quartus.py`](../../../sources/misteross/scripts/build_fes_pc386_quartus.py)
+[`scripts/build_fes_pc386_quartus.py`](https://github.com/DeanoC/fes/blob/e10811e575/sources/misteross/scripts/build_fes_pc386_quartus.py)
 (`make build-fes-pc386-diag-quartus`) takes the RTL, guest rates, core ID and
 interfaces from the OSS producer. The locked Yosys elaborates the machine below
 the board shell, `pc386_diag`, at the guest rates and writes it as Verilog.

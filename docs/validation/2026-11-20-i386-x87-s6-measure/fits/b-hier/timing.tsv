@@ -1,0 +1,41 @@
+corner	hold_only	check	coverage	paths	worst_slack_ns	from	to
+Slow fix4 100C Model	0	setup	analyzed	1	8.570	cpu|l1i|blk[3]~DUPLICATE	cpu|frontend|ras|stack_rtl_0|auto_generated|rdaddr_reg[1]
+Slow fix4 100C Model	0	hold	analyzed	1	0.091	cpu|x87|g_de25_core|fast|s4_mid[4]	cpu|x87|g_de25_core|fast|s5_high[4]
+Slow fix4 100C Model	0	recovery	analyzed	1	14.300	reset	machine|at|pic|slave|u_Interrupt_Request|interrupt_request_register[1]~DUPLICATE
+Slow fix4 100C Model	0	removal	analyzed	1	0.690	reset	machine|at|pit|u_KF8253_Counter_0|load_edge
+Slow fix4 100C Model	0	clk_clock_setup	analyzed	1	8.570	cpu|l1i|blk[3]~DUPLICATE	cpu|frontend|ras|stack_rtl_0|auto_generated|rdaddr_reg[1]
+Slow fix4 100C Model	0	clk_clock_hold	analyzed	1	0.091	cpu|x87|g_de25_core|fast|s4_mid[4]	cpu|x87|g_de25_core|fast|s5_high[4]
+Slow fix4 100C Model	0	pixel_clk_clock_setup	analyzed	1	8.698	machine|presenter|mult_1~mac~AY_REG	machine|presenter|p_wx[2]~ERTM
+Slow fix4 100C Model	0	pixel_clk_clock_hold	analyzed	1	0.134	machine|presenter|reduce_or_19~0_ERTM	machine|presenter|reduce_or_19~1_ERTM4
+Slow fix4 100C Model	0	internal_setup	analyzed	1	8.570	cpu|l1i|blk[3]~DUPLICATE	cpu|frontend|ras|stack_rtl_0|auto_generated|rdaddr_reg[1]
+Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	6.204		
+Slow fix4 0C Model	0	setup	analyzed	1	7.580	cpu|_05318_[217]	cpu|r_fp[29]
+Slow fix4 0C Model	0	hold	analyzed	1	0.109	cpu|x87|g_de25_core|fast|s4_mid[4]	cpu|x87|g_de25_core|fast|s5_high[4]
+Slow fix4 0C Model	0	recovery	analyzed	1	14.011	reset	machine|at|pic|slave|u_Interrupt_Request|interrupt_request_register[1]~DUPLICATE
+Slow fix4 0C Model	0	removal	analyzed	1	0.800	reset	machine|at|pit|u_KF8253_Counter_0|load_edge
+Slow fix4 0C Model	0	clk_clock_setup	analyzed	1	7.580	cpu|_05318_[217]	cpu|r_fp[29]
+Slow fix4 0C Model	0	clk_clock_hold	analyzed	1	0.109	cpu|x87|g_de25_core|fast|s4_mid[4]	cpu|x87|g_de25_core|fast|s5_high[4]
+Slow fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	7.985	machine|presenter|mult_1~mac~AY_REG	machine|presenter|p_wx[2]~ERTM
+Slow fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.150	machine|presenter|reduce_or_19~0_ERTM	machine|presenter|reduce_or_19~1_ERTM4
+Slow fix4 0C Model	0	internal_setup	analyzed	1	7.580	cpu|_05318_[217]	cpu|r_fp[29]
+Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.164		
+Slow fix4a 0C Model	0	setup	analyzed	1	7.585	cpu|_05318_[217]	cpu|r_fp[23]
+Slow fix4a 0C Model	0	hold	analyzed	1	0.108	cpu|x87|g_de25_core|fast|s4_mid[4]	cpu|x87|g_de25_core|fast|s5_high[4]
+Slow fix4a 0C Model	0	recovery	analyzed	1	14.022	reset	machine|at|pic|slave|u_Interrupt_Request|interrupt_request_register[1]~DUPLICATE
+Slow fix4a 0C Model	0	removal	analyzed	1	0.793	reset	machine|at|pit|u_KF8253_Counter_0|load_edge
+Slow fix4a 0C Model	0	clk_clock_setup	analyzed	1	7.585	cpu|_05318_[217]	cpu|r_fp[23]
+Slow fix4a 0C Model	0	clk_clock_hold	analyzed	1	0.108	cpu|x87|g_de25_core|fast|s4_mid[4]	cpu|x87|g_de25_core|fast|s5_high[4]
+Slow fix4a 0C Model	0	pixel_clk_clock_setup	analyzed	1	8.068	machine|presenter|mult_1~mac~AY_REG	machine|presenter|p_wx[2]~ERTM
+Slow fix4a 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.153	machine|presenter|reduce_or_19~0_ERTM	machine|presenter|reduce_or_19~1_ERTM4
+Slow fix4a 0C Model	0	internal_setup	analyzed	1	7.585	cpu|_05318_[217]	cpu|r_fp[23]
+Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	6.175		
+Fast fix4 0C Model	0	setup	analyzed	1	10.637	machine|presenter|mult_1~mac~AY_REG	machine|presenter|p_wx[2]~ERTM
+Fast fix4 0C Model	0	hold	analyzed	1	0.024	cpu|x87|g_de25_core|fast|s4_mid[4]	cpu|x87|g_de25_core|fast|s5_high[4]
+Fast fix4 0C Model	0	recovery	analyzed	1	15.037	reset	machine|at|pic|slave|u_Interrupt_Request|interrupt_request_register[1]~DUPLICATE
+Fast fix4 0C Model	0	removal	analyzed	1	0.404	reset	machine|at|pit|u_KF8253_Counter_0|load_edge
+Fast fix4 0C Model	0	clk_clock_setup	analyzed	1	11.406	cpu|l1i|blk[3]~DUPLICATE	cpu|frontend|ras|stack_rtl_0|auto_generated|rdaddr_reg[1]
+Fast fix4 0C Model	0	clk_clock_hold	analyzed	1	0.024	cpu|x87|g_de25_core|fast|s4_mid[4]	cpu|x87|g_de25_core|fast|s5_high[4]
+Fast fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	10.637	machine|presenter|mult_1~mac~AY_REG	machine|presenter|p_wx[2]~ERTM
+Fast fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.051	machine|presenter|width[2]	machine|presenter|add_0~116_ERTM1
+Fast fix4 0C Model	0	internal_setup	analyzed	1	10.637	machine|presenter|mult_1~mac~AY_REG	machine|presenter|p_wx[2]~ERTM
+Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.325		

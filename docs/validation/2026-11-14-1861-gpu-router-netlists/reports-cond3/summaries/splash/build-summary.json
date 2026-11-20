@@ -1,0 +1,178 @@
+{
+  "build_id": "4ef956237159c1e8fa9b6fb3b5ec87c3",
+  "device": "5CSEBA6U23I7",
+  "format2_package": false,
+  "hps_ddr": {
+    "cfg": {
+      "cfg_axi_mm_select": "0x0",
+      "cfg_cport_rfifo_map": "0xd0",
+      "cfg_cport_type": "0x3f",
+      "cfg_cport_wfifo_map": "0xd0",
+      "cfg_port_width": "0x16",
+      "cfg_rfifo_cport_map": "0x2100",
+      "cfg_wfifo_cport_map": "0x2100"
+    },
+    "idle": true,
+    "interface": "fes.memory.hps-ddr",
+    "major": 1,
+    "minor": 0
+  },
+  "inputs": {
+    "boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+    "cores/fes-common/generated/fes_application.vh": "e460d17b0dabc1b55ab16712e9239aadcef3800861b3c049a83e5046a25b9d19",
+    "cores/fes-splash/constraints.qsf": "c38882cbba0b0e3050e86f7d2acd7e7b090fb9329e43e2a6c4f438ab7c7df83f",
+    "cores/fes-splash/idle-contract.toml": "15f38a30e636dcbaade06275e53a356181983cf18a70996f06c0cc1fb16fb524",
+    "cores/fes-splash/rtl/fes_splash_core.v": "9740e47e25ffa8a9bd124339bcefd18a48c62ac5500f8d862e5abe435e50a7a6",
+    "cores/fes-splash/rtl/pixel_pll.v": "691a5ad78d887c8b724446e922f4b6ddfb3436326dc3f59bf9037cd7ac649fa4",
+    "cores/fes-splash/rtl/top.v": "90e2eff85da066615e8b408b71fed77ff7de16f499651074598ae7ea3d9c6306",
+    "scripts/build_fes_splash.py": "6c97bf5dd7097e1f043deca5ad453dcb6ec6fb3cc537c20e78e7733533baa152",
+    "scripts/fes_build_common.py": "18544f9e3acfb78ee5393a299783ce97f8227a5008749b78bd0ad3e33e83e958",
+    "scripts/fes_de10nano_evidence.py": "c54426606c631bfb2db01e6c3ffe0debad255ce9516a554c2776620e7650fd6e",
+    "toolchain.lock": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8"
+  },
+  "rbf": {
+    "sha256": "64f1f16daedba4ed19179bd5d7c6f3eb3058a688d15441c8c8d89e113060f182",
+    "size": 1963321
+  },
+  "resources": {
+    "MISTRAL_BUF": {
+      "available": 0,
+      "used": 10
+    },
+    "MISTRAL_CLKENA": {
+      "available": 8,
+      "used": 1
+    },
+    "MISTRAL_CLKENA_PLL": {
+      "available": 8,
+      "used": 0
+    },
+    "MISTRAL_COMB": {
+      "available": 83820,
+      "used": 641
+    },
+    "MISTRAL_FF": {
+      "available": 167640,
+      "used": 29
+    },
+    "MISTRAL_IO": {
+      "available": 472,
+      "used": 31
+    },
+    "MISTRAL_M10K": {
+      "available": 553,
+      "used": 0
+    },
+    "MISTRAL_MUL18X18": {
+      "available": 112,
+      "used": 0
+    },
+    "MISTRAL_MUL18X19": {
+      "available": 112,
+      "used": 0
+    },
+    "MISTRAL_MUL18X19_COMBINED": {
+      "available": 112,
+      "used": 0
+    },
+    "MISTRAL_MUL27X27": {
+      "available": 112,
+      "used": 0
+    },
+    "MISTRAL_MUL9X9": {
+      "available": 336,
+      "used": 0
+    },
+    "altera_pll": {
+      "available": 6,
+      "used": 1
+    },
+    "cyclonev_chipidblock": {
+      "available": 1,
+      "used": 0
+    },
+    "cyclonev_crcblock": {
+      "available": 1,
+      "used": 0
+    },
+    "cyclonev_hps_interface_fpga2sdram": {
+      "available": 1,
+      "used": 1
+    },
+    "cyclonev_hps_interface_mpu_general_purpose": {
+      "available": 1,
+      "used": 0
+    },
+    "cyclonev_hps_interface_peripheral_i2c": {
+      "available": 4,
+      "used": 1
+    },
+    "cyclonev_jtag": {
+      "available": 1,
+      "used": 0
+    },
+    "cyclonev_opregblock": {
+      "available": 1,
+      "used": 0
+    },
+    "cyclonev_oscillator": {
+      "available": 1,
+      "used": 0
+    }
+  },
+  "route": {
+    "router": "default",
+    "status": "pass",
+    "unrouted": false
+  },
+  "status": "pass",
+  "synthesis_cells": {
+    "$logic_and": 2,
+    "$specify2": 7,
+    "$specify3": 2,
+    "$specrule": 7,
+    "MISTRAL_ALUT2": 25,
+    "MISTRAL_ALUT3": 42,
+    "MISTRAL_ALUT4": 29,
+    "MISTRAL_ALUT5": 19,
+    "MISTRAL_ALUT6": 10,
+    "MISTRAL_ALUT_ARITH": 511,
+    "MISTRAL_CLKBUF": 1,
+    "MISTRAL_FF": 29,
+    "MISTRAL_IB": 1,
+    "MISTRAL_IO": 2,
+    "MISTRAL_NOT": 11,
+    "MISTRAL_OB": 28,
+    "altera_pll": 1,
+    "cyclonev_hps_interface_fpga2sdram": 1,
+    "cyclonev_hps_interface_peripheral_i2c": 1
+  },
+  "timing": {
+    "pixel": {
+      "achieved_mhz": 236.5743865966797,
+      "clock": "pixel_clk",
+      "constraint_mhz": 74.25006866455078,
+      "requested_mhz": 74.25,
+      "status": "pass"
+    },
+    "reference": {
+      "clock": "FPGA_CLK1_50",
+      "constraint_mhz": 50.0,
+      "evidence": "boards/de10nano/clocks.sdc and routed PLL",
+      "requested_mhz": 50.0,
+      "status": "pass"
+    },
+    "status": "pass"
+  },
+  "tools": {
+    "mistral": "commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=ad40bdd0c866dccb2c4e25dd5f7b68c80bb5cfcdeef9e8b30e62cf783f2a3a90",
+    "nextpnr-mistral": "commit=9128800fa6e77c4138088a7107a95376ba47ff15; sha256=4acf32cae7c70669aceba90cef224035849e755e94ce506a62f247c0a5c8ce41; gpu-router=OFF; hip-architectures=unused",
+    "yosys": "commit=3a5accbd78c526ab7bae32640044a2e062a3cfc9; sha256=8a9cfa3cb05c80712455f04b5a574eaaa231b135826aab4de864405c380871f0"
+  },
+  "top": "top",
+  "user_io": {
+    "core_id": "",
+    "hps_fb": false,
+    "probe": false
+  }
+}

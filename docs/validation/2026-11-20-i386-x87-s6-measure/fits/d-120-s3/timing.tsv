@@ -1,0 +1,41 @@
+corner	hold_only	check	coverage	paths	worst_slack_ns	from	to
+Slow fix4 100C Model	0	setup	analyzed	1	1.632	cpu_dfwd_ready[22]	_41270_[106]~DUPLICATE
+Slow fix4 100C Model	0	hold	analyzed	1	0.081	_29745_[85]~4_ERTM7	_29745_[85]~4_ERTM8
+Slow fix4 100C Model	0	recovery	analyzed	1	6.090	reset	machine_at_pit_u_KF8253_Counter_0_count_latched[9]
+Slow fix4 100C Model	0	removal	analyzed	1	0.709	reset	machine_at_pic_slave_u_Bus_Control_Logic_prev_write_enable_n~DUPLICATE
+Slow fix4 100C Model	0	clk_clock_setup	analyzed	1	1.632	cpu_dfwd_ready[22]	_41270_[106]~DUPLICATE
+Slow fix4 100C Model	0	clk_clock_hold	analyzed	1	0.081	_29745_[85]~4_ERTM7	_29745_[85]~4_ERTM8
+Slow fix4 100C Model	0	pixel_clk_clock_setup	analyzed	1	8.339	machine_presenter_h_a[18]~ERTM	machine_presenter_picture[21]~ERTM
+Slow fix4 100C Model	0	pixel_clk_clock_hold	analyzed	1	0.134	reduce_or_2683~0_ERTM3	reduce_or_2683~1_ERTM4
+Slow fix4 100C Model	0	internal_setup	analyzed	1	1.632	cpu_dfwd_ready[22]	_41270_[106]~DUPLICATE
+Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	3.550		
+Slow fix4 0C Model	0	setup	analyzed	1	0.738	_42671_[157]	cpu_m2_load
+Slow fix4 0C Model	0	hold	analyzed	1	0.101	_29745_[85]~4_ERTM7	_29745_[85]~4_ERTM8
+Slow fix4 0C Model	0	recovery	analyzed	1	5.808	reset	machine_at_pit_u_KF8253_Counter_0_count_latched[9]
+Slow fix4 0C Model	0	removal	analyzed	1	0.793	reset	machine_at_pic_slave_u_Bus_Control_Logic_prev_write_enable_n~DUPLICATE
+Slow fix4 0C Model	0	clk_clock_setup	analyzed	1	0.738	_42671_[157]	cpu_m2_load
+Slow fix4 0C Model	0	clk_clock_hold	analyzed	1	0.101	_29745_[85]~4_ERTM7	_29745_[85]~4_ERTM8
+Slow fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	7.402	machine_presenter_h_a[18]~ERTM	machine_presenter_picture[21]~ERTM
+Slow fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.149	reduce_or_2683~0_ERTM3	reduce_or_2683~1_ERTM4
+Slow fix4 0C Model	0	internal_setup	analyzed	1	0.738	_42671_[157]	cpu_m2_load
+Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	3.525		
+Slow fix4a 0C Model	0	setup	analyzed	1	0.740	_42671_[157]	cpu_m2_load
+Slow fix4a 0C Model	0	hold	analyzed	1	0.100	_29745_[85]~4_ERTM7	_29745_[85]~4_ERTM8
+Slow fix4a 0C Model	0	recovery	analyzed	1	5.815	reset	machine_at_pit_u_KF8253_Counter_0_count_latched[9]
+Slow fix4a 0C Model	0	removal	analyzed	1	0.792	reset	machine_at_pic_slave_u_Bus_Control_Logic_prev_write_enable_n~DUPLICATE
+Slow fix4a 0C Model	0	clk_clock_setup	analyzed	1	0.740	_42671_[157]	cpu_m2_load
+Slow fix4a 0C Model	0	clk_clock_hold	analyzed	1	0.100	_29745_[85]~4_ERTM7	_29745_[85]~4_ERTM8
+Slow fix4a 0C Model	0	pixel_clk_clock_setup	analyzed	1	7.496	machine_presenter_h_a[18]~ERTM	machine_presenter_picture[21]~ERTM
+Slow fix4a 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.151	reduce_or_2683~0_ERTM3	reduce_or_2683~1_ERTM4
+Slow fix4a 0C Model	0	internal_setup	analyzed	1	0.740	_42671_[157]	cpu_m2_load
+Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	3.524		
+Fast fix4 0C Model	0	setup	analyzed	1	4.083	_42671_[157]	cpu_m2_load
+Fast fix4 0C Model	0	hold	analyzed	1	0.018	_29745_[85]~4_ERTM7	_29745_[85]~4_ERTM8
+Fast fix4 0C Model	0	recovery	analyzed	1	6.897	reset	machine_at_pit_u_KF8253_Counter_0_count_latched[9]
+Fast fix4 0C Model	0	removal	analyzed	1	0.419	reset	machine_at_pic_slave_u_Bus_Control_Logic_prev_write_enable_n~DUPLICATE
+Fast fix4 0C Model	0	clk_clock_setup	analyzed	1	4.083	_42671_[157]	cpu_m2_load
+Fast fix4 0C Model	0	clk_clock_hold	analyzed	1	0.018	_29745_[85]~4_ERTM7	_29745_[85]~4_ERTM8
+Fast fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	10.398	machine_presenter_h_a[18]~ERTM	machine_presenter_picture[21]~ERTM
+Fast fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.050	machine_presenter_p_a0[10]~ERTM	add_1201~11_ERTM
+Fast fix4 0C Model	0	internal_setup	analyzed	1	4.083	_42671_[157]	cpu_m2_load
+Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	3.764		

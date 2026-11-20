@@ -6,7 +6,7 @@ cores/fes-common/sim/i386/governor_bench.asm runs in lockstep_tb.cpp's
 governor mode, the RTL alone with port 0 at its fixed latency, I/O and MMIO
 (A0000h-BFFFFh) done at once, under max and under each preset, at the
 package's sealed clock: GOV_N and GOV_D are the producer's
-(scripts/build_fes_pc386_quartus.py), so cycles are the kit's. For each
+(scripts/pc386_quartus.py), so cycles are the kit's. For each
 benchmark loop, between its two marks:
 
   charges  the reference clocks the governor charged must equal the table's
@@ -60,7 +60,7 @@ import sys
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import build_fes_pc386_quartus as producer
+from scripts import pc386_quartus as producer
 from scripts import fes_i386_governor as governor
 from scripts import fes_i386_oracle as oracle
 from scripts import i386_verilator

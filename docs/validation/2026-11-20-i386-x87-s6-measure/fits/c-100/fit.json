@@ -1,0 +1,435 @@
+{
+  "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+  "commands": [
+    [
+      "/data/altera_pro/26.3/quartus/bin/quartus_syn",
+      "pc386_system"
+    ],
+    [
+      "/data/altera_pro/26.3/quartus/bin/quartus_fit",
+      "pc386_system"
+    ],
+    [
+      "/data/altera_pro/26.3/quartus/bin/quartus_sta",
+      "--multicorner",
+      "pc386_system"
+    ],
+    [
+      "/data/altera_pro/26.3/quartus/bin/quartus_sta",
+      "-t",
+      "timing.tcl",
+      "/data/projects/x87s6m/out-c-100",
+      "pc386_system"
+    ]
+  ],
+  "device": "A5EB013BB23BE4SCS",
+  "family": "Agilex 5",
+  "hardware_acceptance": "not-run",
+  "host": "chip-30x0-ai-dev",
+  "period_ns": 10.0,
+  "programming_artifact": null,
+  "quartus": {
+    "edition": "pro",
+    "lock": "boards/de25nano/quartus.lock",
+    "qsf_version": "26.3.0 Pro Edition",
+    "release": "26.3.0",
+    "series": "26.3",
+    "version_line": "Version 26.3.0 Build 114 10/14/2026 SC Pro Edition"
+  },
+  "real_pins": 2,
+  "resources": {
+    "alms": {
+      "available": 46800.0,
+      "percent_of_device": 91.92,
+      "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+      "used": 43020.0
+    },
+    "alms_in_final_placement": {
+      "available": 46800.0,
+      "percent_of_device": 95.25,
+      "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+      "used": 44577.0
+    },
+    "alms_recoverable_by_packing": {
+      "available": 46800.0,
+      "percent_of_device": 5.34,
+      "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+      "used": 2499.0
+    },
+    "alms_unavailable": {
+      "available": 46800.0,
+      "percent_of_device": 2.01,
+      "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+      "used": 942.0
+    },
+    "alms_with_virtual_pins": {
+      "available": 46800.0,
+      "percent_of_device": 1.39,
+      "report_label": "* ALMs containing virtual pins",
+      "report_percent": "1",
+      "used": 651.0
+    },
+    "aluts": {
+      "report_label": "Combinational ALUT usage for logic",
+      "used": 68422.0
+    },
+    "block_memory_bits": {
+      "available": 7331840.0,
+      "percent_of_device": 19.82,
+      "report_label": "Total block memory bits",
+      "report_percent": "20",
+      "used": 1453350.0
+    },
+    "dsp_blocks": {
+      "available": 188.0,
+      "percent_of_device": 22.34,
+      "report_label": "DSP Blocks Needed [=A+B+C-D]",
+      "used": 42.0
+    },
+    "labs": {
+      "available": 4680.0,
+      "percent_of_device": 99.7,
+      "report_label": "Total LABs:  partially or completely used",
+      "used": 4666.0
+    },
+    "logic_labs": {
+      "report_label": "-- Logic LABs",
+      "used": 4656.0
+    },
+    "memory_labs": {
+      "report_label": "-- Memory LABs (up to half of total LABs)",
+      "used": 10.0
+    },
+    "mlabs": {
+      "report_label": "Total MLAB memory bits",
+      "used": 1421.0
+    },
+    "packing_difficulty": {
+      "report_label": "Difficulty packing design",
+      "value": "Medium"
+    },
+    "ram_blocks": {
+      "available": 358.0,
+      "percent_of_device": 40.5,
+      "report_label": "M20K blocks",
+      "used": 145.0
+    },
+    "registers": {
+      "report_label": "Dedicated logic registers",
+      "used": 41068.0
+    }
+  },
+  "seed": 1,
+  "status": "pass",
+  "synthesis_tool": "quartus_syn",
+  "timing": {
+    "corner_count": 4,
+    "corners": [
+      {
+        "analyses": {
+          "clk_clock_hold": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.087
+          },
+          "clk_clock_setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 2.992
+          },
+          "hold": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.087
+          },
+          "internal_setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 2.992
+          },
+          "minimum_pulse_width": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 4.384
+          },
+          "pixel_clk_clock_hold": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.127
+          },
+          "pixel_clk_clock_setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 8.388
+          },
+          "recovery": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 7.62
+          },
+          "removal": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.306
+          },
+          "setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 2.992
+          }
+        },
+        "corner": "Slow fix4 100C Model",
+        "hold_only": false
+      },
+      {
+        "analyses": {
+          "clk_clock_hold": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.114
+          },
+          "clk_clock_setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 2.019
+          },
+          "hold": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.114
+          },
+          "internal_setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 2.019
+          },
+          "minimum_pulse_width": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 4.358
+          },
+          "pixel_clk_clock_hold": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.152
+          },
+          "pixel_clk_clock_setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 7.493
+          },
+          "recovery": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 7.279
+          },
+          "removal": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.352
+          },
+          "setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 2.019
+          }
+        },
+        "corner": "Slow fix4 0C Model",
+        "hold_only": false
+      },
+      {
+        "analyses": {
+          "clk_clock_hold": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.11
+          },
+          "clk_clock_setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 2.021
+          },
+          "hold": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.11
+          },
+          "internal_setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 2.021
+          },
+          "minimum_pulse_width": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 4.357
+          },
+          "pixel_clk_clock_hold": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.153
+          },
+          "pixel_clk_clock_setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 7.584
+          },
+          "recovery": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 7.298
+          },
+          "removal": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.344
+          },
+          "setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 2.021
+          }
+        },
+        "corner": "Slow fix4a 0C Model",
+        "hold_only": false
+      },
+      {
+        "analyses": {
+          "clk_clock_hold": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.016
+          },
+          "clk_clock_setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 5.645
+          },
+          "hold": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.016
+          },
+          "internal_setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 5.645
+          },
+          "minimum_pulse_width": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 4.597
+          },
+          "pixel_clk_clock_hold": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.041
+          },
+          "pixel_clk_clock_setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 10.384
+          },
+          "recovery": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 8.473
+          },
+          "removal": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 0.172
+          },
+          "setup": {
+            "coverage": "analyzed",
+            "paths": 1,
+            "worst_slack_ns": 5.645
+          }
+        },
+        "corner": "Fast fix4 0C Model",
+        "hold_only": false
+      }
+    ],
+    "fmax": [
+      {
+        "clocks": [
+          {
+            "clock": "clk_clock",
+            "fmax": "142.69",
+            "restricted_fmax": "142.69"
+          },
+          {
+            "clock": "pixel_clk_clock",
+            "fmax": "196.85",
+            "restricted_fmax": "196.85"
+          }
+        ],
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "clocks": [
+          {
+            "clock": "clk_clock",
+            "fmax": "125.3",
+            "restricted_fmax": "125.3"
+          },
+          {
+            "clock": "pixel_clk_clock",
+            "fmax": "167.36",
+            "restricted_fmax": "167.36"
+          }
+        ],
+        "corner": "Slow fix4 0C Model"
+      },
+      {
+        "clocks": [
+          {
+            "clock": "clk_clock",
+            "fmax": "125.33",
+            "restricted_fmax": "125.33"
+          },
+          {
+            "clock": "pixel_clk_clock",
+            "fmax": "169.95",
+            "restricted_fmax": "169.95"
+          }
+        ],
+        "corner": "Slow fix4a 0C Model"
+      },
+      {
+        "clocks": [
+          {
+            "clock": "clk_clock",
+            "fmax": "229.62",
+            "restricted_fmax": "229.62"
+          },
+          {
+            "clock": "pixel_clk_clock",
+            "fmax": "324.25",
+            "restricted_fmax": "324.25"
+          }
+        ],
+        "corner": "Fast fix4 0C Model"
+      }
+    ],
+    "status": "pass"
+  },
+  "tool_sha256": {
+    "/data/altera_pro/26.3/quartus/bin/quartus_fit": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+    "/data/altera_pro/26.3/quartus/bin/quartus_sta": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+    "/data/altera_pro/26.3/quartus/bin/quartus_syn": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14"
+  },
+  "top": "pc386_system",
+  "unconstrained_clock_rows": [
+    [
+      "Illegal Clocks",
+      "0",
+      "0"
+    ],
+    [
+      "Unconstrained Clocks",
+      "0",
+      "0"
+    ]
+  ]
+}

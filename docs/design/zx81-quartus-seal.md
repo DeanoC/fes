@@ -72,7 +72,7 @@ The producers build on that in different ways:
   `runtime_dependencies`), every-seed timing over the recipe's
   `seeds = [1, 2, 3]`, and an independent seed-1 rebuild that must reproduce the
   RBF (`:368-384`).
-- **pc386** (`M/scripts/build_fes_pc386_quartus.py:239-256`): authenticates the
+- **pc386** (`_authenticate_tools` in `M/scripts/pc386_quartus.py`): authenticates the
   whole nextpnr slot that `--gpu-router` selects, even though nothing routes on
   a GPU, because its Yosys elaboration comes from that slot.
 
