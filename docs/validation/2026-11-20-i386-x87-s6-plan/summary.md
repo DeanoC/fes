@@ -134,7 +134,7 @@ is the wrong one.
 | A | **Share one multiplier** (the brief's headline) | ≤ 9 DSP, which aren't binding. ALMs: only `fes_i386_x87_mul`'s own adder tree. | At `X87_BACKEND = 1`, every multiplier use except `S_SHIFT` is guarded out, so it survives **only as the shifter**. It is 176–187 ALMs on Cyclone V (census area.md, slices 2 and 3). Sharing adds a 2×64-bit operand mux and arbitration against a pipe that accepts one operation per clock. | **Unmeasured on Agilex. Net ALMs could be negative.** Ranked low. |
 | B | **Remainder onto the backend, then delete the sequencer arithmetic at `X87_BACKEND = 1`** | ALMs held by the FPREM/FPREM1 recurrence, FRNDINT, FSCALE and FXTRACT arms, which still run on the sequencer at backend 1 | This is the third DE25 step ("envelope, transcendentals, remainder"). The census shows FPREM, FPREM1 and FXTRACT executed by no title. The forms already pass lockstep on the sequencer, so the only motive is area. The microengine (`fes_x87_trans`) may take them as microcode for ROM, not logic. | **Unmeasured. Sign unknown.** |
 | C | **Fewer pipeline stages in the backend** | Registers and latency. #1892 is built for 200 MHz at one operation per clock, but the envelope keeps one ESC in flight. The controlled A/B put the backend at +1,746 registers and −462 ALMs against the sequencer. The fast forms lose a fixed 2–9 clocks to its ~15-clock response. | Only valid if the DE25 clock target stays well under the backend's 200 MHz (decision D3) | **Unmeasured.** |
-| D | **Logic into memory**: the duplicated register file `rf_a`/`rf_b` (2 × 8 × 80 bits in registers), decode tables, other wide constant tables | ALMs and registers moved into M20K or MLAB, of which 59.5% of M20K is free | Each move needs a registered read. A registered read is the x87's recurring defect: a value assigned in one state and read in the next. | **Unmeasured.** Needs the per-entity fit to find the large tables. |
+| D | **Logic into memory**: wide tables and arrays that the fit builds as logic, such as decode tables and constant tables. The register file `rf_a`/`rf_b` is not one of them: the DE25 unit fits already keep it as memory ([envelope record](../2026-11-16-de25-x87-envelope/summary.md), "What the selection left out"). | ALMs and registers moved into M20K or MLAB, of which 59.5% of M20K is free | Each move needs a registered read. A registered read is the x87's recurring defect: a value assigned in one state and read in the next. | **Unmeasured.** Needs the per-entity fit to find the large tables. |
 | E | **Whole-machine reduction**: the 14 Nov deferred "system reduction phase" | Whatever the largest entities hold. The CPU is about 68% of the machine's ALMs (29,300 of 42,971, uncontrolled). | The #1584 area audit's identified wins are already banked (#1802, #1795, #1638). New wins need a fresh per-entity reading on Agilex. | **Unmeasured.** Needs 6.0b. |
 | F | **Rare forms through shared paths**: the 71 forms no title executes | Dedicated logic for forms that can be slow | It overlaps B and D. Which of the 71 own dedicated logic is not known. | **Unmeasured.** |
 | G | Divide algorithm chosen by precision; more than one ESC in flight | Cycles only (the envelope record's two remedies) | Both add ALMs on the board where ALMs bind. Divide is at most 1.8% of x87 work. Independent x87 pairs in the corpus are unmeasured. | **Not proposed** for slice 6 |
@@ -178,7 +178,7 @@ also avoids repeating the reseal and kit cycle for each reduction. Inside a
 milestone PR, each reduction still gets its own controlled A/B, so its
 saving is attributed.
 
-- **6.0, measurement. No RTL. Starts as soon as D1–D3 are answered.**
+- **6.0, measurement. No RTL.** It needs no decision first: the clock ladder (c) is part of it unconditionally, and its result is the data D3 is decided on.
   - **a.** Fit current main (identity on, backend 1), four seeds. Use
     #1959's bands verbatim: band 4 is ALMs ≥ 92% (43,056) on any seed. Label
     the comparison with #1959 as uncontrolled. This settles the drift.
@@ -186,8 +186,10 @@ saving is attributed.
     the same tree. It apportions the CPU's entities, the machine's devices,
     the envelope, `fes_x87_core`, `fes_x87_trans` and `fes_i386_x87_mul`.
     The output is the ranked list that candidates A–F are measured against.
-  - **c.** Only if D3 asks for a clock above 61.44 MHz: a machine clock
-    ladder on the DE25, rungs committed beforehand.
+  - **c.** A machine clock ladder on the DE25, with its rungs committed
+    beforehand. It runs unconditionally. It measures which clocks the
+    387-fitted machine passes timing at, and does not choose one.
+
 - **6.1, the shell's cost** (if D4 puts the shell in this lane): fit
   `pc386_system` inside a DE25 board top and replace the virtual-pin
   stand-in with a measured figure.
@@ -225,9 +227,10 @@ the proposal and stays as it was. What was decided:
 - **D2, ALM target:** 92% (43,056 ALMs) stays the working line until 6.0a
   and 6.1 have measured the drift and the shell. The target is then set
   from those measurements.
-- **D3, clock:** decided before de-pipelining (C) is considered. 6.0
-  includes the 6.0c machine clock ladder, so the decision has data. At
-  61.44 MHz, timing is not binding.
+- **D3, clock:** no clock is chosen yet. The 6.0c ladder runs
+  unconditionally as part of 6.0, and Deano chooses the clock from its
+  result. Until then 61.44 MHz is the working clock, and de-pipelining (C)
+  is not started. At 61.44 MHz, timing is not binding.
 - **D4, DE25 pc386 shell and package:** a separate lane, started on 20
   November by the coordinating session. Step 6.1, the shell's cost, belongs
   to that lane, not to slice 6.
