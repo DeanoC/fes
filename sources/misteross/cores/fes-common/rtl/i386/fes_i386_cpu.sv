@@ -122,6 +122,12 @@
 module fes_i386_cpu #(
     parameter logic [31:0] RAM_BASE = 32'h3400_0000, // the HPS address of guest physical 0
     parameter integer GOV_N = 1, GOV_D = 1000,        // 100 kHz as a fraction of clk (fes_i386_governor)
+    // Which arithmetic the x87 unit's rounding is fed from: 0 the unit's
+    // own sequenced datapath (the DE10's, and the verified reference),
+    // 1 the DE25's pipelined fes_x87_core. The envelope -- the stack,
+    // the words, the conversions, the commit and the AT error path --
+    // is the same code either way (fes_i386_x87).
+    parameter int X87_BACKEND = 0,
     parameter bit GOV_REFERENCE_DIAGNOSTIC = 1'b0    // simulation-only experimental 286 timing model
 ) (
     input  logic             clk,
@@ -676,7 +682,7 @@ module fes_i386_cpu #(
     logic [31:0] q_lea_disp;
     logic        q_b_sys;
     logic [3:0]  q_slot;
-    fes_i386_decode decode (
+    fes_i386_decode #(.X87_BACKEND(X87_BACKEND)) decode (
         .q, .code32, .stack(dc_stack), .wait_nm(cr0_mp && cr0_ts), .esc_nm(cr0_em || cr0_ts), .x87(x87_present),
         .x87_insn(dc_q.x87), .x87_wait(dc_q.x87_wait), .x87_fmt(dc_q.x87_fmt), .x87_op(dc_q.x87_op), .x87_part(dc_q.x87_part), .pe(cr0_pe), .vm(eflags[17]), .cpl, .iopl(eflags[13:12]), .nt(eflags[14]), .dr_gd(dr7[13]), .uop(q_uop), .opsize32(q_opsize32), .lea(q_lea), .lea_early(dc_q.lea_early),
         .lea_disp(q_lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
@@ -756,6 +762,7 @@ module fes_i386_cpu #(
     // 16/32-bit displacement (ModRM mod 1 or 2).
     assign dc_q.gov = '{two: q_two, op: q_two ? q.bytes[1] : q.bytes[0], mreg: q_modrm[5:3],
                         rm_reg: q_modrm[7:6] == 2'b11, o32: q_opsize32, rep: q.prefixes.rep != 2'b00,
+                        ref_rep_f3: GOV_REFERENCE_DIAGNOSTIC && q.prefixes.rep == fes_i386_pkg::REP_E,
                         ea3: am_has_base && am_has_index && q_modrm[7] != q_modrm[6] && !q_direct,
                         ref_test_excluded: GOV_REFERENCE_DIAGNOSTIC && (code32 || q.prefix_count != 4'd0),
                         ref_real_mode: 1'b0,
@@ -878,14 +885,15 @@ module fes_i386_cpu #(
                                                               : {12'd0, wb_s.result[15:12]};
     assign x87_ld_opcode = !cr0_pe ? wb_s.result[10:0]
                          : wb_s.uop.size == fes_i386_pkg::SIZE_32 ? wb_s.result[26:16] : 11'd0;
-    fes_i386_x87 x87 (
+    fes_i386_x87 #(.X87_BACKEND(X87_BACKEND)) x87 (
         .clk, .reset, .present(x87_present), .f0(x87_f0), .f1(x87_f1),
         .error(x87_irq13), .latched(trace_x87_latched),
         .iss(x87_iss), .iss_wait(dc.x87_wait), .iss_op(dc.x87_op), .iss_fmt(dc.x87_fmt),
         .iss_first(d_first), .iss_fire(issue), .iss_last(dc.uop.ctl.end_of_instruction),
         .iss_part(dc.x87_part),
         .hold(x87_hold), .sval(x87_sval), .nx(x87_nx),
-        .wb(wb_commit && wb_s.x87), .wb_last(wb_commit && wb_s.x87 && wb_s.uop.ctl.end_of_instruction),
+        // A probe (x87 operand probes, below) moves nothing to the unit.
+        .wb(wb_commit && wb_s.x87 && !wb_s.nodata), .wb_last(wb_commit && wb_s.x87 && wb_s.uop.ctl.end_of_instruction),
         .wb_val(wb_s.result), .wb_part(wb_s.x87_part), .flush(wb_flush),
         .wb_opcode_set(x87_ld_env && wb_s.x87_part[2:0] == 3'd4), .wb_opcode(x87_ld_opcode),
         .cw_o(arch_x87_cw), .sw_o(arch_x87_sw), .tw_o(arch_x87_tw), .opcode_o(arch_x87_opcode),
@@ -1230,6 +1238,27 @@ module fes_i386_cpu #(
     // whole uop.
     assign d_ifw = dc.fetched && !dc.xbad && (d_need0 || d_need1);
     assign d_ifw_lin = d_need0 ? dc.lin : {dc.lin[31:4] + 28'd1, 4'd0};
+    // x87 operand probes (#2020). A 386 checks both ends of an ESC's memory
+    // operand before any of it moves to or from the 387: CR B and CW B
+    // ("perform access/limit/paging checks ... but don't actually do" the
+    // access) of the last byte and then the first, in FPU_LOAD_CORE and
+    // FPU_STORE_CORE of its microcode (reenigne/x86_microcode,
+    // 80386/microcode_notes.txt 4FC-4FE, 562-564; the last byte's offset
+    // set at 4D5, 53A and 542). So an operand across a page, or past a
+    // limit, faults before a byte moves, and the instruction restarts. The
+    // multi-part forms do the same here: an m80 load and every m64 and m80
+    // store start with a one-byte load of the operand's last byte, whose
+    // data nothing uses (nodata) but which translates (not nx) as the
+    // access it stands for, a write's for a store (wx: their reg fields
+    // are /2, /3, /6 and /7, the loads' /4 and /5); the parts then move
+    // upwards from the operand, the first checking the first byte before it
+    // writes; a store's probe takes the segment's write check too, so a
+    // read-only segment is #GP before any page is walked, as CW B checks the
+    // segment as a write before paging. Only these forms are byte-sized x87
+    // accesses. A store the unit
+    // holds back (x87_nx) makes no access, its probe included (#1872).
+    logic d_x87_probe;
+    assign d_x87_probe = dc.x87 && dc.uop.mem.kind == fes_i386_pkg::MEM_LOAD && dc.uop.mem.bytes == 4'd1;
     always_comb begin
         u = dc.uop;
         if (stk != fes_i386_pkg::STK_NONE) u.mem.addr32 = sst;
@@ -1899,7 +1928,8 @@ module fes_i386_cpu #(
                     : dc.tss == 3'(fes_i386_pkg::TSS_BITMAP) ? tss_tiny_bm
                     : dc.uop.mem.system && dc.uop.desc == 4'd0 && !dc.sel_part && dc.tss == 3'd0
                       ? idt_tiny3 : !dc.uop.mem.system && !dc.nochk
-                        && (seg_tiny[mseg][msize] || mem_reads && seg_rbad[mseg] || (mem_writes || xchg_ld) && seg_wbad[mseg]);
+                        && (seg_tiny[mseg][msize] || mem_reads && seg_rbad[mseg]
+                            || (mem_writes || xchg_ld || d_x87_probe && dc.x87_op[4]) && seg_wbad[mseg]);
         d_out.mlow = d_nstk ? ds_chk.low : seg_low[mseg];
         d_out.mexpd = d_nstk ? ds_chk.expd : !dc.uop.mem.system && !dc.nochk && seg_expd[mseg];
         // Loads whose data nothing uses: probes, ENTER's last check, POP m's
@@ -1907,7 +1937,8 @@ module fes_i386_cpu #(
         d_out.sdisp = dc.pimm ? pimm_off[17:0] : {{10{st_disp[7]}}, st_disp[7:0]};
         d_out.nodata = dc.stk == fes_i386_pkg::STK_PROBE || dc.str_fin || dc.nochk
                     || dc.seq == 5'(fes_i386_pkg::SEQ_POPM) && dc.stk == fes_i386_pkg::STK_POP
-                    || (u.op == 5'd4 || u.op == 5'd5) && (u.cls == fes_i386_pkg::UOP_MUL || u.cls == fes_i386_pkg::UOP_DIV);
+                    || (u.op == 5'd4 || u.op == 5'd5) && (u.cls == fes_i386_pkg::UOP_MUL || u.cls == fes_i386_pkg::UOP_DIV)
+                    || d_x87_probe;
         // A st2 uop's store address and its fault; the next instruction for
         // a REPE or REPNE element. AG keeps them.
         d_out.target = dc.str_two ? str_daddr : s_tgt;
@@ -1982,9 +2013,19 @@ module fes_i386_cpu #(
         // so that separate store performs the write translation (#1665).
         d_out.ipp0 = dc.pp0;
         d_out.ipp1 = dc.pp1;
-        d_out.nx = d_out.nodata && !dc.str_fin && dc.stk != fes_i386_pkg::STK_PROBE
+        d_out.nx = d_out.nodata && !dc.str_fin && dc.stk != fes_i386_pkg::STK_PROBE && !d_x87_probe
                 || dc.x87 && x87_nx;
-        d_out.wx = dc.str_fin || dc.stk == fes_i386_pkg::STK_PROBE || xchg_ld;
+        // An x87 store the unit holds back (nx: an unmasked exception other
+        // than precision) makes no access at all, as the 387 stores nothing
+        // and Bochs returns before its write: no write, and so no limit
+        // check, translation or data breakpoint either, and nothing for a
+        // younger load to forward. Without this only the translation was
+        // skipped and WB still wrote the unit's value (#1872, found by the
+        // lockstep's unmasked-store programs, the first to reach it).
+        // A held store's probe (x87 operand probes) goes the same way.
+        if (dc.x87 && x87_nx && (u.mem.kind == fes_i386_pkg::MEM_STORE || d_x87_probe && dc.x87_op[4]))
+            d_out.uop.mem.kind = fes_i386_pkg::MEM_NONE;
+        d_out.wx = dc.str_fin || dc.stk == fes_i386_pkg::STK_PROBE || xchg_ld || d_x87_probe && dc.x87_op[4];
         d_out.ones = tsf_any && !tsf_32 && u.dst.valid && u.dst.space == fes_i386_pkg::RS_GPR;
         d_out.iret0 = d_first && dc.fetched && !d_ifw && !cs_gp
                    && u.ctl.fault == fes_i386_pkg::FAULT_NONE && dc.seq == fes_i386_pkg::SEQ_UCODE
@@ -2197,9 +2238,22 @@ module fes_i386_cpu #(
     assign m1_bound_low = m1_s.uop.mem.addr32 ? m1_s.moff - 32'(m1_s.uop.mem.bytes)
                                                : {16'd0, m1_s.moff[15:0] - 16'(m1_s.uop.mem.bytes)};
     assign m1_bound_wrap = m1_bound_low > m1_s.mlimit || m1_s.mtiny || m1_s.mexpd && m1_bound_low <= m1_s.mlow;
+    // An x87 operand's probe (x87 operand probes, in D) under a 16-bit
+    // address size whose offset wrapped past FFFFh: the 386 adds the last
+    // byte's offset with a 32-bit ALU (BITS32 at 4D5, 53A and 542 of its
+    // microcode), so the probe is at 10000h plus the wrapped offset, and
+    // faults before a byte moves when that is past the segment's limit (a
+    // limit of FFFFh, or an expand-down segment's upper bound of FFFFh), as
+    // Bochs's check of the whole operand does. Under a larger limit it is
+    // in it, and the parts wrap by the address size as Bochs's do. The probe
+    // is at 9 (an m80's, part 2) or 7 (an m64 store's, part 1).
+    logic m1_xwrap;
+    assign m1_xwrap = m1_s.x87 && m1_s.nodata && !m1_s.uop.mem.addr32
+                   && m1_s.moff[15:0] < (m1_s.x87_part[1] ? 16'd9 : 16'd7)
+                   && {15'd0, 1'b1, m1_s.moff[15:0]} > m1_s.mlimit;
     assign m1_limit = m1_s.uop.mem.kind != fes_i386_pkg::MEM_NONE
                    && (m1_s.moff > m1_s.mlimit || m1_s.mtiny || m1_s.mexpd && m1_s.moff <= m1_s.mlow
-                       || m1_s.uop.bound_pair && m1_bound_wrap);
+                       || m1_s.uop.bound_pair && m1_bound_wrap || m1_xwrap);
     // A protected-mode segment load's, far transfer's or delivery's checks
     // (segchk) come from the staged descriptor (ds_fault_*); what each
     // stops on as not built, and why, follows from the check.
@@ -2994,10 +3048,21 @@ module fes_i386_cpu #(
     logic       int_cbp_ok, int_cbp_hit;
     logic       iret_start;
     assign wb_commit = wb_s.valid && !halted && !freeze && !int_take && wb_fault == fes_i386_pkg::FAULT_NONE;
-    // An ESC memory form's offset, the x87 data pointer's: 16 bits under a
-    // 16-bit address size, zero-extended.
-    logic [31:0] wb_fdp;
-    assign wb_fdp = wb_s.uop.mem.addr32 ? wb_s.moff : {16'd0, wb_s.moff[15:0]};
+    // An ESC memory form's operand offset, the x87 data pointer's: 16 bits
+    // under a 16-bit address size, zero-extended. The uop that writes the
+    // pointers is the form's last, so a fault in any part leaves them alone,
+    // and for a form moved in several chunks the last is not always the one
+    // at the operand's own offset: FST and FSTP m64 and FISTP m64 store
+    // upwards and end with the dword at 4, FSTP m80 with the word at 8
+    // (#1877). Its chunk, x87_part (the ROM's dword index fpj, or moff[3:2]
+    // for the decode's own uop), says how far past the operand that is, so
+    // the operand's offset is the access's less that, wrapped by address
+    // size as the access was. Only operand chunks write the pointers: the
+    // environment and save forms, whose x87_part counts fields instead, are
+    // X87P_NONE.
+    logic [31:0] wb_fdp, wb_fdp_raw;
+    assign wb_fdp_raw = wb_s.moff - {27'd0, wb_s.x87_part[1:0], 2'b00};
+    assign wb_fdp = wb_s.uop.mem.addr32 ? wb_fdp_raw : {16'd0, wb_fdp_raw[15:0]};
     assign at_boundary = wb_commit && (wb_eoi || wb_s.uop.str_cx);
     assign in_hlt = hlt && !int_take;
     assign wb_ss_load = wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_SEG
@@ -3186,6 +3251,15 @@ module fes_i386_cpu #(
     function automatic logic [2:0] halves(input logic a0, input logic [3:0] bytes);
         halves = 3'((4'(a0) + bytes + 4'd1) >> 1);
     endfunction
+    // The 32-bit dwords it touches, for local-bus video, which times only the
+    // VGA window (A0000h-BFFFFh); other MMIO, such as an EMS board's frame,
+    // keeps the ISA cycle.
+    function automatic logic [1:0] dwords(input logic [1:0] a, input logic [3:0] bytes);
+        dwords = 2'((4'(a) + bytes + 4'd3) >> 2);
+    endfunction
+    function automatic logic vga_window(input logic [PA:0] p);
+        vga_window = !p[PA] && p[PA-1:17] == (PA-17)'(5);
+    endfunction
     // Restrict the reference ENTER experiment to two fully classified RAM
     // operands. The primary's translated next page is not carried to WB, so
     // any primary page crossing retains the previous conservative path.
@@ -3196,10 +3270,71 @@ module fes_i386_cpu #(
         !wb_s.gov.ref_stack32 && wb_s.gov.ref_enter_valid &&
         fes_i386_pkg::attr(wb_mp, attr_upper, ram_top) == fes_i386_pkg::ATTR_RAM &&
         13'(wb_s.maddr[11:0]) + 13'(wb_s.uop.mem.bytes) <= 13'd4096;
+
+    // The reference experiment only models ordinary 286 IMUL operands. Keep
+    // issue and retirement segment identities together through the pipeline:
+    // a real-mode selector can still carry an unreal-mode descriptor cache.
+    logic gov_imul_safe, gov_rep_io_safe;
+    generate if (GOV_REFERENCE_DIAGNOSTIC) begin : gen_imul_guard
+        logic [32:0] ag_guard, m1_guard, m2_guard, ex_guard, wb_guard;
+        logic [32:0] ag_rep_guard, m1_rep_guard, m2_rep_guard, ex_rep_guard, wb_rep_guard;
+        logic [2:0] wb_seg;
+        assign wb_seg = 3'(wb_s.uop.mem.seg);
+        function automatic logic canonical_data(input logic [2:0] n);
+            canonical_data = seg_base[n] == {12'd0, seg_sel[n], 4'd0} &&
+                seg_limit[n] == 32'h0000ffff && seg_ar[n] == 16'h0093 &&
+                seg_lim[n][1] == 32'h0000fffe && seg_low[n] == 32'h0000ffff &&
+                !seg_tiny[n][1] && !seg_expd[n] && !seg_rbad[n] && !seg_wbad[n];
+        endfunction
+        function automatic logic canonical_cs();
+            canonical_cs = seg_base[SEG_CS] == {12'd0, seg_sel[SEG_CS], 4'd0} &&
+                seg_limit[SEG_CS] == 32'h0000ffff && seg_ar[SEG_CS] == 16'h0093 &&
+                cs_fl == fetch_lim(32'h0000ffff);
+        endfunction
+        always_ff @(posedge clk) begin
+            if (reset || wb_flush) begin
+                ag_guard <= '0;
+                m1_guard <= '0;
+                m2_guard <= '0;
+                ex_guard <= '0;
+                wb_guard <= '0;
+                ag_rep_guard <= '0; m1_rep_guard <= '0; m2_rep_guard <= '0;
+                ex_rep_guard <= '0; wb_rep_guard <= '0;
+            end else if (!freeze) begin
+                ag_guard <= {!cr0_pe && !cr0_pg && canonical_cs() &&
+                             (dc.gov.rm_reg || canonical_data(mseg)), seg_sel[SEG_CS], seg_sel[mseg]};
+                m1_guard <= ag_guard;
+                m2_guard <= m1_guard;
+                ex_guard <= m2_guard;
+                wb_guard <= ex_guard;
+                // Unlike IMUL's register form, each REP I/O element uses a
+                // string segment; retain its issue-time selector and cache.
+                ag_rep_guard <= {!cr0_pe && !cr0_pg && canonical_cs() && canonical_data(mseg),
+                                 seg_sel[SEG_CS], seg_sel[mseg]};
+                m1_rep_guard <= ag_rep_guard; m2_rep_guard <= m1_rep_guard;
+                ex_rep_guard <= m2_rep_guard; wb_rep_guard <= ex_rep_guard;
+            end
+        end
+        assign gov_imul_safe = wb_guard[32] && !cr0_pe && !cr0_pg && canonical_cs() &&
+            seg_sel[SEG_CS] == wb_guard[31:16] &&
+            (wb_s.gov.rm_reg || (canonical_data(wb_seg) && seg_sel[wb_seg] == wb_guard[15:0] &&
+             wb_s.uop.mem.kind == fes_i386_pkg::MEM_LOAD && wb_s.uop.mem.bytes == 4'd2 &&
+             !wb_s.uop.st2 && !wb_s.maddr[0] && !wb_cross));
+        // The reference timing evidence covers canonical segments and aligned
+        // word RAM. A byte has no alignment constraint.
+        assign gov_rep_io_safe = wb_rep_guard[32] && !cr0_pe && !cr0_pg && canonical_cs() &&
+            seg_sel[SEG_CS] == wb_rep_guard[31:16] && canonical_data(wb_seg) &&
+            seg_sel[wb_seg] == wb_rep_guard[15:0] &&
+            (!wb_s.uop.mem.bytes[1] || !wb_s.maddr[0]) && !wb_cross;
+    end else begin : gen_no_imul_guard
+        assign gov_imul_safe = 1'b0;
+        assign gov_rep_io_safe = 1'b0;
+    end endgenerate
+
     fes_i386_governor #(.GOV_N(GOV_N), .GOV_D(GOV_D), .REFERENCE_DIAGNOSTIC(GOV_REFERENCE_DIAGNOSTIC)) governor (
         .clk, .reset, .preset(gov_preset), .frequency(gov_frequency), .turbo(gov_turbo),
         .boundary(at_boundary), .eoi(wb_eoi), .element(wb_s.uop.str_cx), .taken(wb_s.taken && !wb_s.uop.seg2),
-        .gov(wb_s.gov), .ilen(wb_s.ilen), .redirect(wb_s.taken && wb_s.uop.rep_stop == 2'd0),
+        .gov(wb_s.gov), .imul_safe(gov_imul_safe), .rep_io_safe(gov_rep_io_safe), .ilen(wb_s.ilen), .redirect(wb_s.taken && wb_s.uop.rep_stop == 2'd0),
         .abandon(exc_take || int_go || tsw_go),
         // exc_active excludes a fault during delivery; it does not track
         // whether execution is inside an earlier handler.
@@ -3212,7 +3347,9 @@ module fes_i386_cpu #(
                       wb_at0 == fes_i386_pkg::ATTR_RAM && (!wb_cross || wb_at1 == fes_i386_pkg::ATTR_RAM)),
         .io(wb_commit && wb_s.uop.io != 2'd0), .io_port, .io_size,
         .mmio(gov_mmio), .mmio_halves(halves(wb_s.maddr[0], wb_s.uop.mem.bytes)),
+        .mmio_dwords(dwords(wb_s.maddr[1:0], wb_s.uop.mem.bytes)), .mmio_vga(vga_window(wb_mp)),
         .mmio_st2(gov_mmio_st2), .mmio_st2_halves(halves(wb_s.target[0], wb_s.uop.mem.bytes)),
+        .mmio_st2_dwords(dwords(wb_s.target[1:0], wb_s.uop.mem.bytes)), .mmio_st2_vga(vga_window(wb_p0)),
         .hold(gov_hold), .debt_clocks(trace_gov_debt), .charge(trace_gov_charge)
     );
 

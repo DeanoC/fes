@@ -27,6 +27,10 @@ const (
 	launchHTTPTimeout  = 60 * time.Second
 	stopHTTPTimeout    = 60 * time.Second
 	videoHTTPTimeout   = 120 * time.Second
+	// libraryOperationTimeout bounds a library change, which can take far
+	// longer than an ordinary request: a new ST shelf disk took 27 s on
+	// Kit B's own host.
+	libraryOperationTimeout = 120 * time.Second
 )
 
 // ClientStamp is a transport-neutral client wall/monotonic clock stamp.
@@ -108,6 +112,18 @@ func NewClient(baseURL string, httpClient *http.Client) *Client {
 		videoHTTP:   &videoHTTP,
 		previewHTTP: &previewHTTP,
 	}
+}
+
+// libraryOperation returns a copy of c whose ordinary requests may run for
+// libraryOperationTimeout, for library changes the host writes on a kit.
+func (c *Client) libraryOperation() *Client {
+	operationHTTP := *c.launchHTTP
+	if operationHTTP.Timeout < libraryOperationTimeout {
+		operationHTTP.Timeout = libraryOperationTimeout
+	}
+	operation := *c
+	operation.httpClient = &operationHTTP
+	return &operation
 }
 
 // BaseURL returns the normalized host API base URL.

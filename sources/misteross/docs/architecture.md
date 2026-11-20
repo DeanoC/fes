@@ -1083,7 +1083,8 @@ compares two captured records. A source-only report explicitly marks execution
 comparison unavailable: it does not pretend to authenticate installed tools.
 
 Historical format-1 and format-2 records retain their original identities and
-validation. Design-v1 cache entries use a separate `design-v1/` namespace;
+validation. Cache entries with separated identities use a namespace named
+for their policy (`design-v1/`, `design-v2/`);
 legacy entries are never relabelled or used as migrated builds. Each newly
 built design therefore needs one migration build with its new embedded ID,
 normal timing/seal checks and applicable hardware acceptance (or the existing
@@ -1398,7 +1399,10 @@ input support does not change that selected RTL path.
 `build/fes-ramtest-100/` with the
 `cores/fes-ramtest/toolchain.lock` HIP compiler slot, whose Yosys declares every fpga2sdram port. Its
 timing gate covers the memory, capture and video domains, and the recipe checks
-the synthesized fpga2sdram layout constants. `make build-fes-ramtest-quartus`
+the synthesized fpga2sdram layout constants. Before sealing, it also requires
+each of the 20 routed SDRAM address, bank and command outputs to have one direct
+`MISTRAL_SDROUT` pad driver. This checks output-register packing; it does not
+replace routed timing or board validation. `make build-fes-ramtest-quartus`
 compiles the same RTL with Quartus 17.0.2 at 130 MHz; `RAMTEST_MHZ=100` selects
 a separate 100 MHz diagnostic. A gamepad button, or a keyboard key the host
 maps to one, stops the scans. The ABI has no memory opcode. Hardware results
@@ -2611,9 +2615,10 @@ validation cart; mixed-width `A1EN`/`A1BE` decoded but did not hold `POKE`/`OUT`
 Cart M10K keep a distinct top clock port (`FPGA_CLK1_50`) so
 `--fes-slot-clock clk_sys` can splice the inferred IB onto the shell 52.224 MHz
 net; naming that port `clk_sys` leaves M10K on the pad output. During `/RFSH` the shell presents the ULA character-ROM address as the QS
-`8400–87FF` window so the same 1 KiB cell supplies glyphs. QS power-up
-loads Sinclair glyphs 0–63 (ROM `1E00–1FFF`) into that cell so boot text
-is readable; CPU writes still replace rows. The shifter loads a
+`8400–87FF` window so the same 1 KiB cell supplies glyphs. The cell starts
+empty and holds no ROM bytes. QS claims those fetches only after the first
+CPU write to the window, which is the real board's character switch; until
+then, and again after CPU reset, the shell shows its own ROM glyphs. The shifter loads a
 registered `rfsh_chr` hold that keeps the first ROMCS byte; `/RFSH` is
 not muxed into `cpu_din` (that loop stopped the FES GP mailbox). The validation
 cart is the first consumer on that edge; Zon X and QS Character Board RTL share

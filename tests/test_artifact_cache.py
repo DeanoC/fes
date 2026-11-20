@@ -49,6 +49,19 @@ class ArtifactCacheTests(unittest.TestCase):
         self.assertIsNone(artifact_cache.functional_key(b'{"format":1}'))
         self.assertIsNone(artifact_cache.functional_key(b'{"format":2,"source_inputs":{}}'))
 
+    def test_each_identity_policy_has_its_own_namespace(self):
+        fields={**self.fields,'parameters':{}}
+        fields.pop('execution')
+        legacy=artifact_cache.store_for(self.cache,self.record.read_bytes())
+        self.assertEqual(legacy.parent,self.cache.absolute(),
+                         'a historical combined-key entry stays where it always was')
+        for policy in ('design-v1','design-v2'):
+            record=self.encode(artifact_cache.identity.with_identities(fields,policy=policy))
+            store=artifact_cache.store_for(self.cache,record)
+            self.assertEqual(store.parent,self.cache.absolute()/policy,
+                             f'a {policy} record is stored under its own policy, never relabelled')
+            self.assertEqual(store.name,artifact_cache.functional_key(record))
+
     def test_publication_is_sealed_complete_and_idempotent(self):
         result=artifact_cache.publish(self.cache,self.record,self.package)
         entry=result.parent
@@ -100,6 +113,39 @@ class ArtifactCacheTests(unittest.TestCase):
             return original(path,target)
         with patch.object(Path,'rename',rename):
             artifact_cache.publish(self.cache,self.record,self.package)
+
+    def test_evidence_is_validated_in_staging_and_published_atomically(self):
+        seen = []
+        def validate(package, record, evidence):
+            self.assertEqual((package / 'core.rbf').read_bytes(), b'original bitstream')
+            self.assertEqual(record.read_bytes(), self.record.read_bytes())
+            self.assertEqual((evidence / 'report.json').read_bytes(), b'full report')
+            seen.append(evidence)
+        result = artifact_cache.publish(self.cache, self.record, self.package,
+                                        evidence={'report.json': b'full report'}, validate=validate)
+        self.assertEqual(len(seen), 1)
+        self.assertEqual((result.parent / 'evidence' / 'report.json').read_bytes(), b'full report')
+        artifact_cache.publish(self.cache, self.record, self.package,
+                               evidence={'report.json': b'full report'}, validate=validate)
+        self.assertEqual(len(seen), 2)
+        with self.assertRaisesRegex(ValueError, 'differs'):
+            artifact_cache.publish(self.cache, self.record, self.package,
+                                   evidence={'report.json': b'changed'}, validate=validate)
+
+    def test_evidence_refusal_cannot_publish_partial_entry(self):
+        def reject(*_):
+            raise ValueError('invalid report')
+        with self.assertRaisesRegex(ValueError, 'invalid report'):
+            artifact_cache.publish(self.cache, self.record, self.package,
+                                   evidence={'report.json': b'incomplete'}, validate=reject)
+        store = artifact_cache.store_for(self.cache, self.record.read_bytes())
+        self.assertFalse((store / self.package.name).exists())
+        self.assertEqual([p.name for p in store.iterdir()], ['.publish.lock'])
+        with self.assertRaisesRegex(ValueError, 'validator'):
+            artifact_cache.publish(self.cache, self.record, self.package, evidence={'report.json': b'x'})
+        with self.assertRaisesRegex(ValueError, 'invalid artifact'):
+            artifact_cache.publish(self.cache, self.record, self.package,
+                                   evidence={'../report': b'x'}, validate=reject)
 
     def test_rejects_linked_root_and_source_payload(self):
         actual=self.root/'actual';actual.mkdir()

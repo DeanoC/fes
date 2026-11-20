@@ -1,0 +1,1311 @@
+{
+ "clock_hz": 61440000,
+ "budget": 0.05,
+ "verilator": {
+  "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+  "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+  "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+  "version": "Verilator 5.054 2026-11-01 rev v5.054",
+  "install": "1cd6c9741d903760a2b1c4283b6830f63c0974f8478b06fb7f8dabd3c4304d8c"
+ },
+ "max": [
+  {
+   "name": "alu",
+   "cycles": 24039,
+   "charged": 0
+  },
+  {
+   "name": "memory",
+   "cycles": 24143,
+   "charged": 0
+  },
+  {
+   "name": "dword",
+   "cycles": 18039,
+   "charged": 0
+  },
+  {
+   "name": "branch",
+   "cycles": 76654,
+   "charged": 0
+  },
+  {
+   "name": "stack",
+   "cycles": 30039,
+   "charged": 0
+  },
+  {
+   "name": "muldiv",
+   "cycles": 45039,
+   "charged": 0
+  },
+  {
+   "name": "string",
+   "cycles": 17485,
+   "charged": 0
+  },
+  {
+   "name": "shift",
+   "cycles": 24039,
+   "charged": 0
+  },
+  {
+   "name": "crt",
+   "cycles": 25038,
+   "charged": 0
+  },
+  {
+   "name": "io",
+   "cycles": 34041,
+   "charged": 0
+  },
+  {
+   "name": "int",
+   "cycles": 23058,
+   "charged": 0
+  },
+  {
+   "name": "misc",
+   "cycles": 20040,
+   "charged": 0
+  },
+  {
+   "name": "loop",
+   "cycles": 6040,
+   "charged": 0
+  },
+  {
+   "name": "pusha",
+   "cycles": 17540,
+   "charged": 0
+  },
+  {
+   "name": "i386",
+   "cycles": 10039,
+   "charged": 0
+  },
+  {
+   "name": "direct",
+   "cycles": 12070,
+   "charged": 0
+  },
+  {
+   "name": "esc",
+   "cycles": 9039,
+   "charged": 0
+  },
+  {
+   "name": "vram",
+   "cycles": 54461,
+   "charged": 0
+  },
+  {
+   "name": "iobus",
+   "cycles": 115029,
+   "charged": 0
+  }
+ ],
+ "runs": {
+  "486DX2-66@66.7MHz": {
+   "preset": 7,
+   "word1": 0,
+   "mhz": 66.7,
+   "loops": [
+    {
+     "name": "alu",
+     "cycles": 29488,
+     "charged": 32062,
+     "table_clocks": 32062,
+     "table_cycles": 29533.6,
+     "error": -0.00154,
+     "beyond_cpu": false,
+     "ceiling_mhz": 81.9
+    },
+    {
+     "name": "memory",
+     "cycles": 38848,
+     "charged": 42062,
+     "table_clocks": 42062,
+     "table_cycles": 38745.0,
+     "error": 0.00266,
+     "beyond_cpu": false,
+     "ceiling_mhz": 107.0
+    },
+    {
+     "name": "dword",
+     "cycles": 27740,
+     "charged": 30062,
+     "table_clocks": 30062,
+     "table_cycles": 27691.3,
+     "error": 0.00176,
+     "beyond_cpu": false,
+     "ceiling_mhz": 102.4
+    },
+    {
+     "name": "branch",
+     "cycles": 76754,
+     "charged": 51062,
+     "table_clocks": 51062,
+     "table_cycles": 47035.2,
+     "error": 0.63184,
+     "beyond_cpu": true,
+     "ceiling_mhz": 40.9
+    },
+    {
+     "name": "stack",
+     "cycles": 58092,
+     "charged": 63062,
+     "table_clocks": 63062,
+     "table_cycles": 58088.9,
+     "error": 5e-05,
+     "beyond_cpu": false,
+     "ceiling_mhz": 129.0
+    },
+    {
+     "name": "muldiv",
+     "cycles": 78403,
+     "charged": 85062,
+     "table_clocks": 85062,
+     "table_cycles": 78354.0,
+     "error": 0.00063,
+     "beyond_cpu": false,
+     "ceiling_mhz": 116.0
+    },
+    {
+     "name": "string",
+     "cycles": 36776,
+     "charged": 39862,
+     "table_clocks": 39862,
+     "table_cycles": 36718.5,
+     "error": 0.00157,
+     "beyond_cpu": false,
+     "ceiling_mhz": 140.1
+    },
+    {
+     "name": "shift",
+     "cycles": 55367,
+     "charged": 60062,
+     "table_clocks": 60062,
+     "table_cycles": 55325.5,
+     "error": 0.00075,
+     "beyond_cpu": false,
+     "ceiling_mhz": 153.5
+    },
+    {
+     "name": "crt",
+     "cycles": 36903,
+     "charged": 40062,
+     "table_clocks": 40062,
+     "table_cycles": 36902.7,
+     "error": 1e-05,
+     "beyond_cpu": false,
+     "ceiling_mhz": 98.3
+    },
+    {
+     "name": "io",
+     "cycles": 234084,
+     "charged": 254062,
+     "table_clocks": 254062,
+     "table_cycles": 234026.5,
+     "error": 0.00025,
+     "beyond_cpu": false,
+     "ceiling_mhz": 458.6
+    },
+    {
+     "name": "int",
+     "cycles": 23148,
+     "charged": 24562,
+     "table_clocks": 24562,
+     "table_cycles": 22625.0,
+     "error": 0.02311,
+     "beyond_cpu": true,
+     "ceiling_mhz": 65.4
+    },
+    {
+     "name": "misc",
+     "cycles": 35068,
+     "charged": 38062,
+     "table_clocks": 38062,
+     "table_cycles": 35060.4,
+     "error": 0.00022,
+     "beyond_cpu": false,
+     "ceiling_mhz": 116.7
+    },
+    {
+     "name": "loop",
+     "cycles": 22210,
+     "charged": 24063,
+     "table_clocks": 24063,
+     "table_cycles": 22165.4,
+     "error": 0.00201,
+     "beyond_cpu": false,
+     "ceiling_mhz": 244.8
+    },
+    {
+     "name": "pusha",
+     "cycles": 17640,
+     "charged": 12062,
+     "table_clocks": 12062,
+     "table_cycles": 11110.8,
+     "error": 0.58765,
+     "beyond_cpu": true,
+     "ceiling_mhz": 42.3
+    },
+    {
+     "name": "i386",
+     "cycles": 25851,
+     "charged": 28062,
+     "table_clocks": 28062,
+     "table_cycles": 25849.0,
+     "error": 8e-05,
+     "beyond_cpu": false,
+     "ceiling_mhz": 171.7
+    },
+    {
+     "name": "direct",
+     "cycles": 16690,
+     "charged": 18062,
+     "table_clocks": 18062,
+     "table_cycles": 16637.6,
+     "error": 0.00315,
+     "beyond_cpu": false,
+     "ceiling_mhz": 91.9
+    },
+    {
+     "name": "esc",
+     "cycles": 34190,
+     "charged": 37062,
+     "table_clocks": 37062,
+     "table_cycles": 34139.3,
+     "error": 0.00149,
+     "beyond_cpu": false,
+     "ceiling_mhz": 251.9
+    },
+    {
+     "name": "vram",
+     "cycles": 570657,
+     "charged": 619462,
+     "table_clocks": 619462,
+     "table_cycles": 570610.9,
+     "error": 8e-05,
+     "beyond_cpu": false,
+     "ceiling_mhz": 698.8
+    },
+    {
+     "name": "iobus",
+     "cycles": 1119246,
+     "charged": 1215062,
+     "table_clocks": 1215062,
+     "table_cycles": 1119241.5,
+     "error": 0.0,
+     "beyond_cpu": false,
+     "ceiling_mhz": 649.0
+    }
+   ],
+   "beyond": [
+    "branch",
+    "int",
+    "pusha"
+   ]
+  },
+  "486DX-33@33.3MHz": {
+   "preset": 6,
+   "word1": 0,
+   "mhz": 33.3,
+   "loops": [
+    {
+     "name": "alu",
+     "cycles": 59004,
+     "charged": 32038,
+     "table_clocks": 32038,
+     "table_cycles": 59111.6,
+     "error": -0.00182,
+     "beyond_cpu": false,
+     "ceiling_mhz": 81.9
+    },
+    {
+     "name": "memory",
+     "cycles": 77629,
+     "charged": 42038,
+     "table_clocks": 42038,
+     "table_cycles": 77562.0,
+     "error": 0.00086,
+     "beyond_cpu": false,
+     "ceiling_mhz": 107.0
+    },
+    {
+     "name": "dword",
+     "cycles": 55493,
+     "charged": 30038,
+     "table_clocks": 30038,
+     "table_cycles": 55421.5,
+     "error": 0.00129,
+     "beyond_cpu": false,
+     "ceiling_mhz": 102.3
+    },
+    {
+     "name": "branch",
+     "cycles": 94252,
+     "charged": 51038,
+     "table_clocks": 51038,
+     "table_cycles": 94167.4,
+     "error": 0.0009,
+     "beyond_cpu": false,
+     "ceiling_mhz": 40.9
+    },
+    {
+     "name": "stack",
+     "cycles": 116369,
+     "charged": 63038,
+     "table_clocks": 63038,
+     "table_cycles": 116307.9,
+     "error": 0.00052,
+     "beyond_cpu": false,
+     "ceiling_mhz": 128.9
+    },
+    {
+     "name": "muldiv",
+     "cycles": 156973,
+     "charged": 85038,
+     "table_clocks": 85038,
+     "table_cycles": 156898.9,
+     "error": 0.00047,
+     "beyond_cpu": false,
+     "ceiling_mhz": 116.0
+    },
+    {
+     "name": "string",
+     "cycles": 73559,
+     "charged": 39838,
+     "table_clocks": 39838,
+     "table_cycles": 73502.9,
+     "error": 0.00076,
+     "beyond_cpu": false,
+     "ceiling_mhz": 140.0
+    },
+    {
+     "name": "shift",
+     "cycles": 110838,
+     "charged": 60038,
+     "table_clocks": 60038,
+     "table_cycles": 110772.8,
+     "error": 0.00059,
+     "beyond_cpu": false,
+     "ceiling_mhz": 153.4
+    },
+    {
+     "name": "crt",
+     "cycles": 73872,
+     "charged": 40038,
+     "table_clocks": 40038,
+     "table_cycles": 73871.9,
+     "error": 0.0,
+     "beyond_cpu": false,
+     "ceiling_mhz": 98.2
+    },
+    {
+     "name": "io",
+     "cycles": 291660,
+     "charged": 158038,
+     "table_clocks": 158038,
+     "table_cycles": 291587.2,
+     "error": 0.00025,
+     "beyond_cpu": false,
+     "ceiling_mhz": 285.2
+    },
+    {
+     "name": "int",
+     "cycles": 45337,
+     "charged": 24538,
+     "table_clocks": 24538,
+     "table_cycles": 45273.7,
+     "error": 0.0014,
+     "beyond_cpu": false,
+     "ceiling_mhz": 65.4
+    },
+    {
+     "name": "misc",
+     "cycles": 70239,
+     "charged": 38038,
+     "table_clocks": 38038,
+     "table_cycles": 70181.8,
+     "error": 0.00081,
+     "beyond_cpu": false,
+     "ceiling_mhz": 116.6
+    },
+    {
+     "name": "loop",
+     "cycles": 44417,
+     "charged": 24039,
+     "table_clocks": 24039,
+     "table_cycles": 44353.0,
+     "error": 0.00144,
+     "beyond_cpu": false,
+     "ceiling_mhz": 244.5
+    },
+    {
+     "name": "pusha",
+     "cycles": 22274,
+     "charged": 12038,
+     "table_clocks": 12038,
+     "table_cycles": 22210.7,
+     "error": 0.00285,
+     "beyond_cpu": false,
+     "ceiling_mhz": 42.2
+    },
+    {
+     "name": "i386",
+     "cycles": 51797,
+     "charged": 28038,
+     "table_clocks": 28038,
+     "table_cycles": 51731.4,
+     "error": 0.00127,
+     "beyond_cpu": false,
+     "ceiling_mhz": 171.6
+    },
+    {
+     "name": "direct",
+     "cycles": 33354,
+     "charged": 18038,
+     "table_clocks": 18038,
+     "table_cycles": 33280.9,
+     "error": 0.0022,
+     "beyond_cpu": false,
+     "ceiling_mhz": 91.8
+    },
+    {
+     "name": "esc",
+     "cycles": 68392,
+     "charged": 37038,
+     "table_clocks": 37038,
+     "table_cycles": 68336.8,
+     "error": 0.00081,
+     "beyond_cpu": false,
+     "ceiling_mhz": 251.8
+    },
+    {
+     "name": "vram",
+     "cycles": 593875,
+     "charged": 321838,
+     "table_clocks": 321838,
+     "table_cycles": 593805.6,
+     "error": 0.00012,
+     "beyond_cpu": false,
+     "ceiling_mhz": 363.1
+    },
+    {
+     "name": "iobus",
+     "cycles": 1289762,
+     "charged": 699038,
+     "table_clocks": 699038,
+     "table_cycles": 1289756.6,
+     "error": 0.0,
+     "beyond_cpu": false,
+     "ceiling_mhz": 373.4
+    }
+   ],
+   "beyond": []
+  },
+  "486DX-33@20MHz (word 1)": {
+   "preset": 6,
+   "word1": 200,
+   "mhz": 20.0,
+   "loops": [
+    {
+     "name": "alu",
+     "cycles": 98236,
+     "charged": 32028,
+     "table_clocks": 32028,
+     "table_cycles": 98390.0,
+     "error": -0.00157,
+     "beyond_cpu": false,
+     "ceiling_mhz": 81.9
+    },
+    {
+     "name": "memory",
+     "cycles": 129201,
+     "charged": 42028,
+     "table_clocks": 42028,
+     "table_cycles": 129110.0,
+     "error": 0.0007,
+     "beyond_cpu": false,
+     "ceiling_mhz": 107.0
+    },
+    {
+     "name": "dword",
+     "cycles": 92327,
+     "charged": 30028,
+     "table_clocks": 30028,
+     "table_cycles": 92246.0,
+     "error": 0.00088,
+     "beyond_cpu": false,
+     "ceiling_mhz": 102.3
+    },
+    {
+     "name": "branch",
+     "cycles": 156842,
+     "charged": 51028,
+     "table_clocks": 51028,
+     "table_cycles": 156758.0,
+     "error": 0.00054,
+     "beyond_cpu": false,
+     "ceiling_mhz": 40.9
+    },
+    {
+     "name": "stack",
+     "cycles": 193706,
+     "charged": 63028,
+     "table_clocks": 63028,
+     "table_cycles": 193622.0,
+     "error": 0.00043,
+     "beyond_cpu": false,
+     "ceiling_mhz": 128.9
+    },
+    {
+     "name": "muldiv",
+     "cycles": 261301,
+     "charged": 85028,
+     "table_clocks": 85028,
+     "table_cycles": 261206.0,
+     "error": 0.00036,
+     "beyond_cpu": false,
+     "ceiling_mhz": 116.0
+    },
+    {
+     "name": "string",
+     "cycles": 122429,
+     "charged": 39828,
+     "table_clocks": 39828,
+     "table_cycles": 122351.6,
+     "error": 0.00063,
+     "beyond_cpu": false,
+     "ceiling_mhz": 140.0
+    },
+    {
+     "name": "shift",
+     "cycles": 184494,
+     "charged": 60028,
+     "table_clocks": 60028,
+     "table_cycles": 184406.0,
+     "error": 0.00048,
+     "beyond_cpu": false,
+     "ceiling_mhz": 153.4
+    },
+    {
+     "name": "crt",
+     "cycles": 122968,
+     "charged": 40028,
+     "table_clocks": 40028,
+     "table_cycles": 122966.0,
+     "error": 2e-05,
+     "beyond_cpu": false,
+     "ceiling_mhz": 98.2
+    },
+    {
+     "name": "io",
+     "cycles": 362675,
+     "charged": 118028,
+     "table_clocks": 118028,
+     "table_cycles": 362582.0,
+     "error": 0.00026,
+     "beyond_cpu": false,
+     "ceiling_mhz": 213.0
+    },
+    {
+     "name": "int",
+     "cycles": 75432,
+     "charged": 24528,
+     "table_clocks": 24528,
+     "table_cycles": 75350.0,
+     "error": 0.00109,
+     "beyond_cpu": false,
+     "ceiling_mhz": 65.4
+    },
+    {
+     "name": "misc",
+     "cycles": 116901,
+     "charged": 38028,
+     "table_clocks": 38028,
+     "table_cycles": 116822.0,
+     "error": 0.00068,
+     "beyond_cpu": false,
+     "ceiling_mhz": 116.6
+    },
+    {
+     "name": "loop",
+     "cycles": 73900,
+     "charged": 24029,
+     "table_clocks": 24029,
+     "table_cycles": 73817.1,
+     "error": 0.00112,
+     "beyond_cpu": false,
+     "ceiling_mhz": 244.4
+    },
+    {
+     "name": "pusha",
+     "cycles": 37038,
+     "charged": 12028,
+     "table_clocks": 12028,
+     "table_cycles": 36950.0,
+     "error": 0.00238,
+     "beyond_cpu": false,
+     "ceiling_mhz": 42.1
+    },
+    {
+     "name": "i386",
+     "cycles": 86180,
+     "charged": 28028,
+     "table_clocks": 28028,
+     "table_cycles": 86102.0,
+     "error": 0.00091,
+     "beyond_cpu": false,
+     "ceiling_mhz": 171.5
+    },
+    {
+     "name": "direct",
+     "cycles": 55473,
+     "charged": 18028,
+     "table_clocks": 18028,
+     "table_cycles": 55382.0,
+     "error": 0.00164,
+     "beyond_cpu": false,
+     "ceiling_mhz": 91.8
+    },
+    {
+     "name": "esc",
+     "cycles": 113826,
+     "charged": 37028,
+     "table_clocks": 37028,
+     "table_cycles": 113750.0,
+     "error": 0.00067,
+     "beyond_cpu": false,
+     "ceiling_mhz": 251.7
+    },
+    {
+     "name": "vram",
+     "cycles": 607828,
+     "charged": 197828,
+     "table_clocks": 197828,
+     "table_cycles": 607727.6,
+     "error": 0.00017,
+     "beyond_cpu": false,
+     "ceiling_mhz": 223.2
+    },
+    {
+     "name": "iobus",
+     "cycles": 1486957,
+     "charged": 484028,
+     "table_clocks": 484028,
+     "table_cycles": 1486934.0,
+     "error": 2e-05,
+     "beyond_cpu": false,
+     "ceiling_mhz": 258.5
+    }
+   ],
+   "beyond": []
+  },
+  "486DX-33@25MHz (word 1)": {
+   "preset": 6,
+   "word1": 250,
+   "mhz": 25.0,
+   "loops": [
+    {
+     "name": "alu",
+     "cycles": 78591,
+     "charged": 32032,
+     "table_clocks": 32032,
+     "table_cycles": 78721.8,
+     "error": -0.00166,
+     "beyond_cpu": false,
+     "ceiling_mhz": 81.9
+    },
+    {
+     "name": "memory",
+     "cycles": 103378,
+     "charged": 42032,
+     "table_clocks": 42032,
+     "table_cycles": 103297.8,
+     "error": 0.00078,
+     "beyond_cpu": false,
+     "ceiling_mhz": 107.0
+    },
+    {
+     "name": "dword",
+     "cycles": 73882,
+     "charged": 30032,
+     "table_clocks": 30032,
+     "table_cycles": 73806.6,
+     "error": 0.00102,
+     "beyond_cpu": false,
+     "ceiling_mhz": 102.3
+    },
+    {
+     "name": "branch",
+     "cycles": 125492,
+     "charged": 51032,
+     "table_clocks": 51032,
+     "table_cycles": 125416.2,
+     "error": 0.0006,
+     "beyond_cpu": false,
+     "ceiling_mhz": 40.9
+    },
+    {
+     "name": "stack",
+     "cycles": 154985,
+     "charged": 63032,
+     "table_clocks": 63032,
+     "table_cycles": 154907.4,
+     "error": 0.0005,
+     "beyond_cpu": false,
+     "ceiling_mhz": 128.9
+    },
+    {
+     "name": "muldiv",
+     "cycles": 209063,
+     "charged": 85032,
+     "table_clocks": 85032,
+     "table_cycles": 208974.6,
+     "error": 0.00042,
+     "beyond_cpu": false,
+     "ceiling_mhz": 116.0
+    },
+    {
+     "name": "string",
+     "cycles": 97959,
+     "charged": 39832,
+     "table_clocks": 39832,
+     "table_cycles": 97891.1,
+     "error": 0.00069,
+     "beyond_cpu": false,
+     "ceiling_mhz": 140.0
+    },
+    {
+     "name": "shift",
+     "cycles": 147615,
+     "charged": 60032,
+     "table_clocks": 60032,
+     "table_cycles": 147534.6,
+     "error": 0.00054,
+     "beyond_cpu": false,
+     "ceiling_mhz": 153.4
+    },
+    {
+     "name": "crt",
+     "cycles": 98385,
+     "charged": 40032,
+     "table_clocks": 40032,
+     "table_cycles": 98382.6,
+     "error": 2e-05,
+     "beyond_cpu": false,
+     "ceiling_mhz": 98.2
+    },
+    {
+     "name": "io",
+     "cycles": 329485,
+     "charged": 134032,
+     "table_clocks": 134032,
+     "table_cycles": 329397.0,
+     "error": 0.00027,
+     "beyond_cpu": false,
+     "ceiling_mhz": 241.9
+    },
+    {
+     "name": "int",
+     "cycles": 60365,
+     "charged": 24532,
+     "table_clocks": 24532,
+     "table_cycles": 60289.8,
+     "error": 0.00125,
+     "beyond_cpu": false,
+     "ceiling_mhz": 65.4
+    },
+    {
+     "name": "misc",
+     "cycles": 93537,
+     "charged": 38032,
+     "table_clocks": 38032,
+     "table_cycles": 93467.4,
+     "error": 0.00074,
+     "beyond_cpu": false,
+     "ceiling_mhz": 116.6
+    },
+    {
+     "name": "loop",
+     "cycles": 59138,
+     "charged": 24033,
+     "table_clocks": 24033,
+     "table_cycles": 59063.5,
+     "error": 0.00126,
+     "beyond_cpu": false,
+     "ceiling_mhz": 244.5
+    },
+    {
+     "name": "pusha",
+     "cycles": 29647,
+     "charged": 12032,
+     "table_clocks": 12032,
+     "table_cycles": 29569.8,
+     "error": 0.00261,
+     "beyond_cpu": false,
+     "ceiling_mhz": 42.1
+    },
+    {
+     "name": "i386",
+     "cycles": 68965,
+     "charged": 28032,
+     "table_clocks": 28032,
+     "table_cycles": 68891.4,
+     "error": 0.00107,
+     "beyond_cpu": false,
+     "ceiling_mhz": 171.6
+    },
+    {
+     "name": "direct",
+     "cycles": 44389,
+     "charged": 18032,
+     "table_clocks": 18032,
+     "table_cycles": 44315.4,
+     "error": 0.00166,
+     "beyond_cpu": false,
+     "ceiling_mhz": 91.8
+    },
+    {
+     "name": "esc",
+     "cycles": 91087,
+     "charged": 37032,
+     "table_clocks": 37032,
+     "table_cycles": 91009.8,
+     "error": 0.00085,
+     "beyond_cpu": false,
+     "ceiling_mhz": 251.7
+    },
+    {
+     "name": "vram",
+     "cycles": 608185,
+     "charged": 247432,
+     "table_clocks": 247432,
+     "table_cycles": 608088.9,
+     "error": 0.00016,
+     "beyond_cpu": false,
+     "ceiling_mhz": 279.1
+    },
+    {
+     "name": "iobus",
+     "cycles": 1400949,
+     "charged": 570032,
+     "table_clocks": 570032,
+     "table_cycles": 1400910.6,
+     "error": 3e-05,
+     "beyond_cpu": false,
+     "ceiling_mhz": 304.5
+    }
+   ],
+   "beyond": []
+  },
+  "486DX-33@50MHz (word 1)": {
+   "preset": 6,
+   "word1": 500,
+   "mhz": 50.0,
+   "loops": [
+    {
+     "name": "alu",
+     "cycles": 39325,
+     "charged": 32050,
+     "table_clocks": 32050,
+     "table_cycles": 39383.0,
+     "error": -0.00147,
+     "beyond_cpu": false,
+     "ceiling_mhz": 81.9
+    },
+    {
+     "name": "memory",
+     "cycles": 51750,
+     "charged": 42050,
+     "table_clocks": 42050,
+     "table_cycles": 51671.0,
+     "error": 0.00153,
+     "beyond_cpu": false,
+     "ceiling_mhz": 107.0
+    },
+    {
+     "name": "dword",
+     "cycles": 36980,
+     "charged": 30050,
+     "table_clocks": 30050,
+     "table_cycles": 36925.4,
+     "error": 0.00148,
+     "beyond_cpu": false,
+     "ceiling_mhz": 102.3
+    },
+    {
+     "name": "branch",
+     "cycles": 76757,
+     "charged": 51050,
+     "table_clocks": 51050,
+     "table_cycles": 62730.2,
+     "error": 0.2236,
+     "beyond_cpu": true,
+     "ceiling_mhz": 40.9
+    },
+    {
+     "name": "stack",
+     "cycles": 77473,
+     "charged": 63050,
+     "table_clocks": 63050,
+     "table_cycles": 77475.8,
+     "error": -4e-05,
+     "beyond_cpu": false,
+     "ceiling_mhz": 129.0
+    },
+    {
+     "name": "muldiv",
+     "cycles": 104556,
+     "charged": 85050,
+     "table_clocks": 85050,
+     "table_cycles": 104509.4,
+     "error": 0.00045,
+     "beyond_cpu": false,
+     "ceiling_mhz": 116.0
+    },
+    {
+     "name": "string",
+     "cycles": 49028,
+     "charged": 39850,
+     "table_clocks": 39850,
+     "table_cycles": 48967.7,
+     "error": 0.00123,
+     "beyond_cpu": false,
+     "ceiling_mhz": 140.0
+    },
+    {
+     "name": "shift",
+     "cycles": 73840,
+     "charged": 60050,
+     "table_clocks": 60050,
+     "table_cycles": 73789.4,
+     "error": 0.00069,
+     "beyond_cpu": false,
+     "ceiling_mhz": 153.5
+    },
+    {
+     "name": "crt",
+     "cycles": 49222,
+     "charged": 40050,
+     "table_clocks": 40050,
+     "table_cycles": 49213.4,
+     "error": 0.00017,
+     "beyond_cpu": false,
+     "ceiling_mhz": 98.3
+    },
+    {
+     "name": "io",
+     "cycles": 253253,
+     "charged": 206050,
+     "table_clocks": 206050,
+     "table_cycles": 253194.2,
+     "error": 0.00023,
+     "beyond_cpu": false,
+     "ceiling_mhz": 371.9
+    },
+    {
+     "name": "int",
+     "cycles": 30224,
+     "charged": 24550,
+     "table_clocks": 24550,
+     "table_cycles": 30167.0,
+     "error": 0.00189,
+     "beyond_cpu": false,
+     "ceiling_mhz": 65.4
+    },
+    {
+     "name": "misc",
+     "cycles": 46805,
+     "charged": 38050,
+     "table_clocks": 38050,
+     "table_cycles": 46755.8,
+     "error": 0.00105,
+     "beyond_cpu": false,
+     "ceiling_mhz": 116.7
+    },
+    {
+     "name": "loop",
+     "cycles": 29604,
+     "charged": 24051,
+     "table_clocks": 24051,
+     "table_cycles": 29553.9,
+     "error": 0.0017,
+     "beyond_cpu": false,
+     "ceiling_mhz": 244.7
+    },
+    {
+     "name": "pusha",
+     "cycles": 17649,
+     "charged": 12050,
+     "table_clocks": 12050,
+     "table_cycles": 14807.0,
+     "error": 0.19193,
+     "beyond_cpu": true,
+     "ceiling_mhz": 42.2
+    },
+    {
+     "name": "i386",
+     "cycles": 34456,
+     "charged": 28050,
+     "table_clocks": 28050,
+     "table_cycles": 34467.8,
+     "error": -0.00034,
+     "beyond_cpu": false,
+     "ceiling_mhz": 171.7
+    },
+    {
+     "name": "direct",
+     "cycles": 22241,
+     "charged": 18050,
+     "table_clocks": 18050,
+     "table_cycles": 22179.8,
+     "error": 0.00276,
+     "beyond_cpu": false,
+     "ceiling_mhz": 91.9
+    },
+    {
+     "name": "esc",
+     "cycles": 45575,
+     "charged": 37050,
+     "table_clocks": 37050,
+     "table_cycles": 45527.0,
+     "error": 0.00105,
+     "beyond_cpu": false,
+     "ceiling_mhz": 251.8
+    },
+    {
+     "name": "vram",
+     "cycles": 578396,
+     "charged": 470650,
+     "table_clocks": 470650,
+     "table_cycles": 578334.7,
+     "error": 0.00011,
+     "beyond_cpu": false,
+     "ceiling_mhz": 531.0
+    },
+    {
+     "name": "iobus",
+     "cycles": 1176039,
+     "charged": 957050,
+     "table_clocks": 957050,
+     "table_cycles": 1176023.0,
+     "error": 1e-05,
+     "beyond_cpu": false,
+     "ceiling_mhz": 511.2
+    }
+   ],
+   "beyond": [
+    "branch",
+    "pusha"
+   ]
+  },
+  "486DX-33@66.7MHz (word 1)": {
+   "preset": 6,
+   "word1": 667,
+   "mhz": 66.7,
+   "loops": [
+    {
+     "name": "alu",
+     "cycles": 29488,
+     "charged": 32062,
+     "table_clocks": 32062,
+     "table_cycles": 29533.6,
+     "error": -0.00154,
+     "beyond_cpu": false,
+     "ceiling_mhz": 81.9
+    },
+    {
+     "name": "memory",
+     "cycles": 38848,
+     "charged": 42062,
+     "table_clocks": 42062,
+     "table_cycles": 38745.0,
+     "error": 0.00266,
+     "beyond_cpu": false,
+     "ceiling_mhz": 107.0
+    },
+    {
+     "name": "dword",
+     "cycles": 27740,
+     "charged": 30062,
+     "table_clocks": 30062,
+     "table_cycles": 27691.3,
+     "error": 0.00176,
+     "beyond_cpu": false,
+     "ceiling_mhz": 102.4
+    },
+    {
+     "name": "branch",
+     "cycles": 76754,
+     "charged": 51062,
+     "table_clocks": 51062,
+     "table_cycles": 47035.2,
+     "error": 0.63184,
+     "beyond_cpu": true,
+     "ceiling_mhz": 40.9
+    },
+    {
+     "name": "stack",
+     "cycles": 58092,
+     "charged": 63062,
+     "table_clocks": 63062,
+     "table_cycles": 58088.9,
+     "error": 5e-05,
+     "beyond_cpu": false,
+     "ceiling_mhz": 129.0
+    },
+    {
+     "name": "muldiv",
+     "cycles": 78403,
+     "charged": 85062,
+     "table_clocks": 85062,
+     "table_cycles": 78354.0,
+     "error": 0.00063,
+     "beyond_cpu": false,
+     "ceiling_mhz": 116.0
+    },
+    {
+     "name": "string",
+     "cycles": 36776,
+     "charged": 39862,
+     "table_clocks": 39862,
+     "table_cycles": 36718.5,
+     "error": 0.00157,
+     "beyond_cpu": false,
+     "ceiling_mhz": 140.1
+    },
+    {
+     "name": "shift",
+     "cycles": 55367,
+     "charged": 60062,
+     "table_clocks": 60062,
+     "table_cycles": 55325.5,
+     "error": 0.00075,
+     "beyond_cpu": false,
+     "ceiling_mhz": 153.5
+    },
+    {
+     "name": "crt",
+     "cycles": 36903,
+     "charged": 40062,
+     "table_clocks": 40062,
+     "table_cycles": 36902.7,
+     "error": 1e-05,
+     "beyond_cpu": false,
+     "ceiling_mhz": 98.3
+    },
+    {
+     "name": "io",
+     "cycles": 234084,
+     "charged": 254062,
+     "table_clocks": 254062,
+     "table_cycles": 234026.5,
+     "error": 0.00025,
+     "beyond_cpu": false,
+     "ceiling_mhz": 458.6
+    },
+    {
+     "name": "int",
+     "cycles": 23148,
+     "charged": 24562,
+     "table_clocks": 24562,
+     "table_cycles": 22625.0,
+     "error": 0.02311,
+     "beyond_cpu": true,
+     "ceiling_mhz": 65.4
+    },
+    {
+     "name": "misc",
+     "cycles": 35068,
+     "charged": 38062,
+     "table_clocks": 38062,
+     "table_cycles": 35060.4,
+     "error": 0.00022,
+     "beyond_cpu": false,
+     "ceiling_mhz": 116.7
+    },
+    {
+     "name": "loop",
+     "cycles": 22210,
+     "charged": 24063,
+     "table_clocks": 24063,
+     "table_cycles": 22165.4,
+     "error": 0.00201,
+     "beyond_cpu": false,
+     "ceiling_mhz": 244.8
+    },
+    {
+     "name": "pusha",
+     "cycles": 17640,
+     "charged": 12062,
+     "table_clocks": 12062,
+     "table_cycles": 11110.8,
+     "error": 0.58765,
+     "beyond_cpu": true,
+     "ceiling_mhz": 42.3
+    },
+    {
+     "name": "i386",
+     "cycles": 25851,
+     "charged": 28062,
+     "table_clocks": 28062,
+     "table_cycles": 25849.0,
+     "error": 8e-05,
+     "beyond_cpu": false,
+     "ceiling_mhz": 171.7
+    },
+    {
+     "name": "direct",
+     "cycles": 16690,
+     "charged": 18062,
+     "table_clocks": 18062,
+     "table_cycles": 16637.6,
+     "error": 0.00315,
+     "beyond_cpu": false,
+     "ceiling_mhz": 91.9
+    },
+    {
+     "name": "esc",
+     "cycles": 34190,
+     "charged": 37062,
+     "table_clocks": 37062,
+     "table_cycles": 34139.3,
+     "error": 0.00149,
+     "beyond_cpu": false,
+     "ceiling_mhz": 251.9
+    },
+    {
+     "name": "vram",
+     "cycles": 570657,
+     "charged": 619462,
+     "table_clocks": 619462,
+     "table_cycles": 570610.9,
+     "error": 8e-05,
+     "beyond_cpu": false,
+     "ceiling_mhz": 698.8
+    },
+    {
+     "name": "iobus",
+     "cycles": 1119246,
+     "charged": 1215062,
+     "table_clocks": 1215062,
+     "table_cycles": 1119241.5,
+     "error": 0.0,
+     "beyond_cpu": false,
+     "ceiling_mhz": 649.0
+    }
+   ],
+   "beyond": [
+    "branch",
+    "int",
+    "pusha"
+   ]
+  }
+ },
+ "preset6_667_equals_preset7": true,
+ "failures": []
+}

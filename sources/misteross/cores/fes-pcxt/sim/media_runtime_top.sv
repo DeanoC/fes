@@ -53,7 +53,7 @@ module media_runtime_top (
     always @(negedge clk) dq_fall <= dq_sample;
     /* verilator lint_off PINCONNECTEMPTY */
     pcxt_memory memory (
-        .clk(clk), .clk_pin(clk), .cold_reset(cold_reset), .reset(exec_reset), .initialized(initialized),
+        .clk(clk), .clk_pin(clk), .clk_handoff(clk), .cold_reset(cold_reset), .reset(exec_reset), .initialized(initialized),
         .memory_valid(memory_valid), .memory_ready(memory_ready), .address(address), .wdata(8'd0),
         .write_cycle(1'b0), .memory_done(memory_done), .memory_rdata(memory_rdata),
         .firmware_valid(1'b0), .firmware_ready(), .firmware_address(16'd0), .firmware_data(8'd0), .firmware_done(),

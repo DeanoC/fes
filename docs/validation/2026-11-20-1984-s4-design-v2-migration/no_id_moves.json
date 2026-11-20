@@ -1,0 +1,279 @@
+{
+ "failed": [],
+ "tree_a": {
+  "cores": {
+   "fes.apple2": {
+    "design_closure_sha256": "f8656e4528057ea33414e88dc4110bc0702bde13113b17f1e1384a4ba9b9e520",
+    "design_files": 39,
+    "producer": "scripts/build_fes_apple2_oss.py",
+    "v1_design_id": "bc5979f38e6339c46873f2b3cfdc44457a8a4945645956a628c0673335b33039"
+   },
+   "fes.atari-st": {
+    "design_closure_sha256": "e3cac02e968902744d4599f9100a137d4903bf7d7daee4cf09f9a28784c1193c",
+    "design_files": 59,
+    "producer": "scripts/build_fes_atari_st_oss.py",
+    "v1_design_id": "95cf73c32fd592b0d2f962ad946ba9b16c95743773c64c69471c45f9012acaae"
+   },
+   "fes.c64": {
+    "design_closure_sha256": "def2fd118c63e5ae63317af9bf9cdfbf62d683df0e152f306de92c832d8acc87",
+    "design_files": 90,
+    "producer": "scripts/build_fes_c64_oss.py",
+    "v1_design_id": "38844aa924b748eee08be30ac4de442b0a752f23a3cc3bb779a5a7b6a67c907a"
+   },
+   "fes.coleco": {
+    "design_closure_sha256": "eeaf8e6646e98949740a7c590a91feb6299a62675d0d84ca058e62f96f19e333",
+    "design_files": 69,
+    "producer": "scripts/build_fes_coleco_socket_v2.py",
+    "v1_design_id": "4890d366b7daa88fa448802eba0538a6d3125d44d603953ddbc48a87d89b683f"
+   },
+   "fes.menu": {
+    "design_closure_sha256": "1b303cabe14e32f2b4e1bcf666dacdae8a185e47fdeb3a294de7098058fd1991",
+    "design_files": 33,
+    "producer": "scripts/build_fes_menu_package.py",
+    "v1_design_id": "986b682ea3adc585f7398a3e82d2a663bc649082b5cac1391b28eafba4eb04aa"
+   },
+   "fes.pc386": {
+    "producer": "cores/fes-pc386/tools/build_pc386_product.py",
+    "unanswered": "cores/fes-pc386/tools/build_pc386_product.py: closure is an explicit path set built in its own create_build_record, not roots in scripts/source_closures.json"
+   },
+   "fes.pcxt-dos": {
+    "design_closure_sha256": "1fd11c5bc0c2b8d142c290a12439e4c21ef08ecb3f51fb305737f7c61cec8964",
+    "design_files": 172,
+    "producer": "scripts/build_fes_pcxt_quartus.py",
+    "v1_design_id": "940bd4de57fead307040f7b7ea1ce899bbb2265966ff24eb07a41ecf1068efc9"
+   },
+   "fes.pentagon": {
+    "design_closure_sha256": "4a15009a1c14f647b1b72743558566b75c42d59f55144659b5724aade32ace40",
+    "design_files": 52,
+    "producer": "scripts/build_fes_spectrum_oss.py",
+    "v1_design_id": "fdadeb27862d5cca7c7a0520f8a2f4dce01277a0688d939e060d3bd9a7dcc3fc"
+   },
+   "fes.pong": {
+    "design_closure_sha256": "9be6da5b358c082ee62d250cb9d43a6594128e7a80d0df4488390314e4c9c24c",
+    "design_files": 16,
+    "producer": "scripts/build_fes_pong.py",
+    "v1_design_id": "77478e4bac10b6567feed4f6fcf7ecb78b488ce38215b2beab8146a0a97ca2cb"
+   },
+   "fes.ramtest": {
+    "design_closure_sha256": "f92d98ad5bb033a24a0b15a0432faa9163dddc47707359dff6c8ce4020de55f1",
+    "design_files": 33,
+    "producer": "scripts/build_fes_ramtest.py",
+    "v1_design_id": "d635f05beade27f5cce2226164e9f75630e08a3c8ebe34d9211b2d1b396676fa"
+   },
+   "fes.riscv": {
+    "design_closure_sha256": "8d93bf6d2d39921570a3f7c3b17b471993e8b5ffacfb176fb2aae173011e4671",
+    "design_files": 30,
+    "producer": "scripts/build_fes_riscv.py",
+    "v1_design_id": "d831fbb4206e5201f25d0865e337673f9a1800aad485afc49f2bab39db509264"
+   },
+   "fes.sg1000": {
+    "design_closure_sha256": "9ffb9731ef91e9aa30ffb6abed8c075b7b71bc8eae676519128a6056e32e4e61",
+    "design_files": 62,
+    "producer": "scripts/build_fes_sg1000_oss.py",
+    "v1_design_id": "2abe17e05a8f4d06042f5d9019cfdc95f12767dbe3d376b2309e2707e76b5047"
+   },
+   "fes.sms": {
+    "design_closure_sha256": "016d4ff3a14ed51b7066f47f83c2c2d46770ebc0466ab777888de91e514fefe7",
+    "design_files": 64,
+    "producer": "scripts/build_fes_sms_oss.py",
+    "v1_design_id": "2768d34be4316e5f450762710151cb2d556536a196bd5e5619b8a6adec27ba88"
+   },
+   "fes.spectrum": {
+    "design_closure_sha256": "4a15009a1c14f647b1b72743558566b75c42d59f55144659b5724aade32ace40",
+    "design_files": 52,
+    "producer": "scripts/build_fes_spectrum_oss.py",
+    "v1_design_id": "fdadeb27862d5cca7c7a0520f8a2f4dce01277a0688d939e060d3bd9a7dcc3fc"
+   },
+   "fes.spectrum-plus3": {
+    "design_closure_sha256": "4a15009a1c14f647b1b72743558566b75c42d59f55144659b5724aade32ace40",
+    "design_files": 52,
+    "producer": "scripts/build_fes_spectrum_oss.py",
+    "v1_design_id": "fdadeb27862d5cca7c7a0520f8a2f4dce01277a0688d939e060d3bd9a7dcc3fc"
+   },
+   "fes.spectrum128": {
+    "design_closure_sha256": "4a15009a1c14f647b1b72743558566b75c42d59f55144659b5724aade32ace40",
+    "design_files": 52,
+    "producer": "scripts/build_fes_spectrum_oss.py",
+    "v1_design_id": "fdadeb27862d5cca7c7a0520f8a2f4dce01277a0688d939e060d3bd9a7dcc3fc"
+   },
+   "fes.ts1000": {
+    "design_closure_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+    "design_files": 52,
+    "producer": "scripts/build_fes_zx81_quartus.py",
+    "v1_design_id": "8bf47ac9e4a636773d3c7550d20fa243e515c68b7d6fccd1965a413beed9f146"
+   },
+   "fes.ts1500": {
+    "design_closure_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+    "design_files": 52,
+    "producer": "scripts/build_fes_zx81_quartus.py",
+    "v1_design_id": "8bf47ac9e4a636773d3c7550d20fa243e515c68b7d6fccd1965a413beed9f146"
+   },
+   "fes.zx80": {
+    "design_closure_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+    "design_files": 52,
+    "producer": "scripts/build_fes_zx81_quartus.py",
+    "v1_design_id": "8bf47ac9e4a636773d3c7550d20fa243e515c68b7d6fccd1965a413beed9f146"
+   },
+   "fes.zx81": {
+    "design_closure_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+    "design_files": 52,
+    "producer": "scripts/build_fes_zx81_quartus.py",
+    "v1_design_id": "8bf47ac9e4a636773d3c7550d20fa243e515c68b7d6fccd1965a413beed9f146"
+   },
+   "splash": {
+    "design_closure_sha256": "54a402f03583b60d34b5435b2e8413b6da4476bec3b3349bbadc828d97ccb7e3",
+    "design_files": 11,
+    "producer": "scripts/build_fes_splash.py",
+    "v1_design_id": null
+   }
+  },
+  "pc386_record": {
+   "build_id": "a0b4fd3ef95e2144f6ecb3aa71e7aece",
+   "design": "a0b4fd3ef95e2144f6ecb3aa71e7aece97d7e845ff105d225e1b713c8be150a0",
+   "policy": "design-v1"
+  },
+  "revision": "91fe3f2aa7a4bb5edbddc19d4d5c3c43d1decc1d",
+  "sealed_1951": {
+   "design": "bb7369101d3a5a15d832f58af59c7123d918ae9510c914266b13909267eea38d",
+   "validates": true
+  }
+ },
+ "tree_b": {
+  "cores": {
+   "fes.apple2": {
+    "design_closure_sha256": "f8656e4528057ea33414e88dc4110bc0702bde13113b17f1e1384a4ba9b9e520",
+    "design_files": 39,
+    "producer": "scripts/build_fes_apple2_oss.py",
+    "v1_design_id": "bc5979f38e6339c46873f2b3cfdc44457a8a4945645956a628c0673335b33039"
+   },
+   "fes.atari-st": {
+    "design_closure_sha256": "e3cac02e968902744d4599f9100a137d4903bf7d7daee4cf09f9a28784c1193c",
+    "design_files": 59,
+    "producer": "scripts/build_fes_atari_st_oss.py",
+    "v1_design_id": "95cf73c32fd592b0d2f962ad946ba9b16c95743773c64c69471c45f9012acaae"
+   },
+   "fes.c64": {
+    "design_closure_sha256": "def2fd118c63e5ae63317af9bf9cdfbf62d683df0e152f306de92c832d8acc87",
+    "design_files": 90,
+    "producer": "scripts/build_fes_c64_oss.py",
+    "v1_design_id": "38844aa924b748eee08be30ac4de442b0a752f23a3cc3bb779a5a7b6a67c907a"
+   },
+   "fes.coleco": {
+    "design_closure_sha256": "eeaf8e6646e98949740a7c590a91feb6299a62675d0d84ca058e62f96f19e333",
+    "design_files": 69,
+    "producer": "scripts/build_fes_coleco_socket_v2.py",
+    "v1_design_id": "4890d366b7daa88fa448802eba0538a6d3125d44d603953ddbc48a87d89b683f"
+   },
+   "fes.menu": {
+    "design_closure_sha256": "1b303cabe14e32f2b4e1bcf666dacdae8a185e47fdeb3a294de7098058fd1991",
+    "design_files": 33,
+    "producer": "scripts/build_fes_menu_package.py",
+    "v1_design_id": "986b682ea3adc585f7398a3e82d2a663bc649082b5cac1391b28eafba4eb04aa"
+   },
+   "fes.pc386": {
+    "producer": "cores/fes-pc386/tools/build_pc386_product.py",
+    "unanswered": "cores/fes-pc386/tools/build_pc386_product.py: closure is an explicit path set built in its own create_build_record, not roots in scripts/source_closures.json"
+   },
+   "fes.pcxt-dos": {
+    "design_closure_sha256": "1fd11c5bc0c2b8d142c290a12439e4c21ef08ecb3f51fb305737f7c61cec8964",
+    "design_files": 172,
+    "producer": "scripts/build_fes_pcxt_quartus.py",
+    "v1_design_id": "940bd4de57fead307040f7b7ea1ce899bbb2265966ff24eb07a41ecf1068efc9"
+   },
+   "fes.pentagon": {
+    "design_closure_sha256": "4a15009a1c14f647b1b72743558566b75c42d59f55144659b5724aade32ace40",
+    "design_files": 52,
+    "producer": "scripts/build_fes_spectrum_oss.py",
+    "v1_design_id": "fdadeb27862d5cca7c7a0520f8a2f4dce01277a0688d939e060d3bd9a7dcc3fc"
+   },
+   "fes.pong": {
+    "design_closure_sha256": "9be6da5b358c082ee62d250cb9d43a6594128e7a80d0df4488390314e4c9c24c",
+    "design_files": 16,
+    "producer": "scripts/build_fes_pong.py",
+    "v1_design_id": "77478e4bac10b6567feed4f6fcf7ecb78b488ce38215b2beab8146a0a97ca2cb"
+   },
+   "fes.ramtest": {
+    "design_closure_sha256": "f92d98ad5bb033a24a0b15a0432faa9163dddc47707359dff6c8ce4020de55f1",
+    "design_files": 33,
+    "producer": "scripts/build_fes_ramtest.py",
+    "v1_design_id": "d635f05beade27f5cce2226164e9f75630e08a3c8ebe34d9211b2d1b396676fa"
+   },
+   "fes.riscv": {
+    "design_closure_sha256": "8d93bf6d2d39921570a3f7c3b17b471993e8b5ffacfb176fb2aae173011e4671",
+    "design_files": 30,
+    "producer": "scripts/build_fes_riscv.py",
+    "v1_design_id": "d831fbb4206e5201f25d0865e337673f9a1800aad485afc49f2bab39db509264"
+   },
+   "fes.sg1000": {
+    "design_closure_sha256": "9ffb9731ef91e9aa30ffb6abed8c075b7b71bc8eae676519128a6056e32e4e61",
+    "design_files": 62,
+    "producer": "scripts/build_fes_sg1000_oss.py",
+    "v1_design_id": "2abe17e05a8f4d06042f5d9019cfdc95f12767dbe3d376b2309e2707e76b5047"
+   },
+   "fes.sms": {
+    "design_closure_sha256": "016d4ff3a14ed51b7066f47f83c2c2d46770ebc0466ab777888de91e514fefe7",
+    "design_files": 64,
+    "producer": "scripts/build_fes_sms_oss.py",
+    "v1_design_id": "2768d34be4316e5f450762710151cb2d556536a196bd5e5619b8a6adec27ba88"
+   },
+   "fes.spectrum": {
+    "design_closure_sha256": "4a15009a1c14f647b1b72743558566b75c42d59f55144659b5724aade32ace40",
+    "design_files": 52,
+    "producer": "scripts/build_fes_spectrum_oss.py",
+    "v1_design_id": "fdadeb27862d5cca7c7a0520f8a2f4dce01277a0688d939e060d3bd9a7dcc3fc"
+   },
+   "fes.spectrum-plus3": {
+    "design_closure_sha256": "4a15009a1c14f647b1b72743558566b75c42d59f55144659b5724aade32ace40",
+    "design_files": 52,
+    "producer": "scripts/build_fes_spectrum_oss.py",
+    "v1_design_id": "fdadeb27862d5cca7c7a0520f8a2f4dce01277a0688d939e060d3bd9a7dcc3fc"
+   },
+   "fes.spectrum128": {
+    "design_closure_sha256": "4a15009a1c14f647b1b72743558566b75c42d59f55144659b5724aade32ace40",
+    "design_files": 52,
+    "producer": "scripts/build_fes_spectrum_oss.py",
+    "v1_design_id": "fdadeb27862d5cca7c7a0520f8a2f4dce01277a0688d939e060d3bd9a7dcc3fc"
+   },
+   "fes.ts1000": {
+    "design_closure_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+    "design_files": 52,
+    "producer": "scripts/build_fes_zx81_quartus.py",
+    "v1_design_id": "8bf47ac9e4a636773d3c7550d20fa243e515c68b7d6fccd1965a413beed9f146"
+   },
+   "fes.ts1500": {
+    "design_closure_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+    "design_files": 52,
+    "producer": "scripts/build_fes_zx81_quartus.py",
+    "v1_design_id": "8bf47ac9e4a636773d3c7550d20fa243e515c68b7d6fccd1965a413beed9f146"
+   },
+   "fes.zx80": {
+    "design_closure_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+    "design_files": 52,
+    "producer": "scripts/build_fes_zx81_quartus.py",
+    "v1_design_id": "8bf47ac9e4a636773d3c7550d20fa243e515c68b7d6fccd1965a413beed9f146"
+   },
+   "fes.zx81": {
+    "design_closure_sha256": "2a6bac4af9f476772ecf7e2e015d8bb0de2852b586bb8f743da2f69206d11276",
+    "design_files": 52,
+    "producer": "scripts/build_fes_zx81_quartus.py",
+    "v1_design_id": "8bf47ac9e4a636773d3c7550d20fa243e515c68b7d6fccd1965a413beed9f146"
+   },
+   "splash": {
+    "design_closure_sha256": "54a402f03583b60d34b5435b2e8413b6da4476bec3b3349bbadc828d97ccb7e3",
+    "design_files": 11,
+    "producer": "scripts/build_fes_splash.py",
+    "v1_design_id": null
+   }
+  },
+  "pc386_record": {
+   "build_id": "f023cb1ebd324dc22114b75ab7c57da7",
+   "design": "f023cb1ebd324dc22114b75ab7c57da74657078a06f1343eb54e64a9b9be3262",
+   "policy": "design-v2"
+  },
+  "revision": "53ff80b8907bf0cc4b3294c650c70f0e10d7ee17",
+  "sealed_1951": {
+   "design": "bb7369101d3a5a15d832f58af59c7123d918ae9510c914266b13909267eea38d",
+   "validates": true
+  }
+ }
+}

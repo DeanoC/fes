@@ -1,0 +1,15 @@
+artefact           old base             new base             verdict
+menu               05ab4ada678920c408   05ab4ada678920c408   identical   [pinned moved]
+splash             13a99a06f8574bcf88   499ad79bfb332b7d07   identical (src exempt)   [pinned moved]
+pong               e7948651bcc0cc2ffb   e7948651bcc0cc2ffb   identical   [pinned moved]
+ramtest            0d59db94f2352a40c9   e797221d1711b4cdf6   MOVED -- recorded comparison does not carry   [pinned moved]
+riscv              e8db4d58afb81e7766   e8db4d58afb81e7766   identical   [pinned moved]
+coleco             58e3e313595a9d481a   58e3e313595a9d481a   identical   [pinned moved]
+c64                1b7efc74cd4f637d0e   1b7efc74cd4f637d0e   identical   [pinned moved]
+spectrum           3f2dfb764a86b215ad   3f2dfb764a86b215ad   identical   [pinned moved]
+spectrum128        cd62753ae45dbfe930   cd62753ae45dbfe930   identical   [pinned moved]
+spectrum-plus3     -                    -                    new base not yet measured
+pentagon           -                    -                    new base not yet measured
+
+1 artefact(s) whose recorded comparison does not carry: ramtest
+pending at the new base: spectrum-plus3, pentagon

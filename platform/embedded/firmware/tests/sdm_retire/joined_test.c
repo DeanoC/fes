@@ -351,7 +351,7 @@ static void probe_write(uint64_t address,uint32_t value){
   if(retire_fault==5)registers[44]=1;
   if(retire_fault==6)registers[0x60/4]=1;
   if(retire_fault==13)arena[0]^=1;
-  if(retire_fault==14)ticks+=20000000;
+  if(retire_fault==14)ticks+=25000000;
  }
  if(retire_armed && address==0x16000098 && retire_fault==9)configuration_program.header[FES_NANO_PROGRAM_SHA384]^=1;
  if(mode==14 && smmu_writes==1)model.base.h.usb[8/4]|=1U<<5;
@@ -430,6 +430,9 @@ static void source_setup(unsigned selected){mode=selected;
  struct fes_nano_master_ops masters_ops={&provider,cold_master_owns,cold_master_quiesce,cold_master_quiescent,master_per0,master_assert,barrier,barrier};
  struct fes_nano_bridge_ops raw={.context=&model.base,.read_reset=bridge_read,.enable=no_bridge,.disable=no_bridge};
  assert(!fes_nano_boot_accept(&model.base.master_boot,&model.base.bridges,&provider.record.boot,&policy,masters_ops,raw));
+#ifdef FES_TEST_LIFECYCLE_CALLBACKS
+ lifecycle_identity_setup();
+#endif
  assert(!initialize(&model.base));assert(!fes_nano_sd_init(&model.base.service,&model.base.bridges,fes_nano_sd_platform_ops(&sd_platform),FES_NANO_SD_QUALIFIED));
  assert(fes_nano_platform_usb_setup()==1);uint64_t r[4];
  fes_nano_usb_service_sip(&fes_nano_owned_usb,FES_EMBEDDED_USB_ACQUIRE,17,0,0,r);assert(!r[0]);host_started(&model);
@@ -1987,7 +1990,7 @@ static void mutate_result(void){
  case 13:transfer.headers++;break;case 14:transfer.start++;break;case 15:transfer.last=0;break;
  case 16:configuration.issued=FES_NANO_CONFIG_WRITE;break;case 17:configuration.pending=4;break;
  case 18:configuration.completed-=4;break;case 19:configuration_program.header[FES_NANO_PROGRAM_SHA384]^=1;break;
- case 20:registers[44]=1;break;case 21:ticks+=20000000;break;case 22:ticks=0;break;
+ case 20:registers[44]=1;break;case 21:ticks+=25000000;break;case 22:ticks=0;break;
  case 23:live_mutation=3;mutation_at=live_owner_checks+1;break;
  default:assert(0);
  }

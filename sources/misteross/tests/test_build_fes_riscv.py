@@ -36,7 +36,8 @@ class RiscvProducerTests(unittest.TestCase):
                 "--identity-version", "2"]), patch.object(riscv, "build", return_value=Path("sealed")) as build:
             self.assertEqual(riscv.main(), 0)
         build.assert_called_once_with(ROOT, ROOT / "build/packages", cache_root=Path("/tmp/cache"),
-                                      identity_version=2, gpu_device=0, single_seed=None)
+                                      identity_version=2, gpu_device=0, single_seed=None,
+                                      gpu_router="HIP")
 
     def test_cli_selects_one_seed_without_a_fallback_ladder(self):
         with patch("sys.argv", ["build_fes_riscv.py", "--single-seed", "1"]), \

@@ -1,0 +1,202 @@
+{
+  "claimed": [
+    "fes.c64",
+    "fes.menu",
+    "fes.pentagon",
+    "fes.spectrum",
+    "fes.spectrum-plus3",
+    "fes.spectrum128",
+    "splash",
+    "ts1000",
+    "ts1500",
+    "zx80",
+    "zx81"
+  ],
+  "not_measured": [],
+  "rows": {
+    "fes.c64": {
+      "lane": "nextpnr",
+      "main_netlist_at_both_bases": "identical",
+      "recorded_build_id": "310c87314680b122595bb792ab7429c9",
+      "recorded_rbf_sha256": "f09ae0e34e414595e3fc785e125dc5a1ee58f871500167b758f6e3bdedc586c7",
+      "recorded_revision": "72d2fc4da6df140a3a1ab7b791b0c83341959f71",
+      "verdict": "CARRIED"
+    },
+    "fes.menu": {
+      "lane": "nextpnr",
+      "main_netlist_at_both_bases": "identical",
+      "recorded_build_id": "60bccd54ecb727e9a6c809388fa9c470",
+      "recorded_rbf_sha256": "6107b13e0425af1be088b606a78c6e42e1f93ce506880bdbee934829701f9ec3",
+      "recorded_revision": "72d2fc4da6df140a3a1ab7b791b0c83341959f71",
+      "verdict": "CARRIED"
+    },
+    "fes.pentagon": {
+      "base_pinned_inputs_sha256": "1e3fb7c90f2c273443ef7d72fc9d9eff764243b9b556def48a6b210db1e51c42",
+      "base_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "build_id": "884ad69e02c457975003603b5d062133",
+      "head_pinned_inputs_sha256": "c7ff55a895adc18363a4e93dd6096eae598dff6833bff3a4cdfee081aa4f1aba",
+      "head_revision": "d83212c98ef581862002ade3a0e76755e018c4a9",
+      "inputs_moved": true,
+      "lane": "nextpnr",
+      "netlist_or_qsf": "3dcbbd1b62c32cfff76c9aa4a208fc5525678dd96e0af45228acf207e2c45cc8",
+      "rbf_bytes": 3043595,
+      "rbf_sha256": "620cd57770b8a2691a1d5305e6aca923bc99bead715c6a1dbe498259db969969",
+      "seed": 5,
+      "seed_outcomes": {
+        "branch-forced": {
+          "completed_seeds": [
+            "5"
+          ],
+          "timed_out_seeds": []
+        },
+        "main-control": {
+          "completed_seeds": [
+            "5"
+          ],
+          "timed_out_seeds": []
+        }
+      },
+      "verdict": "PASS",
+      "winning_seed_base": 5,
+      "winning_seed_head": 5
+    },
+    "fes.spectrum": {
+      "lane": "nextpnr",
+      "main_netlist_at_both_bases": "identical",
+      "recorded_build_id": "401632145ba4e7c84cbae6544b2d6d53",
+      "recorded_rbf_sha256": "402a213d752b3e58ba184e5b4afe34029020e4293682ae9bdd7d2d01cf53b058",
+      "recorded_revision": "72d2fc4da6df140a3a1ab7b791b0c83341959f71",
+      "verdict": "CARRIED"
+    },
+    "fes.spectrum-plus3": {
+      "base_pinned_inputs_sha256": "1e3fb7c90f2c273443ef7d72fc9d9eff764243b9b556def48a6b210db1e51c42",
+      "base_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "build_id": "9ac4506eefb409de3569add7488803e8",
+      "head_pinned_inputs_sha256": "c7ff55a895adc18363a4e93dd6096eae598dff6833bff3a4cdfee081aa4f1aba",
+      "head_revision": "d83212c98ef581862002ade3a0e76755e018c4a9",
+      "inputs_moved": true,
+      "lane": "nextpnr",
+      "netlist_or_qsf": "c7565cb2923f25c36734efa01f638b2db1e71504e39105bbc7c09ea58d859b7c",
+      "rbf_bytes": 3166054,
+      "rbf_sha256": "7b14cc2cdeee8a6ad5fa2d0691c578a2f7771caf8af937cf0500254166a72ddf",
+      "seed": 2,
+      "seed_outcomes": {
+        "branch-forced": {
+          "completed_seeds": [
+            "2"
+          ],
+          "timed_out_seeds": [
+            "4",
+            "5"
+          ]
+        },
+        "main-control": {
+          "completed_seeds": [
+            "2"
+          ],
+          "timed_out_seeds": [
+            "4",
+            "5"
+          ]
+        }
+      },
+      "verdict": "PASS",
+      "winning_seed_base": 2,
+      "winning_seed_head": 2
+    },
+    "fes.spectrum128": {
+      "base_pinned_inputs_sha256": "1e3fb7c90f2c273443ef7d72fc9d9eff764243b9b556def48a6b210db1e51c42",
+      "base_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "build_id": "c1a739bb78c24b55eadbfc0473a68d45",
+      "head_pinned_inputs_sha256": "c7ff55a895adc18363a4e93dd6096eae598dff6833bff3a4cdfee081aa4f1aba",
+      "head_revision": "b0f05545183f7d06e58a7dae7123eabe8770ea9a",
+      "inputs_moved": true,
+      "lane": "nextpnr",
+      "netlist_or_qsf": "e9b2506f18b9f3d31bd6183281278c92c1aed5ac37603a8d879bef67509b4a58",
+      "rbf_bytes": 2974269,
+      "rbf_sha256": "34c2b5fc92b0cd9f8aaf58bdc7b088eb589a06e8bc4056863acfda4700440746",
+      "seed": 5,
+      "seed_outcomes": {},
+      "verdict": "PASS",
+      "winning_seed_base": 5,
+      "winning_seed_head": 5
+    },
+    "splash": {
+      "branch_build_id": "85c40d0fb4a6f1071b60fd40ed59ef8e",
+      "lane": "nextpnr",
+      "main_build_id": "b19d12426e4c1323c859199c1798fe07",
+      "main_netlist_at_both_bases": "identical (src exempt)",
+      "rbf_bytes": 1963321,
+      "rbf_sha256": "64f1f16daedba4ed19179bd5d7c6f3eb3058a688d15441c8c8d89e113060f182",
+      "verdict": "PASS (no BUILD_ID in the program)"
+    },
+    "ts1000": {
+      "base_declared_inputs_sha256": "7a6e3d9c6f58e78a278b536f04cd38cde9f5ce9f74e4f818f503d312987f9acf",
+      "base_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "build_id": "ade15fe738cb33a5e05eb7251fc70cf3",
+      "head_declared_inputs_sha256": "d24cb66ae6a55a1f3d16543807bd128fc8d2740baaf4540f77e43d9cb77555cc",
+      "head_revision": "d83212c98ef581862002ade3a0e76755e018c4a9",
+      "inputs_moved": true,
+      "lane": "quartus-lite",
+      "netlist_or_qsf": "1f95667c824625bc2b1e9ae4114d2d0b321e0c2c6b8c1c1794eb5caaa771ec0a",
+      "rbf_bytes": 2391984,
+      "rbf_sha256": "104b4014afbf8b4b8c3c1ed6303b0cb7496111b110cd34250e2e2062b8a332c4",
+      "seed": 1,
+      "seed_outcomes": {},
+      "verdict": "PASS",
+      "winning_seed_base": null,
+      "winning_seed_head": null
+    },
+    "ts1500": {
+      "base_declared_inputs_sha256": "7a6e3d9c6f58e78a278b536f04cd38cde9f5ce9f74e4f818f503d312987f9acf",
+      "base_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "build_id": "d058332894c54b349c648c1fc6177022",
+      "head_declared_inputs_sha256": "d24cb66ae6a55a1f3d16543807bd128fc8d2740baaf4540f77e43d9cb77555cc",
+      "head_revision": "d83212c98ef581862002ade3a0e76755e018c4a9",
+      "inputs_moved": true,
+      "lane": "quartus-lite",
+      "netlist_or_qsf": "e645baca2d370a38009d76253184afe8678e848a15c5006c36dcde1cb8d54a60",
+      "rbf_bytes": 2364036,
+      "rbf_sha256": "bfdc409ba6e2b09babf05a5b0da3ae6526a6c55e57dd406d4356af71c64ab677",
+      "seed": 1,
+      "seed_outcomes": {},
+      "verdict": "PASS",
+      "winning_seed_base": null,
+      "winning_seed_head": null
+    },
+    "zx80": {
+      "base_declared_inputs_sha256": "7a6e3d9c6f58e78a278b536f04cd38cde9f5ce9f74e4f818f503d312987f9acf",
+      "base_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "build_id": "c35171885bf84738cf3e1c6e2ba99908",
+      "head_declared_inputs_sha256": "d24cb66ae6a55a1f3d16543807bd128fc8d2740baaf4540f77e43d9cb77555cc",
+      "head_revision": "d83212c98ef581862002ade3a0e76755e018c4a9",
+      "inputs_moved": true,
+      "lane": "quartus-lite",
+      "netlist_or_qsf": "1b6fbd3540794511a330df0048fa32f41381e4b76c472ef57a6f428de4a0c4f5",
+      "rbf_bytes": 2303760,
+      "rbf_sha256": "abc7e320086ca908c66df3f537510e42cdeab229af237633b11515dbe0587557",
+      "seed": 1,
+      "seed_outcomes": {},
+      "verdict": "PASS",
+      "winning_seed_base": null,
+      "winning_seed_head": null
+    },
+    "zx81": {
+      "base_declared_inputs_sha256": "7a6e3d9c6f58e78a278b536f04cd38cde9f5ce9f74e4f818f503d312987f9acf",
+      "base_revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+      "build_id": "d7fadc3a87a7b3fe12a164d2dd62e126",
+      "head_declared_inputs_sha256": "d24cb66ae6a55a1f3d16543807bd128fc8d2740baaf4540f77e43d9cb77555cc",
+      "head_revision": "d83212c98ef581862002ade3a0e76755e018c4a9",
+      "inputs_moved": true,
+      "lane": "quartus-lite",
+      "netlist_or_qsf": "f6a3d0924446994d2c31f4c3f42b615de0c293923e47525e1c89ebb5eeaddd47",
+      "rbf_bytes": 2403052,
+      "rbf_sha256": "756ccc23d7ad2243635f42378086f127d76501d4b83cae54de638f443809d221",
+      "seed": 1,
+      "seed_outcomes": {},
+      "verdict": "PASS",
+      "winning_seed_base": null,
+      "winning_seed_head": null
+    }
+  }
+}

@@ -1,7 +1,89 @@
 # Contained firmware and FPGA control prototype
 
-The latest [preservation checkpoint](../../../docs/validation/2026-11-15-de25-merge-readiness/README.md) records a matched boot chain and a physical ZX81 launch with initial tape. Return to MENU stops at secure source release; the complete cycle remains unqualified. [Issue #1867](https://github.com/DeanoC/fes/issues/1867) tracks the whole secure ownership, memory, lifecycle and recovery investigation. The candidate remains stopped on the spare card, with host handles closed and a physical reset required before restoration. This merge preparation makes no new board changes.
+The [completion-cause and fresh-read hashing repair](../../../docs/validation/2026-11-18-de25-completion-cost/README.md) reproduces
+the masked `configuration already completed` failure in a fresh diagnostic:
+a native 25-second deadline expires at 25.018012418 seconds after firmware
+completion.
+Both configuration owners now preserve and latch the original rejection. Fresh
+private-scratch SHA256/SHA384 checks retain every whole-image/chunk read and
+ownership check while reducing work against uncached source memory. No time
+limit or firmware/driver ownership policy changes.
 
+The fresh `838ac5b48` TRWU8CBL serial test completes five configurations, both
+ZX81/ZX80 launch-returns and final USB inactive Stop/Park. Input stays paused
+through final MENU closure. Exact original-FIT restoration and independent
+raw-trace/cleanup replay pass without power cycling. The earlier diagnostic
+remains failed and retained; current artifacts use `838ac5b48`, with later
+docs-only delivery. All eight affected software checks, the native race suite,
+matched boot chain and source-bound file admission pass. Ordinary J8G HIL,
+physical display/input and full repeated/failure/reset/DMA qualification remain
+open. PR #1952 stays draft/`lane:deano`; issue #1867 stays open. Older figures
+below describe historical profiles and consumed procedures.
+
+The [fresh final-validation cost trial](../../../docs/validation/2026-11-18-de25-final-cost-physical/README.md) completes initial MENU,
+ZX81 with tape, both releases and full next-MENU configuration, then
+rejects guard 31 / reason 7 at source elapsed 20,142,473 us under the
+unchanged 20-second bound. The barrier repair is insufficient physically;
+ZX80 and final native Park are not reached. Exact original-FIT restoration
+and protected readback pass without power cycling. The failed procedure
+is consumed; complete repeated-cycle qualification remains open.
+
+The [private comparison repair](../../../docs/validation/2026-11-18-de25-warm-preparation-comparison/README.md) now reproduces the second warm
+preparation boundary through production callbacks under synthetic costs and
+reduces modeled snapshot loads by 84.885%, preserving all bytes, freshness
+checks and deadlines. Sanitized checks, target wide-load/layout proof and a
+fresh matched/file-admitted boot chain pass. The [physical trial](../../../docs/validation/2026-11-18-de25-comparison-physical/README.md)
+passes generation-15 preparation/arm and full DATA, then rejects final
+input proof at source-clock guard 31, before retirement. The original FIT
+is restored without power cycling; the full cycle/Park remains open.
+
+The historical [preservation checkpoint](../../../docs/validation/2026-11-15-de25-merge-readiness/README.md) records a matched boot chain and a physical ZX81 launch with initial tape. Return to MENU stops at secure source release; the complete cycle remains unqualified. [Issue #1867](https://github.com/DeanoC/fes/issues/1867) tracks the whole secure ownership, memory, lifecycle and recovery investigation. The later [reset-recovery](../../../docs/validation/2026-11-17-de25-reset-recovery/README.md) and [SD restoration](../../../docs/validation/2026-11-17-de25-sd-restoration/README.md) checkpoints qualify bounded recovery/readback without a physical cycle. Their original host-deadline failure remains failed. Current board state belongs to the kit ledger.
+
+The [secure lifecycle investigation](../../../docs/design/de25-native-secure-lifecycle.md)
+maps trust, memory, generations, timing and recovery. The native/C regression
+now uses production activation, control, master-stop and return callbacks.
+It reproduces guard 34 when a held computer's DDR reader was never enabled.
+Source release accepts that exact zero receipt only with the complete stop,
+probe, held-return and ownership proofs. Partial acknowledgements still reject;
+no deadline changes. The [guard 34 validation](../../../docs/validation/2026-11-17-de25-guard34-fix/README.md)
+records the before-fix reproduction, repaired checks and unprogrammed matched
+chain. The later [physical trial](../../../docs/validation/2026-11-17-de25-guard34-physical/README.md)
+passes the formerly rejected release in 918,403 µs, then stops during the next
+MENU's four-second preparation. The complete two-core return/Park cycle stays
+unqualified. Fresh recovery restores the original FIT without power cycling.
+
+
+The explicit reset-recovery diagnostic adds a nonce-bound SPL witness before
+DDR/SD initialization. Build with `--network-recovery --recovery-reset-nonce`
+and a fresh nonzero 32-digit hexadecimal nonce. `recovery_reset_package.py`
+validates this separate profile and composes a volatile SOF under the shared
+Quartus Pro lock; it creates no card image. Default recovery packaging rejects
+this profile. The embedded SPL is independently decoded and the compiled UART
+route is checked against UART1.
+
+`ResetRecoveryAttempt` connects the existing one-use fresh-scan JTAG gate to
+that witness and a new `UploadSession.read_existing` operation. The caller owns
+the serial-bound claim, private server, capture window, finite callback bounds
+and cleanup. A complete new witness plus protected loader/card and candidate
+file readback is required. Partial boot, stale nonce, lost ownership, failed
+programming or changed card retires the attempt. No retry, SD/flash write, old
+source reuse or normal runtime resume is authorized. This observes HPS
+rebootstrap and reset-held masters; it does not prove SDM reset, old fabric
+master drain or a complete native launch/return cycle. The linked bounded physical test qualifies this read-only bootstrap route;
+SDM reset and normal runtime acceptance remain separate.
+
+The reset gate now requires a shared persistent nonce registry and an actual
+`ResetCapture` window drained and armed immediately before program dispatch.
+A reused nonce or a transcript supplied outside that window rejects. Admission
+also pins the protected card-prefix and image digests independently of the
+session factory. ELF section/LOAD bytes for the early probe code and data must
+match the decoded SPL image.
+
+`ResetRestorationAttempt` is the separately selected boot-file transaction. It
+retains the new `UploadSession` through independent source checks, one fixed
+boot FIT write and protected readback, then retires it. This grants neither
+native activation nor power-loss durability. Its caller still owns the serial
+claim, reset-register observation, finite deadlines and complete host cleanup.
 
 This is exploratory firmware and native integration for the Linux-free base.
 It supplies a pinned TF-A source transformation, a freestanding C++14 control

@@ -25,6 +25,8 @@ std::string Controller::Handle(const std::string& line, Deferred& deferred)
 	CorePackageInspection inspection;
 	CoreData data;
 	const CoreData* core_data = nullptr;
+	MediaDataInspection media;
+	const MediaDataInspection* media_data = nullptr;
 	const CorePackageInspection* inspected = nullptr;
 	bool idle_display_health = false;
 	switch (request.operation) {
@@ -67,6 +69,22 @@ std::string Controller::Handle(const std::string& line, Deferred& deferred)
 		if (result.ok())
 			core_data = &data;
 		break;
+	case Operation::inspect_media_data:
+		result = runtime_.InspectMediaData(request.media_query, &media);
+		if (result.ok())
+			media_data = &media;
+		break;
+	case Operation::discard_media_data:
+		result = runtime_.DiscardMediaData(request.media_query, request.expected_revision, &media);
+		if (result.ok())
+			media_data = &media;
+		break;
+	case Operation::export_media_data:
+		result = runtime_.ExportMediaData(request.media_query, request.expected_revision,
+			request.media_path, &media);
+		if (result.ok())
+			media_data = &media;
+		break;
 	case Operation::load_core:
 		result = runtime_.LoadCore(request.package_path, request.package_id,
 			request.has_initial_media ? &request.initial_media : nullptr);
@@ -90,14 +108,20 @@ std::string Controller::Handle(const std::string& line, Deferred& deferred)
 		EmitFifoConsume("load_parts_library_core", result.ok());
 		break;
 	case Operation::load_rom_core:
-		result = request.rom_links.sources.empty() ?
+		result = !request.firmware_path.empty() ?
+			runtime_.LoadFirmwareCore(request.package_path, request.package_id, "",
+				request.firmware_path, request.rom_link, request.has_initial_media ? &request.initial_media : nullptr) :
+			request.rom_links.sources.empty() ?
 			runtime_.LoadROMCore(request.package_path, request.package_id,
 				request.programmed_path, request.rom_link, request.has_initial_media ? &request.initial_media : nullptr) :
 			runtime_.LoadROMsCore(request.package_path, request.package_id,
 				request.programmed_path, request.rom_links);
 		break;
 	case Operation::load_rom_library_core:
-		result = request.rom_links.sources.empty() ?
+		result = !request.firmware_path.empty() ?
+			runtime_.LoadFirmwareCore(request.package_path, request.package_id, request.data_root,
+				request.firmware_path, request.rom_link, request.has_initial_media ? &request.initial_media : nullptr) :
+			request.rom_links.sources.empty() ?
 			runtime_.LoadROMLibraryCore(request.package_path, request.package_id,
 				request.data_root, request.programmed_path, request.rom_link, request.has_initial_media ? &request.initial_media : nullptr) :
 			runtime_.LoadROMsLibraryCore(request.package_path, request.package_id,
@@ -196,7 +220,7 @@ std::string Controller::Handle(const std::string& line, Deferred& deferred)
 	// Composing the reply is not sending it: the health work is handed back
 	// to the server, which runs it after the bytes are on the socket.
 	if (idle_display_health) deferred = Deferred::idle_display_health;
-	return Respond(request.protocol, result, inspected, core_data);
+	return Respond(request.protocol, result, inspected, core_data, nullptr, media_data);
 }
 
 // Runs on the connection thread once the reply has been sent. The reads then
@@ -239,11 +263,12 @@ std::string Controller::InvalidRequest(const std::string& message)
 }
 
 std::string Controller::Respond(std::int64_t protocol, const Error& result,
-	const CorePackageInspection* inspection, const CoreData* data,const MenuFrameReply* frame)
+	const CorePackageInspection* inspection, const CoreData* data,const MenuFrameReply* frame,
+	const MediaDataInspection* media)
 {
 	Status observed = runtime_.status();
 	if (!result.ok()) observed.error = result;
-	return EncodeResponse(protocol, result.ok(), observed, version_, inspection, data,frame);
+	return EncodeResponse(protocol, result.ok(), observed, version_, inspection, data, frame, media);
 }
 
 } // namespace daemon

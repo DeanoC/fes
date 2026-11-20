@@ -97,11 +97,19 @@ class ReportTest(unittest.TestCase):
 def state(pid: int) -> str:
     try:
         return Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[0]
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
         return 'gone'
 
 
 class JobTest(unittest.TestCase):
+    def test_state_distinguishes_gone_process_from_other_read_errors(self):
+        for error in (FileNotFoundError(), ProcessLookupError()):
+            with self.subTest(error=type(error).__name__), mock.patch.object(Path, 'read_text', side_effect=error):
+                self.assertEqual(state(123), 'gone')
+        with mock.patch.object(Path, 'read_text', side_effect=PermissionError()):
+            with self.assertRaises(PermissionError):
+                state(123)
+
     def test_run_stops_a_tool_at_its_cap(self):
         with tempfile.TemporaryDirectory() as tmp:
             err = io.StringIO()

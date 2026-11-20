@@ -11,6 +11,7 @@ static uint64_t captured_start;
 static uint32_t accepted_bytes;
 static unsigned prepare_attempted,prepared,control_pending,control_header_seen;
 static unsigned source_release_attempted,source_released;
+static unsigned char release_stage;
 static unsigned prepare_active;
 static int service_error;
 static int stop(int error)
@@ -64,6 +65,7 @@ int fes_nano_sdm_transfer_prepare(void)
  if(warm)previous_completion=before; /* Diagnostic history, never a release grant. */
  transfer=(struct nano_sdm_transfer){0};captured=next;captured_io=next_io;captured_start=next_start;
  accepted_bytes=0;control_pending=control_header_seen=0;source_release_attempted=source_released=0;
+ release_stage=NANO_RELEASE_FRESH;
  prepared=1;prepare_active=0;return 0;
 }
 int fes_nano_sdm_transfer_begin(uint32_t credits,uint32_t block,uint32_t job)
@@ -137,18 +139,25 @@ int fes_nano_sdm_transfer_release_source(const struct nano_sdm_input_binding *bi
  if(source_release_attempted || !binding || nano_sdm_input_validate(binding))return stop(-13);
  const struct nano_sdm_input_binding expected=*binding;
  source_release_attempted=1;
+ release_stage=NANO_RELEASE_LEDGER;
  if(!release_live(&expected))return stop(-13);
  /* Both table passes use the platform's one fresh release clock. No clock,
   * transfer history, parser state, error or queue pointer is reset here. */
  for(unsigned pass=0;pass<2;pass++){
-  if(fes_nano_sdm_source_release_ready(&expected,1)!=1 || !release_live(&expected) ||
-     !fes_nano_sdm_control_mailbox_idle() || !release_live(&expected) ||
-     fes_nano_sdm_source_release_ready(&expected,0)!=1 || !release_live(&expected))return stop(-13);
+  release_stage=pass ? NANO_RELEASE_TABLES_2:NANO_RELEASE_TABLES_1;
+  if(fes_nano_sdm_source_release_ready(&expected,1)!=1 || !release_live(&expected))return stop(-13);
+  release_stage=pass ? NANO_RELEASE_MAILBOX_2:NANO_RELEASE_MAILBOX_1;
+  if(!fes_nano_sdm_control_mailbox_idle() || !release_live(&expected))return stop(-13);
+  release_stage=pass ? NANO_RELEASE_VIEW_2:NANO_RELEASE_VIEW_1;
+  if(fes_nano_sdm_source_release_ready(&expected,0)!=1 || !release_live(&expected))return stop(-13);
  }
+ release_stage=NANO_RELEASE_FINAL_MAILBOX;
  if(!fes_nano_sdm_control_mailbox_idle() || !release_live(&expected))return stop(-13);
  source_released=1; /* Withdraw old reader/control permission before returning. */
+ release_stage=NANO_RELEASE_COMMITTED;
  return 0;
 }
+unsigned fes_nano_sdm_transfer_release_stage(void){return release_stage;}
 int fes_nano_sdm_transfer_source_released(const struct nano_sdm_input_binding *binding)
 {
  return binding && source_release_attempted==1 && source_released==1 &&

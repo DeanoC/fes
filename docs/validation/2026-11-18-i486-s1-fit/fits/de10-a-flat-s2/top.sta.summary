@@ -1,0 +1,261 @@
+------------------------------------------------------------
+TimeQuest Timing Analyzer Summary
+------------------------------------------------------------
+
+Type  : Slow 1100mV 100C Model Setup 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 0.831
+TNS   : 0.000
+
+Type  : Slow 1100mV 100C Model Setup 'video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 1.510
+TNS   : 0.000
+
+Type  : Slow 1100mV 100C Model Setup 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 11.396
+TNS   : 0.000
+
+Type  : Slow 1100mV 100C Model Hold 'video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 0.290
+TNS   : 0.000
+
+Type  : Slow 1100mV 100C Model Hold 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 0.291
+TNS   : 0.000
+
+Type  : Slow 1100mV 100C Model Hold 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 0.444
+TNS   : 0.000
+
+Type  : Slow 1100mV 100C Model Recovery 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 7.131
+TNS   : 0.000
+
+Type  : Slow 1100mV 100C Model Recovery 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 79.206
+TNS   : 0.000
+
+Type  : Slow 1100mV 100C Model Removal 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 1.227
+TNS   : 0.000
+
+Type  : Slow 1100mV 100C Model Removal 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 4.894
+TNS   : 0.000
+
+Type  : Slow 1100mV 100C Model Minimum Pulse Width 'video_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]'
+Slack : 1.122
+TNS   : 0.000
+
+Type  : Slow 1100mV 100C Model Minimum Pulse Width 'system_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]'
+Slack : 1.162
+TNS   : 0.000
+
+Type  : Slow 1100mV 100C Model Minimum Pulse Width 'video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 5.300
+TNS   : 0.000
+
+Type  : Slow 1100mV 100C Model Minimum Pulse Width 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 6.702
+TNS   : 0.000
+
+Type  : Slow 1100mV 100C Model Minimum Pulse Width 'FPGA_CLK1_50'
+Slack : 9.730
+TNS   : 0.000
+
+Type  : Slow 1100mV 100C Model Minimum Pulse Width 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 39.926
+TNS   : 0.000
+
+Type  : Slow 1100mV -40C Model Setup 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 0.404
+TNS   : 0.000
+
+Type  : Slow 1100mV -40C Model Setup 'video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 1.537
+TNS   : 0.000
+
+Type  : Slow 1100mV -40C Model Setup 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 11.586
+TNS   : 0.000
+
+Type  : Slow 1100mV -40C Model Hold 'video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 0.094
+TNS   : 0.000
+
+Type  : Slow 1100mV -40C Model Hold 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 0.227
+TNS   : 0.000
+
+Type  : Slow 1100mV -40C Model Hold 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 0.455
+TNS   : 0.000
+
+Type  : Slow 1100mV -40C Model Recovery 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 7.210
+TNS   : 0.000
+
+Type  : Slow 1100mV -40C Model Recovery 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 79.333
+TNS   : 0.000
+
+Type  : Slow 1100mV -40C Model Removal 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 1.145
+TNS   : 0.000
+
+Type  : Slow 1100mV -40C Model Removal 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 4.914
+TNS   : 0.000
+
+Type  : Slow 1100mV -40C Model Minimum Pulse Width 'video_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]'
+Slack : 1.122
+TNS   : 0.000
+
+Type  : Slow 1100mV -40C Model Minimum Pulse Width 'system_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]'
+Slack : 1.162
+TNS   : 0.000
+
+Type  : Slow 1100mV -40C Model Minimum Pulse Width 'video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 5.278
+TNS   : 0.000
+
+Type  : Slow 1100mV -40C Model Minimum Pulse Width 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 6.681
+TNS   : 0.000
+
+Type  : Slow 1100mV -40C Model Minimum Pulse Width 'FPGA_CLK1_50'
+Slack : 9.754
+TNS   : 0.000
+
+Type  : Slow 1100mV -40C Model Minimum Pulse Width 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 39.856
+TNS   : 0.000
+
+Type  : Fast 1100mV 100C Model Setup 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 7.595
+TNS   : 0.000
+
+Type  : Fast 1100mV 100C Model Setup 'video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 7.683
+TNS   : 0.000
+
+Type  : Fast 1100mV 100C Model Setup 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 13.328
+TNS   : 0.000
+
+Type  : Fast 1100mV 100C Model Hold 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 0.167
+TNS   : 0.000
+
+Type  : Fast 1100mV 100C Model Hold 'video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 0.169
+TNS   : 0.000
+
+Type  : Fast 1100mV 100C Model Hold 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 0.201
+TNS   : 0.000
+
+Type  : Fast 1100mV 100C Model Recovery 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 11.603
+TNS   : 0.000
+
+Type  : Fast 1100mV 100C Model Recovery 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 80.139
+TNS   : 0.000
+
+Type  : Fast 1100mV 100C Model Removal 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 0.601
+TNS   : 0.000
+
+Type  : Fast 1100mV 100C Model Removal 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 2.528
+TNS   : 0.000
+
+Type  : Fast 1100mV 100C Model Minimum Pulse Width 'video_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]'
+Slack : 1.122
+TNS   : 0.000
+
+Type  : Fast 1100mV 100C Model Minimum Pulse Width 'system_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]'
+Slack : 1.162
+TNS   : 0.000
+
+Type  : Fast 1100mV 100C Model Minimum Pulse Width 'video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 5.613
+TNS   : 0.000
+
+Type  : Fast 1100mV 100C Model Minimum Pulse Width 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 7.013
+TNS   : 0.000
+
+Type  : Fast 1100mV 100C Model Minimum Pulse Width 'FPGA_CLK1_50'
+Slack : 9.347
+TNS   : 0.000
+
+Type  : Fast 1100mV 100C Model Minimum Pulse Width 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 40.234
+TNS   : 0.000
+
+Type  : Fast 1100mV -40C Model Setup 'video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 8.420
+TNS   : 0.000
+
+Type  : Fast 1100mV -40C Model Setup 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 9.070
+TNS   : 0.000
+
+Type  : Fast 1100mV -40C Model Setup 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 13.822
+TNS   : 0.000
+
+Type  : Fast 1100mV -40C Model Hold 'video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 0.076
+TNS   : 0.000
+
+Type  : Fast 1100mV -40C Model Hold 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 0.083
+TNS   : 0.000
+
+Type  : Fast 1100mV -40C Model Hold 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 0.190
+TNS   : 0.000
+
+Type  : Fast 1100mV -40C Model Recovery 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 11.984
+TNS   : 0.000
+
+Type  : Fast 1100mV -40C Model Recovery 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 80.318
+TNS   : 0.000
+
+Type  : Fast 1100mV -40C Model Removal 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 0.517
+TNS   : 0.000
+
+Type  : Fast 1100mV -40C Model Removal 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 2.255
+TNS   : 0.000
+
+Type  : Fast 1100mV -40C Model Minimum Pulse Width 'video_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]'
+Slack : 1.122
+TNS   : 0.000
+
+Type  : Fast 1100mV -40C Model Minimum Pulse Width 'system_clock|pll|general[0].gpll~FRACTIONAL_PLL|vcoph[0]'
+Slack : 1.162
+TNS   : 0.000
+
+Type  : Fast 1100mV -40C Model Minimum Pulse Width 'video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 5.619
+TNS   : 0.000
+
+Type  : Fast 1100mV -40C Model Minimum Pulse Width 'system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 7.025
+TNS   : 0.000
+
+Type  : Fast 1100mV -40C Model Minimum Pulse Width 'FPGA_CLK1_50'
+Slack : 9.274
+TNS   : 0.000
+
+Type  : Fast 1100mV -40C Model Minimum Pulse Width 'system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk'
+Slack : 40.226
+TNS   : 0.000
+
+------------------------------------------------------------

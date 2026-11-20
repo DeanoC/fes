@@ -1,0 +1,168 @@
+{
+  "base": "a14663bd9f6bfdd4d9024d7c6a0b8f0f843e937a",
+  "changed_files": {
+    "platform/embedded/README.md": "bf871fe152ea9b4a7922bda19b21c4efceedcc21f410bc9fb7ccd6f9b9a23f3a",
+    "platform/embedded/nano/README.md": "ba30a43d92ba765120431355f5d3550714aa9ce83a0b92e4f625da6c9c3879a3",
+    "platform/embedded/nano/launcher.md": "ffc28fe609378e887a12437fd202d83d2a1f8e24a1ecd0bca52541f747f09dd8",
+    "platform/embedded/nano/launcher_image.py": "7abf3c8533456dee79c21be2c25037abd62dffe465fb6657f0d98b21e548e858",
+    "platform/embedded/nano/paired_tenfoot_trace.py": "f47bf9988016a32ed0a73669c5f772f609223546b3aad1aada57db8479ab4864",
+    "platform/embedded/tamago/README.md": "ec6c83df28dc2643d31955ea7762c4c5cf3490bf061fc2af87537fae7a3ac8d2",
+    "platform/embedded/tamago/cmd/fpgaload/main.go": "665a178b630e2aa444f37ea4e5f37a5dd4d7601da8acefb4804a2b382429f334",
+    "platform/embedded/tamago/cmd/fpgaload/tenfoot.go": "2df545734e5b792d6b0041b170398804f3ce42800ee05dcce4c74d377a35168d",
+    "platform/embedded/tamago/cmd/fpgaload/tenfoot_disabled.go": "7fedd0703e921ea1e351405b6a95523973768ef2f752f938853fbc87ff878965",
+    "platform/embedded/tamago/cmd/stage-installer/main.go": "46509fe51554be9357943ecc237dc16d34167ba610e5b5fd96459b894fdfb313",
+    "platform/embedded/tamago/nativefabric/README.md": "04fff4e63831282b3b80b8354d820ca2b61b17b4ab6b1d61c8e63c52a0013e48",
+    "platform/embedded/tamago/nativefabric/program_launcher_reboot_test.go": "99949113abd3846f8b0ea5413ca16d6212f9257c030fec426afab779bf1cb414",
+    "platform/embedded/tamago/nativefabric/program_menu_test.go": "87e185b0875e20d4d772c79d6b95dfbdb1f1b93dc5f03dedf175573f25bcc5ef",
+    "platform/embedded/tamago/nativefabric/program_staging_host.go": "a9ec439c85cef64493dd9758a9a6b85d45508caec5ed38986802d5f3a4b0a89b",
+    "platform/embedded/tamago/nativefabric/program_startup.go": "a364a5547f221400ae8e71104947e8c238f7ecdb957cc1e19f688ff7c1790c54",
+    "platform/embedded/tamago/nativefabric/program_startup_test.go": "be1716f17ff66b6c4da5510d8b0a308c757f2ea1ae2dfbbe9577b4d6e4a8808a",
+    "tests/test_nano_launcher_image.py": "10bb0a01c05cdb580488c5e1a71b3161b26c39fb3495677eeabd243a62003403",
+    "tests/test_nano_paired_tenfoot_trace.py": "bf04e432571bfffad45ae0a0965c34e3a6ad10d0d7ebd676ebc4e75bdf1819c2"
+  },
+  "checks": {
+    "launcher-image-final-r1": {
+      "argv": [
+        "env",
+        "PYTHONPATH=tests",
+        "python3",
+        "-m",
+        "unittest",
+        "test_nano_launcher_image",
+        "test_nano_paired_tenfoot_trace",
+        "test_nano_autoboot_trace",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-sd-tenfoot-persistence",
+      "elapsed": 2.0022830991074443,
+      "log_sha256": "2d99e1c037b14ee0eab1f2d7bc504ae517fe1b2d7980854cd702ff525c07d49c",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "launcher-observers-r1": {
+      "argv": [
+        "env",
+        "PYTHONPATH=tests",
+        "python3",
+        "-m",
+        "unittest",
+        "test_nano_paired_tenfoot_trace",
+        "test_nano_installer_catalog",
+        "test_nano_installer_client",
+        "test_nano_autoboot_trace",
+        "test_nano_tenfoot_serial",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-sd-tenfoot-persistence",
+      "elapsed": 2.6029793159104884,
+      "log_sha256": "4b817928b12f3455febce25e53b59c23e46378fc88ad12344b84ed424e155405",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "launcher-startup-r2": {
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=120s",
+        "./nativefabric",
+        "-run",
+        "TestLauncher|TestProgramStartup|TestProgramPreferences",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-sd-tenfoot-persistence/platform/embedded/tamago",
+      "elapsed": 31.846205161884427,
+      "log_sha256": "74861d7e4576e46eca7ee92aa56ebd8b6329c31c9ff26779b041a87eea594620",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "make-check-r1": {
+      "argv": [
+        "make",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-sd-tenfoot-persistence",
+      "elapsed": 21.021747449878603,
+      "log_sha256": "04b7d0133f86510765e0c9fdb3bd8a9269cfc9a03e91c02efd8cf2f5866bac79",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "native-compile-r3": {
+      "argv": [
+        "python3",
+        "out/operations/compile-launcher.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-sd-tenfoot-persistence",
+      "elapsed": 0.8011928731575608,
+      "log_sha256": "3a045b2402ad7292361a485db3931603d2ee39b66143a6e72a9ac07cc5f37900",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "native-integration-local-reference-r1": {
+      "argv": [
+        "python3",
+        "platform/embedded/tamago/nativefabric/verify.py",
+        "--reference",
+        "out/operations/pinned-tfa-reference.c",
+        "--output",
+        "out/native-launcher-integration-r1"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-sd-tenfoot-persistence",
+      "elapsed": 216.35172331798822,
+      "log_sha256": "a0717403f9bc3d783f1aa77ec3d99ef3d6e8c1fdd83d612727ee41e591abbfb2",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "real-launcher-staging-r1": {
+      "argv": [
+        "python3",
+        "out/operations/stage-real-launcher.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-sd-tenfoot-persistence",
+      "elapsed": 1.0010306308977306,
+      "log_sha256": "f0307b5898f9160ddd3de0f034ca5255ac0aaa37d2073afe8125958d58a9f874",
+      "returncode": 0,
+      "timed_out": false
+    }
+  },
+  "classification": "off-board software and regular-file preparation only",
+  "code_head": "23dc5a01f2646c14723c56f862005a1e3aa9fe6b",
+  "format": 1,
+  "hardware_actions": false,
+  "matched_boot_chain_prepared": false,
+  "native_compile": {
+    "bytes": 16162991,
+    "hardware_access": false,
+    "matched_boot": false,
+    "sha256": "e61f8b0a6b66e4e654977602ed6f17749bea524c9ac749550ddc8de2ef6196be",
+    "status": "compile-only-pass"
+  },
+  "native_integration": {
+    "commands": 42,
+    "local_reference_blob": "3c223c1498e3a412e075e4f921cd78acd3d0fcd6",
+    "reference_sha256": "92607ef0382fd57501c38f254b04c246e94fff1f1d60bb97e3d3d1284dbbf17a",
+    "status": "passed"
+  },
+  "original_affected_invocation": {
+    "argv": [
+      "python3",
+      "scripts/test_changed.py",
+      "--base",
+      "a14663bd9f6bfdd4d9024d7c6a0b8f0f843e937a"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-sd-tenfoot-persistence",
+    "elapsed": 676.4803073280491,
+    "log_sha256": "eb6833cbd948788d09e0c8124fd92e646d972075786064e46e246cc71ee57cb8",
+    "returncode": 1,
+    "timed_out": false
+  },
+  "parent_tests": {
+    "passed": 2920,
+    "skipped": 21
+  },
+  "physical_reboot_persistence": false,
+  "qualification_issue": 1867,
+  "qualification_issue_open": true,
+  "retention": "/home/deano/fes-retained/de25-sd-launcher-20261119-r1"
+}

@@ -1165,6 +1165,125 @@ void TestDe25StandardProfileBindsSharedDriverAndRejectsOtherMemory() {
  }
 }
 
+// The standard shell's firmware machines: format 3 with the upload interface
+// and the image size their endpoint takes, on the unchanged computer profile.
+void TestDe25StandardProfileAdmitsSpectrumSpectrum128AndAtariSt()
+{
+ using namespace mister;using namespace mister::native;
+ ContainedCoreDriver shared,contained,bram;
+ CoreDriverRegistry registry(&shared,contained,&bram,NativePlatform::de25_nano);
+ auto spectrum128=mister_test::De25SpectrumDescriptor(32768);
+ spectrum128.core.id="fes.spectrum128";
+ const CoreDescriptor machines[]={mister_test::De25SpectrumDescriptor(16384),
+  mister_test::De25SpectrumDescriptor(32768),spectrum128,mister_test::De25AtariStDescriptor()};
+ for(const auto& d:machines) {
+  const bool st=d.core.id=="fes.atari-st";
+  assert(d.interfaces.size()==(st?12u:9u));
+  assert(CheckDe25StandardComputerContract(d).ok());
+  assert(CheckCoreCompatibility(d,NativePlatform::de25_nano).ok());
+  // Neither machine exists for the Cyclone V runtime under this target.
+  assert(CheckCoreCompatibility(d).code==ErrorCode::unsupported_target);
+  ProgrammingProfile profile;CoreDriver* driver=nullptr;
+  assert(registry.Resolve(d,&profile,&driver).ok()&&
+   profile==ProgrammingProfile::de25_linux_computer_v1&&driver==&shared);
+  for(unsigned failure=0;failure<15;++failure) {
+   auto bad=d;
+   if(failure==0)bad.interfaces.pop_back();                       // no firmware interface
+   if(failure==1)bad.interfaces.back().required=false;
+   if(failure==2)bad.interfaces.back().minor=1;
+   if(failure==3)bad.format=2;                                    // no sealed ROM requirement
+   if(failure==4)bad.rom.role="cartridge";
+   if(failure==5)bad.rom.source_size=st?16384:d.core.id=="fes.spectrum128"?16384:8192; // not this endpoint's image
+   if(failure==6)bad.rom.source_size+=1024;
+   if(failure==7)bad.interfaces.push_back({"fes.memory.hps-ddr",1,0,true});
+   if(failure==8)bad.interfaces.push_back({st?"fes.media.spectrum-tape":"fes.mouse.relative",
+    static_cast<std::uint16_t>(st?2:1),0,true});                  // another machine's interface
+   if(failure==9)bad.interfaces[7].major=static_cast<std::uint16_t>(bad.interfaces[7].major+1);
+   if(failure==10)bad.core.id=st?"fes.spectrum":"fes.atari-st";  // another machine's set
+   if(failure==11)bad.target.programming_profile="de25-linux-static-computer-v1";
+   if(failure==12)bad.interfaces[6].minor=2;                      // scanout 1.2
+   if(failure==13)bad.interfaces.back()=bad.interfaces.front();
+   if(failure==14)bad.abi.minor=1;
+   const Error error=CheckCoreCompatibility(bad,NativePlatform::de25_nano);
+   if(error.ok())fprintf(stderr,"%s failure %u admitted\n",d.core.id.c_str(),failure);
+   assert(!error.ok()&&!CheckDe25StandardComputerContract(bad).ok());
+  }
+ }
+ // The ZX81 has no firmware endpoint: it stays format 2 and cannot borrow one.
+ auto zx81=mister_test::De25StandardDescriptor();
+ assert(CheckCoreCompatibility(zx81,NativePlatform::de25_nano).ok());
+ auto with_upload=zx81;mister_test::De25FirmwareRequirement(&with_upload,8192);
+ assert(!CheckCoreCompatibility(with_upload,NativePlatform::de25_nano).ok());
+ auto format3=zx81;format3.format=3;format3.rom=with_upload.rom;
+ assert(!CheckCoreCompatibility(format3,NativePlatform::de25_nano).ok());
+}
+
+std::string MapDigest(const std::string& bytes)
+{
+ mister::native::Sha256 hash;hash.Update(bytes.data(),bytes.size());
+ return mister::native::Sha256Hex(hash.Final());
+}
+
+// The sealed map of a firmware-upload package: the shared fixtures, and maps
+// whose bytes are sealed correctly but say something else.
+void TestFirmwareUploadMapIsCheckedAgainstTheSealedPackage()
+{
+ using namespace mister::native;
+ const std::string root="tests/fixtures/core-bundle-v3/";
+ const std::string payload=ReadFile(root+"payloads/fes-fixture.rbf");
+ auto open=[&](const std::string& manifest,const std::string& map,OpenedCorePackage* opened) {
+  TempDirectory package;
+  package.Add("manifest.toml",manifest);package.Add("core.rbf",payload);package.Add("rom-map.json",map);
+  return OpenCorePackage(package.path,"",opened);
+ };
+ for(const int bytes:{1024,16384,32768,196608,262144}) {
+  const std::string name="valid-nano-upload-"+std::to_string(bytes);
+  OpenedCorePackage opened;
+  assert(open(ReadFile(root+"manifests/"+name+".toml"),ReadFile(root+"maps/"+name+".json"),&opened).ok());
+  assert(opened.descriptor.format==3&&opened.descriptor.rom.role=="firmware"&&
+   opened.descriptor.rom.source_size==static_cast<std::uint64_t>(bytes));
+  assert(RecheckCorePackage(opened).ok()&&CheckFirmwareUploadMap(opened).ok());
+ }
+ for(const char* name:{"invalid-map-nano-upload-encoding","invalid-map-nano-upload-size",
+   "invalid-map-nano-upload-address","invalid-map-nano-upload-device","valid-nano-4096","valid-basic"}) {
+  OpenedCorePackage opened;
+  assert(open(ReadFile(root+"manifests/"+std::string(name)+".toml"),
+   ReadFile(root+"maps/"+std::string(name)+".json"),&opened).ok());
+  if(CheckFirmwareUploadMap(opened).ok())fprintf(stderr,"%s map admitted\n",name);
+  assert(CheckFirmwareUploadMap(opened).code==mister::ErrorCode::invalid_package);
+ }
+ const std::string manifest=ReadFile(root+"manifests/valid-nano-upload-16384.toml");
+ const std::string good=ReadFile(root+"maps/valid-nano-upload-16384.json");
+ auto sealed=[&](const std::string& map) {
+  std::string text=manifest;
+  const auto size=text.rfind("size = ");
+  text.replace(size,text.find('\n',size)-size,"size = "+std::to_string(map.size()));
+  const auto digest=text.rfind("sha256 = \"");
+  text.replace(digest+10,64,MapDigest(map));
+  return text;
+ };
+ auto changed=[&](const std::string& from,const std::string& to) {
+  std::string map=good;const auto at=map.find(from);assert(at!=std::string::npos);
+  map.replace(at,from.size(),to);return map;
+ };
+ const std::string variants[]={
+  changed("\"format\":1","\"format\":true"),changed("\"format\":1","\"format\":2"),
+  changed("\"format\":1","\"format\":1,\"format\":1"),changed("16384}","16384.0}"),
+  changed("16384}","\"16384\"}"),changed("16384}","16384,\"blocks\":[]}"),
+  changed("\"format\":1,",""),good+"{}",changed("gp-firmware-upload-v1","gp-firmware-upload-v2"),
+  changed("e7bbf8fe","00000000"),std::string(1025,' ')+good,"null\n","[]\n"};
+ for(const auto& map:variants) {
+  OpenedCorePackage opened;
+  assert(open(sealed(map),map,&opened).ok());
+  if(CheckFirmwareUploadMap(opened).ok())fprintf(stderr,"map admitted: %s\n",map.c_str());
+  assert(!CheckFirmwareUploadMap(opened).ok());
+ }
+ // The same bytes with other JSON spacing are the same map.
+ OpenedCorePackage spaced;
+ const std::string relaxed=changed("{\"format\":1,","{ \"format\" : 1 ,\n ");
+ assert(open(sealed(relaxed),relaxed,&spaced).ok()&&CheckFirmwareUploadMap(spaced).ok());
+}
+
 void TestDe25StaticProfileRequiresOptionalVersionTwoSocket()
 {
  using namespace mister;using namespace mister::native;
@@ -1283,6 +1402,8 @@ int main()
 	TestExplicitDe25ProfileAndDriverBinding();
  TestDe25StandardProfileBindsSharedDriverAndRejectsOtherMemory();
  TestDe25StaticProfileRequiresOptionalVersionTwoSocket();
+ TestDe25StandardProfileAdmitsSpectrumSpectrum128AndAtariSt();
+ TestFirmwareUploadMapIsCheckedAgainstTheSealedPackage();
 	TestNanoHeldROMInspectionDoesNotGrantCompatibility();
 	TestComputerCompatibilityComposesRecognizedInterfaces();
 	TestComputerFirmwarePackageAdmission();

@@ -1,0 +1,162 @@
+{
+  "base": "6ee9f11131fa49311cf5f18c0b7e0a301f8f70e4",
+  "fields": {
+    "adapter_sha256": {
+      "base": "c6414d38406af7bcea64569bee8e84fbdbf1c11d46e9f2953aaa38f0b12e8f1b",
+      "equal": false,
+      "head": "8476a65df29382fdfdb5b8ce342495f3491fd2c7e5c5df40018d3a3d68bb21e3"
+    },
+    "instrument_sha256": {
+      "base": "34c7149b98a97198015284ce93f94f5dfacc8c33e13c0208720843c33ce5a34b",
+      "equal": true,
+      "head": "34c7149b98a97198015284ce93f94f5dfacc8c33e13c0208720843c33ce5a34b"
+    },
+    "patch_sha256": {
+      "base": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377",
+      "equal": true,
+      "head": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377"
+    },
+    "provisioner_sha256": {
+      "base": "0d47ce9792ca29ae172335f6f11e6c5dcfa73fbf34b76c89e04d072528f454cd",
+      "equal": true,
+      "head": "0d47ce9792ca29ae172335f6f11e6c5dcfa73fbf34b76c89e04d072528f454cd"
+    },
+    "revision": {
+      "base": "30cfd566ecc8deb33e56e801e32b444a7041b6d2",
+      "equal": true,
+      "head": "30cfd566ecc8deb33e56e801e32b444a7041b6d2"
+    },
+    "suite_sha256": {
+      "base": "af6ff14d6db01fe34991d3c5cf63685e96589677552ba9387188b7975ab61f16",
+      "equal": false,
+      "head": "4edfe7072419c840030c40997e41f0c9178cb31e8ecec5ca587a59c22749ba9b"
+    }
+  },
+  "files": {
+    "cores/fes-common/sim/i386/biu_dma_tb.cpp": {
+      "base": "67feec131e47f028c81792090a38ea51921cd97b8fe140dccac5a6fa887f1156",
+      "equal": true,
+      "head": "67feec131e47f028c81792090a38ea51921cd97b8fe140dccac5a6fa887f1156"
+    },
+    "cores/fes-common/sim/i386/bochs/flat-stack-limit.patch": {
+      "base": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377",
+      "equal": true,
+      "head": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377"
+    },
+    "cores/fes-common/sim/i386/bochs/instrument.h": {
+      "base": "34c7149b98a97198015284ce93f94f5dfacc8c33e13c0208720843c33ce5a34b",
+      "equal": true,
+      "head": "34c7149b98a97198015284ce93f94f5dfacc8c33e13c0208720843c33ce5a34b"
+    },
+    "cores/fes-common/sim/i386/bochs_oracle.cpp": {
+      "base": "a29f94665bdf6ecf81d453c74dad114e0f626a745230142f6cd5528a3c54bbe5",
+      "equal": false,
+      "head": "1a966a64b0d48d8f74ae11be05b047b87d1c06624dcbe6f1021528bd03b869f0"
+    },
+    "cores/fes-common/sim/i386/divergences.toml": {
+      "base": "1d0771b667696779c2238aa3637c137b37bbaa3e0177b94fc56fbb405172af70",
+      "equal": true,
+      "head": "1d0771b667696779c2238aa3637c137b37bbaa3e0177b94fc56fbb405172af70"
+    },
+    "cores/fes-common/sim/i386/i386_oracle.h": {
+      "base": "504480031562b903770fc94eae278c232c17428a07ba243545f9a16038841795",
+      "equal": true,
+      "head": "504480031562b903770fc94eae278c232c17428a07ba243545f9a16038841795"
+    },
+    "cores/fes-common/sim/i386/lockstep_tb.cpp": {
+      "base": "b604d34e37919d1e8a62ec4cacd6b4fbea64627ff6afea8998a6c810bfbb0576",
+      "equal": false,
+      "head": "6f99b298b46120217e11804c8ca8cec02223eaed78c8b72027a5d801254fed4b"
+    },
+    "cores/fes-common/sim/i386/smc_stale.h": {
+      "base": "98c0586990cbf42b7516578bfb80fcf82b98863f6414c8418b89c4d5b4ad8358",
+      "equal": true,
+      "head": "98c0586990cbf42b7516578bfb80fcf82b98863f6414c8418b89c4d5b4ad8358"
+    },
+    "cores/fes-pc386/sim/pc386_ddr_model.h": {
+      "base": "c6fef18bc2a36206006b488cb020f5c6aab63077a7679c7d8521121521dcbc66",
+      "equal": true,
+      "head": "c6fef18bc2a36206006b488cb020f5c6aab63077a7679c7d8521121521dcbc66"
+    },
+    "scripts/fes_i386_oracle.py": {
+      "base": "0d47ce9792ca29ae172335f6f11e6c5dcfa73fbf34b76c89e04d072528f454cd",
+      "equal": true,
+      "head": "0d47ce9792ca29ae172335f6f11e6c5dcfa73fbf34b76c89e04d072528f454cd"
+    },
+    "scripts/i386_verilator.py": {
+      "base": "5a1c339073f46b6689ed9f9f12842a562809b408286ca6facab43f82ea0ed36e",
+      "equal": true,
+      "head": "5a1c339073f46b6689ed9f9f12842a562809b408286ca6facab43f82ea0ed36e"
+    },
+    "scripts/test_fes_i386_frontend.py": {
+      "base": "32379520ca4c3f8626e4c3b9da2a7ecef8ba54ba7e5628a4cddcfa084aa77da2",
+      "equal": true,
+      "head": "32379520ca4c3f8626e4c3b9da2a7ecef8ba54ba7e5628a4cddcfa084aa77da2"
+    },
+    "scripts/test_fes_i386_lockstep.py": {
+      "base": "d6f164aee543de5b022482cb39b880e7157708d586b650e0c842bfa436dd954a",
+      "equal": true,
+      "head": "d6f164aee543de5b022482cb39b880e7157708d586b650e0c842bfa436dd954a"
+    },
+    "scripts/test_fes_i386_vectors.py": {
+      "base": "dea8ebbd47145f073e7ccd3cc6db87bec407cb686bdec398f6fe3c18c30e044d",
+      "equal": true,
+      "head": "dea8ebbd47145f073e7ccd3cc6db87bec407cb686bdec398f6fe3c18c30e044d"
+    },
+    "scripts/yosys_netlist.py": {
+      "base": "4e5e0efad547a7b64a3130bf16804142ce53d469185b0fe44baec28846c634f8",
+      "equal": true,
+      "head": "4e5e0efad547a7b64a3130bf16804142ce53d469185b0fe44baec28846c634f8"
+    }
+  },
+  "files_changed": [
+    "docs/validation/2026-11-18-i486-s0/boot.json",
+    "docs/validation/2026-11-18-i486-s0/cachechk.json",
+    "docs/validation/2026-11-18-i486-s0/census-compare.json",
+    "docs/validation/2026-11-18-i486-s0/census.jsonl",
+    "docs/validation/2026-11-18-i486-s0/expected-stops.json",
+    "docs/validation/2026-11-18-i486-s0/identity.json",
+    "docs/validation/2026-11-18-i486-s0/level3-compare.json",
+    "docs/validation/2026-11-18-i486-s0/method.md",
+    "docs/validation/2026-11-18-i486-s0/oracle-selfcheck.json",
+    "docs/validation/2026-11-18-i486-s0/summarize.py",
+    "docs/validation/2026-11-18-i486-s0/summary.md",
+    "docs/validation/2026-11-18-i486-s0/summary_text.py",
+    "scripts/affected.py",
+    "sources/misteross/cores/fes-common/sim/i386/README.md",
+    "sources/misteross/cores/fes-common/sim/i386/bochs_oracle.cpp",
+    "sources/misteross/cores/fes-common/sim/i386/i486-expected-stops.txt",
+    "sources/misteross/cores/fes-common/sim/i386/i486_tb.cpp",
+    "sources/misteross/cores/fes-common/sim/i386/lockstep_tb.cpp",
+    "sources/misteross/cores/fes-pc386/sim/census.h",
+    "sources/misteross/cores/fes-pc386/sim/machine_tb.cpp",
+    "sources/misteross/docs/pc386-game-drives.md",
+    "sources/misteross/scripts/fes_i486_cases.py",
+    "sources/misteross/scripts/fes_i486_oracle.py",
+    "sources/misteross/scripts/sim_fes_pc386.py",
+    "sources/misteross/scripts/test_fes_i486_lockstep.py",
+    "sources/misteross/tests/test_fes_i486_oracle.py",
+    "tests/test_affected.py"
+  ],
+  "head": "7e813da4656adbf048d079bd9aa110f53fc52ebd",
+  "may_change": [
+    "cores/fes-common/sim/i386/bochs_oracle.cpp",
+    "cores/fes-common/sim/i386/lockstep_tb.cpp"
+  ],
+  "may_move": [
+    "adapter_sha256",
+    "suite_sha256"
+  ],
+  "must_be_equal": [
+    "revision",
+    "patch_sha256",
+    "provisioner_sha256",
+    "instrument_sha256"
+  ],
+  "pass": true,
+  "pc386_record_paths": 154,
+  "pc386_record_paths_changed": [
+    "cores/fes-common/sim/i386/bochs_oracle.cpp",
+    "cores/fes-common/sim/i386/lockstep_tb.cpp"
+  ]
+}

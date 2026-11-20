@@ -1060,23 +1060,6 @@ uops = [
 # down to the dword at 0, whose uop writes the x87 pointers as it retires,
 # its offset the data pointer's. A fault in any part leaves them unchanged.
 [[routine]]
-# FST and FSTP m64, FISTP m64 with a 387 fitted: the unit's second dword,
-# at 4. The decode uop stores the first, at 0.
-name = "fst8"
-uops = [
-    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpj = 1, b = "sys", sys = "ones", x87p = "ipdp" },
-]
-
-[[routine]]
-# FSTP m80 with a 387 fitted: the unit's second dword, at 4, and its top
-# word, at 8.
-name = "fst10"
-uops = [
-    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpj = 1, b = "sys", sys = "ones" },
-    { cls = "alu", op = "mov", size = "16", mkind = "store", mbytes = "2", in_a = true, rm = true, fpj = 2, b = "sys", sys = "ones", x87p = "ipdp" },
-]
-
-[[routine]]
 name = "frd8"
 uops = [
     { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, x87p = "ipdp" },
@@ -1087,4 +1070,45 @@ name = "frd10"
 uops = [
     { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpj = 1 },
     { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, x87p = "ipdp" },
+]
+
+# The 387's multi-part operands, which move upwards from the operand as a
+# 386 moves them (#2020). An m64 load (FLD, FILD and the arithmetic forms'
+# m64real): DC decodes the dword at 0, and the ROM reads the dword at 4. An
+# m80 load (FLD m80, FBLD) and every m64 and m80 store (FST, FSTP and FISTP
+# m64, FSTP m80, FBSTP): DC decodes a probe of the operand's last byte (a
+# load whose data nothing uses, a write's check for a store; fes_i386_cpu,
+# "x87 operand probes"), and the ROM moves the dwords at 0 and 4 and an
+# m80's word at 8. The probe and the dword at 0 check both ends before a
+# byte moves, so a fault on either leaves memory and the unit as they were
+# and the instruction restarts. The last uop writes the x87 pointers as it
+# retires; fes_i386_cpu takes the data pointer back to the operand from
+# that uop's chunk (#1877).
+[[routine]]
+name = "xld8"
+uops = [
+    { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpj = 1, x87p = "ipdp" },
+]
+
+[[routine]]
+name = "xld10"
+uops = [
+    { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true },
+    { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpj = 1 },
+    { cls = "alu", op = "mov", size = "16", mkind = "load", mbytes = "2", rm = true, fpj = 2, x87p = "ipdp" },
+]
+
+[[routine]]
+name = "fst8"
+uops = [
+    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, b = "sys", sys = "ones" },
+    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpj = 1, b = "sys", sys = "ones", x87p = "ipdp" },
+]
+
+[[routine]]
+name = "fst10"
+uops = [
+    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, b = "sys", sys = "ones" },
+    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpj = 1, b = "sys", sys = "ones" },
+    { cls = "alu", op = "mov", size = "16", mkind = "store", mbytes = "2", in_a = true, rm = true, fpj = 2, b = "sys", sys = "ones", x87p = "ipdp" },
 ]

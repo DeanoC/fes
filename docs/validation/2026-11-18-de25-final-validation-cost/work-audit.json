@@ -1,0 +1,55 @@
+{
+  "status": "passed-independent-USB-final-validation-work-audit",
+  "before_source": "a32309ed1b019472de791b26ffef4486091cdef9",
+  "fixed_source": "b219e3920b32de39a5421dc7a3b2d479ac5c27c4",
+  "unchanged_model_read_counts": {
+    "physical_reads": 4031786,
+    "cold_reads": 6694801,
+    "final_loads": 5120,
+    "probe_reads": 14904,
+    "probe_barriers": 24944
+  },
+  "unchanged_final_profile_calls": {
+    "sdm_source_owns": 324,
+    "sdm_input_owns": 648,
+    "sdm_probe_owns_mode": 648,
+    "fes_nano_cold_owns": 1296,
+    "fes_nano_cold_usb_check": 3888,
+    "prepared_contained": 3888,
+    "contained_body": 3888,
+    "contained_read": 31104,
+    "contained_pio": 7776,
+    "cold_read": 202176,
+    "board_read": 163296,
+    "usb_read": 163296,
+    "boot_read": 163296,
+    "nano_sdm_input_words": 160,
+    "word": 5120
+  },
+  "source_USB_barriers": {
+    "before": 1993624,
+    "after": 1608216,
+    "removed": 385408
+  },
+  "final_USB_cold_barriers": {
+    "before": 160704,
+    "after": 129600,
+    "removed": 31104
+  },
+  "synthetic_counterexample": {
+    "barrier_ns": 2000,
+    "residual_us": 16300000,
+    "before_rejected_elapsed_us": 20286294,
+    "after_last_source_elapsed_us": 19517676,
+    "hardware_latency_attribution": false
+  },
+  "profile_scope": "generation15 configured ISDONE/final proof and retirement-entry checks before retirement attempt",
+  "model_limits": "MMIO/CPU state, MMU platform scope, hashing and ROM work injected; function timings are host instrumentation, coefficients synthetic",
+  "hardware_actions": false,
+  "hardware_acceptance": false,
+  "counter_notes": {
+    "physical_reads": "Fixture field is the board access counter, including reads and writes across all three configurations; not a pure MMIO-read count.",
+    "cold_reads": "Combined fixture hardware read counter across all three configurations.",
+    "profile_counts": "Function-entry counts in generation15 final proof plus retirement-entry checks before attempt; host timings are not target latency."
+  }
+}

@@ -1,0 +1,30 @@
+tree A 91fe3f2aa7a4bb5edbddc19d4d5c3c43d1decc1d
+tree B 91fe3f2aa7a4bb5edbddc19d4d5c3c43d1decc1d
+
+row                    files  id, A                              id, B                              verdict
+fes.apple2                39  bc5979f38e6339c46873f2b3cfdc4445   bc5979f38e6339c46873f2b3cfdc4445   same
+fes.atari-st              59  95cf73c32fd592b0d2f962ad946ba9b1   95cf73c32fd592b0d2f962ad946ba9b1   same
+fes.c64                   90  38844aa924b748eee08be30ac4de442b   38844aa924b748eee08be30ac4de442b   same
+fes.coleco                69  4890d366b7daa88fa448802eba0538a6   4890d366b7daa88fa448802eba0538a6   same
+fes.menu                  33  986b682ea3adc585f7398a3e82d2a663   986b682ea3adc585f7398a3e82d2a663   same
+fes.pc386                  -  -                                  -                                  see the fes.pc386 producer row
+fes.pcxt-dos             172  940bd4de57fead307040f7b7ea1ce899   940bd4de57fead307040f7b7ea1ce899   same
+fes.pentagon              52  fdadeb27862d5cca7c7a0520f8a2f4dc   fdadeb27862d5cca7c7a0520f8a2f4dc   same
+fes.pong                  16  77478e4bac10b6567feed4f6fcf7ecb7   77478e4bac10b6567feed4f6fcf7ecb7   same
+fes.ramtest               33  d635f05beade27f5cce2226164e9f756   d635f05beade27f5cce2226164e9f756   same
+fes.riscv                 30  d831fbb4206e5201f25d0865e337673f   d831fbb4206e5201f25d0865e337673f   same
+fes.sg1000                62  2abe17e05a8f4d06042f5d9019cfdc95   2abe17e05a8f4d06042f5d9019cfdc95   same
+fes.sms                   64  2768d34be4316e5f450762710151cb2d   2768d34be4316e5f450762710151cb2d   same
+fes.spectrum              52  fdadeb27862d5cca7c7a0520f8a2f4dc   fdadeb27862d5cca7c7a0520f8a2f4dc   same
+fes.spectrum-plus3        52  fdadeb27862d5cca7c7a0520f8a2f4dc   fdadeb27862d5cca7c7a0520f8a2f4dc   same
+fes.spectrum128           52  fdadeb27862d5cca7c7a0520f8a2f4dc   fdadeb27862d5cca7c7a0520f8a2f4dc   same
+fes.ts1000                52  8bf47ac9e4a636773d3c7550d20fa243   8bf47ac9e4a636773d3c7550d20fa243   same
+fes.ts1500                52  8bf47ac9e4a636773d3c7550d20fa243   8bf47ac9e4a636773d3c7550d20fa243   same
+fes.zx80                  52  8bf47ac9e4a636773d3c7550d20fa243   8bf47ac9e4a636773d3c7550d20fa243   same
+fes.zx81                  52  8bf47ac9e4a636773d3c7550d20fa243   8bf47ac9e4a636773d3c7550d20fa243   same
+splash                    11  54a402f03583b60d34b5435b2e8413b6   54a402f03583b60d34b5435b2e8413b6   same (format 1: pinned inputs)
+
+fes.pc386 producer            design-v1 a0b4fd3ef95e2144f6ecb3aa71e7aece design-v1 a0b4fd3ef95e2144f6ecb3aa71e7aece NOT THE PLANNED MIGRATION
+sealed #1951 record           bb7369101d3a5a15d832f58af59c7123   bb7369101d3a5a15d832f58af59c7123   validates on both, same
+
+FAIL: fes.pc386 producer

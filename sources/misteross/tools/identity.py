@@ -29,7 +29,8 @@ def projections(record):
 
 def report(record):
     fields, design, toolchain = projections(record)
-    ids = (fields if 'identities' in fields else with_identities(fields))['identities']
+    classified = fields if 'identities' in fields else with_identities(fields)
+    ids = classified['identities']
     return {
         'format': 1,
         'build_id': build_identity(record),
@@ -44,7 +45,7 @@ def report(record):
         'toolchain_locks': {path: value for path, value in toolchain['source_inputs'].items()
                             if Path(path).name in ('toolchain.lock', 'quartus.lock')},
         'execution_parameters': toolchain['parameters'],
-        'design_classification': 'design-v1',
+        'design_classification': classified['parameters']['identity_policy'],
         'cache_migration_required': 'identities' not in fields,
     }
 

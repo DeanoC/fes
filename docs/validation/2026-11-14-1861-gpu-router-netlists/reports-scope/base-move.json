@@ -1,0 +1,471 @@
+{
+  "rows": {
+    "fes.apple2": {
+      "check_level": "reduced",
+      "producer": "build_fes_apple2_oss",
+      "tree_a": {
+        "closure_files": 51,
+        "closure_sha256": "6462f91a044171f43cd739f319213d7257ea435d25e2f38eb125e7b70c85e6be",
+        "design_files": 51,
+        "design_sha256": "6462f91a044171f43cd739f319213d7257ea435d25e2f38eb125e7b70c85e6be",
+        "non_design_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "role_split": false,
+        "roots": 33
+      },
+      "tree_b": {
+        "closure_files": 52,
+        "closure_sha256": "5cca83bec36dd12be1da16ea1d71eff06959de7e8f73053bc6d9222de59c1f73",
+        "design_files": 39,
+        "design_sha256": "f8656e4528057ea33414e88dc4110bc0702bde13113b17f1e1384a4ba9b9e520",
+        "non_design_sha256": "079cbe0d17ef4066c260e51b3aeb59c58b8dab51797c942829bfc89a87fc9511",
+        "role_split": true,
+        "roots": 34
+      },
+      "verdict": "MOVED (source closure (no role split on one side)): cores/fes-apple2/diagnostic/font.py, cores/fes-apple2/rtl/apple2_font.vh, scripts/compiler_read_audit.py, scripts/core_package.py, scripts/export_core_package.py, scripts/fes_build_common.py, scripts/input_identity.py, scripts/pnr_recipe.py, scripts/toolchain_cache.py"
+    },
+    "fes.atari-st": {
+      "check_level": "full",
+      "producer": "build_fes_atari_st_oss",
+      "tree_a": {
+        "closure_files": 71,
+        "closure_sha256": "ed7b28a53ad26c4b16a89464767f07b140de9d9f440432af162f3aae6ed30569",
+        "design_files": 71,
+        "design_sha256": "ed7b28a53ad26c4b16a89464767f07b140de9d9f440432af162f3aae6ed30569",
+        "non_design_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "role_split": false,
+        "roots": 45
+      },
+      "tree_b": {
+        "closure_files": 72,
+        "closure_sha256": "547182bc14fd00b67743e698c75561f3ce3f55eb842de19c8789536c3675ed32",
+        "design_files": 59,
+        "design_sha256": "e3cac02e968902744d4599f9100a137d4903bf7d7daee4cf09f9a28784c1193c",
+        "non_design_sha256": "7ebdc3bad76b4ff65934c0cc475700a970498758ff4f111a390cbfa6d93116f9",
+        "role_split": true,
+        "roots": 46
+      },
+      "verdict": "MOVED (source closure (no role split on one side)): scripts/compiler_read_audit.py, scripts/core_package.py, scripts/export_core_package.py, scripts/fes_build_common.py, scripts/input_identity.py, scripts/pnr_recipe.py, scripts/toolchain_cache.py"
+    },
+    "fes.c64": {
+      "check_level": "full",
+      "producer": "build_fes_c64_oss",
+      "tree_a": {
+        "closure_files": 103,
+        "closure_sha256": "ea50026985522089c6748a732fdeb987da1067857accd075b81b0690f3756ad0",
+        "design_files": 103,
+        "design_sha256": "ea50026985522089c6748a732fdeb987da1067857accd075b81b0690f3756ad0",
+        "non_design_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "role_split": false,
+        "roots": 44
+      },
+      "tree_b": {
+        "closure_files": 104,
+        "closure_sha256": "c2014b14876928c903673d79c2ab1d753fa49203df432b9d93874772e82d15d4",
+        "design_files": 90,
+        "design_sha256": "dea708ff83e57bbdec94c573ef22fa4e6c6e1f50fa8e30758e2c2faa46bc3b57",
+        "non_design_sha256": "c2f7e8c08de472758539a9c4a65ee8d870fa444d616669b865a29bea0e05e885",
+        "role_split": true,
+        "roots": 45
+      },
+      "verdict": "MOVED (source closure (no role split on one side)): cores/fes-c64/diagnostic/firmware.py, cores/fes-c64/diagnostic/font.py, scripts/compiler_read_audit.py, scripts/core_package.py, scripts/export_core_package.py, scripts/fes_build_common.py, scripts/input_identity.py, scripts/pnr_recipe.py, scripts/toolchain_cache.py"
+    },
+    "fes.coleco": {
+      "check_level": "reduced",
+      "producer": "build_fes_coleco_socket_v2",
+      "tree_a": {
+        "closure_files": 81,
+        "closure_sha256": "389e86b99b01171a7669b5840e8f766864ef8ccd2a22f6b35cdfc581820c0366",
+        "design_files": 81,
+        "design_sha256": "389e86b99b01171a7669b5840e8f766864ef8ccd2a22f6b35cdfc581820c0366",
+        "non_design_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "role_split": false,
+        "roots": 56
+      },
+      "tree_b": {
+        "closure_files": 82,
+        "closure_sha256": "97eca0e3682202782f3601b094c441163a36c841122e1685cbe9495859b09dba",
+        "design_files": 69,
+        "design_sha256": "e86baa784eacbddf0c902771c950831567133220b627bddf4b284cd610bfc722",
+        "non_design_sha256": "871f0a432b65876af21f7f50b3b147cf6e28f538f73cbdfc6b23a9c73f7378b8",
+        "role_split": true,
+        "roots": 57
+      },
+      "verdict": "MOVED (source closure (no role split on one side)): scripts/compiler_read_audit.py, scripts/core_package.py, scripts/export_core_package.py, scripts/fes_build_common.py, scripts/input_identity.py, scripts/pnr_recipe.py, scripts/toolchain_cache.py"
+    },
+    "fes.menu": {
+      "check_level": "full",
+      "producer": "build_fes_menu_package",
+      "tree_a": {
+        "closure_files": 45,
+        "closure_sha256": "e064dd10d222cd7348eeaf093b8fd09a7199515fba6c016556c76e0bf74ba733",
+        "design_files": 45,
+        "design_sha256": "e064dd10d222cd7348eeaf093b8fd09a7199515fba6c016556c76e0bf74ba733",
+        "non_design_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "role_split": false,
+        "roots": 31
+      },
+      "tree_b": {
+        "closure_files": 46,
+        "closure_sha256": "de46638758c9b9e32c5153a50fd3bf02e90621bb3e6c371a4856f91693ac4907",
+        "design_files": 33,
+        "design_sha256": "12b44e483654a4c41861c60976a2c95ce350a4b9860beb8430d7625b693d876a",
+        "non_design_sha256": "816cae8e820a56c02b4c16cf6bf984db3bc5827c5bb14d83036ca19f3c00f236",
+        "role_split": true,
+        "roots": 32
+      },
+      "verdict": "MOVED (source closure (no role split on one side)): scripts/compiler_read_audit.py, scripts/core_package.py, scripts/export_core_package.py, scripts/fes_build_common.py, scripts/input_identity.py, scripts/pnr_recipe.py, scripts/toolchain_cache.py"
+    },
+    "fes.pcxt-dos": {
+      "check_level": "full",
+      "producer": "build_fes_pcxt_quartus",
+      "tree_a": {
+        "closure_files": 177,
+        "closure_sha256": "966645a343fedbf48b39d7955510c59f9c917174269cc5f0d18b377fc9bde9b4",
+        "design_files": 177,
+        "design_sha256": "966645a343fedbf48b39d7955510c59f9c917174269cc5f0d18b377fc9bde9b4",
+        "non_design_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "role_split": false,
+        "roots": 36
+      },
+      "tree_b": {
+        "closure_files": 179,
+        "closure_sha256": "4752abd32405a81024bbbb7446a968284936517a8e25fedb25395bedf402a725",
+        "design_files": 169,
+        "design_sha256": "9007ce704a454abf32eb9fdcf2f4ea7afa9ce21a009b9c8b90fd7b091eb644a3",
+        "non_design_sha256": "b11f3ad918f325add676c6fda609184ebd1de33280199c525f8f75ad51b1e642",
+        "role_split": true,
+        "roots": 38
+      },
+      "verdict": "MOVED (source closure (no role split on one side)): cores/fes-common/generated/fes_embedded_control.vh, scripts/build_fes_pcxt_quartus.py, scripts/compiler_read_audit.py, scripts/core_package.py, scripts/export_core_package.py, scripts/fes_build_common.py, scripts/input_identity.py, scripts/quartus_fes_pcxt.py, scripts/yosys_netlist.py"
+    },
+    "fes.pentagon": {
+      "check_level": "full",
+      "producer": "build_fes_spectrum_oss",
+      "tree_a": {
+        "closure_files": 64,
+        "closure_sha256": "51d7644d85b803d89647649177627b170b477c373108b2e93ce5a4121ab5255f",
+        "design_files": 64,
+        "design_sha256": "51d7644d85b803d89647649177627b170b477c373108b2e93ce5a4121ab5255f",
+        "non_design_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "role_split": false,
+        "roots": 47
+      },
+      "tree_b": {
+        "closure_files": 65,
+        "closure_sha256": "1a480002e2270cb369292e4805f0660f1719998c7bbe8a4090ba04026ec52c29",
+        "design_files": 52,
+        "design_sha256": "c7a5305c17cc6b1858f28514e17685144fee155656db5c4cac4cec951acc030f",
+        "non_design_sha256": "b72ee5f4ebe8b7d721fc82d77e25bc4437b00f5ebd5624c9c77c61c03a7bd6ca",
+        "role_split": true,
+        "roots": 48
+      },
+      "verdict": "MOVED (source closure (no role split on one side)): scripts/compiler_read_audit.py, scripts/core_package.py, scripts/export_core_package.py, scripts/fes_build_common.py, scripts/input_identity.py, scripts/pnr_recipe.py, scripts/toolchain_cache.py"
+    },
+    "fes.pong": {
+      "check_level": "reduced",
+      "producer": "build_fes_pong",
+      "tree_a": {
+        "closure_files": 28,
+        "closure_sha256": "97bd7e2b560bd613e159accf0c083632f1a1c56eb6b84100abca386e20ab542b",
+        "design_files": 28,
+        "design_sha256": "97bd7e2b560bd613e159accf0c083632f1a1c56eb6b84100abca386e20ab542b",
+        "non_design_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "role_split": false,
+        "roots": 24
+      },
+      "tree_b": {
+        "closure_files": 29,
+        "closure_sha256": "4126f6fe6e52e8dc254329ef5fa02d33949aa6c1d0b4ba3a31df55e6f3d05702",
+        "design_files": 16,
+        "design_sha256": "fcadd04e99279d37ee7fbcf8403c5e711b9e8408e6fc8819702adb688372a4f1",
+        "non_design_sha256": "775447bf4c9abdabc159de6b2b9f52ac01fb30b38ea3bad1d66ec79bbc5b410f",
+        "role_split": true,
+        "roots": 25
+      },
+      "verdict": "MOVED (source closure (no role split on one side)): scripts/compiler_read_audit.py, scripts/core_package.py, scripts/export_core_package.py, scripts/fes_build_common.py, scripts/input_identity.py, scripts/pnr_recipe.py, scripts/toolchain_cache.py"
+    },
+    "fes.ramtest": {
+      "check_level": "reduced",
+      "producer": "build_fes_ramtest",
+      "tree_a": {
+        "closure_files": 44,
+        "closure_sha256": "aecc4894c1a61743892f92ed64e646ed0890ac00013be19266db9b4621d6163f",
+        "design_files": 44,
+        "design_sha256": "aecc4894c1a61743892f92ed64e646ed0890ac00013be19266db9b4621d6163f",
+        "non_design_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "role_split": false,
+        "roots": 29
+      },
+      "tree_b": {
+        "closure_files": 45,
+        "closure_sha256": "bbe1f031e79cc09cd2bd23309f385f59077fe56c3ff5ab0bfd77f9e3519ade67",
+        "design_files": 32,
+        "design_sha256": "9a5f7869b3eab4caf67b7b2479edf433a4b27e10972cc50246d9a33d8796a752",
+        "non_design_sha256": "bc5c9c061ebbb366808553eda2ac308184505c67a399c3ee08189fcfeba168cc",
+        "role_split": true,
+        "roots": 30
+      },
+      "verdict": "MOVED (source closure (no role split on one side)): cores/fes-ramtest/rtl/ram_font.v, scripts/build_fes_ramtest.py, scripts/compiler_read_audit.py, scripts/core_package.py, scripts/export_core_package.py, scripts/fes_build_common.py, scripts/input_identity.py, scripts/pnr_recipe.py, scripts/toolchain_cache.py"
+    },
+    "fes.riscv": {
+      "check_level": "reduced",
+      "producer": "build_fes_riscv",
+      "tree_a": {
+        "closure_files": 43,
+        "closure_sha256": "a903b8bcdb931580445dfc1c09a608c576a627e44e4ddbbf6a036e7332900b6d",
+        "design_files": 43,
+        "design_sha256": "a903b8bcdb931580445dfc1c09a608c576a627e44e4ddbbf6a036e7332900b6d",
+        "non_design_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "role_split": false,
+        "roots": 31
+      },
+      "tree_b": {
+        "closure_files": 44,
+        "closure_sha256": "a9b8e4fc263ba8ac2b65442dc4c4feeb015f23eeae63ba53bbb85a127a6b4b79",
+        "design_files": 30,
+        "design_sha256": "0c8f89ed6c57b1f6b87770bc8e1f18f9eedcabe50597cb75fe74d93249c54daa",
+        "non_design_sha256": "0e5fe829c50133f8c7577ba363238809e909e9ffeb6ff48db55924ee73bfaf30",
+        "role_split": true,
+        "roots": 32
+      },
+      "verdict": "MOVED (source closure (no role split on one side)): scripts/compiler_read_audit.py, scripts/core_package.py, scripts/export_core_package.py, scripts/fes_build_common.py, scripts/input_identity.py, scripts/pnr_recipe.py, scripts/toolchain_cache.py"
+    },
+    "fes.sg1000": {
+      "check_level": "reduced",
+      "producer": "build_fes_sg1000_oss",
+      "tree_a": {
+        "closure_files": 74,
+        "closure_sha256": "984b28b71f9c31f981eae16fd53dec8dfb7d4734cd24daf9a15b1e4cea08055a",
+        "design_files": 74,
+        "design_sha256": "984b28b71f9c31f981eae16fd53dec8dfb7d4734cd24daf9a15b1e4cea08055a",
+        "non_design_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "role_split": false,
+        "roots": 48
+      },
+      "tree_b": {
+        "closure_files": 75,
+        "closure_sha256": "6c0e7dcd19df3430e9ecb01cf8c1382675b69f9e88689fcd287a910565f516e9",
+        "design_files": 62,
+        "design_sha256": "9ffb9731ef91e9aa30ffb6abed8c075b7b71bc8eae676519128a6056e32e4e61",
+        "non_design_sha256": "dc202c45ee4324df3eb014cadf11b2a07ffac7456b5baa9bf08855e4fdb935fb",
+        "role_split": true,
+        "roots": 49
+      },
+      "verdict": "MOVED (source closure (no role split on one side)): scripts/compiler_read_audit.py, scripts/core_package.py, scripts/export_core_package.py, scripts/fes_build_common.py, scripts/input_identity.py, scripts/pnr_recipe.py, scripts/toolchain_cache.py"
+    },
+    "fes.sms": {
+      "check_level": "reduced",
+      "producer": "build_fes_sms_oss",
+      "tree_a": {
+        "closure_files": 76,
+        "closure_sha256": "f66f82a56e16a9fadaf0e913061bdbee44fe257ca26d0582013064f7108337ea",
+        "design_files": 76,
+        "design_sha256": "f66f82a56e16a9fadaf0e913061bdbee44fe257ca26d0582013064f7108337ea",
+        "non_design_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "role_split": false,
+        "roots": 44
+      },
+      "tree_b": {
+        "closure_files": 77,
+        "closure_sha256": "0ba98496b3db7dcac20167a07938d165920a965a893207991b9376d3bf68929b",
+        "design_files": 64,
+        "design_sha256": "016d4ff3a14ed51b7066f47f83c2c2d46770ebc0466ab777888de91e514fefe7",
+        "non_design_sha256": "01691bb6b14901e92d76198c1453b2340a4ecc39a5645c4998fa11ad46086b8e",
+        "role_split": true,
+        "roots": 45
+      },
+      "verdict": "MOVED (source closure (no role split on one side)): scripts/compiler_read_audit.py, scripts/core_package.py, scripts/export_core_package.py, scripts/fes_build_common.py, scripts/input_identity.py, scripts/pnr_recipe.py, scripts/toolchain_cache.py"
+    },
+    "fes.spectrum": {
+      "check_level": "full",
+      "producer": "build_fes_spectrum_oss",
+      "tree_a": {
+        "closure_files": 64,
+        "closure_sha256": "51d7644d85b803d89647649177627b170b477c373108b2e93ce5a4121ab5255f",
+        "design_files": 64,
+        "design_sha256": "51d7644d85b803d89647649177627b170b477c373108b2e93ce5a4121ab5255f",
+        "non_design_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "role_split": false,
+        "roots": 47
+      },
+      "tree_b": {
+        "closure_files": 65,
+        "closure_sha256": "1a480002e2270cb369292e4805f0660f1719998c7bbe8a4090ba04026ec52c29",
+        "design_files": 52,
+        "design_sha256": "c7a5305c17cc6b1858f28514e17685144fee155656db5c4cac4cec951acc030f",
+        "non_design_sha256": "b72ee5f4ebe8b7d721fc82d77e25bc4437b00f5ebd5624c9c77c61c03a7bd6ca",
+        "role_split": true,
+        "roots": 48
+      },
+      "verdict": "MOVED (source closure (no role split on one side)): scripts/compiler_read_audit.py, scripts/core_package.py, scripts/export_core_package.py, scripts/fes_build_common.py, scripts/input_identity.py, scripts/pnr_recipe.py, scripts/toolchain_cache.py"
+    },
+    "fes.spectrum-plus3": {
+      "check_level": "full",
+      "producer": "build_fes_spectrum_oss",
+      "tree_a": {
+        "closure_files": 64,
+        "closure_sha256": "51d7644d85b803d89647649177627b170b477c373108b2e93ce5a4121ab5255f",
+        "design_files": 64,
+        "design_sha256": "51d7644d85b803d89647649177627b170b477c373108b2e93ce5a4121ab5255f",
+        "non_design_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "role_split": false,
+        "roots": 47
+      },
+      "tree_b": {
+        "closure_files": 65,
+        "closure_sha256": "1a480002e2270cb369292e4805f0660f1719998c7bbe8a4090ba04026ec52c29",
+        "design_files": 52,
+        "design_sha256": "c7a5305c17cc6b1858f28514e17685144fee155656db5c4cac4cec951acc030f",
+        "non_design_sha256": "b72ee5f4ebe8b7d721fc82d77e25bc4437b00f5ebd5624c9c77c61c03a7bd6ca",
+        "role_split": true,
+        "roots": 48
+      },
+      "verdict": "MOVED (source closure (no role split on one side)): scripts/compiler_read_audit.py, scripts/core_package.py, scripts/export_core_package.py, scripts/fes_build_common.py, scripts/input_identity.py, scripts/pnr_recipe.py, scripts/toolchain_cache.py"
+    },
+    "fes.spectrum128": {
+      "check_level": "full",
+      "producer": "build_fes_spectrum_oss",
+      "tree_a": {
+        "closure_files": 64,
+        "closure_sha256": "51d7644d85b803d89647649177627b170b477c373108b2e93ce5a4121ab5255f",
+        "design_files": 64,
+        "design_sha256": "51d7644d85b803d89647649177627b170b477c373108b2e93ce5a4121ab5255f",
+        "non_design_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "role_split": false,
+        "roots": 47
+      },
+      "tree_b": {
+        "closure_files": 65,
+        "closure_sha256": "1a480002e2270cb369292e4805f0660f1719998c7bbe8a4090ba04026ec52c29",
+        "design_files": 52,
+        "design_sha256": "c7a5305c17cc6b1858f28514e17685144fee155656db5c4cac4cec951acc030f",
+        "non_design_sha256": "b72ee5f4ebe8b7d721fc82d77e25bc4437b00f5ebd5624c9c77c61c03a7bd6ca",
+        "role_split": true,
+        "roots": 48
+      },
+      "verdict": "MOVED (source closure (no role split on one side)): scripts/compiler_read_audit.py, scripts/core_package.py, scripts/export_core_package.py, scripts/fes_build_common.py, scripts/input_identity.py, scripts/pnr_recipe.py, scripts/toolchain_cache.py"
+    },
+    "fes.ts1000": {
+      "check_level": "full",
+      "producer": "build_fes_zx81_quartus",
+      "tree_a": null,
+      "tree_b": {
+        "closure_files": 64,
+        "closure_sha256": "7a6e3d9c6f58e78a278b536f04cd38cde9f5ce9f74e4f818f503d312987f9acf",
+        "design_files": 52,
+        "design_sha256": "934bfc285df39388e40c9b2279ac1c791393707f410c634121d69ebbfdfdcbd3",
+        "non_design_sha256": "a53aaa2e52c38a4a02ad6a74c5a7c905b06412ad107d11430b68bb8aa6d53e05",
+        "role_split": true,
+        "roots": 50
+      },
+      "verdict": "NEW ROW OR PRODUCER CHANGED -- no tree-a counterpart"
+    },
+    "fes.ts1500": {
+      "check_level": "full",
+      "producer": "build_fes_zx81_quartus",
+      "tree_a": null,
+      "tree_b": {
+        "closure_files": 64,
+        "closure_sha256": "7a6e3d9c6f58e78a278b536f04cd38cde9f5ce9f74e4f818f503d312987f9acf",
+        "design_files": 52,
+        "design_sha256": "934bfc285df39388e40c9b2279ac1c791393707f410c634121d69ebbfdfdcbd3",
+        "non_design_sha256": "a53aaa2e52c38a4a02ad6a74c5a7c905b06412ad107d11430b68bb8aa6d53e05",
+        "role_split": true,
+        "roots": 50
+      },
+      "verdict": "NEW ROW OR PRODUCER CHANGED -- no tree-a counterpart"
+    },
+    "fes.zx80": {
+      "check_level": "full",
+      "producer": "build_fes_zx81_quartus",
+      "tree_a": null,
+      "tree_b": {
+        "closure_files": 64,
+        "closure_sha256": "7a6e3d9c6f58e78a278b536f04cd38cde9f5ce9f74e4f818f503d312987f9acf",
+        "design_files": 52,
+        "design_sha256": "934bfc285df39388e40c9b2279ac1c791393707f410c634121d69ebbfdfdcbd3",
+        "non_design_sha256": "a53aaa2e52c38a4a02ad6a74c5a7c905b06412ad107d11430b68bb8aa6d53e05",
+        "role_split": true,
+        "roots": 50
+      },
+      "verdict": "NEW ROW OR PRODUCER CHANGED -- no tree-a counterpart"
+    },
+    "fes.zx81": {
+      "check_level": "full",
+      "producer": "build_fes_zx81_quartus",
+      "tree_a": null,
+      "tree_b": {
+        "closure_files": 64,
+        "closure_sha256": "7a6e3d9c6f58e78a278b536f04cd38cde9f5ce9f74e4f818f503d312987f9acf",
+        "design_files": 52,
+        "design_sha256": "934bfc285df39388e40c9b2279ac1c791393707f410c634121d69ebbfdfdcbd3",
+        "non_design_sha256": "a53aaa2e52c38a4a02ad6a74c5a7c905b06412ad107d11430b68bb8aa6d53e05",
+        "role_split": true,
+        "roots": 50
+      },
+      "verdict": "NEW ROW OR PRODUCER CHANGED -- no tree-a counterpart"
+    },
+    "splash": {
+      "check_level": "full",
+      "producer": "build_fes_splash",
+      "tree_a": {
+        "closure_files": 11,
+        "closure_sha256": "04e018349040eaaea842ccaffd8e994228d6a4a9b3b8cd3f17127c9d53550d90",
+        "design_files": 11,
+        "design_sha256": "04e018349040eaaea842ccaffd8e994228d6a4a9b3b8cd3f17127c9d53550d90",
+        "identity_covers": "whole record: pinned inputs, repository and revision",
+        "non_design_sha256": null,
+        "record_format": 1,
+        "role_split": true,
+        "roots": 0
+      },
+      "tree_b": {
+        "closure_files": 11,
+        "closure_sha256": "9c9c9afc870a28420d2a250bbf8e043a7b478f46ebd84f132600bdcdca4792f7",
+        "design_files": 11,
+        "design_sha256": "9c9c9afc870a28420d2a250bbf8e043a7b478f46ebd84f132600bdcdca4792f7",
+        "identity_covers": "whole record: pinned inputs, repository and revision",
+        "non_design_sha256": null,
+        "record_format": 1,
+        "role_split": true,
+        "roots": 0
+      },
+      "verdict": "MOVED (design identity): scripts/fes_build_common.py"
+    }
+  },
+  "summary": {
+    "moved": [
+      "fes.apple2",
+      "fes.atari-st",
+      "fes.c64",
+      "fes.coleco",
+      "fes.menu",
+      "fes.pcxt-dos",
+      "fes.pentagon",
+      "fes.pong",
+      "fes.ramtest",
+      "fes.riscv",
+      "fes.sg1000",
+      "fes.sms",
+      "fes.spectrum",
+      "fes.spectrum-plus3",
+      "fes.spectrum128",
+      "splash"
+    ],
+    "unanswered": [
+      "fes.ts1000",
+      "fes.ts1500",
+      "fes.zx80",
+      "fes.zx81"
+    ],
+    "unchanged": []
+  },
+  "tree_a": {
+    "path": "/data/fes1861-netlist/identity/idold",
+    "revision": "72d2fc4da6df140a3a1ab7b791b0c83341959f71"
+  },
+  "tree_b": {
+    "path": "/data/fes1861-netlist/identity/idbase",
+    "revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07"
+  }
+}

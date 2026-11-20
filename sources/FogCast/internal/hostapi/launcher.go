@@ -319,6 +319,13 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			a.routes.ServeHTTP(w, r)
 			return
 		}
+		if launcherStShelfOperation(r.Method, r.URL.Path) {
+			// Saved disk changes live on a kit: the shelf is this kit's, even
+			// when another target remains foreground.
+			r = r.WithContext(fogcast.WithSessionTarget(r.Context(), name))
+			a.routes.ServeHTTP(w, r)
+			return
+		}
 		if r.Method == http.MethodPut && (launcherExpansionSelectionPath(r.URL.Path) || launcherSlotExpansionSelectionPath(r.URL.Path)) {
 			// The body stays the caller's exact selection. This does not
 			// rewrite a target or move the foreground host selection.
@@ -579,6 +586,9 @@ func launcherOperation(method, path string) bool {
 	if launcherLiveMutation(method, path) || method == http.MethodPost && launcherTapeImportPath(path) {
 		return true
 	}
+	if launcherStShelfOperation(method, path) {
+		return true
+	}
 	if method == http.MethodPut && (launcherExpansionSelectionPath(path) || launcherSlotExpansionSelectionPath(path)) {
 		return true
 	}
@@ -599,6 +609,24 @@ func launcherOperation(method, path string) bool {
 		return true
 	}
 	return method == http.MethodGet && (launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path) || launcherCoreEntryPath(path) || launcherCorePackageReadPath(path) || launcherROMSelectionPath(path) || launcherExpansionReadPath(path) || launcherCoreCatalogSetupPath(path))
+}
+
+// launcherStShelfOperation admits the Atari ST disk shelf: its list, a new
+// disk, and the four actions on one disk.
+func launcherStShelfOperation(method, path string) bool {
+	const base = "/api/v1/library/atari-st-shelf"
+	if path == base {
+		return method == http.MethodGet || method == http.MethodPost
+	}
+	rest, ok := strings.CutPrefix(path, base+"/")
+	if !ok || method != http.MethodPost {
+		return false
+	}
+	game, action, ok := strings.Cut(rest, "/")
+	if !ok || protocol.ValidateGameID(game) != nil {
+		return false
+	}
+	return action == "copy" || action == "revert" || action == "rename" || action == "delete"
 }
 
 func launcherCoreCatalogSetupPath(path string) bool {

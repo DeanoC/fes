@@ -142,15 +142,32 @@ var sdlButtons = map[string]string{
 	"dpup": "dpad-up", "dpdown": "dpad-down", "dpleft": "dpad-left", "dpright": "dpad-right",
 }
 
-// sdlLayout compiles an entry against the pad's own capabilities. A d-pad on
-// a hat or a full axis becomes the held hat source of left-x/left-y, as an
-// evdev hat already is; a d-pad on buttons stays buttons.
-func sdlLayout(e sdlEntry, keys, abs []byte) layout {
+// sdlLayout compiles an entry against the pad's own capabilities. A d-pad
+// pair on one hat or full axis becomes the held hat source of left-x/left-y,
+// as an evdev hat already is. Any other button source, a hat direction or
+// an axis among them, reads as a button.
+func sdlLayout(e sdlEntry, keys, abs []byte, ranges map[uint16]Range) layout {
 	buttons, hats, axes := sdlControls(keys, abs)
-	l := layout{buttons: map[uint16]string{}, axes: map[uint16]axisBinding{}}
+	l := layout{buttons: map[uint16]string{}, axes: map[uint16]axisBinding{}, axisButtons: map[uint16][]axisButton{}}
+	paired := map[string]bool{}
+	for axis, pair := range [2][2]string{{"dpleft", "dpright"}, {"dpup", "dpdown"}} {
+		negCode, negPositive, okNeg := sdlDirection(e.bindings[pair[0]], hats, axes)
+		posCode, posPositive, okPos := sdlDirection(e.bindings[pair[1]], hats, axes)
+		if okNeg && okPos && negCode == posCode && negPositive != posPositive {
+			l.axes[negCode] = axisBinding{axis: axis, hat: true, invert: negPositive}
+			paired[pair[0]], paired[pair[1]] = true, true
+		}
+	}
 	for target, name := range sdlButtons {
-		if n, ok := sdlIndex(e.bindings[target], "b"); ok && n < len(buttons) {
+		if paired[target] {
+			continue
+		}
+		source := e.bindings[target]
+		if n, ok := sdlIndex(source, "b"); ok && n < len(buttons) {
 			l.buttons[buttons[n]] = name
+		} else if b, ok := sdlAxisButton(source, hats, axes, ranges); ok {
+			b.name = name
+			l.axisButtons[b.code] = append(l.axisButtons[b.code], b)
 		}
 	}
 	// A generic HID pad reports Guide in the BTN_TRIGGER range, and on some
@@ -165,17 +182,50 @@ func sdlLayout(e sdlEntry, keys, abs []byte) layout {
 	for axis, target := range [2]string{"leftx", "lefty"} {
 		source := e.bindings[target]
 		if n, ok := sdlIndex(strings.TrimSuffix(source, "~"), "a"); ok && n < len(axes) {
-			l.axes[axes[n]] = axisBinding{axis: axis, invert: strings.HasSuffix(source, "~")}
-		}
-	}
-	for axis, pair := range [2][2]string{{"dpleft", "dpright"}, {"dpup", "dpdown"}} {
-		negCode, negPositive, okNeg := sdlDirection(e.bindings[pair[0]], hats, axes)
-		posCode, posPositive, okPos := sdlDirection(e.bindings[pair[1]], hats, axes)
-		if okNeg && okPos && negCode == posCode && negPositive != posPositive {
-			l.axes[negCode] = axisBinding{axis: axis, hat: true, invert: negPositive}
+			if _, taken := l.axes[axes[n]]; !taken {
+				l.axes[axes[n]] = axisBinding{axis: axis, invert: strings.HasSuffix(source, "~")}
+			}
 		}
 	}
 	return l
+}
+
+// sdlAxisButton resolves a button bound to a hat direction or an axis. It
+// is pressed past the threshold SDL uses: the midpoint of a half axis (+aN,
+// -aN), or of the whole range for a full axis (aN, or aN~ pressed below it).
+func sdlAxisButton(source string, hats, axes []uint16, ranges map[uint16]Range) (axisButton, bool) {
+	if strings.HasPrefix(source, "h") {
+		code, positive, ok := sdlDirection(source, hats, axes)
+		if !ok {
+			return axisButton{}, false
+		}
+		if positive {
+			return axisButton{code: code, threshold: 1, above: true}, true
+		}
+		return axisButton{code: code, threshold: -1}, true
+	}
+	half := len(source) > 0 && (source[0] == '+' || source[0] == '-')
+	index := strings.TrimSuffix(source, "~")
+	if half {
+		index = index[1:]
+	}
+	n, ok := sdlIndex(index, "a")
+	if !ok || n >= len(axes) {
+		return axisButton{}, false
+	}
+	r, ok := ranges[axes[n]]
+	if !ok || r.Max <= r.Min {
+		return axisButton{}, false
+	}
+	center := r.Min + (r.Max-r.Min)/2
+	switch {
+	case !half:
+		return axisButton{code: axes[n], threshold: center, above: !strings.HasSuffix(source, "~")}, true
+	case source[0] == '+':
+		return axisButton{code: axes[n], threshold: center + (r.Max-center)/2, above: true}, true
+	default:
+		return axisButton{code: axes[n], threshold: center - (center-r.Min)/2}, true
+	}
 }
 
 // sdlDirection resolves one d-pad source to an evdev axis and the sign that

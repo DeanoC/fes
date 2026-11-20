@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"net/http"
 	"runtime"
 	"time"
@@ -30,51 +29,10 @@ var nativeProgramPlatform tenfoot.Platform
 
 const tenfootSerialLinked = true
 
-func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore.Store, files fs.FS) {
+func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore.Store) {
 	paired := expectedCompiledMenuProgram != ""
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
-	var entries []nativefabric.ProgramEntry
-	var err error
-	if programWritableStorageSelected {
-		entries, err = nativefabric.ReadInstallerBootstrap(ctx, store)
-	} else {
-		var choices []packagestore.Request
-		choices, err = nativefabric.ReadProgramSelections(ctx, files, "FES/CORESEL.JSN")
-		if err == nil {
-			entries, err = nativefabric.ReadProgramCatalog(ctx, files, "FES/UI.JSON", choices)
-		}
-		if err == nil {
-			entries, err = nativefabric.ReadInstalledPrograms(ctx, store, entries)
-		}
-	}
-	var menuChoices []packagestore.Request
-	if err == nil && paired {
-		menuChoices, err = nativefabric.ReadProgramSelections(ctx, files, "FES/MENUSEL.JSN")
-		if err == nil && len(menuChoices) != 1 {
-			err = errors.New("native menu requires exactly one startup selection")
-		}
-	}
-	var preferences *nativefabric.ProgramPreferences
-	var staged []*nativefabric.StagedProgram
-	var stagedError error
-	if err == nil {
-		preferences, err = nativefabric.LoadProgramPreferences(ctx, store, false)
-	}
-	if err == nil && programWritableStorageSelected {
-		staged, err = nativefabric.ReadStagedPrograms(ctx, store, "FES/INSTALL.JSN")
-		if errors.Is(err, nativefabric.ErrStagedCatalogAbsent) {
-			_, activeErr := store.ActiveReceipt()
-			err = activeErr
-		} else if err != nil {
-			_, activeErr := store.ActiveReceipt()
-			if activeErr == nil {
-				stagedError = err
-				err = nil
-			} else {
-				err = activeErr
-			}
-		}
-	}
+	startup, err := nativefabric.ReadProgramStartup(ctx, store, programWritableStorageSelected, paired)
 	cancel()
 	if err != nil {
 		panic(err)
@@ -83,7 +41,7 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	if paired {
 		load, done := context.WithTimeout(context.Background(), 100*time.Second)
 		programService, err = nativefabric.NewProgramServiceWithMenu(load, loader, store, de25nano.ReserveConfiguration, limits,
-			nativefabric.ProgramMenuOptions{Request: menuChoices[0], Reserve: de25nano.ReserveMenuMemory,
+			nativefabric.ProgramMenuOptions{Request: startup.Menu, Reserve: de25nano.ReserveMenuMemory,
 				Observe: emitProgramMenu,
 				Limits: scanout.MenuLimits{PublicationTimeout: 4 * time.Second,
 					ReaderLimits: scanout.ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: func() { time.Sleep(time.Millisecond) }}}})
@@ -94,7 +52,7 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	if err != nil {
 		panic(err)
 	}
-	if err := programService.AttachPreferences(preferences); err != nil {
+	if err := programService.AttachPreferences(startup.Preferences); err != nil {
 		panic(err)
 	}
 	defer func() {
@@ -105,19 +63,19 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	if err := startProgramNetwork(); err != nil {
 		panic(err)
 	}
-	nativeProgramBackend, err = nativefabric.NewProgramBackend(programService, entries)
+	nativeProgramBackend, err = nativefabric.NewProgramBackend(programService, startup.Entries)
 	if err != nil {
 		panic(err)
 	}
-	if len(staged) != 0 {
-		if err = nativeProgramBackend.AttachStagedPrograms(context.Background(), staged); err != nil {
+	if len(startup.Staged) != 0 {
+		if err = nativeProgramBackend.AttachStagedPrograms(context.Background(), startup.Staged); err != nil {
 			if programService.Status().State != nativefabric.ProgramReady {
 				panic(err)
 			}
-			stagedError = err
+			startup.StagedError = err
 		}
 	}
-	nativeProgramBackend.SetStagedSourceError(stagedError)
+	nativeProgramBackend.SetStagedSourceError(startup.StagedError)
 	// Launch requests include bounded SD reads and configuration. The existing
 	// request-service budget is 100 seconds, independent of the 20s SDM bound.
 	client := tenfoot.NewClient("http://native.invalid", &http.Client{Transport: nativeProgramBackend, Timeout: 100 * time.Second})
@@ -128,7 +86,7 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	}
 	defer device.Close()
 	app := tenfoot.NewApp(client, width, height, 400)
-	if err := app.SetPreferenceStore(preferences); err != nil {
+	if err := app.SetPreferenceStore(startup.Preferences); err != nil {
 		panic(err)
 	}
 	serialPlatform, err := nativefabric.NewProgramSerialPlatform(programService, serial.Read, func(ctx context.Context, data []byte) error {
@@ -169,7 +127,7 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 		}
 		display = "fpga-menu"
 	}
-	fmt.Printf("FES_NATIVE_TENFOOT_BEGIN display=%s input=%s preferences=ram\n", display, inputMode)
+	fmt.Printf("FES_NATIVE_TENFOOT_BEGIN display=%s input=%s preferences=%s\n", display, inputMode, startup.PreferencesMode)
 	nativeProgramPlatform = platform
 	if err := tenfoot.RunPlatform(context.Background(), app, device, nativeProgramPlatform); err != nil {
 		panic(err)
@@ -182,7 +140,7 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	}
 	if status.State == nativefabric.ProgramReady {
 		if paired {
-			if err := programService.ParkMenu(context.Background()); err != nil {
+			if err := nativeProgramBackend.ParkMenu(context.Background()); err != nil {
 				panic(err)
 			}
 			status = programService.Status()

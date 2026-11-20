@@ -184,6 +184,18 @@ class AffectedTests(unittest.TestCase):
                 self.assertEqual(result['cores'], [])
                 self.assertFalse(any(result['test_modes'].values()))
 
+    def test_de25_machine_paths_select_their_machines(self):
+        board = 'sources/misteross/boards/de25nano/'
+        for path, cores in (('spectrum/derive.py', ['spectrum']), ('spectrum/spectrum-clocks.sdc', ['spectrum']),
+                            ('atari-st/derive.py', ['atari-st']), ('atari-st/sim.py', ['atari-st']),
+                            ('machine/board.py', ['atari-st', 'spectrum']),
+                            ('shared-rtl/fes_spectrum_core.v', ['spectrum']),
+                            ('shared-rtl/fes_atari_st_core.v', ['atari-st']),
+                            ('shared-rtl/fes_firmware_upload.v', ['atari-st', 'spectrum']),
+                            ('shared-rtl/fes_gp_crossing.v', ['atari-st', 'spectrum'])):
+            with self.subTest(path=path):
+                self.assertEqual(sorted(plan([board + path])['cores']), cores)
+
     def test_de25_exception_does_not_narrow_other_boards_or_shared_changes(self):
         de25 = ['sources/mister-packages/packages/board/de25_nano.yaml',
                 'sources/misteross/boards/de25nano/blinky.sv']
@@ -208,8 +220,8 @@ class AffectedTests(unittest.TestCase):
         self.assertFalse(any(result['test_modes'].values()))
 
     def test_de25_x87_sources_and_regressions_select_only_their_simulation(self):
-        for path in ('boards/de25nano/x87/rtl/fes_x87_fast.sv',
-                     'boards/de25nano/x87/rtl/new_unit.sv',
+        for path in ('boards/de25nano/x87/build.py',
+                     'boards/de25nano/x87/timing.tcl',
                      'boards/de25nano/x87/sim/x87_pipe_tb.cpp',
                      'boards/de25nano/x87/run.py',
                      'tests/test_de25_x87.py', 'tests/test_de25_x87_build.py'):
@@ -218,7 +230,7 @@ class AffectedTests(unittest.TestCase):
                 self.assertEqual(result['cores'], ['de25-x87'])
                 self.assertEqual({lane for lane, selected in result['lanes'].items() if selected},
                                  {'parent', 'fpga'})
-        mixed = plan(['sources/misteross/boards/de25nano/x87/rtl/fes_x87_fast.sv',
+        mixed = plan(['sources/misteross/boards/de25nano/x87/sim/x87_pipe_tb.cpp',
                       'sources/misteross/cores/fes-zx81/new_unit.sv'])
         self.assertEqual(set(mixed['cores']), {'de25-x87', 'zx81'})
         for path in ('boards/de25nano/x87-other/rtl/unit.sv',
@@ -563,7 +575,9 @@ class AffectedTests(unittest.TestCase):
                      'scripts/test_fes_i386_lockstep.py', 'scripts/test_fes_i386_latency.py',
                      'scripts/quartus_fes_i386.py', 'scripts/quartus_x87_spike.py',
                      'cores/fes-common/sim/i386/spike/spike_x87.sv',
-                     'scripts/benchmark_fes_i386.py', 'scripts/fes_i386_ucode.py', 'scripts/i386_verilator.py'):
+                     'scripts/benchmark_fes_i386.py', 'scripts/fes_i386_ucode.py', 'scripts/i386_verilator.py',
+                     'scripts/fes_i486_oracle.py', 'scripts/fes_i486_cases.py', 'scripts/test_fes_i486_lockstep.py',
+                     'cores/fes-common/sim/i386/i486_tb.cpp', 'cores/fes-common/sim/i386/i486-expected-stops.txt'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])
                 self.assertEqual(result['cores'], [])
@@ -599,6 +613,11 @@ class AffectedTests(unittest.TestCase):
         mixed = plan(['sources/misteross/scripts/pc386_cpu_profile.py',
                       'sources/misteross/scripts/new_helper.py'])
         self.assertEqual(set(mixed['cores']), set(CORES))
+
+    def test_pc386_core_owned_product_selects_the_pc386_family(self):
+        result = plan(['sources/misteross/cores/fes-pc386/tools/build_pc386_product.py'])
+        self.assertEqual(result['cores'], ['pc386'])
+        self.assertTrue(result['lanes']['fpga'])
 
     def test_pc386_windows_checks_select_only_what_reads_them(self):
         result = plan(['sources/misteross/scripts/pc386_wfw.py'])

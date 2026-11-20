@@ -152,6 +152,19 @@ part composition, cartridge roles and format 4 are unavailable for this Nano
 delivery path. The Linux runtime's target checks and model/native admission
 policies remain independent; inspection or retention grants no hardware access.
 
+A Nano package that instead requires `fes.fabric.firmware-upload` 1.0 seals the
+`gp-firmware-upload-v1` map, and its ROM source travels to the kit. The ROM
+input envelope admits it for a `de25-linux-computer-v1` `fes.computer` package
+of `fes.spectrum` (16384 or 32768 bytes) or `fes.atari-st` (196608 bytes), with
+no expansion, slot card or part; an ST launch may carry its library disk. The
+kit stages the source as `firmware.rom` in place of `programmed.rbf`, with a
+receipt whose programmed digest and size are the package payload's, and sends
+`load_rom_core` or `load_rom_library_core` with `firmware_path`. The runtime
+needs no `rom_linking` for it: its `fes.computer` ABI must list the upload
+interface. A linker without that interface, a linked bitstream for such a
+package, and a restart publication holding both files are refused. Host
+software coverage only; no DE25 Spectrum or Atari ST package is produced yet.
+
 `Archive.LinkROMs` derives format-3 single-source and format-4 BIOS/cartridge
 programming bytes using the existing target linker and the retained package's
 sealed map. It validates source IDs, roles, order and sizes before copying them.
@@ -1258,6 +1271,20 @@ or the full-record SHA-256). A unit may also report `saveable:false` when it has
 a durable binding but does not support an explicit in-session checkpoint;
 callers must preserve the binding identity while refusing the Save operation.
 Writable Atari ST packages use persistent mode only while a disk binding exists.
+A saved record can also be reached when its package is not loaded. `POST
+/v1/library/media/record` takes `{core_id, game_id, base_media_id, unit}` and
+returns `{state, revision, bytes, changed}` with state `absent`, `present` or
+`corrupt`. `changed` is true when a present record's image differs from the
+imported disk; a disk saved at Stop without a write is present and unchanged. `POST /v1/library/media/records` takes up to 256 identities as
+`{records:[...]}` and answers them in order. `POST
+/v1/library/media/record/export` adds `expected_revision` and returns the
+saved disk image as an octet stream. `POST /v1/library/media/record/discard`
+takes the same body, needs the kit lease, and removes the record so the next
+launch reads the imported disk again; the runtime refuses it while a core is
+running. A discard may borrow the caller's kit lease, but retains it after a
+`BUSY` response because another concurrent discard may still be using that
+shared grant. Inspect and export change nothing and need no lease.
+
 The `fes.computer` 1.1 pc386 `fes.media.ata-disk` unit is a fixed 1..128 MiB
 unit with 65,536-byte chunks and always reports `saveable:false`. Its package
 remains persistent when the unit is empty, and a loaded disk keeps its
@@ -1462,12 +1489,35 @@ navigation stays unavailable while the shelf or its editions are loading. ZX81-f
 entries use `example.hardware`; Commodore 64 and other families use
 `example.system` with the selected core and game IDs. The shared
 `widgets.system_workbench` implementation covers every registered playable
-system and model, including the Spectrum models, Apple II, Atari ST, consoles,
-ROM-less games and utilities.
+system and model, including the Spectrum models, PC/XT, PC 386, Apple II,
+Atari ST, consoles, ROM-less games and utilities.
 Resume refreshes retain the selected game ID when title order changes and keep
 the prior row position, clamped to the new list, if that game disappears. A
 failed refresh clears both the shelf rows and list widget so Set up cannot open
 a stale entry.
+
+The **core screen** (`example.core`, `widgets.core_screen`) is what Home opens
+for the ZX81, Spectrum, Atari ST and Commodore 64 families. It shows one
+family: a Model row for its variants, the computer with its readiness and
+fixed facts on the left, and its drive and games on the right. It reads the
+family with the `home_family` library query, the only one that marks a row as
+a machine entry or a title: the machine entry is listed first as the computer
+on its own, and the count is of titles. Home opens the screen with that
+machine entry's `game_id`, which is not a request for a game, so the screen
+returns to the model and game last browsed and otherwise starts on the first
+title. Each edition of
+a title is its own row and Confirm on a row launches that exact entry, or
+returns to it when it is the running game; it does not start over another
+running game. The drive row and its button use `hardware.open_media` for next
+start with the entry's package and media identity, and `session.open_tape`
+with the observed session for a running machine. An empty model offers
+`hardware.setup`. The ZX81 family adds **Expansions**, which opens
+`example.hardware` for the chosen entry. The screen keeps the workbench's
+standing first-use firmware request, its stale-query generations and its
+staged paint, and stores the last model per family and the last game per model.
+`example.system` still serves Systems, the other families and the in-session
+route. The disk shelf, new disks and the PC screens of the
+[design](../../../docs/ux/references/core-screens/README.md) are not built yet.
 
 The shared workbench chooses a system family, a hardware variant, a saved entry
 and a grouped title edition. `systems.families` and `systems.family_by_core`
@@ -1485,6 +1535,10 @@ capabilities and saves the selected role with package/media compare-and-swap.
 Saved media labels name the selected role; package guidance still describes the
 model's full media support. Adding a setup confirms only the library entry;
 expansion fitting is a separate operation.
+The `hard-disk` role uses the existing ATA import and purpose-specific storage
+read APIs for 1–128 MiB sector-aligned images, including launcher files and
+saved local/host drives. Its transfer budget covers reading and uploading the
+disk; ordinary media retain their 32 MiB limit and existing timeout.
 **Expansion sockets** reads the package's declared physical topology and saved
 slot choices. Exact-package/socket archive import and fitting are separate;
 selection checks the previous card. Library metadata shows selected cards
@@ -1551,7 +1605,10 @@ draw. A clear recorded before the extend replaces the presented clear. The
 ZX81 workshop's first picture is spread over several draws: a short opening
 frame, cached text metrics, then the upper and lower halves. A change to
 focus, size, status or selection after the upper half paints that half again
-before the lower half is appended. Eight consecutive slow paints still retire
+before the lower half is appended. When artwork finishes decoding after that
+picture, its replacement is prepared over two draws while the last complete
+picture and its controls stay usable; a changed scene discards the staged
+replacement. Eight consecutive slow paints still retire
 the room. Slow input, pointer, lifecycle, and asynchronous result callbacks
 count in their own group, so successful frames do not hide repeated input
 overruns. Eight overruns in either group retire the
@@ -1673,7 +1730,7 @@ selected by flag, saved preferences or `FOGCAST_HOME_ROOM` defaults to kit Home
 readiness, explanation and action in a large FES-owned panel
 (`ui/tenfoot/room_hero.go`, geometry `rooms.HeroPanel`), while the room draws
 the family tiles, artwork motifs and Home routes. Family Open enters the
-workbench; Play on a recent title starts that title. In the v1 release scope,
+family's core screen or workbench; Play on a recent title starts that title. In the default scope,
 Settings is the only header route and Back at Home's root keeps Home open.
 Show all cores restores Library and Systems routes and the remaining families.
 Home retries each failed family read at most three times, after 1, 2 and 4
@@ -1748,7 +1805,7 @@ patterned stay (`/` or `f` search, `o` settings, `g` filters, `l` layout). While
 an attached play session is live (`ForwardsPlayHID`), USB keyboard events go to
 `POST /api/v1/session/input/event` instead of the sofa focus graph and do not
 steal browse or ZX81/session affinity; pointer browse stays off that session.
-Esc and Backspace remain session-stop chrome. Letter `s` stays a core key.
+Escape stays in play after returning from a room, while Backspace remains session-stop chrome. Letter `s` stays a core key.
 A `fes.computer` session with `fes.keyboard.hid` 1.0 (`CoreKeyboardHID`)
 is the exception: `HandlePlayHIDScancode` forwards every SDL scancode that is a
 HID Keyboard/Keypad usage, including Esc, Backspace and `/`, with no chrome
@@ -1845,7 +1902,9 @@ Benchmark recipes and measurement limits are in
 The framebuffer shell reads native-width evdev records for US keyboard text
 and gamepad buttons plus range-normalized stick/hat axes, merges held commands across devices,
 and applies each pad's saved profile and the shared hold gate. `nativeInputs.poll` takes those
-axes from `ui/controller.Mapper`. A held D-pad hat owns each shared
+axes from `ui/controller.Mapper`. Before dispatching each event, `nativeInputs.poll` refreshes
+whether the selected pad is in step-by-step learning. A mapping started while draining therefore
+changes the route for that pad's next queued event. A held D-pad hat owns each shared
 left axis: stick reports on that axis are dropped until the hat returns to
 centre, which restores the stick's latest position. Automatic discovery filters keyboard
 capabilities and physical gamepad identity, excluding virtual-bus devices and
@@ -1890,8 +1949,9 @@ browse-only. This option does not install or select menu firmware in an image.
 The built-in room set contains Home, Systems, System setup and Sinclair setup.
 The last two are internal templates opened with an exact model/entry, excluded
 from room and default-home pickers. Release Home presents recent titles and
-computer-family tiles; opening a family enters its workbench, while Play on a
-recent title launches that title. Settings is its only header route in the v1
+computer-family tiles; opening a family enters its core screen (PC/XT and PC 386:
+its workbench), while Play on a recent title launches that title. Settings is its
+only header route in the default
 scope. Show all cores restores Library and Systems routes and the remaining
 families. Back at release Home's root keeps Home open; the room picker is the
 fallback when Home cannot open. The old Lobby, Amiga Workbench, Mario, SNES,
@@ -1902,7 +1962,7 @@ refreshes. Sinclair setup queues a refresh requested during a read and
 performs it after the current snapshot arrives.
 Missing saved-home IDs use the existing fallback without replacement aliases.
 
-`internal/corenames` supplies plain display names for 18 exact first-party
+`internal/corenames` supplies plain display names for registered first-party
 core IDs. Unknown systems retain their supplied name; this table does not admit
 packages or media. Installed-core protocol metadata stays verbatim. The room
 adapters project machine names and recognize only known model aliases followed
@@ -3363,14 +3423,19 @@ queries count titles without changing the machine or its selected media. The
 hardware refreshes requested while a previous read is pending coalesce into
 one fresh read after its callback. Home discards the superseded response and
 clears old host admission if the fresh read fails. The
-v1 release scope shows its fixed families;
+default scope shows the ZX81 and Spectrum families, Atari ST, C64, PC/XT and
+PC 386. The PC families use `example.system`, retaining each package's disk
+and launch checks. Welcome and the setup-completion summary include all six;
+PC 386 is identified as in development. Their release-plan scopes and PC 386's
+pending quality tier are independent of this visibility.
 **Show all cores**, available through Settings, `tenfoot.json` `all_cores`, or
 `FOGCAST_TENFOOT_ALL_CORES=1`, adds the remaining families in `systems.lua`
 order and restores the Library and Systems routes. The host Library remains
 complete in either scope.
 
 A family tile summarizes its models and readiness. Its Open action enters the
-matching workbench with a machine entry's `game_id` and `core_id`; it never
+family's core screen (`example.core`), or the matching workbench for a family
+outside v1, with a machine entry's `game_id` and `core_id`; it never
 launches a core directly. Add firmware enters the same workbench when a family
 has no ready model. Details groups the models by state and shows the library
 count. Recently played launches its selected title directly. On compact Home,
@@ -3534,11 +3599,20 @@ map; the core owns characters, shifted symbols, repeat and reset chords. The hos
 attaches input for these sessions even without controller ports and passes the
 events through `POST /api/v1/session/input/event` and the host stream unchanged.
 On the kit, the linuxfb evdev loop reads `EV_KEY` records, maps Linux key codes
-through `internal/hidkeys.FromLinuxKey`, and passes the resulting usage to
-`HandlePlayHIDScancode` and the ordered `SendPlayHID` path. If connected evdev
-keyboards hold the same usage, tenfoot clears the releasing device's local
-held/modifier state immediately but sends the core release only after the last
-keyboard releases it.
+through `internal/hidkeys.FromLinuxKey`, and passes the resulting usage through
+Tenfoot's source-aware play-key handling and ordered `SendPlayHID` path. SDL uses
+its keyboard instance ID and linuxfb uses its evdev fd as the physical source.
+Tenfoot tracks each physical keyboard's held and suppressed keys by source and
+HID usage in all sessions, including the name-mapped keyboard path. Suppression
+follows that keyboard until it releases the key. A contribution records an input
+admitted to the ordered queue, not proof that the guest consumed it. If multiple physical
+keys, on one keyboard or across keyboards, contribute the same core key, a
+release clears that key's hold and modifier state immediately; the core release
+is queued once no other unsuppressed admitted key contributes it. Disconnect
+discards the lost device's holds and suppression on both SDL and evdev, and
+releases only keys no surviving admitted physical key still holds.
+During a same-session surround transition that keeps machine focus, an
+already-admitted key can still send its neutral release; new presses stay fenced.
 The 1.1 ABI retains its 1.0 keyboard and relative-mouse capabilities; an active
 `fes.mouse.relative` 1.0 interface receives the same supported-generation
 binding.
@@ -4176,6 +4250,16 @@ requirement to insert media. The library can also format a blank FAT12 `.st`
 Binding requires a format-3 `fes.atari-st` firmware package with `fes.computer`
 1.0 and required base and writable floppy interfaces. Store-only creation does
 not inspect or require a package.
+The Atari ST disk shelf (`/api/v1/library/atari-st-shelf`) lists the disks made
+on the kit and the game disks with saved changes, and makes, copies, reverts,
+renames and deletes them. A disk made here is a library entry with a
+`shelf_disks` row in the catalog (schema 25), removed with its entry. Its
+saved changes are the kit's record for that entry, read through the kit
+agent's saved-record routes; every shelf change takes lifecycle admission,
+asks the kit first, and refuses the disk in the drive. A new blank shelf disk
+has a random boot-sector serial, so each is its own content-addressed medium.
+See the [package library guide](core-package-library.md#the-atari-st-disk-shelf).
+
 The host stores the formatted bytes in the content-addressed media store; later
 GEMDOS writes stay on the existing durable drive-A record. When a disk is selected, the launch includes its
 exact admitted raw-ST source and explicit game/base-media binding in the closed ROM envelope. The

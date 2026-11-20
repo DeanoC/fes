@@ -10,7 +10,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'platform/embedded/nano'))
 import paired_tenfoot_trace as paired
-from paired_firmware_trace import menu_closed
+from paired_firmware_trace import menu_closed, configuration as paired_configuration
 import test_nano_combined_program as combined
 from test_nano_program_client import LAUNCH, BOOT, SPEC, OWNER
 from test_nano_tenfoot_trace import Model as AppModel, PROGRAMS, STAGING_FAULTS, corrupt_staging
@@ -28,6 +28,39 @@ CPU = (ROOT/'tests/fixtures/nano-tenfoot-startup/cpu.txt').read_bytes()
 
 def wire(prefix, row):
     return prefix+json.dumps(row, separators=(',', ':')).encode()+b'\n'
+
+
+class ConfigurationBudgetTests(unittest.TestCase):
+    def test_configuration_observers_keep_their_producer_budget(self):
+        import configuration_trace, native_trace, service_trace, window_service_trace, window_reload_trace, paired_firmware_trace
+        self.assertEqual(configuration_trace.SOURCE_OPERATION_US, 25000000)
+        for module in (service_trace, window_service_trace, paired_firmware_trace):
+            self.assertEqual(module.SOURCE_OPERATION_TICKS, 25000000*400)
+        self.assertEqual(configuration_trace.FIXED_PROGRAM_US, 20000000)
+        for module in (native_trace, window_reload_trace, window_service_trace):
+            self.assertEqual(module.FIXED_PROGRAM_TICKS, 20000000*400)
+
+    def test_actual_paired_configuration_accepts_former_boundary_and_rejects_expiry(self):
+        model = Model()
+        raw = model.configure(10)
+        matches = list(re.finditer(rb'\bcounter=([0-9a-f]+)', raw))
+        self.assertGreater(len(matches), 2)
+        first = int(matches[0][1], 16)
+        for elapsed in (20142473, 24999999, 25000000, 25000001):
+            index = 0
+            def counter(match):
+                nonlocal index
+                value = first + elapsed*400*index//(len(matches)-1)
+                index += 1
+                return b'counter='+format(value, 'x').encode()
+            changed = re.sub(rb'\bcounter=([0-9a-f]+)', counter, raw)
+            with self.subTest(elapsed=elapsed):
+                if elapsed < 25000000:
+                    parsed, _ = paired_configuration(changed, SPEC['configuration'], int(OWNER,16), 10, 4)
+                    self.assertEqual(parsed['timing']['interval_ticks'], elapsed*400)
+                else:
+                    with self.assertRaisesRegex(ValueError, 'declared source budget'):
+                        paired_configuration(changed, SPEC['configuration'], int(OWNER,16), 10, 4)
 
 
 class Model(AppModel):
@@ -109,8 +142,6 @@ class Model(AppModel):
 
     def usb(self, stage, state=None, generation=None):
         if stage == 'stop':
-            self.reports += 1
-            self.polls += 1
             return f'FES_NATIVE_SHARED_USB STOP owner={OWNER} generation=3 reports={self.reports} polls={self.polls}\n'.encode()
         return (f'FES_NATIVE_SHARED_USB INPUT phase={stage} state={state} native_generation={generation} '
                 f'owner={OWNER} generation=2 reports={self.reports} polls={self.polls}\n').encode()
@@ -189,6 +220,11 @@ class Model(AppModel):
                 marker = raw.rindex(paired.app.PREFIX)
             raw = raw[:marker]+self.usb('resume', 'running' if key == b'\r' else 'ready', before+1)+raw[marker:]
             if key == b'q':
+                self.reports += 1
+                self.polls += 1
+                pause_marker = raw.index(b'FES_NANO_WINDOW_SCOPE phase=close ')
+                pause_marker = raw.rfind(b'\n',0,pause_marker)+1
+                raw = raw[:pause_marker]+self.usb('pause','ready',before+1)+raw[pause_marker:]
                 marker = raw.index(b'FES_NATIVE_TENFOOT_EXIT ')
                 raw = raw[:marker]+self.usb('stop')+raw[marker:]
         if key not in (b'\x1b[C', b'\x1b[D'):
@@ -228,6 +264,16 @@ class Model(AppModel):
         if fault == 'early-usb-stop':
             stop = next(line for line in raw.splitlines(keepends=True) if b'SHARED_USB STOP ' in line)
             raw = stop+raw.replace(stop, b'')
+        if fault in ('missing-park-pause','late-park-pause','park-resume','park-polled','park-owner'):
+            pauses = [line for line in raw.splitlines(keepends=True) if b'SHARED_USB INPUT phase=pause ' in line]
+            pause = pauses[-1]
+            if fault == 'missing-park-pause': raw=raw.replace(pause,b'')
+            if fault == 'late-park-pause':
+                stop=next(line for line in raw.splitlines(keepends=True) if b'SHARED_USB STOP ' in line)
+                raw=raw.replace(pause,b'').replace(stop,pause+stop)
+            if fault == 'park-resume': raw=raw.replace(pause,pause.replace(b'phase=pause',b'phase=resume'))
+            if fault == 'park-polled': raw=raw.replace(pause,re.sub(rb'polls=[0-9]+',b'polls=999',pause))
+            if fault == 'park-owner': raw=raw.replace(pause,pause.replace(b'owner='+OWNER.encode(),b'owner=1'))
         if fault == 'missing-usb-resume': raw = re.sub(rb'FES_NATIVE_SHARED_USB INPUT phase=resume[^\n]*\n', b'', raw)
         if fault == 'bad-core-stop': raw = raw.replace(b'complete=1 data=held', b'complete=0 data=held')
         if fault == 'missing-core-stop': raw = re.sub(rb'[^\n]*FES_NANO_MASTER_STOP[^\n]*data=held\n', b'', raw)
@@ -241,6 +287,23 @@ class Model(AppModel):
 
 
 class PairedTenfootTraceTests(unittest.TestCase):
+    def test_persistent_preferences_begin_is_bound_to_compiled_storage_selection(self):
+        model = Model(shared=True, protocol='boot-keyboard')
+        initial = model.initial.replace(b' preferences=ram\n', b' preferences=sd-checkpoint\n')
+        profile = copy.deepcopy(model.profile)
+        # Source admission owns validation of the exact card plan; this pure
+        # observer only checks that the selected mode matches the build.
+        profile['writable_storage_plan'] = {'scope': 'nano-owned-fat-storage-v1'}
+        client = model.client(initial=initial, profile=profile)
+        self.assertEqual(client.preferences_mode, 'sd-checkpoint')
+        self.assertEqual(client.view['native']['State'], 'ready')
+        for raw, selected in ((model.initial, profile), (initial, model.profile)):
+            with self.subTest(raw=raw[-80:]), self.assertRaises(ValueError):
+                model.client(initial=raw, profile=selected)
+        with self.assertRaises(ValueError):
+            model.client(initial=initial, profile=dict(profile, writable_storage_plan=True))
+
+
     def test_staged_faults_retire_uart_and_shared_keyboard_before_acceptance(self):
         for shared in (False,True):
             for fault in STAGING_FAULTS:
@@ -299,7 +362,7 @@ class PairedTenfootTraceTests(unittest.TestCase):
                     self.assertTrue(client.retired)
 
     def test_shared_pause_resume_and_stop_are_joined_to_menu_ownership(self):
-        for fault in ('missing-usb-resume', 'early-usb-stop', 'late-usb-stop'):
+        for fault in ('missing-usb-resume', 'early-usb-stop', 'late-usb-stop', 'missing-park-pause', 'late-park-pause', 'park-resume', 'park-polled', 'park-owner'):
             with self.subTest(fault=fault):
                 model = Model(True); client = model.client(); client.key('launch', 0); model.fault = fault
                 with self.assertRaises(ValueError): client.key('quit')

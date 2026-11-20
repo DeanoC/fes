@@ -73,6 +73,13 @@ and content selection; the MiSTer is a small, directly controlled target.
   configured entries. It refreshes the library and preserves ordinary launch
   checks.
 
+  Home and first-run setup include the ZX81 and Spectrum families, Atari ST,
+  Commodore 64, PC/XT and PC 386. Both PCs use the shared system workbench
+  for installed packages and saved disk selections. PC 386 remains in
+  development; showing it does not change its pending quality tier. **Show
+  all cores** adds the held-back families. Release-plan classifications stay
+  separate from launcher visibility.
+
 - The tenfoot **Systems** room lists prepared playable systems, models and
   editions. **Set up** opens the selected workbench; **Add system** remains
   available with an empty library. The shared **System setup** groups related
@@ -260,7 +267,7 @@ and content selection; the MiSTer is a small, directly controlled target.
   claims affinity without restart, and unplug returns to a remaining device;
   an attached play session forwards USB keyboard HID to the core/session path
   instead of the sofa graph (ZX81 still uses the matrix; native SNES/MD encode
-  as gamepad buttons; Esc/Backspace still stop, except in `fes.keyboard.hid`
+  as gamepad buttons; Backspace stops and Esc stays in play, except in `fes.keyboard.hid`
   sessions, which receive every key as a USB HID usage); pointer browse does
   not steal that session, and a foreign or recovery-required kit lease fails closed. Mac is the primary sofa target;
   Linux uses the same Makefile target with

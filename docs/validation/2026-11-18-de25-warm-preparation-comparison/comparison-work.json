@@ -1,0 +1,11 @@
+{
+  "status": "passed-independent-comparison-work-audit",
+  "bytes_read_before": 9411776,
+  "bytes_read_after": 9411776,
+  "loads_before": 9411776,
+  "loads_after": 1422592,
+  "fresh_comparisons": 9564,
+  "SMMU_read_count": 268,
+  "synthetic_load_reduction_percent": 84.88497813802624,
+  "hardware_latency_measured": false
+}

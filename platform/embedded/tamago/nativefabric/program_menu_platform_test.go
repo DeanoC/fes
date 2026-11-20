@@ -181,8 +181,11 @@ func TestMenuProgramFullTenfootDisplayCoreReturnAndFailures(t *testing.T) {
 			if !nonblank {
 				t.Fatal("App rendered only the constructor blank")
 			}
-			if err := f.s.ParkMenu(context.Background()); err != nil {
+			if err := backend.ParkMenu(context.Background()); err != nil {
 				t.Fatal(err)
+			}
+			if !source.paused || source.pauses != 3 || source.resumes != 2 {
+				t.Fatal("final shutdown resumed input", source)
 			}
 		})
 	}

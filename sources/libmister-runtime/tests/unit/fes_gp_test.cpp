@@ -12,6 +12,7 @@
 #include "native/generated/fes_computer.hpp"
 #include "native/linux/de25_computer_mmio.hpp"
 #include "de25_standard_descriptor.hpp"
+#include "native/generated/fes_firmware_upload.hpp"
 #include "de25_computer_endpoint.hpp"
 #include "native/hardware.hpp"
 #include "native/artifacts.hpp"
@@ -2667,7 +2668,7 @@ void TestRetainedZx81SaveGuardDoesNotRequireEmptyMedia()
         mister::native::FesGpCoreDriver fresh(fresh_gp);
         const auto start=bridge.endpoint.requests.size();
         fresh.BeginSession();
-        const auto error=fresh.EnsureRetainedZx81TapeSaved(descriptor,mode==7?0:kComputerDeadline);
+        const auto error=fresh.EnsureRetainedComputerSaved(descriptor,mode==7?0:kComputerDeadline);
         if(mode==0||mode==4)assert(error.ok());else assert(!error.ok());
         if(mode==1)assert(error.code==mister::ErrorCode::save_failed&&bridge.endpoint.dirty&&bridge.endpoint.frozen);
         assert(!bridge.endpoint.held&&bridge.endpoint.unit(0).state==FesComputerMediaStateReady&&bridge.endpoint.unit(0).data==retained);
@@ -3533,9 +3534,238 @@ void TestPc386AtaDiskCommitPollAndDirtyMap()
 	assert(f.driver.ReadAtaDirty(kComputerDeadline, &dirty).ok() && dirty.empty());
 }
 
+// The DE25 standard shell's firmware machines on the real DE25 register
+// transport, against the port of fes_firmware_upload.v.
+constexpr std::uint32_t kSpectrumCapabilities = 0x202f, kAtariStCapabilities = 0x278f;
+const std::pair<std::uint32_t, std::uint32_t> kSpectrumTapeLimits = {
+	FesComputerSpectrumTapeMinBytes, FesComputerSpectrumTapeMaxBytes};
+const std::pair<std::uint32_t, std::uint32_t> kAtariStFloppyLimits = {
+	FesComputerAtariStFloppyGeometryMinBytes, FesComputerAtariStFloppyGeometryMaxBytes};
+
+std::string FirmwareImage(std::size_t bytes)
+{
+	std::string image(bytes, '\0');
+	for (std::size_t i = 0; i < bytes; ++i) image[i] = static_cast<char>((i * 31 + 7) ^ (i >> 8));
+	return image;
+}
+
+struct FirmwareFixture {
+	AtomicComputerBridge bridge;
+	mister::native::De25ComputerMmio registers;
+	TickClock clock;
+	mister::native::FesGp gp;
+	mister::native::FesGpCoreDriver driver;
+	mister::native::CoreDescriptor descriptor;
+	mister::native::CoreDriverContext context;
+	FirmwareFixture(std::uint32_t capabilities, std::pair<std::uint32_t, std::uint32_t> unit,
+		mister::native::CoreDescriptor declared, std::uint32_t endpoint_bytes)
+		: bridge(capabilities, "00112233445566778899aabbccddeeff", unit), registers(bridge),
+		  gp(registers, clock, mister::native::FesGpTransport::de25_computer), driver(gp),
+		  descriptor(std::move(declared))
+	{
+		descriptor.build.id = "00112233445566778899aabbccddeeff";
+		bridge.endpoint.firmware_bytes = endpoint_bytes;
+		context.descriptor = &descriptor;
+	}
+	mister::Error Upload(mister::native::FesGpCoreDriver& target, const std::string& image,
+		bool* uploaded = nullptr)
+	{
+		ComputerMediaFile file(image);
+		mister::native::ComputerMediaSnapshot snapshot;
+		assert(snapshot.Prepare(file.path, static_cast<std::uint32_t>(image.size()),
+			static_cast<std::uint32_t>(image.size()), clock, kComputerDeadline).ok());
+		return target.UploadFirmware(snapshot, clock, kComputerDeadline, uploaded);
+	}
+	unsigned Count(std::size_t from, unsigned opcode) const
+	{
+		unsigned count = 0;
+		for (std::size_t i = from; i < bridge.endpoint.requests.size(); ++i)
+			if (bridge.endpoint.requests[i].opcode == opcode) ++count;
+		return count;
+	}
+	// The raw release a host could send without the driver.
+	bool RawReleaseRejected()
+	{
+		std::uint16_t response = 0;
+		const auto error = gp.Exchange(FesComputerOpcodeExecution, 0, FesComputerExecutionRelease,
+			kComputerDeadline, &response);
+		return !error.ok() && bridge.endpoint.held;
+	}
+};
+
+void TestFirmwareUploadPrecedesReleaseOnDe25Machines()
+{
+	struct Machine {
+		std::uint32_t capabilities;
+		std::pair<std::uint32_t, std::uint32_t> unit;
+		mister::native::CoreDescriptor descriptor;
+		std::uint32_t bytes;
+	};
+	const Machine machines[] = {
+		{kSpectrumCapabilities, kSpectrumTapeLimits, mister_test::De25SpectrumDescriptor(16384), 16384},
+		{kSpectrumCapabilities, kSpectrumTapeLimits, mister_test::De25SpectrumDescriptor(32768), 32768},
+		{kAtariStCapabilities, kAtariStFloppyLimits, mister_test::De25AtariStDescriptor(), 196608},
+	};
+	for (const auto& machine : machines) {
+		FirmwareFixture f(machine.capabilities, machine.unit, machine.descriptor, machine.bytes);
+		const std::string image = FirmwareImage(machine.bytes);
+		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+		assert(f.driver.FirmwareUploadDeclared() && f.driver.OwnsAudio());
+		// Release before upload: the driver names the missing step without a
+		// request, and the endpoint itself refuses a raw release.
+		auto before = f.bridge.endpoint.requests.size();
+		const auto early = f.driver.Start(f.context, kComputerDeadline);
+		assert(early.error.code == mister::ErrorCode::invalid_request && early.error.phase == "firmware" &&
+			!early.mutation_attempted && f.bridge.endpoint.requests.size() == before);
+		assert(f.RawReleaseRejected());
+		before = f.bridge.endpoint.requests.size();
+		bool uploaded = false;
+		assert(f.Upload(f.driver, image, &uploaded).ok() && uploaded);
+		assert(f.bridge.endpoint.firmware_state == FesFirmwareUploadStateReady && f.bridge.endpoint.held);
+		assert(std::string(f.bridge.endpoint.firmware.begin(), f.bridge.endpoint.firmware.end()) == image);
+		// Info, the four header words, every byte pair once, Commit, Info.
+		assert(f.Count(before, FesFirmwareUploadOpcodeInfo) == 10 &&
+			f.Count(before, FesFirmwareUploadOpcodeBegin) == 4 &&
+			f.Count(before, FesFirmwareUploadOpcodeData) == machine.bytes / 2 &&
+			f.Count(before, FesFirmwareUploadOpcodeCommit) == 1 &&
+			f.bridge.endpoint.requests.size() - before == 15 + machine.bytes / 2);
+		assert(f.bridge.endpoint.requests[before].opcode == FesFirmwareUploadOpcodeInfo &&
+			f.bridge.endpoint.requests[before + 5].opcode == FesFirmwareUploadOpcodeBegin);
+		// A second driver session over the loaded core reads Info and skips.
+		mister::native::FesGp second_gp(f.registers, f.clock, mister::native::FesGpTransport::de25_computer);
+		mister::native::FesGpCoreDriver second(second_gp);
+		second.BeginSession();
+		assert(second.Identify(f.context, kComputerDeadline).error.ok());
+		before = f.bridge.endpoint.requests.size();
+		uploaded = true;
+		assert(f.Upload(second, image, &uploaded).ok() && !uploaded);
+		assert(f.bridge.endpoint.requests.size() - before == 5 &&
+			f.Count(before, FesFirmwareUploadOpcodeInfo) == 5);
+		assert(second.Start(f.context, kComputerDeadline).error.ok() && !f.bridge.endpoint.held);
+		// Begin is valid only while held: a running machine's ROM never changes.
+		before = f.bridge.endpoint.requests.size();
+		assert(f.Upload(second, image).code == mister::ErrorCode::busy &&
+			f.bridge.endpoint.requests.size() == before);
+	}
+}
+
+void TestFirmwareUploadRefusals()
+{
+	const std::string image = FirmwareImage(16384);
+	auto fixture = [](std::uint32_t endpoint_bytes = 16384,
+		mister::native::CoreDescriptor declared = mister_test::De25SpectrumDescriptor(16384)) {
+		return std::unique_ptr<FirmwareFixture>(new FirmwareFixture(kSpectrumCapabilities,
+			kSpectrumTapeLimits, std::move(declared), endpoint_bytes));
+	};
+	auto stays_held = [](FirmwareFixture& f) {
+		assert(!f.driver.Start(f.context, kComputerDeadline).error.ok());
+		assert(f.RawReleaseRejected());
+		assert(f.bridge.endpoint.firmware_state != FesFirmwareUploadStateReady);
+	};
+	{
+		// Wrong size: the endpoint names another image. Nothing is begun.
+		auto f = fixture(32768);
+		assert(f->driver.Identify(f->context, kComputerDeadline).error.ok());
+		const auto before = f->bridge.endpoint.requests.size();
+		const auto error = f->Upload(f->driver, image);
+		assert(error.code == mister::ErrorCode::core_mismatch && error.phase == "firmware");
+		assert(f->Count(before, FesFirmwareUploadOpcodeBegin) == 0 &&
+			f->bridge.endpoint.firmware_state == FesFirmwareUploadStateEmpty);
+		stays_held(*f);
+	}
+	{
+		// The package does not declare the interface: its opcodes are never sent.
+		auto declared = mister_test::De25SpectrumDescriptor(16384);
+		declared.interfaces.pop_back();
+		auto f = fixture(0, declared);
+		assert(f->driver.Identify(f->context, kComputerDeadline).error.ok());
+		const auto before = f->bridge.endpoint.requests.size();
+		assert(!f->driver.FirmwareUploadDeclared());
+		assert(f->Upload(f->driver, image).code == mister::ErrorCode::unsupported_interface &&
+			f->bridge.endpoint.requests.size() == before);
+	}
+	{
+		// Declared, but the endpoint lacks it: Info answers invalid opcode.
+		auto f = fixture(0);
+		assert(f->driver.Identify(f->context, kComputerDeadline).error.ok());
+		const auto before = f->bridge.endpoint.requests.size();
+		assert(!f->Upload(f->driver, image).ok() &&
+			f->bridge.endpoint.requests.size() - before == 1);
+		assert(!f->driver.Start(f->context, kComputerDeadline).error.ok() && f->bridge.endpoint.held);
+	}
+	{
+		// A CRC mismatch at Commit leaves the image loading, never ready.
+		auto f = fixture();
+		assert(f->driver.Identify(f->context, kComputerDeadline).error.ok());
+		f->bridge.endpoint.reject_request = [&](const mister_test::ComputerEndpoint::Request& request) {
+			if (request.opcode == FesFirmwareUploadOpcodeCommit) f->bridge.endpoint.firmware_expected_crc ^= 1;
+			return 0u;
+		};
+		assert(!f->Upload(f->driver, image).ok());
+		f->bridge.endpoint.reject_request = nullptr;
+		assert(f->bridge.endpoint.firmware_state == FesFirmwareUploadStateLoading);
+		stays_held(*f);
+	}
+	{
+		// A rejected data word ends the transfer; it is not replayed.
+		auto f = fixture();
+		assert(f->driver.Identify(f->context, kComputerDeadline).error.ok());
+		unsigned data = 0;
+		f->bridge.endpoint.reject_request = [&](const mister_test::ComputerEndpoint::Request& request) {
+			return request.opcode == FesFirmwareUploadOpcodeData && ++data == 300 ? 4u : 0u;
+		};
+		const auto before = f->bridge.endpoint.requests.size();
+		assert(!f->Upload(f->driver, image).ok());
+		f->bridge.endpoint.reject_request = nullptr;
+		assert(f->Count(before, FesFirmwareUploadOpcodeData) == 300 &&
+			f->Count(before, FesFirmwareUploadOpcodeCommit) == 0);
+		stays_held(*f);
+		// A fresh Begin from word 0 recovers the same held core.
+		bool uploaded = false;
+		assert(f->Upload(f->driver, image, &uploaded).ok() && uploaded);
+		assert(f->driver.Start(f->context, kComputerDeadline).error.ok() && !f->bridge.endpoint.held);
+	}
+}
+
+// Recovery of a lost process: each standard machine proves its live identity,
+// and one with a writable medium must hold nothing unsaved.
+void TestRetainedStandardMachineGuards()
+{
+	for (unsigned mode = 0; mode < 6; ++mode) {
+		const bool st = mode >= 2;
+		auto descriptor = st ? mister_test::De25AtariStDescriptor() : mister_test::De25SpectrumDescriptor();
+		FirmwareFixture f(st ? kAtariStCapabilities : kSpectrumCapabilities,
+			st ? kAtariStFloppyLimits : kSpectrumTapeLimits, descriptor, st ? 196608 : 16384);
+		if (mode == 1) f.descriptor.build.id[0] = 'f';
+		if (mode >= 3) {
+			// A loaded floppy; mode 4 has guest writes the lost session never stored.
+			f.bridge.endpoint.unit(0).state = FesComputerMediaStateReady;
+			f.bridge.endpoint.unit(0).data.assign(FesComputerAtariStFloppyBytes, 0);
+			f.bridge.endpoint.dirty = mode == 4;
+		}
+		if (mode == 5) f.descriptor.interfaces.erase(f.descriptor.interfaces.begin() + 9);
+		f.driver.BeginSession();
+		const auto error = f.driver.EnsureRetainedComputerSaved(f.descriptor, kComputerDeadline);
+		assert(error.ok() == (mode == 0 || mode == 2 || mode == 3));
+		if (mode == 4) assert(error.code == mister::ErrorCode::save_failed && f.bridge.endpoint.dirty);
+		if (mode == 5) assert(error.code == mister::ErrorCode::unsupported_interface &&
+			f.bridge.endpoint.requests.empty());
+		// Abandonment adopts nothing and sends no firmware or media mutation.
+		assert(!f.driver.home_computer() && f.driver.media_units().empty());
+		for (const auto& request : f.bridge.endpoint.requests)
+			assert(request.opcode == FesComputerOpcodeIdentity ||
+				(st && (request.opcode == FesComputerOpcodeMediaSnapshotInfo ||
+					(request.opcode == FesComputerOpcodeMediaSnapshotControl &&
+					 request.argument == FesComputerMediaSnapshotFreeze))));
+	}
+}
+
 int main()
 {
     TestRetainedZx81SaveGuardDoesNotRequireEmptyMedia();
+	TestFirmwareUploadPrecedesReleaseOnDe25Machines();
+	TestFirmwareUploadRefusals();
+	TestRetainedStandardMachineGuards();
 	TestStandardZx81DriverThroughAtomicDe25Transport();
 	TestAtomicDe25TransportFailsClosed();
  TestStandardDe25ReadinessChecksHealthWithoutCommands();

@@ -1,0 +1,8 @@
+artefact       front end      verdict
+fes.zx81       quartus-lite   QSF identical f6a3d0924446994d   recipe identical
+fes.zx80       quartus-lite   QSF identical 1b6fbd3540794511   recipe identical
+fes.ts1000     quartus-lite   QSF identical 1f95667c824625bc   recipe identical
+fes.ts1500     quartus-lite   QSF identical e645baca2d370a38   recipe identical
+
+every canonical QSF is byte-identical
+wrote /data/fes1861-netlist/identity/qsf.json

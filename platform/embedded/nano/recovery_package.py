@@ -21,18 +21,21 @@ def sha(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
-def checked_build(directory):
+def checked_build(directory, *, source_root=None):
+    producer = HERE if source_root is None else Path(source_root)/'platform/embedded/nano'
     receipt = json.loads((directory / 'result.json').read_text())
+    if receipt.get('reset_entry_probe') is not None:
+        raise ValueError('reset-entry diagnostic requires separate explicit package admission')
     fit, spl, config = (directory / name for name in
                        ('build/u-boot.itb', 'build/spl/u-boot-spl-dtb.hex', 'build/.config'))
     mode = receipt.get('network_recovery', {})
     phy_sources=mode.get('phy_sources')
     recovery.check_phy_sources(directory/'source',phy_sources)
     if (receipt.get('status') != 'built' or receipt.get('native_handoff') is not None or
-            mode != {'profile_sha256': sha(HERE / 'recovery.py'), 'manual_prompt': True,
+            mode != {'profile_sha256': sha(producer / 'recovery.py'), 'manual_prompt': True,
                      'automatic_writes': False, 'random_mac': False, 'sd_dma': False, 'native_handoff': False,
                      'phy':recovery.PHY, 'phy_driver_linked':True, 'phy_sources':phy_sources} or
-            receipt.get('producer_sha256') != sha(HERE.parent / 'firmware/build_terasic_uboot.py') or
+            receipt.get('producer_sha256') != sha(producer.parent / 'firmware/build_terasic_uboot.py') or
             receipt.get('uboot_elf_sha256') != sha(directory/'build/u-boot') or
             receipt.get('fit_sha256') != sha(fit) or receipt.get('spl_sha256') != sha(spl) or
             receipt.get('config_sha256') != sha(config) or receipt.get('fit_atf_verified') is not True or

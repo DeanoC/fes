@@ -1,0 +1,482 @@
+------------------------------------------------------------
+Timing Analyzer Summary
+------------------------------------------------------------
+
+Type  : Setup 'fes_video_inst|video_clock|iopll_0_outclk0'
+Slack : 1.691
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Setup 'fes_machine_pll|machine_pll_outclk0'
+Slack : 2.836
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Setup 'pll_inst|iopll_0_outclk0'
+Slack : 4.239
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Setup 'HDMI_TX_CLK'
+Slack : 7.790
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Setup 'fes_machine_pll|machine_pll_outclk1'
+Slack : 8.756
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Setup 'fes_video_inst|video_clock|iopll_0_refclk'
+Slack : 16.442
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Setup 'adv7513_config'
+Slack : 16.816
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Hold 'pll_inst|iopll_0_outclk0'
+Slack : 0.000
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Hold 'fes_machine_pll|machine_pll_outclk0'
+Slack : 0.001
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Hold 'fes_video_inst|video_clock|iopll_0_outclk0'
+Slack : 0.002
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Hold 'fes_machine_pll|machine_pll_outclk1'
+Slack : 0.004
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Hold 'adv7513_config'
+Slack : 0.035
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Hold 'fes_video_inst|video_clock|iopll_0_refclk'
+Slack : 0.098
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Hold 'HDMI_TX_CLK'
+Slack : 0.320
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Hold 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'
+Slack : 0.376
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Recovery 'pll_inst|iopll_0_outclk0'
+Slack : 7.108
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Recovery 'fes_video_inst|video_clock|iopll_0_outclk0'
+Slack : 11.452
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Recovery 'fes_video_inst|video_clock|iopll_0_refclk'
+Slack : 16.951
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Recovery 'fes_machine_pll|machine_pll_outclk0'
+Slack : 17.841
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Recovery 'adv7513_config'
+Slack : 18.250
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Recovery 'fes_machine_pll|machine_pll_outclk1'
+Slack : 80.472
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Removal 'adv7513_config'
+Slack : 0.030
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Removal 'fes_machine_pll|machine_pll_outclk0'
+Slack : 0.163
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Removal 'fes_machine_pll|machine_pll_outclk1'
+Slack : 0.177
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Removal 'pll_inst|iopll_0_outclk0'
+Slack : 0.179
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Removal 'fes_video_inst|video_clock|iopll_0_outclk0'
+Slack : 0.195
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Removal 'fes_video_inst|video_clock|iopll_0_refclk'
+Slack : 0.232
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Setup Data Delay 'fes_video_inst|video_clock|iopll_0_outclk0'
+Slack : 4.480
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Setup Data Delay 'fes_machine_pll|machine_pll_outclk0'
+Slack : 4.899
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Setup Data Delay 'pll_inst|iopll_0_outclk0'
+Slack : 6.181
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Setup Data Delay 'fes_machine_pll|machine_pll_outclk1'
+Slack : 9.202
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0'
+Slack : 0.220
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0'
+Slack : 0.272
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'
+Slack : 0.419
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'EMIF_REF_CLOCK'
+Slack : 2.220
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'pll_inst|iopll_0_outclk0'
+Slack : 4.406
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'HDMI_TX_CLK'
+Slack : 5.860
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0_outclk0'
+Slack : 5.860
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0'
+Slack : 8.313
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0'
+Slack : 8.584
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Minimum Pulse Width 'fes_machine_pll|machine_pll_outclk0'
+Slack : 8.654
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'DRAM_CLK'
+Slack : 8.674
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'fes_machine_pll|machine_pll|tennm_ph2_iopll|ref_clk0'
+Slack : 8.761
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'fes_machine_pll|machine_pll_refclk'
+Slack : 9.231
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'pll_inst|iopll_0_refclk'
+Slack : 9.231
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0_refclk'
+Slack : 9.596
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Minimum Pulse Width 'fes_machine_pll|machine_pll_n_cnt_clk'
+Slack : 29.571
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'fes_machine_pll|machine_pll_outclk1'
+Slack : 39.496
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0_n_cnt_clk'
+Slack : 49.563
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'de25_i2s_bit_clock'
+Slack : 161.906
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'de25_i2s_bit_clock_output'
+Slack : 161.906
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'de25_i2s_word_clock'
+Slack : 10415.790
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'de25_i2s_word_clock_output'
+Slack : 10415.790
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'adv7513_config'
+Slack : 50018.549
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Slow fix4 100C Model Max Skew 'set_max_skew'
+Slack : 7.592
+
+Type  : Slow fix4 100C Model Max Skew 'set_max_skew'
+Slack : 7.675
+
+Type  : Slow fix4 100C Model Max Skew 'set_max_skew'
+Slack : 7.712
+
+Type  : Slow fix4 100C Model Max Skew 'set_max_skew'
+Slack : 7.730
+
+Type  : Slow fix4 100C Model Max Skew 'set_max_skew'
+Slack : 8.147
+
+Type  : Slow fix4 100C Model Max Skew 'set_max_skew'
+Slack : 8.639
+
+Type  : Slow fix4 100C Model Max Skew 'set_max_skew'
+Slack : 8.677
+
+Type  : Slow fix4 100C Model Max Skew 'set_max_skew'
+Slack : 8.752
+
+Type  : Slow fix4 100C Model Max Skew 'set_max_skew'
+Slack : 9.494
+
+Type  : Slow fix4 100C Model Max Skew 'set_max_skew'
+Slack : 10.269
+
+Type  : Slow fix4 100C Model Max Skew 'set_max_skew'
+Slack : 10.400
+
+Type  : Slow fix4 100C Model Max Skew 'set_max_skew'
+Slack : 10.465
+
+Type  : Slow fix4 100C Model Max Skew 'set_max_skew'
+Slack : 10.468
+
+Type  : Slow fix4 0C Model Max Skew 'set_max_skew'
+Slack : 7.539
+
+Type  : Slow fix4 0C Model Max Skew 'set_max_skew'
+Slack : 7.632
+
+Type  : Slow fix4 0C Model Max Skew 'set_max_skew'
+Slack : 7.632
+
+Type  : Slow fix4 0C Model Max Skew 'set_max_skew'
+Slack : 7.670
+
+Type  : Slow fix4 0C Model Max Skew 'set_max_skew'
+Slack : 7.709
+
+Type  : Slow fix4 0C Model Max Skew 'set_max_skew'
+Slack : 8.237
+
+Type  : Slow fix4 0C Model Max Skew 'set_max_skew'
+Slack : 8.281
+
+Type  : Slow fix4 0C Model Max Skew 'set_max_skew'
+Slack : 8.436
+
+Type  : Slow fix4 0C Model Max Skew 'set_max_skew'
+Slack : 9.426
+
+Type  : Slow fix4 0C Model Max Skew 'set_max_skew'
+Slack : 10.226
+
+Type  : Slow fix4 0C Model Max Skew 'set_max_skew'
+Slack : 10.378
+
+Type  : Slow fix4 0C Model Max Skew 'set_max_skew'
+Slack : 10.417
+
+Type  : Slow fix4 0C Model Max Skew 'set_max_skew'
+Slack : 10.433
+
+Type  : Slow fix4a 0C Model Max Skew 'set_max_skew'
+Slack : 7.536
+
+Type  : Slow fix4a 0C Model Max Skew 'set_max_skew'
+Slack : 7.629
+
+Type  : Slow fix4a 0C Model Max Skew 'set_max_skew'
+Slack : 7.629
+
+Type  : Slow fix4a 0C Model Max Skew 'set_max_skew'
+Slack : 7.667
+
+Type  : Slow fix4a 0C Model Max Skew 'set_max_skew'
+Slack : 7.711
+
+Type  : Slow fix4a 0C Model Max Skew 'set_max_skew'
+Slack : 8.238
+
+Type  : Slow fix4a 0C Model Max Skew 'set_max_skew'
+Slack : 8.279
+
+Type  : Slow fix4a 0C Model Max Skew 'set_max_skew'
+Slack : 8.434
+
+Type  : Slow fix4a 0C Model Max Skew 'set_max_skew'
+Slack : 9.424
+
+Type  : Slow fix4a 0C Model Max Skew 'set_max_skew'
+Slack : 10.224
+
+Type  : Slow fix4a 0C Model Max Skew 'set_max_skew'
+Slack : 10.377
+
+Type  : Slow fix4a 0C Model Max Skew 'set_max_skew'
+Slack : 10.414
+
+Type  : Slow fix4a 0C Model Max Skew 'set_max_skew'
+Slack : 10.434
+
+Type  : Fast fix4 0C Model Max Skew 'set_max_skew'
+Slack : 7.723
+
+Type  : Fast fix4 0C Model Max Skew 'set_max_skew'
+Slack : 7.776
+
+Type  : Fast fix4 0C Model Max Skew 'set_max_skew'
+Slack : 7.783
+
+Type  : Fast fix4 0C Model Max Skew 'set_max_skew'
+Slack : 7.819
+
+Type  : Fast fix4 0C Model Max Skew 'set_max_skew'
+Slack : 8.780
+
+Type  : Fast fix4 0C Model Max Skew 'set_max_skew'
+Slack : 8.983
+
+Type  : Fast fix4 0C Model Max Skew 'set_max_skew'
+Slack : 9.029
+
+Type  : Fast fix4 0C Model Max Skew 'set_max_skew'
+Slack : 9.087
+
+Type  : Fast fix4 0C Model Max Skew 'set_max_skew'
+Slack : 9.661
+
+Type  : Fast fix4 0C Model Max Skew 'set_max_skew'
+Slack : 10.419
+
+Type  : Fast fix4 0C Model Max Skew 'set_max_skew'
+Slack : 10.505
+
+Type  : Fast fix4 0C Model Max Skew 'set_max_skew'
+Slack : 10.541
+
+Type  : Fast fix4 0C Model Max Skew 'set_max_skew'
+Slack : 10.554
+
+Type  : Net Delay 'set_net_delay'
+Slack : 4.480
+
+Type  : Net Delay 'set_net_delay'
+Slack : 4.899
+
+Type  : Net Delay 'set_net_delay'
+Slack : 6.122
+
+Type  : Net Delay 'set_net_delay'
+Slack : 6.181
+
+Type  : Net Delay 'set_net_delay'
+Slack : 7.595
+
+Type  : Net Delay 'set_net_delay'
+Slack : 7.614
+
+Type  : Net Delay 'set_net_delay'
+Slack : 9.202
+
+------------------------------------------------------------

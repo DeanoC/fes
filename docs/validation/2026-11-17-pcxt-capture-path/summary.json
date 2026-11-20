@@ -1,0 +1,1801 @@
+{
+  "candidate_database_inventory_sha256": "c2293443f2e65d5e09a362b7e94f7df09c9a763827078c139b340a2cf026d91f",
+  "candidate_receipt_sha256": "15ac3057bcb901a82b8d68dcd9199e8a3b6f812a00798e1f1d21f2b12a6d45de",
+  "classification": "bounded 100 MHz forwarded-clock/DQ capture investigation; not physical qualification",
+  "hardware_run": false,
+  "invalid_request_receipt_sha256": "601875a8ac07d80a5eb0cb2a01007e60ab90f9a94bf888342a21db0784eab054",
+  "production_change": false,
+  "reference_head": "70abc256fc2bcc0e99f58a6195f4864b21b63999",
+  "reference_pr": "https://github.com/DeanoC/fes/pull/1940",
+  "runs": [
+    {
+      "audio_interstage_min_ns": 0.166,
+      "audio_payload_min_ns": 0.459,
+      "dq_input_registers": {
+        "SDRAM_DQ[0]": "no",
+        "SDRAM_DQ[10]": "no",
+        "SDRAM_DQ[11]": "no",
+        "SDRAM_DQ[12]": "no",
+        "SDRAM_DQ[13]": "no",
+        "SDRAM_DQ[14]": "no",
+        "SDRAM_DQ[15]": "no",
+        "SDRAM_DQ[1]": "no",
+        "SDRAM_DQ[2]": "no",
+        "SDRAM_DQ[3]": "no",
+        "SDRAM_DQ[4]": "no",
+        "SDRAM_DQ[5]": "no",
+        "SDRAM_DQ[6]": "no",
+        "SDRAM_DQ[7]": "no",
+        "SDRAM_DQ[8]": "no",
+        "SDRAM_DQ[9]": "no"
+      },
+      "handoff": {
+        "hold": {
+          "corner": "7_slow_1100mv_100c",
+          "data_delay_ns": "0.350",
+          "from": "sdram_pads_11__captured",
+          "from_clock": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "from_inverted": "0",
+          "kind": "hold",
+          "relationship_ns": "-5.000",
+          "slack_ns": "4.343",
+          "to": "system_storage_controller_dq_fall[11]",
+          "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "to_inverted": "0"
+        },
+        "setup": {
+          "corner": "7_slow_1100mv_100c",
+          "data_delay_ns": "3.023",
+          "from": "sdram_pads_13__captured",
+          "from_clock": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "from_inverted": "0",
+          "kind": "setup",
+          "relationship_ns": "5.000",
+          "slack_ns": "0.908",
+          "to": "system_storage_controller_dq_fall[13]",
+          "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "to_inverted": "0"
+        }
+      },
+      "handoff_row_count": 128,
+      "internal_by_corner_and_check": {
+        "7_slow_1100mv_-40c/hold": {
+          "endpoints": 17384,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_-40c",
+            "data_delay_ns": "0.350",
+            "from": "system_machine_isa_slots_2__genblk1_mda_card_card_crtc_row_address[4]",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "hold",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.249",
+            "to": "system_machine_isa_slots_2__genblk1_mda_card_card_crtc_row_address[4]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_-40c/recovery": {
+          "endpoints": 667,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_-40c",
+            "data_delay_ns": "3.536",
+            "from": "system_machine_reset",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "recovery",
+            "relationship_ns": "10.000",
+            "slack_ns": "5.786",
+            "to": "system_machine_board_pit_device_u_KF8253_Counter_2_count[11]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_-40c/removal": {
+          "endpoints": 667,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_-40c",
+            "data_delay_ns": "0.745",
+            "from": "speaker_output_audio_output_stage_lock_sync",
+            "from_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "removal",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.662",
+            "to": "speaker_output_audio_output_stage_serializer_phase[1]",
+            "to_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_-40c/setup": {
+          "endpoints": 17384,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_-40c",
+            "data_delay_ns": "8.759",
+            "from": "dos_keyboard_frontend_pass[0]~DUPLICATE",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "setup",
+            "relationship_ns": "10.000",
+            "slack_ns": "0.621",
+            "to": "dos_keyboard_frontend_sent[124]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_100c/hold": {
+          "endpoints": 17384,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_100c",
+            "data_delay_ns": "0.373",
+            "from": "system_machine_isa_slots_2__genblk1_mda_card_card_crtc_row_address[4]",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "hold",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.261",
+            "to": "system_machine_isa_slots_2__genblk1_mda_card_card_crtc_row_address[4]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_100c/recovery": {
+          "endpoints": 667,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_100c",
+            "data_delay_ns": "3.679",
+            "from": "system_machine_reset",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "recovery",
+            "relationship_ns": "10.000",
+            "slack_ns": "5.647",
+            "to": "system_machine_board_pit_device_u_KF8253_Counter_2_count[11]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_100c/removal": {
+          "endpoints": 667,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_100c",
+            "data_delay_ns": "0.800",
+            "from": "speaker_output_audio_output_stage_lock_sync",
+            "from_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "removal",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.707",
+            "to": "speaker_output_audio_output_stage_serializer_phase[6]",
+            "to_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_100c/setup": {
+          "endpoints": 17384,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_100c",
+            "data_delay_ns": "8.753",
+            "from": "dos_keyboard_frontend_pass[0]~DUPLICATE",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "setup",
+            "relationship_ns": "10.000",
+            "slack_ns": "0.638",
+            "to": "dos_keyboard_frontend_sent[14]~DUPLICATE",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_-40c/hold": {
+          "endpoints": 17384,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "data_delay_ns": "0.344",
+            "from": "system_machine_board_pit_device_u_KF8253_Counter_2_count[9]",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "hold",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.120",
+            "to": "system_machine_board_pit_device_u_KF8253_Counter_2_dec2_bcd_q[10]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_-40c/recovery": {
+          "endpoints": 667,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "data_delay_ns": "1.680",
+            "from": "system_machine_reset",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "recovery",
+            "relationship_ns": "10.000",
+            "slack_ns": "7.967",
+            "to": "system_machine_board_pit_device_u_KF8253_Counter_2_count[11]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_-40c/removal": {
+          "endpoints": 667,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "data_delay_ns": "0.295",
+            "from": "speaker_output_audio_output_stage_lock_sync",
+            "from_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "removal",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.267",
+            "to": "speaker_output_audio_output_stage_serializer_phase[6]",
+            "to_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_-40c/setup": {
+          "endpoints": 17384,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "data_delay_ns": "1.533",
+            "from": "sdram_pads_13__captured",
+            "from_clock": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "setup",
+            "relationship_ns": "5.000",
+            "slack_ns": "2.985",
+            "to": "system_storage_controller_dq_fall[13]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_100c/hold": {
+          "endpoints": 17384,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_100c",
+            "data_delay_ns": "0.179",
+            "from": "system_machine_isa_slots_2__genblk1_mda_card_card_crtc_row_address[4]",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "hold",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.141",
+            "to": "system_machine_isa_slots_2__genblk1_mda_card_card_crtc_row_address[4]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_100c/recovery": {
+          "endpoints": 667,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_100c",
+            "data_delay_ns": "2.034",
+            "from": "system_machine_reset",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "recovery",
+            "relationship_ns": "10.000",
+            "slack_ns": "7.616",
+            "to": "system_machine_board_pit_device_u_KF8253_Counter_0_count[13]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_100c/removal": {
+          "endpoints": 667,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_100c",
+            "data_delay_ns": "0.345",
+            "from": "speaker_output_audio_output_stage_lock_sync",
+            "from_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "removal",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.311",
+            "to": "speaker_output_audio_output_stage_serializer_phase[6]",
+            "to_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_100c/setup": {
+          "endpoints": 17384,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_100c",
+            "data_delay_ns": "1.853",
+            "from": "sdram_pads_13__captured",
+            "from_clock": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "setup",
+            "relationship_ns": "5.000",
+            "slack_ns": "2.636",
+            "to": "system_storage_controller_dq_fall[13]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        }
+      },
+      "mailbox_interstage_min_ns": 0.216,
+      "minimum_pulse_width": {
+        "7_slow_1100mv_-40c": {
+          "checks": 68105,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "7_slow_1100mv_100c": {
+          "checks": 68105,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "MIN_fast_1100mv_-40c": {
+          "checks": 68105,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "MIN_fast_1100mv_100c": {
+          "checks": 68105,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        }
+      },
+      "name": "production-control-seed-1",
+      "rbf_sha256": "d10aec8b6295b341e688ab12d358f2864cfeca6bffc4417df7bbfdab1e6ae56c",
+      "read_hold_min_ns": 5.071,
+      "read_setup_by_corner": {
+        "7_slow_1100mv_-40c": {
+          "arrival_ns": 26.394,
+          "capture": "sdram_pads_4__captured",
+          "capture_location": "FF_X48_Y27_N40",
+          "corner": "7_slow_1100mv_-40c",
+          "data_delay_ns": 7.368,
+          "dq_cells_ns": 1.244,
+          "dq_interconnect_ns": 6.124,
+          "forwarded_clock_latency_ns": 8.026,
+          "port": "SDRAM_DQ[4]",
+          "reference_tac_ns": 6.0,
+          "required_ns": 18.228,
+          "slack_ns": -8.166
+        },
+        "7_slow_1100mv_100c": {
+          "arrival_ns": 26.908,
+          "capture": "sdram_pads_4__captured",
+          "capture_location": "FF_X48_Y27_N40",
+          "corner": "7_slow_1100mv_100c",
+          "data_delay_ns": 7.465,
+          "dq_cells_ns": 1.266,
+          "dq_interconnect_ns": 6.199,
+          "forwarded_clock_latency_ns": 8.443,
+          "port": "SDRAM_DQ[4]",
+          "reference_tac_ns": 6.0,
+          "required_ns": 18.191,
+          "slack_ns": -8.717
+        },
+        "MIN_fast_1100mv_-40c": {
+          "arrival_ns": 18.752,
+          "capture": "sdram_pads_8__captured",
+          "capture_location": "FF_X51_Y16_N17",
+          "corner": "MIN_fast_1100mv_-40c",
+          "data_delay_ns": 3.898,
+          "dq_cells_ns": 1.091,
+          "dq_interconnect_ns": 2.807,
+          "forwarded_clock_latency_ns": 3.854,
+          "port": "SDRAM_DQ[8]",
+          "reference_tac_ns": 6.0,
+          "required_ns": 16.146,
+          "slack_ns": -2.606
+        },
+        "MIN_fast_1100mv_100c": {
+          "arrival_ns": 19.524,
+          "capture": "sdram_pads_8__captured",
+          "capture_location": "FF_X51_Y16_N17",
+          "corner": "MIN_fast_1100mv_100c",
+          "data_delay_ns": 4.151,
+          "dq_cells_ns": 1.078,
+          "dq_interconnect_ns": 3.073,
+          "forwarded_clock_latency_ns": 4.373,
+          "port": "SDRAM_DQ[8]",
+          "reference_tac_ns": 6.0,
+          "required_ns": 16.267,
+          "slack_ns": -3.257
+        }
+      },
+      "reported_endpoint_checks_pass": true,
+      "reports_sha256": {
+        "audio.sdc": "e91adcaf068ff8e9f2044ebb262e15811a486db7015bf6b03a3d89a7ac929260",
+        "audit.log": "a90aa19ceec5b047c6f6dfb8f10788477adbcc564a0f8bd672ac96bd3db8433a",
+        "audit.tcl": "c3eb89bf8fa373ecc043f15171353a9a68700c0dcba9b6225c27d961fec7d5f6",
+        "audit/clocks.tsv": "57c6cbbc363528cceacfd2dc24f8116069ef7f02bc038649367f5a0aed0876a7",
+        "audit/endpoints.tsv": "1eb9ce700ed4e7b0178baa5a8906a8a86014c024c675334f70d7dd2975413ad2",
+        "clocks.sdc": "0b6c563001f104f1cc10fe83572a01c9e7a7d70399df976382598dab97612398",
+        "conditional/7_slow_1100mv_-40c/read-setup.rpt": "9c82f1c18004389b1b10f9c392cf1305ea689057dc6498a0c743d24148e5ae92",
+        "conditional/7_slow_1100mv_100c/read-setup.rpt": "6afca8f8f31b3ad5caf01c35b32d6fede1ac0a8fbb31a8b63d5b8533cfefaa3d",
+        "conditional/MIN_fast_1100mv_-40c/read-setup.rpt": "fb9784476720ea03edf1d2d54a190b34b7521f236370115e102402357930a078",
+        "conditional/MIN_fast_1100mv_100c/read-setup.rpt": "b96e709bb6e125c82426d817eba036278526711c7a1df6d6212f4a4755694a61",
+        "conditional/channels.tsv": "ad5f1ffe1df7ca4e9539c643deb02ba509dd24966fe39987c3cfdceaf3ca857d",
+        "elaborated.v": "785c8399fd6b0cfa4e6d234454394b72e80623c3ca421d9bce166e44b5b5db47",
+        "mailbox.sdc": "8199fc2a4441b39f7935cf83cd6fef1b8db7da8b746e84e19c1b6bc18b02f78f",
+        "output_files/top.fit.rpt": "2823b15b013f45659d926895dfee56d09cb4acf0561f8ba73699ec4114c88b1c",
+        "output_files/top.map.rpt": "afe8ed52018aef5af300d95f57d43009690b28e1b34cba03a3d9b2702c1d88ed",
+        "output_files/top.sta.rpt": "2a616327240ce263934bbff27072fb66336c5a1d79a22a75319e8571b94ddc1c",
+        "top.qsf": "3c67a9cb6579bc3005739b06d3547936deb317634962e9a58acf65e02dc4dca6"
+      },
+      "work": "/home/deano/fes-hil/k835-sdram-budget/bound/seed-1",
+      "worst_read": {
+        "arrival_ns": 26.908,
+        "capture": "sdram_pads_4__captured",
+        "capture_location": "FF_X48_Y27_N40",
+        "corner": "7_slow_1100mv_100c",
+        "data_delay_ns": 7.465,
+        "dq_cells_ns": 1.266,
+        "dq_interconnect_ns": 6.199,
+        "forwarded_clock_latency_ns": 8.443,
+        "port": "SDRAM_DQ[4]",
+        "reference_tac_ns": 6.0,
+        "required_ns": 18.191,
+        "slack_ns": -8.717
+      }
+    },
+    {
+      "audio_interstage_min_ns": 0.144,
+      "audio_payload_min_ns": 0.37,
+      "dq_input_registers": {
+        "SDRAM_DQ[0]": "no",
+        "SDRAM_DQ[10]": "no",
+        "SDRAM_DQ[11]": "no",
+        "SDRAM_DQ[12]": "no",
+        "SDRAM_DQ[13]": "no",
+        "SDRAM_DQ[14]": "no",
+        "SDRAM_DQ[15]": "no",
+        "SDRAM_DQ[1]": "no",
+        "SDRAM_DQ[2]": "no",
+        "SDRAM_DQ[3]": "no",
+        "SDRAM_DQ[4]": "no",
+        "SDRAM_DQ[5]": "no",
+        "SDRAM_DQ[6]": "no",
+        "SDRAM_DQ[7]": "no",
+        "SDRAM_DQ[8]": "no",
+        "SDRAM_DQ[9]": "no"
+      },
+      "handoff": {
+        "hold": {
+          "corner": "7_slow_1100mv_100c",
+          "data_delay_ns": "0.340",
+          "from": "sdram_pads_14__captured",
+          "from_clock": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "from_inverted": "0",
+          "kind": "hold",
+          "relationship_ns": "-5.000",
+          "slack_ns": "4.319",
+          "to": "system_storage_controller_dq_fall[14]",
+          "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "to_inverted": "0"
+        },
+        "setup": {
+          "corner": "7_slow_1100mv_100c",
+          "data_delay_ns": "2.488",
+          "from": "sdram_pads_11__captured",
+          "from_clock": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "from_inverted": "0",
+          "kind": "setup",
+          "relationship_ns": "5.000",
+          "slack_ns": "1.522",
+          "to": "system_storage_controller_dq_fall[11]",
+          "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "to_inverted": "0"
+        }
+      },
+      "handoff_row_count": 128,
+      "internal_by_corner_and_check": {
+        "7_slow_1100mv_-40c/hold": {
+          "endpoints": 17358,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_-40c",
+            "data_delay_ns": "0.353",
+            "from": "system_machine_isa_slots_2__genblk1_mda_card_card_crtc_row_address[4]",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "hold",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.243",
+            "to": "system_machine_isa_slots_2__genblk1_mda_card_card_crtc_row_address[4]~DUPLICATE",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_-40c/recovery": {
+          "endpoints": 657,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_-40c",
+            "data_delay_ns": "3.622",
+            "from": "system_machine_reset",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "recovery",
+            "relationship_ns": "10.000",
+            "slack_ns": "5.699",
+            "to": "system_machine_board_pit_device_u_KF8253_Counter_0_count_preset[8]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_-40c/removal": {
+          "endpoints": 657,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_-40c",
+            "data_delay_ns": "1.044",
+            "from": "speaker_output_audio_output_stage_lock_sync",
+            "from_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "removal",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.937",
+            "to": "speaker_output_audio_output_stage_serializer_phase[6]",
+            "to_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_-40c/setup": {
+          "endpoints": 17358,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_-40c",
+            "data_delay_ns": "9.437",
+            "from": "dos_keyboard_frontend_position[4]",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "setup",
+            "relationship_ns": "10.000",
+            "slack_ns": "0.347",
+            "to": "dos_keyboard_frontend_sent[126]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_100c/hold": {
+          "endpoints": 17358,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_100c",
+            "data_delay_ns": "0.362",
+            "from": "system_video_adapter_source_x[10]",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "hold",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.253",
+            "to": "system_video_adapter_source_x[10]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_100c/recovery": {
+          "endpoints": 657,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_100c",
+            "data_delay_ns": "3.812",
+            "from": "system_machine_reset",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "recovery",
+            "relationship_ns": "10.000",
+            "slack_ns": "5.512",
+            "to": "system_machine_board_pit_device_u_KF8253_Counter_0_count_preset[8]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_100c/removal": {
+          "endpoints": 657,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_100c",
+            "data_delay_ns": "1.116",
+            "from": "speaker_output_audio_output_stage_lock_sync",
+            "from_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "removal",
+            "relationship_ns": "0.000",
+            "slack_ns": "1.009",
+            "to": "speaker_output_audio_output_stage_serializer_phase[6]",
+            "to_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_100c/setup": {
+          "endpoints": 17358,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_100c",
+            "data_delay_ns": "9.224",
+            "from": "dos_keyboard_frontend_pass[0]",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "setup",
+            "relationship_ns": "10.000",
+            "slack_ns": "0.564",
+            "to": "dos_keyboard_frontend_sent[126]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_-40c/hold": {
+          "endpoints": 17358,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "data_delay_ns": "0.149",
+            "from": "system_video_adapter_source_x[10]",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "hold",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.118",
+            "to": "system_video_adapter_source_x[10]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_-40c/recovery": {
+          "endpoints": 657,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "data_delay_ns": "1.841",
+            "from": "system_machine_reset",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "recovery",
+            "relationship_ns": "10.000",
+            "slack_ns": "7.806",
+            "to": "system_machine_board_pit_device_u_KF8253_Counter_2_count[3]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_-40c/removal": {
+          "endpoints": 657,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "data_delay_ns": "0.456",
+            "from": "speaker_output_audio_output_stage_lock_sync",
+            "from_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "removal",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.422",
+            "to": "speaker_output_audio_output_stage_serializer_phase[1]",
+            "to_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_-40c/setup": {
+          "endpoints": 17358,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "data_delay_ns": "1.241",
+            "from": "sdram_pads_11__captured",
+            "from_clock": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "setup",
+            "relationship_ns": "5.000",
+            "slack_ns": "3.304",
+            "to": "system_storage_controller_dq_fall[11]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_100c/hold": {
+          "endpoints": 17358,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_100c",
+            "data_delay_ns": "0.171",
+            "from": "system_video_adapter_source_x[10]",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "hold",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.135",
+            "to": "system_video_adapter_source_x[10]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_100c/recovery": {
+          "endpoints": 657,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_100c",
+            "data_delay_ns": "2.269",
+            "from": "system_machine_reset",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "recovery",
+            "relationship_ns": "10.000",
+            "slack_ns": "7.366",
+            "to": "system_machine_board_pit_device_u_KF8253_Counter_2_count[3]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_100c/removal": {
+          "endpoints": 657,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_100c",
+            "data_delay_ns": "0.536",
+            "from": "speaker_output_audio_output_stage_lock_sync",
+            "from_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "removal",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.497",
+            "to": "speaker_output_audio_output_stage_serializer_phase[6]",
+            "to_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_100c/setup": {
+          "endpoints": 17358,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_100c",
+            "data_delay_ns": "1.492",
+            "from": "sdram_pads_11__captured",
+            "from_clock": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "setup",
+            "relationship_ns": "5.000",
+            "slack_ns": "3.030",
+            "to": "system_storage_controller_dq_fall[11]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        }
+      },
+      "mailbox_interstage_min_ns": 0.209,
+      "minimum_pulse_width": {
+        "7_slow_1100mv_-40c": {
+          "checks": 67975,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "7_slow_1100mv_100c": {
+          "checks": 67975,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "MIN_fast_1100mv_-40c": {
+          "checks": 67975,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "MIN_fast_1100mv_100c": {
+          "checks": 67975,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        }
+      },
+      "name": "production-control-seed-2",
+      "rbf_sha256": "dfe08513c648d00b283ded5a2bde2489b6cfaa9808a8056e9e2d41082c1de241",
+      "read_hold_min_ns": 5.098,
+      "read_setup_by_corner": {
+        "7_slow_1100mv_-40c": {
+          "arrival_ns": 27.459,
+          "capture": "sdram_pads_8__captured",
+          "capture_location": "FF_X48_Y26_N35",
+          "corner": "7_slow_1100mv_-40c",
+          "data_delay_ns": 8.261,
+          "dq_cells_ns": 1.709,
+          "dq_interconnect_ns": 6.552,
+          "forwarded_clock_latency_ns": 8.198,
+          "port": "SDRAM_DQ[8]",
+          "reference_tac_ns": 6.0,
+          "required_ns": 18.407,
+          "slack_ns": -9.052
+        },
+        "7_slow_1100mv_100c": {
+          "arrival_ns": 27.933,
+          "capture": "sdram_pads_8__captured",
+          "capture_location": "FF_X48_Y26_N35",
+          "corner": "7_slow_1100mv_100c",
+          "data_delay_ns": 8.311,
+          "dq_cells_ns": 1.634,
+          "dq_interconnect_ns": 6.677,
+          "forwarded_clock_latency_ns": 8.622,
+          "port": "SDRAM_DQ[8]",
+          "reference_tac_ns": 6.0,
+          "required_ns": 18.375,
+          "slack_ns": -9.558
+        },
+        "MIN_fast_1100mv_-40c": {
+          "arrival_ns": 19.18,
+          "capture": "sdram_pads_8__captured",
+          "capture_location": "FF_X48_Y26_N35",
+          "corner": "MIN_fast_1100mv_-40c",
+          "data_delay_ns": 4.248,
+          "dq_cells_ns": 1.194,
+          "dq_interconnect_ns": 3.054,
+          "forwarded_clock_latency_ns": 3.932,
+          "port": "SDRAM_DQ[8]",
+          "reference_tac_ns": 6.0,
+          "required_ns": 16.201,
+          "slack_ns": -2.979
+        },
+        "MIN_fast_1100mv_100c": {
+          "arrival_ns": 19.984,
+          "capture": "sdram_pads_8__captured",
+          "capture_location": "FF_X48_Y26_N35",
+          "corner": "MIN_fast_1100mv_100c",
+          "data_delay_ns": 4.529,
+          "dq_cells_ns": 1.182,
+          "dq_interconnect_ns": 3.347,
+          "forwarded_clock_latency_ns": 4.455,
+          "port": "SDRAM_DQ[8]",
+          "reference_tac_ns": 6.0,
+          "required_ns": 16.325,
+          "slack_ns": -3.659
+        }
+      },
+      "reported_endpoint_checks_pass": true,
+      "reports_sha256": {
+        "audio.sdc": "e91adcaf068ff8e9f2044ebb262e15811a486db7015bf6b03a3d89a7ac929260",
+        "audit.log": "8638569c1d2be36662215e810509237b8d3dec94577b42becb6ad78e2d5f6685",
+        "audit.tcl": "c3eb89bf8fa373ecc043f15171353a9a68700c0dcba9b6225c27d961fec7d5f6",
+        "audit/clocks.tsv": "1d2fbc3319b77b68c064ed9ddac712510d5807e2c48799e89bb7b90ce67e88bc",
+        "audit/endpoints.tsv": "9bdcb6ae8972997875ccfa07bb62e92a869ce702fa0a8e5b39dd1b5f1c932ec0",
+        "clocks.sdc": "0b6c563001f104f1cc10fe83572a01c9e7a7d70399df976382598dab97612398",
+        "conditional/7_slow_1100mv_-40c/read-setup.rpt": "4aed5d2fcc0ed499435934466448a02cb4698143c3049fa4dacd281c0bfc377b",
+        "conditional/7_slow_1100mv_100c/read-setup.rpt": "31cf0a1944a0ac0bcaa6c1fcea8cfecc3afade9768835a459dca64980f6f7078",
+        "conditional/MIN_fast_1100mv_-40c/read-setup.rpt": "0da527721deb87fbb9c55c7a4fdc59215f92c4bc063b97847008e6606091ee0b",
+        "conditional/MIN_fast_1100mv_100c/read-setup.rpt": "ed315df5afb1144fbad0bbca55325bf40020488d0f5be38f19599bef20d4976d",
+        "conditional/channels.tsv": "1725566159de315ca1778143330abc5629ad6bda0727c1c7eb67417766efed28",
+        "elaborated.v": "785c8399fd6b0cfa4e6d234454394b72e80623c3ca421d9bce166e44b5b5db47",
+        "mailbox.sdc": "8199fc2a4441b39f7935cf83cd6fef1b8db7da8b746e84e19c1b6bc18b02f78f",
+        "output_files/top.fit.rpt": "8a038bd9d3601a96e20b17edbfe16cd13172925017d531d7239d3d2ddeb77ee9",
+        "output_files/top.map.rpt": "e40f6d39884e1846bfdf82f43c94db547ce0548eda3b88abbccf2406faa47559",
+        "output_files/top.sta.rpt": "45a986a5b6a6735673850a9d2307847393185d4dbd5cdcd1e5c7c8d4c31b4be9",
+        "top.qsf": "6edb476c90a0d32872b20a6c78f0c8e1db331e1316d08fb208a306f005852c2f"
+      },
+      "work": "/home/deano/fes-hil/k835-sdram-budget/bound/seed-2",
+      "worst_read": {
+        "arrival_ns": 27.933,
+        "capture": "sdram_pads_8__captured",
+        "capture_location": "FF_X48_Y26_N35",
+        "corner": "7_slow_1100mv_100c",
+        "data_delay_ns": 8.311,
+        "dq_cells_ns": 1.634,
+        "dq_interconnect_ns": 6.677,
+        "forwarded_clock_latency_ns": 8.622,
+        "port": "SDRAM_DQ[8]",
+        "reference_tac_ns": 6.0,
+        "required_ns": 18.375,
+        "slack_ns": -9.558
+      }
+    },
+    {
+      "audio_interstage_min_ns": 0.155,
+      "audio_payload_min_ns": 0.417,
+      "dq_input_registers": {
+        "SDRAM_DQ[0]": "no",
+        "SDRAM_DQ[10]": "no",
+        "SDRAM_DQ[11]": "no",
+        "SDRAM_DQ[12]": "no",
+        "SDRAM_DQ[13]": "no",
+        "SDRAM_DQ[14]": "no",
+        "SDRAM_DQ[15]": "no",
+        "SDRAM_DQ[1]": "no",
+        "SDRAM_DQ[2]": "no",
+        "SDRAM_DQ[3]": "no",
+        "SDRAM_DQ[4]": "no",
+        "SDRAM_DQ[5]": "no",
+        "SDRAM_DQ[6]": "no",
+        "SDRAM_DQ[7]": "no",
+        "SDRAM_DQ[8]": "no",
+        "SDRAM_DQ[9]": "no"
+      },
+      "handoff": {
+        "hold": {
+          "corner": "7_slow_1100mv_100c",
+          "data_delay_ns": "0.341",
+          "from": "sdram_pads_0__captured",
+          "from_clock": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "from_inverted": "0",
+          "kind": "hold",
+          "relationship_ns": "-5.000",
+          "slack_ns": "4.321",
+          "to": "system_storage_controller_dq_fall[0]",
+          "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "to_inverted": "0"
+        },
+        "setup": {
+          "corner": "7_slow_1100mv_100c",
+          "data_delay_ns": "3.138",
+          "from": "sdram_pads_10__captured",
+          "from_clock": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "from_inverted": "0",
+          "kind": "setup",
+          "relationship_ns": "5.000",
+          "slack_ns": "0.827",
+          "to": "system_storage_controller_dq_fall[10]",
+          "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "to_inverted": "0"
+        }
+      },
+      "handoff_row_count": 128,
+      "internal_by_corner_and_check": {
+        "7_slow_1100mv_-40c/hold": {
+          "endpoints": 17358,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_-40c",
+            "data_delay_ns": "0.353",
+            "from": "system_video_adapter_source_x[2]",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "hold",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.256",
+            "to": "system_video_adapter_source_x[2]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_-40c/recovery": {
+          "endpoints": 661,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_-40c",
+            "data_delay_ns": "3.463",
+            "from": "system_machine_reset",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "recovery",
+            "relationship_ns": "10.000",
+            "slack_ns": "5.909",
+            "to": "system_machine_board_pit_device_u_KF8253_Counter_2_dec2_binary_q[11]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_-40c/removal": {
+          "endpoints": 661,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_-40c",
+            "data_delay_ns": "0.733",
+            "from": "speaker_output_audio_output_stage_lock_sync",
+            "from_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "removal",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.639",
+            "to": "speaker_output_audio_output_stage_serializer_phase[2]",
+            "to_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_-40c/setup": {
+          "endpoints": 17358,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_-40c",
+            "data_delay_ns": "9.482",
+            "from": "dos_keyboard_frontend_pass[1]~DUPLICATE",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "setup",
+            "relationship_ns": "10.000",
+            "slack_ns": "0.265",
+            "to": "dos_keyboard_frontend_sent[59]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_100c/hold": {
+          "endpoints": 17358,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_100c",
+            "data_delay_ns": "0.376",
+            "from": "system_video_adapter_source_x[2]",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "hold",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.268",
+            "to": "system_video_adapter_source_x[2]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_100c/recovery": {
+          "endpoints": 661,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_100c",
+            "data_delay_ns": "3.645",
+            "from": "system_machine_reset",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "recovery",
+            "relationship_ns": "10.000",
+            "slack_ns": "5.738",
+            "to": "system_machine_board_pit_device_u_KF8253_Counter_2_dec2_binary_q[11]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_100c/removal": {
+          "endpoints": 661,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_100c",
+            "data_delay_ns": "0.788",
+            "from": "speaker_output_audio_output_stage_lock_sync",
+            "from_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "removal",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.689",
+            "to": "speaker_output_audio_output_stage_serializer_phase[2]",
+            "to_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_100c/setup": {
+          "endpoints": 17358,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_100c",
+            "data_delay_ns": "9.223",
+            "from": "dos_keyboard_frontend_pass[1]~DUPLICATE",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "setup",
+            "relationship_ns": "10.000",
+            "slack_ns": "0.514",
+            "to": "dos_keyboard_frontend_sent[59]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_-40c/hold": {
+          "endpoints": 17358,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "data_delay_ns": "0.322",
+            "from": "system_machine_board_audio_dc[18]",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "hold",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.116",
+            "to": "speaker_audio_sample[10]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_-40c/recovery": {
+          "endpoints": 661,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "data_delay_ns": "1.672",
+            "from": "system_machine_reset",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "recovery",
+            "relationship_ns": "10.000",
+            "slack_ns": "7.995",
+            "to": "system_machine_board_pit_device_u_KF8253_Counter_2_dec2_binary_q[11]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_-40c/removal": {
+          "endpoints": 661,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "data_delay_ns": "0.297",
+            "from": "speaker_output_audio_output_stage_lock_sync",
+            "from_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "removal",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.267",
+            "to": "speaker_output_audio_output_stage_serializer_phase[2]",
+            "to_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_-40c/setup": {
+          "endpoints": 17358,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "data_delay_ns": "1.572",
+            "from": "sdram_pads_10__captured",
+            "from_clock": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "setup",
+            "relationship_ns": "5.000",
+            "slack_ns": "2.955",
+            "to": "system_storage_controller_dq_fall[10]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_100c/hold": {
+          "endpoints": 17358,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_100c",
+            "data_delay_ns": "0.182",
+            "from": "system_video_adapter_source_x[2]",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "hold",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.146",
+            "to": "system_video_adapter_source_x[2]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_100c/recovery": {
+          "endpoints": 661,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_100c",
+            "data_delay_ns": "2.058",
+            "from": "system_machine_reset",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "recovery",
+            "relationship_ns": "10.000",
+            "slack_ns": "7.591",
+            "to": "system_machine_board_pit_device_u_KF8253_Counter_0_count[4]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_100c/removal": {
+          "endpoints": 661,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_100c",
+            "data_delay_ns": "0.343",
+            "from": "speaker_output_audio_output_stage_lock_sync",
+            "from_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "removal",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.306",
+            "to": "speaker_output_audio_output_stage_serializer_phase[2]",
+            "to_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_100c/setup": {
+          "endpoints": 17358,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_100c",
+            "data_delay_ns": "1.861",
+            "from": "sdram_pads_10__captured",
+            "from_clock": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "setup",
+            "relationship_ns": "5.000",
+            "slack_ns": "2.642",
+            "to": "system_storage_controller_dq_fall[10]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        }
+      },
+      "mailbox_interstage_min_ns": 0.212,
+      "minimum_pulse_width": {
+        "7_slow_1100mv_-40c": {
+          "checks": 67975,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "7_slow_1100mv_100c": {
+          "checks": 67975,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "MIN_fast_1100mv_-40c": {
+          "checks": 67975,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "MIN_fast_1100mv_100c": {
+          "checks": 67975,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        }
+      },
+      "name": "production-control-seed-3",
+      "rbf_sha256": "2f697466c9d94469a25e5cd93a1e97b745ffb71ee49a37e1b1e7c2cac0de6d38",
+      "read_hold_min_ns": 5.149,
+      "read_setup_by_corner": {
+        "7_slow_1100mv_-40c": {
+          "arrival_ns": 26.67,
+          "capture": "sdram_pads_8__captured",
+          "capture_location": "FF_X50_Y20_N44",
+          "corner": "7_slow_1100mv_-40c",
+          "data_delay_ns": 7.455,
+          "dq_cells_ns": 1.378,
+          "dq_interconnect_ns": 6.077,
+          "forwarded_clock_latency_ns": 8.215,
+          "port": "SDRAM_DQ[8]",
+          "reference_tac_ns": 6.0,
+          "required_ns": 18.385,
+          "slack_ns": -8.285
+        },
+        "7_slow_1100mv_100c": {
+          "arrival_ns": 27.166,
+          "capture": "sdram_pads_8__captured",
+          "capture_location": "FF_X50_Y20_N44",
+          "corner": "7_slow_1100mv_100c",
+          "data_delay_ns": 7.535,
+          "dq_cells_ns": 1.358,
+          "dq_interconnect_ns": 6.177,
+          "forwarded_clock_latency_ns": 8.631,
+          "port": "SDRAM_DQ[8]",
+          "reference_tac_ns": 6.0,
+          "required_ns": 18.355,
+          "slack_ns": -8.811
+        },
+        "MIN_fast_1100mv_-40c": {
+          "arrival_ns": 18.832,
+          "capture": "sdram_pads_8__captured",
+          "capture_location": "FF_X50_Y20_N44",
+          "corner": "MIN_fast_1100mv_-40c",
+          "data_delay_ns": 3.893,
+          "dq_cells_ns": 1.092,
+          "dq_interconnect_ns": 2.801,
+          "forwarded_clock_latency_ns": 3.939,
+          "port": "SDRAM_DQ[8]",
+          "reference_tac_ns": 6.0,
+          "required_ns": 16.194,
+          "slack_ns": -2.638
+        },
+        "MIN_fast_1100mv_100c": {
+          "arrival_ns": 19.58,
+          "capture": "sdram_pads_8__captured",
+          "capture_location": "FF_X50_Y20_N44",
+          "corner": "MIN_fast_1100mv_100c",
+          "data_delay_ns": 4.118,
+          "dq_cells_ns": 1.079,
+          "dq_interconnect_ns": 3.039,
+          "forwarded_clock_latency_ns": 4.462,
+          "port": "SDRAM_DQ[8]",
+          "reference_tac_ns": 6.0,
+          "required_ns": 16.32,
+          "slack_ns": -3.26
+        }
+      },
+      "reported_endpoint_checks_pass": true,
+      "reports_sha256": {
+        "audio.sdc": "e91adcaf068ff8e9f2044ebb262e15811a486db7015bf6b03a3d89a7ac929260",
+        "audit.log": "b1e9aa8d276b69414775574895be626278511c8f783d47e7c12361f630706281",
+        "audit.tcl": "c3eb89bf8fa373ecc043f15171353a9a68700c0dcba9b6225c27d961fec7d5f6",
+        "audit/clocks.tsv": "0da497a5c02b5ef93af617dde621419f688539b60b57273e630bdef43a90b90a",
+        "audit/endpoints.tsv": "a1c9b413392fe671aa036b362f64efec9d9d94cb513bc9c2a36718447caa3125",
+        "clocks.sdc": "0b6c563001f104f1cc10fe83572a01c9e7a7d70399df976382598dab97612398",
+        "conditional/7_slow_1100mv_-40c/read-setup.rpt": "c9b74d814ab232eb6547ea52f9176e2cc819ffe7440ca05e2b05c3ebdba14436",
+        "conditional/7_slow_1100mv_100c/read-setup.rpt": "d34046ec36237e0ec1b231025787dcf7d3c37e702580d81256c074021c76e964",
+        "conditional/MIN_fast_1100mv_-40c/read-setup.rpt": "89c52534d3a4cd3fbd25642c563f6d791afda7d607b139bc7cd782cba85b096c",
+        "conditional/MIN_fast_1100mv_100c/read-setup.rpt": "0b97cb50b6955381d6b2be4ba360aa3c63502c1be793df2632a416235b7f5193",
+        "conditional/channels.tsv": "935fc1a53bd99fc6b239173a7fedb4e0a4cb997b5726d20bb44115f85af6aa8d",
+        "elaborated.v": "785c8399fd6b0cfa4e6d234454394b72e80623c3ca421d9bce166e44b5b5db47",
+        "mailbox.sdc": "8199fc2a4441b39f7935cf83cd6fef1b8db7da8b746e84e19c1b6bc18b02f78f",
+        "output_files/top.fit.rpt": "b904c4ea0b394364f2fe662bff94db5957af9f5c7edeeb0b3378d9227081262a",
+        "output_files/top.map.rpt": "f1910d803d0d20e74e30b30878a13a0f8e5e3c81d3f96b30803579da6623b561",
+        "output_files/top.sta.rpt": "ae3402670ac457ec5c05c6256f0e2c195b1368b45b7e6e7076aa01b480a36434",
+        "top.qsf": "aa9ae9b51eb1fd061ab921fe0ae89b0566c5bf6dba1a5d10e169cb9c44082634"
+      },
+      "work": "/home/deano/fes-hil/k835-sdram-budget/bound/seed-3",
+      "worst_read": {
+        "arrival_ns": 27.166,
+        "capture": "sdram_pads_8__captured",
+        "capture_location": "FF_X50_Y20_N44",
+        "corner": "7_slow_1100mv_100c",
+        "data_delay_ns": 7.535,
+        "dq_cells_ns": 1.358,
+        "dq_interconnect_ns": 6.177,
+        "forwarded_clock_latency_ns": 8.631,
+        "port": "SDRAM_DQ[8]",
+        "reference_tac_ns": 6.0,
+        "required_ns": 18.355,
+        "slack_ns": -8.811
+      }
+    },
+    {
+      "audio_interstage_min_ns": 0.161,
+      "audio_payload_min_ns": 0.502,
+      "dq_input_registers": {
+        "SDRAM_DQ[0]": "yes",
+        "SDRAM_DQ[10]": "yes",
+        "SDRAM_DQ[11]": "yes",
+        "SDRAM_DQ[12]": "yes",
+        "SDRAM_DQ[13]": "yes",
+        "SDRAM_DQ[14]": "yes",
+        "SDRAM_DQ[15]": "yes",
+        "SDRAM_DQ[1]": "yes",
+        "SDRAM_DQ[2]": "yes",
+        "SDRAM_DQ[3]": "yes",
+        "SDRAM_DQ[4]": "yes",
+        "SDRAM_DQ[5]": "yes",
+        "SDRAM_DQ[6]": "yes",
+        "SDRAM_DQ[7]": "yes",
+        "SDRAM_DQ[8]": "yes",
+        "SDRAM_DQ[9]": "yes"
+      },
+      "handoff": {
+        "hold": {
+          "corner": "MIN_fast_1100mv_-40c",
+          "data_delay_ns": "0.535",
+          "from": "sdram_pads_9__captured",
+          "from_clock": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "from_inverted": "0",
+          "kind": "hold",
+          "relationship_ns": "-5.000",
+          "slack_ns": "5.563",
+          "to": "system_storage_controller_dq_fall[9]",
+          "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "to_inverted": "0"
+        },
+        "setup": {
+          "corner": "7_slow_1100mv_100c",
+          "data_delay_ns": "4.037",
+          "from": "sdram_pads_4__captured",
+          "from_clock": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "from_inverted": "0",
+          "kind": "setup",
+          "relationship_ns": "5.000",
+          "slack_ns": "-1.151",
+          "to": "system_storage_controller_dq_fall[4]",
+          "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "to_inverted": "0"
+        }
+      },
+      "handoff_row_count": 128,
+      "internal_by_corner_and_check": {
+        "7_slow_1100mv_-40c/hold": {
+          "endpoints": 17334,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_-40c",
+            "data_delay_ns": "0.801",
+            "from": "system_machine_board_dma_device_reg_wdata[3]",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "hold",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.233",
+            "to": "system_machine_board_dma_device_mode_verify[1]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_-40c/recovery": {
+          "endpoints": 661,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_-40c",
+            "data_delay_ns": "3.122",
+            "from": "system_machine_reset",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "recovery",
+            "relationship_ns": "10.000",
+            "slack_ns": "6.199",
+            "to": "system_machine_board_pit_device_u_KF8253_Counter_2_count[2]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_-40c/removal": {
+          "endpoints": 661,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_-40c",
+            "data_delay_ns": "1.043",
+            "from": "speaker_output_audio_output_stage_lock_sync",
+            "from_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "removal",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.949",
+            "to": "speaker_output_audio_output_stage_serializer_phase[0]",
+            "to_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_-40c/setup": {
+          "endpoints": 17334,
+          "failures": 3,
+          "worst": {
+            "corner": "7_slow_1100mv_-40c",
+            "data_delay_ns": "3.994",
+            "from": "sdram_pads_4__captured",
+            "from_clock": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "setup",
+            "relationship_ns": "5.000",
+            "slack_ns": "-1.058",
+            "to": "system_storage_controller_dq_fall[4]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_100c/hold": {
+          "endpoints": 17334,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_100c",
+            "data_delay_ns": "0.367",
+            "from": "system_machine_board_audio_dc[12]",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "hold",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.258",
+            "to": "system_machine_board_audio_dc[12]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_100c/recovery": {
+          "endpoints": 661,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_100c",
+            "data_delay_ns": "3.701",
+            "from": "system_machine_reset",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "recovery",
+            "relationship_ns": "10.000",
+            "slack_ns": "6.049",
+            "to": "system_machine_board_pit_device_u_KF8253_Counter_1_count_latched[2]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_100c/removal": {
+          "endpoints": 661,
+          "failures": 0,
+          "worst": {
+            "corner": "7_slow_1100mv_100c",
+            "data_delay_ns": "1.114",
+            "from": "speaker_output_audio_output_stage_lock_sync",
+            "from_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "removal",
+            "relationship_ns": "0.000",
+            "slack_ns": "1.019",
+            "to": "speaker_output_audio_output_stage_serializer_phase[0]",
+            "to_clock": "speaker_output_audio_clock_pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "7_slow_1100mv_100c/setup": {
+          "endpoints": 17334,
+          "failures": 3,
+          "worst": {
+            "corner": "7_slow_1100mv_100c",
+            "data_delay_ns": "4.037",
+            "from": "sdram_pads_4__captured",
+            "from_clock": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "setup",
+            "relationship_ns": "5.000",
+            "slack_ns": "-1.151",
+            "to": "system_storage_controller_dq_fall[4]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_-40c/hold": {
+          "endpoints": 17334,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "data_delay_ns": "0.351",
+            "from": "system_machine_board_dma_device_reg_wdata[3]",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "hold",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.107",
+            "to": "system_machine_board_dma_device_mode_verify[0]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_-40c/recovery": {
+          "endpoints": 661,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "data_delay_ns": "1.752",
+            "from": "system_machine_reset",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "recovery",
+            "relationship_ns": "10.000",
+            "slack_ns": "8.099",
+            "to": "system_machine_board_pit_device_u_KF8253_Counter_1_count_latched[2]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_-40c/removal": {
+          "endpoints": 661,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "data_delay_ns": "0.432",
+            "from": "system_machine_reset",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "removal",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.407",
+            "to": "system_machine_board_pic_device_u_Control_Logic_interrupt_vector_address[1]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_-40c/setup": {
+          "endpoints": 17334,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_-40c",
+            "data_delay_ns": "1.807",
+            "from": "sdram_pads_4__captured",
+            "from_clock": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "setup",
+            "relationship_ns": "5.000",
+            "slack_ns": "2.213",
+            "to": "system_storage_controller_dq_fall[4]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_100c/hold": {
+          "endpoints": 17334,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_100c",
+            "data_delay_ns": "0.180",
+            "from": "system_machine_board_audio_dc[12]",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "hold",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.142",
+            "to": "system_machine_board_audio_dc[12]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_100c/recovery": {
+          "endpoints": 661,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_100c",
+            "data_delay_ns": "2.151",
+            "from": "system_machine_reset",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "recovery",
+            "relationship_ns": "10.000",
+            "slack_ns": "7.690",
+            "to": "system_machine_board_pit_device_u_KF8253_Counter_1_count_latched[2]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_100c/removal": {
+          "endpoints": 661,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_100c",
+            "data_delay_ns": "0.503",
+            "from": "system_machine_reset",
+            "from_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "removal",
+            "relationship_ns": "0.000",
+            "slack_ns": "0.473",
+            "to": "system_machine_board_pic_device_u_Control_Logic_interrupt_vector_address[1]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        },
+        "MIN_fast_1100mv_100c/setup": {
+          "endpoints": 17334,
+          "failures": 0,
+          "worst": {
+            "corner": "MIN_fast_1100mv_100c",
+            "data_delay_ns": "1.924",
+            "from": "sdram_pads_4__captured",
+            "from_clock": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "from_inverted": "0",
+            "kind": "setup",
+            "relationship_ns": "5.000",
+            "slack_ns": "2.065",
+            "to": "system_storage_controller_dq_fall[4]",
+            "to_clock": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+            "to_inverted": "0"
+          }
+        }
+      },
+      "mailbox_interstage_min_ns": 0.216,
+      "minimum_pulse_width": {
+        "7_slow_1100mv_-40c": {
+          "checks": 67855,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "7_slow_1100mv_100c": {
+          "checks": 67855,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "MIN_fast_1100mv_-40c": {
+          "checks": 67855,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "MIN_fast_1100mv_100c": {
+          "checks": 67855,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        }
+      },
+      "name": "explicit-input-seed-1",
+      "rbf_sha256": "456ca95ff265def8e7c11d612fcda7119998c5482a85ee4946ce4fc5f56edde4",
+      "read_hold_min_ns": 4.028,
+      "read_setup_by_corner": {
+        "7_slow_1100mv_-40c": {
+          "arrival_ns": 21.617,
+          "capture": "sdram_pads_9__captured",
+          "capture_location": "DDIOINCELL_X76_Y0_N14",
+          "corner": "7_slow_1100mv_-40c",
+          "data_delay_ns": 2.593,
+          "dq_cells_ns": 2.593,
+          "dq_interconnect_ns": 0.0,
+          "forwarded_clock_latency_ns": 8.024,
+          "port": "SDRAM_DQ[9]",
+          "reference_tac_ns": 6.0,
+          "required_ns": 19.27,
+          "slack_ns": -2.347
+        },
+        "7_slow_1100mv_100c": {
+          "arrival_ns": 21.964,
+          "capture": "sdram_pads_9__captured",
+          "capture_location": "DDIOINCELL_X76_Y0_N14",
+          "corner": "7_slow_1100mv_100c",
+          "data_delay_ns": 2.525,
+          "dq_cells_ns": 2.525,
+          "dq_interconnect_ns": 0.0,
+          "forwarded_clock_latency_ns": 8.439,
+          "port": "SDRAM_DQ[9]",
+          "reference_tac_ns": 6.0,
+          "required_ns": 19.175,
+          "slack_ns": -2.789
+        },
+        "MIN_fast_1100mv_-40c": {
+          "arrival_ns": 16.39,
+          "capture": "sdram_pads_9__captured",
+          "capture_location": "DDIOINCELL_X76_Y0_N14",
+          "corner": "MIN_fast_1100mv_-40c",
+          "data_delay_ns": 1.538,
+          "dq_cells_ns": 1.538,
+          "dq_interconnect_ns": 0.0,
+          "forwarded_clock_latency_ns": 3.852,
+          "port": "SDRAM_DQ[9]",
+          "reference_tac_ns": 6.0,
+          "required_ns": 16.589,
+          "slack_ns": 0.199
+        },
+        "MIN_fast_1100mv_100c": {
+          "arrival_ns": 16.912,
+          "capture": "sdram_pads_9__captured",
+          "capture_location": "DDIOINCELL_X76_Y0_N14",
+          "corner": "MIN_fast_1100mv_100c",
+          "data_delay_ns": 1.543,
+          "dq_cells_ns": 1.543,
+          "dq_interconnect_ns": 0.0,
+          "forwarded_clock_latency_ns": 4.369,
+          "port": "SDRAM_DQ[9]",
+          "reference_tac_ns": 6.0,
+          "required_ns": 16.71,
+          "slack_ns": -0.202
+        }
+      },
+      "reported_endpoint_checks_pass": false,
+      "reports_sha256": {
+        "audio.sdc": "e91adcaf068ff8e9f2044ebb262e15811a486db7015bf6b03a3d89a7ac929260",
+        "audit.log": "275c86a72a0ac877e6d803cd39e5124e3eeaa20214a2b02a31224f73c10e4111",
+        "audit.tcl": "c3eb89bf8fa373ecc043f15171353a9a68700c0dcba9b6225c27d961fec7d5f6",
+        "audit/clocks.tsv": "d398ddc69d7eb45568fba23e259a6e1f396bd7806494237585285ffa5e38e5e8",
+        "audit/endpoints.tsv": "0356739901fddd2620e3f0f37e9c665aff7232288bb534cacdbdd783b4535a8b",
+        "clocks.sdc": "0b6c563001f104f1cc10fe83572a01c9e7a7d70399df976382598dab97612398",
+        "conditional/7_slow_1100mv_-40c/read-setup.rpt": "213d2979cb002a5a19b399497bd316485bdf93ac8bd25f3623b5ade5c89fdbb0",
+        "conditional/7_slow_1100mv_100c/read-setup.rpt": "e7b56f14aae21275dcb9a4132a133a98eb9549bad0e649f854599f74aacd3537",
+        "conditional/MIN_fast_1100mv_-40c/read-setup.rpt": "2ae76c488b80546a5b1c2461e2d94f2fd6a87d67fece40c932bddabc2047d3d7",
+        "conditional/MIN_fast_1100mv_100c/read-setup.rpt": "55dcee253d3aa55217025e67b255544e208a7df9da91119a974f0698af6bfb75",
+        "conditional/channels.tsv": "f9f41f3c432d457637691bf2cdf3670ba9cfc8532181078fa443d7c0bb4cf191",
+        "elaborated.v": "785c8399fd6b0cfa4e6d234454394b72e80623c3ca421d9bce166e44b5b5db47",
+        "mailbox.sdc": "8199fc2a4441b39f7935cf83cd6fef1b8db7da8b746e84e19c1b6bc18b02f78f",
+        "output_files/top.fit.rpt": "29e7799dd8db117ba4dc9dadc1278d181963e646dac774956d695c0272005243",
+        "output_files/top.map.rpt": "86b37242bdbe5324880f120319b63b646df525fbcf764a084999707abd94f09c",
+        "output_files/top.sta.rpt": "f930ab605c39ef94be6b9cc3e6c95acfc3e4873210b7f06155ff14bd514b786b",
+        "top.qsf": "81567428b9c4248b0fac3be0309011395ae9748c4fe79d4d2a476dc0966fc30e"
+      },
+      "work": "/home/deano/fes-hil/k835-capture-path/explicit-input-seed-1",
+      "worst_read": {
+        "arrival_ns": 21.964,
+        "capture": "sdram_pads_9__captured",
+        "capture_location": "DDIOINCELL_X76_Y0_N14",
+        "corner": "7_slow_1100mv_100c",
+        "data_delay_ns": 2.525,
+        "dq_cells_ns": 2.525,
+        "dq_interconnect_ns": 0.0,
+        "forwarded_clock_latency_ns": 8.439,
+        "port": "SDRAM_DQ[9]",
+        "reference_tac_ns": 6.0,
+        "required_ns": 19.175,
+        "slack_ns": -2.789
+      }
+    }
+  ],
+  "sealed_package_created": false,
+  "source_identity": {
+    "all_compiled_sources_match": true,
+    "build_record_differences_from_current_base": [
+      "scripts/fes_build_common.py"
+    ],
+    "build_record_sha256": "865ca6328217f7e6ce2ba97654127a2982cb7efa8de3e28a891fbaedc6e78c2d",
+    "build_record_source_count": 185,
+    "producer_source": "85dbb42815a26ef51c490c79a790f861101b96ff",
+    "producer_summary_sha256": "41db7fa3d8ab7fadbcc8add214caa177720e4e28c06c444d26ad24d893922be2",
+    "source_base": "5f0c70ba1c6ccbaa75dc14f74881a6b79531a964",
+    "source_count": 176
+  }
+}

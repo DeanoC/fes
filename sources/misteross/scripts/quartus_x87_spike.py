@@ -56,6 +56,7 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import build_fes_pc386_quartus as sealer
+from scripts import build_pc386_firmware as firmware
 from scripts import yosys_netlist
 from scripts.quartus_tools import load_quartus_lock, locate_quartus
 
@@ -65,7 +66,8 @@ SPIKE_SOURCES = (SPIKE / 'spike_stimulus.sv', SPIKE / 'spike_x87.sv')
 # The real unit (#1768 slice 2) in the same envelope, for its area and slack
 # before the CPU side exists: --variant unit or unit-noregs.
 RTL = Path('cores/fes-common/rtl/i386')
-UNIT_SOURCES = (RTL / 'fes_i386_pkg.sv', RTL / 'fes_i386_x87_mul.sv', RTL / 'fes_i386_x87.sv',
+UNIT_SOURCES = (RTL / 'fes_i386_pkg.sv', RTL / 'fes_x87_pkg.sv', RTL / 'fes_i386_x87_mul.sv',
+                RTL / 'fes_i386_x87.sv',
                 SPIKE / 'spike_stimulus.sv', SPIKE / 'spike_x87_unit.sv')
 UNIT_TOP = 'spike_x87_unit'
 UNIT_VARIANTS = {
@@ -365,7 +367,8 @@ def overlay_identity(text: str) -> str:
 
 def machine(args, tools: dict, output: Path) -> tuple[Path, str]:
     project = sealer.write_project(ROOT, output, '0' * 32, args.seed)
-    sealer.firmware_rom(ROOT)
+    firmware.write_rom_hex(firmware.images())
+    sealer.check_rom(ROOT)
     sources = list(sealer.MACHINE_SOURCES)
     if args.identity_on:
         overlay = output / 'overlay' / SYSTEM.name

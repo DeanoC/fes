@@ -1,0 +1,24 @@
+{
+  "manufacturer_repository": "https://github.com/Retro-Remake/Hardware_MiSTER-Pi",
+  "commit": "787c33cd60fe0c1f3df9a369744b675022676c2d",
+  "recursive_tree_sha256": "3fe1d5f0e5f09bf3d5fddef5c855b9121f7fcd01781ac57c9be3038cca63c5dd",
+  "published_hardware_files": [
+    "Hardware/MiSTER Pi/MiSTER_Pi_N10_REV1.5-XY.pdf",
+    "Hardware/NFC Contest/NFCPCB.step",
+    "Hardware/NFC Contest/nfcreader.stl",
+    "Hardware/NFC Contest/nfcreader.stp",
+    "Hardware/SDRAM/SDRAM.pdf",
+    "Hardware/USB Hub/MiSTER_USB_HUB_REV1.0.dxf",
+    "Hardware/USB Hub/MiSTer_USBHub.pdf"
+  ],
+  "protected_files": {
+    "sdram.pdf": "4a240eb5fbd305a3dec853385c5c80ed1fa18b20cb6dd83c6fc0ea693a77100b",
+    "motherboard-mechanical.pdf": "2a27618ca3d07adf2410788210e806877c7886ee8af5b9ee11ac25ed53813e06",
+    "alliance.pdf": "2cdfcb4b2fab106ae55eb4cb9ea27a60795ed1bb14745c0516d5eb7e836954f6",
+    "native-board-model.txt": "662f72faa2892e57d12a0a8083a946adad0934248a1ba58faeddeaf4b1d8af0c",
+    "etron.pdf": "1a9139629c17a1b280f3d88ef1a7b3c0355812cd9933b73230ba733f36dbc7d2"
+  },
+  "measurement_availability": "Deano confirmed 2026-11-18: no existing measurements or remote scope",
+  "physical_qualification": "BLOCKED",
+  "native_sta_report_sha256": "83d7d3691fcd96addc4f9940ad8e7bcd5447791c0ff5984aba282d6eeb5441ca"
+}

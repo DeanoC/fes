@@ -455,10 +455,16 @@ class DE25MenuPackageTests(unittest.TestCase):
             changed['target'].update(platform=platform, device=device)
             with self.subTest(platform=platform, device=device), self.assertRaises(PackageError):
                 encode_manifest(changed)
-        for version, extra in ((3, {'rom': {}}), (4, {'roms': [], 'rom_map': {}})):
+        # Format 3 on DE25 is only an uploaded-firmware machine: a complete ROM
+        # requirement still needs fes.fabric.firmware-upload, which MENU lacks.
+        rom = {'id': 'machine-rom', 'role': 'firmware', 'source_size': 16384, 'file': 'rom-map.json',
+               'size': 1, 'sha256': '0' * 64}
+        for version, extra, message in ((3, {'rom': {}}, 'rom is missing'),
+                                        (3, {'rom': rom}, 'requires fes.fabric.firmware-upload'),
+                                        (4, {'roms': [], 'rom_map': {}}, 'DE25 packages require format 2')):
             changed = copy.deepcopy(fields)
             changed.update(format=version, **extra)
-            with self.subTest(format=version), self.assertRaisesRegex(PackageError, 'DE25 packages require format 2'):
+            with self.subTest(format=version, rom=extra.get('rom')), self.assertRaisesRegex(PackageError, message):
                 encode_manifest(changed)
 
     def test_controlled_environment_excludes_ambient_values_and_restores_on_failure(self):

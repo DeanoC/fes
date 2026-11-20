@@ -177,14 +177,14 @@ func TestBTNModeBoundToAnotherControlIsNotGuide(t *testing.T) {
 	if !ok {
 		t.Fatal("synthetic entry did not parse")
 	}
-	if l := sdlLayout(stick, keys, bits(8)); l.guide != 0 {
+	if l := sdlLayout(stick, keys, bits(8), nil); l.guide != 0 {
 		t.Fatalf("BTN_MODE bound to leftstick still counted as Guide: %d", l.guide)
 	}
 	free, _ := parseSDLEntry("03000000010000000100000001000000,Test Pad,a:b0,b:b1,platform:Linux,")
-	if l := sdlLayout(free, keys, bits(8)); l.guide != 316 {
+	if l := sdlLayout(free, keys, bits(8), nil); l.guide != 316 {
 		t.Fatalf("free BTN_MODE is not Guide: %d", l.guide)
 	}
-	if l := sdlLayout(free, bits(96, 304, 305), bits(8)); l.guide != 0 {
+	if l := sdlLayout(free, bits(96, 304, 305), bits(8), nil); l.guide != 0 {
 		t.Fatalf("a pad without BTN_MODE grew a Guide: %d", l.guide)
 	}
 }

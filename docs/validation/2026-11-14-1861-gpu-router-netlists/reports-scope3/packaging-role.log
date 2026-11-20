@@ -1,0 +1,9 @@
+e2b8130b5a18  /data/fes1861-netlist/identity/nb2
+  scripts/input_identity.py: role=packaging moves BUILD_ID=False -> as expected
+  cores/fes-menu/rtl/fes_menu_top.sv: role=design moves BUILD_ID=True -> as expected
+5e592f00389f  /data/fes1861-netlist/identity/nb3
+  scripts/input_identity.py: role=packaging moves BUILD_ID=False -> as expected
+  cores/fes-menu/rtl/fes_menu_top.sv: role=design moves BUILD_ID=True -> as expected
+
+a packaging-role byte change cannot move a design-v1 BUILD_ID; a design-role one does
+wrote /home/deano/fes/.claude/worktrees/gpu-router-default/docs/validation/2026-11-14-1861-gpu-router-netlists/reports-scope3/packaging-role.json

@@ -64,6 +64,12 @@ CPU_SOURCES = tuple(f'{I386}/{name}.sv' for name in (
     'fes_i386_ras', 'fes_i386_fetchbuf', 'fes_i386_qalign', 'fes_i386_frontend', 'fes_i386_amode', 'fes_i386_dfwd',
     'fes_i386_agu', 'fes_i386_ucode_pkg', 'fes_i386_ucode_rom', 'fes_i386_decode', 'fes_i386_seq', 'fes_i386_dops',
     'fes_i386_shift', 'fes_i386_shflags', 'fes_i386_exctl', 'fes_i386_muldiv', 'fes_i386_x87_mul',
+    # The DE25 arithmetic backend, which fes_i386_x87 instantiates when
+    # X87_BACKEND selects it. At the default it is not instantiated and
+    # `hierarchy -top` removes it.
+    'fes_x87_pkg', 'fes_x87_fast', 'fes_x87_slow', 'fes_x87_core',
+    # ... and the transcendental engine that runs on it (#1958), the same way.
+    'fes_x87_trans_pkg', 'fes_x87_trans_rom', 'fes_x87_trans',
     'fes_i386_x87', 'fes_i386_ex', 'fes_i386_tlb',
     'fes_i386_l1i', 'fes_i386_l1d', 'fes_i386_biu', 'fes_i386_gov_rom', 'fes_i386_governor', 'fes_i386_cpu'))
 CPU_TOP = 'fes_i386_cpu'

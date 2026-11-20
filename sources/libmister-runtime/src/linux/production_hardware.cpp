@@ -161,7 +161,7 @@ public:
             de25_fpga_ = new native::LinuxDe25FpgaManager(clock_,*de25_menu_,package_roots,
                 [this](const CoreDescriptor& descriptor,std::uint64_t deadline) {
                     fes_gp_driver_->BeginSession();
-                    return fes_gp_driver_->EnsureRetainedZx81TapeSaved(descriptor,deadline);
+                    return fes_gp_driver_->EnsureRetainedComputerSaved(descriptor,deadline);
                 });
             fpga_.reset(de25_fpga_);
             de25_menu_driver_.reset(new native::De25MenuCoreDriver(*de25_menu_));
@@ -245,6 +245,20 @@ public:
 	{
 		return hardware_->AttachProgrammedBitstream(package, path, sha256);
 	}
+	Error InspectMediaData(const MediaDataQuery& query, MediaDataInspection* output) override
+	{
+		return hardware_->InspectMediaData(query, output);
+	}
+	Error DiscardMediaData(const MediaDataQuery& query, const std::string& revision,
+		MediaDataInspection* output) override
+	{
+		return hardware_->DiscardMediaData(query, revision, output);
+	}
+	Error ExportMediaData(const MediaDataQuery& query, const std::string& revision,
+		const std::string& path, MediaDataInspection* output) override
+	{
+		return hardware_->ExportMediaData(query, revision, path, output);
+	}
 	Error InspectCoreData(const std::string& directory, const std::string& expected_id,
 		const std::string& root, const std::string& game_id, CoreData* output) override
 	{
@@ -260,6 +274,9 @@ public:
 	Error AttachROMBitstream(AdmittedCorePackage* package, const std::string& path,
 		const CoreROMLink& link) override
 	{ return hardware_->AttachROMBitstream(package, path, link); }
+	Error AttachFirmwareSource(AdmittedCorePackage* package, const std::string& path,
+		const CoreROMLink& link) override
+	{ return hardware_->AttachFirmwareSource(package, path, link); }
 	Error AttachROMsBitstream(AdmittedCorePackage* package, const std::string& path,
 		const CoreROMLinks& links) override
 	{ return hardware_->AttachROMsBitstream(package, path, links); }

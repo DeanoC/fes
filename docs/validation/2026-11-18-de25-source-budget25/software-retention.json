@@ -1,0 +1,39 @@
+{
+  "root": "/home/deano/fes-retained/de25-source-budget25-20261118-r1",
+  "source": {
+    "status": "independently-verified-source-archives",
+    "sources": [
+      {
+        "name": "before-fix",
+        "commit": "bd0dbcd7d6424290a7c5673f48e335e6e0d46c8b",
+        "sha256": "3a76d61d677ad2a16bdf0d0d59a0c451a92aabb0bbf71f18912937dc08fe8e58",
+        "verified_git_blobs": 17356
+      },
+      {
+        "name": "tested-source",
+        "commit": "a0d2c7aead849a8e0287774b9cd18d662770a33b",
+        "sha256": "23cd6df4c94fe9e8e643d53bd6fe3a89d580c22b7fb9ebf2265bfcbbce260954",
+        "verified_git_blobs": 17357
+      }
+    ],
+    "hardware_actions": false
+  },
+  "software": {
+    "status": "independently-verified-evidence-archive",
+    "name": "software.tar.gz",
+    "sha256": "ec6b72860d21e30a532805a8cbb492248d7706388040e5686d4bbf23f5dd5a84",
+    "verified_entries": 765,
+    "source": "a0d2c7aead849a8e0287774b9cd18d662770a33b",
+    "hardware_actions": false,
+    "hardware_acceptance": false
+  },
+  "boot": {
+    "status": "independently-verified-evidence-archive",
+    "name": "boot.tar.gz",
+    "sha256": "e5adf7251b1e27380c1efd675f19119de022876dd7e426d59b0568605963b821",
+    "verified_entries": 46669,
+    "source": "a0d2c7aead849a8e0287774b9cd18d662770a33b",
+    "hardware_actions": false,
+    "hardware_acceptance": false
+  }
+}

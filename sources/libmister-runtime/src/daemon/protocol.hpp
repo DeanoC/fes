@@ -28,6 +28,9 @@ enum class Operation {
 	load_library_core,
 	inspect_core_data,
 	update_core_settings,
+	inspect_media_data,
+	discard_media_data,
+	export_media_data,
 	set_keyboard,
 	set_controller,
 	load_media,
@@ -75,11 +78,16 @@ struct Request {
  bool visible=false,launcher_focus=false;
 	std::uint8_t media_unit = 0;
 	MediaDataBinding media_binding;
+	// inspect_media_data and discard_media_data name a saved record directly.
+	MediaDataQuery media_query;
 	KeyboardHidRows keyboard_rows{};
 	std::int16_t mouse_dx = 0, mouse_dy = 0;
 	std::uint8_t mouse_buttons = 0;
 	CoreCompositionRequest composition_request;
 	std::string programmed_path;
+	// A launch-time upload load names the ROM source instead of a linked
+	// bitstream; exactly one of the two paths is set on a ROM load.
+	std::string firmware_path;
 	std::string programmed_sha256;
 	CoreROMLink rom_link;
 	CoreROMLinks rom_links;
@@ -108,7 +116,8 @@ Error ParseRequest(const std::string& line, Request* request);
 // is intentionally encoded even when a later status request itself succeeds.
 std::string EncodeResponse(std::int64_t protocol, bool ok, const Status& status,
 	const std::string& version, const CorePackageInspection* inspected_package = nullptr,
-	const CoreData* core_data = nullptr,const MenuFrameReply* menu_frame = nullptr);
+	const CoreData* core_data = nullptr,const MenuFrameReply* menu_frame = nullptr,
+	const MediaDataInspection* media_data = nullptr);
 
 } // namespace daemon
 } // namespace mister

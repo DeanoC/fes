@@ -1,0 +1,106 @@
+{
+  "forward": {
+    "remote-combine": {
+      "status": "passed",
+      "host": "chip-30x0-ai-dev",
+      "shared_lock": "/tmp/lander-quartus-3090.lock",
+      "tools": {
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+        "/data/altera_pro/26.3/quartus/linux64/quartus_pfg": "ed0026052cadd2ee56ae4e850c20a733ce0d0106bbd39687e15f045637404869"
+      },
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-c",
+        "vendor.sof",
+        "result.sof",
+        "-o",
+        "hps_path=/data/scratch/fes-usb-shutdown-73f1e4d9685291041563101d/spl.hex"
+      ],
+      "inputs": {
+        "vendor.sof": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+        "spl.hex": "9ea709ebd3f8a4ee6107771d3a17041a62dc8c9e046f6f11cf81ce0f59637b07"
+      },
+      "output_sha256": "daf8c24f59b8f730050f0d94e6cf16c594b82f1c7334ed092b203490e37cd0f8",
+      "elapsed_seconds": 1.6190954488702118,
+      "hardware_actions": false
+    },
+    "remote-info": {
+      "status": "passed",
+      "host": "chip-30x0-ai-dev",
+      "shared_lock": "/tmp/lander-quartus-3090.lock",
+      "tools": {
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+        "/data/altera_pro/26.3/quartus/linux64/quartus_pfg": "ed0026052cadd2ee56ae4e850c20a733ce0d0106bbd39687e15f045637404869"
+      },
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-i",
+        "result.sof"
+      ],
+      "inputs": {
+        "vendor.sof": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+        "spl.hex": "9ea709ebd3f8a4ee6107771d3a17041a62dc8c9e046f6f11cf81ce0f59637b07"
+      },
+      "output_sha256": "daf8c24f59b8f730050f0d94e6cf16c594b82f1c7334ed092b203490e37cd0f8",
+      "elapsed_seconds": 1.2187721109949052,
+      "hardware_actions": false
+    },
+    "remote-job": {
+      "host": "fes-build-3090",
+      "job": "/data/scratch/fes-usb-shutdown-73f1e4d9685291041563101d",
+      "sof_sha256": "daf8c24f59b8f730050f0d94e6cf16c594b82f1c7334ed092b203490e37cd0f8"
+    }
+  },
+  "rollback": {
+    "remote-combine": {
+      "status": "passed",
+      "host": "chip-30x0-ai-dev",
+      "shared_lock": "/tmp/lander-quartus-3090.lock",
+      "tools": {
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+        "/data/altera_pro/26.3/quartus/linux64/quartus_pfg": "ed0026052cadd2ee56ae4e850c20a733ce0d0106bbd39687e15f045637404869"
+      },
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-c",
+        "vendor.sof",
+        "result.sof",
+        "-o",
+        "hps_path=/data/scratch/fes-usb-shutdown-10dfadfcc2287b8bdbbdff52/spl.hex"
+      ],
+      "inputs": {
+        "vendor.sof": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+        "spl.hex": "395d74b69f91a8d1ad0b5e801bf8f87e0375a33d1098c9d95630dde91c28c7e9"
+      },
+      "output_sha256": "948d6e2bf8c8c4ea4f4a0a570a871c17fe544679fd85bf7187d42dbbdf1b8c65",
+      "elapsed_seconds": 1.419141466030851,
+      "hardware_actions": false
+    },
+    "remote-info": {
+      "status": "passed",
+      "host": "chip-30x0-ai-dev",
+      "shared_lock": "/tmp/lander-quartus-3090.lock",
+      "tools": {
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+        "/data/altera_pro/26.3/quartus/linux64/quartus_pfg": "ed0026052cadd2ee56ae4e850c20a733ce0d0106bbd39687e15f045637404869"
+      },
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-i",
+        "result.sof"
+      ],
+      "inputs": {
+        "vendor.sof": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+        "spl.hex": "395d74b69f91a8d1ad0b5e801bf8f87e0375a33d1098c9d95630dde91c28c7e9"
+      },
+      "output_sha256": "948d6e2bf8c8c4ea4f4a0a570a871c17fe544679fd85bf7187d42dbbdf1b8c65",
+      "elapsed_seconds": 1.168546446133405,
+      "hardware_actions": false
+    },
+    "remote-job": {
+      "host": "fes-build-3090",
+      "job": "/data/scratch/fes-usb-shutdown-10dfadfcc2287b8bdbbdff52",
+      "sof_sha256": "948d6e2bf8c8c4ea4f4a0a570a871c17fe544679fd85bf7187d42dbbdf1b8c65"
+    }
+  }
+}

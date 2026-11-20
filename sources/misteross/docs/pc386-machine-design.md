@@ -411,7 +411,8 @@ VGA ports get local-bus behaviour, matching VGA memory: Wolfenstein 3D writes
 the map mask for every wall post it draws (`ScalePost` in `WL_DRAW.C`), and
 VLB-era VGA I/O was not ISA-timed either. That is device time only: under a
 preset the governor charges a VGA port access the 8-bit ISA cycle an ISA VGA
-took, and a VGA memory access its ISA cycles. Ordering is the reason VGA writes
+took, and a VGA memory access its ISA cycles, or under the 486 presets a
+local-bus VGA cycle per 32-bit dword ([speed control](i386-cpu-design.md#speed-control)). Ordering is the reason VGA writes
 go through the FIFO. A posted VRAM write followed by `OUT 3C5h` must be
 planar-processed with the old map mask.
 The CPU posts MMIO stores at commit and runs OUT after them, so pushing VGA

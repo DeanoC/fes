@@ -215,7 +215,7 @@ func TestSetupBlockedStatusSurvivesLibraryResponse(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		httpStatus int
-		want       string
+		library    string
 	}{
 		{"success", 0, "2 titles · All · All · Title"},
 		{"failure", http.StatusInternalServerError, "Can't reach the library right now."},
@@ -257,8 +257,16 @@ func TestSetupBlockedStatusSurvivesLibraryResponse(t *testing.T) {
 			default:
 			}
 			snap = waitFor(t, app, "idle host session", func(s Snapshot) bool { return s.Session.State == "idle" })
-			if snap.Status != tc.want {
-				t.Fatalf("status after idle = %q, want %q", snap.Status, tc.want)
+			// The block is over: setup shows the library result deferred while
+			// the session was busy.
+			app.mu.Lock()
+			library := app.libraryStatus
+			app.mu.Unlock()
+			if snap.Status != tc.library {
+				t.Fatalf("status after idle = %q, want the library's %q", snap.Status, tc.library)
+			}
+			if library != tc.library {
+				t.Fatalf("library status = %q, want %q", library, tc.library)
 			}
 			if got := renderRoomLabelSource(t, snap, "nopanel-status"); got == setupBlockedStatus {
 				t.Fatalf("footer remains blocked after idle: %q", got)
@@ -291,7 +299,7 @@ func TestSetupDeferredOfflineShelfRetainsRefreshFailureNotice(t *testing.T) {
 	waitFor(t, app, "deferred offline refresh notice", func(s Snapshot) bool {
 		app.mu.Lock()
 		defer app.mu.Unlock()
-		return !s.Loading && app.setup.deferredLibraryStatus == want
+		return !s.Loading && app.setup.deferredNotice == want
 	})
 	host.mu.Lock()
 	host.state = "idle"
@@ -381,9 +389,13 @@ func TestSetupWaitsForRunningOrStartingSessionPreservesLibraryStatus(t *testing.
 	}
 	app.mu.Lock()
 	app.session.State = "idle"
+	library := app.libraryStatus
 	app.mu.Unlock()
-	if got := app.Snapshot().Status; got != "Can't reach the library right now." {
-		t.Fatalf("library status after session stops = %q", got)
+	if got := app.Snapshot().Status; got != library {
+		t.Fatalf("status after session stops = %q, want the library's %q", got, library)
+	}
+	if library != "Can't reach the library right now." {
+		t.Fatalf("library status = %q", library)
 	}
 }
 
@@ -428,13 +440,13 @@ func TestFirstRunMaximumSafeAreaRender(t *testing.T) {
 			continue
 		}
 		switch op.Text {
-		case "Sinclair ZX81", "ZX Spectrum", "Atari ST", "Commodore 64":
+		case "Sinclair ZX81", "ZX Spectrum", "Atari ST", "Commodore 64", "PC/XT", "PC 386":
 			names = append(names, op)
 		case "No games yet", "No games yet  ·  needs your firmware files", "Not on this kit":
 			details = append(details, op)
 		}
 	}
-	if len(names) != 4 || len(details) != 4 {
+	if len(names) != 6 || len(details) != 6 {
 		t.Fatalf("Ready rows: %d names, %d details", len(names), len(details))
 	}
 	for i := 0; i < len(names)-1; i++ {
@@ -568,7 +580,7 @@ func TestSkippingRunSetupAgainKeepsTheFinishedSetup(t *testing.T) {
 func TestLibraryStatusOutsideSetupRemainsImmediate(t *testing.T) {
 	app := &App{status: "previous"}
 	app.setLibraryStatusLocked("library updated")
-	if app.status != "library updated" || app.setup.deferredLibraryStatus != "" {
-		t.Fatalf("status = %q, deferred = %q", app.status, app.setup.deferredLibraryStatus)
+	if app.status != "library updated" || app.setup.deferredNotice != "" {
+		t.Fatalf("status = %q, deferred = %q", app.status, app.setup.deferredNotice)
 	}
 }

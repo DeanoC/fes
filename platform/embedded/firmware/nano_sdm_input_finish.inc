@@ -24,7 +24,7 @@ __attribute__((noinline)) static int sdm_input_final_scope(void)
 int fes_nano_sdm_source_finish(uint32_t status,uint32_t detail)
 {
  struct nano_sdm_transfer_result r;fes_nano_sdm_transfer_result(&r);
- uint64_t final_now=0;unsigned proof=0;int continuation=-1;
+ uint64_t final_now=0;unsigned proof=0,clock_reported=0;int continuation=-1;
  if(status==0 && detail==0 && !nano_sdm_input_validate(&r.binding) && r.prepared==1 && r.initialized==1 && !r.failed && r.configured==1 &&
     !r.first_error && !r.service_error && !r.pending && !r.outstanding &&
     r.accepted==r.binding.bytes && r.posted==r.binding.bytes && r.acknowledged==r.binding.bytes &&
@@ -36,6 +36,7 @@ int fes_nano_sdm_source_finish(uint32_t status,uint32_t detail)
     configuration.pending==0 && configuration.completed==configuration.bytes &&
     !fes_nano_sdm_source_validate() && !sdm_source_time(&sdm_arm_probe,&final_now) && sdm_input_final_scope())proof=1;
  if(!proof && status==0)status=4;
+ if(sdm_source_clock_failure.reason){sdm_source_clock_report();clock_reported=1;}
  char digest[97];static const char hex[]="0123456789abcdef";
  for(unsigned n=0;n<48;n++){digest[n*2]=hex[r.binding.digest384[n]>>4];digest[n*2+1]=hex[r.binding.digest384[n]&15U];}
  digest[96]=0;
@@ -89,6 +90,7 @@ int fes_nano_sdm_source_finish(uint32_t status,uint32_t detail)
    (unsigned long long)source_retirement.continuation_last,
    (unsigned long long)source_retirement.continuation_observed,
    source_retirement.bad_offset,source_retirement.bad_value);
+ if(!clock_reported && sdm_source_clock_failure.reason)sdm_source_clock_report();
  NOTICE("FES_NANO_INPUT_PARK retained=1 resume=0 activated=0\n");
 #if defined(FES_NANO_SDM_COLD_RECOVERY) && FES_NANO_SDM_COLD_RECOVERY == 1
  if(proof && source_retirement.failed){

@@ -791,6 +791,50 @@ void TestROMLoadProtocol()
 	}
 }
 
+// A launch-time upload load names the ROM source where a linked load names
+// its programmed bitstream: the same closed link, exactly one of the paths.
+void TestFirmwareUploadLoadProtocol()
+{
+	const std::string digest(64, 'a');
+	const std::string tuple = "{\"rom_id\":\"machine-rom\",\"map_sha256\":\"" + digest +
+		"\",\"source_sha256\":\"" + digest + "\",\"source_size\":196608,\"programmed_sha256\":\"" + digest +
+		"\",\"programmed_size\":40408}";
+	for (const auto& op : {"load_rom_core", "load_rom_library_core"}) {
+		const bool library = std::string(op) == "load_rom_library_core";
+		const std::string input = "{\"protocol\":2,\"operation\":\"" + std::string(op) +
+			"\",\"package_path\":\"/package\",\"package_id\":\"" + digest +
+			"\",\"firmware_path\":\"/roms/tos.img\",\"rom_link\":" + tuple +
+			(library ? ",\"data_root\":\"/data\"}" : "}");
+		Request request;
+		assert(Parse(input, &request).ok());
+		assert(request.operation == (library ? Operation::load_rom_library_core : Operation::load_rom_core));
+		assert(request.firmware_path == "/roms/tos.img" && request.programmed_path.empty());
+		assert(request.rom_link.rom_id == "machine-rom" && request.rom_link.source_size == 196608);
+		assert(request.data_root == (library ? "/data" : ""));
+		const std::string initial = "{\"path\":\"/disk.st\",\"size\":737280,\"unit\":0,\"data_root\":\"/media-data\","
+			"\"game_id\":\"st-game\",\"base_media_id\":\"" + digest + "\"}";
+		assert(Parse(input.substr(0, input.size() - 1) + ",\"initial_media\":" + initial + "}", &request).ok() &&
+			request.has_initial_media && request.firmware_path == "/roms/tos.img");
+		// Both paths, a relative source, or no path at all.
+		assert(!Parse(input.substr(0, input.size() - 1) + ",\"programmed_path\":\"/programmed.rbf\"}", &request).ok());
+		for (const auto& replacement : std::vector<std::pair<std::string, std::string>>{
+			{"/roms/tos.img", "roms/tos.img"}, {"/roms/tos.img", ""}, {"\"firmware_path\":\"/roms/tos.img\",", ""},
+			{"196608", "0"}, {"machine-rom", ""}}) {
+			auto bad = input;
+			bad.replace(bad.find(replacement.first), replacement.first.size(), replacement.second);
+			assert(!Parse(bad, &request).ok());
+		}
+	}
+	// One source only, and no composition: neither has an upload endpoint.
+	Request request;
+	const std::string prefix = "{\"protocol\":2,\"operation\":\"";
+	assert(!Parse(prefix + "load_rom_core\",\"package_path\":\"/package\",\"package_id\":\"" + digest +
+		"\",\"firmware_path\":\"/roms/tos.img\",\"rom_links\":{}}", &request).ok());
+	assert(!Parse(prefix + "load_rom_composed_core\",\"package_path\":\"/package\",\"package_id\":\"" + digest +
+		"\",\"expansion_path\":\"/cart\",\"payload_path\":\"/cart.rbf\",\"composition\":{},\"firmware_path\":\"/roms/tos.img\",\"rom_link\":" +
+		tuple + "}", &request).ok());
+}
+
 void TestPcxtInitialLoadProtocol()
 {
 	const std::string digest(64, 'a');
@@ -1613,8 +1657,59 @@ void TestDeveloperPartsProtocol() {
  assert(native_encoded.find("\"layout\":\"fes.coleco-native-video.parts/1\"")!=std::string::npos);
 }
 
+// inspect_media_data and discard_media_data name one saved record.
+void TestMediaDataRecordProtocol()
+{
+	const std::string base(64, 'a'), revision(64, 'b');
+	const std::string identity = "\"data_root\":\"/data/media\",\"core_id\":\"fes.atari-st\","
+		"\"game_id\":\"atari-st-desktop\",\"base_media_id\":\"" + base + "\",\"unit\":0";
+	Request request;
+	assert(Parse("{\"protocol\":2,\"operation\":\"inspect_media_data\"," + identity + "}", &request).ok());
+	assert(request.operation == Operation::inspect_media_data && request.media_query.data_root == "/data/media" &&
+		request.media_query.core_id == "fes.atari-st" && request.media_query.game_id == "atari-st-desktop" &&
+		request.media_query.base_media_id == base && request.media_query.unit == 0);
+	assert(Parse("{\"protocol\":2,\"operation\":\"discard_media_data\"," + identity +
+		",\"expected_revision\":\"" + revision + "\"}", &request).ok());
+	assert(request.operation == Operation::discard_media_data && request.expected_revision == revision);
+	assert(Parse("{\"protocol\":2,\"operation\":\"export_media_data\"," + identity +
+		",\"expected_revision\":\"" + revision + "\",\"path\":\"/tmp/export.st\"}", &request).ok());
+	assert(request.operation == Operation::export_media_data && request.expected_revision == revision &&
+		request.media_path == "/tmp/export.st" && request.media_query.game_id == "atari-st-desktop");
+	assert(!Parse("{\"protocol\":2,\"operation\":\"export_media_data\"," + identity +
+		",\"expected_revision\":\"" + revision + "\"}", &request).ok());
+	assert(!Parse("{\"protocol\":2,\"operation\":\"export_media_data\"," + identity +
+		",\"expected_revision\":\"" + revision + "\",\"path\":\"export.st\"}", &request).ok());
+	assert(!Parse("{\"protocol\":2,\"operation\":\"discard_media_data\"," + identity +
+		",\"expected_revision\":\"" + revision + "\",\"path\":\"/tmp/export.st\"}", &request).ok());
+	// Inspect takes no revision; discard needs a real one.
+	assert(!Parse("{\"protocol\":2,\"operation\":\"inspect_media_data\"," + identity +
+		",\"expected_revision\":\"" + revision + "\"}", &request).ok());
+	assert(!Parse("{\"protocol\":2,\"operation\":\"discard_media_data\"," + identity + "}", &request).ok());
+	assert(!Parse("{\"protocol\":2,\"operation\":\"discard_media_data\"," + identity +
+		",\"expected_revision\":\"absent\"}", &request).ok());
+	for (const std::string& bad : std::vector<std::string>{
+			"\"data_root\":\"data\",\"core_id\":\"fes.atari-st\",\"game_id\":\"g\",\"base_media_id\":\"" + base + "\",\"unit\":0",
+			"\"data_root\":\"/d\",\"core_id\":\"Fes\",\"game_id\":\"g\",\"base_media_id\":\"" + base + "\",\"unit\":0",
+			"\"data_root\":\"/d\",\"core_id\":\"fes.atari-st\",\"game_id\":\"-g\",\"base_media_id\":\"" + base + "\",\"unit\":0",
+			"\"data_root\":\"/d\",\"core_id\":\"fes.atari-st\",\"game_id\":\"g\",\"base_media_id\":\"abc\",\"unit\":0",
+			"\"data_root\":\"/d\",\"core_id\":\"fes.atari-st\",\"game_id\":\"g\",\"base_media_id\":\"" + base + "\",\"unit\":1",
+			"\"data_root\":\"/d\",\"core_id\":\"fes.atari-st\",\"game_id\":\"g\",\"base_media_id\":\"" + base + "\""})
+		assert(!Parse("{\"protocol\":2,\"operation\":\"inspect_media_data\"," + bad + "}", &request).ok());
+	mister::MediaDataInspection state;
+	const std::string absent = mister::daemon::EncodeResponse(2, true, Status{}, "fixture", nullptr, nullptr, nullptr, &state);
+	assert(absent.find(",\"media_data\":{\"state\":\"absent\",\"revision\":\"absent\",\"bytes\":0,\"changed\":false}}") != std::string::npos);
+	state.state = "present";
+	state.revision = revision;
+	state.bytes = 737453;
+	state.changed = true;
+	const std::string present = mister::daemon::EncodeResponse(2, true, Status{}, "fixture", nullptr, nullptr, nullptr, &state);
+	assert(present.find(",\"media_data\":{\"state\":\"present\",\"revision\":\"" + revision + "\",\"bytes\":737453,\"changed\":true}}") != std::string::npos);
+	assert(mister::daemon::EncodeResponse(2, true, Status{}, "fixture").find("media_data") == std::string::npos);
+}
+
 int main(int argc, char** argv)
 {
+ TestMediaDataRecordProtocol();
  TestDeveloperPartsProtocol();
  TestLibraryDiskProtocol();
  TestSessionDisplayRequestAndBoundStatus();
@@ -1651,6 +1746,7 @@ int main(int argc, char** argv)
 	TestStaticCompositionProtocol();
 	TestStaticPackageInspectionSerialization();
 	TestROMLoadProtocol();
+	TestFirmwareUploadLoadProtocol();
 	TestPcxtInitialLoadProtocol();
 	TestTwoSourceROMLoadProtocol();
 	TestCompositionProtocol();

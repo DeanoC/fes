@@ -1,0 +1,120 @@
+{
+ "revision": "0c7af07286508942e455dd2575997f8bc7a76250",
+ "host": "chip-30x0-ai-dev",
+ "quartus": "17.0.2",
+ "seed": 1,
+ "gpu_router_slot": "CUDA (selects the authenticated toolchain slot; Quartus routes nothing on a GPU)",
+ "lockstep": "scripts/test_fes_i386_lockstep.py --netlist, exit 0, 2026-11-19T07:27:04Z..07:40:23Z",
+ "seal_window": "2026-11-19T07:40:23Z..07:52:57Z",
+ "package_id": "63fd394cd4ac099ae16197cf38cfecc8c3513a1a3e6c8161aec89e01bebcdb7a",
+ "fcore_sha256": "a07a64a85c92caeb2c54d183e743a56711d77cd3916821cbcb469cc7ea29d877",
+ "build_summary": {
+  "build_id": "dfd9266df38b6c53a04cab2560ab3742",
+  "device": "5CSEBA6U23I7",
+  "status": "pass",
+  "seed": 1,
+  "rbf": {
+   "sha256": "5b6493c01a44d08daa34eed3c481444cd9139d3585284f92d6335a5a5e2bea31",
+   "size": 3967864
+  },
+  "resources": {
+   "alms": {
+    "available": 41910,
+    "used": 36450
+   },
+   "block_memory_bits": {
+    "available": 5662720,
+    "used": 1354796
+   },
+   "dsp_blocks": {
+    "available": 112,
+    "used": 40
+   },
+   "ram_blocks": {
+    "available": 553,
+    "used": 282
+   },
+   "registers": {
+    "used": 32032
+   }
+  },
+  "timing": {
+   "analyses": {
+    "hold": {
+     "tns_ns": 0.0,
+     "worst_slack_ns": 0.077
+    },
+    "minimum_pulse_width": {
+     "tns_ns": 0.0,
+     "worst_slack_ns": 1.122
+    },
+    "recovery": {
+     "tns_ns": 0.0,
+     "worst_slack_ns": 6.466
+    },
+    "removal": {
+     "tns_ns": 0.0,
+     "worst_slack_ns": 0.422
+    },
+    "setup": {
+     "tns_ns": 0.0,
+     "worst_slack_ns": 0.478
+    }
+   },
+   "clocks": {
+    "audio": {
+     "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+     "mhz": 12.29
+    },
+    "pixel": {
+     "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+     "mhz": 74.27
+    },
+    "system": {
+     "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+     "mhz": 61.44
+    }
+   },
+   "status": "pass"
+  },
+  "guest_rates": {
+   "ATA_RESET_CLOCKS": 615,
+   "AUDIO_D": 1280,
+   "AUDIO_N": 1,
+   "DMA_D": 9216,
+   "DMA_N": 625,
+   "DOT0_D": 12288,
+   "DOT0_N": 5035,
+   "DOT1_D": 30720,
+   "DOT1_N": 14161,
+   "GOV_D": 3072,
+   "GOV_N": 5,
+   "ISA_D": 4608,
+   "ISA_N": 625,
+   "OPL2_D": 1081344,
+   "OPL2_N": 875,
+   "PIT_D": 22528,
+   "PIT_N": 875,
+   "RTC_D": 1875,
+   "RTC_N": 1,
+   "US_D": 1536,
+   "US_N": 25
+  },
+  "firmware": {
+   "bios": "23b9df9134e4f5c1aa32665219de71ddeb425d5764c30ee721d26893fc9780c7",
+   "rom_hex": "815620361ef28a2bbdd97b1964700a4678a26c0ffc9582bb95544473fe099d18",
+   "vgabios": "8522568e32a33b2f5649109260fec70b0b2cd0d80a6216ac7af6a1041c102e02"
+  },
+  "netlist": {
+   "cpu_source_sha256": "70dfd9b04826844cc5b397fece79a8278b9de3ab241509b0a27764ad31d49e19",
+   "machine_netlist_sha256": "45d9f581932e1b676a3df46404e886056764440231103022775423994ebbdf64",
+   "program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
+   "yosys": {
+    "gpu_router": "CUDA",
+    "lock": "cores/fes-pc386/toolchain.lock",
+    "lock_sha256": "294c89450c6c719f649cd4f248d0d844dd431df1138d44d6a26e4a1219ac579c",
+    "tool": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=8a9a88fb7471aa6bfa566470cc5770998600f5ec07ef749249396ef5ad633a3f"
+   }
+  }
+ }
+}

@@ -1,0 +1,578 @@
+{
+  "dirty": [],
+  "moved": [],
+  "rows": {
+    "fes.c64": {
+      "tree_a": {
+        "design_recipe_digest": "fc7fa98b1611c78b9b335c457cd77b83c7bff1a9a89e058083b2a4433d36d4e7",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "01c1b5d0b3727dbd79a992f983c5d89ecdc9ca14454705f4f1659df5112794ab",
+        "qsf_path": "cores/fes-c64/constraints-oss.qsf",
+        "recipe_digest": "6373cfbc3a68996ad89efbba3af45fcf0d477466e1b4a45eca5b8c38ebd5ff37",
+        "sdc": "a0f6cf1636d4bf91643477d923761872edddeb64f70b9432298b1cc4c88f14bc",
+        "sdc_path": "cores/fes-c64/clocks-oss.sdc",
+        "toolchain_lock": "bd19d80345cae5f8cc106a9128b2ff71e2ec3711de968341cedfec721ff7f675",
+        "toolchain_lock_path": "cores/fes-c64/toolchain.lock"
+      },
+      "tree_b": {
+        "design_recipe_digest": "fc7fa98b1611c78b9b335c457cd77b83c7bff1a9a89e058083b2a4433d36d4e7",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "01c1b5d0b3727dbd79a992f983c5d89ecdc9ca14454705f4f1659df5112794ab",
+        "qsf_path": "cores/fes-c64/constraints-oss.qsf",
+        "recipe_digest": "6373cfbc3a68996ad89efbba3af45fcf0d477466e1b4a45eca5b8c38ebd5ff37",
+        "sdc": "a0f6cf1636d4bf91643477d923761872edddeb64f70b9432298b1cc4c88f14bc",
+        "sdc_path": "cores/fes-c64/clocks-oss.sdc",
+        "toolchain_lock": "bd19d80345cae5f8cc106a9128b2ff71e2ec3711de968341cedfec721ff7f675",
+        "toolchain_lock_path": "cores/fes-c64/toolchain.lock"
+      },
+      "verdict": {
+        "design_recipe_digest": "same",
+        "qsf": "same",
+        "recipe_digest": "same",
+        "sdc": "same",
+        "toolchain_lock": "same"
+      }
+    },
+    "fes.coleco": {
+      "tree_a": {
+        "design_recipe_digest": "3c5fb22c68097a6361764fe447603e43d6cd16361f1c782699666e73f582f7ba",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "34078de682277fad57e83dd22856dc28a73626b9c93d11adefe2e5eebef5e3c6",
+        "qsf_path": "cores/fes-coleco/constraints-oss.qsf",
+        "recipe_digest": "36aea678cbf9d9df26f0b7bfd6dc409c96c36c7c7c740d737c50b49688819c90",
+        "sdc": "a0f6cf1636d4bf91643477d923761872edddeb64f70b9432298b1cc4c88f14bc",
+        "sdc_path": "cores/fes-coleco/clocks-oss.sdc",
+        "toolchain_lock": "cb2c2809dd1b9687fbb1f50d3c6ea3a8e01ebf328b1ea29c8d567854c93d0fdb",
+        "toolchain_lock_path": "cores/fes-coleco/toolchain.lock"
+      },
+      "tree_b": {
+        "design_recipe_digest": "3c5fb22c68097a6361764fe447603e43d6cd16361f1c782699666e73f582f7ba",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "34078de682277fad57e83dd22856dc28a73626b9c93d11adefe2e5eebef5e3c6",
+        "qsf_path": "cores/fes-coleco/constraints-oss.qsf",
+        "recipe_digest": "36aea678cbf9d9df26f0b7bfd6dc409c96c36c7c7c740d737c50b49688819c90",
+        "sdc": "a0f6cf1636d4bf91643477d923761872edddeb64f70b9432298b1cc4c88f14bc",
+        "sdc_path": "cores/fes-coleco/clocks-oss.sdc",
+        "toolchain_lock": "cb2c2809dd1b9687fbb1f50d3c6ea3a8e01ebf328b1ea29c8d567854c93d0fdb",
+        "toolchain_lock_path": "cores/fes-coleco/toolchain.lock"
+      },
+      "verdict": {
+        "design_recipe_digest": "same",
+        "qsf": "same",
+        "recipe_digest": "same",
+        "sdc": "same",
+        "toolchain_lock": "same"
+      }
+    },
+    "fes.menu": {
+      "tree_a": {
+        "design_recipe_digest": "5915c834b0568d68176563062ad7b86535e87f06c845d4ab51afcf10ae095a70",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "c38882cbba0b0e3050e86f7d2acd7e7b090fb9329e43e2a6c4f438ab7c7df83f",
+        "qsf_path": "cores/fes-splash/constraints.qsf",
+        "recipe_digest": "2dab30da3b734c32b1ff52bfd0cdc035cca4bfe1fcc3989461bf3432be25e958",
+        "sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+        "sdc_path": "boards/de10nano/clocks.sdc",
+        "toolchain_lock": "2adfe0457b7d90debb76f52593c5101a88171a9c0b37ca3c2b2146c199ae0df0",
+        "toolchain_lock_path": "cores/fes-menu/toolchain.lock"
+      },
+      "tree_b": {
+        "design_recipe_digest": "5915c834b0568d68176563062ad7b86535e87f06c845d4ab51afcf10ae095a70",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "c38882cbba0b0e3050e86f7d2acd7e7b090fb9329e43e2a6c4f438ab7c7df83f",
+        "qsf_path": "cores/fes-splash/constraints.qsf",
+        "recipe_digest": "2dab30da3b734c32b1ff52bfd0cdc035cca4bfe1fcc3989461bf3432be25e958",
+        "sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+        "sdc_path": "boards/de10nano/clocks.sdc",
+        "toolchain_lock": "2adfe0457b7d90debb76f52593c5101a88171a9c0b37ca3c2b2146c199ae0df0",
+        "toolchain_lock_path": "cores/fes-menu/toolchain.lock"
+      },
+      "verdict": {
+        "design_recipe_digest": "same",
+        "qsf": "same",
+        "recipe_digest": "same",
+        "sdc": "same",
+        "toolchain_lock": "same"
+      }
+    },
+    "fes.pentagon": {
+      "tree_a": {
+        "design_recipe_digest": "a10442b68d6b935ba81d091ea2f306c904bae6abe1888d2d07cf91457d497596",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "75660546e744f6d80c015117c70728424ed5da877f869818c14a32ccd9a750c8",
+        "qsf_path": "cores/fes-spectrum/constraints-oss.qsf",
+        "recipe_digest": "09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29",
+        "sdc": "d719b08d2753416423427110d3b657ae63a445552c2dacc696b23290f3f1fbdd",
+        "sdc_path": "cores/fes-spectrum/clocks-oss.sdc",
+        "toolchain_lock": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
+        "toolchain_lock_path": "cores/fes-spectrum/toolchain.lock"
+      },
+      "tree_b": {
+        "design_recipe_digest": "a10442b68d6b935ba81d091ea2f306c904bae6abe1888d2d07cf91457d497596",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "75660546e744f6d80c015117c70728424ed5da877f869818c14a32ccd9a750c8",
+        "qsf_path": "cores/fes-spectrum/constraints-oss.qsf",
+        "recipe_digest": "09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29",
+        "sdc": "d719b08d2753416423427110d3b657ae63a445552c2dacc696b23290f3f1fbdd",
+        "sdc_path": "cores/fes-spectrum/clocks-oss.sdc",
+        "toolchain_lock": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
+        "toolchain_lock_path": "cores/fes-spectrum/toolchain.lock"
+      },
+      "verdict": {
+        "design_recipe_digest": "same",
+        "qsf": "same",
+        "recipe_digest": "same",
+        "sdc": "same",
+        "toolchain_lock": "same"
+      }
+    },
+    "fes.pong": {
+      "tree_a": {
+        "design_recipe_digest": "51e6deee57d75a185383269339f2692cfda8623d7755f0c46893cc01fba45adc",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "c6913464fa4e21a1a04b42b107a02e4cfda3ced8f91cabe33ed66d7441816f8c",
+        "qsf_path": "cores/fes-pong/constraints.qsf",
+        "recipe_digest": "c7be1fd18e5fea4deb93dc7247e759409c802db3073e11659ac591ddb68b589b",
+        "sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+        "sdc_path": "boards/de10nano/clocks.sdc",
+        "toolchain_lock": "e9c28e573a5037cc7a3acef7637097691bf5bfac6f1a0cdca3bace84b9383edc",
+        "toolchain_lock_path": "cores/fes-pong/toolchain.lock"
+      },
+      "tree_b": {
+        "design_recipe_digest": "51e6deee57d75a185383269339f2692cfda8623d7755f0c46893cc01fba45adc",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "c6913464fa4e21a1a04b42b107a02e4cfda3ced8f91cabe33ed66d7441816f8c",
+        "qsf_path": "cores/fes-pong/constraints.qsf",
+        "recipe_digest": "c7be1fd18e5fea4deb93dc7247e759409c802db3073e11659ac591ddb68b589b",
+        "sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+        "sdc_path": "boards/de10nano/clocks.sdc",
+        "toolchain_lock": "e9c28e573a5037cc7a3acef7637097691bf5bfac6f1a0cdca3bace84b9383edc",
+        "toolchain_lock_path": "cores/fes-pong/toolchain.lock"
+      },
+      "verdict": {
+        "design_recipe_digest": "same",
+        "qsf": "same",
+        "recipe_digest": "same",
+        "sdc": "same",
+        "toolchain_lock": "same"
+      }
+    },
+    "fes.ramtest": {
+      "tree_a": {
+        "design_recipe_digest": "391b4a5089fd2470981b4c0a7aa6212e5b7a8a2f5568d099b7911f7091d69d64",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "5eff0d63083685f76041b438c36c18f38b19da98053427c7c2ee155dc3873e1d",
+        "qsf_path": "cores/fes-ramtest/constraints.qsf",
+        "recipe_digest": "ede6474bf85ce45e0631d4edb375bc37ab9c1161aae0a265f3c5c34920947781",
+        "sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+        "sdc_path": "boards/de10nano/clocks.sdc",
+        "toolchain_lock": "1ae44b7bcabce41501c623528724fdd46e7b91179492f9cc9e9dd7369f8e3221",
+        "toolchain_lock_path": "cores/fes-ramtest/toolchain.lock"
+      },
+      "tree_b": {
+        "design_recipe_digest": "391b4a5089fd2470981b4c0a7aa6212e5b7a8a2f5568d099b7911f7091d69d64",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "5eff0d63083685f76041b438c36c18f38b19da98053427c7c2ee155dc3873e1d",
+        "qsf_path": "cores/fes-ramtest/constraints.qsf",
+        "recipe_digest": "ede6474bf85ce45e0631d4edb375bc37ab9c1161aae0a265f3c5c34920947781",
+        "sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+        "sdc_path": "boards/de10nano/clocks.sdc",
+        "toolchain_lock": "1ae44b7bcabce41501c623528724fdd46e7b91179492f9cc9e9dd7369f8e3221",
+        "toolchain_lock_path": "cores/fes-ramtest/toolchain.lock"
+      },
+      "verdict": {
+        "design_recipe_digest": "same",
+        "qsf": "same",
+        "recipe_digest": "same",
+        "sdc": "same",
+        "toolchain_lock": "same"
+      }
+    },
+    "fes.riscv": {
+      "tree_a": {
+        "design_recipe_digest": "51e6deee57d75a185383269339f2692cfda8623d7755f0c46893cc01fba45adc",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "c6913464fa4e21a1a04b42b107a02e4cfda3ced8f91cabe33ed66d7441816f8c",
+        "qsf_path": "cores/fes-pong/constraints.qsf",
+        "recipe_digest": "c7be1fd18e5fea4deb93dc7247e759409c802db3073e11659ac591ddb68b589b",
+        "sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+        "sdc_path": "boards/de10nano/clocks.sdc",
+        "toolchain_lock": "2669044d4d481c94cf6ba7127614077480fd65ba730a784ac26f747764e472cf",
+        "toolchain_lock_path": "cores/fes-riscv/toolchain.lock"
+      },
+      "tree_b": {
+        "design_recipe_digest": "51e6deee57d75a185383269339f2692cfda8623d7755f0c46893cc01fba45adc",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "c6913464fa4e21a1a04b42b107a02e4cfda3ced8f91cabe33ed66d7441816f8c",
+        "qsf_path": "cores/fes-pong/constraints.qsf",
+        "recipe_digest": "c7be1fd18e5fea4deb93dc7247e759409c802db3073e11659ac591ddb68b589b",
+        "sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+        "sdc_path": "boards/de10nano/clocks.sdc",
+        "toolchain_lock": "2669044d4d481c94cf6ba7127614077480fd65ba730a784ac26f747764e472cf",
+        "toolchain_lock_path": "cores/fes-riscv/toolchain.lock"
+      },
+      "verdict": {
+        "design_recipe_digest": "same",
+        "qsf": "same",
+        "recipe_digest": "same",
+        "sdc": "same",
+        "toolchain_lock": "same"
+      }
+    },
+    "fes.spectrum": {
+      "tree_a": {
+        "design_recipe_digest": "a10442b68d6b935ba81d091ea2f306c904bae6abe1888d2d07cf91457d497596",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "75660546e744f6d80c015117c70728424ed5da877f869818c14a32ccd9a750c8",
+        "qsf_path": "cores/fes-spectrum/constraints-oss.qsf",
+        "recipe_digest": "09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29",
+        "sdc": "d719b08d2753416423427110d3b657ae63a445552c2dacc696b23290f3f1fbdd",
+        "sdc_path": "cores/fes-spectrum/clocks-oss.sdc",
+        "toolchain_lock": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
+        "toolchain_lock_path": "cores/fes-spectrum/toolchain.lock"
+      },
+      "tree_b": {
+        "design_recipe_digest": "a10442b68d6b935ba81d091ea2f306c904bae6abe1888d2d07cf91457d497596",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "75660546e744f6d80c015117c70728424ed5da877f869818c14a32ccd9a750c8",
+        "qsf_path": "cores/fes-spectrum/constraints-oss.qsf",
+        "recipe_digest": "09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29",
+        "sdc": "d719b08d2753416423427110d3b657ae63a445552c2dacc696b23290f3f1fbdd",
+        "sdc_path": "cores/fes-spectrum/clocks-oss.sdc",
+        "toolchain_lock": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
+        "toolchain_lock_path": "cores/fes-spectrum/toolchain.lock"
+      },
+      "verdict": {
+        "design_recipe_digest": "same",
+        "qsf": "same",
+        "recipe_digest": "same",
+        "sdc": "same",
+        "toolchain_lock": "same"
+      }
+    },
+    "fes.spectrum-plus3": {
+      "tree_a": {
+        "design_recipe_digest": "a10442b68d6b935ba81d091ea2f306c904bae6abe1888d2d07cf91457d497596",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "75660546e744f6d80c015117c70728424ed5da877f869818c14a32ccd9a750c8",
+        "qsf_path": "cores/fes-spectrum/constraints-oss.qsf",
+        "recipe_digest": "09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29",
+        "sdc": "d719b08d2753416423427110d3b657ae63a445552c2dacc696b23290f3f1fbdd",
+        "sdc_path": "cores/fes-spectrum/clocks-oss.sdc",
+        "toolchain_lock": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
+        "toolchain_lock_path": "cores/fes-spectrum/toolchain.lock"
+      },
+      "tree_b": {
+        "design_recipe_digest": "a10442b68d6b935ba81d091ea2f306c904bae6abe1888d2d07cf91457d497596",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "75660546e744f6d80c015117c70728424ed5da877f869818c14a32ccd9a750c8",
+        "qsf_path": "cores/fes-spectrum/constraints-oss.qsf",
+        "recipe_digest": "09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29",
+        "sdc": "d719b08d2753416423427110d3b657ae63a445552c2dacc696b23290f3f1fbdd",
+        "sdc_path": "cores/fes-spectrum/clocks-oss.sdc",
+        "toolchain_lock": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
+        "toolchain_lock_path": "cores/fes-spectrum/toolchain.lock"
+      },
+      "verdict": {
+        "design_recipe_digest": "same",
+        "qsf": "same",
+        "recipe_digest": "same",
+        "sdc": "same",
+        "toolchain_lock": "same"
+      }
+    },
+    "fes.spectrum128": {
+      "tree_a": {
+        "design_recipe_digest": "a10442b68d6b935ba81d091ea2f306c904bae6abe1888d2d07cf91457d497596",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "75660546e744f6d80c015117c70728424ed5da877f869818c14a32ccd9a750c8",
+        "qsf_path": "cores/fes-spectrum/constraints-oss.qsf",
+        "recipe_digest": "09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29",
+        "sdc": "d719b08d2753416423427110d3b657ae63a445552c2dacc696b23290f3f1fbdd",
+        "sdc_path": "cores/fes-spectrum/clocks-oss.sdc",
+        "toolchain_lock": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
+        "toolchain_lock_path": "cores/fes-spectrum/toolchain.lock"
+      },
+      "tree_b": {
+        "design_recipe_digest": "a10442b68d6b935ba81d091ea2f306c904bae6abe1888d2d07cf91457d497596",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "qsf": "75660546e744f6d80c015117c70728424ed5da877f869818c14a32ccd9a750c8",
+        "qsf_path": "cores/fes-spectrum/constraints-oss.qsf",
+        "recipe_digest": "09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29",
+        "sdc": "d719b08d2753416423427110d3b657ae63a445552c2dacc696b23290f3f1fbdd",
+        "sdc_path": "cores/fes-spectrum/clocks-oss.sdc",
+        "toolchain_lock": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
+        "toolchain_lock_path": "cores/fes-spectrum/toolchain.lock"
+      },
+      "verdict": {
+        "design_recipe_digest": "same",
+        "qsf": "same",
+        "recipe_digest": "same",
+        "sdc": "same",
+        "toolchain_lock": "same"
+      }
+    },
+    "fes.ts1000": {
+      "tree_a": {
+        "design_recipe_digest": "3420f3ebef4a9ca50c332074c0393244893b3aed23f7fb6e98f21544bae2ccf2",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "producer_recipe": "fc4510a89e886c90d4fd821db966d313aad42e0a09bc0b6bd042145b3ba8fd9c",
+        "qsf": "c863d725acab5dcd37169cf10db2aaf9977dffd370d959de38d74a8dfe836b1e",
+        "qsf_path": "cores/fes-zx81/constraints.qsf",
+        "recipe_digest": "9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340",
+        "sdc": "cf6279c2429ff27bf15dbd5529fd0d895d88a22d715cc71940b74d6c6225760a",
+        "sdc_path": "cores/fes-zx81/clocks.sdc",
+        "toolchain_lock": "935338360998cc5ea0e5e16b88ccf05f7bdc8f1377bce774fdedffbd58b0f3ef",
+        "toolchain_lock_path": "cores/fes-zx81/quartus.lock"
+      },
+      "tree_b": {
+        "design_recipe_digest": "3420f3ebef4a9ca50c332074c0393244893b3aed23f7fb6e98f21544bae2ccf2",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "producer_recipe": "fc4510a89e886c90d4fd821db966d313aad42e0a09bc0b6bd042145b3ba8fd9c",
+        "qsf": "c863d725acab5dcd37169cf10db2aaf9977dffd370d959de38d74a8dfe836b1e",
+        "qsf_path": "cores/fes-zx81/constraints.qsf",
+        "recipe_digest": "9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340",
+        "sdc": "cf6279c2429ff27bf15dbd5529fd0d895d88a22d715cc71940b74d6c6225760a",
+        "sdc_path": "cores/fes-zx81/clocks.sdc",
+        "toolchain_lock": "935338360998cc5ea0e5e16b88ccf05f7bdc8f1377bce774fdedffbd58b0f3ef",
+        "toolchain_lock_path": "cores/fes-zx81/quartus.lock"
+      },
+      "verdict": {
+        "design_recipe_digest": "same",
+        "producer_recipe": "same",
+        "qsf": "same",
+        "recipe_digest": "same",
+        "sdc": "same",
+        "toolchain_lock": "same"
+      }
+    },
+    "fes.ts1500": {
+      "tree_a": {
+        "design_recipe_digest": "3420f3ebef4a9ca50c332074c0393244893b3aed23f7fb6e98f21544bae2ccf2",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "producer_recipe": "8f51eb02f22612de93906154b8bcda6e796a1d2d2036718107b7a9e6512ce744",
+        "qsf": "c863d725acab5dcd37169cf10db2aaf9977dffd370d959de38d74a8dfe836b1e",
+        "qsf_path": "cores/fes-zx81/constraints.qsf",
+        "recipe_digest": "9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340",
+        "sdc": "cf6279c2429ff27bf15dbd5529fd0d895d88a22d715cc71940b74d6c6225760a",
+        "sdc_path": "cores/fes-zx81/clocks.sdc",
+        "toolchain_lock": "935338360998cc5ea0e5e16b88ccf05f7bdc8f1377bce774fdedffbd58b0f3ef",
+        "toolchain_lock_path": "cores/fes-zx81/quartus.lock"
+      },
+      "tree_b": {
+        "design_recipe_digest": "3420f3ebef4a9ca50c332074c0393244893b3aed23f7fb6e98f21544bae2ccf2",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "producer_recipe": "8f51eb02f22612de93906154b8bcda6e796a1d2d2036718107b7a9e6512ce744",
+        "qsf": "c863d725acab5dcd37169cf10db2aaf9977dffd370d959de38d74a8dfe836b1e",
+        "qsf_path": "cores/fes-zx81/constraints.qsf",
+        "recipe_digest": "9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340",
+        "sdc": "cf6279c2429ff27bf15dbd5529fd0d895d88a22d715cc71940b74d6c6225760a",
+        "sdc_path": "cores/fes-zx81/clocks.sdc",
+        "toolchain_lock": "935338360998cc5ea0e5e16b88ccf05f7bdc8f1377bce774fdedffbd58b0f3ef",
+        "toolchain_lock_path": "cores/fes-zx81/quartus.lock"
+      },
+      "verdict": {
+        "design_recipe_digest": "same",
+        "producer_recipe": "same",
+        "qsf": "same",
+        "recipe_digest": "same",
+        "sdc": "same",
+        "toolchain_lock": "same"
+      }
+    },
+    "fes.zx80": {
+      "tree_a": {
+        "design_recipe_digest": "3420f3ebef4a9ca50c332074c0393244893b3aed23f7fb6e98f21544bae2ccf2",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "producer_recipe": "271ea13769b993160b4b4749e548267eb888bee07a93d12604b00b6ce51ab1ed",
+        "qsf": "c863d725acab5dcd37169cf10db2aaf9977dffd370d959de38d74a8dfe836b1e",
+        "qsf_path": "cores/fes-zx81/constraints.qsf",
+        "recipe_digest": "9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340",
+        "sdc": "cf6279c2429ff27bf15dbd5529fd0d895d88a22d715cc71940b74d6c6225760a",
+        "sdc_path": "cores/fes-zx81/clocks.sdc",
+        "toolchain_lock": "935338360998cc5ea0e5e16b88ccf05f7bdc8f1377bce774fdedffbd58b0f3ef",
+        "toolchain_lock_path": "cores/fes-zx81/quartus.lock"
+      },
+      "tree_b": {
+        "design_recipe_digest": "3420f3ebef4a9ca50c332074c0393244893b3aed23f7fb6e98f21544bae2ccf2",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "producer_recipe": "271ea13769b993160b4b4749e548267eb888bee07a93d12604b00b6ce51ab1ed",
+        "qsf": "c863d725acab5dcd37169cf10db2aaf9977dffd370d959de38d74a8dfe836b1e",
+        "qsf_path": "cores/fes-zx81/constraints.qsf",
+        "recipe_digest": "9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340",
+        "sdc": "cf6279c2429ff27bf15dbd5529fd0d895d88a22d715cc71940b74d6c6225760a",
+        "sdc_path": "cores/fes-zx81/clocks.sdc",
+        "toolchain_lock": "935338360998cc5ea0e5e16b88ccf05f7bdc8f1377bce774fdedffbd58b0f3ef",
+        "toolchain_lock_path": "cores/fes-zx81/quartus.lock"
+      },
+      "verdict": {
+        "design_recipe_digest": "same",
+        "producer_recipe": "same",
+        "qsf": "same",
+        "recipe_digest": "same",
+        "sdc": "same",
+        "toolchain_lock": "same"
+      }
+    },
+    "fes.zx81": {
+      "tree_a": {
+        "design_recipe_digest": "3420f3ebef4a9ca50c332074c0393244893b3aed23f7fb6e98f21544bae2ccf2",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "producer_recipe": "1e504dee3a133278aa01d07e82091a6b6323528054f96fd94e22045453d89723",
+        "qsf": "c863d725acab5dcd37169cf10db2aaf9977dffd370d959de38d74a8dfe836b1e",
+        "qsf_path": "cores/fes-zx81/constraints.qsf",
+        "recipe_digest": "9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340",
+        "sdc": "cf6279c2429ff27bf15dbd5529fd0d895d88a22d715cc71940b74d6c6225760a",
+        "sdc_path": "cores/fes-zx81/clocks.sdc",
+        "toolchain_lock": "935338360998cc5ea0e5e16b88ccf05f7bdc8f1377bce774fdedffbd58b0f3ef",
+        "toolchain_lock_path": "cores/fes-zx81/quartus.lock"
+      },
+      "tree_b": {
+        "design_recipe_digest": "3420f3ebef4a9ca50c332074c0393244893b3aed23f7fb6e98f21544bae2ccf2",
+        "parent_inputs": [
+          "config/advisory-pnr-recipes.toml",
+          "config/core-recipes.toml"
+        ],
+        "producer_recipe": "1e504dee3a133278aa01d07e82091a6b6323528054f96fd94e22045453d89723",
+        "qsf": "c863d725acab5dcd37169cf10db2aaf9977dffd370d959de38d74a8dfe836b1e",
+        "qsf_path": "cores/fes-zx81/constraints.qsf",
+        "recipe_digest": "9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340",
+        "sdc": "cf6279c2429ff27bf15dbd5529fd0d895d88a22d715cc71940b74d6c6225760a",
+        "sdc_path": "cores/fes-zx81/clocks.sdc",
+        "toolchain_lock": "935338360998cc5ea0e5e16b88ccf05f7bdc8f1377bce774fdedffbd58b0f3ef",
+        "toolchain_lock_path": "cores/fes-zx81/quartus.lock"
+      },
+      "verdict": {
+        "design_recipe_digest": "same",
+        "producer_recipe": "same",
+        "qsf": "same",
+        "recipe_digest": "same",
+        "sdc": "same",
+        "toolchain_lock": "same"
+      }
+    },
+    "splash": {
+      "tree_a": {
+        "parent_inputs": [],
+        "qsf": "c38882cbba0b0e3050e86f7d2acd7e7b090fb9329e43e2a6c4f438ab7c7df83f",
+        "qsf_path": "cores/fes-splash/constraints.qsf",
+        "sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+        "sdc_path": "boards/de10nano/clocks.sdc",
+        "toolchain_lock": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+        "toolchain_lock_path": "toolchain.lock"
+      },
+      "tree_b": {
+        "parent_inputs": [],
+        "qsf": "c38882cbba0b0e3050e86f7d2acd7e7b090fb9329e43e2a6c4f438ab7c7df83f",
+        "qsf_path": "cores/fes-splash/constraints.qsf",
+        "sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+        "sdc_path": "boards/de10nano/clocks.sdc",
+        "toolchain_lock": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+        "toolchain_lock_path": "toolchain.lock"
+      },
+      "verdict": {
+        "qsf": "same",
+        "sdc": "same",
+        "toolchain_lock": "same"
+      }
+    }
+  },
+  "tree_a": {
+    "config_tree": "b4bb5aa7145110d9dabd482097080c608e240c99",
+    "dirty": [],
+    "measured_inputs": 23,
+    "path": "/data/fes1861-netlist/identity/nb3",
+    "revision": "5e592f00389fd2bb61194788c917c36f5c880dec",
+    "sources_tree": "377d39ee8f2cc8a2598d2ee6a300301e119a1806"
+  },
+  "tree_b": {
+    "config_tree": "b4bb5aa7145110d9dabd482097080c608e240c99",
+    "dirty": [],
+    "measured_inputs": 23,
+    "path": "/data/fes1861-netlist/identity/nb4",
+    "revision": "6ee9f11131fa49311cf5f18c0b7e0a301f8f70e4",
+    "sources_tree": "cc6b74cc0820432ab6130e066a6f82f7c8153617"
+  },
+  "unanswered": []
+}

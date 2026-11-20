@@ -2,6 +2,9 @@
 import re,importlib.util
 from pathlib import Path
 _spec=importlib.util.spec_from_file_location("full_input_bound_remap",Path(__file__).with_name("remap_trace.py"));_remap=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(_remap)
+_budget_spec=importlib.util.spec_from_file_location('input_source_budget',Path(__file__).resolve().parents[2]/'firmware/nano_sdm_input_profile.py')
+_budget=importlib.util.module_from_spec(_budget_spec);_budget_spec.loader.exec_module(_budget)
+TRANSFER_BOUND_US=_budget.CONTRACT['transfer_bound_us']
 PARK=b'FES_NANO_INPUT_PARK retained=1 resume=0 activated=0'
 FIELDS=('build status detail proof owner epoch generation bytes accepted posted acknowledged completed posts acks buffers pending outstanding configured failed first_error service_error source_failed scope_reason bad_offset bad_value arm_writes elapsed_us sha384 retained activated').split()
 HEX={'owner','epoch','bad_offset','bad_value'}
@@ -51,7 +54,7 @@ def decode(raw,*,boot,build,configuration,_terminal=None,_expected=None):
  check(r['build']==build,'source-bound build differs');check((r['owner'],r['epoch'],r['generation'])==(owner,epoch,generation),'boot owner/epoch/generation differs')
  check(all(r[k]==v for k,v in dict(status=0,detail=0,proof=1,configured=1,failed=0,first_error=0,service_error=0,source_failed=0,scope_reason=0,bad_offset=0,bad_value=0,arm_writes=arm_writes,retained=1,activated=0,pending=0,outstanding=0).items()),'terminal firmware result not qualified')
  check(all(r[k]==total for k in ('bytes','accepted','posted','acknowledged','completed')),'exact full-byte prefixes differ')
- check(r['sha384']==configuration['core_sha384'],'source SHA384 differs');check(0<r['elapsed_us']<20000000,'transfer deadline differs')
+ check(r['sha384']==configuration['core_sha384'],'source SHA384 differs');check(0<r['elapsed_us']<TRANSFER_BOUND_US,'transfer deadline differs')
  check(r['buffers']==(total+chunk-1)//chunk,'completed source buffer count differs')
  if errors:return dict(passed=False,result=r,errors=errors,source_flow_verified=False,DMA_authority=False,ordinary_runtime_activation=False,buffer_reuse_authority=False)
  starts=[];transfers=[];engines=[]

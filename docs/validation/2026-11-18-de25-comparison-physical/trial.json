@@ -1,0 +1,68 @@
+{
+  "status": "diagnostic-failed-original-restored",
+  "procedure_sha256": "0c6e561983246cfd2630e260ae48ac1f623f9749df68a4b406f78a6be10c914b",
+  "host_source": "7119ffa96b153149499f67e797a7ae18fe2413db",
+  "native_source": "251cce26a39b56ab759d19f054ed03436296b153",
+  "tested_implementation": "d422c32b30e9cf560e81caa07273d8e47942d44e",
+  "base": "e2b8130b5a18b652095a8d5e23124fd0a994e9c0",
+  "native_boot_id": "84123df97253f2bd",
+  "candidate_FIT": {
+    "path": "/home/deano/fes/out/dev/de25-secure-lifecycle/out/warm-private-boot/native-composition/u-boot.itb",
+    "sha256": "d28f64df7fa900e1696688968e140c74879346c2985eeb0c1134cf74e036f25b",
+    "bytes": 8571584
+  },
+  "native_image": {
+    "path": "/home/deano/fes/out/dev/de25-secure-lifecycle/out/warm-private-boot/native-composition/native-hps-first.sof",
+    "sha256": "ecc2b484e5a499b23363a2f50440b62a729e8c6bd5b3e24ac569d955756b6705",
+    "bytes": 1578910,
+    "kind": "matched-native-sof",
+    "operation": "p;/home/deano/fes/out/dev/de25-secure-lifecycle/out/warm-private-boot/native-composition/native-hps-first.sof@1",
+    "volatile": true,
+    "flash_operation": false
+  },
+  "original_FIT": {
+    "path": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-autoboot-20261111/native-composition/u-boot.itb",
+    "sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+    "bytes": 8379072
+  },
+  "elapsed_seconds": 789.7237215701025,
+  "roles": {
+    "forward": {
+      "status": "verified",
+      "elapsed_seconds": 297.7948960440699,
+      "error": null,
+      "transport_cleanup_verified": true
+    },
+    "native": {
+      "status": "failed",
+      "elapsed_seconds": 192.22727262997068,
+      "error": "bounded native diagnostic stopped: native failure marker",
+      "transport_cleanup_verified": true
+    },
+    "rollback": {
+      "status": "verified",
+      "elapsed_seconds": 298.7893532079179,
+      "error": null,
+      "transport_cleanup_verified": true
+    }
+  },
+  "role_bounds_seconds": {
+    "forward": 1200,
+    "native": 480,
+    "rollback": 1200
+  },
+  "transaction_bound_seconds": 3400,
+  "native_capture_bound_seconds": 450,
+  "generation15_preparation_and_arm_passed": true,
+  "generation15_full_DATA_and_configured_passed": true,
+  "generation15_final_proof_passed": false,
+  "generation15_retirement_entered": false,
+  "ZX80_reached": false,
+  "final_native_Park_reached": false,
+  "physical_reset_performed": false,
+  "automatic_retry": false,
+  "procedure_consumed": true,
+  "original_FIT_restored": true,
+  "normal_HIL_acceptance": false,
+  "physical_display_verified": false
+}

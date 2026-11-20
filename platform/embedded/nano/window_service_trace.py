@@ -2,7 +2,7 @@
 import json
 import re
 
-from configuration_trace import extract
+from configuration_trace import extract, SOURCE_OPERATION_TICKS, FIXED_PROGRAM_TICKS
 from native_trace import RULES, decode_native_configuration
 from service_trace import _unique, number, require
 from window_trace import PATTERNS, HEX, TEXT, checked_contract, check_route
@@ -91,7 +91,9 @@ def _configuration(data,configuration,owner,generation,previous,programmed):
     p=extract(data,configuration,generation=generation,previous=previous,rearm=previous!=0,require_activation=True,require_programmed=programmed,expected_owner=owner)
     require(p['complete'] and not p['errors'],'window configuration transfer rejected: '+str(p['errors']))
     require(p['activation'] is not None and (p['programmed'] is not None)==programmed,'missing or unexpected programmed/activation receipt')
-    t=p['timing'];require(t is not None and 0<=t['interval_ticks']<20*400000000,'configuration exceeded20s or lacks timing')
+    # Startup uses fixed program(); only later launches use WindowService.
+    bound=FIXED_PROGRAM_TICKS if programmed else SOURCE_OPERATION_TICKS
+    t=p['timing'];require(t is not None and 0<=t['interval_ticks']<bound,'configuration exceeded declared source budget or lacks timing')
     engines=[row['values'] for row in p['records'] if row['stage']=='configuration_engine']
     mailboxes=[row['values'] for row in p['records'] if row['stage']=='configuration_mailbox']
     require(len(engines)==1 and engines[0]['credits']==4 and engines[0]['block_bytes']==0xffff0 and

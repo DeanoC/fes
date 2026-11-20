@@ -16,6 +16,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/remoteinput"
@@ -61,7 +62,7 @@ func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay, labe
 	if opts.Smoke {
 		inputSpec = "none"
 	}
-	inputs, err := openNativeInputs(inputSpec, label, app.padRemap)
+	inputs, err := openNativeInputs(inputSpec, label, app.padProfile)
 	if err != nil {
 		app.Stop()
 		return err
@@ -171,10 +172,26 @@ type nativeInput struct {
 	controls map[uint16]Command
 	hatHeld  map[uint16]Button
 	padHeld  map[padKey]remoteinput.Event
+	// padSent is what each held button pressed on the port. Several buttons
+	// can send one control: it goes down with the first of them and up with
+	// the last.
+	padSent  map[Button]padKey
 	keysHeld map[uint16]string
 	mapper   *controller.Mapper
 	// remap is the profile saved for this pad, applied after mapper.
 	remap *inputmap.Remapper
+	// device is the pad's evdev identity, and mapping the step-by-step
+	// mapping its mapper reads, if any.
+	device  controller.Device
+	mapping string
+	// learner reads the pad's raw controls while Settings › Controllers
+	// maps it step by step. Nothing it reads reaches menus or a core.
+	learner *controller.Learner
+	// info is what Settings › Controllers shows for a real pad; its GUID is
+	// empty for anything else.
+	info PadInfo
+	// profileGen is the App profile generation remap was read at.
+	profileGen uint64
 }
 type nativeInputs struct {
 	devices   []*nativeInput
@@ -187,9 +204,11 @@ type nativeInputs struct {
 	// menuSuppressed drops held menu edges once while a local core owns
 	// the pad, and once more when that core returns the menu.
 	menuSuppressed bool
-	// padRemap compiles the profile saved for a pad's GUID. Nil reads every
+	// padProfile reads the profile saved for a pad's GUID. Nil reads every
 	// pad as its mapping does.
-	padRemap func(guid string) (*inputmap.Remapper, error)
+	padProfile padProfileFunc
+	// profileGen is the App profile generation every pad's remap is at.
+	profileGen uint64
 	// kindOf and openFile are nil in production. Tests substitute them
 	// because a fixture node cannot answer EVIOCGBIT.
 	kindOf   func(fd int) InputKind
@@ -199,11 +218,15 @@ type nativeInputs struct {
 	padID func(fd int) (vendor, product uint16)
 }
 
-func openNativeInputs(spec, label string, padRemap func(guid string) (*inputmap.Remapper, error)) (*nativeInputs, error) {
-	return openNativeInputsDir(spec, label, "/dev/input", padRemap)
+// padProfileFunc reads the profile saved for a pad's GUID: the zero
+// Profile when there is none.
+type padProfileFunc func(guid string) (inputmap.Profile, error)
+
+func openNativeInputs(spec, label string, padProfile padProfileFunc) (*nativeInputs, error) {
+	return openNativeInputsDir(spec, label, "/dev/input", padProfile)
 }
 
-func openNativeInputsDir(spec, label, dir string, padRemap func(guid string) (*inputmap.Remapper, error)) (*nativeInputs, error) {
+func openNativeInputsDir(spec, label, dir string, padProfile padProfileFunc) (*nativeInputs, error) {
 	var paths []string
 	spec = strings.TrimSpace(spec)
 	automatic := spec == "" || spec == "auto"
@@ -220,12 +243,12 @@ func openNativeInputsDir(spec, label, dir string, padRemap func(guid string) (*i
 		paths = strings.Split(spec, ",")
 	}
 	result := &nativeInputs{
-		automatic: automatic,
-		label:     label,
-		dir:       dir,
-		scanEvery: time.Second,
-		lastScan:  time.Now(),
-		padRemap:  padRemap,
+		automatic:  automatic,
+		label:      label,
+		dir:        dir,
+		scanEvery:  time.Second,
+		lastScan:   time.Now(),
+		padProfile: padProfile,
 	}
 	for _, path := range paths {
 		if err := result.openPath(nil, strings.TrimSpace(path)); err != nil {
@@ -272,7 +295,15 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 	if kind == InputGamepad {
 		var vendor, product uint16
 		if ins.kindOf == nil {
-			in.mapper, in.remap, vendor, product = nativeGamepadMapper(fd, ins.padRemap)
+			var device controller.Device
+			in.mapper, in.remap, in.mapping, device = nativeGamepadMapper(fd, ins.padProfile)
+			vendor, product = device.Vendor, device.Product
+			if in.mapper != nil {
+				in.device = device
+				in.info = PadInfo{Name: strings.TrimSpace(device.Name), GUID: device.GUID(), Vendor: vendor, Product: product,
+					Family: promptFamily(device.Family()), Recognised: device.Recognised()}
+				in.profileGen = app.PadProfileGeneration()
+			}
 		} else if ins.padID != nil {
 			vendor, product = ins.padID(fd)
 		}
@@ -313,9 +344,57 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 		ins.devices = append(ins.devices, in)
 	}
 	if app != nil {
+		ins.publishPads(app)
 		app.AttachInput(kind, fd)
 	}
 	return nil
+}
+
+// publishPads tells the app each real pad's identity and controller port.
+// A port can change hands when a pad attaches or leaves.
+func (ins *nativeInputs) publishPads(app *App) {
+	for _, in := range ins.devices {
+		if in.info.GUID == "" {
+			continue
+		}
+		in.info.Player = 0
+		if in.player != noLocalPlayer {
+			in.info.Player = int(in.player) + 1
+		}
+		app.SetPadInfo(in.fd, in.info)
+	}
+}
+
+// syncProfiles reloads the pads' saved profiles after Settings › Controllers
+// changes one. A pad with a button down waits until it is released, so the
+// button comes up as the control it went down as.
+func (ins *nativeInputs) syncProfiles(app *App) {
+	gen := app.PadProfileGeneration()
+	if gen == ins.profileGen || ins.padProfile == nil {
+		return
+	}
+	waiting := false
+	for _, in := range ins.devices {
+		if in.info.GUID == "" || in.profileGen == gen {
+			continue
+		}
+		if len(in.padHeld) > 0 || len(in.controls) > 0 {
+			waiting = true
+			continue
+		}
+		profile, err := ins.padProfile(in.info.GUID)
+		if err != nil {
+			profile = inputmap.Profile{}
+		}
+		if profile.Mapping != in.mapping {
+			in.mapper, in.mapping, _ = compilePadMapping(in.device, profile.Mapping)
+		}
+		in.remap, _ = profileRemap(profile)
+		in.profileGen = gen
+	}
+	if !waiting {
+		ins.profileGen = gen
+	}
 }
 
 func (ins *nativeInputs) deviceKind(fd int) InputKind {
@@ -474,8 +553,12 @@ func (ins *nativeInputs) close() {
 }
 func (ins *nativeInputs) poll(app *App, now time.Time) (bool, error) {
 	ins.maybeRescan(app, now)
+	ins.syncProfiles(app)
 devices:
 	for _, in := range append([]*nativeInput(nil), ins.devices...) {
+		if in.info.GUID != "" {
+			ins.syncLearner(app, in)
+		}
 		// Bound draining so a noisy device cannot starve rendering or cancellation.
 		for batch := 0; batch < 8; batch++ {
 			var b [nativeEventSize * 32]byte
@@ -508,6 +591,16 @@ devices:
 					}
 					return false, fmt.Errorf("%s input: evdev dropped events; restart to resynchronise", ins.label)
 				}
+				if in.info.GUID != "" {
+					ins.syncLearner(app, in)
+				}
+				if in.learner != nil {
+					if source, ok := in.learner.Feed(typ, code, value); ok {
+						app.NoteInput(InputGamepad, in.fd)
+						app.LearnPadSource(in.fd, source, now)
+					}
+					continue
+				}
 				if in.kind == InputMouse && in.mapper != nil {
 					if event, ok := in.mapper.Map(typ, code, value); ok {
 						x, y, buttons, _ := remoteinput.MouseVector(event)
@@ -528,13 +621,8 @@ devices:
 						guide = in.mapper.Guide(code)
 					}
 					if in.mapper != nil && !guide {
-						if e, ok := in.mapper.Map(typ, code, value); ok {
-							if e.Kind == remoteinput.KindButton {
-								in.button(app, ButtonFromLogical(e.Code), value, now)
-								if ins.applyButtons(app, now) {
-									return true, nil
-								}
-							}
+						if ins.padEvents(app, in, in.mapper.Events(typ, code, value), now) {
+							return true, nil
 						}
 						continue
 					}
@@ -566,11 +654,8 @@ devices:
 					}
 				} else if typ == 3 {
 					if in.mapper != nil {
-						if e, ok := in.mapper.Map(typ, code, value); ok && e.Kind == remoteinput.KindAxis {
-							in.axis(app, e.Code, e.Value, now)
-							if ins.applyButtons(app, now) {
-								return true, nil
-							}
+						if ins.padEvents(app, in, in.mapper.Events(typ, code, value), now) {
+							return true, nil
 						}
 					} else if code == 16 || code == 17 {
 						in.hat(app, code, value, now)
@@ -597,6 +682,32 @@ devices:
 		ins.menuSuppressed = false
 	}
 	return ins.applyButtons(app, now), nil
+}
+
+// syncLearner starts reading a pad's raw controls once Settings ›
+// Controllers maps it step by step and the pad has nothing held, so the
+// press that started mapping comes up through the menus. When mapping ends
+// it stops, and keys still down then come up unseen.
+func (ins *nativeInputs) syncLearner(app *App, in *nativeInput) {
+	learning := app.PadLearning(in.fd)
+	switch {
+	case learning && in.learner == nil:
+		if len(in.padHeld) > 0 || len(in.controls) > 0 || len(in.hatHeld) > 0 || len(in.axes) > 0 {
+			return
+		}
+		var rest map[uint16]int32
+		if ins.kindOf == nil {
+			rest = nativeAxisRest(in.fd, in.device)
+		}
+		in.learner = controller.NewLearner(in.device, rest)
+	case !learning && in.learner != nil:
+		if in.mapper != nil {
+			for _, code := range in.learner.HeldKeys() {
+				in.mapper.Suppress(code)
+			}
+		}
+		in.learner = nil
+	}
 }
 
 func sessionGuideCommand(session SessionSnapshot) Command {
@@ -676,10 +787,31 @@ func (ins *nativeInputs) applyButtons(app *App, now time.Time) bool {
 	}
 	return applyPressed(app, pressed, ins.held, now)
 }
+
+// padEvents takes what a pad's mapping reads from one evdev event: the
+// stick or hat it moves and the buttons it presses or releases, including
+// buttons a mapping puts on an axis or a hat direction.
+func (ins *nativeInputs) padEvents(app *App, in *nativeInput, events []remoteinput.Event, now time.Time) bool {
+	for _, e := range events {
+		switch e.Kind {
+		case remoteinput.KindButton:
+			value := int32(0)
+			if e.Action == remoteinput.ActionPress {
+				value = 1
+			}
+			in.button(app, ButtonFromLogical(e.Code), value, now)
+		case remoteinput.KindAxis:
+			in.axis(app, e.Code, e.Value, now)
+		}
+	}
+	return len(events) > 0 && ins.applyButtons(app, now)
+}
+
 func (in *nativeInput) button(app *App, button Button, value int32, now time.Time) {
 	if value == 2 || button == ButtonNone {
 		return
 	}
+	app.NotePadButton(in.fd, LogicalFromButton(button), value != 0)
 	e := remoteinput.Event{
 		Device: remoteinput.DeviceGamepad,
 		Kind:   remoteinput.KindButton,
@@ -707,6 +839,24 @@ func (in *nativeInput) button(app *App, button Button, value int32, now time.Tim
 	}
 	e.Player = uint8(in.player)
 	key := padKey{e.Player, e.Code}
+	if value != 0 {
+		shared := in.holding(key)
+		if in.padSent == nil {
+			in.padSent = make(map[Button]padKey)
+		}
+		in.padSent[button] = key
+		if shared {
+			return
+		}
+	} else if sent, ok := in.padSent[button]; ok {
+		// Release what this button pressed, even if the profile changed.
+		key = sent
+		e.Code = sent.code
+		delete(in.padSent, button)
+		if in.holding(key) {
+			return
+		}
+	}
 	if in.padHeld == nil {
 		in.padHeld = make(map[padKey]remoteinput.Event)
 	}
@@ -726,6 +876,17 @@ func (in *nativeInput) button(app *App, button Button, value int32, now time.Tim
 		app.NoteInput(InputGamepad, in.fd)
 	}
 }
+
+// holding reports whether a held button already holds key on the port.
+func (in *nativeInput) holding(key padKey) bool {
+	for _, sent := range in.padSent {
+		if sent == key {
+			return true
+		}
+	}
+	return false
+}
+
 func (in *nativeInput) localHat(app *App, code uint16, value int32, now time.Time) {
 	button := ButtonNone
 	if code == 16 {
@@ -790,10 +951,14 @@ func (in *nativeInput) axis(app *App, code remoteinput.Code, value int32, now ti
 	cmd := CommandFromStickHeld(axisX, axisY, old)
 	if cmd != old {
 		in.button(app, nativeDirectionButton(old), 0, now)
-		in.axes[uint16(code)] = cmd
+		if cmd == CmdNone {
+			// A stick at rest holds nothing.
+			delete(in.axes, uint16(code))
+		} else {
+			in.axes[uint16(code)] = cmd
+		}
 		in.button(app, nativeDirectionButton(cmd), 1, now)
 	}
-	_ = now
 }
 
 func nativeDirectionButton(cmd Command) Button {
@@ -811,31 +976,62 @@ func nativeDirectionButton(cmd Command) Button {
 	}
 }
 
-// key keeps a shared HID usage held until every connected evdev keyboard that
-// pressed it has released it, including during a session-display hand-off.
+// key keeps a shared core key held until every other unsuppressed evdev key
+// contributing it releases. Contributions stay distinct by physical key,
+// including left and right modifiers on one keyboard.
 func (ins *nativeInputs) key(app *App, in *nativeInput, code uint16, value int32, now time.Time) bool {
 	if value == 0 && in.kind == InputKeyboard && app != nil {
-		if usage := nativeHIDUsage(code); usage != 0 {
-			app.mu.Lock()
-			keyboardHID := app.session.CoreKeyboardHID
-			app.mu.Unlock()
-			if keyboardHID {
-				for _, other := range ins.devices {
-					if other == nil || other == in || other.kind != InputKeyboard {
+		app.mu.Lock()
+		hid := app.session.CoreKeyboardHID
+		keyboard := app.session.CoreKeyboard
+		app.mu.Unlock()
+		coreKey := func(code uint16, name string) (playHIDKey, bool) {
+			var event remoteinput.Event
+			var ok bool
+			if hid {
+				event, ok = hidkeys.Event(nativeHIDUsage(code), false)
+			} else {
+				event, ok = playhid.Event(name, false, keyboard)
+			}
+			return playHIDKey{event.Player, event.Device, event.Kind, event.Code}, ok
+		}
+		physical := physicalPlayKey{source: in.fd, key: playHeldKey(nativeKeyName(code), nativeHIDUsage(code))}
+		app.mu.Lock()
+		key, valid := app.playKeyAdmitted[physical]
+		app.mu.Unlock()
+		if !valid {
+			key, valid = coreKey(code, nativeKeyName(code))
+		}
+		if valid {
+			for _, other := range ins.devices {
+				if other == nil || other.kind != InputKeyboard {
+					continue
+				}
+				for heldCode, heldName := range other.keysHeld {
+					otherPhysical := physicalPlayKey{source: other.fd, key: playHeldKey(heldName, nativeHIDUsage(heldCode))}
+					if otherPhysical == physical {
 						continue
 					}
-					for heldCode := range other.keysHeld {
-						if nativeHIDUsage(heldCode) == usage {
-							delete(in.keysHeld, code)
-							if (code == 42 || code == 54) && in.shifts != nil {
-								in.shifts[code] = false
-							}
-							if in.commands != nil {
-								app.Release(in.commands[code])
-								delete(in.commands, code)
-							}
-							return false
+					app.mu.Lock()
+					otherKey, otherAdmitted := app.playKeyAdmitted[otherPhysical]
+					otherSuppressed := app.playKeySuppressed[otherPhysical]
+					app.mu.Unlock()
+					if otherAdmitted && otherKey == key && !otherSuppressed {
+						// Retire this physical hold and its menu command without
+						// releasing the core key that the other keyboard holds.
+						app.consumeSuppressedPlayKeyFrom(in.fd, nativeKeyName(code), nativeHIDUsage(code), false)
+						app.mu.Lock()
+						delete(app.playKeyAdmitted, physicalPlayKey{source: in.fd, key: playHeldKey(nativeKeyName(code), nativeHIDUsage(code))})
+						app.mu.Unlock()
+						delete(in.keysHeld, code)
+						if (code == 42 || code == 54) && in.shifts != nil {
+							in.shifts[code] = false
 						}
+						if in.commands != nil {
+							app.Release(in.commands[code])
+							delete(in.commands, code)
+						}
+						return false
 					}
 				}
 			}
@@ -856,10 +1052,16 @@ func (in *nativeInput) key(app *App, code uint16, value int32, now time.Time) bo
 		if value == 2 {
 			return false
 		}
-		if value == 1 {
-			app.NoteInput(InputKeyboard, in.fd)
+		if in.keysHeld == nil {
+			in.keysHeld = make(map[uint16]string)
 		}
-		app.HandlePlayHIDScancode("f12", hidKeyboardF12, value != 0, now)
+		if value == 1 {
+			in.keysHeld[code] = "f12"
+			app.NoteInput(InputKeyboard, in.fd)
+		} else {
+			delete(in.keysHeld, code)
+		}
+		app.handlePlayHIDScancode(in.fd, "f12", hidKeyboardF12, value != 0, now)
 		return false
 	}
 	name := nativeKeyName(code)
@@ -878,7 +1080,7 @@ func (in *nativeInput) key(app *App, code uint16, value int32, now time.Time) bo
 		}
 		in.shifts[code] = value != 0
 	}
-	if app.HandlePlayHIDScancode(name, nativeHIDUsage(code), value != 0, now) {
+	if app.handlePlayHIDScancode(in.fd, name, nativeHIDUsage(code), value != 0, now) {
 		return false
 	}
 	if modifier {
@@ -1043,13 +1245,13 @@ func nativeDeviceName(fd int) string {
 
 // nativeGamepadMapper gives the controller mapper the pad's identity, its
 // EVIOCGBIT key/axis capabilities and the range of every reported axis. It
-// also returns the pad's vendor and product.
-func nativeGamepadMapper(fd int, padRemap func(guid string) (*inputmap.Remapper, error)) (*controller.Mapper, *inputmap.Remapper, uint16, uint16) {
+// also returns the pad's identity.
+func nativeGamepadMapper(fd int, padProfile padProfileFunc) (*controller.Mapper, *inputmap.Remapper, string, controller.Device) {
 	var id [8]byte
 	const idRequest = uintptr(0x80000000 | (8 << 16) | ('E' << 8) | 0x02)
 	_, _, err := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), idRequest, uintptr(unsafe.Pointer(&id[0])))
 	if err != 0 {
-		return nil, nil, 0, 0
+		return nil, nil, "", controller.Device{}
 	}
 	device := controller.Device{
 		Name:    nativeDeviceName(fd),
@@ -1075,32 +1277,89 @@ func nativeGamepadMapper(fd int, padRemap func(guid string) (*inputmap.Remapper,
 			device.Axes[code] = controller.Range{Min: int32(binary.LittleEndian.Uint32(info[4:])), Max: int32(binary.LittleEndian.Uint32(info[8:]))}
 		}
 	}
-	mapper, remap := padMapper(device, padRemap)
-	return mapper, remap, device.Vendor, device.Product
+	mapper, remap, mapping := padMapper(device, padProfile)
+	return mapper, remap, mapping, device
+}
+
+// nativeAxisRest reads where each of a pad's axes is now, from EVIOCGABS.
+func nativeAxisRest(fd int, device controller.Device) map[uint16]int32 {
+	rest := map[uint16]int32{}
+	for code := range device.Axes {
+		var info [24]byte
+		request := uintptr(0x80000000|(24<<16)|('E'<<8)) | uintptr(0x40+code)
+		if _, _, e := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), request, uintptr(unsafe.Pointer(&info[0]))); e == 0 {
+			rest[code] = int32(binary.LittleEndian.Uint32(info[0:]))
+		}
+	}
+	return rest
 }
 
 // padMapper reads a pad through its mapping and the profile saved for its
-// GUID, and logs the GUID a profile is saved under.
-func padMapper(device controller.Device, padRemap func(guid string) (*inputmap.Remapper, error)) (*controller.Mapper, *inputmap.Remapper) {
+// GUID, and logs the GUID a profile is saved under. It returns the
+// step-by-step mapping the mapper reads, if any.
+func padMapper(device controller.Device, padProfile padProfileFunc) (*controller.Mapper, *inputmap.Remapper, string) {
 	guid := device.GUID()
-	mapper := controller.NewMapper(device)
-	mapping := mapper.Mapping()
-	if mapping == "" {
-		mapping = "fallback layout"
-	}
-	var remap *inputmap.Remapper
-	if padRemap != nil {
+	var (
+		profile inputmap.Profile
+		notes   []string
+	)
+	if padProfile != nil {
 		var err error
-		if remap, err = padRemap(guid); err != nil {
-			mapping += "; saved profile ignored: " + err.Error()
-		} else if remap != nil {
-			mapping += ", saved profile"
+		if profile, err = padProfile(guid); err != nil {
+			notes = append(notes, "saved profile ignored: "+err.Error())
+			profile = inputmap.Profile{}
 		}
 	}
-	fmt.Fprintf(os.Stderr, "tenfoot: gamepad %q %04x:%04x v%04x bus %d guid %s: %s\n",
-		device.Name, device.Vendor, device.Product, device.Version, device.Bus, guid, mapping)
-	return mapper, remap
+	mapper, mapping, err := compilePadMapping(device, profile.Mapping)
+	if err != nil {
+		notes = append(notes, "saved mapping ignored: "+err.Error())
+	}
+	remap, err := profileRemap(profile)
+	if err != nil {
+		notes = append(notes, "saved profile ignored: "+err.Error())
+	} else if remap != nil {
+		notes = append(notes, "saved profile")
+	}
+	name := mapper.Mapping()
+	if name == "" {
+		name = "fallback layout"
+	}
+	for _, note := range notes {
+		name += "; " + note
+	}
+	fmt.Fprintf(os.Stderr, "tenfoot: gamepad %q %04x:%04x v%04x bus %d guid %s: %s; %s glyphs\n",
+		device.Name, device.Vendor, device.Product, device.Version, device.Bus, guid, name, device.Family())
+	return mapper, remap, mapping
 }
+
+// compilePadMapping reads a pad through the mapping its player made step
+// by step, or through its own mapping when there is none or it does not
+// compile. It returns the step-by-step mapping in use.
+func compilePadMapping(device controller.Device, mapping string) (*controller.Mapper, string, error) {
+	if mapping == "" {
+		return controller.NewMapper(device), "", nil
+	}
+	mapper, err := controller.NewLearnedMapper(device, mapping)
+	if err != nil {
+		return controller.NewMapper(device), "", err
+	}
+	return mapper, mapping, nil
+}
+
+// promptFamily is the glyph set for a pad's family.
+func promptFamily(family controller.Family) gfx.PromptFamily {
+	switch family {
+	case controller.FamilyXbox:
+		return gfx.PromptXbox
+	case controller.FamilyPlayStation:
+		return gfx.PromptPlayStation
+	case controller.FamilyNintendo:
+		return gfx.PromptNintendo
+	default:
+		return gfx.PromptGeneric
+	}
+}
+
 func nativeKindFromKeys(keys []byte) InputKind {
 	has := func(code int) bool { return code/8 < len(keys) && keys[code/8]&(1<<uint(code%8)) != 0 }
 	if has(304) || has(305) || (has(288) && has(289)) {
@@ -1112,6 +1371,7 @@ func nativeKindFromKeys(keys []byte) InputKind {
 	return InputNone
 }
 func (ins *nativeInputs) seed(app *App) {
+	ins.publishPads(app)
 	for _, in := range ins.devices {
 		app.SeedInput(in.kind, in.fd)
 	}
@@ -1148,55 +1408,52 @@ func (ins *nativeInputs) drop(app *App, lost *nativeInput) {
 	ins.releaseLostPlayInput(app, lost)
 	app.DetachInput(InputKeyboard, lost.fd)
 	app.DetachInput(InputGamepad, lost.fd)
+	ins.publishPads(app)
 }
 
 func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
 	app.mu.Lock()
-	// The core sees a key's release only when no other keyboard still holds a
-	// key that sends the same core key; the suppression record goes with the
-	// lost keyboard's physical key unless another keyboard holds that key too.
-	release := func(code uint16, name string) (remoteinput.Event, bool) {
-		if app.session.CoreKeyboardHID {
-			return hidkeys.Event(nativeHIDUsage(code), false)
-		}
-		return playhid.Event(name, false, app.session.CoreKeyboard)
-	}
-	remainingKeys := map[string]bool{}
+	// Only an admitted contribution can keep a shared core key down. Use
+	// its original mapping rather than reinterpreting it after a mode change.
 	remainingCore := map[playHIDKey]bool{}
 	for _, in := range ins.devices {
 		for code, name := range in.keysHeld {
-			key := playHeldKey(name, nativeHIDUsage(code))
-			remainingKeys[key] = true
-			// A suppressed key never reached the core, and its release will
-			// not either, so it cannot keep the core's key down.
-			if app.playKeySuppressed[key] {
-				continue
-			}
-			if event, ok := release(code, name); ok {
-				remainingCore[playHIDKey{event.Player, event.Device, event.Kind, event.Code}] = true
+			key := physicalPlayKey{source: in.fd, key: playHeldKey(name, nativeHIDUsage(code))}
+			if coreKey, admitted := app.playKeyAdmitted[key]; admitted && !app.playKeySuppressed[key] {
+				remainingCore[coreKey] = true
 			}
 		}
 	}
 	padEvents := releasePortLocked(app, lost)
+	forward := localPadForwardLocked(app)
+	keyForward := forward && app.playHIDRouteReadyLocked()
 	var keyEvents []remoteinput.Event
 	for code, name := range lost.keysHeld {
-		if key := playHeldKey(name, nativeHIDUsage(code)); !remainingKeys[key] {
-			delete(app.playKeyHeld, key)
-			delete(app.playKeySuppressed, key)
-		}
-		event, ok := release(code, name)
-		if !ok {
+		key := physicalPlayKey{source: lost.fd, key: playHeldKey(name, nativeHIDUsage(code))}
+		coreKey, admitted := app.playKeyAdmitted[key]
+		delete(app.playKeyHeld, key)
+		delete(app.playKeySuppressed, key)
+		delete(app.playKeyAdmitted, key)
+		if !admitted {
 			continue
 		}
-		key := playHIDKey{event.Player, event.Device, event.Kind, event.Code}
-		if _, held := app.playHIDHeld[key]; held && !remainingCore[key] {
-			delete(app.playHIDHeld, key)
-			keyEvents = append(keyEvents, event)
+		if _, held := app.playHIDHeld[coreKey]; held && !remainingCore[coreKey] {
+			if !keyForward && app.session.State == "active" {
+				if app.playKeyPendingRelease == nil {
+					app.playKeyPendingRelease = make(map[physicalPlayKey]playHIDKey)
+				}
+				app.playKeyPendingRelease[key] = coreKey
+				continue
+			}
+			delete(app.playHIDHeld, coreKey)
+			keyEvents = append(keyEvents, remoteinput.Event{Player: coreKey.player, Device: coreKey.device, Kind: coreKey.kind, Code: coreKey.code, Action: remoteinput.ActionRelease})
 		}
 	}
 	feed := app.localFeed
-	forward := localPadForwardLocked(app)
-	if forward {
+	if keyForward {
+		if len(keyEvents) != 0 {
+			app.traceKeyRouteLocked("disconnect-neutral", lost.fd)
+		}
 		app.queuePlayHIDLocked(keyEvents)
 	}
 	app.mu.Unlock()
@@ -1213,6 +1470,7 @@ func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
 func (ins *nativeInputs) releasePort(app *App, in *nativeInput) {
 	if app == nil {
 		in.padHeld = nil
+		in.padSent = nil
 		return
 	}
 	app.mu.Lock()
@@ -1241,6 +1499,7 @@ func releasePortLocked(app *App, in *nativeInput) []remoteinput.Event {
 			padEvents = append(padEvents, event)
 		}
 		in.padHeld = nil
+		in.padSent = nil
 		app.forgetPadLocked(player, time.Now())
 		// After its releases, the pad gives its port back. mister-agent
 		// drops that player's claim and leaves the other pad alone.
@@ -1279,7 +1538,9 @@ func startFrameTrace(ctx context.Context, app *App, dev gfx.Device, label string
 	trace := newFrameTrace()
 	app.mu.Lock()
 	app.frameTrace = trace
+	kitHost := app.kitHost
 	app.mu.Unlock()
+	processStart, _ := keyTraceProcessStart()
 	if display, ok := dev.(*gfx.MenuDisplay); ok {
 		display.SetTraceSink(trace.present)
 	}
@@ -1290,10 +1551,28 @@ func startFrameTrace(ctx context.Context, app *App, dev gfx.Device, label string
 	go func() {
 		defer close(stopped)
 		defer signal.Stop(signals)
+		requests := time.NewTicker(250 * time.Millisecond)
+		defer requests.Stop()
 		for {
 			select {
 			case <-traceCtx.Done():
 				return
+			case now := <-requests.C:
+				if kitHost && os.Geteuid() == 0 {
+					if consumeKeyTraceRequest(keyTraceArmRequest, os.Getpid(), processStart, 0, now) {
+						trace.armKeyRouting(now)
+						fmt.Fprintf(os.Stderr, "%s: key routing trace armed for one minute\n", label)
+					}
+					if consumeKeyTraceRequest(keyTraceDumpRequest, os.Getpid(), processStart, 0, now) {
+						path, err := trace.dump(os.Getenv("FOGCAST_FRAME_TRACE_DIR"))
+						if err != nil {
+							fmt.Fprintf(os.Stderr, "%s: frame trace dump failed: %v\n", label, err)
+						} else {
+							fmt.Fprintf(os.Stderr, "%s: frame trace written to %s\n", label, path)
+						}
+					}
+					app.handleDiagnosticSurroundRequest(os.Getpid(), processStart, 0, now, keyTraceSurroundHoldRequest, keyTraceSurroundReleaseRequest)
+				}
 			case <-signals:
 				path, err := trace.dump(os.Getenv("FOGCAST_FRAME_TRACE_DIR"))
 				if err != nil {
@@ -1313,6 +1592,8 @@ func startFrameTrace(ctx context.Context, app *App, dev gfx.Device, label string
 				display.SetTraceSink(nil)
 			}
 			app.mu.Lock()
+			app.diagnosticSurroundUntil = time.Time{}
+			app.diagnosticSurroundSession = hostclient.SessionResult{}
 			if app.frameTrace == trace {
 				app.frameTrace = nil
 			}

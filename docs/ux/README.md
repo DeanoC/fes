@@ -20,6 +20,7 @@ was agreed on 17 October; this update reconciles it with the native result.
 | [Visual language](visual-language.md) | Visual hierarchy, typography, focus, artwork and display rules |
 | [Concepts](concepts/README.md) | Portable interactive sketches, editable source and screenshots |
 | [Native references and Library target](references/README.md) | Current renderer captures, a proposed Library layout and reproduction commands |
+| [Core screens](references/core-screens/README.md) | Proposed per-computer screens for the tier 1 set and pc386: model, drives, games and disk creation |
 | [Acceptance](acceptance.md) | User tasks and the evidence required to assess the native result |
 
 Delivery status, owners, dependencies and PRs belong in GitHub issues through
@@ -383,7 +384,7 @@ as a blanket pass for the combined build.
   once it has finished.") and not queued, so a press can never start an item
   the player has not seen. This is the reviewed policy for #764's warm-up
   window.
-- **Routes.** In the v1 release scope, Settings is Home's only header route.
+- **Routes.** In the default scope, Settings is Home's only header route.
   Up from the family tiles reaches Recently played when it is present, then
   the hero actions and Settings. On a content box under 480×360, Settings is
   above the compact family list and Recently played is hidden. Show all cores

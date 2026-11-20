@@ -520,6 +520,12 @@ library session. Format-2 ZX81 initialization retains its existing prototype
 path. This software support does not change the production package producers
 or establish hardware acceptance.
 
+A DE25 Spectrum or Atari ST package uses the same selection, readiness and
+envelope, but nothing is linked: it requires `fes.fabric.firmware-upload` 1.0,
+the kit stages the selected ROM itself, and the runtime uploads it while the
+machine is held. The returned receipt names the package's unchanged payload as
+the programmed image.
+
 Format-3 selection is not tied to one machine. A `fes.computer` 1.0 package
 such as `fes.apple2` declares one `firmware` ROM (`apple2-firmware`, 16 KiB)
 and uses the same `PUT /api/v1/library/core-entries/GAME_ID/rom` binding. The
@@ -758,11 +764,95 @@ curl -X POST -H 'Content-Type: application/json' \
 ```
 
 `GET /api/v1/library/atari-st-disks` lists those layouts and their byte sizes.
-The browser FPGA library and the tenfoot Systems setup expose the same action.
-Tenfoot setup creates the default 720 KiB disk named WORK and holds it until
-the game is added. The browser binds immediately when a title is selected.
+The browser FPGA library exposes the same action and binds immediately when a
+title is selected. Tenfoot makes blank disks on the Atari ST disk shelf
+instead, below.
 GEMDOS writes then follow the durable drive-A path below; the stored base image
 is not overwritten.
+
+### The Atari ST disk shelf
+
+The shelf is the Atari ST disks a person made on the kit, plus the game disks
+that have saved changes. A game disk that was only played is not on it.
+Saved changes live on a kit, not in the host library, so the shelf is read
+for one kit: the session's target, or the selected one.
+
+`GET /api/v1/library/atari-st-shelf` returns `target`, `target_id`,
+`kept_known` and `disks`. Each disk has `game_id`, `title`, `package_id`,
+`media_id`, `size`, `made`, `kept`, `kept_revision` and `in_drive`.
+
+- `made` is true for a new blank disk or a copy.
+- `kept` is `none`, `changes`, `damaged` or `unknown`. `damaged` is a saved
+  record the kit cannot read.
+- `kept_revision` names what the kit has saved for the disk. Send it back
+  as `expected_revision` when changing that disk, or an empty string when
+  the disk has none. The kit saves a disk at Stop whether or not it was
+  written to, so a disk can have a `kept_revision` while `kept` is `none`:
+  its saved image is still its original.
+- `in_drive` is true for the disk the kit is running.
+
+When the kit cannot be asked (it is away, busy, or runs software older than
+these routes) `kept_known` is false, every disk has `kept` `unknown`, and
+only the disks made here are listed.
+
+| Request | Body | Does |
+| --- | --- | --- |
+| `POST /api/v1/library/atari-st-shelf` | `title`, `package_id`, optional `tracks`, `heads`, `sectors` | Makes a blank disk under that name. Answers 201. |
+| `POST .../atari-st-shelf/{game_id}/copy` | `title` | Makes a new disk from the disk as it stands: its saved changes when it has any, otherwise its image. Answers 201. |
+| `POST .../atari-st-shelf/{game_id}/revert` | `expected_revision` | Discards the saved changes, so the disk is again the image it was imported or made as. |
+| `POST .../atari-st-shelf/{game_id}/rename` | `expected_revision`, `title` | Renames a disk made here. |
+| `POST .../atari-st-shelf/{game_id}/delete` | `expected_revision` | Deletes a disk made here and its saved changes. Answers `{game_id}`. |
+
+Rules that hold for every change:
+
+- The kit is asked first. If it cannot answer, the request fails and nothing
+  changes; unknown is never treated as "no saved changes".
+- A disk in the drive is refused with `BUSY`. Its saved record is older than
+  what the running computer holds. Stop the computer first. A library disk
+  inserted into another game's session is in the drive too.
+- Revert, delete and rename need an idle kit and are refused with `BUSY`
+  while any core runs, before anything is copied or removed. The kit will
+  not discard a saved record while a core runs, and the library does not
+  remove a title while a kit is active.
+- The list waits its turn behind a launch or stop for the request timeout;
+  past that it answers as if the kit could not be asked.
+- `expected_revision` must match what the kit holds, or the answer is
+  `STALE_REVISION`.
+- A name another Atari ST title already has is refused with `BAD_REQUEST`.
+- Rename and delete are for disks made here. For a game disk they answer
+  `UNSUPPORTED_OPERATION`: revert it, or remove the game from the library.
+
+The name is the library title. The GEMDOS volume label is taken from it: its
+letters, digits, spaces and hyphens in upper case, at most eleven, or `DISK`
+when none remain. Each new blank disk gets its own boot-sector serial number,
+so two blank disks are two library media and never share saved changes.
+
+A library title's identity follows its name, and the kit keeps saved changes
+under that identity. Rename therefore copies the disk under the new name and
+deletes the old one; the renamed disk has a new `game_id`, and what was
+saved changes becomes its image. If deletion fails before saved changes are
+cleared, the copy is taken back, so the old disk remains alone under its old
+name. If changes were cleared but the final removal check fails, both entries
+remain and the renamed copy keeps the saved image.
+
+Delete and revert reach the saved changes on the kit asked. Changes the same
+disk saved on another kit stay there.
+
+Tenfoot opens the shelf from "Your disks" on the Atari ST core screen. The
+kit's launcher listener admits exactly these routes and runs them against
+the paired kit. It still admits `POST /api/v1/library/atari-st-disks` for
+kits on an older bundle, whose Add game makes its blank disk there. Against
+a host from before the shelf, tenfoot says the host needs updating.
+
+```sh
+fogcast --api http://127.0.0.1:8787 --json st-shelf
+fogcast --api http://127.0.0.1:8787 --json st-shelf-new "Work disk 2" PACKAGE_ID
+fogcast --api http://127.0.0.1:8787 --json st-shelf-new "Side A" PACKAGE_ID 80 1 9
+fogcast --api http://127.0.0.1:8787 --json st-shelf-copy GAME_ID "Dungeon save"
+fogcast --api http://127.0.0.1:8787 --json st-shelf-revert GAME_ID KEPT_REVISION
+fogcast --api http://127.0.0.1:8787 --json st-shelf-rename GAME_ID none "Letters"
+fogcast --api http://127.0.0.1:8787 --json st-shelf-delete GAME_ID KEPT_REVISION
+```
 
 ```sh
 fogcast --api http://127.0.0.1:8787 --json insert-library-disk GAME_ID BASE_MEDIA_ID

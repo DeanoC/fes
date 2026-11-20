@@ -1,0 +1,1157 @@
+{
+  "cases": [
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "bswap",
+      "predicted": "stop",
+      "probe": "102a",
+      "rtl": "stop @102a.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "bswap-esp",
+      "predicted": "stop",
+      "probe": "1006",
+      "rtl": "stop @1006.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "xadd-r32",
+      "predicted": "stop",
+      "probe": "100c",
+      "rtl": "stop @100c.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "xadd-r16",
+      "predicted": "stop",
+      "probe": "1006",
+      "rtl": "stop @1006.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "xadd-r8",
+      "predicted": "stop",
+      "probe": "1004",
+      "rtl": "stop @1004.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "xadd-m8",
+      "predicted": "stop",
+      "probe": "1007",
+      "rtl": "stop @1007.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "xadd-m8-lock",
+      "predicted": "stop",
+      "probe": "1007",
+      "rtl": "stop @1007.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "xadd-r8-lock",
+      "predicted": "agree",
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "xadd-m16",
+      "predicted": "stop",
+      "probe": "1009",
+      "rtl": "stop @1009.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "xadd-m16-lock",
+      "predicted": "stop",
+      "probe": "1009",
+      "rtl": "stop @1009.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "xadd-r16-lock",
+      "predicted": "agree",
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "xadd-m32",
+      "predicted": "stop",
+      "probe": "100f",
+      "rtl": "stop @100f.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "xadd-m32-lock",
+      "predicted": "stop",
+      "probe": "100f",
+      "rtl": "stop @100f.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "xadd-r32-lock",
+      "predicted": "agree",
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-r8-lock",
+      "predicted": "agree",
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-r8-equal",
+      "predicted": "stop",
+      "probe": "1006",
+      "rtl": "stop @1006.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-m8-equal",
+      "predicted": "stop",
+      "probe": "1009",
+      "rtl": "stop @1009.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-m8-equal-lock",
+      "predicted": "stop",
+      "probe": "1009",
+      "rtl": "stop @1009.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-r8-unequal",
+      "predicted": "stop",
+      "probe": "1006",
+      "rtl": "stop @1006.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-m8-unequal",
+      "predicted": "stop",
+      "probe": "1009",
+      "rtl": "stop @1009.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-m8-unequal-lock",
+      "predicted": "stop",
+      "probe": "1009",
+      "rtl": "stop @1009.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-r16-lock",
+      "predicted": "agree",
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-r16-equal",
+      "predicted": "stop",
+      "probe": "1009",
+      "rtl": "stop @1009.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-m16-equal",
+      "predicted": "stop",
+      "probe": "100c",
+      "rtl": "stop @100c.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-m16-equal-lock",
+      "predicted": "stop",
+      "probe": "100c",
+      "rtl": "stop @100c.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-r16-unequal",
+      "predicted": "stop",
+      "probe": "1009",
+      "rtl": "stop @1009.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-m16-unequal",
+      "predicted": "stop",
+      "probe": "100c",
+      "rtl": "stop @100c.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-m16-unequal-lock",
+      "predicted": "stop",
+      "probe": "100c",
+      "rtl": "stop @100c.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-r32-lock",
+      "predicted": "agree",
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-r32-equal",
+      "predicted": "stop",
+      "probe": "1012",
+      "rtl": "stop @1012.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-m32-equal",
+      "predicted": "stop",
+      "probe": "1015",
+      "rtl": "stop @1015.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-m32-equal-lock",
+      "predicted": "stop",
+      "probe": "1015",
+      "rtl": "stop @1015.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-r32-unequal",
+      "predicted": "stop",
+      "probe": "1012",
+      "rtl": "stop @1012.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-m32-unequal",
+      "predicted": "stop",
+      "probe": "1015",
+      "rtl": "stop @1015.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-m32-unequal-lock",
+      "predicted": "stop",
+      "probe": "1015",
+      "rtl": "stop @1015.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cmpxchg-a6",
+      "predicted": "agree",
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "invd",
+      "predicted": "stop",
+      "probe": "1000",
+      "rtl": "stop @1000.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "wbinvd",
+      "predicted": "stop",
+      "probe": "1000",
+      "rtl": "stop @1000.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "invlpg",
+      "predicted": "stop",
+      "probe": "1000",
+      "rtl": "stop @1000.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": false,
+      "divergence": null,
+      "isolated": true,
+      "label": "invlpg-reg",
+      "predicted": "stop",
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "invd-cpl3",
+      "predicted": "stop",
+      "probe": "104d",
+      "rtl": "stop @104d.vector d 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "wbinvd-cpl3",
+      "predicted": "stop",
+      "probe": "104d",
+      "rtl": "stop @104d.vector d 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "invlpg-cpl3",
+      "predicted": "stop",
+      "probe": "104d",
+      "rtl": "stop @104d.vector d 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cr0-read",
+      "predicted": "stop",
+      "probe": "1000",
+      "rtl": "stop @1000.eax 60050030 7ffffff0"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cr0-write-ones",
+      "predicted": "stop",
+      "probe": "1006",
+      "rtl": "stop @1009.ebx 6005003e 7ffffffe"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cr0-write-zero",
+      "predicted": "stop",
+      "probe": "1006",
+      "rtl": "stop @1006.cr0 10 60050020"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cr0-nw-without-cd",
+      "predicted": "stop",
+      "probe": "1006",
+      "rtl": "stop @1006.exception d ff"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "lmsw-keeps-ne",
+      "predicted": "stop",
+      "probe": "1006",
+      "rtl": "stop @1006.cr0 30 60050030"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "wp-clear-user-readonly",
+      "predicted": "stop",
+      "probe": "1034",
+      "rtl": "stop @1039.cr0 e0040031 e0050031"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "wp-set-user-readonly",
+      "predicted": "stop",
+      "probe": "103e",
+      "rtl": "stop @103e.exception e ff"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "wp-set-supervisor-readonly",
+      "predicted": "stop",
+      "probe": "103e",
+      "rtl": "stop @103e.exception e ff"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "wp-set-writable",
+      "predicted": "stop",
+      "probe": "103e",
+      "rtl": "stop @104e.edx e0050031 fffffff1"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "ac-toggle",
+      "predicted": "stop",
+      "probe": "100f",
+      "rtl": "stop @100f.eflags 40002 2"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "id-toggle",
+      "predicted": "stop",
+      "probe": "100f",
+      "rtl": "stop @100f.eflags 200002 2"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "ac-fault-dword",
+      "predicted": "stop",
+      "probe": "1046",
+      "rtl": "stop @1046.eflags 40002 2"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "ac-fault-word",
+      "predicted": "stop",
+      "probe": "1046",
+      "rtl": "stop @1046.eflags 40002 2"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "ac-fault-dword-at-2",
+      "predicted": "stop",
+      "probe": "1046",
+      "rtl": "stop @1046.eflags 40002 2"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "ac-fault-push",
+      "predicted": "stop",
+      "probe": "1046",
+      "rtl": "stop @1046.eflags 40002 2"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "ac-aligned",
+      "predicted": "stop",
+      "probe": "1046",
+      "rtl": "stop @1046.eflags 40002 2"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "ac-byte",
+      "predicted": "stop",
+      "probe": "1046",
+      "rtl": "stop @1046.eflags 40002 2"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "ac-am-clear",
+      "predicted": "stop",
+      "probe": "102c",
+      "rtl": "stop @1031.cr0 60010031 60050031"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": false,
+      "divergence": null,
+      "isolated": true,
+      "label": "ac-flag-clear",
+      "predicted": "stop",
+      "probe": "104d",
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "ac-cpl0",
+      "predicted": "stop",
+      "probe": "102c",
+      "rtl": "stop @1034.eflags 40002 2"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": null,
+      "isolated": true,
+      "label": "cpuid-0",
+      "predicted": "stop",
+      "probe": "1003",
+      "rtl": "stop @1003.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": "cpuid-leaf-1",
+      "isolated": true,
+      "label": "cpuid-1",
+      "predicted": "stop",
+      "probe": "1006",
+      "rtl": "stop @1006.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": "mov-tr",
+      "isolated": true,
+      "label": "mov-tr3",
+      "predicted": "stop",
+      "probe": "1006",
+      "rtl": "stop @1006.unexpected-exception 0 6"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": "mov-tr",
+      "isolated": true,
+      "label": "mov-tr4",
+      "predicted": "agree",
+      "probe": "1006",
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": "mov-tr",
+      "isolated": true,
+      "label": "mov-tr5",
+      "predicted": "agree",
+      "probe": "1006",
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": "mov-tr",
+      "isolated": true,
+      "label": "mov-tr6",
+      "predicted": "agree",
+      "probe": "1006",
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": true,
+      "divergence": "mov-tr",
+      "isolated": true,
+      "label": "mov-tr7",
+      "predicted": "agree",
+      "probe": "1006",
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": false,
+      "divergence": null,
+      "isolated": true,
+      "label": "mov-cr4-read",
+      "predicted": "stop",
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": false,
+      "divergence": null,
+      "isolated": true,
+      "label": "mov-cr4-write",
+      "predicted": "stop",
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-xbts",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-ibts",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-xbts-mem",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-0fff",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-ud2",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-0f05",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-rdtsc",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-0fc7",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-fe2",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-fe7-mem",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-ff7",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-ff3-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-ff5-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-les-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lds-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lea-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-bound-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lss-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lfs-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-grp7-5",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-grp7-7-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-sgdt-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lidt-reg",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-grp6-6",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-bt0",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-bt3-mem",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-mov-cr1",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-mov-cr4",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-mov-tr0",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-pop-8f1",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-mov-c6-1",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-mov-c7-7-mem",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-mov-sreg6",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lock-0fff",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lock-fe2-mem",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-prefixed-xbts",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-rep-0f0b",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lock-icebp",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lock-umov-mem",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    },
+    {
+      "as_expected": true,
+      "as_predicted": null,
+      "divergence": null,
+      "isolated": true,
+      "label": "ud-lock-tr6",
+      "predicted": null,
+      "probe": null,
+      "rtl": "agree"
+    }
+  ],
+  "cases_sha256": "563043ee5f32e6ead19c813d47e1bdaf985479b9d8b3041aed2911dd721ea8b6",
+  "commit": "7e813da4656adbf048d079bd9aa110f53fc52ebd",
+  "failures": [],
+  "machine_reset_inputs": {
+    "init_cr0": "x87_present ? 32'h10 : 32'h0",
+    "init_dr6": "32'hffff1ff0",
+    "init_gpr": "256'd0"
+  },
+  "oracle": {
+    "adapter_sha256": "8476a65df29382fdfdb5b8ce342495f3491fd2c7e5c5df40018d3a3d68bb21e3",
+    "cpu_level": 4,
+    "level3_provisioner_sha256": "0d47ce9792ca29ae172335f6f11e6c5dcfa73fbf34b76c89e04d072528f454cd",
+    "linked_sha256": {
+      "adapter": "0331d57ed896ba6b74dc21e91a9f2ab80880266c0cae1c12a403c9a2abcd28b2",
+      "cpu": "521696773fc345c4a5e88d746721ec74e6c6376f5132c257cad2f20f72498d9f",
+      "cpudb": "8ff67d9c37bfbb1bf84ba33f88fb632cb3acaf02dd40c6c1fa1302512497aae4",
+      "fpu": "fdba8abcbed313ec15815bae0975b46fd09bbbdf7d21b5987e313c99be5f765f",
+      "paramtree": "6b8ba5842ba2bfe611cc7268c331fff50214859a164c95895d966de277893e44",
+      "softfloat": "7f2004380f0089a800da35c796c5c523f3984eef7116697056362d28ffefe66b"
+    },
+    "opcode_table_sha256": "16d2719ba433c51858ba0f1602c41a9b2f56e89dc35a133a235b87fe2948db09",
+    "provisioner_sha256": "203fece878fb7494cc95e069b97a340b361ffcb6e248b7e2aeeaf989e5380ea1",
+    "revision": "30cfd566ecc8deb33e56e801e32b444a7041b6d2"
+  },
+  "runs_equal": true,
+  "testbench_sha256": "6f99b298b46120217e11804c8ca8cec02223eaed78c8b72027a5d801254fed4b",
+  "verilator": {
+    "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+    "install": "1cd6c9741d903760a2b1c4283b6830f63c0974f8478b06fb7f8dabd3c4304d8c",
+    "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+    "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+    "version": "Verilator 5.054 2026-11-01 rev v5.054"
+  }
+}

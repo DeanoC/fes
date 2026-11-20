@@ -3,6 +3,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import re
 from pathlib import Path
 import sys
 import tempfile
@@ -13,6 +14,34 @@ FW = ROOT / "platform/embedded/firmware"
 sys.path[:0] = [str(FW), str(ROOT / "platform/embedded/nano")]
 import nano_sdm_input_profile as mode
 import fit_layout
+
+
+class SourceOperationBudgetTests(unittest.TestCase):
+    def test_firmware_native_and_sealed_source_budgets_agree(self):
+        bound = mode.CONTRACT['transfer_bound_us']
+        self.assertEqual(bound, 25000000)
+        header = (FW/'input_transfer.h').read_text()
+        self.assertEqual(int(re.search(r'#define NANO_SDM_TRANSFER_US UINT64_C\((\d+)\)', header)[1]), bound)
+        native = ROOT/'platform/embedded/tamago/nativefabric'
+        code = (native/'program_service.go').read_text()
+        seconds = int(re.search(r'const sourceOperationTimeout = (\d+) \* time.Second', code)[1])
+        self.assertEqual(seconds*1000000, bound)
+        self.assertIn('elapsed >= sourceOperationTimeout', (native/'configuration_clock.go').read_text())
+        for name in ('program_service.go', 'window_service.go'):
+            implementation = (native/name).read_text()
+            self.assertIn('newConfigurationClock(p.limits.Now,', implementation)
+            self.assertEqual(implementation.count('clock.check('), 2)
+        for contract in (mode.CONTRACT, mode.REARM_CONTRACT, mode.RECOVERY_CONTRACT):
+            self.assertEqual(contract['transfer_bound_us'], bound)
+            self.assertEqual(contract['preparation_bound_us'], 4000000)
+            self.assertEqual(contract['command_bound_us'], 100000)
+            self.assertEqual(contract['retirement_bound_us'], 4000000)
+            self.assertEqual(contract['clock_origin'], 'before-additional-source-SHA384')
+        self.assertEqual(mode.REARM_CONTRACT['source_release_bound_us'], 1000000)
+        old = profile()
+        old['sdm_input_transfer']['transfer_bound_us'] = 20000000
+        with self.assertRaises(ValueError):
+            mode.checked(old)
 
 
 def profile():
@@ -107,7 +136,7 @@ class InputProfileTests(unittest.TestCase):
                           contract["retirement_bound_us"]), (2000000, 1000000, 4000000))
         # Preparation has its explicit startup budget; other phases remain separate.
         self.assertEqual((contract["command_bound_us"], contract["preparation_bound_us"],
-                          contract["transfer_bound_us"]), (100000, 4000000, 20000000))
+                          contract["transfer_bound_us"]), (100000, 4000000, 25000000))
 
     def test_old_preparation_clock_contracts_cannot_supply_publication_timing(self):
         for current, version, scope in ((mode.CONTRACT, 19, "nano-retained-source-preparation-budget-v19"),

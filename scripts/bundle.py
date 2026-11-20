@@ -1,6 +1,7 @@
 """Resolve authenticated functional FES packages for native image assembly."""
 from pathlib import Path
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -8,6 +9,7 @@ import stat
 import shlex
 import subprocess
 import sys
+import tempfile
 
 _SCRIPTS = Path(__file__).resolve().parent
 if str(_SCRIPTS) not in sys.path:
@@ -75,6 +77,32 @@ def authenticate_misteross_origin(source):
         raise ValueError("selected misteross checkout has an ambiguous repository origin")
 
 
+def _bounded_pc386_canonical(command, source, env, *, timeout=1800):
+    """Bound the authenticated product's potentially large tool-tree scan."""
+    helper = Path(source) / 'cores/fes-pc386/tools/pc386_owned_job.py'
+    current = Path(source)
+    parts = helper.relative_to(source).parts
+    for index, part in enumerate(parts):
+        current = current / part
+        if current.is_symlink() or (not current.is_file() if index == len(parts) - 1 else not current.is_dir()):
+            raise ValueError('pc386 job helper must be a regular source file')
+    spec = importlib.util.spec_from_file_location('fes_pc386_canonical_job', helper)
+    if spec is None or spec.loader is None:
+        raise ValueError('cannot load pc386 job helper')
+    job = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(job)
+    with tempfile.TemporaryFile() as output:
+        status = job.run(command, cwd=source, env=env, timeout=timeout,
+                         label='pc386 canonical inputs', stdout=output, status_stream=sys.stderr)
+        if status:
+            raise subprocess.CalledProcessError(status, command)
+        output.seek(0)
+        record = output.read(8 * 1024 * 1024 + 1)
+        if len(record) > 8 * 1024 * 1024:
+            raise ValueError('pc386 canonical record exceeds size bound')
+        return record
+
+
 def canonical_package_record(source, env=None, recipe=None, *, selection_only=False):
     """Derive the selected producer's canonical pre-synthesis record in isolation."""
     recipe = recipe_for("fes.pong") if recipe is None else recipe
@@ -86,8 +114,29 @@ import sys
 import json
 from pathlib import Path
 import importlib
+import importlib.util
 root = Path.cwd().resolve()
-producer = importlib.import_module(sys.argv[1])
+def load_producer(name, path):
+    if not name.startswith('cores.'):
+        return importlib.import_module(name)
+    module_parts = name.split('.')
+    expected = f"cores/{module_parts[1].replace('_', '-')}/tools/{module_parts[3]}.py" if len(module_parts) == 4 else None
+    if path != expected:
+        raise ValueError('core-owned producer module and source path differ')
+    current = root
+    parts = Path(path).parts
+    for index, part in enumerate(parts):
+        current = current / part
+        if current.is_symlink() or (not current.is_file() if index == len(parts) - 1 else not current.is_dir()):
+            raise ValueError('core-owned producer path must contain only regular source components')
+    spec = importlib.util.spec_from_file_location(name, current)
+    if spec is None or spec.loader is None:
+        raise ValueError('cannot load core-owned producer')
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+producer = load_producer(sys.argv[1], sys.argv[sys.argv.index("--producer-script") + 1])
 authenticate = getattr(producer, sys.argv[2])
 cache_root = Path(sys.argv[sys.argv.index("--cache-root") + 1])
 identity_version = int(sys.argv[sys.argv.index("--identity-version") + 1])
@@ -97,12 +146,15 @@ repository, revision = producer._require_clean_source(root, **options)
 if "--selection-only" in sys.argv:
     # This record is only a source-selection request. Export and publication
     # reject the explicit marker; these strings are never compiler evidence.
-    identities = ({name: "selection-only" for name in ("quartus", "qsys", "ipgenerate", "pfg")}
-                  if sys.argv[1].startswith("boards.de25nano.")
-                  else {"selection-only": "not authenticated"})
+    identities = (producer.selection_identities() if hasattr(producer, "selection_identities") else
+                  ({name: "selection-only" for name in ("quartus", "qsys", "ipgenerate", "pfg")}
+                   if sys.argv[1].startswith("boards.de25nano.")
+                   else {"selection-only": "not authenticated"}))
     options["execution"] = {"selection_only": True, "gpu_device": "lease", "toolchain": "quartus"}
 else:
     tools = authenticate(root, cache_root=cache_root)
+    if hasattr(producer, "record_tool_options"):
+        options.update(producer.record_tool_options(tools))
     identities = {name: tool.identity for name, tool in tools.items()}
     import tempfile
     from scripts.functional_execution import execution_environment, execution_inputs
@@ -112,7 +164,9 @@ else:
             license_file = Path(sys.argv[sys.argv.index("--license-file") + 1])
             environment = producer.execution_environment(Path(home), paths, license_file=license_file)
         else:
-            environment = execution_environment(Path(home), paths)
+            environment = (producer.execution_environment(Path(home), paths)
+                           if hasattr(producer, "execution_environment")
+                           else execution_environment(Path(home), paths))
         options["execution"] = (producer.execution_inputs(paths, environment, 0)
                                 if hasattr(producer, "execution_inputs")
                                 else execution_inputs(paths, environment, 0))
@@ -122,10 +176,13 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
     command = [sys.executable, "-c", program, recipe.producer_module, recipe.authenticate,
                json.dumps(dict(recipe.producer_options), sort_keys=True),
                "--cache-root", cache_root, "--identity-version", str(recipe.identity_version),
+               "--producer-script", recipe.producer_script,
                *license_arguments, *(["--selection-only"] if selection_only else [])]
     try:
-        record = subprocess.check_output(
-            command, cwd=source, env=package_build_environment(env, recipe=recipe))
+        child_env = package_build_environment(env, recipe=recipe)
+        record = (_bounded_pc386_canonical(command, source, child_env)
+                  if recipe.core_id == 'fes.pc386' and not selection_only else
+                  subprocess.check_output(command, cwd=source, env=child_env))
         parsed = json.loads(record)
     except (OSError, subprocess.CalledProcessError, UnicodeDecodeError,
             json.JSONDecodeError) as error:
@@ -195,6 +252,7 @@ import json
 import sys
 from pathlib import Path
 import importlib
+import importlib.util
 board = sys.argv[4]
 if board not in ('de10-nano', 'de25-nano'):
     raise ValueError('unsupported independently selected board')
@@ -202,8 +260,26 @@ namespace = 'boards.de25nano.package' if board == 'de25-nano' else 'scripts'
 read_package = importlib.import_module(namespace + '.core_package').read_package
 exporter = importlib.import_module(namespace + '.export_core_package')
 build_identity, _decode_build_record = exporter.build_identity, exporter._decode_build_record
-producer = importlib.import_module(sys.argv[3])
 root = Path.cwd().resolve()
+if sys.argv[3].startswith('cores.'):
+    module_parts = sys.argv[3].split('.')
+    expected = f"cores/{module_parts[1].replace('_', '-')}/tools/{module_parts[3]}.py" if len(module_parts) == 4 else None
+    if sys.argv[5] != expected:
+        raise ValueError('core-owned producer module and source path differ')
+    current = root
+    parts = Path(sys.argv[5]).parts
+    for index, part in enumerate(parts):
+        current = current / part
+        if current.is_symlink() or (not current.is_file() if index == len(parts) - 1 else not current.is_dir()):
+            raise ValueError('core-owned producer path must contain only regular source components')
+    spec = importlib.util.spec_from_file_location(sys.argv[3], current)
+    if spec is None or spec.loader is None:
+        raise ValueError('cannot load core-owned producer')
+    producer = importlib.util.module_from_spec(spec)
+    sys.modules[sys.argv[3]] = producer
+    spec.loader.exec_module(producer)
+else:
+    producer = importlib.import_module(sys.argv[3])
 package_path = Path(sys.argv[1]).resolve()
 record_path = Path(sys.argv[2]).resolve()
 record = record_path.read_bytes()
@@ -237,7 +313,7 @@ print(json.dumps(inspected, sort_keys=True))
 '''
     try:
         result = subprocess.run(
-            [sys.executable, "-c", program, str(package), str(record_path), recipe.producer_module, recipe.board],
+            [sys.executable, "-c", program, str(package), str(record_path), recipe.producer_module, recipe.board, recipe.producer_script],
             cwd=source, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
         inspected = json.loads(result.stdout)
     except (OSError, subprocess.CalledProcessError, json.JSONDecodeError) as error:
@@ -250,6 +326,86 @@ print(json.dumps(inspected, sort_keys=True))
     if set(inspected) != expected:
         raise ValueError("producer package inspection returned an unexpected result")
     return inspected
+
+
+def _inspect_pc386_evidence(source, package, record_path, evidence_dir):
+    """Recheck pc386's retained seal and lockstep on cache hits and misses."""
+    _sealed(evidence_dir, directory=True)
+    program = r'''
+import sys
+from pathlib import Path
+root = Path.cwd()
+current = root
+parts = Path('cores/fes-pc386/tools/pc386_seal_evidence.py').parts
+for index, part in enumerate(parts):
+    current = current / part
+    if current.is_symlink() or (not current.is_file() if index == len(parts) - 1 else not current.is_dir()):
+        raise ValueError('pc386 evidence reader must be a regular, non-symlinked source file')
+sys.path.insert(0, str(current.parent))
+from pc386_seal_evidence import validate
+print(validate(Path.cwd(), Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])))
+'''
+    try:
+        result = subprocess.run([sys.executable, '-c', program, str(package), str(record_path), str(evidence_dir)],
+                                cwd=source, text=True, capture_output=True, check=True)
+    except (OSError, subprocess.CalledProcessError) as error:
+        detail = error.stderr.strip() if isinstance(error, subprocess.CalledProcessError) else ''
+        raise ValueError('pc386 seal evidence failed validation' + (': ' + detail if detail else '')) from error
+    digest_value = result.stdout.strip()
+    if HEX64.fullmatch(digest_value) is None:
+        raise ValueError('pc386 seal evidence returned an invalid receipt digest')
+    return digest_value
+
+
+def _pc386_reuse(source, package, record_path, evidence_dir, selected_record, *, run_lockstep=False,
+                 recipe=None, env=None):
+    """Ask the selected tree's evidence reader whether a sealed pc386 package may stand for it.
+
+    With run_lockstep, run and record the fresh full lockstep an evidence-only
+    change needs (#1984 S3). Neither path starts Quartus.
+    """
+    program = r'''
+import json
+import sys
+from pathlib import Path
+root = Path.cwd()
+current = root
+parts = Path('cores/fes-pc386/tools/pc386_seal_evidence.py').parts
+for index, part in enumerate(parts):
+    current = current / part
+    if current.is_symlink() or (not current.is_file() if index == len(parts) - 1 else not current.is_dir()):
+        raise ValueError('pc386 evidence reader must be a regular, non-symlinked source file')
+sys.path.insert(0, str(current.parent))
+import pc386_seal_evidence as evidence
+package, record, directory, selected = map(Path, sys.argv[1:5])
+store = root / 'build/packages'
+if sys.argv[5] == 'run':
+    status = evidence.run_fresh_lockstep(root, package, record, directory, selected.read_bytes(), store,
+                                         cache_root=Path(sys.argv[6]))
+else:
+    status = evidence.reuse_gate(root, package, record, directory, selected.read_bytes(), store)
+print(json.dumps(status, sort_keys=True))
+'''
+    with tempfile.TemporaryDirectory(prefix='fes-pc386-selected-') as private:
+        selected = Path(private) / 'selected-build-inputs.json'
+        selected.write_bytes(selected_record)
+        mode = ['run', str(recipe.cache_root)] if run_lockstep else ['check']
+        try:
+            result = subprocess.run([sys.executable, '-c', program, str(package), str(record_path),
+                                     str(evidence_dir), str(selected), *mode], cwd=source, text=True,
+                                    capture_output=True, check=True,
+                                    **({'env': package_build_environment(env, recipe=recipe)} if run_lockstep else {}))
+        except (OSError, subprocess.CalledProcessError) as error:
+            detail = error.stderr.strip() if isinstance(error, subprocess.CalledProcessError) else ''
+            action = 'fresh full lockstep failed' if run_lockstep else 'reuse check failed'
+            raise ValueError(f'pc386 evidence-only reuse refused: {action}' + (': ' + detail if detail else '')) from error
+    status = json.loads(result.stdout)
+    if (status.get('reuse') == 'fresh-lockstep'
+            and HEX64.fullmatch(str(status.get('fresh_lockstep_sha256'))) is None):
+        raise ValueError('pc386 reuse check returned an invalid fresh lockstep digest')
+    if status.get('reuse') not in ('unchanged', 'refused', 'needs-fresh-lockstep', 'fresh-lockstep'):
+        raise ValueError('pc386 reuse check returned an unknown result')
+    return status
 
 
 def _discard_producer_report(path):
@@ -289,7 +445,9 @@ def _build_fes_pong(source, env=None):
     _build_package(source, recipe=recipe_for("fes.pong"), env=env)
 
 
-def _matching_package_candidates(source, record, recipe=None, *, store_override=None):
+def _matching_package_candidates(source, record, recipe=None, *, store_override=None, pending=None):
+    """Validated packages for record. A pc386 package that needs a fresh
+    lockstep before reuse is left out and appended to pending instead."""
     recipe = recipe_for("fes.pong") if recipe is None else recipe
     source = Path(source).absolute()
     build = source / "build"
@@ -306,9 +464,17 @@ def _matching_package_candidates(source, record, recipe=None, *, store_override=
         if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
             raise ValueError(f"selected package {field} must be a non-symlink directory")
     matches = []
-    sidecars = sorted(store.glob("*.build-inputs.json")) if store_override is None else sorted(store.glob("*/build-inputs.json"))
+    local_pc386 = store_override is None and recipe.core_id == 'fes.pc386'
+    if local_pc386:
+        entries = store / '.pc386-entries'
+        if not entries.exists() and not entries.is_symlink():
+            return []
+        _plain_directory(entries, 'pc386 local entry store')
+        sidecars = sorted(entries.glob('*/build-inputs.json'))
+    else:
+        sidecars = sorted(store.glob("*.build-inputs.json")) if store_override is None else sorted(store.glob("*/build-inputs.json"))
     for sidecar in sidecars:
-        if store_override is not None:
+        if store_override is not None or local_pc386:
             if sidecar.parent.name.startswith(".publish-"):
                 continue
             _plain_directory(sidecar.parent, "cache entry")
@@ -322,14 +488,15 @@ def _matching_package_candidates(source, record, recipe=None, *, store_override=
             if artifact_cache.functional_key(candidate_record) != artifact_cache.functional_key(record):
                 continue
         candidate_fields = json.loads(candidate_record)
-        if store_override is None:
+        if store_override is None and not local_pc386:
             identity, separator, evidence_id = sidecar.name.removesuffix('.build-inputs.json').partition('.')
             if separator and evidence_id != candidate_fields.get('identities', {}).get('record'):
                 raise ValueError('package evidence filename differs from its record digest')
         elif 'identities' in candidate_fields:
             if sidecar.parent.name != candidate_fields['identities']['record']:
                 raise ValueError('cache evidence directory differs from its record digest')
-            members = [path for path in sidecar.parent.iterdir() if path.name != 'build-inputs.json']
+            ignored = {'build-inputs.json'} | ({'evidence'} if recipe.core_id == 'fes.pc386' else set())
+            members = [path for path in sidecar.parent.iterdir() if path.name not in ignored]
             if len(members) != 1:
                 raise ValueError('cache evidence must name exactly one package')
             identity = members[0].name
@@ -337,11 +504,27 @@ def _matching_package_candidates(source, record, recipe=None, *, store_override=
             identity = sidecar.parent.name
         if HEX64.fullmatch(identity) is None:
             raise ValueError("matching package evidence has an invalid package ID filename")
-        package = store / identity if store_override is None else sidecar.parent / identity
+        package = store / identity if store_override is None and not local_pc386 else sidecar.parent / identity
+        evidence = sidecar.parent / 'evidence' if recipe.core_id == 'fes.pc386' else None
         _plain_directory(package, "candidate")
         inspected = _inspect_package_candidate(source, package, sidecar, recipe=recipe)
         if inspected.get("package_id") != identity:
             raise ValueError("matching package evidence differs from inspected package identity")
+        if recipe.core_id == 'fes.pc386':
+            inspected['pc386_evidence'] = {
+                'directory': evidence,
+                'receipt_sha256': _inspect_pc386_evidence(source, package, sidecar, evidence),
+            }
+            if candidate_record != record:
+                reuse = _pc386_reuse(source, package, sidecar, evidence, record)
+                if reuse['reuse'] == 'refused':
+                    print(f"pc386 sealed package {identity} not reused: {reuse['reason']}", file=sys.stderr)
+                    continue
+                if reuse['reuse'] == 'needs-fresh-lockstep':
+                    if pending is not None:
+                        pending.append((package, sidecar, evidence))
+                    continue
+                inspected['pc386_evidence']['reuse'] = reuse
         matches.append((package, sidecar, inspected))
     return _rank_package_candidates(matches, record)
 
@@ -401,10 +584,24 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
     record = canonical_package_record(source, recipe=recipe, selection_only=not force, **produce)
     if force:
         _build_package(source, recipe=recipe, **produce)
-    candidates = _matching_package_candidates(source, record, recipe=recipe)
-    if not force and (not candidates or 'identities' in json.loads(record)):
-        candidates += _matching_package_candidates(source, record, recipe=recipe,
-            store_override=artifact_cache.store_for(ARTIFACT_CACHE_ROOT, record))
+    def matching(pending=None):
+        found = _matching_package_candidates(source, record, recipe=recipe, pending=pending)
+        if not force and (not found or 'identities' in json.loads(record)):
+            found += _matching_package_candidates(source, record, recipe=recipe, pending=pending,
+                store_override=artifact_cache.store_for(ARTIFACT_CACHE_ROOT, record))
+        return found
+    pending = []
+    candidates = matching(pending)
+    if not candidates and pending and not force:
+        # Only evidence changed since a pc386 seal (#1984 S3): reuse it only
+        # after a fresh full lockstep of this tree passes. A failure refuses;
+        # it never falls back to the old package or to a rebuild.
+        package, original_record_path, evidence_dir = pending[0]
+        _pc386_reuse(source, package, original_record_path, evidence_dir, record, run_lockstep=True,
+                     recipe=recipe, env=env)
+        candidates = matching()
+        if not candidates:
+            raise ValueError('pc386 fresh lockstep was recorded but the sealed package is still not reusable')
     if not candidates and not force:
         # A cache miss adopts the selected pin deliberately. Authentication is
         # deferred until here, so reusing a design does not install a new tool.
@@ -500,7 +697,7 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
             return {path: value for path, value in fields['source_inputs'].items()
                     if artifact_cache.identity.input_role(path) == 'toolchain'}
         inputs['source_selection'].update({
-            'identity_policy': 'design-v1',
+            'identity_policy': original['parameters']['identity_policy'],
             'design_id': original['identities']['design'][:32],
             'built_toolchain_id': original['identities']['toolchain'],
             'built_record_id': original['identities']['record'],
@@ -513,7 +710,27 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
                                            artifact_cache.identity.toolchain_selection(selected)),
         })
     require_private_audit_cache(os.environ if env is None else env)
-    artifact_cache.publish(ARTIFACT_CACHE_ROOT, original_record_path, package)
+    if recipe.core_id == 'fes.pc386':
+        evidence_info = inspected['pc386_evidence']
+        evidence_dir = evidence_info['directory']
+        _sealed(evidence_dir, directory=True)
+        evidence = {}
+        for item in evidence_dir.iterdir():
+            _sealed(item)
+            evidence[item.name] = item.read_bytes()
+        def validate_staged(staged_package, staged_record, staged_evidence):
+            observed = _inspect_pc386_evidence(source, staged_package, staged_record, staged_evidence)
+            if observed != evidence_info['receipt_sha256']:
+                raise ValueError('pc386 evidence changed before cache publication')
+        artifact_cache.publish(ARTIFACT_CACHE_ROOT, original_record_path, package,
+                               evidence=evidence, validate=validate_staged)
+        inputs['source_selection']['pc386_evidence_sha256'] = evidence_info['receipt_sha256']
+        reuse = evidence_info.get('reuse')
+        if reuse is not None and reuse['reuse'] == 'fresh-lockstep':
+            inputs['source_selection']['pc386_evidence_drift'] = reuse['evidence_drift']
+            inputs['source_selection']['pc386_fresh_lockstep_sha256'] = reuse['fresh_lockstep_sha256']
+    else:
+        artifact_cache.publish(ARTIFACT_CACHE_ROOT, original_record_path, package)
     receipt = json.dumps(inputs["source_selection"], sort_keys=True, indent=2).encode() + b"\n"
     _publish_selection(Path(selection_path).with_suffix(".provenance.json"), receipt)
     _publish_selection(selection_path, encoded)

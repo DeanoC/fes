@@ -7,10 +7,12 @@ import (
 	"github.com/DeanoC/FogCast/internal/localcores"
 )
 
-func TestReleaseOnlyRoomsListOnlyV1Cores(t *testing.T) {
+func TestReleaseOnlyRoomsIncludeThePCLane(t *testing.T) {
 	fake := &fakeLocalCores{cores: []localcores.Core{
 		{PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true},
 		{PackageID: "zx", CoreID: "fes.zx81", Name: "ZX81", Needs: "none", Launchable: true},
+		{PackageID: "xt", CoreID: "fes.pcxt-dos", Name: "PC/XT", Needs: "none", Launchable: true},
+		{PackageID: "386", CoreID: "fes.pc386", Name: "PC 386", Needs: "none", Launchable: true},
 	}}
 	src := `
 systems = require "systems"
@@ -24,11 +26,12 @@ function draw() end`
 			t.Fatal(err)
 		}
 		stepUntil(t, r, func(Frame) bool { return r.CheckGlobal(`got ~= nil`) == nil })
-		check := `#got == 1 and got[1].core_id == "fes.zx81"
+		check := `#got == 3
 			and systems.by_id["fes.c64"] and systems.by_id["fes.atari-st"] and not systems.by_id["fes.coleco"]
-			and not room.core_shown("fes.pong") and not room.core_shown("fes.pc386") and room.core_shown("fes.pentagon")`
+			and systems.by_id["fes.pcxt-dos"] and systems.by_id["fes.pc386"]
+			and not room.core_shown("fes.pong") and room.core_shown("fes.pc386") and room.core_shown("fes.pentagon")`
 		if !releaseOnly {
-			check = `#got == 2 and systems.by_id["fes.coleco"] and room.core_shown("fes.pong")`
+			check = `#got == 4 and systems.by_id["fes.coleco"] and room.core_shown("fes.pong")`
 		}
 		if err := r.CheckGlobal(check); err != nil {
 			t.Fatalf("release only %v: %v", releaseOnly, err)
@@ -43,12 +46,12 @@ func TestReleaseOnlyHardwareLeavesOutHeldBackCores(t *testing.T) {
 	}
 	snap := hostclient.HardwareSnapshot{
 		Machines:  []hostclient.HardwareMachine{{CoreID: "fes.zx81"}, {CoreID: "fes.coleco"}},
-		Computers: []hostclient.ShelfComputer{{CoreID: "fes.spectrum"}, {CoreID: "fes.pcxt-dos"}},
+		Computers: []hostclient.ShelfComputer{{CoreID: "fes.spectrum"}, {CoreID: "fes.pcxt-dos"}, {CoreID: "fes.pc386"}, {CoreID: "fes.coleco"}},
 	}
 	table := r.hardwareTable(snap)
 	machines := table.RawGetString("machines").(interface{ Len() int })
 	computers := table.RawGetString("computers").(interface{ Len() int })
-	if machines.Len() != 1 || computers.Len() != 1 {
+	if machines.Len() != 1 || computers.Len() != 3 {
 		t.Fatalf("machines=%d computers=%d", machines.Len(), computers.Len())
 	}
 }

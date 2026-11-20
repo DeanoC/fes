@@ -61,6 +61,17 @@ func (r *Instance) installHardware() *lua.LTable {
 			r.actions = append(r.actions, hardwareSetupAction(L, ActionHardwareMedia))
 			return 0
 		},
+		// open_disks opens the family's disk shelf. package_id is the
+		// installed package a new disk is made for.
+		"open_disks": func(L *lua.LState) int {
+			opts := L.CheckTable(1)
+			action := Action{Kind: ActionHardwareDisks, CoreID: optString(opts, "core_id"), PackageID: optString(opts, "package_id")}
+			if action.CoreID == "" || action.PackageID == "" {
+				L.ArgError(1, "core_id and package_id are required")
+			}
+			r.actions = append(r.actions, action)
+			return 0
+		},
 		"open_tapes": func(L *lua.LState) int {
 			r.actions = append(r.actions, hardwareSetupAction(L, ActionHardwareTapes))
 			return 0

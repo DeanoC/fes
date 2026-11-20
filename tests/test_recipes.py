@@ -67,6 +67,11 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertEqual(zx81.producer_module, 'boards.de25nano.producers.build_zx81_package')
         self.assertEqual(zx81.toolchain, 'quartus')
         self.assertEqual(recipes.recipe_for('fes.zx81').board, 'de10-nano')
+        for core, name in (('fes.spectrum', 'spectrum'), ('fes.atari-st', 'atari_st')):
+            machine = recipes.recipe_for(core, board='de25-nano')
+            self.assertEqual(machine.producer_module, f'boards.de25nano.producers.build_{name}_package')
+            self.assertEqual((machine.toolchain, machine.board), ('quartus', 'de25-nano'))
+            self.assertEqual(recipes.recipe_for(core).board, 'de10-nano')
         for core, board in (('fes.zx80', 'de25-nano'), ('fes.menu', 'unknown')):
             with self.subTest(core=core, board=board), self.assertRaises(ValueError):
                 recipes.recipe_for(core, board=board)
@@ -348,7 +353,7 @@ class RecipeDataTest(unittest.TestCase):
     def test_board_namespaces_keep_defaults_and_reject_invalid_foreign_entries(self):
         document = self.document()
         self.assertEqual(self.load_document(document), recipes.FORMAT2_RECIPES)
-        self.assertEqual(set(self.load_document(document, board='de25-nano')), {'fes.menu', 'fes.zx81'})
+        self.assertEqual(set(self.load_document(document, board='de25-nano')), {'fes.menu', 'fes.zx81', 'fes.spectrum', 'fes.atari-st'})
         variant = next(r for r in document['recipes'] if r.get('board') == 'de25-nano')
         # The same core/selection/environment names on different boards are
         # intentional. Duplicates within either board remain an error.
@@ -365,6 +370,23 @@ class RecipeDataTest(unittest.TestCase):
     def document(self):
         import tomllib
         return tomllib.loads(recipes.REGISTRY_PATH.read_text())
+
+    def test_core_owned_producer_must_match_its_core_and_safe_script_path(self):
+        document = self.document()
+        row = next(r for r in document['recipes'] if r['core_id'] == 'fes.pc386')
+        self.assertEqual(self.load_document(document)['fes.pc386'].producer_module,
+                         'cores.fes_pc386.tools.build_pc386_product')
+        for module, script in (
+                ('cores.fes_pcxt.tools.build_pc386_product', row['producer_script']),
+                ('cores.fes_pc386.tools.build_pc386_product', 'cores/fes-pcxt/tools/build_pc386_product.py'),
+                ('cores.fes_pc386.tools.build_pc386_product', 'cores/fes-pc386/tools/../build_pc386_product.py'),
+                ('cores.fes_pc386.other.build_pc386_product', row['producer_script']),
+                ('cores.fes_pc386.tools.build_pc386_product', '/cores/fes-pc386/tools/build_pc386_product.py')):
+            bad = self.document()
+            selected = next(r for r in bad['recipes'] if r['core_id'] == 'fes.pc386')
+            selected['producer_module'], selected['producer_script'] = module, script
+            with self.subTest(module=module, script=script), self.assertRaises(ValueError):
+                self.load_document(bad)
 
     def test_a_quartus_row_names_a_front_end_that_fits_its_edition_and_device(self):
         # The front end selects the Quartus edition and device family, and the

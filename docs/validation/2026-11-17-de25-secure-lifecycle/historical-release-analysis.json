@@ -1,0 +1,46 @@
+{
+  "scope": "read-only-historical-release-analysis-v1",
+  "historical_source": "e04af2f8a55263644422a412bd02ba69dea58b1c",
+  "base": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+  "console_sha256": "2bb22ae6c869d8693e5ea9887d3dcb9d138d3d64d4fa77640417e78113681cc3",
+  "selected_records": [
+    "NOTICE:  FES_NANO_FABRIC_ACTIVATION owner=fd892e66a858782b generation=4 previous=0 rearm=0 complete=1 data_held=1",
+    "NOTICE:  FES_NANO_MASTER_STOP status=0 owner=fd892e66a858782b generation=6 reset=5 reader_reads=88 reader_polls=1 disable=0 probe_polls=2 cancel=0 complete=1 data=active",
+    "NOTICE:  FES_NANO_SOURCE_RELEASE status=0 owner=fd892e66a858782b source_generation=4 generation=10 reuse_authorized=1 elapsed_us=929971",
+    "NOTICE:  FES_NANO_FABRIC_ACTIVATION owner=fd892e66a858782b generation=10 previous=4 rearm=1 complete=1 data_held=1",
+    "FES_NATIVE_CORE_FETCH {\"scope\":\"nano-computer-fetch-tape-v1\",\"owner\":18269184381851039787,\"generation\":1,\"package_id\":\"03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a\",\"build_id\":\"0792e51a2e51512bfb8fe44e93a69ddd\",\"before\":{\"Cycles\":0,\"Address\":0},\"held\":{\"Cycles\":0,\"Address\":0},\"running\":{\"Cycles\":12008,\"Address\":977},\"delta\":12008,\"polls\":1,\"elapsed_ns\":1894302627,\"limit_ns\":7000000000,\"tape_bytes\":917,\"tape_elapsed_ns\":1801452908,\"tape_limit_ns\":6000000000,\"control_elapsed_ns\":92849719}",
+    "NOTICE:  FES_NANO_MASTER_STOP status=0 owner=fd892e66a858782b generation=11 reset=d reader_reads=88 reader_polls=1 disable=0 probe_polls=2 cancel=0 complete=1 data=held",
+    "NOTICE:  FES_NANO_CORE_TRANSFER phase=FAIL owner=fd892e66a858782b generation=15 completed=1654784 pending=0 total=1654784 base=94800000 counter=e5d9e4b81 hash_ticks=17ab7d8e1"
+  ],
+  "source_equivalence": {
+    "platform/embedded/firmware/input_transfer_service.c": {
+      "historical_sha256": "f8341cb0c2370c419f26a6a65f49f1526785d59d8034daca972d31901381a42e",
+      "base_sha256": "f8341cb0c2370c419f26a6a65f49f1526785d59d8034daca972d31901381a42e",
+      "equal": true
+    },
+    "platform/embedded/firmware/input_transfer_service.h": {
+      "historical_sha256": "ceb096f9bf6f3d5acb9a395a2a658ac423678c11e4ad8386ced3c4d52187eaf1",
+      "base_sha256": "ceb096f9bf6f3d5acb9a395a2a658ac423678c11e4ad8386ced3c4d52187eaf1",
+      "equal": true
+    },
+    "platform/embedded/firmware/nano_sdm_source_platform.inc": {
+      "historical_sha256": "a863372ed5b88a952b68fa195ca8c4c6b563d6eeaee6852bdd6245169d805ad2",
+      "base_sha256": "a863372ed5b88a952b68fa195ca8c4c6b563d6eeaee6852bdd6245169d805ad2",
+      "equal": true
+    },
+    "platform/embedded/firmware/nano_sdm_control_platform.inc": {
+      "historical_sha256": "760e21b8ba2d733e8267d90180d02e65af1db0d631ca067e1272e85297f0b5bc",
+      "base_sha256": "760e21b8ba2d733e8267d90180d02e65af1db0d631ca067e1272e85297f0b5bc",
+      "equal": true
+    },
+    "platform/embedded/firmware/nano_sdm_release_platform.inc": {
+      "historical_sha256": "04690a6e604f8bdc9450c89bb96d39cd088b5a626a9f4fd80482162ac53fbbb9",
+      "base_sha256": "04690a6e604f8bdc9450c89bb96d39cd088b5a626a9f4fd80482162ac53fbbb9",
+      "equal": true
+    }
+  },
+  "raw_release_failure_record_present": false,
+  "raw_smc_reply_words_present": false,
+  "conclusion": "Trace establishes the failed transition but cannot identify the rejecting guard.",
+  "hardware_actions": false
+}

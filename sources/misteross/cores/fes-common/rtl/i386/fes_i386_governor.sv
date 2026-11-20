@@ -24,7 +24,11 @@
 // MMIO access takes a VGA cycle per 16-bit half it touches, less what its
 // table count and wait-state charge already give it. Neither goes below
 // zero. A cycle's reference clocks follow the frequency the governor runs
-// at, worked out at reset as the step is.
+// at, worked out at reset as the step is. Under a preset with local-bus
+// video (the 486 presets; governor.toml video), an MMIO access in the VGA
+// window (A0000h-BFFFFh, mmio_vga) instead takes a local-bus VGA cycle
+// ([local_bus]) per 32-bit dword it touches; other MMIO (an ISA EMS board's
+// frame) and I/O stay on the ISA charge.
 //
 // Each step is a register: WB's retirement, the ROM address and the memory
 // and ISA charges, the ROM's word, the charge, the debt, hold. So the classes and the
@@ -60,6 +64,8 @@ module fes_i386_governor #(
     input  logic               element,
     input  logic               taken,
     input  fes_i386_pkg::gov_t gov,
+    input  logic               imul_safe,  // issue and retirement satisfy the diagnostic's 286 guard
+    input  logic               rep_io_safe, // canonical segment caches and aligned word RAM
     input  logic [3:0]         ilen,
     input  logic               redirect,
     input  logic               abandon,
@@ -77,8 +83,12 @@ module fes_i386_governor #(
     input  logic [1:0]         io_size,
     input  logic [1:0]         mmio,
     input  logic [2:0]         mmio_halves,
+    input  logic [1:0]         mmio_dwords,
+    input  logic               mmio_vga,         // the operand is in the VGA window
     input  logic               mmio_st2,
     input  logic [2:0]         mmio_st2_halves,
+    input  logic [1:0]         mmio_st2_dwords,
+    input  logic               mmio_st2_vga,
     output logic               hold,
     output logic [11:0]        debt_clocks,  // the debt's whole reference clocks
     output logic [12:0]        charge        // what this clock adds to the debt, in reference clocks
@@ -91,7 +101,7 @@ module fes_i386_governor #(
 
     logic [2:0]  p_id;
     logic [9:0]  p_frequency;
-    logic        on;
+    logic        on, local_video;
     fes_i386_gov_pkg::preset_t p;
     assign p = fes_i386_gov_pkg::preset(p_id);
     logic [9:0]  freq;
@@ -103,6 +113,7 @@ module fes_i386_governor #(
             p_frequency <= frequency;
             on <= preset != 3'd0 && !turbo;
         end
+        local_video <= p.local_video;
         warm <= reset ? 2'd2 : warm == 2'd0 ? 2'd0 : warm - 2'd1;
         freq <= p_frequency != 10'd0 ? p_frequency : p.frequency;
         product <= 28'(freq) * 28'(K);
@@ -110,29 +121,38 @@ module fes_i386_governor #(
 
     // The ISA cycles in reference clocks at freq, rounded, halves up. They
     // settle two clocks after freq, long before WB first retires.
+    // The local bus's VGA cycle likewise, at its own fixed point.
     localparam int SW = $bits(fes_i386_gov_pkg::ISA_STEP) + 10, PW = SW + 4;
+    localparam int LW = $bits(fes_i386_gov_pkg::LB_STEP) + 10, LPW = LW + 4;
     logic [SW-1:0] isa_clock;  // an ISA clock, in 1/2**ISA_FRAC reference clock
-    logic [7:0]    isa8, isa16, isa_vga;
+    logic [LW-1:0] lb_clock;   // a local-bus clock, in 1/2**LB_FRAC reference clock
+    logic [7:0]    isa8, isa16, isa_vga, lb_vga;
     function automatic logic [7:0] cycle(input logic [3:0] clocks, input logic [SW-1:0] one);
         cycle = 8'((PW'(clocks) * PW'(one) + (PW'(1) << (fes_i386_gov_pkg::ISA_FRAC - 1))) >> fes_i386_gov_pkg::ISA_FRAC);
     endfunction
+    function automatic logic [7:0] lb_cycle(input logic [3:0] clocks, input logic [LW-1:0] one);
+        lb_cycle = 8'((LPW'(clocks) * LPW'(one) + (LPW'(1) << (fes_i386_gov_pkg::LB_FRAC - 1))) >> fes_i386_gov_pkg::LB_FRAC);
+    endfunction
     always_ff @(posedge clk) begin
         isa_clock <= SW'(freq) * SW'(fes_i386_gov_pkg::ISA_STEP);
+        lb_clock <= LW'(freq) * LW'(fes_i386_gov_pkg::LB_STEP);
         isa8 <= cycle(fes_i386_gov_pkg::ISA_IO8, isa_clock);
         isa16 <= cycle(fes_i386_gov_pkg::ISA_IO16, isa_clock);
         isa_vga <= cycle(fes_i386_gov_pkg::ISA_VGA, isa_clock);
+        lb_vga <= lb_cycle(fes_i386_gov_pkg::LB_VGA, lb_clock);
     end
 
     // WB's retirement, as it happens.
     logic                  s1_boundary, s1_eoi, s1_element, s1_taken, s1_dword;
-    logic                  s1_redirect, s1_abandon, s1_preserve_de, s1_replay, s1_ordinary_ram;
+    logic                  s1_redirect, s1_abandon, s1_preserve_de, s1_replay, s1_ordinary_ram, s1_imul_safe, s1_rep_io_safe;
     logic [3:0]            s1_ilen;
     fes_i386_pkg::gov_t    s1_gov;
     logic [1:0]            s1_accesses;
     logic                  s1_io, s1_mmio_st2;
     logic [15:0]           s1_io_port;
     logic [1:0]            s1_io_size, s1_mmio;
-    logic [2:0]            s1_mmio_halves, s1_mmio_st2_halves;
+    logic [2:0]            s1_mmio_cycles, s1_mmio_st2_cycles;  // VGA cycles: halves on ISA, dwords on the local bus
+    logic [7:0]            s1_mmio_vga, s1_mmio_st2_vga;       // the VGA cycle each access takes, chosen here
     always_ff @(posedge clk) begin
         s1_boundary <= on && boundary;
         s1_eoi <= eoi;
@@ -147,13 +167,19 @@ module fes_i386_governor #(
         s1_accesses <= on ? accesses : 2'd0;
         s1_dword <= dword;
         s1_ordinary_ram <= ordinary_ram;
+        s1_imul_safe <= imul_safe;
+        s1_rep_io_safe <= rep_io_safe;
         s1_io <= on && io;
         s1_io_port <= io_port;
         s1_io_size <= io_size;
         s1_mmio <= on ? mmio : 2'd0;
-        s1_mmio_halves <= mmio_halves;
+        // The cycle (local-bus or ISA) is chosen as WB's access is
+        // registered, so the charge's multiply starts from a register.
+        s1_mmio_vga <= local_video && mmio_vga ? lb_vga : isa_vga;
+        s1_mmio_cycles <= local_video && mmio_vga ? {1'b0, mmio_dwords} : mmio_halves;
         s1_mmio_st2 <= on && mmio_st2;
-        s1_mmio_st2_halves <= mmio_st2_halves;
+        s1_mmio_st2_vga <= local_video && mmio_st2_vga ? lb_vga : isa_vga;
+        s1_mmio_st2_cycles <= local_video && mmio_st2_vga ? {1'b0, mmio_st2_dwords} : mmio_st2_halves;
     end
 
     // The class addresses the ROM; the memory charge: each bus cycle's wait
@@ -164,7 +190,7 @@ module fes_i386_governor #(
     assign per_access = {2'd0, p.wait_states} + (p.bus16 && s1_dword ? {2'd0, p.wait_states} + 4'd2 : 4'd0);
     logic [15:0] word;
     fes_i386_gov_rom costs (.clk, .addr(fes_i386_gov_pkg::cost_rom_index(p.tbl, s1_class.cls)), .q(word));
-    // The ISA charges: the I/O access's cycles less the data sheet's bus
+    // The bus charges: the I/O access's ISA cycles less the data sheet's bus
     // cycle; an MMIO access's VGA cycles less its bus cycle and per_access.
     logic [9:0]  io_clocks, io_extra;
     assign io_clocks = fes_i386_gov_pkg::word16(s1_io_port, s1_io_size)
@@ -183,15 +209,15 @@ module fes_i386_governor #(
     // legacy behavior or reference validation for those instructions.
     assign local_bus = 4'd2 + (REFERENCE_DIAGNOSTIC && p_id == 3'd1 && s1_ordinary_ram ? 4'd0 : per_access);
     logic [12:0] isa;
-    assign isa = (s1_io ? {3'd0, io_extra} : 13'd0) + 13'(s1_mmio) * {2'd0, mmio_extra(s1_mmio_halves, isa_vga, local_bus)}
-               + (s1_mmio_st2 ? {2'd0, mmio_extra(s1_mmio_st2_halves, isa_vga, local_bus)} : 13'd0);
+    assign isa = (s1_io ? {3'd0, io_extra} : 13'd0) + 13'(s1_mmio) * {2'd0, mmio_extra(s1_mmio_cycles, s1_mmio_vga, local_bus)}
+               + (s1_mmio_st2 ? {2'd0, mmio_extra(s1_mmio_st2_cycles, s1_mmio_st2_vga, local_bus)} : 13'd0);
 
     logic        s2_ends, s2_column1, s2_element, s2_ea;
-    logic        s2_boundary, s2_redirect, s2_abandon, s2_preserve_de, s2_ordinary_ram;
+    logic        s2_boundary, s2_redirect, s2_abandon, s2_preserve_de, s2_ordinary_ram, s2_imul_safe;
     logic [3:0]  s2_ilen;
     fes_i386_pkg::gov_t s2_gov;
     logic [7:0] data_bus_acc, s2_data_bus;
-    logic ordinary_ram_acc;
+    logic ordinary_ram_acc, rep_io_safe_acc, s2_rep_io_safe;
     logic [9:0] data_bus_sum;
     assign data_bus_sum = 10'(data_bus_acc) + (10'(s1_accesses) << (s1_dword ? 2 : 1));
     logic [4:0]  s2_memory;
@@ -209,14 +235,20 @@ module fes_i386_governor #(
         s2_preserve_de <= s1_preserve_de;
         s2_ilen <= s1_ilen;
         s2_ordinary_ram <= ordinary_ram_acc && (s1_accesses == 0 || s1_ordinary_ram);
+        s2_rep_io_safe <= rep_io_safe_acc && s1_rep_io_safe;
+        s2_imul_safe <= s1_imul_safe;
         s2_gov <= s1_gov;
         s2_data_bus <= data_bus_sum > 10'd255 ? 8'hff : data_bus_sum[7:0];
         if (reset || s1_abandon || s1_replay || !on || s1_boundary) begin
             data_bus_acc <= 8'd0;
             ordinary_ram_acc <= 1'b1;
+            rep_io_safe_acc <= 1'b1;
         end else begin
             data_bus_acc <= data_bus_sum > 10'd255 ? 8'hff : data_bus_sum[7:0];
-            if (s1_accesses != 0) ordinary_ram_acc <= ordinary_ram_acc && s1_ordinary_ram;
+            if (s1_accesses != 0) begin
+                ordinary_ram_acc <= ordinary_ram_acc && s1_ordinary_ram;
+                rep_io_safe_acc <= rep_io_safe_acc && s1_rep_io_safe;
+            end
         end
     end
 
@@ -229,7 +261,7 @@ module fes_i386_governor #(
     logic [7:0] refill_execution;
     logic [12:0] reference_fetch;
     logic [5:0] reference_prefix;
-    logic       rep_active, reference_on, reference_first, reference_chunkable, reference_chunk_restart;
+    logic       rep_active, reference_on, reference_first, reference_chunkable, reference_chunk_restart, reference_rep_io;
     logic [7:0] reference_element;
     logic [7:0] reference_chunk_clocks;
     assign reference_on = REFERENCE_DIAGNOSTIC && on && p_id == 3'd1;
@@ -268,11 +300,19 @@ module fes_i386_governor #(
          s2_gov.op == 8'haa || s2_gov.op == 8'hab ||
          s2_gov.op == 8'hac || s2_gov.op == 8'had ||
          s2_gov.op == 8'hae || s2_gov.op == 8'haf);
+    // The 286 reference re-decodes each REP I/O element. The measured
+    // diagnostic covers a single F3 in 16-bit real mode and ordinary RAM.
+    // Its unhandled-port model is different; keep the existing ISA charge.
+    assign reference_rep_io = reference_on && s2_gov.rep && !s2_gov.two && !s2_gov.o32 &&
+                              s2_gov.ref_real_mode && s2_gov.ref_rep_f3 && s2_gov.ref_prefix_count == 4'd1 &&
+                              s2_gov.prefix286 == 6'd2 && s2_ordinary_ram && s2_rep_io_safe &&
+                              s2_gov.op >= 8'h6c && s2_gov.op <= 8'h6f;
     assign reference_chunk_restart = rep_active && reference_chunkable && reference_chunk_clocks > 8'd100;
-    assign reference_first = !rep_active || reference_chunk_restart || s2_gov.rep && !s2_gov.two &&
+    assign reference_first = !rep_active || reference_chunk_restart || reference_rep_io || s2_gov.rep && !s2_gov.two &&
                              (s2_gov.op == 8'ha6 || s2_gov.op == 8'ha7);
     always_comb begin
         reference_element = word[15:8];
+        if (reference_rep_io) reference_element = s2_gov.op[1] ? 8'd14 : 8'd15;
         if (reference_on && s2_gov.rep && !s2_gov.two &&
             (s2_gov.op == 8'haa || s2_gov.op == 8'hab || s2_gov.op == 8'hac || s2_gov.op == 8'had))
             reference_element = 8'd5;
@@ -371,11 +411,18 @@ module fes_i386_governor #(
                 (s2_gov.op == 8'h80 || s2_gov.op == 8'h81 || s2_gov.op == 8'h82 || s2_gov.op == 8'h83))
                 execution_clocks = 9'd7;
         end
+        if (reference_on && s2_ends && !s2_gov.two && !s2_gov.o32 && !s2_gov.ref_test_excluded &&
+            !s2_gov.ea3 && s2_imul_safe && s2_ordinary_ram && (s2_gov.op == 8'h69 || s2_gov.op == 8'h6b))
+            execution_clocks = s2_gov.rm_reg ? 9'd14 : 9'd17;
+        if (reference_rep_io && s2_ends) execution_clocks = 9'd0;
         if (reference_zero_shift) execution_clocks = 9'd0;
         if (s2_element) execution_clocks = execution_clocks + {1'b0, reference_element};
     end
     always_comb begin
         refill_execution = execution_clocks[8] ? 8'hff : execution_clocks[7:0];
+        if (reference_on && s2_ends && !s2_gov.two && !s2_gov.o32 && !s2_gov.ref_test_excluded &&
+            !s2_gov.ea3 && s2_imul_safe && s2_ordinary_ram && (s2_gov.op == 8'h69 || s2_gov.op == 8'h6b))
+            refill_execution = s2_gov.rm_reg ? 8'd12 : 8'd17;
         if (reference_on && s2_ends && !s2_gov.two && !s2_gov.o32 && !s2_gov.ref_test_excluded && !s2_gov.rm_reg &&
             (s2_gov.op == 8'h84 || s2_gov.op == 8'h85)) refill_execution = 8'd7;
         if (reference_on && s2_ends && !s2_gov.two && !s2_gov.o32 &&

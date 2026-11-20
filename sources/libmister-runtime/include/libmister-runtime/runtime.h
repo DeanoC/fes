@@ -325,6 +325,28 @@ struct CoreData {
 	std::vector<std::uint16_t> words;
 };
 
+// One saved media record's identity for inspection or discard: the namespace
+// a library launch binds, named without loading a package.
+struct MediaDataQuery {
+	std::string data_root;
+	std::string core_id;
+	std::string game_id;
+	std::string base_media_id;
+	std::uint8_t unit = 0;
+};
+
+// What is saved for a MediaDataQuery. state is "absent", "present" or
+// "corrupt"; revision is the digest of the record file, or "absent".
+// changed is true for a present record whose image differs from the base
+// image it was saved over: a disk saved at Stop without a write is present
+// and unchanged.
+struct MediaDataInspection {
+	std::string state = "absent";
+	std::string revision = "absent";
+	std::uint64_t bytes = 0;
+	bool changed = false;
+};
+
 // A fes.media.ata-disk launch: the staged immutable base image, the geometry
 // its partition table was written with, and the media-data root that holds
 // its game's chunk delta.
@@ -653,6 +675,11 @@ public:
 	}
 	virtual Error AttachROMBitstream(AdmittedCorePackage*, const std::string&, const CoreROMLink&)
 	{ return {ErrorCode::unsupported_protocol, "ROM linking is unavailable"}; }
+	// A format-3 package whose payload is not patched: the firmware source file
+	// itself, uploaded while the core is held. The link's programmed identity
+	// is the package payload's.
+	virtual Error AttachFirmwareSource(AdmittedCorePackage*, const std::string&, const CoreROMLink&)
+	{ return {ErrorCode::unsupported_protocol, "launch-time firmware upload is unavailable"}; }
 	virtual Error AttachROMsBitstream(AdmittedCorePackage*, const std::string&, const CoreROMLinks&)
 	{ return {ErrorCode::unsupported_protocol, "two-source ROM linking is unavailable"}; }
 	virtual Error RecheckProgrammedBitstream(AdmittedCorePackage*) { return {}; }
@@ -665,6 +692,19 @@ public:
 		const std::string&, const std::string&, const CoreSettingsUpdate&, CoreData*)
 	{
 		return {ErrorCode::unsupported_interface, "core data unavailable"};
+	}
+	virtual Error InspectMediaData(const MediaDataQuery&, MediaDataInspection*)
+	{
+		return {ErrorCode::unsupported_interface, "media data unavailable"};
+	}
+	virtual Error DiscardMediaData(const MediaDataQuery&, const std::string&, MediaDataInspection*)
+	{
+		return {ErrorCode::unsupported_interface, "media data unavailable"};
+	}
+	virtual Error ExportMediaData(const MediaDataQuery&, const std::string&, const std::string&,
+		MediaDataInspection*)
+	{
+		return {ErrorCode::unsupported_interface, "media data unavailable"};
 	}
 	virtual Capabilities capabilities() const { return {}; }
 	virtual HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage>,
@@ -773,6 +813,11 @@ public:
 	Error LoadROMCore(const std::string&, const std::string&, const std::string&, const CoreROMLink&, const InitialComputerMedia* = nullptr);
 	Error LoadROMLibraryCore(const std::string&, const std::string&, const std::string&, const std::string&, const CoreROMLink&, const InitialComputerMedia* = nullptr);
 	Error LoadROMComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&, const std::string&, const CoreROMLink&, const InitialComputerMedia* = nullptr);
+	// Launch-time firmware upload: `firmware_path` is the ROM source the link
+	// identifies, not a linked bitstream. An empty data root is a plain load.
+	Error LoadFirmwareCore(const std::string& directory, const std::string& package_id,
+		const std::string& data_root, const std::string& firmware_path, const CoreROMLink&,
+		const InitialComputerMedia* = nullptr);
 	Error LoadROMsCore(const std::string&, const std::string&, const std::string&, const CoreROMLinks&);
 	Error LoadROMsLibraryCore(const std::string&, const std::string&, const std::string&, const std::string&, const CoreROMLinks&);
 	Error LoadROMsComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&, const std::string&, const CoreROMLinks&);
@@ -780,6 +825,14 @@ public:
 		const std::string& game_id, CoreData*);
 	Error UpdateCoreSettings(const std::string&, const std::string&, const std::string&,
 		const std::string& game_id, const std::string& revision, const CoreSettingsUpdate&, CoreData*);
+	// A saved media record without loading its package. Discard needs an
+	// idle runtime: a loaded core may hold the record bound.
+	Error InspectMediaData(const MediaDataQuery&, MediaDataInspection*);
+	Error DiscardMediaData(const MediaDataQuery&, const std::string& expected_revision,
+		MediaDataInspection*);
+	// Writes the saved image to a new file at path; the record is unchanged.
+	Error ExportMediaData(const MediaDataQuery&, const std::string& expected_revision,
+		const std::string& path, MediaDataInspection*);
 	Error InspectCore(const std::string& directory,
 		const std::string& expected_package_id, CorePackageInspection*);
 	Error LoadContainedDevelopmentRBF(const std::string&);

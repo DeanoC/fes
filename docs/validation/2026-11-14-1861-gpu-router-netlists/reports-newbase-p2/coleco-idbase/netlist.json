@@ -1,0 +1,17 @@
+{
+  "build_id": "00000000000000000000000000000000",
+  "core": "fes.coleco",
+  "dirty_pinned_inputs": [],
+  "netlist_sha256": "58e3e313595a9d481a3b43544766d145c56d92ff519f7955fd3c8699ffa52844",
+  "netlist_sha256_src_exempt": "58e3e313595a9d481a3b43544766d145c56d92ff519f7955fd3c8699ffa52844",
+  "pinned_input_count": 36,
+  "pinned_inputs_sha256": "7bf8e06f51a2818097a29b1f33731fd134cf1f32bbfc9a77f2e3921fd1672ffe",
+  "revision": "a482f14c0f22cf67375e8eebce9211f80e64bd07",
+  "tools": {
+    "mistral": "commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=0a5528a4e8154aeb27109ff89a9cbde252502482d592ca7412fd391ad5ce7566",
+    "nextpnr-mistral": "commit=bec82e36d436acec7cbeb248725acfde72b8f220; sha256=fbd217c569c3708eca41d6b230f14543d0f07bd9a3c2479121bf07a7889e58e5; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+    "yosys": "commit=5391eeb1e91b38a3d0e96d04f24cf921743c9c78; sha256=702a375e38fec0d2953c89a7cdf2b6bdb0f1f2462c0d2020fa427821599c721c"
+  },
+  "tree": "/data/fes1861-netlist/identity/idbase/sources/misteross",
+  "tree_clean": true
+}

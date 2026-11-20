@@ -38,12 +38,17 @@ type coreLibraryState struct {
 	Tapes                                                  []hostclient.HardwareTape
 	// BuiltIn is the bundled firmware preselected for a ROM, by ROM ID.
 	BuiltIn map[string]protocol.BundledFirmware
+	// Shelf is the Atari ST disk shelf, shown when HardwareMode is "st-shelf".
+	Shelf stShelfState
 }
 
 func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 	s := &a.coreLibrary
 	if s.PickID != "" {
 		return s.Files
+	}
+	if s.HardwareMode == "st-shelf" {
+		return a.stShelfRowsLocked()
 	}
 	if s.HardwareMode == "system-media" {
 		return a.systemMediaRowsLocked()
@@ -98,16 +103,7 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 		}
 		add(fmt.Sprintf("%s · %s · %d bytes · %s", r.ID, r.Role, r.SourceSize, status), "rom:"+r.ID)
 	}
-	blankDisk := false
 	for _, m := range s.Setup.Capabilities.Media {
-		if m.Role == protocol.DiskRole && m.Format == "atari-st-floppy" && !blankDisk {
-			blankDisk = true
-			status := "720 KiB"
-			if s.MediaRole == protocol.DiskRole && s.MediaID != "" {
-				status = "selected"
-			}
-			add("Blank disk · "+status, "blank-disk")
-		}
 		if m.Role == "blob" || m.Role == "disk" || m.Role == protocol.CassetteRole {
 			status := "choose file"
 			if s.MediaRole == m.Role && s.MediaID != "" {
@@ -131,6 +127,9 @@ func (a *App) coreLibrarySnapshotLocked() FirmwarePickerSnapshot {
 	title := "Systems"
 	if s.HardwareMode == "system-media" {
 		title = "Media for next start"
+	}
+	if s.HardwareMode == "st-shelf" {
+		title = a.stShelfTitleLocked()
 	}
 	if s.HardwareMode == "system-expansions" {
 		title = "Expansion for next start"
@@ -198,7 +197,18 @@ func (a *App) coreLibraryAsyncLocked(work func(context.Context) error, done func
 	if parent == nil {
 		parent = context.Background()
 	}
-	ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
+	budget := 2 * time.Minute
+	if s.PickID == "media:"+protocol.HardDiskRole && s.Setup != nil {
+		for _, cap := range s.Setup.Capabilities.Media {
+			if cap.Role == protocol.HardDiskRole {
+				// A host drive streams into the launcher before the upload
+				// completes. Cover both bounded transfers and selection.
+				budget = 2 * hostclient.HardDiskImportBudget(protocol.AtaDiskMaxBytes)
+				break
+			}
+		}
+	}
+	ctx, cancel := context.WithTimeout(parent, budget)
 	s.Cancel = cancel
 	go func() {
 		defer cancel()
@@ -289,6 +299,11 @@ func (a *App) loadCoreSetupLocked(install bool) {
 func (a *App) handleCoreLibraryLocked(cmd Command) {
 	s := &a.coreLibrary
 	if s.Busy {
+		// A shelf change is several steps on the host. Leaving would cancel
+		// it part way, so the shelf waits for the answer.
+		if s.HardwareMode == "st-shelf" && s.Shelf.Loaded {
+			return
+		}
 		if cmd == CmdBack || cmd == CmdHome || cmd == CmdSettings {
 			if s.Cancel != nil {
 				s.Cancel()
@@ -301,6 +316,9 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 		return
 	}
 	if cmd == CmdBack || cmd == CmdHome || cmd == CmdSettings {
+		if cmd == CmdBack && s.HardwareMode == "st-shelf" && a.stShelfBackLocked() {
+			return
+		}
 		if s.PickID != "" {
 			s.PickID = ""
 			s.Files = nil
@@ -351,6 +369,10 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 	row := rows[s.Index]
 	if s.PickID != "" {
 		a.coreLibraryFileLocked(row)
+		return
+	}
+	if s.HardwareMode == "st-shelf" {
+		a.handleStShelfLocked(row)
 		return
 	}
 	if s.HardwareMode == "system-media" {
@@ -444,10 +466,6 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 		s.Files = a.storagePickerRootsLocked(a.corePickerPurposeLocked())
 		a.refreshStorageRootsLocked()
 		s.Index = 0
-		return
-	}
-	if row.Kind == "blank-disk" {
-		a.createBlankAtariStDiskLocked()
 		return
 	}
 	if row.Kind == "title" {
@@ -552,14 +570,19 @@ func (a *App) importCoreLibraryFileLocked(path string) {
 			max = m.MaxBytes
 		}
 	}
-	if max < 1 || max > 32<<20 {
+	role := strings.TrimPrefix(pick, "media:")
+	limit := storage.MaxFileBytes
+	if pick == "media:"+protocol.HardDiskRole {
+		limit = protocol.AtaDiskMaxBytes
+	}
+	if max < 1 || max > limit {
 		s.Status = "Unsupported media requirement"
 		return
 	}
 	manager := a.driveManagerLocked()
 	var media hostclient.CoreMedia
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
-		f, size, name, err := openPickerFile(ctx, manager, a.client, path, storage.MaxFileBytes)
+		f, size, name, err := a.openSetupMediaFile(ctx, manager, path, role)
 		if err != nil {
 			return err
 		}
@@ -574,7 +597,7 @@ func (a *App) importCoreLibraryFileLocked(path string) {
 				}
 			}
 		}
-		media, err = a.client.ImportCoreMedia(ctx, size, f)
+		media, err = a.importSetupMedia(ctx, role, size, f)
 		return err
 	}, func() {
 		if strings.HasPrefix(pick, "rom:") {
@@ -588,23 +611,6 @@ func (a *App) importCoreLibraryFileLocked(path string) {
 		s.Index = 0
 		s.Files = nil
 		s.Status = "File imported. Review selections before adding the game."
-	})
-}
-func (a *App) createBlankAtariStDiskLocked() {
-	s := &a.coreLibrary
-	if !s.Online || s.Setup == nil {
-		s.Status = "Refresh and choose an installed system."
-		return
-	}
-	var media hostclient.BlankAtariStDisk
-	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
-		var err error
-		media, err = a.client.CreateBlankAtariStDisk(ctx, hostclient.BlankAtariStRequest{Name: "WORK"})
-		return err
-	}, func() {
-		s.MediaRole = protocol.DiskRole
-		s.MediaID = media.MediaID
-		s.Status = "Blank 720 KiB disk stored. Review selections before adding the game."
 	})
 }
 func (a *App) createCoreLibraryGameLocked() {

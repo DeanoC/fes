@@ -1,0 +1,20 @@
+{
+ "source":"64684abda2f4cbf9c81365514f8bf13ed1b987e3",
+ "base":"b1da19d215b98dec314aa881f87d4c2d95dada1a",
+ "parent_tests":2904,
+ "parent_skips":21,
+ "affected_commands":8,
+ "affected_returncode":0,
+ "affected_seconds":806.8485389631242,
+ "native_usb_driver_race_seconds":174.89470578706823,
+ "focused_observer_tests":47,
+ "actual_tenfoot_app_shutdown_test_passed":true,
+ "former_first_poll_timeout_reproduced":true,
+ "drain_before_menu_park_passed":true,
+ "failure_cases":["drain-failure","menu-close-failure","cancellation-before-entry","busy-owner","boundary-exhausted","shutdown-replay","unchanged-driver-stuck-halt-DMA-failures"],
+ "packet_timeout_policy_changed":false,
+ "firmware_ownership_policy_changed":false,
+ "runtime_source_bound_us":25000000,
+ "hardware_actions":false,
+ "normal_HIL_acceptance":false
+}

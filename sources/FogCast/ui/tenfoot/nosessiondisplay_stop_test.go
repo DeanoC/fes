@@ -188,7 +188,7 @@ func TestKitNoSessionDisplayHomeIgnoresTransientStates(t *testing.T) {
 	app.syncGPUParkLocked()
 	app.mu.Unlock()
 	app.mu.Lock()
-	app.playKeyHeld = map[string]bool{playHeldKey("", 0xe0): true}
+	app.playKeyHeld = map[physicalPlayKey]bool{{source: -1, key: playHeldKey("", 0xe0)}: true}
 	app.mu.Unlock()
 	app.HandlePlayHIDScancode("home", 0x4a, true, time.Now())
 	time.Sleep(50 * time.Millisecond)

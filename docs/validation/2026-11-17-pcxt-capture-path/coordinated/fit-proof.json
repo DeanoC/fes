@@ -1,0 +1,45 @@
+{
+  "classification": "logical pin-window proof and bounded trace; not physical signoff",
+  "fixtures_sha256": {
+    "assess_pipeline.py": "c6296c0bcf4efbab88ea853ce3ef2b6940baf70910e69394cd6716f736bc1cfc",
+    "controller_contract.sv": "5eed66b4e2db32796949d35051b5a9f7650e3baddc34ae59ae3236aa9a922f0e",
+    "fit_pipeline.py": "2d160fefe3a9b4cd45a2d83051dac56c5813ba500f3e9b02823a434f2eac51c8",
+    "trace.cpp": "62abf2ab5cc612826cf2905b7dbf507e79ae1a37a3f1e735b567880e74ecc6e6",
+    "trace_top.sv": "fcdf48da3f5ffbc29a48b42e7022e0f58119c257dc9995b21cd5f58f6701bf56",
+    "verify_pipeline.py": "4d80bcd2fabb2fb4e6d58b9602cd9ab037d93764694469d01830e927e067fcf0"
+  },
+  "formal": "PASS: controller temporal induction; unchanged five-cycle pin-observation deadline",
+  "negative_early_handoff": "rejected after real initialization",
+  "negative_missing_capture": "rejected after real initialization",
+  "negative_no_freeze": "rejected before frontend retirement",
+  "sources_sha256": {
+    "cores/fes-pcxt/rtl/fes_pcxt_top.sv": "df04ba0d0b1b456cfe2e5f34f95aceda89366f2433ca9b0e3691b43c846c203c",
+    "cores/fes-pcxt/rtl/pcxt_memory.sv": "13a354c1423643db860c42654451d85179d44613efca83936c05d1f07350473b",
+    "cores/fes-pcxt/rtl/pcxt_system.sv": "403ea305d689bc59600d699fb02e3f63e87732ea3f3939afb2b0e20f72211345",
+    "cores/fes-pcxt/sim/memory_top.sv": "2a2ef00629edebd2741c299564c44ead37fe1ec597e436df77d18f76e4ea4a65",
+    "cores/fes-ramtest/rtl/sdram_addon_port.v": "e3ccc890531752d3fd8274ddbfac4401c79374cab80e7404f8825760da002a08"
+  },
+  "trace": {
+    "consumptions": 512,
+    "controller_state_deadline_ps": 43750,
+    "frontend_deadline_ps": 73750,
+    "handoff_ps": 42500,
+    "landing_ps": 48750,
+    "pin_valid_end_ps": 33250,
+    "pin_valid_start_ps": 33000,
+    "reads": 512,
+    "selected_capture_ps": 33125,
+    "status": "PASS",
+    "warm_flag_writes": 1
+  },
+  "verilator": {
+    "engine": "/usr/bin/verilator_bin",
+    "engine_sha256": "619464a17a8c212219abceeeee23f529b72801ef594814ae32f4b9747fd38703",
+    "executable": "/usr/bin/verilator",
+    "reference_sha256": "20f7d50d274b3d04f5acd995740f4ff95022456355d75105f5b6c86297dd03d4",
+    "sdk_root": "/usr/share/verilator",
+    "version": "Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)",
+    "wrapper_sha256": "672a1ccf3468902f66387049f001b04f254bbcece7d5e816e3861715889bf252"
+  },
+  "yosys_sha256": "a17b4c8aeac5373dba86faa67124456834c585924503457387631408f84549f8"
+}

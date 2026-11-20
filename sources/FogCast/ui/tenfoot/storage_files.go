@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/storage"
 )
 
@@ -347,6 +348,28 @@ func openPickerFile(ctx context.Context, manager *storage.Manager, client *Clien
 		return nil, 0, "", err
 	}
 	return file, info.Size(), filepath.Base(strings.TrimSpace(path)), nil
+}
+
+// Hard disks use their dedicated storage allowance; ordinary and BIOS files
+// retain openPickerFile's existing limits.
+func openHardDiskPickerFile(ctx context.Context, manager *storage.Manager, client *Client, path string) (io.ReadCloser, int64, string, error) {
+	if host, id, rel, ok := splitDrivePath(path); ok {
+		if host {
+			if client == nil {
+				return nil, 0, "", fmt.Errorf("FogCast host is unavailable")
+			}
+			file, size, err := client.OpenStorageHardDisk(ctx, id, rel)
+			return file, size, filepath.Base(rel), err
+		}
+		file, size, err := manager.OpenHardDisk(ctx, id, rel)
+		return file, size, filepath.Base(rel), err
+	}
+	file, size, name, err := openPickerFile(ctx, manager, client, path, protocol.AtaDiskMaxBytes)
+	if err == nil && !protocol.AdmitAtaDiskSize(size) {
+		file.Close()
+		return nil, 0, "", fmt.Errorf("hard-disk image must be 1 to 128 MiB in whole 512-byte sectors")
+	}
+	return file, size, name, err
 }
 
 func (a *App) pickerDisplayPathLocked(path string) string {

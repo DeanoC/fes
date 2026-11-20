@@ -14,13 +14,14 @@ import (
 
 // Settings sections, in the v1 order (docs/ux/references/v1/README.md,
 // Settings map). Settings opens on the section list; a section is listed
-// only when it has rows, so Controllers waits for #980's page. Library &
+// only when it has rows, and Controllers only while a pad is attached. Library &
 // rooms holds the rows outside v1 and is listed with Show all cores.
 const (
 	settingsSectionList        = ""
 	settingsSectionFolders     = "folders"
 	settingsSectionFirmware    = "firmware"
 	settingsSectionDisplay     = "display"
+	settingsSectionControllers = "controllers"
 	settingsSectionNetwork     = "network"
 	settingsSectionUpdates     = "updates"
 	settingsSectionAbout       = "about"
@@ -32,6 +33,7 @@ var settingsSectionTitles = map[string]string{
 	settingsSectionFolders:     "Games folders",
 	settingsSectionFirmware:    "Firmware",
 	settingsSectionDisplay:     "Display & sound",
+	settingsSectionControllers: "Controllers",
 	settingsSectionNetwork:     "Network",
 	settingsSectionUpdates:     "Updates",
 	settingsSectionAbout:       "About & help",
@@ -73,6 +75,7 @@ const (
 	settingsOSKTapePath
 	settingsOSKCorePath
 	settingsOSKCoreTitle
+	settingsOSKShelfName
 	settingsOSKDriveField
 )
 
@@ -211,6 +214,9 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 // settingsSectionsLocked lists the sections in order.
 func (a *App) settingsSectionsLocked() []string {
 	ids := []string{settingsSectionFolders, settingsSectionFirmware, settingsSectionDisplay}
+	if len(a.pads) > 0 {
+		ids = append(ids, settingsSectionControllers)
+	}
 	if len(a.settingsNetworkRowsLocked()) > 0 {
 		ids = append(ids, settingsSectionNetwork)
 	}
@@ -241,6 +247,12 @@ func (a *App) settingsSectionSummaryLocked(id string) string {
 		return a.settingsFirmwareSummaryLocked()
 	case settingsSectionDisplay:
 		return fmt.Sprintf("%s  ·  %s safe area", a.settingsResolutionLocked(), settingsSafeAreaValue(a.safeAreaPct))
+	case settingsSectionControllers:
+		ids := a.padIDsLocked()
+		if len(ids) == 1 {
+			return a.pads[ids[0]].Name
+		}
+		return fmt.Sprintf("%d pads", len(ids))
 	case settingsSectionNetwork:
 		if a.kitDisplay {
 			return "Wired  ·  " + a.settingsWired
@@ -596,6 +608,7 @@ func (a *App) closeSettingsLocked() {
 	refreshHome := a.settingsScopeChanged
 	a.settingsScopeChanged = false
 	a.settingsOpen = false
+	a.closeControllersLocked()
 	// A firmware card still loading for Settings › Firmware is dropped.
 	if a.firmwareCard.Loading {
 		a.closeFirmwareCardLocked()
@@ -669,6 +682,10 @@ func (a *App) handleSettingsLocked(cmd Command) {
 	if !a.settingsOpen {
 		return
 	}
+	if a.controllers.open {
+		a.handleControllersLocked(cmd)
+		return
+	}
 	switch cmd {
 	case CmdSettings:
 		a.closeSettingsLocked()
@@ -716,6 +733,11 @@ func settingsRowWaitsOnHost(id string) bool {
 
 // openSettingsSectionLocked shows a section's rows from the top.
 func (a *App) openSettingsSectionLocked(id string) {
+	// Controllers is a page of its own, not a list of rows.
+	if id == settingsSectionControllers {
+		a.openControllersLocked()
+		return
+	}
 	if _, ok := settingsSectionTitles[id]; !ok {
 		return
 	}
@@ -1445,6 +1467,8 @@ func (a *App) submitSettingsOSKLocked() {
 		a.submitDriveFieldLocked()
 	case settingsOSKCorePath, settingsOSKCoreTitle:
 		a.submitCoreLibraryOSKLocked()
+	case settingsOSKShelfName:
+		a.submitStShelfNameLocked()
 	case settingsOSKLibraryPath:
 		a.submitLibraryPathOSKLocked()
 	case settingsOSKTargetName:
@@ -2161,7 +2185,7 @@ func (a *App) setSurroundLocked(on bool, persist bool) {
 	a.status = "TV surround off"
 }
 
-// setAllCoresLocked lists or hides cores outside the v1 release. The core
+// setAllCoresLocked lists or hides held-back cores. The core
 // catalog view and Home recents follow it at once. A room keeps the list it
 // was opened with, so a change from Settings rebuilds Home when Settings closes.
 func (a *App) setAllCoresLocked(on bool, persist bool) {
@@ -2170,7 +2194,7 @@ func (a *App) setAllCoresLocked(on bool, persist bool) {
 		return
 	}
 	a.persistPrefsLocked("all-cores")
-	status := "v1 cores only"
+	status := "supported and PC cores shown"
 	if on {
 		status = "all cores shown"
 	}
