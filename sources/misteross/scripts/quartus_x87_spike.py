@@ -393,10 +393,11 @@ def main() -> int:
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--hierarchy', action='store_true', help='keep the hierarchy for per-entity ALMs')
     parser.add_argument('--identity-on', action='store_true',
-                        help="with --mode machine --variant base: overlay pc386_system's i386dx+387 identity to 1, "
-                             "so Quartus keeps the CPU's x87 unit. The package ties it to 0 until slice 5 of the "
-                             'x87 phase, which lets the fitter trim the unit away, so the delta between this fit '
-                             "and the same fit without the flag is the unit's cost inside the machine (#1768).")
+                        help="with --mode machine --variant base: elaborate pc386_system with its X87_PRESENT "
+                             "parameter set to 1, so Quartus keeps the CPU's x87 unit. The package leaves it at its "
+                             'default of 0 until x87 slice 7, which lets the fitter trim the unit away, so the delta '
+                             "between this fit and the same fit without the flag is the unit's cost inside the "
+                             "machine (#1768).")
     parser.add_argument('--output', type=Path, required=True, help='a new directory (absolute)')
     parser.add_argument('--keep', action='store_true', help="keep Quartus's databases")
     args = parser.parse_args()
