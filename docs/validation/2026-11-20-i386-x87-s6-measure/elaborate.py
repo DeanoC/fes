@@ -43,6 +43,10 @@ def main() -> int:
     if args.hierarchy:
         spike.plain_module_names(netlist)
         provenance['netlist_sha256_after_plain_names'] = fit.sha(netlist.read_bytes())
+    # machine_netlist reports the canonical SEAL recipe's digest; with --hierarchy that is not
+    # the program Yosys ran. The program actually run is kept beside the netlist as machine.ys.
+    provenance['seal_recipe_program_sha256'] = provenance.pop('program_sha256')
+    provenance['executed_program_sha256'] = fit.sha((netlist.parent / 'machine.ys').read_bytes())
     text = netlist.read_text()
     provenance.update({'hierarchy': args.hierarchy, 'gpu_router': args.gpu_router,
                        'netlist': str(netlist), 'netlist_lines': text.count('\n'),

@@ -75,7 +75,7 @@ it.
 One fit, seed 1, 61.44 MHz, of a **hierarchy-preserving** netlist. It is the
 runner's machine program with Yosys's `flatten` removed. The removal is
 checked to happen exactly once, as `scripts/quartus_x87_spike.py --hierarchy`
-does on the DE10. A record-local script, `elaborate_hierarchy.py`, writes the
+does on the DE10. The record-local script `elaborate.py --hierarchy` writes the
 netlist at the runner's fixed path. The runner then fits it with `--netlist`.
 The per-entity table is read from Quartus Pro's own "Resource Utilization by
 Entity" report in the kept project.
@@ -151,3 +151,18 @@ estimated worst-corner Fmax at 61.44 MHz has been 115–134 MHz (#1907,
   touches a kit.
 - **Total:** 4 (6.0a) + 1 (6.0b) + 5 (6.0c, rungs 2–6) + 3 to 6 (closure
   seeds) = 13 to 16 fits.
+
+## Amendments
+
+1. **20 November 2026, while the fits were queued and before any had
+   finished. Nothing in a band, rung or rule changed.** In review (Codex,
+   PR #2028), two things in the elaboration were corrected:
+   - 6.0b named the elaborator `elaborate_hierarchy.py`. The committed
+     script is `elaborate.py`, run with `--hierarchy`.
+   - `elaborate.py` recorded the canonical SEAL recipe's program digest even
+     when `--hierarchy` had changed the program. It now records that digest
+     as `seal_recipe_program_sha256`, and the digest of the program Yosys
+     actually ran (the kept `machine.ys`) as `executed_program_sha256`.
+     Both netlists had already been elaborated by the first version. Their
+     `elaboration.json` files have the executed digest added from the kept
+     `machine.ys`, and the netlists are not re-elaborated.
