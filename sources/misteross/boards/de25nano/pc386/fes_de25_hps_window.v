@@ -152,9 +152,14 @@ module fes_de25_hps_window #(
     assign g0_ok = grant_valid && !o0[32] && e0 <= {2'b0, GRANT_BYTES};
     assign g1_ok = grant_valid && !o1[32] && e1 <= {2'b0, GRANT_BYTES};
     assign g2_ok = grant_valid && !o2[32] && e2 <= {2'b0, GRANT_BYTES};
-    assign m0_address = grant_base + o0[31:0];
-    assign m1_address = grant_base + o1[31:0];
-    assign m2_address = grant_base + o2[31:0];
+    // The grant is 4 KiB aligned (the control block refuses any other), so its
+    // low twelve bits are zero: the offset's low bits pass straight through and
+    // only the page numbers add. A command's lane and its in-page address then
+    // never wait on the base.
+    assign m0_address = {grant_base[31:12] + o0[31:12], o0[11:0]};
+    assign m1_address = {grant_base[31:12] + o1[31:12], o1[11:0]};
+    assign m2_address = {grant_base[31:12] + o2[31:12], o2[11:0]};
+    wire unused_base = ^grant_base[11:0];  // zero by the grant's alignment
     assign {m0_burstcount, m1_burstcount, m2_burstcount} = {g0_burstcount, g1_burstcount, g2_burstcount};
     assign m0_read = g0_read && g0_ok;
     assign m0_write = g0_write && g0_ok;

@@ -717,6 +717,8 @@ private:
             uint64_t stamp = ring_word(at + 56);
             bool named = ring_word(at) == (uint64_t(ring_next) << 32 | RING_MAGIC);
             if (named && stamp + 1 < cycles && cycles - stamp - 1 >= HISTORY) {
+                std::printf("RING-LATE %u stamp=%llu seen=%llu\n", ring_next, (unsigned long long)stamp,
+                            (unsigned long long)cycles);
                 ++ring_late;
                 continue;
             }
