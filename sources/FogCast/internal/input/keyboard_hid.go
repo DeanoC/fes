@@ -186,7 +186,10 @@ func (s *keyboardHIDSink) applyFrom(ctx context.Context, source inputSource, f p
 // release from the previous core.
 func (s *keyboardHIDSink) tap(ctx context.Context, f protocol.InputFrame, afterPress func()) error {
 	usage, ok := hidkeys.Usage(remoteinput.Code(f.Code))
-	if !ok || f.ServerMonoNS == 0 || f.Value != protocol.InputTapHoldMS {
+	if !ok || f.ServerMonoNS == 0 || f.Value != protocol.InputTapHoldMS ||
+		(f.Header.Type == protocol.InputTypeTap && f.Reserved != 0) ||
+		(f.Header.Type == protocol.InputTypeTapChord && (f.Reserved == 0 || f.Reserved > 255 || usage >= 0xe0)) ||
+		(f.Header.Type != protocol.InputTypeTap && f.Header.Type != protocol.InputTypeTapChord) {
 		return errTapUnavailable
 	}
 	if ctx == nil {
@@ -202,11 +205,23 @@ func (s *keyboardHIDSink) tap(ctx context.Context, f protocol.InputFrame, afterP
 		cancelPress()
 		return errTapUnavailable
 	}
+	for bit := uint(0); bit < 8; bit++ {
+		if f.Reserved&(1<<bit) != 0 && s.pressed[sourceRemote][uint8(0xe0+bit)] {
+			s.mu.Unlock()
+			cancelPress()
+			return errTapUnavailable
+		}
+	}
 	binding := *s.binding
 	if s.pressed[sourceRemote] == nil {
 		s.pressed[sourceRemote] = make(map[uint8]bool)
 	}
 	s.pressed[sourceRemote][usage] = true
+	for bit := uint(0); bit < 8; bit++ {
+		if f.Reserved&(1<<bit) != 0 {
+			s.pressed[sourceRemote][uint8(0xe0+bit)] = true
+		}
+	}
 	pressErr := s.postLocked(pressCtx)
 	s.mu.Unlock()
 	cancelPress()
@@ -239,6 +254,11 @@ func (s *keyboardHIDSink) tap(ctx context.Context, f protocol.InputFrame, afterP
 		return errors.Join(pressErr, errTapUnavailable)
 	}
 	delete(s.pressed[sourceRemote], usage)
+	for bit := uint(0); bit < 8; bit++ {
+		if f.Reserved&(1<<bit) != 0 {
+			delete(s.pressed[sourceRemote], uint8(0xe0+bit))
+		}
+	}
 	if s.heldUsageLocked(usage) {
 		// A local press began during the tap. Preserve it, but do not claim
 		// that a release edge reached the target while the union is held.

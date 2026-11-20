@@ -1657,7 +1657,12 @@ The input tap endpoint accepts `session_id` from the current input status and
 one HID keyboard press `event` only for an active session with a negotiated
 `fes.keyboard.hid` 1.0 interface. Native gamepad and legacy matrix sessions
 are rejected instead of silently dropping or remapping physical keys. It
-checks the selected kit's connection and lease and input attachment after
+also accepts an optional `modifiers` bitmask, where bits 0..7 denote HID
+usages `0xe0..0xe7`. A nonzero mask requires a non-modifier key. The target
+negotiates chord support separately, applies key and modifier contributions in
+one HID state, and removes only those contributions together. Unrelated
+kit-local holds are retained. Unsupported targets fail before chord dispatch.
+The host checks the selected kit's connection and lease and input attachment after
 waiting for the input lock. It rejects missing, incompatible, or unknown target
 observations. On an explicit tap, the host probes the bridge for target-timed
 tap support, then sends one generation-bound operation. The target observes
