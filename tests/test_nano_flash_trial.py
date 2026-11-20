@@ -26,12 +26,12 @@ def identity():
                 clock='3M', auto_adjust=0, client_sha256={p:'4'*64 for p in jtag.LIBRARIES}, probe_sha256='5'*64)
 
 
-def fixture(path, value):
+def fixture(path, value, *, part=flash.PART):
     # Synthetic envelope exercises the independent target/array decoder; these
     # bytes are neither a vendor programming artifact nor admitted to hardware.
     physical = bytes([value])*flash.ARRAY_BYTES
     encoded = bytes([int(f'{value:08b}'[::-1], 2)])*flash.ARRAY_BYTES
-    records = ((1, b'test'), (2, b'A5EB013BB23B\0'), (3, b'test'),
+    records = ((1, b'test'), (2, part.encode('ascii')+b'\0'), (3, b'test'),
                (27, b'MT25QU128\0'), (28, b'\0'*12+encoded), (30, b'test'), (26, b'test'), (8, b'\0\0'))
     raw = b'JIC\0'+struct.pack('<II', 0, 8)+b''.join(struct.pack('<HI', tag, len(data))+data for tag, data in records)
     path.write_bytes(raw)
@@ -71,7 +71,7 @@ class FlashTrialTests(unittest.TestCase):
             request = json.loads((self.directory/(role+'.write-started.json')).read_text())
             self.assertEqual(request['state'], 'consumed-before-nonvolatile-write')
             self.assertEqual(arguments, ['-c', CABLE, '-m', 'jtag', '-o',
-                                        'IPV;'+self.plan['images'][role]['path']+';A5EB013BB23B@1'])
+                                        'IPV;'+self.plan['images'][role]['path']+'@1'])
             self.assertEqual(cable, CABLE)
             return copy.deepcopy(OK)
         return flash.FlashTrial(self.directory, self.plan, self.approval if approval is None else approval,
@@ -122,7 +122,7 @@ class FlashTrialTests(unittest.TestCase):
 
     def test_actual_byte_target_array_and_envelope_rejection(self):
         raw = Path(self.native['path']).read_bytes()
-        cases = [raw[:-1], raw+b'extra', raw.replace(b'A5EB013BB23B', b'A5EB013BB24B', 1),
+        cases = [raw[:-1], raw+b'extra', raw.replace(b'A5EB013BB23BR1', b'A5EB013BB23BR0', 1),
                  raw.replace(b'MT25QU128', b'MT25QU256', 1), b'BAD!'+raw[4:],
                  raw[:8]+struct.pack('<I', 9)+raw[12:]]
         path = self.directory/'bad.jic'
@@ -132,6 +132,9 @@ class FlashTrialTests(unittest.TestCase):
             with self.subTest(size=len(value)), self.assertRaises(ValueError): flash.validate_image(image)
         with self.assertRaises(ValueError): flash.validate_image(dict(self.native, sha256='0'*64))
         with self.assertRaises(ValueError): flash.validate_image(dict(self.native, array_sha256='0'*64))
+        base_part = fixture(self.directory/'base-part.jic', 0x12, part='A5EB013BB23B')
+        with self.assertRaisesRegex(ValueError, 'JIC target'):
+            flash.validate_image(base_part)
 
     def test_scan_failure_is_terminal_without_a_flash_write_or_restore(self):
         trial = self.trial(scan=lambda _:RAW.replace(b'forced-scan rc=0', b'forced-scan rc=87'))

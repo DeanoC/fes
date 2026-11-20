@@ -10,6 +10,20 @@ import re
 MAX_BYTES = 1 << 20
 _BEGIN = re.compile(rb'(?m)^FES_NANO_SPL BEGIN cause=([0-9a-f]{8}) per0=[0-9a-f]{8} bridge=[0-9a-f]{8} cpus=[0-9a-f]{8} release=[0-9a-f]{8} kind=([0-7]) valid=([01])\r?$')
 _HANDOFF = re.compile(rb'(?m)^FES_ENTRY EL1 HANDOFF\r?\n')
+_BANNER = re.compile(rb'(?m)^U-Boot SPL [^\r\n]*-fes-nano-([0-9a-f]{16}) [^\r\n]*\r?\n')
+
+
+def split_capture(raw, build_id):
+    """Separate an earlier boot's UART tail from one complete SPL beginning."""
+    if not isinstance(raw, bytes) or len(raw) > MAX_BYTES or not isinstance(build_id, str) or not re.fullmatch('[0-9a-f]{16}', build_id):
+        raise ValueError('bounded capture and exact SPL build ID required')
+    banners = list(_BANNER.finditer(raw))
+    beginnings = list(_BEGIN.finditer(raw))
+    if (len(banners) != 1 or len(beginnings) != 1 or banners[0][1].decode('ascii') != build_id or
+            beginnings[0].start() != banners[0].end()):
+        raise ValueError('expected one matching SPL banner immediately before BEGIN')
+    offset = banners[0].start()
+    return raw[:offset], raw[offset:]
 
 
 def observe(raw, *, cycle_confirmed, native_boot):

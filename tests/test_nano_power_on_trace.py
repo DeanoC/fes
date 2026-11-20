@@ -5,13 +5,25 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'platform/embedded/nano'))
-from power_on_trace import observe
+from power_on_trace import observe, split_capture
 
 BEGIN = b'FES_NANO_SPL BEGIN cause=00000004 per0=ff7fbfff bridge=0000004f cpus=0000000f release=00000000 kind=0 valid=1\r\nFES_ENTRY EL1 HANDOFF\r\n'
 READY = dict(loader_ready=True, errors=[])
 
 
 class PowerOnTests(unittest.TestCase):
+    def test_split_passive_window_keeps_old_tail_and_requires_one_matching_boundary(self):
+        build = '0123456789abcdef'
+        banner = b'U-Boot SPL 2025.01-fes-nano-0123456789abcdef (fixture)\r\n'
+        tail = b'partial row\r\nFES_ENTRY EL1 HANDOFF\r\n'
+        current = banner + BEGIN
+        self.assertEqual(split_capture(tail + current, build), (tail, current))
+        for raw in (BEGIN, current+current, banner+b'gap\n'+BEGIN, banner+BEGIN+BEGIN):
+            with self.subTest(raw=raw), self.assertRaises(ValueError):
+                split_capture(raw, build)
+        with self.assertRaises(ValueError):
+            split_capture(current, 'abcdef0123456789')
+
     def test_confirmed_por_plus_independent_complete_loader_report(self):
         result = observe(BEGIN, cycle_confirmed=True, native_boot=READY)
         self.assertTrue(result['power_on_boot_qualified'])

@@ -105,8 +105,40 @@ around the existing fresh-scan gate. Programmer success and boot acceptance
 remain separate. `power_on_trace.observe` additionally requires a confirmed
 physical cycle, SDM POR boot kind and final EL1 handoff; sticky reset history
 or a qualified JTAG boot cannot substitute. These helpers open no devices;
-the retained private operator owns transport, process bounds and cleanup.
-Permanent flash programming and power-on acceptance remain untested.
+the private operator owns transport, process bounds and cleanup.
+
+### Package an opt-in R1 cold boot
+
+On TRWU8CBL, Quartus 26.3 maps `A5EB013BB23BR1` to the observed JTAG ID
+`0x4362C0DD`. The generic loader part selects `0xC362C0DD` and fails before
+flash programming. Use `launcher_image.py` to assemble the checked autoboot
+SD image and `boot_flash_image.py` to prepare the matching native and factory
+rollback JICs. The factory input is the full main-array backup from the same
+kit with its independently verified SHA-256.
+
+```sh
+FES_EXPERIMENTAL_DE25_EMBEDDED=1 python3 platform/embedded/nano/boot_flash_image.py \
+  --composition "$matched_composition" --launcher-image "$launcher_image_directory" \
+  --factory-backup "$factory_main_array" --factory-sha256 "$factory_sha256" \
+  --quartus-pfg "$quartus_pfg" --quartus-lock "$shared_quartus_lock" \
+  --output "$fresh_output_directory"
+```
+
+The file-only producer checks the installed Quartus part table, reads the FIT
+back from the assembled FAT32 image and checks the complete decoded arrays.
+The output plan pins both JICs. The result pins the matching SD image. The
+physical operator uses a fresh claim-bound scan and separate approval and
+cleanup records for each write. Initialize and verify the factory JIC against
+the current factory flash before installing the native image.
+
+For a passive serial capture, `power_on_trace.split_capture` retains any
+previous boot tail separately and locates the single matching SPL banner.
+Run the full native decoder on the resulting boot segment before passing it
+to `power_on_trace.observe`. Retain the complete serial capture and the
+operator-confirmed cycle receipt. Two qualified native power-ons reached
+Tenfoot on TRWU8CBL, with physical keyboard launch and return and List layout
+persistence. The factory restore and re-install round trip remains a
+separate qualification task under #1867.
 
 The native U-Boot builder accepts an explicit `--native-autoboot` alongside
 `--native-entry-build` for a selected Tenfoot launcher with its paired menu.
