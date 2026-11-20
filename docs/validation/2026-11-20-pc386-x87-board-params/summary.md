@@ -73,6 +73,17 @@ rerun. The fresh lockstep below ran because the producer requires one.
 The seal's setup margin is within the seed-1 range earlier pc386 seals
 have shown (+0.081 to +0.672 ns). The seal checks are unchanged.
 
+## A later head
+
+`head_matches_seal.py` (copied from #1984 S4's record) runs the registered
+producer's own build record, selection only, on a tree. It checks that the
+design identity equals the one in `seal-build-inputs.json`, this record's
+seal. A head that adds only records, docs or tests passes:
+
+```bash
+python3 -I docs/validation/2026-11-20-pc386-x87-board-params/head_matches_seal.py .
+```
+
 ## Reproducing
 
 From `sources/misteross`:
