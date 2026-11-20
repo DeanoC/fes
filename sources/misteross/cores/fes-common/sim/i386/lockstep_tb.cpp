@@ -1459,6 +1459,20 @@ struct Summary {
     // by what DR6 reports (the oracle's new bits: B for a breakpoint, BS,
     // BT, BD), and those with TF set or a breakpoint enabled.
     uint64_t dr6_rule = 0, db_rf_rule = 0;
+    // x87_probe_rule (#2020): #PF deliveries from an m80 load or an m64 or
+    // m80 store whose CR2 the oracle took from the RTL: the 386 probes the
+    // operand's last byte first and reports it, where Bochs translates the
+    // operand from its first page (divergences.toml x87-operand-probe).
+    uint64_t x87_probe_rule = 0;
+    // x87_fault_rule: deliveries from an ESC with a memory operand whose x87
+    // pointers and opcode the oracle took back: the 386 writes them after
+    // the operand has moved, where Bochs writes them before it moves, so a
+    // fault leaves Bochs's changed (divergences.toml x87-pointers-on-fault).
+    // x87_partial_rule: m80 stores that fault, whose first eight bytes the
+    // oracle wrote and took back: Bochs stores a qword then a word, where
+    // the 386 probes the last byte first and stores nothing
+    // (divergences.toml x87-operand-probe).
+    uint64_t x87_fault_rule = 0, x87_partial_rule = 0;
     std::map<std::string, uint64_t> debug_kinds;
     std::map<int, uint64_t> pm_deliveries, unbuilt;
     std::map<std::string, uint64_t> pm_kinds;  // retirements with PE set of this slice's instructions, by kind
@@ -2611,6 +2625,20 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 ++summary.divergences["mov-tr"];
             }
         }
+        // The x87 pointers and opcode before an ESC with a memory operand,
+        // for x87_fault_rule.
+        bool x87_memform = false;
+        fes_i386::X87Pointers x87_ptr_before;
+        uint16_t x87_op_before = 0;
+        if (x87_fitted) {
+            unsigned k = 0;
+            while (k < 14 && is_prefix(code[k])) ++k;
+            x87_memform = (code[k] & 0xf8) == 0xd8 && code[k + 1] < 0xc0;
+            if (x87_memform) {
+                x87_ptr_before = oracle.x87_pointers();
+                x87_op_before = oracle.x87_state().opcode;
+            }
+        }
         fes_i386::StepResult result;
         if (!undoc.empty()) {
             uint8_t was[3];
@@ -3059,6 +3087,29 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 while (i < 15 && is_prefix(code[i])) ++i;
                 if (code[i] == 0x63 && (code[i + 1] >> 6) != 3 && result.events.empty() && !(oracle.get_state().eflags & 0x40))
                     oracle_writes.clear();
+                // An m80 store that faults (x87_partial_rule): the eight
+                // bytes Bochs's qword wrote before its word faulted, where
+                // the RTL, as the 386, wrote none of the operand.
+                const unsigned reg = (code[i + 1] >> 3) & 7;
+                const bool m80_store = x87_fitted && code[i + 1] < 0xc0
+                                    && (code[i] == 0xdb && reg == 7 || code[i] == 0xdf && reg == 6);
+                const auto fault = std::find_if(result.events.begin(), result.events.end(), [](const fes_i386::Event &e) {
+                    return e.kind == fes_i386::EventKind::Exception;
+                });
+                if (m80_store && fault != result.events.end() && fault->writes_before == 1
+                    && result.writes[0].length == 8) {
+                    bool rtl_wrote = false;
+                    for (unsigned b = 0; b < 8; ++b) rtl_wrote = rtl_wrote || rtl.step_writes.count(write_key(result.writes[0].physical + b));
+                    if (!rtl_wrote) {
+                        for (unsigned b = 0; b < 8; ++b) {
+                            const uint32_t address = write_key(result.writes[0].physical + b);
+                            if (address < RAM_BYTES) bus.ram[address] = rtl.ram[address];
+                            oracle.invalidate(address, 1);
+                            oracle_writes.erase(address);
+                        }
+                        ++summary.x87_partial_rule;
+                    }
+                }
             }
             if (skip.has("ram")) {
                 std::set<uint32_t> both = oracle_writes;
@@ -3372,6 +3423,51 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         }
         if (before.eflags & 0x100) ++summary.debug_kinds["tf-steps"];
         if (before.dr7 & 0xff) ++summary.debug_kinds["armed-steps"];
+        // A #PF from an x87 operand's probe (x87_probe_rule). The 386 checks
+        // an m80 load's and an m64 or m80 store's last byte before its first
+        // (CR B and CW B, FPU_LOAD_CORE 4FC-4FE and FPU_STORE_CORE 562-564
+        // of its microcode), so a fault on the second page names that byte;
+        // Bochs translates the operand from its first page, naming the
+        // second page's first byte, or the first byte when both pages fault.
+        // Exactly those two differences are taken, each n bytes or fewer
+        // apart for an operand of n: anything else still fails.
+        if (x87_fitted && rtl_state.cr2 > oracle_state.cr2) {
+            unsigned k = 0;
+            while (k < 14 && is_prefix(code[k])) ++k;
+            const uint8_t op = code[k], modrm = code[k + 1];
+            const unsigned reg = (modrm >> 3) & 7;
+            const unsigned n = modrm >= 0xc0 ? 0
+                             : (op == 0xdb && (reg == 5 || reg == 7)) || (op == 0xdf && (reg == 4 || reg == 6)) ? 10
+                             : (op == 0xdd && (reg == 2 || reg == 3)) || (op == 0xdf && reg == 7) ? 8 : 0;
+            const uint32_t d = rtl_state.cr2 - oracle_state.cr2;
+            const bool pf = std::any_of(result.events.begin(), result.events.end(), [](const fes_i386::Event &e) {
+                return e.kind == fes_i386::EventKind::Exception && e.vector == 14;
+            });
+            if (pf && n && (d == n - 1 || d < n - 1 && oracle_state.cr2 == (rtl_state.cr2 & ~0xfffu))) {
+                oracle_state.cr2 = rtl_state.cr2;
+                oracle.set_state(oracle_state);
+                ++summary.x87_probe_rule;
+            }
+        }
+        // A fault in an ESC with a memory operand (x87_fault_rule): the 386
+        // writes the x87 pointers and the opcode once the operand has moved
+        // (CSOPCD, FSVeIP and OPROFF at 502-50C, 532-534 and 56B-575 of its
+        // microcode), so a fault leaves them; Bochs writes them before the
+        // access. The oracle takes back what it had, if the RTL kept it.
+        if (x87_memform && std::any_of(result.events.begin(), result.events.end(), [](const fes_i386::Event &e) {
+                return e.kind == fes_i386::EventKind::Exception;
+            })) {
+            const fes_i386::X87State rtl_x87 = rtl.x87_state(), oracle_x87 = oracle.x87_state();
+            const auto same = [](const fes_i386::X87Pointers &a, const fes_i386::X87Pointers &b) {
+                return a.ip == b.ip && a.cs == b.cs && a.dp == b.dp && a.ds == b.ds;
+            };
+            if (same(rtl_x87.pointers, x87_ptr_before) && rtl_x87.opcode == x87_op_before
+                && !(same(oracle_x87.pointers, x87_ptr_before) && oracle_x87.opcode == x87_op_before)) {
+                oracle.set_x87_pointers(x87_ptr_before);
+                oracle.set_x87_opcode(x87_op_before);
+                ++summary.x87_fault_rule;
+            }
+        }
         compare(oracle_state, rtl_state, skip, at, out);
         // The 387's state, when the unit is idle. A load's work finishes
         // after the instruction has retired, as a real 387's does with BUSY#
@@ -9557,7 +9653,12 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
                   bool through = false;
                   // Bochs uses a write translation for ARPL's initial read;
                   // the 386 uses a read. Run those distinguishing cases alone.
-                  bool rtl_alone = false; int pte_ad = -1; int word = -1; int zf = -1; };
+                  bool rtl_alone = false; int pte_ad = -1; int word = -1; int zf = -1;
+                  // x87: the 387 is fitted (ET set, the oracle's AT 387) and its
+                  // state compared from x87_compare_from, which the body sets
+                  // after its prologue; pf_log: the (CR2, error code) pairs the
+                  // case's #PF handler must have logged.
+                  bool x87 = false; std::vector<std::array<uint32_t, 3>> pf_log = {}; };
     const uint32_t P = 0x01, W = 0x02, U = 0x04, A = 0x20, D = 0x40;
     auto pte = [](uint32_t page) { return PT0 + 4 * page; };
     // V86 mode under paging (Phase 5's slice 3): from CPL 0, LTR 38h and an
@@ -10025,6 +10126,145 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
         }, 14, 6, -1, {}, {}, {}, true};
         cases.push_back(valid);
     }
+    // ---- An x87 operand across a page or a limit (#2020) ----
+    // A 386 checks both ends of an m80 load's and an m64 or m80 store's
+    // operand before any of it moves (fes_i386_cpu, "x87 operand probes"),
+    // and moves an m64 load upwards from its operand with no probe. So an
+    // operand across a page whose other half is not present raises a
+    // restartable #PF, not exception 9, which needs an operand that wraps
+    // an addressing limit (386 PRM 11.1.5.2): the probe forms report the
+    // last byte when its page faults, the rest the second page's first
+    // byte, and a store makes no write. Each form here faults into a
+    // handler that logs CR2, the error code and the dword at a marker
+    // address, maps the page CR2 names (identity) and returns, so the ESC
+    // runs again and completes; the next form unmaps the pages again.
+    {
+        constexpr uint32_t X87_PF_HANDLER = 0x1b00, MARK_NONE = 0x4ff0;
+        const auto handler = [](uint32_t mark) {
+            std::vector<uint8_t> h = {
+                0x50, 0x53,                                // PUSH EAX; PUSH EBX
+                0x0f, 0x20, 0xd0,                          // MOV EAX, CR2
+                0x8b, 0x1d, 0x00, 0x40, 0x00, 0x00,        // MOV EBX, [4000h]: the log's next slot
+                0x89, 0x03,                                // MOV [EBX], EAX
+                0x8b, 0x44, 0x24, 0x08,                    // MOV EAX, [ESP+8]: the error code
+                0x89, 0x43, 0x04,                          // MOV [EBX+4], EAX
+                0xa1, 0, 0, 0, 0,                          // MOV EAX, [mark]
+                0x89, 0x43, 0x08,                          // MOV [EBX+8], EAX
+                0x83, 0xc3, 0x0c,                          // ADD EBX, 12
+                0x89, 0x1d, 0x00, 0x40, 0x00, 0x00,        // MOV [4000h], EBX
+                0x0f, 0x20, 0xd0, 0x89, 0xc3,              // MOV EAX, CR2; MOV EBX, EAX
+                0xc1, 0xeb, 0x0c, 0x25, 0x00, 0xf0, 0xff, 0xff, 0x83, 0xc8, 0x07,  // SHR EBX, 12; AND EAX, ~FFFh; OR EAX, 7
+                0x89, 0x04, 0x9d, 0x00, 0x90, 0x00, 0x00,  // MOV [9000h + EBX * 4], EAX
+                0x0f, 0x20, 0xd8, 0x0f, 0x22, 0xd8,        // MOV EAX, CR3; MOV CR3, EAX
+                0x5b, 0x58, 0x83, 0xc4, 0x04, 0xcf};       // POP EBX; POP EAX; ADD ESP, 4; IRETD
+            for (unsigned i = 0; i < 4; ++i) h[21 + i] = uint8_t(mark >> (8 * i));
+            return h;
+        };
+        const auto esc = [](Asm &a, uint8_t opcode, unsigned reg, uint32_t at) {
+            a.op({opcode, uint8_t(reg << 3 | 5)}); a.d(at);
+        };
+        const auto prologue = [=](Asm &a, uint32_t base) {
+            a.op({0xdb, 0xe3});                                    // FNINIT
+            for (int n = 0; n < 8; ++n) esc(a, 0xd9, 0, 0x4f00);   // eight FLD m32
+            a.op({0xdb, 0xe3});
+            x87_compare_from = base + uint32_t(a.here());
+            a.sti32(0x4000, 0x4004);                               // the log's first slot
+        };
+        // A form: its ESC and reg field, its operand's bytes, whether it
+        // stores, and whether it probes its last byte first.
+        struct Form { uint8_t op; unsigned reg; unsigned n; bool store; bool probe; };
+        const std::vector<Form> forms = {
+            {0xdb, 5, 10, false, true},   // FLD m80
+            {0xdb, 7, 10, true, true},    // FSTP m80
+            {0xdd, 0, 8, false, false},   // FLD m64
+            {0xdd, 2, 8, true, true},     // FST m64
+            {0xdd, 3, 8, true, true},     // FSTP m64
+            {0xdf, 5, 8, false, false},   // FILD m64
+            {0xdf, 7, 8, true, true},     // FISTP m64
+            {0xd9, 0, 4, false, false},   // FLD m32
+            {0xdc, 0, 8, false, false},   // FADD m64
+            {0xd9, 3, 4, true, false},    // FSTP m32
+            {0xdf, 0, 2, false, false},   // FILD m16
+            {0xdf, 3, 2, true, false},    // FISTP m16
+        };
+        constexpr uint32_t MARKER = 0xa5a5a5a5, ANY = 0;
+        // absent: the pages unmapped before each form (bit 0 page 10h, bit 1
+        // page 11h); at: each form's operand by its size.
+        struct Variant { const char *label; unsigned absent; std::function<uint32_t(unsigned)> at; uint32_t mark; };
+        const std::vector<Variant> variants = {
+            // The second page absent, the operand split after its first dword
+            // (m80, m64), inside it (m32) or after its first byte (m16).
+            {"pg-x87-straddle", 2, [](unsigned n) { return n >= 8 ? 0x10ffcu : n == 4 ? 0x10ffeu : 0x10fffu; }, 0x10ffc},
+            // ... split inside the first dword, and an m80 with only its top
+            // word on the second page.
+            {"pg-x87-straddle-mid", 2, [](unsigned n) { return n == 10 ? 0x10ff8u : n == 8 ? 0x10ffeu : n == 4 ? 0x10ffdu : 0x10fffu; },
+             0x10ff8},
+            // The first page absent, the second present: the probe passes and
+            // the first part faults, so CR2 is the operand's first byte.
+            {"pg-x87-first-absent", 1, [](unsigned n) { return n >= 8 ? 0x10ffcu : n == 4 ? 0x10ffeu : 0x10fffu; }, 0x11000},
+            // Both absent: a probe faults on the second page first, the rest
+            // on the first; each form faults twice.
+            {"pg-x87-both-absent", 3, [](unsigned n) { return n >= 8 ? 0x10ffcu : n == 4 ? 0x10ffeu : 0x10fffu; }, MARK_NONE},
+        };
+        const std::vector<uint8_t> three = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x40};
+        for (const Variant &v : variants) {
+            std::vector<std::array<uint32_t, 3>> log;
+            for (const Form &f : forms) {
+                const uint32_t ea = v.at(f.n), last = ea + f.n - 1, page2 = 0x11000;
+                const uint32_t error = f.store ? 2 : 0, first = f.store && v.mark != MARK_NONE ? MARKER : ANY;
+                if (v.absent == 2) log.push_back({f.probe ? last : page2, error, first});
+                else if (v.absent == 1) log.push_back({ea, error, first});
+                else if (f.probe) { log.push_back({last, error, ANY}); log.push_back({ea, error, ANY}); }
+                else { log.push_back({ea, error, ANY}); log.push_back({page2, error, ANY}); }
+            }
+            Case c{v.label, [=](Asm &a, uint32_t base) {
+                prologue(a, base);
+                for (const Form &f : forms) {
+                    if (f.store && v.mark != MARK_NONE) a.sti32(v.mark, MARKER);
+                    if (v.absent & 1) a.sti32(pte(0x10), 0);
+                    if (v.absent & 2) a.sti32(pte(0x11), 0);
+                    a.op({0x0f, 0x20, 0xd8, 0x0f, 0x22, 0xd8});    // MOV EAX, CR3; MOV CR3, EAX
+                    esc(a, f.op, f.reg, v.at(f.n));
+                }
+                esc(a, 0xd9, 6, 0x4e00);                           // FNSTENV: the pointers
+            }, -1, -1, -1, {{0x10, 0x10000 | P | W | U}, {0x11, 0x11000 | P | W | U}}, {},
+               {{X87_PF_HANDLER, handler(v.mark)}, {0x4f00, {0x00, 0x00, 0xc0, 0x3f}},          // f32 1.5
+                {0x10ff8, std::vector<uint8_t>(16, 0)}, {0x10ffc, three}},
+               false, -1, false, {{14, gate(0x18, X87_PF_HANDLER, 0x8e)}}, false, true};
+            c.x87 = true;
+            c.pf_log = log;
+            cases.push_back(c);
+        }
+        // An operand past a 16-bit segment's limit (DS 10h: base 0, limit
+        // FFFFh), whose probe is past it: #GP(0) before a byte moves, with
+        // 32-bit addressing and with 16-bit, where the probe's offset wraps
+        // and the 386 adds it with a 32-bit ALU (fes_i386_cpu, m1_xwrap).
+        // Bochs stores an m80 as a qword then a word, so its FSTP m80 writes
+        // eight bytes first (x87_partial_rule), and under a 16-bit address
+        // size it wraps the word's offset to 0000h, so its m80 load and
+        // store there complete: those two run on the RTL alone
+        // (divergences.toml x87-operand-wrap).
+        struct Limit { const char *label; std::vector<uint8_t> insn; bool alone; };
+        const std::vector<Limit> limits = {
+            {"pg-x87-limit16-fstp64", {0x67, 0xdd, 0x1e, 0xfa, 0xff}, false},       // FSTP m64 [FFFAh], a16
+            {"pg-x87-limit16-fld80", {0x67, 0xdb, 0x2e, 0xf8, 0xff}, true},         // FLD m80 [FFF8h], a16
+            {"pg-x87-limit16-fstp80", {0x67, 0xdb, 0x3e, 0xf8, 0xff}, true},        // FSTP m80 [FFF8h], a16
+            {"pg-x87-limit32-fstp80", {0xdb, 0x3d, 0xf8, 0xff, 0x00, 0x00}, false}, // FSTP m80 [0000FFF8h]
+            {"pg-x87-limit32-fst64", {0xdd, 0x15, 0xfc, 0xff, 0x00, 0x00}, false},  // FST m64 [0000FFFCh]
+        };
+        for (const Limit &l : limits) {
+            Case c{l.label, [=](Asm &a, uint32_t base) {
+                prologue(a, base);
+                esc(a, 0xd9, 0, 0x4f00);                           // FLD m32: something to store
+                a.op({0x66, 0xb8, 0x10, 0x00, 0x8e, 0xd8});         // MOV AX, 10h; MOV DS, AX
+                a.b.insert(a.b.end(), l.insn.begin(), l.insn.end());
+            }, 13, 0, -1, {}, {}, {{0x4f00, {0x00, 0x00, 0xc0, 0x3f}}, {0xfff8, std::vector<uint8_t>(8, 0xa5)}}};
+            c.x87 = true;
+            c.rtl_alone = l.alone;
+            cases.push_back(c);
+        }
+    }
+    const bool was_fitted = x87_fitted;
     const char *only = std::getenv("FES_I386_CASE");
     for (const Case &c : cases) {
         if (only && std::string(only) != c.label) continue;
@@ -10093,7 +10333,9 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
         for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0);
         state.eip = CODE;
         state.gpr[fes_i386::REG_ESP] = 0x0f00;
-        state.cr0 = 0x7ffffff0;
+        state.cr0 = c.x87 ? 0x7ffffff0 | 0x10 : 0x7ffffff0;
+        x87_fitted = c.x87 || was_fitted;
+        oracle.set_at_coprocessor(x87_fitted);
         oracle.reset();
         oracle.set_state(state);
         oracle.set_a20(!c.a20m);
@@ -10115,7 +10357,7 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
             outcome.halted = rtl.stopped();
         } else {
             try {
-                outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 96, !c.through, summary, out, 0, nullptr, nullptr, std::string(c.label) == "pg-rep-movs-long");
+                outcome = lockstep(oracle, bus, rtl, entries, Fields{}, c.x87 ? 1500 : 96, !c.through, summary, out, 0, nullptr, nullptr, std::string(c.label) == "pg-rep-movs-long");
             } catch (const std::exception &error) {
                 out.add(std::string(c.label) + ".oracle-error:" + error.what(), 0, 1);
                 oracle.reset();
@@ -10162,6 +10404,32 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
             }
         }
         if (c.cr2 >= 0 && s.cr2 != uint32_t(c.cr2)) out.add(label + ".cr2", uint32_t(c.cr2), s.cr2);
+        if (c.x87 && c.rtl_alone) {
+            // The x87 limit cases the RTL runs alone: nothing moved. The
+            // stack still holds the one FLD m32 (TOP 7), and the store's
+            // operand keeps its A5h bytes.
+            if (((rtl.x87_state().status >> 11) & 7) != 7) out.add(label + ".x87-top", 7, (rtl.x87_state().status >> 11) & 7);
+            for (uint32_t a = 0xfff8; a < 0x10000; ++a)
+                if (rtl.ram[a] != 0xa5) out.add(label + ".operand." + hex(a), 0xa5, rtl.ram[a]);
+        }
+        if (c.x87 && !c.pf_log.empty()) {
+            // The handler's log, from 4004h to the slot 4000h names: CR2,
+            // the error code and the marker's dword (0 in pf_log: any).
+            const auto dword = [&](uint32_t x) {
+                return uint32_t(rtl.ram[x]) | uint32_t(rtl.ram[x + 1]) << 8 | uint32_t(rtl.ram[x + 2]) << 16
+                     | uint32_t(rtl.ram[x + 3]) << 24;
+            };
+            std::vector<std::array<uint32_t, 3>> log;
+            for (uint32_t at = 0x4004; at + 12 <= dword(0x4000) && at < 0x4400; at += 12)
+                log.push_back({dword(at), dword(at + 4), dword(at + 8)});
+            if (log.size() != c.pf_log.size()) out.add(label + ".pf-count", uint32_t(c.pf_log.size()), uint32_t(log.size()));
+            for (size_t n = 0; n < std::min(log.size(), c.pf_log.size()); ++n) {
+                const std::string at = label + ".pf" + std::to_string(n);
+                if (log[n][0] != c.pf_log[n][0]) out.add(at + "-cr2", c.pf_log[n][0], log[n][0]);
+                if (log[n][1] != c.pf_log[n][1]) out.add(at + "-error", c.pf_log[n][1], log[n][1]);
+                if (c.pf_log[n][2] && log[n][2] != c.pf_log[n][2]) out.add(at + "-marker", c.pf_log[n][2], log[n][2]);
+            }
+        }
         if (label.rfind("pg-r3-pushf", 0) == 0) {
             const uint32_t at = s.seg[fes_i386::SEG_SS].base + s.gpr[fes_i386::REG_ESP];
             const auto rd32 = [&](uint32_t x) {
@@ -10211,6 +10479,9 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
             std::cout << '\n';
         }
     }
+    x87_fitted = was_fitted;
+    x87_compare_from = 0;
+    oracle.set_at_coprocessor(was_fitted);
     return 0;
 }
 
@@ -13852,7 +14123,7 @@ int main(int argc, char **argv) {
                 "\"no387_rule\": %llu, \"no387_skips\": %llu, \"x87_compared\": %llu, "
                 "\"x87_bcd_forms\": {\"fbld\": %llu, \"fbstp\": %llu, \"not_built\": %llu}, "
                 "\"x87_trans\": %s, "
-                "\"dr6_rule\": %llu, \"db_rf_rule\": %llu, "
+                "\"dr6_rule\": %llu, \"db_rf_rule\": %llu, \"x87_probe_rule\": %llu, \"x87_fault_rule\": %llu, \"x87_partial_rule\": %llu, "
                 "\"debug_kinds\": {%s}, \"x87_backend_offered\": [%llu, %llu, %llu, %llu, %llu, %llu, %llu, %llu], \"x87_backend_taken\": [%llu, %llu, %llu, %llu, %llu, %llu, %llu, %llu]}\n",
                 mode.c_str(), (unsigned long long)seed, latency ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
@@ -13892,7 +14163,9 @@ int main(int argc, char **argv) {
                 (unsigned long long)summary.x87_fbld, (unsigned long long)summary.x87_fbstp,
                 (unsigned long long)summary.x87_bcd_not_built, trans.c_str(),
                 (unsigned long long)summary.dr6_rule,
-                (unsigned long long)summary.db_rf_rule, named(summary.debug_kinds).c_str(),
+                (unsigned long long)summary.db_rf_rule, (unsigned long long)summary.x87_probe_rule,
+                (unsigned long long)summary.x87_fault_rule, (unsigned long long)summary.x87_partial_rule,
+                named(summary.debug_kinds).c_str(),
                 (unsigned long long)x87_backend_offered[0],
                 (unsigned long long)x87_backend_offered[1],
                 (unsigned long long)x87_backend_offered[2],

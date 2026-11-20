@@ -599,6 +599,36 @@ source = "reenigne/x86_microcode 80386/decoder23.txt (MOV TRn rows), decode2.txt
 follow = "386"
 
 [[lockstep]]
+id = "x87-operand-probe"
+title = "An x87 operand across a page or a limit moves nothing before it faults"
+rule = "x87_probe_rule, x87_partial_rule"
+cases = ["pg-x87-straddle", "pg-x87-straddle-mid", "pg-x87-first-absent", "pg-x87-both-absent", "pg-x87-limit16-fstp64", "pg-x87-limit32-fstp80", "pg-x87-limit32-fst64"]
+oracle = "Bochs translates a multi-byte operand from its first page, so a #PF on the second page names that page's first byte (CR2 11000h for an operand at 10FFCh), or the operand's first byte when both pages fault. It moves an m80 as a qword then a word, each checked alone, so an FSTP m80 whose word faults has written its first eight bytes (FSTP m80 at 10FF8h with page 11000h absent, and at DS:FFF8h with DS's limit FFFFh). Measured: the probe rule took 15 CR2s and the partial rule 2 stores in the paging cases."
+i386 = "The 386 checks an m80 load's and every store's last byte, then its first, before any of the operand moves (CR B and CW B: 'perform access/limit/paging checks ... but don't actually do' the access), so the fault is restartable, nothing is stored, and a #PF on the second page names the last byte (11005h for an m80 at 10FFCh, 11003h for an m64 store). An m32 or m64 load moves upwards with no probe, as Bochs's does. The RTL probes an m80 load and every m64 and m80 store the same way and moves the parts upwards; its single-access m16 and m32 forms fault as one access, as Bochs's do. The lockstep takes the RTL's CR2 only where it is the operand's last byte and Bochs's the second page's first byte or the operand's first byte (x87_probe_rule), and the RTL's bytes back only where Bochs wrote an m80 store's first eight and the RTL none (x87_partial_rule); the cases' #PF handler logs CR2, the error code and a marker each fault leaves, which the bench checks against the 386's rule on the RTL alone."
+source = "reenigne/x86_microcode 80386/microcode_notes.txt: FPU_LOAD_CORE 4FC-4FE and FPU_STORE_CORE 562-564 (the probes), the last byte's offset at 4D5, 4DD, 53A, 53E and 542 (IND_DELTA 9, 7, 3, 1), FPU_LD3264_COR 52A-531 (an m32 or m64 load: no probe, upwards); fields.txt busop 08h and 0Ch (CW B and CR B); 80386 Programmer's Reference Manual 11.1.5.2 (both ends checked before the operand moves)."
+follow = "386"
+
+[[lockstep]]
+id = "x87-pointers-on-fault"
+title = "A faulting ESC leaves the x87 pointers and the opcode"
+rule = "x87_fault_rule"
+cases = ["pg-x87-straddle", "pg-x87-straddle-mid", "pg-x87-first-absent", "pg-x87-both-absent", "pg-x87-limit16-fstp64", "pg-x87-limit32-fstp80", "pg-x87-limit32-fst64"]
+oracle = "Bochs writes the instruction and data pointers and the opcode before an ESC's memory access (FPU_update_last_instruction), so an ESC whose operand faults leaves them naming it. Measured: 33 deliveries in the paging cases."
+i386 = "The 386 keeps the pointers and the opcode itself (CSOPCD, FSVeIP and OPROFF, which FNSTENV and FNSAVE store) and writes them once the operand has moved, so a fault leaves the last completed ESC's. The RTL writes them as the ESC's last uop retires. The lockstep gives the oracle back what it had where the RTL kept it."
+source = "reenigne/x86_microcode 80386/microcode_notes.txt 502-50C (an m80 or m16 load), 532-534 (an m32 or m64 load) and 56B-575 (a store), each after its transfer."
+follow = "386"
+
+[[lockstep]]
+id = "x87-operand-wrap"
+title = "An x87 operand past FFFFh under a 16-bit address size faults"
+rule = "rtl_alone"
+cases = ["pg-x87-limit16-fld80", "pg-x87-limit16-fstp80"]
+oracle = "Bochs moves an m80 as a qword then a word and wraps the word's offset by the address size, so under a 16-bit address size an m80 at FFF8h in a segment of limit FFFFh loads or stores its top word at 0000h and completes."
+i386 = "The 386 adds the probe's offset (the operand's last byte) with a 32-bit ALU (BITS32 on the IND add at 4D5, 4DD, 53A, 53E and 542), so the probe of an m80 at FFF8h is at 10001h, past the limit, and #GP(0) (or #SS(0)) comes before a byte moves. The RTL raises it when an m80's or an m64 store's probe wraps (m1_xwrap). The 386 manual's 11.1.5.2 describes an operand that wraps such a limit, with exception 9 when bytes between its ends are not accessible; no path in the 386's microcode delivers vector 9 (its fault entries are #PF, #GP, #SS, #NP, #TS, #DF and the rest by number), and the RTL raises none. The two cases run on the RTL alone and check #GP(0), TOP and the operand's bytes. Open until a real 386 and 387 settle it."
+source = "reenigne/x86_microcode 80386/microcode_notes.txt 4D5-546 (BITS32 on the probe's add), 85B-87F (FAULT_ERR_CODE: vector 9 plus a base, none of 0 found) and small_pla.txt (the fault entries); 80386 Programmer's Reference Manual 9.8.9 and 11.1.5.2."
+follow = "386"
+
+[[lockstep]]
 id = "x87-trig-infinity-c2"
 title = "FSIN, FCOS, FSINCOS and FPTAN of an infinity set C2"
 rule = "trans_compare"

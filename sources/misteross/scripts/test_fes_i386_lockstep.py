@@ -457,7 +457,11 @@ def run_paging(testbench: str, env: dict) -> dict:
     CR3 that maps the GDT elsewhere, a new TSS on a page not present; #UD
     for what the 386 rejects at CPL 0 and 3 and in V86 mode, before a
     memory operand on a page not present (#1701); ARPL paging read/write
-    semantics, checked on the RTL alone where Bochs differs (#1665)."""
+    semantics, checked on the RTL alone where Bochs differs (#1665); and
+    x87 operands across a page or a limit with a 387 fitted, each form
+    faulting, its page mapped by the handler and the ESC run again (#2020),
+    under the three rules that divergences.toml's x87-operand-probe and
+    x87-pointers-on-fault entries record, whose counts are fixed here."""
     env = dict(env, FES_I386_MODE='paging', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
@@ -465,13 +469,22 @@ def run_paging(testbench: str, env: dict) -> dict:
     summary, failures = parse_output(result.stdout)
     if summary['runs'] != PAGING_CASES:
         raise LockstepError(f'paging cases: testbench ran {summary["runs"]} of {PAGING_CASES} cases')
+    for rule, count in X87_PAGING_RULES.items():
+        if summary[rule] != count:
+            raise LockstepError(f'paging cases: {rule} applied {summary[rule]} times, not {count}')
     return {'summary': summary, 'failures': failures}
 
 
 # 77, and #1701's #UD at CPL 0 and 3 before a memory operand on a page not
 # present (8 each), its 45 probes in V86 mode, 6 ARPL paging cases, and
-# #1730's UMOV #PF at CPL 0 and 3 (2 each), and 10 flat SS boundary controls.
-PAGING_CASES = 77 + 2 * 8 + 45 + 6 + 2 * 2 + 10
+# #1730's UMOV #PF at CPL 0 and 3 (2 each), and 10 flat SS boundary controls;
+# #2020's four x87 page programs and five x87 limit cases.
+PAGING_CASES = 77 + 2 * 8 + 45 + 6 + 2 * 2 + 10 + 4 + 5
+# What #2020's rules take from the RTL in those cases: the 386's CR2 for the
+# five probe forms in the second-page, mid-split and both-absent programs;
+# the x87 pointers and opcode of each delivery where Bochs moved them; and an
+# m80 store's first eight bytes, at 10FF8h and at DS:FFF8h.
+X87_PAGING_RULES = {'x87_probe_rule': 3 * 5, 'x87_fault_rule': 33, 'x87_partial_rule': 2}
 
 
 def run_no387(testbench: str, env: dict) -> dict:

@@ -575,7 +575,10 @@ every field and routine.
     [Protected mode](#protected-mode)).
   - `fnstenv`, `fnsave`, `fldenv`, `frstor`, `frd8` and `frd10`: the ESC
     forms with no 387 that take more than one uop
-    ([ESC with no 387](#esc-with-no-387)).
+    ([ESC with no 387](#esc-with-no-387)); `xld8`, `xld10`, `fst8` and
+    `fst10`: the 387's m64 and m80 operands, moved upwards after an m80
+    load's or an m64 or m80 store's probe of its last byte
+    ([The 387](#the-387)).
 - **Flags in EX.** PUSHF and POPF are single uops. EX's flag operations give
   FLAGS' image and load the writable real-mode flags in its running copy, as
   INT's and IRET's do.
@@ -1620,8 +1623,20 @@ the unit's own header comment carries the design. In short:
   before it runs, and the CPU takes an interrupt there as it does in HLT, so
   IRQ 13's handler can write port F0h and release it. Port F1h resets the
   unit and leaves the latch alone.
-- **Not built yet:** the arithmetic (slices 3 to 5), and exception 9 for a
-  coprocessor operand whose middle part crosses a page or segment boundary.
+- **An operand across a page or a limit moves nothing before it faults**
+  (#2020). As a 386 does, an m80 load and every m64 and m80 store probe the
+  operand's last byte (a load whose data nothing uses, a write's check for a
+  store) before the first part moves, and every form moves its parts
+  upwards, so the first part checks the first byte: a #PF, #GP or #SS
+  comes before any byte is stored or any part reaches the unit, the x87
+  pointers and the opcode stay as they were, and the instruction restarts.
+  A #PF on the second page names the last byte for the probing forms, as
+  the 386's does. A probe whose 16-bit offset wraps past FFFFh is past the
+  limit, as the 386's 32-bit add of it is. Exception 9 is not raised: its
+  manual's case is an operand that wraps an addressing limit with bytes
+  between its ends not accessible, and the 386's microcode has no path that
+  delivers it. [docs/validation/2026-11-20-i386-x87-exc9](../../../../../../docs/validation/2026-11-20-i386-x87-exc9/summary.md)
+  has the sources and the differences from Bochs.
 
 ## Speed governor
 
