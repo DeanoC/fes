@@ -52,7 +52,8 @@ def system_testbench(args) -> Path:
     rtl = tuple(swap.get(path, path) for path in sim.SYSTEM_RTL) + DE25_RTL
     sim.verilate(args.verilator, 'system', 'pc386_de25_sim', rtl, sim.CORE / 'sim/system_tb.cpp', [], args.jobs,
                  parameters, include=(HERE / 'generated',),
-                 flags=('-Wno-TIMESCALEMOD', '--prefix', 'Vpc386_system'), defines=('FES_PC386_DE25',))
+                 flags=('-Wno-TIMESCALEMOD', '--prefix', 'Vpc386_system', '-CFLAGS', '-DFES_PC386_DE25'),
+                 defines=('FES_PC386_DE25',))
     return sim.OUTPUT / 'system' / 'obj' / 'Vpc386_system'
 
 
