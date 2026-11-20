@@ -51,7 +51,7 @@ module pc386_system #(
     parameter integer OPL2_N = 7, OPL2_D = 14080,
     parameter integer AUDIO_N = 3, AUDIO_D = 6250,
     parameter integer GOV_N = 1, GOV_D = 1000,  // 100 kHz, the governor's frequency unit
-    parameter integer ATA_RESET_CLOCKS = 1000,
+    parameter integer ATA_RESET_CLOCKS = 1000, X87_PRESENT = 0, X87_BACKEND = 0,  // the board's 387: see the CPU
     parameter ROM_HEX = "build/firmware/pc386/pc386-rom.hex"
 ) (
     input wire clk, pixel_clk, pixel_locked,
@@ -463,14 +463,14 @@ module pc386_system #(
     wire [31:0] cpu_eip;
     /* verilator lint_off PINCONNECTEMPTY */
     // The i386dx+387 identity, and the AT board's coprocessor controls the
-    // machine decodes for the CPU's x87 unit. The identity is off in the
-    // package until slice 5 of the x87 phase (#1768), where the plan's
-    // slices put the transcendentals every computing title also runs; its
-    // record word and FogCast setting come with it.
-    wire x87_present = 1'b0;
+    // machine decodes for the CPU's x87 unit. Each board sets X87_PRESENT
+    // and X87_BACKEND (0 the sequencer, 1 the DE25 pipeline); both are 0 on
+    // every board until x87 slice 7 (#1768) turns the identity on, with its
+    // record word and FogCast setting.
+    wire x87_present = X87_PRESENT != 0;
     wire x87_f0, x87_f1, x87_irq13;
 
-    fes_i386_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D)) cpu (
+    fes_i386_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D), .X87_BACKEND(X87_BACKEND)) cpu (
         .clk(clk), .cold_reset(cpu_cold), .reset(cpu_reset),
         .x87_present(x87_present), .x87_f0(x87_f0), .x87_f1(x87_f1), .x87_irq13(x87_irq13), .trace_x87_busy(), .trace_x87_latched(), .trace_x87_seq(),
         .arch_x87_cw(), .arch_x87_sw(), .arch_x87_tw(), .arch_x87_opcode(), .arch_x87_regs(),

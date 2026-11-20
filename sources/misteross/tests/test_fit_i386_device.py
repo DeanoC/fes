@@ -3,6 +3,8 @@
 reader. These cover the parts that decide what a figure means -- which ports
 become virtual pins, which report row each resource came from, and the clock
 constraints -- with no Quartus, Yosys or device needed."""
+from contextlib import redirect_stdout
+import io
 import json
 import os
 from pathlib import Path
@@ -260,6 +262,20 @@ class Caps(unittest.TestCase):
 class SecondaryFrontEnd(unittest.TestCase):
     """Quartus reading the SystemVerilog itself: a cross-check on the netlist
     flow, not a second area result."""
+
+    def test_the_387_settings_are_refused_where_they_cannot_apply(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for argv, message in (
+                    (["--design", "cpu", "--x87-present", "1"], "--design machine only"),
+                    (["--design", "machine", "--x87-backend", "1", "--front-end", "systemverilog"],
+                     "Yosys elaboration only"),
+                    (["--design", "machine", "--x87-present", "1", "--netlist", "/nonexistent.v"],
+                     "reused --netlist")):
+                with self.subTest(argv=argv), redirect_stdout(io.StringIO()) as out:
+                    code = fit.main(argv + ["--device", "de25", "--output", f"{tmp}/{len(argv)}",
+                                            "--cache-root", tmp])
+                    self.assertNotEqual(code, 0)
+                    self.assertIn(message, out.getvalue())
 
     def test_it_is_refused_for_the_machine(self):
         with self.assertRaisesRegex(fit.FitError, "fes_i386_cpu only"):
