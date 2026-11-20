@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Recognise a core's boot screen in a DE25 HIL capture.
+"""Manually recognise a core's boot screen in a DE25 HIL capture.
 
-Powerboat's D25 smoke captures the HDMI output after a launch. A changed
-centre hash only shows that something other than Home is on screen; this
-module checks that the screen is the one the core should boot to. OCR cannot
-read the Atari ST desktop: its menu text is large and pixelated and the
-desktop is a dithered fill.
+This standalone capture-analysis utility is not currently called by the
+Powerboat D25 smoke runner. It can check whether supplied frames show the
+screen a core should boot to. OCR cannot read the Atari ST desktop: its menu
+text is large and pixelated and the desktop is a dithered fill.
 
 The Atari ST check recognises a GEM desktop by its layout, not by a stored
 image, so it holds for EmuTOS and TOS, any desktop colour, and any position or
@@ -15,8 +14,9 @@ in it. Frames are reduced with ffmpeg's area filter first, which averages the
 dither into a flat colour.
 
 Usage: de25_boot_screen.py --core fes.atari-st FRAME [FRAME ...]
-Prints one JSON object. Exit 0 when every frame matches, 1 when any does
-not, 2 for a bad frame or usage, and 3 when the core has no boot-screen check.
+Prints one JSON object to stdout. Exit 0 when every frame matches, 1 when any
+does not, 2 for a bad frame or usage, and 3 when the core has no boot-screen
+check. It does not write the D25 smoke result files.
 """
 
 from __future__ import annotations
