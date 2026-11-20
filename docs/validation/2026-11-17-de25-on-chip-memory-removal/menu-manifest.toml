@@ -13,8 +13,8 @@ programming_profile = "de25-linux-menu-v1"
 
 [payload]
 file = "core.rbf"
-size = 1302528
-sha256 = "3dfa85573415f2b742e50851a7f44f1b1e8a6e77713e06056210fdc80935bb0f"
+size = 1290240
+sha256 = "4e007cabbe4dfa683ae9f5d075b36c3fc4af7c740c6a227b87c8620afe9fb22e"
 
 [abi]
 id = "fes.application"
@@ -40,8 +40,8 @@ minor = 3
 required = true
 
 [build]
-id = "b4a0e37e76158cac258b1dab4f7039d1"
+id = "8dd23f0fbf5a58a7483ab7a9cc9885b7"
 repository = "https://github.com/DeanoC/fes.git"
-revision = "106752761f37dbea7ec86767609517b8efa9df44"
-recipe_sha256 = "2b22d4bcb9e3cd0c876e79059aa59776c5c3653973ec4ed11cc917b4ebf010eb"
+revision = "18233ba6fd1bdf20e6ce601fe414086879de5e63"
+recipe_sha256 = "fc72380fb12bac937991793c24be16a390b6f15762d1027551335acfa9e2fc18"
 toolchain = "ipgenerate Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14; pfg Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14; qsys Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:a0c811ed4010961b2ae4e92711492a172be969c900709b380f3c66db875d3f75; quartus Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14"
