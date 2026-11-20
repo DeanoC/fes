@@ -1,0 +1,111 @@
+package require -exact qsys 20.1
+set_module_property NAME fes_de25_pc386_standard
+set_module_property VERSION 1.0
+set_module_property DISPLAY_NAME "FES DE25 standard pc386"
+set_module_property GROUP FES
+set_module_property AUTHOR FES
+set_module_property INSTANTIATE_IN_SYSTEM_MODULE true
+set_module_property EDITABLE false
+add_parameter BUILD_ID STD_LOGIC_VECTOR 0x0
+set_parameter_property BUILD_ID WIDTH 128
+set_parameter_property BUILD_ID HDL_PARAMETER true
+set_parameter_property BUILD_ID AFFECTS_GENERATION false
+add_fileset QUARTUS_SYNTH QUARTUS_SYNTH
+set_fileset_property QUARTUS_SYNTH TOP_LEVEL fes_de25_pc386_standard
+add_fileset_file fes_de25_pc386_standard.v VERILOG PATH fes_de25_pc386_standard.v TOP_LEVEL_FILE
+# pc386_system is the Yosys SEAL netlist of the derived machine, as the DE10
+# seal compiles it; the rest is the board's own RTL.
+foreach file {pc386_system.v fes_de25_hps_window.v fes_hps_ddr_guard.v fes_de25_computer_transport.v
+    fes_gp_crossing.v fes_de25_scanout.v fes_display_cdc.v fes_menu_video.v fes_menu_reader_de25.v} {
+    add_fileset_file $file VERILOG PATH $file
+}
+foreach file {fes_computer_mailbox.v fes_de25_session_display.v fes_display_plane.v fes_menu_control.v} {
+    add_fileset_file $file SYSTEM_VERILOG PATH $file
+}
+foreach file {fes_de25_computer.vh fes_de25_scanout.vh} {
+    add_fileset_file generated/$file VERILOG_INCLUDE PATH generated/$file
+}
+foreach file {fes_computer.vh fes_application.vh fes_display_plane.vh} {
+    add_fileset_file $file VERILOG_INCLUDE PATH generated/$file
+}
+foreach {clock port reset reset_port} {clk_sys clk_sys system_reset reset_n clk pixel_clk reset pixel_reset_n
+        machine_clk machine_clk machine_reset machine_reset_n} {
+    add_interface $clock clock sink
+    add_interface_port $clock $port clk Input 1
+    add_interface $reset reset sink
+    set_interface_property $reset associatedClock $clock
+    set_interface_property $reset synchronousEdges DEASSERT
+    add_interface_port $reset $reset_port reset_n Input 1
+}
+foreach {name prefix clock reset bits span} {
+    computer computer_ clk_sys system_reset 5 32
+    avs scanout_ clk reset 7 128
+} {
+    add_interface $name avalon end
+    set_interface_property $name associatedClock $clock
+    set_interface_property $name associatedReset $reset
+    set_interface_property $name explicitAddressSpan $span
+    foreach {key value} {addressUnits SYMBOLS bitsPerSymbol 8
+        maximumPendingReadTransactions 1 maximumPendingWriteTransactions 1 minimumResponseLatency 1
+        readLatency 0 readWaitTime 0 writeWaitTime 0 waitrequestAllowance 0 setupTime 0 holdTime 0
+        timingUnits Cycles isMemoryDevice false} {
+        set_interface_property $name $key $value
+    }
+    add_interface_port $name ${prefix}address address Input $bits
+    foreach {signal direction width} {read Input 1 write Input 1
+        byteenable Input 4 writedata Input 32 readdata Output 32 readdatavalid Output 1
+        waitrequest Output 1 writeresponsevalid Output 1 response Output 2} {
+        add_interface_port $name ${prefix}${signal} $signal $direction $width
+    }
+}
+add_interface avm avalon start
+set_interface_property avm associatedClock clk
+set_interface_property avm associatedReset reset
+foreach {key value} {addressUnits SYMBOLS bitsPerSymbol 8 burstcountUnits WORDS maximumPendingReadTransactions 16
+    waitrequestAllowance 0 linewrapBursts false burstOnBurstBoundariesOnly false doStreamReads false doStreamWrites false} {
+    set_interface_property avm $key $value
+}
+foreach {signal direction width} {address Output 32 burstcount Output 7 read Output 1 byteenable Output 16
+    waitrequest Input 1 readdata Input 128 readdatavalid Input 1 response Input 2} {
+    add_interface_port avm avm_$signal $signal $direction $width
+}
+# The pc386 window: fes.memory.hps-ddr's three ports, rebased onto the
+# runtime's grant, read/write, in the machine clock.
+foreach {name width} {w0 128 w1 64 w2 64} {
+    add_interface $name avalon start
+    set_interface_property $name associatedClock machine_clk
+    set_interface_property $name associatedReset machine_reset
+    foreach {key value} {addressUnits SYMBOLS bitsPerSymbol 8 burstcountUnits WORDS
+        maximumPendingReadTransactions 32 waitrequestAllowance 0 linewrapBursts false
+        burstOnBurstBoundariesOnly false doStreamReads false doStreamWrites false} {
+        set_interface_property $name $key $value
+    }
+    foreach {signal direction bits} [list address Output 32 burstcount Output 8 read Output 1 write Output 1 \
+            writedata Output $width byteenable Output [expr {$width / 8}] waitrequest Input 1 \
+            readdata Input $width readdatavalid Input 1] {
+        add_interface_port $name ${name}_$signal $signal $direction $bits
+    }
+}
+add_interface window conduit end
+set_interface_property window associatedClock machine_clk
+add_interface_port window window_grant_valid grant_valid Input 1
+add_interface_port window window_grant_base grant_base Input 32
+add_interface_port window window_fault fault Output 1
+add_interface video conduit end
+foreach {port role width} {video_rgb rgb 24 video_de de 1 video_hs hs 1 video_vs vs 1} {
+    add_interface_port video $port $role Output $width
+}
+add_interface ready conduit end
+add_interface_port ready video_ready export Input 1
+add_interface_port ready stream_ready stream_ready Input 1
+add_interface clock_fault conduit end
+add_interface_port clock_fault clock_fault export Input 1
+add_interface audio conduit end
+set_interface_property audio associatedClock machine_clk
+add_interface_port audio audio_sample sample Output 16
+add_interface_port audio exec_reset reset Output 1
+add_interface observations conduit end
+foreach {port direction width} {video Output 28 ui_active Output 1 display_faulted Output 1 display_quiesced Output 1} {
+    add_interface_port observations $port $port $direction $width
+    set_port_property $port TERMINATION true
+}
