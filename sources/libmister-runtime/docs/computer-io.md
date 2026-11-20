@@ -57,7 +57,11 @@ Format 2 and format 3 with a `firmware` ROM are admitted. Format 3 with a
 after identity and has no media gate that could hold a linked cartridge.
 Firmware ROM packages activate through `load_rom_core`,
 `load_rom_library_core` or `load_rom_composed_core` with the existing
-`rom_link` receipt. ABI 1.0 has no core-scoped persistence interface; ABI 1.1
+`rom_link` receipt. A DE25 package that declares
+`fes.fabric.firmware-upload` 1.0 passes `firmware_path` (the ROM source) in
+place of `programmed_path` on the first two: the runtime uploads it over
+opcodes 29..32 while execution is held, before any initial disk and before the
+release. ABI 1.0 has no core-scoped persistence interface; ABI 1.1
 adds `fes.persistence.words` for the pc386 machine record. An explicit writable
 Atari ST initial library disk or later library insertion supplies its disk
 persistence and changes the active persistence mode. The PC/XT floppy is

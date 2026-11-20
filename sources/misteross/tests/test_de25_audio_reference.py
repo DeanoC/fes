@@ -62,6 +62,34 @@ class AudioReferenceTests(unittest.TestCase):
             self.record = original
             self.write_record()
 
+    def test_spectrum_128_is_eligible_for_the_reviewed_machine_audio_profile(self):
+        self.record['parameters'].update(core_id='fes.spectrum128',
+            audio_clock_reference_policy=audio.MACHINE_POLICY)
+        self.record['source_inputs'] = dict(audio.MACHINE_SOURCES)
+        for name, expected in audio.MACHINE_SOURCES.items():
+            source = ROOT / name
+            self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(), expected)
+            (self.local / source.name).write_bytes(source.read_bytes())
+        self.top = '''wire [15:0] standard_audio_sample;
+        machine_pll fes_machine_pll (
+          .refclk(CLOCK1_50), .rst(!top_reset_n), .outclk_0(machine_clk), .outclk_1(machine_audio_clk),
+          .locked(machine_pll_locked) );
+          fes_de25_machine_audio fes_audio_inst (
+          .source_clk(machine_clk), .audio_clk(machine_audio_clk), .locked(machine_pll_locked),
+          .hold(standard_exec_reset), .fault(scanout_clock_fault),
+          .left_sample(standard_audio_sample), .right_sample(standard_audio_sample),
+          .HDMI_MCLK(HDMI_MCLK), .HDMI_SCLK(HDMI_SCLK),
+          .HDMI_LRCLK(HDMI_LRCLK), .HDMI_I2S(HDMI_I2S) );'''
+        (self.project / 'golden_top.v').write_text(self.top)
+        self.write_record()
+
+        self.assertIn('golden_top.v', audio.eligible_machine(self.fit, self.record))
+
+        self.record['parameters']['core_id'] = 'fes.spectrum128-other'
+        self.write_record()
+        with self.assertRaises(audio.BuildError):
+            audio.eligible_machine(self.fit, self.record)
+
     def test_source_and_compiled_serializer_changes_require_review(self):
         for name in audio.SOURCES:
             original = self.record['source_inputs'][name]

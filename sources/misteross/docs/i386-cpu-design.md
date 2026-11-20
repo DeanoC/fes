@@ -1483,6 +1483,19 @@ slows the CPU without changing any result.
   - an access to VGA memory (MMIO in the attribute map) takes a 720 ns cycle
     per 16-bit half of the bus it touches, in place of the local bus cycle
     its count and the wait-state charge give it.
+- **Local-bus video:** a VL-Bus or PCI VGA sat on the CPU's 32-bit bus, so
+  under the 486 presets ([#2005](https://github.com/DeanoC/fes/issues/2005),
+  `governor.toml`'s `[local_bus]` and each preset's `video`) a VGA memory
+  access takes one 150 ns
+  cycle (five 30 ns clocks of a 33.3 MHz bus) per 32-bit dword it touches
+  instead, less the same local bus cycle. The figure is the median of the
+  486DX2-66 VL-Bus rows of a 1995 Vidspeed table
+  ([record](../../../docs/validation/2026-11-19-pc386-local-bus-video/method.md)).
+  Reads are charged as writes. Other MMIO (the EMS board's frame, an ISA
+  card) and I/O, the VGA ports included, keep the ISA charge. The 286 and
+  386 presets keep ISA video. A per-game choice is not offered: it would
+  need a new `fes.pc386.machine` layout version
+  ([record](../../../docs/validation/2026-11-19-pc386-local-bus-video/summary.md)).
 
   The cycles are 120 ns ISA clocks (8.33 MHz, the machine's), in reference
   clocks at the frequency the governor runs at, rounded: an 8-bit cycle is

@@ -8,6 +8,7 @@
 #include "native/core_driver.hpp"
 #include "native/core_package.hpp"
 #include "native/de25_core_contract.hpp"
+#include "native/generated/fes_firmware_upload.hpp"
 #include "native/core_composition.hpp"
 #include "native/ata_disk.hpp"
 #include "native/core_data.hpp"
@@ -281,6 +282,8 @@ public:
 	CoreROMLink rom_link_;
 	CoreROMLinks rom_links_;
 	std::unique_ptr<PreparedInitialMedia> initial_media_;
+	// The verified firmware source of a launch-time upload package.
+	std::unique_ptr<ComputerMediaSnapshot> firmware_;
 	std::unique_ptr<PreparedAtaDisk> ata_disk_;
 	CoreComposition composition() const override { return composition_ ? composition_->info : CoreComposition{}; }
 	CoreStaticComposition static_composition() const override { return static_composition_ ? static_composition_->info : CoreStaticComposition{}; }
@@ -852,6 +855,16 @@ Capabilities NativeHardware::capabilities() const
     computer.interfaces.push_back({generated::FesComputerInterfaceMediaZx81TapeWriteID,1,0});
     computer.interfaces.push_back({generated::FesComputerInterfaceVideoSessionDisplayID,1,0});
     computer.interfaces.push_back({"fes.fabric.video.display-plane",1,0});
+    // The standard shell's machines: every interface the per-core contract
+    // table admits, once each. Firmware upload has no capability bit; a host
+    // reads it here to know this runtime delivers a format-3 source at launch.
+    for(const auto& core:kDe25StandardCores)
+     for(const auto& interface:core.interfaces) {
+      if(!interface.id)continue;
+      bool listed=false;
+      for(const auto& known:computer.interfaces)listed=listed||known.id==interface.id;
+      if(!listed)computer.interfaces.push_back({interface.id,interface.major,interface.minor});
+     }
     computer.interfaces.push_back({"fes.fabric.de25-scanout",1,3});
     if(De25StaticEnabled() && fpga_.SupportsStaticComposition())
      computer.interfaces.push_back({"fes.expansion.zx81-bus",2,0});
@@ -1680,6 +1693,8 @@ Error NativeHardware::AttachROMBitstream(AdmittedCorePackage* package,
 	};
 	if (!admitted || admitted->opened_.descriptor.format != 3)
 		return {ErrorCode::invalid_request, "ROM link requires format 3", "admission"};
+	if (DeclaresFirmwareUpload(admitted->opened_.descriptor))
+		return {ErrorCode::invalid_request, "firmware-upload package takes its ROM source, not a linked bitstream", "admission"};
 	const auto& rom = admitted->opened_.descriptor.rom;
 	if (link.rom_id != rom.id || link.map_sha256 != rom.sha256 ||
 		link.source_size != rom.source_size || !digest(link.map_sha256) ||
@@ -1692,6 +1707,61 @@ Error NativeHardware::AttachROMBitstream(AdmittedCorePackage* package,
 		return {ErrorCode::invalid_request, "ROM programmed size does not match receipt", "admission"};
 	}
 	admitted->rom_link_ = link;
+	return {};
+}
+
+Error NativeHardware::AttachFirmwareSource(AdmittedCorePackage* package,
+	const std::string& path, const CoreROMLink& link)
+{
+	auto* admitted = dynamic_cast<NativeAdmittedCore*>(package);
+	auto digest = [](const std::string& value) {
+		return value.size() == 64 && std::all_of(value.begin(), value.end(),
+			[](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); });
+	};
+	if (!admitted || admitted->opened_.descriptor.format != 3)
+		return {ErrorCode::invalid_request, "firmware upload requires format 3", "admission"};
+	const auto& descriptor = admitted->opened_.descriptor;
+	bool declared = false;
+	for (const auto& interface : descriptor.interfaces)
+		declared = declared || (interface.id == kFirmwareUploadInterfaceID && interface.required &&
+			interface.major == generated::FesFirmwareUploadMajor &&
+			interface.minor == generated::FesFirmwareUploadMinor);
+	if (platform_ != NativePlatform::de25_nano || !declared || descriptor.rom.role != "firmware")
+		return {ErrorCode::unsupported_interface,
+			"package does not declare launch-time firmware upload", "admission"};
+	Error error = CheckFirmwareUploadMap(admitted->opened_);
+	if (!error.ok()) return error;
+	// The payload is not patched, so the receipt's programmed identity is the
+	// package payload's, and its source identity is the file's.
+	const auto& rom = descriptor.rom;
+	if (link.rom_id != rom.id || link.map_sha256 != rom.sha256 ||
+		link.source_size != rom.source_size || !digest(link.source_sha256) ||
+		link.programmed_sha256 != descriptor.payload.sha256 ||
+		link.programmed_size != descriptor.payload.size)
+		return {ErrorCode::invalid_request, "firmware link does not match package", "admission"};
+	if (rom.source_size > generated::FesFirmwareUploadMaxBytes)
+		return {ErrorCode::invalid_request, "firmware exceeds the upload limit", "admission"};
+	const auto size = static_cast<std::uint32_t>(rom.source_size);
+	const auto deadline = Deadline(clock_, timeouts_.media_io_ms);
+	std::unique_ptr<ComputerMediaSnapshot> firmware(new ComputerMediaSnapshot);
+	// The snapshot is a private copy: the bytes hashed here are the bytes sent.
+	error = firmware->Prepare(path, size, size, clock_, deadline);
+	if (!error.ok())
+		return {ErrorCode::invalid_request, "firmware source cannot be admitted at its declared size: " + error.message, "admission"};
+	Sha256 hash;
+	std::array<std::uint8_t, 512> bytes{};
+	for (std::uint32_t offset = 0; offset < size && error.ok(); offset += bytes.size()) {
+		const std::size_t length = std::min<std::size_t>(bytes.size(), size - offset);
+		error = firmware->Read(offset, bytes.data(), length, clock_, deadline);
+		if (error.ok()) hash.Update(bytes.data(), length);
+	}
+	if (!error.ok()) return WithPhase(error, "admission");
+	if (Sha256Hex(hash.Final()) != link.source_sha256)
+		return {ErrorCode::invalid_request, "firmware source digest mismatch", "admission"};
+	admitted->has_programmed_ = false;
+	admitted->rom_links_ = {};
+	admitted->rom_link_ = link;
+	admitted->firmware_ = std::move(firmware);
 	return {};
 }
 
@@ -1736,8 +1806,12 @@ Error NativeHardware::RecheckProgrammedBitstream(AdmittedCorePackage* package)
 			return {ErrorCode::invalid_request, "static startup requires separate bound images", "admission"};
 		return RecheckCoreStaticComposition(admitted->opened_,*admitted->static_composition_);
 	}
+	// A firmware-upload package programs its own payload and binds the source.
+	const bool upload = DeclaresFirmwareUpload(admitted->opened_.descriptor);
+	if (upload != (admitted->firmware_ != nullptr) || (upload && admitted->has_programmed_))
+		return {ErrorCode::unsupported_abi, "firmware-upload activation requires its bound ROM source alone", "admission"};
 	if (admitted->opened_.descriptor.format == 3 &&
-		(!admitted->has_programmed_ || admitted->rom_link_.rom_id.empty()))
+		((!upload && !admitted->has_programmed_) || admitted->rom_link_.rom_id.empty()))
 		return {ErrorCode::unsupported_abi, "format-3 activation requires a bound ROM link", "admission"};
 	if (admitted->opened_.descriptor.format == 4 &&
 		(!admitted->has_programmed_ || admitted->rom_links_.sources.size() != 2))
@@ -1966,6 +2040,18 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		ata_size_ = admitted->ata_disk_->image.size;
 		ata_ready_ = true;
 		admitted->ata_disk_.reset();
+	}
+	if (admitted->firmware_) {
+		// Identity proved the package's build; its endpoint names the image
+		// size. The machine is still held, and stays held until Start below.
+		error = computer && computer->FirmwareUploadDeclared() ?
+			computer->UploadFirmware(*admitted->firmware_, clock_,
+				Deadline(clock_, timeouts_.media_io_ms)) :
+			Error{ErrorCode::unsupported_interface, "firmware upload contract is unavailable", "firmware"};
+		log_.Write({"load_core", admitted->opened_.descriptor.core.system,
+			identified.observed_core, "firmware", error});
+		if (!error.ok()) return {WithPhase(error, "firmware"), true, identified.observed_core};
+		admitted->firmware_.reset();
 	}
 	if (admitted->initial_media_) {
 		auto* driver = dynamic_cast<FesGpCoreDriver*>(admitted->driver_);

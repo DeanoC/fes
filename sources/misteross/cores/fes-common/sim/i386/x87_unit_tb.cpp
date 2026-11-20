@@ -2234,6 +2234,122 @@ int main(int argc, char **argv) {
         }
     }
 
+    // ---- The stores with one exception unmasked at a time (#1872). ----
+    // The 387 splits a store's exceptions the way it splits an operation's.
+    // An unmasked invalid (a stack fault, a NaN or an integer out of range)
+    // stores nothing and leaves the stack alone. An unmasked overflow or
+    // underflow does the same for a memory destination: "No result is stored
+    // in memory. Instead, the operand is left intact in the stack" (387 PRM
+    // 3.2.5.1 p.3-24 and 3.2.5.2 p.3-25). Precision never holds a result back:
+    // "The 80387 delivers the rounded or over/underflowed result to the
+    // destination, regardless of whether a trap occurs" (3.2.6 p.3-26), so an
+    // inexact FST or FIST with PM clear stores, pops and sets ES. Each row runs
+    // the form against the host's own x87 with ST(1) = 1.0, so a pop that
+    // should not have happened, or one that did not, shows in TOP and ST(0),
+    // and the memory shows whether the access was made. The host is a modern
+    // part, not a 387; it agrees with the manual on every rule above, and on
+    // the one the manual leaves open -- an unmasked overflow or underflow to
+    // memory reports neither the precision exception nor C1, since no result
+    // was delivered -- it agrees with the Bochs oracle (FPU_exception's store
+    // path).
+    {
+        StubPage page;
+        const uint8_t one[10] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0xff, 0x3f};
+        alignas(16) uint8_t mem0[BCD_MEM];
+        for (unsigned n = 0; n < BCD_MEM; ++n) mem0[n] = uint8_t(0xa5 ^ n);
+        std::vector<std::array<uint8_t, 10>> values;
+        auto add = [&](uint16_t se, uint64_t sig) {
+            std::array<uint8_t, 10> b{};
+            ext_bytes(b.data(), se, sig);
+            values.push_back(b);
+        };
+        for (uint16_t s : {uint16_t(0), uint16_t(0x8000)}) {
+            add(s | 0x3fff, 0x8000000000000001ull);   // inexact in every format but m80
+            add(s | 0x3fff, 0xc000000000000000ull);   // 1.5: exact as a real, inexact as an integer
+            add(s | 0x3ffe, 0x8000000000000000ull);   // 0.5: rounds to zero or one
+            add(s | 0x407e, 0xffffff8000000000ull);   // rounds past the f32 maximum
+            add(s | 0x4080, 0x8000000000000000ull);   // past the f32 maximum, exactly
+            add(s | (0x3fff + 200), 0xb504f333f9de6484ull);   // past f32, inside f64
+            add(s | 0x43fe, 0xfffffffffffffc00ull);   // rounds past the f64 maximum
+            add(s | (0x3fff + 2000), 0x8000000000000000ull);  // past the f64 maximum
+            add(s | (0x3fff - 140), 0x8000000000000000ull);   // an exact f32 denormal
+            add(s | (0x3fff - 140), 0x8000000000000001ull);   // an inexact f32 denormal
+            // One binade under the smallest normal, where tininess before
+            // and after rounding part company: 24 ones are exact at f32's
+            // precision, so the value is tiny, but the denormalised
+            // rounding carries it up to the normal; 25 ones and 64 ones
+            // round up to the normal at f32's precision, so they are not
+            // tiny at all. The f64 pair is 53 ones and 54.
+            add(s | (0x3fff - 127), 0xffffff0000000000ull);
+            add(s | (0x3fff - 127), 0xffffff8000000000ull);
+            add(s | (0x3fff - 127), 0xffffffffffffffffull);
+            add(s | (0x3fff - 1023), 0xfffffffffffff800ull);
+            add(s | (0x3fff - 1023), 0xfffffffffffffc00ull);
+            add(s | (0x3fff - 1023), 0xffffffffffffffffull);
+            add(s | (0x3fff - 160), 0x8000000000000000ull);   // past the f32 denormals
+            add(s | (0x3fff - 1070), 0x8000000000000001ull);  // an inexact f64 denormal
+            add(s | (0x3fff - 1074), 0x8000000000000000ull);  // the smallest f64 denormal, exactly
+            add(s | (0x3fff - 1100), 0x8000000000000000ull);  // past the f64 denormals
+            add(s | 0x400e, 0x8000000000000000ull);   // 2^15: out of i16 range, or its minimum
+            add(s | 0x401e, 0x8000000000000000ull);   // 2^31
+            add(s | 0x403e, 0x8000000000000000ull);   // 2^63
+            add(s | 0x403d, 0xffffffffffffffffull);   // inexact, just inside i64
+            add(s | 0x7fff, 0x8000000000000000ull);   // infinity
+            add(s | 0x7fff, 0xa000000000000000ull);   // a signalling NaN
+            add(s | 0x0000, 0x4000000000000000ull);   // an extended denormal
+        }
+        std::mt19937_64 rng(1872);
+        for (int n = 0; n < 48; ++n) {
+            // Random values around each format's exponent limits.
+            static const int centre[] = {0x3fff + 127, 0x3fff - 126, 0x3fff + 1023, 0x3fff - 1022,
+                                         0x3fff + 15, 0x3fff + 31, 0x3fff + 63, 0x3fff};
+            const int e = centre[n % 8] + int(rng() % 61) - 30;
+            add(uint16_t((rng() & 1) << 15 | unsigned(e)), rng() | 1ull << 63);
+        }
+        struct Mask { const char *name; uint16_t clear; };
+        const Mask masks[] = {
+            {"masked", 0x0000}, {"im", 0x0001}, {"dm", 0x0002}, {"om", 0x0008}, {"um", 0x0010},
+            {"pm", 0x0020}, {"om-pm", 0x0028}, {"um-pm", 0x0030},
+        };
+        struct SForm { const char *name; BStep step; };
+        const SForm sforms[] = {
+            {"fst32", bmem(0xd9, 2, FMT_F32, true, 32)},   {"fstp32", bmem(0xd9, 3, FMT_F32, true, 32)},
+            {"fst64", bmem(0xdd, 2, FMT_F64, true, 32)},   {"fstp64", bmem(0xdd, 3, FMT_F64, true, 32)},
+            {"fstp80", bmem(0xdb, 7, FMT_F80, true, 32)},
+            {"fist16", bmem(0xdf, 2, FMT_I16, true, 32)},  {"fistp16", bmem(0xdf, 3, FMT_I16, true, 32)},
+            {"fist32", bmem(0xdb, 2, FMT_I32, true, 32)},  {"fistp32", bmem(0xdb, 3, FMT_I32, true, 32)},
+            {"fistp64", bmem(0xdf, 7, FMT_I64, true, 32)},
+        };
+        // Each form alone, and then after an FXAM presented while the FXAM is
+        // still in flight. FXAM sets C1 to ST(0)'s sign, so on the negative
+        // half of the values the store starts with C1 set and has to clear
+        // it, or not, itself; and the store's decision is made on the cycle
+        // the CPU's timing gives it rather than on a settled unit.
+        const BStep fxam = breg(0xd9, 0xe5);
+        for (const Mask &m : masks) {
+            for (const SForm &f : sforms) {
+                for (int after = 0; after < 2; ++after) {
+                    Unit u;
+                    BcdTally t;
+                    const std::vector<BStep> steps = after ? std::vector<BStep>{fxam, f.step}
+                                                           : std::vector<BStep>{f.step};
+                    for (unsigned rc = 0; rc < 4; ++rc) {
+                        const uint16_t cw = uint16_t((0x037f & ~m.clear) | rc << 10);
+                        for (const auto &v : values) {
+                            uint8_t stack[2][10];
+                            std::memcpy(stack[0], v.data(), 10);
+                            std::memcpy(stack[1], one, 10);
+                            t.add(bcd_differ(page, u, cw, stack, 2, steps, mem0, after != 0));
+                        }
+                        // An empty ST(0): the stack fault.
+                        t.add(bcd_differ(page, u, cw, nullptr, 0, steps, mem0, after != 0));
+                    }
+                    t.report(std::string("store-unmasked-") + m.name + "-" + f.name + (after ? "-after-fxam" : ""));
+                }
+            }
+        }
+    }
+
     // ---- FXAM and FTST. ----
     for (int ftst = 0; ftst < 2; ++ftst) {
         int diffs = 0;

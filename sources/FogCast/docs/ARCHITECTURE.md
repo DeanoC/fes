@@ -152,6 +152,19 @@ part composition, cartridge roles and format 4 are unavailable for this Nano
 delivery path. The Linux runtime's target checks and model/native admission
 policies remain independent; inspection or retention grants no hardware access.
 
+A Nano package that instead requires `fes.fabric.firmware-upload` 1.0 seals the
+`gp-firmware-upload-v1` map, and its ROM source travels to the kit. The ROM
+input envelope admits it for a `de25-linux-computer-v1` `fes.computer` package
+of `fes.spectrum` (16384 or 32768 bytes) or `fes.atari-st` (196608 bytes), with
+no expansion, slot card or part; an ST launch may carry its library disk. The
+kit stages the source as `firmware.rom` in place of `programmed.rbf`, with a
+receipt whose programmed digest and size are the package payload's, and sends
+`load_rom_core` or `load_rom_library_core` with `firmware_path`. The runtime
+needs no `rom_linking` for it: its `fes.computer` ABI must list the upload
+interface. A linker without that interface, a linked bitstream for such a
+package, and a restart publication holding both files are refused. Host
+software coverage only; no DE25 Spectrum or Atari ST package is produced yet.
+
 `Archive.LinkROMs` derives format-3 single-source and format-4 BIOS/cartridge
 programming bytes using the existing target linker and the retained package's
 sealed map. It validates source IDs, roles, order and sizes before copying them.
@@ -1268,7 +1281,9 @@ imported disk; a disk saved at Stop without a write is present and unchanged. `P
 saved disk image as an octet stream. `POST /v1/library/media/record/discard`
 takes the same body, needs the kit lease, and removes the record so the next
 launch reads the imported disk again; the runtime refuses it while a core is
-running. Inspect and export change nothing and need no lease.
+running. A discard may borrow the caller's kit lease, but retains it after a
+`BUSY` response because another concurrent discard may still be using that
+shared grant. Inspect and export change nothing and need no lease.
 
 The `fes.computer` 1.1 pc386 `fes.media.ata-disk` unit is a fixed 1..128 MiB
 unit with 65,536-byte chunks and always reports `saveable:false`. Its package
@@ -1790,7 +1805,7 @@ patterned stay (`/` or `f` search, `o` settings, `g` filters, `l` layout). While
 an attached play session is live (`ForwardsPlayHID`), USB keyboard events go to
 `POST /api/v1/session/input/event` instead of the sofa focus graph and do not
 steal browse or ZX81/session affinity; pointer browse stays off that session.
-Esc and Backspace remain session-stop chrome. Letter `s` stays a core key.
+Escape stays in play after returning from a room, while Backspace remains session-stop chrome. Letter `s` stays a core key.
 A `fes.computer` session with `fes.keyboard.hid` 1.0 (`CoreKeyboardHID`)
 is the exception: `HandlePlayHIDScancode` forwards every SDL scancode that is a
 HID Keyboard/Keypad usage, including Esc, Backspace and `/`, with no chrome

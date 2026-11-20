@@ -72,7 +72,11 @@ Expansion interfaces such as `fes.expansion.apple2-bus`,
 `fes.expansion.spectrum-bus`, `fes.expansion.c64-bus` and
 `fes.expansion.atari-st-bus` are manifest-only
 optional declarations, not capability bits. Launch-time firmware is supplied
-by package ROM linking (format 3), not by this mailbox.
+by package ROM linking (format 3). A package for a board that cannot link ROM
+lanes stays format 3 with an unpatched payload and declares
+`fes.fabric.firmware-upload`, a manifest-only required interface: its opcodes
+29..32 share this framing and are described in
+[firmware upload](firmware-upload.md).
 
 ## Mailbox framing and discovery
 

@@ -544,19 +544,21 @@ func (s *Service) deletableShelfDisk(ctx context.Context, disk shelfDisk) error 
 
 // Caller holds lifecycle admission. The kit's saved changes go first: an
 // entry removed while they remain would leave them where nothing reaches.
-func (s *Service) deleteShelfDiskLocked(ctx context.Context, disk shelfDisk) error {
+func (s *Service) deleteShelfDiskLocked(ctx context.Context, disk shelfDisk) (bool, error) {
 	if err := s.deletableShelfDisk(ctx, disk); err != nil {
-		return err
+		return false, err
 	}
 	store := s.catalog.(removableCoreEntryCatalog)
+	discarded := false
 	if disk.record.State != protocol.MediaRecordAbsent {
 		if _, err := disk.kit.records.DiscardMediaRecord(ctx, protocol.MediaRecordDiscard{
 			MediaRecordIdentity: shelfIdentity(disk.entry), ExpectedRevision: disk.record.Revision,
 		}); err != nil {
-			return canonicalCoreDataError(err)
+			return false, canonicalCoreDataError(err)
 		}
+		discarded = true
 	}
-	return s.removeCoreEntryLocked(ctx, store, disk.entry.GameID)
+	return discarded, s.removeCoreEntryLocked(ctx, store, disk.entry.GameID)
 }
 
 func (s *Service) withShelfDisk(parent context.Context, gameID string, act func(context.Context, shelfDisk) (AtariStShelfDisk, error)) (AtariStShelfDisk, error) {
@@ -617,7 +619,8 @@ func (s *Service) RevertAtariStShelfDisk(parent context.Context, gameID, expecte
 // RenameAtariStShelfDisk gives a disk made here a new name. A library
 // title's identity follows its name, and the kit keeps saved changes under
 // that identity, so the disk is copied under the new name and the old one
-// deleted. If the delete fails, both disks remain and nothing is lost.
+// deleted. If deletion fails before saved changes are cleared, the copy is
+// taken back. If they were cleared first, the copy stays so nothing is lost.
 func (s *Service) RenameAtariStShelfDisk(parent context.Context, gameID, expectedRevision, title string) (AtariStShelfDisk, error) {
 	return s.withShelfDisk(parent, gameID, func(ctx context.Context, disk shelfDisk) (AtariStShelfDisk, error) {
 		if !disk.made {
@@ -641,7 +644,13 @@ func (s *Service) RenameAtariStShelfDisk(parent context.Context, gameID, expecte
 		if err != nil {
 			return AtariStShelfDisk{}, err
 		}
-		if err := s.deleteShelfDiskLocked(ctx, disk); err != nil {
+		discarded, err := s.deleteShelfDiskLocked(ctx, disk)
+		if err != nil {
+			// If the saved image was cleared before the final removal check
+			// failed, the copy now holds the only saved image. Keep it.
+			if discarded && disk.record.Changed {
+				return AtariStShelfDisk{}, err
+			}
 			// Take the copy back, so a retry finds the name free again.
 			dropCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 			defer cancel()
@@ -665,7 +674,8 @@ func (s *Service) DeleteAtariStShelfDisk(parent context.Context, gameID, expecte
 		if !disk.revisionMatches(expectedRevision) {
 			return AtariStShelfDisk{}, errShelfChanged
 		}
-		return AtariStShelfDisk{}, s.deleteShelfDiskLocked(ctx, disk)
+		_, err := s.deleteShelfDiskLocked(ctx, disk)
+		return AtariStShelfDisk{}, err
 	})
 	return err
 }

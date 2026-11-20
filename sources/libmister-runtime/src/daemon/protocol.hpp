@@ -85,6 +85,9 @@ struct Request {
 	std::uint8_t mouse_buttons = 0;
 	CoreCompositionRequest composition_request;
 	std::string programmed_path;
+	// A launch-time upload load names the ROM source instead of a linked
+	// bitstream; exactly one of the two paths is set on a ROM load.
+	std::string firmware_path;
 	std::string programmed_sha256;
 	CoreROMLink rom_link;
 	CoreROMLinks rom_links;

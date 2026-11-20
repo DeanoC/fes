@@ -556,6 +556,20 @@ Start. The declared/live PCM capability identifies FPGA-owned audio; Linux does
 not run a Cyclone V clock or transmitter recipe. This software path establishes
 no standard DE25 hardware acceptance.
 
+The standard contract is a per-core table. Every machine declares the shell
+(video, HID, controller ports, PCM, session display, the display plane and
+scanout1.3) and exactly its own media: the ZX81 cassette and SAVE; the
+Spectrum 48K and 128K `fes.media.spectrum-tape` 2.0; the Atari ST's relative
+mouse and floppy with write and geometry. Both Spectrum IDs and Atari ST also
+require `fes.fabric.firmware-upload` 1.0 and are format 3 with a sealed
+firmware requirement of their endpoint's image size (`fes.spectrum` accepts
+16384 or 32768 bytes, `fes.spectrum128` 32768, and Atari ST 196608).
+`NativeHardware::capabilities()`
+lists the union. Lost-process recovery asks the same table which guard a
+retained machine needs: the ZX81 SAVE check, the same unit-0 snapshot check
+for the Atari ST floppy (a dirty disk blocks retirement, as a dirty SAVE
+does), or identity alone for the read-only Spectrum.
+
 `fes.simple-computer` also accepts mid-session `replace_live_media` /
 `clear_media` on an active generation without holding execution reset. Tape
 loader busy is GP error 4 (invalid state) and rejects with retryable busy.
@@ -1208,6 +1222,23 @@ ROM operations reject format 2. Native capabilities advertise `rom_linking: 1`.
 Active status retains the receipt until retirement; library ROM loads preserve
 core-scoped persistence. This path has host software coverage only and adds no
 hardware acceptance claim.
+
+A DE25 firmware-upload package is format 3 without a linker: `load_rom_core`
+and `load_rom_library_core` take `firmware_path`, the ROM source file, in place
+of `programmed_path`, with the same closed `rom_link`. Its programmed digest
+and size must be the package payload's, because nothing is patched. The runtime
+checks the sealed five-key `gp-firmware-upload-v1` map, snapshots the file,
+requires the sealed source size and the receipt's source SHA-256, and programs
+the package's own payload. After identity and while execution is still held it
+reads FirmwareInfo, requires the endpoint's image size to equal the source,
+and sends Begin, every byte pair once and Commit; an image already ready is
+left alone. Only then are an initial disk and the release sent. The driver
+refuses to release a machine whose firmware it has not seen ready, and a failed
+transfer is never replayed. `fes.fabric.firmware-upload` 1.0 in the DE25
+`fes.computer` capability list tells a host the runtime does this;
+`rom_linking` stays 0 there. A linked bitstream for such a package, a source
+for a package that does not declare the interface, a composition and a
+two-source link are refused. Host software coverage only.
 
 Linked cartridge ROM packages cannot declare media blob-stream 1.0, firmware
 blob 1.0 (required or optional, for any ABI), or application 1.0 with media

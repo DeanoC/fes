@@ -67,8 +67,14 @@ func (s roomServices) Hardware(ctx context.Context) (hostclient.HardwareSnapshot
 	if s.client == nil {
 		return hostclient.HardwareSnapshot{}, fmt.Errorf("host API is unavailable")
 	}
+	mark := s.client.changes.mark()
 	snap, err := s.client.Hardware(ctx)
 	if err != nil {
+		// A host busy with a library change of ours can miss the read's
+		// deadline. Keep the last known status instead of "unavailable".
+		if last, ok := s.client.changes.hardwareDuring(mark); ok && ctx.Err() == nil {
+			return last, nil
+		}
 		return snap, err
 	}
 	if snap.ExpansionSelection == nil {
@@ -77,6 +83,7 @@ func (s roomServices) Hardware(ctx context.Context) (hostclient.HardwareSnapshot
 		allowed := !s.client.paired
 		snap.ExpansionSelection = &allowed
 	}
+	s.client.changes.keepHardware(snap)
 	return snap, nil
 }
 

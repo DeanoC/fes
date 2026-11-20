@@ -161,7 +161,7 @@ public:
             de25_fpga_ = new native::LinuxDe25FpgaManager(clock_,*de25_menu_,package_roots,
                 [this](const CoreDescriptor& descriptor,std::uint64_t deadline) {
                     fes_gp_driver_->BeginSession();
-                    return fes_gp_driver_->EnsureRetainedZx81TapeSaved(descriptor,deadline);
+                    return fes_gp_driver_->EnsureRetainedComputerSaved(descriptor,deadline);
                 });
             fpga_.reset(de25_fpga_);
             de25_menu_driver_.reset(new native::De25MenuCoreDriver(*de25_menu_));
@@ -274,6 +274,9 @@ public:
 	Error AttachROMBitstream(AdmittedCorePackage* package, const std::string& path,
 		const CoreROMLink& link) override
 	{ return hardware_->AttachROMBitstream(package, path, link); }
+	Error AttachFirmwareSource(AdmittedCorePackage* package, const std::string& path,
+		const CoreROMLink& link) override
+	{ return hardware_->AttachFirmwareSource(package, path, link); }
 	Error AttachROMsBitstream(AdmittedCorePackage* package, const std::string& path,
 		const CoreROMLinks& links) override
 	{ return hardware_->AttachROMsBitstream(package, path, links); }

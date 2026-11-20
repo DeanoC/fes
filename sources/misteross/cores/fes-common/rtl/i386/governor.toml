@@ -83,6 +83,37 @@ io16 = 3
 ports16 = ["1F0"]
 vga = 6
 
+# Local-bus video: under a preset whose video is "local" (the 486 presets;
+# the 286 and 386 ones are "isa"), the VGA is a VL-Bus or PCI card on the
+# CPU's 32-bit bus, so an access to VGA memory (A0000h-BFFFFh) takes one local-bus VGA
+# cycle per 32-bit dword it touches, in place of the ISA cycles per 16-bit
+# half; less, as on ISA, the 2 clocks, wait states and 16-bit dword cycle
+# already charged. Other MMIO (an ISA EMS board's frame) and I/O, including
+# the VGA's ports, keep the ISA charge: no source here times a local-bus
+# VGA's port cycles.
+#
+# A cycle is vga clocks of clock_ns each, at a 33.3 MHz bus (30 ns): the bus
+# clock of a 486DX-33 and of a 486DX2-66. It is fixed time, converted at the
+# governor's frequency as the ISA cycles are, so preset 7 and preset 6 at
+# 66.7 MHz charge alike; a 25 MHz board's slower bus clock and a DX-50's
+# faster one are not modelled. vga is the median of the nine 486DX2-66 VL-Bus
+# rows of the Video Card FAQ's Vidspeed table (Boogyman, 31 January 1995,
+# "DOS Performance", Low Res Modes, 320x200 32-bit writes): 4 bytes at
+# 33.3 MHz over each row's rate, giving 3.0, 4.0, 4.0, 4.0, 5.0, 5.9, 11.1,
+# 14.0 and 14.8 clocks, median 5.0. The FAQ: "With a good card VLB can
+# sustain 4 cycle 32-bit writes at 33 MHz", and "Typical rates are 5 or 6
+# cycles per write" on PCI without burst mode. The VESA VL-Bus 2.0 standard
+# (November 1993) allows a target "a minimum number of 1 wait states for
+# reads and 0 or 1 wait states for write", that is 2 or 3 clocks, and "the
+# VL-Bus clock operates at the same frequency and in phase with the CPU
+# clock". Reads are charged as writes, though the FAQ's byte reads ran 9 to
+# 17 clocks: the governor does not tell them apart, and the ISA cycle is the
+# same both ways. The method and the clock arithmetic are in
+# docs/validation/2026-11-19-pc386-local-bus-video.
+[local_bus]
+clock_ns = 30
+vga = 5
+
 [[preset]]
 id = 1
 name = "286-12"
@@ -90,6 +121,7 @@ table = "286"
 frequency = 120
 wait = 1
 bus = 16
+video = "isa"
 
 [[preset]]
 id = 2
@@ -98,6 +130,7 @@ table = "386"
 frequency = 160
 wait = 1
 bus = 16
+video = "isa"
 
 [[preset]]
 id = 3
@@ -106,6 +139,7 @@ table = "386"
 frequency = 250
 wait = 0
 bus = 32
+video = "isa"
 
 [[preset]]
 id = 4
@@ -114,6 +148,7 @@ table = "386"
 frequency = 333
 wait = 0
 bus = 32
+video = "isa"
 
 [[preset]]
 id = 5
@@ -122,6 +157,7 @@ table = "386"
 frequency = 400
 wait = 0
 bus = 32
+video = "isa"
 
 [[preset]]
 id = 6
@@ -130,6 +166,7 @@ table = "486"
 frequency = 333
 wait = 0
 bus = 32
+video = "local"
 
 [[preset]]
 id = 7
@@ -138,6 +175,7 @@ table = "486"
 frequency = 667
 wait = 0
 bus = 32
+video = "local"
 
 # ---- Data movement
 
