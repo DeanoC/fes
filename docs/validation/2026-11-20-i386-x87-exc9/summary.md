@@ -250,25 +250,27 @@ written; this one supersedes those two sentences.
 
 ## Gates
 
-Every gate below is of `1b84f6edd`, the commit with the last RTL and bench
+Every gate below is of `bcea91e5b`, the commit with the last RTL and bench
 change; the commits after it change this record only, so the design, and
 the seal's BUILD_ID, are the head's. Each lockstep report records that
-revision with no tracked changes. The first round of gates, of `9ac34ef67`
-(seal `b1427783`, Kit B run `k2020a`, all passing), is superseded: review
-found the wrap check above, and everything was run again.
+revision with no tracked changes. Two earlier rounds, all passing, are
+superseded: `9ac34ef67` (seal `b1427783`, Kit B `k2020a`), before review
+found the wrap check above, and `1b84f6edd` (seal `eef36703`, BUILD_ID
+`f9d258aa`, setup +0.432 ns, Kit B `k2020b`), before Codex found the store
+probe's segment check. Everything was run again each time.
 
 | Gate | Where | Result |
 | --- | --- | --- |
-| RTL lockstep, DE10 backend | Powerboat | pass: paging 169 (the 11 new), x87 125, no-387 1,933, directed 84, pmode 726, BCD 3, transcendental 10, corpus 1,758,699 tests of 941 files, random 32,000, pmode 8,000, tasks 4,000, debug 4,000, undefined 4,000 programs |
+| RTL lockstep, DE10 backend | Powerboat | pass: paging 170 (the 12 new), x87 125, no-387 1,933, directed 84, pmode 726, BCD 3, transcendental 10, corpus 1,758,699 tests of 941 files, random 32,000, pmode 8,000, tasks 4,000, debug 4,000, undefined 4,000 programs |
 | RTL lockstep, DE25 backend | Powerboat | pass, the same suites, BCD 28 (FBLD 112, FBSTP 127, through the probe), transcendental 181 at `--transcendental-ulp-oracle 2097152` |
-| Netlist lockstep, DE10 | chip-30x0-ai-dev | pass, the same; netlist `5305714c`; the seal's `--lockstep-report` |
-| Netlist lockstep, DE25 | chip-30x0-ai-dev | pass, the same as the DE25 RTL run; netlist `04e96e66` |
-| The rules' counts | all four | `x87_probe_rule` 15, `x87_fault_rule` 34, `x87_partial_rule` 2, `x87_ad_rule` 7, as the runner fixes them |
+| Netlist lockstep, DE10 | chip-30x0-ai-dev | pass, the same; netlist `e5e71720`; the seal's `--lockstep-report` |
+| Netlist lockstep, DE25 | chip-30x0-ai-dev | pass, the same as the DE25 RTL run; netlist `3927ee32` |
+| The rules' counts | all four | `x87_probe_rule` 15, `x87_fault_rule` 35, `x87_partial_rule` 2, `x87_ad_rule` 7, as the runner fixes them |
 | Unit bench, DE10 | Powerboat, of `9ac34ef67` | 934 pass, 0 fail, in the CPU's new uop order (the unit and its bench are unchanged since) |
 | Unit bench, DE25 | Powerboat, of `9ac34ef67` | 18,337 pass, 0 fail, at `--transcendental-ulp-host 4` |
 | test386, `--cpu rtl` | Powerboat | POST FFh, the ROM halted at 00D0:FFB9 after 79,640,765 retirements, no errors |
-| pc386 seal | chip-30x0-ai-dev, Quartus 17.0.2 Lite, seed 1, CUDA toolchain slot | package `eef36703`, BUILD_ID `f9d258aa`; worst setup slack +0.432 ns, hold +0.101 ns, recovery +6.852 ns, removal +1.254 ns; 36,407 of 41,910 ALMs |
-| Kit B, run `k2020b` | Powerboat | pass: the sealed package from the library, FreeDOS prompt in 0.5 s, Wolfenstein 3D drawn and walked; core-only, nothing installed, kit restored to its baseline (image `179affbb`, bundle `c9ae79e2`), idle and lease-free, logged in `kitB-STATUS.md` ([result](kit-b-k2020b-result.json)) |
+| pc386 seal | chip-30x0-ai-dev, Quartus 17.0.2 Lite, seed 1, CUDA toolchain slot | package `32409c43`, BUILD_ID `a3ca19ef`; worst setup slack +0.081 ns, hold +0.075 ns, recovery +7.269 ns, removal +0.402 ns; 36,442 of 41,910 ALMs. The setup margin is thinner than the earlier rounds' (+0.528, +0.432 ns), as seed-1 margins move from build to build; it passes the seal's checks unchanged |
+| Kit B, run `k2020c` | Powerboat | pass: the sealed package from the library, FreeDOS prompt in 0.6 s, Wolfenstein 3D drawn and walked; core-only, nothing installed, kit restored to its baseline (image `179affbb`, bundle `c9ae79e2`), idle and lease-free, logged in `kitB-STATUS.md` ([result](kit-b-k2020c-result.json)) |
 
 The kit run checks the sealed package with the `i386dx+387` identity off,
 which is how every package ships until the x87 phase's slice 7; the 387's
