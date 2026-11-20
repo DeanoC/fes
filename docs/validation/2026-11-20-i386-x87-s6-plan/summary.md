@@ -170,7 +170,13 @@ Slice 7 turns the identity on. It needs:
 
 ## 5. Order
 
-Each RTL step is one PR, with #1768's gates plus the DE25 four-seed fit.
+PRs follow AGENTS.md's PR-size rule: one PR per coherent milestone, not
+one per step. Related reductions that 6.0b shows to be worth doing land
+together in one milestone PR; only genuinely independent changes are split.
+Each RTL PR carries #1768's gates plus the DE25 four-seed fit, so batching
+also avoids repeating the reseal and kit cycle for each reduction. Inside a
+milestone PR, each reduction still gets its own controlled A/B, so its
+saving is attributed.
 
 - **6.0, measurement. No RTL. Starts as soon as D1–D3 are answered.**
   - **a.** Fit current main (identity on, backend 1), four seeds. Use
