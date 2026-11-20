@@ -42,6 +42,13 @@ a full image or boot-path change, build the exact DE25 image and run the
 corresponding boot checks as well; a package run does not qualify an image
 change.
 
+A core with a boot-screen check in `scripts/de25_boot_screen.py` must show that
+screen in both captured core frames (`10-core`, `11-core`). The smoke records
+the result as `boot_screen` in `out/result.json` and `out/boot-screen.json`.
+The Atari ST check recognises a GEM desktop from its layout, so EmuTOS and TOS
+both pass and OCR is not needed. A core without a check keeps the changed-frame
+`core_video` check only.
+
 The approved HDMI node is `/dev/v4l/by-id/fes-ms2109-hil`. Save before, active,
 input-response and restored frames. Review the frames to verify the screen
 belongs to the claimed board and shows the expected UI or core. Do not open the
