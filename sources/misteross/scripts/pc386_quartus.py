@@ -335,7 +335,7 @@ def pinned_rom_digest(root: Path) -> str:
     return _pinned_sha256(_firmware_lock(root), "rom_hex", "sha256")
 
 
-def project_qsf(root: Path, project: Path, build_id: str, seed: int, *, threads: int | str = "ALL") -> str:
+def project_qsf(root: Path, project: Path, build_id: str, seed: int, *, threads: int | str) -> str:
     if board.HEX32_RE.fullmatch(build_id) is None:
         raise board.BuildError("build ID must be 32 lowercase hexadecimal characters")
     rel = Path(os.path.relpath(root, project)).as_posix()
@@ -364,7 +364,7 @@ def project_qsf(root: Path, project: Path, build_id: str, seed: int, *, threads:
     return "\n".join(lines) + "\n\n" + pins
 
 
-def write_project(root: Path, output: Path, build_id: str, seed: int, *, threads: int | str = "ALL") -> Path:
+def write_project(root: Path, output: Path, build_id: str, seed: int, *, threads: int | str) -> Path:
     project = output / "project"
     if project.is_symlink():
         raise board.BuildError(f"Quartus project must not be a symlink: {project}")

@@ -151,7 +151,7 @@ class ProjectTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             project = Path(temporary) / "project"
             project.mkdir()
-            text = quartus.project_qsf(ROOT, project, BUILD_ID, 3)
+            text = quartus.project_qsf(ROOT, project, BUILD_ID, 3, threads=2)
         self.assertIn('set_global_assignment -name VERILOG_MACRO "QUARTUS=1"', text)
         self.assertIn(f"FES_PC386_BUILD_ID=128'h{BUILD_ID}", text)
         self.assertIn("set_global_assignment -name SEED 3", text)
@@ -167,14 +167,14 @@ class ProjectTest(unittest.TestCase):
     def test_project_threads_are_the_callers(self):
         with tempfile.TemporaryDirectory() as temporary:
             project = Path(temporary)
-            self.assertIn("NUM_PARALLEL_PROCESSORS ALL", quartus.project_qsf(ROOT, project, BUILD_ID, 1))
+            self.assertIn("NUM_PARALLEL_PROCESSORS ALL", quartus.project_qsf(ROOT, project, BUILD_ID, 1, threads="ALL"))
             self.assertIn("NUM_PARALLEL_PROCESSORS 2", quartus.project_qsf(ROOT, project, BUILD_ID, 1, threads=2))
 
     def test_project_rejects_a_bad_build_id_and_seed(self):
         with self.assertRaises(board.BuildError):
-            quartus.project_qsf(ROOT, ROOT, "XYZ", 1)
+            quartus.project_qsf(ROOT, ROOT, "XYZ", 1, threads=2)
         with self.assertRaises(board.BuildError):
-            quartus.project_qsf(ROOT, ROOT, BUILD_ID, 0)
+            quartus.project_qsf(ROOT, ROOT, BUILD_ID, 0, threads=2)
 
 
 class TimingTest(unittest.TestCase):
@@ -415,7 +415,7 @@ class QuartusLockGoldenTest(unittest.TestCase):
     def test_project_version_lines(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
-            project = quartus.write_project(ROOT, output, BUILD_ID, 1)
+            project = quartus.write_project(ROOT, output, BUILD_ID, 1, threads=2)
             qpf = (project / "top.qpf").read_text(encoding="utf-8")
             qsf = (project / "top.qsf").read_text(encoding="utf-8")
         self.assertEqual(qpf, 'QUARTUS_VERSION = "17.0";\nPROJECT_REVISION = "top";\n')

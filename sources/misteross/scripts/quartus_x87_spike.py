@@ -366,7 +366,7 @@ def overlay_identity(text: str) -> str:
 
 
 def machine(args, tools: dict, output: Path) -> tuple[Path, str]:
-    project = sealer.write_project(ROOT, output, '0' * 32, args.seed)
+    project = sealer.write_project(ROOT, output, '0' * 32, args.seed, threads='ALL')
     firmware.write_rom_hex(firmware.images())
     sealer.check_rom(ROOT)
     sources = list(sealer.MACHINE_SOURCES)

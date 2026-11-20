@@ -122,7 +122,7 @@ import build_pc386_product as seal, pc386_seal_evidence
 root = seal.ROOT
 identity = seal.oracle_identity(root)
 seal.require_same_oracle(root, identity)
-qsf = seal.project_qsf(root, root / 'build/fes-pc386-quartus/project', '0' * 32, 1)
+qsf = seal.project_qsf(root, root / 'build/fes-pc386-quartus/project', '0' * 32, 1, threads=2)
 program = seal.machine_program(Path(seal.MACHINE_NETLIST), '$MACHINE_SOURCES')
 print(json.dumps({{'identity': identity, 'firmware': seal.firmware_digests(root),
                   'rom': seal.pinned_rom_digest(root), 'qsf': len(qsf), 'program': len(program),

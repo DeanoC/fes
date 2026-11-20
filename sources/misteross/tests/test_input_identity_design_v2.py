@@ -45,7 +45,7 @@ def compiler_reads_now(path: str) -> list[str]:
     if str(ROOT / 'cores/fes-pc386/tools') not in sys.path:
         sys.path.insert(0, str(ROOT / 'cores/fes-pc386/tools'))
     import build_pc386_product as product
-    qsf = product.project_qsf(ROOT, ROOT / product.OUTPUT / 'project', '0' * 32, 1)
+    qsf = product.project_qsf(ROOT, ROOT / product.OUTPUT / 'project', '0' * 32, 1, threads=2)
     if name in qsf:
         reasons.append('named in the generated QSF')
     return reasons
