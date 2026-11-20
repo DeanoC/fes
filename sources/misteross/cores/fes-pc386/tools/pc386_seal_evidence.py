@@ -22,6 +22,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import tomllib
 
 import build_pc386_product as seal
 if Path(seal.__file__).absolute() != Path(__file__).absolute().with_name('build_pc386_product.py'):
@@ -106,6 +107,31 @@ def _historical_sources(root, fields, destination):
         target.write_bytes(data)
 
 
+def _historical_oracle_identity(source):
+    """Derive the retained report's oracle identity from its recorded source tree."""
+    source = Path(source)
+    data = tomllib.loads((source / seal.ORACLE_SOURCES_FILE).read_text(encoding='utf-8'))
+    lists = ('oracle_sources', 'suite_sources', 'linked_names')
+    if (set(data) != {'bochs_revision', 'bochs_patch', *lists}
+            or any(not isinstance(data[key], list) or not data[key]
+                   or len(set(data[key])) != len(data[key])
+                   or not all(isinstance(name, str) and name for name in data[key]) for key in lists)):
+        raise ValueError('original oracle source list is invalid')
+    revision = data['bochs_revision']
+    if not isinstance(revision, str) or len(revision) != 40 or any(c not in '0123456789abcdef' for c in revision):
+        raise ValueError('original oracle revision is invalid')
+    def named_sources(names, prefix=''):
+        return [(name, (source / prefix / name).read_bytes()) for name in names]
+    adapter = named_sources(data['oracle_sources'], seal.ORACLE_SIM)
+    suite = named_sources(data['suite_sources'])
+    identity = {'revision': revision,
+                'patch_sha256': digest((source / data['bochs_patch']).read_bytes()),
+                'provisioner_sha256': digest((source / seal.ORACLE_PROVISIONER).read_bytes()),
+                'adapter_sha256': seal.named_sources_sha256(adapter),
+                'suite_sha256': seal.named_sources_sha256(suite)}
+    return identity, tuple(data['linked_names'])
+
+
 def validate(root, package, record_path, evidence_dir):
     """Recheck retained evidence against exact original record and payload."""
     evidence_dir = Path(evidence_dir)
@@ -145,7 +171,10 @@ def validate(root, package, record_path, evidence_dir):
         with tempfile.TemporaryDirectory(prefix='fes-pc386-historical-') as temporary:
             source = Path(temporary)
             _historical_sources(Path(root), fields, source)
-            lockstep = seal.check_lockstep_metadata(source, files['lockstep-report.json'], tool, router)
+            historical_oracle, linked_names = _historical_oracle_identity(source)
+            lockstep = seal.check_lockstep_metadata(source, files['lockstep-report.json'], tool, router,
+                                                    expected_oracle=historical_oracle,
+                                                    linked_names=linked_names)
         timing = seal.validate_timing_report(files['top.sta.rpt'].decode('utf-8', errors='replace'))
         resources = seal.fit_resources(files['top.fit.rpt'].decode('utf-8', errors='replace'))
         qsf = files['top.qsf'].decode('utf-8')

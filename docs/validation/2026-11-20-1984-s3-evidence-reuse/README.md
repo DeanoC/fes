@@ -78,10 +78,8 @@ Measured with [`no_id_moves.py`](../2026-11-19-1984-s2-design-v2/no_id_moves.py)
 ## Limits and follow-ups
 
 - **Firmware-generator drift refuses reuse.** That follows this slice's brief ("if any design or firmware-generator input changed, there is no reuse"). The D14 record's cases R1 and R2 instead expect a #1983-type recipe edit to keep the ID *and* be reused. Under design-v2 the ID stays, but S3 rebuilds. This is for Deano to confirm before S4.
-- **Historical validation still uses today's oracle code.** `check_lockstep_metadata` calls `oracle_identity`, which uses today's `oracle_sources.toml` lists and requires the sealed tree's provisioner to equal the running one. Both live in producer files that are design inputs under v1, so S3 cannot change them without moving pc386's ID.
-  - Under design-v2, an edit to `fes_i386_oracle.py` or to the lists in `oracle_sources.toml` would make the sealed entry fail validation, and the resolve would fail closed rather than rebuild.
-  - Edits to other evidence files, such as the testbench or suite sources, validate as measured above.
-  - S4 edits the producer anyway and should take the lists and provisioner from the sealed tree for cache validation.
+- **Historical validation uses the retained record's oracle sources.** The validator derives the report's oracle identity from the source files pinned by the original record, including that revision's `oracle_sources.toml` and provisioner. It checks the report against those historical bytes, so retained-evidence tampering still fails while current oracle/list drift reaches the evidence gate as a fresh-lockstep requirement or cache miss.
+  - Focused tests cover both provisioner drift and `oracle_sources.toml` drift, plus rejection of a tampered retained report.
 - **The fresh-lockstep record is local to the checkout.** It is not published to the shared artifact cache. The selection provenance names its digest.
 - **No real lockstep ran for this record.** The runner call is unit-tested with the job runner mocked. It is the same stock `pc386_run_lockstep.py --netlist --download` that the producer's `--with-lockstep` path uses.
-- **Every pc386 record today is design-v1,** so nothing here changes current reuse. The path only becomes reachable once S4 writes design-v2 records.
+- **Every pc386 record today is design-v1,** so this policy still applies only when the selected and sealed records share a design identity that permits evidence drift (design-v2).

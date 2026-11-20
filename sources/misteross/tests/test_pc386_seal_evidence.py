@@ -227,6 +227,15 @@ class EvidenceTests(SealedEntryFixture):
         with self.assertRaisesRegex(ValueError, 'does not bind'):
             evidence.validate(self.root, self.package, self.record_path, self.ev)
 
+    def test_tampered_retained_oracle_evidence_is_rejected(self):
+        files = dict(self.files)
+        report = copy.deepcopy(self.report)
+        report['oracle']['provisioner_sha256'] = '0' * 64
+        files['lockstep-report.json'] = json.dumps(report).encode()
+        self.write(files)
+        with self.assertRaises((ValueError, seal.board.BuildError)):
+            evidence.validate(self.root, self.package, self.record_path, self.ev)
+
     def test_real_resolver_uses_only_complete_validated_local_and_cache_entries(self):
         store = self.root / 'build/packages'
         selected = evidence.publish_local(self.root, store, self.package, self.record_path, self.ev)
@@ -476,6 +485,18 @@ class EvidenceReuseTests(SealedEntryFixture):
         self.assertEqual(selected['identities']['design'], self.fields['identities']['design'])
         self.assertNotEqual(selected['identities']['evidence'], self.fields['identities']['evidence'])
         self.assertEqual(evidence.evidence_drift(self.fields, selected), [self.TESTBENCH])
+
+    def test_oracle_source_list_drift_reaches_fresh_lockstep_gate(self):
+        selected = self.change('cores/fes-common/sim/i386/oracle_sources.toml')
+        status = self.gate(selected)
+        self.assertEqual(status['reuse'], 'needs-fresh-lockstep')
+        self.assertIn('cores/fes-common/sim/i386/oracle_sources.toml', status['evidence_drift'])
+
+    def test_provisioner_drift_reaches_fresh_lockstep_gate(self):
+        selected = self.change('scripts/fes_i386_oracle.py')
+        status = self.gate(selected)
+        self.assertEqual(status['reuse'], 'needs-fresh-lockstep')
+        self.assertIn('scripts/fes_i386_oracle.py', status['evidence_drift'])
 
     def test_a_design_input_change_refuses_reuse_and_the_resolver_rebuilds(self):
         evidence.publish_local(self.root, self.store, self.package, self.record_path, self.ev)
