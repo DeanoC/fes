@@ -120,8 +120,7 @@ python3 scripts/sim_fes_pc386.py --suite wfw --cpu rtl    # WfW 3.11 from the DO
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
 python3 scripts/sim_fes_pc386.py --suite system         # M5: FreeDOS to the prompt on pc386_system, about an hour
 make toolchain-fes-pc386 CACHE_ROOT=/abs/out/cache/misteross-toolchains GPU_ROUTER=HIP  # once per lock
-FES_TOOLCHAIN_CACHE_ROOT=/abs/out/cache/misteross-toolchains python3 scripts/test_fes_i386_lockstep.py --netlist  # the seal's lockstep report
-make build-fes-pc386-quartus CACHE_ROOT=/abs/out/cache/misteross-toolchains GPU_ROUTER=HIP LOCKSTEP_REPORT=$PWD/build/sim/fes-i386-lockstep/report.json  # seal fes.pc386 with Quartus 17.0.2 (SEED=)
+python3 cores/fes-pc386/tools/build_pc386_product.py --with-lockstep --cache-root /abs/out/cache/misteross-toolchains --gpu-router HIP  # firmware, fresh full lockstep, then the Quartus 17.0.2 seal (--seed)
 ```
 
 The boot suite runs the locked BIOS and VGA BIOS on `pc386_machine`, boots the
@@ -418,7 +417,7 @@ the wall clock, with
 - **Clock.** The system clock is sealed at 61.44 MHz, a multiple of the
   12.288 MHz audio clock and above twice the 28.322 MHz dot clock that the
   scanout needs.
-  [`build_fes_pc386_quartus.py`](../../scripts/build_fes_pc386_quartus.py)
+  [`pc386_quartus.py`](../../scripts/pc386_quartus.py)
   `guest_rates()` turns it into every guest time base's N/D; the system
   simulation takes them from there.
 
@@ -452,8 +451,10 @@ has the seal and the Kit B run through the runtime's library launch, and the
 [keyboard and mouse record](../../../../docs/validation/2026-11-01-pc386-m5-input/summary.md)
 has this slice's seal and its Kit B run with a remote keyboard and mouse.
 
-**Quartus lane.** [`scripts/build_fes_pc386_quartus.py`](../../scripts/build_fes_pc386_quartus.py)
-seals the package with Quartus 17.0.2, labelled as a Quartus build
+**Quartus lane.** The registered producer,
+[`tools/build_pc386_product.py`](tools/build_pc386_product.py), seals the
+package with Quartus 17.0.2 from the definitions in
+[`scripts/pc386_quartus.py`](../../scripts/pc386_quartus.py), labelled as a Quartus build
 ([Quartus-built cores](../../../../docs/design/quartus-cores.md)). nextpnr
 builds of pc386 are parked with [#1235](https://github.com/DeanoC/fes/issues/1235).
 - Quartus 17.0.2 rejects some of the machine's and the CPU's SystemVerilog,
@@ -468,15 +469,13 @@ builds of pc386 are parked with [#1235](https://github.com/DeanoC/fes/issues/123
   ALMs, registers, RAM and DSP blocks.
 - The build authenticates every tool install the core's `toolchain.lock`
   resolves to, and that lock's nextpnr links a GPU runtime. For CUDA, pass
-  `GPU_ROUTER=CUDA` to both `make toolchain-fes-pc386` and
-  `make build-fes-pc386-quartus`, or pass `--gpu-router CUDA` directly to the
-  build script. When no slot is requested, the product path selects an available
-  authenticated HIP or CUDA slot. Nothing routes on a GPU. The product's
-  execution record names the selected slot; its design-v2 record keeps the
-  same BUILD_ID when only that toolchain choice changes. The manual legacy format-1 sealer
-  still defaults to HIP and gives the two slots distinct BUILD_IDs.
+  `GPU_ROUTER=CUDA` to `make toolchain-fes-pc386` and `--gpu-router CUDA` to
+  the producer. When no slot is requested, the producer selects an available
+  authenticated HIP or CUDA slot. Nothing routes on a GPU. The
+  execution record names the selected slot; the design-v2 record keeps the
+  same BUILD_ID when only that toolchain choice changes.
 - The seal needs a lockstep report of this tree's CPU
-  (`LOCKSTEP_REPORT=`, `--lockstep-report`): `scripts/test_fes_i386_lockstep.py
+  (`--lockstep-report`, or `--with-lockstep` to run one): `scripts/test_fes_i386_lockstep.py
   --netlist`, the default suite over every in-scope file of a full corpus
   download, with the same cache root and router. The
   build refuses to seal unless the report passed and its Yosys program, CPU
@@ -486,14 +485,10 @@ builds of pc386 are parked with [#1235](https://github.com/DeanoC/fes/issues/123
   is copied into the output, and `build-summary.json` records it under
   `lockstep` (#1581 S5). Lockstep needs the pinned Bochs and corpus, so it
   runs on the sealing host.
-- To run the full netlist suite and then seal it in one command, use
-  `python3 cores/fes-pc386/tools/build_pc386_with_lockstep.py` with the same
-  `--cache-root` and optional `--gpu-router` as the sealer. The wrapper uses
-  the stock suite and sealer, and requires an unused
-  `build/sim/fes-i386-lockstep` output directory for its manual mode, so an
-  older report cannot be mistaken for a new one. Preserve or move an existing
-  manual run before starting; that mode does not download Bochs or the corpus.
-  On a cache miss, the experimental product path selects a private run directory,
+- `--with-lockstep` runs the firmware recipe, the full netlist suite and then
+  the seal in one command, through
+  [`tools/build_pc386_with_lockstep.py`](tools/build_pc386_with_lockstep.py).
+  It selects a private run directory under `build/sim/fes-i386-lockstep-runs`,
   locks the checkout against concurrent product runs and downloads the pinned
   Bochs source and complete corpus when needed, with process caps and heartbeat. It atomically retains the full report, Quartus
   timing and fit reports, project, version, original input record and exact

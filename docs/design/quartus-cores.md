@@ -201,10 +201,9 @@ For compatibility, readers may interpret a missing `build.variant` as `oss`
 only for a legacy package identified as the output of its registered OSS
 functional-cache producer and validated against that producer's functional
 input record. Absence alone does not identify a lane. The existing Quartus
-sealers in `build_fes_coleco.py`, `build_fes_sms.py`, `build_fes_sg1000.py`,
-`build_fes_pc386_quartus.py` and
-`build_fes_ramtest_quartus.py` emit manifests without the field and are not
-functional-cache outputs. The first four use format-1 build-input records,
+sealers in `build_fes_coleco.py`, `build_fes_sms.py`, `build_fes_sg1000.py`
+and `build_fes_ramtest_quartus.py` emit manifests without the field and are not
+functional-cache outputs. The first three use format-1 build-input records,
 which `artifact_cache.functional_key` does not hash; RAM Tester has a separate
 Quartus sealer. Their legacy manifests must not be
 classified as OSS just because the field is absent. Package identity includes
@@ -398,7 +397,7 @@ Each step is one scope, one PR.
    writer, readers and consumers. Require every `encode_manifest` caller to
    supply the lane explicitly: OSS producers pass `oss`; the existing Quartus
    sealers in `scripts/build_fes_coleco.py`, `scripts/build_fes_sms.py`,
-   `scripts/build_fes_sg1000.py`, `scripts/build_fes_pc386_quartus.py`,
+   `scripts/build_fes_sg1000.py`, `cores/fes-pc386/tools/build_pc386_product.py`,
    `scripts/build_fes_zx81_quartus.py` and
    `scripts/build_fes_ramtest_quartus.py` pass `quartus`. Do not default the
    field to `oss` in the shared encoder. Interpret an absent variant as `oss`

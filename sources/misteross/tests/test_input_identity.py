@@ -63,7 +63,7 @@ class InputIdentityTests(unittest.TestCase):
                              toolchain_changes)
             self.assertNotEqual(current['identities']['record'], changed['identities']['record'])
         changed = copy.deepcopy(before)
-        changed['source_inputs']['scripts/build_fes_pc386_quartus.py'] = '1' * 64
+        changed['source_inputs']['scripts/pc386_quartus.py'] = '1' * 64
         self.assertNotEqual(identities(changed)['design'], before['identities']['design'])
 
     def test_quartus_recipe_version_drift_is_toolchain_only(self):
