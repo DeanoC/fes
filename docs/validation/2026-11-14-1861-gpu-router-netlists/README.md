@@ -67,6 +67,173 @@ and nothing was tuned or waived. But at one per cent the identity constant
 alone can decide the next build, so a future miss there is not evidence of
 whatever change is in flight at the time. See "A thin margin" below.
 
+## After the merge: the evidence this record opens, and the SHAs a squash leaves behind
+
+PR #1862 merged as `2393a9f04` on 2026-11-18 and the campaign's 72 GB of
+scratch was deleted. Two things in this record pointed at that scratch, and
+they are not the same kind of thing.
+
+**Most of the `/data/fes1861-netlist/...` paths in these reports are labels.**
+They say which tree a measurement was taken in, next to the revision and the
+pinned-input digest that actually pin it. They are provenance, they were never
+re-read, and deleting the tree does not weaken them.
+
+**One was not a label.** Each row of `reports-cond3/cond3.json` named its
+build summary by absolute path, and `seals_at_head.py` *opens* that file: the
+strongest check here re-hashes every path in the summary's `inputs` map against
+the tree under review. Those eleven summaries are also the one artefact of this
+campaign that a rerun need not reproduce, being sign-off output of hours of
+Quartus and nextpnr whose achieved frequencies move with identity alone --
+by 9.4% on identical RTL, as the thin-margin section measures. So they were
+copied out before the delete and are now vendored into the record at
+`reports-cond3/summaries/<artefact>/build-summary.json`, with `source` naming
+the copy relative to `cond3.json` and `source_sha256` pinning its bytes.
+`vendor_cond3.py` does that, and re-verifies with `--check`.
+
+What the vendoring is worth, measured rather than asserted, in
+`reports-preserve/counterexamples.log`:
+
+| Perturbation | Result |
+| --- | --- |
+| control | 11 of 11, rc=0 |
+| a vendored summary reformatted after the fact | `SUBSTITUTED`, rc=1 |
+| the same, on a row that also has a design anchor | `SUBSTITUTED`, rc=1 -- an edited seal is not rescued |
+| `source_sha256` dropped from every row | `unpinned` on all eleven, rc=1 |
+| every row pointed back into the deleted scratch | four rows `unverifiable`, 7 of 11, rc=1 |
+| one vendored summary deleted | `ABSENT`, rc=1 |
+| one artefact's summary filed under another's row, pin updated to match | `WRONG SEAL` on BUILD_ID, rc=1 |
+| `vendor_cond3.py --check` on the edited copy | names the row, rc=1 |
+| `vendor_cond3.py` re-run on an already-vendored collection | 11 of 11, rc=0, `cond3.json` unchanged |
+
+The `unvendored` row is the honest size of the problem this change fixes.
+Without the vendored summaries the four `541e3c548`-sealed Spectrum-family rows
+cannot be verified at all, because the design anchor that carries the ZX81 rows
+is a comparison from `df99f2dfb` and is refused for a row sealed in a different
+tree. The other seven degrade instead to that second anchor, which is a weaker
+statement than their own input digests but still a statement about condition 3.
+So: four rows lost outright, seven demoted.
+
+The `ABSENT` row reads that way only because this change made it so. Deleting a
+vendored summary used to leave the row "unverifiable", which handed it to the
+design anchor and reported 11 of 11 with the file gone -- so "verifies from a
+clone" would have survived the vendored files being deleted again, which is the
+one failure this is here to prevent. A row whose `source` is still an absolute
+path into a build tree keeps the old fallback, which is why the `unvendored`
+case above still reads 7 of 11 rather than 0.
+
+### Re-verified at a head on main, not on the branch
+
+`reports-preserve/` re-runs the whole anchor set from both seal trees to a head
+that carries main's `1ec592670`, two merges past #1862:
+
+```
+11 of 11 seals still match this head
+sources/misteross e046d3c23156  config b4bb5aa71451
+route comparisons in use: 541e3c548751 -> this head, df99f2dfb208 -> this head
+```
+
+And it verifies from nothing but a clone. `clone_proof.sh` produced
+`reports-preserve/fresh-clone.log`: a `git clone --single-branch` of this
+branch from the remote, so that #1862's merged branch is *absent* -- the state
+after someone deletes it -- with every check run from a working directory of
+`/`, so no relative path can resolve against the checkout they were prepared
+in. It counts what it claims rather than describing it:
+
+```
+vendor_cond3.py                                        rc=0   11 of 11 rows verified
+seals_at_head.py                                       rc=0   11 of 11 seals still match
+rows matching their own input digests: 7
+rows carried by the design anchor:     4
+lines of this run naming the deleted scratch: 0
+check_shas.py, with #1862's branch absent               rc=1
+check_shas.py, after fetching that branch               rc=0
+```
+
+The two `check_shas.py` lines are the exposure below, demonstrated rather than
+asserted. With the merged branch gone, **seventeen** objects this record cites
+stop resolving: the fourteen commits `sha_exposure.py` counts, plus three tree
+objects it does not -- `888f63a2b104` and `6b2d792a3432`, the
+`sources/misteross` trees the two seals were taken in, and `85200fc21385`.
+That is what makes the commit count under "The squash merge" a lower bound.
+Each log names the head it was measured at, which is the commit before the one
+that stores it.
+
+This is a stronger statement than the merged record's, which stopped at the PR
+branch: every one of the eleven seals is still a seal of main's sources, and
+every route-deciding input is still byte-identical, after `#1970` and `#1983`
+landed. The four ZX81 rows ride their design anchor as before; the rest match
+their own input digests.
+
+### What the re-verification is pinned to, and when it expires
+
+`_usable_routes` accepts a route comparison only if it ends at the checkout's
+own `sources/misteross` and `config` trees, which is what stops a comparison
+from another head being described as applying to this one. So the reports in
+`reports-preserve/` are pinned to exactly one pair:
+
+```
+sources/misteross e046d3c23156a236cc356d97bf298bc6926bfd41
+config            b4bb5aa7145110d9dabd482097080c608e240c99   = main at 1ec592670
+```
+
+Main's sources tree moved within hours of #1862 merging and will move again.
+When it does, running this against a *current* clone of main reads 0 of 11 with
+both comparisons ignored -- and that is the refusal working, not a defect. The
+durable form names the commit the evidence is about:
+
+```
+$ git worktree add --detach /tmp/pinned 1ec592670
+$ python3 seals_at_head.py --cond3 reports-cond3/cond3.json --tree /tmp/pinned \
+    --design-move reports-preserve/seal-to-head-design.json \
+    --route-inputs reports-preserve/seal-to-head-route-inputs.json \
+                   reports-preserve/seal2-to-head-route-inputs.json
+11 of 11 seals still match this head
+```
+
+`reports-preserve/pinned-head.log` is that run. Re-anchoring the record at a
+later head is cheap -- no GPU, no Quartus -- but it needs *checkouts of the two
+seal commits*, which is the strongest reason to keep them reachable: without
+them the eleven seals can never be re-tied to a newer main, only to this one.
+
+### The squash merge, measured
+
+`#1862` was squash-merged, so no commit of that branch is an ancestor of main.
+`check_shas.py` asks only whether a cited object resolves *now*, which it does
+only while some ref still holds it. `sha_exposure.py` asks the sharper
+question, and `reports-preserve/sha-exposure.log` has the counts; the shape of
+the answer is two groups rather than one number:
+
+- **Fourteen commits from `#1862`'s branch**, both condition-3 seal commits
+  (`df99f2dfb`, `541e3c548`) among them, and with them three tree objects. Deleting the merged branch -- routine
+  housekeeping -- would make `check_shas.py` fail and strip the provenance from
+  all fourteen. The annotated tag `evidence/1862-seals`, at `e3fc6c144fac`,
+  covers every one of them; Deano approved pushing it on 19 November.
+- **This PR's own commits**, which the reports under `reports-preserve/` cite
+  as the head they were measured at. Merging this PR with a merge commit makes
+  them ancestors of main; squashing it repeats the trap one more time.
+
+`sha_exposure.py` prints "17 cited commits are NOT ancestors of origin/main"
+at this checkout, and the clone proof above prints "17 objects ... do not
+resolve". **Those are two different seventeens, and neither is the other.** The
+clone's seventeen is #1862's branch alone -- fourteen commits plus three trees
+-- because a clone of *this* branch holds this PR's commits. The checkout's
+seventeen is those same fourteen commits plus three of this PR's own, and it
+skips trees entirely, because a tree is held by whatever commit holds it. The
+figure to act on is the clone's: seventeen objects lost if #1862's branch is
+deleted. And what a *reader* needs is narrower than what is cited --
+the anchors these checks compare are the `sources/misteross` and `config` tree
+objects, and those are main's.
+
+### For Deano
+
+- Done: the annotated tag `evidence/1862-seals` at `e3fc6c144fac` (`#1862`'s
+  branch head) holds all seventeen exposed objects, both seal commits and both
+  seals' source trees among them. `reports-preserve/fresh-clone.log` predates
+  the tag and shows the damage without it, `check_shas.py` exit 1.
+- A second tag at this PR's own merged head would do the same for its reports.
+  Merging this PR without squashing would too, but main's history is all squash
+  commits and `lane:lander` auto-merges, so the tag is the robust one.
+
 ## Which artefacts are affected, measured rather than argued
 
 `design_identity.py --tree-a <base> --tree-b <head>` answers it from the two
@@ -284,9 +451,23 @@ Reasoning about what a check would catch is not evidence that it catches it:
 | `fes.zx81`'s `recipe_digest` doctored to MOVED | that seal refused | `MOVED: route-deciding inputs moved since the seal: recipe_digest`, 10 of 11, exit 1 |
 | `fes.zx81`'s committed `[recipes.quartus]` seeds changed to `[1, 2, 3, 999]` (Codex's case) | that row only | `shipped` MOVED for `fes.zx81`, `fes.zx80` quiet, exit 1 -- it passed with everything "same" before this fix |
 | `selected_recipe` renamed away in the producer on one side | unmeasured, not moved | all four ZX81 rows `?`, `UNANSWERED: fes.zx81.producer_recipe (tree_b)` ..., exit 1 -- and this is what exposed the one-sided check above |
+| a vendored summary reformatted after being vendored | that seal refused | `SUBSTITUTED`, 10 of 11, exit 1 |
+| the same, on a row that also has a design anchor behind it | refused, not rescued | `zx81 SUBSTITUTED`, 10 of 11, exit 1 |
+| `source_sha256` dropped from every vendored row | all refused | `unpinned` on all eleven, 0 of 11, exit 1 |
+| every row pointed back into the deleted campaign scratch | the four Spectrum rows refused | 7 of 11, exit 1 -- the seven `df99f2dfb` rows demote to their design anchor |
+| one vendored summary deleted outright | that row refused, not handed to its design anchor | `ABSENT`, 10 of 11, exit 1 -- it read 11 of 11 before this fix |
+| `fes.zx80`'s summary filed under the `zx81` row, `source_sha256` updated to match | BUILD_ID catches what the pin cannot | `WRONG SEAL`, 10 of 11, exit 1 |
+| `vendor_cond3.py --check` on a collection with one summary edited | that row named, nonzero | `c64: ... is not the bytes source_sha256 names`, exit 1 -- it printed `ok` beside the failing row before this fix |
+| `vendor_cond3.py` re-run on its own output | a no-op, not a crash | 11 of 11, exit 0, `cond3.json` byte-identical -- it raised `SameFileError` before this fix |
 
-Ten defects in this record's own tooling were found that way and are
-recorded rather than quietly amended. Five came from Codex's three reviews of
+Fourteen defects in this record's own tooling were found that way and are
+recorded rather than quietly amended. Four are from this change: a deleted
+vendored summary fell through to the design anchor and reported eleven of
+eleven; `vendor_cond3.py --check` printed `ok` on the same row it had just
+failed; `vendor_cond3.py` could not be re-run on its own output; and the
+perturbation step of `counterexamples_cond3.sh` died silently on a truncated
+read, leaving four cases unperturbed and reading as four clean passes, which
+is why it now exits 2 rather than continuing. Five came from Codex's three reviews of
 the fourth base move, all of them the same shape as the one below: a guard that
 checks one part of a claim and leaves the rest to drift. `seals_at_head.py` validated the
 design comparison's tree A and not its tree B, so a comparison from an earlier
@@ -650,7 +831,13 @@ python3 netlist_digest.py --tree <tree>/sources/misteross --core fes.pong \
 | main, third base | `/data/fes1861-netlist/identity/nb3` | `5e592f003` |
 | main, fourth base | `/data/fes1861-netlist/identity/nb4` | `6ee9f1113` |
 | seal tree | `/data/fes1861-netlist/identity/c3head` | `df99f2dfb`, where seven seals were taken |
+| seal tree, second | `/data/fes1861-netlist/identity/c3head2` | `541e3c548`, where the four Spectrum-family seals were taken |
+| seal trees, after the delete | re-cut with `git worktree add --detach <seal commit>`, removed again after the run | the anchors in `reports-preserve/` came from these; reproducible only while those commits are reachable |
 | branch | `/home/deano/fes/.claude/worktrees/gpu-router-default` | recorded per run |
+
+Every `/data/fes1861-netlist` tree above was deleted after #1862 merged. The
+summaries the condition-3 check opens were vendored into this record first --
+see "After the merge" above; nothing else here re-reads a path in that tree.
 
 A tree path is mutable and a branch advances, so the path above is not what
 pins a result. Each run records the tree's `HEAD`, that the tree was clean, and
@@ -741,8 +928,8 @@ unchanged at `541e3c548`, which `reports-scope2/cond3-head-move.log` measures.
 
 Every one of those 11 seals is still a seal of this branch's
 current sources -- `sources/misteross` at tree
-`ed4a1fdb88dc` -- each tied by a named anchor in
-`reports-scope4/seals-at-head.log`: an inputs-map match where the producer
+`e046d3c23156` -- each tied by a named anchor in
+`reports-preserve/seals-at-head.log`: an inputs-map match where the producer
 writes one, and a design-identity comparison against the seal's own tree
 for the four Quartus summaries that do not.
 

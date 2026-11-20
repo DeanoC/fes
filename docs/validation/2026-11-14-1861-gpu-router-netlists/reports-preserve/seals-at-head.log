@@ -1,0 +1,19 @@
+head             7282458335f8a72345817800630cca4c13942eda
+sources/misteross e046d3c23156a236cc356d97bf298bc6926bfd41  <- the anchor; a docs commit does not move it
+config            b4bb5aa7145110d9dabd482097080c608e240c99  <- the parent-owned inputs, core-recipes.toml among them
+route comparisons in use: 541e3c548751 -> this head, df99f2dfb208 -> this head
+artefact             sealed at      verdict       detail
+c64                  df99f2dfb208   intact        all 73 input digests match this head, and its 5 route-deciding inputs are unchanged too
+menu                 df99f2dfb208   intact        all 31 input digests match this head, and its 5 route-deciding inputs are unchanged too
+pentagon             541e3c548751   intact        all 52 input digests match this head, and its 5 route-deciding inputs are unchanged too
+spectrum             541e3c548751   intact        all 52 input digests match this head, and its 5 route-deciding inputs are unchanged too
+spectrum-plus3       541e3c548751   intact        all 52 input digests match this head, and its 5 route-deciding inputs are unchanged too
+spectrum128          541e3c548751   intact        all 52 input digests match this head, and its 5 route-deciding inputs are unchanged too
+splash               df99f2dfb208   intact        all 11 input digests match this head, and its 3 route-deciding inputs are unchanged too
+ts1000               df99f2dfb208   intact        design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 6 route-deciding inputs are unchanged too
+ts1500               df99f2dfb208   intact        design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 6 route-deciding inputs are unchanged too
+zx80                 df99f2dfb208   intact        design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 6 route-deciding inputs are unchanged too
+zx81                 df99f2dfb208   intact        design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 6 route-deciding inputs are unchanged too
+
+11 of 11 seals still match this head
+wrote /home/deano/fes/.claude/worktrees/gpu-router-default/docs/validation/2026-11-14-1861-gpu-router-netlists/reports-preserve/seals-at-head.json
