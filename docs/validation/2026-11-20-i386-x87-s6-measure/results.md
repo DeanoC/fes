@@ -19,7 +19,67 @@ The bands and rules are in [method.md](method.md). The pixel clock is 74.25 MHz 
 
 ## 6.0b: where the ALMs are
 
-Not recorded yet.
+| Fit | Seed | MHz | Fit | Timing, all corners | ALMs needed | of device | LABs touched | DSP | M20K | Registers | Worst setup | Worst hold |
+| --- | ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| b-hier | 1 | 61.44 | pass | pass | 43,420 | 92.78% | 4,678 | 42 | 145 | 41,267 | +7.580 ns | +0.024 ns |
+
+Against 6.0a seed 1's flattened 43,059 ALMs, the hierarchy fit differs by **+0.84%**, within the ±5% gate. So the table below is **the ranking**.
+
+The table lists every entity at depth 1 to 3 with at least 100 ALMs, counting its sub-entities, largest first. "Own" is the entity without its sub-entities. Each figure bounds what removing that entity could save; it is not a measured saving.
+
+| Depth | Entity | ALMs | Own | Registers | M20K | DSP |
+| ---: | --- | ---: | ---: | ---: | --- | ---: |
+| 1 | `cpu` | 31,425.8 | 9,348.8 | 24,313 | 60.0 (0.0) | 22 |
+| 1 | `machine` | 8,750.3 | 5.2 | 8,237 | 37.0 (0.0) | 19 |
+| 2 | `cpu/x87` | 7,556.9 | 4,407.7 | 6,218 | 11.0 (0.0) | 18 |
+| 2 | `machine/at` | 5,060.3 | 176.1 | 4,073 | 9.0 (0.0) | 6 |
+| 2 | `cpu/frontend` | 3,835.2 | 0.0 | 3,214 | 4.0 (0.0) | 0 |
+| 3 | `cpu/frontend/fetch` | 2,664.4 | 1,444.8 | 2,919 | 0.0 (0.0) | 0 |
+| 2 | `cpu/l1d` | 2,312.4 | 2,312.4 | 1,828 | 16.0 (0.0) | 0 |
+| 3 | `cpu/x87/g_de25_core` | 1,884.5 | 447.0 | 3,267 | 0.0 (0.0) | 9 |
+| 2 | `machine/vga` | 1,848.9 | 1,226.7 | 1,722 | 14.0 (0.0) | 0 |
+| 2 | `cpu/l1i` | 1,609.4 | 1,395.6 | 992 | 24.0 (0.0) | 0 |
+| 2 | `cpu/biu` | 1,505.9 | 1,505.9 | 1,754 | 0.0 (0.0) | 0 |
+| 3 | `machine/at/kbc` | 1,421.7 | 331.4 | 1,238 | 3.0 (0.0) | 1 |
+| 1 | `audio` | 1,293.1 | 6.1 | 1,267 | 7.0 (0.0) | 1 |
+| 3 | `cpu/x87/g_de25_trans` | 1,114.0 | 1,114.0 | 694 | 7.0 (0.0) | 0 |
+| 3 | `cpu/frontend/align` | 1,095.2 | 1,095.2 | 259 | 0.0 (0.0) | 0 |
+| 2 | `cpu/dfwd` | 872.8 | 872.8 | 73 | 0.0 (0.0) | 0 |
+| 2 | `audio/opl2` | 841.3 | 44.4 | 845 | 7.0 (0.0) | 1 |
+| 2 | `cpu/muldiv` | 833.2 | 833.2 | 558 | 0.0 (0.0) | 2 |
+| 2 | `cpu/decode` | 822.2 | 822.2 | 0 | 0.0 (0.0) | 0 |
+| 3 | `audio/opl2/opl2` | 771.1 | 82.2 | 742 | 7.0 (0.0) | 1 |
+| 2 | `cpu/dtlb` | 735.0 | 735.0 | 660 | 0.0 (0.0) | 0 |
+| 2 | `cpu/ex` | 731.9 | 503.6 | 0 | 0.0 (0.0) | 0 |
+| 3 | `machine/at/fdc` | 713.1 | 706.3 | 477 | 2.0 (0.0) | 1 |
+| 3 | `machine/at/ata` | 702.0 | 702.0 | 458 | 3.0 (0.0) | 5 |
+| 2 | `machine/display` | 606.7 | 124.5 | 954 | 4.0 (0.0) | 2 |
+| 3 | `machine/vga/scanout` | 601.0 | 533.4 | 631 | 9.0 (0.0) | 0 |
+| 2 | `machine/presenter` | 564.6 | 564.6 | 975 | 4.0 (0.0) | 11 |
+| 2 | `cpu/dops` | 508.3 | 508.3 | 74 | 0.0 (0.0) | 0 |
+| 1 | `storage` | 494.2 | 494.2 | 663 | 2.0 (0.0) | 2 |
+| 3 | `machine/at/pit` | 426.6 | 17.7 | 477 | 0.0 (0.0) | 0 |
+| 3 | `machine/at/dma1` | 425.5 | 425.5 | 385 | 0.0 (0.0) | 0 |
+| 2 | `cpu/governor` | 392.2 | 392.2 | 184 | 1.0 (0.0) | 2 |
+| 2 | `machine/port2` | 383.0 | 373.0 | 35 | 1.0 (0.0) | 0 |
+| 3 | `machine/at/dma2` | 374.9 | 374.9 | 321 | 0.0 (0.0) | 0 |
+| 3 | `machine/at/rtc` | 358.1 | 343.1 | 170 | 1.0 (0.0) | 0 |
+| 3 | `machine/display/scanout` | 301.3 | 126.4 | 526 | 4.0 (0.0) | 0 |
+| 2 | `audio/dsp` | 290.3 | 290.3 | 222 | 0.0 (0.0) | 0 |
+| 3 | `machine/at/pic` | 279.8 | 30.4 | 208 | 0.0 (0.0) | 0 |
+| 3 | `cpu/ex/shifter` | 228.2 | 228.2 | 0 | 0.0 (0.0) | 0 |
+| 3 | `cpu/l1i/itlb` | 213.8 | 213.8 | 299 | 0.0 (0.0) | 0 |
+| 1 | `status_ring` | 202.4 | 202.4 | 532 | 0.0 (0.0) | 0 |
+| 1 | `gp_mailbox` | 191.3 | 191.3 | 223 | 0.0 (0.0) | 0 |
+| 1 | `disk` | 187.6 | 187.6 | 80 | 0.0 (0.0) | 0 |
+| 2 | `machine/bridge` | 178.3 | 152.0 | 332 | 5.0 (0.0) | 0 |
+| 3 | `cpu/x87/mul` | 150.7 | 150.7 | 390 | 0.0 (0.0) | 9 |
+| 2 | `audio/mixer` | 149.8 | 149.8 | 173 | 0.0 (0.0) | 0 |
+| 3 | `machine/at/decoder` | 145.4 | 145.4 | 188 | 0.0 (0.0) | 0 |
+| 2 | `cpu/seq` | 141.5 | 141.5 | 0 | 0.0 (0.0) | 0 |
+| 3 | `machine/display/control` | 139.6 | 139.6 | 158 | 0.0 (0.0) | 0 |
+| 2 | `cpu/agu` | 127.7 | 127.7 | 0 | 0.0 (0.0) | 0 |
+| 2 | `machine/ems` | 102.6 | 102.6 | 142 | 0.0 (0.0) | 0 |
 
 ## 6.0c: the clock ladder, seed 1
 
