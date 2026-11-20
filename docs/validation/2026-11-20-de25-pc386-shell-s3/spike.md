@@ -112,3 +112,28 @@ shape, not logic the machine needs. The candidates, all unmeasured:
 - The grant tied off. Its adders fold.
 - No 4 KiB burst splitting in the adapter. Platform Designer's translator
   handles the AXI side.
+
+## Arbitration A/B, arm B1 (one seed per arm)
+
+B1 changes only the window fabric. One machine-clock
+`altera_avalon_mm_bridge` 20.1.0 (128-bit, MAX_BURST_SIZE 128, 32 pending
+responses, command and response pipelining) takes all three window ports.
+One `mm_ccb` carries it to F2SDRAM, which then sees two masters, as in the
+stock shell. The netlist, seed and everything else are as in spike 1.
+
+| | Spike 1, three masters | B1, one window master |
+| --- | ---: | ---: |
+| ALMs needed, whole design | 45,227 (96.6%) | 43,218 (92.3%) |
+| Machine alone (`system`) | 33,098 | 33,194 |
+| **Shell** (whole − machine) | **12,129** | **10,024** |
+| F2SDRAM interconnect (`mm_interconnect_0`) | 6,273 | 2,112 |
+| Peripheral subsystem outside the component | 1,741 | 3,718 |
+| ... bridge agent response FIFO | — | 907 |
+| ... port 1 and 2 command width adapters | — | 191 + 178 |
+| ... bridge, its rdata FIFO, the clock-crossing bridge | — | 233 + 146 + 95 |
+| Window adapter (`window`) | 642 | 601 |
+| Machine-clock setup, within the clock | +4.702 ns | +5.258 ns |
+
+That is −2,105 ALMs. B1's window is still about 4,200 ALMs over the ~5,800
+base shell. The next arm packs the 64-bit ports in RTL and presents one
+128-bit master with bounded pending.
