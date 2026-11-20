@@ -54,6 +54,7 @@ int main(int argc, char **argv) {
     std::deque<int> write_responses;   // due cycles
     bool mw_active = false; uint32_t mw_addr = 0; int mw_burst = 0, mw_got = 0;
     long cycle = 0;
+    bool stalled = false; uint64_t stalled_sig = 0;
     auto set_port = [&](Port &p) {
         bool rd = p.active && !p.is_write, wr = p.active && p.is_write;
         uint32_t a = p.address;
@@ -117,6 +118,15 @@ int main(int argc, char **argv) {
             uint8_t b0[16];
             for (int i = 0; i < 16; ++i) b0[i] = uint8_t(t->s0_readdata[i / 4] >> (8 * (i % 4)));
             check(ports[0], t->s0_readdatavalid, b0);
+        }
+        // Avalon: a command refused under waitrequest must be presented unchanged until taken.
+        {
+            bool presented = t->m_read || t->m_write;
+            uint64_t sig = (uint64_t(t->m_address) << 16) ^ (uint64_t(t->m_burstcount) << 8) ^ (t->m_read << 1) ^ t->m_write ^
+                           (uint64_t(t->m_byteenable) << 40) ^ (uint64_t(t->m_writedata[0]) << 20);
+            if (stalled && (!presented || sig != stalled_sig)) { std::printf("command changed under waitrequest at %ld\n", cycle); ++failures; }
+            stalled = presented && t->m_waitrequest;
+            stalled_sig = sig;
         }
         // sample handshakes before the edge
         bool m_take = !t->m_waitrequest && (t->m_read || t->m_write);

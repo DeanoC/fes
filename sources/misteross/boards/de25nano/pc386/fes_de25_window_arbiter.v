@@ -92,7 +92,11 @@ module fes_de25_window_arbiter #(
         endcase
     endfunction
     wire [1:0] chosen = pick(ready, last);
-    wire [1:0] sel = busy ? owner : chosen;
+    // Avalon: a command refused under waitrequest stays presented, unchanged,
+    // until it is taken, so the choice is held while it stalls.
+    reg stalled = 1'b0;
+    reg [1:0] stalled_sel = 2'd0;
+    wire [1:0] sel = busy ? owner : stalled ? stalled_sel : chosen;
     wire any = busy || |ready;
     wire sel_read = !busy && want_read[sel] && ready[sel];
     wire sel_write = busy || (want_write[sel] && ready[sel]);
@@ -150,6 +154,13 @@ module fes_de25_window_arbiter #(
     wire resp_last = resp_beat + 8'd1 == head_beats;
     wire pop_order = m_readdatavalid && resp_last;
 
+    always @(posedge clk) begin
+        if (reset) stalled <= 1'b0;
+        else begin
+            stalled <= (m_read || m_write) && m_waitrequest && !busy;
+            if ((m_read || m_write) && m_waitrequest && !busy) stalled_sel <= sel;
+        end
+    end
     always @(posedge clk) begin
         if (reset) begin
             busy <= 1'b0; last <= 2'd2; order_wr <= 0; order_rd <= 0; order_count <= 0; resp_beat <= 8'd0;

@@ -21,6 +21,10 @@ MANAGED_MASTERS = (
     'subsys_periph_pb_cpu_0.m0', 'subsys_periph_fes_scanout_guard.avm',
     'subsys_periph_fes_ctrl_cdc.m0', 'subsys_periph_fes_scanout.avm',
     'subsys_periph_fes_mem_cdc.m0', 'subsys_hps_f2sdram_adapter.axi4_man')
+# A machine with a window in HPS DDR (fes.fabric.de25-hps-window) adds exactly
+# these: its one window master and that master's clock-crossing bridge.
+WINDOW_MASTERS = ('subsys_periph_fes_scanout.win', 'subsys_periph_fes_win_cdc.m0')
+WINDOW_BRIDGE = 'subsys_periph_fes_win_cdc.m0'
 
 
 def constant(definition, name):
@@ -74,10 +78,15 @@ def retarget_adapter(data, definition):
         'kernel_binding': 'not-admitted', 'physical_translation': 'not-qualified'}
 
 
-def configure(project, definition, hps, *, managed_fabric=False):
+def configure(project, definition, hps, *, managed_fabric=False, window=False):
     path = project / ADAPTER
     data, profile = retarget_adapter(path.read_bytes(), definition)
     path.write_bytes(data)
+    if window:
+        # The window's master shares the scanout's stream: one SID, reads and
+        # writes. Its write credits stay the adapter's one.
+        profile.update(scope='scanout and window generated F2SDRAM path', master_ownership='scanout+window',
+                       window_master=WINDOW_BRIDGE)
     child = hps.tcl_word(project / 'hps_subsys/hps_subsys.qsys')
     script = f'''# Explicit Linux SMMU profile. This changes port exposure, not boot data.
 load_system {child}
@@ -241,7 +250,9 @@ def _managed_fabric_graph(project, hps):
             raise ValueError('managed fabric retains a maintenance initiator/translator: ' + name)
     routes = [c for c in tree.findall('connection') if c.get('kind') == 'avalon']
     masters = {c.get('start') for c in routes}
-    if masters != set(MANAGED_MASTERS):
+    inputs = json.loads((project.parent / 'inputs.json').read_text())
+    window = inputs.get('scanout', {}).get('linux_dma', {}).get('master_ownership') == 'scanout+window'
+    if masters != set(MANAGED_MASTERS) | (set(WINDOW_MASTERS) if window else set()):
         raise ValueError('managed fabric initiator inventory differs')
     ingress = [(c.get('start'), c.get('end')) for c in routes
                if (c.get('end') or '').startswith('subsys_hps_agilex_hps.')]
@@ -255,6 +266,13 @@ def _managed_fabric_graph(project, hps):
         ('subsys_periph_fes_scanout_guard.avm', 'subsys_periph_fes_ctrl_cdc.s0', 0),
         ('subsys_periph_fes_ctrl_cdc.m0', 'subsys_periph_fes_scanout.avs', 0),
         ('subsys_hps_agilex_hps.hps2fpga', 'ocm.axi_s1', 0))
+    if window:
+        window_definition = (project / 'fes_mailbox/generated/fes_de25_hps_window.vh').read_text()
+        offsets = re.findall(r"^`define FES_DE25_HPS_WINDOW_PERIPHERAL_OFFSET 32'h([0-9a-f]{8})$", window_definition, re.M)
+        if len(offsets) != 1:
+            raise ValueError('missing generated window constant: PERIPHERAL_OFFSET')
+        control += (('subsys_periph_pb_cpu_0.m0', 'subsys_periph_fes_scanout.window', int(offsets[0], 16)),
+                    ('subsys_periph_fes_scanout.win', 'subsys_periph_fes_win_cdc.s0', 0))
     for start, end, address in control:
         matches = [c for c in routes if c.get('end') == end]
         if (len(matches) != 1 or matches[0].get('start') != start or
@@ -267,7 +285,7 @@ def _managed_fabric_graph(project, hps):
     interfaces = [p.findtext('name') for p in definition.findall('boundary/interfaces/interface')]
     if any(name in interfaces for name in ('fpga2hps', 'fpga2hps_clock', 'fpga2hps_reset')):
         raise ValueError('managed fabric generated native F2H interface remains exposed')
-    memory = hps.verify_scanout_memory_handoff(project)
+    memory = hps.verify_scanout_memory_handoff(project, WINDOW_BRIDGE if window else None)
     return {'policy': MANAGED_FABRIC, 'initiator_endpoints': sorted(masters),
             'initiator_count': len(masters), 'fabric_to_hps': [list(route) for route in ingress],
             'control_and_ocm_routes': [list(route) for route in control],
@@ -305,9 +323,10 @@ def verify_managed_fabric(project, hps):
 def verify(project, hps, profile):
     definition = (project / 'fes_mailbox/generated/fes_de25_scanout.vh').read_text()
     sid = constant(definition, 'SMMU_STREAM_ID')
-    if profile.get('master_ownership') != 'scanout-only':
+    window = profile.get('master_ownership') == 'scanout+window' and profile.get('window_master') == WINDOW_BRIDGE
+    if profile.get('master_ownership') != 'scanout-only' and not window:
         raise ValueError('Linux DMA requires isolated scanout master ownership')
-    ownership = hps.verify_scanout_memory_handoff(project)
+    ownership = hps.verify_scanout_memory_handoff(project, WINDOW_BRIDGE if window else None)
     if profile.get('stream_id') != sid or profile.get('secure') is not False:
         raise ValueError('captured Linux DMA stream differs')
     if hps.digest(project / ADAPTER) != profile['derived_sha256']:

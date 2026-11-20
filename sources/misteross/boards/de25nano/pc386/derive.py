@@ -52,9 +52,12 @@ SYSTEM_MACHINE_BEFORE = (b"        .display_request(display_request), .display_o
                          b"        .display_response_error(display_response_error), .display_response_data(display_response_data),\n"
                          b"        .display_quiesced(display_quiesced), .video(video),\n")
 SYSTEM_MACHINE_AFTER = (b"        .display_request(1'b0), .display_opcode(7'd0), .display_index(8'd0),\n"
+                        b"        /* verilator lint_off PINCONNECTEMPTY */\n"
                         b"        .display_argument(16'd0), .display_response_valid(),\n"
                         b"        .display_response_error(), .display_response_data(),\n"
-                        b"        .display_quiesced(), .video(video),\n")
+                        b"        .display_quiesced(),\n"
+                        b"        /* verilator lint_on PINCONNECTEMPTY */\n"
+                        b"        .video(video),\n")
 SYSTEM = ((SYSTEM_WIRES_BEFORE, b"", 1), (SYSTEM_PORTS_BEFORE, SYSTEM_PORTS_AFTER, 1),
           (SYSTEM_MACHINE_BEFORE, SYSTEM_MACHINE_AFTER, 1))
 
