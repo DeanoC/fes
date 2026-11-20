@@ -19,6 +19,9 @@ from scripts.fes_build_common import BuildError
 HERE = Path(__file__).resolve().parents[3]
 TCL = HERE / 'boards/de25nano/scanout/audio_clocks.tcl'
 MASTER = 'fes_audio_inst|clock|iopll_0_outclk0'
+# A machine with its own PLL: CLOCK1_50 x 188/15, then /51 for the audio master.
+MACHINE_MASTER = 'fes_machine_pll|machine_pll_outclk1'
+MACHINE_POLICY = 'de25-machine-pll-audio-clocks-v1'
 PINS = {'CLOCK1_50': 'V16', 'HDMI_SCLK': 'BW1', 'HDMI_LRCLK': 'BR6',
         'HDMI_I2S': 'CB2', 'HDMI_MCLK': 'CF1'}
 CORNERS = {'Slow fix4 100C Model', 'Slow fix4 0C Model',
@@ -39,24 +42,31 @@ def number(value):
     return result
 
 
-def observations(directory):
+def machine(record):
+    """Whether this build makes its audio master clock on the machine PLL."""
+    return record['parameters'].get('audio_clock_reference_policy') == MACHINE_POLICY
+
+
+def observations(directory, *, machine_pll=False):
     """Check report coverage and compute conditional, rather than PCB, budgets."""
+    master = MACHINE_MASTER if machine_pll else MASTER
     clocks = {}
     for row in csv.DictReader((Path(directory) / 'clocks.tsv').read_text().splitlines(), delimiter='\t'):
         require(set(row) == {'clock', 'period_ns', 'waveform', 'edges', 'master'}, 'clock columns changed')
         name = row['clock']
         require(name not in clocks, 'duplicate clock')
         clocks[name] = row
-    names = {MASTER, *('de25_i2s_' + label + suffix
+    names = {master, *('de25_i2s_' + label + suffix
                       for label in ('bit_clock', 'word_clock') for suffix in ('', '_output'))}
     require(set(clocks) == names, 'missing or unexpected audio clock')
-    period = number(clocks[MASTER]['period_ns'])
-    require(abs(period - Decimal(20) * 236 / 58) <= Decimal('.001'),
+    period = number(clocks[master]['period_ns'])
+    require(abs(period - (Decimal(20) * 15 * 51 / 188 if machine_pll else Decimal(20) * 236 / 58)) <= Decimal('.001'),
+            'master period differs from the machine x188/15 /51 divider' if machine_pll else
             'master period differs from the stock M58/C236 divider')
     for label, edges, divisor in (('bit_clock', (3, 7, 11), 4), ('word_clock', (255, 511, 767), 256)):
         name = 'de25_i2s_' + label
         require(clocks[name]['edges'].split() == list(map(str, edges)), 'serializer source edges differ')
-        require(clocks[name]['master'] == MASTER, 'divider master differs')
+        require(clocks[name]['master'] == master, 'divider master differs')
         require(clocks[name + '_output']['master'] == name, 'forwarded-clock master differs')
         for selected in (name, name + '_output'):
             require(abs(number(clocks[selected]['period_ns']) - period * divisor) <= Decimal('.001'),
@@ -93,7 +103,12 @@ def observations(directory):
             'fitted_corner_count': len(CORNERS), 'fitted_path_count': len(paths)}
 
 
-def stock_audio(project, archive):
+def stock_audio(project, archive, *, machine_pll=None):
+    """The vendor's audio pins and the PLL behind them.
+
+    `machine_pll` is the staged machine PLL's recorded SHA-256 for a machine
+    that replaces the stock audio PLL; the pins and voltages stay the vendor's.
+    """
     require(async_inputs.sha(archive) == vendor_reference.ARCHIVE_SHA256, 'vendor archive changed')
     with zipfile.ZipFile(archive) as package:
         for name in ('Demonstration/FPGA/Golden_top/golden_top.qsf',
@@ -107,13 +122,20 @@ def stock_audio(project, archive):
         name = vendor_reference.PREFIX + 'av_pll.ip'
         require(package.namelist().count(name) == 1, 'missing/duplicate vendor audio PLL')
         original = package.read(name)
-    old = b'<ipxact:value>A5EB013BB23BE4SR1</ipxact:value>'
-    require(original.count(old) == 2, 'stock PLL device substitutions changed')
-    derived = original.replace(old, b'<ipxact:value>A5EB013BB23BE4SCS</ipxact:value>')
-    require((project / 'fes_mailbox/av_pll.ip').read_bytes() == derived, 'compiled audio PLL differs')
     qsf = {' '.join(line.split()) for line in (project / 'golden_top.qsf').read_text().splitlines()}
-    require('set_global_assignment -name IP_FILE fes_mailbox/av_pll.ip' in qsf,
-            'project does not select the stock audio PLL')
+    stock = 'set_global_assignment -name IP_FILE fes_mailbox/av_pll.ip'
+    if machine_pll is None:
+        old = b'<ipxact:value>A5EB013BB23BE4SR1</ipxact:value>'
+        require(original.count(old) == 2, 'stock PLL device substitutions changed')
+        derived = original.replace(old, b'<ipxact:value>A5EB013BB23BE4SCS</ipxact:value>')
+        require((project / 'fes_mailbox/av_pll.ip').read_bytes() == derived, 'compiled audio PLL differs')
+        require(stock in qsf, 'project does not select the stock audio PLL')
+        selected = 'fes_mailbox/av_pll.ip'
+    else:
+        selected = 'fes_mailbox/machine_pll.ip'
+        require(async_inputs.sha(project / selected) == machine_pll, 'compiled machine PLL differs')
+        require('set_global_assignment -name IP_FILE ' + selected in qsf and stock not in qsf,
+                'project does not select the machine PLL alone on CLOCK1_50')
     for port, pin in PINS.items():
         require('set_location_assignment PIN_' + pin + ' -to ' + port in qsf and
                 'set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to ' + port in qsf,
@@ -127,7 +149,8 @@ def stock_audio(project, archive):
     require(fitted == {name: {'pin': pin, 'io_standard': '3.3-V LVCMOS'}
                        for name, pin in PINS.items()}, 'fitted audio pin/voltage differs')
     return {'pins': fitted, 'vendor_archive_sha256': async_inputs.sha(archive),
-            'derived_pll_sha256': async_inputs.sha(project / 'fes_mailbox/av_pll.ip')}
+            ('derived_pll_sha256' if machine_pll is None else 'machine_pll_sha256'):
+                async_inputs.sha(project / selected)}
 
 
 def collect(candidate, output, quartus_sta, archive):
@@ -139,9 +162,11 @@ def collect_selected(selected, output, quartus_sta, archive):
     selected, output = Path(selected).resolve(), Path(output).resolve()
     candidate = selected.parent
     record = json.loads((candidate / 'build-inputs.json').read_text())
+    machine_pll = machine(record)
     require(record['parameters'].get('standard_core') is True and
             record['parameters'].get('expansion_socket') is False and
-            record['parameters'].get('internal_ram_kib') == 16, 'requires standard internal16K base')
+            (machine_pll or record['parameters'].get('internal_ram_kib') == 16),
+            'requires a standard machine-PLL base' if machine_pll else 'requires standard internal16K base')
     before = async_inputs.bindings(selected)
     original_project = selected / 'combined/hps/project'
     inputs = json.loads((selected / 'combined/hps/inputs.json').read_text())
@@ -162,14 +187,16 @@ def collect_selected(selected, output, quartus_sta, archive):
     shutil.copyfile(candidate / 'build-inputs.json', output / 'build-inputs.json')
     require(async_inputs.bindings(copied) == before, 'private copy differs from fitted inputs')
     project = copied / 'combined/hps/project'
-    stock = stock_audio(project, archive)
+    stock = stock_audio(project, archive,
+        machine_pll=inputs['standard_zx81']['machine_pll']['sha256'] if machine_pll else None)
     reference = vendor_reference.collect(selected, output / 'vendor-reference', archive)
     reports = output / 'reports'
     reports.mkdir()
-    command = [str(tool), '-t', str(script), str(project), str(reports)]
+    command = [str(tool), '-t', str(script), str(project), str(reports),
+               *([MACHINE_MASTER] if machine_pll else [])]
     with (output / 'quartus-sta.log').open('wb') as stream:
         subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT, check=True, timeout=240)
-    result = observations(reports)
+    result = observations(reports, machine_pll=machine_pll)
     require(async_inputs.bindings(selected) == before and identities == {
             str(p): async_inputs.sha(p) for p in (tool, script, Path(__file__).resolve())},
             'original fit or observation tools changed')

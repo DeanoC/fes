@@ -275,7 +275,8 @@ ATARI_ST_SCRIPTS = frozenset({'atari_st_slot.py', 'build_atari_st_slot_card.py',
 I386_SCRIPTS = frozenset({'audit_fes_i386_case.py', 'fes_i386_oracle.py', 'test_fes_i386_vectors.py', 'test_fes_i386_test386.py',
                           'test_fes_i386_frontend.py', 'test_fes_i386_lockstep.py', 'test_fes_i386_governor.py',
                           'test_fes_i386_latency.py', 'benchmark_fes_i386.py', 'quartus_fes_i386.py', 'quartus_x87_spike.py',
-                          'fes_i386_ucode.py', 'i386_verilator.py'})
+                          'fes_i386_ucode.py', 'i386_verilator.py',
+                          'fes_i486_oracle.py', 'fes_i486_cases.py', 'test_fes_i486_lockstep.py'})
 
 
 def fpga_cores(path):
@@ -304,12 +305,31 @@ def fpga_cores(path):
             if name in ('build_zx81_package.py', 'build_zx81_static_package.py',
                         'export_static_persona.py', 'review_audio_clocks.py'):
                 return ('zx81',), 'DE25 ZX81 package producer and qualified review'
+            if name == 'build_machine_package.py':
+                return ('spectrum', 'atari-st'), 'DE25 uploaded-firmware machine package producer'
+            if name == 'build_spectrum_package.py':
+                return ('spectrum',), 'DE25 Spectrum package producer'
+            if name == 'build_atari_st_package.py':
+                return ('atari-st',), 'DE25 Atari ST package producer'
         if len(parts) >= 4 and parts[2] == 'package':
             return ('menu', 'zx81'), 'DE25 package format implementation'
+        if parts[2] == 'spectrum':
+            return ('spectrum',), 'DE25 Spectrum integration and its derivations'
+        if parts[2] == 'atari-st':
+            return ('atari-st',), 'DE25 Atari ST integration and its derivations'
+        if parts[2] == 'machine':
+            return ('spectrum', 'atari-st'), 'DE25 uploaded-firmware machine builder'
         if len(parts) >= 4 and parts[2] == 'shared-rtl':
             name = parts[3]
             if name in ('fes_menu_reader.v', 'fes_menu_video.v', 'fes_menu_control.v'):
                 return ('menu', 'zx81'), 'DE25 local display and menu consumers'
+            if name in ('fes_spectrum_core.v', 'fes_spectrum_firmware_rom.v'):
+                return ('spectrum',), 'DE25 Spectrum machine shell'
+            if name in ('fes_atari_st_core.v', 'fes_st_rom_sdram.v'):
+                return ('atari-st',), 'DE25 Atari ST machine shell'
+            if name in ('fes_firmware_upload.v', 'fes_gp_crossing.v', 'fes_media_sdram.v',
+                        'fes_de25_machine_audio.v'):
+                return ('spectrum', 'atari-st'), 'DE25 uploaded-firmware machine shell'
             if name in ('fes_computer_mailbox.v', 'fes_display_plane.v',
                         'fes_zx81_core.v', 'zx81_machine.sv', 'zx81_machine_clock.v',
                         'zx81_top.v'):
@@ -317,6 +337,8 @@ def fpga_cores(path):
         return (), 'standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer'
     if relative.as_posix() == 'cores/fes-pong/rtl/pixel_pll.v':
         return ('pong', 'ramtest', 'riscv'), 'shared fixed-raster clock consumers'
+    if relative.as_posix() == 'cores/fes-ramtest/rtl/sdram_cas3_capture.v':
+        return ('ramtest', 'pcxt'), 'shared CAS-3 retained-word consumers'
     if relative.as_posix() == 'cores/fes-ramtest/rtl/sdram_addon_port.v':
         return ('ramtest', 'atari-st', 'pcxt'), 'shared SDRAM controller consumers'
     if relative.as_posix() == 'cores/fes-zx81/expansions/zonx_ay.v':
@@ -342,7 +364,9 @@ def fpga_cores(path):
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
                 'rtl/i386/fes_x87_pkg.sv', 'rtl/i386/fes_x87_fast.sv',
                 'rtl/i386/fes_x87_slow.sv', 'rtl/i386/fes_x87_core.sv',
-                'rtl/i386/fes_x87_round.sv', 'rtl/i386/fes_x87_pipe.sv'):
+                'rtl/i386/fes_x87_round.sv', 'rtl/i386/fes_x87_pipe.sv',
+                'rtl/i386/fes_x87_trans_pkg.sv', 'rtl/i386/fes_x87_trans_rom.sv',
+                'rtl/i386/fes_x87_trans.sv'):
             return ('pc386', 'de25-x87'), 'the x87 arithmetic backend, shared by the i386 CPU and the standalone DE25 pipeline'
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
                 'sim/gp_tb.cpp', 'sim/audio_tb.cpp', 'generated/exchanges.json',

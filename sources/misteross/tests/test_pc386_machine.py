@@ -96,6 +96,109 @@ class FirmwareTest(unittest.TestCase):
         for name, spec in firmware.IMAGES.items():
             self.assertEqual(lock['images'][name]['bytes'], spec['bytes'])
             self.assertRegex(lock['images'][name]['sha256'], r'^[0-9a-f]{64}$')
+        self.assertEqual(lock['dev86']['mirror'], firmware.DEV86_MIRROR)
+
+    @staticmethod
+    def _dev86_source(root, name, content):
+        """A one-commit repository and a mirror archive of it; return (commit, mirror)."""
+        work = root / name
+        (work / 'dev86.git').mkdir(parents=True)
+        git = ['git', '-C', str(work / 'dev86.git'), '-c', 'user.name=t', '-c', 'user.email=t@example.invalid']
+        subprocess.run([*git, 'init', '-q'], check=True)
+        (work / 'dev86.git/Makefile').write_text(content)
+        subprocess.run([*git, 'add', 'Makefile'], check=True)
+        subprocess.run([*git, 'commit', '-q', '-m', name], check=True)
+        commit = subprocess.check_output([*git, 'rev-parse', 'HEAD'], text=True).strip()
+        archive = root / f'{name}.tar.gz'
+        subprocess.run(['tar', '-C', str(work), '-czf', str(archive), 'dev86.git'], check=True)
+        return commit, {'url': archive.as_uri(),
+                        'sha256': hashlib.sha256(archive.read_bytes()).hexdigest()}
+
+    def test_dev86_fetch_falls_back_to_the_pinned_mirror(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            commit, mirror = self._dev86_source(root, 'pinned', 'all:\n')
+            unreachable = (root / 'absent').as_uri()
+
+            tree = root / 'build/dev86'
+            firmware.fetch_dev86(tree, commit, unreachable, mirror)
+            self.assertEqual(firmware._git(tree, 'rev-parse', 'HEAD'), commit)
+            self.assertEqual((tree / 'Makefile').read_text(), 'all:\n')
+            self.assertEqual([path.name for path in tree.parent.iterdir()], ['dev86'])
+
+            # The repository is used when it answers; the mirror is not consulted.
+            tree = root / 'direct/dev86'
+            firmware.fetch_dev86(tree, commit, (root / 'pinned/dev86.git').as_uri(),
+                                 {'url': unreachable, 'sha256': '0' * 64})
+            self.assertEqual(firmware._git(tree, 'rev-parse', 'HEAD'), commit)
+
+    def test_dev86_mirror_fallback_extracts_without_tar_filter(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            commit, mirror = self._dev86_source(root, 'pinned', 'all:\n')
+            unreachable = (root / 'absent').as_uri()
+            extract_calls = []
+            extractall = firmware.tarfile.TarFile.extractall
+
+            def record_extractall(archive, *args, **kwargs):
+                extract_calls.append(kwargs)
+                return extractall(archive, *args, **kwargs)
+
+            tree = root / 'build/dev86'
+            with mock.patch.object(firmware.tarfile, 'data_filter', None, create=True), \
+                    mock.patch.object(firmware.tarfile.TarFile, 'extractall', new=record_extractall):
+                firmware.fetch_dev86(tree, commit, unreachable, mirror)
+
+            self.assertEqual(firmware._git(tree, 'rev-parse', 'HEAD'), commit)
+            self.assertTrue(extract_calls)
+            self.assertTrue(all('filter' not in kwargs for kwargs in extract_calls))
+
+    def test_dev86_mirror_fallback_rejects_traversal_member(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive_path = root / 'unsafe.tar.gz'
+            payload = b'outside'
+            with firmware.tarfile.open(archive_path, 'w:gz') as archive:
+                member = firmware.tarfile.TarInfo('dev86.git/../../escape')
+                member.size = len(payload)
+                archive.addfile(member, io.BytesIO(payload))
+            archive_bytes = archive_path.read_bytes()
+            mirror = {'url': archive_path.as_uri(),
+                      'sha256': hashlib.sha256(archive_bytes).hexdigest()}
+            destination = root / 'unpacked'
+
+            with mock.patch.object(firmware.tarfile, 'data_filter', None, create=True):
+                with self.assertRaisesRegex(firmware.FirmwareError, 'unsafe archive member path'):
+                    firmware._unpack_mirror(mirror, destination)
+
+            self.assertFalse((root / 'escape').exists())
+
+    def test_dev86_fetch_refuses_a_source_without_the_pinned_commit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            commit, mirror = self._dev86_source(root, 'pinned', 'all:\n')
+            _other, wrong = self._dev86_source(root, 'other', 'all: changed\n')
+            unreachable = (root / 'absent').as_uri()
+            cases = {
+                # A mirror at another commit, and a repository at another commit.
+                'wrong mirror': (unreachable, wrong, 'no source supplied'),
+                'wrong repository': ((root / 'other/dev86.git').as_uri(), wrong, 'no source supplied'),
+                # The right repository in an archive whose digest is not the pinned one.
+                'wrong digest': (unreachable, dict(mirror, sha256='0' * 64), 'not the pinned'),
+                'no mirror': (unreachable, {'url': unreachable, 'sha256': '0' * 64},
+                              'no source supplied'),
+            }
+            stalled = subprocess.TimeoutExpired(['git'], firmware.DEV86_FETCH_SECONDS)
+            with mock.patch.object(firmware.subprocess, 'run', side_effect=stalled):
+                with self.assertRaisesRegex(firmware.FirmwareError, 'timed out'):
+                    firmware.fetch_dev86(root / 'stalled/dev86', commit, unreachable, mirror)
+            self.assertEqual(list((root / 'stalled').iterdir()), [])
+            for name, (repository, archive, message) in cases.items():
+                with self.subTest(name):
+                    tree = root / name / 'dev86'
+                    with self.assertRaisesRegex(firmware.FirmwareError, message):
+                        firmware.fetch_dev86(tree, commit, repository, archive)
+                    self.assertEqual(list(tree.parent.iterdir()), [])
 
 
 class FreedosImageTest(unittest.TestCase):
@@ -577,9 +680,26 @@ class ScrollTestTest(unittest.TestCase):
                             'stops': [], 'gaps': []}}
         args = mock.Mock(cpu=cpu, download=False, jobs=1, limit_seconds=8)
         with mock.patch.object(sim.firmware, 'images', return_value={}), \
+                mock.patch.object(sim.firmware, 'write_rom_hex', return_value=Path(__file__)), \
                 mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
                 mock.patch.object(sim, 'run_machine', run_machine), mock.patch('builtins.print'):
             return sim.run_scroll(args, [])['failures']
+
+    def test_the_suite_confirms_the_pinned_rom_hex(self):
+        # #1984 S1: CI's pc386 smoke tier runs this suite, so every runner
+        # writes the ROM hex through the recipe's pin check and prints it.
+        images = {'bios': Path('bios.bin'), 'vgabios': Path('vgabios.bin')}
+        args = mock.Mock(cpu='oracle', download=True, jobs=1, limit_seconds=8)
+        run = {'debug': [], 'failures': []}
+        with mock.patch.object(sim.firmware, 'images', return_value=images), \
+                mock.patch.object(sim.firmware, 'write_rom_hex', return_value=Path(__file__)) as write, \
+                mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
+                mock.patch.object(sim, 'run_machine', return_value=run), mock.patch('builtins.print') as printed:
+            sim.run_scroll(args, [])
+        write.assert_called_once_with(images)
+        digest = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+        self.assertIn(mock.call(f'ROM hex {Path(__file__).name} {digest} matches firmware.lock', flush=True),
+                      printed.call_args_list)
 
     PASSING = ['SCR modeset 27/27 ok', 'SCR mode13 2/2 ok', 'SCR mode12 2/2 ok', 'SCR mode04 2/2 ok', 'SCR DONE ok']
 

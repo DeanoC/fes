@@ -25,6 +25,8 @@ from scripts.fes_build_common import (
     FES_GPU_BACKEND,
     FES_GPU_ROUTER,
     FES_TOOLCHAIN_CONFIGURATION,
+    cuda_toolchain_configuration,
+    gpu_backend_for_router,
     HEX32_RE,
     HEX40_RE,
     HEX64_RE,
@@ -98,9 +100,26 @@ BUILD_OUTPUTS = (
 )
 
 
-def _authenticate_tools(root: Path, *, cache_root: Path | None = None):
+def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
+    """Map a router selection to its sealed backend, architectures and lane.
+
+    CUDA records ``unused`` architectures because the gfx list is a HIP
+    compiler input; recording it under CUDA would attest a lane that did not
+    build the router. This mirrors the router-selectable producers.
+    """
+    backend = gpu_backend_for_router(gpu_router)
+    if gpu_router == "HIP":
+        return backend, FES_GPU_ARCHITECTURES, FES_TOOLCHAIN_CONFIGURATION
+    return backend, "unused", cuda_toolchain_configuration()
+
+
+def _authenticate_tools(root: Path, *, cache_root: Path | None = None,
+                        gpu_router: str = FES_GPU_ROUTER):
+    _backend, architectures, configuration = gpu_choice(gpu_router)
     return _authenticate_default(
         root, lock_path=root / TOOLCHAIN_LOCK, toolchain_root=root / TOOLCHAIN_ROOT,
+        expected_configuration={"nextpnr": configuration},
+        gpu_router=gpu_router, hip_architectures=architectures,
         cache_root=cache_root)
 ORDINARY_RESOURCES = frozenset(
     {"MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO"}
@@ -137,8 +156,10 @@ def create_build_record(
     *,
     identity_version: int = 2,
     execution: dict | None = None,
+    gpu_router: str = FES_GPU_ROUTER,
 ) -> bytes:
     root = Path(root)
+    gpu_backend, gpu_architectures, _configuration = gpu_choice(gpu_router)
     fields = {
         "format": 1,
         "repository": repository,
@@ -151,8 +172,8 @@ def create_build_record(
         "tools": dict(tool_identities),
         "parameters": {
             "device": TARGET,
-            "gpu_architectures": FES_GPU_ARCHITECTURES,
-            "gpu_backend": FES_GPU_BACKEND,
+            "gpu_architectures": gpu_architectures,
+            "gpu_backend": gpu_backend,
             "pixel_clock_hz": 74_250_000,
             "pll_fractional_vco_multiplier": True,
             "reference_clock_hz": 50_000_000,
@@ -208,8 +229,9 @@ def build_commands(
     return yosys, nextpnr
 
 
-def validate_build_evidence(output: Path, source_root: Path = ROOT, *, audio: bool = False) -> dict:
-    return validate_board_evidence(output, source_root, audio=audio,
+def validate_build_evidence(output: Path, source_root: Path = ROOT, *, audio: bool = False,
+                           gpu_backend: str = FES_GPU_BACKEND) -> dict:
+    return validate_board_evidence(output, source_root, audio=audio, gpu_backend=gpu_backend,
         ordinary_resources=ORDINARY_RESOURCES, required_resources=REQUIRED_RESOURCES,
         raw_fractional_video=not audio,
         forbidden_resources=FORBIDDEN_RESOURCES, required_zero_resources=REQUIRED_ZERO_RESOURCES)
@@ -276,6 +298,7 @@ def _build_after_record(
     invocation,
     cache_root: Path | None = None,
     identity_version: int = 2,
+    gpu_router: str = FES_GPU_ROUTER,
 ) -> Path:
     build_id = build_identity(record)
     commands = build_commands(
@@ -292,7 +315,8 @@ def _build_after_record(
                                   invocation)
     except SearchError as exc:
         raise BuildError(str(exc)) from exc
-    evidence = validate_build_evidence(output, root)
+    evidence = validate_build_evidence(
+        output, root, gpu_backend=gpu_choice(gpu_router)[0])
     evidence["route"]["placer_seed"] = winner.seed
     evidence["route"]["placer_heap_timingweight"] = winner.weight
     evidence["execution"] = invocation.inputs
@@ -311,7 +335,7 @@ def _build_after_record(
     )
     manifest = _manifest(record, evidence, repository, revision, identities)
     _write_atomic(output / "manifest.toml", manifest)
-    final_tools = _authenticate_tools(root, cache_root=cache_root)
+    final_tools = _authenticate_tools(root, cache_root=cache_root, gpu_router=gpu_router)
     if {name: tool.identity for name, tool in final_tools.items()} != identities:
         raise BuildError("authenticated tool identity changed during build")
     final_repository, final_revision = _require_clean_source(root, pinned_inputs=PINNED_INPUTS, identity_version=identity_version)
@@ -319,7 +343,8 @@ def _build_after_record(
         raise BuildError("source identity changed during build")
     invocation.verify()
     if create_build_record(root, repository, revision, identities,
-        identity_version=identity_version, execution=invocation.inputs) != record:
+        identity_version=identity_version, execution=invocation.inputs,
+        gpu_router=gpu_router) != record:
         raise BuildError("functional source inputs changed during build")
     package = export_package(manifest, output / "core.rbf", package_store)
     return validate_exported_package(package, manifest, (output / "core.rbf").read_bytes())
@@ -348,17 +373,18 @@ def validate_exported_package(directory: Path, expected_manifest: bytes, expecte
 
 
 @guard_functional_source
-def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None, identity_version: int = 2, gpu_device: int = 0) -> Path:
+def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None, identity_version: int = 2, gpu_device: int = 0, gpu_router: str = FES_GPU_ROUTER) -> Path:
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
     if package_store != root / "build/packages":
         raise BuildError(f"FES Pong package store must be {root / 'build/packages'}")
     repository, revision = _require_clean_source(root, pinned_inputs=PINNED_INPUTS, identity_version=identity_version)
-    authenticated = _authenticate_tools(root, cache_root=cache_root)
+    authenticated = _authenticate_tools(root, cache_root=cache_root, gpu_router=gpu_router)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     invocation = FunctionalInvocation(authenticated, gpu_device)
     record = create_build_record(root, repository, revision, identities,
-        identity_version=identity_version, execution=invocation.inputs)
+        identity_version=identity_version, execution=invocation.inputs,
+        gpu_router=gpu_router)
     output = _prepare_output(root, relative=OUTPUT_RELATIVE, build_outputs=BUILD_OUTPUTS)
     _write_atomic(output / "build-inputs.json", record)
     try:
@@ -372,7 +398,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
             record,
             output,
             cache_root=cache_root,
-            **({"invocation": invocation, "identity_version": identity_version}),
+            **({"invocation": invocation, "identity_version": identity_version,
+                "gpu_router": gpu_router}),
         )
     except Exception:
         _invalidate_failed_artifact(output)
@@ -388,6 +415,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--identity-version", type=int, choices=(2,), default=2)
     parser.add_argument("--gpu-device", type=int, default=0)
+    parser.add_argument("--gpu-router", choices=("HIP", "CUDA"), default=FES_GPU_ROUTER)
     return parser
 
 
@@ -395,7 +423,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     try:
         print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root,
-                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device))
+                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device,
+                    gpu_router=arguments.gpu_router))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-pong: {exc}", file=sys.stderr)
         return 1

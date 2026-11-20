@@ -92,20 +92,22 @@ def _require_clean_source(root, *, identity_version=2):
     return board._require_clean_source(root, pinned_inputs=INPUTS, identity_version=identity_version)
 
 
-def _authenticate_tools(root, *, cache_root=None):
-    return menu.authenticate(root, cache_root, 'ddr')
+def _authenticate_tools(root, *, cache_root=None, gpu_router=board.FES_GPU_ROUTER):
+    return menu.authenticate(root, cache_root, 'ddr', gpu_router)
 
 
-def create_build_record(root, repository, revision, identities, *, identity_version=2, execution=None, seed=5):
+def create_build_record(root, repository, revision, identities, *, identity_version=2, execution=None, seed=5,
+                        gpu_router=board.FES_GPU_ROUTER):
     if identity_version != 2:
         raise board.BuildError('unsupported menu package identity version')
+    gpu_backend, gpu_architectures, _configuration = menu.gpu_choice(gpu_router)
     with python_source_guard(root, source_roots_for_producer(__name__, INPUTS, root)):
         fields = {'format':1,'repository':repository,'revision':revision,'recipe':RECIPE,
             'recipe_sha256':board._sha256(board._regular_input(root,RECIPE)),
             'abi_definition':CONTRACT,'abi_definition_sha256':board._sha256(board._regular_input(root,CONTRACT)),
             'dependencies':{},'tools':identities,
-            'parameters':{'device':board.TARGET,'top':'top','gpu_backend':'hip','router':'gpu',
-                'gpu_architectures':board.FES_GPU_ARCHITECTURES,'seed':menu.seed_for('ddr',seed),
+            'parameters':{'device':board.TARGET,'top':'top','gpu_backend':gpu_backend,'router':'gpu',
+                'gpu_architectures':gpu_architectures,'seed':menu.seed_for('ddr',seed),
                 'seed_order':','.join(str(candidate) for candidate in seed_order(seed)),
                 'pixel_clock_hz':74250000,'reference_clock_hz':50000000,
                 'format2_package':True,'menu_display':True,'ddr':True,'diagnostic_enable':False}}
@@ -114,22 +116,24 @@ def create_build_record(root, repository, revision, identities, *, identity_vers
 
 
 def build(root=ROOT, *, cache_root=None, package_output=None, seed=5,
-          identity_version=2, gpu_device=0):
+          identity_version=2, gpu_device=0, gpu_router=board.FES_GPU_ROUTER):
     with python_source_guard(root, source_roots_for_producer(__name__, INPUTS, root)):
         return _build(Path(root).resolve(),cache_root=cache_root,package_output=package_output,
-            seed=seed,identity_version=identity_version,gpu_device=gpu_device)
+            seed=seed,identity_version=identity_version,gpu_device=gpu_device,gpu_router=gpu_router)
 
 
-def _build(root, *, cache_root, package_output, seed, identity_version, gpu_device):
+def _build(root, *, cache_root, package_output, seed, identity_version, gpu_device,
+           gpu_router=board.FES_GPU_ROUTER):
     seed = menu.seed_for('ddr', seed)
     repository, revision = _require_clean_source(root,identity_version=identity_version)
-    authenticated = _authenticate_tools(root,cache_root=cache_root)
+    authenticated = _authenticate_tools(root,cache_root=cache_root,gpu_router=gpu_router)
     identities = {name:tool.identity for name,tool in authenticated.items()}
     invocation = FunctionalInvocation(authenticated,gpu_device)
     output = board._prepare_output(root,relative=OUTPUT,build_outputs=OUTPUTS)
     try:
         inputs = create_build_record(root,repository,revision,identities,
-            identity_version=identity_version,execution=invocation.inputs,seed=seed)
+            identity_version=identity_version,execution=invocation.inputs,seed=seed,
+            gpu_router=gpu_router)
         board._write_atomic(output/'build-inputs.json',inputs)
         commands = build_commands(build_identity(inputs),
             {name:authenticated[name].path for name in ('yosys','nextpnr-mistral')},seed=seed,
@@ -141,16 +145,18 @@ def _build(root, *, cache_root, package_output, seed, identity_version, gpu_devi
                                       invocation, seed)
         except SearchError as exc:
             raise board.BuildError(str(exc)) from exc
-        result = menu.validate_build_evidence(output,root,mode='ddr',menu_gp=True)
+        result = menu.validate_build_evidence(output,root,mode='ddr',menu_gp=True,
+            gpu_backend=menu.gpu_choice(gpu_router)[0])
         result['route']['placer_seed'] = winner.seed
         result['route']['placer_heap_timingweight'] = winner.weight
         invocation.verify()
-        if {name:tool.identity for name,tool in _authenticate_tools(root,cache_root=cache_root).items()} != identities:
+        if {name:tool.identity for name,tool in _authenticate_tools(root,cache_root=cache_root,gpu_router=gpu_router).items()} != identities:
             raise board.BuildError('menu package tool identity changed')
         if _require_clean_source(root,identity_version=identity_version) != (repository,revision):
             raise board.BuildError('menu package source changed')
         if create_build_record(root,repository,revision,identities,
-                identity_version=identity_version,execution=invocation.inputs,seed=seed) != inputs:
+                identity_version=identity_version,execution=invocation.inputs,seed=seed,
+                gpu_router=gpu_router) != inputs:
             raise board.BuildError('menu package functional inputs changed')
         manifest = create_manifest(root,repository,revision,inputs)
         board._write_atomic(output/'manifest.toml',manifest)
@@ -176,9 +182,11 @@ def main():
     parser.add_argument('--seed',type=int,choices=range(1,9),default=5)
     parser.add_argument('--identity-version',type=int,choices=(2,),default=2)
     parser.add_argument('--gpu-device',type=int,default=0)
+    parser.add_argument('--gpu-router',choices=('HIP','CUDA'),default=board.FES_GPU_ROUTER)
     args = parser.parse_args()
     try: print(build(args.root,cache_root=args.cache_root,package_output=args.package_output,
-        seed=args.seed,identity_version=args.identity_version,gpu_device=args.gpu_device))
+        seed=args.seed,identity_version=args.identity_version,gpu_device=args.gpu_device,
+        gpu_router=args.gpu_router))
     except (board.BuildError,ValueError) as exc:
         print(f'FES menu package: {exc}',file=sys.stderr); return 1
     return 0

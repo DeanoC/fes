@@ -2,12 +2,19 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
 
 	"github.com/DeanoC/FogCast/protocol"
 )
+
+type mediaRecordController interface {
+	InspectMediaRecord(context.Context, protocol.MediaRecordIdentity) (protocol.MediaRecord, *protocol.APIError)
+	DiscardMediaRecord(context.Context, protocol.MediaRecordDiscard) (protocol.MediaRecord, *protocol.APIError)
+	ExportMediaRecord(context.Context, protocol.MediaRecordDiscard) ([]byte, *protocol.APIError)
+}
 
 type mediaDataController interface {
 	InsertLibraryMedia(context.Context, int64, io.Reader, protocol.LibraryMediaBinding) (protocol.Status, *protocol.APIError)
@@ -57,6 +64,99 @@ func registerMediaDataRoutes(mux *http.ServeMux, token string, controller Develo
 			return
 		}
 		writeJSON(w, 200, s)
+	}))))
+	// One library disk's saved record, named by its identity. Inspect changes
+	// nothing; discard removes the record and is lease-guarded.
+	for _, path := range []string{"/v1/library/media/record", "/v1/library/media/record/discard", "/v1/library/media/record/export"} {
+		export := path == "/v1/library/media/record/export"
+		discard := path == "/v1/library/media/record/discard" || export
+		mux.Handle(path, authenticate(token, exactMethod(http.MethodPost, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, 1024)
+			decoder := json.NewDecoder(r.Body)
+			decoder.DisallowUnknownFields()
+			var request protocol.MediaRecordDiscard
+			valid := exactContentType(r, "application/json") && len(r.TransferEncoding) == 0 &&
+				decoder.Decode(&request) == nil && decoder.Decode(&struct{}{}) == io.EOF
+			if valid && discard {
+				valid = request.Valid()
+			} else if valid {
+				valid = request.ExpectedRevision == "" && request.MediaRecordIdentity.Valid()
+			}
+			if !valid {
+				writeBadRequest(w, r, "saved media request is invalid")
+				return
+			}
+			c, ok := controller.(mediaRecordController)
+			if !ok {
+				writeAPIError(w, 400, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"})
+				return
+			}
+			var record protocol.MediaRecord
+			var e *protocol.APIError
+			if export {
+				// The saved image itself; the record stays as it is.
+				data, e := c.ExportMediaRecord(r.Context(), request)
+				if e != nil {
+					setRequestError(r, e.Code)
+					writeAPIError(w, statusForError(e.Code), e)
+					return
+				}
+				w.Header().Set("Content-Type", "application/octet-stream")
+				w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(data)
+				return
+			}
+			if discard {
+				record, e = c.DiscardMediaRecord(r.Context(), request)
+			} else {
+				record, e = c.InspectMediaRecord(r.Context(), request.MediaRecordIdentity)
+			}
+			if e != nil {
+				setRequestError(r, e.Code)
+				writeAPIError(w, statusForError(e.Code), e)
+				return
+			}
+			writeJSON(w, 200, record)
+		}))))
+	}
+	// Several identities in one request, answered in the same order, so a
+	// disk shelf costs one round trip. It changes nothing.
+	mux.Handle("/v1/library/media/records", authenticate(token, exactMethod(http.MethodPost, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 128<<10)
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+		var request struct {
+			Records []protocol.MediaRecordIdentity `json:"records"`
+		}
+		valid := exactContentType(r, "application/json") && len(r.TransferEncoding) == 0 &&
+			decoder.Decode(&request) == nil && decoder.Decode(&struct{}{}) == io.EOF &&
+			len(request.Records) > 0 && len(request.Records) <= protocol.MaxMediaRecordBatch
+		for i := 0; valid && i < len(request.Records); i++ {
+			valid = request.Records[i].Valid()
+		}
+		if !valid {
+			writeBadRequest(w, r, "saved media request is invalid")
+			return
+		}
+		c, ok := controller.(mediaRecordController)
+		if !ok {
+			writeAPIError(w, 400, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"})
+			return
+		}
+		records := make([]protocol.MediaRecord, 0, len(request.Records))
+		for _, id := range request.Records {
+			record, e := c.InspectMediaRecord(r.Context(), id)
+			if e != nil {
+				setRequestError(r, e.Code)
+				writeAPIError(w, statusForError(e.Code), e)
+				return
+			}
+			records = append(records, record)
+		}
+		writeJSON(w, 200, struct {
+			Records []protocol.MediaRecord `json:"records"`
+		}{records})
 	}))))
 	mux.Handle("/v1/zx81-tape/capture", authenticate(token, exactMethod(http.MethodPost, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		binding, valid := protocol.MediaUnitHeaders(r.Header)

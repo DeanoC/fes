@@ -1,0 +1,41 @@
+corner	hold_only	check	coverage	paths	worst_slack_ns	from	to
+Slow fix4 100C Model	0	setup	analyzed	1	8.655	cpu_dfwd_ready[16]	cpu_d_eip[24]~DUPLICATE
+Slow fix4 100C Model	0	hold	analyzed	1	0.107	audio_opl2_index[6]	audio_opl2_queue_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a14~FITTER_CREATED_MLAB_CELL0~reg0
+Slow fix4 100C Model	0	recovery	analyzed	1	13.890	reset	machine_at_pic_master_u_Control_Logic_control_state[2]~DUPLICATE
+Slow fix4 100C Model	0	removal	analyzed	1	0.833	reset	machine_at_pit_u_KF8253_Counter_1_dec2_bcd_q[16]
+Slow fix4 100C Model	0	clk_clock_setup	analyzed	1	8.655	cpu_dfwd_ready[16]	cpu_d_eip[24]~DUPLICATE
+Slow fix4 100C Model	0	clk_clock_hold	analyzed	1	0.107	audio_opl2_index[6]	audio_opl2_queue_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a14~FITTER_CREATED_MLAB_CELL0~reg0
+Slow fix4 100C Model	0	pixel_clk_clock_setup	analyzed	1	8.961	machine_presenter_h_a[11]~ERTM	machine_presenter_picture[13]~ERTM
+Slow fix4 100C Model	0	pixel_clk_clock_hold	analyzed	1	0.129	machine_presenter_p_a0[19]~ERTM	add_1026~16_ERTM
+Slow fix4 100C Model	0	internal_setup	analyzed	1	8.655	cpu_dfwd_ready[16]	cpu_d_eip[24]~DUPLICATE
+Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	6.193		
+Slow fix4 0C Model	0	setup	analyzed	1	7.619	cpu_dfwd_ready[16]	cpu_d_eip[24]~DUPLICATE
+Slow fix4 0C Model	0	hold	analyzed	1	0.144	machine_at_decoder_cycle_port[2]	machine_at_pages_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a7~FITTER_CREATED_MLAB_CELL0~reg0
+Slow fix4 0C Model	0	recovery	analyzed	1	13.594	reset	machine_at_pic_master_u_Control_Logic_control_state[2]~DUPLICATE
+Slow fix4 0C Model	0	removal	analyzed	1	0.979	reset	machine_at_pit_u_KF8253_Counter_1_dec2_bcd_q[16]
+Slow fix4 0C Model	0	clk_clock_setup	analyzed	1	7.619	cpu_dfwd_ready[16]	cpu_d_eip[24]~DUPLICATE
+Slow fix4 0C Model	0	clk_clock_hold	analyzed	1	0.144	machine_at_decoder_cycle_port[2]	machine_at_pages_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a7~FITTER_CREATED_MLAB_CELL0~reg0
+Slow fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	8.116	machine_presenter_h_a[11]~ERTM	machine_presenter_picture[13]~ERTM
+Slow fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.149	reduce_or_2410~1_ERTM0	reduce_or_2410~1_ERTM1
+Slow fix4 0C Model	0	internal_setup	analyzed	1	7.619	cpu_dfwd_ready[16]	cpu_d_eip[24]~DUPLICATE
+Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.159		
+Slow fix4a 0C Model	0	setup	analyzed	1	7.622	cpu_dfwd_ready[16]	cpu_d_eip[24]~DUPLICATE
+Slow fix4a 0C Model	0	hold	analyzed	1	0.143	machine_at_decoder_cycle_port[2]	machine_at_pages_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a7~FITTER_CREATED_MLAB_CELL0~reg0
+Slow fix4a 0C Model	0	recovery	analyzed	1	13.607	reset	machine_at_pic_master_interrupt_mask[0]
+Slow fix4a 0C Model	0	removal	analyzed	1	0.964	reset	machine_at_pit_u_KF8253_Counter_1_dec2_bcd_q[16]
+Slow fix4a 0C Model	0	clk_clock_setup	analyzed	1	7.622	cpu_dfwd_ready[16]	cpu_d_eip[24]~DUPLICATE
+Slow fix4a 0C Model	0	clk_clock_hold	analyzed	1	0.143	machine_at_decoder_cycle_port[2]	machine_at_pages_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a7~FITTER_CREATED_MLAB_CELL0~reg0
+Slow fix4a 0C Model	0	pixel_clk_clock_setup	analyzed	1	8.196	machine_presenter_h_a[11]~ERTM	machine_presenter_picture[13]~ERTM
+Slow fix4a 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.149	_32567_[0]~5_ERTM	machine_presenter_h_b[5]~ERTM
+Slow fix4a 0C Model	0	internal_setup	analyzed	1	7.622	cpu_dfwd_ready[16]	cpu_d_eip[24]~DUPLICATE
+Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	6.171		
+Fast fix4 0C Model	0	setup	analyzed	1	10.790	machine_presenter_h_a[11]~ERTM	machine_presenter_picture[13]~ERTM
+Fast fix4 0C Model	0	hold	analyzed	1	0.039	machine_at_decoder_cycle_port[2]	machine_at_pages_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a7~FITTER_CREATED_MLAB_CELL0~reg0
+Fast fix4 0C Model	0	recovery	analyzed	1	14.767	reset	machine_at_pic_master_u_Control_Logic_control_state[2]~DUPLICATE
+Fast fix4 0C Model	0	removal	analyzed	1	0.495	reset	machine_at_pit_u_KF8253_Counter_1_dec2_bcd_q[16]
+Fast fix4 0C Model	0	clk_clock_setup	analyzed	1	11.505	cpu_dfwd_ready[16]	cpu_d_eip[24]~DUPLICATE
+Fast fix4 0C Model	0	clk_clock_hold	analyzed	1	0.039	machine_at_decoder_cycle_port[2]	machine_at_pages_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a7~FITTER_CREATED_MLAB_CELL0~reg0
+Fast fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	10.790	machine_presenter_h_a[11]~ERTM	machine_presenter_picture[13]~ERTM
+Fast fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.040	machine_presenter_p_a0[19]~ERTM	add_1026~16_ERTM
+Fast fix4 0C Model	0	internal_setup	analyzed	1	10.790	machine_presenter_h_a[11]~ERTM	machine_presenter_picture[13]~ERTM
+Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.330		

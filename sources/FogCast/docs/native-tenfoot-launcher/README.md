@@ -266,7 +266,7 @@ header and now-playing chrome prefix `host unreachable`, `kit unreachable`, or
 `kit not ready` from `GET /api/v1/health` (and `GET /api/v1/status` 503
 `TARGET_UNAVAILABLE`) so a down kit is obvious inside the TV safe-area.
 USB keyboard browse/nav: arrows/WASD (S is stop, not down),
-Enter to launch (or confirm search), Esc/Backspace to back (or stop while a session is active, including while play HID is attached; letter `s` stays a ZX81/core key on that path),
+Enter to launch (or confirm search), Esc/Backspace to back. In active play Escape stays in the game, and Backspace stops legacy input sessions; both go to HID-keyboard cores. Letter `s` stays a ZX81/core key while play HID is attached.
 Tab to open search (Shift+Tab opens filters; Tab confirms an open search),
 Q to quit, `[` / `]` for platform, `x` for sort (or add/remove on a custom
 shelf while the view picker is open; attach/detach while now-playing), `/` or `f` for search (or manage a
@@ -487,8 +487,8 @@ make tenfoot-smoke
   that in-flight Soft-stop. It then posts an empty body when the service is
   idle, or `{"release_idle":true}` when a play still survives, and retries a
   failed release. An empty body is not sent while a promoted play remains.
-  Esc/Backspace still stop while play HID is attached, except in
-  `fes.keyboard.hid` sessions where they are core keys;
+  Escape stays in play and Backspace stops while legacy play HID is attached;
+  in `fes.keyboard.hid` sessions both are core keys;
   letter `s` stays a ZX81/core key on that path. SNES `save_failed` and other Stop errors that keep
   the session or lease retain launch lockout until a successful Stop.
 - `GET /api/v1/library/attract?limit=24` after idle. `idle_seconds` sets the

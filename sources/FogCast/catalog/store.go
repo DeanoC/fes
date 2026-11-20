@@ -901,7 +901,9 @@ func gameFilterSQL(query Query, gameAlias, libraryAlias string) (string, []any) 
 		// distinguishes them from an empty machine entry.
 		machine := "COALESCE(e.media_id, '') = '' AND NOT EXISTS (SELECT 1 FROM remote_core_entries r WHERE r.game_id = e.game_id)"
 		if query.CoreEntryKind == "title" {
-			machine = "NOT (" + machine + ")"
+			// A disk made on a shelf is not one of the family's games: it
+			// is listed on its shelf only.
+			machine = "NOT (" + machine + ") AND NOT EXISTS (SELECT 1 FROM shelf_disks d WHERE d.game_id = e.game_id)"
 		}
 		builder.WriteString(" AND EXISTS (SELECT 1 FROM core_entries e WHERE e.game_id = " + gameAlias + ".game_id AND " + machine + ")")
 	}

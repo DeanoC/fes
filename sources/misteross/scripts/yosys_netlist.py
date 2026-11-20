@@ -68,6 +68,8 @@ CPU_SOURCES = tuple(f'{I386}/{name}.sv' for name in (
     # X87_BACKEND selects it. At the default it is not instantiated and
     # `hierarchy -top` removes it.
     'fes_x87_pkg', 'fes_x87_fast', 'fes_x87_slow', 'fes_x87_core',
+    # ... and the transcendental engine that runs on it (#1958), the same way.
+    'fes_x87_trans_pkg', 'fes_x87_trans_rom', 'fes_x87_trans',
     'fes_i386_x87', 'fes_i386_ex', 'fes_i386_tlb',
     'fes_i386_l1i', 'fes_i386_l1d', 'fes_i386_biu', 'fes_i386_gov_rom', 'fes_i386_governor', 'fes_i386_cpu'))
 CPU_TOP = 'fes_i386_cpu'

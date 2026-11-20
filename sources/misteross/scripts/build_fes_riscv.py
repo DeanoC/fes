@@ -92,9 +92,25 @@ CORE = {"id": "fes.riscv", "name": "FES RISC-V", "version": "0.1.0",
                        "gamepad and timer-interrupt demonstration firmware"}
 INTERFACES = ("fes.video.fixed-720p60", "fes.gamepad")
 
-def _authenticate_tools(root, *, cache_root=None):
+def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
+    """Map a router selection to its sealed backend, architectures and lane.
+
+    CUDA records ``unused`` architectures because the gfx list is a HIP
+    compiler input; recording it under CUDA would attest a lane that did not
+    build the router. This mirrors the router-selectable producers.
+    """
+    backend = board.gpu_backend_for_router(gpu_router)
+    if gpu_router == "HIP":
+        return backend, board.FES_GPU_ARCHITECTURES, board.FES_TOOLCHAIN_CONFIGURATION
+    return backend, "unused", board.cuda_toolchain_configuration()
+
+
+def _authenticate_tools(root, *, cache_root=None, gpu_router=board.FES_GPU_ROUTER):
+    _backend, architectures, configuration = gpu_choice(gpu_router)
     return board._authenticate_tools(root, lock_path=pnr_recipe.lock_path(root, "fes.riscv"),
                                      toolchain_root=root / "build/toolchain/fes-riscv",
+                                     expected_configuration={"nextpnr": configuration},
+                                     gpu_router=gpu_router, hip_architectures=architectures,
                                      cache_root=cache_root)
 
 
@@ -132,8 +148,10 @@ def placement_seeds(single_seed=None):
     return (single_seed,)
 
 
-def record_fields(root: Path, repository: str, revision: str, identities: dict[str, str], *, single_seed=None) -> dict:
+def record_fields(root: Path, repository: str, revision: str, identities: dict[str, str], *, single_seed=None,
+                  gpu_router=board.FES_GPU_ROUTER) -> dict:
     seeds = placement_seeds(single_seed)
+    gpu_backend, gpu_architectures, _configuration = gpu_choice(gpu_router)
     return {
         "format": 1, "repository": repository, "revision": revision,
         "recipe": RECIPE, "recipe_sha256": board._sha256(board._regular_input(root, RECIPE)),
@@ -141,8 +159,8 @@ def record_fields(root: Path, repository: str, revision: str, identities: dict[s
         "abi_definition_sha256": board._sha256(board._regular_input(root, ABI_DEFINITION)),
         "dependencies": {}, "tools": identities,
         "parameters": {
-            "device": board.TARGET, "gpu_architectures": board.FES_GPU_ARCHITECTURES,
-            "gpu_backend": "hip", "router": "gpu", "seed": seeds[0],
+            "device": board.TARGET, "gpu_architectures": gpu_architectures,
+            "gpu_backend": gpu_backend, "router": "gpu", "seed": seeds[0],
             "seed_order": ",".join(str(seed) for seed in seeds),
             "placer_heap_timingweight": PLACER_TIMING_WEIGHT,
             "placer_heap_critexp": PLACER_CRITICALITY_EXPONENT, "top": "top",
@@ -155,10 +173,12 @@ def record_fields(root: Path, repository: str, revision: str, identities: dict[s
 
 
 @guard_functional_source
-def create_build_record(root, repository, revision, identities, *, identity_version=2, execution=None, single_seed=None):
+def create_build_record(root, repository, revision, identities, *, identity_version=2, execution=None, single_seed=None,
+                        gpu_router=board.FES_GPU_ROUTER):
     if identity_version != 2:
         raise board.BuildError("unsupported build identity version")
-    fields = record_fields(root, repository, revision, identities, single_seed=single_seed)
+    fields = record_fields(root, repository, revision, identities, single_seed=single_seed,
+                           gpu_router=gpu_router)
     return encode_build_record(functional_record_fields(root, fields,
         source_roots_for_producer(__name__, PINNED_INPUTS, root), execution, pinned_inputs=PINNED_INPUTS))
 
@@ -217,7 +237,7 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str, iden
 
 @guard_functional_source
 def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = None,
-          identity_version=2, gpu_device=0, single_seed=None) -> Path:
+          identity_version=2, gpu_device=0, single_seed=None, gpu_router=board.FES_GPU_ROUTER) -> Path:
     placement_seeds(single_seed)
     root = Path(root).resolve()
     if identity_version != 2:
@@ -227,13 +247,14 @@ def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = No
         raise board.BuildError("fes.riscv package store must be build/packages")
     repository, revision = require_clean_source(root, identity_version=identity_version)
     require_current_firmware(root)
-    authenticated = _authenticate_tools(root, cache_root=cache_root)
+    authenticated = _authenticate_tools(root, cache_root=cache_root, gpu_router=gpu_router)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     invocation = FunctionalInvocation(authenticated, gpu_device)
     output = None
     try:
         record = create_build_record(root, repository, revision, identities,
-                                     identity_version=identity_version, execution=invocation.inputs, single_seed=single_seed)
+                                     identity_version=identity_version, execution=invocation.inputs, single_seed=single_seed,
+                                     gpu_router=gpu_router)
         output = board._prepare_output(root, relative=OUTPUT, build_outputs=BUILD_OUTPUTS)
         board._write_atomic(output / "build-inputs.json", record)
         commands = build_commands(build_identity(record),
@@ -246,7 +267,8 @@ def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = No
             raise board.BuildError(str(exc)) from exc
         evidence = board_evidence.validate_build_evidence(output, root,
             ordinary_resources=ORDINARY_RESOURCES, required_resources=REQUIRED_RESOURCES,
-            forbidden_resources=FORBIDDEN_RESOURCES, required_zero_resources=REQUIRED_ZERO_RESOURCES)
+            forbidden_resources=FORBIDDEN_RESOURCES, required_zero_resources=REQUIRED_ZERO_RESOURCES,
+            gpu_backend=gpu_choice(gpu_router)[0])
         evidence["route"]["placer_seed"] = winner.seed
         evidence["route"]["placer_heap_timingweight"] = winner.weight
         evidence.update({"build_id": build_identity(record), "device": board.TARGET,
@@ -256,14 +278,15 @@ def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = No
                             (json.dumps(evidence, indent=2, sort_keys=True) + "\n").encode())
         encoded = manifest(record, evidence, repository, revision, identities)
         board._write_atomic(output / "manifest.toml", encoded)
-        final_tools = _authenticate_tools(root, cache_root=cache_root)
+        final_tools = _authenticate_tools(root, cache_root=cache_root, gpu_router=gpu_router)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise board.BuildError("authenticated tool identity changed during build")
         if require_clean_source(root, identity_version=identity_version) != (repository, revision):
             raise board.BuildError("source identity changed during build")
         invocation.verify()
         if create_build_record(root, repository, revision, identities,
-                               identity_version=identity_version, execution=invocation.inputs, single_seed=single_seed) != record:
+                               identity_version=identity_version, execution=invocation.inputs, single_seed=single_seed,
+                               gpu_router=gpu_router) != record:
             raise board.BuildError("functional source inputs changed during build")
         return export_package(encoded, output / "core.rbf", package_store)
     except Exception:
@@ -283,10 +306,12 @@ def main() -> int:
     parser.add_argument("--gpu-device", type=int, default=0)
     parser.add_argument("--single-seed", type=int,
                         help="route only this placement seed; a timing miss fails without fallback")
+    parser.add_argument("--gpu-router", choices=("HIP", "CUDA"), default=board.FES_GPU_ROUTER)
     args = parser.parse_args()
     try:
         print(build(args.root, args.package_output, cache_root=args.cache_root,
-                    identity_version=args.identity_version, gpu_device=args.gpu_device, single_seed=args.single_seed))
+                    identity_version=args.identity_version, gpu_device=args.gpu_device, single_seed=args.single_seed,
+                    gpu_router=args.gpu_router))
     except (board.BuildError, ValueError) as exc:
         print(f"FES RISC-V: {exc}", file=sys.stderr)
         return 1

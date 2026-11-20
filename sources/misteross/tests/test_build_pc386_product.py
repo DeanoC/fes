@@ -479,6 +479,10 @@ class GpuRouterTest(unittest.TestCase):
                 return project
             def observe(*_):
                 environments.append(dict(os.environ))
+            order = []
+            def elaborate(*_):
+                order.append('yosys')
+                observe()
             from contextlib import ExitStack
             with ExitStack() as stack:
                 stack.enter_context(mock.patch.dict(os.environ, {'FES_TEST_AMBIENT_UNSAFE': 'yes'}))
@@ -495,8 +499,8 @@ class GpuRouterTest(unittest.TestCase):
                 patch(quartus.board, '_prepare_output', return_value=root)
                 write = patch(quartus.board, '_write_atomic')
                 patch(quartus, 'write_project', side_effect=write_project)
-                patch(quartus, 'firmware_rom')
-                patch(quartus, 'elaborate_machine', side_effect=observe)
+                patch(quartus, 'check_rom', side_effect=lambda checked: order.append(('rom', checked)))
+                patch(quartus, 'elaborate_machine', side_effect=elaborate)
                 patch(quartus, 'run_quartus', side_effect=observe)
                 patch(quartus, 'validate_build_evidence', return_value={'rbf': {'sha256': '0' * 64, 'size': 1}})
                 patch(quartus, 'firmware_digests', return_value={})
@@ -515,6 +519,9 @@ class GpuRouterTest(unittest.TestCase):
         self.assertEqual(gate.call_args.args[1:4], (b'{}', tools['yosys'], 'CUDA'))
         self.assertEqual([call.kwargs['gpu_router'] for call in authenticate.call_args_list], ['CUDA', 'CUDA'])
         self.assertEqual([call.args[-1] for call in create.call_args_list], ['CUDA', 'CUDA'])
+        # The seal checks the ROM the recipe wrote against its pin before and
+        # after Yosys reads it, and never writes it (#1984 S1).
+        self.assertEqual(order, [('rom', root), 'yosys', ('rom', root)])
         self.assertEqual(len(environments), 2)
         for env in environments:
             self.assertNotIn('FES_TEST_AMBIENT_UNSAFE', env)
@@ -551,7 +558,7 @@ class LockstepGateTest(unittest.TestCase):
         self.report = {
             "run": {"passed": True, "default_suite": True, "complete_corpus": True, "arguments": {}},
             "oracle": {**quartus.oracle_identity(ROOT), "linked_sha256": {
-                name: "1" * 64 for name in quartus.i386_oracle.LINKED_NAMES}, "testbench_sha256": "2" * 64},
+                name: "1" * 64 for name in quartus.LINKED_NAMES}, "testbench_sha256": "2" * 64},
             "verilator": {"lock": quartus.I386_LOCK, "commit": verilator, "sha256": "v", "version": "V",
                           "slot": "s"},
             "netlist": {"program_sha256": yosys_netlist.program_sha256(yosys_netlist.SEAL),
@@ -630,25 +637,36 @@ class LockstepGateTest(unittest.TestCase):
                 self.refused({**self.report, "oracle": {**self.report["oracle"], **change}}, "binary digests")
         # Host-specific binaries are evidence, not cross-host equality inputs.
         varied = {**self.report["oracle"], "testbench_sha256": "3" * 64,
-                  "linked_sha256": {name: "4" * 64 for name in quartus.i386_oracle.LINKED_NAMES}}
+                  "linked_sha256": {name: "4" * 64 for name in quartus.LINKED_NAMES}}
         self.check({**self.report, "oracle": varied})
         with tempfile.TemporaryDirectory() as empty, self.assertRaises(board.BuildError):
             quartus.oracle_identity(Path(empty))
         with self.assertRaisesRegex(board.BuildError, "changed during build"):
             quartus.require_same_oracle(ROOT, {**self.report["oracle"], "patch_sha256": "0" * 64})
 
-    def test_oracle_provisioner_changed_after_import_is_refused(self):
-        with mock.patch.object(quartus.i386_oracle, 'require_provisioner_unchanged',
-                               side_effect=quartus.i386_oracle.OracleError('changed during the run')):
-            with self.assertRaisesRegex(board.BuildError, 'changed during the run'):
-                quartus.oracle_identity(ROOT)
+    def test_oracle_provisioner_changed_during_the_build_is_refused(self):
+        # The seal reads the provisioner as data (#1984 S1): an edit after the
+        # lockstep gate moves provisioner_sha256, which the final check refuses.
+        with tempfile.TemporaryDirectory() as temporary:
+            other = Path(temporary)
+            for name in ("scripts/fes_i386_oracle.py", quartus.BOCHS_PATCH, *quartus.SUITE_SOURCES,
+                         *(f"{quartus.ORACLE_SIM}/{name}" for name in quartus.ORACLE_SOURCES)):
+                (other / name).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / name, other / name)
+            # The module that defines oracle_identity holds the running checkout.
+            with mock.patch.object(sys.modules[quartus.oracle_identity.__module__], "ROOT", other):
+                expected = quartus.oracle_identity(other)
+                script = other / "scripts/fes_i386_oracle.py"
+                script.write_bytes(script.read_bytes() + b"\n")
+                with self.assertRaisesRegex(board.BuildError, "changed during build"):
+                    quartus.require_same_oracle(other, expected)
 
     def test_cross_root_oracle_source_must_match_running_pin(self):
         with tempfile.TemporaryDirectory() as temporary:
             other = Path(temporary)
-            paths = ("scripts/fes_i386_oracle.py", quartus.i386_oracle.BOCHS_PATCH_RELATIVE,
-                     *quartus.i386_oracle.SUITE_SOURCES,
-                     *(f"cores/fes-common/sim/i386/{name}" for name in quartus.i386_oracle.ORACLE_SOURCES))
+            paths = ("scripts/fes_i386_oracle.py", quartus.BOCHS_PATCH,
+                     *quartus.SUITE_SOURCES,
+                     *(f"cores/fes-common/sim/i386/{name}" for name in quartus.ORACLE_SOURCES))
             for name in paths:
                 target = other / name
                 target.parent.mkdir(parents=True, exist_ok=True)
@@ -656,7 +674,7 @@ class LockstepGateTest(unittest.TestCase):
             script = other / "scripts/fes_i386_oracle.py"
             contents = script.read_bytes()
             self.assertEqual(quartus.oracle_identity(other), quartus.oracle_identity(ROOT))
-            script.write_bytes(contents.replace(quartus.i386_oracle.BOCHS_REVISION.encode(), b"0" * 40))
+            script.write_bytes(contents + b"\n# an edited provisioner\n")
             with self.assertRaisesRegex(board.BuildError, "target oracle provisioning script differs"):
                 quartus.oracle_identity(other)
             script.write_bytes(contents)
@@ -676,11 +694,11 @@ class LockstepGateTest(unittest.TestCase):
 
     def test_the_gate_reads_pinned_inputs(self):
         for path in (quartus.I386_LOCK, "scripts/lockfile.py", "scripts/yosys_netlist.py",
-                     "scripts/fes_i386_oracle.py", quartus.i386_oracle.BOCHS_PATCH_RELATIVE):
+                     "scripts/fes_i386_oracle.py", quartus.BOCHS_PATCH):
             self.assertIn(path, quartus.PINNED_INPUTS)
-        for name in quartus.i386_oracle.ORACLE_SOURCES:
+        for name in quartus.ORACLE_SOURCES:
             self.assertIn(f"cores/fes-common/sim/i386/{name}", quartus.PINNED_INPUTS)
-        for name in quartus.i386_oracle.SUITE_SOURCES:
+        for name in quartus.SUITE_SOURCES:
             self.assertIn(name, quartus.PINNED_INPUTS)
         self.assertIn(quartus.LOCKSTEP_REPORT, quartus.BUILD_OUTPUTS)
 

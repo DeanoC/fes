@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -29,14 +30,34 @@ func (c *Client) ImportCoreMedia(ctx context.Context, size int64, content io.Rea
 	if content == nil {
 		return CoreMedia{}, fmt.Errorf("core media input is invalid")
 	}
-	req, err := c.NewRequest(ctx, http.MethodPost, "/api/v1/core-media", content)
+	return c.importCoreMedia(ctx, "/api/v1/core-media", size, content, c.HTTPClient())
+}
+
+// HardDiskImportBudget allows a 128 KiB/s link, matching the host's import
+// allowance with a 30-second client margin.
+func HardDiskImportBudget(size int64) time.Duration {
+	return 90*time.Second + time.Duration(size/(128<<10))*time.Second
+}
+
+// ImportHardDiskMedia uses the raw ATA image route without widening ordinary imports.
+func (c *Client) ImportHardDiskMedia(ctx context.Context, size int64, content io.Reader) (CoreMedia, error) {
+	if !protocol.AdmitAtaDiskSize(size) || content == nil {
+		return CoreMedia{}, fmt.Errorf("hard-disk image must be 1 to 128 MiB in whole 512-byte sectors")
+	}
+	client := *c.LaunchHTTPClient()
+	client.Timeout = HardDiskImportBudget(size)
+	return c.importCoreMedia(ctx, "/api/v1/core-media/hard-disk", size, content, &client)
+}
+
+func (c *Client) importCoreMedia(ctx context.Context, path string, size int64, content io.Reader, client *http.Client) (CoreMedia, error) {
+	req, err := c.NewRequest(ctx, http.MethodPost, path, content)
 	if err != nil {
 		return CoreMedia{}, err
 	}
 	req.ContentLength = size
 	req.Header.Set("Content-Type", "application/octet-stream")
 	req.Header.Set("Accept", "application/json")
-	resp, err := c.HTTPClient().Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return CoreMedia{}, err
 	}

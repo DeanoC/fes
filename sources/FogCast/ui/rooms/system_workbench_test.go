@@ -36,7 +36,7 @@ func TestSystemWorkbenchEmptyLibrarySetsUpEveryPlayableModel(t *testing.T) {
 		{"fes.zx81", "fes.zx80", "fes.ts1000", "fes.ts1500"},
 		{"fes.c64"},
 		{"fes.spectrum", "fes.spectrum128", "fes.spectrum-plus3", "fes.pentagon"},
-		{"fes.apple2"}, {"fes.atari-st"}, {"fes.coleco"}, {"fes.sms"}, {"fes.sg1000"},
+		{"fes.apple2"}, {"fes.atari-st"}, {"fes.pcxt-dos"}, {"fes.pc386"}, {"fes.coleco"}, {"fes.sms"}, {"fes.sg1000"},
 		{"fes.pong"}, {"fes.ramtest"}, {"fes.riscv"},
 	}
 	for familyIndex, variants := range families {
@@ -129,6 +129,8 @@ func TestSystemWorkbenchNamesSavedMediaByRole(t *testing.T) {
 		{"fes.spectrum-plus3", "disk", "Disk .dsk"},
 		{"fes.pentagon", "disk", "Disk .trd"},
 		{"fes.c64", "disk", "Disk .d64"},
+		{"fes.pcxt-dos", "disk", "Disk .img"},
+		{"fes.pc386", "hard-disk", "Hard disk .img"},
 		{"fes.spectrum", "cassette", "Tape or snapshot"},
 		{"fes.spectrum-plus3", "cassette", "Tape or snapshot"},
 		{"fes.zx81", "blob", "Cassette .p"},

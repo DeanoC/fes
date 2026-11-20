@@ -60,6 +60,14 @@ PASSING_REPORT = f"""\
 ; Unconstrained Output Port Paths ; 1102  ; 1102 ;
 +---------------------------------+-------+------+
 """
+# The native report contains all four device corners. Keep each setup/hold
+# section independent so a mutation can fail one corner while the others pass.
+_SETUP_SECTION = PASSING_REPORT.split("; Slow 1100mV 100C Model Setup Summary", 1)[1].split("\n\n", 1)[0]
+PASSING_REPORT += "".join(
+    f"\n\n; {corner} Model {kind} Summary" + _SETUP_SECTION + "\n\n"
+    for corner in quartus.TIMING_CORNERS for kind in ("Setup", "Hold")
+    if (corner, kind) != ("Slow 1100mV 100C", "Setup")
+)
 # Each report and the error the gate must raise for it.
 FAILING_REPORTS = (
     ("memory setup miss", PASSING_REPORT.replace(MEMORY_ROW, MEMORY_ROW.replace("; 0.412 ; 0.000 ", "; -0.123 ; -0.123")),
@@ -115,7 +123,7 @@ class RamTestAbiTest(unittest.TestCase):
     def test_parent_authentication_uses_shipped_rate_and_shared_cache(self):
         with patch.object(producer, "authenticate_for", return_value={}) as authenticate:
             self.assertEqual(producer._authenticate_tools(ROOT, cache_root=Path("/tmp/cache")), {})
-            authenticate.assert_called_once_with(ROOT, Path("/tmp/cache"))
+            authenticate.assert_called_once_with(ROOT, Path("/tmp/cache"), "HIP")
 
     def test_mailbox_and_video_are_fes_application(self):
         top = (CORE / "rtl" / "top.v").read_text()
@@ -200,6 +208,34 @@ class RamTestAbiTest(unittest.TestCase):
                         self.assertRaisesRegex(quartus.BuildError, message):
                     quartus.validate_timing(report)
 
+
+    def test_quartus_cas3_rejects_each_corner_setup_and_hold_failure(self):
+        report = PASSING_REPORT.replace("130.0 MHz", "100.0 MHz").replace(
+            "general[1].gpll", "general[2].gpll")
+        with patch.object(quartus, "MHZ", "100"), patch.object(quartus, "CAS3_CAPTURE", True), \
+                contextlib.redirect_stdout(io.StringIO()):
+            quartus.validate_timing(report)
+            for corner in quartus.TIMING_CORNERS:
+                for kind in ("Setup", "Hold"):
+                    heading = f"; {corner} Model {kind} Summary"
+                    prefix, tail = report.split(heading, 1)
+                    for slack in ("-0.123", "-0.000", "nan", "inf", "N/A"):
+                        failed = prefix + heading + tail.replace(
+                            MEMORY_ROW, MEMORY_ROW.replace("0.412", slack), 1)
+                        with self.subTest(corner=corner, kind=kind, slack=slack), \
+                                self.assertRaises(quartus.BuildError):
+                            quartus.validate_timing(failed)
+                    for broken in (
+                        report.replace(heading, heading.replace("Summary", "Missing")),
+                        prefix + heading + tail.replace(MEMORY_ROW, "", 1),
+                        prefix + heading + tail.replace(MEMORY_ROW, MEMORY_ROW + "\n" + MEMORY_ROW, 1),
+                        report + "\n\n" + heading + _SETUP_SECTION + "\n\n",
+                    ):
+                        with self.subTest(corner=corner, kind=kind, inventory=True), \
+                                self.assertRaises(quartus.BuildError):
+                            quartus.validate_timing(broken)
+            with self.assertRaisesRegex(quartus.BuildError, "required memory endpoint clocks"):
+                quartus.validate_timing(report.replace("general[2].gpll", "general[1].gpll"))
 
     def test_quartus_version_strings_come_from_the_lock(self):
         lock = load_quartus_lock(ROOT, quartus.QUARTUS_LOCK)

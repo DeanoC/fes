@@ -64,7 +64,7 @@ class EvidenceTests(unittest.TestCase):
         cls.report = {
             'run': {'passed': True, 'default_suite': True, 'complete_corpus': True, 'arguments': {}},
             'oracle': {**seal.oracle_identity(cls.root),
-                       'linked_sha256': {n: '1' * 64 for n in seal.i386_oracle.LINKED_NAMES},
+                       'linked_sha256': {n: '1' * 64 for n in seal.LINKED_NAMES},
                        'testbench_sha256': '2' * 64},
             'verilator': {'lock': seal.I386_LOCK, 'commit': verilator, 'sha256': '3' * 64},
             'netlist': {'program_sha256': seal.yosys_netlist.program_sha256(seal.yosys_netlist.SEAL),

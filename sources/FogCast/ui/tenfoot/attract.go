@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/inputmap"
 	"github.com/DeanoC/FogCast/ui/shared"
 	"image"
 	"os"
@@ -93,13 +94,13 @@ func (a *App) cycleLayoutLocked() {
 	a.stampNavLocked("layout")
 }
 
-func (a *App) persistPrefsLocked(field string) {
+func (a *App) persistPrefsLocked(field string) error {
 	path := a.prefsPath
 	if path == "" && a.preferenceStore == nil {
 		path = defaultPrefsPath()
 	}
 	if path == "" && a.preferenceStore == nil {
-		return
+		return nil
 	}
 	var existing tenfootPrefs
 	var err error
@@ -111,7 +112,7 @@ func (a *App) persistPrefsLocked(field string) {
 	if err != nil {
 		if a.preferenceStore != nil {
 			a.warnPreferenceWriteLocked(fmt.Errorf("read existing settings: %w", err))
-			return
+			return err
 		}
 		existing = tenfootPrefs{
 			SafeAreaPct: DefaultSafeAreaPct,
@@ -136,13 +137,21 @@ func (a *App) persistPrefsLocked(field string) {
 		existing.Surround = boolPtr(a.surround)
 	case "firmware-info":
 		existing.FirmwareInfoSeen = a.firmwareCardSeenListLocked()
+	case "controllers":
+		existing.Controllers = nil
+		if len(a.padProfiles) > 0 {
+			existing.Controllers = map[string]inputmap.Profile{}
+			for guid, profile := range a.padProfiles {
+				existing.Controllers[guid] = profile
+			}
+		}
 	case "all-cores":
 		existing.AllCores = a.allCores
 	case "setup":
 		existing.SetupDone = a.setup.done
 		existing.SetupSkipped = append([]string(nil), a.setup.skipped...)
 	default:
-		return
+		return nil
 	}
 	if a.preferenceStore != nil {
 		data, err := encodeTenfootPrefs(existing)
@@ -150,9 +159,12 @@ func (a *App) persistPrefsLocked(field string) {
 			err = a.preferenceStore.WritePreferences(data)
 		}
 		a.warnPreferenceWriteLocked(err)
+		return err
 	} else if err := saveTenfootPrefs(path, existing); err != nil {
 		warnPrefsWrite(path, err)
+		return err
 	}
+	return nil
 }
 
 func (a *App) SetPrefsPath(path string) {

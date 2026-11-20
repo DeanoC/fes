@@ -445,7 +445,8 @@ public:
 		const std::string& data_root = "", const CoreCompositionRequest* composition = nullptr,
 		const std::string& programmed_path = "", const std::string& programmed_sha256 = "", const CoreROMLink* rom_link = nullptr,
 		const CoreROMLinks* rom_links = nullptr, const InitialComputerMedia* initial_media = nullptr,
-		const std::string& game_id = "", const AtaDiskImage* disk = nullptr)
+		const std::string& game_id = "", const AtaDiskImage* disk = nullptr,
+		const std::string& firmware_path = "")
 	{
 		if (composition && composition->has_static_selection &&
 			(!programmed_path.empty() || rom_link || rom_links || initial_media || !game_id.empty() || disk ||
@@ -539,8 +540,16 @@ public:
 		const CorePackageInfo info = package->info();
 		const CoreComposition admitted_composition = package->composition();
 		const CoreStaticComposition admitted_static_composition = package->static_composition();
+		if (!firmware_path.empty() && (!rom_link || !programmed_path.empty() || composition)) {
+			std::lock_guard<std::mutex> lock(mutex_);
+			busy_ = false;
+			condition_.notify_all();
+			return Invalid("firmware upload takes one ROM source and no linked bitstream");
+		}
 		if (!programmed_path.empty() || rom_link || rom_links) {
-			const Error attached = rom_links ? hardware_.AttachROMsBitstream(package.get(), programmed_path, *rom_links) :
+			const Error attached = !firmware_path.empty() ?
+				hardware_.AttachFirmwareSource(package.get(), firmware_path, *rom_link) :
+				rom_links ? hardware_.AttachROMsBitstream(package.get(), programmed_path, *rom_links) :
 				rom_link ? hardware_.AttachROMBitstream(package.get(), programmed_path, *rom_link) :
 				hardware_.AttachProgrammedBitstream(package.get(), programmed_path, programmed_sha256);
 			if (!attached.ok()) {
@@ -704,6 +713,40 @@ public:
 		Error error = update ? hardware_.UpdateCoreSettings(
 								   directory, package_id, data_root, game_id, revision, *update, &data)
 							 : hardware_.InspectCoreData(directory, package_id, data_root, game_id, &data);
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			busy_ = false;
+		}
+		condition_.notify_all();
+		if (error.ok())
+			*output = std::move(data);
+		return error;
+	}
+
+	// Inspect reads a saved record at any time the runtime is not mid
+	// transition. Discard also needs no core loaded: a running core may hold
+	// that record bound and would save it straight back at Stop.
+	Error AccessMediaData(const MediaDataQuery& query, const std::string* expected_revision,
+		const std::string* export_path, MediaDataInspection* output)
+	{
+		if (!output || !ValidAbsolutePath(query.data_root) ||
+			(expected_revision && !ValidPackageId(*expected_revision)) ||
+			(export_path && (!expected_revision || !ValidAbsolutePath(*export_path))))
+			return Invalid("invalid media-data request");
+		{
+			std::unique_lock<std::mutex> lock(mutex_);
+			WaitForMenuFrame(lock);
+			if (busy_ || !started_ || pending_fault_generation_ != 0 ||
+				status_.state == State::starting || status_.state == State::reboot_required)
+				return Busy("runtime media-data access is busy");
+			if (expected_revision && !export_path && status_.state != State::idle)
+				return Busy("stop the running core before discarding saved media");
+			busy_ = true;
+		}
+		MediaDataInspection data;
+		Error error = export_path ? hardware_.ExportMediaData(query, *expected_revision, *export_path, &data)
+			: expected_revision ? hardware_.DiscardMediaData(query, *expected_revision, &data)
+								: hardware_.InspectMediaData(query, &data);
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			busy_ = false;
@@ -1672,6 +1715,14 @@ Error Runtime::LoadROMComposedCore(const std::string& directory, const std::stri
 	const CoreCompositionRequest& request, const std::string& path, const CoreROMLink& link, const InitialComputerMedia* initial_media)
 { return impl_->LoadCore(directory, id, "", &request, path, "", &link, nullptr, initial_media); }
 
+Error Runtime::LoadFirmwareCore(const std::string& directory, const std::string& id,
+	const std::string& root, const std::string& path, const CoreROMLink& link,
+	const InitialComputerMedia* initial_media)
+{
+	if (!ValidAbsolutePath(path) || (!root.empty() && !ValidAbsolutePath(root)))
+		return Invalid("firmware upload requires a firmware source path");
+	return impl_->LoadCore(directory, id, root, nullptr, "", "", &link, nullptr, initial_media, "", nullptr, path);
+}
 Error Runtime::LoadROMsCore(const std::string& directory, const std::string& id,
 	const std::string& path, const CoreROMLinks& links)
 { return impl_->LoadCore(directory, id, "", nullptr, path, "", nullptr, &links); }
@@ -1713,6 +1764,20 @@ Error Runtime::UpdateCoreSettings(const std::string& directory, const std::strin
 	const CoreSettingsUpdate& update, CoreData* output)
 {
 	return impl_->AccessCoreData(directory, id, root, game_id, revision, &update, output);
+}
+Error Runtime::InspectMediaData(const MediaDataQuery& query, MediaDataInspection* output)
+{
+	return impl_->AccessMediaData(query, nullptr, nullptr, output);
+}
+Error Runtime::DiscardMediaData(const MediaDataQuery& query, const std::string& expected_revision,
+	MediaDataInspection* output)
+{
+	return impl_->AccessMediaData(query, &expected_revision, nullptr, output);
+}
+Error Runtime::ExportMediaData(const MediaDataQuery& query, const std::string& expected_revision,
+	const std::string& path, MediaDataInspection* output)
+{
+	return impl_->AccessMediaData(query, &expected_revision, &path, output);
 }
 
 Error Runtime::InspectCore(const std::string& directory,

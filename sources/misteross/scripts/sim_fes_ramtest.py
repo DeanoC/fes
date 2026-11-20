@@ -98,6 +98,7 @@ def main() -> None:
     subprocess.run([str(byte_output / "sim")], check=True)
     sources = [
         CORE / "rtl" / "top.v",
+        CORE / "rtl" / "sdram_cas3_capture.v",
         CORE / "rtl" / "mem_channel.v",
         CORE / "rtl" / "sdram_byte_lane.v",
         CORE / "rtl" / "pattern_latch.v",
@@ -129,6 +130,10 @@ def main() -> None:
         (output.with_name(output.name + "-oss-100-no-capture-shift"),
          ("+define+RAM_RATE_SWEEP", "+define+RAM_100_ONLY", "+define+RAM_OSS_HIGH_SPEED"), True),
     )
+    cas3_variant = (output.with_name(output.name + "-cas3-100"),
+                    ("+define+RAM_RATE_SWEEP", "+define+RAM_100_ONLY", "+define+RAM_CAS3_CAPTURE",
+                     "-CFLAGS", "-DRAM_CAS3_CAPTURE"), False)
+    variants = (cas3_variant,) if os.environ.get("RAMTEST_SIM_CAS3_ONLY") == "1" else (*variants, cas3_variant)
     for build, defines, negative in variants:
         build.mkdir(parents=True, exist_ok=True)
         test_env = os.environ.copy()

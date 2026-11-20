@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from scripts.core_package import encode_manifest, package_identity, read_package
-from scripts.input_identity import POLICY as IDENTITY_POLICY, with_identities
+from scripts.input_identity import DESIGN_V1 as IDENTITY_POLICY, with_identities
 from scripts import export_core_package
 from scripts.export_core_package import (
     PackageExportError,
@@ -87,7 +87,7 @@ class ExportCorePackageTests(unittest.TestCase):
         self.fields = fields
         self.manifest = encode_manifest(fields)
 
-    def _quartus_fields(self, *, tools=None, toolchain="quartus", **parameters):
+    def _quartus_fields(self, *, tools=None, toolchain="quartus", policy=IDENTITY_POLICY, **parameters):
         """A format-2 Quartus record, the shape S7 validates (#1581)."""
         fields = dict(self.record_fields, format=2, toolchain="quartus", source_path=".",
                       source_roots=["abi", "scripts"],
@@ -114,10 +114,14 @@ class ExportCorePackageTests(unittest.TestCase):
         # `identities` block, so finalize the way a producer does -- and last,
         # because anything changed afterwards leaves the identities stale and
         # the record is then rejected for that instead of the reason under test.
-        return with_identities(fields)
+        return with_identities(fields, policy=policy)
 
     def test_quartus_record_names_its_front_end_and_that_front_end_s_digests(self):
         encode_build_record(self._quartus_fields())
+        # design-v2 (#1984) records carry the same front-end contract.
+        encode_build_record(self._quartus_fields(policy="design-v2"))
+        with self.assertRaisesRegex(PackageExportError, "front_end"):
+            encode_build_record(self._quartus_fields(policy="design-v2", front_end_program_sha256=None))
         encode_build_record(self._quartus_fields(
             front_end="quartus-lite", front_end_program_sha256=None,
             tools={"quartus": "pinned quartus"}))
@@ -169,7 +173,7 @@ class ExportCorePackageTests(unittest.TestCase):
             with self.subTest(parameter=name):
                 fields = dict(self.record_fields)
                 fields["parameters"] = dict(fields["parameters"], **{name: "yosys"})
-                with self.assertRaisesRegex(PackageExportError, "design-v1 record"):
+                with self.assertRaisesRegex(PackageExportError, "design-v1 or design-v2 record"):
                     encode_build_record(fields)
         # Inside the policy, the toolchain rule applies: a design-v1 record that
         # is not a Quartus record may not carry the fields either.

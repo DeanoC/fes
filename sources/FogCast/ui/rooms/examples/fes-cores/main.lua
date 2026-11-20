@@ -1,8 +1,8 @@
 -- FES Home on a kit: a Recently played row above one tile per computer
 -- family (#1347).
 --
--- The families are systems.families: the four v1 families in a fixed order
--- (ZX81, Spectrum, Atari ST, C64), then, when the launcher shows all cores,
+-- The families are systems.families: the v1 and PC families in a fixed order
+-- (ZX81, Spectrum, Atari ST, C64, PC/XT, PC 386), then, when the launcher shows all cores,
 -- every other registered family. A family's state comes from the library's
 -- machine entries (platform "fpga" rows without media) for its models, and
 -- its game count from that library's titles with media. When the library

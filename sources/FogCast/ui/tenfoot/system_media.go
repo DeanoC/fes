@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"context"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 
@@ -24,6 +25,9 @@ func admitSetupMedia(cap protocol.CoreMediaCapability, name string, size int64) 
 	if size < cap.MinBytes || size > cap.MaxBytes {
 		return false
 	}
+	if cap.Role == protocol.HardDiskRole && !protocol.AdmitAtaDiskSize(size) {
+		return false
+	}
 	if len(cap.Extensions) == 0 {
 		return true
 	}
@@ -34,6 +38,20 @@ func admitSetupMedia(cap protocol.CoreMediaCapability, name string, size int64) 
 		}
 	}
 	return false
+}
+
+func (a *App) openSetupMediaFile(ctx context.Context, manager *storage.Manager, path, role string) (io.ReadCloser, int64, string, error) {
+	if role == protocol.HardDiskRole {
+		return openHardDiskPickerFile(ctx, manager, a.client, path)
+	}
+	return openPickerFile(ctx, manager, a.client, path, storage.MaxFileBytes)
+}
+
+func (a *App) importSetupMedia(ctx context.Context, role string, size int64, content io.Reader) (hostclient.CoreMedia, error) {
+	if role == protocol.HardDiskRole {
+		return a.client.ImportHardDiskMedia(ctx, size, content)
+	}
+	return a.client.ImportCoreMedia(ctx, size, content)
 }
 
 func (a *App) openSystemMediaLocked(action rooms.Action) {
@@ -142,7 +160,7 @@ func (a *App) importSystemMediaLocked(path string) {
 	manager := a.driveManagerLocked()
 	var entry hostclient.CoreEntry
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
-		f, size, name, err := openPickerFile(ctx, manager, a.client, path, storage.MaxFileBytes)
+		f, size, name, err := a.openSetupMediaFile(ctx, manager, path, role)
 		if err != nil {
 			return err
 		}
@@ -150,7 +168,7 @@ func (a *App) importSystemMediaLocked(path string) {
 		if !admitSetupMedia(*capability, name, size) {
 			return fmt.Errorf("Choose %s of %d–%d bytes", mediaCapabilityLabel(*capability), capability.MinBytes, capability.MaxBytes)
 		}
-		media, err := a.client.ImportCoreMedia(ctx, size, f)
+		media, err := a.importSetupMedia(ctx, role, size, f)
 		if err != nil {
 			return err
 		}

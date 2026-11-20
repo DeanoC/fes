@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "env",
+    "FES_EXPERIMENTAL_DE25_EMBEDDED=1",
+    "PYTHONDONTWRITEBYTECODE=1",
+    "python3",
+    "out/guard34-repeated-trial/diagnostic_operator.py",
+    "--execute"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-restoration-phase-cost",
+  "returncode": 1,
+  "timed_out": false,
+  "elapsed": 788.9563348859083,
+  "log_sha256": "76a08f7ad348833c6557447cb877c0db6b2f6ac2c5240e868ad8987282c3ee15"
+}

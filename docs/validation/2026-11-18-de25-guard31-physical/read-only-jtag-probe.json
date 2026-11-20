@@ -1,0 +1,60 @@
+{
+  "status": "three-live-scans-passed",
+  "scope": "read-only-post-failure-chain-observation",
+  "serial": "TRWU8CBL",
+  "programming": false,
+  "reset": false,
+  "SD_writes": 0,
+  "prior_program_failure_preserved": true,
+  "observations": [
+    {
+      "index": 0,
+      "returncode": 0,
+      "seconds": 0.21672917203977704,
+      "sha256": "3757d500f940e7c65df4fbbaed9ae9276e863a683c5ae6292ad91e64aa009b26"
+    },
+    {
+      "index": 1,
+      "returncode": 0,
+      "seconds": 0.17374403006397188,
+      "sha256": "3757d500f940e7c65df4fbbaed9ae9276e863a683c5ae6292ad91e64aa009b26"
+    },
+    {
+      "index": 2,
+      "returncode": 0,
+      "seconds": 0.21328933094628155,
+      "sha256": "3757d500f940e7c65df4fbbaed9ae9276e863a683c5ae6292ad91e64aa009b26"
+    }
+  ],
+  "trace": {
+    "scope": "nano-private-jtag-server-trace-v1",
+    "target": {
+      "pid": 2443328,
+      "start_ticks": "203325056",
+      "executable_sha256": "5cb7ee2332bcd93a666442c10917908ecce36e9a383c13005c5c9495e8e383d4",
+      "server_record_sha256": "7ab47de32ce6ba283da6d24bb385518c0099037a6062174361e8b4cb1827bd1e"
+    },
+    "attached": true,
+    "tracer_stopped": true,
+    "target_detached": true,
+    "ownership_verified": true,
+    "tracer_exited_before_close": false,
+    "tracer_returncode": -2,
+    "trace_sha256": "785a4d94b5d98c8d0b10f8b7e835b9b07e9c702d54efb1d3d1ae0553baf35f11",
+    "trace_bytes": 56726,
+    "trace_limit_bytes": 8388608,
+    "trace_limit_seconds": 120,
+    "hardware_acceptance": false,
+    "programming_authority": false,
+    "reset_completed": false,
+    "recovery_authority": false
+  },
+  "cleanup": {
+    "transport_cleaned": true,
+    "clock_restored": true,
+    "owned_server_stopped": true,
+    "usb_permissions_restored": true,
+    "errors": []
+  },
+  "seconds": 6.894458167022094
+}

@@ -7,6 +7,9 @@
 module bench (
     input wire FPGA_CLK1_50,
     input wire CAP_CLK,
+`ifdef RAM_CAS3_CAPTURE
+    input wire CAS3_FORWARD, CAS3_HANDOFF,
+`endif
     input wire [2:0] mask_fault,
     input wire [2:0] ddr_fault,
     input wire [2:0] ddr_last_only,

@@ -174,7 +174,7 @@ func TestFamilyVariantSelectionSurvivesRoomReopen(t *testing.T) {
 	})
 	r.Close()
 	reopened := open("")
-	for i := 0; i < 12; i++ {
+	for i := 0; i < 14; i++ {
 		reopened.Activate("setup")
 		acts := reopened.TakeActions()
 		if len(acts) != 1 || acts[0].Kind != ActionHardwareSetup {

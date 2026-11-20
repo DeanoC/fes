@@ -6,9 +6,26 @@ module ram_pll (
     output wire outclk_0,
     output wire outclk_1,
     output wire outclk_2,
+`ifdef RAM_CAS3_CAPTURE
+    output wire outclk_forward, outclk_handoff,
+`endif
     output wire locked
 );
-`ifdef RAM_OSS_HIGH_SPEED
+`ifdef RAM_CAS3_CAPTURE
+    wire [2:0] clocks;
+    assign outclk_0 = clocks[0];
+    assign outclk_1 = clocks[0];
+    assign outclk_2 = clocks[0];
+    assign outclk_forward = clocks[1];
+    assign outclk_handoff = clocks[2];
+    altera_pll #(.reference_clock_frequency("50.0 MHz"), .number_of_clocks(3),
+        .output_clock_frequency0("100.0 MHz"), .output_clock_frequency1("100.0 MHz"),
+        .output_clock_frequency2("100.0 MHz"), .phase_shift0("0 ps"),
+        .phase_shift1("1250 ps"), .phase_shift2("9375 ps"),
+        .duty_cycle0(50), .duty_cycle1(50), .duty_cycle2(50),
+        .operation_mode("direct"), .fractional_vco_multiplier("false")) pll (
+        .refclk(refclk), .rst(rst), .outclk(clocks), .locked(locked));
+`elsif RAM_OSS_HIGH_SPEED
     wire [1:0] clocks;
     assign outclk_0 = clocks[0];
     assign outclk_1 = clocks[0];

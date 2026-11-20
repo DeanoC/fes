@@ -1,0 +1,48 @@
+{
+  "scope": "Candidate vendor-neutral pin envelope for the reviewed 3.3 V x16 SDR SDRAM families. Numerical compatibility is not a module, capacity or whole-board acceptance claim. Additional families must meet the envelope or widen it and be requalified; there is no brand whitelist.",
+  "devices": [
+    {
+      "family": "Etron EM63B165TS -6/-7",
+      "reference": "https://etron.com/wp-content/uploads/2022/04/EM63B165TSBM_Rev-2.4.pdf",
+      "revision": "2.4 December 2023; printed pages 21-22, tables 16-17 and notes 9-10",
+      "pdf_sha256": "1a9139629c17a1b280f3d88ef1a7b3c0355812cd9933b73230ba733f36dbc7d2",
+      "pin_ns": {"tCK_CL2_min": 10, "tCK_CL3_min": 7, "tAC_max": 6, "tOH_min": 2.5, "tIS_min": 1.5, "tIH_min": 0.8, "tCH_min": 2.5, "tCL_min": 2.5, "tHZ_max": 6},
+      "conditions": "Commercial 0..70 C; VDD/VDDQ 3.0..3.6 V; 30 pF AC reference load, 1 ns input transitions; apply specified slew compensation. Kit A is operator-confirmed -6."
+    },
+    {
+      "family": "Alliance AS4C32M16SB -6/-7",
+      "reference": "https://www.alliancememory.com/wp-content/uploads/AllianceMemory_512M_SDRAM_Bdie_AS4C32M16SB-7TXN-6TIN-7BIN__Rev1.4_June2024NK.pdf",
+      "revision": "1.4 June 2024; printed pages 22-23, tables 16-17 and notes 9-10",
+      "pdf_sha256": "2cdfcb4b2fab106ae55eb4cb9ea27a60795ed1bb14745c0516d5eb7e836954f6",
+      "pin_ns": {"tCK_CL2_min": 10, "tCK_CL3_min": 7, "tAC_max": 6, "tOH_min": 2.5, "tIS_min": 1.5, "tIH_min": 0.8, "tCH_min": 2.5, "tCL_min": 2.5, "tHZ_max": 5.4},
+      "conditions": "VDD/VDDQ 3.0..3.6 V; respect fitted temperature grade; 30 pF AC reference load and 1 ns input transitions with specified compensation. Published MiSTer BOM includes -7; manufacturer module schematic includes -6."
+    },
+    {
+      "family": "ISSI IS42S16320F -5/-6/-7",
+      "reference": "https://www.issi.com/WW/pdf/42-45R-S_86400F-16320F.pdf",
+      "manufacturer_document_mirror": "https://www.mouser.com/datasheet/2/198/42-45R-S_86400F-16320F-706495.pdf",
+      "revision": "B1 17 July 2017; printed pages 17 and 19, AC characteristics/notes and 3.3 V test conditions",
+      "pin_ns": {"tCK_CL2_min": 10, "tCK_CL3_min": 7, "tAC_max": 6, "tOH_min": 2.5, "tIS_min": 1.5, "tIH_min": 0.8, "tCH_min": 2.5, "tCL_min": 2.5, "tHZ_max": 6},
+      "conditions": "3.3 V S family only, not 2.5 V R family; 50 pF AC reference load; respect temperature grade and transition limits/compensation. Cross-vendor comparison, not an observation of an installed kit part."
+    },
+    {
+      "family": "Winbond W9825G6KH -5/-5I/-6/-6I/-6L/-75/75L",
+      "reference": "https://www.winbond.com/resource-files/da00-w9825g6khc1.pdf",
+      "manufacturer_document_mirror": "https://datasheet.lcsc.com/datasheet/pdf/5a4279e684dc4dd98192d31e6bb13fca.pdf?productCode=C97572",
+      "revision": "A03 1 June 2016; printed pages 15-16, section 9.5 and notes 8-9",
+      "pin_ns": {"tCK_CL2_min": 10, "tCK_CL3_min": 7.5, "tAC_max": 6, "tOH_min": 3, "tIS_min": 1.5, "tIH_min": 1, "tCH_min": 2.5, "tCL_min": 2.5, "tHZ_max": 6},
+      "conditions": "256 Mbit x16 device comparison, not 128 MB module geometry acceptance; VDD/VDDQ 3.0..3.6 V; respect fitted temperature grade; 30 pF AC reference and specified slew compensation."
+    }
+  ],
+  "common_operating_range": "3.0..3.6 V, 0..70 C, subject to each part's AC load/slew/threshold conditions. Device test loads are not interchangeable board-load guarantees.",
+  "tLZ_min_ns": 0,
+  "missing_bounds": [
+    "Motherboard plus connector plus module clock/data flight intervals, per net and rank",
+    "Fitted loading and rise/fall bounds at FPGA and memory pins, including slew compensation and receiver thresholds",
+    "Worst-case physical CLK period, high/low pulse widths and jitter, including reference tolerance and PLL/output distortion",
+    "Module CS inversion topology and bounded delay/skew under fitted loading and voltage/temperature",
+    "Electrical DQ output-enable/disable non-overlap in both directions and across ranks, using 0 ns tLZ and 6 ns tHZ",
+    "Voltage/temperature envelope and initialization/refresh/command spacing against supported device requirements",
+    "Production STA admission of the proved consumed-word window without waiving raw failures"
+  ]
+}

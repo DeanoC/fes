@@ -1,0 +1,26 @@
+{
+  "status": "independently-verified-prepared-trial",
+  "procedure_sha256": "b78e3dad9d5ab3117dfedfa830d614843dd2fbcbae47bf4ec6256d78c8ff1619",
+  "sources": [
+    {
+      "name": "host-source.tar.gz",
+      "source_commit": "7119ffa96b153149499f67e797a7ae18fe2413db",
+      "sha256": "f5230cff5095af8a7c3c596fc7caa9b9fccae31600e052e19879e7cb01f40960",
+      "verified_git_blobs": 17273
+    },
+    {
+      "name": "native-source.tar.gz",
+      "source_commit": "c45a8d27efa2904f1c0000ef99e415cfa4d77fd1",
+      "sha256": "4cbd710146e12913a497470d5bd134c1f683091795e11ea16f67b6711e761a50",
+      "verified_git_blobs": 17332
+    }
+  ],
+  "prepared_archive_sha256": "11bebea8c30b0e40ec3ffa4a2b547819a5e3d2aa545fbfc129f4ad80eb5207d5",
+  "prepared_entries": 84627,
+  "complete_native_archive": {
+    "path": "/home/deano/fes-retained/de25-guard31-offboard-20261118-r1/boot.tar.gz",
+    "sha256": "31d94f63ee5255893994b53143ebb9c631bdaa0c7d5de32f7cbc69b026608a73"
+  },
+  "hardware_actions": false,
+  "hardware_acceptance": false
+}

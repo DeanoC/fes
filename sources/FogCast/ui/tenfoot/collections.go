@@ -174,7 +174,7 @@ func (a *App) doCollectionMember(ctx context.Context, collectionID, gameID strin
 		a.reloadLocked()
 		return
 	}
-	a.status = a.libraryStatusLocked()
+	a.setLibraryStatusLocked(a.libraryStatusLocked())
 }
 
 func (a *App) openCollectionManageLocked() {
@@ -369,7 +369,7 @@ func (a *App) doUpsertCollection(ctx context.Context, id, name string, create bo
 		a.setCollectionLocked(collection.ID)
 		return
 	}
-	a.status = a.libraryStatusLocked()
+	a.setLibraryStatusLocked(a.libraryStatusLocked())
 }
 
 func (a *App) deleteCollectionLocked(id string) {
@@ -404,7 +404,7 @@ func (a *App) doDeleteCollection(ctx context.Context, id string) {
 		a.setCollectionLocked("")
 		return
 	}
-	a.status = a.libraryStatusLocked()
+	a.setLibraryStatusLocked(a.libraryStatusLocked())
 }
 
 func (a *App) applyCollectionLocked(collection hostclient.Collection) {

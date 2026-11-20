@@ -17,7 +17,7 @@ machine headings or default setup titles. Unknown systems retain their
 supplied name. User-authored game and setup titles remain distinct from
 machine identity.
 
-In the v1 release scope, Settings is Home's only header route. Up moves from
+In the default scope, Settings is Home's only header route. Up moves from
 the family tiles to Recently played when present, then to the hero actions and
 header. On compact screens, Home shows a family list and hides Recently played.
 Back at the release-scoped Home root leaves Home open; the room picker remains

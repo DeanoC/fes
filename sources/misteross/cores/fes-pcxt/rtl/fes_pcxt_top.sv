@@ -5,7 +5,8 @@ module top #(
     parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0,
     parameter bit HARDWARE_DOS = 0,
     parameter bit PHASED_HDMI_CLOCK = 0,
-    // Experimental 100 MHz capture/forwarded-clock pipeline; not production-qualified.
+    // The installable 100 MHz producer selects CAS-3 retention explicitly.
+    // Raw controller/board experiments may still select their own profile.
     parameter bit SDRAM_CAPTURE_PIPELINE = 0,
     parameter bit ENABLE_FES_COMPUTER = 0,
     parameter bit ENABLE_PCXT_MEDIA = 0,
@@ -34,8 +35,8 @@ module top #(
         .output_clock_frequency0("100.0 MHz"), .output_clock_frequency1(HALF_RATE_BOARD ? "50.0 MHz" : "100.0 MHz"),
         .output_clock_frequency2(HALF_RATE_BOARD ? "50.0 MHz" : SDRAM_CAPTURE_PIPELINE ? "100.0 MHz" : "0 MHz"),
         .output_clock_frequency3(HALF_RATE_BOARD ? "50.0 MHz" : SDRAM_CAPTURE_PIPELINE ? "100.0 MHz" : "0 MHz"),
-        .phase_shift0("0 ps"), .phase_shift1(HALF_RATE_BOARD ? "10000 ps" : SDRAM_CAPTURE_PIPELINE ? "9375 ps" : "5000 ps"),
-        .phase_shift2(SDRAM_CAPTURE_PIPELINE ? "1250 ps" : "0 ps"), .phase_shift3(HALF_RATE_BOARD ? "18000 ps" : SDRAM_CAPTURE_PIPELINE ? "8750 ps" : "0 ps"),
+        .phase_shift0("0 ps"), .phase_shift1(HALF_RATE_BOARD ? "10000 ps" : SDRAM_CAPTURE_PIPELINE ? "0 ps" : "5000 ps"),
+        .phase_shift2(SDRAM_CAPTURE_PIPELINE ? "1250 ps" : "0 ps"), .phase_shift3(HALF_RATE_BOARD ? "18000 ps" : SDRAM_CAPTURE_PIPELINE ? "9375 ps" : "0 ps"),
         .duty_cycle0(50), .duty_cycle1(50), .duty_cycle2(50), .duty_cycle3(50), .operation_mode("direct"),
         .fractional_vco_multiplier("false")
     ) memory_clock (.refclk(FPGA_CLK1_50), .rst(1'b0), .outclk(clocks), .locked(memory_locked));

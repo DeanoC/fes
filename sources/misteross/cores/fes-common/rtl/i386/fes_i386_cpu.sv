@@ -682,7 +682,7 @@ module fes_i386_cpu #(
     logic [31:0] q_lea_disp;
     logic        q_b_sys;
     logic [3:0]  q_slot;
-    fes_i386_decode decode (
+    fes_i386_decode #(.X87_BACKEND(X87_BACKEND)) decode (
         .q, .code32, .stack(dc_stack), .wait_nm(cr0_mp && cr0_ts), .esc_nm(cr0_em || cr0_ts), .x87(x87_present),
         .x87_insn(dc_q.x87), .x87_wait(dc_q.x87_wait), .x87_fmt(dc_q.x87_fmt), .x87_op(dc_q.x87_op), .x87_part(dc_q.x87_part), .pe(cr0_pe), .vm(eflags[17]), .cpl, .iopl(eflags[13:12]), .nt(eflags[14]), .dr_gd(dr7[13]), .uop(q_uop), .opsize32(q_opsize32), .lea(q_lea), .lea_early(dc_q.lea_early),
         .lea_disp(q_lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
@@ -762,6 +762,7 @@ module fes_i386_cpu #(
     // 16/32-bit displacement (ModRM mod 1 or 2).
     assign dc_q.gov = '{two: q_two, op: q_two ? q.bytes[1] : q.bytes[0], mreg: q_modrm[5:3],
                         rm_reg: q_modrm[7:6] == 2'b11, o32: q_opsize32, rep: q.prefixes.rep != 2'b00,
+                        ref_rep_f3: GOV_REFERENCE_DIAGNOSTIC && q.prefixes.rep == fes_i386_pkg::REP_E,
                         ea3: am_has_base && am_has_index && q_modrm[7] != q_modrm[6] && !q_direct,
                         ref_test_excluded: GOV_REFERENCE_DIAGNOSTIC && (code32 || q.prefix_count != 4'd0),
                         ref_real_mode: 1'b0,
@@ -1990,6 +1991,15 @@ module fes_i386_cpu #(
         d_out.ipp1 = dc.pp1;
         d_out.nx = d_out.nodata && !dc.str_fin && dc.stk != fes_i386_pkg::STK_PROBE
                 || dc.x87 && x87_nx;
+        // An x87 store the unit holds back (nx: an unmasked exception other
+        // than precision) makes no access at all, as the 387 stores nothing
+        // and Bochs returns before its write: no write, and so no limit
+        // check, translation or data breakpoint either, and nothing for a
+        // younger load to forward. Without this only the translation was
+        // skipped and WB still wrote the unit's value (#1872, found by the
+        // lockstep's unmasked-store programs, the first to reach it).
+        if (dc.x87 && x87_nx && u.mem.kind == fes_i386_pkg::MEM_STORE)
+            d_out.uop.mem.kind = fes_i386_pkg::MEM_NONE;
         d_out.wx = dc.str_fin || dc.stk == fes_i386_pkg::STK_PROBE || xchg_ld;
         d_out.ones = tsf_any && !tsf_32 && u.dst.valid && u.dst.space == fes_i386_pkg::RS_GPR;
         d_out.iret0 = d_first && dc.fetched && !d_ifw && !cs_gp
@@ -3000,10 +3010,21 @@ module fes_i386_cpu #(
     logic       int_cbp_ok, int_cbp_hit;
     logic       iret_start;
     assign wb_commit = wb_s.valid && !halted && !freeze && !int_take && wb_fault == fes_i386_pkg::FAULT_NONE;
-    // An ESC memory form's offset, the x87 data pointer's: 16 bits under a
-    // 16-bit address size, zero-extended.
-    logic [31:0] wb_fdp;
-    assign wb_fdp = wb_s.uop.mem.addr32 ? wb_s.moff : {16'd0, wb_s.moff[15:0]};
+    // An ESC memory form's operand offset, the x87 data pointer's: 16 bits
+    // under a 16-bit address size, zero-extended. The uop that writes the
+    // pointers is the form's last, so a fault in any part leaves them alone,
+    // and for a form moved in several chunks the last is not always the one
+    // at the operand's own offset: FST and FSTP m64 and FISTP m64 store
+    // upwards and end with the dword at 4, FSTP m80 with the word at 8
+    // (#1877). Its chunk, x87_part (the ROM's dword index fpj, or moff[3:2]
+    // for the decode's own uop), says how far past the operand that is, so
+    // the operand's offset is the access's less that, wrapped by address
+    // size as the access was. Only operand chunks write the pointers: the
+    // environment and save forms, whose x87_part counts fields instead, are
+    // X87P_NONE.
+    logic [31:0] wb_fdp, wb_fdp_raw;
+    assign wb_fdp_raw = wb_s.moff - {27'd0, wb_s.x87_part[1:0], 2'b00};
+    assign wb_fdp = wb_s.uop.mem.addr32 ? wb_fdp_raw : {16'd0, wb_fdp_raw[15:0]};
     assign at_boundary = wb_commit && (wb_eoi || wb_s.uop.str_cx);
     assign in_hlt = hlt && !int_take;
     assign wb_ss_load = wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_SEG
@@ -3192,6 +3213,15 @@ module fes_i386_cpu #(
     function automatic logic [2:0] halves(input logic a0, input logic [3:0] bytes);
         halves = 3'((4'(a0) + bytes + 4'd1) >> 1);
     endfunction
+    // The 32-bit dwords it touches, for local-bus video, which times only the
+    // VGA window (A0000h-BFFFFh); other MMIO, such as an EMS board's frame,
+    // keeps the ISA cycle.
+    function automatic logic [1:0] dwords(input logic [1:0] a, input logic [3:0] bytes);
+        dwords = 2'((4'(a) + bytes + 4'd3) >> 2);
+    endfunction
+    function automatic logic vga_window(input logic [PA:0] p);
+        vga_window = !p[PA] && p[PA-1:17] == (PA-17)'(5);
+    endfunction
     // Restrict the reference ENTER experiment to two fully classified RAM
     // operands. The primary's translated next page is not carried to WB, so
     // any primary page crossing retains the previous conservative path.
@@ -3206,9 +3236,10 @@ module fes_i386_cpu #(
     // The reference experiment only models ordinary 286 IMUL operands. Keep
     // issue and retirement segment identities together through the pipeline:
     // a real-mode selector can still carry an unreal-mode descriptor cache.
-    logic gov_imul_safe;
+    logic gov_imul_safe, gov_rep_io_safe;
     generate if (GOV_REFERENCE_DIAGNOSTIC) begin : gen_imul_guard
         logic [32:0] ag_guard, m1_guard, m2_guard, ex_guard, wb_guard;
+        logic [32:0] ag_rep_guard, m1_rep_guard, m2_rep_guard, ex_rep_guard, wb_rep_guard;
         logic [2:0] wb_seg;
         assign wb_seg = 3'(wb_s.uop.mem.seg);
         function automatic logic canonical_data(input logic [2:0] n);
@@ -3229,6 +3260,8 @@ module fes_i386_cpu #(
                 m2_guard <= '0;
                 ex_guard <= '0;
                 wb_guard <= '0;
+                ag_rep_guard <= '0; m1_rep_guard <= '0; m2_rep_guard <= '0;
+                ex_rep_guard <= '0; wb_rep_guard <= '0;
             end else if (!freeze) begin
                 ag_guard <= {!cr0_pe && !cr0_pg && canonical_cs() &&
                              (dc.gov.rm_reg || canonical_data(mseg)), seg_sel[SEG_CS], seg_sel[mseg]};
@@ -3236,6 +3269,12 @@ module fes_i386_cpu #(
                 m2_guard <= m1_guard;
                 ex_guard <= m2_guard;
                 wb_guard <= ex_guard;
+                // Unlike IMUL's register form, each REP I/O element uses a
+                // string segment; retain its issue-time selector and cache.
+                ag_rep_guard <= {!cr0_pe && !cr0_pg && canonical_cs() && canonical_data(mseg),
+                                 seg_sel[SEG_CS], seg_sel[mseg]};
+                m1_rep_guard <= ag_rep_guard; m2_rep_guard <= m1_rep_guard;
+                ex_rep_guard <= m2_rep_guard; wb_rep_guard <= ex_rep_guard;
             end
         end
         assign gov_imul_safe = wb_guard[32] && !cr0_pe && !cr0_pg && canonical_cs() &&
@@ -3243,14 +3282,21 @@ module fes_i386_cpu #(
             (wb_s.gov.rm_reg || (canonical_data(wb_seg) && seg_sel[wb_seg] == wb_guard[15:0] &&
              wb_s.uop.mem.kind == fes_i386_pkg::MEM_LOAD && wb_s.uop.mem.bytes == 4'd2 &&
              !wb_s.uop.st2 && !wb_s.maddr[0] && !wb_cross));
+        // The reference timing evidence covers canonical segments and aligned
+        // word RAM. A byte has no alignment constraint.
+        assign gov_rep_io_safe = wb_rep_guard[32] && !cr0_pe && !cr0_pg && canonical_cs() &&
+            seg_sel[SEG_CS] == wb_rep_guard[31:16] && canonical_data(wb_seg) &&
+            seg_sel[wb_seg] == wb_rep_guard[15:0] &&
+            (!wb_s.uop.mem.bytes[1] || !wb_s.maddr[0]) && !wb_cross;
     end else begin : gen_no_imul_guard
         assign gov_imul_safe = 1'b0;
+        assign gov_rep_io_safe = 1'b0;
     end endgenerate
 
     fes_i386_governor #(.GOV_N(GOV_N), .GOV_D(GOV_D), .REFERENCE_DIAGNOSTIC(GOV_REFERENCE_DIAGNOSTIC)) governor (
         .clk, .reset, .preset(gov_preset), .frequency(gov_frequency), .turbo(gov_turbo),
         .boundary(at_boundary), .eoi(wb_eoi), .element(wb_s.uop.str_cx), .taken(wb_s.taken && !wb_s.uop.seg2),
-        .gov(wb_s.gov), .imul_safe(gov_imul_safe), .ilen(wb_s.ilen), .redirect(wb_s.taken && wb_s.uop.rep_stop == 2'd0),
+        .gov(wb_s.gov), .imul_safe(gov_imul_safe), .rep_io_safe(gov_rep_io_safe), .ilen(wb_s.ilen), .redirect(wb_s.taken && wb_s.uop.rep_stop == 2'd0),
         .abandon(exc_take || int_go || tsw_go),
         // exc_active excludes a fault during delivery; it does not track
         // whether execution is inside an earlier handler.
@@ -3263,7 +3309,9 @@ module fes_i386_cpu #(
                       wb_at0 == fes_i386_pkg::ATTR_RAM && (!wb_cross || wb_at1 == fes_i386_pkg::ATTR_RAM)),
         .io(wb_commit && wb_s.uop.io != 2'd0), .io_port, .io_size,
         .mmio(gov_mmio), .mmio_halves(halves(wb_s.maddr[0], wb_s.uop.mem.bytes)),
+        .mmio_dwords(dwords(wb_s.maddr[1:0], wb_s.uop.mem.bytes)), .mmio_vga(vga_window(wb_mp)),
         .mmio_st2(gov_mmio_st2), .mmio_st2_halves(halves(wb_s.target[0], wb_s.uop.mem.bytes)),
+        .mmio_st2_dwords(dwords(wb_s.target[1:0], wb_s.uop.mem.bytes)), .mmio_st2_vga(vga_window(wb_p0)),
         .hold(gov_hold), .debt_clocks(trace_gov_debt), .charge(trace_gov_charge)
     );
 

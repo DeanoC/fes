@@ -1,0 +1,79 @@
+{
+  "classification": "exact diagnostic artifact hardware test; not production seal or whole-board timing signoff",
+  "verdict": "PASS",
+  "source": "e7e73a0c0dd0dec7c57fa9f4fa76429a5ea59381",
+  "full_span_halfword_last": "03ffffff",
+  "full_span_bytes": 134217728,
+  "patterns": 6,
+  "sdram_errors": 0,
+  "byte_cases": 128,
+  "byte_reads": 512,
+  "hps_ports_pass": [
+    0,
+    1,
+    2
+  ],
+  "final_capture": "capture-004.png",
+  "final_capture_sha256": "664e3ac34baa39b6e9c405bb6a22642acb2384294320f775c8d68b42b197e072",
+  "evidence": "Frames 001..003 show changing pattern/address progress; frame004 shows all-green PASS and zero counts.",
+  "restore": {
+    "active_bundle": true,
+    "selected": true,
+    "pending_sw": true,
+    "image": true,
+    "image_state": true,
+    "agent_idle": true,
+    "session_idle": true,
+    "lease_free": true
+  },
+  "restored": true,
+  "load": {
+    "state": "active",
+    "game_id": null,
+    "system": null,
+    "expected_core": null,
+    "observed_core": "fes.ramtest",
+    "last_error": null,
+    "development": true,
+    "core_package": {
+      "persistence_mode": "volatile",
+      "package_id": "51c4392c28dc0a58079ef823b4bf3ca988717cef7ad141d21d6795d7e5fdae7d",
+      "core_id": "fes.ramtest",
+      "generation": 1,
+      "abi": {
+        "id": "fes.application",
+        "major": 1,
+        "minor": 0
+      },
+      "build_id": "c61a5183ae5fb4e5e1bc786413286e95",
+      "active_interfaces": [
+        {
+          "id": "fes.gamepad",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.memory.hps-ddr",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "gamepad": true
+    }
+  },
+  "package_sha256": "01b4b6d310fdf479fb48e4c899864c77d6f21fde4b9eabe0bd014cc666fd5a44",
+  "protected_evidence": "/home/deano/fes-hil/k835-cas3-kits/ramtest-kitA-083740",
+  "captures": {
+    "capture-000.png": "4c6d2c8d8bbb3756757eacd65f2e662ac9a6f56594ea0e34760218bc21f02037",
+    "capture-001.png": "0333ae70820f5c6f1387a22a7f65c1503dc7198dcf90841528eb2c4581693846",
+    "capture-002.png": "01be98832aa4e85e3c76a8e9da9ba1bbd1323aa6b6d9e18561fb14965109269e",
+    "capture-003.png": "dba0ef0ec1b874b006c5ba89db7e8171ba817f353f63204b0fb6cbeb230620fb",
+    "capture-004.png": "664e3ac34baa39b6e9c405bb6a22642acb2384294320f775c8d68b42b197e072",
+    "capture-005.png": "1decf8237108849da59c6b72a4b3271bc6784856474b3681fa23278b4ac4a506"
+  }
+}
