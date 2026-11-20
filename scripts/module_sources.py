@@ -146,8 +146,10 @@ def materialize(root, name, revision, destination):
     code before reuse. The clone owns its object directory (no alternates), so
     moving a snapshot does not leave .git pointers into the source. On the same
     filesystem Git hardlinks the immutable object and pack files instead of
-    copying them; across filesystems it copies. Git never rewrites object files
-    in place, so sharing inodes cannot change the source repository.
+    copying them. Git does not fall back by itself when linking fails (for
+    example "Invalid cross-device link" across filesystems), so a failed linked
+    clone is discarded and retried as a copy with --no-hardlinks. Git never
+    rewrites object files in place, so sharing inodes cannot change the source.
     """
     root = _root(root)
     identity = describe(root, name, revision)
@@ -170,7 +172,15 @@ def materialize(root, name, revision, destination):
         destination.parent.mkdir(parents=True, exist_ok=True)
         temporary = Path(tempfile.mkdtemp(prefix=".source-", dir=destination.parent))
         try:
-            _git(root, "clone", "--no-checkout", "--local", str(source), str(temporary))
+            try:
+                _git(root, "clone", "--no-checkout", "--local", str(source), str(temporary))
+            except ValueError:
+                # Linking can fail across filesystems or under protected
+                # hardlinks; a copy is always valid, only larger.
+                shutil.rmtree(temporary, ignore_errors=True)
+                temporary.mkdir()
+                _git(root, "clone", "--no-hardlinks", "--no-checkout", "--local",
+                     str(source), str(temporary))
             if identity["repository"] is None:
                 _git(temporary, "remote", "remove", "origin")
             else:
