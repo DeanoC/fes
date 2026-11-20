@@ -213,3 +213,86 @@ func TestSavedMappingReachesAnAttachedPad(t *testing.T) {
 		t.Fatal("reset left the mapping")
 	}
 }
+
+// A mapping can put a button on an axis or a lone hat direction. Those
+// reach the machine as buttons, pressed and released, like any key.
+func TestPadButtonsOnAxesReachACore(t *testing.T) {
+	feed := &localPadRecorder{}
+	app := runningLocalCoreApp(feed)
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { reader.Close(); writer.Close() })
+	fd := int(reader.Fd())
+	if err := unix.SetNonblock(fd, true); err != nil {
+		t.Fatal(err)
+	}
+	pad := superFamicomPad(map[uint16]controller.Range{0: {Min: 0, Max: 255}, 1: {Min: 0, Max: 255},
+		2: {Min: 0, Max: 255}, 16: {Min: -1, Max: 1}, 17: {Min: -1, Max: 1}})
+	pad.Abs = []byte{0x07, 0, 0x03, 0, 0, 0, 0, 0}
+	mapper, err := controller.NewLearnedMapper(pad, "dpup:h0.1,dpdown:h0.4,dpleft:h0.8,dpright:b3,a:b1,b:b2,rightshoulder:a2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := &nativeInput{fd: fd, kind: InputGamepad, player: 0, device: pad, mapper: mapper}
+	ins := &nativeInputs{devices: []*nativeInput{in}}
+	for _, e := range [][]byte{nativeTestEvent(3, 2, 255), nativeTestEvent(3, 2, 0),
+		nativeTestEvent(3, 16, -1), nativeTestEvent(3, 16, 0)} {
+		writer.Write(e)
+	}
+	if _, err := ins.poll(app, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	want := []struct {
+		code   remoteinput.Code
+		action remoteinput.Action
+	}{
+		{remoteinput.ButtonR, remoteinput.ActionPress}, {remoteinput.ButtonR, remoteinput.ActionRelease},
+		{remoteinput.ButtonDPadLeft, remoteinput.ActionPress}, {remoteinput.ButtonDPadLeft, remoteinput.ActionRelease},
+	}
+	if len(feed.events) != len(want) {
+		t.Fatalf("events = %+v", feed.events)
+	}
+	for i, w := range want {
+		if e := feed.events[i]; e.Code != w.code || e.Action != w.action {
+			t.Fatalf("event %d = %+v, want %v %v", i, e, w.code, w.action)
+		}
+	}
+}
+
+// A stick that has moved the menus and come back home holds nothing, so
+// mapping can start on that pad.
+func TestLearningStartsAfterTheStickComesHome(t *testing.T) {
+	app := controllersApp(t)
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { reader.Close(); writer.Close() })
+	fd := int(reader.Fd())
+	if err := unix.SetNonblock(fd, true); err != nil {
+		t.Fatal(err)
+	}
+	pad := superFamicomPad(map[uint16]controller.Range{0: {Min: 0, Max: 255}, 1: {Min: 0, Max: 255}})
+	in := &nativeInput{fd: fd, kind: InputGamepad, player: 0, device: pad, mapper: controller.NewMapper(pad),
+		info: PadInfo{GUID: testPadGUID}}
+	ins := &nativeInputs{devices: []*nativeInput{in}, padProfile: app.padProfile}
+	app.SetPadInfo(fd, PadInfo{Name: "USB Gamepad", GUID: testPadGUID, Player: 2})
+	now := time.Now()
+	writer.Write(nativeTestEvent(3, 0, 0))
+	writer.Write(nativeTestEvent(3, 0, 128))
+	if _, err := ins.poll(app, now); err != nil {
+		t.Fatal(err)
+	}
+	app.mu.Lock()
+	app.showControllerPadLocked(fd)
+	app.startLearnLocked(now)
+	app.mu.Unlock()
+	if _, err := ins.poll(app, now); err != nil {
+		t.Fatal(err)
+	}
+	if in.learner == nil {
+		t.Fatalf("not read raw after the stick came home: axes %v", in.axes)
+	}
+}

@@ -618,13 +618,8 @@ devices:
 						guide = in.mapper.Guide(code)
 					}
 					if in.mapper != nil && !guide {
-						if e, ok := in.mapper.Map(typ, code, value); ok {
-							if e.Kind == remoteinput.KindButton {
-								in.button(app, ButtonFromLogical(e.Code), value, now)
-								if ins.applyButtons(app, now) {
-									return true, nil
-								}
-							}
+						if ins.padEvents(app, in, in.mapper.Events(typ, code, value), now) {
+							return true, nil
 						}
 						continue
 					}
@@ -656,11 +651,8 @@ devices:
 					}
 				} else if typ == 3 {
 					if in.mapper != nil {
-						if e, ok := in.mapper.Map(typ, code, value); ok && e.Kind == remoteinput.KindAxis {
-							in.axis(app, e.Code, e.Value, now)
-							if ins.applyButtons(app, now) {
-								return true, nil
-							}
+						if ins.padEvents(app, in, in.mapper.Events(typ, code, value), now) {
+							return true, nil
 						}
 					} else if code == 16 || code == 17 {
 						in.hat(app, code, value, now)
@@ -792,6 +784,26 @@ func (ins *nativeInputs) applyButtons(app *App, now time.Time) bool {
 	}
 	return applyPressed(app, pressed, ins.held, now)
 }
+
+// padEvents takes what a pad's mapping reads from one evdev event: the
+// stick or hat it moves and the buttons it presses or releases, including
+// buttons a mapping puts on an axis or a hat direction.
+func (ins *nativeInputs) padEvents(app *App, in *nativeInput, events []remoteinput.Event, now time.Time) bool {
+	for _, e := range events {
+		switch e.Kind {
+		case remoteinput.KindButton:
+			value := int32(0)
+			if e.Action == remoteinput.ActionPress {
+				value = 1
+			}
+			in.button(app, ButtonFromLogical(e.Code), value, now)
+		case remoteinput.KindAxis:
+			in.axis(app, e.Code, e.Value, now)
+		}
+	}
+	return len(events) > 0 && ins.applyButtons(app, now)
+}
+
 func (in *nativeInput) button(app *App, button Button, value int32, now time.Time) {
 	if value == 2 || button == ButtonNone {
 		return
@@ -936,10 +948,14 @@ func (in *nativeInput) axis(app *App, code remoteinput.Code, value int32, now ti
 	cmd := CommandFromStickHeld(axisX, axisY, old)
 	if cmd != old {
 		in.button(app, nativeDirectionButton(old), 0, now)
-		in.axes[uint16(code)] = cmd
+		if cmd == CmdNone {
+			// A stick at rest holds nothing.
+			delete(in.axes, uint16(code))
+		} else {
+			in.axes[uint16(code)] = cmd
+		}
 		in.button(app, nativeDirectionButton(cmd), 1, now)
 	}
-	_ = now
 }
 
 func nativeDirectionButton(cmd Command) Button {
