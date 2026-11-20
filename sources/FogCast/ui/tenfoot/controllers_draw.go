@@ -187,7 +187,7 @@ func drawControllers(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture
 		} else {
 			hint = "Esc or another pad's B cancels"
 			if page.Learn.Optional {
-				hint += "  ·  X key or another pad's X skips"
+				hint += "  ·  Keyboard X or another pad's X skips"
 			}
 		}
 	} else if page.Picker.Open {
