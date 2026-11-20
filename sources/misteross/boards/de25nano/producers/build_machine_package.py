@@ -108,7 +108,7 @@ class Machine:
                 'programming_profile': 'de25-linux-computer-v1', 'standard_core': True, 'linux_dma': True,
                 'expansion_socket': False, 'guest_memory': 'board-sdram',
                 'firmware_delivery': UPLOAD_ENCODING, 'firmware_bytes': spec.FIRMWARE_BYTES[model],
-                'machine_clock_hz': spec.board.MACHINE_HZ, 'audio_clock_requested_hz': 12288000,
+                'machine_clock_hz': spec.MACHINE_HZ, 'audio_clock_requested_hz': 12288000,
                 'fifo_reset_sharing': common.SHARED_FIFO_RESETS,
                 'f2s_data_width': 0, 'f2sdram_data_width': 256, 'scanout_master_data_width': 128,
                 'hps_warm_reset_handshake': True, 'reset_timing_policy': common.TIMED_RESET_RELEASE,
