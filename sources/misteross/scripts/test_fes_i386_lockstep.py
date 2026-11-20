@@ -478,13 +478,18 @@ def run_paging(testbench: str, env: dict) -> dict:
 # 77, and #1701's #UD at CPL 0 and 3 before a memory operand on a page not
 # present (8 each), its 45 probes in V86 mode, 6 ARPL paging cases, and
 # #1730's UMOV #PF at CPL 0 and 3 (2 each), and 10 flat SS boundary controls;
-# #2020's four x87 page programs and five x87 limit cases.
-PAGING_CASES = 77 + 2 * 8 + 45 + 6 + 2 * 2 + 10 + 4 + 5
-# What #2020's rules take from the RTL in those cases: the 386's CR2 for the
-# five probe forms in the second-page, mid-split and both-absent programs;
-# the x87 pointers and opcode of each delivery where Bochs moved them; and an
-# m80 store's first eight bytes, at 10FF8h and at DS:FFF8h.
-X87_PAGING_RULES = {'x87_probe_rule': 3 * 5, 'x87_fault_rule': 33, 'x87_partial_rule': 2}
+# #2020's four x87 page programs, five x87 limit cases, a wrap under a 4 GiB
+# limit and a probe of a fresh second page.
+PAGING_CASES = 77 + 2 * 8 + 45 + 6 + 2 * 2 + 10 + 4 + 5 + 2
+# What #2020's rules take from the RTL in those cases. Predicted before the
+# first run: the 386's CR2 for the five probing forms in the second-page,
+# mid-split and both-absent programs (15), and an m80 store's first eight
+# bytes at 10FF8h and at DS:FFF8h (2). Measured, then fixed: the x87
+# pointers and opcode, which Bochs moves before a store's access only (the
+# six store forms of each page program, twelve with both pages absent, three
+# limit stores and the fresh probe: 34), and the second page's A and D bits
+# a probe set before the first page faulted (7).
+X87_PAGING_RULES = {'x87_probe_rule': 3 * 5, 'x87_fault_rule': 34, 'x87_partial_rule': 2, 'x87_ad_rule': 7}
 
 
 def run_no387(testbench: str, env: dict) -> dict:

@@ -1473,6 +1473,12 @@ struct Summary {
     // the 386 probes the last byte first and stores nothing
     // (divergences.toml x87-operand-probe).
     uint64_t x87_fault_rule = 0, x87_partial_rule = 0;
+    // x87_ad_rule: probing forms whose first page faults, where the oracle
+    // took the A and D bits the RTL's probe of the last byte set in the
+    // second page's PDE and PTE before the first part faulted; Bochs
+    // translates the first page first and touches nothing of the second
+    // (divergences.toml x87-operand-probe).
+    uint64_t x87_ad_rule = 0;
     std::map<std::string, uint64_t> debug_kinds;
     std::map<int, uint64_t> pm_deliveries, unbuilt;
     std::map<std::string, uint64_t> pm_kinds;  // retirements with PE set of this slice's instructions, by kind
@@ -3447,6 +3453,40 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 oracle_state.cr2 = rtl_state.cr2;
                 oracle.set_state(oracle_state);
                 ++summary.x87_probe_rule;
+            }
+        }
+        // ... and when the first page faults (x87_ad_rule): both name the
+        // operand's first byte, but the RTL's probe, as the 386's CW B and CR B,
+        // has walked the second page first and set its A bits, and D for a
+        // store. The oracle takes exactly those bits of that page's PDE and
+        // PTE, found through CR3 in the RTL's memory, and nothing else.
+        if (x87_fitted && (oracle_state.cr0 & 0x80000000u) && rtl_state.cr2 == oracle_state.cr2) {
+            unsigned k = 0;
+            while (k < 14 && is_prefix(code[k])) ++k;
+            const uint8_t op = code[k], modrm = code[k + 1];
+            const unsigned reg = (modrm >> 3) & 7;
+            const unsigned n = modrm >= 0xc0 ? 0
+                             : (op == 0xdb && (reg == 5 || reg == 7)) || (op == 0xdf && (reg == 4 || reg == 6)) ? 10
+                             : (op == 0xdd && (reg == 2 || reg == 3)) || (op == 0xdf && reg == 7) ? 8 : 0;
+            const bool pf = std::any_of(result.events.begin(), result.events.end(), [](const fes_i386::Event &e) {
+                return e.kind == fes_i386::EventKind::Exception && e.vector == 14;
+            });
+            const uint32_t last = rtl_state.cr2 + n - 1;
+            if (pf && n && (last >> 12) != (rtl_state.cr2 >> 12)) {
+                const auto rd = [&](uint32_t x) {
+                    return uint32_t(rtl.ram[x]) | uint32_t(rtl.ram[x + 1]) << 8 | uint32_t(rtl.ram[x + 2]) << 16
+                         | uint32_t(rtl.ram[x + 3]) << 24;
+                };
+                const uint32_t pde_at = (rtl_state.cr3 & ~0xfffu) + 4 * (last >> 22);
+                const uint32_t pte_at = (rd(pde_at) & ~0xfffu) + 4 * ((last >> 12) & 0x3ff);
+                bool took = false;
+                for (uint32_t at : {pde_at, pte_at}) {
+                    if (at >= RAM_BYTES || bus.ram[at] == rtl.ram[at] || ((bus.ram[at] ^ rtl.ram[at]) & ~0x60u)) continue;
+                    bus.ram[at] = rtl.ram[at];
+                    oracle.invalidate(at, 1);
+                    took = true;
+                }
+                summary.x87_ad_rule += took;
             }
         }
         // A fault in an ESC with a memory operand (x87_fault_rule): the 386
@@ -10252,6 +10292,39 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
             {"pg-x87-limit32-fstp80", {0xdb, 0x3d, 0xf8, 0xff, 0x00, 0x00}, false}, // FSTP m80 [0000FFF8h]
             {"pg-x87-limit32-fst64", {0xdd, 0x15, 0xfc, 0xff, 0x00, 0x00}, false},  // FST m64 [0000FFFCh]
         };
+        // The same wrap under DS 20h's 4 GiB limit: the probe's unwrapped
+        // offset (10001h) is in the limit, so nothing faults, and the parts
+        // wrap by the address size as Bochs's do (an m80's word at 0000h).
+        {
+            Case c{"pg-x87-wrap-biglimit", [=](Asm &a, uint32_t base) {
+                prologue(a, base);
+                esc(a, 0xd9, 0, 0x4f00);                           // FLD m32
+                a.op({0x67, 0xdd, 0x16, 0xfa, 0xff});              // FST m64 [FFFAh], a16
+                a.op({0x67, 0xdb, 0x3e, 0xf8, 0xff});              // FSTP m80 [FFF8h], a16
+                a.op({0x67, 0xdb, 0x2e, 0xf8, 0xff});              // FLD m80 [FFF8h], a16
+                esc(a, 0xd9, 6, 0x4e00);                           // FNSTENV: the pointers
+            }, -1, -1, -1, {{0x10, 0x10000 | P | W | U}}, {}, {{0x4f00, {0x00, 0x00, 0xc0, 0x3f}}}};
+            c.x87 = true;
+            cases.push_back(c);
+        }
+        // A store's probe of a second page whose PTE has neither A nor D, the
+        // first page absent: the probe is checked as a write, as the 386's CW B
+        // is, and the first part then faults on the first page.
+        {
+            Case c{"pg-x87-first-absent-fresh", [=](Asm &a, uint32_t base) {
+                prologue(a, base);
+                esc(a, 0xd9, 0, 0x4f00);                           // FLD m32
+                esc(a, 0xdd, 3, 0x10ffc);                          // FSTP m64 across 10h (absent) and 11h
+                a.ldr(EBX, pte(0x11));                             // MOV EBX, 11h's PTE: its A and D
+            }, -1, -1, -1, {{0x10, 0}, {0x11, 0x11000 | P | W | U}}, {},
+               {{X87_PF_HANDLER, handler(pte(0x11))}, {0x4f00, {0x00, 0x00, 0xc0, 0x3f}}},
+               false, -1, false, {{14, gate(0x18, X87_PF_HANDLER, 0x8e)}}, false, true};
+            c.x87 = true;
+            // The handler's marker is 11h's PTE as the fault leaves it: A and
+            // D set by the probe (x87_ad_rule).
+            c.pf_log = {{0x10ffc, 2, 0x11000 | P | W | U | A | D}};
+            cases.push_back(c);
+        }
         for (const Limit &l : limits) {
             Case c{l.label, [=](Asm &a, uint32_t base) {
                 prologue(a, base);
@@ -14123,7 +14196,7 @@ int main(int argc, char **argv) {
                 "\"no387_rule\": %llu, \"no387_skips\": %llu, \"x87_compared\": %llu, "
                 "\"x87_bcd_forms\": {\"fbld\": %llu, \"fbstp\": %llu, \"not_built\": %llu}, "
                 "\"x87_trans\": %s, "
-                "\"dr6_rule\": %llu, \"db_rf_rule\": %llu, \"x87_probe_rule\": %llu, \"x87_fault_rule\": %llu, \"x87_partial_rule\": %llu, "
+                "\"dr6_rule\": %llu, \"db_rf_rule\": %llu, \"x87_probe_rule\": %llu, \"x87_fault_rule\": %llu, \"x87_partial_rule\": %llu, \"x87_ad_rule\": %llu, "
                 "\"debug_kinds\": {%s}, \"x87_backend_offered\": [%llu, %llu, %llu, %llu, %llu, %llu, %llu, %llu], \"x87_backend_taken\": [%llu, %llu, %llu, %llu, %llu, %llu, %llu, %llu]}\n",
                 mode.c_str(), (unsigned long long)seed, latency ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
@@ -14165,6 +14238,7 @@ int main(int argc, char **argv) {
                 (unsigned long long)summary.dr6_rule,
                 (unsigned long long)summary.db_rf_rule, (unsigned long long)summary.x87_probe_rule,
                 (unsigned long long)summary.x87_fault_rule, (unsigned long long)summary.x87_partial_rule,
+                (unsigned long long)summary.x87_ad_rule,
                 named(summary.debug_kinds).c_str(),
                 (unsigned long long)x87_backend_offered[0],
                 (unsigned long long)x87_backend_offered[1],

@@ -115,10 +115,20 @@ lockstep: [the differences](#the-differences-from-bochs).
   translated, and with no wrap every offset between two in-limit offsets is
   in the limit. The only way past that is a wrap, which the next point
   closes.
-- **A 16-bit probe that wraps faults** (`m1_xwrap`): an m80's or m64
-  store's probe whose 16-bit offset wrapped past FFFFh is past the limit, as
-  the 386's 32-bit add of it is: #GP(0), or #SS(0) for an SS operand, before
-  a byte moves.
+- **A 16-bit probe that wraps is checked unwrapped** (`m1_xwrap`): an
+  m80's or m64 store's probe whose 16-bit offset wrapped past FFFFh is
+  checked at 10000h plus that offset, as the 386's 32-bit add of it would
+  put it. Past the limit (FFFFh, or an expand-down segment's upper bound)
+  it is #GP(0), or #SS(0) for an SS operand, before a byte moves. Under a
+  larger limit it is in it, and the parts wrap by the address size, as
+  Bochs's do, so the wrap completes on both. The first cut faulted every
+  wrapped probe whatever the limit; review found it, and
+  `pg-x87-wrap-biglimit` is the case for it.
+- **A probe walks the second page first.** With the first page absent and
+  the second present, the probe sets the second page's A bits, and D for a
+  store, before the first part faults on the first page: the 386's order,
+  where Bochs's translation of the first page touches nothing of the
+  second. `pg-x87-first-absent-fresh` checks the PTE the handler sees.
 - **A held store** (an unmasked exception other than precision, #1872) makes
   no access, and now neither does its probe: no limit check, no translation,
   as #1998 set it out. The 386 makes its probes before the 387 declines the
@@ -159,10 +169,17 @@ whole state included.
   in #GP(0) with nothing moved: FSTP m64 at FFFAh and FLD m80 and FSTP m80 at
   FFF8h under a 16-bit address size, FSTP m80 at 0000FFF8h and FST m64 at
   0000FFFCh under a 32-bit one.
+- **`pg-x87-wrap-biglimit`**: FST m64 at FFFAh and FSTP and FLD m80 at FFF8h
+  under a 16-bit address size with DS's 4 GiB limit, which complete, the
+  m80's word at 0000h, in lockstep with Bochs.
+- **`pg-x87-first-absent-fresh`**: FSTP m64 across an absent first page and
+  a second page whose PTE has neither A nor D; the handler logs that PTE as
+  the fault leaves it, A and D set.
 
-**Each fails on main's RTL** (e8f922ab6, the new bench and oracle adapter on
-main's CPU: [main-negative-control.txt](main-negative-control.txt)), seven of
-nine: partial stores (the bench's write comparison, and the markers), CR2s,
+**The first nine fail on main's RTL**, seven of them (e8f922ab6, the new
+bench and oracle adapter on main's CPU:
+[main-negative-control.txt](main-negative-control.txt)), which was measured
+before the last two cases were added: partial stores (the bench's write comparison, and the markers), CR2s,
 and the 16-bit wrap stores. `pg-x87-first-absent` passes there, because
 main's RTL loads downwards and stores upwards and either way the first page
 faults first with nothing written, and so does `pg-x87-limit32-fstp80`,
@@ -171,16 +188,19 @@ then fault: that case is now one of the two the partial-store rule takes.
 
 ## The differences from Bochs
 
-Three, each a `[[lockstep]]` entry in `divergences.toml`, each the 386's
-side followed, and each taken by a narrow rule whose count the runner fixes
-in advance (`X87_PAGING_RULES`), so a rule that stops applying, or starts
-applying more widely, fails the run:
+Four, in three `[[lockstep]]` entries of `divergences.toml`, each taken by
+a narrow rule whose count the runner fixes (`X87_PAGING_RULES`), so a rule
+that stops applying, or starts applying more widely, fails the run. Two of
+the counts were predicted before the first run, the probe rule's 15 and the
+partial rule's 2; the other two were measured and then fixed, and that is
+all they are: the pointer rule's 34 (every one a store's) and the A/D
+rule's 7.
 
 | Entry | Bochs | The RTL, as the 386 | Rule, count |
 | --- | --- | --- | --- |
-| `x87-operand-probe` | a #PF on the second page names its first byte, or the operand's when both fault; an m80 store writes a qword, then faults on its word | names the last byte; stores nothing | `x87_probe_rule` 15, `x87_partial_rule` 2 |
-| `x87-pointers-on-fault` | writes the x87 pointers and the opcode before the access | leaves them | `x87_fault_rule` 33 |
-| `x87-operand-wrap` | an m80 at FFF8h under a 16-bit address size wraps its word to 0000h and completes | #GP(0) | the RTL alone, 2 cases |
+| `x87-operand-probe` | a #PF on the second page names its first byte, or the operand's when both fault; an m80 store writes a qword, then faults on its word; with the first page absent, nothing of the second is touched | names the last byte; stores nothing; sets the second page's A and D | `x87_probe_rule` 15, `x87_partial_rule` 2, `x87_ad_rule` 7 |
+| `x87-pointers-on-fault` | writes the x87 pointers and the opcode before a store's access (a load's after it, as the 386) | leaves them | `x87_fault_rule` 34 |
+| `x87-operand-wrap` (`follow = "open"`) | an m80 at FFF8h under a 16-bit address size, limit FFFFh, wraps its word to 0000h and completes | #GP(0) | the RTL alone, 2 cases |
 
 `x87_probe_rule` takes the RTL's CR2 only where it is the operand's last
 byte and Bochs's is the second page's first byte, or, both pages absent,
@@ -188,7 +208,10 @@ the operand's first: at most the operand's length apart. `x87_partial_rule`
 takes the RTL's bytes back only where Bochs wrote an m80 store's first
 eight in one access before its fault and the RTL none. `x87_fault_rule`
 gives the oracle back its pointers and opcode only where the RTL kept its
-own. The oracle adapter gained `set_x87_opcode` for it.
+own; for a load, where Bochs keeps them too, the lockstep's 387 comparison
+is the check that the RTL did. `x87_ad_rule` gives the oracle only the A
+and D bits of the second page's PDE and PTE, and only where the first page
+faulted on a probing form. The oracle adapter gained `set_x87_opcode` for it.
 
 ## Decisions, and where they differ from the 386
 

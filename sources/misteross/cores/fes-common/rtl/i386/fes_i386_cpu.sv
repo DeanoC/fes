@@ -2237,12 +2237,16 @@ module fes_i386_cpu #(
     // An x87 operand's probe (x87 operand probes, in D) under a 16-bit
     // address size whose offset wrapped past FFFFh: the 386 adds the last
     // byte's offset with a 32-bit ALU (BITS32 at 4D5, 53A and 542 of its
-    // microcode), so the probe is past a 16-bit segment's limit and faults
-    // before a byte moves, as Bochs's check of the whole operand does. The
-    // probe is at 9 (an m80's, part 2) or 7 (an m64 store's, part 1).
+    // microcode), so the probe is at 10000h plus the wrapped offset, and
+    // faults before a byte moves when that is past the segment's limit (a
+    // limit of FFFFh, or an expand-down segment's upper bound of FFFFh), as
+    // Bochs's check of the whole operand does. Under a larger limit it is
+    // in it, and the parts wrap by the address size as Bochs's do. The probe
+    // is at 9 (an m80's, part 2) or 7 (an m64 store's, part 1).
     logic m1_xwrap;
     assign m1_xwrap = m1_s.x87 && m1_s.nodata && !m1_s.uop.mem.addr32
-                   && m1_s.moff[15:0] < (m1_s.x87_part[1] ? 16'd9 : 16'd7);
+                   && m1_s.moff[15:0] < (m1_s.x87_part[1] ? 16'd9 : 16'd7)
+                   && {15'd0, 1'b1, m1_s.moff[15:0]} > m1_s.mlimit;
     assign m1_limit = m1_s.uop.mem.kind != fes_i386_pkg::MEM_NONE
                    && (m1_s.moff > m1_s.mlimit || m1_s.mtiny || m1_s.mexpd && m1_s.moff <= m1_s.mlow
                        || m1_s.uop.bound_pair && m1_bound_wrap || m1_xwrap);

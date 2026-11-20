@@ -1631,8 +1631,10 @@ the unit's own header comment carries the design. In short:
   comes before any byte is stored or any part reaches the unit, the x87
   pointers and the opcode stay as they were, and the instruction restarts.
   A #PF on the second page names the last byte for the probing forms, as
-  the 386's does. A probe whose 16-bit offset wraps past FFFFh is past the
-  limit, as the 386's 32-bit add of it is. Exception 9 is not raised: its
+  the 386's does. A probe whose 16-bit offset wraps past FFFFh is checked
+  at its unwrapped offset, as the 386's 32-bit add of it would be: past a
+  limit of FFFFh it faults, and under a larger one the parts wrap by the
+  address size, as Bochs's do. Exception 9 is not raised: its
   manual's case is an operand that wraps an addressing limit with bytes
   between its ends not accessible, and the 386's microcode has no path that
   delivers it. [docs/validation/2026-11-20-i386-x87-exc9](../../../../../../docs/validation/2026-11-20-i386-x87-exc9/summary.md)
