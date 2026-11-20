@@ -144,7 +144,7 @@ def verify_prepared_image(disk, receipt, inputs, fit_data, output, run):
     verify_protected_layout(disk, template, receipt['protected_prefix_sha256'])
 
     fat = str(disk)+'@@'+str(PREFIX_SIZE)
-    listing = run('sd-directory', ['mdir', '-b', '-s', '-i', fat, '::/']).read_text().splitlines()
+    listing = run('sd-directory', ['mdir', '-a', '-b', '-s', '-i', fat, '::/']).read_text().splitlines()
     directories = {parent.as_posix()+'/' for name in payload for parent in PurePosixPath(name).parents
                    if parent != PurePosixPath('.')}
     expected = {'::/'+name.casefold() for name in (*payload, *directories)}

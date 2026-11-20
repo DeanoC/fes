@@ -25,7 +25,7 @@ def encoded(value):
     return (json.dumps(value, sort_keys=True, separators=(',', ':'))+'\n').encode()
 
 
-@unittest.skipUnless(all(shutil.which(n) for n in ('mformat', 'mmd', 'mcopy', 'mtype', 'mdir')), 'mtools required')
+@unittest.skipUnless(all(shutil.which(n) for n in ('mformat', 'mmd', 'mcopy', 'mtype', 'mdir', 'mattrib')), 'mtools required')
 class LauncherImageTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -147,6 +147,7 @@ class LauncherImageTests(unittest.TestCase):
                 replacement.write_bytes(original)
                 subprocess.run(['mcopy', '-o', '-i', fat, replacement, '::'+name], check=True)
         subprocess.run(['mcopy', '-i', fat, replacement, '::FES/EXTRA.BIN'], check=True)
+        subprocess.run(['mattrib', '+h', '-i', fat, '::FES/EXTRA.BIN'], check=True)
         with self.assertRaisesRegex(ValueError, 'extra or aliased FAT entries'):
             verify('extra')
 
