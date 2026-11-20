@@ -178,6 +178,16 @@ int held_for_ever = 0;
 long compared = 0;
 
 // ---- The unit under test, with the CPU's side of its interface. ----
+// The CPU's uops for a memory operand (fes_i386_decode; ucode.toml's xld8,
+// xld10, fst8 and fst10; #2020): an m80 load and an m64 or m80 store start
+// with a probe of the operand's last byte, which issues as the
+// instruction's first uop with the top part's index and moves nothing to
+// the unit (fes_i386_cpu gates its commit), and every form then moves its
+// parts upwards from the operand.
+bool probes(unsigned fmt, bool store) {
+    return fmt == FMT_F80 || store && (fmt == FMT_F64 || fmt == FMT_I64);
+}
+
 struct Unit {
     Vfes_i386_x87 top;
 
@@ -359,24 +369,29 @@ struct Unit {
         commit(0, 0, true);
         settle();
     }
-    // A load of `fmt` from `bytes`: the parts commit high first, as the
-    // CPU's microcode loops read them.
+    // A load of `fmt` from `bytes`, in the CPU's order (probes, below):
+    // an m80's probe, then the parts upwards.
     void load(unsigned op, unsigned fmt, const uint8_t *bytes) {
         const int parts = fmt == FMT_F80 ? 3 : (fmt == FMT_F64 || fmt == FMT_I64) ? 2 : 1;
-        for (int p = parts - 1; p >= 0; --p) {
-            present(op, fmt, p == parts - 1, p == 0, unsigned(p));
+        const bool probe = probes(fmt, false);
+        if (probe) present(op, fmt, true, false, unsigned(parts - 1));
+        for (int p = 0; p < parts; ++p) {
+            present(op, fmt, !probe && p == 0, p == parts - 1, unsigned(p));
             uint32_t v = 0;
             std::memcpy(&v, bytes + 4 * p, p == 2 ? 2 : 4);
-            commit(unsigned(p), v, p == 0);
+            commit(unsigned(p), v, p == parts - 1);
         }
         settle();
     }
-    // A store of `fmt`: the bytes the CPU would write.
+    // A store of `fmt`: the bytes the CPU would write, in its order: an m64's
+    // or m80's probe, then the parts upwards.
     void store(unsigned op, unsigned fmt, uint8_t out[10]) {
         const int parts = fmt == FMT_F80 ? 3 : (fmt == FMT_F64 || fmt == FMT_I64) ? 2 : 1;
+        const bool probe = probes(fmt, true);
         std::memset(out, 0, 10);
+        if (probe) present(op, fmt, true, false, unsigned(parts - 1));
         for (int p = 0; p < parts; ++p) {
-            const uint32_t v = present(op, fmt, p == 0, p == parts - 1, unsigned(p));
+            const uint32_t v = present(op, fmt, !probe && p == 0, p == parts - 1, unsigned(p));
             std::memcpy(out + 4 * p, &v, p == 2 ? 2 : (fmt == FMT_I16 ? 2 : 4));
             commit(unsigned(p), 0, p == parts - 1);
         }
@@ -772,13 +787,14 @@ void unit_seq(Unit &u, uint16_t cw, const uint8_t (*stack)[10], unsigned pushes,
         const int parts = !memform ? 1 : s.fmt == FMT_F80 ? 3 : (s.fmt == FMT_F64 || s.fmt == FMT_I64) ? 2 : 1;
         if (is_fbld(s)) ++bcd_issued[0];
         if (is_fbstp(s)) ++bcd_issued[1];
-        for (int k = 0; k < parts; ++k) {
-            // A load's parts commit high first and a store's low first, as
-            // the CPU's microcode moves them -- except FBSTP's, which the
-            // CPU stores from the top word down (ucode.toml's fbst10), so
-            // that the uop at the operand's own offset is the last.
-            const int p = memform && (!s.store || is_fbstp(s)) ? parts - 1 - k : k;
-            const bool first = k == 0, last = k == parts - 1;
+        // The CPU's uops (probes): an m80's, or an m64 or m80 store's, probe
+        // and then the parts upwards; the probe moves nothing.
+        const bool probe = memform && probes(s.fmt, s.store);
+        const int uops = parts + (probe ? 1 : 0);
+        for (int k = 0; k < uops; ++k) {
+            const bool is_probe = probe && k == 0;
+            const int p = is_probe ? parts - 1 : k - (probe ? 1 : 0);
+            const bool first = k == 0, last = k == uops - 1;
             uint32_t v;
             if (pending && inflight) {
                 v = u.present_over(op, memform ? s.fmt : 0, first, last, unsigned(p), pend_part, pend_val);
@@ -790,6 +806,7 @@ void unit_seq(Unit &u, uint16_t cw, const uint8_t (*stack)[10], unsigned pushes,
                 v = u.present(op, memform ? s.fmt : 0, first, last, unsigned(p));
             }
             pending = false;
+            if (is_probe) continue;
             uint32_t load = 0;
             const unsigned width = p == 2 ? 2 : (s.fmt == FMT_I16 ? 2 : 4);
             if (memform && s.store) {
@@ -910,14 +927,18 @@ void run_bcd_unbuilt() {
         const int parts = control ? 2 : 3;
         bool held = false, busy = false;
         if (!control) ++bcd_issued[f.store ? 1 : 0];
-        for (int k = 0; k < parts; ++k) {
-            const int p = parts - 1 - k;   // FBLD's order, and FBSTP's (fbst10)
+        // The CPU's uops (probes): FBLD's and FBSTP's probe, then the parts
+        // upwards; FILD m64's parts upwards.
+        const int uops = parts + (control ? 0 : 1);
+        for (int k = 0; k < uops; ++k) {
+            const bool is_probe = !control && k == 0;
+            const int p = is_probe ? parts - 1 : k - (control ? 0 : 1);
             u.top.iss = 1;
             u.top.iss_wait = 0;
             u.top.iss_op = f.op;
             u.top.iss_fmt = fmt;
             u.top.iss_first = k == 0;
-            u.top.iss_last = k == parts - 1;
+            u.top.iss_last = k == uops - 1;
             u.top.iss_part = unsigned(p);
             u.top.iss_fire = 0;
             u.top.eval();
@@ -932,7 +953,7 @@ void run_bcd_unbuilt() {
             u.top.iss = 0;
             u.top.iss_fire = 0;
             u.top.eval();
-            u.commit(unsigned(p), p == 0 ? 0x00000042u : 0, k == parts - 1);
+            if (!is_probe) u.commit(unsigned(p), p == 0 ? 0x00000042u : 0, k == uops - 1);
             for (int n = 0; n < 8; ++n) {
                 busy = busy || u.top.busy_o;
                 u.tick();

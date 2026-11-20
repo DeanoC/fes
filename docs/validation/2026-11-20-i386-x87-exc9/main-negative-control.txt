@@ -1,0 +1,13 @@
+# The nine new paging cases on main's RTL (e8f922ab6), with this PR's lockstep_tb.cpp,
+# i386_oracle.h and bochs_oracle.cpp copied in; RTL testbench, DE10 backend, Powerboat.
+# One line per case, in order: pg-x87-straddle, -straddle-mid, -first-absent, -both-absent,
+# -limit16-fstp64, -limit16-fld80, -limit16-fstp80, -limit32-fstp80, -limit32-fst64.
+FAIL paging:pg-x87-straddle @10b5.write-bytes 1000000ef0 1400000ef0 pg-x87-straddle.halt 1 0 pg-x87-straddle.pf-count c 1 pg-x87-straddle.pf0-cr2 11005 11004 "runs": 1, "passed": 0 
+FAIL paging:pg-x87-straddle-mid @10cb.cr2 11000 11002 pg-x87-straddle-mid.halt 1 0 pg-x87-straddle-mid.pf-count c 2 pg-x87-straddle-mid.pf0-cr2 11001 11000 pg-x87-straddle-mid.pf1-cr2 11001 11000 pg-x87-straddle-mid.pf1-marker a5a5a5a5 0 "runs": 1, "passed": 0 
+"runs": 1, "passed": 1 
+FAIL paging:pg-x87-both-absent @109f.cr2 10ffc 11004 pg-x87-both-absent.halt 1 0 pg-x87-both-absent.pf-count 18 0 "runs": 1, "passed": 0 
+FAIL paging:pg-x87-limit16-fstp64 @1091.write-bytes 1000000ef0 1400000ef0 pg-x87-limit16-fstp64.exception d ff "runs": 1, "passed": 0 
+FAIL paging:pg-x87-limit16-fld80 pg-x87-limit16-fld80.exception d ff "runs": 1, "passed": 0 
+FAIL paging:pg-x87-limit16-fstp80 pg-x87-limit16-fstp80.exception d ff pg-x87-limit16-fstp80.x87-top 7 0 pg-x87-limit16-fstp80.operand.fff8 a5 0 pg-x87-limit16-fstp80.operand.fff9 a5 0 pg-x87-limit16-fstp80.operand.fffa a5 0 pg-x87-limit16-fstp80.operand.fffb a5 0 pg-x87-limit16-fstp80.operand.fffc a5 0 pg-x87-limit16-fstp80.ope
+"runs": 1, "passed": 1 
+FAIL paging:pg-x87-limit32-fst64 @1091.write-bytes 1000000ef0 1400000ef0 pg-x87-limit32-fst64.exception d ff "runs": 1, "passed": 0 

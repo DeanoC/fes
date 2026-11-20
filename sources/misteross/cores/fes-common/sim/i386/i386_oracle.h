@@ -217,6 +217,8 @@ public:
     // The x87 pointers, read and set.
     virtual X87Pointers x87_pointers() const = 0;
     virtual void set_x87_pointers(const X87Pointers &pointers) = 0;
+    // The last instruction's 11-bit opcode, set (X87State::opcode).
+    virtual void set_x87_opcode(uint16_t opcode) = 0;
     // Make the oracle's coprocessor read as an empty socket's: the control
     // and tag words, the opcode and the registers all ones, and the status
     // word all ones when status is set, else clear, so that no exception is

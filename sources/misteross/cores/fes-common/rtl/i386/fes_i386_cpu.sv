@@ -892,7 +892,8 @@ module fes_i386_cpu #(
         .iss_first(d_first), .iss_fire(issue), .iss_last(dc.uop.ctl.end_of_instruction),
         .iss_part(dc.x87_part),
         .hold(x87_hold), .sval(x87_sval), .nx(x87_nx),
-        .wb(wb_commit && wb_s.x87), .wb_last(wb_commit && wb_s.x87 && wb_s.uop.ctl.end_of_instruction),
+        // A probe (x87 operand probes, below) moves nothing to the unit.
+        .wb(wb_commit && wb_s.x87 && !wb_s.nodata), .wb_last(wb_commit && wb_s.x87 && wb_s.uop.ctl.end_of_instruction),
         .wb_val(wb_s.result), .wb_part(wb_s.x87_part), .flush(wb_flush),
         .wb_opcode_set(x87_ld_env && wb_s.x87_part[2:0] == 3'd4), .wb_opcode(x87_ld_opcode),
         .cw_o(arch_x87_cw), .sw_o(arch_x87_sw), .tw_o(arch_x87_tw), .opcode_o(arch_x87_opcode),
@@ -1237,6 +1238,27 @@ module fes_i386_cpu #(
     // whole uop.
     assign d_ifw = dc.fetched && !dc.xbad && (d_need0 || d_need1);
     assign d_ifw_lin = d_need0 ? dc.lin : {dc.lin[31:4] + 28'd1, 4'd0};
+    // x87 operand probes (#2020). A 386 checks both ends of an ESC's memory
+    // operand before any of it moves to or from the 387: CR B and CW B
+    // ("perform access/limit/paging checks ... but don't actually do" the
+    // access) of the last byte and then the first, in FPU_LOAD_CORE and
+    // FPU_STORE_CORE of its microcode (reenigne/x86_microcode,
+    // 80386/microcode_notes.txt 4FC-4FE, 562-564; the last byte's offset
+    // set at 4D5, 53A and 542). So an operand across a page, or past a
+    // limit, faults before a byte moves, and the instruction restarts. The
+    // multi-part forms do the same here: an m80 load and every m64 and m80
+    // store start with a one-byte load of the operand's last byte, whose
+    // data nothing uses (nodata) but which translates (not nx) as the
+    // access it stands for, a write's for a store (wx: their reg fields
+    // are /2, /3, /6 and /7, the loads' /4 and /5); the parts then move
+    // upwards from the operand, the first checking the first byte before it
+    // writes; a store's probe takes the segment's write check too, so a
+    // read-only segment is #GP before any page is walked, as CW B checks the
+    // segment as a write before paging. Only these forms are byte-sized x87
+    // accesses. A store the unit
+    // holds back (x87_nx) makes no access, its probe included (#1872).
+    logic d_x87_probe;
+    assign d_x87_probe = dc.x87 && dc.uop.mem.kind == fes_i386_pkg::MEM_LOAD && dc.uop.mem.bytes == 4'd1;
     always_comb begin
         u = dc.uop;
         if (stk != fes_i386_pkg::STK_NONE) u.mem.addr32 = sst;
@@ -1906,7 +1928,8 @@ module fes_i386_cpu #(
                     : dc.tss == 3'(fes_i386_pkg::TSS_BITMAP) ? tss_tiny_bm
                     : dc.uop.mem.system && dc.uop.desc == 4'd0 && !dc.sel_part && dc.tss == 3'd0
                       ? idt_tiny3 : !dc.uop.mem.system && !dc.nochk
-                        && (seg_tiny[mseg][msize] || mem_reads && seg_rbad[mseg] || (mem_writes || xchg_ld) && seg_wbad[mseg]);
+                        && (seg_tiny[mseg][msize] || mem_reads && seg_rbad[mseg]
+                            || (mem_writes || xchg_ld || d_x87_probe && dc.x87_op[4]) && seg_wbad[mseg]);
         d_out.mlow = d_nstk ? ds_chk.low : seg_low[mseg];
         d_out.mexpd = d_nstk ? ds_chk.expd : !dc.uop.mem.system && !dc.nochk && seg_expd[mseg];
         // Loads whose data nothing uses: probes, ENTER's last check, POP m's
@@ -1914,7 +1937,8 @@ module fes_i386_cpu #(
         d_out.sdisp = dc.pimm ? pimm_off[17:0] : {{10{st_disp[7]}}, st_disp[7:0]};
         d_out.nodata = dc.stk == fes_i386_pkg::STK_PROBE || dc.str_fin || dc.nochk
                     || dc.seq == 5'(fes_i386_pkg::SEQ_POPM) && dc.stk == fes_i386_pkg::STK_POP
-                    || (u.op == 5'd4 || u.op == 5'd5) && (u.cls == fes_i386_pkg::UOP_MUL || u.cls == fes_i386_pkg::UOP_DIV);
+                    || (u.op == 5'd4 || u.op == 5'd5) && (u.cls == fes_i386_pkg::UOP_MUL || u.cls == fes_i386_pkg::UOP_DIV)
+                    || d_x87_probe;
         // A st2 uop's store address and its fault; the next instruction for
         // a REPE or REPNE element. AG keeps them.
         d_out.target = dc.str_two ? str_daddr : s_tgt;
@@ -1989,7 +2013,7 @@ module fes_i386_cpu #(
         // so that separate store performs the write translation (#1665).
         d_out.ipp0 = dc.pp0;
         d_out.ipp1 = dc.pp1;
-        d_out.nx = d_out.nodata && !dc.str_fin && dc.stk != fes_i386_pkg::STK_PROBE
+        d_out.nx = d_out.nodata && !dc.str_fin && dc.stk != fes_i386_pkg::STK_PROBE && !d_x87_probe
                 || dc.x87 && x87_nx;
         // An x87 store the unit holds back (nx: an unmasked exception other
         // than precision) makes no access at all, as the 387 stores nothing
@@ -1998,9 +2022,10 @@ module fes_i386_cpu #(
         // younger load to forward. Without this only the translation was
         // skipped and WB still wrote the unit's value (#1872, found by the
         // lockstep's unmasked-store programs, the first to reach it).
-        if (dc.x87 && x87_nx && u.mem.kind == fes_i386_pkg::MEM_STORE)
+        // A held store's probe (x87 operand probes) goes the same way.
+        if (dc.x87 && x87_nx && (u.mem.kind == fes_i386_pkg::MEM_STORE || d_x87_probe && dc.x87_op[4]))
             d_out.uop.mem.kind = fes_i386_pkg::MEM_NONE;
-        d_out.wx = dc.str_fin || dc.stk == fes_i386_pkg::STK_PROBE || xchg_ld;
+        d_out.wx = dc.str_fin || dc.stk == fes_i386_pkg::STK_PROBE || xchg_ld || d_x87_probe && dc.x87_op[4];
         d_out.ones = tsf_any && !tsf_32 && u.dst.valid && u.dst.space == fes_i386_pkg::RS_GPR;
         d_out.iret0 = d_first && dc.fetched && !d_ifw && !cs_gp
                    && u.ctl.fault == fes_i386_pkg::FAULT_NONE && dc.seq == fes_i386_pkg::SEQ_UCODE
@@ -2213,9 +2238,22 @@ module fes_i386_cpu #(
     assign m1_bound_low = m1_s.uop.mem.addr32 ? m1_s.moff - 32'(m1_s.uop.mem.bytes)
                                                : {16'd0, m1_s.moff[15:0] - 16'(m1_s.uop.mem.bytes)};
     assign m1_bound_wrap = m1_bound_low > m1_s.mlimit || m1_s.mtiny || m1_s.mexpd && m1_bound_low <= m1_s.mlow;
+    // An x87 operand's probe (x87 operand probes, in D) under a 16-bit
+    // address size whose offset wrapped past FFFFh: the 386 adds the last
+    // byte's offset with a 32-bit ALU (BITS32 at 4D5, 53A and 542 of its
+    // microcode), so the probe is at 10000h plus the wrapped offset, and
+    // faults before a byte moves when that is past the segment's limit (a
+    // limit of FFFFh, or an expand-down segment's upper bound of FFFFh), as
+    // Bochs's check of the whole operand does. Under a larger limit it is
+    // in it, and the parts wrap by the address size as Bochs's do. The probe
+    // is at 9 (an m80's, part 2) or 7 (an m64 store's, part 1).
+    logic m1_xwrap;
+    assign m1_xwrap = m1_s.x87 && m1_s.nodata && !m1_s.uop.mem.addr32
+                   && m1_s.moff[15:0] < (m1_s.x87_part[1] ? 16'd9 : 16'd7)
+                   && {15'd0, 1'b1, m1_s.moff[15:0]} > m1_s.mlimit;
     assign m1_limit = m1_s.uop.mem.kind != fes_i386_pkg::MEM_NONE
                    && (m1_s.moff > m1_s.mlimit || m1_s.mtiny || m1_s.mexpd && m1_s.moff <= m1_s.mlow
-                       || m1_s.uop.bound_pair && m1_bound_wrap);
+                       || m1_s.uop.bound_pair && m1_bound_wrap || m1_xwrap);
     // A protected-mode segment load's, far transfer's or delivery's checks
     // (segchk) come from the staged descriptor (ds_fault_*); what each
     // stops on as not built, and why, follows from the check.
