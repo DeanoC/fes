@@ -65,7 +65,10 @@ module pc386_de25_sim #(
     input wire [63:0] p2_readdata,
     input wire p2_readdatavalid,
     output reg [63:0] dbg_p2_written = 64'd0,
-    output reg [7:0] dbg_p2_owed = 8'd0
+    output reg [7:0] dbg_p2_owed = 8'd0,
+    // For the bench's failure report: the window's fault record, the arbiter's
+    // idle, and each machine port's command and waitrequest.
+    output wire [15:0] dbg_window
 );
     wire q0_reset, q1_reset, q2_reset, q0_drained, q1_drained, q2_drained;
     wire q0_read, q0_write, q0_waitrequest, q0_readdatavalid;
@@ -186,7 +189,8 @@ module pc386_de25_sim #(
             dbg_p2_owed <= dbg_p2_owed == 8'd0 ? q2_burstcount - 8'd1 : dbg_p2_owed - 8'd1;
         end
     end
+    assign dbg_window = {2'b00, fault_port, fault_no_grant, fault_outside, idle, q0_read, q0_write, q0_waitrequest,
+                         q1_read || q1_write, q1_waitrequest, q2_read || q2_write, q2_waitrequest, q0_drained && q1_drained && q2_drained};
     wire unused = ^{p0_reset, p1_reset, p2_reset, p1_waitrequest, p1_readdata, p1_readdatavalid, p2_waitrequest,
-                    p2_readdata, p2_readdatavalid, m_address[3:0], idle, fault_port, fault_no_grant, fault_outside,
-                    q0_drained, q1_drained, q2_drained};
+                    p2_readdata, p2_readdatavalid, m_address[3:0]};
 endmodule

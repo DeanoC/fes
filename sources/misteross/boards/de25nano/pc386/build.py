@@ -62,13 +62,14 @@ board = load(HERE.parent / "machine/board.py", "de25_pc386_machine_board")
 sys.path.insert(0, str(board.ROOT / MISTEROSS))
 from scripts import build_fes_pc386_quartus as sealer  # noqa: E402
 from scripts import yosys_netlist  # noqa: E402
+from scripts import fit_i386_device as fit  # noqa: E402
 
 SOURCES = ({BOARD + "pc386/" + name for name in LOCAL_FILES} |
            {BOARD + "spectrum/derive.py", BOARD + "zx81-hps/fes_de25_computer.v",
             "sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v"} |
            {MISTEROSS + path for path in sealer.MACHINE_SOURCES + sealer.INCLUDES} |
            {MISTEROSS + path for path in (sealer.FIRMWARE_LOCK, sealer.LOCK, "scripts/yosys_netlist.py",
-                                          "scripts/build_fes_pc386_quartus.py")})
+                                          "scripts/build_fes_pc386_quartus.py", "scripts/fit_i386_device.py")})
 
 
 def guest_rates():
@@ -120,9 +121,12 @@ def machine_netlist(sources, derived_files):
         if "implicitly declared" in log:
             raise ValueError("the seal's Yosys reported implicit declarations (DeanoC/yosys#79)")
         data = netlist.read_bytes()
-    # Agilex has M20K where the RTL names Cyclone V's M10K.
-    count = data.count(b'ramstyle = "M10K"')
-    return data.replace(b'ramstyle = "M10K"', b'ramstyle = "M20K"'), count
+    # As every Agilex 5 fit of this netlist prepares it (fit_i386_device): M20K
+    # where the RTL names Cyclone V's M10K, and no bare attribute repeated beside
+    # its valued form, which Quartus Pro 26.3 refuses (Error 22074).
+    text, renamed = fit.retarget_ram_attribute(data.decode())
+    text, duplicates = fit.drop_duplicate_attributes(text)
+    return text.encode(), {"m10k_to_m20k": renamed, "duplicate_attributes_dropped": duplicates}
 
 
 def component_files(sources):
@@ -136,9 +140,9 @@ def component_files(sources):
     files["fes_hps_ddr_guard.v"] = sources["sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v"]
     machine, derived["pc386_machine.sv"] = derive.retarget_machine(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_machine.sv"])
     system, derived["pc386_system.sv"] = derive.retarget_system(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_system.sv"])
-    files["pc386_system.v"], ram_hints = machine_netlist(sources, {"pc386_machine.sv": machine, "pc386_system.sv": system})
+    files["pc386_system.v"], prepared = machine_netlist(sources, {"pc386_machine.sv": machine, "pc386_system.sv": system})
     derived["pc386_system.v"] = {"front_end": "yosys-seal-netlist", "guest_rates": guest_rates(),
-                                 "netlist_sha256": board.sha(files["pc386_system.v"]), "m10k_to_m20k": ram_hints,
+                                 "netlist_sha256": board.sha(files["pc386_system.v"]), **prepared,
                                  "x87": {"X87_PRESENT": 0, "X87_BACKEND": 0}}
     files["fes_de25_computer_transport.v"], derived["fes_de25_computer_transport.v"] = spectrum.transport(
         sources[BOARD + "zx81-hps/fes_de25_computer.v"])
