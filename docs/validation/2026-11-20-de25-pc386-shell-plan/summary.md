@@ -255,6 +255,25 @@ This is the measurement D2 is waiting for.
 | **P3** | The DE25 pc386 clock | 61.437908 MHz (−34 ppm, the same audio clock as the DE25 machines) / an exact 61.44 MHz through a cascaded PLL or another reference | **61.437908 MHz**, with the producer's rates made rational. D3's higher clock stays a separate decision. |
 | **P4** | Tier and support matrix | A `de25-nano` pc386 recipe row and support-matrix entry with slice 3 / none until slice 4's kit pass | **None until slice 4's kit pass.** DE25 is tier 2. A row naming a package that cannot launch would overstate it. |
 
+## Decisions (20 Nov 2026)
+
+Deano accepted all four recommendations as written: "Accept all four",
+20 November 2026, relayed by the coordinating session. The table above is
+the proposal and stays as it was. What was decided:
+
+- **P1, memory:** option A. All of pc386's memory lives in HPS DDR, as it
+  does on the DE10.
+- **P2, image change:** the image change for a large writable DMA window
+  (kernel owner, CMA, SMMU) is approved for slice 4, built on J8G's Linux
+  owner. The approval covers building and testing the change. Writing an
+  image onto a kit is still a destructive kit step: it needs Deano's own
+  explicit OK for the exact image and kit when slice 4 reaches it. A relayed
+  approval does not count for that step.
+- **P3, clock:** 61.437908 MHz, with the producer's guest rates made
+  rational.
+- **P4, tier:** no `de25-nano` pc386 recipe row or support-matrix entry
+  until slice 4's kit pass.
+
 ## Sources
 
 - [x87 slice 6 plan, #2027](https://github.com/DeanoC/fes/blob/deano/i386-x87-s6-plan/docs/validation/2026-11-20-i386-x87-s6-plan/summary.md),
