@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-// PAL sprite row/pointer DMA and bus ownership; pixel composition is separate.
-`include "c64_pal_timing.vh"
+// VIC-II sprite row/pointer DMA and bus ownership; pixel composition is separate.
+`include "c64_timing.vh"
 
-module c64_vic_sprite_fetch(input wire clk,reset,phi1,phi2,
- input wire [`C64_PAL_CYCLE_BITS-1:0] cycle,input wire [8:0] raster,
+module c64_vic_sprite_fetch #(parameter bit NTSC = 0) (input wire clk,reset,phi1,phi2,
+ input wire [`C64_CYCLE_BITS(NTSC)-1:0] cycle,input wire [8:0] raster,
  input wire [7:0] enabled,expanded,input wire [63:0] ypos,
  input wire expansion_write,input wire [7:0] expansion_value,input wire other_ba_n,
  input wire sample,input wire [7:0] ram_data,cpu_data,d018,input wire [1:0] bank,
@@ -11,6 +11,7 @@ module c64_vic_sprite_fetch(input wire clk,reset,phi1,phi2,
  output wire [191:0] sprite_data,
  output reg [7:0] dma,display,exp_flop,output wire [47:0] counters,bases,
  output wire ba_n,aec_n);
+ localparam DMA_FIRST = `C64_SPRITE_DMA_FIRST(NTSC);
  reg [5:0] mc[0:7],mcbase[0:7];reg [2:0] lead;
  wire [7:0] mask;
  reg [7:0] start_mask;reg slot,second_slot;reg [2:0] sprite;
@@ -18,12 +19,12 @@ module c64_vic_sprite_fetch(input wire clk,reset,phi1,phi2,
  // BA goes low three cycles before the pointer and stays low through the
  // second slot. Compute wrap at elaboration so the decoder stays combinational.
  for (genvar n=0; n<8; n=n+1) begin : ba_window
-  localparam POINTER = `C64_PAL_SPRITE_POINTER(n);
+  localparam POINTER = `C64_SPRITE_POINTER(NTSC,n);
   wire [4:0] active_cycles;
   for (genvar offset=0; offset<5; offset=offset+1) begin : decode
    // Convert to zero-based before wrapping, then restore the bus numbering.
-   localparam BUS_CYCLE = 1 + (POINTER - 1 - 3 + offset + `C64_PAL_CYCLES_PER_LINE)
-                               % `C64_PAL_CYCLES_PER_LINE;
+   localparam BUS_CYCLE = 1 + (POINTER - 1 - 3 + offset + `C64_CYCLES_PER_LINE(NTSC))
+                               % `C64_CYCLES_PER_LINE(NTSC);
    assign active_cycles[offset] = cycle == BUS_CYCLE;
   end
   assign mask[n] = |active_cycles;
@@ -31,25 +32,25 @@ module c64_vic_sprite_fetch(input wire clk,reset,phi1,phi2,
  always @* begin
   start_mask=0;
   for(integer n=0;n<8;n=n+1)
-   if(phi1&&(cycle==`C64_PAL_SPRITE_DMA_FIRST||cycle==`C64_PAL_SPRITE_DMA_LAST)&&enabled[n]&&ypos[n*8+:8]==raster[7:0]&&!dma[n])start_mask[n]=1;
+   if(phi1&&(cycle==DMA_FIRST||cycle==DMA_FIRST+1)&&enabled[n]&&ypos[n*8+:8]==raster[7:0]&&!dma[n])start_mask[n]=1;
   slot=1;second_slot=0;sprite=0;
   case(cycle)
-   `C64_PAL_SPRITE_POINTER(0):sprite=0;
-   `C64_PAL_SPRITE_POINTER(0)+1:begin sprite=0;second_slot=1;end
-   `C64_PAL_SPRITE_POINTER(1):sprite=1;
-   `C64_PAL_SPRITE_POINTER(1)+1:begin sprite=1;second_slot=1;end
-   `C64_PAL_SPRITE_POINTER(2):sprite=2;
-   `C64_PAL_SPRITE_POINTER(2)+1:begin sprite=2;second_slot=1;end
-   `C64_PAL_SPRITE_POINTER(3):sprite=3;
-   `C64_PAL_SPRITE_POINTER(3)+1:begin sprite=3;second_slot=1;end
-   `C64_PAL_SPRITE_POINTER(4):sprite=4;
-   `C64_PAL_SPRITE_POINTER(4)+1:begin sprite=4;second_slot=1;end
-   `C64_PAL_SPRITE_POINTER(5):sprite=5;
-   `C64_PAL_SPRITE_POINTER(5)+1:begin sprite=5;second_slot=1;end
-   `C64_PAL_SPRITE_POINTER(6):sprite=6;
-   `C64_PAL_SPRITE_POINTER(6)+1:begin sprite=6;second_slot=1;end
-   `C64_PAL_SPRITE_POINTER(7):sprite=7;
-   `C64_PAL_SPRITE_POINTER(7)+1:begin sprite=7;second_slot=1;end
+   `C64_SPRITE_POINTER(NTSC,0):sprite=0;
+   `C64_SPRITE_ROW(NTSC,0):begin sprite=0;second_slot=1;end
+   `C64_SPRITE_POINTER(NTSC,1):sprite=1;
+   `C64_SPRITE_ROW(NTSC,1):begin sprite=1;second_slot=1;end
+   `C64_SPRITE_POINTER(NTSC,2):sprite=2;
+   `C64_SPRITE_ROW(NTSC,2):begin sprite=2;second_slot=1;end
+   `C64_SPRITE_POINTER(NTSC,3):sprite=3;
+   `C64_SPRITE_ROW(NTSC,3):begin sprite=3;second_slot=1;end
+   `C64_SPRITE_POINTER(NTSC,4):sprite=4;
+   `C64_SPRITE_ROW(NTSC,4):begin sprite=4;second_slot=1;end
+   `C64_SPRITE_POINTER(NTSC,5):sprite=5;
+   `C64_SPRITE_ROW(NTSC,5):begin sprite=5;second_slot=1;end
+   `C64_SPRITE_POINTER(NTSC,6):sprite=6;
+   `C64_SPRITE_ROW(NTSC,6):begin sprite=6;second_slot=1;end
+   `C64_SPRITE_POINTER(NTSC,7):sprite=7;
+   `C64_SPRITE_ROW(NTSC,7):begin sprite=7;second_slot=1;end
    default:slot=0;
   endcase
  end
@@ -70,9 +71,9 @@ module c64_vic_sprite_fetch(input wire clk,reset,phi1,phi2,
       mcbase[i]<=mc[i];if(mc[i]==63)dma[i]<=0;
      end
      if(start_mask[i])begin dma[i]<=1;mcbase[i]<=0;exp_flop[i]<=1;end
-     if(cycle==`C64_PAL_SPRITE_DMA_LAST&&(dma[i]||start_mask[i])&&expanded[i])
+     if(cycle==`C64_SPRITE_EXPAND_CYCLE&&(dma[i]||start_mask[i])&&expanded[i])
       exp_flop[i]<=start_mask[i]?1'b0:!exp_flop[i];
-     if(cycle==`C64_PAL_SPRITE_POINTER(0))begin
+     if(cycle==`C64_SPRITE_POINTER(NTSC,0))begin
       mc[i]<=mcbase[i];
       if(dma[i])begin if(enabled[i]&&ypos[i*8+:8]==raster[7:0])display[i]<=1;end
       else display[i]<=0;
