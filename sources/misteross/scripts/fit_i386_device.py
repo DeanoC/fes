@@ -55,11 +55,10 @@ from contextlib import nullcontext
 import importlib.util
 
 from scripts import yosys_netlist
-from scripts.quartus_tools import load_quartus_lock, locate_quartus
+from scripts.quartus_tools import load_quartus_lock, locate_quartus, quartus_lease
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
-LOCK_FILE = Path("/tmp/lander-quartus-3090.lock")
 # A fixed path for the machine elaboration, so its netlist digest does not
 # depend on which output directory a fit happens to use (DeanoC/yosys#80).
 MACHINE_NETLIST_WORK = "build/diagnostic/i386-agilex5/machine-elaboration/pc386_system.v"
@@ -152,7 +151,6 @@ def elaboration_lease():
     copying it out. Two concurrent machine fits from one worktree write the
     same netlist, script and log there, and without this one could copy a file
     the other is replacing, or unlink it before the other has copied it."""
-    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
     path = ROOT / MACHINE_NETLIST_WORK
     path.parent.mkdir(parents=True, exist_ok=True)
     guard = path.with_name("elaboration.lock")
@@ -174,19 +172,11 @@ def elaboration_lease():
 
 
 @contextmanager
-def compiler_lease():
-    """The builder-wide Quartus lease. Never interrupt another owner's job."""
-    with LOCK_FILE.open("a+") as lease:
-        notice = -math.inf
-        while True:
-            try:
-                fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except BlockingIOError:
-                if time.monotonic() - notice >= 30:
-                    print(f"i386 fit heartbeat: waiting for {LOCK_FILE}", flush=True)
-                    notice = time.monotonic()
-                time.sleep(1)
+def compiler_lease(edition: str):
+    """This host's Quartus lease for one fit (quartus_tools.quartus_lease),
+    taken per fit so a seed sweep releases it between seeds. Never interrupt
+    another owner's job."""
+    with quartus_lease(edition, label="i386 fit"):
         try:
             yield
         finally:
@@ -197,7 +187,6 @@ def compiler_lease():
             # caught too: no process group this runner started may be alive
             # when the next fit can take the lock.
             reap_live_groups("the compiler lease is being released")
-            fcntl.flock(lease, fcntl.LOCK_UN)
 
 
 _PORT = re.compile(r"^\s*(input|output|inout)\b(.*?);\s*$")
@@ -1230,7 +1219,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"i386 fit project (direct SystemVerilog): {project}", flush=True)
             if args.project_only:
                 return 0
-            with compiler_lease():
+            with compiler_lease(lock.edition):
                 require_disk(output)
                 with lock_context(device):
                     _root, quartus_sh, version = locate_quartus(
@@ -1286,7 +1275,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"i386 fit project: {project}", flush=True)
         if args.project_only:
             return 0
-        with compiler_lease():
+        with compiler_lease(lock.edition):
             require_disk(output)
             with lock_context(device):
                 _root, quartus_sh, version = locate_quartus(
