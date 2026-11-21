@@ -61,7 +61,7 @@ vendor README and `source.json` record the change.
 | `sim_fes_pc386.py --suite opl2` (random programs and the captured sound log, sample for sample against Nuked-OPL3) at `0637e5def` | PASS |
 | `--suite audio` (speaker, DSP commands and DMA, OPL2 timers, mixer) at `0637e5def` | PASS |
 | `--suite game --game ultima6` (16 s of the intro's AdLib music, oracle CPU), main `f3140cb33` against `0637e5def` | Mixer WAV byte-identical, SHA-256 `33ffb571e6da4eb8cb85b752042059c716ba35f6b73bf2127eb58c18c3a4ee35`; OPL2 port log byte-identical, `c26235274d4837636ae51c1fa1ab160cd7e17ed8f78e5a6941cd672e01b0ca8c`; both 795,454 OPL2 samples exact against Nuked-OPL3, 2,779 writes. The WAV and log are game-derived and are not committed |
-| `--suite system`, `--suite sound` at `0637e5def` | SYSTEM_SOUND |
+| `--suite system` (FreeDOS on `pc386_system`: the storage, CMOS, port 2 and status-ring checks) and `--suite sound` (SOUND.COM: speaker and DSP tones, OPL2 output, DSP interrupts) at `0637e5def` | Both PASS |
 | pc386 unit tests (`tests/test_pc386_*.py`, `test_build_pc386_product`, `test_verify_pc386_*`) | All pass |
 
 ## DE10 seal
