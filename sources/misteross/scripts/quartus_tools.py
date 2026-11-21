@@ -620,7 +620,10 @@ def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) ->
     texts = [os.fsdecode(a) if isinstance(a, (bytes, os.PathLike)) else str(a) for a in argv]
     payloads = _shell_payloads(texts, whole)
     words, element = [], 0
-    for text in texts:
+    for position, text in enumerate(texts):
+        if position in payloads:
+            # A newline ends a command in shell code, as ; does.
+            text = text.replace("\n", " ; ")
         # Split as the shell does, operators included, so a program name
         # with a redirection or separator attached (quartus_sh>log,
         # quartus_sh&) is still seen.
@@ -714,17 +717,33 @@ def _check_remote_quartus(argv) -> None:
         return
     tokens = []
     for text in texts[1:]:
-        lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
+        lexer = shlex.shlex(text.replace("\n", " ; "), posix=True, punctuation_chars=True)
         lexer.whitespace_split = True
         try:
             tokens.extend(lexer)
         except ValueError:
             tokens.extend(text.split())
-    for index, token in enumerate(tokens):
-        if QUARTUS_PROGRAM.fullmatch(os.path.basename(token)):
-            if index + 1 < len(tokens) and tokens[index + 1] in ("--version", "-v", "--help", "-h"):
+    # Simple commands, split at shell separators.
+    commands, command = [], []
+    for token in tokens:
+        if token in SHELL_SEPARATORS:
+            commands.append(command)
+            command = []
+        else:
+            command.append(token)
+    commands.append(command)
+    for command in commands:
+        # The one exemption: a command that is itself `[python3] quartus_jobs.py run ... -- PROGRAM`.
+        words = [w for w in command if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", w)]
+        start = 1 if words and os.path.basename(words[0]).startswith("python") else 0
+        wrapped = (len(words) > start + 1 and os.path.basename(words[start]) == "quartus_jobs.py"
+                   and words[start + 1] == "run" and "--" in words)
+        for index, token in enumerate(command):
+            if not QUARTUS_PROGRAM.fullmatch(os.path.basename(token)):
                 continue
-            if "quartus_jobs.py" in [os.path.basename(t) for t in tokens[:index]] and "run" in tokens[:index]:
+            if index + 1 < len(command) and command[index + 1] in ("--version", "-v", "--help", "-h"):
+                continue
+            if wrapped and index > command.index("--"):
                 continue
             raise QuartusLeaseError(
                 f"refusing to run {token} on a remote host outside its lease: use scripts/quartus_jobs.py "

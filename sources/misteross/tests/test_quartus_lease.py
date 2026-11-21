@@ -860,6 +860,12 @@ class LaunchGuardTests(unittest.TestCase):
         qt._check_remote_quartus(["ssh", "host", "cd /x && python3 scripts/quartus_jobs.py run --edition pro -- "
                                   "quartus_sh --flow compile top"])
         qt._check_remote_quartus(["ssh", "host", "bash -s"])
+        # Codex P1s at cebe54754: the wrapper words in another command, and a
+        # newline separating commands in shell code.
+        with self.assertRaises(qt.QuartusLeaseError):
+            qt._check_remote_quartus(["ssh", "host", "echo", "quartus_jobs.py", "run", ";", "quartus_fit", "top"])
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["sh", "-c", f"echo prelude\n{self.bin}/quartus_[f]it top"])
         # Codex P1 at 941c04c72: a glob as the command word.
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", "./quartus_[f]it top"], cwd=str(self.bin))
