@@ -22,13 +22,36 @@ local pads, gen = {}, 0
 -- shown is the pad the picture follows: the last one to press a button.
 local shown = 1
 
--- The glyphs of the buttons that choose and go back on Player 1's pad.
--- A pad mapped step by step has no fixed glyph for them.
+local sources = { "south", "east", "west", "north", "l", "r", "select", "start" }
+local natural_sends = {
+  south = "A", east = "B", west = "X", north = "Y",
+  l = "L", r = "R", select = "Select", start = "Start",
+}
+local swapped_sends = {
+  south = "B", east = "A", west = "X", north = "Y",
+  l = "L", r = "R", select = "Select", start = "Start",
+}
+
+-- Show the physical glyph for a logical control when the profile identifies
+-- one. A step-by-step mapping has no reliable printed glyph, so use its
+-- logical name instead.
+local function control_glyph(p, control)
+  if p.mapped then return control end
+  local own = control == "A" and "south" or control == "B" and "east" or nil
+  if own and p.sends[own] == control and p.glyphs[own] and p.glyphs[own] ~= "" then
+    return p.glyphs[own]
+  end
+  for _, source in ipairs(sources) do
+    if p.sends[source] == control and p.glyphs[source] and p.glyphs[source] ~= "" then
+      return p.glyphs[source]
+    end
+  end
+  return control
+end
+
 local function confirm_back()
   local p = pads[1]
-  if p.mapped then return "A", "B" end
-  if p.swap_ab then return p.glyphs.east, p.glyphs.south end
-  return p.glyphs.south, p.glyphs.east
+  return control_glyph(p, "A"), control_glyph(p, "B")
 end
 
 local function buttons()
@@ -98,17 +121,24 @@ function on_activate(id) focus_hit(id) end
 
 local LAYOUTS = { xbox = "Xbox layout", playstation = "PlayStation layout", nintendo = "Nintendo layout", generic = "Standard layout" }
 
+local function has_sends(p, expected)
+  for source, target in pairs(expected) do
+    if p.sends[source] ~= target then return false end
+  end
+  return true
+end
+
 -- One line on how FES reads a pad.
 local function reads(p)
   local parts = { p.bluetooth and "Bluetooth" or "Wired", LAYOUTS[p.family] or LAYOUTS.generic }
   if p.mapped then
     parts[#parts + 1] = "mapped step by step"
-  elseif p.swap_ab then
+  elseif has_sends(p, swapped_sends) then
     parts[#parts + 1] = "A and B swapped"
-  elseif p.recognised then
-    parts[#parts + 1] = "buttons as printed"
+  elseif has_sends(p, natural_sends) then
+    parts[#parts + 1] = p.recognised and "buttons as printed" or "not in FES's pad list"
   else
-    parts[#parts + 1] = "not in FES's pad list"
+    parts[#parts + 1] = "custom button mapping"
   end
   return table.concat(parts, "  ·  ")
 end

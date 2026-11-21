@@ -675,3 +675,32 @@ func TestFirstRunControllersStepActions(t *testing.T) {
 		t.Fatalf("Back from Controller settings left controllers=%v settings=%v room=%q", snap.Controllers.Open, snap.Settings.Open, snap.Room.ID)
 	}
 }
+
+func TestFirstRunControllerPromptsFollowSavedManualBindings(t *testing.T) {
+	dir := t.TempDir()
+	if err := saveTenfootPrefs(filepath.Join(dir, "tenfoot.json"), tenfootPrefs{
+		SafeAreaPct: DefaultSafeAreaPct,
+		Controllers: map[string]inputmap.Profile{testPadGUID: {Bindings: map[string]string{
+			"a": "x", "x": "a", "b": "y", "y": "b",
+		}}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	app := startFirstRun(t, dir, 1280, 720)
+	waitRoom(t, app, "example.welcome")
+	app.HandleCommand(CmdSelect, time.Now())
+	waitRoom(t, app, "example.setup-controllers")
+	app.SetPadInfo(7, PadInfo{Name: "Xbox 360 Controller", GUID: testPadGUID, Vendor: 0x045e, Product: 0x028e,
+		Family: gfx.PromptXbox, Recognised: true, Player: 1})
+	app.AttachInput(InputGamepad, 7)
+
+	wantFooter := string(gfx.PromptRune(gfx.PromptXbox, gfx.PromptWest)) + " choose  ·  " +
+		string(gfx.PromptRune(gfx.PromptXbox, gfx.PromptNorth)) + " back"
+	snap := waitFor(t, app, "saved controller mapping", func(s Snapshot) bool {
+		return s.Room.ID == "example.setup-controllers" && roomTextHas(s, wantFooter) && roomTextHas(s, "custom button mapping")
+	})
+	if !roomTextHas(snap, "Wired  ·  Xbox layout  ·  custom button mapping") {
+		t.Fatal("controller description still claims the printed layout")
+	}
+}
