@@ -173,20 +173,36 @@ def elaboration_lease():
             fcntl.flock(lease, fcntl.LOCK_UN)
 
 
+def _try_lock(lease) -> bool:
+    try:
+        fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return False
+    return True
+
+
 @contextmanager
 def compiler_lease():
     """The builder-wide Quartus lease. Never interrupt another owner's job."""
     with LOCK_FILE.open("a+") as lease:
-        notice = -math.inf
-        while True:
+        # A blocking wait, so this runner queues with the flock(1) wrappers
+        # other jobs use. Polling with LOCK_NB loses every release to a
+        # blocked waiter and can starve indefinitely behind a chain of them.
+        acquired = threading.Event()
+
+        def heartbeat():
+            while not acquired.wait(30):
+                print(f"i386 fit heartbeat: waiting for {LOCK_FILE}", flush=True)
+
+        if not _try_lock(lease):
+            print(f"i386 fit heartbeat: waiting for {LOCK_FILE}", flush=True)
+            notices = threading.Thread(target=heartbeat, daemon=True)
+            notices.start()
             try:
-                fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except BlockingIOError:
-                if time.monotonic() - notice >= 30:
-                    print(f"i386 fit heartbeat: waiting for {LOCK_FILE}", flush=True)
-                    notice = time.monotonic()
-                time.sleep(1)
+                fcntl.flock(lease, fcntl.LOCK_EX)
+            finally:
+                acquired.set()
+                notices.join()
         try:
             yield
         finally:
