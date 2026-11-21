@@ -96,16 +96,29 @@ def probe(host: str, edition: str) -> dict:
     slots = list(quartus_tools.lease_pool(edition, host))
     command = [sys.executable, "-c", PROBE, *slots] if host == local_host() else \
         [*SSH, host, shlex.join(["python3", "-c", PROBE, *slots])]
-    result = subprocess.run(command, capture_output=True, text=True, timeout=60)
-    if result.returncode:
-        return {"host": host, "error": (result.stderr or result.stdout).strip()[-300:]}
-    data = json.loads(result.stdout)
+    # A host that times out or answers garbage is one failed probe, not a
+    # failed pick: the other host can still take the job.
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=60)
+        if result.returncode:
+            return {"host": host, "error": (result.stderr or result.stdout).strip()[-300:]}
+        data = json.loads(result.stdout)
+        if not isinstance(data, dict) or not {"slots", "available_kib", "home"} <= set(data):
+            raise ValueError("probe answered without slots, memory and home")
+    except (subprocess.TimeoutExpired, OSError, ValueError) as error:
+        return {"host": host, "error": f"probe failed: {error}"[:300]}
     data["host"] = host
     data["free"] = sum(not busy for busy in data["slots"].values())
     return data
 
 
 REPROBE_SECONDS = 60
+
+
+def is_ready(p: dict, edition: str) -> bool:
+    """A probed host can take one edition job now: a free slot and the memory."""
+    need = quartus_tools.PEAK_RSS_GIB[quartus_tools.edition_class(edition)] * 1024 * 1024
+    return "error" not in p and p["free"] > 0 and p["available_kib"] >= need
 
 
 def pick(edition: str) -> tuple[str, list[dict], bool]:
@@ -116,11 +129,10 @@ def pick(edition: str) -> tuple[str, list[dict], bool]:
     usable = [p for p in probes if "error" not in p]
     if not usable:
         raise SystemExit("no build host answered: " + "; ".join(p["error"] for p in probes))
-    need = quartus_tools.PEAK_RSS_GIB[quartus_tools.edition_class(edition)] * 1024 * 1024
     preferred = PREFERRED.get(quartus_tools.edition_class(edition))
 
     def ready(p):
-        return p["free"] > 0 and p["available_kib"] >= need
+        return is_ready(p, edition)
 
     def rank(p):
         # A free slot below the memory threshold counts for nothing.
@@ -434,22 +446,23 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
     origin = subprocess.check_output(["git", "-C", str(REPO), "remote", "get-url", "origin"], text=True).strip()
     if url_has_credentials(origin):
         raise SystemExit("origin's URL carries credentials; give remote hosts a plain URL")
-    if host == "auto":
-        # Dispatch only onto a ready host; otherwise wait and probe again, so
-        # a free slot on a host without the memory is never taken.
-        while True:
-            chosen_host, probes, ready = pick(edition)
-            if ready:
-                host = chosen_host
-                break
-            print(f"quartus_jobs: no build host has a free {edition} slot and "
-                  f"{quartus_tools.PEAK_RSS_GIB[quartus_tools.edition_class(edition)]} GiB available; "
-                  f"probing again in {REPROBE_SECONDS} s", file=sys.stderr, flush=True)
-            time.sleep(REPROBE_SECONDS)
-    elif host in HOSTS:
-        probes = [probe(host, edition)]
-    else:
+    if host != "auto" and host not in HOSTS:
         raise SystemExit(f"unknown build host {host!r}; one of {', '.join(HOSTS)}")
+    # Dispatch only onto a ready host, chosen or named; otherwise wait and
+    # probe again, so a free slot on a host without the memory is never taken.
+    asked = host
+    while True:
+        if asked == "auto":
+            host, probes, ready = pick(edition)
+        else:
+            probes = [probe(asked, edition)]
+            ready = is_ready(probes[0], edition)
+        if ready:
+            break
+        print(f"quartus_jobs: {'no build host' if asked == 'auto' else asked} has a free {edition} slot and "
+              f"{quartus_tools.PEAK_RSS_GIB[quartus_tools.edition_class(edition)]} GiB available; "
+              f"probing again in {REPROBE_SECONDS} s", file=sys.stderr, flush=True)
+        time.sleep(REPROBE_SECONDS)
     for p in probes:
         print(f"quartus_jobs: {p['host']}: " + (p.get("error") or
               f"{p['free']} free {edition} slot(s), {p['available_kib'] // 1024 ** 2} GiB available"),

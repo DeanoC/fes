@@ -105,9 +105,10 @@ python3 scripts/quartus_jobs.py remote --edition lite -- \
 so the probe contends for nothing. It chooses a host with a free slot and the
 memory for one job, then the edition's preferred host (chip for Pro, per
 AGENTS.md), then the most free slots and memory. A free slot on a host without
-the memory for one job does not count. When no host is ready, `remote --host
-auto` waits and probes again every minute; it never dispatches onto a host
-below the memory threshold. `remote` takes only a commit on an `origin`
+the memory for one job does not count. When no host is ready (or the host
+named by `--host` is not), `remote` waits and probes again every minute; it
+never dispatches onto a host below the memory threshold. A host that does not
+answer, or answers garbage, counts as one failed probe. `remote` takes only a commit on an `origin`
 branch, because that is the remote the build host fetches.
 
 `remote` builds only a pushed commit. On the chosen host it fetches that

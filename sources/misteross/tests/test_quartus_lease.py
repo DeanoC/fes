@@ -804,6 +804,33 @@ class JobsTests(unittest.TestCase):
                                          label="", command=["true"], stamp="s", origin="https://example/x")
         self.assertIn("export QUARTUS_ROOTDIR=/home/u/intelFPGA_lite/17.0/quartus", lite)
 
+    def test_a_named_host_waits_for_the_same_readiness(self):
+        # Codex P1 at 7d0c69357: --host skipped the memory check.
+        gib = 1024 ** 2
+        answers = [{"host": "powerboat", "free": 1, "available_kib": 2 * gib, "home": "/h", "slots": {}},
+                   {"host": "powerboat", "free": 1, "available_kib": 40 * gib, "home": "/h", "slots": {}}]
+        with mock.patch.object(self.jobs, "probe", side_effect=answers) as probed, \
+                mock.patch.object(self.jobs, "REPROBE_SECONDS", 0), \
+                mock.patch.object(self.jobs, "resolve_pushed", return_value="e" * 40), \
+                mock.patch.object(self.jobs, "local_host", return_value="elsewhere"), \
+                mock.patch.object(self.jobs.subprocess, "check_output", return_value="https://github.com/DeanoC/fes\n"), \
+                mock.patch.object(self.jobs.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
+            self.assertEqual(self.jobs.remote("pro", "powerboat", "HEAD", "", ["true"]), 0)
+        self.assertEqual(probed.call_count, 2, "it launched on a named host below the memory threshold")
+
+    def test_a_probe_that_times_out_or_answers_garbage_is_one_failed_host(self):
+        # Codex P2 at 7d0c69357: one bad host aborted the whole pick.
+        with mock.patch.object(self.jobs.subprocess, "run",
+                               side_effect=subprocess.TimeoutExpired(["ssh"], 60)):
+            self.assertIn("error", self.jobs.probe("chip-30x0-ai-dev", "pro"))
+        with mock.patch.object(self.jobs.subprocess, "run",
+                               return_value=subprocess.CompletedProcess([], 0, "not json", "")):
+            self.assertIn("error", self.jobs.probe("chip-30x0-ai-dev", "pro"))
+        gib = 1024 ** 2
+        probes = {"chip-30x0-ai-dev": {"host": "chip-30x0-ai-dev", "error": "probe failed: timed out"},
+                  "powerboat": {"host": "powerboat", "free": 1, "available_kib": 40 * gib}}
+        self.assertEqual(self.pick("pro", probes), "powerboat")
+
     def test_a_commit_on_another_remote_only_is_not_pushed(self):
         # Codex P2: the build host fetches origin, so only origin counts.
         def fake(argv, **_kwargs):
