@@ -147,13 +147,15 @@ one any registered producer's closure reaches. Producers needed no edit,
 because `locate_quartus`, which every registered Quartus producer already
 calls, takes the lease.
 
-The guard test lists six files it cannot change and checks each pin:
+The guard test pins five files it cannot or need not change, and checks
+each pin:
 
-- `review_audio_clocks.py`, `scanout/async_inputs.py`,
-  `scanout/output_reset.py` and `scanout/video_outputs.py` are inputs of
-  registered DE25 cores. Each runs `quartus_sta` on the project its producer
-  just compiled, inside that producer's leased process.
-- `link-proof/build.py` is bound by the committed DE25 combined-proof receipt.
-- `prototypes/de25_board_control/seal.py` starts only `quartus_pfg`.
+- `scanout/audio_reference.py` is a design input of registered DE25 cores.
+  It hands `quartus_sta` to a helper inside its producer's leased process.
+- `link-proof/build.py` is bound by the committed DE25 combined-proof receipt,
+  and `link-proof/zx81-standard/profile.py` is loaded only by it.
+- `prototypes/de25_board_control/seal.py` starts only `quartus_pfg`, and
+  `cores/fes-pc386/tools/pc386_execution.py` builds Quartus paths only to run
+  `ldd` on them.
 
 Run any of them standalone under `quartus_jobs.py run`.

@@ -122,19 +122,17 @@ def _imports_tree(tree: ast.AST, path: Path, roots: tuple[Path, ...]) -> set[Pat
 # leased process. Every entry's pin is checked by PinnedTests, so the list
 # cannot become a place to park an unleased script.
 PINNED = {
-    # Design (or packaging) inputs of registered DE25 cores: editing one moves
-    # those cores' BUILD_ID (or package identity). Each runs quartus_sta on a
-    # project its producer just compiled, in the producer's process, which
-    # imported quartus_tools and holds the lease from locate_quartus. Run
-    # standalone, review_audio_clocks.py's CLI goes under quartus_jobs.py run.
-    "sources/misteross/boards/de25nano/producers/review_audio_clocks.py": "registered",
-    "sources/misteross/boards/de25nano/scanout/async_inputs.py": "registered",
-    "sources/misteross/boards/de25nano/scanout/output_reset.py": "registered",
-    "sources/misteross/boards/de25nano/scanout/video_outputs.py": "registered",
+    # A design input of registered DE25 cores (editing it moves their
+    # BUILD_ID). It hands quartus_sta to a helper, in its producer's process,
+    # which imported quartus_tools and holds the lease from locate_quartus.
+    "sources/misteross/boards/de25nano/scanout/audio_reference.py": "registered",
     # Its sha256 is bound by the committed DE25 combined-proof receipt
     # (tests/fixtures/de25-combined-proof.json); editing it voids that proof.
     # Run it under quartus_jobs.py run --edition pro.
     "sources/misteross/boards/de25nano/link-proof/build.py": "receipt",
+    # A link-proof profile, loaded only by link-proof/build.py above (and run
+    # under quartus_jobs.py run with it); it hands quartus_sh to a helper.
+    "sources/misteross/boards/de25nano/link-proof/zx81-standard/profile.py": "link-proof",
     # Names quartus_sh and the rest only to hash them; the only program it
     # starts is quartus_pfg, which takes no slot.
     "sources/misteross/prototypes/de25_board_control/seal.py": "hash-only",
@@ -301,17 +299,18 @@ def _imports_of_node(node: ast.AST, path: Path, roots: tuple[Path, ...]) -> set[
 
 
 def python_names_leased(text: str) -> bool:
-    """A leased program name in the source, or in a string constant after
-    Python joins adjacent literals ("quartus_" "fit")."""
-    if LEASED.search(text):
-        return True
+    """A leased program name in the code: a string constant (after Python
+    joins adjacent literals, "quartus_" "fit"), not a docstring or comment."""
     try:
         tree = ast.parse(text)
     except SyntaxError:
-        return False
+        return bool(LEASED.search(text))
+    docstrings = {id(body[0].value) for body in (getattr(node, "body", None) for node in ast.walk(tree))
+                  if isinstance(body, list) and body and isinstance(body[0], ast.Expr)
+                  and isinstance(body[0].value, ast.Constant)}
     # A part of a name built at run time ('quartus_' + 'fit', f'quartus_{x}')
     # counts as naming one.
-    return any(isinstance(node, ast.Constant) and isinstance(node.value, str)
+    return any(isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in docstrings
                and (LEASED.search(node.value) or _names_a_program_prefix(node.value))
                for node in ast.walk(tree))
 
@@ -346,9 +345,10 @@ def python_launches(text: str) -> bool:
 def unleased_quartus(root: Path, files: list[str], misteross: Path | None = None) -> list[str]:
     """Each tracked script that could run a leased Quartus program unleased.
 
-    A Python module that starts processes and names a leased Quartus program
-    must import scripts.quartus_tools, directly or through the in-repo modules
-    it imports or loads by path: that import installs the audit hook which
+    A Python module that names a leased Quartus program in its code (it may
+    launch it, or hand it to a helper that does) must import
+    scripts.quartus_tools, before any module-level launch, directly or through
+    the in-repo modules it imports or loads by path: that import installs the audit hook which
     refuses any licensed Quartus program without a lease, and locate_quartus
     takes the lease. A shell script may run a leased Quartus program only as a
     `--version` probe or under `quartus_jobs.py run`.
@@ -408,10 +408,10 @@ def unleased_quartus(root: Path, files: list[str], misteross: Path | None = None
         if is_python:
             if name in PINNED and root == REPO:
                 continue
-            if python_names_leased(text) and python_launches(text) and not LOCATES.search(text) \
-                    and not leased(path):
-                failures.append(f"{name}: starts processes and names a Quartus program, "
-                                "but never imports scripts.quartus_tools")
+            # Naming a program is enough: it may be handed to a launching
+            # helper in another module (helper.launch(['quartus_fit'])).
+            if python_names_leased(text) and not LOCATES.search(text) and not leased(path):
+                failures.append(f"{name}: names a Quartus program, but never imports scripts.quartus_tools")
         elif is_shell:
             # No raw-text prefilter: the shell joins quoted fragments
             # (quartus_""sh), so only its own tokenizer can tell.
@@ -535,6 +535,13 @@ class StaticRuleTests(unittest.TestCase):
                                     "import subprocess\nfrom scripts import quartus_tools\n"
                                     "subprocess.run(['quartus_fit', 'top'])\n"}), [])
 
+    def test_counterexample_a_launch_delegated_to_a_helper_module(self):
+        # Codex P1 at 9c647e213: helper.py launches, the producer names.
+        failures = self.scan({
+            "sources/misteross/scripts/helper.py": "import subprocess\ndef launch(argv):\n    subprocess.run(argv)\n",
+            "sources/misteross/scripts/producer.py": "from scripts import helper\nhelper.launch(['quartus_fit', 'top'])\n"})
+        self.assertEqual([f.split(":")[0] for f in failures], ["sources/misteross/scripts/producer.py"])
+
     def test_counterexample_naming_a_leasing_module_in_a_string_is_not_loading_it(self):
         failures = self.scan({
             "sources/misteross/boards/x/helper.py": "from scripts import quartus_tools\n",
@@ -652,6 +659,9 @@ class PinnedTests(unittest.TestCase):
                 self.assertIn(path.resolve(), closure, f"{name} is no longer in a registered closure")
             elif pin == "receipt":
                 self.assertIn(hashlib.sha256(path.read_bytes()).hexdigest(), receipt, name)
+            elif pin == "link-proof":
+                self.assertTrue(name.startswith("sources/misteross/boards/de25nano/link-proof/"), name)
+                self.assertNotIn(path.resolve(), closure, f"{name} is now in a registered closure")
             else:
                 for line in path.read_text().splitlines():
                     if LEASED.search(line):
