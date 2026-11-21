@@ -38,9 +38,10 @@ PLL_COMMENT = """// One PLL on CLOCK1_50 in place of the stock audio PLL, whose 
 """
 # Synthesis choices: none beyond the shared board's.
 ASSIGNMENTS = ()
-# Qsys writes the peripheral subsystem for the component; reviewed against
-# the Atari ST's: the SDRAM conduit gains its three clock inputs.
-PARENT_SHA256 = "0" * 64
+# Qsys writes the peripheral subsystem for the component. Reviewed against
+# the Atari ST's (a08edf0b...): the component's name, and the SDRAM conduit's
+# three clock inputs exported beside its pins; nothing else.
+PARENT_SHA256 = "b9565f14391f812239e70a07163c4aa887e2db06573e3adacf942b82d9c9039e"
 # PC/XT machine sources compiled as they are on the DE10.
 MACHINE_FILES = (
     "rtl/pcxt_isa_bridge.sv", "rtl/pcxt_isa_boundary.sv", "rtl/pcxt_isa_endpoint.sv",
