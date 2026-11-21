@@ -291,6 +291,14 @@ def _module_names(tree: ast.Module) -> set[str]:
     return names
 
 
+def _applies_local_decorator(node: ast.AST, local: set[str]) -> bool:
+    """A def or class whose decorator names one of the module's own callables:
+    defining it calls that decorator."""
+    decorators = getattr(node, "decorator_list", ())
+    return isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and any(
+        isinstance(d, ast.Name) and d.id in local for d in decorators)
+
+
 def _first_module_launch(tree: ast.Module) -> int | None:
     """The line of the first statement run at import that may start a
     process: a launch call, or any call to a name the module binds itself
@@ -301,6 +309,8 @@ def _first_module_launch(tree: ast.Module) -> int | None:
     first, pending = None, list(tree.body)
     while pending:
         node = pending.pop()
+        if _applies_local_decorator(node, local):
+            first = node.lineno if first is None else min(first, node.lineno)
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
             pending.extend(_definition_time(node))  # these run at definition
             continue
@@ -327,6 +337,8 @@ def _launches_only_from_entry(tree: ast.Module) -> bool:
     pending = [(node, False) for node in tree.body]
     while pending:
         node, in_entry = pending.pop()
+        if _applies_local_decorator(node, local) and not in_entry:
+            return False
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
             pending.extend((part, in_entry) for part in _definition_time(node))
             continue
@@ -335,8 +347,12 @@ def _launches_only_from_entry(tree: ast.Module) -> bool:
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in local \
                 and not in_entry:
             return False
-        entry = in_entry or _is_main_guard(node)
-        pending.extend((child, entry) for child in ast.iter_child_nodes(node))
+        if _is_main_guard(node):
+            # Only the guard's body is the script entry; its else runs on import.
+            pending.extend((child, True) for child in node.body)
+            pending.extend((child, in_entry) for child in [node.test, *node.orelse])
+            continue
+        pending.extend((child, in_entry) for child in ast.iter_child_nodes(node))
     return True
 
 
@@ -612,6 +628,18 @@ class StaticRuleTests(unittest.TestCase):
                               "import subprocess\ndef launch():\n    subprocess.run(['quartus_fit', 'top'])\n"
                               "launch()\nfrom scripts import quartus_tools\n"})
         self.assertEqual(len(failures), 1)
+        # Codex P1s at 58bd4df1c: a bare local decorator, and the main guard's else.
+        failures = self.scan({
+            "sources/misteross/scripts/deco.py":
+                "import subprocess\ndef launch(f):\n    subprocess.run(['quartus_fit', 'top'])\n    return f\n"
+                "@launch\ndef g():\n    pass\nfrom scripts import quartus_tools\n",
+            "sources/misteross/scripts/elsemain.py":
+                "import subprocess\ndef main():\n    subprocess.run(['quartus_fit', 'top'])\n"
+                "def locate_quartus(root):\n    from scripts import quartus_tools\n"
+                "    return quartus_tools.locate_quartus(root, None, None)\n"
+                "if __name__ == '__main__':\n    pass\nelse:\n    main()\n"})
+        self.assertEqual(sorted(f.split(":")[0] for f in failures),
+                         ["sources/misteross/scripts/deco.py", "sources/misteross/scripts/elsemain.py"])
         # Codex P1 at b203f1221: an inverted main guard runs on import.
         failures = self.scan({"sources/misteross/scripts/notmain.py":
                               "import subprocess\ndef main():\n    subprocess.run(['quartus_fit', 'top'])\n"
