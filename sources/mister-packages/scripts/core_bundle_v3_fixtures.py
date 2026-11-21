@@ -98,7 +98,7 @@ def generated_files():
     def upload_map(size,**change):
         return encode_map(dict(dict(format=1,device='A5EB013BB23BE4SCS',encoding='gp-firmware-upload-v1',
                                     base_sha256=v2.PAYLOAD_SHA256,source_size=size),**change))
-    for size in (1024,16384,32768,196608,262144):
+    for size in (1024,16384,32768,49152,65536,196608,262144):
         data=upload_map(size)
         add(f'valid-nano-upload-{size}',nano_manifest(data,size).replace(held,upload),data)
     data=upload_map(16384);man=nano_manifest(data,16384).replace(held,upload)

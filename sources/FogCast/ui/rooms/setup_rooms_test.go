@@ -156,3 +156,108 @@ func TestHomeBannerWhileSetupIsUnfinished(t *testing.T) {
 		t.Fatalf("down from the banner %+v", d)
 	}
 }
+
+func setupControllersRoom(t *testing.T) *Instance {
+	t.Helper()
+	r := newRoom(t, examplePack(t, "example.setup-controllers"), Options{Setup: Setup{Step: 2, Steps: 3}})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(r.Close)
+	return r
+}
+
+func xboxPad(player int) Pad {
+	return Pad{
+		Player: player, Name: "Xbox 360 Controller", Family: "xbox", Recognised: true,
+		Glyphs: map[string]string{"south": "Ⓐ", "east": "Ⓑ", "west": "Ⓧ", "north": "Ⓨ", "l": "LB", "r": "RB", "select": "VIEW", "start": "MENU", "dpad": "✚"},
+		Sends:  map[string]string{"south": "A", "east": "B", "west": "X", "north": "Y", "l": "L", "r": "R", "select": "Select", "start": "Start"},
+	}
+}
+
+func TestSetupControllersWaitsForAPad(t *testing.T) {
+	r := setupControllersRoom(t)
+	f := stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Pick up a controller") })
+	text := frameText(f)
+	for _, want := range []string{"Step 2 of 3\n", "Listening on USB and Bluetooth…\n", "Continue with keyboard\n", "Hold its pairing button"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("waiting step is missing %q:\n%s", want, text)
+		}
+	}
+	if d := r.Destination(); d.Kind != KindAction || d.LauncherAction != "setup_continue" {
+		t.Fatalf("waiting step opens on %+v", d)
+	}
+}
+
+func TestSetupControllersShowsPlayersAndPresses(t *testing.T) {
+	r := setupControllersRoom(t)
+	stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Pick up a controller") })
+	r.SetPads(1, []Pad{xboxPad(1)})
+	f := stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Player 1 is ready") })
+	text := frameText(f)
+	for _, want := range []string{"Xbox 360 Controller\n", "Wired  ·  Xbox layout  ·  buttons as printed\n", "Add Player 2\n", "Keyboard\n", "Press any button\n", "Swap A / B\n", "Controller settings\n"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("found step is missing %q:\n%s", want, text)
+		}
+	}
+
+	// A held button lights up and is named; with Swap A / B on, the chip
+	// says what FES reads instead.
+	pad := xboxPad(1)
+	pad.Pressed = []string{"south"}
+	pad.SwapAB = true
+	pad.Sends["south"], pad.Sends["east"] = "B", "A"
+	r.SetPads(2, []Pad{pad})
+	f = stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Ⓐ pressed") })
+	text = frameText(f)
+	for _, want := range []string{"Ⓐ pressed  ·  FES reads B\n", "A and B swapped\n", "Swap A / B: on\n", "Ⓑ choose  ·  Ⓐ back"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("pressed step is missing %q:\n%s", want, text)
+		}
+	}
+
+	if d := r.Destination(); d.LauncherAction != "setup_continue" {
+		t.Fatalf("found step opens on %+v", d)
+	}
+	r.Input("right")
+	if d := r.Destination(); d.LauncherAction != "setup_swap_ab" {
+		t.Fatalf("right %+v", d)
+	}
+	r.Input("right")
+	if d := r.Destination(); d.LauncherAction != "controllers" {
+		t.Fatalf("right twice %+v", d)
+	}
+	r.Input("right")
+	if d := r.Destination(); d.LauncherAction != "controllers" {
+		t.Fatalf("right past the end %+v", d)
+	}
+}
+
+func TestSetupControllersTwoPlayersAndAnUnknownPad(t *testing.T) {
+	r := setupControllersRoom(t)
+	unknown := xboxPad(2)
+	unknown.Name, unknown.Family, unknown.Recognised, unknown.Bluetooth = "Wireless pad", "generic", false, true
+	unknown.Pressed = []string{"up"}
+	r.SetPads(1, []Pad{xboxPad(1), unknown})
+	f := stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Players 1 and 2 are ready") })
+	text := frameText(f)
+	for _, want := range []string{"Bluetooth  ·  Standard layout  ·  not in FES's pad list\n", "Try your buttons  ·  P2\n", "✚ up\n", "FES doesn't know this pad yet"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("two-player step is missing %q:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "Add Player 2") {
+		t.Fatalf("Add Player 2 shown with two players:\n%s", text)
+	}
+}
+
+// A pad that stays Player 2 after Player 1's pad leaves offers Player 1.
+func TestSetupControllersOffersTheMissingPlayer(t *testing.T) {
+	r := setupControllersRoom(t)
+	r.SetPads(1, []Pad{xboxPad(2)})
+	f := stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Player 2 is ready") })
+	text := frameText(f)
+	if !strings.Contains(text, "Add Player 1\n") || strings.Contains(text, "Add Player 2") {
+		t.Fatalf("lone Player 2 step:\n%s", text)
+	}
+}

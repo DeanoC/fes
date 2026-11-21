@@ -239,10 +239,11 @@ fields. No API response exposes the archive's private filesystem location.
 | `GET /api/v1/core-packages/{id}/media-capabilities` | Offline declared-contract projection with separate host import policy and supported role limits |
 | `POST /api/v1/library/core-entries` | `{"title":"Standalone FES Pong","package_id":"..."}`, optionally `media_role:"blob",media_id:"..."`; returns entry |
 | `GET /api/v1/library/core-entries` | `{entries:[...]}` |
-| `GET /api/v1/library/core-entries/{game_id}` | `{game_id,title,core_id,package_id}`, plus `media_role,media_id` when selected and `media_name` when recorded |
+| `GET /api/v1/library/core-entries/{game_id}` | `{game_id,title,core_id,package_id}`, plus `media_role,media_id` when selected, `media_name` when recorded, and `more_media` for disks 2 to N of a [disk set](#disk-sets) |
 | `PUT /api/v1/library/core-entries/{game_id}` | `{"package_id":"...","expected_package_id":"..."}`; returns entry |
 | `PUT /api/v1/library/core-entries/{game_id}/media` | `{"expected_package_id":"...","expected_media_id":"","media_role":"blob","media_id":"..."}` (`media_role` is `blob` or, for `fes.computer` disks, `disk`); both expected fields required; empty new role/ID clears |
 | `PUT /api/v1/library/core-entries/{game_id}/media-name` | `{"expected_package_id":"...","media_id":"...","media_name":"GAME.P"}`; records the `.p`/`.o` basename an imported cassette was chosen under, only while that package and media are still selected; any other media selection clears it. `GET /api/v1/library/hardware` shows it as `media_name` for an imported cassette |
+| `PUT /api/v1/library/core-entries/{game_id}/media-set` | `{"expected_package_id":"...","expected_media_id":"DISK_1","expected_more_media":["ID",...],"more_media":[{"media_id":"ID","media_name":"GAME2.D64"},...]}`; replaces disks 2 to N of a [disk set](#disk-sets) while the package, disk 1 and set are still the ones read; all four fields required; `[]` makes the title a single disk again |
 | `GET /api/v1/library/core-entries/{game_id}/expansions` | Multi-socket shell slot cards: `{game_id,package_id,bus,map,sockets,expansions:[{slot,expansion_id,ready}],ready}` |
 | `PUT /api/v1/library/core-entries/{game_id}/expansions/{slot}` | `{"package_id":"...","expected_expansion_id":"","expansion_id":"..."}`; compare-and-swap on one physical slot; empty `expansion_id` clears |
 | `POST /api/v1/session/launch` | Existing `{"game_id":"..."}` request |
@@ -876,6 +877,46 @@ before idle retirement or retain the machine and its binding in recovery.
 
 Current validation is host software and RTL simulation; hardware evidence is
 recorded separately.
+
+## Disk sets
+
+A title whose game comes on several disks or tapes holds them as a set. Disk 1
+is the entry's selected media (`media_id`), and `more_media` lists disks 2 to N
+in order, each with the basename it was imported under. They all go in disk
+1's drive, so every one takes disk 1's role (`disk` or `cassette`) and must fit
+that drive as the installed package declares it: the same size and format
+checks as disk 1. The name must be a disk name for a disk drive and a tape name
+for a cassette deck, because a live change picks its path from the name. A set
+holds at most 16 media and no medium twice.
+
+```sh
+fogcast --api http://127.0.0.1:8787 --json core-disk-set GAME_ID PACKAGE_ID DISK_1_ID none DISK_2_ID=GAME2.D64,DISK_3_ID=GAME3.D64
+fogcast --api http://127.0.0.1:8787 --json core-disk-set GAME_ID PACKAGE_ID DISK_1_ID DISK_2_ID,DISK_3_ID none
+```
+
+The fourth argument is the media IDs of the set as last read, and a stale one
+is refused with `STALE_REVISION`. The last is the new set; `none` is an empty
+list. Disk 1's name is the entry's `media_name`, set through
+`PUT .../media-name`, which takes any disk or tape name a live change takes.
+
+- Launch starts from disk 1. The other disks go into the drive during play.
+  A read-only drive takes any library medium through
+  `POST /api/v1/session/live-media`. A writable drive takes a disk of the
+  title's set through `POST /api/v1/session/disk/insert`, which refuses a disk
+  that is not disk 1 or in `more_media`.
+- Each disk keeps its own saved changes on the kit: the saved-record key is the
+  game, the drive and the disk's own source image.
+- Any change to disk 1 ends the set (catalog schema 26 does this in a trigger).
+  Selecting the same disk 1 again keeps it. Removing the title removes its set.
+- A package change checks every disk of the set against the new package's
+  drive, as it does disk 1.
+- A disk made on the Atari ST shelf never holds a set: its rename is a copy and
+  a delete that moves disk 1's saved record only.
+- A set member is a library reference like disk 1: it is not offered for
+  remote-cache cleanup, and editing a set turns a generated kit-host entry
+  into an ordinary title.
+- Not yet: a set is not carried by a remote library source, and the Atari ST
+  disk shelf lists disk 1's saved changes only.
 
 ## pc386 hard-disk entries
 
