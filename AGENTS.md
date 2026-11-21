@@ -75,7 +75,7 @@ Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and m
 ### Toolchains
 - Quartus is primary for DE25, pc386, PC/XT and the DE10 ZX81 family (ZX81, ZX80, TS1000, TS1500). nextpnr is advisory for those.
 - Use Quartus wherever nextpnr timing closure is hard (Deano, 15 November 2026). An advisory nextpnr table for such a core lives in `config/advisory-pnr-recipes.toml`.
-- DE25 is Quartus-only and needs Quartus Pro (Agilex 5). Both Powerboat and the 3090 box (fes-build-3090) have Quartus Pro 26.3 and can build DE25; send DE25 builds to the 3090 by preference to keep Powerboat free.
+- DE25 is Quartus-only and needs Quartus Pro (Agilex 5). Both Powerboat and the 3090 box (fes-build-3090) have Quartus Pro 26.3 and can build DE25. Quartus Pro may run on either (Deano, 21 Nov 2026, replacing the 31 Oct "never run Quartus Pro locally on Powerboat"); `quartus_jobs.py pick` chooses by free slots and memory.
 - Cyclone V is the primary platform and builds with Quartus Lite on Powerboat or chip-30x0-ai-dev (same install and `quartus_sh` digest).
 - Every Quartus run holds the Quartus lease: one slot of the build host's pool for its edition, sized to that host's RAM ([design](docs/design/quartus-hosts.md)). `locate_quartus` in `sources/misteross/scripts/quartus_tools.py` takes it, so producers and fit scripts hold it without asking; a runner with several seeds takes `quartus_lease(edition)` once per seed so others can interleave. An audit hook refuses a licensed `quartus_*` program from a process that holds no lease. For a shell script or a manual `quartus_sh`, run it under `python3 scripts/quartus_jobs.py run --edition lite|pro -- …` from `sources/misteross`. Never wrap a job in a private lock, never unlink a slot file, and keep Lander's `/tmp/lander-quartus-*.lock` files: each is the last slot of its host's pool. `tests/test_quartus_lease.py` fails on an unleased Quartus invocation.
 - To use whichever build host has a free slot, run `python3 scripts/quartus_jobs.py remote --edition lite|pro -- COMMAND` from a pushed commit: on the host `pick` chooses, it checks that commit out clean into a new run directory under `/data/projects/fes-quartus`, runs COMMAND there under the lease, and replaces `{run}` in COMMAND with that run directory and `{cache}` with the host's toolchain cache. Quartus output never goes to `/tmp` (Powerboat's `/tmp` is a shared 32 GB tmpfs).
@@ -96,7 +96,7 @@ Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and m
 
 ### Machines
 - Powerboat does HIL, the kits and capture. DE25 capture is `/dev/v4l/by-id/fes-ms2109-hil`; never open the raw MS2109 device.
-- The 3090 box (chip-30x0-ai-dev, also called fes-build-3090) is the second Quartus/CI builder, with Quartus Pro 26.3, and is the preferred DE25 build host. It has 16 cores and 23 GB, so its Quartus pool holds one Pro job, or one Lite job beside it.
+- The 3090 box (chip-30x0-ai-dev, also called fes-build-3090) is the second Quartus/CI builder, with Quartus Pro 26.3, and builds DE25 alongside Powerboat. It has 16 cores and 23 GB, so its Quartus pool holds one Pro job, or one Lite job beside it.
 - Powerboat has Quartus Pro 26.3 (DE25/Agilex 5) and Quartus Lite (Cyclone V, the primary platform).
 
 ## PR scope

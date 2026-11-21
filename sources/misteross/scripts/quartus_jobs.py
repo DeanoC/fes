@@ -66,9 +66,6 @@ QUARTUS_ROOTS = {"lite": "~/intelFPGA_lite/17.0/quartus", "pro": "/data/altera_p
 # Each host's shared toolchain cache (FES_TOOLCHAIN_CACHE_ROOT there).
 TOOLCHAIN_CACHES = {"powerboat": "~/fes/out/cache/misteross-toolchains",
                     "chip-30x0-ai-dev": "~/fes-toolchain-cache"}
-# Where both hosts have a free slot, an edition's preferred host: DE25 builds
-# go to the 3090 by preference to keep Powerboat free (AGENTS.md).
-PREFERRED = {"pro": "chip-30x0-ai-dev"}
 PROJECTS = "/data/projects/fes-quartus"
 SSH = ("ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "-o", "ServerAliveInterval=30")
 
@@ -134,7 +131,6 @@ def pick(edition: str, timeout: float = 60) -> tuple[str | None, list[dict], boo
     usable = [p for p in probes if "error" not in p]
     if not usable:
         return None, probes, False
-    preferred = PREFERRED.get(quartus_tools.edition_class(edition))
 
     def ready(p):
         return is_ready(p, edition)
@@ -142,8 +138,8 @@ def pick(edition: str, timeout: float = 60) -> tuple[str | None, list[dict], boo
     def rank(p):
         # A free slot below the memory threshold counts for nothing.
         if ready(p):
-            return True, p["host"] == preferred, p["free"], p["available_kib"]
-        return False, False, 0, p["available_kib"]
+            return True, p["free"], p["available_kib"]
+        return False, 0, p["available_kib"]
 
     best = max(usable, key=rank)
     return best["host"], probes, ready(best)

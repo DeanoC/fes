@@ -6,6 +6,17 @@ could run without the lease; each rule has a constructed counterexample here
 that the scan must catch. The runtime half checks the slots, the inheritance
 from flock(1) and from a leasing parent, and the audit hook that refuses an
 unleased licensed Quartus program.
+Threat model (Deano's ruling, 21 Nov 2026: "Yes, scope it"). The static guard
+catches accidental omissions in reviewed repository code: a script that runs
+or names a Quartus program the way code here is actually written (literal
+names, adjacent or completed literals, aliased imports, shell commands and
+their usual wrappers) without reaching the lease. It does not try to defeat
+deliberate obfuscation (names assembled from arbitrary fragments, launches
+hidden behind dead code or indirection built to evade it); no text or AST scan
+can. At run time the audit hook, installed in every process that imports
+quartus_tools, refuses a licensed Quartus program without its lease however
+its name was built, and refuses any shell command word it cannot resolve
+unless both editions' leases are held.
 """
 import ast
 import hashlib
@@ -1768,8 +1779,10 @@ class JobsTests(unittest.TestCase):
         self.assertEqual(self.pick("lite", self.probes(1, 20 * gib, 0, 40 * gib)), "chip-30x0-ai-dev")
         # A free slot without the memory for one job does not count as free.
         self.assertEqual(self.pick("lite", self.probes(1, 2 * gib, 1, 30 * gib)), "powerboat")
-        # Pro prefers chip when both are free; otherwise whichever is free.
-        self.assertEqual(self.pick("pro", self.probes(1, 15 * gib, 2, 40 * gib)), "chip-30x0-ai-dev")
+        # Pro chooses freely between the hosts (Deano, 21 Nov 2026): more free
+        # slots, then more memory.
+        self.assertEqual(self.pick("pro", self.probes(1, 15 * gib, 2, 40 * gib)), "powerboat")
+        self.assertEqual(self.pick("pro", self.probes(1, 15 * gib, 1, 10 * gib)), "chip-30x0-ai-dev")
         self.assertEqual(self.pick("pro", self.probes(0, 15 * gib, 1, 40 * gib)), "powerboat")
         # Nothing free: not ready; a remote job waits (where the most memory is).
         self.assertEqual(self.pick("pro", self.probes(0, 15 * gib, 0, 40 * gib)), "wait:powerboat")

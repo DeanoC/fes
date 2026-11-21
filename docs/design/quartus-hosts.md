@@ -10,6 +10,12 @@ Powerboat sat idle.
 
 ## The rule
 
+The guard's threat model, under Deano's ruling of 21 Nov 2026 ("Yes, scope
+it"), is in the docstring of `tests/test_quartus_lease.py`. In short, it
+catches accidental omissions in reviewed code, not deliberate obfuscation; the
+runtime hook refuses unresolvable shell command words unless both leases are
+held.
+
 - `locate_quartus` in `sources/misteross/scripts/quartus_tools.py` takes the
   lease after it authenticates `quartus_sh`. A producer or fit script that
   finds Quartus through it holds a slot without asking, until the process
@@ -94,6 +100,12 @@ of the largest edition using it, is at most RAM minus what is kept back.
 | pc386 machine fit on Agilex 5, leased run (`fit_i386_device.py --device de25 --design machine`) | **5.93 GiB RSS**; Quartus reports 7.79 GB virtual | `quartus_jobs.py run` on Powerboat, 21 Nov, commit 2290d767a |
 | DE10 ZX81 Lite seal, leased run (`build_fes_zx81_quartus.py`) | **2.20 GiB RSS**; Quartus reports 2.74 GB virtual | the same |
 
+Powerboat keeps 24 GB back because it also carries Deano's harness, the
+kits, GPU routes and other sessions' simulations. On 21 Nov its baseline with
+no Quartus job ran 14–23 GB used, of which the harness processes were about
+1.3 GiB resident; 24 GB covers the top of that range. Its pools then use at
+most 36 GB (two Pro and three Lite jobs at their peaks), leaving 2 GB spare.
+
 Quartus reports peak *virtual* memory per stage, which bounds resident memory
 from above. In the two leased runs, resident memory over the whole job, summed
 across every descendant process, peaked at 76–80% of Quartus's reported
@@ -117,8 +129,11 @@ python3 scripts/quartus_jobs.py remote --edition lite -- \
 
 `pick` probes both hosts over SSH. It reads `/proc/locks` and `MemAvailable`,
 so the probe contends for nothing. It chooses a host with a free slot and the
-memory for one job, then the edition's preferred host (chip for Pro, per
-AGENTS.md), then the most free slots and memory. A free slot on a host without
+memory for one job, then the most free slots and memory. It chooses freely
+for both editions: Deano allowed Quartus Pro on Powerboat as well as chip on
+21 Nov 2026, replacing the 31 Oct rule "never run Quartus Pro locally on
+Powerboat" (Lander's fixjob note and seal-remote.sh still carry the old rule;
+they are Lander's to update). A free slot on a host without
 the memory for one job does not count. When no host is ready (or the host
 named by `--host` is not), `remote` waits and probes again every minute; it
 never dispatches onto a host below the memory threshold. A host that does not
