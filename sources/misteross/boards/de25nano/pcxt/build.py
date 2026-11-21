@@ -39,8 +39,12 @@ PLL_COMMENT = """// One PLL on CLOCK1_50 in place of the stock audio PLL, whose 
 // phases, as the DE10 PC/XT board makes them, and /122 for the audio master
 // clock (12.295082 MHz, +564 ppm, unrelated to the machine as on the DE10).
 """
-# Synthesis choices: none beyond the shared board's.
-ASSIGNMENTS = ()
+# pcxt_video's mailbox synchronizers carry only async_reg in the DE10 RTL.
+# Name them synchronizers on the board, as the board's own chains name
+# themselves, so Quartus Pro's design assistant sees each chain; pcxt-clocks.sdc
+# names the launch into each first stage.
+ASSIGNMENTS = tuple(("SYNCHRONIZER_IDENTIFICATION", "FORCED_IF_ASYNCHRONOUS", "core|system|video|adapter|" + name)
+                    for name in ("ack_meta", "ack_sync", "sent_meta", "sent_sync", "hold_meta", "hold_sync"))
 # Qsys writes the peripheral subsystem for the component. Reviewed against
 # the Atari ST's (a08edf0b...): the SDRAM conduit's three clock inputs are
 # exported beside its pins; nothing else differs.
