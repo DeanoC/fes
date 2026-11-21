@@ -87,6 +87,9 @@ func spectrum48Source(t *testing.T, firmware []byte) spectrumSource {
 			Stop    uint32 `json:"stop_command"`
 			Status  uint32 `json:"status_offset"`
 			Drained uint32 `json:"drained_mask"`
+			Retired uint32 `json:"retired_mask"`
+			Base    uint32 `json:"grant_base"`
+			Bytes   uint32 `json:"grant_bytes"`
 		} `json:"display_reader"`
 	}
 	if err := json.Unmarshal(rawControls, &controls); err != nil {
@@ -99,7 +102,9 @@ func spectrum48Source(t *testing.T, firmware []byte) spectrumSource {
 		controls.Computer.FetchCount != g.FesDe25ComputerFetchCountOffset || controls.Computer.FetchAddress != g.FesDe25ComputerFetchAddressOffset ||
 		controls.Display.Offset != g.FesDe25ScanoutPeripheralOffset || controls.Display.Span != g.FesDe25ScanoutSpan ||
 		controls.Display.Stop != g.FesDe25ScanoutCommandStop || controls.Display.Status != g.FesDe25ScanoutStatusOffset ||
-		controls.Display.Drained != g.FesDe25ScanoutStatusDrained {
+		controls.Display.Drained != g.FesDe25ScanoutStatusDrained ||
+		controls.Display.Retired != 0x80000000 || controls.Display.Base != 0x95000000 ||
+		controls.Display.Bytes != g.FesDe25ScanoutAllocationBytes {
 		t.Fatal("generated control maps differ from package or driver")
 	}
 	compat, err := runtimeadmission.NewNanoComputerCompatibility()

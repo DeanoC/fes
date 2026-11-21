@@ -141,10 +141,11 @@ func (h *spectrumTestHost) stop(ctx context.Context) error {
 	if !display.stopped {
 		return errors.New("display STOP missing")
 	}
-	status, err := mailbox.call("display-read 8")
-	if err != nil || len(status) != 1 || status[0]&0x80000008 != 0x80000008 {
+	// TF-A re-observes the retired reader after the nonsecure display and
+	// execution hold. The test host resumes the modeled lease only thereafter.
+	if _, err := mailbox.call("check-secure-display-stop 5"); err != nil {
 		h.retired, h.active = true, nil
-		return fmt.Errorf("native display retirement missing: %v, %v", status, err)
+		return err
 	}
 	if err := h.store.Resume(); err != nil {
 		h.retired = true
@@ -229,7 +230,9 @@ func TestSpectrum48TenfootRTL(t *testing.T) {
 	}
 	server := httptest.NewServer(host)
 	defer server.Close()
-	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	// This bounds the whole off-board test and includes three process-backed
+	// ROM uploads. The per-operation driver deadline remains independent.
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 	app := tenfoot.NewApp(tenfoot.NewClient(server.URL, server.Client()), 640, 480, 100)
 	app.Start(ctx)

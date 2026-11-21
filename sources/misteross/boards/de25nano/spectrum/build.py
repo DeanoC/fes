@@ -94,7 +94,8 @@ def native_controls(build_id, payload_sha256):
         "computer": {"peripheral_offset": board.OFFSET, "span": 32,
                      "fetch_count_offset": 0x18, "fetch_address_offset": 0x1c},
         "display_reader": {"peripheral_offset": 0x10200, "span": 128,
-                           "stop_command": 2, "status_offset": 8, "drained_mask": 8},
+                           "stop_command": 2, "status_offset": 8, "drained_mask": 8,
+                           "retired_mask": 0x80000000, "grant_base": 0x95000000, "grant_bytes": 8 << 20},
         "firmware_bytes": FIRMWARE_BYTES["native48"],
     }, sort_keys=True, separators=(",", ":")) + "\n").encode()
 
