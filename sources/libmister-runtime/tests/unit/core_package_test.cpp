@@ -1167,7 +1167,7 @@ void TestDe25StandardProfileBindsSharedDriverAndRejectsOtherMemory() {
 
 // The standard shell's firmware machines: format 3 with the upload interface
 // and the image size their endpoint takes, on the unchanged computer profile.
-void TestDe25StandardProfileAdmitsSpectrumModelsAndAtariSt()
+void TestDe25StandardProfileAdmitsSpectrumModelsAtariStAndC64()
 {
  using namespace mister;using namespace mister::native;
  ContainedCoreDriver shared,contained,bram;
@@ -1177,7 +1177,8 @@ void TestDe25StandardProfileAdmitsSpectrumModelsAndAtariSt()
  const CoreDescriptor machines[]={mister_test::De25SpectrumDescriptor(16384),
   mister_test::De25SpectrumDescriptor(32768),spectrum128,
   mister_test::De25SpectrumDiskDescriptor("fes.spectrum-plus3",65536),
-  mister_test::De25SpectrumDiskDescriptor("fes.pentagon",49152),mister_test::De25AtariStDescriptor()};
+  mister_test::De25SpectrumDiskDescriptor("fes.pentagon",49152),mister_test::De25AtariStDescriptor(),
+  mister_test::De25C64Descriptor()};
  for(const auto& d:machines) {
   const bool st=d.core.id=="fes.atari-st";
   const bool disk=d.core.id=="fes.spectrum-plus3"||d.core.id=="fes.pentagon";
@@ -1196,13 +1197,13 @@ void TestDe25StandardProfileAdmitsSpectrumModelsAndAtariSt()
    if(failure==2)bad.interfaces.back().minor=1;
    if(failure==3)bad.format=2;                                    // no sealed ROM requirement
    if(failure==4)bad.rom.role="cartridge";
-   if(failure==5)bad.rom.source_size=st||disk||d.core.id=="fes.spectrum128"?16384:8192; // not this endpoint's image
+   if(failure==5)bad.rom.source_size=st||disk||c64||d.core.id=="fes.spectrum128"?16384:8192; // not this endpoint's image
    if(failure==6)bad.rom.source_size+=1024;
    if(failure==7)bad.interfaces.push_back({"fes.memory.hps-ddr",1,0,true});
    if(failure==8)bad.interfaces.push_back({st?"fes.media.spectrum-tape":"fes.mouse.relative",
     static_cast<std::uint16_t>(st?2:1),0,true});                  // another machine's interface
    if(failure==9)bad.interfaces[7].major=static_cast<std::uint16_t>(bad.interfaces[7].major+1);
-   if(failure==10)bad.core.id=st?"fes.spectrum":"fes.atari-st";  // another machine's set
+   if(failure==10)bad.core.id=st||c64?"fes.spectrum":"fes.atari-st";  // another machine's set
    if(failure==11)bad.target.programming_profile="de25-linux-static-computer-v1";
    if(failure==12)bad.interfaces[6].minor=2;                      // scanout 1.2
    if(failure==13)bad.interfaces.back()=bad.interfaces.front();
@@ -1427,7 +1428,7 @@ int main()
 	TestExplicitDe25ProfileAndDriverBinding();
  TestDe25StandardProfileBindsSharedDriverAndRejectsOtherMemory();
  TestDe25StaticProfileRequiresOptionalVersionTwoSocket();
- TestDe25StandardProfileAdmitsSpectrumModelsAndAtariSt();
+ TestDe25StandardProfileAdmitsSpectrumModelsAtariStAndC64();
  TestFirmwareUploadMapIsCheckedAgainstTheSealedPackage();
 	TestNanoHeldROMInspectionDoesNotGrantCompatibility();
 	TestComputerCompatibilityComposesRecognizedInterfaces();
