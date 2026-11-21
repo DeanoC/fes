@@ -3,6 +3,7 @@
 from pathlib import Path
 import argparse
 import importlib.util
+import os
 import subprocess
 import sys
 import tempfile
@@ -63,7 +64,7 @@ def includes():
             BOARD / "zx81-hps", BOARD / "scanout", BOARD / "scanout/generated", Z80]
 
 
-def run(model):
+def run(model, native_mailbox=False):
     diagnostic = ROOT / "build/diagnostics/fes-spectrum"
     subprocess.run([sys.executable, str(ROOT / "cores/fes-spectrum/diagnostic/firmware.py"),
                     "--output-dir", str(diagnostic)], cwd=ROOT, check=True)
@@ -80,16 +81,28 @@ def run(model):
                     *["-I" + str(path) for path in includes()],
                     "-CFLAGS", f"-O2 -DSPECTRUM_BANKS={3 if model == '48' else 8}",
                     *map(str, sources(output)), str(HERE / "standard_tb.cpp")], cwd=ROOT, check=True)
-    subprocess.run([str(output / "Vfes_de25_spectrum_standard"), str(firmware),
+    executable = output / "Vfes_de25_spectrum_standard"
+    subprocess.run([str(executable), str(firmware),
                     str(diagnostic / "tape.pzx")], cwd=output, check=True)
+    if native_mailbox:
+        tamago = ROOT.parents[1] / "platform/embedded/tamago"
+        subprocess.run(["go", "test", "-v", "-count=1", "-timeout=120s", "./computer",
+                        "-run", "^TestSpectrum48FirmwareRTL$"], cwd=tamago, check=True,
+                       env=dict(os.environ, GOWORK="off",
+                                FES_SPECTRUM48_MAILBOX=str(executable),
+                                FES_SPECTRUM48_FIRMWARE=str(firmware)))
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", choices=("all", *MODELS), default="all")
-    selected = parser.parse_args().model
-    for model in (MODELS if selected == "all" else (selected,)):
-        run(model)
+    parser.add_argument("--native-mailbox", action="store_true",
+                        help="also run the native Go firmware proof for the 48K model")
+    args = parser.parse_args()
+    if args.native_mailbox and args.model == "128":
+        parser.error("--native-mailbox requires model 48 or all")
+    for model in (MODELS if args.model == "all" else (args.model,)):
+        run(model, args.native_mailbox and model == "48")
 
 
 if __name__ == "__main__":

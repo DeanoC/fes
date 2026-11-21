@@ -18,6 +18,7 @@
 #include <iostream>
 #include <iterator>
 #include <map>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -234,10 +235,49 @@ struct Board {
     }
 };
 
+// Test-only register transport for the Linux-free Go driver. Reads and writes
+// use the same Avalon slave as the standalone and Linux-side benches.
+int native_mailbox() {
+    Board board;
+    board.run_clocks(8000);
+    std::string line;
+    while (std::getline(std::cin, line)) {
+        std::istringstream input(line);
+        std::string operation;
+        uint32_t address = 0, value = 0;
+        input >> operation >> std::hex;
+        if (operation == "read" && input >> address) {
+            value = board.read(address);
+        } else if (operation == "write" && input >> address >> value) {
+            board.write(address, value);
+            value = 0;
+        } else if (operation == "advance" && input >> value) {
+            require(value <= 100000, "native mailbox batch too large");
+            board.run_clocks(value);
+            value = 0;
+        } else if (operation == "spectrum-state") {
+#if SPECTRUM_BANKS == 3
+            const auto& ram = board.root.fes_de25_spectrum_standard__DOT__core__DOT__machine__DOT__ram__DOT__bank__BRA__1__KET____DOT__mem;
+            std::cout << "R 1 " << static_cast<unsigned>(board.dut.exec_reset) << ' ' << std::hex
+                      << static_cast<unsigned>(ram[0]) << std::endl;
+            continue;
+#else
+            fail("native mailbox proof is for Spectrum 48K");
+#endif
+        } else {
+            fail("unknown native mailbox request");
+        }
+        std::cout << "R 1 " << std::hex << value << std::endl;
+    }
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
+    if (argc == 2 && std::string(argv[1]) == "--native-mailbox")
+        return native_mailbox();
     require(argc == 3, "usage: firmware tape");
     const std::vector<uint8_t> firmware = read_file(argv[1]);
     const std::vector<uint8_t> tape = read_file(argv[2]);

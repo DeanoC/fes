@@ -34,6 +34,41 @@ platform may perform additional ownership work within each call.
 `Hold` neutralizes input while preserving the GP epoch and loaded tape. `Run`
 releases execution reset. `Keyboard` delivers all nine HID rows. `LoadTape`
 and `EjectTape` use the shared unit-0 chunk/CRC protocol, preserving execution.
+
+## Spectrum 48K firmware prototype
+
+The DE25 standard Spectrum 48K RTL from #1937 already implements the atomic
+mailbox, firmware upload, ROM storage and execution hold. Its existing format-3
+`gp-firmware-upload-v1` map and FogCast retained ROM receipt bind the source
+size and digest to the unmodified FPGA payload. The native Go driver reuses
+the generated firmware-upload opcodes and the same mailbox transport as native
+ZX81. Following an acknowledged Hold, `LoadInitialFirmware` requires an empty
+endpoint of the selected size, sends the header and byte pairs in order, and
+verifies that Commit left a complete ready image. The caller can then release
+the machine. A reject or uncertain completion retires the handle.
+
+From the repository root:
+
+```sh
+python3 sources/misteross/boards/de25nano/spectrum/sim.py --model 48 --native-mailbox
+```
+
+The Go test retains the open diagnostic ROM against a synthetic package with
+the Spectrum 48K upload map, then drives the Verilated Spectrum wrapper's
+actual Avalon slave. It checks the simulated CPU's RAM marker after Run,
+acknowledged Hold on return, and a fresh upload after reconfiguration. Failure
+cases include the wrong live build or ROM size, release before upload, a
+cancelled submission, CRC rejection, a ready image, and an uncertain Hold.
+
+Native Tenfoot hookup requires a source-bound native Spectrum package and
+compiled control maps. The #1937 package uses the Linux programming profile.
+The current standard wrapper also lacks the native fetch count/address
+registers, and its display reader needs a matching master-stop/drain contract.
+The proof observes execution via simulation RAM. It leaves FPGA admission,
+bridge and SD ownership, menu presentation and hardware timing to the native
+integration. A 16 KiB upload entails 8,192 data commands, each with the
+existing before/after mailbox observations. The simulation timeout supplies
+no board timing evidence.
 The diagnostic board's limit is 16375 bytes, below the general ABI's 16384.
 Callers must not mutate supplied slices concurrently with a call; tape bytes
 are copied before CRC and transfer. These are command operations, not a runtime
