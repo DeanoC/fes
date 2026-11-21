@@ -87,6 +87,12 @@ def generate(output, hps, quartus_root):
                    project, directory / "clear-generation.log")
     hps.run_logged([generator, "--generate_project_ip_files", "--synthesis=verilog", "golden_top"],
                    project, directory / "ip-generation.log")
+    verify_handoff(output, hps)
+
+
+def verify_handoff(output, hps):
+    directory = output / "combined/hps"
+    project = directory / "project"
     inputs = json.loads((directory / "inputs.json").read_text())
     expected = inputs["vendor_hps_emif_parameters"]
     hps_ip = "hps_subsys/ip/hps_subsys/agilex_hps.ip"
@@ -115,15 +121,22 @@ def generate(output, hps, quartus_root):
     readers = [start for _, start, end in routes if end == "subsys_hps_f2sdram_adapter.axi4_sub"]
     if len(readers) != len(expected_readers) or set(readers) != expected_readers:
         raise ValueError("native Spectrum generated DDR master inventory differs")
-    if (routes.count(("reset", "fes_native_maintenance_reset.out_reset", "subsys_debug.reset")) != 1 or
-            ("reset", "rst_in.out_reset", "subsys_debug.reset") in routes):
+    expected_reset = {
+        "subsys_debug_jtag_rst_in.in_reset": "fes_native_maintenance_reset.out_reset",
+        "subsys_debug_fpga_m.clk_reset": "subsys_debug_jtag_rst_in.out_reset",
+        "subsys_debug_hps_f2sdram.clk_reset": "subsys_debug_jtag_rst_in.out_reset",
+    }
+    observed_reset = [(end, start) for kind, start, end in routes
+                      if kind == "reset" and end.startswith("subsys_debug_")]
+    if len(observed_reset) != len(expected_reset) or dict(observed_reset) != expected_reset:
         raise ValueError("native Spectrum maintenance reset route differs")
     # Check the synthesized wrapper still connects the constant source to
     # exactly the reset bridge that owns the maintenance subsystem.
     top = (project / "golden_top.v").read_text()
     netlist = (project / "qsys_top/synth/qsys_top.v").read_text()
     if (top.count(".fes_native_maintenance_reset_reset_n(1'b0)") != 1 or
-            "fes_native_maintenance_reset_reset_n" not in netlist):
+            netlist.count("(fes_native_maintenance_reset_reset_n)") != 1 or
+            netlist.count("(fes_native_maintenance_reset_out_reset_reset)") < 2):
         raise ValueError("native Spectrum maintenance reset binding differs")
     result = {"scope": "native-spectrum48-generated-hps-diagnostic-v1",
               "hps_parameters": expected, "ddr_ingress": sorted(readers),
