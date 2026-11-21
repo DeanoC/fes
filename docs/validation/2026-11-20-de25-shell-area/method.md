@@ -148,3 +148,52 @@ patch is not reachable, because Yosys autonames shift.
 ## Screening
 
 There is no seed-1 screening. Every candidate gets four seeds.
+
+### Amendment, 21 November 2026 (before any S-rsp2 fit): S-rsp v1's control failed
+
+**S-rsp v1 is not measured.** Its positive control failed:
+- Every response FIFO row has the same ALMs as build j, with 0 M20K and 0
+  memory ALMs.
+- The generated `peripheral_subsys` interconnect is byte-identical to j's.
+
+The cause is ordering. The patch's domain assignment runs in the script prefix,
+before the integration adds the `fes_*` connections. Those connections are left
+at `REGISTER_BASED`:
+- `fes_scanout.avm/fes_mem_cdc.s0`
+- `fes_scanout_guard.avm/fes_ctrl_cdc.s0`
+- `fes_ctrl_cdc.m0/fes_scanout.avs`
+- `fes_scanout.win/fes_win_cdc.s0`
+
+In `qsys_top`, every connection reads `EMBEDDED_MEMORY_BASED`. Even so, the
+F2SDRAM agent's `read_rsp_fifo` and `write_rsp_fifo` are unchanged: its
+interconnect HDL is byte-identical to j's, with `USE_MEMORY_BLOCKS (0)`. This
+knob does not govern that AXI agent's FIFOs, so that FIFO stays an entity
+bound only.
+
+v1's three finished seeds are kept as evidence for the failed control. They are
+not in the table, and its memory-killed seed 1 is not rerun.
+
+**S-rsp2** (`shell-rsp2.patch`, on top of v1): the same `peripheral_subsys`
+domain assignment, appended after the integration, at the end of the rendered
+`integrate-mailbox.tcl`. Its controls:
+- **At generation, before any seed:** the generated `peripheral_subsys`
+  interconnect differs from j's, and `fes_mem_cdc_s0_agent_rsp_fifo` has
+  `USE_MEMORY_BLOCKS (1)`. If not, no seed runs, and S-rsp is reported as not
+  measured, entity bound only, about 957 ALMs.
+- **In the fit:** M20K or memory ALMs on that FIFO's row.
+
+No other knob is substituted.
+
+**S-lat's control at generation:** the F2SDRAM connections are also added
+during the integration. So S-lat is checked in its generated `qsys_top`
+interconnect, as well as in the fit, for fewer pipeline instances than j. If
+generation is unchanged, S-lat is reported as not measured.
+
+**A-kbcram's positive control** was not fixed before its fits. It is reported
+as "no precommitted control". Its registers fall by 138 in the fit, and its
+bound is within the spread.
+
+**Memory kills.** On 20 November at about 21:36Z, two shell compiles and an AT
+fit on the 23 GB host lost S-ocm seed 3, S-rsp seed 1 and A-dma2 seed 1 to
+signal 9. S-ocm seed 3 and A-dma2 seed 1 are rerun one at a time with the same
+inputs, and so is everything after them.
