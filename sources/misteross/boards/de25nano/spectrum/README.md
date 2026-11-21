@@ -5,9 +5,10 @@ MENU/ZX81 board recipe: the same GHRD, HDMI shell, kernel-owned allocated
 display and atomic computer transport at peripheral offset `0x10300`. It
 builds the 48K, the 128K/+2, the +2A/+3 and the Pentagon 128. Its producer is
 `../producers/build_spectrum_package.py`, selected by the `de25-nano`
-`fes.spectrum` recipe. Both models sign off and package, the runtime and
-FogCast admit them, and Kit D25 has shown the 48K BASIC screen and the 128K
-menu (#1937). The work toward tier 1 on DE25 is tracked in #2042.
+`fes.spectrum` recipe. All four models sign off and package, and the runtime
+and FogCast admit them. Kit D25 has shown the 48K BASIC screen and the 128K
+menu (#1937), and the +2A/+3 and Pentagon booting a disk from media unit 1
+(#2046). The work toward tier 1 on DE25 is tracked in #2042.
 
 ## What differs from the DE10 core
 
