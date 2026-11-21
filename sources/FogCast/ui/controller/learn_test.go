@@ -134,7 +134,7 @@ func TestLearnedDirectionsOnButtons(t *testing.T) {
 }
 
 func TestLearnedMappingRejectsUnknownControls(t *testing.T) {
-	for _, mapping := range []string{"", "turbo:b0", "a"} {
+	for _, mapping := range []string{"", "turbo:b0", "a", "rightx:a3"} {
 		if _, err := NewLearnedMapper(learnPad(), mapping); err == nil {
 			t.Errorf("%q compiled", mapping)
 		}
@@ -165,5 +165,27 @@ func TestDBButtonsOnAxes(t *testing.T) {
 	events = m.Events(3, 2, 1)
 	if len(events) != 1 || events[0].Code != remoteinput.ButtonA || events[0].Action != remoteinput.ActionPress {
 		t.Fatalf("a: %+v", events)
+	}
+}
+
+// A learned left stick is the left stick: its whole axis, the right way
+// round, beside directions on a hat.
+func TestLearnedStick(t *testing.T) {
+	m, err := NewLearnedMapper(learnPad(), "dpup:h0.1,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,a:b0,b:b1,leftx:a0,lefty:a1~")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e, ok := m.Map(3, 0, 255); !ok || e.Code != remoteinput.AxisLeftX || e.Value != 32767 {
+		t.Fatalf("stick right: %+v %v", e, ok)
+	}
+	if e, ok := m.Map(3, 0, 128); !ok || e.Code != remoteinput.AxisLeftX || e.Value != 0 {
+		t.Fatalf("stick home: %+v %v", e, ok)
+	}
+	// lefty is reversed: the pad reads low when pushed down.
+	if e, ok := m.Map(3, 1, 0); !ok || e.Code != remoteinput.AxisLeftY || e.Value <= 0 {
+		t.Fatalf("stick down: %+v %v", e, ok)
+	}
+	if e, ok := m.Map(3, 17, -1); !ok || e.Code != remoteinput.AxisLeftY || e.Value != -32768 {
+		t.Fatalf("hat up: %+v %v", e, ok)
 	}
 }
