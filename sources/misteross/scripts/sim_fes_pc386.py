@@ -1826,6 +1826,19 @@ def run_fdc(args) -> dict:
     return report
 
 
+FLOPPY_VERIFY_RTL = (CORE / 'rtl/pc386_floppy_verify.sv',)
+
+
+def run_floppy_verify(args) -> dict:
+    """fes.media.pc-floppy's commit CRC pass sharing port 2 with the controller."""
+    testbench = verilate(args.verilator, 'floppy-verify', 'pc386_floppy_verify', FLOPPY_VERIFY_RTL,
+                         CORE / 'sim/floppy_verify_tb.cpp', [], args.jobs)
+    result = subprocess.run([str(testbench)], capture_output=True, text=True)
+    (OUTPUT / 'floppy-verify' / 'floppy-verify.log').write_text(result.stdout + result.stderr)
+    line = (result.stdout or result.stderr).strip()
+    return {'checks': [line] if result.returncode == 0 else [], 'failures': [] if result.returncode == 0 else [line]}
+
+
 def run_devices(args) -> dict:
     # A fast RTC (one guest second is 2^19 clocks) keeps the update test short.
     # The RAMs poison a read of the word being written, as M10K leaves it.
@@ -2167,7 +2180,8 @@ def wfw_checks(report: dict) -> list[str]:
 def main() -> int:
     global oracle, OUTPUT
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--suite', choices=('devices', 'fdc', 'floppy', 'floppy-boot', 'storage', 'audio', 'opl2',
+    parser.add_argument('--suite', choices=('devices', 'fdc', 'floppy-verify', 'floppy', 'floppy-boot', 'storage',
+                                            'audio', 'opl2',
                                             'benches', 'boot', 'rtl-stops',
                                             'a20', 'c2xx', 'ems', 'wait', 'speaker', 'x87', 'scroll', 'cpu-profile',
                                             'sound', 'game', 'wfw', 'vga', 'system', 'governor', 'all'),
@@ -2250,7 +2264,7 @@ def main() -> int:
         return 2
     failed = False
     try:
-        suites = ('devices', 'fdc', 'storage', 'audio', 'opl2', 'benches', 'boot', 'vga', 'sound') \
+        suites = ('devices', 'fdc', 'floppy-verify', 'storage', 'audio', 'opl2', 'benches', 'boot', 'vga', 'sound') \
             if args.suite == 'all' \
             else (args.suite,)
         for suite in suites:
@@ -2261,6 +2275,8 @@ def main() -> int:
                 report = run_devices(args)
             elif suite == 'fdc':
                 report = run_fdc(args)
+            elif suite == 'floppy-verify':
+                report = run_floppy_verify(args)
             elif suite == 'storage':
                 report = run_storage(args)
             elif suite == 'audio':

@@ -1047,6 +1047,19 @@ class FdcReplayTest(unittest.TestCase):
         self.assertIn(fdc, sim.SYSTEM_RTL)
         self.assertIn('cores/fes-pc386/rtl/pc386_fdc.sv', producer.MACHINE_SOURCES)
 
+    def test_the_floppy_verify_bench_uses_the_headers_window(self):
+        # floppy_verify_tb.cpp hard-codes the window base and the floppy
+        # offsets; they must stay the generated headers' values.
+        generated = sim.COMMON / 'generated'
+        application = (generated / 'fes_application.vh').read_text()
+        computer = (generated / 'fes_computer.vh').read_text()
+        bench = (sim.CORE / 'sim/floppy_verify_tb.cpp').read_text()
+        self.assertIn("`define FES_APPLICATION_HPS_DDR_WINDOW_BASE 32'h30000000", application)
+        self.assertIn("`define FES_COMPUTER_PC_FLOPPY_WINDOW_OFFSET 32'h01800000", computer)
+        self.assertIn("`define FES_COMPUTER_PC_FLOPPY_WINDOW_STRIDE 32'h00400000", computer)
+        for constant in ('WINDOW_BASE = 0x30000000u', 'FLOPPY_OFFSET = 0x01800000u', 'FLOPPY_STRIDE = 0x00400000u'):
+            self.assertIn(constant, bench)
+
     def test_the_floppy_endpoint_and_its_crc_pass_are_in_the_seal(self):
         # F3: the drives' endpoint below pc386_system, the CRC pass in the machine.
         verify = sim.CORE / 'rtl/pc386_floppy_verify.sv'
