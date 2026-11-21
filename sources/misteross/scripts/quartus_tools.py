@@ -286,8 +286,9 @@ HOST_RAM_GIB = {"chip-30x0-ai-dev": (23, 8), "powerboat": (62, 24)}
 # Leased programs. quartus_pfg, quartus_cpf and quartus_pgm convert or program
 # an existing bitstream in seconds and a few hundred MB; they take no slot.
 UNKNOWN_EDITION = "unknown"
-QUARTUS_PROGRAM = re.compile(
-    r"quartus_(sh|map|syn|fit|sta|asm|eda|cdb|ipgenerate|npp|pow|drc|si|tan|dse|stp|jli|staw|sim)")
+LEASED_PROGRAMS = ("sh", "map", "syn", "fit", "sta", "asm", "eda", "cdb", "ipgenerate", "npp", "pow", "drc",
+                   "si", "tan", "dse", "stp", "jli", "staw", "sim")
+QUARTUS_PROGRAM = re.compile(r"quartus_(" + "|".join(LEASED_PROGRAMS) + ")")
 LEASE_NOTICE_SECONDS = 60
 
 # Leases this process took: quartus_lease's per thread, so parallel seeds in
@@ -781,6 +782,8 @@ def _reads_program_from_stdin(texts: list[str]) -> bool:
     if not texts:
         return False
     name = os.path.basename(texts[0])
+    if name == "busybox" and len(texts) > 1:
+        return _reads_program_from_stdin(texts[1:])  # busybox APPLET [args]: the applet runs
     if re.fullmatch(r"python(3(\.\d+)?)?", name):
         return _python_reads_stdin(texts[1:])
     if name not in SHELLS:

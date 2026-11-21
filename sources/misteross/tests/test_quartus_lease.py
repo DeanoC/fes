@@ -35,7 +35,8 @@ from scripts import quartus_tools as qt  # noqa: E402
 # Quartus programs that need a slot. quartus_pfg, quartus_cpf and quartus_pgm
 # convert or program an existing bitstream in seconds and a few hundred MB, so
 # they are not leased (the same set quartus_tools.QUARTUS_PROGRAM leaves out).
-LEASED = re.compile(r"\bquartus_(sh|map|syn|fit|sta|asm|eda|cdb|ipgenerate|npp|pow|drc|si|tan|dse|stp)\b(?!_)")
+# The same program set the runtime hook leases (one list, in quartus_tools).
+LEASED = re.compile(r"\bquartus_(" + "|".join(qt.LEASED_PROGRAMS) + r")\b(?!_)")
 LAUNCH = re.compile(r"subprocess\.|\bPopen\(|os\.exec|os\.system\(|os\.spawn|os\.posix_spawn")
 PROBE = re.compile(r"^\s*(--version|-v|--help|-h)\b")
 
@@ -246,8 +247,7 @@ def shell_runs(text: str):
                 yield start, f"runs {os.path.basename(word)} outside quartus_jobs.py run"
 
 
-LEASED_NAMES = ("sh", "map", "syn", "fit", "sta", "asm", "eda", "cdb", "ipgenerate", "npp", "pow", "drc",
-                "si", "tan", "dse", "stp")
+LEASED_NAMES = qt.LEASED_PROGRAMS
 
 
 def _names_a_program_prefix(value: str) -> bool:
@@ -639,6 +639,15 @@ class StaticRuleTests(unittest.TestCase):
                          ["scripts/d.sh", "scripts/e", "sources/misteross/scripts/a.py",
                           "sources/misteross/scripts/b.py", "sources/misteross/scripts/c.py",
                           "sources/misteross/scripts/f.py"])
+
+    def test_the_static_and_runtime_program_sets_are_one(self):
+        # Codex P1 at d0280a029: quartus_sim/jli/staw were leased at run
+        # time but not scanned.
+        for name in qt.LEASED_PROGRAMS:
+            self.assertTrue(LEASED.search(f"quartus_{name}"), name)
+            self.assertTrue(qt.QUARTUS_PROGRAM.fullmatch(f"quartus_{name}"), name)
+        self.assertEqual(len(self.scan({"sources/misteross/scripts/sim.py":
+                                        "import subprocess\nsubprocess.run(['quartus_sim'])\n"})), 1)
 
     def test_a_cpf_conversion_alone_is_not_a_leased_program(self):
         self.assertEqual(self.scan({"sources/misteross/scripts/convert.py": """
@@ -1089,7 +1098,9 @@ class LaunchGuardTests(unittest.TestCase):
                      # Codex P1s at 3c574e500: wrapped over ssh, and perl -c.
                      ["ssh", "host", "env", "python3", "-"],
                      # Codex P1s at aa9250581: python -i, and clustered ssh options.
-                     ["python3", "-i", "-c", "pass"], ["ssh", "-vp", "22", "host", "python3", "-"]):
+                     ["python3", "-i", "-c", "pass"], ["ssh", "-vp", "22", "host", "python3", "-"],
+                     # Codex P1 at d0280a029: a BusyBox applet.
+                     ["busybox", "sh"]):
             with self.assertRaises(qt.QuartusLeaseError, msg=argv):
                 subprocess.run(argv, input="true\n", text=True, capture_output=True)
         with qt.stdin_program():
