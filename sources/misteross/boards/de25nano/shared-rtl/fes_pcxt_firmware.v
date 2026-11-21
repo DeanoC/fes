@@ -36,17 +36,23 @@ module fes_pcxt_firmware (
     reg [2:0] state = IDLE;
     reg [1:0] restart_count = 2'd0;
     reg started = 1'b0, high = 1'b0;
-    // The DE10 font is a ROM read combinationally by both display cards.
-    reg [7:0] glyphs [0:4095];
-    assign cga_font_data = glyphs[cga_font_address];
-    assign mda_font_data = glyphs[mda_font_address];
+    // The DE10 font is a ROM read combinationally by both display cards. Each
+    // card reads its own copy, a memory with one write and one asynchronous
+    // read port, which the device builds from MLABs. A pair is one 16-bit
+    // word: both bytes are written together.
     wire font = write_addr[16];
+    wire font_write = state == IDLE && write_enable[0] && font;
+    wire [15:0] glyph_pair = {write_enable[1] ? write_data[15:8] : 8'hff, write_data[7:0]};
+    (* ramstyle = "MLAB, no_rw_check" *) reg [15:0] cga_glyphs [0:2047];
+    (* ramstyle = "MLAB, no_rw_check" *) reg [15:0] mda_glyphs [0:2047];
+    always @(posedge clk) if (font_write) cga_glyphs[write_addr[11:1]] <= glyph_pair;
+    always @(posedge clk) if (font_write) mda_glyphs[write_addr[11:1]] <= glyph_pair;
+    wire [15:0] cga_pair = cga_glyphs[cga_font_address[11:1]];
+    wire [15:0] mda_pair = mda_glyphs[mda_font_address[11:1]];
+    assign cga_font_data = cga_font_address[0] ? cga_pair[15:8] : cga_pair[7:0];
+    assign mda_font_data = mda_font_address[0] ? mda_pair[15:8] : mda_pair[7:0];
     always @(posedge clk) begin
         write_ready <= 1'b0;
-        if (state == IDLE && write_enable[0] && font) begin
-            glyphs[{write_addr[11:1], 1'b0}] <= write_data[7:0];
-            if (write_enable[1]) glyphs[{write_addr[11:1], 1'b1}] <= write_data[15:8];
-        end
         case (state)
             IDLE: if (write_enable[0] && !write_ready) begin
                 if (write_addr == 17'd0 && started) begin
