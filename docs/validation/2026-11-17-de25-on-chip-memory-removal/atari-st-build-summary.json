@@ -1,0 +1,10 @@
+{
+  "build_id": "25e9f825bfebe510afec7e31331d5ad5",
+  "classification": "de25-atari-st-package-candidate",
+  "hardware_acceptance": false,
+  "model": "520st",
+  "normal_kit_acceptance": false,
+  "package_timing_admission": true,
+  "rbf_sha256": "15b124ad4c62bd71f6c48ef9b4b1661cd3b5a4da96b1c4e28ccc3fe7b5d3d3f1",
+  "revision": "18233ba6fd1bdf20e6ce601fe414086879de5e63"
+}

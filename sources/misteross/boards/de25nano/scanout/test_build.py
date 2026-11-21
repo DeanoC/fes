@@ -800,9 +800,10 @@ class LinuxDmaTests(unittest.TestCase):
             for field in fields) + "# vendor suffix\n"
 
     @unittest.skipUnless(shutil.which("tclsh"), "requires Tcl")
-    def test_generated_configuration_disables_f2h_only_for_canonical_menu(self):
+    def test_generated_configuration_disables_f2h_and_h2f_only_for_canonical_menu(self):
         hps = B.load(B.HERE.parent / "hps/build.py", "scanout_configuration_hps_test")
         prefix = '''set width 256
+set h2f 128
 set smmu 0
 set removed {}
 proc load_system {name} {}
@@ -810,15 +811,15 @@ proc load_component {name} {}
 proc save_system {name} {}
 proc save_component {} {}
 proc get_component_parameter_value {name} {
-    switch $name {f2s_data_width {return $::width} f2sdram_SMMU {return [expr {$::smmu ? 1 : 0}]} DATA_WIDTH {return 256}}
+    switch $name {f2s_data_width {return $::width} H2F_Width {return $::h2f} f2sdram_SMMU {return [expr {$::smmu ? 1 : 0}]} DATA_WIDTH {return 256}}
     error "unexpected parameter $name"
 }
 proc set_component_parameter_value {name value} {
-    switch $name {f2s_data_width {set ::width $value} f2sdram_SMMU {set ::smmu $value} default {error "unexpected parameter $name"}}
+    switch $name {f2s_data_width {set ::width $value} H2F_Width {set ::h2f $value} f2sdram_SMMU {set ::smmu $value} default {error "unexpected parameter $name"}}
 }
 proc get_component_interface_port_property {interface port property} {return 25}
 proc get_interface_property {name property} {
-    return [dict get {fpga2hps agilex_hps.fpga2hps fpga2hps_clk agilex_hps.fpga2hps_clock fpga2hps_rst agilex_hps.fpga2hps_reset hps_f2sdram_master hps_f2sdram.master} $name]
+    return [dict get {fpga2hps agilex_hps.fpga2hps fpga2hps_clk agilex_hps.fpga2hps_clock fpga2hps_rst agilex_hps.fpga2hps_reset hps2fpga agilex_hps.hps2fpga hps2fpga_clk agilex_hps.hps2fpga_axi_clock hps2fpga_rst agilex_hps.hps2fpga_axi_reset hps_f2sdram_master hps_f2sdram.master} $name]
 }
 proc remove_interface {name} {lappend ::removed $name}
 proc remove_instance {name} {}
@@ -831,19 +832,31 @@ proc remove_instance {name} {}
                 adapter.write_text(self.source)
                 script, _, changes = self.helper.configure(project, self.definition, hps, managed_fabric=managed)
                 result = subprocess.run(["tclsh"], input=prefix + "\nif {[catch {\n" + script +
-                    "\n} message]} {puts $message; exit 4}\nputs \"$width|$smmu|$removed\"\n",
+                    "\n} message]} {puts $message; exit 4}\nputs \"$width|$h2f|$smmu|$removed\"\n",
                     text=True, capture_output=True, timeout=10)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertEqual(result.stdout.strip(),
-                    "0|true|fpga2hps fpga2hps_clk fpga2hps_rst hps_f2sdram_master" if managed
-                    else "256|true|hps_f2sdram_master")
+                    "0|0|true|fpga2hps fpga2hps_clk fpga2hps_rst hps2fpga hps2fpga_clk hps2fpga_rst hps_f2sdram_master" if managed
+                    else "256|128|true|hps_f2sdram_master")
                 self.assertEqual("f2s_data_width" in changes[self.helper.HPS_IP], managed)
+                self.assertEqual(changes[self.helper.HPS_IP].get("H2F_Width"),
+                                 {"before": "128", "after": "0"} if managed else None)
                 if managed:
                     result = subprocess.run(["tclsh"], input=prefix.replace("set width 256", "set width 128") +
                         "\nif {[catch {\n" + script + "\n} message]} {puts $message; exit 4}\n",
                         text=True, capture_output=True, timeout=10)
                     self.assertEqual(result.returncode, 4)
                     self.assertIn("vendor F2H data width changed", result.stdout)
+                    result = subprocess.run(["tclsh"], input=prefix.replace("set h2f 128", "set h2f 64") +
+                        "\nif {[catch {\n" + script + "\n} message]} {puts $message; exit 4}\n",
+                        text=True, capture_output=True, timeout=10)
+                    self.assertEqual(result.returncode, 4)
+                    self.assertIn("vendor H2F data width changed", result.stdout)
+                    result = subprocess.run(["tclsh"], input=prefix.replace("hps2fpga agilex_hps.hps2fpga ", "hps2fpga other.master ") +
+                        "\nif {[catch {\n" + script + "\n} message]} {puts $message; exit 4}\n",
+                        text=True, capture_output=True, timeout=10)
+                    self.assertEqual(result.returncode, 4)
+                    self.assertIn("vendor bridge export changed: hps2fpga", result.stdout)
 
     def test_exact_packing_preserves_vendor_attributes_and_nonsecure_context(self):
         data, profile = self.helper.retarget_adapter(self.source.encode(), self.definition)
