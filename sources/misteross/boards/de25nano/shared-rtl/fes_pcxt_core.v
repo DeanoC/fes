@@ -12,9 +12,10 @@
 // and the 720p word leaves for the session display.
 //
 // clk_sys is the machine's 100 MHz. clk_forward (+1.25 ns) clocks the
-// forwarded SDRAM clock, clk_capture (phase 0) the DQ input registers and
-// clk_handoff the CAS-3 read-word handoff, exactly the DE10 package's four
-// memory PLL outputs. Board wrappers own the PLL, HPS transport, the SDRAM
+// forwarded SDRAM clock, clk_capture the DQ input registers and clk_handoff
+// the CAS-3 read-word handoff, the DE10 package's four memory PLL outputs;
+// the board places the capture phase for its pads, inside the same read
+// window. Board wrappers own the PLL, HPS transport, the SDRAM
 // pads, HDMI and audio serialization. No FPGA-family primitive belongs here.
 module fes_pcxt_core #(
     parameter [127:0] BUILD_ID = 128'd0

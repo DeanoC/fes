@@ -4,7 +4,7 @@
 // machine and the DE10 core's SDRAM controller and CAS-3 capture pipeline
 // against a logical SDR SDRAM model that checks its command protocol at the
 // chip's own clock edge. The machine clock and its three SDRAM phases run at
-// the DE10 PLL's 100 MHz phases (the handoff at this PLL's +9.25 ns).
+// this PLL's 100 MHz phases: forward +1.25, capture +4.0, handoff +9.25 ns.
 // Execution cannot be released before the firmware is committed; GLaBIOS's
 // window and the CGA font are then uploaded, the window lands in SDRAM at
 // F0000, and the BIOS runs from there until its POST banner is in CGA text
@@ -29,6 +29,7 @@ namespace {
 constexpr uint64_t kHalfPs = 5000;       // the machine's 100 MHz and its phases
 constexpr uint64_t kForwardPs = 1250;    // forwarded SDRAM clock source
 constexpr uint64_t kHandoffPs = 9250;    // CAS-3 read-word handoff
+constexpr uint64_t kCapturePs = 4000;    // DQ capture
 constexpr uint64_t kBusHalfPs = 5003;    // 100 MHz peripheral clock, unrelated
 constexpr uint64_t kPixelHalfPs = 6734;  // nominal 74.25 MHz, rounded to ps
 constexpr uint32_t kGpo = 0x0c, kGpi = 0x10, kFault = 0x14;
@@ -163,7 +164,7 @@ struct Board {
     Vfes_de25_pcxt_standard dut;
     Vfes_de25_pcxt_standard___024root& root;
     uint64_t now = 0, next_machine = 0, next_forward = kForwardPs, next_handoff = kHandoffPs,
-             next_pixel = 0, next_bus = 0, machine_clocks = 0;
+             next_capture = kCapturePs, next_pixel = 0, next_bus = 0, machine_clocks = 0;
     bool toggle = false;
     Sdram sdram;
 
@@ -195,7 +196,7 @@ struct Board {
     // Advance to the next clock edge: 1 a machine rise, 2 a peripheral
     // (computer slave) rise, 0 anything else.
     int step() {
-        uint64_t next = std::min({next_machine, next_forward, next_handoff, next_pixel, next_bus});
+        uint64_t next = std::min({next_machine, next_forward, next_handoff, next_capture, next_pixel, next_bus});
         now = next;
         if (next == next_forward) {
             next_forward += kHalfPs;
@@ -208,6 +209,12 @@ struct Board {
             dut.eval();
             return 0;
         }
+        if (next == next_capture) {
+            next_capture += kHalfPs;
+            dut.dram_clk_capture = !dut.dram_clk_capture;
+            dut.eval();
+            return 0;
+        }
         if (next == next_handoff) {
             next_handoff += kHalfPs;
             dut.dram_clk_handoff = !dut.dram_clk_handoff;
@@ -217,7 +224,6 @@ struct Board {
         if (next == next_machine) {
             next_machine += kHalfPs;
             dut.machine_clk = !dut.machine_clk;
-            dut.dram_clk_capture = dut.machine_clk;
             dut.eval();
             if (dut.machine_clk) ++machine_clocks;
             if (sdram.initialized && root.fes_de25_pcxt_standard__DOT__core__DOT__machine_cold)

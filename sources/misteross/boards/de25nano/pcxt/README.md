@@ -20,8 +20,12 @@ The clocks are the DE10 board's. One PLL on CLOCK1_50 (`machine_pll.ip`,
 x 30) makes the machine's 100 MHz for the CPU, motherboard and SDRAM, and
 beside it the three SDRAM clocks `fes_pcxt_top` takes from its memory PLL:
 the forwarded clock's source at +1.25 ns, the CAS-3 read-word handoff and the
-DQ capture clock at phase 0. The handoff is at +9.25 ns, this PLL's nearest
-phase to the DE10's +9.375 ns. The fifth output is the audio master clock,
+DQ capture clock. The handoff is at +9.25 ns, this PLL's nearest phase to the
+DE10's +9.375 ns. The capture clock is at +4.0 ns where the DE10's is at
+phase 0: this board's pads return the word later (at phase 0 the first
+compile missed setup by 1.0 ns with 12 ns of hold). It samples in the same
+read window, before the handoff, so the controller's cycle counts are the
+DE10's. The fifth output is the audio master clock,
 12.295082 MHz (/122, +564 ppm); on the DE10 too it is unrelated to the
 machine clock, and the speaker's 48 kHz PCM is held across the crossing. The
 board's machine builder takes the clocks from this spec (`MACHINE_HZ`,

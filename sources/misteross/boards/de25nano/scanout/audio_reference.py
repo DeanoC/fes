@@ -64,7 +64,7 @@ SOURCES = {
 # MHz); its SDRAM outputs leave beside the reviewed audio wiring.
 MACHINE_POLICY = fitted.MACHINE_POLICY
 SHARED_PLL = ('boards/de25nano/machine/machine_pll.ip', '52890ca22dea5743d009dc5a10035918b54565cd9886c0c201a8022019a8d4b4')
-PCXT_PLL = ('boards/de25nano/pcxt/machine_pll.ip', '3ef1f21bfdbc8c863b7952a56b02e5b430cc763a1a25e4dc7d1e78c223a25e61')
+PCXT_PLL = ('boards/de25nano/pcxt/machine_pll.ip', '3933f6c70839736248bef4b93cd7fe1954275975f3200dd24168732e8a18ba40')
 MACHINE_PLLS = {'fes.spectrum': SHARED_PLL, 'fes.spectrum128': SHARED_PLL, 'fes.atari-st': SHARED_PLL,
                 'fes.pcxt-dos': PCXT_PLL}
 # The PLL outputs beside the audio wiring, as machine/board.py writes them.
@@ -215,7 +215,7 @@ def verify(directory, review):
             'missing or unexpected fitted report')
     require(receipt['reports_sha256'] == {p.name: async_inputs.sha(p) for p in sorted(reports.iterdir())},
             'fitted clock/path reports changed')
-    inputs = json.loads((directory / 'combined/hps/inputs.json').read_text())
+    inputs = json.loads((directory / 'combined/hps/inputs.json').read_text()) if machine_pll else None
     observations = fitted.observations(reports, machine_pll=machine_pll,
                                        master_mhz=fitted.machine_master_mhz(inputs) if machine_pll else None)
     require(all(receipt[k] == value for k, value in observations.items()), 'clock/path observations changed')

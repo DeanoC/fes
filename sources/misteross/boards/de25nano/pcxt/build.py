@@ -22,14 +22,17 @@ FIRMWARE_BYTES = {"xt": 69632}
 # with the forwarded SDRAM clock +1.25 ns, the CAS-3 read-word handoff and
 # the DQ capture clock beside it (fes_pcxt_top's memory PLL), and the audio
 # master on the same PLL. The handoff is +9.25 ns, the nearest phase of this
-# PLL to the DE10's +9.375 ns.
+# PLL to the DE10's +9.375 ns. The capture clock is +4.0 ns where the DE10's
+# is phase 0: this board's pads return the word later, and at phase 0 the
+# capture misses setup by 1.0 ns with 12 ns of hold to spare. It still
+# samples in the same read window, 5.25 ns before the handoff.
 MACHINE_HZ = 100000000
 PLL_IP = BOARD + "pcxt/machine_pll.ip"
 PLL_PARAMETERS = {"gui_number_of_clocks": "5", "gui_output_clock_frequency0": "100.0",
                   "gui_output_clock_frequency1": "12.295082", "gui_output_clock_frequency2": "100.0",
                   "gui_phase_shift2": "1250.0", "gui_output_clock_frequency3": "100.0",
                   "gui_phase_shift3": "9250.0", "gui_output_clock_frequency4": "100.0",
-                  "gui_phase_shift4": "0.0"}
+                  "gui_phase_shift4": "4000.0"}
 SDRAM_CLOCKS = (("clk_forward", 2), ("clk_handoff", 3), ("clk_capture", 4))
 PLL_COMMENT = """// One PLL on CLOCK1_50 in place of the stock audio PLL, whose pin can feed no
 // second one: x 30, then /15 for the machine's 100 MHz and its three SDRAM
