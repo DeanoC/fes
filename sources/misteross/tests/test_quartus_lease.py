@@ -315,6 +315,7 @@ def _is_main_guard(node: ast.AST) -> bool:
     test = getattr(node, "test", None)
     return (isinstance(node, ast.If) and isinstance(test, ast.Compare) and isinstance(test.left, ast.Name)
             and test.left.id == "__name__" and len(test.comparators) == 1
+            and len(test.ops) == 1 and isinstance(test.ops[0], ast.Eq)
             and isinstance(test.comparators[0], ast.Constant) and test.comparators[0].value == "__main__")
 
 
@@ -610,6 +611,13 @@ class StaticRuleTests(unittest.TestCase):
         failures = self.scan({"sources/misteross/scripts/late2.py":
                               "import subprocess\ndef launch():\n    subprocess.run(['quartus_fit', 'top'])\n"
                               "launch()\nfrom scripts import quartus_tools\n"})
+        self.assertEqual(len(failures), 1)
+        # Codex P1 at b203f1221: an inverted main guard runs on import.
+        failures = self.scan({"sources/misteross/scripts/notmain.py":
+                              "import subprocess\ndef main():\n    subprocess.run(['quartus_fit', 'top'])\n"
+                              "def locate_quartus(root):\n    from scripts import quartus_tools\n"
+                              "    return quartus_tools.locate_quartus(root, None, None)\n"
+                              "if __name__ != '__main__':\n    main()\n"})
         self.assertEqual(len(failures), 1)
         # Codex P1 at 4dac8285a: a locator-defining module that launches first.
         failures = self.scan({"sources/misteross/scripts/locfirst.py":
