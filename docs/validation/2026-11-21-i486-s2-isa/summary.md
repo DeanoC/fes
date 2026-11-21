@@ -28,7 +28,8 @@ arm b), with these changes:
 | test386.asm, 386 | POST codes end at FFh. The report is identical to main's in all 707 values |
 | Identity-off netlist | 29,548 flip-flop bits, the same as main's (`netlist/flops.txt`); cells 40,791 against 40,764; the digest differs (below) |
 | DE10 seal of the 386 package | Registered producer `build_pc386_product.py --with-lockstep`, seed 1, Quartus 17.0.2, on chip-30x0-ai-dev, at `9aa6d0561`: passes every analysis. BUILD_ID `6de4bd49354bf70b1a1bdd96c10a7248`, package `11b50c98…`, RBF `3c28aa32…`, 36,416 ALMs, setup +0.511 ns, hold +0.101 ns (`seal/`) |
-| Kit run of that package | Kit B, run `k2044a`: see [the kit run](#the-kit-run) |
+| Kit run of that package | Kit B, run `k2044a`: pass. FreeDOS prompt, then Wolfenstein 3D in play; the kit was restored to its baseline ([the kit run](#the-kit-run)) |
+| The head still builds the sealed design | `head_matches_seal.py`: the head's design identity equals the seal's, BUILD_ID `6de4bd49…`. Commits after `9aa6d0561` change only this record |
 | 486SX fit on the DE10 | Closes at 61.44 MHz in the seal's flow at every seed fitted: see [the 486SX fit](#the-486sx-fit) |
 
 ## What changed
@@ -145,7 +146,27 @@ this is not a measured cost of the delta.
 
 ## The kit run
 
-Pending at the time of writing.
+Kit B, run `k2044a`, 21 November 2026, 11:37 to 11:39 EET. It used the
+established core-only runner (`hil_s4_dos.py`, with the same claim,
+baseline check and restore wrapper as the x87 slices' runs).
+
+**What ran.** The sealed package `11b50c98…` was packed as a canonical
+`.fcore`; its package ID was checked on packing. It ran on the kit's
+baseline image `179affbb…` and bundle `c9ae79e2…`, with no install and no
+reboot. It booted the user-supplied FreeDOS drive `a6977555…` as a fresh
+library game.
+
+**Result: pass** (`kit/kit-b-k2044a-result.json`).
+- The FreeDOS prompt was detected in 0.6 s.
+- Wolfenstein 3D reached floor 1 with graphics on screen (0.938 of the
+  frame lit). After a walk, 0.562 of the frame had changed.
+
+**Restore.** The kit was restored to the same image and bundle, with the
+same boot ID, the agent idle and the lease free. The run's FogCast data was
+removed. Both are logged in `kitB-STATUS.md`.
+
+**Status-line errata.** The claim and release lines in `kitB-STATUS.md`
+say "PR fes#2044": that is the issue; the PR is #2045.
 
 ## Not in this slice
 
