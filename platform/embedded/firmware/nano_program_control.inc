@@ -33,7 +33,7 @@ static int fes_nano_program_role_resources(uint32_t role,uint32_t abi,
         return abi==FES_NANO_PROGRAM_MENU_ABI && !p->rom_bytes;
 #if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
     if(role==FES_NANO_PROGRAM_ROLE_SPECTRUM48)
-        return abi==FES_NANO_PROGRAM_SPECTRUM48_ABI && p->spectrum48.bytes==p->bytes &&
+        return abi==FES_NANO_PROGRAM_SPECTRUM48_ABI && p->spectrum48 && p->spectrum48->bytes==p->bytes &&
             !p->rom_bytes && !p->rom_offset && !p->rom_crc;
 #endif
     return role==FES_NANO_PROGRAM_ROLE_COMPUTER && abi==FES_NANO_PROGRAM_COMPUTER_ABI && p->rom_bytes;

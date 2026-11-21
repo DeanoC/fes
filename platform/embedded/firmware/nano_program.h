@@ -69,7 +69,7 @@ struct fes_nano_program {
     uint8_t rom_header[FES_NANO_PROGRAM_ROM_HEADER_BYTES];
     uint32_t rom_offset, rom_bytes, rom_crc;
     unsigned mixed_roles;
-    struct fes_nano_spectrum48_program spectrum48;
+    const struct fes_nano_spectrum48_program *spectrum48;
     uint32_t role, control_abi;
 };
 #ifdef __cplusplus
@@ -93,7 +93,9 @@ int fes_nano_program_enable_rom(struct fes_nano_program *,
  * configuration-completion or live activation proof. */
 int fes_nano_program_enable_roles(struct fes_nano_program *);
 /* A matched cold platform can enable one exact sealed Spectrum companion
- * before capture. Its ROM is uploaded through the mailbox after activation. */
+ * before capture. The policy must be immutable and remain valid for the
+ * lifetime of this program instance. The platform stores it in read-only
+ * memory. Its ROM is uploaded through the mailbox after activation. */
 int fes_nano_program_enable_spectrum48(struct fes_nano_program *,
     const struct fes_nano_spectrum48_program *);
 int fes_nano_program_role(const struct fes_nano_program *, uint32_t *role, uint32_t *control_abi);

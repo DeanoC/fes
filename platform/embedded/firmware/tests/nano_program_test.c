@@ -260,7 +260,7 @@ static void spectrum_cases(void)
     struct fes_nano_spectrum48_program selected=trusted_spectrum(&f);
     assert(!fes_nano_program_enable_spectrum48(&f.program,&selected));
     assert(fes_nano_program_enable_spectrum48(&f.program,&selected));
-    memset(&selected,0,sizeof(selected)); /* Firmware owns its copy. */
+    assert(f.program.spectrum48==&selected); /* The compiled policy is retained read-only. */
     for(unsigned cycle=0;cycle<4;cycle++) {
         role_request(&f,cycle&1U ? FES_NANO_PROGRAM_ROLE_SPECTRUM48 : FES_NANO_PROGRAM_ROLE_MENU,
                      128,0,cycle&1U ? 9 : 1);
@@ -325,6 +325,7 @@ int main(int argc,char **argv)
              * The small no-argument unit fixture still has its 512-byte cap. */
             f.configuration.maximum=FES_NANO_PROGRAM_MAX_BYTES;
         }
+        struct fes_nano_spectrum48_program matched;
         assert(fread(f.wire,1,sizeof(f.wire),in)==sizeof(f.wire));
         if(argc==3 || argc>=6) {
             f.program.maximum=FES_NANO_PROGRAM_MAX_BYTES;
@@ -332,7 +333,6 @@ int main(int argc,char **argv)
             if(roles)assert(!fes_nano_program_enable_roles(&f.program));
             if(spectrum) {
                 FILE *policy=fopen(argv[6],"rb");assert(policy);
-                struct fes_nano_spectrum48_program matched;
                 assert(fread(&matched,1,sizeof(matched),policy)==sizeof(matched));
                 assert(fgetc(policy)==EOF);fclose(policy);
                 assert(!fes_nano_program_enable_spectrum48(&f.program,&matched));

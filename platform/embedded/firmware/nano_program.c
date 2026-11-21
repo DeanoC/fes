@@ -36,7 +36,7 @@ int fes_nano_program_enable_spectrum48(struct fes_nano_program *p,
     const struct fes_nano_spectrum48_program *selected)
 {
     if(!p || !p->initialized || p->failed || !p->mixed_roles || p->owner || p->bound ||
-       p->spectrum48.bytes || !selected || !selected->bytes || (selected->bytes&3U) ||
+       p->spectrum48 || !selected || !selected->bytes || (selected->bytes&3U) ||
        selected->bytes>p->maximum || (selected->bytes-1)/p->chunk>=FES_NANO_PROGRAM_MAX_CHUNKS ||
        !nonzero(selected->package,sizeof(selected->package)) ||
        !nonzero(selected->build,sizeof(selected->build)) ||
@@ -47,14 +47,14 @@ int fes_nano_program_enable_spectrum48(struct fes_nano_program *p,
         if(!nonzero(selected->chunks[i],sizeof(selected->chunks[i])))return -1;
     for(unsigned i=count;i<FES_NANO_PROGRAM_MAX_CHUNKS;i++)
         if(nonzero(selected->chunks[i],sizeof(selected->chunks[i])))return -1;
-    p->spectrum48=*selected;
+    p->spectrum48=selected;
     return 0;
 }
 
 static int spectrum48_matches(const struct fes_nano_program *p,uint32_t bytes)
 {
-    const struct fes_nano_spectrum48_program *s=&p->spectrum48;
-    return bytes==s->bytes &&
+    const struct fes_nano_spectrum48_program *s=p->spectrum48;
+    return s && bytes==s->bytes &&
         !memcmp(p->header+FES_NANO_PROGRAM_PACKAGE,s->package,sizeof(s->package)) &&
         !memcmp(p->header+FES_NANO_PROGRAM_BUILD,s->build,sizeof(s->build)) &&
         !memcmp(p->header+FES_NANO_PROGRAM_SHA256,s->sha256,sizeof(s->sha256)) &&
