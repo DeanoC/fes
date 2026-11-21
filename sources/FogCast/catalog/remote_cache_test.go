@@ -12,7 +12,7 @@ import (
 )
 
 // Rewinding a test catalog below schema 24 drops every later object first.
-const dropRemoteCacheSchemaForTest = `DROP TRIGGER shelf_disks_entry_removed; DROP TABLE shelf_disks; DROP TRIGGER core_media_import_protect; DROP TRIGGER local_entry_cache_adopt_insert; DROP TRIGGER local_entry_cache_adopt_update; DROP TRIGGER core_entry_roms_cache_adopt_insert; DROP TRIGGER core_entry_roms_cache_adopt_update; DROP TRIGGER core_expansions_cache_adopt_insert; DROP TRIGGER core_expansions_cache_adopt_update; DROP TRIGGER core_video_parts_cache_adopt_insert; DROP TRIGGER core_video_parts_cache_adopt_update; DROP TRIGGER zx81_saves_cache_adopt_insert; DROP TRIGGER zx81_saves_cache_adopt_update; DROP TABLE remote_cached_media; `
+const dropRemoteCacheSchemaForTest = `DROP TRIGGER core_entry_media_set_ends; DROP TRIGGER core_entry_media_set_cache_adopt; DROP TRIGGER kit_host_media_set_insert; DROP TRIGGER kit_host_media_set_delete; DROP TABLE core_entry_media_set; DROP TRIGGER shelf_disks_entry_removed; DROP TABLE shelf_disks; DROP TRIGGER core_media_import_protect; DROP TRIGGER local_entry_cache_adopt_insert; DROP TRIGGER local_entry_cache_adopt_update; DROP TRIGGER core_entry_roms_cache_adopt_insert; DROP TRIGGER core_entry_roms_cache_adopt_update; DROP TRIGGER core_expansions_cache_adopt_insert; DROP TRIGGER core_expansions_cache_adopt_update; DROP TRIGGER core_video_parts_cache_adopt_insert; DROP TRIGGER core_video_parts_cache_adopt_update; DROP TRIGGER zx81_saves_cache_adopt_insert; DROP TRIGGER zx81_saves_cache_adopt_update; DROP TABLE remote_cached_media; `
 
 func remoteCacheImport(t *testing.T, s *Store, value string) CoreMedia {
 	t.Helper()
@@ -372,7 +372,7 @@ func TestRemoteCacheRecognizesEverySchemaForeignKeyToMedia(t *testing.T) {
 	}
 	// core_media_chunks and the provenance marker are storage owned by the
 	// candidate itself. Every other FK requires an explicit protection rule.
-	want := map[string]bool{"core_media_chunks": true, "remote_cached_media": true, "core_entry_roms": true, "core_expansions": true, "core_video_parts": true, "zx81_saves": true}
+	want := map[string]bool{"core_media_chunks": true, "remote_cached_media": true, "core_entry_roms": true, "core_expansions": true, "core_video_parts": true, "zx81_saves": true, "core_entry_media_set": true}
 	for _, table := range tables {
 		quoted := `"` + strings.ReplaceAll(table, `"`, `""`) + `"`
 		fk, err := s.db.QueryContext(ctx, `PRAGMA foreign_key_list(`+quoted+`)`)

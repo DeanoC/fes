@@ -151,6 +151,8 @@ def bindings(directory):
                  'fes.zx81': ('computer', 'boards/de25nano/producers/build_zx81_package.py'),
                  'fes.spectrum': ('computer', 'boards/de25nano/producers/build_spectrum_package.py'),
                  'fes.spectrum128': ('computer', 'boards/de25nano/producers/build_spectrum_package.py'),
+                 'fes.spectrum-plus3': ('computer', 'boards/de25nano/producers/build_spectrum_package.py'),
+                 'fes.pentagon': ('computer', 'boards/de25nano/producers/build_spectrum_package.py'),
                  'fes.atari-st': ('computer', 'boards/de25nano/producers/build_atari_st_package.py'),
                  'fes.pc386': ('computer', 'boards/de25nano/producers/build_pc386_package.py'),
                  }.get(fields['parameters']['core_id'])

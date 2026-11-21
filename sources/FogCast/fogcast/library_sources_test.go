@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -263,7 +264,7 @@ func TestRemoteSourceUnavailableRefreshRetainsIndexedTitle(t *testing.T) {
 		t.Fatal("offline refresh unexpectedly succeeded")
 	}
 	entry, origin, found, err := f.store.RemoteCoreEntryBySource(context.Background(), "home", "remote-game")
-	if err != nil || !found || entry != f.entry || !origin.Pending || origin.MediaID != f.mediaID {
+	if err != nil || !found || !reflect.DeepEqual(entry, f.entry) || !origin.Pending || origin.MediaID != f.mediaID {
 		t.Fatalf("failed refresh changed indexed title: %+v %+v %v %v", entry, origin, found, err)
 	}
 	if f.objects.Load() != 0 {

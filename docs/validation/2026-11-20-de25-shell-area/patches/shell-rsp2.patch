@@ -1,0 +1,28 @@
+From b58e2bffaf63578d77a0a14055edb75856f856d2 Mon Sep 17 00:00:00 2001
+From: x <x@x>
+Date: Sat, 21 Nov 2026 08:34:42 +0200
+Subject: [PATCH 2/2] AREA STUDY ABLATION rsp2 (not for merge)
+
+---
+ sources/misteross/boards/de25nano/scanout/build.py | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/sources/misteross/boards/de25nano/scanout/build.py b/sources/misteross/boards/de25nano/scanout/build.py
+index 57a555d53..c0bde6d91 100644
+--- a/sources/misteross/boards/de25nano/scanout/build.py
++++ b/sources/misteross/boards/de25nano/scanout/build.py
+@@ -340,6 +340,11 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
+             script = dma.isolate_managed_fabric_script(script, before)
+             dma.retire_managed_jtag_constraints(project)
+         script = replace_once(script, "package require -exact qsys 26.3\n", "package require -exact qsys 26.3\n" + prefix)
++        periph = hps.tcl_word(project / "peripheral_subsys/peripheral_subsys.qsys")
++        script += ("# AREA STUDY ABLATION rsp2 (not for merge): the same assignment after integration.\n"
++                   f"load_system {periph}\n"
++                   "set_domain_assignment {$system} {qsys_mm.responseFifoType} {EMBEDDED_MEMORY_BASED}\n"
++                   f"save_system {periph}\n")
+     (project / "integrate-mailbox.tcl").write_text(script)
+     inputs = json.loads(original_inputs)
+     inputs.pop("base_revision", None); inputs.update(selected)
+-- 
+2.47.3
+

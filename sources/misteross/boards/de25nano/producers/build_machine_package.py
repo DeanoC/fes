@@ -59,12 +59,14 @@ class Machine:
     """One machine: its board spec, its package identity and its own interfaces."""
 
     def __init__(self, *, recipe, directory, core_id, rom_id, name, version, descriptions, interfaces,
-                 model_core_ids=None, model_rom_ids=None, shell=SHELL, abi_minor=0):
+                 model_core_ids=None, model_rom_ids=None, model_interfaces=None, shell=SHELL, abi_minor=0):
         self.recipe, self.directory, self.core_id, self.rom_id = recipe, directory, core_id, rom_id
         self.model_core_ids = dict(model_core_ids or {})
         self.model_rom_ids = dict(model_rom_ids or {})
         self.name, self.version, self.descriptions = name, version, descriptions
         self.interfaces, self.shell, self.abi_minor = interfaces, shell, abi_minor
+        # Interfaces a model adds to the machine's own, such as a disk unit.
+        self.model_interfaces = dict(model_interfaces or {})
         self.label = 'DE25 ' + name
 
     def spec(self, root):
@@ -170,9 +172,12 @@ class Machine:
             'target': {'platform': 'de25_nano', 'device': DEVICE, 'programming_profile': 'de25-linux-computer-v1'},
             'payload': {'file': 'core.rbf', 'size': payload.stat().st_size, 'sha256': sha(payload)},
             'abi': {'id': 'fes.computer', 'major': 1, 'minor': self.abi_minor},
-            'interfaces': [{'id': name, 'major': major, 'minor': minor, 'required': True}
-                           for name, major, minor in (*((name, 1, 0) for name in self.shell), *self.interfaces,
-                                                      *board, ('fes.fabric.de25-scanout', 1, 3))],
+            # An entry is (id, major, minor) or, for an optional one, (id, major, minor, False).
+            'interfaces': [{'id': name, 'major': major, 'minor': minor, 'required': bool(required[0]) if required else True}
+                           for name, major, minor, *required in (
+                               *((name, 1, 0) for name in self.shell), *self.interfaces,
+                               *self.model_interfaces.get(fields['parameters']['model'], ()),
+                               *board, ('fes.fabric.de25-scanout', 1, 3))],
             'build': {'id': build_identity(record), 'repository': fields['repository'],
                 'revision': fields['revision'], 'recipe_sha256': fields['recipe_sha256'],
                 'toolchain': '; '.join(f'{name} {value}' for name, value in sorted(fields['tools'].items()))}})

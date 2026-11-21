@@ -32,7 +32,7 @@ func registerCoreLibrary(mux *http.ServeMux, service Service) {
 	registerCoreMediaLibrary(mux, service)
 	registerHardDiskMedia(mux, service)
 	registerAtariStDisks(mux, service)
-	registerAtariStShelf(mux, service)
+	registerDiskShelf(mux, service)
 	registerCoreFirmwareLibrary(mux, service)
 	registerCoreExpansions(mux, service)
 	registerCoreVideo(mux, service)

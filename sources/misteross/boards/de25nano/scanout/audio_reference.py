@@ -70,6 +70,7 @@ MACHINE_AUDIO_SOURCES = {
 SHARED_MACHINE_PLL = ('boards/de25nano/machine/machine_pll.ip',
                       '52890ca22dea5743d009dc5a10035918b54565cd9886c0c201a8022019a8d4b4')
 MACHINE_PLLS = {'fes.spectrum': SHARED_MACHINE_PLL, 'fes.spectrum128': SHARED_MACHINE_PLL,
+                'fes.spectrum-plus3': SHARED_MACHINE_PLL, 'fes.pentagon': SHARED_MACHINE_PLL,
                 'fes.atari-st': SHARED_MACHINE_PLL,
                 'fes.pc386': ('boards/de25nano/pc386/machine_pll.ip',
                               'd7fde9016686e6486b102dbc252c49f99397dff5f322fbae0abe04eefe02f5ba')}

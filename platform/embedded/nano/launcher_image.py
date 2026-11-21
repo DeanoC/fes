@@ -106,6 +106,57 @@ def staging(directory):
     return payload
 
 
+def verify_protected_layout(disk, image, prefix_sha256):
+    with disk.open('rb') as current, image.open('rb') as original:
+        prefix = original.read(PREFIX_SIZE)
+        if hashlib.sha256(prefix).hexdigest() != prefix_sha256 or current.read(PREFIX_SIZE) != prefix:
+            raise ValueError('protected SD prefix changed')
+        boot_sector = original.read(512)
+        if len(boot_sector) != 512 or current.read(512) != boot_sector:
+            raise ValueError('FAT boot sector changed')
+        backup = struct.unpack_from('<H', boot_sector, 50)[0]
+        if not 0 < backup < struct.unpack_from('<H', boot_sector, 14)[0]:
+            raise ValueError('invalid FAT backup sector')
+        current.seek(PREFIX_SIZE+backup*512); original.seek(PREFIX_SIZE+backup*512)
+        if original.read(512) != boot_sector or current.read(512) != boot_sector:
+            raise ValueError('FAT backup boot sector changed')
+
+
+def verify_prepared_image(disk, receipt, inputs, fit_data, output, run):
+    """Check the installed files against the pinned staging and recovery bytes."""
+    staging_dir, = [path.parents[1] for path in inputs if path.parts[-2:] == ('FES', 'CORESEL.JSN')]
+    template, = [path for path in inputs if path.name == 'nano-recovery-sd.img']
+    staged = staging(staging_dir)
+    if any(inputs.get(staging_dir/name) != hashlib.sha256(data).hexdigest() for name, data in staged.items()):
+        raise ValueError('launcher staging differs from its pinned input inventory')
+    payload = dict(staged, **{EXPERIMENTAL_FILE: fit_data})
+    if receipt.get('files') != {name: dict(bytes=len(data), sha256=hashlib.sha256(data).hexdigest())
+                               for name, data in payload.items()}:
+        raise ValueError('launcher file receipt differs from pinned payloads')
+    for name, source in (('u-boot.itb', 'u-boot.itb'), ('FES/RECOVERY.JSON', 'RECOVERY.JSON')):
+        path = template.with_name(source)
+        data = regular(path, 8 << 20)
+        if inputs.get(path) != hashlib.sha256(data).hexdigest():
+            raise ValueError('unbound protected recovery file: '+source)
+        payload[name] = data
+    if disk.stat().st_size != template.stat().st_size:
+        raise ValueError('launcher disk geometry differs from the recovery template')
+    verify_protected_layout(disk, template, receipt['protected_prefix_sha256'])
+
+    fat = str(disk)+'@@'+str(PREFIX_SIZE)
+    listing = run('sd-directory', ['mdir', '-a', '-b', '-s', '-i', fat, '::/']).read_text().splitlines()
+    directories = {parent.as_posix()+'/' for name in payload for parent in PurePosixPath(name).parents
+                   if parent != PurePosixPath('.')}
+    expected = {'::/'+name.casefold() for name in (*payload, *directories)}
+    if len(listing) != len(expected) or {name.casefold() for name in listing} != expected:
+        raise ValueError('launcher disk has missing, extra or aliased FAT entries')
+    for index, (name, data) in enumerate(sorted(payload.items())):
+        target = output/('sd-readback-'+str(index))
+        run('sd-readback-'+str(index), ['mcopy', '-i', fat, '::'+name, target])
+        if regular(target, len(data)) != data:
+            raise ValueError('launcher disk payload differs: '+name)
+
+
 def prepare(uboot, entry, sdk, recovery, files, output, *, recovery_profile='standard', recovery_source_root=None):
     if recovery_profile not in ('standard', 'return-trace') or (recovery_profile == 'standard' and recovery_source_root is not None):
         raise ValueError('explicit supported recovery profile and producer root required')
@@ -201,20 +252,7 @@ def prepare(uboot, entry, sdk, recovery, files, output, *, recovery_profile='sta
         run('protected-'+str(i), ['mcopy', '-i', fat, '::'+name, target])
         if target.read_bytes() != expected:
             raise ValueError('protected recovery file changed')
-    with disk.open('rb') as current, image.open('rb') as original:
-        if hashlib.sha256(current.read(PREFIX_SIZE)).hexdigest() != base['prefix_sha256']:
-            raise ValueError('protected SD prefix changed')
-        current.seek(PREFIX_SIZE); original.seek(PREFIX_SIZE)
-        boot_sector = original.read(512)
-        if current.read(512) != boot_sector:
-            raise ValueError('FAT boot sector changed')
-        backup = struct.unpack_from('<H', boot_sector, 50)[0]
-        if not 0 < backup < struct.unpack_from('<H', boot_sector, 14)[0]:
-            raise ValueError('invalid FAT backup sector')
-        current.seek(PREFIX_SIZE+backup*512); original.seek(PREFIX_SIZE+backup*512)
-        original_backup = original.read(512)
-        if original_backup != boot_sector or current.read(512) != original_backup:
-            raise ValueError('FAT backup boot sector changed')
+    verify_protected_layout(disk, image, base['prefix_sha256'])
     if any(sha(Path(name)) != expected for name, expected in inputs.items()):
         raise ValueError('launcher inputs changed during assembly')
     checked_native(uboot, entry)

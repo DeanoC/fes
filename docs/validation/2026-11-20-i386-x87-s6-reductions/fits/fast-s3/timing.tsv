@@ -1,0 +1,41 @@
+corner	hold_only	check	coverage	paths	worst_slack_ns	from	to
+Slow fix4 100C Model	0	setup	analyzed	1	2.478	_42636_[64]	_42639_[170]
+Slow fix4 100C Model	0	hold	analyzed	1	0.092	audio_opl2_opl2_control_operators_op_num_sr_out[11]	audio_opl2_opl2_control_operators_operator_envelope_generator_state_mem_genblk1_mem_bank_mlab_ram_rtl_0|auto_generated|lutrama0~reg0
+Slow fix4 100C Model	0	recovery	analyzed	1	13.809	reset	machine_at_pit_u_KF8253_Counter_2_count_zero_q~DUPLICATE
+Slow fix4 100C Model	0	removal	analyzed	1	0.688	reset	machine_at_pit_u_KF8253_Counter_2_prev_read_counter
+Slow fix4 100C Model	0	clk_clock_setup	analyzed	1	2.478	_42636_[64]	_42639_[170]
+Slow fix4 100C Model	0	clk_clock_hold	analyzed	1	0.092	audio_opl2_opl2_control_operators_op_num_sr_out[11]	audio_opl2_opl2_control_operators_operator_envelope_generator_state_mem_genblk1_mem_bank_mlab_ram_rtl_0|auto_generated|lutrama0~reg0
+Slow fix4 100C Model	0	pixel_clk_clock_setup	analyzed	1	8.098	machine_presenter_h_b[8]~ERTM	machine_presenter_picture[14]~ERTM
+Slow fix4 100C Model	0	pixel_clk_clock_hold	analyzed	1	0.133	_36821_[8]~11_ERTM	machine_presenter_h_a[11]~ERTM
+Slow fix4 100C Model	0	internal_setup	analyzed	1	2.478	_42636_[64]	_42639_[170]
+Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	6.204		
+Slow fix4 0C Model	0	setup	analyzed	1	0.626	_42636_[64]	_42639_[170]
+Slow fix4 0C Model	0	hold	analyzed	1	0.120	audio_opl2_opl2_control_operators_op_num_sr_out[11]	audio_opl2_opl2_control_operators_operator_envelope_generator_state_mem_genblk1_mem_bank_mlab_ram_rtl_0|auto_generated|lutrama0~reg0
+Slow fix4 0C Model	0	recovery	analyzed	1	13.479	reset	machine_at_pit_u_KF8253_Counter_2_count_zero_q~DUPLICATE
+Slow fix4 0C Model	0	removal	analyzed	1	0.799	reset	machine_at_pit_u_KF8253_Counter_2_prev_read_counter
+Slow fix4 0C Model	0	clk_clock_setup	analyzed	1	0.626	_42636_[64]	_42639_[170]
+Slow fix4 0C Model	0	clk_clock_hold	analyzed	1	0.120	audio_opl2_opl2_control_operators_op_num_sr_out[11]	audio_opl2_opl2_control_operators_operator_envelope_generator_state_mem_genblk1_mem_bank_mlab_ram_rtl_0|auto_generated|lutrama0~reg0
+Slow fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	7.232	machine_presenter_h_b[8]~ERTM	machine_presenter_picture[14]~ERTM
+Slow fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.150	_36821_[8]~11_ERTM	machine_presenter_h_a[11]~ERTM
+Slow fix4 0C Model	0	internal_setup	analyzed	1	0.626	_42636_[64]	_42639_[170]
+Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.163		
+Slow fix4a 0C Model	0	setup	analyzed	1	0.632	_42636_[64]	_42639_[170]
+Slow fix4a 0C Model	0	hold	analyzed	1	0.119	audio_opl2_opl2_control_operators_op_num_sr_out[11]	audio_opl2_opl2_control_operators_operator_envelope_generator_state_mem_genblk1_mem_bank_mlab_ram_rtl_0|auto_generated|lutrama0~reg0
+Slow fix4a 0C Model	0	recovery	analyzed	1	13.492	reset	machine_at_pit_u_KF8253_Counter_2_dec_bcd_q[0]
+Slow fix4a 0C Model	0	removal	analyzed	1	0.786	reset	machine_at_pit_u_KF8253_Counter_2_prev_read_counter
+Slow fix4a 0C Model	0	clk_clock_setup	analyzed	1	0.632	_42636_[64]	_42639_[170]
+Slow fix4a 0C Model	0	clk_clock_hold	analyzed	1	0.119	audio_opl2_opl2_control_operators_op_num_sr_out[11]	audio_opl2_opl2_control_operators_operator_envelope_generator_state_mem_genblk1_mem_bank_mlab_ram_rtl_0|auto_generated|lutrama0~reg0
+Slow fix4a 0C Model	0	pixel_clk_clock_setup	analyzed	1	7.339	machine_presenter_h_b[8]~ERTM	machine_presenter_picture[14]~ERTM
+Slow fix4a 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.152	_36821_[8]~11_ERTM	machine_presenter_h_a[11]~ERTM
+Slow fix4a 0C Model	0	internal_setup	analyzed	1	0.632	_42636_[64]	_42639_[170]
+Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	6.175		
+Fast fix4 0C Model	0	setup	analyzed	1	7.783	_42636_[64]	_42639_[170]
+Fast fix4 0C Model	0	hold	analyzed	1	0.027	audio_opl2_opl2_control_operators_op_num_sr_out[11]	audio_opl2_opl2_control_operators_operator_envelope_generator_state_mem_genblk1_mem_bank_mlab_ram_rtl_0|auto_generated|lutrama0~reg0
+Fast fix4 0C Model	0	recovery	analyzed	1	14.730	reset	machine_at_pit_u_KF8253_Counter_2_count_latched[7]
+Fast fix4 0C Model	0	removal	analyzed	1	0.411	reset	_42289_[1]~DUPLICATE
+Fast fix4 0C Model	0	clk_clock_setup	analyzed	1	7.783	_42636_[64]	_42639_[170]
+Fast fix4 0C Model	0	clk_clock_hold	analyzed	1	0.027	audio_opl2_opl2_control_operators_op_num_sr_out[11]	audio_opl2_opl2_control_operators_operator_envelope_generator_state_mem_genblk1_mem_bank_mlab_ram_rtl_0|auto_generated|lutrama0~reg0
+Fast fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	10.246	machine_presenter_h_b[8]~ERTM	machine_presenter_picture[14]~ERTM
+Fast fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.051	machine_presenter_p_b0[19]~ERTM	add_1180~16_ERTM
+Fast fix4 0C Model	0	internal_setup	analyzed	1	7.783	_42636_[64]	_42639_[170]
+Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.326		

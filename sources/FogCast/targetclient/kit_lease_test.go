@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -16,6 +17,187 @@ import (
 
 	"github.com/DeanoC/FogCast/protocol"
 )
+
+func TestLocalStatusCancellationWhileRenewalWaits(t *testing.T) {
+	renewEntered := make(chan struct{})
+	releaseRenew := make(chan struct{})
+	var unblock sync.Once
+	var statusRequests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/kit/renew":
+			close(renewEntered)
+			<-releaseRenew
+			fmt.Fprint(w, `{"token":"held","status":{"state":"held","generation":"one","expires_in_ms":60000}}`)
+		case "/v1/status":
+			statusRequests.Add(1)
+			fmt.Fprint(w, `{"state":"active"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	defer unblock.Do(func() { close(releaseRenew) })
+	base, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease := NewLocalKitLease(base, "secret", server.Client())
+	lease.grant.Token = "held"
+	lease.grant.Status.State = "held"
+	lease.grant.Status.Generation = "one"
+	lease.grant.Status.ExpiresInMS = 60000
+	lease.localExpiry = time.Now().Add(time.Minute)
+	client := NewClient(base, "secret", server.Client()).WithKitLease(lease)
+	renewDone := make(chan struct{})
+	go func() { lease.renew(context.Background()); close(renewDone) }()
+	select {
+	case <-renewEntered:
+	case <-time.After(time.Second):
+		t.Fatal("renewal did not reach server")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	statusDone := make(chan error, 1)
+	go func() { _, err := client.Status(ctx); statusDone <- err }()
+	select {
+	case err := <-statusDone:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("status error = %v, want deadline exceeded", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("status did not honor cancellation while renewal held lease")
+	}
+	if got := statusRequests.Load(); got != 0 {
+		t.Fatalf("canceled status sent %d target requests", got)
+	}
+
+	unblock.Do(func() { close(releaseRenew) })
+	select {
+	case <-renewDone:
+	case <-time.After(time.Second):
+		t.Fatal("renewal did not finish")
+	}
+	if lease.CurrentToken() != "held" {
+		t.Fatal("canceled status changed the grant")
+	}
+	status, err := client.Status(context.Background())
+	if err != nil || status.State != protocol.StateActive {
+		t.Fatalf("status after renewal = %+v, %v", status, err)
+	}
+}
+
+func TestAdoptEndpointCancellationStillReconcilesChangedGeneration(t *testing.T) {
+	leaseRead := make(chan struct{})
+	releaseRead := make(chan struct{})
+	renewEntered := make(chan struct{})
+	releaseRenew := make(chan struct{})
+	leaseReadComplete := make(chan struct{})
+	var unblockRead, unblockRenew sync.Once
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/kit/lease":
+			close(leaseRead)
+			<-releaseRead
+			fmt.Fprint(w, `{"state":"held","generation":"two"}`)
+		case "/v1/kit/renew":
+			close(renewEntered)
+			<-releaseRenew
+			fmt.Fprint(w, `{"token":"held","status":{"state":"held","generation":"one","expires_in_ms":60000}}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	defer unblockRenew.Do(func() { close(releaseRenew) })
+	defer unblockRead.Do(func() { close(releaseRead) })
+	base, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	httpClient := *server.Client()
+	httpClient.Transport = leaseReadSignalTransport{base: httpClient.Transport, readComplete: leaseReadComplete}
+	lease := NewLocalKitLease(base, "secret", &httpClient)
+	lease.grant.Token = "held"
+	lease.grant.Status.State = "held"
+	lease.grant.Status.Generation = "one"
+	lease.grant.Status.ExpiresInMS = 60000
+	lease.localExpiry = time.Now().Add(time.Minute)
+	client := NewClient(base, "secret", &httpClient).WithKitLease(lease)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	adoptDone := make(chan error, 1)
+	go func() { _, err := client.AdoptEndpoint(ctx, base, false); adoptDone <- err }()
+	select {
+	case <-leaseRead:
+	case <-time.After(time.Second):
+		t.Fatal("ownership read did not reach server")
+	}
+	renewDone := make(chan struct{})
+	go func() { lease.renew(context.Background()); close(renewDone) }()
+	select {
+	case <-renewEntered:
+	case <-time.After(time.Second):
+		t.Fatal("renewal did not reach server")
+	}
+	unblockRead.Do(func() { close(releaseRead) })
+	select {
+	case <-leaseReadComplete:
+	case <-time.After(time.Second):
+		t.Fatal("ownership response was not read")
+	}
+	cancel()
+	select {
+	case <-adoptDone:
+		t.Fatal("adoption returned before reconciling the changed generation")
+	default:
+	}
+	unblockRenew.Do(func() { close(releaseRenew) })
+	select {
+	case <-renewDone:
+	case <-time.After(time.Second):
+		t.Fatal("renewal did not finish")
+	}
+	select {
+	case err := <-adoptDone:
+		if err != nil {
+			t.Fatalf("reconcile changed generation: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("adoption did not complete after renewal")
+	}
+	if lease.CurrentToken() != "" {
+		t.Fatal("changed generation retained the old grant")
+	}
+}
+
+type leaseReadSignalTransport struct {
+	base         http.RoundTripper
+	readComplete chan struct{}
+}
+
+func (t leaseReadSignalTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	response, err := t.base.RoundTrip(r)
+	if err == nil && r.URL.Path == "/v1/kit/lease" {
+		response.Body = &leaseReadSignalBody{ReadCloser: response.Body, done: t.readComplete}
+	}
+	return response, err
+}
+
+type leaseReadSignalBody struct {
+	io.ReadCloser
+	done chan struct{}
+	once sync.Once
+}
+
+func (b *leaseReadSignalBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if err == io.EOF {
+		b.once.Do(func() { close(b.done) })
+	}
+	return n, err
+}
 
 func TestKitMutationMatchesAMeshPrefixOnly(t *testing.T) {
 	if gated, acquire := kitMutation("/v1/zx81-tape/acknowledge"); !gated || acquire {

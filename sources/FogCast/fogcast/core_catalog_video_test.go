@@ -368,7 +368,7 @@ func testCoreCatalogVideoReopenAndIdempotencePreserveSelections(t *testing.T, la
 		t.Fatalf("parts=%+v err=%v", parts, err)
 	}
 	got, err := s.CoreEntry(ctx, entry.GameID)
-	if err != nil || got != wantEntry {
+	if err != nil || !reflect.DeepEqual(got, wantEntry) {
 		t.Fatalf("entry=%+v want=%+v err=%v", got, wantEntry, err)
 	}
 	video, err := s.CoreEntryVideo(ctx, entry.GameID)

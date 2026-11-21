@@ -1,0 +1,15 @@
+diff --git a/sources/misteross/cores/fes-common/vendor/kf8253/KF8253_Counter.sv b/sources/misteross/cores/fes-common/vendor/kf8253/KF8253_Counter.sv
+index 815dcce23..47a388711 100644
+--- a/sources/misteross/cores/fes-common/vendor/kf8253/KF8253_Counter.sv
++++ b/sources/misteross/cores/fes-common/vendor/kf8253/KF8253_Counter.sv
+@@ -415,8 +415,8 @@ module KF8253_Counter #(
+         end
+     end
+     logic [16:0] dec_count, dec2_count;
+-    assign dec_count = select_bcd ? dec_bcd_q : dec_binary_q;
+-    assign dec2_count = select_bcd ? dec2_bcd_q : dec2_binary_q;
++    assign dec_count = dec_binary_q;   // AREA STUDY ABLATION (not for merge): BCD counting dropped
++    assign dec2_count = dec2_binary_q;
+ 
+     // These scalar flags are equivalent to comparing the selected 17-bit
+     // next count, but avoid putting that wide data mux before output control.

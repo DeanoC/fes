@@ -601,6 +601,8 @@ func (a *App) applyRoomActionsLocked() {
 			a.openHardwarePickerLocked(act)
 		case rooms.ActionHardwareMedia:
 			a.openSystemMediaLocked(act)
+		case rooms.ActionHardwareAddDisk:
+			a.openAddDiskLocked(act)
 		case rooms.ActionHardwareDisks:
 			a.openStShelfLocked(act)
 		case rooms.ActionHardwareExpansions:
@@ -616,6 +618,10 @@ func (a *App) applyRoomActionsLocked() {
 		case rooms.ActionOpenTape:
 			if a.roomSessionMatchesLocked(act) {
 				a.openTapePickerLocked()
+			}
+		case rooms.ActionChangeDisk:
+			if a.roomSessionMatchesLocked(act) {
+				a.changeSessionDiskLocked(act.MediaID, act.MediaName)
 			}
 		case rooms.ActionResumeSession:
 			a.resumeRoomSessionLocked()
