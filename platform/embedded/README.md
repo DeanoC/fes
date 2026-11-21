@@ -410,7 +410,8 @@ renderer at 1280×720 with QEMU ramfb, live USB boot-keyboard input, a VirtIO
 FAT32 disk and a VirtIO TCP/IP connection to a private FogCast host. The host
 uses the existing scanner/catalog/API. A two-boot test changes the layout,
 flushes its preference file, and verifies restoration from the same disk.
-The independent [Zephyr reference](zephyr/README.md) owns separate tests.
+The retired Zephyr reference (`platform/embedded/zephyr`, removed once the
+TamaGo base superseded it) owned separate tests.
 
 | Path | Current result |
 | --- | --- |
