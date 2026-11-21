@@ -833,7 +833,7 @@ def _check_stdin_program(texts: list[str]) -> None:
         return
     # Behind execution wrappers (env python3 -, timeout 60 sh), check each
     # place the eventual program could start.
-    if texts and (os.path.basename(texts[0]) in SHELL_WRAPPERS or texts[0] == "sudo"):
+    if texts and (os.path.basename(texts[0]) in SHELL_WRAPPERS | {"sudo", "busybox"}):
         for at in range(1, len(texts)):
             name = os.path.basename(texts[at])
             if name == "ssh" or name in INTERPRETERS or re.fullmatch(r"python(3(\.\d+)?)?", name):
@@ -869,7 +869,7 @@ def _check_remote_quartus(argv) -> None:
     # Wrapper options take operands of their own (env -u NAME, timeout -s
     # SIG), so rather than model each, a wrapped command line whose
     # arguments include ssh is taken to run ssh from there.
-    if texts and (os.path.basename(texts[0]) in SHELL_WRAPPERS or texts[0] == "sudo"):
+    if texts and (os.path.basename(texts[0]) in SHELL_WRAPPERS | {"sudo", "busybox"}):
         # Every ssh word, since one may be another option's operand (env -u ssh).
         for at, word in enumerate(texts):
             if at and os.path.basename(word) == "ssh":

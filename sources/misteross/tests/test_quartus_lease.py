@@ -1100,7 +1100,9 @@ class LaunchGuardTests(unittest.TestCase):
                      # Codex P1s at aa9250581: python -i, and clustered ssh options.
                      ["python3", "-i", "-c", "pass"], ["ssh", "-vp", "22", "host", "python3", "-"],
                      # Codex P1 at d0280a029: a BusyBox applet.
-                     ["busybox", "sh"]):
+                     ["busybox", "sh"],
+                     # Codex P1 at 7d7659973: a BusyBox execution applet.
+                     ["busybox", "env", "python3", "-"], ["busybox", "ssh", "host"]):
             with self.assertRaises(qt.QuartusLeaseError, msg=argv):
                 subprocess.run(argv, input="true\n", text=True, capture_output=True)
         with qt.stdin_program():
