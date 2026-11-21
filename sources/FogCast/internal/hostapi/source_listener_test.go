@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -80,7 +81,7 @@ func TestLibrarySourceHandlerIsReadOnlyAndUsesExistingWireShapes(t *testing.T) {
 	var list struct {
 		Entries []catalog.CoreEntry `json:"entries"`
 	}
-	if err := json.Unmarshal(get("/api/v1/library/core-entries", token, 200), &list); err != nil || len(list.Entries) != 1 || list.Entries[0] != entry {
+	if err := json.Unmarshal(get("/api/v1/library/core-entries", token, 200), &list); err != nil || len(list.Entries) != 1 || !reflect.DeepEqual(list.Entries[0], entry) {
 		t.Fatalf("list=%+v err=%v", list, err)
 	}
 	if got := string(get("/api/v1/mesh/content/source?id="+id.String(), token, 200)); !strings.Contains(got, `"advertises":true`) {

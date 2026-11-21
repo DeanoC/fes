@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -30,7 +31,7 @@ func TestRemoteCoreEntryMigrationAndVisibleDistinctTitles(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if got, err := s.CoreEntry(ctx, local.GameID); err != nil || got != local {
+	if got, err := s.CoreEntry(ctx, local.GameID); err != nil || !reflect.DeepEqual(got, local) {
 		t.Fatalf("prior local title = %+v, %v", got, err)
 	}
 	origin := RemoteCoreEntryOrigin{SourceID: "remote-a", SourceGameID: "source-game", MediaID: strings.Repeat("b", 64), MediaName: "guess.p"}
@@ -75,7 +76,7 @@ func TestRemoteCoreEntryMigrationAndVisibleDistinctTitles(t *testing.T) {
 	}
 	defer reopened.Close()
 	gotEntry, gotOrigin, found, err := reopened.RemoteCoreEntryBySource(ctx, "remote-a", "source-game")
-	if err != nil || !found || gotEntry != first || gotOrigin.PackageID != pkg || gotOrigin.MediaID != strings.Repeat("b", 64) || !gotOrigin.Pending {
+	if err != nil || !found || !reflect.DeepEqual(gotEntry, first) || gotOrigin.PackageID != pkg || gotOrigin.MediaID != strings.Repeat("b", 64) || !gotOrigin.Pending {
 		t.Fatalf("reopened mapping = %+v, %+v, %v, %v", gotEntry, gotOrigin, found, err)
 	}
 	for _, item := range []struct {
@@ -136,7 +137,7 @@ func TestRemoteCoreEntryBindAndIdempotentSyncPreservesEdits(t *testing.T) {
 	resync.MediaID = strings.Repeat("c", 64)
 	resync.MediaName = "new.p"
 	again, err := s.CreateRemoteCoreEntry(ctx, "Renamed", "fes.zx81", strings.Repeat("b", 64), resync)
-	if err != nil || again != bound {
+	if err != nil || !reflect.DeepEqual(again, bound) {
 		t.Fatalf("resync = %+v, %v", again, err)
 	}
 	unchanged, _, err := s.RemoteCoreEntry(ctx, entry.GameID)

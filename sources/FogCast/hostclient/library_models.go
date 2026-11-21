@@ -190,10 +190,13 @@ type CoreEntry struct {
 	MediaRole        string `json:"media_role,omitempty"`
 	MediaName        string `json:"media_name,omitempty"`
 	FirmwareRequired bool   `json:"firmware_required,omitempty"`
-	GameID           string `json:"game_id"`
-	Title            string `json:"title"`
-	CoreID           string `json:"core_id"`
-	PackageID        string `json:"package_id"`
+	// MoreMedia is disks 2 to N of a disk set, in MediaID's role. A host that
+	// predates disk sets sends none.
+	MoreMedia []string `json:"more_media,omitempty"`
+	GameID    string   `json:"game_id"`
+	Title     string   `json:"title"`
+	CoreID    string   `json:"core_id"`
+	PackageID string   `json:"package_id"`
 }
 
 // CorePackage is the public identity projection of one installed FPGA package.

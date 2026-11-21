@@ -28,7 +28,7 @@ func (e *coreRemoveAdmissionError) Error() string { return "core entry removal b
 
 func coreLibraryCommand(name string) bool {
 	switch name {
-	case "video-parts", "video-part-install", "video-profile", "core-video", "core-media-capabilities", "core-media-install", "core-hard-disk-install", "core-disk-geometry", "core-media-select", "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select", "core-remove", "create-blank-st-disk", "st-shelf", "st-shelf-new", "st-shelf-copy", "st-shelf-revert", "st-shelf-rename", "st-shelf-delete":
+	case "video-parts", "video-part-install", "video-profile", "core-video", "core-media-capabilities", "core-media-install", "core-hard-disk-install", "core-disk-geometry", "core-media-select", "core-disk-set", "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select", "core-remove", "create-blank-st-disk", "st-shelf", "st-shelf-new", "st-shelf-copy", "st-shelf-revert", "st-shelf-rename", "st-shelf-delete":
 		return true
 	}
 	return false
@@ -110,6 +110,10 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 		expectedGeometry = &parsed
 		method, path = http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(parsed.GameID)+"/disk-geometry"
 		data, _ = json.Marshal(map[string]any{"expected_package_id": parsed.PackageID, "expected_media_id": parsed.MediaID, "geometry": parsed.Geometry})
+	case "core-disk-set":
+		expected, next := diskSetArg(args[4]), diskSetArg(args[5])
+		method, path = http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(args[1])+"/media-set"
+		data, _ = json.Marshal(map[string]any{"expected_package_id": args[2], "expected_media_id": args[3], "expected_more_media": expected, "more_media": next})
 	case "core-media-select":
 		expected, next := args[3], args[4]
 		if expected == "none" {
@@ -456,4 +460,12 @@ func (cmd blankAtariStCommand) matches(body []byte) error {
 		return &protocol.APIError{Code: protocol.CodeInternal, Message: "blank ST disk response does not match the request"}
 	}
 	return nil
+}
+
+// diskSetArg reads disks 2 to N as comma-separated media IDs, or "none".
+func diskSetArg(arg string) []string {
+	if arg == "none" {
+		return []string{}
+	}
+	return strings.Split(arg, ",")
 }

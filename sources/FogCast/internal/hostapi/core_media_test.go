@@ -56,6 +56,11 @@ func (s *coreMediaAPIService) SetCoreEntryMediaName(_ context.Context, game, pkg
 	s.args = []string{game, pkg, id, name}
 	return catalog.CoreEntry{GameID: game, PackageID: pkg, MediaID: id, MediaName: name}, s.err
 }
+func (s *coreMediaAPIService) SetCoreEntryMediaSet(_ context.Context, game, pkg, first string, expectedMore, more []string) (catalog.CoreEntry, error) {
+	s.calls++
+	s.args = append([]string{game, pkg, first, strings.Join(expectedMore, ",")}, more...)
+	return catalog.CoreEntry{GameID: game, PackageID: pkg, MediaRole: "disk", MediaID: first, MoreMedia: more}, s.err
+}
 func (s *coreMediaAPIService) TargetConnection() fogcast.TargetConnection {
 	return fogcast.TargetConnection{TargetID: launcherID, State: "ready"}
 }
@@ -373,5 +378,54 @@ func TestCoreEntryMediaNameRoute(t *testing.T) {
 	}
 	if out := mediaRequest(hostapi.New(&coreLibraryAPIService{}), "PUT", path, body("MAZE.P"), "application/json"); out.Code != 501 {
 		t.Fatalf("unsupported service status=%d", out.Code)
+	}
+}
+
+func TestCoreEntryMediaSetRoute(t *testing.T) {
+	pkg, first, two, three := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64), strings.Repeat("d", 64)
+	path := "/api/v1/library/core-entries/test-st/media-set"
+	body := func(expected, more string) string {
+		return `{"expected_package_id":"` + pkg + `","expected_media_id":"` + first + `","expected_more_media":` + expected + `,"more_media":` + more + `}`
+	}
+	s := &coreMediaAPIService{}
+	out := mediaRequest(hostapi.New(s), "PUT", path, body(`["`+two+`"]`, `["`+three+`","`+two+`"]`), "application/json")
+	var got catalog.CoreEntry
+	if out.Code != 200 || json.Unmarshal(out.Body.Bytes(), &got) != nil || !reflect.DeepEqual(got.MoreMedia, []string{three, two}) ||
+		!reflect.DeepEqual(s.args, []string{"test-st", pkg, first, two, three, two}) {
+		t.Fatalf("status=%d body=%s args=%v", out.Code, out.Body, s.args)
+	}
+	for _, bad := range []string{
+		body(`[]`, `["`+first+`"]`),
+		body(`[]`, `["`+two+`","`+two+`"]`),
+		body(`[]`, `["disk"]`),
+		body(`null`, `[]`),
+		body(`[]`, `null`),
+		`{"expected_package_id":"` + pkg + `","expected_media_id":"","expected_more_media":[],"more_media":[]}`,
+		`{"expected_package_id":"` + pkg + `","expected_media_id":"` + first + `","more_media":[]}`,
+		body(`[]`, `[]`)[:len(body(`[]`, `[]`))-1] + `,"extra":1}`,
+	} {
+		s := &coreMediaAPIService{}
+		if out := mediaRequest(hostapi.New(s), "PUT", path, bad, "application/json"); out.Code != 400 || s.calls != 0 {
+			t.Fatalf("%s: status=%d calls=%d", bad, out.Code, s.calls)
+		}
+	}
+	if out := mediaRequest(hostapi.New(&coreLibraryAPIService{}), "PUT", path, body(`[]`, `[]`), "application/json"); out.Code != 501 {
+		t.Fatalf("unsupported service status=%d", out.Code)
+	}
+}
+
+func TestLauncherAdmitsCoreEntryMediaSet(t *testing.T) {
+	s := &coreMediaAPIService{}
+	handler, err := hostapi.NewLauncherHandler(hostapi.New(s), hostapi.LauncherConfig{Token: launcherToken, TargetID: launcherID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkg, first, two := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)
+	body := `{"expected_package_id":"` + pkg + `","expected_media_id":"` + first + `","expected_more_media":[],"more_media":["` + two + `"]}`
+	req := launcherRequest(http.MethodPut, "http://192.0.2.1:8789/api/v1/library/core-entries/fpga-st-game/media-set", strings.NewReader(body))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, req)
+	if response.Code != http.StatusOK || s.calls != 1 || !reflect.DeepEqual(s.args, []string{"fpga-st-game", pkg, first, "", two}) {
+		t.Fatalf("set status=%d calls=%d args=%v body=%s", response.Code, s.calls, s.args, response.Body)
 	}
 }

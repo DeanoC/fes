@@ -17,6 +17,10 @@ type coreMediaLibraryService interface {
 	SelectCoreEntryMedia(context.Context, string, string, string, string, string) (catalog.CoreEntry, error)
 }
 
+type coreEntryMediaSetService interface {
+	SetCoreEntryMediaSet(context.Context, string, string, string, []string, []string) (catalog.CoreEntry, error)
+}
+
 type coreEntryMediaNameService interface {
 	SetCoreEntryMediaName(context.Context, string, string, string, string) (catalog.CoreEntry, error)
 }
@@ -171,6 +175,36 @@ func registerCoreMediaLibrary(mux *http.ServeMux, service Service) {
 		}
 		writeJSON(w, http.StatusOK, value)
 	}))
+	mux.HandleFunc("PUT /api/v1/library/core-entries/{game_id}/media-set", func(w http.ResponseWriter, r *http.Request) {
+		s, ok := service.(coreEntryMediaSetService)
+		if !ok {
+			writeError(w, 501, "UNSUPPORTED_OPERATION", "disk sets are unavailable")
+			return
+		}
+		var request struct {
+			ExpectedPackageID *string   `json:"expected_package_id"`
+			ExpectedMediaID   *string   `json:"expected_media_id"`
+			ExpectedMore      *[]string `json:"expected_more_media"`
+			More              *[]string `json:"more_media"`
+		}
+		if decodeSingleJSON(w, r, &request) != nil {
+			return
+		}
+		if protocol.ValidateGameID(r.PathValue("game_id")) != nil || request.ExpectedPackageID == nil || request.ExpectedMediaID == nil ||
+			request.ExpectedMore == nil || request.More == nil ||
+			!corePackageIDRE.MatchString(*request.ExpectedPackageID) || !corePackageIDRE.MatchString(*request.ExpectedMediaID) ||
+			catalog.ValidateCoreEntryMediaSet(*request.ExpectedMediaID, *request.ExpectedMore) != nil ||
+			catalog.ValidateCoreEntryMediaSet(*request.ExpectedMediaID, *request.More) != nil {
+			writeError(w, 400, "BAD_REQUEST", "disk set is invalid")
+			return
+		}
+		value, err := s.SetCoreEntryMediaSet(r.Context(), r.PathValue("game_id"), *request.ExpectedPackageID, *request.ExpectedMediaID, *request.ExpectedMore, *request.More)
+		if err != nil {
+			writeCoreLibraryError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, value)
+	})
 	mux.HandleFunc("PUT /api/v1/library/core-entries/{game_id}/media-name", func(w http.ResponseWriter, r *http.Request) {
 		s, ok := service.(coreEntryMediaNameService)
 		if !ok {

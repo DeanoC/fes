@@ -98,3 +98,50 @@ func TestInsertLibraryDiskPreservesTargetNoChange(t *testing.T) {
 		t.Fatalf("target no-change err=%v library insert calls=%d", err, client.libraryCalls)
 	}
 }
+
+func TestInsertLibraryDiskTakesAnyDiskOfTheSet(t *testing.T) {
+	ctx := context.Background()
+	s, client, entry, disk := diskLaunchFixture(t, protocol.AtariStFloppyInterface(), protocol.AtariStFloppyBytes)
+	base, _, err := s.ImportCoreMedia(ctx, int64(len(disk)), bytes.NewReader(disk))
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := bytes.Clone(disk)
+	other[len(other)-1] ^= 0xff
+	second, _, err := s.ImportCoreMedia(ctx, int64(len(other)), bytes.NewReader(other))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stranger := bytes.Clone(disk)
+	stranger[len(stranger)-2] ^= 0xff
+	outside, _, err := s.ImportCoreMedia(ctx, int64(len(stranger)), bytes.NewReader(stranger))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.SelectCoreEntryMedia(ctx, entry.GameID, entry.PackageID, "", protocol.DiskRole, base.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.SetCoreEntryMediaSet(ctx, entry.GameID, entry.PackageID, base.MediaID, nil, []string{second.MediaID}); err != nil {
+		t.Fatal(err)
+	}
+	response, err := s.Launch(ctx, entry.GameID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dev := s.libraryDevelopmentMediaBinding(*response.Status.CorePackage)
+	binding := func(id string) protocol.LibraryMediaBinding {
+		return protocol.LibraryMediaBinding{MediaUnitBinding: protocol.MediaUnitBinding{
+			PackageID: dev.PackageID, Generation: dev.Generation, Unit: protocol.AtariStFloppyUnit,
+			Target: dev.Target, TargetID: dev.TargetID,
+		}, GameID: entry.GameID, BaseMediaID: id}
+	}
+	before := client.libraryCalls
+	if _, err := s.InsertLibraryDisk(ctx, binding(outside.MediaID)); !protocol.LiveMediaNoChange(err) || client.libraryCalls != before {
+		t.Fatalf("a disk outside the set: err=%v calls=%d", err, client.libraryCalls-before)
+	}
+	// Disk 2 reaches the target under its own source identity.
+	client.libraryErr = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "insert rejected", Phase: "input", NoChange: true}
+	if _, err := s.InsertLibraryDisk(ctx, binding(second.MediaID)); !protocol.LiveMediaNoChange(err) || client.libraryCalls == before {
+		t.Fatalf("disk 2 of the set: err=%v calls=%d", err, client.libraryCalls-before)
+	}
+}

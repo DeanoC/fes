@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
@@ -96,6 +97,55 @@ func (s *Service) SelectCoreEntryMedia(parent context.Context, gameID, expectedP
 	}
 	selected, err := store.SelectCoreEntryMedia(ctx, gameID, expectedPackage, expectedMedia, role, mediaID)
 	return selected, mapCoreMediaError(err)
+}
+
+type coreEntryMediaSetCatalog interface {
+	SetCoreEntryMediaSet(context.Context, string, string, string, []string, []string) (catalog.CoreEntry, error)
+}
+
+// SetCoreEntryMediaSet replaces disks 2 to N of a title's disk set. Each disk
+// must fit the drive disk 1 is in, as the installed package declares it.
+// Launch still starts from disk 1; the others are swapped in during play.
+func (s *Service) SetCoreEntryMediaSet(parent context.Context, gameID, expectedPackage, expectedMedia string, expectedMore, more []string) (catalog.CoreEntry, error) {
+	if protocol.ValidateGameID(gameID) != nil || protocol.ValidateDigest(expectedPackage) != nil || protocol.ValidateDigest(expectedMedia) != nil ||
+		catalog.ValidateCoreEntryMediaSet(expectedMedia, expectedMore) != nil || catalog.ValidateCoreEntryMediaSet(expectedMedia, more) != nil {
+		return catalog.CoreEntry{}, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	store, ok := s.catalog.(coreEntryMediaSetCatalog)
+	if !ok {
+		return catalog.CoreEntry{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+	}
+	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
+	defer cancel()
+	release, err := s.acquireLifecycle(ctx)
+	if err != nil {
+		return catalog.CoreEntry{}, err
+	}
+	defer release()
+	entry, err := s.CoreEntry(ctx, gameID)
+	if err != nil {
+		return catalog.CoreEntry{}, err
+	}
+	if entry.PackageID != expectedPackage || entry.MediaID != expectedMedia || !slices.Equal(entry.MoreMedia, expectedMore) {
+		return catalog.CoreEntry{}, mapCoreEntryError(catalog.ErrCoreEntryConflict)
+	}
+	if entry.MediaRole != protocol.DiskRole && entry.MediaRole != protocol.CassetteRole {
+		return catalog.CoreEntry{}, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	inspection, err := s.installedCoreInspection(ctx, entry.PackageID)
+	if err != nil {
+		return catalog.CoreEntry{}, err
+	}
+	if inspection.Descriptor.Core.ID != entry.CoreID {
+		return catalog.CoreEntry{}, canonicalError(protocol.CodeInvalidArchive, nil)
+	}
+	for _, id := range more {
+		if err := s.validateCoreEntryMedia(ctx, inspection.Descriptor, entry.MediaRole, id); err != nil {
+			return catalog.CoreEntry{}, err
+		}
+	}
+	updated, err := store.SetCoreEntryMediaSet(ctx, gameID, expectedPackage, expectedMedia, expectedMore, more)
+	return updated, mapCoreMediaError(err)
 }
 
 type coreEntryMediaNameCatalog interface {

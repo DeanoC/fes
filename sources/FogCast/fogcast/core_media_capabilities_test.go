@@ -139,7 +139,7 @@ func TestCoreMediaCapabilitiesServiceOversizeAdmissionPreservesEntry(t *testing.
 				t.Fatalf("oversize opened/delivered media: open=%d core=%d media=%d stop=%d", store.openCalls, client.coreCalls, client.mediaCalls, client.stopCalls)
 			}
 			stored, err := s.CoreEntry(ctx, entry.GameID)
-			if err != nil || stored != entry {
+			if err != nil || !reflect.DeepEqual(stored, entry) {
 				t.Fatalf("old entry changed: %+v err=%v", stored, err)
 			}
 			after, err := s.CoreEntries(ctx)

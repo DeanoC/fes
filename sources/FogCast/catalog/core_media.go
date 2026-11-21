@@ -460,8 +460,10 @@ func (s *Store) SelectCoreEntryMedia(ctx context.Context, gameID, expectedPackag
 	}
 	entry.MediaRole, entry.MediaID = mediaRole, mediaID
 	if !same {
+		// Schema 26's trigger has ended the disk set with the old disk 1.
 		entry.MediaName = ""
 		entry.DiskGeometry = nil
+		entry.MoreMedia = nil
 	}
 	return entry, nil
 }

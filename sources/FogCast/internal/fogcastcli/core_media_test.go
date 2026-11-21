@@ -31,6 +31,8 @@ func TestCoreMediaCommandsUseHostShapes(t *testing.T) {
 		{[]string{"core-entry", "Frogger", pkg, "blob", id, "firmware"}, "POST", "/api/v1/library/core-entries", map[string]any{"title": "Frogger", "package_id": pkg, "media_role": "blob", "media_id": id, "firmware_required": true}},
 		{[]string{"core-media-select", "core-test", pkg, "none", id}, "PUT", "/api/v1/library/core-entries/core-test/media", map[string]any{"expected_package_id": pkg, "expected_media_id": "", "media_role": "blob", "media_id": id}},
 		{[]string{"core-media-select", "core-test", pkg, id, "none"}, "PUT", "/api/v1/library/core-entries/core-test/media", map[string]any{"expected_package_id": pkg, "expected_media_id": id, "media_role": "", "media_id": ""}},
+		{[]string{"core-disk-set", "core-test", pkg, id, "none", pkg + "," + strings.Repeat("c", 64)}, "PUT", "/api/v1/library/core-entries/core-test/media-set", map[string]any{"expected_package_id": pkg, "expected_media_id": id, "expected_more_media": []any{}, "more_media": []any{pkg, strings.Repeat("c", 64)}}},
+		{[]string{"core-disk-set", "core-test", pkg, id, pkg, "none"}, "PUT", "/api/v1/library/core-entries/core-test/media-set", map[string]any{"expected_package_id": pkg, "expected_media_id": id, "expected_more_media": []any{pkg}, "more_media": []any{}}},
 	} {
 		t.Run(strings.Join(tc.args, " "), func(t *testing.T) {
 			calls := 0
