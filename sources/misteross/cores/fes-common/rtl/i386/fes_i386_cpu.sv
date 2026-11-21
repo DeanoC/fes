@@ -3449,7 +3449,9 @@ module fes_i386_cpu #(
     // A fault's error code, which a protected-mode delivery pushes for #DF,
     // #TS, #NP, #SS, #GP and #PF: a selector's, the IDT entry's, a #PF's
     // (P, W/R, U/S), or 0; EXT (bit 0) is set for a fault in a delivery
-    // (wb_nested), but for a #PF's, and a double fault's is 0.
+    // (wb_nested), but for a #PF's and, with the i486 identity, an #AC's,
+    // which is always 0 (PRM Table 9-8; Deano, 21 November 2026); a double
+    // fault's is 0.
     logic [15:0] wb_err;
     logic [7:0]  wb_vec;
     always_comb begin
@@ -3462,7 +3464,8 @@ module fes_i386_cpu #(
             5'(fes_i386_pkg::FAULT_PF): wb_err = {13'd0, wb_s.pf_err};
             default: wb_err = 16'd0;
         endcase
-        if (wb_fault != 5'(fes_i386_pkg::FAULT_PF)) wb_err[0] = wb_nested;
+        if (wb_fault != 5'(fes_i386_pkg::FAULT_PF) && !(I486 && wb_fault == 5'(fes_i386_pkg::FAULT_AC)))
+            wb_err[0] = wb_nested;
         wb_vec = fault_vector(wb_fault);
     end
     // The exceptions a protected-mode delivery pushes an error code for.

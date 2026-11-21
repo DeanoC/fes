@@ -3423,6 +3423,30 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                                 }
                         ++summary.ss_error_rule;
                     }
+                    // The #AC error code rule (level 4): an #AC raised in
+                    // another event's delivery pushes error code 0 on the
+                    // 486SX, as PRM Table 9-8 has it ("always zero"; Deano,
+                    // 21 November 2026, "Push 0 now"), where Bochs sets EXT
+                    // and pushes 1. The RTL's error code and the bytes it
+                    // pushed must be 0; the oracle then takes them.
+                    if (i486 && last && last->vector == 17 && last->error_code == 1 && rtl.top.trace_exception
+                        && rtl.top.trace_vector == 17) {
+                        if (rtl.top.trace_error != 0) out.add(at + "ac-error", 0, rtl.top.trace_error);
+                        const State now = oracle.get_state();
+                        const auto &ss = now.seg[fes_i386::SEG_SS];
+                        const uint32_t top = ss.base + ((ss.ar & 0x4000) ? now.gpr[fes_i386::REG_ESP]
+                                                                         : now.gpr[fes_i386::REG_ESP] & 0xffff);
+                        for (const auto &w : result.writes)
+                            if (w.linear == top)
+                                for (unsigned i = 0; i < w.length; ++i) {
+                                    const uint32_t address = write_key(w.physical + i);
+                                    if (address >= RAM_BYTES) continue;
+                                    if (rtl.ram[address] != 0) out.add(at + "ac-error", 0, rtl.ram[address]);
+                                    bus.ram[address] = rtl.ram[address];
+                                    oracle.invalidate(address, 1);
+                                }
+                        ++summary.divergences["ac-error-zero"];
+                    }
                 } else if (oracle_writes != rtl.step_writes) {
                     const uint32_t first = !oracle_writes.empty() ? *oracle_writes.begin() : 0;
                     const uint32_t got = !rtl.step_writes.empty() ? *rtl.step_writes.begin() : 0;

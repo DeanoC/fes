@@ -338,9 +338,9 @@ With `I486 = 1`:
   Accesses made at privilege 0 are excepted: system accesses (descriptor
   tables, the TSS) and a delivery's pushes to its new stack. A delivery
   that stays at CPL 3 pushes onto the current stack as CPL-3 accesses, so
-  a misaligned push raises #AC. Inside an exception's delivery its error
-  code has EXT set, as Bochs's does; the PRM's Table 9-8 says #AC's error
-  code is zero, and whether a 486 sets EXT there is open. With gate 17
+  a misaligned push raises #AC. Its error code is 0 even inside another
+  event's delivery, without EXT, as the PRM's Table 9-8 has it ("always
+  zero"; Deano, 21 November 2026), where Bochs pushes 1. With gate 17
   also to CPL 3 the CPU never leaves the delivery, and neither does
   hardware (Deano, 21 November 2026; CVE-2015-5307). Far pointers,
   BOUND and SGDT are checked as the separate accesses they make. It is

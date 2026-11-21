@@ -271,12 +271,13 @@ testbench sets the generator's `isa486`, whose choices all come from its
 The level-3 rules apply as they are, `divergences.toml` included: where a
 486's answer is not documented, the 486SX keeps the 386's (the vectors'
 undefined flags, `dr6-sticky`, the CS-limit, IRET-save and #SS-error rules).
-Three rules are level 4's:
+Four rules are level 4's:
 
 | Rule | What it does | Source |
 | --- | --- | --- |
 | CPUID (`cpuid_rule`, counted as `cpuid-486sx`) | At a CPUID of a leaf other than 0 that retires with no event, the oracle's EAX, EBX, ECX and EDX must be the DX4's leaf 1 (`0480h`, 0, 0, 1); they are then set to the 486SX's, leaf 1 `042Bh` and zeros, zeros above it, which the RTL is held to | `cpu/cpudb/intel/i486dx4.cc`; Deano, 21 November 2026 (`042Bh`); data book Appendix B (zeros above leaf 1) |
 | DR6 of disabled breakpoints (`dr6-disabled-b`) | At a #DB, DR6's B0-B3 of breakpoints that DR7 does not enable are taken from the RTL; an enabled one's is compared. Bochs keeps a disabled breakpoint's match pending into a later #DB | Intel SDM vol. 3, DR6: a B bit "may or may not be set if the breakpoint is not enabled by the Ln or the Gn flags" |
+| #AC's error code (`ac-error-zero`) | When the oracle's last event is an #AC with error code 1 (EXT: raised in another event's delivery), the RTL's error code and the bytes it pushed for it must be 0; the oracle then takes them | PRM Table 9-8 (#AC's error code is always zero); Deano, 21 November 2026 ("Push 0 now") |
 | The #AC delivery loop (`ac-delivery-loop`) | At CPL 3 with AM and AC set, a delivery that stays at CPL 3 raises #AC on a misaligned push, on both sides. When gate 17 is also to CPL 3 that never ends: the RTL times out in #AC's delivery and Bochs recurses until the host's stack overflows. The run stops there, before the oracle steps, only when the RTL timed out delivering #AC from such a step and gate 17 (read from the IDT) is an interrupt or trap gate to a conforming or DPL-3 code segment | Deano, 21 November 2026, as hardware; CVE-2015-5307 (a ring-3 #AC handler on an unaligned stack loops in microcode) |
 
 The forms each run retired are in the report's `i486_forms`, which must

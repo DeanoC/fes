@@ -26,6 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 CODE, HANDLER, DATA = 0x1000, 0x1800, 0x2800
+AC_HANDLER = 0x1810  # a #AC handler a case gives (_protected's ac_handler)
 GDT, GDT_POINTER, IDT_POINTER, TSS, IDT = 0x2000, 0x2100, 0x2108, 0x2500, 0x3000
 PAGE_DIRECTORY, PAGE_TABLE, PAGE = 0x10000, 0x11000, 0x20000
 # The CR0 every case starts from (lockstep_tb's I486_START_CR0): CD, NW, AM,
@@ -94,7 +95,7 @@ def _real(body: Asm) -> dict[int, bytes]:
 
 def _protected(body, cr0: int | None = None, page: int | None = None, ring3_eflags: int | None = None,
                ring3_esp: int = RING3_ESP, esp0: int = TSS_ESP0,
-               ring3_vectors: tuple[int, ...] = ()) -> tuple[dict[int, bytes], Asm, int]:
+               ring3_vectors: tuple[int, ...] = (), ac_handler: bytes | None = None) -> tuple[dict[int, bytes], Asm, int]:
     """A 32-bit protected-mode program; returns its image, code and the body's offset.
 
     The GDT: 08h code and 10h data, flat, DPL 0; 18h code and 20h data, flat,
@@ -106,7 +107,8 @@ def _protected(body, cr0: int | None = None, page: int | None = None, ring3_efla
     page, paging is on
     over an identity map of the first megabyte whose entry for 20000h has
     those attribute bits. With ring3_eflags the body runs at CPL 3 on a stack
-    at ring3_esp, with DS 23h, entered by IRETD with that EFLAGS image.
+    at ring3_esp, with DS 23h, entered by IRETD with that EFLAGS image. With
+    ac_handler, vector 17's gate leads to those bytes at AC_HANDLER instead.
     """
     a = Asm()
     a.op(0xfa)                                        # CLI
@@ -145,11 +147,13 @@ def _protected(body, cr0: int | None = None, page: int | None = None, ring3_efla
     # ring3_vectors' gates lead to the same HLT through the DPL-3 code
     # segment, so their deliveries from CPL 3 stay at CPL 3.
     idt = b''.join(_gate(0x1b, HANDLER, 0xee) if vector in ring3_vectors else
+                   _gate(0x08, AC_HANDLER, 0x8e) if vector == 17 and ac_handler is not None else
                    _gate(0x08, HANDLER, 0xee if vector == 3 else 0x8e) for vector in range(32))
     tss = bytearray(0x68)
     tss[4:8] = esp0.to_bytes(4, 'little')
     tss[8:10] = (0x10).to_bytes(2, 'little')
     image = {CODE: bytes(a.b), HANDLER: b'\xf4', GDT: gdt, IDT: idt, TSS: bytes(tss),
+             **({AC_HANDLER: ac_handler} if ac_handler is not None else {}),
              GDT_POINTER: (len(gdt) - 1).to_bytes(2, 'little') + GDT.to_bytes(4, 'little'),
              IDT_POINTER: (len(idt) - 1).to_bytes(2, 'little') + IDT.to_bytes(4, 'little')}
     if page is not None:
@@ -622,14 +626,18 @@ def cases() -> list[Case]:
     protected('ac-delivery-same-privilege', source_delivery, {'end': 'exception:17', 'error': 0},
               lambda a: a.op(0xcd, 0x06), ring3_eflags=AC, ring3_esp=RING3_ESP + 1, ring3_vectors=(6,),
               what='INT 6 to a CPL-3 gate onto a misaligned stack raises #AC(0)')
-    # The same for an exception's delivery: #UD's pushes raise #AC, whose
-    # error code has EXT set, on the oracle as on the RTL. The row holds
-    # the first exception, #UD; the lockstep compares the #AC's frame. The
-    # PRM's "always zero" (Table 9-8) does not say whether EXT is set for
-    # an #AC inside a delivery.
-    protected('ac-exception-delivery-same-privilege', source_delivery, {'end': 'exception:6'},
+    # The same for an exception's delivery: #UD's pushes raise #AC. Its
+    # handler pops the error code into EAX. Bochs sets EXT and pushes 1; a
+    # 486SX pushes 0, #AC's error code being always zero (PRM Table 9-8;
+    # Deano, 21 November 2026, "Push 0 now"), which the lockstep's #AC
+    # error code rule holds the RTL to. The row holds the first exception,
+    # #UD, and Bochs's EAX.
+    protected('ac-exception-delivery-same-privilege', 'Bochs (EXT set); PRM Table 9-8 for the 486',
+              {'end': 'exception:6', 'eax': 1},
               lambda a: a.op(0x0f, 0xff), ring3_eflags=AC, ring3_esp=RING3_ESP + 1, ring3_vectors=(6,),
-              what='#UD delivered at CPL 3 onto a misaligned stack raises #AC, EXT set')
+              ac_handler=bytes([0x58, 0xf4]), divergence='ac-error-ext',
+              i486='error code 0 (PRM Table 9-8: always zero; Deano, 21 November 2026)',
+              what='#UD delivered at CPL 3 onto a misaligned stack raises #AC; its handler pops the error code')
     protected('ac-xadd-m32', source17, {'end': 'exception:17', 'error': 0},
               lambda a: a.op(0x0f, 0xc1, 0x1d).d(PAGE + 1), ring3_eflags=AC,
               what='a misaligned XADD is #AC(0)')
