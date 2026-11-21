@@ -88,3 +88,16 @@ report-only list.
 noise, so the kept cuts are fitted together as one arm. Per-cut figures come
 from single-seed VGA-only fits and the locked-Yosys bench, and are labelled as
 estimates.
+
+### Amendment, 21 November 2026, before any board fit finished
+
+The first baseline build took Lander's legacy Pro slot
+(`/tmp/lander-quartus-powerboat-pro.lock`). A Lander signoff job then waited
+on that slot with a one-hour limit. I stopped both of my board runs before
+either finished a fit; no figure comes from them.
+
+The amended lease rule:
+- Every board run takes only `/tmp/fes-quartus-pro-1.lock` and waits for it.
+- The baseline and the arm run one after the other.
+
+The arms, seeds, netlist rule and bands are unchanged.
