@@ -77,6 +77,9 @@ def run(model, native_mailbox=False):
     output = Path(tempfile.mkdtemp(prefix=f"standard-{model}-", dir=parent))
     print(f"DE25 Spectrum simulation directory: {output}", flush=True)
     firmware = diagnostic / ("firmware.rom" if model == "48" else "firmware-32k.rom")
+    flags = f"-O2 -DSPECTRUM_BANKS={3 if model == '48' else 8}"
+    if native_mailbox:
+        flags += " -DSPECTRUM_NATIVE48"
     subprocess.run(["verilator", "--cc", "--exe", "--build", "-j", "4", "--public-flat-rw", "-O3",
                     "-Wall", *["-Wno-" + name for name in WAIVERS], *MODELS[model],
                     *(["-DFES_DE25_NATIVE_SPECTRUM48=1"] if native_mailbox else []),
@@ -84,7 +87,7 @@ def run(model, native_mailbox=False):
                     "-GSDRAM_POWERUP_CYCLES=16",
                     "-GBUILD_ID=128'h00112233445566778899aabbccddeeff",
                     *["-I" + str(path) for path in [output, *includes()]],
-                    "-CFLAGS", f"-O2 -DSPECTRUM_BANKS={3 if model == '48' else 8}",
+                    "-CFLAGS", flags,
                     *map(str, sources(output)), str(HERE / "standard_tb.cpp")], cwd=ROOT, check=True)
     executable = output / "Vfes_de25_spectrum_standard"
     subprocess.run([str(executable), str(firmware),

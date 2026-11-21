@@ -307,6 +307,23 @@ int native_mailbox() {
         } else if (operation == "display-reply") {
             board.display_reply = true;
             value = board.display_pending;
+#ifdef SPECTRUM_NATIVE48
+        } else if (operation == "check-fetch-snapshots") {
+            uint32_t previous_count = 0;
+            for (unsigned i = 0; i < 32; ++i) {
+                board.run_clocks(19 + i * 3);
+                const auto prior_reply = board.root.fes_de25_spectrum_standard__DOT__transport__DOT__fetch_reply;
+                const uint32_t count = board.read(0x18);
+                const auto reply = board.root.fes_de25_spectrum_standard__DOT__transport__DOT__fetch_reply;
+                const uint64_t source = board.root.fes_de25_spectrum_standard__DOT__transport__DOT__fetch_payload;
+                require(reply != prior_reply, "fetch count reused a prior reply");
+                require(count > previous_count && count == source >> 16, "fetch count is stale or differs from its source snapshot");
+                board.run_clocks(53);
+                require(board.read(0x1c) == (source & 0xffff), "fetch address differs from the paired count");
+                previous_count = count;
+            }
+            value = previous_count;
+#endif
         } else if (operation == "fetch-stall") {
             board.machine_clock_stopped = true;
             board.read(0x18, true);

@@ -302,6 +302,9 @@ func TestSpectrum48FirmwareRTL(t *testing.T) {
 				t.Fatal(err)
 			}
 			if name == "fetch-stall" {
+				if _, err := c.Activity(ctx); err != nil {
+					t.Fatal("initial fetch snapshot failed", err)
+				}
 				fault, err := s.call("fetch-stall")
 				if err != nil || len(fault) != 1 || fault[0] != uint64(g.FesDe25ComputerFaultBusy) {
 					t.Fatal("stalled machine clock did not end the Avalon fetch read with a sticky fault", fault, err)
@@ -375,6 +378,12 @@ func TestSpectrum48FirmwareRTL(t *testing.T) {
 			running, err := c.Activity(ctx)
 			if err != nil || running.Cycles <= heldBefore.Cycles || running.Address >= 16384 {
 				t.Fatal("no instruction fetch from the diagnostic ROM", running, err)
+			}
+			if name == "launch" {
+				count, err := s.call("check-fetch-snapshots")
+				if err != nil || len(count) != 1 || count[0] <= uint64(running.Cycles) {
+					t.Fatal("repeated paired fetch snapshots failed", count, err)
+				}
 			}
 			if name == "return-ack" {
 				s.fault = name
