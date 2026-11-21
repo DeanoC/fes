@@ -20,6 +20,7 @@ from boards.de25nano.package.export_core_package import (
 from boards.de25nano.producers import build_atari_st_package as atari_st
 from boards.de25nano.producers import build_machine_package as shared
 from boards.de25nano.producers import build_spectrum_package as spectrum
+from boards.de25nano.spectrum import native_hps
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = 'https://github.com/DeanoC/fes'
@@ -175,6 +176,21 @@ class MachineProducerTests(unittest.TestCase):
             finally:
                 if store.exists():
                     subprocess.run(['chmod', '-R', 'u+w', str(store)], check=True)
+
+    def test_native_phase_export_rechecks_the_generated_handoff(self):
+        with tempfile.TemporaryDirectory() as name:
+            output = Path(name)
+            directory = output / 'combined/hps'
+            directory.mkdir(parents=True)
+            hps, scanout, tool = mock.Mock(), mock.Mock(), Path('/fixture/quartus_sh')
+            before, changed = {'endpoint': 'selected'}, {'endpoint': 'changed'}
+            for values, export_count in (([before, changed], 0), ([before, before, changed], 1)):
+                hps.reset_mock()
+                with mock.patch.object(native_hps, 'verify_handoff', side_effect=values):
+                    with self.assertRaisesRegex(ValueError, 'handoff changed'):
+                        native_hps.compile_package_candidate(output, hps, scanout, tool)
+                self.assertEqual(hps.linux_configuration_artifacts.call_count, export_count)
+                self.assertFalse((directory / 'generation.json').exists())
 
     def test_refuses_before_any_build(self):
         for producer in (spectrum, atari_st):
