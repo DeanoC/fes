@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -200,7 +201,7 @@ func TestCreateCoreEntryWithTruncatedSlugSeparator(t *testing.T) {
 		t.Fatalf("unexpected entry: %+v", entry)
 	}
 	got, err := s.catalog.(*catalog.Store).CoreEntry(ctx, entry.GameID)
-	if err != nil || got != entry {
+	if err != nil || !reflect.DeepEqual(got, entry) {
 		t.Fatalf("stored entry = %+v, %v; want %+v", got, err, entry)
 	}
 }

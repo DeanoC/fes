@@ -100,7 +100,7 @@ class SourcesTest(unittest.TestCase):
         text = (ROOT / "cores/fes-pc386/rtl/pc386_system.sv").read_text()
         self.assertRegex(text, r"X87_PRESENT = 0,  //")
         self.assertIn("wire x87_present = X87_PRESENT != 0;", text)
-        self.assertIn(".GOV_D(GOV_D)) cpu (", text)
+        self.assertIn(".GOV_D(GOV_D), .I486(I486)) cpu (", text)
         self.assertNotIn("X87_BACKEND", text)
 
 

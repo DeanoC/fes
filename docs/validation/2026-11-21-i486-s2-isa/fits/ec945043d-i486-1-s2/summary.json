@@ -1,0 +1,102 @@
+{
+  "build_id": "00000000000000000000000000000000",
+  "closes": true,
+  "commit": "ec945043d8554afbf5412b67ad9b48adffca5278",
+  "created_utc": "2026-11-21T09:32:44.939900+00:00",
+  "device": "5CSEBA6U23I7",
+  "gpu_router": "CUDA",
+  "host": "chip-30x0-ai-dev",
+  "i486": 1,
+  "minutes": 15.9,
+  "netlist_sha256": "f815019fee7d3ec28b0b504f11d978a97da62e8d3d2db0a5b32c7e2a06f3ca12",
+  "parameters": {
+    "ATA_RESET_CLOCKS": 615,
+    "AUDIO_D": 1280,
+    "AUDIO_N": 1,
+    "DMA_D": 9216,
+    "DMA_N": 625,
+    "DOT0_D": 12288,
+    "DOT0_N": 5035,
+    "DOT1_D": 30720,
+    "DOT1_N": 14161,
+    "GOV_D": 3072,
+    "GOV_N": 5,
+    "I486": 1,
+    "ISA_D": 4608,
+    "ISA_N": 625,
+    "OPL2_D": 1081344,
+    "OPL2_N": 875,
+    "PIT_D": 22528,
+    "PIT_N": 875,
+    "RTC_D": 1875,
+    "RTC_N": 1,
+    "US_D": 1536,
+    "US_N": 25
+  },
+  "quartus": "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition",
+  "quartus_exit": 0,
+  "quartus_threads": 2,
+  "resources": {
+    "alms": {
+      "available": 41910,
+      "used": 36504
+    },
+    "block_memory_bits": {
+      "available": 5662720,
+      "used": 1354806
+    },
+    "dsp_blocks": {
+      "available": 112,
+      "used": 41
+    },
+    "ram_blocks": {
+      "available": 553,
+      "used": 282
+    },
+    "registers": {
+      "used": 31951
+    }
+  },
+  "rom_hex_sha256": "815620361ef28a2bbdd97b1964700a4678a26c0ffc9582bb95544473fe099d18",
+  "seed": 2,
+  "timing": {
+    "analyses": {
+      "hold": {
+        "tns_ns": 0.0,
+        "worst_slack_ns": 0.094
+      },
+      "minimum_pulse_width": {
+        "tns_ns": 0.0,
+        "worst_slack_ns": 1.122
+      },
+      "recovery": {
+        "tns_ns": 0.0,
+        "worst_slack_ns": 6.512
+      },
+      "removal": {
+        "tns_ns": 0.0,
+        "worst_slack_ns": 0.464
+      },
+      "setup": {
+        "tns_ns": 0.0,
+        "worst_slack_ns": 0.631
+      }
+    },
+    "clocks": {
+      "audio": {
+        "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+        "mhz": 12.29
+      },
+      "pixel": {
+        "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+        "mhz": 74.27
+      },
+      "system": {
+        "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+        "mhz": 61.44
+      }
+    },
+    "status": "pass"
+  },
+  "yosys": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=8a9a88fb7471aa6bfa566470cc5770998600f5ec07ef749249396ef5ad633a3f"
+}

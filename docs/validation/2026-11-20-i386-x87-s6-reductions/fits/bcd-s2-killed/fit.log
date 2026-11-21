@@ -1,0 +1,56 @@
+Info (20032): Parallel compilation is enabled and will use up to 4 processors
+Info: *******************************************************************
+Info: Running Quartus Prime Fitter
+    Info: Version 26.3.0 Build 114 10/14/2026 SC Pro Edition
+    Info: Copyright (C) 2026  Altera Corporation. All rights reserved.
+    Info: Your use of Altera Corporation's design tools, logic functions 
+    Info: and other software and tools, and any partner logic 
+    Info: functions, and any output files from any of the foregoing 
+    Info: (including device programming or simulation files), and any 
+    Info: associated documentation or information are expressly subject 
+    Info: to the terms and conditions of the Altera Program License 
+    Info: Subscription Agreement, the Altera Quartus Prime License Agreement,
+    Info: the Altera IP License Agreement, or other applicable license
+    Info: agreement, including, without limitation, that your use is for
+    Info: the sole purpose of programming logic devices manufactured by
+    Info: Altera and sold by Altera or its authorized distributors.  Please
+    Info: refer to the Altera Software License Subscription Agreements 
+    Info: on the Quartus Prime software download page.
+    Info: Processing started: Fri Nov 20 23:39:49 2026
+    Info: System process ID: 341479
+Info: Command: quartus_fit pc386_system
+Info: qfit2_default_script.tcl version: #1
+Info: Project  = pc386_system
+Info: Revision = pc386_system
+Info (16677): Loading synthesized database.
+Info (16734): Loading "synthesized" snapshot for partition "root_partition".
+Info (16678): Successfully loaded synthesized database: elapsed time is 00:00:03.
+Info (119006): Selected device A5EB013BB23BE4SCS for design "pc386_system"
+Info (21076): High junction temperature operating condition is not set. Assuming a default value of '100'.
+Info (21076): Low junction temperature operating condition is not set. Assuming a default value of '0'.
+Info (171004): Fitter is performing a Standard Fit compilation using maximum Fitter effort to optimize design performance
+Info (21076): High junction temperature operating condition is not set. Assuming a default value of '100'.
+Info (21076): Low junction temperature operating condition is not set. Assuming a default value of '0'.
+Info (12262): Starting Fitter periphery placement operations
+Info (12290): Loading the periphery placement data.
+Info (12291): Periphery placement data loaded: elapsed time is 00:00:15
+Info (12627): Pin ~ALTERA_AS_DATA1~ is reserved at location CK67
+Info (12627): Pin ~ALTERA_AS_nCSO0,ALTERA_MSEL0~ is reserved at location BY71
+Info (12627): Pin ~ALTERA_AS_DATA2~ is reserved at location DC74
+Info (12627): Pin ~ALTERA_AS_DATA0~ is reserved at location CN64
+Info (12627): Pin ~ALTERA_AS_CLK~ is reserved at location CY69
+Info (12627): Pin ~ALTERA_AS_nCSO2,ALTERA_MSEL1~ is reserved at location CN67
+Info (12627): Pin ~ALTERA_AS_nCSO1,ALTERA_MSEL2~ is reserved at location CN71
+Info (12627): Pin ~ALTERA_AS_DATA3~ is reserved at location DC75
+Info (12627): Pin ~ALTERA_AS_nCSO3~ is reserved at location DB71
+Info (12627): Pin ~ALTERA_AS_nRST~ is reserved at location CY71
+Warning (25315): Some pins are missing drive strength (current strength), termination and/or slew rate assignments. Refer to the I/O Assignment Warnings report for details.
+Critical Warning (15714): Some pins are missing I/O Standard assignments. Refer to the I/O Assignment Warnings report for details.
+Critical Warning (12677): No exact pin location assignment(s) for 2 pins of 2 total pins. For the list of pins please refer to the I/O Assignment Warnings table in the fitter report
+Info (16210): Plan updated with currently enabled project assignments.
+Info (12295): Periphery placement of all unplaced cells complete: elapsed time is 00:00:00
+Info (19539): Reading the HDL-embedded SDC files elapsed 00:00:00.
+Info (332104): Reading SDC File: 'pc386_system.sdc'
+Info (332151): Clock uncertainty is not calculated until you update the timing netlist.
+Info (19449): Reading SDC files elapsed 00:00:00.
+Info (332123): Deriving Clock

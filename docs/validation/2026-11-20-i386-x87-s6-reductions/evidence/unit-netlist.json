@@ -1,0 +1,189 @@
+{
+  "top": "fes_i386_x87",
+  "netlist": true,
+  "source": {
+    "fes_revision": "d74d8d419836166f2fdfe77b4ec9a30f85cb8e75",
+    "tracked_changes": [],
+    "files": {
+      "sources/misteross/cores/fes-common/rtl/i386/fes_i386_pkg.sv": "3aa7b297dafee45b065e7f4b98301547f11d4555b61f5f65f868bdb804e4fe32",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87.sv": "36d4b905ad0a3a44aab02e85c39da3bf3a311794f482ebd241c2af6907d52c27",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87_mul.sv": "1c07ac7b90d76654495e21996d991647da67c144985ac61fdb332e37392190ce",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_core.sv": "08d51ddbfc2ac9457e84f374cedf695b1b5eb4d027b20870c23193839aff3405",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_fast.sv": "48f5155ef4ce38f255928503d63b65d57d0625c69907df87bf34e1965625a230",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_pkg.sv": "86334f83339b10b47598044b74b510bac5829d52f7cbd4eb379570d2f90dd64d",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_slow.sv": "45f43d52b5a92c24e99c47a613b1a8c588bd449391d2df9461441aa02ea4e369",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_trans.sv": "17f1db1d501c7875b27dbed3fbd3e248b78a768fb234b98c1c659e30d53bd3b7",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_trans_pkg.sv": "2e2eecc2574703e5092c2a8e71c5cc031dd850cbca0a2874852a10f5526b699d",
+      "sources/misteross/cores/fes-common/rtl/i386/fes_x87_trans_rom.sv": "444af655e6a577ea1a73243f757f40c182fd1339f78f5b972c83b7af98fe47b0",
+      "sources/misteross/cores/fes-common/sim/i386/x87_unit_tb.cpp": "07268da81a0961b5b8d66b066d28b94a0a66fe56b063f3e0142f327a5e900b87",
+      "sources/misteross/scripts/test_fes_i386_x87_unit.py": "1f16877d04da01e03dbafc9b3eb18e43bde0eaceb09545b78549987ca64c4fe2",
+      "sources/misteross/scripts/x87_trans_ucode.py": "c32cf8fba7bf49c1f41fd810624c74174c35b6c4de816af500228fb48a21a871",
+      "sources/misteross/scripts/yosys_netlist.py": "0bc1bcce48d530c5c49de8445091a74b125e2a9a0056cd56948ec1288e073bae"
+    },
+    "files_sha256": "ee670adb6d8a3ce9cbefdcf51522d17bf26dc6ba537948b06e2baa3013dcae69"
+  },
+  "verilator": {
+    "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+    "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+    "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+    "version": "Verilator 5.054 2026-11-01 rev v5.054",
+    "install": "1cd6c9741d903760a2b1c4283b6830f63c0974f8478b06fb7f8dabd3c4304d8c"
+  },
+  "passed": 18337,
+  "failed": 0,
+  "failures": [],
+  "cases": 18337,
+  "bcd_cases": 61,
+  "bcd_forms": {
+    "fbld": {
+      "issued": 6845,
+      "converted": 6842
+    },
+    "fbstp": {
+      "issued": 13371,
+      "converted": 11618
+    }
+  },
+  "transcendentals": {
+    "bound_host": 4,
+    "qemu_brackets": null,
+    "bound_is": "proposed, not agreed: see the record's bound.md",
+    "model_vectors_compared_exactly": 7994,
+    "reset_and_squash_offsets_inside_engine": 184,
+    "cases": 17353,
+    "instructions": {
+      "FSIN": {
+        "cases": 1703,
+        "engine_runs": 2661,
+        "values": 1687,
+        "identical": 1663,
+        "worst": 1,
+        "c1_differs": 18,
+        "manual": 6,
+        "distance": {
+          "0": 1663,
+          "1": 24
+        }
+      },
+      "FCOS": {
+        "cases": 1703,
+        "engine_runs": 2661,
+        "values": 1687,
+        "identical": 1664,
+        "worst": 1,
+        "c1_differs": 13,
+        "manual": 6,
+        "distance": {
+          "0": 1664,
+          "1": 23
+        }
+      },
+      "FSINCOS": {
+        "cases": 1703,
+        "engine_runs": 2659,
+        "values": 3349,
+        "identical": 2660,
+        "worst": 1,
+        "c1_differs": 590,
+        "manual": 4,
+        "distance": {
+          "0": 2660,
+          "1": 689
+        }
+      },
+      "FPTAN": {
+        "cases": 1703,
+        "engine_runs": 2659,
+        "values": 3349,
+        "identical": 2755,
+        "worst": 2,
+        "c1_differs": 221,
+        "manual": 4,
+        "distance": {
+          "0": 2755,
+          "1": 593,
+          "2": 1
+        }
+      },
+      "F2XM1": {
+        "cases": 1703,
+        "engine_runs": 2676,
+        "values": 1687,
+        "identical": 1363,
+        "worst": 1,
+        "c1_differs": 156,
+        "manual": 0,
+        "distance": {
+          "0": 1363,
+          "1": 324
+        }
+      },
+      "FYL2X": {
+        "cases": 2945,
+        "engine_runs": 2967,
+        "values": 2929,
+        "identical": 2593,
+        "worst": 1,
+        "c1_differs": 251,
+        "manual": 0,
+        "distance": {
+          "0": 2593,
+          "1": 336
+        }
+      },
+      "FYL2XP1": {
+        "cases": 2945,
+        "engine_runs": 2968,
+        "values": 2634,
+        "identical": 2341,
+        "worst": 1,
+        "c1_differs": 198,
+        "manual": 295,
+        "distance": {
+          "0": 2341,
+          "1": 293
+        }
+      },
+      "FPATAN": {
+        "cases": 2945,
+        "engine_runs": 3195,
+        "values": 2929,
+        "identical": 2621,
+        "worst": 1,
+        "c1_differs": 257,
+        "manual": 0,
+        "distance": {
+          "0": 2621,
+          "1": 308
+        }
+      }
+    }
+  },
+  "latency_clocks": {
+    "fadd.pc24": 13,
+    "fsub.pc24": 13,
+    "fmul.pc24": 13,
+    "fdiv.pc24": 39,
+    "fsqrt.pc24": 39,
+    "fscale.pc24": 23,
+    "frndint.pc24": 45,
+    "fprem.pc24": 86,
+    "fadd.pc53": 13,
+    "fsub.pc53": 13,
+    "fmul.pc53": 13,
+    "fdiv.pc53": 68,
+    "fsqrt.pc53": 68,
+    "fscale.pc53": 23,
+    "frndint.pc53": 45,
+    "fprem.pc53": 86,
+    "fadd.pc64": 13,
+    "fsub.pc64": 13,
+    "fmul.pc64": 13,
+    "fdiv.pc64": 79,
+    "fsqrt.pc64": 79,
+    "fscale.pc64": 23,
+    "frndint.pc64": 45,
+    "fprem.pc64": 86
+  },
+  "testfloat": null
+}

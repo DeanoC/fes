@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -25,7 +26,7 @@ func TestKitHostEntryMigrationAndAtomicCreation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if got, err := store.CoreEntry(ctx, prior.GameID); err != nil || got != prior {
+	if got, err := store.CoreEntry(ctx, prior.GameID); err != nil || !reflect.DeepEqual(got, prior) {
 		t.Fatalf("prior=%+v err=%v", got, err)
 	}
 	bad := KitHostEntryIdentity{Identity: identity, ROMID: "cart", ROMMediaID: strings.Repeat("c", 64), ROMSourceSize: 1024}
@@ -43,7 +44,7 @@ func TestKitHostEntryMigrationAndAtomicCreation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, found, err := store.KitHostEntry(ctx, identity); err != nil || !found || got != entry {
+	if got, found, err := store.KitHostEntry(ctx, identity); err != nil || !found || !reflect.DeepEqual(got, entry) {
 		t.Fatalf("mapping=%+v %v %v", got, found, err)
 	}
 	if _, err := store.db.ExecContext(ctx, `DELETE FROM games WHERE game_id = ?`, entry.GameID); err != nil {

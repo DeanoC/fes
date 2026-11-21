@@ -6,8 +6,9 @@ recipe's atomic computer transport and allocated display, launch-time firmware
 upload, the board SDRAM and a 52.222222 MHz machine clock. It has a simulated
 component and a Quartus project on the shared builder. Its producer is
 `../producers/build_atari_st_package.py`, selected by the `de25-nano`
-`fes.atari-st` recipe; the producer's signoff gate does not admit a package
-yet (see Open), and nothing here programs a kit.
+`fes.atari-st` recipe. The 520ST signs off and packages, the runtime and
+FogCast admit it, and Kit D25 has booted it to the EmuTOS desktop (#1937) and
+the TOS 1.04 desktop. The work toward tier 1 on DE25 is tracked in #2042.
 
 ## What differs from the DE10 core
 
@@ -24,8 +25,11 @@ including `st_memory` with its phase slots and posted CPU writes.
 | One machine reset register, and the 68000's RESET output, each reaching the whole machine | A reset register each for the bus, the processor, the I/O decode, the keyboard and serial chips, the sound chip, and the memory and video raster, all loaded from the same logic on the same clock; `derive.py` adds the RESET register's copies to `fx68k` and the group reset ports to `st_system`, `st_machine` and `st_io` |
 | `fes_computer_mailbox_direct` | The mailbox with the session display, as on the Spectrum and ZX81 |
 
-The device has 358 M20K blocks and the GHRD's on-chip memory alone takes 128,
-so the ROM cannot sit in block RAM beside the frame store. `derive.py` gives
+The device has 358 M20K blocks. When this lane was built the GHRD's on-chip
+memory took 128 of them, so the ROM could not sit in block RAM beside the frame
+store. The v4 shell removed that memory (#1956) and the 520ST now fits in 172
+blocks, which leaves room for a 192 KiB block-RAM ROM again; the ROM is still
+in SDRAM. `derive.py` gives
 `st_memory`'s CPU port a ROM region; a ROM read takes the CPU's phase slot as
 a RAM read does. Firmware is written there while the machine is held, when the
 memory's phase slots turn on a free count because the raster stands still.
@@ -70,13 +74,14 @@ memory master, PLLs, SDRAM pad timing and HDMI are not modeled.
   audio-clock review uses the new `de25-machine-pll-audio-clocks-v1` policy,
   which is unreviewed.
 - ROM read timing against the DE10 machine. `st_rom` answered in five clocks;
-  the SDRAM port answers in the CPU's slot. The diagnostic firmware runs, but
-  no cycle-exact comparison or stock TOS boot has been made.
+  the SDRAM port answers in the CPU's slot. EmuTOS and TOS 1.04 boot, but no
+  cycle-exact comparison has been made.
 - SDRAM on the board. The chips are mobile SDRAM: the ramtest controller
   programs their extended mode register and this controller does not. Pad
   timing at the machine clock meets the datasheet delays in analysis, with a
   falling-edge sample, and is unproven on the board.
-- A stock TOS or EmuTOS boot in simulation and on hardware, mono and medium
-  resolution through the session display, and the picture rectangle the
-  plane reports (the whole raster for now).
-- Runtime and FogCast admission, as for the Spectrum.
+- Stock TOS beyond the desktop. With the sealed 520ST package from #2052's
+  producer, a user-supplied TOS 1.04 UK reached the GEM desktop on Kit D25
+  (reported on #2042); no game or application has been run under it on DE25.
+- Mono and medium resolution through the session display, and the picture
+  rectangle the plane reports (the whole raster for now).

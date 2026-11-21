@@ -477,6 +477,7 @@ func (s *Service) writeCoreEntryLocked(ctx context.Context, gameID, title, expec
 		return catalog.CoreEntry{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
 	}
 	var current *CoreCompatibility
+	var more []catalog.SetMedia
 	if gameID != "" {
 		entry, err := store.CoreEntry(ctx, gameID)
 		if err != nil {
@@ -485,7 +486,7 @@ func (s *Service) writeCoreEntryLocked(ctx context.Context, gameID, title, expec
 		if entry.PackageID != expected {
 			return catalog.CoreEntry{}, mapCoreEntryError(catalog.ErrCoreEntryConflict)
 		}
-		role, mediaID = entry.MediaRole, entry.MediaID
+		role, mediaID, more = entry.MediaRole, entry.MediaID, entry.MoreMedia
 		old, err := s.inspectInstalledCore(ctx, entry.PackageID)
 		if err != nil {
 			return catalog.CoreEntry{}, err
@@ -536,6 +537,12 @@ func (s *Service) writeCoreEntryLocked(ctx context.Context, gameID, title, expec
 		}
 	} else if err := s.validateCoreEntryMedia(ctx, check.Descriptor, role, mediaID); err != nil {
 		return catalog.CoreEntry{}, err
+	}
+	// Every disk of a set must still fit the drive under the new package.
+	for _, m := range more {
+		if err := s.validateCoreEntryMedia(ctx, check.Descriptor, role, m.MediaID); err != nil {
+			return catalog.CoreEntry{}, err
+		}
 	}
 	if current != nil && current.PersistenceLayout != nil && !reflect.DeepEqual(current.PersistenceLayout, check.PersistenceLayout) {
 		return catalog.CoreEntry{}, canonicalError(protocol.CodeIncompatibleData, nil)
