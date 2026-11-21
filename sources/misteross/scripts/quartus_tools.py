@@ -737,50 +737,65 @@ def stdin_program():
         _stdin_programs.active -= 1
 
 
-INTERPRETERS = SHELLS | {"python", "python3", "perl", "ruby", "node", "tclsh"}
+# The interpreters whose stdin programs matter here: shells and Python, the
+# languages the repository's static guard reads (tests/test_quartus_lease.py).
+# A program in any other language, from stdin or a file, is outside both.
+INTERPRETERS = SHELLS | {"python", "python3"}
+SHELL_OPERAND_OPTIONS = {"-o", "+o", "-O", "+O", "--rcfile", "--init-file"}
 
 
-# Options that take the next word as their operand, per interpreter family.
-OPTION_OPERANDS = {"python": {"-W", "-X", "--check-hash-based-pycs"},
-                   "shell": {"-o", "+o", "-O", "+O", "--rcfile", "--init-file"},
-                   "perl": {"-I", "-M", "-m", "-x"},
-                   "ruby": {"-I", "-r", "-C", "-E"},
-                   "node": {"-r", "--require", "--import"},
-                   "tclsh": {"-encoding"}}
-# Flags whose operand is the program text, per family (perl -c only checks
-# syntax, yet runs BEGIN blocks from stdin: it is not one).
-PROGRAM_FLAGS = {"python": re.compile(r"-[A-Za-z]*c[A-Za-z]*|-m"), "shell": re.compile(r"-[A-Za-z]*c[A-Za-z]*"),
-                 "perl": re.compile(r"-[A-Za-z]*[eE]"), "ruby": re.compile(r"-[A-Za-z]*e"),
-                 "node": re.compile(r"-e|--eval|-p|--print"), "tclsh": re.compile(r"(?!)")}
+def _python_reads_stdin(arguments: list[str]) -> bool:
+    """Whether python with these arguments reads code from stdin: no -c, -m
+    or script operand, or -, or -i given before the program (interactive
+    once it has run). Everything after the program is the program's argv."""
+    interactive, index = False, 0
+    while index < len(arguments):
+        word = arguments[index]
+        index += 1
+        if word == "-":
+            return True
+        if word == "--":
+            return interactive or index >= len(arguments) or arguments[index] == "-"
+        if word.startswith("--"):
+            if word == "--check-hash-based-pycs":
+                index += 1  # its operand
+            continue
+        if not word.startswith("-"):
+            return interactive  # a script file is the program
+        cluster = word[1:]
+        for position, letter in enumerate(cluster):
+            if letter in "WX":  # takes an operand: the rest of the cluster, or the next word
+                if position == len(cluster) - 1:
+                    index += 1
+                break
+            if letter in "cm":  # the program text or module follows
+                return interactive
+            if letter == "i":
+                interactive = True
+    return True  # no program given: it is read from stdin
 
 
 def _reads_program_from_stdin(texts: list[str]) -> bool:
-    """A shell or interpreter with no program argument (or -s, or -), which
-    reads its program from stdin."""
+    """A shell or Python with no program argument (or -s, or -), which reads
+    its program from stdin; Python with -i reads it after its program too."""
     if not texts:
         return False
     name = os.path.basename(texts[0])
-    python = bool(re.fullmatch(r"python(3(\.\d+)?)?", name))
-    if not (name in INTERPRETERS or python):
+    if re.fullmatch(r"python(3(\.\d+)?)?", name):
+        return _python_reads_stdin(texts[1:])
+    if name not in SHELLS:
         return False
-    family = "python" if python else "shell" if name in SHELLS else name
-    takes, program_flag = OPTION_OPERANDS[family], PROGRAM_FLAGS[family]
     index = 1
     while index < len(texts):
         word = texts[index]
-        if word == "-s" and family == "shell":
+        if word in ("-s", "-"):
             return True
-        if word == "-":
-            return True
-        if python and re.fullmatch(r"-[A-Za-z]*i[A-Za-z]*", word) and word not in takes:
-            return True  # -i inspects interactively, reading stdin, after any -c program
-        if program_flag.fullmatch(word):
-            # The program is an argument, unless -i comes later (python -c x -i).
-            return python and any(re.fullmatch(r"-[A-Za-z]*i[A-Za-z]*", w) for w in texts[index + 1:])
+        if re.fullmatch(r"-[A-Za-z]*c[A-Za-z]*", word):
+            return False  # the program is an argument
         if word == "--":
             index += 1
             break
-        if word in takes:
+        if word in SHELL_OPERAND_OPTIONS:
             index += 2
             continue
         if word.startswith(("-", "+")):

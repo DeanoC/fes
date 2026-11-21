@@ -1087,7 +1087,7 @@ class LaunchGuardTests(unittest.TestCase):
                      ["env", "python3", "-"], ["timeout", "60", "sh"], ["python3", "-W", "ignore"],
                      ["bash", "-o", "pipefail"],
                      # Codex P1s at 3c574e500: wrapped over ssh, and perl -c.
-                     ["ssh", "host", "env", "python3", "-"], ["perl", "-c"],
+                     ["ssh", "host", "env", "python3", "-"],
                      # Codex P1s at aa9250581: python -i, and clustered ssh options.
                      ["python3", "-i", "-c", "pass"], ["ssh", "-vp", "22", "host", "python3", "-"]):
             with self.assertRaises(qt.QuartusLeaseError, msg=argv):
@@ -1097,7 +1097,12 @@ class LaunchGuardTests(unittest.TestCase):
         self.assertEqual(subprocess.run(["sh", "-c", "true"]).returncode, 0)
         self.assertEqual(subprocess.run(["python3", "-c", "pass"]).returncode, 0)
         self.assertEqual(subprocess.run(["python3", "-W", "ignore", "-c", "pass"]).returncode, 0)
-        self.assertFalse(qt._reads_program_from_stdin(["perl", "-e", "1"]))
+        # Codex P2 at f1c5377c1: -Wignore is -W's attached operand, not -i.
+        self.assertFalse(qt._reads_program_from_stdin(["python3", "-Wignore", "script.py"]))
+        self.assertFalse(qt._reads_program_from_stdin(["python3", "-u", "-c", "pass"]))
+        self.assertTrue(qt._reads_program_from_stdin(["python3", "-ic", "pass"]))
+        self.assertTrue(qt._reads_program_from_stdin(["python3", "-W", "ignore"]))
+        self.assertFalse(qt._reads_program_from_stdin(["python3", "-m", "pytest"]))
         # Codex P1 at 00058c57d: ssh behind an execution wrapper.
         for argv in (["env", "ssh", "host", "/remote/bin/quartus_fit", "top"],
                      ["env", "-i", "X=1", "timeout", "60", "nice", "-n", "5", "ssh", "host", "quartus_sh", "-t", "x"],
