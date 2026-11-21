@@ -613,7 +613,7 @@ def _launch_guard(event, args):
     elif event == "os.spawn":
         _check_launch(args[2], args[3] if len(args) > 3 else None)
     elif event == "os.system":
-        require_quartus_lease(args[0])
+        _check_launch(args[0], None)
 
 
 sys.addaudithook(_launch_guard)

@@ -261,18 +261,24 @@ def _stop_job(process: subprocess.Popen | None, scan) -> None:
         return
     previous = {sig: signal.signal(sig, signal.SIG_IGN) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
     try:
-        _signal_all([process.pid, *scan()], signal.SIGTERM)
+        _signal_all([*_launcher(process), *scan()], signal.SIGTERM)
         deadline = time.monotonic() + KILL_GRACE_SECONDS
         while True:
             if process.poll() is None or scan():
                 if time.monotonic() >= deadline:
-                    _signal_all([process.pid, *scan()], signal.SIGKILL)
+                    _signal_all([*_launcher(process), *scan()], signal.SIGKILL)
                 time.sleep(0.2)
                 continue
             return
     finally:
         for sig, handler in previous.items():
             signal.signal(sig, handler)
+
+
+def _launcher(process) -> list[int]:
+    """The launcher's pid while it is still the launcher. Once it has exited
+    (and been waited for) the number may name an unrelated process."""
+    return [process.pid] if process is not None and process.poll() is None else []
 
 
 def _signal_all(pids, number: int) -> None:
@@ -475,7 +481,7 @@ def _run(edition: str, label: str, command: list[str], sample_seconds: float,
         def relay(number, _frame):
             pending_signal.append(number)
             if process is not None:
-                _signal_all([process.pid, *scan()], number)
+                _signal_all([*_launcher(process), *scan()], number)
 
         # The relay is in place before the job exists: a signal in between is
         # recorded and passed on as soon as there is a job to pass it to, so
@@ -515,9 +521,9 @@ def _run(edition: str, label: str, command: list[str], sample_seconds: float,
                     capped, killed_at = True, now
                     print(f"quartus_jobs: time cap of {cap_seconds / 60:g} min reached; stopping the job",
                           file=sys.stderr, flush=True)
-                    _signal_all([process.pid, *live], signal.SIGTERM)
+                    _signal_all([*_launcher(process), *live], signal.SIGTERM)
                 elif capped and now - killed_at >= KILL_GRACE_SECONDS:
-                    _signal_all([process.pid, *live], signal.SIGKILL)
+                    _signal_all([*_launcher(process), *live], signal.SIGKILL)
                 if code is not None:
                     time.sleep(sample_seconds)
                     _reap_adopted(before | {process.pid})

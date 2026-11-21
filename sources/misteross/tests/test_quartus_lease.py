@@ -681,6 +681,8 @@ class LaunchGuardTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"Q": str(self.bin / "quartus_sh")}):
             with self.assertRaises(qt.QuartusLeaseError):
                 subprocess.run(["sh", "-c", "$Q --flow compile top"])
+            with self.assertRaises(qt.QuartusLeaseError):
+                os.system("$Q --flow compile top")
         # ...and a bare name found on the child's PATH, not this process's.
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["quartus_fit", "top"], env={"PATH": str(self.bin)})
@@ -963,6 +965,23 @@ class JobsTests(unittest.TestCase):
                                   ("/x/lite-a.lock", "/x/lite-b.lock") if edition == "lite" else ("/x/pro.lock",)), \
                 mock.patch.object(self.jobs, "_tree_rss_kib", return_value=8 * gib):
             self.assertEqual(self.jobs.outstanding_kib("none"), 4 * gib)
+
+    def test_an_exited_launcher_is_never_signalled(self):
+        # Codex P1 at 5def89121: the cap signalled process.pid after the
+        # launcher had exited, when the number may name another process.
+        sent, launched, real = [], [], subprocess.Popen
+
+        def popen(*args, **kwargs):
+            launched.append(real(*args, **kwargs))
+            return launched[-1]
+
+        with mock.patch.object(self.jobs, "_signal_all", lambda pids, number: sent.append(list(pids))), \
+                mock.patch.object(self.jobs.subprocess, "Popen", popen), \
+                mock.patch.object(self.jobs, "KILL_GRACE_SECONDS", 0.3):
+            code = self.jobs.run("lite", "", ["sh", "-c", "sleep 1.5 & exit 0"], sample_seconds=0.2, cap_seconds=0.6)
+        self.assertEqual(code, 124)
+        self.assertTrue(sent, "the cap sent nothing")
+        self.assertTrue(all(launched[0].pid not in pids for pids in sent), sent)
 
     def test_a_stale_waiter_marker_exempts_nobody(self):
         # Codex P1 at f2eae796b: a waiter killed after writing its marker left
