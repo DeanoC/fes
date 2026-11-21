@@ -112,6 +112,20 @@ func homeTour(rs []*Instance, step func(what string)) {
 // resize, which restarts the staged picture (draw:resize). Ceilings are about
 // 1.25x the worst case measured with gfx.segment replays in Home.
 func TestHomeCallbackWorkCeiling(t *testing.T) {
+	for _, fixture := range []struct {
+		name       string
+		withRecent bool
+	}{
+		{name: "with-recents", withRecent: true},
+		{name: "no-recents"},
+	} {
+		t.Run(fixture.name, func(t *testing.T) {
+			homeCallbackWorkCeiling(t, fixture.withRecent)
+		})
+	}
+}
+
+func homeCallbackWorkCeiling(t *testing.T, withRecent bool) {
 	// Measured after the segment replays (#1770); before them a focus move
 	// ran 9083 instructions and recorded 354 ops.
 	ceilings := map[string]struct {
@@ -138,7 +152,11 @@ func TestHomeCallbackWorkCeiling(t *testing.T) {
 	w := &workMeter{}
 	var r *Instance
 	open := func() {
-		r = newRoom(t, examplePack(t, "example.fes-cores"), homeWorkOptions(storePath))
+		options := homeWorkOptions(storePath)
+		if !withRecent {
+			options.Services.(*homeServices).setRecents()
+		}
+		r = newRoom(t, examplePack(t, "example.fes-cores"), options)
 		r.work = w
 		if err := r.Load(); err != nil {
 			t.Fatal(err)
@@ -180,6 +198,44 @@ func TestHomeCallbackWorkCeiling(t *testing.T) {
 
 	open()
 	settle()
+	if !withRecent {
+		// Confirm this fixture exercises the six tall family tiles, not the
+		// compact row used when recently played titles are present.
+		frame := r.Step(time.Now())
+		families := map[string]Hit{}
+		for _, hit := range frame.Hits {
+			if strings.HasPrefix(hit.ID, "recent:") {
+				t.Fatalf("no-recents fixture has recent hit %q", hit.ID)
+			}
+			if strings.HasPrefix(hit.ID, "family:") {
+				families[hit.ID] = hit
+			}
+		}
+		if len(families) != 6 {
+			t.Fatalf("no-recents fixture has %d family tiles, want 6: %+v", len(families), families)
+		}
+		for i := 1; i <= 6; i++ {
+			hit, ok := families[fmt.Sprintf("family:%d", i)]
+			if !ok || hit.H < 140 {
+				t.Fatalf("no-recents tile %d is missing or not tall: %+v", i, hit)
+			}
+		}
+		take()
+		// Exercise every tall family tile using the same direction inputs as
+		// the launcher, checking both focus and the work of each redraw.
+		phase = "focus"
+		r.Hover("family:1")
+		r.Step(time.Now())
+		take()
+		for _, label := range []string{"ZX Spectrum", "Atari ST", "Commodore 64", "PC/XT", "PC 386"} {
+			r.Input("right")
+			r.Step(time.Now())
+			take()
+			if got := r.Destination().Label; got != label {
+				t.Fatalf("tall tile focus = %q, want %q", got, label)
+			}
+		}
+	}
 	idle("first paint")
 	homeTour([]*Instance{r}, func(what string) {
 		switch {
@@ -222,6 +278,19 @@ func TestHomeCallbackWorkCeiling(t *testing.T) {
 	for _, kind := range kinds {
 		m := worst[kind]
 		c, ok := ceilings[kind]
+		if !withRecent {
+			// With no recent title, Home publishes the selected family's richer
+			// destination when data settles or reload starts. These separate
+			// instruction ceilings bound that path; all existing fixture
+			// ceilings and every draw-op ceiling stay unchanged. Observed maxima
+			// were 1196 (update, arrival-order dependent) and 989 (on_resume).
+			switch kind {
+			case "update":
+				c.instructions = 1500
+			case "on_resume":
+				c.instructions = 1250
+			}
+		}
 		if !ok {
 			t.Errorf("no ceiling for %s callbacks", kind)
 			continue

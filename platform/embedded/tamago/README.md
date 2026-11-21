@@ -290,8 +290,8 @@ Linux tenfoot keeps its existing file-based implementation.
 The board's deterministic entropy source only seeds runtime hash tables.
 Authentication and TLS are not qualified. The private test API uses numeric
 IPv4 HTTP addresses; DHCP, DNS configuration, UDP, IPv6, network recovery and
-throughput qualification remain outside this prototype. The separate
-[Zephyr reference](../zephyr/README.md) is not part of this boot image.
+throughput qualification remain outside this prototype. The retired Zephyr
+reference (`platform/embedded/zephyr`) was never part of this boot image.
 
 The [fabric lifecycle model](fabricmodel/README.md) runs separately through
 `run.py fabric`. It checks ownership and recovery order with software-only
