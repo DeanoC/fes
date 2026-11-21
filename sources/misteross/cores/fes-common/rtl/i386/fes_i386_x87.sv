@@ -1295,7 +1295,9 @@ module fes_i386_x87 (
     logic [2:0]               tr_prem_q;
     logic                     tr_prem_part, tr_rnd_pe, tr_rnd_c1;
     assign tr_start = seq == T_GO;
-    fes_x87_core core (
+    // One operation in flight, so the fast lane is one registered stage: the
+    // unit never uses its throughput (#2027 slice 6).
+    fes_x87_core #(.PIPELINED(1'b0)) core (
         .clk, .reset(reset || f1), .flush(bk_cancel),
         .req_valid(tr_busy ? tr_req_valid : bk_req_valid), .ext_ready(1'b1),
         .req_ready(bk_req_ready),

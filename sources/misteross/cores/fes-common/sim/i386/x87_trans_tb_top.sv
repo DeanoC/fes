@@ -37,8 +37,9 @@ module x87_trans_tb_top (
         .prem_q, .prem_part, .rnd_pe, .rnd_c1
     );
     // Round to nearest and extended precision: an intermediate's rounding is
-    // the engine's own, and a zero's sign follows the nearest rule.
-    fes_x87_core core (
+    // the engine's own, and a zero's sign follows the nearest rule. The fast
+    // lane is cut as `fes_i386_x87` builds it.
+    fes_x87_core #(.PIPELINED(1'b0)) core (
         .clk, .reset, .flush(1'b0), .req_valid, .ext_ready(1'b1), .req_ready,
         .req_op, .req_a, .req_b, .req_pc(2'd3), .req_rc(2'd0), .req_slot(4'd0),
         .raw_valid, .raw
