@@ -291,12 +291,27 @@ def _module_names(tree: ast.Module) -> set[str]:
     return names
 
 
+def _root_name(node: ast.AST) -> str | None:
+    """The name an attribute or subscript chain starts from (a.b[c].d -> a)."""
+    while isinstance(node, (ast.Attribute, ast.Subscript, ast.Call)):
+        node = node.func if isinstance(node, ast.Call) else node.value
+    return node.id if isinstance(node, ast.Name) else None
+
+
+def _calls_local(node: ast.AST, local: set[str]) -> bool:
+    """A call of a module-bound name (f(), or a lambda bound to one), which
+    may run any of the module's code. Method calls on module objects
+    (SPEC.loader.exec_module(), ROOT.resolve()) are ordinary module setup and
+    are not counted; a decorator is (see _applies_local_decorator)."""
+    return isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in local
+
+
 def _applies_local_decorator(node: ast.AST, local: set[str]) -> bool:
-    """A def or class whose decorator names one of the module's own callables:
-    defining it calls that decorator."""
+    """A def or class with a decorator starting from a module-bound name
+    (@launch, @decorators.launch): defining it calls that decorator."""
     decorators = getattr(node, "decorator_list", ())
     return isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and any(
-        isinstance(d, ast.Name) and d.id in local for d in decorators)
+        _root_name(d) in local for d in decorators)
 
 
 def _first_module_launch(tree: ast.Module) -> int | None:
@@ -314,8 +329,7 @@ def _first_module_launch(tree: ast.Module) -> int | None:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
             pending.extend(_definition_time(node))  # these run at definition
             continue
-        if _is_launch_call(node) or (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-                                     and node.func.id in local):
+        if _is_launch_call(node) or _calls_local(node, local):
             first = node.lineno if first is None else min(first, node.lineno)
         pending.extend(ast.iter_child_nodes(node))
     return first
@@ -344,8 +358,7 @@ def _launches_only_from_entry(tree: ast.Module) -> bool:
             continue
         if _is_launch_call(node):
             return False
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in local \
-                and not in_entry:
+        if _calls_local(node, local) and not in_entry:
             return False
         if _is_main_guard(node):
             # Only the guard's body is the script entry; its else runs on import.
@@ -627,6 +640,13 @@ class StaticRuleTests(unittest.TestCase):
         failures = self.scan({"sources/misteross/scripts/late2.py":
                               "import subprocess\ndef launch():\n    subprocess.run(['quartus_fit', 'top'])\n"
                               "launch()\nfrom scripts import quartus_tools\n"})
+        self.assertEqual(len(failures), 1)
+        # Codex P1 at d7afe97c7: a decorator reached through a module object.
+        failures = self.scan({"sources/misteross/scripts/attrdeco.py":
+                              "import subprocess, types\ndef launch(f):\n"
+                              "    subprocess.run(['quartus_fit', 'top'])\n    return f\n"
+                              "decorators = types.SimpleNamespace(launch=launch)\n"
+                              "@decorators.launch\ndef g():\n    pass\nfrom scripts import quartus_tools\n"})
         self.assertEqual(len(failures), 1)
         # Codex P1s at 58bd4df1c: a bare local decorator, and the main guard's else.
         failures = self.scan({
