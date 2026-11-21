@@ -59,7 +59,7 @@ MACHINE_FILES = (
     "rtl/pcxt_xtio.sv", "rtl/pcxt_xt_keyboard.sv", "rtl/pcxt_speaker.sv", "rtl/pcxt_motherboard.sv",
     "rtl/pcxt_logic_operand1_mux.sv", "vendor/mcl86/mcl86_adder.sv", "vendor/mcl86/mcl86_eu_core.sv",
     "vendor/mcl86/mcl86_biu_max.sv", "vendor/mcl86/mcl86_ucode.sv", "vendor/mcl86/i8088.sv",
-    "rtl/pcxt_cpu_bus.sv", "rtl/pcxt_cpu.sv", "rtl/pcxt_memory.sv", "rtl/pcxt_video.sv",
+    "rtl/pcxt_cpu_bus.sv", "rtl/pcxt_cpu.sv", "rtl/pcxt_memory.sv",
     "rtl/pcxt_video_output.sv", "rtl/pcxt_machine.sv", "rtl/pcxt_disk_loader.sv",
     "rtl/pcxt_sector_writer.sv", "rtl/pcxt_media_arbiter.sv", "rtl/pcxt_system.sv",
     "rtl/pcxt_media_writer.sv", "rtl/pcxt_media.sv", "rtl/pcxt_boot_media_gate.sv",
@@ -80,7 +80,7 @@ LOCAL_FILES = ("fes_de25_pcxt_standard.v", "fes_de25_pcxt_standard_hw.tcl", "pcx
 SOURCES = ({BOARD + "pcxt/" + name for name in LOCAL_FILES} |
            {BOARD + "shared-rtl/" + name for name in SHARED_FILES} |
            {CORE + name for name in MACHINE_FILES} | {COMMON + name for name in COMMON_FILES} |
-           set(HEADERS) | {UCODE, COMMON + "generated/fes_pcxt_isa.vh",
+           set(HEADERS) | {UCODE, CORE + "rtl/pcxt_video.sv", COMMON + "generated/fes_pcxt_isa.vh",
             COMMON + "generated/fes_video_part.vh", COMMON + "rtl/coleco_video_dpram.v",
             RAMTEST + "sdram_addon_port.v", RAMTEST + "sdram_cas3_capture.v",
             BOARD + "atari-st/derive.py"})
@@ -115,6 +115,8 @@ def component_files(sources):
     for name in ("fes_pcxt_isa.vh", "fes_video_part.vh"):
         files["generated/" + name] = sources[COMMON + "generated/" + name]
     files.update(derive.control_rom(sources[UCODE]))
+    files["pcxt_video_de25.sv"], derived["pcxt_video_de25.sv"] = derive.retarget_video(
+        sources[CORE + "rtl/pcxt_video.sv"])
     files["coleco_video_dpram_de25.v"], derived["coleco_video_dpram_de25.v"] = derive.retarget_video_ram(
         sources[COMMON + "rtl/coleco_video_dpram.v"])
     files["sdram_addon_port_de25.v"], derived["sdram_addon_port_de25.v"] = st.retarget_sdram(

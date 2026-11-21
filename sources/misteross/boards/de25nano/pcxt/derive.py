@@ -68,3 +68,56 @@ def retarget_video_ram(source):
     result = result.replace(*RAM_STYLE)
     return result, {"source_sha256": sha(source), "derived_sha256": sha(result),
                     "removed_sha256": sha(removed + RAM_END), "ramstyle": "M20K"}
+
+
+# The DE10 video mailbox crosses between the machine and pixel clocks with two
+# toggles, the machine hold level and the published bank. It is sound, but the
+# design assistant refuses a synchronizer whose first stage takes its clock's
+# synchronous reset, a level that leaves a widely shared register, and a bank
+# the pixel clock reads through its adoption select (CDC-50002), as the Atari
+# ST's video did. Here, as in that derivation:
+#   - each toggle and the hold level cross a two-stage synchronizer that runs
+#     free of its clock's synchronous reset; the hold leaves a machine-clock
+#     launch register of its own;
+#   - the published bank is copied into a pixel-clock register while its toggle
+#     is pending, with nothing on the path but that register's enable, and the
+#     pixel clock adopts the copy from one stage later.
+# The coordinated reset holds both clocks for many cycles, so the free-running
+# stages settle to the reset toggles before either side runs. An adoption can
+# take one pixel clock longer to see a new bank; it still lands on an output
+# frame start.
+VIDEO_EDITS = (
+    (b"    (* async_reg = \"true\" *) reg ack_meta, ack_sync, sent_meta, sent_sync;\n",
+     b"    (* async_reg = \"true\" *) reg ack_meta, ack_sync, sent_meta, sent_sync;\n"
+     b"    reg hold_launch, sent_held;\n    reg [1:0] published_pixel;\n"
+     b"    always @(posedge clk_sys) begin\n"
+     b"        ack_meta <= received; ack_sync <= ack_meta; hold_launch <= hold;\n    end\n"),
+    (b"            ack_meta <= 0; ack_sync <= 0; source_x <= 0; source_y <= 0;\n",
+     b"            source_x <= 0; source_y <= 0;\n"),
+    (b"            ack_meta <= received; ack_sync <= ack_meta;\n", b""),
+    (b"    wire adopt = output_sof && sent_sync != received;\n"
+     b"    wire [1:0] read_bank = adopt ? published_bank : front;\n",
+     b"    always @(posedge clk_pixel) begin\n"
+     b"        sent_meta <= sent; sent_sync <= sent_meta; sent_held <= sent_sync;\n"
+     b"        hold_meta <= hold_launch; hold_sync <= hold_meta;\n"
+     b"        if (sent_sync != received) published_pixel <= published_bank;\n    end\n"
+     b"    wire adopt = output_sof && sent_held != received;\n"
+     b"    wire [1:0] read_bank = adopt ? published_pixel : front;\n"),
+    (b"            sent_meta <= 0; sent_sync <= 0; hold_meta <= 0; hold_sync <= 0;\n", b""),
+    (b"            sent_meta <= sent; sent_sync <= sent_meta;\n"
+     b"            hold_meta <= hold; hold_sync <= hold_meta;\n"
+     b"            if (adopt) begin front <= published_bank; front_valid <= 1; received <= sent_sync; end\n",
+     b"            if (adopt) begin front <= published_pixel; front_valid <= 1; received <= sent_held; end\n"),
+)
+
+
+def retarget_video(source):
+    """pcxt_video's mailbox crossings in the shape the design assistant accepts."""
+    result, changes = source, []
+    for before, after in VIDEO_EDITS:
+        if result.count(before) != 1:
+            raise ValueError("PC/XT video crossing adaptation contract changed: " +
+                             before.decode().strip().splitlines()[0])
+        result = result.replace(before, after)
+        changes.append({"before": before.decode(), "after": after.decode()})
+    return result, {"source_sha256": sha(source), "derived_sha256": sha(result), "changes": changes}

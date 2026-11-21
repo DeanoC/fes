@@ -45,13 +45,13 @@ foreach {label source expected head second} {
 }
 
 # The PC/XT video crosses between the machine and pixel clocks through one
-# ownership mailbox (pcxt_video): the sent and received toggles and the
-# machine hold level, each one launch register into one first stage. No live
-# pixel data crosses; the framebuffer is a dual-clock memory.
+# ownership mailbox (pcxt_video, derive.retarget_video): the sent and received
+# toggles and the machine hold level, each one launch register into one first
+# stage. No live pixel data crosses; the framebuffer is a dual-clock memory.
 foreach {label source head} {
     video_sent {core|system|video|adapter|sent} {core|system|video|adapter|sent_meta}
     video_received {core|system|video|adapter|received} {core|system|video|adapter|ack_meta}
-    video_hold {core|system|machine_reset} {core|system|video|adapter|hold_meta}
+    video_hold {core|system|video|adapter|hold_launch} {core|system|video|adapter|hold_meta}
 } {
     set launches [get_registers "${base}|${source}"]
     set first_d [get_pins -compatibility_mode -nocase "${base}|${head}|d"]
@@ -62,25 +62,22 @@ foreach {label source head} {
 }
 
 # The published bank is held from its sent toggle until the pixel clock's
-# received toggle returns, and the pixel clock adopts it only at an output
-# frame start at least two pixel periods after the toggle arrives. Into the
-# pixel clock it reaches the front bank and the read address, which synthesis
-# places in the framebuffer memories' address registers, each through the
-# adoption select: there is no direct net for a net-delay bound. One pixel
-# period bounds the data delay and skew into the front bank and every path
-# into the pixel clock, as the DE10 mailbox constraint bounds it into the
-# front bank; the bound counts the skew between the two PLL networks.
+# received toggle returns. The pixel clock copies it while the toggle is
+# pending, with nothing on the path but the copy's enable, no sooner than two
+# pixel periods after the toggle left the machine clock, and adopts the copy a
+# stage later. One pixel period bounds the copy, as the DE10 mailbox
+# constraint bounds the bank; the bound counts the skew between the two PLL
+# networks.
 set published [get_registers "${base}|core|system|video|adapter|published_bank\[*\]"]
-set front [get_registers "${base}|core|system|video|adapter|front\[*\]"]
-set pixel_clock [get_clocks {fes_video_inst|video_clock|iopll_0_outclk0}]
-if {[get_collection_size $published] != 2 || [get_collection_size $front] != 2 ||
-    [get_collection_size $pixel_clock] != 1} {
+set copied [get_registers "${base}|core|system|video|adapter|published_pixel\[*\]"]
+if {[get_collection_size $published] != 2 || [get_collection_size $copied] != 2} {
     error "DE25 PC/XT held video bank endpoints changed"
 }
-set_data_delay 13.400 -from $published -to $front
-set_max_skew 13.400 -from $published -to $front
-set_max_delay 13.400 -from $published -to $pixel_clock
-set_min_delay 0.000 -from $published -to $pixel_clock
+set_net_delay -max 13.400 -from $published -to $copied
+set_data_delay 13.400 -from $published -to $copied
+set_max_skew 13.400 -from $published -to $copied
+set_max_delay 13.400 -from $published -to $copied
+set_min_delay 0.000 -from $published -to $copied
 
 # Bundles are held throughout their toggle round trip. A ten-nanosecond flight
 # is at most one fast system period, less than either two-stage control delay.

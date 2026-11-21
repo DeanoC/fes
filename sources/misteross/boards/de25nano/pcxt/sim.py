@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Simulate the DE25 PC/XT standard component with GLaBIOS and the FreeDOS floppy.
 
-The default run checks the upload, the BIOS POST from SDRAM and the floppy
+The default run first runs the DE10 video benches on the derived mailbox
+crossings, then checks the upload, the BIOS POST from SDRAM and the floppy
 upload; `--dos` boots FreeDOS to its A:\\> prompt, which takes far longer.
 """
 from pathlib import Path
@@ -57,13 +58,15 @@ def sources(output):
         (output / name).write_bytes(data)
     sdram = output / "sdram_addon_port_de25.v"
     sdram.write_bytes(st.retarget_sdram((ROOT / "cores/fes-ramtest/rtl/sdram_addon_port.v").read_bytes())[0])
+    video = output / "pcxt_video_de25.sv"
+    video.write_bytes(derive.retarget_video((PCXT / "rtl/pcxt_video.sv").read_bytes())[0])
     ram = output / "coleco_video_dpram_de25.v"
     ram.write_bytes(derive.retarget_video_ram((COMMON / "rtl/coleco_video_dpram.v").read_bytes())[0])
     reader = output / "fes_menu_reader_de25.v"
     reader.write_bytes(display.retarget_menu_ram((SHARED / "fes_menu_reader.v").read_bytes())[0])
     transport = output / "fes_de25_computer_transport.v"
     transport.write_bytes(st.transport((BOARD / "zx81-hps/fes_de25_computer.v").read_bytes())[0])
-    return [HERE / "fes_de25_pcxt_standard.v", transport, sdram, ram, reader,
+    return [HERE / "fes_de25_pcxt_standard.v", transport, sdram, video, ram, reader,
             ROOT / "cores/fes-ramtest/rtl/sdram_cas3_capture.v",
             SHARED / "fes_pcxt_core.v", SHARED / "fes_pcxt_firmware.v", SHARED / "fes_gp_crossing.v",
             SHARED / "fes_firmware_upload.v", SHARED / "fes_computer_mailbox.v",
@@ -78,6 +81,28 @@ def includes(output):
     return [output, COMMON / "generated", COMMON / "rtl", SHARED / "generated", BOARD / "zx81-hps",
             BOARD / "scanout", BOARD / "scanout/generated", PCXT / "vendor/kf8255",
             COMMON / "vendor/kf8253", COMMON / "vendor/kf8259"]
+
+
+def run_video():
+    """The DE10 video benches, CGA and MDA, on the derived mailbox crossings."""
+    derive = load(HERE / "derive.py", "de25_pcxt_derive")
+    parent = ROOT / "build/sim/de25-pcxt"
+    parent.mkdir(parents=True, exist_ok=True)
+    for mda in (False, True):
+        output = Path(tempfile.mkdtemp(prefix="video-", dir=parent))
+        video = output / "pcxt_video_de25.sv"
+        video.write_bytes(derive.retarget_video((PCXT / "rtl/pcxt_video.sv").read_bytes())[0])
+        # The DE10 source trips WIDTHEXPAND on Verilator 5.020 as it does in its
+        # own bench; the derived file keeps the module name pcxt_video.
+        subprocess.run(["verilator", "--cc", "--exe", "--build", "-Wall", "-Wno-WIDTHEXPAND", "-Wno-DECLFILENAME", "--timescale-override", "1ns/1ps",
+                        str(PCXT / "sim/cpu.vlt"), *(["-GMDA=1'b1"] if mda else []),
+                        "--top-module", "video_top", "--Mdir", str(output), "-I" + str(COMMON / "generated"),
+                        "-CFLAGS", "-std=c++17 -O2",
+                        str(COMMON / "rtl/coleco_video_dpram.v"), str(COMMON / "rtl/fes_video_part_direct.v"),
+                        str(COMMON / "rtl/fes_video_part_scanlines.v"), str(video),
+                        str(PCXT / "rtl/pcxt_video_output.sv"), str(PCXT / "sim/video_top.sv"),
+                        str(PCXT / "sim/video_tb.cpp")], cwd=ROOT, check=True)
+        subprocess.run([str(output / "Vvideo_top"), *(["mda"] if mda else [])], cwd=output, check=True)
 
 
 def run(dos=False):
@@ -101,4 +126,6 @@ def run(dos=False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dos", action="store_true", help="boot FreeDOS to its prompt")
-    run(parser.parse_args().dos)
+    arguments = parser.parse_args()
+    run_video()
+    run(arguments.dos)

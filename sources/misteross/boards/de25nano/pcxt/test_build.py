@@ -51,6 +51,24 @@ class Derivations(unittest.TestCase):
         with self.assertRaises(ValueError):
             derive.retarget_video_ram(source.replace(b'"Cyclone V"', b'"Cyclone 10"'))
 
+    def test_video_mailbox_crosses_through_free_synchronizers_and_a_held_copy(self):
+        source = (ROOT / "cores/fes-pcxt/rtl/pcxt_video.sv").read_bytes()
+        result, record = derive.retarget_video(source)
+        self.assertEqual(len(record["changes"]), len(derive.VIDEO_EDITS))
+        # Each first stage is assigned once, outside the reset branches.
+        for name in (b"ack_meta <= ", b"sent_meta <= ", b"hold_meta <= ", b"hold_launch <= "):
+            self.assertEqual(result.count(name), 1, name)
+        for name in (b"ack_meta <= 0", b"sent_meta <= 0", b"hold_meta <= 0", b"hold_meta <= hold;"):
+            self.assertNotIn(name, result)
+        # The pixel clock reads the bank only through its copy; the machine
+        # clock's own read of it stays.
+        self.assertEqual(result.count(b"published_bank;"), 2)
+        self.assertIn(b"source_front <= published_bank;", result)
+        self.assertIn(b"if (sent_sync != received) published_pixel <= published_bank;", result)
+        self.assertNotIn(b"? published_bank : front", result)
+        with self.assertRaises(ValueError):
+            derive.retarget_video(result)
+
     def test_component_lists_every_staged_file(self):
         build = load(HERE / "build.py", "de25_pcxt_build")
         files, derived, _ = build.board.component_files(build, build.board.capture(build))
@@ -65,7 +83,7 @@ class Derivations(unittest.TestCase):
                 self.assertNotIn(b"altddio", data, name)
                 self.assertNotIn(b"altsyncram", data, name)
                 self.assertNotIn(b"cyclonev_", data, name)
-        self.assertEqual(set(derived), {"coleco_video_dpram_de25.v", "sdram_addon_port_de25.v",
+        self.assertEqual(set(derived), {"coleco_video_dpram_de25.v", "sdram_addon_port_de25.v", "pcxt_video_de25.sv",
                                         "fes_de25_computer_transport.v", "fes_menu_reader_de25.v"})
         # The DE10 machine sources are staged unchanged.
         for name in build.MACHINE_FILES:
