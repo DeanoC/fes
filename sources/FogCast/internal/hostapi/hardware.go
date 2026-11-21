@@ -15,7 +15,7 @@ type hardwareService interface {
 // shelfComputerService is optional. A computers failure must not hide the
 // ZX81 workshop, which only reads machines.
 type shelfComputerService interface {
-	ShelfComputers(context.Context) ([]fogcast.ShelfComputer, error)
+	ShelfComputers(context.Context) ([]fogcast.ShelfComputer, []fogcast.ComputerPackage, error)
 }
 
 type coreExpansionPresentationService interface {
@@ -41,19 +41,21 @@ func registerHardware(mux *http.ServeMux, service Service, session *sessionCoord
 		}
 		_, selectable := service.(coreExpansionService)
 		var computers []fogcast.ShelfComputer
+		var packages []fogcast.ComputerPackage
 		if shelf, ok := service.(shelfComputerService); ok {
-			listed, shelfErr := shelf.ShelfComputers(r.Context())
+			listed, pkgs, shelfErr := shelf.ShelfComputers(r.Context())
 			if shelfErr == nil {
-				computers = listed
+				computers, packages = listed, pkgs
 			}
 		}
 		result := struct {
 			Machines           []fogcast.HardwareMachine `json:"machines"`
 			Computers          []fogcast.ShelfComputer   `json:"computers,omitempty"`
+			Packages           []fogcast.ComputerPackage `json:"packages,omitempty"`
 			Session            *sessionResult            `json:"session,omitempty"`
 			SessionError       string                    `json:"session_error,omitempty"`
 			ExpansionSelection bool                      `json:"expansion_selection"`
-		}{Machines: machines, Computers: computers, ExpansionSelection: selectable}
+		}{Machines: machines, Computers: computers, Packages: packages, ExpansionSelection: selectable}
 		if result.Machines == nil {
 			result.Machines = []fogcast.HardwareMachine{}
 		}

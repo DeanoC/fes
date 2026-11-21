@@ -1,0 +1,30 @@
+{
+  "status": "independently-verified-prepared-archive",
+  "head": "488f02b222dad8c4e951bce4d0066924159e1b54",
+  "git_blobs": 17123,
+  "prepared_members": 82952,
+  "source_sha256": "70de6da562eac8a62110ddda947a769078c516ebe480a8cbba864b5d9a62e74f",
+  "prepared_sha256": "f51f212c57924ee64508a102042122b398522f89a1ff6cfc5ba68cdcd57a6f98",
+  "procedure_sha256": "2a9b88d73efcc4fc324886f8587026f03e4f124928a2e3a1ed7d793a1b036db2",
+  "native_source": "3f103b19992c43812dfe83801944a5c720fdf217",
+  "native_implementation": "b700d743c7e0799cf2a78ed2fce710b23a59f5ae",
+  "native_archive": "/home/deano/fes-retained/de25-secure-lifecycle-20261117-r1/matched-boot.tar.gz",
+  "native_archive_sha256": "2a3d6716a999e1a39732e72eeb614b7fbf2a04b5d6d3df0e5275c3c3f31f4963",
+  "current_native_file_admission": {
+    "status": "passed-fresh-current-source-native-admission",
+    "path": "/home/deano/fes/out/dev/de25-secure-lifecycle/out/diagnostic-current-admission-r3.json",
+    "sha256": "54dd99932449b59acf966577f7c273cf22c1a83472f01ab16f3606a7ff6bdf69",
+    "extra_inputs": [
+      "/home/deano/fes/out/dev/de25-restoration-phase-cost/out/release-diagnostic-trial/procedure.json",
+      "/home/deano/fes/out/dev/de25-restoration-phase-cost/out/release-diagnostic-trial/plan.json",
+      "/home/deano/fes/out/dev/de25-restoration-phase-cost/out/release-diagnostic-trial/binding.json",
+      "/home/deano/fes/out/dev/de25-restoration-phase-cost/out/release-diagnostic-trial/capture-inputs.json",
+      "/home/deano/fes/out/dev/de25-restoration-phase-cost/out/release-diagnostic-trial/native-image-selection.json",
+      "/home/deano/fes/out/dev/de25-restoration-phase-cost/out/release-diagnostic-trial/diagnostic_operator.py",
+      "/home/deano/fes/out/dev/de25-restoration-phase-cost/out/release-diagnostic-trial/check-current-admission.py"
+    ],
+    "hardware_actions": false,
+    "hardware_acceptance": false
+  },
+  "hardware_actions": false
+}

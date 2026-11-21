@@ -72,13 +72,21 @@ class ResetRecoveryTests(unittest.TestCase):
             else:
                 self.last_session = supplied; supplied.owns = owns; supplied.kit = selected
             return self.last_session
+        self.serial_observations = []
+        def serial_transport():
+            self.serial_observations.append(True)
+            value = {k:copy.deepcopy(self.binding[k]) for k in
+                     ('serial','source_commit','claim_token','pid','start_ticks','cable','config_sha256')}
+            value.update(nonce=producer.NONCE,uart=[1,2,3],usb=[4,5,6])
+            return value
         return recovery.ResetRecoveryAttempt(root / 'consumed.json', serial='TRWU8CBL',
             source_commit=self.binding['source_commit'], image={'path':str(image),'sha256':recovery.sha(image.read_bytes())},
             nonce=producer.NONCE, failed_wire=b'original failed native wire, unchanged',expected_payload=payload,
             loader_fit_sha256=recovery.sha(kit['fit']),loader_manifest_sha256=recovery.sha(kit['manifest']),
             loader_prefix_sha256=kit['prefix_sha256'],loader_image_sha256=kit['image_sha256'],
             nonce_registry=root/'used-nonces',
-            transport=lambda:copy.deepcopy(self.binding),scan=scan,program=program,capture=self.capturer,
+            transport=lambda:copy.deepcopy(self.binding),serial_transport=serial_transport,
+            scan=scan,program=program,capture=self.capturer,
             session_factory=session_factory)
 
     def test_live_scan_complete_new_entry_and_actual_protected_readback_without_writes(self):

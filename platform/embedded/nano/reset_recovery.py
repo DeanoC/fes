@@ -73,7 +73,7 @@ class ResetRecoveryAttempt:
     def __init__(self, consumed, *, serial, source_commit, image, nonce, failed_wire,
                  expected_payload, loader_fit_sha256, loader_manifest_sha256,
                  loader_prefix_sha256, loader_image_sha256, nonce_registry,
-                 transport, scan, program, capture, session_factory):
+                 transport, serial_transport, scan, program, capture, session_factory):
         if (serial != 'TRWU8CBL' or type(source_commit) is not str or
                 re.fullmatch('[0-9a-f]{40}', source_commit) is None or
                 type(image) is not dict or set(image) != {'path', 'sha256'} or
@@ -82,7 +82,7 @@ class ResetRecoveryAttempt:
                               loader_prefix_sha256, loader_image_sha256)) or
                 type(failed_wire) is not bytes or not 0 < len(failed_wire) <= 1 << 20 or
                 type(expected_payload) is not bytes or not 0 < len(expected_payload) <= 16 << 20 or
-                any(not callable(f) for f in (transport, scan, program, session_factory)) or
+                any(not callable(f) for f in (transport, serial_transport, scan, program, session_factory)) or
                 type(capture) is not ResetCapture):
             raise ValueError('fixed top-kit source, image, prior wire and read-only loader inputs required')
         checked_nonce(nonce)
@@ -102,10 +102,32 @@ class ResetRecoveryAttempt:
         self.loader_fit, self.loader_manifest = loader_fit_sha256, loader_manifest_sha256
         self.loader_prefix, self.loader_image = loader_prefix_sha256, loader_image_sha256
         self.transport, self.scan, self.program = transport, scan, program
+        self.serial_transport = serial_transport
         self.capture, self.session_factory = capture, session_factory
         self.retired = False; self.lock = threading.Lock(); self.binding = None
+        self.serial_binding = None
 
     def _guard(self):
+        if self.serial_binding is not None:
+            return self._serial_guard()
+        return self._program_guard()
+
+    def _serial_guard(self):
+        # Serial I/O does not use the programmer or its clock. The observer must
+        # still check live claim, USB incarnation, private server and open UART.
+        current = self.serial_transport()
+        common = {'serial', 'source_commit', 'claim_token', 'pid', 'start_ticks',
+                  'cable', 'config_sha256'}
+        if (type(current) is not dict or set(current) != common | {'nonce', 'uart', 'usb'} or
+                any(current[k] != self.binding[k] for k in common) or
+                current['nonce'] != self.nonce or
+                any(type(current[k]) is not list or len(current[k]) != 3 or
+                    any(type(n) is not int or n < 0 for n in current[k]) for k in ('uart', 'usb')) or
+                self.serial_binding is not None and current != self.serial_binding):
+            raise ValueError('reset/recovery serial ownership or boot epoch changed')
+        return current
+
+    def _program_guard(self):
         current = _identity(self.transport())
         if (current['serial'] != self.serial or current['source_commit'] != self.source or
                 self.binding is not None and current != self.binding):
@@ -159,7 +181,7 @@ class ResetRecoveryAttempt:
             if witness['boot_kind'] != 4:
                 raise ValueError('volatile JTAG qualification requires the JTAG boot-kind witness')
             self._guard()
-            guard = self._guard
+            guard = self._serial_guard
             session = self.session_factory(owns=guard)
             if (type(session) is not UploadSession or session.owns is not guard or
                     sha(session.kit['fit']) != self.loader_fit or
@@ -167,6 +189,7 @@ class ResetRecoveryAttempt:
                     session.kit.get('prefix_sha256') != self.loader_prefix or
                     session.kit.get('image_sha256') != self.loader_image):
                 raise ValueError('actual new read-only upload session and pinned loader/card required')
+            self.serial_binding = copy.deepcopy(self._serial_guard())
             receipt = {'commands': [], 'sd_write_attempted': False}
             session.read_existing(self.payload, receipt, purpose='boot')
             self._guard()
@@ -185,6 +208,8 @@ class ResetRecoveryAttempt:
                         capture_boundary=dict(self.capture.boundary),
                         protected_prefix_sha256=self.loader_prefix, loader_image_sha256=self.loader_image)
             yield session, report
+            # Re-audit the programming boundary once, never once per SD command.
+            self._program_guard()
         finally:
             try:
                 if session is not None and type(session) is UploadSession:
