@@ -10,6 +10,29 @@ static void require(bool ok, const char *message) {
     if (!ok) throw std::runtime_error(message);
 }
 
+// All eight sprites start on raster 80. In their first fetch group the VIC
+// reads a pointer and bytes 0, 1, 2 for each sprite. Sprite 2's last byte
+// and sprite 3's pointer fall on opposite sides of the 63 -> 1 wrap.
+static unsigned check_sprite_fetch_wrap(const Vvic_timing_sim_top &t, unsigned line,
+                                        unsigned cycle, unsigned phase) {
+    if (!((line == 80 && cycle >= 54) || (line == 81 && cycle <= 11))) return 0;
+    if (phase != 0 && phase != 26) return 0;
+
+    const unsigned offset = line == 80 ? cycle - 54 : cycle + 9;
+    require(bool(t.ba_n) == (offset == 0 || offset == 20),
+            "PAL sprite BA lead or release changed across line wrap");
+    const bool fetching = offset >= 4 && offset < 20;
+    require(bool(t.sprite_request) == fetching, "unexpected PAL sprite fetch slot");
+    if (!fetching) return 0;
+
+    const unsigned transfer = 2 * (offset - 4) + (phase == 26);
+    const unsigned sprite = transfer / 4;
+    const unsigned lane = transfer % 4;
+    const unsigned address = lane == 0 ? 0x7f8 + sprite : 0x3000 + sprite * 64 + lane - 1;
+    require(t.ram_addr == address, "PAL sprite fetch address/order changed across line wrap");
+    return 1;
+}
+
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
     Vvic_timing_sim_top t;
@@ -63,6 +86,7 @@ int main(int argc, char **argv) {
     unsigned cycle_clock=63,last_phi=0,period53=0,period54=0,wraps=0;
     std::array<unsigned,8> prepares{};
     unsigned phase26_pairs=0,reset_discards=0,checked_pending=0;
+    unsigned expected_phi=0, frame_wraps=0, sprite_transfers=0;
     bool reset_done=false;
     for(unsigned edge=0;edge<5000000;++edge){
         t.cycle_clock=cycle_clock;
@@ -80,7 +104,9 @@ int main(int argc, char **argv) {
         t.we=t.reading=t.read_sample=0;t.reset=0;
         const unsigned line=t.raster,cycle=t.native_cycle;
         if(edge>4900000&&!reset_done&&t.write_pending){t.reset=1;reset_done=true;++reset_discards;}
-        else if(line>=16&&line<=30&&cycle==20&&cycle_clock>=25&&cycle_clock<=28){
+        else if(line==311&&cycle==61&&cycle_clock==26){
+            t.we=1;t.addr=0x19;t.din=1; // Clear raster IRQ before the line-zero comparison.
+        }else if(line>=16&&line<=30&&cycle==20&&cycle_clock>=25&&cycle_clock<=28){
             // Border resolves three dots after source selection. Writes through
             // phase28 must affect dot4 when it resolves at dot7/phase47;
             // the completed write packet must then stay fixed.
@@ -124,6 +150,21 @@ int main(int argc, char **argv) {
             ++checked_pending;
         }
         t.clk_sys=1;t.eval();
+        if (t.reset) expected_phi = 0;
+        else if (t.phi && ++expected_phi == 312 * 63) {
+            expected_phi = 0;
+            ++frame_wraps;
+        }
+        require(t.native_cycle == 1 + expected_phi % 63 && t.raster == expected_phi / 63,
+                "PAL cycle/line progression differs from 63 cycles x 312 lines");
+        if (!reset_done) {
+            sprite_transfers += check_sprite_fetch_wrap(t, line, cycle, cycle_clock);
+            if ((t.raster == 311 && t.native_cycle >= 62) ||
+                (frame_wraps && t.raster == 0 && t.native_cycle <= 2)) {
+                require(bool(t.raster_irq_flag) == (t.raster == 0 && t.native_cycle == 2),
+                        "line-zero raster IRQ must latch one Phi2 after frame wrap");
+            }
+        }
         if(t.reset)require(!t.write_pending,"reset failed to discard pending framebuffer write");
         if(palette_dot){
             require(t.write_pending&&t.saved_ink==9,"late border color did not observe the phase28 write");
@@ -148,6 +189,9 @@ int main(int argc, char **argv) {
             t.clk_sys=1;t.eval();pixel();phase=(phase+1)%54;
         }
     }
+    require(frame_wraps >= 3 && sprite_transfers >= 3 * 32, "missing PAL wrap coverage");
+    std::printf("PAL wrap PASS: %u frame wraps and %u sprite bus transfers\n",
+                frame_wraps, sprite_transfers);
     for(const auto &sprite:pointer_dots)for(unsigned count:sprite)
         require(count>0,"uncovered sprite pointer dot");
     for(const auto &sprite:row_dots)for(unsigned count:sprite)
