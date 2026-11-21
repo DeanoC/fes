@@ -43,7 +43,8 @@ Powerboat sat idle.
   host's `MemAvailable`, less what every other slot holder's job may still
   grow into (its edition's peak less its current resident memory), must
   cover one more job. A host-wide lock serialises the check, so two jobs
-  cannot both pass on the same free memory. A job ended by a relayed signal
+  cannot both pass on the same free memory, and a job still waiting marks
+  itself so that two waiters never reserve memory against each other. A job ended by a relayed signal
   exits nonzero even when its command trapped the signal. Every outcome
   (finished, failed, capped, refused, wrapper error) goes to
   `result.json` in the run directory and, when `FES_QUARTUS_NOTIFY` is set,

@@ -281,6 +281,9 @@ def _signal_all(pids, number: int) -> None:
 
 
 ADMISSION_LOCK = "/tmp/fes-quartus-admission.lock"
+# A `run` waiting for admission writes <pid> here; it holds a slot but has
+# started nothing, so other admissions do not reserve memory for it.
+ADMISSION_WAITERS = "/tmp/fes-quartus-admission-waiting"
 ADMISSION_RETRY_SECONDS = 30
 NOTIFY_ENV = "FES_QUARTUS_NOTIFY"
 
@@ -324,11 +327,15 @@ def outstanding_kib(own_slot: str) -> int:
     for name in ("lite", "pro"):
         for path in quartus_tools.lease_pool(name):
             peaks[path] = max(peaks.get(path, 0), quartus_tools.PEAK_RSS_GIB[name] * 1024 * 1024)
+    try:
+        waiting = {int(name) for name in os.listdir(ADMISSION_WAITERS) if name.isdigit()}
+    except OSError:
+        waiting = set()
     total = 0
     for path, peak in peaks.items():
         if path == own_slot:
             continue
-        for holder in quartus_tools.flock_holders(path) - {os.getpid()}:
+        for holder in quartus_tools.flock_holders(path) - {os.getpid()} - waiting:
             total += max(0, peak - _tree_rss_kib(holder))
     return total
 
@@ -339,16 +346,25 @@ def admit(edition: str, slot: str) -> None:
     serialised by a host-wide lock, so two callers cannot both pass on the
     same free memory: the second sees the first as a holder still to grow."""
     need = quartus_tools.PEAK_RSS_GIB[quartus_tools.edition_class(edition)] * 1024 * 1024
-    while True:
-        with open(ADMISSION_LOCK, "a") as guard:
-            fcntl.flock(guard, fcntl.LOCK_EX)
-            available, reserved = _mem_available_kib(), outstanding_kib(slot)
-            if available - reserved >= need:
-                return
-        print(f"quartus_jobs: waiting for memory: {available / 1024 ** 2:.1f} GiB available, "
+    marker = Path(ADMISSION_WAITERS, str(os.getpid()))
+    try:
+        while True:
+            with open(ADMISSION_LOCK, "a") as guard:
+                fcntl.flock(guard, fcntl.LOCK_EX)
+                available, reserved = _mem_available_kib(), outstanding_kib(slot)
+                if available - reserved >= need:
+                    # Admitted: from here on others reserve this job's peak.
+                    marker.unlink(missing_ok=True)
+                    return
+                # Waiting, under the lock: no other admission counts this one.
+                marker.parent.mkdir(mode=0o1777, exist_ok=True)
+                marker.write_text("")
+            print(f"quartus_jobs: waiting for memory: {available / 1024 ** 2:.1f} GiB available, "
               f"{reserved / 1024 ** 2:.1f} GiB reserved by running jobs, {need / 1024 ** 2:g} GiB needed",
               file=sys.stderr, flush=True)
-        time.sleep(ADMISSION_RETRY_SECONDS)
+            time.sleep(ADMISSION_RETRY_SECONDS)
+    finally:
+        marker.unlink(missing_ok=True)
 
 
 def notify(summary: dict) -> None:

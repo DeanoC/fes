@@ -593,7 +593,8 @@ class JobsTests(unittest.TestCase):
                       mock.patch.dict(qt._process_held, clear=True),
                       mock.patch.object(quartus_jobs.shutil, "disk_usage", return_value=plenty),
                       mock.patch.object(quartus_jobs, "_mem_available_kib", return_value=500 * 1024 ** 2),
-                      mock.patch.object(quartus_jobs, "ADMISSION_LOCK", str(root / "admission.lock"))):
+                      mock.patch.object(quartus_jobs, "ADMISSION_LOCK", str(root / "admission.lock")),
+                      mock.patch.object(quartus_jobs, "ADMISSION_WAITERS", str(root / "waiting"))):
             patch.start()
             self.addCleanup(patch.stop)
 
@@ -760,6 +761,35 @@ class JobsTests(unittest.TestCase):
                 mock.patch.object(self.jobs, "ADMISSION_RETRY_SECONDS", 0):
             self.assertEqual(self.jobs.run("lite", "", ["true"], sample_seconds=0.1), 0)
             self.assertEqual(next(memory, "drained"), "drained", "admitted before memory was available")
+
+    def test_two_waiters_never_reserve_against_each_other(self):
+        # Codex P1 at 7fd9ac7e4: two Lite jobs, memory for one. Each counted
+        # the other's idle, not-yet-admitted wrapper as a job, and both waited
+        # forever. A waiter now marks itself and is not counted.
+        root = Path(self.directory.name)
+        pools = {"pro": (str(root / "p.lock"),), "lite": (str(root / "a.lock"), str(root / "b.lock"))}
+        done = root / "admitted"
+        code = textwrap.dedent(f"""
+            import sys, time; sys.path.insert(0, {str(MISTEROSS)!r})
+            from scripts import quartus_tools as qt, quartus_jobs as jobs
+            qt.LEASE_POOLS = {{}}; qt.DEFAULT_POOL = {pools!r}
+            jobs.ADMISSION_LOCK = {str(root / "adm.lock")!r}
+            jobs.ADMISSION_WAITERS = {str(root / "wait")!r}
+            jobs.ADMISSION_RETRY_SECONDS = 0.2
+            jobs._mem_available_kib = lambda: 8 * 1024 ** 2
+            jobs.run("lite", "", ["sh", "-c", "echo x >> {done}; sleep 2"], sample_seconds=0.2)
+            """)
+        waiters = [subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL) for _ in range(2)]
+        try:
+            deadline = time.monotonic() + 20
+            while time.monotonic() < deadline and (not done.exists() or len(done.read_text().split()) < 2):
+                time.sleep(0.1)
+            self.assertEqual(len(done.read_text().split()) if done.exists() else 0, 2,
+                             "the two waiters deadlocked")
+        finally:
+            for waiter in waiters:
+                waiter.wait(timeout=30)
 
     def test_a_relayed_signal_is_never_reported_as_success(self):
         # Codex P1 at 6db0f20ca: the command traps SIGTERM and exits 0.
