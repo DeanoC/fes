@@ -8,14 +8,15 @@ import (
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
-// setupStep is one first-run setup screen (#1345). The controllers (#980)
-// and games folders (#1346) steps go between Welcome and Ready.
+// setupStep is one first-run setup screen (#1345). The games folders step
+// (#1346) goes between Controllers and Ready.
 type setupStep struct {
 	id, room string
 }
 
 var setupSteps = []setupStep{
 	{id: "welcome", room: "example.welcome"},
+	{id: "controllers", room: "example.setup-controllers"},
 	{id: "ready", room: "example.setup-ready"},
 }
 

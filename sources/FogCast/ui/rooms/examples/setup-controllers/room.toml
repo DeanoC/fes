@@ -1,0 +1,11 @@
+id = "example.setup-controllers"
+title = "Controllers"
+author = "FES"
+description = "First-run setup, step 2: find your pad, try its buttons, and swap A and B if they feel the wrong way round."
+version = 1
+main = "main.lua"
+destination_panel = "none"
+
+[theme]
+background = "#F4F0E8"
+accent = "#235A46"

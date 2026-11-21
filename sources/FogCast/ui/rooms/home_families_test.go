@@ -159,9 +159,11 @@ func homeSettled(r *Instance) bool {
 	if (d.Kind != KindFamily && d.Kind != KindGame) || d.Availability == AvailChecking || d.Availability == "" {
 		return false
 	}
-	want := 4
-	if r.opts.Width < 480 || r.opts.Height < 360 {
-		want = 1
+	// Home's family row: as many 140-wide tiles as the shelf holds, six at
+	// most. Every Home here has at least the six default families.
+	want := 1
+	if layout, ok := HeroPanel(r.opts.Width, r.opts.Height); ok {
+		want = max(1, min(6, (layout.Shelf.W+12)/(140+12)))
 	}
 	families := 0
 	for _, h := range r.frame.Hits {
@@ -343,7 +345,8 @@ func TestHomeRecentsAndCompactResize(t *testing.T) {
 	}
 	r.Step(time.Now())
 	r.Resize(1280, 720)
-	f = r.Step(time.Now())
+	// A resized hero picture is built across draws, like the first one.
+	f = stepUntil(t, r, func(Frame) bool { return homeSettled(r) })
 	if !strings.Contains(frameText(f), "Recently played\n") {
 		t.Fatalf("hero resize lost recents: %s", frameText(f))
 	}

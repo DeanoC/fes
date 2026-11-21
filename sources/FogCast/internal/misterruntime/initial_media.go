@@ -138,7 +138,7 @@ func initialMediaMatches(response Protocol2Response, initial *corepackage.Staged
 		return false
 	}
 	d := response.ActivePackage.Descriptor
-	return d.Core.ID == core && d.Format == format && descriptorMediaWriteFor(d, expected) && (expected != protocol.AtariStFloppyInterface() || (d.ROM != nil && d.ROM.Role == "firmware")) && (expected != protocol.PcxtFloppyInterface() || (d.ROM == nil && len(d.ROMs) == 0)) && ok && unit.Interface == expected && protocol.PersistentMediaUnitCapable(p, unit) && (initial.Size == 0 || (initial.Size >= int64(unit.MinBytes) && initial.Size <= int64(unit.MaxBytes))) && unit.State == protocol.MediaUnitReady && unit.Persistence != nil && unit.Persistence.Valid() && unit.Persistence.GameID == initial.GameID && unit.Persistence.BaseMediaID == initial.BaseMediaID
+	return d.Core.ID == core && d.Format == format && protocol.DescriptorMediaWrite(d, expected) && (expected != protocol.AtariStFloppyInterface() || (d.ROM != nil && d.ROM.Role == "firmware")) && (expected != protocol.PcxtFloppyInterface() || (d.ROM == nil && len(d.ROMs) == 0)) && ok && unit.Interface == expected && protocol.PersistentMediaUnitCapable(p, unit) && (initial.Size == 0 || (initial.Size >= int64(unit.MinBytes) && initial.Size <= int64(unit.MaxBytes))) && unit.State == protocol.MediaUnitReady && unit.Persistence != nil && unit.Persistence.Valid() && unit.Persistence.GameID == initial.GameID && unit.Persistence.BaseMediaID == initial.BaseMediaID
 }
 func initialPcxtRequestMatches(response Protocol2Response, initial *InitialMediaRequest) bool {
 	if initial == nil {
