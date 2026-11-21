@@ -372,6 +372,8 @@ func TestWriteControllersSheet(t *testing.T) {
 		app.LearnPadSource(7, source, now)
 	}
 	write("learn-stick", app)
+	app.LearnPadSource(7, "+a0", now)
+	write("learn-stick-refused", app)
 	app.LearnPadSource(7, "+a3", now)
 	app.LearnPadSource(7, "-a4", now)
 	write("learn-review", app)

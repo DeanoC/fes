@@ -482,11 +482,12 @@ func drawControllerLearn(dev gfx.Device, snap Snapshot, labels map[string]gpuTex
 			sheetText(dev, labels, used, s, 40, 368+float64(i)*28, 560, 20, false, heroText, line)
 		}
 	}
-	if learn.Message != "" {
-		sheetText(dev, labels, used, s, 40, 470, 560, 20, true, heroText, learn.Message)
+	// A refusal can run to two lines.
+	for i, line := range gfx.WrapTextWeight(learn.Message, s.n(20), s.n(560), 2, gfx.WeightBold) {
+		sheetText(dev, labels, used, s, 40, 462+float64(i)*28, 560, 20, true, heroText, line)
 	}
 	if learn.Seconds > 0 && learn.Seconds <= 10 {
-		sheetText(dev, labels, used, s, 40, 506, 560, 17, false, heroSecondary,
+		sheetText(dev, labels, used, s, 40, 524, 560, 17, false, heroSecondary,
 			fmt.Sprintf("Stops in %d s unless something is pressed. Nothing changes then.", learn.Seconds))
 	}
 
