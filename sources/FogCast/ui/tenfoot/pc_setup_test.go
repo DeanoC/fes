@@ -25,6 +25,8 @@ func TestFirstRunIncludesPCFamiliesAtSupportedSizes(t *testing.T) {
 			}
 			writeHomeScreenshot(t, welcome, "pc-welcome")
 			app.HandleCommand(CmdSelect, time.Now())
+			waitRoom(t, app, "example.setup-controllers")
+			app.HandleCommand(CmdSelect, time.Now())
 			ready := waitFor(t, app, "Ready with PC families", func(s Snapshot) bool {
 				return s.Room.ID == "example.setup-ready" && roomTextHas(s, "PC/XT") && roomTextHas(s, "PC 386") && !roomTextHas(s, "Checking…")
 			})

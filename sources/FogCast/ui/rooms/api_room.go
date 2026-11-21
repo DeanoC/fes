@@ -42,6 +42,9 @@ func (r *Instance) installRoom() *lua.LTable {
 		L.Push(lua.LBool(r.coreShown(L.CheckString(1))))
 		return 1
 	}))
+	// room.pads() lists the kit's attached pads, players first, and a
+	// number that changes whenever they or their held buttons do.
+	t.RawSetString("pads", L.NewFunction(r.roomPads))
 	// room.setup is the first-run setup state: step and steps for a setup
 	// room, unfinished and skipped once setup was skipped.
 	setup := L.NewTable()
@@ -233,4 +236,47 @@ func (r *Instance) installStore() *lua.LTable {
 		},
 	})
 	return t
+}
+
+// SetPads replaces what room.pads() lists. gen identifies this list; the
+// launcher passes a new one only when the pads changed.
+func (r *Instance) SetPads(gen uint64, pads []Pad) {
+	r.pads = pads
+	r.padsGen = gen
+}
+
+// PadsGeneration is the gen of the last SetPads, 0 before it.
+func (r *Instance) PadsGeneration() uint64 { return r.padsGen }
+
+func (r *Instance) roomPads(L *lua.LState) int {
+	list := L.NewTable()
+	for _, p := range r.pads {
+		row := L.NewTable()
+		row.RawSetString("player", lua.LNumber(p.Player))
+		row.RawSetString("name", lua.LString(p.Name))
+		row.RawSetString("family", lua.LString(p.Family))
+		row.RawSetString("recognised", lua.LBool(p.Recognised))
+		row.RawSetString("bluetooth", lua.LBool(p.Bluetooth))
+		row.RawSetString("swap_ab", lua.LBool(p.SwapAB))
+		row.RawSetString("mapped", lua.LBool(p.Mapped))
+		glyphs := L.NewTable()
+		for k, v := range p.Glyphs {
+			glyphs.RawSetString(k, lua.LString(v))
+		}
+		row.RawSetString("glyphs", glyphs)
+		sends := L.NewTable()
+		for k, v := range p.Sends {
+			sends.RawSetString(k, lua.LString(v))
+		}
+		row.RawSetString("sends", sends)
+		pressed := L.NewTable()
+		for _, c := range p.Pressed {
+			pressed.RawSetString(c, lua.LTrue)
+		}
+		row.RawSetString("pressed", pressed)
+		list.Append(row)
+	}
+	L.Push(list)
+	L.Push(lua.LNumber(r.padsGen))
+	return 2
 }

@@ -13,7 +13,9 @@
 // WB result register through the bypass selects (fes_i386_dops). A memory
 // operand is left out the same way, and EX takes it from the loaded value M2
 // registers (pipe_t ld) through the same selects (xl, yl).
-module fes_i386_exctl (
+module fes_i386_exctl #(
+    parameter bit I486 = 1'b0  // the i486 identity (fes_i386_cpu): its three EX results
+) (
     input  fes_i386_pkg::pipe_t    s,
     output fes_i386_pkg::exctl_t   exc,
     output logic [31:0]            x,
@@ -147,6 +149,9 @@ module fes_i386_exctl (
     assign c.r_y = (alu && (op == 5'd15 || op == 5'd9))
                 || cls == C_SEGMENT && (op == 5'(fes_i386_pkg::SEGOP_LOAD_REAL) || op == 5'(fes_i386_pkg::SEGOP_TSEL));
     assign c.r_zf = cls == C_SEGMENT && op == 5'(fes_i386_pkg::SEGOP_ZF);
+    assign c.r_csel = I486 && cls == C_SEGMENT && op == 5'(fes_i386_pkg::SEGOP_CSEL);
+    assign c.r_bswap = I486 && cls == C_SEGMENT && op == 5'(fes_i386_pkg::SEGOP_BSWAP);
+    assign c.r_cpuid = I486 && cls == C_SEGMENT && op == 5'(fes_i386_pkg::SEGOP_CPUID);
     assign c.r_movsx = alu && op == 5'd16;
     assign c.r_setcc = alu && op == 5'd17;
     assign c.r_sign = alu && op == 5'd31;

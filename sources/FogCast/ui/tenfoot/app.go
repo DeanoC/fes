@@ -342,6 +342,7 @@ type App struct {
 	padProfiles       map[string]inputmap.Profile
 	padProfilesUnread bool
 	padProfileGen     uint64
+	padStateGen       uint64 // room.pads() changes: attach, leave, press, release, save
 	controllers       controllersState
 	repeat            Repeater
 	theme             theme.Theme
