@@ -505,6 +505,15 @@ func TestSpectrum48TapeRTL(t *testing.T) {
 	if err := checkSpectrumTapePlayback(ctx, s); err != nil {
 		t.Fatal(err)
 	}
+	if os.Getenv("FES_SPECTRUM48_VISIBLE_TAPE_RESULT") == "1" {
+		if _, err := s.call("advance %x", 100000); err != nil {
+			t.Fatal(err)
+		}
+		border, err := s.call("spectrum-border")
+		if err != nil || len(border) != 1 || border[0] != 4 {
+			t.Fatalf("decoded tape did not set the green border: %v, %v", border, err)
+		}
+	}
 }
 
 func checkSpectrumTapePlayback(ctx context.Context, mailbox *spectrumMailbox) error {
