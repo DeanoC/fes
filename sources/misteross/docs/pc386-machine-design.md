@@ -1171,23 +1171,10 @@ at each package's `FreeDOS-v1.4` tag. Each package archive holds `BIN`, `DOC`,
 `SOURCE`, `APPINFO` and, for most, a `LICENSE`. FogCast's builder lock records
 every archive's SHA-256. A later FreeDOS release is a deliberate lock change.
 
-The kernel and SHARE are the exceptions. Both are built from the source
-archive of the [FDOS/kernel ke2046 release](https://github.com/FDOS/kernel/releases/tag/ke2046)
-(`ke2046s.zip`, pinned by SHA-256; [#1729](https://github.com/DeanoC/fes/issues/1729),
-[#1777](https://github.com/DeanoC/fes/issues/1777)):
-- **Kernel.** Kernel 2046's 386 FAT12/FAT16 build, with Windows 3.x
-  support, built with Open Watcom plus one patch
-  (`cores/fes-pc386/sim/freedos-patches/`). The patch makes the 10A6h stub
-  keep SI ([FDOS/kernel#276](https://github.com/FDOS/kernel/issues/276)).
-  Without it, a rename under a SHARE that answers 10A6h works on a garbage
-  path.
-- **SHARE.** Built with ia16-gcc from the archive's `share` tree, which
-  answers 10A6h. Kernel 2046 asks SHARE that before every delete and
-  rename, and FreeDOS 1.4's SHARE 08/2006a, which predates the call, failed
-  them all ([FDOS/share#27](https://github.com/FDOS/share/issues/27)).
-
-Both builds must reproduce the bytes the lock pins. The patch goes once
-upstream releases a fix.
+The kernel is the one exception: it is kernel 2046's 386 FAT12/FAT16 build
+from the [FDOS/kernel ke2046 release](https://github.com/FDOS/kernel/releases/tag/ke2046)
+(`ke2046_386f16.zip`), with that release's source archive (`ke2046s.zip`),
+both pinned by SHA-256 ([#1729](https://github.com/DeanoC/fes/issues/1729)).
 FreeDOS 1.4's kernel 2043 does not answer WIN386's INT 2Fh AX=1605h and
 AX=1607h BX=0015h DOS callouts, so Windows 3.x in 386 enhanced mode quits
 with "Unsupported MS-DOS version". Kernels from 2044 build in the Windows 3.x
@@ -1204,13 +1191,13 @@ user's install, not the builder's
 
 | Component | Version | Licence (package `APPINFO` record) | Why it ships |
 | --- | --- | --- | --- |
-| Kernel: `KERNEL.SYS` and the FAT16 boot sector from its `SYS` | 2046, 386 FAT12/FAT16 build, built from the FDOS/kernel release's source with FDOS/kernel#276's fix | GPL v2 (upstream: v2 or later; the source archive's `COPYING`); the source reference and the patch ship beside it in `FDOS\DOC` | DOS and the volume boot record |
+| Kernel: `KERNEL.SYS` and the FAT16 boot sector from its `SYS` | 2046, 386 FAT12/FAT16 build (FDOS/kernel release) | GPL v2 (upstream: v2 or later; the source archive's `COPYING`) | DOS and the volume boot record |
 | FreeCOM: `COMMAND.COM` | 0.86a | GPL v2 | Shell |
 | HimemX | 3.38 | GPL, Artistic and public domain: Japheth's changes are public domain, the FD Himem code it derives from is GPL and/or Artistic | XMS and A20 for HIMEM-using games |
 | Jemm: `UMBM.EXE` now, `JEMM386.EXE` from CPU Phase 5 | 5.85 | JEMM386 and JEMMEX partly Artistic License (from FreeDOS EMM386); UMBM public domain | Upper memory without V86; EMS for the Phase 5 checks |
 | CuteMouse: `CTMOUSE.EXE` | 2.1b4 | GPL v2 | INT 33h mouse driver over the PS/2 BIOS services |
 | MEM | 1.12 | GPL v2 | The free-memory acceptance check |
-| SHARE: `SHARE.COM` | FDOS/share 47f3d425, from the kernel 2046 source archive (with `is_file_open`, 2F/10A6h) | GPL (`share.c`); its source reference ships beside it in `FDOS\DOC` | File sharing and locking, which Windows 3.x in 386 enhanced mode needs on FreeDOS; loaded only by the games image's Windows boot entry |
+| SHARE: `SHARE.COM` | 08/2006a | GPL v2 | File sharing and locking, which Windows 3.x in 386 enhanced mode needs on FreeDOS; loaded only by the games image's Windows boot entry |
 | Free FDISK: its master boot record code | 1.4.3 | GPL v2 | The MBR the builder writes |
 
 The builder writes `FDCONFIG.SYS`, `AUTOEXEC.BAT` and the partition table

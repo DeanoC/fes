@@ -197,11 +197,42 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 	}
 	s.connectionMu.Unlock()
 	defer cancel()
+	// An interrupted observer did not establish that the target disconnected.
+	// Keep a newly observed reboot or lease loss in connecting state, however:
+	// the previous active connection no longer describes that session.
+	boundaryObserved := false
+	canceled := func() error {
+		if err := ctx.Err(); err != nil {
+			if !boundaryObserved {
+				s.publishTargetConnection(name, previous, current)
+			}
+			return err
+		}
+		return nil
+	}
 	health, address, err := s.probeTarget(lookupCtx, concrete, selected)
 	if err != nil {
+		if err := canceled(); err != nil {
+			return protocol.Health{}, err
+		}
 		return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_health", err}, current)
 	}
+	// A successful authenticated reply has already established a reboot even
+	// if the observer's deadline expired as the reply was read. Invalidate the
+	// old authority before allowing cancellation to end this observation.
+	reboot := previous.BootID != "" && previous.BootID != health.BootID
+	if reboot {
+		boundaryObserved = true
+		connection := previous
+		connection.State = "connecting"
+		s.publishTargetConnection(name, connection, current)
+		s.invalidateTargetSession(concrete)
+		s.resetTargetInputsOutsideTargetMu(name)
+	}
 	if err := lookupCtx.Err(); err != nil {
+		if err := canceled(); err != nil {
+			return protocol.Health{}, err
+		}
 		return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_health", err}, current)
 	}
 	// Authenticated explicit address may bind an existing agent identity once.
@@ -221,34 +252,78 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 		s.targets = targets
 		selected.TargetID = health.TargetID
 	}
-	reboot := previous.BootID != "" && previous.BootID != health.BootID
-	if reboot {
-		connection := previous
-		connection.State = "connecting"
-		s.publishTargetConnection(name, connection, current)
-	}
 	// Address-only older agents need not expose the discovery/lease extensions.
 	if selected.TargetID == "" {
 		status, err := concrete.Status(lookupCtx)
 		if err != nil {
+			if err := canceled(); err != nil {
+				return protocol.Health{}, err
+			}
 			return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_status", errors.New("Target status could not be reconciled.")}, current)
 		}
 		base, _ := url.Parse(address)
+		hadGrant, err := concrete.HasKitGrantContext(lookupCtx)
+		if err != nil {
+			if err := canceled(); err != nil {
+				return protocol.Health{}, err
+			}
+			return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_ownership", err}, current)
+		}
 		// Old peers may omit the lease extension. Its absence does not disable
 		// explicit-address health/status inspection.
-		ownership, _ := concrete.AdoptEndpoint(lookupCtx, base, false)
+		ownership, ownershipErr := concrete.AdoptEndpoint(lookupCtx, base, false)
+		if ownershipErr == nil && hadGrant && !ownership.Owned {
+			boundaryObserved = true
+			connection := previous
+			connection.State = "connecting"
+			s.publishTargetConnection(name, connection, current)
+			s.invalidateTargetSession(concrete)
+			s.resetTargetInputsOutsideTargetMu(name)
+			if lookupCtx.Err() == nil {
+				ownership, ownershipErr = concrete.AdoptEndpoint(lookupCtx, base, false)
+				if ownershipErr != nil {
+					if err := canceled(); err != nil {
+						return protocol.Health{}, err
+					}
+					return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_ownership", ownershipErr}, current)
+				}
+				// The earlier status belonged to the session whose grant was
+				// just invalidated. Observe again before publishing connection.
+				status, err = concrete.Status(lookupCtx)
+				if err != nil {
+					if err := canceled(); err != nil {
+						return protocol.Health{}, err
+					}
+					return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_status", errors.New("Target status could not be reconciled.")}, current)
+				}
+			}
+		}
+		if err := canceled(); err != nil {
+			return protocol.Health{}, err
+		}
+		if err := lookupCtx.Err(); err != nil {
+			return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_ownership", err}, current)
+		}
 		connection := connectionFromStatus(health, status, ownership, address, "")
 		s.publishTargetConnected(name, connection, current)
 		return health, nil
 	}
 	base, _ := url.Parse(address)
-	hadGrant := concrete.HasKitGrant()
-	if reboot {
-		s.invalidateTargetSession(concrete)
-		s.resetTargetInputsOutsideTargetMu(name)
+	var hadGrant bool
+	if !reboot {
+		hadGrant, err = concrete.HasKitGrantContext(lookupCtx)
+		if err != nil {
+			if err := canceled(); err != nil {
+				return protocol.Health{}, err
+			}
+			return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_ownership", err}, current)
+		}
 	}
 	ownership, err := concrete.AdoptEndpoint(lookupCtx, base, reboot)
 	if err != nil {
+		if err := canceled(); err != nil {
+			return protocol.Health{}, err
+		}
 		return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_ownership", errors.New("Target ownership could not be reconciled.")}, current)
 	}
 	// Agent restarts preserve the kernel boot_id. A grant seen in the last
@@ -258,6 +333,7 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 	// still our session. Only loss of our grant is a session boundary.
 	leaseChanged := (previous.leaseOwned || hadGrant) && !ownership.Owned
 	if !reboot && leaseChanged {
+		boundaryObserved = true
 		connection := previous
 		connection.State = "connecting"
 		s.publishTargetConnection(name, connection, current)
@@ -268,6 +344,9 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 		// lease state from which an explicit launch can claim immediately.
 		ownership, err = concrete.AdoptEndpoint(lookupCtx, base, false)
 		if err != nil {
+			if err := canceled(); err != nil {
+				return protocol.Health{}, err
+			}
 			return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_ownership", errors.New("Target ownership could not be reconciled.")}, current)
 		}
 	} else if !reboot && previous.Address != address {
@@ -275,6 +354,9 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 	}
 	status, err := concrete.Status(lookupCtx)
 	if err != nil {
+		if err := canceled(); err != nil {
+			return protocol.Health{}, err
+		}
 		return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_status", errors.New("Target status could not be reconciled.")}, current)
 	}
 	connection := connectionFromStatus(health, status, ownership, address, selected.TargetID)

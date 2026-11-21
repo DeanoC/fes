@@ -284,7 +284,7 @@ func TestHomeWorkbenchReturnsToTheSameFamily(t *testing.T) {
 		room          string // the core screen, or the workbench for a family without one yet
 	}{
 		{"ZX Spectrum", "fes.spectrum", 1, coreRoomID},
-		{"PC/XT", "fes.pcxt-dos", 4, systemRoomID},
+		{"PC/XT", "fes.pcxt-dos", 4, coreRoomID},
 		{"PC 386", "fes.pc386", 5, systemRoomID},
 	} {
 		t.Run(tc.coreID, func(t *testing.T) {

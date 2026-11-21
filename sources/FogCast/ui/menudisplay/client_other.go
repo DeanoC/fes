@@ -21,6 +21,8 @@ type Client struct{ Path string }
 type Status struct {
 	Available                                   bool
 	Session                                     bool
+	Focus                                       string
+	Error                                       *MenuError
 	PackageID                                   string
 	CoreGeneration                              uint64
 	Generation                                  uint64
@@ -30,6 +32,15 @@ type Status struct {
 	DisplayedSequence, Underflows               uint64
 	Picture                                     []int
 	Live                                        *Live
+}
+
+type MenuError struct{ Code, Message, Phase string }
+type StartupStatus struct {
+	State, PackageID string
+	Generation       uint64
+	Plane            *Status
+	RuntimePID       int
+	RuntimeStart     string
 }
 
 // The runtime's verdicts on whether scanout is showing the frame it has
@@ -67,6 +78,9 @@ type Result struct {
 }
 
 func New(path string) *Client { return &Client{Path: path} }
+func (*Client) StartupStatus(context.Context) (StartupStatus, error) {
+	return StartupStatus{}, errors.New("native menu requires Linux")
+}
 func (*Client) Status(context.Context) (Status, error) {
 	return Status{}, errors.New("native menu requires Linux")
 }

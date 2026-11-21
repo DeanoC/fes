@@ -4,5 +4,3 @@ docs/validation/** -whitespace
 docs/validation/**/*.md !whitespace
 sources/misteross/docs/validation/** -whitespace
 sources/misteross/docs/validation/**/*.md !whitespace
-# Upstream FreeDOS source patches keep the CRLF lines of the files they patch.
-sources/misteross/cores/fes-pc386/sim/freedos-patches/*.patch -whitespace -text

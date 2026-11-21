@@ -23,13 +23,13 @@ func bundledFirmwareFixture(t *testing.T, coreID, romID string, image []byte) st
 	root := t.TempDir()
 	id := strings.ReplaceAll(strings.TrimPrefix(coreID, "fes."), "_", "-") + "-test"
 	m := bundledfirmware.Manifest{
-		Format: bundledfirmware.Format, ID: id, Name: "Test firmware", Version: "1",
+		Format: bundledfirmware.Format, Kind: bundledfirmware.KindFirmware, ID: id, Name: "Test firmware", Version: "1",
 		CoreID: coreID, ROMID: romID, File: "firmware.bin", Size: int64(len(image)),
 		SHA256:  fmt.Sprintf("%x", sha256.Sum256(image)),
 		Licence: "GPL-2.0-only", LicenceName: "GNU General Public License v2", LicenceFile: "LICENSE.txt",
-		Notice: "Test notice.",
-		Origin: bundledfirmware.Location{URL: "https://example.invalid/firmware.zip", SHA256: strings.Repeat("a", 64)},
-		Source: &bundledfirmware.Location{URL: "https://example.invalid/firmware-src.tar.gz", SHA256: strings.Repeat("b", 64)},
+		Notice:  "Test notice.",
+		Origins: []bundledfirmware.Location{{URL: "https://example.invalid/firmware.zip", SHA256: strings.Repeat("a", 64)}},
+		Sources: []bundledfirmware.Location{{URL: "https://example.invalid/firmware-src.tar.gz", SHA256: strings.Repeat("b", 64)}},
 	}
 	raw, err := json.Marshal(m)
 	if err != nil {
@@ -77,6 +77,64 @@ func TestLoadBundledFirmwareImportsAndListsValidObjects(t *testing.T) {
 	}
 	if len(logged) != 1 || !strings.Contains(logged[0], "broken") {
 		t.Fatalf("logged %q", logged)
+	}
+}
+
+// addBundledDisk writes a disk object for coreID into a bundled directory.
+func addBundledDisk(t *testing.T, root, coreID string, image []byte) {
+	t.Helper()
+	m := bundledfirmware.Manifest{
+		Format: bundledfirmware.Format, Kind: bundledfirmware.KindDisk, ID: "boot-disk-test", Name: "Test boot disk",
+		Version: "1", CoreID: coreID, File: "boot.img", Size: int64(len(image)),
+		SHA256:  fmt.Sprintf("%x", sha256.Sum256(image)),
+		Licence: "GPL-2.0-only", LicenceName: "GNU General Public License v2", LicenceFile: "LICENSE.txt",
+		Notice: "Free boot disk.",
+		Origins: []bundledfirmware.Location{{URL: "https://example.invalid/kernel.zip", SHA256: strings.Repeat("a", 64)},
+			{URL: "https://example.invalid/shell.zip", SHA256: strings.Repeat("b", 64)}},
+		Sources: []bundledfirmware.Location{{URL: "https://example.invalid/kernel.zip", SHA256: strings.Repeat("a", 64)}},
+	}
+	raw, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(root, m.ID)
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, data := range map[string][]byte{bundledfirmware.ManifestName: raw, m.File: image, m.LicenceFile: []byte("GPL text")} {
+		if err := os.WriteFile(filepath.Join(dir, name), data, 0o444); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestLoadBundledFirmwareKeepsDisksApartFromFirmware(t *testing.T) {
+	ctx := context.Background()
+	archive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, true, "fes.computer", "fes.media.zx81-tape", strings.Repeat("6", 40), nil, bytes.Repeat([]byte{0x00}, 8192))
+	s, _, _, _ := newCoreEntryLaunchFixture(t, archive, "Workshop ZX81")
+	firmware := bytes.Repeat([]byte{0x42}, 8192)
+	disk := bytes.Repeat([]byte{0xf6}, 368640)
+	root := bundledFirmwareFixture(t, "fes.zx81", "machine-rom", firmware)
+	addBundledDisk(t, root, "fes.pcxt-dos", disk)
+
+	s.LoadBundledFirmware(ctx, root)
+	list, err := s.BundledFirmware(ctx)
+	if err != nil || len(list.Firmware) != 1 || list.Firmware[0].CoreID != "fes.zx81" || len(list.Disks) != 1 {
+		t.Fatalf("list %+v err=%v", list, err)
+	}
+	got := list.Disks[0]
+	if got.CoreID != "fes.pcxt-dos" || got.MediaID != fmt.Sprintf("%x", sha256.Sum256(disk)) || got.Size != 368640 ||
+		len(got.Origins) != 2 || len(got.Sources) != 1 || got.LicenceText != "GPL text" {
+		t.Fatalf("listed disk %+v", got)
+	}
+	if media, err := s.CoreMedia(ctx, got.MediaID); err != nil || media.Size != 368640 {
+		t.Fatalf("bundled disk not in the core-media store: %+v %v", media, err)
+	}
+	if d, ok := s.bundledDisk("fes.pcxt-dos"); !ok || d.MediaID != got.MediaID {
+		t.Fatalf("bundledDisk = %+v %v", d, ok)
+	}
+	if _, ok := s.bundledDisk("fes.zx81"); ok {
+		t.Fatal("a core with only firmware has a bundled disk")
 	}
 }
 

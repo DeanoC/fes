@@ -112,6 +112,20 @@ func homeTour(rs []*Instance, step func(what string)) {
 // resize, which restarts the staged picture (draw:resize). Ceilings are about
 // 1.25x the worst case measured with gfx.segment replays in Home.
 func TestHomeCallbackWorkCeiling(t *testing.T) {
+	for _, fixture := range []struct {
+		name       string
+		withRecent bool
+	}{
+		{name: "with-recents", withRecent: true},
+		{name: "no-recents"},
+	} {
+		t.Run(fixture.name, func(t *testing.T) {
+			homeCallbackWorkCeiling(t, fixture.withRecent)
+		})
+	}
+}
+
+func homeCallbackWorkCeiling(t *testing.T, withRecent bool) {
 	// Measured after the segment replays (#1770); before them a focus move
 	// ran 9083 instructions and recorded 354 ops.
 	ceilings := map[string]struct {
@@ -138,7 +152,11 @@ func TestHomeCallbackWorkCeiling(t *testing.T) {
 	w := &workMeter{}
 	var r *Instance
 	open := func() {
-		r = newRoom(t, examplePack(t, "example.fes-cores"), homeWorkOptions(storePath))
+		options := homeWorkOptions(storePath)
+		if !withRecent {
+			options.Services.(*homeServices).setRecents()
+		}
+		r = newRoom(t, examplePack(t, "example.fes-cores"), options)
 		r.work = w
 		if err := r.Load(); err != nil {
 			t.Fatal(err)
@@ -180,6 +198,44 @@ func TestHomeCallbackWorkCeiling(t *testing.T) {
 
 	open()
 	settle()
+	if !withRecent {
+		// Confirm this fixture exercises the six tall family tiles, not the
+		// compact row used when recently played titles are present.
+		frame := r.Step(time.Now())
+		families := map[string]Hit{}
+		for _, hit := range frame.Hits {
+			if strings.HasPrefix(hit.ID, "recent:") {
+				t.Fatalf("no-recents fixture has recent hit %q", hit.ID)
+			}
+			if strings.HasPrefix(hit.ID, "family:") {
+				families[hit.ID] = hit
+			}
+		}
+		if len(families) != 6 {
+			t.Fatalf("no-recents fixture has %d family tiles, want 6: %+v", len(families), families)
+		}
+		for i := 1; i <= 6; i++ {
+			hit, ok := families[fmt.Sprintf("family:%d", i)]
+			if !ok || hit.H < 140 {
+				t.Fatalf("no-recents tile %d is missing or not tall: %+v", i, hit)
+			}
+		}
+		take()
+		// Exercise every tall family tile using the same direction inputs as
+		// the launcher, checking both focus and the work of each redraw.
+		phase = "focus"
+		r.Hover("family:1")
+		r.Step(time.Now())
+		take()
+		for _, label := range []string{"ZX Spectrum", "Atari ST", "Commodore 64", "PC/XT", "PC 386"} {
+			r.Input("right")
+			r.Step(time.Now())
+			take()
+			if got := r.Destination().Label; got != label {
+				t.Fatalf("tall tile focus = %q, want %q", got, label)
+			}
+		}
+	}
 	idle("first paint")
 	homeTour([]*Instance{r}, func(what string) {
 		switch {
@@ -222,6 +278,19 @@ func TestHomeCallbackWorkCeiling(t *testing.T) {
 	for _, kind := range kinds {
 		m := worst[kind]
 		c, ok := ceilings[kind]
+		if !withRecent {
+			// With no recent title, Home publishes the selected family's richer
+			// destination when data settles or reload starts. These separate
+			// instruction ceilings bound that path; all existing fixture
+			// ceilings and every draw-op ceiling stay unchanged. Observed maxima
+			// were 1196 (update, arrival-order dependent) and 989 (on_resume).
+			switch kind {
+			case "update":
+				c.instructions = 1500
+			case "on_resume":
+				c.instructions = 1250
+			}
+		}
 		if !ok {
 			t.Errorf("no ceiling for %s callbacks", kind)
 			continue
@@ -300,18 +369,18 @@ func BenchmarkHomeFocusChange(b *testing.B) {
 var homeTourFrames = []string{
 	"10285482ff1f2418", "b0eafd68538cee03", "2ae79d0aa615a35d", "2ae79d0aa615a35d",
 	"c265350e9c92e864", "8ef62f97eb2dfab9", "8df5e5b37a165506", "f0675724e6926fad",
-	"746c8472fc653179", "6c33cf06318c7a75", "38f8ccc66a35a9de", "153e5cc6b70c3863",
+	"3988e36e2bbac26d", "6c33cf06318c7a75", "38f8ccc66a35a9de", "153e5cc6b70c3863",
 	"3c32399c22889742", "9f630bfb4fac5f57", "55149c1bae015613", "8e70f5a15fe57e07",
 	"72632a2a56e6a70a", "8e70f5a15fe57e07", "55149c1bae015613", "9f630bfb4fac5f57",
 	"3c32399c22889742", "153e5cc6b70c3863", "38f8ccc66a35a9de", "6c33cf06318c7a75",
-	"746c8472fc653179", "f0675724e6926fad", "8df5e5b37a165506", "8ef62f97eb2dfab9",
+	"3988e36e2bbac26d", "f0675724e6926fad", "8df5e5b37a165506", "8ef62f97eb2dfab9",
 	"c265350e9c92e864", "2ae79d0aa615a35d", "b0eafd68538cee03", "4843f9e5628e611c",
 	"4843f9e5628e611c", "4843f9e5628e611c", "9096d8041f39f99d", "b0eafd68538cee03",
 	"c265350e9c92e864", "8ef62f97eb2dfab9", "8df5e5b37a165506", "4142ba012274c34d",
 	"8a5734fc5bce1e17", "c5c3a1e4975ed179", "4142ba012274c34d", "c265350e9c92e864",
-	"f0675724e6926fad", "fb218a5104b457bf", "4a81813cca32c0ec", "6b511d11c5b0ff86",
-	"4a81813cca32c0ec", "22a0b74abe190a39", "f6a1403f17e469d7", "ff2389d1c8cc2274",
-	"cade9aaf31e54186", "77d8a04507abf41f", "b155055cfd458475", "c4778e12dde88c60",
+	"f0675724e6926fad", "fb218a5104b457bf", "8ecb81d06867a996", "6b511d11c5b0ff86",
+	"8ecb81d06867a996", "392308fd9c1ac552", "a92cd4d9fabb6285", "a0bc045e70225548",
+	"2039d045bf824319", "20aa471274d9b993", "d37bbc0f8c73accf", "590832583f518879",
 	"4219931f7bc2e5fc", "b4086fe5712ee1dc", "2935edea693ba764",
 }
 

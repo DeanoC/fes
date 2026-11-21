@@ -17,9 +17,13 @@ screen opens a list of the disks made here and the game disks with saved
 changes, with new disk (name and size), copy, rename, go back to the original
 and delete. It uses the launcher's plain list picker, not the shelf screen
 drawn below; Deano accepted the plain list on 19 November 2026. Lock against changes is left out until the ST core has a
-write-protect input (#1960). The saves tag on a drive is built. Disk sets
-are built in the host library only; the screen does not show them yet. The
-PC/XT and 386 PC screens are not built.
+write-protect input (#1960). The saves tag on a drive is built. Disk sets are
+built: a game row says "2 disks", the drive row says "Disk 1 of 2", a running
+set's game offers Next disk, choosing one disk of a set by its file name
+brings the whole set, and Add disk to game extends one. A kit's in-play route
+opens the media picker, not this screen, so the picker lists the running
+game's set ("Disk 2 of 3 · NAME"), with the next disk focused. The PC/XT and 386 PC
+screens are not built.
 
 These pictures are **proposals, not captures of product code**. They are host
 software-renderer fixtures. They establish no hardware, controller, scanout or
@@ -116,7 +120,7 @@ same everywhere; only the facts differ.
 | Computer | Works today | Missing, by layer |
 | --- | --- | --- |
 | Atari ST | Disk writes are kept per library disk at Stop, eject or swap. The host makes blank disks at every geometry (`POST /api/v1/library/atari-st-disks`). Tenfoot offers one blank disk, fixed at 720K and named "WORK", inside Add game. | Tenfoot: the shelf, size and name choice, copy, rename, lock, go back to the original, delete. Host: list, copy, rename, lock and discard for kept disks. Core: no session display, so no disk swap during play on the kit's TV (#946). |
-| PC/XT | Disk writes are kept per library disk at Stop. One 360K drive. | Host: a blank and a FreeDOS boot disk builder (today only the development script `build_pcxt_freedos_image.py`). Tenfoot and host: the same shelf as the ST. Core: no session display (#1561). Release: a workbench row. |
+| PC/XT | Disk writes are kept per library disk at Stop. One 360K drive. The host has a PC/XT shelf (`/api/v1/library/disk-shelves/fes.pcxt-dos`) that makes a blank disk or a copy of the bundled FreeDOS boot disk, and a title with no disk starts from that FreeDOS disk (slice 5, host). Tenfoot opens the PC/XT core screen with FreeDOS in drive A, its shelf, and New disk with Contents (slice 5, tenfoot). | Core: no session display (#1561), so no disk change during play on the kit's TV. Release: a workbench row. |
 | 386 PC | One hard disk of 1 to 128 MiB. Changes are kept as a per-game delta at Stop. The host imports an image, infers its geometry and takes an override. Speed and Sound Blaster settings are stored per game. All of it is host API and CLI only. | Tenfoot: everything. Host: a new hard disk builder, with or without FreeDOS; copy; discard changes. Core: floppy and CD drives (#1694, RTL slices F1 and F2 only). Release: registration and a workbench row. |
 | ZX Spectrum +3 and Pentagon | One read-only drive: `.dsk` on the +3, `.trd` and `.scl` on the Pentagon. One saved medium per entry: its tape or its disk, not both. Disk change during play works. | Core: disk writes. Until then New disk stays unavailable. |
 | Commodore 64 | One read-only 1541 drive, `.d64` only. Disk change during play works. | Core: 1541 disk writes. Until then New disk stays unavailable. |

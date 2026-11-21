@@ -45,11 +45,15 @@ int main(int argc, char **argv) {
     top.reset = 0;
     unsigned passed = 0, failed = 0, line = 0;
     uint64_t most = 0, total = 0;
-    unsigned op, xs, xe, ys, ye, zero, sign, exponent, mode;
+    unsigned op, xs, xe, ys, ye, zero, sign, exponent, mode, rc, quotient, partial, inexact, away;
     uint64_t xm, ym;
     char sig_text[32], second_text[32];
-    while (std::fscanf(file, "%u %u %x %" SCNx64 " %u %x %" SCNx64 " %u %u %x %31s %u %31s", &op, &xs, &xe, &xm, &ys,
-                       &ye, &ym, &zero, &sign, &exponent, sig_text, &mode, second_text) == 13) {
+    // The five trailing fields (#2027 slice 6): the rounding mode the engine
+    // is given, and FPREM's quotient bits and partial flag and FRNDINT's PE
+    // and C1, which the transcendentals' lines hold as zeros.
+    while (std::fscanf(file, "%u %u %x %" SCNx64 " %u %x %" SCNx64 " %u %u %x %31s %u %31s %u %u %u %u %u", &op, &xs,
+                       &xe, &xm, &ys, &ye, &ym, &zero, &sign, &exponent, sig_text, &mode, second_text, &rc, &quotient,
+                       &partial, &inexact, &away) == 18) {
         ++line;
         // 67 bits: the top three, then sixteen hex digits.
         const unsigned sig_hi = unsigned(std::strtoul(std::string(sig_text, 1).c_str(), nullptr, 16));
@@ -57,12 +61,18 @@ int main(int argc, char **argv) {
         const unsigned second_se = unsigned(std::strtoul(std::string(second_text, 4).c_str(), nullptr, 16));
         const uint64_t second_sig = std::strtoull(second_text + 4, nullptr, 16);
         top.instruction = op;
+        top.rc = rc;
         top.xs = xs;
         top.xe = xe;
         top.xm = xm;
         top.ys = ys;
         top.ye = ye;
         top.ym = ym;
+        // FBLD's digits ride in x's significand and the low byte of y's,
+        // which no FBLD line uses for anything else.
+        top.bcd[0] = uint32_t(xm);
+        top.bcd[1] = uint32_t(xm >> 32);
+        top.bcd[2] = uint32_t(ym & 0xff);
         top.start = 1;
         tick();
         top.start = 0;
@@ -79,11 +89,16 @@ int main(int argc, char **argv) {
         const unsigned got_hi = top.fin_sig[2] & 7u;
         auto fold = [](uint64_t lo) { return (lo & ~3ull) | ((lo & 3) ? 1 : 0); };
         if (ok) {
-            if (zero) ok = top.fin_zero;
+            // An exact zero's sign is checked for the exact forms (instruction
+            // 8 on), where FPREM's result depends on it; a transcendental's
+            // zeros are the unit's, not the engine's.
+            if (zero) ok = top.fin_zero && (op < 8 || top.fin_sign == sign);
             else
                 ok = !top.fin_zero && top.fin_sign == sign && (top.fin_exp & 0x3ffff) == exponent && got_hi == sig_hi
                      && fold(got_lo) == fold(sig_lo);
             if (ok && top.second_mode != mode) ok = false;
+            if (ok && (top.prem_q != quotient || top.prem_part != partial || top.rnd_pe != inexact
+                       || top.rnd_c1 != away)) ok = false;
             if (ok && mode == 1) {
                 const uint64_t s_lo = uint64_t(top.second[0]) | uint64_t(top.second[1]) << 32;
                 const unsigned s_hi = top.second[2] & 0xffffu;
