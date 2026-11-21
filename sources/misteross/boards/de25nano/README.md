@@ -32,6 +32,14 @@ signoff gate and package as candidates
 ([record](../../docs/validation/2026-11-18-de25-machine-signoff/README.md));
 neither has run on hardware.
 
+The standard pc386 (`pc386/`) runs `fes_i386_cpu` with no 387 behind the same
+shell, with all of its memory in a window in HPS DDR. Its producer,
+`producers/build_pc386_package.py`, adds named signoff bases for the window
+bridge's reset synchronisers (`scanout/bridge_reset.py`) and the machine's
+findings (`scanout/machine_findings.py`). It packages a format-2 candidate
+([record](../../../../docs/validation/2026-11-20-de25-pc386-shell-s3/signoff.md))
+that has not run on hardware.
+
 DE25-only menu and ZX81 adaptations live under `shared-rtl/`; the DE10 core
 sources remain byte-identical to `origin/main`. The three HDMI board shells
 register D/DE/HS/VS at the pixel clock and constrain the ADV7513's documented
