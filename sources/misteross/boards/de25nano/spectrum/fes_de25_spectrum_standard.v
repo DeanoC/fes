@@ -140,6 +140,9 @@ module fes_de25_spectrum_standard #(
     );
     // The Spectrum picture is 320x240 shown 3x, centred in 720p.
     fes_de25_session_display #(.BUILD_ID(BUILD_ID),
+`ifdef FES_DE25_NATIVE_SPECTRUM48
+        .FIXED_GRANT_BASE(32'h95000000),
+`endif
         .PICTURE_LEFT(16'd160), .PICTURE_TOP(16'd0),
         .PICTURE_WIDTH(16'd960), .PICTURE_HEIGHT(16'd720)) display (
         .clk_sys(machine_clk), .pixel_clk(pixel_clk), .reset_n(pixel_reset_n), .exec_reset(exec_reset),

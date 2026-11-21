@@ -78,8 +78,17 @@ def run(model, native_mailbox=False):
     print(f"DE25 Spectrum simulation directory: {output}", flush=True)
     firmware = diagnostic / ("firmware.rom" if model == "48" else "firmware-32k.rom")
     flags = f"-O2 -DSPECTRUM_BANKS={3 if model == '48' else 8}"
+    link = []
     if native_mailbox:
-        flags += " -DSPECTRUM_NATIVE48"
+        firmware_root = ROOT.parents[1] / "platform/embedded/firmware"
+        flags += f" -DSPECTRUM_NATIVE48 -I{firmware_root}"
+        objects = []
+        for name in ("nano_fabric_stop", "nano_probe_stop"):
+            obj = output / (name + ".o")
+            subprocess.run(["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-I", str(firmware_root),
+                            "-c", str(firmware_root / (name + ".c")), "-o", str(obj)], check=True)
+            objects.append(str(obj))
+        link = ["-LDFLAGS", " ".join(objects)]
     subprocess.run(["verilator", "--cc", "--exe", "--build", "-j", "4", "--public-flat-rw", "-O3",
                     "-Wall", *["-Wno-" + name for name in WAIVERS], *MODELS[model],
                     *(["-DFES_DE25_NATIVE_SPECTRUM48=1"] if native_mailbox else []),
@@ -87,7 +96,7 @@ def run(model, native_mailbox=False):
                     "-GSDRAM_POWERUP_CYCLES=16",
                     "-GBUILD_ID=128'h00112233445566778899aabbccddeeff",
                     *["-I" + str(path) for path in [output, *includes()]],
-                    "-CFLAGS", flags,
+                    "-CFLAGS", flags, *link,
                     *map(str, sources(output)), str(HERE / "standard_tb.cpp")], cwd=ROOT, check=True)
     executable = output / "Vfes_de25_spectrum_standard"
     subprocess.run([str(executable), str(firmware),
@@ -100,7 +109,7 @@ def run(model, native_mailbox=False):
         controls.write_bytes(load(HERE / "build.py", "spectrum_native_controls").native_controls(
             "00112233445566778899aabbccddeeff", hashlib.sha256(payload).hexdigest()))
         subprocess.run(["go", "test", "-v", "-count=1", "-timeout=120s", "./computer",
-                        "-run", "^TestSpectrum48(Firmware|Tenfoot)RTL$"], cwd=tamago, check=True,
+                        "-run", "^TestSpectrum48(Firmware|Tenfoot|SecureStop)RTL$"], cwd=tamago, check=True,
                        env=dict(os.environ, GOWORK="off",
                                 FES_SPECTRUM48_MAILBOX=str(executable),
                                 FES_SPECTRUM48_FIRMWARE=str(firmware),

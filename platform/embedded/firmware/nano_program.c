@@ -32,6 +32,36 @@ int fes_nano_program_enable_roles(struct fes_nano_program *p)
     p->mixed_roles=1;return 0;
 }
 
+int fes_nano_program_enable_spectrum48(struct fes_nano_program *p,
+    const struct fes_nano_spectrum48_program *selected)
+{
+    if(!p || !p->initialized || p->failed || !p->mixed_roles || p->owner || p->bound ||
+       p->spectrum48.bytes || !selected || !selected->bytes || (selected->bytes&3U) ||
+       selected->bytes>p->maximum || (selected->bytes-1)/p->chunk>=FES_NANO_PROGRAM_MAX_CHUNKS ||
+       !nonzero(selected->package,sizeof(selected->package)) ||
+       !nonzero(selected->build,sizeof(selected->build)) ||
+       !nonzero(selected->sha256,sizeof(selected->sha256)) ||
+       !nonzero(selected->sha384,sizeof(selected->sha384)))return -1;
+    const uint32_t count=(selected->bytes-1)/p->chunk+1;
+    for(unsigned i=0;i<count;i++)
+        if(!nonzero(selected->chunks[i],sizeof(selected->chunks[i])))return -1;
+    for(unsigned i=count;i<FES_NANO_PROGRAM_MAX_CHUNKS;i++)
+        if(nonzero(selected->chunks[i],sizeof(selected->chunks[i])))return -1;
+    p->spectrum48=*selected;
+    return 0;
+}
+
+static int spectrum48_matches(const struct fes_nano_program *p,uint32_t bytes)
+{
+    const struct fes_nano_spectrum48_program *s=&p->spectrum48;
+    return bytes==s->bytes &&
+        !memcmp(p->header+FES_NANO_PROGRAM_PACKAGE,s->package,sizeof(s->package)) &&
+        !memcmp(p->header+FES_NANO_PROGRAM_BUILD,s->build,sizeof(s->build)) &&
+        !memcmp(p->header+FES_NANO_PROGRAM_SHA256,s->sha256,sizeof(s->sha256)) &&
+        !memcmp(p->header+FES_NANO_PROGRAM_SHA384,s->sha384,sizeof(s->sha384)) &&
+        !memcmp(p->header+FES_NANO_PROGRAM_CHUNKS,s->chunks,sizeof(s->chunks));
+}
+
 static int capture_extension(struct fes_nano_program *p)
 {
     uint8_t second[FES_NANO_PROGRAM_ROM_HEADER_BYTES];
@@ -109,7 +139,9 @@ int fes_nano_program_capture(struct fes_nano_program *p, uint64_t owner, uint64_
     uint32_t role=0,abi=0;
     if(p->mixed_roles) {
         role=le32(h+FES_NANO_PROGRAM_ROLE_OFFSET);abi=le32(h+FES_NANO_PROGRAM_ROLE_OFFSET+4);
-        if(role==FES_NANO_PROGRAM_ROLE_MENU && abi==FES_NANO_PROGRAM_MENU_ABI) {
+        if((role==FES_NANO_PROGRAM_ROLE_MENU && abi==FES_NANO_PROGRAM_MENU_ABI) ||
+           (role==FES_NANO_PROGRAM_ROLE_SPECTRUM48 && abi==FES_NANO_PROGRAM_SPECTRUM48_ABI &&
+            spectrum48_matches(p,bytes))) {
             if(capture_extension(p) || nonzero(p->rom_header,sizeof(p->rom_header)))return fail(p);
         } else if(role==FES_NANO_PROGRAM_ROLE_COMPUTER && abi==FES_NANO_PROGRAM_COMPUTER_ABI) {
             if(capture_rom(p,bytes))return -1;

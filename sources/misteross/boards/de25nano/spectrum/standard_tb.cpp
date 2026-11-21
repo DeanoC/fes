@@ -11,6 +11,11 @@
 #include "Vfes_de25_spectrum_standard.h"
 #include "Vfes_de25_spectrum_standard___024root.h"
 #include "verilated.h"
+#ifdef SPECTRUM_NATIVE48
+#include "nano_fabric_stop.h"
+#include "nano_program.h"
+#include "generated/fes_de25_ddr_probe.h"
+#endif
 
 #include <array>
 #include <cstdint>
@@ -29,6 +34,11 @@ constexpr uint64_t kBusHalfPs = 5000;    // 100 MHz peripheral clock
 constexpr uint64_t kPixelHalfPs = 6734;  // nominal 74.25 MHz, rounded to ps
 constexpr uint32_t kGpo = 0x0c, kGpi = 0x10, kFault = 0x14;
 constexpr uint32_t kInfo = 29, kBegin = 30, kData = 31, kCommit = 32;
+#ifdef SPECTRUM_NATIVE48
+constexpr uint32_t kDisplayGrantBase = 0x95000000;
+#else
+constexpr uint32_t kDisplayGrantBase = 0x00100000;
+#endif
 constexpr uint32_t kErrorIndex = 2, kErrorArgument = 3, kErrorState = 4;
 
 [[noreturn]] void fail(const std::string& message) {
@@ -267,6 +277,87 @@ struct Board {
     }
 };
 
+void prime_display(Board& board) {
+    board.scanout(0x10, true, kDisplayGrantBase);
+    board.scanout(0x18, true, 0x800000);
+    board.scanout(0x1c, true, 1);
+    board.scanout(0x24, true, 1);
+    board.scanout(0x28, true, 1);
+    board.scanout(0x0c, true, 1);
+    for (unsigned i = 0; i < 16000000 && !board.display_pending; ++i) board.step();
+    require(board.display_pending != 0, "scanout did not issue a burst");
+}
+
+#ifdef SPECTRUM_NATIVE48
+struct SecureStop {
+    Board& board;
+    bool withhold;
+    unsigned stops = 0, snapshots = 0, probe_reads = 0;
+
+    static int owns(void*) { return 1; }
+    static int read(void* ptr, uint32_t offset, uint32_t* value) {
+        *value = static_cast<SecureStop*>(ptr)->board.scanout(offset, false);
+        return 0;
+    }
+    static int write(void* ptr, uint32_t offset, uint32_t value) {
+        auto& self = *static_cast<SecureStop*>(ptr);
+        require(offset == 0x0c && (value == 2 || value == 8), "secure stop wrote an unexpected CSR");
+        if (value == 2) ++self.stops;
+        else ++self.snapshots;
+        self.board.scanout(offset, true, value);
+        return 0;
+    }
+    static void wait(void* ptr) {
+        auto& self = *static_cast<SecureStop*>(ptr);
+        if (!self.withhold) self.board.display_reply = true;
+        self.board.run_bus(32);
+    }
+    static int probe_read(void* ptr, uint32_t offset, uint32_t* value) {
+        auto& self = *static_cast<SecureStop*>(ptr);
+        ++self.probe_reads;
+        // The existing probe bench exercises the real independent DDR
+        // endpoint. Here it starts idle while scanout uses the real RTL.
+        *value = offset == FES_DE25_DDR_PROBE_ID_OFFSET ? FES_DE25_DDR_PROBE_IDENTITY :
+                 offset == FES_DE25_DDR_PROBE_VERSION_OFFSET ? FES_DE25_DDR_PROBE_VERSION :
+                 offset == FES_DE25_DDR_PROBE_STATUS_OFFSET ? FES_DE25_DDR_PROBE_STATUS_IDLE : 0;
+        return 0;
+    }
+    static int probe_write(void*, uint32_t, uint32_t) {
+        fail("secure stop wrote an idle DDR probe");
+    }
+
+    void run(unsigned mode) {
+        if (mode == 4) board.scanout(0x0c, true, 2);
+        else if (mode != 0) prime_display(board);
+        const unsigned expected_stops = mode == 4 ? 0 : 1;
+        struct fes_nano_fabric_stop stop{};
+        stop.io = {this, owns, read, write, wait};
+        stop.probe.io = {this, owns, probe_read, probe_write, wait};
+        stop.abi = FES_NANO_PROGRAM_SPECTRUM48_ABI;
+        stop.build[0] = 0xccddeeff; stop.build[1] = 0x8899aabb;
+        stop.build[2] = 0x44556677; stop.build[3] = 0x00112233;
+        stop.bus_base = kDisplayGrantBase;
+        stop.bytes = 8U << 20;
+        stop.cookie = mode == 3 ? 2 : 1;
+        stop.qualified = 1;
+        int result = fes_nano_fabric_stop(&stop);
+        require(stops == expected_stops, "secure scanout STOP count differs");
+        if (mode == 2 || mode == 3) {
+            require(result && stop.failed && !stop.done && probe_reads == 0,
+                    "uncertain display granted a stop receipt");
+            const auto issued = snapshots;
+            require(fes_nano_fabric_stop(&stop) == result && snapshots == issued && stops == 1,
+                    "failed native stop replayed a command");
+        } else {
+            require(!result && stop.done && snapshots == 1 && probe_reads != 0 && board.display_pending == 0,
+                    "native scanout and probe did not reach a joined stop");
+            require(!fes_nano_fabric_stopped(&stop) && snapshots == 1 && stops == expected_stops,
+                    "native stop receipt readback wrote a command");
+        }
+    }
+};
+#endif
+
 // Test-only register transport for the Linux-free Go driver. Reads and writes
 // use the same Avalon slave as the standalone and Linux-side benches.
 int native_mailbox() {
@@ -295,19 +386,37 @@ int native_mailbox() {
         } else if (operation == "display-prime") {
             // A real reader submission with the first burst accepted but its
             // replies withheld until directed by the test's memory supplier.
-            board.scanout(0x10, true, 0x100000);
-            board.scanout(0x18, true, 0x800000);
-            board.scanout(0x1c, true, 1);
-            board.scanout(0x24, true, 1);
-            board.scanout(0x28, true, 1);
-            board.scanout(0x0c, true, 1);
-            for (unsigned i = 0; i < 16000000 && !board.display_pending; ++i) board.step();
-            require(board.display_pending != 0, "scanout did not issue a burst");
+            prime_display(board);
             value = board.display_pending;
         } else if (operation == "display-reply") {
             board.display_reply = true;
             value = board.display_pending;
 #ifdef SPECTRUM_NATIVE48
+        } else if (operation == "check-secure-display-stop" && input >> value) {
+            require(value < 5, "unknown secure display stop case");
+            SecureStop stop{board, value == 2};
+            stop.run(value);
+            value = 0;
+        } else if (operation == "check-display-grant" || operation == "check-display-retirement") {
+            if (operation == "check-display-retirement") {
+                board.scanout(0x0c, true, 2);
+                require((board.scanout(0x08, false) & 0x80000008) == 0x80000008,
+                        "empty reader did not retire on STOP");
+                board.scanout(0x0c, true, 4);
+                value = kDisplayGrantBase;
+            } else {
+                require(bool(input >> value), "display grant test missing base");
+            }
+            board.scanout(0x10, true, value);
+            board.scanout(0x18, true, 0x800000);
+            board.scanout(0x1c, true, 1);
+            board.scanout(0x24, true, 1);
+            board.scanout(0x28, true, 1);
+            board.scanout(0x0c, true, 1);
+            const auto status = board.scanout(0x08, false);
+            require((status & 0x11) == 0x10 && board.display_pending == 0,
+                    "unauthorized native DMA grant enabled scanout");
+            value = board.display_pending;
         } else if (operation == "check-fetch-snapshots") {
             uint32_t previous_count = 0;
             for (unsigned i = 0; i < 32; ++i) {

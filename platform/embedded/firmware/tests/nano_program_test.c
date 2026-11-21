@@ -82,10 +82,13 @@ static int complete(void *p,uint64_t owner,uint64_t generation,unsigned rearmed)
     assert(owner==17 && generation==f->program.generation && rearmed==!!f->completions);
     if(f->expected_role) {
         uint32_t role=0,abi=0;
-        assert(!fes_nano_program_role(&f->program,&role,&abi) && role==f->expected_role &&
-               abi==(role==FES_NANO_PROGRAM_ROLE_MENU ? FES_NANO_PROGRAM_MENU_ABI : FES_NANO_PROGRAM_COMPUTER_ABI));
-        assert((role==FES_NANO_PROGRAM_ROLE_MENU && !f->program.rom_bytes && !f->program.rom_offset && !f->program.rom_crc) ||
-               (role==FES_NANO_PROGRAM_ROLE_COMPUTER && f->program.rom_bytes));
+        assert(!fes_nano_program_role(&f->program,&role,&abi) && role==f->expected_role);
+        if(role==FES_NANO_PROGRAM_ROLE_COMPUTER)
+            assert(abi==FES_NANO_PROGRAM_COMPUTER_ABI && f->program.rom_bytes);
+        else {
+            assert(abi==(role==FES_NANO_PROGRAM_ROLE_MENU ? FES_NANO_PROGRAM_MENU_ABI : FES_NANO_PROGRAM_SPECTRUM48_ABI));
+            assert(!f->program.rom_bytes && !f->program.rom_offset && !f->program.rom_crc);
+        }
     }
     f->completions++;return 0;
 }
@@ -174,7 +177,8 @@ static void role_request(struct fixture *f,unsigned role,unsigned bytes,unsigned
     header(f,bytes,seed);put32(f->wire+4,FES_NANO_PROGRAM_ROLE_VERSION);
     put32(f->wire+FES_NANO_PROGRAM_ROLE_OFFSET,role);
     put32(f->wire+FES_NANO_PROGRAM_ROLE_OFFSET+4,
-          role==FES_NANO_PROGRAM_ROLE_MENU ? FES_NANO_PROGRAM_MENU_ABI : FES_NANO_PROGRAM_COMPUTER_ABI);
+          role==FES_NANO_PROGRAM_ROLE_MENU ? FES_NANO_PROGRAM_MENU_ABI :
+          role==FES_NANO_PROGRAM_ROLE_COMPUTER ? FES_NANO_PROGRAM_COMPUTER_ABI : FES_NANO_PROGRAM_SPECTRUM48_ABI);
     memset(f->rom_wire,0,sizeof(f->rom_wire));f->expected_role=role;
     if(role==FES_NANO_PROGRAM_ROLE_COMPUTER) {
         put32(f->rom_wire,FES_NANO_PROGRAM_ROM_MAGIC);put32(f->rom_wire+4,1);
@@ -235,6 +239,56 @@ static void role_cases(void)
         assert(reply[0] && f.reads==reads && f.rom_reads==rom_reads);
     }
     puts("PASS 5 mixed menu/computer configuration cycles and 20 role capture/retirement failures; no hardware");
+}
+
+static struct fes_nano_spectrum48_program trusted_spectrum(const struct fixture *f)
+{
+    struct fes_nano_spectrum48_program selected={.bytes=128};
+    memcpy(selected.package,f->wire+FES_NANO_PROGRAM_PACKAGE,sizeof(selected.package));
+    memcpy(selected.build,f->wire+FES_NANO_PROGRAM_BUILD,sizeof(selected.build));
+    memcpy(selected.sha256,f->wire+FES_NANO_PROGRAM_SHA256,sizeof(selected.sha256));
+    memcpy(selected.sha384,f->wire+FES_NANO_PROGRAM_SHA384,sizeof(selected.sha384));
+    memcpy(selected.chunks,f->wire+FES_NANO_PROGRAM_CHUNKS,sizeof(selected.chunks));
+    return selected;
+}
+
+static void spectrum_cases(void)
+{
+    struct fixture f;
+    role_init(&f);
+    role_request(&f,FES_NANO_PROGRAM_ROLE_SPECTRUM48,128,0,9);
+    struct fes_nano_spectrum48_program selected=trusted_spectrum(&f);
+    assert(!fes_nano_program_enable_spectrum48(&f.program,&selected));
+    assert(fes_nano_program_enable_spectrum48(&f.program,&selected));
+    memset(&selected,0,sizeof(selected)); /* Firmware owns its copy. */
+    for(unsigned cycle=0;cycle<4;cycle++) {
+        role_request(&f,cycle&1U ? FES_NANO_PROGRAM_ROLE_SPECTRUM48 : FES_NANO_PROGRAM_ROLE_MENU,
+                     128,0,cycle&1U ? 9 : 1);
+        transfer(&f,cycle!=0);
+    }
+    assert(f.completions==4);
+
+    for(unsigned fault=0;fault<11;fault++) {
+        role_init(&f);
+        role_request(&f,FES_NANO_PROGRAM_ROLE_SPECTRUM48,128,0,9);
+        selected=trusted_spectrum(&f);
+        if(fault==1)selected.bytes=124;
+        if(fault!=0)assert(!fes_nano_program_enable_spectrum48(&f.program,&selected));
+        if(fault==2)f.wire[FES_NANO_PROGRAM_PACKAGE]^=1;
+        if(fault==3)f.wire[FES_NANO_PROGRAM_BUILD]^=1;
+        if(fault==4)f.wire[FES_NANO_PROGRAM_SHA256]^=1;
+        if(fault==5)f.wire[FES_NANO_PROGRAM_SHA384]^=1;
+        if(fault==6)f.rom_wire[127]=1;
+        if(fault==7)put32(f.wire+FES_NANO_PROGRAM_ROLE_OFFSET+4,FES_NANO_PROGRAM_MENU_ABI);
+        if(fault==8)f.rom_fault=3;
+        if(fault==9)f.rom_fault=4;
+        if(fault==10)f.wire[FES_NANO_PROGRAM_CHUNKS+48]^=1;
+        uint64_t reply[4];
+        fes_nano_configuration_prepare(&f.configuration,17,1,0,reply);
+        assert(reply[0] && f.configuration.failed && f.bridges.failed && !f.program.bound && !f.completions);
+        assert(fes_nano_configuration_before(&f.configuration,FES_NANO_CONFIG_START,0,0,0));
+    }
+    puts("PASS 4 menu/Spectrum configuration cycles and 11 fail-closed Spectrum role cases");
 }
 
 int main(int argc,char **argv)
@@ -341,5 +395,6 @@ int main(int argc,char **argv)
     printf("PASS %u per-load descriptor and actual configuration/bridge engine cases; injected digest checks, no hardware\n",cases);
     rom_cases();
     role_cases();
+    spectrum_cases();
     return 0;
 }

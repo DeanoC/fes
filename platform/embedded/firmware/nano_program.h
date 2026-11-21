@@ -30,15 +30,24 @@
 #define FES_NANO_PROGRAM_ROM_SHA256 24U
 #define FES_NANO_PROGRAM_ROM_SHA384 56U
 /* The final eight bytes follow all nine digest slots. Version 3 selects one
- * of the platform's two compiled personalities; it supplies no address, mask
- * or master inventory. Both roles carry the fixed ROM-extension slot, zero
- * for menu and mandatory for the current held-ROM computer driver. */
+ * of the platform's compiled personalities; it supplies no address, mask
+ * or master inventory. The fixed ROM-extension slot is zero for the menu
+ * and mailbox firmware role, and mandatory for the held-ROM computer. */
 #define FES_NANO_PROGRAM_ROLE_VERSION 3U
 #define FES_NANO_PROGRAM_ROLE_OFFSET 632U
 #define FES_NANO_PROGRAM_ROLE_MENU 1U
 #define FES_NANO_PROGRAM_ROLE_COMPUTER 2U
+#define FES_NANO_PROGRAM_ROLE_SPECTRUM48 3U
 #define FES_NANO_PROGRAM_MENU_ABI 0x10203043U
 #define FES_NANO_PROGRAM_COMPUTER_ABI 0x10203041U
+#define FES_NANO_PROGRAM_SPECTRUM48_ABI 0x10203044U
+
+/* Exact identity of the companion selected by the trusted boot builder. */
+struct fes_nano_spectrum48_program {
+    uint32_t bytes;
+    uint8_t package[32], build[16], sha256[32], sha384[48];
+    uint8_t chunks[FES_NANO_PROGRAM_MAX_CHUNKS][48];
+};
 
 struct fes_nano_program_ops {
     void *context;
@@ -60,6 +69,7 @@ struct fes_nano_program {
     uint8_t rom_header[FES_NANO_PROGRAM_ROM_HEADER_BYTES];
     uint32_t rom_offset, rom_bytes, rom_crc;
     unsigned mixed_roles;
+    struct fes_nano_spectrum48_program spectrum48;
     uint32_t role, control_abi;
 };
 #ifdef __cplusplus
@@ -82,6 +92,10 @@ int fes_nano_program_enable_rom(struct fes_nano_program *,
  * it. Captured role is available only after successful capture; it is not a
  * configuration-completion or live activation proof. */
 int fes_nano_program_enable_roles(struct fes_nano_program *);
+/* A matched cold platform can enable one exact sealed Spectrum companion
+ * before capture. Its ROM is uploaded through the mailbox after activation. */
+int fes_nano_program_enable_spectrum48(struct fes_nano_program *,
+    const struct fes_nano_spectrum48_program *);
 int fes_nano_program_role(const struct fes_nano_program *, uint32_t *role, uint32_t *control_abi);
 #ifdef __cplusplus
 }

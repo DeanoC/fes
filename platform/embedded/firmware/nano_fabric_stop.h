@@ -26,8 +26,9 @@ struct fes_nano_fabric_stop {
     struct fes_nano_fabric_stop_io io;
     struct fes_nano_probe_stop probe;
     uint32_t abi, build[4], bus_base, bytes;
-    /* Nonzero minimum stop token; advances beyond the reader's observed
-     * request cookie before the single DISABLE. Never wraps. */
+    /* The native48 adapter supplies the owned display grant generation.
+     * Existing DDR roles advance this token beyond the observed reader
+     * request cookie before the single DISABLE. It never wraps. */
     uint64_t cookie;
     unsigned qualified, attempted, failed, done, disable_issued, polls, reads;
     int first_error;

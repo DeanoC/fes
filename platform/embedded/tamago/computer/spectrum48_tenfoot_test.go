@@ -141,6 +141,11 @@ func (h *spectrumTestHost) stop(ctx context.Context) error {
 	if !display.stopped {
 		return errors.New("display STOP missing")
 	}
+	status, err := mailbox.call("display-read 8")
+	if err != nil || len(status) != 1 || status[0]&0x80000008 != 0x80000008 {
+		h.retired, h.active = true, nil
+		return fmt.Errorf("native display retirement missing: %v, %v", status, err)
+	}
 	if err := h.store.Resume(); err != nil {
 		h.retired = true
 		h.active = nil
@@ -207,6 +212,16 @@ func TestSpectrum48TenfootRTL(t *testing.T) {
 	badRequest.Sources[0].Path = "BAD.ROM"
 	if _, err := store.Retain(t.Context(), badRequest); err == nil || lease.stops != 0 {
 		t.Fatal("wrong FAT ROM reached containment", err)
+	}
+	for _, address := range []uint32{0x00100000, 0x95000020, 0x95800000} {
+		mailbox := startSpectrumMailbox(t, executable)
+		if issued, err := mailbox.call("check-display-grant %x", address); err != nil || len(issued) != 1 || issued[0] != 0 {
+			t.Fatalf("scanout accepted foreign DMA grant %#x: %v, %v", address, issued, err)
+		}
+	}
+	mailbox := startSpectrumMailbox(t, executable)
+	if issued, err := mailbox.call("check-display-retirement"); err != nil || len(issued) != 1 || issued[0] != 0 {
+		t.Fatalf("retired scanout became reusable: %v, %v", issued, err)
 	}
 	host := &spectrumTestHost{identity: source.identity, store: store, request: request}
 	for range 3 {

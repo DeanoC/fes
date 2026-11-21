@@ -421,3 +421,18 @@ func TestSpectrum48FirmwareRTL(t *testing.T) {
 		})
 	}
 }
+
+func TestSpectrum48SecureStopRTL(t *testing.T) {
+	executable := os.Getenv("FES_SPECTRUM48_MAILBOX")
+	if executable == "" {
+		t.Skip("run the Spectrum sim.py with --native-mailbox")
+	}
+	for mode, name := range []string{"idle", "active-drains", "withheld-response", "wrong-generation", "already-retired"} {
+		t.Run(name, func(t *testing.T) {
+			mailbox := startSpectrumMailbox(t, executable)
+			if _, err := mailbox.call("check-secure-display-stop %x", mode); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}

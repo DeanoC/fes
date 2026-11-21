@@ -90,11 +90,22 @@ neither native stop endpoint. Its local STOP acknowledgment does not provide
 the generation/cookie proof used to close native bridges. The native
 ProgramService rejects an unmatched package profile and restores the menu.
 
-The matched chain needs a Spectrum producer with the native HPS envelope,
-a source-bound master-stop inventory, and an explicit TF-A role for mailbox
-firmware upload. The existing CPU CSR ROM role permits 4 or 8 KiB. Spectrum's
-16 KiB upload entails 8,192 mailbox data commands and remains unqualified
-against native runtime deadlines, bridge ownership and HDMI output.
+The Spectrum role prototype pins the FPGA display grant to the two native
+DDR slots at `0x95000000`. STOP retires the grant until the endpoint resets.
+The TF-A stop engine verifies the matching build, retired state, a fresh
+readback of the grant generation and outstanding count, and the independent
+DDR probe through their owned callbacks. The off-board test links the C
+stop engine to Verilated Spectrum scanout and models the idle probe callback.
+The native descriptor encoder leaves the staged-ROM extension empty. The
+secure decoder admits this role only if trusted initialization supplies the
+exact package, build, size, whole and per-chunk hashes.
+
+The matched chain still needs a Spectrum producer with the native HPS
+envelope and a source-bound master inventory, plus cold-platform activation
+and return wiring for the new role. The existing CPU CSR ROM role permits
+4 or 8 KiB. Spectrum's 16 KiB upload entails 8,192 mailbox data commands and
+remains unqualified against native runtime deadlines, bridge ownership and
+HDMI output.
 
 The diagnostic board's limit is 16375 bytes, below the general ABI's 16384.
 Callers must not mutate supplied slices concurrently with a call; tape bytes
