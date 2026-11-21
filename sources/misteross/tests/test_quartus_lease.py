@@ -382,6 +382,20 @@ def unleased_quartus(root: Path, files: list[str], misteross: Path | None = None
     tools = (misteross / "scripts/quartus_tools.py").resolve()
     failures = []
 
+    def imports_a_locator(path: Path) -> bool:
+        """Whether the module's certain imports bring in a module that defines
+        a locate_quartus (each delegates to the leasing one, as checked
+        below): a call to it then runs inside the leasing family."""
+        for found in _imports(path, roots):
+            try:
+                tree = ast.parse(found.read_text(encoding="utf-8"))
+            except (SyntaxError, UnicodeDecodeError, OSError):
+                continue
+            if found == tools or any(isinstance(n, ast.FunctionDef) and n.name == "locate_quartus"
+                                     for n in tree.body):
+                return True
+        return False
+
     def leased(path: Path) -> bool:
         # In the module itself, the import must come before any launch at
         # module level, which would otherwise run before the hook exists.
@@ -432,7 +446,12 @@ def unleased_quartus(root: Path, files: list[str], misteross: Path | None = None
                 continue
             # Naming a program is enough: it may be handed to a launching
             # helper in another module (helper.launch(['quartus_fit'])).
-            if python_names_leased(text) and not calls_locate_quartus(text) and not leased(path):
+            # A module that defines a locate_quartus (delegating to the leasing
+            # one, checked below) is part of the leasing family itself.
+            locator = any(isinstance(n, ast.FunctionDef) and n.name == "locate_quartus"
+                          for n in ast.parse(text).body) if text else False
+            if python_names_leased(text) and not locator \
+                    and not (calls_locate_quartus(text) and imports_a_locator(path)) and not leased(path):
                 failures.append(f"{name}: names a Quartus program, but never imports scripts.quartus_tools")
         elif is_shell:
             # No raw-text prefilter: the shell joins quoted fragments
@@ -542,6 +561,12 @@ class StaticRuleTests(unittest.TestCase):
         failures = self.scan({"sources/misteross/scripts/late2.py":
                               "import subprocess\ndef launch():\n    subprocess.run(['quartus_fit', 'top'])\n"
                               "launch()\nfrom scripts import quartus_tools\n"})
+        self.assertEqual(len(failures), 1)
+        # Codex P1 at 212b78f76: a locate_quartus call with nothing imported
+        # that provides it (if False: locate_quartus()).
+        failures = self.scan({"sources/misteross/scripts/unreached.py":
+                              "import subprocess\nif False:\n    locate_quartus()\n"
+                              "subprocess.run(['quartus_fit', 'top'])\n"})
         self.assertEqual(len(failures), 1)
         # Codex P1s at 7aa55d9fc: a launch in a default or decorator, an import
         # in a with body, and locate_quartus only in a docstring.
@@ -1039,6 +1064,9 @@ class LaunchGuardTests(unittest.TestCase):
         with self.assertRaises(qt.QuartusLeaseError):
             qt._check_remote_quartus(["ssh", "host", "/licensed/bin/quartus_[f]it", "top"])
         qt._check_remote_quartus(["ssh", "host", "cat", "$HOME/x"])
+        # Codex P1 at 212b78f76: ssh inside shell code.
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["sh", "-c", "ssh host /remote/bin/quartus_fit top"])
         # Codex P1 at 00058c57d: ssh behind an execution wrapper.
         for argv in (["env", "ssh", "host", "/remote/bin/quartus_fit", "top"],
                      ["env", "-i", "X=1", "timeout", "60", "nice", "-n", "5", "ssh", "host", "quartus_sh", "-t", "x"],

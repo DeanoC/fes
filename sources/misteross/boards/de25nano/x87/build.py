@@ -18,6 +18,10 @@ import time
 
 HERE = Path(__file__).resolve().parent
 MISTEROSS = HERE.parents[2]
+if str(MISTEROSS) not in sys.path:
+    sys.path.insert(0, str(MISTEROSS))
+# Installs the Quartus lease's launch guard for this process.
+from scripts.quartus_tools import quartus_lease  # noqa: E402
 ROOT = MISTEROSS.parents[1]
 PROJECT = "fes_de25_x87"
 DEVICE = "A5EB013BB23BE4SCS"
@@ -58,9 +62,6 @@ def require_disk(path: Path) -> None:
 def compiler_lease():
     # This host's Quartus Pro lease covers discovery, snapshot and every
     # Quartus process. Never interrupt a different owner's compiler job.
-    if str(MISTEROSS) not in sys.path:
-        sys.path.insert(0, str(MISTEROSS))
-    from scripts.quartus_tools import quartus_lease
     return quartus_lease("pro", label="x87 build")
 
 

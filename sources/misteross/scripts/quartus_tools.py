@@ -793,6 +793,26 @@ def _check_launch(argv, env, cwd=None, executable=None) -> None:
     so a --help in one cannot excuse a program in another. Bare names resolve
     on the child's PATH, relative paths against its working directory."""
     _check_remote_quartus(argv)
+    # ssh inside shell code (sh -c 'ssh host quartus_fit top'): each simple
+    # command of each shell payload is checked as a command line of its own.
+    texts = [argv] if isinstance(argv, (str, bytes, os.PathLike)) else list(argv or ())
+    texts = [os.fsdecode(t) if isinstance(t, (bytes, os.PathLike)) else str(t) for t in texts]
+    for position in _shell_payloads(texts, isinstance(argv, (str, bytes))):
+        code = texts[position].replace("\\\n", "").replace("\n", " ; ")
+        lexer = shlex.shlex(code, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        try:
+            tokens = list(lexer)
+        except ValueError:
+            tokens = code.split()
+        command = []
+        for token in [*tokens, ";"]:
+            if token in SHELL_SEPARATORS:
+                if command:
+                    _check_remote_quartus(command)
+                command = []
+            else:
+                command.append(token)
     env = os.environ if env is None else env
     sources = [argv] + [[os.fsdecode(value)] for value in env.values() if isinstance(value, (str, bytes))]
     first = argv if isinstance(argv, (str, bytes, os.PathLike)) else (list(argv)[:1] or [None])[0]
