@@ -44,6 +44,9 @@ extern "C" {
  * uncertain work is retired without replay. All accesses require open control.
  * Successful repeats re-observe both receipts, without issuing commands. */
 int fes_nano_fabric_stop(struct fes_nano_fabric_stop *);
+/* Validate identity and a fresh, unconfigured native reader while its data
+ * bridge is still held. Successful observation never authorizes data release. */
+int fes_nano_fabric_scanout_ready(struct fes_nano_fabric_stop *);
 /* Independent readback after stop. Returns 0 only for the same complete
  * receipts. The caller retains them after control closes, without more MMIO. */
 int fes_nano_fabric_stopped(struct fes_nano_fabric_stop *);

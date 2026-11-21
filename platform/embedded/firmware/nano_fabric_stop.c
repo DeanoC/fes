@@ -141,6 +141,16 @@ static int scanout_identity(struct fes_nano_fabric_stop *s,struct fes_nano_fabri
        memcmp(v->words+SC_BUILD0,s->build,sizeof(s->build)))return fail(s,-71);
     return 0;
 }
+int fes_nano_fabric_scanout_ready(struct fes_nano_fabric_stop *s)
+{
+    if(!s || s->failed || s->attempted || s->qualified!=1 || !s->io.owns || !s->io.read32 ||
+       s->abi!=FES_NANO_PROGRAM_SPECTRUM48_ABI)return -1;
+    struct fes_nano_fabric_snapshot v={0};
+    uint32_t status;
+    if(scanout_identity(s,&v) || read_word(s,SC_STATUS_OFFSET,&status))return s->first_error;
+    if((status&~SC_DISPLAY_READY)!=SC_DRAINED)return fail(s,-71);
+    return scope(s);
+}
 static int scanout_snapshot(struct fes_nano_fabric_stop *s,struct fes_nano_fabric_snapshot *v)
 {
     uint32_t serial;

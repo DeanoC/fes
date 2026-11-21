@@ -109,6 +109,10 @@ static int sdm_release_returned(const struct nano_probe_binding *binding)
   ((last->generation && last->cookie && last->status==FES_EMBEDDED_STATUS_DRAINED) ||
    (!last->generation && !last->cookie && !last->status && !fabric_stop.disable_issued)) &&
   fes_nano_bridges_held_return(&fes_nano_owned_bridges,&returned)==1;
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+ if(configuration_program.role==FES_NANO_PROGRAM_ROLE_SPECTRUM48)
+     session=spectrum48_held_return(&fes_nano_owned_bridges,&returned)==1;
+#endif
  return binding && !sdm_source_released && FES_PROBE_SD_IO_BINDING_VALID() && configuration.source_release_attempted==1 &&
   !configuration.source_released && configuration.source_release_source==binding->generation &&
   configuration.source_release_generation==fes_nano_owned_bridges.state.generation &&
@@ -182,7 +186,14 @@ static int sdm_probe_owns_mode(void *context,const struct nano_probe_binding *bi
           configuration_program.control_abi==FES_NANO_PROGRAM_MENU_ABI && !configuration_program.rom_bytes) ||
          (sdm_rearm.admitted && configuration_program.role==FES_NANO_PROGRAM_ROLE_COMPUTER &&
           configuration_program.control_abi==FES_NANO_PROGRAM_COMPUTER_ABI &&
-          (configuration_program.rom_bytes==4096 || configuration_program.rom_bytes==8192))))return sdm_probe_reject(10);
+          (configuration_program.rom_bytes==4096 || configuration_program.rom_bytes==8192))
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+         || (sdm_rearm.admitted && configuration_program.role==FES_NANO_PROGRAM_ROLE_SPECTRUM48 &&
+             configuration_program.control_abi==FES_NANO_PROGRAM_SPECTRUM48_ABI &&
+             configuration_program.bytes==configuration_program.spectrum48.bytes &&
+             !configuration_program.rom_bytes)
+#endif
+         ))return sdm_probe_reject(10);
     if(completed==3){
        if(fabric_configuration_generation!=binding->generation || !sdm_release_returned(binding))
            return sdm_probe_reject(34);

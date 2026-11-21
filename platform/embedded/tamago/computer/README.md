@@ -100,12 +100,18 @@ The native descriptor encoder leaves the staged-ROM extension empty. The
 secure decoder admits this role only if trusted initialization supplies the
 exact package, build, size, whole and per-chunk hashes.
 
-The matched chain still needs a Spectrum producer with the native HPS
-envelope and a source-bound master inventory, plus cold-platform activation
-and return wiring for the new role. The existing CPU CSR ROM role permits
-4 or 8 KiB. Spectrum's 16 KiB upload entails 8,192 mailbox data commands and
-remains unqualified against native runtime deadlines, bridge ownership and
-HDMI output.
+The native HPS composition generates the retained H2F bridge, non-SMMU
+F2SDRAM, the independent probe and a scanout-only display master with
+maintenance held in reset. The opt-in cold platform opens only control for
+Spectrum, verifies a fresh reader at the native guard aperture and requires
+the joined stop and held bridge receipt for SD return or source retirement.
+The data bridges stay held during the initial Spectrum play milestone.
+
+The matched chain still needs a signed-off native Spectrum payload, the
+compiled exact companion record and SD-backed ProgramService admission.
+The CPU CSR ROM role supports 4 or 8 KiB. Spectrum's 16 KiB mailbox upload
+entails 8,192 data commands and remains unqualified against physical runtime
+deadlines, bridge ownership and HDMI output.
 
 The diagnostic board's limit is 16375 bytes, below the general ABI's 16384.
 Callers must not mutate supplied slices concurrently with a call; tape bytes

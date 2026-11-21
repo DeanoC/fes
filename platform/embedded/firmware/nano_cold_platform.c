@@ -13,6 +13,19 @@
 #include "nano_program.h"
 #include "generated/fes_de25_ddr_probe.h"
 #include "fes_nano_cold_profile.h"
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+#if !defined(FES_NANO_PROGRAM_ROLES) || !FES_NANO_PROGRAM_ROLES || \
+    !defined(FES_NANO_COLD_ROM) || !FES_NANO_COLD_ROM || \
+    !defined(FES_NANO_COLD_CONFIG) || !FES_NANO_COLD_CONFIG || \
+    !defined(FES_NANO_CONTROL_PROBE) || !FES_NANO_CONTROL_PROBE || \
+    !defined(FES_NANO_READER_CPU_BASE) || !defined(FES_NANO_SPECTRUM48_PROGRAM) || \
+    !defined(FES_NANO_WINDOW_STORAGE_RETURN) || !FES_NANO_WINDOW_STORAGE_RETURN || \
+    !defined(FES_NANO_COMPUTER_STORAGE_RETURN) || !FES_NANO_COMPUTER_STORAGE_RETURN
+#error "Spectrum 48K requires the complete mixed-role native handoff"
+#endif
+_Static_assert(FES_NANO_SPECTRUM48_SCANOUT_BASE==0x20010200UL,
+               "source-bound native Spectrum scanout guard");
+#endif
 #if defined(FES_NANO_SDM_INPUT_TRANSFER) && FES_NANO_SDM_INPUT_TRANSFER
 #include "input_transfer_service.h"
 #endif
@@ -239,6 +252,9 @@ static uint32_t firewall_bridge;
 static uint32_t active_reader_bytes(void)
 {
 #if defined(FES_NANO_PROGRAM_ROLES) && FES_NANO_PROGRAM_ROLES
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+    if(active_program_role==FES_NANO_PROGRAM_ROLE_SPECTRUM48)return 8U<<20;
+#endif
     return active_program_role==FES_NANO_PROGRAM_ROLE_MENU ? (8U<<20) : FES_NANO_READER_BYTES;
 #else
     return FES_NANO_READER_BYTES;
@@ -294,6 +310,11 @@ static int fabric_owns(void *context)
     return s->control_expected && identity_probe.active && !identity_probe.first_error &&
         identity_probe.bridges==&fes_nano_owned_bridges &&
         (identity_probe.stage==FES_ID_CLOSE ||
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+         (active_program_role==FES_NANO_PROGRAM_ROLE_SPECTRUM48 &&
+          fabric_stop.abi==FES_NANO_PROGRAM_SPECTRUM48_ABI &&
+          identity_probe.stage==FES_ID_OPEN && !s->ddr_expected) ||
+#endif
          ((identity_probe.reader==2 || identity_probe.reader==FES_NANO_READER_WINDOW) &&
           (identity_probe.stage==FES_ID_DDR_PREPARE || identity_probe.stage==FES_ID_DDR_RELEASE))) &&
         fes_nano_owned_bridges.state.generation==fabric_generation &&
@@ -316,6 +337,37 @@ static int fabric_write(void *context,uint32_t offset,uint32_t value)
     dsbsy();mmio_write_32(FES_NANO_CONTROL_BASE+offset,value);dsbsy();
     return fabric_owns(context)==1 ? 0 : -1;
 }
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+static int spectrum_scanout_owns(void *context)
+{
+    return context==&provider && !provider.ddr_expected &&
+        active_program_role==FES_NANO_PROGRAM_ROLE_SPECTRUM48 &&
+        fabric_stop.abi==FES_NANO_PROGRAM_SPECTRUM48_ABI &&
+        (identity_probe.stage==FES_ID_OPEN || identity_probe.stage==FES_ID_CLOSE) &&
+        fabric_owns(context)==1;
+}
+static int spectrum_scanout_read(void *context,uint32_t offset,uint32_t *value)
+{
+    switch(offset) {
+    case 0x00:case 0x04:case 0x08:case 0x2c:case 0x30:case 0x34:case 0x38:
+    case 0x54:case 0x58:case 0x5c:case 0x60:case 0x64:case 0x68:case 0x6c:case 0x70:
+        break;
+    default:return -1;
+    }
+    if(spectrum_scanout_owns(context)!=1)return -1;
+    dsbsy();*value=mmio_read_32(FES_NANO_SPECTRUM48_SCANOUT_BASE+offset);dsbsy();
+    return spectrum_scanout_owns(context)==1 ? 0 : -1;
+}
+static int spectrum_scanout_write(void *context,uint32_t offset,uint32_t value)
+{
+    if(offset!=0x0c || (value!=2 && value!=8) || identity_probe.stage!=FES_ID_CLOSE ||
+       spectrum_scanout_owns(context)!=1)return -1;
+    dsbsy();mmio_write_32(FES_NANO_SPECTRUM48_SCANOUT_BASE+offset,value);dsbsy();
+    return spectrum_scanout_owns(context)==1 ? 0 : -1;
+}
+
+#endif
+
 static int probe_read(void *context,uint32_t offset,uint32_t *value)
 {
     switch(offset) {
@@ -425,7 +477,17 @@ static struct fes_nano_fabric_stop new_fabric_stop(unsigned qualified)
     if(configuration_program.initialized) {
         uint32_t role=0,abi=0;
         if(fes_nano_program_role(&configuration_program,&role,&abi))out.qualified=0;
-        else {out.abi=abi;out.bytes=role==FES_NANO_PROGRAM_ROLE_MENU ? (8U<<20) : FES_NANO_READER_BYTES;}
+        else {
+            out.abi=abi;
+            out.bytes=role==FES_NANO_PROGRAM_ROLE_MENU ? (8U<<20) : FES_NANO_READER_BYTES;
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+            if(role==FES_NANO_PROGRAM_ROLE_SPECTRUM48) {
+                out.bytes=8U<<20;
+                out.io=(struct fes_nano_fabric_stop_io){
+                    &provider,spectrum_scanout_owns,spectrum_scanout_read,spectrum_scanout_write,fabric_wait};
+            }
+#endif
+        }
     }
 #endif
 #endif
@@ -835,6 +897,21 @@ int fes_nano_platform_identity_setup(void)
 #endif
 #include "sha.h"
 static struct fes_nano_configuration configuration;
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+int fes_nano_platform_spectrum48_ready(struct fes_nano_configuration *c,uint64_t owner,uint64_t generation)
+{
+    struct fes_nano_bridge_snapshot current;
+    if(c!=&configuration || !owner || c->owner!=owner || c->generation==UINT64_MAX ||
+       generation!=c->generation+1 || generation!=fabric_configuration_generation+1 ||
+       fabric_generation || fabric_stop.attempted || identity_probe.stage!=FES_ID_OPEN ||
+       fes_nano_bridges_observe(&fes_nano_owned_bridges,&current) ||
+       current.owner!=owner || current.generation!=generation || current.reset!=FES_NANO_BRIDGES_DATA ||
+       !current.masters_contained)return -1;
+    fabric_generation=generation;
+    fabric_stop.cookie=generation;
+    return fes_nano_fabric_scanout_ready(&fabric_stop);
+}
+#endif
 /* Diagnostic time only; these counters never grant configuration authority. */
 static uint64_t configuration_hash_ticks;
 struct fes_nano_configuration *fes_nano_platform_configuration(void) { return &configuration; }
@@ -890,6 +967,9 @@ static int configuration_check(void *context, uint64_t address, uint32_t bytes, 
            memcmp(expected,observed,48) ? -1 : 0;
 }
 #ifdef FES_NANO_READER_CPU_BASE
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+static int spectrum48_held_return(const struct fes_nano_bridges *,uint64_t *);
+#endif
 static int configuration_return_generation(uint64_t owner,uint64_t generation)
 {
     uint64_t returned;
@@ -914,6 +994,10 @@ static int configuration_return_generation(uint64_t owner,uint64_t generation)
     if(fabric_generation==UINT64_MAX ||
        !fes_nano_bridges_held_return(&fes_nano_owned_bridges,&returned) ||
        returned!=fabric_generation+1)return 0;
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+    if(active_program_role==FES_NANO_PROGRAM_ROLE_SPECTRUM48 &&
+       spectrum48_held_return(&fes_nano_owned_bridges,&returned)!=1)return 0;
+#endif
     if(generation==returned)return 1;
 #if defined(FES_NANO_CONTROLLED_SD) && FES_NANO_CONTROLLED_SD
     return fes_nano_sd_returned(&fes_nano_owned_sd,owner,returned,generation)==0;
@@ -1014,6 +1098,10 @@ int fes_nano_platform_configuration_setup(void)
     if(fes_nano_program_enable_rom(&configuration_program,configuration_rom_descriptor))return -1;
 #if defined(FES_NANO_PROGRAM_ROLES) && FES_NANO_PROGRAM_ROLES
     if(fes_nano_program_enable_roles(&configuration_program))return -1;
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+    static const struct fes_nano_spectrum48_program spectrum48=FES_NANO_SPECTRUM48_PROGRAM;
+    if(fes_nano_program_enable_spectrum48(&configuration_program,&spectrum48))return -1;
+#endif
 #endif
 #endif
     struct fes_nano_configuration_ops io={.context=&provider,.check=configuration_check,.trace=configuration_trace,.complete=configuration_complete,.bind=configuration_bind};
@@ -1040,10 +1128,33 @@ void fes_nano_platform_sd_report(void)
         NOTICE("FES_NANO_SD_CLOCK index=%u captured=%08x observed=%08x\n",
                i,sd_platform.clocks[i],sd_platform.observed[i]);
 }
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+static int spectrum48_held_return(const struct fes_nano_bridges *b,uint64_t *generation)
+{
+    uint64_t returned=0;
+    if(b!=&fes_nano_owned_bridges || !generation || active_program_role!=FES_NANO_PROGRAM_ROLE_SPECTRUM48 ||
+       fabric_stop.abi!=FES_NANO_PROGRAM_SPECTRUM48_ABI || fabric_stop.qualified!=1 ||
+       !fabric_stop.attempted || !fabric_stop.done || fabric_stop.failed || fabric_stop.first_error ||
+       !fabric_stop.probe.done || fabric_stop.probe.failed || fabric_stop.cookie!=fabric_generation ||
+       !identity_probe.initialized || !identity_probe.attempted || identity_probe.active || identity_probe.failed ||
+       identity_probe.first_error || identity_probe.cleanup_error || identity_probe.reader ||
+       identity_probe.abi!=FES_NANO_PROGRAM_SPECTRUM48_ABI || identity_probe.bridges!=b ||
+       identity_probe.io.context!=&provider || identity_probe.stage!=FES_ID_COMPLETE ||
+       !fabric_configuration_generation || fabric_generation==UINT64_MAX ||
+       fabric_generation!=fabric_configuration_generation+1 ||
+       fes_nano_bridges_held_return(b,&returned)!=1 || returned!=fabric_generation+1)return 0;
+    *generation=returned;
+    return 1;
+}
+#endif
 #if defined(FES_NANO_WINDOW_STORAGE_RETURN) && FES_NANO_WINDOW_STORAGE_RETURN
 static int window_sd_return(void *context,const struct fes_nano_bridges *b,uint64_t *generation)
 {
 #if defined(FES_NANO_PROGRAM_ROLES) && FES_NANO_PROGRAM_ROLES
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+    if(active_program_role==FES_NANO_PROGRAM_ROLE_SPECTRUM48)
+        return context==&sd_platform ? spectrum48_held_return(b,generation) : 0;
+#endif
     if(active_program_role==FES_NANO_PROGRAM_ROLE_COMPUTER)
         return context==&sd_platform && b==&fes_nano_owned_bridges ? fes_nano_bridges_held_return(b,generation) : 0;
 #endif

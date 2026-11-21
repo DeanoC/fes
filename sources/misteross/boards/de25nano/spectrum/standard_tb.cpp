@@ -328,7 +328,7 @@ struct SecureStop {
 
     void run(unsigned mode) {
         if (mode == 4) board.scanout(0x0c, true, 2);
-        else if (mode != 0 && mode != 5) prime_display(board);
+        else if (mode != 0 && mode != 5 && mode != 6) prime_display(board);
         const unsigned expected_stops = mode >= 4 ? 0 : 1;
         struct fes_nano_fabric_stop stop{};
         stop.io = {this, owns, read, write, wait};
@@ -340,6 +340,13 @@ struct SecureStop {
         stop.bytes = 8U << 20;
         stop.cookie = mode == 3 ? 2 : 1;
         stop.qualified = 1;
+        if (mode >= 6) {
+            int result = fes_nano_fabric_scanout_ready(&stop);
+            require((mode == 6 ? result == 0 && !stop.failed : result != 0 && stop.failed) &&
+                    !stop.attempted && !snapshots && !stops && !probe_reads,
+                    "secure scanout admission did not require a fresh reader");
+            return;
+        }
         int result = fes_nano_fabric_stop(&stop);
         require(stops == expected_stops, "secure scanout STOP count differs");
         if (mode == 2 || mode == 3) {
@@ -393,7 +400,7 @@ int native_mailbox() {
             value = board.display_pending;
 #ifdef SPECTRUM_NATIVE48
         } else if (operation == "check-secure-display-stop" && input >> value) {
-            require(value < 6, "unknown secure display stop case");
+            require(value < 8, "unknown secure display stop case");
             SecureStop stop{board, value == 2};
             stop.run(value);
             value = 0;

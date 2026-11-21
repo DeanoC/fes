@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #define FES_NANO_COLD_SERIAL 1
+#define FES_NANO_SPECTRUM48 1
 #define INTEL_SIP_SMC_STATUS_REJECTED 2
 #define INTEL_SIP_SMC_STATUS_ERROR 4
 #define INTEL_SIP_SMC_STATUS_BUSY 1
@@ -32,6 +33,7 @@ static struct fes_nano_program program;
 static uint8_t wire[FES_NANO_PROGRAM_HEADER_BYTES],rom_wire[FES_NANO_PROGRAM_ROM_HEADER_BYTES];
 static const uint8_t context[32]=FES_NANO_HPS_CONTEXT_SHA;
 static unsigned resets=15,contained=1,valid=1,engine_calls,rom_calls,prepared,stops;
+static unsigned spectrum_opens,spectrum_failure;
 static unsigned rom_failure,stop_failure,configured_failure,complete_failure;
 static unsigned request_type,max_blocks=1,bytes_per_block=64,send_id,current_block,blocks_submitted;
 static int fes_contained_transport_status;
@@ -55,6 +57,14 @@ int fes_nano_platform_computer_rom(struct fes_nano_configuration *c,uint64_t own
     assert(c==&configuration && owner==17 && generation==c->generation+1 && program.rom_bytes &&
            probe.abi==FES_NANO_PROGRAM_COMPUTER_ABI && !probe.reader && resets==13);
     rom_calls++;return rom_failure ? -1 : 0;
+}
+int fes_nano_platform_spectrum48_ready(struct fes_nano_configuration *c,uint64_t owner,uint64_t generation)
+{
+    assert(c==&configuration && owner==17 && generation==c->generation+1 &&
+           program.role==FES_NANO_PROGRAM_ROLE_SPECTRUM48 && !program.rom_bytes &&
+           probe.abi==FES_NANO_PROGRAM_SPECTRUM48_ABI && !probe.reader && resets==13);
+    spectrum_opens++;
+    return spectrum_failure ? -1 : 0;
 }
 int fes_nano_platform_window_prepare(void)
 { assert(probe.reader==FES_NANO_READER_WINDOW && resets==13);prepared++;return 0; }
@@ -111,8 +121,15 @@ static int complete(void *p,uint64_t owner,uint64_t generation,unsigned rearmed)
 }
 static void put32(uint8_t *p,uint32_t value) { for(unsigned i=0;i<4;i++)p[i]=(uint8_t)(value>>(8*i)); }
 static void put64(uint8_t *p,uint64_t value) { for(unsigned i=0;i<8;i++)p[i]=(uint8_t)(value>>(8*i)); }
+static uint32_t role_abi(unsigned role)
+{
+    if(role==FES_NANO_PROGRAM_ROLE_MENU)return FES_NANO_PROGRAM_MENU_ABI;
+    if(role==FES_NANO_PROGRAM_ROLE_SPECTRUM48)return FES_NANO_PROGRAM_SPECTRUM48_ABI;
+    return FES_NANO_PROGRAM_COMPUTER_ABI;
+}
 static void publish(unsigned role,unsigned seed)
 {
+    if(role==FES_NANO_PROGRAM_ROLE_SPECTRUM48)seed=0x3a;
     memset(wire,0,sizeof(wire));memset(rom_wire,0,sizeof(rom_wire));
     put32(wire,FES_NANO_PROGRAM_MAGIC);put32(wire+4,FES_NANO_PROGRAM_ROLE_VERSION);
     put32(wire+8,sizeof(wire));put32(wire+12,128);put32(wire+16,64);put32(wire+20,2);
@@ -120,7 +137,7 @@ static void publish(unsigned role,unsigned seed)
     memset(wire+72,seed,32);memset(wire+104,seed,16);memset(wire+120,seed,32);
     memset(wire+152,seed,48);memset(wire+200,seed,96);
     put32(wire+FES_NANO_PROGRAM_ROLE_OFFSET,role);
-    put32(wire+FES_NANO_PROGRAM_ROLE_OFFSET+4,role==1?FES_NANO_PROGRAM_MENU_ABI:FES_NANO_PROGRAM_COMPUTER_ABI);
+    put32(wire+FES_NANO_PROGRAM_ROLE_OFFSET+4,role_abi(role));
     if(role==2) {
         put32(rom_wire,FES_NANO_PROGRAM_ROM_MAGIC);put32(rom_wire+4,1);put32(rom_wire+8,sizeof(rom_wire));
         put32(rom_wire+12,128);put32(rom_wire+16,4096);put32(rom_wire+20,seed);
@@ -159,7 +176,7 @@ static void transfer(unsigned role,unsigned cycle)
     }
     assert(!r[0] && configuration.finished && fes_nano_program_active_role==role &&
            fes_nano_program_active_generation==configuration.generation &&
-           probe.abi==(role==1?FES_NANO_PROGRAM_MENU_ABI:FES_NANO_PROGRAM_COMPUTER_ABI));
+           probe.abi==role_abi(role));
 }
 int main(int argc,char **argv)
 {
@@ -177,6 +194,47 @@ int main(int argc,char **argv)
     probe.initialized=1;probe.bridges=&fes_nano_owned_bridges;probe.io=identity_io;
     forbidden(FES_EMBEDDED_BRIDGE_CONTROL);forbidden(FES_EMBEDDED_BRIDGE_PROBE_IDENTITY);
     forbidden(FES_EMBEDDED_BRIDGE_PROBE_READER);forbidden(FES_EMBEDDED_BRIDGE_CONFIGURATION);
+    if(mode==26 || mode==27 || mode==28) {
+        struct fes_nano_spectrum48_program selected={.bytes=128};
+        memset(selected.package,0x3a,sizeof(selected.package));
+        memset(selected.build,0x3a,sizeof(selected.build));
+        memset(selected.sha256,0x3a,sizeof(selected.sha256));
+        memset(selected.sha384,0x3a,sizeof(selected.sha384));
+        memset(selected.chunks,0x3a,2*sizeof(selected.chunks[0]));
+        assert(!fes_nano_program_enable_spectrum48(&program,&selected));
+        for(unsigned cycle=0;cycle<4;cycle++) {
+            unsigned role=cycle%2 ? FES_NANO_PROGRAM_ROLE_MENU : FES_NANO_PROGRAM_ROLE_SPECTRUM48;
+            transfer(role,cycle);
+            spectrum_failure=mode==27;
+            bridge_call(FES_EMBEDDED_BRIDGE_CONTROL,r);
+            if(spectrum_failure) {
+                assert(r[0] && probe.failed && resets==15 && spectrum_opens==1 && !rom_calls);
+                forbidden(FES_EMBEDDED_BRIDGE_CONTROL);
+                puts("PASS Spectrum identity failure retired the new activation");return 0;
+            }
+            assert(!r[0] && resets==13 && !rom_calls);
+            if(role==FES_NANO_PROGRAM_ROLE_MENU) {
+                bridge_call(FES_EMBEDDED_BRIDGE_RELEASE|(8U<<FES_EMBEDDED_BRIDGE_RELEASE_SHIFT),r);
+                assert(!r[0] && resets==5);
+                bridge_call(FES_EMBEDDED_BRIDGE_CLOSE,r);
+            } else {
+                forbidden(FES_EMBEDDED_BRIDGE_RELEASE|(8U<<FES_EMBEDDED_BRIDGE_RELEASE_SHIFT));
+                stop_failure=mode==28;
+                bridge_call(FES_EMBEDDED_BRIDGE_CLOSE|FES_EMBEDDED_BRIDGE_REQUEST_HELD,r);
+                if(stop_failure) {
+                    assert(r[0] && probe.failed && resets==15 && spectrum_opens==1);
+                    forbidden(FES_EMBEDDED_BRIDGE_CONTROL);
+                    puts("PASS Spectrum stop failure denied a repeated opening");return 0;
+                }
+                uint64_t returned=0;
+                assert(!r[0] && fes_nano_bridges_held_return(&fes_nano_owned_bridges,&returned)==1 &&
+                       returned==configuration.generation+2);
+            }
+            assert(!r[0] && resets==15 && !probe.active && probe.stage==FES_ID_COMPLETE);
+        }
+        assert(spectrum_opens==2 && !rom_calls && stops==4);
+        puts("PASS native Spectrum and MENU used distinct open and return scopes");return 0;
+    }
     if(mode>=10) {
         publish(1,1);fes_nano_configuration_prepare(&configuration,17,1,0,r);assert(!r[0]);
         configuration.started=1;configuration.completed=128;

@@ -18,6 +18,27 @@ static uint32_t fes_nano_program_active_role;
 static uint64_t fes_nano_program_active_generation;
 static unsigned fes_nano_program_control_failed;
 
+static int fes_nano_program_uses_held_control(uint32_t role)
+{
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+    if(role==FES_NANO_PROGRAM_ROLE_SPECTRUM48)return 1;
+#endif
+    return role==FES_NANO_PROGRAM_ROLE_COMPUTER;
+}
+
+static int fes_nano_program_role_resources(uint32_t role,uint32_t abi,
+                                          const struct fes_nano_program *p)
+{
+    if(role==FES_NANO_PROGRAM_ROLE_MENU)
+        return abi==FES_NANO_PROGRAM_MENU_ABI && !p->rom_bytes;
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+    if(role==FES_NANO_PROGRAM_ROLE_SPECTRUM48)
+        return abi==FES_NANO_PROGRAM_SPECTRUM48_ABI && p->spectrum48.bytes==p->bytes &&
+            !p->rom_bytes && !p->rom_offset && !p->rom_crc;
+#endif
+    return role==FES_NANO_PROGRAM_ROLE_COMPUTER && abi==FES_NANO_PROGRAM_COMPUTER_ABI && p->rom_bytes;
+}
+
 int fes_nano_program_control_activate(struct fes_nano_configuration *c,
                                      const struct fes_nano_program *program)
 {
@@ -27,7 +48,7 @@ int fes_nano_program_control_activate(struct fes_nano_configuration *c,
     unsigned previous_closed=
         fes_nano_program_active_role==FES_NANO_PROGRAM_ROLE_MENU ?
             fes_nano_window_phase==FES_WINDOW_RECONFIGURING :
-            fes_nano_program_active_role==FES_NANO_PROGRAM_ROLE_COMPUTER && fes_nano_computer_phase==2;
+            fes_nano_program_uses_held_control(fes_nano_program_active_role) && fes_nano_computer_phase==2;
     if(fes_nano_program_control_failed || !c || c!=fes_nano_platform_configuration() ||
        !c->initialized || !c->attempted || !c->prepared || !c->started || c->finished ||
        c->failed || c->issued || c->pending || !c->bytes || c->completed!=c->bytes ||
@@ -35,8 +56,7 @@ int fes_nano_program_control_activate(struct fes_nano_configuration *c,
        !program || !program->mixed_roles || program->owner!=c->owner || program->generation!=c->generation ||
        fes_nano_program_role(program,&role,&abi) || fes_nano_program_build(program,build) ||
        program->bytes!=c->bytes ||
-       !((role==FES_NANO_PROGRAM_ROLE_MENU && abi==FES_NANO_PROGRAM_MENU_ABI && !program->rom_bytes) ||
-         (role==FES_NANO_PROGRAM_ROLE_COMPUTER && abi==FES_NANO_PROGRAM_COMPUTER_ABI && program->rom_bytes)) ||
+       !fes_nano_program_role_resources(role,abi,program) ||
        !p || !p->initialized || p->failed || p->active || p->first_error || p->cleanup_error ||
        p->bridges!=c->bridges ||
        (fes_nano_program_active_generation ?
@@ -70,7 +90,7 @@ static int fes_nano_program_control(uint32_t fid,uint64_t operation,uint64_t own
         operation==FES_EMBEDDED_BRIDGE_CONFIGURATION))return 1;
     if(fes_nano_program_active_role==FES_NANO_PROGRAM_ROLE_MENU)
         return fes_nano_window_control(fid,operation,owner,cookie,generation,c,busy,r);
-    if(fes_nano_program_active_role==FES_NANO_PROGRAM_ROLE_COMPUTER)
+    if(fes_nano_program_uses_held_control(fes_nano_program_active_role))
         return fes_nano_computer_control(fid,operation,owner,cookie,generation,c,busy,r);
     /* Initial closed boot: permit the ordinary SD/context/configuration
      * path, but no raw control/probe or bridge transition can bypass selection. */

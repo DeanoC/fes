@@ -432,10 +432,16 @@ func TestSpectrum48SecureStopRTL(t *testing.T) {
 	if executable == "" {
 		t.Skip("run the Spectrum sim.py with --native-mailbox")
 	}
-	for mode, name := range []string{"idle", "active-drains", "withheld-response", "wrong-generation", "already-retired"} {
-		t.Run(name, func(t *testing.T) {
+	for _, scenario := range []struct {
+		name string
+		mode uint32
+	}{
+		{"idle", 0}, {"active-drains", 1}, {"withheld-response", 2}, {"wrong-generation", 3},
+		{"already-retired", 4}, {"fresh-admission", 6}, {"active-admission-rejected", 7},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
 			mailbox := startSpectrumMailbox(t, executable)
-			if _, err := mailbox.call("check-secure-display-stop %x", mode); err != nil {
+			if _, err := mailbox.call("check-secure-display-stop %x", scenario.mode); err != nil {
 				t.Fatal(err)
 			}
 		})
