@@ -134,10 +134,12 @@ class Machine:
             'target': {'platform': 'de25_nano', 'device': DEVICE, 'programming_profile': 'de25-linux-computer-v1'},
             'payload': {'file': 'core.rbf', 'size': payload.stat().st_size, 'sha256': sha(payload)},
             'abi': {'id': 'fes.computer', 'major': 1, 'minor': 0},
-            'interfaces': [{'id': name, 'major': major, 'minor': minor, 'required': True}
-                           for name, major, minor in (*((name, 1, 0) for name in SHELL), *self.interfaces,
-                                                      *self.model_interfaces.get(fields['parameters']['model'], ()),
-                                                      (FIRMWARE_UPLOAD, 1, 0), ('fes.fabric.de25-scanout', 1, 3))],
+            # An entry is (id, major, minor) or, for an optional one, (id, major, minor, False).
+            'interfaces': [{'id': name, 'major': major, 'minor': minor, 'required': bool(required[0]) if required else True}
+                           for name, major, minor, *required in (
+                               *((name, 1, 0) for name in SHELL), *self.interfaces,
+                               *self.model_interfaces.get(fields['parameters']['model'], ()),
+                               (FIRMWARE_UPLOAD, 1, 0), ('fes.fabric.de25-scanout', 1, 3))],
             'build': {'id': build_identity(record), 'repository': fields['repository'],
                 'revision': fields['revision'], 'recipe_sha256': fields['recipe_sha256'],
                 'toolchain': '; '.join(f'{name} {value}' for name, value in sorted(fields['tools'].items()))}})

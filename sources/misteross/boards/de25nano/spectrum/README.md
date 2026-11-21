@@ -91,4 +91,6 @@ timing review, no reviewed input/output reference and no package identity.
 - The disk models on hardware, snapshots through the tape unit on hardware,
   and the edge sockets. The DE10 packages also declare the optional snapshot
   interfaces; the DE25 ones declare only the tape and, on the disk models, the
-  disk.
+  disk with its optional controller (`fes.media.spectrum-disk-plus3` on the
+  +2A/+3, `fes.media.spectrum-disk-trdos` on the Pentagon), which FogCast reads
+  to choose the disk format.

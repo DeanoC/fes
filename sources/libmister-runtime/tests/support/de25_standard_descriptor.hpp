@@ -38,6 +38,9 @@ inline mister::CoreDescriptor De25SpectrumDiskDescriptor(const char* id,std::uin
  auto d=De25StandardShellDescriptor(id);
  d.interfaces.push_back({"fes.media.spectrum-tape",2,0,true});
  d.interfaces.push_back({"fes.media.spectrum-disk",1,0,true});
+ // The optional controller names the disk's image format, as on DE10.
+ d.interfaces.push_back({std::string(id)=="fes.pentagon"?"fes.media.spectrum-disk-trdos":"fes.media.spectrum-disk-plus3",
+  1,0,false});
  De25FirmwareRequirement(&d,bytes);return d;
 }
 // Live capability word 0x278f (boards/de25nano/atari-st/standard_tb.cpp).

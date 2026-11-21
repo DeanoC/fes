@@ -78,7 +78,9 @@ acceptance.
 The same profile admits five firmware machines from a per-core contract table
 (`src/native/de25_core_contract.hpp`): `fes.spectrum` and `fes.spectrum128`
 (the shell plus `fes.media.spectrum-tape` 2.0), `fes.spectrum-plus3` and
-`fes.pentagon` (the same plus `fes.media.spectrum-disk` 1.0), and `fes.atari-st` (the shell
+`fes.pentagon` (the same plus `fes.media.spectrum-disk` 1.0 and, optional as on DE10,
+the controller that names the disk format: `fes.media.spectrum-disk-plus3` 1.0 or
+`fes.media.spectrum-disk-trdos` 1.0), and `fes.atari-st` (the shell
 plus relative mouse and the floppy with its write and geometry interfaces).
 Each adds `fes.fabric.firmware-upload` 1.0 and uses format 3: an Agilex
 bitstream is programmed unchanged and the sealed ROM requirement names the

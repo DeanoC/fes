@@ -1181,7 +1181,7 @@ void TestDe25StandardProfileAdmitsSpectrumModelsAndAtariSt()
  for(const auto& d:machines) {
   const bool st=d.core.id=="fes.atari-st";
   const bool disk=d.core.id=="fes.spectrum-plus3"||d.core.id=="fes.pentagon";
-  assert(d.interfaces.size()==(st?12u:disk?10u:9u));
+  assert(d.interfaces.size()==(st?12u:disk?11u:9u));
   assert(CheckDe25StandardComputerContract(d).ok());
   assert(CheckCoreCompatibility(d,NativePlatform::de25_nano).ok());
   // Neither machine exists for the Cyclone V runtime under this target.
@@ -1189,7 +1189,7 @@ void TestDe25StandardProfileAdmitsSpectrumModelsAndAtariSt()
   ProgrammingProfile profile;CoreDriver* driver=nullptr;
   assert(registry.Resolve(d,&profile,&driver).ok()&&
    profile==ProgrammingProfile::de25_linux_computer_v1&&driver==&shared);
-  for(unsigned failure=0;failure<16;++failure) {
+  for(unsigned failure=0;failure<19;++failure) {
    auto bad=d;
    if(failure==0)bad.interfaces.pop_back();                       // no firmware interface
    if(failure==1)bad.interfaces.back().required=false;
@@ -1207,9 +1207,27 @@ void TestDe25StandardProfileAdmitsSpectrumModelsAndAtariSt()
    if(failure==12)bad.interfaces[6].minor=2;                      // scanout 1.2
    if(failure==13)bad.interfaces.back()=bad.interfaces.front();
    if(failure==14)bad.abi.minor=1;
-   if(failure==15) {                                              // the disk unit belongs to its models
-    if(disk)bad.interfaces.erase(bad.interfaces.end()-2);
+   // The disk unit and its controller belong to their models: firmware upload
+   // is last, the controller before it and the disk unit before that.
+   const char* other=d.core.id=="fes.pentagon"?"fes.media.spectrum-disk-plus3":"fes.media.spectrum-disk-trdos";
+   if(failure==15) {
+    if(disk)bad.interfaces.erase(bad.interfaces.end()-3);       // controller without its unit
     else bad.interfaces.insert(bad.interfaces.end()-1,{"fes.media.spectrum-disk",1,0,true});
+   }
+   if(failure==16) {
+    if(disk)bad.interfaces.erase(bad.interfaces.end()-2);       // unit without its controller
+    else bad.interfaces.insert(bad.interfaces.end()-1,{"fes.media.spectrum-disk-plus3",1,0,false});
+   }
+   if(failure==17) {
+    if(disk)bad.interfaces.end()[-2].required=true;               // the controller stays optional
+    else bad.interfaces.insert(bad.interfaces.end()-1,{"fes.media.spectrum-disk-trdos",1,0,false});
+   }
+   if(failure==18) {
+    if(disk)bad.interfaces.end()[-2].id=other;                    // the other model's controller
+    else {                                                       // a disk model's whole set
+     bad.interfaces.insert(bad.interfaces.end()-1,{"fes.media.spectrum-disk",1,0,true});
+     bad.interfaces.insert(bad.interfaces.end()-1,{"fes.media.spectrum-disk-plus3",1,0,false});
+    }
    }
    const Error error=CheckCoreCompatibility(bad,NativePlatform::de25_nano);
    if(error.ok())fprintf(stderr,"%s failure %u admitted\n",d.core.id.c_str(),failure);

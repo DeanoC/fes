@@ -29,8 +29,11 @@ MACHINE = Machine(
     model_core_ids={'128': 'fes.spectrum128', 'plus3': 'fes.spectrum-plus3', 'pentagon': 'fes.pentagon'},
     model_rom_ids={'128': 'spectrum128-firmware', 'plus3': 'spectrum-plus3-firmware',
                    'pentagon': 'pentagon-firmware'},
-    model_interfaces={'plus3': (('fes.media.spectrum-disk', 1, 0),),
-                      'pentagon': (('fes.media.spectrum-disk', 1, 0),)})
+    # The disk unit, and the controller that names its image format, as on DE10.
+    model_interfaces={'plus3': (('fes.media.spectrum-disk', 1, 0),
+                                ('fes.media.spectrum-disk-plus3', 1, 0, False)),
+                      'pentagon': (('fes.media.spectrum-disk', 1, 0),
+                                   ('fes.media.spectrum-disk-trdos', 1, 0, False))})
 
 
 def _require_clean_source(root, *, identity_version=2, pinned_inputs=(RECIPE, ABI)):
