@@ -36,9 +36,6 @@ from scripts import quartus_tools as qt  # noqa: E402
 # convert or program an existing bitstream in seconds and a few hundred MB, so
 # they are not leased (the same set quartus_tools.QUARTUS_PROGRAM leaves out).
 LEASED = re.compile(r"\bquartus_(sh|map|syn|fit|sta|asm|eda|cdb|ipgenerate|npp|pow|drc|si|tan|dse|stp)\b(?!_)")
-# A call to any locate_quartus: the repository's wrappers all delegate to
-# quartus_tools.locate_quartus (checked below), which takes the lease.
-LOCATES = re.compile(r"\blocate_quartus\(")
 LAUNCH = re.compile(r"subprocess\.|\bPopen\(|os\.exec|os\.system\(|os\.spawn|os\.posix_spawn")
 PROBE = re.compile(r"^\s*(--version|-v|--help|-h)\b")
 
@@ -47,10 +44,25 @@ PROBE = re.compile(r"^\s*(--version|-v|--help|-h)\b")
 # Static rule
 # ---------------------------------------------------------------------------
 
+def _definition_time(node: ast.AST) -> list[ast.AST]:
+    """What runs when a def or lambda is evaluated: decorators, defaults and
+    annotations, not the body."""
+    if isinstance(node, ast.Lambda):
+        return [*node.args.defaults, *[d for d in node.args.kw_defaults if d is not None]]
+    args = node.args
+    annotations = [a.annotation for a in (*args.posonlyargs, *args.args, *args.kwonlyargs,
+                                          *([args.vararg] if args.vararg else []),
+                                          *([args.kwarg] if args.kwarg else [])) if a.annotation is not None]
+    return [*node.decorator_list, *args.defaults, *[d for d in args.kw_defaults if d is not None],
+            *annotations, *([node.returns] if node.returns is not None else [])]
+
+
 def _module_level(tree: ast.AST):
     """The nodes that certainly run when the module is imported: not function
     bodies, and not the branches of if/while/for/match (`if TYPE_CHECKING:`,
-    `if False:`) or anything in a try but its finally, which may not."""
+    `if False:`), anything in a try but its finally, or a with body (an
+    exception it suppresses may cut it short), which may not. A def's
+    decorators, defaults and annotations run; its body does not."""
     pending = [tree]
     while pending:
         node = pending.pop()
@@ -60,9 +72,16 @@ def _module_level(tree: ast.AST):
             # raise before a later one, and handlers and else depend on it.
             pending.extend(node.finalbody)
             continue
+        if isinstance(node, (ast.With, ast.AsyncWith)):
+            # The context expressions run; the body may be cut short by an
+            # exception the context manager suppresses.
+            pending.extend(item.context_expr for item in node.items)
+            continue
         for child in ast.iter_child_nodes(node):
-            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda,
-                                  ast.If, ast.While, ast.For, ast.AsyncFor, ast.Match, ast.IfExp)):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                pending.extend(_definition_time(child))
+                continue
+            if isinstance(child, (ast.If, ast.While, ast.For, ast.AsyncFor, ast.Match, ast.IfExp)):
                 continue
             pending.append(child)
 
@@ -268,6 +287,7 @@ def _first_module_launch(tree: ast.Module) -> int | None:
     while pending:
         node = pending.pop()
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            pending.extend(_definition_time(node))  # these run at definition
             continue
         if _is_launch_call(node) or (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
                                      and node.func.id in local):
@@ -280,6 +300,19 @@ def _imports_of_node(node: ast.AST, path: Path, roots: tuple[Path, ...]) -> set[
     """The in-repo modules one import statement brings in."""
     holder = ast.Module(body=[node], type_ignores=[])
     return _imports_tree(holder, path, roots)
+
+
+def calls_locate_quartus(text: str) -> bool:
+    """A real call to a locate_quartus (not a mention in a comment or
+    docstring). The repository's wrappers all delegate to
+    quartus_tools.locate_quartus (checked below), which takes the lease."""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return False
+    return any(isinstance(node, ast.Call) and (getattr(node.func, "attr", None) == "locate_quartus"
+                                               or getattr(node.func, "id", None) == "locate_quartus")
+               for node in ast.walk(tree))
 
 
 def python_names_leased(text: str) -> bool:
@@ -399,7 +432,7 @@ def unleased_quartus(root: Path, files: list[str], misteross: Path | None = None
                 continue
             # Naming a program is enough: it may be handed to a launching
             # helper in another module (helper.launch(['quartus_fit'])).
-            if python_names_leased(text) and not LOCATES.search(text) and not leased(path):
+            if python_names_leased(text) and not calls_locate_quartus(text) and not leased(path):
                 failures.append(f"{name}: names a Quartus program, but never imports scripts.quartus_tools")
         elif is_shell:
             # No raw-text prefilter: the shell joins quoted fragments
@@ -510,6 +543,21 @@ class StaticRuleTests(unittest.TestCase):
                               "import subprocess\ndef launch():\n    subprocess.run(['quartus_fit', 'top'])\n"
                               "launch()\nfrom scripts import quartus_tools\n"})
         self.assertEqual(len(failures), 1)
+        # Codex P1s at 7aa55d9fc: a launch in a default or decorator, an import
+        # in a with body, and locate_quartus only in a docstring.
+        failures = self.scan({
+            "sources/misteross/scripts/dflt.py": "import subprocess\n"
+                                                 "def f(x=subprocess.run(['quartus_fit', 'top'])):\n    pass\n"
+                                                 "from scripts import quartus_tools\n",
+            "sources/misteross/scripts/withs.py": "import subprocess\nfrom contextlib import suppress\n"
+                                                  "with suppress(RuntimeError):\n    raise RuntimeError()\n"
+                                                  "    from scripts import quartus_tools\n"
+                                                  "subprocess.run(['quartus_fit', 'top'])\n",
+            "sources/misteross/scripts/doc.py": '"""Uses locate_quartus() elsewhere."""\nimport subprocess\n'
+                                                "subprocess.run(['quartus_fit', 'top'])\n"})
+        self.assertEqual(sorted(f.split(":")[0] for f in failures),
+                         ["sources/misteross/scripts/dflt.py", "sources/misteross/scripts/doc.py",
+                          "sources/misteross/scripts/withs.py"])
         # Codex P1 at 71686c161: an annotated lambda binding.
         failures = self.scan({"sources/misteross/scripts/late5.py":
                               "import subprocess\nlaunch: object = lambda: subprocess.run(['quartus_fit', 'top'])\n"
