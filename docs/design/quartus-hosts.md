@@ -69,10 +69,16 @@ of the largest edition using it, is at most RAM minus what is kept back.
 | DE25 ZX81 board fit, Quartus Pro 26.3 | 5.59 GB `quartus_fit` VmHWM | `/proc/<pid>/status` of Lander's 21 Nov baseline build on chip |
 | pc386 machine fit on Agilex 5 (`fit_i386_device.py`) | 6.11 GB `quartus_fit` VmHWM | the same, on x87 slice 6's fit |
 | DE10 pc386 Lite seal, Quartus Lite 17.0.2 | 5.65 GB virtual (largest of 18 seals since 17 Nov) | `Peak virtual memory` in `top.*.rpt` under `/data/projects/fes-pc386` on chip |
-| Leased runs for this change | see the PR's validation record | `quartus_jobs.py run` peak RSS of the job's process group |
+| pc386 machine fit on Agilex 5, leased run (`fit_i386_device.py --device de25 --design machine`) | **5.93 GiB RSS**; Quartus reports 7.79 GB virtual | `quartus_jobs.py run` on Powerboat, 21 Nov, commit 2290d767a |
+| DE10 ZX81 Lite seal, leased run (`build_fes_zx81_quartus.py`) | **2.20 GiB RSS**; Quartus reports 2.74 GB virtual | the same |
 
 Quartus reports peak *virtual* memory per stage, which bounds resident memory
-from above. `PEAK_RSS_GIB` is 9 for Pro and 6 for Lite, rounded up from these.
+from above. In the two leased runs, resident memory over the whole job, summed
+across every descendant process, peaked at 76–80% of Quartus's reported
+virtual peak. The DE25 pc386 board fit (8.3 GB virtual; its shell is not on
+main yet) and the pc386 Lite seal (5.65 GB virtual) therefore come to about
+6.6 and 4.5 GiB resident. `PEAK_RSS_GIB` is 9 for Pro and 6 for Lite: the
+virtual peaks rounded up, which leaves room for what a 5-second sample misses.
 chip's pool then fits one Pro job, or one Lander job, beside one Lite job
 (9 + 6 = 15 of 15 GB). Powerboat fits two Pro and three Lite (36 of 38 GB),
 leaving the rest for Deano's harness, the kits and GPU routes.
