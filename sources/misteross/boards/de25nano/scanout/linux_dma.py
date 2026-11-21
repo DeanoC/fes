@@ -6,7 +6,7 @@ import re
 
 HPS_IP = 'hps_subsys/ip/hps_subsys/agilex_hps.ip'
 ADAPTER = 'custom_ip/f2sdram_adapter/f2sdram_adapter_hw.tcl'
-MANAGED_FABRIC = 'managed-scanout-initiators-v3'
+MANAGED_FABRIC = 'managed-scanout-initiators-v4'
 GHRD_SDC_SHA256 = '743b02b7fa6e3f6397890702f626ff7b27a5c7ab6aa9d1721c22d286900c7247'
 JTAG_SDC_SHA256 = '02d78bf9bc14eea02092569a0639f6bd4f4b11e161e4fc6349c30128d640e17a'
 EMIF_REFERENCE = {
@@ -16,8 +16,10 @@ EMIF_REFERENCE = {
     'period_ns': '6.000', 'port': 'LPDDR4A_REFCLK_p',
     'fitted_clock_validation': 'required',
 }
+REMOVED_INSTANCES = ('subsys_debug', 'ace5lite_cache_coherency_translator_0', 'ocm')
+DISABLED_HPS_PARAMETERS = ('f2s_data_width', 'H2F_Width')
 MANAGED_MASTERS = (
-    'subsys_hps_agilex_hps.hps2fpga', 'subsys_hps_agilex_hps.lwhps2fpga',
+    'subsys_hps_agilex_hps.lwhps2fpga',
     'subsys_periph_pb_cpu_0.m0', 'subsys_periph_fes_scanout_guard.avm',
     'subsys_periph_fes_ctrl_cdc.m0', 'subsys_periph_fes_scanout.avm',
     'subsys_periph_fes_mem_cdc.m0', 'subsys_hps_f2sdram_adapter.axi4_man')
@@ -95,13 +97,22 @@ save_component
 if {[get_component_parameter_value f2s_data_width] != 256} {error "vendor F2H data width changed"}
 set_component_parameter_value f2s_data_width 0
 if {[get_component_parameter_value f2s_data_width] != 0} {error "unused F2H interface was not disabled"}
+# The vendor on-chip memory was the only responder on the full HPS-to-FPGA
+# bridge and no FES software addresses it. H2F_Width=0 is the documented
+# Unused selection; a bridge left enabled without a responder would stall
+# any HPS access instead of having no fabric interface at all.
+if {[get_component_parameter_value H2F_Width] != 128} {error "vendor H2F data width changed"}
+set_component_parameter_value H2F_Width 0
+if {[get_component_parameter_value H2F_Width] != 0} {error "unused H2F interface was not disabled"}
 save_component
-foreach {name target} {fpga2hps agilex_hps.fpga2hps fpga2hps_clk agilex_hps.fpga2hps_clock fpga2hps_rst agilex_hps.fpga2hps_reset} {
-    if {[string compare [get_interface_property $name EXPORT_OF] $target] != 0} {error "vendor F2H export changed: $name"}
+foreach {name target} {fpga2hps agilex_hps.fpga2hps fpga2hps_clk agilex_hps.fpga2hps_clock fpga2hps_rst agilex_hps.fpga2hps_reset
+                       hps2fpga agilex_hps.hps2fpga hps2fpga_clk agilex_hps.hps2fpga_axi_clock hps2fpga_rst agilex_hps.hps2fpga_axi_reset} {
+    if {[string compare [get_interface_property $name EXPORT_OF] $target] != 0} {error "vendor bridge export changed: $name"}
     remove_interface $name
 }
 '''
         changes[HPS_IP]['f2s_data_width'] = {'before': '256', 'after': '0'}
+        changes[HPS_IP]['H2F_Width'] = {'before': '128', 'after': '0'}
     script += f'''load_component f2sdram_adapter
 if {{[get_component_parameter_value DATA_WIDTH] != 256}} {{error "F2SDRAM adapter data width changed"}}
 foreach port {{man_aruser man_awuser}} {{
@@ -147,17 +158,24 @@ def isolate_script(script, top_save):
 def isolate_managed_fabric_script(script, top_save):
     if script.count(top_save) != 1 or script.count('remove_instance ext_hps_f2sdram_master\n') != 1:
         raise ValueError('managed fabric requires the isolated memory profile')
-    removal = '''# Canonical MENU has no vendor maintenance initiators or F2H translator.
+    removal = '''# The managed shell has no vendor maintenance initiators, F2H translator
+# or on-chip memory. Removing the debug subsystem first leaves the memory
+# with exactly its HPS route, clock and reset, which are checked before it goes.
 foreach instance {subsys_debug ace5lite_cache_coherency_translator_0} {
     if {[lsearch -exact [get_instances] $instance] < 0} {error "managed fabric removal target changed: $instance"}
     remove_instance $instance
 }
 foreach connection [get_connections] {
-    if {[string match "*subsys_hps.fpga2hps*" $connection]} {
-        if {[lsearch -exact {clk_100.out_clk/subsys_hps.fpga2hps_clk rst_in.out_reset/subsys_hps.fpga2hps_rst} $connection] < 0} {error "vendor F2H connection changed: $connection"}
+    if {[string match "*subsys_hps.fpga2hps*" $connection] || [string match "*subsys_hps.hps2fpga*" $connection] ||
+            [string match "*/ocm.*" $connection]} {
+        if {[lsearch -exact {clk_100.out_clk/subsys_hps.fpga2hps_clk rst_in.out_reset/subsys_hps.fpga2hps_rst
+                             clk_100.out_clk/subsys_hps.hps2fpga_clk rst_in.out_reset/subsys_hps.hps2fpga_rst
+                             subsys_hps.hps2fpga/ocm.axi_s1 clk_100.out_clk/ocm.clk1 rst_in.out_reset/ocm.reset1} $connection] < 0} {error "vendor bridge/memory connection changed: $connection"}
         remove_connection $connection
     }
 }
+if {[lsearch -exact [get_instances] ocm] < 0} {error "managed fabric removal target changed: ocm"}
+remove_instance ocm
 '''
     return script.replace(top_save, removal + top_save)
 
@@ -233,12 +251,13 @@ def _managed_fabric_graph(project, hps):
     sopc = project / 'qsys_top/qsys_top.sopcinfo'
     tree = ET.parse(sopc)
     modules = tree.findall('module')
-    removed = ('subsys_debug', 'ace5lite_cache_coherency_translator_0')
+    removed = REMOVED_INSTANCES
     for module in modules:
         name, kind = module.get('path') or '', module.get('kind') or ''
         if (any(name == prefix or name.startswith(prefix + '.') for prefix in removed) or
-                kind in ('altera_jtag_avalon_master', 'altera_ace5lite_cache_coherency_translator')):
-            raise ValueError('managed fabric retains a maintenance initiator/translator: ' + name)
+                kind in ('altera_jtag_avalon_master', 'altera_ace5lite_cache_coherency_translator',
+                         'intel_onchip_memory')):
+            raise ValueError('managed fabric retains a maintenance initiator/translator/memory: ' + name)
     routes = [c for c in tree.findall('connection') if c.get('kind') == 'avalon']
     masters = {c.get('start') for c in routes}
     if masters != set(MANAGED_MASTERS):
@@ -253,34 +272,34 @@ def _managed_fabric_graph(project, hps):
         ('subsys_hps_agilex_hps.lwhps2fpga', 'subsys_periph_pb_cpu_0.s0', 0),
         ('subsys_periph_pb_cpu_0.m0', 'subsys_periph_fes_scanout_guard.avs', constant(definition, 'PERIPHERAL_OFFSET')),
         ('subsys_periph_fes_scanout_guard.avm', 'subsys_periph_fes_ctrl_cdc.s0', 0),
-        ('subsys_periph_fes_ctrl_cdc.m0', 'subsys_periph_fes_scanout.avs', 0),
-        ('subsys_hps_agilex_hps.hps2fpga', 'ocm.axi_s1', 0))
+        ('subsys_periph_fes_ctrl_cdc.m0', 'subsys_periph_fes_scanout.avs', 0))
     for start, end, address in control:
         matches = [c for c in routes if c.get('end') == end]
         if (len(matches) != 1 or matches[0].get('start') != start or
                 int(matches[0].findtext("parameter[@name='baseAddress']/value") or '-1', 0) != address):
-            raise ValueError('managed fabric control/OCM route differs: ' + end)
+            raise ValueError('managed fabric control route differs: ' + end)
     native = [m for m in modules if m.get('path') == 'subsys_hps.agilex_hps']
-    if len(native) != 1 or hps.module_parameters(project / HPS_IP).get('f2s_data_width') != '0':
-        raise ValueError('managed fabric native F2H interface is not disabled')
+    parameters = hps.module_parameters(project / HPS_IP)
+    if len(native) != 1 or any(parameters.get(name) != '0' for name in DISABLED_HPS_PARAMETERS):
+        raise ValueError('managed fabric native F2H/H2F interface is not disabled')
     definition = ET.fromstring(native[0].findtext("parameter[@name='componentDefinition']/value"))
     interfaces = [p.findtext('name') for p in definition.findall('boundary/interfaces/interface')]
-    if any(name in interfaces for name in ('fpga2hps', 'fpga2hps_clock', 'fpga2hps_reset')):
-        raise ValueError('managed fabric generated native F2H interface remains exposed')
+    if any(name in interfaces for name in ('fpga2hps', 'fpga2hps_clock', 'fpga2hps_reset',
+                                           'hps2fpga', 'hps2fpga_axi_clock', 'hps2fpga_axi_reset')):
+        raise ValueError('managed fabric generated native F2H/H2F interface remains exposed')
     memory = hps.verify_scanout_memory_handoff(project)
     return {'policy': MANAGED_FABRIC, 'initiator_endpoints': sorted(masters),
             'initiator_count': len(masters), 'fabric_to_hps': [list(route) for route in ingress],
-            'control_and_ocm_routes': [list(route) for route in control],
+            'control_routes': [list(route) for route in control],
             'removed_instances': list(removed), 'sopcinfo_sha256': hps.digest(sopc),
-            'disabled_hps_parameter': {'f2s_data_width': '0'},
+            'disabled_hps_parameters': {name: '0' for name in DISABLED_HPS_PARAMETERS},
             'hps_ip_sha256': hps.digest(project / HPS_IP),
             'memory_handoff': memory, 'physical_lifetime': 'not-qualified', 'runtime_admission': 'not-qualified'}
 
 
 def _managed_parent(data):
     source = re.sub(r'/\*.*?\*/|//[^\n]*', '', data.decode(), flags=re.S)
-    removed = ('subsys_debug', 'ace5lite_cache_coherency_translator_0')
-    if any(re.search(r'(?m)^\s*\w+\s+' + re.escape(name) + r'\s*\(', source) for name in removed):
+    if any(re.search(r'(?m)^\s*\w+\s+' + re.escape(name) + r'\s*\(', source) for name in REMOVED_INSTANCES):
         raise ValueError('managed fabric generated parent retains a removed instance')
     instances = re.findall(r'(?ms)^\t\w+ subsys_hps \(\n(.*?)^\t\);', source)
     if len(instances) != 1:
@@ -289,7 +308,8 @@ def _managed_parent(data):
     if len(ports) != len(dict(ports)):
         raise ValueError('managed fabric generated HPS port is duplicated')
     ports = {name: value.strip() for name, value in ports}
-    return {name: value for name, value in ports.items() if name.startswith('fpga2hps_') or name == 'fpga2hps'}
+    return {name: value for name, value in ports.items()
+            if name.startswith(('fpga2hps_', 'hps2fpga_')) or name in ('fpga2hps', 'hps2fpga')}
 
 
 def verify_managed_fabric(project, hps):
@@ -297,8 +317,9 @@ def verify_managed_fabric(project, hps):
     graph = _managed_fabric_graph(project, hps)
     top = project / 'qsys_top/synth/qsys_top.v'
     if _managed_parent(top.read_bytes()):
-        raise ValueError('managed fabric generated parent retains unused F2H ports')
-    return {**graph, 'unused_f2h_interface': 'disabled and absent', 'generated_parent_sha256': hps.digest(top),
+        raise ValueError('managed fabric generated parent retains unused F2H/H2F ports')
+    return {**graph, 'unused_f2h_interface': 'disabled and absent',
+            'unused_h2f_interface': 'disabled and absent', 'generated_parent_sha256': hps.digest(top),
             'retired_debug_constraints': verify_managed_debug_constraints(project)}
 
 

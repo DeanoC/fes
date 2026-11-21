@@ -74,7 +74,7 @@ The release classifications below remain v1, v2 and held back. Tenfoot Home, fir
 
 In force. Deano accepted it on 2026-11-15, and the rule itself is the hard rule beside D12 in [AGENTS.md](../AGENTS.md): a core at `check_level: reduced` owes a closure sweep only D12's netlist comparison, which is still measured and recorded, and not the RBF reproduction, the timing and seal gate or the HIL. This page is where the levels are listed; AGENTS.md is where the obligation is written. Neither lowers a gate on work being done to a core.
 
-`quality_tier` cites a decision rather than inventing a taxonomy: the ladder, its bars, the tier 1 set, the two pending placements and the utilities outside it are all decided in [the forward plan](plans/forward-plan.md) (tiers apply per (core, board) cell; DE10-Nano is the tier 1 board). Where the plan names a condition rather than a tier, this page records the condition: pc386 is `1-pending` and not tier 2, and Coleco, SMS, SG-1000 and Apple II are `2-pending`, because the plan names no tier for any of them before their condition is met. The freshness `tier` on each row answers a different question and stays derived from dates, so a tier 1 cell can be Aging and a row off the ladder can have RTL from this week.
+The [forward plan](plans/forward-plan.md) assigns quality tiers per machine and board. Coleco, SMS, SG-1000 and Apple II are tier 2 candidates pending their ports. The freshness tier is derived independently from dates.
 
 `check_level` says what a change owes each row, and the D12 conditions are what it is about. `full`: every change that moves the core's `BUILD_ID` carries that core's own evidence, all three D12 conditions included. `reduced`: on a change that does not touch the core's own RTL, programs, lock or placement recipe, the netlist comparison (D12's first condition, which needs no GPU route) is still expected, and the RBF reproduction, the timing and seal gate and the HIL (its second and third, and the reseal the rule falls back to) are not. If that comparison fails, the core counts as touched and keeps every gate, which is what D12 already says. A change aimed at the core, and any change that ships it, keeps every gate. `via-consumer`: the row is RTL, not a package, so its evidence rides with the packages that embed it. `none`: there is no built artifact to carry evidence for yet.
 
@@ -84,8 +84,7 @@ The levels never lower a gate on work being done to a core: a netlist that is no
 
 | Quality tier | Meaning |
 | --- | --- |
-| Tier 1 | Release quality and supported. Decided set: ZX81 family, Spectrum family, C64, Atari ST, PC/XT. |
-| Tier 1 pending | The plan puts pc386 at tier 1 once #1368 closes, and names no tier before that. The remaining #1494 pin-timing uncertainty is non-blocking. |
+| Tier 1 | Release quality and supported. Decided set: ZX81 family, Spectrum family, C64, Atari ST, PC/XT and pc386 on DE10. |
 | Tier 2 pending | The plan puts Coleco, SMS, SG-1000 and Apple II at tier 2 once they meet the port, and names no tier before that. |
 | Outside the ladder | Utilities and demos: Pong, RAM Tester and RISC-V. |
 
@@ -96,8 +95,7 @@ The levels never lower a gate on work being done to a core: a netlist that is no
 | Via consumer | Not a package. Evidence rides with the packages that embed it. |
 | None | No built artifact yet. |
 
-- **Tier 1:** `fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`, `fes.c64`, `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon`, `fes.atari-st`, `fes.pcxt-dos`
-- **Tier 1 pending:** `fes.pc386`
+- **Tier 1:** `fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`, `fes.c64`, `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon`, `fes.atari-st`, `fes.pcxt-dos`, `fes.pc386`
 - **Tier 2 pending:** `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`
 - **Outside the ladder:** `fes.pong`, `fes.ramtest`, `fes.riscv`
 
@@ -129,5 +127,5 @@ These cells are still open. The wording is in [`support-matrix.json`](support-ma
 - Should the 2-pending rows (Coleco, SMS, SG-1000, Apple II) carry full evidence on a closure sweep anyway? They are reduced here because the forward plan names no tier for them until they meet the port.
 - Should the per-family representative scoping be a rule as well? On PR #1862 the sibling variants (zx80, ts1000, ts1500, spectrum128, spectrum-plus3, pentagon) were dropped from the route conditions along with the held-back cores; check_level keeps them at full because they are tier 1.
 - fes.riscv's snapshot last_rtl_change (2026-10-05) reads its core directory only. `dcfa92c98` (2026-10-21) changed `fes_rv32_cpu.sv` in the shared riscv directory that this row holds under `paths`, and the subject names riscv, so whether that commit should move the row to Current inside the same snapshot is open. The owned-RTL check runs on shared rows only, so nothing catches it either way.
-- A pending quality_tier has to be re-read by hand when its condition closes. The checker reads the forward plan's Tiers section and fails if a cited sentence moves, goes or is restated, or if the plan stops naming #1368 or the port condition; it cannot see a superseding decision written in new words. When #1368 closes, pc386's 1-pending placement must be re-read and the row edited; its check level does not change. #1494 remains open with its pin-timing uncertainty judged non-blocking.
-- fes.pc386 keeps tier_role bring-up and experimental catalog standing. Registration does not promote its quality tier; the exact registered package still needs a fresh seal and the pending game and hardware gates.
+- Revisit the pending tier 2 placements when the machines meet the port condition in the forward plan.
+- fes.pc386 has DE10 quality tier 1, a bring-up freshness classification and experimental catalog standing. Each hardware result applies to its recorded artifact.

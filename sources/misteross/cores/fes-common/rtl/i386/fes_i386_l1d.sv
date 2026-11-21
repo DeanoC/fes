@@ -105,6 +105,7 @@ module fes_i386_l1d import fes_i386_pkg::*; (
     input  logic [127:0]     bdata,
     // Paging (see Paging): CR0.PG and CR3's page directory.
     input  logic             pg,
+    input  logic             wp,          // CR0.WP (the i486 identity): supervisor writes obey R/W
     input  logic [19:0]      cr3_pd,
     // M1's translation: the pages of the memory operand (A and the next,
     // A1) and of a st2 store (T, T1), and A's attribute and its next line's;
@@ -459,7 +460,8 @@ module fes_i386_l1d import fes_i386_pkg::*; (
             W_NEXT: state_n = w_left != 4'd0 ? W_RD : q_ifw ? L_REPLAY : q_rd && !q_fault ? L_PART : L_DONE;
             W_RD: state_n = w_at == ATTR_HOLE ? W_CHK : W_WAIT;
             W_WAIT: if (d_beat && (d_mmio || w_beat)) state_n = W_CHK;
-            W_CHK: state_n = !w_ent[0] || w_lvl && q_user && (!(w_pde[2] && w_ent[2]) || w_wr && !(w_pde[1] && w_ent[1]))
+            W_CHK: state_n = !w_ent[0] || w_lvl && (q_user && !(w_pde[2] && w_ent[2])
+                                                    || w_wr && (q_user || wp) && !(w_pde[1] && w_ent[1]))
                            ? L_PF : w_lvl ? W_APDE : W_RD;
             W_APDE: if (w_pde[5] || wb_empty && !pw_valid) state_n = W_APTE;
             W_APTE: if (w_pte[5] && (w_pte[6] || !w_wr) || wb_empty && !pw_valid) state_n = W_FILL;

@@ -293,9 +293,67 @@ relies on:
   decoder ROM, reenigne/x86_microcode `80386/decoder23.txt`).
 - At reset, DX holds the profile's component and revision ID.
 
-An optional `i486-isa` profile, a later extension (Phase 7), adds those
-instructions, AC and the CR0 bits, with CD and NW accepted but without effect.
-A profile is chosen before reset, never while running.
+### The i486 identity
+
+`fes_i386_cpu`'s build parameter `I486` (and `pc386_system`'s, which passes
+it down) selects a 486SX of a later stepping, with CPUID and without VME, so
+without CR4 (tracker [#1962](https://github.com/DeanoC/fes/issues/1962),
+Deano's choices of 18 November 2026; slice 2,
+[#2044](https://github.com/DeanoC/fes/issues/2044)). It is a build parameter,
+not a reset-sampled input: every package builds `I486 = 0`, and at 0 every
+486 register, flag, decode and sequence folds away (the two EFLAGS registers
+are 18 bits wide again). Whether a runtime strap replaces it is Deano's
+decision, open after the
+[fit spike](../../../docs/validation/2026-11-18-i486-s1-fit/summary.md).
+
+With `I486 = 1`:
+
+- **Instructions.** BSWAP (one uop, a byte reversal in EX; a 16-bit operand,
+  which the PRM leaves undefined, writes a zero low word, as Bochs and later
+  parts do); XADD and CMPXCHG, registers and memory, LOCK allowed on the
+  memory forms only; INVD and WBINVD, CPL-0 NOPs on caches that are
+  coherent; INVLPG, CPL 0, flushing both TLBs whole, which the architecture
+  permits, and making no access for its operand; CPUID (below). XADD's and
+  CMPXCHG's memory forms start with a load checked and translated as a
+  write, as XCHG's is, so a segment or page they cannot write faults, with W
+  in #PF's error code, before CMPXCHG's compare writes the flags. CMPXCHG
+  always writes its operand, as a 486 does.
+- **CPUID.** Leaf 0: highest leaf 1, "GenuineIntel". Leaf 1: EAX the
+  signature `0000042Bh` (family 4, model 2 the SX, stepping Bh: a CPUID-capable
+  SX stepping), EBX, ECX and EDX zero (no FPU). Above 1: zeros in all four, as
+  the Intel486 data book's Appendix B gives it. Bochs's level 4 is a DX4
+  (`0480h`, the FPU bit) and answers a higher leaf with leaf 1: both are
+  lockstep stops by design.
+- **CR0.** NE, WP, AM, NW and CD are stored; the reserved bits read 0 and ET
+  reads 1; NW set with CD clear is #GP(0); LMSW changes none of them. WP
+  makes a supervisor write obey R/W, in the DTLB's rights check and in the
+  walker's. CD and NW have no effect.
+- **EFLAGS.** AC (18) and ID (21) are writable by POPFD, IRETD and a task
+  switch's load. A real-mode delivery clears AC, as the SDM's INT pseudocode
+  and Bochs do (the 1992 PRM's lists only IF and TF); a protected-mode one
+  keeps it.
+- **#AC (vector 17, error code 0).** At CPL 3 with AM and AC set, a data
+  access of 2, 4 or 8 bytes at an address not a multiple of its size, or of
+  6 bytes at an odd one; for MOVS (a st2 uop) its store's address too.
+  Accesses made at privilege 0 are excepted: system accesses (descriptor
+  tables, the TSS) and a delivery's pushes to its new stack. Far pointers,
+  BOUND and SGDT are checked as the separate accesses they make. It is
+  checked at M1 on the linear address, after the segment's checks and before
+  the page walk: the PRM's Table 9-2 ranks alignment faults above page
+  faults. Under AM at CPL 3 an access waits in D for an older EFLAGS load.
+- **TR3** is storage, as TR4 to TR7 are; none has its test function.
+- **Reset.** A machine with the identity resets DX to the signature, CR0 to
+  `60000010h` and DR6 to `FFFF0FF0h` (`pc386_system`'s `init_*`).
+- **Speed.** The governor costs each new instruction at the i486's count on
+  every table (governor.toml).
+
+Not in the identity yet: the BIOS clearing CD and NW (with a build
+parameter it is a per-identity ROM, with a strap a runtime test, so it waits
+for that decision); a `queue32` self-modifying-code profile; and the
+386-microcode behaviours no 486 document settles (DR6, RF on #DB, ICEBP, UMOV,
+the undefined flags, an SX's ESC with EM clear), which stay the 386's (plan
+open question 6). The level-4 directed cases and the lockstep at both
+identities are `scripts/test_fes_i486_lockstep.py`.
 
 ### Undocumented behaviour
 

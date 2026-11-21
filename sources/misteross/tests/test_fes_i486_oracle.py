@@ -189,18 +189,25 @@ class RunnerRulesTest(unittest.TestCase):
         self.assertFalse(runner.judge([self.case(8)], {'c': 'stop @1008.eax 1 2'}, expected)[0]['as_expected'])
 
     def test_expected_list_round_trip_and_duplicates(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / 'stops.txt'
-            with mock.patch.object(runner, 'EXPECTED', path):
-                runner.write_expected([self.case(8)], {'c': 'stop @1008.eax 1 2'})
-                self.assertEqual(runner.read_expected(), {'c': 'stop @1008.eax 1 2'})
-                path.write_text(path.read_text() + 'c agree\n')
-                with self.assertRaisesRegex(runner.I486Error, 'twice'):
-                    runner.read_expected()
+        for identity in runner.IDENTITIES:
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'stops.txt'
+                with mock.patch.dict(runner.IDENTITIES, {identity: (runner.IDENTITIES[identity][0], path)}):
+                    runner.write_expected(identity, [self.case(8)], {'c': 'stop @1008.eax 1 2'})
+                    self.assertEqual(runner.read_expected(path), {'c': 'stop @1008.eax 1 2'})
+                    path.write_text(path.read_text() + 'c agree\n')
+                    with self.assertRaisesRegex(runner.I486Error, 'twice'):
+                        runner.read_expected(path)
 
-    def test_committed_list_names_the_cases_and_only_486_probes_besides(self):
+    def test_identities_are_the_386_and_the_486sx(self):
+        self.assertEqual({name: value for name, (value, _) in runner.IDENTITIES.items()}, {'386': 0, '486sx': 1})
+        self.assertEqual(len({path for _, path in runner.IDENTITIES.values()}), 2)
+
+    def test_committed_lists_name_the_cases_and_only_486_probes_besides(self):
         labels = {case.label for case in cases.cases()}
-        listed = set(runner.read_expected())
+        lists = {identity: runner.read_expected(path) for identity, (_, path) in runner.IDENTITIES.items()}
+        self.assertEqual(set(lists['386']), set(lists['486sx']))
+        listed = set(lists['386'])
         self.assertLessEqual(labels, listed)
         extra = listed - labels
         self.assertTrue(extra)
@@ -208,6 +215,15 @@ class RunnerRulesTest(unittest.TestCase):
         # The probes a 486 defines are not #UD probes.
         self.assertFalse({'ud-cpuid', 'ud-invd', 'ud-cmpxchg', 'ud-bswap', 'ud-mov-tr3'} & extra)
         self.assertIn('ud-mov-cr4', extra)
+
+    def test_the_486sx_list_stops_only_on_divergences(self):
+        # On the 486SX every case agrees but those whose row names a
+        # divergence from Bochs's level 4 (the CPUID signature and leaves).
+        divergent = {case.label for case in cases.cases() if case.divergence}
+        stops = {label for label, verdict in runner.read_expected(runner.IDENTITIES['486sx'][1]).items()
+                 if verdict != 'agree'}
+        self.assertTrue(stops)
+        self.assertLessEqual(stops, divergent)
 
     def test_ending_prefers_the_exception(self):
         self.assertEqual(runner.ending({'end': 'halt', 'exception': '17', 'int': '-'}), 'exception:17')

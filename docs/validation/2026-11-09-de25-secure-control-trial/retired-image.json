@@ -23,7 +23,7 @@
         "transport": {
           "auto_adjust": 0,
           "cable": "DE25-Nano on localhost:37789 [3-11.1-iface0]",
-          "claim_token": "7a124fae52bf7062",
+          "claim_token": "[REDACTED]",
           "client_sha256": {
             "/data/altera_pro/26.3/quartus/linux64/libjtag_client.so": "83894ac5bb2e3e18809372e32940ccaf834a4de790e0c240b4068cab0de42fd9",
             "/data/altera_pro/26.3/quartus/linux64/libjtag_client_dcrt.so": "03c1733b7fa5e87c64e0d83ff7796d67deed0b303b1eb9649a9de98a182505d5"
@@ -58,7 +58,7 @@
         "transport": {
           "auto_adjust": 0,
           "cable": "DE25-Nano on localhost:37789 [3-11.1-iface0]",
-          "claim_token": "7a124fae52bf7062",
+          "claim_token": "[REDACTED]",
           "client_sha256": {
             "/data/altera_pro/26.3/quartus/linux64/libjtag_client.so": "83894ac5bb2e3e18809372e32940ccaf834a4de790e0c240b4068cab0de42fd9",
             "/data/altera_pro/26.3/quartus/linux64/libjtag_client_dcrt.so": "03c1733b7fa5e87c64e0d83ff7796d67deed0b303b1eb9649a9de98a182505d5"

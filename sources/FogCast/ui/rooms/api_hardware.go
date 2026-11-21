@@ -178,6 +178,23 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 		computers.Append(row)
 	}
 	out.RawSetString("computers", computers)
+	// packages[package_id][role] is true when that role keeps what the
+	// computer writes, false when it only reads. A package or role that is
+	// missing is not known, as from a host from before this list.
+	packages := L.NewTable()
+	for _, p := range v.Packages {
+		if p.PackageID == "" {
+			continue
+		}
+		roles := L.NewTable()
+		for _, m := range p.Media {
+			if m.Role != "" {
+				roles.RawSetString(m.Role, lua.LBool(m.Saves))
+			}
+		}
+		packages.RawSetString(p.PackageID, roles)
+	}
+	out.RawSetString("packages", packages)
 	out.RawSetString("session_error", lua.LString(v.SessionError))
 	// Save support is separate from a machine's content readiness. An omitted
 	// field stays absent so an older unpaired host keeps its existing save.

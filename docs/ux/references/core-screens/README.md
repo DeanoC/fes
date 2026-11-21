@@ -90,6 +90,9 @@ same everywhere; only the facts differ.
   "Read only" (plain). A computer whose core cannot write disks yet says so in
   a note beside the disk buttons, and its **New disk** button is shown but not
   available. A blank disk is useless on a drive that cannot write.
+  The screen takes both from what the installed package declares, through
+  the host's hardware snapshot, never from a core ID ([hardware
+  rooms](../../../hardware-rooms.md#data-and-ownership)).
 - **For next start, and in the drive now, are different.** A stopped computer
   shows what is saved for the next start. A running one shows what is in the
   drive now, and a change goes into the running machine straight away.

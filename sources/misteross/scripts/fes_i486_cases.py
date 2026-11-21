@@ -93,7 +93,8 @@ def _real(body: Asm) -> dict[int, bytes]:
 
 
 def _protected(body, cr0: int | None = None, page: int | None = None, ring3_eflags: int | None = None,
-               ring3_esp: int = RING3_ESP) -> tuple[dict[int, bytes], Asm, int]:
+               ring3_esp: int = RING3_ESP, esp0: int = TSS_ESP0,
+               ring3_vectors: tuple[int, ...] = ()) -> tuple[dict[int, bytes], Asm, int]:
     """A 32-bit protected-mode program; returns its image, code and the body's offset.
 
     The GDT: 08h code and 10h data, flat, DPL 0; 18h code and 20h data, flat,
@@ -141,9 +142,12 @@ def _protected(body, cr0: int | None = None, page: int | None = None, ring3_efla
     gdt = (bytes(8) + _descriptor(0, 0xfffff, 0x9b, True, True) + _descriptor(0, 0xfffff, 0x93, True, True)
            + _descriptor(0, 0xfffff, 0xfb, True, True) + _descriptor(0, 0xfffff, 0xf3, True, True)
            + _descriptor(TSS, 0x67, 0x89, False, False))
-    idt = b''.join(_gate(0x08, HANDLER, 0xee if vector == 3 else 0x8e) for vector in range(32))
+    # ring3_vectors' gates lead to the same HLT through the DPL-3 code
+    # segment, so their deliveries from CPL 3 stay at CPL 3.
+    idt = b''.join(_gate(0x1b, HANDLER, 0xee) if vector in ring3_vectors else
+                   _gate(0x08, HANDLER, 0xee if vector == 3 else 0x8e) for vector in range(32))
     tss = bytearray(0x68)
-    tss[4:8] = TSS_ESP0.to_bytes(4, 'little')
+    tss[4:8] = esp0.to_bytes(4, 'little')
     tss[8:10] = (0x10).to_bytes(2, 'little')
     image = {CODE: bytes(a.b), HANDLER: b'\xf4', GDT: gdt, IDT: idt, TSS: bytes(tss),
              GDT_POINTER: (len(gdt) - 1).to_bytes(2, 'little') + GDT.to_bytes(4, 'little'),
@@ -502,6 +506,162 @@ def cases() -> list[Case]:
     real('mov-cr4-write', source_cr4, {'end': 'exception:6'},
          lambda a: a.op(0x66, 0xb8).d(1).op(0x0f, 0x22, 0xe0) and None,
          what='MOV CR4, EAX is #UD: there is no CR4')
+
+    # ---- Slice 2 (#2044): forms and corners the cases above leave out ----
+    # Register aliasing: XADD's destination is written last, so one register
+    # for both is their sum; CMPXCHG with eAX as either operand; AH and the
+    # other high bytes as operands (PRM ch. 26 pseudocode for each).
+    def prefixed(setup, operation):
+        def build(a):
+            a.op(*setup)
+            probe = a.here()
+            a.op(*operation)
+            return probe
+        return build
+    real('xadd-same-r32', 'PRM ch. 26, XADD (TEMP <- SRC + DEST; SRC <- DEST; DEST <- TEMP)',
+         {'end': 'halt', 'eax': 6, 'eflags': 0x06},
+         prefixed((0x66, 0xb8, 3, 0, 0, 0), (0x66, 0x0f, 0xc1, 0xc0)), what='XADD EAX, EAX: the sum')
+    real('xadd-hi8', 'PRM ch. 26, XADD', {'end': 'halt', 'eax': 0x1110, 'eflags': 0x06},
+         prefixed((0xb8, 0x01, 0x10), (0x0f, 0xc0, 0xc4)), what='XADD AH, AL')
+    real('cmpxchg-eax-eax', 'PRM ch. 26, CMPXCHG', {'end': 'halt', 'eax': 5, 'eflags': 0x46},
+         prefixed((0x66, 0xb8, 5, 0, 0, 0), (0x66, 0x0f, 0xb1, 0xc0)), what='CMPXCHG EAX, EAX: always equal')
+    real('cmpxchg-src-eax-equal', 'PRM ch. 26, CMPXCHG', {'end': 'halt', 'eax': 2, 'ebx': 2, 'eflags': 0x46},
+         prefixed((0x66, 0xb8, 2, 0, 0, 0, 0x66, 0xbb, 2, 0, 0, 0), (0x66, 0x0f, 0xb1, 0xc3)),
+         what='CMPXCHG EBX, EAX, equal: EBX from EAX')
+    real('cmpxchg-src-eax-unequal', 'PRM ch. 26, CMPXCHG', {'end': 'halt', 'eax': 2, 'ebx': 2, 'eflags': 0x97},
+         prefixed((0x66, 0xb8, 1, 0, 0, 0, 0x66, 0xbb, 2, 0, 0, 0), (0x66, 0x0f, 0xb1, 0xc3)),
+         what='CMPXCHG EBX, EAX, unequal: EAX from EBX')
+    real('cmpxchg-hi8-equal', 'PRM ch. 26, CMPXCHG', {'end': 'halt', 'eax': 0x0905, 'eflags': 0x46},
+         prefixed((0xb8, 0x05, 0x05, 0xb1, 0x09), (0x0f, 0xb0, 0xcc)), what='CMPXCHG AH, CL, equal')
+    real('cmpxchg-hi8-unequal', 'PRM ch. 26, CMPXCHG', {'end': 'halt', 'eax': 0x0707, 'eflags': 0x93},
+         prefixed((0xb8, 0x05, 0x07, 0xb1, 0x09), (0x0f, 0xb0, 0xcc)), what='CMPXCHG AH, CL, unequal: AL from AH')
+
+    # A memory form whose operand its write cannot reach faults before
+    # anything changes: CMPXCHG's compare does not write the flags or eAX,
+    # and the error code has W set, the operand being read for a write
+    # (PRM ch. 26: "the destination operand is written back if the
+    # comparison fails"; a locked read-modify-write).
+    def faulting_rmw(operation):
+        def build(a):
+            a.op(0x31, 0xd2)                              # XOR EDX, EDX: ZF and PF set
+            a.op(0xb8).d(1).op(0xbb).d(7).op(0xb9).d(0xdeadbeef)  # EAX 1, EBX 7, ECX DEADBEEFh
+            a.op(*operation).d(PAGE)
+        return build
+    protected('cmpxchg-m32-readonly', 'PRM 4.1, 6.8.2; ch. 26, CMPXCHG',
+              {'end': 'exception:14', 'error': 3, 'cr2': PAGE, 'eax': 1, 'eflags': 0x46},
+              faulting_rmw((0x0f, 0xb1, 0x0d)), cr0=0xe0050031, page=0x05,
+              what='CMPXCHG to a read-only page with WP set: #PF, error 3, flags and EAX unchanged')
+    protected('cmpxchg-m32-notpresent', 'PRM 6.8; ch. 26, CMPXCHG',
+              {'end': 'exception:14', 'error': 2, 'cr2': PAGE, 'eax': 1, 'eflags': 0x46},
+              faulting_rmw((0x0f, 0xb1, 0x0d)), cr0=0xe0050031, page=0x00,
+              what='CMPXCHG to a page not present: #PF with W set (error 2)')
+    protected('xadd-m32-notpresent', 'PRM 6.8; ch. 26, XADD',
+              {'end': 'exception:14', 'error': 2, 'cr2': PAGE, 'ebx': 7, 'eflags': 0x46},
+              faulting_rmw((0x0f, 0xc1, 0x1d)), cr0=0xe0050031, page=0x00,
+              what='XADD to a page not present: #PF with W set (error 2)')
+
+    # INVLPG takes the page's translation out of the TLB: a read after the
+    # page table entry changes sees the new page only with it (PRM ch. 26,
+    # INVLPG). It makes no access, so a page that is not present does not
+    # fault.
+    def invlpg_remap(a):
+        a.op(0xc6, 0x05).d(PAGE).op(0x11)                 # MOV byte [20000h], 11h
+        a.op(0xc6, 0x05).d(PAGE + 0x1000).op(0x22)        # MOV byte [21000h], 22h
+        a.op(0x8a, 0x05).d(PAGE)                          # MOV AL, [20000h]: the TLB holds the page
+        a.op(0xc7, 0x05).d(PAGE_TABLE + 4 * (PAGE >> 12)).d(PAGE + 0x1067)  # its entry to 21000h
+        a.op(0x0f, 0x01, 0x3d).d(PAGE)                    # INVLPG [20000h]
+        a.op(0x8a, 0x1d).d(PAGE)                          # MOV BL, [20000h]
+    protected('invlpg-remap', 'PRM ch. 26, INVLPG', {'end': 'halt', 'eax': 0xe0050011, 'ebx': 0x22}, invlpg_remap,
+              cr0=0xe0050031, page=0x07, what='INVLPG drops the old translation of a remapped page')
+    real('invlpg-past-limit', 'PRM ch. 26, INVLPG (real-address mode exceptions: none; no segment check is listed '
+         'in any mode)', {'end': 'halt'},
+         lambda a: (a.op(0x67, 0x0f, 0x01, 0x3d).d(0x12345), 0)[1], probe_at=0,
+         what='INVLPG of an offset past the segment limit makes no check and does not fault')
+    protected('invlpg-notpresent', 'PRM ch. 26, INVLPG (no exceptions but #UD and #GP(0) for the privilege)',
+              {'end': 'halt'}, lambda a: a.op(0x0f, 0x01, 0x3d).d(PAGE), cr0=0xe0050031, page=0x00,
+              what='INVLPG of a page not present does not fault')
+
+    # Exception 17 corners: AC set by POPFD just before the access; the
+    # implicit far-pointer, BOUND and SGDT forms, as the accesses they make
+    # (PRM 9.9.16: a 48-bit segmented pointer and GDTR's image align to 4);
+    # a read-modify-write.
+    def popfd_then_load(a):
+        a.op(0x9c, 0x81, 0x0c, 0x24).d(0x40000).op(0x9d)  # PUSHFD; OR dword [ESP], AC; POPFD
+        a.op(0xa1).d(PAGE + 1)                            # MOV EAX, [20001h]
+    protected('ac-popfd-then-load', source17, {'end': 'exception:17', 'error': 0}, popfd_then_load,
+              ring3_eflags=0x2, what='CPL 3: POPFD sets AC, and the next misaligned read is #AC(0)')
+    def popfd_clears_then_load(a):
+        a.op(0x9c, 0x81, 0x24, 0x24).d(0xfffbffff).op(0x9d)  # PUSHFD; AND dword [ESP], ~AC; POPFD
+        a.op(0xa1).d(PAGE + 1)                            # MOV EAX, [20001h]
+    protected('ac-popfd-clears', source17, {'end': 'int:3'}, popfd_clears_then_load, ring3_eflags=AC,
+              what='CPL 3: POPFD clears AC, and the next misaligned read does not fault')
+    # MOVSD makes two accesses: each is checked on its own address.
+    def movsd(source, destination):
+        def build(a):
+            a.op(0xbe).d(source).op(0xbf).d(destination)  # MOV ESI, source; MOV EDI, destination
+            a.op(0x1e, 0x07, 0xa5)                         # PUSH DS; POP ES; MOVSD
+        return build
+    protected('ac-movsd-destination', source17, {'end': 'exception:17', 'error': 0},
+              movsd(PAGE, PAGE + 0x101), ring3_eflags=AC, what='MOVSD with a misaligned destination is #AC(0)')
+    protected('ac-movsd-source', source17, {'end': 'exception:17', 'error': 0},
+              movsd(PAGE + 1, PAGE + 0x100), ring3_eflags=AC, what='MOVSD with a misaligned source is #AC(0)')
+    protected('ac-movsd-aligned', source17, {'end': 'int:3'},
+              movsd(PAGE, PAGE + 0x100), ring3_eflags=AC, what='MOVSD with both addresses aligned does not fault')
+    # A delivery from CPL 3 pushes onto the TSS's ring-0 stack at CPL 0:
+    # a misaligned ESP0 does not fault (PRM 9.9.16: only CPL 3 is checked).
+    protected('ac-delivery-odd-esp0', source17, {'end': 'int:3'}, lambda a: None, ring3_eflags=AC,
+              esp0=TSS_ESP0 + 1, what='INT3 from CPL 3 onto an odd ESP0 does not fault')
+    # An exception delivered at CPL 3 (a gate to the DPL-3 code segment)
+    # pushes onto the misaligned current stack, and the oracle delivers it
+    # without #AC: a delivery's accesses are not alignment-checked. No 486
+    # document read says whether they are; the RTL makes none of a
+    # delivery's accesses (system ones and nstk pushes) take #AC.
+    protected('ac-delivery-same-privilege', 'Bochs (no 486 document read settles a delivery\'s pushes)',
+              {'end': 'exception:6'},
+              lambda a: a.op(0x0f, 0xff), ring3_eflags=AC, ring3_esp=RING3_ESP + 1, ring3_vectors=(6,),
+              what='#UD delivered at CPL 3 onto a misaligned stack takes no #AC')
+    protected('ac-xadd-m32', source17, {'end': 'exception:17', 'error': 0},
+              lambda a: a.op(0x0f, 0xc1, 0x1d).d(PAGE + 1), ring3_eflags=AC,
+              what='a misaligned XADD is #AC(0)')
+    protected('ac-lfs-at-2', source17, {'end': 'exception:17', 'error': 0},
+              lambda a: a.op(0x0f, 0xb4, 0x05).d(PAGE + 2), ring3_eflags=AC,
+              what='LFS of a 48-bit pointer at 2 modulo 4 is #AC(0)')
+    protected('ac-lfs-aligned', source17, {'end': 'int:3'},
+              lambda a: a.op(0x0f, 0xb4, 0x05).d(PAGE + 4), ring3_eflags=AC,
+              what='LFS of an aligned 48-bit pointer does not fault')
+    protected('ac-bound-aligned', source17, {'end': 'int:3'},
+              lambda a: a.op(0x31, 0xc0, 0x62, 0x05).d(PAGE + 4), ring3_eflags=AC,
+              what='BOUND of two aligned doublewords does not fault')
+    protected('ac-bound-at-2', source17, {'end': 'exception:17', 'error': 0},
+              lambda a: a.op(0x31, 0xc0, 0x62, 0x05).d(PAGE + 2), ring3_eflags=AC,
+              what='BOUND with its doublewords at 2 modulo 4 is #AC(0)')
+    protected('ac-sgdt-at-2', source17, {'end': 'int:3'},
+              lambda a: a.op(0x0f, 0x01, 0x05).d(PAGE + 2), ring3_eflags=AC,
+              what='SGDT at 2 modulo 4 (its base aligned) does not fault')
+    protected('ac-sgdt-aligned', source17, {'end': 'exception:17', 'error': 0},
+              lambda a: a.op(0x0f, 0x01, 0x05).d(PAGE), ring3_eflags=AC,
+              what='SGDT at 0 modulo 4 (its base at 2) is #AC(0)')
+
+    # Deliveries and AC: a real-mode interrupt clears AC (the SDM's INT n
+    # pseudocode, real-address mode: "AC <- 0"; the 1992 PRM's lists only IF
+    # and TF, and Bochs clears AC); a protected-mode one keeps it.
+    def real_int_clears(a):
+        a.op(0x66, 0x9c, 0x67, 0x66, 0x81, 0x0c, 0x24).d(0x40000).op(0x66, 0x9d)  # PUSHFD; OR [ESP], AC; POPFD
+        a.op(0xcd, 0x10)                                  # INT 10h
+    real('ac-real-int-clears', 'SDM INT n (real-address mode); Bochs (the 1992 PRM lists IF and TF only)', {'end': 'int:16', 'eflags': 0x2},
+         lambda a: (real_int_clears(a), 0)[1], what='a real-mode interrupt clears AC')
+    protected('ac-pm-int-keeps', 'PRM ch. 26, INT n (protected mode)', {'end': 'int:3', 'eflags': 0x40002},
+              lambda a: None, ring3_eflags=AC, what='a protected-mode interrupt keeps AC')
+
+    # BSWAP with a 16-bit operand, which the PRM leaves undefined.
+    real('bswap-r16', 'Bochs (PRM ch. 26, BSWAP: undefined for a 16-bit register)',
+         {'end': 'halt', 'eax': 0x11220000},
+         prefixed((0x66, 0xb8, 0x44, 0x33, 0x22, 0x11), (0x0f, 0xc8)), what='BSWAP AX')
+    # CPUID above the highest leaf.
+    real('cpuid-2', 'Bochs (it answers leaf 1)', {'end': 'halt', 'eax': 0x480},
+         lambda a: (a.op(0x66, 0xb8).d(2), a.here(), a.op(0x0f, 0xa2))[1], divergence='cpuid-above-highest',
+         i486='zeros in EAX, EBX, ECX and EDX (DB Appendix B, item 3; AP-485 Table 1 says undefined)',
+         what='CPUID leaf 2, above the highest')
     return out
 
 

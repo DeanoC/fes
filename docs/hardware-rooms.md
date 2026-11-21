@@ -187,6 +187,18 @@ Local readiness does not assert that a kit is connected or available. The
 session is a separate observation; connection loss leaves it unavailable,
 not optimistically stopped or ejected.
 
+The snapshot's `packages` list covers the packages named by the library's
+computer entries that the host can inspect and launch, the same set `computers`
+draws from. For each media role the package declares, `saves` says whether
+the computer's writes to that medium are kept. The writable ST and PC/XT
+floppies and the pc386 hard disk keep them. Every other drive only reads, and
+a ZX81 cassette counts as read only because `SAVE` makes a new cassette. A
+host from before the list sends none, and a package or role it leaves out is
+not known. The core screen tags each drive row "Saves changes" or "Read only"
+from this list, once a medium is in the drive. A package whose disk only
+reads gets an unavailable New disk with its reason. With nothing known, the
+row has no tag and no New disk is shown.
+
 `PUT /api/v1/library/core-entries/{game_id}/expansion` fits a single rear
 connector; `PUT /api/v1/library/core-entries/{game_id}/expansions/{slot}` fits
 a declared physical slot. It requires the exact `package_id`, `expected_expansion_id` and new

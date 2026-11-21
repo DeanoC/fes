@@ -25,9 +25,52 @@ interfaces and do not replace the kit claim.
 
 ## Run and capture
 
-Use the sealed DE25 package from the exact PR head. Automatic exact-head HIL
-exercises MENU through the normal volatile `fogcast core-load` path and ZX81
-through the normal install/launch lifecycle, compatibility checks, and
+Use the sealed DE25 packages from the exact PR head.
+
+### Which packages a head seals
+
+Powerboat's HILQ seals DE25 work from the recipes registered in
+`config/core-recipes.toml` (`board = "de25-nano"`, Quartus Pro), never from a
+list of producer names. `scripts/powerboat/de25_hilq.py` gives a D25 PR the
+selection `de25:auto`; a `core:de25-<name>` label selects `fes.<name>` instead,
+and `core:de25-all` selects every registered recipe. On fes-build-3090,
+`scripts/powerboat/de25-seal-auto.sh` checks out the exact head and runs that
+head's `scripts/de25_seal_plan.py`, which:
+
+- asks each registered DE25 producer for its selection-only build record at
+  the head and at the merge base with `origin/main`, without compiling;
+- for `de25:auto`, builds each recipe and model whose design identity or
+  toolchain selection moved, or that the merge base does not have. When no
+  package input moved (a runtime, software or image change), it builds MENU so
+  the kit still runs an exact-head package;
+- refuses any name that is not a registered DE25 Quartus Pro recipe or model.
+
+A producer with models (Spectrum `48`/`128`, Atari ST `520st`) offers them as
+its `--model` choices. Each model is its own package with its own BUILD_ID, so
+each is sealed and run on the kit. All models of one recipe share one source
+closure, so a source change cannot be attributed to a single model: the
+identities decide, and every model whose identity moved is built. A label or
+override can name one model as `fes.spectrum@128`.
+
+Each producer is judged by its `build-summary.json` (exact head revision,
+package candidate, timing admitted, planned model) and one exported `.fcore`,
+not by its exit code. `core-build.result` holds one line per admitted package,
+`DONE <fcore> <sha256> <slug>`, and any failure makes the whole seal `FAIL`.
+`scripts/powerboat/de25-seal-remote.sh` copies every package back to
+Powerboat and re-verifies each digest.
+
+### Run
+
+`scripts/powerboat/hil-de25-core.sh` verifies every package's digest and
+manifest before it claims J8G, then installs the exact-head software once and
+smokes each package in turn under that one claim. The run passes only if every
+package passes and the restore verifies. One package keeps the `out/` layout;
+several packages each write `out/<slug>/`. The lander-watch and HILQ unit caps
+grow by 2400 s for each package after the first.
+
+Automatic exact-head HIL
+exercises MENU through the normal volatile `fogcast core-load` path and other
+packages through the normal install/launch lifecycle, compatibility checks, and
 supported input path. The locked idle MENU is captured before and after as
 restore evidence. The D25 smoke reads named ROM state only when the package
 descriptor declares a ROM, checks post-stop idleness through the paired
@@ -42,11 +85,11 @@ a full image or boot-path change, build the exact DE25 image and run the
 corresponding boot checks as well; a package run does not qualify an image
 change.
 
-`scripts/de25_boot_screen.py` is a standalone capture-analysis utility; the
-Powerboat D25 smoke runner does not currently call it or write a
-`boot_screen` result. To check an Atari ST capture manually, pass both saved
-core-frame paths (`10-core` and `11-core`) to the utility and retain its JSON
-stdout as evidence:
+For non-MENU packages the D25 smoke passes both saved core frames (`10-core`
+and `11-core`) to the exact head's `scripts/de25_boot_screen.py` and writes its
+output to `boot-screen.json`; a recognised boot screen is a `boot_screen` check,
+and a core the utility does not know (exit 3) adds no check. To check a capture
+by hand:
 
 ```sh
 python3 scripts/de25_boot_screen.py --core fes.atari-st \
@@ -54,7 +97,7 @@ python3 scripts/de25_boot_screen.py --core fes.atari-st \
 ```
 
 The check recognises a GEM desktop from its layout, so EmuTOS and TOS both
-pass and OCR is not needed. The existing automated smoke continues to use its
+pass and OCR is not needed. The automated smoke also keeps its
 changed-frame `core_video` check.
 
 The approved HDMI node is `/dev/v4l/by-id/fes-ms2109-hil`. Save before, active,

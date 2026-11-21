@@ -1,0 +1,10 @@
+{
+  "build_id": "632997afabed239baa5b7233c00e5389",
+  "classification": "de25-spectrum-package-candidate",
+  "hardware_acceptance": false,
+  "model": "128",
+  "normal_kit_acceptance": false,
+  "package_timing_admission": true,
+  "rbf_sha256": "c00d4f2a020b245947cd0f9f2ea137b531b97c75e35ec66a0bd5a76427e6ee50",
+  "revision": "18233ba6fd1bdf20e6ce601fe414086879de5e63"
+}

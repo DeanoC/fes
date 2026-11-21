@@ -5,11 +5,13 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func TestShelfComputerABIAdmission(t *testing.T) {
@@ -53,7 +55,7 @@ func TestShelfComputersIncludesPreparedFamiliesAndPrefersBareSetup(t *testing.T)
 	if _, err := store.CreateCoreEntry(ctx, "Menu firmware", "fes.menu", installed.PackageID); err != nil {
 		t.Fatal(err)
 	}
-	listed, err := s.ShelfComputers(ctx)
+	listed, _, err := s.ShelfComputers(ctx)
 	if err != nil || len(listed) != len(cores)+1 {
 		t.Fatalf("families %+v err=%v", listed, err)
 	}
@@ -85,7 +87,7 @@ func TestShelfComputersIncludesPreparedFamiliesAndPrefersBareSetup(t *testing.T)
 	if _, err := store.CreateCoreMediaEntry(ctx, "A disk title", "fes.apple2", installed.PackageID, "disk", media.MediaID); err != nil {
 		t.Fatal(err)
 	}
-	listed, err = s.ShelfComputers(ctx)
+	listed, _, err = s.ShelfComputers(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,11 +117,41 @@ func TestShelfComputersOmitsPackagesWhoseABIWasNotInspected(t *testing.T) {
 	if _, err := s.CreateCoreEntry(ctx, "Playable package", installed.PackageID); err != nil {
 		t.Fatal(err)
 	}
-	rows, err := s.ShelfComputers(ctx)
+	rows, _, err := s.ShelfComputers(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(rows) != 1 || rows[0].CoreID != "fes.pong" || !rows[0].Ready {
 		t.Fatalf("shelf exposed an uninspected ABI or lost the playable package: %+v", rows)
+	}
+}
+
+// Each package the computers' entries name says what its media keeps, and
+// two packages of one core can differ.
+func TestShelfComputersSayWhatEachPackagesMediaKeeps(t *testing.T) {
+	ctx := context.Background()
+	s, writable := newAtariDesk(t, false)
+	raw := atariLibraryPackage(t, true, false, false)
+	readOnly, _, err := s.ImportCorePackage(ctx, int64(len(raw)), bytes.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateCoreEntry(ctx, "Older Atari desk", readOnly.PackageID); err != nil {
+		t.Fatal(err)
+	}
+	_, packages, err := s.ShelfComputers(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string][]ComputerMediaSaves{}
+	for _, p := range packages {
+		got[p.PackageID] = p.Media
+	}
+	want := map[string][]ComputerMediaSaves{
+		writable.PackageID: {{Role: protocol.DiskRole, Saves: true}},
+		readOnly.PackageID: {{Role: protocol.DiskRole, Saves: false}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("package media %+v, want %+v", got, want)
 	}
 }

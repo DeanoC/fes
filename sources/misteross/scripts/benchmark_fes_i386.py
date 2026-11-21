@@ -74,11 +74,10 @@ CPU_RTL = (*FRONTEND_RTL, 'fes_i386_gov_pkg.sv', 'fes_i386_amode.sv', 'fes_i386_
            'fes_i386_dops.sv', 'fes_i386_shift.sv', 'fes_i386_shflags.sv', 'fes_i386_exctl.sv', 'fes_i386_muldiv.sv',
            'fes_i386_ex.sv', 'fes_i386_tlb.sv', 'fes_i386_l1i.sv', 'fes_i386_l1d.sv', 'fes_i386_biu.sv', 'fes_i386_gov_rom.sv',
            'fes_i386_governor.sv', 'fes_i386_x87_mul.sv',
-           # fes_i386_x87 names the DE25 backend's operation encoding
-           # unconditionally, so its package is compiled in every
-           # configuration; the backend itself is instantiated only when
-           # X87_BACKEND selects it.
-           'fes_x87_pkg.sv', 'fes_i386_x87.sv', 'fes_i386_cpu.sv')
+           # The x87 unit's arithmetic backend and the engine that drives it.
+           'fes_x87_pkg.sv', 'fes_x87_fast.sv', 'fes_x87_slow.sv', 'fes_x87_core.sv',
+           'fes_x87_trans_pkg.sv', 'fes_x87_trans_rom.sv', 'fes_x87_trans.sv',
+           'fes_i386_x87.sv', 'fes_i386_cpu.sv')
 SPIKES = {
     'frontend': ('spike_frontend', FRONTEND_RTL),
     'dag': ('spike_dag', DAG_RTL),
