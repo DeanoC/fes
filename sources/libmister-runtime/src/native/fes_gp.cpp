@@ -152,7 +152,8 @@ constexpr std::uint16_t kComputerCapabilityMask = static_cast<std::uint16_t>(
 constexpr std::uint16_t kComputerHighCapabilityMask = static_cast<std::uint16_t>(
 	(FesComputerCapabilityMediaAtaDisk | FesComputerCapabilityPersistenceWords |
 	 FesComputerCapabilityRtcWallClock | FesComputerCapabilityPc386Machine |
-	 FesComputerCapabilityMediaPcxtFloppy | FesComputerCapabilityMediaPcxtFloppyWrite) >> 16);
+	 FesComputerCapabilityMediaPcxtFloppy | FesComputerCapabilityMediaPcxtFloppyWrite |
+	 FesComputerCapabilityMediaPcFloppy) >> 16);
 
 std::uint64_t AddDeadline(std::uint64_t now, std::uint64_t duration)
 {

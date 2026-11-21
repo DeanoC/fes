@@ -3344,10 +3344,12 @@ void TestComputer11ReplaysSharedFixtureThroughEndpoint()
 		endpoint.abi_minor = scenario.abi_minor;
 		auto image = window;
 		endpoint.window = &image;
+		std::vector<std::uint8_t> floppy_images[2];
 		for (unsigned k = 0; k < 2; ++k) {
-			endpoint.floppies[k].window.resize(scenario.floppy_bytes[k]);
+			floppy_images[k].resize(scenario.floppy_bytes[k]);
 			for (std::size_t offset = 0; offset < scenario.floppy_bytes[k]; ++offset)
-				endpoint.floppies[k].window[offset] = static_cast<std::uint8_t>(offset * 7 + (offset >> 11));
+				floppy_images[k][offset] = static_cast<std::uint8_t>(offset * 7 + (offset >> 11));
+			endpoint.floppies[k].region = &floppy_images[k];
 		}
 		std::size_t next = 0;
 		for (std::size_t n = 0; n < scenario.exchanges.size(); ++n) {

@@ -1597,6 +1597,7 @@ Error ParseRequest(const std::string& line, Request* request)
                     unit->integer_value!=0||(parsed.media_size != native::generated::FesComputerPcxtFloppyBytes && !native::InferAtariStGeometry(parsed.media_size))))
                     return Invalid("invalid library disk geometry or identity");
                 if(const auto* protect=Find(root,"write_protected")) {
+                    if(!pc_floppy) return Invalid("write_protected is for pc386 floppy drives");
                     if(protect->type!=json::Type::boolean) return Invalid("write_protected must be boolean");
                     parsed.media_binding.write_protected=protect->boolean_value;
                 }

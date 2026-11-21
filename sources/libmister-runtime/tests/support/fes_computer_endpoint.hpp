@@ -546,7 +546,9 @@ public:
 	// window; Commit takes the exact (c,h,spt) of a PC format and a
 	// write-protect flag, and works while the machine runs.
 	struct Floppy {
-		std::vector<std::uint8_t> window;
+		// The drive's image: bytes from offset in region (the DDR window).
+		std::vector<std::uint8_t>* region = nullptr;
+		std::size_t offset = 0;
 		unsigned state = 1, pending = 1, verify_left = 0;
 		bool frozen = false, saved = false, failed = false, dirty = false, write_protect = false;
 		std::uint16_t epoch = 0;
@@ -663,17 +665,19 @@ private:
 				const auto& w = f.staged;
 				const std::uint32_t sectors = w[0] | w[1] << 16;
 				std::uint32_t crc = 0xffffffffu;
-				for (std::size_t at = 0; at < std::size_t(sectors) * 512 && at < f.window.size(); ++at) {
-					crc ^= f.window[at];
+				const bool fits = f.region && f.offset + std::size_t(sectors) * 512 <= f.region->size();
+				for (std::size_t at = 0; fits && at < std::size_t(sectors) * 512; ++at) {
+					crc ^= (*f.region)[f.offset + at];
 					for (unsigned bit = 0; bit < 8; ++bit) crc = (crc >> 1) ^ ((crc & 1u) ? 0xedb88320u : 0u);
 				}
-				const bool match = std::size_t(sectors) * 512 <= f.window.size() &&
+				const bool match = fits &&
 					(crc ^ 0xffffffffu) == (w[5] | w[6] << 16);
 				f.write_protect = w[7] & 1;
 				f.geometry = match ? std::vector<unsigned>(w.begin(), w.begin() + 5) : std::vector<unsigned>{};
 				f.pending = match ? 3 : 2;
 				f.staged.clear();
-				f.state = 4; f.verify_left = verify_reads; f.failed = false;
+				if (verify_reads) { f.state = 4; f.verify_left = verify_reads; f.failed = false; }
+				else { f.state = f.pending; f.failed = f.pending != 3; }
 			} else if (arg == 3) {
 				if (f.state != 3) return {state_error, 0};
 				f.frozen = true; f.saved = false;

@@ -457,8 +457,9 @@ Error NativeHardware::RestoreInput(std::uint64_t generation)
         return {};
     }
 	for (std::uint8_t unit = generated::FesComputerPcFloppyUnitA; unit <= generated::FesComputerPcFloppyUnitB; ++unit) {
+		// A writable drive may be frozen by a save that failed partway.
 		Pc386Floppy& drive = floppies_[unit - 1];
-		if (!drive.flushed) continue;
+		if (!drive.loaded || drive.write_protected || !drive.file) continue;
 		FesGpCoreDriver* driver = Pc386FloppyDriver(unit);
 		if (!driver || generation == 0) return {ErrorCode::io_failed, "active floppy cannot be resumed", "media_data"};
 		const Error resumed = driver->FloppyControl(unit, generated::FesComputerDiskControlResume,
@@ -544,7 +545,6 @@ void NativeHardware::ForgetActiveCore()
 {
     ForgetMediaData();
     ForgetAtaDisk();
-    ForgetPc386Floppies();
     ForgetPc386Floppies();
 	session_display_focused_ = false;
 	active_driver_ = nullptr;
@@ -1677,11 +1677,7 @@ Error NativeHardware::InsertPc386Floppy(std::uint8_t unit, const std::string& pa
 	MediaDataIdentity identity{active_context_.descriptor->core.id, binding.game_id, binding.base_media_id,
 		kPc386FloppyNamespaceUnit};
 	if (!ValidMediaDataIdentity(identity)) return {ErrorCode::invalid_request, "invalid floppy binding", "request"};
-	// One writer per record: a writable disk is in one drive at a time.
-	const Pc386Floppy& other = floppies_[unit == generated::FesComputerPcFloppyUnitA ? 1 : 0];
-	if (!binding.write_protected && other.loaded && !other.write_protected &&
-		other.identity.game_id == identity.game_id && other.identity.base_media_id == identity.base_media_id)
-		return {ErrorCode::invalid_request, "that disk is already in the other drive", "request"};
+	// No size fits both drives, so a disk's record has one drive as its writer.
 	const auto deadline = Deadline(clock_, timeouts_.media_io_ms);
 	ComputerMediaSnapshot base;
 	Error error = base.Prepare(path, size, size, clock_, deadline);
@@ -1698,20 +1694,28 @@ Error NativeHardware::InsertPc386Floppy(std::uint8_t unit, const std::string& pa
 	MediaDiskRecord record;
 	record.identity = identity;
 	record.layout = MediaDataLayout::pc386_floppy;
+	const auto check_record = [&]() {
+		Error checked = file->Read(&record);
+		if (checked.ok() && !record.bytes.empty() && record.bytes.size() != size)
+			checked = {ErrorCode::incompatible_data, "saved floppy differs in size from its base", "request"};
+		return checked;
+	};
+	// A write-protected disk reads its base and binds no record (one writer).
 	if (!binding.write_protected) {
 		error = MediaDataFile::Open(root, identity, &file);
-		if (error.ok()) error = file->Read(&record);
-		if (error.ok() && !record.bytes.empty() && record.bytes.size() != size)
-			error = {ErrorCode::incompatible_data, "saved floppy differs in size from its base", "request"};
+		if (error.ok()) error = check_record();
 		if (error.ok()) error = file->CheckWritable();
 		if (!error.ok()) return WithPhase(error, "request");
-		if (!record.bytes.empty()) image = record.bytes;
 	}
-	// The disk in the drive goes out first, saved.
+	// The disk in the drive goes out first, saved. It may be this same
+	// disk, so the record is read again after: the freshly published bytes.
 	if (floppies_[unit - 1].loaded) {
 		error = EjectPc386Floppy(unit);
 		if (!error.ok()) return error;
+		if (file) error = check_record();
+		if (!error.ok()) return WithPhase(error, "request");
 	}
+	if (file && !record.bytes.empty()) image = record.bytes;
 	error = driver->FloppyControl(unit, generated::FesComputerDiskControlPrepare, deadline);
 	if (error.ok()) {
 		const std::size_t mapped = (std::size_t(size) + 4095u) & ~std::size_t(4095u);
