@@ -3443,9 +3443,10 @@ one fresh read after its callback. Home discards the superseded response and
 clears old host admission if the fresh read fails. The
 default scope shows the ZX81 and Spectrum families, Atari ST, C64, PC/XT and
 PC 386. The PC families use `example.system`, retaining each package's disk
-and launch checks. Welcome and the setup-completion summary include all six;
-PC 386 is identified as in development. Their release-plan scopes and PC 386's
-pending quality tier are independent of this visibility.
+and launch checks. Welcome and the setup-completion summary include all six.
+PC 386 has quality tier 1 on DE10 with documented gameplay timing exceptions;
+release-plan scopes and board-specific acceptance are independent of this
+visibility.
 **Show all cores**, available through Settings, `tenfoot.json` `all_cores`, or
 `FOGCAST_TENFOOT_ALL_CORES=1`, adds the remaining families in `systems.lua`
 order and restores the Library and Systems routes. The host Library remains
@@ -4268,15 +4269,18 @@ requirement to insert media. The library can also format a blank FAT12 `.st`
 Binding requires a format-3 `fes.atari-st` firmware package with `fes.computer`
 1.0 and required base and writable floppy interfaces. Store-only creation does
 not inspect or require a package.
-The Atari ST disk shelf (`/api/v1/library/atari-st-shelf`) lists the disks made
-on the kit and the game disks with saved changes, and makes, copies, reverts,
-renames and deletes them. A disk made here is a library entry with a
-`shelf_disks` row in the catalog (schema 25), removed with its entry. Its
-saved changes are the kit's record for that entry, read through the kit
-agent's saved-record routes; every shelf change takes lifecycle admission,
-asks the kit first, and refuses the disk in the drive. A new blank shelf disk
-has a random boot-sector serial, so each is its own content-addressed medium.
-See the [package library guide](core-package-library.md#the-atari-st-disk-shelf).
+The disk shelves (`/api/v1/library/disk-shelves/{core_id}`), one each for
+the Atari ST and the PC/XT, list the disks made on the kit and the game disks
+with saved changes, and make, copy, revert, rename and delete them. A family
+table in `fogcast/disk_shelf.go` names each shelf's core, drive unit and how
+it makes a new disk: a blank ST disk (`atarist`), or a blank or FreeDOS
+PC/XT disk (`pcdisk`, the FreeDOS one copied from the bundled disk). A disk
+made here is a library entry with a `shelf_disks` row in the catalog (schema
+25), removed with its entry. Its saved changes are the kit's record for that
+entry, read through the kit agent's saved-record routes; every shelf change
+takes lifecycle admission, asks the kit first, and refuses the disk in the
+drive. A new shelf disk has a random boot-sector serial, so each is its own
+content-addressed medium. See the [package library guide](core-package-library.md#disk-shelves).
 
 The host stores the formatted bytes in the content-addressed media store; later
 GEMDOS writes stay on the existing durable drive-A record. When a disk is selected, the launch includes its
