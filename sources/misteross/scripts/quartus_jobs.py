@@ -105,22 +105,31 @@ def probe(host: str, edition: str) -> dict:
     return data
 
 
-def pick(edition: str) -> tuple[str, list[dict]]:
-    """The host to run an edition job on, and every probe."""
+REPROBE_SECONDS = 60
+
+
+def pick(edition: str) -> tuple[str, list[dict], bool]:
+    """The host to run an edition job on, every probe, and whether that host
+    is ready: a free slot and the memory for one job. When none is ready the
+    host is where the most memory is, for a caller that waits there."""
     probes = [probe(host, edition) for host in HOSTS]
     usable = [p for p in probes if "error" not in p]
     if not usable:
         raise SystemExit("no build host answered: " + "; ".join(p["error"] for p in probes))
     need = quartus_tools.PEAK_RSS_GIB[quartus_tools.edition_class(edition)] * 1024 * 1024
-    # A free slot on a host with the memory for one job wins; otherwise the
-    # job waits for a slot where the most memory is available.
     preferred = PREFERRED.get(quartus_tools.edition_class(edition))
+
+    def ready(p):
+        return p["free"] > 0 and p["available_kib"] >= need
+
     def rank(p):
-        ready = p["free"] > 0 and p["available_kib"] >= need
-        return ready, ready and p["host"] == preferred, p["free"], p["available_kib"]
+        # A free slot below the memory threshold counts for nothing.
+        if ready(p):
+            return True, p["host"] == preferred, p["free"], p["available_kib"]
+        return False, False, 0, p["available_kib"]
 
     best = max(usable, key=rank)
-    return best["host"], probes
+    return best["host"], probes, ready(best)
 
 
 def status(edition: str | None) -> int:
@@ -317,10 +326,12 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
 def resolve_pushed(revision: str) -> str:
     commit = subprocess.check_output(["git", "-C", str(REPO), "rev-parse", "--verify", revision + "^{commit}"],
                                      text=True).strip()
-    remote = subprocess.run(["git", "-C", str(REPO), "branch", "-r", "--contains", commit],
+    # Only origin: that is the remote the build host fetches from.
+    remote = subprocess.run(["git", "-C", str(REPO), "branch", "-r", "--contains", commit, "--list", "origin/*"],
                             capture_output=True, text=True)
     if remote.returncode or not remote.stdout.strip():
-        raise SystemExit(f"{commit} is on no remote branch; push it first (remote runs build pushed commits only)")
+        raise SystemExit(f"{commit} is on no origin branch; push it to origin first "
+                         "(remote runs build pushed commits only)")
     return commit
 
 
@@ -389,7 +400,17 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
     if url_has_credentials(origin):
         raise SystemExit("origin's URL carries credentials; give remote hosts a plain URL")
     if host == "auto":
-        host, probes = pick(edition)
+        # Dispatch only onto a ready host; otherwise wait and probe again, so
+        # a free slot on a host without the memory is never taken.
+        while True:
+            chosen_host, probes, ready = pick(edition)
+            if ready:
+                host = chosen_host
+                break
+            print(f"quartus_jobs: no build host has a free {edition} slot and "
+                  f"{quartus_tools.PEAK_RSS_GIB[quartus_tools.edition_class(edition)]} GiB available; "
+                  f"probing again in {REPROBE_SECONDS} s", file=sys.stderr, flush=True)
+            time.sleep(REPROBE_SECONDS)
     elif host in HOSTS:
         probes = [probe(host, edition)]
     else:
@@ -438,8 +459,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.action == "status":
         return status(args.edition)
     if args.action == "pick":
-        host, probes = pick(args.edition)
-        print(json.dumps({"host": host, "probes": probes}, indent=2) if args.json else host)
+        host, probes, ready = pick(args.edition)
+        print(json.dumps({"host": host, "ready": ready, "probes": probes}, indent=2) if args.json
+              else host + ("" if ready else " (no host ready: a remote job would wait)"))
         return 0
     if args.action == "run":
         return run(args.edition, args.label, command, cap_seconds=args.cap_minutes * 60)

@@ -712,7 +712,8 @@ class JobsTests(unittest.TestCase):
 
     def pick(self, edition, probes):
         with mock.patch.object(self.jobs, "probe", lambda host, _edition: probes[host]):
-            return self.jobs.pick(edition)[0]
+            host, _, ready = self.jobs.pick(edition)
+            return host if ready else f"wait:{host}"
 
     def test_pick_prefers_a_free_slot_with_the_memory_for_a_job(self):
         gib = 1024 ** 2
@@ -723,8 +724,31 @@ class JobsTests(unittest.TestCase):
         # Pro prefers chip when both are free; otherwise whichever is free.
         self.assertEqual(self.pick("pro", self.probes(1, 15 * gib, 2, 40 * gib)), "chip-30x0-ai-dev")
         self.assertEqual(self.pick("pro", self.probes(0, 15 * gib, 1, 40 * gib)), "powerboat")
-        # Nothing free: wait where the most memory is.
-        self.assertEqual(self.pick("pro", self.probes(0, 15 * gib, 0, 40 * gib)), "powerboat")
+        # Nothing free: not ready; a remote job waits (where the most memory is).
+        self.assertEqual(self.pick("pro", self.probes(0, 15 * gib, 0, 40 * gib)), "wait:powerboat")
+        # Codex P1: a free slot below the memory threshold is not ready, even
+        # when the other host has no free slot.
+        self.assertEqual(self.pick("pro", self.probes(1, 5 * gib, 0, 40 * gib)), "wait:powerboat")
+
+    def test_remote_waits_rather_than_dispatching_onto_a_host_without_memory(self):
+        gib = 1024 ** 2
+        rounds = [self.probes(1, 5 * gib, 0, 40 * gib), self.probes(1, 5 * gib, 1, 40 * gib)]
+        calls = []
+
+        def probe(host, _edition):
+            data = dict(rounds[min(len(calls) // 2, 1)][host], home="/home/u")
+            calls.append(host)
+            return data
+
+        with mock.patch.object(self.jobs, "probe", probe), mock.patch.object(self.jobs, "REPROBE_SECONDS", 0), \
+                mock.patch.object(self.jobs, "resolve_pushed", return_value="e" * 40), \
+                mock.patch.object(self.jobs, "local_host", return_value="elsewhere"), \
+                mock.patch.object(self.jobs.subprocess, "check_output", return_value="https://github.com/DeanoC/fes\n"), \
+                mock.patch.object(self.jobs.subprocess, "run",
+                                  return_value=subprocess.CompletedProcess([], 0)) as launched:
+            self.assertEqual(self.jobs.remote("pro", "auto", "HEAD", "", ["true"]), 0)
+        self.assertEqual(len(calls), 4, "it dispatched before a host was ready")
+        self.assertIn("powerboat", launched.call_args.args[0])
 
     def test_the_remote_program_runs_from_data_under_the_lease(self):
         script, run_dir = self.jobs.remote_script(
@@ -747,6 +771,16 @@ class JobsTests(unittest.TestCase):
         lite, _ = self.jobs.remote_script(commit="b" * 40, host="powerboat", home="/home/u", edition="lite",
                                          label="", command=["true"], stamp="s", origin="https://example/x")
         self.assertIn("export QUARTUS_ROOTDIR=/home/u/intelFPGA_lite/17.0/quartus", lite)
+
+    def test_a_commit_on_another_remote_only_is_not_pushed(self):
+        # Codex P2: the build host fetches origin, so only origin counts.
+        def fake(argv, **_kwargs):
+            listed = "  origin/main\n" if "--list" not in argv else ""
+            return subprocess.CompletedProcess(argv, 0, listed, "")
+        with mock.patch.object(self.jobs.subprocess, "run", side_effect=fake), \
+                mock.patch.object(self.jobs.subprocess, "check_output", return_value="c" * 40 + "\n"):
+            with self.assertRaises(SystemExit):
+                self.jobs.resolve_pushed("HEAD")
 
     def test_remote_refuses_an_unpushed_commit(self):
         with mock.patch.object(self.jobs.subprocess, "run",
