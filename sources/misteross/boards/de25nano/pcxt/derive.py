@@ -74,33 +74,50 @@ def retarget_video_ram(source):
 # toggles, the machine hold level and the published bank. It is sound, but the
 # design assistant refuses a synchronizer whose first stage takes its clock's
 # synchronous reset, a level that leaves a widely shared register, and a bank
-# the pixel clock reads through its adoption select (CDC-50002), as the Atari
-# ST's video did. Here, as in that derivation:
-#   - each toggle and the hold level cross a two-stage synchronizer that runs
-#     free of its clock's synchronous reset; the hold leaves a machine-clock
-#     launch register of its own;
-#   - the published bank is copied into a pixel-clock register on the edge its
-#     toggle leaves the synchronizer, with nothing on the path but that
-#     register's enable, and the pixel clock adopts the copy from that stage.
+# register that feeds a receiving register through a wire alone, which it
+# reads as a one-bit synchronizer per bank bit (CDC-50002). Here, as the
+# Atari ST's video and the DE25 C64's frame store are derived:
+#   - each toggle and the hold level cross a two-stage synchronizer that powers
+#     up zero and runs free of its clock's synchronous reset; the hold leaves a
+#     machine-clock launch register of its own;
+#   - the bank crosses as a preserved code register (the bank with bit 0
+#     inverted) loaded beside it, copied into a preserved pixel-clock code
+#     register on the edge the sent toggle leaves its synchronizer, with
+#     nothing on the path but that register's enable. The pixel clock reads
+#     the code through a loaded flag, so no crossing register drives another
+#     through a wire alone, and adopts it from that stage.
 # The coordinated reset holds both clocks for many cycles, so the free-running
-# stages settle to the reset toggles before either side runs. An adoption can
-# take one pixel clock longer to see a new bank; it still lands on an output
-# frame start.
+# stages settle to the reset toggles before either side runs, and a code is
+# read only after a toggle that followed its load. An adoption can take one
+# pixel clock longer to see a new bank; it still lands on an output frame
+# start.
 VIDEO_EDITS = (
     (b"    (* async_reg = \"true\" *) reg ack_meta, ack_sync, sent_meta, sent_sync;\n",
-     b"    (* async_reg = \"true\" *) reg ack_meta, ack_sync, sent_meta, sent_sync;\n"
-     b"    reg hold_launch, sent_held;\n    reg [1:0] published_pixel;\n"
+     b"    (* async_reg = \"true\" *) reg ack_meta = 1'b0, ack_sync = 1'b0, sent_meta = 1'b0, sent_sync = 1'b0;\n"
+     b"    (* preserve, dont_merge *) reg hold_launch = 1'b0;\n    reg sent_held = 1'b0, pixel_loaded = 1'b0;\n"
+     b"    (* preserve, dont_merge *) reg [1:0] published_code = 2'd0;\n"
+     b"    (* preserve, dont_merge *) reg [1:0] pixel_code = 2'd0;\n"
+     b"    wire [1:0] published_pixel = pixel_code ^ {~pixel_loaded, pixel_loaded};\n"
      b"    always @(posedge clk_sys) begin\n"
      b"        ack_meta <= received; ack_sync <= ack_meta; hold_launch <= hold;\n    end\n"),
     (b"            ack_meta <= 0; ack_sync <= 0; source_x <= 0; source_y <= 0;\n",
      b"            source_x <= 0; source_y <= 0;\n"),
     (b"            ack_meta <= received; ack_sync <= ack_meta;\n", b""),
+    (b"                published_bank <= write_bank; sent <= !sent; waiting <= 1; queued <= 0;\n",
+     b"                published_bank <= write_bank; sent <= !sent; waiting <= 1; queued <= 0;\n"
+     b"                published_code <= write_bank ^ 2'd1;\n"),
+    (b"                            published_bank <= write_bank; sent <= !sent; waiting <= 1;\n",
+     b"                            published_bank <= write_bank; sent <= !sent; waiting <= 1;\n"
+     b"                            published_code <= write_bank ^ 2'd1;\n"),
+    (b"    (* async_reg = \"true\" *) reg hold_meta, hold_sync;\n",
+     b"    (* async_reg = \"true\" *) reg hold_meta = 1'b0, hold_sync = 1'b0;\n"),
     (b"    wire adopt = output_sof && sent_sync != received;\n"
      b"    wire [1:0] read_bank = adopt ? published_bank : front;\n",
      b"    always @(posedge clk_pixel) begin\n"
      b"        sent_meta <= sent; sent_sync <= sent_meta; sent_held <= sent_sync;\n"
      b"        hold_meta <= hold_launch; hold_sync <= hold_meta;\n"
-     b"        if (sent_sync != sent_held) published_pixel <= published_bank;\n    end\n"
+     b"        if (sent_sync != sent_held) begin pixel_code <= published_code; pixel_loaded <= 1'b1; end\n"
+     b"    end\n"
      b"    wire adopt = output_sof && sent_held != received;\n"
      b"    wire [1:0] read_bank = adopt ? published_pixel : front;\n"),
     (b"            sent_meta <= 0; sent_sync <= 0; hold_meta <= 0; hold_sync <= 0;\n", b""),

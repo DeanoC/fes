@@ -61,15 +61,15 @@ foreach {label source head} {
     set_false_path -from $launches -to $first_d
 }
 
-# The published bank is held from its sent toggle until the pixel clock's
-# received toggle returns. The pixel clock copies it on the edge the toggle
-# leaves its synchronizer, with nothing on the path but the copy's enable, no
-# sooner than two pixel periods after the toggle left the machine clock, and
-# adopts the copy from that stage. One pixel period bounds the copy, as the DE10 mailbox
-# constraint bounds the bank; the bound counts the skew between the two PLL
-# networks.
-set published [get_registers "${base}|core|system|video|adapter|published_bank\[*\]"]
-set copied [get_registers "${base}|core|system|video|adapter|published_pixel\[*\]"]
+# The published bank crosses as its code, held from the sent toggle until the
+# pixel clock's received toggle returns. The pixel clock copies the code on
+# the edge the toggle leaves its synchronizer, with nothing on the path but the
+# copy's enable, no sooner than two pixel periods after the toggle left the
+# machine clock, and adopts it from that stage. One pixel period bounds the
+# copy, as the DE10 mailbox constraint bounds the bank; the bound counts the
+# skew between the two PLL networks.
+set published [get_registers "${base}|core|system|video|adapter|published_code\[*\]"]
+set copied [get_registers "${base}|core|system|video|adapter|pixel_code\[*\]"]
 if {[get_collection_size $published] != 2 || [get_collection_size $copied] != 2} {
     error "DE25 PC/XT held video bank endpoints changed"
 }

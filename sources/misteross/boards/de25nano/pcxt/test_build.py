@@ -60,12 +60,12 @@ class Derivations(unittest.TestCase):
             self.assertEqual(result.count(name), 1, name)
         for name in (b"ack_meta <= 0", b"sent_meta <= 0", b"hold_meta <= 0", b"hold_meta <= hold;"):
             self.assertNotIn(name, result)
-        # The pixel clock reads the bank only through its copy; the machine
-        # clock's own read of it stays.
-        self.assertEqual(result.count(b"published_bank;"), 2)
-        self.assertIn(b"source_front <= published_bank;", result)
-        self.assertIn(b"if (sent_sync != sent_held) published_pixel <= published_bank;", result)
+        # The bank crosses only as its code, read through the loaded flag.
+        self.assertEqual(result.count(b"published_code <= write_bank ^ 2'd1;"), 2)
+        self.assertIn(b"if (sent_sync != sent_held) begin pixel_code <= published_code;", result)
+        self.assertIn(b"pixel_code ^ {~pixel_loaded, pixel_loaded}", result)
         self.assertNotIn(b"? published_bank : front", result)
+        self.assertIn(b"begin front <= published_pixel;", result)
         with self.assertRaises(ValueError):
             derive.retarget_video(result)
 
