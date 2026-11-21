@@ -85,6 +85,7 @@ once FDOS/kernel releases a fix.
 | `--suite boot` (boot image, `dir`), oracle | pass; VGA replay 0 mismatches |
 | `--suite boot --cpu rtl` (boot image, `dir`) | pass from reset, 0 oracle steps; VGA replay 0 mismatches |
 | `--suite game --game wolf3d --drive real` (rebuilt `real`, `bb473ed9…`), oracle | pass (24 s run) |
+| `--suite game --game ultima6 --drive real` (rebuilt `real`), oracle | pass (16 s run; OPL2 2,815 writes, every sample exact) |
 | WfW 3.11 Notepad on entry 4 (`win /3 notepad c:\save1.txt`), oracle: type, File Save, then File Save As `C:\SAVE2.TXT` | pass: `SAVE1.TXT` goes from "ORIGINAL" (10 bytes) to "EDITED" + "ORIGINAL" (18 bytes); `SAVE2.TXT` is created with the same 18 bytes; SHARE's open and close calls for `C:\SAVE2.TXT` return CF=0 |
 
 ## Method
