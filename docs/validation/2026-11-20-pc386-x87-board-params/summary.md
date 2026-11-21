@@ -1,4 +1,4 @@
-# pc386: the board's 387 as `pc386_system` parameters
+# pc386: the board's 387 as a `pc386_system` parameter
 
 Slice 2 of the DE25 pc386 lane (#2029), issue #2031. The lane plan is
 `docs/validation/2026-11-20-de25-pc386-shell-plan/summary.md`, on PR #2030
@@ -6,23 +6,22 @@ until it merges.
 
 ## The change
 
-`pc386_system` takes two new parameters, `X87_PRESENT` (the i386dx+387
-identity) and `X87_BACKEND` (0 the sequencer, 1 the DE25 pipeline). Both
-default to 0. `x87_present` is now `X87_PRESENT != 0`, where it was tied
-to `1'b0`, and the CPU instance passes `X87_BACKEND` on. Neither the DE10
-top nor the seal sets them, so the DE10 package keeps its identity off.
-Turning the identity on is x87 slice 7 (#1768).
+`pc386_system` takes one new parameter, `X87_PRESENT` (the i386dx+387
+identity), defaulting to 0. `x87_present` is now `X87_PRESENT != 0`, where
+it was tied to `1'b0`. Neither the DE10 top nor the seal sets it, so the
+DE10 package keeps its identity off. Turning the identity on is x87 slice 7
+(#1768). The CPU has one x87 backend since #2037, so there is no backend
+parameter.
 
-The fit harnesses take the settings in place of editing the RTL:
+The fit harnesses take the setting in place of editing the RTL:
 
-- `pc386_quartus.machine_program(..., x87=...)` adds the
-  parameters to the Yosys program. It refuses any key other than the two,
-  and any value other than 0 or 1. The seal passes none.
-- `fit_i386_device.py --x87-present/--x87-backend` sets them for
-  `--design machine`. It refuses them for the CPU design, the
-  SystemVerilog front end and a reused `--netlist`, because none of those
-  goes through this elaboration. The netlist record carries the settings
-  used.
+- `pc386_quartus.machine_program(..., x87=...)` adds the parameter to the
+  Yosys program. It refuses any key other than `X87_PRESENT` and any value
+  other than 0 or 1. The seal passes none.
+- `fit_i386_device.py --x87-present` sets it for `--design machine`. It
+  refuses it for the CPU design, the SystemVerilog front end and a reused
+  `--netlist`, because none of those goes through this elaboration. The
+  netlist record carries the setting used.
 - `quartus_x87_spike.py --identity-on` passes `X87_PRESENT = 1`, and its
   text overlay of `pc386_system.sv` is deleted. The DE25 fits'
   `scratch-edits*.patch` files in earlier records stay, as the history of
@@ -30,49 +29,27 @@ The fit harnesses take the settings in place of editing the RTL:
 
 ## What the change does to the DE10 package
 
-It edits RTL in the sealed source closure, so AGENTS.md's closure-only
-rule (D12) does not apply. The DE10 package therefore took its full gates,
-listed below.
-
-**The machine netlist is not byte-identical, and is not expected to be.**
-These were elaborated in one checkout, one after another, with the
-pc386 lock's Yosys, through `fit_i386_device.py --design machine
---project-only`:
-
-| Revision | `pc386_system.v` SHA-256 |
-| --- | --- |
-| main `8a162c536` | `944810ce055bee600a3cfdbfc250b3e8c662e85332b72c7e265c3b01a8c2ea39` |
-| this branch `dc7a120f8` | `75105e0bbfcfb8b342f5085200b8053e7ea5ba154f8ca91f6c40d85a8e6e9da6` |
-| main `8a162c536` again | `944810ce…2ea39`, unchanged |
-
-The two netlists are the same size, 5,883,250 bytes. They differ only in
-the numbers on Yosys's auto-generated names (`…_sv_<line>_<n>__result`,
-894 of them, mostly shifted by 288) and in the order of the statements
-those names sort. Two other spellings of the edit gave a third digest:
-`parameter bit` with a plain assign, and leaving the CPU instance's
-parameter unpassed. So the shift comes from declaring a parameter at all.
-This is the name sensitivity of DeanoC/yosys#80. Logical equivalence was
-not checked formally. The gates below are the evidence.
-
-**The CPU is untouched.** `yosys_netlist.cpu_source_sha256` is
-`31cf2a5d83503901c23413b0bd0c00c31734fce1e719e170126231956788862e` on both
-revisions. So the CPU lockstep suites and test386, which run
-`fes_i386_cpu` alone, test the same bytes as on main. test386 was not
-rerun. The fresh lockstep below ran because the producer requires one.
+It edits RTL in the sealed source closure, so the DE10 package took its
+full gates at the head `e79fc6866` (main `f3140cb33` merged, after #2059).
+The machine netlist moves with any declared parameter: Yosys's
+auto-generated names shift (DeanoC/yosys#80). Logical equivalence was not
+checked formally. The gates below are the evidence.
 
 ## Gates
 
 | Gate | Where | Result |
 | --- | --- | --- |
-| Repo tests (`test_fit_i386_device`, `test_quartus_x87_spike`, `test_pc386_quartus`, `test_build_pc386_product`, `test_pc386_seal_process`) | Powerboat | 172 pass |
-| The non-default settings elaborate: `fit_i386_device.py --design machine --project-only` at `--x87-present 1 --x87-backend 1`, and at 0/0 | Powerboat | Both elaborate with the pc386 lock's Yosys. The program carries `-chparam X87_PRESENT 1` and `X87_BACKEND 1`. The 1/1 netlist is 6,584,369 bytes, against 5,883,250 at 0/0. It holds the DE25 backend, the generate block `g_de25`, with 807 `cpu_x87_g_de25_core` and 2,010 `cpu_x87_g_de25_trans` names, and nothing from `g_de10`. At 0/0 neither block appears: the unit is trimmed. This shows the parameters reach the elaboration. It is not a fit of the 1/1 machine |
-| `sim_fes_pc386.py --suite system` (`pc386_system` with `fes_i386_cpu`, FreeDOS, at the parameters' defaults) | Powerboat | PASS: prompt at 191,533,231 cycles; disk save, CMOS, record, port-2 hold and status-ring checks all pass |
-| Netlist lockstep, DE10 backend, through the producer's `--with-lockstep` | chip-30x0-ai-dev, CUDA toolchain slot | pass: corpus 1,758,699 tests of 941 files, random 32,000, undefined 4,000, directed 84, paging 170, x87 125, BCD 3, transcendental 10, no-387 1,933, memory 27. CPU netlist `7d3534c1`, report `9174a7d0` |
-| pc386 seal, registered producer `build_pc386_product.py`, Quartus 17.0.2 Lite, seed 1 | chip-30x0-ai-dev | BUILD_ID `1820782b5b839f43138445ea14093930`; package `92b82fe33fbc8610c2a66bf77b3bff1f1ea6fbfc05a75623ad8d12e2c47e32f1`; RBF `8f98a48ebfdcdce07c7b0afbbd322fbe78e3212edbfe12e10edc8dc3dab68b5f`; 36,432 of 41,910 ALMs; worst slack across corners, from [`seal-build-summary.json`](seal-build-summary.json): setup +0.112 ns, hold +0.086 ns, recovery +6.987 ns, removal +0.420 ns, minimum pulse width +1.122 ns. Every analysis passes |
-| Kit B, run `k2031b` | Powerboat | pass: the sealed package `92b82fe3` launched from the library on the user-supplied drive `a6977555`; FreeDOS prompt in 0.6 s, Wolfenstein 3D drawn and walked. Core-only: nothing installed. The kit was restored to its baseline (image `179affbb`, bundle `c9ae79e2`), idle and lease-free, and logged in `kitB-STATUS.md` ([result](kit-b-k2031b-result.json)). An earlier attempt, `k2031a`, stopped at the driver's import before touching the kit; it was verified on baseline and logged FREE |
+| Repo tests (`test_fit_i386_device`, `test_quartus_x87_spike`, `test_pc386_quartus`, `test_build_pc386_product`, `test_pc386_seal_process`) | Powerboat | 165 pass, 1 skipped |
+| `make sim-fes-pc386-system` (`pc386_system` with `fes_i386_cpu`, FreeDOS, at the parameter's default) | Powerboat | PASS: prompt at 191,533,231 cycles; the disk save, CMOS, record, port-2 hold and status-ring checks (18) pass |
+| Netlist lockstep through the producer's `--with-lockstep` | chip-30x0-ai-dev, CUDA toolchain slot | pass: corpus 1,758,699 tests of 941 files, random 32,000, pmode 8,000, tasks 4,000, debug 4,000, undefined 4,000, directed 84, pmode cases 726, paging 170, no-387 1,933, x87 125, BCD 28, transcendental 181, x87 built forms 1,620 with 0 mismatches, memory 27. CPU source closure `a814e143`, netlist `95b46e65`, report `ee214a51` |
+| pc386 seal, registered producer `build_pc386_product.py`, Quartus 17.0.2 Lite, **seed 1** | chip-30x0-ai-dev | BUILD_ID `42ea89c2b19bda6e92fe4684a76a04e7`; package `b30c23424d9fb29d51deaa237183d5ed2abbe385ff05a4ff78b0a89717035c67`; RBF `1fbba035ed69f59c4d1c90039260a7e7908274e7cb621e2915895e1ccd5766dd`; 36,390 of 41,910 ALMs; system clock 61.44 MHz. Worst slack across corners, from [`seal-build-summary.json`](seal-build-summary.json): setup +0.580 ns, hold +0.084 ns, recovery +6.602 ns, removal +0.272 ns, minimum pulse width +1.122 ns. Every analysis passes |
+| Kit B, run `k2033d` | Powerboat | pass: the sealed package `b30c2342` launched from the library on the user-supplied drive `a6977555`; FreeDOS prompt detected in 2.0 s, Wolfenstein 3D drawn and walked. Core-only: nothing installed. The kit was restored to its baseline (image `179affbb`, bundle `c9ae79e2`), idle and lease-free, and logged in `kitB-STATUS.md` ([result](kit-b-k2033d-result.json)). An earlier attempt, `k2033c`, stopped at the driver's import before touching the kit; it was verified on baseline and logged FREE |
 
-The seal's setup margin is within the seed-1 range earlier pc386 seals
-have shown (+0.081 to +0.672 ns). The seal checks are unchanged.
+**The seed.** The agreed sweep was seeds 1 to 4, one at a time under the
+Quartus lease, taking the first seed that passes every check. Seed 1
+passed, so 2 to 4 did not run. Before #2059, seed 1 at `b258e166a` did not
+route (Quartus error 11802, congestion, 36,322 of 41,910 ALMs); that run
+produced no package. The seal checks are unchanged.
 
 ## A later head
 
@@ -94,5 +71,5 @@ python3 cores/fes-pc386/tools/build_pc386_product.py --with-lockstep --gpu-route
 ```
 
 ```bash
-python3 scripts/fit_i386_device.py --design machine --device de25 --x87-present 1 --x87-backend 1 --cache-root /abs/fes-toolchain-cache --output /abs/new-dir
+python3 scripts/fit_i386_device.py --design machine --device de25 --x87-present 1 --cache-root /abs/fes-toolchain-cache --output /abs/new-dir
 ```
