@@ -36,7 +36,14 @@ PLL_IP = BOARD + "pc386/machine_pll.ip"
 PLL_OUTPUTS = ("61.437908", "12.287582")
 BOARD_SDRAM = False
 WINDOW = True
-ASSIGNMENTS = ()
+# pc386_system's presenter and pixel-reset synchronizers (pc386_presenter.sv,
+# pc386_machine.sv) carry only async_reg in the Yosys netlist. Name them
+# synchronizers on the board, as the board's own chains name themselves, so
+# Quartus Pro's design assistant sees each chain. Each stage 0 drives only
+# stage 1; pc386-clocks.sdc names the launch into each stage 0.
+ASSIGNMENTS = tuple(("SYNCHRONIZER_IDENTIFICATION", "FORCED_IF_ASYNCHRONOUS", "system|" + name) for name in (
+    "machine_presenter_sequence_sync[*]", "machine_presenter_request_sync[*]",
+    "machine_presenter_loaded_sync[*]", "machine_pixel_reset_sync[*]"))
 # Qsys writes this peripheral subsystem for the component. Reviewed against the
 # Spectrum's (a08edf0b...): no SDRAM conduit; the window's master, control
 # slave and bridge (fes_win_cdc) added; one more reset controller, which

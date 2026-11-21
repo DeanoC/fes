@@ -15,7 +15,7 @@ static int write(int a, uint32_t v) {
 }
 static uint32_t read(int a) { t->address = a; t->read = 1; tick(); t->read = 0; return t->readdata; }
 static void expect(bool ok, const char *what) { if (!ok) { std::printf("FAIL %s\n", what); ++failures; } }
-static void settle() { for (int i = 0; i < 6; ++i) tick(); }
+static void settle() { for (int i = 0; i < 8; ++i) tick(); }
 
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
@@ -43,8 +43,16 @@ int main(int argc, char **argv) {
     expect(t->grant_valid && t->grant_base == 0x40000000, "the grant reaches the machine");
     expect((read(0x08) & 1) == 1, "status granted");
     expect(write(0x10, 0x50000000) == 2 && t->grant_base == 0x40000000, "grant registers are fixed while granted");
-    // A machine fault is reported, and Clear clears it and the command fault.
+    // A machine fault happens while the machine runs. Status shows it at
+    // once; the record is copied when the machine is next held.
+    t->machine_held = 0; settle();
     t->fault_port = 2; t->fault_outside = 1; settle();
+    expect(read(0x08) & 8, "status fault while running");
+    expect((read(0x24) & 0x207) == 0, "the record waits for a hold");
+    t->machine_held = 1;
+    for (int i = 0; i < 3; ++i) tick();
+    expect((read(0x24) & 0x207) == 0, "held is reported only after three machine clocks");
+    settle();
     expect((read(0x24) & 0x207) == 0x202, "fault: port 1, outside");
     expect(read(0x08) & 8, "status fault");
     t->machine_drained = 0; settle(); expect(write(0x0c, 2) == 2, "refuse Clear while not drained");

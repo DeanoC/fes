@@ -89,13 +89,14 @@ foreach {label source sink toggle launches_expected captures_minimum} {
 }
 
 # The window control block (fes_de25_hps_window_control). Machine to
-# peripheral clock: drained, held and each fault bit are levels, each from its
-# own launch register into its own two-stage synchronizer. Peripheral to
-# machine clock: granted is a level and Clear a toggle, each into its own
-# two-stage synchronizer.
+# peripheral clock: drained, held and "any machine fault" are levels, each
+# from its own launch register into its own two-stage synchronizer.
+# Peripheral to machine clock: granted is a level and Clear a toggle, each
+# into its own two-stage synchronizer.
 foreach {label source head expected} {
     window_drained {window_control|drained_source} {window_control|drained_sync[0]} 1
     window_held {window_control|held_source} {window_control|held_sync[0]} 1
+    window_fault_any {window_control|fault_any_source} {window_control|fault_any_sync[0]} 1
     window_granted {window_control|granted} {window_control|granted_sync[0]} 1
     window_clear {window_control|clear_toggle} {window_control|clear_sync[0]} 1
 } {
@@ -106,27 +107,36 @@ foreach {label source head expected} {
     }
     set_false_path -from $launches -to $first_d
 }
-for {set bit 0} {$bit < 5} {incr bit} {
-    set launches [get_registers "${base}|window_control|fault_source\[$bit\]"]
-    set first_d [get_pins -compatibility_mode -nocase "${base}|window_control|fault_sync\[$bit\]|d"]
-    if {[get_collection_size $launches] != 1 || [get_collection_size $first_d] != 1} {
-        error "DE25 pc386 window fault bit $bit synchronizer endpoints changed"
+# Two held bundles, each copied in the receiving clock when its level's
+# synchronizer rises, and still since at least one sending clock before that
+# level was launched:
+# - the grant base, into machine_clk when granted's synchronizer rises; it is
+#   writable only while no grant is held. The adapter adds only its page
+#   number (bits 31:12), so synthesis may keep fewer than 32 copies. The
+#   fitter may duplicate base bits for fan-out; a duplicate is still a base
+#   register.
+# - the machine fault record (five bits), into clk_sys when held's
+#   synchronizer rises; held_source rises three machine clocks after hold,
+#   one after the record's last possible change.
+foreach {label sources sinks launches_min launches_max captures_min captures_max} {
+    window_base {window_control|base_lo[*] window_control|base_lo[*]~DUPLICATE*} {window_control|base_machine[*]} 20 64 20 32
+    window_fault_record {window_control|fault_source[*]} {window_control|machine_fault[*]} 5 5 5 5
+} {
+    set patterns {}
+    foreach name $sources {lappend patterns "${base}|${name}"}
+    set launches [get_registers -nowarn $patterns]
+    set captures [get_registers -nowarn "${base}|${sinks}"]
+    post_message -type info "DE25 pc386 $label bundle: [get_collection_size $launches] launches, [get_collection_size $captures] captures"
+    if {[get_collection_size $launches] < $launches_min || [get_collection_size $launches] > $launches_max ||
+        [get_collection_size $captures] < $captures_min || [get_collection_size $captures] > $captures_max} {
+        error "DE25 pc386 held $label bundle endpoints changed"
     }
-    set_false_path -from $launches -to $first_d
+    set_net_delay -max 10.000 -from $launches -to $captures
+    set_data_delay 10.000 -from $launches -to $captures
+    set_max_skew 10.000 -from $launches -to $captures
+    set_max_delay 10.000 -from $launches -to $captures
+    set_min_delay 0.000 -from $launches -to $captures
 }
-# The grant base is a held bundle: it is writable only while no grant is held,
-# and the machine reads it only once granted has crossed two machine clocks
-# later. Bound its paths into the machine clock like the bundles above.
-set window_base [get_registers -nowarn [list "${base}|window_control|base_lo[*]" "${base}|window_control|base_lo[*]~DUPLICATE*"]]
-# The fitter may duplicate bits of it for fan-out; every register selected is
-# still the base register or its duplicate, and the count is recorded.
-post_message -type info "DE25 pc386 window base bundle: [get_collection_size $window_base] registers"
-if {[get_collection_size $window_base] < 1 || [get_collection_size $window_base] > 128} {
-    error "DE25 pc386 window base bundle endpoints changed"
-}
-set machine_clock [get_clocks {fes_machine_pll|machine_pll_outclk0}]
-set_max_delay 10.000 -from $window_base -to $machine_clock
-set_min_delay 0.000 -from $window_base -to $machine_clock
 
 # pc386_system's own crossings between the machine and pixel clocks, in the
 # Yosys netlist's flattened names (system|machine_*: pc386_machine,
