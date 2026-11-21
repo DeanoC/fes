@@ -410,8 +410,12 @@ module fes_i386_cpu #(
     logic [3:0][31:0] dr;
     logic [3:0]       dr6_lo, dr6_hi;
     logic [31:0]      dr6_rd, dr7;
-    // A 486's DR6 reads bit 12 as 0 (PRM Table 10-1).
-    assign dr6_rd = {16'hffff, dr6_hi[3:1], dr6_hi[0] && !I486, 8'hff, dr6_lo};
+    // Bit 12 is held on a 486 as on a 386: its reset value is 0 (PRM Table
+    // 10-1; pc386_system's init_dr6), and a MOV to DR6 may set it (Intel SDM
+    // vol. 3, the debug registers' compatibility notes: "it is possible to
+    // write a 1 in this bit on the Intel486 processor"; Bochs's level 4
+    // keeps it settable too).
+    assign dr6_rd = {16'hffff, dr6_hi, 8'hff, dr6_lo};
     // TR4-TR7 (#1730), which MOV TRn writes and reads: the 386's decoder
     // runs MOV to and from each (microcode_notes.txt 391, 3B6). They keep
     // what is written; TR6's TLB test command does nothing

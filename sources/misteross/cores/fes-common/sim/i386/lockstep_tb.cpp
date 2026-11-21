@@ -1385,6 +1385,10 @@ struct Summary {
     uint64_t trace_hash = 1469598103934665603ull;
     std::map<int, uint64_t> fault_vectors;
     std::map<std::string, uint64_t> divergences;  // retirements an entry left to the corpus
+    // The level-4 random programs' 486 forms (count_i486_form): each form's
+    // retirements and faults, CPUID by leaf, AC toggled by POPFD, #AC and the
+    // CPL-0 writes WP stops. Printed only against the level-4 oracle.
+    std::map<std::string, uint64_t> i486_forms;
     // Cycles from one retirement to the next, by what retired: after a
     // branch, taken or not; otherwise an instruction with more than one
     // prefix (each but the last costs Q a cycle), an LEA, a selector read
@@ -2086,10 +2090,13 @@ struct Outcome {
     int exception = -1;    // the last exception both sides delivered
     bool shutdown = false;  // stopped at a fault in a double fault's delivery, on both sides
     bool limit = false;    // stopped at the retirement limit
-    bool vector_moved = false;  // stopped at an injected interrupt whose vector entry or handler the program rewrote
+    bool vector_moved = false;  // stopped at an injected interrupt whose vector entry or handler the program rewrote, or at a real-mode nested delivery whose entry the step's frame overwrote
     bool window_code = false;   // stopped at code in the MMIO window, which neither side fetches
     bool code_store = false;    // stopped at a store into its code that it did not plan
     bool rep_self_store = false;  // the oracle stopped inside REP after overwriting its own bytes
+    // Against the level-4 oracle, stopped in the #AC delivery loop that a
+    // ring-3 gate 17 and a misaligned ring-3 stack make (see lockstep).
+    bool ac_loop = false;
     // With mixed memory, stopped at code outside the program (own) and the
     // injected interrupts' handlers (the real-mode one and the protected-mode
     // IDT's), at code other than the 16 bytes from the
@@ -2319,6 +2326,159 @@ EscStep esc_step(const uint8_t *code, bool code32, const State &state, const fes
     return e;
 }
 
+// ---- The 486 identity against the level-4 oracle ------------------------------------
+// The arena's PTEs (Generator::pg_tables): 16 pages from PG_ARENA.
+constexpr uint32_t PG_ARENA_PTE = PG_PD + 0x1000 + 4 * (PG_ARENA >> 12), PG_ARENA_PAGES = 16;
+// INVLPG FS:[disp32] with a 32-bit address, as Generator::pg_remap writes it.
+constexpr uint8_t REMAP_INVLPG[] = {0x64, 0x67, 0x0f, 0x01, 0x3d};
+// Whether a store at address is to one of the arena's PTEs and the RTL's
+// next instruction, in the program's identity-mapped code, is the INVLPG of
+// that PTE's page.
+bool remap_invlpg_follows(uint32_t address, const Rtl &rtl) {
+    if (address < PG_ARENA_PTE || address >= PG_ARENA_PTE + 4 * PG_ARENA_PAGES) return false;
+    const State s = rtl.state();
+    const uint32_t next = s.seg[fes_i386::SEG_CS].base + s.eip;
+    if (next + sizeof REMAP_INVLPG + 4 > RAM_BYTES) return false;
+    for (unsigned i = 0; i < sizeof REMAP_INVLPG; ++i)
+        if (rtl.ram[next + i] != REMAP_INVLPG[i]) return false;
+    uint32_t target = 0;
+    for (unsigned i = 0; i < 4; ++i) target |= uint32_t(rtl.ram[next + sizeof REMAP_INVLPG + i]) << (8 * i);
+    return target >> 12 == (PG_ARENA >> 12) + (address - PG_ARENA_PTE) / 4;
+}
+
+// The instruction's bytes past its prefixes, whether it has LOCK and 66h.
+struct Opcode {
+    unsigned at = 0;
+    bool lock = false, os = false;
+};
+Opcode opcode_of(const uint8_t *code) {
+    Opcode o;
+    for (; o.at < 14 && is_prefix(code[o.at]); ++o.at) {
+        o.lock = o.lock || code[o.at] == 0xf0;
+        o.os = o.os || code[o.at] == 0x66;
+    }
+    return o;
+}
+
+// The 486 identity's CPUID answers (the RTL's fes_i386_ex.sv cpuid()):
+// leaf 0 the highest leaf, 1, and GenuineIntel; leaf 1 the signature 042Bh
+// in EAX (Deano, 21 November 2026; fes_i386_pkg.sv I486_SIGNATURE) and
+// zeros, EDX's bit 0 clear because a 486SX has no FPU (data book 241731-002
+// Table 9-9 and AP-485); every other leaf zeros (data book Appendix B,
+// item 3).
+constexpr uint32_t I486SX_SIGNATURE = 0x42b;
+// What Bochs's one 486, the DX4 (cpu/cpudb/intel/i486dx4.cc), answers to
+// every leaf but 0: its leaf 1, EAX 0480h and EDX 1 (an FPU), EBX and ECX 0.
+// The level-4 self-check pins these (fes_i486_cases.py cpuid-1, cpuid-2).
+constexpr uint32_t DX4_SIGNATURE = 0x480, DX4_EDX = 1;
+
+// The CPUID rule (level 4; README, "The level-4 oracle"). When the oracle's
+// step retired a CPUID of a leaf other than 0 with no event, its EAX, EBX,
+// ECX and EDX must be the DX4's leaf 1 exactly; they are then set to the
+// 486SX's answer for that leaf, which the comparison holds the RTL to. A
+// leaf-0 CPUID is compared as any instruction is.
+void cpuid_rule(const uint8_t *code, const State &before, const fes_i386::StepResult &result,
+                fes_i386::Oracle &oracle, Summary &summary, Mismatches &out) {
+    const Opcode o = opcode_of(code);
+    if (o.lock || code[o.at] != 0x0f || code[o.at + 1] != 0xa2 || !result.retired || !result.events.empty()) return;
+    const uint32_t leaf = before.gpr[fes_i386::REG_EAX];
+    if (leaf == 0) return;
+    State after = oracle.get_state();
+    const std::string at = "@" + hex(before.eip) + ".cpuid-oracle.";
+    if (after.gpr[fes_i386::REG_EAX] != DX4_SIGNATURE) out.add(at + "eax", DX4_SIGNATURE, after.gpr[fes_i386::REG_EAX]);
+    if (after.gpr[fes_i386::REG_EBX] != 0) out.add(at + "ebx", 0, after.gpr[fes_i386::REG_EBX]);
+    if (after.gpr[fes_i386::REG_ECX] != 0) out.add(at + "ecx", 0, after.gpr[fes_i386::REG_ECX]);
+    if (after.gpr[fes_i386::REG_EDX] != DX4_EDX) out.add(at + "edx", DX4_EDX, after.gpr[fes_i386::REG_EDX]);
+    after.gpr[fes_i386::REG_EAX] = leaf == 1 ? I486SX_SIGNATURE : 0;
+    after.gpr[fes_i386::REG_EBX] = after.gpr[fes_i386::REG_ECX] = after.gpr[fes_i386::REG_EDX] = 0;
+    oracle.set_state(after);
+    ++summary.divergences["cpuid-486sx"];
+}
+
+// Counts the 486 forms the oracle's step ran (Summary::i486_forms): the
+// form, and "-fault<vector>" when its first event is an exception; CPUID by
+// leaf; POPF or POPFD that changed AC; #AC; and a write at CPL 0 to a
+// read-only page that WP stopped (#PF, error P and W, not U).
+void count_i486_form(const uint8_t *code, const State &before, const State &after,
+                     const fes_i386::StepResult &result, Summary &summary) {
+    const bool interrupted = !result.events.empty() && (result.events[0].kind == fes_i386::EventKind::ExternalInterrupt
+                                                        || result.events[0].kind == fes_i386::EventKind::Nmi);
+    const fes_i386::Event *fault = nullptr;
+    for (const auto &e : result.events)
+        if (e.kind == fes_i386::EventKind::Exception) {
+            fault = &e;
+            break;
+        }
+    if (fault && fault->vector == 17) ++summary.i486_forms["ac-fault"];
+    // An #AC that a delivery's push raised: the step's events have another
+    // before it (a delivery that stayed at CPL 3 on a misaligned stack).
+    for (size_t n = 1; n < result.events.size(); ++n)
+        if (result.events[n].kind == fes_i386::EventKind::Exception && result.events[n].vector == 17) {
+            ++summary.i486_forms["ac-in-delivery"];
+            break;
+        }
+    if (fault && fault->vector == 14 && (fault->error_code & 7) == 3 && (before.cr0 & 0x10000) && !interrupted)
+        ++summary.i486_forms["wp-fault"];
+    if (interrupted) return;
+    const Opcode o = opcode_of(code);
+    const uint8_t op = code[o.at], op2 = code[o.at + 1], modrm = code[o.at + 2];
+    std::string form;
+    if (op == 0x9d) {
+        if (!fault && ((before.eflags ^ after.eflags) & 0x40000)) form = "ac-toggle";
+    } else if (op == 0x0f) {
+        const bool mem = (modrm >> 6) != 3;
+        const std::string size = (op2 & 1) == 0 ? "8" : o.os ? "32" : "16";
+        if (op2 >= 0xc8 && op2 <= 0xcf) form = o.os ? "bswap32" : "bswap16";
+        else if (op2 == 0xc0 || op2 == 0xc1) form = std::string("xadd-") + (mem ? "m" : "r") + size;
+        else if (op2 == 0xb0 || op2 == 0xb1)
+            form = std::string("cmpxchg-") + (mem ? "m" : "r") + size + (fault ? "" : (after.eflags & 0x40) ? "-equal" : "-unequal");
+        else if (op2 == 0x08) form = "invd";
+        else if (op2 == 0x09) form = "wbinvd";
+        else if (op2 == 0x01 && ((modrm >> 3) & 7) == 7) form = mem ? "invlpg" : "invlpg-reg";
+        else if (op2 == 0xa2) {
+            const uint32_t leaf = before.gpr[fes_i386::REG_EAX];
+            form = leaf == 0 ? "cpuid-0" : leaf == 1 ? "cpuid-1" : "cpuid-2+";
+        }
+        if (!form.empty() && o.lock) form += "-lock";
+    }
+    if (form.empty()) return;
+    if (fault) form += "-fault" + std::to_string(fault->vector);
+    ++summary.i486_forms[form];
+}
+
+// Whether gate 17 of the protected-mode IDT leads to CPL 3 from CPL 3: an
+// interrupt or trap gate, present, to a present code segment that is
+// conforming or of DPL 3 (the #AC delivery loop below). The IDT and the
+// descriptor table are read at their linear addresses, which the random
+// programs map to themselves.
+bool ac_gate_to_cpl3(const State &s, OracleBus &bus) {
+    auto byte = [&](uint32_t a) { return a < RAM_BYTES ? bus.ram[a] : uint8_t(0); };
+    if (!(s.cr0 & 1) || 17u * 8 + 7 > s.idtr.limit) return false;
+    const uint32_t gate = s.idtr.base + 17u * 8;
+    const uint8_t access = byte(gate + 5), type = access & 0x1f;
+    if (!(access & 0x80) || (type != 0x06 && type != 0x07 && type != 0x0e && type != 0x0f)) return false;
+    const uint16_t selector = uint16_t(byte(gate + 2) | byte(gate + 3) << 8);
+    if ((selector & 0xfffc) == 0) return false;
+    const uint32_t base = selector & 4 ? s.ldtr.base : s.gdtr.base;
+    const uint32_t limit = selector & 4 ? s.ldtr.limit : s.gdtr.limit;
+    if ((selector & 0xfff8u) + 7 > limit) return false;
+    const uint8_t code = byte(base + (selector & 0xfff8u) + 5);
+    if (!(code & 0x80) || (code & 0x18) != 0x18) return false;
+    return (code & 0x04) || ((code >> 5) & 3) == 3;
+}
+
+// Whether the three words below ESP, a real-mode delivery's frame, overlap
+// the interrupt table's entry for vector (interrupt-vector-before-push).
+bool frame_over_entry(const State &before, unsigned vector) {
+    const auto &ss = before.seg[fes_i386::SEG_SS];
+    const uint32_t esp = before.gpr[fes_i386::REG_ESP], entry = before.idtr.base + vector * 4;
+    for (uint32_t k = 1; k <= 6; ++k) {
+        const uint32_t at = ss.base + ((ss.ar & 0x4000) ? esp - k : (esp - k) & 0xffff);
+        if (at >= entry && at < entry + 4) return true;
+    }
+    return false;
+}
+
 Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                  const Fields &label_corpus, uint64_t retire_limit, bool stop_at_exception, Summary &summary,
                  Mismatches &out, uint32_t code_hi = 0, Irq *irq = nullptr, const Code *own = nullptr, bool long_rep_progress = false) {
@@ -2539,6 +2699,26 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         if (verbose)
             std::fprintf(stderr, "  rtl event %d vector %x unbuilt %d error %x\n", int(event), unsigned(rtl.top.trace_vector),
                          int(rtl.top.trace_unbuilt), unsigned(rtl.top.trace_error));
+        // The #AC delivery loop (level 4). At CPL 3 outside V86 mode with AM
+        // and AC set, a delivery that stays at CPL 3 pushes onto the current
+        // stack, and a misaligned push raises #AC, as hardware does (Deano,
+        // 21 November 2026; CVE-2015-5307: a ring-3 #AC handler on an
+        // unaligned stack never returns from microcode). When gate 17 is
+        // also to CPL 3, #AC's own delivery raises #AC again without end:
+        // the RTL delivers nothing and times out, as a real CPU never
+        // finishes, while Bochs recurses through exception() until the
+        // host's stack overflows. Only that shared loop stops the run here,
+        // before the oracle steps: the RTL timed out in the delivery of #AC
+        // from a step that began at CPL 3 with AM and AC set on a stack
+        // that was not dword-aligned, through a gate 17 that leads to CPL 3
+        // (ac_gate_to_cpl3).
+        if (i486 && event == Rtl::Event::Timeout && rtl.top.trace_vector == 17 && before.cpl == 3
+            && !(before.eflags & 0x20000) && (before.eflags & 0x40000) && (before.cr0 & 0x40000)
+            && (before.gpr[fes_i386::REG_ESP] & 3) && ac_gate_to_cpl3(before, bus)) {
+            outcome.ac_loop = true;
+            ++summary.i486_forms["ac-delivery-loop"];
+            return outcome;
+        }
 
         // The oracle raises each line the RTL raised as element m retired
         // after its iteration m + 1; one the step does not reach, before its
@@ -2721,6 +2901,12 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 oracle.set_state(after);
                 ++summary.divergences["icebp-gd"];
             }
+        }
+        // The 486 identity against the level-4 oracle: its forms counted, and
+        // the CPUID rule.
+        if (i486) {
+            count_i486_form(code, before, oracle.get_state(), result, summary);
+            cpuid_rule(code, before, result, oracle, summary, out);
         }
         if (irq) {
             oracle.set_iteration_hook({});
@@ -2956,6 +3142,19 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         }
         if (nested && !skip.all) {
             if (!delivered) {
+                // interrupt-vector-before-push, nested: in real mode the first
+                // delivery's frame overwrote the entry of the vector the
+                // oracle then delivered (a #DF's, after a fault in a delivery
+                // whose frame lies over the table). Bochs pushes before it
+                // reads a vector, so it read the frame as that vector; the
+                // RTL, as the 386EX, reads first and writes nothing of a
+                // delivery that faults. The run stops: past here the oracle
+                // runs from the pushed words.
+                if (!(before.cr0 & 1) && frame_over_entry(before, last->vector)) {
+                    ++summary.divergences["interrupt-vector-before-push"];
+                    outcome.vector_moved = true;
+                    return outcome;
+                }
                 out.add(at + "nested", last->vector, event == Rtl::Event::Retired ? 0xffu : 0xfeu);
                 return outcome;
             }
@@ -3248,11 +3447,14 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             }
             // A store into the program's code, or into the page tables of
             // its paging blocks (Generator::pg_tables), which both TLBs may
-            // hold the old entries of, ends the run.
+            // hold the old entries of, ends the run. On a 486 one store does
+            // not: a PTE of the arena whose next instruction is the INVLPG of
+            // its page (Generator::pg_remap), after which neither TLB holds
+            // the old entry.
             if (own)
                 for (uint32_t address : oracle_writes)
                     if (address >= own->lo && address < own->hi && !own->rewritten.count(address)
-                        || address >= PG_PD && address < PG_END)
+                        || address >= PG_PD && address < PG_END && !(i486 && remap_invlpg_follows(address, rtl)))
                         outcome.code_store = true;
         }
         // The I/O accesses, in order; a request must hold until its ack.
@@ -3409,7 +3611,23 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             if (before.eflags & 0x20000) ++summary.debug_kinds["db-v86"];
             if (before.cr0 & 1) ++summary.debug_kinds["db-pm"];
             if (iterations > 0 || rep_count(code, code32, before) > 1) ++summary.debug_kinds["db-rep"];
-            const uint32_t want = oracle_state.dr6 | (before.dr6 & 0xf00f);
+            uint32_t want = oracle_state.dr6 | (before.dr6 & 0xf00f);
+            // The disabled-B rule (level 4): Bochs keeps the B bits of
+            // disabled breakpoints an access matched pending (debug_trap,
+            // hwdebug_compare) and ORs them into DR6 at a later #DB; the RTL
+            // sets those of the #DB's own instruction. The Intel SDM leaves
+            // them open (vol. 3, DR6: B0-B3 "may or may not be set if the
+            // breakpoint is not enabled by the Ln or the Gn flags in register
+            // DR7"), so at a #DB the B bit of a breakpoint disabled in DR7 is
+            // the RTL's; an enabled one's is compared.
+            if (i486) {
+                uint32_t disabled = 0;
+                for (unsigned n = 0; n < 4; ++n)
+                    if (!((before.dr7 >> (2 * n)) & 3)) disabled |= 1u << n;
+                const uint32_t mixed = (want & ~disabled) | (rtl.state().dr6 & disabled);
+                if (mixed != want) ++summary.divergences["dr6-disabled-b"];
+                want = mixed;
+            }
             if (want != oracle_state.dr6) {
                 oracle_state.dr6 = want;
                 oracle.set_state(oracle_state);
@@ -4839,6 +5057,13 @@ public:
     // real mode, protected mode at CPL 0 and 3, V86 mode. Its #UD ends the
     // program. Off, a seed's programs are as they were.
     bool undefined = false;
+    // isa486: the 486 identity's programs, against the level-4 oracle
+    // (run_random with it): now and then a 486 form in place of an
+    // instruction (i486_instruction), INVLPG and PTE remaps in the paging
+    // bursts (pg_486), and the encodings a 486 rejects in undefined_encoding.
+    // Every choice is drawn from side. Off, a seed's programs are as they
+    // were.
+    bool isa486 = false;
     std::vector<std::pair<uint32_t, uint8_t>> image;
 
     // base: the program's linear address, which far targets need; eip: its
@@ -4923,6 +5148,12 @@ private:
             0x04, 0x05, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0e, 0x0f, 0x14, 0x18, 0x1f, 0x25, 0x27, 0x28, 0x30,
             0x31, 0x32, 0x37, 0x40, 0x4f, 0x60, 0x6f, 0x77, 0x7f, 0xa2, 0xa6, 0xa7, 0xaa, 0xae, 0xb0, 0xb1,
             0xb8, 0xb9, 0xc0, 0xc1, 0xc7, 0xc8, 0xcf, 0xd0, 0xe7, 0xf0, 0xff};
+        // A 486's: the 386's without INVD, WBINVD, CPUID, CMPXCHG, XADD and
+        // BSWAP (08, 09, A2, B0, B1, C0, C1, C8, CF), which it runs.
+        static const uint8_t ud_0f_486[] = {
+            0x04, 0x05, 0x0a, 0x0b, 0x0c, 0x0e, 0x0f, 0x14, 0x18, 0x1f, 0x25, 0x27, 0x28, 0x30,
+            0x31, 0x32, 0x37, 0x40, 0x4f, 0x60, 0x6f, 0x77, 0x7f, 0xa6, 0xa7, 0xaa, 0xae,
+            0xb8, 0xb9, 0xc7, 0xd0, 0xe7, 0xf0, 0xff};
         std::vector<uint8_t> out;
         for (int n = 0; n < 2 && side() % 3 == 0; ++n) out.push_back(uint8_t(0x26 + 8 * (side() % 4)));
         if (side() % 3 == 0) out.push_back(0x66);
@@ -4932,7 +5163,9 @@ private:
         auto reg = [&](unsigned r) { modrm = uint8_t((modrm & 0xc7) | r << 3); };
         auto regform = [&]() { modrm |= 0xc0; };
         switch (side() % 12) {
-        case 0: case 1: case 2: case 3: out.insert(out.end(), {0x0f, ud_0f[side() % sizeof ud_0f]}); break;
+        case 0: case 1: case 2: case 3:
+            out.insert(out.end(), {0x0f, isa486 ? ud_0f_486[side() % sizeof ud_0f_486] : ud_0f[side() % sizeof ud_0f]});
+            break;
         case 4: out.push_back(0xfe); reg(2 + unsigned(side() % 6)); break;
         case 5: out.push_back(0xff); reg(7); break;
         case 6: out.insert(out.end(), {0x0f, 0xba}); reg(unsigned(side() % 4)); break;
@@ -4954,12 +5187,12 @@ private:
             if (side() % 2) reg(5);
             else { reg(side() % 2 ? 7 : unsigned(side() % 4)); regform(); }
             break;
-        case 10: {  // CR1, CR4-CR7, TR0-TR3
+        case 10: {  // CR1, CR4-CR7, TR0-TR3 (TR0-TR2 on a 486, which has TR3)
             static const uint8_t ops[] = {0x20, 0x22, 0x24, 0x26};
             const uint8_t op = ops[side() % 4];
             out.insert(out.end(), {0x0f, op});
             if (op < 0x24) reg(side() % 2 ? 1 : 4 + unsigned(side() % 4));
-            else reg(unsigned(side() % 4));
+            else reg(unsigned(side() % (isa486 ? 3 : 4)));
             break;
         }
         default:  // MOV Sreg 6, 7 and to CS; group 6 /6, /7
@@ -4972,8 +5205,125 @@ private:
         return out;
     }
 
+    // ---- The 486 forms (isa486), every choice from side -------------------------
+    unsigned s486(unsigned n) { return unsigned(side() % n); }
+    // A general register for a 486 form's operand of that width: never ESP
+    // (SP; for a byte, AH is fine), and not ECX (CX, CL, CH) under keep_ecx.
+    unsigned reg486(bool keep_ecx, bool byte) {
+        for (;;) {
+            const unsigned r = s486(8);
+            if (!byte && r == 4) continue;
+            if (keep_ecx && (r == 1 || (byte && r == 5))) continue;
+            return r;
+        }
+    }
+    // A segment override now and then (never CS, which would store into the
+    // code), then 66h for a 32-bit operand.
+    void prefix486(std::vector<uint8_t> &out, bool os32) {
+        static const uint8_t seg[] = {0x26, 0x36, 0x3e, 0x64, 0x65};
+        if (s486(4) == 0) out.push_back(seg[s486(5)]);
+        if (os32) out.push_back(0x66);
+    }
+    // ModRM with reg and a 16-bit-addressed memory operand, and its
+    // displacement.
+    void mem486(std::vector<uint8_t> &out, unsigned reg) {
+        const unsigned mod = s486(3), rm = s486(8);
+        out.push_back(uint8_t(mod << 6 | reg << 3 | rm));
+        const unsigned disp = mod == 1 ? 1 : mod == 2 || (mod == 0 && rm == 6) ? 2 : 0;
+        for (unsigned n = 0; n < disp; ++n) out.push_back(uint8_t(side()));
+    }
+    // One 486 form, in 16-bit code, as one item (a CPUID with its leaf's
+    // MOV, a CMPXCHG with the MOV that makes it equal, AC's toggle); empty
+    // when keep_ecx or keep_stack rules the drawn form out:
+    //   BSWAP r32 and, now and then, r16 (66h left out; Deano, 21 November
+    //   2026: the low word becomes zero);
+    //   XADD and CMPXCHG of each size, register and memory forms, LOCK now
+    //   and then on a memory form (and rarely on a register one, #UD); a
+    //   CMPXCHG often after a MOV of the accumulator into its destination,
+    //   so it finds them equal;
+    //   INVD, WBINVD and INVLPG m (at CPL 3 and in V86 mode #GP(0));
+    //   CPUID of leaf 0, 1, 2 or a random one;
+    //   AC toggled by PUSHFD, POP, XOR and POPFD, so that at CPL 3 with
+    //   CR0.AM set the program's misaligned accesses raise #AC.
+    std::vector<uint8_t> i486_instruction(bool keep_ecx, bool keep_stack) {
+        std::vector<uint8_t> out;
+        const bool wide = s486(3) != 0, os32 = wide && s486(2);
+        const uint8_t w = wide ? 1 : 0;
+        switch (s486(16)) {
+        case 0: case 1: {  // BSWAP
+            if (s486(5)) out.push_back(0x66);
+            out.insert(out.end(), {0x0f, uint8_t(0xc8 | reg486(keep_ecx, false))});
+            break;
+        }
+        case 2: case 3: case 4: case 5: {  // XADD
+            const bool mem = !keep_stack && s486(2);
+            if (mem && s486(3) == 0) out.push_back(0xf0);
+            prefix486(out, os32);
+            out.insert(out.end(), {0x0f, uint8_t(0xc0 | w)});
+            const unsigned reg = reg486(keep_ecx, !wide);
+            if (mem) mem486(out, reg);
+            else out.push_back(uint8_t(0xc0 | reg << 3 | reg486(keep_ecx, !wide)));
+            break;
+        }
+        case 6: case 7: case 8: case 9: {  // CMPXCHG
+            const bool mem = !keep_stack && s486(2), equal = s486(2);
+            const unsigned reg = reg486(keep_ecx, !wide);
+            std::vector<uint8_t> body;
+            if (mem && s486(3) == 0) body.push_back(0xf0);
+            prefix486(body, os32);
+            const size_t opcode = body.size();
+            body.insert(body.end(), {0x0f, uint8_t(0xb0 | w)});
+            if (mem) mem486(body, reg);
+            else body.push_back(uint8_t(0xc0 | reg << 3 | reg486(keep_ecx, !wide)));
+            if (equal) {  // MOV r/m, accumulator: the same operand, so ZF is set
+                std::vector<uint8_t> mov(body.begin(), body.begin() + long(opcode));
+                if (!mov.empty() && mov.front() == 0xf0) mov.erase(mov.begin());
+                mov.push_back(uint8_t(0x88 | w));
+                mov.push_back(uint8_t(body[opcode + 2] & 0xc7));
+                mov.insert(mov.end(), body.begin() + long(opcode) + 3, body.end());
+                out = mov;
+            }
+            out.insert(out.end(), body.begin(), body.end());
+            break;
+        }
+        case 10:  // LOCK on a register XADD or CMPXCHG now and then: #UD
+            if (s486(4) == 0) {
+                out.insert(out.end(), {0xf0, 0x0f, uint8_t((s486(2) ? 0xc0 : 0xb0) | w),
+                                       uint8_t(0xc0 | reg486(keep_ecx, !wide) << 3 | reg486(keep_ecx, !wide))});
+                break;
+            }
+            [[fallthrough]];
+        case 11:  // INVD or WBINVD
+            out.insert(out.end(), {0x0f, uint8_t(s486(2) ? 0x08 : 0x09)});
+            break;
+        case 12:  // INVLPG m
+            prefix486(out, false);
+            out.insert(out.end(), {0x0f, 0x01});
+            mem486(out, 7);
+            break;
+        case 13: case 14: {  // CPUID of a leaf
+            if (keep_ecx) break;
+            static const uint32_t leaves[] = {0, 1, 1, 2};
+            const uint32_t leaf = s486(5) ? leaves[s486(4)] : uint32_t(side());
+            out.insert(out.end(), {0x66, 0xb8});
+            put32(out, leaf);
+            out.insert(out.end(), {0x0f, 0xa2});
+            break;
+        }
+        default:  // AC toggled: PUSHFD; POP EAX; XOR EAX, 40000h; PUSH EAX; POPFD
+            if (keep_stack) break;
+            out = {0x66, 0x9c, 0x66, 0x58, 0x66, 0x35, 0x00, 0x00, 0x04, 0x00, 0x66, 0x50, 0x66, 0x9d};
+            break;
+        }
+        return out;
+    }
+
     std::vector<uint8_t> instruction(bool keep_ecx, bool keep_stack = false) {
         if (undefined && side() % 48 == 0) return undefined_encoding();
+        if (isa486 && side() % 10 == 0) {
+            std::vector<uint8_t> out = i486_instruction(keep_ecx, keep_stack);
+            if (!out.empty()) return out;
+        }
         for (;;) {
             std::vector<uint8_t> out;
             bool os32;
@@ -6110,6 +6460,7 @@ private:
     void pg_burst() {
         flat_fs();
         for (unsigned n = 2 + pick(6); n > 0; --n) {
+            if (isa486 && side() % 3 == 0) pg_486();
             const uint32_t a = pick(3) ? PG_ARENA + pick(0x10000) : PG_ARENA + 0x1000 * pick(16) + 0xffc + pick(4);
             const uint8_t reg = uint8_t(std::array<unsigned, 4>{0, 1, 2, 3}[pick(4)]);
             std::vector<uint8_t> op;
@@ -6163,6 +6514,24 @@ private:
             emit(op);
             if (str) emit({0xfc});  // CLD
         }
+    }
+    // A 486's paging forms in a burst (isa486, from side): the INVLPG of an
+    // arena page, after a third of the time; else a remap first, a store to
+    // that page's PTE (a frame of the arena's eight, present three times in
+    // four, R/W, U/S, A and D at random) with the INVLPG next, in one item,
+    // which remap_invlpg_follows lets the run go on past. The burst's next
+    // accesses may reach the page.
+    void pg_486() {
+        const uint32_t page = s486(PG_ARENA_PAGES);
+        std::vector<uint8_t> op;
+        if (s486(3)) {
+            op = {0x66, 0x64, 0x67, 0xc7, 0x05};  // MOV dword FS:[PTE], imm32
+            put32(op, PG_ARENA_PTE + 4 * page);
+            put32(op, ((PG_ARENA >> 12) + s486(8)) << 12 | (s486(4) ? 1 : 0) | s486(4) << 1 | s486(4) << 5);
+        }
+        op.insert(op.end(), REMAP_INVLPG, REMAP_INVLPG + sizeof REMAP_INVLPG);
+        put32(op, PG_ARENA + 0x1000 * page + s486(0x1000));
+        emit(op);
     }
     // The scratch area's dword at k, through FS: 64h 67h, ModRM mod 00
     // r/m 101 and a 32-bit displacement.
@@ -6699,6 +7068,7 @@ private:
         if (pick(3)) load_seg(3, 0xd3);
         if (pick(3)) load_seg(0, pick(2) ? 0xcb : 0xd3);
         for (unsigned n = 1 + pick(8); n > 0; --n) {
+            if (isa486 && side() % 3 == 0) ac_ring3();
             switch (pick(16)) {
             case 0: {  // CLI, STI, PUSHF and POPF of a random image
                 switch (pick(4)) {
@@ -6783,6 +7153,41 @@ private:
         // DS and ES: the ring-3 trip may have nulled or changed them.
         load_seg(3, sane(false));
         load_seg(0, sane(false));
+    }
+    // A 486's alignment check at CPL 3 (isa486, from side): AC set by POPFD,
+    // which CPL 3 may change, then one of four: a load or store of a word at
+    // an odd offset or of a dword at one that is not a multiple of 4 through
+    // DS (two of the four); an aligned dword load; or a misaligned stack,
+    // DEC ESP, PUSH EAX, POP EAX, INC ESP, so a delivery from CPL 3 may meet
+    // a misaligned stack (see the #AC delivery loop in lockstep). CR0.AM
+    // decides whether a misaligned access raises #AC(0).
+    void ac_ring3() {
+        emit({0x66, 0x9c});                          // PUSHFD
+        emit({0x66, 0x58});                          // POP EAX
+        emit({0x66, 0x0d, 0x00, 0x00, 0x04, 0x00});  // OR EAX, 40000h
+        emit({0x66, 0x50});                          // PUSH EAX
+        emit({0x66, 0x9d});                          // POPFD
+        const bool dword = s486(2);
+        uint16_t off = uint16_t(side() & 0xffc);
+        switch (s486(4)) {
+        case 3:  // DEC ESP; PUSH EAX; POP EAX; INC ESP
+            emit({0x66, 0x4c});
+            emit({0x66, 0x50});
+            emit({0x66, 0x58});
+            emit({0x66, 0x44});
+            break;
+        case 0: case 1: {  // MOV (E)AX, [off] or MOV [off], (E)AX
+            off |= dword ? uint16_t(1 + s486(3)) : 1;
+            std::vector<uint8_t> op;
+            if (dword) op.push_back(0x66);
+            op.insert(op.end(), {uint8_t(s486(2) ? 0x8b : 0x89), 0x06, uint8_t(off), uint8_t(off >> 8)});
+            emit(op);
+            break;
+        }
+        default:  // MOV EAX, [off], aligned
+            emit({0x66, 0x8b, 0x06, uint8_t(off), uint8_t(off >> 8)});
+            break;
+        }
     }
     // V86 mode (Phase 5's slice 3): from CPL 0, with TR loaded, IRETD to V86
     // mode at the program's own real-mode CS (its base, below 1 MiB) and the
@@ -7588,6 +7993,11 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
     generator.tasks = std::getenv("FES_I386_TASKS") != nullptr;
     generator.debug = debug_programs = std::getenv("FES_I386_DEBUG") != nullptr;
     generator.undefined = std::getenv("FES_I386_UNDEFINED") != nullptr;
+    // Against the level-4 oracle the CPU is the 486 identity: its forms in
+    // the programs, and a 486's start state, drawn apart from the programs'
+    // own draws so a seed's 386 instructions stay as they were.
+    generator.isa486 = i486;
+    std::mt19937_64 start486(seed * 0x2545f4914f6cdd1dull + 486);
     for (uint64_t n = 0; n < programs; ++n) {
         State state;
         for (auto &r : state.gpr) r = uint32_t(random());
@@ -7598,6 +8008,17 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         // CR0 as Bochs's 386 reads it after reset (ET, bits 30-5 ones), so
         // SMSW and MOV r32, CR0 agree.
         state.cr0 = 0x7ffffff0;
+        if (i486) {
+            // A 486's CR0, as its bits are held: ET; CD and NW, CD alone or
+            // neither (NW without CD is #GP(0), PRM Table 12-1); AM three
+            // times in four, so that CPL 3 with AC set checks alignment; WP
+            // and NE at random. AC and ID in EFLAGS at random.
+            static const uint32_t cache[] = {0x60000000, 0x40000000, 0};
+            const uint64_t r = start486();
+            state.cr0 = 0x10 | cache[r % 3] | ((r >> 2) % 4 ? 0x40000 : 0) | (r >> 4 & 1 ? 0x10000 : 0)
+                        | (r >> 5 & 1 ? 0x20 : 0);
+            state.eflags |= (r >> 6 & 1 ? 0x40000 : 0) | (r >> 7 & 1 ? 0x200000 : 0);
+        }
         const uint32_t base = state.seg[fes_i386::SEG_CS].base + state.eip;
         const std::vector<uint8_t> code = generator.program(20 + unsigned(random() % 180), base, state.eip);
         if (n < first) continue;
@@ -7662,7 +8083,7 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         }
         if (out.items.empty() && !outcome.halted && !outcome.limit && outcome.exception < 0 &&
             !outcome.shutdown && !outcome.vector_moved && !outcome.window_code && !outcome.code_store &&
-            !outcome.stray && outcome.unbuilt < 0)
+            !outcome.stray && outcome.unbuilt < 0 && !outcome.ac_loop)
             out.add("halt", 1, 0);
         summary.window_code += outcome.window_code;
         summary.code_stores += outcome.code_store;
@@ -13198,6 +13619,10 @@ constexpr uint32_t I486_START_CR0 = 0x60050030u;
 // exception the run must end at on both sides. Prints the case's line.
 void run_i486_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, Summary &summary, const std::string &label,
                    const std::vector<std::pair<uint32_t, uint8_t>> &image, uint32_t code_end, int expect_vector) {
+    // A0000h-BFFFFh is MMIO, as in the random programs, so a case there has
+    // each step's reads of it compared (the *-mmio cases). This also clears
+    // the MMIO logs, whose steps count from 0 in each case.
+    set_window(oracle, bus, rtl, true);
     for (auto [address, value] : image) {
         bus.ram[address] = rtl.poke(address, value);
         oracle.invalidate(address, 1);
@@ -13941,8 +14366,9 @@ int main(int argc, char **argv) {
     OracleBus bus;
     std::unique_ptr<fes_i386::Oracle> oracle = fes_i386::make_oracle(bus);
     i486 = oracle->name() == "bochs-level4";
-    if (i486 != (mode == "i486"))
-        throw std::runtime_error(i486 ? "the level-4 oracle runs only FES_I386_MODE=i486" : "FES_I386_MODE=i486 needs the level-4 oracle");
+    if (i486 ? mode != "i486" && mode != "random" : mode == "i486")
+        throw std::runtime_error(i486 ? "the level-4 oracle runs only FES_I386_MODE=i486 and random"
+                                      : "FES_I386_MODE=i486 needs the level-4 oracle");
     if (const char *x87 = std::getenv("FES_I386_X87")) {
         if (std::string(x87) != "387" && std::string(x87) != "none")
             throw std::runtime_error("FES_I386_X87 is 387 or none");
@@ -14081,6 +14507,9 @@ int main(int argc, char **argv) {
                  + ", \"histogram_unchecked\": " + distances(tally.histogram_unchecked) + "}";
     }
     trans += "}}";
+    // The 486 forms, against the level-4 oracle only: the level-3 summary
+    // line is as it was.
+    const std::string i486_forms = i486 ? ", \"i486_forms\": {" + named(summary.i486_forms) + "}" : "";
     // The FAIL lines go through std::cout, unsynced with stdio: flush them
     // first, so the summary line is whole after them.
     std::cout.flush();
@@ -14106,7 +14535,7 @@ int main(int argc, char **argv) {
                 "\"x87_bcd_forms\": {\"fbld\": %llu, \"fbstp\": %llu, \"not_built\": %llu}, "
                 "\"x87_trans\": %s, "
                 "\"dr6_rule\": %llu, \"db_rf_rule\": %llu, \"x87_probe_rule\": %llu, \"x87_fault_rule\": %llu, \"x87_partial_rule\": %llu, \"x87_ad_rule\": %llu, "
-                "\"debug_kinds\": {%s}, \"x87_backend_offered\": [%llu, %llu, %llu, %llu, %llu, %llu, %llu, %llu], \"x87_backend_taken\": [%llu, %llu, %llu, %llu, %llu, %llu, %llu, %llu]}\n",
+                "\"debug_kinds\": {%s}, \"x87_backend_offered\": [%llu, %llu, %llu, %llu, %llu, %llu, %llu, %llu], \"x87_backend_taken\": [%llu, %llu, %llu, %llu, %llu, %llu, %llu, %llu]%s}\n",
                 mode.c_str(), (unsigned long long)seed, latency ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
@@ -14164,6 +14593,6 @@ int main(int argc, char **argv) {
                 (unsigned long long)x87_backend_taken[4],
                 (unsigned long long)x87_backend_taken[5],
                 (unsigned long long)x87_backend_taken[6],
-                (unsigned long long)x87_backend_taken[7]);
+                (unsigned long long)x87_backend_taken[7], i486_forms.c_str());
     return summary.failed ? 1 : 0;
 }

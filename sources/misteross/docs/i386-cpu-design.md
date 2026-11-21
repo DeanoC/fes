@@ -336,14 +336,23 @@ With `I486 = 1`:
   access of 2, 4 or 8 bytes at an address not a multiple of its size, or of
   6 bytes at an odd one; for MOVS (a st2 uop) its store's address too.
   Accesses made at privilege 0 are excepted: system accesses (descriptor
-  tables, the TSS) and a delivery's pushes to its new stack. Far pointers,
+  tables, the TSS) and a delivery's pushes to its new stack. A delivery
+  that stays at CPL 3 pushes onto the current stack as CPL-3 accesses, so
+  a misaligned push raises #AC. Inside an exception's delivery its error
+  code has EXT set, as Bochs's does; the PRM's Table 9-8 says #AC's error
+  code is zero, and whether a 486 sets EXT there is open. With gate 17
+  also to CPL 3 the CPU never leaves the delivery, and neither does
+  hardware (Deano, 21 November 2026; CVE-2015-5307). Far pointers,
   BOUND and SGDT are checked as the separate accesses they make. It is
   checked at M1 on the linear address, after the segment's checks and before
   the page walk: the PRM's Table 9-2 ranks alignment faults above page
   faults. Under AM at CPL 3 an access waits in D for an older EFLAGS load.
 - **TR3** is storage, as TR4 to TR7 are; none has its test function.
 - **Reset.** A machine with the identity resets DX to the signature, CR0 to
-  `60000010h` and DR6 to `FFFF0FF0h` (`pc386_system`'s `init_*`).
+  `60000010h` and DR6 to `FFFF0FF0h` (`pc386_system`'s `init_*`). DR6's bit
+  12 is then held as on the 386: a MOV to DR6 may set it (Intel SDM vol. 3,
+  the debug registers' compatibility notes: on the Intel486 it is possible
+  to write a 1 there).
 - **Speed.** The governor costs each new instruction at the i486's count on
   every table (governor.toml).
 

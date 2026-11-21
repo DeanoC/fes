@@ -68,7 +68,7 @@ ac-am-clear agree
 ac-flag-clear agree
 ac-cpl0 agree
 cpuid-0 agree
-cpuid-1 stop @1006.eax 480 42b
+cpuid-1 agree
 mov-tr3 agree
 mov-tr4 agree
 mov-tr5 agree
@@ -96,6 +96,7 @@ ac-movsd-source agree
 ac-movsd-aligned agree
 ac-delivery-odd-esp0 agree
 ac-delivery-same-privilege agree
+ac-exception-delivery-same-privilege agree
 ac-xadd-m32 agree
 ac-lfs-at-2 agree
 ac-lfs-aligned agree
@@ -106,7 +107,11 @@ ac-sgdt-aligned agree
 ac-real-int-clears agree
 ac-pm-int-keeps agree
 bswap-r16 agree
-cpuid-2 stop @1006.eax 480 0
+cpuid-2 agree
+dr6-bit12 agree
+xadd-m16-mmio agree
+cmpxchg-m16-mmio-equal agree
+cmpxchg-m16-mmio-unequal agree
 ud-xbts agree
 ud-ibts agree
 ud-xbts-mem agree

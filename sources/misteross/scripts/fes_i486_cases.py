@@ -611,15 +611,25 @@ def cases() -> list[Case]:
     # a misaligned ESP0 does not fault (PRM 9.9.16: only CPL 3 is checked).
     protected('ac-delivery-odd-esp0', source17, {'end': 'int:3'}, lambda a: None, ring3_eflags=AC,
               esp0=TSS_ESP0 + 1, what='INT3 from CPL 3 onto an odd ESP0 does not fault')
-    # An exception delivered at CPL 3 (a gate to the DPL-3 code segment)
-    # pushes onto the misaligned current stack, and the oracle delivers it
-    # without #AC: a delivery's accesses are not alignment-checked. No 486
-    # document read says whether they are; the RTL makes none of a
-    # delivery's accesses (system ones and nstk pushes) take #AC.
-    protected('ac-delivery-same-privilege', 'Bochs (no 486 document read settles a delivery\'s pushes)',
-              {'end': 'exception:6'},
+    # A delivery that stays at CPL 3 (a gate to the DPL-3 code segment)
+    # pushes onto the current stack as CPL-3 accesses, so a misaligned push
+    # raises #AC, which gate 17 delivers at CPL 0. Hardware does this
+    # (CVE-2015-5307: a ring-3 #AC handler on an unaligned stack loops in
+    # microcode); no 486 document read settles it, and Deano chose it on
+    # 21 November 2026. INT 6 is not an exception, so the case's first
+    # exception is the #AC, with error code 0.
+    source_delivery = 'Deano 21 Nov 2026, as hardware (CVE-2015-5307); no 486 document read settles it'
+    protected('ac-delivery-same-privilege', source_delivery, {'end': 'exception:17', 'error': 0},
+              lambda a: a.op(0xcd, 0x06), ring3_eflags=AC, ring3_esp=RING3_ESP + 1, ring3_vectors=(6,),
+              what='INT 6 to a CPL-3 gate onto a misaligned stack raises #AC(0)')
+    # The same for an exception's delivery: #UD's pushes raise #AC, whose
+    # error code has EXT set, on the oracle as on the RTL. The row holds
+    # the first exception, #UD; the lockstep compares the #AC's frame. The
+    # PRM's "always zero" (Table 9-8) does not say whether EXT is set for
+    # an #AC inside a delivery.
+    protected('ac-exception-delivery-same-privilege', source_delivery, {'end': 'exception:6'},
               lambda a: a.op(0x0f, 0xff), ring3_eflags=AC, ring3_esp=RING3_ESP + 1, ring3_vectors=(6,),
-              what='#UD delivered at CPL 3 onto a misaligned stack takes no #AC')
+              what='#UD delivered at CPL 3 onto a misaligned stack raises #AC, EXT set')
     protected('ac-xadd-m32', source17, {'end': 'exception:17', 'error': 0},
               lambda a: a.op(0x0f, 0xc1, 0x1d).d(PAGE + 1), ring3_eflags=AC,
               what='a misaligned XADD is #AC(0)')
@@ -662,6 +672,54 @@ def cases() -> list[Case]:
          lambda a: (a.op(0x66, 0xb8).d(2), a.here(), a.op(0x0f, 0xa2))[1], divergence='cpuid-above-highest',
          i486='zeros in EAX, EBX, ECX and EDX (DB Appendix B, item 3; AP-485 Table 1 says undefined)',
          what='CPUID leaf 2, above the highest')
+
+    # DR6 bit 12: 0 at reset (PRM Table 10-1), and a MOV to DR6 sets it on a
+    # 486 (Intel SDM vol. 3, the debug registers' compatibility notes: "it
+    # is possible to write a 1 in this bit on the Intel486 processor"; a
+    # Pentium's reads 0). The level-4 random programs found the RTL reading
+    # it as 0.
+    def dr6_bit12(a):
+        a.op(0x66, 0xb8).d(0x1000)                    # MOV EAX, 1000h
+        probe = a.here()
+        a.op(0x0f, 0x23, 0xf0)                        # MOV DR6, EAX
+        a.op(0x0f, 0x21, 0xf3)                        # MOV EBX, DR6
+        return probe
+    real('dr6-bit12', 'Intel SDM vol. 3, debug registers (compatibility); PRM Table 10-1',
+         {'end': 'halt', 'ebx': 0xffff1ff0}, dr6_bit12, what='DR6 bit 12 is writable on a 486')
+
+    # XADD and CMPXCHG on MMIO (the lockstep's A0000h-BFFFFh window, which
+    # the i486 mode maps): each reads its operand once, as a locked
+    # read-modify-write does (PRM ch. 26, LOCK and XADD: a read and then a
+    # write of the destination). The lockstep compares each step's MMIO
+    # reads; the level-4 random programs found XADD reading it twice.
+    def on_vga(build_op):
+        def build(a):
+            a.op(0xb8).w(0xa000).op(0x8e, 0xd8)                   # MOV AX, A000h; MOV DS, AX
+            probe = build_op(a)
+            a.op(0x8b, 0x0e).w(0x10)                              # MOV CX, [10h]
+            return probe
+        return build
+
+    def xadd_vga(a):
+        a.op(0xc7, 0x06).w(0x10).w(0x7fff).op(0xbb, 0x01, 0x00)    # word [10h] = 7FFFh; BX = 1
+        probe = a.here()
+        a.op(0x0f, 0xc1, 0x1e).w(0x10)                            # XADD [10h], BX
+        return probe
+    real('xadd-m16-mmio', 'PRM ch. 26, XADD', {'end': 'halt', 'ebx': 0x7fff, 'ecx': 0x8000, 'eflags': 0x896},
+         on_vga(xadd_vga), what='XADD to MMIO reads its operand once')
+
+    def cmpxchg_vga(old):
+        def build(a):
+            a.op(0xc7, 0x06).w(0x10).w(old)                       # word [10h] = old
+            a.op(0xb8).w(0x1234).op(0xba).w(0x5678)                # AX = 1234h; DX = 5678h
+            probe = a.here()
+            a.op(0x0f, 0xb1, 0x16).w(0x10)                        # CMPXCHG [10h], DX
+            return probe
+        return build
+    real('cmpxchg-m16-mmio-equal', 'PRM ch. 26, CMPXCHG', {'end': 'halt', 'eax': 0x1234, 'ecx': 0x5678},
+         on_vga(cmpxchg_vga(0x1234)), what='CMPXCHG to MMIO, equal, reads its operand once')
+    real('cmpxchg-m16-mmio-unequal', 'PRM ch. 26, CMPXCHG', {'end': 'halt', 'eax': 0x4321, 'ecx': 0x4321},
+         on_vga(cmpxchg_vga(0x4321)), what='CMPXCHG to MMIO, unequal, reads its operand once')
     return out
 
 

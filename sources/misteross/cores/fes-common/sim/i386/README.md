@@ -171,7 +171,9 @@ It is not every 486, and in these places it is not a 486 at all:
 | MOV TRn | #UD at every level | TR3 to TR7 exist (PRM Appendix E, Table 10.1; data book 14.0 item 9) | The lockstep's MOV TRn rule steps a substitute on the oracle; against the level-4 oracle it takes in TR3. The registers' cache and TLB test functions have no oracle |
 | MOV CR4 | Runs: CR4 reads 0 and a set bit is #GP(0) | CR4 is only on parts with VME, PVI or PSE (data book 4.2.3.1); the 486 identity has none | The level-4 provisioner gates MOV CR4 on VME, so it is #UD, as on a 486 without CR4 |
 | A 486 without an FPU | None: the model enables the x87 and a 486 model without it is fatal (`cpu/cpudb/intel/i486dx4.cc`, `cpu/cpuid.cc`) | The 486SX | An SX is to be checked as the empty 387 socket is, by the no-387 rule. Not built yet |
-| CPUID leaf 1 | EAX 0480h, EDX bit 0 set | Per part (data book Table 9-9, AP-485) | The suite pins the DX4's values; another identity's are its build parameter's |
+| CPUID leaf 1 | EAX 0480h, EDX bit 0 set | Per part (data book Table 9-9, AP-485) | The suite pins the DX4's values; another identity's are its build parameter's. In random programs the CPUID rule (below) holds the oracle to them and the RTL to the 486SX's |
+| CPUID above leaf 1 | Leaf 1's answer | Zeros (data book Appendix B) | The CPUID rule |
+| DR6 bit 12 | Settable by MOV | Settable on the Intel486 (Intel SDM vol. 3, the debug registers' compatibility notes) | Nothing: both sides hold it; reset clears it (above) |
 
 `scripts/fes_i486_cases.py` holds the directed cases of the 486's differences
 from a 386, each a program with the result a 486 gives and the document
@@ -182,7 +184,8 @@ section that says so. `scripts/test_fes_i486_lockstep.py` runs them twice:
   after reset. A row whose source is "Bochs" records what the oracle does
   where no document read says;
 - **the CPU in lockstep**: `lockstep_tb.cpp` in `FES_I386_MODE=i486`, which
-  runs only against this oracle (every other mode refuses it), at each CPU
+  runs only against this oracle (of the other modes only `random` runs against
+  it, below), at each CPU
   identity: the 386 (`I486 = 0`, which every package builds) and the 486SX
   (`I486 = 1`, i486 slice 2; `docs/i386-cpu-design.md`, "The i486
   identity"), on the RTL or, with `--netlist`, on the seal's netlist. Each
@@ -218,12 +221,11 @@ instruction the CPU rejected: it did not retire, so no other key has it).
 
 #### The 486 lockstep scope
 
-What the lockstep is for a 486 identity. Today the `i486` mode runs at
-level 4, with the 486 masks, the directed cases and the 486's #UD probes;
-the testbench refuses every other mode against the level-4 oracle so that a
-386 rule is never run against a 486 oracle by accident. Each row below says
-what is built now and what the change that builds the identity (the 486
-tracker's slice 2) does to the rest. The
+What the lockstep is for a 486 identity. At level 4 the `i486` mode runs
+the 486 masks, the directed cases and the 486's #UD probes, and the `random`
+mode runs the random programs ([Random programs at level
+4](#random-programs-at-level-4)); the testbench refuses every other mode
+against the level-4 oracle. Each row below says what is built. The
 counts are the plan record's (`docs/validation/2026-11-17-i486-plan/summary.md`
 in [#1963](https://github.com/DeanoC/fes/pull/1963), "What ran, and what it
 showed"), from the unchanged level-3 suite run against a level-4 oracle at
@@ -233,16 +235,52 @@ reduced program counts.
 | --- | --- | --- |
 | State comparison, CR0 | Mask 8000000Fh: PE, MP, EM, TS, PG | Mask E005003Fh: those and ET, NE, WP, AM, NW, CD (built: `i486` mode) |
 | State comparison, EFLAGS | Mask 0003FFFFh | Mask 0027FFFFh, adding AC (bit 18) and ID (bit 21) (built: `i486` mode) |
-| A run's starting CR0 | Bits 30-5 ones, as Bochs's 386 reads them | The directed cases: 60050030h (above). The random programs: reset's 60000010h, once slice 2 runs them. Nearly every level-3 failure against a level-4 oracle is this read value |
+| A run's starting CR0 | Bits 30-5 ones, as Bochs's 386 reads them | The directed cases: 60050030h (above). The random programs: ET, and the cache, AM, WP and NE bits chosen per program (below) |
 | Directed 486 cases | None | `scripts/fes_i486_cases.py` (built); each moves to `agree` as its feature is built |
 | The #UD probes (`ud_probes16`) | CPUID, INVD, CMPXCHG, BSWAP, MOV CR4 and MOV TR3 are #UD | All but MOV CR4 leave the list; the rest run in the `i486` mode (built) |
 | The every-encoding sweep (`unbuilt`) | The 0F 08, 09, A2, B0, B1, C0, C1, C8-CF and 0F 01 /7 rows are #UD | They execute: 3,904 of 53,008 encodings change |
-| `divergences.toml` | `ud-invlpg`: Bochs runs INVLPG, the 386 rejects it | `ud-invlpg` is no divergence for a 486: the `invlpg` and `invlpg-reg` cases hold its answer, and the `i486` mode reads no divergence list (built). `mov-tr` takes in TR3 (built: the lockstep's MOV TRn rule). `dr6-sticky`, `db-frame-rf`, `icebp-gd`, `umov` and `ud-0f0d` each need a 486 answer, which no document read gives. The five `[[x87]]` entries are the 387's BUSY# latch and need 486DX versions |
-| Random, protected-mode, task, debug and undefined programs | Treat CR0's upper bits as inert | A program that writes back what it read from CR0 turns on WP, AM, NW and CD: the generators must choose those bits |
+| `divergences.toml` | `ud-invlpg`: Bochs runs INVLPG, the 386 rejects it | `ud-invlpg` is no divergence for a 486: the `invlpg` and `invlpg-reg` cases hold its answer, and the `i486` mode reads no divergence list (built). The random programs read the whole list, as at level 3 (below). `mov-tr` takes in TR3 (built: the lockstep's MOV TRn rule). `dr6-sticky`, `db-frame-rf`, `icebp-gd`, `umov` and `ud-0f0d` each need a 486 answer, which no document read gives. The five `[[x87]]` entries are the 387's BUSY# latch and need 486DX versions |
+| Random, protected-mode, task, debug and undefined programs | Treat CR0's upper bits as inert | Built: the `random` mode with `isa486` chooses CR0's bits and adds the 486's forms (below) |
 | SingleStepTests corpus | The 386EX's results decide | Stays a 386 corpus. It runs on the 386 identity only |
 | test386 | `CPU_FAMILY=3`, undefined flags checked | A 386 test. On a 486 identity only with `TEST_UNDEF` off |
 | No-387 rule | The empty socket | The 486SX, with ET's value excepted (ET reads 1) |
 | Stack-limit patch | Applied | Not applied. Whether a 486 keeps that #SS is not established |
+
+#### Random programs at level 4
+
+`scripts/test_fes_i486_lockstep.py` runs the level-3 suite's five random sets
+(`FES_I386_MODE=random`, with the level-3 runner's seeds and sizes, and two
+seeds again without latency) at the 486SX identity against this oracle,
+after the oracle's self-check and before the directed cases in lockstep;
+`--random-only` runs them alone, and
+`--netlist` runs them on the seal's netlist. With the level-4 oracle the
+testbench sets the generator's `isa486`, whose choices all come from its
+`side` stream, so a level-3 seed's programs are byte for byte as before:
+
+- **Start state.** CR0 has ET; CD and NW both set, CD alone or neither; AM
+  three times in four; WP and NE at random. EFLAGS.AC and ID at random.
+- **486 forms**, a tenth of instructions: BSWAP of 32 and 16 bits; XADD and
+  CMPXCHG of each size, register and memory, LOCK now and then (on a
+  register form, #UD); INVD; WBINVD; INVLPG m; CPUID of leaf 0, 1, 2 or a
+  random leaf; AC toggled by POPFD.
+- **Paging bursts** add INVLPG, and PTE stores followed by the INVLPG of
+  their page; **ring-3 bodies** add alignment checks: misaligned and
+  aligned loads and stores, and a misaligned stack (DEC ESP, PUSH, POP,
+  INC ESP). The undefined-encoding lists drop what a 486 runs.
+
+The level-3 rules apply as they are, `divergences.toml` included: where a
+486's answer is not documented, the 486SX keeps the 386's (the vectors'
+undefined flags, `dr6-sticky`, the CS-limit, IRET-save and #SS-error rules).
+Three rules are level 4's:
+
+| Rule | What it does | Source |
+| --- | --- | --- |
+| CPUID (`cpuid_rule`, counted as `cpuid-486sx`) | At a CPUID of a leaf other than 0 that retires with no event, the oracle's EAX, EBX, ECX and EDX must be the DX4's leaf 1 (`0480h`, 0, 0, 1); they are then set to the 486SX's, leaf 1 `042Bh` and zeros, zeros above it, which the RTL is held to | `cpu/cpudb/intel/i486dx4.cc`; Deano, 21 November 2026 (`042Bh`); data book Appendix B (zeros above leaf 1) |
+| DR6 of disabled breakpoints (`dr6-disabled-b`) | At a #DB, DR6's B0-B3 of breakpoints that DR7 does not enable are taken from the RTL; an enabled one's is compared. Bochs keeps a disabled breakpoint's match pending into a later #DB | Intel SDM vol. 3, DR6: a B bit "may or may not be set if the breakpoint is not enabled by the Ln or the Gn flags" |
+| The #AC delivery loop (`ac-delivery-loop`) | At CPL 3 with AM and AC set, a delivery that stays at CPL 3 raises #AC on a misaligned push, on both sides. When gate 17 is also to CPL 3 that never ends: the RTL times out in #AC's delivery and Bochs recurses until the host's stack overflows. The run stops there, before the oracle steps, only when the RTL timed out delivering #AC from such a step and gate 17 (read from the IDT) is an interrupt or trap gate to a conforming or DPL-3 code segment | Deano, 21 November 2026, as hardware; CVE-2015-5307 (a ring-3 #AC handler on an unaligned stack loops in microcode) |
+
+The forms each run retired are in the report's `i486_forms`, which must
+include every form in the runner's `REQUIRED_FORMS`.
 
 ## Corpora
 
@@ -758,7 +796,11 @@ Random programs also take interrupts, injected by the testbench:
   (`rep_interrupts`). The vectors' entries and NMI's point at a handler, NOP and
   IRET, at FFFF:FFE0, above any program's code. A program may write over them. The run then
   stops when an interrupt would go through the rewritten entry, before the
-  sides part (`vector_moved_stops`), since what runs next is data.
+  sides part (`vector_moved_stops`), since what runs next is data. A
+  run stops there too, counted under `interrupt-vector-before-push`, when
+  a real-mode delivery faults with its frame over the entry of the vector
+  the oracle then delivers (a #DF's): Bochs pushes before it reads a
+  vector, so it reads the frame, where the RTL, as the 386EX, reads first.
 - **HLT wakes.** The generator puts STI, HLT in programs now and then, and a
   HLT before the program's last, with IF set, wakes on INTR.
 - **Per program,** the oracle is reset before its state is set, since
@@ -884,10 +926,15 @@ under max and every preset at the sealed clock's `GOV_N`/`GOV_D`: each
 loop's charge must equal the table's, which the script lists instruction by
 instruction, and its time must be within 5% of the table time unless max
 itself is slower (the 486 presets on branchy loops). It also checks the
-interrupt latency, the frequency override and turbo.
+interrupt latency, the frequency override and turbo. With `--i486` it builds
+the 486 identity (`I486 = 1`), runs the same bench, then
+[`governor_bench_486.asm`](governor_bench_486.asm): loops of BSWAP, XADD,
+CMPXCHG, CPUID, INVD and WBINVD, and INVLPG, whose charges must equal the
+table's 486 clocks (`report-i486.json`).
 
 ```sh
 python3 scripts/test_fes_i386_governor.py
+python3 scripts/test_fes_i386_governor.py --i486
 python3 scripts/test_fes_i386_lockstep.py --preset 1 --same-as /abs/path/to/max/report.json
 ```
 
