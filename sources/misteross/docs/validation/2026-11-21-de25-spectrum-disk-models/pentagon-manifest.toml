@@ -1,0 +1,89 @@
+format = 2
+
+[core]
+id = "fes.pentagon"
+name = "ZX Spectrum"
+description = "Standard DE25 Pentagon 128 with uploaded firmware, board SDRAM, a PZX cassette and a Beta 128 TR-DOS drive"
+version = "1.0.0"
+
+[target]
+platform = "de25_nano"
+device = "A5EB013BB23BE4SCS"
+programming_profile = "de25-linux-computer-v1"
+
+[payload]
+file = "core.rbf"
+size = 1769472
+sha256 = "0da39bffdd75059b10a5824fd3e3dcbca16df5ebe7d439dd3db9de1428700046"
+
+[abi]
+id = "fes.computer"
+major = 1
+minor = 0
+
+[[interfaces]]
+id = "fes.video.fixed-720p60"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.keyboard.hid"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.gamepad.ports"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.audio.pcm-s16-stereo-48k"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.video.session-display"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.fabric.video.display-plane"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.spectrum-tape"
+major = 2
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.spectrum-disk"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.fabric.firmware-upload"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.fabric.de25-scanout"
+major = 1
+minor = 3
+required = true
+
+[build]
+id = "8aef1654f25b615ad1d4f12c904aea05"
+repository = "https://github.com/DeanoC/fes.git"
+revision = "916e4a9788a5af42b8091c8eadebb4eedb656a9a"
+recipe_sha256 = "2bbc5ab4e5be84154a93dae28235cd163d1447fa0aa3b5d519977d7a9c6748c4"
+toolchain = "ipgenerate Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14; pfg Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14; qsys Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:a0c811ed4010961b2ae4e92711492a172be969c900709b380f3c66db875d3f75; quartus Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14"
