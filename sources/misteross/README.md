@@ -150,6 +150,8 @@ and native acceptance remain separate gates.
 The standard Spectrum and Atari ST producers are `boards/de25nano/producers/build_spectrum_package.py`
 and `build_atari_st_package.py`, sharing `build_machine_package.py` and the ZX81's gates;
 their packages are format 3 with firmware uploaded at launch.
+The standard pc386 producer is `boards/de25nano/producers/build_pc386_package.py`;
+its package is format 2, with all machine memory in a window in HPS DDR.
 The canonical standard ZX81 producer is `boards/de25nano/producers/build_zx81_package.py`.
 It selects the shared computer core, 16 KiB internal RAM, allocated session
 display and fixed audio under `de25-linux-computer-v1`. The board recipe binds

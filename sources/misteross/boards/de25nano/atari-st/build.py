@@ -18,6 +18,13 @@ SDC = BOARD + "atari-st/atari-st-clocks.sdc"
 MODELS = {"520st": None}
 # The exact image the upload endpoint takes.
 FIRMWARE_BYTES = {"520st": 196608}
+# The board: the shared machine PLL (52.222222 MHz, audio 12.287582 MHz), board
+# SDRAM, and no window in HPS DDR.
+MACHINE_HZ = 52222222
+PLL_IP = BOARD + "machine/machine_pll.ip"
+PLL_OUTPUTS = ("52.222222", "12.287582")
+BOARD_SDRAM = True
+WINDOW = False
 # Synthesis choices in unchanged DE10 sources that the signoff lint refuses:
 # the machine reset is one register for some eight thousand endpoints; the
 # 68000's ALU rows take one instruction bit as a synchronous clear on both

@@ -1,4 +1,4 @@
-"""DE25 Spectrum and Atari ST producer identity, manifest and firmware binding.
+"""DE25 Spectrum, Atari ST and pc386 producer identity, manifest and firmware binding.
 
 The temporary Git tree and payload below exercise source and manifest
 boundaries; they are deliberately unqualified and never stand in for a
@@ -19,6 +19,7 @@ from boards.de25nano.package.export_core_package import (
     build_identity, export_package, verify_record_source_at_revision)
 from boards.de25nano.producers import build_atari_st_package as atari_st
 from boards.de25nano.producers import build_machine_package as shared
+from boards.de25nano.producers import build_pc386_package as pc386
 from boards.de25nano.producers import build_spectrum_package as spectrum
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,14 +43,14 @@ class MachineProducerTests(unittest.TestCase):
         cls.root = Path(cls.temp.name)
         # The real captured closure of both machines, laid out as a source module.
         cls.captured = {}
-        for producer in (spectrum, atari_st):
+        for producer in (spectrum, atari_st, pc386):
             spec = producer.MACHINE.spec(ROOT)
             cls.captured[producer] = spec.board.capture(spec)
         data = {}
         for captured in cls.captured.values():
             data.update({Path(name).relative_to('sources/misteross').as_posix(): value
                          for name, value in captured.items()})
-        for name in (spectrum.RECIPE, atari_st.RECIPE, shared.SHARED, shared.ABI, 'boards/de25nano/build.py',
+        for name in (spectrum.RECIPE, atari_st.RECIPE, pc386.RECIPE, shared.SHARED, shared.ABI, 'boards/de25nano/build.py',
                      'boards/de25nano/quartus.lock', 'boards/de25nano/package/core_package.py',
                      'boards/de25nano/package/export_core_package.py', *shared.REVIEW_INPUTS):
             data.setdefault(name, (ROOT / name).read_bytes())
@@ -189,6 +190,55 @@ class MachineProducerTests(unittest.TestCase):
             change(bad)
             with self.assertRaises(PackageError):
                 encode_manifest(bad)
+
+    def test_pc386_record_and_manifest_name_the_window_and_the_linked_firmware(self):
+        from scripts import pc386_quartus as sealer
+        tools = {**self.tools, 'yosys': 'explicit fixture yosys'}
+        with self.assertRaisesRegex(shared.BuildError, 'controlled Quartus execution inputs'):
+            self.record(pc386, '386')  # the record names the front end's Yosys
+        record = self.record(pc386, '386', tools)
+        parameters = verify_record_source_at_revision(self.root, record)['parameters']
+        self.assertEqual(parameters['core_id'], 'fes.pc386')
+        self.assertNotIn('rom_id', parameters)
+        self.assertNotIn('firmware_delivery', parameters)
+        self.assertEqual((parameters['f2sdram_master_profile'], parameters['guest_memory'],
+                          parameters['window_contract']),
+                         ('scanout+window', 'hps-window', 'fes.fabric.de25-hps-window 1.0'))
+        self.assertEqual(parameters['machine_clock_hz'], 61437908)
+        spec = pc386.MACHINE.spec(ROOT)
+        self.assertEqual(json.loads(parameters['guest_rates']), spec.guest_rates())
+        self.assertEqual(json.loads(parameters['firmware']),
+                         {**sealer.firmware_digests(ROOT), 'rom_hex': sealer.pinned_rom_digest(ROOT)})
+        self.assertIs(parameters['x87_present'], False)
+        self.assertEqual(json.loads(record)['tools']['yosys'], 'explicit fixture yosys')
+        # The reviewed signoff bases and the handshake sources they cite are in the record.
+        from boards.de25nano.scanout import machine_findings
+        table = machine_findings.bases()
+        self.assertEqual(set(machine_findings.sources(json.loads(record), table)), {*table.SOURCES, table.TABLE})
+        self.assertEqual(parameters['signoff_findings_review_policy'], machine_findings.POLICY)
+        work = self.root / 'build/pc386'
+        work.mkdir(parents=True)
+        self.addCleanup(shutil.rmtree, self.root / 'build')
+        payload = work / 'core.rbf'
+        payload.write_bytes(b'unqualified payload fixture')
+        (work / 'build-inputs.json').write_bytes(record)
+        manifest = tomllib.loads(pc386.manifest(record, payload).decode())
+        self.assertEqual(manifest['format'], 2)
+        self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 1})
+        versions = {i['id']: (i['major'], i['minor']) for i in manifest['interfaces']}
+        self.assertEqual(versions, {**{name: (1, 0) for name in sealer.INTERFACES},
+                                    'fes.fabric.de25-hps-window': (1, 0), 'fes.fabric.de25-scanout': (1, 3)})
+        self.assertTrue(all(i['required'] for i in manifest['interfaces']))
+        # Format 2: no ROM map, and no ROM metadata.
+        store = Path(tempfile.mkdtemp(prefix='de25-pc386-store-'))
+        def discard():
+            subprocess.run(['chmod', '-R', 'u+w', str(store)], check=True)
+            shutil.rmtree(store)
+        self.addCleanup(discard)
+        package = read_package(export_package(pc386.manifest(record, payload), payload, store))
+        self.assertEqual(package.fields['format'], 2)
+        self.assertNotIn('rom', package.fields)
+        self.assertIsNone(package.rom_map_bytes)
 
 
 if __name__ == '__main__':

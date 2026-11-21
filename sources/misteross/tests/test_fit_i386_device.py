@@ -444,6 +444,46 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class CompilerLease(unittest.TestCase):
+    """The lease queues behind a held lock with a blocking flock, as the
+    flock(1) wrappers do, instead of polling: a poller loses each release to
+    a blocked waiter and can starve behind a chain of them."""
+
+    def test_a_held_lease_is_waited_for_with_a_blocking_flock(self):
+        import fcntl
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as temporary:
+            lock = Path(temporary) / "lease.lock"
+            holder = subprocess.Popen(["flock", str(lock), "sleep", "2"])
+            try:
+                deadline = time.monotonic() + 10
+                while time.monotonic() < deadline:
+                    with lock.open("a+") as probe:
+                        try:
+                            fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                            fcntl.flock(probe, fcntl.LOCK_UN)
+                        except BlockingIOError:
+                            break
+                    time.sleep(0.05)
+                else:
+                    self.fail("the holder never took the lock")
+                calls = []
+                real = fcntl.flock
+
+                def recording(handle, operation):
+                    calls.append(operation)
+                    return real(handle, operation)
+
+                with mock.patch.object(fit, "LOCK_FILE", lock), \
+                        mock.patch.object(fit.fcntl, "flock", recording):
+                    with fit.compiler_lease():
+                        self.assertNotEqual(holder.poll(), None)
+            finally:
+                holder.wait(10)
+        self.assertEqual(calls[:2], [fcntl.LOCK_EX | fcntl.LOCK_NB, fcntl.LOCK_EX])
+        self.assertEqual(calls[-1], fcntl.LOCK_UN)
+
+
 class TerminationUnwinds(unittest.TestCase):
     """A termination signal must take the Quartus process group with it.
 

@@ -434,8 +434,13 @@ def verify_probe_handoff(project):
 
 
 
-def verify_scanout_memory_handoff(project):
-    """Require one actual fabric memory master, not merely a selected SID."""
+def verify_scanout_memory_handoff(project, window_master=None):
+    """Require the actual fabric memory masters, not merely a selected SID.
+
+    The scanout's bridge is always one. A machine with a window in HPS DDR
+    (fes.fabric.de25-hps-window) adds exactly one more, its own bridge: then
+    the ingress is exactly those two, each at base 0.
+    """
     tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
     modules = {m.get("path"): m for m in tree.findall("module")}
     forbidden = ("subsys_periph.fes_ddr_probe", "ext_hps_f2sdram_master", "subsys_debug.hps_f2sdram")
@@ -459,8 +464,12 @@ def verify_scanout_memory_handoff(project):
         if connection is None or (kind == "clock" and
                 connection.findtext("parameter[@name='clockRateSysInfo']/value") != "100000000"):
             raise ValueError("scanout-only F2SDRAM clock/reset route differs")
-    expected = ((ingress, "subsys_periph_fes_mem_cdc.m0", "subsys_hps_f2sdram_adapter.axi4_sub"),
-                (egress, "subsys_hps_f2sdram_adapter.axi4_man", "subsys_hps_agilex_hps.f2sdram"))
+    masters = ["subsys_periph_fes_mem_cdc.m0"] + ([window_master] if window_master is not None else [])
+    ingress = sorted(ingress, key=lambda c: masters.index(c.get("start")) if c.get("start") in masters else -1)
+    expected = [([route], start, "subsys_hps_f2sdram_adapter.axi4_sub") for route, start in zip(ingress, masters)]
+    expected.append((egress, "subsys_hps_f2sdram_adapter.axi4_man", "subsys_hps_agilex_hps.f2sdram"))
+    if len(ingress) != len(masters):
+        raise ValueError("scanout-only F2SDRAM master route differs")
     for routes, start, end in expected:
         if (len(routes) != 1 or routes[0].get("kind") != "avalon" or
                 routes[0].get("start") != start or routes[0].get("end") != end or
@@ -479,8 +488,10 @@ def verify_scanout_memory_handoff(project):
     address_map = lw[0].findtext("parameter[@name='addressMapSysInfo']/value") if len(lw) == 1 else None
     if not address_map:
         raise ValueError("scanout-only LW slave map missing")
-    return {"master": ingress[0].get("start"), "master_count": 1,
-            "removed_masters": list(forbidden), "scope": "scanout-only F2SDRAM path",
+    window = {"window_master": window_master} if window_master is not None else {}
+    return {"master": ingress[0].get("start"), "master_count": len(masters), **window,
+            "removed_masters": list(forbidden),
+            "scope": "scanout and window F2SDRAM paths" if window else "scanout-only F2SDRAM path",
             "peripheral_slave_map": peripheral_slave_map(address_map, None),
             "dma_admission": "not-qualified", "physical_translation": "not-qualified"}
 
@@ -494,8 +505,10 @@ def verify_memory_handoff(project, inputs):
         if inputs.get("scanout", {}).get("linux_dma") is not None:
             raise ValueError("Linux DMA requires the scanout-only master profile")
         return "ddr_probe", verify_probe_handoff(project)
-    if (profile != "scanout-only" or
-            inputs.get("scanout", {}).get("linux_dma", {}).get("master_ownership") != "scanout-only"):
+    dma = inputs.get("scanout", {}).get("linux_dma", {})
+    if profile == "scanout+window" and dma.get("master_ownership") == "scanout+window":
+        return "scanout_memory", verify_scanout_memory_handoff(project, dma.get("window_master"))
+    if profile != "scanout-only" or dma.get("master_ownership") != "scanout-only":
         raise ValueError("unsupported F2SDRAM master profile")
     return "scanout_memory", verify_scanout_memory_handoff(project)
 
@@ -541,7 +554,7 @@ def reviewed_hps_parameter_changes(inputs):
         if (managed != "managed-scanout-initiators-v4" or
                 (scanout.get("build_identity_scheme") != "canonical-functional-record-v2" and not integration) or
                 scanout.get("hps_initialization") != "HPS FIRST" or
-                inputs.get("f2sdram_master_profile") != "scanout-only"):
+                inputs.get("f2sdram_master_profile") not in ("scanout-only", "scanout+window")):
             raise ValueError("unsupported managed HPS parameter profile")
         expected = {hps_ip: {"f2sdram_SMMU": {"before": "false", "after": "true"},
                              "f2s_data_width": {"before": "256", "after": "0"},
