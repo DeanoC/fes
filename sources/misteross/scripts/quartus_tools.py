@@ -834,6 +834,23 @@ def _ssh_destination(texts: list[str]) -> int:
     return index
 
 
+def _command_start(command: list[str]) -> int | None:
+    """Where a simple command's program word is, past assignments,
+    redirections (with their operands) and reserved words."""
+    index = 0
+    while index < len(command):
+        word = command[index]
+        if word in SHELL_KEYWORDS or re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", word, re.S):
+            index += 1
+        elif re.fullmatch(r"[0-9]*[<>]+[&|]?|&>>?", word):
+            index += 2
+        elif word.isdigit() and index + 1 < len(command) and re.fullmatch(r"[<>]+[&|]?", command[index + 1]):
+            index += 1
+        else:
+            return index
+    return None
+
+
 def _check_stdin_program(texts: list[str]) -> None:
     if getattr(_stdin_programs, "active", 0):
         return
@@ -959,6 +976,11 @@ def _check_launch(argv, env, cwd=None, executable=None) -> None:
                 for at, word in enumerate(command):
                     if os.path.basename(word) == "ssh":
                         _check_remote_quartus(command[at:])
+                # A nested shell or Python reading its program from the
+                # shell's stdin (or a pipe) is unchecked code too.
+                head = _command_start(command)
+                if head is not None:
+                    _check_stdin_program(command[head:])
                 command = []
             else:
                 command.append(token)

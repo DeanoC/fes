@@ -1213,12 +1213,15 @@ class LaunchGuardTests(unittest.TestCase):
                      # Codex P1 at d0280a029: a BusyBox applet.
                      ["busybox", "sh"],
                      # Codex P1 at 7d7659973: a BusyBox execution applet.
-                     ["busybox", "env", "python3", "-"], ["busybox", "ssh", "host"]):
+                     ["busybox", "env", "python3", "-"], ["busybox", "ssh", "host"],
+                     # Codex P1 at e1715f5f3: a stdin reader inside shell code.
+                     ["sh", "-c", "python3 -"], ["sh", "-c", "X=1 bash -s"], ["sh", "-c", "cat x | python3"]):
             with self.assertRaises(qt.QuartusLeaseError, msg=argv):
                 subprocess.run(argv, input="true\n", text=True, capture_output=True)
         with qt.stdin_program():
             self.assertEqual(subprocess.run(["sh"], input="true\n", text=True).returncode, 0)
         self.assertEqual(subprocess.run(["sh", "-c", "true"]).returncode, 0)
+        self.assertEqual(subprocess.run(["sh", "-c", "echo python3 -; true"], capture_output=True).returncode, 0)
         self.assertEqual(subprocess.run(["python3", "-c", "pass"]).returncode, 0)
         self.assertEqual(subprocess.run(["python3", "-W", "ignore", "-c", "pass"]).returncode, 0)
         # Codex P2 at f1c5377c1: -Wignore is -W's attached operand, not -i.
