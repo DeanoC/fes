@@ -1,7 +1,7 @@
 # pc386: FreeDOS kernel 2046 and SHARE built from source, 21 November 2026
 
 Issue: [#1777](https://github.com/DeanoC/fes/issues/1777). The
-[diagnosis record](../2026-11-21-pc386-share-1777/summary.md) found two
+diagnosis record ([#2073](https://github.com/DeanoC/fes/pull/2073), `docs/validation/2026-11-21-pc386-share-1777/`) found two
 FreeDOS defects behind it. Together they made every delete and rename fail
 under SHARE on the games image's Windows boot entry (entry 4):
 
