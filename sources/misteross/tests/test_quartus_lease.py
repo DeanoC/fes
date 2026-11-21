@@ -1087,7 +1087,9 @@ class LaunchGuardTests(unittest.TestCase):
                      ["env", "python3", "-"], ["timeout", "60", "sh"], ["python3", "-W", "ignore"],
                      ["bash", "-o", "pipefail"],
                      # Codex P1s at 3c574e500: wrapped over ssh, and perl -c.
-                     ["ssh", "host", "env", "python3", "-"], ["perl", "-c"]):
+                     ["ssh", "host", "env", "python3", "-"], ["perl", "-c"],
+                     # Codex P1s at aa9250581: python -i, and clustered ssh options.
+                     ["python3", "-i", "-c", "pass"], ["ssh", "-vp", "22", "host", "python3", "-"]):
             with self.assertRaises(qt.QuartusLeaseError, msg=argv):
                 subprocess.run(argv, input="true\n", text=True, capture_output=True)
         with qt.stdin_program():

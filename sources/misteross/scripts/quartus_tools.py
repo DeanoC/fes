@@ -772,8 +772,11 @@ def _reads_program_from_stdin(texts: list[str]) -> bool:
             return True
         if word == "-":
             return True
+        if python and re.fullmatch(r"-[A-Za-z]*i[A-Za-z]*", word) and word not in takes:
+            return True  # -i inspects interactively, reading stdin, after any -c program
         if program_flag.fullmatch(word):
-            return False  # the program is an argument
+            # The program is an argument, unless -i comes later (python -c x -i).
+            return python and any(re.fullmatch(r"-[A-Za-z]*i[A-Za-z]*", w) for w in texts[index + 1:])
         if word == "--":
             index += 1
             break
@@ -785,6 +788,26 @@ def _reads_program_from_stdin(texts: list[str]) -> bool:
             continue
         return False  # the first operand is the program file
     return index >= len(texts) or texts[index] == "-"
+
+
+SSH_OPERAND_OPTIONS = set("BbcDEeFIiJLlmOoPpQRSWw")
+
+
+def _ssh_destination(texts: list[str]) -> int:
+    """The index of ssh's destination: past its options, clustered (-vp 22)
+    or not, and the operands of those that take one."""
+    index = 1
+    while index < len(texts) and texts[index].startswith("-") and texts[index] != "--":
+        cluster = texts[index][1:]
+        index += 1
+        for position, letter in enumerate(cluster):
+            if letter in SSH_OPERAND_OPTIONS:
+                if position == len(cluster) - 1:
+                    index += 1  # the operand is the next word
+                break  # otherwise the rest of the cluster is the operand
+    if index < len(texts) and texts[index] == "--":
+        index += 1
+    return index
 
 
 def _check_stdin_program(texts: list[str]) -> None:
@@ -800,10 +823,7 @@ def _check_stdin_program(texts: list[str]) -> None:
         return
     command = texts
     if command and os.path.basename(command[0]) == "ssh":
-        index = 1
-        while index < len(command) and command[index].startswith("-"):
-            option = command[index]
-            index += 2 if (len(option) == 2 and option[1] in "BbcDEeFIiJLlmOoPpQRSWw") else 1
+        index = _ssh_destination(command)
         remote_words = []
         for text in command[index + 1:]:
             remote_words.extend(text.split())
@@ -841,11 +861,7 @@ def _check_remote_quartus(argv) -> None:
         return
     # ssh [options] destination [command [argument ...]]: skip the options
     # (and their operands) and the destination.
-    index = 1
-    while index < len(texts) and texts[index].startswith("-"):
-        option = texts[index]
-        index += 2 if (len(option) == 2 and option[1] in "BbcDEeFIiJLlmOoPpQRSWw") else 1
-    remote = texts[index + 1:]
+    remote = texts[_ssh_destination(texts) + 1:]
     tokens = []
     for text in remote:
         lexer = shlex.shlex(text.replace("\\\n", "").replace("\n", " ; "), posix=True, punctuation_chars=True)
