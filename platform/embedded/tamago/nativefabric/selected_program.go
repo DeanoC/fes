@@ -264,7 +264,7 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 		for _, iface := range d.Interfaces {
 			declared = declared || iface.ID == "fes.media.zx81-tape" && iface.Major == 1 && iface.Minor == 0
 		}
-		if p.ProgrammingProfile != NativeComputerProfile || !declared ||
+		if selection.TapeFormat() != "" || p.ProgrammingProfile != NativeComputerProfile || !declared ||
 			len(tape) < int(cg.FesComputerZx81TapeMinBytes) || len(tape) > int(cg.FesDe25ComputerZx81TapeMaxBytes) {
 			return nil, errors.New("native fabric: selected package and native driver must support this tape")
 		}

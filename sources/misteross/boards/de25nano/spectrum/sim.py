@@ -108,12 +108,12 @@ def run(model, native_mailbox=False):
         controls = output / "native-controls.json"
         controls.write_bytes(load(HERE / "build.py", "spectrum_native_controls").native_controls(
             "00112233445566778899aabbccddeeff", hashlib.sha256(payload).hexdigest()))
-        subprocess.run(["go", "test", "-v", "-count=1", "-timeout=120s", "./computer",
-                        "-run", "^TestSpectrum48(Firmware|Tenfoot|SecureStop)RTL$"], cwd=tamago, check=True,
-                       env=dict(os.environ, GOWORK="off",
-                                FES_SPECTRUM48_MAILBOX=str(executable),
-                                FES_SPECTRUM48_FIRMWARE=str(firmware),
-                                FES_SPECTRUM48_CONTROLS=str(controls)))
+        env = dict(os.environ, GOWORK="off",
+                   FES_SPECTRUM48_MAILBOX=str(executable), FES_SPECTRUM48_FIRMWARE=str(firmware),
+                   FES_SPECTRUM48_TAPE=str(diagnostic / "tape.pzx"), FES_SPECTRUM48_CONTROLS=str(controls))
+        for test in ("Tape", "Firmware", "SecureStop", "Tenfoot"):
+            subprocess.run(["go", "test", "-v", "-count=1", "-timeout=120s", "./computer",
+                            "-run", f"^TestSpectrum48{test}RTL$"], cwd=tamago, check=True, env=env)
 
 
 def main():

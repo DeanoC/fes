@@ -444,9 +444,16 @@ int native_mailbox() {
             board.machine_clock_stopped = true;
             board.read(0x18, true);
             value = board.read(kFault);
-        } else if (operation == "spectrum-state") {
+        } else if (operation == "spectrum-state" || operation == "tape-result") {
 #if SPECTRUM_BANKS == 3
             const auto& ram = board.root.fes_de25_spectrum_standard__DOT__core__DOT__machine__DOT__ram__DOT__bank__BRA__1__KET____DOT__mem;
+            if (operation == "tape-result") {
+                value = 0;
+                for (unsigned i = 0; i < 4; ++i)
+                    value = (value << 8) | ram[0x100 + i];
+                std::cout << "R 1 " << std::hex << value << std::endl;
+                continue;
+            }
             std::cout << "R 1 " << static_cast<unsigned>(board.dut.exec_reset) << ' ' << std::hex
                       << static_cast<unsigned>(ram[0]) << std::endl;
             continue;

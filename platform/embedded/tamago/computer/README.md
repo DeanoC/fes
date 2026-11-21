@@ -105,7 +105,8 @@ F2SDRAM, the independent probe and a scanout-only display master with
 maintenance held in reset. The opt-in cold platform opens only control for
 Spectrum, verifies a fresh reader at the native guard aperture and requires
 the joined stop and held bridge receipt for SD return or source retirement.
-The data bridges stay held during the initial Spectrum play milestone.
+The data bridges stay held. Spectrum media uses the existing unit-0
+mailbox and board SDRAM, so the upload needs only the owned control bridge.
 
 The SD-backed ProgramService accepts Spectrum when the native launcher
 includes an exact compiled companion record. A FAT32 fixture exercises
@@ -113,9 +114,16 @@ launch, return, relaunch and Park with a modeled FPGA endpoint. It also
 checks rejection of mismatched content and containment after uncertain
 mailbox commit, fetch activity during Hold, or reader drain. Spectrum
 uploads its retained 16 KiB ROM through 8,192 mailbox data commands while
-execution is held. The matched chain still needs the signed-off native
-Spectrum payload and companion record generation. Physical upload timing,
-bridge ownership and HDMI output remain to be measured.
+execution is held. The opt-in SD tape choice uses `format: "spectrum-tape"`
+alongside its path, size and SHA-256. The shared FogCast converter prepares
+the PZX stream while SD is owned. The first native delivery path caps the
+source and converted stream at 64 KiB each. A fresh Hold acknowledgement
+binds the tape upload after ROM upload. Ready and stable held fetch counters
+are required before release. The legacy ZX81 tape choice omits the format.
+
+The matched chain still needs the signed-off native Spectrum payload and
+companion record generation. Physical upload timing, bridge ownership and
+HDMI output remain to be measured.
 
 The diagnostic board's limit is 16375 bytes, below the general ABI's 16384.
 Callers must not mutate supplied slices concurrently with a call; tape bytes

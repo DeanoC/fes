@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
 	cg "github.com/DeanoC/fes/platform/embedded/tamago/computer/generated"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
@@ -108,8 +110,19 @@ func (l *ProgramLoader) preflightSpectrum48(selection *packagestore.Selection) (
 		d.ABI.ID != "fes.computer" || d.ABI.Major != 1 || d.ABI.Minor != 0 ||
 		d.Payload.Size != int64(r.CoreSize) || d.Payload.SHA256 != r.CoreSHA256 ||
 		d.Format != 3 || !corepackage.FirmwareUpload(d) || d.ROM == nil ||
-		d.ROM.Role != "firmware" || d.ROM.SourceSize != spectrum48ROMBytes || len(selection.Tape()) != 0 {
+		d.ROM.Role != "firmware" || d.ROM.SourceSize != spectrum48ROMBytes {
 		return nil, errors.New("native fabric: Spectrum selection differs from the compiled companion")
+	}
+	var tape []byte
+	if image := selection.Tape(); len(image) != 0 {
+		if selection.TapeFormat() != packagestore.SpectrumTapeFormat || !protocol.DeclaresSpectrumTape(d) {
+			return nil, errors.New("native fabric: Spectrum tape requires a declared Spectrum cassette unit")
+		}
+		var err error
+		tape, err = protocol.ConvertSpectrumTape(image, computer.MaxInitialSpectrumTapeBytes)
+		if err != nil {
+			return nil, errors.Join(errors.New("native fabric: Spectrum tape conversion"), err)
+		}
 	}
 	linked := selection.Linked()
 	if linked == nil || linked.Inspection().PackageID != i.PackageID || linked.ReceiptSHA256() != r.ROMReceiptSHA256 {
@@ -145,7 +158,7 @@ func (l *ProgramLoader) preflightSpectrum48(selection *packagestore.Selection) (
 		configuration: s.configuration, configurationRaw: s.configRaw,
 		computer: computerMap{CPUBase: r.ComputerCPUBase, Span: cg.FesDe25ComputerSpan,
 			Capabilities: spectrum48Capabilities, BuildID: r.BuildID},
-		controlRaw: s.raw, computerRaw: s.raw, firmware: firmware, romReceipt: r.ROMReceiptSHA256}
+		controlRaw: s.raw, computerRaw: s.raw, firmware: firmware, tape: tape, romReceipt: r.ROMReceiptSHA256}
 	return &StoredConfigurationPlan{state: &storedConfigurationPlan{v: l.boot, program: p,
 		selection: selection, control: s.raw, configuration: s.configRaw, payload: payload}}, nil
 }

@@ -98,7 +98,13 @@ func Apple2FloppyInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaApple2FloppyID, Major: generated.FesComputerInterfaceMediaApple2FloppyMajor, Minor: generated.FesComputerInterfaceMediaApple2FloppyMinor}
 }
 
-// SpectrumTapeInterface is the unit-0 ZX Spectrum .tap contract.
+// ConvertSpectrumTape encodes a cassette image as the shared FPGA PZX stream.
+// Delivery backends can enforce a smaller stream bound than the FPGA deck.
+func ConvertSpectrumTape(data []byte, limit int) ([]byte, error) {
+	return spectrumtapes.ConvertBounded(data, limit)
+}
+
+// SpectrumTapeInterface is the unit-0 ZX Spectrum cassette contract.
 func SpectrumTapeInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaSpectrumTapeID, Major: generated.FesComputerInterfaceMediaSpectrumTapeMajor, Minor: generated.FesComputerInterfaceMediaSpectrumTapeMinor}
 }

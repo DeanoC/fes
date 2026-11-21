@@ -58,10 +58,23 @@ func (s *ProgramService) FetchObservation() (ProgramFetchObservation, bool) {
 // CSR/bridge/mapping guards. No uncertain command is replayed.
 func (p *programService) startExecution(ctx context.Context, view ProgramServiceStatus) (ProgramFetchObservation, error) {
 	o := ProgramFetchObservation{Scope: "nano-computer-fetch-v1", Owner: view.Owner, Generation: view.Generation, PackageID: view.Identity.PackageID, BuildID: view.Identity.BuildID, LimitNS: int64(p.limits.Timeout)}
-	if p.plan != nil && p.plan.state != nil && p.plan.state.program != nil && len(p.plan.state.program.tape) != 0 {
+	var program *selectedProgram
+	if p.plan != nil && p.plan.state != nil {
+		program = p.plan.state.program
+	}
+	spectrum := program != nil && program.role == programRoleSpectrum48
+	if spectrum {
+		o.Scope = "nano-spectrum48-fetch-v1"
+	}
+	if program != nil && len(program.tape) != 0 {
 		o.Scope = "nano-computer-fetch-tape-v1"
-		o.TapeBytes = uint32(len(p.plan.state.program.tape))
-		budget, err := computer.TapeTransferBudget(int(o.TapeBytes), p.limits.Timeout)
+		tapeBudget := computer.TapeTransferBudget
+		if spectrum {
+			o.Scope = "nano-spectrum48-fetch-tape-v1"
+			tapeBudget = computer.SpectrumTapeTransferBudget
+		}
+		o.TapeBytes = uint32(len(program.tape))
+		budget, err := tapeBudget(int(o.TapeBytes), p.limits.Timeout)
 		if err != nil {
 			return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
 		}
@@ -107,7 +120,25 @@ func (p *programService) startExecution(ctx context.Context, view ProgramService
 	if o.Before != o.Held {
 		return ProgramFetchObservation{}, fmt.Errorf("%w: fetches changed while held", ErrProgramExecution)
 	}
-	if p.plan != nil && p.plan.state != nil && p.plan.state.program != nil && len(p.plan.state.program.tape) != 0 {
+	if spectrum {
+		if err := run(func() error { return c.LoadInitialFirmware(ctx, program.firmware) }); err != nil {
+			return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
+		}
+		var held computer.FetchActivity
+		if err := sample(&held); err != nil {
+			return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
+		}
+		if held != o.Held {
+			return ProgramFetchObservation{}, fmt.Errorf("%w: fetches changed during held firmware upload", ErrProgramExecution)
+		}
+		if o.TapeBytes != 0 {
+			// Bind the tape transfer to a fresh Hold acknowledgement after ROM commands.
+			if err := run(func() error { return c.Hold(ctx) }); err != nil {
+				return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
+			}
+		}
+	}
+	if o.TapeBytes != 0 {
 		// SD is contained. Only bytes privately retained and admitted before
 		// configuration reach the existing CRC/ACK media transport. A failure
 		// leaves execution held and retires the owner; no Run or replay follows.
@@ -115,7 +146,11 @@ func (p *programService) startExecution(ctx context.Context, view ProgramService
 			return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
 		}
 		tapeStart := last
-		if err := c.LoadInitialTape(ctx, p.plan.state.program.tape); err != nil {
+		loadTape := c.LoadInitialTape
+		if spectrum {
+			loadTape = c.LoadInitialSpectrumTape
+		}
+		if err := loadTape(ctx, program.tape); err != nil {
 			return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
 		}
 		now := p.limits.Now()
@@ -133,24 +168,6 @@ func (p *programService) startExecution(ctx context.Context, view ProgramService
 		}
 		if held != o.Held {
 			return ProgramFetchObservation{}, fmt.Errorf("%w: fetches changed during held tape load", ErrProgramExecution)
-		}
-	}
-	if p.plan != nil && p.plan.state != nil && p.plan.state.program != nil {
-		program := p.plan.state.program
-		if program.role == programRoleSpectrum48 {
-			// The private ROM was read and linked before SD containment.
-			// Keep the existing control deadline across upload and proof.
-			if err := run(func() error { return c.LoadInitialFirmware(ctx, program.firmware) }); err != nil {
-				return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
-			}
-			var held computer.FetchActivity
-			if err := sample(&held); err != nil {
-				return ProgramFetchObservation{}, errors.Join(ErrProgramExecution, err)
-			}
-			if held != o.Held {
-				return ProgramFetchObservation{}, fmt.Errorf("%w: fetches changed during held firmware upload", ErrProgramExecution)
-			}
-			o.Scope = "nano-spectrum48-fetch-v1"
 		}
 	}
 	if err := run(func() error { return c.Run(ctx) }); err != nil {

@@ -20,6 +20,7 @@ import (
 
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
 	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
 	cg "github.com/DeanoC/fes/platform/embedded/tamago/computer/generated"
@@ -44,6 +45,8 @@ type spectrumFirmwareCPU struct {
 	failCommit     bool
 	fetchWhileHeld bool
 	tapeCalls      int
+	media          tapeCPU
+	wantTape       bool
 }
 
 func (c *spectrumFirmwareCPU) LoadInitialTape(context.Context, BridgeSnapshot, computer.InitialTapeRequest) (computer.InitialTapeReceipt, error) {
@@ -60,10 +63,17 @@ func (c *spectrumFirmwareCPU) WritePhysical32(address uint64, word uint32) error
 		c.held = value == uint16(cg.FesComputerExecutionHoldReset)
 		if !c.held {
 			c.releases++
-			if !c.ready {
-				return errors.New("Spectrum ran before its ROM was ready")
+			if !c.ready || c.wantTape && !c.media.ready {
+				return errors.New("Spectrum ran before its selected ROM and tape were ready")
 			}
 		}
+	}
+	if op >= cg.FesComputerOpcodeMediaInfo && op <= cg.FesComputerOpcodeMediaEject {
+		c.media.held = c.held
+		if !c.ready {
+			return errors.New("Spectrum tape submitted before its ROM was ready")
+		}
+		return c.media.writeMedia(op, index, value)
 	}
 	if op < cg.FesFirmwareUploadOpcodeInfo || op > cg.FesFirmwareUploadOpcodeCommit {
 		return nil
@@ -123,7 +133,13 @@ func packageSpectrumFixture(t *testing.T, l *ProgramLoader) (packagestore.Reques
 		}
 		if name == "manifest.toml" {
 			data = []byte(strings.NewReplacer("fes.pong", "fes.spectrum", "fes-gp-v1", spectrum48Profile,
-				"fes.simple-game", "fes.computer").Replace(string(data)))
+				"fes.simple-game", "fes.computer").Replace(string(data)) + `
+[[interfaces]]
+id = "fes.media.spectrum-tape"
+major = 2
+minor = 0
+required = true
+`)
 		}
 		if err := os.WriteFile(filepath.Join(dir, name), data, 0600); err != nil {
 			t.Fatal(err)
@@ -182,7 +198,7 @@ func packageSpectrumFixture(t *testing.T, l *ProgramLoader) (packagestore.Reques
 }
 
 func TestSpectrum48ProgramServiceFATLaunchReturnAndPark(t *testing.T) {
-	for _, fault := range []string{"", "disabled", "rom", "companion", "commit", "held-fetch", "drain"} {
+	for _, fault := range []string{"", "tape", "tape-format", "tape-content", "tape-output-limit", "tape-digest", "tape-commit", "disabled", "rom", "companion", "commit", "held-fetch", "drain"} {
 		t.Run("fault="+fault, func(t *testing.T) {
 			testSpectrum48FAT(t, fault)
 		})
@@ -209,11 +225,44 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 	defer disk.Close()
 	var startup *ProgramStartup
 	var port *spectrumFirmwareCPU
-	var expected []byte
+	var expected, expectedTape []byte
 	f := newProgramMenuFixtureContext(t, ctx, "", func(f *programMenuFixture) {
 		l := f.r.f.loader
 		request, files, compiled, policy := packageSpectrumFixture(t, l)
 		expected = bytes.Clone(files[request.Sources[0].Path])
+		if strings.HasPrefix(fault, "tape") {
+			// A ROM-loader TAP block larger than the ZX81 file ceiling.
+			size := (24 << 10) + 2
+			if fault == "tape-output-limit" {
+				size = packagestore.MaxRetainedSpectrumTapeBytes
+			}
+			tap := make([]byte, size)
+			binary.LittleEndian.PutUint16(tap, uint16(len(tap)-2))
+			tap[2], tap[len(tap)-1] = 0xff, 0xff
+			var err error
+			expectedTape, err = protocol.ConvertSpectrumTape(tap, int(protocol.SpectrumTapeMaxBytes))
+			if err != nil || len(expectedTape) <= 16<<10 {
+				t.Fatal("invalid Spectrum TAP fixture", err, len(expectedTape))
+			}
+			if fault == "tape-output-limit" && len(expectedTape) <= computer.MaxInitialSpectrumTapeBytes {
+				t.Fatal("fixture does not exceed the converted stream limit", len(expectedTape))
+			}
+			if fault == "tape-content" {
+				tap = []byte{0xff, 0xff, 0}
+			}
+			request.Tape = packagestore.TapeRequest{Path: "FES/SPEC48.TAP", Format: packagestore.SpectrumTapeFormat,
+				Size: int64(len(tap)), SHA256: fmt.Sprintf("%x", sha256.Sum256(tap))}
+			files[request.Tape.Path] = tap
+			if fault == "tape-format" {
+				request.Tape.Format = ""
+				request.Tape.Size = 4
+				files[request.Tape.Path] = []byte{2, 0, 0xff, 0xff}
+				request.Tape.SHA256 = fmt.Sprintf("%x", sha256.Sum256(files[request.Tape.Path]))
+			}
+			if fault == "tape-digest" {
+				tap[2] ^= 1
+			}
+		}
 		if fault == "rom" {
 			files[request.Sources[0].Path][0] ^= 1
 		}
@@ -236,13 +285,18 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 			t.Fatal(err)
 		}
 		port = &spectrumFirmwareCPU{CPUTransport: f.cpu, base: f.r.f.cpu.computerCPU,
-			failCommit: fault == "commit", fetchWhileHeld: fault == "held-fetch"}
+			failCommit: fault == "commit", fetchWhileHeld: fault == "held-fetch", wantTape: len(expectedTape) != 0}
+		port.media = tapeCPU{base: port.base, spectrum: true}
+		if fault == "tape-commit" {
+			port.media.fault = "commit"
+		}
 		l.boot.cpu = port
 		activate := f.cpu.activate
 		f.cpu.activate = func(role programRole) {
 			activate(role)
 			port.active = role == programRoleSpectrum48
 			port.ready, port.held, port.image, port.header = false, false, nil, [4]uint16{}
+			port.media.ready, port.media.image = false, nil
 			if port.active {
 				f.r.cpu.expectedROM = nil
 				raw, err := hex.DecodeString(paired.spectrum48.record.BuildID)
@@ -285,23 +339,36 @@ func testSpectrum48FAT(t *testing.T, fault string) {
 	for attempt := 1; attempt <= 2; attempt++ {
 		play, err := client.Launch(ctx, "spectrum48")
 		switch fault {
-		case "disabled", "rom", "companion":
+		case "disabled", "rom", "companion", "tape-format", "tape-content", "tape-output-limit", "tape-digest":
 			if err != nil || play.ErrorCode != "NATIVE_LAUNCH_FAILED" || play.ID != "" || f.s.Status().State != ProgramReady || port.begins != 0 || port.releases != 0 ||
 				f.r.f.cpu.configurations != 2 || f.r.f.lease.r.Active || f.cpu.kind != programRoleMenu {
 				t.Fatal("invalid Spectrum content entered configuration or lost the menu", err, f.s.Status())
 			}
 			return
-		case "commit", "held-fetch":
+		case "commit", "held-fetch", "tape-commit":
 			if err != nil || play.ErrorCode != "NATIVE_LAUNCH_FAILED" || play.ID != "" || port.commits != 1 || port.releases != 0 ||
 				f.s.Status().State != ProgramRebootRequired || f.r.f.lease.r.Active {
 				t.Fatal("uncertain firmware upload released execution or storage", err, f.s.Status())
 			}
+			if fault == "tape-commit" && (port.media.starts != 1 || port.media.commits != 1 || !bytes.Equal(port.media.image, expectedTape)) {
+				t.Fatal("tape commit fault did not exercise a complete transfer")
+			}
 			return
 		}
 		fetch, observed := f.s.FetchObservation()
+		scope := "nano-spectrum48-fetch-v1"
+		if len(expectedTape) != 0 {
+			scope = "nano-spectrum48-fetch-tape-v1"
+			status := f.s.Status()
+			if port.media.starts != attempt || port.media.commits != attempt || !bytes.Equal(port.media.image, expectedTape) ||
+				int(fetch.TapeBytes) != len(expectedTape) || status.TapeBytes != len(expectedTape) ||
+				status.TapeSHA256 != fmt.Sprintf("%x", sha256.Sum256(expectedTape)) {
+				t.Fatal("Spectrum did not freshly commit the converted SD tape", status, fetch)
+			}
+		}
 		if err != nil || play.State != "active" || !bytes.Equal(port.image, expected) ||
 			port.begins != 4*attempt || port.commits != attempt || port.releases != attempt ||
-			port.tapeCalls != 0 || !observed || fetch.Scope != "nano-spectrum48-fetch-v1" || f.r.f.lease.r.Active {
+			port.tapeCalls != 0 || !observed || fetch.Scope != scope || f.r.f.lease.r.Active {
 			t.Fatal("Spectrum skipped retained upload, fetch or containment", err, play.State, fetch)
 		}
 		port.base.badClosure = fault == "drain"

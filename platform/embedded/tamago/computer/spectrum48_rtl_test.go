@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/protocol"
 	g "github.com/DeanoC/fes/platform/embedded/tamago/computer/generated"
 	"github.com/DeanoC/fes/platform/embedded/tamago/runtimeadmission"
 )
@@ -446,4 +447,65 @@ func TestSpectrum48SecureStopRTL(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSpectrum48TapeRTL(t *testing.T) {
+	executable := os.Getenv("FES_SPECTRUM48_MAILBOX")
+	if executable == "" {
+		t.Skip("run the Spectrum sim.py with --native-mailbox")
+	}
+	firmware, err := os.ReadFile(os.Getenv("FES_SPECTRUM48_FIRMWARE"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := spectrum48Source(t, firmware)
+	raw, err := os.ReadFile(os.Getenv("FES_SPECTRUM48_TAPE"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pzx, err := protocol.ConvertSpectrumTape(raw, MaxInitialSpectrumTapeBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 40*time.Second)
+	defer cancel()
+	s := startSpectrumMailbox(t, executable)
+	c, err := Open(ctx, s, Limits{Timeout: 20 * time.Second, MaxPolls: 64, Now: time.Now, Yield: func() {}}, source.identity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, step := range []func() error{
+		func() error { return c.Hold(ctx) },
+		func() error { return c.LoadInitialFirmware(ctx, source.image) },
+		func() error { return c.Hold(ctx) },
+		func() error { return c.LoadInitialSpectrumTape(ctx, pzx) },
+	} {
+		if err := step(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if held, _ := s.state(t); !held {
+		t.Fatal("Spectrum released execution during tape delivery")
+	}
+	if err := c.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// The diagnostic ROM reads EAR via port FE and decodes all four tape bytes
+	// into RAM. This observes playback and CPU loading independently of commit.
+	for i := 0; i < 200; i++ {
+		if err := ctx.Err(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.call("advance %x", 100000); err != nil {
+			t.Fatal(err)
+		}
+		result, err := s.call("tape-result")
+		if err != nil || len(result) != 1 {
+			t.Fatal(result, err)
+		}
+		if result[0] == 0xa53c817e {
+			return
+		}
+	}
+	t.Fatal("Spectrum diagnostic did not decode the cassette bytes into RAM")
 }
