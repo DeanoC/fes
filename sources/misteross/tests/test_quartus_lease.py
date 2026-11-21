@@ -1116,6 +1116,11 @@ class LaunchGuardTests(unittest.TestCase):
         self.assertTrue(qt._reads_program_from_stdin(["python3", "-ic", "pass"]))
         self.assertTrue(qt._reads_program_from_stdin(["python3", "-W", "ignore"]))
         self.assertFalse(qt._reads_program_from_stdin(["python3", "-m", "pytest"]))
+        # Codex P2 at 45fc393e0: informational options print and exit.
+        for argv in (["python3", "--version"], ["python3", "-V"], ["python3", "--help"], ["python3", "-h"],
+                     ["bash", "--version"]):
+            self.assertFalse(qt._reads_program_from_stdin(argv), argv)
+        self.assertEqual(subprocess.run(["python3", "--version"], capture_output=True).returncode, 0)
         # Codex P1 at 00058c57d: ssh behind an execution wrapper.
         for argv in (["env", "ssh", "host", "/remote/bin/quartus_fit", "top"],
                      ["env", "-i", "X=1", "timeout", "60", "nice", "-n", "5", "ssh", "host", "quartus_sh", "-t", "x"],

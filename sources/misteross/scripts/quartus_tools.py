@@ -757,6 +757,8 @@ def _python_reads_stdin(arguments: list[str]) -> bool:
             return True
         if word == "--":
             return interactive or index >= len(arguments) or arguments[index] == "-"
+        if word in ("--version", "--help", "--help-env", "--help-xoptions", "--help-all"):
+            return False  # prints and exits
         if word.startswith("--"):
             if word == "--check-hash-based-pycs":
                 index += 1  # its operand
@@ -771,6 +773,8 @@ def _python_reads_stdin(arguments: list[str]) -> bool:
                 break
             if letter in "cm":  # the program text or module follows
                 return interactive
+            if letter in "Vh?":  # version or help: prints and exits
+                return False
             if letter == "i":
                 interactive = True
     return True  # no program given: it is read from stdin
@@ -791,6 +795,8 @@ def _reads_program_from_stdin(texts: list[str]) -> bool:
     index = 1
     while index < len(texts):
         word = texts[index]
+        if word in ("--version", "--help"):
+            return False  # prints and exits
         if word in ("-s", "-"):
             return True
         if re.fullmatch(r"-[A-Za-z]*c[A-Za-z]*", word):
