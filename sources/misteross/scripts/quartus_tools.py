@@ -191,8 +191,11 @@ def locate_quartus(quartus_root: str, repo_root: Path, lock: QuartusLock) -> tup
             version = _version_line(candidate, lock)
             # Authenticated and probed; now wait for a slot. Held for the rest
             # of this process unless the caller already holds a lease, which a
-            # multi-seed runner does so it can release between seeds.
-            hold_quartus_lease(lock.edition, label=lock.path)
+            # multi-seed runner does so it can release between seeds. Only a
+            # licensed installation, read from the file itself, takes one: a
+            # test that stands in for the digest check never takes a host's slot.
+            if _licensed_edition(str(candidate)) is not None:
+                hold_quartus_lease(lock.edition, label=lock.path)
             return root, candidate, version
     raise RebuildError(
         "Quartus rebuild unavailable; expected quartus_sh below "

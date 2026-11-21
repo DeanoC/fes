@@ -513,6 +513,23 @@ class LaunchGuardTests(unittest.TestCase):
             self.assertEqual(subprocess.run([str(self.bin / "quartus_fit"), "top"],
                                             capture_output=True).returncode, 0)
 
+    def test_locate_quartus_takes_no_slot_for_a_stand_in_that_authenticates(self):
+        # A test fixture whose lock names its stand-in's digest (or that
+        # patches the digest check) authenticates, but is not a licensed
+        # installation: it must not take a build host's slot. Before the fix a
+        # full test run held Powerboat's /tmp/fes-quartus-pro-1.lock for its
+        # whole duration.
+        repo = Path(self.directory.name)
+        (self.bin / "quartus_sh").write_text(
+            "#!/bin/sh\necho 'Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition'\n")
+        digest = hashlib.sha256((self.bin / "quartus_sh").read_bytes()).hexdigest()
+        lock = qt.QuartusLock("cores/x/quartus.lock", "lite",
+                              "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition", "cyclonev", digest)
+        with mock.patch.dict(qt.LICENSED_QUARTUS_SH, clear=True), mock.patch.dict(qt._licensed_dirs, clear=True):
+            qt.locate_quartus(str(repo / "quartus"), repo, lock)
+        self.assertIsNone(qt.held_quartus_lease("lite"))
+        self.assertEqual(qt.flock_holders(qt.DEFAULT_POOL["lite"][0]), set())
+
     def test_locate_quartus_takes_the_lease_unless_one_is_held(self):
         repo = Path(self.directory.name)
         (self.bin / "quartus_sh").write_text(
