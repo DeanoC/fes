@@ -7,8 +7,8 @@ upload, the board SDRAM and a 52.222222 MHz machine clock. It has a simulated
 component and a Quartus project on the shared builder. Its producer is
 `../producers/build_atari_st_package.py`, selected by the `de25-nano`
 `fes.atari-st` recipe. The 520ST signs off and packages, the runtime and
-FogCast admit it, and Kit D25 has booted it to the EmuTOS desktop (#1937). The
-work toward tier 1 on DE25 is tracked in #2042.
+FogCast admit it, and Kit D25 has booted it to the EmuTOS desktop (#1937) and
+the TOS 1.04 desktop. The work toward tier 1 on DE25 is tracked in #2042.
 
 ## What differs from the DE10 core
 
@@ -74,13 +74,14 @@ memory master, PLLs, SDRAM pad timing and HDMI are not modeled.
   audio-clock review uses the new `de25-machine-pll-audio-clocks-v1` policy,
   which is unreviewed.
 - ROM read timing against the DE10 machine. `st_rom` answered in five clocks;
-  the SDRAM port answers in the CPU's slot. The diagnostic firmware runs, but
-  no cycle-exact comparison or stock TOS boot has been made.
+  the SDRAM port answers in the CPU's slot. EmuTOS and TOS 1.04 boot, but no
+  cycle-exact comparison has been made.
 - SDRAM on the board. The chips are mobile SDRAM: the ramtest controller
   programs their extended mode register and this controller does not. Pad
   timing at the machine clock meets the datasheet delays in analysis, with a
   falling-edge sample, and is unproven on the board.
-- A stock TOS boot. EmuTOS reaches its desktop on Kit D25; no user-supplied
-  TOS has been booted on DE25, in simulation or on hardware.
+- Stock TOS beyond the desktop. With the sealed 520ST package from #2052's
+  producer, a user-supplied TOS 1.04 UK reached the GEM desktop on Kit D25
+  (reported on #2042); no game or application has been run under it on DE25.
 - Mono and medium resolution through the session display, and the picture
   rectangle the plane reports (the whole raster for now).
