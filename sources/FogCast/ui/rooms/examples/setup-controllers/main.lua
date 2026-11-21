@@ -279,9 +279,15 @@ function draw()
     S.buttons(m, buttons_y, list, focus)
     S.footer(lay, "Enter continue with keyboard")
   else
-    local players = 0
-    for _, p in ipairs(pads) do if p.player > 0 then players = players + 1 end end
-    local title = pads[1].player == 1 and "Player 1 is ready" or "Your controller is ready"
+    local players, taken = 0, {}
+    for _, p in ipairs(pads) do
+      if p.player > 0 then players, taken[p.player] = players + 1, true end
+    end
+    -- The one player a lone pad is not: a pad that stays Player 2 after
+    -- Player 1's pad leaves still leaves room for Player 1.
+    local missing = taken[1] and 2 or 1
+    local title = "Your controller is ready"
+    if players == 1 then title = "Player " .. (3 - missing) .. " is ready" end
     if players >= 2 then title = "Players 1 and 2 are ready" end
     gfx.text(title, m, y, { size = big, bold = true, color = C.text })
     y = y + math.floor(big * 1.45)
@@ -292,7 +298,7 @@ function draw()
       rows[#rows + 1] = { badge = p.player > 0 and ("P" .. p.player) or "Menu", name = p.name ~= "" and p.name or "Gamepad", detail = reads(p) }
     end
     if players == 1 then
-      rows[#rows + 1] = { badge = "P2", name = "Add Player 2", detail = "Plug in or switch on another pad", muted = true }
+      rows[#rows + 1] = { badge = "P" .. missing, name = "Add Player " .. missing, detail = "Plug in or switch on another pad", muted = true }
     end
     rows[#rows + 1] = { badge = "Keys", name = "Keyboard", detail = "Works everywhere, alongside your pads", muted = true }
     local room_for = math.floor((buttons_y - 20 - y + gap) / (row_h + gap))

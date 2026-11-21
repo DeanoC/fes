@@ -87,7 +87,7 @@ var launcherActions = map[string]struct{}{
 	"setup_skip":     {},
 	"setup_finish":   {},
 	"setup_resume":   {},
-	// Setup's Controllers step: Swap A / B on Player 1's pad.
+	// Setup's Controllers step: Swap A / B on the first listed pad.
 	"setup_swap_ab": {},
 }
 

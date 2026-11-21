@@ -349,7 +349,7 @@ The allowlisted ids are `settings`, `controllers` (Settings › Controllers,
 whose Back returns to the room), the first-run setup moves
 `setup_continue`, `setup_back`, `setup_skip`, `setup_finish` and
 `setup_resume`, and the Controllers step's `setup_swap_ab` (Swap A / B on
-Player 1's pad) (see Built-in rooms):
+the first listed pad, Player 1's when attached) (see Built-in rooms):
 
 ```lua
 destination.set{ kind = "action", action = "settings", label = "Settings" }

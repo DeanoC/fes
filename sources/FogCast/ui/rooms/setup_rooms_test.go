@@ -250,3 +250,14 @@ func TestSetupControllersTwoPlayersAndAnUnknownPad(t *testing.T) {
 		t.Fatalf("Add Player 2 shown with two players:\n%s", text)
 	}
 }
+
+// A pad that stays Player 2 after Player 1's pad leaves offers Player 1.
+func TestSetupControllersOffersTheMissingPlayer(t *testing.T) {
+	r := setupControllersRoom(t)
+	r.SetPads(1, []Pad{xboxPad(2)})
+	f := stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Player 2 is ready") })
+	text := frameText(f)
+	if !strings.Contains(text, "Add Player 1\n") || strings.Contains(text, "Add Player 2") {
+		t.Fatalf("lone Player 2 step:\n%s", text)
+	}
+}

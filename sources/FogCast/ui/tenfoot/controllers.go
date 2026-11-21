@@ -816,8 +816,8 @@ func (a *App) openRoomControllersLocked() {
 	a.controllers.fromRoom = true
 }
 
-// setupSwapABLocked is setup's Swap A / B: it changes Player 1's pad, the
-// pad the Controllers step shows.
+// setupSwapABLocked is setup's Swap A / B: it changes the pad the
+// Controllers step lists first, Player 1's when one is attached.
 func (a *App) setupSwapABLocked() {
 	ids := a.padIDsLocked()
 	if len(ids) == 0 {
