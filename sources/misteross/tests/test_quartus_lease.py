@@ -588,16 +588,17 @@ class JobsTests(unittest.TestCase):
         script, run_dir = self.jobs.remote_script(
             commit="a" * 40, host="chip-30x0-ai-dev", home="/home/u", edition="pro", label="x87 fit",
             command=["python3", "scripts/fit_i386_device.py", "--output", "{run}/fit", "--cache-root={cache}"],
-            stamp="20261121T000000Z")
+            stamp="20261121T000000Z", origin="https://github.com/DeanoC/fes")
         self.assertTrue(run_dir.startswith("/data/projects/fes-quartus/runs/aaaaaaaaaaaa-20261121T000000Z-x87-fit"))
         self.assertNotIn("/tmp", script)
         self.assertIn(f"{run_dir}/fit", script)
         self.assertIn("--cache-root=/home/u/fes-toolchain-cache", script)
         self.assertIn("export QUARTUS_ROOTDIR=/data/altera_pro/26.3/quartus", script)
         self.assertIn("scripts/quartus_jobs.py run --edition pro", script)
+        self.assertIn(f"worktree add -q --detach {run_dir}/src " + "a" * 40, script)
         self.assertEqual(subprocess.run(["bash", "-n", "-c", script]).returncode, 0)
         lite, _ = self.jobs.remote_script(commit="b" * 40, host="powerboat", home="/home/u", edition="lite",
-                                         label="", command=["true"], stamp="s")
+                                         label="", command=["true"], stamp="s", origin="https://example/x")
         self.assertIn("export QUARTUS_ROOTDIR=/home/u/intelFPGA_lite/17.0/quartus", lite)
 
     def test_remote_refuses_an_unpushed_commit(self):

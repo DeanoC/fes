@@ -15,9 +15,9 @@ a free slot.
         nothing.
 
     quartus_jobs.py remote --edition E [--host auto|HOST] [--commit REV] [--label L] -- COMMAND...
-        Ship a clean `git archive` of a pushed commit to /data/projects/fes-quartus
-        on the chosen host and run COMMAND there from sources/misteross, under
-        `run`. In COMMAND, `{run}` becomes a new run directory on /data and
+        Check a pushed commit out, clean, into a new run directory under
+        /data/projects/fes-quartus on the chosen host and run COMMAND there
+        from sources/misteross, under `run`. In COMMAND, `{run}` becomes a new run directory on /data and
         `{cache}` that host's toolchain cache. Output goes on /data, never to
         /tmp (Powerboat's /tmp is a shared tmpfs).
 
@@ -198,12 +198,17 @@ def resolve_pushed(revision: str) -> str:
 
 
 def remote_script(*, commit: str, host: str, home: str, edition: str, label: str,
-                  command: list[str], stamp: str) -> tuple[str, str]:
-    """The shell program that unpacks the archive on stdin (once per commit)
-    and runs command under the lease there, and the run directory it uses."""
+                  command: list[str], stamp: str, origin: str) -> tuple[str, str]:
+    """The shell program that checks commit out into a new run directory and
+    runs command under the lease there, and that directory.
+
+    The checkout is a detached worktree of a blobless mirror this tool owns on
+    each host (fetched from origin, so only pushed commits resolve). It is a
+    real checkout because producers ask git for their tree and revision."""
     tag = re.sub(r"[^A-Za-z0-9_.-]", "-", label or "job")[:40]
-    tree = f"{PROJECTS}/src/{commit}"
     run_dir = f"{PROJECTS}/runs/{commit[:12]}-{stamp}-{tag}"
+    tree = f"{run_dir}/src"
+    mirror = f"{PROJECTS}/mirror.git"
     expand = lambda path: home + path[1:] if path.startswith("~") else path  # noqa: E731
     cache = expand(TOOLCHAIN_CACHES[host])
     inner = [part.replace("{run}", run_dir).replace("{cache}", cache) for part in command]
@@ -211,17 +216,18 @@ def remote_script(*, commit: str, host: str, home: str, edition: str, label: str
     job = {"commit": commit, "host": host, "edition": edition, "command": inner}
     script = "\n".join([
         "set -euo pipefail",
-        f"mkdir -p {q(PROJECTS)}/src {q(run_dir)}",
-        # A private staging directory renamed into place, so two first runs of
-        # one commit cannot interleave; the marker is written last.
-        f"if [ ! -e {q(tree)}/.fes-archive-complete ]; then",
-        f"  stage=$(mktemp -d {q(PROJECTS)}/src/.{commit[:12]}.XXXXXX)",
-        "  tar -x -C \"$stage\"",
-        "  touch \"$stage/.fes-archive-complete\"",
-        f"  mv -T \"$stage\" {q(tree)} 2>/dev/null || rm -rf \"$stage\"",
-        "else cat > /dev/null; fi",
-        f"test -e {q(tree)}/.fes-archive-complete",
+        f"test ! -e {q(run_dir)}",
+        f"mkdir -p {q(run_dir)}",
+        # One writer at a time on the mirror: cloning, fetching and adding a
+        # worktree all change it.
+        f"exec 9>>{q(PROJECTS)}/.mirror.lock",
+        "flock 9",
+        f"[ -d {q(mirror)} ] || git clone -q --bare --filter=blob:none {q(origin)} {q(mirror)}",
+        f"git -C {q(mirror)} fetch -q origin {q(commit)}",
+        f"git -C {q(mirror)} worktree add -q --detach {q(tree)} {q(commit)}",
+        "flock -u 9",
         f"cd {q(tree)}/sources/misteross",
+        f'test "$(git rev-parse HEAD)" = {q(commit)} && test -z "$(git status --porcelain)"',
         f"export QUARTUS_ROOTDIR={q(expand(QUARTUS_ROOTS[quartus_tools.edition_class(edition)]))}",
         f"export FES_TOOLCHAIN_CACHE_ROOT={q(cache)}",
         f"export FES_QUARTUS_RUN_DIR={q(run_dir)}",
@@ -236,6 +242,9 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
     if not command:
         raise SystemExit("remote needs a command after --")
     commit = resolve_pushed(revision)
+    origin = subprocess.check_output(["git", "-C", str(REPO), "remote", "get-url", "origin"], text=True).strip()
+    if "@" in origin.split("//", 1)[-1].split("/", 1)[0]:
+        raise SystemExit("origin's URL carries credentials; give remote hosts a plain URL")
     if host == "auto":
         host, probes = pick(edition)
     elif host in HOSTS:
@@ -252,13 +261,9 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
     print(f"quartus_jobs: running on {host}", file=sys.stderr, flush=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     script, run_dir = remote_script(commit=commit, host=host, home=chosen["home"], edition=edition,
-                                    label=label, command=command, stamp=stamp)
-    archive = subprocess.Popen(["git", "-C", str(REPO), "archive", "--format=tar", commit], stdout=subprocess.PIPE)
+                                    label=label, command=command, stamp=stamp, origin=origin)
     target = ["bash", "-c", script] if host == local_host() else [*SSH, host, shlex.join(["bash", "-c", script])]
-    result = subprocess.run(target, stdin=archive.stdout)
-    archive.stdout.close()
-    if archive.wait():
-        raise SystemExit("git archive failed")
+    result = subprocess.run(target, stdin=subprocess.DEVNULL)
     print(f"quartus_jobs: {host}:{run_dir} (exit {result.returncode})", file=sys.stderr)
     return result.returncode
 

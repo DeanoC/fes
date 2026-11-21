@@ -93,14 +93,18 @@ memory for one job, then the edition's preferred host (chip for Pro, per
 AGENTS.md), then the most free slots and memory. When nothing is free, the job
 waits where the most memory is available.
 
-`remote` builds only a pushed commit. It streams `git archive` of that commit
-to `/data/projects/fes-quartus/src/<commit>` on the chosen host, unpacked once
-per commit. It then runs the command there from `sources/misteross` under
-`quartus_jobs.py run`, with `QUARTUS_ROOTDIR` and `FES_TOOLCHAIN_CACHE_ROOT`
-set for that host. `{run}` becomes `/data/projects/fes-quartus/runs/<commit>-<time>-<label>`,
-which also holds `job.json`, `job.log` and `peak-rss.json`. `{cache}` becomes
-that host's toolchain cache. Output never goes to `/tmp`: Powerboat's `/tmp`
-is a shared 32 GB tmpfs.
+`remote` builds only a pushed commit. On the chosen host it fetches that
+commit into a blobless mirror this tool owns (`/data/projects/fes-quartus/mirror.git`),
+then adds a detached worktree of it at
+`/data/projects/fes-quartus/runs/<commit>-<time>-<label>/src`. Each run gets its
+own clean tree. It is a git checkout, not a `git archive`, because producers
+ask git for their tree and revision. The command runs there from
+`sources/misteross` under `quartus_jobs.py run`, with `QUARTUS_ROOTDIR` and
+`FES_TOOLCHAIN_CACHE_ROOT` set for that host. `{run}` becomes the run
+directory, which also holds `job.json`, `job.log` and `peak-rss.json`, and
+`{cache}` becomes that host's toolchain cache. Output never goes to `/tmp`:
+Powerboat's `/tmp` is a shared 32 GB tmpfs. Run directories are not deleted
+automatically; prune old ones by hand.
 
 ## Identity
 
