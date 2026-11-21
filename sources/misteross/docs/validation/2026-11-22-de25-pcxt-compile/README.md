@@ -58,6 +58,7 @@ constraints assume.
 | `534591a99` | mailbox synchronizers identified | CDC-50002 still 5 |
 | `3de378d9d` | `pcxt_video` crossings derived as the ST's are | CDC-50002 down to the two bank bits |
 | `02b58c869` | bank copy on its toggle's synchronizer edge; the 8088 cycle divider's enable recognition off | CDC-50002 still the two bank bits; LNT-30010 unchanged in kind |
+| `b3c12f2e9` | bank as a preserved code read through a loaded flag, synchronizers power up zero (the DE25 C64's form) | timing still all positive; CDC-50002 cleared; CDC-50003 (1) and CDC-50102 (1, low) on the bank code, LNT-30010 (1) |
 
 The capture phase is a board choice: this board returns the word later than
 the DE10's. At +4.0 ns the capture still samples in the same read window,
@@ -73,17 +74,23 @@ source digests are byte-identical for both; only output paths and the BUILD_ID
 
 ## Open
 
-- **CDC-50002, two violations:** `published_bank[0..1]` into
-  `published_pixel[0..1]`, the PC/XT video mailbox's held bank. The copy loads
-  only on the edge its toggle leaves a two-stage synchronizer, with nothing on
-  the path but the enable, and its net-delay, data-delay, skew and min/max
-  bounds all apply and pass (one pixel period). The Atari ST's held bundles in
-  the same form pass this rule; why these two bits do not is not understood.
-- **LNT-30010, one violation:** `pcxt_system`'s `machine_reset` drives the
-  vendored 8253's asynchronous clear (693 asynchronous and 1,351 synchronous
-  clears in all) and, through synthesis, 248 clock enables across the machine.
-  This is the unchanged DE10 RTL. Turning off enable recognition on the one
-  example register only moved the example. A structural fix gives the
-  vendored chips a reset register of their own, as the ST's six reset groups
-  do; a reviewed finding would loosen the gate and is Deano's call.
+At `b3c12f2e9` three unreviewed rules remain:
+
+- **CDC-50003, one violation:** the two-bit bank code `published_code` into
+  `pixel_code`, recognised as a CE-type bus loaded on `sent_held`. The
+  report shows its net and data delay constrained and its max skew
+  unconstrained, although `set_max_skew` names the same registers and the ST's
+  bundles pass with the same form.
+- **CDC-50102, one violation (low):** a two-stage synchronizer after that bus.
+  The ZX81 static profile reviews one CDC-50102; the standard-computer gate
+  does not.
+- **LNT-30010, one violation (low):** `pcxt_system`'s `machine_reset` drives
+  the vendored 8253's asynchronous clear (693 asynchronous and 1,351
+  synchronous clears in all) and, through synthesis, 248 clock enables across
+  the machine, in unchanged DE10 RTL. Enable recognition off on one register
+  only moved the example. Candidates: a reset register of their own for the
+  vendored 8253, 8259 and 8255 (loaded from the same logic on the same clock,
+  as the ST's six reset groups), with enable recognition off where the reset
+  still reaches enables, as the DE25 C64 does for its SID; or a reviewed
+  finding, which would loosen the gate and is Deano's call.
 - No repeat compile, no package, no hardware.

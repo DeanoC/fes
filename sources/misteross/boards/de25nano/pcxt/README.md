@@ -79,12 +79,12 @@ PLL, SDRAM pad timing and HDMI are not modeled.
 ## Open
 
 The producer compiles a design that meets every reported timing check and
-passes the input and audio reviews, and refuses to package it on two
+passes the input and audio reviews, and refuses to package it on three
 unreviewed Design Assistant findings
 ([record](../../../docs/validation/2026-11-22-de25-pcxt-compile/README.md)):
-CDC-50002 on the video mailbox's two held bank bits, and LNT-30010 on the DE10
-machine reset, which clears the vendored 8253 asynchronously and reaches 248
-clock enables. The remaining tier 1 work is on DeanoC/fes#2068 and #2042: the
+CDC-50003 and CDC-50102 on the video mailbox's two-bit bank code, and
+LNT-30010 on the DE10 machine reset, which clears the vendored 8253
+asynchronously and reaches 248 clock enables. The remaining tier 1 work is on DeanoC/fes#2068 and #2042: the
 signoff gate, the repeat compile and a package, the board SDRAM at 100 MHz on
 hardware (and the mobile SDRAM's extended mode register, which the DE10
 controller does not program), a kit run to `A:\>`, the game corpus, library
