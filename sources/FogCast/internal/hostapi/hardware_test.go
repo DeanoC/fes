@@ -132,3 +132,32 @@ func TestHardwarePresentationRequiresExplicitBoundedFields(t *testing.T) {
 		}
 	}
 }
+
+type hardwareShelfService struct{ hardwareReadOnlyService }
+
+func (s *hardwareShelfService) ShelfComputers(context.Context) ([]fogcast.ShelfComputer, []fogcast.ComputerPackage, error) {
+	return []fogcast.ShelfComputer{{GameID: "st", Title: "Atari ST", CoreID: "fes.atari-st", PackageID: strings.Repeat("a", 64), Ready: true}},
+		[]fogcast.ComputerPackage{
+			{PackageID: strings.Repeat("a", 64), Media: []fogcast.ComputerMediaSaves{{Role: "disk", Saves: true}}},
+			{PackageID: strings.Repeat("b", 64), Media: []fogcast.ComputerMediaSaves{{Role: "disk", Saves: false}, {Role: "cassette", Saves: false}}},
+		}, nil
+}
+
+// What each computer package's media keeps reaches tenfoot's client as the
+// host listed it.
+func TestHardwareCarriesWhatEachPackagesMediaKeeps(t *testing.T) {
+	s := &hardwareShelfService{hardwareReadOnlyService{fakeService: fakeService{status: protocol.Status{State: protocol.StateIdle}}}}
+	server := httptest.NewServer(hostapi.New(s))
+	defer server.Close()
+	view, err := hostclient.NewClient(server.URL, server.Client()).Hardware(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []hostclient.ComputerPackage{
+		{PackageID: strings.Repeat("a", 64), Media: []hostclient.ComputerMediaSaves{{Role: "disk", Saves: true}}},
+		{PackageID: strings.Repeat("b", 64), Media: []hostclient.ComputerMediaSaves{{Role: "disk", Saves: false}, {Role: "cassette", Saves: false}}},
+	}
+	if !reflect.DeepEqual(view.Packages, want) || len(view.Computers) != 1 {
+		t.Fatalf("packages %+v computers %+v", view.Packages, view.Computers)
+	}
+}

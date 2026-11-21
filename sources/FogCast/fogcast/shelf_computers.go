@@ -21,14 +21,28 @@ type ShelfComputer struct {
 	UnavailableReason string `json:"unavailable_reason,omitempty"`
 }
 
+// ComputerPackage says, for one installed computer package, whether each of
+// its media roles keeps what the computer writes. Library entries name their
+// package, and one core's entries may name different packages.
+type ComputerPackage struct {
+	PackageID string               `json:"package_id"`
+	Media     []ComputerMediaSaves `json:"media"`
+}
+
+type ComputerMediaSaves struct {
+	Role  string `json:"role"`
+	Saves bool   `json:"saves"`
+}
+
 // ShelfComputers lists prepared playable library cores. Those systems launch
 // through the host catalog, so a kit image that only selected the menu and a
 // local shell would otherwise omit them from Home. One card
 // per core: a ready bare machine wins over another title for the same core.
-func (s *Service) ShelfComputers(ctx context.Context) ([]ShelfComputer, error) {
+// The packages list covers every package those entries name.
+func (s *Service) ShelfComputers(ctx context.Context) ([]ShelfComputer, []ComputerPackage, error) {
 	entries, err := s.CoreEntries(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	picked := make([]catalog.CoreEntry, 0)
 	ids := make([]string, 0)
@@ -40,17 +54,21 @@ func (s *Service) ShelfComputers(ctx context.Context) ([]ShelfComputer, error) {
 		ids = append(ids, entry.GameID)
 	}
 	if len(picked) == 0 {
-		return []ShelfComputer{}, nil
+		return []ShelfComputer{}, []ComputerPackage{}, nil
 	}
 	comps, err := s.CoreCompositions(ctx, ids)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	best := map[string]shelfCandidate{}
+	packages := map[string]ComputerPackage{}
 	for _, entry := range picked {
 		inspection, inspectErr := s.installedCoreInspection(ctx, entry.PackageID)
 		if inspectErr != nil || !shelfPlayableABI(inspection.Descriptor.ABI) {
 			continue
+		}
+		if _, seen := packages[entry.PackageID]; !seen {
+			packages[entry.PackageID] = computerPackage(entry.PackageID, inspection.Descriptor)
 		}
 		packageReady := inspection.Descriptor.Core.ID == entry.CoreID
 		ready := packageReady && shelfCompositionReady(comps[entry.GameID])
@@ -78,7 +96,20 @@ func (s *Service) ShelfComputers(ctx context.Context) ([]ShelfComputer, error) {
 		out = append(out, card.card)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CoreID < out[j].CoreID })
-	return out, nil
+	pkgs := make([]ComputerPackage, 0, len(packages))
+	for _, p := range packages {
+		pkgs = append(pkgs, p)
+	}
+	sort.Slice(pkgs, func(i, j int) bool { return pkgs[i].PackageID < pkgs[j].PackageID })
+	return out, pkgs, nil
+}
+
+func computerPackage(packageID string, d corepackage.Descriptor) ComputerPackage {
+	media := make([]ComputerMediaSaves, 0)
+	for _, c := range protocol.DeclaredCoreMediaCapabilities(d) {
+		media = append(media, ComputerMediaSaves{Role: c.Role, Saves: protocol.CoreMediaSaves(d, c)})
+	}
+	return ComputerPackage{PackageID: packageID, Media: media}
 }
 
 func shelfPlayableABI(abi corepackage.Contract) bool {
