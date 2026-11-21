@@ -89,13 +89,13 @@ int main(int argc, char **argv) {
                 }
             }
             auto *r = t->rootp;
-            uint32_t hold = r->fes_de25_hps_window_control__DOT__fault_hold;
+            uint32_t launch = r->fes_de25_hps_window_control__DOT__fault_launch;
             bool open = r->fes_de25_hps_window_control__DOT__fault_request != r->fes_de25_hps_window_control__DOT__fault_ack;
             t->machine_clk = m_edge; t->clk_sys = s_edge; t->eval();
             t->machine_clk = 0; t->clk_sys = 0; t->eval();
             if (s_edge && !seen.count(fault_copy())) ++faulted;
-            // The held copy changes only once clk_sys has acknowledged the last request.
-            if (open && r->fes_de25_hps_window_control__DOT__fault_hold != hold) ++torn;
+            // The launched copy changes only once clk_sys has acknowledged the last request.
+            if (open && r->fes_de25_hps_window_control__DOT__fault_launch != launch) ++torn;
         }
         expect(faulted == 0, "every copied record is one the machine had");
         expect(torn == 0, "the held copy is still while a request is open");

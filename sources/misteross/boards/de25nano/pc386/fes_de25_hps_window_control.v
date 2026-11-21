@@ -22,7 +22,10 @@
 // two-stage synchronizer. The fault record (port bits and reason) crosses by
 // request and acknowledge, as pc386_snapshot does: when the live record
 // differs from the held copy and no request is open, the machine side copies
-// it and flips the request; clk_sys copies the held copy on the clock its
+// it and flips the request. The held copy launches through fault_launch, a
+// register that copies it every clock (so the crossing leaves a register whose
+// only input is the record), and the request is delayed one clock with it, so
+// the data never launches after its request. clk_sys copies fault_launch on the clock its
 // synchronizer's output moves, marked by fault_request_seen (that output one
 // clock later); fault_ack, one clock after that, is the acknowledge, so the
 // copy's enable comes from the synchronizer chain alone; the machine side
@@ -74,22 +77,26 @@ module fes_de25_hps_window_control (
     (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] fault_ack_sync = 2'b00;
     (* preserve, dont_merge *) reg [4:0] fault_hold = 5'd0;
     (* preserve, dont_merge *) reg fault_request = 1'b0, fault_ack = 1'b0;
+    (* preserve, dont_merge *) reg [4:0] fault_launch = 5'd0;
+    reg request_pre = 1'b0;
     reg fault_request_seen = 1'b0;
-    // Copy only, enabled from the synchronizer chain alone: register to register from fault_hold.
+    // Copy only, enabled from the synchronizer chain alone: register to register from fault_launch.
     reg [4:0] machine_fault = 5'd0;
     wire [4:0] fault_live = {fault_outside, fault_no_grant, fault_port};
     always @(posedge machine_clk) begin
         fault_ack_sync <= {fault_ack_sync[0], fault_ack};
-        if (fault_ack_sync[1] == fault_request && fault_live != fault_hold) begin
+        if (fault_ack_sync[1] == request_pre && fault_live != fault_hold) begin
             fault_hold <= fault_live;
-            fault_request <= !fault_request;
+            request_pre <= !request_pre;
         end
+        fault_launch <= fault_hold;
+        fault_request <= request_pre;
     end
     always @(posedge clk_sys) begin
         fault_request_sync <= {fault_request_sync[0], fault_request};
         fault_request_seen <= fault_request_sync[1];
         fault_ack <= fault_request_seen;
-        if (fault_request_sync[1] != fault_request_seen) machine_fault <= fault_hold;
+        if (fault_request_sync[1] != fault_request_seen) machine_fault <= fault_launch;
     end
 
     // ---- Registers

@@ -117,12 +117,12 @@ foreach {label source head expected} {
 #   number (bits 31:12), so synthesis may keep fewer than 32 copies. The
 #   fitter may duplicate base bits for fan-out; a duplicate is still a base
 #   register.
-# - the machine fault record's held copy (five bits), into clk_sys once its
-#   request has crossed; the machine side changes it only after clk_sys's
-#   acknowledge has crossed back.
+# - the machine fault record's held copy (five bits, launched from
+#   fault_launch), into clk_sys once its request has crossed; the machine side
+#   changes it only after clk_sys's acknowledge has crossed back.
 foreach {label sources sinks launches_min launches_max captures_min captures_max} {
     window_base {window_control|base_lo[*] window_control|base_lo[*]~DUPLICATE*} {window_control|base_machine[*]} 20 64 20 32
-    window_fault_record {window_control|fault_hold[*]} {window_control|machine_fault[*]} 5 5 5 5
+    window_fault_record {window_control|fault_launch[*]} {window_control|machine_fault[*]} 5 5 5 5
 } {
     set patterns {}
     foreach name $sources {lappend patterns "${base}|${name}"}
