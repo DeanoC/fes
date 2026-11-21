@@ -110,6 +110,24 @@ CPU, a library launch validates the immutable base and restores a valid saved
 revision, or uses the base when no record exists. A corrupt, incompatible or
 stale record fails closed. Raw development inserts have no durable binding.
 
+## pc386 floppy image
+
+`fes.pc386-floppy.image` 1.0 is a whole floppy from a `fes.media.pc-floppy`
+drive, saved before Eject and at Stop. It uses the same namespace,
+publication and field order as the ST record. Its magic is `FES386F1`, its
+layout ID is the 22 bytes `fes.pc386-floppy.image`, and its payload is the
+whole image, 163,840..2,949,120 bytes in one of the formats the
+[PC floppy](computer-io.md#pc-floppy) admits; the total is payload + 170
+bytes. The core ID `fes.pc386` selects this layout.
+
+**The namespace unit is 1 for every pc386 floppy, in either drive.** The drive
+a disk sits in (unit 1 or 2 on the wire) is never part of the key, so the
+base image alone tells disks apart: disk 2 of a set keeps its saved changes
+whether it goes in A: or B:. The record's unit field is 1 as well. A runtime
+refuses to put a writable disk into one drive while its namespace is bound to
+the other, so each record has one writer; a write-protected disk is never
+saved and may sit in both.
+
 ## ZX81 tape capture
 
 `fes.zx81-tape.image` 1.0 is the `.p` captured by `fes.media.zx81-tape-write`.
