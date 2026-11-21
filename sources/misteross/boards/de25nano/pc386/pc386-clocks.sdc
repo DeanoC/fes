@@ -89,14 +89,16 @@ foreach {label source sink toggle launches_expected captures_minimum} {
 }
 
 # The window control block (fes_de25_hps_window_control). Machine to
-# peripheral clock: drained, held and "any machine fault" are levels, each
-# from its own launch register into its own two-stage synchronizer.
-# Peripheral to machine clock: granted is a level and Clear a toggle, each
-# into its own two-stage synchronizer.
+# peripheral clock: drained and held are levels, each from its own launch
+# register into its own two-stage synchronizer, and the fault record's
+# request is a toggle into one. Peripheral to machine clock: granted is a
+# level, and Clear and the fault record's acknowledge are toggles, each into
+# its own two-stage synchronizer.
 foreach {label source head expected} {
     window_drained {window_control|drained_source} {window_control|drained_sync[0]} 1
     window_held {window_control|held_source} {window_control|held_sync[0]} 1
-    window_fault_any {window_control|fault_any_source} {window_control|fault_any_sync[0]} 1
+    window_fault_request {window_control|fault_request} {window_control|fault_request_sync[0]} 1
+    window_fault_ack {window_control|fault_ack} {window_control|fault_ack_sync[0]} 1
     window_granted {window_control|granted} {window_control|granted_sync[0]} 1
     window_clear {window_control|clear_toggle} {window_control|clear_sync[0]} 1
 } {
@@ -107,20 +109,20 @@ foreach {label source head expected} {
     }
     set_false_path -from $launches -to $first_d
 }
-# Two held bundles, each copied in the receiving clock when its level's
-# synchronizer rises, and still since at least one sending clock before that
-# level was launched:
+# Two held bundles, each copied in the receiving clock when its control's
+# synchronizer says so, and still from before that control was launched until
+# after the copy:
 # - the grant base, into machine_clk when granted's synchronizer rises; it is
 #   writable only while no grant is held. The adapter adds only its page
 #   number (bits 31:12), so synthesis may keep fewer than 32 copies. The
 #   fitter may duplicate base bits for fan-out; a duplicate is still a base
 #   register.
-# - the machine fault record (five bits), into clk_sys when held's
-#   synchronizer rises; held_source rises three machine clocks after hold,
-#   one after the record's last possible change.
+# - the machine fault record's held copy (five bits), into clk_sys once its
+#   request has crossed; the machine side changes it only after clk_sys's
+#   acknowledge has crossed back.
 foreach {label sources sinks launches_min launches_max captures_min captures_max} {
     window_base {window_control|base_lo[*] window_control|base_lo[*]~DUPLICATE*} {window_control|base_machine[*]} 20 64 20 32
-    window_fault_record {window_control|fault_source[*]} {window_control|fault_capture[*]} 5 5 5 5
+    window_fault_record {window_control|fault_hold[*]} {window_control|machine_fault[*]} 5 5 5 5
 } {
     set patterns {}
     foreach name $sources {lappend patterns "${base}|${name}"}

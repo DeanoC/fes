@@ -211,6 +211,11 @@ class MachineProducerTests(unittest.TestCase):
                          {**sealer.firmware_digests(ROOT), 'rom_hex': sealer.pinned_rom_digest(ROOT)})
         self.assertIs(parameters['x87_present'], False)
         self.assertEqual(json.loads(record)['tools']['yosys'], 'explicit fixture yosys')
+        # The reviewed signoff bases and the handshake sources they cite are in the record.
+        from boards.de25nano.scanout import machine_findings
+        table = machine_findings.bases()
+        self.assertEqual(set(machine_findings.sources(json.loads(record), table)), {*table.SOURCES, table.TABLE})
+        self.assertEqual(parameters['signoff_findings_review_policy'], machine_findings.POLICY)
         work = self.root / 'build/pc386'
         work.mkdir(parents=True)
         self.addCleanup(shutil.rmtree, self.root / 'build')

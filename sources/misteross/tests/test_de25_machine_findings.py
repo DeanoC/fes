@@ -11,6 +11,8 @@ import unittest
 from boards.de25nano.producers import build_menu_package as common
 from boards.de25nano.scanout import machine_findings as mf
 
+TABLE = mf.bases()
+
 S = 'soc_inst|subsys_periph|fes_scanout|fes_scanout|system|'
 MACHINE, PIXEL = mf.MACHINE, mf.PIXEL
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,7 +37,7 @@ def cdc(source, sink, launch=MACHINE, latch=PIXEL):
 
 
 def sdc_text():
-    return '\n'.join({line for basis in mf.BASES for line in basis['sdc']}) + '\n'
+    return '\n'.join({line for basis in TABLE.BASES for line in basis['sdc']}) + '\n'
 
 
 class PerRuleCoverageTests(unittest.TestCase):
@@ -57,7 +59,7 @@ class MachineFindingsTests(unittest.TestCase):
             cdc(f'frame_height[{i}]', f'machine_presenter_latest_height[{i}]') for i in range(10)]
 
     def bases(self, *names):
-        return [b for b in mf.BASES if b['name'] in names]
+        return [b for b in TABLE.BASES if b['name'] in names]
 
     def test_every_row_matches_exactly_one_basis_with_its_constraint(self):
         drc = report({'CDC-50001': (CDC, self.capture())})
@@ -81,7 +83,7 @@ class MachineFindingsTests(unittest.TestCase):
                                                     PIXEL, MACHINE)]
         with self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
             mf.review(report({'CDC-50001': (CDC, reversed_clock)}), sdc_text(), bases)
-        missing = sdc_text().replace(mf.CAPTURE_SDC[2] + '\n', '')
+        missing = sdc_text().replace(TABLE.CAPTURE_SDC[2] + '\n', '')
         with self.assertRaisesRegex(mf.BuildError, 'not in the compiled SDC'):
             mf.review(report({'CDC-50001': (CDC, self.capture())}), missing, bases)
         waived = self.capture()
@@ -112,17 +114,30 @@ class MachineFindingsTests(unittest.TestCase):
         with self.assertRaisesRegex(mf.BuildError, 'matches 0 bases'):
             mf.review(report({'CDC-50002': (CDC, rows)}), sdc_text(), bases)
         qsf = ''.join('set_instance_assignment -name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS '
-                      f'-to "{S}{name}"\n' for name in mf.TOGGLE_ASSIGNMENT)
-        mf.assignments(qsf)
+                      f'-to "{S}{name}"\n' for name in TABLE.TOGGLE_ASSIGNMENT)
+        mf.assignments(qsf, TABLE.TOGGLE_ASSIGNMENT)
         with self.assertRaisesRegex(mf.BuildError, 'machine_presenter_loaded_sync'):
-            mf.assignments(qsf.replace('machine_presenter_loaded_sync', 'other'))
+            mf.assignments(qsf.replace('machine_presenter_loaded_sync', 'other'), TABLE.TOGGLE_ASSIGNMENT)
         from boards.de25nano.producers import build_pc386_package as pc386
         spec = pc386.MACHINE.spec(ROOT)
         self.assertEqual({node for _, _, node in spec.ASSIGNMENTS} - {'system|machine_pixel_reset_sync[*]'},
-                         {'system|' + name for name in mf.TOGGLE_ASSIGNMENT})
+                         {'system|' + name for name in TABLE.TOGGLE_ASSIGNMENT})
+
+    def test_the_bases_are_bound_to_the_handshake_sources_the_record_captured(self):
+        import hashlib
+        record = {'source_inputs': {**TABLE.SOURCES, TABLE.TABLE: hashlib.sha256(
+            (ROOT / TABLE.TABLE).read_bytes()).hexdigest()}}
+        self.assertEqual(set(mf.sources(record, TABLE)), {*TABLE.SOURCES, TABLE.TABLE})
+        for name in TABLE.SOURCES:
+            self.assertEqual(hashlib.sha256((ROOT / name).read_bytes()).hexdigest(), TABLE.SOURCES[name])
+            changed = {'source_inputs': {**record['source_inputs'], name: '0' * 64}}
+            with self.assertRaisesRegex(mf.BuildError, 'review it again'):
+                mf.sources(changed, TABLE)
+        with self.assertRaisesRegex(mf.BuildError, 'basis table'):
+            mf.sources({'source_inputs': {**record['source_inputs'], TABLE.TABLE: '0' * 64}}, TABLE)
 
     def test_a_rule_that_passed_has_no_entry(self):
-        self.assertEqual(mf.review(report({'CDC-50001': (CDC, [])}), sdc_text()), [])
+        self.assertEqual(mf.review(report({'CDC-50001': (CDC, [])}), sdc_text(), TABLE.BASES), [])
 
     def test_only_pc386_selects_the_policy_and_the_pc386_record_does(self):
         with tempfile.TemporaryDirectory() as temporary:

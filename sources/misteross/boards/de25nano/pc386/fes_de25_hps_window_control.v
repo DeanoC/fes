@@ -19,12 +19,14 @@
 // Clear is a toggle into a two-stage synchronizer.
 //
 // Back into clk_sys: drained and held are levels, each into its own
-// two-stage synchronizer, and so is "any machine fault". The fault record
-// (port bits and reason) is a held bundle: held is reported only once the
-// machine has been held for three machine clocks, when no command can enter
-// a port and the record is still, and clk_sys copies the record when its
-// held synchronizer rises. FAULT therefore shows the record as of the last
-// hold; Clear zeros it with the command fault.
+// two-stage synchronizer. The fault record (port bits and reason) crosses by
+// request and acknowledge, as pc386_snapshot does: when the live record
+// differs from the held copy and no request is open, the machine side copies
+// it and flips the request; clk_sys copies the held copy once the request
+// has crossed and flips the acknowledge; the machine side copies again only
+// once that has crossed back. The held copy is therefore still from before
+// the request leaves until after clk_sys has copied it, and FAULT follows
+// the record whenever it changes, whatever the machine is doing.
 module fes_de25_hps_window_control (
     input  wire        clk_sys, reset_n,
     input  wire [5:0]  address,
@@ -49,58 +51,61 @@ module fes_de25_hps_window_control (
     localparam [31:0] ALIGN = `FES_DE25_HPS_WINDOW_GRANT_ALIGNMENT;
     assign waitrequest = 1'b0;
 
-    // ---- Machine -> clk_sys: levels, one synchronizer each, and the record
+    // ---- Machine -> clk_sys: levels, one synchronizer each
     (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] drained_sync = 2'b00;
     (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] held_sync = 2'b00;
-    (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] fault_any_sync = 2'b00;
     // Launch registers in machine_clk, so each crossing starts at a flop.
-    (* preserve, dont_merge *) reg drained_source = 1'b0, held_source = 1'b0, fault_any_source = 1'b0;
-    (* preserve, dont_merge *) reg [4:0] fault_source = 5'd0;
-    // The record settles two machine clocks after hold rises (a command the
-    // guard took the clock before is presented, then latched); held_source
-    // rises on the third.
-    reg [1:0] held_age = 2'b00;
+    (* preserve, dont_merge *) reg drained_source = 1'b0, held_source = 1'b0;
     always @(posedge machine_clk) begin
         drained_source <= machine_drained;
-        held_age <= {held_age[0], machine_held};
-        held_source <= machine_held && held_age == 2'b11;
-        fault_source <= {fault_outside, fault_no_grant, fault_port};
-        fault_any_source <= fault_outside || fault_no_grant || fault_port != 3'b000;
+        held_source <= machine_held;
     end
     always @(posedge clk_sys) begin
         drained_sync <= {drained_sync[0], drained_source};
         held_sync <= {held_sync[0], held_source};
-        fault_any_sync <= {fault_any_sync[0], fault_any_source};
     end
     wire drained = drained_sync[1];
     wire held = held_sync[1];
-    wire machine_fault_any = fault_any_sync[1];
+
+    // ---- Machine -> clk_sys: the fault record, by request and acknowledge
+    (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] fault_request_sync = 2'b00;
+    (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] fault_ack_sync = 2'b00;
+    (* preserve, dont_merge *) reg [4:0] fault_hold = 5'd0;
+    (* preserve, dont_merge *) reg fault_request = 1'b0, fault_ack = 1'b0;
+    reg [4:0] machine_fault = 5'd0;  // copy only: register to register from fault_hold
+    wire [4:0] fault_live = {fault_outside, fault_no_grant, fault_port};
+    always @(posedge machine_clk) begin
+        fault_ack_sync <= {fault_ack_sync[0], fault_ack};
+        if (fault_ack_sync[1] == fault_request && fault_live != fault_hold) begin
+            fault_hold <= fault_live;
+            fault_request <= !fault_request;
+        end
+    end
+    always @(posedge clk_sys) begin
+        fault_request_sync <= {fault_request_sync[0], fault_request};
+        if (fault_request_sync[1] != fault_ack) begin
+            machine_fault <= fault_hold;
+            fault_ack <= fault_request_sync[1];
+        end
+    end
 
     // ---- Registers
-    reg granted = 1'b0, command_fault = 1'b0, clear_toggle = 1'b0, held_seen = 1'b0, record_valid = 1'b0;
-    // The record as of the last hold. The copy register only copies, so the
-    // crossing is register to register; Clear and reset drop record_valid.
-    reg [4:0] fault_capture = 5'd0;
-    always @(posedge clk_sys) if (held && !held_seen) fault_capture <= fault_source;
-    wire [4:0] machine_fault = record_valid ? fault_capture : 5'd0;
+    reg granted = 1'b0, command_fault = 1'b0, clear_toggle = 1'b0;
     reg [31:0] base_lo = 32'd0, base_hi = 32'd0, span = 32'd0, gen_lo = 32'd0, gen_hi = 32'd0;
     wire acceptable = span == SPAN && (base_lo & (ALIGN - 1)) == 32'd0 && base_hi == 32'd0 &&
                       (gen_lo | gen_hi) != 32'd0;
-    wire [31:0] status = {28'd0, command_fault || machine_fault_any || machine_fault != 5'd0, held, drained, granted};
+    wire [31:0] status = {28'd0, command_fault || machine_fault != 5'd0, held, drained, granted};
     wire [31:0] fault_word = {21'd0, command_fault, machine_fault[4], machine_fault[3], 5'd0, machine_fault[2:0]};
     wire full = byteenable == 4'b1111;
     always @(posedge clk_sys or negedge reset_n) begin
         if (!reset_n) begin
             granted <= 1'b0; command_fault <= 1'b0; clear_toggle <= 1'b0;
-            held_seen <= 1'b0; record_valid <= 1'b0;
             base_lo <= 32'd0; base_hi <= 32'd0; span <= 32'd0; gen_lo <= 32'd0; gen_hi <= 32'd0;
             readdatavalid <= 1'b0; writeresponsevalid <= 1'b0; response <= 2'b00; readdata <= 32'd0;
         end else begin
             readdatavalid <= read;
             writeresponsevalid <= write;
             response <= 2'b00;
-            held_seen <= held;
-            if (held && !held_seen) record_valid <= 1'b1;
             if (read) begin
                 case (address)
                     6'h00: readdata <= `FES_DE25_HPS_WINDOW_IDENTITY;
@@ -123,7 +128,6 @@ module fes_de25_hps_window_control (
                             granted <= 1'b1;
                         else if (writedata == `FES_DE25_HPS_WINDOW_COMMAND_CLEAR && held && drained) begin
                             granted <= 1'b0; command_fault <= 1'b0; clear_toggle <= ~clear_toggle;
-                            record_valid <= 1'b0;
                         end else begin
                             response <= 2'b10; command_fault <= 1'b1;
                         end

@@ -53,11 +53,7 @@ The block sits at `PeripheralOffset` on the lightweight bridge,
 | `GrantLoOffset`, `GrantHiOffset` | grant base | read/write |
 | `GrantSpanOffset` | grant span | read/write |
 | `GenerationLoOffset`, `GenerationHiOffset` | grant generation | read/write |
-| `FaultOffset` | fault record: port bits, reason, as of the last hold | read; cleared by `CommandClear` |
-
-`Fault` in the status word shows a machine fault as it happens. The
-record in `FaultOffset` is copied when the machine is held, so read it
-after holding the machine. `CommandClear` zeros it.
+| `FaultOffset` | first fault: port bits, reason | read; cleared by `CommandClear` |
 
 This contract assigns no Linux device, firewall, boot or runtime admission.
 The kernel owner's allocation and the runtime's use of it are slice 4 of

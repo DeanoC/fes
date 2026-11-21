@@ -54,7 +54,7 @@ ASSIGNMENTS = tuple(("SYNCHRONIZER_IDENTIFICATION", "FORCED_IF_ASYNCHRONOUS", "s
 # own (rst_controller_005). The shared FIFO reset derivation checks its bridge
 # clock and reset wiring before rewriting it.
 PARENT_SHA256 = "10defc9a021d7119aac2bbc793ac0d6913e902b99f85cb29977c452996eeb249"
-LOCAL_FILES = ("build.py", "derive.py", "machine_pll.ip", "pc386-clocks.sdc", "fes_de25_pc386_standard.v",
+LOCAL_FILES = ("build.py", "derive.py", "signoff_bases.py", "machine_pll.ip", "pc386-clocks.sdc", "fes_de25_pc386_standard.v",
                "fes_de25_pc386_standard_hw.tcl", "fes_de25_hps_window.v", "fes_de25_hps_window_control.v",
                "fes_de25_window_arbiter.v", "fes_de25_window_unpack.v", "generated/fes_de25_hps_window.vh")
 SHARED_FILES = ("fes_computer_mailbox.v",)
