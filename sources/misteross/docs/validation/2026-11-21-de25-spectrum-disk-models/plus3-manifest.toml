@@ -1,4 +1,4 @@
-format = 2
+format = 3
 
 [core]
 id = "fes.spectrum-plus3"
@@ -13,8 +13,8 @@ programming_profile = "de25-linux-computer-v1"
 
 [payload]
 file = "core.rbf"
-size = 1802240
-sha256 = "a4d0d719cb380308dd8caf10b38b588383e0cad2ee1de66411d6d926d8896a37"
+size = 1789952
+sha256 = "50dcf6def8f4bfffebed4f2a0747413398b81812c8511d59197f967d70b06f36"
 
 [abi]
 id = "fes.computer"
@@ -70,6 +70,12 @@ minor = 0
 required = true
 
 [[interfaces]]
+id = "fes.media.spectrum-disk-plus3"
+major = 1
+minor = 0
+required = false
+
+[[interfaces]]
 id = "fes.fabric.firmware-upload"
 major = 1
 minor = 0
@@ -82,8 +88,16 @@ minor = 3
 required = true
 
 [build]
-id = "e427e98e66e13465f3057c70aaa52e44"
+id = "44745c0738af819539496844e8fe69dc"
 repository = "https://github.com/DeanoC/fes.git"
-revision = "916e4a9788a5af42b8091c8eadebb4eedb656a9a"
-recipe_sha256 = "2bbc5ab4e5be84154a93dae28235cd163d1447fa0aa3b5d519977d7a9c6748c4"
+revision = "242bc5fcce377d3e6bdb8e6b936acd93a06e67ba"
+recipe_sha256 = "c01fce7683cc6a834af05c7e8cfe64cff0f212bce00f4ab061b0288cf5c46fa2"
 toolchain = "ipgenerate Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14; pfg Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14; qsys Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:a0c811ed4010961b2ae4e92711492a172be969c900709b380f3c66db875d3f75; quartus Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14"
+
+[rom]
+id = "spectrum-plus3-firmware"
+role = "firmware"
+source_size = 65536
+file = "rom-map.json"
+size = 177
+sha256 = "8c367941b905ae2586042e5eb6fff63dffc1cd433258413899e96255539755b6"
