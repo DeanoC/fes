@@ -24,8 +24,8 @@ a free slot.
 `run` holds the slot until every process of the job has exited, including any
 left in the background, prints a heartbeat every minute (also written to
 $FES_QUARTUS_RUN_DIR/heartbeat), and stops the job at its time cap
-(--cap-minutes, default 240; exit 124). `remote` refuses a host whose /data
-has under 30 GiB free. It reports the peak resident set size of the job's
+(--cap-minutes, default 240; exit 124). Both `run` and `remote` refuse a
+filesystem with under 30 GiB free (exit 75). It reports the peak resident set size of the job's
 processes, and
 writes it to $FES_QUARTUS_RUN_DIR/peak-rss.json when that is set: the figure
 the pools in quartus_tools are sized from.
@@ -42,6 +42,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import shutil
 import signal
 import socket
 import subprocess
@@ -189,6 +190,13 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
     SIGTERM, then SIGKILL after a grace, and run returns 124."""
     if not command:
         raise SystemExit("run needs a command after --")
+    run_dir = os.environ.get("FES_QUARTUS_RUN_DIR")
+    for place in {Path.cwd(), *([Path(run_dir)] if run_dir else [])}:
+        free = shutil.disk_usage(place).free / 1024 ** 3
+        if free < MIN_FREE_GIB:
+            print(f"quartus_jobs: refusing: {place} has {free:.1f} GiB free, under {MIN_FREE_GIB} GiB",
+                  file=sys.stderr, flush=True)
+            return 75
     token = f"{os.getpid()}-{time.monotonic_ns()}"
     with quartus_tools.quartus_lease(edition, label=label or Path(command[0]).name) as slot:
         process = subprocess.Popen(command, start_new_session=True, env=dict(os.environ, **{JOB_TOKEN: token}))
@@ -202,7 +210,6 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
         peak, code, capped, killed_at = 0, None, False, None
         started = time.monotonic()
         deadline, beat = started + cap_seconds, started
-        run_dir = os.environ.get("FES_QUARTUS_RUN_DIR")
         try:
             while True:
                 live = job_processes(token)

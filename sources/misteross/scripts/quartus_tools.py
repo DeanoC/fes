@@ -289,6 +289,11 @@ LEASE_NOTICE_SECONDS = 60
 _local = threading.local()
 _process_held: dict[str, tuple[str, object]] = {}
 _own_descriptors: set[int] = set()
+# Guards _own_descriptors against /proc/self/fd: a descriptor this process
+# opens or closes for its own lease must never be visible to another thread's
+# inherited-slot scan without being marked as its own, or that thread would
+# flock the same open file and believe it held the slot too.
+_descriptor_lock = threading.Lock()
 
 
 def _thread_held() -> dict[str, tuple[str, object]]:
@@ -361,6 +366,11 @@ def _inherited_slot(pool: tuple[str, ...]) -> str | None:
     flock(1) leaves its locked descriptor open in the command it runs. A
     non-blocking flock on that same open file succeeds only when it holds the
     lock already or the lock is free; either way this process now holds it."""
+    with _descriptor_lock:
+        return _scan_inherited(pool)
+
+
+def _scan_inherited(pool: tuple[str, ...]) -> str | None:
     keys = {_file_key(path): path for path in pool}
     try:
         names = os.listdir("/proc/self/fd")
@@ -402,8 +412,9 @@ def held_quartus_lease(edition: str) -> str | None:
 
 def _take(edition: str, label: str) -> tuple[str, object]:
     pool = lease_pool(edition)
-    opened = [open(path, "a") for path in pool]
-    _own_descriptors.update(stream.fileno() for stream in opened)
+    with _descriptor_lock:
+        opened = [open(path, "a") for path in pool]
+        _own_descriptors.update(stream.fileno() for stream in opened)
     chosen = None
     try:
         notice = time.monotonic() - LEASE_NOTICE_SECONDS
@@ -423,10 +434,11 @@ def _take(edition: str, label: str) -> tuple[str, object]:
                     notice = time.monotonic()
                 time.sleep(2)
     finally:
-        for stream in opened:
-            if chosen is None or stream is not chosen[1]:
-                _own_descriptors.discard(stream.fileno())
-                stream.close()
+        with _descriptor_lock:
+            for stream in opened:
+                if chosen is None or stream is not chosen[1]:
+                    _own_descriptors.discard(stream.fileno())
+                    stream.close()
     print(f"Quartus lease: holding {chosen[0]} ({edition}{', ' + label if label else ''})",
           file=sys.stderr, flush=True)
     return chosen
@@ -451,8 +463,9 @@ def quartus_lease(edition: str, *, label: str = ""):
     finally:
         del held[edition_class(edition)]
         fcntl.flock(stream, fcntl.LOCK_UN)
-        _own_descriptors.discard(stream.fileno())
-        stream.close()
+        with _descriptor_lock:
+            _own_descriptors.discard(stream.fileno())
+            stream.close()
 
 
 def hold_quartus_lease(edition: str, *, label: str = "") -> str:

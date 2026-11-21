@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -454,6 +455,32 @@ class LeaseTests(unittest.TestCase):
         for thread in threads:
             thread.join()
 
+    def test_a_thread_never_mistakes_another_threads_descriptor_for_an_inherited_slot(self):
+        # Codex P1: while one thread opens (or closes) its slot descriptors,
+        # another thread's inherited-descriptor scan must not flock them.
+        import threading
+        pool = (self.pools["lite"][0],)
+        stop, wrongly = threading.Event(), []
+
+        def churn():
+            while not stop.is_set():
+                with qt.quartus_lease("lite"):
+                    pass
+
+        def scan():
+            while not stop.is_set():
+                if qt._inherited_slot(pool) is not None:
+                    wrongly.append(1)
+
+        threads = [threading.Thread(target=churn), threading.Thread(target=scan)]
+        for thread in threads:
+            thread.start()
+        time.sleep(2)
+        stop.set()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(wrongly, [])
+
     def test_an_unrelated_holder_is_not_this_process_lease(self):
         holder = subprocess.Popen(["flock", self.pools["lite"][0], "sleep", "30"])
         self.addCleanup(holder.wait)
@@ -557,8 +584,12 @@ class JobsTests(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         root = Path(self.directory.name)
         self.pools = {"pro": (str(root / "pro.lock"),), "lite": (str(root / "lite.lock"),)}
+        # The temp directories live on /tmp, which a build host may keep under
+        # the 30 GiB run refuses; the disk rule has its own test.
+        plenty = shutil.disk_usage("/")._replace(free=500 * 1024 ** 3)
         for patch in (mock.patch.object(qt, "LEASE_POOLS", {}), mock.patch.object(qt, "DEFAULT_POOL", self.pools),
-                      mock.patch.dict(qt._process_held, clear=True)):
+                      mock.patch.dict(qt._process_held, clear=True),
+                      mock.patch.object(quartus_jobs.shutil, "disk_usage", return_value=plenty)):
             patch.start()
             self.addCleanup(patch.stop)
 
@@ -615,6 +646,14 @@ class JobsTests(unittest.TestCase):
             self.assertFalse(self.jobs.url_has_credentials(url), url)
         for url in ("https://x-access-token:abc@github.com/DeanoC/fes", "https://token@github.com/DeanoC/fes"):
             self.assertTrue(self.jobs.url_has_credentials(url), url)
+
+    def test_run_refuses_a_low_disk_before_starting(self):
+        marker = Path(self.directory.name) / "started"
+        low = shutil.disk_usage("/")._replace(free=12 * 1024 ** 3)
+        with mock.patch.object(self.jobs.shutil, "disk_usage", return_value=low):
+            self.assertEqual(self.jobs.run("lite", "", ["touch", str(marker)], sample_seconds=0.1), 75)
+        self.assertFalse(marker.exists())
+        self.assertEqual(qt.flock_holders(self.pools["lite"][0]), set())
 
     def test_a_quiet_job_gets_a_heartbeat(self):
         run_dir = Path(self.directory.name) / "quiet"

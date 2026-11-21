@@ -36,7 +36,8 @@ Powerboat sat idle.
   still counts. It stops the job at its time cap (`--cap-minutes`, default
   240): SIGTERM to every process, SIGKILL after a minute, exit 124.
   It prints a heartbeat every minute, also written to the run directory's
-  `heartbeat` file. `remote` refuses a host whose `/data` has under 30 GiB free.
+  `heartbeat` file. `run` and `remote` refuse a filesystem with under 30 GiB
+  free (exit 75).
 - `tests/test_quartus_lease.py` fails on any tracked script that could run a
   leased Quartus program unleased. Out of scope are tests (stand-in programs)
   and `docs/validation/` (frozen evidence of past runs).
