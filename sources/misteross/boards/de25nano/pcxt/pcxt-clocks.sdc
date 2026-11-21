@@ -64,20 +64,22 @@ foreach {label source head} {
 # The published bank is held from its sent toggle until the pixel clock's
 # received toggle returns, and the pixel clock adopts it only at an output
 # frame start at least two pixel periods after the toggle arrives. Into the
-# pixel clock it reaches the front bank and the registered read address.
-# One pixel period bounds it, as the DE10 mailbox constraint does; the bound
-# counts the skew between the two PLL networks.
+# pixel clock it reaches the front bank and the read address, which synthesis
+# places in the framebuffer memories' address registers. One pixel period
+# bounds every path into the pixel clock, as the DE10 mailbox constraint
+# bounds it into the front bank; the bound counts the skew between the two
+# PLL networks.
 set published [get_registers "${base}|core|system|video|adapter|published_bank\[*\]"]
-set adopted [get_registers [list "${base}|core|system|video|adapter|front\[*\]" \
-    "${base}|core|system|video|adapter|read_address_q\[*\]"]]
-if {[get_collection_size $published] != 2 || [get_collection_size $adopted] < 4} {
+set front [get_registers "${base}|core|system|video|adapter|front\[*\]"]
+set pixel_clock [get_clocks {fes_video_inst|video_clock|iopll_0_outclk0}]
+if {[get_collection_size $published] != 2 || [get_collection_size $front] != 2 ||
+    [get_collection_size $pixel_clock] != 1} {
     error "DE25 PC/XT held video bank endpoints changed"
 }
-set_net_delay -max 13.400 -from $published -to $adopted
-set_data_delay 13.400 -from $published -to $adopted
-set_max_skew 13.400 -from $published -to $adopted
-set_max_delay 13.400 -from $published -to $adopted
-set_min_delay 0.000 -from $published -to $adopted
+set_net_delay -max 13.400 -from $published -to $front
+set_max_skew 13.400 -from $published -to $front
+set_max_delay 13.400 -from $published -to $pixel_clock
+set_min_delay 0.000 -from $published -to $pixel_clock
 
 # Bundles are held throughout their toggle round trip. A ten-nanosecond flight
 # is at most one fast system period, less than either two-stage control delay.

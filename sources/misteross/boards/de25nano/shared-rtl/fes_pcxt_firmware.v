@@ -47,10 +47,16 @@ module fes_pcxt_firmware (
     (* ramstyle = "MLAB, no_rw_check" *) reg [15:0] mda_glyphs [0:2047];
     always @(posedge clk) if (font_write) cga_glyphs[write_addr[11:1]] <= glyph_pair;
     always @(posedge clk) if (font_write) mda_glyphs[write_addr[11:1]] <= glyph_pair;
-    wire [15:0] cga_pair = cga_glyphs[cga_font_address[11:1]];
-    wire [15:0] mda_pair = mda_glyphs[mda_font_address[11:1]];
-    assign cga_font_data = cga_font_address[0] ? cga_pair[15:8] : cga_pair[7:0];
-    assign mda_font_data = mda_font_address[0] ? mda_pair[15:8] : mda_pair[7:0];
+    // The cards' addresses come straight from their VRAM read registers.
+    // Kept nodes stop synthesis absorbing those registers into the MLABs as
+    // a registered read address, which leaves the VRAM read asynchronous and
+    // builds a VRAM copy from registers.
+    (* keep *) wire [11:0] cga_address = cga_font_address;
+    (* keep *) wire [11:0] mda_address = mda_font_address;
+    wire [15:0] cga_pair = cga_glyphs[cga_address[11:1]];
+    wire [15:0] mda_pair = mda_glyphs[mda_address[11:1]];
+    assign cga_font_data = cga_address[0] ? cga_pair[15:8] : cga_pair[7:0];
+    assign mda_font_data = mda_address[0] ? mda_pair[15:8] : mda_pair[7:0];
     always @(posedge clk) begin
         write_ready <= 1'b0;
         case (state)
