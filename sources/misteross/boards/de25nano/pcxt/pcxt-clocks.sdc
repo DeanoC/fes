@@ -68,7 +68,7 @@ foreach {label source head} {
 # One pixel period bounds it, as the DE10 mailbox constraint does; the bound
 # counts the skew between the two PLL networks.
 set published [get_registers "${base}|core|system|video|adapter|published_bank\[*\]"]
-set adopted [get_registers [list "${base}|core|system|video|adapter|front\[*\]"
+set adopted [get_registers [list "${base}|core|system|video|adapter|front\[*\]" \
     "${base}|core|system|video|adapter|read_address_q\[*\]"]]
 if {[get_collection_size $published] != 2 || [get_collection_size $adopted] < 4} {
     error "DE25 PC/XT held video bank endpoints changed"
