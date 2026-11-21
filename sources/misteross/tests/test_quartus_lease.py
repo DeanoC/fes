@@ -135,6 +135,17 @@ NOT_RUNS = {"echo", "printf", "fail", "grep", "[", "test", "[["}
 SUBSTITUTION = re.compile(r"(\$\(|`)")
 
 
+def _shell_words(text: str) -> list[str]:
+    """Words and separators as the shell splits them (quotes and # comments
+    honoured; ;&|<>() split words)."""
+    lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    try:
+        return list(lexer)
+    except ValueError:
+        return text.split()
+
+
 def shell_runs(text: str):
     """(line, reason) for each leased Quartus program a shell script runs
     outside `quartus_jobs.py run`.
@@ -154,12 +165,7 @@ def shell_runs(text: str):
             continue
         logical += line
         current, logical = logical, ""
-        lexer = shlex.shlex(current, posix=True, punctuation_chars=True)
-        lexer.whitespace_split = True
-        try:
-            words = list(lexer)
-        except ValueError:
-            words = current.split()
+        words = _shell_words(current)
         commands, command = [], []
         for word in words:
             if word in SHELL_SEPARATORS:
@@ -173,7 +179,11 @@ def shell_runs(text: str):
             for index, word in enumerate(command):
                 # A quoted payload (sh -c '...', bash -c, eval, ssh host '...')
                 # is shell code: scan it as such, unless it is only a message.
-                if index > 0 and any(c.isspace() for c in word) and os.path.basename(head) not in NOT_RUNS:
+                # Any argument naming one is re-read as shell code, whitespace or
+                # not (sh -c 'quartus_sh>log'); a word that does not split is
+                # its own command there, so the recursion ends.
+                if index > 0 and os.path.basename(head) not in NOT_RUNS and LEASED.search(word) \
+                        and not SUBSTITUTION.search(word) and _shell_words(word) != [word]:
                     for _, why in shell_runs(word):
                         yield start, why
                     continue
@@ -348,12 +358,15 @@ class StaticRuleTests(unittest.TestCase):
             eval "quartus_fit top"
             ssh chip 'cd /data/x && quartus_sh --flow compile top'
             bash -c 'quartus_sh --version'
+            sh -c 'quartus_sh>/tmp/log'
+            sh -c 'quartus_sh&'
+            eval 'quartus_fit>/tmp/x'
             """})
         self.assertEqual([f.split(": ")[0] for f in failures],
                          ["scripts/job.sh:4", "scripts/job.sh:7", "scripts/job.sh:8", "scripts/job.sh:9",
                           "scripts/job.sh:10", "scripts/job.sh:11", "scripts/job.sh:12", "scripts/job.sh:13",
                           "scripts/job.sh:14", "scripts/job.sh:15", "scripts/job.sh:18", "scripts/job.sh:19",
-                          "scripts/job.sh:20"])
+                          "scripts/job.sh:20", "scripts/job.sh:22", "scripts/job.sh:23", "scripts/job.sh:24"])
 
 
 def registered_closure() -> set[Path]:
