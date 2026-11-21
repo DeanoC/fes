@@ -3434,9 +3434,10 @@ one fresh read after its callback. Home discards the superseded response and
 clears old host admission if the fresh read fails. The
 default scope shows the ZX81 and Spectrum families, Atari ST, C64, PC/XT and
 PC 386. The PC families use `example.system`, retaining each package's disk
-and launch checks. Welcome and the setup-completion summary include all six;
-PC 386 is identified as in development. Their release-plan scopes and PC 386's
-pending quality tier are independent of this visibility.
+and launch checks. Welcome and the setup-completion summary include all six.
+PC 386 has quality tier 1 on DE10 with documented gameplay timing exceptions;
+release-plan scopes and board-specific acceptance are independent of this
+visibility.
 **Show all cores**, available through Settings, `tenfoot.json` `all_cores`, or
 `FOGCAST_TENFOOT_ALL_CORES=1`, adds the remaining families in `systems.lua`
 order and restores the Library and Systems routes. The host Library remains
