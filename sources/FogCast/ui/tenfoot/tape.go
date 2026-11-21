@@ -294,12 +294,15 @@ func (a *App) openTapePickerLocked() {
 	a.tapePickerGen++
 	a.refreshStorageRootsLocked()
 	a.showTapePickerRootsLocked(a.tapePickerPromptLocked())
-	if a.client != nil && hostclient.LiveMediaCapable(a.session.CorePackage) {
+	if a.client != nil {
 		parent := a.ctx
 		if parent == nil {
 			parent = context.Background()
 		}
-		go a.fetchLiveTapeStarters(parent, a.tapePickerGen, a.tapePickerSession.GameID)
+		if hostclient.LiveMediaCapable(a.session.CorePackage) {
+			go a.fetchLiveTapeStarters(parent, a.tapePickerGen, a.tapePickerSession.GameID)
+		}
+		// Any running machine's game may be a set, whatever its drive.
 		go a.fetchSetDisks(parent, a.tapePickerGen, a.tapePickerSession)
 	}
 }

@@ -195,3 +195,51 @@ func TestMediaPickerSetDiskRowPutsTheDiskIn(t *testing.T) {
 		t.Fatalf("live change replaces=%d id=%s name=%q", h.replaces, h.lastMediaID, h.lastName)
 	}
 }
+
+// Opening the running machine's media picker on a Spectrum-style deck, which
+// is removable media but not the ZX81 live tape, lists the game's set with
+// the next tape focused (Kit B HIL R3, 21 Nov 2026).
+func TestMediaPickerListsTheRunningSetOnASpectrumDeck(t *testing.T) {
+	h := newTapeHost(t)
+	h.spectrumTape = true
+	h.mediaName = "Game (Tape 1 of 2).tap"
+	h.setEntry = &hostclient.CoreEntry{GameID: "fpga-zx81", CoreID: "fes.spectrum", PackageID: h.pkg, MediaRole: "cassette",
+		MediaID: strings.Repeat("1", 64), MediaName: "Game (Tape 1 of 2).tap",
+		MoreMedia: []hostclient.SetMedia{{MediaID: strings.Repeat("2", 64), MediaName: "Game (Tape 2 of 2).tap"}}}
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 20)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitFor(t, app, "catalog", func(s Snapshot) bool { return len(s.Games) == 1 && !s.Loading })
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "running", func(s Snapshot) bool { return s.Session.State == "active" })
+	// The kit's in-play route ends here (openPlayingHardwareRoomLocked).
+	app.mu.Lock()
+	app.openTapePickerLocked()
+	opened := app.tapePickerOpen
+	app.mu.Unlock()
+	if !opened {
+		t.Fatalf("picker did not open: %q", app.Snapshot().Status)
+	}
+	snap := waitFor(t, app, "set rows", func(s Snapshot) bool {
+		if !s.TapePicker.Open {
+			return false
+		}
+		for _, row := range s.TapePicker.Rows {
+			if strings.HasPrefix(row.Name, "Tape 2 of 2") {
+				return true
+			}
+		}
+		return false
+	})
+	if got := snap.TapePicker.Rows[snap.TapePicker.Index].Name; !strings.HasPrefix(got, "Tape 2 of 2 · Game (Tape 2 of 2).tap") {
+		t.Fatalf("focus on %q, want the next tape; rows %+v", got, snap.TapePicker.Rows)
+	}
+	found := false
+	for _, row := range snap.TapePicker.Rows {
+		found = found || row.Name == "Tape 1 of 2 · Game (Tape 1 of 2).tap · In the drive"
+	}
+	if !found {
+		t.Fatalf("tape 1 is not marked in the drive: %+v", snap.TapePicker.Rows)
+	}
+}

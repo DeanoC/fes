@@ -510,11 +510,15 @@ type tapeHost struct {
 	lastName           string
 	mediaName          string
 	computerTape       bool
-	pkg                string
-	sessionID          string
-	server             *httptest.Server
-	armStarted         chan struct{}
-	armRelease         chan struct{}
+	// spectrumTape runs a Spectrum-style deck: removable media, but not the
+	// ZX81 live tape. setEntry is the running title's library entry.
+	spectrumTape bool
+	setEntry     *hostclient.CoreEntry
+	pkg          string
+	sessionID    string
+	server       *httptest.Server
+	armStarted   chan struct{}
+	armRelease   chan struct{}
 }
 
 func newTapeHost(t *testing.T) *tapeHost {
@@ -632,6 +636,8 @@ func newTapeHost(t *testing.T) *tapeHost {
 			h.mediaName = ""
 			h.mu.Unlock()
 			_, _ = io.WriteString(w, h.sessionJSON())
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/core-entries/fpga-zx81" && h.setEntry != nil:
+			_ = json.NewEncoder(w).Encode(h.setEntry)
 		default:
 			http.NotFound(w, r)
 		}
@@ -645,6 +651,9 @@ func (h *tapeHost) sessionJSON() string {
 	defer h.mu.Unlock()
 	if h.launches == 0 {
 		return `{"id":"` + h.sessionID + `","target":"dev","state":"idle"}`
+	}
+	if h.spectrumTape {
+		return fmt.Sprintf(`{"id":%q,"target":"dev","state":"active","game_id":"fpga-zx81","execution":"fpga_native","media_name":%q,"core_package":{"package_id":%q,"generation":9,"abi":{"id":"fes.computer","major":1,"minor":0},"active_interfaces":[{"id":"fes.media.spectrum-tape","major":2,"minor":0},{"id":"fes.keyboard.hid","major":1,"minor":0}],"media_units":[{"unit":0,"interface":{"id":"fes.media.spectrum-tape","major":2,"minor":0},"min_bytes":10,"max_bytes":16777216,"chunk_bytes":512,"state":"ready"}]}}`, h.sessionID, h.mediaName, h.pkg)
 	}
 	if h.computerTape {
 		state := protocol.MediaUnitEmpty
