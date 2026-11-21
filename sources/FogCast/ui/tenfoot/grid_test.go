@@ -96,7 +96,7 @@ func TestGridShortWindowKeepsCellsAboveFooter(t *testing.T) {
 	}
 }
 
-func TediskShelfMovePagesVertically(t *testing.T) {
+func TestShelfMovePagesVertically(t *testing.T) {
 	t.Parallel()
 	grid := Grid{Mode: LayoutShelf}
 	grid.Layout(1280, 720)
@@ -150,7 +150,7 @@ func TestListMovePagesHorizontally(t *testing.T) {
 	}
 }
 
-func TediskShelfAndListStayInsideSafeArea(t *testing.T) {
+func TestShelfAndListStayInsideSafeArea(t *testing.T) {
 	t.Parallel()
 	for _, mode := range []LayoutKind{LayoutShelf, LayoutList} {
 		grid := Grid{Mode: mode}
