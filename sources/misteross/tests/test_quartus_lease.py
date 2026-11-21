@@ -850,6 +850,16 @@ class LaunchGuardTests(unittest.TestCase):
             subprocess.run(["sh", "-c", "eval \"$CMD\""], env={"CMD": "true"})
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", "timeout 60 $Q top"], env={"Q": "true"})
+        # Codex P1s at dde501752: a brace expansion, and a remote command.
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["bash", "-c", f"{self.bin}/quartus_{{fit,fit}} top"])
+        for argv in (["ssh", "host", "/licensed/bin/quartus_fit", "top"],
+                     ["ssh", "-o", "BatchMode=yes", "host", "cd /x && quartus_sh --flow compile top"]):
+            with self.assertRaises(qt.QuartusLeaseError):
+                subprocess.run(argv)
+        qt._check_remote_quartus(["ssh", "host", "cd /x && python3 scripts/quartus_jobs.py run --edition pro -- "
+                                  "quartus_sh --flow compile top"])
+        qt._check_remote_quartus(["ssh", "host", "bash -s"])
         # Codex P1 at 941c04c72: a glob as the command word.
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", "./quartus_[f]it top"], cwd=str(self.bin))

@@ -557,7 +557,8 @@ SHELL_WRAPPERS = {"exec", "command", "builtin", "env", "nohup", "timeout", "nice
 
 def _expanded_command(tokens: list[str]) -> bool:
     """Whether shell code runs a command whose name comes from an expansion
-    ($Q, ${Q}sh, `...`, $(...), a glob like ./quartus_[f]it) or from eval:
+    ($Q, ${Q}sh, `...`, $(...), a glob like ./quartus_[f]it, a brace
+    expansion like quartus_{fit,fit}) or from eval:
     its program cannot be known here, so it is treated as possibly either
     Quartus edition."""
     at_head, wrapped = True, False
@@ -567,7 +568,7 @@ def _expanded_command(tokens: list[str]) -> bool:
             continue
         # Parameter and command expansion, and pathname expansion (globs):
         # the shell, not this text, decides what such a word names.
-        expanded = "$" in token or "`" in token or any(c in token for c in "*?[")
+        expanded = "$" in token or "`" in token or any(c in token for c in "*?[{")
         if wrapped and expanded:
             # Under a wrapper (env -u X $Q, timeout -s KILL 5 $Q) the command
             # is somewhere among its arguments: any expansion may be it.
@@ -701,12 +702,42 @@ def require_quartus_lease(argv, search_path: str | None = None, cwd=None) -> Non
                 f"under scripts/quartus_jobs.py run --edition {edition}")
 
 
+def _check_remote_quartus(argv) -> None:
+    """ssh runs its command on another host, whose lease this process cannot
+    hold: a remote command naming a leased Quartus program is refused unless
+    it runs under `quartus_jobs.py run` there (as `quartus_jobs.py remote`
+    arranges, passing its program on stdin)."""
+    if isinstance(argv, (str, bytes, os.PathLike)):
+        argv = [argv]
+    texts = [os.fsdecode(a) if isinstance(a, (bytes, os.PathLike)) else str(a) for a in argv]
+    if not texts or os.path.basename(texts[0]) != "ssh":
+        return
+    tokens = []
+    for text in texts[1:]:
+        lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        try:
+            tokens.extend(lexer)
+        except ValueError:
+            tokens.extend(text.split())
+    for index, token in enumerate(tokens):
+        if QUARTUS_PROGRAM.fullmatch(os.path.basename(token)):
+            if index + 1 < len(tokens) and tokens[index + 1] in ("--version", "-v", "--help", "-h"):
+                continue
+            if "quartus_jobs.py" in [os.path.basename(t) for t in tokens[:index]] and "run" in tokens[:index]:
+                continue
+            raise QuartusLeaseError(
+                f"refusing to run {token} on a remote host outside its lease: use scripts/quartus_jobs.py "
+                "remote, or run it under quartus_jobs.py run there")
+
+
 def _check_launch(argv, env, cwd=None, executable=None) -> None:
     """argv, and each value of the environment the child gets (its own, or
     this process's when none is given): a shell can run a program it finds
     there ($Q --flow compile). Each environment value is checked on its own,
     so a --help in one cannot excuse a program in another. Bare names resolve
     on the child's PATH, relative paths against its working directory."""
+    _check_remote_quartus(argv)
     env = os.environ if env is None else env
     sources = [argv] + [[os.fsdecode(value)] for value in env.values() if isinstance(value, (str, bytes))]
     first = argv if isinstance(argv, (str, bytes, os.PathLike)) else (list(argv)[:1] or [None])[0]
