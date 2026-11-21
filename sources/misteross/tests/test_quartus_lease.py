@@ -448,8 +448,10 @@ def unleased_quartus(root: Path, files: list[str], misteross: Path | None = None
             # helper in another module (helper.launch(['quartus_fit'])).
             # A module that defines a locate_quartus (delegating to the leasing
             # one, checked below) is part of the leasing family itself.
-            locator = any(isinstance(n, ast.FunctionDef) and n.name == "locate_quartus"
-                          for n in ast.parse(text).body) if text else False
+            # It still may not launch anything at module level before the hook.
+            parsed = ast.parse(text) if text else None
+            locator = parsed is not None and _first_module_launch(parsed) is None and any(
+                isinstance(n, ast.FunctionDef) and n.name == "locate_quartus" for n in parsed.body)
             if python_names_leased(text) and not locator \
                     and not (calls_locate_quartus(text) and imports_a_locator(path)) and not leased(path):
                 failures.append(f"{name}: names a Quartus program, but never imports scripts.quartus_tools")
@@ -561,6 +563,12 @@ class StaticRuleTests(unittest.TestCase):
         failures = self.scan({"sources/misteross/scripts/late2.py":
                               "import subprocess\ndef launch():\n    subprocess.run(['quartus_fit', 'top'])\n"
                               "launch()\nfrom scripts import quartus_tools\n"})
+        self.assertEqual(len(failures), 1)
+        # Codex P1 at 4dac8285a: a locator-defining module that launches first.
+        failures = self.scan({"sources/misteross/scripts/locfirst.py":
+                              "import subprocess\nsubprocess.run(['quartus_fit', 'top'])\n"
+                              "from scripts import quartus_tools\n"
+                              "def locate_quartus(root):\n    return quartus_tools.locate_quartus(root, None, None)\n"})
         self.assertEqual(len(failures), 1)
         # Codex P1 at 212b78f76: a locate_quartus call with nothing imported
         # that provides it (if False: locate_quartus()).
