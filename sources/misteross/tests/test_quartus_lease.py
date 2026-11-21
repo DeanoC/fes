@@ -925,6 +925,15 @@ class JobsTests(unittest.TestCase):
             self.assertIn(status, text)
         self.assertIn('"status": "refused"', (run_dir / "result.json").read_text())
 
+    def test_a_cap_that_never_expires_is_refused(self):
+        # Codex P2 at c86dc09d0: nan and inf caps never expire.
+        for text in ("nan", "inf", "-1", "0"):
+            with self.assertRaises(SystemExit), mock.patch("sys.stderr"):
+                self.jobs.main(["run", "--edition", "lite", "--cap-minutes", text, "--", "true"])
+        for value in (float("nan"), float("inf")):
+            with self.assertRaises(SystemExit):
+                self.jobs.run("lite", "", ["true"], cap_seconds=value)
+
     def test_run_returns_the_job_exit_code(self):
         self.assertEqual(self.jobs.run("pro", "", ["sh", "-c", "exit 7"], sample_seconds=0.1), 7)
 

@@ -39,6 +39,7 @@ import argparse
 import fcntl
 from datetime import datetime, timezone
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -436,6 +437,8 @@ def _run(edition: str, label: str, command: list[str], sample_seconds: float,
     SIGTERM, then SIGKILL after a grace, and run returns 124."""
     if not command:
         raise SystemExit("run needs a command after --")
+    if not math.isfinite(cap_seconds) or cap_seconds <= 0:
+        raise SystemExit(f"the time cap must be finite and positive, not {cap_seconds}")
     run_dir = os.environ.get("FES_QUARTUS_RUN_DIR")
     for place in {Path.cwd(), *([Path(run_dir)] if run_dir else [])}:
         free = shutil.disk_usage(place).free / 1024 ** 3
@@ -658,6 +661,15 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
     return result.returncode
 
 
+def cap_minutes(text: str) -> float:
+    """A time cap: a finite, positive number of minutes. nan or inf would
+    never expire."""
+    value = float(text)
+    if not math.isfinite(value) or value <= 0:
+        raise argparse.ArgumentTypeError(f"the time cap must be a finite, positive number of minutes, not {text}")
+    return value
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="action", required=True)
@@ -671,7 +683,7 @@ def main(argv: list[str] | None = None) -> int:
         sub = commands.add_parser(name)
         sub.add_argument("--edition", choices=editions, required=True)
         sub.add_argument("--label", default="")
-        sub.add_argument("--cap-minutes", type=float, default=DEFAULT_CAP_MINUTES,
+        sub.add_argument("--cap-minutes", type=cap_minutes, default=DEFAULT_CAP_MINUTES,
                          help="stop the job after this long (default %(default)s); exit 124")
         if name == "remote":
             sub.add_argument("--host", default="auto")
