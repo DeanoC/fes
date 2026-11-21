@@ -24,6 +24,94 @@ def matched_video_sdc(source):
     return source
 
 
+def separate_scanout_reset(source):
+    """Keep protocol enables and the physical reset on distinct registers."""
+    replace_once = spectrum.board.replace_once
+    source = replace_once(source,
+        "    (* preserve, dont_merge *) reg first_lock_seen = 1'b0;",
+        "    (* preserve, dont_merge *) reg first_lock_seen = 1'b0;\n"
+        "    (* preserve, dont_merge *) reg scanout_release = 1'b0;")
+    source = replace_once(source,
+        "    assign scanout_reset_n = first_lock_seen;",
+        "    // Mirror first-lock acceptance on the same edge. No protocol\n"
+        "    // enable is driven from the register that asserts bridge reset.\n"
+        "    always @(posedge system_clk or negedge top_reset_n)\n"
+        "        if (!top_reset_n) scanout_release <= 1'b0;\n"
+        "        else scanout_release <= first_lock_seen ||\n"
+        "            (monitor_ready_sync[1] && system_ack == system_epoch_sync[1]);\n"
+        "    assign scanout_reset_n = scanout_release;")
+    return source
+
+
+# The native HPS shell adds the probe alongside the same ten generated
+# CDC/FIFO leaves as the managed shell. Pin its distinct generated parent.
+NATIVE_FIFO_PARENT_SHA = "e67751d411819736ddc85738537268ca8720f279e6849cf7f39bd033d84e2d3d"
+
+
+def native_shared_resets(directory, scanout):
+    inputs = json.loads((directory / "inputs.json").read_text())
+    path = directory / "project/fes_mailbox/shared_resets.py"
+    if (inputs["native_spectrum_hps"]["scope"] != "native-spectrum48-project-only" or
+            path.is_symlink() or scanout.sha(path.read_bytes()) != inputs["scanout"]["source_sha256"][path.name]):
+        raise ValueError("native Spectrum shared FIFO reset helper differs from captured source")
+    helper = scanout.load(path, "native_spectrum_shared_fifo_resets")
+    if helper.POLICY != scanout.SHARED_FIFO_RESETS:
+        raise ValueError("native Spectrum shared FIFO reset policy changed")
+    helper.STANDARD_PARENT_SHA256 = NATIVE_FIFO_PARENT_SHA
+    return helper
+
+
+JTAG_STREAM_SDC = "altera_avalon_st_jtag_interface.sdc"
+JTAG_STREAM_SDC_SHA = "cac36d552c963acf54fa79b8cf14c211e99d449f45f5e87b095bb4ba1fa91e40"
+JTAG_STREAM_EXCEPTION = (
+    "set_false_path -from [get_registers *altera_jtag_src_crosser:*|sink_data_buffer*] "
+    "-to [get_registers *altera_jtag_src_crosser:*|src_data*]"
+)
+JTAG_STREAM_CHECK = """set fes_jtag_sink [get_registers -nowarn {*altera_jtag_src_crosser:*|sink_data_buffer*}]
+set fes_jtag_source [get_registers -nowarn {*altera_jtag_src_crosser:*|src_data*}]
+set fes_jtag_sink_count [get_collection_size $fes_jtag_sink]
+set fes_jtag_source_count [get_collection_size $fes_jtag_source]
+if {$fes_jtag_sink_count == 0 && $fes_jtag_source_count == 0} {
+    post_message -type info "DE25 native JTAG streaming crossing absent from the fitted design"
+} elseif {$fes_jtag_sink_count == 0 || $fes_jtag_source_count == 0} {
+    error "DE25 native JTAG streaming crossing is missing one side"
+} else {
+    set_false_path -from $fes_jtag_sink -to $fes_jtag_source
+}
+unset fes_jtag_sink fes_jtag_source fes_jtag_sink_count fes_jtag_source_count"""
+
+
+def jtag_stream_constraints(directory, *, generate=False):
+    """Preserve the vendor exception for every live JTAG streaming crossing."""
+    project = directory / "project"
+    paths = sorted(project.rglob(JTAG_STREAM_SDC))
+    owners = {p.relative_to(project).parts[:4] for p in paths}
+    expected = {("jtag_subsys", "ip", "jtag_subsys", master)
+                for master in ("fpga_m", "hps_f2sdram", "hps_m")}
+    expected.add(("hps_subsys", "ip", "qsys_top", "emif_io96b_hps"))
+    if (len(paths) != 4 or owners != expected or
+            any(not p.is_file() or p.resolve() != p for p in paths)):
+        raise ValueError("native Spectrum JTAG streaming SDC inventory differs")
+    receipt = {}
+    originals = directory / "jtag-stream-originals"
+    for path in paths:
+        relative = path.relative_to(project)
+        original_path = originals / relative
+        original = (path if generate else original_path).read_bytes()
+        if spectrum.board.sha(original) != JTAG_STREAM_SDC_SHA:
+            raise ValueError("native Spectrum generated JTAG streaming constraints changed")
+        checked = spectrum.board.replace_once(original.decode(), JTAG_STREAM_EXCEPTION, JTAG_STREAM_CHECK).encode()
+        if generate:
+            original_path.parent.mkdir(parents=True, exist_ok=True)
+            with original_path.open("xb") as stream:
+                stream.write(original)
+            path.write_bytes(checked)
+        elif path.read_bytes() != checked:
+            raise ValueError("native Spectrum JTAG streaming constraint derivation changed")
+        receipt[str(relative)] = spectrum.board.sha(checked)
+    return receipt
+
+
 def project(archive, output):
     board = spectrum.board
     output, scanout, _, hps, _ = board.prepare(spectrum, archive, output, model="native48", native_hps=True)
@@ -75,11 +163,15 @@ add_connection fes_native_maintenance_reset.out_reset subsys_debug.reset
     inputs_path = directory / "inputs.json"
     inputs = json.loads(inputs_path.read_text())
     video_constraints = project / "fes_mailbox/clocks.sdc"
-    # The native topology retains separate FIFO controllers. Time the
-    # same-clock reset receivers without the managed FIFO peer projection.
-    video_constraints.write_text(scanout.timed_scanout_reset_ingress(
+    video_constraints.write_text(scanout.timed_scanout_sdc(
         matched_video_sdc(video_constraints.read_text())))
     video_constraints_sha = board.sha(video_constraints.read_bytes())
+    video_board = project / "fes_mailbox/fes_de25_scanout_board.v"
+    video_board.write_text(separate_scanout_reset(video_board.read_text()))
+    video_board_sha = board.sha(video_board.read_bytes())
+    inputs["scanout"]["source_sha256"][video_board.name] = video_board_sha
+    inputs[board.RECORD]["staged_source_sha256"]["fes_mailbox/" + video_board.name] = video_board_sha
+    inputs["scanout"]["shared_fifo_resets"] = scanout.SHARED_FIFO_RESETS
     inputs["scanout"]["source_sha256"]["clocks.sdc"] = video_constraints_sha
     inputs[board.RECORD]["staged_source_sha256"]["fes_mailbox/clocks.sdc"] = video_constraints_sha
     inputs["native_spectrum_hps"] = {
@@ -88,6 +180,7 @@ add_connection fes_native_maintenance_reset.out_reset subsys_debug.reset
         "reader_masters": ["fes_scanout", "fes_ddr_probe"],
         "maintenance_reset_tied": True,
         "matched_video_sdc_sha256": video_constraints_sha,
+        "scanout_board_sha256": video_board_sha,
         "generated_handoff_verified": False,
         "firmware_admission": False,
         "composer_sha256": board.sha(Path(__file__).read_bytes()),
@@ -112,6 +205,8 @@ def generate(output, hps, scanout, quartus_root):
     hps.run_logged([generator, "--generate_project_ip_files", "--synthesis=verilog", "golden_top"],
                    project, directory / "ip-generation.log")
     scanout.write_vendor_reset_timing(directory)
+    native_shared_resets(directory, scanout).apply(directory)
+    jtag_stream_constraints(directory, generate=True)
     verify_handoff(output, hps, scanout)
 
 
@@ -151,7 +246,13 @@ def verify_handoff(output, hps, scanout):
     video_constraints_sha = hps.digest(video_constraints)
     if video_constraints_sha != inputs["native_spectrum_hps"]["matched_video_sdc_sha256"]:
         raise ValueError("native Spectrum matched HDMI constraints changed")
+    video_board = project / "fes_mailbox/fes_de25_scanout_board.v"
+    video_board_sha = hps.digest(video_board)
+    if video_board_sha != inputs["native_spectrum_hps"]["scanout_board_sha256"]:
+        raise ValueError("native Spectrum scanout reset source changed")
     reset_timing = scanout.verify_vendor_reset_timing(directory)
+    fifo_resets = native_shared_resets(directory, scanout).verify(directory)
+    jtag_timing = jtag_stream_constraints(directory)
     expected = inputs["vendor_hps_emif_parameters"]
     hps_ip = "hps_subsys/ip/hps_subsys/agilex_hps.ip"
     native = expected[hps_ip]
@@ -206,6 +307,8 @@ def verify_handoff(output, hps, scanout):
               "probe": probe, "spectrum_control": computer,
               "handoff_sha256": hps.digest(handoff),
               "matched_video_sdc_sha256": video_constraints_sha, "reset_timing": reset_timing,
+              "scanout_board_sha256": video_board_sha, "jtag_stream_sdc_sha256": jtag_timing,
+              "shared_fifo_resets": fifo_resets,
               "firmware_admission": False, "package_signoff": False}
     (directory / "native-spectrum-handoff.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
 
