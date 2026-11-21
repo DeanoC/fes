@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/DeanoC/FogCast/corepackage"
@@ -104,6 +105,29 @@ func (c *Client) SetCoreEntryMediaName(ctx context.Context, game, pkg, id, name 
 	err := c.doJSON(ctx, http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(game)+"/media-name", map[string]string{"expected_package_id": pkg, "media_id": id, "media_name": name}, &result)
 	if err == nil && (result.GameID != game || result.PackageID != pkg || result.MediaID != id || result.MediaName != name) {
 		err = fmt.Errorf("host returned a different media name")
+	}
+	return result, err
+}
+
+// SetCoreEntryMediaSet replaces disks 2 to N of a title's disk set while
+// its package, disk 1 and set are still the ones the caller read. An empty
+// list makes it a single disk again.
+func (c *Client) SetCoreEntryMediaSet(ctx context.Context, game, pkg, first string, expectedMore []string, more []SetMedia) (CoreEntry, error) {
+	if protocol.ValidateGameID(game) != nil || protocol.ValidateDigest(pkg) != nil || protocol.ValidateDigest(first) != nil {
+		return CoreEntry{}, fmt.Errorf("invalid disk set identity")
+	}
+	if expectedMore == nil {
+		expectedMore = []string{}
+	}
+	if more == nil {
+		more = []SetMedia{}
+	}
+	var result CoreEntry
+	err := c.doJSON(ctx, http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(game)+"/media-set", map[string]any{
+		"expected_package_id": pkg, "expected_media_id": first, "expected_more_media": expectedMore, "more_media": more,
+	}, &result)
+	if err == nil && (result.GameID != game || result.PackageID != pkg || result.MediaID != first || !slices.Equal(result.MoreMedia, more)) {
+		err = fmt.Errorf("host returned a different disk set")
 	}
 	return result, err
 }

@@ -6,7 +6,11 @@
 // open diagnostic firmware is then uploaded, a PZX tape committed in two
 // chunks lands in SDRAM (a byte pair straddling a halfword), the firmware's
 // loader plays it back from SDRAM, and HID and controller state reach the
-// keyboard matrix. The scanout slave and its memory master stay idle.
+// keyboard matrix. On the +2A/+3 and the Pentagon (SPECTRUM_DISK_BETA or
+// SPECTRUM_DISK_UPD765) a disk image committed to media unit 1 lands 16 MiB
+// up without touching the tape, and the drive's header fetch reads it back
+// through the store's fetch port. The scanout slave and its memory master
+// stay idle.
 // argv: firmware image, PZX tape.
 #include "Vfes_de25_spectrum_standard.h"
 #include "Vfes_de25_spectrum_standard___024root.h"
@@ -241,7 +245,8 @@ int main(int argc, char** argv) {
     require(argc == 3, "usage: firmware tape");
     const std::vector<uint8_t> firmware = read_file(argv[1]);
     const std::vector<uint8_t> tape = read_file(argv[2]);
-    require(firmware.size() == 16384 || firmware.size() == 32768, "no diagnostic firmware");
+    require(firmware.size() == 16384 || firmware.size() == 32768 || firmware.size() == 49152 ||
+            firmware.size() == 65536, "no diagnostic firmware");
     require(tape.size() > 16 && tape.size() <= 512, "no diagnostic tape");
 
     Board board;
@@ -249,9 +254,14 @@ int main(int argc, char** argv) {
     require(board.ok(1, 0, 0, "magic") == 0x4546, "identity magic");
     require(board.ok(1, 4, 0, "tag") == 4, "ABI tag");
     require(board.ok(1, 6, 0, "minor") == 0, "ABI minor");
-    // video, keyboard, gamepad, audio, spectrum tape (bits 0-3 and 5) and the
-    // session display (bit 13). There is no HPS DDR media window (bit 12).
+    // video, keyboard, gamepad, audio, spectrum tape (bits 0-3 and 5), the
+    // session display (bit 13) and, on a disk model, the spectrum disk (bit
+    // 15). There is no HPS DDR media window (bit 12).
+#if defined(SPECTRUM_DISK_BETA) || defined(SPECTRUM_DISK_UPD765)
+    require(board.ok(1, 7, 0, "capabilities") == 0xa02f, "capability word");
+#else
     require(board.ok(1, 7, 0, "capabilities") == 0x202f, "capability word");
+#endif
     require(board.ok(1, 8, 0, "build") == 0x1100, "build identity");
 
     // fes.fabric.firmware-upload: exactly the model's ROM, and no release
@@ -355,6 +365,50 @@ int main(int argc, char** argv) {
         require(clocks < 20000000, "the loader did not decode the tape from SDRAM");
         board.run_clocks(1);
     }
+
+#if defined(SPECTRUM_DISK_BETA) || defined(SPECTRUM_DISK_UPD765)
+    // fes.media.spectrum-disk 1.0, media unit 1: 8 KiB to 2,834,432 bytes.
+    // The image is an 8 KiB header-only raw track disk: byte 8 is 14, which
+    // the drive reads as 16 KiB slots, and byte 7 has no launch flag, so the
+    // machine is not reset. Byte 8 of the tape is something else.
+    require(board.ok(5, 8, 0, "disk min lo") == 0x2000, "disk minimum");
+    require(board.ok(5, 11, 0, "disk max hi") == 0x2b, "disk maximum high");
+    require(board.ok(5, 13, 0, "disk state") == 1, "disk starts empty");
+    std::vector<uint8_t> disk(8192);
+    for (size_t i = 0; i < disk.size(); ++i) disk[i] = static_cast<uint8_t>(i * 37 + (i >> 8));
+    disk[7] = 0;
+    disk[8] = 14;
+    require(tape.size() > 8 && tape[8] != 14, "the tape's byte 8 must differ from the disk's");
+#if defined(SPECTRUM_DISK_BETA)
+    auto& big_slots = core.fes_de25_spectrum_standard__DOT__core__DOT__machine__DOT__beta__DOT__disk__DOT__drives__DOT__big_slots;
+#else
+    auto& big_slots = core.fes_de25_spectrum_standard__DOT__core__DOT__machine__DOT__upd765__DOT__disk__DOT__drives__DOT__big_slots;
+#endif
+    require(!big_slots, "the drive read a header before a disk was committed");
+    const uint32_t disk_crc = crc32(disk);
+    board.ok(6, 4, disk.size() & 0xffff, "disk begin total");
+    board.ok(6, 5, disk.size() >> 16, "disk begin total high");
+    board.ok(6, 6, disk_crc & 0xffff, "disk crc lo");
+    board.ok(6, 7, disk_crc >> 16, "disk crc hi");
+    for (size_t offset = 0; offset < disk.size(); offset += 512) {
+        board.ok(7, 4, offset & 0xffff, "disk chunk offset");
+        board.ok(7, 5, offset >> 16, "disk chunk offset high");
+        board.ok(7, 6, 512, "disk chunk length");
+        for (size_t i = 0; i < 512; i += 2)
+            board.ok(8, i / 2, disk[offset + i] | (disk[offset + i + 1] << 8), "disk data");
+    }
+    board.ok(9, 1, 0, "disk commit");
+    require(board.ok(5, 13, 0, "disk ready") == 3, "disk did not become ready");
+    require(board.ok(5, 5, 0, "tape still ready") == 3, "the disk transfer dropped the tape");
+    for (size_t i = 0; i < disk.size(); ++i)
+        require(board.sdram_byte(0x1000000 + i) == disk[i], "disk SDRAM byte " + std::to_string(i) + " differs");
+    for (size_t i = 0; i < tape.size(); ++i)
+        require(board.sdram_byte(i) == tape[i], "the disk overwrote tape byte " + std::to_string(i));
+    for (uint64_t clocks = 0; !big_slots; ++clocks) {
+        require(clocks < 200000, "the drive did not read the disk header through the fetch port");
+        board.run_clocks(1);
+    }
+#endif
 
     // HID usage 0x04 ('A') is bit 4 of keyboard row 0.
     board.ok(3, 0, 1u << 4, "key A");
