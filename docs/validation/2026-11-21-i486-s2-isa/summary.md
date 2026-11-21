@@ -17,20 +17,35 @@ arm b), with these changes:
   loads are now checked as writes, CPUID returns zeros above leaf 1, and a
   real-mode delivery clears AC.
 
-**Result.** Each row names the commit it ran on. The head is `9aa6d0561`.
+**Result.** Each row names the commit it ran on. The code head is
+`bf7afef73`; later commits change only this record.
 
 | Gate | Result |
 | --- | --- |
-| Level-4 directed cases, 486SX (`I486 = 1`) | 134 of 136 agree with the oracle (96 cases and 40 `ud-` probes), on the RTL and the netlist, two runs each, at `9aa6d0561`. The 2 stops are by design: `cpuid-1` (Bochs is a DX4, `0480h`; the identity is a 486SX, `042Bh`) and `cpuid-2` (Bochs answers leaf 2 with leaf 1; a 486 returns zeros, data book Appendix B) |
-| Level-4 directed cases, 386 (`I486 = 0`) | The 112 rows of main's `i486-expected-stops.txt` are unchanged. The 24 new cases add 24 rows, each a stop at or after its probe. RTL and netlist, two runs each |
-| Level-3 lockstep, 386, RTL | Passes at `9aa6d0561`. Its report equals main's (`ce67cbbc4`) in all 9,965 values except source and oracle-build digests: every count, trace hash and cycle figure is the same |
+| Level-4 directed cases, 486SX (`I486 = 1`) | 139 of 141 agree with the oracle (101 cases and 40 `ud-` probes), on the RTL and the netlist, two runs each. The 2 stops are by design: `cpuid-1` (Bochs is a DX4, `0480h`; the identity is a 486SX, `042Bh`) and `cpuid-2` (Bochs answers leaf 2 with leaf 1; a 486 returns zeros, data book Appendix B) |
+| Level-4 directed cases, 386 (`I486 = 0`) | The 112 rows of main's `i486-expected-stops.txt` are unchanged. The 29 new cases add 29 rows, each a stop at or after its probe. RTL and netlist, two runs each |
+| Level-3 lockstep, 386, RTL | Passes. Its report equals main's (`ce67cbbc4`) in all 9,965 values except source and oracle-build digests: every count, trace hash and cycle figure is the same |
 | Level-3 lockstep, 386, netlist | Passes; equal to main's in all 9,972 values except source, netlist and oracle-build digests. The seal's own full netlist lockstep (`--with-lockstep`) passes too |
 | test386.asm, 386 | POST codes end at FFh. The report is identical to main's in all 707 values |
+| Governor bench, 386 (`test_fes_i386_governor.py`) | Passes on the RTL and the netlist. The RTL report is identical to main's in all 1,178 values (`governor/`), so the regenerated governor ROM charges the 386 as before |
 | Identity-off netlist | 29,548 flip-flop bits, the same as main's (`netlist/flops.txt`); cells 40,791 against 40,764; the digest differs (below) |
-| DE10 seal of the 386 package | Registered producer `build_pc386_product.py --with-lockstep`, seed 1, Quartus 17.0.2, on chip-30x0-ai-dev, at `9aa6d0561`: passes every analysis. BUILD_ID `6de4bd49354bf70b1a1bdd96c10a7248`, package `11b50c98…`, RBF `3c28aa32…`, 36,416 ALMs, setup +0.511 ns, hold +0.101 ns (`seal/`) |
-| Kit run of that package | Kit B, run `k2044a`: pass. FreeDOS prompt, then Wolfenstein 3D in play; the kit was restored to its baseline ([the kit run](#the-kit-run)) |
-| The head still builds the sealed design | `head_matches_seal.py`: the head's design identity equals the seal's, BUILD_ID `6de4bd49…`. Commits after `9aa6d0561` change only this record |
-| 486SX fit on the DE10 | Closes at 61.44 MHz in the seal's flow: seed 1 at head, 36,651 ALMs, setup +0.984 ns; seed 2, 36,504 ALMs ([the 486SX fit](#the-486sx-fit)) |
+| DE10 seal of the 386 package | Registered producer `build_pc386_product.py --with-lockstep`, seed 1, Quartus 17.0.2, on chip-30x0-ai-dev, at `bf7afef73`: passes every analysis. BUILD_ID `2b929631b48aab40010415981dcb7e50`, package `1d09da27…`, RBF `c36accc8…`, 36,354 ALMs, setup +0.267 ns, hold +0.093 ns (`seal/`) |
+| Kit run of that package | Kit B, run `k2044b`: pass. FreeDOS prompt, then Wolfenstein 3D in play; the kit was restored to its baseline ([the kit run](#the-kit-run)) |
+| The head still builds the sealed design | `head_matches_seal.py` checks that the head's design identity equals the seal's |
+| 486SX fit on the DE10 | At `bf7afef73`, 3 of 4 seeds close at 61.44 MHz in the seal's flow (seeds 2 to 4: setup +0.710, +0.438 and +0.337 ns). Seed 1, the producer recipe's seed, misses setup by 3 ps ([the 486SX fit](#the-486sx-fit)) |
+
+**Review fixes after the first seal.** A review of the first sealed head
+(`9aa6d0561`: seal `6de4bd49`, kit run `k2044a`, both passing) asked for
+more #AC cases. Two of them found bugs:
+- **MOVSD with a misaligned destination raised no #AC.** Only a st2 uop's
+  first address was checked.
+- **A delivery from CPL 3 onto an odd ESP0 hung.** #AC fired on the
+  delivery's CPL-0 pushes.
+
+`bf7afef73` fixes both, and adds 5 cases. Every gate above was then rerun
+at `bf7afef73`: a new seal and a new kit run. The `9aa6d0561` evidence is
+kept where it is still useful: `kit/kit-b-k2044a-result.json` and
+`fits/9aa6d0561-*`.
 
 ## What changed
 
@@ -51,19 +66,21 @@ arm b), with these changes:
   CMPXCHG to memory (7 or 10 clocks) and CPUID (14 or 9) take the middle,
   rounded up. `0F01 /7` is split: the register form stays in `group7_ud`.
   A #UD never retires, so on the 386 the new rows are never charged. The
-  rows have no governor bench at `I486 = 1`: `test_fes_i386_governor.py`
-  builds the 386.
+  386 governor bench's report is unchanged. The rows have no bench at
+  `I486 = 1`: `test_fes_i386_governor.py` builds the 386.
 - **Lockstep.** `test_fes_i486_lockstep.py` runs both identities, on the
   RTL (`-GI486`) or with `--netlist` on the seal's netlist
   (`hierarchy -chparam`). Each identity has its own expected-stops list:
   `i486-expected-stops.txt` for the 386 and the new
-  `i486-expected-stops-486sx.txt`. `fes_i486_cases.py` gains 24 cases:
+  `i486-expected-stops-486sx.txt`. `fes_i486_cases.py` gains 29 cases:
   - XADD and CMPXCHG register aliasing and high-byte forms;
   - CMPXCHG to a read-only page and to a not-present page, checking that
     the flags and EAX are unchanged and that the error code has W set;
     XADD to a not-present page;
   - INVLPG on a remapped page, and on a not-present one;
-  - #AC after POPFD, and for XADD, LFS, BOUND and SGDT at each alignment;
+  - #AC after POPFD sets AC and after it clears it, and for XADD, LFS,
+    BOUND, SGDT and both of MOVSD's addresses at each alignment;
+  - a delivery from CPL 3 onto an odd ESP0, which must not fault;
   - AC across a real-mode and a protected-mode delivery;
   - BSWAP with a 16-bit operand;
   - CPUID leaf 2.
@@ -108,8 +125,8 @@ widths after `proc; opt -fast`.
 | | Main | Head, `I486 = 0` | Head, `I486 = 1` |
 | --- | --- | --- | --- |
 | Flip-flop bits | 29,548 | 29,548 | 29,599 |
-| Cells | 40,764 | 40,791 | 40,993 |
-| Netlist SHA-256 | `57851047…` | `6e10f559…` | `e356212d…` |
+| Cells | 40,764 | 40,791 | 41,005 |
+| Netlist SHA-256 | `57851047…` | `01cbcb4d…` | `b1fdb680…` |
 
 - **Flip-flops.** At 0 the 486 state is gone: TR3, CR0's five bits, and
   AC and ID in each EFLAGS copy. Only the indices of `pipe_t` and
@@ -134,42 +151,58 @@ chip-30x0-ai-dev with the CUDA slot. Nothing is packaged.
 
 | Commit | Seed | Closes | ALMs | Setup | Hold | Netlist |
 | --- | --- | --- | --- | --- | --- | --- |
-| `9aa6d0561` (head) | 1 | yes, 61.44 MHz | 36,651 (87.5%) | +0.984 ns | +0.066 ns | `84a1f64e…` |
+| `bf7afef73` (head) | 1 | **no**: setup −0.003 ns, slow 1100 mV −40 °C | 36,545 (87.2%) | −0.003 ns | — | `a029d7e1…` |
+| `bf7afef73` (head) | 2 | yes, 61.44 MHz | 36,439 (86.9%) | +0.710 ns | +0.079 ns | `a029d7e1…` |
+| `bf7afef73` (head) | 3 | yes, 61.44 MHz | 36,510 (87.1%) | +0.438 ns | +0.093 ns | `a029d7e1…` |
+| `bf7afef73` (head) | 4 | yes, 61.44 MHz | 36,503 (87.1%) | +0.337 ns | +0.068 ns | `a029d7e1…` |
+| `9aa6d0561` | 1 | yes, 61.44 MHz | 36,651 (87.5%) | +0.984 ns | +0.066 ns | `84a1f64e…` |
 | `ec945043d` | 1 | yes, 61.44 MHz | 36,651 (87.5%) | +0.984 ns | +0.066 ns | `f815019f…` |
 | `ec945043d` | 2 | yes, 61.44 MHz | 36,504 (87.1%) | +0.631 ns | +0.094 ns | `f815019f…` |
 
-`ec945043d` differs from the head only by a Verilator lint pragma and its
-comment in `fes_i386_pkg.sv`. That changes the netlist's source line
-attributes, and seed 1 refitted at the head gives the same result. Each
-fit's summary is in `fits/`. The 386 seal at head, the same flow with
-`I486 = 0` at seed 1, uses 36,416 ALMs. The 486SX's 235 more ALMs at seed 1
-are one seed's difference. Slice 1 showed that this flow's seed spread is
-about 55 ALMs and that a netlist change moves ALMs by more than that, so
-this is not a measured cost of the delta.
+Each fit's summary is in `fits/`.
+
+- **Earlier commits.** `ec945043d` differs from `9aa6d0561` only by a
+  Verilator lint pragma, which moves the netlist's source line attributes.
+  Seed 1 gives the same result at both.
+- **At the head, after the #AC fixes, seed 1 misses by 3 ps** at one
+  corner, and seeds 2 to 4 close. That is the DE10 machine's seed-to-seed
+  margin, not a timing failure the logic forces. The same seed closed by
+  +0.984 ns one commit earlier.
+- **What a 486SX package would need.** The pc386 recipe seals at seed 1,
+  so a package built from this head would need another seed, or margin
+  found elsewhere. No timing check was relaxed, and nothing was packaged.
+- **The ALM comparison.** The 386 seal at head (the same flow, `I486 = 0`,
+  seed 1) uses 36,354 ALMs. The 486SX fits use 36,439 to 36,545 at the
+  head. Slice 1 showed that this flow cannot separate the delta from a
+  netlist change's own noise, so that difference is not a measured cost.
 
 ## The kit run
 
-Kit B, run `k2044a`, 21 November 2026, 11:37 to 11:39 EET. It used the
+Two runs, each of the then-current seal, on Kit B. Both used the
 established core-only runner (`hil_s4_dos.py`, with the same claim,
 baseline check and restore wrapper as the x87 slices' runs).
 
-**What ran.** The sealed package `11b50c98…` was packed as a canonical
-`.fcore`; its package ID was checked on packing. It ran on the kit's
-baseline image `179affbb…` and bundle `c9ae79e2…`, with no install and no
-reboot. It booted the user-supplied FreeDOS drive `a6977555…` as a fresh
-library game.
+| Run | Seal | Package | When (EET) | Result |
+| --- | --- | --- | --- | --- |
+| `k2044b` | `bf7afef73`, BUILD_ID `2b929631` | `1d09da27…` | 21 Nov 12:41–12:43 | pass |
+| `k2044a` | `9aa6d0561`, BUILD_ID `6de4bd49` | `11b50c98…` | 21 Nov 11:37–11:39 | pass |
 
-**Result: pass** (`kit/kit-b-k2044a-result.json`).
+**What ran.** Each package was packed as a canonical `.fcore`; its package
+ID was checked on packing. It ran on the kit's baseline image `179affbb…`
+and bundle `c9ae79e2…`, with no install and no reboot. It booted the
+user-supplied FreeDOS drive `a6977555…` as a fresh library game.
+
+**Result, both runs** (`kit/`).
 - The FreeDOS prompt was detected in 0.6 s.
 - Wolfenstein 3D reached floor 1 with graphics on screen (0.938 of the
   frame lit). After a walk, 0.562 of the frame had changed.
 
-**Restore.** The kit was restored to the same image and bundle, with the
-same boot ID, the agent idle and the lease free. The run's FogCast data was
-removed. Both are logged in `kitB-STATUS.md`.
+**Restore.** After each run the kit was back on the same image and bundle,
+with the same boot ID, the agent idle and the lease free. The run's FogCast
+data was removed. Both runs are logged in `kitB-STATUS.md`.
 
-**Status-line errata.** The claim and release lines in `kitB-STATUS.md`
-say "PR fes#2044": that is the issue; the PR is #2045.
+**Status-line errata.** `k2044a`'s claim line says "PR fes#2044": that is
+the issue; the PR is #2045.
 
 ## Not in this slice
 
@@ -189,5 +222,8 @@ say "PR fes#2044": that is the issue; the PR is #2045.
   build parameter that every package leaves at 0.
 - **The governor rows on a bench.** They are generated and checked
   (`fes_i386_governor.py --check`), but no bench runs at `I486 = 1`.
+- **The 386 instruction set at `I486 = 1`** is exercised only by the 141
+  directed rows. test386 and the level-3 suites ran on the 386 identity
+  only, and no machine boot simulation was run at either identity.
 - **Plan open questions 6 and 8.** The 386-microcode behaviours and a
   `queue32` profile stay the 386's.

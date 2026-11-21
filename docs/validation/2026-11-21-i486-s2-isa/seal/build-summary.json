@@ -1,5 +1,5 @@
 {
-  "build_id": "6de4bd49354bf70b1a1bdd96c10a7248",
+  "build_id": "2b929631b48aab40010415981dcb7e50",
   "device": "5CSEBA6U23I7",
   "firmware": {
     "bios": "23b9df9134e4f5c1aa32665219de71ddeb425d5764c30ee721d26893fc9780c7",
@@ -47,11 +47,11 @@
     "cores/fes-common/rtl/i386/fes_i386_amode.sv": "8c751ec8a884f0dddd2f767ed94738842260ca0d8dd9080253a81139cb6c7759",
     "cores/fes-common/rtl/i386/fes_i386_biu.sv": "a9ed2b2b277b03a8b73e8f070fa5c6e7a75f7ab8edf425809bd938aa7eba0a59",
     "cores/fes-common/rtl/i386/fes_i386_btb.sv": "1e79cb7e2b6abfedb651f514d843052f0dfb05bda19005af3c1ea43a2e09dca9",
-    "cores/fes-common/rtl/i386/fes_i386_cpu.sv": "3f9569a3c224bde592745efe6d9f9f4febb21d823019c5fd57ba6319d383263a",
+    "cores/fes-common/rtl/i386/fes_i386_cpu.sv": "4a121e6a537c2b3f08bc7d1a4f768f53a2d630fd2185d6b7b8aeeedadd4d3855",
     "cores/fes-common/rtl/i386/fes_i386_decode.sv": "00656b3d2736cbff875b869d0d821da520cf10c79a23652ca502304ef8335bed",
     "cores/fes-common/rtl/i386/fes_i386_dfwd.sv": "e7f5f51a89fdd63744f8c92cbe8bb1aedd45835b37be0f7ed7f0db8d54739f59",
     "cores/fes-common/rtl/i386/fes_i386_dops.sv": "769aae53a66479ac3cc2cf8ad986b0c442846d2997454a3dc33d6e17d9d06dc8",
-    "cores/fes-common/rtl/i386/fes_i386_ex.sv": "977ba418689899736b6d1cb93f71a8e604ffb80017a17ff45b45108201bd053c",
+    "cores/fes-common/rtl/i386/fes_i386_ex.sv": "9e6623f6d2e0f57f37f0113966fbac57b31b0959b4c9683488357c060b30ff7a",
     "cores/fes-common/rtl/i386/fes_i386_exctl.sv": "f756ef22586e12041283daa5bd2988964932f89ef5d43da658ac8dd6f7903207",
     "cores/fes-common/rtl/i386/fes_i386_fetchbuf.sv": "dee382095912c0f46deab01aa206a4f91cd12c783843a4a469436bbea1f28872",
     "cores/fes-common/rtl/i386/fes_i386_frontend.sv": "aa78f075f9437eab3f9d6584eb6a3b1287b709c4799718073387baf74524f3f4",
@@ -187,25 +187,25 @@
     "scripts/yosys_netlist.py": "0bc1bcce48d530c5c49de8445091a74b125e2a9a0056cd56948ec1288e073bae"
   },
   "lockstep": {
-    "cpu_source_closure_sha256": "4afe2eacd9aa20bb687ab8e2ab0a07885ea20314553eae038fb45e36b131155a",
+    "cpu_source_closure_sha256": "ed1298ffe98a4c053efda3144690310caa8075fba54c4ba1d879febbdc4eb834",
     "netlist_program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
-    "netlist_sha256": "db7878f46639bead34f5c8d977b0a971946f5bd83853f0ff00893fcb74307341",
+    "netlist_sha256": "6aa8c94877555b74dfabd1f5fbc57ab427f41d3e32b64d0550fb9dd45992fb16",
     "oracle": {
       "adapter_sha256": "25c2a5109e037ec47af13caabe102ab27134d2119f3a301532fad5d7080b69c0",
       "linked_sha256": {
         "adapter": "5d5aa0a1545366ebf5330d9327f3437bb232a7b341ba08d3960b821ba5c72bb0",
-        "cpu": "38938176a970604b4e18f451235eece4457693a607cf300dae310839451cad95",
-        "fpu": "953d44a719a9b52d720f3dad2b0d0ddc3032521c3b96aae6d31bfcbc9aed0f82",
+        "cpu": "0d7731f403fc8350b6297c304e5c7c7d4063871524c2a6331ad9de585c769101",
+        "fpu": "38680c2bd888cb86c6916c526e01b85e063c2bace2a495ccd5bf1a11517d0893",
         "paramtree": "7a1c5ac6028382277a6447c8644a27ffbe05cad58616cd2208709da302f1067c",
-        "softfloat": "a49a17016a2f842741f10abafe9983fec5326f3d9929b1793c853c80da7c9e11"
+        "softfloat": "9c64113876fd1a44c7b9685fdb571f38161eb4ae874693f3ae174e4d7412c422"
       },
       "patch_sha256": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377",
       "provisioner_sha256": "0c4552c2290a0f50681090a65cf25deeb1916568c910bcfcc88a91097f8089b2",
       "revision": "30cfd566ecc8deb33e56e801e32b444a7041b6d2",
       "suite_sha256": "ec50a00cd67a75a2d560d76540f27e4a256d6d8dbc39d5f41be5d02ae20a2171",
-      "testbench_sha256": "bffbc98524dcbe7a763ec7eed1e790175e8fa94b6e844238a31d56925371a68a"
+      "testbench_sha256": "e157c47d28f65023f50197670089f5ba21a5eca44477c6b68d78d64087b0b73e"
     },
-    "report_sha256": "e06e9877ed01876a0fa20812c9dd7325af7ddeeca29662092dc725ef2e67772f",
+    "report_sha256": "aee78f8fd846d1869b249c0f51bb7e5196a8017460fc553d803963216e7d7c28",
     "simulator": {
       "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
       "install": "b37d73c9d2a0bd9e9847784c8e1bc4171ae79ff713d11e2735a10174bf2ad557",
@@ -216,8 +216,8 @@
     "yosys_tool": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=8a9a88fb7471aa6bfa566470cc5770998600f5ec07ef749249396ef5ad633a3f"
   },
   "netlist": {
-    "cpu_source_sha256": "4afe2eacd9aa20bb687ab8e2ab0a07885ea20314553eae038fb45e36b131155a",
-    "machine_netlist_sha256": "73749f556954e0bc51153a478c2597a350d6fbfc1c9d4a952dfe74a0dd4fd794",
+    "cpu_source_sha256": "ed1298ffe98a4c053efda3144690310caa8075fba54c4ba1d879febbdc4eb834",
+    "machine_netlist_sha256": "b06724c624b5dbf8726f7750612194758c69082cce4b0503679432617601db8d",
     "program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
     "yosys": {
       "gpu_router": "CUDA",
@@ -227,13 +227,13 @@
     }
   },
   "rbf": {
-    "sha256": "3c28aa323d3201e07e406a3224207a90ec9438aa154bd75ac76b6ac44b39b3cf",
-    "size": 3926528
+    "sha256": "c36accc8fbc481065a4d4c55596a453d98ff5f96ca3993704cc85471f457c3fa",
+    "size": 3926264
   },
   "resources": {
     "alms": {
       "available": 41910,
-      "used": 36416
+      "used": 36354
     },
     "block_memory_bits": {
       "available": 5662720,
@@ -248,7 +248,7 @@
       "used": 282
     },
     "registers": {
-      "used": 32003
+      "used": 31904
     }
   },
   "seed": 1,
@@ -257,7 +257,7 @@
     "analyses": {
       "hold": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.101
+        "worst_slack_ns": 0.093
       },
       "minimum_pulse_width": {
         "tns_ns": 0.0,
@@ -265,15 +265,15 @@
       },
       "recovery": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 7.047
+        "worst_slack_ns": 6.941
       },
       "removal": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.444
+        "worst_slack_ns": 0.306
       },
       "setup": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.511
+        "worst_slack_ns": 0.267
       }
     },
     "clocks": {

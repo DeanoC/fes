@@ -1,5 +1,5 @@
 {
-  "cases_sha256": "d2876481ae1f169c1be6631421449e081cfb0d059db33d6fe8749fd1343f31d4",
+  "cases_sha256": "fb597f0754d460c895c2e69185444fbafbd7be74ee170eb35bc0d27b0ff0a6fb",
   "failures": [],
   "lockstep": {
     "386": {
@@ -689,6 +689,46 @@
           "as_expected": true,
           "divergence": null,
           "isolated": true,
+          "label": "ac-popfd-clears",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-movsd-destination",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-movsd-source",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-movsd-aligned",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-delivery-odd-esp0",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
           "label": "ac-xadd-m32",
           "probe": "1046",
           "rtl": "stop @1046.eflags 40002 2"
@@ -1097,8 +1137,8 @@
       "expected": "i486-expected-stops.txt",
       "i486": 0,
       "netlist": {
-        "cpu_source_sha256": "4afe2eacd9aa20bb687ab8e2ab0a07885ea20314553eae038fb45e36b131155a",
-        "netlist_sha256": "6e10f559c84afb2495cf896b9ef574461ae84682e81a27a4c0d3ffc9bb8cb7db",
+        "cpu_source_sha256": "ed1298ffe98a4c053efda3144690310caa8075fba54c4ba1d879febbdc4eb834",
+        "netlist_sha256": "01cbcb4d69dc5245c7c8892dd3ff5a50b04b2920bea20b4633ebf422a37b9953",
         "program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
         "yosys": {
           "gpu_router": "HIP",
@@ -1108,10 +1148,10 @@
         }
       },
       "runs_equal": true,
-      "stop": 81
+      "stop": 86
     },
     "486sx": {
-      "agree": 134,
+      "agree": 139,
       "cases": [
         {
           "as_expected": true,
@@ -1797,6 +1837,46 @@
           "as_expected": true,
           "divergence": null,
           "isolated": true,
+          "label": "ac-popfd-clears",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-movsd-destination",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-movsd-source",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-movsd-aligned",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-delivery-odd-esp0",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
           "label": "ac-xadd-m32",
           "probe": "1046",
           "rtl": "agree"
@@ -2205,8 +2285,8 @@
       "expected": "i486-expected-stops-486sx.txt",
       "i486": 1,
       "netlist": {
-        "cpu_source_sha256": "4afe2eacd9aa20bb687ab8e2ab0a07885ea20314553eae038fb45e36b131155a",
-        "netlist_sha256": "e356212da58100df821c63974afd69572094e566e7085f2b02648c895e3beee1",
+        "cpu_source_sha256": "ed1298ffe98a4c053efda3144690310caa8075fba54c4ba1d879febbdc4eb834",
+        "netlist_sha256": "b1fdb680474b924ca4c0c418f175617735c3f594d240b4b42d7610c88c530ca1",
         "program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
         "yosys": {
           "gpu_router": "HIP",
@@ -3421,6 +3501,68 @@
         "differences": [],
         "divergence": null,
         "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-popfd-clears",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "CPL 3: POPFD clears AC, and the next misaligned read does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-movsd-destination",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "MOVSD with a misaligned destination is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-movsd-source",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "MOVSD with a misaligned source is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-movsd-aligned",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "MOVSD with both addresses aligned does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-delivery-odd-esp0",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "INT3 from CPL 3 onto an odd ESP0 does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
           "end": "exception:17",
           "error": "0"
         },
@@ -3515,7 +3657,7 @@
         "i486": null,
         "label": "ac-real-int-clears",
         "pass": true,
-        "source": "PRM ch. 26, INT n (real-address mode)",
+        "source": "SDM INT n (real-address mode); Bochs (the 1992 PRM lists IF and TF only)",
         "what": "a real-mode interrupt clears AC"
       },
       {

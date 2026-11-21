@@ -5,15 +5,15 @@
 
         +----------Local Count, excluding submodules.
         | 
-    33188 wires
-   288131 wire bits
-    32877 public wires
-   273004 public wire bits
+    33200 wires
+   288143 wire bits
+    32889 public wires
+   273016 public wire bits
       149 ports
      4703 port bits
        38 memories
    512512 memory bits
-    40993 cells
+    41005 cells
         2   $add_10
         4   $add_12
         3   $add_128
@@ -237,7 +237,7 @@
         5   $le_4
         3   $le_5
         4   $le_8
-     6834   $logic_and_1
+     6840   $logic_and_1
         1   $logic_and_7
       831   $logic_not_1
         1   $logic_not_10
@@ -264,7 +264,7 @@
         2   $logic_not_79
        25   $logic_not_8
         1   $logic_not_9
-     4108   $logic_or_1
+     4112   $logic_or_1
         1   $lt_15
         6   $lt_16
         1   $lt_17
@@ -586,7 +586,7 @@
         4   $reduce_or_17
         3   $reduce_or_18
         4   $reduce_or_19
-     1377   $reduce_or_2
+     1378   $reduce_or_2
         4   $reduce_or_20
         3   $reduce_or_21
         3   $reduce_or_22
@@ -597,7 +597,7 @@
         3   $reduce_or_27
         2   $reduce_or_28
         2   $reduce_or_29
-      267   $reduce_or_3
+      268   $reduce_or_3
         2   $reduce_or_30
         4   $reduce_or_31
        20   $reduce_or_32

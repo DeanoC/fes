@@ -1,5 +1,5 @@
 {
-  "cases_sha256": "d2876481ae1f169c1be6631421449e081cfb0d059db33d6fe8749fd1343f31d4",
+  "cases_sha256": "fb597f0754d460c895c2e69185444fbafbd7be74ee170eb35bc0d27b0ff0a6fb",
   "failures": [],
   "lockstep": {
     "386": {
@@ -689,6 +689,46 @@
           "as_expected": true,
           "divergence": null,
           "isolated": true,
+          "label": "ac-popfd-clears",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-movsd-destination",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-movsd-source",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-movsd-aligned",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-delivery-odd-esp0",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
           "label": "ac-xadd-m32",
           "probe": "1046",
           "rtl": "stop @1046.eflags 40002 2"
@@ -1097,10 +1137,10 @@
       "expected": "i486-expected-stops.txt",
       "i486": 0,
       "runs_equal": true,
-      "stop": 81
+      "stop": 86
     },
     "486sx": {
-      "agree": 134,
+      "agree": 139,
       "cases": [
         {
           "as_expected": true,
@@ -1780,6 +1820,46 @@
           "isolated": true,
           "label": "ac-popfd-then-load",
           "probe": "104d",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-popfd-clears",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-movsd-destination",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-movsd-source",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-movsd-aligned",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-delivery-odd-esp0",
+          "probe": "1046",
           "rtl": "agree"
         },
         {
@@ -3399,6 +3479,68 @@
         "differences": [],
         "divergence": null,
         "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-popfd-clears",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "CPL 3: POPFD clears AC, and the next misaligned read does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-movsd-destination",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "MOVSD with a misaligned destination is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:17",
+          "error": "0"
+        },
+        "i486": null,
+        "label": "ac-movsd-source",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "MOVSD with a misaligned source is #AC(0)"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-movsd-aligned",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "MOVSD with both addresses aligned does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "int:3"
+        },
+        "i486": null,
+        "label": "ac-delivery-odd-esp0",
+        "pass": true,
+        "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
+        "what": "INT3 from CPL 3 onto an odd ESP0 does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
           "end": "exception:17",
           "error": "0"
         },
@@ -3493,7 +3635,7 @@
         "i486": null,
         "label": "ac-real-int-clears",
         "pass": true,
-        "source": "PRM ch. 26, INT n (real-address mode)",
+        "source": "SDM INT n (real-address mode); Bochs (the 1992 PRM lists IF and TF only)",
         "what": "a real-mode interrupt clears AC"
       },
       {
