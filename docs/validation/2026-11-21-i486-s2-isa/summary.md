@@ -30,7 +30,7 @@ arm b), with these changes:
 | DE10 seal of the 386 package | Registered producer `build_pc386_product.py --with-lockstep`, seed 1, Quartus 17.0.2, on chip-30x0-ai-dev, at `9aa6d0561`: passes every analysis. BUILD_ID `6de4bd49354bf70b1a1bdd96c10a7248`, package `11b50c98…`, RBF `3c28aa32…`, 36,416 ALMs, setup +0.511 ns, hold +0.101 ns (`seal/`) |
 | Kit run of that package | Kit B, run `k2044a`: pass. FreeDOS prompt, then Wolfenstein 3D in play; the kit was restored to its baseline ([the kit run](#the-kit-run)) |
 | The head still builds the sealed design | `head_matches_seal.py`: the head's design identity equals the seal's, BUILD_ID `6de4bd49…`. Commits after `9aa6d0561` change only this record |
-| 486SX fit on the DE10 | Closes at 61.44 MHz in the seal's flow at every seed fitted: see [the 486SX fit](#the-486sx-fit) |
+| 486SX fit on the DE10 | Closes at 61.44 MHz in the seal's flow: seed 1 at head, 36,651 ALMs, setup +0.984 ns; seed 2, 36,504 ALMs ([the 486SX fit](#the-486sx-fit)) |
 
 ## What changed
 
@@ -132,13 +132,16 @@ own Quartus project (`pc386_quartus.write_project`), with BUILD_ID zero,
 and applies the seal's timing check (`validate_timing_report`). It ran on
 chip-30x0-ai-dev with the CUDA slot. Nothing is packaged.
 
-| Commit | Seed | Closes | ALMs | Setup | Hold |
-| --- | --- | --- | --- | --- | --- |
-| `ec945043d` | 1 | yes, 61.44 MHz | 36,651 (87.5%) | +0.984 ns | +0.066 ns |
-| `ec945043d` | 2 | yes, 61.44 MHz | 36,504 (87.1%) | +0.631 ns | +0.094 ns |
+| Commit | Seed | Closes | ALMs | Setup | Hold | Netlist |
+| --- | --- | --- | --- | --- | --- | --- |
+| `9aa6d0561` (head) | 1 | yes, 61.44 MHz | 36,651 (87.5%) | +0.984 ns | +0.066 ns | `84a1f64e…` |
+| `ec945043d` | 1 | yes, 61.44 MHz | 36,651 (87.5%) | +0.984 ns | +0.066 ns | `f815019f…` |
+| `ec945043d` | 2 | yes, 61.44 MHz | 36,504 (87.1%) | +0.631 ns | +0.094 ns | `f815019f…` |
 
 `ec945043d` differs from the head only by a Verilator lint pragma and its
-comment in `fes_i386_pkg.sv`. The 386 seal at head, the same flow with
+comment in `fes_i386_pkg.sv`. That changes the netlist's source line
+attributes, and seed 1 refitted at the head gives the same result. Each
+fit's summary is in `fits/`. The 386 seal at head, the same flow with
 `I486 = 0` at seed 1, uses 36,416 ALMs. The 486SX's 235 more ALMs at seed 1
 are one seed's difference. Slice 1 showed that this flow's seed spread is
 about 55 ALMs and that a netlist change moves ALMs by more than that, so
