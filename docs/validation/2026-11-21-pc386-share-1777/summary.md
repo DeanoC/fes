@@ -50,25 +50,26 @@ This record finds the fault. Everything here ran on the Bochs oracle
 steps at the DOS prompt and prints each call's AX and CF. It is the minimal
 repro for the upstream reports. The bench reads its lines from port E9h.
 
-| Step | MS-DOS 6.22 + `SHARE.EXE` | FreeDOS 2046, entry 4 (SHARE 08/2006a) |
-| --- | --- | --- |
-| create `C:\SHRREPRO.TMP` (3Ch) | AX=0005h (handle) CF=0 | AX=0005h (handle) CF=0 |
-| close (3Eh) | CF=0 | CF=0 |
-| rename to `C:\SHRREPR2.TMP` (56h), no handle open | CF=0 | **AX=0005h CF=1** |
-| delete it (41h) | CF=0 | **AX=0005h CF=1** |
-| delete a file that does not exist (41h) | AX=0002h CF=1 | **AX=0005h CF=1** |
-| `INT 2Fh AX=10A6h` | AX=0001h CF=1 | AX=0001h CF=1 |
+| Step | MS-DOS 6.22 + `SHARE.EXE` | FreeDOS 2046, entry 4 (SHARE 08/2006a) | FreeDOS 2046, entry 2 (no SHARE) |
+| --- | --- | --- | --- |
+| create `C:\SHRREPRO.TMP` (3Ch) | AX=0005h (handle) CF=0 | AX=0005h (handle) CF=0 | AX=0005h (handle) CF=0 |
+| close (3Eh) | CF=0 | CF=0 | CF=0 |
+| rename to `C:\SHRREPR2.TMP` (56h), no handle open | CF=0 | **AX=0005h CF=1** | CF=0 |
+| delete it (41h) | CF=0 | **AX=0005h CF=1** | CF=0 |
+| delete a file that does not exist (41h) | AX=0002h CF=1 | **AX=0005h CF=1** | AX=0002h CF=1 |
+| `INT 2Fh AX=10A6h` | AX=0001h CF=1 | AX=0001h CF=1 | AX=0001h CF=1 |
 
-Both runs used the drives below and `machine_tb --type 'c:\shrrepro|'`.
-FreeDOS took `--boot-key 1.2:4`.
+Every run used the drives below and `machine_tb --type 'c:\shrrepro|'`.
+FreeDOS took `--boot-key 1.2:4` for entry 4 and `--boot-key 1.2:2` for entry 2.
 
 - **MS-DOS 6.22.** A scratch copy of `win-msdos` (`c5d77840…`) with
   `C:\DOS\SHARE.EXE` added at the end of `AUTOEXEC.BAT`. MS-DOS's `SHARE`
   does not implement 10A6h either, so the AX=0001h CF=1 is just "not
   supported". MS-DOS itself never makes that call.
 - **FreeDOS.** The scratch drive from the 2046 record's Windows runs (see
-  [Method](#method)). FreeDOS entry 2 (no SHARE) will be added when its run
-  ends.
+  [Method](#method)). Entry 2 is entry 4 without `SHARE`, on the same
+  drive. There the same calls work and the absent file returns 0002h, so
+  the failures need SHARE loaded.
 
 A wider scratch probe, not committed, ran ten sequences on the same two
 drives. It covered create then reopen in deny-all, deny-write and deny-none
