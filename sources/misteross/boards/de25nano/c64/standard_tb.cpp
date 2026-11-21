@@ -3,7 +3,7 @@
 // atomic transport, the firmware front end, the mailbox and the machine.
 // Execution cannot be released before a firmware image with a matching CRC is
 // committed; the open diagnostic firmware is then uploaded, the synthetic D64
-// is committed through the mailbox in 512-byte chunks into the machine's disk
+// is committed through the mailbox (pairs at even and odd addresses) into the machine's disk
 // store, and the diagnostic runs to its PASS stage: CPU, CIA timers and
 // interrupts, SID, joystick and keyboard from the mailbox, and the native
 // 1541 loading from the committed disk. The scanout slave and its memory
@@ -254,19 +254,28 @@ int main(int argc, char** argv) {
     board.ok(6, 1, kDiskBytes >> 16, "begin total high");
     board.ok(6, 2, disk_crc & 0xffff, "crc lo");
     board.ok(6, 3, disk_crc >> 16, "crc hi");
-    for (size_t offset = 0; offset < disk.size(); offset += 512) {
-        const size_t length = std::min<size_t>(512, disk.size() - offset);
+    // A 7-byte first chunk leaves every later pair at an odd address, where
+    // its low byte goes to the odd lane and its high byte to the even lane.
+    for (size_t offset = 0, length = 7; offset < disk.size(); offset += length,
+         length = std::min<size_t>(512, disk.size() - offset)) {
         board.ok(7, 0, offset & 0xffff, "chunk offset");
         board.ok(7, 1, offset >> 16, "chunk offset high");
         board.ok(7, 2, length, "chunk length");
-        for (size_t i = 0; i < length; i += 2)
-            board.ok(8, i / 2, disk[offset + i] | (disk[offset + i + 1] << 8), "data");
+        // An odd chunk's last word carries one byte and a zero high byte.
+        for (size_t i = 0; i < length; i += 2) {
+            const unsigned high = i + 1 < length ? disk[offset + i + 1] : 0;
+            board.ok(8, i / 2, disk[offset + i] | (high << 8), "data");
+        }
     }
     board.ok(9, 0, 0, "commit");
     require(board.ok(5, 5, 0, "ready") == 3, "disk did not become ready");
-    for (size_t i = 0; i < disk.size(); ++i)
-        require(core.fes_de25_c64_standard__DOT__core__DOT__machine__DOT__disk__DOT__image[i] == disk[i],
-                "disk byte " + std::to_string(i) + " differs");
+    // The disk store's lanes hold the even and odd addresses.
+    for (size_t i = 0; i < disk.size(); ++i) {
+        const uint8_t stored = (i & 1)
+            ? core.fes_de25_c64_standard__DOT__core__DOT__machine__DOT__disk__DOT__odd[i / 2]
+            : core.fes_de25_c64_standard__DOT__core__DOT__machine__DOT__disk__DOT__even[i / 2];
+        require(stored == disk[i], "disk byte " + std::to_string(i) + " differs");
+    }
 
     // The diagnostic's input stages wait for port 2 fire (controller port 0,
     // bit 0 here as on the DE10) and the A key (HID usage 0x04, row 0 bit 4).

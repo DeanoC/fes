@@ -69,6 +69,8 @@ def component_files(sources):
     for name in derive.RAM_FILES:
         target = name.replace(".v", "_de25.v")
         files[target], derived[target] = derive.retarget_ram(name, sources[CORE + name])
+    files["c64_disk_store_de25.v"], derived["c64_disk_store_de25.v"] = derive.retarget_disk_store(
+        sources[CORE + "c64_disk_store.v"])
     files["c64_frame_store_de25.sv"], derived["c64_frame_store_de25.sv"] = derive.retarget_frame_store(
         sources[CORE + "c64_frame_store.sv"])
     files["fes_de25_computer_transport.v"], derived["fes_de25_computer_transport.v"] = derive.transport(

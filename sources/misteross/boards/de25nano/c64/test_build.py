@@ -48,6 +48,22 @@ class Derivations(unittest.TestCase):
                 result = result.replace(after, before)
             self.assertEqual(result, source)
 
+    def test_disk_store_is_two_single_write_lanes(self):
+        source = (C64 / "c64_disk_store.v").read_bytes()
+        result, record = derive.retarget_disk_store(source)
+        self.assertNotIn(b"image", result.split(b"module c64_disk_store", 1)[1].split(b");", 1)[1])
+        self.assertEqual(result.count(b'(* ramstyle = "M20K" *) reg [7:0] '), 2)
+        # Each lane has one write statement and one read.
+        for lane in (b"even", b"odd"):
+            self.assertEqual(result.count(b"if (" + lane + b"_write) " + lane + b"["), 1)
+            self.assertEqual(result.count(lane + b"_q <= " + lane + b"[read_addr[17:1]];"), 1)
+        # The module's ports are the DE10's.
+        self.assertEqual(result.split(b");", 1)[0], source.split(b");", 1)[0])
+        self.assertEqual(record["source_sha256"], derive.sha(source))
+        with self.assertRaises(ValueError):
+            derive.retarget_disk_store(source.replace(b"read_data <= image[address_a];",
+                                                      b"read_data <= image[read_addr];"))
+
     def test_frame_store_is_inferred_and_its_reader_reset_synchronized(self):
         source = (C64 / "c64_frame_store.sv").read_bytes()
         result, record = derive.retarget_frame_store(source)

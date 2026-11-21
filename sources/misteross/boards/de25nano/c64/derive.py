@@ -23,12 +23,49 @@ PORTS_AFTER = (b"    output wire [15:0] debug_pc,\n"
                b"    input  wire [1:0]  firmware_write_enable\n);\n")
 
 # Inferred memories whose Cyclone V block hint is the only family dependence.
-# The disk store's hint is Yosys's; Quartus reads ramstyle.
 RAM_FILES = {
     "c64_ram.v": ((b'(* ramstyle = "M10K" *)', b'(* ramstyle = "M20K" *)', 1),),
     "c64_color_ram.v": ((b'(* ramstyle = "M10K" *)', b'(* ramstyle = "M20K" *)', 1),),
-    "c64_disk_store.v": ((b'(* ram_style = "m10k_tdp" *)', b'(* ramstyle = "M20K" *)', 1),),
 }
+
+# The DE10 disk store is one byte array with two write ports, one of them
+# shared with the 1541's read; Quartus cannot map that read-during-write
+# arrangement to block RAM. Here the image is two byte lanes, even and odd
+# addresses, each with one write port and one read port. A mailbox byte pair
+# is two consecutive addresses, so its bytes always land in different lanes.
+# The 1541's read keeps its one clock: both lanes read the address's row and
+# the registered low address bit selects the lane. The DE10 port A returned
+# the byte being written while a pair was written; here a read always returns
+# read_addr, and the 1541 reads no image while the unit is loading.
+DISK_BEGIN = b'    (* ram_style = "m10k_tdp" *) reg [7:0] image [0:BYTES-1];\n'
+DISK_END = b"endmodule\n"
+DISK_AFTER = b"""    // Two byte lanes (DE25 derivation); see derive.py.
+    localparam integer ROWS = BYTES / 2;
+    (* ramstyle = "M20K" *) reg [7:0] even [0:ROWS-1];
+    (* ramstyle = "M20K" *) reg [7:0] odd [0:ROWS-1];
+    wire [17:0] high_addr = write_addr + 18'd1;
+    // The byte bound for each lane this clock, low byte first.
+    wire even_low = !write_addr[0];
+    wire even_write = even_low ? write_enable[0] : write_enable[1];
+    wire odd_write = even_low ? write_enable[1] : write_enable[0];
+    wire [16:0] even_row = even_low ? write_addr[17:1] : high_addr[17:1];
+    wire [16:0] odd_row = even_low ? high_addr[17:1] : write_addr[17:1];
+    wire [7:0] even_data = even_low ? write_data[7:0] : write_data[15:8];
+    wire [7:0] odd_data = even_low ? write_data[15:8] : write_data[7:0];
+    reg [7:0] even_q, odd_q;
+    reg read_odd;
+    always @(posedge clk) begin
+        if (even_write) even[even_row] <= even_data;
+        even_q <= even[read_addr[17:1]];
+    end
+    always @(posedge clk) begin
+        if (odd_write) odd[odd_row] <= odd_data;
+        odd_q <= odd[read_addr[17:1]];
+    end
+    always @(posedge clk) read_odd <= read_addr[0];
+    always @* read_data = read_odd ? odd_q : even_q;
+endmodule
+"""
 
 # The DE10 frame store is 153 placed 2048x5 M10K primitives; its simulation
 # branch is the same three pages as plain memories. Here each page is one
@@ -99,6 +136,23 @@ def retarget_machine(source):
 def retarget_ram(name, source):
     """Block RAM hints for this family."""
     return _derive(source, RAM_FILES[name], "C64 " + name)
+
+
+def retarget_disk_store(source):
+    """Two single-write byte lanes in place of the shared-port byte array."""
+    if source.count(DISK_BEGIN) != 1 or source.count(DISK_END) != 1:
+        raise ValueError("C64 disk store adaptation contract changed")
+    start = source.index(DISK_BEGIN)
+    stop = source.index(DISK_END) + len(DISK_END)
+    removed = source[start:stop]
+    if (b"localparam integer BYTES = 174848;" not in source[:start] or
+            removed.count(b"image[address_a] <= write_data[7:0];") != 1 or
+            removed.count(b"image[address_b] <= write_data[15:8];") != 1 or
+            removed.count(b"read_data <= image[address_a];") != 1):
+        raise ValueError("C64 disk store adaptation contract changed")
+    result = source[:start] + DISK_AFTER + source[stop:]
+    return result, {"source_sha256": sha(source), "derived_sha256": sha(result),
+                    "removed_sha256": sha(removed), "storage": DISK_AFTER.decode()}
 
 
 def retarget_frame_store(source):

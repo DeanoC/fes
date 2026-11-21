@@ -37,8 +37,14 @@ build:
 
 - `c64_machine.sv`: the `c64_rom` instance becomes `fes_c64_firmware_rom`,
   and the machine gains the firmware write port.
-- `c64_ram.v`, `c64_color_ram.v`, `c64_disk_store.v`: the block RAM hint names
-  `M20K`.
+- `c64_ram.v`, `c64_color_ram.v`: the block RAM hint names `M20K`.
+- `c64_disk_store.v`: the DE10 store is one byte array with two write ports,
+  one shared with the 1541's read, which Quartus cannot map to block RAM. It
+  becomes two byte lanes (even and odd addresses), each with one write and
+  one read port. A mailbox byte pair always lands in both lanes, and the
+  1541's read keeps its one clock. The DE10 read returned the byte being
+  written while a pair was written; here it always returns the 1541's
+  address.
 - `c64_frame_store.sv`: the 153 placed `MISTRAL_M10K` primitives become three
   inferred pages, one write statement each, with the DE10 latencies (written
   in the machine clock, read with one pixel edge). The reader's reset was the
@@ -70,8 +76,8 @@ since the sockets are vacant) and the synthetic D64, then drives the
 component's Avalon computer slave on three unrelated clocks. It checks
 identity and capabilities (`0x204f`), that execution cannot be released
 without firmware, a wrong size and a wrong CRC, every stored firmware byte in
-each region, the D64 committed through the mailbox in 512-byte chunks into the
-disk store, joystick and keyboard input, the diagnostic running to its PASS
+each region, every byte of the D64 committed through the mailbox (a 7-byte
+first chunk puts later pairs at odd addresses) into the disk store's lanes, joystick and keyboard input, the diagnostic running to its PASS
 stage (CPU, CIA timers and interrupts, SID audio and the native 1541 reading
 the committed disk), that the SDRAM stays idle and that a hold keeps the
 firmware. The HPS, scanout memory master, PLLs and HDMI are not modeled.

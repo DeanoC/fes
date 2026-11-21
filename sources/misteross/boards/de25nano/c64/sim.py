@@ -37,6 +37,9 @@ def sources(output):
         path = output / name.replace(".v", "_de25.v")
         path.write_bytes(derive.retarget_ram(name, (C64 / name).read_bytes())[0])
         derived.append(path)
+    disk = output / "c64_disk_store_de25.v"
+    disk.write_bytes(derive.retarget_disk_store((C64 / "c64_disk_store.v").read_bytes())[0])
+    derived.append(disk)
     store = output / "c64_frame_store_de25.sv"
     store.write_bytes(derive.retarget_frame_store((C64 / "c64_frame_store.sv").read_bytes())[0])
     derived.append(store)
