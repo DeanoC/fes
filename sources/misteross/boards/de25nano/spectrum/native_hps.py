@@ -26,7 +26,7 @@ def matched_video_sdc(source):
 
 def project(archive, output):
     board = spectrum.board
-    output, _, _, hps, _ = board.prepare(spectrum, archive, output, model="native48", native_hps=True)
+    output, scanout, _, hps, _ = board.prepare(spectrum, archive, output, model="native48", native_hps=True)
     directory = output / "combined/hps"
     project = directory / "project"
     script_path = project / "integrate-mailbox.tcl"
@@ -92,10 +92,10 @@ add_connection fes_native_maintenance_reset.out_reset subsys_debug.reset
     inputs["scanout"]["compiled_top_sha256"] = board.sha(top_path.read_bytes())
     inputs["scanout"]["rendered_integration_sha256"] = board.sha(script_path.read_bytes())
     inputs_path.write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")
-    return output, hps
+    return output, hps, scanout
 
 
-def generate(output, hps, quartus_root):
+def generate(output, hps, scanout, quartus_root):
     directory = output / "combined/hps"
     project = directory / "project"
     tool, version = hps.BOARD_BUILD.locate_quartus(quartus_root)
@@ -108,10 +108,38 @@ def generate(output, hps, quartus_root):
                    project, directory / "clear-generation.log")
     hps.run_logged([generator, "--generate_project_ip_files", "--synthesis=verilog", "golden_top"],
                    project, directory / "ip-generation.log")
-    verify_handoff(output, hps)
+    verify_handoff(output, hps, scanout)
 
 
-def verify_handoff(output, hps):
+def spectrum_control_handoff(project, tree, hps, scanout, selected_build, probe):
+    """Bind the elaborated lightweight bridge decode to the Spectrum build."""
+    expected = {
+        "subsys_periph.fes_scanout.computer": (0x10300, 0x20),
+        "subsys_periph.fes_scanout_guard.avs": (0x10200, 0x100),
+        "subsys_periph.fes_ddr_probe.avs": (0x10100, 0x80),
+    }
+    regions = [r for r in probe["peripheral_slave_map"] if r["name"] in expected]
+    observed = {r["name"]: (r["base"], r["span"]) for r in regions}
+    if len(regions) != len(expected) or observed != expected:
+        raise ValueError("native Spectrum generated control address map differs")
+    for slave, (offset, _) in expected.items():
+        end = slave.replace(".", "_", 1)
+        routes = [c for c in tree.findall("connection") if c.get("kind") == "avalon" and c.get("end") == end]
+        if (len(routes) != 1 or routes[0].get("start") != "subsys_periph_pb_cpu_0.m0" or
+                int(routes[0].findtext("parameter[@name='baseAddress']/value", "-1"), 0) != offset):
+            raise ValueError("native Spectrum generated control bridge route differs: " + slave)
+    expected_modules = {"subsys_periph.fes_scanout": spectrum.COMPONENT,
+                        "subsys_periph.fes_scanout_guard": "fes_de25_scanout_guard"}
+    modules = [m for m in tree.findall("module") if m.get("path") in expected_modules]
+    kinds = {m.get("path"): (m.get("kind"), m.get("version")) for m in modules}
+    if len(modules) != len(expected_modules) or kinds != {p: (k, "1.0") for p, k in expected_modules.items()}:
+        raise ValueError("native Spectrum generated control components differ")
+    endpoint = next(m for m in modules if m.get("path") == "subsys_periph.fes_scanout")
+    build = scanout.endpoint_build_identity(project, endpoint, hps, selected_build)
+    return {"endpoint": build, "regions": regions}
+
+
+def verify_handoff(output, hps, scanout):
     directory = output / "combined/hps"
     project = directory / "project"
     inputs = json.loads((directory / "inputs.json").read_text())
@@ -138,7 +166,8 @@ def verify_handoff(output, hps):
         if name.startswith("software/") and hps.digest(project / name) != digest:
             raise ValueError("native Spectrum generation changed vendor boot data: " + name)
     handoff = project / "qsys_top/qsys_top.sopcinfo"
-    routes = [(c.get("kind"), c.get("start"), c.get("end")) for c in ET.parse(handoff).findall("connection")]
+    tree = ET.parse(handoff)
+    routes = [(c.get("kind"), c.get("start"), c.get("end")) for c in tree.findall("connection")]
     expected_readers = {
         "ext_hps_f2sdram_master.expanded_master",
         "subsys_periph_fes_ddr_probe.avm", "subsys_periph_fes_mem_cdc.m0",
@@ -163,10 +192,13 @@ def verify_handoff(output, hps):
             netlist.count("(fes_native_maintenance_reset_reset_n)") != 1 or
             netlist.count("(fes_native_maintenance_reset_out_reset_reset)") < 2):
         raise ValueError("native Spectrum maintenance reset binding differs")
+    probe = hps.verify_probe_handoff(project)
+    computer = spectrum_control_handoff(project, tree, hps, scanout,
+                                        inputs[spectrum.board.RECORD]["build_id"], probe)
     result = {"scope": "native-spectrum48-generated-hps-diagnostic-v1",
               "hps_parameters": expected, "ddr_ingress": sorted(readers),
               "mailbox": hps.verify_mailbox_handoff(project),
-              "probe": hps.verify_probe_handoff(project),
+              "probe": probe, "spectrum_control": computer,
               "handoff_sha256": hps.digest(handoff),
               "matched_video_sdc_sha256": video_constraints_sha,
               "firmware_admission": False, "package_signoff": False}
@@ -180,9 +212,9 @@ def main(argv=None):
     parser.add_argument("--quartus-root", help="generate and check IP under the caller's shared Quartus lock")
     args = parser.parse_args(argv)
     try:
-        output, hps = project(args.vendor_archive, args.output)
+        output, hps, scanout = project(args.vendor_archive, args.output)
         if args.quartus_root:
-            generate(output, hps, args.quartus_root)
+            generate(output, hps, scanout, args.quartus_root)
         print(output)
     except (OSError, ValueError) as error:
         parser.exit(1, f"native Spectrum project: {error}\n")
