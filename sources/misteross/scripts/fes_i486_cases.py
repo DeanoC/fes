@@ -662,6 +662,40 @@ def cases() -> list[Case]:
          lambda a: (a.op(0x66, 0xb8).d(2), a.here(), a.op(0x0f, 0xa2))[1], divergence='cpuid-above-highest',
          i486='zeros in EAX, EBX, ECX and EDX (DB Appendix B, item 3; AP-485 Table 1 says undefined)',
          what='CPUID leaf 2, above the highest')
+
+    # XADD and CMPXCHG on MMIO (the lockstep's A0000h-BFFFFh window, which
+    # the i486 mode maps): each reads its operand once, as a locked
+    # read-modify-write does (PRM ch. 26, LOCK and XADD: a read and then a
+    # write of the destination). The lockstep compares each step's MMIO
+    # reads; the level-4 random programs found XADD reading it twice.
+    def on_vga(build_op):
+        def build(a):
+            a.op(0xb8).w(0xa000).op(0x8e, 0xd8)                   # MOV AX, A000h; MOV DS, AX
+            probe = build_op(a)
+            a.op(0x8b, 0x0e).w(0x10)                              # MOV CX, [10h]
+            return probe
+        return build
+
+    def xadd_vga(a):
+        a.op(0xc7, 0x06).w(0x10).w(0x7fff).op(0xbb, 0x01, 0x00)    # word [10h] = 7FFFh; BX = 1
+        probe = a.here()
+        a.op(0x0f, 0xc1, 0x1e).w(0x10)                            # XADD [10h], BX
+        return probe
+    real('xadd-m16-mmio', 'PRM ch. 26, XADD', {'end': 'halt', 'ebx': 0x7fff, 'ecx': 0x8000, 'eflags': 0x896},
+         on_vga(xadd_vga), what='XADD to MMIO reads its operand once')
+
+    def cmpxchg_vga(old):
+        def build(a):
+            a.op(0xc7, 0x06).w(0x10).w(old)                       # word [10h] = old
+            a.op(0xb8).w(0x1234).op(0xba).w(0x5678)                # AX = 1234h; DX = 5678h
+            probe = a.here()
+            a.op(0x0f, 0xb1, 0x16).w(0x10)                        # CMPXCHG [10h], DX
+            return probe
+        return build
+    real('cmpxchg-m16-mmio-equal', 'PRM ch. 26, CMPXCHG', {'end': 'halt', 'eax': 0x1234, 'ecx': 0x5678},
+         on_vga(cmpxchg_vga(0x1234)), what='CMPXCHG to MMIO, equal, reads its operand once')
+    real('cmpxchg-m16-mmio-unequal', 'PRM ch. 26, CMPXCHG', {'end': 'halt', 'eax': 0x4321, 'ecx': 0x4321},
+         on_vga(cmpxchg_vga(0x4321)), what='CMPXCHG to MMIO, unequal, reads its operand once')
     return out
 
 
