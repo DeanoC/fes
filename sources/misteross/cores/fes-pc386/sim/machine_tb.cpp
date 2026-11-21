@@ -64,13 +64,13 @@
 // --x87 1 is the i386dx+387 identity: the machine's x87_present input, so
 // CMOS 14h bit 1 (INT 11h's coprocessor bit) is set. The oracle's 387 is
 // fitted, as on an AT, either way (Oracle::set_at_coprocessor).
-// The floppy drives (docs/design/pc386-removable-media.md, slice F2) stand
-// in for slice F3's record and media endpoint. No drive is fitted unless the
-// run names one, so a run that says nothing about the floppy is the machine
-// the seal builds. --floppy-type gives a drive its CMOS 10h type (0 none,
+// The floppy drives (docs/design/pc386-removable-media.md) stand in for the
+// media endpoint (pc386_floppy_media). As the seal builds the machine (F3), A:
+// is a 1.44M drive and B: a 1.2M one, empty unless the run gives a disk, and
+// it boots A: then C:, so a run that says nothing about the floppy is the
+// sealed machine. --floppy-type gives a drive another CMOS 10h type (0 none,
 // 1 360K, 2 1.2M, 3 720K, 4 1.44M, 5 2.88M), which the RTC writes into CMOS
-// 10h and 14h; a drive given a disk and no type is 1.44M as A: and 1.2M as
-// B:, the design's defaults.
+// 10h and 14h.
 // --floppy puts a raw image in a drive at launch: its format is its exact
 // size, from 160K to 2.88M, and a drive that cannot read that format is an
 // error. --floppy-read-only inserts it write-protected, and --floppy-out
@@ -80,8 +80,8 @@
 // simulated time in seconds or the text of a debug-port line to swap on, so
 // that a program can ask for its own swap, and a fourth field ro inserts the
 // new disk write-protected.
-// --boot-device is the launch's boot device (0 hard disk, 1 A:, 2 CD), which
-// the machine turns into CMOS 2Dh, 38h and 3Dh. It prints:
+// --boot-device is the boot order (0 hard disk first, 1 A: then C:, the
+// sealed machine's, 2 CD), which the machine turns into CMOS 2Dh, 38h and 3Dh. It prints:
 //   FLOPPY <A|B> <format> <file>[ read-only]  a disk in a drive
 //   FLOPPY <A|B> empty                        the drive is empty
 //   FLOPPY-SWAP <seconds> <A|B>               a swap starts
@@ -239,9 +239,10 @@ struct FloppyUnit {
     std::string path, out;
     bool write_protected = false;
 
+    // The sealed machine's drives (F3): A: 1.44M and B: 1.2M, disk or not.
     unsigned fitted(unsigned drive) const {
         if (type_given) return type;
-        return path.empty() ? 0 : drive == 0 ? 4 : 2;
+        return drive == 0 ? 4 : 2;
     }
 };
 
@@ -1470,7 +1471,7 @@ struct Options {
     // A swap at a simulated time, or when a debug line carries its mark.
     struct Swap { double at; std::string mark; unsigned drive; std::string path; bool write_protected; };
     std::vector<Swap> swaps;
-    unsigned boot_device = 0;   // CMOS 3Dh: 0 hard disk, 1 A:, 2 CD
+    unsigned boot_device = 1;   // CMOS 3Dh: 0 hard disk, 1 A: then C: (the sealed machine), 2 CD
 };
 
 template <typename Top, typename Clock>
