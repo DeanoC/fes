@@ -587,13 +587,22 @@ def require_quartus_lease(argv) -> None:
                 f"under scripts/quartus_jobs.py run --edition {edition}")
 
 
+def _with_environment(argv, env) -> list:
+    """argv plus the values of the child's environment: a shell can run a
+    program it finds there ($Q --flow compile)."""
+    words = [argv] if isinstance(argv, (str, bytes, os.PathLike)) else list(argv or ())
+    if env:
+        words.extend(value for value in env.values() if isinstance(value, (str, bytes)))
+    return words
+
+
 def _launch_guard(event, args):
     if event == "subprocess.Popen":
-        require_quartus_lease(args[1] if args[1] is not None else args[0])
+        require_quartus_lease(_with_environment(args[1] if args[1] is not None else args[0], args[3]))
     elif event in ("os.exec", "os.posix_spawn"):
-        require_quartus_lease(args[1])
+        require_quartus_lease(_with_environment(args[1], args[2] if len(args) > 2 else None))
     elif event == "os.spawn":
-        require_quartus_lease(args[2])
+        require_quartus_lease(_with_environment(args[2], args[3] if len(args) > 3 else None))
     elif event == "os.system":
         require_quartus_lease(args[0])
 

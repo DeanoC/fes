@@ -353,13 +353,16 @@ def outstanding_kib(own_slot: str) -> int:
                 waiting.add(int(name))
         except OSError:
             continue
-    total = 0
+    # Per holder: a process holding several slots (parallel seeds in one
+    # runner) may grow to the sum of their peaks, and its tree's memory
+    # counts once against that sum.
+    held: dict[int, int] = {}
     for path, peak in peaks.items():
         if path == own_slot:
             continue
         for holder in quartus_tools.flock_holders(path) - {os.getpid()} - waiting:
-            total += max(0, peak - _tree_rss_kib(holder))
-    return total
+            held[holder] = held.get(holder, 0) + peak
+    return sum(max(0, peak - _tree_rss_kib(holder)) for holder, peak in held.items())
 
 
 def admit(edition: str, slot: str, deadline: float = float("inf")) -> bool:

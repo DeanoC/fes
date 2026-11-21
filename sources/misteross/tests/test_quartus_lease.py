@@ -668,6 +668,9 @@ class LaunchGuardTests(unittest.TestCase):
             subprocess.run(f"{self.bin}/quartus_sta -t gate.tcl", shell=True)
         with self.assertRaises(qt.QuartusLeaseError):
             os.system(f"{self.bin}/quartus_sta -t gate.tcl")
+        # Codex P1 at 9d516bdbf: the program only in the child's environment.
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["sh", "-c", "$Q --flow compile top"], env=dict(os.environ, Q=str(self.bin / "quartus_sh")))
         # Codex P1 at 34cd931cc: an operator attached to the program name.
         for payload in (f"{self.bin}/quartus_sh>/dev/null", f"{self.bin}/quartus_fit&", f"true;{self.bin}/quartus_fit"):
             with self.assertRaises(qt.QuartusLeaseError):
@@ -936,6 +939,17 @@ class JobsTests(unittest.TestCase):
             self.assertEqual(self.jobs.run("lite", "", ["sh", "-c", "sleep 1 & exit 0"], sample_seconds=0.2), 0)
         roots = [call.args[1] for call in scanned.call_args_list]
         self.assertIsNone(roots[-1], "the scan still followed the exited launcher's pid")
+
+    def test_a_holder_of_several_slots_counts_its_memory_once(self):
+        # Codex P1 at 9d516bdbf: one runner holding two Lite slots (parallel
+        # seeds) with 8 GiB resident may still grow to 2 x 6 = 12 GiB; its
+        # RSS was subtracted from each slot's peak separately (reserving 0).
+        gib = 1024 ** 2
+        with mock.patch.object(qt, "flock_holders", side_effect=lambda path: {4242} if "lite" in path else set()), \
+                mock.patch.object(qt, "lease_pool", side_effect=lambda edition, host=None:
+                                  ("/x/lite-a.lock", "/x/lite-b.lock") if edition == "lite" else ("/x/pro.lock",)), \
+                mock.patch.object(self.jobs, "_tree_rss_kib", return_value=8 * gib):
+            self.assertEqual(self.jobs.outstanding_kib("none"), 4 * gib)
 
     def test_a_stale_waiter_marker_exempts_nobody(self):
         # Codex P1 at f2eae796b: a waiter killed after writing its marker left
