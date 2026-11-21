@@ -62,9 +62,11 @@ constexpr const char* kFirmwareUploadInterfaceID = "fes.fabric.firmware-upload";
 struct De25StandardInterface {
 	const char* id;
 	std::uint16_t major, minor;
+	bool required = true;
 };
-// One machine the standard shell runs. Every listed interface is required at
-// exactly this version, beside the shell's own. `firmware_bytes` are the
+// One machine the standard shell runs. Every listed interface is declared at
+// exactly this version, beside the shell's own, and required unless the entry
+// says otherwise (a disk controller is optional, as on DE10). `firmware_bytes` are the
 // image sizes its upload endpoint takes; a machine without one is format 2.
 struct De25StandardCore {
 	const char* id;
@@ -86,7 +88,7 @@ constexpr std::array<De25StandardInterface, 7> kDe25StandardShell = {{
 	{"fes.fabric.video.display-plane", 1, 0},
 	{"fes.fabric.de25-scanout", 1, 3},
 }};
-constexpr std::array<De25StandardCore, 5> kDe25StandardCores = {{
+constexpr std::array<De25StandardCore, 7> kDe25StandardCores = {{
 	{"fes.zx81",
 		{{{generated::FesComputerInterfaceMediaZx81TapeID, 1, 0},
 		  {generated::FesComputerInterfaceMediaZx81TapeWriteID, 1, 0}}},
@@ -103,6 +105,26 @@ constexpr std::array<De25StandardCore, 5> kDe25StandardCores = {{
 			generated::FesComputerInterfaceMediaSpectrumTapeMinor},
 		  {kFirmwareUploadInterfaceID, 1, 0}}},
 		{{32768, 0}}, nullptr, 0},
+	{"fes.spectrum-plus3",
+		{{{generated::FesComputerInterfaceMediaSpectrumTapeID,
+			generated::FesComputerInterfaceMediaSpectrumTapeMajor,
+			generated::FesComputerInterfaceMediaSpectrumTapeMinor},
+		  {generated::FesComputerInterfaceMediaSpectrumDiskID,
+			generated::FesComputerInterfaceMediaSpectrumDiskMajor,
+			generated::FesComputerInterfaceMediaSpectrumDiskMinor},
+		  {"fes.media.spectrum-disk-plus3", 1, 0, false},
+		  {kFirmwareUploadInterfaceID, 1, 0}}},
+		{{65536, 0}}, nullptr, 0},
+	{"fes.pentagon",
+		{{{generated::FesComputerInterfaceMediaSpectrumTapeID,
+			generated::FesComputerInterfaceMediaSpectrumTapeMajor,
+			generated::FesComputerInterfaceMediaSpectrumTapeMinor},
+		  {generated::FesComputerInterfaceMediaSpectrumDiskID,
+			generated::FesComputerInterfaceMediaSpectrumDiskMajor,
+			generated::FesComputerInterfaceMediaSpectrumDiskMinor},
+		  {"fes.media.spectrum-disk-trdos", 1, 0, false},
+		  {kFirmwareUploadInterfaceID, 1, 0}}},
+		{{49152, 0}}, nullptr, 0},
 	{"fes.atari-st",
 		{{{generated::FesComputerInterfaceMouseRelativeID, 1, 0},
 		  {generated::FesComputerInterfaceMediaAtariStFloppyID, 1, 0},
@@ -176,7 +198,7 @@ inline Error CheckDe25StandardComputerContract(const CoreDescriptor& descriptor)
 			if (interface.id == candidate.id) registered = &candidate;
 		for (const auto& candidate : core->interfaces)
 			if (candidate.id && interface.id == candidate.id) registered = &candidate;
-		if (!registered || !interface.required || interface.major != registered->major ||
+		if (!registered || interface.required != registered->required || interface.major != registered->major ||
 			interface.minor != registered->minor) return differ();
 	}
 	for (std::size_t i = 0; i < descriptor.interfaces.size(); ++i)

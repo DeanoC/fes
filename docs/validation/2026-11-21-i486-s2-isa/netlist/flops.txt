@@ -1,0 +1,41 @@
+# python3 flop_widths.py <main ffq dump> <head I486=0 ffq dump>   (bit indices of pipe_t fields shift with its widening; totals are the measure)
+\ag_out_reg[1090] 1 0
+\ag_out_reg[1097] 0 1
+\ag_out_reg[1126] 1 0
+\ag_out_reg[1136] 1 0
+\ag_out_reg[1140] 0 1
+\ag_out_reg[1143] 0 1
+\ag_s_reg[977] 1 0
+\ag_s_reg[984] 0 1
+\ex_out_reg[1171] 1 0
+\ex_out_reg[1178] 0 1
+\exctl_s_reg[1171] 1 0
+\exctl_s_reg[1178] 0 1
+\m1_out_reg[1171] 1 0
+\m1_out_reg[1178] 0 1
+\m1_s_reg[769] 1 0
+\m1_s_reg[770] 1 0
+\m1_s_reg[771] 1 0
+\m1_s_reg[776] 0 1
+\m1_s_reg[777] 0 1
+\m1_s_reg[778] 0 1
+\m2_s_reg[769] 1 0
+\m2_s_reg[770] 1 0
+\m2_s_reg[771] 1 0
+\m2_s_reg[776] 0 1
+\m2_s_reg[777] 0 1
+\m2_s_reg[778] 0 1
+\wb_s_reg[1171] 1 0
+\wb_s_reg[1178] 0 1
+total 29548 29548
+
+# main vs head I486=1
+<anon> 9783 9799
+\cr0_am 0 1
+\cr0_cd 0 1
+\cr0_et 1 0
+\cr0_ne 0 1
+\cr0_nw 0 1
+\cr0_wp 0 1
+\tr3 0 32
+total 29548 29599

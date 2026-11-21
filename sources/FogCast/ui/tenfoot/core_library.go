@@ -31,11 +31,18 @@ type coreLibraryState struct {
 	FilterCoreID, HardwareMode                             string
 	HardwareGameID, HardwarePackageID, HardwareCoreID      string
 	ExpectedMediaID                                        string
-	InstalledSetup                                         bool
-	SetupFamilyPicker                                      bool
-	SystemExpansions                                       systemExpansionState
-	ExpansionFamily                                        int
-	Tapes                                                  []hostclient.HardwareTape
+	// SetDisks is the media chosen for a new game, disk by disk, with the
+	// file names: one disk, or a whole set found in the picked folder.
+	SetDisks []importedDisk
+	// AddDisk is the system-media picker adding a disk to the game's set,
+	// in AddDiskRole's drive, rather than choosing its next-start disk.
+	AddDisk           bool
+	AddDiskRole       string
+	InstalledSetup    bool
+	SetupFamilyPicker bool
+	SystemExpansions  systemExpansionState
+	ExpansionFamily   int
+	Tapes             []hostclient.HardwareTape
 	// BuiltIn is the bundled firmware preselected for a ROM, by ROM ID.
 	BuiltIn map[string]protocol.BundledFirmware
 	// Shelf is the Atari ST disk shelf, shown when HardwareMode is "st-shelf".
@@ -127,6 +134,9 @@ func (a *App) coreLibrarySnapshotLocked() FirmwarePickerSnapshot {
 	title := "Systems"
 	if s.HardwareMode == "system-media" {
 		title = "Media for next start"
+		if s.AddDisk {
+			title = "Add a " + setWord(s.AddDiskRole) + " to this game"
+		}
 	}
 	if s.HardwareMode == "st-shelf" {
 		title = a.stShelfTitleLocked()
@@ -175,6 +185,8 @@ func (a *App) resetCoreLibraryLocked() {
 	a.closeTapePickerLocked()
 	a.coreLibrary.InstalledSetup = false
 	a.coreLibrary.SetupFamilyPicker = false
+	a.coreLibrary.SetDisks = nil
+	a.coreLibrary.AddDisk, a.coreLibrary.AddDiskRole = false, ""
 	a.coreLibrary.HardwareMode = ""
 	a.coreLibrary.HardwareCoreID = ""
 	a.coreLibrary.FilterCoreID = ""
@@ -185,6 +197,12 @@ func (a *App) resetCoreLibraryLocked() {
 	a.coreLibrary.PickID = ""
 }
 func (a *App) coreLibraryAsyncLocked(work func(context.Context) error, done func()) {
+	a.coreLibraryAsyncDisksLocked(1, work, done)
+}
+
+// coreLibraryAsyncDisksLocked gives work that imports and keeps a set of
+// disks one ordinary budget per disk: a kit host's library change is slow.
+func (a *App) coreLibraryAsyncDisksLocked(disks int, work func(context.Context) error, done func()) {
 	s := &a.coreLibrary
 	if s.Busy {
 		s.Status = "Please wait for the current library action to finish."
@@ -207,6 +225,9 @@ func (a *App) coreLibraryAsyncLocked(work func(context.Context) error, done func
 				break
 			}
 		}
+	}
+	if disks > 1 {
+		budget *= time.Duration(disks)
 	}
 	ctx, cancel := context.WithTimeout(parent, budget)
 	s.Cancel = cancel
@@ -440,6 +461,7 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 		s.Label = corenames.Name(r.CoreID, r.Label)
 		s.MediaID = ""
 		s.MediaRole = ""
+		s.SetDisks = nil
 		if r.ArtifactState == "installed" {
 			a.loadCoreSetupLocked(false)
 		}
@@ -581,6 +603,33 @@ func (a *App) importCoreLibraryFileLocked(path string) {
 	}
 	manager := a.driveManagerLocked()
 	var media hostclient.CoreMedia
+	var disks []importedDisk
+	admit := func(name string, size int64) error {
+		if size < min || size > max {
+			return fmt.Errorf("Choose a regular file of %d–%d bytes", min, max)
+		}
+		for _, cap := range capabilities {
+			if pick == "media:"+cap.Role && !admitSetupMedia(cap, name, size) {
+				return fmt.Errorf("Choose %s of %d–%d bytes", mediaCapabilityLabel(cap), cap.MinBytes, cap.MaxBytes)
+			}
+		}
+		return nil
+	}
+	// A file named as one disk of a set brings the rest of its folder's set.
+	if role == protocol.DiskRole || role == protocol.CassetteRole {
+		if members := diskSetMembers(s.Files, path); members != nil {
+			a.coreLibraryAsyncDisksLocked(len(members), func(ctx context.Context) error {
+				var err error
+				disks, err = a.importDiskFiles(ctx, manager, role, members, admit)
+				return err
+			}, func() {
+				s.MediaRole, s.MediaID, s.SetDisks = role, disks[0].MediaID, disks
+				s.PickID, s.Path, s.Index, s.Files = "", "", 0, nil
+				s.Status = fmt.Sprintf("All %d %ss of the set imported. Review selections before adding the game.", len(disks), setWord(role))
+			})
+			return
+		}
+	}
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		f, size, name, err := a.openSetupMediaFile(ctx, manager, path, role)
 		if err != nil {
@@ -598,6 +647,7 @@ func (a *App) importCoreLibraryFileLocked(path string) {
 			}
 		}
 		media, err = a.importSetupMedia(ctx, role, size, f)
+		disks = []importedDisk{{MediaID: media.MediaID, Name: name}}
 		return err
 	}, func() {
 		if strings.HasPrefix(pick, "rom:") {
@@ -605,6 +655,7 @@ func (a *App) importCoreLibraryFileLocked(path string) {
 		} else {
 			s.MediaRole = strings.TrimPrefix(pick, "media:")
 			s.MediaID = media.MediaID
+			s.SetDisks = disks
 		}
 		s.PickID = ""
 		s.Path = ""
@@ -637,17 +688,38 @@ func (a *App) createCoreLibraryGameLocked() {
 	}
 	installedSetup, setup := s.InstalledSetup, *s.Setup
 	req := hostclient.CoreSetupRequest{CoreReference: *s.Ref, Title: s.Title, ROMs: roms, MediaRole: s.MediaRole, MediaID: s.MediaID}
-	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
+	disks := s.SetDisks
+	if len(disks) == 0 || disks[0].MediaID != s.MediaID || (s.MediaRole != protocol.DiskRole && s.MediaRole != protocol.CassetteRole) {
+		disks = nil
+	}
+	setNote := ""
+	a.coreLibraryAsyncDisksLocked(max(1, len(disks)), func(ctx context.Context) error {
+		var entry hostclient.CoreEntry
+		var err error
 		if installedSetup {
-			_, err := a.client.CreateInstalledCoreEntry(ctx, setup, req.Title, roms, req.MediaRole, req.MediaID)
+			entry, err = a.client.CreateInstalledCoreEntry(ctx, setup, req.Title, roms, req.MediaRole, req.MediaID)
+		} else {
+			var result hostclient.CoreSetupResult
+			result, err = a.client.CreateCoreSetupEntry(ctx, req)
+			entry = result.Entry
+		}
+		if err != nil || len(disks) == 0 {
 			return err
 		}
-		_, err := a.client.CreateCoreSetupEntry(ctx, req)
-		return err
+		// The game is added. Its disk names and the rest of its set are kept
+		// after; an older host that takes neither still has the game.
+		if len(disks) == 1 {
+			_, _ = a.client.SetCoreEntryMediaName(ctx, entry.GameID, entry.PackageID, entry.MediaID, disks[0].Name)
+			return nil
+		}
+		if _, err := a.keepDiskSet(ctx, entry, disks); err != nil {
+			setNote = " Its other " + setWord(req.MediaRole) + "s were not kept: " + err.Error()
+		}
+		return nil
 	}, func() {
-		s.Status = "Game added to the library. Launch checks readiness and executor compatibility."
+		s.Status = "Game added to the library. Launch checks readiness and executor compatibility." + setNote
 		if installedSetup {
-			s.Status = "Setup added to the library."
+			s.Status = "Setup added to the library." + setNote
 			if a.room != nil {
 				a.room.Resume()
 			}

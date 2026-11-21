@@ -71,14 +71,15 @@ func catalogCoreLibraryGames(t *testing.T, specs ...coreLibraryEntrySpec) []host
 func TestEmbeddedExamplesLoadAndDraw(t *testing.T) {
 	packs := Examples()
 	want := map[string]bool{
-		"example.fes-cores":     true,
-		"example.computers":     true,
-		"example.system":        true,
-		"example.core":          true,
-		"example.hardware":      true,
-		"example.coleco-arcade": true,
-		"example.welcome":       true,
-		"example.setup-ready":   true,
+		"example.fes-cores":         true,
+		"example.computers":         true,
+		"example.system":            true,
+		"example.core":              true,
+		"example.hardware":          true,
+		"example.coleco-arcade":     true,
+		"example.welcome":           true,
+		"example.setup-ready":       true,
+		"example.setup-controllers": true,
 	}
 	if len(packs) != len(want) {
 		t.Fatalf("got %d built-in rooms, want %d", len(packs), len(want))

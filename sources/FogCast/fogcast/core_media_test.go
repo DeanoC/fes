@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -80,7 +81,7 @@ func TestServiceCoreMediaPackageUpgradePreservesSelection(t *testing.T) {
 	want := entry
 	want.PackageID = next.PackageID
 	stored, err := s.CoreEntry(ctx, entry.GameID)
-	if err != nil || selected != want || stored != want {
+	if err != nil || !reflect.DeepEqual(selected, want) || !reflect.DeepEqual(stored, want) {
 		t.Fatalf("upgrade lost entry/media state: selected=%+v stored=%+v want=%+v err=%v", selected, stored, want, err)
 	}
 	if *loads != 1 || client.mediaCalls != 1 || client.stopCalls != 0 || client.mediaBinding != oldBinding {
@@ -120,7 +121,7 @@ func TestServiceCoreMediaPackageWithoutBlobRejected(t *testing.T) {
 		t.Fatalf("missing blob selection error=%v", err)
 	}
 	stored, err := s.CoreEntry(ctx, entry.GameID)
-	if err != nil || stored != entry {
+	if err != nil || !reflect.DeepEqual(stored, entry) {
 		t.Fatalf("rejected upgrade changed entry: %+v err=%v", stored, err)
 	}
 	if *loads != 0 || client.mediaCalls != 0 || client.stopCalls != 0 {
@@ -170,7 +171,7 @@ func TestServiceCoreMediaPackagePersistenceMismatchRejected(t *testing.T) {
 			t.Fatalf("layout=%+v selection error=%v", client.layouts[candidate.PackageID], err)
 		}
 		stored, err := s.CoreEntry(ctx, entry.GameID)
-		if err != nil || stored != entry {
+		if err != nil || !reflect.DeepEqual(stored, entry) {
 			t.Fatalf("persistence rejection lost selection: %+v err=%v", stored, err)
 		}
 	}
@@ -178,7 +179,7 @@ func TestServiceCoreMediaPackagePersistenceMismatchRejected(t *testing.T) {
 	selected, err := s.SelectCoreEntry(ctx, entry.GameID, entry.PackageID, same.PackageID)
 	want := entry
 	want.PackageID = same.PackageID
-	if err != nil || selected != want {
+	if err != nil || !reflect.DeepEqual(selected, want) {
 		t.Fatalf("matching-layout upgrade=%+v want=%+v err=%v", selected, want, err)
 	}
 	if client.libraryCalls != 0 || client.mutateCalls != 0 || client.stopCalls != 0 || client.record != record {
@@ -326,7 +327,7 @@ func TestServiceCoreMediaRejectedBeforeLoad(t *testing.T) {
 				t.Fatalf("selection error=%v, want %s", err, wantCode)
 			}
 			unchanged, err := s.CoreEntry(ctx, entry.GameID)
-			if err != nil || unchanged != entry {
+			if err != nil || !reflect.DeepEqual(unchanged, entry) {
 				t.Fatalf("rejected selection changed entry: %+v err=%v", unchanged, err)
 			}
 			entry.MediaRole, entry.MediaID = role, id
@@ -370,7 +371,7 @@ func TestServiceCoreMediaClearLeavesColecoPackageOnly(t *testing.T) {
 		}
 	}
 	stored, err := s.CoreEntry(ctx, entry.GameID)
-	if err != nil || stored != cleared {
+	if err != nil || !reflect.DeepEqual(stored, cleared) {
 		t.Fatalf("launch restored cleared selection: %+v err=%v", stored, err)
 	}
 }

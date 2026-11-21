@@ -38,7 +38,7 @@ Cortex-A53 and a generic `virt` machine, not DE25-Nano or Agilex 5 hardware.
 Each `*-result.json` retains commands, exact source hashes, compiler identity,
 ELF hash and outcome. Console logs, ELF headers, bare-metal size and undefined
 symbol checks are adjacent. SDK 0.17.4 archive hashes and the pinned Zephyr
-commit are in the [experiment lock](../../../examples/de25-embedded-os/toolchain.lock.toml).
+commit were recorded in `examples/de25-embedded-os/toolchain.lock.toml` (since retired).
 The runner records the tools actually supplied; the lock is the tested recipe,
 not an authenticated FES core-producer identity. Built ELF images remain in the
 task worktree's ignored `out/de25-embedded-os/*-final/` directories.

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -88,7 +89,7 @@ func TestInstalledCoreSetupCreatesManifestROMAndMediaSelections(t *testing.T) {
 			}
 			for i := 0; i < 2; i++ {
 				got, err := client.CreateInstalledCoreEntry(ctx, setup, entry.Title, tc.roms, tc.mediaRole, tc.mediaID)
-				if err != nil || got != entry {
+				if err != nil || !reflect.DeepEqual(got, entry) {
 					t.Fatalf("create/retry: %+v err=%v", got, err)
 				}
 			}

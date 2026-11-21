@@ -239,10 +239,11 @@ fields. No API response exposes the archive's private filesystem location.
 | `GET /api/v1/core-packages/{id}/media-capabilities` | Offline declared-contract projection with separate host import policy and supported role limits |
 | `POST /api/v1/library/core-entries` | `{"title":"Standalone FES Pong","package_id":"..."}`, optionally `media_role:"blob",media_id:"..."`; returns entry |
 | `GET /api/v1/library/core-entries` | `{entries:[...]}` |
-| `GET /api/v1/library/core-entries/{game_id}` | `{game_id,title,core_id,package_id}`, plus `media_role,media_id` when selected and `media_name` when recorded |
+| `GET /api/v1/library/core-entries/{game_id}` | `{game_id,title,core_id,package_id}`, plus `media_role,media_id` when selected, `media_name` when recorded, and `more_media` for disks 2 to N of a [disk set](#disk-sets) |
 | `PUT /api/v1/library/core-entries/{game_id}` | `{"package_id":"...","expected_package_id":"..."}`; returns entry |
 | `PUT /api/v1/library/core-entries/{game_id}/media` | `{"expected_package_id":"...","expected_media_id":"","media_role":"blob","media_id":"..."}` (`media_role` is `blob` or, for `fes.computer` disks, `disk`); both expected fields required; empty new role/ID clears |
 | `PUT /api/v1/library/core-entries/{game_id}/media-name` | `{"expected_package_id":"...","media_id":"...","media_name":"GAME.P"}`; records the `.p`/`.o` basename an imported cassette was chosen under, only while that package and media are still selected; any other media selection clears it. `GET /api/v1/library/hardware` shows it as `media_name` for an imported cassette |
+| `PUT /api/v1/library/core-entries/{game_id}/media-set` | `{"expected_package_id":"...","expected_media_id":"DISK_1","expected_more_media":["ID",...],"more_media":[{"media_id":"ID","media_name":"GAME2.D64"},...]}`; replaces disks 2 to N of a [disk set](#disk-sets) while the package, disk 1 and set are still the ones read; all four fields required; `[]` makes the title a single disk again |
 | `GET /api/v1/library/core-entries/{game_id}/expansions` | Multi-socket shell slot cards: `{game_id,package_id,bus,map,sockets,expansions:[{slot,expansion_id,ready}],ready}` |
 | `PUT /api/v1/library/core-entries/{game_id}/expansions/{slot}` | `{"package_id":"...","expected_expansion_id":"","expansion_id":"..."}`; compare-and-swap on one physical slot; empty `expansion_id` clears |
 | `POST /api/v1/session/launch` | Existing `{"game_id":"..."}` request |
@@ -770,18 +771,21 @@ instead, below.
 GEMDOS writes then follow the durable drive-A path below; the stored base image
 is not overwritten.
 
-### The Atari ST disk shelf
+### Disk shelves
 
-The shelf is the Atari ST disks a person made on the kit, plus the game disks
+A shelf is one computer's disks a person made on the kit, plus its game disks
 that have saved changes. A game disk that was only played is not on it.
-Saved changes live on a kit, not in the host library, so the shelf is read
-for one kit: the session's target, or the selected one.
+There is one shelf per computer, named by its core ID, so a disk is never
+offered to another computer: `fes.atari-st` and `fes.pcxt-dos` have one.
+Any other core answers `UNSUPPORTED_OPERATION`. Saved changes live on a kit,
+not in the host library, so a shelf is read for one kit: the session's
+target, or the selected one.
 
-`GET /api/v1/library/atari-st-shelf` returns `target`, `target_id`,
+`GET /api/v1/library/disk-shelves/{core_id}` returns `target`, `target_id`,
 `kept_known` and `disks`. Each disk has `game_id`, `title`, `package_id`,
 `media_id`, `size`, `made`, `kept`, `kept_revision` and `in_drive`.
 
-- `made` is true for a new blank disk or a copy.
+- `made` is true for a new disk or a copy.
 - `kept` is `none`, `changes`, `damaged` or `unknown`. `damaged` is a saved
   record the kit cannot read.
 - `kept_revision` names what the kit has saved for the disk. Send it back
@@ -797,11 +801,32 @@ only the disks made here are listed.
 
 | Request | Body | Does |
 | --- | --- | --- |
-| `POST /api/v1/library/atari-st-shelf` | `title`, `package_id`, optional `tracks`, `heads`, `sectors` | Makes a blank disk under that name. Answers 201. |
-| `POST .../atari-st-shelf/{game_id}/copy` | `title` | Makes a new disk from the disk as it stands: its saved changes when it has any, otherwise its image. Answers 201. |
-| `POST .../atari-st-shelf/{game_id}/revert` | `expected_revision` | Discards the saved changes, so the disk is again the image it was imported or made as. |
-| `POST .../atari-st-shelf/{game_id}/rename` | `expected_revision`, `title` | Renames a disk made here. |
-| `POST .../atari-st-shelf/{game_id}/delete` | `expected_revision` | Deletes a disk made here and its saved changes. Answers `{game_id}`. |
+| `POST /api/v1/library/disk-shelves/{core_id}` | `title`, `package_id`; for an ST disk optional `tracks`, `heads`, `sectors`; for a PC/XT disk `contents` | Makes a new disk under that name for an installed package of that core. Answers 201. |
+| `POST .../disk-shelves/{core_id}/{game_id}/copy` | `title` | Makes a new disk from the disk as it stands: its saved changes when it has any, otherwise its image. Answers 201. |
+| `POST .../disk-shelves/{core_id}/{game_id}/revert` | `expected_revision` | Discards the saved changes, so the disk is again the image it was imported or made as. |
+| `POST .../disk-shelves/{core_id}/{game_id}/rename` | `expected_revision`, `title` | Renames a disk made here. |
+| `POST .../disk-shelves/{core_id}/{game_id}/delete` | `expected_revision` | Deletes a disk made here and its saved changes. Answers `{game_id}`. |
+
+A disk of another computer is `BAD_REQUEST` on this shelf.
+
+**Atari ST.** A new disk is blank, at the geometry asked or 720 KiB. It needs
+a format-3 writable ST package, as above; `contents` `freedos` is
+`BAD_REQUEST`.
+
+**PC/XT.** A new disk is 360 KiB and takes no geometry. `contents` is
+`blank` (the default when left out) or `freedos`:
+
+- `blank` is formatted and empty. Its boot sector says the disk does not
+  start the computer and retries the boot on a key, as DOS's own non-system
+  disks do.
+- `freedos` copies the [bundled FreeDOS boot disk](../../../docs/bundled-firmware.md#the-pcxt-freedos-disk)
+  under the new disk's own volume label and serial number; its files are
+  unchanged. A host with no bundled disk answers `UNSUPPORTED_OPERATION`.
+
+A PC/XT disk needs a format-2 `fes.pcxt-dos` package with the required base
+and writable floppy interfaces. A PC/XT title with no disk starts from the
+bundled FreeDOS disk when the host has one ([PC/XT FreeDOS
+default](#pcxt-freedos-default)).
 
 Rules that hold for every change:
 
@@ -818,14 +843,16 @@ Rules that hold for every change:
   past that it answers as if the kit could not be asked.
 - `expected_revision` must match what the kit holds, or the answer is
   `STALE_REVISION`.
-- A name another Atari ST title already has is refused with `BAD_REQUEST`.
+- A name another title of the same computer already has is refused with
+  `BAD_REQUEST`.
 - Rename and delete are for disks made here. For a game disk they answer
   `UNSUPPORTED_OPERATION`: revert it, or remove the game from the library.
 
-The name is the library title. The GEMDOS volume label is taken from it: its
-letters, digits, spaces and hyphens in upper case, at most eleven, or `DISK`
-when none remain. Each new blank disk gets its own boot-sector serial number,
-so two blank disks are two library media and never share saved changes.
+The name is the library title. The volume label, GEMDOS or DOS, is taken
+from it: its letters, digits, spaces and hyphens in upper case, at most
+eleven, or `DISK` when none remain. Each new disk gets its own boot-sector
+serial number, so two new disks are two library media and never share saved
+changes.
 
 A library title's identity follows its name, and the kit keeps saved changes
 under that identity. Rename therefore copies the disk under the new name and
@@ -838,21 +865,41 @@ remain and the renamed copy keeps the saved image.
 Delete and revert reach the saved changes on the kit asked. Changes the same
 disk saved on another kit stay there.
 
-Tenfoot opens the shelf from "Your disks" on the Atari ST core screen. The
-kit's launcher listener admits exactly these routes and runs them against
-the paired kit. It still admits `POST /api/v1/library/atari-st-disks` for
-kits on an older bundle, whose Add game makes its blank disk there. Against
-a host from before the shelf, tenfoot says the host needs updating.
+Tenfoot opens the shelf from "Your disks" on the core screen. The kit's
+launcher listener admits exactly these routes and runs them against the
+paired kit. It still admits `POST /api/v1/library/atari-st-disks` for kits
+on an older bundle, whose Add game makes its blank disk there. These routes
+replaced `/api/v1/library/atari-st-shelf` when the PC/XT got a shelf (core
+screens slice 5); host and tenfoot ship in one kit bundle. Against a host
+from before the shelf, tenfoot says the host needs updating.
 
 ```sh
-fogcast --api http://127.0.0.1:8787 --json st-shelf
-fogcast --api http://127.0.0.1:8787 --json st-shelf-new "Work disk 2" PACKAGE_ID
-fogcast --api http://127.0.0.1:8787 --json st-shelf-new "Side A" PACKAGE_ID 80 1 9
-fogcast --api http://127.0.0.1:8787 --json st-shelf-copy GAME_ID "Dungeon save"
-fogcast --api http://127.0.0.1:8787 --json st-shelf-revert GAME_ID KEPT_REVISION
-fogcast --api http://127.0.0.1:8787 --json st-shelf-rename GAME_ID none "Letters"
-fogcast --api http://127.0.0.1:8787 --json st-shelf-delete GAME_ID KEPT_REVISION
+fogcast --api http://127.0.0.1:8787 --json shelf fes.atari-st
+fogcast --api http://127.0.0.1:8787 --json shelf-new fes.atari-st "Work disk 2" PACKAGE_ID
+fogcast --api http://127.0.0.1:8787 --json shelf-new fes.atari-st "Side A" PACKAGE_ID 80 1 9
+fogcast --api http://127.0.0.1:8787 --json shelf-new fes.pcxt-dos "FreeDOS boot disk" PACKAGE_ID freedos
+fogcast --api http://127.0.0.1:8787 --json shelf-new fes.pcxt-dos "Work disk" PACKAGE_ID blank
+fogcast --api http://127.0.0.1:8787 --json shelf-copy fes.atari-st GAME_ID "Dungeon save"
+fogcast --api http://127.0.0.1:8787 --json shelf-revert fes.atari-st GAME_ID KEPT_REVISION
+fogcast --api http://127.0.0.1:8787 --json shelf-rename fes.pcxt-dos GAME_ID none "Letters"
+fogcast --api http://127.0.0.1:8787 --json shelf-delete fes.pcxt-dos GAME_ID KEPT_REVISION
 ```
+
+### PC/XT FreeDOS default
+
+With an empty drive the PC/XT BIOS has nothing to start. So when a PC/XT
+title has no disk and the host bundles the FreeDOS boot disk, the launch
+puts that disk in drive A as the title's initial disk. The default is
+derived at each launch, like bundled firmware, and never saved as the
+title's choice. What the computer writes to it is kept for that title
+against the bundled image's digest. Once it has changes, the PC/XT shelf
+lists the title as a game disk with that image (Deano, 21 November 2026):
+its `game_id` and title are the title's, `made` is false, and it can be
+copied to a disk of its own or taken back to the original, but not renamed
+or deleted. A bundle with a different FreeDOS image starts that title from a
+fresh copy; changes kept against the old image stay on the kit, and the
+shelf no longer finds them, so copy work worth keeping to a disk of its own
+first.
 
 ```sh
 fogcast --api http://127.0.0.1:8787 --json insert-library-disk GAME_ID BASE_MEDIA_ID
@@ -876,6 +923,46 @@ before idle retirement or retain the machine and its binding in recovery.
 
 Current validation is host software and RTL simulation; hardware evidence is
 recorded separately.
+
+## Disk sets
+
+A title whose game comes on several disks or tapes holds them as a set. Disk 1
+is the entry's selected media (`media_id`), and `more_media` lists disks 2 to N
+in order, each with the basename it was imported under. They all go in disk
+1's drive, so every one takes disk 1's role (`disk` or `cassette`) and must fit
+that drive as the installed package declares it: the same size and format
+checks as disk 1. The name must be a disk name for a disk drive and a tape name
+for a cassette deck, because a live change picks its path from the name. A set
+holds at most 16 media and no medium twice.
+
+```sh
+fogcast --api http://127.0.0.1:8787 --json core-disk-set GAME_ID PACKAGE_ID DISK_1_ID none DISK_2_ID=GAME2.D64,DISK_3_ID=GAME3.D64
+fogcast --api http://127.0.0.1:8787 --json core-disk-set GAME_ID PACKAGE_ID DISK_1_ID DISK_2_ID,DISK_3_ID none
+```
+
+The fourth argument is the media IDs of the set as last read, and a stale one
+is refused with `STALE_REVISION`. The last is the new set; `none` is an empty
+list. Disk 1's name is the entry's `media_name`, set through
+`PUT .../media-name`, which takes any disk or tape name a live change takes.
+
+- Launch starts from disk 1. The other disks go into the drive during play.
+  A read-only drive takes any library medium through
+  `POST /api/v1/session/live-media`. A writable drive takes a disk of the
+  title's set through `POST /api/v1/session/disk/insert`, which refuses a disk
+  that is not disk 1 or in `more_media`.
+- Each disk keeps its own saved changes on the kit: the saved-record key is the
+  game, the drive and the disk's own source image.
+- Any change to disk 1 ends the set (catalog schema 26 does this in a trigger).
+  Selecting the same disk 1 again keeps it. Removing the title removes its set.
+- A package change checks every disk of the set against the new package's
+  drive, as it does disk 1.
+- A disk made on the Atari ST shelf never holds a set: its rename is a copy and
+  a delete that moves disk 1's saved record only.
+- A set member is a library reference like disk 1: it is not offered for
+  remote-cache cleanup, and editing a set turns a generated kit-host entry
+  into an ordinary title.
+- Not yet: a set is not carried by a remote library source, and the Atari ST
+  disk shelf lists disk 1's saved changes only.
 
 ## pc386 hard-disk entries
 

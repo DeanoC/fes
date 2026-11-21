@@ -56,9 +56,11 @@ func FirmwareUpload(d Descriptor) bool {
 // any 1 KiB multiple; a launch does not.
 func firmwareUploadMachine(d Descriptor) error {
 	sizes := map[string][]int64{
-		"fes.spectrum":    {16384, 32768},
-		"fes.spectrum128": {32768},
-		"fes.atari-st":    {196608},
+		"fes.spectrum":       {16384, 32768},
+		"fes.spectrum128":    {32768},
+		"fes.spectrum-plus3": {65536},
+		"fes.pentagon":       {49152},
+		"fes.atari-st":       {196608},
 		// The 64 KiB system ROM window, then the 4 KiB CGA font.
 		"fes.pcxt-dos": {69632},
 	}[d.Core.ID]

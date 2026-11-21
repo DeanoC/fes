@@ -210,6 +210,15 @@ is on; otherwise true for planned v1 and v2 cores and the nonempty core the
 room was opened for, and false for an empty or other held-back ID), `room.setup` (first-run setup:
 `step` and `steps` for a setup room, 0 outside setup; `unfinished` after Skip
 setup and before Finish; `skipped`, the step ids not done yet),
+`room.pads()` (the kit's attached pads, players first, and a number that
+changes whenever a pad attaches, leaves, presses or releases a button, or has
+its profile saved; each row has `player` (0 for a menu-only pad), `name`,
+`family` (`xbox`, `playstation`, `nintendo` or `generic`), `recognised`,
+`bluetooth`, `swap_ab`, `mapped`, `glyphs` (the pad's prompt glyph for
+`south`, `east`, `west`, `north`, `l`, `r`, `select`, `start` and `dpad`),
+`sends` (what FES reads from each of those buttons, such as `"A"`) and
+`pressed` (a set of the held controls, with `up`, `down`, `left` and `right`
+for the D-pad); empty off the kit),
 `room.release_only` (true unless Show all cores is on), `room.overlay`
 (boolean; true while the room is drawn over a
 running machine on the kit's HDMI session plane with launcher focus, false
@@ -336,9 +345,11 @@ strip shows **Unresolved** and Confirm stays with the room. Republishing
 catalog rows the room already cached.
 
 `kind = "action"` is a launcher-internal operation, not a shell command.
-The allowlisted ids are `settings` and the first-run setup moves
+The allowlisted ids are `settings`, `controllers` (Settings › Controllers,
+whose Back returns to the room), the first-run setup moves
 `setup_continue`, `setup_back`, `setup_skip`, `setup_finish` and
-`setup_resume` (see Built-in rooms):
+`setup_resume`, and the Controllers step's `setup_swap_ab` (Swap A / B on
+the first listed pad, Player 1's when attached) (see Built-in rooms):
 
 ```lua
 destination.set{ kind = "action", action = "settings", label = "Settings" }
@@ -558,7 +569,13 @@ system. With no argument it opens the Sinclair family selector.
 `hardware.open_media({game_id=..., core_id=..., package_id=...,
 expected_media_id=...})` opens the next-start picker for the exact displayed
 entry. An empty expected media ID is explicit. The native picker reads the
-package's media capabilities and saves with compare-and-swap.
+package's media capabilities and saves with compare-and-swap. A file named
+as one disk of a set, such as "Game (Disk 2 of 3).d64", brings every disk of
+that set in its folder: disk 1 becomes the next-start disk and the rest follow
+it ([disk sets](core-package-library.md#disk-sets)).
+`hardware.add_disk({game_id=..., core_id=..., package_id=...,
+expected_media_id=...})` opens the same picker to add one file after the
+game's last disk, in its first disk's drive.
 `hardware.open_disks({core_id=..., package_id=...})` opens the family's disk
 shelf: the disks made here and the game disks with saved changes. The package
 is the installed one a new disk is made for. It may be opened during play;
@@ -567,6 +584,12 @@ the host refuses changes that need the computer stopped.
 manifest-derived sockets and exact-package cards. Importing and fitting are
 separate actions. These setup actions require an idle machine; live media uses
 `session.open_tape` and its observed session binding.
+`session.change_disk(snapshot.session, media_id, media_name)` puts one library
+medium in the running machine's drive through the live media change, by its
+media ID and the file name it was imported under: the core screen's Next
+disk. The session's `media_name` is the name of the medium put in during play,
+empty for the one the game started with. Game rows carry `media_name` for
+disk 1 and `more_media`, a list of `{media_id, media_name}`, for disks 2 to N.
 `hardware.firmware_info({core_id=..., family_id=..., family_label=...,
 core_ids={...}, first_use=...})` asks for a family's firmware card
 ([bundled firmware](../../../docs/bundled-firmware.md#the-first-use-card)).
@@ -617,7 +640,8 @@ packs still use the same authoring, install, rollback and nested-room APIs.
 | `example.computers` | **Systems**: prepared systems, models and editions. Confirm launches; Set up opens the selected model's setup. Add system stays available with an empty library. |
 | `example.core` | Internal **core screen** for one computer family ([design](../../../docs/ux/references/core-screens/README.md)): the computer and its fixed facts on the left, its drive and its games on the right. Model chooses the variant; a game row starts that exact entry; the drive row and its button choose media for next start, or change it in a running machine. The ZX81 family adds Expansions, which opens `example.hardware`. Opened from Home for the ZX81, Spectrum, Atari ST and Commodore 64 families. |
 | `example.system` | Internal **System setup** template for registered families and their hardware variants, including PC/XT and PC 386. Next system changes family; Variant chooses the model. Entry, edition, media and expansion selections keep exact core/package identities. |
-| `example.welcome` | **First-run setup, step 1** (#1345): what FES is, the six default computer families and what is built in. PC 386 is marked In development. Continue (`setup_continue`) or Skip setup (`setup_skip`). `destination_panel = "none"`. |
+| `example.welcome` | **First-run setup, step 1** (#1345): what FES is, the six default computer families and what is built in. Continue (`setup_continue`) or Skip setup (`setup_skip`). `destination_panel = "none"`. |
+| `example.setup-controllers` | **First-run setup, step 2** (#980): waits for a pad (Continue with keyboard), then lists each pad with its player, connection and layout, lights the shown pad's held buttons, and offers Continue, Swap A / B (`setup_swap_ab`) and Controller settings (`controllers`). Bluetooth pads pair by holding their pairing button; the step says so. |
 | `example.setup-ready` | **First-run setup, last step**: each family's chip, games and firmware need; Finish (`setup_finish`) or Back (`setup_back`, also B). |
 | `example.hardware` | Internal **Sinclair setup** template with the rear-connector shelf and cassette controls for ZX81, ZX80, TS1000 and TS1500. |
 | `example.coleco-arcade` | Internal Coleco title browser opened from Home. It lists installed `fes.coleco` entries matching the arcade titles and skips titles absent from the library. |

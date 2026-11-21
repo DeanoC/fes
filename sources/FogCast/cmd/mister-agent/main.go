@@ -36,6 +36,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/meshcontent"
 
 	"github.com/DeanoC/FogCast/internal/misterruntime"
+	"github.com/DeanoC/FogCast/internal/sessiondisplayipc"
 	"github.com/DeanoC/FogCast/internal/targetcache"
 	"github.com/DeanoC/FogCast/internal/version"
 	"github.com/DeanoC/FogCast/protocol"
@@ -86,6 +87,7 @@ type runDependencies struct {
 	// localControlSocket is the root-only kit-local HTTP socket.
 	// Empty leaves it off. Tests stay empty; production main passes the flag.
 	localControlSocket    string
+	displayControl        bool
 	coreLoadTimeout       time.Duration
 	maintenanceFile       string
 	maintenanceLock       string
@@ -105,6 +107,7 @@ func runWithCoreLoadTimeout(ctx context.Context, configPath string, logger *slog
 		return err
 	}
 	dependencies.localControlSocket = localControlSocket
+	dependencies.displayControl = localControlSocket != ""
 	dependencies.coreLoadTimeout = timeout
 	return runWithDependencies(ctx, configPath, logger, dependencies)
 }
@@ -411,10 +414,15 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	// runtime; every operation keeps its existing deadline.
 	operationContext, cancelOperations := context.WithCancel(context.WithoutCancel(ctx))
 	defer cancelOperations()
-	coordinator := agent.New(runtime, 10*time.Second, 5*time.Second,
+	coordinatorOptions := []agent.CoordinatorOption{
 		agent.WithCoreLoadTimeout(dependencies.coreLoadTimeout),
 		agent.WithOperationContext(operationContext), agent.WithEventSink(diagnostics),
-		agent.WithArtifacts(buildinputs.Snapshot(buildinputs.Paths{}, version.Revision)))
+		agent.WithArtifacts(buildinputs.Snapshot(buildinputs.Paths{}, version.Revision)),
+	}
+	if dependencies.displayControl {
+		coordinatorOptions = append(coordinatorOptions, agent.WithSessionDisplayIPC(sessiondisplayipc.LauncherSocket, targetID))
+	}
+	coordinator := agent.New(runtime, 10*time.Second, 5*time.Second, coordinatorOptions...)
 	content := agent.NewContentController(coordinator, cache)
 	startup, cancel := context.WithTimeout(ctx, 40*time.Second)
 	coordinator.Initialize(startup)
@@ -549,7 +557,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		}
 		defer cores.Close()
 		go func() {
-			err := localcores.Serve(ctx, dependencies.localControlSocket, localcores.Handler(cores))
+			err := localcores.Serve(ctx, dependencies.localControlSocket, localcores.HandlerWithIdentity(cores, targetID))
 			if err != nil && ctx.Err() == nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, http.ErrServerClosed) {
 				logger.Error("kit-local control socket stopped", "error", err)
 			}

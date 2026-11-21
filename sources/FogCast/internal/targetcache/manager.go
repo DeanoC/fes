@@ -249,14 +249,18 @@ func prepareRoot(configured string) (string, os.FileInfo, error) {
 }
 
 func cloneRegisteredExtensions() map[protocol.System]map[string]struct{} {
- result := make(map[protocol.System]map[string]struct{})
- for _, row := range systems.Rows() {
-  if len(row.Extensions) == 0 { continue }
-  allowed := make(map[string]struct{}, len(row.Extensions))
-  for _, extension := range row.Extensions { allowed[extension] = struct{}{} }
-  result[row.PlatformID] = allowed
- }
- return result
+	result := make(map[protocol.System]map[string]struct{})
+	for _, row := range systems.Rows() {
+		if len(row.Extensions) == 0 {
+			continue
+		}
+		allowed := make(map[string]struct{}, len(row.Extensions))
+		for _, extension := range row.Extensions {
+			allowed[extension] = struct{}{}
+		}
+		result[row.PlatformID] = allowed
+	}
+	return result
 }
 
 func registeredSystems(extensions map[protocol.System]map[string]struct{}) []protocol.System {

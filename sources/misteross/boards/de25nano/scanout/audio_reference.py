@@ -65,8 +65,8 @@ SOURCES = {
 MACHINE_POLICY = fitted.MACHINE_POLICY
 SHARED_PLL = ('boards/de25nano/machine/machine_pll.ip', '52890ca22dea5743d009dc5a10035918b54565cd9886c0c201a8022019a8d4b4')
 PCXT_PLL = ('boards/de25nano/pcxt/machine_pll.ip', '3933f6c70839736248bef4b93cd7fe1954275975f3200dd24168732e8a18ba40')
-MACHINE_PLLS = {'fes.spectrum': SHARED_PLL, 'fes.spectrum128': SHARED_PLL, 'fes.atari-st': SHARED_PLL,
-                'fes.pcxt-dos': PCXT_PLL}
+MACHINE_PLLS = {'fes.spectrum': SHARED_PLL, 'fes.spectrum128': SHARED_PLL, 'fes.spectrum-plus3': SHARED_PLL,
+                'fes.pentagon': SHARED_PLL, 'fes.atari-st': SHARED_PLL, 'fes.pcxt-dos': PCXT_PLL}
 # The PLL outputs beside the audio wiring, as machine/board.py writes them.
 MACHINE_PLL_OUTPUTS = {'fes.pcxt-dos': ('.outclk_2(machine_sdram_clk_forward), '
                                         '.outclk_3(machine_sdram_clk_handoff), '

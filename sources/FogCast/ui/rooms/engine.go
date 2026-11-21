@@ -37,6 +37,30 @@ type Setup struct {
 	Skipped     []string
 }
 
+// Pad is an attached kit pad as room.pads() lists it.
+type Pad struct {
+	// Player is the pad's controller port from 1, or 0 for a menu-only pad.
+	Player int
+	Name   string
+	// Family is whose markings the pad's buttons carry: "xbox",
+	// "playstation", "nintendo" or "generic".
+	Family     string
+	Recognised bool
+	Bluetooth  bool
+	// SwapAB is a pad whose right-hand face button confirms.
+	SwapAB bool
+	// Mapped is a pad read through a mapping its player made step by step.
+	Mapped bool
+	// Glyphs are the pad's prompt glyphs by control: south, east, west,
+	// north, l, r, select, start and dpad.
+	Glyphs map[string]string
+	// Pressed are the controls held down: the Glyphs names, and up, down,
+	// left and right for the D-pad.
+	Pressed []string
+	// Sends is what FES reads from each control in Glyphs, such as "A".
+	Sends map[string]string
+}
+
 // Services is what a room may ask the launcher's host for. Calls run on
 // engine goroutines; results are delivered back on the launcher thread by Step.
 type Services interface {
@@ -155,6 +179,10 @@ type Instance struct {
 	pixels  int
 	modules map[string]lua.LValue
 	loading map[string]bool
+
+	// pads is room.pads(); padsGen changes with every SetPads.
+	pads    []Pad
+	padsGen uint64
 
 	frame         Frame
 	building      *Frame

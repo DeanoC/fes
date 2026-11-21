@@ -1167,7 +1167,7 @@ void TestDe25StandardProfileBindsSharedDriverAndRejectsOtherMemory() {
 
 // The standard shell's firmware machines: format 3 with the upload interface
 // and the image size their endpoint takes, on the unchanged computer profile.
-void TestDe25StandardProfileAdmitsSpectrumAtariStAndPcxt()
+void TestDe25StandardProfileAdmitsSpectrumModelsAtariStAndPcxt()
 {
  using namespace mister;using namespace mister::native;
  ContainedCoreDriver shared,contained,bram;
@@ -1175,11 +1175,14 @@ void TestDe25StandardProfileAdmitsSpectrumAtariStAndPcxt()
  auto spectrum128=mister_test::De25SpectrumDescriptor(32768);
  spectrum128.core.id="fes.spectrum128";
  const CoreDescriptor machines[]={mister_test::De25SpectrumDescriptor(16384),
-  mister_test::De25SpectrumDescriptor(32768),spectrum128,mister_test::De25AtariStDescriptor(),
+  mister_test::De25SpectrumDescriptor(32768),spectrum128,
+  mister_test::De25SpectrumDiskDescriptor("fes.spectrum-plus3",65536),
+  mister_test::De25SpectrumDiskDescriptor("fes.pentagon",49152),mister_test::De25AtariStDescriptor(),
   mister_test::De25PcxtDescriptor()};
  for(const auto& d:machines) {
   const bool st=d.core.id=="fes.atari-st", pcxt=d.core.id=="fes.pcxt-dos";
-  assert(d.interfaces.size()==(st?12u:pcxt?10u:9u));
+  const bool disk=d.core.id=="fes.spectrum-plus3"||d.core.id=="fes.pentagon";
+  assert(d.interfaces.size()==(st?12u:disk?11u:pcxt?10u:9u));
   assert(CheckDe25StandardComputerContract(d).ok());
   assert(CheckCoreCompatibility(d,NativePlatform::de25_nano).ok());
   // Neither machine exists for the Cyclone V runtime under this target.
@@ -1187,14 +1190,14 @@ void TestDe25StandardProfileAdmitsSpectrumAtariStAndPcxt()
   ProgrammingProfile profile;CoreDriver* driver=nullptr;
   assert(registry.Resolve(d,&profile,&driver).ok()&&
    profile==ProgrammingProfile::de25_linux_computer_v1&&driver==&shared);
-  for(unsigned failure=0;failure<15;++failure) {
+  for(unsigned failure=0;failure<19;++failure) {
    auto bad=d;
    if(failure==0)bad.interfaces.pop_back();                       // no firmware interface
    if(failure==1)bad.interfaces.back().required=false;
    if(failure==2)bad.interfaces.back().minor=1;
    if(failure==3)bad.format=2;                                    // no sealed ROM requirement
    if(failure==4)bad.rom.role="cartridge";
-   if(failure==5)bad.rom.source_size=st||pcxt?65536:d.core.id=="fes.spectrum128"?16384:8192; // not this endpoint's image
+   if(failure==5)bad.rom.source_size=st||disk||pcxt||d.core.id=="fes.spectrum128"?16384:8192; // not this endpoint's image
    if(failure==6)bad.rom.source_size+=1024;
    if(failure==7)bad.interfaces.push_back({"fes.memory.hps-ddr",1,0,true});
    if(failure==8)bad.interfaces.push_back({st?"fes.media.spectrum-tape":"fes.mouse.relative",
@@ -1205,6 +1208,28 @@ void TestDe25StandardProfileAdmitsSpectrumAtariStAndPcxt()
    if(failure==12)bad.interfaces[6].minor=2;                      // scanout 1.2
    if(failure==13)bad.interfaces.back()=bad.interfaces.front();
    if(failure==14)bad.abi.minor=pcxt?0:1;                        // not this machine's fes.computer minor
+   // The disk unit and its controller belong to their models: firmware upload
+   // is last, the controller before it and the disk unit before that.
+   const char* other=d.core.id=="fes.pentagon"?"fes.media.spectrum-disk-plus3":"fes.media.spectrum-disk-trdos";
+   if(failure==15) {
+    if(disk)bad.interfaces.erase(bad.interfaces.end()-3);       // controller without its unit
+    else bad.interfaces.insert(bad.interfaces.end()-1,{"fes.media.spectrum-disk",1,0,true});
+   }
+   if(failure==16) {
+    if(disk)bad.interfaces.erase(bad.interfaces.end()-2);       // unit without its controller
+    else bad.interfaces.insert(bad.interfaces.end()-1,{"fes.media.spectrum-disk-plus3",1,0,false});
+   }
+   if(failure==17) {
+    if(disk)bad.interfaces.end()[-2].required=true;               // the controller stays optional
+    else bad.interfaces.insert(bad.interfaces.end()-1,{"fes.media.spectrum-disk-trdos",1,0,false});
+   }
+   if(failure==18) {
+    if(disk)bad.interfaces.end()[-2].id=other;                    // the other model's controller
+    else {                                                       // a disk model's whole set
+     bad.interfaces.insert(bad.interfaces.end()-1,{"fes.media.spectrum-disk",1,0,true});
+     bad.interfaces.insert(bad.interfaces.end()-1,{"fes.media.spectrum-disk-plus3",1,0,false});
+    }
+   }
    const Error error=CheckCoreCompatibility(bad,NativePlatform::de25_nano);
    if(error.ok())fprintf(stderr,"%s failure %u admitted\n",d.core.id.c_str(),failure);
    assert(!error.ok()&&!CheckDe25StandardComputerContract(bad).ok());
@@ -1403,7 +1428,7 @@ int main()
 	TestExplicitDe25ProfileAndDriverBinding();
  TestDe25StandardProfileBindsSharedDriverAndRejectsOtherMemory();
  TestDe25StaticProfileRequiresOptionalVersionTwoSocket();
- TestDe25StandardProfileAdmitsSpectrumAtariStAndPcxt();
+ TestDe25StandardProfileAdmitsSpectrumModelsAtariStAndPcxt();
  TestFirmwareUploadMapIsCheckedAgainstTheSealedPackage();
 	TestNanoHeldROMInspectionDoesNotGrantCompatibility();
 	TestComputerCompatibilityComposesRecognizedInterfaces();

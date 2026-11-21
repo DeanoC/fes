@@ -494,6 +494,9 @@ func coreScreenDrawWorkAt(t *testing.T, coreID, otherModel string, width, height
 	for i := 0; i < 30; i++ {
 		g := preparedComputer(fmt.Sprintf("title-%02d", i), fmt.Sprintf("Game %02d", i), coreID)
 		g.CoreEntryKind, g.PackageID, g.MediaRole, g.MediaID = "title", strings.Repeat("a", 64), "disk", strings.Repeat("1", 64)
+		// Every game is a three-disk set: the row and the drive say so.
+		g.MediaName = "GAME1.D64"
+		g.MoreMedia = []hostclient.SetMedia{{MediaID: strings.Repeat("2", 64), MediaName: "GAME2.D64"}, {MediaID: strings.Repeat("3", 64), MediaName: "GAME3.D64"}}
 		games = append(games, g)
 	}
 	host := &c64Host{fakeServices: fakeServices{games: games}}
@@ -645,5 +648,57 @@ func TestCoreScreenDriveSavesFollowTheHostsPackageFacts(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// A game on two disks says so in its row and on the drive, and while it
+// runs, Next disk puts the other disk in by its ID and file name.
+func TestCoreScreenShowsADiskSetAndChangesToTheNextDisk(t *testing.T) {
+	disk1, disk2 := strings.Repeat("c", 64), strings.Repeat("d", 64)
+	game := preparedComputer("c64-game", "Copper Canyon", "fes.c64")
+	game.CoreEntryKind, game.PackageID, game.MediaID, game.MediaRole = "title", strings.Repeat("ab", 32), disk1, "disk"
+	game.MediaName = "CANYON1.D64"
+	game.MoreMedia = []hostclient.SetMedia{{MediaID: disk2, MediaName: "CANYON2.D64"}}
+	host := &c64Host{fakeServices: fakeServices{games: []hostclient.Game{game}}}
+	r := loadCoreScreen(t, host, game.ID, game.CoreID, Options{})
+	text := frameText(stepUntil(t, r, coreScreenSettled))
+	for _, want := range []string{"2 disks\n", "Disk 1 of 2, for next start\n"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("stopped set is missing %q:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "Next disk") {
+		t.Fatalf("a stopped game offers Next disk:\n%s", text)
+	}
+	r.Activate("add_disk")
+	if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionHardwareAddDisk || acts[0].GameID != game.ID ||
+		acts[0].PackageID != game.PackageID || acts[0].ExpectedMediaID != disk1 {
+		t.Fatalf("add disk: %+v", acts)
+	}
+	for _, step := range []struct{ inDrive, want, nextID, nextName string }{
+		{"", "Disk 1 of 2\n", disk2, "CANYON2.D64"},
+		{"CANYON2.D64", "Disk 2 of 2\n", disk1, "CANYON1.D64"},
+	} {
+		host.snap.Session = c64DiskSession(game.ID)
+		host.snap.Session.MediaName = step.inDrive
+		r := loadCoreScreen(t, host, game.ID, game.CoreID, Options{})
+		w := &workMeter{}
+		r.work = w
+		r.SetSessionState("active")
+		text := frameText(stepUntil(t, r, func(f Frame) bool { return coreScreenSettled(f) && frameHas(f, "Next disk") }))
+		for _, c := range w.calls {
+			if c.kind == "draw" && c.instructions > 8800 {
+				t.Fatalf("a running set's draw ran %d instructions", c.instructions)
+			}
+		}
+		if !strings.Contains(text, step.want) || strings.Contains(text, "Add disk to game") {
+			t.Fatalf("running set with %q in the drive: want %q and no Add disk:\n%s", step.inDrive, step.want, text)
+		}
+		r.Activate("next_disk")
+		acts := r.TakeActions()
+		if len(acts) != 1 || acts[0].Kind != ActionChangeDisk || acts[0].MediaID != step.nextID || acts[0].MediaName != step.nextName ||
+			acts[0].SessionID != "c64-session" || acts[0].MediaBinding.Generation != 7 {
+			t.Fatalf("next disk from %q: %+v", step.inDrive, acts)
+		}
 	}
 }
