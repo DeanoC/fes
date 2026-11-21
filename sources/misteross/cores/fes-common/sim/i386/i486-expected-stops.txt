@@ -86,6 +86,7 @@ cmpxchg-m32-readonly stop @104f.vector e 6
 cmpxchg-m32-notpresent stop @104f.vector e 6
 xadd-m32-notpresent stop @104f.vector e 6
 invlpg-remap stop @105c.unexpected-exception 0 6
+invlpg-past-limit stop @1000.unexpected-exception 0 6
 invlpg-notpresent stop @103e.unexpected-exception 0 6
 ac-popfd-then-load stop @1055.eflags 40002 2
 ac-popfd-clears stop @1046.eflags 40002 2

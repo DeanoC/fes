@@ -569,6 +569,10 @@ def cases() -> list[Case]:
         a.op(0x8a, 0x1d).d(PAGE)                          # MOV BL, [20000h]
     protected('invlpg-remap', 'PRM ch. 26, INVLPG', {'end': 'halt', 'eax': 0xe0050011, 'ebx': 0x22}, invlpg_remap,
               cr0=0xe0050031, page=0x07, what='INVLPG drops the old translation of a remapped page')
+    real('invlpg-past-limit', 'PRM ch. 26, INVLPG (real-address mode exceptions: none; no segment check is listed '
+         'in any mode)', {'end': 'halt'},
+         lambda a: (a.op(0x67, 0x0f, 0x01, 0x3d).d(0x12345), 0)[1], probe_at=0,
+         what='INVLPG of an offset past the segment limit makes no check and does not fault')
     protected('invlpg-notpresent', 'PRM ch. 26, INVLPG (no exceptions but #UD and #GP(0) for the privilege)',
               {'end': 'halt'}, lambda a: a.op(0x0f, 0x01, 0x3d).d(PAGE), cr0=0xe0050031, page=0x00,
               what='INVLPG of a page not present does not fault')

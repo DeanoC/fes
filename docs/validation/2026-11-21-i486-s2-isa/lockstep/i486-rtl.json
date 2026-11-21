@@ -1,5 +1,5 @@
 {
-  "cases_sha256": "fb597f0754d460c895c2e69185444fbafbd7be74ee170eb35bc0d27b0ff0a6fb",
+  "cases_sha256": "3d086429402311d4243b09850c52586f7b6250509e616cd5bbe478631e0c6585",
   "failures": [],
   "lockstep": {
     "386": {
@@ -673,6 +673,14 @@
           "as_expected": true,
           "divergence": null,
           "isolated": true,
+          "label": "invlpg-past-limit",
+          "probe": "1000",
+          "rtl": "stop @1000.unexpected-exception 0 6"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
           "label": "invlpg-notpresent",
           "probe": "103e",
           "rtl": "stop @103e.unexpected-exception 0 6"
@@ -1137,10 +1145,10 @@
       "expected": "i486-expected-stops.txt",
       "i486": 0,
       "runs_equal": true,
-      "stop": 86
+      "stop": 87
     },
     "486sx": {
-      "agree": 139,
+      "agree": 140,
       "cases": [
         {
           "as_expected": true,
@@ -1810,6 +1818,14 @@
           "as_expected": true,
           "divergence": null,
           "isolated": true,
+          "label": "invlpg-past-limit",
+          "probe": "1000",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
           "label": "invlpg-notpresent",
           "probe": "103e",
           "rtl": "agree"
@@ -2283,11 +2299,11 @@
     "level3_provisioner_sha256": "0c4552c2290a0f50681090a65cf25deeb1916568c910bcfcc88a91097f8089b2",
     "linked_sha256": {
       "adapter": "43ab4004273323a17e97c3d7f30bc702c1ec94b53ec3ca7e441172482ad298b8",
-      "cpu": "34b4be7446b34fc18fea954acd68e18b7348fa87d49bb55796493e4a3f6809a2",
-      "cpudb": "8a37347e0f308eb5f82e015b1dc205dc98df19a8eb73494db0c2f1252ca2c587",
-      "fpu": "31e268e112cf0a83e17ace29f239703e4d0b3ef903a3608b224e3e2a01d54437",
+      "cpu": "72e2e7c3253b3c1b284f3a23f031e828aa112bdccc5aae61fdab5d42f7077f52",
+      "cpudb": "899b57afb8b45cd7a27bd290de5257ba07a266f018757e56e383c12f1f708238",
+      "fpu": "ba8fc70b8d78a715bd1ff5db1a8bf781e497f83784bbe06954c8063e8170b36f",
       "paramtree": "6b8ba5842ba2bfe611cc7268c331fff50214859a164c95895d966de277893e44",
-      "softfloat": "9351fa73d5d7ac4bf3a943e677b703d2c5bdbd56b7d19b525589ec6f642b6cad"
+      "softfloat": "b422991b2beeacd87c7e4994ccd34a5b3d1d635b0e407d91879d62b8b6707229"
     },
     "opcode_table_sha256": "16d2719ba433c51858ba0f1602c41a9b2f56e89dc35a133a235b87fe2948db09",
     "provisioner_sha256": "203fece878fb7494cc95e069b97a340b361ffcb6e248b7e2aeeaf989e5380ea1",
@@ -3449,6 +3465,18 @@
         "pass": true,
         "source": "PRM ch. 26, INVLPG",
         "what": "INVLPG drops the old translation of a remapped page"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "halt"
+        },
+        "i486": null,
+        "label": "invlpg-past-limit",
+        "pass": true,
+        "source": "PRM ch. 26, INVLPG (real-address mode exceptions: none; no segment check is listed in any mode)",
+        "what": "INVLPG of an offset past the segment limit makes no check and does not fault"
       },
       {
         "differences": [],

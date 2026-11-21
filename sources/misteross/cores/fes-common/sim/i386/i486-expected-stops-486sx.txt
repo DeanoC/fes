@@ -87,6 +87,7 @@ cmpxchg-m32-readonly agree
 cmpxchg-m32-notpresent agree
 xadd-m32-notpresent agree
 invlpg-remap agree
+invlpg-past-limit agree
 invlpg-notpresent agree
 ac-popfd-then-load agree
 ac-popfd-clears agree

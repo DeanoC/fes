@@ -22,8 +22,8 @@ arm b), with these changes:
 
 | Gate | Result |
 | --- | --- |
-| Level-4 directed cases, 486SX (`I486 = 1`) | 139 of 141 agree with the oracle (101 cases and 40 `ud-` probes), on the RTL and the netlist, two runs each. The 2 stops are by design: `cpuid-1` (Bochs is a DX4, `0480h`; the identity is a 486SX, `042Bh`) and `cpuid-2` (Bochs answers leaf 2 with leaf 1; a 486 returns zeros, data book Appendix B) |
-| Level-4 directed cases, 386 (`I486 = 0`) | The 112 rows of main's `i486-expected-stops.txt` are unchanged. The 29 new cases add 29 rows, each a stop at or after its probe. RTL and netlist, two runs each |
+| Level-4 directed cases, 486SX (`I486 = 1`) | 140 of 142 agree with the oracle (102 cases and 40 `ud-` probes), on the RTL and the netlist, two runs each. The 2 stops are by design: `cpuid-1` (Bochs is a DX4, `0480h`; the identity is a 486SX, `042Bh`) and `cpuid-2` (Bochs answers leaf 2 with leaf 1; a 486 returns zeros, data book Appendix B) |
+| Level-4 directed cases, 386 (`I486 = 0`) | The 112 rows of main's `i486-expected-stops.txt` are unchanged. The 30 new cases add 30 rows, each a stop at or after its probe. RTL and netlist, two runs each |
 | Level-3 lockstep, 386, RTL | Passes. Its report equals main's (`ce67cbbc4`) in all 9,965 values except source and oracle-build digests: every count, trace hash and cycle figure is the same |
 | Level-3 lockstep, 386, netlist | Passes; equal to main's in all 9,972 values except source, netlist and oracle-build digests. The seal's own full netlist lockstep (`--with-lockstep`) passes too |
 | test386.asm, 386 | POST codes end at FFh. The report is identical to main's in all 707 values |
@@ -42,7 +42,9 @@ more #AC cases. Two of them found bugs:
 - **A delivery from CPL 3 onto an odd ESP0 hung.** #AC fired on the
   delivery's CPL-0 pushes.
 
-`bf7afef73` fixes both, and adds 5 cases. Every gate above was then rerun
+`bf7afef73` fixes both, and adds 5 cases. Codex's review then asked for
+INVLPG segment checks, which the 1992 PRM does not list; one more case pins
+that down. Every gate above was then rerun
 at `bf7afef73`: a new seal and a new kit run. The `9aa6d0561` evidence is
 kept where it is still useful: `kit/kit-b-k2044a-result.json` and
 `fits/9aa6d0561-*`.
@@ -72,12 +74,14 @@ kept where it is still useful: `kit/kit-b-k2044a-result.json` and
   RTL (`-GI486`) or with `--netlist` on the seal's netlist
   (`hierarchy -chparam`). Each identity has its own expected-stops list:
   `i486-expected-stops.txt` for the 386 and the new
-  `i486-expected-stops-486sx.txt`. `fes_i486_cases.py` gains 29 cases:
+  `i486-expected-stops-486sx.txt`. `fes_i486_cases.py` gains 30 cases:
   - XADD and CMPXCHG register aliasing and high-byte forms;
   - CMPXCHG to a read-only page and to a not-present page, checking that
     the flags and EAX are unchanged and that the error code has W set;
     XADD to a not-present page;
-  - INVLPG on a remapped page, and on a not-present one;
+  - INVLPG on a remapped page, on a not-present one, and on an offset past
+    the segment limit (the 1992 PRM lists no segment exception for INVLPG,
+    and the oracle agrees);
   - #AC after POPFD sets AC and after it clears it, and for XADD, LFS,
     BOUND, SGDT and both of MOVSD's addresses at each alignment;
   - a delivery from CPL 3 onto an odd ESP0, which must not fault;
@@ -225,7 +229,7 @@ the issue; the PR is #2045.
   identity is a build parameter that every package leaves at 0.
 - **The governor rows on a bench.** They are generated and checked
   (`fes_i386_governor.py --check`), but no bench runs at `I486 = 1`.
-- **The 386 instruction set at `I486 = 1`** is exercised only by the 141
+- **The 386 instruction set at `I486 = 1`** is exercised only by the 142
   directed rows. test386 and the level-3 suites ran on the 386 identity
   only, and no machine boot simulation was run at either identity.
 - **Plan open questions 6 and 8.** The 386-microcode behaviours and a
