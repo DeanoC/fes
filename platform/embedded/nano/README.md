@@ -1598,19 +1598,6 @@ held-data computer-switching test is separate. The production oracle continues
 to reject this diagnostic target, and `HPSContextVerifier` does not implement
 `BootHandoffVerifier`.
 
-## Repeated window audit
-
-`window_reload_trace.decode(..., window_reload=True)` requires a complete first
-window/SD-return trace before the explicit second-load marker. It then checks
-the same closed HPS context, a newly completed timed configuration and fabric
-activation, readiness, translation/firewall observations, two changing frames,
-their local drains and a new firmware closure. The second source generation
-comes only from the first fresh SD containment. Missing, repeated, reordered
-or changed records cannot qualify a load. The original single-window decoder
-continues to require twelve frames; the repeat audit explicitly selects two
-for its second session. Neither decoder grants runtime admission or HDMI
-qualification.
-
 ## Contained native boot procedure
 
 1. Claim the top board in its current status file, verify serial/cable/UART,
@@ -1673,15 +1660,6 @@ admission. The
 [matched board trial](../../../docs/validation/2026-11-03-de25-service-hardware/README.md)
 now passes all three same-package sessions and final Park; different physical
 payloads and ordinary runtime admission remain open.
-
-The request-driven fixed-window mode has a separate read-only
-`window_service_trace` auditor and injectable `WindowClient`. They require the
-matched boot prefix, both route gates, every configuration activation and each
-independent reader/master/bridge return. Cached reply observations cannot
-replace firmware evidence or mint a session. The bounded three-session client
-uses the already qualified persistent-service limits: 100s launch, 20s
-configuration, 5s control and no retry after an uncertain exchange. Physical
-acceptance for the new window service remains open until its matched image runs.
 
 `--purpose ui-catalog` uploads only `FES/UI.JSON`, bounded to 8192 bytes. It uses
 the same recovery-session ownership, scratch-memory checks and fresh SD readback
