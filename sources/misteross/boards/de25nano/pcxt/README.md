@@ -78,7 +78,15 @@ PLL, SDRAM pad timing and HDMI are not modeled.
 
 ## Open
 
-See the validation record under `sources/misteross/docs/validation/` and
-DeanoC/fes#2042 for the tier 1 work left: the signoff gate, the game corpus,
-the board SDRAM at 100 MHz on hardware, the mobile SDRAM extended mode
-register, and runtime and FogCast admission of the DE25 PC/XT package.
+The producer compiles a design that meets every reported timing check and
+passes the input and audio reviews, and refuses to package it on two
+unreviewed Design Assistant findings
+([record](../../../docs/validation/2026-11-22-de25-pcxt-compile/README.md)):
+CDC-50002 on the video mailbox's two held bank bits, and LNT-30010 on the DE10
+machine reset, which clears the vendored 8253 asynchronously and reaches 248
+clock enables. The remaining tier 1 work is on DeanoC/fes#2068 and #2042: the
+signoff gate, the repeat compile and a package, the board SDRAM at 100 MHz on
+hardware (and the mobile SDRAM's extended mode register, which the DE10
+controller does not program), a kit run to `A:\>`, the game corpus, library
+launches with an initial disk (FogCast's initial-disk path is still the DE10
+format 2's), and bundled GLaBIOS/font firmware.
