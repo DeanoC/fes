@@ -14,20 +14,20 @@ of them; the worst slack is hold, 0.000 ns.
 
 ## Before and after
 
-| Rule | j (before) | k | l | m | n | o | p (after) |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| CDC-50001 | 90 | 72 | 67 | 72 | 72 | 72 | **67** |
-| CDC-50002 | 3 | 6 | 6 | 6 | 6 | 6 | **6** |
-| CDC-50007 | 1 | – | – | – | – | – | – |
-| CDC-50102 | 1 | 1 | 1 | 1 | 1 | 1 | **1** |
-| TMC-20023 | – | 1 | – | – | – | – | – |
-| LNT-30010 | 2 | 3 | 2 | 2 | 2 | 2 | **3** |
-| FLP-10000 | 54 | 54 | 54 | 54 | 54 | 54 | **54** |
-| TMC-20602 | 24 | 22 | 24 | 24 | 24 | 24 | **23** |
-| RDC-50003 | 3 | 3 | 3 | 3 | 3 | 3 | **3** |
-| TMC-20011 | 2 | 2 | 2 | 2 | 2 | 2 | **2** |
-| TMC-20012 | 5 | 5 | 5 | 5 | 5 | 5 | **5** |
-| Failed rules | 10 | 10 | 9 | 9 | 9 | 9 | **9** |
+| Rule | j (before) | k | l | m | n | o | p | s (head) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| CDC-50001 | 90 | 72 | 67 | 72 | 72 | 72 | 67 | **67** |
+| CDC-50002 | 3 | 6 | 6 | 6 | 6 | 6 | 6 | **6** |
+| CDC-50007 | 1 | – | – | – | – | – | – | – |
+| CDC-50102 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | **1** |
+| TMC-20023 | – | 1 | – | – | – | – | – | – |
+| LNT-30010 | 2 | 3 | 2 | 2 | 2 | 2 | 3 | **3** |
+| FLP-10000 | 54 | 54 | 54 | 54 | 54 | 54 | 54 | **–** |
+| TMC-20602 | 24 | 22 | 24 | 24 | 24 | 24 | 23 | **24** |
+| RDC-50003 | 3 | 3 | 3 | 3 | 3 | 3 | 3 | **3** |
+| TMC-20011 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | **2** |
+| TMC-20012 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | **5** |
+| Failed rules | 10 | 10 | 9 | 9 | 9 | 9 | 9 | **8** |
 
 | Fit | Commit | What changed |
 | --- | --- | --- |
@@ -38,6 +38,7 @@ of them; the worst slack is hold, 0.000 ns.
 | n | `3cdd2071c` | Fault copy enabled from its synchroniser alone |
 | o | `2b6380401` | Fault acknowledge its own launch register |
 | p | `ed95c3d21` | Fault record launched from a register that only copies it |
+| s | `250a84ab9` | Main merged (#2039's pc386_status fix in the machine netlist); the window bridge's reset synchronisers admitted by named basis; the builder takes the Quartus lease. No board RTL change from p |
 
 ## What the board fixes removed
 
@@ -111,19 +112,31 @@ The build signed off here is the 387-off shell (`x87_present` tied to 0), the
 build Deano chose (21 November 2026) for slice 3's package and slice 4's
 platform and kit run.
 
-## Open
+## The full gate on s
 
-- **RDC-50003** (3 rows): the window bridge's two DC FIFOs (Platform Designer
-  `mm_ccb`) put their own reset synchronisers in the machine and 100 MHz
-  domains, beside the board's. The HDMI output-reset row is the one the
-  Spectrum's review admits. No bridge parameter removes the FIFO
-  synchronisers. Whether to admit them or replace the bridge is Deano's
-  decision; the gate refuses here until then.
+s is the head's board (`250a84ab9`), 42,002 of 46,800 ALMs. The DE25 package
+gate's timing evidence, run dry on it with the async (window-bridge reset
+included), audio and machine-finding reviews collected, admits it:
+`package_timing_admission` true, 8 failed rules, 0 unreviewed, every reported
+analysis passing. Worst slack across corners: setup +1.367 ns, hold +0.000 ns,
+recovery +7.451 ns, removal +0.029 ns, minimum pulse width +0.220 ns.
+
+FLP-10000 does not fire on s: the fitter packed the small RAMs of the merged
+netlist differently. Its basis stays in the table and admits nothing there; the
+gate takes an entry only for a failed rule. TMC-20602 is 24 again, as on j to o.
+
+- **RDC-50003** (3 rows): one entry. The HDMI output-reset row is the one the
+  Spectrum's review admits. The other two are the window bridge's DC FIFO
+  reset synchronisers (Platform Designer `mm_ccb`, `altera_avalon_dc_fifo.v`
+  lines 238–255, outside the `SYNC_RESET` generate, so no parameter removes
+  them). Deano chose (21 November 2026) to keep the bridge and admit them by a
+  named basis, `scanout/bridge_reset.py`. It names the four synchroniser
+  instances and their two source resets, pins the compiled FIFO source, and
+  requires recovery and removal to pass at every corner on every load of every
+  chain, each load inside its own FIFO. On p, 387 loads, worst +0.259 ns at the
+  default corner. The rule's count is 3 only for a build with the window; every
+  other core still needs exactly 1.
 - **TMC-20011/TMC-20012**: admitted by the Spectrum's existing input and audio
   reviews, which collect on the pc386 topology.
-- **Main merged after p.** Main (`c132fedb5`) brings #2039's pc386_status
-  fix into the machine netlist, so p is the pre-merge netlist; the counts
-  above are re-taken on the producer's fits.
 - **A dry run, not a package.** The record here is the producer's own, with
-  stub tool identities. The signoff and repeat fits run once RDC-50003 is
-  settled and main is merged.
+  stub tool identities. The producer's signoff and repeat fits follow.
