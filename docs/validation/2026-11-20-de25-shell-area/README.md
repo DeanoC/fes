@@ -57,10 +57,10 @@ Baselines:
 | # | Candidate | ALM bound (ablation spread) | RAM | DSP | Control | Status | Cost | Boards affected |
 |---|---|---:|---:|---:|---|---|---|---|
 | 1 | **S-ocm**: drop the vendor OCM; `H2F_Width` 0 (#1956) | **696** (49) | **−128** | 0 | Pass: the `ocm` and `hps2fpga_axi4_rl_adp_inst` rows are gone | Measured | No cycles. The full HPS-to-FPGA bridge is removed; nothing in pc386 uses it. #1956 is an open draft, and the case where the HPS-to-FPGA bridge is unused has not run on hardware. | Every DE25 core on the managed shell |
-| 2 | **A-dma2**: DMA controller 2 removed (reads `FFh`, no hold) | **412** (172) | 0 | 0 | Pass: netlist `dma2` references 326 → 3 (the select wire and its `FFh` mux); registers −365 | Measured | No cycles: controller 2 moves no data, since its DRQs are tied to 0. The audit puts a realistic register-file-only version at about 250–280. That version keeps readback; channels 5–7 software requests would stop counting down and setting TC. No title or test depends on that (`devices_tb.cpp:432-434` checks readback only). | AT device (DE10 too). Can be gated: a new `fes_dma8237` parameter, whose default keeps today's PC/XT and DE10 behaviour |
-| 3 | **A-fifo**: PS/2 FIFOs (keyboard and mouse) given one write port and `ramstyle = "MLAB"` | **170** (69) | 0 | 0 | Pass: MLAB bits 1,421 → 1,853; registers −339 | Measured | None: behaviour and cycles are unchanged. | AT device. Same RTL on DE10 would move DE10's BUILD_ID (its Yosys policy puts multi-port memories in registers). Keeping DE10's netlist needs a parameter that selects the form |
-| 4 | **S-lat**: `qsys_top` `maxAdditionalLatency` 4 → 0 | entity ≤ 1,176 | — | — | Generation gate (amendment of 21 Nov) | **Pending** (chip queue paused) | Fewer interconnect pipeline stages; timing risk on the F2SDRAM path | Every DE25 core on the managed shell |
-| 5 | **S-rsp2**: `responseFifoType` `EMBEDDED_MEMORY_BASED`, applied after integration | entity ≤ 957 | about +3 to +7 (est.) | — | Generation gate: `USE_MEMORY_BLOCKS (1)` | **Pending** (chip queue paused) | Trades ALMs for M20K, and RAM is also short with the 387 on | Every DE25 core on the managed shell |
+| 2 | **S-lat**: `qsys_top` `maxAdditionalLatency` 4 → 0 | **946** (58.9) | 0 | 0 | Pass: generation gate (`qsys_top` F2SDRAM interconnect has 0 pipeline instances against `j`'s 16); fit: `mm_interconnect_0` 2,065 → 1,272 ALMs, its pipeline rows 1,176 → 0, registers 5,140 → 1,264 | Measured | No cycles in RTL; the Qsys interconnect adds no optional pipeline stages, so F2SDRAM command and response paths lose their extra register stages (lower latency, not higher). Timing passes on all seeds: worst setup +1.294 against base +1.435, on the video pixel clock (`iopll_0_outclk0`), not the F2SDRAM path. Not run on hardware. | Every DE25 core on the managed shell |
+| 3 | **A-dma2**: DMA controller 2 removed (reads `FFh`, no hold) | **412** (172) | 0 | 0 | Pass: netlist `dma2` references 326 → 3 (the select wire and its `FFh` mux); registers −365 | Measured | No cycles: controller 2 moves no data, since its DRQs are tied to 0. The audit puts a realistic register-file-only version at about 250–280. That version keeps readback; channels 5–7 software requests would stop counting down and setting TC. No title or test depends on that (`devices_tb.cpp:432-434` checks readback only). | AT device (DE10 too). Can be gated: a new `fes_dma8237` parameter, whose default keeps today's PC/XT and DE10 behaviour |
+| 4 | **A-fifo**: PS/2 FIFOs (keyboard and mouse) given one write port and `ramstyle = "MLAB"` | **170** (69) | 0 | 0 | Pass: MLAB bits 1,421 → 1,853; registers −339 | Measured | None: behaviour and cycles are unchanged. | AT device. Same RTL on DE10 would move DE10's BUILD_ID (its Yosys policy puts multi-port memories in registers). Keeping DE10's netlist needs a parameter that selects the form |
+| 5 | **S-rsp2**: `responseFifoType` `EMBEDDED_MEMORY_BASED`, applied after integration | entity ≤ 957 | about +3 to +7 (est.) | — | Generation gate passed: `USE_MEMORY_BLOCKS (1)` | **Not measured: blocked by the shared-reset guard** (see below) | Trades ALMs for M20K, and RAM is also short with the 387 on | Every DE25 core on the managed shell |
 | 6 | **A-kbcram**: 8042 RAM bytes 1–31 dropped | 98.5 (126) | 0 | 0 | No precommitted control. Registers −138 | Within the spread; not measured | Commands 21h–3Fh and 61h–7Fh would read 0. No title or test uses them. | AT device; can be gated |
 | 7 | **A-pitbcd**: KF8253 BCD counting dropped | −1 (114) | 0 | 0 | Pass: `dec_bcd_q` 12 → 0; registers −159 | No saving: the logic packs into ALMs already in use | Breaks `devices_tb.cpp:335-367`; vendor patch | — |
 | — | **S-rsp v1** | — | — | — | **Failed**: generated interconnect identical to `j` | Not measured (amendment) | | |
@@ -69,17 +69,27 @@ Timing: every measured arm passes on every seed.
 - Shell arm, worst over seeds:
   - Baseline: setup +1.435, hold 0.000, removal +0.008, minimum pulse width +0.220.
   - S-ocm: setup +1.408, removal +0.034, minimum pulse width +0.220.
+  - S-lat: setup +1.294, hold 0.000, removal +0.005, minimum pulse width +0.220.
 - AT arm: all fits report status "pass".
   - Worst setup over seeds: baseline +7.613, dma2 +7.390, fifo +7.574, kbcram +7.458, pitbcd +7.321.
   - Worst hold: +0.013 or better throughout.
 
-**Measured so far: 696 + 412 + 170 = about 1,280 ALMs and 128 RAM blocks**, against the 387-on step's 3,500. The two pending shell candidates have entity upper bounds of about 2,130 ALMs between them, and S-rsp2 would spend RAM to save ALMs. Even with those, the shell and AT cuts in scope here do not cover 3,500.
+**Measured: 696 + 946 + 412 + 170 = about 2,220 ALMs and 128 RAM blocks**, against the 387-on step's 3,500. That is a sum of separate ablations, each against its own baseline; no combined fit was run. S-ocm and S-lat touch different interconnects (`hps2fpga` and F2SDRAM), but their sum is not measured.
+
+About 1,280 ALMs remain. S-rsp2's entity bound (≤ 957, spending RAM) is not measured. The second-F2SDRAM-master bound below was taken against the pipelined interconnect; with S-lat, `mm_interconnect_0` is 1,272 ALMs, so what merging the masters would still save on top of S-lat is smaller and unmeasured. The shell and AT cuts in scope here do not reach 3,500 on measured evidence.
+
+### Why S-rsp2 is not measured
+
+- The generation gate passed: the regenerated `fes_mem_cdc` response FIFO has `USE_MEMORY_BLOCKS (1)`.
+- The board build then exited 1. After generation, `scanout/shared_resets.py:154` adds the shared FIFO reset wrapper to `peripheral_subsys.v` only if the generated file matches a reviewed digest. The knob renames four generated interconnect modules in that file (`mm_interconnect_0`, `_1`, `_3`, `_4`), so the digest no longer matches, and the build refuses with `unreviewed generated input: peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v`.
+- The four seeds compiled the unwrapped project anyway, a flaw in the study's run script. Each failed in the fitter with `FIFO peer reset ingress changed` (Error 332000). No figures came from them.
+- Getting past this means reviewing the new generated file and adding its digest to the guard. That is a change to a seal check, so the study stops here and reports it. Whether to do that is the coordinator's call.
 
 ## Entity bounds only (not ablated)
 
 | Candidate | Entity bound | Why not ablated | Board |
 |---|---:|---|---|
-| The second F2SDRAM master: merge the window into the scanout master before Qsys | about 1,284 (2,065 against 770) | It is an RTL design change in #2036's files, which the brief rules out | DE25 pc386 |
+| The second F2SDRAM master: merge the window into the scanout master before Qsys | about 1,284 (2,065 against 770), before S-lat; overlaps S-lat | It is an RTL design change in #2036's files, which the brief rules out | DE25 pc386 |
 | The F2SDRAM agent's `read_rsp_fifo` and `write_rsp_fifo` | 350 + 74 | `responseFifoType` does not govern this AXI agent's FIFOs. Its generated HDL is byte-identical to `j`, with `USE_MEMORY_BLOCKS (0)` | Every DE25 core |
 | The rest of the vendor HPS adapters (`sm_hps`, `sm_mpfe`) | about 630 left after S-ocm | Vendor IP | Every DE25 core |
 
@@ -102,6 +112,7 @@ Do not cut: PIT modes 1 and 5, the RTC periodic interrupt (used by the BIOS INT 
 ## Deano's cycle rule
 
 None of the measured cuts adds cycles. The DE10 question is therefore about netlist identity and behaviour, not timing.
+- **S-ocm and S-lat:** DE25 managed-shell Qsys settings only. The DE10 build has no `qsys_top`, so neither touches the DE10 or the machine netlist. They apply to every DE25 core, 387 on or off, so they need hardware runs across DE25 cores rather than a per-board parameter.
 - **A-dma2 and A-kbcram:** these drop features. Each needs a per-board parameter, defaulting to today's behaviour, to leave the DE10 unchanged.
 - **A-fifo:** keeps behaviour, but it moves DE10's BUILD_ID unless a parameter selects the register form there.
 
@@ -126,4 +137,5 @@ For the 387-on step's planning only; these were not measured here:
 
 - **Shell netlist identity:** every shell seed compiles build `j`'s exact machine netlist (`5b80c0cd…`), as amended in method.md.
 - **AT baseline:** the AT arm fits its own baseline, elaboration `cc9b0a89…`.
+- **Shared lease:** from 21 November every shell build and seed ran under `flock /tmp/lander-quartus-3090.lock`, released between seeds. S-lat's seeds ran 10:46–13:10Z.
 - **Memory kills:** on 20 November, about 21:36Z, three runs were killed by signal 9: S-ocm s3, S-rsp s1 and A-dma2 s1. The 23 GB host was running two shell compiles and an AT fit at once. S-ocm s3 and A-dma2 s1 were rerun one at a time with the same inputs; S-rsp v1 s1 was not rerun.
