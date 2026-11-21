@@ -95,6 +95,7 @@ ac-movsd-source stop @1046.eflags 40002 2
 ac-movsd-aligned stop @1046.eflags 40002 2
 ac-delivery-odd-esp0 stop @1046.eflags 40002 2
 ac-delivery-same-privilege stop @1046.eflags 40002 2
+ac-exception-delivery-same-privilege stop @1046.eflags 40002 2
 ac-xadd-m32 stop @1046.eflags 40002 2
 ac-lfs-at-2 stop @1046.eflags 40002 2
 ac-lfs-aligned stop @1046.eflags 40002 2

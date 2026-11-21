@@ -2094,10 +2094,9 @@ struct Outcome {
     bool window_code = false;   // stopped at code in the MMIO window, which neither side fetches
     bool code_store = false;    // stopped at a store into its code that it did not plan
     bool rep_self_store = false;  // the oracle stopped inside REP after overwriting its own bytes
-    // Against the level-4 oracle, stopped before a delivery from CPL 3 to
-    // CPL 3 onto a stack that is not dword-aligned with AC and AM set, which
-    // Bochs cannot step (ac_delivery_stop).
-    bool ac_stack = false;
+    // Against the level-4 oracle, stopped in the #AC delivery loop that a
+    // ring-3 gate 17 and a misaligned ring-3 stack make (see lockstep).
+    bool ac_loop = false;
     // With mixed memory, stopped at code outside the program (own) and the
     // injected interrupts' handlers (the real-mode one and the protected-mode
     // IDT's), at code other than the 16 bytes from the
@@ -2411,6 +2410,13 @@ void count_i486_form(const uint8_t *code, const State &before, const State &afte
             break;
         }
     if (fault && fault->vector == 17) ++summary.i486_forms["ac-fault"];
+    // An #AC that a delivery's push raised: the step's events have another
+    // before it (a delivery that stayed at CPL 3 on a misaligned stack).
+    for (size_t n = 1; n < result.events.size(); ++n)
+        if (result.events[n].kind == fes_i386::EventKind::Exception && result.events[n].vector == 17) {
+            ++summary.i486_forms["ac-in-delivery"];
+            break;
+        }
     if (fault && fault->vector == 14 && (fault->error_code & 7) == 3 && (before.cr0 & 0x10000) && !interrupted)
         ++summary.i486_forms["wp-fault"];
     if (interrupted) return;
@@ -2565,9 +2571,6 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             std::fprintf(stderr, "  cs.sel %x cs.ar %x cs.limit %x rtl.cs %x/%x/%x\n", before.seg[fes_i386::SEG_CS].selector, before.seg[fes_i386::SEG_CS].ar, before.seg[fes_i386::SEG_CS].limit, rtl.state().seg[1].selector, rtl.state().seg[1].ar, rtl.state().seg[1].limit);
         }
 
-        // An interrupt injected at the start of this step (for the AC
-        // delivery stop below).
-        const bool irq_now = irq && (irq->intr_next || irq->nmi_next);
         if (irq) {
             if (irq->intr_next) {
                 bus.pic.intr = true;
@@ -2663,27 +2666,24 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         if (verbose)
             std::fprintf(stderr, "  rtl event %d vector %x unbuilt %d error %x\n", int(event), unsigned(rtl.top.trace_vector),
                          int(rtl.top.trace_unbuilt), unsigned(rtl.top.trace_error));
-        // The AC delivery stop (level 4). Bochs checks a delivery's own pushes
-        // for alignment: from CPL 3 to CPL 3 with AC and AM set onto a stack
-        // that is not dword-aligned, a push raises #AC, whose delivery pushes
-        // onto the same stack and raises it again, without end
-        // (BX_CPU_C::exception, interrupt, protected_mode_int,
-        // stack_write_word, until the host's stack overflows). A 486 that
-        // checked those pushes would not finish the delivery either, so no
-        // program relies on it; the RTL checks no delivery push. When the
-        // RTL's step delivered an exception, or the step is INT n, INT3,
-        // INTO or ICEBP, or takes an injected interrupt, from CPL 3 outside
-        // V86 mode under those conditions and the RTL ends it at CPL 3, the
-        // run stops before the oracle steps.
-        if (i486 && before.cpl == 3 && !(before.eflags & 0x20000) && (before.eflags & 0x40000) && (before.cr0 & 0x40000)
-            && (before.gpr[fes_i386::REG_ESP] & 3) && rtl.state().cpl == 3) {
-            const uint8_t op = code[opcode_of(code).at];
-            if (rtl.top.trace_exception || irq_now || (irq && (irq->intr_at >= 0 || irq->nmi_at >= 0))
-                || op == 0xcd || op == 0xcc || op == 0xce || op == 0xf1) {
-                outcome.ac_stack = true;
-                ++summary.i486_forms["ac-delivery-stop"];
-                return outcome;
-            }
+        // The #AC delivery loop (level 4). At CPL 3 outside V86 mode with AM
+        // and AC set, a delivery that stays at CPL 3 pushes onto the current
+        // stack, and a misaligned push raises #AC, as hardware does (Deano,
+        // 21 November 2026; CVE-2015-5307: a ring-3 #AC handler on an
+        // unaligned stack never returns from microcode). When gate 17 is
+        // also to CPL 3, #AC's own delivery raises #AC again without end:
+        // the RTL delivers nothing and times out, as a real CPU never
+        // finishes, while Bochs recurses through exception() until the
+        // host's stack overflows. Only that shared loop stops the run here,
+        // before the oracle steps: the RTL timed out in the delivery of #AC
+        // from a step that began at CPL 3 with AM and AC set on a stack
+        // that was not dword-aligned.
+        if (i486 && event == Rtl::Event::Timeout && rtl.top.trace_vector == 17 && before.cpl == 3
+            && !(before.eflags & 0x20000) && (before.eflags & 0x40000) && (before.cr0 & 0x40000)
+            && (before.gpr[fes_i386::REG_ESP] & 3)) {
+            outcome.ac_loop = true;
+            ++summary.i486_forms["ac-delivery-loop"];
+            return outcome;
         }
 
         // The oracle raises each line the RTL raised as element m retired
@@ -7108,12 +7108,12 @@ private:
         load_seg(0, sane(false));
     }
     // A 486's alignment check at CPL 3 (isa486, from side): AC set by POPFD,
-    // which CPL 3 may change, then an access that is misaligned two times in
-    // three: a load or store of a word at an odd offset or of a dword at one
-    // that is not a multiple of 4 through DS; else an aligned dword. CR0.AM
-    // decides whether it raises #AC(0). The stack stays aligned: an #AC
-    // delivered at CPL 3 onto a misaligned stack is one Bochs cannot step
-    // (the AC delivery stop); the directed ac-fault-push case covers PUSH.
+    // which CPL 3 may change, then one of four: a load or store of a word at
+    // an odd offset or of a dword at one that is not a multiple of 4 through
+    // DS (two of the four); an aligned dword load; or a misaligned stack,
+    // DEC ESP, PUSH EAX, POP EAX, INC ESP, so a delivery from CPL 3 may meet
+    // a misaligned stack (see the #AC delivery loop in lockstep). CR0.AM
+    // decides whether a misaligned access raises #AC(0).
     void ac_ring3() {
         emit({0x66, 0x9c});                          // PUSHFD
         emit({0x66, 0x58});                          // POP EAX
@@ -7122,7 +7122,13 @@ private:
         emit({0x66, 0x9d});                          // POPFD
         const bool dword = s486(2);
         uint16_t off = uint16_t(side() & 0xffc);
-        switch (s486(3)) {
+        switch (s486(4)) {
+        case 3:  // DEC ESP; PUSH EAX; POP EAX; INC ESP
+            emit({0x66, 0x4c});
+            emit({0x66, 0x50});
+            emit({0x66, 0x58});
+            emit({0x66, 0x44});
+            break;
         case 0: case 1: {  // MOV (E)AX, [off] or MOV [off], (E)AX
             off |= dword ? uint16_t(1 + s486(3)) : 1;
             std::vector<uint8_t> op;
@@ -8030,7 +8036,7 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         }
         if (out.items.empty() && !outcome.halted && !outcome.limit && outcome.exception < 0 &&
             !outcome.shutdown && !outcome.vector_moved && !outcome.window_code && !outcome.code_store &&
-            !outcome.stray && outcome.unbuilt < 0 && !outcome.ac_stack)
+            !outcome.stray && outcome.unbuilt < 0 && !outcome.ac_loop)
             out.add("halt", 1, 0);
         summary.window_code += outcome.window_code;
         summary.code_stores += outcome.code_store;

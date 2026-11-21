@@ -611,15 +611,25 @@ def cases() -> list[Case]:
     # a misaligned ESP0 does not fault (PRM 9.9.16: only CPL 3 is checked).
     protected('ac-delivery-odd-esp0', source17, {'end': 'int:3'}, lambda a: None, ring3_eflags=AC,
               esp0=TSS_ESP0 + 1, what='INT3 from CPL 3 onto an odd ESP0 does not fault')
-    # An exception delivered at CPL 3 (a gate to the DPL-3 code segment)
-    # pushes onto the misaligned current stack, and the oracle delivers it
-    # without #AC: a delivery's accesses are not alignment-checked. No 486
-    # document read says whether they are; the RTL makes none of a
-    # delivery's accesses (system ones and nstk pushes) take #AC.
-    protected('ac-delivery-same-privilege', 'Bochs (no 486 document read settles a delivery\'s pushes)',
-              {'end': 'exception:6'},
+    # A delivery that stays at CPL 3 (a gate to the DPL-3 code segment)
+    # pushes onto the current stack as CPL-3 accesses, so a misaligned push
+    # raises #AC, which gate 17 delivers at CPL 0. Hardware does this
+    # (CVE-2015-5307: a ring-3 #AC handler on an unaligned stack loops in
+    # microcode); no 486 document read settles it, and Deano chose it on
+    # 21 November 2026. INT 6 is not an exception, so the case's first
+    # exception is the #AC, with error code 0.
+    source_delivery = 'Deano 21 Nov 2026, as hardware (CVE-2015-5307); no 486 document read settles it'
+    protected('ac-delivery-same-privilege', source_delivery, {'end': 'exception:17', 'error': 0},
+              lambda a: a.op(0xcd, 0x06), ring3_eflags=AC, ring3_esp=RING3_ESP + 1, ring3_vectors=(6,),
+              what='INT 6 to a CPL-3 gate onto a misaligned stack raises #AC(0)')
+    # The same for an exception's delivery: #UD's pushes raise #AC, whose
+    # error code has EXT set, on the oracle as on the RTL. The row holds
+    # the first exception, #UD; the lockstep compares the #AC's frame. The
+    # PRM's "always zero" (Table 9-8) does not say whether EXT is set for
+    # an #AC inside a delivery.
+    protected('ac-exception-delivery-same-privilege', source_delivery, {'end': 'exception:6'},
               lambda a: a.op(0x0f, 0xff), ring3_eflags=AC, ring3_esp=RING3_ESP + 1, ring3_vectors=(6,),
-              what='#UD delivered at CPL 3 onto a misaligned stack takes no #AC')
+              what='#UD delivered at CPL 3 onto a misaligned stack raises #AC, EXT set')
     protected('ac-xadd-m32', source17, {'end': 'exception:17', 'error': 0},
               lambda a: a.op(0x0f, 0xc1, 0x1d).d(PAGE + 1), ring3_eflags=AC,
               what='a misaligned XADD is #AC(0)')
