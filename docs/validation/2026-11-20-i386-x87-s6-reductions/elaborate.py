@@ -25,12 +25,7 @@ def main() -> int:
     parser.add_argument('--hierarchy', action='store_true')
     args = parser.parse_args()
     sys.path.insert(0, str(args.root.resolve()))
-    # The pc386 machine program's module: scripts/pc386_quartus.py on main from
-    # #2032, scripts/build_fes_pc386_quartus.py before it (#2037's tree).
-    try:
-        from scripts import pc386_quartus as sealer
-    except ImportError:
-        from scripts import build_fes_pc386_quartus as sealer
+    from scripts import pc386_quartus as sealer
     from scripts import fit_i386_device as fit
     from scripts import quartus_x87_spike as spike
     if args.hierarchy:
