@@ -95,6 +95,7 @@ ac-movsd-destination agree
 ac-movsd-source agree
 ac-movsd-aligned agree
 ac-delivery-odd-esp0 agree
+ac-delivery-same-privilege agree
 ac-xadd-m32 agree
 ac-lfs-at-2 agree
 ac-lfs-aligned agree

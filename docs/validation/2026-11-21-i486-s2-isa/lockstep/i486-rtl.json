@@ -1,5 +1,5 @@
 {
-  "cases_sha256": "3d086429402311d4243b09850c52586f7b6250509e616cd5bbe478631e0c6585",
+  "cases_sha256": "94b9ad8d678f32f5790dcec248c37614e519d9cec9091ea2b42cece75c8b0818",
   "failures": [],
   "lockstep": {
     "386": {
@@ -737,6 +737,14 @@
           "as_expected": true,
           "divergence": null,
           "isolated": true,
+          "label": "ac-delivery-same-privilege",
+          "probe": "1046",
+          "rtl": "stop @1046.eflags 40002 2"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
           "label": "ac-xadd-m32",
           "probe": "1046",
           "rtl": "stop @1046.eflags 40002 2"
@@ -1145,10 +1153,10 @@
       "expected": "i486-expected-stops.txt",
       "i486": 0,
       "runs_equal": true,
-      "stop": 87
+      "stop": 88
     },
     "486sx": {
-      "agree": 140,
+      "agree": 141,
       "cases": [
         {
           "as_expected": true,
@@ -1875,6 +1883,14 @@
           "divergence": null,
           "isolated": true,
           "label": "ac-delivery-odd-esp0",
+          "probe": "1046",
+          "rtl": "agree"
+        },
+        {
+          "as_expected": true,
+          "divergence": null,
+          "isolated": true,
+          "label": "ac-delivery-same-privilege",
           "probe": "1046",
           "rtl": "agree"
         },
@@ -3564,6 +3580,18 @@
         "pass": true,
         "source": "PRM 9.9.16, Table 9-8 (error code always zero)",
         "what": "INT3 from CPL 3 onto an odd ESP0 does not fault"
+      },
+      {
+        "differences": [],
+        "divergence": null,
+        "expected": {
+          "end": "exception:6"
+        },
+        "i486": null,
+        "label": "ac-delivery-same-privilege",
+        "pass": true,
+        "source": "Bochs (no 486 document read settles a delivery's pushes)",
+        "what": "#UD delivered at CPL 3 onto a misaligned stack takes no #AC"
       },
       {
         "differences": [],

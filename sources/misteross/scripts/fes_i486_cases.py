@@ -93,7 +93,8 @@ def _real(body: Asm) -> dict[int, bytes]:
 
 
 def _protected(body, cr0: int | None = None, page: int | None = None, ring3_eflags: int | None = None,
-               ring3_esp: int = RING3_ESP, esp0: int = TSS_ESP0) -> tuple[dict[int, bytes], Asm, int]:
+               ring3_esp: int = RING3_ESP, esp0: int = TSS_ESP0,
+               ring3_vectors: tuple[int, ...] = ()) -> tuple[dict[int, bytes], Asm, int]:
     """A 32-bit protected-mode program; returns its image, code and the body's offset.
 
     The GDT: 08h code and 10h data, flat, DPL 0; 18h code and 20h data, flat,
@@ -141,7 +142,10 @@ def _protected(body, cr0: int | None = None, page: int | None = None, ring3_efla
     gdt = (bytes(8) + _descriptor(0, 0xfffff, 0x9b, True, True) + _descriptor(0, 0xfffff, 0x93, True, True)
            + _descriptor(0, 0xfffff, 0xfb, True, True) + _descriptor(0, 0xfffff, 0xf3, True, True)
            + _descriptor(TSS, 0x67, 0x89, False, False))
-    idt = b''.join(_gate(0x08, HANDLER, 0xee if vector == 3 else 0x8e) for vector in range(32))
+    # ring3_vectors' gates lead to the same HLT through the DPL-3 code
+    # segment, so their deliveries from CPL 3 stay at CPL 3.
+    idt = b''.join(_gate(0x1b, HANDLER, 0xee) if vector in ring3_vectors else
+                   _gate(0x08, HANDLER, 0xee if vector == 3 else 0x8e) for vector in range(32))
     tss = bytearray(0x68)
     tss[4:8] = esp0.to_bytes(4, 'little')
     tss[8:10] = (0x10).to_bytes(2, 'little')
@@ -607,6 +611,15 @@ def cases() -> list[Case]:
     # a misaligned ESP0 does not fault (PRM 9.9.16: only CPL 3 is checked).
     protected('ac-delivery-odd-esp0', source17, {'end': 'int:3'}, lambda a: None, ring3_eflags=AC,
               esp0=TSS_ESP0 + 1, what='INT3 from CPL 3 onto an odd ESP0 does not fault')
+    # An exception delivered at CPL 3 (a gate to the DPL-3 code segment)
+    # pushes onto the misaligned current stack, and the oracle delivers it
+    # without #AC: a delivery's accesses are not alignment-checked. No 486
+    # document read says whether they are; the RTL makes none of a
+    # delivery's accesses (system ones and nstk pushes) take #AC.
+    protected('ac-delivery-same-privilege', 'Bochs (no 486 document read settles a delivery\'s pushes)',
+              {'end': 'exception:6'},
+              lambda a: a.op(0x0f, 0xff), ring3_eflags=AC, ring3_esp=RING3_ESP + 1, ring3_vectors=(6,),
+              what='#UD delivered at CPL 3 onto a misaligned stack takes no #AC')
     protected('ac-xadd-m32', source17, {'end': 'exception:17', 'error': 0},
               lambda a: a.op(0x0f, 0xc1, 0x1d).d(PAGE + 1), ring3_eflags=AC,
               what='a misaligned XADD is #AC(0)')
