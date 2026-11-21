@@ -784,6 +784,24 @@ class JobsTests(unittest.TestCase):
             self.assertEqual(self.jobs.run("lite", "", ["true"], sample_seconds=0.1), 0)
             self.assertEqual(next(memory, "drained"), "drained", "admitted before memory was available")
 
+    def test_a_stale_waiter_marker_exempts_nobody(self):
+        # Codex P1 at f2eae796b: a waiter killed after writing its marker left
+        # it behind; a later holder with the same pid was then not counted.
+        other = self.pools["pro"][0]
+        holder = subprocess.Popen(["flock", other, "sleep", "30"])
+        self.addCleanup(holder.wait)
+        self.addCleanup(holder.terminate)
+        deadline = time.monotonic() + 10
+        while not qt.flock_holders(other) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        pid = next(iter(qt.flock_holders(other)))
+        waiting = Path(self.jobs.ADMISSION_WAITERS)
+        waiting.mkdir(exist_ok=True)
+        (waiting / str(pid)).write_text("12345")  # another process's start time
+        self.assertGreater(self.jobs.outstanding_kib("none"), 8 * 1024 ** 2)
+        (waiting / str(pid)).write_text(self.jobs._start_time(pid))
+        self.assertEqual(self.jobs.outstanding_kib("none"), 0)
+
     def test_a_signal_while_the_job_starts_still_stops_the_job(self):
         # Codex P1 at 9b3488e06: SIGTERM between Popen and the relay handlers
         # killed the wrapper and left the job running unleased.

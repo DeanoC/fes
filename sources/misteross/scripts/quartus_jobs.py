@@ -321,6 +321,15 @@ def _tree_rss_kib(root: int) -> int:
     return total
 
 
+def _start_time(pid: int) -> str:
+    """A process's start time since boot (in clock ticks), which with its pid
+    names one process; empty when it is gone."""
+    try:
+        return Path(f"/proc/{pid}/stat").read_bytes().rsplit(b")", 1)[1].split()[19].decode()
+    except (OSError, IndexError):
+        return ""
+
+
 def outstanding_kib(own_slot: str) -> int:
     """Memory the other running Quartus jobs on this host may still grow into:
     for each other held slot, its edition's peak less what its holder's
@@ -329,10 +338,20 @@ def outstanding_kib(own_slot: str) -> int:
     for name in ("lite", "pro"):
         for path in quartus_tools.lease_pool(name):
             peaks[path] = max(peaks.get(path, 0), quartus_tools.PEAK_RSS_GIB[name] * 1024 * 1024)
+    waiting = set()
     try:
-        waiting = {int(name) for name in os.listdir(ADMISSION_WAITERS) if name.isdigit()}
+        names = os.listdir(ADMISSION_WAITERS)
     except OSError:
-        waiting = set()
+        names = []
+    for name in names:
+        # A marker counts only for the process that wrote it: same pid and
+        # same start time. One left by a killed waiter, whose pid another
+        # process has since taken, exempts nobody.
+        try:
+            if name.isdigit() and Path(ADMISSION_WAITERS, name).read_text().strip() == _start_time(int(name)):
+                waiting.add(int(name))
+        except OSError:
+            continue
     total = 0
     for path, peak in peaks.items():
         if path == own_slot:
@@ -360,7 +379,7 @@ def admit(edition: str, slot: str) -> None:
                     return
                 # Waiting, under the lock: no other admission counts this one.
                 marker.parent.mkdir(mode=0o1777, exist_ok=True)
-                marker.write_text("")
+                marker.write_text(_start_time(os.getpid()))
             print(f"quartus_jobs: waiting for memory: {available / 1024 ** 2:.1f} GiB available, "
               f"{reserved / 1024 ** 2:.1f} GiB reserved by running jobs, {need / 1024 ** 2:g} GiB needed",
               file=sys.stderr, flush=True)
