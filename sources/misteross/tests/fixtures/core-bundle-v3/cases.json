@@ -217,6 +217,22 @@
     "package_id": "73e344ef2f53974ffc992d4764531dd6e50b95c25f55f13b886b56de7101140c"
   },
   {
+    "name": "valid-nano-upload-49152",
+    "manifest": "manifests/valid-nano-upload-49152.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-nano-upload-49152.json",
+    "valid": true,
+    "package_id": "a463460e44520b3c705f90cd37eba21f792609675219297557b30f1cc28dca28"
+  },
+  {
+    "name": "valid-nano-upload-65536",
+    "manifest": "manifests/valid-nano-upload-65536.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-nano-upload-65536.json",
+    "valid": true,
+    "package_id": "8d4468207d96f1edbfe6360c236b254aff845d391b2f460300eb8708b0948c53"
+  },
+  {
     "name": "valid-nano-upload-196608",
     "manifest": "manifests/valid-nano-upload-196608.toml",
     "payload": "payloads/fes-fixture.rbf",
