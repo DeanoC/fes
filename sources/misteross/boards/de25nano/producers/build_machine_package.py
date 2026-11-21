@@ -176,6 +176,11 @@ class Machine:
             record = self.create_build_record(root, repository, revision, identities, execution, captured,
                                               model=model)
             selected_id = build_identity(record)
+            native_spectrum = self.model_profiles.get(model) == NATIVE_SPECTRUM_PROFILE
+            if native_spectrum:
+                from boards.de25nano.spectrum import native_hps
+                if sha(Path(native_hps.__file__)) != json.loads(record)['source_inputs'][NATIVE_SPECTRUM_COMPOSER]:
+                    raise BuildError('loaded Spectrum composer differs from the recorded commit')
             if output is None:
                 parent = root / 'build' / ('de25-' + self.directory) / selected_id
                 parent.mkdir(parents=True, exist_ok=True)
@@ -188,11 +193,10 @@ class Machine:
             print(self.label + ' build: ' + str(output), flush=True)
             with common.controlled_environment(env):
                 def compile_at(name):
-                    native_spectrum = self.model_profiles.get(model) == NATIVE_SPECTRUM_PROFILE
                     if native_spectrum:
-                        from boards.de25nano.spectrum import native_hps
-                        selected, hps, scanout = native_hps.project(vendor_archive, output / name,
-                                                                     revision=revision, selected_id=selected_id)
+                        selected, hps, scanout = native_hps.project(
+                            vendor_archive, output / name, revision=revision, selected_id=selected_id,
+                            spectrum_spec=spec)
                         native_hps.generate(selected, hps, scanout, quartus_root)
                         native_hps.compile_package_candidate(selected, hps, scanout, paths['quartus'])
                     else:

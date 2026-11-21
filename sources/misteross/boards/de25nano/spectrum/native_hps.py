@@ -116,12 +116,12 @@ def jtag_stream_constraints(directory, *, generate=False):
     return receipt
 
 
-def project(archive, output, *, revision=None, selected_id=None):
-    board = spectrum.board
+def project(archive, output, *, revision=None, selected_id=None, spectrum_spec=spectrum):
+    board = spectrum_spec.board
     if selected_id is not None and (not revision or not re.fullmatch(r"[0-9a-f]{32}", selected_id) or
                                     selected_id == "0" * 32):
         raise ValueError("native Spectrum package projection requires a committed build identity")
-    output, scanout, _, hps, _ = board.prepare(spectrum, archive, output, revision,
+    output, scanout, _, hps, _ = board.prepare(spectrum_spec, archive, output, revision,
                                                model="native48", native_hps=True)
     directory = output / "combined/hps"
     project = directory / "project"
