@@ -139,10 +139,14 @@ def timed_vendor_reset_sdc(original, *, timed_instances=TIMED_RESET_INSTANCES):
     return source.encode()
 
 
-def reset_sdc_files(project):
+def reset_sdc_files(project, *, no_debug=False):
     files = sorted(project.rglob("altera_reset_controller.sdc"))
-    if len(files) != 6 or any(p.is_symlink() for p in project.rglob("*") if p.name == "altera_reset_controller.sdc"):
-        raise ValueError("generated reset SDC inventory differs from the reviewed six files")
+    if no_debug:
+        owners = sorted(path.relative_to(project).parts[0] for path in files)
+        if owners != ["hps_subsys", "peripheral_subsys", "qsys_top"]:
+            raise ValueError("generated native reset SDC owners differ from the three reviewed subsystems")
+    if len(files) != (3 if no_debug else 6) or any(path.is_symlink() for path in files):
+        raise ValueError("generated reset SDC inventory differs from the selected profile")
     for path in files:
         if any(parent.is_symlink() for parent in path.parents if parent.is_relative_to(project)):
             raise ValueError("generated reset SDC must remain inside the private project")
@@ -156,12 +160,12 @@ def repair_generated_reset_timing(directory):
     return verify_generated_reset_timing(directory)
 
 
-def write_vendor_reset_timing(directory):
+def write_vendor_reset_timing(directory, *, no_debug=False):
     project = directory / "project"
     originals = directory / "reset-timing-originals"
     originals.mkdir(exist_ok=False)
     files = {}
-    for path in reset_sdc_files(project):
+    for path in reset_sdc_files(project, no_debug=no_debug):
         relative = path.relative_to(project).as_posix()
         original = path.read_bytes()
         changed = timed_vendor_reset_sdc(original)
@@ -189,10 +193,10 @@ def verify_generated_reset_timing(directory):
     return verify_vendor_reset_timing(directory)
 
 
-def verify_vendor_reset_timing(directory):
+def verify_vendor_reset_timing(directory, *, no_debug=False):
     record = json.loads((directory / "reset-timing.json").read_text())
     project = directory / "project"
-    names = {p.relative_to(project).as_posix() for p in reset_sdc_files(project)}
+    names = {p.relative_to(project).as_posix() for p in reset_sdc_files(project, no_debug=no_debug)}
     if (set(record) != {"policy", "clock", "timed_instances", "files"} or
             record["policy"] != TIMED_RESET_RELEASE or record["clock"] != "pll_inst|iopll_0_outclk0" or
             record["timed_instances"] != list(TIMED_RESET_INSTANCES) or set(record["files"]) != names):

@@ -90,10 +90,8 @@ def jtag_stream_constraints(directory, *, generate=False):
     project = directory / "project"
     paths = sorted(project.rglob(JTAG_STREAM_SDC))
     owners = {p.relative_to(project).parts[:4] for p in paths}
-    expected = {("jtag_subsys", "ip", "jtag_subsys", master)
-                for master in ("fpga_m", "hps_f2sdram", "hps_m")}
-    expected.add(("hps_subsys", "ip", "qsys_top", "emif_io96b_hps"))
-    if (len(paths) != 4 or owners != expected or
+    expected = {("hps_subsys", "ip", "qsys_top", "emif_io96b_hps")}
+    if (len(paths) != 1 or owners != expected or
             any(not p.is_file() or p.resolve() != p for p in paths)):
         raise ValueError("native Spectrum JTAG streaming SDC inventory differs")
     receipt = {}
@@ -137,7 +135,6 @@ def project(archive, output, *, revision=None, selected_id=None, spectrum_spec=s
         inputs["scanout"]["build_identity_scheme"] = "canonical-standard-computer-v2"
         inputs[board.RECORD]["build_id"] = selected_id
     hps_system = hps.tcl_word(project / "hps_subsys/hps_subsys.qsys")
-    jtag_system = hps.tcl_word(project / "jtag_subsys/jtag_subsys.qsys")
     top_system = hps.tcl_word(project / "qsys_top.qsys")
     # Preserve native H2F/OCM, F2SDRAM without a fabric SMMU SID, and the
     # separate probe. Disable the unused coherent F2H port as native MENU does.
@@ -152,31 +149,29 @@ if {{[get_component_parameter_value f2s_data_width] != 256 ||
 set_component_parameter_value f2s_data_width 0
 save_component
 save_system {hps_system}
-load_system {jtag_system}
-remove_interface hps_m_master
-remove_instance hps_m
-save_system {jtag_system}
 
 '''
     refresh = "# Refresh the changed child interface"
     script = board.replace_once(script, refresh, configure + refresh)
-    # A constant active-low reset holds the remaining debug masters. Keep the
-    # native independent DDR probe and route scanout separately.
-    parent = '''remove_instance ace5lite_cache_coherency_translator_0
-add_instance fes_native_maintenance_reset altera_reset_bridge 19.2.0
-set_instance_parameter_value fes_native_maintenance_reset ACTIVE_LOW_RESET 1
-set_instance_parameter_value fes_native_maintenance_reset SYNCHRONOUS_EDGES none
-set_instance_parameter_value fes_native_maintenance_reset USE_RESET_REQUEST 0
-add_interface fes_native_maintenance_reset reset sink
-set_interface_property fes_native_maintenance_reset EXPORT_OF fes_native_maintenance_reset.in_reset
-remove_connection rst_in.out_reset/subsys_debug.reset
-add_connection fes_native_maintenance_reset.out_reset subsys_debug.reset
-'''
+    # Managed debug JTAG masters are unused in this contained native role.
+    # Removing their subsystem also removes the independent JTAG reset chains.
+    parent = """remove_instance ace5lite_cache_coherency_translator_0
+remove_instance subsys_debug
+remove_instance ext_hps_f2sdram_master
+"""
     save_top = f"save_system {top_system}\n"
     script_path.write_text(board.replace_once(script, save_top, parent + save_top))
+    qsf = project / "golden_top.qsf"
+    assignments = qsf.read_text()
+    for setting, relative in (
+        ("QSYS_FILE", "jtag_subsys/jtag_subsys.qsys"),
+        ("IP_FILE", "ip/qsys_top/ext_hps_f2sdram_master.ip"),
+        *[("IP_FILE", f"jtag_subsys/ip/jtag_subsys/{name}.ip")
+          for name in ("fpga_m", "hps_m", "hps_f2sdram", "jtag_clk", "jtag_rst_in")],
+    ):
+        assignments = board.replace_once(assignments, f"set_global_assignment -name {setting} {relative}\n", "")
+    qsf.write_text(assignments)
     top_path = project / "golden_top.v"
-    top_path.write_text(board.replace_once(top_path.read_text(), "qsys_top soc_inst (",
-        "qsys_top soc_inst (\n.fes_native_maintenance_reset_reset_n(1'b0),"))
     video_constraints = project / "fes_mailbox/clocks.sdc"
     video_constraints.write_text(scanout.timed_scanout_sdc(
         matched_video_sdc(video_constraints.read_text())))
@@ -193,7 +188,7 @@ add_connection fes_native_maintenance_reset.out_reset subsys_debug.reset
         "scope": "native-spectrum48-project-only",
         "hps_parameters": {"f2s_data_width": 0, "H2F_Width": 128, "f2sdram_SMMU": False},
         "reader_masters": ["fes_scanout", "fes_ddr_probe"],
-        "maintenance_reset_tied": True,
+        "maintenance_masters": "absent",
         "matched_video_sdc_sha256": video_constraints_sha,
         "scanout_board_sha256": video_board_sha,
         "generated_handoff_verified": False,
@@ -224,7 +219,7 @@ def generate(output, hps, scanout, quartus_root):
                    project, directory / "clear-generation.log")
     hps.run_logged([generator, "--generate_project_ip_files", "--synthesis=verilog", "golden_top"],
                    project, directory / "ip-generation.log")
-    scanout.write_vendor_reset_timing(directory)
+    scanout.write_vendor_reset_timing(directory, no_debug=True)
     native_shared_resets(directory, scanout).apply(directory)
     jtag_stream_constraints(directory, generate=True)
     verify_handoff(output, hps, scanout)
@@ -270,7 +265,7 @@ def verify_handoff(output, hps, scanout):
     video_board_sha = hps.digest(video_board)
     if video_board_sha != inputs["native_spectrum_hps"]["scanout_board_sha256"]:
         raise ValueError("native Spectrum scanout reset source changed")
-    reset_timing = scanout.verify_vendor_reset_timing(directory)
+    reset_timing = scanout.verify_vendor_reset_timing(directory, no_debug=True)
     fifo_resets = native_shared_resets(directory, scanout).verify(directory)
     jtag_timing = jtag_stream_constraints(directory)
     expected = inputs["vendor_hps_emif_parameters"]
@@ -295,30 +290,16 @@ def verify_handoff(output, hps, scanout):
     tree = ET.parse(handoff)
     routes = [(c.get("kind"), c.get("start"), c.get("end")) for c in tree.findall("connection")]
     expected_readers = {
-        "ext_hps_f2sdram_master.expanded_master",
         "subsys_periph_fes_ddr_probe.avm", "subsys_periph_fes_mem_cdc.m0",
     }
     readers = [start for _, start, end in routes if end == "subsys_hps_f2sdram_adapter.axi4_sub"]
     if len(readers) != len(expected_readers) or set(readers) != expected_readers:
         raise ValueError("native Spectrum generated DDR master inventory differs")
-    expected_reset = {
-        "subsys_debug_jtag_rst_in.in_reset": "fes_native_maintenance_reset.out_reset",
-        "subsys_debug_fpga_m.clk_reset": "subsys_debug_jtag_rst_in.out_reset",
-        "subsys_debug_hps_f2sdram.clk_reset": "subsys_debug_jtag_rst_in.out_reset",
-    }
-    observed_reset = [(end, start) for kind, start, end in routes
-                      if kind == "reset" and end.startswith("subsys_debug_")]
-    if len(observed_reset) != len(expected_reset) or dict(observed_reset) != expected_reset:
-        raise ValueError("native Spectrum maintenance reset route differs")
-    # Check the synthesized wrapper still connects the constant source to
-    # exactly the reset bridge that owns the maintenance subsystem.
-    top = (project / "golden_top.v").read_text()
-    netlist = (project / "qsys_top/synth/qsys_top.v").read_text()
-    if (top.count(".fes_native_maintenance_reset_reset_n(1'b0)") != 1 or
-            netlist.count("(fes_native_maintenance_reset_reset_n)") != 1 or
-            netlist.count("(fes_native_maintenance_reset_out_reset_reset)") < 2):
-        raise ValueError("native Spectrum maintenance reset binding differs")
-    probe = hps.verify_probe_handoff(project)
+    forbidden = ("subsys_debug", "ext_hps_f2sdram_master")
+    if (any(module.get("path", "").startswith(forbidden) for module in tree.findall("module")) or
+            any(start.startswith(forbidden) or end.startswith(forbidden) for _, start, end in routes)):
+        raise ValueError("native Spectrum generated an unowned maintenance master")
+    probe = hps.verify_probe_handoff(project, maintenance=False)
     computer = spectrum_control_handoff(project, tree, hps, scanout,
                                         inputs[spectrum.board.RECORD]["build_id"], probe)
     result = {"scope": "native-spectrum48-generated-hps-diagnostic-v1",
