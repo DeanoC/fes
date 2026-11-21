@@ -98,7 +98,7 @@ foreach {label source head expected} {
     window_drained {window_control|drained_source} {window_control|drained_sync[0]} 1
     window_held {window_control|held_source} {window_control|held_sync[0]} 1
     window_fault_request {window_control|fault_request} {window_control|fault_request_sync[0]} 1
-    window_fault_ack {window_control|fault_request_seen} {window_control|fault_ack_sync[0]} 1
+    window_fault_ack {window_control|fault_ack} {window_control|fault_ack_sync[0]} 1
     window_granted {window_control|granted} {window_control|granted_sync[0]} 1
     window_clear {window_control|clear_toggle} {window_control|clear_sync[0]} 1
 } {
