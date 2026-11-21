@@ -269,20 +269,35 @@ def _is_launch_call(node: ast.AST) -> bool:
     return name in LAUNCH_NAMES
 
 
+def _module_names(tree: ast.Module) -> set[str]:
+    """Names bound in module scope (not inside a function): functions,
+    classes and assignments of any form, wherever in the module's own
+    statements, conditional blocks included."""
+    names, pending = set(), list(tree.body)
+    while pending:
+        node = pending.pop()
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.add(node.name)
+            if isinstance(node, ast.ClassDef):
+                pending.extend(node.body)
+            continue
+        if isinstance(node, ast.Lambda):
+            continue
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                names.update(n.id for n in ast.walk(target) if isinstance(n, ast.Name))
+        pending.extend(ast.iter_child_nodes(node))
+    return names
+
+
 def _first_module_launch(tree: ast.Module) -> int | None:
     """The line of the first statement run at import that may start a
     process: a launch call, or any call to a name the module binds itself
     (a function, class, lambda or any assignment, however annotated or
     nested), which may launch through any indirection. Conditional blocks
     count; function bodies do not run at import."""
-    local: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            local.add(node.name)
-        elif isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr)):
-            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-            for target in targets:
-                local.update(n.id for n in ast.walk(target) if isinstance(n, ast.Name))
+    local = _module_names(tree)
     first, pending = None, list(tree.body)
     while pending:
         node = pending.pop()
@@ -294,6 +309,34 @@ def _first_module_launch(tree: ast.Module) -> int | None:
             first = node.lineno if first is None else min(first, node.lineno)
         pending.extend(ast.iter_child_nodes(node))
     return first
+
+
+def _is_main_guard(node: ast.AST) -> bool:
+    test = getattr(node, "test", None)
+    return (isinstance(node, ast.If) and isinstance(test, ast.Compare) and isinstance(test.left, ast.Name)
+            and test.left.id == "__name__" and len(test.comparators) == 1
+            and isinstance(test.comparators[0], ast.Constant) and test.comparators[0].value == "__main__")
+
+
+def _launches_only_from_entry(tree: ast.Module) -> bool:
+    """No launch call anywhere at module level, and calls to the module's own
+    names at module level only inside its `if __name__ == "__main__":` entry,
+    which runs after every import above it."""
+    local = _module_names(tree)
+    pending = [(node, False) for node in tree.body]
+    while pending:
+        node, in_entry = pending.pop()
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            pending.extend((part, in_entry) for part in _definition_time(node))
+            continue
+        if _is_launch_call(node):
+            return False
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in local \
+                and not in_entry:
+            return False
+        entry = in_entry or _is_main_guard(node)
+        pending.extend((child, entry) for child in ast.iter_child_nodes(node))
+    return True
 
 
 def _imports_of_node(node: ast.AST, path: Path, roots: tuple[Path, ...]) -> set[Path]:
@@ -448,12 +491,16 @@ def unleased_quartus(root: Path, files: list[str], misteross: Path | None = None
             # helper in another module (helper.launch(['quartus_fit'])).
             # A module that defines a locate_quartus (delegating to the leasing
             # one, checked below) is part of the leasing family itself.
-            # It still may not launch anything at module level before the hook.
+            # Either exemption holds only for a module whose launches go
+            # through its functions from the script entry (`if __name__ ==
+            # "__main__":`), never a launch at module level before the hook.
             parsed = ast.parse(text) if text else None
-            locator = parsed is not None and _first_module_launch(parsed) is None and any(
+            entry_only = parsed is not None and _launches_only_from_entry(parsed)
+            locator = entry_only and any(
                 isinstance(n, ast.FunctionDef) and n.name == "locate_quartus" for n in parsed.body)
             if python_names_leased(text) and not locator \
-                    and not (calls_locate_quartus(text) and imports_a_locator(path)) and not leased(path):
+                    and not (entry_only and calls_locate_quartus(text) and imports_a_locator(path)) \
+                    and not leased(path):
                 failures.append(f"{name}: names a Quartus program, but never imports scripts.quartus_tools")
         elif is_shell:
             # No raw-text prefilter: the shell joins quoted fragments
