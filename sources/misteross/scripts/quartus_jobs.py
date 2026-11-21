@@ -374,13 +374,14 @@ def admit(edition: str, slot: str, deadline: float = float("inf")) -> bool:
         while True:
             with open(ADMISSION_LOCK, "a") as guard:
                 fcntl.flock(guard, fcntl.LOCK_EX)
+                # The cap first: a job is never started after it has expired.
+                if time.monotonic() >= deadline:
+                    return False
                 available, reserved = _mem_available_kib(), outstanding_kib(slot)
                 if available - reserved >= need:
                     # Admitted: from here on others reserve this job's peak.
                     marker.unlink(missing_ok=True)
                     return True
-                if time.monotonic() >= deadline:
-                    return False
                 # Waiting, under the lock: no other admission counts this one.
                 marker.parent.mkdir(mode=0o1777, exist_ok=True)
                 marker.write_text(_start_time(os.getpid()))

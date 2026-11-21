@@ -816,6 +816,17 @@ class JobsTests(unittest.TestCase):
         self.assertFalse(marker.exists())
         self.assertEqual(qt.flock_holders(self.pools["lite"][0]), set())
 
+    def test_memory_freed_after_the_cap_starts_nothing(self):
+        # Codex P1 at 9ead0d308: memory freed between the cap and the next
+        # retry admitted a job after its cap.
+        marker = Path(self.directory.name) / "after-cap"
+        memory = iter([1, 500 * 1024 ** 2])
+        with mock.patch.object(self.jobs, "_mem_available_kib", lambda: next(memory, 500 * 1024 ** 2)), \
+                mock.patch.object(self.jobs, "ADMISSION_RETRY_SECONDS", 0.6):
+            code = self.jobs.run("lite", "", ["touch", str(marker)], sample_seconds=0.1, cap_seconds=0.3)
+        self.assertEqual(code, 124)
+        self.assertFalse(marker.exists())
+
     def test_an_exited_launchers_pid_is_not_followed(self):
         # Codex P1 at d7af65924: once the launcher has exited, its pid may be
         # reused; the job set must not take that process in.
