@@ -246,6 +246,10 @@ class QuartusLeaseError(RebuildError):
     """A licensed Quartus program would run without a lease."""
 
 
+class QuartusLeaseTimeout(QuartusLeaseError):
+    """No slot came free before the caller's deadline."""
+
+
 # The quartus_sh digests the repository's quartus.lock files authenticate.
 # Only these installations are leased, so test fixtures' stand-in programs
 # never touch a build host's pools. tests/test_quartus_lease.py fails when a
@@ -421,7 +425,7 @@ def _outer_slot(edition: str) -> str | None:
     return None
 
 
-def _take(edition: str, label: str, claim=None) -> tuple[str, object | None]:
+def _take(edition: str, label: str, claim=None, deadline: float | None = None) -> tuple[str, object | None]:
     """Wait for a free slot of edition's pool. claim, when given, is tried on
     every round as well: it takes the ancestor's slot once no other thread of
     this process uses it, and then (outer path, None) is returned."""
@@ -446,6 +450,9 @@ def _take(edition: str, label: str, claim=None) -> tuple[str, object | None]:
                     if claimed is not None:
                         chosen = (claimed, None)
                         break
+                if deadline is not None and time.monotonic() >= deadline:
+                    raise QuartusLeaseTimeout(f"no {edition_class(edition)} slot came free on "
+                                              f"{socket.gethostname()} before the deadline")
                 if time.monotonic() - notice >= LEASE_NOTICE_SECONDS:
                     holders = {path: sorted(flock_holders(path)) for path in pool}
                     print(f"Quartus lease: waiting for a {edition_class(edition)} slot on "
@@ -465,7 +472,7 @@ def _take(edition: str, label: str, claim=None) -> tuple[str, object | None]:
 
 
 @contextmanager
-def quartus_lease(edition: str, *, label: str = ""):
+def quartus_lease(edition: str, *, label: str = "", deadline: float | None = None):
     """Hold a slot of this host's pool for edition for the block.
 
     Reentrant: inside a lease already held (here, inherited or by an ancestor)
@@ -492,7 +499,7 @@ def quartus_lease(edition: str, *, label: str = ""):
     # either a slot of the pool or that claim, whichever frees first.
     path, stream = (claim(), None) if outer is not None else (None, None)
     if path is None:
-        path, stream = _take(edition, label, claim if outer is not None else None)
+        path, stream = _take(edition, label, claim if outer is not None else None, deadline)
     if stream is None:
         _thread_held()[cls] = (path, None)
         try:
@@ -571,6 +578,11 @@ def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) ->
     argv_list = [w for w in words]
     editions = set()
     for index, (element, word, in_payload) in enumerate(argv_list):
+        # NAME=value in shell code can be run later as $NAME: the value is a
+        # program name like any other.
+        assigned = re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=(.+)", word, re.S) if in_payload else None
+        if assigned:
+            word = assigned.group(1)
         if not QUARTUS_PROGRAM.fullmatch(os.path.basename(word)):
             continue
         # A probe excuses a program only within one argument (the next word

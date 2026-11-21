@@ -36,6 +36,7 @@ line around it and is not imported by any producer.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import fcntl
 from datetime import datetime, timezone
 import json
@@ -498,22 +499,27 @@ def _run(edition: str, label: str, command: list[str], sample_seconds: float,
                   file=sys.stderr, flush=True)
             return 75
     token = f"{os.getpid()}-{time.monotonic_ns()}"
-    with quartus_tools.quartus_lease(edition, label=label or Path(command[0]).name) as slot:
-        # The cap runs from the moment a slot is held, so waiting for memory
-        # cannot keep a slot past it.
-        started = time.monotonic()
-        deadline = started + cap_seconds
+    # The cap runs from the start: waiting for a slot and for memory count
+    # against it, and a signal in either wait ends the run as a notified
+    # cancellation rather than by default death.
+    started = time.monotonic()
+    deadline = started + cap_seconds
 
-        def cancel(number, _frame):
-            raise Cancelled(number)
+    def cancel(number, _frame):
+        raise Cancelled(number)
 
-        # A signal while waiting for memory ends the run as a cancellation,
-        # through the normal exit (and its notification), not by default death.
+    with contextlib.ExitStack() as stack:
         waiting = {sig: signal.signal(sig, cancel) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
         try:
+            slot = stack.enter_context(quartus_tools.quartus_lease(
+                edition, label=label or Path(command[0]).name, deadline=deadline))
             admitted = admit(edition, slot, deadline)
+        except quartus_tools.QuartusLeaseTimeout:
+            print(f"quartus_jobs: time cap of {cap_seconds / 60:g} min reached waiting for a slot; "
+                  "nothing was started", file=sys.stderr, flush=True)
+            return 124
         except Cancelled as cancelled:
-            print(f"quartus_jobs: cancelled by {cancelled} while waiting for memory; nothing was started",
+            print(f"quartus_jobs: cancelled by {cancelled} before the job started; nothing was started",
                   file=sys.stderr, flush=True)
             return 128 + cancelled.number
         finally:
@@ -655,6 +661,9 @@ def remote_script(*, commit: str, host: str, home: str, edition: str, label: str
         f'[ "$free" -ge {MIN_FREE_GIB} ] || {{ echo "quartus_jobs: refusing: {PROJECTS} has ${{free}}G free, '
         f'under {MIN_FREE_GIB}G" >&2; exit 75; }}',
         f"mkdir {q(run_dir)}",
+        # This shell's pid, which exec keeps for the run wrapper: a cancelling
+        # dispatcher stops setup and run alike through it.
+        f"echo \"$$ $(cut -d' ' -f22 /proc/$$/stat)\" > {q(run_dir)}/run.pid",
         # A setup step that fails (clone, fetch, worktree, checkout check)
         # still leaves an outcome; exec below replaces the shell, so this
         # never fires once the run wrapper has started.
@@ -799,8 +808,11 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
         if cancelled:
             # Stop the run on the host by the pid it recorded (only that
             # wrapper, which stops its job), then the local ssh or shell.
-            stop = (f"read pid start < {shlex.quote(run_dir)}/run.pid 2>/dev/null && "
-                    f"[ \"$(cut -d' ' -f22 /proc/$pid/stat 2>/dev/null)\" = \"$start\" ] && kill -TERM $pid")
+            # The pid file appears as soon as setup starts; wait for it a little.
+            stop = (f"for i in $(seq 60); do [ -e {shlex.quote(run_dir)}/run.pid ] && break; sleep 0.5; done; "
+                    f"read pid start < {shlex.quote(run_dir)}/run.pid 2>/dev/null && "
+                    f"[ \"$(cut -d' ' -f22 /proc/$pid/stat 2>/dev/null)\" = \"$start\" ] && "
+                    "{ kill -TERM $(ps -o pid= --ppid $pid) 2>/dev/null; kill -TERM $pid; }")
             stopper = ["bash", "-c", stop] if host == local_host() else [*SSH, host, shlex.join(["bash", "-c", stop])]
             subprocess.run(stopper, stdin=subprocess.DEVNULL, timeout=60, check=False)
             try:

@@ -805,6 +805,9 @@ class LaunchGuardTests(unittest.TestCase):
             subprocess.run([str(link_dir / "quartus_fit"), "top"])
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", "$0 --flow compile top", str(self.bin / "quartus_sh"), "--help"])
+        # Codex P1 at 7f7121f88: a shell-local assignment run later as $Q.
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["sh", "-c", "Q=quartus_sh; $Q --flow compile top"], env={"PATH": str(self.bin)})
         # Codex P1 at 827ccac13: a relative name in shell code is resolved
         # after its cd, which the hook cannot follow: some lease is needed.
         with self.assertRaises(qt.QuartusLeaseError):
@@ -1320,6 +1323,24 @@ class JobsTests(unittest.TestCase):
                                          label="", command=["true"], stamp="s", origin="https://example/x")
         self.assertIn("export QUARTUS_ROOTDIR=/home/u/intelFPGA_lite/17.0/quartus", lite)
 
+    def test_the_wait_for_a_slot_is_capped_and_cancellable(self):
+        # Codex P2 at 7f7121f88: run could wait for a slot forever.
+        holder = subprocess.Popen(["flock", self.pools["lite"][0], "sleep", "30"])
+        self.addCleanup(holder.wait)
+        self.addCleanup(holder.terminate)
+        deadline = time.monotonic() + 10
+        while not qt.flock_holders(self.pools["lite"][0]) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        started = time.monotonic()
+        self.assertEqual(self.jobs.run("lite", "", ["true"], sample_seconds=0.1, cap_seconds=1), 124)
+        self.assertLess(time.monotonic() - started, 6)
+        timer = threading.Timer(0.5, lambda: os.kill(os.getpid(), signal.SIGTERM))
+        timer.start()
+        try:
+            self.assertEqual(self.jobs.run("lite", "", ["true"], sample_seconds=0.1), 128 + signal.SIGTERM)
+        finally:
+            timer.cancel()
+
     def test_a_named_host_waits_for_the_same_readiness(self):
         # Codex P1 at 7d0c69357: --host skipped the memory check.
         gib = 1024 ** 2
@@ -1454,15 +1475,17 @@ class JobsTests(unittest.TestCase):
         ready = {"host": "powerboat", "free": 1, "available_kib": 500 * 1024 ** 2, "home": "/h", "slots": {}}
         run_dir = Path(self.directory.name) / "remote-run"
         run_dir.mkdir()
-        # Stands in for the remote program: records its pid as run does, then works.
-        script = (f"echo $$ $(cut -d' ' -f22 /proc/$$/stat) > {run_dir}/run.pid; exec sleep 30")
+        # Stands in for the remote program: still in setup (a child working,
+        # no pid file yet) when the signal comes, as in a slow clone.
+        script = (f"sleep 2.5; echo $$ $(cut -d' ' -f22 /proc/$$/stat) > {run_dir}/run.pid; "
+                  f"sleep 30 & echo $! > {run_dir}/child; wait")
         with mock.patch.object(self.jobs, "probe", return_value=ready), \
                 mock.patch.object(self.jobs, "resolve_pushed", return_value="e" * 40), \
                 mock.patch.object(self.jobs, "local_host", return_value="powerboat"), \
                 mock.patch.object(self.jobs, "remote_script", return_value=(script, str(run_dir))), \
                 mock.patch.object(self.jobs.subprocess, "check_output", return_value="https://github.com/DeanoC/fes\n"), \
                 mock.patch.dict(os.environ, {"FES_QUARTUS_NOTIFY": f"cat > {sink}"}):
-            timer = threading.Timer(1.5, lambda: os.kill(os.getpid(), signal.SIGTERM))
+            timer = threading.Timer(0.5, lambda: os.kill(os.getpid(), signal.SIGTERM))
             timer.start()
             try:
                 code = self.jobs.remote("lite", "powerboat", "HEAD", "", ["true"])
@@ -1470,9 +1493,11 @@ class JobsTests(unittest.TestCase):
                 timer.cancel()
         self.assertEqual(code, 128 + signal.SIGTERM)
         self.assertIn('"status": "cancelled"', sink.read_text())
-        pid = int((run_dir / "run.pid").read_text().split()[0])
-        self.assertFalse(Path(f"/proc/{pid}").exists() and "sleep" in Path(f"/proc/{pid}/cmdline").read_text(),
-                         "the remote run outlived the cancelled dispatcher")
+        time.sleep(0.5)
+        for name in ("run.pid", "child"):
+            pid = int((run_dir / name).read_text().split()[0])
+            alive = Path(f"/proc/{pid}/stat").exists() and Path(f"/proc/{pid}/stat").read_text().split()[2] != "Z"
+            self.assertFalse(alive, f"the remote {name} outlived the cancelled dispatcher")
 
     def test_a_signal_while_choosing_a_host_is_a_notified_cancellation(self):
         sink = Path(self.directory.name) / "cancel-choose"
