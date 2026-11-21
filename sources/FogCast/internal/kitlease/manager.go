@@ -18,6 +18,20 @@ import (
 	contract "github.com/DeanoC/FogCast/kitlease"
 )
 
+type admittedContextKey struct{}
+
+// WithAdmission marks an operation whose execution lease was admitted by the
+// target HTTP guard. Its context is also cancelled when that lease ends.
+func WithAdmission(ctx context.Context) context.Context {
+	return context.WithValue(ctx, admittedContextKey{}, true)
+}
+
+// Admitted reports whether the target lease guard admitted this operation.
+func Admitted(ctx context.Context) bool {
+	admitted, _ := ctx.Value(admittedContextKey{}).(bool)
+	return admitted && ctx.Err() == nil
+}
+
 var (
 	ErrBusy    = errors.New("kit is owned or recovery is running")
 	ErrLease   = errors.New("kit lease is missing, expired or superseded")

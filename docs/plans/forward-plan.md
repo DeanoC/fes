@@ -404,17 +404,32 @@ A tier is a quality bar. Release scope is a separate choice: a release lists
 a named subset of the tier 1 cells, and nothing below tier 1.
 
 Tier 1 set on DE10 (decided): ZX81 family, Spectrum family, C64, Atari ST,
-PC/XT. v1 ships the first four, as its plan says; PC/XT is tier 1 by quality
-and is scoped to the release after v1. pc386 joins when #1368 and #1494 close. Coleco, SMS, SG-1000 and Apple
-II are tier 2 once they meet the port; Pong, RAM Tester and RISC-V are
-utilities and demos, outside the ladder.
+PC/XT and pc386. v1 ships the first four, as its plan says; PC/XT is tier 1 by quality
+and is scoped to the release after v1. Coleco,
+SMS, SG-1000 and Apple II are tier 2 once they meet the port; Pong, RAM Tester
+and RISC-V are utilities and demos, outside the ladder.
 
-Deano decided on 16 November 2026 that Ultima VI's measured speaker-pitch
-divergence at the pc386 286-12 preset blocks tier 1 on DE10. The
+On 20 November 2026, Deano judged the remaining #1494 pin-timing uncertainty
+non-blocking for DE10 pc386 tier 1. #1494 stays open; this disposition is not a
+pin-timing pass or board-level timing signoff.
+
+On 20 November 2026, Deano waived Ultima VI's measured speaker-pitch
+divergence at the pc386 286-12 preset as a tier-1 blocker on DE10, superseding
+the 16 November decision. The
 [pitch investigation](../validation/2026-11-15-pc386-u6-lute-pitch-cause/summary.md)
-identifies a governor cost-model divergence but does not establish a fix. A fix
-and a passing comparison with the reference on the exact sealed artifact are
-still owed under [#1368](https://github.com/DeanoC/fes/issues/1368).
+identifies a governor cost-model divergence but does not establish a fix. The
+pitch discrepancy and its fix remain open in [#2013](https://github.com/DeanoC/fes/issues/2013);
+the waiver is not a pitch pass. On 21 November 2026, Deano authorized accepting practical gameplay speed for
+tier 1. For #1368 we accept Ultima VI walking and Ultima VII NPC pace with
+documented timing exceptions. Ultima VI completed the reference route, but
+guest key consumption and the kit/reference walking-speed ratio remain
+undetermined. For Ultima VII, the kit's 8.733 s walk cycle was 26% shorter
+than the 11.800 s cycle on the original 86Box reference (TopBench 40).
+DOSBox 0.74-3, normal 386 core at 2,600 fixed cycles/ms, scored 51 in the
+accepted 47–56 range and reached The Black Gate title screen. Its NPC period
+remains unmeasured. #1853 and #1866 track the comparison and discrepancy.
+Physical 386 validation can follow when a machine is available (#2040).
+The promotion covers the default governor on DE10.
 
 A core may not be tier 1 on board B merely because it is on board A. But with
 the port and the shell model, promoting it should need a build and a kit run,

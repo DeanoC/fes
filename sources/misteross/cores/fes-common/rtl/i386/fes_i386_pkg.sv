@@ -212,7 +212,22 @@ package fes_i386_pkg;
     // task switch's selector alone, from src2 or its load, the segment's
     // cache kept and every access refused until the new task's descriptor
     // loads it (fes_i386_cpu, "Task switches").
-    typedef enum logic [4:0] { SEGOP_LOAD_REAL, SEGOP_ZF, SEGOP_TSEL } segment_op_e;
+    // The i486 identity (#1962 slice 2): CSEL, src2 when ctl.cond holds by
+    // the flags, else src1 (CMPXCHG's selects); BSWAP, src1's bytes reversed;
+    // CPUID, the leaf in src1 (EAX) and the register in imm[1:0].
+    typedef enum logic [4:0] { SEGOP_LOAD_REAL, SEGOP_ZF, SEGOP_TSEL, SEGOP_CSEL, SEGOP_BSWAP, SEGOP_CPUID } segment_op_e;
+
+    // The i486 identity's signature (#1962 slice 2): family 4, model 2 (the
+    // 486SX), stepping Bh, the aB0/aC0 486SX, a stepping that has CPUID
+    // (Intel's revision tables list no SX steppings with it; the stepping
+    // tables at datasheets.chipdb.org and ardent-tool.com mark 042Ah and
+    // 042Bh as having it, 0427h not). CPUID leaf 1 reports it in EAX, "identical
+    // to the value loaded into EDX upon device reset" (Intel486 data book
+    // Appendix B), and a machine resets DX to it (Table 9-9: SX 042xh).
+    // Unread at I486 = 0, where every reader folds away.
+    /* verilator lint_off UNUSEDPARAM */
+    localparam logic [31:0] I486_SIGNATURE = 32'h0000_042b;
+    /* verilator lint_on UNUSEDPARAM */
 
     // UOP_SPECIAL.
     typedef enum logic [4:0] { SPECIAL_NOP, SPECIAL_HLT } special_op_e;
@@ -236,7 +251,7 @@ package fes_i386_pkg;
     typedef enum logic [4:0] {
         SYSOP_CLTS = 5'd0, SYSOP_CR0 = 5'd1, SYSOP_LMSW = 5'd2, SYSOP_CR2 = 5'd3, SYSOP_CR3 = 5'd4,
         SYSOP_GDTR = 5'd5, SYSOP_IDTR = 5'd6, SYSOP_LDTR = 5'd7, SYSOP_TR = 5'd8, SYSOP_GATE = 5'd9,
-        SYSOP_DR = 5'd10, SYSOP_TSTR = 5'd12, SYSOP_TSLDT = 5'd13, SYSOP_TSLDTD = 5'd14
+        SYSOP_DR = 5'd10, SYSOP_INVLPG = 5'd11, SYSOP_TSTR = 5'd12, SYSOP_TSLDT = 5'd13, SYSOP_TSLDTD = 5'd14
     } system_op_e;
     // The system uops that do not jump to the next instruction.
     function automatic logic sys_nojmp(input logic [4:0] op);
@@ -285,7 +300,7 @@ package fes_i386_pkg;
         SYS_RD_CR0, SYS_RD_CR2, SYS_RD_CR3, SYS_RD_GDTL, SYS_RD_GDTB, SYS_RD_IDTL, SYS_RD_IDTB, SYS_RD_LDTR,
         SYS_RD_TR, SYS_RD_ERR, SYS_RD_ONES, SYS_RD_FIP, SYS_RD_FCS, SYS_RD_FDP, SYS_RD_FDS, SYS_RD_ARPL,
         SYS_RD_LAR, SYS_RD_LSL, SYS_RD_VERR, SYS_RD_VERW, SYS_RD_DR0, SYS_RD_DR1, SYS_RD_DR2, SYS_RD_DR3,
-        SYS_RD_DR6, SYS_RD_DR7, SYS_RD_TR4, SYS_RD_TR5, SYS_RD_TR6, SYS_RD_TR7
+        SYS_RD_DR6, SYS_RD_DR7, SYS_RD_TR4, SYS_RD_TR5, SYS_RD_TR6, SYS_RD_TR7, SYS_RD_TR3
     } sys_rd_e;
 
     // The x87 pointers an ESC instruction's last uop writes as it retires
@@ -374,7 +389,8 @@ package fes_i386_pkg;
         FAULT_TS_TR         = 5'd15,
         FAULT_PF            = 5'd16,
         FAULT_DB            = 5'd17,
-        FAULT_DBI           = 5'd18
+        FAULT_DBI           = 5'd18,
+        FAULT_AC            = 5'd19   // i486: alignment check, vector 17, error code 0
     } fault_e;
 
     // Why an instruction stops as not built (FAULT_UNIMPLEMENTED), kept
@@ -824,7 +840,7 @@ package fes_i386_pkg;
     typedef enum logic [4:0] {
         SEQ_NONE, SEQ_CALL, SEQ_LPTR, SEQ_CALLF, SEQ_RETF, SEQ_JMPFM, SEQ_CALLFM, SEQ_UCODE,
         SEQ_XCHG, SEQ_XCHGM, SEQ_CALLI, SEQ_PUSHM, SEQ_POPM, SEQ_MUL, SEQ_DIV, SEQ_STRING, SEQ_ENTER,
-        SEQ_BTM
+        SEQ_BTM, SEQ_XADD, SEQ_XADDM, SEQ_CMPX, SEQ_CMPXM, SEQ_CPUID
     } seq_e;
     // The string instructions (SEQ_STRING's str_op).
     typedef enum logic [2:0] { STR_MOVS, STR_CMPS, STR_STOS, STR_LODS, STR_SCAS, STR_INS, STR_OUTS } str_e;
@@ -1029,6 +1045,7 @@ package fes_i386_pkg;
         logic       r_logic, r_lea, r_y, r_movsx, r_setcc, r_lahf, r_sign;  // the other results
         logic       r_flags;                   // FLAGS' image (PUSHF, INT's push), with RF from imm[4] (f_clrpm)
         logic       r_zf;                      // SEGOP_ZF: src2 when imm[0] is set, else src1, and ZF from imm[0]
+        logic       r_csel, r_bswap, r_cpuid;  // i486: SEGOP_CSEL, SEGOP_BSWAP, SEGOP_CPUID
         logic       l_or, l_xor;               // the logic unit; AND otherwise
         logic       f_add;                     // CF comes from the adder
         logic       f_arith;                   // OF, SF, ZF, AF and PF come from the adder
@@ -1113,7 +1130,7 @@ package fes_i386_pkg;
         exctl_t      exc;         // M2: EX's controls
         logic [31:0] x;           // M2: EX's adder, logic and shifter operands (fes_i386_exctl)
         logic [31:0] y;
-        logic [17:0] eflags;      // EX: EFLAGS after this uop
+        logic [21:0] eflags;      // EX: EFLAGS after this uop (AC 18 and ID 21 with the i486 identity)
         logic        taken;       // EX: a branch that redirects fetch
         logic        sh_out0;     // EX: a shift's bit out at the right, the one out at the left by size,
         logic        sh_outn;     // and its wide-count CF (fes_i386_shflags, applied at WB: def_co)
@@ -1216,17 +1233,13 @@ package fes_i386_pkg;
     // Reg fields 6 and 7 are the divides, which **slice 4 adds**: they are in
     // this table, and they have to be, for the reason the case below gives.
     //
-    // `de25` is the backend the unit is built with (X87_BACKEND == 1), and it
-    // is the one thing that says what is built: fes_i386_decode's `known` and
-    // the unit's `unbuilt` both pass it here and to x87_decode, and the
+    // FBLD and FBSTP (DF /4 and /6, #1958) take all eight format values, so
+    // their 10-byte packed decimal operand reuses X87F_F80's chunking and the
+    // unit tells it from FLD and FSTP m80 by the opcode. fes_i386_decode's
+    // `known` and the unit's `unbuilt` both read these two functions, and the
     // lockstep bench's C++ copy (sim/i386/x87_built_form.h) is compared with
-    // the two functions over every opcode at both values. With it low both
-    // functions return what they returned before it existed. With it high
-    // FBLD and FBSTP (DF /4 and /6, #1958) are built: all eight format values
-    // are taken, so their 10-byte packed decimal operand reuses X87F_F80's
-    // chunking and the unit tells it from FLD and FSTP m80 by the opcode.
-    function automatic logic [2:0] x87_format(input logic [2:0] esc, input logic [2:0] rf,
-                                              input logic de25);
+    // them over every opcode.
+    function automatic logic [2:0] x87_format(input logic [2:0] esc, input logic [2:0] rf);
         case ({esc, rf})
             // Reg fields 0 to 5 are slice 3's arithmetic and compares and 6
             // and 7 are slice 4's divides. **The whole field has to be here**:
@@ -1258,7 +1271,7 @@ package fes_i386_pkg;
             {3'b001, 3'd4}, {3'b001, 3'd6}, {3'b101, 3'd4}, {3'b101, 3'd6}: x87_format = X87F_ENV;
             default: x87_format = X87F_NONE;
         endcase
-        if (de25 && esc == 3'b111 && (rf == 3'd4 || rf == 3'd6)) x87_format = X87F_F80;  // FBLD, FBSTP
+        if (esc == 3'b111 && (rf == 3'd4 || rf == 3'd6)) x87_format = X87F_F80;  // FBLD, FBSTP
     endfunction
 
     // The operations the x87 unit builds. A form a later slice builds
@@ -1309,8 +1322,8 @@ package fes_i386_pkg;
         X87_DIV,      // FDIV, FDIVR, FIDIV, FIDIVR and their forms
         X87_SQRT,     // FSQRT (D9 FA)
         X87_PREM,     // FPREM (D9 F8) and FPREM1 (D9 F5)
-        // The transcendentals, built on the DE25 backend only (#1958): which
-        // one is read off the opcode, as the arithmetic's forms are.
+        // The transcendentals (#1958): which one is read off the opcode, as
+        // the arithmetic's forms are.
         X87_TRANS     // F2XM1, FYL2X, FPTAN, FPATAN, FYL2XP1, FSINCOS, FSIN, FCOS
     } x87_op_e;
 
@@ -1341,10 +1354,7 @@ package fes_i386_pkg;
 
     // ---- Decode: the 387 opcode to an operation. ----
     // op[10:8] is ESC's low three bits (D8h-DFh), op[7:0] the ModRM byte.
-    // `de25` is x87_format's: the backend, which decides whether FBLD and
-    // FBSTP are built.
-    function automatic x87_op_e x87_decode(input logic [10:0] o, input logic [2:0] fmt,
-                                           input logic de25);
+    function automatic x87_op_e x87_decode(input logic [10:0] o, input logic [2:0] fmt);
         logic [2:0] esc, rf;
         logic       regform;
         esc = o[10:8];
@@ -1384,10 +1394,9 @@ package fes_i386_pkg;
                 {3'b001, 3'd4}: x87_decode = X87_LDENV;
                 {3'b101, 3'd6}: x87_decode = X87_SAVE;
                 {3'b101, 3'd4}: x87_decode = X87_RSTOR;
-                // FBLD and FBSTP (DF /4, /6): a load and a store-and-pop on
-                // the DE25 backend, not built on the DE10's.
-                {3'b111, 3'd4}: x87_decode = de25 ? X87_LD_M : X87_UNIMPL;
-                {3'b111, 3'd6}: x87_decode = de25 ? X87_STP_M : X87_UNIMPL;
+                // FBLD and FBSTP (DF /4, /6): a load and a store-and-pop.
+                {3'b111, 3'd4}: x87_decode = X87_LD_M;
+                {3'b111, 3'd6}: x87_decode = X87_STP_M;
                 default: x87_decode = X87_UNIMPL;
             endcase
             // A memory form needs its operand's format, and the four
@@ -1450,10 +1459,9 @@ package fes_i386_pkg;
                         8'hf7: x87_decode = X87_INCSTP;
                         8'hfc: x87_decode = X87_RNDINT;
                         8'hfd: x87_decode = X87_SCALE;
-                        // D9 F0-F3, F9, FB, FE, FF: the transcendentals, on
-                        // the DE25 backend; elsewhere they stop as not built.
+                        // D9 F0-F3, F9, FB, FE, FF: the transcendentals.
                         8'hf0, 8'hf1, 8'hf2, 8'hf3, 8'hf9, 8'hfb, 8'hfe, 8'hff:
-                            x87_decode = de25 ? X87_TRANS : X87_UNIMPL;
+                            x87_decode = X87_TRANS;
                         default: begin
                             if (o[7:3] == 5'b11000) x87_decode = X87_LD_ST;        // D9 C0+i
                             else if (o[7:3] == 5'b11001) x87_decode = X87_XCH;     // D9 C8+i

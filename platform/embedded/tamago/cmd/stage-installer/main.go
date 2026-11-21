@@ -23,6 +23,7 @@ func (s *selections) Set(id string) error { *s = append(*s, id); return nil }
 func run() error {
 	var ids selections
 	export := flag.String("export", "", "Nano export directory")
+	menu := flag.String("menu-export", "", "optional single-menu Nano export; prepare fresh launcher files and preallocated preferences")
 	output := flag.String("output", "", "new staging directory (must not exist)")
 	flag.Var(&ids, "id", "export entry ID to offer; repeat for multiple packages")
 	flag.Parse()
@@ -31,7 +32,13 @@ func run() error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 	defer cancel()
-	files, err := nativefabric.BuildStagedCatalog(ctx, os.DirFS(*export), ids)
+	var files map[string][]byte
+	var err error
+	if *menu != "" {
+		files, err = nativefabric.BuildLauncherStaging(ctx, os.DirFS(*export), os.DirFS(*menu), ids)
+	} else {
+		files, err = nativefabric.BuildStagedCatalog(ctx, os.DirFS(*export), ids)
+	}
 	if err != nil {
 		return err
 	}

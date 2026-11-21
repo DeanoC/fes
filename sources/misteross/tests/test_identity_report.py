@@ -37,6 +37,15 @@ class IdentityReportTests(unittest.TestCase):
         self.assertEqual(result['record_sha256'], hashlib.sha256(original).hexdigest())
         self.assertEqual(original, encode_build_record(fields()))
 
+    def test_the_report_names_the_records_own_identity_policy(self):
+        from scripts.input_identity import with_identities
+        self.assertEqual(report(encode_build_record(fields()))['design_classification'], 'design-v1',
+                         'a record without separated identities is classified under design-v1')
+        for policy in ('design-v1', 'design-v2'):
+            record = encode_build_record(with_identities(fields(), policy=policy))
+            self.assertEqual(report(record)['design_classification'], policy,
+                             f'a {policy} record is reported as {policy}, not relabelled')
+
     def test_provenance_changes_only_exact_record_digest(self):
         before = fields()
         after = dict(before, revision='1' * 40, source_path='sources/misteross',

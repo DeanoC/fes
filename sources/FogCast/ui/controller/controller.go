@@ -2,6 +2,8 @@
 package controller
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/playhid"
@@ -17,17 +19,24 @@ type Mapper struct {
 	mouseDirty, mouseFault bool
 	layout                 layout
 	mapping                string
+	learned                bool
 	axes                   map[uint16]Range
 	suppressed             map[uint16]bool
 	// The left stick and a D-pad hat share left-x/left-y but keep separate
 	// state, so stick jitter cannot cancel a held hat.
 	stick, hat [2]int32
+	// held is each axis button that is down, by its axis and its place in
+	// layout.axisButtons.
+	held map[uint16][]bool
 }
 
 // layout binds a pad's evdev codes to remoteinput gamepad controls.
 type layout struct {
 	buttons map[uint16]string
 	axes    map[uint16]axisBinding
+	// axisButtons are buttons a mapping binds to a hat direction or an
+	// axis, by the evdev axis they read.
+	axisButtons map[uint16][]axisButton
 	// guide is the launcher button's evdev code, or 0 when the pad has none.
 	// It never reaches a core.
 	guide uint16
@@ -38,6 +47,15 @@ type layout struct {
 type axisBinding struct {
 	axis        int
 	hat, invert bool
+}
+
+// axisButton is a button that is down while its axis is at or past
+// threshold: above it, or below it when above is false.
+type axisButton struct {
+	code      uint16
+	name      string
+	threshold int32
+	above     bool
 }
 
 // fallbackLayout reads a pad GameControllerDB does not list: Linux
@@ -60,9 +78,46 @@ func fallbackLayout() layout {
 func NewMapper(d Device) *Mapper {
 	m := &Mapper{layout: fallbackLayout(), axes: d.Axes, suppressed: map[uint16]bool{}}
 	if e, ok := lookupSDL(d); ok {
-		m.layout, m.mapping = sdlLayout(e, d.Keys, d.Abs), e.name
+		m.layout, m.mapping = sdlLayout(e, d.Keys, d.Abs, d.Axes), e.name
 	}
 	return m
+}
+
+// Recognised reports whether GameControllerDB has a mapping for the pad.
+func (d Device) Recognised() bool {
+	_, ok := lookupSDL(d)
+	return ok
+}
+
+// LearnedMapping is the name Mapping reports for a pad read through a
+// mapping its player made step by step.
+const LearnedMapping = "your own mapping"
+
+// NewLearnedMapper reads a pad through a mapping in GameControllerDB's
+// binding form ("a:b0,b:b1,dpup:h0.1,..."), as Settings › Controllers saves
+// one for a pad its player mapped step by step.
+func NewLearnedMapper(d Device, mapping string) (*Mapper, error) {
+	e := sdlEntry{name: LearnedMapping, bindings: map[string]string{}}
+	for _, field := range strings.Split(mapping, ",") {
+		if field = strings.TrimSpace(field); field == "" {
+			continue
+		}
+		target, source, ok := strings.Cut(field, ":")
+		_, known := sdlButtons[target]
+		if target == "leftx" || target == "lefty" {
+			known = true
+		}
+		if !ok || !known {
+			return nil, fmt.Errorf("controller: mapping %q: unknown control %q", mapping, target)
+		}
+		e.bindings[target] = source
+	}
+	if len(e.bindings) == 0 {
+		return nil, fmt.Errorf("controller: empty mapping")
+	}
+	m := &Mapper{layout: sdlLayout(e, d.Keys, d.Abs, d.Axes), mapping: LearnedMapping, learned: true,
+		axes: d.Axes, suppressed: map[uint16]bool{}}
+	return m, nil
 }
 
 // Mapping names the GameControllerDB entry in use; empty is the fallback layout.
@@ -78,6 +133,9 @@ func (m *Mapper) Mapping() string {
 func (m *Mapper) Guide(code uint16) bool {
 	return m != nil && !m.mouse && !m.keyboard && m.layout.guide != 0 && code == m.layout.guide
 }
+
+// Learned reports a pad read through a mapping its player made.
+func (m *Mapper) Learned() bool { return m != nil && m.learned }
 
 func NewMouseMapper() *Mapper { return &Mapper{mouse: true, suppressed: map[uint16]bool{}} }
 
@@ -98,26 +156,74 @@ func (m *Mapper) Map(typ, code uint16, value int32) (remoteinput.Event, bool) {
 		}
 		return mapKeyboard(typ, code, value)
 	}
-	if typ == 1 {
-		if m.suppressed[code] {
-			if value == 0 {
-				delete(m.suppressed, code)
-			}
-			return remoteinput.Event{}, false
-		}
-		if value != 0 && value != 1 {
-			return remoteinput.Event{}, false
-		}
-		name, ok := m.layout.buttons[code]
-		if !ok {
-			return remoteinput.Event{}, false
-		}
-		e, err := remoteinput.NormalizeGamepad(name, value == 1)
-		return e, err == nil
-	}
-	if typ != 3 {
+	events := m.Events(typ, code, value)
+	if len(events) == 0 {
 		return remoteinput.Event{}, false
 	}
+	return events[0], true
+}
+
+// Events maps one evdev event of a pad to what it moves: a button, the left
+// stick or a hat, and any buttons the mapping binds to that axis. One axis
+// event can release one such button and press another.
+func (m *Mapper) Events(typ, code uint16, value int32) []remoteinput.Event {
+	if m == nil || m.mouse || m.keyboard {
+		return nil
+	}
+	if typ == 1 {
+		if e, ok := m.mapButton(code, value); ok {
+			return []remoteinput.Event{e}
+		}
+		return nil
+	}
+	if typ != 3 {
+		return nil
+	}
+	var events []remoteinput.Event
+	if e, ok := m.mapAxis(code, value); ok {
+		events = append(events, e)
+	}
+	for i, b := range m.layout.axisButtons[code] {
+		down := value >= b.threshold
+		if !b.above {
+			down = value <= b.threshold
+		}
+		if m.held == nil {
+			m.held = map[uint16][]bool{}
+		}
+		if m.held[code] == nil {
+			m.held[code] = make([]bool, len(m.layout.axisButtons[code]))
+		}
+		if m.held[code][i] == down {
+			continue
+		}
+		m.held[code][i] = down
+		if e, err := remoteinput.NormalizeGamepad(b.name, down); err == nil {
+			events = append(events, e)
+		}
+	}
+	return events
+}
+
+func (m *Mapper) mapButton(code uint16, value int32) (remoteinput.Event, bool) {
+	if m.suppressed[code] {
+		if value == 0 {
+			delete(m.suppressed, code)
+		}
+		return remoteinput.Event{}, false
+	}
+	if value != 0 && value != 1 {
+		return remoteinput.Event{}, false
+	}
+	name, ok := m.layout.buttons[code]
+	if !ok {
+		return remoteinput.Event{}, false
+	}
+	e, err := remoteinput.NormalizeGamepad(name, value == 1)
+	return e, err == nil
+}
+
+func (m *Mapper) mapAxis(code uint16, value int32) (remoteinput.Event, bool) {
 	binding, ok := m.layout.axes[code]
 	if !ok {
 		return remoteinput.Event{}, false

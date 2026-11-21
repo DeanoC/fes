@@ -1,0 +1,41 @@
+corner	hold_only	check	coverage	paths	worst_slack_ns	from	to
+Slow fix4 100C Model	0	setup	analyzed	1	4.066	_42616_[14]~_Duplicate1	add_766~6_BLOCK_INPUT_MUX_PASSTHROUGH_X120_Y38_N0_I70_dff
+Slow fix4 100C Model	0	hold	analyzed	1	0.099	_42494_[0]	audio_opl2_opl2_control_operators_operator_envelope_generator_state_mem_genblk1_mem_bank_mlab_ram_rtl_0|auto_generated|lutrama0~reg0
+Slow fix4 100C Model	0	recovery	analyzed	1	13.476	reset	machine_at_pit_u_KF8253_Counter_0_count_le_two_q
+Slow fix4 100C Model	0	removal	analyzed	1	0.626	reset	machine_at_pic_master_u_Control_Logic_set_icw4_config~DUPLICATE
+Slow fix4 100C Model	0	clk_clock_setup	analyzed	1	4.066	_42616_[14]~_Duplicate1	add_766~6_BLOCK_INPUT_MUX_PASSTHROUGH_X120_Y38_N0_I70_dff
+Slow fix4 100C Model	0	clk_clock_hold	analyzed	1	0.099	_42494_[0]	audio_opl2_opl2_control_operators_operator_envelope_generator_state_mem_genblk1_mem_bank_mlab_ram_rtl_0|auto_generated|lutrama0~reg0
+Slow fix4 100C Model	0	pixel_clk_clock_setup	analyzed	1	8.141	machine_presenter_h_b[16]~ERTM	machine_presenter_picture[22]~ERTM
+Slow fix4 100C Model	0	pixel_clk_clock_hold	analyzed	1	0.102	machine_presenter_width[0]~DUPLICATE	add_1132~126_ERTM2
+Slow fix4 100C Model	0	internal_setup	analyzed	1	4.066	_42616_[14]~_Duplicate1	add_766~6_BLOCK_INPUT_MUX_PASSTHROUGH_X120_Y38_N0_I70_dff
+Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	6.202		
+Slow fix4 0C Model	0	setup	analyzed	1	2.364	_42616_[14]~_Duplicate1	add_766~6_BLOCK_INPUT_MUX_PASSTHROUGH_X120_Y38_N0_I70_dff
+Slow fix4 0C Model	0	hold	analyzed	1	0.130	machine_presenter_width[0]~DUPLICATE	add_1132~126_ERTM2
+Slow fix4 0C Model	0	recovery	analyzed	1	13.054	reset	machine_at_pit_u_KF8253_Counter_0_dec2_binary_q[13]
+Slow fix4 0C Model	0	removal	analyzed	1	0.752	reset	machine_at_pic_master_u_Control_Logic_set_icw4_config~DUPLICATE
+Slow fix4 0C Model	0	clk_clock_setup	analyzed	1	2.364	_42616_[14]~_Duplicate1	add_766~6_BLOCK_INPUT_MUX_PASSTHROUGH_X120_Y38_N0_I70_dff
+Slow fix4 0C Model	0	clk_clock_hold	analyzed	1	0.131	_42494_[0]	audio_opl2_opl2_control_operators_operator_envelope_generator_state_mem_genblk1_mem_bank_mlab_ram_rtl_0|auto_generated|lutrama0~reg0
+Slow fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	7.164	machine_presenter_h_b[16]~ERTM	machine_presenter_picture[22]~ERTM
+Slow fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.130	machine_presenter_width[0]~DUPLICATE	add_1132~126_ERTM2
+Slow fix4 0C Model	0	internal_setup	analyzed	1	2.364	_42616_[14]~_Duplicate1	add_766~6_BLOCK_INPUT_MUX_PASSTHROUGH_X120_Y38_N0_I70_dff
+Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.190		
+Slow fix4a 0C Model	0	setup	analyzed	1	2.361	_42616_[14]~_Duplicate1	add_766~6_BLOCK_INPUT_MUX_PASSTHROUGH_X120_Y38_N0_I70_dff
+Slow fix4a 0C Model	0	hold	analyzed	1	0.127	machine_presenter_width[0]~DUPLICATE	add_1132~126_ERTM2
+Slow fix4a 0C Model	0	recovery	analyzed	1	13.070	reset	machine_at_pit_u_KF8253_Counter_0_dec2_binary_q[13]
+Slow fix4a 0C Model	0	removal	analyzed	1	0.739	reset	machine_at_pic_master_u_Control_Logic_set_icw4_config~DUPLICATE
+Slow fix4a 0C Model	0	clk_clock_setup	analyzed	1	2.361	_42616_[14]~_Duplicate1	add_766~6_BLOCK_INPUT_MUX_PASSTHROUGH_X120_Y38_N0_I70_dff
+Slow fix4a 0C Model	0	clk_clock_hold	analyzed	1	0.132	_42494_[0]	audio_opl2_opl2_control_operators_operator_envelope_generator_state_mem_genblk1_mem_bank_mlab_ram_rtl_0|auto_generated|lutrama0~reg0
+Slow fix4a 0C Model	0	pixel_clk_clock_setup	analyzed	1	7.254	machine_presenter_h_b[16]~ERTM	machine_presenter_picture[22]~ERTM
+Slow fix4a 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.127	machine_presenter_width[0]~DUPLICATE	add_1132~126_ERTM2
+Slow fix4a 0C Model	0	internal_setup	analyzed	1	2.361	_42616_[14]~_Duplicate1	add_766~6_BLOCK_INPUT_MUX_PASSTHROUGH_X120_Y38_N0_I70_dff
+Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	6.189		
+Fast fix4 0C Model	0	setup	analyzed	1	8.760	_42616_[78]~DUPLICATE	add_766~6_BLOCK_INPUT_MUX_PASSTHROUGH_X120_Y38_N0_I70_dff
+Fast fix4 0C Model	0	hold	analyzed	1	0.028	machine_presenter_width[0]~DUPLICATE	add_1132~126_ERTM2
+Fast fix4 0C Model	0	recovery	analyzed	1	14.488	reset	machine_at_pit_u_KF8253_Counter_0_count_le_one_q~DUPLICATE
+Fast fix4 0C Model	0	removal	analyzed	1	0.365	reset	machine_at_pic_master_u_Control_Logic_set_icw4_config~DUPLICATE
+Fast fix4 0C Model	0	clk_clock_setup	analyzed	1	8.760	_42616_[78]~DUPLICATE	add_766~6_BLOCK_INPUT_MUX_PASSTHROUGH_X120_Y38_N0_I70_dff
+Fast fix4 0C Model	0	clk_clock_hold	analyzed	1	0.036	_42494_[0]	audio_opl2_opl2_control_operators_operator_envelope_generator_state_mem_genblk1_mem_bank_mlab_ram_rtl_0|auto_generated|lutrama0~reg0
+Fast fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	10.257	machine_presenter_h_b[16]~ERTM	machine_presenter_picture[22]~ERTM
+Fast fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.028	machine_presenter_width[0]~DUPLICATE	add_1132~126_ERTM2
+Fast fix4 0C Model	0	internal_setup	analyzed	1	8.760	_42616_[78]~DUPLICATE	add_766~6_BLOCK_INPUT_MUX_PASSTHROUGH_X120_Y38_N0_I70_dff
+Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.334		

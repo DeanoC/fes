@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/hidkeys"
+	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
@@ -29,12 +31,21 @@ type KeyboardHIDPoster func(context.Context, string, uint64, hidkeys.Rows) error
 // unconfirmed marks a state whose last post failed: a repeated press or
 // release reposts it instead of reporting a success the runtime never saw.
 type keyboardHIDSink struct {
-	mu          sync.Mutex
-	poster      KeyboardHIDPoster
-	binding     *KeyboardHIDBinding
-	pressed     [sourceCount]map[uint8]bool
-	dirty       bool
-	unconfirmed bool
+	mu             sync.Mutex
+	poster         KeyboardHIDPoster
+	binding        *KeyboardHIDBinding
+	pressed        [sourceCount]map[uint8]bool
+	blocked        [sourceCount]map[uint8]bool
+	shiftAmbiguous [sourceCount]bool
+	tapHeld        map[uint8]bool
+	tapInFlight    map[uint8]uint64
+	tapSequence    uint64
+	focused        bool
+	focusFence     atomic.Bool
+	fenceEpoch     atomic.Uint64
+	focusEpoch     uint64
+	dirty          bool
+	unconfirmed    bool
 }
 
 func (s *keyboardHIDSink) setPoster(poster KeyboardHIDPoster) {
@@ -81,6 +92,10 @@ func (s *keyboardHIDSink) bindContext(ctx context.Context, binding *KeyboardHIDB
 		s.binding = &copy
 	}
 	s.pressed = [sourceCount]map[uint8]bool{}
+	// A source can hold a focus-suppressed key across a core replacement.
+	// Keep that suppression until its real release or source disconnect.
+	s.tapHeld = nil
+	s.tapInFlight = nil
 	s.dirty = false
 	s.unconfirmed = false
 	return nil
@@ -98,6 +113,9 @@ func (s *keyboardHIDSink) unionLocked() map[uint8]bool {
 		for usage := range s.pressed[source] {
 			union[usage] = true
 		}
+	}
+	for usage := range s.tapHeld {
+		union[usage] = true
 	}
 	return union
 }
@@ -146,14 +164,144 @@ func (s *keyboardHIDSink) replayUnconfirmed(ctx context.Context, binding *Keyboa
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if !s.unconfirmed || s.binding == nil || binding == nil || *s.binding != *binding {
+	if s.focused || s.focusFence.Load() || !s.unconfirmed || s.binding == nil || binding == nil || *s.binding != *binding {
 		return nil
 	}
 	return s.postLocked(ctx)
 }
 
+// reconcileFocusNeutral waits for a concurrent HID operation to finish, then
+// retries any unconfirmed neutral under the current binding. A changed binding
+// clears unconfirmed state, so it cannot target the retired generation.
+func (s *keyboardHIDSink) reconcileFocusNeutral(ctx context.Context) error {
+	if err := s.lockTap(ctx); err != nil {
+		return err
+	}
+	defer s.mu.Unlock()
+	if s.focused || s.focusFence.Load() || !s.unconfirmed || s.binding == nil {
+		return nil
+	}
+	return s.postLocked(ctx)
+}
+
+// retireFocusKeysLocked retains a pending neutral because a refused or
+// unknown physical transition may have left the old rows held.
+func (s *keyboardHIDSink) retireFocusKeysLocked() {
+	if s.dirty || len(s.tapHeld) != 0 {
+		s.unconfirmed = true
+	}
+	s.tapHeld = nil
+	for source, keys := range s.pressed {
+		if s.blocked[source] == nil {
+			s.blocked[source] = map[uint8]bool{}
+		}
+		for usage := range keys {
+			s.blocked[source][usage] = true
+		}
+		s.pressed[source] = nil
+	}
+}
+
+// settleUnknownFocus neutralizes a post that was already in flight when an
+// unknown result latched the fence. An epoch or generation change cancels it.
+func (s *keyboardHIDSink) settleUnknownFocus(ctx context.Context, epoch uint64, binding KeyboardHIDBinding) error {
+	if err := s.lockTap(ctx); err != nil {
+		return err
+	}
+	defer s.mu.Unlock()
+	if !s.focusFence.Load() || s.fenceEpoch.Load() != epoch || s.binding == nil || *s.binding != binding {
+		return nil
+	}
+	s.retireFocusKeysLocked()
+	s.focused = true
+	s.focusEpoch = epoch
+	if !s.unconfirmed {
+		return nil
+	}
+	return s.postLocked(ctx)
+}
+
+// setDisplayFocus retires held usages without a post. The physical focus
+// transition neutralizes the machine; each source must release before a fresh
+// press is delivered. The caller holds the controller-port lifecycle fence.
+func (s *keyboardHIDSink) setDisplayFocus(ctx context.Context, focused bool, epoch uint64) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := s.lockTap(ctx); err != nil {
+		return err
+	}
+	defer s.mu.Unlock()
+	if focused || (s.focusFence.Load() && !s.focused) {
+		s.retireFocusKeysLocked()
+	}
+	s.focused = focused
+	s.focusEpoch = epoch
+	s.fenceEpoch.Store(epoch)
+	s.focusFence.Store(focused)
+	return nil
+}
+
+func (s *keyboardHIDSink) clearBlockedLocked(source inputSource, usage uint8) {
+	delete(s.blocked[source], usage)
+	if !s.blocked[source][0xe1] && !s.blocked[source][0xe5] {
+		s.shiftAmbiguous[source] = false
+	}
+}
+
+// observeOtherKeyboard tracks releases while another keyboard mode owns
+// delivery. It never posts to the old HID generation.
+func (s *keyboardHIDSink) observeOtherKeyboard(ctx context.Context, source inputSource, frame protocol.InputFrame) error {
+	code := remoteinput.Code(frame.Code)
+	usage, ok := hidkeys.Usage(code)
+	if !ok {
+		usage, ok = hidkeys.FromLegacy(code)
+	}
+	if !ok {
+		return nil
+	}
+	if source >= sourceCount {
+		source = sourceRemote
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := s.lockTap(ctx); err != nil {
+		return err
+	}
+	defer s.mu.Unlock()
+	if code == zx81keys.KeyShift {
+		// Legacy Shift has no side identity. A new legacy press while a
+		// side is suppressed makes later legacy releases ambiguous too.
+		left, right := s.blocked[source][0xe1], s.blocked[source][0xe5]
+		if frame.Action == uint8(remoteinput.ActionPress) {
+			if left || right {
+				s.shiftAmbiguous[source] = true
+			}
+		} else if !s.shiftAmbiguous[source] && left != right {
+			delete(s.blocked[source], 0xe1)
+			delete(s.blocked[source], 0xe5)
+		}
+		return nil
+	}
+	if frame.Action == uint8(remoteinput.ActionRelease) {
+		s.clearBlockedLocked(source, usage)
+	}
+	return nil
+}
+
 // applyFrom records one HID key frame from a source and posts the new union.
 func (s *keyboardHIDSink) applyFrom(ctx context.Context, source inputSource, f protocol.InputFrame) error {
+	return s.applyFromWithEpoch(ctx, source, f, nil, false)
+}
+
+// applyFromEpoch binds a frame to the focus state observed before the ports
+// lock was released. A delayed frame cannot cross a complete focus cycle.
+func (s *keyboardHIDSink) applyFromEpoch(ctx context.Context, source inputSource, f protocol.InputFrame, epoch uint64, focused bool) error {
+	return s.applyFromWithEpoch(ctx, source, f, &epoch, focused)
+}
+
+func (s *keyboardHIDSink) applyFromWithEpoch(ctx context.Context, source inputSource, f protocol.InputFrame, epoch *uint64, admittedFocused bool) error {
 	usage, ok := hidkeys.Usage(remoteinput.Code(f.Code))
 	if !ok || (f.Action != uint8(remoteinput.ActionPress) && f.Action != uint8(remoteinput.ActionRelease)) {
 		return nil
@@ -163,6 +311,33 @@ func (s *keyboardHIDSink) applyFrom(ctx context.Context, source inputSource, f p
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if epoch != nil && (*epoch != s.focusEpoch || admittedFocused && !s.focused) {
+		if f.Action == uint8(remoteinput.ActionPress) {
+			if s.blocked[source] == nil {
+				s.blocked[source] = map[uint8]bool{}
+			}
+			s.blocked[source][usage] = true
+		} else {
+			s.clearBlockedLocked(source, usage)
+			if !s.focused && !s.focusFence.Load() {
+				return s.repostLocked(ctx)
+			}
+		}
+		return nil
+	}
+	if f.Action == uint8(remoteinput.ActionRelease) {
+		s.clearBlockedLocked(source, usage)
+	}
+	if s.focused || s.focusFence.Load() || s.blocked[source][usage] {
+		if (s.focused || s.focusFence.Load()) && f.Action == uint8(remoteinput.ActionPress) {
+			if s.blocked[source] == nil {
+				s.blocked[source] = map[uint8]bool{}
+			}
+			s.blocked[source][usage] = true
+		}
+		delete(s.pressed[source], usage)
+		return nil
+	}
 	if s.pressed[source] == nil {
 		s.pressed[source] = map[uint8]bool{}
 	}
@@ -200,26 +375,41 @@ func (s *keyboardHIDSink) tap(ctx context.Context, f protocol.InputFrame, afterP
 		cancelPress()
 		return err
 	}
-	if s.binding == nil || s.binding.Generation != f.ServerMonoNS || s.poster == nil || s.heldUsageLocked(usage) {
+	if s.focused || s.focusFence.Load() || s.blocked[sourceRemote][usage] || s.binding == nil || s.binding.Generation != f.ServerMonoNS || s.poster == nil || s.heldUsageLocked(usage) || s.tapInFlight[usage] != 0 {
 		s.mu.Unlock()
 		cancelPress()
 		return errTapUnavailable
 	}
 	for bit := uint(0); bit < 8; bit++ {
-		if f.Reserved&(1<<bit) != 0 && s.pressed[sourceRemote][uint8(0xe0+bit)] {
+		modifier := uint8(0xe0 + bit)
+		if f.Reserved&(1<<bit) != 0 && (s.pressed[sourceRemote][modifier] || s.blocked[sourceRemote][modifier] || s.tapInFlight[modifier] != 0) {
 			s.mu.Unlock()
 			cancelPress()
 			return errTapUnavailable
 		}
 	}
 	binding := *s.binding
-	if s.pressed[sourceRemote] == nil {
-		s.pressed[sourceRemote] = make(map[uint8]bool)
+	if s.tapHeld == nil {
+		s.tapHeld = make(map[uint8]bool)
 	}
-	s.pressed[sourceRemote][usage] = true
+	if s.tapInFlight == nil {
+		s.tapInFlight = make(map[uint8]uint64)
+	}
+	s.tapSequence++
+	if s.tapSequence == 0 {
+		s.tapSequence++
+	}
+	tapID := s.tapSequence
+	s.tapHeld[usage] = true
+	s.tapInFlight[usage] = tapID
+	// Each modifier belongs to this tap token, rather than the remote
+	// source's physical holds. Reserve it until this operation finishes so
+	// overlapping taps cannot release one another's chord contributions.
 	for bit := uint(0); bit < 8; bit++ {
 		if f.Reserved&(1<<bit) != 0 {
-			s.pressed[sourceRemote][uint8(0xe0+bit)] = true
+			modifier := uint8(0xe0 + bit)
+			s.tapHeld[modifier] = true
+			s.tapInFlight[modifier] = tapID
 		}
 	}
 	pressErr := s.postLocked(pressCtx)
@@ -250,14 +440,23 @@ func (s *keyboardHIDSink) tap(ctx context.Context, f protocol.InputFrame, afterP
 		return errors.Join(pressErr, err)
 	}
 	defer s.mu.Unlock()
-	if s.binding == nil || *s.binding != binding {
+	if s.binding == nil || *s.binding != binding || s.tapInFlight[usage] != tapID {
 		return errors.Join(pressErr, errTapUnavailable)
 	}
-	delete(s.pressed[sourceRemote], usage)
+	heldByTap := s.tapHeld[usage]
+	delete(s.tapHeld, usage)
+	delete(s.tapInFlight, usage)
 	for bit := uint(0); bit < 8; bit++ {
 		if f.Reserved&(1<<bit) != 0 {
-			delete(s.pressed[sourceRemote], uint8(0xe0+bit))
+			modifier := uint8(0xe0 + bit)
+			if s.tapInFlight[modifier] == tapID {
+				delete(s.tapHeld, modifier)
+				delete(s.tapInFlight, modifier)
+			}
 		}
+	}
+	if !heldByTap || s.focused || s.focusFence.Load() {
+		return errors.Join(pressErr, errTapUnavailable)
 	}
 	if s.heldUsageLocked(usage) {
 		// A local press began during the tap. Preserve it, but do not claim
@@ -301,10 +500,23 @@ func (s *keyboardHIDSink) releaseSource(source inputSource) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if len(s.pressed[source]) == 0 {
+	s.blocked[source] = nil
+	s.shiftAmbiguous[source] = false
+	changed := len(s.pressed[source]) != 0
+	s.pressed[source] = nil
+	if source == sourceRemote && len(s.tapHeld) != 0 {
+		// A timed tap belongs to the host stream. Disconnect retires its
+		// contribution, but its in-flight token stays until its goroutine
+		// observes retirement, so it cannot release a replacement tap.
+		s.tapHeld = nil
+		changed = true
+	}
+	if s.focused || s.focusFence.Load() {
+		return nil
+	}
+	if !changed {
 		return s.repostLocked(context.Background())
 	}
-	s.pressed[source] = map[uint8]bool{}
 	return s.postLocked(context.Background())
 }
 
@@ -315,6 +527,12 @@ func (s *keyboardHIDSink) releaseAll() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.pressed = [sourceCount]map[uint8]bool{}
+	s.blocked = [sourceCount]map[uint8]bool{}
+	s.shiftAmbiguous = [sourceCount]bool{}
+	s.tapHeld = nil
+	s.tapInFlight = nil
+	s.focused = false
+	s.focusFence.Store(false)
 	if s.dirty {
 		_ = s.postLocked(context.Background())
 	}

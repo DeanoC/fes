@@ -1,0 +1,49 @@
+{
+ "kit": "B",
+ "package": "1d2ad78ffe1a3838401c2e159b916722020398b3dc3dde3ddd214027e584fd29.fcore",
+ "drive": "real",
+ "drive_sha256": "a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c",
+ "library_game": "s4-dos-vzwepgrocpby",
+ "nonce": "VZWEPGROCPBY",
+ "goals": {
+  "freedos": {
+   "pass": true,
+   "seconds_to_detect": 0.6,
+   "frame": "frames/freedos-prompt.png"
+  },
+  "wolf3d": {
+   "pass": true,
+   "graphics": true,
+   "lit": 0.938,
+   "changed_after_walk": 0.562,
+   "frames": [
+    "frames/wolf3d-floor1.png",
+    "frames/wolf3d-walked.png"
+   ]
+  }
+ },
+ "events": [],
+ "claim": "## 2026-11-20T13:46:12+02:00 KIT B IN USE: Claude (fes#1984 S4 session for Deano) \u2014 fes#1984 S4 design-v2 migration reseal, seal 1d2ad78f (BUILD_ID f023cb1e) of 53ff80b89, run k1984s4a: core-only on b",
+ "kit_created": [
+  "/media/fat/fogcast/core-data/games/6e3e9a76957bc971c97b99aa609547cff44a0c411314af8b4c5247212c3a8bf2",
+  "/media/fat/fogcast/core-data/media/ba920b9dcdc5ff6a5e6c6a2bed4924705196701084872bdad18c4611198b096b",
+  "/media/fat/fogcast/disk-images/a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c.img"
+ ],
+ "readback": {
+  "dos": true,
+  "notepad": true,
+  "files": {
+   "WFWDOS.TXT": null,
+   "WFWNOTE.TXT": null
+  }
+ },
+ "after": {
+  "agent": "idle",
+  "lease": "free",
+  "rebooted": false,
+  "left": [],
+  "recovery_required": false
+ },
+ "failure": null,
+ "pass": true
+}

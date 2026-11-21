@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"image"
 	"math"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"golang.org/x/image/vector"
@@ -179,7 +181,17 @@ func drawControllers(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture
 	fillRectI(dev, image.Rect(0, 0, snap.Grid.Width, snap.Grid.Height), heroBackground)
 	drawControllersHeader(dev, snap, labels, used, s)
 	hint := ""
-	if page.Picker.Open {
+	if page.Learn.Open {
+		drawControllerLearn(dev, snap, labels, used, s)
+		if page.Learn.Review {
+			hint = fmt.Sprintf("%s  ·  %s choose  ·  %s cancel", moveWord(snap.Affinity), selectWord(snap.Affinity), backWord(snap.Affinity))
+		} else {
+			hint = "Esc or another pad's B cancels"
+			if page.Learn.Optional {
+				hint += "  ·  Keyboard X or another pad's X skips"
+			}
+		}
+	} else if page.Picker.Open {
 		drawControllerPicker(dev, snap, labels, used, s)
 		hint = fmt.Sprintf("%s  ·  %s choose  ·  %s button default  ·  %s cancel",
 			moveWord(snap.Affinity), selectWord(snap.Affinity), westWord(snap.Affinity), backWord(snap.Affinity))
@@ -303,7 +315,8 @@ func drawControllerLayout(dev gfx.Device, snap Snapshot, labels map[string]gpuTe
 		swap = "On"
 	}
 	drawControllerButton(dev, labels, used, s, 40, 556, 232, "Swap A / B", swap, page.Focus == controllersFocusSwap)
-	drawControllerButton(dev, labels, used, s, 286, 556, 200, "Reset this pad", "", page.Focus == controllersFocusReset)
+	drawControllerButton(dev, labels, used, s, 286, 556, 250, "Map step by step", "", page.Focus == controllersFocusLearn)
+	drawControllerButton(dev, labels, used, s, 550, 556, 200, "Reset this pad", "", page.Focus == controllersFocusReset)
 }
 
 func drawControllerRow(dev gfx.Device, labels map[string]gpuTexture, used map[string]struct{}, s controllersSheet, x, y float64, row ControllerRow, focused bool) {
@@ -425,5 +438,78 @@ func drawControllerPicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTe
 			sheetText(dev, labels, used, s, x+(w-sheetTextWidth(s, 14, false, note))/2, y+31, w, 14, false, heroSecondary, note)
 		}
 		sheetText(dev, labels, used, s, x+(w-sheetTextWidth(s, 21, true, target.Label))/2, labelY, w, 21, true, heroText, target.Label)
+	}
+}
+
+// drawControllerLearn draws step-by-step mapping: the control asked for on
+// the left, and every step with what was pressed for it on the right.
+func drawControllerLearn(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}, s controllersSheet) {
+	learn := snap.Controllers.Learn
+	sheetText(dev, labels, used, s, 40, 92, 560, 34, true, heroText, "Map step by step")
+	if learn.Review {
+		sheetText(dev, labels, used, s, 40, 136, 560, 19, false, heroSecondary, "Check what you pressed")
+		about := "Save to read this pad through the buttons you pressed. Swap A / B and changing a button still work on top of it, and Reset this pad takes it off again."
+		for i, line := range gfx.WrapText(about, s.n(20), s.n(540), 6) {
+			sheetText(dev, labels, used, s, 40, 200+float64(i)*28, 560, 20, false, heroText, line)
+		}
+		choices := [learnChoices]struct {
+			label string
+			x, w  float64
+		}{{"Save", 40, 160}, {"Start again", 214, 200}, {"Cancel", 428, 160}}
+		for i, c := range choices {
+			drawControllerButton(dev, labels, used, s, c.x, 556, c.w, c.label, "", learn.Choice == i)
+		}
+	} else {
+		sheetText(dev, labels, used, s, 40, 136, 560, 19, false, heroSecondary,
+			fmt.Sprintf("Step %d of %d", learn.Step+1, len(learn.Rows)))
+		ask, label := "Press the control for", learn.Label
+		if learn.Stick {
+			ask, label = "Push the left stick all the way", strings.ToUpper(learn.Label[6:7])+learn.Label[7:]
+		}
+		sheetText(dev, labels, used, s, 40, 196, 560, 24, false, heroSecondary, ask)
+		sheetText(dev, labels, used, s, 40, 232, 560, 64, true, heroText, label)
+		if learn.Note != "" {
+			sheetText(dev, labels, used, s, 40, 316, 560, 22, false, heroSecondary, learn.Note+" in FES menus")
+		}
+		help := fmt.Sprintf("Press it on the pad you are mapping. A stick works for the directions. To stop without changing anything, press nothing for %d seconds.", int(learnIdle/time.Second))
+		if learn.Optional {
+			help = "No such button? Press " + learn.Skip + ", the control you gave B, to skip it."
+		}
+		if learn.Stick {
+			help = "Then let it go. This lets games read the stick as a stick. No stick, or it already moves the directions? Press " + learn.Skip + " to skip."
+		}
+		for i, line := range gfx.WrapText(help, s.n(20), s.n(540), 3) {
+			sheetText(dev, labels, used, s, 40, 368+float64(i)*28, 560, 20, false, heroText, line)
+		}
+	}
+	// A refusal can run to two lines.
+	for i, line := range gfx.WrapTextWeight(learn.Message, s.n(20), s.n(560), 2, gfx.WeightBold) {
+		sheetText(dev, labels, used, s, 40, 462+float64(i)*28, 560, 20, true, heroText, line)
+	}
+	if learn.Seconds > 0 && learn.Seconds <= 10 {
+		sheetText(dev, labels, used, s, 40, 524, 560, 17, false, heroSecondary,
+			fmt.Sprintf("Stops in %d s unless something is pressed. Nothing changes then.", learn.Seconds))
+	}
+
+	sheetBox(dev, s, 660, 96, 580, 530, 2, heroSurface, heroDivider)
+	// The rows share the box's height: 42 apart while they fit.
+	pitch := min(42, 504/float64(max(1, len(learn.Rows))))
+	for i, row := range learn.Rows {
+		y := 112 + float64(i)*pitch
+		if !learn.Review && i == learn.Step {
+			sheetBox(dev, s, 672, y, 556, pitch-4, 3, heroRaised, heroAccent)
+		}
+		ty := y + (pitch-4-20)/2 - 1
+		sheetText(dev, labels, used, s, 688, ty, 140, 20, true, heroText, row.Label)
+		if row.Note != "" {
+			sheetText(dev, labels, used, s, 688+sheetTextWidth(s, 20, true, row.Label)+10, ty+3, 200, 16, false, heroSecondary, row.Note)
+		}
+		source, ink := row.Source, heroText
+		if source == "Skipped" {
+			ink = heroSecondary
+		}
+		if source != "" {
+			sheetText(dev, labels, used, s, 1212-sheetTextWidth(s, 19, false, source), ty+1, 240, 19, false, ink, source)
+		}
 	}
 }

@@ -1,0 +1,41 @@
+corner	hold_only	check	coverage	paths	worst_slack_ns	from	to
+Slow fix4 100C Model	0	setup	analyzed	1	2.992	cpu_x87_wm[6]	cpu_x87_sh_src[28]
+Slow fix4 100C Model	0	hold	analyzed	1	0.087	cpu_x87_g_de25_core_fast_s1_large[26]~ERTM	add_794~181_ERTM0
+Slow fix4 100C Model	0	recovery	analyzed	1	7.620	reset	machine_at_pit_u_KF8253_Counter_0_count[16]~DUPLICATE
+Slow fix4 100C Model	0	removal	analyzed	1	0.306	reset	machine_at_pic_master_internal_data_bus[5]~DUPLICATE
+Slow fix4 100C Model	0	clk_clock_setup	analyzed	1	2.992	cpu_x87_wm[6]	cpu_x87_sh_src[28]
+Slow fix4 100C Model	0	clk_clock_hold	analyzed	1	0.087	cpu_x87_g_de25_core_fast_s1_large[26]~ERTM	add_794~181_ERTM0
+Slow fix4 100C Model	0	pixel_clk_clock_setup	analyzed	1	8.388	machine_presenter_h_a[4]~ERTM	machine_presenter_picture[6]~ERTM
+Slow fix4 100C Model	0	pixel_clk_clock_hold	analyzed	1	0.127	machine_presenter_p_b0[12]~ERTM	add_1204~21_ERTM
+Slow fix4 100C Model	0	internal_setup	analyzed	1	2.992	cpu_x87_wm[6]	cpu_x87_sh_src[28]
+Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	4.384		
+Slow fix4 0C Model	0	setup	analyzed	1	2.019	cpu_x87_wm[6]	cpu_x87_sh_src[28]
+Slow fix4 0C Model	0	hold	analyzed	1	0.114	cpu_x87_g_de25_core_fast_s1_large[26]~ERTM	add_794~181_ERTM0
+Slow fix4 0C Model	0	recovery	analyzed	1	7.279	reset	machine_at_pit_u_KF8253_Counter_1_dec2_binary_q[12]
+Slow fix4 0C Model	0	removal	analyzed	1	0.352	reset	machine_at_pic_master_internal_data_bus[5]~DUPLICATE
+Slow fix4 0C Model	0	clk_clock_setup	analyzed	1	2.019	cpu_x87_wm[6]	cpu_x87_sh_src[28]
+Slow fix4 0C Model	0	clk_clock_hold	analyzed	1	0.114	cpu_x87_g_de25_core_fast_s1_large[26]~ERTM	add_794~181_ERTM0
+Slow fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	7.493	machine_presenter_h_a[4]~ERTM	machine_presenter_picture[6]~ERTM
+Slow fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.152	reduce_or_2683~1_ERTM2	reduce_or_2683~1_ERTM3
+Slow fix4 0C Model	0	internal_setup	analyzed	1	2.019	cpu_x87_wm[6]	cpu_x87_sh_src[28]
+Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	4.358		
+Slow fix4a 0C Model	0	setup	analyzed	1	2.021	cpu_x87_wm[6]	cpu_x87_sh_src[28]
+Slow fix4a 0C Model	0	hold	analyzed	1	0.110	cpu_x87_g_de25_core_fast_s1_large[26]~ERTM	add_794~181_ERTM0
+Slow fix4a 0C Model	0	recovery	analyzed	1	7.298	reset	machine_at_pit_u_KF8253_Counter_1_dec2_binary_q[12]
+Slow fix4a 0C Model	0	removal	analyzed	1	0.344	reset	machine_at_pic_master_internal_data_bus[5]~DUPLICATE
+Slow fix4a 0C Model	0	clk_clock_setup	analyzed	1	2.021	cpu_x87_wm[6]	cpu_x87_sh_src[28]
+Slow fix4a 0C Model	0	clk_clock_hold	analyzed	1	0.110	cpu_x87_g_de25_core_fast_s1_large[26]~ERTM	add_794~181_ERTM0
+Slow fix4a 0C Model	0	pixel_clk_clock_setup	analyzed	1	7.584	machine_presenter_h_a[4]~ERTM	machine_presenter_picture[6]~ERTM
+Slow fix4a 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.153	machine_presenter_p_b0[12]~ERTM	add_1204~21_ERTM
+Slow fix4a 0C Model	0	internal_setup	analyzed	1	2.021	cpu_x87_wm[6]	cpu_x87_sh_src[28]
+Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	4.357		
+Fast fix4 0C Model	0	setup	analyzed	1	5.645	cpu_dfwd_sp_wb_reg[4]	cpu_dc0[317]
+Fast fix4 0C Model	0	hold	analyzed	1	0.016	cpu_x87_g_de25_core_fast_s1_large[26]~ERTM	add_794~181_ERTM0
+Fast fix4 0C Model	0	recovery	analyzed	1	8.473	reset	machine_at_pit_u_KF8253_Counter_1_dec2_binary_q[12]
+Fast fix4 0C Model	0	removal	analyzed	1	0.172	reset	machine_at_pic_master_internal_data_bus[5]~DUPLICATE
+Fast fix4 0C Model	0	clk_clock_setup	analyzed	1	5.645	cpu_dfwd_sp_wb_reg[4]	cpu_dc0[317]
+Fast fix4 0C Model	0	clk_clock_hold	analyzed	1	0.016	cpu_x87_g_de25_core_fast_s1_large[26]~ERTM	add_794~181_ERTM0
+Fast fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	10.384	machine_presenter_v[0]	machine_present_underflows[15]~DUPLICATE
+Fast fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.041	machine_presenter_p_b0[12]~ERTM	add_1204~21_ERTM
+Fast fix4 0C Model	0	internal_setup	analyzed	1	5.645	cpu_dfwd_sp_wb_reg[4]	cpu_dc0[317]
+Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	4.597		

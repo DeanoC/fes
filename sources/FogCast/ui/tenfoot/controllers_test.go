@@ -221,8 +221,8 @@ func TestControllersSwapAndReset(t *testing.T) {
 	now := time.Now()
 	gen := app.PadProfileGeneration()
 	// Down from the bottom button twice reaches Start, then Reset; Swap is
-	// to its left.
-	for _, cmd := range []Command{CmdDown, CmdDown, CmdDown, CmdLeft, CmdSelect} {
+	// two to its left, past Map step by step.
+	for _, cmd := range []Command{CmdDown, CmdDown, CmdDown, CmdLeft, CmdLeft, CmdSelect} {
 		app.HandleCommand(cmd, now)
 	}
 	snap := app.Snapshot().Controllers
@@ -235,6 +235,7 @@ func TestControllersSwapAndReset(t *testing.T) {
 	if app.PadProfileGeneration() == gen {
 		t.Fatal("the input layer is not told the profile changed")
 	}
+	app.HandleCommand(CmdRight, now)
 	app.HandleCommand(CmdRight, now)
 	app.HandleCommand(CmdSelect, now)
 	if _, ok := savedProfile(t, app); ok {
@@ -357,4 +358,231 @@ func TestWriteControllersSheet(t *testing.T) {
 	app.HandleCommand(CmdBack, now)
 	app.HandleCommand(CmdFilterNext, now)
 	write("layout-playstation", app)
+
+	app = controllersApp(t)
+	app.SetPadInfo(7, PadInfo{Name: "USB Gamepad", GUID: testPadGUID, Vendor: 0x1234, Product: 0x5678, Player: 1})
+	openLearn(t, app, now)
+	write("learn-first", app)
+	for _, source := range []string{"h0.1", "h0.4", "-a0", "+a0", "b2", "b1", "b3", "b1"} {
+		app.LearnPadSource(7, source, now)
+	}
+	app.LearnPadSource(7, "b2", now)
+	write("learn-optional", app)
+	for _, source := range []string{"b4", "a5", "b8", "b9"} {
+		app.LearnPadSource(7, source, now)
+	}
+	write("learn-stick", app)
+	app.LearnPadSource(7, "+a0", now)
+	write("learn-stick-refused", app)
+	app.LearnPadSource(7, "+a3", now)
+	app.LearnPadSource(7, "-a4", now)
+	write("learn-review", app)
+	app.LearnPadSource(7, "b2", now)
+	write("layout-mapped", app)
+}
+
+// savedRemap compiles the profile saved for guid as an attaching pad does.
+func savedRemap(app *App, guid string) (*inputmap.Remapper, error) {
+	profile, err := app.padProfile(guid)
+	if err != nil {
+		return nil, err
+	}
+	return profileRemap(profile)
+}
+
+// openLearn starts step-by-step mapping from the page: Map step by step is
+// left of Reset, below Start.
+func openLearn(t *testing.T, app *App, now time.Time) {
+	t.Helper()
+	for _, cmd := range []Command{CmdDown, CmdDown, CmdDown, CmdLeft, CmdSelect} {
+		app.HandleCommand(cmd, now)
+	}
+	if !app.Snapshot().Controllers.Learn.Open {
+		t.Fatal("mapping did not start")
+	}
+	if !app.PadLearning(7) || app.PadLearning(9) {
+		t.Fatal("the wrong pad is read raw")
+	}
+}
+
+func TestControllersLearnStepByStep(t *testing.T) {
+	app := controllersApp(t)
+	now := time.Now()
+	gen := app.PadProfileGeneration()
+	openLearn(t, app, now)
+	learn := func(sources ...string) {
+		for _, s := range sources {
+			app.LearnPadSource(7, s, now)
+		}
+	}
+	learn("h0.1", "h0.4", "-a0", "+a0", "b1", "b2")
+	// A control already mapped is refused, and another pad's press is not
+	// this pad's.
+	learn("b1")
+	app.LearnPadSource(9, "b0", now)
+	if snap := app.Snapshot().Controllers.Learn; snap.Label != "X" || !strings.Contains(snap.Message, "already A") {
+		t.Fatalf("after a repeat: %+v", snap)
+	}
+	learn("b0")
+	// B skips an optional step; so does X from the keyboard.
+	if snap := app.Snapshot().Controllers.Learn; !snap.Optional || snap.Skip != "Button 3" {
+		t.Fatalf("Y step: %+v", snap)
+	}
+	learn("b2")
+	app.HandleCommand(CmdSortCycle, now)
+	learn("a2", "b5", "b6")
+	// The stick steps refuse the stick that already gives the directions;
+	// B skips them.
+	learn("+a0")
+	if snap := app.Snapshot().Controllers.Learn; !snap.Stick || !strings.Contains(snap.Message, "already moves the directions") {
+		t.Fatalf("stick step: %+v", snap)
+	}
+	learn("b2", "b2")
+	snap := app.Snapshot().Controllers.Learn
+	if !snap.Review || snap.Rows[7].Source != "Skipped" || snap.Rows[8].Source != "Skipped" || snap.Rows[9].Source != "Axis 3" {
+		t.Fatalf("review: %+v", snap)
+	}
+	// The review is driven by the mapped pad: Right, Left, then A saves.
+	learn("+a0")
+	if app.Snapshot().Controllers.Learn.Choice != learnAgain {
+		t.Fatal("right did not move")
+	}
+	learn("-a0", "b1")
+	page := app.Snapshot().Controllers
+	if page.Learn.Open || !page.Mapped || !strings.HasPrefix(page.Identity, "Mapped step by step") {
+		t.Fatalf("after save: %+v", page)
+	}
+	profile, ok := savedProfile(t, app)
+	want := "dpup:h0.1,dpdown:h0.4,dpleft:-a0,dpright:+a0,a:b1,b:b2,x:b0,rightshoulder:a2,back:b5,start:b6"
+	if !ok || profile.Mapping != want {
+		t.Fatalf("saved %+v, want mapping %q", profile, want)
+	}
+	if app.PadProfileGeneration() == gen {
+		t.Fatal("the input layer is not told the profile changed")
+	}
+	// Swap A / B keeps the mapping; Reset takes it off.
+	app.HandleCommand(CmdLeft, now)
+	app.HandleCommand(CmdSelect, now)
+	if profile, _ := savedProfile(t, app); profile.Mapping != want || profile.Preset != inputmap.PresetSwapAB {
+		t.Fatalf("swap: %+v", profile)
+	}
+	app.HandleCommand(CmdRight, now)
+	app.HandleCommand(CmdRight, now)
+	app.HandleCommand(CmdSelect, now)
+	if _, ok := savedProfile(t, app); ok {
+		t.Fatal("reset kept the mapping")
+	}
+}
+
+func TestControllersLearnWaysOut(t *testing.T) {
+	now := time.Now()
+	for _, tc := range []struct {
+		name string
+		out  func(app *App)
+	}{
+		{"keyboard Back", func(app *App) { app.HandleCommand(CmdBack, now) }},
+		{"nothing pressed", func(app *App) { app.Tick(now.Add(learnIdle + time.Second)) }},
+		{"B in the review", func(app *App) {
+			for _, s := range []string{"h0.1", "h0.4", "h0.8", "h0.2", "b0", "b1"} {
+				app.LearnPadSource(7, s, now)
+			}
+			for i := 6; i < len(learnSteps); i++ {
+				app.LearnPadSource(7, "b1", now)
+			}
+			if !app.Snapshot().Controllers.Learn.Review {
+				t.Fatal("B did not skip to the review")
+			}
+			app.LearnPadSource(7, "b1", now)
+		}},
+		{"Cancel in the review", func(app *App) {
+			for _, s := range []string{"h0.1", "h0.4", "h0.8", "h0.2", "b0", "b1"} {
+				app.LearnPadSource(7, s, now)
+			}
+			for i := 6; i < len(learnSteps); i++ {
+				app.HandleCommand(CmdSortCycle, now)
+			}
+			app.HandleCommand(CmdRight, now)
+			app.HandleCommand(CmdRight, now)
+			app.HandleCommand(CmdSelect, now)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app := controllersApp(t)
+			openLearn(t, app, now)
+			tc.out(app)
+			page := app.Snapshot().Controllers
+			if page.Learn.Open || !page.Open || !strings.Contains(page.Status, "Nothing changed") {
+				t.Fatalf("page: %+v", page)
+			}
+			if _, ok := savedProfile(t, app); ok {
+				t.Fatal("a way out saved a profile")
+			}
+		})
+	}
+}
+
+// A required step cannot be skipped, and the pad's tab cannot change
+// under it.
+func TestControllersLearnRequiredSteps(t *testing.T) {
+	app := controllersApp(t)
+	app.SetPadInfo(9, PadInfo{Name: "Other", GUID: "other", Player: 2})
+	now := time.Now()
+	openLearn(t, app, now)
+	app.HandleCommand(CmdSortCycle, now)
+	app.HandleCommand(CmdTab, now)
+	snap := app.Snapshot().Controllers
+	if snap.Learn.Step != 0 || snap.Tab != 0 {
+		t.Fatalf("learn %+v tab %d", snap.Learn, snap.Tab)
+	}
+}
+
+func TestDescribeSource(t *testing.T) {
+	for source, want := range map[string]string{
+		"b0": "Button 1", "h0.8": "Hat left", "h1.1": "Hat 2 up", "+a1": "Axis 2 +", "-a0": "Axis 1 −",
+		"a4": "Axis 5", "a4~": "Axis 5 (reversed)",
+	} {
+		if got := describeSource(source); got != want {
+			t.Errorf("%s = %q, want %q", source, got, want)
+		}
+	}
+}
+
+// A pad whose directions are a hat maps its stick as the left stick: one
+// push right and one push down, in whichever sense the axis runs.
+func TestControllersLearnStick(t *testing.T) {
+	app := controllersApp(t)
+	now := time.Now()
+	openLearn(t, app, now)
+	for _, s := range []string{"h0.1", "h0.4", "h0.8", "h0.2", "b0", "b1"} {
+		app.LearnPadSource(7, s, now)
+	}
+	for i := 6; i < 12; i++ {
+		app.LearnPadSource(7, "b1", now)
+	}
+	snap := app.Snapshot().Controllers.Learn
+	if !snap.Stick || snap.Label != "Stick right" || snap.Skip != "Button 2" {
+		t.Fatalf("stick right step: %+v", snap)
+	}
+	// A button is not a stick.
+	app.LearnPadSource(7, "b4", now)
+	if snap := app.Snapshot().Controllers.Learn; snap.Label != "Stick right" || !strings.Contains(snap.Message, "Push the stick") {
+		t.Fatalf("button on the stick step: %+v", snap)
+	}
+	app.LearnPadSource(7, "+a0", now)
+	// The same axis again is refused; the other one, reading low when
+	// pushed down, is reversed.
+	app.LearnPadSource(7, "-a0", now)
+	if snap := app.Snapshot().Controllers.Learn; snap.Label != "Stick down" || !strings.Contains(snap.Message, "already Stick right") {
+		t.Fatalf("same axis twice: %+v", snap)
+	}
+	app.LearnPadSource(7, "-a1", now)
+	snap = app.Snapshot().Controllers.Learn
+	if !snap.Review || snap.Rows[12].Source != "Axis 1" || snap.Rows[13].Source != "Axis 2 (reversed)" {
+		t.Fatalf("review: %+v", snap.Rows)
+	}
+	app.LearnPadSource(7, "b0", now)
+	profile, _ := savedProfile(t, app)
+	if want := "dpup:h0.1,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,a:b0,b:b1,leftx:a0,lefty:a1~"; profile.Mapping != want {
+		t.Fatalf("saved %q, want %q", profile.Mapping, want)
+	}
 }

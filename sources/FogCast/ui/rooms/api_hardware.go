@@ -61,6 +61,22 @@ func (r *Instance) installHardware() *lua.LTable {
 			r.actions = append(r.actions, hardwareSetupAction(L, ActionHardwareMedia))
 			return 0
 		},
+		// add_disk adds one disk, chosen from a file, after the game's last.
+		"add_disk": func(L *lua.LState) int {
+			r.actions = append(r.actions, hardwareSetupAction(L, ActionHardwareAddDisk))
+			return 0
+		},
+		// open_disks opens the family's disk shelf. package_id is the
+		// installed package a new disk is made for.
+		"open_disks": func(L *lua.LState) int {
+			opts := L.CheckTable(1)
+			action := Action{Kind: ActionHardwareDisks, CoreID: optString(opts, "core_id"), PackageID: optString(opts, "package_id")}
+			if action.CoreID == "" || action.PackageID == "" {
+				L.ArgError(1, "core_id and package_id are required")
+			}
+			r.actions = append(r.actions, action)
+			return 0
+		},
 		"open_tapes": func(L *lua.LState) int {
 			r.actions = append(r.actions, hardwareSetupAction(L, ActionHardwareTapes))
 			return 0
@@ -167,6 +183,23 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 		computers.Append(row)
 	}
 	out.RawSetString("computers", computers)
+	// packages[package_id][role] is true when that role keeps what the
+	// computer writes, false when it only reads. A package or role that is
+	// missing is not known, as from a host from before this list.
+	packages := L.NewTable()
+	for _, p := range v.Packages {
+		if p.PackageID == "" {
+			continue
+		}
+		roles := L.NewTable()
+		for _, m := range p.Media {
+			if m.Role != "" {
+				roles.RawSetString(m.Role, lua.LBool(m.Saves))
+			}
+		}
+		packages.RawSetString(p.PackageID, roles)
+	}
+	out.RawSetString("packages", packages)
 	out.RawSetString("session_error", lua.LString(v.SessionError))
 	// Save support is separate from a machine's content readiness. An omitted
 	// field stays absent so an older unpaired host keeps its existing save.
@@ -209,7 +242,9 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 			}
 		}
 		session.RawSetString("hardware_known", lua.LBool(known))
-		for k, str := range map[string]string{"id": s.ID, "game_id": s.GameID, "state": s.State, "target": s.Target, "target_id": s.TargetID, "flight_id": s.FlightID} {
+		// media_name is the name of the medium put in during play; empty
+		// means the one the game started with.
+		for k, str := range map[string]string{"id": s.ID, "game_id": s.GameID, "state": s.State, "target": s.Target, "target_id": s.TargetID, "flight_id": s.FlightID, "media_name": s.MediaName} {
 			session.RawSetString(k, lua.LString(str))
 		}
 		if c := s.CorePackage; c != nil {

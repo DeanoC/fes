@@ -86,10 +86,7 @@
 // into its old value. A LOOP or JCXZ counts in CX or ECX by address size, which
 // is the uop's size; its target is truncated by operand size (opsize32).
 module fes_i386_decode #(
-    // The x87 unit's arithmetic backend, as fes_i386_cpu's parameter of the
-    // same name: it decides which ESC forms are built (fes_i386_pkg's
-    // x87_format and x87_decode take it) and so which this decode stops.
-    parameter int X87_BACKEND = 0
+    parameter bit I486 = 1'b0  // the i486 identity (fes_i386_cpu): its instructions decode
 ) (
     input  fes_i386_pkg::fetched_t q,
     input  logic                   code32,      // CS.D
@@ -1166,13 +1163,12 @@ module fes_i386_decode #(
                     nm = esc_nm;
                     x87_insn = 1'b1;
                     if (x87) begin
-                        x87_fmt = fes_i386_pkg::x87_format(b0[2:0], reg_f, X87_BACKEND == 1);
+                        x87_fmt = fes_i386_pkg::x87_format(b0[2:0], reg_f);
                         // A form a later slice builds stops as not built,
                         // but #NM comes first: with EM or TS set a 386
                         // raises it for every ESC, whatever the form, which
                         // is what lazy context switching relies on.
-                        known = esc_nm || fes_i386_pkg::x87_decode({b0[2:0], modrm}, x87_fmt,
-                                                                   X87_BACKEND == 1)
+                        known = esc_nm || fes_i386_pkg::x87_decode({b0[2:0], modrm}, x87_fmt)
                                        != fes_i386_pkg::X87_UNIMPL;
                         if (reg_form) begin
                             if (b0 == 8'hdf && modrm == 8'he0) begin
@@ -1197,42 +1193,37 @@ module fes_i386_decode #(
                             mbytes = 3'd4;
                             x87p = 2'(fes_i386_pkg::X87P_IPDP);
                             // The access shape, by ESC and reg field.
-                            // FBLD and FBSTP (DF /4, /6) come first and only
-                            // on the DE25 backend, which builds them; on the
-                            // DE10's the case below is all there is, and they
-                            // fall to its default as they always have.
+                            // FBLD and FBSTP (DF /4, /6) come first.
                             // **This is the table that fails unsafe** (see
                             // the D8 arm): the lockstep's x87 BCD suite reads
                             // and writes operands a wrong shape would misread.
-                            if (X87_BACKEND == 1 && {b0[2:0], reg_f} == 6'o74) begin
+                            if ({b0[2:0], reg_f} == 6'o74) begin
                                 // FBLD (DF /4): ten bytes read as FLD m80's
-                                // are, the word at 8, then the ROM's dwords
-                                // at 4 and 0.
-                                size = 2'd1;
-                                mbytes = 3'd2;
+                                // are, the probe of the last byte, then the
+                                // ROM's dwords at 0 and 4 and its word at 8.
+                                size = 2'd0;
+                                mbytes = 3'd1;
                                 mkind = 2'd1;
-                                moff = 7'd8;
+                                moff = 7'd9;
                                 x87p = 2'(fes_i386_pkg::X87P_NONE);
                                 seq = fes_i386_pkg::SEQ_UCODE;
-                                upc = fes_i386_ucode_pkg::UC_FRD10;
+                                upc = fes_i386_ucode_pkg::UC_XLD10;
                                 eoi = 1'b0;
-                            end else if (X87_BACKEND == 1 && {b0[2:0], reg_f} == 6'o76) begin
-                                // FBSTP (DF /6): ten bytes stored from the
-                                // top down, the word at 8, then the ROM's
-                                // dwords at 4 and 0. The x87 data pointer
-                                // is the operand's whichever chunk is last:
+                            end else if ({b0[2:0], reg_f} == 6'o76) begin
+                                // FBSTP (DF /6): ten bytes stored as FSTP
+                                // m80's are, the probe of the last byte,
+                                // then the ROM's dwords at 0 and 4 and its
+                                // word at 8. The x87 data pointer is the
+                                // operand's whichever chunk is last:
                                 // fes_i386_cpu takes it back from the last
                                 // uop's chunk (#1877).
-                                size = 2'd1;
-                                mbytes = 3'd2;
-                                moff = 7'd8;
-                                m_in_a = 1'b1;
-                                mkind = 2'd2;
-                                b_sys = 1'b1;
-                                sys_idx = 5'(fes_i386_pkg::SYS_RD_ONES);
+                                size = 2'd0;
+                                mbytes = 3'd1;
+                                moff = 7'd9;
+                                mkind = 2'd1;
                                 x87p = 2'(fes_i386_pkg::X87P_NONE);
                                 seq = fes_i386_pkg::SEQ_UCODE;
-                                upc = fes_i386_ucode_pkg::UC_FBST10;
+                                upc = fes_i386_ucode_pkg::UC_FST10;
                                 eoi = 1'b0;
                             end else
                             case ({b0[2:0], reg_f})
@@ -1286,25 +1277,29 @@ module fes_i386_decode #(
                                     mkind = 2'd1;
                                 end
                                 6'o50, 6'o75: begin
-                                    // FLD m64, FILD m64: the dword at 4,
-                                    // then the ROM's at 0.
+                                    // FLD m64, FILD m64: the dword at 0,
+                                    // then the ROM's at 4, upwards as a
+                                    // 386 reads them, so a fault on either
+                                    // page reports what the 386's does
+                                    // (#2020).
                                     mkind = 2'd1;
-                                    moff = 7'd4;
                                     x87p = 2'(fes_i386_pkg::X87P_NONE);
                                     seq = fes_i386_pkg::SEQ_UCODE;
-                                    upc = fes_i386_ucode_pkg::UC_FRD8;
+                                    upc = fes_i386_ucode_pkg::UC_XLD8;
                                     eoi = 1'b0;
                                 end
                                 6'o35: begin
-                                    // FLD m80 (DB /5): the word at 8, then
-                                    // the ROM's dwords at 4 and 0.
-                                    size = 2'd1;
-                                    mbytes = 3'd2;
+                                    // FLD m80 (DB /5): the probe of the
+                                    // last byte, then the ROM's dwords at 0
+                                    // and 4 and its word at 8 (see "x87
+                                    // operand probes" in fes_i386_cpu).
+                                    size = 2'd0;
+                                    mbytes = 3'd1;
                                     mkind = 2'd1;
-                                    moff = 7'd8;
+                                    moff = 7'd9;
                                     x87p = 2'(fes_i386_pkg::X87P_NONE);
                                     seq = fes_i386_pkg::SEQ_UCODE;
-                                    upc = fes_i386_ucode_pkg::UC_FRD10;
+                                    upc = fes_i386_ucode_pkg::UC_XLD10;
                                     eoi = 1'b0;
                                 end
                                 6'o00, 6'o01, 6'o02, 6'o03, 6'o04, 6'o05, 6'o06, 6'o07,
@@ -1338,13 +1333,12 @@ module fes_i386_decode #(
                                 6'o40, 6'o41, 6'o42, 6'o43, 6'o44, 6'o45,
                                 6'o46, 6'o47: begin
                                     // ... with a 64-bit real (DC /0-/7): the
-                                    // dword at 4, then the ROM's at 0, as
+                                    // dword at 0, then the ROM's at 4, as
                                     // FLD m64 is.
                                     mkind = 2'd1;
-                                    moff = 7'd4;
                                     x87p = 2'(fes_i386_pkg::X87P_NONE);
                                     seq = fes_i386_pkg::SEQ_UCODE;
-                                    upc = fes_i386_ucode_pkg::UC_FRD8;
+                                    upc = fes_i386_ucode_pkg::UC_XLD8;
                                     eoi = 1'b0;
                                 end
                                 6'o12, 6'o13, 6'o32, 6'o33: begin
@@ -1365,33 +1359,34 @@ module fes_i386_decode #(
                                     sys_idx = 5'(fes_i386_pkg::SYS_RD_ONES);
                                 end
                                 6'o52, 6'o53, 6'o77: begin
-                                    // FST and FSTP m64, FISTP m64: the dword
-                                    // at 0, then the ROM's at 4.
-                                    m_in_a = 1'b1;
-                                    mkind = 2'd2;
-                                    b_sys = 1'b1;
-                                    sys_idx = 5'(fes_i386_pkg::SYS_RD_ONES);
+                                    // FST and FSTP m64, FISTP m64: the probe
+                                    // of the last byte, then the ROM's
+                                    // dwords at 0 and 4.
+                                    size = 2'd0;
+                                    mbytes = 3'd1;
+                                    moff = 7'd7;
+                                    mkind = 2'd1;
                                     x87p = 2'(fes_i386_pkg::X87P_NONE);
                                     seq = fes_i386_pkg::SEQ_UCODE;
                                     upc = fes_i386_ucode_pkg::UC_FST8;
                                     eoi = 1'b0;
                                 end
                                 6'o37: begin
-                                    // FSTP m80 (DB /7): the dword at 0, then
-                                    // the ROM's at 4 and its word at 8.
-                                    m_in_a = 1'b1;
-                                    mkind = 2'd2;
-                                    b_sys = 1'b1;
-                                    sys_idx = 5'(fes_i386_pkg::SYS_RD_ONES);
+                                    // FSTP m80 (DB /7): the probe of the
+                                    // last byte, then the ROM's dwords at 0
+                                    // and 4 and its word at 8.
+                                    size = 2'd0;
+                                    mbytes = 3'd1;
+                                    moff = 7'd9;
+                                    mkind = 2'd1;
                                     x87p = 2'(fes_i386_pkg::X87P_NONE);
                                     seq = fes_i386_pkg::SEQ_UCODE;
                                     upc = fes_i386_ucode_pkg::UC_FST10;
                                     eoi = 1'b0;
                                 end
                                 default: begin
-                                    // A form this build does not run (FBLD
-                                    // and FBSTP on the DE10 backend, and
-                                    // the encodings no 387 defines),
+                                    // A form this build does not run (the
+                                    // encodings no 387 defines),
                                     // stopped by known above. The offset
                                     // goes to AG, as the empty socket's
                                     // does, so the trace has the data
@@ -1773,6 +1768,16 @@ module fes_i386_decode #(
                             upc = fes_i386_ucode_pkg::UC_LMSW;
                             eoi = 1'b0;
                         end
+                        // INVLPG m (the i486 identity): both TLBs flushed at
+                        // WB, a jump to the next instruction (SYSOP_INVLPG).
+                        // The operand's address is not formed or checked: a
+                        // 486 makes no access for it.
+                        3'd7: if (I486) begin
+                            undefined = reg_form;
+                            cls = C_SYSTEM;
+                            op = 5'(fes_i386_pkg::SYSOP_INVLPG);
+                            branch = 1'b1;
+                        end else undefined = 1'b1;
                         default: undefined = 1'b1;
                     endcase
                 end
@@ -2023,7 +2028,8 @@ module fes_i386_decode #(
                     // (docs/i386-cpu-design.md, Architecture). A write puts
                     // the register in T1 and 8 + the number in imm for the
                     // ROM's write (SYSOP_DR).
-                    undefined = !reg_f[2];
+                    // The i486 identity adds TR3, storage only.
+                    undefined = !reg_f[2] && !(I486 && reg_f == 3'd3);
                     op = 5'd9;  // ALU_MOV
                     size = 2'd2;
                     if (!op2[1]) begin
@@ -2032,7 +2038,7 @@ module fes_i386_decode #(
                         d_valid = 1'b1;
                         d_idx = rm;
                         b_sys = 1'b1;
-                        sys_idx = 5'(5'(fes_i386_pkg::SYS_RD_TR4) + 5'(reg_f[1:0]));
+                        sys_idx = !reg_f[2] ? 5'(fes_i386_pkg::SYS_RD_TR3) : 5'(5'(fes_i386_pkg::SYS_RD_TR4) + 5'(reg_f[1:0]));
                     end else begin
                         s2_valid = 1'b1;
                         s2_idx = rm;
@@ -2045,6 +2051,119 @@ module fes_i386_decode #(
                         eoi = 1'b0;
                     end
                 end
+                // ---- The i486 identity's instructions (#1962 slice 2). Each is #UD,
+                // the 0Fh map's default, at I486 = 0.
+                8'b11001???: if (I486) begin
+                    // BSWAP r32 (C8h-CFh): EX's byte reversal of src1
+                    // (SEGOP_BSWAP). With a 16-bit operand size, which the
+                    // PRM leaves undefined, EX's operand is the low word, so
+                    // the low word written is zero and the high word stays:
+                    // what Bochs gives, and what later Intel and AMD parts
+                    // were measured to do (no 486 measurement was found).
+                    cls = C_SEGMENT;
+                    op = 5'(fes_i386_pkg::SEGOP_BSWAP);
+                    s1_valid = 1'b1;
+                    s1_idx = op2[2:0];
+                    d_valid = 1'b1;
+                    d_idx = op2[2:0];
+                end else undefined = 1'b1;
+                8'b1100000?: if (I486) begin
+                    // XADD r/m, r (C0h, C1h). Registers: XCHG's three XORs,
+                    // then the ADD into r/m (SEQ_XADD), or the ADD alone when
+                    // they are one register. Memory: r/m into T1, the
+                    // read-modify-write ADD, then r from T1 (SEQ_XADDM),
+                    // which LOCK may prefix.
+                    size = op2[0] ? osz : 2'd0;
+                    if (reg_form) begin
+                        op = reg_f == rm ? 5'd0 : 5'd6;  // ALU_ADD, ALU_XOR
+                        wr_cf = reg_f == rm;
+                        wr_oszap = reg_f == rm;
+                        s1_valid = 1'b1;
+                        s1_idx = op2[0] ? rm : {1'b0, rm[1:0]};
+                        s1_hi8 = !op2[0] && rm[2];
+                        s2_valid = 1'b1;
+                        s2_idx = op2[0] ? reg_f : {1'b0, reg_f[1:0]};
+                        s2_hi8 = !op2[0] && reg_f[2];
+                        d_valid = 1'b1;
+                        d_idx = s1_idx;
+                        d_hi8 = s1_hi8;
+                        if (reg_f != rm) begin
+                            seq = fes_i386_pkg::SEQ_XADD;
+                            eoi = 1'b0;
+                        end
+                    end else begin
+                        op = 5'd9;
+                        size = 2'd2;  // T1's load, unmerged
+                        mbytes = op2[0] ? (osz32 ? 3'd4 : 3'd2) : 3'd1;
+                        mkind = 2'd1;
+                        s1_idx = op2[0] ? reg_f : {1'b0, reg_f[1:0]};  // carried, unread
+                        s1_hi8 = !op2[0] && reg_f[2];
+                        d_valid = 1'b1;
+                        d_temp = 1'b1;
+                        d_t1 = 1'b1;
+                        lock_any = 1'b1;
+                        seq = fes_i386_pkg::SEQ_XADDM;
+                        eoi = 1'b0;
+                    end
+                end else undefined = 1'b1;
+                8'b1011000?: if (I486) begin
+                    // CMPXCHG r/m, r (B0h, B1h). Registers: CMP eAX, r/m, then
+                    // r/m from r where ZF is set and eAX from r/m where it is
+                    // clear, each a select by the flags (SEQ_CMPX); the first
+                    // uop carries r in its (unwritten) destination.
+                    // Memory: r/m into T1, the CMP with T1, T1 from r where ZF
+                    // is set, T1 stored back (a 486 always writes), eAX from
+                    // T1 where ZF is clear (SEQ_CMPXM), which LOCK may prefix.
+                    size = op2[0] ? osz : 2'd0;
+                    if (reg_form) begin
+                        op = 5'd7;  // ALU_CMP
+                        wr_cf = 1'b1;
+                        wr_oszap = 1'b1;
+                        s1_valid = 1'b1;
+                        s1_idx = 3'd0;
+                        s2_valid = 1'b1;
+                        s2_idx = op2[0] ? rm : {1'b0, rm[1:0]};
+                        s2_hi8 = !op2[0] && rm[2];
+                        d_idx = op2[0] ? reg_f : {1'b0, reg_f[1:0]};  // carried, unwritten
+                        d_hi8 = !op2[0] && reg_f[2];
+                        seq = fes_i386_pkg::SEQ_CMPX;
+                        eoi = 1'b0;
+                    end else begin
+                        op = 5'd9;
+                        size = 2'd2;
+                        mbytes = op2[0] ? (osz32 ? 3'd4 : 3'd2) : 3'd1;
+                        mkind = 2'd1;
+                        s1_idx = op2[0] ? reg_f : {1'b0, reg_f[1:0]};  // carried, unread
+                        s1_hi8 = !op2[0] && reg_f[2];
+                        d_valid = 1'b1;
+                        d_temp = 1'b1;
+                        d_t1 = 1'b1;
+                        lock_any = 1'b1;
+                        seq = fes_i386_pkg::SEQ_CMPXM;
+                        eoi = 1'b0;
+                    end
+                end else undefined = 1'b1;
+                8'h08, 8'h09: if (I486) begin
+                    // INVD, WBINVD (the i486 identity): CPL 0 only; nothing
+                    // to do on caches that are coherent, so a NOP.
+                    cls = C_SPECIAL;
+                    op = 5'd0;  // SPECIAL_NOP
+                end else undefined = 1'b1;
+                8'ha2: if (I486) begin
+                    // CPUID (the i486 identity): EBX, ECX, EDX, then EAX, each
+                    // from EX's table by EAX's leaf (SEGOP_CPUID, SEQ_CPUID).
+                    cls = C_SEGMENT;
+                    op = 5'(fes_i386_pkg::SEGOP_CPUID);
+                    size = 2'd2;
+                    src_size = 2'd2;
+                    s1_valid = 1'b1;
+                    s1_idx = 3'd0;
+                    d_valid = 1'b1;
+                    d_idx = 3'd3;
+                    imm = 32'd3;
+                    seq = fes_i386_pkg::SEQ_CPUID;
+                    eoi = 1'b0;
+                end else undefined = 1'b1;
                 // The 386 defines LOADALL (07h), which is not built: it
                 // stops as FAULT_UNIMPLEMENTED. Every other encoding here
                 // is #UD, XBTS and IBTS (A6h, A7h) included: the 386's
@@ -2184,6 +2303,7 @@ module fes_i386_decode #(
     logic [4:0] fault;
     logic       lock_ok;
     assign priv_op = two ? op2 == 8'h06 || op2[7:2] == 6'b001000 || op2 == 8'h24 || op2 == 8'h26
+                         || I486 && (op2 == 8'h08 || op2 == 8'h09 || op2 == 8'h01 && reg_f == 3'd7)
                          || op2 == 8'h00 && reg_f[2:1] == 2'b01 || op2 == 8'h01 && (reg_f[2:1] == 2'b01 || reg_f == 3'd6)
                          : b0 == 8'hf4;
     assign v86_gp = vm && iopl != 2'd3 && (!two && (b0 == 8'h9c || b0 == 8'h9d || b0 == 8'hcd || b0 == 8'hcf) || q.prefixes.lock);

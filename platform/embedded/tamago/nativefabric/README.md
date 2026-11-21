@@ -1,5 +1,14 @@
 # Native contained-fabric endpoint
 
+[Native SD launcher setup](../../nano/launcher.md) combines the existing menu,
+installer and keyboard path. `ReadProgramStartup` reads every startup manifest
+through the active store before menu construction and enables preferences
+checkpoints only for the paired, explicitly writable selection.
+`stage-installer --menu-export` prepares a fresh menu and 64 KiB settings seed
+alongside the installer catalog. Joined tests run two App keyboard launch/return
+cycles, orderly shutdown and a fresh FAT/store/runtime/App boot with independent
+readback. This is software integration, not new physical qualification.
+
 Final Tenfoot shutdown now enters `ProgramBackend.ParkMenu`: under the same
 backend operation lock it drains the retained USB input source before closing
 MENU and checkpointing preferences. Polling stays paused through final USB

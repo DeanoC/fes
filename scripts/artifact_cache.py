@@ -38,8 +38,11 @@ def store_for(root, record):
         raise ValueError('shared artifact cache requires functional record v2')
     root = Path(root).absolute()
     # Never reinterpret or relabel historical combined-key cache entries.
-    if 'identities' in json.loads(record):
-        root = root / 'design-v1'
+    # Records with separated identities live under their own policy, which
+    # functional_key has already checked is a known one.
+    fields = json.loads(record)
+    if 'identities' in fields:
+        root = root / fields['parameters']['identity_policy']
     for ancestor in (*reversed(root.parents), root):
         if ancestor.exists() or ancestor.is_symlink():
             plain(ancestor, directory=True)

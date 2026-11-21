@@ -1,0 +1,4 @@
+control absent cpu_x87_pr_q count=0 2026-11-20T19:12:28+02:00
+control absent cpu_x87_xt_e count=0 2026-11-20T19:12:28+02:00
+control absent cpu_x87_dv_rem count=0 2026-11-20T19:12:28+02:00
+control present engine prem count=9 2026-11-20T19:12:28+02:00

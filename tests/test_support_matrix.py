@@ -61,7 +61,7 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertTrue(row['recipe'])
         self.assertEqual('experimental', row['library_standing'])
         self.assertEqual('experimental', row['signals']['catalog_standing'])
-        self.assertEqual('1-pending', row['quality_tier'])
+        self.assertEqual('1', row['quality_tier'])
         self.assertEqual('bring-up', row['tier'])
         self.assertEqual('de10', row['board'])
         self.assertEqual('quartus', row['primary_toolchain'])
@@ -74,8 +74,8 @@ class SupportMatrixTests(unittest.TestCase):
             self.assertIn(issue, ('#1368', '#1494', '#1235'))
         self.assertIn('Windows for Workgroups 3.11', row['notes'])
         self.assertIn('Linux 0.99.15, 1.2.13 and 2.0.0', row['notes'])
-        self.assertIn('requires a new exact-source lockstep and Quartus seal', row['notes'])
-        self.assertIn('earlier artifact results do not qualify', row['notes'])
+        self.assertIn('#1977', row['notes'])
+        self.assertIn('#1932', row['notes'])
         # The 387 is built as far as slice 2; its arithmetic is not.
         self.assertIn('slice 2 (#1768)', row['features'])
         self.assertIn('arithmetic is slices 3 to 5 and is not built', row['features'])
@@ -114,7 +114,7 @@ class SupportMatrixTests(unittest.TestCase):
         # Tier 1 and tier 2 cells carry full evidence; the rest carry it only
         # for changes aimed at them.
         self.assertEqual('full', by_id['fes.pcxt-dos']['check_level'])
-        self.assertEqual('1-pending', by_id['fes.pc386']['quality_tier'])
+        self.assertEqual('1', by_id['fes.pc386']['quality_tier'])
         self.assertEqual('full', by_id['fes.pc386']['check_level'])
         self.assertEqual('full', by_id['fes.menu']['check_level'])
         for core_id in ('fes.pong', 'fes.ramtest', 'fes.riscv', 'fes.coleco',
@@ -400,7 +400,10 @@ class SupportMatrixTests(unittest.TestCase):
             # A second statement of the same placement may supersede it.
             plan + '\n' + quote + '\n': 'may supersede',
             # The plan stops naming a pending placement's condition.
-            plan.replace('#1368 and #1494 close', 'its blockers close'): 'no longer names',
+            plan.replace('once they meet the port', 'after porting'): 'no longer names',
+            # Removing the non-blocking #1494 disposition changes the policy.
+            plan.replace('non-blocking for DE10 pc386 tier 1. #1494 stays open;',
+                         'pending pin-timing disposition;'): 'no longer says',
         }
         for text, expected in cases.items():
             with self.subTest(expected=expected), tempfile.TemporaryDirectory() as tmp:

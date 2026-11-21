@@ -3,8 +3,7 @@
 -- user's firmware. Finish writes the first-run marker and opens Home; Back
 -- (or B) returns to the step before.
 --
--- The controller line and the games folders arrive with their own setup
--- steps (#980, #1346).
+-- The games folders arrive with their own setup step (#1346).
 
 local F = require "families"
 local S = require "setup"

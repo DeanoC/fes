@@ -29,6 +29,14 @@ RULES = [
         'scripts/consistency.py', 'scripts/generate.py',
         'scripts/host_affected.py', 'scripts/runtime_tests.py', 'scripts/input_diagnostic.py',
     )],
+    # This offline capture classifier reads saved frames and does not access a kit.
+    ('scripts/de25_boot_screen.py', 'none', None),
+    # Powerboat's HILQ seal and D25 run scripts, and the plan that picks which
+    # registered DE25 packages a head seals. They drive Quartus and the kit
+    # from the host and deploy no bytes themselves; the packages they build are
+    # planned by their own producer inputs.
+    ('scripts/de25_seal_plan.py', 'none', None),
+    ('scripts/powerboat/**', 'none', None),
     # The native permanent-owner kernel now compiles this same DMA driver.
     # Only its disabled KUnit translation unit remains software-test-only.
     ('image/kernel/de25-dma/de25_dma_test.c', 'none', None),

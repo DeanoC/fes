@@ -20,6 +20,13 @@
 //
 // The backend is the unit's own `fes_x87_core`: the engine drives its
 // request port while it runs, one operation at a time.
+//
+// FPREM, FPREM1, FRNDINT, FSCALE and FXTRACT run here too (#2027 slice 6).
+// They are exact: the remainder is the trigonometric reduction's own
+// bit-a-clock divider with the divisor y in place of pi/4, FRNDINT is one
+// addition rounded under RC, and FSCALE and FXTRACT are exponent moves.
+// FBLD runs here as well: its eighteen digits are each a table constant,
+// digit times its power of ten, and summing them is exact.
 module fes_x87_trans (
     input  logic        clk,
     input  logic        reset,
@@ -29,13 +36,16 @@ module fes_x87_trans (
     // has, and the significand with bit 63 set. y is ST(1) of a two-operand
     // form.
     input  logic        start,
-    input  logic [2:0]  instruction,
+    input  logic [3:0]  instruction,
+    input  logic [1:0]  rc,          // the control word's RC, for ADDRC
     input  logic        xs,
     input  logic signed [17:0] xe,
     input  logic [63:0] xm,
     input  logic        ys,
     input  logic signed [17:0] ye,
     input  logic [63:0] ym,
+    // FBLD's operand's digits, its low 72 bits, least significant first.
+    input  logic [71:0] bcd,
     // The backend's request and its result before rounding.
     output logic        req_valid,
     input  logic        req_ready,
@@ -55,13 +65,19 @@ module fes_x87_trans (
     output logic signed [17:0] fin_exp,
     output logic [66:0] fin_sig,
     output logic [1:0]  second_mode,
-    output logic [79:0] second
+    output logic [79:0] second,
+    // FPREM's quotient's low three bits and whether the step was partial;
+    // FRNDINT's rounding: inexact, and away from zero (C1).
+    output logic [2:0]  prem_q,
+    output logic        prem_part,
+    output logic        rnd_pe,
+    output logic        rnd_c1
 );
     import fes_x87_trans_pkg::*;
 
     typedef enum logic [3:0] {
         S_IDLE, S_INIT, S_FETCH, S_DEC, S_RDB, S_EX, S_ISSUE, S_WAIT, S_NORM, S_TDIV, S_TFIX, S_TW2, S_SEC,
-        S_DONE
+        S_DONE, S_PFIX
     } state_e;
     state_e state;
 
@@ -121,11 +137,17 @@ module fes_x87_trans (
         flags[FL_YGTX] = ye > xe || (ye == xe && ym > xm);
         flags[FL_M1] = f_m1;
         flags[FL_J64] = j == 8'd64;
+        flags[FL_X63] = xe >= 18'sd63;
     end
 
     // The constant's address follows the word, so the constant is out a
     // clock after the word is; a temporary is read in S_DEC (a) and S_RDB (b).
-    assign c_addr = u_bmode == 2'd2 ? u_baddr + {2'b0, j} : u_baddr;
+    // Mode 3 is FBLD's digit table: the row's top six bits, and the digit of
+    // the place that row is for as the low four.
+    logic [3:0] digit;
+    assign digit = bcd[4 * 5'(u_baddr[9:4] - BCD_ROW) +: 4];
+    assign c_addr = u_bmode == 2'd2 ? u_baddr + {2'b0, j}
+                  : u_bmode == 2'd3 ? {u_baddr[9:4], digit} : u_baddr;
     assign b_now = u_bmode == 2'd0 ? t_q : c_q;
     always_comb begin
         t_raddr = u_a;
@@ -143,15 +165,20 @@ module fes_x87_trans (
         is_zero = v[78:0] == 79'd0;
     endfunction
 
-    // The backend's unrounded result, rounded to nearest even at 64 bits.
+    // The backend's unrounded result, rounded to nearest even at 64 bits --
+    // or, for ADDRC, under the control word's RC.
     // A zero comes back either as `special` with its value, when an operand
     // was a zero, or as a zero significand, when the operands cancelled.
     logic [79:0] rounded;
+    logic        r_inexact, up;
+    assign r_inexact = |raw.significand[2:0];
     always_comb begin
-        logic        up;
         logic [64:0] sum;
         logic signed [17:0] ex;
-        up = raw.significand[2] && (raw.significand[1] || raw.significand[0] || raw.significand[3]);
+        if (u_op != U_ADDRC || rc == 2'd0)
+            up = raw.significand[2] && (raw.significand[1] || raw.significand[0] || raw.significand[3]);
+        else
+            up = r_inexact && (rc == 2'd1 ? raw.sign : rc == 2'd2 ? !raw.sign : 1'b0);
         sum = {1'b0, raw.significand[66:3]} + 65'(up);
         ex = raw.exponent + 18'(sum[64]);
         if (raw.special) rounded = raw.value;
@@ -166,16 +193,28 @@ module fes_x87_trans (
     logic signed [17:0] ne;      // the biased exponent of bit 66
     logic               nsign;
     logic               n_tred;
+    logic               n_fin;       // the remainder: hand the normalised value back as FIN does
 
     // ---- The trigonometric reduction: |x| = q P + r, P = PM 2^-67. ----
+    // FPREM and FPREM1 run the same divider with y's significand as the
+    // divisor (`prem`), doubled where the exponent difference is -1, so that
+    // after x's 64 bits and n more the remainder is x 2^n mod the divisor,
+    // exactly, and the quotient's low three bits are what C0, C3 and C1 need.
     logic [66:0] tr_r;
     logic [63:0] tr_d;
     logic [7:0]  tr_n;
     logic [2:0]  tr_q;
     logic [67:0] tr_next;
     logic        tr_ge;
+    logic        prem, p_one;
+    logic [64:0] p_div;
+    logic signed [17:0] p_e;         // the biased exponent of the remainder's bit 63
+    logic [66:0] divisor;
+    assign divisor = prem ? {2'b0, p_div} : PM;
     assign tr_next = {tr_r, tr_d[63]};
-    assign tr_ge = tr_next >= {1'b0, PM};
+    assign tr_ge = tr_next >= {1'b0, divisor};
+    logic [66:0] back;
+    assign back = divisor - tr_r;
 
     // The rest of the reduced argument: the three bits below the window.
     function automatic logic [79:0] rest_of(input logic [2:0] low, input logic signed [17:0] top);
@@ -192,6 +231,17 @@ module fes_x87_trans (
             rest_of = {1'b0, ex[14:0], 1'b1, 63'd0};
         end
     endfunction
+
+    // y truncated toward zero, for FSCALE: below 2^16 its integer part is in
+    // the significand's top sixteen bits; from 2^16 a scale past any exponent.
+    logic signed [17:0] y_trunc;
+    always_comb begin
+        logic [15:0] whole;
+        whole = ym[63:48] >> (4'd15 - ye[3:0]);
+        if (ym == 64'd0 || ye < 18'sd0) y_trunc = 18'sd0;
+        else if (ye >= 18'sd16) y_trunc = ys ? -18'sd36000 : 18'sd36000;
+        else y_trunc = ys ? -$signed({2'b0, whole}) : $signed({2'b0, whole});
+    end
 
     // ---- The single-clock operations. ----
     logic [79:0]        simple;
@@ -235,7 +285,7 @@ module fes_x87_trans (
         what = u_op == U_FIN ? (fin_kind == UF_ADD ? U_ADD : fin_kind == UF_SUB ? U_SUB
                                 : fin_kind == UF_MUL ? U_MUL : U_DIV) : u_op;
         req_op = what == U_MUL ? 3'(fes_x87_pkg::OP_MUL) : what == U_DIV ? 3'(fes_x87_pkg::OP_DIV)
-               : what == U_ADD ? 3'(fes_x87_pkg::OP_ADD) : 3'(fes_x87_pkg::OP_SUB);
+               : (what == U_ADD || what == U_ADDRC) ? 3'(fes_x87_pkg::OP_ADD) : 3'(fes_x87_pkg::OP_SUB);
     end
 
     assign busy = state != S_IDLE;
@@ -259,6 +309,13 @@ module fes_x87_trans (
                     f_cneg <= 1'b0;
                     f_c <= 1'b0;
                     f_m1 <= 1'b0;
+                    prem <= 1'b0;
+                    prem_q <= 3'd0;
+                    prem_part <= 1'b0;
+                    rnd_pe <= 1'b0;
+                    rnd_c1 <= 1'b0;
+                    n_fin <= 1'b0;
+                    second_mode <= 2'd0;
                     state <= S_INIT;
                 end
                 // x, y, and each one's significand at exponent 0, signed.
@@ -287,7 +344,7 @@ module fes_x87_trans (
                     pc <= pc + 9'd1;
                     state <= S_FETCH;
                     case (u_op)
-                        U_ADD, U_SUB, U_RSUB, U_MUL, U_DIV: begin
+                        U_ADD, U_SUB, U_RSUB, U_MUL, U_DIV, U_ADDRC: begin
                             pc <= pc;
                             state <= S_ISSUE;
                         end
@@ -347,6 +404,7 @@ module fes_x87_trans (
                                 3'd2: e <= ye - xe;
                                 3'd3: e <= xe - ye;
                                 3'd4: e <= xe + ye;
+                                3'd6: e <= y_trunc;
                                 default: e <= 18'sd0;
                             endcase
                         end
@@ -372,6 +430,34 @@ module fes_x87_trans (
                                 state <= S_TW2;
                             end
                         end
+                        U_PREM: begin
+                            // The difference below zero gives x back, except
+                            // FPREM1 at -1 with x's significand above y's;
+                            // so does a divisor of infinity (exponent 16384).
+                            logic signed [17:0] d;
+                            logic [6:0]         n;
+                            d = xe - ye;
+                            n = d >= 18'sd64 ? (7'd32 | {2'b0, d[4:0]}) : d < 18'sd0 ? 7'd0 : 7'(d[6:0]);
+                            pc <= pc;
+                            if (ye == 18'sd16384 || d < -18'sd1 || (d == -18'sd1 && !(u_a[0] && xm > ym))) begin
+                                fin_zero <= 1'b0;
+                                fin_sign <= xs;
+                                fin_exp <= xe + 18'sd16383;
+                                fin_sig <= {xm, 3'b000};
+                                state <= S_SEC;
+                            end else begin
+                                prem <= 1'b1;
+                                p_one <= u_a[0] && d < 18'sd64;
+                                prem_part <= d >= 18'sd64;
+                                p_div <= d < 18'sd0 ? {ym, 1'b0} : {1'b0, ym};
+                                p_e <= xe - 18'(n) + 18'sd16383;
+                                tr_r <= 67'd0;
+                                tr_d <= xm;
+                                tr_q <= 3'd0;
+                                tr_n <= 8'd64 + {1'b0, n};
+                                state <= S_TDIV;
+                            end
+                        end
                         U_BR: if (flags[u_a] == u_dst[0]) pc <= u_baddr[8:0];
                         U_JMP: pc <= u_baddr[8:0];
                         U_CALL: begin
@@ -393,6 +479,13 @@ module fes_x87_trans (
                                 fin_sign <= a_val[79] ^ negate;
                                 fin_exp <= ex;
                                 fin_sig <= {a_val[63:0], 3'b000};
+                                if (fin_kind == UF_X) begin
+                                    // x itself, with the exponent it really has.
+                                    fin_zero <= 1'b0;
+                                    fin_sign <= xs ^ negate;
+                                    fin_exp <= xe + 18'sd16383 + (u_use_e ? e : 18'sd0);
+                                    fin_sig <= {xm, 3'b000};
+                                end
                                 if (fin_kind == UF_ABOVE) fin_sig <= {a_val[63:0], 3'b001};
                                 if (fin_kind == UF_BELOW) begin
                                     if (a_val[62:0] == 63'd0) begin
@@ -421,12 +514,22 @@ module fes_x87_trans (
                         t_we <= 1'b1;
                         t_waddr <= u_dst;
                         t_wdata <= rounded;
+                        if (u_op == U_ADDRC) begin
+                            rnd_pe <= r_inexact;
+                            rnd_c1 <= up;
+                        end
                         pc <= pc + 9'd1;
                         state <= S_FETCH;
                     end
                 end
                 S_NORM: begin
-                    if (nr[66] || nr == 67'd0) begin
+                    if (n_fin && nr[66]) begin
+                        fin_zero <= 1'b0;
+                        fin_sign <= nsign;
+                        fin_exp <= ne;
+                        fin_sig <= nr;
+                        state <= S_SEC;
+                    end else if (nr[66] || nr == 67'd0) begin
                         t_we <= 1'b1;
                         t_waddr <= n_tred ? 4'd4 : u_dst;
                         t_wdata <= nr == 67'd0 ? 80'd0 : {nsign, ne[14:0], nr[66:3]};
@@ -443,16 +546,41 @@ module fes_x87_trans (
                 // One quotient bit a clock: the significand's 64 bits, then
                 // the zeros below it down to the units of P.
                 S_TDIV: begin
-                    tr_r <= tr_ge ? 67'(tr_next - {1'b0, PM}) : tr_next[66:0];
+                    tr_r <= tr_ge ? 67'(tr_next - {1'b0, divisor}) : tr_next[66:0];
                     tr_q <= {tr_q[1:0], tr_ge};
                     tr_d <= {tr_d[62:0], 1'b0};
                     tr_n <= tr_n - 8'd1;
-                    if (tr_n == 8'd1) state <= S_TFIX;
+                    if (tr_n == 8'd1) state <= prem ? S_PFIX : S_TFIX;
+                end
+                // The remainder: FPREM1's completing step rounds the quotient
+                // to nearest, which takes the divisor less the remainder and
+                // the other sign (2r is compared with the divisor, not r with
+                // half of it, which would drop an odd divisor's low bit).
+                // `back` shares the reduction's P - r subtractor.
+                S_PFIX: begin
+                    logic       rup;
+                    logic [63:0] rem;
+                    rup = p_one && ({tr_r[64:0], 1'b0} > {1'b0, p_div}
+                                    || ({tr_r[64:0], 1'b0} == {1'b0, p_div} && tr_q[0]));
+                    rem = rup ? back[63:0] : tr_r[63:0];
+                    prem_q <= tr_q + 3'(rup);
+                    if (rem == 64'd0) begin
+                        fin_zero <= 1'b1;
+                        fin_sign <= xs ^ rup;
+                        state <= S_SEC;
+                    end else begin
+                        nr <= {rem, 3'b000};
+                        ne <= p_e;
+                        nsign <= xs ^ rup;
+                        n_tred <= 1'b0;
+                        n_fin <= 1'b1;
+                        state <= S_NORM;
+                    end
                 end
                 // An odd octant takes P - r; then the octant's three flags,
                 // and the remainder as a value: bit 66 is worth a half.
                 S_TFIX: begin
-                    nr <= tr_q[0] ? PM - tr_r : tr_r;
+                    nr <= tr_q[0] ? back : tr_r;
                     ne <= 18'sd16382;
                     nsign <= 1'b0;
                     n_tred <= 1'b1;

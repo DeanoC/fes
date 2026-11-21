@@ -472,17 +472,40 @@ func TestCoreScreenOpenedFromHomeStartsOnTheFirstGame(t *testing.T) {
 // the room, so the picture is built in two parts on separate draws. The
 // ceiling is about 1.25x the worst draw measured (7,046).
 func TestCoreScreenDrawWorkCeiling(t *testing.T) {
+	coreScreenDrawWork(t, "fes.spectrum", "model:fes.spectrum-plus3")
+}
+
+// The Atari ST's drive row carries one more button, "Your disks".
+func TestCoreScreenDrawWorkCeilingWithADiskShelf(t *testing.T) {
+	coreScreenDrawWork(t, "fes.atari-st", "")
+}
+
+// The package's disk only reads, which draws the most: the drive tag, an
+// unavailable New disk and its note. Both screen sizes are measured.
+func coreScreenDrawWork(t *testing.T, coreID, otherModel string) {
+	for _, size := range [][2]int{{1280, 720}, {1024, 600}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) { coreScreenDrawWorkAt(t, coreID, otherModel, size[0], size[1]) })
+	}
+}
+
+func coreScreenDrawWorkAt(t *testing.T, coreID, otherModel string, width, height int) {
 	const ceiling = 8800
 	games := []hostclient.Game{}
 	for i := 0; i < 30; i++ {
-		g := preparedComputer(fmt.Sprintf("title-%02d", i), fmt.Sprintf("Game %02d", i), "fes.spectrum")
-		g.CoreEntryKind = "title"
+		g := preparedComputer(fmt.Sprintf("title-%02d", i), fmt.Sprintf("Game %02d", i), coreID)
+		g.CoreEntryKind, g.PackageID, g.MediaRole, g.MediaID = "title", strings.Repeat("a", 64), "disk", strings.Repeat("1", 64)
+		// Every game is a three-disk set: the row and the drive say so.
+		g.MediaName = "GAME1.D64"
+		g.MoreMedia = []hostclient.SetMedia{{MediaID: strings.Repeat("2", 64), MediaName: "GAME2.D64"}, {MediaID: strings.Repeat("3", 64), MediaName: "GAME3.D64"}}
 		games = append(games, g)
 	}
+	host := &c64Host{fakeServices: fakeServices{games: games}}
+	host.snap.Packages = []hostclient.ComputerPackage{{PackageID: strings.Repeat("a", 64),
+		Media: []hostclient.ComputerMediaSaves{{Role: "disk", Saves: false}, {Role: "cassette", Saves: false}}}}
 	w := &workMeter{}
 	r := newRoom(t, examplePack(t, "example.core"), Options{
-		Services: c64ServicesWithEmptyHardware{Services: &fakeServices{games: games}},
-		Width:    1280, Height: 720, InitialCoreID: "fes.spectrum",
+		Services: host,
+		Width:    width, Height: height, InitialCoreID: coreID,
 	})
 	r.work = w
 	r.SetSessionState("idle")
@@ -491,7 +514,7 @@ func TestCoreScreenDrawWorkCeiling(t *testing.T) {
 	}
 	check := func(what string) {
 		t.Helper()
-		stepUntil(t, r, coreScreenSettled)
+		stepUntil(t, r, func(f Frame) bool { return coreScreenSettled(f) && frameHas(f, "Read only") })
 		for i := 0; i < 6; i++ {
 			r.Step(time.Now())
 		}
@@ -510,6 +533,172 @@ func TestCoreScreenDrawWorkCeiling(t *testing.T) {
 	// A session start changes both parts at once.
 	r.SetSessionState("active")
 	check("session start")
-	r.Activate("model:fes.spectrum-plus3")
-	check("a model change")
+	if otherModel != "" {
+		r.Activate(otherModel)
+		check("a model change")
+	}
+}
+
+func TestCoreScreenAtariSTOpensItsDiskShelf(t *testing.T) {
+	pkg := strings.Repeat("a", 64)
+	game := preparedComputer("st-game", "Dungeon", "fes.atari-st")
+	game.CoreEntryKind, game.PackageID, game.MediaRole, game.MediaID = "title", pkg, "disk", strings.Repeat("1", 64)
+	r := loadCoreScreen(t, &fakeServices{games: []hostclient.Game{game}}, "", "fes.atari-st", Options{})
+	frame := stepUntil(t, r, coreScreenSettled)
+	if !frameHas(frame, "Your disks") || !frameHasHit(frame, "disks") {
+		t.Fatalf("the ST screen has no disk shelf button:\n%s", frameText(frame))
+	}
+	// The button sits right of the media button and is one stop from it.
+	r.Input("up")
+	r.Input("right")
+	r.Input("select")
+	acts := r.TakeActions()
+	if len(acts) != 1 || acts[0].Kind != ActionHardwareDisks || acts[0].CoreID != "fes.atari-st" || acts[0].PackageID != pkg {
+		t.Fatalf("Your disks: %+v", acts)
+	}
+	r.Input("left")
+	r.Input("select")
+	if acts = r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionHardwareMedia {
+		t.Fatalf("left of Your disks: %+v", acts)
+	}
+	// A family without a shelf has no such button.
+	zx := preparedComputer("zx81-setup", "ZX81", "fes.zx81")
+	zx.CoreEntryKind = "machine"
+	other := loadCoreScreen(t, &fakeServices{games: []hostclient.Game{zx}}, zx.ID, zx.CoreID, Options{})
+	if f := stepUntil(t, other, coreScreenSettled); frameHas(f, "Your disks") || frameHasHit(f, "disks") {
+		t.Fatal("the ZX81 screen offers a disk shelf")
+	}
+}
+
+// The drive row's saves tag and New disk follow what the host says each
+// package's media keeps, not the core: the same room shows a C64 package
+// that saves, and an ST package that only reads, the way it would show any
+// other. A host from before the list says nothing, and nothing is tagged.
+func TestCoreScreenDriveSavesFollowTheHostsPackageFacts(t *testing.T) {
+	no, yes := false, true
+	cases := []struct {
+		name, core, role string
+		facts            map[string]bool
+		absent           bool
+		bare             bool
+		wantTag          string
+		newDiskOff       bool
+		shelf            bool
+	}{
+		{name: "C64 reads only", core: "fes.c64", role: "disk", facts: map[string]bool{"disk": no}, wantTag: "Read only", newDiskOff: true},
+		{name: "C64 saves", core: "fes.c64", role: "disk", facts: map[string]bool{"disk": yes}, wantTag: "Saves changes"},
+		{name: "ST saves", core: "fes.atari-st", role: "disk", facts: map[string]bool{"disk": yes}, wantTag: "Saves changes", shelf: true},
+		{name: "ST reads only", core: "fes.atari-st", role: "disk", facts: map[string]bool{"disk": no}, wantTag: "Read only", newDiskOff: true},
+		{name: "ST old host", core: "fes.atari-st", role: "disk", absent: true, shelf: true},
+		{name: "+3 tape", core: "fes.spectrum-plus3", role: "cassette", facts: map[string]bool{"disk": no, "cassette": no}, wantTag: "Read only", newDiskOff: true},
+		{name: "+3 role not listed", core: "fes.spectrum-plus3", role: "cassette", facts: map[string]bool{"disk": yes}, newDiskOff: false},
+		// An empty drive is not tagged, but a disk that cannot write still
+		// gets no blank disk.
+		{name: "C64 bare computer", core: "fes.c64", facts: map[string]bool{"disk": no}, bare: true, newDiskOff: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pkg := strings.Repeat("d", 64)
+			game := preparedComputer("saves-game", "Work Bench", tc.core)
+			game.CoreEntryKind, game.PackageID, game.MediaRole, game.MediaID = "machine", pkg, tc.role, strings.Repeat("1", 64)
+			if tc.bare {
+				game.MediaRole, game.MediaID = "", ""
+			}
+			host := &c64Host{fakeServices: fakeServices{games: []hostclient.Game{game}}}
+			// The marker name shows only once the hardware read has landed.
+			host.snap.Machines = []hostclient.HardwareMachine{{GameID: game.ID, MediaName: "Marker media"}}
+			if !tc.absent {
+				media := []hostclient.ComputerMediaSaves{}
+				for role, saves := range tc.facts {
+					media = append(media, hostclient.ComputerMediaSaves{Role: role, Saves: saves})
+				}
+				host.snap.Packages = []hostclient.ComputerPackage{
+					{PackageID: strings.Repeat("e", 64), Media: []hostclient.ComputerMediaSaves{{Role: tc.role, Saves: !tc.facts[tc.role]}}},
+					{PackageID: pkg, Media: media},
+				}
+			}
+			r := loadCoreScreen(t, host, "", tc.core, Options{})
+			// The marker, or for an empty drive the note, shows only once
+			// the hardware read has landed.
+			landed := "Marker media"
+			if tc.bare {
+				landed = "can't write to them yet."
+			}
+			frame := stepUntil(t, r, func(f Frame) bool { return coreScreenSettled(f) && frameHas(f, landed) })
+			text := frameText(frame)
+			for _, tag := range []string{"Saves changes", "Read only"} {
+				if got := strings.Contains(text, tag+"\n"); got != (tag == tc.wantTag) {
+					t.Fatalf("tag %q shown=%v, want tag %q:\n%s", tag, got, tc.wantTag, text)
+				}
+			}
+			note := strings.Contains(text, "can read disks but can't write to them yet.")
+			if frameHas(frame, "New disk") != tc.newDiskOff || note != tc.newDiskOff {
+				t.Fatalf("New disk %v, note %v, want both %v:\n%s", frameHas(frame, "New disk"), note, tc.newDiskOff, text)
+			}
+			if frameHas(frame, "Your disks") != tc.shelf {
+				t.Fatalf("Your disks shown=%v, want %v:\n%s", frameHas(frame, "Your disks"), tc.shelf, text)
+			}
+			if tc.newDiskOff {
+				r.Activate("new_disk")
+				if err := r.Err(); err != nil {
+					t.Fatalf("pressing an unavailable New disk failed the room: %v", err)
+				}
+				if acts := r.TakeActions(); len(acts) != 0 {
+					t.Fatalf("an unavailable New disk acted: %+v", acts)
+				}
+			}
+		})
+	}
+}
+
+// A game on two disks says so in its row and on the drive, and while it
+// runs, Next disk puts the other disk in by its ID and file name.
+func TestCoreScreenShowsADiskSetAndChangesToTheNextDisk(t *testing.T) {
+	disk1, disk2 := strings.Repeat("c", 64), strings.Repeat("d", 64)
+	game := preparedComputer("c64-game", "Copper Canyon", "fes.c64")
+	game.CoreEntryKind, game.PackageID, game.MediaID, game.MediaRole = "title", strings.Repeat("ab", 32), disk1, "disk"
+	game.MediaName = "CANYON1.D64"
+	game.MoreMedia = []hostclient.SetMedia{{MediaID: disk2, MediaName: "CANYON2.D64"}}
+	host := &c64Host{fakeServices: fakeServices{games: []hostclient.Game{game}}}
+	r := loadCoreScreen(t, host, game.ID, game.CoreID, Options{})
+	text := frameText(stepUntil(t, r, coreScreenSettled))
+	for _, want := range []string{"2 disks\n", "Disk 1 of 2, for next start\n"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("stopped set is missing %q:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "Next disk") {
+		t.Fatalf("a stopped game offers Next disk:\n%s", text)
+	}
+	r.Activate("add_disk")
+	if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionHardwareAddDisk || acts[0].GameID != game.ID ||
+		acts[0].PackageID != game.PackageID || acts[0].ExpectedMediaID != disk1 {
+		t.Fatalf("add disk: %+v", acts)
+	}
+	for _, step := range []struct{ inDrive, want, nextID, nextName string }{
+		{"", "Disk 1 of 2\n", disk2, "CANYON2.D64"},
+		{"CANYON2.D64", "Disk 2 of 2\n", disk1, "CANYON1.D64"},
+	} {
+		host.snap.Session = c64DiskSession(game.ID)
+		host.snap.Session.MediaName = step.inDrive
+		r := loadCoreScreen(t, host, game.ID, game.CoreID, Options{})
+		w := &workMeter{}
+		r.work = w
+		r.SetSessionState("active")
+		text := frameText(stepUntil(t, r, func(f Frame) bool { return coreScreenSettled(f) && frameHas(f, "Next disk") }))
+		for _, c := range w.calls {
+			if c.kind == "draw" && c.instructions > 8800 {
+				t.Fatalf("a running set's draw ran %d instructions", c.instructions)
+			}
+		}
+		if !strings.Contains(text, step.want) || strings.Contains(text, "Add disk to game") {
+			t.Fatalf("running set with %q in the drive: want %q and no Add disk:\n%s", step.inDrive, step.want, text)
+		}
+		r.Activate("next_disk")
+		acts := r.TakeActions()
+		if len(acts) != 1 || acts[0].Kind != ActionChangeDisk || acts[0].MediaID != step.nextID || acts[0].MediaName != step.nextName ||
+			acts[0].SessionID != "c64-session" || acts[0].MediaBinding.Generation != 7 {
+			t.Fatalf("next disk from %q: %+v", step.inDrive, acts)
+		}
+	}
 }

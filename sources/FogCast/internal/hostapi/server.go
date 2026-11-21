@@ -44,13 +44,16 @@ type Service interface {
 }
 
 type gameResult struct {
-	ID                 string              `json:"id"`
-	Title              string              `json:"title"`
-	System             protocol.System     `json:"system"`
-	CoreID             string              `json:"core_id,omitempty"`
-	PackageID          string              `json:"package_id,omitempty"`
-	MediaID            string              `json:"media_id,omitempty"`
-	MediaRole          string              `json:"media_role,omitempty"`
+	ID        string          `json:"id"`
+	Title     string          `json:"title"`
+	System    protocol.System `json:"system"`
+	CoreID    string          `json:"core_id,omitempty"`
+	PackageID string          `json:"package_id,omitempty"`
+	MediaID   string          `json:"media_id,omitempty"`
+	MediaRole string          `json:"media_role,omitempty"`
+	// MediaName and MoreMedia name disk 1 and list disks 2 to N of a disk set.
+	MediaName          string              `json:"media_name,omitempty"`
+	MoreMedia          []catalog.SetMedia  `json:"more_media,omitempty"`
 	Kind               catalog.SourceKind  `json:"kind"`
 	State              catalog.SourceState `json:"state"`
 	RootOnline         bool                `json:"root_online"`

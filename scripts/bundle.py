@@ -357,6 +357,57 @@ print(validate(Path.cwd(), Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3
     return digest_value
 
 
+def _pc386_reuse(source, package, record_path, evidence_dir, selected_record, *, run_lockstep=False,
+                 recipe=None, env=None):
+    """Ask the selected tree's evidence reader whether a sealed pc386 package may stand for it.
+
+    With run_lockstep, run and record the fresh full lockstep an evidence-only
+    change needs (#1984 S3). Neither path starts Quartus.
+    """
+    program = r'''
+import json
+import sys
+from pathlib import Path
+root = Path.cwd()
+current = root
+parts = Path('cores/fes-pc386/tools/pc386_seal_evidence.py').parts
+for index, part in enumerate(parts):
+    current = current / part
+    if current.is_symlink() or (not current.is_file() if index == len(parts) - 1 else not current.is_dir()):
+        raise ValueError('pc386 evidence reader must be a regular, non-symlinked source file')
+sys.path.insert(0, str(current.parent))
+import pc386_seal_evidence as evidence
+package, record, directory, selected = map(Path, sys.argv[1:5])
+store = root / 'build/packages'
+if sys.argv[5] == 'run':
+    status = evidence.run_fresh_lockstep(root, package, record, directory, selected.read_bytes(), store,
+                                         cache_root=Path(sys.argv[6]))
+else:
+    status = evidence.reuse_gate(root, package, record, directory, selected.read_bytes(), store)
+print(json.dumps(status, sort_keys=True))
+'''
+    with tempfile.TemporaryDirectory(prefix='fes-pc386-selected-') as private:
+        selected = Path(private) / 'selected-build-inputs.json'
+        selected.write_bytes(selected_record)
+        mode = ['run', str(recipe.cache_root)] if run_lockstep else ['check']
+        try:
+            result = subprocess.run([sys.executable, '-c', program, str(package), str(record_path),
+                                     str(evidence_dir), str(selected), *mode], cwd=source, text=True,
+                                    capture_output=True, check=True,
+                                    **({'env': package_build_environment(env, recipe=recipe)} if run_lockstep else {}))
+        except (OSError, subprocess.CalledProcessError) as error:
+            detail = error.stderr.strip() if isinstance(error, subprocess.CalledProcessError) else ''
+            action = 'fresh full lockstep failed' if run_lockstep else 'reuse check failed'
+            raise ValueError(f'pc386 evidence-only reuse refused: {action}' + (': ' + detail if detail else '')) from error
+    status = json.loads(result.stdout)
+    if (status.get('reuse') == 'fresh-lockstep'
+            and HEX64.fullmatch(str(status.get('fresh_lockstep_sha256'))) is None):
+        raise ValueError('pc386 reuse check returned an invalid fresh lockstep digest')
+    if status.get('reuse') not in ('unchanged', 'refused', 'needs-fresh-lockstep', 'fresh-lockstep'):
+        raise ValueError('pc386 reuse check returned an unknown result')
+    return status
+
+
 def _discard_producer_report(path):
     """Remove a producer miss report without following a symlink."""
     path = Path(path)
@@ -394,7 +445,9 @@ def _build_fes_pong(source, env=None):
     _build_package(source, recipe=recipe_for("fes.pong"), env=env)
 
 
-def _matching_package_candidates(source, record, recipe=None, *, store_override=None):
+def _matching_package_candidates(source, record, recipe=None, *, store_override=None, pending=None):
+    """Validated packages for record. A pc386 package that needs a fresh
+    lockstep before reuse is left out and appended to pending instead."""
     recipe = recipe_for("fes.pong") if recipe is None else recipe
     source = Path(source).absolute()
     build = source / "build"
@@ -462,6 +515,16 @@ def _matching_package_candidates(source, record, recipe=None, *, store_override=
                 'directory': evidence,
                 'receipt_sha256': _inspect_pc386_evidence(source, package, sidecar, evidence),
             }
+            if candidate_record != record:
+                reuse = _pc386_reuse(source, package, sidecar, evidence, record)
+                if reuse['reuse'] == 'refused':
+                    print(f"pc386 sealed package {identity} not reused: {reuse['reason']}", file=sys.stderr)
+                    continue
+                if reuse['reuse'] == 'needs-fresh-lockstep':
+                    if pending is not None:
+                        pending.append((package, sidecar, evidence))
+                    continue
+                inspected['pc386_evidence']['reuse'] = reuse
         matches.append((package, sidecar, inspected))
     return _rank_package_candidates(matches, record)
 
@@ -521,10 +584,24 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
     record = canonical_package_record(source, recipe=recipe, selection_only=not force, **produce)
     if force:
         _build_package(source, recipe=recipe, **produce)
-    candidates = _matching_package_candidates(source, record, recipe=recipe)
-    if not force and (not candidates or 'identities' in json.loads(record)):
-        candidates += _matching_package_candidates(source, record, recipe=recipe,
-            store_override=artifact_cache.store_for(ARTIFACT_CACHE_ROOT, record))
+    def matching(pending=None):
+        found = _matching_package_candidates(source, record, recipe=recipe, pending=pending)
+        if not force and (not found or 'identities' in json.loads(record)):
+            found += _matching_package_candidates(source, record, recipe=recipe, pending=pending,
+                store_override=artifact_cache.store_for(ARTIFACT_CACHE_ROOT, record))
+        return found
+    pending = []
+    candidates = matching(pending)
+    if not candidates and pending and not force:
+        # Only evidence changed since a pc386 seal (#1984 S3): reuse it only
+        # after a fresh full lockstep of this tree passes. A failure refuses;
+        # it never falls back to the old package or to a rebuild.
+        package, original_record_path, evidence_dir = pending[0]
+        _pc386_reuse(source, package, original_record_path, evidence_dir, record, run_lockstep=True,
+                     recipe=recipe, env=env)
+        candidates = matching()
+        if not candidates:
+            raise ValueError('pc386 fresh lockstep was recorded but the sealed package is still not reusable')
     if not candidates and not force:
         # A cache miss adopts the selected pin deliberately. Authentication is
         # deferred until here, so reusing a design does not install a new tool.
@@ -620,7 +697,7 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
             return {path: value for path, value in fields['source_inputs'].items()
                     if artifact_cache.identity.input_role(path) == 'toolchain'}
         inputs['source_selection'].update({
-            'identity_policy': 'design-v1',
+            'identity_policy': original['parameters']['identity_policy'],
             'design_id': original['identities']['design'][:32],
             'built_toolchain_id': original['identities']['toolchain'],
             'built_record_id': original['identities']['record'],
@@ -648,6 +725,10 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
         artifact_cache.publish(ARTIFACT_CACHE_ROOT, original_record_path, package,
                                evidence=evidence, validate=validate_staged)
         inputs['source_selection']['pc386_evidence_sha256'] = evidence_info['receipt_sha256']
+        reuse = evidence_info.get('reuse')
+        if reuse is not None and reuse['reuse'] == 'fresh-lockstep':
+            inputs['source_selection']['pc386_evidence_drift'] = reuse['evidence_drift']
+            inputs['source_selection']['pc386_fresh_lockstep_sha256'] = reuse['fresh_lockstep_sha256']
     else:
         artifact_cache.publish(ARTIFACT_CACHE_ROOT, original_record_path, package)
     receipt = json.dumps(inputs["source_selection"], sort_keys=True, indent=2).encode() + b"\n"

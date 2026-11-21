@@ -1589,7 +1589,11 @@ continues in `update` during reused frames. `TestHomeCallbackWorkCeiling`
 holds each Home callback kind under ceilings of Lua instructions and recorded
 draw ops, counted by the engine's test-only work meter (a context whose
 `Done` gopher-lua checks once per instruction), so the guard does not depend
-on the machine. Draw, input and lifecycle counts are exact; `update` counts
+on the machine. It covers both the compact row with recents and the six tall
+family tiles without recents; the latter has its own `update` and `on_resume`
+instruction ceilings for publishing a family destination. The meter does not
+establish whether callbacks meet the 12 ms frame or 8 ms input budgets on a kit.
+Draw, input and lifecycle counts are exact; `update` counts
 vary within a bound with the order the family answers arrive in, because
 `update` processes whichever family answer became pending first.
 `TestHomeTourFramesMatchRecorded` holds every tour picture to hashes
@@ -1661,7 +1665,11 @@ also accepts an optional `modifiers` bitmask, where bits 0..7 denote HID
 usages `0xe0..0xe7`. A nonzero mask requires a non-modifier key. The target
 negotiates chord support separately, applies key and modifier contributions in
 one HID state, and removes only those contributions together. Unrelated
-kit-local holds are retained. Unsupported targets fail before chord dispatch.
+kit-local holds are retained. The key and modifiers share the tap's ownership
+token; overlapping taps cannot claim the same modifier. A focus transition
+retires the tap along with other held inputs. A remote disconnect retires the
+remote contributions while preserving kit-local holds.
+Unsupported targets fail before chord dispatch.
 The host checks the selected kit's connection and lease and input attachment after
 waiting for the input lock. It rejects missing, incompatible, or unknown target
 observations. On an explicit tap, the host probes the bridge for target-timed
@@ -1907,7 +1915,9 @@ Benchmark recipes and measurement limits are in
 The framebuffer shell reads native-width evdev records for US keyboard text
 and gamepad buttons plus range-normalized stick/hat axes, merges held commands across devices,
 and applies each pad's saved profile and the shared hold gate. `nativeInputs.poll` takes those
-axes from `ui/controller.Mapper`. A held D-pad hat owns each shared
+axes from `ui/controller.Mapper`. Before dispatching each event, `nativeInputs.poll` refreshes
+whether the selected pad is in step-by-step learning. A mapping started while draining therefore
+changes the route for that pad's next queued event. A held D-pad hat owns each shared
 left axis: stick reports on that axis are dropped until the hat returns to
 centre, which restores the stick's latest position. Automatic discovery filters keyboard
 capabilities and physical gamepad identity, excluding virtual-bus devices and
@@ -2457,7 +2467,12 @@ held. Renewal runs every 20 seconds
 against the target's 90-second timeout. Client expiry uses the returned
 remaining duration and local monotonic time, so a kit without an RTC works;
 request round-trip time counts against that duration. Status and cache transfers do not claim
-hardware. Stop, input detach and reboot require an existing grant and never
+hardware. Discovery's initial grant snapshot and local status grant resumption
+honor the request context while another lease operation holds the lock.
+Cancellation there does not alter the grant or mark an active connection
+disconnected. After an ownership reply, reconciliation finishes even if the
+request is canceled so a changed generation cannot leave stale authority.
+Stop, input detach and reboot require an existing grant and never
 claim someone else's active session. Replacement operations retain the grant.
 Explicit public Stop (empty body, or `retain_lease` false) releases its grant
 after input/media/hardware cleanup. Sofa Soft-stop sets `retain_lease` true on
@@ -4429,7 +4444,9 @@ incompatible candidate. For format-3 packages, candidates must share the
 `machine-rom` firmware ID, role and source size; their sealed ROM-map digests may
 differ. A package-inventory error omits that optional suggestion;
 the selected package is inspected separately so an unrelated bad archive does not
-hide the saved setup.
+hide the saved setup. The optional package inventory is read before lifecycle
+admission so a slow inventory does not block live-session observations. The
+saved entry, selected expansion and their readiness remain one admitted snapshot.
 A format-3 title whose firmware ROM has no selection gets the host's
 [bundled firmware](../../../docs/bundled-firmware.md) for that core, ROM ID and
 exact size, when the host loaded one from its `[firmware] bundled_dir`. The
@@ -4475,9 +4492,20 @@ FPGA identity reports those two interfaces. Application machines have no
 removable-media unit, so this path needs no media-unit identity or selection;
 the computer path retains its existing media-unit checks. The agent's input
 fence holds delivery during each transition, but only a launcher-focus request
-retires held keys and neutralizes the mouse. Controller-port releases received
+retires held keys and neutralizes the mouse. HID keyboard holds and keys pressed
+while focused are suppressed per source until release; delayed frames cannot
+cross a focus cycle. A refused transition reconciles a pending neutral before
+resuming machine input, and an unconfirmed neutral remains retryable.
+Controller-port releases received
 while the launcher has focus clear their retained source snapshot without
 being sent to the core, so released buttons cannot replay when focus returns.
+The agent-authorized launcher display callback accepts the kit-local host’s
+matching busy projection for another FogCast host’s active lease. Local HID
+remains fenced under that foreign lease; package, generation and target
+identity and transition fences still apply.
+The agent holds the launcher publication guard through the runtime display
+transition and its prepare/finish exchange, so a replacement launcher cannot
+adopt the previous plane while that transition is still in flight.
 The runtime also neutralizes the single `fes.gamepad` interface and gates its
 worker's nonzero snapshots during launcher focus. The fence ends focused when
 the runtime confirms launcher focus. After a refusal it follows the focus that

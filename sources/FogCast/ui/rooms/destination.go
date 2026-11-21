@@ -78,6 +78,8 @@ func validCoreID(id string) bool {
 // parameter. Rooms cannot extend this set.
 var launcherActions = map[string]struct{}{
 	"settings": {},
+	// Settings › Controllers, which returns to the room when it closes.
+	"controllers": {},
 	// First-run setup (ui/tenfoot/setup.go): the next step, the step
 	// before, Skip setup, Finish, and Home's Finish setup.
 	"setup_continue": {},
@@ -85,6 +87,8 @@ var launcherActions = map[string]struct{}{
 	"setup_skip":     {},
 	"setup_finish":   {},
 	"setup_resume":   {},
+	// Setup's Controllers step: Swap A / B on the first listed pad.
+	"setup_swap_ab": {},
 }
 
 // LauncherActionAllowed reports whether id is one of those operations.
@@ -588,7 +592,10 @@ func (d *Destination) FillCopy() {
 		case "settings":
 			d.Status = "Open settings."
 			d.Action = "Open settings."
-		case "setup_continue", "setup_back", "setup_skip", "setup_finish", "setup_resume":
+		case "controllers":
+			d.Status = "Open controller settings."
+			d.Action = d.Status
+		case "setup_continue", "setup_back", "setup_skip", "setup_finish", "setup_resume", "setup_swap_ab":
 			// The setup room writes its own copy; Status keeps a fallback.
 			if d.Status == "" {
 				d.Status = "Continue setup."

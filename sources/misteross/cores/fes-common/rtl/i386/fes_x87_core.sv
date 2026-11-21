@@ -9,7 +9,7 @@
 //   - `fes_x87_pipe` wraps it with `fes_x87_round` and a 16-entry completion
 //     RAM, which is the standalone backend #1892 fitted and validated: tagged,
 //     rounded, masked results in issue order under backpressure.
-//   - `fes_i386_x87` with X87_BACKEND = X87_BACKEND_DE25 wraps it with
+//   - `fes_i386_x87` wraps it with
 //     nothing at all and takes `raw` straight into its own A_RND state.
 //
 // The second consumer is the reason the split exists. `fes_x87_round` rounds
@@ -33,7 +33,14 @@
 // The lanes raise IE, DE and ZE only. PE, UE and OE are the rounding's, and
 // belong to whichever rounder the consumer uses; neither lane sets them, so
 // no consumer counts them twice.
-module fes_x87_core (
+//
+// PIPELINED is the fast lane's (fes_x87_fast): 1 keeps its seven stages and
+// its throughput of one operation a clock, which `fes_x87_pipe` needs; 0
+// makes it one registered stage, for `fes_i386_x87`, which has one
+// operation in flight (#2027 slice 6).
+module fes_x87_core #(
+    parameter bit PIPELINED = 1'b1
+) (
     input  logic clk, reset, flush,
     // Admission. `ext_ready` is the consumer's own back pressure: the
     // standalone wrapper holds it low at sixteen outstanding operations, and
@@ -84,7 +91,7 @@ module fes_x87_core (
         request.ua = '0;
         request.ub = '0;
     end
-    fes_x87_fast fast (
+    fes_x87_fast #(.PIPELINED(PIPELINED)) fast (
         .clk, .reset, .flush, .in_valid(normalized_valid && !normalized_slow), .req(normalized),
         .out_valid(fast_valid), .res(fast_raw)
     );

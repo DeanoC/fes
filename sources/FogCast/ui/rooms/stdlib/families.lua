@@ -580,14 +580,14 @@ function M.mark(f, x, y, w, h)
   M.keyboard(x + (w - kw) / 2, ky, kw, kh, C.surface, art.ground)
 end
 
--- Welcome's six-family overview is an introduction, not a full family tile.
--- Keep the identifying mark but skip the keyboard made of many tiny rects;
--- drawing all six keyboards makes the first uncached setup frame expensive
--- on the kit's Cortex-A9.
-function M.welcome_mark(f, x, y, w, h)
+-- A family's mark without the keyboard: its ground and its short mark,
+-- no smaller than min_size (20 when omitted). Welcome's overview and Home's
+-- compact tiles use it: the keyboard is many tiny rects, which makes a first
+-- uncached frame expensive on the kit's Cortex-A9 and is unreadable small.
+function M.plain_mark(f, x, y, w, h, min_size)
   local art = f.art
   gfx.rect(x, y, w, h, art.ground)
-  local size = math.max(20, math.min(math.floor(h * 0.55), math.floor(w / (#art.mark * 0.62 + 0.5))))
+  local size = math.max(min_size or 20, math.min(math.floor(h * 0.55), math.floor(w / (#art.mark * 0.62 + 0.5))))
   local tw, th = M.measure(art.mark, size, true)
   M.text(art.mark, x + (w - tw) / 2, y + (h - th) / 2, size, true, C.on_accent)
 end

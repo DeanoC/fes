@@ -223,6 +223,40 @@ class ModuleSourcesTest(unittest.TestCase):
         self.destination.rename(moved)
         self.assertEqual(git(moved / "sources/FogCast", "rev-parse", "HEAD"), self.initial)
 
+    def test_snapshot_hardlinks_source_objects_on_the_same_filesystem(self):
+        self.materialize()
+        commit = self.initial
+        relative = Path("objects") / commit[:2] / commit[2:]
+        source, snapshot = self.root / ".git" / relative, self.destination / ".git" / relative
+        self.assertTrue(snapshot.is_file())
+        self.assertEqual(snapshot.stat().st_ino, source.stat().st_ino)
+        self.assertGreater(source.stat().st_nlink, 1)
+        self.assertFalse((self.destination / ".git/objects/info/alternates").exists())
+
+    def test_snapshot_copies_objects_when_hardlinking_fails(self):
+        # Simulate EXDEV: CI has no reliable second filesystem under out/work.
+        real_git, clones = module_sources._git, []
+
+        def cross_device(root, *args, check=True):
+            if args and args[0] == "clone":
+                clones.append(args)
+                if "--no-hardlinks" not in args:
+                    Path(args[-1], "partial").write_text("left by failed clone\n")
+                    raise ValueError("Git source inspection failed: clone: "
+                                     "fatal: failed to create link: Invalid cross-device link")
+            return real_git(root, *args, check=check)
+
+        module_sources._git = cross_device
+        self.addCleanup(setattr, module_sources, "_git", real_git)
+        result = self.materialize()
+        self.assertEqual([("--no-hardlinks" in args) for args in clones], [False, True])
+        self.assertEqual(git(result, "rev-parse", "HEAD"), self.initial)
+        relative = Path("objects") / self.initial[:2] / self.initial[2:]
+        source, snapshot = self.root / ".git" / relative, self.destination / ".git" / relative
+        self.assertNotEqual(snapshot.stat().st_ino, source.stat().st_ino)
+        self.assertFalse((self.destination / "partial").exists())
+        self.assertFalse(list(self.destination.parent.glob(".source-*")))
+
     def test_ssh_origin_is_normalized_once_and_repeated_fpga_staging_is_read_only(self):
         bundle_spec = importlib.util.spec_from_file_location("origin_test_bundle", SCRIPT.with_name("bundle.py"))
         bundle = importlib.util.module_from_spec(bundle_spec)

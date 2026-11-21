@@ -46,6 +46,9 @@ func eligible(bus uint16, name string, buttons bool) bool {
 	return bus != 0 && bus != 6 && name != "" && name != "FogCast Virtual Gamepad" && buttons
 }
 
+// Bluetooth reports a pad connected over Bluetooth rather than a wire.
+func (d Device) Bluetooth() bool { return d.Bus == 5 }
+
 // Eligible reports whether an evdev node is a physical gamepad candidate.
 // Keep bus/name filtering shared with the tenfoot automatic scanner.
 func Eligible(bus uint16, name string, buttons bool) bool { return eligible(bus, name, buttons) }

@@ -151,6 +151,8 @@ def bindings(directory):
                  'fes.zx81': ('computer', 'boards/de25nano/producers/build_zx81_package.py'),
                  'fes.spectrum': ('computer', 'boards/de25nano/producers/build_spectrum_package.py'),
                  'fes.spectrum128': ('computer', 'boards/de25nano/producers/build_spectrum_package.py'),
+                 'fes.spectrum-plus3': ('computer', 'boards/de25nano/producers/build_spectrum_package.py'),
+                 'fes.pentagon': ('computer', 'boards/de25nano/producers/build_spectrum_package.py'),
                  'fes.atari-st': ('computer', 'boards/de25nano/producers/build_atari_st_package.py'),
                  }.get(fields['parameters']['core_id'])
     require(selection is not None and fields['recipe'] == selection[1], 'unsupported canonical input-review core/recipe')

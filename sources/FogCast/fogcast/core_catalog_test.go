@@ -11,6 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/corepackage"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -67,7 +68,7 @@ func TestCoreCatalogInstallPreservesEntry(t *testing.T) {
 		t.Fatalf("%+v %v", rows, err)
 	}
 	got, err := s.CoreEntry(ctx, e.GameID)
-	if err != nil || got != e {
+	if err != nil || !reflect.DeepEqual(got, e) {
 		t.Fatalf("entry changed %+v %v", got, err)
 	}
 	if _, err = s.InstallAvailableCore(ctx, "other-source", "fes.pong", pid); err == nil {

@@ -112,6 +112,38 @@ class PreparedAcceptanceTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             accept.candidate_arguments(self.receipt)
 
+    def test_design_v2_evidence_reuse_provenance_is_accepted_and_strict(self):
+        # #1984 S3: scripts/bundle.py emits these fields when a sealed pc386
+        # design-v2 package is reused after an evidence-only change.
+        original = self.make_v2()
+        design = {'identity_policy': 'design-v2', 'design_id': '3' * 32,
+                  'built_toolchain_id': '4' * 64, 'built_record_id': '5' * 64,
+                  'built_with': {'yosys': 'synthetic'}, 'built_pins': {}, 'selected_pins': {},
+                  'built_toolchain_inputs': {}, 'selected_toolchain_inputs': {},
+                  'toolchain_update_available': False, 'pc386_evidence_sha256': '6' * 64}
+        fresh = {'pc386_evidence_drift': ['cores/fes-common/sim/i386/lockstep_tb.cpp'],
+                 'pc386_fresh_lockstep_sha256': '7' * 64}
+        for accepted in (design, {**design, **fresh}):
+            with self.subTest(accepted=sorted(accepted)):
+                self.write_v2_sidecar({**original, **accepted})
+                self.assertIn('--expected-package-id', accept.candidate_arguments(self.receipt))
+        refused = (
+            ('fresh lockstep digest without the drift', {**design, 'pc386_fresh_lockstep_sha256': '7' * 64}),
+            ('drift without the fresh lockstep digest', {**design, 'pc386_evidence_drift': fresh['pc386_evidence_drift']}),
+            ('fresh lockstep reuse on a design-v1 record', {**design, **fresh, 'identity_policy': 'design-v1'}),
+            ('fresh lockstep reuse without the sealed evidence', {k: v for k, v in {**design, **fresh}.items()
+                                                                 if k != 'pc386_evidence_sha256'}),
+            ('a bad fresh lockstep digest', {**design, **fresh, 'pc386_fresh_lockstep_sha256': 'bad'}),
+            ('an empty drift', {**design, **fresh, 'pc386_evidence_drift': []}),
+            ('an unsorted drift', {**design, **fresh, 'pc386_evidence_drift': ['b', 'a']}),
+            ('a path escaping the source', {**design, **fresh, 'pc386_evidence_drift': ['../x']}),
+            ('an absolute path', {**design, **fresh, 'pc386_evidence_drift': ['/x']}))
+        for case, fields in refused:
+            with self.subTest(case=case):
+                self.write_v2_sidecar({**original, **fields})
+                with self.assertRaises(ValueError):
+                    accept.candidate_arguments(self.receipt)
+
     def test_v2_changed_sidecar_fails_before_runner(self):
         self.make_v2()
         path = self.root / self.data["source_selection"]["path"]

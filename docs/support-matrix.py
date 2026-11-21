@@ -110,8 +110,8 @@ FORWARD_PLAN = Path('docs/plans/forward-plan.md')
 # The ladder, its bars and its tier 1 set are decided in the forward plan.
 # These sets mirror that decision; the wording check below fails if it moves.
 LADDER_QUOTES = (
-    'Tier 1 set on DE10 (decided): ZX81 family, Spectrum family, C64, Atari ST, PC/XT.',
-    'pc386 joins when #1368 and #1494 close.',
+    'Tier 1 set on DE10 (decided): ZX81 family, Spectrum family, C64, Atari ST, PC/XT and pc386.',
+    'non-blocking for DE10 pc386 tier 1. #1494 stays open;',
     'Coleco, SMS, SG-1000 and Apple II are tier 2 once they meet the port',
     'Pong, RAM Tester and RISC-V are utilities and demos, outside the ladder',
 )
@@ -120,20 +120,16 @@ LADDER_QUOTES = (
 LADDER_HEADING = '## Tiers'
 # The conditions the pending placements hang on. If the plan stops naming one,
 # that placement may have been decided and the rows need re-reading.
-LADDER_CONDITIONS = ('#1368', '#1494', 'once they meet the port')
+LADDER_CONDITIONS = ('once they meet the port',)
 QUALITY_TIER_IDS = {
     '1': frozenset({
         'fes.zx81', 'fes.zx80', 'fes.ts1000', 'fes.ts1500',
         'fes.spectrum', 'fes.spectrum128', 'fes.spectrum-plus3', 'fes.pentagon',
-        'fes.c64', 'fes.atari-st', 'fes.pcxt-dos',
+        'fes.c64', 'fes.atari-st', 'fes.pcxt-dos', 'fes.pc386',
     }),
-    '1-pending': frozenset({'fes.pc386'}),
     '2-pending': frozenset({'fes.coleco', 'fes.sms', 'fes.sg1000', 'fes.apple2'}),
     'utility': frozenset({'fes.pong', 'fes.ramtest', 'fes.riscv'}),
 }
-# Checked as tier 1 is: the decided set, and the row whose only named
-# condition is tier 1.
-QUALITY_TIER_FULL = frozenset({'1', '1-pending'})
 CHECK_LEVELS = frozenset({'full', 'reduced', 'via-consumer', 'none'})
 CHECK_PROPOSED = 'proposed'
 CHECK_ACCEPTED = 'accepted'
@@ -373,7 +369,7 @@ def derive_check_level(row: dict) -> str:
     if row['tier_role'] == 'firmware':
         return 'full'
     quality = row.get('quality_tier')
-    if quality in QUALITY_TIER_FULL:
+    if quality == '1':
         return 'full'
     if quality in QUALITY_TIER_IDS:
         return 'reduced'

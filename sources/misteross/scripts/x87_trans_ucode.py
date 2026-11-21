@@ -285,6 +285,7 @@ TRIG_LO, TRIG_HI = 4, 25          # sin and cos table: c = j/32
 EXP_LO, EXP_HI = 4, 32            # 2^x table: c = j/32, both signs
 LOG_LO, LOG_HI = 45, 91           # log2 table: c = j/64
 ATAN_LO, ATAN_HI = 2, 32          # atan table: c = j/32
+BCD_BASE, BCD_DIGITS = 672, 18    # FBLD's digit table: row k at BCD_BASE + 16 k
 
 
 def build_rom() -> Rom:
@@ -356,12 +357,28 @@ def build_rom() -> Rom:
     table('ll', LOG_LO, LOG_HI, lambda n: frac(fx_ln(fx(Fraction(n, 64)))) / frac(LN2), True)
     table('ac', ATAN_LO, ATAN_HI, lambda n: Fraction(n, 32), False)
     table('aa', ATAN_LO, ATAN_HI, lambda n: frac(fx_atan(fx(Fraction(n, 32)))), True)
+    # FRNDINT's rounding offset (#2027 slice 6): x + 2^63 rounded under RC has
+    # the integer in its significand's units, and taking 2^63 off again is exact.
+    rom.add('two63', Fraction(2 ** 63))
+    rom.add('mtwo63', Fraction(-(2 ** 63)))
+    # FBLD's table (#2027 slice 6): digit d of place k as the value d 10^k,
+    # every one exact. Row k is sixteen entries from BCD_BASE + 16 k, so the
+    # digit itself is the low four bits of the address; a digit of A to F
+    # is in the table too, since the 387 does not check for one and the
+    # engine adds it as the host x87 and the oracle were measured to.
+    while len(rom.words) % 16:
+        rom.put(f'bcd_pad{len(rom.words)}', (0, None, 0))
+    assert len(rom.words) == BCD_BASE, len(rom.words)
+    for k in range(BCD_DIGITS):
+        for d in range(16):
+            rom.add(f'bcd{k}_{d}', Fraction(d * 10 ** k))
     return rom
 
 
 # ---- The microprogram. ----
 # A word is (op, dst, a, b, arg). `a` is always a temporary. `b` is a
-# temporary ('t', n), a constant ('c', index) or a table entry ('j', base):
+# temporary ('t', n), a constant ('c', index), a digit's row ('d', base):
+# the constant at base + FBLD's digit (base - BCD_BASE) / 16, or a table entry ('j', base):
 # the constant at base + J. The operations:
 #   ADD SUB RSUB MUL DIV   dst <- a op b, on the backend, rounded to nearest.
 #                          RSUB is b - a.
@@ -377,16 +394,24 @@ def build_rom() -> Rom:
 #   CMP                    flag arg <- |a| < |b|
 #   TRED                   the trigonometric reduction: T4, T5 <- the reduced
 #                          argument's head and rest, and the octant flags
+#   PREM arg=one           FPREM (0) or FPREM1 (1) of x by y, exactly, and the
+#                          instruction's last word: the remainder is handed
+#                          back as FIN's is, with the quotient's low three
+#                          bits and the partial flag beside it
+#   ADDRC                  dst <- a + b rounded under the control word's RC
+#                          rather than to nearest; records whether it was
+#                          inexact and whether it rounded away from zero
 #   BR  arg=(flag, value, label)   branch when the flag has that value
 #   JMP arg=label; CALL arg=label; RET
 #   FIN arg=(kind, use_e, negate_flag, second): the last operation, whose
 #       unrounded result the unit rounds. kind: ADD SUB MUL DIV on (a, b);
 #       MOV: a itself; BELOW, ABOVE: a, an eighth of a unit short of or past
-#       it. use_e adds E to the result's exponent. negate_flag names a flag
+#       it; X: the x operand itself, with the exponent it really has (a
+#       temporary holds a 15-bit field, which a denormal's does not fit). use_e adds E to the result's exponent. negate_flag names a flag
 #       that flips the sign. second is the temporary holding the other
 #       result of a two-result form, or None.
 FLAGS = ('SWAP', 'SNEG', 'CNEG', 'TNEG', 'XS', 'YS', 'T32', 'T68', 'C', 'EZ', 'EBIG', 'ESMALL', 'YGTX', 'M1',
-         'J64')
+         'J64', 'X63')
 T_X, T_Y, T_MX, T_MY = 0, 1, 2, 3        # x, y, and each one's significand at exponent 0, signed
 
 
@@ -407,6 +432,8 @@ class Program:
     def _b(self, b):
         if isinstance(b, int):
             return ('t', b)
+        if b.startswith('#'):                         # FBLD's row for digit k: base + the digit
+            return ('d', self.rom.names[f'bcd{int(b[1:])}_0'])
         if b.startswith('@'):                         # a table: the constant at base + J
             name, low = b[1:].split(':')
             return ('j', self.rom.names[name] - int(low))
@@ -846,6 +873,55 @@ def build_program(rom: Rom) -> Program:
     p.add(8, 8, 'pi2_h')
     p.fin('ADD', 8, 9, negate='YS')
 
+    # ---- FPREM, FPREM1, FRNDINT, FSCALE and FXTRACT (#2027 slice 6). ----
+    # These were the sequencer's own arms on the DE25 backend. The unit still
+    # answers their special operands and stack faults, and enters here with
+    # finite, non-zero operands it has normalised -- except FSCALE's y, which
+    # may be a zero, and FPREM's y, which may be an infinity.
+    p.entry('FPREM')
+    p.op('PREM', arg=0)
+    p.entry('FPREM1')
+    p.op('PREM', arg=1)
+    # FRNDINT: x + 2^63 (or - 2^63 for a negative x) rounded under RC holds
+    # the integer in units, and taking the offset off again is exact. Below
+    # 2^-68 x is its own sign's tiny value, since T0's exponent field cannot
+    # hold a denormal's exponent; from 2^63 up x is an integer already.
+    p.entry('FRNDINT')
+    p.br('X63', 1, 'frndint_whole')
+    p.br('T68', 0, 'frndint_go')
+    p.mov(0, 'tiny')
+    p.br('XS', 0, 'frndint_go')
+    p.op('NEG', 0, 0, 'tiny')
+    p.label('frndint_go')
+    p.br('XS', 1, 'frndint_neg')
+    p.op('ADDRC', 6, 0, 'two63')
+    p.fin('SUB', 6, 'two63')
+    p.label('frndint_neg')
+    p.op('ADDRC', 6, 0, 'mtwo63')
+    p.fin('SUB', 6, 'mtwo63')
+    p.label('frndint_whole')
+    p.fin('X')
+    # FSCALE: x times 2 to y truncated toward zero, saturated where |y| is
+    # 2^16 or more; the unit rounds it and applies the bias rules.
+    p.entry('FSCALE')
+    p.op('SETE', arg='TRUNC')
+    p.fin('X', use_e=True)
+    # FXTRACT: the exponent as a value, and the significand with the exponent
+    # of one as the other result, which the unit pushes.
+    p.entry('FXTRACT')
+    p.op('SETE', arg='XE')
+    p.op('ITOF', 6)
+    p.fin('MOV', 6, second=T_MX)
+    # FBLD: the eighteen digits, each its place's table entry, summed most
+    # significant first. Every partial sum is an integer below 2^61, so every
+    # addition is exact, and so is the last, which the unit takes unrounded.
+    # The unit gives the sign and answers a zero.
+    p.entry('FBLD')
+    p.mov(0, f'#{BCD_DIGITS - 1}')
+    for k in range(BCD_DIGITS - 2, 0, -1):
+        p.add(0, 0, f'#{k}')
+    p.fin('ADD', 0, '#0')
+
     p.resolve()
     return p
 
@@ -858,14 +934,42 @@ class Result:
     """What the engine hands the unit: the last operation's exact value
     before rounding, and the other result of a two-result form."""
 
-    def __init__(self, exact: Fraction, second, steps: int, backend_ops: int):
+    def __init__(self, exact: Fraction, second, steps: int, backend_ops: int,
+                 quotient: int = 0, partial: int = 0, inexact: int = 0, away: int = 0,
+                 zero_sign: int = 0):
         self.exact, self.second, self.steps, self.backend_ops = exact, second, steps, backend_ops
+        # FPREM's quotient bits and partial flag; ADDRC's inexact and away-from-zero;
+        # and the sign of an exact zero, which a Fraction cannot carry.
+        self.quotient, self.partial, self.inexact, self.away = quotient, partial, inexact, away
+        self.zero_sign = zero_sign
 
 
-def run(program: Program, name: str, x, y=None) -> Result:
+def rc_round(v: Fraction, rc: int):
+    """Round at 64 bits under RC (0 nearest, 1 down, 2 up, 3 toward zero),
+    with no exponent limit: (the value, inexact, rounded away from zero)."""
+    if rc == 0:
+        r = rn(v)
+    else:
+        sign, mag = (1, -v) if v < 0 else (0, v)
+        exponent = mag.numerator.bit_length() - mag.denominator.bit_length()
+        if Fraction(2) ** exponent > mag:
+            exponent -= 1
+        scaled = mag / Fraction(2) ** (exponent - 63)
+        whole = scaled.numerator // scaled.denominator
+        if scaled != whole and ((rc == 1 and sign) or (rc == 2 and not sign)):
+            whole += 1
+        if whole >> 64:
+            whole >>= 1
+            exponent += 1
+        r = (sign, exponent, whole)
+    return r, int(value(r) != v), int(abs(value(r)) > abs(v))
+
+
+def run(program: Program, name: str, x, y=None, rc: int = 0, digits: int = 0) -> Result:
     """Run one instruction's microprogram on finite, non-zero operands, as
     the unit enters it. x and y are (sign, exponent, significand) values;
-    for a trigonometric form |x| < 2^63."""
+    for a trigonometric form |x| < 2^63. `digits` is FBLD's operand's low 72
+    bits, its eighteen digits."""
     rom = program.rom
     xs, xe, xm = x
     ys, ye, ym = y if y is not None else (0, 0, 1 << 63)
@@ -874,7 +978,8 @@ def run(program: Program, name: str, x, y=None) -> Result:
     T[T_Y], T[T_MY] = (ys, ye, ym), (ys, 0, ym)
     flag = dict.fromkeys(FLAGS, 0)
     flag.update(XS=xs, YS=ys, T32=int(xe < -32), T68=int(xe < -68),
-                YGTX=int((ye, ym) > (xe, xm)))
+                YGTX=int((ye, ym) > (xe, xm)), X63=int(xe >= 63))
+    inexact = away = 0
     E, J, pc, link, steps, issued = 0, 0, program.entries[name], None, 0, 0
 
     def set_e(v: int) -> int:
@@ -891,10 +996,15 @@ def run(program: Program, name: str, x, y=None) -> Result:
             B = T[ref]
         elif kind == 'c':
             B = rom.get(ref)
+        elif kind == 'd':
+            B = rom.get(ref + (digits >> 4 * ((ref - BCD_BASE) >> 4) & 15))
         else:
             B = rom.get(ref + J)
         A = T[a]
-        if op in ('ADD', 'SUB', 'RSUB', 'MUL', 'DIV'):
+        if op == 'ADDRC':
+            issued += 1
+            T[dst], inexact, away = rc_round(value(A) + value(B), rc)
+        elif op in ('ADD', 'SUB', 'RSUB', 'MUL', 'DIV'):
             issued += 1
             T[dst] = backend(op, A, B)
             assert T[dst][1] is None or E_MIN <= T[dst][1] <= 16383, (name, pc, T[dst])
@@ -927,7 +1037,32 @@ def run(program: Program, name: str, x, y=None) -> Result:
             E = set_e(e)
             flag['M1'] = int(m == 1 << 63)
         elif op == 'SETE':
-            E = set_e({'XE': xe, 'YE': ye, 'YE-XE': ye - xe, 'XE-YE': xe - ye, 'XE+YE': xe + ye, 'ZERO': 0}[arg])
+            if arg == 'TRUNC':
+                # y truncated toward zero; from 2^16 a scale past any exponent.
+                whole = 0 if ym == 0 or ye < 0 else 36000 if ye >= 16 else ym >> (63 - ye)
+                E = set_e(-whole if ys else whole)
+            else:
+                E = set_e({'XE': xe, 'YE': ye, 'YE-XE': ye - xe, 'XE-YE': xe - ye, 'XE+YE': xe + ye,
+                           'ZERO': 0}[arg])
+        elif op == 'PREM':
+            # The step reduces n = (d & 31) | 32 quotient bits where the
+            # exponent difference d is 64 or more, and all of d where it is
+            # less. A difference below zero gives x back, except FPREM1 at -1
+            # with x's significand above y's, where the quotient rounds to one.
+            # y may be an infinity (exponent 16384), which gives x back.
+            one, d = arg, xe - ye
+            if ye == 16384 or d < -1 or (d == -1 and not (one and xm > ym)):
+                return Result(value(x), None, steps, issued)
+            n = 0 if d < 0 else (32 | (d & 31)) if d >= 64 else d
+            partial = int(d >= 64)
+            divisor = ym << 1 if d < 0 else ym
+            q, r = divmod(xm << n, divisor)
+            up = one and not partial and (2 * r > divisor or (2 * r == divisor and q & 1))
+            if up:
+                r, q = divisor - r, q + 1
+            exact = Fraction(r) * Fraction(2) ** (xe - n - 63)
+            return Result(-exact if xs ^ up else exact, None, steps, issued, q & 7, partial,
+                          zero_sign=xs ^ up)
         elif op == 'CMP':
             flag[FLAGS[arg]] = int(abs(value(A)) < abs(value(B)))
         elif op == 'TRED':
@@ -972,6 +1107,8 @@ def run(program: Program, name: str, x, y=None) -> Result:
                     else va / vb
             elif what == 'MOV':
                 exact = va
+            elif what == 'X':
+                exact = value(x)
             else:
                 unit = Fraction(2) ** (A[1] - 63)
                 step = unit / 8 if what == 'ABOVE' else -unit / 8
@@ -981,7 +1118,7 @@ def run(program: Program, name: str, x, y=None) -> Result:
             if negate is not None and flag[FLAGS[negate]]:
                 exact = -exact
             other = None if second is None else x if second == 'X' else T[second]
-            return Result(exact, other, steps, issued)
+            return Result(exact, other, steps, issued, inexact=inexact, away=away)
         else:
             raise AssertionError(op)
 
@@ -1184,16 +1321,22 @@ def compare_specials(program: Program, path: str) -> dict:
 
 # ---- The ROMs fes_x87_trans reads. ----
 OPCODES = ('NOP', 'ADD', 'SUB', 'RSUB', 'MUL', 'DIV', 'MOV', 'NEG', 'ABS', 'HI', 'LO', 'SCALE', 'ITOF', 'TIDX',
-           'LSPL', 'SETE', 'CMP', 'TRED', 'BR', 'JMP', 'CALL', 'RET', 'FIN')
-FIN_KINDS = ('ADD', 'SUB', 'MUL', 'DIV', 'MOV', 'BELOW', 'ABOVE')
-SETE_KINDS = ('XE', 'YE', 'YE-XE', 'XE-YE', 'XE+YE', 'ZERO')
+           'LSPL', 'SETE', 'CMP', 'TRED', 'BR', 'JMP', 'CALL', 'RET', 'FIN', 'PREM', 'ADDRC')
+FIN_KINDS = ('ADD', 'SUB', 'MUL', 'DIV', 'MOV', 'BELOW', 'ABOVE', 'X')
+SETE_KINDS = ('XE', 'YE', 'YE-XE', 'XE-YE', 'XE+YE', 'ZERO', 'TRUNC')
 INSTRUCTIONS = ('FSIN', 'FCOS', 'FSINCOS', 'FPTAN', 'F2XM1', 'FYL2X', 'FYL2XP1', 'FPATAN')
+# The forms the engine took over from the sequencer (#2027 slice 6): exact,
+# so they have no truth or host-distance figures and are kept out of the
+# transcendental reports; their entries follow the transcendentals'.
+EXACT_FORMS = ('FPREM', 'FPREM1', 'FRNDINT', 'FSCALE', 'FXTRACT', 'FBLD')
+ENTRIES = INSTRUCTIONS + EXACT_FORMS
 WORD_BITS, PROGRAM_DEPTH, CONSTANT_DEPTH = 40, 512, 1024
 
 
 def encode(word) -> int:
     """A microprogram word: op [4:0], dst [8:5], a [12:9], b's mode [14:13]
-    (0 a temporary, 1 a constant, 2 a constant at base + J) and address
+    (0 a temporary, 1 a constant, 2 a constant at base + J, 3 a digit's row:
+    the address's top six bits and FBLD's digit for that row) and address
     [24:15]; for FIN, add E [25], the negating flag [30:27] and whether there
     is one [26], and the other result [32:31] (0 none, 1 a temporary, 2 the x
     operand) and its temporary [36:33]."""
@@ -1205,6 +1348,8 @@ def encode(word) -> int:
         a = arg
     elif op == 'SETE':
         a = SETE_KINDS.index(arg)
+    elif op == 'PREM':
+        a = arg
     elif op == 'SCALE':
         a = int(arg == 'NEG')
     elif op == 'CMP':
@@ -1223,7 +1368,7 @@ def encode(word) -> int:
         elif second is not None:
             sec_mode, sec_temp = 1, second
     assert 0 <= dst < 16 and 0 <= a < 16 and 0 <= ref < 1024, word
-    return (OPCODES.index(op) | dst << 5 | a << 9 | {'t': 0, 'c': 1, 'j': 2}[mode] << 13 | ref << 15
+    return (OPCODES.index(op) | dst << 5 | a << 9 | {'t': 0, 'c': 1, 'j': 2, 'd': 3}[mode] << 13 | ref << 15
             | int(use_e) << 25 | neg_valid << 26 | neg_flag << 27 | sec_mode << 31 | sec_temp << 33)
 
 
@@ -1243,16 +1388,18 @@ def emit(program: Program) -> dict[str, str]:
     package += [f'    localparam logic [4:0] U_{name} = 5\'d{n};' for n, name in enumerate(OPCODES)]
     package += [f'    localparam logic [2:0] UF_{name} = 3\'d{n};' for n, name in enumerate(FIN_KINDS)]
     package += [f'    localparam logic [3:0] FL_{name} = 4\'d{n};' for n, name in enumerate(FLAGS)]
-    package += [f'    localparam logic [2:0] TR_{name} = 3\'d{n};' for n, name in enumerate(INSTRUCTIONS)]
+    package += [f'    localparam logic [3:0] TR_{name} = 4\'d{n};' for n, name in enumerate(ENTRIES)]
     package += ['    // Each instruction\'s entry, indexed by TR_*.',
-                '    function automatic logic [8:0] entry_of(input logic [2:0] instruction);',
+                '    function automatic logic [8:0] entry_of(input logic [3:0] instruction);',
                 '        case (instruction)']
-    package += [f'            3\'d{n}: entry_of = 9\'d{program.entries[name]};' for n, name in enumerate(INSTRUCTIONS)]
+    package += [f'            4\'d{n}: entry_of = 9\'d{program.entries[name]};' for n, name in enumerate(ENTRIES)]
     package += ['            default: entry_of = 9\'d0;', '        endcase', '    endfunction',
                 '    // pi/4 to 67 significant bits, the 387\'s reduction constant, times 2^67.',
                 f'    localparam logic [66:0] PM = 67\'h{PM:017x};',
                 '    // sqrt 2\'s significand, truncated: a significand above it is halved.',
                 f'    localparam logic [63:0] SQRT2 = 64\'h{SQRT2_SIG:016x};',
+                '    // FBLD\'s digit table: digit k\'s row is the sixteen constants from 16 (BCD_ROW + k).',
+                f'    localparam logic [5:0] BCD_ROW = 6\'d{BCD_BASE // 16};',
                 '    /* verilator lint_on UNUSEDPARAM */',
                 'endpackage', '']
     rom = head + [
@@ -1393,7 +1540,7 @@ def unit_vectors(program: Program, per_class: int, seed: int, engine: bool = Fal
                 lines.append(f'{INSTRUCTIONS.index(name)} {x[0]} {x[1] & 0x3ffff:05x} {x[2]:016x} '
                              f'{y[0]} {y[1] & 0x3ffff:05x} {y[2]:016x} '
                              f'{zero} {sign} {exponent:05x} {raw:017x} {int(second is not None)} '
-                             f'{held[0]:04x}{held[1]:016x}')
+                             f'{held[0]:04x}{held[1]:016x} 0 0 0 0 0')
                 continue
             sign_exponent, significand, flags = final_round(result.exact, rc)
             flags |= 0x20 | (0x10 if not sign_exponent & 0x7fff and significand else 0)
@@ -1406,6 +1553,69 @@ def unit_vectors(program: Program, per_class: int, seed: int, engine: bool = Fal
                 st0, st1 = final, '-'
             lines.append(f'{INSTRUCTIONS.index(name)} {0x037f | rc << 10:04x} {bits(x)} {bits(y)} {st0} {st1} '
                          f'{flags:02x}')
+    return lines
+
+
+def exact_vectors(program: Program, per_class: int, seed: int) -> list[str]:
+    """Engine vectors for the exact forms (#2027 slice 6): FPREM, FPREM1,
+    FRNDINT, FSCALE and FXTRACT, in unit_vectors' engine format with its five
+    trailing fields filled -- the rounding mode the engine is given, FPREM's
+    quotient bits and partial flag, and FRNDINT's PE and C1 -- and the sign
+    field holding an exact zero's sign, which FPREM's result depends on."""
+    import random
+    rng = random.Random(seed)
+
+    def operand(low: int, high: int):
+        return (rng.getrandbits(1), rng.randint(low, high), rng.getrandbits(64) | 1 << 63)
+
+    cases = []
+    for _ in range(per_class):
+        for one, name in ((0, 'FPREM'), (1, 'FPREM1')):
+            for low, high in ((-3, -1), (0, 0), (1, 10), (11, 63), (64, 200)):
+                y = operand(-60, 60)
+                d = rng.randint(low, high)
+                x = operand(y[1] + d, y[1] + d)
+                if rng.random() < 0.25:
+                    x = (x[0], x[1], y[2])                    # equal significands: exact multiples
+                cases.append((name, x, y, 0))
+            cases.append((name, operand(16380, 16383), (0, 16384, 1 << 63), 0))   # a divisor of infinity
+        for rc in range(4):
+            for low, high in ((-80, -69), (-68, -1), (0, 62), (63, 70)):
+                cases.append(('FRNDINT', operand(low, high), (0, 0, 1 << 63), rc))
+        for low, high in ((-3, -1), (0, 15), (16, 20)):
+            cases.append(('FSCALE', operand(-16440, 16383), operand(low, high), 0))
+        cases.append(('FSCALE', operand(-100, 100), (0, -16383, 0), 0))           # a zero scale
+        for low, high in ((-16440, -16383), (-16382, -1), (0, 16383)):
+            cases.append(('FXTRACT', operand(low, high), (0, 0, 1 << 63), 0))
+        # FBLD: valid digits, digits of A to F, a single digit at each place,
+        # and all zeros. The digits ride in x's significand and the low byte
+        # of y's, as the engine bench drives them.
+        for kind in range(4):
+            if kind == 0:
+                digits = [rng.randrange(10) for _ in range(18)]
+            elif kind == 1:
+                digits = [rng.randrange(16) for _ in range(18)]
+            elif kind == 2:
+                digits = [0] * 18
+                digits[rng.randrange(18)] = rng.randrange(1, 16)
+            else:
+                digits = [0] * 18 if rng.random() < 0.5 else [rng.choice((9, 15))] * 18
+            word = sum(d << 4 * k for k, d in enumerate(digits))
+            cases.append(('FBLD', (0, 0, word & (1 << 64) - 1), (0, 0, word >> 64), 0))
+    lines = []
+    for name, x, y, rc in cases:
+        digits = x[2] | y[2] << 64 if name == 'FBLD' else 0
+        result = run(program, name, x, y, rc=rc, digits=digits)
+        zero, sign, exponent, raw = raw_of(result.exact)
+        if zero:
+            sign = result.zero_sign
+        second = result.second
+        held = to_bits(second) if second is not None else (0, 0)
+        lines.append(f'{ENTRIES.index(name)} {x[0]} {x[1] & 0x3ffff:05x} {x[2]:016x} '
+                     f'{y[0]} {y[1] & 0x3ffff:05x} {y[2]:016x} '
+                     f'{zero} {sign} {exponent:05x} {raw:017x} {int(second is not None)} '
+                     f'{held[0]:04x}{held[1]:016x} {rc} {result.quotient} {result.partial} '
+                     f'{result.inexact} {result.away}')
     return lines
 
 

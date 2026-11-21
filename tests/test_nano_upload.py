@@ -278,6 +278,7 @@ class NanoUploadTests(unittest.TestCase):
                                     ('menu-metadata','FES/MENU.JSN',16<<10),
                                     ('menu-selection','FES/MENUSEL.JSN',8192),
                                     ('install-manifest','FES/INSTALL.JSN',8192),
+                                    ('preferences','FES/PREFS.JSON',65536),
                                     ('package-alt','FES/PKGALT.BIN',upload.PACKAGE_MAX_BYTES),('metadata-alt','FES/PROGALT.JSN',16<<10)):
             for size in (1,limit):
                 with self.subTest(purpose=purpose,size=size):
@@ -433,7 +434,7 @@ class NanoUploadTests(unittest.TestCase):
                   'package-alt':b'q'*4096,'metadata-alt':b'n'*(16<<10),'selection':b's'*8192,'ui-catalog':b'u'*8192,
                   'firmware':b'f'*8192,'firmware-alt':b'a'*4096,
                   'menu-package':b'c'*4096,'menu-metadata':b'd'*2676,'menu-selection':b'e'*282,
-                  'install-manifest':b'i'*8192}
+                  'install-manifest':b'i'*8192,'preferences':b' '*65536}
         written={};fresh={}
         with patch('builtins.print'):
             for purpose,payload in payloads.items():

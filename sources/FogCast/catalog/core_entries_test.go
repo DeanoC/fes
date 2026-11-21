@@ -58,7 +58,7 @@ func TestCoreEntryCreateBrowseAndReopen(t *testing.T) {
 		t.Fatalf("CoreEntries = %+v, %v", entries, err)
 	}
 	loaded, err := store.CoreEntry(ctx, entry.GameID)
-	if err != nil || loaded != entry {
+	if err != nil || !reflect.DeepEqual(loaded, entry) {
 		t.Fatalf("CoreEntry = %+v, %v", loaded, err)
 	}
 	if libraries, err := store.Libraries(ctx); err != nil || len(libraries) != 0 {
@@ -72,7 +72,7 @@ func TestCoreEntryCreateBrowseAndReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = reopened.Close() })
-	if loaded, err := reopened.CoreEntry(ctx, entry.GameID); err != nil || loaded != entry {
+	if loaded, err := reopened.CoreEntry(ctx, entry.GameID); err != nil || !reflect.DeepEqual(loaded, entry) {
 		t.Fatalf("reopened CoreEntry = %+v, %v", loaded, err)
 	}
 }

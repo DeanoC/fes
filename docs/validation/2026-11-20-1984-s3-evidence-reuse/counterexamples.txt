@@ -1,0 +1,17 @@
+test_a_design_input_change_refuses_reuse_and_the_resolver_rebuilds (tests.test_pc386_seal_evidence.EvidenceReuseTests.test_a_design_input_change_refuses_reuse_and_the_resolver_rebuilds) ... ok
+test_a_failed_or_partial_fresh_lockstep_refuses_reuse (tests.test_pc386_seal_evidence.EvidenceReuseTests.test_a_failed_or_partial_fresh_lockstep_refuses_reuse) ... ok
+test_a_firmware_generator_change_refuses_reuse_and_the_resolver_rebuilds (tests.test_pc386_seal_evidence.EvidenceReuseTests.test_a_firmware_generator_change_refuses_reuse_and_the_resolver_rebuilds) ... ok
+test_a_fresh_lockstep_from_an_earlier_evidence_state_does_not_carry_over (tests.test_pc386_seal_evidence.EvidenceReuseTests.test_a_fresh_lockstep_from_an_earlier_evidence_state_does_not_carry_over) ... ok
+test_a_fresh_lockstep_of_another_netlist_refuses_reuse (tests.test_pc386_seal_evidence.EvidenceReuseTests.test_a_fresh_lockstep_of_another_netlist_refuses_reuse) ... ok
+test_a_fresh_lockstep_record_for_another_package_refuses (tests.test_pc386_seal_evidence.EvidenceReuseTests.test_a_fresh_lockstep_record_for_another_package_refuses) ... ok
+test_a_lockstep_runner_that_fails_records_nothing (tests.test_pc386_seal_evidence.EvidenceReuseTests.test_a_lockstep_runner_that_fails_records_nothing) ... ok
+test_an_evidence_only_change_keeps_the_design_id_and_moves_only_the_evidence_id (tests.test_pc386_seal_evidence.EvidenceReuseTests.test_an_evidence_only_change_keeps_the_design_id_and_moves_only_the_evidence_id) ... ok
+test_an_evidence_only_change_with_a_passing_fresh_lockstep_reuses_without_quartus (tests.test_pc386_seal_evidence.EvidenceReuseTests.test_an_evidence_only_change_with_a_passing_fresh_lockstep_reuses_without_quartus) ... ok
+test_an_evidence_only_change_without_a_fresh_lockstep_refuses_reuse (tests.test_pc386_seal_evidence.EvidenceReuseTests.test_an_evidence_only_change_without_a_fresh_lockstep_refuses_reuse) ... ok
+test_historical_sources_follow_the_original_records_list_not_todays (tests.test_pc386_seal_evidence.EvidenceReuseTests.test_historical_sources_follow_the_original_records_list_not_todays) ... ok
+test_design_v1_evidence_change_moves_the_design_id_so_reuse_is_refused (tests.test_pc386_seal_evidence.DesignV1ReuseTests.test_design_v1_evidence_change_moves_the_design_id_so_reuse_is_refused) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 28.084s
+
+OK

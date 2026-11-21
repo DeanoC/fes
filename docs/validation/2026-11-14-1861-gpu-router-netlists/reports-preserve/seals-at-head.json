@@ -1,0 +1,87 @@
+{
+  "config_tree": "b4bb5aa7145110d9dabd482097080c608e240c99",
+  "head": "7282458335f8a72345817800630cca4c13942eda",
+  "intact": true,
+  "not_intact": [],
+  "rows": {
+    "c64": {
+      "build_id": "999bb2113df2afe0b4cdf2b10a9c9ba8",
+      "detail": "all 73 input digests match this head, and its 5 route-deciding inputs are unchanged too",
+      "sealed_at": "df99f2dfb2084035b213614960b952f5e79ab781",
+      "summary": "summaries/c64/build-summary.json",
+      "verdict": "intact"
+    },
+    "menu": {
+      "build_id": "92ae48c4e6433b21f8712c18a0575a05",
+      "detail": "all 31 input digests match this head, and its 5 route-deciding inputs are unchanged too",
+      "sealed_at": "df99f2dfb2084035b213614960b952f5e79ab781",
+      "summary": "summaries/menu/build-summary.json",
+      "verdict": "intact"
+    },
+    "pentagon": {
+      "build_id": "8735c4b466dd568a3e112f7149b7e692",
+      "detail": "all 52 input digests match this head, and its 5 route-deciding inputs are unchanged too",
+      "sealed_at": "541e3c5487518496fd8fe66457313b528daeec09",
+      "summary": "summaries/pentagon/build-summary.json",
+      "verdict": "intact"
+    },
+    "spectrum": {
+      "build_id": "5b934d4f669b86bed095b323fc1904d0",
+      "detail": "all 52 input digests match this head, and its 5 route-deciding inputs are unchanged too",
+      "sealed_at": "541e3c5487518496fd8fe66457313b528daeec09",
+      "summary": "summaries/spectrum/build-summary.json",
+      "verdict": "intact"
+    },
+    "spectrum-plus3": {
+      "build_id": "516d91073319b430dae0f41d8745400c",
+      "detail": "all 52 input digests match this head, and its 5 route-deciding inputs are unchanged too",
+      "sealed_at": "541e3c5487518496fd8fe66457313b528daeec09",
+      "summary": "summaries/spectrum-plus3/build-summary.json",
+      "verdict": "intact"
+    },
+    "spectrum128": {
+      "build_id": "21d2b95ebf343e86ecc8d5a2c836358f",
+      "detail": "all 52 input digests match this head, and its 5 route-deciding inputs are unchanged too",
+      "sealed_at": "541e3c5487518496fd8fe66457313b528daeec09",
+      "summary": "summaries/spectrum128/build-summary.json",
+      "verdict": "intact"
+    },
+    "splash": {
+      "build_id": "4ef956237159c1e8fa9b6fb3b5ec87c3",
+      "detail": "all 11 input digests match this head, and its 3 route-deciding inputs are unchanged too",
+      "sealed_at": "df99f2dfb2084035b213614960b952f5e79ab781",
+      "summary": "summaries/splash/build-summary.json",
+      "verdict": "intact"
+    },
+    "ts1000": {
+      "build_id": "1a04c85fb4833db0b77cb8a2d6e8d1d1",
+      "detail": "design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 6 route-deciding inputs are unchanged too",
+      "sealed_at": "df99f2dfb2084035b213614960b952f5e79ab781",
+      "summary": "summaries/ts1000/build-summary.json",
+      "verdict": "intact"
+    },
+    "ts1500": {
+      "build_id": "05db7020951901efbefc2de78c5aa3d0",
+      "detail": "design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 6 route-deciding inputs are unchanged too",
+      "sealed_at": "df99f2dfb2084035b213614960b952f5e79ab781",
+      "summary": "summaries/ts1500/build-summary.json",
+      "verdict": "intact"
+    },
+    "zx80": {
+      "build_id": "69bf0d59047eae30eb4e3060a78e60bd",
+      "detail": "design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 6 route-deciding inputs are unchanged too",
+      "sealed_at": "df99f2dfb2084035b213614960b952f5e79ab781",
+      "summary": "summaries/zx80/build-summary.json",
+      "verdict": "intact"
+    },
+    "zx81": {
+      "build_id": "a33ca899fc7eb70814b3d4b73d3d0dd6",
+      "detail": "design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 6 route-deciding inputs are unchanged too",
+      "sealed_at": "df99f2dfb2084035b213614960b952f5e79ab781",
+      "summary": "summaries/zx81/build-summary.json",
+      "verdict": "intact"
+    }
+  },
+  "sources_tree": "e046d3c23156a236cc356d97bf298bc6926bfd41",
+  "tree": "/home/deano/fes/.claude/worktrees/gpu-router-default/sources/misteross"
+}

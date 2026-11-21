@@ -631,13 +631,14 @@ class HpsBuildTests(unittest.TestCase):
         maintenance = {"allowed_hps_parameter_changes": smmu}
         self.assertEqual(BUILD.reviewed_hps_parameter_changes(maintenance), smmu)
         managed = copy.deepcopy(maintenance)
-        managed["scanout"] = {"managed_fabric": "managed-scanout-initiators-v3",
+        managed["scanout"] = {"managed_fabric": "managed-scanout-initiators-v4",
             "build_identity_scheme": "canonical-functional-record-v2", "hps_initialization": "HPS FIRST"}
         managed["f2sdram_master_profile"] = "scanout-only"
         managed["allowed_hps_parameter_changes"][HPS]["f2s_data_width"] = {"before": "256", "after": "0"}
+        managed["allowed_hps_parameter_changes"][HPS]["H2F_Width"] = {"before": "128", "after": "0"}
         self.assertEqual(BUILD.reviewed_hps_parameter_changes(managed), managed["allowed_hps_parameter_changes"])
         cases = []
-        for key, value in (("managed_fabric", "managed-scanout-initiators-v2"),
+        for key, value in (("managed_fabric", "managed-scanout-initiators-v3"),
                            ("build_identity_scheme", "diagnostic-source-profile"),
                            ("hps_initialization", "FPGA FIRST")):
             changed = copy.deepcopy(managed); changed["scanout"][key] = value; cases.append(changed)
@@ -645,8 +646,11 @@ class HpsBuildTests(unittest.TestCase):
             changed = copy.deepcopy(managed); changed.pop(key); cases.append(changed)
         for parameter, value in (("f2s_data_width", {"before": "256", "after": "128"}),
                                  ("H2F_Width", {"before": "128", "after": "64"}),
+                                 ("LWH2F_Width", {"before": "32", "after": "0"}),
                                  ("f2sdram_data_width", {"before": "256", "after": "0"})):
             changed = copy.deepcopy(managed); changed["allowed_hps_parameter_changes"][HPS][parameter] = value; cases.append(changed)
+        # The v3 set, which kept the full bridge for the on-chip memory, is no longer reviewed.
+        changed = copy.deepcopy(managed); del changed["allowed_hps_parameter_changes"][HPS]["H2F_Width"]; cases.append(changed)
         for changed in cases:
             with self.subTest(profile=changed), self.assertRaises(ValueError):
                 BUILD.reviewed_hps_parameter_changes(changed)
@@ -654,13 +658,14 @@ class HpsBuildTests(unittest.TestCase):
     def test_standard_board_uses_the_exact_managed_hps_changes_without_package_admission(self):
         build_id = "00112233445566778899aabbccddeeff"
         selected = {"f2sdram_master_profile": "scanout-only", "scanout": {
-            "managed_fabric": "managed-scanout-initiators-v3", "hps_initialization": "HPS FIRST",
+            "managed_fabric": "managed-scanout-initiators-v4", "hps_initialization": "HPS FIRST",
             "build_identity_scheme": "standard-board-integration-source-profile", "build_id": build_id},
             "standard_zx81": {"scope": "standard-core-board-integration", "runtime_admission": "not-qualified",
                 "computer_offset": 0x10300, "expansion_socket": False, "build_id": build_id},
             "allowed_hps_parameter_changes": {HPS: {
                 "f2sdram_SMMU": {"before": "false", "after": "true"},
-                "f2s_data_width": {"before": "256", "after": "0"}}}}
+                "f2s_data_width": {"before": "256", "after": "0"},
+                "H2F_Width": {"before": "128", "after": "0"}}}}
         self.assertEqual(BUILD.reviewed_hps_parameter_changes(selected), selected["allowed_hps_parameter_changes"])
         pr = copy.deepcopy(selected)
         pr["scanout"]["build_identity_scheme"] = "standard-pr-computer-v1"

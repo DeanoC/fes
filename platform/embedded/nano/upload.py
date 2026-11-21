@@ -34,7 +34,7 @@ DESTINATIONS = {'boot':EXPERIMENTAL_FILE, 'package':'FES/PKGTEST.BIN',
                 'package-alt':'FES/PKGALT.BIN', 'metadata-alt':'FES/PROGALT.JSN',
                 'menu-package':'FES/MENU.FCP', 'menu-metadata':'FES/MENU.JSN',
                 'menu-selection':'FES/MENUSEL.JSN',
-                'install-manifest':'FES/INSTALL.JSN',
+                'install-manifest':'FES/INSTALL.JSN', 'preferences':'FES/PREFS.JSON',
                 'ui-catalog':'FES/UI.JSON', 'firmware':'FES/FIRMWARE.BIN', 'firmware-alt':'FES/FIRMALT.BIN',
                 'tape':'FES/GAME.P'}
 PREFIX_SIZE = 32768 * 512
@@ -90,7 +90,7 @@ def payload_limit(purpose):
     return {'boot': LIMIT, 'package': PACKAGE_MAX_BYTES, 'metadata': 16<<10, 'selection': 8192,
             'package-alt': PACKAGE_MAX_BYTES, 'metadata-alt': 16<<10, 'ui-catalog': 8192, 'firmware':8192, 'firmware-alt':8192,
             'menu-package': PACKAGE_MAX_BYTES, 'menu-metadata': 16<<10, 'menu-selection': 8192,
-            'install-manifest': 8192,
+            'install-manifest': 8192, 'preferences': 65536,
             'tape':16375}[purpose]
 
 
