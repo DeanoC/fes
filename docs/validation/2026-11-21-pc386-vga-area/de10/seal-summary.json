@@ -1,0 +1,91 @@
+{
+ "build_id": "8de03af62c45b5074d9ff87505a3e8fe",
+ "lockstep": {
+  "netlist_sha256": "a4f588002369416a40544e9d4233a908e2060e08e7c6a0f7048a0f254dfa5d85",
+  "report_sha256": "10bab15ca97e66e472de0a0bca6ba1bd4f7b5e571647148e235270519d70e0d2",
+  "simulator": {
+   "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+   "install": "1cd6c9741d903760a2b1c4283b6830f63c0974f8478b06fb7f8dabd3c4304d8c",
+   "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+   "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+   "version": "Verilator 5.054 2026-11-01 rev v5.054"
+  }
+ },
+ "netlist": {
+  "cpu_source_sha256": "ed1298ffe98a4c053efda3144690310caa8075fba54c4ba1d879febbdc4eb834",
+  "machine_netlist_sha256": "9b1b7968b52d03570dd67460ea67311e3a69e940debde3ad3509457c9d620ba5",
+  "program_sha256": "23ce90ec587ec7d0613956b6faee0d2a3ced84c8a7e4bd8c12890d5f0500e21e",
+  "yosys": {
+   "gpu_router": "HIP",
+   "lock": "cores/fes-pc386/toolchain.lock",
+   "lock_sha256": "294c89450c6c719f649cd4f248d0d844dd431df1138d44d6a26e4a1219ac579c",
+   "tool": "commit=e240a4653bb6578e0b267f730128f8a5dac28483; sha256=32decd607d6acf54199400224725f8c1c13eff9bbe1ada61eb51abe5a59e35ba"
+  }
+ },
+ "rbf": {
+  "sha256": "2175204a76f38fa50515d3422e50e94e52ab41b960d13dd2c99e7fff74138322",
+  "size": 3909516
+ },
+ "resources": {
+  "alms": {
+   "available": 41910,
+   "used": 36308
+  },
+  "block_memory_bits": {
+   "available": 5662720,
+   "used": 1354790
+  },
+  "dsp_blocks": {
+   "available": 112,
+   "used": 41
+  },
+  "ram_blocks": {
+   "available": 553,
+   "used": 282
+  },
+  "registers": {
+   "used": 32088
+  }
+ },
+ "seed": 1,
+ "status": "pass",
+ "timing": {
+  "analyses": {
+   "hold": {
+    "tns_ns": 0.0,
+    "worst_slack_ns": 0.098
+   },
+   "minimum_pulse_width": {
+    "tns_ns": 0.0,
+    "worst_slack_ns": 1.122
+   },
+   "recovery": {
+    "tns_ns": 0.0,
+    "worst_slack_ns": 6.127
+   },
+   "removal": {
+    "tns_ns": 0.0,
+    "worst_slack_ns": 0.289
+   },
+   "setup": {
+    "tns_ns": 0.0,
+    "worst_slack_ns": 0.248
+   }
+  },
+  "clocks": {
+   "audio": {
+    "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+    "mhz": 12.29
+   },
+   "pixel": {
+    "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+    "mhz": 74.27
+   },
+   "system": {
+    "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+    "mhz": 61.44
+   }
+  },
+  "status": "pass"
+ }
+}
