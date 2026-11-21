@@ -617,6 +617,10 @@ func (a *App) applyRoomActionsLocked() {
 			if a.roomSessionMatchesLocked(act) {
 				a.openTapePickerLocked()
 			}
+		case rooms.ActionChangeDisk:
+			if a.roomSessionMatchesLocked(act) {
+				a.changeSessionDiskLocked(act.MediaID, act.MediaName)
+			}
 		case rooms.ActionResumeSession:
 			a.resumeRoomSessionLocked()
 		case rooms.ActionHome:

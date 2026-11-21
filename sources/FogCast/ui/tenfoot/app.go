@@ -594,13 +594,15 @@ type App struct {
 	tapePickerOpen           bool
 	tapePickerAtRoots        bool
 	tapePickerBusy           bool
-	tapePickerIndex          int
-	tapePickerGen            int
-	tapePickerPath           string
-	tapePickerStatus         string
-	tapePickerRows           []TapePickerRow
-	tapePickerSession        hostclient.SessionResult
-	tapePickerStarters       []hostclient.HardwareTape
+	// diskChangeBusy is a core screen Next disk in flight.
+	diskChangeBusy     bool
+	tapePickerIndex    int
+	tapePickerGen      int
+	tapePickerPath     string
+	tapePickerStatus   string
+	tapePickerRows     []TapePickerRow
+	tapePickerSession  hostclient.SessionResult
+	tapePickerStarters []hostclient.HardwareTape
 
 	// A bounded, root-requested test observation may defer the surround for
 	// this exact play session. It never changes the saved user preference.

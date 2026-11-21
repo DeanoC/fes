@@ -237,7 +237,9 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 			}
 		}
 		session.RawSetString("hardware_known", lua.LBool(known))
-		for k, str := range map[string]string{"id": s.ID, "game_id": s.GameID, "state": s.State, "target": s.Target, "target_id": s.TargetID, "flight_id": s.FlightID} {
+		// media_name is the name of the medium put in during play; empty
+		// means the one the game started with.
+		for k, str := range map[string]string{"id": s.ID, "game_id": s.GameID, "state": s.State, "target": s.Target, "target_id": s.TargetID, "flight_id": s.FlightID, "media_name": s.MediaName} {
 			session.RawSetString(k, lua.LString(str))
 		}
 		if c := s.CorePackage; c != nil {
