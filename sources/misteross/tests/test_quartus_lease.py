@@ -252,6 +252,38 @@ def _is_launch_call(node: ast.AST) -> bool:
     return name in LAUNCH_NAMES
 
 
+def _first_module_launch(tree: ast.Module) -> int | None:
+    """The line of the first statement run at import that may start a
+    process: a launch call, or a call into a module function that launches
+    (directly or through another), anywhere outside function bodies,
+    conditional blocks included."""
+    functions = {node.name: node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    launchers: set[str] = set()
+    changed = True
+    while changed:
+        changed = False
+        for name, function in functions.items():
+            if name in launchers:
+                continue
+            for node in ast.walk(function):
+                if _is_launch_call(node) or (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                                             and node.func.id in launchers):
+                    launchers.add(name)
+                    changed = True
+                    break
+    first = None
+    pending = list(tree.body)
+    while pending:
+        node = pending.pop()
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            continue
+        if _is_launch_call(node) or (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                                     and node.func.id in launchers):
+            first = node.lineno if first is None else min(first, node.lineno)
+        pending.extend(ast.iter_child_nodes(node))
+    return first
+
+
 def _imports_of_node(node: ast.AST, path: Path, roots: tuple[Path, ...]) -> set[Path]:
     """The in-repo modules one import statement brings in."""
     holder = ast.Module(body=[node], type_ignores=[])
@@ -326,8 +358,7 @@ def unleased_quartus(root: Path, files: list[str], misteross: Path | None = None
         except (SyntaxError, UnicodeDecodeError, OSError):
             tree = None
         if tree is not None:
-            first_launch = min((node.lineno for node in _module_level(tree) if _is_launch_call(node)),
-                               default=None)
+            first_launch = _first_module_launch(tree)
             if first_launch is not None:
                 direct = [node.lineno for node in _module_level(tree)
                           if isinstance(node, (ast.Import, ast.ImportFrom))
@@ -475,6 +506,15 @@ class StaticRuleTests(unittest.TestCase):
                               "import subprocess\nsubprocess.run(['quartus_fit', 'top'])\n"
                               "from scripts import quartus_tools\n"})
         self.assertEqual(len(failures), 1)
+        # Codex P1 at 00058c57d: through a module function called first.
+        failures = self.scan({"sources/misteross/scripts/late2.py":
+                              "import subprocess\ndef launch():\n    subprocess.run(['quartus_fit', 'top'])\n"
+                              "launch()\nfrom scripts import quartus_tools\n"})
+        self.assertEqual(len(failures), 1)
+        self.assertEqual(self.scan({"sources/misteross/scripts/main.py":
+                                    "import subprocess\nfrom scripts import quartus_tools\n"
+                                    "def main():\n    subprocess.run(['quartus_fit', 'top'])\n"
+                                    "if __name__ == '__main__':\n    main()\n"}), [])
         self.assertEqual(self.scan({"sources/misteross/scripts/early.py":
                                     "import subprocess\nfrom scripts import quartus_tools\n"
                                     "subprocess.run(['quartus_fit', 'top'])\n"}), [])
@@ -923,6 +963,11 @@ class LaunchGuardTests(unittest.TestCase):
         with self.assertRaises(qt.QuartusLeaseError):
             qt._check_remote_quartus(["ssh", "host", "/licensed/bin/quartus_[f]it", "top"])
         qt._check_remote_quartus(["ssh", "host", "cat", "$HOME/x"])
+        # Codex P1 at 00058c57d: ssh behind an execution wrapper.
+        for argv in (["env", "ssh", "host", "/remote/bin/quartus_fit", "top"],
+                     ["env", "-i", "X=1", "timeout", "60", "nice", "-n", "5", "ssh", "host", "quartus_sh", "-t", "x"]):
+            with self.assertRaises(qt.QuartusLeaseError):
+                qt._check_remote_quartus(argv)
         # Codex P1 at 6b0f2a858: a command after a reserved word.
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", f"if true; then {self.bin}/quartus_[f]it top; fi"])
