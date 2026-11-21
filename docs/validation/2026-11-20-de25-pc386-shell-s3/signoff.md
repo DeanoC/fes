@@ -162,8 +162,9 @@ unreviewed, every reported analysis passing. Worst slack: setup +1.352 ns
 (video clock), hold +0.000 ns, recovery +7.336 ns, removal +0.158 ns, setup
 data delay +3.424 ns, minimum pulse width +0.220 ns. The rule counts match s
 except TMC-20602 (21) and LNT-30010 (2), both Low and both admitted. The
-two signoff DRC reports differ only by hash, because the payloads are the same
-and the timing summaries are identical (`773a9af6…`).
+timing summaries of the two fits are identical (`773a9af6…`); the design
+assistant reports are not (`e8c7e96c…` and `73066427…`), though their rule
+counts match.
 
 No kit has run this package. Slice 3 lands with slice 4, which owns the image
 change and the Kit D25 run.
