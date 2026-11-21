@@ -85,6 +85,11 @@ local pool, sink, control_sink = {}, nil, nil
 local head = {rows = {}, controls = {}, sig = nil}
 local upper = {rows = {}, controls = {}, sig = nil}
 local lower = {rows = {}, controls = {}, sig = nil}
+-- The games list is its own part: the drives above it and the list are each
+-- a large build, and one draw builds at most one part.
+local listing = {rows = {}, controls = {}, sig = nil}
+-- Where the drives part ended; the games part starts there.
+local games_y = TOP_Y
 local opening = {rows = {}, controls = {}}
 local cmds = {}
 local heights = {}
@@ -188,6 +193,7 @@ local function find_control(id)
   for _, c in ipairs(head.controls) do if c.id == id then return c end end
   for _, c in ipairs(upper.controls) do if c.id == id then return c end end
   for _, c in ipairs(lower.controls) do if c.id == id then return c end end
+  for _, c in ipairs(listing.controls) do if c.id == id then return c end end
   return nil
 end
 local function has_control(id) return find_control(id) ~= nil end
@@ -512,7 +518,8 @@ local function next_disk()
   local k = disk_in_drive(game) or 0
   local id, name = set_disk(game, k % n + 1)
   if not id or name == "" then
-    message = "This disk can't be put in from here. Choose it with Change the disk."
+    local word = string.lower(media_word(game))
+    message = "This " .. word .. " can't be put in from here. Choose it with Change the " .. word .. "."
     return
   end
   session.change_disk(live, id, name)
@@ -776,7 +783,11 @@ local function right_column()
   if reads_only then
     y = note("This " .. spec().label .. " can read disks but can't write to them yet.", x, y, w) + 14
   end
+  games_y = y
+end
 
+local function games_list()
+  local x, w, y = RIGHT_X, RIGHT_W, games_y
   local titles = title_count()
   local count = titles == 1 and "1 in your library" or (titles .. " in your library")
   if library_more then
@@ -842,7 +853,7 @@ local function head_rows()
 end
 local function present()
   local n = 0
-  for _, part in ipairs({head, upper, lower}) do
+  for _, part in ipairs({head, upper, lower, listing}) do
     for i = 1, #part.rows do n = n + 1 cmds[n] = part.rows[i] end
   end
   for i = #cmds, n + 1, -1 do cmds[i] = nil end
@@ -869,15 +880,19 @@ local function refresh()
   appearance()
   local hs, us = head_sig(), upper_sig()
   local ls = rev .. (overlay and "|overlay" or "")
-  local stale = (head.sig ~= hs and 1 or 0) + (upper.sig ~= us and 1 or 0) + (lower.sig ~= ls and 1 or 0)
+  -- The list follows the drives part, which places it.
+  local function gs() return ls .. "|" .. games_y end
+  local stale = (head.sig ~= hs and 1 or 0) + (upper.sig ~= us and 1 or 0) + (lower.sig ~= ls and 1 or 0) + (listing.sig ~= gs() and 1 or 0)
   if head.sig ~= hs then build(head, hs, head_rows)
   elseif upper.sig ~= us then build(upper, us, computer_panel)
-  elseif lower.sig ~= ls then build(lower, ls, right_column) end
+  elseif lower.sig ~= ls then build(lower, ls, right_column)
+  elseif listing.sig ~= gs() then build(listing, gs(), games_list) end
   if stale > 1 and room.presented and gfx.reuse() then return end
   -- Nothing presented to keep: finish the picture in this draw.
   if head.sig ~= hs then build(head, hs, head_rows) end
   if upper.sig ~= us then build(upper, us, computer_panel) end
   if lower.sig ~= ls then build(lower, ls, right_column) end
+  if listing.sig ~= gs() then build(listing, gs(), games_list) end
   present()
   remember_scene()
 end

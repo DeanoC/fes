@@ -165,3 +165,33 @@ func TestNextDiskPutsTheSetDiskInTheRunningMachine(t *testing.T) {
 		t.Fatalf("live change replaces=%d id=%s name=%q", h.replaces, h.lastMediaID, h.lastName)
 	}
 }
+
+// In the running machine's media picker, a set disk's row puts that disk in
+// by its media ID and file name, as the kit's in-play route offers it.
+func TestMediaPickerSetDiskRowPutsTheDiskIn(t *testing.T) {
+	h := newTapeHost(t)
+	h.computerTape = true
+	h.mediaName = "CANYON1.P"
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 20)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitFor(t, app, "catalog", func(s Snapshot) bool { return len(s.Games) == 1 && !s.Loading })
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "running", func(s Snapshot) bool { return s.Session.State == "active" })
+	disk2 := strings.Repeat("d", 64)
+	app.mu.Lock()
+	app.tapePickerOpen, app.tapePickerSession = true, app.session
+	app.startSetDiskArmLocked(TapePickerRow{Kind: tapePickerKindSetDisk, SetMediaID: disk2, SetMediaName: "CANYON2.P"})
+	app.mu.Unlock()
+	waitFor(t, app, "disk in", func(Snapshot) bool {
+		app.mu.Lock()
+		defer app.mu.Unlock()
+		return !app.tapePickerBusy && app.session.MediaName == "CANYON2.P"
+	})
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.replaces != 1 || h.lastMediaID != disk2 || h.lastName != "CANYON2.P" {
+		t.Fatalf("live change replaces=%d id=%s name=%q", h.replaces, h.lastMediaID, h.lastName)
+	}
+}

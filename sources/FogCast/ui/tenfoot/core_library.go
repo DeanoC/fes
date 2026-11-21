@@ -135,7 +135,7 @@ func (a *App) coreLibrarySnapshotLocked() FirmwarePickerSnapshot {
 	if s.HardwareMode == "system-media" {
 		title = "Media for next start"
 		if s.AddDisk {
-			title = "Add a disk to this game"
+			title = "Add a " + setWord(s.AddDiskRole) + " to this game"
 		}
 	}
 	if s.HardwareMode == "st-shelf" {
@@ -625,7 +625,7 @@ func (a *App) importCoreLibraryFileLocked(path string) {
 			}, func() {
 				s.MediaRole, s.MediaID, s.SetDisks = role, disks[0].MediaID, disks
 				s.PickID, s.Path, s.Index, s.Files = "", "", 0, nil
-				s.Status = fmt.Sprintf("All %d disks of the set imported. Review selections before adding the game.", len(disks))
+				s.Status = fmt.Sprintf("All %d %ss of the set imported. Review selections before adding the game.", len(disks), setWord(role))
 			})
 			return
 		}
@@ -713,7 +713,7 @@ func (a *App) createCoreLibraryGameLocked() {
 			return nil
 		}
 		if _, err := a.keepDiskSet(ctx, entry, disks); err != nil {
-			setNote = " Its other disks were not kept: " + err.Error()
+			setNote = " Its other " + setWord(req.MediaRole) + "s were not kept: " + err.Error()
 		}
 		return nil
 	}, func() {

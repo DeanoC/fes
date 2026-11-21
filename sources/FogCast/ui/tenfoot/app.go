@@ -603,6 +603,8 @@ type App struct {
 	tapePickerRows     []TapePickerRow
 	tapePickerSession  hostclient.SessionResult
 	tapePickerStarters []hostclient.HardwareTape
+	// tapePickerSet is the running game's disk set as picker rows.
+	tapePickerSet []TapePickerRow
 
 	// A bounded, root-requested test observation may defer the surround for
 	// this exact play session. It never changes the saved user preference.

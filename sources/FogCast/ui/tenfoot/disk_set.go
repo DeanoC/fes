@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
@@ -17,7 +18,7 @@ import (
 // under, and leaves the room where it is.
 func (a *App) changeSessionDiskLocked(mediaID, name string) {
 	if !a.sessionLiveMediaOfferedLocked() {
-		a.roomSessionNotice = "This running machine can't change disks from here."
+		a.roomSessionNotice = "This running machine can't change its media from here."
 		a.status = a.roomSessionNotice
 		return
 	}
@@ -30,7 +31,7 @@ func (a *App) changeSessionDiskLocked(mediaID, name string) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	a.status = "Changing the disk…"
+	a.status = "Putting in " + name + "…"
 	go func() {
 		result, err := a.client.ReplaceRemovableMediaForSession(ctx, prior, mediaID, name)
 		a.mu.Lock()
@@ -49,11 +50,20 @@ func (a *App) changeSessionDiskLocked(mediaID, name string) {
 			return
 		}
 		a.applySessionLocked(result)
-		a.status = "Disk changed."
+		a.status = name + " is in."
 		if a.room != nil {
 			a.room.Resume()
 		}
 	}()
+}
+
+// setWord names one medium of a set in its drive's terms: "disk", or "tape"
+// for a cassette deck.
+func setWord(role string) string {
+	if role == protocol.CassetteRole {
+		return "tape"
+	}
+	return "disk"
 }
 
 // maxSetDisks matches the host's limit on one title's set, disk 1 included.
@@ -139,7 +149,7 @@ func (a *App) importDiskFiles(ctx context.Context, manager *storage.Manager, rol
 // disk 1 is already selected.
 func (a *App) keepDiskSet(ctx context.Context, entry hostclient.CoreEntry, disks []importedDisk) (hostclient.CoreEntry, error) {
 	if len(disks) == 0 || entry.MediaID != disks[0].MediaID {
-		return entry, fmt.Errorf("the game's first disk changed")
+		return entry, fmt.Errorf("the game's first %s changed", setWord(entry.MediaRole))
 	}
 	named, err := a.client.SetCoreEntryMediaName(ctx, entry.GameID, entry.PackageID, entry.MediaID, disks[0].Name)
 	if err != nil {
@@ -192,14 +202,14 @@ func (a *App) addDiskFileLocked(path, role string, capability protocol.CoreMedia
 		if current.PackageID != pkg || current.MediaID != expected || current.MediaRole != role {
 			return fmt.Errorf("Machine setup changed. Close the picker and refresh the room.")
 		}
-		added := disks[0]
+		added, word := disks[0], setWord(role)
 		if added.MediaID == current.MediaID {
-			return fmt.Errorf("That disk is already this game's disk 1.")
+			return fmt.Errorf("That %s is already this game's %s 1.", word, word)
 		}
 		more := append([]hostclient.SetMedia(nil), current.MoreMedia...)
 		for _, m := range more {
 			if m.MediaID == added.MediaID {
-				return fmt.Errorf("That disk is already in this game's set.")
+				return fmt.Errorf("That %s is already in this game's set.", word)
 			}
 		}
 		more = append(more, hostclient.SetMedia{MediaID: added.MediaID, MediaName: added.Name})
@@ -207,6 +217,102 @@ func (a *App) addDiskFileLocked(path, role string, capability protocol.CoreMedia
 		return err
 	}, func() {
 		a.systemMediaSavedLocked(entry)
-		s.Status = fmt.Sprintf("Added as disk %d of %d. Back returns to the room.", len(entry.MoreMedia)+1, len(entry.MoreMedia)+1)
+		s.Status = fmt.Sprintf("Added as %s %d of %d. Back returns to the room.", setWord(role), len(entry.MoreMedia)+1, len(entry.MoreMedia)+1)
 	})
+}
+
+// setDiskRows lists a game's disk set for the running machine's media
+// picker: "Disk 2 of 3 · NAME", the one in the drive marked. next is the
+// index of the disk after the one in the drive. A disk with no file name
+// cannot be put in by name and is left out.
+func setDiskRows(entry hostclient.CoreEntry, inDrive string) (rows []TapePickerRow, next int) {
+	if len(entry.MoreMedia) == 0 || (entry.MediaRole != protocol.DiskRole && entry.MediaRole != protocol.CassetteRole) {
+		return nil, -1
+	}
+	word := "Disk"
+	if entry.MediaRole == protocol.CassetteRole {
+		word = "Tape"
+	}
+	disks := append([]hostclient.SetMedia{{MediaID: entry.MediaID, MediaName: entry.MediaName}}, entry.MoreMedia...)
+	current := 0
+	if inDrive != "" {
+		current = -1
+		for i, d := range disks {
+			if d.MediaName == inDrive {
+				current = i
+			}
+		}
+	}
+	next = -1
+	for i, d := range disks {
+		if d.MediaName == "" || !protocol.AdmitLiveMediaName(d.MediaName) {
+			continue
+		}
+		label := fmt.Sprintf("%s %d of %d · %s", word, i+1, len(disks), d.MediaName)
+		if i == current {
+			label += " · In the drive"
+		}
+		if current >= 0 && i == (current+1)%len(disks) {
+			next = len(rows)
+		}
+		rows = append(rows, TapePickerRow{Name: label, Kind: tapePickerKindSetDisk, Selectable: true, SetMediaID: d.MediaID, SetMediaName: d.MediaName})
+	}
+	return rows, next
+}
+
+// fetchSetDisks reads the running game's set and offers its disks at the top
+// of the media picker, with focus on the next one while the person has not
+// moved yet.
+func (a *App) fetchSetDisks(parent context.Context, gen int, session hostclient.SessionResult) {
+	if session.GameID == "" || a.client == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+	defer cancel()
+	entry, err := a.client.CoreEntry(ctx, session.GameID)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if err != nil || !a.tapePickerOpen || a.tapePickerGen != gen {
+		return
+	}
+	rows, next := setDiskRows(entry, a.session.MediaName)
+	if len(rows) == 0 {
+		return
+	}
+	a.tapePickerSet = rows
+	if !a.tapePickerAtRoots {
+		return
+	}
+	at := 0
+	if len(a.tapePickerRows) > 0 && a.tapePickerRows[0].Kind == tapePickerKindEject {
+		at = 1
+	}
+	moved := a.tapePickerIndex != 0
+	a.tapePickerRows = append(a.tapePickerRows[:at], append(append([]TapePickerRow(nil), rows...), a.tapePickerRows[at:]...)...)
+	if moved {
+		a.tapePickerIndex += len(rows)
+	} else if next >= 0 {
+		a.tapePickerIndex = at + next
+	}
+}
+
+// startSetDiskArmLocked puts one disk of the running game's set in its drive
+// from the media picker, by media ID and file name.
+func (a *App) startSetDiskArmLocked(row TapePickerRow) {
+	if a.tapePickerBusy || a.client == nil || !a.sessionMediaOfferedLocked() {
+		return
+	}
+	a.tapePickerBusy = true
+	a.tapePickerGen++
+	gen, prior := a.tapePickerGen, a.tapePickerSession
+	a.tapePickerStatus = "Putting in " + row.SetMediaName + "…"
+	a.status = a.tapePickerStatus
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	go func() {
+		result, err := a.client.ReplaceRemovableMediaForSession(ctx, prior, row.SetMediaID, row.SetMediaName)
+		a.finishTapeArm(gen, prior, result, true, err)
+	}()
 }

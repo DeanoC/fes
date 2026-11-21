@@ -87,10 +87,10 @@ func (a *App) openSystemMediaModeLocked(action rooms.Action, addDisk bool) {
 		}
 		if addDisk {
 			if entry.MediaRole != protocol.DiskRole && entry.MediaRole != protocol.CassetteRole {
-				return fmt.Errorf("Choose this game's first disk before adding another.")
+				return fmt.Errorf("Choose this game's first disk or tape before adding another.")
 			}
 			if len(entry.MoreMedia)+1 >= maxSetDisks {
-				return fmt.Errorf("This game already has %d disks.", maxSetDisks)
+				return fmt.Errorf("This game already has %d %ss.", maxSetDisks, setWord(entry.MediaRole))
 			}
 			role = entry.MediaRole
 		}
@@ -102,7 +102,7 @@ func (a *App) openSystemMediaModeLocked(action rooms.Action, addDisk bool) {
 		s.AddDiskRole = role
 		s.Status = "Choose media for the next start. The running machine is unchanged."
 		if addDisk {
-			s.Status = "Choose the disk to add after this game's last one."
+			s.Status = "Choose the " + setWord(role) + " to add after this game's last one."
 		}
 	})
 }
@@ -214,7 +214,8 @@ func (a *App) importSystemMediaLocked(path string) {
 			return err
 		}, func() {
 			a.systemMediaSavedLocked(entry)
-			s.Status = fmt.Sprintf("All %d disks of the set saved; disk 1 goes in at the next start. Back returns to the room.", len(members))
+			w := setWord(role)
+			s.Status = fmt.Sprintf("All %d %ss of the set saved; %s 1 goes in at the next start. Back returns to the room.", len(members), w, w)
 		})
 		return
 	}

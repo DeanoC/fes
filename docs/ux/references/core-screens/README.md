@@ -20,7 +20,9 @@ drawn below; Deano accepted the plain list on 19 November 2026. Lock against cha
 write-protect input (#1960). The saves tag on a drive is built. Disk sets are
 built: a game row says "2 disks", the drive row says "Disk 1 of 2", a running
 set's game offers Next disk, choosing one disk of a set by its file name
-brings the whole set, and Add disk to game extends one. The PC/XT and 386 PC
+brings the whole set, and Add disk to game extends one. A kit's in-play route
+opens the media picker, not this screen, so the picker lists the running
+game's set ("Disk 2 of 3 · NAME"), with the next disk focused. The PC/XT and 386 PC
 screens are not built.
 
 These pictures are **proposals, not captures of product code**. They are host
