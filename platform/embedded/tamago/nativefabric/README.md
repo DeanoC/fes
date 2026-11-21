@@ -556,13 +556,6 @@ duplicate/idle rows and failed or partial writes emit no receipt. An output
 failure stops polling and attempts the existing bounded park of that exact play;
 it cannot replay input or resume SD. The ordinary lifecycle status is unchanged.
 
-`nano/gamepad_delivery_trace.py` checks the reported mapping and a continuous
-press/release chain from neutral. It explicitly does not establish physical USB
-provenance, independently decode a HID descriptor, or prove that emulated
-software consumed the keys. The existing automated three-cycle operator rejects
-these new markers until an explicit physical-input procedure is supplied.
-Physical button delivery still needs a matched native build and bounded test.
-
 `ProgramLoader` separates the immutable `HPSContextVerifier` boot anchor from
 each retained program. Its board-compiled platform record binds the device,
 HPS I/O/PFG identity, complete HPS/EMIF parameter fingerprint, bootloader handoff
