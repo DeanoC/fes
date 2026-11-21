@@ -559,19 +559,27 @@ def _expanded_command(tokens: list[str]) -> bool:
     """Whether shell code runs a command whose name comes from an expansion
     ($Q, ${Q}sh, `...`, $(...)) or from eval: its program cannot be known
     here, so it is treated as possibly either Quartus edition."""
-    at_head = True
+    at_head, wrapped = True, False
     for token in tokens:
         if token in SHELL_SEPARATORS:
-            at_head = True
+            at_head, wrapped = True, False
             continue
+        expanded = "$" in token or "`" in token
+        if wrapped and expanded:
+            # Under a wrapper (env -u X $Q, timeout -s KILL 5 $Q) the command
+            # is somewhere among its arguments: any expansion may be it.
+            return True
         if not at_head:
             continue
         if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", token, re.S):
-            continue  # an assignment before the command word
-        if token in SHELL_WRAPPERS or token.startswith("-") or re.fullmatch(r"[0-9.]+[smhd]?", token):
-            continue  # a wrapper, its option or duration: the command comes later
+            if expanded:
+                continue  # an assignment before the command word
+            continue
+        if token in SHELL_WRAPPERS:
+            wrapped = True
+            continue
         at_head = False
-        if token == "eval" or "$" in token or "`" in token:
+        if token == "eval" or expanded:
             return True
     return False
 

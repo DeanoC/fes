@@ -134,6 +134,9 @@ PINNED = {
     # Names quartus_sh and the rest only to hash them; the only program it
     # starts is quartus_pfg, which takes no slot.
     "sources/misteross/prototypes/de25_board_control/seal.py": "hash-only",
+    # Builds the installation's quartus_<name> paths only to run ldd on them
+    # and record their libraries (execution identity); it never runs them.
+    "sources/misteross/cores/fes-pc386/tools/pc386_execution.py": "hash-only",
 }
 RECEIPT = "sources/misteross/tests/fixtures/de25-combined-proof.json"
 
@@ -222,6 +225,17 @@ def shell_runs(text: str):
                 yield start, f"runs {os.path.basename(word)} outside quartus_jobs.py run"
 
 
+LEASED_NAMES = ("sh", "map", "syn", "fit", "sta", "asm", "eda", "cdb", "ipgenerate", "npp", "pow", "drc",
+                "si", "tan", "dse", "stp")
+
+
+def _names_a_program_prefix(value: str) -> bool:
+    """A string ending in a proper prefix of a leased program's name
+    ('quartus_', '.../quartus_f'), which code can complete at run time."""
+    match = re.search(r"(?:^|[/\s])quartus_([a-z]*)$", value)
+    return bool(match) and any(name.startswith(match.group(1)) and name != match.group(1) for name in LEASED_NAMES)
+
+
 def python_names_leased(text: str) -> bool:
     """A leased program name in the source, or in a string constant after
     Python joins adjacent literals ("quartus_" "fit")."""
@@ -231,7 +245,10 @@ def python_names_leased(text: str) -> bool:
         tree = ast.parse(text)
     except SyntaxError:
         return False
-    return any(isinstance(node, ast.Constant) and isinstance(node.value, str) and LEASED.search(node.value)
+    # A part of a name built at run time ('quartus_' + 'fit', f'quartus_{x}')
+    # counts as naming one.
+    return any(isinstance(node, ast.Constant) and isinstance(node.value, str)
+               and (LEASED.search(node.value) or _names_a_program_prefix(node.value))
                for node in ast.walk(tree))
 
 
@@ -426,12 +443,14 @@ class StaticRuleTests(unittest.TestCase):
             "sources/misteross/scripts/a.py": "import subprocess as s\ns.run(['quartus_fit', 'top'])\n",
             "sources/misteross/scripts/b.py": "from subprocess import run as go\ngo(['quartus_fit', 'top'])\n",
             "sources/misteross/scripts/c.py": "import subprocess as s\ns.run(['quartus_' 'fit', 'top'])\n",
+            "sources/misteross/scripts/f.py": "import subprocess\nsubprocess.run(['quartus_' + 'fit', 'top'])\n",
             "scripts/d.sh": "#!/bin/sh\nquartus_\"\"sh --flow compile top\n",
             "scripts/e": "#!/bin/bash\nquartus_sh --flow compile top\n",
         })
         self.assertEqual(sorted(f.split(":")[0] for f in failures),
                          ["scripts/d.sh", "scripts/e", "sources/misteross/scripts/a.py",
-                          "sources/misteross/scripts/b.py", "sources/misteross/scripts/c.py"])
+                          "sources/misteross/scripts/b.py", "sources/misteross/scripts/c.py",
+                          "sources/misteross/scripts/f.py"])
 
     def test_a_cpf_conversion_alone_is_not_a_leased_program(self):
         self.assertEqual(self.scan({"sources/misteross/scripts/convert.py": """
@@ -831,6 +850,10 @@ class LaunchGuardTests(unittest.TestCase):
             subprocess.run(["sh", "-c", "eval \"$CMD\""], env={"CMD": "true"})
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", "timeout 60 $Q top"], env={"Q": "true"})
+        # Codex P1 at 35e36d0b5: an option operand of a wrapper.
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["sh", "-c", "Q=quartus_; Q=${Q}sh; env -u X $Q --flow compile top"],
+                           env={"PATH": str(self.bin)})
         self.assertEqual(subprocess.run(["sh", "-c", "echo $HOME; true"], capture_output=True).returncode, 0)
         # Codex P1 at 3e1144c04: an assignment given to env as its own argument.
         with self.assertRaises(qt.QuartusLeaseError):
