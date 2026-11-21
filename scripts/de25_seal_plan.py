@@ -100,7 +100,7 @@ class PlanError(ValueError):
     pass
 
 
-def registered(path=None):
+def registered(path=None, *, allow_empty=False):
     """Return the registered DE25 Quartus Pro recipes, refusing malformed rows."""
     recipes = load_recipes(path, board=BOARD) if path else load_recipes(board=BOARD)
     result = {}
@@ -113,7 +113,7 @@ def registered(path=None):
                 or '..' in Path(script).parts or not CORE_ID.fullmatch(core_id)):
             raise PlanError(f'{core_id}: not a DE25 Quartus Pro producer recipe')
         result[core_id] = recipe
-    if not result:
+    if not result and not allow_empty:
         raise PlanError('no registered DE25 recipes')
     return result
 
@@ -215,7 +215,13 @@ def main(argv=None):
         if selection is not None and args.base_root is not None:
             raise PlanError('--base-root is only for auto selection')
         head = probe(ROOT, recipes)
-        base = probe(args.base_root, recipes) if selection is None else None
+        if selection is None:
+            # Producer code can predate its DE25 recipe registration. Compare
+            # only recipes the base actually registered, not every head recipe.
+            base_recipes = registered(args.base_root / 'config/core-recipes.toml', allow_empty=True)
+            base = probe(args.base_root, base_recipes)
+        else:
+            base = None
         jobs = plan(recipes, head, selection, base)
     except (PlanError, ValueError, OSError, subprocess.SubprocessError) as error:
         parser.exit(1, 'de25-seal-plan: ' + str(error) + '\n')
