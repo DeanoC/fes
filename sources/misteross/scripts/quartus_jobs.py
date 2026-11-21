@@ -692,7 +692,9 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
         raise SystemExit(f"unknown build host {host!r}; one of {', '.join(HOSTS)}")
     # Dispatch only onto a ready host, chosen or named; otherwise wait and
     # probe again, so a free slot on a host without the memory is never taken.
+    # The cap runs from here: waiting for a host counts against it.
     asked = host
+    started = time.monotonic()
     while True:
         if asked == "auto":
             host, probes, ready = pick(edition)
@@ -701,6 +703,12 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
             ready = is_ready(probes[0], edition)
         if ready:
             break
+        if time.monotonic() - started >= cap_minutes * 60:
+            print(f"quartus_jobs: time cap of {cap_minutes:g} min reached waiting for a build host; "
+                  "nothing was started", file=sys.stderr, flush=True)
+            notify({"host": None, "edition": edition, "label": label, "command": command, "commit": commit,
+                    "finished_utc": datetime.now(timezone.utc).isoformat(), "status": "capped", "exit": 124})
+            return 124
         print(f"quartus_jobs: {'no build host' if asked == 'auto' else asked} has a free {edition} slot and "
               f"{quartus_tools.PEAK_RSS_GIB[quartus_tools.edition_class(edition)]} GiB available; "
               f"probing again in {REPROBE_SECONDS} s", file=sys.stderr, flush=True)
@@ -714,9 +722,11 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
         raise SystemExit(f"{host} did not answer: {chosen['error']}")
     print(f"quartus_jobs: running on {host}", file=sys.stderr, flush=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    # What is left of the cap goes to the run on the host.
+    remaining = max(cap_minutes - (time.monotonic() - started) / 60, 1 / 60)
     script, run_dir = remote_script(commit=commit, host=host, home=chosen["home"], edition=edition,
                                     label=label, command=command, stamp=stamp, origin=origin,
-                                    cap_minutes=cap_minutes)
+                                    cap_minutes=remaining)
     target = ["bash", "-c", script] if host == local_host() else [*SSH, host, shlex.join(["bash", "-c", script])]
     result = subprocess.run(target, stdin=subprocess.DEVNULL)
     print(f"quartus_jobs: {host}:{run_dir} (exit {result.returncode})", file=sys.stderr)

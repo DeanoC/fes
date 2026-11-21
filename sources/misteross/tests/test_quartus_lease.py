@@ -721,6 +721,17 @@ class LaunchGuardTests(unittest.TestCase):
         # ...and a bare name found on the child's PATH, not this process's.
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["quartus_fit", "top"], env={"PATH": str(self.bin)})
+        # Codex P1s at 7b395e311: the executed program given apart from argv,
+        # a symlink to a licensed program, and a --help in another argument.
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["alias", "--flow", "compile", "top"], executable=str(self.bin / "quartus_sh"))
+        link_dir = Path(self.directory.name) / "links"
+        link_dir.mkdir()
+        (link_dir / "quartus_fit").symlink_to(self.bin / "quartus_fit")
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run([str(link_dir / "quartus_fit"), "top"])
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["sh", "-c", "$0 --flow compile top", str(self.bin / "quartus_sh"), "--help"])
         # Codex P1 at 34cd931cc: an operator attached to the program name.
         for payload in (f"{self.bin}/quartus_sh>/dev/null", f"{self.bin}/quartus_fit&", f"true;{self.bin}/quartus_fit"):
             with self.assertRaises(qt.QuartusLeaseError):
@@ -1289,6 +1300,17 @@ class JobsTests(unittest.TestCase):
                                    else subprocess.CompletedProcess(argv, 255)):
                 self.assertEqual(self.jobs.remote("lite", "powerboat", "HEAD", "", ["true"]), 255)
         self.assertIn('"remote-failed"', sink.read_text())
+
+    def test_the_remote_cap_covers_waiting_for_a_host(self):
+        # Codex P2 at 7b395e311: remote waited for a host forever.
+        busy = {"host": "powerboat", "free": 0, "available_kib": 1, "home": "/h", "slots": {}}
+        with mock.patch.object(self.jobs, "probe", return_value=busy), \
+                mock.patch.object(self.jobs, "REPROBE_SECONDS", 0.05), \
+                mock.patch.object(self.jobs, "resolve_pushed", return_value="e" * 40), \
+                mock.patch.object(self.jobs.subprocess, "check_output", return_value="https://github.com/DeanoC/fes\n"):
+            started = time.monotonic()
+            self.assertEqual(self.jobs.remote("lite", "powerboat", "HEAD", "", ["true"], cap_minutes=0.01), 124)
+        self.assertLess(time.monotonic() - started, 10)
 
     def test_remote_refuses_an_unpushed_commit(self):
         with mock.patch.object(self.jobs.subprocess, "run",

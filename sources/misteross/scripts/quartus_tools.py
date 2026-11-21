@@ -528,7 +528,8 @@ _licensed_dirs: dict[str, str | None] = {}
 
 def _licensed_edition(program: str) -> str | None:
     """The edition of the licensed installation program belongs to, if any."""
-    directory = os.path.dirname(os.path.abspath(program))
+    # Through any symlink to the real file: its installation's quartus_sh.
+    directory = os.path.dirname(os.path.realpath(program))
     if directory not in _licensed_dirs:
         edition = None
         quartus_sh = os.path.join(directory, "quartus_sh")
@@ -550,7 +551,7 @@ def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) ->
     relative path against cwd (the child's working directory)."""
     if isinstance(argv, (str, bytes, os.PathLike)):
         argv = [argv]
-    words = []
+    words, element = [], 0
     for argument in argv or ():
         text = os.fsdecode(argument) if isinstance(argument, (bytes, os.PathLike)) else str(argument)
         # Split as the shell does, operators included, so a program name
@@ -559,14 +560,23 @@ def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) ->
         lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
         lexer.whitespace_split = True
         try:
-            words.extend(lexer)
+            tokens = list(lexer)
         except ValueError:
-            words.extend(re.split(r"[\s;&|<>()]+", text))
+            tokens = re.split(r"[\s;&|<>()]+", text)
+        words.extend((element, token) for token in tokens)
+        element += 1
+    probes = ("--version", "-v", "--help", "-h")
+    argv_list = [w for w in words]
     editions = set()
-    for index, word in enumerate(words):
+    for index, (element, word) in enumerate(argv_list):
         if not QUARTUS_PROGRAM.fullmatch(os.path.basename(word)):
             continue
-        if index + 1 < len(words) and words[index + 1] in ("--version", "-v", "--help", "-h"):
+        # A probe excuses a program only within one argument (the next word
+        # of the same string), or when the program is the one being executed
+        # (the first argument) and the next argument is the probe. A --help
+        # elsewhere in argv never excuses a program named in another place.
+        following = argv_list[index + 1] if index + 1 < len(argv_list) else (None, None)
+        if following[1] in probes and (following[0] == element or (element == 0 and index == 0)):
             continue
         base = os.fsdecode(cwd) if cwd is not None else os.getcwd()
         if os.sep in word:
@@ -600,7 +610,7 @@ def require_quartus_lease(argv, search_path: str | None = None, cwd=None) -> Non
                 f"under scripts/quartus_jobs.py run --edition {edition}")
 
 
-def _check_launch(argv, env, cwd=None) -> None:
+def _check_launch(argv, env, cwd=None, executable=None) -> None:
     """argv, and each value of the environment the child gets (its own, or
     this process's when none is given): a shell can run a program it finds
     there ($Q --flow compile). Each environment value is checked on its own,
@@ -608,6 +618,10 @@ def _check_launch(argv, env, cwd=None) -> None:
     on the child's PATH, relative paths against its working directory."""
     env = os.environ if env is None else env
     sources = [argv] + [[os.fsdecode(value)] for value in env.values() if isinstance(value, (str, bytes))]
+    first = argv if isinstance(argv, (str, bytes, os.PathLike)) else (list(argv)[:1] or [None])[0]
+    if executable is not None and (first is None or os.fsdecode(executable) != os.fsdecode(first)):
+        # The program actually executed, when it is not argv[0].
+        sources.append([os.fsdecode(executable)])
     search = ""
     for key in ("PATH", b"PATH"):
         try:
@@ -621,11 +635,11 @@ def _check_launch(argv, env, cwd=None) -> None:
 
 def _launch_guard(event, args):
     if event == "subprocess.Popen":
-        _check_launch(args[1] if args[1] is not None else args[0], args[3], args[2])
+        _check_launch(args[1] if args[1] is not None else args[0], args[3], args[2], executable=args[0])
     elif event in ("os.exec", "os.posix_spawn"):
-        _check_launch(args[1], args[2] if len(args) > 2 else None)
+        _check_launch(args[1], args[2] if len(args) > 2 else None, executable=args[0])
     elif event == "os.spawn":
-        _check_launch(args[2], args[3] if len(args) > 3 else None)
+        _check_launch(args[2], args[3] if len(args) > 3 else None, executable=args[1])
     elif event == "os.system":
         _check_launch(args[0], None)
 
