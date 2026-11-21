@@ -752,9 +752,11 @@ import subprocess
                   "    if grace == 0.0:\n" \
                   "        return fit.reap_group_was(group, process, grace)\n" \
                   "fit.reap_group = forgetful\n" \
-                  "fit.LOCK_FILE = out / 'lease.lock'\n"
+                  "from scripts import quartus_tools\n" \
+                  "quartus_tools.LEASE_POOLS = {}\n" \
+                  "quartus_tools.DEFAULT_POOL = {'pro': (str(out / 'lease.lock'),), 'lite': ()}\n"
         self.assertEqual(self.second_signal_during_the_grace(
-            "FESFITCHOKE", reap=nothing, lease="with fit.compiler_lease():",
+            "FESFITCHOKE", reap=nothing, lease="with fit.compiler_lease('pro'):",
             signals=("SIGTERM",)), [])
 
     def test_a_reaped_group_is_no_longer_registered_and_the_mask_is_restored(self):
