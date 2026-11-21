@@ -146,7 +146,8 @@ def reset_sdc_files(project, *, no_debug=False):
         if owners != ["hps_subsys", "peripheral_subsys", "qsys_top"]:
             raise ValueError("generated native reset SDC owners differ from the three reviewed subsystems")
     if len(files) != (3 if no_debug else 6) or any(path.is_symlink() for path in files):
-        raise ValueError("generated reset SDC inventory differs from the selected profile")
+        count = "three" if no_debug else "six"
+        raise ValueError(f"generated reset SDC inventory differs from the reviewed {count} files")
     for path in files:
         if any(parent.is_symlink() for parent in path.parents if parent.is_relative_to(project)):
             raise ValueError("generated reset SDC must remain inside the private project")
