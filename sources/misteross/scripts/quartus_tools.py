@@ -811,6 +811,8 @@ def _check_launch(argv, env, cwd=None, executable=None) -> None:
                 if command:
                     _check_remote_quartus(command)
                 command = []
+            elif token in SHELL_KEYWORDS and not command:
+                continue  # then, do, else...: the command comes after
             else:
                 command.append(token)
     env = os.environ if env is None else env
