@@ -1525,7 +1525,7 @@ func (s *sessionCoordinator) sendCoreKey(ctx context.Context, event remoteinput.
 	return sender.SendEventConfirmed(ctx, event, time.Now())
 }
 
-func (s *sessionCoordinator) tapCoreKey(ctx context.Context, sessionID string, event remoteinput.Event) (time.Duration, error) {
+func (s *sessionCoordinator) tapCoreKey(ctx context.Context, sessionID string, event remoteinput.Event, modifiers uint8) (time.Duration, error) {
 	if s.tapHIDForeign() {
 		return 0, playHIDLeaseError()
 	}
@@ -1554,7 +1554,7 @@ func (s *sessionCoordinator) tapCoreKey(ctx context.Context, sessionID string, e
 	if !ok {
 		return 0, host.ErrRemoteInputNoStream
 	}
-	duration, err := tapper.TapKey(ctx, sessionID, want.generation, event, func() error {
+	checkOwnership := func() error {
 		if s.tapHIDForeign() {
 			return playHIDLeaseError()
 		}
@@ -1568,7 +1568,19 @@ func (s *sessionCoordinator) tapCoreKey(ctx context.Context, sessionID string, e
 			return host.ErrRemoteInputNoStream
 		}
 		return nil
-	})
+	}
+	var duration time.Duration
+	if modifiers == 0 {
+		duration, err = tapper.TapKey(ctx, sessionID, want.generation, event, checkOwnership)
+	} else {
+		chord, ok := s.remoteInput.(interface {
+			TapKeyChord(context.Context, string, uint64, remoteinput.Event, uint8, func() error) (time.Duration, error)
+		})
+		if !ok {
+			return 0, host.ErrRemoteInputNoStream
+		}
+		duration, err = chord.TapKeyChord(ctx, sessionID, want.generation, event, modifiers, checkOwnership)
+	}
 	if err != nil {
 		return duration, err
 	}

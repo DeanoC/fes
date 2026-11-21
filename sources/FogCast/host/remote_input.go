@@ -139,6 +139,7 @@ type RemoteInput struct {
 	reader           *bufio.Reader
 	receiptReady     bool
 	tapReady         bool
+	tapChordReady    bool
 	heartbeatCancel  context.CancelFunc
 	session          uint64
 	token            []byte
@@ -492,6 +493,19 @@ func (r *RemoteInput) sendEventModeLocked(ctx context.Context, event remoteinput
 // TapKey asks a capable target to apply both edges in its own input session.
 // The returned duration is host processing time, not guest-visible timing.
 func (r *RemoteInput) TapKey(ctx context.Context, sessionID string, generation uint64, event remoteinput.Event, checkOwnership func() error) (time.Duration, error) {
+	return r.tapKey(ctx, sessionID, generation, event, 0, checkOwnership)
+}
+
+// TapKeyChord applies a non-modifier key together with a HID modifier mask.
+func (r *RemoteInput) TapKeyChord(ctx context.Context, sessionID string, generation uint64, event remoteinput.Event, modifiers uint8, checkOwnership func() error) (time.Duration, error) {
+	usage, ok := hidkeys.Usage(event.Code)
+	if modifiers == 0 || !ok || usage >= 0xe0 {
+		return 0, ErrRemoteInputInvalid
+	}
+	return r.tapKey(ctx, sessionID, generation, event, modifiers, checkOwnership)
+}
+
+func (r *RemoteInput) tapKey(ctx context.Context, sessionID string, generation uint64, event remoteinput.Event, modifiers uint8, checkOwnership func() error) (time.Duration, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -563,11 +577,15 @@ func (r *RemoteInput) TapKey(ctx context.Context, sessionID string, generation u
 			return time.Since(started), ErrRemoteInputBusy
 		}
 	}
-	if !r.tapReady {
+	ready, probeFlag, supportedFlag := r.tapReady, uint16(protocol.InputFlagTapProbe), uint16(protocol.InputFlagTapSupported)
+	if modifiers != 0 {
+		ready, probeFlag, supportedFlag = r.tapChordReady, protocol.InputFlagTapChordProbe, protocol.InputFlagTapChordSupported
+	}
+	if !ready {
 		// Optional capability probing is deferred until this explicit tap.
 		// An older bridge closes on the probe before input is dispatched.
 		nonce := r.nextPingLocked()
-		probe := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypePing, Flags: protocol.InputFlagTapProbe, Session: r.session}, Seq: r.sequence, ClientMonoNS: nonce}
+		probe := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypePing, Flags: probeFlag, Session: r.session}, Seq: r.sequence, ClientMonoNS: nonce}
 		probeFailed := func(err error) (time.Duration, error) {
 			// This probe carried no input. A legacy bridge may close on the
 			// new flag; permit later ordinary input to reconnect, but never
@@ -587,13 +605,17 @@ func (r *RemoteInput) TapKey(ctx context.Context, sessionID string, generation u
 		if err := r.writeFrameLocked(ctx, probe, time.Time{}); err != nil {
 			return probeFailed(ErrRemoteInputNoStream)
 		}
-		if err := r.waitReceiptLocked(ctx, probe.Seq, nonce, protocol.InputFlagTapSupported, r.dial); err != nil {
+		if err := r.waitReceiptLocked(ctx, probe.Seq, nonce, supportedFlag, r.dial); err != nil {
 			if errors.Is(err, errTapUnsupported) {
 				return time.Since(started), ErrRemoteInputNoStream
 			}
 			return probeFailed(ErrRemoteInputNoStream)
 		}
-		r.tapReady = true
+		if modifiers == 0 {
+			r.tapReady = true
+		} else {
+			r.tapChordReady = true
+		}
 	}
 	// The probe can block; recheck ownership before the first mutating frame.
 	if err := checkOwnership(); err != nil {
@@ -605,6 +627,10 @@ func (r *RemoteInput) TapKey(ctx context.Context, sessionID string, generation u
 	r.source = "desktop"
 	frame := r.frameForEventLocked(event, time.Now())
 	frame.Header.Type = protocol.InputTypeTap
+	if modifiers != 0 {
+		frame.Header.Type = protocol.InputTypeTapChord
+		frame.Reserved = uint16(modifiers)
+	}
 	frame.ServerMonoNS = generation
 	frame.Value = protocol.InputTapHoldMS
 	if err := r.writeFrameLocked(ctx, frame, time.Time{}); err != nil {
@@ -1003,6 +1029,7 @@ func (r *RemoteInput) writeFrameLocked(ctx context.Context, frame protocol.Input
 func (r *RemoteInput) closeConnLocked() {
 	r.receiptReady = false
 	r.tapReady = false
+	r.tapChordReady = false
 	if r.conn != nil {
 		_ = r.conn.Close()
 		r.conn = nil
@@ -1093,7 +1120,7 @@ func (r *RemoteInput) waitReceiptLocked(ctx context.Context, sequence uint32, no
 			return ErrRemoteInputUnconfirmed
 		}
 		if pong.Header.Type == protocol.InputTypeReceipt && pong.Seq == sequence && pong.ClientMonoNS == nonce {
-			if flags == protocol.InputFlagTapSupported && pong.Header.Flags == 0 {
+			if (flags == protocol.InputFlagTapSupported || flags == protocol.InputFlagTapChordSupported) && pong.Header.Flags == 0 {
 				return errTapUnsupported
 			}
 			if pong.Header.Flags != flags {

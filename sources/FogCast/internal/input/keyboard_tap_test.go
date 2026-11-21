@@ -16,6 +16,65 @@ func tapFrame(usage uint16, generation uint64) protocol.InputFrame {
 	return protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypeTap, Session: 1}, Seq: 1, ServerMonoNS: generation, Action: 1, Code: 0x1000 + usage, Value: protocol.InputTapHoldMS}
 }
 
+func TestTargetChordPreservesLocalModifierAndReleasesOwnedKeys(t *testing.T) {
+	var posts []hidkeys.Rows
+	hid := &keyboardHIDSink{}
+	hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error {
+		posts = append(posts, rows)
+		return nil
+	})
+	hid.bind(&KeyboardHIDBinding{PackageID: "p", Generation: 7})
+	shift, _ := hidkeys.Code(0xe1)
+	if err := hid.applyFrom(context.Background(), sourceLocal, keyboardFrameFor(shift, remoteinput.ActionPress)); err != nil {
+		t.Fatal(err)
+	}
+	f := tapFrame(4, 7)
+	f.Header.Type = protocol.InputTypeTapChord
+	f.Reserved = 2
+	if err := hid.tap(context.Background(), f, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(posts) != 3 || posts[1][0] != 1<<4 || posts[1][8] != 2 || posts[2][0] != 0 || posts[2][8] != 2 {
+		t.Fatalf("local modifier was disturbed: %+v", posts)
+	}
+	if !hid.pressed[sourceLocal][0xe1] || hid.pressed[sourceRemote][0xe1] || hid.pressed[sourceRemote][4] {
+		t.Fatal("incorrect source cleanup")
+	}
+}
+
+func TestTargetChordCancellationReleasesKeyAndModifiers(t *testing.T) {
+	calls := make(chan hidkeys.Rows, 4)
+	hid := &keyboardHIDSink{}
+	hid.setPoster(func(_ context.Context, _ string, _ uint64, rows hidkeys.Rows) error { calls <- rows; return nil })
+	hid.bind(&KeyboardHIDBinding{PackageID: "p", Generation: 7})
+	f := tapFrame(4, 7)
+	f.Header.Type = protocol.InputTypeTapChord
+	f.Reserved = 2
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- hid.tap(ctx, f, nil) }()
+	select {
+	case rows := <-calls:
+		if rows[0] != 1<<4 || rows[8] != 2 {
+			t.Fatal(rows)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("missing press")
+	}
+	cancel()
+	select {
+	case rows := <-calls:
+		if rows != (hidkeys.Rows{}) {
+			t.Fatal(rows)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("missing release")
+	}
+	if err := <-done; err == nil {
+		t.Fatal("cancellation accepted")
+	}
+}
+
 func TestTargetTapPreservesLocalHoldAndReleasesOnTarget(t *testing.T) {
 	var mu sync.Mutex
 	var posts []hidkeys.Rows

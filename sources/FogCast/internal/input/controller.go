@@ -501,6 +501,10 @@ type retainedTapSink struct {
 	hid        *keyboardHIDSink
 }
 
+func (s retainedTapSink) TapChord(ctx context.Context, f protocol.InputFrame) error {
+	return s.Tap(ctx, f)
+}
+
 func (s retainedTapSink) Tap(ctx context.Context, f protocol.InputFrame) error {
 	// Match kit-local admission: no new press may race core replacement or
 	// an unconfirmed active generation. Do not hold lifecycle over the tap

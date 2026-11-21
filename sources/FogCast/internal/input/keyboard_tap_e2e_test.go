@@ -19,10 +19,65 @@ import (
 type delayedTapConn struct{ net.Conn }
 
 func (c delayedTapConn) Write(p []byte) (int, error) {
-	if len(p) > 9 && p[9] == protocol.InputTypeTap {
+	if len(p) > 9 && (p[9] == protocol.InputTypeTap || p[9] == protocol.InputTypeTapChord) {
 		time.Sleep(150 * time.Millisecond)
 	}
 	return c.Conn.Write(p)
+}
+
+func TestTargetTimedChordAcrossHostBridgeAndHIDSink(t *testing.T) {
+	var mu sync.Mutex
+	var rows []hidkeys.Rows
+	var times []time.Time
+	hid := &keyboardHIDSink{}
+	hid.setPoster(func(_ context.Context, _ string, generation uint64, r hidkeys.Rows) error {
+		if generation != 7 {
+			t.Errorf("wrong generation %d", generation)
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		rows = append(rows, r)
+		times = append(times, time.Now())
+		return nil
+	})
+	ports := &controllerPortsSink{hid: hid}
+	controller := newTargetControllerWithSink("127.0.0.1:0", ports)
+	controller.ports = ports
+	controller.ObserveCore(func(context.Context) (CoreObservation, error) {
+		return CoreObservation{Active: true, KeyboardHID: &KeyboardHIDBinding{PackageID: "test-package", Generation: 7}}, nil
+	})
+	t.Cleanup(func() { _ = controller.Close() })
+	starter := host.BridgeStarterFunc(func(ctx context.Context, spec host.BridgeSpec) (host.BridgeHandle, error) {
+		if err := controller.Attach(ctx, Spec{Session: spec.Session, Token: spec.Token, Core: spec.Core}); err != nil {
+			return nil, err
+		}
+		ready := make(chan struct{})
+		close(ready)
+		return &localTapBridge{controller: controller, session: spec.Session, ready: ready}, nil
+	})
+	remote, err := host.NewRemoteInput(host.RemoteInputConfig{Starter: starter, HeartbeatInterval: time.Hour, DialTimeout: time.Second, ReconnectGrace: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = remote.Close() })
+	if err := remote.AttachWithCapabilities(context.Background(), "fes.atari-st", true); err != nil {
+		t.Fatal(err)
+	}
+	event := remoteinput.Event{Device: remoteinput.DeviceKeyboard, Kind: remoteinput.KindKey, Action: remoteinput.ActionPress, Code: 0x1004}
+	start := time.Now()
+	if _, err := remote.TapKeyChord(context.Background(), remote.Status().SessionID, 7, event, 2, func() error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	elapsed := time.Since(start)
+	mu.Lock()
+	defer mu.Unlock()
+	if len(rows) != 2 || rows[0][0] != 1<<4 || rows[0][8] != 2 || rows[1] != (hidkeys.Rows{}) {
+		t.Fatalf("target chord edges %+v", rows)
+	}
+	hold := times[1].Sub(times[0])
+	if hold < 55*time.Millisecond || hold > 500*time.Millisecond || elapsed < 150*time.Millisecond || elapsed-hold < 100*time.Millisecond {
+		t.Fatalf("transport delay/target hold: total=%v hold=%v", elapsed, hold)
+	}
 }
 
 type localTapBridge struct {
