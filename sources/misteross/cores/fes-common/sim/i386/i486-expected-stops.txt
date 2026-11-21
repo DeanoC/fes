@@ -75,6 +75,30 @@ mov-tr6 agree
 mov-tr7 agree
 mov-cr4-read agree
 mov-cr4-write agree
+xadd-same-r32 stop @1006.unexpected-exception 0 6
+xadd-hi8 stop @1003.unexpected-exception 0 6
+cmpxchg-eax-eax stop @1006.unexpected-exception 0 6
+cmpxchg-src-eax-equal stop @100c.unexpected-exception 0 6
+cmpxchg-src-eax-unequal stop @100c.unexpected-exception 0 6
+cmpxchg-hi8-equal stop @1005.unexpected-exception 0 6
+cmpxchg-hi8-unequal stop @1005.unexpected-exception 0 6
+cmpxchg-m32-readonly stop @104f.vector e 6
+cmpxchg-m32-notpresent stop @104f.vector e 6
+xadd-m32-notpresent stop @104f.vector e 6
+invlpg-remap stop @105c.unexpected-exception 0 6
+invlpg-notpresent stop @103e.unexpected-exception 0 6
+ac-popfd-then-load stop @1055.eflags 40002 2
+ac-xadd-m32 stop @1046.eflags 40002 2
+ac-lfs-at-2 stop @1046.eflags 40002 2
+ac-lfs-aligned stop @1046.eflags 40002 2
+ac-bound-aligned stop @1046.eflags 40002 2
+ac-bound-at-2 stop @1046.eflags 40002 2
+ac-sgdt-at-2 stop @1046.eflags 40002 2
+ac-sgdt-aligned stop @1046.eflags 40002 2
+ac-real-int-clears stop @100b.eflags 40002 2
+ac-pm-int-keeps stop @1046.eflags 40002 2
+bswap-r16 stop @1006.unexpected-exception 0 6
+cpuid-2 stop @1006.unexpected-exception 0 6
 ud-xbts agree
 ud-ibts agree
 ud-xbts-mem agree

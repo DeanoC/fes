@@ -72,7 +72,9 @@
 // divide unit (fes_i386_muldiv, md_flags); their result comes through LEA's
 // select, from the pipe record's result field, which fes_i386_cpu fills
 // from the unit.
-module fes_i386_ex (
+module fes_i386_ex #(
+    parameter bit I486 = 1'b0  // the i486 identity (fes_i386_cpu): AC (18) and ID (21) are writable
+) (
     input  fes_i386_pkg::uop_t   u,
     input  fes_i386_pkg::exctl_t exc,
     input  logic [31:0]          a,
@@ -81,13 +83,13 @@ module fes_i386_ex (
     input  logic [31:0]          wb,          // the WB result register
     input  logic [31:0]          ld,          // the loaded value (M2)
     input  logic [31:0]          ag_result,   // LEA's offset; a multiply's or divide's result
-    input  logic [17:0]          flags_in,
-    input  logic [17:0]          flags_keep,
+    input  logic [21:0]          flags_in,
+    input  logic [21:0]          flags_keep,
     input  logic [11:0]          md_flags,
     input  logic [1:0]           cpl,         // the CPL, for POPF's and IRET's IF and IOPL
     input  logic                 ts_krf,      // a task switch's descriptor loads, which keep RF
     output logic [31:0]          result,
-    output logic [17:0]          flags_out,
+    output logic [21:0]          flags_out,
     output logic                 taken,
     output logic                 br,          // BOUND's #BR
     output logic [31:0]          ind_target,  // RET, JMP r/m: the target's linear address and EIP
@@ -101,7 +103,7 @@ module fes_i386_ex (
 );
     localparam int CF = 0, PF = 2, AF = 4, ZF = 6, SF = 7, TF = 8, IF = 9, DF = 10, OF = 11;
 
-    function automatic logic cond(input logic [17:0] f, input logic [3:0] cc);
+    function automatic logic cond(input logic [21:0] f, input logic [3:0] cc);
         logic t;
         case (cc[3:1])
             3'd0: t = f[11];                          // O
@@ -114,6 +116,23 @@ module fes_i386_ex (
             default: t = (f[7] ^ f[11]) | f[6];       // LE
         endcase
         cond = t ^ cc[0];
+    endfunction
+
+    // CPUID (the i486 identity), by the leaf in EAX (Intel486 data book
+    // Appendix B): leaf 0 the highest leaf, 1, and "GenuineIntel"; leaf 1 the
+    // 486SX's signature (fes_i386_pkg I486_SIGNATURE) and no feature flags,
+    // the SX having no FPU (EDX bit 0); above 1, zeros in all four. reg_n is
+    // the x86 register number: EAX 0, ECX 1, EDX 2, EBX 3.
+    function automatic logic [31:0] cpuid(input logic [31:0] leaf, input logic [1:0] reg_n);
+        if (leaf == 32'd0)
+            case (reg_n)
+                2'd0: cpuid = 32'd1;
+                2'd1: cpuid = 32'h6c65_746e;  // "ntel"
+                2'd2: cpuid = 32'h4965_6e69;  // "ineI"
+                default: cpuid = 32'h756e_6547;  // "Genu"
+            endcase
+        else
+            cpuid = leaf == 32'd1 && reg_n == 2'd0 ? fes_i386_pkg::I486_SIGNATURE : 32'd0;
     endfunction
 
     // ---- Operands -----------------------------------------------------------------
@@ -212,7 +231,7 @@ module fes_i386_ex (
     // The bit below BSR's index, and the two below it XORed (bit -1 is 0).
     assign hi_cf = |(hi_one[31:1] & y[30:0]);
     assign hi_of = hi_one[0] || |(hi_one[31:1] & (y[30:0] ^ {y[29:0], 1'b0}));
-    logic [17:0] scan_f;
+    logic [21:0] scan_f;
     always_comb begin
         scan_f = flags_keep;
         scan_f[ZF] = scan_z;
@@ -293,10 +312,13 @@ module fes_i386_ex (
                    | ({32{exc.r_setcc}} & {31'b0, cc_true})
                    | ({32{exc.r_lahf}} & {24'b0, flags_in[7:6], 1'b0, flags_in[4], 1'b0, flags_in[2], 1'b1, flags_in[0]})
                    | ({32{exc.r_sign}} & {32{exc.src8 ? y[7] : exc.src16 ? y[15] : y[31]}})
-                   | ({32{exc.r_flags}} & {14'b0, (exc.f_clrpm || exc.f_rdtss) && flags_in[17],
+                   | ({32{exc.r_flags}} & {10'b0, flags_in[21], 2'b0, flags_in[18], (exc.f_clrpm || exc.f_rdtss) && flags_in[17],
                                            (exc.f_clrpm || exc.f_rdtss) && u.imm[4], flags_in[15],
                                            flags_in[14] && !(exc.f_rdtss && u.imm[6]), flags_in[13:0]})
                    | ({32{exc.r_zf}} & (u.imm[0] ? y : x))
+                   | ({32{exc.r_csel}} & (cc_true ? y : x))
+                   | ({32{exc.r_bswap}} & {x[7:0], x[15:8], x[23:16], x[31:24]})
+                   | ({32{exc.r_cpuid}} & cpuid(x, u.imm[1:0]))
                    | ({32{exc.r_scan}} & (scan_z ? af : {27'b0, scan_n}))
                    | ({32{exc.r_bcd}} & {16'b0, bcd_r})
                    | ({32{exc.r_bt}} & r_bt)
@@ -323,7 +345,7 @@ module fes_i386_ex (
     assign add = exc.ok && exc.f_add;
     assign arith = exc.ok && exc.f_arith;
 
-    logic [17:0] rest;
+    logic [21:0] rest;
     always_comb begin
         rest = flags_keep;
         rest[1] = 1'b1;
@@ -360,12 +382,20 @@ module fes_i386_ex (
                 rest[DF] = y[10];
                 rest[OF] = y[11];
                 rest[14] = y[14];
+                // POPFD and IRETD with the i486 identity: AC and ID too.
+                if (I486 && !exc.size8 && !exc.size16) begin
+                    rest[18] = y[18];
+                    rest[21] = y[21];
+                end
                 if (cpl > flags_keep[13:12]) rest[IF] = flags_keep[IF];
                 if (cpl == 2'd0) rest[13:12] = y[13:12];
             end
+            // A real-mode delivery: IF and TF, and on the i486 identity AC
+            // (the INT n pseudocode's real-address-mode "AC <- 0").
             if (exc.f_clrit) begin
                 rest[IF] = 1'b0;
                 rest[TF] = 1'b0;
+                if (I486) rest[18] = 1'b0;
             end
             // A protected-mode delivery: TF and NT, and IF through an
             // interrupt gate (imm[5] clear).
@@ -391,6 +421,10 @@ module fes_i386_ex (
                 rest[13:12] = y[13:12];
                 rest[14] = y[14] || u.imm[6];
                 rest[17] = y[17];
+                if (I486) begin
+                    rest[18] = y[18];
+                    rest[21] = y[21];
+                end
             end
             // RF: IRETD's image sets it, IRET's last uop keeps it, and any
             // other instruction clears it at WB's instruction boundary: its
