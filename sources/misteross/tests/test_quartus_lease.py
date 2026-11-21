@@ -435,6 +435,28 @@ class LeaseTests(unittest.TestCase):
                                 capture_output=True, text=True, timeout=30)
         self.assertEqual(result.stdout.strip(), legacy, result.stderr)
 
+    def test_parallel_seeds_under_an_ancestor_lease_each_count(self):
+        # Codex P1 at 9b3488e06: under flock(1) or a `run` wrapper, every seed
+        # thread reused the ancestor's one slot. The first claims it; the
+        # second takes its own.
+        legacy = self.pools["pro"][1]
+        code = textwrap.dedent(f"""
+            import sys, threading; sys.path.insert(0, {str(MISTEROSS)!r})
+            from scripts import quartus_tools as qt
+            qt.LEASE_POOLS = {{}}; qt.DEFAULT_POOL = {self.pools!r}
+            took, both = [], threading.Barrier(2)
+            def seed():
+                with qt.quartus_lease('pro') as path:
+                    took.append(path)
+                    both.wait(10)
+            threads = [threading.Thread(target=seed) for _ in range(2)]
+            [t.start() for t in threads]; [t.join() for t in threads]
+            print(sorted(took))
+            """)
+        result = subprocess.run(["flock", legacy, sys.executable, "-c", code],
+                                capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.stdout.strip(), str(sorted(self.pools["pro"])), result.stderr)
+
     def test_parallel_threads_each_hold_their_own_slot(self):
         import threading
         took, release = [], threading.Event()
@@ -762,6 +784,22 @@ class JobsTests(unittest.TestCase):
             self.assertEqual(self.jobs.run("lite", "", ["true"], sample_seconds=0.1), 0)
             self.assertEqual(next(memory, "drained"), "drained", "admitted before memory was available")
 
+    def test_a_signal_while_the_job_starts_still_stops_the_job(self):
+        # Codex P1 at 9b3488e06: SIGTERM between Popen and the relay handlers
+        # killed the wrapper and left the job running unleased.
+        marker = Path(self.directory.name) / "late-child"
+        real = subprocess.Popen
+
+        def popen_then_signalled(*args, **kwargs):
+            os.kill(os.getpid(), signal.SIGTERM)
+            return real(*args, **kwargs)
+
+        with mock.patch.object(self.jobs.subprocess, "Popen", popen_then_signalled):
+            code = self.jobs.run("lite", "", ["sh", "-c", f"sleep 2; touch {marker}"], sample_seconds=0.2)
+        self.assertEqual(code, 128 + signal.SIGTERM)
+        time.sleep(2.5)
+        self.assertFalse(marker.exists(), "the job outlived the wrapper's lease")
+
     def test_two_waiters_never_reserve_against_each_other(self):
         # Codex P1 at 7fd9ac7e4: two Lite jobs, memory for one. Each counted
         # the other's idle, not-yet-admitted wrapper as a job, and both waited
@@ -882,6 +920,10 @@ class JobsTests(unittest.TestCase):
         self.assertIn("export QUARTUS_ROOTDIR=/data/altera_pro/26.3/quartus", script)
         self.assertIn("scripts/quartus_jobs.py run --edition pro --label x87-fit --cap-minutes 240 --", script)
         self.assertIn(f"worktree add -q --detach {run_dir}/src " + "a" * 40, script)
+        # Codex P2 at 9b3488e06: the caller's origin, even on a mirror another
+        # caller created.
+        self.assertLess(script.index("remote set-url origin https://github.com/DeanoC/fes"),
+                        script.index("fetch -q origin"))
         self.assertEqual(subprocess.run(["bash", "-n", "-c", script]).returncode, 0)
         lite, _ = self.jobs.remote_script(commit="b" * 40, host="powerboat", home="/home/u", edition="lite",
                                          label="", command=["true"], stamp="s", origin="https://example/x")

@@ -253,9 +253,11 @@ def _best_effort_write(path: Path, text: str) -> None:
         print(f"quartus_jobs: could not write {path}: {error}", file=sys.stderr, flush=True)
 
 
-def _stop_job(process: subprocess.Popen, scan) -> None:
+def _stop_job(process: subprocess.Popen | None, scan) -> None:
     """SIGTERM every process of the job, SIGKILL after the grace, and wait
     until none is left. Interrupts are ignored until it has finished."""
+    if process is None:
+        return
     previous = {sig: signal.signal(sig, signal.SIG_IGN) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
     try:
         _signal_all([process.pid, *scan()], signal.SIGTERM)
@@ -422,19 +424,29 @@ def _run(edition: str, label: str, command: list[str], sample_seconds: float,
         admit(edition, slot)
         was_subreaper = _set_subreaper(True)
         before = _children_of_self()
-        process = subprocess.Popen(command, start_new_session=True, env=dict(os.environ, **{JOB_TOKEN: token}))
-        scan = lambda: job_processes(token, process.pid, before)  # noqa: E731
-        pending_signal = []
+        pending_signal: list[int] = []
+        process = None
+
+        def scan():
+            return job_processes(token, process.pid, before) if process is not None else {}
 
         def relay(number, _frame):
             pending_signal.append(number)
-            _signal_all([process.pid, *scan()], number)
+            if process is not None:
+                _signal_all([process.pid, *scan()], number)
 
+        # The relay is in place before the job exists: a signal in between is
+        # recorded and passed on as soon as there is a job to pass it to, so
+        # the wrapper can never die and release the slot over a live job.
         previous = {sig: signal.signal(sig, relay) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
         peak, code, capped, killed_at = 0, None, False, None
         started = time.monotonic()
         deadline, beat = started + cap_seconds, started
         try:
+            process = subprocess.Popen(command, start_new_session=True,
+                                       env=dict(os.environ, **{JOB_TOKEN: token}))
+            if pending_signal:
+                _signal_all([process.pid], pending_signal[0])
             while True:
                 live = scan()
                 peak = max(peak, sum(live.values()))
@@ -478,8 +490,10 @@ def _run(edition: str, label: str, command: list[str], sample_seconds: float,
         finally:
             for sig, handler in previous.items():
                 signal.signal(sig, handler)
-            _reap_adopted(before | {process.pid})
+            _reap_adopted(before | ({process.pid} if process is not None else set()))
             _set_subreaper(was_subreaper)
+        if code is not None and code < 0:
+            code = 128 - code  # killed by a signal, as a shell reports it
         if capped:
             code = 124
         elif pending_signal and code == 0:
@@ -541,6 +555,8 @@ def remote_script(*, commit: str, host: str, home: str, edition: str, label: str
         f"exec 9>>{q(PROJECTS)}/.mirror.lock",
         "flock 9",
         f"[ -d {q(mirror)} ] || git clone -q --bare --filter=blob:none {q(origin)} {q(mirror)}",
+        # The caller's origin, whoever created the mirror.
+        f"git -C {q(mirror)} remote set-url origin {q(origin)}",
         f"git -C {q(mirror)} fetch -q origin {q(commit)}",
         f"git -C {q(mirror)} worktree add -q --detach {q(tree)} {q(commit)}",
         "flock -u 9",

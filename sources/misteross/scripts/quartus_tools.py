@@ -294,6 +294,9 @@ _own_descriptors: set[int] = set()
 # inherited-slot scan without being marked as its own, or that thread would
 # flock the same open file and believe it held the slot too.
 _descriptor_lock = threading.Lock()
+# Which thread's explicit lease uses the slot an ancestor holds, per edition.
+_outer_claims: dict[str, int] = {}
+_claim_lock = threading.Lock()
 
 
 def _thread_held() -> dict[str, tuple[str, object]]:
@@ -399,6 +402,12 @@ def held_quartus_lease(edition: str) -> str | None:
     held = _thread_held().get(edition_class(edition)) or _process_held.get(edition_class(edition))
     if held is not None:
         return held[0]
+    return _outer_slot(edition)
+
+
+def _outer_slot(edition: str) -> str | None:
+    """A slot of edition's pool held through an inherited descriptor or by an
+    ancestor process, or None."""
     pool = lease_pool(edition)
     inherited = _inherited_slot(pool)
     if inherited is not None:
@@ -451,10 +460,29 @@ def quartus_lease(edition: str, *, label: str = ""):
     Reentrant: inside a lease already held (here, inherited or by an ancestor)
     it takes nothing more and releases nothing. Released on every exit from
     the block, so a multi-seed runner takes one per seed."""
-    held = held_quartus_lease(edition)
-    if held is not None:
-        yield held
+    cls = edition_class(edition)
+    mine = _thread_held().get(cls) or _process_held.get(cls)
+    if mine is not None:
+        yield mine[0]
         return
+    # A slot an ancestor holds (flock(1), a `run` wrapper) covers one job:
+    # the first explicit lease in this process claims it, and a concurrent
+    # one in another thread (a parallel seed) takes its own slot.
+    outer = _outer_slot(edition)
+    if outer is not None:
+        with _claim_lock:
+            claimed = cls not in _outer_claims
+            if claimed:
+                _outer_claims[cls] = threading.get_ident()
+        if claimed:
+            _thread_held()[cls] = (outer, None)
+            try:
+                yield outer
+            finally:
+                del _thread_held()[cls]
+                with _claim_lock:
+                    del _outer_claims[cls]
+            return
     path, stream = _take(edition, label)
     held = _thread_held()
     held[edition_class(edition)] = (path, stream)
