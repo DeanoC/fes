@@ -22,6 +22,17 @@ PORTS_AFTER = (b"    output wire [15:0] debug_pc,\n"
                b"    input  wire [15:0] firmware_write_data,\n"
                b"    input  wire [1:0]  firmware_write_enable\n);\n")
 
+# The DE10 machine uses its CPU read bus, read_data, in the VIC's port list
+# before the line that declares and assigns it. Yosys and Verilator resolve the
+# forward reference; Quartus makes an implicit one-bit net at the first use and
+# then drops the later declaration's assignment, leaving the 6510's read data
+# undriven. Here the bus is declared ahead of the VIC and the old declaration
+# becomes its assignment: the same logic, with no forward reference.
+READ_BUS_ANCHOR = b"    wire [7:0] ram_q, rom_q;\n"
+READ_BUS_DECLARATION = b"    wire [7:0] read_data;  // DE25: declared before the VIC uses it\n"
+READ_BUS_BEFORE = b"    wire [7:0] read_data =\n"
+READ_BUS_AFTER = b"    assign read_data =\n"
+
 # Inferred memories whose Cyclone V block hint is the only family dependence.
 RAM_FILES = {
     "c64_ram.v": ((b'(* ramstyle = "M10K" *)', b'(* ramstyle = "M20K" *)', 1),),
@@ -165,10 +176,15 @@ def _derive(source, replacements, label):
 
 
 def retarget_machine(source):
-    """Swap the linked ROM lanes for the uploaded firmware RAM and its write port."""
+    """Swap the linked ROM lanes for the uploaded firmware RAM; declare the CPU read bus first."""
     if b"MISTRAL" in source or b"c64_rom " in source.replace(ROM_BEFORE, b""):
         raise ValueError("C64 machine ROM adaptation contract changed")
-    return _derive(source, ((ROM_BEFORE, ROM_AFTER, 1), (PORTS_BEFORE, PORTS_AFTER, 1)), "C64 machine ROM")
+    first_use = source.find(b"read_data")
+    if first_use < 0 or first_use >= source.find(READ_BUS_BEFORE) or source.find(READ_BUS_ANCHOR) > first_use:
+        raise ValueError("C64 machine read bus adaptation contract changed")
+    return _derive(source, ((ROM_BEFORE, ROM_AFTER, 1), (PORTS_BEFORE, PORTS_AFTER, 1),
+                            (READ_BUS_ANCHOR, READ_BUS_ANCHOR + READ_BUS_DECLARATION, 1),
+                            (READ_BUS_BEFORE, READ_BUS_AFTER, 1)), "C64 machine ROM")
 
 
 def retarget_ram(name, source):

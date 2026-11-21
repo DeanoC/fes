@@ -30,7 +30,13 @@ class Derivations(unittest.TestCase):
         # Every other line of the DE10 machine is compiled as it is.
         kept = set(source.splitlines())
         added = [line for line in result.splitlines() if line not in kept]
-        self.assertEqual(len(added), 10)
+        self.assertEqual(len(added), 12)
+        # The CPU read bus is declared before anything uses it.
+        declaration = result.index(b"    wire [7:0] read_data;")
+        self.assertLess(declaration, result.index(b"read_data", declaration - 1) + 1)
+        self.assertEqual(result.find(b"read_data"), declaration + len(b"    wire [7:0] "))
+        self.assertIn(b"    assign read_data =\n", result)
+        self.assertNotIn(b"wire [7:0] read_data =", result)
 
     def test_a_changed_machine_is_refused(self):
         source = (C64 / "c64_machine.sv").read_bytes()
