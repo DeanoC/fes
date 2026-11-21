@@ -217,6 +217,18 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 		}
 		return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_health", err}, current)
 	}
+	// A successful authenticated reply has already established a reboot even
+	// if the observer's deadline expired as the reply was read. Invalidate the
+	// old authority before allowing cancellation to end this observation.
+	reboot := previous.BootID != "" && previous.BootID != health.BootID
+	if reboot {
+		boundaryObserved = true
+		connection := previous
+		connection.State = "connecting"
+		s.publishTargetConnection(name, connection, current)
+		s.invalidateTargetSession(concrete)
+		s.resetTargetInputsOutsideTargetMu(name)
+	}
 	if err := lookupCtx.Err(); err != nil {
 		if err := canceled(); err != nil {
 			return protocol.Health{}, err
@@ -239,13 +251,6 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 		}
 		s.targets = targets
 		selected.TargetID = health.TargetID
-	}
-	reboot := previous.BootID != "" && previous.BootID != health.BootID
-	if reboot {
-		boundaryObserved = true
-		connection := previous
-		connection.State = "connecting"
-		s.publishTargetConnection(name, connection, current)
 	}
 	// Address-only older agents need not expose the discovery/lease extensions.
 	if selected.TargetID == "" {
@@ -305,10 +310,7 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 	}
 	base, _ := url.Parse(address)
 	var hadGrant bool
-	if reboot {
-		s.invalidateTargetSession(concrete)
-		s.resetTargetInputsOutsideTargetMu(name)
-	} else {
+	if !reboot {
 		hadGrant, err = concrete.HasKitGrantContext(lookupCtx)
 		if err != nil {
 			if err := canceled(); err != nil {

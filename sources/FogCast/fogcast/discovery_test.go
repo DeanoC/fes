@@ -188,6 +188,86 @@ func TestCanceledDiscoveryAfterRebootInvalidatesGrant(t *testing.T) {
 	}
 }
 
+func TestCanceledDiscoveryAfterHealthStillInvalidatesReboot(t *testing.T) {
+	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
+	for _, configuredID := range []bool{true, false} {
+		name := "address only"
+		if configuredID {
+			name = "configured identity"
+		}
+		t.Run(name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.Method + " " + r.URL.Path {
+				case "GET /v1/health":
+					_ = json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: id, BootID: "new", Ready: true})
+				case "POST /v1/kit/local/resume":
+					_ = json.NewEncoder(w).Encode(kitlease.Grant{Token: "old", Status: kitlease.Status{State: "held", Generation: "one", ExpiresInMS: 60000}})
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer srv.Close()
+			base, _ := url.Parse(srv.URL)
+			lease := targetclient.NewLocalKitLease(base, "secret", srv.Client())
+			if err := lease.Acquire(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			httpClient := *srv.Client()
+			httpClient.Transport = healthCancelTransport{base: httpClient.Transport, cancel: cancel}
+			client := targetclient.NewClient(base, "secret", &httpClient).WithKitLease(lease)
+			targetID := ""
+			if configuredID {
+				targetID = id
+			}
+			service := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, TargetID: targetID, Address: srv.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: 5 * time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+			service.kitHost = true
+			previous := TargetConnection{State: "active", TargetID: targetID, Address: srv.URL, BootID: "old"}
+			service.connection = previous
+			service.targetConnections = map[string]targetConnectionState{"kit": {connection: previous}}
+			service.plays["kit"] = targetPlay{execution: ExecutionFPGANative, gameID: "old-game"}
+			_, err := service.Health(ctx)
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("health error = %v, want canceled", err)
+			}
+			if client.HasKitGrant() || service.TargetConnection().State != "connecting" {
+				t.Fatal("new boot retained old grant or active connection")
+			}
+			if _, ok := service.plays["kit"]; ok {
+				t.Fatal("new boot retained old play")
+			}
+		})
+	}
+}
+
+type healthCancelTransport struct {
+	base   http.RoundTripper
+	cancel context.CancelFunc
+}
+
+func (t healthCancelTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	response, err := t.base.RoundTrip(r)
+	if err == nil && r.URL.Path == "/v1/health" {
+		response.Body = &healthCancelBody{ReadCloser: response.Body, cancel: t.cancel}
+	}
+	return response, err
+}
+
+type healthCancelBody struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+	once   sync.Once
+}
+
+func (b *healthCancelBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if err == io.EOF {
+		b.once.Do(b.cancel)
+	}
+	return n, err
+}
+
 func TestCanceledAddressOnlyDiscoveryKeepsChangedGrantDisconnected(t *testing.T) {
 	ownershipEntered, finishOwnership := make(chan struct{}), make(chan struct{})
 	releaseEntered, finishRelease, ownershipRead := make(chan struct{}), make(chan struct{}), make(chan struct{})
