@@ -61,6 +61,11 @@ func (r *Instance) installHardware() *lua.LTable {
 			r.actions = append(r.actions, hardwareSetupAction(L, ActionHardwareMedia))
 			return 0
 		},
+		// add_disk adds one disk, chosen from a file, after the game's last.
+		"add_disk": func(L *lua.LState) int {
+			r.actions = append(r.actions, hardwareSetupAction(L, ActionHardwareAddDisk))
+			return 0
+		},
 		// open_disks opens the family's disk shelf. package_id is the
 		// installed package a new disk is made for.
 		"open_disks": func(L *lua.LState) int {

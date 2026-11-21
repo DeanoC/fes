@@ -353,6 +353,9 @@ local function place(list)
     end
   end
   games = rows_for(selected_core)
+  -- A row's second line is fixed for a listing: work it out once here, not
+  -- on every draw.
+  for _, g in ipairs(games) do g.sub_line = game_sub(g) end
   game_i, scroll = 1, 0
   local selected = false
   for i, g in ipairs(games) do
@@ -515,6 +518,11 @@ local function next_disk()
   session.change_disk(live, id, name)
   -- The drive row follows the kit: read it again shortly.
   last_hw = room.time - 12
+end
+local function add_disk()
+  local game = focused()
+  if not game then return end
+  hardware.add_disk({game_id=game.id, core_id=game.core_id, package_id=game.package_id, expected_media_id=game.media_id or ""})
 end
 local function open_media()
   local game = focused()
@@ -746,12 +754,22 @@ local function right_column()
   button("media", label, x, y, media_w, 36, can_change, open_media)
   -- A drive that cannot write gets no blank disk: New disk is shown off,
   -- with the reason below.
+  local bx = x + media_w + 12
   local reads_only = media_saves(shelf_package(), "disk") == false
   if reads_only then
-    button("new_disk", "New disk", x + media_w + 12, y, text_width("New disk", 17, true) + 40, 36, false, nil)
+    local bw = text_width("New disk", 17, true) + 40
+    button("new_disk", "New disk", bx, y, bw, 36, false, nil)
+    bx = bx + bw + 12
   elseif spec().shelf then
-    button("disks", "Your disks", x + media_w + 12, y, text_width("Your disks", 17, true) + 40, 36,
+    local bw = text_width("Your disks", 17, true) + 40
+    button("disks", "Your disks", bx, y, bw, 36,
       shelf_package() ~= "" and not hardware_unavailable, open_disks)
+    bx = bx + bw + 12
+  end
+  -- A stopped game with a disk or tape can take another after its last.
+  if not live_here and (role == "disk" or role == "cassette") and name and n < 16 then
+    local add_label = "Add " .. word .. " to game"
+    button("add_disk", add_label, bx, y, text_width(add_label, 17, true) + 40, 36, can_change, add_disk)
   end
   y = y + 36 + 14
   x = RIGHT_X
@@ -783,7 +801,7 @@ local function right_column()
     if not g then break end
     local is_live = live and live.state == "active" and live.game_id == g.id
     local tag = is_live and "Running" or ((not g.launchable) and "Can't start yet" or "")
-    list_row("game:" .. i, x, y, w, nil, 0, title_of(g), game_sub(g), tag, is_live, i == game_i, false)
+    list_row("game:" .. i, x, y, w, nil, 0, title_of(g), g.sub_line, tag, is_live, i == game_i, false)
     hit("game:" .. i, x, y, w, ROW_H)
     y = y + ROW_H + ROW_GAP
   end
@@ -801,7 +819,7 @@ local function upper_sig()
   local game = focused()
   local c = computers[selected_core]
   local run = find_running()
-  local at = (focus == "drive" or focus == "next_disk" or focus == "media" or focus == "disks" or focus == "game" or focus == "back" or focus == "home" or focus == "model") and "" or focus
+  local at = (focus == "drive" or focus == "next_disk" or focus == "media" or focus == "disks" or focus == "add_disk" or focus == "game" or focus == "back" or focus == "home" or focus == "model") and "" or focus
   return table.concat({
     selected_core, at, play_state(), run and run.id or "", tostring(this_machine()),
     tostring(game and game.launchable), tostring(game and game.firmware_required and not game.firmware_ready),
@@ -982,7 +1000,7 @@ function unload() remember() end
 local function set_focus(id)
   if id == focus then return end
   focus = id
-  if id == "drive" or id == "next_disk" or id == "media" or id == "disks" or id == "game" then right_focus = id end
+  if id == "drive" or id == "next_disk" or id == "media" or id == "disks" or id == "add_disk" or id == "game" then right_focus = id end
   rev = rev + 1
   remember()
 end
@@ -1053,6 +1071,7 @@ function on_input(cmd)
     if has_control("next_disk") then order[#order + 1] = "next_disk" end
     order[#order + 1] = "media"
     if has_control("disks") then order[#order + 1] = "disks" end
+    if has_control("add_disk") then order[#order + 1] = "add_disk" end
     if #games > 0 then order[#order + 1] = "game" end
     local i = index_of(order, focus) or 1
     set_focus(order[(i - 1 + (cmd == "tab" and 1 or -1)) % #order + 1])
@@ -1088,12 +1107,18 @@ function on_input(cmd)
   elseif focus == "media" then
     if cmd == "up" then set_focus("drive")
     elseif cmd == "down" then if #games > 0 then set_focus("game") end
-    elseif cmd == "right" then if has_control("disks") then set_focus("disks") end
+    elseif cmd == "right" then
+      if has_control("disks") then set_focus("disks") elseif has_control("add_disk") then set_focus("add_disk") end
     elseif cmd == "left" then set_focus(has_control("next_disk") and "next_disk" or "start") end
   elseif focus == "disks" then
     if cmd == "up" then set_focus("drive")
     elseif cmd == "down" then if #games > 0 then set_focus("game") end
+    elseif cmd == "right" then if has_control("add_disk") then set_focus("add_disk") end
     elseif cmd == "left" then set_focus("media") end
+  elseif focus == "add_disk" then
+    if cmd == "up" then set_focus("drive")
+    elseif cmd == "down" then if #games > 0 then set_focus("game") end
+    elseif cmd == "left" then set_focus(has_control("disks") and "disks" or "media") end
   elseif focus == "game" then
     if cmd == "left" then set_focus("start")
     elseif cmd == "up" then

@@ -601,6 +601,8 @@ func (a *App) applyRoomActionsLocked() {
 			a.openHardwarePickerLocked(act)
 		case rooms.ActionHardwareMedia:
 			a.openSystemMediaLocked(act)
+		case rooms.ActionHardwareAddDisk:
+			a.openAddDiskLocked(act)
 		case rooms.ActionHardwareDisks:
 			a.openStShelfLocked(act)
 		case rooms.ActionHardwareExpansions:

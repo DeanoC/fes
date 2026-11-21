@@ -558,7 +558,13 @@ system. With no argument it opens the Sinclair family selector.
 `hardware.open_media({game_id=..., core_id=..., package_id=...,
 expected_media_id=...})` opens the next-start picker for the exact displayed
 entry. An empty expected media ID is explicit. The native picker reads the
-package's media capabilities and saves with compare-and-swap.
+package's media capabilities and saves with compare-and-swap. A file named
+as one disk of a set, such as "Game (Disk 2 of 3).d64", brings every disk of
+that set in its folder: disk 1 becomes the next-start disk and the rest follow
+it ([disk sets](core-package-library.md#disk-sets)).
+`hardware.add_disk({game_id=..., core_id=..., package_id=...,
+expected_media_id=...})` opens the same picker to add one file after the
+game's last disk, in its first disk's drive.
 `hardware.open_disks({core_id=..., package_id=...})` opens the family's disk
 shelf: the disks made here and the game disks with saved changes. The package
 is the installed one a new disk is made for. It may be opened during play;
@@ -567,6 +573,12 @@ the host refuses changes that need the computer stopped.
 manifest-derived sockets and exact-package cards. Importing and fitting are
 separate actions. These setup actions require an idle machine; live media uses
 `session.open_tape` and its observed session binding.
+`session.change_disk(snapshot.session, media_id, media_name)` puts one library
+medium in the running machine's drive through the live media change, by its
+media ID and the file name it was imported under: the core screen's Next
+disk. The session's `media_name` is the name of the medium put in during play,
+empty for the one the game started with. Game rows carry `media_name` for
+disk 1 and `more_media`, a list of `{media_id, media_name}`, for disks 2 to N.
 `hardware.firmware_info({core_id=..., family_id=..., family_label=...,
 core_ids={...}, first_use=...})` asks for a family's firmware card
 ([bundled firmware](../../../docs/bundled-firmware.md#the-first-use-card)).

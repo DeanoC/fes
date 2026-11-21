@@ -670,6 +670,11 @@ func TestCoreScreenShowsADiskSetAndChangesToTheNextDisk(t *testing.T) {
 	if strings.Contains(text, "Next disk") {
 		t.Fatalf("a stopped game offers Next disk:\n%s", text)
 	}
+	r.Activate("add_disk")
+	if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionHardwareAddDisk || acts[0].GameID != game.ID ||
+		acts[0].PackageID != game.PackageID || acts[0].ExpectedMediaID != disk1 {
+		t.Fatalf("add disk: %+v", acts)
+	}
 	for _, step := range []struct{ inDrive, want, nextID, nextName string }{
 		{"", "Disk 1 of 2\n", disk2, "CANYON2.D64"},
 		{"CANYON2.D64", "Disk 2 of 2\n", disk1, "CANYON1.D64"},
@@ -686,8 +691,8 @@ func TestCoreScreenShowsADiskSetAndChangesToTheNextDisk(t *testing.T) {
 				t.Fatalf("a running set's draw ran %d instructions", c.instructions)
 			}
 		}
-		if !strings.Contains(text, step.want) {
-			t.Fatalf("running set with %q in the drive is missing %q:\n%s", step.inDrive, step.want, text)
+		if !strings.Contains(text, step.want) || strings.Contains(text, "Add disk to game") {
+			t.Fatalf("running set with %q in the drive: want %q and no Add disk:\n%s", step.inDrive, step.want, text)
 		}
 		r.Activate("next_disk")
 		acts := r.TakeActions()
