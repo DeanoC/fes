@@ -91,7 +91,7 @@ def timed_reset_release(inputs):
     return canonical or standard
 
 
-def timed_scanout_sdc(source):
+def timed_scanout_reset_ingress(source):
     # The system reset source and receiver both use the 100 MHz system PLL.
     # Keep the independent reference configuration and pixel bridge ingress cut.
     for pin in ("aclr", "clrn"):
@@ -101,7 +101,11 @@ def timed_scanout_sdc(source):
     source = replace_once(source, "$scanout_clear_count != 6", "$scanout_clear_count != 4")
     source = replace_once(source, "(expected 6)", "(expected 4)")
     source = replace_once(source, "exactly six configuration", "exactly four configuration")
-    return source + FIFO_RESET_SDC
+    return source
+
+
+def timed_scanout_sdc(source):
+    return timed_scanout_reset_ingress(source) + FIFO_RESET_SDC
 
 
 # Canonical MENU only: the two peer reset levels enter the first delay D.
@@ -148,6 +152,11 @@ def reset_sdc_files(project):
 def repair_generated_reset_timing(directory):
     if not timed_reset_release(json.loads((directory / "inputs.json").read_text())):
         raise ValueError("same-clock reset repair requires canonical MENU")
+    write_vendor_reset_timing(directory)
+    return verify_generated_reset_timing(directory)
+
+
+def write_vendor_reset_timing(directory):
     project = directory / "project"
     originals = directory / "reset-timing-originals"
     originals.mkdir(exist_ok=False)
@@ -164,14 +173,12 @@ def repair_generated_reset_timing(directory):
     record = {"policy": TIMED_RESET_RELEASE, "clock": "pll_inst|iopll_0_outclk0",
               "timed_instances": list(TIMED_RESET_INSTANCES), "files": files}
     (directory / "reset-timing.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
-    return verify_generated_reset_timing(directory)
 
 
 def verify_generated_reset_timing(directory):
     inputs = json.loads((directory / "inputs.json").read_text())
     if not timed_reset_release(inputs):
         raise ValueError("same-clock reset verification requires canonical MENU")
-    record = json.loads((directory / "reset-timing.json").read_text())
     project = directory / "project"
     raw = directory.parents[1] / "functional-source" / BOARD / "scanout/clocks.sdc"
     expected_sdc = timed_scanout_sdc(raw.read_text()).encode()
@@ -179,6 +186,12 @@ def verify_generated_reset_timing(directory):
             inputs["scanout"]["source_sha256"]["clocks.sdc"] != sha(expected_sdc)):
         raise ValueError("canonical MENU same-clock reset SDC differs from captured source")
     verify_reset_synchronizers(project)
+    return verify_vendor_reset_timing(directory)
+
+
+def verify_vendor_reset_timing(directory):
+    record = json.loads((directory / "reset-timing.json").read_text())
+    project = directory / "project"
     names = {p.relative_to(project).as_posix() for p in reset_sdc_files(project)}
     if (set(record) != {"policy", "clock", "timed_instances", "files"} or
             record["policy"] != TIMED_RESET_RELEASE or record["clock"] != "pll_inst|iopll_0_outclk0" or

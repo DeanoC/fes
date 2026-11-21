@@ -75,7 +75,10 @@ add_connection fes_native_maintenance_reset.out_reset subsys_debug.reset
     inputs_path = directory / "inputs.json"
     inputs = json.loads(inputs_path.read_text())
     video_constraints = project / "fes_mailbox/clocks.sdc"
-    video_constraints.write_text(matched_video_sdc(video_constraints.read_text()))
+    # The native topology retains separate FIFO controllers. Time the
+    # same-clock reset receivers without the managed FIFO peer projection.
+    video_constraints.write_text(scanout.timed_scanout_reset_ingress(
+        matched_video_sdc(video_constraints.read_text())))
     video_constraints_sha = board.sha(video_constraints.read_bytes())
     inputs["scanout"]["source_sha256"]["clocks.sdc"] = video_constraints_sha
     inputs[board.RECORD]["staged_source_sha256"]["fes_mailbox/clocks.sdc"] = video_constraints_sha
@@ -108,6 +111,7 @@ def generate(output, hps, scanout, quartus_root):
                    project, directory / "clear-generation.log")
     hps.run_logged([generator, "--generate_project_ip_files", "--synthesis=verilog", "golden_top"],
                    project, directory / "ip-generation.log")
+    scanout.write_vendor_reset_timing(directory)
     verify_handoff(output, hps, scanout)
 
 
@@ -147,6 +151,7 @@ def verify_handoff(output, hps, scanout):
     video_constraints_sha = hps.digest(video_constraints)
     if video_constraints_sha != inputs["native_spectrum_hps"]["matched_video_sdc_sha256"]:
         raise ValueError("native Spectrum matched HDMI constraints changed")
+    reset_timing = scanout.verify_vendor_reset_timing(directory)
     expected = inputs["vendor_hps_emif_parameters"]
     hps_ip = "hps_subsys/ip/hps_subsys/agilex_hps.ip"
     native = expected[hps_ip]
@@ -200,7 +205,7 @@ def verify_handoff(output, hps, scanout):
               "mailbox": hps.verify_mailbox_handoff(project),
               "probe": probe, "spectrum_control": computer,
               "handoff_sha256": hps.digest(handoff),
-              "matched_video_sdc_sha256": video_constraints_sha,
+              "matched_video_sdc_sha256": video_constraints_sha, "reset_timing": reset_timing,
               "firmware_admission": False, "package_signoff": False}
     (directory / "native-spectrum-handoff.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
 
