@@ -541,7 +541,7 @@ def _licensed_edition(program: str) -> str | None:
     return _licensed_dirs[directory]
 
 
-def licensed_quartus_editions(argv) -> set[str]:
+def licensed_quartus_editions(argv, search_path: str | None = None) -> set[str]:
     """Editions of the licensed Quartus programs a command line would run.
 
     Looks at every argument, and every word of an argument, so a wrapper such
@@ -568,7 +568,8 @@ def licensed_quartus_editions(argv) -> set[str]:
         if index + 1 < len(words) and words[index + 1] in ("--version", "-v", "--help", "-h"):
             continue
         program = word if os.sep in word else next(
-            (os.path.join(d, word) for d in os.environ.get("PATH", "").split(os.pathsep)
+            (os.path.join(d, word) for d in (os.environ.get("PATH", "") if search_path is None
+                                             else search_path).split(os.pathsep)
              if d and os.path.isfile(os.path.join(d, word))), None)
         edition = _licensed_edition(program) if program else None
         if edition is not None:
@@ -576,10 +577,10 @@ def licensed_quartus_editions(argv) -> set[str]:
     return editions
 
 
-def require_quartus_lease(argv) -> None:
+def require_quartus_lease(argv, search_path: str | None = None) -> None:
     """Raise QuartusLeaseError unless every licensed Quartus program argv would
     run has a lease held for its edition."""
-    for edition in sorted(licensed_quartus_editions(argv)):
+    for edition in sorted(licensed_quartus_editions(argv, search_path)):
         if held_quartus_lease(edition) is None:
             raise QuartusLeaseError(
                 f"refusing to start licensed Quartus {edition} without a lease on "
@@ -587,22 +588,30 @@ def require_quartus_lease(argv) -> None:
                 f"under scripts/quartus_jobs.py run --edition {edition}")
 
 
-def _with_environment(argv, env) -> list:
-    """argv plus the values of the child's environment: a shell can run a
-    program it finds there ($Q --flow compile)."""
+def _check_launch(argv, env) -> None:
+    """argv plus the values of the environment the child gets (its own, or
+    this process's when none is given): a shell can run a program it finds
+    there ($Q --flow compile). Bare names resolve on the child's PATH."""
+    env = os.environ if env is None else env
     words = [argv] if isinstance(argv, (str, bytes, os.PathLike)) else list(argv or ())
-    if env:
-        words.extend(value for value in env.values() if isinstance(value, (str, bytes)))
-    return words
+    words.extend(os.fsdecode(value) for value in env.values() if isinstance(value, (str, bytes)))
+    search = ""
+    for key in ("PATH", b"PATH"):
+        try:
+            search = env[key]
+            break
+        except (KeyError, TypeError):
+            continue
+    require_quartus_lease(words, search_path=os.fsdecode(search) if search else "")
 
 
 def _launch_guard(event, args):
     if event == "subprocess.Popen":
-        require_quartus_lease(_with_environment(args[1] if args[1] is not None else args[0], args[3]))
+        _check_launch(args[1] if args[1] is not None else args[0], args[3])
     elif event in ("os.exec", "os.posix_spawn"):
-        require_quartus_lease(_with_environment(args[1], args[2] if len(args) > 2 else None))
+        _check_launch(args[1], args[2] if len(args) > 2 else None)
     elif event == "os.spawn":
-        require_quartus_lease(_with_environment(args[2], args[3] if len(args) > 3 else None))
+        _check_launch(args[2], args[3] if len(args) > 3 else None)
     elif event == "os.system":
         require_quartus_lease(args[0])
 

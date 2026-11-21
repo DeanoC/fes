@@ -202,6 +202,10 @@ def shell_runs(text: str):
                     continue
                 if index + 1 < len(command) and PROBE.match(command[index + 1]):
                     continue
+                # printf -v NAME stores its output in a variable: an assignment.
+                if os.path.basename(head) == "printf" and "-v" in command[:index]:
+                    yield start, f"stores {os.path.basename(word)} in a variable with printf -v"
+                    continue
                 if os.path.basename(head) in NOT_RUNS and index > 0:
                     continue
                 if "--" in command[:index] and any(w.endswith("quartus_jobs.py") for w in command[:index]) \
@@ -372,13 +376,15 @@ class StaticRuleTests(unittest.TestCase):
             export Q=$ROOT/bin/quartus_fit
             tool='quartus_sh --flow compile top'; $tool
             cmd+=("$Q/quartus_sta" -t gate.tcl)
+            printf -v tool %s quartus_sh; "$tool" --flow compile top
             """})
         self.assertEqual([f.split(": ")[0] for f in failures],
                          ["scripts/job.sh:4", "scripts/job.sh:7", "scripts/job.sh:8", "scripts/job.sh:9",
                           "scripts/job.sh:10", "scripts/job.sh:11", "scripts/job.sh:12", "scripts/job.sh:13",
                           "scripts/job.sh:14", "scripts/job.sh:15", "scripts/job.sh:18", "scripts/job.sh:19",
                           "scripts/job.sh:20", "scripts/job.sh:22", "scripts/job.sh:23", "scripts/job.sh:24",
-                          "scripts/job.sh:25", "scripts/job.sh:26", "scripts/job.sh:27", "scripts/job.sh:28"])
+                          "scripts/job.sh:25", "scripts/job.sh:26", "scripts/job.sh:27", "scripts/job.sh:28",
+                          "scripts/job.sh:29"])
 
 
 def registered_closure() -> set[Path]:
@@ -671,6 +677,13 @@ class LaunchGuardTests(unittest.TestCase):
         # Codex P1 at 9d516bdbf: the program only in the child's environment.
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", "$Q --flow compile top"], env=dict(os.environ, Q=str(self.bin / "quartus_sh")))
+        # Codex P1 at 61760d878: the program only in the inherited environment.
+        with mock.patch.dict(os.environ, {"Q": str(self.bin / "quartus_sh")}):
+            with self.assertRaises(qt.QuartusLeaseError):
+                subprocess.run(["sh", "-c", "$Q --flow compile top"])
+        # ...and a bare name found on the child's PATH, not this process's.
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["quartus_fit", "top"], env={"PATH": str(self.bin)})
         # Codex P1 at 34cd931cc: an operator attached to the program name.
         for payload in (f"{self.bin}/quartus_sh>/dev/null", f"{self.bin}/quartus_fit&", f"true;{self.bin}/quartus_fit"):
             with self.assertRaises(qt.QuartusLeaseError):
