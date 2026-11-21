@@ -3935,7 +3935,7 @@
       }
     ]
   },
-  "testbench_sha256": "7dbe9178823d2fd5e77557352f6203ccab122b08f324a28c27ae8602f175ed9f",
+  "testbench_sha256": "df96f7fdfb794948d1c7c85b3b5ee485d7498337e0a6fb33e79e60a61cb0081b",
   "verilator": {
     "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
     "install": "1cd6c9741d903760a2b1c4283b6830f63c0974f8478b06fb7f8dabd3c4304d8c",

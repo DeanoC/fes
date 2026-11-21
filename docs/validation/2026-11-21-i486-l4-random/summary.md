@@ -1,0 +1,256 @@
+# i486: random programs at level 4 and the governor bench at `I486 = 1`, 21 November 2026
+
+Tracker [#1962](https://github.com/DeanoC/fes/issues/1962). This record closes
+the two gaps that slice 2 ([PR #2045](https://github.com/DeanoC/fes/pull/2045),
+record [`2026-11-21-i486-s2-isa`](../2026-11-21-i486-s2-isa/summary.md)) left
+open:
+- random programs against the level-4 oracle;
+- a governor bench at `I486 = 1`.
+
+The method, written before the first full run, is
+[`method.md`](method.md). Everything ran as host simulation on Powerboat,
+with at most 4 CPU threads at a time: no Quartus run, no seal, no kit.
+
+**Result.** Every gate ran at code head `98cbd9927`; later commits change
+only this record and the sim README, plus the merge of main (below).
+
+| Gate | Result |
+| --- | --- |
+| Level-4 directed cases, 486SX (`I486 = 1`) | 148 of 148 agree (108 cases and 40 `ud-` probes), on the RTL and the netlist, two runs each. The oracle's self-check passes 108 of 108 cases and 7 of 7 reset fields ([`directed/both-rtl.json`](directed/both-rtl.json), and the netlist's in `lockstep/level4-netlist.json`) |
+| Level-4 directed cases, 386 (`I486 = 0`) | 56 agree, 92 stop, equal to `i486-expected-stops.txt` on the RTL and the netlist, two runs each. Of its 5 new rows, `dr6-bit12` agrees (a 386 keeps bit 12 too) and the other 4 stop at their probe |
+| Level-4 random programs, 486SX, RTL | All 56,000 keep step: random 32,000, steady (no latency) 4,000, protected mode 8,000, tasks 4,000, debug 4,000, undefined 4,000; 11,708,925 retirements. The two steady seeds retire the same traces as with latency. Every form in `REQUIRED_FORMS` retired: each 486 form at least 380 times, 718 #AC deliveries (`ac-fault`), 328 CPL-0 writes stopped by WP (`wp-fault`) ([`lockstep/level4-486sx-rtl.json`](lockstep/level4-486sx-rtl.json)) |
+| Level-4 random programs, 486SX, netlist | The same 56,000 pass on the seal's Yosys netlist at `I486 = 1` (`5b4d333a…`). Every set's trace hashes and retirements, every form count and every rule count equal the RTL's ([`lockstep/level4-netlist.json`](lockstep/level4-netlist.json)) |
+| Governor bench, `I486 = 1`, RTL | Passes. Each 486 loop's charge equals `governor.toml`'s clocks under every preset, CPUID's 12 included. The 386 part equals slice 2's 386 report in all 1,178 values ([`governor/i486-rtl.json`](governor/i486-rtl.json)) |
+| Level-3 lockstep, 386, RTL | Passes. Equal to slice 2's head report (`bf7afef73`, which equals main's `ce67cbbc4`) in all 9,965 values but 13 source and oracle-build digests: every count, trace hash and cycle figure is the same ([`lockstep/level3-rtl.json.gz`](lockstep/level3-rtl.json.gz)) |
+| Level-3 lockstep, 386, netlist | Passes. Equal to slice 2's head netlist report in all 9,972 values but those digests and 2 netlist digests ([`lockstep/level3-netlist.json.gz`](lockstep/level3-netlist.json.gz)) |
+| test386.asm, 386, RTL | POST codes end at FFh; halts after 79,640,765 retirements, no errors. Equal to the last RTL report on record (`2026-11-12-i386-ud-1701`) but its `text` and `verilator` fields ([`test386/rtl.json`](test386/rtl.json)) |
+| test386.asm, oracle | Equal to slice 2's report in all 707 values ([`test386/oracle.json`](test386/oracle.json)) |
+| Governor bench, 386 (`I486 = 0`), RTL | Passes. Equal to slice 2's report in all 1,178 values ([`governor/386-rtl.json`](governor/386-rtl.json)) |
+
+## What was built
+
+- **A level-4 random mode** (`lockstep_tb.cpp`, `random` against the level-4
+  oracle). The level-3 suite's generator runs with `Generator::isa486` and a
+  486's start state. Its choices come from the `side` stream, so every
+  level-3 seed's programs are byte for byte as before. The sim README's
+  [Random programs at level 4](../../../sources/misteross/cores/fes-common/sim/i386/README.md#random-programs-at-level-4)
+  gives the start state, the forms and the rules.
+- **The runner** (`scripts/test_fes_i486_lockstep.py`). It runs the level-3
+  suite's five sets at the 486SX identity with level 3's seeds and sizes,
+  plus two seeds again without latency, after the directed cases.
+  `--random-only` runs the sets alone; `--netlist` runs them on the seal's
+  netlist.
+- **The governor bench at `I486 = 1`** (`scripts/test_fes_i386_governor.py
+  --i486`). It runs the 386 bench unchanged, then `governor_bench_486.asm`:
+  loops of BSWAP, XADD, CMPXCHG, CPUID, INVD and WBINVD, and INVLPG, at max
+  and under every preset. NASM files CMPXCHG and CPUID under the Pentium, so
+  the program writes those two as bytes under `cpu 486`.
+
+## What the random programs found
+
+Each divergence was classed as the method says: an RTL bug, fixed with a
+directed case, or a difference of the oracle's model, given a narrow rule
+with its source.
+
+### RTL bugs
+
+- **XADD to memory read its operand twice.** `SEQ_XADDM`'s first step was a
+  read-modify-write after the load into T1, so an MMIO operand saw two reads
+  (`mmio-reads.x.2x` in the first smoke run). The ADD's step is now a store
+  of r plus T1. A 486 reads r/m once, as the RTL's CMPXCHG and XCHG already
+  did. Directed case `xadd-m16-mmio`, with two CMPXCHG MMIO cases beside it.
+  Counterexample: [`directed/486sx-rtl-before-xadd-fix.json`](directed/486sx-rtl-before-xadd-fix.json),
+  where the case stops at `@100e.mmio-reads.2.4`.
+- **DR6 bit 12 read 0 at the 486 identity.** `dr6_rd` forced it to 0 at
+  `I486 = 1`. The Intel SDM (vol. 3, the debug registers' compatibility
+  notes) says "it is possible to write a 1 in this bit on the Intel486
+  processor", and Bochs's level 4 agrees. Reset still clears it
+  (`init_dr6`). Found at seed 1, program 1842. Directed case `dr6-bit12`.
+  Counterexample: [`directed/486sx-rtl-before-dr6-fix.json`](directed/486sx-rtl-before-dr6-fix.json),
+  where the case stops at `@1006.dr6 ffff1ff0 ffff0ff0`.
+
+Both fixes are under `I486`, so the 386 identity does not change. At
+`I486 = 0`, `dr6_hi[0] && !I486` was `dr6_hi[0]`, as now, and `SEQ_XADDM`
+is inside `if (I486)`.
+
+### #AC on a CPL-3 delivery's pushes (Deano, 21 November 2026)
+
+At CPL 3 with AM and AC set, a delivery that stays at CPL 3 pushes onto
+the current stack, which may be misaligned. Slice 2's case
+`ac-delivery-same-privilege` read as "neither side takes #AC". Its row held
+only the first exception, #UD. In fact both sides take #AC there:
+- the RTL, whose same-privilege pushes are ordinary CPL-3 stack accesses;
+- Bochs, whose stack writes check alignment at CPL 3.
+
+The random programs reach this through a gate whose selector lands on the
+DPL-3 code descriptor. When gate 17 is also to CPL 3, #AC's own delivery
+raises #AC again without end:
+- the RTL loops in the delivery and times out;
+- Bochs recurses through `exception()` until the testbench's stack overflows
+  (seed 1, program 1309: a SIGSEGV).
+
+The first full run stopped before every such delivery, which also hid the
+deliveries that end. Asked which behaviour the 486SX should have, Deano chose
+(21 November 2026, relayed by the coordinator: "A: yes, like hardware") that
+it takes #AC there, as hardware does.
+
+The question rested on two premises the work then disproved:
+- that slice 2 had chosen no #AC there;
+- that Bochs checks only on its fast stack path. Its slow path
+  (`access.cc`) checks at CPL 3 too.
+
+So the relayed instructions to change the RTL and to mask a Bochs
+difference had nothing to act on. CVE-2015-5307 is a ring-3 #AC handler on an unaligned stack
+looping in microcode on Intel and AMD parts. No 486 document read settles
+it. So:
+- **The RTL is unchanged.** It already behaves so.
+- **`ac-delivery-same-privilege`** now delivers by INT 6, whose first
+  exception is the #AC (error code 0). It agrees on the oracle's self-check
+  and in lockstep.
+- **`ac-exception-delivery-same-privilege`** keeps the #UD form. Its #AC
+  pushes error code 1 (EXT) on both sides, which the lockstep compares.
+- **The stop now covers the loop alone** (`ac-delivery-loop`). It needs all of:
+  - the RTL timed out in #AC's delivery;
+  - the step began at CPL 3, with AM and AC set, on a stack that was not
+    dword-aligned;
+  - gate 17, read from the IDT, is an interrupt or trap gate to a conforming
+    or DPL-3 code segment.
+
+  The run stops before the oracle steps. An RTL that hung delivering #AC to
+  a CPL-0 handler still fails.
+- **The generator's ring-3 alignment case** misaligns the stack a fourth of
+  the time: DEC ESP, PUSH EAX, POP EAX, INC ESP.
+- **`ac-in-delivery`** counts the #AC raised inside a delivery that ends. It
+  is 0 in the final runs, so only the two directed cases cover that path.
+  A loop stop returns before the oracle steps, so it is not counted there.
+
+### Differences of the oracle's model
+
+| Rule | Retirements | What it does | Source |
+| --- | --- | --- | --- |
+| CPUID (`cpuid-486sx`) | 23,152 | At a CPUID of a leaf other than 0 that retires with no event, the oracle's EAX, EBX, ECX and EDX must be the DX4's leaf 1 (`0480h`, 0, 0, 1); they are then set to the 486SX's (leaf 1 `042Bh` and zeros, zeros above), which the RTL is held to | `cpu/cpudb/intel/i486dx4.cc`; `042Bh` is Deano's (21 November 2026); data book Appendix B for zeros above leaf 1 |
+| DR6 of disabled breakpoints (`dr6-disabled-b`) | 2 | At a #DB, DR6's B0-B3 for breakpoints DR7 does not enable come from the RTL; an enabled one's is compared | Intel SDM vol. 3, DR6: a B bit "may or may not be set if the breakpoint is not enabled by the Ln or the Gn flags" |
+| The #AC delivery loop (`ac-delivery-loop`) | 6 stops | Above: the run stops where the RTL timed out delivering #AC and gate 17 leads to CPL 3 | Deano, 21 November 2026; CVE-2015-5307 |
+
+`method.md` named only the CPUID rule before the run. The DR6 rule was
+added when the debug set's 6 failures in the first full run showed it: Bochs keeps a disabled
+breakpoint's match pending into a later #DB. The SDM leaves that open, and
+the rule takes only those bits from the RTL.
+
+### Level-3 rules applied unchanged
+
+The level-3 rules and `divergences.toml` apply at level 4 as they are.
+Where a 486's answer is not documented, the 486SX keeps the 386's. The plan
+leaves those behaviours as the 386's (plan open question 6).
+
+Each of these fired at level 4 in the RTL run:
+
+| Rule | Retirements or stops |
+| --- | --- |
+| The vectors' undefined flags (`divergences.toml` `[[vectors]]`) | `shift-rotate-of` 142,164, `shift-af` 135,074, `imul-flags` 118,300, `bit-test-of` 66,502, `aad-flags` 45,689, `div-flags` 40,451, `daa-das-of` 39,748, `aaa-aas-flags` 38,156, `bsf-bsr-flags` 35,652, `mul-flags` 35,046, `double-shift-wide-count` 26,755, `shift-cf-wide-count` 22,635, `aam-zero-flags` 28 |
+| Other `[[vectors]]` entries | `popad-esp-high-word` 6,181, `interrupt-vector-before-push` 125, `stack-wrap-partial-transfer` 108, `invalid-sib-scales-base` 72 |
+| `dr6-sticky` (`dr6_rule`) | 28,296 |
+| The CS-limit rule (`cs_rule`) | 888 |
+| The IRET save rule (`iret_save_rule`) | 110 |
+| The V86 IOPL rule (`v86-iopl-gp`) | 86 |
+| The #SS error rule (`ss_error_rule`) | 1 |
+
+`dr6-sticky` follows the 80386 PRM 12.2.3 ("the bits of DR6 are never
+cleared by the processor"). The Intel SDM keeps that sentence for later
+parts, apart from "certain debug exceptions may clear bits 0-3". The Intel486
+manual's own text was not found.
+
+One of the 125 `interrupt-vector-before-push` retirements is a stop added
+here. Seed 10, program 150 of the random set failed with `nested 8` in a
+full run at `f3a50e5a7`. In real mode a #GP's frame lay over vector 8's
+entry, and that #GP's delivery faulted:
+- Bochs pushes before it reads a vector, so it read the #DF's vector from
+  the pushed FLAGS and CS (it ended at `FFFF:0002`);
+- the RTL, as the 386EX, reads first and writes nothing of a delivery that
+  faults, so the #DF's own fetch faulted and it shut down.
+
+That is the same entry, one delivery deeper. The stop applies only in the
+branch that failed: the oracle delivered a nested event the RTL did not,
+and the step's frame overlaps that event's entry. So no level-3 run that
+passed can change. The new `ac_ring3` choices only reshuffled the programs
+until one reached it.
+
+## Governor bench at `I486 = 1`
+
+`test_fes_i386_governor.py --i486` builds `I486 = 1`. Every loop's charge
+equals the table's clocks (`charged` = `table_clocks` in every row). Each cell
+gives the clocks charged and the pacing error against the table's cycles;
+"beyond" marks a preset faster than the CPU at max on that loop:
+
+| Preset | bswap | xadd | cmpxchg | cpuid | cache | invlpg |
+| --- | --- | --- | --- | --- | --- | --- |
+| max (cycles) | 18,039 | 36,069 | 84,029 | 6,039 | 2,039 | 25,029 |
+| 286-12 | 42,009 (-0.09%) | 44,009 (+0.02%) | 138,009 (+0.01%) | 19,009 (+0.05%) | 9,509 (+0.11%) | 34,009 (+0.03%) |
+| 386SX-16 | 42,019 (-0.09%) | 44,019 (+0.05%) | 136,019 (+0.02%) | 19,019 (+0.11%) | 9,519 (+0.21%) | 34,019 (+0.06%) |
+| 386DX-25 | 42,025 (-0.12%) | 40,025 (+0.07%) | 96,025 (+0.03%) | 19,025 (+0.13%) | 9,525 (+0.26%) | 34,025 (+0.08%) |
+| 386DX-33 | 42,031 (-0.12%) | 40,031 (+0.07%) | 96,031 (+0.03%) | 19,031 (+0.16%) | 9,531 (+0.29%) | 34,031 (+0.09%) |
+| 386DX-40 | 42,036 (-0.12%) | 40,036 (+0.09%) | 96,036 (+0.04%) | 19,036 (+0.17%) | 9,536 (+0.33%) | 34,036 (+0.11%) |
+| 486DX-33 | 24,038 (-0.20%) | 28,038 (+0.12%) | 76,038 (+0.04%) | 15,038 (+0.24%) | 6,538 (+0.46%) | 28,038 (+0.14%) |
+| 486DX2-66 | 24,062 (-0.17%) | 28,062 (+39.89%, beyond) | 76,062 (+20.01%, beyond) | 15,062 (+0.09%) | 6,562 (+0.69%) | 28,062 (+0.23%, beyond) |
+
+The 486DX2-66 preset is faster than the RTL on xadd, cmpxchg and invlpg, as
+it is on three of the 386 loops already (slice 2's governor record). Every
+other cell is within 0.7% of the table.
+
+## The 386 identity
+
+`method.md`'s fifth gate held. Each report equals slice 2's head report
+apart from source, oracle-build and netlist digests:
+- the level-3 lockstep on the RTL and the netlist;
+- the governor bench at `I486 = 0`.
+
+test386's oracle report equals slice 2's in all 707 values. That run steps
+Bochs alone, and slice 2's report is that kind. The RTL's test386 run is
+held to the last RTL report on record instead, the 12 November
+`2026-11-12-i386-ud-1701` record; slice 2 kept none. It equals it but for
+the `text` field, which later runners add, and the Verilator record.
+
+The 13 digests that differ in the level-3 reports are:
+- the revision and the hashes of the three changed sources
+  (`fes_i386_cpu.sv`, `fes_i386_seq.sv`, `lockstep_tb.cpp`);
+- the suite and testbench digests;
+- the Bochs objects linked in this worktree;
+- `tracked_changes`, three files of this record and the README, uncommitted
+  during the runs and not build inputs.
+
+### The identity-off netlist
+
+The seal's Yosys program at `I486 = 0` gives a netlist whose digest is not
+slice 2's (`e23b1f18…` against `01cbcb4d…` at slice 2's elaboration, and
+`aead46a0…` in slice 2's level-3 netlist report). Its structure is the same.
+Slice 2's `netlist/elaborate.py` ran on this tree, followed by `proc; opt
+-fast; stat -width`. The stat ([`netlist/stat-h0.txt`](netlist/stat-h0.txt))
+equals slice 2's `stat-h0.txt` line for line: 40,791 cells and 29,548
+flip-flop bits, every cell type and width the same. Yosys's output depends
+on more than the logic, so the digest moved while the cells did not.
+
+## The pc386 BUILD_ID and the DE10 bitstream
+
+- `lockstep_tb.cpp` is in the oracle suite's sources (`SUITE_SOURCES`),
+  whose digest pc386's build record hashes. This change moves pc386's
+  `BUILD_ID` with no change to the 386, as slice 0 did.
+- `fes_i386_seq.sv` and `fes_i386_cpu.sv` feed the DE10 386 bitstream. Their
+  changes are under `I486`, which every package builds as 0. The
+  identity-off netlist's digest moved, although its cells did not (above).
+  No seal or D12 comparison was run, so the sealed design and this head's
+  are not shown equal. The PR says so.
+
+## What this does not establish
+
+- **A real 486SX's answers.** The oracle is Bochs's DX4. The random
+  programs show the RTL keeps step with it, under the rules above, not with
+  a 486.
+- **Undefined flags and the other 386 rules on a 486.** They are carried
+  over from the 386, as listed above.
+- **#AC's EXT bit in a delivery.** The PRM's Table 9-8 says #AC's error
+  code is always zero. Inside an exception's delivery both sides push 1
+  (EXT). No 486 document read says which a 486 pushes.
+- **#AC inside a delivery that ends, at random.** The directed cases cover
+  it; the random programs did not reach it.
+- **The x87 empty socket at `I486 = 1`.** The random programs run no ESC.
+- **The netlist's timing or fit.** Nothing was placed or routed.

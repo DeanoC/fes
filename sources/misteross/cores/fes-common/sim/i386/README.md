@@ -276,7 +276,7 @@ Three rules are level 4's:
 | --- | --- | --- |
 | CPUID (`cpuid_rule`, counted as `cpuid-486sx`) | At a CPUID of a leaf other than 0 that retires with no event, the oracle's EAX, EBX, ECX and EDX must be the DX4's leaf 1 (`0480h`, 0, 0, 1); they are then set to the 486SX's, leaf 1 `042Bh` and zeros, zeros above it, which the RTL is held to | `cpu/cpudb/intel/i486dx4.cc`; Deano, 21 November 2026 (`042Bh`); data book Appendix B (zeros above leaf 1) |
 | DR6 of disabled breakpoints (`dr6-disabled-b`) | At a #DB, DR6's B0-B3 of breakpoints that DR7 does not enable are taken from the RTL; an enabled one's is compared. Bochs keeps a disabled breakpoint's match pending into a later #DB | Intel SDM vol. 3, DR6: a B bit "may or may not be set if the breakpoint is not enabled by the Ln or the Gn flags" |
-| The #AC delivery loop (`ac-delivery-loop`) | At CPL 3 with AM and AC set, a delivery that stays at CPL 3 raises #AC on a misaligned push, on both sides. When gate 17 is also to CPL 3 that never ends: the RTL times out in #AC's delivery and Bochs recurses until the host's stack overflows, so the run stops there, before the oracle steps | Deano, 21 November 2026, as hardware; CVE-2015-5307 (a ring-3 #AC handler on an unaligned stack loops in microcode) |
+| The #AC delivery loop (`ac-delivery-loop`) | At CPL 3 with AM and AC set, a delivery that stays at CPL 3 raises #AC on a misaligned push, on both sides. When gate 17 is also to CPL 3 that never ends: the RTL times out in #AC's delivery and Bochs recurses until the host's stack overflows. The run stops there, before the oracle steps, only when the RTL timed out delivering #AC from such a step and gate 17 (read from the IDT) is an interrupt or trap gate to a conforming or DPL-3 code segment | Deano, 21 November 2026, as hardware; CVE-2015-5307 (a ring-3 #AC handler on an unaligned stack loops in microcode) |
 
 The forms each run retired are in the report's `i486_forms`, which must
 include every form in the runner's `REQUIRED_FORMS`.
@@ -795,7 +795,11 @@ Random programs also take interrupts, injected by the testbench:
   (`rep_interrupts`). The vectors' entries and NMI's point at a handler, NOP and
   IRET, at FFFF:FFE0, above any program's code. A program may write over them. The run then
   stops when an interrupt would go through the rewritten entry, before the
-  sides part (`vector_moved_stops`), since what runs next is data.
+  sides part (`vector_moved_stops`), since what runs next is data. A
+  run stops there too, counted under `interrupt-vector-before-push`, when
+  a real-mode delivery faults with its frame over the entry of the vector
+  the oracle then delivers (a #DF's): Bochs pushes before it reads a
+  vector, so it reads the frame, where the RTL, as the 386EX, reads first.
 - **HLT wakes.** The generator puts STI, HLT in programs now and then, and a
   HLT before the program's last, with IF set, wakes on INTR.
 - **Per program,** the oracle is reset before its state is set, since
