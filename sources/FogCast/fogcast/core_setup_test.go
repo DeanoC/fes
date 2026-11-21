@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -25,7 +26,7 @@ func TestCoreSetupRepeatPreservesSelections(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, err := s.CreateCoreSetupEntry(ctx, req)
-	if err != nil || a != b {
+	if err != nil || !reflect.DeepEqual(a, b) {
 		t.Fatalf("retry %+v %v", b, err)
 	}
 	setup, err := s.CoreSetup(ctx, req.SourceID, req.CoreID, pid)

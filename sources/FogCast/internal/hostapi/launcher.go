@@ -344,9 +344,10 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			a.routes.ServeHTTP(w, r)
 			return
 		}
-		if r.Method == http.MethodPut && launcherCoreEntryMediaNamePath(r.URL.Path) {
-			// The body stays the caller's exact selected-media name. The host
-			// checks that this package and media are still selected.
+		if r.Method == http.MethodPut && (launcherCoreEntrySubPath(r.URL.Path, "/media-name") || launcherCoreEntrySubPath(r.URL.Path, "/media-set")) {
+			// The body stays the caller's exact selected-media name or disk
+			// set. The host checks that this package and media are still
+			// selected.
 			a.routes.ServeHTTP(w, r)
 			return
 		}
@@ -598,7 +599,7 @@ func launcherOperation(method, path string) bool {
 	if method == http.MethodPut && launcherCoreMediaSelectionPath(path) {
 		return true
 	}
-	if method == http.MethodPut && launcherCoreEntryMediaNamePath(path) {
+	if method == http.MethodPut && (launcherCoreEntrySubPath(path, "/media-name") || launcherCoreEntrySubPath(path, "/media-set")) {
 		return true
 	}
 	if (method == http.MethodPut || method == http.MethodDelete) && launcherCoreEntryPath(path) {
@@ -687,8 +688,10 @@ func launcherCoreMediaSelectionPath(path string) bool {
 	return game != "" && !strings.Contains(game, "/") && protocol.ValidateGameID(game) == nil
 }
 
-func launcherCoreEntryMediaNamePath(path string) bool {
-	const prefix, suffix = "/api/v1/library/core-entries/", "/media-name"
+// launcherCoreEntrySubPath admits /api/v1/library/core-entries/{game}{suffix}
+// for one valid game ID.
+func launcherCoreEntrySubPath(path, suffix string) bool {
+	const prefix = "/api/v1/library/core-entries/"
 	if len(path) <= len(prefix)+len(suffix) || !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
 		return false
 	}

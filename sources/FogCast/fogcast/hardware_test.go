@@ -24,7 +24,7 @@ func TestZX81FirmwareReadinessKeepsLegacyDE10NoROMGate(t *testing.T) {
 	entry := catalog.CoreEntry{}
 	descriptor := corepackage.Descriptor{
 		Format: 4,
-		Core: corepackage.Core{ID: "fes.pong"},
+		Core:   corepackage.Core{ID: "fes.pong"},
 		Target: corepackage.Target{Platform: "de10_nano"},
 	}
 	if service.zx81FirmwareReady(context.Background(), entry, descriptor) {

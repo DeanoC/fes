@@ -59,7 +59,7 @@ func TestCoreEntryDistinctTitlesWithSameSlug(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, entry := range entries {
-			if got, err := reopened.CoreEntry(ctx, entry.GameID); err != nil || got != entry {
+			if got, err := reopened.CoreEntry(ctx, entry.GameID); err != nil || !reflect.DeepEqual(got, entry) {
 				t.Fatalf("reopened title: %+v, %v", got, err)
 			}
 		}
@@ -203,7 +203,7 @@ func TestCoreMediaEntrySelectionAndAtomicity(t *testing.T) {
 	selected, err := s.SelectCoreEntry(ctx, entry.GameID, entry.CoreID, pkg, next)
 	expected := entry
 	expected.PackageID = next
-	if err != nil || selected != expected {
+	if err != nil || !reflect.DeepEqual(selected, expected) {
 		t.Fatalf("package selection lost media: %+v, %v", selected, err)
 	}
 	for _, stale := range [][2]string{{pkg, media.MediaID}, {next, ""}} {
@@ -219,7 +219,7 @@ func TestCoreMediaEntrySelectionAndAtomicity(t *testing.T) {
 	}
 	cleared, err := s.SelectCoreEntryMedia(ctx, entry.GameID, next, media.MediaID, "", "")
 	expected.MediaID, expected.MediaRole = "", ""
-	if err != nil || cleared != expected {
+	if err != nil || !reflect.DeepEqual(cleared, expected) {
 		t.Fatalf("clear = %+v, %v", cleared, err)
 	}
 	if _, err := s.SelectCoreEntryMedia(ctx, entry.GameID, next, media.MediaID, "", ""); !errors.Is(err, ErrCoreEntryConflict) {
@@ -233,12 +233,12 @@ func TestCoreMediaEntrySelectionAndAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if got, err := s.CoreEntry(ctx, entry.GameID); err != nil || got != expected {
+	if got, err := s.CoreEntry(ctx, entry.GameID); err != nil || !reflect.DeepEqual(got, expected) {
 		t.Fatalf("reopen clear = %+v, %v", got, err)
 	}
 	attached, err := s.SelectCoreEntryMedia(ctx, entry.GameID, next, "", "blob", media.MediaID)
 	expected.MediaID, expected.MediaRole = media.MediaID, "blob"
-	if err != nil || attached != expected {
+	if err != nil || !reflect.DeepEqual(attached, expected) {
 		t.Fatalf("attach = %+v, %v", attached, err)
 	}
 }
@@ -303,7 +303,7 @@ func TestSchemaSevenMigratesLegacyEntriesOnce(t *testing.T) {
 	seed := "ef9443c2787cd02b6d78d233d015b0bbf3fb21d53d1a5890497cdbb7897f053c"
 	entries[0].MediaID, entries[0].MediaRole = seed, "blob"
 	for _, e := range entries {
-		if got, err := s.CoreEntry(ctx, e.GameID); err != nil || got != e {
+		if got, err := s.CoreEntry(ctx, e.GameID); err != nil || !reflect.DeepEqual(got, e) {
 			t.Fatalf("migrated = %+v, %v", got, err)
 		}
 		game, err := s.Game(ctx, e.GameID)
@@ -454,14 +454,14 @@ func TestCoreMediaEntryPersistenceAndRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if got, err := s.CoreEntry(ctx, entry.GameID); err != nil || got != entry {
+	if got, err := s.CoreEntry(ctx, entry.GameID); err != nil || !reflect.DeepEqual(got, entry) {
 		t.Fatalf("reopened media entry: %+v, %v", got, err)
 	}
 	got, data, err := s.CoreMedia(ctx, entry.MediaID)
 	if err != nil || got != media || string(data) != "persist this tape" {
 		t.Fatalf("reopened media: %+v, %q, %v", got, data, err)
 	}
-	if got, err := s.CoreEntry(ctx, empty.GameID); err != nil || got != empty {
+	if got, err := s.CoreEntry(ctx, empty.GameID); err != nil || !reflect.DeepEqual(got, empty) {
 		t.Fatalf("reopened empty entry: %+v, %v", got, err)
 	}
 }
