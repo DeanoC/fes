@@ -793,6 +793,13 @@ class LaunchGuardTests(unittest.TestCase):
             subprocess.run([str(link_dir / "quartus_fit"), "top"])
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", "$0 --flow compile top", str(self.bin / "quartus_sh"), "--help"])
+        # Codex P1 at 827ccac13: a relative name in shell code is resolved
+        # after its cd, which the hook cannot follow: some lease is needed.
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["sh", "-c", f"cd {self.bin}; ./quartus_fit top"])
+        with qt.quartus_lease("lite"):
+            self.assertEqual(subprocess.run(["sh", "-c", f"cd {self.bin}; ./quartus_fit top"],
+                                            capture_output=True).returncode, 0)
         # Codex P1 at 34cd931cc: an operator attached to the program name.
         for payload in (f"{self.bin}/quartus_sh>/dev/null", f"{self.bin}/quartus_fit&", f"true;{self.bin}/quartus_fit"):
             with self.assertRaises(qt.QuartusLeaseError):
@@ -1227,7 +1234,7 @@ class JobsTests(unittest.TestCase):
                 "powerboat": {"host": "powerboat", "free": boat_free, "available_kib": boat_kib}}
 
     def pick(self, edition, probes):
-        with mock.patch.object(self.jobs, "probe", lambda host, _edition: probes[host]):
+        with mock.patch.object(self.jobs, "probe", lambda host, _edition, timeout=60: probes[host]):
             host, _, ready = self.jobs.pick(edition)
             return host if ready else f"wait:{host}"
 
@@ -1251,7 +1258,7 @@ class JobsTests(unittest.TestCase):
         rounds = [self.probes(1, 5 * gib, 0, 40 * gib), self.probes(1, 5 * gib, 1, 40 * gib)]
         calls = []
 
-        def probe(host, _edition):
+        def probe(host, _edition, timeout=60):
             data = dict(rounds[min(len(calls) // 2, 1)][host], home="/home/u")
             calls.append(host)
             return data
@@ -1398,6 +1405,32 @@ class JobsTests(unittest.TestCase):
                                    else subprocess.CompletedProcess(argv, 0)):
                 self.assertEqual(self.jobs.remote("lite", "powerboat", "HEAD", "", ["true"]), 0)
         self.assertIn('"status": "finished"', sink.read_text())
+
+    def test_no_host_answering_is_a_notified_failure(self):
+        # Codex P2 at 827ccac13: pick raised before any notification.
+        sink = Path(self.directory.name) / "down"
+        with mock.patch.object(self.jobs, "probe", side_effect=lambda host, edition, timeout=60:
+                               {"host": host, "error": "probe failed: timed out"}), \
+                mock.patch.object(self.jobs, "resolve_pushed", return_value="e" * 40), \
+                mock.patch.object(self.jobs.subprocess, "check_output", return_value="https://github.com/DeanoC/fes\n"), \
+                mock.patch.dict(os.environ, {"FES_QUARTUS_NOTIFY": f"cat > {sink}"}):
+            real_run = subprocess.run
+            with mock.patch.object(self.jobs.subprocess, "run", side_effect=lambda argv, **kw: real_run(argv, **kw)):
+                self.assertEqual(self.jobs.remote("lite", "auto", "HEAD", "", ["true"]), 255)
+        self.assertIn('"remote-failed"', sink.read_text())
+
+    def test_probes_and_waits_fit_the_time_left(self):
+        # Codex P2 at 827ccac13: fixed 60 s probes and sleeps overran a cap.
+        timeouts = []
+        busy = {"free": 0, "available_kib": 1, "home": "/h", "slots": {}}
+        with mock.patch.object(self.jobs, "probe", side_effect=lambda host, edition, timeout=60:
+                               timeouts.append(timeout) or dict(busy, host=host)), \
+                mock.patch.object(self.jobs, "resolve_pushed", return_value="e" * 40), \
+                mock.patch.object(self.jobs.subprocess, "check_output", return_value="https://github.com/DeanoC/fes\n"):
+            started = time.monotonic()
+            self.assertEqual(self.jobs.remote("lite", "auto", "HEAD", "", ["true"], cap_minutes=0.02), 124)
+        self.assertLess(time.monotonic() - started, 5)
+        self.assertTrue(all(t <= 1.5 for t in timeouts), timeouts)
 
     def test_remote_refuses_an_unpushed_commit(self):
         with mock.patch.object(self.jobs.subprocess, "run",

@@ -94,14 +94,14 @@ def local_host() -> str:
     return socket.gethostname()
 
 
-def probe(host: str, edition: str) -> dict:
+def probe(host: str, edition: str, timeout: float = 60) -> dict:
     slots = list(quartus_tools.lease_pool(edition, host))
     command = [sys.executable, "-c", PROBE, *slots] if host == local_host() else \
         [*SSH, host, shlex.join(["python3", "-c", PROBE, *slots])]
     # A host that times out or answers garbage is one failed probe, not a
     # failed pick: the other host can still take the job.
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(command, capture_output=True, text=True, timeout=max(timeout, 1))
         if result.returncode:
             return {"host": host, "error": (result.stderr or result.stdout).strip()[-300:]}
         data = json.loads(result.stdout)
@@ -123,14 +123,14 @@ def is_ready(p: dict, edition: str) -> bool:
     return "error" not in p and p["free"] > 0 and p["available_kib"] >= need
 
 
-def pick(edition: str) -> tuple[str, list[dict], bool]:
+def pick(edition: str, timeout: float = 60) -> tuple[str | None, list[dict], bool]:
     """The host to run an edition job on, every probe, and whether that host
     is ready: a free slot and the memory for one job. When none is ready the
     host is where the most memory is, for a caller that waits there."""
-    probes = [probe(host, edition) for host in HOSTS]
+    probes = [probe(host, edition, timeout=timeout / len(HOSTS)) for host in HOSTS]
     usable = [p for p in probes if "error" not in p]
     if not usable:
-        raise SystemExit("no build host answered: " + "; ".join(p["error"] for p in probes))
+        return None, probes, False
     preferred = PREFERRED.get(quartus_tools.edition_class(edition))
 
     def ready(p):
@@ -706,12 +706,21 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
     # The cap runs from here: waiting for a host counts against it.
     asked = host
     started = time.monotonic()
+    deadline = started + cap_minutes * 60
     while True:
+        left = max(deadline - time.monotonic(), 1)
         if asked == "auto":
-            host, probes, ready = pick(edition)
+            host, probes, ready = pick(edition, timeout=min(60, left))
         else:
-            probes = [probe(asked, edition)]
+            probes = [probe(asked, edition, timeout=min(60, left))]
             ready = is_ready(probes[0], edition)
+        if all("error" in p for p in probes):
+            print("quartus_jobs: no build host answered: " + "; ".join(p["error"] for p in probes),
+                  file=sys.stderr, flush=True)
+            notify({"host": None, "edition": edition, "label": label, "command": command, "commit": commit,
+                    "finished_utc": datetime.now(timezone.utc).isoformat(), "status": "remote-failed",
+                    "exit": 255, "error": "; ".join(p["error"] for p in probes)})
+            return 255
         if ready:
             break
         if time.monotonic() - started >= cap_minutes * 60:
@@ -723,7 +732,7 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
         print(f"quartus_jobs: {'no build host' if asked == 'auto' else asked} has a free {edition} slot and "
               f"{quartus_tools.PEAK_RSS_GIB[quartus_tools.edition_class(edition)]} GiB available; "
               f"probing again in {REPROBE_SECONDS} s", file=sys.stderr, flush=True)
-        time.sleep(REPROBE_SECONDS)
+        time.sleep(max(0, min(REPROBE_SECONDS, deadline - time.monotonic())))
     for p in probes:
         print(f"quartus_jobs: {p['host']}: " + (p.get("error") or
               f"{p['free']} free {edition} slot(s), {p['available_kib'] // 1024 ** 2} GiB available"),
@@ -796,6 +805,8 @@ def main(argv: list[str] | None = None) -> int:
         return status(args.edition)
     if args.action == "pick":
         host, probes, ready = pick(args.edition)
+        if host is None and not args.json:
+            raise SystemExit("no build host answered: " + "; ".join(p["error"] for p in probes))
         print(json.dumps({"host": host, "ready": ready, "probes": probes}, indent=2) if args.json
               else host + ("" if ready else " (no host ready: a remote job would wait)"))
         return 0

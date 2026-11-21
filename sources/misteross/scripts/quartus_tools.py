@@ -281,7 +281,9 @@ PEAK_RSS_GIB = {"pro": 9, "lite": 6}
 HOST_RAM_GIB = {"chip-30x0-ai-dev": (23, 8), "powerboat": (62, 24)}
 # Leased programs. quartus_pfg, quartus_cpf and quartus_pgm convert or program
 # an existing bitstream in seconds and a few hundred MB; they take no slot.
-QUARTUS_PROGRAM = re.compile(r"quartus_(?!pfg$|cpf$|pgm$|pgmw$)[a-z]+")
+UNKNOWN_EDITION = "unknown"
+QUARTUS_PROGRAM = re.compile(
+    r"quartus_(sh|map|syn|fit|sta|asm|eda|cdb|ipgenerate|npp|pow|drc|si|tan|dse|stp|jli|staw|sim)")
 LEASE_NOTICE_SECONDS = 60
 
 # Leases this process took: quartus_lease's per thread, so parallel seeds in
@@ -563,21 +565,26 @@ def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) ->
             tokens = list(lexer)
         except ValueError:
             tokens = re.split(r"[\s;&|<>()]+", text)
-        words.extend((element, token) for token in tokens)
+        words.extend((element, token, len(tokens) > 1) for token in tokens)
         element += 1
     probes = ("--version", "-v", "--help", "-h")
     argv_list = [w for w in words]
     editions = set()
-    for index, (element, word) in enumerate(argv_list):
+    for index, (element, word, in_payload) in enumerate(argv_list):
         if not QUARTUS_PROGRAM.fullmatch(os.path.basename(word)):
             continue
         # A probe excuses a program only within one argument (the next word
         # of the same string), or when the program is the one being executed
         # (the first argument) and the next argument is the probe. A --help
         # elsewhere in argv never excuses a program named in another place.
-        following = argv_list[index + 1] if index + 1 < len(argv_list) else (None, None)
+        following = argv_list[index + 1] if index + 1 < len(argv_list) else (None, None, False)
         if following[1] in probes and (following[0] == element or (element == 0 and index == 0)):
             continue
+        if in_payload and not os.path.isabs(word):
+            # A relative or bare name inside shell code is resolved after
+            # whatever the code does first (cd, PATH=...), which this cannot
+            # follow: it needs a lease of some edition.
+            editions.add(UNKNOWN_EDITION)
         base = os.fsdecode(cwd) if cwd is not None else os.getcwd()
         if os.sep in word:
             candidates = [word if os.path.isabs(word) else os.path.join(base, word)]
@@ -601,8 +608,15 @@ def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) ->
 
 def require_quartus_lease(argv, search_path: str | None = None, cwd=None) -> None:
     """Raise QuartusLeaseError unless every licensed Quartus program argv would
-    run has a lease held for its edition."""
+    run has a lease held for its edition (any edition, for a program named
+    in shell code that cannot be resolved here)."""
     for edition in sorted(licensed_quartus_editions(argv, search_path, cwd)):
+        if edition == UNKNOWN_EDITION:
+            if held_quartus_lease("lite") is None and held_quartus_lease("pro") is None:
+                raise QuartusLeaseError(
+                    "refusing to run a Quartus program named by a relative path in shell code without a "
+                    "lease: give its full path, or hold quartus_tools.quartus_lease(edition)")
+            continue
         if held_quartus_lease(edition) is None:
             raise QuartusLeaseError(
                 f"refusing to start licensed Quartus {edition} without a lease on "
