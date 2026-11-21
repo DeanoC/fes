@@ -67,18 +67,32 @@ address. A stopped machine clock returns a bounded Avalon error and poisons
 the transport. The model checks both the count and the diagnostic RAM marker. The
 Linux variants retain the video-ready register at the same offset.
 
-The off-board Tenfoot test uses the real launcher frontend and a test host
-which models loading a fresh FPGA configuration. Each launch drives the native
-driver over the actual Spectrum RTL. Return blocks display submissions, issues
-the local scanout STOP, waits for outstanding reads and the GP display plane
-to drain, and obtains Hold before returning to the library. It repeats the
-cycle and injects missing read replies to verify that return fails closed.
+The off-board Tenfoot test uses the real launcher frontend, a file-backed FAT32
+volume and the runtime package store. The test host models the SD lease and
+loading a fresh FPGA configuration. Each launch retains and validates the
+archive and ROM from FAT32, contains storage, and uploads the retained bytes
+over the actual Spectrum RTL. A corrupt ROM is rejected before containment.
+Return blocks display submissions, issues the local scanout STOP, waits for
+outstanding reads and the GP display plane to drain, and obtains Hold before
+reopening storage. Missing read replies leave the lease contained and prevent
+further mailbox commands.
 
-The platform still needs to bind this profile and its control maps to TF-A,
-bridge ownership and the real SD-backed ProgramService. The test host grants
-no physical ownership or package admission. A 16 KiB upload entails 8,192
-data commands with mailbox observations. The simulation establishes no board
-timing or HDMI qualification.
+The managed Spectrum shell and the matched native Tenfoot shell differ in the
+generated Platform Designer handoff. Spectrum configures `H2F_Width=0` and
+`f2sdram_SMMU=true`, while the native shell requires `128` and `false`.
+Spectrum exports its scanout guard at peripheral offset `0x10200` and the
+computer mailbox at `0x10300`. Native TF-A uses a source-bound embedded control
+endpoint and an independent DDR probe at `0x10100`. The Spectrum shell exports
+neither native stop endpoint. Its local STOP acknowledgment does not provide
+the generation/cookie proof used to close native bridges. The native
+ProgramService rejects an unmatched package profile and restores the menu.
+
+The matched chain needs a Spectrum producer with the native HPS envelope,
+a source-bound master-stop inventory, and an explicit TF-A role for mailbox
+firmware upload. The existing CPU CSR ROM role permits 4 or 8 KiB. Spectrum's
+16 KiB upload entails 8,192 mailbox data commands and remains unqualified
+against native runtime deadlines, bridge ownership and HDMI output.
+
 The diagnostic board's limit is 16375 bytes, below the general ABI's 16384.
 Callers must not mutate supplied slices concurrently with a call; tape bytes
 are copied before CRC and transfer. These are command operations, not a runtime

@@ -2,30 +2,39 @@
 package computer
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
+	"github.com/DeanoC/fes/platform/embedded/tamago/block"
+	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
+	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
+	"github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol"
 )
 
 // The test host models reconfiguration and keeps each RTL process private to
 // one play. Tenfoot uses its normal HTTP client; all machine operations reach
-// the real Go driver and Spectrum Avalon slaves. SD and TF-A are outside this
-// test host.
+// the real Go driver and Spectrum Avalon slaves. The SD filesystem and
+// package store are real. SD ownership and TF-A programming are modeled.
 type spectrumTestHost struct {
 	mu            sync.Mutex
 	mailboxes     []*spectrumMailbox
 	identity      Identity
-	firmware      []byte
+	store         *packagestore.Store
+	request       packagestore.Request
 	computer      *Computer
 	active        map[string]any
 	launches      int
@@ -38,7 +47,35 @@ func (h *spectrumTestHost) launch(ctx context.Context, flight string) error {
 	if h.retired || h.computer != nil || h.launches == len(h.mailboxes) {
 		return errors.New("Spectrum launch unavailable")
 	}
+	selection, err := h.store.Retain(ctx, h.request)
+	if err != nil {
+		return err
+	}
 	h.retired = true
+	handoff, err := h.store.Contain(selection)
+	if err != nil {
+		return err
+	}
+	retained, err := handoff.Selection()
+	if err != nil {
+		return err
+	}
+	linked := retained.Linked()
+	rom := retained.Inspection().Descriptor.ROM
+	if linked == nil || rom == nil || rom.SourceSize != 16<<10 {
+		return ErrArgument
+	}
+	reader, err := linked.Source(rom.ID, rom.Role)
+	if err != nil {
+		return err
+	}
+	firmware, err := io.ReadAll(io.LimitReader(reader, rom.SourceSize+1))
+	if err != nil {
+		return err
+	}
+	if int64(len(firmware)) != rom.SourceSize {
+		return ErrArgument
+	}
 	mailbox := h.mailboxes[h.launches]
 	limits := Limits{Timeout: 15 * time.Second, MaxPolls: 512, Now: time.Now, Yield: func() {}}
 	c, err := Open(ctx, mailbox, limits, h.identity)
@@ -52,7 +89,7 @@ func (h *spectrumTestHost) launch(ctx context.Context, flight string) error {
 	if err != nil {
 		return err
 	}
-	if err := c.LoadInitialFirmware(ctx, h.firmware); err != nil {
+	if err := c.LoadInitialFirmware(ctx, firmware); err != nil {
 		return err
 	}
 	held, err := c.Activity(ctx)
@@ -103,6 +140,11 @@ func (h *spectrumTestHost) stop(ctx context.Context) error {
 	}
 	if !display.stopped {
 		return errors.New("display STOP missing")
+	}
+	if err := h.store.Resume(); err != nil {
+		h.retired = true
+		h.active = nil
+		return err
 	}
 	h.computer, h.active = nil, nil
 	h.returns++
@@ -158,8 +200,15 @@ func TestSpectrum48TenfootRTL(t *testing.T) {
 	if err != nil || len(image) != 16384 {
 		t.Fatal("expected the 16 KiB open diagnostic ROM", err)
 	}
-	identity, firmware := spectrum48Source(t, image)
-	host := &spectrumTestHost{identity: identity, firmware: firmware}
+	source := spectrum48Source(t, image)
+	store, lease, request := spectrumFATStore(t, source)
+	badRequest := request
+	badRequest.Sources = append([]packagestore.Source(nil), request.Sources...)
+	badRequest.Sources[0].Path = "BAD.ROM"
+	if _, err := store.Retain(t.Context(), badRequest); err == nil || lease.stops != 0 {
+		t.Fatal("wrong FAT ROM reached containment", err)
+	}
+	host := &spectrumTestHost{identity: source.identity, store: store, request: request}
 	for range 3 {
 		host.mailboxes = append(host.mailboxes, startSpectrumMailbox(t, executable))
 	}
@@ -206,8 +255,100 @@ func TestSpectrum48TenfootRTL(t *testing.T) {
 	if host.launches != 3 || host.returns != 2 || !host.retired {
 		t.Fatalf("launches=%d returns=%d retired=%t", host.launches, host.returns, host.retired)
 	}
+	if lease.stops != 3 || lease.resumes != 2 || lease.receipt.Active || lease.containedReads != 0 {
+		t.Fatalf("unexpected storage lifecycle: stops=%d resumes=%d active=%t contained reads=%d",
+			lease.stops, lease.resumes, lease.receipt.Active, lease.containedReads)
+	}
 	writes := host.mailboxes[2].writes
 	if !errors.Is(host.computer.Run(ctx), ErrRetired) || host.mailboxes[2].writes != writes {
 		t.Fatal("uncertain drain allowed another GP mutation")
+	}
+}
+
+// The file-backed disk records post-containment IO independently of the package
+// store's bookkeeping. The lease models transitions only, not the firmware proof.
+type spectrumFATLease struct {
+	block.Device
+	receipt                        sdcontrol.Receipt
+	stops, resumes, containedReads int
+}
+
+func (d *spectrumFATLease) ReadSectors(lba uint64, dst []byte) error {
+	if !d.receipt.Active {
+		d.containedReads++
+		return packagestore.ErrState
+	}
+	return d.Device.ReadSectors(lba, dst)
+}
+
+func (d *spectrumFATLease) LastReceipt() (sdcontrol.Receipt, bool) { return d.receipt, true }
+
+func (d *spectrumFATLease) Quiesce() error {
+	d.stops++
+	d.receipt.Generation++
+	d.receipt.Active, d.receipt.Prepared = false, false
+	return nil
+}
+
+func (d *spectrumFATLease) Resume() error {
+	d.resumes++
+	d.receipt.Generation += 2
+	d.receipt.Active, d.receipt.Prepared = true, true
+	return nil
+}
+
+func spectrumFATStore(t *testing.T, source spectrumSource) (*packagestore.Store, *spectrumFATLease, packagestore.Request) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "native48.img")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := errors.Join(file.Truncate(64<<20), file.Close()); err != nil {
+		t.Fatal(err)
+	}
+	if output, err := exec.Command("mformat", "-i", path, "-F", "::").CombinedOutput(); err != nil {
+		t.Fatalf("mformat: %v: %s", err, output)
+	}
+	disk, err := block.OpenFile(path, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = disk.Close() })
+	lease := &spectrumFATLease{Device: disk, receipt: sdcontrol.Receipt{Owner: 1, Generation: 1, Active: true, Prepared: true}}
+	volume, err := fat.Mount(lease)
+	if err != nil {
+		t.Fatal(err)
+	}
+	corrupt := bytes.Clone(source.image)
+	corrupt[0] ^= 1
+	for path, data := range map[string][]byte{"SPEC48.FCP": source.archive, "SPEC48.ROM": source.image, "BAD.ROM": corrupt} {
+		if err := volume.CreateFile(t.Context(), path, data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := disk.Close(); err != nil {
+		t.Fatal(err)
+	}
+	readOnly, err := block.OpenFile(path, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = readOnly.Close() })
+	lease.Device = readOnly
+	volume, err = fat.Mount(lease)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := packagestore.New(volume, lease)
+	if err != nil {
+		t.Fatal(err)
+	}
+	receipt := source.linked.Receipt()
+	return store, lease, packagestore.Request{
+		Path: "SPEC48.FCP", PackageID: receipt.PackageID, ReceiptSHA256: source.linked.ReceiptSHA256(),
+		Sources: []packagestore.Source{{
+			ID: receipt.ROMLink.ROMID, Role: "firmware", Path: "SPEC48.ROM", SHA256: receipt.ROMLink.SourceSHA256,
+		}},
 	}
 }

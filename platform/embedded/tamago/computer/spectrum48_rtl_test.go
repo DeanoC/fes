@@ -22,7 +22,14 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/runtimeadmission"
 )
 
-func spectrum48Source(t *testing.T, firmware []byte) (Identity, []byte) {
+type spectrumSource struct {
+	identity Identity
+	archive  []byte
+	linked   *corepackage.LinkedArchive
+	image    []byte
+}
+
+func spectrum48Source(t *testing.T, firmware []byte) spectrumSource {
 	t.Helper()
 	root := "../../../../sources/FogCast/corepackage/testdata/core-bundle-v3"
 	dir := t.TempDir()
@@ -133,7 +140,7 @@ func spectrum48Source(t *testing.T, firmware []byte) (Identity, []byte) {
 		t.Fatal("invalid build identity", err)
 	}
 	copy(identity.Build[:], build)
-	return identity, image
+	return spectrumSource{identity: identity, archive: raw, linked: linked, image: image}
 }
 
 type spectrumMailbox struct {
@@ -269,7 +276,8 @@ func TestSpectrum48FirmwareRTL(t *testing.T) {
 	if err != nil || len(image) != 16384 {
 		t.Fatal("expected the 16 KiB open diagnostic ROM", err)
 	}
-	want, firmware := spectrum48Source(t, image)
+	source := spectrum48Source(t, image)
+	want, firmware := source.identity, source.image
 	ctx := context.Background()
 	limits := Limits{Timeout: 20 * time.Second, MaxPolls: 64, Now: time.Now, Yield: func() {}}
 

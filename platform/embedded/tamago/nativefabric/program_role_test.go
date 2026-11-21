@@ -159,3 +159,30 @@ func TestProgramRoleRejectsUnstagedOrCrossedResources(t *testing.T) {
 		}
 	}
 }
+
+func TestSecureDecoderRejectsUnknownRoleAndOversizedComputerROM(t *testing.T) {
+	decoder := buildProgramDecoder(t)
+	source, m := bindingFixture(t)
+	rom := make([]byte, 8192)
+	raw, _, err := encodeRoleProgramBinding(source, m, programRoleComputer, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out, err := decodeRolePublication(t, decoder, raw, source, m.ChunkBytes); err != nil {
+		t.Fatalf("secure decoder rejected unmodified publication: %v %s", err, out)
+	}
+	for _, name := range []string{"unknown-role", "16KiB-ROM"} {
+		t.Run(name, func(t *testing.T) {
+			publication := bytes.Clone(raw)
+			switch name {
+			case "unknown-role":
+				binary.LittleEndian.PutUint32(publication[programRoleOffset:], 3)
+			case "16KiB-ROM":
+				binary.LittleEndian.PutUint32(publication[ProgramHeaderBytes+16:], 16384)
+			}
+			if out, err := decodeRolePublication(t, decoder, publication, source, m.ChunkBytes); err == nil {
+				t.Fatalf("secure decoder admitted %s: %s", name, out)
+			}
+		})
+	}
+}

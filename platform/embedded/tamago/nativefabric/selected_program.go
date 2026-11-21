@@ -204,8 +204,14 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 	if l == nil || l.boot == nil || selection == nil {
 		return nil, errors.New("native fabric: program loader and retained selection required")
 	}
-	if selection.Inspection().Descriptor.Target.ProgrammingProfile == HPSFirstMenuProfile {
+	i := selection.Inspection()
+	d := i.Descriptor
+	if d.Target.ProgrammingProfile == HPSFirstMenuProfile {
 		return l.preflightMenu(selection)
+	}
+	p := l.platform
+	if d.Target.ProgrammingProfile != p.ProgrammingProfile {
+		return nil, errors.New("native fabric: selected programming profile has no matching compiled platform")
 	}
 	var record selectedProgramRecord
 	romMode := l.boot.rom != nil
@@ -222,9 +228,6 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 			return nil, err
 		}
 	}
-	i := selection.Inspection()
-	d := i.Descriptor
-	p := l.platform
 	format, scope := int64(2), "nano-selected-program-v1"
 	if romMode {
 		format, scope = 3, "nano-selected-rom-program-v1"
@@ -232,7 +235,7 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 	if record.Format != 1 || record.Scope != scope || record.Platform != p ||
 		record.PackageID != i.PackageID || record.BuildID != d.Build.ID ||
 		d.Format != format || (!romMode && selection.Linked() != nil) || d.Target.Platform != p.Platform || d.Target.Device != p.Device ||
-		d.Target.ProgrammingProfile != p.ProgrammingProfile || d.ABI.ID != p.ABI || d.ABI.Major != int64(p.Major) || d.ABI.Minor != int64(p.Minor) ||
+		d.ABI.ID != p.ABI || d.ABI.Major != int64(p.Major) || d.ABI.Minor != int64(p.Minor) ||
 		d.Payload.Size <= 0 || d.Payload.Size > MaxProgramBytes || d.Payload.Size%4 != 0 {
 		return nil, errors.New("native fabric: selected package differs from the contained platform contract")
 	}
