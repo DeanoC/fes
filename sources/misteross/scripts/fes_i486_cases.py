@@ -93,7 +93,7 @@ def _real(body: Asm) -> dict[int, bytes]:
 
 
 def _protected(body, cr0: int | None = None, page: int | None = None, ring3_eflags: int | None = None,
-               ring3_esp: int = RING3_ESP) -> tuple[dict[int, bytes], Asm, int]:
+               ring3_esp: int = RING3_ESP, esp0: int = TSS_ESP0) -> tuple[dict[int, bytes], Asm, int]:
     """A 32-bit protected-mode program; returns its image, code and the body's offset.
 
     The GDT: 08h code and 10h data, flat, DPL 0; 18h code and 20h data, flat,
@@ -143,7 +143,7 @@ def _protected(body, cr0: int | None = None, page: int | None = None, ring3_efla
            + _descriptor(TSS, 0x67, 0x89, False, False))
     idt = b''.join(_gate(0x08, HANDLER, 0xee if vector == 3 else 0x8e) for vector in range(32))
     tss = bytearray(0x68)
-    tss[4:8] = TSS_ESP0.to_bytes(4, 'little')
+    tss[4:8] = esp0.to_bytes(4, 'little')
     tss[8:10] = (0x10).to_bytes(2, 'little')
     image = {CODE: bytes(a.b), HANDLER: b'\xf4', GDT: gdt, IDT: idt, TSS: bytes(tss),
              GDT_POINTER: (len(gdt) - 1).to_bytes(2, 'little') + GDT.to_bytes(4, 'little'),
@@ -582,6 +582,27 @@ def cases() -> list[Case]:
         a.op(0xa1).d(PAGE + 1)                            # MOV EAX, [20001h]
     protected('ac-popfd-then-load', source17, {'end': 'exception:17', 'error': 0}, popfd_then_load,
               ring3_eflags=0x2, what='CPL 3: POPFD sets AC, and the next misaligned read is #AC(0)')
+    def popfd_clears_then_load(a):
+        a.op(0x9c, 0x81, 0x24, 0x24).d(0xfffbffff).op(0x9d)  # PUSHFD; AND dword [ESP], ~AC; POPFD
+        a.op(0xa1).d(PAGE + 1)                            # MOV EAX, [20001h]
+    protected('ac-popfd-clears', source17, {'end': 'int:3'}, popfd_clears_then_load, ring3_eflags=AC,
+              what='CPL 3: POPFD clears AC, and the next misaligned read does not fault')
+    # MOVSD makes two accesses: each is checked on its own address.
+    def movsd(source, destination):
+        def build(a):
+            a.op(0xbe).d(source).op(0xbf).d(destination)  # MOV ESI, source; MOV EDI, destination
+            a.op(0x1e, 0x07, 0xa5)                         # PUSH DS; POP ES; MOVSD
+        return build
+    protected('ac-movsd-destination', source17, {'end': 'exception:17', 'error': 0},
+              movsd(PAGE, PAGE + 0x101), ring3_eflags=AC, what='MOVSD with a misaligned destination is #AC(0)')
+    protected('ac-movsd-source', source17, {'end': 'exception:17', 'error': 0},
+              movsd(PAGE + 1, PAGE + 0x100), ring3_eflags=AC, what='MOVSD with a misaligned source is #AC(0)')
+    protected('ac-movsd-aligned', source17, {'end': 'int:3'},
+              movsd(PAGE, PAGE + 0x100), ring3_eflags=AC, what='MOVSD with both addresses aligned does not fault')
+    # A delivery from CPL 3 pushes onto the TSS's ring-0 stack at CPL 0:
+    # a misaligned ESP0 does not fault (PRM 9.9.16: only CPL 3 is checked).
+    protected('ac-delivery-odd-esp0', source17, {'end': 'int:3'}, lambda a: None, ring3_eflags=AC,
+              esp0=TSS_ESP0 + 1, what='INT3 from CPL 3 onto an odd ESP0 does not fault')
     protected('ac-xadd-m32', source17, {'end': 'exception:17', 'error': 0},
               lambda a: a.op(0x0f, 0xc1, 0x1d).d(PAGE + 1), ring3_eflags=AC,
               what='a misaligned XADD is #AC(0)')
@@ -604,13 +625,13 @@ def cases() -> list[Case]:
               lambda a: a.op(0x0f, 0x01, 0x05).d(PAGE), ring3_eflags=AC,
               what='SGDT at 0 modulo 4 (its base at 2) is #AC(0)')
 
-    # Deliveries and AC: a real-mode interrupt clears AC (the INT n
-    # pseudocode, real-address mode: "AC <- 0"); a protected-mode one keeps
-    # it.
+    # Deliveries and AC: a real-mode interrupt clears AC (the SDM's INT n
+    # pseudocode, real-address mode: "AC <- 0"; the 1992 PRM's lists only IF
+    # and TF, and Bochs clears AC); a protected-mode one keeps it.
     def real_int_clears(a):
         a.op(0x66, 0x9c, 0x67, 0x66, 0x81, 0x0c, 0x24).d(0x40000).op(0x66, 0x9d)  # PUSHFD; OR [ESP], AC; POPFD
         a.op(0xcd, 0x10)                                  # INT 10h
-    real('ac-real-int-clears', 'PRM ch. 26, INT n (real-address mode)', {'end': 'int:16', 'eflags': 0x2},
+    real('ac-real-int-clears', 'SDM INT n (real-address mode); Bochs (the 1992 PRM lists IF and TF only)', {'end': 'int:16', 'eflags': 0x2},
          lambda a: (real_int_clears(a), 0)[1], what='a real-mode interrupt clears AC')
     protected('ac-pm-int-keeps', 'PRM ch. 26, INT n (protected mode)', {'end': 'int:3', 'eflags': 0x40002},
               lambda a: None, ring3_eflags=AC, what='a protected-mode interrupt keeps AC')

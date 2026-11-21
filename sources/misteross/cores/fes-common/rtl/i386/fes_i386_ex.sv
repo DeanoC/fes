@@ -391,7 +391,8 @@ module fes_i386_ex #(
                 if (cpl == 2'd0) rest[13:12] = y[13:12];
             end
             // A real-mode delivery: IF and TF, and on the i486 identity AC
-            // (the INT n pseudocode's real-address-mode "AC <- 0").
+            // (the SDM's INT n pseudocode, real-address mode, "AC <- 0", and
+            // Bochs; the 1992 PRM's lists only IF and TF).
             if (exc.f_clrit) begin
                 rest[IF] = 1'b0;
                 rest[TF] = 1'b0;

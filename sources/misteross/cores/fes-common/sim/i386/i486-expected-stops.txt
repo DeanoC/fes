@@ -88,6 +88,11 @@ xadd-m32-notpresent stop @104f.vector e 6
 invlpg-remap stop @105c.unexpected-exception 0 6
 invlpg-notpresent stop @103e.unexpected-exception 0 6
 ac-popfd-then-load stop @1055.eflags 40002 2
+ac-popfd-clears stop @1046.eflags 40002 2
+ac-movsd-destination stop @1046.eflags 40002 2
+ac-movsd-source stop @1046.eflags 40002 2
+ac-movsd-aligned stop @1046.eflags 40002 2
+ac-delivery-odd-esp0 stop @1046.eflags 40002 2
 ac-xadd-m32 stop @1046.eflags 40002 2
 ac-lfs-at-2 stop @1046.eflags 40002 2
 ac-lfs-aligned stop @1046.eflags 40002 2

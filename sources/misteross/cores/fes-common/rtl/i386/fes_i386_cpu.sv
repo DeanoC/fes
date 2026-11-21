@@ -2281,11 +2281,19 @@ module fes_i386_cpu #(
                    && m1_s.moff[15:0] < (m1_s.x87_part[1] ? 16'd9 : 16'd7)
                    && {15'd0, 1'b1, m1_s.moff[15:0]} > m1_s.mlimit;
     // #AC (the i486 identity): a misaligned data access at CPL 3 with CR0.AM
-    // and EFLAGS.AC set, on its linear address; system accesses excepted.
+    // and EFLAGS.AC set, on its linear address: the access's own and, for a
+    // st2 uop (MOVS), its store's (target). Accesses made at privilege 0
+    // are excepted, as m1_user takes them: system accesses (descriptors, the
+    // TSS) and a delivery's pushes to its new stack (nstk), which a 486 makes
+    // at the handler's CPL.
+    function automatic logic misaligned(input logic [2:0] a, input logic [3:0] bytes);
+        misaligned = bytes == 4'd2 && a[0] || bytes == 4'd4 && |a[1:0] || bytes == 4'd6 && a[0]
+                  || bytes == 4'd8 && |a[2:0];
+    endfunction
     logic m1_ac;
     assign m1_ac = ac_arm && eflags[18] && m1_s.uop.mem.kind != fes_i386_pkg::MEM_NONE && !m1_s.uop.mem.system
-                && (m1_s.uop.mem.bytes == 4'd2 && m1_s.maddr[0] || m1_s.uop.mem.bytes == 4'd4 && |m1_s.maddr[1:0]
-                    || m1_s.uop.mem.bytes == 4'd6 && m1_s.maddr[0] || m1_s.uop.mem.bytes == 4'd8 && |m1_s.maddr[2:0]);
+                && !m1_s.uop.nstk && (misaligned(m1_s.maddr[2:0], m1_s.uop.mem.bytes)
+                                      || m1_s.uop.st2 && misaligned(m1_s.target[2:0], m1_s.uop.mem.bytes));
     assign m1_limit = m1_s.uop.mem.kind != fes_i386_pkg::MEM_NONE
                    && (m1_s.moff > m1_s.mlimit || m1_s.mtiny || m1_s.mexpd && m1_s.moff <= m1_s.mlow
                        || m1_s.uop.bound_pair && m1_bound_wrap || m1_xwrap);

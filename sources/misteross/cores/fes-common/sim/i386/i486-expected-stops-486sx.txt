@@ -89,6 +89,11 @@ xadd-m32-notpresent agree
 invlpg-remap agree
 invlpg-notpresent agree
 ac-popfd-then-load agree
+ac-popfd-clears agree
+ac-movsd-destination agree
+ac-movsd-source agree
+ac-movsd-aligned agree
+ac-delivery-odd-esp0 agree
 ac-xadd-m32 agree
 ac-lfs-at-2 agree
 ac-lfs-aligned agree
