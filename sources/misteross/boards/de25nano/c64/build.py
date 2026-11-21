@@ -18,7 +18,14 @@ MODELS = {"pal": None}
 # The exact image the upload endpoint takes: BASIC, KERNAL, character and
 # 1541 ROMs in c64_rom's order.
 FIRMWARE_BYTES = {"pal": 36864}
-ASSIGNMENTS = ()
+# Synthesis choices in unchanged DE10 sources that the signoff lint refuses.
+# The SID keeps state through a warm reset (the oscillators' phase, as reSID
+# does), so its reset is also a hold; mapped onto register clock enables, its
+# one reset register drives both synchronous clears and enables (LNT-30010).
+# The SID's holds are built in logic instead.
+ASSIGNMENTS = (
+    ("AUTO_CLOCK_ENABLE_RECOGNITION", "OFF", "core|machine|sid"),
+)
 # Qsys writes the same peripheral subsystem as for the Spectrum component:
 # the two components have the same interfaces. See ../spectrum/build.py.
 PARENT_SHA256 = "a08edf0b098e0ddb583a98963efa6bcce1735fc41a0a28c4a9019e2eb27f1ca8"
