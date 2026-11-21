@@ -29,6 +29,10 @@ SHELL = {'fes.video.fixed-720p60', 'fes.keyboard.hid', 'fes.gamepad.ports', 'fes
 CASES = (
     (spectrum, '48', 16384, 'fes.spectrum', 'spectrum-firmware', {'fes.media.spectrum-tape'}),
     (spectrum, '128', 32768, 'fes.spectrum128', 'spectrum128-firmware', {'fes.media.spectrum-tape'}),
+    (spectrum, 'plus3', 65536, 'fes.spectrum-plus3', 'spectrum-plus3-firmware',
+     {'fes.media.spectrum-tape', 'fes.media.spectrum-disk'}),
+    (spectrum, 'pentagon', 49152, 'fes.pentagon', 'pentagon-firmware',
+     {'fes.media.spectrum-tape', 'fes.media.spectrum-disk'}),
     (atari_st, '520st', 196608, 'fes.atari-st', 'atari-st-firmware', {'fes.mouse.relative', 'fes.media.atari-st-floppy',
                                  'fes.media.atari-st-floppy-write', 'fes.media.atari-st-floppy-geometry'}),
 )

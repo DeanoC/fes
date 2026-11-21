@@ -48,12 +48,14 @@ class Machine:
     """One machine: its board spec, its package identity and its own interfaces."""
 
     def __init__(self, *, recipe, directory, core_id, rom_id, name, version, descriptions, interfaces,
-                 model_core_ids=None, model_rom_ids=None):
+                 model_core_ids=None, model_rom_ids=None, model_interfaces=None):
         self.recipe, self.directory, self.core_id, self.rom_id = recipe, directory, core_id, rom_id
         self.model_core_ids = dict(model_core_ids or {})
         self.model_rom_ids = dict(model_rom_ids or {})
         self.name, self.version, self.descriptions = name, version, descriptions
         self.interfaces = interfaces
+        # Interfaces a model adds to the machine's own, such as a disk unit.
+        self.model_interfaces = dict(model_interfaces or {})
         self.label = 'DE25 ' + name
 
     def spec(self, root):
@@ -134,6 +136,7 @@ class Machine:
             'abi': {'id': 'fes.computer', 'major': 1, 'minor': 0},
             'interfaces': [{'id': name, 'major': major, 'minor': minor, 'required': True}
                            for name, major, minor in (*((name, 1, 0) for name in SHELL), *self.interfaces,
+                                                      *self.model_interfaces.get(fields['parameters']['model'], ()),
                                                       (FIRMWARE_UPLOAD, 1, 0), ('fes.fabric.de25-scanout', 1, 3))],
             'build': {'id': build_identity(record), 'repository': fields['repository'],
                 'revision': fields['revision'], 'recipe_sha256': fields['recipe_sha256'],

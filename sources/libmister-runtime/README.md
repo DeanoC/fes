@@ -75,14 +75,16 @@ existing BRAM profile remains separate; there is no automatic fallback.
 Software admission does not establish a sealed standard package or hardware
 acceptance.
 
-The same profile admits three firmware machines from a per-core contract table
+The same profile admits five firmware machines from a per-core contract table
 (`src/native/de25_core_contract.hpp`): `fes.spectrum` and `fes.spectrum128`
-(the shell plus `fes.media.spectrum-tape` 2.0), and `fes.atari-st` (the shell
+(the shell plus `fes.media.spectrum-tape` 2.0), `fes.spectrum-plus3` and
+`fes.pentagon` (the same plus `fes.media.spectrum-disk` 1.0), and `fes.atari-st` (the shell
 plus relative mouse and the floppy with its write and geometry interfaces).
 Each adds `fes.fabric.firmware-upload` 1.0 and uses format 3: an Agilex
 bitstream is programmed unchanged and the sealed ROM requirement names the
 image its upload endpoint takes (`fes.spectrum`: 16384 or 32768 bytes,
-`fes.spectrum128`: 32768 bytes, Atari ST: 196608). Any other interface set,
+`fes.spectrum128`: 32768 bytes, `fes.spectrum-plus3`: 65536, `fes.pentagon`:
+49152, Atari ST: 196608). Any other interface set,
 size, format or version is refused before programming.
 `misteross/boards/de25nano/machine/driver_proof.py` runs this driver and its
 DE25 transport against the Verilated RTL of all three machines. Host software
