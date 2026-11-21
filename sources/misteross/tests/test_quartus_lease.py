@@ -184,8 +184,11 @@ def unleased_quartus(root: Path, files: list[str], misteross: Path | None = None
                 before, after = code[:match.start()], code[match.end():]
                 if PROBE.match(after.lstrip('"\'')) or "quartus_jobs.py run" in before:
                     continue
-                # A program name inside a quoted message or path test is not a run.
-                if re.search(r"(\[|test|-[xfe]\s|echo|fail|grep)\s*[\"']?[^\"']*$", before):
+                # Not a run: the operand of a file test (`[ -x "$Q/quartus_sh" ]`),
+                # or a word inside a quoted message of echo/printf/fail/grep.
+                if re.search(r"(^|[\s\[])-[xfe]\s+[\"']?[^\s\"']*$", before):
+                    continue
+                if re.search(r"\b(echo|printf|fail|grep)\s+[\"'][^\"']*$", before):
                     continue
                 failures.append(f"{name}:{number}: runs {match.group(0)} outside quartus_jobs.py run")
     return failures
@@ -278,9 +281,13 @@ class StaticRuleTests(unittest.TestCase):
             "$QUARTUS_ROOTDIR/bin/quartus_sh" --version > version.txt
             "$QUARTUS_ROOTDIR/bin/quartus_sh" --flow compile top
             python3 scripts/quartus_jobs.py run --edition pro -- quartus_sh --flow compile top
+            [ -x "$Q/quartus_sh" ] || fail "quartus_sh missing"
+            [ -x $Q/quartus_sh ] && $Q/quartus_sh --flow compile top
+            test -f /opt/latest/quartus_fit && /opt/latest/quartus_fit top
+            echo "running quartus_sh now"; quartus_sh --flow compile top
             """})
-        self.assertEqual(len(failures), 1)
-        self.assertIn("scripts/job.sh:4", failures[0])
+        self.assertEqual([f.split(": ")[0] for f in failures],
+                         ["scripts/job.sh:4", "scripts/job.sh:7", "scripts/job.sh:8", "scripts/job.sh:9"])
 
 
 def registered_closure() -> set[Path]:
