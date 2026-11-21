@@ -983,6 +983,36 @@ class JobsTests(unittest.TestCase):
         self.assertTrue(sent, "the cap sent nothing")
         self.assertTrue(all(launched[0].pid not in pids for pids in sent), sent)
 
+    def test_nested_holders_count_their_tree_once(self):
+        # Codex P1 at dfa0123c9: a run wrapper (pid 100) and its seed child
+        # (pid 200) each hold a Lite slot; the child's 8 GiB was counted in
+        # both trees. Together they may grow to 12 GiB: 4 GiB outstanding.
+        gib = 1024 ** 2
+        holders = {"/x/lite-a.lock": {100}, "/x/lite-b.lock": {200}}
+        with mock.patch.object(qt, "flock_holders", side_effect=lambda path: holders.get(path, set())), \
+                mock.patch.object(qt, "lease_pool", side_effect=lambda edition, host=None:
+                                  ("/x/lite-a.lock", "/x/lite-b.lock") if edition == "lite" else ("/x/pro.lock",)), \
+                mock.patch.object(self.jobs, "_ancestors_of", side_effect=lambda pid: [100, 1] if pid == 200 else [1]), \
+                mock.patch.object(self.jobs, "_tree_rss_kib", side_effect=lambda pid: 8 * gib):
+            self.assertEqual(self.jobs.outstanding_kib("none"), 4 * gib)
+
+    def test_a_signal_while_waiting_for_memory_is_a_notified_cancellation(self):
+        # Codex P2 at dfa0123c9: the default action killed the wrapper during
+        # admission and nothing recorded it.
+        run_dir = Path(self.directory.name) / "cancelled"
+        run_dir.mkdir()
+        timer = threading.Timer(0.5, lambda: os.kill(os.getpid(), signal.SIGTERM))
+        timer.start()
+        try:
+            with mock.patch.object(self.jobs, "_mem_available_kib", return_value=1), \
+                    mock.patch.object(self.jobs, "ADMISSION_RETRY_SECONDS", 0.1), \
+                    mock.patch.dict(os.environ, {"FES_QUARTUS_RUN_DIR": str(run_dir)}):
+                code = self.jobs.run("lite", "", ["true"], sample_seconds=0.1)
+        finally:
+            timer.cancel()
+        self.assertEqual(code, 128 + signal.SIGTERM)
+        self.assertIn('"status": "cancelled"', (run_dir / "result.json").read_text())
+
     def test_a_stale_waiter_marker_exempts_nobody(self):
         # Codex P1 at f2eae796b: a waiter killed after writing its marker left
         # it behind; a later holder with the same pid was then not counted.

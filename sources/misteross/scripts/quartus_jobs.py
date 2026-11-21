@@ -328,6 +328,28 @@ def _tree_rss_kib(root: int) -> int:
     return total
 
 
+def _ancestors_of(pid: int) -> list[int]:
+    """pid's ancestors, nearest first."""
+    found = []
+    while pid > 1:
+        try:
+            pid = int(Path(f"/proc/{pid}/stat").read_bytes().rsplit(b")", 1)[1].split()[1])
+        except (OSError, IndexError, ValueError):
+            break
+        if pid in found:
+            break
+        found.append(pid)
+    return found
+
+
+class Cancelled(Exception):
+    """A termination signal before the job started."""
+
+    def __init__(self, number: int):
+        super().__init__(f"signal {number}")
+        self.number = number
+
+
 def _start_time(pid: int) -> str:
     """A process's start time since boot (in clock ticks), which with its pid
     names one process; empty when it is gone."""
@@ -368,7 +390,17 @@ def outstanding_kib(own_slot: str) -> int:
             continue
         for holder in quartus_tools.flock_holders(path) - {os.getpid()} - waiting:
             held[holder] = held.get(holder, 0) + peak
-    return sum(max(0, peak - _tree_rss_kib(holder)) for holder, peak in held.items())
+    # Holders nested in one process tree (a run wrapper and the seed runner
+    # below it) are one job: their peaks add up, and the tree's memory, read
+    # at its topmost holder, counts once.
+    groups: dict[int, int] = {}
+    for holder, peak in held.items():
+        top = holder
+        for ancestor in _ancestors_of(holder):
+            if ancestor in held:
+                top = ancestor
+        groups[top] = groups.get(top, 0) + peak
+    return sum(max(0, peak - _tree_rss_kib(top)) for top, peak in groups.items())
 
 
 def admit(edition: str, slot: str, deadline: float = float("inf")) -> bool:
@@ -431,7 +463,7 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
         notify(dict(base, finished_utc=datetime.now(timezone.utc).isoformat(), status="wrapper-error",
                     error=f"{type(error).__name__}: {error}"))
         raise
-    status = {0: "finished", 75: "refused", 124: "capped"}.get(code, "failed")
+    status = {0: "finished", 75: "refused", 124: "capped"}.get(code, "cancelled" if code > 128 else "failed")
     notify(dict(base, finished_utc=datetime.now(timezone.utc).isoformat(), status=status, exit=code))
     return code
 
@@ -461,7 +493,23 @@ def _run(edition: str, label: str, command: list[str], sample_seconds: float,
         # cannot keep a slot past it.
         started = time.monotonic()
         deadline = started + cap_seconds
-        if not admit(edition, slot, deadline):
+
+        def cancel(number, _frame):
+            raise Cancelled(number)
+
+        # A signal while waiting for memory ends the run as a cancellation,
+        # through the normal exit (and its notification), not by default death.
+        waiting = {sig: signal.signal(sig, cancel) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
+        try:
+            admitted = admit(edition, slot, deadline)
+        except Cancelled as cancelled:
+            print(f"quartus_jobs: cancelled by {cancelled} while waiting for memory; nothing was started",
+                  file=sys.stderr, flush=True)
+            return 128 + cancelled.number
+        finally:
+            for sig, handler in waiting.items():
+                signal.signal(sig, handler)
+        if not admitted:
             print(f"quartus_jobs: time cap of {cap_seconds / 60:g} min reached waiting for memory; "
                   "nothing was started", file=sys.stderr, flush=True)
             return 124
