@@ -514,9 +514,13 @@ disk builder's image will be
 ([FreeDOS in the builder](../../docs/pc386-machine-design.md#freedos-in-the-fogcast-disk-builder)).
 `build_pc386_freedos_image.py --profile games` writes
 `build/sim/fes-pc386/freedos-games.img`: the boot fixture's kernel (2046's
-386 FAT12/FAT16 build) and FreeCOM, with HIMEMX 3.38, UMBM from Jemm 5.85,
-CuteMouse 2.1b4, MEM 1.12 and SHARE 08/2006a from their FreeDOS 1.4 package
-archives in `C:\FDOS\BIN`, pinned in [`sim/freedos.lock`](sim/freedos.lock).
+386 FAT12/FAT16 build, built from its release source with
+[FDOS/kernel#276](https://github.com/FDOS/kernel/issues/276)'s fix) and
+FreeCOM, with HIMEMX 3.38, UMBM from Jemm 5.85, CuteMouse 2.1b4 and MEM 1.12
+from their FreeDOS 1.4 package archives, and SHARE built from the kernel
+2046 source archive's share tree, in `C:\FDOS\BIN`, pinned in
+[`sim/freedos.lock`](sim/freedos.lock). `C:\FDOS\DOC` names the sources
+of the two built programs and holds the kernel patch.
 - `FDCONFIG.SYS` loads UMBM with `/I=C800-DFFF`, `DOS=UMB`, then HIMEMX high
   with all extended memory as XMS (15,360K on a 16 MiB machine). UMBM hands
   the machine's upper RAM to DOS as upper memory blocks without V86 and then
@@ -555,13 +559,15 @@ archives in `C:\FDOS\BIN`, pinned in [`sim/freedos.lock`](sim/freedos.lock).
     of EMS and 16K of upper memory used. It is not for Ultima VII, whose menu
     refuses to run while an expanded memory manager is resident.
   - **Entry 4, Windows 3.x.** Entry 2 with FreeDOS's SHARE loaded high
-    (`INSTALLHIGH`, 9K of upper memory). WIN386's DOSMGR runs on FreeDOS
+    (`INSTALLHIGH`, 7K of upper memory: 6,768 bytes). WIN386's DOSMGR runs on FreeDOS
     only with a SHARE resident (#1725). MEM shows 622K (637,152 bytes). The
     games' entries leave SHARE out, so their file opens do not pass through
     its sharing checks. Windows also needs `InDOSPolling=TRUE`, and no
     `device=ifsmgr.386`, `vcache.386` or `vshare.386` lines, in `[386Enh]`
     of the user's own `SYSTEM.INI`
     ([record](../../../../docs/validation/2026-11-12-pc386-freedos-2046/summary.md)).
+    Deletes and renames work under this SHARE; FreeDOS 1.4's SHARE 08/2006a
+    failed them all (#1777, `--suite share`).
 - HIMEMX picks its A20 method by itself. POST hands DOS a machine with A20
   off ([A20 and CPU reset](../../docs/pc386-machine-design.md#a20-and-cpu-reset)),
   so HIMEMX takes port 92h ("Fast A20 method used"), and XMS function 04h

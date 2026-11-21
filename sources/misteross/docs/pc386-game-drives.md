@@ -79,7 +79,7 @@ The games image's `FDCONFIG.SYS` has four entries. It takes entry 1 after
 | 1 (default) | kernel low; its data, `FILES=30`, `BUFFERS=16` and FreeCOM in upper memory | 582K (595,808 bytes) | everything, including Ultima VII |
 | 2 | `DOS=HIGH,UMB`, `FILES=30`, `BUFFERS=16` | 622K (637,152 bytes) | programs that need more, such as Falcon 3.0; not Ultima VII |
 | 3 | entry 1 with the EMS board's driver, `FESEMS.SYS`, high: 2,048K of EMS | 582K (595,808 bytes) | titles that need EMS: Ultima Underworld, Master of Orion, Darklands, Frontier; not Ultima VII, which refuses to run with an expanded memory manager |
-| 4 | entry 2 with FreeDOS's `SHARE.COM` high (9K of upper memory) | 622K (637,152 bytes) | Windows 3.x in 386 enhanced mode, whose DOSMGR needs SHARE on FreeDOS; not Ultima VII |
+| 4 | entry 2 with FreeDOS's `SHARE.COM` high (7K of upper memory) | 622K (637,152 bytes) | Windows 3.x in 386 enhanced mode, whose DOSMGR needs SHARE on FreeDOS; not Ultima VII |
 
 To take entry 2, 3 or 4, press its number while the menu shows. A simulation
 sends it with `sim_fes_pc386.py --suite game --boot-entry N`
