@@ -1037,12 +1037,73 @@ stems = ["0F01.6/m"]
 memory = true
 cost = [6, 13, 13]
 
-# 0F01h /5 and /7 raise #UD on the 386, and a faulting instruction does not
-# retire (its delivery is charged as INT), so this cost is never charged.
+# 0F01h /5, and /7 with a register operand, raise #UD (/7 with a memory
+# operand is the i486 identity's INVLPG, below; on the 386 it is #UD too), and
+# a faulting instruction does not retire (its delivery is charged as INT), so
+# this cost is never charged.
 [[class]]
 name = "group7_ud"
-stems = ["0F01.5", "0F01.7"]
+stems = ["0F01.5", "0F01.7/r"]
 cost = [2, 2, 1]
+
+# ---- The i486 identity's instructions (#1962 slice 2)
+#
+# They retire only on the i486 identity (fes_i386_cpu I486); on the 386 they
+# are #UD, never charged. Every table charges the i486's count, as the 286's
+# charges a 386 instruction as the 386 does. Counts are the Intel486 data book
+# (241731-002) Table 13-15's, cache hits: BSWAP 1; XADD 3 (registers) and 4
+# (memory); CMPXCHG 6 (registers) and 7 or 10 (memory, equal or not), so 9,
+# the middle rounded up; INVD 4; WBINVD 5; INVLPG 12 or 11 (TLB hit or not),
+# so 12; CPUID 14 for leaf 1 and 9 otherwise, which the bytes do not give, so
+# 12, the middle rounded up. The compiled table agrees on all but CPUID,
+# for which it gives no i486 count.
+[[class]]
+name = "bswap"
+stems = ["0FC8-0FCF"]
+cost = [1, 1, 1]
+
+[[class]]
+name = "xadd_r"
+stems = ["0FC0/r", "0FC1/r"]
+cost = [3, 3, 3]
+
+[[class]]
+name = "xadd_m"
+stems = ["0FC0/m", "0FC1/m"]
+memory = true
+cost = [4, 4, 4]
+
+[[class]]
+name = "cmpxchg_r"
+stems = ["0FB0/r", "0FB1/r"]
+cost = [6, 6, 6]
+
+[[class]]
+name = "cmpxchg_m"
+stems = ["0FB0/m", "0FB1/m"]
+memory = true
+cost = [9, 9, 9]
+
+[[class]]
+name = "invd"
+stems = ["0F08"]
+cost = [4, 4, 4]
+
+[[class]]
+name = "wbinvd"
+stems = ["0F09"]
+cost = [5, 5, 5]
+
+[[class]]
+name = "invlpg"
+stems = ["0F01.7/m"]
+memory = true
+cost = [12, 12, 12]
+
+[[class]]
+name = "cpuid"
+stems = ["0FA2"]
+cost = [12, 12, 12]
 
 # MOV r32, CRn: 6 on the 386 and 4 on the i486 for every register.
 [[class]]
