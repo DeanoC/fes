@@ -192,9 +192,10 @@ def shell_runs(text: str):
                         yield start, f"runs {LEASED.search(inner).group(0)} in a command substitution"
                 # A leased program put in a variable (tool=quartus_sh) can run
                 # under any name later: the assignment itself is refused.
-                if "=" in word and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", word) and \
-                        LEASED.fullmatch(os.path.basename(word.split("=", 1)[1])):
-                    yield start, f"assigns {os.path.basename(word.split('=', 1)[1])} to a variable"
+                # Anywhere in the value: tool='quartus_sh --flow compile top'.
+                assigned = re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=(.*)", word, re.S)
+                if assigned and LEASED.search(assigned.group(2)):
+                    yield start, f"assigns {LEASED.search(assigned.group(2)).group(0)} to a variable"
                     continue
                 if SUBSTITUTION.search(word) or not LEASED.search(os.path.basename(word)) \
                         or not LEASED.fullmatch(os.path.basename(word)):
@@ -369,13 +370,15 @@ class StaticRuleTests(unittest.TestCase):
             eval 'quartus_fit>/tmp/x'
             tool=quartus_sh
             export Q=$ROOT/bin/quartus_fit
+            tool='quartus_sh --flow compile top'; $tool
+            cmd+=("$Q/quartus_sta" -t gate.tcl)
             """})
         self.assertEqual([f.split(": ")[0] for f in failures],
                          ["scripts/job.sh:4", "scripts/job.sh:7", "scripts/job.sh:8", "scripts/job.sh:9",
                           "scripts/job.sh:10", "scripts/job.sh:11", "scripts/job.sh:12", "scripts/job.sh:13",
                           "scripts/job.sh:14", "scripts/job.sh:15", "scripts/job.sh:18", "scripts/job.sh:19",
                           "scripts/job.sh:20", "scripts/job.sh:22", "scripts/job.sh:23", "scripts/job.sh:24",
-                          "scripts/job.sh:25", "scripts/job.sh:26"])
+                          "scripts/job.sh:25", "scripts/job.sh:26", "scripts/job.sh:27", "scripts/job.sh:28"])
 
 
 def registered_closure() -> set[Path]:
