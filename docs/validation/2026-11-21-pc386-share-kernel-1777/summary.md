@@ -82,6 +82,7 @@ once FDOS/kernel releases a fix.
 | unit tests (`tests.test_pc386_machine`, `tests.test_pc386_game_drive`) | pass |
 | MEM on entry 4 | 622K (637,152 bytes) free; SHARE 6,768 bytes in upper memory |
 | `--suite boot --image games --type 'mem\|'`, oracle (entry 1) | pass: 582K (595,808 bytes), as before; the Serpent Isle and Frontier memory check passes; VGA replay 0 mismatches |
+| `--suite boot` (boot image, `dir`), oracle | pass; VGA replay 0 mismatches |
 
 ## Method
 
