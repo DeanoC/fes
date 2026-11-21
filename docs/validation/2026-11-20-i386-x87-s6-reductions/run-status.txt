@@ -1,0 +1,25 @@
+elab-bcd rc=0 2026-11-20T22:14:44+02:00
+control absent cpu_x87_bl_acc count=0 2026-11-20T22:14:44+02:00
+control absent cpu_x87_bs_bcd count=0 2026-11-20T22:14:44+02:00
+control absent cpu_x87_bs_bin count=0 2026-11-20T22:14:44+02:00
+control present cpu_x87_wm count=10 2026-11-20T22:14:44+02:00
+bcd-s1 rc=0 2026-11-20T22:24:47+02:00
+bcd-s2 rc=1 2026-11-20T23:42:15+02:00
+bcd-s3 rc=0 2026-11-21T00:24:05+02:00
+bcd-s4 rc=0 2026-11-21T01:10:03+02:00
+bcd done 2026-11-21T01:10:03+02:00
+bcd-s2 rerun rc=0 2026-11-21T03:15:16+02:00
+elab-fast rc=0 2026-11-21T01:11:31+02:00
+control scratch present count=1 2026-11-21T01:11:32+02:00
+fast-s1 rc=0 2026-11-21T01:27:52+02:00
+fast-s2 rc=0 2026-11-21T01:36:27+02:00
+fast-s3 rc=0 2026-11-21T01:45:16+02:00
+fast-s4 rc=0 2026-11-21T01:53:56+02:00
+fast done 2026-11-21T01:53:56+02:00
+elab-fast2 rc=0 2026-11-21T03:16:16+02:00
+control scratch present count=2 2026-11-21T03:16:16+02:00
+fast2-s1 rc=0 2026-11-21T03:25:16+02:00
+fast2-s2 rc=0 2026-11-21T03:34:16+02:00
+fast2-s3 rc=0 2026-11-21T03:43:05+02:00
+fast2-s4 rc=0 2026-11-21T03:52:07+02:00
+fast2 done 2026-11-21T03:52:07+02:00
