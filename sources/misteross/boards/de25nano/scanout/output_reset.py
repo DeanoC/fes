@@ -79,10 +79,16 @@ def bindings(directory):
     from boards.de25nano.scanout import async_inputs as a
     directory = Path(directory)
     a.require(selected(directory), 'output-reset policy not selected')
+    fit = a.bindings(directory)
+    params = json.loads((directory.parent / 'build-inputs.json').read_bytes())['parameters']
     board = directory / 'combined/hps/project/fes_mailbox/fes_de25_scanout_board.v'
-    a.require(not board.is_symlink() and a.sha(board) == a.sha(HERE / board.name),
+    reference = (HERE / board.name).read_bytes()
+    if a.native_spectrum48(params):
+        from boards.de25nano.spectrum import native_hps
+        reference = native_hps.separate_scanout_reset(reference.decode()).encode()
+    a.require(not board.is_symlink() and board.read_bytes() == reference,
               'compiled output-reset board differs from reviewed source')
-    return {'fit': a.bindings(directory), 'compiled_board_sha256': a.sha(board)}
+    return {'fit': fit, 'compiled_board_sha256': a.sha(board)}
 
 
 def collect(directory, copied_project, output, quartus_sta):

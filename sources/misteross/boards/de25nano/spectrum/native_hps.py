@@ -331,6 +331,7 @@ def verify_handoff(output, hps, scanout):
               "shared_fifo_resets": fifo_resets,
               "firmware_admission": False, "package_signoff": False}
     (directory / "native-spectrum-handoff.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return result
 
 
 def compile_package_candidate(output, hps, scanout, tool):

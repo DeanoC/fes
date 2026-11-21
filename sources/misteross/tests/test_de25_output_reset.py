@@ -1,9 +1,12 @@
 """Approved terminal-reset review still rejects incomplete or unsafe evidence."""
+import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from boards.de25nano.scanout import output_reset as reset, video_outputs
+from boards.de25nano.scanout import async_inputs, output_reset as reset, video_outputs
+from boards.de25nano.spectrum import native_hps
 from scripts.fes_build_common import BuildError
 
 
@@ -28,6 +31,36 @@ class OutputResetTests(unittest.TestCase):
                          paths.replace('removal', 'setup', 1), paths.replace(reset.CLOCK, 'wrong', 1)):
                 (root / 'reset-paths.tsv').write_text(text)
                 with self.assertRaises(BuildError): reset.review_reports(root)
+
+    def test_native_source_projection_is_bound_to_the_selected_profile(self):
+        original = (reset.HERE / 'fes_de25_scanout_board.v').read_text()
+        projected = native_hps.separate_scanout_reset(original)
+        parameters = {
+            'core_id': 'fes.spectrum', 'model': 'native48',
+            'programming_profile': 'de25-native-spectrum48-v1', 'firmware_bytes': 16384,
+            'hdmi_output_reset_review_policy': reset.POLICY,
+        }
+        with tempfile.TemporaryDirectory() as temp, patch.object(async_inputs, 'bindings', return_value={}):
+            root = Path(temp)
+            candidate = root / 'candidate'
+            board = candidate / 'combined/hps/project/fes_mailbox/fes_de25_scanout_board.v'
+            board.parent.mkdir(parents=True)
+            record = root / 'build-inputs.json'
+            record.write_text(json.dumps({'parameters': parameters}))
+            board.write_text(projected)
+            self.assertEqual(reset.bindings(candidate)['compiled_board_sha256'], async_inputs.sha(board))
+            board.write_text(projected.replace('else scanout_release <= first_lock_seen', 'else scanout_release <= !first_lock_seen'))
+            with self.assertRaises(BuildError):
+                reset.bindings(candidate)
+            board.write_text(original)
+            with self.assertRaises(BuildError):
+                reset.bindings(candidate)
+            parameters['programming_profile'] = 'de25-linux-computer-v1'
+            record.write_text(json.dumps({'parameters': parameters}))
+            self.assertEqual(reset.bindings(candidate)['compiled_board_sha256'], async_inputs.sha(board))
+            board.write_text(projected)
+            with self.assertRaises(BuildError):
+                reset.bindings(candidate)
 
     def test_only_the_approved_single_rdc_domain_and_two_heads_are_reviewed(self):
         raw = ('Status: FAIL\n; RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain ;\n'
