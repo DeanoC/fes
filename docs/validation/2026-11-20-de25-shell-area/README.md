@@ -7,8 +7,24 @@ The method, with its amendments, is in [method.md](method.md), committed before 
 ## What the results feed
 
 - Deano decided that the first DE25 pc386 shell ships with the 387 off.
-- This table feeds the later step that turns the 387 on. That step needs about **3,500 ALMs** beyond today's board: about 50,300 with the 387 on, against 46,800 available.
+- This table feeds the later step that turns the 387 on. That step needs about **3,500 ALMs** beyond today's board: about 50,300 with the 387 on, against 46,800 available. #2059 later measured it more closely at 49,955.5 with its x87 saving; the [conclusion](#conclusion) uses that figure.
 - It also needs RAM. Today's 387-off board uses 295 of the 358 RAM blocks.
+
+## Conclusion
+
+The study is closed. Deano decided not to measure S-rsp2 (see [below](#why-s-rsp2-is-not-measured)).
+
+- **Measured cuts:** about **2,220 ALMs and 128 RAM blocks**: S-ocm 696, S-lat 946, A-dma2 412 and A-fifo 170. That is a sum of separate ablations, each against its own baseline. They were never fitted together.
+- **The 387-on DE25 board stays over.** #2059 puts the 387-on board, with the measured 7,728-ALM shell and its own 460.5 ALM x87 saving, at 49,955.5 ALMs. Taking this study's 2,220 off leaves about 47,735:
+  - about **1,000 ALMs over the device** (46,800);
+  - about **4,700 ALMs over the 92% line** (43,056).
+- **Shell cuts alone do not reach 387-on.** The bigger levers are machine devices outside this study's scope. Their sizes are entity rows from #2037's fit, not ablation bounds:
+  - VGA, about 1,840 ALMs;
+  - audio, about 1,333 ALMs, of which OPL2 is 881.
+- **Boards:**
+  - S-ocm and S-lat are DE25-only. They are settings in the DE25 managed shell's Qsys system, which the DE10 build does not have. They apply to every DE25 core.
+  - A-dma2 and A-fifo change AT device RTL shared with the DE10. A-dma2 drops a feature, so it needs a per-board parameter that leaves the DE10 unchanged. A-fifo keeps behaviour, but it moves the DE10's BUILD_ID unless a parameter keeps the register form there.
+- **Hardware:** none of the cuts has run on hardware. Every figure comes from fits.
 
 ## The shell's cost (reference)
 
@@ -60,7 +76,7 @@ Baselines:
 | 2 | **S-lat**: `qsys_top` `maxAdditionalLatency` 4 → 0 | **946** (58.9) | 0 | 0 | Pass: generation gate (`qsys_top` F2SDRAM interconnect has 0 pipeline instances against `j`'s 16); fit: `mm_interconnect_0` 2,065 → 1,272 ALMs, its pipeline rows 1,176 → 0, registers 5,140 → 1,264 | Measured | No cycles in RTL; the Qsys interconnect adds no optional pipeline stages, so F2SDRAM command and response paths lose their extra register stages (lower latency, not higher). Timing passes on all seeds: worst setup +1.294 against base +1.435, on the video pixel clock (`iopll_0_outclk0`), not the F2SDRAM path. Not run on hardware. | Every DE25 core on the managed shell |
 | 3 | **A-dma2**: DMA controller 2 removed (reads `FFh`, no hold) | **412** (172) | 0 | 0 | Pass: netlist `dma2` references 326 → 3 (the select wire and its `FFh` mux); registers −365 | Measured | No cycles: controller 2 moves no data, since its DRQs are tied to 0. The audit puts a realistic register-file-only version at about 250–280. That version keeps readback; channels 5–7 software requests would stop counting down and setting TC. No title or test depends on that (`devices_tb.cpp:432-434` checks readback only). | AT device (DE10 too). Can be gated: a new `fes_dma8237` parameter, whose default keeps today's PC/XT and DE10 behaviour |
 | 4 | **A-fifo**: PS/2 FIFOs (keyboard and mouse) given one write port and `ramstyle = "MLAB"` | **170** (69) | 0 | 0 | Pass: MLAB bits 1,421 → 1,853; registers −339 | Measured | None: behaviour and cycles are unchanged. | AT device. Same RTL on DE10 would move DE10's BUILD_ID (its Yosys policy puts multi-port memories in registers). Keeping DE10's netlist needs a parameter that selects the form |
-| 5 | **S-rsp2**: `responseFifoType` `EMBEDDED_MEMORY_BASED`, applied after integration | entity ≤ 957 | about +3 to +7 (est.) | — | Generation gate passed: `USE_MEMORY_BLOCKS (1)` | **Not measured: blocked by the shared-reset guard** (see below) | Trades ALMs for M20K, and RAM is also short with the 387 on | Every DE25 core on the managed shell |
+| 5 | **S-rsp2**: `responseFifoType` `EMBEDDED_MEMORY_BASED`, applied after integration | ≤ 957 (estimate: entity row, not an ablation) | about +3 to +7 (est.) | — | Generation gate passed: `USE_MEMORY_BLOCKS (1)` | **Not measured.** The shared-reset guard refuses the regenerated file, and Deano chose not to extend it (see below) | Trades ALMs for M20K, and RAM is also short with the 387 on | Every DE25 core on the managed shell |
 | 6 | **A-kbcram**: 8042 RAM bytes 1–31 dropped | 98.5 (126) | 0 | 0 | No precommitted control. Registers −138 | Within the spread; not measured | Commands 21h–3Fh and 61h–7Fh would read 0. No title or test uses them. | AT device; can be gated |
 | 7 | **A-pitbcd**: KF8253 BCD counting dropped | −1 (114) | 0 | 0 | Pass: `dec_bcd_q` 12 → 0; registers −159 | No saving: the logic packs into ALMs already in use | Breaks `devices_tb.cpp:335-367`; vendor patch | — |
 | — | **S-rsp v1** | — | — | — | **Failed**: generated interconnect identical to `j` | Not measured (amendment) | | |
@@ -74,16 +90,16 @@ Timing: every measured arm passes on every seed.
   - Worst setup over seeds: baseline +7.613, dma2 +7.390, fifo +7.574, kbcram +7.458, pitbcd +7.321.
   - Worst hold: +0.013 or better throughout.
 
-**Measured: 696 + 946 + 412 + 170 = about 2,220 ALMs and 128 RAM blocks**, against the 387-on step's 3,500. That is a sum of separate ablations, each against its own baseline; no combined fit was run. S-ocm and S-lat touch different interconnects (`hps2fpga` and F2SDRAM), but their sum is not measured.
+**Measured: 696 + 946 + 412 + 170 = about 2,220 ALMs and 128 RAM blocks.** That is a sum of separate ablations, each against its own baseline; no combined fit was run. S-ocm and S-lat touch different interconnects (`hps2fpga` and F2SDRAM), but their sum is not measured. The [conclusion](#conclusion) sets this against the 387-on board.
 
-About 1,280 ALMs remain. S-rsp2's entity bound (≤ 957, spending RAM) is not measured. The second-F2SDRAM-master bound below was taken against the pipelined interconnect; with S-lat, `mm_interconnect_0` is 1,272 ALMs, so what merging the masters would still save on top of S-lat is smaller and unmeasured. The shell and AT cuts in scope here do not reach 3,500 on measured evidence.
+S-rsp2's ≤ 957 is an estimate from the entity row, it would spend RAM, and it is not measured. The second-F2SDRAM-master bound below was taken against the pipelined interconnect; with S-lat, `mm_interconnect_0` is 1,272 ALMs, so what merging the masters would still save on top of S-lat is smaller and unmeasured. The shell and AT cuts in scope here do not close the 387-on gap on measured evidence.
 
 ### Why S-rsp2 is not measured
 
 - The generation gate passed: the regenerated `fes_mem_cdc` response FIFO has `USE_MEMORY_BLOCKS (1)`.
 - The board build then exited 1. After generation, `scanout/shared_resets.py:154` adds the shared FIFO reset wrapper to `peripheral_subsys.v` only if the generated file matches a reviewed digest. The knob renames four generated interconnect modules in that file (`mm_interconnect_0`, `_1`, `_3`, `_4`), so the digest no longer matches, and the build refuses with `unreviewed generated input: peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v`.
 - The four seeds compiled the unwrapped project anyway, a flaw in the study's run script. Each failed in the fitter with `FIFO peer reset ingress changed` (Error 332000). No figures came from them.
-- Getting past this means reviewing the new generated file and adding its digest to the guard. That is a change to a seal check, so the study stops here and reports it. Whether to do that is the coordinator's call.
+- Getting past this means reviewing the new generated file and adding its digest to the guard. Deano chose not to extend the guard and closed the study, so S-rsp2 stays unmeasured.
 
 ## Entity bounds only (not ablated)
 
@@ -137,5 +153,6 @@ For the 387-on step's planning only; these were not measured here:
 
 - **Shell netlist identity:** every shell seed compiles build `j`'s exact machine netlist (`5b80c0cd…`), as amended in method.md.
 - **AT baseline:** the AT arm fits its own baseline, elaboration `cc9b0a89…`.
+- **Raw fit outputs:** about 12 GB stay on chip-30x0-ai-dev under `/data/projects/fes-de25-area/` (`shell2-*` shell seeds, `fit-*` AT seeds, `area-*-out` board builds, `locked-*.log` run logs). The shell baseline seeds are build `j` and the controlled pair under `/data/projects/fes-de25-pc386/` (`board-j-out`, `pair-j-board-s2` to `s4`). `collect.json` was produced from these.
 - **Shared lease:** from 21 November every shell build and seed ran under `flock /tmp/lander-quartus-3090.lock`, released between seeds. S-lat's seeds ran 10:46–13:10Z.
 - **Memory kills:** on 20 November, about 21:36Z, three runs were killed by signal 9: S-ocm s3, S-rsp s1 and A-dma2 s1. The 23 GB host was running two shell compiles and an AT fit at once. S-ocm s3 and A-dma2 s1 were rerun one at a time with the same inputs; S-rsp v1 s1 was not rerun.
