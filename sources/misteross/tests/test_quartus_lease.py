@@ -1215,7 +1215,9 @@ class LaunchGuardTests(unittest.TestCase):
                      # Codex P1 at 7d7659973: a BusyBox execution applet.
                      ["busybox", "env", "python3", "-"], ["busybox", "ssh", "host"],
                      # Codex P1 at e1715f5f3: a stdin reader inside shell code.
-                     ["sh", "-c", "python3 -"], ["sh", "-c", "X=1 bash -s"], ["sh", "-c", "cat x | python3"]):
+                     ["sh", "-c", "python3 -"], ["sh", "-c", "X=1 bash -s"], ["sh", "-c", "cat x | python3"],
+                     # Codex P1 at b134a0744: time's own option.
+                     ["bash", "-c", "time -p python3 -"]):
             with self.assertRaises(qt.QuartusLeaseError, msg=argv):
                 subprocess.run(argv, input="true\n", text=True, capture_output=True)
         with qt.stdin_program():

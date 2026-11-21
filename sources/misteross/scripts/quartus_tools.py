@@ -553,7 +553,8 @@ def _licensed_edition(program: str) -> str | None:
 
 
 SHELL_SEPARATORS = {";", "&&", "||", "|", "&", "(", ")", ";;", "|&", "{", "}", "!", "\n"}
-SHELL_KEYWORDS = {"if", "then", "else", "elif", "do", "while", "until", "!", "time", "{", "fi", "done"}
+# `time` is not here: it takes options (time -p), so it is a wrapper below.
+SHELL_KEYWORDS = {"if", "then", "else", "elif", "do", "while", "until", "!", "{", "fi", "done"}
 SHELL_WRAPPERS = {"exec", "command", "builtin", "env", "nohup", "timeout", "nice", "xargs", "time"}
 
 
