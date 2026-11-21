@@ -50,11 +50,17 @@ PROBE = re.compile(r"^\s*(--version|-v|--help|-h)\b")
 def _module_level(tree: ast.AST):
     """The nodes that certainly run when the module is imported: not function
     bodies, and not the branches of if/while/for/match (`if TYPE_CHECKING:`,
-    `if False:`), which may not. A try body runs."""
+    `if False:`) or a try's handlers and else, which may not. A try body and
+    its finally run."""
     pending = [tree]
     while pending:
         node = pending.pop()
         yield node
+        if isinstance(node, (ast.Try, getattr(ast, "TryStar", ast.Try))):
+            # Only the try body and finally run for certain; handlers and
+            # else depend on what happens.
+            pending.extend([*node.body, *node.finalbody])
+            continue
         for child in ast.iter_child_nodes(node):
             if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda,
                                   ast.If, ast.While, ast.For, ast.AsyncFor, ast.Match, ast.IfExp)):
@@ -392,6 +398,15 @@ class StaticRuleTests(unittest.TestCase):
                                   f"import subprocess\n{guard}\n    from scripts import quartus_tools\n"
                                   "subprocess.run(['quartus_fit', 'top'])\n"})
             self.assertEqual(len(failures), 1, guard)
+        # Codex P1 at 3e1144c04: an except handler (or else) may never run.
+        for handler in ("try:\n    pass\nexcept Exception:\n    from scripts import quartus_tools\n",
+                        "try:\n    pass\nexcept Exception:\n    pass\nelse:\n    from scripts import quartus_tools\n"):
+            failures = self.scan({"sources/misteross/scripts/y.py":
+                                  "import subprocess\n" + handler + "subprocess.run(['quartus_fit', 'top'])\n"})
+            self.assertEqual(len(failures), 1, handler)
+        self.assertEqual(self.scan({"sources/misteross/scripts/z.py":
+                                    "import subprocess\ntry:\n    from scripts import quartus_tools\n"
+                                    "finally:\n    pass\nsubprocess.run(['quartus_fit', 'top'])\n"}), [])
 
     def test_counterexample_naming_a_leasing_module_in_a_string_is_not_loading_it(self):
         failures = self.scan({
@@ -805,6 +820,9 @@ class LaunchGuardTests(unittest.TestCase):
             subprocess.run([str(link_dir / "quartus_fit"), "top"])
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", "$0 --flow compile top", str(self.bin / "quartus_sh"), "--help"])
+        # Codex P1 at 3e1144c04: an assignment given to env as its own argument.
+        with self.assertRaises(qt.QuartusLeaseError):
+            subprocess.run(["env", f"Q={self.bin / 'quartus_sh'}", "sh", "-c", "$Q --flow compile top"])
         # Codex P1 at 7f7121f88: a shell-local assignment run later as $Q.
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", "Q=quartus_sh; $Q --flow compile top"], env={"PATH": str(self.bin)})
@@ -1340,6 +1358,14 @@ class JobsTests(unittest.TestCase):
             self.assertEqual(self.jobs.run("lite", "", ["true"], sample_seconds=0.1), 128 + signal.SIGTERM)
         finally:
             timer.cancel()
+
+    def test_admission_sleeps_never_pass_the_cap(self):
+        # Codex P2 at 3e1144c04: a 30 s retry sleep overran a short cap.
+        with mock.patch.object(self.jobs, "_mem_available_kib", return_value=1), \
+                mock.patch.object(self.jobs, "ADMISSION_RETRY_SECONDS", 30):
+            started = time.monotonic()
+            self.assertEqual(self.jobs.run("lite", "", ["true"], sample_seconds=0.1, cap_seconds=1), 124)
+        self.assertLess(time.monotonic() - started, 5)
 
     def test_a_named_host_waits_for_the_same_readiness(self):
         # Codex P1 at 7d0c69357: --host skipped the memory check.

@@ -431,7 +431,7 @@ def admit(edition: str, slot: str, deadline: float = float("inf")) -> bool:
             print(f"quartus_jobs: waiting for memory: {available / 1024 ** 2:.1f} GiB available, "
               f"{reserved / 1024 ** 2:.1f} GiB reserved by running jobs, {need / 1024 ** 2:g} GiB needed",
               file=sys.stderr, flush=True)
-            time.sleep(ADMISSION_RETRY_SECONDS)
+            time.sleep(max(0.0, min(ADMISSION_RETRY_SECONDS, deadline - time.monotonic())))
     finally:
         marker.unlink(missing_ok=True)
 

@@ -580,7 +580,8 @@ def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) ->
     for index, (element, word, in_payload) in enumerate(argv_list):
         # NAME=value in shell code can be run later as $NAME: the value is a
         # program name like any other.
-        assigned = re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=(.+)", word, re.S) if in_payload else None
+        # (in shell code, or as an argument of env and the like).
+        assigned = re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=(.+)", word, re.S)
         if assigned:
             word = assigned.group(1)
         if not QUARTUS_PROGRAM.fullmatch(os.path.basename(word)):
