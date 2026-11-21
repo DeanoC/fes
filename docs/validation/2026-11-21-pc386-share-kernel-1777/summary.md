@@ -40,8 +40,9 @@ upstream ships them. This record covers the fixed builds.
   - once closed, it must rename and delete;
   - a second delete must return 0002h (file not found).
 
-  It passes on the oracle. On the old fixture it fails at rename, delete
-  and gone with error 5.
+  It passes on the oracle and on the RTL CPU (`--cpu rtl`: the oracle boots,
+  fes_i386_cpu runs from the prompt with no oracle step or stop). On the old
+  fixture it fails at rename, delete and gone with error 5.
 - **Memory is unchanged.** Entry 4 still shows 622K (637,152 bytes) free.
   The new SHARE takes 6,768 bytes (7K) of upper memory; 08/2006a took 9K.
 - **No sealed design moves.** The pc386 seal producer (`pc386_quartus.py`)
@@ -75,6 +76,8 @@ once FDOS/kernel releases a fix.
 | Check | Result |
 | --- | --- |
 | `--suite share`, oracle | pass: create, del-open, ren-open, close, rename, delete, gone, DONE |
+| `--suite share --cpu rtl` | pass, no oracle step or stop after the handover |
+| `SHRTEST.COM` with the new SHARE and an unpatched kernel 2046 built from the same source, entry 4 | stops at the rename: "Error reading from drive A: DOS area: drive not ready" |
 | `SHRTEST.COM` on the old fixture (release kernel, SHARE 08/2006a), entry 4 | rename, delete and gone FAIL with AX=0005h, as #1777 found |
 | unit tests (`tests.test_pc386_machine`, `tests.test_pc386_game_drive`) | pass |
 | MEM on entry 4 | 622K (637,152 bytes) free; SHARE 6,768 bytes in upper memory |
