@@ -70,6 +70,22 @@ class Derivations(unittest.TestCase):
         with self.assertRaises(ValueError):
             derive.transport(source.replace(derive.TRANSPORT_MARKER, b""))
 
+    def test_native_hps_video_uses_matched_receiver_budget(self):
+        native = load("native_hps")
+        source = (HERE.parent / "scanout/clocks.sdc").read_text()
+        matched = native.matched_video_sdc(source)
+        original_clocks = [line for line in source.splitlines() if not line.startswith("#")]
+        matched_clocks = [line for line in matched.splitlines() if not line.startswith("#")]
+        self.assertEqual(original_clocks, [
+            line.replace("-max 1.800", "-max 1.000").replace("-min -1.300", "-min -0.700")
+            if line.startswith("set_output_delay -clock HDMI_TX_CLK ") else line
+            for line in matched_clocks
+        ])
+        self.assertIn("set_output_delay -clock HDMI_TX_CLK -max 1.800", matched)
+        self.assertIn("set_output_delay -clock HDMI_TX_CLK -min -1.300", matched)
+        with self.assertRaises(ValueError):
+            native.matched_video_sdc(matched)
+
     def test_component_lists_every_staged_file(self):
         build = load("build")
         files, derived, _ = build.board.component_files(build, build.board.capture(build))

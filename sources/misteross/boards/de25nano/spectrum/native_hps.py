@@ -9,6 +9,21 @@ import xml.etree.ElementTree as ET
 import build as spectrum
 
 
+def matched_video_sdc(source):
+    """Use the same ADV7513 Rev. B receiver minima as the native MENU shell."""
+    replace_once = spectrum.board.replace_once
+    source = replace_once(source,
+        "# Analog Devices ADV7513 Hardware User's Guide Rev. 0, p. 12, AC Specifications:\n"
+        "# setup tVSU >= 1.0 ns and hold tVHLD >= 0.7 ns. No board trace delay is\n"
+        "# documented, so the pin budget assumes zero external flight time.",
+        "# Analog Devices ADV7513 Rev. B datasheet, AC Specifications, p. 3:\n"
+        "# setup tVSU >= 1.8 ns and hold tVHLD >= 1.3 ns. As in the matched native\n"
+        "# MENU shell these are receiver-only limits at zero board skew.")
+    source = replace_once(source, "-clock HDMI_TX_CLK -max 1.000", "-clock HDMI_TX_CLK -max 1.800")
+    source = replace_once(source, "-clock HDMI_TX_CLK -min -0.700", "-clock HDMI_TX_CLK -min -1.300")
+    return source
+
+
 def project(archive, output):
     board = spectrum.board
     output, _, _, hps, _ = board.prepare(spectrum, archive, output, model="native48", native_hps=True)
@@ -59,11 +74,17 @@ add_connection fes_native_maintenance_reset.out_reset subsys_debug.reset
         "qsys_top soc_inst (\n.fes_native_maintenance_reset_reset_n(1'b0),"))
     inputs_path = directory / "inputs.json"
     inputs = json.loads(inputs_path.read_text())
+    video_constraints = project / "fes_mailbox/clocks.sdc"
+    video_constraints.write_text(matched_video_sdc(video_constraints.read_text()))
+    video_constraints_sha = board.sha(video_constraints.read_bytes())
+    inputs["scanout"]["source_sha256"]["clocks.sdc"] = video_constraints_sha
+    inputs[board.RECORD]["staged_source_sha256"]["fes_mailbox/clocks.sdc"] = video_constraints_sha
     inputs["native_spectrum_hps"] = {
         "scope": "native-spectrum48-project-only",
         "hps_parameters": {"f2s_data_width": 0, "H2F_Width": 128, "f2sdram_SMMU": False},
         "reader_masters": ["fes_scanout", "fes_ddr_probe"],
         "maintenance_reset_tied": True,
+        "matched_video_sdc_sha256": video_constraints_sha,
         "generated_handoff_verified": False,
         "firmware_admission": False,
         "composer_sha256": board.sha(Path(__file__).read_bytes()),
@@ -94,6 +115,10 @@ def verify_handoff(output, hps):
     directory = output / "combined/hps"
     project = directory / "project"
     inputs = json.loads((directory / "inputs.json").read_text())
+    video_constraints = project / "fes_mailbox/clocks.sdc"
+    video_constraints_sha = hps.digest(video_constraints)
+    if video_constraints_sha != inputs["native_spectrum_hps"]["matched_video_sdc_sha256"]:
+        raise ValueError("native Spectrum matched HDMI constraints changed")
     expected = inputs["vendor_hps_emif_parameters"]
     hps_ip = "hps_subsys/ip/hps_subsys/agilex_hps.ip"
     native = expected[hps_ip]
@@ -143,6 +168,7 @@ def verify_handoff(output, hps):
               "mailbox": hps.verify_mailbox_handoff(project),
               "probe": hps.verify_probe_handoff(project),
               "handoff_sha256": hps.digest(handoff),
+              "matched_video_sdc_sha256": video_constraints_sha,
               "firmware_admission": False, "package_signoff": False}
     (directory / "native-spectrum-handoff.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
 
