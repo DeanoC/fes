@@ -128,3 +128,33 @@ against its model" row.
      of 358, about 43 free. Every RAM-block change is stated against that
      figure, not the 58 relayed earlier.
    - **No rule changes.** Nothing in a band or a rule changes.
+2. **21 November 2026, after the three bounds (results.md) and before any
+   fit of a built form.** Deano's decision, relayed by the coordinating
+   session: the first DE25 pc386 shell ships with the 387 off, and 387-on on
+   the DE25 is a later step once about 3,500 ALMs are found across the shell,
+   the devices and the x87. What is built, and how it is judged:
+   - **FBLD alone moves onto the engine.** FBSTP stays in the envelope: the
+     engine's microprogram ROM cannot hold it, and no census title runs
+     either form. The FBLD-and-FBSTP bound (416.5) over-counts FBLD alone;
+     the built move is judged by its own fits, not by that bound.
+   - **The fast lane becomes one registered stage**, the bound's form,
+     behind a `PIPELINED` parameter on `fes_x87_fast` and `fes_x87_core`.
+     `fes_i386_x87` builds it with 0. `fes_x87_pipe` keeps 1, since #1892's
+     standalone backend needs the throughput. This spends the clock headroom:
+     a later DE25 clock raise needs the pipelining back.
+   - **One milestone, one PR, one reseal, one kit run**, so the two are fitted
+     together as the head, four seeds, against the baseline. FBLD alone is
+     fitted four seeds as well, so each change's share can be stated: FBLD's
+     is the baseline less FBLD alone; the fast lane's is FBLD alone less the
+     head.
+   - **The rule, unchanged in kind:** each A/B fails only if its median
+     exceeds the baseline's by more than the larger spread. Every seed must
+     pass timing at 61.44 MHz; no timing check is relaxed.
+   - **The baseline.** Main has moved since #2037: #2039 changes
+     `pc386_status.sv` and `top.sv`. Main `b206f9aaf` with
+     `identity-on.patch` is elaborated and its netlist digest compared with
+     `elab-head`. If they differ it is refitted, four seeds, and that refit is
+     the baseline. The figures are quoted against #2037's head as well.
+   - **Reported beside the area:** the remaining 387-on gap on the board,
+     with the 7,728 shell and the 8,400 estimate, and each changed form's
+     clocks at the census rates.
