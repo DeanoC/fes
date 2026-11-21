@@ -36,6 +36,7 @@ line around it and is not imported by any producer.
 from __future__ import annotations
 
 import argparse
+import fcntl
 from datetime import datetime, timezone
 import json
 import os
@@ -279,8 +280,112 @@ def _signal_all(pids, number: int) -> None:
             pass
 
 
+ADMISSION_LOCK = "/tmp/fes-quartus-admission.lock"
+ADMISSION_RETRY_SECONDS = 30
+NOTIFY_ENV = "FES_QUARTUS_NOTIFY"
+
+
+def _mem_available_kib() -> int:
+    for line in Path("/proc/meminfo").read_text().splitlines():
+        if line.startswith("MemAvailable:"):
+            return int(line.split()[1])
+    raise OSError("no MemAvailable in /proc/meminfo")
+
+
+def _tree_rss_kib(root: int) -> int:
+    parents, rss = {}, {}
+    page_kib = os.sysconf("SC_PAGE_SIZE") // 1024
+    for entry in os.listdir("/proc"):
+        if entry.isdigit():
+            try:
+                parents[int(entry)] = int(Path(f"/proc/{entry}/stat").read_bytes().rsplit(b")", 1)[1].split()[1])
+                rss[int(entry)] = int(Path(f"/proc/{entry}/statm").read_text().split()[1]) * page_kib
+            except (OSError, IndexError, ValueError):
+                continue
+    children: dict[int, list[int]] = {}
+    for pid, parent in parents.items():
+        children.setdefault(parent, []).append(pid)
+    total, pending, seen = 0, [root], set()
+    while pending:
+        pid = pending.pop()
+        if pid in seen:
+            continue
+        seen.add(pid)
+        total += rss.get(pid, 0)
+        pending.extend(children.get(pid, ()))
+    return total
+
+
+def outstanding_kib(own_slot: str) -> int:
+    """Memory the other running Quartus jobs on this host may still grow into:
+    for each other held slot, its edition's peak less what its holder's
+    process tree already uses."""
+    peaks: dict[str, int] = {}
+    for name in ("lite", "pro"):
+        for path in quartus_tools.lease_pool(name):
+            peaks[path] = max(peaks.get(path, 0), quartus_tools.PEAK_RSS_GIB[name] * 1024 * 1024)
+    total = 0
+    for path, peak in peaks.items():
+        if path == own_slot:
+            continue
+        for holder in quartus_tools.flock_holders(path) - {os.getpid()}:
+            total += max(0, peak - _tree_rss_kib(holder))
+    return total
+
+
+def admit(edition: str, slot: str) -> None:
+    """Wait, holding the slot, until this host has the memory for one more
+    job beyond what the other running jobs may still grow into. Checks are
+    serialised by a host-wide lock, so two callers cannot both pass on the
+    same free memory: the second sees the first as a holder still to grow."""
+    need = quartus_tools.PEAK_RSS_GIB[quartus_tools.edition_class(edition)] * 1024 * 1024
+    while True:
+        with open(ADMISSION_LOCK, "a") as guard:
+            fcntl.flock(guard, fcntl.LOCK_EX)
+            available, reserved = _mem_available_kib(), outstanding_kib(slot)
+            if available - reserved >= need:
+                return
+        print(f"quartus_jobs: waiting for memory: {available / 1024 ** 2:.1f} GiB available, "
+              f"{reserved / 1024 ** 2:.1f} GiB reserved by running jobs, {need / 1024 ** 2:g} GiB needed",
+              file=sys.stderr, flush=True)
+        time.sleep(ADMISSION_RETRY_SECONDS)
+
+
+def notify(summary: dict) -> None:
+    """Record the outcome in the run directory and pass it to the command in
+    $FES_QUARTUS_NOTIFY (run by the shell, summary as JSON on stdin), if set.
+    Neither can fail the job."""
+    text = json.dumps(summary, indent=2) + "\n"
+    run_dir = os.environ.get("FES_QUARTUS_RUN_DIR")
+    if run_dir:
+        _best_effort_write(Path(run_dir, "result.json"), text)
+    hook = os.environ.get(NOTIFY_ENV)
+    if hook:
+        try:
+            subprocess.run(["sh", "-c", hook], input=text, text=True, timeout=60, check=False)
+        except (OSError, subprocess.SubprocessError) as error:
+            print(f"quartus_jobs: notify hook failed: {error}", file=sys.stderr, flush=True)
+
+
 def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.0,
         cap_seconds: float = DEFAULT_CAP_MINUTES * 60) -> int:
+    """_run, with a notification of how it ended: finished, failed, refused
+    or a wrapper error."""
+    base = {"host": local_host(), "edition": edition, "label": label, "command": command,
+            "finished_utc": None}
+    try:
+        code = _run(edition, label, command, sample_seconds, cap_seconds)
+    except BaseException as error:
+        notify(dict(base, finished_utc=datetime.now(timezone.utc).isoformat(), status="wrapper-error",
+                    error=f"{type(error).__name__}: {error}"))
+        raise
+    status = {0: "finished", 75: "refused", 124: "capped"}.get(code, "failed")
+    notify(dict(base, finished_utc=datetime.now(timezone.utc).isoformat(), status=status, exit=code))
+    return code
+
+
+def _run(edition: str, label: str, command: list[str], sample_seconds: float,
+         cap_seconds: float) -> int:
     """COMMAND under a slot of this host's pool.
 
     The slot is released only when every process of the job has exited,
@@ -298,6 +403,7 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
             return 75
     token = f"{os.getpid()}-{time.monotonic_ns()}"
     with quartus_tools.quartus_lease(edition, label=label or Path(command[0]).name) as slot:
+        admit(edition, slot)
         was_subreaper = _set_subreaper(True)
         before = _children_of_self()
         process = subprocess.Popen(command, start_new_session=True, env=dict(os.environ, **{JOB_TOKEN: token}))
@@ -360,6 +466,10 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
             _set_subreaper(was_subreaper)
         if capped:
             code = 124
+        elif pending_signal and code == 0:
+            # A cancelled job is never reported as a success, even when its
+            # command trapped the signal or had already exited.
+            code = 128 + pending_signal[0]
         record = {"host": local_host(), "edition": edition, "slot": slot, "command": command,
                   "exit": code, "capped": capped, "cap_seconds": cap_seconds,
                   "peak_rss_kib": peak, "sample_seconds": sample_seconds}

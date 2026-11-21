@@ -39,6 +39,15 @@ Powerboat sat idle.
   It prints a heartbeat every minute, also written to the run directory's
   `heartbeat` file. `run` and `remote` refuse a filesystem with under 30 GiB
   free (exit 75).
+  Holding its slot, `run` waits for memory before it starts the command: the
+  host's `MemAvailable`, less what every other slot holder's job may still
+  grow into (its edition's peak less its current resident memory), must
+  cover one more job. A host-wide lock serialises the check, so two jobs
+  cannot both pass on the same free memory. A job ended by a relayed signal
+  exits nonzero even when its command trapped the signal. Every outcome
+  (finished, failed, capped, refused, wrapper error) goes to
+  `result.json` in the run directory and, when `FES_QUARTUS_NOTIFY` is set,
+  to that shell command as JSON on stdin.
 - `tests/test_quartus_lease.py` fails on any tracked script that could run a
   leased Quartus program unleased. Out of scope are tests (stand-in programs)
   and `docs/validation/` (frozen evidence of past runs).

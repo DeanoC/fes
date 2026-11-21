@@ -15,10 +15,12 @@ from pathlib import Path
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
 import textwrap
+import threading
 import time
 import tomllib
 import unittest
@@ -589,7 +591,9 @@ class JobsTests(unittest.TestCase):
         plenty = shutil.disk_usage("/")._replace(free=500 * 1024 ** 3)
         for patch in (mock.patch.object(qt, "LEASE_POOLS", {}), mock.patch.object(qt, "DEFAULT_POOL", self.pools),
                       mock.patch.dict(qt._process_held, clear=True),
-                      mock.patch.object(quartus_jobs.shutil, "disk_usage", return_value=plenty)):
+                      mock.patch.object(quartus_jobs.shutil, "disk_usage", return_value=plenty),
+                      mock.patch.object(quartus_jobs, "_mem_available_kib", return_value=500 * 1024 ** 2),
+                      mock.patch.object(quartus_jobs, "ADMISSION_LOCK", str(root / "admission.lock"))):
             patch.start()
             self.addCleanup(patch.stop)
 
@@ -734,6 +738,55 @@ class JobsTests(unittest.TestCase):
         self.assertEqual(qt.flock_holders(self.pools["lite"][0]), set())
         time.sleep(5.5)
         self.assertFalse(survivor.exists(), "a process of the job outlived the released slot")
+
+    def test_admission_counts_what_other_running_jobs_may_still_grow_into(self):
+        # Codex P1 at 6db0f20ca: two callers both saw 17 GiB free and both
+        # started a 9 GiB job. Admission now reserves each other holder's
+        # peak less its current use, under one host-wide lock.
+        other = self.pools["pro"][0]
+        self.pools["lite"] = (str(Path(self.directory.name) / "lite-a.lock"),)
+        qt.DEFAULT_POOL.update(self.pools)
+        holder = subprocess.Popen(["flock", other, "sleep", "30"])
+        self.addCleanup(holder.wait)
+        self.addCleanup(holder.terminate)
+        deadline = time.monotonic() + 10
+        while not qt.flock_holders(other) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        gib = 1024 ** 2
+        # 12 GiB available, a Pro holder that has not grown yet (reserves ~9),
+        # and a Lite job needing 6: not admitted until memory frees up.
+        memory = iter([12 * gib, 12 * gib, 40 * gib])
+        with mock.patch.object(self.jobs, "_mem_available_kib", lambda: next(memory)), \
+                mock.patch.object(self.jobs, "ADMISSION_RETRY_SECONDS", 0):
+            self.assertEqual(self.jobs.run("lite", "", ["true"], sample_seconds=0.1), 0)
+            self.assertEqual(next(memory, "drained"), "drained", "admitted before memory was available")
+
+    def test_a_relayed_signal_is_never_reported_as_success(self):
+        # Codex P1 at 6db0f20ca: the command traps SIGTERM and exits 0.
+        script = "trap 'exit 0' TERM; sleep 5 & wait"
+        timer = threading.Timer(1.0, lambda: os.kill(os.getpid(), signal.SIGTERM))
+        timer.start()
+        try:
+            code = self.jobs.run("lite", "", ["sh", "-c", script], sample_seconds=0.2)
+        finally:
+            timer.cancel()
+        self.assertEqual(code, 128 + signal.SIGTERM)
+
+    def test_every_outcome_is_notified(self):
+        run_dir = Path(self.directory.name) / "notified"
+        run_dir.mkdir()
+        sink = Path(self.directory.name) / "notifications"
+        with mock.patch.dict(os.environ, {"FES_QUARTUS_RUN_DIR": str(run_dir),
+                                          "FES_QUARTUS_NOTIFY": f"cat >> {sink}"}):
+            self.assertEqual(self.jobs.run("lite", "ok", ["true"], sample_seconds=0.1), 0)
+            self.assertEqual(self.jobs.run("lite", "bad", ["sh", "-c", "exit 3"], sample_seconds=0.1), 3)
+            low = shutil.disk_usage("/")._replace(free=1)
+            with mock.patch.object(self.jobs.shutil, "disk_usage", return_value=low):
+                self.assertEqual(self.jobs.run("lite", "low", ["true"], sample_seconds=0.1), 75)
+        text = sink.read_text()
+        for status in ('"finished"', '"failed"', '"refused"'):
+            self.assertIn(status, text)
+        self.assertIn('"status": "refused"', (run_dir / "result.json").read_text())
 
     def test_run_returns_the_job_exit_code(self):
         self.assertEqual(self.jobs.run("pro", "", ["sh", "-c", "exit 7"], sample_seconds=0.1), 7)
