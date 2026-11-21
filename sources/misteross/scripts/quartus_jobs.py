@@ -147,14 +147,41 @@ HEARTBEAT_SECONDS = 60
 MIN_FREE_GIB = 30
 
 
-def job_processes(token: str, root: int | None = None) -> dict[int, int]:
+def _children_of_self() -> set[int]:
+    me, found = os.getpid(), set()
+    for entry in os.listdir("/proc"):
+        if entry.isdigit():
+            try:
+                if int(Path(f"/proc/{entry}/stat").read_bytes().rsplit(b")", 1)[1].split()[1]) == me:
+                    found.add(int(entry))
+            except (OSError, IndexError, ValueError):
+                continue
+    return found
+
+
+def _set_subreaper(on: bool) -> bool:
+    """Make this process the reaper of orphans below it (Linux prctl), so a
+    job's process that outlives its parent is reparented here, not to init,
+    and stays a descendant. Returns the previous setting."""
+    import ctypes
+    libc = ctypes.CDLL(None, use_errno=True)
+    previous = ctypes.c_int(0)
+    libc.prctl(37, ctypes.byref(previous), 0, 0, 0)  # PR_GET_CHILD_SUBREAPER
+    if libc.prctl(36, int(on), 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
+        raise OSError(ctypes.get_errno(), "prctl(PR_SET_CHILD_SUBREAPER) failed")
+    return bool(previous.value)
+
+
+def job_processes(token: str, root: int | None = None, adopted_except: set[int] | None = None) -> dict[int, int]:
     """Every live process of one `run` job, with its resident memory (KiB).
 
-    A job's processes are those whose environment carries its token, plus
-    every descendant of those and of root. The token finds a Quartus stage in
-    its own session, or one a script left in the background or daemonized,
-    after its launcher has exited; parentage finds the processes a producer
-    starts with a scrubbed environment (functional_execution does)."""
+    A job's processes are root and everything below it. `run` is a child
+    subreaper, so a process orphaned anywhere in the job (left in the
+    background, daemonized, or started by a producer with a scrubbed
+    environment, as functional_execution does) is reparented to `run`; those
+    adopted children are roots too, except the ones in adopted_except that
+    were already children before the job. Processes whose environment carries
+    the job's token are roots as well, in case one escapes to another reaper."""
     marker = f"{JOB_TOKEN}={token}".encode()
     page_kib = os.sysconf("SC_PAGE_SIZE") // 1024
     parents, rss, tagged = {}, {}, set()
@@ -175,7 +202,8 @@ def job_processes(token: str, root: int | None = None) -> dict[int, int]:
     children: dict[int, list[int]] = {}
     for pid, parent in parents.items():
         children.setdefault(parent, []).append(pid)
-    found, pending = set(), [*tagged, *([root] if root in parents else [])]
+    adopted = set(children.get(os.getpid(), ())) - (adopted_except or set()) if adopted_except is not None else set()
+    found, pending = set(), [*tagged, *adopted, *([root] if root in parents else [])]
     while pending:
         pid = pending.pop()
         if pid in found:
@@ -183,6 +211,15 @@ def job_processes(token: str, root: int | None = None) -> dict[int, int]:
         found.add(pid)
         pending.extend(children.get(pid, ()))
     return {pid: rss[pid] for pid in found}
+
+
+def _reap_adopted(keep: set[int]) -> None:
+    """Collect the exit status of adopted orphans that have finished."""
+    for pid in _children_of_self() - keep:
+        try:
+            os.waitpid(pid, os.WNOHANG)
+        except ChildProcessError:
+            pass
 
 
 def _signal_all(pids, number: int) -> None:
@@ -212,12 +249,15 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
             return 75
     token = f"{os.getpid()}-{time.monotonic_ns()}"
     with quartus_tools.quartus_lease(edition, label=label or Path(command[0]).name) as slot:
+        was_subreaper = _set_subreaper(True)
+        before = _children_of_self()
         process = subprocess.Popen(command, start_new_session=True, env=dict(os.environ, **{JOB_TOKEN: token}))
+        scan = lambda: job_processes(token, process.pid, before)  # noqa: E731
         pending_signal = []
 
         def relay(number, _frame):
             pending_signal.append(number)
-            _signal_all([process.pid, *job_processes(token, process.pid)], number)
+            _signal_all([process.pid, *scan()], number)
 
         previous = {sig: signal.signal(sig, relay) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
         peak, code, capped, killed_at = 0, None, False, None
@@ -225,14 +265,14 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
         deadline, beat = started + cap_seconds, started
         try:
             while True:
-                live = job_processes(token, process.pid)
+                live = scan()
                 peak = max(peak, sum(live.values()))
                 if code is None:
                     try:
                         code = process.wait(timeout=sample_seconds)
                     except subprocess.TimeoutExpired:
                         pass
-                    live = job_processes(token, process.pid)
+                    live = scan()
                 if code is not None and not live:
                     break
                 if code is not None and live and not capped:
@@ -256,9 +296,12 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
                     _signal_all([process.pid, *live], signal.SIGKILL)
                 if code is not None:
                     time.sleep(sample_seconds)
+                    _reap_adopted(before | {process.pid})
         finally:
             for sig, handler in previous.items():
                 signal.signal(sig, handler)
+            _reap_adopted(before | {process.pid})
+            _set_subreaper(was_subreaper)
         if capped:
             code = 124
         record = {"host": local_host(), "edition": edition, "slot": slot, "command": command,

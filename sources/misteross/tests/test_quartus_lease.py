@@ -630,6 +630,18 @@ class JobsTests(unittest.TestCase):
         self.assertTrue(marker.exists(), "the slot was released before the background process finished")
         self.assertGreaterEqual(time.monotonic() - started, 2)
 
+    def test_the_slot_is_held_for_an_orphan_with_a_scrubbed_environment(self):
+        # Codex P1 at 9b5a6a3cf: the launcher starts an env={} child and exits
+        # at once, before any scan; neither the token nor parentage from the
+        # dead launcher finds it. The subreaper does.
+        marker = Path(self.directory.name) / "orphan-done"
+        orphan = f"import time, pathlib; time.sleep(2); pathlib.Path({str(marker)!r}).touch()"
+        code = f"import subprocess, sys; subprocess.Popen([sys.executable, '-c', {orphan!r}], env={{}})"
+        started = time.monotonic()
+        self.assertEqual(self.jobs.run("lite", "", [sys.executable, "-c", code], sample_seconds=0.2), 0)
+        self.assertTrue(marker.exists(), "the slot was released while the orphan still ran")
+        self.assertGreaterEqual(time.monotonic() - started, 2)
+
     def test_the_time_cap_stops_every_process_of_the_job(self):
         survivor = Path(self.directory.name) / "survivor"
         with mock.patch.object(self.jobs, "KILL_GRACE_SECONDS", 1):
