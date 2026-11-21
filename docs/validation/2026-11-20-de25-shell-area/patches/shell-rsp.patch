@@ -1,0 +1,33 @@
+From 15f7559197f369a1671f553387d6cbd2518bc349 Mon Sep 17 00:00:00 2001
+From: x <x@x>
+Date: Fri, 20 Nov 2026 22:24:36 +0200
+Subject: [PATCH] AREA STUDY ABLATION rsp (not for merge)
+
+---
+ sources/misteross/boards/de25nano/scanout/linux_dma.py | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/sources/misteross/boards/de25nano/scanout/linux_dma.py b/sources/misteross/boards/de25nano/scanout/linux_dma.py
+index 8ec3e0842..0ac8ab67c 100644
+--- a/sources/misteross/boards/de25nano/scanout/linux_dma.py
++++ b/sources/misteross/boards/de25nano/scanout/linux_dma.py
+@@ -126,6 +126,16 @@ if {{[string compare [get_interface_property hps_f2sdram_master EXPORT_OF] "hps_
+ remove_interface hps_f2sdram_master
+ remove_instance hps_f2sdram
+ save_system {jtag}
++'''
++    periph = hps.tcl_word(project / 'peripheral_subsys/peripheral_subsys.qsys')
++    top = hps.tcl_word(project / 'qsys_top.qsys')
++    script += f'''# AREA STUDY ABLATION (not for merge): memory-based interconnect response FIFOs.
++load_system {periph}
++set_domain_assignment {{$system}} {{qsys_mm.responseFifoType}} {{EMBEDDED_MEMORY_BASED}}
++save_system {periph}
++load_system {top}
++set_domain_assignment {{$system}} {{qsys_mm.responseFifoType}} {{EMBEDDED_MEMORY_BASED}}
++save_system {top}
+ '''
+     return script, profile, changes
+ 
+-- 
+2.47.3
+

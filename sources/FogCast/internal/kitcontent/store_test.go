@@ -452,9 +452,9 @@ func TestConcurrentPullsShareTheQuota(t *testing.T) {
 	secondID := meshcontent.SumSHA256(second)
 	release := make(chan struct{})
 	source := &pauseSource{
-		blobs: map[string][]byte{firstID.String(): first, secondID.String(): second},
-		pause: map[string]int{firstID.String(): 80},
-		ready: make(chan struct{}),
+		blobs:   map[string][]byte{firstID.String(): first, secondID.String(): second},
+		pause:   map[string]int{firstID.String(): 80},
+		ready:   make(chan struct{}),
 		release: release,
 	}
 	root := t.TempDir()

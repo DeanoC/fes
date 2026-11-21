@@ -524,48 +524,83 @@ local function draw_recents(s, top, ch)
   end
 end
 
+-- The family row shows as many tiles as fit at TILE_MIN wide, six at most,
+-- so the six default families are all on screen from 1024 wide. More
+-- families, or a narrower room, scroll the row. Returns how many tiles
+-- show, a tile's width and the first family shown.
+local TILE_MIN, TILE_MOST, TILE_GAP = 140, 6, 12
+local function family_window(s)
+  local n = #families
+  local shown = math.max(1, math.min(n, TILE_MOST, math.floor((s.w + TILE_GAP) / (TILE_MIN + TILE_GAP))))
+  local cw = (s.w - TILE_GAP * (shown - 1)) / shown
+  return shown, cw, math.max(1, math.min(family_i, n - shown + 1))
+end
+
+-- The family's full name where the tile has room for it, else its short
+-- name. Measured bold, so a tile's name does not change with focus.
+local function tile_name(f, w, size)
+  if measure(f.label, size, true) <= w then return f.label end
+  return f.art.short
+end
+
 -- Tall tiles: the mark above the name, the state chip and its detail line.
--- Compact tiles (below Recently played): a small mark, the short name and
--- the chip. Below the 720p safe-room height (648), the detail line is left out.
+-- Compact tiles (below Recently played): a small mark beside the name, above
+-- the chip; the name alone when the row is too short for both. Below the 720p
+-- safe-room height (648), the detail line is left out.
 local function draw_family(x, top, cw, ch, i, focused, compact, detail)
   local f = families[i]
   local state, line = F.tile(f)
-  gfx.rect(x, top, cw, ch, C.surface)
+  -- The border is a plate under the surface: two rectangles, where an
+  -- outline over the surface is five.
+  if focused then
+    gfx.rect(x - 4, top - 4, cw + 8, ch + 8, C.accent)
+    gfx.rect(x, top, cw, ch, C.surface)
+  else
+    gfx.rect(x, top, cw, ch, C.divider)
+    gfx.rect(x + 1, top + 1, cw - 2, ch - 2, C.surface)
+  end
   if compact then
     local pad = 8
-    local aw = math.min(math.floor(cw * 0.38), math.floor((ch - pad * 2) * 1.2))
-    F.mark(f, x + pad, top + pad, aw, ch - pad * 2)
-    local tx = x + pad + aw + 12
-    local tw = cw - (tx - x) - 8
-    text(f.art.short, tx, top + ch * 0.20, 20, focused, C.text, tw)
-    F.chip(state, tx, top + ch * 0.52, 16)
+    local _, th = measure(state, 14, true)
+    local mh = ch - pad * 3 - (th + 7)
+    if mh >= 20 then
+      local mw = math.min(math.floor(cw * 0.38), math.floor(mh * 1.7))
+      gfx.clip(x + pad, top + pad, mw, mh)
+      F.plain_mark(f, x + pad, top + pad, mw, mh, 12)
+      gfx.unclip()
+      local tx = x + pad + mw + 10
+      local tw = cw - (tx - x) - pad
+      local size = measure(f.art.short, 18, true) <= tw and 18 or 16
+      local _, nh = measure(f.art.short, size, true)
+      text(f.art.short, tx, top + pad + (mh - nh) / 2, size, focused, C.text, tw)
+      F.chip(state, x + pad, top + pad + mh + pad, 14)
+    else
+      -- Too short for the mark and the chip: the family's ground as a
+      -- leading bar and its name. The hero gives the focused family's state.
+      gfx.rect(x, top, 6, ch, f.art.ground)
+      local _, nh = measure(f.art.short, 16, true)
+      text(f.art.short, x + 6 + pad, top + (ch - nh) / 2, 16, focused, C.text, cw - 6 - pad * 2)
+    end
   else
     local art_h = math.floor(ch * (detail and 0.50 or 0.56))
-    gfx.clip(x, top, cw, art_h)
-    F.mark(f, x, top, cw, art_h)
-    gfx.unclip()
-    text(f.label, x + 14, top + art_h + 8, 22, focused, C.text, cw - 28)
-    local cy = top + art_h + 40
-    F.chip(state, x + 14, cy, 16)
-    if detail and line ~= "" then
-      text(line, x + 14, cy + 32, 18, nil, C.secondary, cw - 28)
+    if focused then
+      F.mark(f, x, top, cw, art_h)
+    else
+      F.mark(f, x + 1, top + 1, cw - 2, art_h - 1)
     end
-  end
-  if focused then
-    outline(x - 4, top - 4, cw + 8, ch + 8, 4, C.accent)
-  else
-    outline(x, top, cw, ch, 1, C.divider)
+    text(tile_name(f, cw - 24, 20), x + 12, top + art_h + 8, 20, focused, C.text, cw - 24)
+    local cy = top + art_h + 38
+    F.chip(state, x + 12, cy, 16)
+    if detail and line ~= "" then
+      text(line, x + 12, cy + 32, 16, nil, C.secondary, cw - 24)
+    end
   end
   gfx.hit("family:" .. i, x, top, cw, ch)
 end
 
 local function draw_families(s, top, ch, compact, only_slot)
   local n = #families
-  local shown = math.min(n, 4)
-  local gap = 20
-  local cw = (s.w - gap * (shown - 1)) / shown
-  local first = math.max(1, math.min(family_i, n - shown + 1))
-  if family_i > first + shown - 1 then first = family_i - shown + 1 end
+  local shown, cw, first = family_window(s)
   local detail = not compact and room.height >= 648
   for slot = 0, shown - 1 do
     if only_slot == nil or only_slot == slot then
@@ -573,7 +608,7 @@ local function draw_families(s, top, ch, compact, only_slot)
       if not families[i] then break end
       local focused = row == "family" and family_i == i
       gfx.segment("family:" .. generation .. ":" .. slot .. ":" .. i .. ":" .. flag(focused) .. flag(compact),
-        draw_family, s.x + slot * (cw + gap), top, cw, ch, i, focused, compact, detail)
+        draw_family, s.x + slot * (cw + TILE_GAP), top, cw, ch, i, focused, compact, detail)
     end
   end
   if (only_slot == nil or only_slot == 0) and first > 1 then
@@ -615,7 +650,7 @@ local function draw_labels(s, label_size)
   end
 end
 
--- The shelf. only_slot -1 draws the labels and the row above; a slot 0-3
+-- The shelf. only_slot -1 draws the labels and the row above; a slot from 0
 -- draws that family tile.
 local function draw_shelf(h, only_slot)
   local s = h.shelf
@@ -732,10 +767,11 @@ function draw()
     return
   end
   local h = room.hero
-  -- Build an initial or data-changed picture across callbacks. Each extension copies the
-  -- presented prefix, so one callback draws at most one family mark.
+  -- Build an initial, data-changed or resized picture across callbacks. Each extension copies the
+  -- presented prefix, so one callback draws at most one family tile.
   -- Restart when an async answer, input or resize changes that prefix.
-  if h and (not painted.ok or painted.generation ~= generation) then
+  if h and (not painted.ok or painted.generation ~= generation
+      or painted.width ~= room.width or painted.height ~= room.height) then
     if not room.presented or not same_scene(opening_scene) then opening = 0 end
     if opening == 0 then
       painted.ok = false
@@ -751,7 +787,7 @@ function draw()
       gfx.extend({})
     end
     opening = opening + 1
-    if opening == 6 then remember_scene(painted) end
+    if opening == 2 + family_window(h.shelf) then remember_scene(painted) end
     return
   end
   if h then

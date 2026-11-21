@@ -14,7 +14,14 @@ SPECTRUM = ROOT / "cores/fes-spectrum/rtl"
 SHARED = BOARD / "shared-rtl"
 COMMON = ROOT / "cores/fes-common"
 Z80 = COMMON / "rtl/z80"
-MODELS = {"48": [], "128": ["-DSPECTRUM_MODEL_128K=1"]}
+MODELS = {"48": [], "128": ["-DSPECTRUM_MODEL_128K=1"], "plus3": ["-DSPECTRUM_MODEL_PLUS3=1"],
+          "pentagon": ["-DSPECTRUM_MODEL_PENTAGON=1"]}
+# Each model's diagnostic image, RAM banks and disk controller for the bench.
+FIRMWARE = {"48": "firmware.rom", "128": "firmware-32k.rom", "plus3": "firmware-64k.rom",
+            "pentagon": "firmware-48k.rom"}
+BENCH = {"48": "-DSPECTRUM_BANKS=3", "128": "-DSPECTRUM_BANKS=8",
+         "plus3": "-DSPECTRUM_BANKS=8 -DSPECTRUM_DISK_UPD765=1",
+         "pentagon": "-DSPECTRUM_BANKS=8 -DSPECTRUM_DISK_BETA=1"}
 WAIVERS = ("UNUSEDSIGNAL", "UNUSEDPARAM", "UNOPTFLAT", "CASEINCOMPLETE", "CASEOVERLAP", "WIDTHTRUNC",
            "WIDTHEXPAND", "SYNCASYNCNET", "PINCONNECTEMPTY", "DECLFILENAME", "IMPLICITSTATIC",
            "VARHIDDEN", "CASEX", "BLKSEQ", "MULTITOP")
@@ -71,14 +78,14 @@ def run(model):
     parent.mkdir(parents=True, exist_ok=True)
     output = Path(tempfile.mkdtemp(prefix=f"standard-{model}-", dir=parent))
     print(f"DE25 Spectrum simulation directory: {output}", flush=True)
-    firmware = diagnostic / ("firmware.rom" if model == "48" else "firmware-32k.rom")
+    firmware = diagnostic / FIRMWARE[model]
     subprocess.run(["verilator", "--cc", "--exe", "--build", "-j", "4", "--public-flat-rw", "-O3",
                     "-Wall", *["-Wno-" + name for name in WAIVERS], *MODELS[model],
                     "--top-module", "fes_de25_spectrum_standard", "--Mdir", str(output),
                     "-GSDRAM_POWERUP_CYCLES=16",
                     "-GBUILD_ID=128'h00112233445566778899aabbccddeeff",
                     *["-I" + str(path) for path in includes()],
-                    "-CFLAGS", f"-O2 -DSPECTRUM_BANKS={3 if model == '48' else 8}",
+                    "-CFLAGS", f"-O2 {BENCH[model]}",
                     *map(str, sources(output)), str(HERE / "standard_tb.cpp")], cwd=ROOT, check=True)
     subprocess.run([str(output / "Vfes_de25_spectrum_standard"), str(firmware),
                     str(diagnostic / "tape.pzx")], cwd=output, check=True)

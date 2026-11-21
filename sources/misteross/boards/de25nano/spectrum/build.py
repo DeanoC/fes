@@ -13,9 +13,10 @@ DIRECTORY = "spectrum"
 CORE_ID = "fes.spectrum"
 COMPONENT = "fes_de25_spectrum_standard"
 SDC = BOARD + "spectrum/spectrum-clocks.sdc"
-MODELS = {"48": None, "128": "SPECTRUM_MODEL_128K"}
+MODELS = {"48": None, "128": "SPECTRUM_MODEL_128K", "plus3": "SPECTRUM_MODEL_PLUS3",
+          "pentagon": "SPECTRUM_MODEL_PENTAGON"}
 # The exact image each model's upload endpoint takes.
-FIRMWARE_BYTES = {"48": 16384, "128": 32768}
+FIRMWARE_BYTES = {"48": 16384, "128": 32768, "plus3": 65536, "pentagon": 49152}
 ASSIGNMENTS = ()
 # Qsys writes this peripheral subsystem for the component: the standard ZX81
 # parent with the machine clock bridge and the SDRAM conduit in place of the

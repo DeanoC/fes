@@ -19,24 +19,29 @@ type learnStep struct {
 	note string
 	// optional steps can be skipped with the button just mapped to B.
 	optional bool
+	// stick steps take one half of a centred axis, pushed all the way, and
+	// map the whole axis as the left stick.
+	stick bool
 }
 
 // learnSteps are asked in order. The directions, A and B come first and
 // cannot be skipped: FES menus need them, and once B is known the player
-// can skip the rest with it.
+// can skip the rest with it. The left stick comes last, as two pushes.
 var learnSteps = []learnStep{
-	{"dpup", gfx.PromptDPad, "Up", "", false},
-	{"dpdown", gfx.PromptDPad, "Down", "", false},
-	{"dpleft", gfx.PromptDPad, "Left", "", false},
-	{"dpright", gfx.PromptDPad, "Right", "", false},
-	{"a", gfx.PromptSouth, "A", "Confirm", false},
-	{"b", gfx.PromptEast, "B", "Back", false},
-	{"x", gfx.PromptWest, "X", "", true},
-	{"y", gfx.PromptNorth, "Y", "", true},
-	{"leftshoulder", gfx.PromptL, "L", "Left shoulder", true},
-	{"rightshoulder", gfx.PromptR, "R", "Right shoulder", true},
-	{"back", gfx.PromptSelect, "Select", "", true},
-	{"start", gfx.PromptStart, "Start", "", true},
+	{"dpup", gfx.PromptDPad, "Up", "", false, false},
+	{"dpdown", gfx.PromptDPad, "Down", "", false, false},
+	{"dpleft", gfx.PromptDPad, "Left", "", false, false},
+	{"dpright", gfx.PromptDPad, "Right", "", false, false},
+	{"a", gfx.PromptSouth, "A", "Confirm", false, false},
+	{"b", gfx.PromptEast, "B", "Back", false, false},
+	{"x", gfx.PromptWest, "X", "", true, false},
+	{"y", gfx.PromptNorth, "Y", "", true, false},
+	{"leftshoulder", gfx.PromptL, "L", "Left shoulder", true, false},
+	{"rightshoulder", gfx.PromptR, "R", "Right shoulder", true, false},
+	{"back", gfx.PromptSelect, "Select", "", true, false},
+	{"start", gfx.PromptStart, "Start", "", true, false},
+	{"leftx", gfx.PromptDPad, "Stick right", "", true, true},
+	{"lefty", gfx.PromptDPad, "Stick down", "", true, true},
 }
 
 // learnIdle is how long mapping waits for a press before it stops and
@@ -81,6 +86,8 @@ type LearnSnapshot struct {
 	Note     string
 	Control  gfx.PromptControl
 	Optional bool
+	// Stick is a step that wants the left stick pushed, not a press.
+	Stick bool
 	// Skip is the raw control that skips an optional step.
 	Skip   string
 	Review bool
@@ -137,12 +144,46 @@ func (a *App) LearnPadSource(id int, source string, now time.Time) {
 		l.advance()
 		return
 	}
+	if step.stick {
+		axis, ok := l.stickAxis(source)
+		if !ok {
+			return
+		}
+		source = axis
+	}
 	if used := l.targetOf(source); used != "" {
 		l.note = fmt.Sprintf("That control is already %s. Press another.", learnLabel(used))
 		return
 	}
 	l.sources[step.target] = source
 	l.advance()
+}
+
+// stickAxis turns one push of a stick into its whole axis: aN when the
+// push reads positive, as SDL's right and down do, and aN~ when the axis
+// runs the other way. A button, a hat, a trigger or an axis already mapped
+// is refused with a note.
+func (l *padLearn) stickAxis(source string) (string, bool) {
+	if len(source) < 3 || (source[0] != '+' && source[0] != '-') {
+		l.note = "Push the stick all the way. Buttons, hats and triggers cannot be a stick."
+		return "", false
+	}
+	axis := source[1:]
+	for target, s := range l.sources {
+		if strings.TrimSuffix(strings.TrimLeft(s, "+-"), "~") != axis {
+			continue
+		}
+		if strings.HasPrefix(target, "dp") {
+			l.note = "That stick already moves the directions, and it still will. Skip this step to keep it that way."
+		} else {
+			l.note = fmt.Sprintf("That axis is already %s. Push the stick the other way.", learnLabel(target))
+		}
+		return "", false
+	}
+	if source[0] == '-' {
+		axis += "~"
+	}
+	return axis, true
 }
 
 func (l *padLearn) targetOf(source string) string {
@@ -262,7 +303,7 @@ func (a *App) learnSnapshotLocked(now time.Time) LearnSnapshot {
 	}
 	if !l.review {
 		step := learnSteps[l.step]
-		snap.Label, snap.Note, snap.Control, snap.Optional = step.label, step.note, step.control, step.optional
+		snap.Label, snap.Note, snap.Control, snap.Optional, snap.Stick = step.label, step.note, step.control, step.optional, step.stick
 	}
 	for i, s := range learnSteps {
 		row := LearnRow{Label: s.label, Note: s.note}

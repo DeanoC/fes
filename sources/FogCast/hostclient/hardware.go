@@ -15,8 +15,11 @@ import (
 // ExpansionSelection is whether this listener accepts the single-entry
 // next-start PUT. Nil means an older host did not advertise it.
 type HardwareSnapshot struct {
-	Machines           []HardwareMachine `json:"machines"`
-	Computers          []ShelfComputer   `json:"computers,omitempty"`
+	Machines  []HardwareMachine `json:"machines"`
+	Computers []ShelfComputer   `json:"computers,omitempty"`
+	// Packages says what each computer package's media keeps. A host from
+	// before it sends none, and nothing is known then.
+	Packages           []ComputerPackage `json:"packages,omitempty"`
 	Session            *SessionResult    `json:"session,omitempty"`
 	SessionError       string            `json:"session_error,omitempty"`
 	ExpansionSelection *bool             `json:"expansion_selection,omitempty"`
@@ -31,6 +34,16 @@ type ShelfComputer struct {
 	PackageID         string `json:"package_id"`
 	Ready             bool   `json:"ready"`
 	UnavailableReason string `json:"unavailable_reason,omitempty"`
+}
+
+type ComputerPackage struct {
+	PackageID string               `json:"package_id"`
+	Media     []ComputerMediaSaves `json:"media"`
+}
+
+type ComputerMediaSaves struct {
+	Role  string `json:"role"`
+	Saves bool   `json:"saves"`
 }
 
 type HardwareMachine struct {
@@ -82,6 +95,7 @@ func (c *Client) Hardware(ctx context.Context) (HardwareSnapshot, error) {
 	var wire struct {
 		Machines           []HardwareMachine `json:"machines"`
 		Computers          []ShelfComputer   `json:"computers"`
+		Packages           []ComputerPackage `json:"packages"`
 		Session            json.RawMessage   `json:"session"`
 		SessionError       string            `json:"session_error"`
 		ExpansionSelection *bool             `json:"expansion_selection"`
@@ -89,7 +103,7 @@ func (c *Client) Hardware(ctx context.Context) (HardwareSnapshot, error) {
 	if err := c.getJSON(ctx, "/api/v1/library/hardware", &wire); err != nil {
 		return HardwareSnapshot{}, err
 	}
-	result := HardwareSnapshot{Machines: wire.Machines, Computers: wire.Computers, SessionError: wire.SessionError, ExpansionSelection: wire.ExpansionSelection}
+	result := HardwareSnapshot{Machines: wire.Machines, Computers: wire.Computers, Packages: wire.Packages, SessionError: wire.SessionError, ExpansionSelection: wire.ExpansionSelection}
 	if result.Machines == nil {
 		result.Machines = []HardwareMachine{}
 	}

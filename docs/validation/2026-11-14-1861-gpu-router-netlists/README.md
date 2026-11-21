@@ -208,31 +208,37 @@ the answer is two groups rather than one number:
   housekeeping -- would make `check_shas.py` fail and strip the provenance from
   all fourteen. The annotated tag `evidence/1862-seals`, at `e3fc6c144fac`,
   covers every one of them; Deano approved pushing it on 19 November.
-- **This PR's own commits**, which the reports under `reports-preserve/` cite
-  as the head they were measured at. Merging this PR with a merge commit makes
-  them ancestors of main; squashing it repeats the trap one more time.
+- **Three commits of `#1992`'s own**, which the reports under
+  `reports-preserve/` cite as the head they were measured at. `#1992` was
+  squash-merged as `2b1253444`, so they are not ancestors of main either. The
+  annotated tag `evidence/1992-preserve`, at `#1992`'s branch head
+  `141e0cbc7a38`, holds all three; Deano approved pushing it on 21 November.
 
 `sha_exposure.py` prints "17 cited commits are NOT ancestors of origin/main"
-at this checkout, and the clone proof above prints "17 objects ... do not
+at the checkout it was run in, and the clone proof above prints "17 objects ... do not
 resolve". **Those are two different seventeens, and neither is the other.** The
 clone's seventeen is #1862's branch alone -- fourteen commits plus three trees
--- because a clone of *this* branch holds this PR's commits. The checkout's
-seventeen is those same fourteen commits plus three of this PR's own, and it
+-- because a clone of `#1992`'s branch held `#1992`'s commits. The checkout's
+seventeen is those same fourteen commits plus three of `#1992`'s own, and it
 skips trees entirely, because a tree is held by whatever commit holds it. The
 figure to act on is the clone's: seventeen objects lost if #1862's branch is
 deleted. And what a *reader* needs is narrower than what is cited --
 the anchors these checks compare are the `sources/misteross` and `config` tree
 objects, and those are main's.
 
-### For Deano
+### Tags
 
-- Done: the annotated tag `evidence/1862-seals` at `e3fc6c144fac` (`#1862`'s
-  branch head) holds all seventeen exposed objects, both seal commits and both
-  seals' source trees among them. `reports-preserve/fresh-clone.log` predates
+Every commit that `reports-preserve/sha-exposure.log` lists is an ancestor of
+one of these two tags (checked with `git merge-base --is-ancestor` on 21
+November: fourteen under the first, three under the second).
+
+- The annotated tag `evidence/1862-seals` at `e3fc6c144fac` (`#1862`'s
+  branch head) holds the seventeen objects the clone proof loses (fourteen
+  commits and three trees), both seal commits and both seals' source trees
+  among them. `reports-preserve/fresh-clone.log` predates
   the tag and shows the damage without it, `check_shas.py` exit 1.
-- A second tag at this PR's own merged head would do the same for its reports.
-  Merging this PR without squashing would too, but main's history is all squash
-  commits and `lane:lander` auto-merges, so the tag is the robust one.
+- The annotated tag `evidence/1992-preserve` at `141e0cbc7a38` (`#1992`'s
+  branch head) holds the three `#1992` commits the reports cite.
 
 ## Which artefacts are affected, measured rather than argued
 

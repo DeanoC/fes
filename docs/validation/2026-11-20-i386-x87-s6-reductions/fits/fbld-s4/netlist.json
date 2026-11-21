@@ -1,0 +1,14 @@
+{
+  "fitted_netlist": {
+    "duplicate_attribute_count": 30,
+    "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+    "fitted_sha256": "73d88147abe180f851dae95e6c861a3f2e938bc77b07c46f99b5321d0c478976",
+    "ram_attribute": "renamed 59 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+    "ram_attribute_count": 59,
+    "source": "/data/x87s63pb/elab-fbld/netlist/pc386_system.v",
+    "source_sha256": "60309410e120b48b0e195f6b2c7d238273ad22ec950e54555e01c5b67d80c5b9"
+  },
+  "reused": "/data/x87s63pb/elab-fbld/netlist/pc386_system.v",
+  "source_revision": "b4213b4d6",
+  "source_revision_note": "b4213b4d6 (FBLD on the engine, on main b206f9aaf) plus identity-on.patch; CUDA-slot Yosys on chip-30x0-ai-dev; fitted on Powerboat"
+}

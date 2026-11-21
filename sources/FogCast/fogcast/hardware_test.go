@@ -24,7 +24,7 @@ func TestZX81FirmwareReadinessKeepsLegacyDE10NoROMGate(t *testing.T) {
 	entry := catalog.CoreEntry{}
 	descriptor := corepackage.Descriptor{
 		Format: 4,
-		Core: corepackage.Core{ID: "fes.pong"},
+		Core:   corepackage.Core{ID: "fes.pong"},
 		Target: corepackage.Target{Platform: "de10_nano"},
 	}
 	if service.zx81FirmwareReady(context.Background(), entry, descriptor) {
@@ -129,7 +129,7 @@ func TestShelfComputersIncludesAllPlayableLibraryCores(t *testing.T) {
 	if _, err := store.CreateCoreEntry(ctx, "Pong", "fes.pong", entry.PackageID); err != nil {
 		t.Fatal(err)
 	}
-	listed, err := s.ShelfComputers(ctx)
+	listed, _, err := s.ShelfComputers(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,20 +164,20 @@ func TestShelfComputerRequiresZX81LinkerAndValidSelectedMedia(t *testing.T) {
 	ctx := context.Background()
 	archive, _ := hardwareZX81Fixture(t, false, false)
 	s, _, _, _ := newCoreEntryLaunchFixture(t, archive, "ZX81 with tape", time.Minute)
-	listed, err := s.ShelfComputers(ctx)
+	listed, _, err := s.ShelfComputers(ctx)
 	if err != nil || len(listed) != 1 || listed[0].Ready {
 		t.Fatalf("ZX81 without machine linker looked ready: %+v err=%v", listed, err)
 	}
 
 	s.SetMachineROMLinker(shelfReadyMachineROM{})
-	listed, err = s.ShelfComputers(ctx)
+	listed, _, err = s.ShelfComputers(ctx)
 	if err != nil || len(listed) != 1 || !listed[0].Ready {
 		t.Fatalf("ZX81 with valid linker and tape not ready: %+v err=%v", listed, err)
 	}
 
 	store := s.catalog.(*catalog.Store)
 	s.catalog = invalidShelfMediaCatalog{Store: store}
-	listed, err = s.ShelfComputers(ctx)
+	listed, _, err = s.ShelfComputers(ctx)
 	if err != nil || len(listed) != 1 || listed[0].Ready {
 		t.Fatalf("ZX81 with invalid saved tape looked ready: %+v err=%v", listed, err)
 	}
@@ -204,7 +204,7 @@ func TestShelfComputerRequiresNativeVideoAdmission(t *testing.T) {
 	if !hasVideoSocket(inspection) || !requiresVideoPart(inspection) {
 		t.Fatalf("fixture did not declare required native video: %+v", inspection.Descriptor.Interfaces)
 	}
-	listed, err := s.ShelfComputers(ctx)
+	listed, _, err := s.ShelfComputers(ctx)
 	if err != nil || len(listed) != 1 || listed[0].Ready {
 		t.Fatalf("native-video computer without an admitted video part looked ready: %+v err=%v", listed, err)
 	}

@@ -1,0 +1,31 @@
+diff --git a/sources/misteross/cores/fes-pc386/rtl/pc386_kbc.sv b/sources/misteross/cores/fes-pc386/rtl/pc386_kbc.sv
+index 316603840..05b7239c5 100644
+--- a/sources/misteross/cores/fes-pc386/rtl/pc386_kbc.sv
++++ b/sources/misteross/cores/fes-pc386/rtl/pc386_kbc.sv
+@@ -152,7 +152,7 @@ module pc386_kbc #(
+         keyboard_take <= 0;
+         aux_take <= 0;
+         if (reset) begin
+-            for (n = 1; n < 32; n = n + 1) ram[n] <= 0;
++            // AREA STUDY ABLATION (not for merge): bytes 1-31 dropped.
+             // Keyboard interface and both interrupts enabled, aux disabled, XLAT.
+             ram[0] <= 8'h63;
+             obf <= 0; aux_obf <= 0; ibf <= 0; last_command <= 1;
+@@ -200,7 +200,7 @@ module pc386_kbc #(
+                 if (a2) begin
+                     pending <= NONE;
+                     casez (wdata)
+-                        8'b001?????: begin response <= ram[wdata[4:0]]; response_aux <= 0; response_valid <= 1; end
++                        8'b001?????: begin response <= wdata[4:0] == 0 ? ram[0] : 8'h00; response_aux <= 0; response_valid <= 1; end
+                         8'b011?????: begin pending <= WRITE_RAM; pending_index <= wdata[4:0]; end
+                         8'ha7: ram[0][5] <= 1;
+                         8'ha8: ram[0][5] <= 0;
+@@ -225,7 +225,7 @@ module pc386_kbc #(
+                 end else begin
+                     pending <= NONE;
+                     case (pending)
+-                        WRITE_RAM: ram[pending_index] <= wdata;
++                        WRITE_RAM: if (pending_index == 0) ram[0] <= wdata;
+                         WRITE_OUTPUT: begin
+                             output_port <= wdata[1:0];
+                             if (!wdata[0]) cpu_reset <= 1;

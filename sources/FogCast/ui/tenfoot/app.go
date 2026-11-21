@@ -342,6 +342,7 @@ type App struct {
 	padProfiles       map[string]inputmap.Profile
 	padProfilesUnread bool
 	padProfileGen     uint64
+	padStateGen       uint64 // room.pads() changes: attach, leave, press, release, save
 	controllers       controllersState
 	repeat            Repeater
 	theme             theme.Theme
@@ -594,13 +595,17 @@ type App struct {
 	tapePickerOpen           bool
 	tapePickerAtRoots        bool
 	tapePickerBusy           bool
-	tapePickerIndex          int
-	tapePickerGen            int
-	tapePickerPath           string
-	tapePickerStatus         string
-	tapePickerRows           []TapePickerRow
-	tapePickerSession        hostclient.SessionResult
-	tapePickerStarters       []hostclient.HardwareTape
+	// diskChangeBusy is a core screen Next disk in flight.
+	diskChangeBusy     bool
+	tapePickerIndex    int
+	tapePickerGen      int
+	tapePickerPath     string
+	tapePickerStatus   string
+	tapePickerRows     []TapePickerRow
+	tapePickerSession  hostclient.SessionResult
+	tapePickerStarters []hostclient.HardwareTape
+	// tapePickerSet is the running game's disk set as picker rows.
+	tapePickerSet []TapePickerRow
 
 	// A bounded, root-requested test observation may defer the surround for
 	// this exact play session. It never changes the saved user preference.
