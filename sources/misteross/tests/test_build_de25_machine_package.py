@@ -30,6 +30,10 @@ SHELL = {'fes.video.fixed-720p60', 'fes.keyboard.hid', 'fes.gamepad.ports', 'fes
 CASES = (
     (spectrum, '48', 16384, 'fes.spectrum', 'spectrum-firmware', {'fes.media.spectrum-tape'}),
     (spectrum, '128', 32768, 'fes.spectrum128', 'spectrum128-firmware', {'fes.media.spectrum-tape'}),
+    (spectrum, 'plus3', 65536, 'fes.spectrum-plus3', 'spectrum-plus3-firmware',
+     {'fes.media.spectrum-tape', 'fes.media.spectrum-disk', 'fes.media.spectrum-disk-plus3'}),
+    (spectrum, 'pentagon', 49152, 'fes.pentagon', 'pentagon-firmware',
+     {'fes.media.spectrum-tape', 'fes.media.spectrum-disk', 'fes.media.spectrum-disk-trdos'}),
     (atari_st, '520st', 196608, 'fes.atari-st', 'atari-st-firmware', {'fes.mouse.relative', 'fes.media.atari-st-floppy',
                                  'fes.media.atari-st-floppy-write', 'fes.media.atari-st-floppy-geometry'}),
     (c64, 'pal', 36864, 'fes.c64', 'c64-firmware', {'fes.media.c64-disk'}),
@@ -119,7 +123,9 @@ class MachineProducerTests(unittest.TestCase):
                                                       'programming_profile': 'de25-linux-computer-v1'})
                 self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 0})
                 self.assertEqual({i['id'] for i in manifest['interfaces']}, SHELL | media)
-                self.assertTrue(all(i['required'] for i in manifest['interfaces']))
+                # Only a disk controller is optional, and it is declared beside its disk unit.
+                self.assertEqual({i['id'] for i in manifest['interfaces'] if not i['required']},
+                                 media & {'fes.media.spectrum-disk-plus3', 'fes.media.spectrum-disk-trdos'})
                 versions = {i['id']: (i['major'], i['minor']) for i in manifest['interfaces']}
                 self.assertEqual(versions['fes.fabric.de25-scanout'], (1, 3))
                 self.assertEqual(versions['fes.fabric.firmware-upload'], (1, 0))

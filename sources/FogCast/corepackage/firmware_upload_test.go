@@ -126,7 +126,8 @@ func TestFirmwareUploadStagesTheSourceBesideTheUnchangedPackage(t *testing.T) {
 	for _, machine := range []struct {
 		core string
 		size int
-	}{{"fes.spectrum", 16384}, {"fes.spectrum", 32768}, {"fes.spectrum128", 32768}, {"fes.atari-st", 196608},
+	}{{"fes.spectrum", 16384}, {"fes.spectrum", 32768}, {"fes.spectrum128", 32768}, {"fes.spectrum-plus3", 65536},
+		{"fes.pentagon", 49152}, {"fes.atari-st", 196608},
 		{"fes.c64", 36864}} {
 		t.Run(fmt.Sprint(machine.core, "-", machine.size), func(t *testing.T) {
 			pkg, rom := de25UploadPackage(t, machine.core, machine.size), firmwareImage(machine.size)

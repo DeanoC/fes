@@ -56,10 +56,12 @@ func FirmwareUpload(d Descriptor) bool {
 // any 1 KiB multiple; a launch does not.
 func firmwareUploadMachine(d Descriptor) error {
 	sizes := map[string][]int64{
-		"fes.spectrum":    {16384, 32768},
-		"fes.spectrum128": {32768},
-		"fes.atari-st":    {196608},
-		"fes.c64":         {36864},
+		"fes.spectrum":       {16384, 32768},
+		"fes.spectrum128":    {32768},
+		"fes.spectrum-plus3": {65536},
+		"fes.pentagon":       {49152},
+		"fes.atari-st":       {196608},
+		"fes.c64":            {36864},
 	}[d.Core.ID]
 	if !FirmwareUpload(d) || d.Target.ProgrammingProfile != "de25-linux-computer-v1" ||
 		d.ABI != (Contract{ID: "fes.computer", Major: 1}) || !slices.Contains(sizes, d.ROM.SourceSize) {
