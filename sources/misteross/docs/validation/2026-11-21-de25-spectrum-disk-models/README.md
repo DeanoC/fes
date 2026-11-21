@@ -69,6 +69,9 @@ disk-backed library entry and launched. The disk came up on media unit 1
 - +2A/+3: a `.dsk` auto-booted from the +3 loader to the game's title menu.
 - Pentagon 128: a `.trd` booted through TR-DOS to the game's main menu.
 
+The captured frames, scaled to half size: `plus3-disk-boot.png` and
+`pentagon-disk-boot.png`.
+
 Before the controller declaration the host refused both disk entries
 (`UNSUPPORTED_OPERATION`), so neither model launched.
 
