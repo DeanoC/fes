@@ -106,6 +106,7 @@ ac-real-int-clears stop @100b.eflags 40002 2
 ac-pm-int-keeps stop @1046.eflags 40002 2
 bswap-r16 stop @1006.unexpected-exception 0 6
 cpuid-2 stop @1006.unexpected-exception 0 6
+dr6-bit12 agree
 xadd-m16-mmio stop @100e.unexpected-exception 0 6
 cmpxchg-m16-mmio-equal stop @1011.unexpected-exception 0 6
 cmpxchg-m16-mmio-unequal stop @1011.unexpected-exception 0 6

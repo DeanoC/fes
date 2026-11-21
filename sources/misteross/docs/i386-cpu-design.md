@@ -343,7 +343,10 @@ With `I486 = 1`:
   faults. Under AM at CPL 3 an access waits in D for an older EFLAGS load.
 - **TR3** is storage, as TR4 to TR7 are; none has its test function.
 - **Reset.** A machine with the identity resets DX to the signature, CR0 to
-  `60000010h` and DR6 to `FFFF0FF0h` (`pc386_system`'s `init_*`).
+  `60000010h` and DR6 to `FFFF0FF0h` (`pc386_system`'s `init_*`). DR6's bit
+  12 is then held as on the 386: a MOV to DR6 may set it (Intel SDM vol. 3,
+  the debug registers' compatibility notes: on the Intel486 it is possible
+  to write a 1 there).
 - **Speed.** The governor costs each new instruction at the i486's count on
   every table (governor.toml).
 

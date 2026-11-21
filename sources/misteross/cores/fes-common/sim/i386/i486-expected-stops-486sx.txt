@@ -107,6 +107,7 @@ ac-real-int-clears agree
 ac-pm-int-keeps agree
 bswap-r16 agree
 cpuid-2 agree
+dr6-bit12 agree
 xadd-m16-mmio agree
 cmpxchg-m16-mmio-equal agree
 cmpxchg-m16-mmio-unequal agree

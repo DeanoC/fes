@@ -663,6 +663,20 @@ def cases() -> list[Case]:
          i486='zeros in EAX, EBX, ECX and EDX (DB Appendix B, item 3; AP-485 Table 1 says undefined)',
          what='CPUID leaf 2, above the highest')
 
+    # DR6 bit 12: 0 at reset (PRM Table 10-1), and a MOV to DR6 sets it on a
+    # 486 (Intel SDM vol. 3, the debug registers' compatibility notes: "it
+    # is possible to write a 1 in this bit on the Intel486 processor"; a
+    # Pentium's reads 0). The level-4 random programs found the RTL reading
+    # it as 0.
+    def dr6_bit12(a):
+        a.op(0x66, 0xb8).d(0x1000)                    # MOV EAX, 1000h
+        probe = a.here()
+        a.op(0x0f, 0x23, 0xf0)                        # MOV DR6, EAX
+        a.op(0x0f, 0x21, 0xf3)                        # MOV EBX, DR6
+        return probe
+    real('dr6-bit12', 'Intel SDM vol. 3, debug registers (compatibility); PRM Table 10-1',
+         {'end': 'halt', 'ebx': 0xffff1ff0}, dr6_bit12, what='DR6 bit 12 is writable on a 486')
+
     # XADD and CMPXCHG on MMIO (the lockstep's A0000h-BFFFFh window, which
     # the i486 mode maps): each reads its operand once, as a locked
     # read-modify-write does (PRM ch. 26, LOCK and XADD: a read and then a
