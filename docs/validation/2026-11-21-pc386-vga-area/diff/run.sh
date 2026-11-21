@@ -24,13 +24,15 @@ PY
   ) > "$OUT/netlist.ys"
   (cd "$OUT" && "$YOSYS" -q -s netlist.ys > yosys.log 2>&1)
   NEW=("$OUT/pc386_vga_netlist.v")
+  # The netlist does not model PC386_RAM_COLLISION's poison, so neither side has it.
   FLAGS=(-DVGA_DIFF_NETLIST -GDOT0_N=1007 -GDOT0_D=4000 -GDOT1_N=14161 -GDOT1_D=50000)
 else
   NEW=("$C/pc386_vga.sv" "$C/pc386_vga_scanout.sv")
-  FLAGS=(${RATES:+$RATES})
+  # RTL against RTL: both sides poison an M10K read of the word being written.
+  FLAGS=(-DPC386_RAM_COLLISION ${RATES:+$RATES})
 fi
-verilator --cc --exe --build -j 4 -O3 --top-module vga_diff_top -Wno-fatal -Wno-lint -Wno-style \
-  -DPC386_RAM_COLLISION "${FLAGS[@]}" --Mdir "$OUT/obj" -CFLAGS "-std=c++17 -O2" \
+verilator --cc --exe --build -j "${JOBS:-4}" -O3 --top-module vga_diff_top -Wno-fatal -Wno-lint -Wno-style \
+  "${FLAGS[@]}" --Mdir "$OUT/obj" -CFLAGS "-std=c++17 -O2" \
   "$C/pc386_rate.sv" "$C/pc386_ram.sv" "$OUT/pc386_vga_ref.sv" "$OUT/pc386_vga_scanout_ref.sv" "${NEW[@]}" \
   "$HERE/vga_diff_top.sv" "$HERE/vga_diff_tb.cpp" > "$OUT/build.log" 2>&1 || { tail -30 "$OUT/build.log"; exit 1; }
-for s in $(seq 1 "$SEEDS"); do echo "$s"; done | xargs -P 4 -I{} "$OUT/obj/Vvga_diff_top" {} "$CLOCKS"
+for s in $(seq 1 "$SEEDS"); do echo "$s"; done | xargs -P "${JOBS:-4}" -I{} "$OUT/obj/Vvga_diff_top" {} "$CLOCKS"

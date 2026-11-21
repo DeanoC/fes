@@ -28,7 +28,8 @@ struct Beat {
 const char *const kGroup[] = {"none", "io_done/io_rdata", "mem_ready/mem_rvalid", "mem_rdata", "p1_read/p1_write",
                               "p1_address/p1_burstcount", "p1_writedata/p1_byteenable", "cap_write",
                               "cap_address/burstcount/writedata", "frame buffer/size/sequence",
-                              "frame strobes/frame_count", "underflows/capture_drops", "", "p1_writedata/p1_byteenable while p1_write is low"};
+                              "frame strobes/frame_count", "underflows/capture_drops", "", "p1_writedata/p1_byteenable while p1_write is low",
+                              "cap_writedata while cap_write is low"};
 
 }  // namespace
 
@@ -147,7 +148,13 @@ int main(int argc, char **argv) {
         if (top->cap_write && !top->cap_waitrequest) ++cap_beats;
         if (top->diff) {
             std::fprintf(stderr, "FAIL seed %llu clock %llu: %s differs\n", static_cast<unsigned long long>(seed),
-                         static_cast<unsigned long long>(now), kGroup[top->diff < 14 ? top->diff : 0]);
+                         static_cast<unsigned long long>(now), kGroup[top->diff < 12 ? top->diff : 0]);
+            if (top->diff == 8)
+                std::fprintf(stderr, "  capture: base write %d address %08x burst %u data %016llx; new write %d address %08x burst %u data %016llx\n",
+                             top->cap_write, top->cap_address, top->cap_burstcount,
+                             static_cast<unsigned long long>(top->cap_writedata), top->new_cap_write,
+                             top->new_cap_address, top->new_cap_burstcount,
+                             static_cast<unsigned long long>(top->new_cap_writedata));
             return 1;
         }
         // Handshakes complete on the reference's strobes.

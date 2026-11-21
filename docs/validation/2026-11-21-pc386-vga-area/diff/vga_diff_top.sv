@@ -31,7 +31,12 @@ module vga_diff_top #(
     output wire [63:0] cap_writedata,
     output wire [15:0] frame_count,
     output wire [15:0] frame_sequence,
-    output reg [4:0] diff
+    output reg [4:0] diff,
+    // The new side's capture port, for the failure report
+    output wire [28:0] new_cap_address,
+    output wire [7:0] new_cap_burstcount,
+    output wire new_cap_write,
+    output wire [63:0] new_cap_writedata
 );
     wire [7:0] a_io_rdata, b_io_rdata;
     wire [31:0] a_mem_rdata, b_mem_rdata;
@@ -95,14 +100,7 @@ module vga_diff_top #(
         else if (a_mem_rdata != b_mem_rdata) diff = 3;
         else if (a_p1_read != b_p1_read || a_p1_write != b_p1_write) diff = 4;
         else if (a_p1_address != b_p1_address || a_p1_burstcount != b_p1_burstcount) diff = 5;
-        else if (a_p1_write && (a_p1_writedata != b_p1_writedata || a_p1_byteenable != b_p1_byteenable)) diff = 6;
-`ifndef VGA_DIFF_NETLIST
-        // Not in netlist mode: between drains p1_writedata is the line RAM's
-        // read of a word being written, which PC386_RAM_COLLISION poisons in
-        // the RTL and the netlist's memory model does not. The base commit's
-        // own netlist differs from its RTL here at the same clocks.
-        else if (!a_p1_write && (a_p1_writedata != b_p1_writedata || a_p1_byteenable != b_p1_byteenable)) diff = 13;
-`endif
+        else if (a_p1_writedata != b_p1_writedata || a_p1_byteenable != b_p1_byteenable) diff = 6;
         else if (a_cap_write != b_cap_write) diff = 7;
         else if (a_cap_address != b_cap_address || a_cap_burstcount != b_cap_burstcount ||
                  a_cap_writedata != b_cap_writedata) diff = 8;
@@ -112,6 +110,8 @@ module vga_diff_top #(
                  a_start_latched != b_start_latched || a_frame_count != b_frame_count) diff = 10;
         else if (a_underflows != b_underflows || a_drops != b_drops) diff = 11;
     end
+    assign new_cap_address = b_cap_address; assign new_cap_burstcount = b_cap_burstcount;
+    assign new_cap_write = b_cap_write; assign new_cap_writedata = b_cap_writedata;
     assign io_done = a_io_done; assign mem_ready = a_mem_ready; assign mem_rvalid = a_mem_rvalid;
     assign p1_address = a_p1_address; assign p1_burstcount = a_p1_burstcount; assign p1_read = a_p1_read;
     assign p1_write = a_p1_write; assign p1_writedata = a_p1_writedata; assign p1_byteenable = a_p1_byteenable;
