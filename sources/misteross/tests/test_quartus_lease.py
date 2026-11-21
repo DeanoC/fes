@@ -1085,7 +1085,9 @@ class LaunchGuardTests(unittest.TestCase):
         for argv in (["ssh", "host"], ["ssh", "host", "sh -s"], ["sh"], ["bash", "-s"], ["python3", "-"],
                      # Codex P1s at bd91c3eca: behind a wrapper, and an option operand.
                      ["env", "python3", "-"], ["timeout", "60", "sh"], ["python3", "-W", "ignore"],
-                     ["bash", "-o", "pipefail"]):
+                     ["bash", "-o", "pipefail"],
+                     # Codex P1s at 3c574e500: wrapped over ssh, and perl -c.
+                     ["ssh", "host", "env", "python3", "-"], ["perl", "-c"]):
             with self.assertRaises(qt.QuartusLeaseError, msg=argv):
                 subprocess.run(argv, input="true\n", text=True, capture_output=True)
         with qt.stdin_program():
@@ -1093,6 +1095,7 @@ class LaunchGuardTests(unittest.TestCase):
         self.assertEqual(subprocess.run(["sh", "-c", "true"]).returncode, 0)
         self.assertEqual(subprocess.run(["python3", "-c", "pass"]).returncode, 0)
         self.assertEqual(subprocess.run(["python3", "-W", "ignore", "-c", "pass"]).returncode, 0)
+        self.assertFalse(qt._reads_program_from_stdin(["perl", "-e", "1"]))
         # Codex P1 at 00058c57d: ssh behind an execution wrapper.
         for argv in (["env", "ssh", "host", "/remote/bin/quartus_fit", "top"],
                      ["env", "-i", "X=1", "timeout", "60", "nice", "-n", "5", "ssh", "host", "quartus_sh", "-t", "x"],

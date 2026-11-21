@@ -743,7 +743,15 @@ INTERPRETERS = SHELLS | {"python", "python3", "perl", "ruby", "node", "tclsh"}
 # Options that take the next word as their operand, per interpreter family.
 OPTION_OPERANDS = {"python": {"-W", "-X", "--check-hash-based-pycs"},
                    "shell": {"-o", "+o", "-O", "+O", "--rcfile", "--init-file"},
-                   "other": {"-I", "-M", "-r", "--require", "-encoding"}}
+                   "perl": {"-I", "-M", "-m", "-x"},
+                   "ruby": {"-I", "-r", "-C", "-E"},
+                   "node": {"-r", "--require", "--import"},
+                   "tclsh": {"-encoding"}}
+# Flags whose operand is the program text, per family (perl -c only checks
+# syntax, yet runs BEGIN blocks from stdin: it is not one).
+PROGRAM_FLAGS = {"python": re.compile(r"-[A-Za-z]*c[A-Za-z]*|-m"), "shell": re.compile(r"-[A-Za-z]*c[A-Za-z]*"),
+                 "perl": re.compile(r"-[A-Za-z]*[eE]"), "ruby": re.compile(r"-[A-Za-z]*e"),
+                 "node": re.compile(r"-e|--eval|-p|--print"), "tclsh": re.compile(r"(?!)")}
 
 
 def _reads_program_from_stdin(texts: list[str]) -> bool:
@@ -755,8 +763,8 @@ def _reads_program_from_stdin(texts: list[str]) -> bool:
     python = bool(re.fullmatch(r"python(3(\.\d+)?)?", name))
     if not (name in INTERPRETERS or python):
         return False
-    family = "python" if python else "shell" if name in SHELLS else "other"
-    takes = OPTION_OPERANDS[family]
+    family = "python" if python else "shell" if name in SHELLS else name
+    takes, program_flag = OPTION_OPERANDS[family], PROGRAM_FLAGS[family]
     index = 1
     while index < len(texts):
         word = texts[index]
@@ -764,7 +772,7 @@ def _reads_program_from_stdin(texts: list[str]) -> bool:
             return True
         if word == "-":
             return True
-        if re.fullmatch(r"-[A-Za-z]*c[A-Za-z]*", word) or word in ("-e", "-m"):
+        if program_flag.fullmatch(word):
             return False  # the program is an argument
         if word == "--":
             index += 1
@@ -799,9 +807,11 @@ def _check_stdin_program(texts: list[str]) -> None:
         remote_words = []
         for text in command[index + 1:]:
             remote_words.extend(text.split())
-        if not remote_words or _reads_program_from_stdin(remote_words):
+        if not remote_words:
             raise QuartusLeaseError("refusing ssh that runs a program from its stdin, which cannot be checked "
                                     "for an unleased Quartus program: use scripts/quartus_jobs.py remote")
+        # The remote command, wrappers and all, as a local one would be.
+        _check_stdin_program(remote_words)
         return
     if _reads_program_from_stdin(command):
         raise QuartusLeaseError("refusing a shell or interpreter that reads its program from stdin, which "
