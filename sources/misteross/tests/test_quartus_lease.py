@@ -708,6 +708,13 @@ class LaunchGuardTests(unittest.TestCase):
         (standin / "quartus_fit").chmod(0o755)
         self.assertEqual(qt.licensed_quartus_editions(["quartus_fit", "top"], f"{standin}:{self.bin}"), set())
         self.assertEqual(qt.licensed_quartus_editions(["quartus_fit", "top"], f"{decoy}:{self.bin}"), {"lite"})
+        # Codex P1 at 73a1bfe62: an executable stand-in whose interpreter is
+        # missing fails with ENOENT and the search moves on to the licensed one.
+        broken = relative / "broken"
+        broken.mkdir()
+        (broken / "quartus_fit").write_text("#!/definitely/missing/interpreter\n")
+        (broken / "quartus_fit").chmod(0o755)
+        self.assertEqual(qt.licensed_quartus_editions(["quartus_fit", "top"], f"{broken}:{self.bin}"), {"lite"})
         # ...and a bare name found on the child's PATH, not this process's.
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["quartus_fit", "top"], env={"PATH": str(self.bin)})
