@@ -608,14 +608,15 @@ def licensed_quartus_editions(argv, search_path: str | None = None, cwd=None) ->
 
 def require_quartus_lease(argv, search_path: str | None = None, cwd=None) -> None:
     """Raise QuartusLeaseError unless every licensed Quartus program argv would
-    run has a lease held for its edition (any edition, for a program named
+    run has a lease held for its edition (both editions, for a program named
     in shell code that cannot be resolved here)."""
     for edition in sorted(licensed_quartus_editions(argv, search_path, cwd)):
         if edition == UNKNOWN_EDITION:
-            if held_quartus_lease("lite") is None and held_quartus_lease("pro") is None:
+            # It may resolve to either installation: both leases, or a full path.
+            if held_quartus_lease("lite") is None or held_quartus_lease("pro") is None:
                 raise QuartusLeaseError(
-                    "refusing to run a Quartus program named by a relative path in shell code without a "
-                    "lease: give its full path, or hold quartus_tools.quartus_lease(edition)")
+                    "refusing to run a Quartus program named by a relative path in shell code: it may be "
+                    "either edition. Give its full path, or hold both editions' leases")
             continue
         if held_quartus_lease(edition) is None:
             raise QuartusLeaseError(

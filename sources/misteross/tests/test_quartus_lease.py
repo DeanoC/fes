@@ -48,15 +48,18 @@ PROBE = re.compile(r"^\s*(--version|-v|--help|-h)\b")
 # ---------------------------------------------------------------------------
 
 def _module_level(tree: ast.AST):
-    """The nodes that run when the module is imported: not function bodies,
-    whose imports run only if the function is called."""
+    """The nodes that certainly run when the module is imported: not function
+    bodies, and not the branches of if/while/for/match (`if TYPE_CHECKING:`,
+    `if False:`), which may not. A try body runs."""
     pending = [tree]
     while pending:
         node = pending.pop()
         yield node
         for child in ast.iter_child_nodes(node):
-            if not isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
-                pending.append(child)
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda,
+                                  ast.If, ast.While, ast.For, ast.AsyncFor, ast.Match, ast.IfExp)):
+                continue
+            pending.append(child)
 
 
 def _imports(path: Path, roots: tuple[Path, ...]) -> set[Path]:
@@ -380,6 +383,15 @@ class StaticRuleTests(unittest.TestCase):
             "sources/misteross/boards/x/build.py":
                 "import importlib.util\nspec = importlib.util.spec_from_file_location('h', 'helper.py')\n"
                 + textwrap.dedent(self.UNLEASED_MODULE)}), [])
+
+    def test_counterexample_a_conditional_leasing_import_does_not_count(self):
+        # Codex P1 at 502d9f161: an import under if False / TYPE_CHECKING
+        # never installs the hook.
+        for guard in ("if False:", "if TYPE_CHECKING:"):
+            failures = self.scan({"sources/misteross/scripts/x.py":
+                                  f"import subprocess\n{guard}\n    from scripts import quartus_tools\n"
+                                  "subprocess.run(['quartus_fit', 'top'])\n"})
+            self.assertEqual(len(failures), 1, guard)
 
     def test_counterexample_naming_a_leasing_module_in_a_string_is_not_loading_it(self):
         failures = self.scan({
@@ -797,9 +809,14 @@ class LaunchGuardTests(unittest.TestCase):
         # after its cd, which the hook cannot follow: some lease is needed.
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", f"cd {self.bin}; ./quartus_fit top"])
+        # Codex P1 at 502d9f161: it may resolve to either edition (PATH=/pro/bin;
+        # quartus_sh), so one edition's lease is not enough; both are.
         with qt.quartus_lease("lite"):
-            self.assertEqual(subprocess.run(["sh", "-c", f"cd {self.bin}; ./quartus_fit top"],
-                                            capture_output=True).returncode, 0)
+            with self.assertRaises(qt.QuartusLeaseError):
+                subprocess.run(["sh", "-c", "PATH=/pro/bin; quartus_sh --flow compile top"])
+            with qt.quartus_lease("pro"):
+                self.assertEqual(subprocess.run(["sh", "-c", f"cd {self.bin}; ./quartus_fit top"],
+                                                capture_output=True).returncode, 0)
         # Codex P1 at 34cd931cc: an operator attached to the program name.
         for payload in (f"{self.bin}/quartus_sh>/dev/null", f"{self.bin}/quartus_fit&", f"true;{self.bin}/quartus_fit"):
             with self.assertRaises(qt.QuartusLeaseError):
@@ -852,6 +869,11 @@ class LaunchGuardTests(unittest.TestCase):
         qt.locate_quartus(str(repo / "quartus"), repo, lock)
         self.assertEqual(qt.held_quartus_lease("lite"), qt.DEFAULT_POOL["lite"][0])
         qt._process_held.pop("lite")[1].close()
+
+
+def fake_dispatch(code: int) -> subprocess.Popen:
+    """A finished dispatch with exit code code."""
+    return subprocess.Popen(["sh", "-c", f"exit {code}"])
 
 
 class JobsTests(unittest.TestCase):
@@ -1267,8 +1289,7 @@ class JobsTests(unittest.TestCase):
                 mock.patch.object(self.jobs, "resolve_pushed", return_value="e" * 40), \
                 mock.patch.object(self.jobs, "local_host", return_value="elsewhere"), \
                 mock.patch.object(self.jobs.subprocess, "check_output", return_value="https://github.com/DeanoC/fes\n"), \
-                mock.patch.object(self.jobs.subprocess, "run",
-                                  return_value=subprocess.CompletedProcess([], 0)) as launched:
+                mock.patch.object(self.jobs, "_dispatch", side_effect=lambda target: fake_dispatch(0)) as launched:
             self.assertEqual(self.jobs.remote("pro", "auto", "HEAD", "", ["true"]), 0)
         self.assertEqual(len(calls), 4, "it dispatched before a host was ready")
         self.assertIn("powerboat", launched.call_args.args[0])
@@ -1309,7 +1330,7 @@ class JobsTests(unittest.TestCase):
                 mock.patch.object(self.jobs, "resolve_pushed", return_value="e" * 40), \
                 mock.patch.object(self.jobs, "local_host", return_value="elsewhere"), \
                 mock.patch.object(self.jobs.subprocess, "check_output", return_value="https://github.com/DeanoC/fes\n"), \
-                mock.patch.object(self.jobs.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
+                mock.patch.object(self.jobs, "_dispatch", side_effect=lambda target: fake_dispatch(0)):
             self.assertEqual(self.jobs.remote("pro", "powerboat", "HEAD", "", ["true"]), 0)
         self.assertEqual(probed.call_count, 2, "it launched on a named host below the memory threshold")
 
@@ -1362,10 +1383,7 @@ class JobsTests(unittest.TestCase):
                 mock.patch.object(self.jobs, "local_host", return_value="elsewhere"), \
                 mock.patch.object(self.jobs.subprocess, "check_output", return_value="https://github.com/DeanoC/fes\n"), \
                 mock.patch.dict(os.environ, {"FES_QUARTUS_NOTIFY": f"cat > {sink}"}):
-            real_run = subprocess.run
-            with mock.patch.object(self.jobs.subprocess, "run",
-                                   side_effect=lambda argv, **kw: real_run(argv, **kw) if argv[:2] == ["sh", "-c"]
-                                   else subprocess.CompletedProcess(argv, 255)):
+            with mock.patch.object(self.jobs, "_dispatch", side_effect=lambda target: fake_dispatch(255)):
                 self.assertEqual(self.jobs.remote("lite", "powerboat", "HEAD", "", ["true"]), 255)
         self.assertIn('"remote-failed"', sink.read_text())
 
@@ -1399,10 +1417,7 @@ class JobsTests(unittest.TestCase):
                 mock.patch.object(self.jobs, "local_host", return_value="elsewhere"), \
                 mock.patch.object(self.jobs.subprocess, "check_output", return_value="https://github.com/DeanoC/fes\n"), \
                 mock.patch.dict(os.environ, {"FES_QUARTUS_NOTIFY": f"cat > {sink}"}):
-            real_run = subprocess.run
-            with mock.patch.object(self.jobs.subprocess, "run",
-                                   side_effect=lambda argv, **kw: real_run(argv, **kw) if argv[:2] == ["sh", "-c"]
-                                   else subprocess.CompletedProcess(argv, 0)):
+            with mock.patch.object(self.jobs, "_dispatch", side_effect=lambda target: fake_dispatch(0)):
                 self.assertEqual(self.jobs.remote("lite", "powerboat", "HEAD", "", ["true"]), 0)
         self.assertIn('"status": "finished"', sink.read_text())
 
@@ -1431,6 +1446,50 @@ class JobsTests(unittest.TestCase):
             self.assertEqual(self.jobs.remote("lite", "auto", "HEAD", "", ["true"], cap_minutes=0.02), 124)
         self.assertLess(time.monotonic() - started, 5)
         self.assertTrue(all(t <= 1.5 for t in timeouts), timeouts)
+
+    def test_a_cancelled_dispatcher_stops_the_remote_run_and_notifies(self):
+        # Codex P2 at 502d9f161: a signal during the ssh call killed the
+        # dispatcher and left the remote job running, with no notification.
+        sink = Path(self.directory.name) / "cancel"
+        ready = {"host": "powerboat", "free": 1, "available_kib": 500 * 1024 ** 2, "home": "/h", "slots": {}}
+        run_dir = Path(self.directory.name) / "remote-run"
+        run_dir.mkdir()
+        # Stands in for the remote program: records its pid as run does, then works.
+        script = (f"echo $$ $(cut -d' ' -f22 /proc/$$/stat) > {run_dir}/run.pid; exec sleep 30")
+        with mock.patch.object(self.jobs, "probe", return_value=ready), \
+                mock.patch.object(self.jobs, "resolve_pushed", return_value="e" * 40), \
+                mock.patch.object(self.jobs, "local_host", return_value="powerboat"), \
+                mock.patch.object(self.jobs, "remote_script", return_value=(script, str(run_dir))), \
+                mock.patch.object(self.jobs.subprocess, "check_output", return_value="https://github.com/DeanoC/fes\n"), \
+                mock.patch.dict(os.environ, {"FES_QUARTUS_NOTIFY": f"cat > {sink}"}):
+            timer = threading.Timer(1.5, lambda: os.kill(os.getpid(), signal.SIGTERM))
+            timer.start()
+            try:
+                code = self.jobs.remote("lite", "powerboat", "HEAD", "", ["true"])
+            finally:
+                timer.cancel()
+        self.assertEqual(code, 128 + signal.SIGTERM)
+        self.assertIn('"status": "cancelled"', sink.read_text())
+        pid = int((run_dir / "run.pid").read_text().split()[0])
+        self.assertFalse(Path(f"/proc/{pid}").exists() and "sleep" in Path(f"/proc/{pid}/cmdline").read_text(),
+                         "the remote run outlived the cancelled dispatcher")
+
+    def test_a_signal_while_choosing_a_host_is_a_notified_cancellation(self):
+        sink = Path(self.directory.name) / "cancel-choose"
+        busy = {"host": "powerboat", "free": 0, "available_kib": 1, "home": "/h", "slots": {}}
+        with mock.patch.object(self.jobs, "probe", return_value=busy), \
+                mock.patch.object(self.jobs, "REPROBE_SECONDS", 0.1), \
+                mock.patch.object(self.jobs, "resolve_pushed", return_value="e" * 40), \
+                mock.patch.object(self.jobs.subprocess, "check_output", return_value="https://github.com/DeanoC/fes\n"), \
+                mock.patch.dict(os.environ, {"FES_QUARTUS_NOTIFY": f"cat > {sink}"}):
+            timer = threading.Timer(0.5, lambda: os.kill(os.getpid(), signal.SIGTERM))
+            timer.start()
+            try:
+                code = self.jobs.remote("lite", "powerboat", "HEAD", "", ["true"])
+            finally:
+                timer.cancel()
+        self.assertEqual(code, 128 + signal.SIGTERM)
+        self.assertIn('"status": "cancelled"', sink.read_text())
 
     def test_remote_refuses_an_unpushed_commit(self):
         with mock.patch.object(self.jobs.subprocess, "run",

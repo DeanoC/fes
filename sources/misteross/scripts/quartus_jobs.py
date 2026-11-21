@@ -457,6 +457,10 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
     or a wrapper error."""
     base = {"host": local_host(), "edition": edition, "label": label, "command": command,
             "finished_utc": None}
+    run_dir = os.environ.get("FES_QUARTUS_RUN_DIR")
+    if run_dir:
+        # So a dispatcher can stop exactly this wrapper (and through it the job).
+        _best_effort_write(Path(run_dir, "run.pid"), f"{os.getpid()} {_start_time(os.getpid())}\n")
     if deadline_epoch is not None:
         # An absolute deadline from a dispatcher: setup already used some.
         cap_seconds = min(cap_seconds, deadline_epoch - time.time())
@@ -691,22 +695,11 @@ def url_has_credentials(url: str) -> bool:
     return match is not None
 
 
-def remote(edition: str, host: str, revision: str, label: str, command: list[str],
-           cap_minutes: float = DEFAULT_CAP_MINUTES) -> int:
-    if not command:
-        raise SystemExit("remote needs a command after --")
-    commit = resolve_pushed(revision)
-    origin = subprocess.check_output(["git", "-C", str(REPO), "remote", "get-url", "origin"], text=True).strip()
-    if url_has_credentials(origin):
-        raise SystemExit("origin's URL carries credentials; give remote hosts a plain URL")
-    if host != "auto" and host not in HOSTS:
-        raise SystemExit(f"unknown build host {host!r}; one of {', '.join(HOSTS)}")
-    # Dispatch only onto a ready host, chosen or named; otherwise wait and
-    # probe again, so a free slot on a host without the memory is never taken.
-    # The cap runs from here: waiting for a host counts against it.
-    asked = host
-    started = time.monotonic()
-    deadline = started + cap_minutes * 60
+def _select_host(edition: str, asked: str, deadline: float, label: str, command: list[str],
+                 commit: str):
+    """(host, probes) once a host is ready, or the exit code when the cap ran
+    out or no host answered (both notified)."""
+    host = asked
     while True:
         left = max(deadline - time.monotonic(), 1)
         if asked == "auto":
@@ -723,8 +716,8 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
             return 255
         if ready:
             break
-        if time.monotonic() - started >= cap_minutes * 60:
-            print(f"quartus_jobs: time cap of {cap_minutes:g} min reached waiting for a build host; "
+        if time.monotonic() >= deadline:
+            print(f"quartus_jobs: time cap reached waiting for a build host; "
                   "nothing was started", file=sys.stderr, flush=True)
             notify({"host": None, "edition": edition, "label": label, "command": command, "commit": commit,
                     "finished_utc": datetime.now(timezone.utc).isoformat(), "status": "capped", "exit": 124})
@@ -737,6 +730,49 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
         print(f"quartus_jobs: {p['host']}: " + (p.get("error") or
               f"{p['free']} free {edition} slot(s), {p['available_kib'] // 1024 ** 2} GiB available"),
               file=sys.stderr)
+    return host, probes
+
+
+def _dispatch(target: list[str]) -> subprocess.Popen:
+    """Start the remote program (ssh, or bash for this host)."""
+    return subprocess.Popen(target, stdin=subprocess.DEVNULL, start_new_session=True)
+
+
+def remote(edition: str, host: str, revision: str, label: str, command: list[str],
+           cap_minutes: float = DEFAULT_CAP_MINUTES) -> int:
+    if not command:
+        raise SystemExit("remote needs a command after --")
+    commit = resolve_pushed(revision)
+    origin = subprocess.check_output(["git", "-C", str(REPO), "remote", "get-url", "origin"], text=True).strip()
+    if url_has_credentials(origin):
+        raise SystemExit("origin's URL carries credentials; give remote hosts a plain URL")
+    if host != "auto" and host not in HOSTS:
+        raise SystemExit(f"unknown build host {host!r}; one of {', '.join(HOSTS)}")
+    # Dispatch only onto a ready host, chosen or named; otherwise wait and
+    # probe again, so a free slot on a host without the memory is never taken.
+    # The cap runs from here: waiting for a host counts against it.
+    asked = host
+    started = time.monotonic()
+    deadline = started + cap_minutes * 60
+
+    def interrupt(number, _frame):
+        raise Cancelled(number)
+
+    # A signal while choosing a host ends the call as a notified cancellation.
+    choosing = {sig: signal.signal(sig, interrupt) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
+    try:
+        selected = _select_host(edition, asked, deadline, label, command, commit)
+    except Cancelled as cancelled:
+        notify({"host": None, "edition": edition, "label": label, "command": command, "commit": commit,
+                "finished_utc": datetime.now(timezone.utc).isoformat(), "status": "cancelled",
+                "exit": 128 + cancelled.number})
+        return 128 + cancelled.number
+    finally:
+        for sig, handler in choosing.items():
+            signal.signal(sig, handler)
+    if isinstance(selected, int):
+        return selected
+    host, probes = selected
     chosen = next(p for p in probes if p["host"] == host)
     if "error" in chosen:
         raise SystemExit(f"{host} did not answer: {chosen['error']}")
@@ -750,7 +786,33 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
                                     label=label, command=command, stamp=stamp, origin=origin,
                                     cap_minutes=remaining, deadline_epoch=deadline_epoch)
     target = ["bash", "-c", script] if host == local_host() else [*SSH, host, shlex.join(["bash", "-c", script])]
-    result = subprocess.run(target, stdin=subprocess.DEVNULL)
+    cancelled: list[int] = []
+
+    def cancel(number, _frame):
+        cancelled.append(number)
+
+    previous = {sig: signal.signal(sig, cancel) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
+    try:
+        dispatched = _dispatch(target)
+        while dispatched.poll() is None and not cancelled:
+            time.sleep(0.5)
+        if cancelled:
+            # Stop the run on the host by the pid it recorded (only that
+            # wrapper, which stops its job), then the local ssh or shell.
+            stop = (f"read pid start < {shlex.quote(run_dir)}/run.pid 2>/dev/null && "
+                    f"[ \"$(cut -d' ' -f22 /proc/$pid/stat 2>/dev/null)\" = \"$start\" ] && kill -TERM $pid")
+            stopper = ["bash", "-c", stop] if host == local_host() else [*SSH, host, shlex.join(["bash", "-c", stop])]
+            subprocess.run(stopper, stdin=subprocess.DEVNULL, timeout=60, check=False)
+            try:
+                dispatched.wait(timeout=KILL_GRACE_SECONDS + 30)
+            except subprocess.TimeoutExpired:
+                os.killpg(dispatched.pid, signal.SIGTERM)
+                dispatched.wait()
+        code = 128 + cancelled[0] if cancelled else dispatched.returncode
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+    result = subprocess.CompletedProcess(target, code)
     print(f"quartus_jobs: {host}:{run_dir} (exit {result.returncode})", file=sys.stderr)
     # The run wrapper on the host records its own outcome there; the caller's
     # FES_QUARTUS_NOTIFY (not forwarded over SSH) hears every outcome here,
