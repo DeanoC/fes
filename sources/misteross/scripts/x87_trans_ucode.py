@@ -285,6 +285,7 @@ TRIG_LO, TRIG_HI = 4, 25          # sin and cos table: c = j/32
 EXP_LO, EXP_HI = 4, 32            # 2^x table: c = j/32, both signs
 LOG_LO, LOG_HI = 45, 91           # log2 table: c = j/64
 ATAN_LO, ATAN_HI = 2, 32          # atan table: c = j/32
+BCD_BASE, BCD_DIGITS = 672, 18    # FBLD's digit table: row k at BCD_BASE + 16 k
 
 
 def build_rom() -> Rom:
@@ -360,12 +361,24 @@ def build_rom() -> Rom:
     # the integer in its significand's units, and taking 2^63 off again is exact.
     rom.add('two63', Fraction(2 ** 63))
     rom.add('mtwo63', Fraction(-(2 ** 63)))
+    # FBLD's table (#2027 slice 6): digit d of place k as the value d 10^k,
+    # every one exact. Row k is sixteen entries from BCD_BASE + 16 k, so the
+    # digit itself is the low four bits of the address; a digit of A to F
+    # is in the table too, since the 387 does not check for one and the
+    # engine adds it as the host x87 and the oracle were measured to.
+    while len(rom.words) % 16:
+        rom.put(f'bcd_pad{len(rom.words)}', (0, None, 0))
+    assert len(rom.words) == BCD_BASE, len(rom.words)
+    for k in range(BCD_DIGITS):
+        for d in range(16):
+            rom.add(f'bcd{k}_{d}', Fraction(d * 10 ** k))
     return rom
 
 
 # ---- The microprogram. ----
 # A word is (op, dst, a, b, arg). `a` is always a temporary. `b` is a
-# temporary ('t', n), a constant ('c', index) or a table entry ('j', base):
+# temporary ('t', n), a constant ('c', index), a digit's row ('d', base):
+# the constant at base + FBLD's digit (base - BCD_BASE) / 16, or a table entry ('j', base):
 # the constant at base + J. The operations:
 #   ADD SUB RSUB MUL DIV   dst <- a op b, on the backend, rounded to nearest.
 #                          RSUB is b - a.
@@ -419,6 +432,8 @@ class Program:
     def _b(self, b):
         if isinstance(b, int):
             return ('t', b)
+        if b.startswith('#'):                         # FBLD's row for digit k: base + the digit
+            return ('d', self.rom.names[f'bcd{int(b[1:])}_0'])
         if b.startswith('@'):                         # a table: the constant at base + J
             name, low = b[1:].split(':')
             return ('j', self.rom.names[name] - int(low))
@@ -897,6 +912,15 @@ def build_program(rom: Rom) -> Program:
     p.op('SETE', arg='XE')
     p.op('ITOF', 6)
     p.fin('MOV', 6, second=T_MX)
+    # FBLD: the eighteen digits, each its place's table entry, summed most
+    # significant first. Every partial sum is an integer below 2^61, so every
+    # addition is exact, and so is the last, which the unit takes unrounded.
+    # The unit gives the sign and answers a zero.
+    p.entry('FBLD')
+    p.mov(0, f'#{BCD_DIGITS - 1}')
+    for k in range(BCD_DIGITS - 2, 0, -1):
+        p.add(0, 0, f'#{k}')
+    p.fin('ADD', 0, '#0')
 
     p.resolve()
     return p
@@ -941,10 +965,11 @@ def rc_round(v: Fraction, rc: int):
     return r, int(value(r) != v), int(abs(value(r)) > abs(v))
 
 
-def run(program: Program, name: str, x, y=None, rc: int = 0) -> Result:
+def run(program: Program, name: str, x, y=None, rc: int = 0, digits: int = 0) -> Result:
     """Run one instruction's microprogram on finite, non-zero operands, as
     the unit enters it. x and y are (sign, exponent, significand) values;
-    for a trigonometric form |x| < 2^63."""
+    for a trigonometric form |x| < 2^63. `digits` is FBLD's operand's low 72
+    bits, its eighteen digits."""
     rom = program.rom
     xs, xe, xm = x
     ys, ye, ym = y if y is not None else (0, 0, 1 << 63)
@@ -971,6 +996,8 @@ def run(program: Program, name: str, x, y=None, rc: int = 0) -> Result:
             B = T[ref]
         elif kind == 'c':
             B = rom.get(ref)
+        elif kind == 'd':
+            B = rom.get(ref + (digits >> 4 * ((ref - BCD_BASE) >> 4) & 15))
         else:
             B = rom.get(ref + J)
         A = T[a]
@@ -1301,14 +1328,15 @@ INSTRUCTIONS = ('FSIN', 'FCOS', 'FSINCOS', 'FPTAN', 'F2XM1', 'FYL2X', 'FYL2XP1',
 # The forms the engine took over from the sequencer (#2027 slice 6): exact,
 # so they have no truth or host-distance figures and are kept out of the
 # transcendental reports; their entries follow the transcendentals'.
-EXACT_FORMS = ('FPREM', 'FPREM1', 'FRNDINT', 'FSCALE', 'FXTRACT')
+EXACT_FORMS = ('FPREM', 'FPREM1', 'FRNDINT', 'FSCALE', 'FXTRACT', 'FBLD')
 ENTRIES = INSTRUCTIONS + EXACT_FORMS
 WORD_BITS, PROGRAM_DEPTH, CONSTANT_DEPTH = 40, 512, 1024
 
 
 def encode(word) -> int:
     """A microprogram word: op [4:0], dst [8:5], a [12:9], b's mode [14:13]
-    (0 a temporary, 1 a constant, 2 a constant at base + J) and address
+    (0 a temporary, 1 a constant, 2 a constant at base + J, 3 a digit's row:
+    the address's top six bits and FBLD's digit for that row) and address
     [24:15]; for FIN, add E [25], the negating flag [30:27] and whether there
     is one [26], and the other result [32:31] (0 none, 1 a temporary, 2 the x
     operand) and its temporary [36:33]."""
@@ -1340,7 +1368,7 @@ def encode(word) -> int:
         elif second is not None:
             sec_mode, sec_temp = 1, second
     assert 0 <= dst < 16 and 0 <= a < 16 and 0 <= ref < 1024, word
-    return (OPCODES.index(op) | dst << 5 | a << 9 | {'t': 0, 'c': 1, 'j': 2}[mode] << 13 | ref << 15
+    return (OPCODES.index(op) | dst << 5 | a << 9 | {'t': 0, 'c': 1, 'j': 2, 'd': 3}[mode] << 13 | ref << 15
             | int(use_e) << 25 | neg_valid << 26 | neg_flag << 27 | sec_mode << 31 | sec_temp << 33)
 
 
@@ -1370,6 +1398,8 @@ def emit(program: Program) -> dict[str, str]:
                 f'    localparam logic [66:0] PM = 67\'h{PM:017x};',
                 '    // sqrt 2\'s significand, truncated: a significand above it is halved.',
                 f'    localparam logic [63:0] SQRT2 = 64\'h{SQRT2_SIG:016x};',
+                '    // FBLD\'s digit table: digit k\'s row is the sixteen constants from 16 (BCD_ROW + k).',
+                f'    localparam logic [5:0] BCD_ROW = 6\'d{BCD_BASE // 16};',
                 '    /* verilator lint_on UNUSEDPARAM */',
                 'endpackage', '']
     rom = head + [
@@ -1557,9 +1587,25 @@ def exact_vectors(program: Program, per_class: int, seed: int) -> list[str]:
         cases.append(('FSCALE', operand(-100, 100), (0, -16383, 0), 0))           # a zero scale
         for low, high in ((-16440, -16383), (-16382, -1), (0, 16383)):
             cases.append(('FXTRACT', operand(low, high), (0, 0, 1 << 63), 0))
+        # FBLD: valid digits, digits of A to F, a single digit at each place,
+        # and all zeros. The digits ride in x's significand and the low byte
+        # of y's, as the engine bench drives them.
+        for kind in range(4):
+            if kind == 0:
+                digits = [rng.randrange(10) for _ in range(18)]
+            elif kind == 1:
+                digits = [rng.randrange(16) for _ in range(18)]
+            elif kind == 2:
+                digits = [0] * 18
+                digits[rng.randrange(18)] = rng.randrange(1, 16)
+            else:
+                digits = [0] * 18 if rng.random() < 0.5 else [rng.choice((9, 15))] * 18
+            word = sum(d << 4 * k for k, d in enumerate(digits))
+            cases.append(('FBLD', (0, 0, word & (1 << 64) - 1), (0, 0, word >> 64), 0))
     lines = []
     for name, x, y, rc in cases:
-        result = run(program, name, x, y, rc=rc)
+        digits = x[2] | y[2] << 64 if name == 'FBLD' else 0
+        result = run(program, name, x, y, rc=rc, digits=digits)
         zero, sign, exponent, raw = raw_of(result.exact)
         if zero:
             sign = result.zero_sign

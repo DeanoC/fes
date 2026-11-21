@@ -68,6 +68,11 @@ int main(int argc, char **argv) {
         top.ys = ys;
         top.ye = ye;
         top.ym = ym;
+        // FBLD's digits ride in x's significand and the low byte of y's,
+        // which no FBLD line uses for anything else.
+        top.bcd[0] = uint32_t(xm);
+        top.bcd[1] = uint32_t(xm >> 32);
+        top.bcd[2] = uint32_t(ym & 0xff);
         top.start = 1;
         tick();
         top.start = 0;
