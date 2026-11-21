@@ -143,28 +143,39 @@ gate takes an entry only for a failed rule. TMC-20602 is 24 again, as on j to o.
 ## The producer's package
 
 `boards/de25nano/producers/build_pc386_package.py` ran on chip-30x0-ai-dev
-from a clean checkout of `358e85fee` (21 November 2026, 13:34–14:40 UTC, under
-the Quartus lease), with CUDA as the GPU router slot and Quartus Pro 26.3.0
-Build 114. It fitted twice, signoff and repeat, and the two payloads are
-byte-identical.
+from a clean checkout of **`3401bb193`**, the branch after merging main at
+`f3140cb33` (21 November 2026, 14:45–15:59 UTC). It used the Quartus lease, CUDA
+as the GPU router slot, and Quartus Pro 26.3.0 Build 114. It fitted twice, for
+signoff and repeat, and the two payloads are byte-identical. Commits after
+`3401bb193` change only records and READMEs.
 
 | | |
 |---|---|
-| BUILD_ID | `abd1ec143b322ecb11dd2af6ac61dd34` |
-| package | `d85d981c3a9a44b76d2b5b658f809bddd29d9228330fc6952f2480f9f3d8ab5e` |
-| `core.rbf` sha256 | `4b6a31168dbb53abb8b97062f808fe42ffd7a50b35bf653f25d3ef7201b92512` (3,969,024 bytes) |
-| `manifest.toml` sha256 | `a17bf4cee82269804a45388ca036621f30fe9077b4f661751bd2060a17407f2c` |
+| BUILD_ID | `18b98e068f171aacd4e98cb0cf3fbede` |
+| package | `1de8e7a80c3376f65cb59c648c1edadaef4270f72a3562ecf46975c5988b4619` |
+| `core.rbf` sha256 | `8e9a68acfb5405b09dcb63edccd7bfc24f939ce312863a20784699e733c08f85` (3,940,352 bytes) |
+| `manifest.toml` sha256 | `ce3bc3514e515ca7b0f833d316bdcd85b58e385202b00f8ee7a049dd3ae98ab0` |
 | classification | `de25-pc386-package-candidate`; hardware and normal-kit acceptance false |
-| ALMs | 41,993 of 46,800, both fits |
+| ALMs | 42,013 of 46,800, both fits |
 
-Both fits: `package_timing_admission` true, 8 failed rules of 85, 0
-unreviewed, every reported analysis passing. Worst slack: setup +1.352 ns
-(video clock), hold +0.000 ns, recovery +7.336 ns, removal +0.158 ns, setup
-data delay +3.424 ns, minimum pulse width +0.220 ns. The rule counts match s
-except TMC-20602 (21) and LNT-30010 (2), both Low and both admitted. The
-timing summaries of the two fits are identical (`773a9af6…`); the design
-assistant reports are not (`e8c7e96c…` and `73066427…`), though their rule
-counts match.
+Both fits had `package_timing_admission` true and 8 failed rules out of 85, with
+0 unreviewed and every reported analysis passing. Worst slack was setup
++1.355 ns, hold +0.000 ns, recovery +7.547 ns, removal +0.037 ns, setup data
+delay +3.416 ns and minimum pulse width +0.220 ns. Rule counts: CDC-50001 67,
+CDC-50002 6, TMC-20012 5, TMC-20011 2, RDC-50003 3, TMC-20602 23, LNT-30010 3,
+CDC-50102 1. The two fits' timing summaries are identical (`fba29c37…`). Their
+design assistant reports differ in hash (`1303728f…` and `5cede8cf…`) but have
+the same rule counts.
 
-No kit has run this package. Slice 3 lands with slice 4, which owns the image
+The pc386 firmware (BIOS `23b9df91…`, VGA BIOS `8522568e…`, ROM `81562036…`)
+was built with a dev86 tree reused from an earlier checkout at the same pinned
+commit, because chip lacked `gperf`. Once `gperf` was installed, a fresh
+checkout of `3401bb193` with a new dev86 clone built the same three hashes.
+
+An earlier run at `358e85fee`, before the main merge, also passed both fits:
+BUILD_ID `abd1ec14…`, package `d85d981c…`, `core.rbf` `4b6a3116…`, 41,993 ALMs,
+worst setup +1.352 ns. Main's #2045 changed `pc386_system.sv`, so that package
+is not the head's.
+
+No kit has run either package. Slice 3 lands with slice 4, which owns the image
 change and the Kit D25 run.
