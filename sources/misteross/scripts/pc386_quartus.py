@@ -300,12 +300,12 @@ def _check_seed(seed: int) -> int:
 def machine_program(netlist: Path, sources: str | None = None, x87: dict[str, int] | None = None) -> str:
     """The Yosys program that elaborates the machine at the sealed guest rates. pc386_rom
     reads ROM_HEX while it is read in. sources stands in for MACHINE_SOURCES. x87 sets
-    pc386_system's X87_PRESENT and X87_BACKEND for a diagnostic fit; the DE10 seal
-    passes none, so its machine keeps the RTL's 0/0."""
+    pc386_system's X87_PRESENT for a diagnostic fit; the DE10 seal passes none, so
+    its machine keeps the RTL's 0."""
     parameters = guest_rates()
     if x87:
-        if set(x87) - {"X87_PRESENT", "X87_BACKEND"} or set(x87.values()) - {0, 1}:
-            raise board.BuildError(f"x87 settings are X87_PRESENT and X87_BACKEND, 0 or 1: {x87!r}")
+        if set(x87) - {"X87_PRESENT"} or set(x87.values()) - {0, 1}:
+            raise board.BuildError(f"the x87 setting is X87_PRESENT, 0 or 1: {x87!r}")
         parameters = {**parameters, **x87}
     return yosys_netlist.program(yosys_netlist.SEAL, top=MACHINE_TOP,
                                  sources=MACHINE_SOURCES if sources is None else (sources,),

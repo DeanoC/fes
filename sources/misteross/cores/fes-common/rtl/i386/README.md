@@ -1603,11 +1603,10 @@ as Bochs's `translate_linear_legacy` at CPU level 3.
 `fes_i386_x87`, with its multiply in `fes_i386_x87_mul`, is the 387 the
 `i386dx+387` identity fits. `x87_present` gates every path, so with the
 identity clear the CPU is the empty socket above and the fit trims the unit
-away. `pc386_system` takes it, and the arithmetic `X87_BACKEND` selects, as
-the parameters `X87_PRESENT` and `X87_BACKEND`. Both default to 0, and no
-board sets them until x87 slice 7 turns the identity on. A fit sets them
-with `fit_i386_device.py --x87-present/--x87-backend` or
-`build_fes_pc386_quartus.machine_program(x87=...)`.
+away. `pc386_system` takes it as the parameter `X87_PRESENT`. It defaults
+to 0, and no board sets it until x87 slice 7 turns the identity on. A fit
+sets it with `fit_i386_device.py --x87-present` or
+`pc386_quartus.machine_program(x87=...)`.
 What the phase's slice 2 builds, and what it does not, is in its record,
 [docs/validation/2026-11-14-i386-x87-s2](../../../../../../docs/validation/2026-11-14-i386-x87-s2/summary.md);
 the unit's own header comment carries the design. In short:

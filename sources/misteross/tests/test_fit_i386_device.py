@@ -267,7 +267,7 @@ class SecondaryFrontEnd(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             for argv, message in (
                     (["--design", "cpu", "--x87-present", "1"], "--design machine only"),
-                    (["--design", "machine", "--x87-backend", "1", "--front-end", "systemverilog"],
+                    (["--design", "machine", "--x87-present", "1", "--front-end", "systemverilog"],
                      "Yosys elaboration only"),
                     (["--design", "machine", "--x87-present", "1", "--netlist", "/nonexistent.v"],
                      "reused --netlist")):
