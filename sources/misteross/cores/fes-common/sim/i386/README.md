@@ -251,7 +251,8 @@ reduced program counts.
 `scripts/test_fes_i486_lockstep.py` runs the level-3 suite's five random sets
 (`FES_I386_MODE=random`, with the level-3 runner's seeds and sizes, and two
 seeds again without latency) at the 486SX identity against this oracle,
-after the directed cases; `--random-only` runs them alone, and
+after the oracle's self-check and before the directed cases in lockstep;
+`--random-only` runs them alone, and
 `--netlist` runs them on the seal's netlist. With the level-4 oracle the
 testbench sets the generator's `isa486`, whose choices all come from its
 `side` stream, so a level-3 seed's programs are byte for byte as before:
@@ -925,10 +926,15 @@ under max and every preset at the sealed clock's `GOV_N`/`GOV_D`: each
 loop's charge must equal the table's, which the script lists instruction by
 instruction, and its time must be within 5% of the table time unless max
 itself is slower (the 486 presets on branchy loops). It also checks the
-interrupt latency, the frequency override and turbo.
+interrupt latency, the frequency override and turbo. With `--i486` it builds
+the 486 identity (`I486 = 1`), runs the same bench, then
+[`governor_bench_486.asm`](governor_bench_486.asm): loops of BSWAP, XADD,
+CMPXCHG, CPUID, INVD and WBINVD, and INVLPG, whose charges must equal the
+table's 486 clocks (`report-i486.json`).
 
 ```sh
 python3 scripts/test_fes_i386_governor.py
+python3 scripts/test_fes_i386_governor.py --i486
 python3 scripts/test_fes_i386_lockstep.py --preset 1 --same-as /abs/path/to/max/report.json
 ```
 

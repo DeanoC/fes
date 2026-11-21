@@ -11,8 +11,10 @@ The method, written before the first full run, is
 [`method.md`](method.md). Everything ran as host simulation on Powerboat,
 with at most 4 CPU threads at a time: no Quartus run, no seal, no kit.
 
-**Result.** Every gate ran at code head `98cbd9927`; later commits change
-only this record and the sim README, plus the merge of main (below).
+**Result.** Every gate ran at code head `98cbd9927` but test386's oracle run,
+which steps Bochs alone and ran at the merged head. Later commits change
+only this record, the sim README, the design doc and two unit tests, plus
+the merge of main ([below](#the-merge-of-main)).
 
 | Gate | Result |
 | --- | --- |
@@ -37,7 +39,8 @@ only this record and the sim README, plus the merge of main (below).
   gives the start state, the forms and the rules.
 - **The runner** (`scripts/test_fes_i486_lockstep.py`). It runs the level-3
   suite's five sets at the 486SX identity with level 3's seeds and sizes,
-  plus two seeds again without latency, after the directed cases.
+  plus two seeds again without latency. They run after the oracle's
+  self-check and before the directed cases in lockstep.
   `--random-only` runs the sets alone; `--netlist` runs them on the seal's
   netlist.
 - **The governor bench at `I486 = 1`** (`scripts/test_fes_i386_governor.py
@@ -143,7 +146,7 @@ The level-3 rules and `divergences.toml` apply at level 4 as they are.
 Where a 486's answer is not documented, the 486SX keeps the 386's. The plan
 leaves those behaviours as the 386's (plan open question 6).
 
-Each of these fired at level 4 in the RTL run:
+These fired at level 4 in the RTL run:
 
 | Rule | Retirements or stops |
 | --- | --- |
@@ -155,12 +158,17 @@ Each of these fired at level 4 in the RTL run:
 | The V86 IOPL rule (`v86-iopl-gp`) | 86 |
 | The #SS error rule (`ss_error_rule`) | 1 |
 
+These carried-over rules counted 0 at level 4, so this run does not test
+them on the 486 identity: `db-frame-rf` (`db_rf_rule`), the first-fetch
+rule (`fetch_rule`), `icebp-gd`, `umov` and `mov-tr`. The directed cases
+cover MOV TRn at level 4.
+
 `dr6-sticky` follows the 80386 PRM 12.2.3 ("the bits of DR6 are never
 cleared by the processor"). The Intel SDM keeps that sentence for later
 parts, apart from "certain debug exceptions may clear bits 0-3". The Intel486
 manual's own text was not found.
 
-One of the 125 `interrupt-vector-before-push` retirements is a stop added
+The 125 `interrupt-vector-before-push` retirements include a stop added
 here. Seed 10, program 150 of the random set failed with `nested 8` in a
 full run at `f3a50e5a7`. In real mode a #GP's frame lay over vector 8's
 entry, and that #GP's delivery faulted:
@@ -172,8 +180,11 @@ entry, and that #GP's delivery faulted:
 That is the same entry, one delivery deeper. The stop applies only in the
 branch that failed: the oracle delivered a nested event the RTL did not,
 and the step's frame overlaps that event's entry. So no level-3 run that
-passed can change. The new `ac_ring3` choices only reshuffled the programs
-until one reached it.
+passed can change, and the level-3 reports above equal slice 2's, so it
+never fired there. The new `ac_ring3` choices only reshuffled the programs
+until one reached it. Replays of that program before and after the stop are
+[`lockstep/seed10-150-before.txt`](lockstep/seed10-150-before.txt) and
+[`lockstep/seed10-150-after.txt`](lockstep/seed10-150-after.txt).
 
 ## Governor bench at `I486 = 1`
 
@@ -247,9 +258,19 @@ Slice 2 ([#2045](https://github.com/DeanoC/fes/pull/2045)) landed as
 (`cdbdccd7b`), with no rebase. The merged tree is main plus this branch's
 changes exactly. Main also brought x87 slice 6.3
 ([#2059](https://github.com/DeanoC/fes/pull/2059), `57bdbb31f`), which
-changes the x87 unit's RTL. None of the runs above include it. The 386
+changes the x87 unit's RTL. The long runs above do not include it. The 386
 comparisons are against slice 2's head (`bf7afef73`), as `method.md` set
 them.
+
+At the merged head, the directed level-4 cases ran again on the RTL at both
+identities: the self-check passes, and the 486SX agrees on all 148. The
+386's stops equal its list
+([`directed/both-rtl-merged.json`](directed/both-rtl-merged.json)).
+test386's oracle run there equals slice 2's in all 707 values. The level-4
+runner's unit tests (`tests/test_fes_i486_oracle.py`, with the governor,
+lockstep, governor-inventory and lockstep-seal tests) pass. Two of the
+runner's tests described the old behaviour and now describe the new: the
+level-4 oracle runs the `random` mode too, and the 486SX list has no stops.
 
 ## What this does not establish
 
@@ -265,5 +286,6 @@ them.
   it; the random programs did not reach it.
 - **The x87 empty socket at `I486 = 1`.** The random programs run no ESC.
 - **The netlist's timing or fit.** Nothing was placed or routed.
-- **The merged head with #2059's x87 changes.** No run here includes them
-  (above).
+- **The merged head with #2059's x87 changes**, beyond the directed cases
+  and test386's oracle run. The random programs, level-3 lockstep, governor
+  benches and test386 on the RTL ran before the merge (above).
