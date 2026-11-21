@@ -1475,6 +1475,26 @@ class JobsTests(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertLess(time.monotonic() - started, 10)
 
+    def test_a_crash_is_a_failure_not_a_cancellation(self):
+        # Codex P2 at ce9af05d0: exit 139 (SIGSEGV) was reported cancelled.
+        run_dir = Path(self.directory.name) / "crash"
+        run_dir.mkdir()
+        with mock.patch.dict(os.environ, {"FES_QUARTUS_RUN_DIR": str(run_dir)}):
+            self.assertEqual(self.jobs.run("lite", "", ["sh", "-c", "kill -SEGV $$"], sample_seconds=0.1), 139)
+        self.assertIn('"status": "failed"', (run_dir / "result.json").read_text())
+
+    def test_a_short_cap_on_a_full_pool_returns_on_time(self):
+        # Codex P2 at ce9af05d0: the 2 s slot-wait sleep overran a 1 s cap.
+        holder = subprocess.Popen(["flock", self.pools["lite"][0], "sleep", "30"])
+        self.addCleanup(holder.wait)
+        self.addCleanup(holder.terminate)
+        deadline = time.monotonic() + 10
+        while not qt.flock_holders(self.pools["lite"][0]) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        started = time.monotonic()
+        self.assertEqual(self.jobs.run("lite", "", ["true"], sample_seconds=0.1, cap_seconds=0.5), 124)
+        self.assertLess(time.monotonic() - started, 1.5)
+
     def test_run_returns_the_job_exit_code(self):
         self.assertEqual(self.jobs.run("pro", "", ["sh", "-c", "exit 7"], sample_seconds=0.1), 7)
 

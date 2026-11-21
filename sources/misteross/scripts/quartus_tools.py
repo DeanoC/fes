@@ -458,7 +458,7 @@ def _take(edition: str, label: str, claim=None, deadline: float | None = None) -
                     print(f"Quartus lease: waiting for a {edition_class(edition)} slot on "
                           f"{socket.gethostname()}; holders {holders}", file=sys.stderr, flush=True)
                     notice = time.monotonic()
-                time.sleep(2)
+                time.sleep(2 if deadline is None else max(0.0, min(2.0, deadline - time.monotonic())))
     finally:
         with _descriptor_lock:
             for stream in opened:

@@ -470,18 +470,22 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
             notify(dict(base, finished_utc=datetime.now(timezone.utc).isoformat(), status="capped", exit=124))
             return 124
     try:
-        code = _run(edition, label, command, sample_seconds, cap_seconds)
+        outcome: dict = {}
+        code = _run(edition, label, command, sample_seconds, cap_seconds, outcome)
     except BaseException as error:
         notify(dict(base, finished_utc=datetime.now(timezone.utc).isoformat(), status="wrapper-error",
                     error=f"{type(error).__name__}: {error}"))
         raise
-    status = {0: "finished", 75: "refused", 124: "capped"}.get(code, "cancelled" if code > 128 else "failed")
+    # Cancelled only when this wrapper relayed a cancellation; a job that
+    # crashed (139) or chose a high exit code failed.
+    status = "cancelled" if outcome.get("cancelled") else \
+        {0: "finished", 75: "refused", 124: "capped"}.get(code, "failed")
     notify(dict(base, finished_utc=datetime.now(timezone.utc).isoformat(), status=status, exit=code))
     return code
 
 
 def _run(edition: str, label: str, command: list[str], sample_seconds: float,
-         cap_seconds: float) -> int:
+         cap_seconds: float, outcome: dict | None = None) -> int:
     """COMMAND under a slot of this host's pool.
 
     The slot is released only when every process of the job has exited,
@@ -522,6 +526,8 @@ def _run(edition: str, label: str, command: list[str], sample_seconds: float,
         except Cancelled as cancelled:
             print(f"quartus_jobs: cancelled by {cancelled} before the job started; nothing was started",
                   file=sys.stderr, flush=True)
+            if outcome is not None:
+                outcome["cancelled"] = True
             return 128 + cancelled.number
         finally:
             for sig, handler in waiting.items():
@@ -617,6 +623,8 @@ def _run(edition: str, label: str, command: list[str], sample_seconds: float,
             # A cancelled job is never reported as a success, even when its
             # command trapped the signal or had already exited.
             code = 128 + pending_signal[0]
+        if pending_signal and outcome is not None:
+            outcome["cancelled"] = True
         record = {"host": local_host(), "edition": edition, "slot": slot, "command": command,
                   "exit": code, "capped": capped, "cap_seconds": cap_seconds,
                   "peak_rss_kib": peak, "sample_seconds": sample_seconds}
@@ -853,10 +861,9 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
     # FES_QUARTUS_NOTIFY (not forwarded over SSH) hears every outcome here,
     # including a remote that failed before the wrapper started.
     code = result.returncode
-    # 255 is ssh's own failure; 129-254 a signal on the host; anything else
-    # is the job's or the setup's failure.
-    status = {0: "finished", 75: "refused", 124: "capped"}.get(
-        code, "cancelled" if 128 < code < 255 else "remote-failed")
+    # Cancelled only when this dispatcher cancelled; any other nonzero exit
+    # (a crash on the host, ssh's own 255, a failed setup) is a failure.
+    status = "cancelled" if cancelled else {0: "finished", 75: "refused", 124: "capped"}.get(code, "remote-failed")
     notify({"host": host, "edition": edition, "label": label, "command": command, "commit": commit,
             "run_dir": run_dir, "finished_utc": datetime.now(timezone.utc).isoformat(),
             "status": status, "exit": code})
