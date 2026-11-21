@@ -171,7 +171,11 @@ fails if its anchor moves. The DE10 sources stay byte-identical.
   then reads 0, and the record says so.
 
 The board top instantiates `pc386_system` as main has it: a 386 with no
-387, `x87_present` tied to 0. (#2033's `X87_PRESENT` parameter isn't on
+387, `x87_present` tied to 0. Deano decided (21 November 2026) that the
+first DE25 shell ships this way, 387 off as board build j was; slice 3's
+package and slice 4's platform, image and kit run target it. The 387 on the
+DE25 waits for the area study and slice 6's reductions to find its roughly
+3,500 ALMs. (#2033's `X87_PRESENT` parameter isn't on
 main, and #2037 deleted `X87_BACKEND = 0`.) Its parts are:
 
 - `fes_de25_hps_window`;

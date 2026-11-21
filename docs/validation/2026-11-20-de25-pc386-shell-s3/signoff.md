@@ -94,6 +94,23 @@ Each crossing basis quotes its constraint lines from the compiled SDC.
   at least five machine clocks (81.4 ns) between flips, against 50.4 ns to the
   copy.
 
+## Known limit: a window fault is fatal
+
+A command outside the grant, or any command without one, is never issued and
+the port stays waiting (the contract). The shared guard keeps that command
+presented, so the port never drains, and `CommandClear` (accepted only while
+held and drained) can never be accepted: after a fault the window cannot be
+cleared or re-granted until the FPGA is reprogrammed. Deano's decision for
+slice 3 (21 November 2026) is to ship this as a known limit. Recovery, with
+`CommandClear` dropping the faulting command while held, is slice 4's, with
+the runtime.
+
+## The 387
+
+The build signed off here is the 387-off shell (`x87_present` tied to 0), the
+build Deano chose (21 November 2026) for slice 3's package and slice 4's
+platform and kit run.
+
 ## Open
 
 - **RDC-50003** (3 rows): the window bridge's two DC FIFOs (Platform Designer

@@ -55,6 +55,11 @@ The block sits at `PeripheralOffset` on the lightweight bridge,
 | `GenerationLoOffset`, `GenerationHiOffset` | grant generation | read/write |
 | `FaultOffset` | first fault: port bits, reason | read; cleared by `CommandClear` |
 
+A fault is fatal in 1.0. The faulting command stays presented, so its port
+never drains and `CommandClear` (which needs every port drained) can't be
+accepted: after a fault the window cannot be cleared or re-granted until the
+FPGA is reprogrammed.
+
 This contract assigns no Linux device, firewall, boot or runtime admission.
 The kernel owner's allocation and the runtime's use of it are slice 4 of
 #2029.
