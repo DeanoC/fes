@@ -21,7 +21,10 @@ a free slot.
         `{cache}` that host's toolchain cache. Output goes on /data, never to
         /tmp (Powerboat's /tmp is a shared tmpfs).
 
-`run` reports the peak resident set size of the job and all its descendants, and
+`run` holds the slot until every process of the job has exited, including any
+left in the background, and stops the job at its time cap (--cap-minutes,
+default 240; exit 124). It reports the peak resident set size of the job's
+processes, and
 writes it to $FES_QUARTUS_RUN_DIR/peak-rss.json when that is set: the figure
 the pools in quartus_tools are sized from.
 
@@ -41,6 +44,7 @@ import signal
 import socket
 import subprocess
 import sys
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
@@ -133,64 +137,100 @@ def _command(pid: int) -> str:
         return "?"
 
 
-def tree_rss_kib(root: int) -> int:
-    """Total resident memory of root and all its descendants.
+JOB_TOKEN = "FES_QUARTUS_JOB"
+DEFAULT_CAP_MINUTES = 240
+KILL_GRACE_SECONDS = 60
 
-    By parentage, not process group: producers and fit scripts start each
-    Quartus stage in a new session, so a process-group sum misses Quartus."""
-    parents, rss = {}, {}
+
+def job_processes(token: str) -> dict[int, int]:
+    """Every live process of one `run` job, with its resident memory (KiB).
+
+    A job's processes are those whose environment carries its token. That
+    finds Quartus stages in their own sessions and processes a script left
+    in the background or that daemonized, which parentage and process groups
+    both miss once the launcher has exited."""
+    marker = f"{JOB_TOKEN}={token}".encode()
     page_kib = os.sysconf("SC_PAGE_SIZE") // 1024
+    found = {}
     for entry in os.listdir("/proc"):
-        if not entry.isdigit():
+        if not entry.isdigit() or int(entry) == os.getpid():
             continue
         try:
+            if marker not in Path(f"/proc/{entry}/environ").read_bytes().split(b"\0"):
+                continue
             fields = Path(f"/proc/{entry}/stat").read_bytes().rsplit(b")", 1)[1].split()
-            parents[int(entry)] = int(fields[1])
-            rss[int(entry)] = int(Path(f"/proc/{entry}/statm").read_text().split()[1]) * page_kib
+            if fields[0] == b"Z":
+                continue
+            found[int(entry)] = int(Path(f"/proc/{entry}/statm").read_text().split()[1]) * page_kib
         except (OSError, IndexError, ValueError):
             continue
-    children: dict[int, list[int]] = {}
-    for pid, parent in parents.items():
-        children.setdefault(parent, []).append(pid)
-    total, pending = 0, [root]
-    while pending:
-        pid = pending.pop()
-        total += rss.get(pid, 0)
-        pending.extend(children.get(pid, ()))
-    return total
+    return found
 
 
-def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.0) -> int:
-    """COMMAND under a slot of this host's pool; the slot is released when it
-    exits. A termination signal is passed on to the job's process group and
-    the job waited for, so the slot is never released over a live Quartus."""
+def _signal_all(pids, number: int) -> None:
+    for pid in pids:
+        try:
+            os.kill(pid, number)
+        except (ProcessLookupError, PermissionError):
+            pass
+
+
+def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.0,
+        cap_seconds: float = DEFAULT_CAP_MINUTES * 60) -> int:
+    """COMMAND under a slot of this host's pool.
+
+    The slot is released only when every process of the job has exited,
+    including any it left running in the background. A termination signal is
+    passed to every process of the job. After cap_seconds the job is sent
+    SIGTERM, then SIGKILL after a grace, and run returns 124."""
     if not command:
         raise SystemExit("run needs a command after --")
+    token = f"{os.getpid()}-{time.monotonic_ns()}"
     with quartus_tools.quartus_lease(edition, label=label or Path(command[0]).name) as slot:
-        process = subprocess.Popen(command, start_new_session=True)
+        process = subprocess.Popen(command, start_new_session=True, env=dict(os.environ, **{JOB_TOKEN: token}))
+        pending_signal = []
 
         def relay(number, _frame):
-            try:
-                os.killpg(process.pid, number)
-            except ProcessLookupError:
-                pass
+            pending_signal.append(number)
+            _signal_all([process.pid, *job_processes(token)], number)
 
         previous = {sig: signal.signal(sig, relay) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
-        peak = 0
+        peak, code, capped, killed_at = 0, None, False, None
+        deadline = time.monotonic() + cap_seconds
         try:
             while True:
-                peak = max(peak, tree_rss_kib(process.pid))
-                try:
-                    code = process.wait(timeout=sample_seconds)
+                live = job_processes(token)
+                peak = max(peak, sum(live.values()))
+                if code is None:
+                    try:
+                        code = process.wait(timeout=sample_seconds)
+                    except subprocess.TimeoutExpired:
+                        pass
+                    live = job_processes(token)
+                if code is not None and not live:
                     break
-                except subprocess.TimeoutExpired:
-                    continue
+                if code is not None and live and not capped:
+                    print(f"quartus_jobs: the command exited; holding the slot for {len(live)} "
+                          "process(es) it left running", file=sys.stderr, flush=True)
+                now = time.monotonic()
+                if now >= deadline and not capped:
+                    capped, killed_at = True, now
+                    print(f"quartus_jobs: time cap of {cap_seconds / 60:g} min reached; stopping the job",
+                          file=sys.stderr, flush=True)
+                    _signal_all([process.pid, *live], signal.SIGTERM)
+                elif capped and now - killed_at >= KILL_GRACE_SECONDS:
+                    _signal_all([process.pid, *live], signal.SIGKILL)
+                if code is not None:
+                    time.sleep(sample_seconds)
         finally:
             for sig, handler in previous.items():
                 signal.signal(sig, handler)
+        if capped:
+            code = 124
         record = {"host": local_host(), "edition": edition, "slot": slot, "command": command,
-                  "exit": code, "peak_rss_kib": peak, "sample_seconds": sample_seconds}
-        print(f"quartus_jobs: peak RSS {peak / 1024 ** 2:.2f} GiB (the job and its descendants, sampled every "
+                  "exit": code, "capped": capped, "cap_seconds": cap_seconds,
+                  "peak_rss_kib": peak, "sample_seconds": sample_seconds}
+        print(f"quartus_jobs: peak RSS {peak / 1024 ** 2:.2f} GiB (every process of the job, sampled every "
               f"{sample_seconds:g} s), exit {code}", file=sys.stderr, flush=True)
         run_dir = os.environ.get("FES_QUARTUS_RUN_DIR")
         if run_dir:
@@ -209,7 +249,8 @@ def resolve_pushed(revision: str) -> str:
 
 
 def remote_script(*, commit: str, host: str, home: str, edition: str, label: str,
-                  command: list[str], stamp: str, origin: str) -> tuple[str, str]:
+                  command: list[str], stamp: str, origin: str,
+                  cap_minutes: float = DEFAULT_CAP_MINUTES) -> tuple[str, str]:
     """The shell program that checks commit out into a new run directory and
     runs command under the lease there, and that directory.
 
@@ -243,18 +284,27 @@ def remote_script(*, commit: str, host: str, home: str, edition: str, label: str
         f"export FES_TOOLCHAIN_CACHE_ROOT={q(cache)}",
         f"export FES_QUARTUS_RUN_DIR={q(run_dir)}",
         f"printf '%s\\n' {q(json.dumps(job))} > {q(run_dir)}/job.json",
-        f"exec python3 scripts/quartus_jobs.py run --edition {q(edition)} --label {q(tag)} -- "
+        f"exec python3 scripts/quartus_jobs.py run --edition {q(edition)} --label {q(tag)} "
+        f"--cap-minutes {cap_minutes:g} -- "
         f"{shlex.join(inner)} > >(tee {q(run_dir)}/job.log) 2>&1",
     ])
     return script, run_dir
 
 
-def remote(edition: str, host: str, revision: str, label: str, command: list[str]) -> int:
+def url_has_credentials(url: str) -> bool:
+    """Whether an http(s) origin embeds a user or token. SSH forms
+    (git@host:path, ssh://git@host/path) name a login, not a secret."""
+    match = re.match(r"https?://([^/]*)@", url)
+    return match is not None
+
+
+def remote(edition: str, host: str, revision: str, label: str, command: list[str],
+           cap_minutes: float = DEFAULT_CAP_MINUTES) -> int:
     if not command:
         raise SystemExit("remote needs a command after --")
     commit = resolve_pushed(revision)
     origin = subprocess.check_output(["git", "-C", str(REPO), "remote", "get-url", "origin"], text=True).strip()
-    if "@" in origin.split("//", 1)[-1].split("/", 1)[0]:
+    if url_has_credentials(origin):
         raise SystemExit("origin's URL carries credentials; give remote hosts a plain URL")
     if host == "auto":
         host, probes = pick(edition)
@@ -272,7 +322,8 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
     print(f"quartus_jobs: running on {host}", file=sys.stderr, flush=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     script, run_dir = remote_script(commit=commit, host=host, home=chosen["home"], edition=edition,
-                                    label=label, command=command, stamp=stamp, origin=origin)
+                                    label=label, command=command, stamp=stamp, origin=origin,
+                                    cap_minutes=cap_minutes)
     target = ["bash", "-c", script] if host == local_host() else [*SSH, host, shlex.join(["bash", "-c", script])]
     result = subprocess.run(target, stdin=subprocess.DEVNULL)
     print(f"quartus_jobs: {host}:{run_dir} (exit {result.returncode})", file=sys.stderr)
@@ -292,6 +343,8 @@ def main(argv: list[str] | None = None) -> int:
         sub = commands.add_parser(name)
         sub.add_argument("--edition", choices=editions, required=True)
         sub.add_argument("--label", default="")
+        sub.add_argument("--cap-minutes", type=float, default=DEFAULT_CAP_MINUTES,
+                         help="stop the job after this long (default %(default)s); exit 124")
         if name == "remote":
             sub.add_argument("--host", default="auto")
             sub.add_argument("--commit", default="HEAD")
@@ -307,8 +360,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"host": host, "probes": probes}, indent=2) if args.json else host)
         return 0
     if args.action == "run":
-        return run(args.edition, args.label, command)
-    return remote(args.edition, args.host, args.commit, args.label, command)
+        return run(args.edition, args.label, command, cap_seconds=args.cap_minutes * 60)
+    return remote(args.edition, args.host, args.commit, args.label, command, args.cap_minutes)
 
 
 if __name__ == "__main__":

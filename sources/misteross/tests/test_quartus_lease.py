@@ -590,6 +590,32 @@ class JobsTests(unittest.TestCase):
             self.assertEqual(self.jobs.run("lite", "test", [sys.executable, "-c", code], sample_seconds=0.2), 0)
         self.assertGreater(json.loads((run_dir / "peak-rss.json").read_text())["peak_rss_kib"], 96 * 1024)
 
+    def test_the_slot_is_held_until_a_backgrounded_process_exits(self):
+        # Codex P1: the launcher exits at once and leaves its compile running.
+        started = time.monotonic()
+        marker = Path(self.directory.name) / "done"
+        self.assertEqual(self.jobs.run("lite", "", ["sh", "-c", f"(sleep 2; touch {marker}) & exit 0"],
+                                       sample_seconds=0.2), 0)
+        self.assertTrue(marker.exists(), "the slot was released before the background process finished")
+        self.assertGreaterEqual(time.monotonic() - started, 2)
+
+    def test_the_time_cap_stops_every_process_of_the_job(self):
+        survivor = Path(self.directory.name) / "survivor"
+        with mock.patch.object(self.jobs, "KILL_GRACE_SECONDS", 1):
+            code = self.jobs.run("lite", "", ["sh", "-c", f"(sleep 30; touch {survivor}) & sleep 30"],
+                                 sample_seconds=0.2, cap_seconds=1)
+        self.assertEqual(code, 124)
+        time.sleep(0.5)
+        self.assertEqual(self.jobs.job_processes("none"), {})
+        self.assertFalse(survivor.exists())
+
+    def test_ssh_origins_are_not_credentials(self):
+        for url in ("git@github.com:DeanoC/fes.git", "ssh://git@github.com/DeanoC/fes.git",
+                    "https://github.com/DeanoC/fes", "https://github.com/DeanoC/fes.git"):
+            self.assertFalse(self.jobs.url_has_credentials(url), url)
+        for url in ("https://x-access-token:abc@github.com/DeanoC/fes", "https://token@github.com/DeanoC/fes"):
+            self.assertTrue(self.jobs.url_has_credentials(url), url)
+
     def test_run_returns_the_job_exit_code(self):
         self.assertEqual(self.jobs.run("pro", "", ["sh", "-c", "exit 7"], sample_seconds=0.1), 7)
 
@@ -623,7 +649,7 @@ class JobsTests(unittest.TestCase):
         self.assertIn(f"{run_dir}/fit", script)
         self.assertIn("--cache-root=/home/u/fes-toolchain-cache", script)
         self.assertIn("export QUARTUS_ROOTDIR=/data/altera_pro/26.3/quartus", script)
-        self.assertIn("scripts/quartus_jobs.py run --edition pro", script)
+        self.assertIn("scripts/quartus_jobs.py run --edition pro --label x87-fit --cap-minutes 240 --", script)
         self.assertIn(f"worktree add -q --detach {run_dir}/src " + "a" * 40, script)
         self.assertEqual(subprocess.run(["bash", "-n", "-c", script]).returncode, 0)
         lite, _ = self.jobs.remote_script(commit="b" * 40, host="powerboat", home="/home/u", edition="lite",

@@ -31,6 +31,10 @@ Powerboat sat idle.
 - A shell script, a manual `quartus_sh`, or a script whose bytes cannot change
   runs under `python3 scripts/quartus_jobs.py run --edition lite|pro -- …`
   (from `sources/misteross`).
+  `run` holds the slot until every process of the job has exited, found by an
+  environment token, so a compile left in the background or daemonized
+  still counts. It stops the job at its time cap (`--cap-minutes`, default
+  240): SIGTERM to every process, SIGKILL after a minute, exit 124.
 - `tests/test_quartus_lease.py` fails on any tracked script that could run a
   leased Quartus program unleased. Out of scope are tests (stand-in programs)
   and `docs/validation/` (frozen evidence of past runs).
