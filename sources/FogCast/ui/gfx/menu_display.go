@@ -97,6 +97,30 @@ func (d *MenuDisplay) QueuedSeq() uint64 {
 	return d.nextSeq
 }
 
+// PresentedSince confirms a frame at or after a submission fence on the
+// current binding. The caller establishes the fence only after rendering its
+// desired state, so a newer frame may replace a dropped queued submission.
+func (d *MenuDisplay) PresentedSince(seq uint64) bool {
+	if d == nil || seq == 0 {
+		return false
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	status := d.lastStatus
+	return !d.paused && !d.closed && d.hasPresented && d.presentedSeq >= seq && d.lastErr == nil && status.Available &&
+		status.Generation == d.presentedGen && status.Underflows <= menudisplay.TransientUnderflowCap
+}
+
+// ForceNextFrame requests a fresh submission for a snapshot-bound fence.
+func (d *MenuDisplay) ForceNextFrame() {
+	if d == nil {
+		return
+	}
+	d.mu.Lock()
+	d.forceNext = true
+	d.mu.Unlock()
+}
+
 // SetTraceSink receives one MenuPresentTrace per frame the worker handles.
 // It is called on the worker goroutine and must not block. nil disables it.
 func (d *MenuDisplay) SetTraceSink(sink func(MenuPresentTrace)) {
@@ -176,6 +200,7 @@ type MenuDisplay struct {
 	generation                  uint64
 	known                       bool
 	changeDriven                bool
+	forceNext                   bool
 	nextSeq                     uint64
 	submitted                   *submittedMenuFrame
 	freeBuffers                 []*menuPixels
@@ -404,6 +429,10 @@ func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 			} else {
 				unchanged = bytes.Equal(pix, previous.pixels)
 			}
+		}
+		if d.forceNext {
+			unchanged = false
+			d.forceNext = false
 		}
 		if unchanged && !recover {
 			if d.probeQueued || !d.probeDueLocked(now) {
