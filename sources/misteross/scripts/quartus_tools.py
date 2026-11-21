@@ -563,9 +563,20 @@ def _expanded_command(tokens: list[str]) -> bool:
     its program cannot be known here, so it is treated as possibly either
     Quartus edition."""
     at_head, wrapped = True, False
-    for token in tokens:
+    skip = 0
+    for index, token in enumerate(tokens):
+        if skip:
+            skip -= 1
+            continue
         if token in SHELL_SEPARATORS:
             at_head, wrapped = True, False
+            continue
+        # A redirection (>log, 2>&1, <in) and its operand may come before the
+        # command word without taking its place.
+        if re.fullmatch(r"[<>]+[&|]?|&>>?", token):
+            skip = 1
+            continue
+        if token.isdigit() and index + 1 < len(tokens) and re.fullmatch(r"[<>]+[&|]?", tokens[index + 1]):
             continue
         # Parameter and command expansion, and pathname expansion (globs):
         # the shell, not this text, decides what such a word names.

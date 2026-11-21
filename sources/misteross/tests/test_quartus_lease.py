@@ -267,6 +267,11 @@ def _first_module_launch(tree: ast.Module) -> int | None:
             continue
         pending.extend(ast.iter_child_nodes(node))
     launchers: set[str] = set()
+    # name = lambda: ... bound at module level is a function too.
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Lambda):
+            if any(_is_launch_call(inner) for inner in ast.walk(node.value)):
+                launchers.update(t.id for t in node.targets if isinstance(t, ast.Name))
     changed = True
     while changed:
         changed = False
@@ -310,8 +315,13 @@ def python_names_leased(text: str) -> bool:
                   and isinstance(body[0].value, ast.Constant)}
     # A part of a name built at run time ('quartus_' + 'fit', f'quartus_{x}')
     # counts as naming one.
-    return any(isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in docstrings
-               and (LEASED.search(node.value) or _names_a_program_prefix(node.value))
+    def text_of(node):
+        if isinstance(node, ast.Constant) and isinstance(node.value, (str, bytes)) and id(node) not in docstrings:
+            return node.value.decode("latin-1") if isinstance(node.value, bytes) else node.value
+        return None
+
+    return any((value := text_of(node)) is not None
+               and (LEASED.search(value) or _names_a_program_prefix(value))
                for node in ast.walk(tree))
 
 
@@ -521,6 +531,14 @@ class StaticRuleTests(unittest.TestCase):
                               "import subprocess\ndef launch():\n    subprocess.run(['quartus_fit', 'top'])\n"
                               "launch()\nfrom scripts import quartus_tools\n"})
         self.assertEqual(len(failures), 1)
+        # Codex P1s at 4b6eaaa2a: a lambda launcher, and a byte-string name.
+        failures = self.scan({"sources/misteross/scripts/late4.py":
+                              "import subprocess\nlaunch = lambda: subprocess.run(['quartus_fit', 'top'])\n"
+                              "launch()\nfrom scripts import quartus_tools\n",
+                              "sources/misteross/scripts/bytes.py":
+                              "import subprocess\nsubprocess.run([b'quartus_fit', b'top'])\n"})
+        self.assertEqual(sorted(f.split(":")[0] for f in failures),
+                         ["sources/misteross/scripts/bytes.py", "sources/misteross/scripts/late4.py"])
         # Codex P1 at c6cd0929e: a launcher defined under a conditional.
         failures = self.scan({"sources/misteross/scripts/late3.py":
                               "import subprocess\nif True:\n    def launch():\n"
@@ -998,6 +1016,10 @@ class LaunchGuardTests(unittest.TestCase):
         # Codex P1 at 6b0f2a858: a command after a reserved word.
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", f"if true; then {self.bin}/quartus_[f]it top; fi"])
+        # Codex P1 at 4b6eaaa2a: a redirection before the command word.
+        for payload in (f">log {self.bin}/quartus_[f]it top", f"2>&1 {self.bin}/quartus_[f]it top"):
+            with self.assertRaises(qt.QuartusLeaseError):
+                subprocess.run(["sh", "-c", payload], cwd=self.directory.name)
         # Codex P1 at 941c04c72: a glob as the command word.
         with self.assertRaises(qt.QuartusLeaseError):
             subprocess.run(["sh", "-c", "./quartus_[f]it top"], cwd=str(self.bin))
