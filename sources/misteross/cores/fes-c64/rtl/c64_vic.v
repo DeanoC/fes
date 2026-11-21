@@ -3,6 +3,8 @@
 // Native colors pass through complete-frame buffers into fixed 720p60 HDMI.
 // Light-pen capture and exact mode-transition/subpixel quirks remain open.
 
+`include "c64_pal_timing.vh"
+
 module c64_vic (
     input  wire        clk_sys,
     input  wire        phi,
@@ -35,11 +37,12 @@ module c64_vic (
     output wire        irq
 );
     reg [7:0] regs [0:46];
-    reg [5:0] phi_div;
+    localparam CYCLE_BITS = `C64_PAL_CYCLE_BITS;
+    reg [CYCLE_BITS-1:0] phi_div;
     reg raster_fired;
     wire [8:0] raster_compare = {regs[6'h11][7], regs[6'h12]};
-    wire line_end = phi && phi_div == 6'd62;
-    wire [8:0] next_raster = raster == 9'd311 ? 9'd0 : raster + 9'd1;
+    wire line_end = phi && phi_div == `C64_PAL_CYCLES_PER_LINE - 1;
+    wire [8:0] next_raster = raster == `C64_PAL_LINES_PER_FRAME - 1 ? 9'd0 : raster + 9'd1;
     wire compare_write = cs && we && (addr == 6'h11 || addr == 6'h12);
     wire [8:0] written_compare = addr == 6'h11 ? {din[7], regs[6'h12]} :
                                                               {regs[6'h11][7], din};
@@ -75,7 +78,7 @@ module c64_vic (
     always @(posedge clk_sys) begin
         if (reset) begin
             raster <= 9'd0;
-            phi_div <= 6'd0;
+            phi_div <= 0;
             raster_fired <= 1'b0;
             for (i = 0; i < 47; i = i + 1) regs[i] <= 8'h00;
             regs[6'h11] <= 8'h1B;
@@ -90,13 +93,11 @@ module c64_vic (
             if (raster_event) begin
                 raster_fired <= 1'b1;
             end
-            if (phi) begin
-                if (phi_div == 6'd62) begin
-                    phi_div <= 6'd0;
-                    raster <= raster == 9'd311 ? 9'd0 : raster + 9'd1;
-                end else
-                    phi_div <= phi_div + 6'd1;
-            end
+            if (line_end) begin
+                phi_div <= 0;
+                raster <= next_raster;
+            end else if (phi)
+                phi_div <= phi_div + 1'b1;
         end
     end
 
@@ -128,7 +129,7 @@ module c64_vic (
         end
     endfunction
 
-    wire [5:0] native_cycle = phi_div + 6'd1;
+    wire [CYCLE_BITS-1:0] native_cycle = phi_div + 1'b1;
     wire first_phase = cycle_clock == 0;
     wire second_phase = cycle_clock == 26;
     wire fetch_sample = cycle_clock == 4 || cycle_clock == 30;
@@ -187,12 +188,14 @@ module c64_vic (
         endcase
     end
     wire native_frame_start = first_phase && raster==0 && native_cycle==1;
-    wire lower_edge = raster==(d011[3]?9'd251:9'd247);
-    wire upper_edge = raster==(d011[3]?9'd51:9'd55) && d011[4];
+    wire lower_edge = raster == (d011[3] ? `C64_PAL_BORDER_BOTTOM_25 : `C64_PAL_BORDER_BOTTOM_24);
+    wire upper_edge = raster == (d011[3] ? `C64_PAL_BORDER_TOP_25 : `C64_PAL_BORDER_TOP_24) && d011[4];
     // Sample each border transition one SYS edge before its dot strobe.
     // PAL CSEL1 edges are X24/344; CSEL0 edges are X31/335.
-    wire left_edge = native_cycle==6'd17 && (regs[6'h16][3]?first_phase:cycle_clock==6'd46);
-    wire right_edge = regs[6'h16][3]?(first_phase&&native_cycle==6'd57):(native_cycle==6'd55&&cycle_clock==6'd46);
+    wire left_edge = native_cycle == `C64_PAL_BORDER_LEFT_CYCLE &&
+        (regs[6'h16][3] ? first_phase : cycle_clock == 6'd46);
+    wire right_edge = regs[6'h16][3] ? (first_phase && native_cycle == `C64_PAL_BORDER_RIGHT_40) :
+        (cycle_clock == 6'd46 && native_cycle == `C64_PAL_BORDER_RIGHT_38);
     always @(posedge clk_sys) begin
         if(reset)begin
             frame_started<=0; vertical_border<=1;set_vertical_border<=1;main_border<=1;
@@ -215,7 +218,8 @@ module c64_vic (
     end
     wire [3:0] graphics_ink;
     wire graphics_foreground,graphics_background0,sprite_background0;
-    wire graphics_visible=native_cycle>=17&&native_cycle<=56&&!vertical_border;
+    wire graphics_visible = native_cycle >= `C64_PAL_GLYPH_FIRST + 1 &&
+        native_cycle <= `C64_PAL_GLYPH_LAST + 1 && !vertical_border;
     // Graphics go blank outside the forty-byte window; matrix/color
     // metadata retain the last visible byte until a later eligible load.
     reg [7:0] last_graphics_matrix;
@@ -233,7 +237,7 @@ module c64_vic (
         .glyph(graphics_visible?glyph:8'd0),.matrix(graphics_visible?matrix:last_graphics_matrix),
         .cell_color(graphics_visible?cell_color:last_graphics_color),.d011(d011),.d016(regs[6'h16]),
         .background({regs[6'h24][3:0],regs[6'h23][3:0],regs[6'h22][3:0],regs[6'h21][3:0]}),
-        .latch_scroll(native_cycle>=15&&native_cycle<=54&&!vertical_border),.color(graphics_ink),.foreground(graphics_foreground),
+        .latch_scroll(native_cycle >= `C64_PAL_MATRIX_FIRST && native_cycle <= `C64_PAL_MATRIX_LAST && !vertical_border),.color(graphics_ink),.foreground(graphics_foreground),
         .background0(graphics_background0),.color_q(),.foreground_q()
     );
     wire [7:0] ss_event,bg_event,ss_mask,bg_mask,collision_status;
@@ -260,8 +264,8 @@ module c64_vic (
     // Explicit bit decodes keep the prepared events in logic rather than a ROM.
     wire [7:0] pointer_event,row_event;
     for(genvar n=0;n<8;n=n+1)begin : sprite_cycle_events
-        localparam [5:0] POINTER_CYCLE=6'(n<3?58+2*n:2*n-5);
-        localparam [5:0] ROW_CYCLE=POINTER_CYCLE+6'd1;
+        localparam [CYCLE_BITS-1:0] POINTER_CYCLE = `C64_PAL_SPRITE_POINTER(n);
+        localparam [CYCLE_BITS-1:0] ROW_CYCLE = POINTER_CYCLE + 1'b1;
         assign pointer_event[n]=native_cycle==POINTER_CYCLE;
         assign row_event[n]=native_cycle==ROW_CYCLE;
     end
@@ -277,8 +281,10 @@ module c64_vic (
             default:pixel_prepare=0;
         endcase
     end
-    wire [8:0] prepare_x=native_cycle>=14?9'((native_cycle-14)*8)+{6'd0,prepare_dot}:
-        9'd400+9'((native_cycle-1)*8)+{6'd0,prepare_dot};
+    localparam [8:0] LINE_START_X = (`C64_PAL_CYCLES_PER_LINE + 1 - `C64_PAL_X_ZERO_CYCLE) * 8;
+    wire [8:0] prepare_x = native_cycle >= `C64_PAL_X_ZERO_CYCLE ?
+        9'((native_cycle - `C64_PAL_X_ZERO_CYCLE)*8) + {6'd0,prepare_dot} :
+        LINE_START_X + 9'((native_cycle-1)*8) + {6'd0,prepare_dot};
     reg [8:0] sprite_dot_x_q;
     reg [7:0] sprite_pointer_q, sprite_row_q;
     reg sprite_pending_update_q;
@@ -290,7 +296,7 @@ module c64_vic (
         end else if(pixel_prepare)begin
             sprite_dot_x_q<=prepare_x;
             sprite_pointer_q<=pointer_event; sprite_row_q<=row_event;
-            sprite_pending_update_q<=native_cycle==58;
+            sprite_pending_update_q<=native_cycle==`C64_PAL_SPRITE_POINTER(0);
         end
     end
     // Final DMA byte is sampled at SYS30, after dot4 (SYS27).
@@ -305,10 +311,11 @@ module c64_vic (
         .color(sprite_ink),.color_background0(sprite_background0),.color_q(),.ss_q(ss_event),.bg_q(bg_event),.active(),.pending(),.halt(),
         .ex_flop(),.mc_flop(),.shifts(),.pixels()
     );
-    wire visible_native=raster>=16&&raster<=287&&native_cycle>=13&&native_cycle<=60;
-    wire [8:0] native_y=9'(raster-9'd16);
+    wire visible_native=raster >= `C64_PAL_CAPTURE_FIRST_LINE && raster <= `C64_PAL_CAPTURE_LAST_LINE &&
+        native_cycle >= `C64_PAL_CAPTURE_FIRST_CYCLE && native_cycle <= `C64_PAL_CAPTURE_LAST_CYCLE;
+    wire [8:0] native_y=9'(raster-`C64_PAL_CAPTURE_FIRST_LINE);
     // Convert the native raster window into a 384x272 indexed-color frame.
-    wire [8:0] write_x=9'((native_cycle-6'd13)*8)+{6'd0,subpixel};
+    wire [8:0] write_x=9'((native_cycle-`C64_PAL_CAPTURE_FIRST_CYCLE)*8)+{6'd0,subpixel};
     wire [16:0] write_address=17'(native_y*384)+{8'd0,write_x};
 
     // PAL6569R3 resolves D020/D021 three dots after selecting the pixel source.
