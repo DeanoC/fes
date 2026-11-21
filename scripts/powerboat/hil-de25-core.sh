@@ -15,12 +15,17 @@ SOURCE_BASE=$ROOT/wt
 D25_SW_BASE=/data/fes-de25-pr1312-hil-19cca-20261112/de25/native-probe-rootfs.img
 D25_SW_IMAGE=/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/first-fault-integration-53009e4ab/hdmi-hotplug-9c/release-13/kernel-93131814a2a2-v2/base
 mkdir -p "$D/logs" "$D/out"
-SOURCE_WORKTREE=; HOSTPID=
+SOURCE_WORKTREE=; HOSTPID=; TMPDIR_PATH=
 cleanup(){
   [ -n "$HOSTPID" ] && { kill "$HOSTPID" 2>/dev/null || true; wait "$HOSTPID" 2>/dev/null || true; }
   [ -z "$SOURCE_WORKTREE" ] || git -C "$SOURCE_BASE" worktree remove --force "$SOURCE_WORKTREE" >/dev/null 2>&1 || true
+  [ -z "$TMPDIR_PATH" ] || rm -rf "$TMPDIR_PATH"
 }
 trap cleanup EXIT
+# Keep Go's temporary paths short and avoid VCS stamping from ambient parent
+# directories (for example a stray /home/deano/.git).
+TMPDIR_PATH=$(mktemp -d /tmp/lXXXXXX)
+export TMPDIR="$TMPDIR_PATH"
 # Prepare the managed software from this exact revision before taking J8G.
 FES_SOURCE=$ROOT/wt
 if [ "$(git -C "$FES_SOURCE" rev-parse HEAD 2>/dev/null || true)" != "$HEAD" ]; then
@@ -87,7 +92,7 @@ mkdir -p "$SWAP_HOME/.config/fogcast" "$SWAP_HOME/.local/share" "$SWAP_HOME/bin"
 cp -a /home/deano/.local/share/fogcast "$SWAP_HOME/.local/share/"
 CHECKED_OUT_HEAD=$(git -C "$FES_SOURCE" rev-parse HEAD)
 [ "$CHECKED_OUT_HEAD" = "$HEAD" ] || { fail "private host source is not exact head ($CHECKED_OUT_HEAD)"; echo NOTSTARTED > "$D/verdict"; exit 3; }
-if ! (cd "$FES_SOURCE/sources/FogCast" && GOFLAGS=-mod=readonly timeout 900 go build -o "$SWAP_HOME/bin/fogcast-api" ./cmd/fogcast-api && GOFLAGS=-mod=readonly timeout 900 go build -o "$SWAP_HOME/bin/fogcast" ./cmd/fogcast) >"$D/logs/private-host-build.log" 2>&1; then
+if ! (cd "$FES_SOURCE/sources/FogCast" && GOFLAGS='-mod=readonly -buildvcs=false' timeout 900 go build -buildvcs=false -o "$SWAP_HOME/bin/fogcast-api" ./cmd/fogcast-api && GOFLAGS='-mod=readonly -buildvcs=false' timeout 900 go build -buildvcs=false -o "$SWAP_HOME/bin/fogcast" ./cmd/fogcast) >"$D/logs/private-host-build.log" 2>&1; then
   fail "exact-head private FogCast API/CLI build failed"; echo NOTSTARTED > "$D/verdict"; exit 3
 fi
 PRIVATE_API=$SWAP_HOME/bin/fogcast-api; PRIVATE_FOGCAST=$SWAP_HOME/bin/fogcast
@@ -105,7 +110,7 @@ PY
 unset AGENT_TOKEN
 env HOME="$SWAP_HOME" XDG_CONFIG_HOME="$SWAP_HOME/.config" XDG_DATA_HOME="$SWAP_HOME/.local/share" \
   "$PRIVATE_API" --config "$SWAP_HOME/.config/fogcast/config.toml" --listen "$API" --headless >"$D/logs/private-host.log" 2>&1 & HOSTPID=$!
-for i in $(seq 1 60); do curl --noproxy '*' -fsS "http://$API/api/v1/health" -o "$D/out/host-health-before.json" && break; sleep 1; done
+for i in $(seq 1 60); do curl --noproxy '*' -fsS "http://$API/api/v1/health" -o "$D/out/host-health-before.json" 2>/dev/null && break; sleep 1; done
 if ! test -s "$D/out/host-health-before.json"; then fail "private D25 host did not become ready"; echo FAIL > "$D/verdict"; exit 1; fi
 # Capture serial-bound state before the exact package is installed or launched.
 cat > "$D/snapshot.py" <<'PY'
@@ -187,11 +192,22 @@ old_idle = """    rc, lc = kit("curl -s -m5 --unix-socket /run/fogcast/local-con
 new_idle = "    idle = req('/api/v1/session', 'session-after-stop')\n    check('idle_after_stop', idle.get('state') == 'idle', str(idle.get('state')))"
 if old_idle not in s: raise SystemExit('HIL smoke idle probe declaration changed')
 s=s.replace(old_idle,new_idle,1)
+old_frames = '    s1 = grab("10-core", 1); s2 = grab("11-core", 10)'
+new_frames = old_frames + """
+    tool = os.environ.get("C_BOOT_SCREEN_TOOL", "")
+    if tool and os.path.isfile(tool):
+        frames = [str(FR / (n + ".png")) for n in ("10-core", "11-core") if (FR / (n + ".png")).is_file()]
+        bs = subprocess.run([sys.executable, tool, "--core", os.environ.get("C_CORE_ID", ""), *frames], capture_output=True, text=True, timeout=180)
+        (OUT / "boot-screen.json").write_text(bs.stdout + bs.stderr)
+        if bs.returncode != 3:
+            check("boot_screen", bs.returncode == 0 and len(frames) == 2, bs.stdout.strip()[:400])"""
+if old_frames not in s: raise SystemExit('HIL smoke core frame capture changed')
+s=s.replace(old_frames,new_frames,1)
 compile(s, str(p), 'exec')
-if 'C_API' not in s or 'session-after-stop' not in s: raise SystemExit('D25 smoke patch verification failed')
+if 'C_API' not in s or 'session-after-stop' not in s or 'boot-screen.json' not in s: raise SystemExit('D25 smoke patch verification failed')
 p.write_text(s)
 PY
-  C_KIT=D25 C_PR="$PR" C_TARGET=de25 C_HEAD="$HEAD" C_PKG="$PKG" C_OUT="$D/out" C_VID=/dev/v4l/by-id/fes-ms2109-hil C_FOGCAST="$PRIVATE_FOGCAST" C_API="http://$API" \
+  C_CORE_ID="$CORE_ID" C_BOOT_SCREEN_TOOL="$FES_SOURCE/scripts/de25_boot_screen.py" C_KIT=D25 C_PR="$PR" C_TARGET=de25 C_HEAD="$HEAD" C_PKG="$PKG" C_OUT="$D/out" C_VID=/dev/v4l/by-id/fes-ms2109-hil C_FOGCAST="$PRIVATE_FOGCAST" C_API="http://$API" \
     timeout 1800 python3 "$Q/hil-de25-core.py" >"$D/logs/smoke.log" 2>&1
   SMOKE_RC=$?
 fi
