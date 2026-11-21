@@ -62,10 +62,10 @@ foreach {label source head} {
 }
 
 # The published bank is held from its sent toggle until the pixel clock's
-# received toggle returns. The pixel clock copies it while the toggle is
-# pending, with nothing on the path but the copy's enable, no sooner than two
-# pixel periods after the toggle left the machine clock, and adopts the copy a
-# stage later. One pixel period bounds the copy, as the DE10 mailbox
+# received toggle returns. The pixel clock copies it on the edge the toggle
+# leaves its synchronizer, with nothing on the path but the copy's enable, no
+# sooner than two pixel periods after the toggle left the machine clock, and
+# adopts the copy from that stage. One pixel period bounds the copy, as the DE10 mailbox
 # constraint bounds the bank; the bound counts the skew between the two PLL
 # networks.
 set published [get_registers "${base}|core|system|video|adapter|published_bank\[*\]"]

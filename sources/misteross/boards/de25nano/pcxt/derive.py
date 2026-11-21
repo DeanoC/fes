@@ -79,9 +79,9 @@ def retarget_video_ram(source):
 #   - each toggle and the hold level cross a two-stage synchronizer that runs
 #     free of its clock's synchronous reset; the hold leaves a machine-clock
 #     launch register of its own;
-#   - the published bank is copied into a pixel-clock register while its toggle
-#     is pending, with nothing on the path but that register's enable, and the
-#     pixel clock adopts the copy from one stage later.
+#   - the published bank is copied into a pixel-clock register on the edge its
+#     toggle leaves the synchronizer, with nothing on the path but that
+#     register's enable, and the pixel clock adopts the copy from that stage.
 # The coordinated reset holds both clocks for many cycles, so the free-running
 # stages settle to the reset toggles before either side runs. An adoption can
 # take one pixel clock longer to see a new bank; it still lands on an output
@@ -100,7 +100,7 @@ VIDEO_EDITS = (
      b"    always @(posedge clk_pixel) begin\n"
      b"        sent_meta <= sent; sent_sync <= sent_meta; sent_held <= sent_sync;\n"
      b"        hold_meta <= hold_launch; hold_sync <= hold_meta;\n"
-     b"        if (sent_sync != received) published_pixel <= published_bank;\n    end\n"
+     b"        if (sent_sync != sent_held) published_pixel <= published_bank;\n    end\n"
      b"    wire adopt = output_sof && sent_held != received;\n"
      b"    wire [1:0] read_bank = adopt ? published_pixel : front;\n"),
     (b"            sent_meta <= 0; sent_sync <= 0; hold_meta <= 0; hold_sync <= 0;\n", b""),

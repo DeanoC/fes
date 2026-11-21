@@ -64,7 +64,7 @@ class Derivations(unittest.TestCase):
         # clock's own read of it stays.
         self.assertEqual(result.count(b"published_bank;"), 2)
         self.assertIn(b"source_front <= published_bank;", result)
-        self.assertIn(b"if (sent_sync != received) published_pixel <= published_bank;", result)
+        self.assertIn(b"if (sent_sync != sent_held) published_pixel <= published_bank;", result)
         self.assertNotIn(b"? published_bank : front", result)
         with self.assertRaises(ValueError):
             derive.retarget_video(result)
