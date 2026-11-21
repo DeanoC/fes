@@ -1,0 +1,15 @@
+--- a/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv
++++ b/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv
+@@ -467,10 +467,10 @@
+     // package until slice 5 of the x87 phase (#1768), where the plan's
+     // slices put the transcendentals every computing title also runs; its
+     // record word and FogCast setting come with it.
+-    wire x87_present = 1'b0;
++    wire x87_present = 1'b1;   // SCRATCH: x87 s6 step 6.0, identity on
+     wire x87_f0, x87_f1, x87_irq13;
+ 
+-    fes_i386_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D)) cpu (
++    fes_i386_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D), .X87_BACKEND(1)) cpu (   // SCRATCH: DE25 backend
+         .clk(clk), .cold_reset(cpu_cold), .reset(cpu_reset),
+         .x87_present(x87_present), .x87_f0(x87_f0), .x87_f1(x87_f1), .x87_irq13(x87_irq13), .trace_x87_busy(), .trace_x87_latched(), .trace_x87_seq(),
+         .arch_x87_cw(), .arch_x87_sw(), .arch_x87_tw(), .arch_x87_opcode(), .arch_x87_regs(),

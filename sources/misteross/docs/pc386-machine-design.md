@@ -1664,8 +1664,8 @@ has the field rules:
 | 24–27 | DataControl, DataRead, DataWrite, DataInfo | As on `fes.simple-game` | As there |
 | 28 | WallClock | word 0–3 | year; month and day; hour and minute; second and weekday |
 
-Package: format 2 (firmware in the RBF), `core.id = fes.pc386`, built by
-`scripts/build_fes_pc386_quartus.py` with Quartus 17.0.2 from the netlist of
+Package: format 2 (firmware in the RBF), `core.id = fes.pc386`, built by the registered producer
+`cores/fes-pc386/tools/build_pc386_product.py` with Quartus 17.0.2 from the netlist of
 its own `toolchain.lock`'s Yosys, while nextpnr is parked
 ([#1235](https://github.com/DeanoC/fes/issues/1235)). Until the M0 contracts
 land it declares `fes.computer` 1.0 and takes its disk and settings from the
@@ -1874,5 +1874,6 @@ controller moved from `cores/fes-pcxt/` to `cores/fes-common/` with M1
 them; the PC/XT keeps no copy. The
 firmware sources go in `cores/fes-pc386/firmware/`, their build script in
 `scripts/build_pc386_firmware.py`, and the producer in
-`scripts/build_fes_pc386_quartus.py`. The FogCast disk builder and its FreeDOS
+`cores/fes-pc386/tools/build_pc386_product.py`, with the seal's shared
+definitions in `scripts/pc386_quartus.py`. The FogCast disk builder and its FreeDOS
 lock land in `sources/FogCast/` with that follow-up.

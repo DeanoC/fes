@@ -1,0 +1,41 @@
+corner	hold_only	check	coverage	paths	worst_slack_ns	from	to
+Slow fix4 100C Model	0	setup	analyzed	1	1.318	cpu_x87_wprec[0]~DUPLICATE	cpu_x87_sh_pow[1]
+Slow fix4 100C Model	0	hold	analyzed	1	0.085	audio_opl2_opl2_control_operators_op_num_sr_out[14]	audio_opl2_opl2_control_operators_operator_envelope_generator_state_mem_genblk1_mem_bank_mlab_ram_rtl_0|auto_generated|lutrama0~reg0
+Slow fix4 100C Model	0	recovery	analyzed	1	5.737	reset	machine_at_pit_internal_data_bus[7]~DUPLICATE
+Slow fix4 100C Model	0	removal	analyzed	1	0.574	reset	machine_at_pit_u_KF8253_Control_Logic_prev_write_enable_n
+Slow fix4 100C Model	0	clk_clock_setup	analyzed	1	1.318	cpu_x87_wprec[0]~DUPLICATE	cpu_x87_sh_pow[1]
+Slow fix4 100C Model	0	clk_clock_hold	analyzed	1	0.085	audio_opl2_opl2_control_operators_op_num_sr_out[14]	audio_opl2_opl2_control_operators_operator_envelope_generator_state_mem_genblk1_mem_bank_mlab_ram_rtl_0|auto_generated|lutrama0~reg0
+Slow fix4 100C Model	0	pixel_clk_clock_setup	analyzed	1	8.357	machine_presenter_h_b[0]~ERTM	machine_presenter_picture[7]~ERTM
+Slow fix4 100C Model	0	pixel_clk_clock_hold	analyzed	1	0.131	machine_presenter_p_a0[4]~ERTM	add_1200~21_ERTM
+Slow fix4 100C Model	0	internal_setup	analyzed	1	1.318	cpu_x87_wprec[0]~DUPLICATE	cpu_x87_sh_pow[1]
+Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	3.550		
+Slow fix4 0C Model	0	setup	analyzed	1	0.431	cpu_x87_wprec[0]~DUPLICATE	cpu_x87_sh_pow[1]
+Slow fix4 0C Model	0	hold	analyzed	1	0.113	audio_opl2_opl2_control_operators_op_num_sr_out[14]	audio_opl2_opl2_control_operators_operator_envelope_generator_state_mem_genblk1_mem_bank_mlab_ram_rtl_0|auto_generated|lutrama0~reg0
+Slow fix4 0C Model	0	recovery	analyzed	1	5.393	reset	machine_at_pit_internal_data_bus[7]~DUPLICATE
+Slow fix4 0C Model	0	removal	analyzed	1	0.662	reset	machine_at_pit_u_KF8253_Control_Logic_prev_write_enable_n
+Slow fix4 0C Model	0	clk_clock_setup	analyzed	1	0.431	cpu_x87_wprec[0]~DUPLICATE	cpu_x87_sh_pow[1]
+Slow fix4 0C Model	0	clk_clock_hold	analyzed	1	0.113	audio_opl2_opl2_control_operators_op_num_sr_out[14]	audio_opl2_opl2_control_operators_operator_envelope_generator_state_mem_genblk1_mem_bank_mlab_ram_rtl_0|auto_generated|lutrama0~reg0
+Slow fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	7.483	machine_presenter_h_b[0]~ERTM	machine_presenter_picture[7]~ERTM
+Slow fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.148	_37406_[8]~11_ERTM	machine_presenter_h_b[11]~ERTM
+Slow fix4 0C Model	0	internal_setup	analyzed	1	0.431	cpu_x87_wprec[0]~DUPLICATE	cpu_x87_sh_pow[1]
+Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	3.523		
+Slow fix4a 0C Model	0	setup	analyzed	1	0.435	cpu_x87_wprec[0]~DUPLICATE	cpu_x87_sh_pow[1]
+Slow fix4a 0C Model	0	hold	analyzed	1	0.113	audio_opl2_opl2_control_operators_op_num_sr_out[14]	audio_opl2_opl2_control_operators_operator_envelope_generator_state_mem_genblk1_mem_bank_mlab_ram_rtl_0|auto_generated|lutrama0~reg0
+Slow fix4a 0C Model	0	recovery	analyzed	1	5.404	reset	machine_at_pit_internal_data_bus[7]~DUPLICATE
+Slow fix4a 0C Model	0	removal	analyzed	1	0.656	reset	machine_at_pit_u_KF8253_Control_Logic_prev_write_enable_n
+Slow fix4a 0C Model	0	clk_clock_setup	analyzed	1	0.435	cpu_x87_wprec[0]~DUPLICATE	cpu_x87_sh_pow[1]
+Slow fix4a 0C Model	0	clk_clock_hold	analyzed	1	0.113	audio_opl2_opl2_control_operators_op_num_sr_out[14]	audio_opl2_opl2_control_operators_operator_envelope_generator_state_mem_genblk1_mem_bank_mlab_ram_rtl_0|auto_generated|lutrama0~reg0
+Slow fix4a 0C Model	0	pixel_clk_clock_setup	analyzed	1	7.571	machine_presenter_h_b[0]~ERTM	machine_presenter_picture[7]~ERTM
+Slow fix4a 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.151	_37406_[8]~11_ERTM	machine_presenter_h_b[11]~ERTM
+Slow fix4a 0C Model	0	internal_setup	analyzed	1	0.435	cpu_x87_wprec[0]~DUPLICATE	cpu_x87_sh_pow[1]
+Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	3.523		
+Fast fix4 0C Model	0	setup	analyzed	1	3.944	cpu_x87_ob_m[54]	cpu_x87_we[15]
+Fast fix4 0C Model	0	hold	analyzed	1	0.025	_43235_[549]	_43235_[663]
+Fast fix4 0C Model	0	recovery	analyzed	1	6.658	reset	machine_at_pic_slave_internal_data_bus[6]
+Fast fix4 0C Model	0	removal	analyzed	1	0.347	reset	machine_at_pit_u_KF8253_Control_Logic_prev_write_enable_n
+Fast fix4 0C Model	0	clk_clock_setup	analyzed	1	3.944	cpu_x87_ob_m[54]	cpu_x87_we[15]
+Fast fix4 0C Model	0	clk_clock_hold	analyzed	1	0.025	_43235_[549]	_43235_[663]
+Fast fix4 0C Model	0	pixel_clk_clock_setup	analyzed	1	10.426	machine_presenter_h_b[0]~ERTM	machine_presenter_picture[7]~ERTM
+Fast fix4 0C Model	0	pixel_clk_clock_hold	analyzed	1	0.043	machine_presenter_p_a0[2]~ERTM	add_1200~11_ERTM
+Fast fix4 0C Model	0	internal_setup	analyzed	1	3.944	cpu_x87_ob_m[54]	cpu_x87_we[15]
+Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	3.764		

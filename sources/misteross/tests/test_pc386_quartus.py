@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
-"""The pc386 Quartus seal's sources, guest rates, machine netlist, project,
-timing gate, resources and manifest. No Quartus or Yosys needed."""
+"""The pc386 Quartus seal's shared definitions (scripts/pc386_quartus.py):
+sources, guest rates, machine netlist, project, timing gate, resources, tool
+authentication and lockstep gate. No Quartus or Yosys needed."""
 import hashlib
 import json
 import os
@@ -9,15 +10,13 @@ import re
 import shutil
 import sys
 import tempfile
-import tomllib
 import unittest
 from unittest import mock
 
-from scripts import build_fes_pc386_quartus as quartus
+from scripts import pc386_quartus as quartus
 from scripts import fes_build_common as board
 from scripts import lockfile
 from scripts import yosys_netlist
-from scripts.export_core_package import build_identity
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD_ID = "0123456789abcdef0123456789abcdef"
@@ -152,7 +151,7 @@ class ProjectTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             project = Path(temporary) / "project"
             project.mkdir()
-            text = quartus.project_qsf(ROOT, project, BUILD_ID, 3)
+            text = quartus.project_qsf(ROOT, project, BUILD_ID, 3, threads=2)
         self.assertIn('set_global_assignment -name VERILOG_MACRO "QUARTUS=1"', text)
         self.assertIn(f"FES_PC386_BUILD_ID=128'h{BUILD_ID}", text)
         self.assertIn("set_global_assignment -name SEED 3", text)
@@ -165,11 +164,17 @@ class ProjectTest(unittest.TestCase):
         for source in quartus.MACHINE_SOURCES:
             self.assertNotIn(source, text)
 
+    def test_project_threads_are_the_callers(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary)
+            self.assertIn("NUM_PARALLEL_PROCESSORS ALL", quartus.project_qsf(ROOT, project, BUILD_ID, 1, threads="ALL"))
+            self.assertIn("NUM_PARALLEL_PROCESSORS 2", quartus.project_qsf(ROOT, project, BUILD_ID, 1, threads=2))
+
     def test_project_rejects_a_bad_build_id_and_seed(self):
         with self.assertRaises(board.BuildError):
-            quartus.project_qsf(ROOT, ROOT, "XYZ", 1)
+            quartus.project_qsf(ROOT, ROOT, "XYZ", 1, threads=2)
         with self.assertRaises(board.BuildError):
-            quartus.project_qsf(ROOT, ROOT, BUILD_ID, 0)
+            quartus.project_qsf(ROOT, ROOT, BUILD_ID, 0, threads=2)
 
 
 class TimingTest(unittest.TestCase):
@@ -221,65 +226,10 @@ class ResourcesTest(unittest.TestCase):
             quartus.fit_resources(FIT_SUMMARY.replace("Total DSP Blocks", "Total DSPs"))
 
 
-class ManifestTest(unittest.TestCase):
-    def test_manifest_is_the_system_labelled_quartus(self):
-        record = quartus.create_build_record(ROOT, "https://github.com/DeanoC/fes", "a" * 40, IDENTITIES, 1)
-        evidence = {"rbf": {"sha256": "3" * 64, "size": 4096}}
-        fields = tomllib.loads(quartus.manifest(ROOT, record, evidence, "https://github.com/DeanoC/fes", "a" * 40,
-                                                IDENTITIES).decode())
-        self.assertEqual(fields["core"]["id"], "fes.pc386")
-        self.assertEqual(fields["core"]["name"], "FES pc386 (Quartus)")
-        self.assertEqual(fields["abi"], {"id": "fes.computer", "major": 1, "minor": 1})
-        self.assertEqual([item["id"] for item in fields["interfaces"]], list(quartus.INTERFACES))
-        self.assertEqual(fields["build"]["id"], build_identity(record))
-        self.assertIn("Quartus Prime Lite 17.0.2", fields["build"]["toolchain"])
-        self.assertIn("Yosys", fields["build"]["toolchain"])
-        parameters = json.loads(record)["parameters"]
-        self.assertEqual(parameters["compiler"], "quartus-17.0.2")
-        self.assertEqual(json.loads(parameters["guest_rates"]), quartus.guest_rates())
-        self.assertEqual(json.loads(parameters["firmware"]), quartus.firmware_digests(ROOT))
-        self.assertIn("read_verilog -sv -I cores/fes-common/generated", parameters["machine_netlist"])
-        self.assertIn(" $MACHINE_SOURCES; hierarchy -top pc386_system ", parameters["machine_netlist"])
-        self.assertEqual(len(parameters["machine_sources_sha256"]), 64)
-
-    def test_the_record_names_its_files_from_the_repository_root(self):
-        fields = json.loads(quartus.create_build_record(ROOT, "https://github.com/DeanoC/fes", "a" * 40,
-                                                        IDENTITIES, 1))
-        self.assertEqual(fields["recipe"], "sources/misteross/scripts/build_fes_pc386_quartus.py")
-        self.assertEqual(fields["abi_definition"], "sources/misteross/cores/fes-common/generated/fes_computer.vh")
-
-    def test_the_seed_is_part_of_the_build_identity(self):
-        first = quartus.create_build_record(ROOT, "https://github.com/DeanoC/fes", "a" * 40, IDENTITIES, 1)
-        second = quartus.create_build_record(ROOT, "https://github.com/DeanoC/fes", "a" * 40, IDENTITIES, 2)
-        self.assertNotEqual(build_identity(first), build_identity(second))
-
-
 class GpuRouterTest(unittest.TestCase):
-    """--gpu-router selects the toolchain lock's HIP or CUDA slot, and the record names it."""
-
-    REPOSITORY = "https://github.com/DeanoC/fes"
-
-    def record(self, *args):
-        return quartus.create_build_record(ROOT, self.REPOSITORY, "a" * 40, IDENTITIES, 1, *args)
-
-    def test_hip_is_the_default_slot(self):
-        self.assertEqual(self.record(), self.record("HIP"))
-        parameters = json.loads(self.record())["parameters"]
-        self.assertEqual(parameters["gpu_backend"], "hip")
-        self.assertEqual(parameters["toolchain_configuration"], board.FES_TOOLCHAIN_CONFIGURATION)
-
-    def test_the_cuda_slot_is_recorded_and_has_its_own_build_id(self):
-        with mock.patch.dict(os.environ):
-            os.environ.pop("FES_TOOLCHAIN_CUDA_ARCHITECTURES", None)
-            cuda = self.record("CUDA")
-        parameters = json.loads(cuda)["parameters"]
-        self.assertEqual(parameters["gpu_backend"], "cuda")
-        self.assertEqual(parameters["toolchain_configuration"], board.FES_CUDA_TOOLCHAIN_CONFIGURATION)
-        self.assertNotEqual(build_identity(cuda), build_identity(self.record("HIP")))
+    """The router selects which of the toolchain lock's slots is authenticated."""
 
     def test_an_unknown_router_fails(self):
-        with self.assertRaisesRegex(board.BuildError, "unsupported GPU router"):
-            self.record("Metal")
         with self.assertRaisesRegex(board.BuildError, "unsupported GPU router"):
             quartus._authenticate_tools(ROOT, gpu_router="Metal")
 
@@ -302,62 +252,6 @@ class GpuRouterTest(unittest.TestCase):
         self.assertEqual((cuda["gpu_router"], cuda["hip_architectures"], cuda["expected_configuration"],
                           cuda["cache_root"], cuda["lock_path"]),
                          ("CUDA", "unused", {"nextpnr": "cuda-lane"}, Path("/cache"), ROOT / quartus.LOCK))
-
-    def test_build_keeps_the_router_through_the_final_checks(self):
-        tools = {"yosys": mock.Mock(path=Path("yosys"), identity=IDENTITIES["yosys"]), "quartus_sh": Path("quartus_sh"),
-                 "quartus_root": Path("q"), "quartus_version": "v", "identities": dict(IDENTITIES)}
-        evidence = {"rbf": {"sha256": "0" * 64, "size": 1}}
-        with tempfile.TemporaryDirectory() as temporary, \
-                mock.patch.object(quartus, "require_clean_source", return_value=(self.REPOSITORY, "a" * 40)), \
-                mock.patch.object(quartus, "_authenticate_tools", return_value=tools) as authenticate, \
-                mock.patch.object(quartus, "create_build_record", return_value=self.record()) as record, \
-                mock.patch.object(quartus.board, "_prepare_output", return_value=Path(temporary)), \
-                mock.patch.object(quartus.board, "_write_atomic") as write, \
-                mock.patch.object(quartus, "write_project"), mock.patch.object(quartus, "check_rom"), \
-                mock.patch.object(quartus, "elaborate_machine"), mock.patch.object(quartus, "run_quartus"), \
-                mock.patch.object(quartus, "validate_build_evidence", return_value=evidence), \
-                mock.patch.object(quartus, "firmware_digests", return_value={}), \
-                mock.patch.object(quartus.board, "_sha256", return_value="0" * 64), \
-                mock.patch.object(quartus, "manifest", return_value=b""), \
-                mock.patch.object(quartus, "export_package", return_value=Path("package")), \
-                mock.patch.object(quartus, "check_lockstep_report", return_value={"report_sha256": "r", "oracle": {
-                    "revision": quartus.BOCHS_REVISION, "patch_sha256": "0" * 64}}) as gate, \
-                mock.patch.object(quartus, "require_same_oracle") :
-            report = Path(temporary) / "report.json"
-            report.write_text("{}")
-            self.assertEqual(quartus.build(ROOT, cache_root=Path("/cache"), gpu_router="CUDA", lockstep_report=report),
-                             Path("package"))
-        self.assertEqual(gate.call_args.args[1:4], (b"{}", tools["yosys"], "CUDA"))
-        self.assertEqual([call.kwargs for call in authenticate.call_args_list],
-                         [{"cache_root": Path("/cache"), "gpu_router": "CUDA"}] * 2)
-        self.assertEqual([call.args[-1] for call in record.call_args_list], ["CUDA", "CUDA"])
-        summary = next(json.loads(call.args[1]) for call in write.call_args_list
-                       if call.args[0].name == "build-summary.json")
-        self.assertEqual(summary["gpu_backend"], "cuda")
-        self.assertEqual(summary["netlist"]["program_sha256"], yosys_netlist.program_sha256(yosys_netlist.SEAL))
-        self.assertEqual(summary["netlist"]["cpu_source_sha256"], yosys_netlist.cpu_source_sha256(ROOT))
-        self.assertEqual(summary["netlist"]["yosys"]["tool"], IDENTITIES["yosys"])
-        self.assertEqual(summary["netlist"]["yosys"]["gpu_router"], "CUDA")
-        self.assertEqual(summary["lockstep"], {"report_sha256": "r", "oracle": {
-            "revision": quartus.BOCHS_REVISION, "patch_sha256": "0" * 64}})
-        self.assertEqual([call.args[1] for call in write.call_args_list
-                          if call.args[0].name == quartus.LOCKSTEP_REPORT], [b"{}"])
-
-    def test_the_command_line_passes_the_router(self):
-        for argv, router in (([], "HIP"), (["--gpu-router", "CUDA"], "CUDA")):
-            with mock.patch.object(quartus, "build", return_value=Path("package")) as build, \
-                    mock.patch("sys.argv", ["build_fes_pc386_quartus.py", "--lockstep-report", "r.json", *argv]), \
-                    mock.patch("builtins.print"):
-                self.assertEqual(quartus.main(), 0)
-            self.assertEqual(build.call_args.kwargs["gpu_router"], router)
-            self.assertEqual(build.call_args.kwargs["lockstep_report"], Path("r.json"))
-        with mock.patch("sys.argv", ["build_fes_pc386_quartus.py"]), mock.patch("sys.stderr"), \
-                self.assertRaises(SystemExit):
-            quartus.main()
-        with mock.patch("sys.argv", ["build_fes_pc386_quartus.py", "--gpu-router", "Metal"]), \
-                mock.patch("sys.stderr"), self.assertRaises(SystemExit):
-            quartus.main()
-
 
 class LockstepGateTest(unittest.TestCase):
     """The sealer's --lockstep-report gate (#1581 S5)."""
@@ -407,12 +301,6 @@ class LockstepGateTest(unittest.TestCase):
             "yosys_tool": IDENTITIES["yosys"],
             "cpu_source_closure_sha256": self.report["netlist"]["cpu_source_sha256"],
             "simulator": self.report["verilator"], "oracle": self.report["oracle"]})
-
-    def test_a_missing_report_is_refused(self):
-        with self.assertRaisesRegex(board.BuildError, "needs --lockstep-report"):
-            quartus.build(ROOT, cache_root=Path("/cache"))
-        with self.assertRaisesRegex(board.BuildError, "cannot read the lockstep report"):
-            quartus.build(ROOT, cache_root=Path("/cache"), lockstep_report=self.output / "absent.json")
 
     def test_a_failed_or_partial_run_is_refused(self):
         with self.assertRaisesRegex(board.BuildError, "not JSON"):
@@ -517,39 +405,21 @@ class LockstepGateTest(unittest.TestCase):
 
 
 class QuartusLockGoldenTest(unittest.TestCase):
-    """Every version string the producer writes derives from quartus.lock and
-    is byte-identical to the literals the producer wrote before the lock."""
+    """Every Quartus version string the seal writes derives from quartus.lock."""
 
-    def test_the_lock_is_pinned_but_not_a_record_field(self):
+    def test_the_locks_are_pinned_inputs(self):
         self.assertIn(quartus.QUARTUS_LOCK, quartus.PINNED_INPUTS)
         self.assertIn(quartus.LOCK, quartus.PINNED_INPUTS)
         self.assertEqual(quartus.LOCK, "cores/fes-pc386/toolchain.lock")
-        fields = json.loads(quartus.create_build_record(ROOT, "https://github.com/DeanoC/fes", "a" * 40,
-                                                        IDENTITIES, 1))
-        self.assertEqual(set(fields), {"format", "repository", "revision", "recipe", "recipe_sha256",
-                                       "abi_definition", "abi_definition_sha256", "dependencies", "tools",
-                                       "parameters"})
-        self.assertEqual(set(fields["parameters"]), {
-            "compiler", "device", "top", "seed", "toolchain_lock", "toolchain_lock_sha256", "system_clock_hz",
-            "pixel_clock_hz", "audio_clock_hz", "reference_clock_hz", "audio_sample_hz", "guest_rates", "cpu",
-            "firmware", "ata_disk", "machine_netlist", "machine_sources_sha256", "gpu_backend",
-            "toolchain_configuration"})
-        self.assertEqual(fields["parameters"]["compiler"], "quartus-17.0.2")
-        self.assertEqual(fields["parameters"]["toolchain_lock"], "cores/fes-pc386/toolchain.lock")
 
     def test_project_version_lines(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
-            project = quartus.write_project(ROOT, output, BUILD_ID, 1)
+            project = quartus.write_project(ROOT, output, BUILD_ID, 1, threads=2)
             qpf = (project / "top.qpf").read_text(encoding="utf-8")
             qsf = (project / "top.qsf").read_text(encoding="utf-8")
         self.assertEqual(qpf, 'QUARTUS_VERSION = "17.0";\nPROJECT_REVISION = "top";\n')
         self.assertIn('set_global_assignment -name LAST_QUARTUS_VERSION "17.0.2 Lite Edition"', qsf.splitlines())
-
-    def test_toolchain_label(self):
-        self.assertEqual(quartus.toolchain_label(ROOT, IDENTITIES),
-                         f"Quartus Prime Lite 17.0.2 ({IDENTITIES['quartus_sh']}); "
-                         f"machine elaborated by Yosys ({IDENTITIES['yosys']})")
 
     def test_quartus_identity_and_version_line(self):
         version = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"

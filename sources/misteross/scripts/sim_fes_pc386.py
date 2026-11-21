@@ -1455,13 +1455,13 @@ def governor_arguments(args) -> list[str]:
 
 def system_testbench(args) -> Path:
     """system_tb on pc386_system at the sealed clock and guest rates."""
-    from scripts import build_fes_pc386_quartus as producer
+    from scripts import pc386_quartus as producer
     images = firmware.images(args.download, args.jobs)
     rom = firmware.write_rom_hex(images)
     parameters = {**producer.guest_rates(producer.SYSTEM_CLOCK_HZ), 'ROM_HEX': f'"{rom}"'}
     # The OPL2 import declares a timescale and the CPU and KF imports do not.
     return verilate(args.verilator, 'system', 'pc386_system', SYSTEM_RTL, CORE / 'sim/system_tb.cpp', [],
-                    args.jobs, parameters, flags=('-Wno-TIMESCALEMOD',))
+                    args.jobs, parameters, flags=('-Wno-TIMESCALEMOD', str(CORE / 'sim/system_probe.vlt')))
 
 
 def suffix(args) -> str:
@@ -1500,7 +1500,7 @@ def run_system(args) -> dict:
     """FreeDOS to the prompt on pc386_system, everything below top.sv, with the
     DDR ports on one window model and a host that does the runtime's launch,
     keyboard and mouse input and Stop through the mailbox and the window."""
-    from scripts import build_fes_pc386_quartus as producer
+    from scripts import pc386_quartus as producer
     base = freedos.build(args.download, args.jobs) if args.rebuild_image else freedos.image(args.download, args.jobs)
     suite = 'system' + suffix(args)
     disk = fixture_with(args, suite, 'input_test.asm', 'INPUT.COM', base)
@@ -1571,7 +1571,7 @@ def run_governor(args) -> dict:
     """governor_test.asm on pc386_system under max and the presets, each set in
     the restored record (system_tb --preset), in parallel."""
     from concurrent.futures import ThreadPoolExecutor
-    from scripts import build_fes_pc386_quartus as producer
+    from scripts import pc386_quartus as producer
     from scripts import fes_i386_governor as table
     nasm = test386.nasm(args.download, args.jobs)
     directory = OUTPUT / ('governor' + suffix(args))

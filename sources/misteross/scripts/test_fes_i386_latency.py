@@ -34,7 +34,7 @@ import sys
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import build_fes_pc386_quartus as producer
+from scripts import pc386_quartus as producer
 from scripts import fes_i386_oracle as oracle
 from scripts import i386_verilator
 from scripts import test_fes_i386_governor as governor_bench

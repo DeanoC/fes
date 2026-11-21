@@ -165,7 +165,6 @@ help:
 		"  sim-fes-pc386-sound  Boot FreeDOS and run the audio start-up exercise; writes sound.wav" \
 		"  sim-fes-pc386-vga  Check the pc386 presenter and plane, run the VGA test disk, replay its VGA trace against Bochs" \
 		"  synth-fes-pc386  Synthesize and pack the pc386 machine without the CPU (needs CACHE_ROOT)" \
-		"  build-fes-pc386-quartus  Seal fes.pc386, the machine with fes_i386_cpu, with its locked Quartus (LOCKSTEP_REPORT=, CACHE_ROOT=, SEED=, GPU_ROUTER=HIP|CUDA)" \
 		"  build-fes-pcxt-dos  Quartus PC/XT DOS package (QUARTUS_ROOTDIR and pinned Yosys)" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
@@ -2858,7 +2857,7 @@ sim-fes-pcxt-game:
 	@test -n "$(PCXT_DIGGER_EXE)" || { echo "Set PCXT_DIGGER_EXE to the separately acquired pinned executable" >&2; exit 1; }
 	$(PYTHON) scripts/sim_fes_pcxt_dos.py --scenario game --download --digger-exe "$(PCXT_DIGGER_EXE)" --verilator "$(VERILATOR)"
 
-.PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-fesenv sim-fes-pc386-mem sim-fes-pc386-a20 sim-fes-pc386-c2xx sim-fes-pc386-wait sim-fes-pc386-scroll sim-fes-pc386-speaker sim-fes-pc386-cpu-profile sim-fes-pc386-sound sim-fes-pc386-vga sim-fes-pc386-system synth-fes-pc386 build-fes-pc386-quartus
+.PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-fesenv sim-fes-pc386-mem sim-fes-pc386-a20 sim-fes-pc386-c2xx sim-fes-pc386-wait sim-fes-pc386-scroll sim-fes-pc386-speaker sim-fes-pc386-cpu-profile sim-fes-pc386-sound sim-fes-pc386-vga sim-fes-pc386-system synth-fes-pc386
 sim-fes-pc386:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pc386.py --suite devices --verilator "$(VERILATOR)"
@@ -2920,10 +2919,6 @@ sim-fes-pc386-system:
 synth-fes-pc386:
 	@test -n "$(CACHE_ROOT)" || { echo 'Set CACHE_ROOT to the authenticated compiler cache'; exit 1; }
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/synth_fes_pc386.py --cache-root "$(CACHE_ROOT)"
-
-build-fes-pc386-quartus:
-	@test -n "$(strip $(LOCKSTEP_REPORT))" || { echo 'build-fes-pc386-quartus needs LOCKSTEP_REPORT (report.json of scripts/test_fes_i386_lockstep.py --netlist)' >&2; exit 2; }
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pc386_quartus.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(strip $(SEED)), --seed "$(SEED)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",) --lockstep-report "$(LOCKSTEP_REPORT)"
 
 .PHONY: synth-fes-pcxt-isa
 synth-fes-pcxt-isa:

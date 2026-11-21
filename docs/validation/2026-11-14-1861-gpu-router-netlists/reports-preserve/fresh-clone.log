@@ -1,0 +1,57 @@
+clone rc=0 (--single-branch: no sibling refs, so #1862's merged branch is absent)
+head bc3cacb3d78c908bc05df9782937090f856b5275
+refs in the clone: refs/remotes/origin/deano/1862-seal-evidence-paths 
+
+== vendor_cond3.py --check ==
+vendor_cond3.py rc=0
+11 of 11 rows verified
+
+== seals_at_head.py ==
+seals_at_head.py rc=0
+head             bc3cacb3d78c908bc05df9782937090f856b5275
+sources/misteross e046d3c23156a236cc356d97bf298bc6926bfd41  <- the anchor; a docs commit does not move it
+config            b4bb5aa7145110d9dabd482097080c608e240c99  <- the parent-owned inputs, core-recipes.toml among them
+route comparisons in use: 541e3c548751 -> this head, df99f2dfb208 -> this head
+artefact             sealed at      verdict       detail
+c64                  df99f2dfb208   intact        all 73 input digests match this head, and its 5 route-deciding inputs are unchanged too
+menu                 df99f2dfb208   intact        all 31 input digests match this head, and its 5 route-deciding inputs are unchanged too
+pentagon             541e3c548751   intact        all 52 input digests match this head, and its 5 route-deciding inputs are unchanged too
+spectrum             541e3c548751   intact        all 52 input digests match this head, and its 5 route-deciding inputs are unchanged too
+spectrum-plus3       541e3c548751   intact        all 52 input digests match this head, and its 5 route-deciding inputs are unchanged too
+spectrum128          541e3c548751   intact        all 52 input digests match this head, and its 5 route-deciding inputs are unchanged too
+splash               df99f2dfb208   intact        all 11 input digests match this head, and its 3 route-deciding inputs are unchanged too
+ts1000               df99f2dfb208   intact        design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 6 route-deciding inputs are unchanged too
+ts1500               df99f2dfb208   intact        design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 6 route-deciding inputs are unchanged too
+zx80                 df99f2dfb208   intact        design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 6 route-deciding inputs are unchanged too
+zx81                 df99f2dfb208   intact        design identity unchanged between the seal tree df99f2dfb208 and this head (52 design inputs), and its 6 route-deciding inputs are unchanged too
+
+11 of 11 seals still match this head
+rows matching their own input digests: 7
+rows carried by the design anchor:     4
+lines of this run naming the deleted scratch: 0
+
+== check_shas.py, with #1862's branch absent ==
+check_shas.py rc=1
+objects this record cites that do not resolve here: 17
+  2a30d66ccf38a43efd35a185b09a8caf63da5352 DOES NOT RESOLVE
+  480c924f8bfcdc39521356d7a2e774268486b616 DOES NOT RESOLVE
+  541e3c5487518496fd8fe66457313b528daeec09 DOES NOT RESOLVE
+  6b2d792a3432c0248599d5f65faacb63c0d31e68 DOES NOT RESOLVE
+  760d8a8f05310c6cb8f1ec2179ee1ccbfa723ed3 DOES NOT RESOLVE
+  7aae9b96c30df4de98b5f5a52fc34accfcb47bb4 DOES NOT RESOLVE
+  85200fc21385f79a660c020a6912823f930ae0a5 DOES NOT RESOLVE
+  888f63a2b104d4d960fe24031f79a3024b9f7e95 DOES NOT RESOLVE
+  89263b0c361e36fd3f0268f88b071df1c2fdc896 DOES NOT RESOLVE
+  947ca2a83a821712f635d05d94b144a7330763dc DOES NOT RESOLVE
+  a56784005afb5add02c722be2bbd2c6f5ea2b490 DOES NOT RESOLVE
+  a892a9888dddf7f45a4dfed3806e490c55273683 DOES NOT RESOLVE
+  b0f05545183f7d06e58a7dae7123eabe8770ea9a DOES NOT RESOLVE
+  b5d3ae2323fac52e54fd3ac584f449686a9a946d DOES NOT RESOLVE
+  cf8ec7bec6182edd861f377868407fd0a346ddc0 DOES NOT RESOLVE
+  d83212c98ef581862002ade3a0e76755e018c4a9 DOES NOT RESOLVE
+  df99f2dfb2084035b213614960b952f5e79ab781 DOES NOT RESOLVE
+
+== the same, after fetching #1862's merged branch ==
+fetch rc=0
+check_shas.py rc=0
+every referenced object resolves (22 commit, 13 tree)

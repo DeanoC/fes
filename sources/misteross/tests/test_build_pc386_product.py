@@ -155,7 +155,7 @@ class ProjectTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             project = Path(temporary) / "project"
             project.mkdir()
-            text = quartus.project_qsf(ROOT, project, BUILD_ID, 3)
+            text = quartus.project_qsf(ROOT, project, BUILD_ID, 3, threads=2)
         self.assertIn('set_global_assignment -name VERILOG_MACRO "QUARTUS=1"', text)
         self.assertIn(f"FES_PC386_BUILD_ID=128'h{BUILD_ID}", text)
         self.assertIn("set_global_assignment -name SEED 3", text)
@@ -170,9 +170,9 @@ class ProjectTest(unittest.TestCase):
 
     def test_project_rejects_a_bad_build_id_and_seed(self):
         with self.assertRaises(board.BuildError):
-            quartus.project_qsf(ROOT, ROOT, "XYZ", 1)
+            quartus.project_qsf(ROOT, ROOT, "XYZ", 1, threads=2)
         with self.assertRaises(board.BuildError):
-            quartus.project_qsf(ROOT, ROOT, BUILD_ID, 0)
+            quartus.project_qsf(ROOT, ROOT, BUILD_ID, 0, threads=2)
 
 
 class TimingTest(unittest.TestCase):
@@ -314,7 +314,7 @@ class GpuRouterTest(unittest.TestCase):
             quartus_sh = Path(temporary) / "quartus_sh"
             quartus_sh.write_bytes(b"not quartus")
             with mock.patch.object(quartus.board, "_authenticate_tools", return_value={"yosys": yosys}) as shared, \
-                    mock.patch.object(quartus.legacy, "locate_quartus", return_value=(Path(temporary), quartus_sh, "v")):
+                    mock.patch.object(quartus.machine, "locate_quartus", return_value=(Path(temporary), quartus_sh, "v")):
                 quartus._authenticate_tools(ROOT, **kwargs)
         return shared.call_args.kwargs
 
@@ -534,15 +534,15 @@ class GpuRouterTest(unittest.TestCase):
     def test_the_command_line_passes_the_router(self):
         for argv, router in (([], None), (["--gpu-router", "CUDA"], "CUDA")):
             with mock.patch.object(quartus, "build", return_value=Path("package")) as build, \
-                    mock.patch("sys.argv", ["build_fes_pc386_quartus.py", "--lockstep-report", "r.json", *argv]), \
+                    mock.patch("sys.argv", ["build_pc386_product.py", "--lockstep-report", "r.json", *argv]), \
                     mock.patch("builtins.print"):
                 self.assertEqual(quartus.main(), 0)
             self.assertEqual(build.call_args.kwargs["gpu_router"], router)
             self.assertEqual(build.call_args.kwargs["lockstep_report"], Path("r.json"))
-        with mock.patch("sys.argv", ["build_fes_pc386_quartus.py"]), mock.patch("sys.stderr"), \
+        with mock.patch("sys.argv", ["build_pc386_product.py"]), mock.patch("sys.stderr"), \
                 self.assertRaises(SystemExit):
             quartus.main()
-        with mock.patch("sys.argv", ["build_fes_pc386_quartus.py", "--gpu-router", "Metal"]), \
+        with mock.patch("sys.argv", ["build_pc386_product.py", "--gpu-router", "Metal"]), \
                 mock.patch("sys.stderr"), self.assertRaises(SystemExit):
             quartus.main()
 
@@ -720,7 +720,7 @@ class QuartusLockGoldenTest(unittest.TestCase):
     def test_project_version_lines(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
-            project = quartus.write_project(ROOT, output, BUILD_ID, 1)
+            project = quartus.write_project(ROOT, output, BUILD_ID, 1, threads=2)
             qpf = (project / "top.qpf").read_text(encoding="utf-8")
             qsf = (project / "top.qsf").read_text(encoding="utf-8")
         self.assertEqual(qpf, 'QUARTUS_VERSION = "17.0";\nPROJECT_REVISION = "top";\n')
@@ -735,7 +735,7 @@ class QuartusLockGoldenTest(unittest.TestCase):
             digest = hashlib.sha256(b"not quartus").hexdigest()
             yosys = mock.Mock(identity=IDENTITIES["yosys"])
             with mock.patch.object(quartus.board, "_authenticate_tools", return_value={"yosys": yosys}), \
-                    mock.patch.object(quartus.legacy, "locate_quartus",
+                    mock.patch.object(quartus.machine, "locate_quartus",
                                       return_value=(Path(temporary), quartus_sh, version)) as locate, \
                     mock.patch.dict(os.environ, {"QUARTUS_ROOTDIR": temporary}):
                 tools = quartus._authenticate_tools(ROOT)

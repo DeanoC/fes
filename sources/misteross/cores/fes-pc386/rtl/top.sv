@@ -82,7 +82,7 @@ module top #(
     wire [27:0] video;
     wire signed [15:0] sample;
     // The Quartus seal reads the machine as the netlist Yosys elaborates with
-    // these rates (scripts/build_fes_pc386_quartus.py), so there it takes no
+    // these rates (scripts/pc386_quartus.py), so there it takes no
     // parameters.
     pc386_system
 `ifndef QUARTUS
