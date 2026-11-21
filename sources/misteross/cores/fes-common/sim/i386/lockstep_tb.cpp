@@ -2090,7 +2090,7 @@ struct Outcome {
     int exception = -1;    // the last exception both sides delivered
     bool shutdown = false;  // stopped at a fault in a double fault's delivery, on both sides
     bool limit = false;    // stopped at the retirement limit
-    bool vector_moved = false;  // stopped at an injected interrupt whose vector entry or handler the program rewrote
+    bool vector_moved = false;  // stopped at an injected interrupt whose vector entry or handler the program rewrote, or at a real-mode nested delivery whose entry the step's frame overwrote
     bool window_code = false;   // stopped at code in the MMIO window, which neither side fetches
     bool code_store = false;    // stopped at a store into its code that it did not plan
     bool rep_self_store = false;  // the oracle stopped inside REP after overwriting its own bytes
@@ -2446,6 +2446,39 @@ void count_i486_form(const uint8_t *code, const State &before, const State &afte
     ++summary.i486_forms[form];
 }
 
+// Whether gate 17 of the protected-mode IDT leads to CPL 3 from CPL 3: an
+// interrupt or trap gate, present, to a present code segment that is
+// conforming or of DPL 3 (the #AC delivery loop below). The IDT and the
+// descriptor table are read at their linear addresses, which the random
+// programs map to themselves.
+bool ac_gate_to_cpl3(const State &s, OracleBus &bus) {
+    auto byte = [&](uint32_t a) { return a < RAM_BYTES ? bus.ram[a] : uint8_t(0); };
+    if (!(s.cr0 & 1) || 17u * 8 + 7 > s.idtr.limit) return false;
+    const uint32_t gate = s.idtr.base + 17u * 8;
+    const uint8_t access = byte(gate + 5), type = access & 0x1f;
+    if (!(access & 0x80) || (type != 0x06 && type != 0x07 && type != 0x0e && type != 0x0f)) return false;
+    const uint16_t selector = uint16_t(byte(gate + 2) | byte(gate + 3) << 8);
+    if ((selector & 0xfffc) == 0) return false;
+    const uint32_t base = selector & 4 ? s.ldtr.base : s.gdtr.base;
+    const uint32_t limit = selector & 4 ? s.ldtr.limit : s.gdtr.limit;
+    if ((selector & 0xfff8u) + 7 > limit) return false;
+    const uint8_t code = byte(base + (selector & 0xfff8u) + 5);
+    if (!(code & 0x80) || (code & 0x18) != 0x18) return false;
+    return (code & 0x04) || ((code >> 5) & 3) == 3;
+}
+
+// Whether the three words below ESP, a real-mode delivery's frame, overlap
+// the interrupt table's entry for vector (interrupt-vector-before-push).
+bool frame_over_entry(const State &before, unsigned vector) {
+    const auto &ss = before.seg[fes_i386::SEG_SS];
+    const uint32_t esp = before.gpr[fes_i386::REG_ESP], entry = before.idtr.base + vector * 4;
+    for (uint32_t k = 1; k <= 6; ++k) {
+        const uint32_t at = ss.base + ((ss.ar & 0x4000) ? esp - k : (esp - k) & 0xffff);
+        if (at >= entry && at < entry + 4) return true;
+    }
+    return false;
+}
+
 Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                  const Fields &label_corpus, uint64_t retire_limit, bool stop_at_exception, Summary &summary,
                  Mismatches &out, uint32_t code_hi = 0, Irq *irq = nullptr, const Code *own = nullptr, bool long_rep_progress = false) {
@@ -2677,10 +2710,11 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // host's stack overflows. Only that shared loop stops the run here,
         // before the oracle steps: the RTL timed out in the delivery of #AC
         // from a step that began at CPL 3 with AM and AC set on a stack
-        // that was not dword-aligned.
+        // that was not dword-aligned, through a gate 17 that leads to CPL 3
+        // (ac_gate_to_cpl3).
         if (i486 && event == Rtl::Event::Timeout && rtl.top.trace_vector == 17 && before.cpl == 3
             && !(before.eflags & 0x20000) && (before.eflags & 0x40000) && (before.cr0 & 0x40000)
-            && (before.gpr[fes_i386::REG_ESP] & 3)) {
+            && (before.gpr[fes_i386::REG_ESP] & 3) && ac_gate_to_cpl3(before, bus)) {
             outcome.ac_loop = true;
             ++summary.i486_forms["ac-delivery-loop"];
             return outcome;
@@ -3108,6 +3142,19 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         }
         if (nested && !skip.all) {
             if (!delivered) {
+                // interrupt-vector-before-push, nested: in real mode the first
+                // delivery's frame overwrote the entry of the vector the
+                // oracle then delivered (a #DF's, after a fault in a delivery
+                // whose frame lies over the table). Bochs pushes before it
+                // reads a vector, so it read the frame as that vector; the
+                // RTL, as the 386EX, reads first and writes nothing of a
+                // delivery that faults. The run stops: past here the oracle
+                // runs from the pushed words.
+                if (!(before.cr0 & 1) && frame_over_entry(before, last->vector)) {
+                    ++summary.divergences["interrupt-vector-before-push"];
+                    outcome.vector_moved = true;
+                    return outcome;
+                }
                 out.add(at + "nested", last->vector, event == Rtl::Event::Retired ? 0xffu : 0xfeu);
                 return outcome;
             }
