@@ -257,7 +257,17 @@ def _first_module_launch(tree: ast.Module) -> int | None:
     process: a launch call, or a call into a module function that launches
     (directly or through another), anywhere outside function bodies,
     conditional blocks included."""
-    functions = {node.name: node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    # Module functions wherever they are defined outside another function
+    # (under if/try too).
+    functions, pending = {}, list(tree.body)
+    while pending:
+        node = pending.pop()
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            functions[node.name] = node
+            continue
+        if isinstance(node, ast.Lambda):
+            continue
+        pending.extend(ast.iter_child_nodes(node))
     launchers: set[str] = set()
     changed = True
     while changed:
@@ -510,6 +520,12 @@ class StaticRuleTests(unittest.TestCase):
         failures = self.scan({"sources/misteross/scripts/late2.py":
                               "import subprocess\ndef launch():\n    subprocess.run(['quartus_fit', 'top'])\n"
                               "launch()\nfrom scripts import quartus_tools\n"})
+        self.assertEqual(len(failures), 1)
+        # Codex P1 at c6cd0929e: a launcher defined under a conditional.
+        failures = self.scan({"sources/misteross/scripts/late3.py":
+                              "import subprocess\nif True:\n    def launch():\n"
+                              "        subprocess.run(['quartus_fit', 'top'])\n    launch()\n"
+                              "from scripts import quartus_tools\n"})
         self.assertEqual(len(failures), 1)
         self.assertEqual(self.scan({"sources/misteross/scripts/main.py":
                                     "import subprocess\nfrom scripts import quartus_tools\n"
@@ -965,7 +981,8 @@ class LaunchGuardTests(unittest.TestCase):
         qt._check_remote_quartus(["ssh", "host", "cat", "$HOME/x"])
         # Codex P1 at 00058c57d: ssh behind an execution wrapper.
         for argv in (["env", "ssh", "host", "/remote/bin/quartus_fit", "top"],
-                     ["env", "-i", "X=1", "timeout", "60", "nice", "-n", "5", "ssh", "host", "quartus_sh", "-t", "x"]):
+                     ["env", "-i", "X=1", "timeout", "60", "nice", "-n", "5", "ssh", "host", "quartus_sh", "-t", "x"],
+                     ["env", "-u", "X", "ssh", "host", "/remote/bin/quartus_fit", "top"]):
             with self.assertRaises(qt.QuartusLeaseError):
                 qt._check_remote_quartus(argv)
         # Codex P1 at 6b0f2a858: a command after a reserved word.

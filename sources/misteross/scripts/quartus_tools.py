@@ -720,11 +720,12 @@ def _check_remote_quartus(argv) -> None:
     texts = [os.fsdecode(a) if isinstance(a, (bytes, os.PathLike)) else str(a) for a in argv]
     # Through execution wrappers (env [-i] [NAME=value], timeout N, nice -n N,
     # nohup, exec...) to the command they run.
-    while texts and (os.path.basename(texts[0]) in SHELL_WRAPPERS or texts[0] == "sudo"):
-        texts = texts[1:]
-        while texts and (texts[0].startswith("-") or re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", texts[0], re.S)
-                         or re.fullmatch(r"[0-9.]+[smhd]?", texts[0])):
-            texts = texts[1:]
+    # Wrapper options take operands of their own (env -u NAME, timeout -s
+    # SIG), so rather than model each, a wrapped command line whose
+    # arguments include ssh is taken to run ssh from there.
+    if texts and (os.path.basename(texts[0]) in SHELL_WRAPPERS or texts[0] == "sudo"):
+        at = next((i for i, t in enumerate(texts) if os.path.basename(t) == "ssh"), None)
+        texts = texts[at:] if at is not None else []
     if not texts or os.path.basename(texts[0]) != "ssh":
         return
     # ssh [options] destination [command [argument ...]]: skip the options
