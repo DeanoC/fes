@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -461,14 +462,21 @@ func drawControllerLearn(dev gfx.Device, snap Snapshot, labels map[string]gpuTex
 	} else {
 		sheetText(dev, labels, used, s, 40, 136, 560, 19, false, heroSecondary,
 			fmt.Sprintf("Step %d of %d", learn.Step+1, len(learn.Rows)))
-		sheetText(dev, labels, used, s, 40, 196, 560, 24, false, heroSecondary, "Press the control for")
-		sheetText(dev, labels, used, s, 40, 232, 560, 64, true, heroText, learn.Label)
+		ask, label := "Press the control for", learn.Label
+		if learn.Stick {
+			ask, label = "Push the left stick all the way", strings.ToUpper(learn.Label[6:7])+learn.Label[7:]
+		}
+		sheetText(dev, labels, used, s, 40, 196, 560, 24, false, heroSecondary, ask)
+		sheetText(dev, labels, used, s, 40, 232, 560, 64, true, heroText, label)
 		if learn.Note != "" {
 			sheetText(dev, labels, used, s, 40, 316, 560, 22, false, heroSecondary, learn.Note+" in FES menus")
 		}
 		help := fmt.Sprintf("Press it on the pad you are mapping. A stick works for the directions. To stop without changing anything, press nothing for %d seconds.", int(learnIdle/time.Second))
 		if learn.Optional {
 			help = "No such button? Press " + learn.Skip + ", the control you gave B, to skip it."
+		}
+		if learn.Stick {
+			help = "Then let it go. This lets games read the stick as a stick. No stick, or it already moves the directions? Press " + learn.Skip + " to skip."
 		}
 		for i, line := range gfx.WrapText(help, s.n(20), s.n(540), 3) {
 			sheetText(dev, labels, used, s, 40, 368+float64(i)*28, 560, 20, false, heroText, line)
@@ -483,21 +491,24 @@ func drawControllerLearn(dev gfx.Device, snap Snapshot, labels map[string]gpuTex
 	}
 
 	sheetBox(dev, s, 660, 96, 580, 530, 2, heroSurface, heroDivider)
+	// The rows share the box's height: 42 apart while they fit.
+	pitch := min(42, 504/float64(max(1, len(learn.Rows))))
 	for i, row := range learn.Rows {
-		y := 112 + float64(i)*42
+		y := 112 + float64(i)*pitch
 		if !learn.Review && i == learn.Step {
-			sheetBox(dev, s, 672, y, 556, 38, 3, heroRaised, heroAccent)
+			sheetBox(dev, s, 672, y, 556, pitch-4, 3, heroRaised, heroAccent)
 		}
-		sheetText(dev, labels, used, s, 688, y+8, 120, 20, true, heroText, row.Label)
+		ty := y + (pitch-4-20)/2 - 1
+		sheetText(dev, labels, used, s, 688, ty, 140, 20, true, heroText, row.Label)
 		if row.Note != "" {
-			sheetText(dev, labels, used, s, 688+sheetTextWidth(s, 20, true, row.Label)+10, y+11, 200, 16, false, heroSecondary, row.Note)
+			sheetText(dev, labels, used, s, 688+sheetTextWidth(s, 20, true, row.Label)+10, ty+3, 200, 16, false, heroSecondary, row.Note)
 		}
 		source, ink := row.Source, heroText
 		if source == "Skipped" {
 			ink = heroSecondary
 		}
 		if source != "" {
-			sheetText(dev, labels, used, s, 1212-sheetTextWidth(s, 19, false, source), y+9, 240, 19, false, ink, source)
+			sheetText(dev, labels, used, s, 1212-sheetTextWidth(s, 19, false, source), ty+1, 240, 19, false, ink, source)
 		}
 	}
 }

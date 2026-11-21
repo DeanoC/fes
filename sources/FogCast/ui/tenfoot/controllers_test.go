@@ -371,6 +371,9 @@ func TestWriteControllersSheet(t *testing.T) {
 	for _, source := range []string{"b4", "a5", "b8", "b9"} {
 		app.LearnPadSource(7, source, now)
 	}
+	write("learn-stick", app)
+	app.LearnPadSource(7, "+a3", now)
+	app.LearnPadSource(7, "-a4", now)
 	write("learn-review", app)
 	app.LearnPadSource(7, "b2", now)
 	write("layout-mapped", app)
@@ -426,6 +429,13 @@ func TestControllersLearnStepByStep(t *testing.T) {
 	learn("b2")
 	app.HandleCommand(CmdSortCycle, now)
 	learn("a2", "b5", "b6")
+	// The stick steps refuse the stick that already gives the directions;
+	// B skips them.
+	learn("+a0")
+	if snap := app.Snapshot().Controllers.Learn; !snap.Stick || !strings.Contains(snap.Message, "already moves the directions") {
+		t.Fatalf("stick step: %+v", snap)
+	}
+	learn("b2", "b2")
 	snap := app.Snapshot().Controllers.Learn
 	if !snap.Review || snap.Rows[7].Source != "Skipped" || snap.Rows[8].Source != "Skipped" || snap.Rows[9].Source != "Axis 3" {
 		t.Fatalf("review: %+v", snap)
@@ -532,5 +542,45 @@ func TestDescribeSource(t *testing.T) {
 		if got := describeSource(source); got != want {
 			t.Errorf("%s = %q, want %q", source, got, want)
 		}
+	}
+}
+
+// A pad whose directions are a hat maps its stick as the left stick: one
+// push right and one push down, in whichever sense the axis runs.
+func TestControllersLearnStick(t *testing.T) {
+	app := controllersApp(t)
+	now := time.Now()
+	openLearn(t, app, now)
+	for _, s := range []string{"h0.1", "h0.4", "h0.8", "h0.2", "b0", "b1"} {
+		app.LearnPadSource(7, s, now)
+	}
+	for i := 6; i < 12; i++ {
+		app.LearnPadSource(7, "b1", now)
+	}
+	snap := app.Snapshot().Controllers.Learn
+	if !snap.Stick || snap.Label != "Stick right" || snap.Skip != "Button 2" {
+		t.Fatalf("stick right step: %+v", snap)
+	}
+	// A button is not a stick.
+	app.LearnPadSource(7, "b4", now)
+	if snap := app.Snapshot().Controllers.Learn; snap.Label != "Stick right" || !strings.Contains(snap.Message, "Push the stick") {
+		t.Fatalf("button on the stick step: %+v", snap)
+	}
+	app.LearnPadSource(7, "+a0", now)
+	// The same axis again is refused; the other one, reading low when
+	// pushed down, is reversed.
+	app.LearnPadSource(7, "-a0", now)
+	if snap := app.Snapshot().Controllers.Learn; snap.Label != "Stick down" || !strings.Contains(snap.Message, "already Stick right") {
+		t.Fatalf("same axis twice: %+v", snap)
+	}
+	app.LearnPadSource(7, "-a1", now)
+	snap = app.Snapshot().Controllers.Learn
+	if !snap.Review || snap.Rows[12].Source != "Axis 1" || snap.Rows[13].Source != "Axis 2 (reversed)" {
+		t.Fatalf("review: %+v", snap.Rows)
+	}
+	app.LearnPadSource(7, "b0", now)
+	profile, _ := savedProfile(t, app)
+	if want := "dpup:h0.1,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,a:b0,b:b1,leftx:a0,lefty:a1~"; profile.Mapping != want {
+		t.Fatalf("saved %q, want %q", profile.Mapping, want)
 	}
 }
