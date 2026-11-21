@@ -19,7 +19,7 @@ from scripts.fes_build_common import BuildError
 HERE = Path(__file__).resolve().parents[3]
 TCL = HERE / 'boards/de25nano/scanout/audio_clocks.tcl'
 MASTER = 'fes_audio_inst|clock|iopll_0_outclk0'
-# A machine with its own PLL: CLOCK1_50 x 188/15, then /51 for the audio master.
+# A machine with its own PLL: CLOCK1_50 x 188/15 /51 (pc386: x 188/3 /255, the same) for the audio master.
 MACHINE_MASTER = 'fes_machine_pll|machine_pll_outclk1'
 MACHINE_POLICY = 'de25-machine-pll-audio-clocks-v1'
 PINS = {'CLOCK1_50': 'V16', 'HDMI_SCLK': 'BW1', 'HDMI_LRCLK': 'BR6',
@@ -61,7 +61,7 @@ def observations(directory, *, machine_pll=False):
     require(set(clocks) == names, 'missing or unexpected audio clock')
     period = number(clocks[master]['period_ns'])
     require(abs(period - (Decimal(20) * 15 * 51 / 188 if machine_pll else Decimal(20) * 236 / 58)) <= Decimal('.001'),
-            'master period differs from the machine x188/15 /51 divider' if machine_pll else
+            'master period differs from the machine PLL x188/15 /51 (x188/3 /255) divider' if machine_pll else
             'master period differs from the stock M58/C236 divider')
     for label, edges, divisor in (('bit_clock', (3, 7, 11), 4), ('word_clock', (255, 511, 767), 256)):
         name = 'de25_i2s_' + label

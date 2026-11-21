@@ -16,6 +16,7 @@ import os
 import subprocess
 import sys
 import fcntl
+import json
 import shutil
 
 HERE = Path(__file__).resolve().parent
@@ -97,6 +98,38 @@ def guest_rates():
     return parameters
 
 
+# The pc386 lock's Yosys, once authenticated. A producer authenticates it
+# before its controlled environment (which carries no toolchain cache) and the
+# elaboration uses exactly that tool; board.main authenticates it from the
+# caller's environment.
+FRONT_END = None
+
+
+def authenticate_front_end(*, cache_root=None, gpu_router=None):
+    """Authenticate the pc386 lock's Yosys from the slot gpu_router selects; nothing routes on a GPU."""
+    global FRONT_END
+    cache = cache_root or os.environ.get("FES_TOOLCHAIN_CACHE_ROOT")
+    if not cache:
+        raise ValueError("the pc386 lock's toolchain cache is required (--cache-root or FES_TOOLCHAIN_CACHE_ROOT)")
+    router = gpu_router or os.environ.get("FES_GPU_ROUTER", "HIP")
+    tool = yosys_netlist.authenticate(board.ROOT / MISTEROSS, cache_root=Path(cache), gpu_router=router,
+                                      lock=sealer.LOCK)
+    if FRONT_END is not None and FRONT_END.identity != tool.identity:
+        raise ValueError("the pc386 lock's Yosys changed during the build")
+    FRONT_END = tool
+    return tool
+
+
+def record_parameters(root):
+    """A producer record's machine parameters, from the source module at root: guest rates, the
+    linked firmware and the x87 identity."""
+    root = Path(root)
+    return {"front_end": "yosys-seal-netlist", "guest_rates": json.dumps(guest_rates(), sort_keys=True),
+            "firmware": json.dumps({**sealer.firmware_digests(root), "rom_hex": sealer.pinned_rom_digest(root)},
+                                   sort_keys=True),
+            "x87_present": False}
+
+
 def machine_netlist(sources, derived_files):
     """The derived pc386_system as the pc386 lock's Yosys elaborates it (SEAL).
 
@@ -108,11 +141,7 @@ def machine_netlist(sources, derived_files):
         if path.startswith(MISTEROSS) and (board.ROOT / path).read_bytes() != data:
             raise ValueError("the checkout is not the captured source: " + path)
     sealer.check_rom(root)
-    cache = os.environ.get("FES_TOOLCHAIN_CACHE_ROOT")
-    if not cache:
-        raise ValueError("FES_TOOLCHAIN_CACHE_ROOT must name the pc386 lock's toolchain cache")
-    yosys = yosys_netlist.authenticate(root, cache_root=Path(cache), gpu_router=os.environ.get("FES_GPU_ROUTER", "HIP"),
-                                       lock=sealer.LOCK)
+    yosys = FRONT_END or authenticate_front_end()
     # Yosys's auto-generated names follow every path it is given (the derived
     # sources, the program, the log, the netlist; DeanoC/yosys#80), so it runs
     # at one fixed path, held under a lock: a revision always elaborates to the

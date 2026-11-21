@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
-"""Build a standard DE25 machine whose firmware is uploaded at launch.
+"""Build a standard DE25 machine.
 
-Shared by the Spectrum and Atari ST producers. Packaging uses the same complete
-timing/input-review and independent-RBF gates as the DE25 ZX81; a candidate
-those gates refuse is retained and never packaged. The package is format 3: the
-payload is the unmodified bitstream, and its ROM map names only the size of the
-image the machine's fes.fabric.firmware-upload endpoint takes. Nothing is
-programmed and no firmware is bundled.
+Shared by the Spectrum, Atari ST and pc386 producers. Packaging uses the same
+complete timing/input-review and independent-RBF gates as the DE25 ZX81; a
+candidate those gates refuse is retained and never packaged. Nothing is
+programmed.
+
+A machine whose firmware is uploaded at launch (its board spec names
+FIRMWARE_BYTES) is packaged as format 3: the payload is the unmodified
+bitstream, and its ROM map names only the size of the image the machine's
+fes.fabric.firmware-upload endpoint takes. A machine whose firmware is linked
+in its netlist (pc386: the ROM firmware.lock pins) is format 2, with no ROM
+map. A machine with a window in HPS DDR (spec.WINDOW) has the scanout+window
+master profile and requires fes.fabric.de25-hps-window.
 """
 from __future__ import annotations
 import argparse
@@ -41,19 +47,24 @@ REVIEW_INPUTS = (*common.REVIEW_INPUTS, 'boards/de25nano/scanout/audio_reference
 DEVICE = common.DEVICE
 SHELL = ('fes.video.fixed-720p60', 'fes.keyboard.hid', 'fes.gamepad.ports',
          'fes.audio.pcm-s16-stereo-48k', 'fes.video.session-display', 'fes.fabric.video.display-plane')
+WINDOW_INTERFACE = ('fes.fabric.de25-hps-window', 1, 0)
 sha = common.sha
+
+
+def uploads_firmware(spec):
+    return hasattr(spec, 'FIRMWARE_BYTES')
 
 
 class Machine:
     """One machine: its board spec, its package identity and its own interfaces."""
 
     def __init__(self, *, recipe, directory, core_id, rom_id, name, version, descriptions, interfaces,
-                 model_core_ids=None, model_rom_ids=None):
+                 model_core_ids=None, model_rom_ids=None, shell=SHELL, abi_minor=0):
         self.recipe, self.directory, self.core_id, self.rom_id = recipe, directory, core_id, rom_id
         self.model_core_ids = dict(model_core_ids or {})
         self.model_rom_ids = dict(model_rom_ids or {})
         self.name, self.version, self.descriptions = name, version, descriptions
-        self.interfaces = interfaces
+        self.interfaces, self.shell, self.abi_minor = interfaces, shell, abi_minor
         self.label = 'DE25 ' + name
 
     def spec(self, root):
@@ -80,18 +91,39 @@ class Machine:
     def require_clean_source(self, root):
         return require_clean_source(Path(root), identity_version=2, pinned_inputs=(self.recipe, ABI))
 
-    def authenticate(self, root):
-        paths, identities = common.authenticate_tools(self.spec(root), os.environ.get('QUARTUS_ROOTDIR', ''))
-        return {name: AuthenticatedTool(path, identities[name]) for name, path in paths.items()}
+    def authenticate(self, root, *, cache_root=None, gpu_router='HIP'):
+        spec = self.spec(root)
+        paths, identities = common.authenticate_tools(spec, os.environ.get('QUARTUS_ROOTDIR', ''))
+        tools = {name: AuthenticatedTool(path, identities[name]) for name, path in paths.items()}
+        if hasattr(spec, 'authenticate_front_end'):
+            tools['yosys'] = spec.authenticate_front_end(cache_root=cache_root, gpu_router=gpu_router)
+        return tools
+
+    @staticmethod
+    def tool_set(spec):
+        """The tools a record names: Quartus's four, and a netlist front end's Yosys."""
+        return {'quartus', 'qsys', 'ipgenerate', 'pfg'} | ({'yosys'} if hasattr(spec, 'authenticate_front_end') else set())
+
+    @staticmethod
+    def memory_parameters(root, spec, model):
+        """Guest memory and firmware: the parameters that differ between machines."""
+        if spec.WINDOW:
+            memory = {'f2sdram_master_profile': 'scanout+window', 'guest_memory': 'hps-window',
+                      'window_contract': '%s %d.%d' % WINDOW_INTERFACE}
+        else:
+            memory = {'f2sdram_master_profile': 'scanout-only', 'guest_memory': 'board-sdram'}
+        if uploads_firmware(spec):
+            return {**memory, 'firmware_delivery': UPLOAD_ENCODING, 'firmware_bytes': spec.FIRMWARE_BYTES[model]}
+        return {**memory, **spec.record_parameters(root)}
 
     def create_build_record(self, root, repository, revision, identities, execution, captured=None, *,
                             model=None, identity_version=2):
         if type(identity_version) is not int or identity_version != 2:
             raise BuildError(self.label + ' requires functional build identity 2')
-        if execution.get('toolchain') != 'quartus' or set(identities) != {'quartus', 'qsys', 'ipgenerate', 'pfg'}:
-            raise BuildError(self.label + ' requires actual controlled Quartus execution inputs')
         root = Path(root).resolve()
         spec = self.spec(root)
+        if execution.get('toolchain') != 'quartus' or set(identities) != self.tool_set(spec):
+            raise BuildError(self.label + ' requires actual controlled Quartus execution inputs')
         model = self.model(spec, model)
         if captured is None:
             captured = spec.board.capture(spec, revision)
@@ -101,13 +133,13 @@ class Machine:
             'source_path': root.relative_to(top).as_posix(), 'source_roots': roots, 'source_inputs': closure,
             'recipe': self.recipe, 'recipe_sha256': sha(root / self.recipe), 'abi_definition': ABI,
             'abi_definition_sha256': sha(root / ABI), 'dependencies': {}, 'tools': dict(identities),
-            'parameters': {'core_id': self.core_id_for(model), 'rom_id': self.rom_id_for(model),
+            'parameters': {'core_id': self.core_id_for(model),
+                **({'rom_id': self.rom_id_for(model)} if self.rom_id_for(model) else {}),
                 'model': model, 'device': DEVICE,
                 'hps_initialization': 'HPS FIRST', 'source_closure_policy': common.SOURCE_POLICY,
-                'f2sdram_master_profile': 'scanout-only', 'fabric_initiator_policy': common.MANAGED_FABRIC,
+                'fabric_initiator_policy': common.MANAGED_FABRIC,
                 'programming_profile': 'de25-linux-computer-v1', 'standard_core': True, 'linux_dma': True,
-                'expansion_socket': False, 'guest_memory': 'board-sdram',
-                'firmware_delivery': UPLOAD_ENCODING, 'firmware_bytes': spec.FIRMWARE_BYTES[model],
+                'expansion_socket': False, **self.memory_parameters(root, spec, model),
                 'machine_clock_hz': spec.MACHINE_HZ, 'audio_clock_requested_hz': 12288000,
                 'fifo_reset_sharing': common.SHARED_FIFO_RESETS,
                 'f2s_data_width': 0, 'f2sdram_data_width': 256, 'scanout_master_data_width': 128,
@@ -124,17 +156,22 @@ class Machine:
         return encode_build_record(with_identities(fields, root=root))
 
     def manifest(self, record, payload):
-        """The format-2 manifest; the exporter adds the ROM requirement and makes it format 3."""
+        """The format-2 manifest; for an uploaded firmware the exporter adds the ROM requirement
+        and makes it format 3."""
         fields = json.loads(record)
+        parameters = fields['parameters']
+        board = ((FIRMWARE_UPLOAD, 1, 0),) if 'firmware_delivery' in parameters else ()
+        if parameters['guest_memory'] == 'hps-window':
+            board += (WINDOW_INTERFACE,)
         return encode_manifest({'format': 2,
             'core': {'id': fields['parameters']['core_id'], 'name': self.name, 'version': self.version,
                      'description': self.descriptions[fields['parameters']['model']]},
             'target': {'platform': 'de25_nano', 'device': DEVICE, 'programming_profile': 'de25-linux-computer-v1'},
             'payload': {'file': 'core.rbf', 'size': payload.stat().st_size, 'sha256': sha(payload)},
-            'abi': {'id': 'fes.computer', 'major': 1, 'minor': 0},
+            'abi': {'id': 'fes.computer', 'major': 1, 'minor': self.abi_minor},
             'interfaces': [{'id': name, 'major': major, 'minor': minor, 'required': True}
-                           for name, major, minor in (*((name, 1, 0) for name in SHELL), *self.interfaces,
-                                                      (FIRMWARE_UPLOAD, 1, 0), ('fes.fabric.de25-scanout', 1, 3))],
+                           for name, major, minor in (*((name, 1, 0) for name in self.shell), *self.interfaces,
+                                                      *board, ('fes.fabric.de25-scanout', 1, 3))],
             'build': {'id': build_identity(record), 'repository': fields['repository'],
                 'revision': fields['revision'], 'recipe_sha256': fields['recipe_sha256'],
                 'toolchain': '; '.join(f'{name} {value}' for name, value in sorted(fields['tools'].items()))}})
@@ -147,7 +184,7 @@ class Machine:
                           separators=(',', ':')).encode()
 
     def build(self, root=ROOT, *, quartus_root, vendor_archive, model=None, output=None, package_output=None,
-              compile_only=False, license_file=None):
+              compile_only=False, license_file=None, cache_root=None, gpu_router='HIP'):
         root = Path(root).resolve()
         if vendor_archive is None:
             raise BuildError(self.label + ' requires --vendor-archive or FES_DE25_VENDOR_ARCHIVE')
@@ -161,6 +198,14 @@ class Machine:
         model = self.model(spec, model)
         captured = board.capture(spec, revision)
         paths, identities = common.authenticate_tools(spec, quartus_root)
+
+        def front_end():
+            # Authenticated here, outside the controlled environment, and handed
+            # to the board's elaboration by the spec; never read from it.
+            if not hasattr(spec, 'authenticate_front_end'):
+                return {}
+            return {'yosys': spec.authenticate_front_end(cache_root=cache_root, gpu_router=gpu_router).identity}
+        identities = {**identities, **front_end()}
         with tempfile.TemporaryDirectory(prefix='fes-de25-' + self.directory + '-home-') as home:
             env = common.execution_environment(Path(home), paths, license_file=license_file)
             execution = common.execution_inputs(paths, env)
@@ -203,7 +248,8 @@ class Machine:
                     if not other['package_timing_admission'] or sha(payload) != sha(repeated):
                         raise BuildError(self.label + ' independent rebuild failed timing or changed RBF')
             if (self.require_clean_source(root) != (repository, revision) or
-                    common.authenticate_tools(spec, quartus_root) != (paths, identities) or
+                    common.authenticate_tools(spec, quartus_root)[0] != paths or
+                    {**common.authenticate_tools(spec, quartus_root)[1], **front_end()} != identities or
                     common.execution_inputs(paths, env) != execution or
                     self.create_build_record(root, repository, revision, identities, execution,
                                              board.capture(spec, revision), model=model) != record):
@@ -220,6 +266,8 @@ class Machine:
                 return output
             encoded = self.manifest(record, output / 'core.rbf')
             (output / 'manifest.toml').write_bytes(encoded)
+            if not uploads_firmware(spec):
+                return export_package(encoded, output / 'core.rbf', Path(package_output or root / 'build/packages'))
             (output / 'rom-map.json').write_bytes(self.rom_map(record, output / 'core.rbf'))
             return export_package(encoded, output / 'core.rbf', Path(package_output or root / 'build/packages'),
                                   rom_map=output / 'rom-map.json',
@@ -232,7 +280,10 @@ class Machine:
         parser.add_argument('--license-file', type=Path,
                             help='explicit local Quartus license; private copy and hash are bound to execution')
         parser.add_argument('--vendor-archive', type=Path, default=os.environ.get('FES_DE25_VENDOR_ARCHIVE') or None)
-        parser.add_argument('--cache-root', type=Path)
+        parser.add_argument('--cache-root', type=Path,
+                            help='toolchain cache for a netlist front end (pc386: the pc386 lock\'s Yosys)')
+        parser.add_argument('--gpu-router', choices=('HIP', 'CUDA'), default='HIP',
+                            help='which lock slot authenticates that Yosys; nothing routes on a GPU')
         parser.add_argument('--identity-version', type=int, choices=(2,), default=2)
         parser.add_argument('--model', choices=tuple(self.descriptions), default=next(iter(self.descriptions)))
         parser.add_argument('--output', type=Path)
@@ -242,6 +293,7 @@ class Machine:
         try:
             print(self.build(root=args.root, quartus_root=args.quartus_root, vendor_archive=args.vendor_archive,
                              model=args.model, output=args.output, package_output=args.package_output,
-                             compile_only=args.compile_only, license_file=args.license_file))
+                             compile_only=args.compile_only, license_file=args.license_file,
+                             cache_root=args.cache_root, gpu_router=args.gpu_router))
         except (OSError, ValueError, KeyError, RuntimeError, subprocess.CalledProcessError) as error:
             parser.exit(1, 'de25-' + self.directory + ': ' + str(error) + '\n')

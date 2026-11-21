@@ -361,7 +361,14 @@ def timing_evidence(directory, *, async_review=None, audio_review=None, revision
                              async_inputs.vendor_reference.output_findings(drc, timed_video=timed_video),
                     'basis': audio_proof['policy'] if audio_proof is not None else
                              async_inputs.vendor_reference.POLICY})
-    unreviewed = failed - len(reviewed)
+    # Coverage is per rule: each reviewed entry names one failed rule and
+    # accounts for every one of its rows, and no rule is reviewed twice, so
+    # one rule's bases can never stand in for another rule's absence.
+    reviewed_ids = [entry['id'] for entry in reviewed]
+    failed_ids = {r[0] for r in rows if int(r[2])}
+    if len(set(reviewed_ids)) != len(reviewed_ids) or not set(reviewed_ids) <= failed_ids:
+        raise BuildError('DE25 reviewed signoff findings must each name one distinct failed rule')
+    unreviewed = len(failed_ids - set(reviewed_ids))
     return {'signoff_rules': total, 'failed_rules': failed,
         'unreviewed_failed_rules': unreviewed, 'reviewed_findings': reviewed,
         **({'async_input_review': proof} if proof is not None else {}),

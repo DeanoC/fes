@@ -55,18 +55,29 @@ SOURCES = {
 }
 
 
-# A machine with its own PLL (Spectrum, Atari ST): the same serializer and
-# PCM crossing behind fes_de25_machine_audio, clocked by the machine PLL's
+# A machine with its own PLL (Spectrum, Atari ST, pc386): the same serializer
+# and PCM crossing behind fes_de25_machine_audio, clocked by the machine PLL's
 # second output in place of the stock audio PLL. This is a separate policy
 # with its own frozen sources; it borrows no fitted evidence from the ZX81.
+# Each machine's PLL is frozen by its own bytes. pc386's makes the same audio
+# master on another VCO divider (50 x 188/3 /255 = 50 x 188/15 /51).
 MACHINE_POLICY = fitted.MACHINE_POLICY
-MACHINE_CORES = {'fes.spectrum', 'fes.spectrum128', 'fes.atari-st'}
-MACHINE_SOURCES = {
+MACHINE_AUDIO_SOURCES = {
     'boards/de25nano/shared-rtl/fes_de25_machine_audio.v': 'e6e1335a12acc3160bf188fdb3b6019d434a5ab727527768477dbe5d93ed8310',
     'cores/fes-common/rtl/fes_audio_output.v': 'e686a035484907d1690d7e0cd8e91d6ace86146b38bf4d85d4f500690ddfb0dd',
     'cores/fes-common/rtl/fes_audio_i2s.v': '14c24da8c166a623c41bc0ae57fc26c345ed6c419f825f2ba1f4f5057c4435f4',
-    'boards/de25nano/machine/machine_pll.ip': '52890ca22dea5743d009dc5a10035918b54565cd9886c0c201a8022019a8d4b4',
 }
+SHARED_MACHINE_PLL = ('boards/de25nano/machine/machine_pll.ip',
+                      '52890ca22dea5743d009dc5a10035918b54565cd9886c0c201a8022019a8d4b4')
+MACHINE_PLLS = {'fes.spectrum': SHARED_MACHINE_PLL, 'fes.spectrum128': SHARED_MACHINE_PLL,
+                'fes.atari-st': SHARED_MACHINE_PLL,
+                'fes.pc386': ('boards/de25nano/pc386/machine_pll.ip',
+                              'd7fde9016686e6486b102dbc252c49f99397dff5f322fbae0abe04eefe02f5ba')}
+MACHINE_CORES = set(MACHINE_PLLS)
+
+
+def machine_sources(core_id):
+    return {**MACHINE_AUDIO_SOURCES, MACHINE_PLLS[core_id][0]: MACHINE_PLLS[core_id][1]}
 
 
 def require(condition, message):
@@ -120,10 +131,11 @@ def eligible_machine(directory, record):
     require(params.get('core_id') in MACHINE_CORES and
             all(type(params.get(k)) is type(v) and params[k] == v for k, v in expected.items()),
             'requires a standard machine-PLL profile')
-    require(all(record['source_inputs'].get(name) == sha for name, sha in MACHINE_SOURCES.items()),
+    sources = machine_sources(params['core_id'])
+    require(all(record['source_inputs'].get(name) == sha for name, sha in sources.items()),
             'reviewed machine audio implementation/source changed')
     project = directory / 'combined/hps/project'
-    files = {project / 'fes_mailbox' / Path(name).name: digest for name, digest in MACHINE_SOURCES.items()}
+    files = {project / 'fes_mailbox' / Path(name).name: digest for name, digest in sources.items()}
     require(all(not p.is_symlink() and async_inputs.sha(p) == digest for p, digest in files.items()),
             'compiled machine audio implementation differs from the reviewed source')
     top = project / 'golden_top.v'
