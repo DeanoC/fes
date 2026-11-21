@@ -103,7 +103,8 @@ def probe(host: str, edition: str, timeout: float = 60) -> dict:
     # A host that times out or answers garbage is one failed probe, not a
     # failed pick: the other host can still take the job.
     try:
-        result = subprocess.run(command, input=PROBE, capture_output=True, text=True, timeout=max(timeout, 1))
+        with quartus_tools.stdin_program():
+            result = subprocess.run(command, input=PROBE, capture_output=True, text=True, timeout=max(timeout, 1))
         if result.returncode:
             return {"host": host, "error": (result.stderr or result.stdout).strip()[-300:]}
         data = json.loads(result.stdout)
@@ -823,7 +824,8 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
 
     previous = {sig: signal.signal(sig, cancel) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
     try:
-        dispatched = _dispatch(target, script)
+        with quartus_tools.stdin_program():
+            dispatched = _dispatch(target, script)
         capped = False
         while dispatched.poll() is None and not cancelled:
             # The host enforces the deadline once its shell runs; until then
@@ -843,7 +845,8 @@ def remote(edition: str, host: str, revision: str, label: str, command: list[str
                     "{ kill -TERM $(ps -o pid= --ppid $pid) 2>/dev/null; kill -TERM $pid; }")
             stopper = ["bash", "-s"] if host == local_host() else [*SSH, host, "bash -s"]
             try:
-                subprocess.run(stopper, input=stop + "\n", text=True, timeout=60, check=False)
+                with quartus_tools.stdin_program():
+                    subprocess.run(stopper, input=stop + "\n", text=True, timeout=60, check=False)
             except subprocess.TimeoutExpired:
                 pass
             try:

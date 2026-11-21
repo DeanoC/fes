@@ -721,6 +721,61 @@ def require_quartus_lease(argv, search_path: str | None = None, cwd=None) -> Non
                 f"under scripts/quartus_jobs.py run --edition {edition}")
 
 
+_stdin_programs = threading.local()
+
+
+@contextmanager
+def stdin_program():
+    """Mark launches in this block as feeding a program this code generated to
+    a shell or interpreter on stdin (quartus_jobs.py's remote program, stop
+    program and host probe). Any other launch whose program would come from
+    stdin is refused: the hook cannot read it."""
+    _stdin_programs.active = getattr(_stdin_programs, "active", 0) + 1
+    try:
+        yield
+    finally:
+        _stdin_programs.active -= 1
+
+
+INTERPRETERS = SHELLS | {"python", "python3", "perl", "ruby", "node", "tclsh"}
+
+
+def _reads_program_from_stdin(texts: list[str]) -> bool:
+    """A shell or interpreter with no program argument (or -s, or -), which
+    reads its program from stdin."""
+    if not texts:
+        return False
+    name = os.path.basename(texts[0])
+    if not (name in INTERPRETERS or re.fullmatch(r"python3(\.\d+)?", name)):
+        return False
+    rest = texts[1:]
+    if any(re.fullmatch(r"-[A-Za-z]*c[A-Za-z]*", t) or t in ("-e", "-m") for t in rest):
+        return False  # the program is an argument
+    operands = [t for t in rest if not t.startswith("-") or t == "-"]
+    return "-s" in rest or not operands or operands[0] == "-"
+
+
+def _check_stdin_program(texts: list[str]) -> None:
+    if getattr(_stdin_programs, "active", 0):
+        return
+    command = texts
+    if command and os.path.basename(command[0]) == "ssh":
+        index = 1
+        while index < len(command) and command[index].startswith("-"):
+            option = command[index]
+            index += 2 if (len(option) == 2 and option[1] in "BbcDEeFIiJLlmOoPpQRSWw") else 1
+        remote_words = []
+        for text in command[index + 1:]:
+            remote_words.extend(text.split())
+        if not remote_words or _reads_program_from_stdin(remote_words):
+            raise QuartusLeaseError("refusing ssh that runs a program from its stdin, which cannot be checked "
+                                    "for an unleased Quartus program: use scripts/quartus_jobs.py remote")
+        return
+    if _reads_program_from_stdin(command):
+        raise QuartusLeaseError("refusing a shell or interpreter that reads its program from stdin, which "
+                                "cannot be checked for an unleased Quartus program: pass it as an argument")
+
+
 def _check_remote_quartus(argv) -> None:
     """ssh runs its command on another host, whose lease this process cannot
     hold: a remote command naming a leased Quartus program is refused unless
@@ -796,6 +851,10 @@ def _check_launch(argv, env, cwd=None, executable=None) -> None:
     so a --help in one cannot excuse a program in another. Bare names resolve
     on the child's PATH, relative paths against its working directory."""
     _check_remote_quartus(argv)
+    plain = [argv] if isinstance(argv, (str, bytes, os.PathLike)) else list(argv or ())
+    plain = [os.fsdecode(t) if isinstance(t, (bytes, os.PathLike)) else str(t) for t in plain]
+    if not isinstance(argv, (str, bytes)):
+        _check_stdin_program(plain)
     # ssh inside shell code (sh -c 'ssh host quartus_fit top'): each simple
     # command of each shell payload is checked as a command line of its own.
     texts = [argv] if isinstance(argv, (str, bytes, os.PathLike)) else list(argv or ())

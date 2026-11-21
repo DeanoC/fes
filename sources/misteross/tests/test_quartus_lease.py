@@ -1080,6 +1080,15 @@ class LaunchGuardTests(unittest.TestCase):
         with qt.quartus_lease("lite"), qt.quartus_lease("pro"):
             with self.assertRaises(qt.QuartusLeaseError):
                 subprocess.run(["sh", "-c", "env -u ssh ssh host /remote/bin/quartus_[f]it top"])
+        # Codex P1 at 5f9fe167a: a program fed on stdin, which the hook cannot
+        # read, locally or over ssh; quartus_jobs marks its own.
+        for argv in (["ssh", "host"], ["ssh", "host", "sh -s"], ["sh"], ["bash", "-s"], ["python3", "-"]):
+            with self.assertRaises(qt.QuartusLeaseError, msg=argv):
+                subprocess.run(argv, input="true\n", text=True, capture_output=True)
+        with qt.stdin_program():
+            self.assertEqual(subprocess.run(["sh"], input="true\n", text=True).returncode, 0)
+        self.assertEqual(subprocess.run(["sh", "-c", "true"]).returncode, 0)
+        self.assertEqual(subprocess.run(["python3", "-c", "pass"]).returncode, 0)
         # Codex P1 at 00058c57d: ssh behind an execution wrapper.
         for argv in (["env", "ssh", "host", "/remote/bin/quartus_fit", "top"],
                      ["env", "-i", "X=1", "timeout", "60", "nice", "-n", "5", "ssh", "host", "quartus_sh", "-t", "x"],
@@ -1293,8 +1302,9 @@ class JobsTests(unittest.TestCase):
         (fake / "df").write_text("#!/bin/sh\necho Avail; echo 12G\n")
         (fake / "df").chmod(0o755)
         script = script.replace(self.jobs.PROJECTS, str(root / "projects"))
-        result = subprocess.run(["bash", "-s"], env=dict(os.environ, PATH=f"{fake}:{os.environ['PATH']}"),
-                                capture_output=True, text=True, input=script)
+        with qt.stdin_program():
+            result = subprocess.run(["bash", "-s"], env=dict(os.environ, PATH=f"{fake}:{os.environ['PATH']}"),
+                                    capture_output=True, text=True, input=script)
         self.assertEqual(result.returncode, 75, result.stderr)
         self.assertIn("refusing", result.stderr)
         self.assertEqual(list((root / "projects/runs").iterdir()), [])
@@ -1652,7 +1662,8 @@ class JobsTests(unittest.TestCase):
         # caller created.
         self.assertLess(script.index("remote set-url origin https://github.com/DeanoC/fes"),
                         script.index("fetch -q origin"))
-        self.assertEqual(subprocess.run(["bash", "-n", "-s"], input=script, text=True).returncode, 0)
+        with qt.stdin_program():
+            self.assertEqual(subprocess.run(["bash", "-n", "-s"], input=script, text=True).returncode, 0)
         lite, _ = self.jobs.remote_script(commit="b" * 40, host="powerboat", home="/home/u", edition="lite",
                                          label="", command=["true"], stamp="s", origin="https://example/x")
         self.assertIn("export QUARTUS_ROOTDIR=/home/u/intelFPGA_lite/17.0/quartus", lite)
@@ -1734,8 +1745,9 @@ class JobsTests(unittest.TestCase):
         (fake / "df").write_text("#!/bin/sh\necho Avail; echo 400G\n")
         (fake / "df").chmod(0o755)
         script = script.replace(self.jobs.PROJECTS, str(root / "projects"))
-        result = subprocess.run(["bash", "-s"], env=dict(os.environ, PATH=f"{fake}:{os.environ['PATH']}"),
-                                capture_output=True, text=True, input=script)
+        with qt.stdin_program():
+            result = subprocess.run(["bash", "-s"], env=dict(os.environ, PATH=f"{fake}:{os.environ['PATH']}"),
+                                    capture_output=True, text=True, input=script)
         self.assertNotEqual(result.returncode, 0)
         (run_dir,) = (root / "projects/runs").iterdir()
         self.assertEqual(json.loads((run_dir / "result.json").read_text())["status"], "setup-failed")
