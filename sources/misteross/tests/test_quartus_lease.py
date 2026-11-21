@@ -679,6 +679,18 @@ class JobsTests(unittest.TestCase):
         self.assertIn("refusing", result.stderr)
         self.assertEqual(list((root / "projects/runs").iterdir()), [])
 
+    def test_the_peak_counts_a_descendant_with_a_scrubbed_environment(self):
+        # The counterexample for the environment token alone: a producer that
+        # runs Quartus under a controlled environment (functional_execution).
+        run_dir = Path(self.directory.name) / "scrubbed"
+        run_dir.mkdir()
+        grandchild = "block = bytearray(96 * 1024 * 1024); import time; time.sleep(1.5)"
+        code = ("import subprocess, sys; raise SystemExit(subprocess.run([sys.executable, '-c', %r],"
+                " start_new_session=True, env={}).returncode)") % grandchild
+        with mock.patch.dict(os.environ, {"FES_QUARTUS_RUN_DIR": str(run_dir)}):
+            self.assertEqual(self.jobs.run("lite", "test", [sys.executable, "-c", code], sample_seconds=0.2), 0)
+        self.assertGreater(json.loads((run_dir / "peak-rss.json").read_text())["peak_rss_kib"], 96 * 1024)
+
     def test_run_returns_the_job_exit_code(self):
         self.assertEqual(self.jobs.run("pro", "", ["sh", "-c", "exit 7"], sample_seconds=0.1), 7)
 

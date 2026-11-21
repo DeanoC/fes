@@ -32,8 +32,9 @@ Powerboat sat idle.
   runs under `python3 scripts/quartus_jobs.py run --edition lite|pro -- …`
   (from `sources/misteross`).
   `run` holds the slot until every process of the job has exited, found by an
-  environment token, so a compile left in the background or daemonized
-  still counts. It stops the job at its time cap (`--cap-minutes`, default
+  environment token and by parentage, so a compile left in the background
+  or daemonized still counts, and so does one a producer starts with a
+  scrubbed environment. It stops the job at its time cap (`--cap-minutes`, default
   240): SIGTERM to every process, SIGKILL after a minute, exit 124.
   It prints a heartbeat every minute, also written to the run directory's
   `heartbeat` file. `run` and `remote` refuse a filesystem with under 30 GiB

@@ -147,29 +147,42 @@ HEARTBEAT_SECONDS = 60
 MIN_FREE_GIB = 30
 
 
-def job_processes(token: str) -> dict[int, int]:
+def job_processes(token: str, root: int | None = None) -> dict[int, int]:
     """Every live process of one `run` job, with its resident memory (KiB).
 
-    A job's processes are those whose environment carries its token. That
-    finds Quartus stages in their own sessions and processes a script left
-    in the background or that daemonized, which parentage and process groups
-    both miss once the launcher has exited."""
+    A job's processes are those whose environment carries its token, plus
+    every descendant of those and of root. The token finds a Quartus stage in
+    its own session, or one a script left in the background or daemonized,
+    after its launcher has exited; parentage finds the processes a producer
+    starts with a scrubbed environment (functional_execution does)."""
     marker = f"{JOB_TOKEN}={token}".encode()
     page_kib = os.sysconf("SC_PAGE_SIZE") // 1024
-    found = {}
+    parents, rss, tagged = {}, {}, set()
     for entry in os.listdir("/proc"):
         if not entry.isdigit() or int(entry) == os.getpid():
             continue
+        pid = int(entry)
         try:
-            if marker not in Path(f"/proc/{entry}/environ").read_bytes().split(b"\0"):
-                continue
             fields = Path(f"/proc/{entry}/stat").read_bytes().rsplit(b")", 1)[1].split()
             if fields[0] == b"Z":
                 continue
-            found[int(entry)] = int(Path(f"/proc/{entry}/statm").read_text().split()[1]) * page_kib
+            parents[pid] = int(fields[1])
+            rss[pid] = int(Path(f"/proc/{entry}/statm").read_text().split()[1]) * page_kib
+            if marker in Path(f"/proc/{entry}/environ").read_bytes().split(b"\0"):
+                tagged.add(pid)
         except (OSError, IndexError, ValueError):
             continue
-    return found
+    children: dict[int, list[int]] = {}
+    for pid, parent in parents.items():
+        children.setdefault(parent, []).append(pid)
+    found, pending = set(), [*tagged, *([root] if root in parents else [])]
+    while pending:
+        pid = pending.pop()
+        if pid in found:
+            continue
+        found.add(pid)
+        pending.extend(children.get(pid, ()))
+    return {pid: rss[pid] for pid in found}
 
 
 def _signal_all(pids, number: int) -> None:
@@ -204,7 +217,7 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
 
         def relay(number, _frame):
             pending_signal.append(number)
-            _signal_all([process.pid, *job_processes(token)], number)
+            _signal_all([process.pid, *job_processes(token, process.pid)], number)
 
         previous = {sig: signal.signal(sig, relay) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
         peak, code, capped, killed_at = 0, None, False, None
@@ -212,14 +225,14 @@ def run(edition: str, label: str, command: list[str], sample_seconds: float = 5.
         deadline, beat = started + cap_seconds, started
         try:
             while True:
-                live = job_processes(token)
+                live = job_processes(token, process.pid)
                 peak = max(peak, sum(live.values()))
                 if code is None:
                     try:
                         code = process.wait(timeout=sample_seconds)
                     except subprocess.TimeoutExpired:
                         pass
-                    live = job_processes(token)
+                    live = job_processes(token, process.pid)
                 if code is not None and not live:
                     break
                 if code is not None and live and not capped:
