@@ -3,10 +3,14 @@
 from pathlib import Path
 import argparse
 import json
+import re
 import sys
 import xml.etree.ElementTree as ET
 
-import build as spectrum
+if __package__:
+    from . import build as spectrum
+else:
+    import build as spectrum
 
 
 def matched_video_sdc(source):
@@ -112,13 +116,26 @@ def jtag_stream_constraints(directory, *, generate=False):
     return receipt
 
 
-def project(archive, output):
+def project(archive, output, *, revision=None, selected_id=None):
     board = spectrum.board
-    output, scanout, _, hps, _ = board.prepare(spectrum, archive, output, model="native48", native_hps=True)
+    if selected_id is not None and (not revision or not re.fullmatch(r"[0-9a-f]{32}", selected_id) or
+                                    selected_id == "0" * 32):
+        raise ValueError("native Spectrum package projection requires a committed build identity")
+    output, scanout, _, hps, _ = board.prepare(spectrum, archive, output, revision,
+                                               model="native48", native_hps=True)
     directory = output / "combined/hps"
     project = directory / "project"
     script_path = project / "integrate-mailbox.tcl"
     script = script_path.read_text()
+    inputs_path = directory / "inputs.json"
+    inputs = json.loads(inputs_path.read_text())
+    if selected_id is not None:
+        base_id = inputs["scanout"]["build_id"]
+        script = board.replace_once(script, f"set_instance_parameter_value fes_scanout BUILD_ID 0x{base_id}\n",
+                                    f"set_instance_parameter_value fes_scanout BUILD_ID 0x{selected_id}\n")
+        inputs["scanout"]["build_id"] = selected_id
+        inputs["scanout"]["build_identity_scheme"] = "canonical-standard-computer-v2"
+        inputs[board.RECORD]["build_id"] = selected_id
     hps_system = hps.tcl_word(project / "hps_subsys/hps_subsys.qsys")
     jtag_system = hps.tcl_word(project / "jtag_subsys/jtag_subsys.qsys")
     top_system = hps.tcl_word(project / "qsys_top.qsys")
@@ -160,8 +177,6 @@ add_connection fes_native_maintenance_reset.out_reset subsys_debug.reset
     top_path = project / "golden_top.v"
     top_path.write_text(board.replace_once(top_path.read_text(), "qsys_top soc_inst (",
         "qsys_top soc_inst (\n.fes_native_maintenance_reset_reset_n(1'b0),"))
-    inputs_path = directory / "inputs.json"
-    inputs = json.loads(inputs_path.read_text())
     video_constraints = project / "fes_mailbox/clocks.sdc"
     video_constraints.write_text(scanout.timed_scanout_sdc(
         matched_video_sdc(video_constraints.read_text())))
@@ -188,6 +203,11 @@ add_connection fes_native_maintenance_reset.out_reset subsys_debug.reset
     inputs["scanout"]["compiled_top_sha256"] = board.sha(top_path.read_bytes())
     inputs["scanout"]["rendered_integration_sha256"] = board.sha(script_path.read_bytes())
     inputs_path.write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")
+    snapshot_path = output / "snapshot.json"
+    snapshot = json.loads(snapshot_path.read_text())
+    snapshot[board.RECORD] = inputs[board.RECORD]
+    snapshot["native_spectrum_hps"] = inputs["native_spectrum_hps"]
+    snapshot_path.write_text(json.dumps(snapshot, indent=2, sort_keys=True) + "\n")
     return output, hps, scanout
 
 
@@ -311,6 +331,23 @@ def verify_handoff(output, hps, scanout):
               "shared_fifo_resets": fifo_resets,
               "firmware_admission": False, "package_signoff": False}
     (directory / "native-spectrum-handoff.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+
+
+def compile_package_candidate(output, hps, scanout, tool):
+    """Produce reviewed-chain inputs for the ordinary package gate."""
+    directory = output / "combined/hps"
+    before = verify_handoff(output, hps, scanout)
+    artifact = hps.compile_project(directory, tool)
+    if verify_handoff(output, hps, scanout) != before:
+        raise ValueError("native Spectrum handoff changed during compile")
+    exported = hps.linux_configuration_artifacts(directory, tool, artifact, hps_initialization="HPS FIRST")
+    if verify_handoff(output, hps, scanout) != before:
+        raise ValueError("native Spectrum handoff changed during phase export")
+    (directory / "generation.json").write_text(json.dumps({
+        "scope": "native-spectrum48-package-candidate-v1",
+        "handoff_sha256": hps.digest(directory / "native-spectrum-handoff.json"),
+        **exported,
+    }, indent=2, sort_keys=True) + "\n")
 
 
 def main(argv=None):

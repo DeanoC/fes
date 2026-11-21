@@ -38,6 +38,8 @@ SOURCE_ROOTS = sorted([*common.SOURCE_ROOTS, 'cores/fes-common/generated'])
 REVIEW_INPUTS = (*common.REVIEW_INPUTS, 'boards/de25nano/scanout/audio_reference.py',
                  'boards/de25nano/scanout/audio_clocks.tcl',
                  'boards/de25nano/producers/review_audio_clocks.py')
+NATIVE_SPECTRUM_PROFILE = 'de25-native-spectrum48-v1'
+NATIVE_SPECTRUM_COMPOSER = 'boards/de25nano/spectrum/native_hps.py'
 DEVICE = common.DEVICE
 SHELL = ('fes.video.fixed-720p60', 'fes.keyboard.hid', 'fes.gamepad.ports',
          'fes.audio.pcm-s16-stereo-48k', 'fes.video.session-display', 'fes.fabric.video.display-plane')
@@ -97,7 +99,10 @@ class Machine:
         if captured is None:
             captured = spec.board.capture(spec, revision)
         top = Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], cwd=root, text=True).strip())
-        roots, closure = common.captured_source_closure(root, SOURCE_ROOTS, captured, self.recipe, REVIEW_INPUTS)
+        profile = self.model_profiles.get(model, 'de25-linux-computer-v1')
+        native_spectrum = profile == NATIVE_SPECTRUM_PROFILE
+        review_inputs = (*REVIEW_INPUTS, NATIVE_SPECTRUM_COMPOSER) if native_spectrum else REVIEW_INPUTS
+        roots, closure = common.captured_source_closure(root, SOURCE_ROOTS, captured, self.recipe, review_inputs)
         fields = {'format': 2, 'toolchain': 'quartus', 'repository': repository, 'revision': revision,
             'source_path': root.relative_to(top).as_posix(), 'source_roots': roots, 'source_inputs': closure,
             'recipe': self.recipe, 'recipe_sha256': sha(root / self.recipe), 'abi_definition': ABI,
@@ -105,11 +110,10 @@ class Machine:
             'parameters': {'core_id': self.core_id_for(model), 'rom_id': self.rom_id_for(model),
                 'model': model, 'device': DEVICE,
                 'hps_initialization': 'HPS FIRST', 'source_closure_policy': common.SOURCE_POLICY,
-                'f2sdram_master_profile': 'scanout-only', 'fabric_initiator_policy': common.MANAGED_FABRIC,
-                'programming_profile': self.model_profiles.get(model, 'de25-linux-computer-v1'),
-                # Both use the same scanout-only GHRD topology. The native
-                # package has a different owner/runtime admission profile.
-                'standard_core': True, 'linux_dma': True,
+                'f2sdram_master_profile': 'native-scanout-and-probe' if native_spectrum else 'scanout-only',
+                'fabric_initiator_policy': 'native-maintenance-held-reset-v1' if native_spectrum else common.MANAGED_FABRIC,
+                'programming_profile': profile,
+                'standard_core': True, 'linux_dma': not native_spectrum,
                 'expansion_socket': False, 'guest_memory': 'board-sdram',
                 'firmware_delivery': UPLOAD_ENCODING, 'firmware_bytes': spec.FIRMWARE_BYTES[model],
                 'machine_clock_hz': spec.board.MACHINE_HZ, 'audio_clock_requested_hz': 12288000,
@@ -184,11 +188,23 @@ class Machine:
             print(self.label + ' build: ' + str(output), flush=True)
             with common.controlled_environment(env):
                 def compile_at(name):
-                    selected, scanout, combined, hps, display = board.prepare(
-                        spec, vendor_archive, output / name, revision, model, package_build_id=selected_id)
-                    board.generate(spec, selected, scanout, combined, hps, display,
-                        paths['quartus'], identities['quartus'].split(' sha256:')[0])
-                    board.compile_board(spec, selected, scanout, hps, display, paths['quartus'])
+                    native_spectrum = self.model_profiles.get(model) == NATIVE_SPECTRUM_PROFILE
+                    if native_spectrum:
+                        from boards.de25nano.spectrum import native_hps
+                        selected, hps, scanout = native_hps.project(vendor_archive, output / name,
+                                                                     revision=revision, selected_id=selected_id)
+                        native_hps.generate(selected, hps, scanout, quartus_root)
+                        native_hps.compile_package_candidate(selected, hps, scanout, paths['quartus'])
+                    else:
+                        selected, scanout, combined, hps, display = board.prepare(
+                            spec, vendor_archive, output / name, revision, model, package_build_id=selected_id)
+                        board.generate(spec, selected, scanout, combined, hps, display,
+                            paths['quartus'], identities['quartus'].split(' sha256:')[0])
+                        board.compile_board(spec, selected, scanout, hps, display, paths['quartus'])
+                    if native_spectrum and not compile_only:
+                        raw = common.timing_evidence(selected)
+                        (output / (name + '-raw-timing.json')).write_text(
+                            json.dumps(raw, indent=2, sort_keys=True) + '\n')
                     # Compile-only is deliberately unadmitted: retain every raw rule
                     # without borrowing a reviewed input/output receipt from another fit.
                     review = None if compile_only else async_inputs.collect(

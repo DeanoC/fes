@@ -51,7 +51,7 @@ class MachineProducerTests(unittest.TestCase):
                          for name, value in captured.items()})
         for name in (spectrum.RECIPE, atari_st.RECIPE, shared.SHARED, shared.ABI, 'boards/de25nano/build.py',
                      'boards/de25nano/quartus.lock', 'boards/de25nano/package/core_package.py',
-                     'boards/de25nano/package/export_core_package.py', *shared.REVIEW_INPUTS):
+                     'boards/de25nano/package/export_core_package.py', shared.NATIVE_SPECTRUM_COMPOSER, *shared.REVIEW_INPUTS):
             data.setdefault(name, (ROOT / name).read_bytes())
         for root in shared.SOURCE_ROOTS:
             if not Path(root).suffix and not any(name.startswith(root + '/') for name in data):
@@ -136,6 +136,13 @@ class MachineProducerTests(unittest.TestCase):
         payload.write_bytes(b'unqualified native payload fixture')
         self.addCleanup(payload.unlink)
         record = self.record(spectrum, 'native48')
+        fields = verify_record_source_at_revision(self.root, record)
+        self.assertIn(shared.NATIVE_SPECTRUM_COMPOSER, fields['source_inputs'])
+        self.assertEqual(fields['parameters']['f2sdram_master_profile'], 'native-scanout-and-probe')
+        self.assertFalse(fields['parameters']['linux_dma'])
+        linux = json.loads(self.record(spectrum, '48'))
+        self.assertNotIn(shared.NATIVE_SPECTRUM_COMPOSER, linux['source_inputs'])
+        self.assertTrue(linux['parameters']['linux_dma'])
         manifest = tomllib.loads(spectrum.manifest(record, payload).decode())
         self.assertEqual(manifest['target']['programming_profile'], 'de25-native-spectrum48-v1')
         self.assertNotEqual(build_identity(record), build_identity(self.record(spectrum, '48')))
