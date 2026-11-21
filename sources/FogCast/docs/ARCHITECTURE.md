@@ -4470,7 +4470,11 @@ FPGA identity reports those two interfaces. Application machines have no
 removable-media unit, so this path needs no media-unit identity or selection;
 the computer path retains its existing media-unit checks. The agent's input
 fence holds delivery during each transition, but only a launcher-focus request
-retires held keys and neutralizes the mouse. Controller-port releases received
+retires held keys and neutralizes the mouse. HID keyboard holds and keys pressed
+while focused are suppressed per source until release; delayed frames cannot
+cross a focus cycle. A refused transition reconciles a pending neutral before
+resuming machine input, and an unconfirmed neutral remains retryable.
+Controller-port releases received
 while the launcher has focus clear their retained source snapshot without
 being sent to the core, so released buttons cannot replay when focus returns.
 The agent-authorized launcher display callback accepts the kit-local host’s
